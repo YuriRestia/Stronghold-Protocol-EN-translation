@@ -527,7 +527,7 @@ export function makeCtx(m, ps, source, hook, ev = null) {
         const name = got && got.name;
         if (name) {
           const who = grantSpeaker(gd, source);
-          m.toast(ps, 'info', who ? `${who}：获得${name}` : `获得${name}`);
+          m.toast(ps, 'info', who ? '{0}：获得{1}' : '获得{0}', who ? [who, name] : [name]);
         }
       }
       return p ? view(p) : null;

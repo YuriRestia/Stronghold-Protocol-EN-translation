@@ -19,6 +19,7 @@
 // `loadData(...)` to await, or the `useData(...)` hook to re-render when files arrive.
 
 import { useEffect, useReducer } from '../vendor/hooks.module.js';
+import { ensureI18n, trDeep } from './i18n.js';
 
 /** Known data files (name → URL basename). Unknown names are allowed too (`/data/<name>.json`). */
 export const DATA_FILES = Object.freeze({
@@ -118,6 +119,7 @@ export function createDataStore(opts = {}) {
   const timeoutMs = opts.timeoutMs === undefined ? ART_MANIFEST_TIMEOUT_MS : Number(opts.timeoutMs);
   const armTimer = opts.setTimeout || ((fn, ms) => setTimeout(fn, ms));
   const disarmTimer = opts.clearTimeout || ((id) => clearTimeout(id));
+  const translate = opts.translate !== false;
   /** @type {Map<string, { status: 'loading'|'ready'|'missing', promise: Promise<any>, value: any, index: Map<string, any>|null }>} */
   const entries = new Map();
   const listeners = new Set();
@@ -177,7 +179,9 @@ export function createDataStore(opts = {}) {
       let toldMissing = false;
       for (let attempt = 0; ; attempt++) {
         try {
-          entry.value = await readJson(name);
+          let json = await readJson(name);
+          if (translate) { await ensureI18n(); json = trDeep(json); } // English display texts (js/i18n.js)
+          entry.value = json;
           entry.status = 'ready';
           break;
         } catch (err) {

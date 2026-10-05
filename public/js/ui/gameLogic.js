@@ -844,8 +844,8 @@ export function readyFundsPrompt(priv, { ready = true, keptBands = null, autopla
   const kept = Array.isArray(keptBands) ? keptBands : ['band_cannot'];
   if (typeof priv.bandId === 'string' && kept.includes(priv.bandId)) return null;
   return {
-    title: '剩余资金', micro: 'FUNDS LEFT', okText: '准备就绪', cancelText: '继续整备',
-    text: `还有 ${funds} 资金未使用。休整期结束时，本回合的剩余资金将清零。确定准备就绪吗？`,
+    title: T('剩余资金'), micro: 'FUNDS LEFT', okText: T('准备就绪'), cancelText: T('继续整备'),
+    text: T('还有 {0} 资金未使用。休整期结束时，本回合的剩余资金将清零。确定准备就绪吗？', funds),
   };
 }
 

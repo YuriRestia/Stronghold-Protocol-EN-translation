@@ -67,10 +67,10 @@ export function ExitModal({ open, onClose, solo, onAway }) {
     onClose();
   };
   if (spectator) {
-    return html`<${Modal} open=${open} onClose=${onClose} tone="red" title="离开观战" micro="LEAVE SPECTATING" width="6.8rem"
-      actions=${html`<${Button} variant="secondary" onClick=${onClose}>取消<//>
-        <${Button} variant="danger" icon="exit" loading=${busy === 'quit'} onClick=${quit}>离开观战<//>`}>
-      <div class="exitm"><p>离开观战席并返回大厅，本局模拟不受影响；观战席空着时可以凭同盟密钥再次观战。</p></div>
+    return html`<${Modal} open=${open} onClose=${onClose} tone="red" title=${T('离开观战')} micro="LEAVE SPECTATING" width="6.8rem"
+      actions=${html`<${Button} variant="secondary" onClick=${onClose}>${T('取消')}<//>
+        <${Button} variant="danger" icon="exit" loading=${busy === 'quit'} onClick=${quit}>${T('离开观战')}<//>`}>
+      <div class="exitm"><p>${T('离开观战席并返回大厅，本局模拟不受影响；观战席空着时可以凭同盟密钥再次观战。')}</p></div>
     <//>`;
   }
   const away = async () => {

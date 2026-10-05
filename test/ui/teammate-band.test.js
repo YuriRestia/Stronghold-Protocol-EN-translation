@@ -38,7 +38,7 @@ describe('the drawer shows the watched player\'s 策略 while scouting', () => {
   test('InfoTab overrides the band and labels it with the owner (source); the detail card has no 策略 section', () => {
     const drawer = read('public/js/ui/enemyDrawer.js');
     assert.match(drawer, /const band = \(bandId \|\| priv\?\.bandId\) \? data\.lookup\('bands', bandId \|\| priv\.bandId\) : null/);
-    assert.match(drawer, /bandOwner \? `\$\{bandOwner\} 的策略` : '我的策略'/);
+    assert.match(drawer, /bandOwner \? T\('\{0\} 的策略', bandOwner\) : T\('我的策略'\)/);
     const panel = read('public/js/ui/detailPanel.js');
     assert.doesNotMatch(panel, /key="band"/, 'no 策略 section on the detail card');
     assert.doesNotMatch(panel, /'band'/, "CHESS_SECTIONS has no 'band' block");
