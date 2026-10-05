@@ -48,6 +48,7 @@
 
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { lang } from './i18n.js';
 
 const MAX_VOICES = 8;
 const UNIT_COOLDOWN_MS = 160;
@@ -427,6 +428,8 @@ export class AudioManager {
    */
   constructor(opts = {}) {
     this.getManifest = typeof opts.getManifest === 'function' ? opts.getManifest : () => null;
+    // display language: 'en' plays `audio.voiceEn` (own-language dub > EN > JP), else the 中文 `audio.voice`
+    this.lang = opts.lang === 'en' ? 'en' : 'zh';
     this.random = typeof opts.random === 'function' ? opts.random : Math.random;   // a unit sound's chance (mix.p)
     this.win = opts.win ?? (typeof window !== 'undefined' ? window : null);
     this.ctx = null;
@@ -821,7 +824,9 @@ export class AudioManager {
     try {
       if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
-      const line = this.getManifest()?.audio?.voice?.[charId]?.[slot];
+      const a = this.getManifest()?.audio;
+      // English mode: the operator's English-mode dub when the manifest has one (an older manifest has no voiceEn)
+      const line = (this.lang === 'en' && a?.voiceEn?.[charId]?.[slot]) || a?.voice?.[charId]?.[slot];
       const url = Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line;
       if (typeof url !== 'string' || !url) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -1009,7 +1014,7 @@ export class AudioManager {
 
 let manifestGetter = () => null;
 /** App-wide audio manager. */
-export const audio = new AudioManager({ getManifest: () => manifestGetter() });
+export const audio = new AudioManager({ getManifest: () => manifestGetter(), lang });
 
 /**
  * Wire the singleton to the app (called once by main.js): manifest source, settings and store-driven BGM.

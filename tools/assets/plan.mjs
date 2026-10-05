@@ -20,7 +20,7 @@
 
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, VOICE_DIRS, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
 
@@ -141,6 +141,14 @@ function voiceAlt(asset, lang) {
   return alt(`audio/voice/${lang}/${file}`, joinUrl(RAW.aa2voice, `${VOICE_DIRS[lang]}/${file}`));
 }
 
+/** The same line from an operator's own-language dub (audio.mjs nativeVoiceDirs) → `audio/voice/native/<dir>/cn_023.mp3`. */
+function nativeVoiceAlt(asset, dir) {
+  const voiceId = String(asset).split('/')[1];
+  if (!dir || !/^[a-z0-9_]+$/.test(dir) || !voiceId || !/^[a-z]{2}_\d+$/i.test(voiceId)) return null;
+  const file = `${dir}/${voiceId.toLowerCase()}.mp3`;
+  return alt(`audio/voice/native/${file}`, joinUrl(RAW.aa2voice, `${VOICE_CUSTOM_DIR}/${file}`));
+}
+
 /** Sound path under sound_beta_2 → alternative under public/assets/audio/<sub>. */
 function soundAlt(path, sub = 'sfx') {
   const rel = `audio/${sub}/` + path.split('/').map(safeName).join('/');
@@ -195,6 +203,23 @@ function walkKeys(node, add) {
  * @param {any} ops03 docs/research/03-operators.json
  * @returns {Map<string, number[]>}
  */
+/**
+ * English-mode battle voice by the operator's nation (owner's decision): an operator of 炎 (the setting's China) speaks
+ * the CN dub and one of 东 (its Japan) the JP dub, when it has no own-language dub of its own. Every other nation —
+ * 龙门 included: its operators here either have an own-language dub or are not Chinese-coded (能天使 is a Laterano
+ * Sankta working for 企鹅物流) — speaks EN.
+ */
+export const NATION_VOICE = Object.freeze({ yan: 'cn', higashi: 'jp' });
+
+/** charId → official nationId (research 03 chess list, the backup operators included). */
+export function nationsByChar(ops03) {
+  const out = new Map();
+  for (const c of Array.isArray(ops03?.chess) ? ops03.chess : []) {
+    for (const x of [c, c?.backup]) if (typeof x?.charId === 'string' && typeof x.nationId === 'string' && !out.has(x.charId)) out.set(x.charId, x.nationId);
+  }
+  return out;
+}
+
 export function skillIndicesByChar(ops03) {
   const primary = new Map();
   const all = new Map();
@@ -564,17 +589,29 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // client never requests them, and downloading them adds 360 files / 19.3 MB to every `npm run assets` — pass --voice-all for
   // the complete official set (`voiceSlots: null`, reviewer note on the voice PR).
   const voice = {};
+  // English-mode dub (`audio.voiceEn`, public/js/audio.js voice): each line is one leaf whose alternatives are the
+  // operator's own-language dub (意大利语 / 俄文 / 西班牙语 / 中文-方言, where the official data has one), then the dub
+  // of its nation (NATION_VOICE: 炎 → CN, 东 → JP), then EN, then JP — the first one upstream has wins, line by line.
+  // 中文 mode keeps `audio.voice` (voiceLang, cn by default).
+  const voiceEn = {};
+  const nativeDirs = nativeVoiceDirs(charword);
+  const charNations = nationsByChar(ops03);
   for (const [charId, slots] of indexVoice(charword, VOICE_ID_LANG, voiceSlots)) {
     if (!chars[charId]) continue;            // only the operators this game can field (the 138-pool charIds)
     const v = {};
+    const ve = {};
     for (const [slot, assets] of Object.entries(slots)) {
       // one leaf per line (部署1 / 部署2 …): an array stays an array so the client can draw one — chaining them as
       // alternatives of a single leaf would keep only the first line that landed on disk.
       const lines = assets.map((a) => leaf(voiceAlt(a, voiceLang))).filter(Boolean);
-      if (!lines.length) continue;
-      v[slot] = lines.length === 1 ? lines[0] : lines;
+      if (lines.length) v[slot] = lines.length === 1 ? lines[0] : lines;
+      const nation = NATION_VOICE[charNations.get(charId)];
+      const en = assets.map((a) => leaf(nativeVoiceAlt(a, nativeDirs.get(charId)), nation ? voiceAlt(a, nation) : null,
+        voiceAlt(a, 'en'), voiceAlt(a, 'jp'))).filter(Boolean);
+      if (en.length) ve[slot] = en.length === 1 ? en[0] : en;
     }
     if (Object.keys(v).length) voice[charId] = v;
+    if (Object.keys(ve).length) voiceEn[charId] = ve;
   }
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
 
@@ -584,6 +621,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       bgm,
       bossBgm: Object.fromEntries(Object.entries(bossBgm).sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))),
       voice,
+      voiceEn,
       sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx },
     },
   };

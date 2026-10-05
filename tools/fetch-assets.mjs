@@ -164,6 +164,7 @@ function countStats(m, bytes, files) {
     ui: Object.keys(m.ui || {}).length,
     sfxUnits: Object.keys(m.audio?.sfx?.units || {}).length,
     voiceChars: Object.keys(m.audio?.voice || {}).length,
+    voiceEnChars: Object.keys(m.audio?.voiceEn || {}).length,
   };
 }
 
@@ -333,7 +334,7 @@ async function main() {
   log(`on disk (manifest)  : ${mb(s.bytes)} in ${s.files} files`);
   log(`chars ${s.chars} (Back model ${s.charsWithBack}) · enemies ${s.enemies} (Spine ${s.enemiesWithSpine}) · tokens ${s.tokens} (Spine ${s.tokensWithSpine}) · Spine models ${s.spineModels}`);
   log(`bonds ${s.bonds} · items ${s.items} · bands ${s.bands} · skill icons ${s.skills} · UI ${s.ui} · units with SFX ${s.sfxUnits}`);
-  log(`operator battle voice: ${s.voiceChars} charIds (--voice-lang=${opts.voiceLang})`);
+  log(`operator battle voice: ${s.voiceChars} charIds (--voice-lang=${opts.voiceLang}), English mode ${s.voiceEnChars} (own language > nation > EN > JP)`);
   log(`fonts: ${Object.values(fonts.files).map((f) => f.woff2 || f.original).join(', ') || 'none'}`);
   if (resolved.fallbacks.length) { log(`fallbacks used (${resolved.fallbacks.length}):`); for (const f of resolved.fallbacks.slice(0, 20)) log(`  ${f}`); }
   if (downloadErrors.length) log(`download errors (${downloadErrors.length}, re-run to retry): ${downloadErrors.slice(0, 10).join(', ')}`);

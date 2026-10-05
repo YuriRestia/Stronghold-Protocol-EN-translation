@@ -297,6 +297,34 @@ describe('operator battle voice', () => {
     }
   });
 
+  test('voice language: English mode plays audio.voiceEn, 中文 mode audio.voice; a missing voiceEn falls back', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const vm = { audio: { sfx: { ui: {}, battle: {}, units: {} },
+        voice: { char_a: { start: '/v/cn/a_start.mp3', place: '/v/cn/a_place.mp3' }, char_b: { start: '/v/cn/b_start.mp3' } },
+        voiceEn: { char_a: { start: '/v/native/a_start.mp3' } } } };
+      const play = async (lang, charId, slot) => {
+        const a = new AudioManager({ win: fw.win, getManifest: () => vm, lang });
+        a.voiceGate = new VoiceGate({ gapMs: 0 });
+        a.install();
+        fw.fire('pointerdown');
+        await new Promise((r) => setTimeout(r, 10));
+        assert.equal(a.voice(charId, slot, { unitKey: 1 }), true, `${lang} ${charId}.${slot}`);
+        await new Promise((r) => setTimeout(r, 10));
+        return a.voiceNode?.url;
+      };
+      assert.equal(await play('en', 'char_a', 'start'), '/v/native/a_start.mp3', 'English mode: the voiceEn line');
+      assert.equal(await play('zh', 'char_a', 'start'), '/v/cn/a_start.mp3', '中文 mode keeps the CN dub');
+      assert.equal(await play(undefined, 'char_a', 'start'), '/v/cn/a_start.mp3', 'no lang given: 中文');
+      assert.equal(await play('en', 'char_a', 'place'), '/v/cn/a_place.mp3', 'a slot voiceEn lacks: the CN line');
+      assert.equal(await play('en', 'char_b', 'start'), '/v/cn/b_start.mp3', 'an operator voiceEn lacks: the CN line');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   test('voice: a stale callback never frees the channel the newest line holds (review on #73)', async () => {
     const fw = fakeWindow();
     const origFetch = globalThis.fetch;

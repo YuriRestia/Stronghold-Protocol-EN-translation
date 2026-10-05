@@ -16,7 +16,7 @@ import { resolveRoles, roleAnimationNames } from '../tools/assets/anim-roles.mjs
 import { normalizeAtlas, atlasInfo, parseAtlas } from '../tools/assets/atlas.mjs';
 import { pngSize, isCompletePng, isMp3, validate } from '../tools/assets/formats.mjs';
 import { encodeWoff2, decodeWoff2Tables, readSfnt, uintBase128 } from '../tools/assets/woff2.mjs';
-import { assetToPath, pickUnitSfx, indexAudio } from '../tools/assets/audio.mjs';
+import { assetToPath, pickUnitSfx, indexAudio, nativeVoiceDirs } from '../tools/assets/audio.mjs';
 import { mirrorUrl, safeName, encodePath } from '../tools/assets/sources.mjs';
 import { collectEnemyIds, skillIndicesByChar, buildPlan, GUIDE_PAGES, UI_EXTRAS } from '../tools/assets/plan.mjs';
 import { resolveTemplate, collectLeaves } from '../tools/assets/manifest.mjs';
@@ -530,6 +530,55 @@ describe('emotes and 玩法说明 pages from the public mirror (GitHub issue #42
 });
 
 // ---------------------------------------------------------------------------
+describe('English-mode battle voice (audio.voiceEn: own-language dub > EN > JP)', () => {
+  const charword = {
+    voiceLangTypeDict: {
+      CN_MANDARIN: { groupType: 'CN_MANDARIN' }, EN: { groupType: 'EN' }, JP: { groupType: 'JP' },
+      ITA: { groupType: 'CUSTOM' }, RUS: { groupType: 'CUSTOM' }, LINKAGE: { groupType: 'LINKAGE' },
+    },
+    voiceLangDict: {
+      char_a: { dict: { CN_MANDARIN: { wordkey: 'char_a' }, EN: { wordkey: 'char_a' }, ITA: { wordkey: 'char_a_ITA' } } },
+      char_b: { dict: { CN_MANDARIN: { wordkey: 'char_b' }, RUS: { wordkey: 'char_b' } } },
+      char_c: { dict: { CN_MANDARIN: { wordkey: 'char_c' }, EN: { wordkey: 'char_c' }, LINKAGE: { wordkey: 'char_c_x' } } },
+    },
+    charWords: {
+      a1: { charId: 'char_a', wordKey: 'char_a', voiceId: 'CN_019', placeType: 'BATTLE_START', voiceIndex: 1, voiceAsset: 'char_a/CN_019' },
+      a2: { charId: 'char_a', wordKey: 'char_a_ITA', voiceId: 'CN_019', placeType: 'BATTLE_START', voiceIndex: 1, voiceAsset: 'char_a_ITA/CN_019' },
+      c1: { charId: 'char_c', wordKey: 'char_c', voiceId: 'CN_019', placeType: 'BATTLE_START', voiceIndex: 1, voiceAsset: 'char_c/CN_019' },
+    },
+  };
+
+  const rels = (l) => l.alts.map((x) => x.rel);
+
+  test('nativeVoiceDirs: CUSTOM dubs only, folder = lower-case word key', () => {
+    const d = nativeVoiceDirs(charword);
+    assert.equal(d.get('char_a'), 'char_a_ita');
+    assert.equal(d.get('char_b'), 'char_b', 'a dub on the base word key');
+    assert.equal(d.has('char_c'), false, 'a collab (LINKAGE) voice is no own-language dub');
+    assert.equal(nativeVoiceDirs({}).size, 0);
+  });
+
+  test('buildPlan: voiceEn leaves chain native → nation (炎 CN / 东 JP) → EN → JP; voice stays the CN dub', () => {
+    const operators = { char_a: {}, char_c: {}, char_y: {}, char_h: {} };
+    const words = { ...charword.charWords };
+    for (const id of ['char_y', 'char_h']) words[id] = { charId: id, wordKey: id, voiceId: 'CN_019', placeType: 'BATTLE_START', voiceIndex: 1, voiceAsset: `${id}/CN_019` };
+    // char_a is of 炎 too: its own-language dub still comes first
+    const ops03 = { chess: [{ charId: 'char_a', nationId: 'yan' }, { charId: 'char_y', nationId: 'yan' }, { charId: 'char_c', nationId: 'lungmen' },
+      { charId: 'char_x', backup: { charId: 'char_h', nationId: 'higashi' } }] };
+    const { template } = buildPlan({ assets07: { operators }, ops03, enemies05: {}, maps05: {}, audio: indexAudio({}), modelsData: {},
+      charword: { ...charword, charWords: words } });
+    assert.deepEqual(rels(template.audio.voiceEn.char_y.start),
+      ['audio/voice/cn/char_y/cn_019.mp3', 'audio/voice/en/char_y/cn_019.mp3', 'audio/voice/jp/char_y/cn_019.mp3'], '炎 → the CN dub first');
+    assert.deepEqual(rels(template.audio.voiceEn.char_h.start).slice(0, 2),
+      ['audio/voice/jp/char_h/cn_019.mp3', 'audio/voice/en/char_h/cn_019.mp3'], '东 → the JP dub first');
+    assert.deepEqual(rels(template.audio.voice.char_a.start), ['audio/voice/cn/char_a/cn_019.mp3']);
+    assert.deepEqual(rels(template.audio.voiceEn.char_a.start),
+      ['audio/voice/native/char_a_ita/cn_019.mp3', 'audio/voice/cn/char_a/cn_019.mp3', 'audio/voice/en/char_a/cn_019.mp3', 'audio/voice/jp/char_a/cn_019.mp3']);
+    assert.match(template.audio.voiceEn.char_a.start.alts[0].urls[0], /\/voice_custom\/char_a_ita\/cn_019\.mp3$/);
+    assert.deepEqual(rels(template.audio.voiceEn.char_c.start), ['audio/voice/en/char_c/cn_019.mp3', 'audio/voice/jp/char_c/cn_019.mp3'], '龙门: EN');
+  });
+});
+
 describe('generated manifest data/assets.json', () => {
   const haveManifest = existsSync(MANIFEST);
   const haveAssets = existsSync(ASSETS);

@@ -141,7 +141,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   hash: 'a1b2c3d4e5f6',             // content hash (cache busting)
   generator: 'tools/fetch-assets.mjs',
   stats: { files, bytes, chars, charsWithBack, enemies, enemiesWithSpine, tokens, tokensWithSpine,
-           spineModels, bonds, items, bands, skills, ui, sfxUnits, voiceChars },
+           spineModels, bonds, items, bands, skills, ui, sfxUnits, voiceChars, voiceEnChars },
   chars:   { [charId]: { avatar, avatarE2?, portrait, portraitE2?, spine: { front: Spine, back?: Spine } } },
   enemies: { [enemyId]: { icon, spine?: Spine, spineAliasOf?: enemyId,
                           spineLocal?: { group, skel, atlas, textures, …Spine } } },
@@ -174,6 +174,12 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                            // prep-only slots 干员报到 / 编入队伍 / 任命队长 are left out of the plan by default —
                            // nothing requests them and they cost 360 files (19.3 MB) per run — and `--voice-all` adds
                            // them (audio.mjs VOICE_PREP_SLOTS) for the complete official set
+    voiceEn: { [charId]: { …the same slots… } },
+                           // English display mode's dub of the same lines: per line, the operator's own-language dub
+                           // (charword voiceLangDict, groupType CUSTOM: 意大利语 / 俄文 / 西班牙语 / 中文-方言 —
+                           // `voice_custom/{wordkey}/` → audio/voice/native/) when it has one, else its nation's dub
+                           // (plan.mjs NATION_VOICE: 炎 → CN, 东 → JP), else EN (voice_en/), else JP (voice/).
+                           // 中文 mode plays `voice`; English mode falls back to `voice` for a missing entry
     sfx: {
       ui:     { click, back, confirm, tab, pick, drop, error, buy, sell, income, refresh, freeze, levelup,
                 merge, equip, itemMerge, bondUp, artPlace, ready, timer, draft, yourTurn, yourTurnCircle,
