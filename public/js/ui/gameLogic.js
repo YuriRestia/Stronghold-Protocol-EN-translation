@@ -4,8 +4,8 @@
 // light legal tiles while dragging; the server stays authoritative and may still refuse a move.
 //
 //   Board = own normal field (GEO.FIELD rows 9–12, cols 2–10). Melee chess stand on `melee` deploy tiles
-//   (LOW, buildable ALL/MELEE) — a 钩索师 / 推击手 ("可以放置于远程位", chess.json `placement` 'all') on any deploy
-//   tile, the 高台 included (piecePosition 'ALL'); ranged chess on `melee ∪ rangedOnly` (stages.json → deployTiles.normal,
+//   (LOW, buildable ALL/MELEE) — elite 歌蕾蒂娅 carrying HOK-Y (shared/highGround.js, the player's loadout) on any
+//   deploy tile, the 高台 included (piecePosition 'ALL'); ranged chess on `melee ∪ rangedOnly` (stages.json → deployTiles.normal,
 //   derived from the tile legend when missing — the legend's `buildable` is the effective type: 深水区 tile_deepsea
 //   refuses deployment, PRTS 深水区 地形信息 "拒绝部署（待补充）", player report #3 after 0.1.0). Tokens follow their
 //   own `position`; a summon whose text reads "只能部署在召唤者攻击范围内" (tokens.json `ownerRange`: 伺夜's 狼群,
@@ -24,6 +24,7 @@
 import { GEO, PHASE, UF } from '../../../shared/constants.js';
 import { resolveLoadout, loadoutOptions, MODULE_NONE } from '../../../shared/protocol.js';
 import { resolveRecordLoadout, loadoutRecord, attackRangeGrid } from '../../../shared/loadoutRecord.js';
+import { meleeOnHighGround } from '../../../shared/highGround.js';
 import { rangeTiles, pieceDir } from './facing.js';
 import { layoutPen } from '../render/pen.js';
 import { BOSS_ROW_SHIFT, MAX_COL } from '../render/prepfield.js';
@@ -151,6 +152,13 @@ export function fieldTile(field, r, c) {
 export function boardTileOf(field, r, c) {
   if (field !== 'bossL' && field !== 'bossR') return [r, c];
   return [r - BOSS_ROW_SHIFT, field === 'bossR' ? MAX_COL - c : c];
+}
+
+/** The band (策略) a player picked, from m.public.players[].bandId (Match.js marksPublic) — the detail card shows it
+ *   on a teammate's unit (user playtest #2 item 2: watching a teammate revealed nothing about their 策略). */
+export function ownerBandId(pub, ownerId) {
+  const p = Array.isArray(pub?.players) ? pub.players.find((x) => x && x.playerId === ownerId) : null;
+  return typeof p?.bandId === 'string' && p.bandId ? p.bandId : null;
 }
 
 /** Banner shown when a phase starts: { title, sub?, tone } or null. */
@@ -371,8 +379,10 @@ export function activeBubbles(emotes, now, ttl = 3000) {
 // ---- bonds -------------------------------------------------------------------------------------------
 
 /**
- * Sort bonds for the strip: active first, then layers desc, count desc, tier desc, core first, id.
- * @template {{bondId:string, active?:boolean, layers?:number, count?:number, tier?:number}} B
+ * Sort bonds for the strip: active first, then layers desc, count desc, tier desc, core first, id; the mode-off bonds
+ * (`off`: the server's entries for the bonds this mode never activates that the player has members of —
+ * server/match/bondsMeta.js offBondCounts) after all the others.
+ * @template {{bondId:string, active?:boolean, layers?:number, count?:number, tier?:number, off?:boolean}} B
  * @param {B[]} bonds
  * @param {(id:string)=>any} [getBond]
  * @returns {B[]}
@@ -381,7 +391,8 @@ export function sortBonds(bonds, getBond = () => null) {
   const list = (Array.isArray(bonds) ? bonds : []).filter((b) => isObj(b) && typeof b.bondId === 'string');
   const n = (v) => (Number.isFinite(v) ? v : 0);
   return [...list].sort((a, b) => (
-    (b.active ? 1 : 0) - (a.active ? 1 : 0)
+    (a.off ? 1 : 0) - (b.off ? 1 : 0)
+    || (b.active ? 1 : 0) - (a.active ? 1 : 0)
     || n(b.layers) - n(a.layers)
     || n(b.count) - n(a.count)
     || n(b.tier) - n(a.tier)
@@ -513,10 +524,11 @@ export function harmonyMembers(priv, getChess = () => null) {
 }
 
 /**
- * Member rows of a bond popup: every visible member with owned / on-board / banned state, plus the player's operators
- * that are members through 变形同构体 (grantedBonds; `granted: true` and `items`: the item ids of the copy that wears the
- * pair — the card the row opens shows them; one row per operator — normal and elite copies are one member, like the
- * count's distinct members), so "成员 x/y" agrees with the count the server reports (在场).
+ * Member rows of a bond popup: every visible member with owned / on-board / in-hand / banned state, plus the player's
+ * operators that are members through 变形同构体 (grantedBonds; `granted: true` and `items`: the item ids of the copy that
+ * wears the pair — the card the row opens shows them; one row per operator — normal and elite copies are one member,
+ * like the count's distinct members), so "成员 x/y" agrees with the count the server reports (在场; memberHeadCount).
+ * `inHand`: in the 整备区 (hand), not the 5 temporary slots — what BOARD_AND_DECK bonds (投资人 远见 奇迹) count.
  * @param {any} bond bonds.json record
  * @param {any} priv m.private (hand/board/temp) — or a teammate's field operators (ui/watchBonds.js ownerBoard)
  * @param {Set<string>|string[]} [banned] banned base chess ids
@@ -529,8 +541,9 @@ export function bondMembers(bond, priv, banned = [], getChess = () => null, getI
   const baseOf = (id) => getChess(id)?.baseId || (typeof id === 'string' ? id.replace(/_b$/, '_a') : id);
   const onBoard = new Set();
   const owned = new Set();
+  const inHand = new Set();
   const memberSet = new Set(members);
-  /** base id → { on: on the board?, items: the wearer's item ids } — operators of the player that join this bond through 变形同构体 */
+  /** base id → { on: on the board?, hand: in the hand?, items: the wearer's item ids } — operators of the player that join this bond through 变形同构体 */
   const granted = new Map();
   const grants = (p) => typeof bond?.bondId === 'string' && grantedBonds(p.items, getItem).includes(bond.bondId);
   const itemIds = (p) => p.items.map((it) => (typeof it === 'string' ? it : it?.id)).filter((x) => typeof x === 'string');
@@ -538,23 +551,43 @@ export function bondMembers(bond, priv, banned = [], getChess = () => null, getI
     if (p?.kind !== 'chess') continue;
     const base = baseOf(p.id);
     onBoard.add(base); owned.add(base);
-    if (!memberSet.has(base) && !granted.has(base) && grants(p)) granted.set(base, { on: true, items: itemIds(p) });
+    if (!memberSet.has(base) && !granted.has(base) && grants(p)) granted.set(base, { on: true, hand: false, items: itemIds(p) });
   }
-  for (const p of [...(Array.isArray(priv?.hand) ? priv.hand : []), ...(Array.isArray(priv?.temp) ? priv.temp : [])]) {
-    if (p?.kind !== 'chess') continue;
-    const base = baseOf(p.id);
-    owned.add(base);
-    if (!memberSet.has(base) && !granted.has(base) && grants(p)) granted.set(base, { on: false, items: itemIds(p) });
+  for (const [list, hand] of [[priv?.hand, true], [priv?.temp, false]]) {
+    for (const p of Array.isArray(list) ? list : []) {
+      if (p?.kind !== 'chess') continue;
+      const base = baseOf(p.id);
+      owned.add(base);
+      if (hand) inHand.add(base);
+      if (memberSet.has(base) || !grants(p)) continue;
+      const g = granted.get(base);
+      if (!g) granted.set(base, { on: false, hand, items: itemIds(p) });
+      else if (hand) g.hand = true;
+    }
   }
   const rows = members.map((id) => {
     const c = getChess(id);
-    return { id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: onBoard.has(id), owned: owned.has(id), banned: bannedSet.has(id) };
+    return { id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: onBoard.has(id), owned: owned.has(id), inHand: inHand.has(id), banned: bannedSet.has(id) };
   });
   for (const [id, g] of granted) {
     const c = getChess(id);
-    rows.push({ id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: g.on, owned: true, banned: false, granted: true, items: g.items });
+    rows.push({ id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: g.on, owned: true, inHand: g.hand, banned: false, granted: true, items: g.items });
   }
   return rows.sort((a, b) => (b.onBoard - a.onBoard) || (b.owned - a.owned) || (a.tier - b.tier) || (a.id < b.id ? -1 : 1));
+}
+
+/**
+ * The member count of a bond popup's 成员 header: the rows on the board — and, for a bond that counts the hand
+ * (`countsHand`: BOARD_AND_DECK — 投资人 远见 奇迹; the server's 在场 says （含整备区）), those in the hand too (the 5
+ * temporary slots never count), so the header agrees with 在场 (community report 「投资人等在休整区就能生效的盟约不生效」:
+ * the header said 0/n with the members in the hand while 在场 said 3/3).
+ * @param {Array<{ onBoard?: boolean, inHand?: boolean }>} rows bondMembers rows @param {boolean} [countsHand]
+ * @returns {number}
+ */
+export function memberHeadCount(rows, countsHand = false) {
+  let n = 0;
+  for (const r of Array.isArray(rows) ? rows : []) if (r && (r.onBoard || (countsHand && r.inHand))) n++;
+  return n;
 }
 
 /**
@@ -607,9 +640,10 @@ export function briefingBondTip(name, state, bannedN = 0) {
  * The bonds a mode never activates (config.json modes[modeId].inactiveBondIds = the official modeDataDict
  * inactiveBondIdList: 标准模拟 leaves 拉特兰 阿戈尔 卡西米尔 灵巧 奥术 奇迹 投资人 突袭 独行 绝技 off). Operators that also carry an
  * enabled bond stay in the pool (server pool.js drawDisabledBonds) — 标准's 深靛 洛洛 阿罗玛 夕 圣聆初雪 still show 奥术 — and
- * the server leaves such a bond out of m.private.bonds, so without a mark a card read "奥术 0/2 未激活" with three 奥术
+ * the server left such a bond out of m.private.bonds, so without a mark a card read "奥术 0/2 未激活" with three 奥术
  * operators deployed (player report after 0.1.0: "奥术盟约不生效"). The shop / reward cards, the detail card's bond chips
- * and the bond popup mark these 本局禁用 (briefingBondTip 'off').
+ * and the bond popup mark these 本局禁用 (briefingBondTip 'off'); since 0.1.3 the server also lists such a bond the player
+ * has members of (`off: true`, server/match/bondsMeta.js offBondCounts) and the strip shows it as a grey 本局禁用 disc.
  * @param {any} mode config.json modes[modeId] (data.js getMode), or null
  * @returns {Set<string>}
  */
@@ -680,7 +714,8 @@ export function mergeProgress(priv, chessId, getChess = () => null) {
 /**
  * Where the elite appears when gaining one more normal copy of `chessId` completes a merge now (PRTS 卫戍协议/帮助
  * "若消耗已部署至作战区的干员，则发送至作战区对应位置"; mirror of server board.js mergeTile / PlayerState._mergeChess): the
- * board tile of the deployed copy that deploys first (row desc, then col asc) — `{ row, col, dir }` — or null (no
+ * board tile of the deployed copy that deploys first (col asc, then row desc: by column from the left, top to bottom —
+ * Battle.start) — `{ row, col, dir }` — or null (no
  * merge — an elite card never merges, see mergeProgress — or no copy is deployed: the elite goes to the hand). The
  * copies stand on legal tiles, and the elite is the same operator, so the tile needs no legality check here.
  * @param {any} priv
@@ -696,7 +731,7 @@ export function mergeTarget(priv, chessId, getChess = () => null) {
   const board = (Array.isArray(priv?.board) ? priv.board : []).filter((p) => p?.kind === 'chess' && !p.golden && Number.isInteger(p.row) && Number.isInteger(p.col)
     && !String(p.id).endsWith('_b') && (p.id === base || getChess(p.id)?.baseId === base));
   if (!board.length) return null;
-  board.sort((a, b) => b.row - a.row || a.col - b.col);
+  board.sort((a, b) => a.col - b.col || b.row - a.row);
   return { row: board[0].row, col: board[0].col, dir: board[0].dir || 'RIGHT' };
 }
 
@@ -789,6 +824,29 @@ export function shopBlockReason(kind, { priv, editable, slot, getChess, getItem 
     return (Number(shop.upgradePrice) || 0) > funds ? T('资金不足') : null;
   }
   return null;
+}
+
+/**
+ * The 准备 confirmation (community report #4 after 0.1.2): readying with funds left asks first — the prep's end wipes
+ * them (PRTS 卫戍协议/帮助 「本回合的剩余资金将清零」; the server still does: PlayerState.endPrep). act2autochess constData
+ * `noMoneyTipsBand` — data/config.json economy.leftoverFundsKeptByBands, ["band_cannot"] — names the strategies whose
+ * funds carry over and that get no such tip (坎诺特 利滚利). No prompt for an un-ready, with 0 funds, when already ready
+ * or out, or under AI 托管 (the server plays the seat). The dialog's wording is the remake's own [ASSUMED]: neither the
+ * tables nor PRTS hold the official one.
+ * @param {any} priv m.private
+ * @param {{ ready?: boolean, keptBands?: string[]|null, autoplay?: boolean }} [opts] `ready`: the state asked for
+ * @returns {{ title: string, text: string, okText: string, cancelText: string, micro: string } | null}
+ */
+export function readyFundsPrompt(priv, { ready = true, keptBands = null, autoplay = false } = {}) {
+  if (!ready || autoplay || !isObj(priv) || priv.alive === false || priv.ready) return null;
+  const funds = Math.trunc(Number(priv.funds) || 0);
+  if (!(funds > 0)) return null;
+  const kept = Array.isArray(keptBands) ? keptBands : ['band_cannot'];
+  if (typeof priv.bandId === 'string' && kept.includes(priv.bandId)) return null;
+  return {
+    title: '剩余资金', micro: 'FUNDS LEFT', okText: '准备就绪', cancelText: '继续整备',
+    text: `还有 ${funds} 资金未使用。休整期结束时，本回合的剩余资金将清零。确定准备就绪吗？`,
+  };
 }
 
 // ---- placement (canPlace mirror) ------------------------------------------------------------------------
@@ -995,15 +1053,17 @@ export function placementContext({ priv, stage, editable, field = 'normal', getC
 }
 
 /**
- * Deploy position ('MELEE'|'RANGED'|'ALL') of a chess/token piece, or null for items. A MELEE operator whose branch
- * trait reads "可以放置于远程位" (钩索师, 推击手: chess.json `placement` 'all') is 'ALL': any deployable tile, the 高台
- * included (server/match/board.js positionClass; GitHub issue #32 item 4, DESIGN §22.6 [ASSUMED]).
+ * Deploy position ('MELEE'|'RANGED'|'ALL') of a chess/token piece, or null for items. Elite 歌蕾蒂娅 carrying HOK-Y
+ * (the viewer's loadout, shared/highGround.js) is 'ALL': any deployable tile, the 高台 included
+ * (server/match/board.js placeClass; owner's decision 2026-10-04). Every other MELEE chess is ground-only.
  */
 export function piecePosition(ctx, piece) {
   if (!isObj(piece)) return null;
   if (piece.kind === 'chess') {
     const rec = ctx.getChess(piece.id);
-    if (rec?.placement === 'all') return 'ALL';
+    let moduleId = null;
+    try { moduleId = resolveLoadout(ctx.priv?.loadout ?? null, rec, ctx.getChess)?.moduleId ?? null; } catch { moduleId = null; }
+    if (meleeOnHighGround(rec, moduleId)) return 'ALL';
     return rec?.position === 'MELEE' ? 'MELEE' : 'RANGED';
   }
   // tokens: MELEE → ground only; RANGED / ALL → any deployable tile
@@ -1485,11 +1545,11 @@ export function rangeGridBox(grid, mirror = false) {
 // ---- keyboard ---------------------------------------------------------------------------------------------------
 
 /**
- * Map a keydown to a game shortcut (R refresh, F freeze, D level-up, Space ready, Esc close).
+ * Map a keydown to a game shortcut (R refresh, F freeze, D level-up, Q retreat, X sell, Space ready, Esc close).
  * Space means ready even while a HUD button has focus (a mouse click leaves the shop card / 刷新 focused, and
  * Space must not re-trigger it); the caller prevents the button's own activation. Enter still activates buttons.
  * @param {{ key?: string, code?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, repeat?: boolean, target?: any }} e
- * @returns {'refresh'|'freeze'|'levelUp'|'ready'|'escape'|null}
+ * @returns {'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null}
  */
 export function shortcutFor(e) {
   if (!e || e.ctrlKey || e.metaKey || e.altKey) return null;
@@ -1503,6 +1563,8 @@ export function shortcutFor(e) {
   if (code === 'KeyR' || key === 'r') return 'refresh';
   if (code === 'KeyF' || key === 'f') return 'freeze';
   if (code === 'KeyD' || key === 'd') return 'levelUp';
+  if (code === 'KeyQ' || key === 'q') return 'retreat';
+  if (code === 'KeyX' || key === 'x') return 'sell';
   if (code === 'Space' || key === ' ') return 'ready';
   return null;
 }
@@ -1518,7 +1580,7 @@ export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail
  * Whether an open overlay swallows a game shortcut: a modal / the guide own the keyboard (Esc included — they close
  * themselves); the 本局信息 / 敌方情报 drawer is a dialog too — only Esc (it closes the drawer) passes, R / F / D / Space
  * never act behind it.
- * @param {'refresh'|'freeze'|'levelUp'|'ready'|'escape'|null} act shortcutFor
+ * @param {'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null} act shortcutFor
  * @param {{ modal?: boolean, drawer?: boolean }} open
  */
 export function shortcutBlocked(act, { modal = false, drawer = false } = {}) {

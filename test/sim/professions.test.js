@@ -175,6 +175,10 @@ test('dollkeeper: fatal damage ⇒ a 1 s switch, 20 s as the substitute (block 0
   assert.equal(h.b.applyStatus(u, 'stun', { duration: 5 }), false, '眩晕 immune');
   h.b.loseHp(u, 1e5);
   assert.ok(u.alive && u.trait.doll && u.hp >= 1, '不死');
+  const low = u.hp;
+  assert.ok(u.s.flags.noHeal && u.s.flags.healFree, '禁疗 during the switch');
+  assert.equal(h.b.heal(u, u, 500), 0, 'a self-heal does not land');
+  approx(u.hp, low);
   u.hp = 2000;
   h.run(1.05);
   assert.ok(u.trait.doll && !u.trait.dollSwitching, 'fighting as the substitute');
@@ -344,6 +348,16 @@ test('incantation medics heal an ally for 50 % of damage dealt; wandermedics cle
   h.unit('t_tank').hp = 1000;
   h.run(0.5);
   approx(h.unit('t_tank').hp, 1000 + 500, 1e-6);
+  // …and not only for attacks: the official trait buff is ON_AFTER_OUTPUT_DAMAGE (`vendla_tr` / `reed2_tr` / `titi_tr`),
+  // so ANY damage the 咒愈师 deals heals. The sim used to run the trait from the attack path (`profile.afterHit`) only,
+  // which is why 缇缇's 凝固的时光 ticks — and every 咒愈师 skill that damages without an attack — healed nothing.
+  h.unit('t_tank').hp = 1000;
+  h.b.dealDamage(h.unit('t_inc'), h.enemy('enemy_dummy'), { amount: 400, type: 'arts', isSkill: true });
+  approx(h.unit('t_tank').hp, 1000 + 200, 1e-6, 'skill damage heals 50 %');
+  // a gauge fill removes no HP: it is not "伤害" for the trait
+  h.unit('t_tank').hp = 1000;
+  h.b.emit?.('damaged', { source: h.unit('t_inc'), target: h.enemy('enemy_dummy'), amount: 400, type: 'element', dmg: null });
+  approx(h.unit('t_tank').hp, 1000, 1e-6, 'element 损伤 does not heal');
   const wm = chessRec({ id: 't_wm', profession: 'MEDIC', subProfessionId: 'wandermedic', attackKind: 'heal', dmgType: 'heal', rangeGrid: R3, skill: null, stats: { atk: 400 } });
   const h2 = makeBattle({ defs: { chess: { t_wm: wm, t_tank: tank } }, units: [{ chessId: 't_wm', row: 10, col: 4 }, { chessId: 't_tank', row: 10, col: 5 }], content: 'none' });
   h2.step();

@@ -241,8 +241,8 @@ export function batMod(v, chess = null, desc = '') {
 // =================================================================================================================
 // tier-local constants that exist nowhere in data
 
-/** Radius (tiles) of 波登可's spore cloud "在周围产生…孢子群" (no blackboard key; ≈ the 3×3 around the vial). */
-const SPORE_RADIUS = 1.2;
+/** Radius (tiles) of 波登可's spore cloud. No blackboard key; PRTS 波登可 备注 "孢子群范围半径为0.9，可对空". */
+const SPORE_RADIUS = 0.9;
 /** "周围8格" = Chebyshev ring 1 ⇒ Euclidean radius covering the 8 neighbours. */
 export const RING1 = 1.5;
 /** 普罗旺斯 杀戮嗅觉 "普通攻击不再以生命值高于80%的敌人作为目标" — the 80 % exists only in the skill text. */
@@ -476,10 +476,17 @@ export default {
     return {
       skills: { 'skcom_magic_rage[3]': { kind: 'duration', mods: { aspd: num(skillBbOf(chess, 'skcom_magic_rage[3]').attack_speed) } } },
       trait: {
-        afterHit(battle, u, target, info) {
-          if (!(info.dealt > 0)) return;
-          const ally = protege(u) ?? battle.lowestHpAllyInRange(u);
-          if (ally) battle.heal(u, ally, info.dealt * (u.profile.healRatio ?? 0.5), { tags: ['incantation'] });
+        // 咒愈师 trait: EVERY damage she deals heals an ally for 50 % of it (professions.js `installIncantation`,
+        // buff_template_data `vendla_tr` = ON_AFTER_OUTPUT_DAMAGE) — while 荆藤庇荫 runs her S2 says "仅对该角色触发刺玫
+        // 特性", so her protégé is the target then; otherwise it is the lowest-HP ally in range.
+        install(battle, u) {
+          battle.on('damaged', (c) => {
+            const t = c.target;
+            if (c.source !== u || !u.alive || !t || t.side !== 'enemy' || !(c.amount > 0)) return;
+            if (c.type === 'element' || c.type === 'elemental') return;
+            const ally = (c.dmg && c.dmg.traitAlly) || protege(u) || battle.lowestHpAllyInRange(u);
+            if (ally) battle.heal(u, ally, c.amount * (u.profile.healRatio ?? 0.5), { tags: ['incantation'] });
+          }, { owner: u });
         },
       },
       skill: {
@@ -501,9 +508,10 @@ export default {
         battle.on('damaged', (ctx) => {
           const p = protege(unit);
           if (!p || ctx.target !== p || !byEnemyAttack(ctx) || !ctx.source.alive || !unit.canAct) return;
-          const dealt = battle.dealDamage(unit, ctx.source, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, canDodge: false, tags: ['counter'] });
+          // "并仅对该角色触发刺玫特性": this counter damage is healed by the trait (install above) for the protégé — the
+          // damage instance names her, so no separate heal here (it would double)
+          battle.dealDamage(unit, ctx.source, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, canDodge: false, tags: ['counter'], traitAlly: p });
           battle.fx('counter', { x: ctx.source.x, y: ctx.source.y, id: unit.id });
-          if (dealt > 0) battle.heal(unit, p, dealt * (unit.profile.healRatio ?? 0.5), { tags: ['incantation'] });
         }, { owner: unit });
         if (hs !== 1) {
           let cacheT = -1, top = null;
@@ -750,8 +758,8 @@ export default {
   },
 
   // ---------------------------------------------------------------------------------------------------------------
-  // 1_13 波登可 孢子扩散: a vial bursts on the current target into a projectile_delay_time s spore cloud: enemies inside
-  // are 停顿 and lose their abilities (silence) and take atk_scale × ATK arts per second.
+  // 1_13 波登可 孢子扩散: a vial bursts on the current target into a projectile_delay_time s spore cloud (radius 0.9,
+  // PRTS 备注, 可对空): enemies inside are 停顿 and lose their abilities (silence) and take atk_scale × ATK arts per second.
   // 园丁: every 【辅助】 operator on the field ATK +atk. Elite module (DEC-X): +sp_recovery_per_sec SP/s with an enemy in range.
   // Alternate S1 花香疗法: ATK +atk, normal attacks heal the most injured ally in range instead (ATK per attack). A heal
   // skill: DEFAULT fires it with an injured ally inside her initial range (research 03 §1.4) — also checked every tick,

@@ -236,6 +236,8 @@
 .dfaction { display: inline-flex; align-items: center; gap: .04rem; font-size: .13rem; color: var(--amber); padding: 0 .08rem 0 .02rem; border: 1px solid rgba(246, 163, 41, .45); }
 .dfaction img { width: .22rem; height: .22rem; object-fit: contain; }
 .dabil { margin: 0; padding-left: .2rem; display: flex; flex-direction: column; gap: .05rem; font-size: .15rem; line-height: 1.6; color: var(--text-md); }
+.dabil li.is-off { color: var(--text-dim); }
+.dabil li.is-off .rt-term { color: var(--text-dim); border-bottom-color: transparent; }
 
 /* ---- bond popup ---- */
 .bpop {
@@ -585,7 +587,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .uframe__btn:hover:not(:disabled) .uframe__glyph { background: #ff4a2b; }
 .uframe__btn:hover:not(:disabled) .uframe__plate { filter: brightness(1.12) drop-shadow(0 0 .08rem rgba(255, 198, 90, .7)); }
 .uframe__btn--destroy:hover:not(:disabled) .uframe__plate { filter: brightness(1.12) drop-shadow(0 0 .08rem rgba(255, 90, 60, .7)); }
-.uframe__label { font-size: .14rem; font-weight: 700; letter-spacing: .12em; padding: 0 .06rem; background: rgba(8, 11, 10, .82); text-shadow: 0 1px 2px #000; }
+.uframe__label { font-size: .14rem; font-weight: 700; letter-spacing: .12em; white-space: nowrap; padding: 0 .06rem; background: rgba(8, 11, 10, .82); text-shadow: 0 1px 2px #000; }
 .uframe__btn--sell .uframe__label { color: #ffd98a; }
 .uframe__price { position: absolute; right: -.12rem; top: -.06rem; --hex-h: .24rem; }
 
