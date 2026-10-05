@@ -153,9 +153,9 @@ function SpectatorBar({ facts, myId, busy, onRemove, onSit }) {
   </section>`;
 }
 
-function InviteBox({ code }) {
+function InviteBox({ code, name, difficulty }) {
   const copy = async (what) => {
-    const ok = await copyText(what === 'code' ? code : inviteLink(code));
+    const ok = await copyText(what === 'code' ? code : `${inviteLink(code)} ${T('{0}邀请你加入卫戍协议：盟约【{1}】', name, T(DIFFICULTY_NAMES[difficulty] || ''))}`);
     if (ok) toast(what === 'code' ? T('已复制同盟密钥 {0}', code) : T('已复制邀请链接'), 'success');
     else toast(T('复制失败，请手动复制'), 'warn');
   };
@@ -280,7 +280,7 @@ export function RoomScreen() {
         <h1 class="topbar__title">${coop ? T('同盟模拟') : T('独立模拟')}<span class="topbar__sep"></span><${DifficultyTag} difficulty=${room.difficulty} size="lg" /></h1>
       </div>
       <div class="topbar__right">
-        ${coop ? html`<${InviteBox} code=${room.code} />` : html`<div class="solo-note"><${MicroLabel}>SINGLE OPERATOR<//><span>${T('仅限 1 名博士')}</span></div>`}
+        ${coop ? html`<${InviteBox} code=${room.code} name=${me.name} difficulty=${room.difficulty} />` : html`<div class="solo-note"><${MicroLabel}>SINGLE OPERATOR<//><span>${T('仅限 1 名博士')}</span></div>`}
       </div>
     </header>
 
