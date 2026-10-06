@@ -76,6 +76,10 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
+//   * Matchmaking (a remake feature, DESIGN §25; the rules are in server/matchmaker.js): room.search {on} (host, co-op,
+//     every other human ready) marks the room searching; the matchmaker merges searching rooms of the same difficulty
+//     whole into one (mergeRooms; spectators that do not fit get room.closed {merged}) and a full searching room starts
+//     by itself (autoStart). room.state carries `searching` / `searchSince`.
 
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
@@ -84,6 +88,7 @@ import { checkLoadout } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
+import { Matchmaker, groupReady, roomSize } from './matchmaker.js';
 
 /** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -151,6 +156,10 @@ export class Room {
     this.matchKey = null;
     this.createdAt = now;
     this.disposed = false;
+    /** matchmaking (server/matchmaker.js): the host's room.search, and since when (server ms) */
+    this.searching = false;
+    /** @type {number | null} */
+    this.searchSince = null;
   }
 
   /** @param {string} playerId @returns {Seat | null} */
@@ -181,6 +190,8 @@ export class Room {
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
         : null)),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected })),
+      searching: this.searching,
+      searchSince: this.searchSince,
     };
   }
 }
@@ -214,6 +225,7 @@ export class Lobby {
     this.resyncTimers = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
+    this.matchmaker = new Matchmaker(this, options);
   }
 
   /** @param {string} code @returns {Room | null} */
@@ -292,6 +304,7 @@ export class Lobby {
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
       case 'room.removeSpectator': return this.removeSpectator(session, msg);
+      case 'room.search': return this.search(session, msg);
       default:
         if (typeof msg.t === 'string' && msg.t.startsWith('g.')) return this.routeGame(session, msg);
         return fail(ERR.BAD_MSG, `unhandled type ${String(msg.t).slice(0, 32)}`);
@@ -329,6 +342,7 @@ export class Lobby {
    * @param {string} [reason]
    */
   shutdown(reason = 'shutdown') {
+    this.matchmaker.stop();
     for (const room of [...this.rooms.values()]) this.disposeRoom(room, reason);
     for (const t of this.graceTimers.values()) clearTimeout(t);
     this.graceTimers.clear();
@@ -617,6 +631,8 @@ export class Lobby {
       room.matchCtx = ctx;
       room.matchKey = key;
       room.replay = null;
+      room.searching = false; // the search ends with the match (no automatic re-queue, server/matchmaker.js)
+      room.searchSince = null;
       room.matchCount++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
       this.broadcastState(room);
@@ -828,6 +844,103 @@ export class Lobby {
   }
 
   // ---------------------------------------------------------------------------------------------------
+  // Matchmaking (server/matchmaker.js decides; these carry it out)
+  // ---------------------------------------------------------------------------------------------------
+
+  /** room.search {on} (host, co-op lobby): start only while every other human is connected and ready. */
+  search(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    this.dropReplay(room, session.playerId);
+    if (!on) {
+      if (room.searching) { room.searching = false; room.searchSince = null; this.broadcastState(room); }
+      return OK;
+    }
+    if (room.mode !== 'coop') return fail(ERR.ROOM_FULL, 'solo rooms do not search');
+    if (room.searching) return OK;
+    if (roomSize(room) >= MAX_SEATS) return fail(ERR.ROOM_FULL);
+    if (!groupReady(room)) return fail(ERR.NOT_READY);
+    room.searching = true;
+    room.searchSince = this.now();
+    this.log.info(`[lobby] ${room.code} searching (${roomSize(room)}/${MAX_SEATS}, ${room.difficulty})`);
+    this.broadcastState(room);
+    return OK;
+  }
+
+  /**
+   * Move every member of `sources` into `target` (whole rooms: humans, bots, spectators while seats last), dispose the
+   * sources, and start the match when the target is full. Re-checks the plan: anything changed meanwhile → no-op.
+   * @param {Room} target @param {Room[]} sources @returns {boolean} merged
+   */
+  mergeRooms(target, sources) {
+    const live = (r) => !r.disposed && this.rooms.get(r.code) === r && r.searching && !r.match && r.mode === 'coop' && groupReady(r);
+    if (!live(target) || !sources.length || !sources.every((r) => r !== target && live(r) && r.difficulty === target.difficulty)) return false;
+    const total = roomSize(target) + sources.reduce((n, r) => n + roomSize(r), 0);
+    if (total > MAX_SEATS) return false;
+    if (total === MAX_SEATS && !this.matchAllowed(target)) return false;
+    for (const src of sources) {
+      for (const s of src.seats) {
+        if (!s || s.left) continue;
+        const idx = target.freeSeat();
+        // searching was the group's ready: merged humans arrive ready (the old host included)
+        target.seats[idx] = { ...s, seat: idx, ready: true };
+        if (s.isBot) {
+          // both rooms named their AI from the start of BOT_NAMES: keep the names (and ids) unique
+          const used = new Set(target.seats.filter((b) => b && b.isBot && b !== target.seats[idx]).map((b) => b.name));
+          if (used.has(s.name)) target.seats[idx].name = BOT_NAMES.find((n) => !used.has(n)) || `AI·${idx + 1}`;
+          while (target.seats.some((b) => b && b !== target.seats[idx] && b.playerId === target.seats[idx].playerId)) {
+            target.seats[idx].playerId = 'ai_' + randomBytes(4).toString('hex');
+          }
+          continue;
+        }
+        this.clearGrace(s.playerId);
+        this.dropReplay(src, s.playerId);
+        const session = this.registry.byId(s.playerId);
+        if (session && session.roomCode === src.code) session.roomCode = target.code;
+      }
+      for (const sp of src.spectators) {
+        const session = this.registry.byId(sp.playerId);
+        // a disconnected spectator's grace timer belongs to the old room: it closes with it (as one that does not fit)
+        if (!sp.connected || target.spectators.length >= MAX_SPECTATORS || !session || session.roomCode !== src.code) continue;
+        this.clearGrace(sp.playerId);
+        target.spectators.push({ ...sp });
+        session.roomCode = target.code;
+      }
+      if (src.searchSince != null) target.searchSince = Math.min(target.searchSince ?? src.searchSince, src.searchSince);
+      this.log.info(`[lobby] ${src.code} merged into ${target.code} (${roomSize(target)}/${MAX_SEATS})`);
+      this.disposeRoom(src, 'merged');
+    }
+    this.broadcastState(target);
+    if (roomSize(target) >= MAX_SEATS) this.autoStart(target);
+    return true;
+  }
+
+  /** A full, ready, searching room starts on its own (per-network match limit of its host). */
+  autoStart(room) {
+    if (room.match || room.disposed) return false;
+    if (!this.matchAllowed(room)) {
+      // over the limit: stop searching, the host may start by hand later (room.start answers RATE meanwhile)
+      room.searching = false;
+      room.searchSince = null;
+      this.broadcastState(room);
+      return false;
+    }
+    this.log.info(`[lobby] ${room.code} full: starting`);
+    return !this.startMatch(room, this.registry.byId(room.hostId)?.limitKey || null).error;
+  }
+
+  /** The host's network may start one more match (maxMatchesPerAddr). */
+  matchAllowed(room) {
+    const key = this.registry.byId(room.hostId)?.limitKey || null;
+    if (!key || !(this.opts.maxMatchesPerAddr > 0)) return true;
+    if (this.countRooms((r) => !!r.match && r.matchKey === key) < this.opts.maxMatchesPerAddr) return true;
+    this.limitWarn(`match limit (${this.opts.maxMatchesPerAddr}) reached for a searching room's host`);
+    return false;
+  }
+
+  // ---------------------------------------------------------------------------------------------------
   // Membership helpers
   // ---------------------------------------------------------------------------------------------------
 
@@ -985,6 +1098,7 @@ export class Lobby {
     if (room.disposed) return;
     const data = encode(room.toState());
     for (const session of this.memberSessions(room)) sendRaw(session.ws, data);
+    if (room.searching) this.matchmaker.poke();
   }
 
   sendState(room, session) {

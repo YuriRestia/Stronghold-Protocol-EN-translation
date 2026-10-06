@@ -9,6 +9,8 @@
 // Spectator seats (community report #26, a remake feature): a co-op room with spectators shows the 观战席 strip under
 // the seats — names, offline marks, the host's ✕ (room.removeSpectator) — and a spectator's own view swaps the ready
 // button for 观战中 and offers 入座 (room.join of the room) while a player seat is free.
+// 搜寻队友 (matchmaking, ui/matchSearch.js): the host's search strip above the bar, the searching status line and
+// empty seats; a searching room that fills starts by itself.
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
@@ -23,6 +25,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
 import { T, TH } from '../i18n.js';
+import { SearchBar, SearchStatus, useSearchNotice } from '../ui/matchSearch.js';
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
  * @param {any} room room.state payload
@@ -90,8 +93,8 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       <header class="seat__head"><span class="seat__no num">P${index + 1}</span><${MicroLabel}>SEAT ${String(index + 1).padStart(2, '0')}<//></header>
       <div class="seat__art seat__art--empty">
         <div class="seat__radar" aria-hidden="true"></div>
-        <span class="seat__wait">${T('等待博士加入')}</span>
-        <${MicroLabel}>AWAITING DOCTOR<//>
+        <span class="seat__wait">${room.searching ? T('搜寻中') : T('等待博士加入')}</span>
+        <${MicroLabel}>${room.searching ? 'SEARCHING' : 'AWAITING DOCTOR'}<//>
       </div>
       <footer class="seat__foot">
         ${canAdd
@@ -194,6 +197,7 @@ export function RoomScreen() {
   const alive = useRef(true);
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
+  useSearchNotice(room, me.playerId);
 
   if (!room) return null;
   const online = conn.status === 'online';
@@ -255,6 +259,8 @@ export function RoomScreen() {
       ? html`<span class="t-lo"><${Icon} name="eye" />${T('观战中 · 不占博士席位，模拟开始后可切换观看各位博士')}</span>`
     : !coop
       ? html`<span class="t-mint">${T('*模拟协议已就绪，准许进入模拟')}</span>`
+    : room.searching
+      ? html`<${SearchStatus} room=${room} facts=${facts} />`
     : facts.isHost
       ? facts.canStart
         ? html`<span class="t-mint">${T('*同盟人数达标，准许进入模拟')}</span>`
@@ -299,6 +305,7 @@ export function RoomScreen() {
       </aside>`}
     </main>
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
+    <${SearchBar} room=${room} facts=${facts} busy=${busy} online=${online} run=${run} />
 
     <footer class="room-bar">
       <div class="room-bar__left">

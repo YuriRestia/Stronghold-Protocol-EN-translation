@@ -258,6 +258,9 @@ export const C2S = {
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.
   'room.spectate': { code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.removeSpectator': { playerId: isId },
+  // matchmaking (搜寻队友, remake feature; server/matchmaker.js): the host of a co-op room turns the search on (every
+  // other human ready) or off; searching rooms merge whole and a full one starts by itself (room.state.searching)
+  'room.search': { on: isBool },
 
   // match
   'g.infoReady': {},

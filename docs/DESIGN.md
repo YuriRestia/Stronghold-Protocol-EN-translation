@@ -2471,3 +2471,15 @@ Reports after the 0.1.3 release. Each was checked against the official data and 
   `playtest5_blocking` (its 瑕光 S2 test included), `combat`, `engine-requests`, `kits_t1t2` / `kits_alt_t2` (小满),
   `kits_t3` / `kits_alt_t3` (瑕光), `kits_t5` / `kits_alt_t5` / `garrisons_battle` (缇缇) and the other sleep and block
   suites pass unchanged.
+
+## 25. Matchmaking by room merge (搜寻队友, remake feature) — `server/matchmaker.js`, `server/lobby.js search / mergeRooms / autoStart`, `ui/matchSearch.js`, `screens/room.js`
+
+The official 搜寻队友 pairs strangers through a queue (§0 kept "matchmaking queue" out of scope). The remake rides on the lobby instead: there is no queue and no new screen. The owner decided the rules (2026-10); ▸ marks a choice the owner left open.
+
+- **Protocol**: `room.search {on}` (host only, co-op lobby: `NOT_HOST`, `ROOM_STARTED`, `ROOM_FULL` for solo or full rooms, `NOT_READY` while another human is not connected and ready); `room.state.searching` (boolean) and `room.state.searchSince` (server ms | null); `room.closed.reason 'merged'` for a spectator that does not fit the merged room.
+- **Who searches**: a co-op room with 1–3 occupied seats. AI seats count as filled and are never displaced. A solo player is a co-op room with one human and three empty seats; `'solo'` rooms never search.
+- **Ready gate**: the host may turn the search on only while every other pre-made human is connected and ready. A searching room that stops being ready — someone un-readies, a friend joins by code (arrives not ready), the difficulty changes (un-readies), someone drops — is paused, not cancelled.
+- **Merges** (`planMerges`, per difficulty): exact fills to 4 first (bigger groups, then the longest search); ▸ then a room searching longer than `partialMergeAfterMs` (10 s) merges with any room it fits (1+1 → a searching pair). Rooms merge whole: humans, AI and spectators (while `MAX_SPECTATORS` lasts; a disconnected spectator stays behind) move into the target — the bigger group, then the older search — which keeps its code, host and difficulty. Moved humans arrive ready, their sessions follow the new code without a `room.closed`; AI names are kept unique. The matcher runs on every `room.state` of a searching room and every `matchTickMs` (2 s) while any room searches.
+- **Auto-start**: a searching room that is full and ready starts at once (no countdown — the briefing is the buffer), within the host network's `maxMatchesPerAddr` (over it: the search stops). Rooms that do not search keep the manual `room.start`. The search ends when a match starts and ▸ is not turned on again after it.
+- **Client**: the host's 搜寻队友 strip sits above the room bar (`SearchBar`; the bar has no room for a third big button), empty seats read 搜寻中, the status line counts the search time or says it is paused, and a merge toasts 搜寻成功!. The lobby announces the feature once (`SearchNews` over the mode cards, dismissed per browser: pref `news.matchSearch`; its button selects 同盟模拟), the co-op mode card lists it, and the create hint mentions it.
+- Tests: `test/matchmaker.test.js` (planner), `test/lobby-matchmaking.test.js` (real server, StubMatch).
