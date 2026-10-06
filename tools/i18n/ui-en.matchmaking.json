@@ -1,0 +1,18 @@
+{
+ "搜寻队友": "Find Teammates",
+ "停止搜寻": "Stop searching",
+ "搜寻中": "Searching",
+ "搜寻中 · {0}": "Searching · {0}",
+ "取消搜寻成功": "Search canceled",
+ "搜寻成功!": "Search successful!",
+ "所有博士准备就绪后才能搜寻队友": "All Doctors must be ready before searching for teammates",
+ "同盟满 4 人后将自动开始模拟": "The simulation starts automatically once the Alliance has 4 members",
+ "搜寻已暂停 · 等待所有博士准备就绪": "Search paused · Waiting for all Doctors to be ready",
+ "同盟已与其他同盟合并，观战席已满": "The Alliance merged with another one and its spectator seats are full",
+ "新功能：搜寻队友": "New: Find Teammates",
+ "创建同盟后，无论同盟中有几名博士，创建者都可以点击「搜寻队友」，与其他正在搜寻的同盟合并补满空位，满 4 人后自动开始模拟。": "Create an Alliance with any number of Doctors, and the host can press \"Find Teammates\" to merge with other searching Alliances and fill the empty seats. The simulation starts automatically once there are 4 members.",
+ "关闭提示": "Dismiss",
+ "可搜寻队友补满空位": "Find Teammates to fill empty seats",
+ "创建后可邀请好友、添加 AI 队友或搜寻队友": "After creating, invite friends, add AI teammates or find teammates",
+ "与其他正在搜寻的同盟合并，补满 {0} 个空位": "Merge with other searching Alliances to fill {0} empty seat(s)"
+}

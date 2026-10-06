@@ -197,6 +197,8 @@ const CLOSE_REASON = {
   // 'timeout' = this player was removed after staying disconnected past the lobby grace (server/lobby.js)
   host_left: T('创建者已离开，同盟已解散'), timeout: T('由于长时间断开连接，你已离开同盟'), empty: T('同盟已解散'),
   kicked: T('你已被移出同盟'), ended: T('模拟已结束'), expired: T('同盟已过期'), shutdown: T('服务器维护中，同盟已关闭'),
+  // 'merged' = a spectator whose room merged into another (搜寻队友) that had no free spectator seat (server/lobby.js)
+  merged: T('同盟已与其他同盟合并，观战席已满'),
 };
 
 function wireNet() {
