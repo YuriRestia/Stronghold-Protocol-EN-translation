@@ -1072,6 +1072,14 @@ describe('screen helpers', () => {
     room.seats[1].connected = false;
     assert.equal(roomFacts(room, 'h').canStart, false, 'disconnected guest blocks start');
     assert.equal(roomFacts(room, 'g').canStart, false, 'guests cannot start');
+    assert.equal(roomFacts(room, 'h').groupReady, false, 'disconnected guest: not group-ready');
+    room.seats[1].connected = true;
+    // a guest (e.g. merged in by matchmaking) sees the same group-ready as the host: the host never readies
+    assert.equal(roomFacts(room, 'g').othersReady, false);
+    assert.equal(roomFacts(room, 'g').groupReady, true, 'guest view: host counts as ready');
+    assert.equal(roomFacts(room, 'h').groupReady, true);
+    room.seats[1].ready = false;
+    assert.equal(roomFacts(room, 'g').groupReady, false, 'un-ready guest: paused for everyone');
     assert.equal(roomFacts(null, 'x').mine, null);
     assert.match(inviteLink('ABCD'), /\?room=ABCD$/);
   });

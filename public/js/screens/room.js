@@ -59,11 +59,15 @@ export function roomFacts(room, myId) {
   const isReady = (s) => !!s.ready || s.playerId === room?.hostId;
   const readyHumans = humans.filter(isReady).length;
   const othersReady = others.every((s) => s.ready && s.connected !== false);
+  // The server's groupReady (server/matchmaker.js): every human connected, every one but the host ready. The same for
+  // every viewer, unlike othersReady (a guest's "others" include the host, who never readies).
+  const groupReady = humans.every((s) => s.connected !== false && isReady(s));
   return {
     seats, occupied, humans, mine, isHost, readyHumans, isReady,
     emptySeats: seats.filter((s) => !s).length,
     canStart: isHost && othersReady && !!mine,
     othersReady,
+    groupReady,
     // spectator seats (never players: not in `humans`, never counted for ready / start)
     spectators: Array.isArray(room?.spectators) ? room.spectators.filter((s) => s && typeof s === 'object') : [],
     spectating: isSpectating(room, myId),

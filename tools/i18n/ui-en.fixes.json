@@ -55,5 +55,10 @@
  "队友已选": "Taken by a Teammate",
  "服务器已更新，本局结束后刷新": "The server was updated. The page will refresh after this match",
  "我的策略": "My Strategy",
- "剩余可放置角色：{0}": "Deployable units left: {0}"
+ "剩余可放置角色：{0}": "Deployable units left: {0}",
+ "地形变化：{0}无法停留在原位置，已撤回整备区": "Terrain changed: {0} can no longer stay in place and returned to the Bench",
+ "{0}只能部署在召唤者攻击范围内，已退回整备区": "{0} can only be deployed within the summoner's Attack Range; returned to the Bench",
+ "{0}只能部署在召唤者攻击范围内，整备区已满，下回合返还": "{0} can only be deployed within the summoner's Attack Range; Bench is full, returned next round",
+ "【维多利亚】获得{0}件维式重锤": "[Victoria] Gained {0} Victorian Hammer(s)",
+ "联防阶段：{0} 迎战突破防线的敌人": "Unite Phase: {0} take on the enemies that broke through"
 }

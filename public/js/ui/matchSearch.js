@@ -65,7 +65,8 @@ export function SearchStatus({ room, facts }) {
     return () => clearInterval(t);
   }, [room.searching]);
   if (!room.searching) return null;
-  if (!facts.othersReady) return html`<span class="t-orange"><${Icon} name="hourglass" />${T('搜寻已暂停 · 等待所有博士准备就绪')}</span>`;
+  // groupReady, not othersReady: a merged-in guest would otherwise wait on the host, who never readies
+  if (!facts.groupReady) return html`<span class="t-orange"><${Icon} name="hourglass" />${T('搜寻已暂停 · 等待所有博士准备就绪')}</span>`;
   const since = Number.isFinite(room.searchSince) ? room.searchSince : serverNow();
   return html`<span class="t-mint"><${Icon} name="search" />${T('搜寻中 · {0}', searchClock(since))}</span>`;
 }
