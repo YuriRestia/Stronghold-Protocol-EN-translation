@@ -335,7 +335,29 @@ test('阿戈尔: HP ×(1.35+0.01L); devour chain (left first): 5000 物理流失
   checkInvariants(h.b);
 });
 
-test('阿戈尔 devour: 物理流失 ignores the marker’s damage bonuses and the target’s shields; a dead marker’s marks are cancelled; kill → marker', () => {
+test('阿戈尔 devour ATK is a 最终加算 (GitHub #165 point 2, PR #176): 1000 base ATK, +100 % skill ATK, +2000 devoured → 4000, not 6000', () => {
+  // PRTS 盟约记录 "该付与来源获得所有标记单位的基础攻击力（最终加算）"; PRTS 游戏数据基础 A_f = F_t[(A + D_p)(1 + D_t) + F_p]
+  const list = [
+    ['g1_a', ['egirShip']], ['g2_a', ['egirShip']], ['g3_a', ['egirShip']],
+    ['fod_a', ['preciShip'], { stats: { atk: 2000, maxHp: 20000, def: 0, blockCnt: 1 } }],
+  ];
+  // g1 (10,3) → fodder (10,4, 2000 base ATK); g2 / g3 face empty tiles
+  const units = [{ chessId: 'g1_a', row: 10, col: 3 }, { chessId: 'fod_a', row: 10, col: 4 }, { chessId: 'g2_a', row: 12, col: 3 }, { chessId: 'g3_a', row: 12, col: 5 }];
+  const h = makeBattle({ defs: defsOf(list), units, bonds: { egirShip: bondOn(3, 0, null, [3, 5]) } });
+  h.step(1);
+  const g1 = h.unit('g1_a');
+  assert.deepEqual(buffOf(g1, 'bond:egir:devour')?.mods, { atkFinal: 2000, blockCnt: 1 }, 'the fodder\'s base ATK as a 最终加算, its block count');
+  close(g1.s.atk, 1000 + 2000, 1e-6, 'no percentage: as before');
+  h.b.addBuff(g1, { key: 'test:skill', mods: { atkPct: 1 } });
+  close(g1.s.atk, 1000 * 2 + 2000, 1e-6, '+100 %: 4000 (0.1.3: (1000 + 2000) × 2 = 6000)');
+  h.b.addBuff(g1, { key: 'test:flat', mods: { atkFlat: 100 } });
+  close(g1.s.atk, (1000 + 100) * 2 + 2000, 1e-6, 'a 直接加算 is still scaled by the percentages');
+  h.b.addBuff(g1, { key: 'test:weaken', mods: { atkMul: 0.5 } });
+  close(g1.s.atk, ((1000 + 100) * 2 + 2000) * 0.5, 1e-6, 'the 最终乘算 (Πmul) scales the whole, the 最终加算 included');
+  checkInvariants(h.b);
+});
+
+test('阿戈尔 devour: 物理流失 ignores the marker’s damage bonuses and the target’s shields; a fallen marker’s marks still resolve (GitHub #165 point 3); kill → marker', () => {
   const list = [
     ['g1_a', ['egirShip', 'kjeragShip']], ['g2_a', ['egirShip'], { stats: { maxHp: 3000 } }], ['g3_a', ['egirShip']],
     ['fod_a', ['preciShip'], { tier: 2, stats: { maxHp: 20000, def: 500 } }],
@@ -353,11 +375,33 @@ test('阿戈尔 devour: 物理流失 ignores the marker’s damage bonuses and t
   assert.ok(!g2.alive, 'g2 devoured');
   assert.ok(h.hooksOf('kill').some((c) => c.victim === g2 && c.killer === g1), 'kill credited to the marker');
   const dv = tagged(h, 'bond:egir:devour');
-  assert.deepEqual(dv.map((c) => [c.source.defId, c.target.defId]), [['g1_a', 'g2_a'], ['g1_a', 'fod_a']], 'g2’s own mark on the fodder is cancelled');
-  close(f.hp, 20000 - (5000 - 500), 1e-6, '5000 less its DEF 500: no ×1.25, shield untouched');
+  // PRTS 盟约记录: only the knocked-out TARGET's pending marks are cancelled — g2, knocked out by the first mark, still
+  // resolves its own (until 0.1.3 a marker off the field gave no further mark)
+  assert.deepEqual(dv.map((c) => [c.source.defId, c.target.defId]), [['g1_a', 'g2_a'], ['g1_a', 'fod_a'], ['g2_a', 'fod_a']], 'g2’s own mark on the fodder resolves');
+  close(f.hp, 20000 - 2 * (5000 - 500), 1e-6, '5000 less its DEF 500, twice: no ×1.25, shield untouched');
   assert.equal(f.buffs.find((b) => b.key === 'test:shield')?.shield, 3000);
   close(g1.s.atk, 1000 + 1000 + 1000, 1e-6, 'the base ATK of everything it marked stays');
   assert.equal(h.b.getPlayer('p1').bonds.egirShip.layers, 1 + 2, 'layers = tiers of the devoured units');
+  checkInvariants(h.b);
+});
+
+test('阿戈尔 devour, A → B → C with B devoured first (GitHub #165 point 3, PR #176): C still takes B\'s 5000 and the kill is B\'s', () => {
+  const list = [
+    ['A_a', ['egirShip']], ['B_a', ['egirShip'], { stats: { maxHp: 3000 } }], ['g3_a', ['egirShip']],
+    ['C_a', ['preciShip'], { tier: 2, stats: { maxHp: 9000, def: 0 } }],
+  ];
+  // A (10,3) → B (10,4, 3000 × 1.35 HP: knocked out by A's mark) → C (10,5, 9000 HP, DEF 0: A's mark leaves 4000, B's
+  // knocks it out); g3 faces an empty tile. Marks: A → B, A → C (through B), B → C.
+  const units = [{ chessId: 'A_a', row: 10, col: 3 }, { chessId: 'B_a', row: 10, col: 4 }, { chessId: 'C_a', row: 10, col: 5 }, { chessId: 'g3_a', row: 12, col: 3 }];
+  const h = makeBattle({ defs: defsOf(list), units, bonds: { egirShip: bondOn(3, 0, null, [3, 5]) }, hooks: ['damaged', 'kill'], captureNoisy: true });
+  h.step(1);
+  const [A, B, C] = ['A_a', 'B_a', 'C_a'].map((id) => h.unit(id));
+  assert.deepEqual(tagged(h, 'bond:egir:devour').map((c) => [c.source.defId, c.target.defId]), [['A_a', 'B_a'], ['A_a', 'C_a'], ['B_a', 'C_a']]);
+  assert.ok(!B.alive && !C.alive, 'B falls to A\'s mark, C to B\'s (until 0.1.3 B\'s mark was dropped: C stood at 4000 HP)');
+  // PRTS 盟约记录 "单位被【吞噬】击杀时，击杀来源始终为对应标记的付与来源"
+  assert.deepEqual(h.hooksOf('kill').map((c) => [c.victim.defId, c.killer?.defId]), [['B_a', 'A_a'], ['C_a', 'B_a']], 'the kill credit is the mark\'s marker, down or not');
+  close(A.s.atk, 1000 + 1000 + 1000, 1e-6, 'A: the base ATK of B and C');
+  assert.equal(h.b.getPlayer('p1').bonds.egirShip.layers, 1 + 2, 'each devoured unit adds its tier once');
   checkInvariants(h.b);
 });
 
@@ -374,38 +418,39 @@ test('阿戈尔 devour order: left first, then top first (row 0 is the bottom: t
   checkInvariants(h.b);
 });
 
-test('阿戈尔 5: the first 3 members by position (left column first, top first) revive at once on their first knock-out, whatever the order of knock-outs; the others never; a second knock-out is final', () => {
+test('阿戈尔 5: the 3 slots go to the first 3 members knocked out, wherever they stand; a later first knock-out stays down; a second knock-out is final; 3 members: none', () => {
   const list = [];
   for (let i = 0; i < 5; i++) list.push([`g${i}_a`, ['egirShip'], { skill: { spCost: 30, initSp: 5, duration: 10 } }]);
   // one per row pair so nobody devours anybody: col 3 rows 9–12 (g0 bottom … g3 top), g4 at (9,5). PRTS 盟约记录 阿戈尔
-  // "前3名【阿戈尔】干员首次被击倒时立刻复活", the first 3 being the first deployed — "更靠左和靠上": g3, g2, g1
+  // "前3名【阿戈尔】干员首次被击倒时立刻复活"; the owner's decision of 2026-10-05: the first 3 knocked out, in knock-out order
   const units = list.map(([id], i) => ({ chessId: id, row: 9 + (i % 4), col: 3 + 2 * Math.floor(i / 4) }));
   const h = makeBattle({ defs: defsOf(list), units, bonds: { egirShip: bondOn(5, 0, null, [3, 5]) }, hooks: ['death', 'deploy'] });
   h.step(1);
   const us = list.map(([id]) => h.unit(id));
   const kill = (u) => h.b.dealDamage(null, u, { amount: 1e9, type: 'true' });
   const redeploys = (u) => h.hooksOf('deploy').filter((c) => c.unit === u && !c.initial).length;
-  // knocked out first, yet no beneficiary: g0 (bottom of the first column) and g4 (second column) stay down
-  for (const u of [us[0], us[4]]) {
-    kill(u);
-    assert.ok(!u.alive, `${u.defId} is not among the first 3 by position: no revive`);
-    assert.equal(redeploys(u), 0);
-  }
-  us[1].skill.gainSp(20, 'test');
+  us[0].skill.gainSp(20, 'test');
   const tiles = us.map((u) => [u.tileR, u.tileC]);
-  for (const i of [1, 3, 2]) {
+  // g4 (second column) and g0 (bottom of the first column) first — the last two by position — then g2
+  for (const i of [4, 0, 2]) {
     const u = us[i];
-    const before = redeploys(u);
     kill(u);
     assert.ok(u.alive && u.deployed, `member ${i} back on the field`);
     close(u.hp, u.s.maxHp);
     assert.deepEqual([u.tileR, u.tileC], tiles[i], 'same tile');
     assert.ok(h.hooksOf('death').some((c) => c.unit === u && c.reason === 'killed'), 'it was knocked out (被击倒 triggers fire)');
-    assert.equal(redeploys(u), before + 1, `member ${i} redeployed`);
+    assert.equal(redeploys(u), 1, `member ${i} redeployed`);
   }
-  assert.equal(us[1].skill.sp, 5, 'a redeploy restarts from the initial SP');
-  kill(us[1]);
-  assert.ok(!us[1].alive, 'second knock-out is final');
+  assert.equal(us[0].skill.sp, 5, 'a redeploy restarts from the initial SP');
+  // the 3 are gone: g3 (top-left, first by position) and g1 stay down on their first knock-out
+  for (const i of [3, 1]) {
+    kill(us[i]);
+    assert.ok(!us[i].alive, `member ${i}: no slot left`);
+    assert.equal(redeploys(us[i]), 0);
+  }
+  kill(us[4]);
+  assert.ok(!us[4].alive, 'a second knock-out is final');
+  assert.equal(h.eventsOf('fx').filter((x) => x[1] === 'revive').length, 3, 'three revives');
   checkInvariants(h.b);
   // a member moved off its board tile (突袭 / relocation) revives where it was knocked out; later redeploys go home
   const hm = makeBattle({ defs: defsOf(list), units, bonds: { egirShip: bondOn(5, 0, null, [3, 5]) }, hooks: [] });
@@ -424,44 +469,126 @@ test('阿戈尔 5: the first 3 members by position (left column first, top first
   assert.ok(!h3.unit('g3_a').alive);
 });
 
-test('阿戈尔 5 + the devour chain (GitHub #33): the devour knocks out the food, only the members among the first 3 by position come back; the others keep theirs for the fight (normal and 联防)', () => {
-  // one row, all facing right: 浊心斯卡蒂 → 乌尔比安 → 幽灵鲨 → 海霓 → 深巡 → 隐现. PRTS 盟约记录 阿戈尔 备注 "标记按付与顺序触发
-  // 【吞噬】效果，目标首次被击倒后解除自身被付与但还未触发的【吞噬】效果". The 3 revives belong to the first 3 by position
-  // (浊心斯卡蒂, 乌尔比安, 幽灵鲨 — community reports 「阿戈尔盟约复活有bug，只能复活一个干员」); until 0.1.3 the first 3
-  // knocked out took them, so the food (幽灵鲨, 海霓, 深巡) spent all 3 at t = 0 and nobody came back in the fight
-  const ids = ['chess_char_6_04_a', 'chess_char_5_05_a', 'chess_char_2_07_a', 'chess_char_3_09_a', 'chess_char_1_04_a', 'chess_char_1_01_a'];
+test('阿戈尔 5 + the devour chain (GitHub #33, #105, #140): the eaten members take the 3 slots in knock-out order, uneaten ones keep none — survivors = uneaten + 3 (normal and 联防)', () => {
+  // row 10, all facing right: 浊心斯卡蒂 → 幽灵鲨 → 海霓 → 深巡 → 歌蕾蒂娅 → 隐现; 乌尔比安 on row 12 faces an empty tile.
+  // PRTS 盟约记录 阿戈尔 备注 "标记按付与顺序触发【吞噬】效果，目标首次被击倒后解除自身被付与但还未触发的【吞噬】效果". Until 0.1.3
+  // the slots belonged to the first 3 by position (浊心斯卡蒂, 乌尔比安, 幽灵鲨: two uneaten members held them, so only 幽灵鲨
+  // of the food came back — "没被吃的阿戈尔干员也会占用复活名额", "无论食物链怎么吃最终都只有三名阿戈尔人存活")
+  const ids = ['chess_char_6_04_a', 'chess_char_2_07_a', 'chess_char_3_09_a', 'chess_char_1_04_a', 'chess_char_4_12_a', 'chess_char_1_01_a'];
+  const ULPIA = 'chess_char_5_05_a';
   for (const kind of ['normal', 'unite']) {
     const h = makeBattle({
-      kind, units: ids.map((chessId, i) => ({ chessId, row: 10, col: 2 + i })), bonds: { egirShip: bondOn(5, 0, null, [3, 5]) },
-      hooks: ['damaged', 'death', 'deploy'], captureNoisy: true, autoFinish: false, timeLimit: 60,
+      kind, units: [...ids.map((chessId, i) => ({ chessId, row: 10, col: 2 + i })), { chessId: ULPIA, row: 12, col: 3 }],
+      bonds: { egirShip: bondOn(6, 0, null, [3, 5]) }, hooks: ['damaged', 'death', 'deploy'], captureNoisy: true, autoFinish: false, timeLimit: 60,
     });
     h.step(1);
-    const [skadi, ulpia, ghost, hn, deep, fodder] = ids.map((id) => h.unit(id));
-    // 浊心斯卡蒂 marks the whole row and resolves first; every later mark is on a unit already knocked out (乌尔比安's), or
-    // comes from one (幽灵鲨's, 海霓's, 深巡's)
+    const [skadi, ghost, hn, deep, glady, fodder] = ids.map((id) => h.unit(id));
+    const ulpia = h.unit(ULPIA);
+    // 浊心斯卡蒂 marks the whole row (through the members) and resolves first; every later mark is on a unit knocked out
     assert.deepEqual(tagged(h, 'bond:egir:devour').map((c) => [c.source.defId, c.target.defId]),
-      [ulpia, ghost, hn, deep, fodder].map((t) => [skadi.defId, t.defId]), kind);
+      [ghost, hn, deep, glady, fodder].map((t) => [skadi.defId, t.defId]), kind);
+    const kos = (u) => h.hooksOf('death').filter((c) => c.unit === u && c.reason === 'killed').length;
     const revived = (u) => h.hooksOf('deploy').filter((c) => c.unit === u && !c.initial).length;
-    for (const u of [ghost, hn, deep]) {
-      assert.equal(h.hooksOf('death').filter((c) => c.unit === u && c.reason === 'killed').length, 1, `${kind}: ${u.defId} knocked out once`);
-    }
-    assert.equal(revived(ghost), 1, `${kind}: 幽灵鲨 (third by position) revived at once`);
-    assert.equal(revived(hn) + revived(deep), 0, `${kind}: 海霓 and 深巡 (fourth, fifth) not revived`);
+    for (const u of [ghost, hn, deep, glady]) assert.equal(kos(u), 1, `${kind}: ${u.defId} knocked out once`);
+    for (const u of [ghost, hn, deep]) assert.equal(revived(u), 1, `${kind}: ${u.defId} (knocked out 1st–3rd) revived at once`);
+    assert.equal(revived(glady), 0, `${kind}: 歌蕾蒂娅 (knocked out 4th) stays down`);
+    assert.equal(kos(skadi) + kos(ulpia) + revived(skadi) + revived(ulpia), 0, `${kind}: the uneaten members take no slot`);
     h.run(3);
-    for (const u of [skadi, ulpia, ghost]) assert.ok(u.alive && u.deployed && u.hp > 0, `${kind}: ${u.defId} standing`);
-    for (const u of [hn, deep, fodder]) assert.ok(!u.alive, `${kind}: ${u.defId} down`);
-    // 浊心斯卡蒂 and 乌尔比安 still hold theirs: their first knock-out in the fight is revived, 幽灵鲨's second is final
-    for (const u of [skadi, ulpia]) {
+    const members = [skadi, ghost, hn, deep, glady, ulpia];
+    assert.deepEqual(members.filter((u) => u.alive).map((u) => u.defId), [skadi, ghost, hn, deep, ulpia].map((u) => u.defId),
+      `${kind}: survivors = the 2 uneaten + 3`);
+    assert.ok(!fodder.alive, `${kind}: the fodder (no member) is down`);
+    // nothing is left for the fight: 浊心斯卡蒂's first knock-out and 幽灵鲨's second stay down
+    for (const u of [skadi, ghost]) {
       h.b.dealDamage(null, u, { amount: 1e9, type: 'true' });
-      assert.ok(u.alive && revived(u) === 1, `${kind}: ${u.defId} revived in the fight`);
+      assert.ok(!u.alive, `${kind}: ${u.defId} stays down`);
     }
-    h.b.dealDamage(null, ghost, { amount: 1e9, type: 'true' });
-    assert.ok(!ghost.alive, `${kind}: 幽灵鲨 has no revive left`);
     checkInvariants(h.b);
   }
 });
 
-test('阿戈尔 5 beneficiaries: fixed at battle start — a 联防 member entering down keeps the slot, a 调和 member is one, the mirrored boss side counts from its own left', () => {
+test('阿戈尔 5: a member devoured by several 阿戈尔 spends one slot at most — its pending marks are cancelled once it is knocked out', () => {
+  // A (10,3) → B (10,4) → X (10,5) and C (11,5, facing DOWN) → X: three marks on X; D (12,8) faces an empty tile
+  const list = [['A_a', ['egirShip']], ['B_a', ['egirShip']], ['X_a', ['egirShip']], ['C_a', ['egirShip']], ['D_a', ['egirShip']]];
+  const defs = defsOf(list.map(([id, b]) => [id, b, { stats: { maxHp: 3000 } }]));
+  const units = [
+    { chessId: 'A_a', row: 10, col: 3 }, { chessId: 'B_a', row: 10, col: 4 }, { chessId: 'X_a', row: 10, col: 5 },
+    { chessId: 'C_a', row: 11, col: 5, dir: 'DOWN' }, { chessId: 'D_a', row: 12, col: 8 },
+  ];
+  const h = makeBattle({ defs, units, bonds: { egirShip: bondOn(5, 0, null, [3, 5]) }, hooks: ['damaged', 'death', 'deploy'], captureNoisy: true, autoFinish: false, timeLimit: 60 });
+  h.step(1);
+  const [a, b, x, c, d] = ['A_a', 'B_a', 'X_a', 'C_a', 'D_a'].map((id) => h.unit(id));
+  const kos = (u) => h.hooksOf('death').filter((e) => e.unit === u && e.reason === 'killed').length;
+  const revived = (u) => h.hooksOf('deploy').filter((e) => e.unit === u && !e.initial).length;
+  // marked by A (through B), by B and by C; A's mark knocks it out, B's and C's are cancelled
+  assert.deepEqual(tagged(h, 'bond:egir:devour').map((e) => [e.source.defId, e.target.defId]), [['A_a', 'B_a'], ['A_a', 'X_a']]);
+  for (const u of [b, x]) assert.ok(u.alive && kos(u) === 1 && revived(u) === 1, `${u.defId}: one knock-out, one slot`);
+  close(x.hp, x.s.maxHp, 1e-6, 'X at full HP: no second mark');
+  // two slots used: D's first knock-out takes the third, C's stays down
+  h.b.dealDamage(null, d, { amount: 1e9, type: 'true' });
+  assert.ok(d.alive, 'D: the third slot');
+  h.b.dealDamage(null, c, { amount: 1e9, type: 'true' });
+  assert.ok(!c.alive, 'C: none left');
+  assert.ok(a.alive && kos(a) === 0, 'A never knocked out');
+  checkInvariants(h.b);
+  // X with more HP survives A's and B's marks and falls to C's: still one knock-out, one slot
+  const tough = defsOf(list.map(([id, bd]) => [id, bd, { stats: { maxHp: id === 'X_a' ? 8000 : 3000 } }]));
+  const t = makeBattle({ defs: tough, units, bonds: { egirShip: bondOn(5, 0, null, [3, 5]) }, hooks: ['damaged', 'death', 'deploy'], captureNoisy: true, autoFinish: false, timeLimit: 60 });
+  t.step(1);
+  const tx = t.unit('X_a');
+  assert.deepEqual(tagged(t, 'bond:egir:devour').map((e) => [e.source.defId, e.target.defId]), [['A_a', 'B_a'], ['A_a', 'X_a'], ['B_a', 'X_a'], ['C_a', 'X_a']]);
+  assert.equal(t.hooksOf('death').filter((e) => e.unit === tx && e.reason === 'killed').length, 1, 'X knocked out once, by the third mark');
+  assert.ok(tx.alive && t.eventsOf('fx').filter((e) => e[1] === 'revive').length === 2, 'B and X: two slots');
+  checkInvariants(t.b);
+});
+
+test('阿戈尔 5: an operator\'s own save uses no slot (斯卡蒂\'s DRE-Y, M3茧甲, 埃芒加德 [ASSUMED for the band]); the slot waits for its first real knock-out', () => {
+  // 斯卡蒂 (elite, module DRE-Y by default) enters 联防 at half HP in front of 乌尔比安: his mark is lethal, DRE-Y saves her
+  // (PRTS: once per deployment, full HP with max HP −60 %) — no knock-out, so no slot
+  const SKADI = 'chess_char_3_05_b', ULPIA = 'chess_char_5_05_a', GHOST = 'chess_char_2_07_a', HN = 'chess_char_3_09_a', DEEP = 'chess_char_1_04_a';
+  const h = makeBattle({
+    kind: 'unite', autoFinish: false, timeLimit: 60, hooks: ['damaged', 'death', 'deploy'], captureNoisy: true,
+    units: [
+      { chessId: ULPIA, row: 10, col: 3 }, { chessId: SKADI, row: 10, col: 4, dir: 'UP', carryState: { hpPct: 0.5 } },
+      { chessId: GHOST, row: 12, col: 3 }, { chessId: HN, row: 12, col: 5 }, { chessId: DEEP, row: 12, col: 7 },
+    ],
+    bonds: { egirShip: bondOn(5, 0, null, [3, 5]) },
+  });
+  h.step(1);
+  const sk = h.unit(SKADI);
+  assert.deepEqual(tagged(h, 'bond:egir:devour').map((c) => [c.source.defId, c.target.defId]), [[ULPIA, SKADI]]);
+  assert.ok(sk.alive && buffOf(sk, 'trait:skadi_tide'), 'saved by her module');
+  assert.equal(h.hooksOf('death').filter((c) => c.unit === sk).length, 0, 'not knocked out');
+  assert.equal(h.eventsOf('fx').filter((x) => x[1] === 'revive' && x[4] && x[4].n).length, 0, 'no 阿戈尔 revive');
+  const kill = (id) => { const u = h.unit(id); h.b.dealDamage(null, u, { amount: 1e9, type: 'true' }); return u.alive; };
+  // all 3 slots are still there: 幽灵鲨, 海霓 and then 斯卡蒂 (DRE-Y spent in this deployment) come back, 深巡 does not
+  assert.deepEqual([GHOST, HN, SKADI, DEEP].map(kill), [true, true, true, false]);
+  checkInvariants(h.b);
+
+  const list = [['g0_a', ['egirShip']], ['g1_a', ['egirShip']], ['g2_a', ['egirShip']], ['g3_a', ['egirShip']], ['g4_a', ['egirShip']]];
+  const units = (it = {}) => list.map(([chessId], i) => ({ chessId, row: 9 + (i % 2) * 3, col: 3 + i, items: it[i] }));
+  const killed = (b, id) => { const u = b.unit(id); b.b.dealDamage(null, u, { amount: 1e9, type: 'true' }); return u; };
+  // M3茧甲 (an item 复活, in place): g0 is saved, the 3 slots go to g1, g2, g3; g4 stays down
+  const hi = makeBattle({ defs: defsOf(list), autoFinish: false, timeLimit: 60, hooks: ['death', 'deploy'], units: units({ 0: ['chess_item_4_12_e_a'] }), bonds: { egirShip: bondOn(5, 0, null, [3, 5]) } });
+  hi.step(1);
+  const g0 = killed(hi, 'g0_a');
+  assert.ok(g0.alive && hi.hooksOf('death').filter((c) => c.unit === g0).length === 0, 'item: saved in place (no knock-out)');
+  assert.deepEqual(['g1_a', 'g2_a', 'g3_a', 'g4_a'].map((id) => killed(hi, id).alive), [true, true, true, false], 'item: three slots left after the save');
+  checkInvariants(hi.b);
+  // 埃芒加德 (命结之秘: the battle's first 3 knock-downs revive in place — its own count, unchanged): g0, g1, g2 saved by it;
+  // the 阿戈尔 slots then go to g3, g4 and g0's first real knock-out; g1's real one finds none
+  const hb = makeBattle({ defs: defsOf(list), autoFinish: false, timeLimit: 60, hooks: ['death', 'deploy'], units: units(), bandId: 'band_ermengard', bonds: { egirShip: bondOn(5, 0, null, [3, 5]) } });
+  hb.step(1);
+  for (const id of ['g0_a', 'g1_a', 'g2_a']) {
+    const u = killed(hb, id);
+    assert.ok(u.alive && hb.hooksOf('death').filter((c) => c.unit === u).length === 0, `band: ${id} saved in place`);
+  }
+  assert.deepEqual(hb.eventsOf('fx').filter((x) => x[1] === 'revive' && x[4] && x[4].left != null).map((x) => x[4].left), [2, 1, 0], '埃芒加德 spent its 3');
+  assert.deepEqual(['g3_a', 'g4_a', 'g0_a', 'g1_a'].map((id) => killed(hb, id).alive), [true, true, true, false], 'band: the 阿戈尔 slots are untouched');
+  checkInvariants(hb.b);
+});
+
+test('阿戈尔 5 slots in 联防 and on the boss field: a member entering down takes none until it is knocked out after standing up; a 调和 member takes one; a mirrored player counts its own knock-outs', () => {
   const list = [['g0_a', ['egirShip']], ['g1_a', ['egirShip']], ['g2_a', ['egirShip']], ['g3_a', ['egirShip']], ['g4_a', ['egirShip']], ['mani_a', ['maniShip']]];
   // five members in five columns (one per column, nobody in front of anybody): g0 col 3 … g4 col 7
   const units = list.slice(0, 5).map(([chessId], i) => ({ chessId, row: 9 + (i % 2) * 3, col: 3 + i }));
@@ -470,8 +597,8 @@ test('阿戈尔 5 beneficiaries: fixed at battle start — a 联防 member enter
     h.b.dealDamage(null, u, { amount: 1e9, type: 'true' });
     return u.alive;
   };
-  // 联防: g0 entered down (forced out before battleStart). The slots stay the first 3 by position — g0, g1, g2.
-  // The forced exit is not a 击倒, so g0's charge waits until they stand back up. g3 is not promoted into it.
+  // 联防: g0 entered down (forced out before battleStart — not a 击倒, so no slot); g4 and g3 take two slots, g0's first
+  // knock-out after it stands back up takes the third, g1 finds none
   const hu = makeBattle({
     kind: 'unite', defs: defsOf(list), autoFinish: false, timeLimit: 60, bonds: { egirShip: bondOn(5, 0, null, [3, 5]) },
     units: units.map((u, i) => (i === 0 ? { ...u, carryState: { down: true } } : u)),
@@ -479,57 +606,28 @@ test('阿戈尔 5 beneficiaries: fixed at battle start — a 联防 member enter
   hu.step(1);
   const g0 = hu.unit('g0_a');
   assert.ok(!g0.alive, 'g0 forced out');
-  assert.deepEqual(['g4_a', 'g3_a', 'g1_a', 'g2_a'].map((id) => revives(hu, id)), [false, false, true, true]);
+  assert.deepEqual(['g4_a', 'g3_a'].map((id) => revives(hu, id)), [true, true]);
   assert.ok(hu.runUntil(() => g0.alive && g0.deployed, 25), 'g0 stands back up inside the redeploy time');
-  assert.equal(revives(hu, 'g0_a'), true, 'g0 still held the first slot');
-  hu.b.dealDamage(null, g0, { amount: 1e9, type: 'true' });
-  assert.ok(!g0.alive, 'g0 has no second revive');
+  assert.equal(revives(hu, 'g0_a'), true, 'g0: its first knock-out takes the third slot');
+  assert.equal(revives(hu, 'g1_a'), false, 'g1: none left');
   checkInvariants(hu.b);
-  // 调和 (an active 调和 member enjoys the core bonds) in the first column: one of the 3
+  // 调和 (an active 调和 member enjoys the core bonds): knocked out first, it takes the first slot
   const hm = makeBattle({
     defs: defsOf(list), autoFinish: false, timeLimit: 60,
     units: [{ chessId: 'mani_a', row: 11, col: 2 }, ...units.slice(0, 4)],
     bonds: { egirShip: bondOn(5, 0, null, [3, 5]), maniShip: { count: 1, active: true, tier: 1, layers: 0 } },
   });
   hm.step(1);
-  assert.deepEqual(['g2_a', 'mani_a', 'g0_a', 'g1_a'].map((id) => revives(hm, id)), [false, true, true, true]);
-  // the right-hand boss player (mirrored): its board's left is the field's right — board cols 3, 4, 5 = field cols 17,
-  // 16, 15 hold the revives (read in field columns from the left they would go to g4, g3, g2)
+  assert.deepEqual(['mani_a', 'g3_a', 'g2_a', 'g0_a'].map((id) => revives(hm, id)), [true, true, true, false]);
+  // the right-hand boss player (mirrored): the order of its own knock-outs, wherever they stand
   const hb = makeBattle({
     kind: 'boss', defs: defsOf(list), autoFinish: false, timeLimit: 60,
     players: [{ playerId: 'R1', side: 'R', colOffset: 8, units: units.map((u, i) => ({ ...u, uid: i + 1 })), bonds: { egirShip: bondOn(5, 0, null, [3, 5]) } }],
   });
   hb.step(1);
   assert.deepEqual(['g4_a', 'g3_a', 'g0_a', 'g1_a', 'g2_a'].map((id) => [hb.unit(id).tileC, revives(hb, id)]),
-    [[13, false], [14, false], [17, true], [16, true], [15, true]]);
+    [[13, true], [14, true], [17, true], [16, false], [15, false]]);
   checkInvariants(hb.b);
-});
-
-test('阿戈尔 5: a beneficiary 埃芒加德 or M3茧甲 save in place has used its 阿戈尔 revive [ASSUMED]; the others keep theirs', () => {
-  const list = [['g0_a', ['egirShip']], ['g1_a', ['egirShip']], ['g2_a', ['egirShip']], ['g3_a', ['egirShip']], ['g4_a', ['egirShip']]];
-  const units = (it = {}) => list.map(([chessId], i) => ({ chessId, row: 9 + (i % 2) * 3, col: 3 + i, items: it[i] }));
-  const kill = (h, id) => { const u = h.unit(id); h.b.dealDamage(null, u, { amount: 1e9, type: 'true' }); return u; };
-  for (const how of ['band', 'item']) {
-    const h = makeBattle({
-      defs: defsOf(list), autoFinish: false, timeLimit: 60, hooks: ['death', 'deploy'],
-      units: units(how === 'item' ? { 0: ['chess_item_4_12_e_a'] } : {}), ...(how === 'band' ? { bandId: 'band_ermengard' } : {}),
-      bonds: { egirShip: bondOn(5, 0, null, [3, 5]) },
-    });
-    h.step(1);
-    // g0, g1, g2 (columns 3–5) hold the 阿戈尔 revives; g0 is saved in place first
-    const g0 = kill(h, 'g0_a');
-    assert.ok(g0.alive && h.hooksOf('death').filter((c) => c.unit === g0).length === 0, `${how}: saved in place (no knock-out)`);
-    // 埃芒加德 saves the battle's first 3 knock-downs: its other 2 go to g3 and g4 (no 阿戈尔 beneficiaries)
-    if (how === 'band') for (const id of ['g3_a', 'g4_a']) assert.ok(kill(h, id).alive, 'band revive');
-    kill(h, 'g0_a');
-    assert.ok(!g0.alive, `${how}: its 阿戈尔 revive went with the save — its first knock-out is final`);
-    assert.equal(h.hooksOf('deploy').filter((c) => c.unit === g0 && !c.initial).length, 0);
-    for (const id of ['g1_a', 'g2_a']) {
-      const u = kill(h, id);
-      assert.ok(u.alive && h.hooksOf('deploy').filter((c) => c.unit === u && !c.initial).length === 1, `${how}: ${id} revived by 阿戈尔`);
-    }
-    checkInvariants(h.b);
-  }
 });
 
 test('阿戈尔 devour, a unit back during the pass: a marker revived by the 5-tier revive still gives its marks; a target revived in place (埃芒加德) or redeployed (不屈) takes none', () => {
@@ -546,7 +644,7 @@ test('阿戈尔 devour, a unit back during the pass: a marker revived by the 5-t
   h.step(1);
   const [g2, f] = ['g2_a', 'fod_a'].map((id) => h.unit(id));
   assert.ok(g2.alive && h.hooksOf('deploy').some((c) => c.unit === g2 && !c.initial), 'g2 knocked out and revived');
-  // only a marker off the field gives no further mark (the rule since 0.1.0): g2, back at once, still devours g3 and the fodder
+  // every mark resolves whatever became of its marker (DESIGN §24.7): g2, back at once, still devours g3 and the fodder
   assert.deepEqual(tagged(h, 'bond:egir:devour').map((c) => [c.source.defId, c.target.defId]),
     [['g1_a', 'g2_a'], ['g1_a', 'g3_a'], ['g1_a', 'fod_a'], ['g2_a', 'g3_a'], ['g2_a', 'fod_a'], ['g3_a', 'fod_a']]);
   close(f.hp, 20000 - 3 * 5000, 1e-6, 'the fodder: g1, g2 and g3');

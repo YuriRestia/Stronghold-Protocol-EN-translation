@@ -19,6 +19,9 @@
 // Options:
 //   --check          report only, change nothing (exit 1 when something essential is missing)
 //   --no-assets      skip the art/audio download
+//   --asset-source=M direct (default) or mirror (opt-in; no public-IP lookup)
+//                    SP_ASSET_SOURCE sets the default; SP_GITHUB_PROXY sets the HTTPS prefix (https://gh-proxy.com/)
+//                    An empty SP_GITHUB_PROXY disables the proxy, including in mirror mode.
 //   --no-local       skip the local-client detection and extraction
 //   --local          extract from the local client without asking (re-extracts when already done)
 //   --game <dir>     AssetBundle root of the local client (…/StreamingAssets/AB/Windows or PlayCover …/Documents/Bundles)
@@ -35,6 +38,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { validateSource } from './assets/network.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MIN_NODE = 22;
@@ -328,11 +332,13 @@ function ensureVenv(py, log) {
 // ---------------------------------------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const o = { check: false, assets: true, local: 'ask', game: null, yes: false, quiet: false, help: false };
+  const o = { check: false, assets: true, local: 'ask', game: null, yes: false, quiet: false, help: false, source: process.env.SP_ASSET_SOURCE || 'direct' };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--check') o.check = true;
     else if (a === '--no-assets') o.assets = false;
+    else if (a === '--asset-source') o.source = argv[++i];
+    else if (a.startsWith('--asset-source=')) o.source = a.slice('--asset-source='.length);
     else if (a === '--no-local') o.local = 'no';
     else if (a === '--local') o.local = 'force';
     else if (a === '--game') { o.game = argv[++i] || null; if (o.local !== 'no') o.local = 'force'; }
@@ -342,6 +348,7 @@ function parseArgs(argv) {
     else if (a === '-h' || a === '--help') o.help = true;
     else throw new Error(`未知参数 / unknown option: ${a}（--help 查看用法）`);
   }
+  if (!o.help) validateSource(o.source);
   return o;
 }
 
@@ -413,7 +420,7 @@ async function main() {
     const what = !assets.present ? `首次下载约 ${assets.bytes ? mb(assets.bytes) : '270 MB'}，可随时中断，重新运行会续传`
       : `补全缺失的 ${assets.missing} 个文件`;
     log(`\n${c.cyan('▶')} 下载美术与音频素材（${what}）…`);
-    const r = run(process.execPath, [path.join(ROOT, 'tools', 'fetch-assets.mjs')]);
+    const r = run(process.execPath, [path.join(ROOT, 'tools', 'fetch-assets.mjs'), `--asset-source=${opts.source}`]);
     assets = checkAssets();
     if (!r.ok && !assets.ok) log(c.warn('  素材下载未完成（网络问题？）。游戏仍可运行（使用占位图），稍后重新运行 setup 即可续传。'));
   }

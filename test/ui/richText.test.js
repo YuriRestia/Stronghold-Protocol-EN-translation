@@ -89,6 +89,11 @@ describe('placeholders', () => {
       const out = richTextPlain(formatBondEffect(b, 25));
       assert.ok(!/\{\d+(:[^}]*)?\}/.test(out), `${b.bondId} leaves a placeholder: ${out}`);
     }
+    // a chance stops at 100 % (GitHub #108: 不屈 read 124 % at 266 layers; the sim caps it with min(1, …))
+    for (const id of ['indomShip', 'swiftShip', 'miraShip']) {
+      const pct = richTextPlain(formatBondEffect(bonds[id], 500)).match(/(\d+)%/);
+      assert.ok(pct && Number(pct[1]) === 100, `${id} at 500 layers: ${pct && pct[0]}`);
+    }
     assert.equal(formatBondEffect(null, 3), '');
     assert.equal(formatBondEffect({ effectDesc: 'x{0:0}', effectDescParams: [{ index: 0, format: '0', base: 'a', perStack: 'b' }], bb: { a: 1, b: 2 } }, 'bad'), 'x1');
   });

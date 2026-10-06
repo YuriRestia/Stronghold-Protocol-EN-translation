@@ -16,6 +16,8 @@
 // Final Assault prep) keeps the own board layout here — every coordinate the UI exchanges is a board coordinate anyway —
 // but draws the tiles of the player's half of the boss field (gameLogic fieldTile, the legality the highlights use: act2
 // m01's fence tiles are floor there, not the normal field's walls; user playtest #5 item 7).
+// A tap on the ground itself emits tileClick { row, col } like render/app.js does, so a special terrain tile
+// explains itself on this board too (GitHub issue #184).
 
 import { render } from '../../vendor/preact.module.js';
 import { html, TierChip } from './components.js';
@@ -310,6 +312,7 @@ export function createFallbackView(host, opts = {}) {
         const hov = st.hoverTarget?.area === 'board' && st.hoverTarget.row === row && st.hoverTarget.col === col ? dropState(st.hoverTarget) : null;
         tiles.push(html`<div key=${k} class=${cx('ff-tile', `ff-tile--${tileClass(row, col)}`, hl && `is-${hl}`, hov && `is-hover-${hov}`)}
           data-drop="board" data-row=${row} data-col=${col}
+          onPointerDown=${(e) => { if (e.button === 0) emit('tileClick', { row, col, button: 0, clientX: e.clientX, clientY: e.clientY }); }}
           style=${`transform:translate(${p.x}px,${p.y}px);width:${L.tile}px;height:${L.tile}px`}></div>`);
       }
     }

@@ -1117,12 +1117,14 @@ export class Battle {
    * a fenced tile blocks no ground enemy, _blockerFor). Checked every tick for every
    * unblocked enemy, moving or not, so an enemy overlapping an operator is taken over as soon as its blocker is gone or
    * the operator's capacity frees up (user playtest #5 item 4). Several blockers in contact → the nearest [ASSUMED],
-   * ties → the first in row-then-column scan order.
+   * ties → the first in row-then-column scan order. Never blocked: an enemy holding 不可阻挡 (PRTS 异常效果 BLOCK_FREE
+   * 「无法阻挡/被阻挡，自动解除阻挡」) — the flag itself (恐惧 / 诱导 carry it), 浮空, and 沉睡 (SLEEPING = 无法行动+无敌+不可阻挡:
+   * a sleeper takes no block slot, DESIGN §24.9); once it wakes it is blocked again only by a blocker with room.
    */
   _checkBlock(e) {
     if (e.blockedBy || e.hidden || !e.alive) return !!e.blockedBy;
     const f = e.s.flags;
-    if (f.unblockable || f.levitate || f.fear) return false;
+    if (f.unblockable || f.levitate || f.fear || f.sleep) return false;
     const r0 = Math.round(e.y), c0 = Math.round(e.x);
     const w = e.blockWeight ?? 1;
     let u = null, bd = Infinity;
@@ -1344,7 +1346,7 @@ export class Battle {
   }
 
   /**
-   * Apply a catalogue status. opts: { duration, source, value, force, refresh, point, resistApplied } — returns true
+   * Apply a catalogue status. opts: { duration, source, value, force, refresh, point, resistApplied, reenter } — returns true
    * when applied. Honours enemy immunities (stun/silence/sleep/frozen/levitate/feared) unless `force`. `beforeStatus`
    * handlers may cancel it or change `duration` / `value`. Official rules (buffs.js STATUS): 抵抗 (the `resist` status)
    * shortens the RESIST_STATUSES by its value (default half; applied after `beforeStatus`; `resistApplied` skips that
@@ -1355,8 +1357,11 @@ export class Battle {
    * then resumes); other statuses refresh to the longer duration. 诱导 (`attract`) walks the enemy to `point`
    * ([r, c] or {x, y}; default the source's tile — a new application moves the point); 恐惧 (`fear`) stamps where it
    * was applied and from where (fear.js stampFear: the fan of 恐惧可达地块 its movement uses). A stunned/sleeping operator
-   * releases the enemies it blocks; a feared/levitated/unblockable/attracted enemy is released by its blocker.
-   * `statusApplied` reports the final duration and `entered` (the target did not carry the status before).
+   * releases the enemies it blocks; a feared/levitated/unblockable/attracted/sleeping enemy is released by its blocker
+   * (沉睡 = 无法行动+无敌+不可阻挡, PRTS 异常效果: the slot frees for the next enemy, the sleeper stays put — DESIGN §24.9).
+   * `statusApplied` reports the final duration and `entered` (the target did not carry the status before) — or, with
+   * `reenter`, entered anyway: a pulse whose own short status the caller re-applies as a fresh one each time (缇缇 S2's
+   * sleep ward, DESIGN §24.8); the buff itself is refreshed as usual.
    * A unit that is 无敌 and 无法选中 at once (a 重生 in progress, a hovering or 永久无敌 leader part) takes no status from
    * the other side, `force` included — PRTS 无敌 "无法被不同阵营选中": so a status carried by the very hit that knocked an
    * enemy out does not land after its 重生's cleanse (DESIGN §21.4). A ground enemy's status never lands on an airborne
@@ -1409,7 +1414,7 @@ export class Battle {
     }
     const source = opts.source ?? null;
     let entered = true;
-    for (const b of target.buffs) if ((b.status ?? b.key) === key) { entered = false; break; }
+    if (opts.reenter !== true) for (const b of target.buffs) if ((b.status ?? b.key) === key) { entered = false; break; }
     if (tpl.palsy) {
       this.addBuff(target, { ...palsyBuff(value ?? 1), duration, source });
     } else if (tpl.valued != null && typeof tpl.mods === 'function' && opts.refresh == null) {
@@ -1422,7 +1427,7 @@ export class Battle {
       if (key === 'fear' && b && target.side === 'enemy') stampFear(this, target, b, source);
     }
     const f = tpl.flags;
-    if (f && target.side === 'enemy' && (f.levitate || f.unblockable || f.fear)) this._unblock(target);
+    if (f && target.side === 'enemy' && (f.levitate || f.unblockable || f.fear || f.sleep)) this._unblock(target);
     if (f && target.side === 'ally' && f.noBlock) this.releaseBlocked(target);
     if (this._hooks.statusApplied) this.emit('statusApplied', { source, target, status: key, duration, value, entered });
     return true;

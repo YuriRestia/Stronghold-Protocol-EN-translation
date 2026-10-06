@@ -604,12 +604,35 @@ export function TokenDetail({ token, piece, ownerId = null, snapHp = null, live 
 }
 
 /**
+ * A special terrain tile's tip (GitHub issue #184: 「建议加入对于特殊地形的单击信息提示」). Opened by a tap on the tile
+ * itself — the game screen resolves it with `gameLogic.terrainInfo` from the stage the board on screen is built from, so
+ * the mechanism lines carry that stage's own numbers (活性源石's damage / duration, 沼泽's stacks, 深水区's drowning …).
+ * @param {{ name:string, tag:string, lines:string[], facts:string[], row:number, col:number }} terrain
+ */
+function TerrainDetail({ terrain }) {
+  return html`
+    <div class="dhead">
+      <div class="dhead__icon"><${Icon} name="info" /></div>
+      <div class="dhead__info">
+        <div class="dhead__chips"><span class="dtag-kind">${terrain.tag}</span></div>
+        <h3 class="dhead__name">${terrain.name}</h3>
+      </div>
+    </div>
+    <${Section} title=${T('地形机制')} micro="TERRAIN">
+      ${terrain.lines.map((t, i) => html`<p class="dtext" key=${i}>${t}</p>`)}
+    <//>
+    ${Array.isArray(terrain.facts) && terrain.facts.length ? html`<${Section} title=${T('这一格')}><p class="dtext">${terrain.facts.join(' · ')}</p><//>` : null}`;
+}
+
+/**
  * Resolve what a detail target shows.
- * @param {{ kind:'piece'|'chess'|'item'|'enemy'|'unit'|'token', id?:string, uid?:number, unit?:any, count?:number }} target
+ * @param {{ kind:'piece'|'chess'|'item'|'enemy'|'unit'|'token'|'terrain', id?:string, uid?:number, unit?:any, count?:number }} target
  * @param {Map<number, any>} pieces indexPieces(priv)
  */
 export function resolveDetail(target, pieces) {
   if (!target) return null;
+  // a special terrain tile (issue #184): the screen resolved the stage's own numbers already (gameLogic.terrainInfo)
+  if (target.kind === 'terrain') return target.terrain && typeof target.terrain === 'object' ? { type: 'terrain', terrain: target.terrain } : null;
   if (target.kind === 'piece') {
     const e = pieces?.get(target.uid);
     if (!e) return null;
@@ -691,6 +714,7 @@ export function DetailPanel({ detail, editable, snapHp, onClose, onSell, onDestr
       ${detail.type === 'item' ? html`<${ItemDetail} item=${detail.item} piece=${detail.piece} editable=${editable} onDestroy=${destroyIt} offBonds=${offBonds} />` : null}
       ${detail.type === 'enemy' ? html`<${EnemyDetail} enemy=${detail.enemy} snapHp=${snapHp} count=${detail.count} live=${liveNow} />` : null}
       ${detail.type === 'token' ? html`<${TokenDetail} token=${detail.token} piece=${detail.piece} ownerId=${detail.ownerId ?? null} snapHp=${snapHp} live=${liveNow} />` : null}
+      ${detail.type === 'terrain' ? html`<${TerrainDetail} terrain=${detail.terrain} />` : null}
     </div>
   </aside>`;
 }

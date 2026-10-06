@@ -1101,7 +1101,9 @@ const KITS = {
               const dur = skill.timeLeft > 0 ? skill.timeLeft : Math.max(0.1, num(s.duration, 10));
               let n = 0;
               // PRTS 备注: "技能生效对象实际为“自身这格内的所有地面敌人及自身阻挡的敌人”，即使阻挡的是飞行敌人" — a blocked
-              // enemy stands at the block radius, outside her tile (Battle._checkBlock)
+              // enemy stands at the block radius, outside her tile (Battle._checkBlock). Asleep they are no longer blocked
+              // (沉睡 = 不可阻挡, DESIGN §24.9; GitHub #140): her slots free for the next enemies, and a sleeper that wakes
+              // is held again only while she has room
               for (const e of battle.enemies) {
                 if (!e.alive || e.hidden) continue;
                 if (e.blockedBy !== unit && (e.isFlying || !bodyOnTile(e, unit.tileR, unit.tileC))) continue;

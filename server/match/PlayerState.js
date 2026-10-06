@@ -1012,7 +1012,7 @@ export class PlayerState {
 
   _placementOf(piece) {
     const rec = piece.kind === 'token' ? this.gd.token(piece.id) : this.gd.chess(piece.id);
-    // elite 歌蕾蒂娅 + HOK-Y may use a 高台; the module is this player's loadout (owner's decision 2026-10-04)
+    // a melee chess whose trait reads 「可以放置于远程位」 may use a 高台, whatever its module (shared/highGround.js)
     return placeClass(this, rec);
   }
 

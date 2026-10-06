@@ -122,7 +122,7 @@ test('乌尔比安 S3: the 阿戈尔 devour gains stay through the 【移动】 
   const gain = () => u.buffs.find((x) => x.key === 'bond:egir:devour');
   assert.ok(gain(), 'he devoured the piece in front of him at the battle start');
   const mods = { ...gain().mods }, atk0 = u.s.atk, block0 = u.s.blockCnt;
-  assert.equal(mods.atkFlat, 1000);
+  assert.equal(mods.atkFinal, 1000);
   u.skill.gainSp(1000);
   assert.ok(h.runUntil(() => u.skill.active, 2));
   assert.deepEqual([u.tileR, u.tileC], [10, 7], 'moved');

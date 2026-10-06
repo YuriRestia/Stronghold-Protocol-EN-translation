@@ -119,6 +119,17 @@ describe('8: the detail card never covers the selected unit\'s underframe', () =
     assert.match(panels, /\.uframe__label\s*\{[^}]*white-space:\s*nowrap\s*;/, 'shortcut labels stay on one line');
   });
 
+  // a finger's tap near a disc: the browser's touch adjustment moved it onto the nearest element that responds to clicks
+  // (the canvas's pointer listeners do not count), so with PR #149's 收起 toggle pushing the discs over the back row a tap
+  // on the row-12 unit at 844×390 opened the bond popup (test/render/models.browser.test.js #4.1 touch)
+  test('the field canvas is a click target of its own, so a tap on the board stays on the tile under the finger', async () => {
+    const { readFileSync } = await import('node:fs');
+    const app = readFileSync(new URL('../../public/js/render/app.js', import.meta.url), 'utf8');
+    assert.match(app, /\n {2}canvas\.addEventListener\('click', onTapTarget\);\n/, 'registered with the other canvas listeners');
+    assert.match(app, /\n {6}canvas\.removeEventListener\('click', onTapTarget\);\n/, 'dropped on destroy');
+    assert.match(app, /const onTapTarget = \(\) => \{\};/, 'a no-op: the press itself stays with the pointer events');
+  });
+
   test('underframeRect covers the diamond and its buttons', () => {
     const r = underframeRect({ x: 500, y: 600, s: 100 }, 100);
     assert.ok(r.left <= 500 - 105 && r.right >= 500 + 105 && r.bottom === 600 + 105);

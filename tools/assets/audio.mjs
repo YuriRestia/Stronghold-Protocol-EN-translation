@@ -252,6 +252,11 @@ export const BATTLE_SFX = Object.freeze({
   enemyDieHeavy: { path: 'battle/b_enemy/b_enemy_dead_h.mp3' },
   enemyHit: { path: 'enemy/e_imp/e_imp_general_w.mp3' },
   heal: { bank: 'battle.ON_MODIFIER_HEAL' },
+  // 漏怪: an enemy reached the exit. This is the ORIGINAL Arknights stage cue (`battle.ON_ENEMY_REACHED_EXIT` ->
+  // `Battle/b_ui/b_ui_alarmenter`), not an autochess one — the mode itself has no bank named for an escape (all 13,948
+  // SFX banks of audio_data.json searched). The official treats it as a one-shot alarm: `maxSoundAllowed: 1` with
+  // `popOldest: true` on the `Battle_UI_Important` mixer, so a new escape replaces the one still playing.
+  leak: { bank: 'battle.ON_ENEMY_REACHED_EXIT' },
   win: { path: 'battle/b_ui/b_ui_win.mp3' },
   lose: { path: 'battle/b_ui/b_ui_lose.mp3' },
   killCoin: { bank: 'battle.ON_CUSTOM_TRIGGER.autochess_kill_gain_coin' },

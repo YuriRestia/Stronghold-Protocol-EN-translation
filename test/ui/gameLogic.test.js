@@ -12,7 +12,7 @@ import {
   bondMembers, memberHeadCount, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
   boardTargets, dropIntent, normalizeDraft, normalizeSp, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
   rangeGridBox, shortcutFor, sanitizeSettings, DEFAULT_SETTINGS, normalizeResult, cycleField, fieldLabel, homeFieldId,
-  activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason,
+  activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo,
 } from '../../public/js/ui/gameLogic.js';
 import { pairPlayers } from '../../server/match/finalAssault.js';
 import { PHASE, GEO } from '../../shared/constants.js';
@@ -245,28 +245,21 @@ describe('placement mirror (canPlace)', () => {
     assert.equal(canPlace(ctx, m.uid, null).ok, false);
     assert.equal(canPlace(ctx, m.uid, { area: 'temp', idx: 0 }).ok, false, 'no temp target');
   });
-  test('only elite 歌蕾蒂娅 carrying HOK-Y lights the 高台; 崖心, 见行者, a normal record and other modules stay on the ground', () => {
-    const HOK_Y = 'uniequip_003_glady';
-    const gladE = piece('chess_char_4_12_b');
-    const gladN = piece('chess_char_4_12_a');
-    const cliff = piece('chess_char_2_03_b');
-    const forcer = piece('chess_char_3_07_b');
+  test('every trait holder (歌蕾蒂娅, 崖心, 见行者, normal and elite) lights the 高台 whatever the module; a plain melee stays on the ground', () => {
+    const holders = ['chess_char_4_12_a', 'chess_char_4_12_b', 'chess_char_2_03_a', 'chess_char_2_03_b', 'chess_char_3_07_a', 'chess_char_3_07_b'].map((id) => piece(id));
     const m = piece(MELEE);
-    const loadout = { chess_char_4_12_a: { module: HOK_Y } };
-    const ctx = ctxFor(privWith({ hand: [gladE, gladN, cliff, forcer, m], loadout }));
-    for (const [row, col] of [[10, 4], [11, 4], [12, 4], [9, 3]]) assert.equal(canPlace(ctx, gladE.uid, { area: 'board', row, col }).ok, true, `elite HOK-Y on ${row},${col}`);
-    const lit = boardTargets(ctx, gladE.uid).legal.map(([a, b]) => tileKey(a, b));
-    assert.equal(lit.length, STAGE.deployTiles.normal.melee.length + STAGE.deployTiles.normal.rangedOnly.length, 'every deploy tile lit');
-    for (const p of [gladN, cliff, forcer, m]) {
-      assert.deepEqual(canPlace(ctx, p.uid, { area: 'board', row: 10, col: 4 }), { ok: false, code: 'BAD_TILE', reason: '近战单位只能部署在地面' }, p.id);
-      assert.equal(canPlace(ctx, p.uid, { area: 'board', row: 9, col: 3 }).ok, true, `${p.id} on the ground`);
+    const every = STAGE.deployTiles.normal.melee.length + STAGE.deployTiles.normal.rangedOnly.length;
+    // the module does not matter: the default, HOK-Y, HOK-X and none on 歌蕾蒂娅; 崖心's HOK-X; none on 见行者
+    for (const loadout of [null, { chess_char_4_12_a: { module: 'uniequip_003_glady' } }, { chess_char_4_12_a: { module: 'uniequip_002_glady' } },
+      { chess_char_4_12_a: { module: 'none' }, chess_char_2_03_a: { module: 'none' }, chess_char_3_07_a: { module: 'none' } }]) {
+      const ctx = ctxFor(privWith({ hand: [...holders, m], loadout }));
+      for (const p of holders) {
+        for (const [row, col] of [[10, 4], [11, 4], [12, 4], [9, 3]]) assert.equal(canPlace(ctx, p.uid, { area: 'board', row, col }).ok, true, `${p.id} on ${row},${col} (${JSON.stringify(loadout)})`);
+        assert.equal(boardTargets(ctx, p.uid).legal.length, every, `${p.id}: every deploy tile lit`);
+      }
+      assert.deepEqual(canPlace(ctx, m.uid, { area: 'board', row: 10, col: 4 }), { ok: false, code: 'BAD_TILE', reason: '近战单位只能部署在地面' }, '角峰');
+      assert.equal(canPlace(ctx, m.uid, { area: 'board', row: 9, col: 3 }).ok, true, '角峰 on the ground');
     }
-    const none = ctxFor(privWith({ hand: [gladE], loadout: { chess_char_4_12_a: { module: 'none' } } }));
-    assert.equal(canPlace(none, gladE.uid, { area: 'board', row: 10, col: 4 }).ok, false, 'no module');
-    const xmod = ctxFor(privWith({ hand: [gladE], loadout: { chess_char_4_12_a: { module: 'uniequip_002_glady' } } }));
-    assert.equal(canPlace(xmod, gladE.uid, { area: 'board', row: 10, col: 4 }).ok, false, 'HOK-X');
-    const bare = ctxFor(privWith({ hand: [gladE] }));
-    assert.equal(canPlace(bare, gladE.uid, { area: 'board', row: 10, col: 4 }).ok, false, 'default module is HOK-X');
   });
   test('not editable ⇒ nothing is legal', () => {
     const m = piece(MELEE);
@@ -590,5 +583,113 @@ describe('equipment dropped on a tile goes to the unit on it', () => {
     assert.equal(dropFailureReason(ctx, eq.uid, { row: 11, col: 3, area: 'board' }), '请将装备拖拽至干员身上');
     // an Art is used on the tile under the pointer itself
     assert.deepEqual(dropIntent(ctx, art.uid, { area: 'board', row: 11, col: 3 }), { t: 'g.art', fields: { itemUid: art.uid, row: 11, col: 3 } });
+  });
+});
+
+// GitHub issue #184 「建议加入对于特殊地形的单击信息提示」: tapping a special terrain tile explains it — in the stage's own
+// numbers (the same bb / special parameters the sim runs on), while an ordinary tile says nothing at all.
+describe('special terrain tip', () => {
+  /** The first (row, col) of `glyph` in a real stage of data/stages.json. */
+  const at = (stageId, glyph) => {
+    const st = stages[stageId];
+    for (let row = 0; row < st.rows.length; row++) {
+      const col = st.rows[row].indexOf(glyph);
+      if (col >= 0) return { st, row, col };
+    }
+    throw new Error(`no ${glyph} in ${stageId}`);
+  };
+
+  test('each terrain of the mode, with the numbers of the stage it stands on', () => {
+    // 活性源石 (战场#04): the official tile parameters (damage 70/s, +20% ATK, +20 ASPD, 300 s)
+    const inf = at('act1autochess_m04', 'i');
+    const tip = terrainInfo(inf.st, inf.row, inf.col);
+    assert.equal(tip.key, 'infection');
+    assert.equal(tip.name, '活性源石');
+    assert.equal(tip.tag, '特殊地形');
+    assert.deepEqual([tip.row, tip.col], [inf.row, inf.col]);
+    assert.match(tip.lines[0], /每秒受到 70 点真实伤害/, 'damage from the stage\'s own bb');
+    assert.match(tip.lines[1], /攻击力 \+20%、攻击速度 \+20/);
+    assert.match(tip.lines[2], /300 秒/);
+    assert.deepEqual(tip.facts, ['可部署', '地面单位可通过']);
+    // 沼泽 (战场#06): one 陷入沼泽 layer a second, −5% ASPD (−5% move for enemies), 2 layers at 重量 ≥ 3, 10 at most
+    const mire = terrainInfo(...(() => { const g = at('act2autochess_m02', 'm'); return [g.st, g.row, g.col]; })());
+    assert.equal(mire.name, '沼泽');
+    assert.ok(mire.lines.some((l) => /攻击速度 −5%/.test(l) && /移动速度 −5%/.test(l)));
+    assert.ok(mire.lines.some((l) => /重量 ≥ 3 的敌人一次获得 2 层/.test(l)));
+    assert.ok(mire.lines.some((l) => /最多 10 层/.test(l)));
+    // 排气格栅 (战场#07): the 隐匿-like rule and its limit — the enemy it blocks still hits it (review on #185)
+    const smog = at('act2autochess_m03', 'g');
+    const smogTip = terrainInfo(smog.st, smog.row, smog.col);
+    assert.equal(smogTip.name, '排气格栅');
+    assert.match(smogTip.lines[0], /不会被敌方的远程攻击选中（效果相当于隐匿）/);
+    assert.match(smogTip.lines[1], /挡住敌人的干员仍会被它攻击到/);
+    // 深水区 (战场#05): drowning numbers, and 拒绝部署 although the level's own buildableType is ALL (grid.js)
+    const sea = at('act1autochess_m05', 'd');
+    const seaTip = terrainInfo(sea.st, sea.row, sea.col);
+    assert.equal(seaTip.name, '深水区');
+    assert.ok(seaTip.lines.some((l) => /每秒受到 40 点伤害/.test(l)));
+    assert.ok(seaTip.lines.some((l) => /攻击速度 −60%/.test(l) && /移动速度 ×0.6/.test(l)));
+    // …and what that damage IS: sourceless, and not 环境伤害 (devices.js tickDeepsea; review on #185)
+    assert.ok(seaTip.lines.some((l) => /无来源伤害/.test(l) && /不归类为环境伤害/.test(l)));
+    assert.ok(seaTip.lines.some((l) => /拒绝部署/.test(l)));
+    assert.ok(seaTip.facts.includes('不可部署'));
+    // the gates and teleports every stage carries (tile_start / tile_end / tile_telin / tile_telout)
+    for (const [glyph, name] of [['S', '红门'], ['E', '蓝门'], ['I', '传送入口'], ['O', '传送出口']]) {
+      const g = at('act1autochess_m04', glyph);
+      const t = terrainInfo(g.st, g.row, g.col);
+      assert.equal(t.name, name, glyph);
+      assert.ok(t.lines.length >= 1);
+    }
+  });
+
+  test('an ordinary tile says nothing (the press keeps its other meanings); nonsense input is safe', () => {
+    const st = stages['act1autochess_m04'];
+    const inf = at('act1autochess_m04', 'i');
+    assert.ok(terrainInfo(inf.st, inf.row, inf.col), 'the stage does carry one tile that answers');
+    // every non-special glyph the stage uses: the bench, the blocked rows, road / floor, the fence, the separator…
+    for (const glyph of ['a', 'A', '#', 'X', 'r', 'f', 'b', 'h', 'p']) {
+      let found = null;
+      for (let row = 0; row < st.rows.length && !found; row++) {
+        const col = st.rows[row].indexOf(glyph);
+        if (col >= 0) found = { row, col };
+      }
+      if (!found) continue;                       // a glyph this stage does not use says nothing to test
+      assert.equal(terrainInfo(st, found.row, found.col), null, glyph);
+    }
+    assert.equal(terrainInfo(inf.st, -1, inf.col), null);
+    assert.equal(terrainInfo(inf.st, inf.st.rows.length, 0), null);
+    assert.equal(terrainInfo(inf.st, inf.row, 999), null);
+    assert.equal(terrainInfo(inf.st, 1.5, 2), null);
+    assert.equal(terrainInfo(inf.st, '3', 2), null);
+    assert.equal(terrainInfo(null, 0, 0), null);
+    assert.equal(terrainInfo(undefined, 0, 0), null);
+    assert.equal(terrainInfo({}, 0, 0), null);
+    // a stage without the tile legend (or without that glyph) explains nothing rather than guessing
+    assert.equal(terrainInfo({ rows: ['i'] }, 0, 0), null);
+    assert.equal(terrainInfo({ rows: ['i'], tiles: {} }, 0, 0), null);
+    assert.equal(terrainInfo({ rows: ['i'], tiles: { i: null } }, 0, 0), null);
+    // …and a legend entry the mode never gave a tip (its own ordinary floor) is not a tip either
+    assert.equal(terrainInfo({ rows: ['z'], tiles: { z: { tileKey: 'tile_floor', special: null } } }, 0, 0), null);
+  });
+
+  test('the facts come from the tile\'s own legend entry; missing terrain parameters never crash', () => {
+    const stage = {
+      rows: ['ih'],
+      tiles: {
+        i: { tileKey: 'tile_infection', height: 'LOW', buildable: 'RANGED', groundPassable: false, special: 'infection' },
+        h: { tileKey: 'tile_smog', height: 'HIGH', buildable: 'NONE', groundPassable: false, special: 'smog' },
+      },
+      special: {},
+    };
+    assert.deepEqual(terrainInfo(stage, 0, 0).facts, ['仅远程位可部署', '只有空中单位能通过']);
+    assert.deepEqual(terrainInfo(stage, 0, 1).facts, ['不可部署', '高台', '只有空中单位能通过']);
+    // a stage whose `special` is missing: the mechanism is still explained, just without the stage's numbers
+    const bare = { rows: ['ih'], tiles: stage.tiles };
+    assert.deepEqual(terrainInfo(bare, 0, 0).lines, ['在其上的我方单位与经过的敌方单位持续受到伤害']);
+    assert.deepEqual(terrainInfo(bare, 0, 1).lines, ['站在排气格栅上的干员不会被敌方的远程攻击选中（效果相当于隐匿）', '但挡住敌人的干员仍会被它攻击到']);
+    // 沼泽 without its parameters falls back to the official template numbers
+    const mire = { rows: ['m'], tiles: { m: { tileKey: 'tile_mire', height: 'LOW', buildable: 'ALL', groundPassable: true, special: 'mire' } } };
+    assert.match(terrainInfo(mire, 0, 0).lines[0], /每 1 秒获得 1 层/);
+    assert.match(terrainInfo(mire, 0, 0).lines[2], /最多 10 层/);
   });
 });

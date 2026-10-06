@@ -31,7 +31,7 @@
 // are built; switching back (WebGL context lost, art missing) rebuilds the 2D board.
 
 import { tileAtlas, fxAtlas, rng, groundTexture } from './textures.js';
-import { GLYPH, TILEKEY_GLYPH, TILE_H, COLORS } from './style.js';
+import { GLYPH, TILEKEY_GLYPH, TILE_H, COLORS, ORIGINIUM } from './style.js';
 import { parsePenRect, PEN_RECT } from './pen.js';
 
 /**
@@ -193,6 +193,9 @@ function variantMat(t) {
     case 'roadN': return h < 4 ? 'roadN' : 'roadN2';
     case 'floor': return h < 4 ? 'floor' : 'floor2';
     case 'forbid': return h < 4 ? 'forbid' : 'forbid2';
+    // 活性源石: the same material twice (the second mirrored), so a field of it does not repeat one pattern
+    // (textures.js originiumOverlay — the palette and recipe match the 3D board's shader, GitHub #184)
+    case 'infection': return h < 4 ? 'infection' : 'infection2';
     default: return t.mat;
   }
 }
@@ -650,7 +653,7 @@ export class TileField {
       switch (t.glyph) {
         case 'g': add('smog', 'smoke', P.BLEND_MODES.NORMAL, 0xb8c4c0, 2); break;
         case 'd': add('sea', 'soft', P.BLEND_MODES.ADD, 0x5fe0ff, 1); break;
-        case 'i': add('infect', 'glow', P.BLEND_MODES.ADD, 0xff6a3d, 1); break;
+        case 'i': add('infect', 'glow', P.BLEND_MODES.ADD, ORIGINIUM.glow, 1); break;
         case 'm': add('mire', 'dot', P.BLEND_MODES.ADD, 0xc8d890, 2); break;
         case 'I': case 'O': add('tel', 'ring', P.BLEND_MODES.ADD, 0xb36bff, 1); break;
         case 'S': if (r <= 12) add('gateGlow', 'glow', P.BLEND_MODES.ADD, COLORS.gateRed, 1); break;

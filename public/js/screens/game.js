@@ -94,8 +94,9 @@ import { pieceTile } from '../render/drag.js';
 import {
   phaseMode, phaseBanner, isCombatPhase, showDeadPill, isBossPhase, placementContext, canPlace, boardTargets, dropIntent,
   snapHud, activeBubbles, shortcutFor, shortcutBlocked, closesOnFieldPress, phaseTotalSeconds, homeFieldId, ownFieldId, normalizeSp, sortedPlayers,
+  terrainInfo,
   countdownState, shopBlockReason, stageOverrides, effectiveStage, watchTarget, dropFailureReason,
-  previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, panelSide, panelSlots, bondPopupPlace, chessLoadout, unitLoadout,
+  previewEnemyKey, prepCamera, prepCameraFor, foldCamera, deployFieldOf, fieldTile, panelSide, panelSlots, bondPopupPlace, chessLoadout, unitLoadout,
   mergeTarget, modeOffBonds, readyFundsPrompt, ownerBandId,
 } from '../ui/gameLogic.js';
 import { toast } from '../ui/toasts.js';
@@ -369,6 +370,15 @@ function MatchScreen() {
     const st = ownView ? ownStage : baseStage;
     if (st) view.setStage(st);
   }, [view, ownView, ownStage, baseStage]);
+  // the stage behind the board ON SCREEN — the own one (机变 overrides applied) or, while watching a teammate, the plain
+  // one — and how a tapped BOARD tile maps to it (GitHub issue #184: tileClick → gameLogic.terrainInfo). Everywhere but a
+  // boss-prep board the two spaces are the same: a 最终攻势 / 隐秘核心 battle renders the stage's own rows (GEO.BOSS_RECT),
+  // 联防 / normal rects are stage rows; the boss PREP draws the player's half (stage rows 2–5) as board rows 9–12
+  // (render/prepfield.js toDisp), which is exactly gameLogic.fieldTile.
+  live.current.terrainStage = ownView ? ownStage : baseStage;
+  live.current.terrainTile = showPrep && (deployField === 'bossL' || deployField === 'bossR')
+    ? (row, col) => fieldTile(deployField, row, col)
+    : (row, col) => [row, col];
   const staleFieldRef = useRef(null);
   const enteredFieldRef = useRef(null);
   const pressSel = useRef(null);                         // the selected piece when the current field press began
@@ -504,8 +514,9 @@ function MatchScreen() {
         const mine = (pid && msg.result.perPlayer && msg.result.perPlayer[pid]) || null;
         const diff = st.match?.public?.difficulty;
         // the speaker comes from THIS battle's own field (`mine.unitsEnd`), not from the field on screen: watching a
-        // teammate used to make THEIR operator say the viewer's line (review on #73)
-        const charId = resultSpeaker(mine);
+        // teammate used to make THEIR operator say the viewer's line (review on #73). unitsEnd names chess ids: the
+        // chess record gives the operator whose voice bank speaks
+        const charId = resultSpeaker(mine, Math.random, (id) => data.lookup('chess', id)?.charId ?? null);
         if (!charId) return;
         audio.voice(charId, resultVoiceSlot({
           perfect: !!(mine?.perfect),
@@ -885,6 +896,19 @@ function MatchScreen() {
         pressSel.current = null;
         setSel(wasSel ? null : { uid: e.uid });
         if (wasSel) setDetail((d) => (d?.kind === 'piece' && d.uid === e.uid ? null : d));
+      }),
+      // a tap on the ground itself: a special terrain tile explains itself (GitHub issue #184 「建议加入对于特殊地形的单击
+      // 信息提示」) — 活性源石 / 沼泽 / 排气格栅 / 深水区 / 红蓝门 / 传送, with the numbers of the stage behind the board.
+      // An ordinary tile (road / floor / wall) says nothing, so the press keeps its other meanings (deselect, close).
+      view.on('tileClick', (t) => {
+        if (!t || !Number.isInteger(t.row) || !Number.isInteger(t.col)) return;
+        const L = live.current;
+        const [row, col] = L.terrainTile(t.row, t.col);
+        const info = terrainInfo(L.terrainStage, row, col);
+        if (!info) return;
+        audio.sfx('click', { volume: 0.4 });
+        setSel(null);
+        setDetail({ kind: 'terrain', terrain: info });
       }),
     ];
     return () => { moveOff?.(); for (const off of offs) { try { off?.(); } catch { /* ignore */ } } };

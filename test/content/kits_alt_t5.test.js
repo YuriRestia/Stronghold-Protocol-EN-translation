@@ -1028,6 +1028,23 @@ test('引星棘刺 S1 度算浪波: an alchemy unit on the lowest-HP ally: DEF +
   }
 });
 
+test('引星棘刺 S1 度算浪波 (AUTO): fires as soon as its SP is full, no enemy needed (GitHub #124)', () => {
+  for (const id of pair('15')) {
+    const h = run({
+      defs: { chess: { t_low: ally('t_low') } },
+      units: [entry(id, 'skchr_thorn2_1', { row: 10, col: 3 }), { chessId: 't_low', row: 10, col: 5 }],
+      enemies: [],
+    });
+    const u = sel(h, id, 'skchr_thorn2_1');
+    h.step();
+    assert.equal(h.b.enemies.length, 0, 'no enemy on the field');
+    const need = u.skill.spCost - u.skill.sp;
+    h.run(need + 0.5);
+    assert.ok((u.mem.zones || []).some((z) => z.type === 'guard'), `cast within ${need.toFixed(1)} s of SP filling, no enemy around`);
+    done(h);
+  }
+});
+
 test('引星棘刺 S3 “我的海疆”: passive skill range; alchemy units on the 3 lowest-block ops debuff (不叠加) and burn enemies around them, ramping to the max after 15 s', () => {
   for (const id of pair('15')) {
     const h = run({

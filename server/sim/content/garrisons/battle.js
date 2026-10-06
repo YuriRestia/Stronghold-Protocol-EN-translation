@@ -14,7 +14,9 @@
 //                       'freeze', × prob) · act2autochess_gar_event_onstart (every deploy) ·
 //                       act2autochess_gar_event_allyenemy_sleepstun_inrange (an enemy or operator in range ENTERS
 //                       sleep / stun). "进入…时": re-applying a running status (a refresh) is not a new entry
-//                       (engine statusApplied ctx.entered). Targets: bond_by_id / bond_self (own active bonds) / bond_actived_maxstack;
+//                       (engine statusApplied ctx.entered) — except a pulse that re-applies its own short status as a
+//                       fresh one (applyStatus `reenter`: 缇缇 S2's sleep ward, DESIGN §24.8).
+//                       Targets: bond_by_id / bond_self (own active bonds) / bond_actived_maxstack;
 //                       amounts: by_count / by_charcount_samerow / by_charlevel; conditions character_same_row /
 //                       character_same_col (≥ check_count incl. self). Gains go through support.gainLayers with
 //                       reason 'garrison', source = the trait's owner, cap = max_add_count_per_battle per (instance, bond).

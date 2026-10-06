@@ -529,7 +529,7 @@ test('user playtest #6 follow-up: a merge consuming a deployed copy puts the eli
   assert.equal(promo.eliteTileAmongSeveralDeployed?.assumed, true);
   for (const [name, text] of [['research 01', R01], ['00-INDEX', INDEX], ['META', META], ['SIM', SIM], ['PlayerState', PS]]) assert.match(text.replace(/\s+|\/\/\s/g, ''), official, `${name} quotes PRTS`);
   assert.match(INDEX, /to \*\*that copy's board position\*\*/);
-  // the deployment order is by column since 0.1.3 (Battle.start; DESIGN §23.f4), so is the merge's tile among several copies
+  // the deployment order is by column since 0.1.3 (Battle.start; DESIGN §23.23), so is the merge's tile among several copies
   assert.match(META, /of several, the one that deploys first \(col asc, then row desc; `board\.js mergeTile`/);
   assert.ok(!/it takes a freed\s+board tile of a consumed copy only when the hand and temp are both full/.test(META), 'META: the old fallback-only wording is gone');
   assert.ok(!/only with the hand and temp both full does it take a/.test(PS), 'PlayerState header: the old fallback-only wording is gone');

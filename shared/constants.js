@@ -3,7 +3,7 @@
 export const PROTOCOL_VERSION = 1;
 /** Release version shown to players (title screen, server banner, /healthz). Kept equal to package.json "version"
  * (test/version.test.js); PROTOCOL_VERSION above is the separate wire-format number. */
-export const APP_VERSION = '0.1.3';
+export const APP_VERSION = '0.1.4';
 
 export const MAX_SEATS = 4;
 /**

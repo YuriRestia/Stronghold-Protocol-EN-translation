@@ -39,7 +39,7 @@ test('联防 阿戈尔 chain 乌尔比安 → 幽灵鲨 (down) → 歌蕾蒂娅 
   const got = buffOf(ulpia, 'bond:egir:devour');
   assert.ok(ref && got, 'both 乌尔比安 devour');
   const base = (id) => down.unit(id).base;
-  close(got.mods.atkFlat, base(GHOST).atk + base(GLADY).atk + base(FODDER).atk, 1e-6, 'the base ATK of 幽灵鲨, 歌蕾蒂娅 and the fodder');
+  close(got.mods.atkFinal, base(GHOST).atk + base(GLADY).atk + base(FODDER).atk, 1e-6, 'the base ATK of 幽灵鲨, 歌蕾蒂娅 and the fodder');
   assert.equal(got.mods.blockCnt, base(GHOST).blockCnt + base(GLADY).blockCnt + base(FODDER).blockCnt);
   assert.deepEqual(got.mods, ref.mods, 'exactly the gains of the chain with 幽灵鲨 standing');
   close(ulpia.s.atk, up.unit(ULPIA).s.atk, 1e-6, '乌尔比安 ATK');
@@ -57,7 +57,7 @@ test('联防 阿戈尔 chain 乌尔比安 → 幽灵鲨 (down) → 歌蕾蒂娅 
   assert.equal(fodder.alive, up.unit(FODDER).alive);
   // her own marks (歌蕾蒂娅, the fodder) still give her their base ATK / block for when she is back
   const own = buffOf(ghost, 'bond:egir:devour');
-  close(own ? own.mods.atkFlat : 0, base(GLADY).atk + base(FODDER).atk, 1e-6, '幽灵鲨 keeps her marking gains (a persistent buff)');
+  close(own ? own.mods.atkFinal : 0, base(GLADY).atk + base(FODDER).atk, 1e-6, '幽灵鲨 keeps her marking gains (a persistent buff)');
   checkInvariants(down.b);
   assert.equal(down.result().perPlayer.p1.deaths, up.result().perPlayer.p1.deaths - 1, 'no knock-out counted for her (standing, the devour knocks her out)');
 });
@@ -84,7 +84,7 @@ test('联防 阿戈尔: a down member at the head of the chain devours as if it 
     const down = head(true, five);
     const [ghost, glady, fodder] = [GHOST, GLADY, FODDER].map((id) => down.unit(id));
     const g = buffOf(ghost, 'bond:egir:devour');
-    close(g.mods.atkFlat, glady.base.atk + fodder.base.atk, 1e-6, `${tag}: marks 歌蕾蒂娅 and, through her, the fodder`);
+    close(g.mods.atkFinal, glady.base.atk + fodder.base.atk, 1e-6, `${tag}: marks 歌蕾蒂娅 and, through her, the fodder`);
     const pairs = (h) => devours(h).map((c) => [c.source.defId, c.target.defId]);
     assert.deepEqual(pairs(down), pairs(up), `${tag}: the marks resolve as with 幽灵鲨 standing`);
     assert.deepEqual(pairs(down), [[GHOST, GLADY], [GHOST, FODDER]], `${tag}: her two marks; 歌蕾蒂娅's on the fodder is cancelled (knocked out first)`);

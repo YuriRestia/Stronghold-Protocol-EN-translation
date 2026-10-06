@@ -2727,14 +2727,14 @@
      },
      {
       "need": "5 distinct",
-      "effect": "The first 3 阿戈尔 members by position (the devour order: leftmost first, then topmost; fixed at battle start) each revive immediately on their own first knock-out, whatever the order of knock-outs (max_free_respawn_cnt 3)."
+      "effect": "The first 3 阿戈尔 members to be knocked out, in knock-out order (the battle-start devour's food included; a member never knocked out takes none), each revive immediately on that first knock-out; a member takes at most one, and a save by its own kit / item / band revive is no knock-out (max_free_respawn_cnt 3; the owner's decision of 2026-10-05)."
      }
     ],
     "algorithm": [
      "Order: 阿戈尔 members sorted leftmost first, then topmost (\"更靠左和靠上\").",
      "Each 阿戈尔 in order marks the unit on the tile directly in front of it (its facing direction) and also the front-tile unit of every 阿戈尔 it has marked (chain). It never marks itself, a unit it already marked, or a unit that marked it.",
-     "The marker immediately gains the base ATK of every unit it marked (added to base ATK at the final stage) and their block counts.",
-     "After all marks are placed, each mark makes its target suffer one 5000-point physical 流失 (HP loss, source = the target itself; if it dies, the kill is credited to the marker), resolved in marking order. A target that dies cancels its remaining pending marks.",
+     "The marker immediately gains the base ATK of every unit it marked (a 最终加算: added after its ATK percentages, PRTS \"基础攻击力（最终加算）\") and their block counts.",
+     "After all marks are placed, each mark makes its target suffer one 5000-point physical 流失 (HP loss, source = the target itself; if it dies, the kill is credited to the marker), resolved in marking order. A target that dies cancels its remaining pending marks; a marker knocked out earlier in the pass still resolves its own marks (only the target's state cancels a mark).",
      "Each devoured unit adds layers to 阿戈尔 equal to its tier (1-6), once per unit per battle.",
      "(5-member tier) Revive is implemented as: when the unit leaves the field for any reason other than being moved, its next deployment has 0 redeploy time and 0 cost (PRTS). Devour layers: each devoured unit adds its tier once per battle (refreshes next round)."
     ],
@@ -2748,7 +2748,7 @@
     "howToPlay": "Put cheap/high-tier fodder in front of 阿戈尔 carries: they steal base ATK and block, gain layers, and (5) revive. Tier-6 fodder gives +6 layers per battle.",
     "assumed": [
      "5000 physical 流失 ignores DEF and shields",
-     "marked allied units are the player's own operators (devour hits allies)"
+     "marked allied units are operators of any player (devour hits allies): on a shared field a teammate's operator in front, standing or entering 联防 knocked out, is devoured too and the chain continues through a teammate's 阿戈尔 (the owner's decision of 2026-10-05: PRTS has no own-side limit)"
     ]
    },
    "members": [

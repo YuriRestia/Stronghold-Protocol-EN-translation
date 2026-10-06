@@ -16,6 +16,36 @@ export const hasChrome = () => existsSync(CHROME);
 
 const CHROME_ARGS = ['--no-sandbox', '--no-first-run', '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
   '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--mute-audio', '--force-device-scale-factor=1'];
+/** The CDP protocol timeout of every Client's browser: one DevTools call that takes longer fails (a hung page fails fast). */
+export const PROTOCOL_TIMEOUT_MS = 90000;
+
+/**
+ * `page.waitForFunction` for a wait that may outlast PROTOCOL_TIMEOUT_MS. Puppeteer awaits the whole poll inside ONE
+ * `Runtime.callFunctionOn`, so a predicate that is still false when the protocol timeout strikes rejects the wait with the
+ * bare "Waiting failed" (cause: "Runtime.callFunctionOn timed out") long before the wait's own `timeout` — e.g. an own
+ * battle at 1× that lasts longer than 90 s. This polls the same predicate in slices shorter than the protocol timeout until
+ * `timeout`: the condition and the deadline stay the same. Resolves to the predicate's JSHandle, rejects with a
+ * TimeoutError once `timeout` is over and at once with any other error.
+ * @param {{ waitForFunction: Function }} page
+ * @param {Function|string} fn
+ * @param {{ timeout?: number, polling?: number|string, slice?: number }} [opts]
+ * @param {...any} args passed to `fn` as with page.waitForFunction
+ */
+export async function waitForFunctionLong(page, fn, { timeout = 30000, polling = 250, slice = PROTOCOL_TIMEOUT_MS / 3 } = {}, ...args) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    try {
+      return await page.waitForFunction(fn, { timeout: Math.max(1, Math.min(slice, deadline - Date.now())), polling }, ...args);
+    } catch (e) {
+      if (e?.name !== 'TimeoutError') throw e;
+      if (Date.now() >= deadline) {
+        const err = new Error(`Waiting failed: ${timeout}ms exceeded`, { cause: e });
+        err.name = 'TimeoutError';
+        throw err;
+      }
+    }
+  }
+}
 
 /** A free TCP port on 127.0.0.1. */
 export function freePort() {
@@ -96,7 +126,7 @@ export class Client {
 
   async open(query = '') {
     mkdirSync(OUT, { recursive: true });
-    this.browser = await this.puppeteer.launch({ executablePath: CHROME, headless: true, args: CHROME_ARGS, protocolTimeout: 90000 });
+    this.browser = await this.puppeteer.launch({ executablePath: CHROME, headless: true, args: CHROME_ARGS, protocolTimeout: PROTOCOL_TIMEOUT_MS });
     const [first] = await this.browser.pages();
     const page = first || await this.browser.newPage();
     this.page = page;

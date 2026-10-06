@@ -413,7 +413,18 @@ class Client {
   async ready() {
     if (!(await this.isEditable())) return;
     await this.click('.readybtn');
+    await this.confirmFundsLeft();
     await this.waitFor((s) => s.ready || s.phase !== 'PREP', 'ready', 8000);
+  }
+
+  /** 准备 with funds left asks first (剩余资金, DESIGN §23.11): confirm it, as a player who means to start the fight does. */
+  async confirmFundsLeft() {
+    await sleep(250);
+    const asked = await this.page.evaluate(() => {
+      const t = document.querySelector('.modal__title');
+      return !!(t && t.textContent.includes('剩余资金'));
+    });
+    if (asked) await this.click('.modal__actions button', '准备就绪', { timeout: 4000 });
   }
 }
 
@@ -535,7 +546,7 @@ describe('real server + real browsers', { skip: !ENABLED && 'set SP_REAL_E2E=1 (
             await c.deployFromHand(2);
             const s2 = await c.st();
             if (s2.temp > 0) c.note(`temp not empty (${s2.temp}) — ready blocked`);
-            if (c === guest) { await c.page.keyboard.press('Space'); await c.waitFor((x) => x.ready || x.phase !== 'PREP', 'ready (Space)', 8000); } else await c.ready();
+            if (c === guest) { await c.page.keyboard.press('Space'); await c.confirmFundsLeft(); await c.waitFor((x) => x.ready || x.phase !== 'PREP', 'ready (Space)', 8000); } else await c.ready();
           }
         } else if (hs.phase === 'SP_DRAFT') {
           for (const c of both) {

@@ -11,7 +11,9 @@
 // path always follows `motion` — a hovering (近地悬浮) enemy is an air unit for targeting and blocking (Unit.isFlying)
 // but walks the ground. An unblocked enemy touching an ally with free block capacity — within its block radius (0.7071
 // ground, 0.8944 air, devices 0.4472; Battle._checkBlock) — is blocked, moving or not, so an enemy overlapping an
-// operator is taken over once its blocker is gone. Blocked enemies fight their blocker (ranged ones may pick anyone in
+// operator is taken over once its blocker is gone; never one holding 不可阻挡 (恐惧, 诱导, 浮空, 沉睡): an enemy falling
+// asleep is let go by its blocker, whose slot frees, and stays where it is until it wakes (DESIGN §24.9). Blocked
+// enemies fight their blocker (ranged ones may pick anyone in
 // range, blocker first); every blocker whose attack hits enemies — a ranged operator on a melee tile included — may
 // always target the enemies it blocks, in range or not, whatever its facing, and targets them first (acquireTargets,
 // Battle.blockedTargets; user playtest #6: "阻挡了就一定要能打到"); a heal attack keeps selecting injured allies while
@@ -459,8 +461,14 @@ export function updateEnemy(b, e, dt) {
   // true: an unblocked ranged enemy in the wind-up of its next attack with a target in range (it stands)
   const winding = !e.hidden && !stunned && enemyAttack(b, e);
   if (!e.alive) return;
-  // a stun / freeze / sleep cuts the attack clip short: no stand left once it ends [ASSUMED]
-  if (stunned && !e.hidden) { e.atkStandUntil = -Infinity; return; }
+  // a stun / freeze / sleep cuts the attack clip short: no stand left once it ends [ASSUMED]. 沉睡 also holds 不可阻挡
+  // (PRTS 异常效果 SLEEPING = 无法行动+无敌+不可阻挡): a sleeper's blocker lets go — Battle.applyStatus releases it at once,
+  // this catches a sleep added as a plain buff — and it stays where it is until it wakes (DESIGN §24.9)
+  if (stunned && !e.hidden) {
+    e.atkStandUntil = -Infinity;
+    if (e.blockedBy && e.s.flags.sleep) b._unblock(e);
+    return;
+  }
   if (e.blockedBy) {
     const bl = e.blockedBy;
     // (unblockable/levitate/fear may also arrive through a plain addBuff, which does not unblock by itself; a

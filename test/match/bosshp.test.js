@@ -88,8 +88,8 @@ test('终极 Final Assault (+200 layers per active bond): one bloodPoint pool fo
         for (const k of MUL_STATS) assert.ok(!(k in b.mods), `${u.name}: ${b.key} is a 直接乘算 bonus, not ${k} (${JSON.stringify(b.mods)})`);
       }
       const { add, mul } = aggregateMods(u.buffs);
-      const want = Math.max(0, (u.base.atk + (add.atkFlat ?? 0)) * Math.max(0, 1 + (add.atkPct ?? 0)) * (mul.atkMul ?? 1));
-      assert.ok(Math.abs(u.s.atk - want) <= 1e-6 * Math.max(1, want), `${u.name}: ATK = (base + flat) × (1 + Σ%) × Π(提升至/runes)`);
+      const want = Math.max(0, ((u.base.atk + (add.atkFlat ?? 0)) * Math.max(0, 1 + (add.atkPct ?? 0)) + (add.atkFinal ?? 0)) * (mul.atkMul ?? 1));
+      assert.ok(Math.abs(u.s.atk - want) <= 1e-6 * Math.max(1, want), `${u.name}: ATK = ((base + flat) × (1 + Σ%) + 最终加算) × Π(提升至/runes)`);
     }
   }
   assert.ok(ops >= 12 && withBonds >= 8, `the bots' lineups carry bond / item bonuses (${withBonds} of ${ops})`);

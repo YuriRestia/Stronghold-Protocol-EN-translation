@@ -12,6 +12,8 @@
 // (a soft world-space falloff), so the active field reads like the original's lit board without re-building
 // geometry when the camera moves.
 
+import { ORIGINIUM } from '../style.js';
+
 /** Shared focus uniforms (one object for every lit material). */
 export function focusUniforms(THREE) {
   return {
@@ -275,7 +277,17 @@ export function mireMaterial(THREE, tex, focus) {
   });
 }
 
-/** Infection (活性源石): dark originium crust patches with glowing, pulsing orange veins over the concrete. */
+/**
+ * 活性源石 (infection): dark originium crust patches with glowing, pulsing orange veins over the concrete. The palette
+ * (`style.js ORIGINIUM`) and the recipe are the ones `render/textures.js originiumOverlay` draws on the 2D board —
+ * two octaves of noise for the crust, the ridge of the fine one for the veins, a third for the crystal grains — so both
+ * boards show ONE material (GitHub #184).
+ * The noise is world-space, so the crust carries on into the neighbouring tile: there is deliberately NO per-tile edge
+ * fade (the old `edge` term faded every tile out at its own border, which made a field of 活性源石 read as separate
+ * patches instead of one floor).
+ */
+const V3 = (c) => `vec3(${c.map((v) => Number(v).toFixed(3)).join(', ')})`;
+
 export function infectionMaterial(THREE, tex, focus) {
   const uniforms = { uTime: { value: 0 }, uNoise: { value: tex.noise || null }, ...focus };
   return new THREE.ShaderMaterial({
@@ -288,15 +300,17 @@ export function infectionMaterial(THREE, tex, focus) {
       'void main() {',
       '  float n = texture2D(uNoise, vWorld.xy * 0.55).r;',
       '  float n2 = texture2D(uNoise, vWorld.xy * 1.3 + 0.37).r;',
+      '  float n3 = texture2D(uNoise, vWorld.xy * 3.1 + 0.11).r;',
       '  float crust = smoothstep(0.38, 0.62, n * 0.7 + n2 * 0.45);',
       '  float vein = smoothstep(0.86, 0.98, 1.0 - abs(n2 * 2.0 - 1.0)) * (0.35 + 0.65 * crust);',
+      '  float grain = smoothstep(0.93, 1.0, n3) * crust;',
       '  float pulse = 0.6 + 0.4 * sin(uTime * 2.2 + n * 9.0);',
-      '  vec2 e = min(vUv, 1.0 - vUv);',
-      '  float edge = smoothstep(0.0, 0.1, min(e.x, e.y));',
-      '  vec3 base = mix(vec3(0.16, 0.05, 0.05), vec3(0.3, 0.1, 0.07), n2);',
-      '  vec3 glow = vec3(1.0, 0.46, 0.18) * (1.2 + 0.8 * pulse);',
-      '  vec3 c = mix(base, glow, vein) * focusMask(vWorld.xy);',
-      '  float a = clamp(crust * 0.72 + vein, 0.0, 1.0) * edge;',
+      `  vec3 base = mix(${V3(ORIGINIUM.base)}, ${V3(ORIGINIUM.crust)}, n2);`,
+      `  vec3 glow = ${V3(ORIGINIUM.vein)} * (1.2 + 0.8 * pulse);`,
+      '  vec3 c = mix(base, glow, vein);',
+      `  c = mix(c, ${V3(ORIGINIUM.spec)} * (1.0 + 0.6 * pulse), grain);`,
+      '  c *= focusMask(vWorld.xy);',
+      '  float a = clamp(crust * 0.72 + vein, 0.0, 1.0);',
       '  gl_FragColor = vec4(c, a);',
       '  #include <colorspace_fragment>',
       '}',

@@ -13,9 +13,10 @@
 // that file from the extracted models (after a game update).
 //
 // Idempotent: existing files with the right size are skipped, so re-running is
-// cheap. Downloads use ~16 parallel connections, 3 retries per source and a
-// jsDelivr mirror fallback. Spine atlases get `size:` (and `pma: true` for
-// enemies); every skeleton is parsed to resolve animation roles.
+// cheap. Downloads use ~16 parallel connections, 3 retries per direct source,
+// a jsDelivr fallback and an opt-in GitHub proxy (one short attempt per URL).
+// Spine atlases get `size:` (and `pma: true` for enemies); every skeleton is
+// parsed to resolve animation roles.
 //
 // The committed data/assets.json never shrinks by accident: an entry whose files
 // are missing here is left out of a rebuilt manifest, so a run on a machine where
@@ -33,6 +34,8 @@ import { existsSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Downloader } from './assets/downloader.mjs';
+import { MirrorPolicy, selectDownloadSource, validateSource } from './assets/network.mjs';
+import { normalizeProxyPrefix } from './assets/sources.mjs';
 import { loadIndexes } from './assets/cache.mjs';
 import { indexAudio, VOICE_DIRS } from './assets/audio.mjs';
 import { buildPlan } from './assets/plan.mjs';
@@ -51,6 +54,7 @@ const LOCAL_SPINES = join(ROOT, LOCAL_ENEMY_SPINES_FILE);
 
 const HELP = `Usage: node tools/fetch-assets.mjs [options]
   --concurrency=N   parallel downloads (default 16)
+  --asset-source=M  direct (default) or mirror (opt-in; no public-IP lookup)
   --force           re-download files even when present
   --offline         no network: post-process what is on disk and rebuild data/assets.json
   --dry-run         print the plan and exit
@@ -64,18 +68,23 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
                     (without it such a run keeps the current manifest, lists the entries and exits 1)
   --local-spines    rewrite ${LOCAL_ENEMY_SPINES_FILE} from the enemy models extracted
                     by tools/local-extract/extract.py (public/assets/local/spine/enemy/)
-  --help            this text`;
+  --help            this text
+Environment: SP_ASSET_SOURCE sets the default source; SP_GITHUB_PROXY sets the
+HTTPS mirror prefix (default https://gh-proxy.com/; empty disables the proxy).
+Mirror attempts have an 8 s response header timeout; response body has a separate idle timeout. Stops for this run after 3 consecutive
+failures. Only explicitly enabled GitHub downloads use the third-party proxy.`;
 
 /**
  * Parse CLI flags.
  * @param {string[]} argv
- * @returns {{concurrency:number, force:boolean, offline:boolean, dryRun:boolean, refreshIndex:boolean, prune:boolean, allowShrink:boolean, localSpines:boolean, voiceLang:string, voiceAll:boolean, help:boolean}}
+ * @returns {{concurrency:number, force:boolean, offline:boolean, dryRun:boolean, refreshIndex:boolean, prune:boolean, allowShrink:boolean, localSpines:boolean, voiceLang:string, voiceAll:boolean, help:boolean, source:string}}
  */
 export function parseArgs(argv) {
-  const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, localSpines: false, voiceLang: 'cn', voiceAll: false, help: false };
+  const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, localSpines: false, voiceLang: 'cn', voiceAll: false, help: false, source: process.env.SP_ASSET_SOURCE || 'direct' };
   for (const a of argv) {
     const [k, v] = a.split('=');
     if (k === '--concurrency') o.concurrency = Math.max(1, Math.min(64, parseInt(v, 10) || 16));
+    else if (k === '--asset-source') o.source = v;
     else if (k === '--force') o.force = true;
     else if (k === '--offline') o.offline = true;
     else if (k === '--dry-run') o.dryRun = true;
@@ -88,7 +97,12 @@ export function parseArgs(argv) {
     else if (k === '--help' || k === '-h') o.help = true;
     else throw new Error(`unknown option ${a}\n${HELP}`);
   }
+  if (!o.help) validateSource(o.source);
   return o;
+}
+
+export function resolveProxyPrefix(source, offline = false, value = process.env.SP_GITHUB_PROXY) {
+  return offline || source !== 'mirror' ? '' : normalizeProxyPrefix(value);
 }
 
 /**
@@ -225,7 +239,11 @@ async function main() {
     readJson('docs/research/05-enemies.json'),
     readJson('docs/research/05-maps.json'),
   ]);
-  const { audioData, modelsData, charword } = await loadIndexes(ROOT, { refresh: opts.refreshIndex && !opts.offline, offline: opts.offline, log });
+  const proxyPrefix = resolveProxyPrefix(opts.source, opts.offline);
+  const source = await selectDownloadSource({ mode: opts.source, offline: opts.offline, proxyPrefix, log });
+  const mirrorPolicy = new MirrorPolicy({ source, proxyPrefix, log });
+  const network = { source, proxyPrefix, mirrorPolicy };
+  const { audioData, modelsData, charword } = await loadIndexes(ROOT, { refresh: opts.refreshIndex && !opts.offline, offline: opts.offline, log, ...network });
   const audio = indexAudio(audioData);
   // The game data built by tools/build-data.mjs (when present) may reference more
   // spawnable enemies/tokens than research lists (e.g. 机变 enemy swaps): cover them too.
@@ -256,7 +274,7 @@ async function main() {
 
   const dl = new Downloader({
     root: ASSETS, ledgerPath: join(CACHE, 'assets-ledger.json'),
-    concurrency: opts.concurrency, force: opts.force, log,
+    concurrency: opts.concurrency, force: opts.force, log, ...network,
   });
   await dl.loadLedger();
   const downloadErrors = opts.offline ? [] : await downloadLeaves(leaves, dl, ASSETS, 'files');
@@ -264,7 +282,7 @@ async function main() {
   // Fonts
   let fontErrors = [];
   if (!opts.offline) {
-    const fdl = new Downloader({ root: FONTS, ledgerPath: join(CACHE, 'fonts-ledger.json'), concurrency: 4, force: opts.force, log });
+    const fdl = new Downloader({ root: FONTS, ledgerPath: join(CACHE, 'fonts-ledger.json'), concurrency: 4, force: opts.force, log, ...network });
     await fdl.loadLedger();
     await fdl.run(fontJobs(), 'fonts');
     dl.totals.bytesDownloaded += fdl.totals.bytesDownloaded;

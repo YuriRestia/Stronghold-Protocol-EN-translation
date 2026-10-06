@@ -30,7 +30,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf } from '../e2e/client.mjs';
+import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf, waitForFunctionLong } from '../e2e/client.mjs';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
 const HOST_KIT = ['chess_char_1_10_a', 'chess_char_1_12_a']; // 古米 (坚守), 艾丝黛尔 (萨尔贡)
@@ -485,8 +485,9 @@ describe('DESIGN §20.15 — the bond strip shows the watched teammate\'s bonds 
         await sleep(1500);
         for (const c of [host, guest]) if (!(await c.st()).ready) await c.click('.readybtn');
         await host.waitFor((s) => s.phase === 'COMBAT', 'combat', 60000);
-        // the own battle over while a teammate's still runs
-        const target = await host.page.waitForFunction(() => {
+        // the own battle over while a teammate's still runs (at 1× it may last longer than the browser's 90 s protocol
+        // timeout, which cut a plain page.waitForFunction off with a bare "Waiting failed")
+        const target = await waitForFunctionLong(host.page, () => {
           const s = globalThis.__SP__.store.get();
           const pub = s.match.public;
           if (pub?.phase !== 'COMBAT') return { gone: true };

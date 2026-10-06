@@ -1,10 +1,59 @@
 // Upstream asset sources (GitHub dumps of the official client), URL helpers and
 // local-path helpers shared by the asset pipeline (tools/fetch-assets.mjs).
 //
-// Every URL we download from is a raw.githubusercontent.com URL; mirrorUrl()
-// maps it to the equivalent jsDelivr URL used as a fallback when GitHub raw
-// fails. jsDelivr 404s on the ArknightsAssets2 `voice` branch, so no mirror is
-// offered for audio. See docs/ASSETS.md for the full source list and credits.
+// GitHub URLs support a prefix proxy and a jsDelivr fallback. jsDelivr does
+// not serve the voice branch, but the prefix proxy can still be tried there.
+// See docs/ASSETS.md for the full source list and credits.
+
+export const DEFAULT_GITHUB_PROXY = 'https://gh-proxy.com/';
+
+export function normalizeProxyPrefix(prefix = DEFAULT_GITHUB_PROXY) {
+  if (prefix.trim() === '') return '';
+  const url = new URL(prefix);
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+    throw new Error('GitHub proxy prefix must be an HTTPS URL without credentials, query or fragment');
+  }
+  return url.href.endsWith('/') ? url.href : url.href + '/';
+}
+
+function isGithubDownloadUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password &&
+      ['github.com', 'raw.githubusercontent.com', 'objects.githubusercontent.com'].includes(parsed.host);
+  } catch { return false; }
+}
+
+/**
+ * Legacy ledgers store the successful proxy URL. Spine page jobs derived from
+ * those URLs must use today's policy, not implicitly opt in to the old proxy.
+ * Recognize embedded public GitHub URLs even when the old custom prefix is no
+ * longer configured. An ordinary GitHub URL (including its path) stays intact.
+ */
+export function githubSourceUrl(url) {
+  let candidate = String(url);
+  while (candidate.startsWith('https://')) {
+    if (isGithubDownloadUrl(candidate)) return candidate;
+    const marker = candidate.indexOf('/https://', 8);
+    if (marker < 0) break;
+    candidate = candidate.slice(marker + 1);
+  }
+  return url;
+}
+
+/** Only public GitHub download URLs are sent to the proxy; never prefix twice. */
+export function githubProxyUrl(url, prefix = DEFAULT_GITHUB_PROXY) {
+  const normalized = normalizeProxyPrefix(prefix);
+  if (!normalized || !isGithubDownloadUrl(url)) return null;
+  return normalized + url;
+}
+
+/** Ordered transport alternatives; direct mode retains the existing jsDelivr order. */
+export function downloadUrls(url, { source = 'direct', proxyPrefix = DEFAULT_GITHUB_PROXY } = {}) {
+  url = githubSourceUrl(url);
+  const proxy = source === 'mirror' ? githubProxyUrl(url, proxyPrefix) : null;
+  return [...new Set([proxy, url, mirrorUrl(url)].filter(Boolean))];
+}
 
 /** Raw base URLs (always end with '/'). */
 export const RAW = Object.freeze({

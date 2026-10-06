@@ -12,7 +12,6 @@ public/fonts/
 data/local-assets.json
 # download caches, upstream tables, ledgers, reports, setup state
 .cache/
-
 # --- Python (optional local-client extraction) ----------------------------------------------------
 .venv*/
 venv/

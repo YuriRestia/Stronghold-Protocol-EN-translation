@@ -54,6 +54,15 @@ const MAX_VOICES = 8;
 const UNIT_COOLDOWN_MS = 160;
 const URL_GAP_MS = 45;
 const MAX_PER_URL = 2;
+/**
+ * 漏怪: the original Arknights exit alarm (`sfx.battle.leak`, `battle/b_ui/b_ui_alarmenter`) runs **1.44 s**, and the
+ * official bank is a one-shot: `battle.ON_ENEMY_REACHED_EXIT` carries `maxSoundAllowed: 1` with `popOldest: true` on the
+ * `Battle_UI_Important` mixer, i.e. **never two at once** (a new escape replaces the one still ringing). We keep the
+ * "never two at once" half and leave the rest of the cue alone: leaks closer together than the cue is long are the same
+ * disaster and share one alarm, so a line that breaks costs one clear ring per 1.5 s instead of a stutter of restarts.
+ * (The SFX limiter still applies on top.)
+ */
+const LEAK_SFX_GAP_MS = 1500;
 const BUFFER_CACHE = 180;
 /** Decoded-PCM budget of the buffer cache beside its entry count: a voice line decodes to 0.4–1.3 MB (see _buffer). */
 const BUFFER_BYTES = 64 * 1024 * 1024;
@@ -280,17 +289,23 @@ export function resultVoiceSlot(o = {}) {
  * to be looking at (review on #73): reading the tracked units of the field on screen made a teammate's operator say the
  * viewer's 作战结束 line while the viewer was watching them.
  * `pp` is that battle's own `perPlayer` entry (BattleResult, sim/Battle.js): `unitsEnd` lists what stood on its field
- * when the battle ended, `defId` being an operator (`char_*`) or a summon piece (`token_*`, which does not talk).
+ * when the battle ended. Its `defId` names the CHESS (`chess_char_*`) or a summon piece (`token_*`, which does not talk);
+ * the voice bank belongs to the operator (`char_*`), so `charOf` maps a chess id to its charId (the chess record's
+ * `charId`). Without it only ids that already are a charId count — a real result then has no speaker, which is how the
+ * line stayed silent in every battle until 0.1.4's fix.
  * Survivors speak first — the line reports how the battle went, and a wiped-out squad is the only case where a fallen
  * operator ends up saying it. Ties are drawn like every other unit sound.
  * @param {{ unitsEnd?: Array<{ defId?: string|null, alive?: boolean }> } | null | undefined} pp that battle's perPlayer
  * @param {() => number} [random]
+ * @param {((defId: string) => string|null|undefined) | null} [charOf] chess id → charId
  * @returns {string|null} charId, or null when that battle fielded no operator at all
  */
-export function resultSpeaker(pp, random = Math.random) {
+export function resultSpeaker(pp, random = Math.random, charOf = null) {
   const ops = [];
   for (const u of Array.isArray(pp?.unitsEnd) ? pp.unitsEnd : []) {
-    if (u && typeof u.defId === 'string' && u.defId.startsWith('char_')) ops.push({ id: u.defId, alive: !!u.alive });
+    if (!u || typeof u.defId !== 'string') continue;
+    const id = u.defId.startsWith('char_') ? u.defId : charOf ? charOf(u.defId) : null;
+    if (typeof id === 'string' && id.startsWith('char_')) ops.push({ id, alive: !!u.alive });
   }
   const standing = ops.filter((o) => o.alive);
   const pool = standing.length ? standing : ops;   // only a wiped-out squad is spoken for by a fallen operator
@@ -976,6 +991,16 @@ export class AudioManager {
           const mix = own ? m.audio.sfx.units[u.def].mix?.die : null;
           if (!unitSoundPlays(mix, this.random())) continue;
           this._playUnitUrl(url, own ? `${e[1]}:die` : `die:${e[1]}`, own ? unitGain(0.8, mix) : 0.7);
+        } else if (kind === 'leak') {
+          // 漏怪: an enemy reached its goal (Battle.leak emits the sim's own EV.LEAK — it is NOT a `die`, so until now a
+          // leak was completely silent, for the player's own field and for a 联防 the helpers could not hold alike).
+          // The cue is the ORIGINAL Arknights stage alarm — the one an enemy entering the exit plays in any normal
+          // stage (manifest `sfx.battle.leak`, bank battle.ON_ENEMY_REACHED_EXIT, file b_ui_alarmenter).
+          // `LEAK_SFX_GAP_MS` keeps it to one alarm at a time (the official bank's own maxSoundAllowed 1).
+          if (now - (this.lastLeakSfxAt ?? -Infinity) < LEAK_SFX_GAP_MS) continue;
+          if (typeof this.getManifest()?.audio?.sfx?.battle?.leak !== 'string') continue;
+          this.lastLeakSfxAt = now;
+          this.battle('leak', { unitKey: 'leak', volume: 0.85 });
         } else if (kind === 'deploy') {
           const u = this.units.get(e[1]);
           if (!u || u.side === 'enemy') continue;

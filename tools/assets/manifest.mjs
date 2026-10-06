@@ -7,7 +7,7 @@
 import { existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
-import { assetUrl, mirrorUrl } from './sources.mjs';
+import { assetUrl, githubSourceUrl, mirrorUrl } from './sources.mjs';
 
 /** Manifest schema version (bump on breaking shape changes). */
 export const MANIFEST_VERSION = 1;
@@ -94,9 +94,11 @@ export function resolveTemplate(template, { root, spine, sourceOf = () => undefi
         const a = node.alts[i];
         if (existsSync(join(root, a.rel))) {
           const src = sourceOf(a.rel);
+          // Provenance only: disabling/changing a proxy does not change the
+          // identity of a previously downloaded asset.
           const primary = node.alts[0].urls.flatMap((u) => [u, mirrorUrl(u)]);
           if (i > 0) fallbacks.push(`${path} ← ${src || a.urls[0]}`);
-          else if (src && !primary.includes(src)) fallbacks.push(`${path} ← ${src}`);
+          else if (src && !primary.includes(githubSourceUrl(src))) fallbacks.push(`${path} ← ${src}`);
           files.add(a.rel);
           return assetUrl(a.rel);
         }

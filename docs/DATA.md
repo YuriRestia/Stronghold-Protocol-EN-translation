@@ -150,7 +150,7 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `name`, `appellation` | `"隐现"`, `"Insider"` | |
 | `rarity` | `5` | stars 1–6 |
 | `profession`, `subProfessionId`, `subProfessionName`, `position` | `"SNIPER"`, `"fastshot"`, `"速射手"`, `"RANGED"` | |
-| `placement` | | not stored. A MELEE chess may stand on a 高台 only when it is elite 歌蕾蒂娅 (`char_474_glady`, `isGolden`) carrying HOK-Y 淡金坠饰 (`uniequip_003_glady`), decided at place time from the loadout (`shared/highGround.js`, `board.js placeClass`). The trait 「可以放置于远程位」 is not read. Owner's decision 2026-10-04; §22.6's `placement: "all"` is gone. `position` stays MELEE for the battle |
+| `placement` | | not stored. A MELEE chess may also stand on a 高台 when its trait without a module (`traitBase`, else `trait`) reads 「可以放置于远程位」 — the 钩索师 / 推击手 branch trait: 歌蕾蒂娅, 崖心, 见行者, normal and elite; the module does not matter (every module of the three keeps the line). Read at place time (`shared/highGround.js meleeOnHighGround`, `board.js positionClass`); the owner's decision of 2026-10-05, following PRTS (it reverses the 2026-10-04 one: elite 歌蕾蒂娅 with HOK-Y only). `position` stays MELEE for the battle |
 | `nationId` | `"laterano"` | |
 | `bonds[]` | `["lateranoShip","swiftShip"]` | bondIds (→ `bonds.json`) |
 | `garrisonIds[]` | `["garrison_16_b"]` | 特质 (→ `garrisons.json`); first = displayed trait |

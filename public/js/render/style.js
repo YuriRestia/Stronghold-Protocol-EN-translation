@@ -70,6 +70,37 @@ export const COLORS = Object.freeze({
 export const TIER_COLORS = Object.freeze([0x9aa5a0, 0x9aa5a0, 0x7fd37a, 0x52b6ff, 0xb98cff, 0xffc600, 0xff6b3d]);
 export const ENEMY_FRAME = Object.freeze({ normal: 0xc84a3c, elite: 0xff7a33, boss: 0xff2d55 });
 
+/**
+ * 活性源石 (infection) — the ONE palette of that tile, shared by the two boards (GitHub #184: the 2D atlas cell and the
+ * 3D shader used to be two different materials — a beveled brick with crystal clusters against a world-space crust).
+ * The values are the 3D board's own working colours (`render/board3d/materials.js` writes them into its shaders, which
+ * end in `#include <colorspace_fragment>`, i.e. they are LINEAR); `textures.js` converts them for its canvas with
+ * `linearToHex`, so both renderers show the same colour.
+ *   base — the crust's dark side, crust — its lit side, vein — the glowing veins, spec — the bright crystal grains.
+ */
+export const ORIGINIUM = Object.freeze({
+  base: Object.freeze([0.16, 0.05, 0.05]),
+  crust: Object.freeze([0.3, 0.1, 0.07]),
+  vein: Object.freeze([1.0, 0.46, 0.18]),
+  spec: Object.freeze([1.0, 0.78, 0.52]),
+  glow: 0xff6a3d,        // the additive pulse the 2D board tints per tile
+});
+
+/**
+ * One channel of a working (linear) colour as the 0–255 sRGB value a canvas stores — the shaders' `#include
+ * <colorspace_fragment>` does this for the 3D board, the canvas has to do it itself.
+ */
+export function linearToSrgb255(v) {
+  const k = Number(v);
+  const s = k <= 0.0031308 ? k * 12.92 : 1.055 * Math.pow(Math.max(0, k), 1 / 2.4) - 0.055;
+  return Math.max(0, Math.min(255, Math.round(s * 255)));
+}
+
+/** A working (linear) `ORIGINIUM` colour as the `#rrggbb` sRGB string of the canvas (`textures.js originiumCanvas`). */
+export function linearToHex(rgb) {
+  return `#${rgb.map((v) => linearToSrgb255(v).toString(16).padStart(2, '0')).join('')}`;
+}
+
 export const DMG_STYLE = Object.freeze({
   phys: { font: 'sp-dmg-phys', fill: ['#fffbe8', '#ffb35c'], stroke: '#3b1400' },
   arts: { font: 'sp-dmg-arts', fill: ['#fbe8ff', '#c77dff'], stroke: '#2a0b45' },

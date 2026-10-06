@@ -34,8 +34,10 @@
 //      covering units against the round's DEF / RES, blocker hold time, flyers only for anti-air) is maximized
 //      greedily — blockers first, then damage dealers by DPS, then healers — over every
 //      (legal tile, direction) pair of the server's deploy map (no 深水区). A MELEE operator is planned on the ground
-//      tiles, where it blocks — except elite 歌蕾蒂娅 carrying HOK-Y, who may also take a 高台 (placeClass; owner's
-//      decision 2026-10-04). She stays a blocker in the lineup (basePositionClass). Each unit's range grid — the one it is
+//      tiles, where it blocks — except one whose trait reads 「可以放置于远程位」 (歌蕾蒂娅, 崖心, 见行者, any module:
+//      placeClass 'all', shared/highGround.js), which takes a 高台 whose range covers the enemy road, else the ground
+//      (owner 2026-10-04 for the 高台 preference, 2026-10-05 for who may use one). It stays a blocker in the lineup
+//      (basePositionClass). Each unit's range grid — the one it is
 //      deployed with, rangeRec (loadoutRecord attackRangeGrid) — is rotated per direction (DESIGN §3; RIGHT is tried first
 //      and kept on ties, so symmetric ranges and melee units whose front adds nothing stay facing the gates), so
 //      ranged units turn toward the enemy path tiles they cover best and blockers toward the road; on 气流 tiles
@@ -949,8 +951,9 @@ export function* planLayoutSteps(m, ps, pieces, params = LAYOUT_PARAMS, { occupi
     let bestV = -Infinity;
     // a "只能部署在召唤者攻击范围内" summon (伺夜's 狼群, 缪尔赛思's 流形): only the tiles of its owner's range
     const within = p.kind === 'token' && typeof ps.summonRange === 'function' ? ps.summonRange(p) : null;
-    // ground tiles for a MELEE blocker. placeClass 'all' is only elite 歌蕾蒂娅 + HOK-Y: she may stand on a 高台,
-    // and when one of those tiles covers the enemy road she is planned there (owner 2026-10-04: the bot uses the 高台).
+    // ground tiles for a MELEE blocker. placeClass 'all' on a MELEE record is a chess whose trait reads 「可以放置于远程位」
+    // (歌蕾蒂娅, 崖心, 见行者, any module): it may stand on a 高台, and when one of those tiles covers the enemy road it is
+    // planned there even with the ground free (owner 2026-10-04: the bot uses the 高台; 2026-10-05: every such chess).
     const cls = p.kind === 'token' ? basePositionClass(r0) : placeClass(ps, m.gd.chess(p.id) || r0);
     const preferHigh = cls === 'all' && basePositionClass(r0) === 'melee';
     let bestHigh = null;

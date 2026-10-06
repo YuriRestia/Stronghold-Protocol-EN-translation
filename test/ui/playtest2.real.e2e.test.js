@@ -20,7 +20,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf } from '../e2e/client.mjs';
+import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf, waitForFunctionLong } from '../e2e/client.mjs';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
 const ONLY = process.env.SP_P2_REAL || '';
@@ -252,8 +252,8 @@ describe('user playtest #2 item 6 — 前往查看 → 返回战场 in combat (r
         await c.waitFor((s) => s.phase === 'COMBAT', 'combat', 60000);
         await sleep(1500);
         assertNoPen(await battleViewState(c), `R${s0.round} own battle`);
-        // own battle over while the AI's field still runs
-        const target = await c.page.waitForFunction(() => {
+        // own battle over while the AI's field still runs (sliced: longer than the browser's 90 s protocol timeout)
+        const target = await waitForFunctionLong(c.page, () => {
           const s = globalThis.__SP__.store.get();
           const r = globalThis.__SP_RUNNER__?.state?.();
           const pub = s.match.public;

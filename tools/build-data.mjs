@@ -808,9 +808,9 @@ function buildChess(ctx) {
     rec.subProfessionName = uniequip.subProfDict?.[char.subProfessionId]?.subProfessionName || null;
     rec.position = char.position;
     rec.nationId = char.nationId || null;
-    // 高台 is not a data flag. The trait line 「可以放置于远程位」 is on every 钩索师 / 推击手 variant and is not
-    // trusted: only elite 歌蕾蒂娅 carrying HOK-Y may stand there, decided at place time (shared/highGround.js,
-    // owner's decision 2026-10-04, reversing DESIGN §22.6).
+    // 高台 is not a data flag: a MELEE chess whose trait (no module: `traitBase` / `trait`) reads 「可以放置于远程位」
+    // — the 钩索师 / 推击手 branch trait — may stand there, read at place time (shared/highGround.js; the owner's
+    // decision of 2026-10-05, following PRTS).
 
     // Module (only active on golden chess: equipLevel > 0).
     const modId = shop.defaultUniEquipId || null;
@@ -3143,7 +3143,7 @@ function validateAll(f) {
     // DESIGN §16 loadout choices
     if (!Array.isArray(c.skills) || c.skills.filter((s) => s.isDefault).length !== 1 || c.skills.find((s) => s.isDefault)?.skillId !== c.skill?.skillId) err(`chess ${c.chessId}: skills[] without exactly one default = skill`);
     if (c.modules && (c.modules.filter((m) => m.isDefault).length !== (c.module?.active ? 1 : 0) || !c.statsBase || !c.traitBase || !c.talentsBase)) err(`chess ${c.chessId}: inconsistent module choices`);
-    // 高台 legality is loadout-aware (shared/highGround.js), never a field on the record
+    // 高台 legality is read from the trait text at place time (shared/highGround.js), never a field on the record
     if (c.placement !== undefined) err(`chess ${c.chessId}: placement is not a data field`);
   }
   // the deliberate trigger deviations (DESIGN §21.29, §22.10) still override an official TAKE_DAMAGE row, on the normal

@@ -16,9 +16,9 @@ function resistPalsyDecay({ battle, unit }) {
   if (--p.stacks <= 0) battle.removeBuff(unit, p); else unit.markDirty();
 }
 
-/** Additive mod keys (summed; × stacks). */
+/** Additive mod keys (summed; × stacks). `atkFinal` = 最终加算: added after the percentages (units.js _recalc). */
 export const ADD_KEYS = Object.freeze([
-  'atkFlat', 'atkPct', 'defFlat', 'defPct', 'hpFlat', 'hpPct', 'resFlat', 'aspd', 'batPct', 'blockCnt',
+  'atkFlat', 'atkPct', 'atkFinal', 'defFlat', 'defPct', 'hpFlat', 'hpPct', 'resFlat', 'aspd', 'batPct', 'blockCnt',
   'rangeExtend', 'defIgnoreFlat', 'defIgnorePct', 'resIgnoreFlat', 'resIgnorePct', 'dodgePhys', 'dodgeArts',
   'spRecoveryFlat', 'maxTargets', 'taunt', 'hpRegen', 'hpRegenRatio', 'spCostFlat', 'moveFlat', 'massFlat',
 ]);
@@ -58,7 +58,9 @@ export const STATUS = Object.freeze({
   // 寒冷: ASPD −30. A second cold while this one remains applies 冻结 for max(remaining, incoming)
   // (Battle.applyStatus; PRTS 术语释义 寒冷 「持续时间取双方之中最高」).
   cold: { flags: { cold: true }, mods: { aspd: COLD_ASPD } },
-  // 沉睡: 无敌且无法行动 (untargetable, takes no damage — except from `hitSleep` attackers — and blocks nothing)
+  // 沉睡: 无敌且无法行动 (untargetable, takes no damage — except from `hitSleep` attackers — and blocks nothing); PRTS 异常效果
+  // SLEEPING = 无法行动+无敌+不可阻挡: an enemy asleep is not blocked either — its blocker lets go and the slot frees, it
+  // stays put until it wakes (the `sleep` flag: Battle._checkBlock / applyStatus, ai.js updateEnemy; DESIGN §24.9)
   sleep: { flags: { sleep: true, noBlock: true }, immune: 'sleep' },
   // value = fraction of speed removed (0.8 ⇒ moveMul 0.2). Default 0.5.
   slow: { mods: (v) => ({ moveMul: 1 - clamp01(v ?? 0.5) }), valued: 0.5 },

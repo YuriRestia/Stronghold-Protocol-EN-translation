@@ -118,7 +118,9 @@ export class Unit {
     const b = this.base;
     const bHp = fin(b.maxHp, 1) > 0 ? fin(b.maxHp, 1) : 1;
     const maxHp = Math.max(1, fin((bHp + a('hpFlat')) * Math.max(0, 1 + a('hpPct')) * m('hpMul'), bHp));
-    const atk = Math.max(0, fin((b.atk + a('atkFlat')) * Math.max(0, 1 + a('atkPct')) * m('atkMul'), fin(b.atk, 0)));
+    // PRTS 游戏数据基础 属性基本公式 A_f = F_t[(A + D_p)(1 + D_t) + F_p]: `atkFinal` is the 最终加算 (FINAL_ADDITION) —
+    // added after the percentages, inside the Πmul (阿戈尔's devoured base ATK, DESIGN §24.7)
+    const atk = Math.max(0, fin(((b.atk + a('atkFlat')) * Math.max(0, 1 + a('atkPct')) + a('atkFinal')) * m('atkMul'), fin(b.atk, 0)));
     const def = Math.max(0, fin((b.def + a('defFlat')) * Math.max(0, 1 + a('defPct')) * m('defMul'), fin(b.def, 0)));
     const res = clamp(fin((b.res + a('resFlat')) * m('resMul'), fin(b.res, 0)), 0, 100);
     const aspd = clamp(fin(b.aspd + a('aspd'), 100), ASPD_MIN, ASPD_MAX);

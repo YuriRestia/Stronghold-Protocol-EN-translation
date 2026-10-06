@@ -5,8 +5,9 @@
 //   download never appears at the final path.
 // - Per source: up to `retries` attempts with exponential backoff on network
 //   errors, timeouts, 403/429/5xx and payloads that fail format validation;
-//   a 404/410 moves on immediately. Sources: each candidate URL, then its
-//   jsDelivr mirror (sources.mirrorUrl).
+//   a 404/410 moves on immediately. Each candidate uses its opt-in prefix proxy
+//   first (when enabled), then the original URL and jsDelivr fallback. The proxy gets one short attempt
+//   per file and shares a run-wide circuit breaker with the index/font fetchers.
 // - Idempotent: an existing file is kept when its size matches the ledger entry
 //   of a previous download or the expected byte count from research, or (when
 //   neither is known) when it passes format validation. The ledger lives in
@@ -14,7 +15,7 @@
 
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { mirrorUrl } from './sources.mjs';
+import { MirrorPolicy } from './network.mjs';
 import { validate } from './formats.mjs';
 
 /**
@@ -42,8 +43,11 @@ export class Downloader {
    * @param {(msg:string)=>void} [o.log]
    * @param {typeof fetch} [o.fetchImpl]
    * @param {number} [o.backoffMs] base retry delay (doubles per attempt)
+   * @param {'direct'|'mirror'} [o.source] preferred download source
+   * @param {string} [o.proxyPrefix] HTTPS prefix for GitHub downloads
+   * @param {MirrorPolicy} [o.mirrorPolicy] invocation-wide policy and mirror circuit breaker
    */
-  constructor({ root, ledgerPath, concurrency = 16, retries = 3, timeoutMs = 120000, force = false, log = console.log, fetchImpl = globalThis.fetch, backoffMs = 400 }) {
+  constructor({ root, ledgerPath, concurrency = 16, retries = 3, timeoutMs = 120000, force = false, log = console.log, fetchImpl = globalThis.fetch, backoffMs = 400, source = 'direct', proxyPrefix, mirrorPolicy }) {
     this.root = root;
     this.ledgerPath = ledgerPath;
     this.concurrency = Math.max(1, Math.min(64, Number(concurrency) || 16));
@@ -52,6 +56,7 @@ export class Downloader {
     this.force = force;
     this.log = log;
     this.fetch = fetchImpl;
+    this.network = mirrorPolicy ?? new MirrorPolicy({ source, proxyPrefix, log });
     this.backoffMs = Math.max(0, Number(backoffMs) || 0);
     this.ledger = { files: {} };
     this.totals = { ok: 0, skip: 0, miss: 0, error: 0, bytesDownloaded: 0, sizeChanged: 0 };
@@ -101,36 +106,40 @@ export class Downloader {
 
   /**
    * Fetch one URL with retries.
-   * @returns {Promise<{buf:Buffer}|{notFound:true}|{error:string}>}
+   * @returns {Promise<{buf:Buffer}|{notFound:true}|{skipped:true}|{error:string}>}
    */
   async fetchWithRetries(url, kind) {
+    if (this.network.skip(url)) return { skipped: true };
     let lastErr = 'unknown error';
-    for (let attempt = 1; attempt <= this.retries; attempt++) {
+    const attempts = this.network.isProxy(url) ? 1 : this.retries;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
-        const res = await this.fetch(url, {
+        const res = await this.network.request(url, this.fetch, {
           headers: { 'user-agent': 'stronghold-protocol-fetch-assets/1.0' },
-          signal: AbortSignal.timeout(this.timeoutMs),
           redirect: 'follow',
-        });
+        }, this.timeoutMs);
         if (res.status === 404 || res.status === 410) {
           try { await res.body?.cancel(); } catch { /* ignore */ }
+          this.network.succeeded(url); // a missing asset is not a proxy outage
           return { notFound: true };
         }
         if (!res.ok) {
           try { await res.body?.cancel(); } catch { /* ignore */ }
           throw new HttpError(res.status, url);
         }
-        const buf = Buffer.from(await res.arrayBuffer());
+        const buf = await this.network.readBody(url, res);
         const len = Number(res.headers.get('content-length'));
         const enc = res.headers.get('content-encoding');
         if (!enc && Number.isFinite(len) && len > 0 && len !== buf.length) {
           throw new Error(`truncated body ${buf.length}/${len} ${url}`);
         }
         if (!validate(kind, buf)) throw new Error(`invalid ${kind} payload (${buf.length} B) ${url}`);
+        this.network.succeeded(url);
         return { buf };
       } catch (e) {
         lastErr = e?.message || String(e);
-        if (attempt < this.retries && this.backoffMs) await sleep(this.backoffMs * 2 ** (attempt - 1) + Math.floor(Math.random() * this.backoffMs));
+        this.network.failed(url);
+        if (attempt < attempts && this.backoffMs) await sleep(this.backoffMs * 2 ** (attempt - 1) + Math.floor(Math.random() * this.backoffMs));
       }
     }
     return { error: lastErr };
@@ -146,10 +155,10 @@ export class Downloader {
     if (kept >= 0) return { status: 'skip', bytes: kept };
     let lastError = null;
     for (const url of job.urls) {
-      const sources = [url, mirrorUrl(url)].filter(Boolean);
+      const sources = this.network.urls(url);
       for (const src of sources) {
         const r = await this.fetchWithRetries(src, job.kind);
-        if (r.notFound) continue;
+        if (r.notFound || r.skipped) continue;
         if (r.error) { lastError = r.error; continue; }
         const abs = join(this.root, job.rel);
         await mkdir(dirname(abs), { recursive: true });
@@ -167,6 +176,7 @@ export class Downloader {
         return { status: 'ok', bytes: r.buf.length, url: src, sizeChanged };
       }
     }
+    if (lastError) this.network.directFailureHint();
     return lastError ? { status: 'error', bytes: 0, error: lastError } : { status: 'miss', bytes: 0, error: 'not found (404) on all sources' };
   }
 

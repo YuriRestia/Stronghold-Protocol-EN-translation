@@ -6,7 +6,8 @@
 
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { RAW, mirrorUrl } from './sources.mjs';
+import { RAW } from './sources.mjs';
+import { MirrorPolicy } from './network.mjs';
 
 /**
  * Read a cached JSON file, downloading it first when missing or unparsable.
@@ -16,44 +17,70 @@ import { RAW, mirrorUrl } from './sources.mjs';
  * @param {boolean} [o.refresh] force re-download
  * @param {boolean} [o.offline] never download (throw when the cache is missing)
  * @param {(m:string)=>void} [o.log]
+ * @param {'direct'|'mirror'} [o.source]
+ * @param {string} [o.proxyPrefix]
+ * @param {typeof fetch} [o.fetchImpl]
+ * @param {MirrorPolicy} [o.mirrorPolicy] shared invocation-wide mirror circuit breaker
+ * @param {number} [o.timeoutMs]
+ * @param {number} [o.backoffMs]
  * @returns {Promise<any>} parsed JSON
  */
-export async function cachedJson({ cacheFile, url, refresh = false, offline = false, log = console.log }) {
+export async function cachedJson({ cacheFile, url, refresh = false, offline = false, log = console.log, source = 'direct', proxyPrefix, fetchImpl = globalThis.fetch, mirrorPolicy, timeoutMs = 180000, backoffMs = 500 }) {
   if (!refresh || offline) {
     try { return JSON.parse(await readFile(cacheFile, 'utf8')); } catch (e) {
       if (offline) throw new Error(`--offline: cached index ${cacheFile} is missing or corrupt (${e.message}); run once online`);
     }
   }
+  const network = mirrorPolicy ?? new MirrorPolicy({ source, proxyPrefix, log });
   let lastErr = null;
-  for (const src of [url, mirrorUrl(url)].filter(Boolean)) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
+  for (const src of network.urls(url)) {
+    if (network.skip(src)) continue;
+    const attempts = network.isProxy(src) ? 1 : 3;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      let text, json;
       try {
         log(`[cache] downloading ${src}`);
-        const res = await fetch(src, { signal: AbortSignal.timeout(180000) });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const text = await res.text();
-        const json = JSON.parse(text);
-        await mkdir(dirname(cacheFile), { recursive: true });
-        await writeFile(cacheFile + '.tmp', text);
-        await rename(cacheFile + '.tmp', cacheFile);
-        return json;
+        const res = await network.request(src, fetchImpl, {}, timeoutMs);
+        if (!res.ok) {
+          await res.body?.cancel();
+          if (res.status === 404 || res.status === 410) {
+            network.succeeded(src); // missing index, not a proxy outage
+            lastErr = new Error(`HTTP ${res.status}`);
+            break;
+          }
+          throw new Error(`HTTP ${res.status}`);
+        }
+        text = (await network.readBody(src, res)).toString('utf8');
+        json = JSON.parse(text);
       } catch (e) {
         lastErr = e;
-        await new Promise((r) => setTimeout(r, 500 * attempt));
+        network.failed(src);
+        if (attempt < attempts && backoffMs) await new Promise((r) => setTimeout(r, backoffMs * attempt));
+        continue;
       }
+      network.succeeded(src);
+      // A local disk failure is not evidence that the mirror is unhealthy.
+      await mkdir(dirname(cacheFile), { recursive: true });
+      await writeFile(cacheFile + '.tmp', text);
+      await rename(cacheFile + '.tmp', cacheFile);
+      return json;
     }
   }
+  if (lastErr) network.directFailureHint();
   throw new Error(`cannot fetch ${url}: ${lastErr?.message}`);
 }
 
 /**
  * Load audio_data.json (official), charword_table.json (official voice slots) and Ark-Models models_data.json.
  * @param {string} root project root
- * @param {{refresh?:boolean, offline?:boolean, log?:(m:string)=>void}} [opts]
+ * @param {{refresh?:boolean, offline?:boolean, log?:(m:string)=>void, source?:'direct'|'mirror', proxyPrefix?:string, fetchImpl?:typeof fetch, mirrorPolicy?:MirrorPolicy}} [opts]
  * @returns {Promise<{ audioData: any, modelsData: any, charword: any }>}
  */
 export async function loadIndexes(root, opts = {}) {
+  const mirrorPolicy = opts.mirrorPolicy ?? new MirrorPolicy(opts);
   const audioData = await cachedJson({
+    ...opts,
+    mirrorPolicy,
     cacheFile: join(root, '.cache', 'gamedata', 'excel', 'audio_data.json'),
     url: RAW.gamedata + 'excel/audio_data.json',
     refresh: opts.refresh,
@@ -63,6 +90,8 @@ export async function loadIndexes(root, opts = {}) {
   // 11 MB, and raw.githubusercontent stalls on it often: the jsDelivr mirror cachedJson() falls back to is the
   // reliable path (the operator battle voice needs it, plan.mjs indexVoice).
   const charword = await cachedJson({
+    ...opts,
+    mirrorPolicy,
     cacheFile: join(root, '.cache', 'gamedata', 'excel', 'charword_table.json'),
     url: RAW.gamedata + 'excel/charword_table.json',
     refresh: opts.refresh,
@@ -70,6 +99,8 @@ export async function loadIndexes(root, opts = {}) {
     log: opts.log,
   });
   const modelsData = await cachedJson({
+    ...opts,
+    mirrorPolicy,
     cacheFile: join(root, '.cache', 'ark-models', 'models_data.json'),
     url: RAW.arkModels + 'models_data.json',
     refresh: opts.refresh,

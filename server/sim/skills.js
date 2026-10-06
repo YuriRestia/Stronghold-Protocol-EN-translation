@@ -503,8 +503,8 @@ export class SkillRuntime {
 
   /**
    * End the active skill. onEnd runs while the skill's mods / range are still applied (end-of-skill effects — finishers,
-   * bombardments — use the skill's stats and range; `active` is already false), then they are removed (kept when onEnd
-   * re-activated the skill), then `skillEnd` fires.
+   * bombardments — use the skill's stats and range; `active` is already false), then they are removed and `skillEnd`
+   * fires — neither when onEnd re-activated the skill (the new cast owns both).
    */
   end(reason = 'end') {
     if (!this.active || this.kind === 'passive' && reason !== 'death') return;
@@ -517,7 +517,11 @@ export class SkillRuntime {
     this.ammoMax = 0;
     const n = this.activations;
     this._call('onEnd', { reason });
-    if (!this.active && this.activations === n) this._removeMods();
+    // onEnd started the next cast (耀骑士临光 S2 retreats on its duration end and 不屈 redeploys her inside that call; the
+    // deploy-timed skill starts again, PR #109): that cast owns the mods and its events — a trailing skillEnd would make
+    // listeners (骑士戒律) clear the new cast and the client would see the skill off while it runs
+    if (this.active || this.activations !== n) return;
+    this._removeMods();
     if (b._hooks.skillEnd) b.emit('skillEnd', { unit: u, skill: this, reason });
     if (this.kind !== 'passive') b._ev(['skill', u.id, 0]);
   }
