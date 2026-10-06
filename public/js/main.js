@@ -53,6 +53,7 @@ const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
 const TICKER_KEEP = 20;
 const EMOTE_KEEP = 20;
+const NOTICE_TOAST_MS = 15000;
 
 const SCREENS = { title: TitleScreen, lobby: LobbyScreen, room: RoomScreen, game: GameScreen };
 
@@ -83,6 +84,8 @@ function clearRoomParam() {
 // ---- net → store wiring ---------------------------------------------------------------------------
 
 let seq = 0;
+/** ids of the operator notices (sys.notice) already shown on this page */
+const seenNotices = new Set();
 let welcomeAt = 0;
 let roomStateAt = 0;
 let matchAt = 0;
@@ -228,6 +231,14 @@ function wireNet() {
   net.on('m.toast', (msg) => {
     const kind = ['info', 'success', 'warn', 'error'].includes(msg.kind) ? msg.kind : 'info';
     toast(serverText(msg), kind);
+  });
+  // operator notice (server/announce.js, e.g. a restart warning): shown once per page — the server resends the active
+  // one after every hello, so a reconnect must not repeat it; the text is shown as written (not translated)
+  net.on('sys.notice', (msg) => {
+    // no expiry check here: the server only sends an active notice, and the device clock may be off
+    if (typeof msg.text !== 'string' || !Number.isFinite(msg.id) || seenNotices.has(msg.id)) return;
+    seenNotices.add(msg.id);
+    toast(msg.text, 'warn', { ttl: NOTICE_TOAST_MS });
   });
   net.on('m.ticker', (msg) => {
     if (typeof msg.text !== 'string') return;

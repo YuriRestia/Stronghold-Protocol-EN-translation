@@ -24,6 +24,8 @@
 //   * Per-network limits for internet clients (see net.js clientAddress; local/LAN peers are exempt): open sockets
 //     (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
 //   * Graceful shutdown on SIGINT/SIGTERM (rooms get room.closed{reason:'shutdown'}, sockets close 1001).
+//   * Operator notices: logs/announce.json (written by scripts/announce.mjs) → sys.notice to every online player
+//     (server/announce.js; option `noticeFile`, null disables).
 //
 // Programmatic use (tests): `const srv = await startServer({ port: 0, quiet: true }); … await srv.close();`
 // The server only auto-listens when this file is the process entry point.
@@ -41,6 +43,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS } from './net.js';
 import { Lobby } from './lobby.js';
+import { NoticeBoard } from './announce.js';
 import { getData, loadData } from './data.js';
 import { PROTOCOL_VERSION, APP_VERSION } from '../shared/constants.js';
 import { MEDIA_PREFIX, AUDIO_EXTS } from '../shared/media.js';
@@ -607,9 +610,11 @@ function makeLogger(quiet) {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
+ *   noticeFile?: string | null, noticePollMs?: number,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: WebSocketServer,
- *                     lobby: Lobby, network: Network, registry: SessionRegistry, close: () => Promise<void> }>}
+ *                     lobby: Lobby, network: Network, registry: SessionRegistry, notices: NoticeBoard | null,
+ *                     close: () => Promise<void> }>}
  */
 export async function startServer(opts = {}) {
   const port = opts.port ?? (process.env.PORT != null && process.env.PORT !== '' ? Number(process.env.PORT) : 3000);
@@ -638,6 +643,15 @@ export async function startServer(opts = {}) {
   const network = new Network({ registry, handler: lobby, log, options: netOptions });
   const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, log });
   const startedAt = Date.now();
+  // Operator notices (server/announce.js): players saying hello get the active one after the lobby's resync.
+  const noticeFile = opts.noticeFile === undefined ? path.join(ROOT, 'logs', 'announce.json') : opts.noticeFile;
+  const notices = noticeFile ? new NoticeBoard({ file: noticeFile, registry, startedAt, pollMs: opts.noticePollMs, log }) : null;
+  if (notices) {
+    const lobbyHello = lobby.onHello.bind(lobby);
+    lobby.onHello = (session, info) => {
+      try { lobbyHello(session, info); } finally { notices.onHello(session); }
+    };
+  }
   // The tag is per process (see buildTag): read the browser runtime once, here, not on every /healthz.
   resetBuildTag();
   buildTag();
@@ -717,6 +731,7 @@ export async function startServer(opts = {}) {
     throw e;
   }
   server.on('error', (e) => log.error('[http] server error', e));
+  notices?.start();
 
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
@@ -726,6 +741,7 @@ export async function startServer(opts = {}) {
   async function close() {
     if (closing) return closing;
     closing = (async () => {
+      notices?.stop();
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       network.close();
       await new Promise((resolve) => {
@@ -738,7 +754,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host, url, server, wss, lobby, network, registry, close };
+  return { port: actualPort, host, url, server, wss, lobby, network, registry, notices, close };
 }
 
 // ---------------------------------------------------------------------------------------------------
