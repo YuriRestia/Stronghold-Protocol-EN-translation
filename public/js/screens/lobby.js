@@ -1,7 +1,7 @@
 // Lobby screen: pick 独立模拟 / 同盟模拟 and a difficulty (标准/险境/绝境/终极), create a room,
 // or join one with a 同盟密钥 (recent codes remembered) — as a player (加入同盟) or in one of its MAX_SPECTATORS
 // spectator seats (观战: room.spectate, also while its match runs; community report #26, a remake feature — the
-// official room has none). Shows connection status + ping, and the 搜寻队友 announcement until dismissed.
+// official room has none). Shows connection status + ping, and the update announcement until dismissed.
 //
 // Difficulty descriptions come from data/config.json `modes[modeId]` when present, else from the
 // official act2autochess `modeDataDict` texts embedded below (desc + effectDescList), so the
@@ -21,7 +21,7 @@ import { net, identity } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { getConfig, getMode, getStage, useData } from '../data.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
-import { SearchNews } from '../ui/matchSearch.js';
+import { UpdateNews } from '../ui/matchSearch.js';
 import { OnlinePill } from '../ui/presence.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
@@ -328,7 +328,7 @@ export function LobbyScreen() {
 
     <div class="lobby-body screen__scroll">
       <section class="lobby-left">
-        <${SearchNews} />
+        <${UpdateNews} />
         <div class="section-label"><span class="section-label__idx num">01</span>${t('模拟方式')}<${MicroLabel}>MODE<//></div>
         <div class="mode-cards">
           ${MODE_CARDS.map((c) => html`<${ModeCard} key=${c.id} card=${c} selected=${roomMode === c.id} onSelect=${pickMode} />`)}

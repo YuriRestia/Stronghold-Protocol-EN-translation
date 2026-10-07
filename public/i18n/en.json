@@ -1060,8 +1060,6 @@
   "可搜寻队友补满空位": "Find Teammates to fill empty seats",
   "创建后可邀请好友、添加 AI 队友或搜寻队友": "After creating, invite friends, add AI Teammates or find teammates",
   "搜寻中": "Searching",
-  "新功能：搜寻队友": "New: Find Teammates",
-  "创建同盟后，无论同盟中有几名博士，创建者都可以点击「搜寻队友」，与其他正在搜寻的同盟合并补满空位，满 4 人后自动开始模拟。": "Create an Alliance with any number of Doctors, and the Host can press \"Find Teammates\" to merge with other searching Alliances and fill the empty seats. The simulation starts automatically once there are 4 members.",
   "关闭提示": "Dismiss",
   "取消搜寻成功": "Search canceled",
   "同盟满 4 人后将自动开始模拟": "The simulation starts automatically once the Alliance has 4 members",
@@ -1088,5 +1086,11 @@
   "西班牙语": "Spanish",
   "中文-方言": "CN - Regional",
   "方": "RG",
-  "本土语言": "Native language"
+  "本土语言": "Native language",
+  "0.2.1 重大更新": "Major update 0.2.1",
+  "自选干员：在「干员调配 → 自选编队」为 5 阶、6 阶各选 2 名自己拥有的 6★ 干员，技能和模组任选": "Custom operators: in Operator Loadout → Custom Squad, pick 2 of your own 6★ operators each for tier 5 and tier 6, with any skill and module",
+  "最终攻势与隐秘核心的领袖生命值按开战时存活的博士人数计算": "Boss HP fix: the Final Assault and Hidden Core leader HP now scales with the number of Doctors alive when the fight starts",
+  "语音语言：在「设置」或「干员调配」里为每名干员选择中文、日文、英文、韩文或本土语言配音": "Voice language: choose CN, JP, EN, KR or native voices for each operator in Settings or Operator Loadout",
+  "大厅和搜寻队友时显示在线与正在搜寻的博士人数": "The lobby and Find Teammates now show how many Doctors are online and searching",
+  "大量问题修复": "Many, many bug fixes"
 }

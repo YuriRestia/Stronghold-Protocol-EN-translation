@@ -1,5 +1,5 @@
 // 搜寻队友 UI (DESIGN §27): the room screen's search strip and status line, the 搜寻成功! toast, and the lobby's
-// one-time announcement.
+// update announcement (shown until closed; 0.2.1's replaced the 搜寻队友 one).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
@@ -7,20 +7,30 @@ import { html, Button, Icon } from './components.js';
 import { toast } from './toasts.js';
 import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
-import { t } from '../../../shared/i18n.js';
+import { t, N_ } from '../../../shared/i18n.js';
 import { useSearching, queuedOthers } from './presence.js';
 
-export const SEARCH_NEWS_PREF = 'news.matchSearch';
+// A new key per announcement: the 0.2.1 one shows again to everyone who closed the 搜寻队友 one ('news.matchSearch').
+export const UPDATE_NEWS_PREF = 'news.0.2.1';
 
-export function SearchNews() {
-  const [hidden, setHidden] = useState(() => loadPref(SEARCH_NEWS_PREF, false) === true);
+/** The 0.2.1 announcement's points (msgids). */
+const UPDATE_POINTS = [
+  N_('自选干员：在「干员调配 → 自选编队」为 5 阶、6 阶各选 2 名自己拥有的 6★ 干员，技能和模组任选'),
+  N_('最终攻势与隐秘核心的领袖生命值按开战时存活的博士人数计算'),
+  N_('语音语言：在「设置」或「干员调配」里为每名干员选择中文、日文、英文、韩文或本土语言配音'),
+  N_('大厅和搜寻队友时显示在线与正在搜寻的博士人数'),
+  N_('大量问题修复'),
+];
+
+export function UpdateNews() {
+  const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
-  const dismiss = () => { savePref(SEARCH_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('新功能：搜寻队友')}>
-    <span class="search-news__icon" aria-hidden="true"><${Icon} name="search" /></span>
+  const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.1 重大更新')}>
+    <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('新功能：搜寻队友')}</span>
-      <p>${t('创建同盟后，无论同盟中有几名博士，创建者都可以点击「搜寻队友」，与其他正在搜寻的同盟合并补满空位，满 4 人后自动开始模拟。')}</p>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.1 重大更新')}</span>
+      <ul class="search-news__list">${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}</ul>
     </div>
     <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
   </aside>`;
