@@ -1,4 +1,4 @@
-// test/lobby-matchmaking.test.js — room.search end to end (DESIGN §26): the ready gate, whole-room merges, auto-start,
+// test/lobby-matchmaking.test.js — room.search end to end (DESIGN §27): the ready gate, whole-room merges, auto-start,
 // spectators.
 import { describe, test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

@@ -4,7 +4,7 @@
 // ("How to add an operator (自选)"); the summon deck: ../shared/summoner.js.
 //
 // Forms (data/backups.json units.char_2023_ling): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table / the tokens' character_table rows (zh_CN, as built into
 // backups.json); PRTS 令 (S2 备注 "令与其召唤物的攻击范围内没有可选目标时，该技能也可开启…但可以进行召唤物的回收", "召唤物的同步
 // 触发技能与回收不受缴械或沉默等效果制约"; S3 备注 "召唤物对周围敌人造成的持续法术伤害不可对空，且视为来自令造成的伤害"; SUM-Y
@@ -28,9 +28,10 @@
 //   stage 2+: 4) — the hand count too. Every summon holds 禁疗 (PRTS; [ASSUMED: given here — the data's `abnormal` lacks it]) and fights with its
 //   own data: “清平” blocks 1 and strikes in melee (physical) on its 1-1, “逍遥” shoots arts on its 3-1 (air units too), “弦惊”
 //   blocks 2 and strikes every enemy it blocks (physical; its trait "攻击阻挡的所有敌人").
-// - T2 随付笺咏醉屠苏 "召唤物被击倒/吸收/回收时令额外获得3点技力、攻击力+3%（攻击力加成最多叠加5层）": a summon knocked out,
-//   absorbed by a 弦惊 merge or recalled by S2 ⇒ +sp SP (no SP while a timed skill of hers runs; 阻回 stops it) and a stack of
-//   ATK +atk (直接乘算) up to max_stack_cnt, kept until she leaves the field — not when her summons leave with her.
+// - T2 随付笺咏醉屠苏 "召唤物被击倒/吸收/回收时令额外获得3点技力、攻击力+3%（攻击力加成最多叠加5层）" (full potential: 4点技力): a
+//   summon knocked out, absorbed by a 弦惊 merge or recalled by S2 ⇒ +sp SP (no SP while a timed skill of hers runs; 阻回
+//   stops it) and a stack of ATK +atk (直接乘算) up to max_stack_cnt, kept until she leaves the field — not when her summons
+//   leave with her.
 // - S1 重进酒 (MANUAL, data DEFAULT, 25 s): +cnt held at the cast; she and her summons ATK +atk, ASPD +attack_speed, and her
 //   summons' attacks deal arts damage meanwhile ("召唤物伤害类型变为法术"). Passive "召唤物可部署在近战位": placement only.
 // - S2 笑鸣瑟 (MANUAL, data DEFAULT, 2 charges — the cast replaces the attack she is about to make): her attack strikes up to

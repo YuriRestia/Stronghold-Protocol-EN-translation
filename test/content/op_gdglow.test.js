@@ -48,7 +48,7 @@ function done(h) {
 const mine = (h, u) => h.hooksOf('damaged').filter((c) => c.source === u);
 const droneHits = (h, u, e = null) => mine(h, u).filter((c) => c.dmg.tags?.includes(DRONE_TAG) && (!e || c.target === e));
 
-test('澄闪 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, 3-1, 驭械术师 (ranged arts, hits air, blocks 1; the trait ramp of the form — FUN-X init 0.35, FUN-Y cap 1.2), ground-targetable; S1 DEFAULT, S2 at full SP (AUTO on herself), S3 GDGLOW_SKILL_2; 精准导流 15 (FUN-Y stage 3 20)', () => {
+test('澄闪 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, 3-1, 驭械术师 (ranged arts, hits air, blocks 1; the trait ramp of the form — FUN-X init 0.35, FUN-Y cap 1.2), ground-targetable; S1 DEFAULT, S2 at full SP (AUTO on herself), S3 GDGLOW_SKILL_2; 精准导流 18 (FUN-Y stage 3 23)', () => {
   assert.equal(OPERATOR_KITS[GD], KITS[GD]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -69,7 +69,7 @@ test('澄闪 in every 自选 form: her kit (all three skills authored), the form
   }
   assert.deepEqual([skillOf(5, false, S1).trigger.rule, skillOf(5, false, S2).trigger.rule, skillOf(5, false, S2).skillType], ['DEFAULT', 'DEFAULT', 'AUTO']);
   assert.deepEqual([modOf(5, FX).attr, modOf(6, FX).attr, modOf(5, FY).attr, modOf(6, FY).attr], [{ maxHp: 90, atk: 22 }, { maxHp: 125, atk: 38 }, { atk: 30, aspd: 5 }, { atk: 45, aspd: 7 }]);
-  assert.deepEqual([talentOf(6, true, FY, 1).bb.magic_resist_penetrate_fixed, talentOf(6, true, FX, 0).bb['attack@atk_scale_2'], talentOf(5, true, FX, 0).bb['attack@atk_scale_2']], [20, 3.6, 3]);
+  assert.deepEqual([talentOf(6, true, FY, 1).bb.magic_resist_penetrate_fixed, talentOf(6, true, FX, 0).bb['attack@atk_scale_2'], talentOf(5, true, FX, 0).bb['attack@atk_scale_2']], [23, 3.75, 3.15]);
 });
 
 test('a 自选 pick: 澄闪 is offered at tiers 5 and 6 and a roster with her passes validateDiyPicks', () => {
@@ -188,11 +188,11 @@ test('S3 澄净闪耀 (GDGLOW_SKILL_2: an enemy anywhere): 30 s, no attack of he
   }
 });
 
-test('T1 信标的愤怒: per drone 1.5 % × its stacks (from 1, +1 per miss, sure past 40): ~10 % of the drone attacks; the blast — atk_scale_2 × ATK arts within 1.1 of the target (air too), no ramp (FUN-X stage 3 360 %), 停顿 under S3 — sends the drone back and restarts its count; reset at a deployment', () => {
+test('T1 信标的愤怒: per drone 1.5 % × its stacks (from 1, +1 per miss, sure past 40): ~10 % of the drone attacks; the blast — atk_scale_2 × ATK arts within 1.1 of the target (air too), no ramp (FUN-X stage 3 375 %), 停顿 under S3 — sends the drone back and restarts its count; reset at a deployment', () => {
   for (const f of [[5, false, null], [6, true, FX]]) {
     const [tier, elite, mod] = f;
     const tb = talentOf(tier, elite, mod, 0).bb;
-    assert.deepEqual([tb['attack@prob'], tb['attack@atk_scale_2'], tb['attack@max_stack_cnt']], [0.015, elite && mod === FX && tier === 6 ? 3.6 : 3, 40], label(f));
+    assert.deepEqual([tb['attack@prob'], tb['attack@atk_scale_2'], tb['attack@max_stack_cnt']], [0.015, elite && mod === FX && tier === 6 ? 3.75 : 3.15, 40], label(f));
     // a sure blast: both drones past the cap
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     const e = h.spawn('enemy_dummy', { pos: [10, 6] }), near = h.spawn('enemy_fly', { pos: [11, 6] }), far = h.spawn('enemy_dummy', { pos: [10, 8] });

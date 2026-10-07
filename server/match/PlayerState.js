@@ -45,7 +45,8 @@
 //   * Items: equip max 2 (a 3rd replaces the equipped item the player picks — g.equip replaceUid, the oldest when
 //     absent; equipped items are otherwise locked: g.destroy refuses them),
 //     2 identical normal items (hand/temp/equipped) merge into the golden item in the hand, items are never sold
-//     (destroy for 0). consume-on-equip items resolve through the effect registry and never take a slot.
+//     (destroy for 0). consume-on-equip items resolve through the effect registry and never take a slot — on a full
+//     carrier they still replace (destroy) the picked item first, leaving a free slot (PRTS 帮助, GitHub #263).
 //   * Tokens (PRTS 卫戍协议/帮助 §战斗部署, user playtest #6): placing an owner with manually deployable summons
 //     (tokens.json `placeable`: 赫默's 医疗探机 and 巫恋's 诅咒娃娃 with their S2, 凯瑟琳's 爬行号·防护单元, 海嗣 / 狼群 /
 //     流形) sends one stack (deployLimit copies — 凯瑟琳 2) to the hand, placed by hand like any piece (no deploy slot);

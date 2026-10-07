@@ -167,8 +167,8 @@ test('战地工程师 / the device rules: stock 3 (CRA-X 4) after his deployment
   }
 });
 
-test('节约经费: a device of his leaving his x-4 ⇒ prob (0.7; CRA-X stage 3 0.9) ⇒ +1 stock (capped); none when the roll fails, outside his x-4 or when it goes with him', () => {
-  for (const [tier, elite, mod, prob] of [[5, false, null, 0.7], [5, true, X, 0.7], [6, true, X, 0.9], [6, true, Y, 0.7]]) {
+test('节约经费: a device of his leaving his x-4 ⇒ prob (0.8; CRA-X stage 3 1) ⇒ +1 stock (capped); none when the roll fails, outside his x-4 or when it goes with him', () => {
+  for (const [tier, elite, mod, prob] of [[5, false, null, 0.8], [5, true, X, 0.8], [6, true, X, 1], [6, true, Y, 0.8]]) {
     const f = label([tier, elite, mod]);
     const { h, u, devs } = field({ tier, elite, mod, skill: 0, pieces: [[11, 6], [10, 8]], dp: 99 });
     const [near, far] = devs;

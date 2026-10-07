@@ -4,8 +4,8 @@
 // and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4046_ebnhlz): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json),
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json),
 // PRTS 黑键 / 旧日残影 (备注) and 分支特性信息 §秘术师, and the client's battle data (charpack char_4046_ebnhlz: the
 // ExChargeAttack abilities, the talent config; skills sktok_ebnhlz_token / skchr_ebnhlz_1–3; buff templates ebnhlz_t_2,
 // ebnhlz_e_003_*, ebnhlz_e_004_*).
@@ -22,11 +22,11 @@
 //   stage 3: 1.43): every stored energy ×atk_scale; one more energy (the client's ExChargeAttack `_exProjectileKey`,
 //   targetValidator enemyLevelMask 6 = ELITE | BOSS) stored once the trait's are full (备注 "通常情况下此“额外攻击能量”将在
 //   特性能量全部储存完毕后再尝试储存") and released only by an attack on an elite or leader enemy (kept otherwise).
-// - T2 倚音 "若攻击目标周围没有其他敌人，攻击对其额外造成相当于攻击力15%的法术伤害" (bb atk_scale, cnt 0, range_radius 1.1): per
+// - T2 倚音 "若攻击目标周围没有其他敌人，攻击对其额外造成相当于攻击力15%的法术伤害" (full potential: 17 %; bb atk_scale, cnt 0, range_radius 1.1): per
 //   projectile — the main bolt and every energy (备注 "主攻击与每个攻击能量分别独立触发") — with at most `cnt` other selectable
 //   enemies within range_radius of the target (中点判定; 备注 "可以攻击的装置类不影响判定"), ATK × atk_scale arts on it.
-//   MSC-Y stage 3 (atk_scale 0.2, atk_scale_2 0.36): otherwise ATK × atk_scale_2 arts splash on each of those others (备注
-//   "额外伤害的影响对象不包括主目标"; ebnhlz_e_003_t_2 AOEDamage SPLASH, every motion). MSC-Δ stage 3 (atk_scale 0.3,
+//   MSC-Y stage 3 (atk_scale 0.22, atk_scale_2 0.36): otherwise ATK × atk_scale_2 arts splash on each of those others (备注
+//   "额外伤害的影响对象不包括主目标"; ebnhlz_e_003_t_2 AOEDamage SPLASH, every motion). MSC-Δ stage 3 (atk_scale 0.32,
 //   element_atk_scale 0.3): and, on a target in its 凋亡 burst (its `apoptosisBurst` lock — ebnhlz_e_004[t_2_ele]
 //   IsTargetInEPBreakRecovery DARK), ATK × element_atk_scale 元素伤害 after the arts (备注 "先造成法术伤害，后造成元素伤害").
 // - MSC-X 源石骰子收纳盒: trait times 4 (above), attributes in the stats (ATK, ASPD). MSC-Y “乐理阐释者” "拥有已储存的攻击

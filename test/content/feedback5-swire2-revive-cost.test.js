@@ -1,5 +1,5 @@
 // test/content/feedback5-swire2-revive-cost.test.js — 琳琅诗怀雅's 破财消灾 (「受到致命伤害时，若费用足够则消耗5点部署费用使生命恢复到
-// 70%，每次触发该天赋时消耗的费用翻倍」): the doubled cost restarts at 5 with every deployment — PRTS 备注 「再部署时重置本天赋费用
+// 70%，每次触发该天赋时消耗的费用翻倍」; 80 % at full potential, the owner's decision of 2026-10-07): the doubled cost restarts at 5 with every deployment — PRTS 备注 「再部署时重置本天赋费用
 // 消耗」 (community report of 2026-10-06 「进入联防阶段琳琅诗怀雅所需的复活费用应该重置，正常对局中死亡之后再部署复活费用也应该
 // 重置」). A 联防 field is a battle of its own, so it always started at 5; a redeploy used to keep the doubled cost.
 // Run: node --test test/content/feedback5-swire2-revive-cost.test.js
@@ -26,7 +26,7 @@ function lethal(h, u, ps, dp = 90) {
 test('破财消灾 doubles within one deployment and restarts at 5 DP after a redeploy', () => {
   const { h, u, ps } = field();
   assert.equal(lethal(h, u, ps), 5, 'first save: 5 DP');
-  assert.ok(u.alive && Math.abs(u.hp - u.s.maxHp * 0.7) < 1e-6, 'back to 70 % HP');
+  assert.ok(u.alive && Math.abs(u.hp - u.s.maxHp * 0.8) < 1e-6, 'back to 80 % HP (hp_ratio at full potential)');
   assert.equal(lethal(h, u, ps), 10, 'second save of the same deployment: doubled');
   h.b.retreat(u);
   assert.ok(!u.alive);

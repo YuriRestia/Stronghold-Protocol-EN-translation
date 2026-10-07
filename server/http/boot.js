@@ -1,5 +1,8 @@
-// server/http/boot.js — running the server as a process (`node server/index.js`, npm start, scripts/launch.mjs):
+// server/http/boot.js — running the server as a process (`node server/index.js`, npm start, scripts/launch.mjs, the
+// Windows service's scripts/run-server.cmd, NSSM, systemd):
 //
+//   * first, an update package extracted over the install (UPDATE.json) is finished — old files deleted, the install
+//     verified (server/update.js); one that does not match its MANIFEST.json keeps the server from starting (exit 1);
 //   * the boot banner: release version, the Local URL, the LAN URLs when listening on every interface, the
 //     cloudflared command for internet play;
 //   * a server that cannot start exits 1 (with a hint when the port is in use); unhandled rejections and uncaught
@@ -11,6 +14,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { APP_VERSION, DEV_BUILD } from '../../shared/constants.js';
+import { applyPendingUpdate } from '../update.js';
+import { ROOT } from './config.js';
 
 /** Non-internal IPv4 addresses as http URLs. @param {number} port */
 export function lanUrls(port) {
@@ -45,12 +50,16 @@ export function printBanner(srv) {
 }
 
 /**
- * The process main: start the server, print the banner, stop gracefully on SIGINT / SIGTERM.
+ * The process main: finish a pending update package, start the server, print the banner, stop gracefully on SIGINT /
+ * SIGTERM.
  * @param {() => Promise<{ url: string, host: string, port: number, close: () => Promise<void> }>} start index.js startServer
  */
 export async function runMain(start) {
   process.on('unhandledRejection', (e) => console.error('[process] unhandled rejection', e));
   process.on('uncaughtException', (e) => console.error('[process] uncaught exception', e));
+  // before the data, the packs or the browser runtime are read: the files must be the new version's (server/update.js).
+  // Nothing is listening yet, so returning ends the process with exit code 1 once the message is written.
+  if (applyPendingUpdate(ROOT).state === 'failed') { process.exitCode = 1; return; }
   let srv;
   try {
     srv = await start();

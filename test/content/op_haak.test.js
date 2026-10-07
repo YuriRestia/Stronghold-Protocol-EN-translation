@@ -67,7 +67,7 @@ test('阿 in every 自选 form: his operator kit (all three skills authored), th
       const form = formOf(tier, elite), m = elite ? modOf(tier, mod) : null;
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [HAAK, SLOT[tier], form.skills[skill].skillId, false, 'skills'], label(f));
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.aspd, u.base.respawnTime],
-        [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def, 100 + (m?.attr.aspd ?? 0), 70 + (m?.attr.respawnTime ?? 0)], `${label(f)}: stats`);
+        [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def, 100 + (m?.attr.aspd ?? 0), 66 + (m?.attr.respawnTime ?? 0)], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.profile.projectile, u.profile.hpDrain], [1, 'ranged', 'phys', true, 'arrow', 0.01], `${label(f)}: 怪杰`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-3`);
       assert.equal(form.rangeId, '3-3');
@@ -77,9 +77,9 @@ test('阿 in every 自选 form: his operator kit (all three skills authored), th
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1627 / 583 / 121, E2 Lv60 1897 / 663 / 142; GEE-X +135 / +37 → +240 / +57 HP / ATK,
+  // the numbers of the forms (zh_CN): E2 Lv1 1777 / 583 / 121, E2 Lv60 2047 / 663 / 142; GEE-X +135 / +37 → +240 / +57 HP / ATK,
   // GEE-Y +43 / +3 → +75 / +5 ATK / ASPD and respawn −15
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1627, 583, 1897, 663]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1777, 583, 2047, 663]);
   assert.deepEqual([modOf(5, GX).attr, modOf(6, GX).attr, modOf(5, GY).attr, modOf(6, GY).attr],
     [{ maxHp: 135, atk: 37 }, { maxHp: 240, atk: 57 }, { atk: 43, aspd: 3, respawnTime: -15 }, { atk: 75, aspd: 5, respawnTime: -15 }]);
 });
@@ -171,13 +171,13 @@ test('T1 混合药物射击: every attack on an enemy rolls one of four with equ
   }
 });
 
-test('T2 药剂扩散: healing he receives ×1.2 (GEE-Y stage 3: ×1.25); GEE-Y stage 3 heals one ally of his range at each deployment for 150 % ATK — the straight line ahead first, never a 禁疗 one', () => {
+test('T2 药剂扩散: healing he receives ×1.25 (GEE-Y stage 3: ×1.3); GEE-Y stage 3 heals one ally of his range at each deployment for 150 % ATK — the straight line ahead first, never a 禁疗 one', () => {
   const others = [{ uid: 2, chessId: YAK, row: 10, col: 6 }, { uid: 3, chessId: TEXAS, row: 11, col: 4 }, { uid: 4, chessId: LISKAM, row: 10, col: 5 }];
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t1 = talentOf(tier, elite, mod, 1);
     const y3 = elite && mod === GY && tier === 6;
-    assert.deepEqual([t1.heal_scale, t1['healinrange.heal_scale'] ?? 0], y3 ? [1.25, 1.5] : [1.2, 0], label(f));
+    assert.deepEqual([t1.heal_scale, t1['healinrange.heal_scale'] ?? 0], y3 ? [1.3, 1.5] : [1.25, 0], label(f));
     const { h, u } = field({ tier, elite, mod, skill: 0, others });
     assert.equal(u.s.healingTakenMul, t1.heal_scale, `${label(f)}: ×${t1.heal_scale}`);
     const yak = h.unit(2), texas = h.unit(3), liskam = h.unit(4);

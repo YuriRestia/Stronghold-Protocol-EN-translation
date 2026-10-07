@@ -75,9 +75,9 @@ test('重岳 in every 自选 form: his operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2160 / 477 / 304, E2 Lv60 2475 / 552 / 343; FGT-X +210 / +25 / +20 →
+  // the numbers of the forms (zh_CN, full potential): E2 Lv1 2160 / 501 / 304, E2 Lv60 2475 / 576 / 343; FGT-X +210 / +25 / +20 →
   // +260 / +45 / +30, FGT-Y +52 / +25 → +75 / +35 ATK / DEF
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2160, 477, 2475, 552]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2160, 501, 2475, 576]);
   assert.deepEqual([modOf(5, FGTX).attr, modOf(6, FGTX).attr, modOf(5, FGTY).attr, modOf(6, FGTY).attr],
     [{ maxHp: 210, atk: 25, def: 20 }, { maxHp: 260, atk: 45, def: 30 }, { atk: 52, def: 25 }, { atk: 75, def: 35 }]);
   assert.deepEqual([modOf(5, FGTX).traitOverride.bb, modOf(6, FGTY).traitOverride.bb], [{ prob: 0.15 }, { attack_speed: 10, hp_ratio: 0.5 }]);
@@ -109,7 +109,7 @@ test('S1 冲盈 (MANUAL, attack SP 5 / 4, 3 charges, data DEFAULT): 250 % / 290 
     for (const c of strike) {
       assert.equal(c.target, e, `T${tier}: the ground target`);
       approx(c.dmg.amount, u.s.atk * sk.bb.atk_scale, `T${tier}: ${sk.bb.atk_scale * 100} %`);
-      assert.ok(c.dmg.mul === 1 || Math.abs(c.dmg.mul - 1.65) < 1e-9, `T${tier}: ×1 or ×1.65 (止戈)`);
+      assert.ok(c.dmg.mul === 1 || Math.abs(c.dmg.mul - 1.7) < 1e-9, `T${tier}: ×1 or ×1.7 (止戈)`);
       approx(c.amount, c.dmg.amount * c.dmg.mul, `T${tier}: physical, DEF 0`);
     }
     assert.deepEqual([u.skill.charges, u.skill.sp], [0, 0], `T${tier}: every charge spent`);
@@ -125,7 +125,7 @@ test('S1 冲盈 (MANUAL, attack SP 5 / 4, 3 charges, data DEFAULT): 250 % / 290 
   }
 });
 
-test('S1 冲盈: exact damage — 290 % ATK per strike, ×1.65 on a 止戈-marked target; the strike rolls no 止戈 and gives no attack SP', () => {
+test('S1 冲盈: exact damage — 290 % ATK per strike, ×1.7 on a 止戈-marked target; the strike rolls no 止戈 and gives no attack SP', () => {
   const { h, u } = field({ tier: 6, elite: true, skill: 0 });
   const sk = skillOf(6, true, S1);
   const e = h.spawn('enemy_dummy', { pos: [10, 6] });
@@ -141,7 +141,7 @@ test('S1 冲盈: exact damage — 290 % ATK per strike, ×1.65 on a 止戈-marke
   assert.ok(h.runUntil(() => u.skill.activations === 2, 4));
   h.step();
   const c2 = hitsBy(h, u).filter((x) => x.dmg.isSkill)[1];
-  approx(c2.amount, u.s.atk * sk.bb.atk_scale * 1.65, '×1.65 on the marked target');
+  approx(c2.amount, u.s.atk * sk.bb.atk_scale * 1.7, '×1.7 on the marked target');
   done(h);
 });
 
@@ -172,7 +172,7 @@ test('S2 拂尘 (MANUAL, 2 charges, data SKILL_RANGE x-4): ≤ 4 enemies around 
     assert.equal(first.length, 4, `T${tier}: four targets`);
     assert.deepEqual([m1, m2, flyM, blocked].map((e) => hitSet.has(e)), [true, true, true, true], `T${tier}: the marked (flyer included), then the blocked one`);
     assert.ok(![plain1, plain2, outside].some((e) => hitSet.has(e)), `T${tier}: no room for the rest`);
-    for (const c of first) approx(c.amount, u.s.atk * sk.bb.atk_scale * (markOf(u, c.target) ? 1.65 : 1), `T${tier}: ${sk.bb.atk_scale * 100} %`);
+    for (const c of first) approx(c.amount, u.s.atk * sk.bb.atk_scale * (markOf(u, c.target) ? 1.7 : 1), `T${tier}: ${sk.bb.atk_scale * 100} %`);
     assert.deepEqual([m1, m2, flyM, blocked].map((e) => !!e.s.flags.levitate), [true, true, false, false], `T${tier}: the marked ground ones 浮空 (not a flyer, not the unmarked)`);
     approx(m1.findBuff('levitate').timeLeft, 2, `T${tier}: 2 s`, 0.05);
     assert.equal(blocked.blockedBy, u, 'still blocked');
@@ -182,7 +182,7 @@ test('S2 拂尘 (MANUAL, 2 charges, data SKILL_RANGE x-4): ≤ 4 enemies around 
     h.step();
     const second = hitsBy(h, u).filter((c) => c.dmg.isSkill).slice(4);
     assert.deepEqual(new Set(second.map((c) => c.target)), new Set([m1, m2, lifted]), `T${tier}: every 浮空 enemy around (the other source's too)`);
-    for (const c of second) approx(c.amount, u.s.atk * sk.bb.atk_scale_down * (c.target === lifted ? 1 : 1.65), `T${tier}: ${sk.bb.atk_scale_down * 100} % (its own mark comes after the damage)`);
+    for (const c of second) approx(c.amount, u.s.atk * sk.bb.atk_scale_down * (c.target === lifted ? 1 : 1.7), `T${tier}: ${sk.bb.atk_scale_down * 100} % (its own mark comes after the damage)`);
     for (const e of [m1, m2, lifted]) {
       assert.ok(!e.s.flags.levitate, `T${tier}: 浮空 over`);
       approx(markOf(u, e).timeLeft, 2.5, `T${tier}: marked 2.5 s`, 0.1);
@@ -212,7 +212,7 @@ test('S3 我无 (MANUAL, attack SP 11 / 10, data DEFAULT): its strike hits the t
     assert.deepEqual(new Set(pre.map((c) => c.target)), new Set([e, near]), `T${tier}: not the flyer, not the one 1.4 away`);
     for (const c of pre) {
       approx(c.dmg.amount, u.s.atk * sk.bb.atk_scale, `T${tier}: ${sk.bb.atk_scale * 100} %`);
-      approx(c.amount, c.dmg.amount * c.dmg.mul, `T${tier}: physical (×1.65 on a marked one)`);
+      approx(c.amount, c.dmg.amount * c.dmg.mul, `T${tier}: physical (×1.7 on a marked one)`);
     }
     assert.deepEqual(u.liveRangeGrid, X6, `T${tier}: x-6`);
     assert.ok(!hitsBy(h, u).some((c) => c.target === fly || c.target === far), `T${tier}: never the flyer / far one before`);
@@ -247,13 +247,15 @@ test('S3 我无 (MANUAL, attack SP 11 / 10, data DEFAULT): its strike hits the t
   }
 });
 
-test('T1 止戈: each normal-attack damage instance rolls 23 % to mark its target for 2.5 s (not that instance), every damage of his to a marked target ×1.65 — FGT-Y stage 3 ×1.75 (stage 1 ×1.65)', () => {
+test('T1 止戈: each normal-attack damage instance rolls 25 % to mark its target for 2.5 s (not that instance), every damage of his to a marked target ×1.7 — FGT-Y stage 3 ×1.8 at 23 % (stage 1 ×1.7)', () => {
   for (const f of [[5, false, null], [5, true, FGTY], [6, true, FGTY]]) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, seed: 21 });
     const t0 = u.def.raw.talents.find((t) => t.index === 0).bb;
-    const scale = tier === 6 && mod === FGTY ? 1.75 : 1.65;
-    assert.deepEqual([t0.prob, t0.damage_scale, t0.up_duration], [0.23, scale, 2.5], label(f));
+    // full potential: 25 % / ×1.7; FGT-Y stage 3: ×1.8, its blackboard keeps prob 0.23 (its text reads 25%（+2%）)
+    const y3 = tier === 6 && mod === FGTY;
+    const [prob, scale] = y3 ? [0.23, 1.8] : [0.25, 1.7];
+    assert.deepEqual([t0.prob, t0.damage_scale, t0.up_duration], [prob, scale, 2.5], label(f));
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     let marked = 0, plainHits = 0, prevMarked = false;
     h.b.on('hit', (c) => { if (c.source === u && c.target === e && c.dmg.isAttack && !c.dmg.isSkill) prevMarked = !!markOf(u, e); }, { priority: 100 });
@@ -268,7 +270,7 @@ test('T1 止戈: each normal-attack damage instance rolls 23 % to mark its targe
     h.run(400);
     const unmarkedHits = amounts.filter(([, m]) => !m).length;
     const rate = marked / unmarkedHits;
-    assert.ok(rate > 0.18 && rate < 0.28, `${label(f)}: ${marked} / ${unmarkedHits} ≈ 23 %`);
+    assert.ok(rate > prob - 0.05 && rate < prob + 0.05, `${label(f)}: ${marked} / ${unmarkedHits} ≈ ${prob * 100} %`);
     for (const [amt, m] of amounts.slice(0, 50)) approx(amt, u.s.atk * (m ? scale : 1), `${label(f)}: ×${scale} while marked`);
     assert.ok(plainHits > 400);
     done(h);

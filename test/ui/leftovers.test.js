@@ -61,7 +61,7 @@ describe('1. equip-replace dialog', () => {
     assert.deepEqual(replaceIntent(intent, null).fields, { itemUid: 3, targetUid: 1 }, 'no pick ⇒ no replaceUid');
   });
 
-  test('no dialog when a slot is free, the item is consumed on equip, or the equip completes an item merge', () => {
+  test('no dialog when a slot is free or the equip completes an item merge', () => {
     const one = ctxOf({ ...priv, board: [{ ...priv.board[0], items: [{ uid: 11, id: A }] }] });
     const i1 = dropIntent(one, 3, { area: 'board', row: 9, col: 3 });
     assert.equal(i1.confirmReplace, false);
@@ -72,9 +72,28 @@ describe('1. equip-replace dialog', () => {
     assert.equal(equipMerges(twin, 3), true);
     assert.equal(dropIntent(twin, 3, { area: 'board', row: 9, col: 3 }).confirmReplace, false);
     assert.equal(equipMerges(ctx, 3), false);
-    const consumable = Object.values(DATA.items).find((x) => x.itemType === 'EQUIP' && String(x.kind).startsWith('consume_on_equip'));
-    const cons = ctxOf({ ...priv, hand: [{ uid: 3, kind: 'item', id: consumable.id }, ...priv.hand.slice(1)] });
-    assert.equal(dropIntent(cons, 3, { area: 'board', row: 9, col: 3 }).confirmReplace, false);
+  });
+
+  test('a consume-on-equip item on a full operator opens the dialog too — all 24, 博士投影 included — except a 博士投影 on an elite (GitHub #263)', () => {
+    // PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备": the pick is destroyed, then the item resolves (a free slot is left)
+    const consumables = Object.values(DATA.items).filter((x) => x.itemType === 'EQUIP' && String(x.kind).startsWith('consume_on_equip'));
+    assert.equal(consumables.length, 24, '12 consume-on-equip items × normal / golden');
+    const holo = ['chess_item_5_06_e_a', 'chess_item_5_06_e_b'];
+    for (const it of consumables) {
+      const hand = [{ uid: 3, kind: 'item', id: it.id }, ...priv.hand.slice(1)];
+      const cx = ctxOf({ ...priv, hand });
+      const intent = dropIntent(cx, 3, { area: 'board', row: 9, col: 3 });
+      assert.equal(intent.confirmReplace, true, it.id);
+      assert.deepEqual(replaceRequest(cx, intent, getChess, getItem).options.map((o) => o.uid), [11, 12], it.id);
+      const one = ctxOf({ ...priv, board: [{ ...priv.board[0], items: [{ uid: 11, id: A }] }], hand });
+      assert.equal(dropIntent(one, 3, { area: 'board', row: 9, col: 3 }).confirmReplace, false, `${it.id}: a free slot`);
+      // an elite: the server refuses a 博士投影 (nothing would be replaced), every other consumable still replaces
+      const elite = ctxOf({ ...priv, board: [{ ...priv.board[0], id: getChess(RANGED).goldenId, golden: true }], hand });
+      assert.equal(dropIntent(elite, 3, { area: 'board', row: 9, col: 3 }).confirmReplace, !holo.includes(it.id), `${it.id} on an elite`);
+    }
+    // an operator in the hand (equippable since 下半) with two items: the same dialog
+    const benchFull = ctxOf({ ...priv, board: [], hand: [{ uid: 3, kind: 'item', id: holo[0] }, { uid: 1, kind: 'chess', id: RANGED, items: [{ uid: 11, id: A }, { uid: 12, id: B }] }, ...priv.hand.slice(2)] });
+    assert.equal(dropIntent(benchFull, 3, { area: 'hand', idx: 1 }).confirmReplace, true);
   });
 
   test('销毁 only for loose items: an equipped item is locked', () => {
@@ -125,6 +144,44 @@ describe('1. equip-replace dialog', () => {
     // g.destroy of an equipped item is refused by the server — the client never offers it
     assert.ok(m.handle('p_0', { t: 'g.destroy', uid: a.uid }).error);
     assert.equal(itemDestroyable(ctxOf(after), a.uid), false);
+    h.invariants();
+  });
+
+  test('real match engine: 博士投影 and 盟约之币 on a full operator — the dialog asks and the picked item is the one destroyed (GitHub #263)', () => {
+    const h = makeMatch({ mode: 'solo', difficulty: 'FUNNY', humans: 1, seed: 5 });
+    h.start();
+    h.toPrep(1);
+    const m = h.m;
+    const ps = h.ps('p_0');
+    const chessId = Object.values(DATA.chess).find((c) => c.visible && !c.isGolden && c.tier === 1).chessId;
+    const at = legalTileFor(m, ps, chessId);
+    const unit = give(m, ps, chessId, 'board', at);
+    const tile = { area: 'board', row: at[0], col: at[1] };
+    const [a, b, c] = [giveItem(m, ps, A), giveItem(m, ps, B), giveItem(m, ps, C)];
+    for (const it of [a, b]) assert.equal(m.handle('p_0', { t: 'g.equip', itemUid: it.uid, targetUid: unit.uid }).error, undefined);
+    /** Drop `it` on the operator, pick `pick` in the dialog and send the intent; the operator's items after. */
+    const dropAndPick = (it, pick) => {
+      h.flushAll();
+      const cx = ctxOf(h.lastTo('p_0', 'm.private'));
+      const intent = dropIntent(cx, it.uid, tile);
+      assert.equal(intent.confirmReplace, true, `${it.id}: the client asks`);
+      const r = replaceIntent(intent, pick.uid);
+      assert.equal(m.handle('p_0', { t: r.t, ...r.fields }).error, undefined);
+      h.flushAll();
+      return h.lastTo('p_0', 'm.private').board.find((p) => p.uid === unit.uid).items.map((x) => x.uid);
+    };
+    // 博士投影 (normal) takes the slot of the NEWER item the player picked — it used to push the oldest out unasked
+    const holo = giveItem(m, ps, 'chess_item_5_06_e_a');
+    assert.deepEqual(dropAndPick(holo, b), [a.uid, holo.uid], 'b destroyed, a kept, 博士投影 equipped');
+    // 盟约之币 on [a, 博士投影]: the pick (a) is destroyed, the coin pays — 博士投影 and a free slot are left
+    const coin = giveItem(m, ps, 'chess_item_1_03_e_a');
+    const funds = ps.funds;
+    assert.deepEqual(dropAndPick(coin, a), [holo.uid]);
+    assert.equal(ps.funds, funds + 1);
+    // the free slot takes the next item without a dialog
+    h.flushAll();
+    assert.equal(dropIntent(ctxOf(h.lastTo('p_0', 'm.private')), c.uid, tile).confirmReplace, false);
+    for (const gone of [a, b, coin]) assert.equal(ps.find(gone.uid), null);
     h.invariants();
   });
 });

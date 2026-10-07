@@ -78,7 +78,7 @@ test('菲亚梅塔 in every 自选 form: her kit (all three skills authored), th
     }
   }
   assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['MANUAL', 'DEFAULT'], ['MANUAL', 'DEFAULT'], ['MANUAL', 'DEFAULT']]);
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1540, 671, 1796, 797]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1540, 706, 1796, 832]);
   assert.deepEqual([Y, X, ISW].flatMap((id) => [modOf(5, id).attr, modOf(6, id).attr]),
     [{ atk: 48, def: 26 }, { atk: 70, def: 43 }, { atk: 60, def: 17 }, { atk: 85, def: 32 }, { maxHp: 85, atk: 65 }, { maxHp: 115, atk: 90 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -139,12 +139,12 @@ test('T1 精力充沛: ATK +25 % above 50 % HP, +50 % above 80 % (ART-X stage 3:
   }
 });
 
-test('T2 宣告终局: ASPD +27 outside a running skill, none while S1 / S3 run (S2 is instant); ART-Y stage 3: +30 outside, +10 inside', () => {
+test('T2 宣告终局: ASPD +30 outside a running skill, none while S1 / S3 run (S2 is instant); ART-Y stage 3: +33 outside, +10 inside', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t1 = talentsOf(tier, elite, mod)[1].bb;
     const y3 = elite && mod === Y && tier === 6;
-    assert.deepEqual([t1.attack_speed, t1['phenxi_e_t_2[in_skill].attack_speed'] ?? 0], y3 ? [30, 10] : [27, 0], label(f));
+    assert.deepEqual([t1.attack_speed, t1['phenxi_e_t_2[in_skill].attack_speed'] ?? 0], y3 ? [33, 10] : [30, 0], label(f));
     for (const skill of [0, 1, 2]) {
       const { h, u } = field({ tier, elite, mod, skill });
       const own = formOf(tier, elite).stats.aspd + (elite ? modOf(tier, mod)?.attr.aspd ?? 0 : 0);

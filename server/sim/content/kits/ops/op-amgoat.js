@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_180_amgoat, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json; every module part is
 // valid outside 集成战略 — no `validInGameTag`) and PRTS 艾雅法拉 (S1 备注 "每次部署艾雅法拉时，重新计算该技能的使用次数";
 // S2 备注 "爆炸范围为半径1.5", "技能实际效果为先削减主攻击目标的法术抗性，再对爆炸范围内所有敌人造成½倍率的伤害(包括主攻击目标)，
@@ -13,17 +13,18 @@
 //   adds "无视目标10点法术抗性" (trait bb magic_resist_penetrate_fixed: a permanent resIgnoreFlat), CCR-Y “宠物大赛第一名”
 //   "普通攻击命中精英或领袖敌人时获得1点技力" (trait bb sp: per hit of one of her attacks on an elite / leader — the S2
 //   explosion's splash and its second ½ are not further 命中 [ASSUMED]; a running timed skill takes no SP, as always).
-// - T1 炎息 "在场时，所有友方【术师】职业干员的攻击力+14%": an aura on every 【术师】 operator of the field (her included) while
-//   she is deployed (installAura, the kits' convention for field-wide talents; several sources keep the strongest). CCR-X
-//   stage 2+ turns it into "携带时…+22%" (the module talent's bb): the same aura whether she is on the field or not — she
-//   is carried while she belongs to the battle, knocked out or waiting to redeploy included.
-// - T2 乱火 "部署后立即随机获得7~15点技力" (bb sp_min 7, sp_max 16): floor(uniform [sp_min, sp_max)) SP at every deployment
-//   (PRTS hidden 备注). CCR-Y stage 3 adds "并随机提升6~15的攻击速度" (attack_speed_min / _max, the same draw) for that
-//   deployment [ASSUMED: no duration given — until she leaves the field], and with `factor` "部署后范围内存在精英或领袖敌人时，
-//   获得的技力和提升的攻击速度取最大值": an elite or leader enemy in her attack range at that deployment gives the text's
-//   maxima, 15 SP / 15 ASPD — the blackboard maxima are the exclusive bounds of the draw (stage 2's attack_speed_max 1
-//   with no ASPD in its text says so) [ASSUMED: 取最大值 = the largest value the draw yields; checked at the deployment
-//   instant — at the battle start no enemy is on the field yet].
+// - T1 炎息 "在场时，所有友方【术师】职业干员的攻击力+14%" (full potential: +16%): an aura on every 【术师】 operator of the
+//   field (her included) while she is deployed (installAura, the kits' convention for field-wide talents; several sources
+//   keep the strongest). CCR-X stage 2+ turns it into "携带时…+22%" (full potential: +24%; the module talent's bb): the
+//   same aura whether she is on the field or not — she is carried while she belongs to the battle, knocked out or waiting
+//   to redeploy included.
+// - T2 乱火 "部署后立即随机获得7~15点技力" (full potential: 10~19; bb sp_min 10, sp_max 20): floor(uniform [sp_min, sp_max))
+//   SP at every deployment (PRTS hidden 备注). CCR-Y stage 3 adds "并随机提升6~15的攻击速度" (attack_speed_min / _max, the
+//   same draw) for that deployment [ASSUMED: no duration given — until she leaves the field], and with `factor`
+//   "部署后范围内存在精英或领袖敌人时，获得的技力和提升的攻击速度取最大值": an elite or leader enemy in her attack range at
+//   that deployment gives the text's maxima, 19 SP / 15 ASPD — the blackboard maxima are the exclusive bounds of the
+//   draw (stage 2's attack_speed_max 1 with no ASPD in its text says so) [ASSUMED: 取最大值 = the largest value the draw
+//   yields; checked at the deployment instant — at the battle start no enemy is on the field yet].
 // - S1 二重咏唱 (MANUAL, 25 s, data DEFAULT): ASPD +[a].attack_speed; from the second cast of a deployment on, ASPD
 //   +[b].attack_speed and ATK +[b].atk (PRTS 备注: the count restarts at every deployment).
 // - S2 点燃 (AUTO, 可充能 2, data DEFAULT): the next attack, on impact — the main target's RES ×(1 + magic_resistance) for

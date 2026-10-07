@@ -120,20 +120,20 @@ test('<支援装置> hand pieces: the picked skill\'s device (variant sources), 
   }
 });
 
-test('注意安全: 10 % 庇护 on her; once a 远程 enemy is on the field (until she leaves) 15 % on her and on our 远程 operators (not the 近战 ones), and +1 SP every 6 s for them', () => {
+test('注意安全: 12 % 庇护 on her; once a 远程 enemy is on the field (until she leaves) 18 % on her and on our 远程 operators (not the 近战 ones), and +1 SP every 6 s for them', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const t1 = formOf(tier, elite).talents.find((t) => t.index === 1).bb;
-    assert.deepEqual([t1['nasti_t2[res].damage_resistance'], t1['nasti_t2[res_plus].damage_resistance'], t1['nasti_t2[add_sp].interval']], [0.1, 0.15, 6]);
+    assert.deepEqual([t1['nasti_t2[res].damage_resistance'], t1['nasti_t2[res_plus].damage_resistance'], t1['nasti_t2[add_sp].interval']], [0.12, 0.18, 6]);
     const { h, u } = field({ tier, elite, skill: 0, others: [{ uid: 3, chessId: 'chess_char_1_14_a', row: 9, col: 3 }, { uid: 4, chessId: 'chess_char_1_08_a', row: 12, col: 3 }] });
     const prov = h.unit(3), tx = h.unit(4);
     h.run(0.5);
-    assert.deepEqual([protectOf(u), protectOf(prov), protectOf(tx)], [{ physTakenMul: 0.9, artsTakenMul: 0.9 }, null, null], `T${tier}: 10 % on her only`);
+    assert.deepEqual([protectOf(u), protectOf(prov), protectOf(tx)], [{ physTakenMul: 1 - 0.12, artsTakenMul: 1 - 0.12 }, null, null], `T${tier}: 12 % on her only`);
     h.spawn('enemy_dummy', { pos: [11, 9] });
     h.run(0.5);
-    assert.deepEqual(protectOf(u), { physTakenMul: 0.9, artsTakenMul: 0.9 }, `T${tier}: a 近战 enemy changes nothing`);
+    assert.deepEqual(protectOf(u), { physTakenMul: 1 - 0.12, artsTakenMul: 1 - 0.12 }, `T${tier}: a 近战 enemy changes nothing`);
     const rng = h.spawn('enemy_rng', { pos: [12, 9] });
     h.run(0.5);
-    assert.deepEqual([protectOf(u), protectOf(prov), protectOf(tx)], [{ physTakenMul: 0.85, artsTakenMul: 0.85 }, { physTakenMul: 0.85, artsTakenMul: 0.85 }, null], `T${tier}: 15 % on her and 格雷伊 (远程), not 德克萨斯`);
+    assert.deepEqual([protectOf(u), protectOf(prov), protectOf(tx)], [{ physTakenMul: 1 - 0.18, artsTakenMul: 1 - 0.18 }, { physTakenMul: 1 - 0.18, artsTakenMul: 1 - 0.18 }, null], `T${tier}: 18 % on her and 格雷伊 (远程), not 德克萨斯`);
     const gifts = (a) => h.hooksOf('spGain').filter((c) => c.unit === a && c.reason === 'talent').map((c) => c.t);
     prov.skill.sp = 0;
     u.skill.sp = 0;
@@ -144,7 +144,7 @@ test('注意安全: 10 % 庇护 on her; once a 远程 enemy is on the field (unt
     assert.equal(gifts(tx).length, 0, `T${tier}: not 德克萨斯`);
     h.b.kill(rng, null);
     h.run(1);
-    assert.deepEqual(protectOf(prov), { physTakenMul: 0.85, artsTakenMul: 0.85 }, `T${tier}: permanent until she leaves`);
+    assert.deepEqual(protectOf(prov), { physTakenMul: 1 - 0.18, artsTakenMul: 1 - 0.18 }, `T${tier}: permanent until she leaves`);
     h.b.kill(u, null);
     h.run(1);
     assert.equal(protectOf(prov), null, `T${tier}: gone with her`);

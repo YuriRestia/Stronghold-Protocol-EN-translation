@@ -3,8 +3,8 @@
 // 最后一天) at every form. Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1013_chen2): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 假日威龙陈
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 假日威龙陈
 // (节约风气 修正 and 备注, 假日余韵 备注, S2 / S3 备注, the RPR-X stage-1 note); PRTS 作战机制 §地形TAG; PRTS 分支特性信息 散射手
 // ("可对空", the trait's 1-3 front grid); gamedata_const ba.charged (蓄力); the client's battle data read from the local
 // install — charpack char_1013_chen2 (the S2 / S3 modes: an attack plus a RangeAttack firing projectile_chr_chen2_s2 / _s3),
@@ -15,14 +15,14 @@
 //   ahead). RPR-X overrides it with atk_scale 1.6; RPR-Y adds "部署费用减少" (cost −8, in the stats: her redeploy after a
 //   knock-out costs 8 DP less). Ranged physical arrows; blocks 1; ground enemies target her (no flag).
 // - T1 节约风气 "在场时自身弹药类技能攻击时20%概率不消耗对应弹药，其他【狙击】干员的弹药类技能改为10%概率不消耗（同类效果取最
-//   高）": while she is on the field, an attack made by a running 弹药类技能 (PRTS 备注: a skill whose text says "攻击装有X发
-//   弹药 / 子弹" — never the 猎手 bullets) spends no ammo with that chance: hers spareshot_chen.prob, another 【狙击】
-//   operator's 20 % — PRTS 修正 (原因 "描述与游戏实际表现不符合", and the RPR-X stage-1 note "实际应为…其他【狙击】干员…20%"):
-//   the game gives the other snipers what she has, spareshot_chen.prob, not the text's / `prob`'s 10 % [the mechanism is
-//   ASSUMED; the 20 % is PRTS's]. RPR-X stage 3 (talent change; chen2_t_002[spareShot]: 【狙击】 profession ⇒ [sniper],
-//   else deploy class RANGED ⇒ [other]): herself e_spareshot_chen.prob 25 %, other 【狙击】 operators 20 %, other 远程
-//   operators 12 %. 同类效果取最高: the highest chance of every 假日威龙陈 on the field. One roll per attack ("一次性消耗多发弹药
-//   时仅进行一次判定"); a spared attack spends nothing of what it would ("强制改为实耗0发"), and every `ammoUsed` of it still
+//   高）" (full potential: 22 %): while she is on the field, an attack made by a running 弹药类技能 (PRTS 备注: a skill whose
+//   text says "攻击装有X发弹药 / 子弹" — never the 猎手 bullets) spends no ammo with that chance: hers spareshot_chen.prob,
+//   another 【狙击】 operator's 20 % (full potential: 22 %) — PRTS 修正 (原因 "描述与游戏实际表现不符合", and the RPR-X stage-1
+//   note "实际应为…其他【狙击】干员…20%"): the game gives the other snipers what she has, spareshot_chen.prob, not the text's /
+//   `prob`'s 10 % [the mechanism is ASSUMED; the 20 % is PRTS's]. RPR-X stage 3 (talent change; chen2_t_002[spareShot]:
+//   【狙击】 profession ⇒ [sniper], else deploy class RANGED ⇒ [other]): herself e_spareshot_chen.prob 27 %, other 【狙击】
+//   operators 20 %, other 远程 operators 12 %. 同类效果取最高: the highest chance of every 假日威龙陈 on the field. One roll
+//   per attack ("一次性消耗多发弹药时仅进行一次判定"); a spared attack spends nothing of what it would ("强制改为实耗0发"), and every `ammoUsed` of it still
 //   fires ("不影响以'消耗弹药'为效果触发条件的侦测": the bullet is put back in that event, before the skill checks for its last
 //   bullet) — 拉特兰 / garrison counters see it.
 // - T2 假日余韵 "攻击速度+8，当场地中存在水地形时改为攻击速度+12" ([common].attack_speed 8, [map].attack_speed +4). 水地形 is

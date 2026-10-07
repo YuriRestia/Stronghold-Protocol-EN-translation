@@ -811,7 +811,7 @@ function wolfPack(bb, raw, def) {
           b.fx('wolfShadowLost', { x: u.x, y: u.y, id: u.id, n: 0 });
         },
       });
-      // 狼群天性 ("伺夜和狼群对其的攻击无视其175防御力") and the owner's S3 bonus ("狼群与伺夜攻击被狼群阻挡的单位造成伤害
+      // 狼群天性 ("伺夜和狼群对其的攻击无视其175防御力", 200 at full potential) and the owner's S3 bonus ("狼群与伺夜攻击被狼群阻挡的单位造成伤害
       // 时，额外造成相当于伺夜攻击力N%的法术伤害", one per damage instance = per bite) cover the pack's and 伺夜's own
       // attacks; with a hand-authored 伺夜 kit (managed) that kit applies both. The module guard is intrinsic.
       const packOrOwner = (s) => s === unit || (s != null && s === ownerOf(unit));
@@ -1515,11 +1515,18 @@ export function touchGospel(bb, skill) {
   };
 }
 
-/** Touch (外勤医疗 map character): 恳切福音 (touchGospel) + 攫升 / 超脱 (mapCharTalents). */
+/**
+ * Touch (外勤医疗 map character): 恳切福音 (touchGospel) + 攫升 / 超脱 (mapCharTalents). The trigger is ACTIVE_RANGE on
+ * the skill's 5-2 range (her running range, which strictly contains her own 3-3): an injured ally inside it casts — the
+ * owner's larger-range rule of 2026-10-05, read for a heal skill as for the Touch 补位 stand-in, whose data rule it is
+ * (data/backups.json). The map character's record keeps DEFAULT (tools/build-data.mjs resolveTrigger widens operators'
+ * skills only), so she waited for an injured ally in her 3-3 (GitHub #260, PR #278).
+ */
 function touchKit(bb, raw, def) {
   const sk = def?.skill;
   if (!sk) return { skill: null, talents: mapCharTalents(def) };
   const g = touchGospel(bb, sk);
+  if (sk.rangeGrid && sk.rangeGrid.length) g.skill.trigger = { rule: 'ACTIVE_RANGE', grid: sk.rangeGrid };
   return { talents: mapCharTalents(def), skill: g.skill, install: g.install };
 }
 

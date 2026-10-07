@@ -187,7 +187,7 @@ test('凯瑟琳: device shield cap and deploy limit follow the owner\'s module v
   });
   const cap = (lo) => want(tokens, CATSLD, CATHY, lo).talents[0].bb.max_shield_ratio;
   const limit = (lo) => (lo === NONE ? 1 : base.rawToken(CATSLD).variants[CATHY].stats.deployLimit);
-  assert.deepEqual([cap(DEF), cap(NONE), limit(DEF)], [0.2, 0.5, 2]);
+  assert.deepEqual([cap(DEF), cap(NONE), limit(DEF)], [0.22, 0.5, 2]);   // 0.22: the device talent at 凯瑟琳's full potential
   for (const lo of ORDERS(DEF, NONE)) {
     // two placed devices each (hand pieces, user playtest #6), facing her and one more operator: the default limit (2)
     // keeps both, the patched one (1) withdraws the first deployed

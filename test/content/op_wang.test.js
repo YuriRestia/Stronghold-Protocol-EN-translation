@@ -90,7 +90,7 @@ test('望 in every 自选 form: her kit, stats + module attributes, 3-3, blocks 
       assert.deepEqual([s.base.cost, s.base.respawnTime, s.def.skill.id, !!s.s.flags.untargetable, s.s.blockCnt, !!s.profile.noAttack],
         [v.stats.cost, v.stats.respawnTime, v.skill.skillId, true, 0, true], `${label(f)}: 棋子`);
       assert.equal(s.base.cost, elite && mod === X ? 2 : 3, `${label(f)}: TRP-X 部署费用更低（-1）`);
-      assert.deepEqual([v.stats.deployLimit], [elite && mod === X ? 7 : 6], `${label(f)}: TRP-X 可同时部署的陷阱数量提升（+1）`);
+      assert.deepEqual([v.stats.deployLimit], [elite && mod === X ? 8 : 7], `${label(f)}: TRP-X 可同时部署的陷阱数量提升（+1）`);
       done(h);
     }
   }
@@ -189,12 +189,12 @@ test('铸子: a spent 棋子 comes back on its tile 2 s later for its cost (TRP-
   }
 });
 
-test('料敌机先: a line of 2 pieces ⇒ 2 stacks (+20 % damage, 18 RES ignored), a line of 3 or more ⇒ 3 (the cap); TRP-X stage 3: 13 % / 12 per stack', () => {
+test('料敌机先: a line of 2 pieces ⇒ 2 stacks (+24 % damage, 20 RES ignored), a line of 3 or more ⇒ 3 (the cap); TRP-X stage 3: 15 % / 13 per stack', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const tb = talentOf(tier, elite, mod, 1).bb;
     assert.deepEqual([tb['attack@per_atk_scale'], tb['attack@per_magic_resist_penetrate_fixed'], tb['attack@max_trigger_cnt']],
-      elite && tier === 6 && mod === X ? [0.13, 12, 3] : [0.1, 9, 3], label(f));
+      elite && tier === 6 && mod === X ? [0.15, 13, 3] : [0.12, 10, 3], label(f));
     const sk = skillOf(tier, elite, S2);
     for (const [line, stacks] of [[[[10, 5], [10, 6]], 2], [[[10, 4], [10, 5], [10, 6], [10, 7]], 3]]) {
       const { h, u, st } = field({ tier, elite, mod, skill: 1, stones: line });
@@ -211,13 +211,13 @@ test('料敌机先: a line of 2 pieces ⇒ 2 stacks (+20 % damage, 18 RES ignore
   }
 });
 
-test('S1 取势 (AUTO, SP_FULL): the triggering enemy is 停顿 6.5 s and takes 105 % / 120 % of 望\'s ATK as 法术 every second for 6.5 s (6 ticks, 无来源 credited to her, independent); the active +2 棋子 (≤ 7) and 阻回 at the cap', () => {
+test('S1 取势 (AUTO, SP_FULL): the triggering enemy is 停顿 6.5 s and takes 105 % / 120 % of 望\'s ATK as 法术 every second for 6.5 s (6 ticks, 无来源 credited to her, independent); the active +2 棋子 (≤ 8) and 阻回 at the cap', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     assert.deepEqual([sk.spCost, sk.bb.cnt, sk.bb['attack@atk_scale'], sk.bb['attack@sluggish']], elite ? [20, 2, 1.2, 6.5] : [21, 2, 1.05, 6.5], `T${tier}`);
     const { h, u, st } = field({ tier, elite, skill: 0, stones: [[10, 6], [10, 7]] });
-    // her stock: 6 less the 2 placed 棋子 (the owner's decision of 2026-10-06 — see the stock test below)
-    assert.deepEqual([u.skill.kind, u.skill.rule, u.mem.wang.stock], ['instant', 'SP_FULL', 4]);
+    // her stock: 7 less the 2 placed 棋子 (the owner's decision of 2026-10-06 — see the stock test below)
+    assert.deepEqual([u.skill.kind, u.skill.rule, u.mem.wang.stock], ['instant', 'SP_FULL', 5]);
     const e = h.spawn('enemy_dummy', { pos: [10, 7] });
     h.step();
     const slug = h.hooksOf('statusApplied').find((c) => c.target === e && c.status === 'sluggish');
@@ -228,7 +228,7 @@ test('S1 取势 (AUTO, SP_FULL): the triggering enemy is 停顿 6.5 s and takes 
     assert.equal(ticks.length, 6, `T${tier}: one per second`);
     for (const c of ticks) {
       assert.deepEqual([c.source, c.credit, c.type], [null, u, 'arts'], `T${tier}: 无来源 arts credited to her`);
-      approx(c.amount, u.s.atk * sk.bb['attack@atk_scale'] * (1 + 0.1 * 2), `T${tier}: precomputed with 2 stacks`, 1e-4);
+      approx(c.amount, u.s.atk * sk.bb['attack@atk_scale'] * (1 + 0.12 * 2), `T${tier}: precomputed with 2 stacks`, 1e-4);
     }
     // independent: two triggers ⇒ two DoTs ticking together
     h.b.kill(e, null);
@@ -239,10 +239,10 @@ test('S1 取势 (AUTO, SP_FULL): the triggering enemy is 停顿 6.5 s and takes 
     h.step();
     h.step();
     assert.equal(e2.buffs.filter((b) => b.key === 'wang:qushi').length, 2, `T${tier}: independent`);
-    // the active part: +2 stock (6 → 7: the cap — both pieces are off the field, their cards back in her hand), then 阻回
+    // the active part: +2 stock (7 → 8: the cap — both pieces are off the field, their cards back in her hand), then 阻回
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 1), `T${tier}: cast at full SP`);
-    assert.equal(u.mem.wang.stock, 7, `T${tier}: 最多拥有7枚`);
+    assert.equal(u.mem.wang.stock, 8, `T${tier}: 最多拥有8枚`);
     h.step();
     assert.ok(u.s.flags.noSp, `T${tier}: 阻回 at the cap`);
     done(h);
@@ -254,24 +254,24 @@ test('her stock (the owner\'s decision of 2026-10-06): the placed 棋子 occupy 
     const S = `S${skill + 1}`;
     const { h, u, st } = field({ tier: 6, elite: true, skill, stones: [[10, 6], [10, 7]] });
     const w = u.mem.wang;
-    assert.equal(w.stock, 6 - 2, `${S}: 6 less the 2 placed`);
+    assert.equal(w.stock, 7 - 2, `${S}: 7 less the 2 placed`);
     const a = at(st, 10, 6), b = at(st, 10, 7);
     let e = h.spawn('enemy_dummy', { pos: [10, 7] });
     h.step();
     assert.ok(!b.alive, `${S}: set off`);
-    assert.equal(w.stock, 5, `${S}: its card is back in her stock at once`);
+    assert.equal(w.stock, 6, `${S}: its card is back in her stock at once`);
     h.b.kill(e, null);
     assert.ok(h.runUntil(() => b.alive, 5), `${S}: back on its tile`);
-    assert.equal(w.stock, 4, `${S}: its return takes one`);
-    // two casts: 4 → 6 → 7 (8, over the cap); 阻回 at the cap only
+    assert.equal(w.stock, 5, `${S}: its return takes one`);
+    // two casts: 5 → 7 → 8 (9, over the cap); 阻回 at the cap only
     u.skill.gainSp(999);
     h.step();
-    assert.deepEqual([u.skill.activations, w.stock], [1, 6], `${S}: 立即获得两枚棋子`);
+    assert.deepEqual([u.skill.activations, w.stock], [1, 7], `${S}: 立即获得两枚棋子`);
     h.step();
     assert.ok(!u.s.flags.noSp, `${S}: below the cap, no 阻回`);
     u.skill.gainSp(999);
     h.step();
-    assert.deepEqual([u.skill.activations, w.stock], [2, 7], `${S}: 最多拥有7枚`);
+    assert.deepEqual([u.skill.activations, w.stock], [2, 8], `${S}: 最多拥有8枚`);
     h.step();
     assert.ok(u.s.flags.noSp, `${S}: 阻回 at the cap`);
     const sp0 = u.skill.sp;
@@ -281,10 +281,10 @@ test('her stock (the owner\'s decision of 2026-10-06): the placed 棋子 occupy 
     e = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.step();
     assert.ok(!a.alive, `${S}: set off at the cap`);
-    assert.equal(w.stock, 7, `${S}: still the cap`);
+    assert.equal(w.stock, 8, `${S}: still the cap`);
     h.b.kill(e, null);
     assert.ok(h.runUntil(() => a.alive, 5), `${S}: back`);
-    assert.equal(w.stock, 6, `${S}: its return took one`);
+    assert.equal(w.stock, 7, `${S}: its return took one`);
     h.step();
     assert.ok(!u.s.flags.noSp, `${S}: 阻回 lifted`);
     const sp1 = u.skill.sp;
@@ -292,10 +292,10 @@ test('her stock (the owner\'s decision of 2026-10-06): the placed 棋子 occupy 
     assert.ok(u.skill.sp > sp1, `${S}: her SP recovers again`);
     done(h);
   }
-  // TRP-X: 7 placed 棋子 (its deploy limit) on a stock of 6 ⇒ 0, never below
-  const { h, u, st } = field({ tier: 6, elite: true, mod: X, skill: 0, stones: [[10, 3], [10, 4], [10, 5], [10, 6], [10, 7], [10, 8], [10, 9]] });
-  assert.ok(st.length === 7 && st.every((s) => s.alive), 'TRP-X: all 7 deploy');
-  assert.equal(u.mem.wang.stock, 0, 'TRP-X: 7 placed on a stock of 6');
+  // TRP-X: 8 placed 棋子 (its deploy limit) on a stock of 7 ⇒ 0, never below
+  const { h, u, st } = field({ tier: 6, elite: true, mod: X, skill: 0, stones: [[10, 3], [10, 4], [10, 5], [10, 6], [10, 7], [10, 8], [10, 9], [11, 5]] });
+  assert.ok(st.length === 8 && st.every((s) => s.alive), 'TRP-X: all 8 deploy');
+  assert.equal(u.mem.wang.stock, 0, 'TRP-X: 8 placed on a stock of 7');
   done(h);
 });
 
@@ -314,7 +314,7 @@ test('S2 连星 (AUTO, SP_FULL): a triggered piece hits every enemy on its conne
     const victims = new Set(hit.map((c) => c.target));
     assert.ok(victims.has(trig) && victims.has(onLine), `T${tier}: the line, air included`);
     assert.ok(!victims.has(beyond) && !victims.has(off), `T${tier}: not beyond ± 3 / off the line`);
-    for (const c of hit.filter((x) => x.target === trig)) approx(c.amount, u.s.atk * sk.bb['attack@atk_scale'] * 1.2, `T${tier}: 2 stacks`, 1e-4);
+    for (const c of hit.filter((x) => x.target === trig)) approx(c.amount, u.s.atk * sk.bb['attack@atk_scale'] * 1.24, `T${tier}: 2 stacks`, 1e-4);
     const slow = trig.findBuff('wang:slow');
     approx(trig.s.moveSpeed, trig.base.moveSpeed * (1 + sk.bb['attack@move_speed']), `T${tier}: slowed`);
     // a second slow 3 s later adds up and keeps its own timer
@@ -345,7 +345,7 @@ test('S3 天下劫 (MANUAL, ACTIVE_RANGE 4-12, 20 bullets): passive — the piec
       const hit = stoneHits(h);
       assert.ok(hit.some((c) => c.target === e) && hit.some((c) => c.target === fl), `T${tier}: x-6, air too`);
       assert.ok(!hit.some((c) => c.target === diag && c.source === at(st, 10, 7)), `T${tier}: (10,7)'s area`);
-      for (const c of hit.filter((x) => x.target === e)) approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.2, `T${tier}: ${sk.bb.atk_scale * 100} %, 2 stacks`, 1e-4);
+      for (const c of hit.filter((x) => x.target === e)) approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.24, `T${tier}: ${sk.bb.atk_scale * 100} %, 2 stacks`, 1e-4);
       done(h);
     }
     { // active
@@ -357,9 +357,9 @@ test('S3 天下劫 (MANUAL, ACTIVE_RANGE 4-12, 20 bullets): passive — the piec
       assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: an enemy inside 4-12 casts it`);
       assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 4-12`);
       assert.equal(u.skill.attackOverride()?.noAttack, true, `T${tier}: 停止攻击`);
-      assert.equal(u.mem.wang.stock, 7, `T${tier}: +8, capped`);
+      assert.equal(u.mem.wang.stock, 8, `T${tier}: +8, capped`);
       const fl = placed(h).map(([r, c]) => `${r},${c}`);
-      assert.equal(fl.length, 5, `T${tier}: (6 − 2 placed) + 8 − 7 over the cap`);
+      assert.equal(fl.length, 5, `T${tier}: (7 − 2 placed) + 8 − 8 over the cap`);
       assert.deepEqual(fl.slice(0, 2).sort(), ['10,7', '9,5'], `T${tier}: the enemies' tiles first (${fl})`);
       assert.ok(h.hooksOf('damaged').some((c) => c.target === a && c.source === u && c.dmg.tags.includes('wang:stone')), `T${tier}: they set off`);
       // inside her range a 棋子 comes back onto an enemy ("可部署至敌人所在位置") — and sets off again
@@ -390,10 +390,10 @@ test('S3 天下劫 (MANUAL, ACTIVE_RANGE 4-12, 20 bullets): passive — the piec
   }
 });
 
-test('the hand: deploying her in prep brings 6 棋子 (TRP-X "可同时部署的陷阱数量提升": 7) — the match\'s data view reads the module variant\'s deploy limit', () => {
+test('the hand: deploying her in prep brings 7 棋子 (TRP-X "可同时部署的陷阱数量提升": 8) — the match\'s data view reads the module variant\'s deploy limit', () => {
   const gd = new GameData(getData({ log: { warn() {}, error() {}, info() {} } }), 'mode_multi_hard');
   const data = { chess: CHESS, backups: BACKUPS };
-  for (const [tier, elite, mod, n] of [[5, false, null, 6], [6, false, null, 6], [5, true, null, 6], [6, true, null, 6], [5, true, X, 7], [6, true, X, 7]]) {
+  for (const [tier, elite, mod, n] of [[5, false, null, 7], [6, false, null, 7], [5, true, null, 7], [6, true, null, 7], [5, true, X, 8], [6, true, X, 8]]) {
     const slot = elite ? SLOT[tier].replace(/_a$/, '_b') : SLOT[tier];
     const rec = diyRecord(SLOT[tier], { charId: WANG, skillIndex: 1, uniEquipId: mod }, { elite, data });
     const view = diyGameData(gd, new Map([[slot, rec]]));

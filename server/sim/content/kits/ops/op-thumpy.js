@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4235_thumpy, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, PRP-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, PRP-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), gamedata_const
 // ba.dt.erosion2 侵蚀损伤·我方 / ba.barrier 屏障 / ba.sluggish 停顿, PRTS 珊比 (talent 备注 "每次珊比成功造成伤害后，产生侵蚀
 // 损伤/冷却减少效果；且实际上侵蚀损伤与冷却减少为互斥的效果…侵蚀损伤爆发期间将改为减少当前爆发持续时间", "每次珊比成功造成伤害后，
@@ -17,12 +17,13 @@
 //   own tile (range 0-1). Module PRP-X 出发的勇气 adds "阻挡敌人时，自身造成的元素损伤提升15%" (trait bb ep_damage_scale):
 //   every element fill she deals ×ep_damage_scale while she blocks — an `elementHit` multiplier (the kits' convention: 菲莱 /
 //   余 PRP-X).
-// - T1 探险理论: "珊比受到的元素损伤降低15%" (ep_damage_scale 0.85): an `elementHit` multiplier on her at priority 20 (the
-//   operators' 受到的元素损伤 convention, docs/SIM.md §7.2). "珊比造成物理伤害时，附带攻击力10%的侵蚀损伤，并使目标的侵蚀损伤冷却减少
-//   1秒" (ep_damage_ratio[trigger] / duration_dec): after each physical damage instance of hers that removes HP — attacks,
-//   the glue and conveyor ticks too ("每次珊比成功造成伤害后") — ep_damage_ratio[trigger] × ATK 侵蚀损伤 on the target, or,
-//   while its 侵蚀 burst (爆发冷却) runs, that cooldown −duration_dec s instead. The skills' own ep_damage_ratio[trigger] 0
-//   is read as their ability carrying no rider of its own [ASSUMED: PRTS names no exception to the talent].
+// - T1 探险理论: "珊比受到的元素损伤降低15%" (full potential: 20%; ep_damage_scale 0.8): an `elementHit` multiplier on her at
+//   priority 20 (the operators' 受到的元素损伤 convention, docs/SIM.md §7.2). "珊比造成物理伤害时，附带攻击力10%的侵蚀损伤，
+//   并使目标的侵蚀损伤冷却减少1秒" (full potential: 12%, 1.2秒; ep_damage_ratio[trigger] / duration_dec): after each physical damage
+//   instance of hers that removes HP — attacks, the glue and conveyor ticks too ("每次珊比成功造成伤害后") — ep_damage_ratio[trigger]
+//   × ATK 侵蚀损伤 on the target, or, while its 侵蚀 burst (爆发冷却) runs, that cooldown −duration_dec s instead. The skills' own
+//   ep_damage_ratio[trigger] 0 is read as their ability carrying no rider of its own [ASSUMED: PRTS names no exception to the
+//   talent].
 // - T2 坚硬脚板: her HP damage marks the enemy (【脚板标记】, kept through a 重生, cleared when she leaves the field); a marked
 //   enemy's 侵蚀 burst — whoever filled it — gives her one stack of DEF +def (PRP-X stage 3: and ATK +atk; flat, at most
 //   max_stack_cnt, until she leaves the field [ASSUMED]) and shield_value 屏障 (one barrier buff: a further trigger adds to

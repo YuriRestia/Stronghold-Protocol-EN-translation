@@ -184,6 +184,41 @@ test('#1 only manual refreshes count: a re-triggered "刷新时" trait (ctx.trig
   m.dispose();
 });
 
+// PR #196 (the part 0.2.0 lacks): 贾维 【团伙行动】 grants a 叙拉古 operator on every 6th manual refresh from that refresh's
+// own dispatch (band step, before the garrisons). The 拉普兰德 it grants — or the elite its copy completes — is gained
+// after the refresh happened: her "本回合首次主动刷新" is the next manual one. The dispatcher walks the board and hand as
+// they stood when the refresh happened (EffectDispatcher.dispatch onRefresh snapshot); it walked them live, so she fired
+// (and spent her first refresh) in the refresh that granted her. Round counters are not copied on a merge (§25.13.3).
+for (const variant of ['a new copy', 'a copy that completes the elite']) {
+  test(`#1 贾维 refresh gift (${variant}, PR #196): the 拉普兰德 waits for the next manual refresh`, () => {
+    const s = setup();
+    const { m, ps } = s;
+    ps.bandId = 'band_chiave';
+    ps.shop.level = 2;
+    // 贾维's draw (ctx.rollChess on the meta RNG) gives 拉普兰德; the shop rolls stay as they are
+    const roll = m.pool.roll.bind(m.pool);
+    m.pool.roll = (rng, opts = {}) => (rng === m.rngMeta && typeof opts.filter === 'function' && opts.filter(LAP) ? LAP : roll(rng, opts));
+    s.activate();
+    const elite = variant !== 'a new copy';
+    if (elite) { give(m, ps, LAP, 'hand'); give(m, ps, LAP, 'hand'); }
+    for (let i = 0; i < 5; i++) s.refresh();
+    const before = s.L();
+    assert.equal(before, elite ? 8 : 0, 'the copies already owned fire on the round\'s first refresh');
+    assert.ok(!ps.allChess().some((p) => p.id === LAP_B) && ps.allChess().filter((p) => p.id === LAP).length === (elite ? 2 : 0));
+    s.refresh(); // the 6th: 贾维's gift
+    const lap = ps.allChess().find((p) => p.id === (elite ? LAP_B : LAP));
+    assert.ok(lap, elite ? 'the gift completed the elite' : 'the gift is owned');
+    assert.equal(s.L(), before, 'not in the refresh that granted her');
+    s.refresh();
+    assert.equal(s.L(), before + (elite ? 8 : 4), 'her first manual refresh is the next one');
+    s.refresh();
+    assert.equal(s.L(), before + (elite ? 8 : 4), 'once a round');
+    assert.equal(m.dispatcher.errors, 0);
+    checkInvariants(m);
+    m.dispose();
+  });
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // #4 突变细胞
 

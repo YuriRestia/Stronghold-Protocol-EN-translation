@@ -78,8 +78,9 @@ test('机械师 in every 自选 form: her operator kit (all three skills authore
       done(h);
     }
   }
-  // E2 Lv1 2614 / 425 / 514, E2 Lv60 3288 / 483 / 641; SO-A +60 / +40 → +100 / +80 ATK / DEF; the token 2800 / 492 / 451 → 3264 / 564 / 517
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.def], [2614, 425, 3288, 641]);
+  // E2 Lv1 2614 / 425 / 542, E2 Lv60 3288 / 483 / 669 (full potential: DEF +28); SO-A +60 / +40 → +100 / +80 ATK / DEF; the token
+  // 2800 / 492 / 451 → 3264 / 564 / 517
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.def], [2614, 425, 3288, 669]);
   assert.deepEqual([modOf(5, SOA).attr, modOf(6, SOA).attr], [{ atk: 60, def: 40 }, { atk: 100, def: 80 }]);
   assert.deepEqual([variantOf(5, false).stats.maxHp, variantOf(6, true).stats.maxHp], [2800, 3264]);
 });
@@ -119,12 +120,12 @@ test('T1 结构性原理: it lasts 30 s from each deployment (SO-A stage 3 too �
   }
 });
 
-test('T2 生命方程: she and her 结构性原理 get a 屏障 of 30 % max HP at each deployment; it takes physical and arts damage, not true; 超额防护: the hit that breaks it is cancelled whole, the next one hurts', () => {
+test('T2 生命方程: she and her 结构性原理 get a 屏障 of 40 % max HP at each deployment; it takes physical and arts damage, not true; 超额防护: the hit that breaks it is cancelled whole, the next one hurts', () => {
   for (const f of [[5, false, null], [6, true, SOA]]) {
     const [tier, elite, mod] = f;
     const { h, u, t } = field({ tier, elite, mod, skill: 0 });
     const hr = formOf(tier, elite).talents.find((x) => x.index === 1).bb.hp_ratio;
-    assert.equal(hr, 0.3);
+    assert.equal(hr, 0.4);
     for (const x of [u, t]) {
       const b = barrier(x, 'mcnist:t2:barrier');
       approx(b.shield, x.s.maxHp * hr, `${label(f)}: ${x.kind} 屏障`);
@@ -295,7 +296,7 @@ test('S3 charge: the 结构性原理 runs along its facing to the farthest free 
     approx(h.b.time - cast, 0.2 + 4 / 20, `${label(f)}: flight time`, 0.1);
     assert.deepEqual([t.tileR, t.tileC], [11, 7], `${label(f)}: the farthest tile before the enemy`);
     approx(t.hp, t.s.maxHp, `${label(f)}: a new deployment (full HP)`);
-    approx(barrier(t, 'mcnist:t2:barrier').shield, t.s.maxHp * 0.3, `${label(f)}: 生命方程 again`);
+    approx(barrier(t, 'mcnist:t2:barrier').shield, t.s.maxHp * 0.4, `${label(f)}: 生命方程 again`);
     const ch = tagged(h, u, 'mcnist:charge');
     assert.deepEqual(sortN(ch.map((c) => c.target.id)), sortN([wall.id, hit2.id]), `${label(f)}: within 1.5 of (11, 7), the flyer too`);
     for (const c of ch) { approx(c.amount, atk * 3, `${label(f)}: 300 % of her ATK`); assert.equal(c.type, 'phys'); }

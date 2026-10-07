@@ -108,13 +108,13 @@ test('trait 行商: −3 DP every 3 s while he stands (MER-X: −2), he retreats
   }
 });
 
-test('T1 和气生财: while he blocks one enemy alone in the 3 × 3 — his ASPD +28, its −28; a second enemy around ⇒ ±14; nothing while he blocks nobody (MER-Y stage 3: ±40 / ±20)', () => {
+test('T1 和气生财: while he blocks one enemy alone in the 3 × 3 — his ASPD +30, its −30; a second enemy around ⇒ ±15; nothing while he blocks nobody (MER-Y stage 3: ±42 / ±21)', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, row: 9, col: 5, dp: 999 });
     const tb = talentOf(tier, elite, mod, 0).bb;
     const self = tb['lmlee_t_1[self].attack_speed'], foe = tb['lmlee_t_1[enemy].attack_speed'];
-    assert.deepEqual([self, foe, tb.cnt], elite && tier === 6 && mod === Y ? [20, -20, 1] : [14, -14, 1], label(f));
+    assert.deepEqual([self, foe, tb.cnt], elite && tier === 6 && mod === Y ? [21, -21, 1] : [15, -15, 1], label(f));
     h.run(0.5);
     assert.equal(u.findBuff('talent:lmlee:self'), null, `${label(f)}: blocking nobody`);
     const w = h.spawn('enemy_walk', { routeIndex: 0 });

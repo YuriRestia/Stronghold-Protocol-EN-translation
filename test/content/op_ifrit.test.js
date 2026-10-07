@@ -67,8 +67,8 @@ test('伊芙利特 in every 自选 form: her operator kit (all three skills auth
       done(h);
     }
   }
-  // E2 Lv1 1276 / 722, E2 Lv60 1544 / 820; BLA-X +50 ATK +5 ASPD → +72 / +7, BLA-D +120 HP +45 ATK → +200 / +70
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1276, 722, 1544, 820]);
+  // E2 Lv1 1276 / 757, E2 Lv60 1544 / 855; BLA-X +50 ATK +5 ASPD → +72 / +7, BLA-D +120 HP +45 ATK → +200 / +70
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1276, 757, 1544, 855]);
   assert.deepEqual([modOf(5, BLAX).attr, modOf(6, BLAX).attr, modOf(5, BLAD).attr, modOf(6, BLAD).attr], [{ atk: 50, aspd: 5 }, { atk: 72, aspd: 7 }, { maxHp: 120, atk: 45 }, { maxHp: 200, atk: 70 }]);
 });
 
@@ -157,14 +157,14 @@ test('S3 灼地 (MANUAL, data DEFAULT, 20 s, 维持技能状态): no normal atta
     assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast`);
     const n0 = atkHits(h, u).length, hp0 = u.hp, cast = h.hooksOf('skillStart').at(-1).t;
     h.run(1.02);
-    // RES 50 × 0.6 (精神融解) − 7 / −10: (50 − cut) × 0.6
-    approx(g.s.res, (50 + sk.bb.magic_resistance) * 0.6, `T${tier}: RES cut + 精神融解`, 1e-9);
+    // RES 50 × 0.56 (精神融解) − 7 / −10: (50 − cut) × 0.56
+    approx(g.s.res, (50 + sk.bb.magic_resistance) * 0.56, `T${tier}: RES cut + 精神融解`, 1e-9);
     approx(off.s.res, 50, `T${tier}: off the line`);
     assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `T${tier}: 5-1 while it runs`);
     const ticks = () => tagged(h, u, 'ifrit:scorch').filter((c) => c.type === 'arts');
     assert.equal(ticks().length, 1, `T${tier}: one tick after 1 s`);
     approx(ticks()[0].t - cast, 0.4, `T${tier}: the first tick at the Begin clip's attack event`, 0.05);
-    approx(ticks()[0].amount, u.s.atk * sk.bb.atk_scale * (1 - (50 + sk.bb.magic_resistance) * 0.6 / 100), `T${tier}: ${sk.bb.atk_scale * 100} % ATK arts`);
+    approx(ticks()[0].amount, u.s.atk * sk.bb.atk_scale * (1 - (50 + sk.bb.magic_resistance) * 0.56 / 100), `T${tier}: ${sk.bb.atk_scale * 100} % ATK arts`);
     assert.ok(!ticks().some((c) => c.target === fly || c.target === off), `T${tier}: ground enemies of her line only`);
     approx(hp0 - u.hp, u.s.maxHp * 0.02, `T${tier}: 2 % max HP`);
     h.runUntil(() => !u.skill.active, 25);
@@ -184,15 +184,15 @@ test('S3 灼地 (MANUAL, data DEFAULT, 20 s, 维持技能状态): no normal atta
   }
 });
 
-test('T1 精神融解: RES ×0.6 on every enemy of her line (gone once it leaves), none off it; BLA-D stage 3: her attacks and 灼地 ticks on an enemy in its 灼燃 burst add 50 % ATK 元素伤害 (a 持续伤害)', () => {
+test('T1 精神融解: RES ×0.56 on every enemy of her line (gone once it leaves), none off it; BLA-D stage 3: her attacks and 灼地 ticks on an enemy in its 灼燃 burst add 50 % ATK 元素伤害 (a 持续伤害)', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     const t0 = u.def.raw.talents.find((t) => t.index === 0);
-    assert.equal(t0.bb.magic_resistance, -0.4, label(f));
+    assert.equal(t0.bb.magic_resistance, -0.44, label(f));
     const on = h.spawn('enemy_res', { pos: [10, 7] }), off = h.spawn('enemy_res', { pos: [11, 7] });
     h.run(0.3);
-    approx(on.s.res, 30, `${label(f)}: 50 → 30`);
+    approx(on.s.res, 28, `${label(f)}: 50 → 28`);
     approx(off.s.res, 50, `${label(f)}: off the line`);
     h.b.retreat(u);
     h.run(0.6);
@@ -225,18 +225,18 @@ test('T1 精神融解: RES ×0.6 on every enemy of her line (gone once it leaves
   }
 });
 
-test('T2 莱茵回路: +2 SP every 6 s of a deployment; BLA-X stage 3: a 30 % roll for +5 SP more each 6 s (none in any other form)', () => {
+test('T2 莱茵回路: +2 SP every 5.5 s of a deployment; BLA-X stage 3: a 30 % roll for +5 SP more each 5.5 s (none in any other form)', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, seed: 21 });
     const dice = elite && tier === 6 && mod === BLAX;
     const t1 = u.def.raw.talents.find((t) => t.index === 1).bb;
-    assert.deepEqual([t1.sp, t1.interval, t1['ifrit_e_002[dice_sp].prob'] ?? 0, t1['ifrit_e_002[dice_sp].sp'] ?? 0], [2, 6, dice ? 0.3 : 0, dice ? 5 : 0], label(f));
+    assert.deepEqual([t1.sp, t1.interval, t1['ifrit_e_002[dice_sp].prob'] ?? 0, t1['ifrit_e_002[dice_sp].sp'] ?? 0], [2, 5.5, dice ? 0.3 : 0, dice ? 5 : 0], label(f));
     const gains = () => h.hooksOf('spGain').filter((c) => c.unit === u && c.reason === 'talent');
-    for (let i = 0; i < 60; i++) { u.skill.sp = 0; h.run(6); }
+    for (let i = 0; i < 60; i++) { u.skill.sp = 0; h.run(5.5); }
     const g = gains();
     const twos = g.filter((c) => c.amount === 2).length, fives = g.filter((c) => c.amount === 5).length;
-    assert.ok(twos >= 59 && twos <= 60, `${label(f)}: ${twos} gifts of 2 SP in 360 s`);
+    assert.ok(twos >= 59 && twos <= 60, `${label(f)}: ${twos} gifts of 2 SP in 330 s`);
     if (dice) assert.ok(fives >= 9 && fives <= 30, `${label(f)}: ${fives} / 60 rolls of +5 ≈ 30 %`);
     else assert.equal(fives, 0, `${label(f)}: no roll`);
     done(h);

@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_2014_nian, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), gamedata_const
 // ba.shield 护盾 ("每层护盾可以抵挡一次伤害") and ba.buffres 抵抗, PRTS 年 (积甲成山 备注 "根据重装干员数量获得的治疗效果加成与
 // 生命上限加成叠加时以加法叠加"; 干明可鉴 备注 "攻击力与防御力增益持续时间无限"; 铜印 备注 "沉默效果与反伤效果会直接选中伤害来源，
@@ -17,9 +17,9 @@
 //   the field] and a teammate's in a shared field (alliesFor), at most max_stack_cnt — max HP +max_hp × n (直接乘算 with her
 //   other "+%" bonuses) and healing received ×(heal_scale + heal_scale_addition × n), at most heal_scale_max_value (the
 //   PRTS note's 加法叠加: the stacks add up, 104 / 108 / 112 %). Re-counted every tick.
-// - T1 积甲成山 "编入队伍时，所有【重装】职业干员的生命上限+16%": every 重装 operator of her player's team (her included) max HP
+// - T1 积甲成山 "编入队伍时，所有【重装】职业干员的生命上限+16%" (full potential: +20 %): every 重装 operator of her player's team (her included) max HP
 //   +max_hp for the whole battle, deployed or not (the kits' 编入队伍时 convention: 斯卡蒂 深海掠食者, 早露 学生楷模). PRO-Y
-//   stage 3: +21 % (the module talent change).
+//   stage 3: +25 % (the module talent change).
 // - T2 干明可鉴 "部署后立即获得3层护盾": `times` 护盾 layers at every deployment (a hit-negating barrier: buff shieldHits — each
 //   layer negates one damage instance). PRO-X stage 2+ (talent change atk / def / sp / max_stack_cnt) "每层护盾破裂时，攻击力
 //   +7%，防御力+7%且获得3点技力": each broken layer one more stack of ATK / DEF + (at most max_stack_cnt; "持续时间无限": until she

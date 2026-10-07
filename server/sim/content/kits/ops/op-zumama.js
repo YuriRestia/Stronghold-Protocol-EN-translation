@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_416_zumama, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 森蚺 (勇冠三军 备注
 // "天赋具有0.1秒的检测周期；高于一半的效果实为在计算伤害时提升本次伤害的攻击力倍率"; S2 备注 "造成的晕眩效果无视目标可选性，持续
 // 时间不会因抵抗等效果被缩短或延长"; S3 备注 "生命恢复的提供方式为增加“生命回复速度（百分比）”属性…不受治疗加成和禁疗影响");
@@ -27,8 +27,8 @@
 //   RA-A (+0.2/s, the module's own text "阻挡敌人时技力回复速度+0.2/秒；在生息演算中…").
 // - T1 勇冠三军 (zumama_t_1, polled every T1_PERIOD s): HP ratio above hp_ratio ⇒ every damage she deals ×atk_scale as an
 //   攻击力倍率 (atkScaleMul: applied to the ATK before DEF — PRTS 备注); at or below it ⇒ damage_resistance 庇护 (ba.protect
-//   "受到的物理和法术伤害降低相应比例（同名效果取最高）": the shared applyStrongest key PROTECT). HES-Y stage 3: 123 % / 28 % (the module
-//   talent change).
+//   "受到的物理和法术伤害降低相应比例（同名效果取最高）": the shared applyStrongest key PROTECT). HES-Y stage 3: 125 % / 30 % (the module
+//   talent change; full potential).
 // - T2 愈战愈勇 "阻挡敌人时技力回复速度+0.2/秒": spRecoveryFlat while she blocks. HES-X stage 3: +0.55/s.
 // - S1 轻型挂斧 (PASSIVE): ATK / DEF +atk / +def from every deployment.
 // - S2 震慑劈砍 (MANUAL; data DEFAULT — the owner's 重装 exception of 2026-10-05, rawRule TAKE_DAMAGE): `duration` s, ATK

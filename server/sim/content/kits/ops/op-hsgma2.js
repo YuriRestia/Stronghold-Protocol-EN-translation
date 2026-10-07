@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1044_hsgma2, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, AST-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, AST-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), gamedata_const
 // ba.berserk 坚忍 ("根据已损失的生命值获得相应比例的属性加成，损失一定比例时达最大加成") and ba.sluggish 停顿, PRTS 斩业星熊 (业火 备注:
 // 负生命值 — "期间持有禁疗，一切生命值变动将先计入负生命值来抵消/增加负生命值…只有负生命值达到上限时才会被正常击倒…负生命值与真实生命值

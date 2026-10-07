@@ -179,6 +179,30 @@ test('boss templates: leaders never scaled, pairs use the multi template, single
   assert.equal(w.pick, setup.picks[9], 'solo 标准: the leader round uses slot 9');
 });
 
+test('co-op 终极: supplyHpMul = the 补给线 / 补给线II share of hp (hp ÷ it = the 攻坚装备 stacks 1.2^kAtk); wave and bounty mods carry it (PR #272)', () => {
+  const gd = new GameData(DATA, 'mode_multi_abyss');
+  for (const [r, row] of Object.entries(gd.mode.enemyScale)) {
+    const sc = gd.enemyScale(Number(r));
+    assert.ok(Math.abs(sc.hpMul / (sc.supplyHpMul ?? 1) - 1.2 ** row.kAtk) < 1e-5, `R${r}: ${sc.hpMul} / ${sc.supplyHpMul}`);
+  }
+  assert.equal(gd.enemyScale(4).supplyHpMul, undefined);
+  assert.equal(gd.enemyScale(5).supplyHpMul, 1.2);    // 补给线II
+  assert.equal(gd.enemyScale(6).supplyHpMul, 1.08);   // 补给线
+  for (const id of ['mode_single_funny', 'mode_single_abyss', 'mode_multi_hard']) {
+    const g = new GameData(DATA, id);
+    for (const r of Object.keys(g.mode.enemyScale)) assert.equal(g.enemyScale(Number(r)).supplyHpMul, undefined, `${id} R${r}`);
+  }
+  const key = 'enemy_1200_msfjin';
+  const picks = [];
+  picks[6] = { round: 6, type: 'TIMES', key, normal: key, elite: key, fly: false, firstHalf: true };
+  const wave = buildNormalWave(gd, createRng(1), { picks }, 6);
+  const tokens = wave.spawns.filter((s) => s.enemyKey === key);
+  assert.ok(tokens.length > 0);
+  for (const s of tokens) assert.deepEqual([s.mods.hpMul, s.mods.supplyHpMul], [gd.enemyScale(6).hpMul, 1.08]);
+  const [b] = bountySpawns(gd, 6, wave, [{ id: 'jin', card: { enemyKey: key, count: 1 } }], 'p1');
+  assert.deepEqual([b.mods.hpMul, b.mods.supplyHpMul], [gd.enemyScale(6).hpMul, 1.08]);
+});
+
 test('bounty spawns: joined to the template\'s first normal action of the enemy\'s class, spread over its window; no solo ×0.7', () => {
   const gd = new GameData(DATA, 'mode_multi_hard');
   const picks = [];

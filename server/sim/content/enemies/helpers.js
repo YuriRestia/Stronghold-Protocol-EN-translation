@@ -302,7 +302,7 @@ export function stepToward(u, tx, ty, dist) {
   return false;
 }
 
-/** Set a 频次 unit's hits (maxHp := hits, full). */
+/** Set a 频次 unit's hits (maxHp := hits, full): `n` rounded to a whole count, at least 1. */
 export function setHits(e, n) {
   const h = Math.max(1, Math.round(n));
   e.base.maxHp = h;

@@ -63,9 +63,9 @@ test('推进之王 in every 自选 form: its operator kit (all three skills auth
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1643 / 422 / 307, E2 Lv60 2046 / 484 / 358; SOL-X +60 / +40 → +75 / +50 ATK / DEF,
-  // SOL-Y +200 / +65 → +260 / +82 HP / ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1643, 422, 2046, 484]);
+  // the numbers of the forms (zh_CN, full potential: ATK +25): E2 Lv1 1643 / 447 / 307, E2 Lv60 2046 / 509 / 358; SOL-X +60 / +40
+  // → +75 / +50 ATK / DEF, SOL-Y +200 / +65 → +260 / +82 HP / ATK
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1643, 447, 2046, 509]);
   assert.deepEqual([modOf(5, SOLX).attr, modOf(6, SOLX).attr, modOf(5, SOLY).attr, modOf(6, SOLY).attr], [{ atk: 60, def: 40 }, { atk: 75, def: 50 }, { maxHp: 200, atk: 65 }, { maxHp: 260, atk: 82 }]);
 });
 
@@ -160,7 +160,7 @@ test('S3 碎颅击 (MANUAL, data DEFAULT): 18 / 21 s, attack interval 1.05 + 1.0
   }
 });
 
-test('T1 万兽之王: every 【先锋】 operator of the field ATK / DEF +8 % while she is deployed (not other professions); SOL-X stage 3 adds her own +8 % / +8 %', () => {
+test('T1 万兽之王: every 【先锋】 operator of the field ATK / DEF +10 % while she is deployed (not other professions); SOL-X stage 3 adds her own +8 % / +8 %', () => {
   const others = [{ uid: 2, chessId: 'chess_char_1_08_a', row: 11, col: 3 }, { uid: 3, chessId: 'chess_char_1_02_a', row: 11, col: 7 }];
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -169,11 +169,11 @@ test('T1 万兽之王: every 【先锋】 operator of the field ATK / DEF +8 % w
     const texas = h.unit(2), yak = h.unit(3);
     const t0 = u.def.raw.talents.find((t) => t.index === 0);
     const extra = elite && mod === SOLX && tier === 6 ? 0.08 : 0;
-    assert.deepEqual(texas.findBuff('talent:siege:pioneers')?.mods, { atkPct: 0.08, defPct: 0.08 }, `${label(f)}: 德克萨斯 (先锋)`);
+    assert.deepEqual(texas.findBuff('talent:siege:pioneers')?.mods, { atkPct: 0.1, defPct: 0.1 }, `${label(f)}: 德克萨斯 (先锋)`);
     assert.equal(yak.findBuff('talent:siege:pioneers'), null, `${label(f)}: 角峰 (重装) gets nothing`);
-    assert.deepEqual(u.findBuff('talent:siege:pioneers')?.mods, { atkPct: 0.08, defPct: 0.08 }, `${label(f)}: herself`);
-    approx(u.s.atk, u.base.atk * (1 + 0.08 + extra), `${label(f)}: her ATK`);
-    approx(u.s.def, u.base.def * (1 + 0.08 + extra), `${label(f)}: her DEF`);
+    assert.deepEqual(u.findBuff('talent:siege:pioneers')?.mods, { atkPct: 0.1, defPct: 0.1 }, `${label(f)}: herself`);
+    approx(u.s.atk, u.base.atk * (1 + 0.1 + extra), `${label(f)}: her ATK`);
+    approx(u.s.def, u.base.def * (1 + 0.1 + extra), `${label(f)}: her DEF`);
     assert.equal(!!u.findBuff('talent:siege:self'), extra > 0, `${label(f)}: the SOL-X self extra`);
     if (extra) assert.match(t0.desc, /自身攻击力和防御力额外\+8%/, 'the module text');
     h.b.retreat(u);

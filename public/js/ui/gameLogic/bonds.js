@@ -1,6 +1,7 @@
 // ui/gameLogic/bonds.js — bond counts, members, harmony, 本局禁用. Re-exported from ../gameLogic.js.
 
 import { int, isObj } from './shared.js';
+import { diyPicks } from './diy.js';
 import { t } from '../../../../shared/i18n.js';
 
 
@@ -158,10 +159,17 @@ export function harmonyMembers(priv, getChess = () => null) {
  * like the count's distinct members), so "成员 x/y" agrees with the count the server reports (在场; memberHeadCount).
  * 0.2.0 自选编队: the 自选 pieces of the bond (a DIY slot filled with an operator, whose bonds come from its factions — the
  * own pieces through `getChess` (gameLogic/diy.js diyGetter), a teammate's through `pieceRecord` (its UnitInfo `diy`
- * pick) are rows too (`diy: true`, the operator's name and record `rec`).
+ * pick) are rows too (`diy: true`, the operator's name and record `rec`: its normal form, one row per slot like a
+ * member's; `pick`: a teammate's piece's pick — the card the row opens composes the operator from it). Since 0.2.1
+ * (the owner's report of 2026-10-07 「自选编队的干员在局内对应盟约展开的名单里没有显示出来」) every 自选 pick of the
+ * player (m.private.diy: the V and VI slots) is a row of each bond its operator carries, owned or not — an unowned one
+ * (not bought, or not in the shop yet: the slot's 调度中心 level) dimmed like an unowned member, one whose bonds are all
+ * off this match (m.private.diyBanned: no stock, it never shows in the shop) `banned` like a banned member. A
+ * teammate's board carries no picks (m.public sends none): their 自选 pieces on the field only.
  * `inHand`: in the 整备区 (hand), not the 5 temporary slots — what BOARD_AND_DECK bonds (投资人 远见 奇迹) count.
  * @param {any} bond bonds.json record
- * @param {any} priv m.private (hand/board/temp) — or a teammate's field operators (ui/watchBonds.js ownerBoard)
+ * @param {any} priv m.private (hand/board/temp, the 自选 picks `diy` / `diyBanned`) — or a teammate's field operators
+ *   (ui/watchBonds.js ownerBoard)
  * @param {Set<string>|string[]} [banned] banned base chess ids
  * @param {(id:string)=>any} [getChess]
  * @param {(id:string)=>any} [getItem] items.json lookup (the 变形同构体 pairings)
@@ -178,14 +186,20 @@ export function bondMembers(bond, priv, banned = [], getChess = () => null, getI
   /** base id → { on: on the board?, hand: in the hand?, items: the wearer's item ids } — operators of the player that join this bond through 变形同构体 */
   const granted = new Map();
   const grants = (p) => typeof bond?.bondId === 'string' && grantedBonds(p.items, getItem).includes(bond.bondId);
-  /** base id → { on, hand, rec } — the player's 自选 pieces whose operator carries this bond */
+  const recOf = (p) => (pieceRecord ? pieceRecord(p) : getChess(p.id));
+  /** a composed 自选 record whose operator carries this bond */
+  const diyOfBond = (rec) => isObj(rec) && typeof rec.diyFor === 'string' && Array.isArray(rec.bonds) && rec.bonds.includes(bond?.bondId);
+  /** slot base id → { on, hand, owned, rec, pick } — the player's 自选 pieces and picks whose operator carries this bond */
   const diy = new Map();
   const diyOf = (p, on, hand) => {
-    const rec = pieceRecord ? pieceRecord(p) : getChess(p.id);
-    if (!rec || typeof rec.diyFor !== 'string' || !Array.isArray(rec.bonds) || !rec.bonds.includes(bond?.bondId)) return false;
+    const rec = recOf(p);
+    if (!diyOfBond(rec)) return false;
     const g = diy.get(rec.diyFor);
-    if (!g) diy.set(rec.diyFor, { on, hand, rec });
-    else { g.on = g.on || on; g.hand = g.hand || hand; }
+    if (g) { g.on = g.on || on; g.hand = g.hand || hand; return true; }
+    // the row draws the normal form, as a member row its base chess (an elite copy is the same member)
+    const pick = isObj(p.diy) && typeof p.diy.charId === 'string' ? p.diy : null;
+    const normal = rec.isGolden ? recOf(pick ? { kind: 'chess', id: rec.diyFor, diy: pick } : { kind: 'chess', id: rec.diyFor }) : rec;
+    diy.set(rec.diyFor, { on, hand, owned: true, rec: diyOfBond(normal) && normal.diyFor === rec.diyFor ? normal : rec, pick });
     return true;
   };
   const itemIds = (p) => p.items.map((it) => (typeof it === 'string' ? it : it?.id)).filter((x) => typeof x === 'string');
@@ -209,6 +223,14 @@ export function bondMembers(bond, priv, banned = [], getChess = () => null, getI
       else if (hand) g.hand = true;
     }
   }
+  // the player's picks not owned (the slot's record through the own getter: gameLogic/diy.js diyGetter) — rows like an
+  // unowned member's (counted by neither 在场 nor the 成员 header)
+  for (const slotId of Object.keys(diyPicks(priv))) {
+    if (diy.has(slotId)) continue;
+    const rec = recOf({ kind: 'chess', id: slotId });
+    if (diyOfBond(rec) && rec.diyFor === slotId) diy.set(slotId, { on: false, hand: false, owned: false, rec, pick: null });
+  }
+  const diyBanned = new Set(Array.isArray(priv?.diyBanned) ? priv.diyBanned : []);
   const rows = members.map((id) => {
     const c = getChess(id);
     return { id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: onBoard.has(id), owned: owned.has(id), inHand: inHand.has(id), banned: bannedSet.has(id) };
@@ -217,7 +239,9 @@ export function bondMembers(bond, priv, banned = [], getChess = () => null, getI
     const c = getChess(id);
     rows.push({ id, tier: c?.tier ?? 0, name: c?.name ?? id, onBoard: g.on, owned: true, inHand: g.hand, banned: false, granted: true, items: g.items });
   }
-  for (const [id, g] of diy) rows.push({ id, tier: g.rec.tier ?? 0, name: g.rec.name ?? id, onBoard: g.on, owned: true, inHand: g.hand, banned: false, diy: true, rec: g.rec });
+  for (const [id, g] of diy) {
+    rows.push({ id, tier: g.rec.tier ?? 0, name: g.rec.name ?? id, onBoard: g.on, owned: g.owned, inHand: g.hand, banned: bannedSet.has(id) || diyBanned.has(id), diy: true, rec: g.rec, ...(g.pick ? { pick: g.pick } : {}) });
+  }
   return rows.sort((a, b) => (b.onBoard - a.onBoard) || (b.owned - a.owned) || (a.tier - b.tier) || (a.id < b.id ? -1 : 1));
 }
 

@@ -80,9 +80,9 @@ test('麦哲伦 in every 自选 form: her kit (all three skills authored), the f
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 871 / 403 / 116, E2 Lv60 1025 / 447 / 132; SUM-X +100 / +30 → +150 / +50 HP /
+  // the numbers of the forms (zh_CN): E2 Lv1 871 / 426 / 116, E2 Lv60 1025 / 470 / 132; SUM-X +100 / +30 → +150 / +50 HP /
   // ATK, SUM-Y +25 / +25 → +40 / +40 ATK / DEF
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [871, 403, 1025, 447]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [871, 426, 1025, 470]);
   assert.deepEqual([modOf(5, SUMX).attr, modOf(6, SUMX).attr, modOf(5, SUMY).attr, modOf(6, SUMY).attr], [{ maxHp: 100, atk: 30 }, { maxHp: 150, atk: 50 }, { atk: 25, def: 25 }, { atk: 40, def: 40 }]);
 });
 
@@ -171,10 +171,10 @@ test('the deck: a knocked-out drone comes back on its tile its redeploy time (10
   done(h);
 });
 
-test('T2 光学折射配件: a drone is 隐匿 for 20 s (26 s with SUM-X stage 3) from each deployment — no ranged enemy targets it meanwhile; SUM-X stage 3: 麦哲伦 beside a drone inside that window is 隐匿 too (not two tiles away, not at stage 1)', () => {
+test('T2 光学折射配件: a drone is 隐匿 for 22 s (28 s with SUM-X stage 3) from each deployment — no ranged enemy targets it meanwhile; SUM-X stage 3: 麦哲伦 beside a drone inside that window is 隐匿 too (not two tiles away, not at stage 1)', () => {
   for (const [tier, elite, mod] of [[5, false, null], [5, true, SUMX], [6, true, SUMX], [6, true, SUMY]]) {
     const x3 = elite && mod === SUMX && tier === 6;
-    const want = x3 ? 26 : 20;
+    const want = x3 ? 28 : 22;
     const { h, u, ds } = field({ tier, elite, mod, skill: 1, drones: [[L, 10, 5], [L, 11, 7]] });
     const [near, far] = ds;
     assert.equal(tokOf(L, tier, elite, 1, mod).talents.find((t) => t.bb.hidden_duration != null).bb.hidden_duration, want, `${label([tier, elite, mod])}: data`);

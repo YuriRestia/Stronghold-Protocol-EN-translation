@@ -77,6 +77,30 @@ describe('Spine actor + audio use the equipped skill', () => {
     assert.equal((await actorFor(1)).roles.skill.loop, 'Skill_3_Loop', 'no clip for S2 in the model: primary');
   });
 
+  // PR #275 (@xcdoge): the slot an enemy ability casts (render/app.js `case 'cast'` → UnitView.setSkillSlot) swaps its
+  // skill clip mid-battle, so a multi-skill boss does not show one cast animation for every ability.
+  test('an enemy cast slot swaps its skill clip mid-battle (a form in force is kept)', async () => {
+    const ctx = fakeViewCtx(fake.P, { assets, cam });
+    const v = new UnitView(ctx, { id: 9, side: 'enemy', kind: 'enemy', defId: 'enemy_1521_dslily', x: 5, y: 10, maxHp: 100 }, {});
+    await tick(); await tick();
+    assert.ok(v.actor, 'spine actor built');
+    assert.equal(v.actor.roles.skill.loop, 'Skill_3_Loop', 'the manifest primary clip to start with');
+    assert.equal(v.skillIndex, null, 'no slot reported yet');
+    v.setSkillSlot(0);
+    assert.equal(v.skillIndex, 0);
+    assert.equal(v.actor.roles.skill.loop, 'Skill_1', 'that slot’s own clip');
+    v.setSkillSlot(-1);
+    v.setSkillSlot(1.5);
+    assert.equal(v.skillIndex, 0, 'a non-slot is ignored');
+    v.actor.setForm({ idle: 'Attack' });
+    v.setSkillSlot(2);
+    assert.equal(v.actor.roles.skill.loop, 'Skill_3_Loop', 'the next slot');
+    assert.equal(v.actor.roles.idle, 'Attack', 'the form in force survives the slot change');
+    v.actor.setForm(null);
+    assert.equal(v.actor.roles.idle, 'Idle');
+    assert.equal(v.actor.roles.skill.loop, 'Skill_3_Loop', 'and the slot survives the form ending');
+  });
+
   test('audio: the equipped skill’s own ON_SKILL_START sound', () => {
     const manifest = { audio: { sfx: { units: { char_350_surtr: { skill: '/sfx/s3.mp3', skills: { 0: '/sfx/s1.mp3', 2: '/sfx/s3.mp3' } } } } } };
     const a = new AudioManager({ win: null, getManifest: () => manifest });

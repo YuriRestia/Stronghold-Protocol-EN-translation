@@ -4,7 +4,7 @@
 //
 // Forms (data/backups.json units.char_1502_crosly, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
 // elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05.
-// Potential 0 [ASSUMED: no account]. Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into
+// Full potential (the owner's decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into
 // backups.json); PRTS 弑君者 (吞咽苦厄 备注 "天赋生效范围为x-4"; 弑君者威名 备注 "<Y模组>任何来源为弑君者的晕眩…均可触发模组的额外
 // 效果" / "<Y模组>额外效果在弑君者付与晕眩效果时检查目标是否伤害过自身，若没有则令该次晕眩Buff的持续时间变为1.25倍/1.5倍"; 硝烟震爆
 // 备注 "技能持续期间获得嘲讽等级-1"; 烽烟行刑场 备注 "部署时阻挡数立刻归零；不会改变攻击范围/视野范围" / "“6秒内只会触发一次”的
@@ -24,7 +24,7 @@
 // deals to a target without it; crosly_s_2[end] (finished at once when she is STUNNED / FROZEN / DISARMED — no blast);
 // crosly_s_3[mode] (her damage marks the target crosly_s_3[mark] for mark_duration, derived: gone when the skill ends);
 // crosly_e_003_t2[status-resist] (a stun of hers on such an enemy: duration × |1 + one_minus_status_resistance|)).
-// - Trait (处决者) "再部署时间大幅度减少": the data's respawnTime (22 s); melee physical, 1-1, blocks 1, ground-only (data
+// - Trait (处决者) "再部署时间大幅度减少": the data's respawnTime (18 s); melee physical, 1-1, blocks 1, ground-only (data
 //   canHitFly false), attacks the enemies it blocks first (the engine's blocked-first rule); ground enemies target her.
 // - Module EXE-X: "撤退时返还大量该次部署费用" — no manual retreat in battle in this mode ⇒ no effect (as 砾's EXE-X); stats;
 //   stage 2+ changes T1 (−23 % / −25 %). EXE-Y: "周围四格没有友方干员时攻击力+10%" (trait bb atk): ATK +atk while no allied
@@ -36,9 +36,10 @@
 //   runs): PRTS 命中率 — one roll per attack (its first damage instance) that cancels every hit of it, a battle-wide `hit`
 //   handler as Raidian's / 阿斯卡纶's (the strongest smoke holding the attacker; other kinds of 命中率 cut roll apart
 //   [ASSUMED, as theirs]).
-// - T2 弑君者威名 "对未伤害过自身的地面敌人造成的物理伤害提升20%": physical damage she deals to a ground enemy that has not damaged
-//   her during this deployment ×damage_scale (a final multiplier, dmg.mul); an enemy is marked by any damage of it she
-//   takes — not a 持续伤害 tick, not a 流失, not an element 损伤, not a dodged hit — and the marks go when she leaves the field.
+// - T2 弑君者威名 "对未伤害过自身的地面敌人造成的物理伤害提升20%" (full potential: 22%): physical damage she deals to a ground
+//   enemy that has not damaged her during this deployment ×damage_scale (a final multiplier, dmg.mul); an enemy is marked
+//   by any damage of it she takes — not a 持续伤害 tick, not a 流失, not an element 损伤, not a dodged hit — and the marks
+//   go when she leaves the field.
 //   EXE-Y stage 2+ (crosly_e_003_t2[status-resist]): "且造成的晕眩效果影响时间+50%" — a stun of hers (any source, PRTS 备注)
 //   on an enemy without that mark lasts ×(1 + one_minus_status_resistance) (the hidden module talent; 1.5 at stage 3).
 // - S1 尘烟蔽目 (被动, at each deployment, the skill's duration 10 s): ATK +atk, physical and arts dodge `prob`.
@@ -137,7 +138,7 @@ function strikeTarget(battle, unit, s3Grid) {
 export default {
   char_1502_crosly: (bb, chess) => {
     const t0 = talentBb(chess, 0);   // 吞咽苦厄 (EXE-X stage 2+: −0.25)
-    const t1 = talentBb(chess, 1);   // 弑君者威名 (EXE-Y stage 2+: 1.35)
+    const t1 = talentBb(chess, 1);   // 弑君者威名 (EXE-Y stage 2+: 1.37)
     const osr = num(moduleBb(chess).one_minus_status_resistance);   // EXE-Y stage 2+: the stun duration share
     const lonelyAtk = num(traitBb(chess).atk);                       // EXE-Y trait (EXE-X: withdraw_cost_recover_ratio)
     const r1 = skillRec(chess, S1), r2 = skillRec(chess, S2), r3 = skillRec(chess, S3);

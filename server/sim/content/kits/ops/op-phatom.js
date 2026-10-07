@@ -5,7 +5,7 @@
 //
 // Forms (data/backups.json units.char_250_phatom; the twin: tokens.token_10007_phatom_twin, variants by owner form with
 // bySkill / byModule): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the picked module at stage 1
-// (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account]. Sources:
+// (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07). Sources:
 // character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json); PRTS 傀影 (镜中虚影
 // 备注 "虚影再部署与拥有复数召唤物的干员相同，即“部署召唤物后立刻开始计算再部署时间，结束后可以部署下一个”"; 血色乐章 备注 "触发消耗
 // 层数效果的行动节点为“成功造成伤害后”。若造成的伤害被伤判效果归零则不会消耗层数"; 夜幕突袭 备注 "不可对空"; EXE-X "撤退时返还大量
@@ -22,8 +22,9 @@
 // 639 — the eight operator professions, no summon — stands at Manhattan distance ≥ 2) / phatom_equip_2_2/3_p2 (the twin's
 // hidden talent phatom_equip_token[atk] → phatom_equip_host[atk] on him) / phatom_equip_3_* (`_checkRoguelikeMode`: ISW-A
 // is 集成战略-only); buff_template_data (die_to_kill_token, charge_token[born] / [finish], phatom_equip_token[host]).
-// - Trait (处决者) "再部署时间大幅度减少": the data's respawnTime (18 s); melee physical, 1-1, blocks 1, ground-only (data
-//   canHitFly false), attacks the enemies it blocks first (the engine's blocked-first rule); ground enemies target him.
+// - Trait (处决者) "再部署时间大幅度减少": the data's respawnTime (16 s at full potential); melee physical, 1-1, blocks 1,
+//   ground-only (data canHitFly false), attacks the enemies it blocks first (the engine's blocked-first rule); ground
+//   enemies target him.
 // - Module EXE-X: "撤退时返还大量该次部署费用" — no manual retreat in battle in this mode ⇒ no effect (as 砾's EXE-X); HP / ATK
 //   in the stats; stage 2+ changes T2 (below). EXE-Y: "周围四格没有友方干员时攻击力+10%" (trait bb atk): ATK +atk while no
 //   allied operator — summons and devices do not count (mask 639) — stands on the 4 tiles beside him (noOperatorBeside);

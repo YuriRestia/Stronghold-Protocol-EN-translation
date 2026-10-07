@@ -3,8 +3,8 @@
 // every form. Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_340_shwaz): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 黑
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 黑
 // (破甲箭头 备注 "攻击力提升效果为提升攻击力倍率"; 战术的终结 "攻击间隔略微增大(+0.4)"; the {{**|80%|下降20%}} marks of the
 // DEF cut = a final ×0.8).
 // - Trait (重射手) "高精度的近距离射击": the plain closerange profile — ranged physical arrows, 3-6, can hit air units
@@ -18,13 +18,15 @@
 //   170 %, DEF −25 %) — read from the base talent and the module's NAMED change: ARC-Y's hidden talent part (talentIndex 0,
 //   isHideTalent, atk_scale 1.05, prefabKey "10") is the trait's 105 % as a talent of its own in the game, which the
 //   data's merge by talentIndex folds into 破甲箭头 at stage 1 (composed atk_scale 1.05) — reported, not used.
-// - T2 交叉火力 "场上存在黑和另外至少一名【狙击】干员时，所有【狙击】干员的攻击力+8%": while she is on the field and another
-//   【狙击】 operator is too, every 【狙击】 operator of the field (her included; a partner's in a shared field too [ASSUMED,
-//   as 推进之王's 万兽之王]) ATK +atk, refreshed every 0.5 s (lapses within 0.6 s when the condition ends); several sources
-//   keep the strongest. ARC-X stage 2+ "携带黑和另外至少一名【狙击】干员时…+13%": 携带 = in the squad — the player's own
-//   pieces of the battle, deployed or not — so with another 【狙击】 piece in her player's battle every 【狙击】 operator of
-//   that player ATK +13 % for the whole battle (persist; a partner's operators are not in her squad [ASSUMED]).
-// - Module ARC-X “定制弩配件套装”: "再部署时间减少" (attribute respawn_time −25, in the stats: 70 → 45 s) + HP / ATK.
+// - T2 交叉火力 "场上存在黑和另外至少一名【狙击】干员时，所有【狙击】干员的攻击力+8%" (full potential: +10%): while she is on the
+//   field and another 【狙击】 operator is too, every 【狙击】 operator of the field (her included; a partner's in a shared
+//   field too [ASSUMED, as 推进之王's 万兽之王]) ATK +atk, refreshed every 0.5 s (lapses within 0.6 s when the condition
+//   ends); several sources keep the strongest. ARC-X stage 2+ "携带黑和另外至少一名【狙击】干员时…+13%" (full potential:
+//   +15%): 携带 = in the squad — the player's own pieces of the battle, deployed or not — so with another 【狙击】 piece in
+//   her player's battle every 【狙击】 operator of that player ATK +15 % for the whole battle (persist; a partner's
+//   operators are not in her squad [ASSUMED]).
+// - Module ARC-X “定制弩配件套装”: "再部署时间减少" (attribute respawn_time −25, in the stats: 66 → 41 s at full potential) + HP /
+//   ATK.
 // - Module ARC-Y “老剃刀” trait "攻击正前方的敌人时攻击力提升至105%且无视其物理闪避" (trait bb atk_scale): her attack damage
 //   on an enemy whose body is on her straight line ahead ×atk_scale and not dodgeable (canDodge false — her damage is
 //   physical only). 正前方 = local row 0, column ≥ 0 in her facing — her own tile included, as S3's 3-2 "前方3格" counts

@@ -5,7 +5,7 @@
 //
 // Forms (data/backups.json units.char_300_phenxi, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
 // elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05.
-// Potential 0 [ASSUMED: no account]. Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into
+// Full potential (the owner's decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into
 // backups.json; battle_equip_table marks every ISW-A part but its attributes `validInGameTag` roguelike); PRTS 菲亚梅塔
 // and 溅射半径一览 (the 备注 quoted below); the client's charpack char_300_phenxi (the S1 mode's attack selector), skill
 // prefabs ([uc]skills skchr_phenxi_1 / 2 / 3) and buff templates (phenxi_t_1 / [bleeding] / [peak], phenxi_t_2,
@@ -30,9 +30,9 @@
 //   hp_ratio (50 %), +peak_2 atk (twice that) while HP > peak_2 hp_ratio (80 %) — the higher replaces the lower.
 //   ART-X stage 3 (phenxi_e_003_t[bleeding]: FilterByTargetHpRatio min_hp_ratio 0.503): no loss unless HP > 50.3 % ("不会
 //   使生命降至50%以下"), +30 % / +60 %.
-// - T2 宣告终局 "技能持续期间外，攻击速度+27" (phenxi_t_2: an ASPD buff, overridden while a skill runs): ASPD +attack_speed
-//   except while a timed skill runs (S1's 30 s, S3 for good; S2 is instant). ART-Y stage 3 (phenxi_e_t_2): +30 outside,
-//   and ASPD +phenxi_e_t_2[in_skill] (10) while one runs.
+// - T2 宣告终局 "技能持续期间外，攻击速度+27" (full potential: +30; phenxi_t_2: an ASPD buff, overridden while a skill runs):
+//   ASPD +attack_speed except while a timed skill runs (S1's 30 s, S3 for good; S2 is instant). ART-Y stage 3 (phenxi_e_t_2):
+//   +33 outside, and ASPD +phenxi_e_t_2[in_skill] (10) while one runs.
 // - S1 “你须直面” (MANUAL, attack SP, 30 s, data ACTIVE_RANGE on her 3-10 grown by ability_range_forward_extend): ATK +atk.
 //   PRTS 备注 "自2026年8月1日（客户端版本 2.7.61）版本更新后：技能期间的普通攻击不再以飞行单位为目标（但弹道依旧能击中飞行
 //   单位），技能期间的攻击范围不再受攻击距离属性影响，因此技能提供的攻击距离加成不会产生攻击范围扩展效果" — the client agrees
@@ -146,7 +146,7 @@ export default {
   char_300_phenxi: (bb, chess) => {
     const src = isRoguelikeModule(chess) ? { talents: chess.talentsBase ?? chess.talents } : chess;
     const t0 = talentBb(src, 0);   // 陈述苦难 (ART-X stage 3: min_hp_ratio, +30 % / +60 %)
-    const t1 = talentBb(src, 1);   // 宣告终局 (ART-Y stage 3: 30, in-skill 10)
+    const t1 = talentBb(src, 1);   // 宣告终局 (ART-Y stage 3: 33, in-skill 10)
     const tb = traitBb(chess);     // ART-Y def_penetrate_fixed · ART-X atk_scale
     const blocked = num(tb.atk_scale, 1);
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);

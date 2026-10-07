@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_179_cgbird, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json; the 幻影 token record
 // backups.json tokens.token_10003_cgbird_bird with its owner-form / module variants) and PRTS 夜莺 (S2 备注
 // "多个屏障吸收量可叠加，持续时间独立计算，优先消耗先生成的屏障，法术抗性增加效果不可叠加"; 转瞬即逝的幻影 备注 "幻影的持有上限为3个，
@@ -14,8 +14,8 @@
 //   生命" (hidden module talent attack@max_target / skill@max_target 4): 4 heals (kit trait, as 调香师's RIN-Y). RIN-X
 //   “封闭的希望” "攻击范围扩大": her range becomes the module's own grid (its range-only talent change, talentIndex −1: y-2
 //   plus the centre tile [0,3] — PRTS y-3), as shared/loadoutRecord.js attackRangeGrid draws it; 圣域 keeps its own y-4.
-// - T1 白恶魔的庇护 "攻击范围内的友方单位法术抗性+15": every ally (operators and summons) standing in her current attack range
-//   — her own tile included — RES +magic_resistance (flat). RIN-X stage 2+ "…且受到的治疗效果提升5%" (talent change
+// - T1 白恶魔的庇护 "攻击范围内的友方单位法术抗性+15" (full potential: +17): every ally (operators and summons) standing in
+//   her current attack range — her own tile included — RES +magic_resistance (flat). RIN-X stage 2+ "…且受到的治疗效果提升5%" (talent change
 //   heal_scale): also healing received ×heal_scale there. Refreshed every 0.2 s; two sources keep the strongest.
 // - T2 转瞬即逝的幻影 (summon token_10003_cgbird_bird: no attack, blocks nothing, RES 75, taunt level 1 — its stats — and
 //   its talent "30%的物理闪避…每秒流失3%的最大生命": dodgePhys prob, a 流失 of hp_ratio × its max HP every second; RIN-Y

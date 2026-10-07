@@ -3,8 +3,8 @@
 // “阿斯卡纶的眼睛”) at every form. Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4132_ascln): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS
 // 阿斯卡纶 (死亡拘审 备注 and its {{**}} 最终乘算 (100−18×层数)%, S2 修正 / 备注, S3 备注, the AMB-X note), PRTS 分支特性信息
 // 伏击客 ("嘲讽等级为-1"), PRTS 命中率, Arknights Terra Wiki "Ascalon" (死亡拘审: "The MSPD reduction and Arts damage stack
 // additively"); the client's battle data read from the local install — buff_template_data ascln_t_1 / ascln_t_1[debuff]
@@ -27,7 +27,7 @@
 //   所有已施加的本天赋效果将立刻结束". One effect per 阿斯卡纶 [ASSUMED]. AMB-X stage 3: 11 %, 30 s (the talent change).
 //   AMB-Y stage 3 adds "拥有该效果的敌人被击倒时阿斯卡纶回复10%生命" (hp_ratio): a heal of hp_ratio × her max HP whoever knocks
 //   such an enemy out, while she is on the field.
-// - T2 噬光残影 "攻击速度+8，自身周围四格有高台时，攻击速度额外+6" (bb attack_speed / attack_speed_add / cnt): ASPD +8, +6 more
+// - T2 噬光残影 "攻击速度+8，自身周围四格有高台时，攻击速度额外+6" (full potential: +10; bb attack_speed / attack_speed_add / cnt): ASPD +10, +6 more
 //   while at least `cnt` of the four tiles next to her are 高台 (heightType HIGHLAND in the level files — the 高台 deploy
 //   tiles and the HIGHLAND forbidden tiles), judged at each deployment.
 // - S1 追袭 (AUTO, 2 / 3 charges, data DEFAULT — a "next attack" skill): the next attack at atk_scale × ATK and "连续攻击两
@@ -195,7 +195,7 @@ export default {
             if (hr > 0 && u.side === 'enemy' && ctx.reason === 'killed' && up(unit) && u.findBuff(key)) battle.heal(unit, unit, unit.s.maxHp * hr, { self: true });
           }, { owner: unit });
         } },
-        { install(battle, unit) { // 噬光残影: ASPD +8, +6 with 高台 among the four tiles next to her
+        { install(battle, unit) { // 噬光残影: ASPD +10, +6 with 高台 among the four tiles next to her
           const base = num(t1.attack_speed), add = num(t1.attack_speed_add), cnt = Math.max(1, Math.floor(num(t1.cnt, 1)));
           const KEY = 'talent:ascln:shadow';
           const apply = (r, c) => {

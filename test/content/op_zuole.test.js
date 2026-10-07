@@ -69,9 +69,9 @@ test('左乐 in every 自选 form: his operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2893 / 647 / 267, E2 Lv60 3533 / 735 / 299; SBL-X +55 / +40 → +90 / +60
+  // the numbers of the forms (zh_CN): E2 Lv1 2893 / 673 / 267, E2 Lv60 3533 / 761 / 299; SBL-X +55 / +40 → +90 / +60
   // ATK / DEF, SBL-Y +300 / +60 → +380 / +84 HP / ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2893, 647, 3533, 735]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2893, 673, 3533, 761]);
   assert.deepEqual([modOf(5, SBLX).attr, modOf(6, SBLX).attr, modOf(5, SBLY).attr, modOf(6, SBLY).attr], [{ atk: 55, def: 40 }, { atk: 90, def: 60 }, { maxHp: 300, atk: 60 }, { maxHp: 380, atk: 84 }]);
 });
 
@@ -261,16 +261,16 @@ test('T1 秉烛照影 (坚忍): ASPD up to +50 and SP recovery up to +2/s, linea
   }
 });
 
-test('T2 守正自明: every damage he outputs rolls 20 % (70 % below half HP) for 1 SP — SBL-Y stage 3: 80 % below half and the instance ×1.2 on a success (stage 1: unchanged)', () => {
+test('T2 守正自明: every damage he outputs rolls 23 % (75 % below half HP) for 1 SP — SBL-Y stage 3: 85 % below half and the instance ×1.2 on a success (stage 1: unchanged)', () => {
   for (const f of [[5, false, null], [5, true, SBLY], [6, true, SBLY]]) {
     const [tier, elite, mod] = f;
     const y3 = tier === 6 && mod === SBLY;
     const { h, u } = field({ tier, elite, mod, skill: 1, seed: 17 });
     const t1 = u.def.raw.talents.find((t) => t.index === 1).bb;
-    assert.deepEqual([t1.prob_1, t1.prob_2, t1.hp_ratio, t1.sp, t1.atk_scale ?? 1], [0.2, y3 ? 0.8 : 0.7, 0.5, 1, y3 ? 1.2 : 1], label(f));
+    assert.deepEqual([t1.prob_1, t1.prob_2, t1.hp_ratio, t1.sp, t1.atk_scale ?? 1], [0.23, y3 ? 0.85 : 0.75, 0.5, 1, y3 ? 1.2 : 1], label(f));
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     u.skill.spCostMul = 1e5;   // the skill never fills: every success is an spGain of its own
-    for (const [ratio, prob] of [[0.9, 0.2], [0.3, y3 ? 0.8 : 0.7]]) {
+    for (const [ratio, prob] of [[0.9, 0.23], [0.3, y3 ? 0.85 : 0.75]]) {
       let gains = 0, rolls = 0, boosted = 0;
       const offG = h.b.on('spGain', (c) => { if (c.unit === u && c.reason === 'talent') gains++; });
       const offD = h.b.on('damaged', (c) => {

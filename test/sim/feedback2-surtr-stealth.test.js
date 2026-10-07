@@ -30,7 +30,7 @@ const lethal = (h, u) => h.b.dealDamage(null, u, { amount: 1e9, type: 'true', ca
 const waitOf = (u) => (u.def.raw.talents || []).find((t) => t.index === 1).bb['surtr_t_2[withdraw].interval'];
 
 describe('#52 史尔特尔 余烬: 禁疗 from the lethal blow until she leaves', () => {
-  test('a medic beside her heals the other injured operator instead — 0 heals reach her, she is never its target, she still leaves at 8 s; the 禁疗 status is shown', () => {
+  test('a medic beside her heals the other injured operator instead — 0 heals reach her, she is never its target, she still leaves at 9 s (8 + the potential step); the 禁疗 status is shown', () => {
     const h = makeBattle({
       defs: { enemies: { enemy_dummy: DUMMY } }, autoFinish: false, timeLimit: 200, seed: 2,
       units: [
@@ -42,7 +42,7 @@ describe('#52 史尔特尔 余烬: 禁疗 from the lethal blow until she leaves'
     });
     const s = h.unit(SURTR), medic = h.unit(MEDIC), tank = h.unit(TANK);
     const wait = waitOf(s);
-    assert.equal(wait, 8, 'data: surtr_t_2[withdraw].interval');
+    assert.equal(wait, 9, 'data: surtr_t_2[withdraw].interval (8 s, 9 at full potential)');
     h.run(1);
     const healed = new Map();
     const picked = new Set();
@@ -57,18 +57,18 @@ describe('#52 史尔特尔 余烬: 禁疗 from the lethal blow until she leaves'
     assert.deepEqual(on.map((ev) => ev[3]), [1], 'the status 禁疗 is reported to the clients');
     assert.equal(statusIconKey('healFree'), 'healFree');
     assert.ok(STATUS_KEYS.includes('healFree'), 'and drawn in the status atlas');
-    // 不死: a second lethal blow inside the window changes nothing (and does not restart the 8 s)
+    // 不死: a second lethal blow inside the window changes nothing (and does not restart the 9 s)
     h.run(3);
     lethal(h, s);
     assert.ok(s.alive && s.hp >= 1);
     h.run(wait - 3 - 0.2);
-    assert.ok(s.alive && s.deployed, 'still on the field just before 8 s');
+    assert.ok(s.alive && s.deployed, 'still on the field just before 9 s');
     assert.ok(s.hp < 2, 'nobody healed her');
     assert.equal(healed.get(s) ?? 0, 0, '0 heals to her');
     assert.ok(!picked.has(s), 'the medic never picks her');
     assert.ok((healed.get(tank) ?? 0) > 0 && picked.has(tank), 'the medic heals the other injured operator instead');
     h.run(0.4);
-    assert.equal(s.deployed, false, 'she leaves at 8 s');
+    assert.equal(s.deployed, false, 'she leaves at 9 s');
     assert.equal(s.removeReason, 'retreat', '"强制退出战场视为撤回干员"');
     assert.ok(h.b.time - t0 <= wait + 0.25);
     const ev = h.eventsOf('status').filter((e) => e[1] === s.id && e[2] === 'healFree').map((e) => e[3]);
@@ -76,7 +76,7 @@ describe('#52 史尔特尔 余烬: 禁疗 from the lethal blow until she leaves'
     clean(h);
   });
 
-  test('her own heals stop too (休眠子裔), an HP-regen attribute does not, and S3 黄昏\'s start heal ignores 禁疗 (PRTS 技能3 备注) — she still leaves at 8 s', () => {
+  test('her own heals stop too (休眠子裔), an HP-regen attribute does not, and S3 黄昏\'s start heal ignores 禁疗 (PRTS 技能3 备注) — she still leaves at 9 s', () => {
     const mk = (o = {}) => makeBattle({
       defs: { enemies: { enemy_dummy: DUMMY } }, autoFinish: false, timeLimit: 200, seed: 2,
       units: [{ chessId: SURTR, row: 9, col: 5, dir: 'RIGHT', carryState: { sp: 0 }, ...o }],
@@ -115,7 +115,7 @@ describe('#52 史尔特尔 余烬: 禁疗 from the lethal blow until she leaves'
     assert.ok(u.hp > u.s.maxHp - 50, 'healed to full in spite of 禁疗');
     h3.runUntil(() => !u.deployed, waitOf(u) + 1);
     assert.equal(u.removeReason, 'retreat');
-    assert.ok(Math.abs(h3.b.time - t0 - waitOf(u)) < 0.1, 'and she still leaves 8 s after the lethal blow');
+    assert.ok(Math.abs(h3.b.time - t0 - waitOf(u)) < 0.1, 'and she still leaves 9 s after the lethal blow');
     clean(h); clean(h3);
   });
 });

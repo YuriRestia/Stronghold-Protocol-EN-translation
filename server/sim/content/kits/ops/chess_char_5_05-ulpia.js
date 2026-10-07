@@ -95,9 +95,10 @@ export default {
           if (stop === 0 || !unit.alive) return;
           // PRTS 备注: landing tile > the tile one beyond it > his own tile (a deployable, free, unreserved melee tile).
           // "可部署" is a tile his player may deploy on: his own board (Battle.onOwnBoard) — never the other half of a 联防 or
-          // boss field nor a boss field's hand / 临时整备区 rows. Community report of 2026-10-06 (item 27) 「乌尔比安使用3技能会在
-          // 联防阶段跳到红门后」: on the one-helper 联防 map (escaped_single, enemies from the middle gate at col 10) an anchor that
-          // met no enemy flew on to the right half, where no enemy ever walks, and he moved there for the whole skill
+          // boss field nor a boss field's hand / 临时整备区 rows; a teammate's half stays closed to him even where the 突袭
+          // landing may take it (Battle.onFieldBoard, DESIGN §26.1). Community report of 2026-10-06 (item 27) 「乌尔比安使用3技能会在
+          // 联防阶段跳到红门后」: in a one-helper 联防 (escaped_single's enemies come out of the middle gate at col 10) an anchor
+          // that met no enemy flew on to the right half, where no enemy ever walks, and he moved there for the whole skill
           const ok = ([r, c]) => (r !== unit.tileR || c !== unit.tileC) && battle.grid.inRect(r, c) && battle.onOwnBoard(unit.player, r, c) && battle.grid.canStand(r, c) && !battle.grid.isObstacle(r, c) && !battle.isReservedTile(r, c);
           const dest = [[sr, sc], frontOf(unit.tileR, unit.tileC, unit.dir, stop + 1)].find(ok);
           if (dest == null) return;

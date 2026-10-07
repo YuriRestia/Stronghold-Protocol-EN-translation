@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_362_saga, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); gamedata_const ba.dying
 // "重伤: 移速下降且无法被阻挡，10秒后自然死亡，被击杀后使击杀者回复数点技力"; PRTS 嵯峨 (劝善 备注 "本天赋第一部分实际效果为：
 // 自身造成的伤害不会致命（至多使目标生命值降至1点），成功造成伤害后若目标生命值小于等于1则为目标附加重伤"; 清明 备注 "嵯峨每次
@@ -26,12 +26,12 @@
 //   damage_scale): ×damage_scale on every damage of hers whose target is below hp_ratio before it.
 //   A shared-pool leader (boss rounds: its HP is the pool's, damage.js runs no `fatal` step for it) is outside 劝善
 //   [ASSUMED: her damage there is ordinary].
-// - T2 清明 "生命值低于40%时，仅一次获得70%物理闪避和每秒回复5%的最大生命，持续15秒": once per deployment (PRTS 备注), the first
+// - T2 清明 "生命值低于40%时，仅一次获得70%物理闪避和每秒回复5%的最大生命，持续15秒" (full potential: 6 %, 17 s): once per deployment (PRTS 备注), the first
 //   time a damage leaves her below hp_ratio of her max HP: dodgePhys prob and hpRegenRatio for `duration` s — the
 //   blackboard key hp_recovery_per_sec_by_max_hp_ratio is the 生命回复速度（百分比） attribute (PRTS 异常效果 禁疗 / 术语释义
 //   重伤 name it), as 宴 S1 / 山 / 幽灵鲨 / 蜜蜡 / 烛煌 apply it [ASSUMED: no 备注 of 清明 says so; 余's 闲云隐市 with the same
-//   key is still open, DESIGN 0.2.0.l3]. SOL-Y stage 2+: the talent change's numbers — at stage 3 the text reads 6 % (its
-//   potential-5 text 7 %) while the blackboard is 0.065: the game applies the blackboard, so 6.5 % per second.
+//   key is still open, DESIGN 0.2.0.l3]. SOL-Y stage 2+: the talent change's numbers — at stage 3, full potential: 7 % per second for 20 s (text and
+//   blackboard 0.07 agree; at potential 0 the text read 6 % while the blackboard was 0.065: the game applies the blackboard).
 // - S1 冲锋号令·γ型 (AUTO, no target): +cost DP at once; an AUTO skill acting on nobody fires as soon as its SP is full
 //   (`trigger: 'SP_FULL'`, as 推进之王's / 德克萨斯's kits cast the same skill — the owner's AUTO rule).
 // - S2 除恶 (MANUAL, 2 charges, data SKILL_RANGE on its x-6 cross: any enemy there, 无视其不可选中): +cost DP; the up to

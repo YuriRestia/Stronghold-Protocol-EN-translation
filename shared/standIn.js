@@ -118,9 +118,9 @@ export function isDroppableChess(chess) {
 
 /**
  * The 补位 record of a chess: a NORMAL chess (normal or elite) fielded as its official stand-in — `backup.charId` at
- * the chess's own status, skill `backup.skillIndex`, module `backup.uniEquipId` (none when null), potential 0 — with
- * the chess's bonds, 特质, tier, price and merge. Null for a PRESET (特许: always the real operator) or DIY chess, or
- * when the data lacks the unit / form.
+ * the chess's own status, skill `backup.skillIndex`, module `backup.uniEquipId` (none when null), full potential like
+ * every unit form (the 原型干员 have no potential ranks) — with the chess's bonds, 特质, tier, price and merge. Null for a
+ * PRESET (特许: always the real operator) or DIY chess, or when the data lacks the unit / form.
  * @param {object} chess data/chess.json record
  * @param {object} backups data/backups.json
  */

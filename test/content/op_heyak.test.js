@@ -73,9 +73,9 @@ test('霍尔海雅 in every 自选 form: her operator kit (all three skills auth
       done(h);
     }
   }
-  // E2 Lv1 1380 / 525 / 116, E2 Lv60 1639 / 597 / 125; CCR-X +120 / +40 → +175 / +65, CCR-Y +105 / +32 / +15 → +140 / +45 /
+  // E2 Lv1 1380 / 552 / 116, E2 Lv60 1639 / 624 / 125; CCR-X +120 / +40 → +175 / +65, CCR-Y +105 / +32 / +15 → +140 / +45 /
   // +25, ISW-A +100 / +55 → +130 / +80
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1380, 525, 1639, 597]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1380, 552, 1639, 624]);
   assert.deepEqual([modOf(5, CCRX).attr, modOf(6, CCRX).attr, modOf(5, CCRY).attr, modOf(6, CCRY).attr, modOf(5, ISWA).attr, modOf(6, ISWA).attr],
     [{ maxHp: 120, atk: 40 }, { maxHp: 175, atk: 65 }, { maxHp: 105, atk: 32, def: 15 }, { maxHp: 140, atk: 45, def: 25 }, { maxHp: 100, atk: 55 }, { maxHp: 130, atk: 80 }]);
 });
@@ -90,11 +90,11 @@ test('a 自选 pick: 霍尔海雅 is offered at tiers 5 and 6 and a roster with 
     { ok: true, picks: { [SLOT[6]]: { charId: ID, skillIndex: 2, uniEquipId: CCRX } } });
 });
 
-test('S1 但为求索 (AUTO, 1 / 2 charges, data DEFAULT): the next attack hits two enemies at 200 % / 240 % ATK arts; with one enemy only it lifts it 2.5 / 3 s — before 传承终焉, so that hit is × 1.2 and silences', () => {
+test('S1 但为求索 (AUTO, 1 / 2 charges, data DEFAULT): the next attack hits two enemies at 200 % / 240 % ATK arts; with one enemy only it lifts it 2.5 / 3 s — before 传承终焉, so that hit is × 1.23 and silences', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const [ts, sil] = t0Of(tier, elite, null);
-    assert.deepEqual([sk.skillType, sk.spCost, sk.maxChargeTime, sk.bb.atk_scale, sk.bb.levitate, ts, sil], ['AUTO', 8, elite ? 2 : 1, elite ? 2.4 : 2, elite ? 3 : 2.5, 1.2, 3], `T${tier}`);
+    assert.deepEqual([sk.skillType, sk.spCost, sk.maxChargeTime, sk.bb.atk_scale, sk.bb.levitate, ts, sil], ['AUTO', 8, elite ? 2 : 1, elite ? 2.4 : 2, elite ? 3 : 2.5, 1.23, 3], `T${tier}`);
     // two enemies: two shots, no lift
     {
       const { h, u } = field({ tier, elite, skill: 0 });
@@ -134,7 +134,7 @@ test('S1 但为求索 (AUTO, 1 / 2 charges, data DEFAULT): the next attack hits 
   }
 });
 
-test('S2 群星逶迤 (MANUAL, data DEFAULT): 16 s, each attack 9 shots of 27 % / 35 % ATK at random enemies of her range, each rolling 10 % / 12 % to lift 1 s; a lifted or flying target takes × 1.2', () => {
+test('S2 群星逶迤 (MANUAL, data DEFAULT): 16 s, each attack 9 shots of 27 % / 35 % ATK at random enemies of her range, each rolling 10 % / 12 % to lift 1 s; a lifted or flying target takes × 1.23', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const sc = sk.bb['attack@atk_scale'], p = sk.bb['attack@prob'];
@@ -169,14 +169,14 @@ test('S2 群星逶迤 (MANUAL, data DEFAULT): 16 s, each attack 9 shots of 27 % 
     const all = hitsBy(h, u).slice(n0);
     all.forEach((c, i) => {
       if (!c.dmg.isSkill) return;
-      approx(c.amount, u.s.atk * sc * (fl[i] ? 1.2 : 1), `T${tier}: shot ${i} (${fl[i] ? 'air' : 'ground'})`);
+      approx(c.amount, u.s.atk * sc * (fl[i] ? 1.23 : 1), `T${tier}: shot ${i} (${fl[i] ? 'air' : 'ground'})`);
     });
-    assert.ok(fl.filter(Boolean).length > shots.filter((c) => c.target === fly).length, `T${tier}: lifted ground enemies took × 1.2 too`);
+    assert.ok(fl.filter(Boolean).length > shots.filter((c) => c.target === fly).length, `T${tier}: lifted ground enemies took × 1.23 too`);
     done(h);
   }
 });
 
-test('S3 博览者的狂语 (MANUAL, data ACTIVE_RANGE on 3-10): 45 s, interval 1.6 + 1.4 = 3.0 s, range 3-10 while on; each attack three whirlwinds (her row and the rows beside), 1 tile/s, each lifting the first enemy it touches then dealing 2.33→3.5 / 2.53→3.8 × ATK over 1.77 s (× 1.2: lifted)', () => {
+test('S3 博览者的狂语 (MANUAL, data ACTIVE_RANGE on 3-10): 45 s, interval 1.6 + 1.4 = 3.0 s, range 3-10 while on; each attack three whirlwinds (her row and the rows beside), 1 tile/s, each lifting the first enemy it touches then dealing 2.33→3.5 / 2.53→3.8 × ATK over 1.77 s (× 1.23: lifted)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const lo = sk.bb['attack@min_atk_scale'], hi = sk.bb['attack@max_atk_scale'], lev = sk.bb['attack@levitate'];
@@ -196,9 +196,9 @@ test('S3 博览者的狂语 (MANUAL, data ACTIVE_RANGE on 3-10): 45 s, interval 
     const hits = hitsBy(h, u).slice(n0);
     const first = (e) => hits.find((c) => c.target === e);
     const scale = (age) => lo + (hi - lo) * Math.min(1, age / 1.77);
-    approx(first(near).amount, u.s.atk * scale(0.5) * 1.2, `T${tier}: 0.5 tile flown`, 1e-3);
-    approx(first(mid).amount, u.s.atk * hi * 1.2, `T${tier}: 2.5 tiles — the maximum`);
-    approx(first(low).amount, u.s.atk * hi * 1.2, `T${tier}: 3.5 tiles`);
+    approx(first(near).amount, u.s.atk * scale(0.5) * 1.23, `T${tier}: 0.5 tile flown`, 1e-3);
+    approx(first(mid).amount, u.s.atk * hi * 1.23, `T${tier}: 2.5 tiles — the maximum`);
+    approx(first(low).amount, u.s.atk * hi * 1.23, `T${tier}: 3.5 tiles`);
     assert.ok(!hits.some((c) => c.target === far), `T${tier}: (10,9) behind (10,8) in its lane is never reached`);
     for (const c of hits) assert.deepEqual([c.type, c.dmg.isAttack, c.dmg.isSkill], ['arts', true, true]);
     const lifts = statusBy(h, u, 'levitate');
@@ -239,7 +239,7 @@ test('S3 whirlwinds: they fly 5 tiles at most, a heavy (mass > 3) target is lift
     const s0 = statusBy(h, u, 'silence').length;
     assert.ok(h.runUntil(() => hitsBy(h, u).some((c) => c.target === e), 6), 'the whirlwind flies on');
     const c = hitsBy(h, u).find((x) => x.target === e);
-    approx(c.amount, arts(atk * 3.8, 50, 0), 'no 传承终焉 (× 1.2) and no RES ignore');
+    approx(c.amount, arts(atk * 3.8, 50, 0), 'no 传承终焉 (× 1.38) and no RES ignore');
     assert.equal(statusBy(h, u, 'silence').length, s0, 'no silence');
     assert.equal(statusBy(h, u, 'levitate').filter((x) => x.target === e).length, 1, 'still lifted');
     done(h);
@@ -259,11 +259,11 @@ test('S3 whirlwinds: they fly 5 tiles at most, a heavy (mass > 3) target is lift
   }
 });
 
-test('T1 传承终焉: hits on air units × 1.2 and silence 3 s (CCR-X stage 3: × 1.35 / 5 s, ISW-A stage 3: × 1.45 / 5 s; stage 1 modules keep 1.2 / 3); ground targets: neither', () => {
+test('T1 传承终焉: hits on air units × 1.23 and silence 3 s (CCR-X stage 3: × 1.38 / 5 s, ISW-A stage 3: × 1.48 / 5 s; stage 1 modules keep 1.23 / 3); ground targets: neither', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const [ts, sil] = t0Of(tier, elite, elite ? mod : null);
-    const want = elite && tier === 6 && mod === CCRX ? [1.35, 5] : elite && tier === 6 && mod === ISWA ? [1.45, 5] : [1.2, 3];
+    const want = elite && tier === 6 && mod === CCRX ? [1.38, 5] : elite && tier === 6 && mod === ISWA ? [1.48, 5] : [1.23, 3];
     assert.deepEqual([ts, sil], want, `${label(f)}: the data`);
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     const fly = h.spawn('enemy_fly', { pos: [10, 6] });

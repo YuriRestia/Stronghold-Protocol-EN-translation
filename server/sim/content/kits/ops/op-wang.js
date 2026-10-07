@@ -4,7 +4,7 @@
 // operator (自选)").
 //
 // Forms (data/backups.json units.char_2027_wang, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, TRP-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, TRP-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json; the 棋子
 // owner-form / skill / module variants) and PRTS 望 (铸子 备注: the 跟子 are 望's own projectiles — no unit, they take no
 // tile, act and connect like a 棋子; they go on deployable tiles and on undeployable ground with no character unit; order
@@ -20,15 +20,16 @@
 // - Trait (陷阱师): ranged physical arrows, 3-3, hits air units (PRTS 分支特性信息 "可对空"), blocks 1, ground-targetable.
 //   "陷阱无法放置于敌人已在的格子中": a 棋子 does not come back while a ground enemy stands on its tile (S3: inside her range it
 //   may). Module TRP-X "部署费用更低（-1）…可同时部署的陷阱数量提升（+1）": the 棋子 variant's cost 2 (the DP of its returns) and
-//   deploy limit 7 (the hand count — the match's); its attributes in the stats.
-// - T1 铸子 (cnt / attack@max_spawn_cnt; "最多拥有7枚"): the 棋子 are hand pieces the player places; they deploy with the board
-//   for free. Her stock (持有库存: the 棋子 in her hand — cnt at the start, at most STOCK_CAP; the skills add to it) counts
-//   them — the owner's decision of 2026-10-06, a deliberate deviation from PRTS 卫戍协议/帮助 (placed summons "无视所属干员的
-//   持有状态，不消耗持有数量", which left her stock at cnt: one S1 / S2 cast reached the cap and 阻回 held her SP for the rest
-//   of the battle): every deployment of a 棋子 (the battle start's and each return) takes one from it, like one she deployed
-//   herself (never below 0 [ASSUMED: a 7th placed piece of TRP-X's deploy limit takes none]), and a 棋子 that leaves the
-//   field (set off, or gone with her) goes back into it at once by the official summon rule — its card back in her hand
-//   while its redeploy time runs (as shared/summoner.js's recall) —, at most the cap [ASSUMED: one over the cap is lost].
+//   deploy limit 8 (the hand count — the match's); its attributes in the stats.
+// - T1 铸子 (cnt / attack@max_spawn_cnt; "最多拥有7枚", full potential: 8): the 棋子 are hand pieces the player places; they
+//   deploy with the board for free. Her stock (持有库存: the 棋子 in her hand — cnt at the start, at most STOCK_CAP; the
+//   skills add to it) counts them — the owner's decision of 2026-10-06, a deliberate deviation from PRTS 卫戍协议/帮助 (placed
+//   summons "无视所属干员的持有状态，不消耗持有数量", which left her stock at cnt: one S1 / S2 cast reached the cap and 阻回
+//   held her SP for the rest of the battle): every deployment of a 棋子 (the battle start's and each return) takes one from
+//   it, like one she deployed herself (never below 0 [ASSUMED: an 8th placed piece of TRP-X's deploy limit takes none]), and
+//   a 棋子 that leaves the field (set off, or gone with her) goes back into it at once by the official summon rule — its
+//   card back in her hand while its redeploy time runs (as shared/summoner.js's recall) —, at most the cap [ASSUMED: one
+//   over the cap is lost].
 //   So "立即获得两枚棋子" and the 阻回 at the cap keep cycling through the battle. 棋子 / 跟子
 //   that touch on a side (上下 / 左右) activate each other and stay active once activated [ASSUMED from the S2 备注]; an
 //   enemy (air units too) on an active one's tile sets it off: its effect, then it is used up (a 棋子 leaves the field; a
@@ -40,7 +41,7 @@
 //   with her.
 // - T2 料敌机先 (attack@per_atk_scale / attack@per_magic_resist_penetrate_fixed / attack@max_trigger_cnt): an active 棋子 / 跟子
 //   gets one stack per piece of the unbroken line it is part of (itself included; the longer of its lines; ≤ the cap),
-//   kept once reached [ASSUMED]; its damage ×(1 + n × per) and n × pen RES ignored. TRP-X stage 3: 13 % / 12.
+//   kept once reached [ASSUMED]; its damage ×(1 + n × per) and n × pen RES ignored. TRP-X stage 3: 15 % / 13.
 // - S1 取势 (AUTO): passive — a triggered piece puts 停顿 attack@sluggish s on the enemy that set it off and a 法术 DoT of
 //   attack@atk_scale × her ATK every second for attack@sluggish s (precomputed at the trigger with the piece's stacks and
 //   her damage multipliers; 无来源, credited to her; each one independent). Active — "立即获得两枚棋子": +cnt stock (≤ the
@@ -65,7 +66,7 @@ const S1 = 'skchr_wang_1';
 const S2 = 'skchr_wang_2';
 const S3 = 'skchr_wang_3';
 export const STONE = 'token_10064_wang_stone1';
-/** 铸子 "最多拥有7枚" (the 棋子's max deck stack at E2; the talent text). */
+/** 铸子 "最多拥有7枚" (the 棋子's max deck stack at E2 at potential 0; the talent text — 8 at full potential, read below). */
 export const STOCK_CAP_FALLBACK = 7;
 /** 料敌机先's stack cap when the data carries none. */
 const T2_CAP_FALLBACK = 3;
@@ -129,7 +130,8 @@ export default {
     const t0 = talentBb(chess, 0);                    // 铸子: cnt, attack@max_spawn_cnt
     const t1 = talentBb(chess, 1);                    // 料敌机先 (TRP-X stage 2+: its change)
     const t0desc = String((chess?.talents ?? []).find((t) => t && t.index === 0)?.desc ?? '');
-    const capText = /最多拥有(\d+)枚/.exec(t0desc);
+    // the text at full potential carries the potential step after the number: "最多拥有8（+1）枚"
+    const capText = /最多拥有(\d+)(?:（[+-]\d+）)?枚/.exec(t0desc);
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
     const s3 = skillRec(chess, S3);
     const per = num(t1['attack@per_atk_scale']), pen = num(t1['attack@per_magic_resist_penetrate_fixed']);

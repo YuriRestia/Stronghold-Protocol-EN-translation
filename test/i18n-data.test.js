@@ -183,7 +183,7 @@ test('data.js setLocale: getters return English records after the overlay loads,
   const swire = d.lookup('chess', 'chess_char_3_04_a');
   assert.equal(swire.name, 'Swire the Elegant Wit');
   assert.equal(swire.subProfessionName, 'Merchant');
-  assert.equal(swire.stats.atk, 672, 'numbers untouched');
+  assert.equal(swire.stats.atk, 702, 'numbers untouched');   // 672 + 攻击力+30 (full potential)
   assert.equal(d.list('bonds').find((b) => b.bondId === 'yanShip').name, 'Yan');
   assert.equal(d.get('config').modes.mode_multi_hard.name, 'Dire Simulation');
   assert.equal(d.getRaw('config').modes.mode_multi_hard.name, '绝境模拟', 'getRaw keeps the Chinese file');

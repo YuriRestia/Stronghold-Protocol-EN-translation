@@ -1,9 +1,10 @@
 // test/sim/feedback5-ulpia-own-board.test.js — community report of 2026-10-06 (item 27) 「乌尔比安使用3技能会在联防阶段跳到红门
 // 后」. 乌尔比安 S3 必须开辟的通路 throws the anchor up to 6 tiles ahead (the nearest enemy of the line, else the farthest tile) and
-// moves there when the tile "可以部署" (PRTS 备注 ③: the landing tile > the tile one beyond > his own tile). On the one-helper 联防
-// map (act1autochess_escaped_single: the helper's pieces on the left half, the enemies out of the middle gate at col 10) the
-// right half is no tile his player deploys on, yet an anchor that met no enemy flew there and he moved behind the red gate for
-// the whole skill. Now the landing must lie on his own board (Battle.onOwnBoard, the board region mapped onto the field).
+// moves there when the tile "可以部署" (PRTS 备注 ③: the landing tile > the tile one beyond > his own tile). In a one-helper 联防
+// (the helper's pieces on the left half, the enemies out of the middle gate at col 10; the fixture here is the escaped level's
+// plain road, act1autochess_escaped_single — the 联防 field itself is the round's battlefield since 0.2.1) the right half is no
+// tile his player deploys on, yet an anchor that met no enemy flew there and he moved behind the red gate for the whole
+// skill. Now the landing must lie on his own board (Battle.onOwnBoard, the board region mapped onto the field).
 // Run: node --test test/sim/feedback5-ulpia-own-board.test.js
 
 import { test } from 'node:test';

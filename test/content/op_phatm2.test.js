@@ -76,7 +76,7 @@ test('酒神 in every 自选 form: her kit (all three skills authored), the form
       done(h);
     }
   }
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [936, 411, 1111, 463]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [936, 434, 1111, 486]);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr], [{ maxHp: 125, atk: 30 }, { maxHp: 200, atk: 42 }]);
 });
 
@@ -88,11 +88,11 @@ test('a 自选 pick: 酒神 is offered at tiers 5 and 6 and a roster with her pa
     { ok: true, picks: { [SLOT[6]]: { charId: ID, skillIndex: 2, uniEquipId: X } } });
 });
 
-test('T1 形为心役: every hit of her attacks first gives its target 30 % ATK 神经损伤 and every other enemy within 1.3 of it (中点, air too) 20 % ATK — then the arts damage; one 1.5 away nothing', () => {
+test('T1 形为心役: every hit of her attacks first gives its target 33 % ATK 神经损伤 and every other enemy within 1.3 of it (中点, air too) 23 % ATK — then the arts damage; one 1.5 away nothing', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const { h, u } = field({ tier, elite, skill: 2 });
     const t1 = formOf(tier, elite).talents[0].bb;
-    assert.deepEqual(t1, { 'attack@ep_damage_ratio': 0.3, ep_damage_ratio: 0.2, range_radius: 1.3 });
+    assert.deepEqual(t1, { 'attack@ep_damage_ratio': 0.33, ep_damage_ratio: 0.23, range_radius: 1.3 });
     const main = h.spawn('enemy_dummy', { pos: [10, 6] });
     const nearFly = h.spawn('enemy_fly', { pos: [11, 6] });
     const far = h.spawn('enemy_dummy', { pos: [11.5, 7] });   // ≈ 1.8 from (10, 6)
@@ -105,8 +105,8 @@ test('T1 形为心役: every hit of her attacks first gives its target 30 % ATK 
     const flyEl = before.find((c) => c.type === 'element' && c.target === nearFly);
     assert.ok(mainEl && flyEl, '神经损伤 before the damage');
     assert.equal(mainEl.dmg.element, 'neural');
-    approx(mainEl.amount, u.s.atk * 0.3, '30 % ATK');
-    approx(flyEl.amount, u.s.atk * 0.2, '20 % ATK to the flyer around');
+    approx(mainEl.amount, u.s.atk * 0.33, '33 % ATK');
+    approx(flyEl.amount, u.s.atk * 0.23, '23 % ATK to the flyer around');
     assert.ok(!before.some((c) => c.target === far), 'outside the 1.3');
     approx(seq[iHit].amount, u.s.atk, 'arts damage = ATK');
     assert.equal(seq[iHit].type, 'arts');
@@ -122,17 +122,17 @@ test('RIT-X “酒神之心”: her 神经损伤 on an ELITE / leader enemy ×1.
     const el = h.spawn('enemy_elite', { pos: [10, 6] });
     const n0 = h.hooksOf('damaged').length;
     assert.ok(h.runUntil(() => elemOf(h, u, n0).some((c) => c.target === el), 3));
-    approx(elemOf(h, u, n0).find((c) => c.target === el).amount, u.s.atk * 0.3 * want, `${label([tier, elite, mod])}: elite`);
+    approx(elemOf(h, u, n0).find((c) => c.target === el).amount, u.s.atk * 0.33 * want, `${label([tier, elite, mod])}: elite`);
     h.b.kill(el);
     const nm = h.spawn('enemy_dummy', { pos: [10, 6] });
     const n1 = h.hooksOf('damaged').length;
     assert.ok(h.runUntil(() => elemOf(h, u, n1).some((c) => c.target === nm), 3));
-    approx(elemOf(h, u, n1).find((c) => c.target === nm).amount, u.s.atk * 0.3, 'normal enemy');
+    approx(elemOf(h, u, n1).find((c) => c.target === nm).amount, u.s.atk * 0.33, 'normal enemy');
     done(h);
   }
 });
 
-test('T2 堕梦: while she is on the field every enemy in a 神经损伤 burst has ASPD −12 (RIT-X stage 3 −20), on the whole field; none outside the burst or once she left', () => {
+test('T2 堕梦: while she is on the field every enemy in a 神经损伤 burst has ASPD −16 (RIT-X stage 3 −24), on the whole field; none outside the burst or once she left', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, X], [5, true, X]]) {
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     quiet(h, u);
@@ -198,6 +198,9 @@ test('S1 暗夜回声 (AUTO, 3 attack SP): every 4th attack hits twice for 105 %
     const bind = h.hooksOf('statusApplied').find((c) => c.status === 'bind' && c.target === fresh);
     assert.ok(bind, 'rooted');
     approx(bind.duration, sk.bb.unmove, 'root time');
+    // (her hits so far plus the ones during the root — T1 33 % / 23 % ATK at full potential — would burst it before the
+    // ×1 check below, and a bursting enemy takes no 神经损伤: its gauge starts over here)
+    fresh.elem.neural = 0;
     const n0 = h.hooksOf('damaged').length;
     const other = h.spawn('enemy_dummy', { pos: [12, 12] });
     h.b.dealDamage(other, fresh, { type: 'element', element: 'neural', amount: 100 });
@@ -254,7 +257,7 @@ test('S2 + 本能的召唤: the placed piece deploys at the battle start (untarg
     const ticks = h.hooksOf('damaged').slice(n0).filter((c) => c.target === inside && c.source === u);
     const arts = ticks.filter((c) => c.type === 'arts'), neural = ticks.filter((c) => c.type === 'element');
     assert.equal(arts.length, 12, '12 arts ticks');
-    // 12 神经损伤 ticks — unless the gauge bursts first (then the 爆发冷却 takes no more: elite 12 × 92.6 > 1000)
+    // 12 神经损伤 ticks — unless the gauge bursts first (then the 爆发冷却 takes no more: elite 12 × 97.2 > 1000)
     const per = atkAtDeploy * sk.bb.ep_damage_ratio_token;
     assert.equal(neural.length, Math.min(12, Math.ceil(1000 / per)), '神经损伤 ticks');
     for (const c of arts) approx(c.amount, atkAtDeploy * sk.bb.atk_scale, `arts ${sk.bb.atk_scale * 100} % of the cached ATK`);
@@ -402,7 +405,7 @@ test('S3 迷狂牢笼: no 牢笼 on a tile with a unit or on high ground; at the
   assert.ok(h.runUntil(() => u.skill.active, 3));
   const splash = elemOf(h, u, n0).filter((c) => c.target === side);
   assert.equal(splash.length, 1, 'T1\'s splash once around it');
-  approx(splash[0].amount, u.s.atk * 0.2, '20 % of her (S3) ATK');
+  approx(splash[0].amount, u.s.atk * 0.23, '23 % of her (S3) ATK');
   const c1 = cagesOf(h).find((c) => c.tileR === 10 && c.tileC === 7);
   assert.ok(c1 && pre.blockedBy === c1, 'a 牢笼 for the bursting one');
   // a unit on the tile: none

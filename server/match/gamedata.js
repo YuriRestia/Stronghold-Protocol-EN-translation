@@ -397,14 +397,20 @@ export class GameData {
     return typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
   }
 
-  /** Official enemy multipliers of round r (config enemyScale: the PRTS table + 终极 speed ×1.15 from R3). */
+  /**
+   * Official enemy multipliers of round r (config enemyScale: the PRTS table + 终极 speed ×1.15 from R3). `supplyHpMul`
+   * (only when ≠ 1: co-op 终极 R5–R15) = the share of hpMul from 补给线 / 补给线II (config `supplyHp`), effects whose
+   * `enemy_exclude` leaves out the 14 器物 hit-count keys — they take hpMul / supplyHpMul (archetypes.js `times`).
+   */
   baseEnemyScale(r) {
     const e = this.mode.enemyScale && this.mode.enemyScale[String(r)];
     if (!e || typeof e !== 'object') return { hpMul: 1, atkMul: 1, speedMul: 1 };
+    const supply = numOr(e.supplyHp, 1);
     return {
       hpMul: Math.max(0.01, numOr(e.hp, 1)),
       atkMul: Math.max(0, numOr(e.atk, 1)),
       speedMul: Math.max(0.01, numOr(e.speed, 1)),
+      ...(supply > 0 && supply !== 1 ? { supplyHpMul: supply } : {}),
     };
   }
 

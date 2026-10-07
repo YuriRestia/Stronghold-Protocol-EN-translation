@@ -4,7 +4,7 @@
 // (自选)").
 //
 // Forms (data/backups.json units.char_4228_closur): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account]. Sources:
+// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07). Sources:
 // character_table / skill_table / battle_equip_table / the token's character_table row (zh_CN, as built into backups.json),
 // PRTS 可露希尔 (精准投放 备注 "战术点对位于战术点攻击范围内的所有我方干员/召唤物付与可露希尔的援军标记…在攻击这些单位阻挡的敌人时同样
 // 可以触发特性效果"; S1 备注 "回费间隔 = 持续时间 / 回费量，首次回费间隔为计算所得的回费间隔的一半"; S2 备注 "2秒固定间隔回复费用",
@@ -39,11 +39,11 @@
 //   it). Knocked out (or withdrawn) it enters its 战术点形态 — off the fight, its tile kept (伺夜's 狼群 model) — for the token's
 //   hidden talent `interval` (15 s), then it is back on its tile at full HP; her leaving the field withdraws it for good (no
 //   战术点形态: "持有者离场后强制撤退") and her next deployment brings a new one.
-// - T2 极限调度 "携带可露希尔时，部署费用下限降低3，【罗德岛】干员攻击力+4%" (bb cost / atk; TAC-X stage 3: −5 / +8 %): from the battle
-//   start every operator of her player whose nation is 罗德岛 (character_table nationId rhodes — the client's filterTag) ATK
-//   +atk for the whole battle (a deck buff: on the field or not, herself included). The 部署费用下限 has no counterpart here: the
-//   sim's deploy costs never go below 0 (the kits' cost cuts stop there) and only the auto-redeploy spends DP [ASSUMED: no
-//   effect].
+// - T2 极限调度 "携带可露希尔时，部署费用下限降低3，【罗德岛】干员攻击力+4%" (full potential: 降低4; bb cost / atk; TAC-X stage 3:
+//   −6 / +8 %): from the battle start every operator of her player whose nation is 罗德岛 (character_table nationId rhodes —
+//   the client's filterTag) ATK +atk for the whole battle (a deck buff: on the field or not, herself included). The
+//   部署费用下限 has no counterpart here: the sim's deploy costs never go below 0 (the kits' cost cuts stop there) and only the
+//   auto-redeploy spends DP [ASSUMED: no effect].
 // - S1 递归策略 (AUTO, 8 s): the 援军 of the moment get one 护盾 layer (shieldHits 1, 不叠加: back to one; until used) and she
 //   gains n = min(cost + uses × cost_per_add, cost_add_max) DP over the duration — uses = her earlier casts of this deployment —
 //   one at a time, every 8 / n s from half that interval. An AUTO skill acting on her side only: it fires as soon as its SP is

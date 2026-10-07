@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4204_mantra, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, PRI-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, PRI-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 真言 (the 备注
 // quoted below). 麻痹 (ba.palsy, PRTS 术语释义): each stack interrupts one normal attack of an enemy, at most 3, kept until
 // used — the engine `palsy` status; the moment a stack interrupts an attack is the engine hook `palsyTrigger` (ai.js).
@@ -11,11 +11,12 @@
 //   targetable by ground enemies); 元素伤害 = the DamageInfo type 'elemental', 神经 损伤 = element 'neural' (SIM.md §3). PRI-X
 //   “中枢神经探测模块” "对处于元素爆发期间的敌人造成的伤害提升至110%" (trait bb damage_scale): ×damage_scale on every damage
 //   she deals to an enemy in an element burst (shared/tier5.js burstDamageUp, as 烛煌 / 妮芙).
-// - T1 噤声限域 "场上敌人触发麻痹效果时立即受到相当于真言攻击力135%的元素伤害，且触发麻痹时有10%概率不消耗麻痹层数" (bb
-//   atk_scale / prob; PRI-X stage 3: 1.6 / 0.15): 备注 "触发麻痹时指的是敌人的攻击被麻痹打断时（而非获得麻痹时）", "造成的元素
-//   伤害为元素持续伤害" (tagged 'dot'), "全场光环存在0.5秒检测周期，单位无法被真言选择的情况下将失去效果" (every 0.5 s the
-//   enemies she can select — not untargetable, 隐匿 or asleep; "三技能期间，此天赋的检测无视隐匿与沉睡" — carry her mark),
-//   "麻痹不消耗效果在同类效果中取概率最高" (two 真言: one roll at the higher chance; each deals her own hit [ASSUMED]).
+// - T1 噤声限域 "场上敌人触发麻痹效果时立即受到相当于真言攻击力135%的元素伤害，且触发麻痹时有10%概率不消耗麻痹层数" (full
+//   potential: 145 % / 13 %; bb atk_scale / prob; PRI-X stage 3: 1.7 / 0.18): 备注 "触发麻痹时指的是敌人的攻击被麻痹打断时
+//   （而非获得麻痹时）", "造成的元素伤害为元素持续伤害" (tagged 'dot'), "全场光环存在0.5秒检测周期，单位无法被真言选择的情况下
+//   将失去效果" (every 0.5 s the enemies she can select — not untargetable, 隐匿 or asleep; "三技能期间，此天赋的检测无视
+//   隐匿与沉睡" — carry her mark), "麻痹不消耗效果在同类效果中取概率最高" (two 真言: one roll at the higher chance; each deals
+//   her own hit [ASSUMED]).
 // - T2 全局洞悉 "距离真言最近的一个侵入点出场的敌人出现时立刻获得1层麻痹": at each deployment she picks the 侵入点 (the
 //   stage's 'start' tiles) nearest by Manhattan distance, a tie drawn at random (备注 "优先选取距离自身曼哈顿距离最近的侵入点，
 //   相同距离下随机选取"); every enemy spawning on it gets 1 麻痹 0.1 s later (备注 "【延迟麻痹】：0.1s后获得1层麻痹；付与选取

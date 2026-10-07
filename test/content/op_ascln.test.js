@@ -159,14 +159,14 @@ test('T1 死亡拘审: every hit of her attacks adds a layer (≤ 3, the duratio
   }
 });
 
-test('T2 噬光残影: ASPD +8; +6 more with 高台 (HIGHLAND) among the four tiles next to her — the ranged wall on her left, the forbidden rim below', () => {
+test('T2 噬光残影: ASPD +10; +6 more with 高台 (HIGHLAND) among the four tiles next to her — the ranged wall on her left, the forbidden rim below', () => {
   for (const [row, col, high] of [[10, 5, false], [10, 3, true], [12, 6, true], [11, 5, false]]) {
     const { h, u } = field({ tier: 6, elite: true, skill: 1, row, col });
-    approx(u.s.aspd, 100 + 8 + (high ? 6 : 0), `(${row},${col}): ASPD`);
+    approx(u.s.aspd, 100 + 10 + (high ? 6 : 0), `(${row},${col}): ASPD`);
     approx(u.s.interval, 3.5 * 100 / u.s.aspd, 'interval');
     done(h);
   }
-  assert.deepEqual(FORMS['2/1/4/0'].talents.find((t) => t.index === 1).bb, { attack_speed: 8, attack_speed_add: 6, cnt: 1 });
+  assert.deepEqual(FORMS['2/1/4/0'].talents.find((t) => t.index === 1).bb, { attack_speed: 10, attack_speed_add: 6, cnt: 1 });
 });
 
 test('S1 追袭 (AUTO, 2 / 3 charges, data DEFAULT): the next attack strikes every enemy of her range twice at 130 % / 170 % ATK — two 死亡拘审 layers', () => {

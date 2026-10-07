@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1051_headb2, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, HAM-X at stage 1 (tier 5) or 3 (tier 6) when picked. Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, HAM-X at stage 1 (tier 5) or 3 (tier 6) when picked. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json; teamId `student`); PRTS
 // 怒潮凛冬 (备注 of 汹涌怒火, 绝不罢休 and 无可抵挡); gamedata_const ba.sluggish 停顿, ba.root 束缚; the client's battle data read
 // from the local install — charpack char_1051_headb2, battle/prefabs [uc]skills skchr_headb2_3 and [uc]equips headb2_equip_*,
@@ -16,21 +16,21 @@
 //   cnt deals ×atk_scale_e on each of its damage instances (an ATK scale: before DEF); an S3 hammer counts its own 1.5 range,
 //   every 高台 splash its own x-5 (PRTS "每个溅射效果独立计算X模组特性加成"). Stage 3: 汹涌怒火 +40 % (below).
 // - T1 汹涌怒火 "特性溅射造成的物理伤害提升24%，且溅射到的每个高台对周围四格所有地面敌人造成相当于攻击力24%的物理伤害和0.5秒停顿"
-//   (damage_scale; HAM-X stage 3 1.4 — attack@splash_atk_scale, attack@sluggish): the trait splash ×damage_scale
-//   (headb2_t_1[damage_scale]: ON_OUTPUT_DAMAGE on the APPLY_TO_HAMMER_SUBCLASS_SPLASH_TARGET damage, PHYSICAL — PRTS "伤害倍率提升
-//   而非攻击倍率提升，且不对特性主目标生效": dmg.mul, splash victims only). 高台 splash (PRTS "独立于攻击的效果，其以该次攻击中心为中心，
-//   选择1.0半径内的地块触发溅射（重叠判定），伤害溅射范围为周围4格+本格x-5（格子判定），造成物理溅射伤害" / "伤害会被视为远程途径伤害…
-//   由此伤害击倒的敌人会被视为无来源击杀"; the charpack's highland AoE: radius 1.0, x-5, targetMotion ground, physical, `_attackType`
-//   ranged, sluggish from the blackboard, `_intervalTime` 0.1, SP via headb2_s_2[sp]): after each attack, every 高台 (a HIGH
-//   tile of the field rect: walls and forbidden blocks) whose square the circle of radius 1.0 around the target touches
-//   triggers; 0.1 s later the ground enemies she could select on its x-5 take attack@splash_atk_scale × her ATK at the trigger
-//   (physical 溅射伤害: no dodge; 无来源 credited to her, 远程途径 — DamageInfo isProjectile) and 停顿 attack@sluggish s.
-// - T2 万众巨潮 "技能期间所有场上干员攻击力和防御力+14%，【乌萨斯学生自治团】干员获得加成效果翻倍" (atk / def, scale_bonus; the aura's
-//   validator: ally operators of every profession, herself included; headb2_skill_judge switches it with her skill's start /
-//   finish; headb2_t_2[filter_tag]: CheckCharacterGroupTag `student` ⇒ ×scale_bonus, MULTIPLIER attributes): while a skill of
-//   hers runs, every operator of the field (teammates' in a shared field — the kits' field-wide convention) ATK / DEF
-//   +atk / +def, ×scale_bonus for the 【乌萨斯学生自治团】 (character_table teamId `student`) — given at the cast, renewed every
-//   TIDE_IV s (operators deployed meanwhile) and taken back at the end; two sources keep the strongest.
+//   (full potential: 攻击力27%; damage_scale; HAM-X stage 3 1.4 — attack@splash_atk_scale, attack@sluggish): the trait splash
+//   ×damage_scale (headb2_t_1[damage_scale]: ON_OUTPUT_DAMAGE on the APPLY_TO_HAMMER_SUBCLASS_SPLASH_TARGET damage, PHYSICAL — PRTS
+//   "伤害倍率提升而非攻击倍率提升，且不对特性主目标生效": dmg.mul, splash victims only). 高台 splash (PRTS "独立于攻击的效果，
+//   其以该次攻击中心为中心，选择1.0半径内的地块触发溅射（重叠判定），伤害溅射范围为周围4格+本格x-5（格子判定），造成物理溅射伤害" /
+//   "伤害会被视为远程途径伤害…由此伤害击倒的敌人会被视为无来源击杀"; the charpack's highland AoE: radius 1.0, x-5, targetMotion
+//   ground, physical, `_attackType` ranged, sluggish from the blackboard, `_intervalTime` 0.1, SP via headb2_s_2[sp]): after each
+//   attack, every 高台 (a HIGH tile of the field rect: walls and forbidden blocks) whose square the circle of radius 1.0 around the
+//   target touches triggers; 0.1 s later the ground enemies she could select on its x-5 take attack@splash_atk_scale × her ATK at the
+//   trigger (physical 溅射伤害: no dodge; 无来源 credited to her, 远程途径 — DamageInfo isProjectile) and 停顿 attack@sluggish s.
+// - T2 万众巨潮 "技能期间所有场上干员攻击力和防御力+14%，【乌萨斯学生自治团】干员获得加成效果翻倍" (full potential: +18%; atk / def,
+//   scale_bonus; the aura's validator: ally operators of every profession, herself included; headb2_skill_judge switches it with her
+//   skill's start / finish; headb2_t_2[filter_tag]: CheckCharacterGroupTag `student` ⇒ ×scale_bonus, MULTIPLIER attributes): while a
+//   skill of hers runs, every operator of the field (teammates' in a shared field — the kits' field-wide convention) ATK / DEF +atk /
+//   +def, ×scale_bonus for the 【乌萨斯学生自治团】 (character_table teamId `student`) — given at the cast, renewed every TIDE_IV s
+//   (operators deployed meanwhile) and taken back at the end; two sources keep the strongest.
 // - S1 誓不低头 (MANUAL, data DEFAULT, 30 s): ATK +atk, ASPD +attack_speed.
 // - S2 绝不罢休 (AUTO): "被动效果：每次有高台触发第一天赋的效果时，获得1点技力" (sp_per_highland; PRTS 备注 "根据单次天赋触发的高台
 //   数量提供相应的sp") — +sp per 高台 that triggers, none while a skill runs (AK). "自动开启：攻击范围扩大，攻击力+60%，防御力+40%" —

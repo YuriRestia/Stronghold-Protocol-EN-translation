@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_2025_shu, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, GUA-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, GUA-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 黍 (百谷长青 备注
 // "本天赋效果为永久地块效果，自身退场时清空所有地块的播种效果，不对装置职业的目标生效。生命恢复的提供方式为增加位于地块上干员的
 // “生命回复速度”属性，不受治疗加成和禁疗影响"; 天有四时 修正 "在场时" / "编入队伍且"; S1 修正 "小于等于一半"; S2 备注 "实际效果为技能
@@ -25,8 +25,8 @@
 //   +hp_recovery_per_sec (an hpRegen buff, checklist 11: 禁疗 / 无法被友方治疗 do not stop it — 斥罪 too) and 庇护
 //   damage_resistance (the shared applyStrongest key PROTECT), refreshed every FARM_EVERY s (and at once on a sowing and at
 //   S2's start / end); both × S2's extra_extend_scale while S2 runs (shu_s_2 sets DoFarm's extra_extend_scale). Two 黍 of a
-//   shared field: the stronger regeneration and 庇护 hold. GUA-X stage 3: 80 / s, 15 % and "部署时立即给所处地块播种该效果"
-//   (bbStr born_range_id 0-1: her own tile at every deployment).
+//   shared field: the stronger regeneration and 庇护 hold. GUA-X stage 3 (full potential): 85 / s, 17 % and
+//   "部署时立即给所处地块播种该效果" (bbStr born_range_id 0-1: her own tile at every deployment).
 // - T2 天有四时: while she is deployed, ≥ PROF_NEEDED different professions among the allied operators on the field ⇒ every
 //   allied operator's max HP +max_hp; ≥ PROF_NEEDED operators of one profession ⇒ ASPD +attack_speed (charpack auras:
 //   operators only, 孤立 included); if her squad (her player's operators, deployed or not) holds ≥ SUI_NEEDED 【岁】 operators

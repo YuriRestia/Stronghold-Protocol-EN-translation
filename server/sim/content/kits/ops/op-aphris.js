@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4229_aphris, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Summon: tokens.token_10070_aphris_pc “中继器” (talent 链路协议; a hand piece the player places with a facing — data
 // `placeable`, a talent summon: it deploys with the board, docs/SIM.md §1.1 token pieces).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 谬因 (链路协议 备注:
@@ -26,7 +26,7 @@
 //   land at once (the client spaces them `_hitInterval` 0.05 s along the beam) and a 攻击距离 bonus (none exists for her in
 //   this mode) would extend it as the engine extends any range.
 // - Trait (轰击术师) "攻击造成超远距离的群体法术伤害": the profession's `rangeAoe` — every selectable enemy of her path at once,
-//   air units too. Module BLA-Y “第三相态”: 部署费用 −8 (the attribute; stats 34 → 26), HP / ATK in the stats, no trait change;
+//   air units too. Module BLA-Y “第三相态”: 部署费用 −8 (the attribute; stats 32 → 24), HP / ATK in the stats, no trait change;
 //   stage 3 changes T1 (35 s piece, 再部署时间变短 — the piece's byModule respawnTime 30 → 20 —, ATK +35 %).
 // - T1 链路协议: one 中继器 lasting the token talent's duration (25 s; BLA-Y stage 3: its hidden module talent, 35 s) from each
 //   deployment (aphris_pc_t[with-draw]: it withdraws when that time is up unless it holds aphris_sk1_token — given to every
@@ -36,7 +36,7 @@
 //   (charge_token[born]). ATK +atk while one of hers stands (aphris_token_add_atk_tohost: one buff aphris_t1[atk], "不可叠加").
 //   The piece "不会受到攻击" (data: untargetable) and holds 无敌, 禁疗 and 孤立 (PRTS 中继器; [ASSUMED] given by this kit — the
 //   data's `abnormal` lacks them).
-// - T2 取样优化 "攻击范围内的友方干员攻击时无视敌方10点法术抗性" (aphris[t2]: attribute 27, 法术穿透, on allied operators — profession
+// - T2 取样优化 "攻击范围内的友方干员攻击时无视敌方10点法术抗性" (full potential: 13; aphris[t2]: attribute 27, 法术穿透, on allied operators — profession
 //   mask 639 — of her attack range): resIgnoreFlat +magic_resist_penetrate_fixed on every allied operator standing on her path,
 //   her own tile included [ASSUMED: the selector does not drop its owner], refreshed every AURA_IV s; several sources keep the
 //   strongest.

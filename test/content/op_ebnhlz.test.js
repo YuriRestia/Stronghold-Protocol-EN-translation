@@ -94,9 +94,9 @@ test('黑键 in every 自选 form: his operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers (zh_CN): E2 Lv1 1359 / 1134 / 120 / 20, E2 Lv60 1570 / 1310 / 130 / 20; MSC-X +58 ATK +3 ASPD → +90 / +5,
+  // the numbers (zh_CN, full potential): E2 Lv1 1359 / 1186 / 120 / 20, E2 Lv60 1570 / 1362 / 130 / 20; MSC-X +58 ATK +3 ASPD → +90 / +5,
   // MSC-Y +80 HP +88 ATK → +175 / +135, MSC-Δ +76 ATK +4 RES → +124 / +5
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [1359, 1134, 1310]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [1359, 1186, 1362]);
   assert.deepEqual([modOf(5, MX).attr, modOf(6, MX).attr, modOf(5, MY).attr, modOf(6, MY).attr, modOf(5, MD).attr, modOf(6, MD).attr],
     [{ atk: 58, aspd: 3 }, { atk: 90, aspd: 5 }, { maxHp: 80, atk: 88 }, { maxHp: 175, atk: 135 }, { atk: 76, res: 4 }, { atk: 124, res: 5 }]);
   // he hits a flyer
@@ -177,12 +177,12 @@ test('the volley: his next attack releases every normal energy at its target, AT
   done(h);
 });
 
-test('T2 倚音: per projectile (the main bolt and every energy) a target with no other enemy within range_radius 1.1 takes ATK × atk_scale arts (15 %; MSC-Y 20 %, MSC-Δ 30 % at stage 3); with one there: nothing — MSC-Y stage 3 ATK × 36 % arts splash on the others instead; MSC-Δ stage 3: + ATK × 30 % 元素伤害 on a target in its 凋亡 burst', () => {
+test('T2 倚音: per projectile (the main bolt and every energy) a target with no other enemy within range_radius 1.1 takes ATK × atk_scale arts (17 %; MSC-Y 22 %, MSC-Δ 32 % at stage 3); with one there: nothing — MSC-Y stage 3 ATK × 36 % arts splash on the others instead; MSC-Δ stage 3: + ATK × 30 % 元素伤害 on a target in its 凋亡 burst', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t1 = talentOf(tier, elite, mod, 1);
     assert.equal(t1.range_radius, 1.1);
-    assert.equal(t1.atk_scale, tier === 6 && mod === MY ? 0.2 : tier === 6 && mod === MD ? 0.3 : 0.15, `${label(f)}: atk_scale`);
+    assert.equal(t1.atk_scale, tier === 6 && mod === MY ? 0.22 : tier === 6 && mod === MD ? 0.32 : 0.17, `${label(f)}: atk_scale`);
     // alone: the main bolt + 2 energies ⇒ 3 additions
     {
       const { h, u } = field({ tier, elite, mod, skill: 0 });

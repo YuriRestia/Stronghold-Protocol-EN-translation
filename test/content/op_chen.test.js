@@ -70,9 +70,9 @@ test('陈 in every 自选 form: her operator kit (all three skills authored), th
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2188 / 469 / 288, E2 Lv60 2647 / 562 / 330; SWO-X +50 ATK +5 ASPD → +80 / +7,
+  // the numbers of the forms (zh_CN, full potential): E2 Lv1 2188 / 492 / 288, E2 Lv60 2647 / 585 / 330; SWO-X +50 ATK +5 ASPD → +80 / +7,
   // SWO-Y +52 / +28 → +85 / +42 ATK / DEF
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2188, 469, 2647, 562]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2188, 492, 2647, 585]);
   assert.deepEqual([modOf(5, SWOX).attr, modOf(6, SWOX).attr, modOf(5, SWOY).attr, modOf(6, SWOY).attr], [{ atk: 50, aspd: 5 }, { atk: 80, aspd: 7 }, { atk: 52, def: 28 }, { atk: 85, def: 42 }]);
 });
 
@@ -280,12 +280,12 @@ test('T1 呵斥: every 4 s on the field (3 s with SWO-X stage 3) every attack / 
   assert.match(modOf(6, SWOX).talentChanges.find((t) => !t.hidden).desc, /每3秒回复全场友方角色1点攻击\/受击技力，自身额外回复1点技力/);
 });
 
-test('T2 持刀格斗术: ATK +5 %, DEF +5 %, 物理闪避 10 %; SWO-Y stage 3: +15 % / +15 % / 18 %', () => {
+test('T2 持刀格斗术: ATK +6 %, DEF +6 %, 物理闪避 13 %; SWO-Y stage 3: +16 % / +16 % / 21 %', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 1 });
     const y3 = elite && mod === SWOY && tier === 6;
-    const [a, d, p] = y3 ? [0.15, 0.15, 0.18] : [0.05, 0.05, 0.1];
+    const [a, d, p] = y3 ? [0.16, 0.16, 0.21] : [0.06, 0.06, 0.13];
     assert.deepEqual(u.findBuff('talent:chen:knife')?.mods, { atkPct: a, defPct: d, dodgePhys: p }, label(f));
     approx(u.s.atk, u.base.atk * (1 + a), `${label(f)}: ATK`);
     approx(u.s.def, u.base.def * (1 + d), `${label(f)}: DEF`);

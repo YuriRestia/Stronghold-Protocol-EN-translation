@@ -1,5 +1,7 @@
 # --- dependencies & generated client libs -------------------------------------------------------
 node_modules/
+# a local npm cache (npm_config_cache=./.npm-cache, npm ci --cache .npm-cache — GitHub #258)
+.npm-cache/
 # copied from node_modules by tools/vendor.mjs (postinstall); never commit third-party builds
 public/vendor/
 

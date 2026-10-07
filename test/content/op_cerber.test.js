@@ -72,8 +72,8 @@ test('刻俄柏 in every 自选 form: her operator kit (all three skills authore
       done(h);
     }
   }
-  // E2 Lv1 1220 / 553 / 114, E2 Lv60 1449 / 629 / 123; CCR-X +130 / +40 → +180 / +65, CCR-Y +80 / +40 / +17 → +120 / +56 / +23
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1220, 553, 1449, 629]);
+  // E2 Lv1 1220 / 580 / 114, E2 Lv60 1449 / 656 / 123; CCR-X +130 / +40 → +180 / +65, CCR-Y +80 / +40 / +17 → +120 / +56 / +23
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1220, 580, 1449, 656]);
   assert.deepEqual([modOf(5, CCRX).attr, modOf(6, CCRX).attr, modOf(5, CCRY).attr, modOf(6, CCRY).attr], [{ maxHp: 130, atk: 40 }, { maxHp: 180, atk: 65 }, { maxHp: 80, atk: 40, def: 17 }, { maxHp: 120, atk: 56, def: 23 }]);
 });
 
@@ -162,7 +162,7 @@ test('S3 “很重的枪” (MANUAL, data ACTIVE_RANGE on 3-3): 56 / 57 s, range
     const sil = h.hooksOf('statusApplied').filter((c) => c.source === u && c.status === 'silence');
     assert.ok(sil.length >= hits.length && sil.every((c) => c.target === lo), `T${tier}: silenced on every hit`);
     approx(sil[0].duration, sk.bb['attack@silence'], `T${tier}: ${sk.bb['attack@silence']} s`);
-    // 剥壳 stays arts: DEF 100 × 40 %
+    // 剥壳 stays arts: DEF 100 × 44 %
     const shells = hitsBy(h, u).slice(n0).filter(shellOf);
     assert.ok(shells.length >= hits.length - 1 && shells.every((c) => c.type === 'arts'), `T${tier}: 剥壳 arts`);
     u.skill.end('test');
@@ -173,13 +173,13 @@ test('S3 “很重的枪” (MANUAL, data ACTIVE_RANGE on 3-3): 56 / 57 s, range
   }
 });
 
-test('T1 剥壳: each hit of her attacks adds DEF × 40 % arts (none on DEF 0); CCR-X stage 3: 50 % +5 % per hit on the same target up to 75 %, back to 50 % on another; stage 1 keeps 40 %', () => {
+test('T1 剥壳: each hit of her attacks adds DEF × 44 % arts (none on DEF 0); CCR-X stage 3: 54 % +5 % per hit on the same target up to 79 %, back to 54 % on another; stage 1 keeps 44 %', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 1 });
     const x3 = elite && tier === 6 && mod === CCRX;
     const t0 = u.def.raw.talents.find((t) => t.index === 0);
-    assert.equal(t0.bb.atk_scale, x3 ? 0.5 : 0.4, `${label(f)}: the data`);
+    assert.equal(t0.bb.atk_scale, x3 ? 0.54 : 0.44, `${label(f)}: the data`);
     u.skill.charges = 0;
     const a = h.spawn('enemy_d400', { pos: [10, 6] });
     const n0 = hitsBy(h, u).length;
@@ -187,7 +187,7 @@ test('T1 剥壳: each hit of her attacks adds DEF × 40 % arts (none on DEF 0); 
     const shells = hitsBy(h, u).slice(n0).filter((c) => shellOf(c) && c.target === a);
     const plain = hitsBy(h, u).slice(n0).filter((c) => c.dmg.isAttack && c.target === a);
     assert.ok(plain.length >= 7 && shells.length === plain.length, `${label(f)}: one 剥壳 per hit (${shells.length} / ${plain.length})`);
-    const want = x3 ? [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.75] : Array(7).fill(0.4);
+    const want = x3 ? [0.54, 0.59, 0.64, 0.69, 0.74, 0.79, 0.79] : Array(7).fill(0.44);
     shells.slice(0, 7).forEach((c, i) => {
       approx(c.amount, 400 * want[i], `${label(f)}: hit ${i + 1}`);
       assert.deepEqual([c.type, !!c.dmg.isAttack], ['arts', false], `${label(f)}: a talent arts instance`);
@@ -199,7 +199,7 @@ test('T1 剥壳: each hit of her attacks adds DEF × 40 % arts (none on DEF 0); 
     h.run(1.7);
     const sb = hitsBy(h, u).slice(n1).filter((c) => shellOf(c) && c.target === b);
     assert.ok(sb.length >= 1);
-    approx(sb[0].amount, 200 * (x3 ? 0.5 : 0.4), `${label(f)}: a new target — the base ratio`);
+    approx(sb[0].amount, 200 * (x3 ? 0.54 : 0.44), `${label(f)}: a new target — the base ratio`);
     h.b.kill(b, null);
     const z = h.spawn('enemy_dummy', { pos: [10, 6] });
     const n2 = hitsBy(h, u).length;

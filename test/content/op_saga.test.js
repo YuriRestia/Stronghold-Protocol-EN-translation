@@ -67,8 +67,8 @@ test('嵯峨 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // E2 Lv1 1609 / 434 / 297, E2 Lv60 2004 / 498 / 347; SOL-Y +75 / +45 / +15 → +125 / +55 / +20, SOL-X +50 / +28 → +70 / +44
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1609, 434, 2004, 498]);
+  // E2 Lv1 1609 / 459 / 297, E2 Lv60 2004 / 523 / 347 (full potential); SOL-Y +75 / +45 / +15 → +125 / +55 / +20, SOL-X +50 / +28 → +70 / +44
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1609, 459, 2004, 523]);
   assert.deepEqual([modOf(5, SOLY).attr, modOf(6, SOLY).attr, modOf(5, SOLX).attr, modOf(6, SOLX).attr],
     [{ maxHp: 75, atk: 45, def: 15 }, { maxHp: 125, atk: 55, def: 20 }, { atk: 50, def: 28 }, { atk: 70, def: 44 }]);
 });
@@ -326,24 +326,24 @@ test('T1 劝善 SOL-X stage 3: her damage on a target below half HP ×1.15 (stag
   }
 });
 
-test('T2 清明: once per deployment, the first time she drops below 40 %: 70 % physical dodge and 5 % max HP/s for 15 s; SOL-Y stage 3: 6.5 % (its blackboard) for 18 s', () => {
+test('T2 清明: once per deployment, the first time she drops below 40 %: 70 % physical dodge and 6 % max HP/s for 17 s; SOL-Y stage 3: 7 % (its blackboard) for 20 s', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, row: 12, col: 9 });
     const y3 = elite && tier === 6 && mod === SOLY;
     const tb = u.def.raw.talents.find((t) => t.index === 1).bb;
-    assert.deepEqual(tb, { hp_ratio: 0.4, hp_recovery_per_sec_by_max_hp_ratio: y3 ? 0.065 : 0.05, prob: 0.7, duration: y3 ? 18 : 15 }, label(f));
+    assert.deepEqual(tb, { hp_ratio: 0.4, hp_recovery_per_sec_by_max_hp_ratio: y3 ? 0.07 : 0.06, prob: 0.7, duration: y3 ? 20 : 17 }, label(f));
     h.b.dealDamage(null, u, { amount: u.s.maxHp * 0.55, type: 'true' });
     assert.equal(u.findBuff('talent:saga:qingming'), null, `${label(f)}: at 45 % nothing`);
     h.b.dealDamage(null, u, { amount: u.s.maxHp * 0.1, type: 'true' });
     const b = u.findBuff('talent:saga:qingming');
     assert.ok(b, `${label(f)}: below 40 %`);
-    assert.deepEqual(b.mods, { dodgePhys: 0.7, hpRegenRatio: y3 ? 0.065 : 0.05 }, `${label(f)}: mods`);
-    approx(b.duration, y3 ? 18 : 15, `${label(f)}: duration`);
+    assert.deepEqual(b.mods, { dodgePhys: 0.7, hpRegenRatio: y3 ? 0.07 : 0.06 }, `${label(f)}: mods`);
+    approx(b.duration, y3 ? 20 : 17, `${label(f)}: duration`);
     approx(u.s.dodgePhys, 0.7, `${label(f)}: dodge`);
     const hp0 = u.hp;
     h.run(2.01);
-    approx(u.hp - hp0, 2 * (y3 ? 0.065 : 0.05) * u.s.maxHp, `${label(f)}: regeneration`, 0.02);
+    approx(u.hp - hp0, 2 * (y3 ? 0.07 : 0.06) * u.s.maxHp, `${label(f)}: regeneration`, 0.02);
     h.run(b.duration);
     assert.equal(u.findBuff('talent:saga:qingming'), null, `${label(f)}: over`);
     u.hp = u.s.maxHp;

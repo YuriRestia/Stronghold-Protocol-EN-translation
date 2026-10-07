@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4080_lin, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 林 (计出万全 备注:
 // "通常情况下琉璃璧生效优先级为+1000", "琉璃璧破碎效果于满足条件的伤害应用前瞬间触发" — so a lethal hit still sets it off —,
 // "其破碎时的影响范围以持有该效果的单位为中心，与林的当前攻击范围一致，先造成晕眩后造成伤害", "可造成琉璃璧破碎的伤害结算时，伤害量减少
@@ -28,13 +28,14 @@
 //   over 200 ("单次超过200点伤害") goes through less 200 (PRTS: "伤害量减少相当于琉璃璧吸收伤害上限的数值") and breaks it — the
 //   burst (lin_t_1[damage] on the targets of Lin's "Attack" selector, i.e. her CURRENT attack range, centred on the holder):
 //   stun `stun` s on every enemy there, then atk_scale × Lin's ATK arts (source Lin) — and lin_t_1[disable] brings it back
-//   `interval` s later (8 s; PLX-Y stage 3: 110 %, 6 s). A 流失 or an element 损伤 never touches it. [ASSUMED] the shield sits
-//   in the buff order (HIGH_PRIORITY puts it first; no other shield usually stands on her), and the burst comes right after
-//   the hit has landed — before a knock-out, as PRTS's lethal-hit note says — in the 流光乍裂 order too (PRTS: "伤害应用后").
-// - T2 韬光 "受到攻击时，有50%几率回复1点技力" (PLX-X stage 3: 75 %, 2 SP): the client's lin_t_2 (ON_TAKE_DAMAGE → IsIgnoreForSp →
-//   Dice prob → ModifySp sp, no damage-value filter): one roll per damage instance she takes that could give 受击回复 SP — a
-//   hit the 琉璃璧 absorbs whole included (it is still taken, at 0); not a 流失 or an element 损伤. No SP while a skill runs
-//   (玲珑's state included: it stays on).
+//   `interval` s later (8 s; full potential: 110 %; PLX-Y stage 3: 120 %, 6 s). A 流失 or an element 损伤 never touches it.
+//   [ASSUMED] the shield sits in the buff order (HIGH_PRIORITY puts it first; no other shield usually stands on her), and
+//   the burst comes right after the hit has landed — before a knock-out, as PRTS's lethal-hit note says — in the 流光乍裂
+//   order too (PRTS: "伤害应用后").
+// - T2 韬光 "受到攻击时，有50%几率回复1点技力" (full potential: 55 %; PLX-X stage 3: 80 %, 2 SP): the client's lin_t_2
+//   (ON_TAKE_DAMAGE → IsIgnoreForSp → Dice prob → ModifySp sp, no damage-value filter): one roll per damage instance she
+//   takes that could give 受击回复 SP — a hit the 琉璃璧 absorbs whole included (it is still taken, at 0); not a 流失 or an
+//   element 损伤. No SP while a skill runs (玲珑's state included: it stays on).
 // - S1 玲珑 (MANUAL, data SEARCH, a 状态切换类 skill: switched on once per deployment and kept — the official rule, `toggle`):
 //   attack interval +base_attack_time (+1.0 s on her 2.0 s), ATK +atk, every enemy each attack hits 停顿 attack@sluggish s.
 //   PRTS's "并不实际属于技能期间" changes nothing here: the state is never switched back in the auto battle.

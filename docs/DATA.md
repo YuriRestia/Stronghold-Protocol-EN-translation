@@ -70,7 +70,7 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `rounds[r]` | see below | per-round schedule |
 | `spRounds` | `[3,9,11]` | rounds whose prep opens with a 机变 draft |
 | `combatTimeLimit[r]` | `{"1":45,…,"14":null}` | = `rounds[r].combatTimeLimit`: **real** seconds of the forced-2× battle (DESIGN §4) |
-| `enemyScale[r]` | `{"atk":1.1,"hp":1.2,"speed":1,"kAtk":1,"kHp":1}` | non-boss enemy multipliers (research 01 A3): `atk = atkBase·1.1^kAtk`, `hp = hpBase·1.2^kHp·extra`, `speed` 1.15 on ABYSS from R3. Apply to level-0 stats after special-enemy replacement, also to bounty/special enemies. **Leader HP pools excluded.** |
+| `enemyScale[r]` | `{"atk":1.1,"hp":1.2,"speed":1,"kAtk":1,"kHp":1}` | non-boss enemy multipliers (research 01 A3): `atk = atkBase·1.1^kAtk`, `hp = hpBase·1.2^kHp·extra`, `speed` 1.15 on ABYSS from R3; `supplyHp` (only when ≠ 1, co-op 终极 R5–R15) = the share of `hp` from 补给线 / 补给线II (1.2^(kHp − kAtk) · extra), which the 14 器物 hit-count keys do not take (their `enemy_exclude`). Apply to level-0 stats after special-enemy replacement, also to bounty/special enemies and to the leaders' mid-fight summons. **Leader HP pools excluded.** |
 | `bossHpScale` | `{"bloodPointKey":"bloodPointAbyss","unaffectedByEnemyScale":true}` | which `bloodPoint` column the mode reads; the pool rule's keys live in the global `bossHpScale` below — one set here would override it for this mode (`gamedata.js bossPoolShareOf`) |
 | `upgradePrices` | `[5,8,11,12,13]` | base price L1→2 … L5→6 (−1 per round start, floor 0, reset after upgrade) |
 | `maxShopLevel` | `6` | |
@@ -161,7 +161,7 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `price`, `sellPrice` | `2`, `1` | |
 | `upgradeNum`, `upgradeChessId` | `3`, `"chess_char_1_01_b"` | copies needed to merge (风丸 2; golden 0) |
 | `status` | `{"phase":2,"level":50,"skillLevel":7,"equipLevel":1}` | training status used for all numbers |
-| `stats` | `{"maxHp":1421,"atk":508,"def":167,"res":0,"cost":15,"blockCnt":1,"bat":1,"aspd":100,"respawnTime":80,"spRecovery":1,"hpRecoveryPerSec":0,"moveSpeed":1,"tauntLevel":0,"massLevel":0,"deployLimit":1,"deckStack":0}` | keyframes linearly interpolated at `status`, hp/atk/def/cost/block/respawn rounded; **golden includes the module attribute bonus**. `aspd` 100 = base (module attack_speed added). Talent stat boosts are NOT folded in. |
+| `stats` | `{"maxHp":1421,"atk":531,"def":167,"res":0,"cost":12,"blockCnt":1,"bat":1,"aspd":100,"respawnTime":70,"spRecovery":1,"hpRecoveryPerSec":0,"moveSpeed":1,"tauntLevel":0,"massLevel":0,"deployLimit":1,"deckStack":0}` | keyframes linearly interpolated at `status` **plus every potential attribute modifier** (full potential, 潜能 6: character_table `potentialRanks` 1–5 — 「攻击力+N」, 「部署费用-1」, 「再部署时间-N秒」, 生命 / 防御 / 法抗 / 攻速 — added to the raw values; the owner's decision of 2026-10-07, GitHub #252 / PR #255: the official records carry no potential, a tournament video shows 刺玫 at ATK 435 / cost 15 = her E1 Lv55 413 / 17 + 攻击力+22 and two 部署费用-1; `tools/build-data.mjs OPERATOR_POTENTIAL`), hp/atk/def/cost/block/respawn rounded; **golden includes the module attribute bonus**. `aspd` 100 = base (module attack_speed added). Talent stat boosts are NOT folded in. |
 | `immunities` | `{"stun":false,"silence":false,"sleep":false,"frozen":false,"levitate":false}` | |
 | `rangeId`, `rangeGrid` | `"3-3"`, `[[1,0],[1,1],…]` | attack range at `status` |
 | `dmgType` | `"phys"` | `phys` / `arts` / `heal` (derived, see §2.1) |
@@ -173,7 +173,7 @@ Top level: `{ season, seasonName, modes, economy, lpCapPerRound, bossOvertimeAft
 | `skill` | see below | default skill at `status.skillLevel` (normal 4, golden 7) |
 | `skills[]` | `[{…skill record…, "index":0, "isDefault":false}, {…, "index":1, "isDefault":true}]` | **loadout choices** (DESIGN §16): every skill unlocked at `status` (E1 ⇒ S1–S2, E2 ⇒ S1–S3; the default is always listed), same shape as `skill` + `isDefault`, at the chess skill level, `trigger` resolved **for that skill index** (§2.2). The `isDefault` entry equals `skill` |
 | `modules[]`, `statsBase`, `traitBase`, `talentsBase` | see §2.2 | golden chess with `equipLevel > 0` only: selectable modules + the no-module base they apply to |
-| `talents[]` | `{"index":0,"name":"火力支援","desc":"…","descRaw":"…","bb":{"self_ammo":3,"duration":20,"ally_ammo":1},"bbStr":{},"rangeGrid":null,"tokenKey":null,"hidden":false,"fromModule":false}` | best unlocked candidate at `status` (potential 0); golden: module talent upgrades applied (`fromModule`); module data-only talents have `name:null, hidden:true`. A module upgrade of an existing talent **merges** blackboards (module keys win, base keys it does not restate are kept — e.g. 宴 keeps `min_attack_speed`; 仇白's upgrade adds `atk_scale_t` next to the old `atk_scale`: prefer the key the text uses). Module parts flagged `isToken` are **not** applied to the operator; they upgrade its summons (tokens.json variants). `containerTokenKey`: the official talent token id when it is a container missing from character_table (凛御银灰), `tokenKey` then holds the default skill's token |
+| `talents[]` | `{"index":0,"name":"火力支援","desc":"…","descRaw":"…","bb":{"self_ammo":3,"duration":20,"ally_ammo":1},"bbStr":{},"rangeGrid":null,"tokenKey":null,"hidden":false,"fromModule":false}` | best unlocked candidate at `status` at full potential (candidates up to `requiredPotentialRank` 5: the 「天赋效果增强」 steps; module talent candidates the same); golden: module talent upgrades applied (`fromModule`); module data-only talents have `name:null, hidden:true`. A module upgrade of an existing talent **merges** blackboards (module keys win, base keys it does not restate are kept — e.g. 宴 keeps `min_attack_speed`; 仇白's upgrade adds `atk_scale_t` next to the old `atk_scale`: prefer the key the text uses). Module parts flagged `isToken` are **not** applied to the operator; they upgrade its summons (tokens.json variants). `containerTokenKey`: the official talent token id when it is a container missing from character_table (凛御银灰), `tokenKey` then holds the default skill's token |
 | `tokens[]` | `["token_10028_vigil_wolf"]` | summons (→ `tokens.json`): displayTokenDict + default-skill `overrideTokenKey` + talent `tokenKey`; `tokens.json → variants[chessId].sources` tells which (a `display`-only token is not produced by this chess's default skill or talents) |
 | `module` | `{"id":"uniequip_002_inside","name":"“最初的惊喜”","type":"MAR-X","level":1,"active":true}` | active only on golden chess |
 | `assets` | `{"avatar":"char_498_inside_2","portrait":"char_498_inside_2","spine":"char_498_inside","skillIcon":"skchr_inside_2","subProfIcon":"sub_fastshot_icon"}` | asset **ids** (URLs in `data/assets.json`); golden uses the E2 art when it exists |
@@ -232,7 +232,7 @@ everything needed to resolve a unit for `(chessId, skillIndex, moduleId)` (`simd
 | `isDefault`, `level` | `false`, `3` | default = `defaultUniEquipId` (= `module.id`) |
 | `attr` | `{"maxHp":170,"atk":28,"def":28}` | flat stat additions (stat field names): `stats = statsBase[f] + attr[f]` (float-noise cleaned) |
 | `traitOverride` | `{"desc":"…提升至165%","descRaw":…,"bb":{"atk_scale":1.65},"bbStr":{},"rangeGrid":null,"moduleDesc"?:…}` \| `null` | the full trait with this module (`desc`, then the added line `moduleDesc` when present — see `trait` above); `null` ⇒ `traitBase` |
-| `talentChanges[]` | `{"talentIndex":1,"name":"开源节流","desc":…,"descRaw":…,"bb":{"cost":-2,"runtime_cost":-1},"bbStr":{},"rangeGrid":null,"tokenKey":null,"hidden":false}` | talent additions/overrides (`talentIndex` −1 = new hidden data-only talent); applied to `talentsBase` with the build's merge rule (`simdata composeTalents`: override of an existing index merges blackboards, module keys win) |
+| `talentChanges[]` | `{"talentIndex":1,"name":"开源节流","desc":…,"descRaw":…,"bb":{"cost":-2,"runtime_cost":-2},"bbStr":{},"rangeGrid":null,"tokenKey":null,"hidden":false}` | talent additions/overrides (`talentIndex` −1 = new hidden data-only talent); applied to `talentsBase` with the build's merge rule (`simdata composeTalents`: override of an existing index merges blackboards, module keys win) |
 
 - `statsBase` / `traitBase` / `talentsBase` — the golden record **without** any module (`stats` / `trait` / `talents`
   keep the default module, unchanged). `test/data.test.js` proves that composing the default module onto the base
@@ -418,19 +418,22 @@ hidden core `h08_0X`; 联防 `act1autochess_escaped_single|multi`; training `tr0
 Timing: templates have one wave with one fragment, so `time = wave.preDelay + fragment.preDelay + action.preDelay`
 exactly (the builder warns if a multi-fragment template ever appears).
 
-## 12. `stages.json` — `{ [stageId]: Stage }` (11 terrains, 8 active, + the 2 联防 maps)
+## 12. `stages.json` — `{ [stageId]: Stage }` (11 terrains, 8 active, + the 2 escaped levels' maps)
 
-The 11 battle stages of `stageDatasDict`, then the two **联防 maps** (GitHub #41): act2autochess constData
-`escapedBattleTemplateMapSinglePlayer` / `MultiPlayer` name the level of the 联防 battle (`level_act1autochess_escaped_single`
-/ `_multi`, the wave templates of the same id in `waves.json`), and its own map is the 联防 field — tile for tile the same
-on both: two road halves (cols 3–9 and 11–17, rows 9–12) joined at col 10, the objective at (9,2), no devices or special
-terrain. `server/match/unite.js uniteStageId` fields the 联防 battle on the one of its helper count.
+The 11 battle stages of `stageDatasDict` — every field of a match is fought on its stage: the own boards, the boss fields
+and the 联防 field (both halves, `GEO.UNITE_RECT`; the owner's decision of 2026-10-07) — then the maps of the two escaped
+levels: act2autochess constData `escapedBattleTemplateMapSinglePlayer` / `MultiPlayer` name the level of the 联防 wave
+(`level_act1autochess_escaped_single` / `_multi`, the wave templates of the same id in `waves.json`). Their map is the
+placeholder grid every wave template level carries, tile for tile (the round templates `01…07` and `h01…h08`, the
+training `trXX` too): two road halves (cols 3–9 and 11–17, rows 9–12) joined at col 10, the objective at (9,2), no devices or
+special terrain. 0.2.0 fought the 联防 battle on it (GitHub #41); no field uses these two records since 0.2.1 — they stay
+as official level data, and sim tests use them as a plain two-halves road.
 
 | Field | Example | Meaning |
 |---|---|---|
-| `id`, `name` | `"act2autochess_m01"`, `"战场#05(下半) 源石流发生装置"` | player-facing name from research 05 (the official tables carry none; falls back to id). The build drops bracketed segments containing Latin letters (research notes such as `战场#01 (upper half #01)` → `战场#01`), logs a warning, and fails validation if Latin text remains. The 联防 maps: `联防阵地（1名玩家）` / `联防阵地（2名玩家）`, the remake's own label [ASSUMED] (no table or PRTS page names them; no screen shows it) |
-| `weight`, `active`, `modes` | `50`, `true`, `["mode_single_normal",…]` | match-start pick weight (act1 m05–m07 weight 0); the 联防 maps: `0`, `false`, `[]` (never a match stage) |
-| `kind`, `helpers` | `"unite"`, `1` | only on the two 联防 maps: the helper count whose 联防 field it is (= `config.unite.templates`; the build fails when they disagree) |
+| `id`, `name` | `"act2autochess_m01"`, `"战场#05(下半) 源石流发生装置"` | player-facing name from research 05 (the official tables carry none; falls back to id). The build drops bracketed segments containing Latin letters (research notes such as `战场#01 (upper half #01)` → `战场#01`), logs a warning, and fails validation if Latin text remains. The escaped levels' maps: `联防阵地（1名玩家）` / `联防阵地（2名玩家）`, the remake's own label [ASSUMED] (no table or PRTS page names them; no screen shows it) |
+| `weight`, `active`, `modes` | `50`, `true`, `["mode_single_normal",…]` | match-start pick weight (act1 m05–m07 weight 0); the escaped levels' maps: `0`, `false`, `[]` (never a match stage) |
+| `kind`, `helpers` | `"unite"`, `1` | only on the escaped levels' two maps: the helper count of their wave template (= `config.unite.templates`; the build fails when they disagree); no field is fought on them |
 | `size` | `[19,21]` | |
 | `rows[]` | `rows[9] = "##Errr#rrrSrrr#rrrS##"` | 19 strings, **index = row (0 = bottom)**, one glyph per col |
 | `tiles[glyph]` | `{"tileKey":"tile_road","height":"LOW","buildable":"ALL","passable":"ALL","groundPassable":true,"flyPassable":true,"special":null,"bb":{}}` | actual tile properties of each glyph used. `buildable` is the **effective** deploy type: the level's buildableType, except a tile whose mechanism refuses deployment — 深水区 `tile_deepsea` (PRTS 深水区 地形信息 "部署类型 全部位 … 地形机制 拒绝部署（待补充）"; player report #3 after 0.1.0) — which is `NONE` and keeps the level's value in `buildableType` (`server/sim/grid.js DEPLOY_REFUSED_TILES`, shared with the builder) |
@@ -491,7 +494,7 @@ Glyph legend (`rows`):
 | `skill` | `{"skillId":"sktok_vigil_wolf_3","bb":{…}}` | default token skill (same slot as the owner's skill) |
 | `deployLimit`, `count` | `1`, `1` | `deployLimit` = the first owner's `stats.deployLimit`. `count` = copies sent to the hand / spawned (talent/skill `cnt`); `null` ⇒ use `deployLimit` |
 | `abnormal[]` | `["healFree"]` | abnormal effects the summon holds from the start, no official table carries them — `tools/build-data.mjs TOKEN_ABNORMAL` from the PRTS summon pages (user playtest #6 item 18): `healFree` = 禁疗 (“小自在”, “耀阳”, 斯卡蒂的海嗣, 沙之碑, 流形, 狼群, 迷迭香的战术装备, 黄金盟誓, 保护目标（冻结状态）), `isolated` = 孤立 "无法被同阵营选中" (“炎佑”, 从不混淆的方向); `[]` otherwise. The sim sets `noHeal` / `isolated` (docs/SIM.md §3) |
-| `variants[ownerChessId]` | `{"phase":2,"level":1,"stats":{…},"immunities":{…},"rangeGrid":…,"trait":{…},"dmgType":…,"skill":{full skill record},"talents":[…],"count":1,"sources":["talent","display"]}` | stats at the owner's phase/level (clamped to the token's max level) + golden module `tokenAttributeBlackboard` + the token's own talent additions to `deployLimit` / `deckStack` (blackboard `max_deploy_count` / `max_deck_stack_cnt` — the hidden "TOKEN数" talent of 麦哲伦's / 令's summons and 白铁's devices, 夜莺's 幻影; a module token part of the same talent replaces it: `tools/build-data.mjs tokenTalentDeckBonus`, 0.2.0 — no tokens.json summon has one; PRTS 幻影 备注 "最大可部署数量为3", the owners' "最多同时部署3个"); the owner's module parts flagged `isToken` upgrade the variant's `trait` (+`moduleDesc`) and `talents` (伺夜's wolves, 缪尔赛思's 流形 `scale` 1, 浊心斯卡蒂's 海嗣 30 s, “耀阳” `atk_scale` 1.15). `sources` ⊆ `talent`/`skill`/`display`: how the owner produces it (`display` only = listed on the character but unused by its default skill/talents, e.g. 迷迭香 S2, 凛御银灰 eagle1/3). `count` = copies from a talent `cnt` or the default skill's `cnt` when that skill overrides this token; `null` ⇒ use `deployLimit` |
+| `variants[ownerChessId]` | `{"phase":2,"level":1,"stats":{…},"immunities":{…},"rangeGrid":…,"trait":{…},"dmgType":…,"skill":{full skill record},"talents":[…],"count":1,"sources":["talent","display"]}` | stats at the owner's phase/level (clamped to the token's max level) — **none of the owner's potential attribute modifiers** (a token has no potential ranks) — + golden module `tokenAttributeBlackboard` + the token's own talent additions to `deployLimit` / `deckStack` (blackboard `max_deploy_count` / `max_deck_stack_cnt` — the hidden "TOKEN数" talent of 麦哲伦's / 令's summons and 白铁's devices, 夜莺's 幻影; a module token part of the same talent replaces it: `tools/build-data.mjs tokenTalentDeckBonus`, 0.2.0 — no tokens.json summon has one; PRTS 幻影 备注 "最大可部署数量为3", the owners' "最多同时部署3个"); its `talents` / `trait` candidates are picked at the **owner's potential** (full: their `requiredPotentialRank` mirrors the owner's 「天赋效果增强」 — 夕's “小自在” 18 层, 凯尔希's Mon3tr, 望's 棋子 +1 持有 / 部署; `tools/build-data.mjs OPERATOR_POTENTIAL`); the owner's module parts flagged `isToken` upgrade the variant's `trait` (+`moduleDesc`) and `talents` (伺夜's wolves, 缪尔赛思's 流形 `scale` 1, 浊心斯卡蒂's 海嗣 30 s, “耀阳” `atk_scale` 1.15). `sources` ⊆ `talent`/`skill`/`display`: how the owner produces it (`display` only = listed on the character but unused by its default skill/talents, e.g. 迷迭香 S2, 凛御银灰 eagle1/3). `count` = copies from a talent `cnt` or the default skill's `cnt` when that skill overrides this token; `null` ⇒ use `deployLimit` |
 | `variants[o].bySkill[i]` | `{"skill":{…},"count":1,"sources":["talent","display"]}` | owner loadout with the non-default skill index `i` (one entry per other selectable owner skill): the token skill of that slot (伺夜's wolves, 缪尔赛思's 流形, 凛御银灰's eagles…), the count and how the chess then produces it (`sources` may be `[]`: 风丸 S1 makes no 纸偶; 赫默 / 巫恋 S1 only `display` ⇒ no hand piece). The sim resolves them for an owner loadout: `simdata getToken(id, ownerChessId, loadout)` → `def.sources` / `def.count` |
 | `variants[o].byModule[m]` | `{"stats":{…},"immunities":{…},"trait":{…},"talents":[…]}` | golden owner with another module `m` or `'none'`: the token as that module makes it (module `tokenAttributeBlackboard`, `isToken` trait/talent parts) |
 | `assets` | `{"avatar":"token_10028_vigil_wolf","spine":"token_10028_vigil_wolf"}` | |
@@ -620,7 +623,8 @@ server/match/player/diy.js, docs/META.md §3). The rules in the data (activity_t
 - A stand-in keeps the chess's bonds, 特质, tier, price, merge and status (the elite form uses the same backup at the
   elite row) and fights as `backup.charId` at that status with skill `backup.skillIndex` (fixed by the chess: the same
   character takes S2 on one chess and S3 on another), module `backup.uniEquipId` (null at tiers 3–4 and for every 4★, so
-  even their elite form has none) and potential 0 (`potRank` 0 on all 55).
+  even their elite form has none) and the row's potential (`potRank` 0 on all 55) — moot: every unit form is built at
+  full potential like a chess (the owner's decision of 2026-10-07), and the 17 原型干员 have no potential ranks.
 
 `units[charId]` — first the 17 stand-ins, then the 71 owned-6★ 自选 picks (`diy.ownedPool`); no unit for a PRESET or DIY
 chess:
@@ -634,7 +638,7 @@ chess:
 | `forms[statusKey]` | keys `"2/1/4/0"`, `"2/60/7/1"`, `"2/60/7/3"` | the character at every status it fights at — of the chess it stands in for and of the DIY slots it may fill (`statusKey(status)` = `phase/level/skillLevel/equipLevel`): 3 forms per 6★ (an owned pick: exactly the three DIY slot statuses — E2 Lv1 skill rank 4 without a module, E2 Lv60 rank 7 with every module at stage 1 and at stage 3), 2 per 4★ |
 
 A **form** holds the operator fields of a chess record with **nothing selected**: `status`; `stats`, `trait`, `talents`
-**without** a module; `immunities`, `rangeId`, `rangeGrid`, `dmgType`, `attackKind`, `projectile`, `canHitFly`,
+**without** a module, at full potential as on a chess; `immunities`, `rangeId`, `rangeGrid`, `dmgType`, `attackKind`, `projectile`, `canHitFly`,
 `targetPriority`; `skills[]` — every skill unlocked at the status, at its skill level, `trigger` resolved per skill, no
 `isDefault`; `displayTokens` / `tokens` (summons — none of the 17 stand-ins has one; 27 of the owned picks do, their
 records in `tokens` below); at `equipLevel > 0` `modules[]` (§2.2 shape without `isDefault`). `buildUnitForm` uses buildChess's helpers and rules, and the build fails when `buildUnitForm` +
@@ -701,5 +705,5 @@ loadout. No id is also a tokens.json record.
 
 Not in this data: a player's ownership roster and 自选 picks (browser settings sent with `room.ownership` / `room.diy`),
 the DIY stock (per player in the match, `PlayerState.diyStock`: `config.economy.poolCopies` of the slot's tier — no excel
-field), 助战 borrows (`borrowCount` 20), the owned-operator training bonus (`prepareStateDict`), potential (0 for every
-自选 pick, [ASSUMED]: no account).
+field), 助战 borrows (`borrowCount` 20), the owned-operator training bonus (`prepareStateDict`), a per-player potential (every
+form is built at full potential, as every chess: the owner's decision of 2026-10-07).

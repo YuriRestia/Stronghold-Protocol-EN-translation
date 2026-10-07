@@ -280,20 +280,20 @@ test('“打字机”\'s skill is the copy of hers, free once per deployment: S1
   }
 });
 
-test('弱点速记: every damage of the typewriter cuts the target\'s DEF 18 % for 4 s, 23 % on one of the 4 tiles next to 鸿雪 (not diagonal); ARC-X stage 3: 28 % / 33 % and the 8 tiles; 鸿雪 down ⇒ the base cut', () => {
+test('弱点速记: every damage of the typewriter cuts the target\'s DEF 20 % for 5 s, 25 % on one of the 4 tiles next to 鸿雪 (not diagonal); ARC-X stage 3: 30 % / 35 % and the 8 tiles; 鸿雪 down ⇒ the base cut', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const x3 = tier === 6 && elite && mod === X;
     const tal = tokOf(tier, elite, 2, elite ? mod : null).talents.find((x) => x && x.bb.duration);
     const c1 = -tal.bb['bgsnow_token[def_down]_1.def'], c2 = -tal.bb['bgsnow_token[def_down]_2.def'];
-    assert.deepEqual([c1, c2, tal.bb.duration], x3 ? [0.28, 0.33, 4] : [0.18, 0.23, 4], label(f));
+    assert.deepEqual([c1, c2, tal.bb.duration], x3 ? [0.3, 0.35, 5] : [0.2, 0.25, 5], label(f));
     for (const [tile, near] of [[[11, 5], true], [[11, 4], x3], [[12, 3], false]]) {
       const { h, u, t } = field({ tier, elite, mod, skill: 0, tok: tile, seed: 2 });
       h.spawn('enemy_dummy', { pos: [tile[0], tile[1] + 2] });
       h.run(4);
       const cuts = h.hooksOf('statusApplied').filter((c) => c.source === t && c.status === 'defDown');
       assert.ok(cuts.length >= 2, `${label(f)} ${tile}: cuts`);
-      for (const c of cuts) assert.deepEqual([c.value, c.duration], [near ? c2 : c1, 4], `${label(f)} ${tile}: ${near ? 'near' : 'apart'}`);
+      for (const c of cuts) assert.deepEqual([c.value, c.duration], [near ? c2 : c1, 5], `${label(f)} ${tile}: ${near ? 'near' : 'apart'}`);
       if (near) {
         h.b.kill(u, null);
         h.run(3);

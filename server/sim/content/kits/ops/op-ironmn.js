@@ -4,7 +4,7 @@
 // and 铁钳号·原型机 (token_10027_ironmn_pile3). Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4072_ironmn): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table / the token rows (zh_CN, as built into backups.json), PRTS
 // 白铁 (S1 / S2 备注 "支援装置的效果可叠加", S2 "携带该技能时，支援装置每秒流失最大生命值0.4%的生命值", S3 "此时的支援装置为敌对
 // 阵营的召唤物单位"; 节约经费 "手动撤回白铁周围8格的装置也可以触发本天赋"; the module pages: CRA-X 白铁™多功能平台 −1 / 铁钳号 −4
@@ -41,10 +41,11 @@
 // - T1 战地工程师 "可以携带3个<支援装置>(最多可部署2个)": the stock above; the 2 deployable are the hand pieces. CRA-Y stage 2+
 //   "自身装置天赋生效的干员攻击速度+6（此效果不受技能影响）": every operator a device's talent reaches ASPD +attack_speed (the
 //   token's module talent; one per device), never scaled by S1.
-// - T2 节约经费 "当白铁周围8格的自身装置损毁时，有70%的几率回收使白铁额外获得1个装置": a device of his leaving the field (killed,
-//   destroyed by S1, withdrawn) while on his x-4 (talent range) ⇒ prob ⇒ stock +cnt (capped) — not when he leaves himself
-//   (his talents go first). CRA-X stage 2+ adds "当白铁周围8格存在自身装置时技力回复速度+0.2/秒" (the token's module talent
-//   sp_recovery_per_sec; one effect however many devices — the client's ironmn_e_002[sp_recover], one buff key) and prob 0.9.
+// - T2 节约经费 "当白铁周围8格的自身装置损毁时，有70%的几率回收使白铁额外获得1个装置" (full potential: 80%): a device of his
+//   leaving the field (killed, destroyed by S1, withdrawn) while on his x-4 (talent range) ⇒ prob ⇒ stock +cnt (capped) — not when
+//   he leaves himself (his talents go first). CRA-X stage 2+ adds "当白铁周围8格存在自身装置时技力回复速度+0.2/秒" (the token's
+//   module talent sp_recovery_per_sec; one effect however many devices — the client's ironmn_e_002[sp_recover], one buff key) and
+//   prob 0.9 (full potential: 1).
 // - Module CRA-X “铁钳号·爬行者” "<支援装置>的持有上限+1且部署费用减少": the stock +1 (trait cnt) and the device costs of the data
 //   (2 / 2 / 6). CRA-Y “海布里印记” "<支援装置>的再部署时间减少": the data's respawn times (5 / 5 / 10 s).
 // - 白铁™多功能平台 (S1): "使攻击范围内一名友方干员的攻击力+12%" — every operator on its range (1-1: its tile and the one it

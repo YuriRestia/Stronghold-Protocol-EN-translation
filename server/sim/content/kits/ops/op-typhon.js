@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_2012_typhon, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 提丰 (备注 of 锐如兽牙,
 // 重如沼泥, 冰原秩序 and “永恒狩猎”); PRTS 分支特性信息 攻城手 ("可对空").
 // - Trait (攻城手) "优先攻击重量最重的敌人": target priority 'heaviest' (targeting.js); ranged physical arrows that hit air units,
@@ -12,16 +12,18 @@
 //   value on 锐如兽牙's index): ×atk_scale on her attacks against an enemy of 重量等级 ≥ value (profile dmgMul); stage 2+ 锐如兽牙's
 //   numbers (12 % a stack, 10 s) come with the composed talent.
 // - Module SIE-Y 冰原的影子: trait "攻击越远的敌人造成的伤害越高（最高提升12%）" — as 早露's SIE-Y (her attack damage, linear between
-//   min_dist and max_dist [ASSUMED]); ASPD in the stats; stage 2+ 重如沼泥 "前两次…攻击力提升至220%" (max_stack_cnt / atk_scale).
+//   min_dist and max_dist [ASSUMED]); ASPD in the stats; stage 2+ 重如沼泥 "前两次…攻击力提升至220%" (full potential: 230%;
+//   max_stack_cnt / atk_scale).
 // - Module ISW-A 提丰特限证章: its trait and talent parts say "在集成战略中" — no effect in this mode (the hidden damage_scale /
 //   arrow-rain blackboards are ignored); its HP / ATK are in the stats.
 // - T1 锐如兽牙 "连续攻击时逐渐无视敌人的防御力，最高无视其防御力的50%（每次攻击提升10%的无视防御比例），8秒内未攻击则失去加成": every
 //   attack she makes adds a stack (max_stack_cnt) of +def_penetrate 物理穿透 (defIgnorePct, added — PRTS 备注 "增加自身物理穿透（百分
 //   比）属性（直接加算）") before its damage ("获得的加成可应用于当次伤害"), all of them lost `duration` s after her last attack.
-// - T2 重如沼泥 "技能期间对每个敌人首次造成伤害时，攻击力提升至160%并使目标停顿3秒": while a skill of hers runs, her first (SIE-Y stage
-//   2+: first max_stack_cnt) damage instances on each enemy deal ×atk_scale (攻击力倍率) and, when they land, 停顿 `sluggish` s —
-//   every damage of hers, the S3 arrow rain included ("造成伤害"); the marks are cleared when the skill ends or she leaves
-//   (PRTS 备注 "非首次标记…自身技能结束时或自身离场时移除"). A dodged instance spends its mark [ASSUMED: "于计算伤害前触发"].
+// - T2 重如沼泥 "技能期间对每个敌人首次造成伤害时，攻击力提升至160%并使目标停顿3秒" (full potential: 170%): while a skill of hers
+//   runs, her first (SIE-Y stage 2+: first max_stack_cnt) damage instances on each enemy deal ×atk_scale (攻击力倍率) and,
+//   when they land, 停顿 `sluggish` s — every damage of hers, the S3 arrow rain included ("造成伤害"); the marks are cleared
+//   when the skill ends or she leaves (PRTS 备注 "非首次标记…自身技能结束时或自身离场时移除"). A dodged instance spends its mark
+//   [ASSUMED: "于计算伤害前触发"].
 // - S1 迅捷打击·γ型 (35 s): ATK +atk, ASPD +attack_speed.
 // - S2 冰原秩序: ATK +atk; every attack shoots two arrows, at two different enemies when there are two (targeting 2), else both
 //   at the one (PRTS "优先攻击不同目标"); each arrow attack@prob to stun attack@stun s. first_duration s on its first cast of a

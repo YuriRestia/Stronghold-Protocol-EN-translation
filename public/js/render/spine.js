@@ -107,6 +107,9 @@ export class SpineActor {
     this.endClip = null;          // setForm's closing clip, played as a change clip once the clock reaches endAt,
     this.endAt = 0;               // landing in endRoles (the next form's) when given
     this.endRoles = null;
+    this.skillIndex = null;       // the skill slot whose clip `skill` plays (setSkillIndex), null = the manifest's primary
+    this.runMode = false;         // move on the model's own Run cycle (setRunMode)
+    this.formRoles = null;        // the clip set of the form in force (setForm), over the unit's own roles
     this.skillOn = false;
     this.skillClipOnce = false;    // skillBegin: the skill's own clip plays once (a clip with no Begin / own Idle)
     this.skillEndPending = false;  // … and the skill turned off inside it: play its End clip / base when it ends
@@ -145,12 +148,32 @@ export class SpineActor {
    * @param {number|undefined} index 0-based skill index
    */
   setSkillIndex(index) {
-    const anims = this.entry?.anims || {};
-    const clip = Number.isInteger(index) && anims.skills ? anims.skills[String(index)] : null;
-    this.roles = this.baseRoles = clip ? { ...anims, skill: clip } : anims;
+    this.skillIndex = Number.isInteger(index) ? index : null;
+    this._applyRoles();
   }
 
-  /** The unit's own roles: the manifest's with its equipped skill's clip (setSkillIndex) — what a form ends in. */
+  /**
+   * A fast mover walks on its model's own Run cycle (`anims.run`; PR #275 by @xcdoge): 猎狗pro (moveSpeed 1.9, 行动速度很快)
+   * ships Move_Loop 0.80 s next to Run_Loop 0.53 s. Composes with setSkillIndex; a model without a Run cycle is unchanged.
+   */
+  setRunMode(on) {
+    this.runMode = !!on;
+    this._applyRoles();
+  }
+
+  /** The unit's own roles (the manifest's, its skill slot's clip and the Run cycle applied) under the form in force. */
+  _applyRoles() {
+    const anims = this.entry?.anims || {};
+    const clip = Number.isInteger(this.skillIndex) && anims.skills ? anims.skills[String(this.skillIndex)] : null;
+    const run = this.runMode && anims.run ? anims.run : null;
+    const base = clip || run ? { ...anims } : anims;
+    if (clip) base.skill = clip;
+    if (run) base.move = run;
+    this.baseRoles = base;
+    this.roles = this.formRoles ? { ...base, ...this.formRoles } : base;
+  }
+
+  /** The unit's own roles: the manifest's with its skill slot's clip (setSkillIndex) and Run cycle — what a form ends in. */
   _baseRoles() { return this.baseRoles || this.entry?.anims || {}; }
 
   /**
@@ -163,6 +186,7 @@ export class SpineActor {
    */
   setForm(roles, change = null, end = null) {
     const anims = this._baseRoles();
+    this.formRoles = roles || null;   // kept over a later skill slot (_applyRoles)
     this.roles = roles ? { ...anims, ...roles } : anims;
     this.endClip = null;
     if (this.dead) return;
@@ -464,7 +488,7 @@ export class SpineActor {
     if (this.endClip && this.clock >= this.endAt) {
       const clip = this.endClip;
       this.endClip = null;
-      if (this.endRoles) this.roles = { ...this._baseRoles(), ...this.endRoles };
+      if (this.endRoles) { this.formRoles = this.endRoles; this.roles = { ...this._baseRoles(), ...this.endRoles }; }
       if (!this.dead) this._change(clip);
     }
     if (this.windUntil != null && this.clock >= this.windUntil) {

@@ -392,9 +392,27 @@ function equipCheck(ctx, itemPiece, targetPiece) {
   return { ok: true, action: 'equip' };
 }
 
-/** Whether equipping `itemId` attaches it (true) or consumes it on equip (false: no slot is used / replaced). */
-export function itemAttaches(item) {
-  return !(typeof item?.kind === 'string' && item.kind.startsWith('consume_on_equip'));
+/** Whether an item record is consumed on equip (data `kind` consume_on_equip*: it resolves at once and takes no slot). */
+const consumedOnEquip = (item) => typeof item?.kind === 'string' && item.kind.startsWith('consume_on_equip');
+/** Item effects that promote the carrier (博士投影): the server refuses them on an elite (builtinMeta 'already elite'). */
+const PROMOTE_KEYS = new Set(['use_equip_upgrade_char', 'equip_round_start_upgrade_char']);
+
+/**
+ * Whether dropping item `uid` on the chess `targetPiece` opens the replace dialog: its two slots are used and the server
+ * would replace one of them — every item, a consume-on-equip one too (PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备";
+ * GitHub #263: the pick is destroyed, then the item resolves and the slot stays free). Not when nothing is replaced: an
+ * attaching item that completes an item merge (the server merges it instead of equipping, `equipMerges`) or a
+ * 博士投影 on an elite (refused by the server).
+ * @param {ReturnType<typeof placementContext>} ctx
+ * @param {number} uid
+ * @param {any} targetPiece
+ */
+export function equipReplaces(ctx, uid, targetPiece) {
+  if (!Array.isArray(targetPiece?.items) || targetPiece.items.length < 2) return false;
+  const rec = ctx.getItem(ctx.pieces.get(uid)?.piece?.id);
+  if (!consumedOnEquip(rec)) return !equipMerges(ctx, uid);
+  const promotes = Array.isArray(rec.buffs) && rec.buffs.some((b) => PROMOTE_KEYS.has(b?.key));
+  return !(promotes && targetPiece.golden);
 }
 
 /**
@@ -454,11 +472,8 @@ export function dropIntent(ctx, uid, target) {
   if (res.action === 'art') return { t: 'g.art', fields: { itemUid: uid, row: target.row, col: target.col } };
   if (res.action === 'equip') {
     const occ = target.area === 'hand' ? ctx.handAt.get(target.idx) : ctx.boardAt.get(tileKey(target.row, target.col));
-    // both slots used: the replace dialog picks the equipped item to destroy (g.equip replaceUid) — unless the item is
-    // consumed on equip, or it completes an item merge (the server merges it instead of equipping: nothing replaced)
-    const full = Array.isArray(occ?.piece?.items) && occ.piece.items.length >= 2
-      && itemAttaches(ctx.getItem(ctx.pieces.get(uid)?.piece?.id)) && !equipMerges(ctx, uid);
-    return { t: 'g.equip', fields: { itemUid: uid, targetUid: occ.piece.uid }, confirmReplace: full };
+    // both slots used: the replace dialog picks the equipped item to destroy (g.equip replaceUid) — see equipReplaces
+    return { t: 'g.equip', fields: { itemUid: uid, targetUid: occ.piece.uid }, confirmReplace: equipReplaces(ctx, uid, occ.piece) };
   }
   const to = target.area === 'hand' ? { area: 'hand', idx: target.idx } : { area: 'board', row: target.row, col: target.col };
   return { t: 'g.move', fields: { uid, to } };

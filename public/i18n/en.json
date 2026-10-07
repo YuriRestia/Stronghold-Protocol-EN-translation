@@ -438,6 +438,7 @@
   "自动触发": "Auto Trigger",
   "精英": "Elite",
   "领袖": "Leader",
+  "实际为生命值低于一半时提高治疗量，正好一半不提高（PRTS 修正，原文为“不高于”）": "In practice the heal boost applies below half HP, not at exactly half (PRTS correction; the original text says “at or below”)",
   "物理": "Physical",
   "法术": "Arts",
   "治疗": "Healing",

@@ -4,7 +4,7 @@
 // an operator (自选)").
 //
 // Forms (data/backups.json units.char_1052_kalts2): normal = E2 Lv1, skills at rank 4; elite = E2 Lv60, rank 7 (no module,
-// so tiers 5 and 6 field the same elite) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// so tiers 5 and 6 field the same elite) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / token_table (zh_CN, as built into backups.json); PRTS 凯尔希·思衡托 (T1 备注
 // "治疗效果无视禁疗…除非该目标为Mon3tr(凯尔希的召唤物)", "阻挡范围加成为提升自身的“阻挡半径倍率”属性"; T2 备注 "无视孤立",
 // "“进入”的方式包括…部署时攻击范围碰撞到单位、单位部署在…攻击范围内…2技能攻击范围扩大时额外区域碰撞到的单位…3技能移动前发射的弹道
@@ -28,7 +28,7 @@
 //   her y-6). Her heals and their selection pass 凯尔希's Mon3tr (token_10002_kalts_mon3tr) through its 禁疗 (`healThrough`);
 //   other 禁疗 units stay out of the selection, and "治疗效果无视禁疗" changes nothing else here (no heal of hers reaches an
 //   unselected 禁疗 unit). 起飞 itself is T1's.
-// - T1 遗尘守望: max HP / DEF +max_hp / +def (0.25), block +block_cnt, 阻挡半径倍率 +block_radius_scale (mod
+// - T1 遗尘守望: max HP / DEF +max_hp / +def (0.3), block +block_cnt, 阻挡半径倍率 +block_radius_scale (mod
 //   `blockRadiusScale`: her air-block radius 0.8944 × 1.23, Battle._checkBlock), and 起飞 from her deployment (flags
 //   `liftoff` + `blockFly`: no ground enemy selects or is blocked by her, she blocks flyers — kalts2_t_1 ChangeCharBlockMode
 //   FLY, from a ranged tile too). The 生命修复单元 is her model.

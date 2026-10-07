@@ -14,7 +14,7 @@ function reed2(bb, chess, def) {
   const sProb = num(bb['talent@prob'], num(t0.prob)), dot = num(bb['talent@s3_atk_scale']);
   const aoe = num(bb['talent@aoe_scale']), aoeR = num(bb['talent@range_radius'], 1.7);
   const scorchAtk = num(t0.atk), scorchFragile = num(t0.damage_scale, 1) - 1;
-  // 灼痕: ATK −20 % (marker buff, 不可叠加) + 30 % 法术脆弱 (the catalogue status: 同名效果取最高 with other sources)
+  // 灼痕: ATK −22 % (marker buff, 不可叠加) + 32 % 法术脆弱 at full potential (the catalogue status: 同名效果取最高 with other sources)
   const scorch = (battle, unit, e) => {
     if (!e || !e.alive) return;
     const sk = unit.skill;

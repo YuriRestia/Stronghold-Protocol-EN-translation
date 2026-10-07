@@ -5,7 +5,8 @@
 // death pays the card's owner when that player fights there — on its own field a 活性源石 death always paid (pinned) —
 // and in 联防, where the owner is the leaker (unite.js planUnite) and fights elsewhere, the helper whose half it fell on.
 // Until 0.2.0 that last case fell back to the leaker, who has no per-player entry in the 联防 battle: the coins were
-// dropped (until 0.1.3 the 联防 field was the round's map — 战场#04's 活性源石 burned leaked bounty enemies for nothing).
+// dropped (in 0.1.x the 联防 field was the round's map, as it is again since 0.2.1, so 战场#04's 活性源石 burned leaked
+// bounty enemies for nothing).
 // Run: node --test test/sim/feedback5-bounty-payee.test.js
 
 import { test } from 'node:test';

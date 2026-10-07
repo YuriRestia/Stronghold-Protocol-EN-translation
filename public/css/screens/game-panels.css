@@ -298,6 +298,9 @@
 .bpop__ban .icon { width: .14rem; height: .14rem; }
 /* a member through 变形同构体 (the item pairing, not the operator's own bond): a gold 同构 tag on the portrait */
 .bpop__iso { position: absolute; top: .02rem; right: .08rem; padding: 0 .04rem; font-size: .11rem; line-height: 1.45; font-weight: 700; color: #141414; background: var(--gold-2); }
+/* a 自选 pick all of whose bonds are off this match (m.private.diyBanned): its 「自选」 tag moves down to the portrait's
+   bottom corner (the 替补 mark's place), clear of the red ✕ and the tier chip */
+.bpop__member.is-banned .bpop__diy { top: .42rem; }
 .dbonds--top .dbond.is-granted { border-style: dashed; }
 .dbond__iso { font-size: .11rem; font-weight: 700; color: var(--gold-2); }
 /* a count that holds 调和's +1 (the server's bond entry `harmony`, DESIGN §21.26): 在场 n（含调和 +1） and the 调和 row that

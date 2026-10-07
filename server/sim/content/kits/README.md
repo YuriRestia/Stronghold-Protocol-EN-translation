@@ -201,7 +201,7 @@ hook), and clear the owner's `mem.summonStock[tokenId]` when the skill takes the
 `units: [op, { uid, kind: 'token', tokenId, ownerUid, row, col }]` (`test/content/op_bgsnow.test.js`); the match side is
 covered by `test/match/diy-shop.test.js` (a DIY 鸿雪's 打字机 from prep to battle). A 召唤师 whose talent holds a deck of
 summons ("可以使用5个召唤物（最多同时部署3个）") takes `shared/summoner.js summonDeck` — the holding, a placed piece's return
-on its tile, recalls, its pieces' kits (`op-mgllan.js`, `op-ling.js`, `op-radian.js`). Potential is 0 [ASSUMED: no account]. A new kit makes the operator a legal pick at once:
+on its tile, recalls, its pieces' kits (`op-mgllan.js`, `op-ling.js`, `op-radian.js`). Every pick fights at full potential, as every chess (the owner's decision of 2026-10-07: data/backups.json forms, build-data `OPERATOR_POTENTIAL`). A new kit makes the operator a legal pick at once:
 the server's `welcome.diyKitted` lists `KITTED_CHARS`, so the 自选编队 picker offers it and `room.diy` keeps it.
 
 **The fidelity rule and the checklist** above apply item by item: every skill at rank 4 and 7, every talent, every
@@ -282,7 +282,7 @@ Each item is a mistake this project already made once. Tick every one for every 
   data's `spType`, `initSp`; SkillSpec overrides need a reason). Examples: ammo — 隐现 `ops/chess_char_1_01-inside.js`,
   `kits_t1t2.test.js` "1_01 隐现: ammo skill"; charges — 松果 S1, `kits_alt_t3.test.js` "3_10 松果 S1 RMA长钉 (charges)";
   hit SP — `feedback1d-solvent.test.js` (the drain feeds 受击回复 SP).
-- [ ] **2. Talents** — every talent at the chess's level / potential (the talent blackboards), conditional ones too.
+- [ ] **2. Talents** — every talent at the chess's level and full potential (the talent blackboards), conditional ones too.
   Example: `kits_t1t2.test.js` "1_01 隐现 elite: +self_ammo after `duration` s on field; a random other 【拉特兰】 ammo
   operator +ally_ammo".
 - [ ] **3. Modules** — for every module the chess offers (loadout, DESIGN §16): the trait override

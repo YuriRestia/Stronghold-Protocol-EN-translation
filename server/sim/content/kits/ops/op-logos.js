@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4133_logos, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 逻各斯 (the
 // 备注 quoted below). Every number is read from the record (`chess` / the skill blackboards); the few constants below exist
 // only in the PRTS 备注.
@@ -14,16 +14,16 @@
 //   "普通攻击命中精英或领袖敌人时获得1点技力" (trait bb `sp`): +sp SP per normal-attack hit on an elite or leader enemy
 //   (none while a timed skill runs — AK) and, per the 语汇演化 备注 "<Y模组>…可触发模组提供的额外特性", per talent hit too.
 // - T1 语汇演化 "对一个目标发起攻击时，有40%几率额外对攻击范围内一个随机目标造成相当于攻击力60%的法术伤害并使其停顿0.8秒"
-//   (bb prob / atk_scale / sluggish): rolled for every target of each of his attacks and after 殁亡's follow-up hit (S1 备注
-//   "可触发第一天赋"); the extra hit lands at once on a random targetable enemy of his current range [ASSUMED: the attacked
-//   target can be drawn], then 停顿 (the engine `sluggish`) for `sluggish` s. 备注 "该天赋的触发不依赖普通攻击，不受缴械类效果
-//   制约". CCR-Δ stage 2+: prob 0.5 / 0.6 and, on a target in its 凋亡 burst, `element_atk_scale` × ATK 元素伤害 after the arts
-//   hit (备注 "先造成法术伤害，后造成元素伤害"). CCR-Y stage 2+: `emit_count` 2 — 备注 "本质上是将该天赋重复执行2次": two
-//   independent executions (each its own roll and random target).
-// - T2 剜魂具辞 "攻击使目标在5秒内法术抗性-10且受到的法术伤害提高150点" (bb duration / magic_resistance / atk_addition):
-//   each of his attack hits gives the target, for `duration` s, RES `magic_resistance` and +`atk_addition` on every arts
-//   damage it takes (备注 "在计算攻击倍率后、计算法术抗性前增加当次伤害", "可对当次伤害生效", "即使法术伤害的攻击力为0也可
-//   生效"): added to the hit's pre-mitigation amount, the hit that applies it included. One instance per enemy whoever
+//   (full potential: 65 %; bb prob / atk_scale / sluggish): rolled for every target of each of his attacks and after 殁亡's
+//   follow-up hit (S1 备注 "可触发第一天赋"); the extra hit lands at once on a random targetable enemy of his current range
+//   [ASSUMED: the attacked target can be drawn], then 停顿 (the engine `sluggish`) for `sluggish` s. 备注 "该天赋的触发不依赖
+//   普通攻击，不受缴械类效果制约". CCR-Δ stage 2+: prob 0.5 / 0.6 and, on a target in its 凋亡 burst, `element_atk_scale` × ATK
+//   元素伤害 after the arts hit (备注 "先造成法术伤害，后造成元素伤害"). CCR-Y stage 2+: `emit_count` 2 — 备注 "本质上是将该天赋
+//   重复执行2次": two independent executions (each its own roll and random target).
+// - T2 剜魂具辞 "攻击使目标在5秒内法术抗性-10且受到的法术伤害提高150点" (full potential: 165; bb duration / magic_resistance /
+//   atk_addition): each of his attack hits gives the target, for `duration` s, RES `magic_resistance` and +`atk_addition` on
+//   every arts damage it takes (备注 "在计算攻击倍率后、计算法术抗性前增加当次伤害", "可对当次伤害生效", "即使法术伤害的攻击力
+//   为0也可生效"): added to the hit's pre-mitigation amount, the hit that applies it included. One instance per enemy whoever
 //   applies it (同名效果: applyStrongest).
 // - S1 殁亡 (AUTO, 持续时间无限 ⇒ toggle; the data's DEFAULT trigger — it acts on enemies): range 3-3, ATK +atk, and an aura
 //   (备注 "光环效果，不依赖攻击行为"): every enemy of his range whose HP is below attack@kill_atk_scale × his ATK takes

@@ -82,7 +82,7 @@ test('W in every 自选 form: her kit (all three skills authored), the form\'s s
     }
   }
   assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['MANUAL', 'DEFAULT'], ['AUTO', 'DEFAULT'], ['MANUAL', 'DEFAULT']]);
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1284, 711, 1497, 844]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1284, 746, 1497, 879]);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr, modOf(5, Y).attr, modOf(6, Y).attr], [{ maxHp: 130, atk: 54 }, { maxHp: 210, atk: 78 }, { maxHp: 160, atk: 45 }, { maxHp: 200, atk: 85 }]);
   const data = { chess: CHESS, backups: BACKUPS };
   assert.ok(KITTED_CHARS.includes(W) && [5, 6].every((t) => diyPool(t, { data, kitted: KITTED_CHARS }).includes(W)));
@@ -244,10 +244,10 @@ test('S3 D12 (MANUAL, data DEFAULT, 42 / 39 SP from 14 / 17): bombs on the 3 ene
     assert.ok(victims.has(side), `T${tier}: and what stands within 1.2 of a bomb`);
     assert.ok(!victims.has(lo) && !victims.has(e3), `T${tier}: the others untouched`);
     // the ATK cached at the cast (her +100 % since then counts for nothing); a victim of her range that an earlier bomb
-    // stunned takes 落井下石's ×1.18 on top, the one outside her range never
+    // stunned takes 落井下石's ×1.21 on top, the one outside her range never
     const base = atk * sk.bb.atk_scale;
     for (const c of blasts) {
-      const stunnedBefore = c.target !== side && Math.abs(c.amount - base * 1.18) < 1e-6 * base;
+      const stunnedBefore = c.target !== side && Math.abs(c.amount - base * 1.21) < 1e-6 * base;
       assert.ok(Math.abs(c.amount - base) < 1e-6 * base || stunnedBefore, `T${tier}: the cached ATK × ${sk.bb.atk_scale} (${c.amount} vs ${base})`);
       assert.deepEqual([c.type, c.source, c.credit, !!c.dmg.sourceless], ['phys', null, u, true], `T${tier}: 无来源, credited to her`);
     }
@@ -331,7 +331,7 @@ test('T1 设伏: 10 s after each deployment 60 % physical and arts dodge, taunt 
   done(h);
 });
 
-test('T2 落井下石: a stunned enemy in her range takes ×1.18 physical damage from anyone (×1.24 with ART-X stage 3); not arts, not unstunned, not frozen, not outside her range; two W keep the strongest', () => {
+test('T2 落井下石: a stunned enemy in her range takes ×1.21 physical damage from anyone (×1.27 with ART-X stage 3); not arts, not unstunned, not frozen, not outside her range; two W keep the strongest', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const x3 = elite && mod === X && tier === 6;
@@ -339,7 +339,7 @@ test('T2 落井下石: a stunned enemy in her range takes ×1.18 physical damage
     const ally = h.unit(2);
     h.b.addBuff(u, { key: 'test:disarm', flags: { disarm: true } });
     const inR = h.spawn('enemy_dummy', { pos: [11, 7] }), outR = h.spawn('enemy_dummy', { pos: [12, 7] });
-    const scale = x3 ? 1.24 : 1.18;
+    const scale = x3 ? 1.27 : 1.21;
     assert.equal(u.def.raw.talents.find((t) => t.index === 1).bb.damage_scale, scale, label(f));
     const deal = (e, type) => h.b.dealDamage(ally, e, { amount: 1000, type, canDodge: false });
     assert.equal(deal(inR, 'phys'), 1000, `${label(f)}: not stunned`);
@@ -359,7 +359,7 @@ test('T2 落井下石: a stunned enemy in her range takes ×1.18 physical damage
   h.step();
   const e = h.spawn('enemy_dummy', { pos: [10, 7] });
   h.b.applyStatus(e, 'stun', { duration: 5 });
-  approx(h.b.dealDamage(null, e, { amount: 1000, type: 'phys', canDodge: false }), 1240, 'two W: ×1.24, not ×1.18 × 1.24');
+  approx(h.b.dealDamage(null, e, { amount: 1000, type: 'phys', canDodge: false }), 1270, 'two W: ×1.27, not ×1.21 × 1.27');
   checkInvariants(h.b);
 });
 

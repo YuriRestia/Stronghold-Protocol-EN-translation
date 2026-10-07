@@ -69,9 +69,9 @@ test('提丰 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // E2 Lv1 1310 / 867 / 92, E2 Lv60 1570 / 985 / 106; SIE-X +120 HP / +60 ATK → +210 / +90, SIE-Y +70 ATK / +5 ASPD → +94 / +7,
+  // E2 Lv1 1310 / 901 / 92, E2 Lv60 1570 / 1019 / 106; SIE-X +120 HP / +60 ATK → +210 / +90, SIE-Y +70 ATK / +5 ASPD → +94 / +7,
   // ISW-A +100 / +70 → +150 / +90
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1310, 867, 1570, 985]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1310, 901, 1570, 1019]);
   assert.deepEqual([modOf(5, SIEX).attr, modOf(6, SIEX).attr, modOf(5, SIEY).attr, modOf(6, SIEY).attr, modOf(5, ISWA).attr, modOf(6, ISWA).attr],
     [{ maxHp: 120, atk: 60 }, { maxHp: 210, atk: 90 }, { atk: 70, aspd: 5 }, { atk: 94, aspd: 7 }, { maxHp: 100, atk: 70 }, { maxHp: 150, atk: 90 }]);
 });
@@ -192,9 +192,9 @@ test('S3 “永恒狩猎”: 7 / 8 rounds, attack interval 2.4 + 3.1 s; the mark
     const rounds = Map.groupBy(rain, (c) => Math.round((c.t - t0) / 5.5));
     assert.equal(rounds.size, sk.bb['attack@s3_trigger_time'], `T${tier}: one round per bullet`);
     for (const list of rounds.values()) list.forEach((c, i) => i && approx(c.t - list[i - 1].t, 0.1, `T${tier}: 0.1 s apart`, 0.05));
-    // amounts: ATK × s3_atk_scale (DEF 0), the first hit on each enemy ×1.6 (重如沼泥)
+    // amounts: ATK × s3_atk_scale (DEF 0), the first hit on each enemy ×1.7 (重如沼泥)
     const firsts = new Set([marked, near].map((e) => rain.find((c) => c.target === e)));
-    for (const c of rain) approx(c.amount, u.s.atk * sk.bb['attack@s3_atk_scale'] * (firsts.has(c) ? 1.6 : 1), `T${tier}: s3_atk_scale`);
+    for (const c of rain) approx(c.amount, u.s.atk * sk.bb['attack@s3_atk_scale'] * (firsts.has(c) ? 1.7 : 1), `T${tier}: s3_atk_scale`);
     const stuns = h.hooksOf('statusApplied').filter((c) => c.source === u && c.status === 'stun');
     assert.equal(stuns.length, rain.length, `T${tier}: a stun per landed arrow`);
     for (const c of stuns) approx(c.duration, 0.4, `T${tier}: 0.4 s`);
@@ -247,12 +247,12 @@ test('T1 锐如兽牙: each attack adds 10 % (SIE-X stage 3: 12 %) DEF ignore up
   }
 });
 
-test('T2 重如沼泥: while her skill runs, the first damage on each enemy deals ×1.6 and 停顿 3 s (SIE-Y stage 3: the first two, ×2.2); not outside a skill; a new cast clears the marks', () => {
+test('T2 重如沼泥: while her skill runs, the first damage on each enemy deals ×1.7 and 停顿 3 s (SIE-Y stage 3: the first two, ×2.3); not outside a skill; a new cast clears the marks', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [5, true, SIEY], [6, true, SIEY], [6, true, ISWA]]) {
     const t1 = formOf(tier, elite).talents.find((t) => t.index === 1).bb;
     const tc = mod === SIEY && tier === 6 ? modOf(tier, SIEY).talentChanges.find((t) => t.talentIndex === 1).bb : null;
     const n = tc?.max_stack_cnt ?? 1, scale = tc?.atk_scale ?? t1.atk_scale;
-    assert.deepEqual([scale, tc?.sluggish ?? t1.sluggish], [tier === 6 && mod === SIEY ? 2.2 : 1.6, 3], label([tier, elite, mod]));
+    assert.deepEqual([scale, tc?.sluggish ?? t1.sluggish], [tier === 6 && mod === SIEY ? 2.3 : 1.7, 3], label([tier, elite, mod]));
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     const a = h.spawn('enemy_light', { pos: [10, 5] });
     const far = (d) => (mod === SIEY ? 1 + 0.12 * (d - 1) / 3.5 : 1);
@@ -296,14 +296,14 @@ test('SIE-X 自然的包容: ×1.15 on her attacks against 重量等级 ≥ 3, n
     assert.ok(atkHits(h, u).some((c) => c.target === mid) && atkHits(h, u).some((c) => c.target.weight >= 3));
     done(h);
   }
-  // S3: rain hits on a weight-3 enemy are s3_atk_scale × ATK (× 1.6 the first)
+  // S3: rain hits on a weight-3 enemy are s3_atk_scale × ATK (× 1.7 the first)
   const { h, u } = field({ tier: 6, elite: true, mod: SIEX, skill: 2 });
   h.spawn('enemy_heavy', { pos: [10, 6] });
   u.skill.gainSp(999);
   assert.ok(h.runUntil(() => u.skill.active, 4));
   h.run(7);
   const rain = rainHits(h, u);
-  rain.forEach((c, i) => approx(c.amount, u.s.atk * 1.6 * (i === 0 ? 1.6 : 1), `rain ${i + 1}: no ×1.15`));
+  rain.forEach((c, i) => approx(c.amount, u.s.atk * 1.6 * (i === 0 ? 1.7 : 1), `rain ${i + 1}: no ×1.15`));
   done(h);
 });
 
@@ -325,7 +325,7 @@ test('SIE-Y 冰原的影子: her attack damage rises with the distance, linearly
   assert.ok(h.runUntil(() => u.skill.active, 4));
   h.run(7);
   const n = modOf(6, SIEY).talentChanges.find((t) => t.talentIndex === 1).bb.max_stack_cnt;
-  rainHits(h, u).forEach((c, i) => approx(c.amount, u.s.atk * 1.6 * (i < n ? 2.2 : 1), `rain ${i + 1}: no distance bonus`));
+  rainHits(h, u).forEach((c, i) => approx(c.amount, u.s.atk * 1.6 * (i < n ? 2.3 : 1), `rain ${i + 1}: no distance bonus`));
   done(h);
 });
 

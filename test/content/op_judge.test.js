@@ -83,8 +83,8 @@ test('斥罪 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // zh_CN numbers: E2 Lv1 2960 / 683 / 474, E2 Lv60 3686 / 811 / 568; UNY-X +150/+35/+15 → +300/+50/+33, UNY-Y +60/+48 → +85/+70
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2960, 683, 3686, 811]);
+  // zh_CN numbers (full potential): E2 Lv1 2960 / 711 / 474, E2 Lv60 3686 / 839 / 568; UNY-X +150/+35/+15 → +300/+50/+33, UNY-Y +60/+48 → +85/+70
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2960, 711, 3686, 839]);
   assert.deepEqual([modOf(5, UNYX).attr, modOf(6, UNYX).attr, modOf(5, UNYY).attr, modOf(6, UNYY).attr],
     [{ maxHp: 150, atk: 35, def: 15 }, { maxHp: 300, atk: 50, def: 33 }, { atk: 60, def: 48 }, { atk: 85, def: 70 }]);
 });
@@ -97,13 +97,13 @@ test('a 自选 pick: 斥罪 is offered at tiers 5 and 6 (she has a kit) and a ro
     { ok: true, picks: { [SLOT[5]]: { charId: JUDGE, skillIndex: 0, uniEquipId: UNYY } } });
 });
 
-test('T1 律法卫士: barrier 50 % max HP at every deployment (70 % UNY-X stage 3), +10 % per enemy she knocks out (12 %), never past 300 % of the current max HP; it absorbs before HP', () => {
+test('T1 律法卫士: barrier 55 % max HP at every deployment (75 % UNY-X stage 3), +10 % per enemy she knocks out (12 %), never past 300 % of the current max HP; it absorbs before HP', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     const t0 = t0Of(u);
     const x3 = elite && mod === UNYX && tier === 6;
-    assert.deepEqual([t0.born_hp_ratio, t0.kill_hp_ratio, t0.max_hp_ratio], x3 ? [0.7, 0.12, 3] : [0.5, 0.1, 3], label(f));
+    assert.deepEqual([t0.born_hp_ratio, t0.kill_hp_ratio, t0.max_hp_ratio], x3 ? [0.75, 0.12, 3] : [0.55, 0.1, 3], label(f));
     approx(barrier(u), u.s.maxHp * t0.born_hp_ratio, `${label(f)}: at the deployment`);
     killOne(h, u);
     approx(barrier(u), u.s.maxHp * (t0.born_hp_ratio + t0.kill_hp_ratio), `${label(f)}: +1 kill`);
@@ -133,12 +133,12 @@ test('T1 律法卫士: barrier 50 % max HP at every deployment (70 % UNY-X stage
   }
 });
 
-test('T2 荆棘环身: while she holds barrier, every damage from an enemy deals 50 % ATK arts back (58 % UNY-Y stage 3) — the hit that breaks it too; none without barrier, for a 流失, a 无来源 hit or an ally', () => {
+test('T2 荆棘环身: while she holds barrier, every damage from an enemy deals 53 % ATK arts back (61 % UNY-Y stage 3) — the hit that breaks it too; none without barrier, for a 流失, a 无来源 hit or an ally', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 2, others: [{ uid: 2, chessId: 't_mate', row: 12, col: 3 }] });
     const t1 = t1Of(u);
-    assert.equal(t1.atk_scale, elite && mod === UNYY && tier === 6 ? 0.58 : 0.5, label(f));
+    assert.equal(t1.atk_scale, elite && mod === UNYY && tier === 6 ? 0.61 : 0.53, label(f));
     const e = h.spawn('enemy_dummy', { pos: [12, 9] });
     h.b.dealDamage(e, u, { amount: 100, type: 'phys' });
     const t = thorns(h, u, e);

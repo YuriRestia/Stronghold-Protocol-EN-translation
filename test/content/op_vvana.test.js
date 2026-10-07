@@ -75,8 +75,8 @@ test('薇薇安娜 in every 自选 form: her operator kit (all three skills auth
       done(h);
     }
   }
-  // zh_CN: E2 Lv1 2219 / 523 / 371, E2 Lv60 2684 / 605 / 421; AFT-D +240 / +30 → +420 / +60 HP / ATK, AFT-Y +240 / +30 / +30 → +300 / +45 / +45
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2219, 523, 2684, 605]);
+  // zh_CN, full potential: E2 Lv1 2219 / 551 / 371, E2 Lv60 2684 / 633 / 421; AFT-D +240 / +30 → +420 / +60 HP / ATK, AFT-Y +240 / +30 / +30 → +300 / +45 / +45
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2219, 551, 2684, 633]);
   assert.deepEqual([modOf(5, AFTD).attr, modOf(6, AFTD).attr, modOf(5, AFTY).attr, modOf(6, AFTY).attr], [{ maxHp: 240, atk: 30 }, { maxHp: 420, atk: 60 }, { maxHp: 240, atk: 30, def: 30 }, { maxHp: 300, atk: 45, def: 45 }]);
 });
 
@@ -103,7 +103,7 @@ test('S1 光影迅捷剑 (AUTO, DEFAULT, 2 charges): with one charge the next at
     assert.equal(skillAtk[0].length, 2, `T${tier}: 连续攻击两次`);
     for (const c of skillAtk[0]) {
       assert.deepEqual([c.target, c.type], [e, 'arts'], `T${tier}: the target, arts`);
-      approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.08, `T${tier}: ${sk.bb.atk_scale * 100} % ATK (× 燃烛施明 1.08)`);
+      approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.09, `T${tier}: ${sk.bb.atk_scale * 100} % ATK (× 燃烛施明 1.09)`);
     }
     assert.ok(u.skill.charges < 1 && !u.mem.vvanaCharged, `T${tier}: one charge spent, no 蓄力`);
     assert.deepEqual(u.liveRangeGrid, [[0, 0], [0, 1]], `T${tier}: 1-1`);
@@ -131,7 +131,7 @@ test('S1 蓄力: both charges stored ⇒ the 3-2 range (card and trigger), the c
     const skillAtk = byAttack(atkHits(h, u).filter((c) => c.dmg.isSkill));
     assert.equal(skillAtk.length, 1);
     assert.equal(skillAtk[0].length, 3, `T${tier}: 改为连续攻击三次`);
-    for (const c of skillAtk[0]) { assert.equal(c.target, e); approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.08, `T${tier}: ${sk.bb.atk_scale * 100} %`); }
+    for (const c of skillAtk[0]) { assert.equal(c.target, e); approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.09, `T${tier}: ${sk.bb.atk_scale * 100} %`); }
     assert.ok(u.skill.charges === 0 && u.skill.sp < 0.2, `T${tier}: 任何时候开启均消耗全部技力 (${u.skill.charges} / ${u.skill.sp})`);
     assert.deepEqual(u.liveRangeGrid, [[0, 0], [0, 1]], `T${tier}: 蓄力 over with the skill`);
     const n = atkHits(h, u).length;
@@ -186,8 +186,8 @@ test('S2 烛燃影息 (MANUAL, DEFAULT): 28 / 30 s, ATK +20 / 30 %, DEF +80 / 11
     assert.equal(twice.length + once.length, attacks.length, `T${tier}: one or two hits per target`);
     const rate = twice.length / attacks.length;
     assert.ok(rate > 0.13 && rate < 0.27, `T${tier}: double hits ${twice.length} / ${attacks.length} ≈ 20 %`);
-    for (const c of once[0]) approx(c.amount, u.s.atk * 1.08, `T${tier}: a plain hit 100 %`, 1e-3);
-    for (const c of twice[0]) approx(c.amount, u.s.atk * sk.bb['attack@atk_scale_twice'] * 1.08, `T${tier}: a double hit ${sk.bb['attack@atk_scale_twice'] * 100} %`, 1e-3);
+    for (const c of once[0]) approx(c.amount, u.s.atk * 1.09, `T${tier}: a plain hit 100 %`, 1e-3);
+    for (const c of twice[0]) approx(c.amount, u.s.atk * sk.bb['attack@atk_scale_twice'] * 1.09, `T${tier}: a double hit ${sk.bb['attack@atk_scale_twice'] * 100} %`, 1e-3);
     // 偷取: capped on both sides
     const steal = sk.bb['attack@steal_atk_speed'];
     assert.equal(u.findBuff('skill:vvana:loot')?.mods.aspd, steal, `T${tier}: her +${steal} ASPD (max ${steal})`);
@@ -251,23 +251,23 @@ test('S3 “明灭” (MANUAL, DEFAULT): 15 s, interval 1.25 + 0.5 s, ATK / DEF 
   }
 });
 
-test('T1 燃烛施明: arts dealt ×1.08, physical / arts taken ×0.92 — ×1.16 / ×0.84 while an elite / leader enemy is in her range; AFT-D stage 3: 9 % (18 %) of her attack damage as 灼燃损伤', () => {
+test('T1 燃烛施明: arts dealt ×1.09, physical / arts taken ×0.91 — ×1.18 / ×0.82 while an elite / leader enemy is in her range; AFT-D stage 3: 9 % (18 %) of her attack damage as 灼燃损伤', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     const t0 = u.def.raw.talents.find((t) => t.index === 0).bb;
-    assert.deepEqual([t0.damage_scale_m, t0.damage_resistance_pm, t0.super_scale], [0.08, 0.08, 2], label(f));
-    assert.deepEqual(u.findBuff(CANDLE)?.mods, { artsDealtMul: 1.08, physTakenMul: 0.92, artsTakenMul: 0.92 }, `${label(f)}: no elite`);
+    assert.deepEqual([t0.damage_scale_m, t0.damage_resistance_pm, t0.super_scale], [0.09, 0.09, 2], label(f));
+    assert.deepEqual(u.findBuff(CANDLE)?.mods, { artsDealtMul: 1.09, physTakenMul: 0.91, artsTakenMul: 0.91 }, `${label(f)}: no elite`);
     const taken = (type) => { const hp = u.hp; h.b.dealDamage(null, u, { amount: 1000, type }); const d = hp - u.hp; u.hp = u.s.maxHp; return d; };
-    approx(taken('arts'), 1000 * (1 - u.s.res / 100) * 0.92, `${label(f)}: arts taken −8 %`);
+    approx(taken('arts'), 1000 * (1 - u.s.res / 100) * 0.91, `${label(f)}: arts taken −9 %`);
     approx(taken('true'), 1000, `${label(f)}: true damage untouched`);
     const el = h.spawn('enemy_elite', { pos: [10, 6] });
     h.step();
-    approx(taken('arts'), 1000 * (1 - u.s.res / 100) * 0.84, `${label(f)}: −16 % with the elite in her range`);
+    approx(taken('arts'), 1000 * (1 - u.s.res / 100) * 0.82, `${label(f)}: −18 % with the elite in her range`);
     const m = u.findBuff(CANDLE).mods;
-    approx(m.artsDealtMul, 1.16, `${label(f)}: elite in range — arts dealt`);
-    approx(m.physTakenMul, 0.84, `${label(f)}: phys taken`);
-    approx(m.artsTakenMul, 0.84, `${label(f)}: arts taken`);
+    approx(m.artsDealtMul, 1.18, `${label(f)}: elite in range — arts dealt`);
+    approx(m.physTakenMul, 0.82, `${label(f)}: phys taken`);
+    approx(m.artsTakenMul, 0.82, `${label(f)}: arts taken`);
     const ep = elite && tier === 6 && mod === AFTD ? 0.09 : 0;
     assert.equal(t0.ep_damage_ratio_m ?? 0, ep, `${label(f)}: the AFT-D stage-3 灼燃损伤`);
     h.run(1.3);
@@ -276,7 +276,7 @@ test('T1 燃烛施明: arts dealt ×1.08, physical / arts taken ×0.92 — ×1.1
     approx(el.elem.burn, ep * 2 * atkHits(h, u).filter((c) => c.target === el).reduce((s, c) => s + c.amount, 0), `${label(f)}: 灼燃损伤 ×2 next to an elite`);
     h.b.kill(el, null);
     h.step();
-    approx(u.findBuff(CANDLE).mods.artsDealtMul, 1.08, `${label(f)}: back without the elite`);
+    approx(u.findBuff(CANDLE).mods.artsDealtMul, 1.09, `${label(f)}: back without the elite`);
     if (ep) {
       const e = h.spawn('enemy_dummy', { pos: [10, 6] });
       h.run(1.3);
@@ -286,7 +286,7 @@ test('T1 燃烛施明: arts dealt ×1.08, physical / arts taken ×0.92 — ×1.1
   }
 });
 
-test('T2 散华: hits on elite / leader enemies give a 护盾 layer at 18 % (AFT-Y stage 3: 25 %, 2 layers; × talent_scale while S3 runs) — only on elites, never above the cap', () => {
+test('T2 散华: hits on elite / leader enemies give a 护盾 layer at 20 % (AFT-Y stage 3: 27 %, 2 layers; × talent_scale while S3 runs) — only on elites, never above the cap', () => {
   const rateOf = (tier, elite, mod, s3) => {
     const { h, u } = field({ tier, elite, mod, skill: s3 ? 2 : 1, seed: 21 });
     if (!s3) h.b.on('spGain', (c) => { if (c.unit === u) c.amount = 0; });
@@ -305,11 +305,11 @@ test('T2 散华: hits on elite / leader enemies give a 护盾 layer at 18 % (AFT
     done(h);
     return gains / rolls;
   };
-  for (const [tier, elite, mod, p] of [[5, false, null, 0.18], [6, true, AFTY, 0.25], [5, true, AFTY, 0.18]]) {
+  for (const [tier, elite, mod, p] of [[5, false, null, 0.2], [6, true, AFTY, 0.27], [5, true, AFTY, 0.2]]) {
     const r = rateOf(tier, elite, mod, false);
     assert.ok(Math.abs(r - p) < 0.06, `T${tier} ${mod ?? 'none'}: ${r.toFixed(3)} ≈ ${p}`);
   }
-  for (const [tier, elite, mod, p] of [[5, false, null, 0.18 * 1.8], [6, true, AFTY, 0.25 * 2]]) {
+  for (const [tier, elite, mod, p] of [[5, false, null, 0.2 * 1.8], [6, true, AFTY, 0.27 * 2]]) {
     const r = rateOf(tier, elite, mod, true);
     assert.ok(Math.abs(r - p) < 0.08, `T${tier} ${mod ?? 'none'} under S3: ${r.toFixed(3)} ≈ ${p}`);
   }
@@ -412,7 +412,7 @@ test('AFT-Y “最后一行” trait: the enemies she blocks take 10 % 法术脆
       const n0 = atkHits(h, u).length;
       h.run(2);
       const c = atkHits(h, u).slice(n0).find((x) => x.target === w);
-      approx(c.amount, u.s.atk * 1.08 * 1.1, `${label(f)}: ×1.1 arts`);
+      approx(c.amount, u.s.atk * 1.09 * 1.1, `${label(f)}: ×1.1 arts`);
     }
     done(h);
   }

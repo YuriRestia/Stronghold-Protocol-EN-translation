@@ -12,7 +12,7 @@ import { bossFieldPlacement } from '../../server/match/finalAssault.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const STAGES = JSON.parse(readFileSync(path.join(ROOT, 'data/stages.json'), 'utf8'));
-// the battle stages (the two 联防 maps, kind 'unite', have no preview pen: nobody prepares on them)
+// the battle stages (the escaped levels' two maps, kind 'unite', have no preview pen: nobody prepares on them)
 const stageList = Object.values(STAGES.stages || STAGES).filter((s) => s.kind !== 'unite');
 const stage = (STAGES.stages || STAGES).act2autochess_m01;
 

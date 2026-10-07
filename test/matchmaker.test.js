@@ -1,4 +1,4 @@
-// test/matchmaker.test.js — server/matchmaker.js planMerges (DESIGN §26).
+// test/matchmaker.test.js — server/matchmaker.js planMerges (DESIGN §27).
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 

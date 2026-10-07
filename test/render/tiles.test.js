@@ -26,8 +26,8 @@ describe('parseStage', () => {
           assert.ok(t.alpha > 0 && t.alpha <= 1);
         }
       }
-      // the own board is always drawn and playable; hand slots are raised benches (the two 联防 maps, kind 'unite', have
-      // no bench: nobody prepares on them)
+      // the own board is always drawn and playable; hand slots are raised benches (the escaped levels' two maps, kind
+      // 'unite', have no bench: nobody prepares on them)
       for (let r = 9; r <= 12; r++) for (let c = 3; c <= 8; c++) assert.ok(g[r][c].drawn, `${id} board ${r},${c}`);
       for (let c = 0; c < 10; c++) {
         if (st.kind === 'unite') { assert.equal(g[7][c].glyph, '#', `${id} no hand ${c}`); continue; }

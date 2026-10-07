@@ -73,9 +73,9 @@ test('艾丽妮 in every 自选 form: her operator kit (all three skills authore
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2201 / 484 / 282, E2 Lv60 2688 / 575 / 326; SWO-Y +50 / +35 → +65 / +50
+  // the numbers of the forms (zh_CN, full potential): E2 Lv1 2201 / 507 / 282, E2 Lv60 2688 / 598 / 326; SWO-Y +50 / +35 → +65 / +50
   // ATK / DEF, SWO-X +50 ATK +5 ASPD → +80 / +7, ISW-A +240 HP +40 ATK → +300 / +65
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2201, 484, 2688, 575]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2201, 507, 2688, 598]);
   assert.deepEqual([SWOY, SWOX, ISWA].map((m) => [modOf(5, m).attr, modOf(6, m).attr]),
     [[{ atk: 50, def: 35 }, { atk: 65, def: 50 }], [{ atk: 50, aspd: 5 }, { atk: 80, aspd: 7 }], [{ maxHp: 240, atk: 40 }, { maxHp: 300, atk: 65 }]]);
 });
@@ -149,21 +149,21 @@ test('T1 审判之火 vs a ground enemy: one draw per physical instance at 50 %;
   }
 });
 
-test('T2 净化之剑: ASPD +18 (SWO-Y stage 3: ATK +5 % too), doubled while a 【海怪】 enemy is on the field', () => {
+test('T2 净化之剑: ASPD +21 (SWO-Y stage 3: ATK +5 % too), doubled while a 【海怪】 enemy is on the field', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     const y3 = elite && mod === SWOY && tier === 6;
     const atk = y3 ? 0.05 : 0;
-    approx(u.s.aspd, u.base.aspd + 18, `${label(f)}: ASPD +18`);
+    approx(u.s.aspd, u.base.aspd + 21, `${label(f)}: ASPD +21`);
     approx(u.s.atk, u.base.atk * (1 + atk), `${label(f)}: ATK`);
     const sea = h.spawn('enemy_sea', { pos: [9, 9] });
     h.step();
-    approx(u.s.aspd, u.base.aspd + 36, `${label(f)}: ×2 with a 海怪 on the field`);
+    approx(u.s.aspd, u.base.aspd + 42, `${label(f)}: ×2 with a 海怪 on the field`);
     approx(u.s.atk, u.base.atk * (1 + 2 * atk), `${label(f)}: ATK ×2`);
     h.b.kill(sea, null);
     h.step();
-    approx(u.s.aspd, u.base.aspd + 18, `${label(f)}: back once it is gone`);
+    approx(u.s.aspd, u.base.aspd + 21, `${label(f)}: back once it is gone`);
     done(h);
   }
 });

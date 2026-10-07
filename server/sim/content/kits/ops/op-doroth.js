@@ -4,8 +4,8 @@
 // ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4048_doroth): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json),
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json),
 // PRTS 多萝西 / 共振装置 (备注) and 分支特性信息 §陷阱师, and the client's battle data (charpack char_4048_doroth: SpawnTokens,
 // KillTokens, the T2 mode switch; skills skchr_doroth_1–3 / sktok_doroth_1–3; equips doroth_equip_1_* / 2_3_p1; buff
 // templates doroth_t_2, doroth_token[*], trapper_e_trait[*], doroth_e_003[advanced_spawn_token], charge_token[refresh],
@@ -23,11 +23,12 @@
 //   the deploy limit stand (data deployLimit 10; TRP-X 13 — 备注 "陷阱部署上限与最多拥有数量相同") and no ground enemy is on
 //   the tile; one piece per check (uid order), paying the cost and spending one trap.
 // - T1 共振装置 "可以使用8个共振装置（最多拥有10个），踩上去的第一个敌人会触发其效果，部署后立刻在攻击范围内召唤2个共振装置"
-//   (bb cnt, attack@max_cnt; TRP-X: 13 and stage 3: 3): her stock is refilled to cnt at each deployment (charge_token[refresh])
-//   and holds at most the deploy limit; at each deployment attack@max_cnt traps appear on free melee tiles of her attack
-//   range with no ground enemy (the enemies' ground paths first, random among equals — [ASSUMED]: the client's selector
+//   (full potential: 10个; bb cnt, attack@max_cnt; TRP-X: 13 and stage 3: 3): her stock is refilled to cnt at each deployment
+//   (charge_token[refresh]) and holds at most the deploy limit; at each deployment attack@max_cnt traps appear on free melee
+//   tiles of her attack range with no ground enemy (the enemies' ground paths first, random among equals — [ASSUMED]: the client's selector
 //   filter 16 is not decoded), spending no trap but counting toward the limit (备注); the placed pieces off the field keep
-//   their slots (no summon takes one) [ASSUMED]. 阻回 while the stock is full (备注; `_stopSpWhenTokenIsFull`).
+//   their slots (no summon takes one) [ASSUMED]. 阻回 while the stock is full (备注; `_stopSpWhenTokenIsFull`) — at full
+//   potential her deployment stock 10 fills the limit 10 (TRP-X 13 leaves room), so 阻回 until a trap is spent.
 // - 共振装置 (its kit below): 不会受到攻击 (data: untargetable), blocks nothing, no normal attack. The first selectable ground
 //   enemy standing on its tile (sktok_doroth_* SkillTrigger: targetMotion ground, range 0-1; the earliest spawned of
 //   several) sets it off — the effect of the token skill of her pick (bySkill), with her current ATK (PRTS "技能伤害始终借用
@@ -38,9 +39,9 @@
 //   高速共振排障: every selectable ground enemy on the trap's x-6 takes atk_scale × ATK arts and 停顿 `sluggish` s, and every
 //   other trap of hers on that x-6 goes off `interval` s later (备注 "延迟触发时长为2s"; doroth_token_s3[trigger]: once — a
 //   trap already waiting keeps its time [ASSUMED]), with no enemy needed, and sets off its own x-6 the same way.
-// - T2 梦想家 "陷阱触发后，多萝西获得2%的攻击力，最多叠加10层" (bb atk, max_stack_cnt; TRP-Y stage 3: 4%): every trap that goes
-//   off gives her one stack (ATK +atk, 直接乘算) until she leaves the field; with S1 / S2 before its damage, with S3 after
-//   it (备注). Full stacks switch her attack mode (doroth_t_2 SwitchMode: the Attack_2 clip — cosmetic here).
+// - T2 梦想家 "陷阱触发后，多萝西获得2%的攻击力，最多叠加10层" (full potential: 12层; bb atk, max_stack_cnt; TRP-Y stage 3: 4%):
+//   every trap that goes off gives her one stack (ATK +atk, 直接乘算) until she leaves the field; with S1 / S2 before its
+//   damage, with S3 after it (备注). Full stacks switch her attack mode (doroth_t_2 SwitchMode: the Attack_2 clip — cosmetic here).
 // - TRP-Y 童话书 "有20%概率部署造成2倍伤害的陷阱" (trait bb prob, atk_scale): each trap deployment rolls prob; such a trap deals
 //   ×atk_scale (trapper_e_trait[token_atk_scale] AtkScaleUp; the red "!" — fx 'mark'). Stage 3: T2 4 %.
 // - TRP-X 梦中人: traps cost 1 less and the limit is 13 (the token's module stats), T1 "最多拥有13个"; stage 3: T1 summons 3 and

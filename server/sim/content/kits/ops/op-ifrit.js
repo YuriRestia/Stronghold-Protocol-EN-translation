@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_134_ifrit, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 伊芙利特 (炎爆 备注
 // "灼伤：目标每秒受到伊芙利特当前攻击力33%的法术持续伤害，伊芙利特离场后也会生效" and "<模组相关>于伊芙利特在场时受模组基础效果影响";
 // 灼地 备注 "属于维持技能状态，时间模式为跟随动画", "降低法术抗性的效果持续1秒"; 精神融解 备注 "<Δ模组>造成的元素伤害为持续伤害";
@@ -21,18 +21,19 @@
 // - Module BLA-D “热成形记忆” (trait ep_damage_ratio 0.08): "造成法术伤害时附带相当于8%伤害的灼燃损伤" (ifrit_e_003_tr: ON_AFTER_
 //   OUTPUT_DAMAGE, every MAGICAL damage of hers) — 8 % of the HP damage dealt as 灼燃损伤 (`type: 'element'`, docs/SIM.md §7.2
 //   element conventions), the 灼伤 too while she stands. Stage 3 also changes T1 (below).
-// - T1 精神融解 "攻击范围内的敌军法术抗性-40%" (magic_resistance −0.4: a ratio; charpack ifrit_t_1, removed when the enemy leaves):
-//   RES ×0.6 on every enemy on her range, refreshed every AURA_IV s; several 伊芙利特 keep one (applyStrongest — the mode's
-//   "同名效果取最高" convention; [ASSUMED] the client's independentCharacterSource flag would let two stack, which a lone
-//   base-game 伊芙利特 never shows). BLA-D stage 2+ "若攻击目标处于灼燃损伤爆发期间，攻击对其额外造成相当于攻击力50%的元素伤害" (the
-//   module's hidden talent element_atk_scale; ifrit_e_003_ele: IsTargetInEPBreakRecovery FIRE ⇒ ELEMENT damage, attack type
-//   BUFF, 持续伤害): every hit of her attack abilities — normal attacks and the 灼地 ticks (the equip adds it to the abilities of
-//   `_targetFamilyMask` 31, [ASSUMED] every family: 1 / 3 mark the narrower equips) — on an enemy in its 灼燃 burst (its
-//   `burnBurst` lock) adds 50 % ATK 元素伤害
-//   (`type: 'elemental'`), tagged 'dot' (PRTS: "<Δ模组>造成的元素伤害为持续伤害"); never the 灼伤 (a buff's damage).
-// - T2 莱茵回路 "每6秒额外回复2点技力" (periodic_sp; BLA-X stage 2+ ifrit_e_002[sp]): +sp SP every `interval` s of a deployment
-//   (the first one interval in: waitFirstTriggerInterval; a gift during a running 狂热 / 灼地 is lost — no SP during a
-//   skill). BLA-X stage 2+ "有30%概率额外回复5点技力" (ifrit_e_002[dice_sp] prob / interval / sp): one roll per its own interval.
+// - T1 精神融解 "攻击范围内的敌军法术抗性-40%" (full potential: −44 %; magic_resistance −0.44: a ratio; charpack ifrit_t_1, removed
+//   when the enemy leaves): RES ×0.56 on every enemy on her range, refreshed every AURA_IV s; several 伊芙利特 keep one
+//   (applyStrongest — the mode's "同名效果取最高" convention; [ASSUMED] the client's independentCharacterSource flag would let
+//   two stack, which a lone base-game 伊芙利特 never shows). BLA-D stage 2+ "若攻击目标处于灼燃损伤爆发期间，攻击对其额外造成
+//   相当于攻击力50%的元素伤害" (the module's hidden talent element_atk_scale; ifrit_e_003_ele: IsTargetInEPBreakRecovery FIRE
+//   ⇒ ELEMENT damage, attack type BUFF, 持续伤害): every hit of her attack abilities — normal attacks and the 灼地 ticks
+//   (the equip adds it to the abilities of `_targetFamilyMask` 31, [ASSUMED] every family: 1 / 3 mark the narrower equips)
+//   — on an enemy in its 灼燃 burst (its `burnBurst` lock) adds 50 % ATK 元素伤害 (`type: 'elemental'`), tagged 'dot'
+//   (PRTS: "<Δ模组>造成的元素伤害为持续伤害"); never the 灼伤 (a buff's damage).
+// - T2 莱茵回路 "每6秒额外回复2点技力" (full potential: every 5.5 s; periodic_sp; BLA-X stage 2+ ifrit_e_002[sp]): +sp SP every
+//   `interval` s of a deployment (the first one interval in: waitFirstTriggerInterval; a gift during a running 狂热 / 灼地
+//   is lost — no SP during a skill). BLA-X stage 2+ "有30%概率额外回复5点技力" (ifrit_e_002[dice_sp] prob / interval / sp):
+//   one roll per its own interval.
 // - S1 狂热 (MANUAL, data DEFAULT, 20 s): ATK +atk, ASPD +attack_speed.
 // - S2 炎爆 (AUTO, 可充能 2 / 3 次, data DEFAULT — the "next attack" waits for her attack): the next attack hits her whole line
 //   (ground and air: its selector's targetMotion ALL) for atk_scale × ATK; every enemy it hits gets the buff ifrit_s_2
@@ -146,7 +147,7 @@ export default {
         },
       },
       talents: [
-        { install(battle, unit) { // 精神融解: RES −40 % on her range; BLA-D stage 2+: +50 % ATK 元素伤害 on a bursting target
+        { install(battle, unit) { // 精神融解: RES −44 % on her range; BLA-D stage 2+: +50 % ATK 元素伤害 on a bursting target
           const v = num(t0.magic_resistance);
           if (v) {
             battle.every(AURA_IV, () => {

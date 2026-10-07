@@ -65,7 +65,7 @@ test('#22 望\'s 棋子: a hand piece goes on a 高台 (ranged tile) as well as 
   assert.equal(ps.gd.token(STONE).position, 'ALL');
   const wang = placeDiy(m, ps, T5A);
   const stack = ps.hand.find((p) => p && p.kind === 'token' && p.id === STONE && p.ownerUid === wang.uid);
-  assert.ok(stack && stack.count === 6, 'her 6 棋子 joined the hand');
+  assert.ok(stack && stack.count === 7, 'her 7 棋子 joined the hand (6 + 1 at full potential)');
   const high = tilesOf(ps, 'ranged');
   const ground = tilesOf(ps, 'melee');
   assert.ok(high.length && ground.length, 'the stage has both tile classes');

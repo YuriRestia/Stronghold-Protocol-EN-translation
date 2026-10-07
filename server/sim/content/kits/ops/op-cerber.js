@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_2013_cerber, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json; every module part is
 // valid outside 集成战略 — no `validInGameTag`) and PRTS 刻俄柏 (S2 "攻击间隔缩短(*0.6)" / "较大幅度缩短(*0.4)": a ratio of the
 // interval; 剥壳 备注 "处理敌人防御力时不考虑物理穿透", "<X模组>每次攻击与上一次攻击相同的目标时，将提升5%的比例值（第五次后达到
@@ -14,12 +14,13 @@
 //   adds "无视目标10点法术抗性" (trait bb magic_resist_penetrate_fixed: a permanent resIgnoreFlat), CCR-Y “我打的刀”
 //   "普通攻击命中精英或领袖敌人时获得1点技力" (trait bb sp: per hit of one of her attacks on an elite / leader; a running timed
 //   skill takes no SP, as always).
-// - T1 剥壳 "攻击时对目标额外造成相当于其防御力40%的法术伤害": each hit of her attacks (S3's physical spear too) is followed by
-//   atk_scale × the target's DEF (its current DEF, her own penetration ignored — she has none) as arts damage, a damage
-//   instance of the talent (not an attack: no further on-hit effects). A target with no DEF takes none (PRTS: she "tries"
-//   and deals nothing; no flat arts bonus exists in this mode that a zero hit could carry). CCR-X stage 2+ (bb
-//   basic_atk_scale / delta_atk_scale / max_atk_scale): 50 % +5 % per consecutive hit on the same target, ≤ 75 %, back to
-//   50 % on another target (PRTS 备注), counted from the start of each deployment [ASSUMED].
+// - T1 剥壳 "攻击时对目标额外造成相当于其防御力40%的法术伤害" (full potential: 44 %): each hit of her attacks (S3's physical
+//   spear too) is followed by atk_scale × the target's DEF (its current DEF, her own penetration ignored — she has
+//   none) as arts damage, a damage instance of the talent (not an attack: no further on-hit effects). A target with no
+//   DEF takes none (PRTS: she "tries" and deals nothing; no flat arts bonus exists in this mode that a zero hit could
+//   carry). CCR-X stage 2+ (bb basic_atk_scale / delta_atk_scale / max_atk_scale): 54 % +5 % per consecutive hit on the
+//   same target, ≤ 79 %, back to 54 % on another target (PRTS 备注), counted from the start of each deployment
+//   [ASSUMED].
 // - T2 独行长路 "当周围四格内没有其他友方单位时，攻击力+8%，攻击速度+8": while no other ally unit (operator, summon or device —
 //   PRTS: no selectability / entity check) stands on her tile or the four next to it (x-5), with the 敌人类我方单位 rule
 //   of the 备注 (炎佑: an ally built from an enemy record; it does not switch the talent off, but one seen while it is off

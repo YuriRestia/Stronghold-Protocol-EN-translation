@@ -1,4 +1,4 @@
-# DESIGN §26 — Matchmaking
+# DESIGN §27 — Matchmaking
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 

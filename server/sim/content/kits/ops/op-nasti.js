@@ -5,7 +5,7 @@
 // add an operator (自选)"). The device stock / return / leave-with-the-owner rules are 白铁's (op-ironmn.js), shared.
 //
 // Forms (data/backups.json units.char_4212_nasti): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table / the token rows (zh_CN, as built into backups.json), PRTS
 // 娜斯提 (前方施工 备注 "所有装置的效果均为对自身攻击范围内所有单位生效的光环效果", "自身<支援装置>提供的效果均可叠加", "<X模组>首个
 // 装置部署费用-3；…若装置攻击范围内存在另一同来源同名的装置，将使用自身攻击范围+对方攻击范围形成复合范围"; 注意安全 备注 "远程敌人出现后，
@@ -37,12 +37,12 @@
 //   device). CRA-X stage 2+ "首个装置部署费用减少": after each of her deployments her next device deployment costs value (−3)
 //   less (UNTIL_NEXT_SPAWN — the battle-start deployment, free here, uses it up); stage 3 "装置可与攻击范围内其他装置共同提供效
 //   果": a device with another same-name device of hers on its range also reaches that device's range (one step).
-// - T2 注意安全 "获得10%庇护；远程敌人出现后，改为使自身和场上的高台干员获得15%庇护，且每6秒获得1点技力": 庇护 (ba.protect, the
-//   shared applyStrongest key 'protect': physical and arts damage taken ×(1 − v), the strongest wins) nasti_t2[res] on her;
-//   once a 远程 enemy (applyWay RANGED — ALL too [ASSUMED: the 2 bit]) is on the field, untargetable or stealthed too, until she
-//   leaves: [res_plus] on her and on every operator of our side whose position is 远程 (RANGED / ALL — "实际可部署于远程位"), 孤立
-//   ones too, and each of them +1 SP every interval s it holds it (the first one interval after; none at full SP or during a
-//   skill).
+// - T2 注意安全 "获得10%庇护；远程敌人出现后，改为使自身和场上的高台干员获得15%庇护，且每6秒获得1点技力" (full potential: 12 % /
+//   18 %): 庇护 (ba.protect, the shared applyStrongest key 'protect': physical and arts damage taken ×(1 − v), the strongest
+//   wins) nasti_t2[res] on her; once a 远程 enemy (applyWay RANGED — ALL too [ASSUMED: the 2 bit]) is on the field,
+//   untargetable or stealthed too, until she leaves: [res_plus] on her and on every operator of our side whose position is
+//   远程 (RANGED / ALL — "实际可部署于远程位"), 孤立 ones too, and each of them +1 SP every interval s it holds it (the first
+//   one interval after; none at full SP or during a skill).
 // - Module CRA-X “工程师们” "<支援装置>的持有上限+1且部署费用减少": stock +1, the data costs (2 / 2 / 3).
 // - “质检专员” (S1): "使前方干员的防御力+25%" (Σpct); while her S1 runs: DEF +talent@def instead, block +talent@block_cnt, and
 //   it loses talent@hp_ratio of its max HP each second (流失; the first one 1 s into the skill).

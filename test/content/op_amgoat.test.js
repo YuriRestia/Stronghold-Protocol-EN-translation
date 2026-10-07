@@ -68,9 +68,9 @@ test('艾雅法拉 in every 自选 form: her operator kit (all three skills auth
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1359 / 535 / 109, E2 Lv60 1614 / 608 / 118; CCR-X +130 / +40 → +180 / +65,
-  // CCR-Y +180 / +25 → +230 / +50 HP / ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1359, 535, 1614, 608]);
+  // the numbers of the forms (zh_CN, full potential: ATK +27): E2 Lv1 1359 / 562 / 109, E2 Lv60 1614 / 635 / 118; CCR-X
+  // +130 / +40 → +180 / +65, CCR-Y +180 / +25 → +230 / +50 HP / ATK
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1359, 562, 1614, 635]);
   assert.deepEqual([modOf(5, CCRX).attr, modOf(6, CCRX).attr, modOf(5, CCRY).attr, modOf(6, CCRY).attr], [{ maxHp: 130, atk: 40 }, { maxHp: 180, atk: 65 }, { maxHp: 180, atk: 25 }, { maxHp: 230, atk: 50 }]);
 });
 
@@ -104,7 +104,7 @@ test('S1 二重咏唱 (MANUAL, data DEFAULT, 25 s): ASPD +38 / +45 on the first 
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 5), `T${tier}: the second cast`);
     assert.deepEqual(u.findBuff('skill:amgoat:duet')?.mods, { aspd: b, atkPct: atk }, `T${tier}: the second cast`);
-    approx(u.s.atk, u.base.atk * (1 + 0.14 + atk), `T${tier}: ATK with 炎息`);
+    approx(u.s.atk, u.base.atk * (1 + 0.16 + atk), `T${tier}: ATK with 炎息`);
     h.b.retreat(u);
     h.b.redeploy(u);
     u.skill.gainSp(999);
@@ -218,7 +218,7 @@ test('S3 火山 (MANUAL, data ACTIVE_RANGE on x-3 — 「攻击范围增大」 i
   done(h);
 });
 
-test('T1 炎息: every 【术师】 operator of the field ATK +14 % while she is deployed (惊蛰 yes, 德克萨斯 no); CCR-X stage 3 "携带时" +22 %, kept while she is knocked out', () => {
+test('T1 炎息: every 【术师】 operator of the field ATK +16 % while she is deployed (惊蛰 yes, 德克萨斯 no); CCR-X stage 3 "携带时" +24 %, kept while she is knocked out', () => {
   const others = [{ uid: 2, chessId: 'chess_char_1_03_a', row: 12, col: 3 }, { uid: 3, chessId: 'chess_char_1_08_a', row: 12, col: 8 }];
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -226,7 +226,7 @@ test('T1 炎息: every 【术师】 operator of the field ATK +14 % while she is
     h.run(0.6);
     const leizi = h.unit(2), texas = h.unit(3);
     const carried = elite && tier === 6 && mod === CCRX;
-    const v = carried ? 0.22 : 0.14;
+    const v = carried ? 0.24 : 0.16;
     const t0 = u.def.raw.talents.find((t) => t.index === 0);
     assert.equal(t0.bb.atk, v, `${label(f)}: the data`);
     assert.match(t0.desc, carried ? /^携带时/ : /^在场时/, `${label(f)}: the text`);
@@ -240,7 +240,7 @@ test('T1 炎息: every 【术师】 operator of the field ATK +14 % while she is
   }
 });
 
-test('T2 乱火: 7–15 SP at every deployment (a floored draw); CCR-Y stage 3 also ASPD +6–15, both the maxima (15 / 15) with an elite or leader in range at the deployment; stage 1 and no module: no ASPD, no maximum rule', () => {
+test('T2 乱火: 10–19 SP at every deployment (a floored draw); CCR-Y stage 3 also ASPD +6–15, both the maxima (19 / 15) with an elite or leader in range at the deployment; stage 1 and no module: no ASPD, no maximum rule', () => {
   const seen = new Set(), seenAs = new Set();
   for (let seed = 1; seed <= 40; seed++) {
     const gifts = [];
@@ -250,7 +250,7 @@ test('T2 乱火: 7–15 SP at every deployment (a floored draw); CCR-Y stage 3 a
     const sk = skillOf(6, true, S3);
     const [sp, as] = gifts[0];
     const k = sp - sk.initSp;
-    assert.ok(Number.isInteger(k) && k >= 7 && k <= 15, `seed ${seed}: +${k} SP`);
+    assert.ok(Number.isInteger(k) && k >= 10 && k <= 19, `seed ${seed}: +${k} SP`);
     seen.add(k);
     if (y3) { assert.ok(Number.isInteger(as) && as >= 6 && as <= 15, `seed ${seed}: ASPD +${as}`); seenAs.add(as); } else assert.equal(as, 0);
     done(h);
@@ -270,10 +270,10 @@ test('T2 乱火: 7–15 SP at every deployment (a floored draw); CCR-Y stage 3 a
       h.b.retreat(u);
       h.b.redeploy(u);
       const [sp, as] = gifts[1];
-      if (top) assert.deepEqual([sp - sk.initSp, as], [15, 15], `${lab} seed ${seed}: the maxima`);
+      if (top) assert.deepEqual([sp - sk.initSp, as], [19, 15], `${lab} seed ${seed}: the maxima`);
       else {
-        assert.ok(sp - sk.initSp >= 7 && sp - sk.initSp <= 15, lab);
-        if (sp - sk.initSp === 15) maxed++;
+        assert.ok(sp - sk.initSp >= 10 && sp - sk.initSp <= 19, lab);
+        if (sp - sk.initSp === 19) maxed++;
         if (mod !== CCRY || tier === 5) assert.equal(as, 0, `${lab}: no ASPD`);
       }
       done(h);
@@ -282,8 +282,8 @@ test('T2 乱火: 7–15 SP at every deployment (a floored draw); CCR-Y stage 3 a
   }
   // the talent's text and blackboard (stage 3 CCR-Y)
   const t1 = formOf(6, true).modules.find((m) => m.uniEquipId === CCRY).talentChanges.find((t) => t.talentIndex === 1);
-  assert.deepEqual(t1.bb, { sp_min: 7, sp_max: 16, attack_speed_min: 6, attack_speed_max: 16, factor: 1 });
-  assert.match(t1.desc, /随机获得7~15点技力并随机提升6~15的攻击速度/);
+  assert.deepEqual(t1.bb, { sp_min: 10, sp_max: 20, attack_speed_min: 6, attack_speed_max: 16, factor: 1 });
+  assert.match(t1.desc, /随机获得10（\+3）~19（\+4）点技力并随机提升6~15的攻击速度/);
 });
 
 test('modules: CCR-X "无视目标10点法术抗性" at stages 1 and 3 (her normal attack on RES 50 deals × 0.6); CCR-Y "普通攻击命中精英或领袖敌人时获得1点技力" — not on a normal enemy, not from S2\'s explosion', () => {

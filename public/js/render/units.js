@@ -137,8 +137,9 @@ export const SPINE_STUCK_MS = 5000;
 /** Heights above this count as standing on a raised top (bench pads are the lowest raised tiles, 0.16). */
 const RAISED_Z = 0.12;
 /**
- * Flying units hover this many tiles above the ground they cross (PR #211 by @xcdoge; the owner's decision of
- * 2026-10-06; docs/research/12-flying-visuals-official.md).
+ * Flying units hover this many tiles up (PR #211 by @xcdoge; the owner's decision of 2026-10-06;
+ * docs/research/12-flying-visuals-official.md): an enemy flyer above the road (z 0) whatever tile it crosses — a raised
+ * block under it is no step (GitHub #277) —, an operator or summon above its tile.
  *
  * The official client's fly offset is a **single constant, `Vector3(0, 0.35f, 0)`**: `Torappu.Battle.CharacterAnimator`'s
  * constructor stores it in the instance field at +0x114 (`GameAssembly.dll` 0x180600555 reads the constant at 0x186a78a50 =
@@ -288,6 +289,18 @@ export const FORMS = Object.freeze({
   enemy_1525_blkswb: rebirth('Revive1', 'Revive2', 'Revive3', clipSet('B_Idle', 'B_Move', 'B_Die', 'B_Attack')),
   enemy_1535_wlfmster: rebirth('A_revive_1', 'A_revive_2', 'A_revive_3', clipSet('B_Idle', 'B_Move', 'B_Die', 'B_Attack')),
   enemy_1539_reid: rebirth('Revive_Begin', 'Revive_Loop', 'Revive_End'),
+  // 重生 on the skeleton's own Revive clip (PR #275 by @xcdoge; content/enemies/leaders.js kitUglyThing / kitXi): 巨大的丑东西
+  // — Revive 8.67 s of the 10 s 重生 (its self-destruct 2.17 s in), then the fleeing 大祭司 (Idle_2 / Move_2 / Stun_2;
+  // 不进行攻击) holding its idle while the sim still holds the 重生 (reported as a stun); 自在 — Revive_01 5.33 s for the
+  // 5 s 重生, then the same model, stronger (reborn.atk)
+  enemy_1512_mcmstr: Object.freeze({
+    reborn: Object.freeze({ change: 'Revive', next: 'form2', roles: Object.freeze({ idle: 'Idle_2', deploy: 'Idle_2', move: loop('Idle_2'), stun: loop('Idle_2'), attack: null, skill: null }) }),
+    form2: Object.freeze({ change: null, roles: Object.freeze({ ...clipSet('Idle_2', 'Move_2', 'Die'), stun: loop('Stun_2') }) }),
+  }),
+  enemy_1517_xi: Object.freeze({
+    reborn: Object.freeze({ change: 'Revive_01', next: 'form2', roles: Object.freeze({}) }),
+    form2: Object.freeze({ change: null, roles: Object.freeze({}) }),
+  }),
   enemy_1516_jakill: Object.freeze({
     reborn: Object.freeze({ change: 'C1_Die', roles: JAKILL2 }),
     form2: Object.freeze({ change: null, roles: JAKILL2 }),
@@ -354,6 +367,9 @@ export class UnitView {
     this.info = { ...info };
     this.id = info.id;
     this.uid = info.uid ?? null;
+    // the skill slot whose Spine clip the unit shows (DESIGN §16): an ally's equipped skill; an enemy's cast slot when the
+    // sim reports one (`cast` event, setSkillSlot — a multi-skill boss's Skill_01..04, PR #275)
+    this.skillIndex = Number.isInteger(info.skillIndex) ? info.skillIndex : null;
     this.prep = !!opts.prep;
     this.lodIdle = opts.lod === 'idle';
     this.culled = false;          // outside the viewport this frame (not animated, not drawn)
@@ -364,6 +380,9 @@ export class UnitView {
     // enemies: the official prefab's size factor (1 for operators, summons and enemies at the standard size)
     const def = this.isEnemy && ctx.lookupDef ? ctx.lookupDef(info) : null;
     this.modelK = this.isEnemy ? enemyModelScale(def) : 1;
+    // a fast enemy walks on its model's own Run cycle when it has one (PR #275 by @xcdoge: 猎狗pro, moveSpeed 1.9, Run_Loop
+    // 0.53 s next to Move_Loop 0.80 s; also 深池侦察犬 1.7). [ASSUMED] the threshold: faster than the standard 1
+    this.moveFast = this.isEnemy && Number(def?.stats?.moveSpeed) > 1;
     // the official's own model quirks (enemies.json, read from its battle prefabs — tools/local-extract/enemy_model_offsets.py,
     // PR #211): a vertical stretch (its Graphic scale's sy / sx, the two 帝国炮火先兆者 at 1.263) and a mirrored X scale
     // (the Graphic's sx is negative, so the official draws the authored model flipped: 木制瑞印)
@@ -373,9 +392,13 @@ export class UnitView {
     this.golden = !!info.golden;
     this.tier = clamp(Number(info.tier) || 1, 1, 6);
     this.x = Number(info.x) || 0; this.y = Number(info.y) || 0; this.z = 0;
-    this.zTarget = null;          // battle: standing height the feet ease towards (tile top under the unit)
+    this.zTarget = null;          // battle: standing height the feet ease towards (tile top under the unit; 0 for enemies)
+    /** @type {number|null} */
+    this.shadowZ = null;          // an enemy flyer's shadow height (the tile top under it), else null: the shadow is at z
+    /** @type {number|null} */
+    this.shadowZTarget = null;
     this.flying = info.motion === 'FLY';
-    this.hover = 0;               // flying: body height above the ground under it
+    this.hover = 0;               // flying: body height above the road / the ground under it
     this.dir = this.isEnemy ? null : unitDir(info);
     // whether the direction is known (UnitInfo / piece `dir`), not just the legacy ±1: battle and scouting views show
     // the ground wedge only then (a derived RIGHT would mislabel an UP / DOWN operator)
@@ -541,7 +564,8 @@ export class UnitView {
       let actor = null;
       try {
         actor = new SpineActor(data, entry);
-        actor.setSkillIndex(this.info.skillIndex);
+        actor.setSkillIndex(this.skillIndex ?? undefined);
+        actor.setRunMode(this.moveFast);
         // enemies play their attack clip once per attack, then walk on (GitHub #58: the sim stands them for that clip)
         actor.clipPerAttack = this.isEnemy;
       } catch (err) {
@@ -704,10 +728,17 @@ export class UnitView {
     this.elFill = this.el ? s.elFill || 0 : 0; this.elUntil = this.el ? s.elUntil || 0 : 0; this.elDur = this.el ? s.elDur || 0 : 0;
     this.x = s.x; this.y = s.y;
     this.flying = !!(s.flags & UF.FLYING) || this.info.motion === 'FLY';
-    // ground enemies only ever walk low tiles (a rounding step onto a block edge must not pop them up)
-    const gz = this.isEnemy && !this.flying ? 0 : groundZ(this.ctx, s.x, s.y);
+    // enemies keep to the road plane: ground enemies only ever walk low tiles (a rounding step onto a block edge must not
+    // pop them up), and a flyer hovers FLY_HOVER above the road whatever tile it crosses — the official lift is one
+    // constant over the route (docs/research/12), so a block under it is no step (GitHub #277: a flyer passing over one
+    // high-ground / forbidden block rose and dropped like stairs). Its shadow still lies on the tile top under it.
+    const floor = groundZ(this.ctx, s.x, s.y);
+    const gz = this.isEnemy ? 0 : floor;
     if (this.zTarget == null) this.z = gz;
     this.zTarget = gz;
+    this.shadowZTarget = this.isEnemy && this.flying ? floor : null;
+    if (this.shadowZTarget == null) this.shadowZ = null;
+    else if (this.shadowZ == null) this.shadowZ = this.z;
     if (s.maxHp > 0) this.maxHp = s.maxHp;
     const hp = clamp(s.hp, 0, this.maxHp);
     if (hp < this.hp - 0.5 && this.isBoss) this.shake = 0.25;
@@ -837,6 +868,17 @@ export class UnitView {
     if (this.actor) this.actor.setSkill(on);
   }
 
+  /**
+   * The skill slot an enemy casts (the sim's `cast` event; PR #275 by @xcdoge): its clip set swaps to that slot's skill
+   * clip (`anims.skills`, a multi-skill boss's Skill_01..04), which the SKILL flag right after plays. The same slot again
+   * or a non-slot changes nothing.
+   */
+  setSkillSlot(index) {
+    if (!Number.isInteger(index) || index < 0 || index === this.skillIndex) return;
+    this.skillIndex = index;
+    if (this.actor) this.actor.setSkillIndex(index);
+  }
+
   onDeploy() {
     this.fadeIn = 0;
     if (!this.alive) this.revive();
@@ -941,6 +983,10 @@ export class UnitView {
       const d = this.zTarget - this.z;
       this.z = Math.abs(d) < 1e-3 ? this.zTarget : this.z + d * Math.min(1, dt * 12);
     }
+    if (this.shadowZTarget != null && this.shadowZ !== this.shadowZTarget) {
+      const d = this.shadowZTarget - this.shadowZ;
+      this.shadowZ = Math.abs(d) < 1e-3 ? this.shadowZTarget : this.shadowZ + d * Math.min(1, dt * 12);
+    }
     const hoverTo = this.flying && this.alive ? FLY_HOVER : 0;
     if (this.hover !== hoverTo) this.hover = Math.abs(hoverTo - this.hover) < 1e-3 ? hoverTo : this.hover + (hoverTo - this.hover) * Math.min(1, dt * 6);
     const p = cam.project(this.x, this.y, this.z + this.hover + this.lift, this.screen);
@@ -977,9 +1023,11 @@ export class UnitView {
     if (this._cull(bx, by, s, dt)) return;
     const flip = (this.isEnemy ? (ENEMY_MODEL_FACES_LEFT ? -this.visFacing : this.visFacing) : this.visFacing) * (this.mirrorX ? -1 : 1);
 
-    // shadow (on a raised top it is drawn with that block row, else in the shadow layer under everything)
-    placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y, this.z);
-    const sh = cam.project(this.x, this.y, this.z, SH_P);
+    // shadow (on a raised top it is drawn with that block row, else in the shadow layer under everything); an enemy
+    // flyer's lies on the tile under it while its body hovers from the road (shadowZ, GitHub #277)
+    const shz = this.shadowZ ?? this.z;
+    placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y, shz);
+    const sh = cam.project(this.x, this.y, shz, SH_P);
     this.shadow.position.set(sh.x, sh.y);
     const shw = s * (this.isBoss ? 1.6 : 0.95) / this.shadow.texture.width;
     this.shadow.scale.set(shw, shw * (this.shadow.texture === shadowTexture() ? 1 : 1.05));

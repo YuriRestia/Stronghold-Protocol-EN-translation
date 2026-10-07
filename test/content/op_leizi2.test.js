@@ -84,8 +84,8 @@ test('司霆惊蛰 in every 自选 form: her operator kit (all three skills auth
       done(h);
     }
   }
-  // E2 Lv1 3206 / 306 / 417, E2 Lv60 3642 / 342 / 466; LIB-X +225 / +26 / +27 → +360 / +42 / +36 (HP / ATK / DEF)
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [3206, 306, 3642, 342]);
+  // E2 Lv1 3206 / 335 / 417, E2 Lv60 3642 / 371 / 466 (full potential); LIB-X +225 / +26 / +27 → +360 / +42 / +36 (HP / ATK / DEF)
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [3206, 335, 3642, 371]);
   assert.deepEqual([modOf(5, LIBX).attr, modOf(6, LIBX).attr], [{ maxHp: 225, atk: 26, def: 27 }, { maxHp: 360, atk: 42, def: 36 }]);
 });
 
@@ -168,11 +168,11 @@ test('T1 明断 strikes: every 1.0333 s each tile of her range counts — a stru
   }
 });
 
-test('T1: ×1.07 (LIB-X stage 3: ×1.13) on everything she deals while a skill runs — an atkScaleMul buff for the skill\'s time', () => {
+test('T1: ×1.11 (LIB-X stage 3: ×1.17) on everything she deals while a skill runs — an atkScaleMul buff for the skill\'s time', () => {
   for (const f of [[5, false, null], [6, true, null], [5, true, LIBX], [6, true, LIBX]]) {
     const [tier, elite, mod] = f;
     const up = tOf(tier, elite, mod, 0)['atk_scale[skill_up]'];
-    assert.equal(up, elite && mod === LIBX && tier === 6 ? 1.13 : 1.07, label(f));
+    assert.equal(up, elite && mod === LIBX && tier === 6 ? 1.17 : 1.11, label(f));
     const { h, u, log } = field({ tier, elite, mod, skill: 1 });
     approx(u.s.atkScaleMul, 1, `${label(f)}: off`);
     u.skill.gainSp(999);
@@ -189,9 +189,9 @@ test('T1: ×1.07 (LIB-X stage 3: ×1.13) on everything she deals while a skill r
   }
 });
 
-test('T2 追责: every cast strikes each low tile of her range ring by ring from her tile (0.25 s apart; S1 0.07 s), landing 0.15 s later: 100 % ATK × skill bonus arts and 2 s 战栗 on every enemy there, air units too', () => {
+test('T2 追责: every cast strikes each low tile of her range ring by ring from her tile (0.25 s apart; S1 0.07 s), landing 0.15 s later: 100 % ATK × skill bonus arts and 3 s 战栗 on every enemy there, air units too', () => {
   const t1 = tOf(5, false, null, 1);
-  assert.deepEqual([t1.atk_scale_t2, t1.not_combat], [1, 2]);
+  assert.deepEqual([t1.atk_scale_t2, t1.not_combat], [1, 3]);
   for (const [skill, gap, pos, d] of [[2, 0.25, [10, 7], 2], [0, 0.07, [10, 6], 1], [2, 0.25, [11, 6], 2]]) {
     const { h, u, log } = field({ tier: 5, skill });
     const e = h.spawn(pos[0] === 11 ? 'enemy_fly' : 'enemy_dummy', { pos });
@@ -203,11 +203,11 @@ test('T2 追责: every cast strikes each low tile of her range ring by ring from
     const hits = log.filter((x) => x.e === e && tagged(x, 'leizi2:accuse'));
     assert.equal(hits.length, 1, `S${skill + 1}: one strike on ${pos}`);
     approx(hits[0].t - t0, d * gap + 0.15, `S${skill + 1}: ring ${d}`, 0.04);
-    approx(hits[0].amount, hits[0].atk * 1.07, `S${skill + 1}: 100 % ATK × 1.07`);
+    approx(hits[0].amount, hits[0].atk * 1.11, `S${skill + 1}: 100 % ATK × 1.11`);
     assert.equal(hits[0].type, 'arts');
     const tr = h.hooksOf('statusApplied').filter((c) => c.status === 'tremble' && c.target === e && c.source === u);
     assert.equal(tr.length, 1, `S${skill + 1}: 战栗`);
-    approx(tr[0].duration, 2, 'for 2 s');
+    approx(tr[0].duration, 3, 'for 3 s');
     done(h);
   }
   // S2: one cast per low tile of the flood fill (19 on the flat stage at (10,5)) — each gives a +10 % stack at once
@@ -223,7 +223,7 @@ test('T2 追责: every cast strikes each low tile of her range ring by ring from
   done(h);
 });
 
-test('S1 浩气长存 (MANUAL, 3 charges, data ACTIVE_RANGE — the SEARCH row on her larger 3-19): a 0.5 s skill on the 3-19; 0.3 s in, a 3-2 to her left, front and right each hits every ground enemy on it for 260 % / 300 % ATK × 1.07 physical (one on her tile three times, none diagonal, no flyer)', () => {
+test('S1 浩气长存 (MANUAL, 3 charges, data ACTIVE_RANGE — the SEARCH row on her larger 3-19): a 0.5 s skill on the 3-19; 0.3 s in, a 3-2 to her left, front and right each hits every ground enemy on it for 260 % / 300 % ATK × 1.11 physical (one on her tile three times, none diagonal, no flyer)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u, log } = field({ tier, elite, skill: 0, silence: true });
@@ -242,7 +242,7 @@ test('S1 浩气长存 (MANUAL, 3 charges, data ACTIVE_RANGE — the SEARCH row o
     assert.deepEqual([n(own), n(front), n(left), n(right), n(diag), n(fly)], [3, 1, 1, 1, 0, 0], `T${tier}: who is hit`);
     for (const x of s1) {
       approx(x.t - t0, 0.3, `T${tier}: 0.3 s in`, 0.04);
-      approx(x.amount, x.atk * sk.bb['attack@atk_scale_s1'] * 1.07, `T${tier}: ${sk.bb['attack@atk_scale_s1'] * 100} % × 1.07`);
+      approx(x.amount, x.atk * sk.bb['attack@atk_scale_s1'] * 1.11, `T${tier}: ${sk.bb['attack@atk_scale_s1'] * 100} % × 1.11`);
       assert.equal(x.type, 'phys');
     }
     assert.equal(log.filter((x) => x.isAttack).length, 0, `T${tier}: no normal attack`);
@@ -270,7 +270,7 @@ test('S1: "充能耗尽前特性不重置" — the ramp is kept while a charge r
   done(h);
 });
 
-test('S2 正霆摄威 (MANUAL, data SEARCH): range = the low tiles 3 four-way steps from hers (high ground and the field\'s edge stop it), 3 targets with air units for 110 % / 125 % ATK × 1.07, +10 % ATK per lightning cast up to 25, all gone after 36 s', () => {
+test('S2 正霆摄威 (MANUAL, data SEARCH): range = the low tiles 3 four-way steps from hers (high ground and the field\'s edge stop it), 3 targets with air units for 110 % / 125 % ATK × 1.11, +10 % ATK per lightning cast up to 25, all gone after 36 s', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.bb['attack@atk_scale_s2'], sk.bb['attack@max_target_s2'], sk.bb.thunder_atk, sk.bb.thunder_max_stack_cnt, sk.duration, sk.rangeId], [elite ? 1.25 : 1.1, 3, 0.1, 25, 36, null]);
@@ -293,7 +293,7 @@ test('S2 正霆摄威 (MANUAL, data SEARCH): range = the low tiles 3 four-way st
     const ids = new Set(atk.filter((x) => x.attackId === atk[0].attackId).map((x) => x.e));
     assert.equal(ids.size, 3, `T${tier}: 3 targets`);
     assert.ok(atk.some((x) => x.e === fly), `T${tier}: a flyer among them`);
-    for (const x of atk) approx(x.amount, x.atk * sk.bb['attack@atk_scale_s2'] * 1.07, `T${tier}: ${sk.bb['attack@atk_scale_s2'] * 100} % × 1.07`);
+    for (const x of atk) approx(x.amount, x.atk * sk.bb['attack@atk_scale_s2'] * 1.11, `T${tier}: ${sk.bb['attack@atk_scale_s2'] * 100} % × 1.11`);
     h.run(30);
     const st = u.findBuff('skill:leizi2:thunderAtk');
     assert.equal(st.stacks, 25, `T${tier}: 25 stacks at most`);
@@ -306,7 +306,7 @@ test('S2 正霆摄威 (MANUAL, data SEARCH): range = the low tiles 3 four-way st
   }
 });
 
-test('S3 天地通明 (MANUAL, data CUSTOM_RANGE on 2-1): range 2-1, attack interval 1.2 + 1.7 s, 210 % / 240 % ATK × 1.07 on the target and everyone within 1.65 (air too); then four currents', () => {
+test('S3 天地通明 (MANUAL, data CUSTOM_RANGE on 2-1): range 2-1, attack interval 1.2 + 1.7 s, 210 % / 240 % ATK × 1.11 on the target and everyone within 1.65 (air too); then four currents', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.bb['attack@atk_scale_s3'], sk.bb.base_attack_time, sk.bb['attack@range_radius'], sk.bb['attack@atk_scale_current'], sk.bb.prob, sk.bb.not_combat, sk.duration, sk.rangeId],
@@ -324,12 +324,12 @@ test('S3 天地通明 (MANUAL, data CUSTOM_RANGE on 2-1): range 2-1, attack inte
     const a0 = log.find((x) => x.isAttack && x.e === e);
     const one = log.filter((x) => x.isAttack && x.attackId === a0.attackId);
     assert.deepEqual(new Set(one.map((x) => x.e)), new Set([e, side, flyNear]), `T${tier}: the target and everyone within 1.65`);
-    for (const x of one) approx(x.amount, x.atk * sk.bb['attack@atk_scale_s3'] * 1.07, `T${tier}: ${sk.bb['attack@atk_scale_s3'] * 100} % × 1.07`);
+    for (const x of one) approx(x.amount, x.atk * sk.bb['attack@atk_scale_s3'] * 1.11, `T${tier}: ${sk.bb['attack@atk_scale_s3'] * 100} % × 1.11`);
     done(h);
   }
 });
 
-test('S3 currents: four from the target\'s spot (up, right, down, left; 0.28 s apart) at 1 tile/s for 3.1 s, bouncing off high ground and her own tile; 45 % / 56 % ATK × 1.07 arts on ground enemies of their tile, at most every 0.6 s per current; 战栗 7 % / 10 % for 3 s', () => {
+test('S3 currents: four from the target\'s spot (up, right, down, left; 0.28 s apart) at 1 tile/s for 3.1 s, bouncing off high ground and her own tile; 45 % / 56 % ATK × 1.11 arts on ground enemies of their tile, at most every 0.6 s per current; 战栗 7 % / 10 % for 3 s', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u, log } = field({ tier, elite, skill: 2 });
@@ -354,17 +354,20 @@ test('S3 currents: four from the target\'s spot (up, right, down, left; 0.28 s a
     const zap = log.filter((x) => tagged(x, 'leizi2:current'));
     assert.ok(zap.length > 0 && zap.every((x) => x.e !== fly), `T${tier}: ground only`);
     for (const x of zap) { approx(x.amount, x.atk * sk.bb['attack@atk_scale_current'] * x.mul, `T${tier}: ${sk.bb['attack@atk_scale_current'] * 100} %`); assert.equal(x.type, 'arts'); }
-    approx(zap[0].mul, 1.07, `T${tier}: × 1.07 while S3 runs`);
+    approx(zap[0].mul, 1.11, `T${tier}: × 1.11 while S3 runs`);
     done(h);
   }
-  // 战栗: about prob of the current hits while S3 runs, 3 s each
+  // 战栗: about prob of the current hits while S3 runs, 3 s each (T2's strikes at the cast give a 3 s 战栗 too at full
+  // potential: those are not counted)
   const { h, u, log } = field({ tier: 6, elite: true, skill: 2, seed: 9 });
   u.skill.gainSp(999);
   for (const pos of [[10, 6], [10, 7], [9, 7], [11, 7], [10, 8], [12, 7], [9, 6]]) h.spawn('enemy_dummy', { pos });
   assert.ok(h.runUntil(() => u.skill.active, 2));
   h.run(23);
   const zaps = log.filter((x) => tagged(x, 'leizi2:current')).length;
-  const tr = h.hooksOf('statusApplied').filter((c) => c.status === 'tremble' && c.source === u && c.duration === 3);
+  const accused = log.filter((x) => tagged(x, 'leizi2:accuse'));
+  const tr = h.hooksOf('statusApplied').filter((c) => c.status === 'tremble' && c.source === u && c.duration === 3
+    && !accused.some((x) => x.e === c.target && x.t === c.t));
   assert.ok(zaps > 60, `${zaps} current hits`);
   assert.ok(tr.length / zaps > 0.04 && tr.length / zaps < 0.18, `${tr.length} / ${zaps} ≈ 10 %`);
   done(h);

@@ -225,7 +225,7 @@ describe('#7 audit: every stage × deploy field (server = official level data = 
     // buildableType (PRTS 深水区 地形信息 "地形机制：拒绝部署（待补充）" — player report #3 after 0.1.0, 战场#08's pool)
     const ROLE = { trap_1105_accrate: 'block', trap_032_mound: 'block', trap_1106_achplat: 'platform', trap_040_canoe: 'water' };
     for (const [id, st] of Object.entries(DATA.stages)) {
-      if (st.kind === 'unite') continue; // the 联防 maps: nobody deploys or prepares on them (no bench, no boss halves)
+      if (st.kind === 'unite') continue; // the escaped levels' maps: no field is fought on them (no bench, no boss halves)
       const lv = JSON.parse(readFileSync(levelFile(id), 'utf8'));
       const map = lv.mapData.map, tiles = lv.mapData.tiles, H = map.length;
       const dev = new Map();
@@ -262,7 +262,7 @@ describe('#7 audit: every stage × deploy field (server = official level data = 
 
   test('carry-over: a tile legal on the normal board is legal (same class) on both boss halves of every active stage', () => {
     for (const [id, st] of Object.entries(DATA.stages)) {
-      if (st.kind === 'unite') continue; // the 联防 maps have no boss field
+      if (st.kind === 'unite') continue; // the escaped levels' maps have no boss field
       const n = buildDeployMap(st);
       for (const field of ['bossL', 'bossR']) {
         const b = buildDeployMap(st, { field });

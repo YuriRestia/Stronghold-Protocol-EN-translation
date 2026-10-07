@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-// tools/package.mjs — the two player release zips (docs/DEPLOY.md §7; README「方式一」says which one to pick).
+// tools/package.mjs — the player release zips (docs/DEPLOY.md §7; README「方式一」says which one to pick).
 //
-//   npm run package        → Stronghold-Protocol-v<version>.zip       full: what runs the game + the game art
-//   npm run package:lite   → Stronghold-Protocol-v<version>-lite.zip  the same without the art (`npm run setup`
+//   npm run package        → Stronghold-Protocol-v<version>.zip         full: what runs the game + the game art
+//   npm run package:lite   → Stronghold-Protocol-v<version>-lite.zip    the same without the art (`npm run setup`
 //                            downloads it on the first start)
-//   node tools/package.mjs [--lite] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install]
-//                          [--allow-dirty] [--root <dir>]
+//   node tools/package.mjs --update --from <base>[,<base>…]
+//                          → Stronghold-Protocol-v<version>-update.zip  only the files that differ from the earlier full
+//                            zips given as bases, to extract over an install of one of them (server/update.js)
+//   node tools/package.mjs [--lite | --update --from <bases>] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage]
+//                          [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]
 //
-// Both zips hold one folder, Stronghold-Protocol/, with only what a player runs — an allowlist over `git ls-files`, so
+// The zips hold one folder, Stronghold-Protocol/, with only what a player runs — an allowlist over `git ls-files`, so
 // untracked work, caches, logs and per-machine config never get in: server/, shared/, data/, public/ (not public/dev/),
 // packs/ (the content packs that ship with the repository, docs/PACKS.md; a pack installed on this machine and not
 // committed stays out),
@@ -34,6 +37,18 @@
 // The account name comes from the OS at run time (never written in the repository): SP_PACKAGE_SCAN_USER=0 skips it
 // (a name that is a common word), SP_PACKAGE_SCAN_NAMES=a,b adds more names to refuse.
 //
+// Every zip carries MANIFEST.json at its root (written after npm ci; server/update.js): the size and sha256 of each
+// shipped file except the art setup manages (public/assets/, public/fonts/, data/assets.json, data/local-assets.json) —
+// what npm run doctor and an update's boot step verify; the full, lite and update zips of one version list the same.
+//
+// --update builds the full stage as above (npm ci and all) in <out>/…-update/.full/, reads every base — an earlier
+// release's full zip or the folder it was extracted to (tools/package-update.mjs: older than this version, not a lite or
+// update zip, each version once) — and ships each file that is new or differs (size + sha256) from at least one base,
+// plus MANIFEST.json and UPDATE.json (the base versions, what ships, and `removed`: the files a base shipped that this
+// version does not, with the bytes each base had). The update stage gets the same checks (the refusal list, the
+// personal-info scan; it must hold exactly that) before it is zipped. --dry-run reads and checks the bases; the
+// comparison needs the built stage.
+//
 // --out defaults to <tmp>/stronghold-protocol-release and must be outside the repository. --no-install skips npm ci
 // (no node_modules, no public/vendor: a test build). Zipping needs `zip` (or a bsdtar `tar`, e.g. Windows 10+).
 
@@ -44,6 +59,11 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { findSpecifiers } from './check-imports.mjs';
 import { writePackIndex } from './packs.mjs';
+import { compareVersions, diffBases, manifestText, readBase, updateText } from './package-update.mjs';
+import {
+  APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, affectsRuntime, digestFile, inManifest, isSetupArt, listedArtFiles,
+  parseManifest, parseUpdate, pathProblem, removalProblem,
+} from '../server/update.js';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** The one folder inside both zips (DEPLOY §1.1: "解压后把里面的 Stronghold-Protocol 文件夹放到…"). */
@@ -180,16 +200,7 @@ export function listTree(root, rel, { junk = false } = {}) {
 }
 
 /** The '/assets/…' and '/fonts/…' URLs of a manifest, as public/… paths (the walk of tools/setup.mjs checkAssets). */
-export function manifestFiles(manifest) {
-  const out = new Set();
-  const walk = (v) => {
-    if (typeof v === 'string') {
-      if (/^\/(?:assets|fonts)\//.test(v)) out.add(`public/${v.split('/').filter(Boolean).map(decodeURIComponent).join('/')}`);
-    } else if (v && typeof v === 'object') for (const x of Object.values(v)) walk(x);
-  };
-  walk(manifest);
-  return out;
-}
+export const manifestFiles = listedArtFiles;
 
 /**
  * The art of a full package: every file data/assets.json lists, public/fonts, public/assets/local/ and
@@ -284,14 +295,16 @@ const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
  * Files whose bytes (read as latin1, so binaries are scanned too) carry a home-directory path (`home`) or one of
- * `names` (case-insensitive). Returns "path (what)" lines, never the matched text.
+ * `names` (case-insensitive). Returns "path (what)" lines, never the matched text. `strip`: text removed before the
+ * scan (the sha256 values of MANIFEST.json / UPDATE.json, which a hex-only name would match).
  */
-export function scanFiles(root, files, { home = true, names = [] } = {}) {
+export function scanFiles(root, files, { home = true, names = [], strip = null } = {}) {
   const nameRe = names.length ? new RegExp(names.map((n) => escapeRe(Buffer.from(n, 'utf8').toString('latin1'))).join('|'), 'i') : null;
   const hits = [];
   for (const rel of files) {
     let text;
     try { text = fs.readFileSync(path.join(root, rel)).toString('latin1'); } catch { continue; }
+    if (strip) text = text.replace(strip, '');
     if (home && (HOME_POSIX.test(text) || HOME_WIN.test(text))) hits.push(`${rel} (home-directory path)`);
     else if (nameRe && nameRe.test(text)) hits.push(`${rel} (account name)`);
   }
@@ -418,30 +431,64 @@ function zipFolder(cwd, zipPath) {
   if (t.error || t.status !== 0 || !isFile(zipPath)) throw new Error('zipping failed: install `zip` (or a bsdtar `tar`)');
 }
 
-/** Copy the plan into <out>/<name>/Stronghold-Protocol, npm ci, check the stage, zip it. */
-export function build(root, p, { out, install = true, force = false, keepStage = false, env = process.env, log = console.log } = {}) {
-  if (p.problems.length) throw new Error('refusing to build: the plan has problems (see the summary)');
-  const dest = path.resolve(out);
-  if (packageOutIsUnsafe(dest, root)) throw new Error(`refusing to write into the repository or a parent of it: ${dest}`);
-  const name = `${FOLDER}-v${p.version}${p.lite ? '-lite' : ''}`; // 0.1.x's release asset names
-  const work = path.join(dest, name);
-  const stage = path.join(work, FOLDER);
-  const zipPath = path.join(dest, `${name}.zip`);
-  for (const t of [work, zipPath]) {
+const isLib = (f) => f.startsWith('node_modules/') || f.startsWith('public/vendor/');
+const META_FILES = new Set([MANIFEST_FILE, UPDATE_FILE]);
+const HASHES = /[0-9a-f]{64}/g;
+
+/**
+ * What is wrong with a stage before it is zipped: a file not planned, a planned one missing (node_modules and
+ * public/vendor, npm ci's output, only count when `libsPlanned`), a refused path, personal info (home paths and names
+ * in every file, names only in the libraries; MANIFEST.json / UPDATE.json without their sha256 values).
+ * @param {string} stage
+ * @param {Set<string>} planned
+ * @returns {{ staged: string[], problems: string[] }}
+ */
+export function stageProblems(stage, planned, { env = process.env, libsPlanned = false } = {}) {
+  const problems = [];
+  const staged = listTree(stage, '', { junk: true });
+  const held = libsPlanned ? staged : staged.filter((f) => !isLib(f));
+  for (const f of held) if (!planned.has(f)) problems.push(`in the stage but not planned: ${f}`);
+  const have = new Set(held);
+  for (const f of planned) if (!have.has(f)) problems.push(`planned but not staged: ${f}`);
+  for (const r of REFUSE) if (fs.existsSync(path.join(stage, r))) problems.push(`refused: ${r} is in the stage`);
+  const names = scanNames(env);
+  const rest = staged.filter((f) => !isLib(f));
+  for (const h of scanFiles(stage, rest.filter((f) => !META_FILES.has(f)), { home: true, names })) problems.push(`personal info: ${h}`);
+  for (const h of scanFiles(stage, rest.filter((f) => META_FILES.has(f)), { home: true, names, strip: HASHES })) problems.push(`personal info: ${h}`);
+  for (const h of scanFiles(stage, staged.filter(isLib), { home: false, names })) problems.push(`personal info: ${h}`);
+  return { staged, problems };
+}
+
+function digestOf(root, rel) {
+  const d = digestFile(path.join(root, rel));
+  if (!d) throw new Error(`cannot read ${path.join(root, rel)}`);
+  return d;
+}
+
+function copyInto(from, to, rel) {
+  const src = path.join(from, rel);
+  const dst = path.join(to, rel);
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  fs.copyFileSync(src, dst, fs.constants.COPYFILE_FICLONE);
+  fs.chmodSync(dst, fs.statSync(src).mode & 0o777);
+}
+
+function freshTargets(targets, force) {
+  for (const t of targets) {
     if (!fs.existsSync(t)) continue;
     if (!force) throw new Error(`${t} already exists (--force replaces it)`);
     fs.rmSync(t, { recursive: true, force: true });
   }
+}
+
+/**
+ * Copy the plan into `stage`, write the pack index, npm ci (node_modules, public/vendor), write MANIFEST.json, check the
+ * stage: what `build` zips and `buildUpdate` compares. Throws on a problem. Returns the staged files.
+ */
+function makeStage(root, p, stage, { install, env, log }) {
   const generated = new Set(p.generated || []);
   log(`copying ${p.files.length - generated.size} files → ${stage}`);
-  for (const rel of p.files) {
-    if (generated.has(rel)) continue;
-    const src = path.join(root, rel);
-    const to = path.join(stage, rel);
-    fs.mkdirSync(path.dirname(to), { recursive: true });
-    fs.copyFileSync(src, to, fs.constants.COPYFILE_FICLONE);
-    fs.chmodSync(to, fs.statSync(src).mode & 0o777);
-  }
+  for (const rel of p.files) if (!generated.has(rel)) copyInto(root, stage, rel);
   if (generated.has(GENERATED_PACK_INDEX)) {
     const index = writePackIndex(stage, path.join(stage, GENERATED_PACK_INDEX));
     log(`${GENERATED_PACK_INDEX}: ${index.packs.map((x) => `${x.type} ${x.id}`).join(', ') || 'no pack'}`);
@@ -454,35 +501,157 @@ export function build(root, p, { out, install = true, force = false, keepStage =
     fs.rmSync(path.join(stage, 'node_modules', '.cache'), { recursive: true, force: true });
     if (!isFile(path.join(stage, 'public', 'vendor', 'pixi.min.js'))) throw new Error('public/vendor/pixi.min.js missing after npm ci (postinstall tools/vendor.mjs)');
   }
-  const problems = [];
-  const planned = new Set(p.files);
-  const staged = listTree(stage, '', { junk: true });
-  const rest = staged.filter((f) => !f.startsWith('node_modules/') && !f.startsWith('public/vendor/'));
-  for (const f of rest) if (!planned.has(f)) problems.push(`in the stage but not planned: ${f}`);
-  const have = new Set(rest);
-  for (const f of p.files) if (!have.has(f)) problems.push(`planned but not staged: ${f}`);
-  for (const r of REFUSE) if (fs.existsSync(path.join(stage, r))) problems.push(`refused: ${r} is in the stage`);
-  const names = scanNames(env);
-  for (const h of scanFiles(stage, rest, { home: true, names })) problems.push(`personal info: ${h}`);
-  const libs = staged.filter((f) => f.startsWith('node_modules/') || f.startsWith('public/vendor/'));
-  for (const h of scanFiles(stage, libs, { home: false, names })) problems.push(`personal info: ${h}`);
+  const files = new Map();
+  for (const f of listTree(stage, '', { junk: true })) if (inManifest(f)) files.set(f, digestOf(stage, f));
+  fs.writeFileSync(path.join(stage, MANIFEST_FILE), manifestText({ app: p.version, files }));
+  parseManifest(fs.readFileSync(path.join(stage, MANIFEST_FILE), 'utf8')); // as doctor and an update read it back
+  log(`${MANIFEST_FILE}: ${files.size} files (the art is setup's)`);
+  const { staged, problems } = stageProblems(stage, new Set([...p.files, MANIFEST_FILE]), { env });
   if (problems.length) throw new Error(`refusing to zip ${stage}:\n${problems.map((x) => `  ${x}`).join('\n')}`);
+  return staged;
+}
+
+/** Copy the plan into <out>/<name>/Stronghold-Protocol, npm ci, write MANIFEST.json, check the stage, zip it. */
+export function build(root, p, { out, install = true, force = false, keepStage = false, env = process.env, log = console.log } = {}) {
+  if (p.problems.length) throw new Error('refusing to build: the plan has problems (see the summary)');
+  const dest = path.resolve(out);
+  if (packageOutIsUnsafe(dest, root)) throw new Error(`refusing to write into the repository or a parent of it: ${dest}`);
+  const name = `${FOLDER}-v${p.version}${p.lite ? '-lite' : ''}`; // 0.1.x's release asset names
+  const work = path.join(dest, name);
+  const stage = path.join(work, FOLDER);
+  const zipPath = path.join(dest, `${name}.zip`);
+  freshTargets([work, zipPath], force);
+  const staged = makeStage(root, p, stage, { install, env, log });
   log(`zipping ${staged.length} files (${MB(sumBytes(stage, staged))}) → ${zipPath}`);
   zipFolder(work, zipPath);
   if (!keepStage) fs.rmSync(work, { recursive: true, force: true });
   return { zipPath, zipBytes: fileBytes(zipPath), files: staged.length, stage: keepStage ? stage : null };
 }
 
-const USAGE = 'usage: node tools/package.mjs [--lite] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]';
+// ---------------------------------------------------------------------------------------------------------------------
+// The update zip
+
+/** OS clutter a folder can gather (a release zip has none; the extension rules of isJunk would hit node_modules files). */
+const isClutter = (rel) => {
+  const parts = posixRel(rel).split('/');
+  const base = parts[parts.length - 1];
+  return parts.includes('__pycache__') || base === '.DS_Store' || base === 'Thumbs.db' || base === 'desktop.ini' || base.startsWith('._');
+};
+/**
+ * Never part of a base: the update files, and outside node_modules / public/vendor (npm's output, which the stage takes
+ * as npm writes it) per-machine files (the refusal list) and OS clutter.
+ */
+const baseSkip = (rel) => rel === MANIFEST_FILE || rel === UPDATE_FILE || rel === APPLIED_FILE || (!isLib(rel) && (isRefused(rel) || isClutter(rel)));
+
+/**
+ * Read and check the bases of an update to `version`: each an earlier release's full zip or its extracted folder, older
+ * than `version`, with art (not a lite zip), not an update zip, each version once. Sorted by version.
+ * @param {string[]} sources
+ * @param {string} version
+ */
+export function readBases(sources, version, { log = () => {} } = {}) {
+  const bases = [];
+  for (const src of sources) {
+    log(`reading base ${src} …`);
+    const b = readBase(src, { folder: FOLDER, skip: baseSkip });
+    if (b.update) throw new Error(`base ${src} is an update package: pass the earlier release's full zip`);
+    if (!b.art) throw new Error(`base ${src} has no game art (a lite zip?): pass the full zip, ${FOLDER}-v${b.version}.zip`);
+    if (compareVersions(b.version, version) >= 0) throw new Error(`base ${src} is v${b.version}, not older than v${version}`);
+    const twin = bases.find((x) => x.version === b.version);
+    if (twin) throw new Error(`two bases are v${b.version}: ${twin.source} and ${b.source}`);
+    bases.push(b);
+  }
+  return bases.sort((a, b) => compareVersions(a.version, b.version));
+}
+
+/**
+ * The update zip: build the full stage (as `build` does) in <out>/<name>/.full/, compare every file with each base, copy
+ * what is new or differs from at least one base into <out>/<name>/Stronghold-Protocol with MANIFEST.json and
+ * UPDATE.json, check that stage and zip it as <name>.zip (<name> = Stronghold-Protocol-v<version>-update).
+ */
+export function buildUpdate(root, p, bases, { out, install = true, force = false, keepStage = false, env = process.env, log = console.log } = {}) {
+  if (p.problems.length) throw new Error('refusing to build: the plan has problems (see the summary)');
+  if (p.lite) throw new Error('an update is compared from the full stage (no --lite)');
+  if (!bases.length) throw new Error('an update needs at least one base (--from)');
+  const dest = path.resolve(out);
+  if (packageOutIsUnsafe(dest, root)) throw new Error(`refusing to write into the repository or a parent of it: ${dest}`);
+  const name = `${FOLDER}-v${p.version}-update`;
+  const work = path.join(dest, name);
+  const full = path.join(work, '.full', FOLDER);
+  const stage = path.join(work, FOLDER);
+  const zipPath = path.join(dest, `${name}.zip`);
+  freshTargets([work, zipPath], force);
+  const staged = makeStage(root, p, full, { install, env, log });
+  log(`comparing ${staged.length} files with ${bases.map((b) => `v${b.version}`).join(', ')} …`);
+  const next = new Map();
+  for (const f of staged) if (f !== MANIFEST_FILE) next.set(f, digestOf(full, f));
+  // without npm ci the stage has no node_modules / public/vendor, and the update would delete the bases' copies
+  for (const lib of ['node_modules/', 'public/vendor/']) {
+    const inBase = bases.find((b) => [...b.files.keys()].some((f) => f.startsWith(lib)));
+    if (inBase && ![...next.keys()].some((f) => f.startsWith(lib))) {
+      throw new Error(`v${inBase.version} ships ${lib} but this build has none (--no-install?): an update built so would delete it from every install`);
+    }
+  }
+  // a path no update deletes (a per-machine name such as node_modules/x/.env.example) stays behind, named in the summary
+  const diff = diffBases(next, bases, { removable: (rel) => !removalProblem(rel) });
+  for (const rel of diff.left) {
+    const bad = pathProblem(rel);
+    if (bad) throw new Error(`a base ships ${rel}, which is ${bad}`);
+  }
+  for (const rel of diff.ship) copyInto(full, stage, rel);
+  copyInto(full, stage, MANIFEST_FILE);
+  const update = { app: p.version, from: bases.map((b) => b.version), files: new Map(diff.ship.map((f) => [f, next.get(f)])), removed: diff.removed };
+  fs.writeFileSync(path.join(stage, UPDATE_FILE), updateText(update));
+  // what the player's server will read back
+  parseUpdate(fs.readFileSync(path.join(stage, UPDATE_FILE), 'utf8'));
+  parseManifest(fs.readFileSync(path.join(stage, MANIFEST_FILE), 'utf8'));
+  const { staged: held, problems } = stageProblems(stage, new Set([...diff.ship, MANIFEST_FILE, UPDATE_FILE]), { env, libsPlanned: true });
+  if (problems.length) throw new Error(`refusing to zip ${stage}:\n${problems.map((x) => `  ${x}`).join('\n')}`);
+  log(`zipping ${held.length} files (${MB(sumBytes(stage, held))}) → ${zipPath}`);
+  zipFolder(work, zipPath);
+  if (!keepStage) fs.rmSync(work, { recursive: true, force: true });
+  return {
+    zipPath, zipBytes: fileBytes(zipPath), files: held.length, diff, bytes: diff.ship.reduce((n, f) => n + next.get(f).size, 0),
+    stage: keepStage ? stage : null, full: keepStage ? full : null,
+  };
+}
+
+/** The bases as the summary lists them. */
+export function formatBases(bases) {
+  return bases.map((b) => `base: v${b.version} · ${b.files.size} files (${b.art} art) · ${b.source}\n`).join('');
+}
+
+/** What an update ships, by kind, and what it removes. */
+export function formatUpdate(r, version) {
+  const kinds = { 'code / data': 0, node_modules: 0, 'public/vendor': 0, art: 0, 'docs / scripts / tools': 0 };
+  for (const f of r.diff.ship) {
+    if (isSetupArt(f)) kinds.art++;
+    else if (f.startsWith('node_modules/')) kinds.node_modules++;
+    else if (f.startsWith('public/vendor/')) kinds['public/vendor']++;
+    else if (!affectsRuntime(f)) kinds['docs / scripts / tools']++;
+    else kinds['code / data']++;
+  }
+  const lines = [`update: v${version} over ${r.diff.perBase.map((b) => `v${b.version}`).join(', ')}`];
+  for (const b of r.diff.perBase) lines.push(`  vs v${b.version}: ${b.changed} changed, ${b.added} added, ${b.unchanged} unchanged, ${b.removed} removed`);
+  lines.push(`ships: ${r.diff.ship.length} files, ${MB(r.bytes)} — ${Object.entries(kinds).map(([k, n]) => `${k} ${n}`).join(', ')} (+ ${MANIFEST_FILE}, ${UPDATE_FILE})`);
+  const gone = r.diff.removed.map((x) => x.path);
+  lines.push(`removed: ${gone.length} file(s)${gone.length ? ` (${gone.slice(0, 8).join(', ')}${gone.length > 8 ? ' …' : ''})` : ''}`);
+  if (r.diff.caseOnly.length) lines.push(`not removed (a new file differs only in case): ${r.diff.caseOnly.join(', ')}`);
+  if (r.diff.left.length) lines.push(`not removed (an update never deletes these names): ${r.diff.left.join(', ')}`);
+  return lines.join('\n') + '\n';
+}
+
+const USAGE = 'usage: node tools/package.mjs [--lite | --update --from <base zip or folder>[,<…>]] [--dry-run [--list]] [--out <dir>] [--force] [--keep-stage] [--no-install] [--allow-dirty] [--allow-dev] [--root <dir>]';
 
 /** Whether `version` is a development (pre-release) version, e.g. 0.2.0-dev. */
 export const isDevVersion = (version) => /-/.test(String(version || ''));
 
 export function parseArgs(argv) {
-  const o = { lite: false, dryRun: false, list: false, out: '', force: false, keepStage: false, install: true, allowDirty: false, allowDev: false, root: REPO, help: false };
+  const o = { lite: false, update: false, from: [], dryRun: false, list: false, out: '', force: false, keepStage: false, install: true, allowDirty: false, allowDev: false, root: REPO, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--lite') o.lite = true;
+    else if (a === '--update') o.update = true;
     else if (a === '--dry-run') o.dryRun = true;
     else if (a === '--list') o.list = true;
     else if (a === '--force') o.force = true;
@@ -491,11 +660,20 @@ export function parseArgs(argv) {
     else if (a === '--allow-dirty') o.allowDirty = true;
     else if (a === '--allow-dev') o.allowDev = true;
     else if (a === '--help' || a === '-h') o.help = true;
-    else if (a === '--out' || a === '--root') {
+    else if (a === '--from') {
+      const v = argv[++i];
+      if (!v || v.startsWith('--')) throw new Error(`--from needs an earlier release's full zip or its folder\n${USAGE}`);
+      for (const one of v.split(',')) if (one.trim()) o.from.push(path.resolve(one.trim()));
+    } else if (a === '--out' || a === '--root') {
       const v = argv[++i];
       if (!v || v.startsWith('--')) throw new Error(`${a} needs a directory\n${USAGE}`);
       o[a.slice(2)] = path.resolve(v);
     } else throw new Error(`unknown argument ${a}\n${USAGE}`);
+  }
+  if (!o.help) {
+    if (o.from.length && !o.update) throw new Error(`--from goes with --update\n${USAGE}`);
+    if (o.update && !o.from.length) throw new Error(`--update needs --from <earlier full zip or folder>[,<…>]\n${USAGE}`);
+    if (o.update && o.lite) throw new Error(`--update is compared from the full stage: no --lite\n${USAGE}`);
   }
   return o;
 }
@@ -507,8 +685,14 @@ function main(argv) {
   let p;
   try { p = plan(o.root, { lite: o.lite, allowDirty: o.allowDirty }); } catch (e) { console.error(`package: ${e.message}`); return 1; }
   process.stdout.write(formatSummary(p));
+  let bases = [];
+  if (o.update) {
+    try { bases = readBases(o.from, p.version, { log: (m) => console.log(m) }); } catch (e) { console.error(`package: ${e.message}`); return 1; }
+    process.stdout.write(formatBases(bases));
+  }
   if (o.dryRun) {
     if (o.list) for (const f of p.files) process.stdout.write(`file ${f}\n`);
+    if (o.update) console.log('update: the bases are fine; which files ship is known after the build (it compares the npm ci stage)');
     return p.problems.length ? 1 : 0;
   }
   if (p.problems.length) return 1;
@@ -518,8 +702,15 @@ function main(argv) {
     console.error(`package: v${p.version} is a development version — a release zip needs a release version; --allow-dev builds a test zip named after it`);
     return 1;
   }
+  const opts = { out: o.out || path.join(os.tmpdir(), 'stronghold-protocol-release'), install: o.install, force: o.force, keepStage: o.keepStage };
   try {
-    const r = build(o.root, p, { out: o.out || path.join(os.tmpdir(), 'stronghold-protocol-release'), install: o.install, force: o.force, keepStage: o.keepStage });
+    if (o.update) {
+      const r = buildUpdate(o.root, p, bases, opts);
+      process.stdout.write(formatUpdate(r, p.version));
+      console.log(`zip: ${r.zipPath} (${MB(r.zipBytes)}, ${r.files} files)${r.stage ? ` · stages kept: ${r.stage}, ${r.full}` : ''}`);
+      return 0;
+    }
+    const r = build(o.root, p, opts);
     console.log(`zip: ${r.zipPath} (${MB(r.zipBytes)}, ${r.files} files)${r.stage ? ` · stage kept: ${r.stage}` : ''}`);
     return 0;
   } catch (e) {

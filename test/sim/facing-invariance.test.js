@@ -117,8 +117,9 @@ test('战术家 援军 (伺夜): the tactical point is the tile in FRONT along t
 
 test('突袭 (raidShip): the landing tile beside the enemy turns with the member direction (equal candidates)', () => {
   // a diagonal-only range: two equally near landing tiles cover the enemy — the tie resolves in the member's frame. The
-  // enemy stands inside the player's own board (rows 9–12, cols 2–10): a member lands only there since 0.2.0
-  // (Battle.onOwnBoard, DESIGN §25.18), so all four diagonal tiles around (10, 6) are candidates in every direction
+  // enemy stands inside the player's own board (rows 9–12, cols 2–10): a member lands only on a board of its field since
+  // 0.2.0 (Battle.onFieldBoard — on a one-player field its own; DESIGN §25.18, §26.1), so all four diagonal tiles around
+  // (10, 6) are candidates in every direction
   const ER = 10, EC = 6;
   const rec = chessRec({ id: 'r_diag', bonds: ['raidShip'], profession: 'WARRIOR', skill: null, rangeGrid: [[1, 1], [-1, 1]] });
   const land = (dir) => {

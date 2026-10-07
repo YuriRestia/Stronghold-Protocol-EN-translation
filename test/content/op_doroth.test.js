@@ -83,8 +83,8 @@ test('多萝西 in every 自选 form: her operator kit (all three skills authore
       done(h);
     }
   }
-  // E2 Lv1 1186 / 476 / 142, E2 Lv60 1395 / 546 / 162; TRP-Y +120 / +42 → +155 / +57, TRP-X +36 / +12 → +60 / +30
-  assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [476, 546]);
+  // E2 Lv1 1186 / 503 / 142, E2 Lv60 1395 / 573 / 162; TRP-Y +120 / +42 → +155 / +57, TRP-X +36 / +12 → +60 / +30
+  assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [503, 573]);
   assert.deepEqual([modOf(5, Y).attr, modOf(6, Y).attr, modOf(5, X).attr, modOf(6, X).attr], [{ maxHp: 120, atk: 42 }, { maxHp: 155, atk: 57 }, { atk: 36, def: 12 }, { atk: 60, def: 30 }]);
   // the trap card: cost 3 (TRP-X 2), redeploy 5 s, deploy limit 10 (TRP-X 13)
   assert.deepEqual([tokOf(6, true, 0, null).stats.cost, tokOf(6, true, 0, X).stats.cost, tokOf(6, true, 0, null).stats.respawnTime, tokOf(6, true, 0, null).stats.deployLimit, tokOf(6, true, 0, X).stats.deployLimit], [3, 2, 5, 10, 13]);
@@ -98,17 +98,17 @@ test('a 自选 pick: 多萝西 is offered at tiers 5 and 6 (she has a kit) and a
     { ok: true, picks: { [SLOT[6]]: { charId: DOR, skillIndex: 2, uniEquipId: X } } });
 });
 
-test('T1 共振装置: at her deployment her stock is cnt (8) and attack@max_cnt traps (2; TRP-X stage 3: 3) appear on free melee tiles of her range (the enemies\' ground paths first) — no stock spent, inside the limit (10; TRP-X 13) with room left for the placed pieces', () => {
+test('T1 共振装置: at her deployment her stock is cnt (10) and attack@max_cnt traps (2; TRP-X stage 3: 3) appear on free melee tiles of her range (the enemies\' ground paths first) — no stock spent, inside the limit (10; TRP-X 13) with room left for the placed pieces', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t0 = talentOf(tier, elite, mod, 0);
     const lim = tokOf(tier, elite, 0, mod).stats.deployLimit;
-    assert.deepEqual([t0.cnt, t0['attack@max_cnt'], lim], [8, mod === X && tier === 6 ? 3 : 2, mod === X ? 13 : 10], label(f));
+    assert.deepEqual([t0.cnt, t0['attack@max_cnt'], lim], [10, mod === X && tier === 6 ? 3 : 2, mod === X ? 13 : 10], label(f));
     {
       const { h, u } = field({ tier, elite, mod });
       const made = alive(h);
       assert.equal(made.length, t0['attack@max_cnt'], `${label(f)}: ${t0['attack@max_cnt']} at her deployment`);
-      assert.deepEqual([D(u).stock, D(u).limit], [8, lim], `${label(f)}: stock 8, limit ${lim}`);
+      assert.deepEqual([D(u).stock, D(u).limit], [10, lim], `${label(f)}: stock 10, limit ${lim}`);
       const range = new Set(u.rangeKeys), path = h.b.groundPathTiles();
       for (const t of made) {
         const k = t.tileR * 21 + t.tileC;
@@ -125,7 +125,7 @@ test('T1 共振装置: at her deployment her stock is cnt (8) and attack@max_cnt
       assert.equal(alive(h).filter((t) => t.uid != null).length, 9, `${label(f)}: every piece deployed at the start`);
       if (!(mod === X && tier === 6)) assert.equal(summoned.length, Math.min(t0['attack@max_cnt'], lim - 9), `${label(f)}: summons within the limit`);
       assert.ok(alive(h).length <= lim, `${label(f)}: never past the limit`);
-      assert.equal(D(u).stock, 8, `${label(f)}: the start deployment spends no trap`);
+      assert.equal(D(u).stock, 10, `${label(f)}: the start deployment spends no trap`);
       done(h);
     }
   }
@@ -138,9 +138,18 @@ test('the skills\' 主动效果 "立即获得一个陷阱": +1 to her stock as s
     assert.deepEqual([sk.skillType, sk.spCost, sk.initSp, sk.bb.cnt], ['AUTO', elite ? 16 : 19, 0, 1], label(f));
     const { h, u } = field({ tier, elite, mod });
     const lim = D(u).limit;
+    // full potential: her deployment stock (cnt 10) fills the limit 10 — 阻回 from the deployment until a trap is spent
+    // (one spent here: 9); TRP-X's limit 13 leaves room (10)
+    assert.deepEqual([D(u).stock, lim], [10, mod === X ? 13 : 10], `${label(f)}: stock 10, limit ${lim}`);
+    if (mod !== X) {
+      assert.ok(u.findBuff('talent:doroth:full') && u.s.flags.noSp, `${label(f)}: 阻回 from her deployment`);
+      D(u).stock--;
+      h.step();
+    }
+    const s0 = mod === X ? 10 : 9;
     assert.ok(h.runUntil(() => u.skill.activations === 1, sk.spCost + 1), `${label(f)}: cast at full SP`);
-    assert.equal(D(u).stock, 9, `${label(f)}: +1`);
-    h.run(sk.spCost * (lim - 9) + 1);
+    assert.equal(D(u).stock, s0 + 1, `${label(f)}: +1`);
+    h.run(sk.spCost * (lim - s0 - 1) + 1);
     assert.equal(D(u).stock, lim, `${label(f)}: full`);
     assert.ok(u.findBuff('talent:doroth:full') && u.s.flags.noSp, `${label(f)}: 阻回`);
     const sp = u.skill.sp, casts = u.skill.activations;
@@ -242,11 +251,11 @@ test('S3 高速共振排障: every selectable ground enemy on its x-6 takes atk_
   }
 });
 
-test('T2 梦想家: every trap that goes off gives her ATK +2 % (TRP-Y stage 3: 4 %), up to 10 stacks, until she leaves — with S1 / S2 before the trap\'s damage, with S3 after it', () => {
+test('T2 梦想家: every trap that goes off gives her ATK +2 % (TRP-Y stage 3: 4 %), up to 12 stacks, until she leaves — with S1 / S2 before the trap\'s damage, with S3 after it', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t1 = talentOf(tier, elite, mod, 1);
-    assert.deepEqual([t1.atk, t1.max_stack_cnt], [mod === Y && tier === 6 ? 0.04 : 0.02, 10], label(f));
+    assert.deepEqual([t1.atk, t1.max_stack_cnt], [mod === Y && tier === 6 ? 0.04 : 0.02, 12], label(f));
     for (const skill of [0, 2]) {
       const { h, u } = field({ tier, elite, mod, skill, pieces: [[9, 6]] });
       for (const t of alive(h)) if (t.uid == null) h.b.retreat(t, { reason: 'expired', permanent: true });
@@ -263,17 +272,17 @@ test('T2 梦想家: every trap that goes off gives her ATK +2 % (TRP-Y stage 3: 
       done(h);
     }
   }
-  // ten at most, gone when she leaves
+  // twelve at most, gone when she leaves
   const { h, u } = field({ tier: 5, skill: 0, pieces: [[9, 6]] });
   const trap = piece(h, 2);
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 14; i++) {
     const e = h.spawn('enemy_dummy', { pos: [9, 6] });
     h.step();
     h.b.kill(e, null);
     trap.mem.dorFired = false;
     if (!trap.alive) h.b.redeploy(trap, { free: true });
   }
-  assert.equal(u.findBuff('talent:doroth:dream').stacks, 10, 'ten stacks at most');
+  assert.equal(u.findBuff('talent:doroth:dream').stacks, 12, 'twelve stacks at most');
   h.b.retreat(u);
   assert.equal(u.findBuff('talent:doroth:dream'), null, 'gone when she leaves');
   done(h);
@@ -315,7 +324,7 @@ test('a used-up piece comes back on its tile once the card is ready (5 s after t
     h.run(8);
     assert.equal(alive(h).filter((t) => t.uid != null).length, 0, `${label(f)}: not while she is off the field`);
     h.b.redeploy(u, { free: true });
-    assert.equal(D(u).stock, 8, `${label(f)}: the stock refilled at her deployment`);
+    assert.equal(D(u).stock, 10, `${label(f)}: the stock refilled at her deployment`);
     h.runUntil(() => alive(h).filter((t) => t.uid != null).length === 2, 20);
     assert.equal(alive(h).filter((t) => t.uid != null).length, 2, `${label(f)}: both pieces back`);
     done(h);
@@ -368,11 +377,11 @@ test('TRP-X 梦中人: traps cost 2, limit / stock 13; stage 3: 3 traps at her d
       // her T2 full: every placed piece standing rolls again
       const u0 = h0.unit(1);
       const before = alive(h0).filter((t) => t.uid == null).length;
-      for (let i = 0; i < 9; i++) h0.b.addBuff(u0, { key: 'talent:doroth:dream', refresh: 'stack', stacks: 1, maxStacks: 10, mods: { atkPct: 0.02 } });
+      for (let i = 0; i < 11; i++) h0.b.addBuff(u0, { key: 'talent:doroth:dream', refresh: 'stack', stacks: 1, maxStacks: 12, mods: { atkPct: 0.02 } });
       const spare = alive(h0).find((t) => t.uid == null);
       h0.spawn('enemy_dummy', { pos: [spare.tileR, spare.tileC] });
       h0.step();
-      assert.equal(u0.findBuff('talent:doroth:dream').stacks, 10);
+      assert.equal(u0.findBuff('talent:doroth:dream').stacks, 12);
       const after = alive(h0).filter((t) => t.uid == null).length;
       assert.equal(after, Math.min(13 - 3, before - 1 + 3), 'one more per placed piece standing (inside the limit)');
       checkInvariants(h0.b);

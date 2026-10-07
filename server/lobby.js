@@ -93,7 +93,7 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
-//   * 搜寻队友 (DESIGN §26): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
+//   * 搜寻队友 (DESIGN §27): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
 //     mergeRooms / autoStart below carry them out. room.state carries `searching` / `searchSince`.
 
 import { randomBytes, randomInt } from 'node:crypto';

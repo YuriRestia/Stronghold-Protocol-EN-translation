@@ -17,10 +17,51 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf } from '../e2e/client.mjs';
 
-const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
+const UI_ENABLED = process.env.SP_E2E === '1' && hasChrome();
+const ENABLED = UI_ENABLED && existsSync(path.join(ROOT, 'public/assets'));
 const SLOT = 'chess_char_5_diy1_a';
 const SIEGE = 'char_112_siege';
 const PICK = { charId: SIEGE, skillIndex: 2, uniEquipId: 'uniequip_002_siege' };
+
+// GitHub #284 (idea from PR #286): Esc in the picker cancels only the picker, like its 取消, also from its search
+// field — the 干员调配 overlay and its four slots stay, and the saved picks do not change; the next Esc closes the overlay
+describe('自选编队 picker: Esc closes only the picker (real server, no art needed)', { skip: !UI_ENABLED && 'set SP_E2E=1 (and have Chrome)' }, () => {
+  test('5阶 / 6阶 slots: Esc cancels the picker, the overlay stays; a second Esc closes the overlay', { timeout: 90000 }, async () => {
+    const srv = await startRealServer();
+    const P = (await import('puppeteer-core')).default;
+    const c = new Client(P, srv.base, 'diy-esc', { prefix: 'diy-esc' });
+    const picker = '[data-testid="diy-picker"]';
+    const saved = () => c.page.evaluate(() => localStorage.getItem('sp.pref.diy'));
+    try {
+      await c.open();
+      await c.enter('自选取消');
+      await c.click('.lobby-screen [data-testid="loadout-open"]');
+      await c.page.waitForSelector('.lo .lo-tab[data-tab="diy"]', { visible: true, timeout: 15000 });
+      await c.click('.lo .lo-tab[data-tab="diy"]');
+      const before = await saved();
+      for (const [slot, search] of [[SLOT, false], ['chess_char_6_diy1_a', true]]) {
+        await c.page.waitForSelector(`.diy-slot[data-slot="${slot}"] .diy-slot__fill`, { visible: true, timeout: 15000 });
+        await c.click(`.diy-slot[data-slot="${slot}"] .diy-slot__fill`);
+        await c.page.waitForSelector(picker, { visible: true, timeout: 8000 });
+        if (search) {
+          await c.click(`${picker} input[type="search"]`);
+          await c.page.keyboard.type('推进');
+        }
+        await c.page.keyboard.press('Escape');
+        await c.page.waitForSelector(picker, { hidden: true, timeout: 3000 });
+        assert.ok(await c.page.$('.lo'), `${slot}: Esc keeps the 干员调配 overlay${search ? ' (from the search field)' : ''}`);
+        assert.equal((await c.page.$$('.diy-slot')).length, 4, `${slot}: the four slots stay`);
+      }
+      assert.equal(await saved(), before, 'cancelling a picker does not change the saved picks');
+      await c.page.keyboard.press('Escape');
+      await c.page.waitForFunction(() => !document.querySelector('.lo'), { timeout: 3000 });
+      assert.deepEqual(c.problems.filter((p) => p.startsWith('pageerror:')), []);
+    } finally {
+      await c.close();
+      await srv.stop();
+    }
+  });
+});
 
 describe('0.2.0 自选编队 — a slotted operator in the own shop and battle (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + public/assets)' }, () => {
   test('自选编队: slot 推进之王 → level-5 shop card (自选) → buy → deploy → the local battle fields 推进之王', { timeout: 6 * 60 * 1000 }, async () => {

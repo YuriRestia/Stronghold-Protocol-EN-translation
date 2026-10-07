@@ -345,3 +345,93 @@ describe('flying units hover FLY_HOVER above the ground, whatever their model', 
     assert.ok(Math.abs(fly.shadow.position.y - ground.shadow.position.y) < 1e-9, 'the shadow stays on the ground');
   });
 });
+
+// GitHub #277 (@FrogThai): 飞机经过一格方块时会跟走楼梯一样，有高低差 — a flyer crossing one raised tile (high ground,
+// a forbidden block) rose onto the block and dropped back like a step, because the view added the tile's height under
+// it before its FLY_HOVER. The official lift is one constant over the route (docs/research/12: Vector3(0, 0.35, 0) added
+// while flying), so an enemy flyer hovers from the road (z 0) whatever tile it crosses; its shadow lies on the tile top
+// under it. Ground enemies keep to the road as before, and an operator on high ground keeps standing on the block.
+describe('an enemy flyer crossing a raised tile keeps its height (GitHub #277)', () => {
+  const RAISED = { row: 12, col: 6, h: 0.42 };   // one high-ground block ('h', TILE_H.wall) on the flyer's row
+  const heightAt = (r, c) => (r === RAISED.row && c === RAISED.col ? RAISED.h : 0);
+  const sample = (x, flags) => ({ x, y: 12, hp: 100, maxHp: 100, sp: 0, spMax: 0, flags, anim: 1, vx: 0.5 });
+
+  test('the body stays FLY_HOVER above the road over the block; the shadow lies on the block top', async () => {
+    const { FLY_HOVER } = await import('../../public/js/render/units.js');
+    const ctx = fakeViewCtx(fake.P, { assets: store(), cam, heightAt });
+    const fly = new UnitView(ctx, { id: 1, side: 'enemy', kind: 'enemy', defId: 'enemy_1005_yokai', x: 4, y: 12, maxHp: 100, motion: 'FLY' }, {});
+    await tick(); await tick();
+    let t = 0;
+    const step = (x) => { fly.sync(sample(x, 512), t); fly.update(1 / 60, cam(), t); t += 1 / 60; };
+    for (let i = 0; i < 180; i++) step(4);                       // settle the lift on the road
+    const heights = [];
+    for (let i = 0; i <= 80; i++) { step(4 + i * 0.05); heights.push(fly.z + fly.hover); }   // x 4 → 8 across col 6
+    const rise = Math.max(...heights) - Math.min(...heights);
+    assert.ok(rise < 1e-6, `the body height never changes over the block (rose ${rise.toFixed(3)} tiles; before: +${RAISED.h})`);
+    assert.ok(Math.abs(heights[0] - FLY_HOVER) < 1e-3, `FLY_HOVER above the road (${heights[0].toFixed(3)})`);
+    for (let i = 0; i < 60; i++) step(6);                        // hold over the block
+    assert.equal(fly.z, 0, 'the flyer hovers from the road plane');
+    const c = cam();
+    assert.ok(Math.abs(fly.screen.y - c.project(6, 12, FLY_HOVER).y) < 1e-6, 'drawn FLY_HOVER above the road, not above the block');
+    assert.ok(Math.abs(fly.shadow.position.y - c.project(6, 12, RAISED.h).y) < 0.05, 'its shadow lies on the block top under it');
+    for (let i = 0; i < 60; i++) step(8);                        // back over the road
+    assert.ok(Math.abs(fly.shadow.position.y - c.project(8, 12, 0).y) < 0.05, 'and on the road again past it');
+  });
+
+  test('ground enemies stay on the road and an operator on the block stands on its top', async () => {
+    const ctx = fakeViewCtx(fake.P, { assets: store(), cam, heightAt });
+    const walker = new UnitView(ctx, { id: 2, side: 'enemy', kind: 'enemy', defId: 'enemy_1007_slime', x: 6, y: 12, maxHp: 100 }, {});
+    const op = new UnitView(ctx, { id: 3, side: 'ally', kind: 'chess', defId: 'char_x', tier: 1, x: 6, y: 12, maxHp: 100 }, {});
+    await tick(); await tick();
+    for (let i = 0; i < 60; i++) {
+      walker.sync(sample(6, 0), i / 60); walker.update(1 / 60, cam(), i / 60);
+      op.sync({ ...sample(6, 0), anim: 0, vx: 0 }, i / 60); op.update(1 / 60, cam(), i / 60);
+    }
+    assert.equal(walker.z, 0, 'a ground enemy is never popped onto a block');
+    assert.ok(Math.abs(op.z - RAISED.h) < 1e-6, `the operator stands on the high ground (${op.z})`);
+  });
+});
+
+// PR #275 (@xcdoge): 猎狗pro ships Move_Loop 0.80 s next to Run_Loop 0.53 s and its moveSpeed is 1.9, so a fast enemy
+// walks on its model's own Run cycle (anims.run) while a standard one keeps Move; the cast slot composes with it.
+describe('a fast enemy walks on its Run cycle (PR #275)', () => {
+  const entry = {
+    skel: '/s/x.skel', atlas: '/s/x.atlas', textures: ['/s/x.png'],
+    anims: {
+      idle: 'Idle', deploy: 'Idle', die: 'Die', attack: null,
+      move: { begin: 'Move_Begin', loop: 'Move_Loop', end: 'Move_End' },
+      run: { begin: 'Run_Begin', loop: 'Run_Loop', end: 'Run_End' },
+      skill: { begin: null, loop: 'Skill_01', end: null, index: 0, idle: null },
+      skills: { 0: { begin: null, loop: 'Skill_01', end: null, index: 0, idle: null }, 1: { begin: null, loop: 'Skill_02', end: null, index: 1, idle: null } },
+    },
+    animations: { Idle: 1, Die: 0.67, Move_Begin: 0.17, Move_Loop: 0.8, Move_End: 0.17, Run_Begin: 0.17, Run_Loop: 0.53, Run_End: 0.17, Skill_01: 1, Skill_02: 1 },
+  };
+  const assets = {
+    picture: () => null, image: async () => null, spineEntry: () => entry,
+    spine: { acquire: async () => ({ animations: Object.keys(entry.animations).map((name) => ({ name })) }), release() {} },
+  };
+  const enemyView = async (id, speed, side = 'enemy') => {
+    const ctx = fakeViewCtx(fake.P, { assets, cam, lookupDef: () => ({ stats: { moveSpeed: speed } }) });
+    const v = new UnitView(ctx, { id, side, kind: side === 'enemy' ? 'enemy' : 'op', defId: 'enemy_1000_gopro_2', x: 5, y: 12, maxHp: 100 }, {});
+    await tick(); await tick();
+    assert.ok(v.actor, 'spine actor built');
+    return v;
+  };
+
+  test('moveSpeed 1.9 moves on Run, 1 on Move; the cast slot and the Run cycle compose', async () => {
+    const hound = await enemyView(1, 1.9);
+    assert.equal(hound.actor.roles.move.loop, 'Run_Loop');
+    const slug = await enemyView(2, 1);
+    assert.equal(slug.actor.roles.move.loop, 'Move_Loop');
+    // the MOVE anim code plays it
+    hound.sync({ x: 5, y: 12, hp: 100, maxHp: 100, sp: 0, spMax: 0, flags: 0, anim: 1, vx: 0.5 }, 1);
+    for (let i = 0; i < 20; i++) hound.update(1 / 60, cam(), i / 60);
+    assert.match(String(hound.actor.current), /^Run/, `playing ${hound.actor.current}`);
+    hound.setSkillSlot(1);
+    assert.equal(hound.actor.roles.skill.loop, 'Skill_02', 'the cast slot');
+    assert.equal(hound.actor.roles.move.loop, 'Run_Loop', 'and the Run cycle survives it');
+    hound.actor.setRunMode(false);
+    assert.equal(hound.actor.roles.move.loop, 'Move_Loop');
+    assert.equal(hound.actor.roles.skill.loop, 'Skill_02', 'the cast slot survives that too');
+  });
+});

@@ -715,11 +715,11 @@ test('阿戈尔 (community report, 2026-10-07) step 1: the bond HP is on every m
     assert.equal(h.hooksOf('death').filter((c) => c.unit === h.unit(DEEP) && c.reason === 'killed').length, stands ? 0 : 1, `L ${L}`);
     if (stands) close(post.get(DEEP).hp, 2904 * 1.5 - 4345, 1e-6, 'L 15: 4356 − 4345 = 11 HP left');
   }
-  // an elite 幽灵鲨 at 62 layers: 2422 × (1 + 0.35 + 0.62 + 0.10 her talent) = 5013.54 HP, DEF 365 — one mark (4635) leaves
-  // 378.54; behind 浊心斯卡蒂 and 乌尔比安 she takes both marks and falls to the second (the kill is 乌尔比安's)
+  // an elite 幽灵鲨 at 62 layers: 2422 × (1 + 0.35 + 0.62 + 0.12 her talent at full potential) = 5061.98 HP, DEF 365 — one
+  // mark (4635) leaves 426.98; behind 浊心斯卡蒂 and 乌尔比安 she takes both marks and falls to the second (the kill is 乌尔比安's)
   const one = fight([{ chessId: ULPIA, row: 10, col: 3 }, { chessId: GHOST, row: 10, col: 4 }], 62);
-  close(one.pre.get(GHOST).maxHp, 2422 * 2.07, 1e-6, 'over 5000 HP');
-  close(one.post.get(GHOST).hp, 2422 * 2.07 - (5000 - 365), 1e-6, 'one mark: she stands');
+  close(one.pre.get(GHOST).maxHp, 2422 * 2.09, 1e-6, 'over 5000 HP');
+  close(one.post.get(GHOST).hp, 2422 * 2.09 - (5000 - 365), 1e-6, 'one mark: she stands');
   assert.equal(one.h.hooksOf('death').length, 0);
   const two = fight([{ chessId: SKADI2, row: 10, col: 3 }, { chessId: ULPIA, row: 10, col: 4 }, { chessId: GHOST, row: 10, col: 5 }], 62);
   assert.deepEqual(tagged(two.h, 'bond:egir:devour').filter((c) => c.target.defId === GHOST).map((c) => [c.source.defId, c.amount]),

@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4011_lessng, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 止颂 (苦痛专注 备注
 // "将降低无来源或任意来源于非“自身阻挡的敌人”的物理、法术伤害…伤害降低效果于“受到伤害前”生效…<Y模组>额外效果为在计算伤害前，若伤害
 // 目标满足条件则临时获取…物理穿透（百分比）Buff（不可叠加，直接加算）"; 痛楚砺刃 备注 "天赋于受到伤害时触发，无需成功受到伤害也可
@@ -28,9 +28,9 @@
 //   ×(1 − damage_resistance) (`hit`: before the 伤判 / barrier steps). S2's window doubles it (talent_scale). DRE-Y stage 3:
 //   40 %, and "攻击自身阻挡的敌人时，无视目标12%的防御力" (the hidden module talent's def_penetrate: defIgnorePct on his damage to an
 //   enemy he blocks).
-// - T2 痛楚砺刃 "受到伤害后，攻击力+12%，持续15秒（不可叠加）" (bb atk / add_atk_duration): every damage instance aimed at him
-//   (`hit`, so a dodged or shielded one too; never a 流失) sets ATK +atk for add_atk_duration s, refreshed, never stacked.
-//   DRE-X stage 3: +20 %.
+// - T2 痛楚砺刃 "受到伤害后，攻击力+12%，持续15秒（不可叠加）" (full potential: +16 %; bb atk / add_atk_duration): every damage
+//   instance aimed at him (`hit`, so a dodged or shielded one too; never a 流失) sets ATK +atk for add_atk_duration s,
+//   refreshed, never stacked. DRE-X stage 3: +24 %.
 // - S1 强力击·γ型 (AUTO, attack SP 3; data DEFAULT): the next attack at atk_scale × ATK.
 // - S2 虔修对决 (PASSIVE, 部署后, 18 / 21 s): from every deployment for the skill's duration: 苦痛专注 ×talent_scale, ATK +atk and
 //   every attack strikes twice (2连击 — both strikes land in the attack [ASSUMED: the skeleton's 0.267 s between them is not
@@ -65,7 +65,7 @@ export default {
   char_4011_lessng: (bb, chess) => {
     const tb = traitBb(chess);       // DRE-X: atk_scale; DRE-Y: max_hp / attack_speed / hp_ratio / value
     const t0 = talentBb(chess, 0);   // 苦痛专注 (DRE-Y stage 3: 0.4)
-    const t1 = talentBb(chess, 1);   // 痛楚砺刃 (DRE-X stage 3: 0.2)
+    const t1 = talentBb(chess, 1);   // 痛楚砺刃 (DRE-X stage 3: 0.24)
     const hb = moduleBb(chess);      // DRE-Y stage 3: def_penetrate
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
     const s2 = skillRec(chess, S2);

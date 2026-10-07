@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_197_poca, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 早露 (备注 of
 // 深入骨髓, 学生楷模 and 雪崩击); PRTS 分支特性信息 攻城手 ("可对空。攻击范围不包含自身所在地块").
 // - Trait (攻城手) "优先攻击重量最重的敌人": target priority 'heaviest' (targeting.js: the highest current 重量等级 first, then
@@ -19,11 +19,12 @@
 // - T1 深入骨髓 "攻击重量较重（重量等级大于等于3）的敌人时，无视其防御力的60%": every damage she deals to an enemy of 重量等级 ≥ value
 //   ignores def_penetrate of its DEF (DamageInfo defIgnorePct, added — PRTS 备注 "临时获取永久的物理穿透（百分比）Buff（不可叠加，
 //   直接加算）").
-// - T2 学生楷模 "编入队伍时，所有【乌萨斯学生自治团】干员攻击力+8%": every 【乌萨斯学生自治团】 operator of her player's team ATK +atk
-//   for the whole battle, deployed or not (the kits' 编入队伍时 convention, 斯卡蒂 深海掠食者). SIE-Y stage 3: +12 % and
-//   "每有一名【乌萨斯学生自治团】干员处于技能期间时，【乌萨斯学生自治团】干员的攻击力额外+15%（最多+45%）" (hidden init_atk /
-//   max_atk): the number of those operators on the field whose skill runs, re-read every STUDENT_TICK s and at every skill start
-//   (PRTS 备注 "每0.3秒及每次开启技能时更新一次自身的额外加成") [ASSUMED: her team's operators only, as the base talent].
+// - T2 学生楷模 "编入队伍时，所有【乌萨斯学生自治团】干员攻击力+8%" (full potential: +10 %): every 【乌萨斯学生自治团】 operator of
+//   her player's team ATK +atk for the whole battle, deployed or not (the kits' 编入队伍时 convention, 斯卡蒂 深海掠食者). SIE-Y
+//   stage 3: +14 % and "每有一名【乌萨斯学生自治团】干员处于技能期间时，【乌萨斯学生自治团】干员的攻击力额外+15%（最多+45%）"
+//   (hidden init_atk / max_atk): the number of those operators on the field whose skill runs, re-read every STUDENT_TICK s
+//   and at every skill start (PRTS 备注 "每0.3秒及每次开启技能时更新一次自身的额外加成") [ASSUMED: her team's operators only,
+//   as the base talent].
 // - S1 攻击力强化·γ型 (30 s): ATK +atk. S2 分裂射击 (60 s): ATK +atk, attack@max_target targets.
 // - S3 雪崩击 (6 / 7 s): ATK +atk; at the cast, harpoons link the max_target heaviest enemies of her range (her own target
 //   order); each linked enemy is 束缚 (bind) while linked and takes one attack every hit_interval s, hit_duration /

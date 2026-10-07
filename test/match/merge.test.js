@@ -444,3 +444,64 @@ test('equipment: the replace dialog picks WHICH equipped item a third one destro
   checkInvariants(m);
   m.dispose();
 });
+
+test('equipment: a consume-on-equip item on a full carrier replaces the picked item first and leaves the slot free; a refused 博士投影 keeps both (GitHub #263)', () => {
+  // PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备：指定一件已佩戴装备替换为将要佩戴的装备，并销毁被指定的装备"
+  const { m, ps } = prep(27);
+  const pool = chessOfTier(2).filter((c) => m.pool.has(c) && DATA.chess[c].bonds.length);
+  let n = 0;
+  /** A normal operator in the hand wearing two different plain items (older, newer). */
+  const fullCarrier = (id = pool[n]) => {
+    const a = give(m, ps, id);
+    const [older, newer] = [['chess_item_1_01_e_a', 'chess_item_1_02_e_a'], ['chess_item_3_03_e_a', 'chess_item_1_05_e_a'], ['chess_item_3_06_e_a', 'chess_item_2_04_e_a'], ['chess_item_3_05_e_a', 'chess_item_3_02_e_a'], ['chess_item_2_01_e_a', 'chess_item_3_07_e_a']][n++]
+      .map((itemId) => giveItem(m, ps, itemId));
+    for (const it of [older, newer]) assert.deepEqual(m.handle('p_0', { t: 'g.equip', itemUid: it.uid, targetUid: a.uid }), { ok: true });
+    assert.deepEqual(a.items.map((x) => x.uid), [older.uid, newer.uid]);
+    return { a, older, newer };
+  };
+  const equip = (it, a, rep) => m.handle('p_0', { t: 'g.equip', itemUid: it.uid, targetUid: a.uid, ...(rep ? { replaceUid: rep.uid } : {}) });
+
+  // the normal 博士投影 takes the slot of the item the player picked (the NEWER one), not the oldest
+  let { a, older, newer } = fullCarrier();
+  const holo = giveItem(m, ps, 'chess_item_5_06_e_a');
+  assert.deepEqual(equip(holo, a, newer), { ok: true });
+  assert.deepEqual(a.items.map((x) => x.uid), [older.uid, holo.uid], 'the pick destroyed, the older kept, 博士投影 equipped');
+  assert.equal(ps.find(newer.uid), null);
+  // 盟约之币: the pick is destroyed, the coin pays and is consumed — one item and a free slot are left
+  ({ a, older, newer } = fullCarrier());
+  const coin = giveItem(m, ps, 'chess_item_1_03_e_a');
+  const funds = ps.funds;
+  assert.deepEqual(equip(coin, a, newer), { ok: true });
+  assert.equal(ps.funds, funds + 1);
+  assert.deepEqual(a.items.map((x) => x.uid), [older.uid], 'a free slot is left');
+  assert.equal(ps.find(newer.uid), null);
+  assert.equal(ps.find(coin.uid), null, 'the coin is consumed');
+  // 随身身份牌 (picking the OLDER item): the layers go to the carrier's bonds, the newer item stays
+  ({ a, older, newer } = fullCarrier());
+  const card = giveItem(m, ps, 'chess_item_1_04_e_a');
+  const bond = DATA.chess[a.id].bonds[0];
+  const layers = ps.layers[bond] || 0;
+  assert.deepEqual(equip(card, a, older), { ok: true });
+  assert.equal(ps.layers[bond], layers + 3);
+  assert.deepEqual(a.items.map((x) => x.uid), [newer.uid]);
+  assert.equal(ps.find(older.uid), null);
+  // the golden 博士投影 promotes at once; the item not picked stays on the elite
+  ({ a, older, newer } = fullCarrier());
+  const gold = giveItem(m, ps, 'chess_item_5_06_e_b');
+  assert.deepEqual(equip(gold, a, older), { ok: true });
+  assert.ok(DATA.chess[a.id].isGolden, 'promoted');
+  assert.deepEqual(a.items.map((x) => x.uid), [newer.uid]);
+  // refused (博士投影 — either quality — on an elite): nothing is destroyed, the order is kept, the item stays in the hand
+  ({ a, older, newer } = fullCarrier(DATA.chess[pool[n]].goldenId));
+  for (const id of ['chess_item_5_06_e_a', 'chess_item_5_06_e_b']) {
+    const it = giveItem(m, ps, id);
+    for (const rep of [older, newer, null]) {
+      assert.deepEqual(equip(it, a, rep), { error: ERR.BAD_TARGET, detail: 'already elite' }, id);
+      assert.deepEqual(a.items.map((x) => x.uid), [older.uid, newer.uid], `${id}: both kept`);
+    }
+    assert.equal(ps.find(it.uid).area, 'hand');
+    assert.deepEqual(m.handle('p_0', { t: 'g.destroy', uid: it.uid }), { ok: true });
+  }
+  checkInvariants(m);
+  m.dispose();
+});

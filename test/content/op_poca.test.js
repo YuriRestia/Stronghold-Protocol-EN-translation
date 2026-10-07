@@ -33,7 +33,7 @@ const ENEMIES = {
 /** Every 自选 form: [tier, elite, module]. */
 const FORMS_ALL = [[5, false, null], [6, false, null], ...[5, 6].flatMap((t) => [null, SIEX, SIEY].map((m) => [t, true, m]))];
 /** 学生楷模: she is a 【乌萨斯学生自治团】 operator herself — her ATK always carries the talent's +atk. */
-const studentAtk = (tier, elite, mod) => (elite && mod === SIEY && tier === 6 ? 0.12 : 0.08);
+const studentAtk = (tier, elite, mod) => (elite && mod === SIEY && tier === 6 ? 0.14 : 0.1);
 
 /** A battle with 早露 as uid 1 at (row, col) facing RIGHT, plus `others`. */
 function field({ tier = 5, elite = false, mod = null, skill = 0, row = 10, col = 3, others = [], seed = 5 } = {}) {
@@ -71,9 +71,9 @@ test('早露 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1351 / 856 / 100, E2 Lv60 1619 / 973 / 115; SIE-X +60 / +30 → +90 / +45,
+  // the numbers of the forms (zh_CN): E2 Lv1 1351 / 890 / 100, E2 Lv60 1619 / 1007 / 115; SIE-X +60 / +30 → +90 / +45,
   // SIE-Y +70 / +20 → +100 / +30 ATK / DEF
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1351, 856, 1619, 973]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1351, 890, 1619, 1007]);
   assert.deepEqual([modOf(5, SIEX).attr, modOf(6, SIEX).attr, modOf(5, SIEY).attr, modOf(6, SIEY).attr], [{ atk: 60, def: 30 }, { atk: 90, def: 45 }, { atk: 70, def: 20 }, { atk: 100, def: 30 }]);
 });
 
@@ -239,7 +239,7 @@ test('T1 深入骨髓: her damage ignores 60 % of the DEF of an enemy of 重量�
   }
 });
 
-test('T2 学生楷模: every 【乌萨斯学生自治团】 operator of her team — her and 古米, deployed or not — ATK +8 %, nobody else; SIE-Y stage 3: +12 % and +15 % per student in skill (≤ +45 %), re-read every 0.3 s', () => {
+test('T2 学生楷模: every 【乌萨斯学生自治团】 operator of her team — her and 古米, deployed or not — ATK +10 %, nobody else; SIE-Y stage 3: +14 % and +15 % per student in skill (≤ +45 %), re-read every 0.3 s', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const others = [{ uid: 2, chessId: 'chess_char_1_10_a', row: 12, col: 3 }, { uid: 3, chessId: 'chess_char_1_02_a', row: 12, col: 6 }];
@@ -257,7 +257,7 @@ test('T2 学生楷模: every 【乌萨斯学生自治团】 operator of her team
   }
   // SIE-Y stage 3: the extra +15 % per student operator on the field whose skill runs, at most +45 %
   const t6 = formOf(6, true).modules.find((m) => m.uniEquipId === SIEY).talentChanges;
-  assert.deepEqual([t6.find((t) => t.talentIndex === 1).bb.atk, t6.find((t) => t.talentIndex === -1).bb], [0.12, { init_atk: 0.15, max_atk: 0.45 }]);
+  assert.deepEqual([t6.find((t) => t.talentIndex === 1).bb.atk, t6.find((t) => t.talentIndex === -1).bb], [0.14, { init_atk: 0.15, max_atk: 0.45 }]);
   const others = [
     { uid: 2, chessId: 'chess_char_1_10_a', row: 12, col: 3, skillIndex: 1 }, { uid: 3, chessId: 'chess_char_1_10_b', row: 12, col: 5, skillIndex: 1 },
     { uid: 4, diy: { slot: 'chess_char_6_diy2_a', charId: 'char_1051_headb2', skillIndex: 0 }, row: 11, col: 8 },
@@ -272,7 +272,7 @@ test('T2 学生楷模: every 【乌萨斯学生自治团】 operator of her team
   h.step(); // at once: 每次开启技能时
   for (const a of team) approx(drive(a), 0.15, `one in skill: ${a.def.charId}`);
   assert.equal(drive(h.unit(5)), 0, '角峰 gets nothing');
-  approx(u.s.atk, u.base.atk * (1 + 0.12 + 0.15 + skillOf(6, true, S1).bb.atk), 'her ATK: +12 % +15 % (and her S1)');
+  approx(u.s.atk, u.base.atk * (1 + 0.14 + 0.15 + skillOf(6, true, S1).bb.atk), 'her ATK: +14 % +15 % (and her S1)');
   cast(h.unit(2));
   h.step();
   approx(drive(h.unit(4)), 0.3, 'two in skill');

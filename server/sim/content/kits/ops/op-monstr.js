@@ -4,7 +4,7 @@
 // (自选)").
 //
 // Forms (data/backups.json units.char_4179_monstr): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// XAH-X at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// XAH-X at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json); PRTS Mon3tr
 // (T1 备注 "治疗效果无视禁疗，但对象选取受禁疗制约，可以强行选择自身的重构体作为自身普通攻击的治疗目标", "攻击力加成效果同名效果取最高";
 // T2 备注 "该效果重复触发刷新持续时间，不会因自身退场而消失"; S1 备注 "技能范围与技能期间治疗范围无关"; S2 备注 "可选择满生命值的重构体
@@ -40,7 +40,7 @@
 //   0.2.0 WE2) and its MELEE position, enforced by the match. Its kit: 禁疗 (only her heals reach it), blocks nothing, taunt
 //   −1, loses 8 HP every 0.1 s from 1 s after it lands (流失, Battle.loseHp — PRTS "每0.1s流失8生命值"; trait damage_per_second
 //   80); every ally of its
-//   3×3 but itself (no 孤立 one) ATK +atk (0.15; XAH-X stage 3 0.25; 同名效果取最高). Gone (destroyed or withdrawn) ⇒ back on its
+//   3×3 but itself (no 孤立 one) ATK +atk (0.2; XAH-X stage 3 0.3; 同名效果取最高). Gone (destroyed or withdrawn) ⇒ back on its
 //   tile its redeploy time (15 s) after, paying its cost (3 DP), only while she stands — her deployment (not a 【移动】)
 //   readies a waiting one at once (monstr_t_1[born_charge]) [ASSUMED: the 卫戍 auto redeploy of a placed summon, as 凯尔希's
 //   Mon3tr]; withdrawn when she leaves the field (not on her S3 moves).
@@ -179,7 +179,7 @@ function s2CanAttack(battle, unit) {
 export default {
   char_4179_monstr: (bb, chess) => {
     const tb = traitBb(chess);       // attack@chain.max_target (3), attack@chain.atk_scale (0.75; XAH-X 0.85)
-    const t0 = talentBb(chess, 0);   // 自我修复: cnt, atk (XAH-X stage 3: 0.25 + attack@chain.extra_cnt 1)
+    const t0 = talentBb(chess, 0);   // 自我修复: cnt, atk (XAH-X stage 3: 0.3 + attack@chain.extra_cnt 1)
     const t1 = talentBb(chess, 1);   // 战术协同: buff_duration, attack_speed
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
     const s1 = skillRec(chess, S1), s3 = skillRec(chess, S3);

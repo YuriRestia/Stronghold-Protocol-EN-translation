@@ -4,8 +4,8 @@
 // acting through it. Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_003_kalts): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json);
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json);
 // PRTS 凯尔希 (Mon3tr 备注 "仅在未装配模组时优先治疗效果为优先治疗自身、干员Mon3tr和凯尔希的召唤物", "可以强行选择…凯尔希的召唤物
 // 作为治疗目标，相同生命比例下优先治疗自身", "治疗效果无视禁疗，但对象选取受禁疗制约"; 不毁重构 备注 "可对空"; S3 备注 "技能效果流失
 // 的生命值可以击倒Mon3tr，并触发第二天赋", "攻击力加成每秒更新一次"); PRTS Mon3tr(凯尔希的召唤物) (备注 "持有禁疗（可被凯尔希…无视）",
@@ -37,8 +37,8 @@
 //   is the summon's charge_token[finish], ON_FINISH — the one reading of every summoner kit, 傀影's twin included)
 //   [ASSUMED: the 卫戍 auto redeploy of a placed summon].
 // - T2 不毁重构: Mon3tr knocked out (not withdrawn; S3's 流失 counts) ⇒ every selectable enemy of its 3×3 (the talent's x-4,
-//   air units too) takes `value` (1200) true damage (溅射, not dodgeable) and is stunned `stun` (3) s. PHY-X stage 3 (the
-//   token's module talent: 3.5 s, 1500, hp_ratio): also once per deployment when a hit leaves it at or below hp_ratio of
+//   air units too) takes `value` (1400) true damage (溅射, not dodgeable) and is stunned `stun` (3.5) s. PHY-X stage 3 (the
+//   token's module talent: 4 s, 1700, hp_ratio): also once per deployment when a hit leaves it at or below hp_ratio of
 //   its max HP (the equip's toggle-once `_maxHpRatio` 0.5) and it survives [ASSUMED].
 // - S1 指令：结构加固 (MANUAL, data DEFAULT — a heal skill: cast as she is about to heal): her DEF +def and Mon3tr's DEF
 //   +attack@def while it runs; 物理格挡 prob (damage_block[phy]: a physical damage instance she takes is blocked whole —

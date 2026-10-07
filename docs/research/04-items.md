@@ -11,7 +11,7 @@ Tags: **[DATA]** = read directly from game data, **[WEB]** = community/official 
 - Shop (调度中心) has **1 item slot at every shop level** in all real modes (`shopLevelDataDict[*][L].itemCount = 1`; training mode 0 until L5). Season 1 only had items from shop level 5. [DATA]
 - **Max 2 equipment per operator**; equipped items are locked; a 3rd equip = replace (the replaced item is destroyed). Items return to hand when the operator is promoted (3->elite) or sold. [WEB: PRTS 卫戍协议/帮助, arknights.wiki.gg, in-game tip]
 - **2 identical normal items auto-merge into 1 golden** (`upgradeNum=2`). `upgradeNum=100` = never merges (寻呼模块, 信标, 拟态物质, 突变细胞, 人事部文档, 变形同构体; talent note "本装备不会合并为进阶品质"). [DATA]
-- Many items are **consumed on equip** ("装备时销毁"): economy/recruit effects. They need an operator target but never take a slot. [DATA]
+- Many items are **consumed on equip** ("装备时销毁"): economy/recruit effects. They need an operator target but never take a slot. [DATA] On a full carrier they still replace first: the equipped item the player picks is destroyed, then the item resolves, leaving a free slot (PRTS 帮助 "达到上限强行佩戴会改为替换装备" names no exception; GitHub #263, 0.2.1).
 - `trapDuration`: -1 on all normal EQUIP (permanent), 0 on golden & MAGIC (unused by us). `canGiveBond=true` only on 变形同构体; `giveBondId` is set on 18 items (14 bonds) and is the lookup table used by 变形同构体. `givePowerId` always null. [DATA]
 - **MAGIC (法术)**: 画卷, 教鞭, “神秘顾客”; all `hideInShop=true`; only granted by strategies (bands). Drag onto a map tile during prep; instant. Limit: max **2** current-round Arts on the map; all Arts removed at round end. [DATA + WEB wiki.gg]
 
@@ -26,7 +26,7 @@ Tags: **[DATA]** = read directly from game data, **[WEB]** = community/official 
 | Merge | 2 x same normal (`_a`, upgradeNum 2) -> 1 golden (`_b`), automatic, immediate | [DATA]+[WEB] tip "两件同名装备可以合成一件更强力的装备" |
 | Merge counts equipped copies? | Yes: copies in hand and on operators both count; resulting golden goes to hand (slot freed) | [ASSUMED] (consistent with "道具晋级" being a removal condition) |
 | Non-mergeable | upgradeNum 100 items (list above); golden entries have upgradeNum 0 | [DATA] |
-| Consume-on-equip | Effects tagged `kind=consume_on_equip` resolve once on drop, item destroyed, no slot used | [DATA] |
+| Consume-on-equip | Effects tagged `kind=consume_on_equip` resolve once on drop, item destroyed, no slot used; on a full carrier the replace above comes first (a free slot is left) | [DATA]; [WEB] PRTS 帮助, GitHub #263 |
 | Hand capacity | Items share the 10 regular hand slots with operators (+5 temporary) | [DATA] constData.maxDeckChessCnt=10; [WEB] PRTS 帮助 |
 | Shop item slot | 1 slot per refresh at all shop levels (L1-L6) | [DATA] shopLevelDataDict.itemCount |
 | Shop item pool | Non-hidden normal EQUIP with tier <= shop level (mirrors operator rule "调度中心等级≥干员所在等阶") | [ASSUMED] |

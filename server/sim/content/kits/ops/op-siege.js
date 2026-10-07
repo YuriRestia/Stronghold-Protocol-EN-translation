@@ -3,16 +3,16 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_112_siege, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 推进之王
 // (talent 修正 "在场时"; 粉碎 备注 "本天赋无视自身的阻回，可响应飞行单位的死亡"; S2 备注 "技能固定动画不受攻击速度影响";
 // S3 "攻击间隔增大(+1.0)").
 // - Trait (尖兵) "能够阻挡两个敌人": the profession default (block 2). Module SOL-X “糖果盒” overrides it with
 //   "阻挡敌人时攻击力和防御力各+8％" (trait bb atk / def): +atk / +def while she blocks at least one enemy.
-// - T1 万兽之王 "在场时，所有【先锋】职业干员的攻击力和防御力各+8%": an aura on every 【先锋】 operator of the field (her
-//   included) while she is deployed (installAura: the kits' convention for field-wide talents — teammates' pioneers in a
-//   shared field too; several sources keep the strongest). SOL-X stage 2+ adds "自身攻击力和防御力额外+N%" (the module
-//   talent change's bb, +8 % at stage 3): a self buff on top; the aura value stays the base talent's (talentsBase).
+// - T1 万兽之王 "在场时，所有【先锋】职业干员的攻击力和防御力各+8%" (full potential: +10%): an aura on every 【先锋】 operator of
+//   the field (her included) while she is deployed (installAura: the kits' convention for field-wide talents — teammates' pioneers
+//   in a shared field too; several sources keep the strongest). SOL-X stage 2+ adds "自身攻击力和防御力额外+N%" (the module talent
+//   change's bb, +8 % at stage 3): a self buff on top; the aura value stays the base talent's (talentsBase).
 // - T2 粉碎 "周围四格内有敌人倒下时获得1点技力" (talent range x-5: her tile and the four next to it): +sp SP when an enemy
 //   dies there — flying enemies too, and under her own 阻回 (PRTS 备注) — never while a timed skill runs (AK: no SP during
 //   a skill). SOL-Y stage 2+ raises it to sp (3 at stage 3) "场上随机另一名【先锋】职业干员获得1点技力": the hidden module

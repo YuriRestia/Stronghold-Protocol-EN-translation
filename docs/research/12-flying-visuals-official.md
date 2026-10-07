@@ -331,6 +331,12 @@ explains every other per-model difference (§3.1): **the code never repositions 
   3 tests: `FLY_HOVER ≈ 0.35 / 0.27`; every flyer of this mode keeps a positive, consistent net height and the two 妖怪
   drones *were* under the tile at the old 0.32 (with 帝国炮火先兆者's `bounds.y > 0` pinned as the "art above origin"
   case); and a view-level wiring test (a flying view's `hover === FLY_HOVER`, a ground view's `hover === 0`).
+- 0.2.1 (GitHub #277 by @FrogThai, 飞机经过一格方块时会跟走楼梯一样): the lift of an **enemy** flyer starts from the road.
+  The view had put a flyer on the tile top under it (`groundZ`) before adding `FLY_HOVER`, so one high-ground /
+  forbidden block on its way lifted it 0.42 / 0.3 tiles and dropped it again; the client's offset is one constant over
+  the route, so `UnitView.sync` keeps every enemy at z 0 (ground enemies already were), operators and summons keep their
+  tile top. The shadow lies on the tile under the flyer (`shadowZ`; [ASSUMED] — no official reference for a shadow over
+  a block). Test: `describe('an enemy flyer crossing a raised tile keeps its height (GitHub #277)')`.
 - The model quirks (§3.1): `tools/build-data.mjs MODEL_STRETCH_Y` / `MIRRORED_PREFABS` → enemies.json `modelScaleY` /
   `mirrorX` (0.2.0 regenerated its own enemies.json offline; only those three keys changed), `render/units.js
   enemyModelScaleY` and the mirror flip; `tools/local-extract/enemy_model_offsets.py` (optional, host-side, UnityPy) reads

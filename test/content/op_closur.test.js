@@ -223,7 +223,7 @@ test('S2 模型扩展: +cost DP at once and 15 one per 2 s; ATK +atk, 2 targets;
     const atks = h.hooksOf('attack').slice(n0).filter((c) => c.attacker === u);
     assert.ok(atks.length >= 2 && atks.every((c) => c.targets.length === 2), `${label(f)}: 2 targets per attack (${atks.map((c) => c.targets.length)})`);
     for (const e of es) h.b.kill(e, null);
-    // the refund: 角峰 (cost 19) redeployed on the x-4 ⇒ +8; 波登可 outside ⇒ nothing; a 【移动】 ⇒ nothing
+    // the refund: 角峰 (cost 17) redeployed on the x-4 ⇒ +7; 波登可 outside ⇒ nothing; a 【移动】 ⇒ nothing
     h.step();
     const d0 = dpOf(h);
     h.b.kill(yak, null);
@@ -257,7 +257,7 @@ test('S2 模型扩展: +cost DP at once and 15 one per 2 s; ATK +atk, 2 targets;
   done(h);
 });
 
-test('S3 Q.E.D.: 18 DP one per 1.66 s; attack interval 1.0 − 0.5 s; hits of attack@atk_scale × ATK with one 迟钝 stack each (4 % / 5 %, ≤ 10 stacks, one 3 s timer); one more target per 9 attacks (≤ 6); her range adds the 指挥中心\'s x-6 and her 援军\'s ranges', () => {
+test('S3 Q.E.D.: 18 DP one per 1.66 s; attack interval (1.0 − 0.5 s) / ASPD 1.08 (full potential); hits of attack@atk_scale × ATK with one 迟钝 stack each (4 % / 5 %, ≤ 10 stacks, one 3 s timer); one more target per 9 attacks (≤ 6); her range adds the 指挥中心\'s x-6 and her 援军\'s ranges', () => {
   for (const f of [[5, false, null], [6, true, TX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S3);
@@ -272,7 +272,8 @@ test('S3 Q.E.D.: 18 DP one per 1.66 s; attack interval 1.0 − 0.5 s; hits of at
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 1));
     const t0 = h.b.time;
-    approx(u.s.interval, 0.5, `${label(f)}: interval 0.5 s`);
+    assert.equal(formOf(tier, elite).stats.aspd, 108, `${label(f)}: ASPD 108 (潜能 攻速 +8)`);
+    approx(u.s.interval, 0.5 / 1.08, `${label(f)}: interval 0.5 s / 1.08 (ASPD 108)`);
     let attacks = 0;
     const perAttack = [];
     h.b.on('attack', (c) => { if (c.attacker === u && u.skill.active) { attacks++; perAttack.push(c.targets.length); } });
@@ -317,7 +318,7 @@ test('T2 极限调度: from the battle start the 【罗德岛】 operators of he
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const tb = talentOf(tier, elite, mod, 1).bb;
-    assert.deepEqual(tb, tier === 6 && elite && mod === TX ? { cost: -5, atk: 0.08 } : { cost: -3, atk: 0.04 }, label(f));
+    assert.deepEqual(tb, tier === 6 && elite && mod === TX ? { cost: -6, atk: 0.08 } : { cost: -4, atk: 0.04 }, label(f));
     const { h, u } = field({ tier, elite, mod, skill: 0, others: [{ uid: 3, chessId: PODEGO, row: 12, col: 3 }, { uid: 4, chessId: YAK, row: 11, col: 3 }] });
     const podego = h.unit(3), yak = h.unit(4);
     assert.equal(podego.def.raw.nationId, 'rhodes');

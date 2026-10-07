@@ -229,13 +229,15 @@
 .gm__bonds .bslot, .gm__bonds .bstrip__more { pointer-events: auto; }
 .gm__bond-list { min-width: 0; }
 /* The hidden list leaves no hit area over the board; only this compact tab can reopen it (GitHub #142). */
+/* A bare arrow (the owner's request after 0.2.0: the boxed 「收起」 tab looked heavy): transparent, half-visible until
+   hovered or focused; the 44 × 44 touch target stays (an invisible hit area), the name is the aria-label. */
 .gm__bonds .bonds-toggle { pointer-events: auto; flex: none; display: inline-flex; align-items: center; justify-content: center;
-  gap: max(.03rem, 2px); min-width: 44px; min-height: 44px; padding: .06rem .08rem;
-  color: var(--text-hi); background: var(--bg-1); border: 1px solid var(--line-2); cursor: pointer;
-  font-size: max(.14rem, 11px); line-height: 1; }
-.bonds-toggle .icon { width: max(.18rem, 14px); height: max(.18rem, 14px); }
-.bonds-toggle:hover { color: var(--mint-500); border-color: var(--mint-500); }
-.bonds-toggle:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 2px; }
+  min-width: 44px; min-height: 44px; padding: 0; color: var(--text-hi); background: transparent; border: 0; cursor: pointer;
+  opacity: .55; transition: opacity var(--t-fast) var(--ease-out), color var(--t-fast) var(--ease-out); line-height: 1; }
+.bonds-toggle .icon { width: max(.22rem, 18px); height: max(.22rem, 18px); filter: drop-shadow(0 0 2px rgba(0, 0, 0, .85)); }
+.bonds-toggle[aria-expanded="false"] { opacity: .8; }
+.bonds-toggle:hover, .bonds-toggle:focus-visible { opacity: 1; color: var(--mint-500); }
+.bonds-toggle:focus-visible { outline: 2px solid var(--mint-500); outline-offset: -4px; }
 .bstrip { display: flex; align-items: flex-start; gap: .1rem; flex-wrap: nowrap; }
 .bstrip.is-frozen .bslot { opacity: .5; filter: saturate(.4); }
 .bstrip--empty { display: inline-flex; align-items: center; gap: .12rem; padding: .08rem .16rem; font-size: .15rem; color: var(--text-dim); background: rgba(8, 11, 10, .6); border: 1px dashed var(--line-2); }

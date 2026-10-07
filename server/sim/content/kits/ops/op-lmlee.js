@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_322_lmlee, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 老鲤 (有备无患
 // 备注 "“费用充足”指的是当前费用≥触发天赋所需要消耗的费用 / 自身已拥有本天赋的抵消异常效果时，额外消耗费用效果不会重复触发。本天赋
 // 不会对我方单位造成晕眩"; S2 备注 "标记爆炸半径1，可对空 / 撤退老鲤时，如果老鲤没有阻挡存在标记的目标，则标记会消失且不产生任何
@@ -14,10 +14,10 @@
 //   "每次特性消耗费用时攻击力+4%，最多可以叠加5次" (hidden module talent atk / max_stack_cnt): every trait payment +atk ATK,
 //   up to max_stack_cnt stacks, until he leaves the field. "再部署时间减少" is in the stats; "撤退时不返还部署费用" has no
 //   battle effect here (no manual retreat).
-// - T1 和气生财 "老鲤阻挡目标时，使其攻击速度-14，且自身攻击速度+14；当周围八格内仅存在一个敌人时效果翻倍"
-//   (lmlee_t_1[enemy] / [self].attack_speed, cnt): while he blocks, the blocked enemy ASPD −14 and his own +14, both ×2
+// - T1 和气生财 "老鲤阻挡目标时，使其攻击速度-14，且自身攻击速度+14；当周围八格内仅存在一个敌人时效果翻倍" (full
+//   potential: ∓15; lmlee_t_1[enemy] / [self].attack_speed, cnt): while he blocks, the blocked enemy ASPD −15 and his own +15, both ×2
 //   while exactly `cnt` enemy stands on the 3 × 3 around him (his tile included [ASSUMED: the enemy he blocks stands
-//   there], flyers too). MER-Y stage 3: ∓20.
+//   there], flyers too). MER-Y stage 3: ∓21.
 // - T2 有备无患 "特性消耗费用时，若费用足够则改为消耗5费用，抵消自身受到的下一次晕眩/冻结，并使攻击来源晕眩3秒" (extra_cost,
 //   stun): a trait payment while DP ≥ |extra_cost| and no guard held pays |extra_cost| instead (the `merchantPay` hook) and
 //   gives him the guard; the guard cancels the next 晕眩 / 冻结 on him (a cold-on-cold 冻结 too) and stuns its source for

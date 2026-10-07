@@ -1198,6 +1198,16 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
           } else if (hs.phase === 'UNITE') {
             const rs = await runnerState(host);
             assert.ok(rs && rs.kind === 'unite', 'every human simulates the 联防 field locally');
+            // 0.2.1 (the owner's decision of 2026-10-07): the 联防 field is the round's battlefield, terrain and crates
+            // included — the field meta names the match stage and the view draws it (0.2.0 drew the escaped levels' road)
+            for (const c of both) {
+              const drawn = await c.page.evaluate(() => {
+                const s = globalThis.__SP__.store.get();
+                return { match: s.match.public?.stageId ?? null, field: s.match.field?.stageId ?? null, shown: globalThis.__SP_VIEW__?.raw?.debug?.tiles?.stage?.id ?? null };
+              });
+              assert.ok(drawn.match && drawn.field === drawn.match && drawn.shown === drawn.match, `${c.label}: the 联防 field shows the round's battlefield (${JSON.stringify(drawn)})`);
+              c.note(`联防 round ${hs.round} drawn on ${drawn.shown}`);
+            }
           }
           if (hs.round >= ROUNDS && hs.phase === 'COMBAT') { await sleep(2000); break; }
         } else if (hs.phase === 'SETTLE' && !seen.has(`settle-${hs.round}`)) {

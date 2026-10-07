@@ -18,7 +18,9 @@
 // onRoundStart, SERVER_PREP_FIN→onPrepEnd, SERVER_CHESS_SOLD→onSold of the sold piece, SERVER_PRICE→onPrice of the
 // slot's chess, SERVER_REFRESH_SHOP→onRefresh); the dispatcher calls `handler[hook] ?? handler.run`. A handler may
 // widen that per garrison with `garrisonHooks(garrison) → hook[]` (e.g. "<进入休整期时><休整期结束时>"). Owned-piece
-// garrisons fire for board pieces, and for hand pieces unless bbStr.conditionkey is 'character_target_inboard'.
+// garrisons fire for board pieces, and for hand pieces unless bbStr.conditionkey is 'character_target_inboard'. A
+// refresh (onRefresh) runs those that stood on the board / in the hand when it happened (taken before its first
+// handler): a chess gained during its dispatch — 贾维's gift, the elite that gift completes — waits for the next refresh.
 // 投资人 (investShip) active ⇒ SERVER_GAIN garrisons run ×2 (×3 at ≥ 100 layers) — owned by the dispatcher.
 // ctx.triggerGarrisons(uid, eventType) re-runs another piece's garrisons (铃兰, "触发…的获得时效果", 特质相同).
 // Items: onEquip / onArt / onDestroy go to the item's own handler only; every other hook runs for items equipped on
@@ -204,6 +206,10 @@ export class EffectDispatcher {
     if (deferItems) ps._deferItemMerge = (ps._deferItemMerge || 0) + 1;
     try {
       const reg = this.registry;
+      // onRefresh: the board / hand chess as they stood when the refresh happened, taken before any handler runs — a
+      // chess gained during this dispatch (贾维's gift on the 6th refresh, the elite its copy completes) was not there
+      // when it happened: its 刷新时 特质 waits for the next manual refresh (拉普兰德's "本回合首次主动刷新", PR #196)
+      const refreshed = hook === 'onRefresh' ? refreshPieces(ps) : null;
       // 0. onPrice: the priced chess's own 特质 first — 购买价格为N defines the price every other modifier acts on
       if (hook === 'onPrice') this._garrisons(ps, hook, ev);
       // 1. globals
@@ -221,7 +227,7 @@ export class EffectDispatcher {
         if (h) this._call(ps, key, h, hook, { kind: 'bond', key, bondId, bond: ps.bonds[bondId] ?? null }, ev);
       }
       // 4. garrisons (onPrice: already run as step 0)
-      if (hook !== 'onPrice') this._garrisons(ps, hook, ev);
+      if (hook !== 'onPrice') this._garrisons(ps, hook, ev, refreshed);
       // 5. equipped items (not for the item-specific hooks): every [holder, item] pair of the owned chess, taken before
       // the first item runs; each runs only while still equipped on its still-owned holder — handlers move / destroy
       // pieces (header). Taking the pairs per holder as the walk reached it ran an item equipped meanwhile onto a later
@@ -279,7 +285,12 @@ export class EffectDispatcher {
     return [GARRISON_HOOK[g.eventType]];
   }
 
-  _garrisons(ps, hook, ev) {
+  /**
+   * Run the owned chess's garrisons of `hook`. `refreshed` (onRefresh): the board / hand chess taken when the dispatch
+   * began (refreshPieces) — each runs if it is still on the board or in the hand (where it stands now); a chess gained
+   * meanwhile does not run, nor one that left (sold, consumed by a merge, moved to the 临时整备区).
+   */
+  _garrisons(ps, hook, ev, refreshed = null) {
     const gd = ps.gd || this.m.gd;
     const run = (piece, where) => {
       const rec = gd.chess(piece.id);
@@ -304,6 +315,13 @@ export class EffectDispatcher {
       return;
     }
     if (hook !== 'onRoundStart' && hook !== 'onPrepEnd' && hook !== 'onRefresh') return;
+    if (refreshed) {
+      for (const piece of refreshed) {
+        const loc = ps.find(piece.uid);
+        if (loc && loc.piece === piece && (loc.area === 'board' || loc.area === 'hand')) run(piece, loc.area);
+      }
+      return;
+    }
     for (const { piece } of boardOrder(ps.board)) if (piece.kind === 'chess') run(piece, 'board');
     for (const p of ps.hand) if (p && p.kind === 'chess') run(p, 'hand');
   }
@@ -382,6 +400,14 @@ function ownedChess(ps) {
   for (const { piece } of boardOrder(ps.board)) if (piece.kind === 'chess') out.push(piece);
   for (const p of ps.hand) if (p && p.kind === 'chess') out.push(p);
   for (const p of ps.temp) if (p && p.kind === 'chess') out.push(p);
+  return out;
+}
+
+/** The board chess (reading order) then the hand chess — the pieces whose 刷新时 特质 a refresh runs (onRefresh). */
+function refreshPieces(ps) {
+  const out = [];
+  for (const { piece } of boardOrder(ps.board)) if (piece.kind === 'chess') out.push(piece);
+  for (const p of ps.hand) if (p && p.kind === 'chess') out.push(p);
   return out;
 }
 

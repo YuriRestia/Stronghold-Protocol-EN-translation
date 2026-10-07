@@ -4,8 +4,8 @@
 // operator (自选)").
 //
 // Forms (data/backups.json units.char_1035_wisdel, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0
-// [ASSUMED: no account]. Sources: character_table / skill_table / battle_equip_table and the token record (zh_CN, as
+// elite = E2 Lv60, rank 7, the module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential
+// (the owner's decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table and the token record (zh_CN, as
 // built into backups.json); PRTS 维什戴尔, 魂灵之影 and 溅射半径一览 (the 备注 quoted below); the client's skill prefabs
 // ([uc]skills skchr_wisdel_1 / 2 / 3, sktok_wisdel_wward) and buff templates (wisdel_t_1[bomb] / [projectile_shock],
 // wisdel_token_t_1[bomb], token_wisdel_passive[to_host], token_wisdel_host[Camouflage], token_wisdel_skill_end,
@@ -17,7 +17,7 @@
 //   aftershock (`afterHit`) to carry 好礼 and the skills' changes. Module BOM-X “‘祖宗发射器’” "三次物理伤害（后两次为余震…）"
 //   (trait bb attack@enable_third_attack 1): two aftershocks; ATK / 攻击速度 in the stats; stage 3 changes 好礼 (below).
 // - T1 好礼 "攻击时对主目标的攻击力提升至115%并为其附着残影，残影受到维什戴尔的余震影响时有15%概率爆炸，对周围所有敌人造成
-//   150%攻击力的物理伤害并使其晕眩1秒" (BOM-X stage 3: 125 % / 175 %). PRTS 备注 "攻击倍率提升效果仅对普通攻击（含余震）生效",
+//   150%攻击力的物理伤害并使其晕眩1秒" (full potential: 160 %; BOM-X stage 3: 125 % / 185 %). PRTS 备注 "攻击倍率提升效果仅对普通攻击（含余震）生效",
 //   "残影持续时间无限，不可叠加，维什戴尔退场后消失；每次余震独立判定残影爆炸，爆炸半径1.1（中点判定），爆炸效果可对空": every
 //   main target of her attacks (each of S2's targets, each overload round) takes ×main_atk_scale on that hit and on her
 //   aftershocks, and carries her 残影 (one per enemy, removed when she leaves the field — a knock-out too); each

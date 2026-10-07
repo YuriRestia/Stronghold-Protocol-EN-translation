@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4138_narant, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 娜仁图亚 (备注 of 旋刃
 // and 恶魇); PRTS 分支特性信息 回环射手; gamedata_const ba.steal 偷取; PRTS 命中率.
 // - Trait (回环射手) "持有回旋投射物时才能够攻击（投射物需要时间回收）": the profession's boomerang (professions.js loopshooter,
@@ -13,18 +13,20 @@
 // - Module LPS-Y “致我们的老大”: trait "每回收5次回旋投射物时获得1点技力" (come_back_cnt / sp): every come_back_cnt boomerangs caught
 //   (hook boomerangCaught; an S3 flight carries cnt) give sp SP — none while a skill of hers runs (the AK rule: giveSp)
 //   [ASSUMED: the catches count all the same]. Stage 2+ 婀娜虚影 (below).
-// - T1 “我见，我得” "在场时，每次攻击到敌人偷取其25点攻击力（最高250点）与20点防御力（最高200点）": every attack hit of hers that lands
-//   (normal attacks, S1 bounces, S2 hits and its way back, each S3 boomerang — not S3's recall blast [ASSUMED]) steals:
-//   the enemy loses steal_atk ATK / steal_def DEF of its base (flat, at most steal_atk_max / steal_def_max in all) and she
-//   gains as much (flat, the same caps) — ba.steal "减少目标的基础属性作为自身加成，目标减少和自身加成的属性不超过指定上限（同类属性
-//   取最高）": one loss per enemy, the largest of the 娜仁图亚 that stole from it. Both last while she is on the field (在场时)
-//   [ASSUMED: they end when she leaves]; each steal adds to both sides, each capped on its own [ASSUMED]. LPS-X stage 2+ (caps
-//   275 / 220 → 300 / 240) "攻击到周围8格的敌人时偷取触发2次": the count is parsed from the talent text (no blackboard key).
-// - T2 婀娜虚影 "获得35%的物理与法术闪避，周围8格内敌人的物理与法术命中率-20%": dodgePhys / dodgeArts +prob; every physical / arts
-//   attack of an enemy within one tile of her misses with damage_hitrate_* (PRTS 命中率: one roll when the attack's first
-//   damage instance comes — as Raidian's 诱引, standin-acsupo.js —, a miss cancels every instance and its riders; two
-//   娜仁图亚 never add up). LPS-Y stage 3 −30 % and "6秒内未受到伤害时，攻击力+15%" (hidden atk / interval): ATK +atk while she
-//   has taken no damage (流失 aside) for `interval` s — from her deployment on, as 远牙's 专注 [ASSUMED].
+// - T1 “我见，我得” "在场时，每次攻击到敌人偷取其25点攻击力（最高250点）与20点防御力（最高200点）" (full potential: 27 (at most
+//   270) / 21 (210)): every attack hit of hers that lands (normal attacks, S1 bounces, S2 hits and its way back, each S3
+//   boomerang — not S3's recall blast [ASSUMED]) steals: the enemy loses steal_atk ATK / steal_def DEF of its base (flat, at
+//   most steal_atk_max / steal_def_max in all) and she gains as much (flat, the same caps) — ba.steal "减少目标的基础属性作为
+//   自身加成，目标减少和自身加成的属性不超过指定上限（同类属性取最高）": one loss per enemy, the largest of the 娜仁图亚 that stole
+//   from it. Both last while she is on the field (在场时) [ASSUMED: they end when she leaves]; each steal adds to both sides,
+//   each capped on its own [ASSUMED]. LPS-X stage 2+ (caps 297 / 231 → 324 / 252) "攻击到周围8格的敌人时偷取触发2次": the count
+//   is parsed from the talent text (no blackboard key).
+// - T2 婀娜虚影 "获得35%的物理与法术闪避，周围8格内敌人的物理与法术命中率-20%" (full potential: 38 %): dodgePhys / dodgeArts
+//   +prob; every physical / arts attack of an enemy within one tile of her misses with damage_hitrate_* (PRTS 命中率: one
+//   roll when the attack's first damage instance comes — as Raidian's 诱引, standin-acsupo.js —, a miss cancels every
+//   instance and its riders; two 娜仁图亚 never add up). LPS-Y stage 3 −30 % and "6秒内未受到伤害时，攻击力+15%" (hidden atk /
+//   interval): ATK +atk while she has taken no damage (流失 aside) for `interval` s — from her deployment on, as 远牙's 专注
+//   [ASSUMED].
 // - S1 旋刃 (切换: a toggle that stays on until she leaves — the kits' reading, 银灰 S2 [ASSUMED]): her range loses its far
 //   column (攻击距离-1: ability_range_forward_extend −1; the engine's rangeExtend only grows), her boomerang hits for
 //   attack@atk_scale × ATK and then bounces up to attack@times times (PRTS 备注: radius BOUNCE_RADIUS from the boomerang,

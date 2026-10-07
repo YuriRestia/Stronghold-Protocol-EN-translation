@@ -472,8 +472,8 @@ function startCombat(phase) {
     const e = data.lookup('enemies', bossRec.enemyKey);
     enemies.push({ id: id++, kind: 'enemy', side: 'enemy', ownerId: ME, defId: bossRec.enemyKey, name: bossRec.name, spine: bossRec.enemyKey, avatar: bossRec.enemyKey, x: 10, y: 3, facing: -1, maxHp: e?.stats?.maxHp || 1e5, hp: (e?.stats?.maxHp || 1e5) * 0.62, spawnAt: 0, dir: 0, boss: true, dead: false });
   }
-  // the 联防 field fights on its own map (server unite.js uniteStageId: 2 helpers → escaped_multi; GitHub #41)
-  const field = { fieldId, kind, rect, stageId: kind === 'unite' ? 'act1autochess_escaped_multi' : pub.stageId, units: units.map((u) => ({ ...u })) };
+  // every field — 联防 too — is fought on the round's battlefield (server unite.js; 0.2.0's escaped-level map withdrawn)
+  const field = { fieldId, kind, rect, stageId: pub.stageId, units: units.map((u) => ({ ...u })) };
   store.patch('match', { field });
   const allyState = units.map((u) => ({ ...u, hp: u.maxHp * (0.55 + rnd() * 0.45), sp: rnd() * 20, spMax: 20 }));
   const t0 = performance.now();

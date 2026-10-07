@@ -3,7 +3,7 @@
 // form. Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_479_sleach): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), PRTS 琴柳 (不退之旗 备注
 // "与军旗相关的效果可视为地块效果，效果影响范围跟随军旗所在地块移动；军旗对干员的效果无视孤立"; 精神感召 备注 and its Y-module 修正
 // "在场期间一次，当有干员部署时，若干员为地面位干员，则立刻回复…部署费用"; S2 备注 "生命回复速度…不受治疗加成和禁疗影响" / "不会
@@ -24,11 +24,11 @@
 //   BEA-X “牧人的歌” "但使身前一名干员阻挡数+1" (trait bb block_cnt): while her skill runs, every 0.2 s the operator on the tile
 //   in front of her (not stunned or asleep) gets block +block_cnt, kept until the skill ends. BEA-Y “友谊万岁” "但获得迷彩":
 //   迷彩 (flag camou) while her skill runs.
-// - T1 不退之旗 "部署时自身持有军旗；军旗周围8格的干员攻击速度+10，敌人的攻击速度-10" (bb sleach_t_1[ally/enemy].attack_speed;
-//   BEA-X stage 3: ±13): the flag is a tile effect — its tile and the 8 around it (x-4) — on her own tile while she holds it,
-//   on the tile S2 / S3 throw it to while they run. Operators there (summons not; 孤立 ones too) ASPD +ally, enemies there
-//   (ground and air, the ones her side can select) ASPD +enemy; one buff per 琴柳 (the client's independentCharacterSource),
-//   refreshed every AURA_IV s and taken off a unit that left the area.
+// - T1 不退之旗 "部署时自身持有军旗；军旗周围8格的干员攻击速度+10，敌人的攻击速度-10" (full potential: ±12; bb
+//   sleach_t_1[ally/enemy].attack_speed; BEA-X stage 3: ±15): the flag is a tile effect — its tile and the 8 around it
+//   (x-4) — on her own tile while she holds it, on the tile S2 / S3 throw it to while they run. Operators there (summons
+//   not; 孤立 ones too) ASPD +ally, enemies there (ground and air, the ones her side can select) ASPD +enemy; one buff per
+//   琴柳 (the client's independentCharacterSource), refreshed every AURA_IV s and taken off a unit that left the area.
 // - T2 精神感召 "部署后，下一名部署的干员费用-2" (bb value): from each deployment of hers until the next deployment of one of
 //   her player's operators (PRTS 备注 "于任一受影响干员首次部署后失效"), every operator of hers off the field costs −value DP
 //   (野鬃's convention: base.cost, at least 0, given back when the effect ends); an operator that leaves the field meanwhile

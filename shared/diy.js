@@ -19,7 +19,7 @@
 //   still field any module, as the kits test them); a prototype carries the skill
 //   and module of its 补位 rows at that tier (`diy.locked`: "技能携带规则与系统补位时一致" — [ASSUMED] that reading, the
 //   owner's decision of 2026-10-05);
-// - potential 0 for everyone [ASSUMED: no account].
+// - full potential for everyone, as every chess (the owner's decision of 2026-10-07: the backups.json forms).
 // Which operators have a kit (a pick without one is not offered) is the sim's kit registry
 // (server/sim/content/kits/index.js KITTED_CHARS), passed in as `kitted`.
 

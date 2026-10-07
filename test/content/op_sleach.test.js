@@ -69,9 +69,9 @@ test('琴柳 in every 自选 form: her kit (all three skills authored), the form
       done(h);
     }
   }
-  // the form numbers (zh_CN): E2 Lv1 1339 / 458 / 311, E2 Lv60 1668 / 516 / 348; BEA-X +150 / +48 → +200 / +68 HP / ATK,
+  // the form numbers (zh_CN, full potential): E2 Lv1 1339 / 483 / 311, E2 Lv60 1668 / 541 / 348; BEA-X +150 / +48 → +200 / +68 HP / ATK,
   // BEA-Y +150 / +45 → +200 / +70 HP / DEF
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1339, 458, 1668, 516]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1339, 483, 1668, 541]);
   assert.deepEqual([modOf(5, BX).attr, modOf(6, BX).attr, modOf(5, BY).attr, modOf(6, BY).attr], [{ maxHp: 150, atk: 48 }, { maxHp: 200, atk: 68 }, { maxHp: 150, def: 45 }, { maxHp: 200, def: 70 }]);
 });
 
@@ -223,7 +223,7 @@ test('S3 光辉旗帜: +10 DP at once; the flag on the ground tile of the enemy 
   }
 });
 
-test('T1 不退之旗 in every form: operators of the 3×3 around her ASPD +10 (BEA-X stage 3 +13) — 孤立 ones too, summons not —, enemies there (ground and air) ASPD −10 (−13); nothing outside, nothing once she left', () => {
+test('T1 不退之旗 in every form: operators of the 3×3 around her ASPD +12 (BEA-X stage 3 +15) — 孤立 ones too, summons not —, enemies there (ground and air) ASPD −12 (−15); nothing outside, nothing once she left', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const tb = talentOf(tier, elite, mod, 0).bb;
@@ -235,7 +235,7 @@ test('T1 不退之旗 in every form: operators of the 3×3 around her ASPD +10 (
     const e1 = h.spawn('enemy_dummy', { pos: [10, 6] }), e2 = h.spawn('enemy_fly', { pos: [9, 5] }), e3 = h.spawn('enemy_dummy', { pos: [10, 7] });
     h.run(0.5);
     const a = tb['sleach_t_1[ally].attack_speed'], en = tb['sleach_t_1[enemy].attack_speed'];
-    assert.deepEqual([a, en], tier === 6 && elite && mod === BX ? [13, -13] : [10, -10], label(f));
+    assert.deepEqual([a, en], tier === 6 && elite && mod === BX ? [15, -15] : [12, -12], label(f));
     for (const x of [u, yak, texas]) assert.equal(x.findBuff(`${FLAG_ALLY}:${u.id}`)?.mods.aspd, a, `${label(f)}: ${x.defId} +${a}`);
     assert.equal(prove.findBuff(`${FLAG_ALLY}:${u.id}`), null, `${label(f)}: two tiles away`);
     assert.ok(tok && !tok.findBuff(`${FLAG_ALLY}:${u.id}`), `${label(f)}: no summon`);

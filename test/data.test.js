@@ -121,9 +121,10 @@ test('chess: every non-DIY chess has stats, range, classification and a resolvab
     assert.ok(c.assets && c.assets.avatar && c.assets.spine, `${c.chessId}: assets`);
     if (c.isGolden) assert.equal(c.module ? c.module.active || c.module.id === null : true, true);
   }
-  // Spot checks against official numbers (隐现 E1 Lv55: HP 1123, ATK 399).
+  // Spot checks against official numbers (隐现 E1 Lv55: HP 1123, ATK 399 + 攻击力+23 at full potential = 422; cost 15 − 3).
   assert.equal(chess.chess_char_1_01_a.stats.maxHp, 1123);
-  assert.equal(chess.chess_char_1_01_a.stats.atk, 399);
+  assert.equal(chess.chess_char_1_01_a.stats.atk, 422);
+  assert.equal(chess.chess_char_1_01_a.stats.cost, 12);
   assert.equal(chess.chess_char_1_01_a.targetPriority, 'fly');
 });
 
@@ -577,7 +578,7 @@ test('chess: golden modules[] (+ statsBase/traitBase/talentsBase) compose back t
   const m = chess.chess_char_6_11_b;
   assert.deepEqual(m.modules.map((x) => [x.uniEquipId, x.typeName, x.isDefault]), [['uniequip_002_mlyss', 'TAC-X', true], ['uniequip_003_mlyss', 'TAC-Y', false]]);
   assert.deepEqual(m.modules[1].attr, { maxHp: 170, atk: 28, def: 28 });
-  assert.deepEqual([m.statsBase.maxHp, m.statsBase.atk, m.statsBase.def], [1703, 467, 111]);
+  assert.deepEqual([m.statsBase.maxHp, m.statsBase.atk, m.statsBase.def], [1703, 492, 111]);   // ATK 467 + 攻击力+25 (full potential)
   // module-less goldens: no choices, base = stats
   assert.deepEqual(chess.chess_char_5_14_b.modules, []);
   assert.deepEqual(chess.chess_char_5_14_b.statsBase, chess.chess_char_5_14_b.stats);
@@ -664,7 +665,7 @@ test('stages: player-facing names are clean Chinese "战场#NN…" labels (no re
   // Regression: research 05 named act1 m01 '战场#01 (upper half #01)'; the English note reached the
   // briefing BATTLEFIELD row. Names come from research only, so the build must strip such notes.
   for (const s of Object.values(stages)) {
-    if (s.kind === 'unite') continue; // the two 联防 maps: the remake's own label, checked in the 联防 test below
+    if (s.kind === 'unite') continue; // the escaped levels' two maps: the remake's own label, checked in the test below
     assert.match(s.name, /^战场#\d{2}(?:\((?:上半|下半)\))?(?: \S.*)?$/, `${s.id}: name ${JSON.stringify(s.name)}`);
     assert.doesNotMatch(s.name, /[A-Za-z]/, `${s.id}: Latin text in name ${JSON.stringify(s.name)}`);
     assert.equal(s.name, s.name.trim().replace(/\s+/g, ' '), `${s.id}: stray whitespace in name`);
@@ -673,8 +674,10 @@ test('stages: player-facing names are clean Chinese "战场#NN…" labels (no re
   assert.equal(stages.act2autochess_m01.name, '战场#05(下半) 源石流发生装置');
 });
 
-test('stages: the 联防 maps (GitHub #41) — the escaped template levels, one per helper count, never a match stage', () => {
-  // act2autochess constData escapedBattleTemplateMapSinglePlayer / MultiPlayer → config.unite.templates { 1, 2 }
+test('stages: the escaped levels\' maps — one per helper count, never a match stage (and since 0.2.1 never the 联防 field)', () => {
+  // act2autochess constData escapedBattleTemplateMapSinglePlayer / MultiPlayer → config.unite.templates { 1, 2 }. 0.2.0
+  // fought the 联防 battle on these maps (GitHub #41); 联防 plays on the round's battlefield again (the owner's decision of
+  // 2026-10-07, test/match/feedback5-unite-map.test.js) and the records stay as the official level data
   assert.deepEqual(config.unite.templates, { 1: 'act1autochess_escaped_single', 2: 'act1autochess_escaped_multi' });
   for (const [n, id] of Object.entries(config.unite.templates)) {
     const s = stages[id];
@@ -688,13 +691,14 @@ test('stages: the 联防 maps (GitHub #41) — the escaped template levels, one 
     assert.equal(s.name, `联防阵地（${n}名玩家）`);
     assert.deepEqual(s.devices, [], 'no crates, platforms or other devices');
     assert.deepEqual(s.special, {}, 'no water, mire, smog or infection');
-    // the official level map (level_act1autochess_escaped_*.json): two road halves joined at col 10, not the round's stage
+    // the official level map (level_act1autochess_escaped_*.json): two road halves joined at col 10
     assert.deepEqual(s.rows.slice(9, 13), ['##ErrrrrrrSrrrrrrrS##', '###rrrrrrr#rrrrrrr###', '###rrrrrrr#rrrrrrr###', '###rrrrrrrSrrrrrrrS##']);
     for (let r = 9; r <= 12; r++) for (const c of [19, 20]) assert.equal(s.tiles[s.rows[r][c]].groundPassable, false, `${id} (${r},${c}) is no ground`);
     assert.ok(s.groundPaths['9,10->9,2'] && s.groundPaths['9,18->9,2'], 'walkable from both gates');
   }
   // the two maps are tile for tile the same: they differ in their routes (data/waves.json — 1 helper enters at col 10,
-  // 2 helpers at col 18 through the checkpoint (9,10))
+  // 2 helpers at col 18 through the checkpoint (9,10)), which the 联防 field follows on the round's stage (its gates
+  // (9,10) / (12,10) and (9,18) / (12,18))
   assert.deepEqual(stages.act1autochess_escaped_single.rows, stages.act1autochess_escaped_multi.rows);
   assert.deepEqual(waves.act1autochess_escaped_single.routes.map((r) => r.start), [[9, 10], [9, 10], [12, 10], [9, 10], [9, 10], [9, 10], [9, 10], [9, 10]]);
   assert.deepEqual(waves.act1autochess_escaped_multi.routes.map((r) => r.start), [[9, 18], [9, 18], [12, 18], [9, 18], [9, 18], [9, 18], [9, 18], [9, 18]]);
@@ -702,12 +706,13 @@ test('stages: the 联防 maps (GitHub #41) — the escaped template levels, one 
 });
 
 test('official spot checks (hard-coded values from the zh_CN client data)', () => {
+  // at full potential (the owner's decision of 2026-10-07): the client's numbers plus each operator's potential steps
   const st = (id) => { const s = chess[id].stats; return [s.maxHp, s.atk, s.def, s.res, s.blockCnt, s.cost]; };
-  assert.deepEqual(st('chess_char_6_11_b'), [1893, 492, 141, 0, 1, 15]);      // 缪尔赛思 精锐 (E2 60 + module Lv3)
-  assert.deepEqual(st('chess_char_6_17_b'), [3593, 1108, 279, 0, 1, 19]);     // 耀骑士临光 精锐
-  assert.deepEqual(st('chess_char_3_08_a'), [1594, 629, 170, 15, 1, 25]);     // 薄绿 (E2 1)
-  assert.deepEqual(st('chess_char_2_11_a'), [1816, 547, 254, 0, 2, 15]);      // 风丸 (E1 60)
-  assert.deepEqual(st('chess_char_4_07_b'), [2383, 604, 359, 0, 1, 13]);      // 风笛 精锐
+  assert.deepEqual(st('chess_char_6_11_b'), [1893, 517, 141, 0, 1, 13]);      // 缪尔赛思 精锐 (E2 60 + module Lv3): 492 + 25 ATK, 15 − 2 cost
+  assert.deepEqual(st('chess_char_6_17_b'), [3593, 1143, 279, 0, 1, 17]);     // 耀骑士临光 精锐: 1108 + 35, 19 − 2
+  assert.deepEqual(st('chess_char_3_08_a'), [1594, 629, 170, 15, 1, 22]);     // 薄绿 (E2 1): 25 − 3
+  assert.deepEqual(st('chess_char_2_11_a'), [1816, 574, 254, 0, 2, 13]);      // 风丸 (E1 60): 547 + 27, 15 − 2
+  assert.deepEqual(st('chess_char_4_07_b'), [2383, 629, 359, 0, 1, 11]);      // 风笛 精锐: 604 + 25, 13 − 2
   assert.equal(chess.chess_char_6_11_b.module.level, 3);
   assert.deepEqual([chess.chess_char_4_07_b.skill.skillId, chess.chess_char_4_07_b.skill.level, chess.chess_char_4_07_b.skill.spCost], ['skchr_bpipe_2', 7, 5]);
   const es = (k) => { const s = enemies[k].stats; return [s.maxHp, s.atk, s.def, s.res]; };
@@ -738,8 +743,11 @@ test('independent re-derivation of every chess and enemy stat from the raw offic
     const k0 = P.attributesKeyFrames[0], k1 = P.attributesKeyFrames[P.attributesKeyFrames.length - 1];
     const t = (cd.status.charLevel - k0.level) / (k1.level - k0.level || 1);
     const f = (key) => k0.data[key] + (k1.data[key] - k0.data[key]) * t;
-    const exp = { maxHp: f('maxHp'), atk: f('atk'), def: f('def'), res: f('magicResistance'), aspd: f('attackSpeed'), blockCnt: f('blockCnt'), cost: f('cost') };
-    const map = { max_hp: 'maxHp', atk: 'atk', def: 'def', magic_resistance: 'res', attack_speed: 'aspd', block_cnt: 'blockCnt', cost: 'cost' };
+    const exp = { maxHp: f('maxHp'), atk: f('atk'), def: f('def'), res: f('magicResistance'), aspd: f('attackSpeed'), blockCnt: f('blockCnt'), cost: f('cost'), respawnTime: f('respawnTime') };
+    const map = { max_hp: 'maxHp', atk: 'atk', def: 'def', magic_resistance: 'res', attack_speed: 'aspd', block_cnt: 'blockCnt', cost: 'cost', respawn_time: 'respawnTime' };
+    // full potential (the owner's decision of 2026-10-07): every potentialRanks attribute step (all ADDITION)
+    const POT = { MAX_HP: 'maxHp', ATK: 'atk', DEF: 'def', MAGIC_RESISTANCE: 'res', ATTACK_SPEED: 'aspd', COST: 'cost', RESPAWN_TIME: 'respawnTime' };
+    for (const r of CT[shop.charId].potentialRanks || []) for (const m of r.buff?.attributes?.attributeModifiers || []) exp[POT[m.attributeType]] += m.value;
     if (cd.status.equipLevel > 0 && shop.defaultUniEquipId) {
       const mp = BE[shop.defaultUniEquipId]?.phases.find((p) => p.equipLevel === cd.status.equipLevel);
       for (const b of mp?.attributeBlackboard || []) if (map[b.key]) exp[map[b.key]] += b.value;

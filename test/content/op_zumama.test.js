@@ -76,7 +76,7 @@ test('森蚺 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // zh_CN numbers: E2 Lv1 3440 / 835 / 492, E2 Lv60 4121 / 949 / 574; HES-X +80/+70 → +105/+85 ATK/DEF, HES-Y +70/+80 →
+  // zh_CN numbers (full potential): E2 Lv1 3440 / 835 / 519, E2 Lv60 4121 / 949 / 601; HES-X +80/+70 → +105/+85 ATK/DEF, HES-Y +70/+80 →
   // +85/+110, RA-A +280/+80 → +380/+130 HP/ATK
   assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [3440, 835, 4121, 949]);
   assert.deepEqual([modOf(5, HESX).attr, modOf(6, HESX).attr, modOf(5, HESY).attr, modOf(6, HESY).attr, modOf(5, RAA).attr, modOf(6, RAA).attr],
@@ -184,13 +184,13 @@ test('S3 钢铁意志 (data DEFAULT): 31 / 32 s, ATK +140 % / +170 %, DEF +90 % 
   }
 });
 
-test('T1 勇冠三军: above half HP every hit ×1.15 as an 攻击力倍率 (×1.23 with HES-Y stage 3), at or below half 20 % 庇护 (28 %) on physical / arts damage only — checked every 0.1 s', () => {
+test('T1 勇冠三军: above half HP every hit ×1.17 as an 攻击力倍率 (×1.25 with HES-Y stage 3), at or below half 22 % 庇护 (30 %) on physical / arts damage only — checked every 0.1 s', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 1 });
     const t0 = u.def.raw.talents.find((t) => t.index === 0).bb;
     const y3 = elite && mod === HESY && tier === 6;
-    assert.deepEqual([t0.hp_ratio, t0.atk_scale, t0.damage_resistance], y3 ? [0.5, 1.23, 0.28] : [0.5, 1.15, 0.2], label(f));
+    assert.deepEqual([t0.hp_ratio, t0.atk_scale, t0.damage_resistance], y3 ? [0.5, 1.25, 0.3] : [0.5, 1.17, 0.22], label(f));
     const e = h.spawn('enemy_dummy', { pos: [u.tileR, u.tileC + 1] });   // in her 1-1, not blocked: no SP, no cast
     h.run(0.2);
     assert.equal(u.s.atkScaleMul, t0.atk_scale, `${label(f)}: above half`);
@@ -198,7 +198,7 @@ test('T1 勇冠三军: above half HP every hit ×1.15 as an 攻击力倍率 (×1
     assert.ok(h.runUntil(() => atkHits(h, u).length > n0, 3));
     const hit = atkHits(h, u)[n0];
     approx(hit.amount, u.s.atk * t0.atk_scale, `${label(f)}: ×${t0.atk_scale} on a 0-DEF target`);
-    // half HP: 庇护, no ×1.15
+    // half HP: 庇护, no ×1.17
     u.hp = u.s.maxHp * 0.5;
     h.run(0.14);
     assert.equal(u.s.atkScaleMul, 1, `${label(f)}: at half: no bonus`);

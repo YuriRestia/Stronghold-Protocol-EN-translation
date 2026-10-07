@@ -4,7 +4,7 @@
 // to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1015_aglna2): normal = E2 Lv1, skills at rank 4; elite = E2 Lv60, rank 7 — the
-// owner's decision of 2026-10-05; she has no module. Potential 0 [ASSUMED: no account]. Sources: character_table /
+// owner's decision of 2026-10-05; she has no module. Full potential (the owner's decision of 2026-10-07). Sources: character_table /
 // skill_table / token_table (zh_CN, as built into backups.json), PRTS 予愿安洁莉娜 / “一会儿见！” (备注), 分支特性信息 §巡空者,
 // gamedata_const (ba.liftoff / ba.levitate / ba.groundbind / ba.airprotect / ba.weightless), and the client's battle data
 // (charpack char_1015_aglna2: modes, MassLossAura, the trait / talent buffs; skills skchr_aglna2_1–3; projectiles
@@ -16,15 +16,15 @@
 //   skill below while it runs) she blocks flyers only and no ground enemy selects her (对地规避: aglna2_t_1[motion_target]
 //   MOTION_TARGET_FREE). Taking off releases the ground enemies she blocked, landing the flyers.
 // - T1 飘浮大地之上 "攻击额外造成相当于攻击力25%的法术伤害，攻击重量较轻（小于等于3）的敌人时则额外造成相当于攻击力35%的法术伤害；
-//   处于起飞状态时使攻击范围内的敌人失重" (bb atk_scale_lo / atk_scale_hi / mass_level): every damage instance she outputs that is
-//   no additional (ADDITION) or continuous damage (备注 "可于任何来源于予愿安洁莉娜的、附加伤害以外的伤害的输出伤害时触发";
+//   处于起飞状态时使攻击范围内的敌人失重" (full potential: 30% / 45%; bb atk_scale_lo / atk_scale_hi / mass_level): every damage
+//   instance she outputs that is no additional (ADDITION) or continuous damage (备注 "可于任何来源于予愿安洁莉娜的、附加伤害以外的伤害的输出伤害时触发";
 //   aglna2_t_1[self] ON_OUTPUT_MODIFIER) adds ATK × atk_scale_hi arts on a target whose current weight (失重 included) is at
 //   most mass_level, else × atk_scale_lo — also when that hit is dodged or absorbed (an output, [ASSUMED]: the hooks
 //   `damaged` and `dodge`), never on a target with no HP left. While she is airborne every selectable enemy of her attack
 //   range (ground and air: MassLossAura targetMotion 3) is 失重 (weight −1 level; 同名效果不可叠加: none of hers while
 //   another 失重 holds it), gone when it leaves the range or she lands (备注 "此天赋的失重效果仅判断自身是否能够阻挡飞行敌人").
-// - T2 天穹间的舞步 "在场时，所有处于起飞状态的友方干员攻击力+13%且阻挡时每秒回复8%的最大生命值" (bb atk,
-//   hp_recovery_per_sec_by_max_hp_ratio): every 0.2 s (the client ability `_interval`) each allied operator in the air
+// - T2 天穹间的舞步 "在场时，所有处于起飞状态的友方干员攻击力+13%且阻挡时每秒回复8%的最大生命值" (full potential: +18% / 10%;
+//   bb atk, hp_recovery_per_sec_by_max_hp_ratio): every 0.2 s (the client ability `_interval`) each allied operator in the air
 //   block mode (起飞: flag `liftoff`, her included) gets ATK +atk and, while it blocks, 生命回复速度 +ratio × max HP
 //   (hpRegenRatio — 备注 "生命回复的效果为增加“生命回复速度（百分比）”属性，不受治疗加成和禁疗影响": no heal, 禁疗 does not stop it).
 // - S1 极速送达 (被动 ON_DEPLOY, 56 s): a timed deployment skill (activateOnDeploy, trigger NEVER): she takes off at each

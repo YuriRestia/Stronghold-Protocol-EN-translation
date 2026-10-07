@@ -72,7 +72,7 @@ function watch(h, hitter) {
   return () => ({ n: seen.size, rate: seen.size ? 1 - passed.size / seen.size : 0 });
 }
 
-test('弑君者 in every 自选 form: her operator kit (all three skills authored), the form\'s stats + module attributes, 1-1, melee ground-only, 22 s redeploy, 叙拉古, no 特质; each skill a timed deployment skill (被动 ON_DEPLOY), running from the deployment', () => {
+test('弑君者 in every 自选 form: her operator kit (all three skills authored), the form\'s stats + module attributes, 1-1, melee ground-only, 18 s redeploy, 叙拉古, no 特质; each skill a timed deployment skill (被动 ON_DEPLOY), running from the deployment', () => {
   assert.equal(OPERATOR_KITS[CROSLY], KITS[CROSLY]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -81,7 +81,7 @@ test('弑君者 in every 自选 form: her operator kit (all three skills authore
       const form = formOf(tier, elite), m = elite ? modOf(tier, mod) : null, rec = form.skills[skill];
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [CROSLY, SLOT[tier], rec.skillId, false, 'skills'], label(f));
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.respawnTime, u.base.cost],
-        [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), 22, 12], `${label(f)}: stats`);
+        [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), 18, 9], `${label(f)}: stats`);
       assert.deepEqual([u.profile.attack, u.profile.dmgType, u.profile.canHitFly], ['melee', 'phys', false], `${label(f)}: 处决者`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 1-1 (S3 too)`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['siracusaShip'], []], `${label(f)}: bonds / 特质`);
@@ -244,12 +244,12 @@ test('T1 吞咽苦厄: while her skill runs, the attacks of ground enemies in he
   }
 });
 
-test('T2 弑君者威名: physical damage she deals to a ground enemy that has not damaged her this deployment ×1.2 (EXE-Y stage 3: ×1.35, and her 晕眩 on it ×1.5); a 持续伤害 tick marks nothing; the marks go when she leaves the field', () => {
+test('T2 弑君者威名: physical damage she deals to a ground enemy that has not damaged her this deployment ×1.22 (EXE-Y stage 3: ×1.37, and her 晕眩 on it ×1.5); a 持续伤害 tick marks nothing; the marks go when she leaves the field', () => {
   for (const f of [[5, false, null], [6, true, EY], [5, true, EY]]) {
     const [tier, elite, mod] = f;
     const t1 = talentOf(tier, elite, mod, 1), hidden = talentOf(tier, elite, mod, -1);
     const y3 = elite && mod === EY && tier === 6;
-    assert.deepEqual([t1.damage_scale, hidden.one_minus_status_resistance ?? 0], y3 ? [1.35, 0.5] : [1.2, 0], label(f));
+    assert.deepEqual([t1.damage_scale, hidden.one_minus_status_resistance ?? 0], y3 ? [1.37, 0.5] : [1.22, 0], label(f));
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     h.run(10.1);   // S1 over: plain attacks
     const e = h.spawn('enemy_dummy', { pos: [10, 5] });

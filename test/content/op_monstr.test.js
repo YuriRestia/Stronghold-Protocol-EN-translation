@@ -78,7 +78,7 @@ test('Mon3tr in every 自选 form: her operator kit (all three skills authored),
       const { h, u, p } = field({ tier, elite, mod, skill, prosts: { row: 10, col: 6 } });
       const form = formOf(tier, elite), m = elite ? modOf(tier, mod) : null;
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [MONSTR, SLOT[tier], form.skills[skill].skillId, false, 'skills'], label(f));
-      assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.bat, u.base.cost], [form.stats.maxHp, form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), 2.85, 18], `${label(f)}: stats`);
+      assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.bat, u.base.cost], [form.stats.maxHp, form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), 2.85, 16], `${label(f)}: stats`);
       assert.deepEqual([u.profile.dmgType, u.profile.heal, u.profile.attack, u.def.subProf, u.s.blockCnt], ['heal', { mode: 'single' }, 'ranged', 'chainhealer', 1], `${label(f)}: 链愈师`);
       assert.deepEqual(u.def.traitBb, traitOf(tier, elite, mod), `${label(f)}: the trait (XAH-X 0.85)`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: y-2`);
@@ -90,11 +90,11 @@ test('Mon3tr in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // E2 Lv1 1492 / 422 / 176, E2 Lv60 1653 / 492 / 206; XAH-X +40 / +30 → +65 / +40 ATK / DEF; the 重构体 4292 / 181 → 5048 / 208
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1492, 422, 1653, 492]);
+  // E2 Lv1 1492 / 447 / 176, E2 Lv60 1653 / 517 / 206; XAH-X +40 / +30 → +65 / +40 ATK / DEF; the 重构体 4292 / 181 → 5048 / 208
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1492, 447, 1653, 517]);
   assert.deepEqual([modOf(5, XAHX).attr, modOf(6, XAHX).attr], [{ atk: 40, def: 30 }, { atk: 65, def: 40 }]);
   assert.deepEqual([variantOf(5, false).stats.maxHp, variantOf(5, false).stats.def, variantOf(6, true).stats.maxHp], [4292, 181, 5048]);
-  assert.deepEqual([t0Of(5, true, XAHX).atk, t0Of(6, true, XAHX).atk, t0Of(6, true, XAHX)['attack@chain.extra_cnt'], t0Of(6, false, null).atk], [0.15, 0.25, 1, 0.15]);
+  assert.deepEqual([t0Of(5, true, XAHX).atk, t0Of(6, true, XAHX).atk, t0Of(6, true, XAHX)['attack@chain.extra_cnt'], t0Of(6, false, null).atk], [0.2, 0.3, 1, 0.2]);
 });
 
 test('a 自选 pick: Mon3tr is offered at tiers 5 and 6 (she has a kit) and a roster with her and XAH-X passes validateDiyPicks', () => {
@@ -151,7 +151,7 @@ test('T1 自我修复 free link: her 重构体 in a chain uses no target of the 
   }
 });
 
-test('T1 自我修复 — the 重构体: only her heals reach it (禁疗), it loses 8 HP every 0.1 s from 1 s after it lands, every ally of its 3×3 ATK +15 % (XAH-X stage 3 +25 %; not 2 tiles away); gone ⇒ back 15 s later for 3 DP while she stands; withdrawn when she leaves, her redeployment readies it', () => {
+test('T1 自我修复 — the 重构体: only her heals reach it (禁疗), it loses 8 HP every 0.1 s from 1 s after it lands, every ally of its 3×3 ATK +20 % (XAH-X stage 3 +30 %; not 2 tiles away); gone ⇒ back 15 s later for 3 DP while she stands; withdrawn when she leaves, her redeployment readies it', () => {
   for (const f of [[5, false, null], [6, true, XAHX], [5, true, XAHX]]) {
     const [tier, elite, mod] = f;
     const atkUp = t0Of(tier, elite, mod).atk;
@@ -196,21 +196,21 @@ test('T1 自我修复 — the 重构体: only her heals reach it (禁疗), it lo
   }
 });
 
-test('T2 战术协同: each heal of hers gives its target and her ASPD +20 for 10 s (no stacking: refreshed); under S2 ×1.8 / ×2.3 — the strongest effect stays', () => {
+test('T2 战术协同: each heal of hers gives its target and her ASPD +22 for 10 s (no stacking: refreshed); under S2 ×1.8 / ×2.3 — the strongest effect stays', () => {
   for (const f of [[5, false, null], [6, true, XAHX]]) {
     const [tier, elite, mod] = f;
     const t1 = formOf(tier, elite).talents.find((t) => t.index === 1).bb;
     const s2 = skillOf(tier, elite, S2);
-    assert.deepEqual([t1.attack_speed, t1.buff_duration, s2.bb.talent_scale], [20, 10, elite ? 2.3 : 1.8], label(f));
+    assert.deepEqual([t1.attack_speed, t1.buff_duration, s2.bb.talent_scale], [22, 10, elite ? 2.3 : 1.8], label(f));
     const others = [{ uid: 3, chessId: YAK, row: 10, col: 5 }];
     const { h, u, log } = field({ tier, elite, mod, skill: 1, others });
     const yak = h.unit(3);
     setHp(yak, 0.3);
     const n0 = log.length;
     assert.ok(h.runUntil(() => healsOf(log, u, n0).length > 0, 4), label(f));
-    assert.deepEqual([yak.findBuff('talent:monstr:aspd')?.mods, u.findBuff('talent:monstr:aspd')?.mods], [{ aspd: 20 }, { aspd: 20 }], `${label(f)}: target and herself`);
+    assert.deepEqual([yak.findBuff('talent:monstr:aspd')?.mods, u.findBuff('talent:monstr:aspd')?.mods], [{ aspd: 22 }, { aspd: 22 }], `${label(f)}: target and herself`);
     approx(yak.findBuff('talent:monstr:aspd').timeLeft, 10, `${label(f)}: 10 s`, 0.05);
-    assert.equal(yak.s.aspd, yak.base.aspd + 20, label(f));
+    assert.equal(yak.s.aspd, yak.base.aspd + 22, label(f));
     // S2 (an enemy in her y-2): ×talent_scale
     h.spawn('enemy_dummy', { pos: [11, 6] });
     u.skill.gainSp(999);
@@ -218,8 +218,8 @@ test('T2 战术协同: each heal of hers gives its target and her ASPD +20 for 1
     setHp(yak, 0.3);
     const n1 = log.length;
     assert.ok(h.runUntil(() => healsOf(log, u, n1).some((c) => c.target === yak), 6), label(f));
-    approx(yak.findBuff('talent:monstr:aspd').mods.aspd, 20 * s2.bb.talent_scale, `${label(f)}: ×${s2.bb.talent_scale}`);
-    approx(u.findBuff('talent:monstr:aspd').mods.aspd, 20 * s2.bb.talent_scale, `${label(f)}: herself too`);
+    approx(yak.findBuff('talent:monstr:aspd').mods.aspd, 22 * s2.bb.talent_scale, `${label(f)}: ×${s2.bb.talent_scale}`);
+    approx(u.findBuff('talent:monstr:aspd').mods.aspd, 22 * s2.bb.talent_scale, `${label(f)}: herself too`);
     done(h);
   }
 });

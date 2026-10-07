@@ -71,8 +71,9 @@ test('珊比 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2565 / 536 / 430, E2 Lv60 3194 / 625 / 516; PRP-X +250 / +50 → +450 / +80
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2565, 536, 3194, 625]);
+  // the numbers of the forms (zh_CN, full potential: HP +270): E2 Lv1 2835 / 536 / 430, E2 Lv60 3464 / 625 / 516; PRP-X +250 / +50
+  // → +450 / +80
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2835, 536, 3464, 625]);
   assert.deepEqual([modOf(5, PRPX).attr, modOf(6, PRPX).attr], [{ maxHp: 250, atk: 50 }, { maxHp: 450, atk: 80 }]);
 });
 
@@ -273,18 +274,18 @@ test('S3 belt damage: every second from the cast, each targetable ground enemy o
   }
 });
 
-test('T1 探险理论: 元素损伤 she takes ×0.85; her physical damage adds 10 % ATK 侵蚀损伤 (not her arts), or — while the target\'s 侵蚀 burst runs — shortens that burst by 1 s instead', () => {
+test('T1 探险理论: 元素损伤 she takes ×0.8; her physical damage adds 12 % ATK 侵蚀损伤 (not her arts), or — while the target\'s 侵蚀 burst runs — shortens that burst by 1.2 s instead', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, row: 9 });
     noSp(h, u);
-    assert.deepEqual(u.def.raw.talents.find((t) => t.index === 0).bb, { ep_damage_scale: 0.85, duration_dec: 1, 'ep_damage_ratio[trigger]': 0.1 }, label(f));
+    assert.deepEqual(u.def.raw.talents.find((t) => t.index === 0).bb, { ep_damage_scale: 0.8, duration_dec: 1.2, 'ep_damage_ratio[trigger]': 0.12 }, label(f));
     const e = h.spawn('enemy_dummy', { pos: [10, 8] });
     h.step();
     h.b.dealDamage(e, u, { type: 'element', element: 'burn', amount: 100 });
-    approx(u.elem.burn, 85, `${label(f)}: 元素损伤 taken ×0.85`);
+    approx(u.elem.burn, 80, `${label(f)}: 元素损伤 taken ×0.8`);
     h.b.dealDamage(u, e, { amount: 100, type: 'phys' });
-    approx(e.elem.erosion, 0.1 * u.s.atk, `${label(f)}: 10 % ATK 侵蚀损伤 (not blocking: no module bonus)`);
+    approx(e.elem.erosion, 0.12 * u.s.atk, `${label(f)}: 12 % ATK 侵蚀损伤 (not blocking: no module bonus)`);
     const e0 = e.elem.erosion;
     h.b.dealDamage(u, e, { amount: 100, type: 'arts' });
     assert.equal(e.elem.erosion, e0, `${label(f)}: not on arts damage`);
@@ -293,26 +294,26 @@ test('T1 探险理论: 元素损伤 she takes ×0.85; her physical damage adds 1
     assert.ok(lock, `${label(f)}: bursting`);
     const left = lock.timeLeft;
     h.b.dealDamage(u, e, { amount: 100, type: 'phys' });
-    approx(lock.timeLeft, left - 1, `${label(f)}: the burst 1 s shorter`);
+    approx(lock.timeLeft, left - 1.2, `${label(f)}: the burst 1.2 s shorter`);
     done(h);
   }
 });
 
-test('T2 坚硬脚板: an enemy she has damaged whose 侵蚀 bursts gives her DEF +8 (PRP-X stage 3: DEF +12, ATK +5; ≤ 30 stacks) and 250 (400) 屏障 added to one barrier, ≤ 300 % max HP; unmarked enemies nothing; the marks go when she leaves', () => {
+test('T2 坚硬脚板: an enemy she has damaged whose 侵蚀 bursts gives her DEF +11 (PRP-X stage 3: DEF +15, ATK +6; ≤ 30 stacks) and 330 (480) 屏障 added to one barrier, ≤ 300 % max HP; unmarked enemies nothing; the marks go when she leaves', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, row: 9 });
     noSp(h, u);
     const x3 = elite && mod === PRPX && tier === 6;
     const t1 = u.def.raw.talents.find((t) => t.index === 1).bb;
-    assert.deepEqual(t1, x3 ? { def: 12, atk: 5, shield_value: 400, max_stack_cnt: 30, scale: 3 } : { def: 8, atk: 0, shield_value: 250, max_stack_cnt: 30, scale: 3 }, label(f));
+    assert.deepEqual(t1, x3 ? { def: 15, atk: 6, shield_value: 480, max_stack_cnt: 30, scale: 3 } : { def: 11, atk: 0, shield_value: 330, max_stack_cnt: 30, scale: 3 }, label(f));
     const marked = h.spawn('enemy_dummy', { pos: [10, 8] }), other = h.spawn('enemy_dummy', { pos: [11, 8] });
     h.step();
     h.b.dealDamage(null, other, { type: 'element', element: 'erosion', amount: 1000 });
     assert.equal(u.findBuff('talent:thumpy:sole'), null, `${label(f)}: an unmarked enemy's burst`);
     h.b.dealDamage(u, marked, { amount: 10, type: 'arts' });
     h.b.dealDamage(null, marked, { type: 'element', element: 'erosion', amount: 1000 });
-    assert.deepEqual(u.findBuff('talent:thumpy:sole')?.mods, x3 ? { defFlat: 12, atkFlat: 5 } : { defFlat: 8 }, `${label(f)}: the stack`);
+    assert.deepEqual(u.findBuff('talent:thumpy:sole')?.mods, x3 ? { defFlat: 15, atkFlat: 6 } : { defFlat: 11 }, `${label(f)}: the stack`);
     assert.equal(u.findBuff('talent:thumpy:barrier')?.shield, t1.shield_value, `${label(f)}: 屏障`);
     h.run(8.1);
     h.b.dealDamage(null, marked, { type: 'element', element: 'erosion', amount: 1000 });
@@ -344,12 +345,12 @@ test('PRP-X 出发的勇气 trait: every 元素损伤 she deals ×1.15 while she
     const far = h.spawn('enemy_dummy', { pos: [10, 8] });
     h.step();
     h.b.dealDamage(u, far, { amount: 100, type: 'phys' });
-    approx(far.elem.erosion, 0.1 * u.s.atk, `${label(f)}: blocking nobody`);
+    approx(far.elem.erosion, 0.12 * u.s.atk, `${label(f)}: blocking nobody`);
     const near = h.spawn('enemy_dummy', { pos: [10, 5] });
     assert.ok(h.runUntil(() => near.blockedBy === u, 1), `${label(f)}: blocking`);
     const g0 = far.elem.erosion;
     h.b.dealDamage(u, far, { amount: 100, type: 'phys' });
-    approx(far.elem.erosion - g0, 0.1 * u.s.atk * (x ? 1.15 : 1), `${label(f)}: while blocking`);
+    approx(far.elem.erosion - g0, 0.12 * u.s.atk * (x ? 1.15 : 1), `${label(f)}: while blocking`);
     done(h);
   }
 });

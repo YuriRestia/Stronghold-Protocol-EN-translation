@@ -218,11 +218,11 @@ const TIMES_KEYS = ['enemy_1196_msfyin', 'enemy_1196_msfyin_2', 'enemy_1198_msfs
   'enemy_1202_msfzhi', 'enemy_1202_msfzhi_2', 'enemy_1204_msfhu', 'enemy_1204_msfhu_2', 'enemy_1208_msfji', 'enemy_1208_msfji_2', 'enemy_1210_msfden', 'enemy_1210_msfden_2'];
 for (const key of TIMES_KEYS) {
   const artsOnly = /1204/.test(key);
-  test(`${nm(key)}: 频次 — needs exactly ${E[key].stats.maxHp} ${artsOnly ? 'arts/true ' : ''}hits, unblockable`, () => {
+  test(`${nm(key)}: 频次 — needs ${E[key].stats.maxHp} × the round's HP ${artsOnly ? 'arts/true ' : ''}hits, unblockable`, () => {
     const h = arena({ units: [{ chessId: 't_gun', row: 12, col: 3 }], hooks: ['death'], mods: { hpMul: 3 } });
     h.step();
-    const e = put(h, key, [10, 7], { mods: { hpMul: 3 } });   // wave HP scaling must not change the hit count
-    const n = E[key].stats.maxHp;
+    const e = put(h, key, [10, 7], { mods: { hpMul: 3 } });   // the round's HP multiplier (攻坚装备) scales the hit count (PR #272)
+    const n = E[key].stats.maxHp * 3;
     assert.equal(e.s.maxHp, n);
     assert.ok(e.s.flags.unblockable);
     const g = h.unit('t_gun');
@@ -235,6 +235,33 @@ for (const key of TIMES_KEYS) {
     assert.ok(!e.alive);
   });
 }
+
+// PR #272 (感谢 @CXUtk): 补给线 / 补给线II leave out exactly these 14 keys (+ 炎佑); 攻坚装备 / II / III and 急行军 only 炎佑
+const EFFECTS = JSON.parse(fs.readFileSync(new URL('../../data/effects.json', import.meta.url), 'utf8'));
+const excludeOf = (id) => new Set(String(EFFECTS[id].params.enemy_exclude).split('|'));
+test('频次 器物 vs the round effects: the 14 kitTimes keys are exactly 补给线 / 补给线II\'s enemy_exclude (+ 炎佑); 攻坚装备 / II / III / 急行军 leave out only 炎佑', () => {
+  for (const id of ['aceffect_enemy_2', 'aceffect_enemy_2_2']) assert.deepEqual([...excludeOf(id)].sort(), ['enemy_9012_acloon', ...TIMES_KEYS].sort(), id);
+  for (const id of ['aceffect_enemy_1', 'aceffect_enemy_3', 'aceffect_enemy_4', 'aceffect_enemy_5']) assert.deepEqual([...excludeOf(id)], ['enemy_9012_acloon'], id);
+});
+
+test('频次 器物: hits = data × hpMul / supplyHpMul (补给线\'s share out, 攻坚装备 kept), rounded [ASSUMED]; a 频次 enemy\'s death spawn inherits that', () => {
+  const h = arena();
+  h.step();
+  // co-op 终极 R6: hp 1.2⁴ × 1.08 (补给线) — the mirror takes 1.2⁴ only: 30 × 2.0736 = 62.2 → 62
+  const mods = { hpMul: 2.239488, atkMul: 1.4641, speedMul: 0, supplyHpMul: 1.08 };
+  const jin = put(h, 'enemy_1200_msfjin', [10, 7], { mods });
+  assert.equal(jin.s.maxHp, 62);
+  const parent = put(h, 'enemy_1199_sfjin', [10, 9], { mods });
+  approx(parent.s.maxHp, E.enemy_1199_sfjin.stats.maxHp * 2.239488, 1e-9, '身观 itself takes 补给线');
+  h.b.kill(parent, null);
+  h.step();
+  const child = h.enemies().find((e) => e.defId === 'enemy_1200_msfjin' && e !== jin);
+  assert.ok(child, '身观 leaves its 青铜镜');
+  assert.equal(child.s.maxHp, 62);
+  // solo 标准 (攻坚装备III, HP ×0.75): fewer hits — 2 → 1.5 → 2, 3 → 2.25 → 2, 30 → 22.5 → 23
+  for (const [key, n] of [['enemy_1196_msfyin', 2], ['enemy_1196_msfyin_2', 2], ['enemy_1200_msfjin', 23]]) assert.equal(put(h, key, [11, 7], { mods: { hpMul: 0.75 } }).s.maxHp, n, key);
+  assert.equal(put(h, 'enemy_1196_msfyin', [11, 8]).s.maxHp, 2, 'no mods: the data\'s count');
+});
 
 for (const key of ['enemy_1200_msfjin', 'enemy_1204_msfhu', 'enemy_1288_duskls']) {
   test(`${nm(key)}: 频次 hits keep their DamageInfo — a self-excluding bonus-on-damaged attacker never recurses, death hooks fire`, () => {
@@ -2275,6 +2302,45 @@ test('template overrides of talents/skills are honoured (卢西恩 evade 0.2 in 
 
 const bossArena = (o = {}) => arena({ kind: 'boss', sharedBoss: pool(o.hp ?? 1e6), ...o });
 const setTpl = (id) => (b) => { b.opts.templateId = id; };
+
+// PR #272 (感谢 @CXUtk): a leader's mid-fight summons are enemies like any other — the round's effects reach them
+test('leader summons take the round\'s enemy effects (flags.enemyScale): HP — hit counts too — ATK, speed; the leader keeps the pool', () => {
+  const enemyScale = { hpMul: 2, atkMul: 1.5, speedMul: 1.15, supplyHpMul: 1.08 };
+  const stats = (u, msg) => {
+    assert.ok(u, msg);
+    const d = E[u.defId].stats;
+    approx(u.base.atk, d.atk * 1.5, 1e-9, `${msg}: ATK`);
+    approx(u.base.moveSpeed, d.moveSpeed * 1.15, 1e-9, `${msg}: speed`);
+  };
+  for (const [key, tpl] of [['enemy_9013_acstmk', 'act1autochess_h07_01'], ['enemy_9013_acstmk_2', 'act1autochess_h08_01']]) {
+    const h = bossArena({ flags: { enemyScale }, units: [{ chessId: 't_wall', row: 10, col: 6 }], setup: setTpl(tpl) });
+    h.step();
+    const boss = put(h, key, [3, 10], { tag: 'boss', mods: { atkMul: 1.5, speedMul: 1.15 } });
+    boss.profile.noAttack = true;
+    assert.equal(boss.s.maxHp, h.b.sharedBoss.maxHp, `${key}: the leader's HP is the pool`);
+    assert.ok(h.runUntil(() => alive(h, 'enemy_1005_yokai').length > 0, 90), `${key}: 死亡集群`);
+    const drone = alive(h, 'enemy_1005_yokai')[0];
+    stats(drone, `${key} 妖怪`);
+    approx(drone.s.maxHp, E.enemy_1005_yokai.stats.maxHp * 2 * (skb(key, '2').bb['summon.hp_ratio'] ?? 1), 1e-9, `${key} 妖怪: HP × the round × its summon.hp_ratio`);
+    assert.ok(h.runUntil(() => alive(h, 'enemy_9016_acstmr').length > 0, 90), `${key}: 刺胄之弹`);
+    const shell = alive(h, 'enemy_9016_acstmr')[0];
+    stats(shell, `${key} 刺胄之弹`);
+    assert.equal(shell.s.maxHp, E.enemy_9016_acstmr.stats.maxHp * 2, `${key} 刺胄之弹: hits × the round's HP`);
+  }
+  const p = bossArena({ flags: { enemyScale }, setup: setTpl('act1autochess_h07_03') });
+  p.step();
+  put(p, 'enemy_9021_acduml', [3, 10], { tag: 'boss', mods: { atkMul: 1.5, speedMul: 1.15 } });
+  assert.ok(p.runUntil(() => alive(p, 'enemy_9023_acdums').length > 0, 90), '假想敌：管 summons');
+  const echo = alive(p, 'enemy_9023_acdums')[0];
+  stats(echo, '余音');
+  assert.equal(echo.s.maxHp, E.enemy_9023_acdums.stats.maxHp * 2, '余音: hits × the round\'s HP');
+  // without the flag (tools, tests): the data's numbers
+  const q = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 6 }], setup: setTpl('act1autochess_h07_01') });
+  q.step();
+  put(q, 'enemy_9013_acstmk', [3, 10], { tag: 'boss' }).profile.noAttack = true;
+  assert.ok(q.runUntil(() => alive(q, 'enemy_9016_acstmr').length > 0, 90));
+  assert.equal(alive(q, 'enemy_9016_acstmr')[0].s.maxHp, E.enemy_9016_acstmr.stats.maxHp);
+});
 
 test('假想敌：胄: arts ray on a random target in range; <20 % pool: damage taken ×0.5, still one 刺胄之弹 (PRTS 能力修正)', () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 6 }, { chessId: 't_wall2', row: 12, col: 4 }] });

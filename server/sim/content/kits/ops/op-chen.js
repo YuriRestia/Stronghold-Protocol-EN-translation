@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_010_chen, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), PRTS 陈 (S2 备注
 // "可对空；先造成法术伤害，后造成物理伤害"; S3 备注 "不可对空 / 技能生效期间，持有效果：无敌，无法阻挡，眩晕免疫，冻结免疫 / 若斩击次数
 // 未到10次之前技能范围内没有目标，立刻中止技能"; SWO-X 特性 修正 "技能期间造成的伤害提升10%", 原因 6 "描述与游戏实际表现不符合"),
@@ -20,8 +20,8 @@
 //   stage 2+ "每3秒" (the module talent's interval); stage 3 "自身额外回复1点技力": the hidden module talent part
 //   (chen_equip_1_3_p2, its own interval / sp) — +1 more for her, read from the module's talentChanges (its bb merges
 //   into the visible talent's with the same keys). [ASSUMED] two 陈 of a shared field (two players) both give theirs.
-// - T2 持刀格斗术 "攻击力+5%，防御力+5%，物理闪避+10%": a permanent ATK / DEF / 物理闪避 buff; SWO-Y stage 3: +15 % / +15 % /
-//   18 % (the module talent change replaces the numbers).
+// - T2 持刀格斗术 "攻击力+5%，防御力+5%，物理闪避+10%" (full potential: +6 % / +6 % / 13 %): a permanent ATK / DEF / 物理闪避
+//   buff; SWO-Y stage 3: +16 % / +16 % / 21 % (the module talent change replaces the numbers).
 // - S1 鞘击 (AUTO, attack SP): the next attack is one sheath strike (her skeleton's Skill clip: one OnAttack — not the
 //   trait's two) for atk_scale × ATK physical that stuns the target `stun` s; the data's DEFAULT trigger.
 // - S2 赤霄·拔刀 (MANUAL, attack SP, 技能范围 3-12, data SKILL_RANGE): at once, up to max_target enemies of the skill range —

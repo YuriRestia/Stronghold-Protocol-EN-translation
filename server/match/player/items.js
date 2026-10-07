@@ -15,6 +15,8 @@ export class PlayerItems {
    * g.equip {itemUid, targetUid, replaceUid?}. A third item on a carrier with both slots used replaces the equipped item
    * the player picked in the replace dialog (`replaceUid`, research 09 §1.2 UseEquipUp.unloadInstId; absent ⇒ the
    * oldest); the replaced item is destroyed. A `replaceUid` that is not one of the target's equipped items is refused.
+   * A consume-on-equip item replaces the same way before it resolves (GitHub #263): the carrier keeps a free slot, and a
+   * target its effect refuses (博士投影 on an elite) gets the picked item back — nothing is destroyed.
    */
   equip(itemUid, targetUid, replaceUid = null) {
     const g = this._gate(); if (g) return g;
@@ -31,9 +33,18 @@ export class PlayerItems {
     if (consume) {
       const key = 'item:' + itemKey(item.id);
       if (!this.m.registry.has(key)) return fail(ERR.BAD_TARGET, 'effect not available');
+      // a full carrier replaces first, consumables included (PRTS 卫戍协议/帮助 "达到上限强行佩戴会改为替换装备：指定一件已佩戴
+      // 装备替换为将要佩戴的装备，并销毁被指定的装备"; GitHub #263): the pick (else the oldest) comes off before the effect —
+      // which so sees the carrier without it (its bonds) — and is destroyed once the effect went through, leaving the slot
+      // free (the normal 博士投影 then takes it: ev.keep, so it no longer pushes the oldest item out). A refusal puts it back.
+      const off = this._takeReplaced(target, replaceUid);
       const ev = { item, target, golden: !!rec.isGolden, keep: false, error: null, consumed: true };
       this.m.dispatchItem(this, item, target, 'onEquip', ev);
-      if (ev.error) return fail(ERR[ev.error] ? ev.error : ERR.BAD_TARGET, typeof ev.detail === 'string' ? ev.detail : undefined);
+      if (ev.error) {
+        if (off) target.items.splice(Math.min(off.idx, target.items.length), 0, off.piece);
+        return fail(ERR[ev.error] ? ev.error : ERR.BAD_TARGET, typeof ev.detail === 'string' ? ev.detail : undefined);
+      }
+      if (off) this.m.dispatchItem(this, off.piece, target, 'onDestroy', { item: off.piece, holder: target, reason: 'replace' });
       // the handler may have destroyed the target (信标) — resolve the item again
       const again = this.find(item.uid);
       if (again && again.area !== 'equipped') this._detach(again);
@@ -74,6 +85,19 @@ export class PlayerItems {
       this.m.dispatchItem(this, old, target, 'onDestroy', { item: old, holder: target, reason: 'replace' });
     }
     target.items.push(item);
+  }
+
+  /**
+   * A consume-on-equip item on a full carrier: take the item `replaceUid` names (else the oldest) off `target` — not yet
+   * destroyed — and return { piece, idx } (null while a slot is free).
+   */
+  _takeReplaced(target, replaceUid = null) {
+    target.items = target.items || [];
+    if (target.items.length < this.gd.equipPerChess) return null;
+    const i = replaceUid != null ? target.items.findIndex((x) => x.uid === replaceUid) : -1;
+    const idx = i >= 0 ? i : 0;
+    const [piece] = target.items.splice(idx, 1);
+    return { piece, idx };
   }
 
   /** g.art {itemUid, row, col, dir?}: the Art's range grid is rotated by `dir` (absent ⇒ RIGHT). */

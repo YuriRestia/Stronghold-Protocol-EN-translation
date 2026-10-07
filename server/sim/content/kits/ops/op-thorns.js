@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_293_thorns, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); the client's battle
 // logic — buff_template_data (thorns_t_1, thorns_s_2, thorns_e_002_t / [mark] / _tr, thorns_e_003_t / _tr), his charpack
 // (talent 1 `_additiveActiveBuffs` thorns_t_1: triggerInterval 1, waitFirstTriggerInterval, independentCharacterSource;
@@ -21,9 +21,9 @@
 //   "造成伤害时附带相当于10%伤害的神经损伤" (trait ep_damage_ratio; thorns_e_003_tr: ON_AFTER_OUTPUT_DAMAGE, every damage
 //   type): ep_damage_ratio × the HP damage of every damage instance he deals — attacks, spikes, LOR-X additions and the
 //   poison ticks — as 神经损伤 (docs/SIM.md §7.2 element conventions).
-// - T1 神经腐蚀 "攻击使目标中毒，在3秒内每秒受到125点法术伤害（对会远程攻击的目标伤害加倍）": every hit of his attacks (and
-//   of the S2 spikes, PRTS "所有攻击均能附加") poisons the target — one poison per 棘刺 (independentCharacterSource) for
-//   `duration` s, ticking every second, the first a second in (waitFirstTriggerInterval), damage[normal] or
+// - T1 神经腐蚀 "攻击使目标中毒，在3秒内每秒受到125点法术伤害（对会远程攻击的目标伤害加倍）" (full potential: 140): every
+//   hit of his attacks (and of the S2 spikes, PRTS "所有攻击均能附加") poisons the target — one poison per 棘刺
+//   (independentCharacterSource) for `duration` s, ticking every second, the first a second in (waitFirstTriggerInterval), damage[normal] or
 //   damage[ranged] (an enemy whose 攻击方式 includes 远程: data applyWay RANGED or ALL; PRTS "伤害加倍为数值提升") as a fixed
 //   arts 持续伤害 (FixedValueDamage MAGICAL, attack type BUFF: RES applies, no dodge, tags dot). A new hit refreshes the
 //   duration and keeps the damage value and the tick rhythm (PRTS "仅刷新持续时间而不改变伤害数值"). The ticks go on after
@@ -36,9 +36,9 @@
 //   normal attacks poison (mask 3; PRTS "仅有普通攻击能附加（意味着2技能不再附加中毒Buff）"), and that poison has no
 //   independentCharacterSource: one per enemy whoever applies it. At stage 1 both modules leave the talent as it is
 //   (battle_equip_table: no talent part in phase 1).
-// - T2 故土潮声 "如果2秒内没有主动攻击过，每秒恢复最大生命3.5%的生命": PRTS "增加“生命回复速度（百分比）”属性，不受治疗加成和禁疗
-//   影响" — an hpRegenRatio buff (checklist 11, never battle.heal), on while his last attack is at least `delay` s old
-//   (the toggle's restoreDelay after the attack states) and from his deployment on [ASSUMED: no attack yet counts as
+// - T2 故土潮声 "如果2秒内没有主动攻击过，每秒恢复最大生命3.5%的生命" (full potential: 4%): PRTS "增加“生命回复速度（百分比）”属性，
+//   不受治疗加成和禁疗影响" — an hpRegenRatio buff (checklist 11, never battle.heal), on while his last attack is at least
+//   `delay` s old (the toggle's restoreDelay after the attack states) and from his deployment on [ASSUMED: no attack yet counts as
 //   "2秒内没有主动攻击过"]. The S2 spikes are no 主动攻击 (PRTS "不会使第二天赋效果中断").
 // - S1 攻击力强化·γ型 (MANUAL, data DEFAULT): ATK +atk for `duration` s.
 // - S2 护身尖刺 (MANUAL, 技能范围 3-1, data SKILL_RANGE): "停止攻击" (no normal attack; PRTS "技能期间，自身丢失全部视野"),

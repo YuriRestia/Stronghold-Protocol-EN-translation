@@ -75,7 +75,7 @@ test('假日威龙陈 in every 自选 form: her kit (all three skills authored),
     }
   }
   assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'ACTIVE_RANGE']);
-  assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk, FORMS['2/1/4/0'].stats.cost], [649, 731, 32]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk, FORMS['2/1/4/0'].stats.cost], [682, 764, 30]);
   assert.deepEqual([modOf(5, RX).attr, modOf(6, RX).attr, modOf(5, RY).attr, modOf(6, RY).attr],
     [{ atk: 30, def: 37 }, { atk: 60, def: 45 }, { cost: -8, maxHp: 135, atk: 55 }, { cost: -8, maxHp: 180, atk: 100 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -259,8 +259,8 @@ test('S3 “假日风暴” (MANUAL, data ACTIVE_RANGE on 2-6): an enemy only on
   }
 });
 
-test('T1 节约风气: her ammo-skill attacks spare their bullets 20 % of the time (RPR-X stage 3: 25 %) — one roll per attack, S3 spares both bullets, every ammoUsed still fires', () => {
-  for (const [tier, elite, mod, p] of [[5, false, null, 0.2], [5, true, RX, 0.2], [6, true, RX, 0.25], [6, true, RY, 0.2]]) {
+test('T1 节约风气: her ammo-skill attacks spare their bullets 22 % of the time (RPR-X stage 3: 27 %) — one roll per attack, S3 spares both bullets, every ammoUsed still fires', () => {
+  for (const [tier, elite, mod, p] of [[5, false, null, 0.22], [5, true, RX, 0.22], [6, true, RX, 0.27], [6, true, RY, 0.22]]) {
     for (const skill of [1, 2]) {
       const { h, u } = field({ tier, elite, mod, skill, seed: 17 });
       h.spawn('enemy_dummy', { pos: [10, 5] });
@@ -287,11 +287,11 @@ test('T1 节约风气: her ammo-skill attacks spare their bullets 20 % of the ti
   }
 });
 
-test('T1 节约风气 on others while she is on the field: another 【狙击】 operator\'s 弹药类技能 20 % (PRTS 修正 over the text\'s 10 %; RPR-X stage 3 too), another 远程 operator\'s 0 % / 12 % (RPR-X stage 3), never a 技能 without "攻击装有X发" nor a summon; none once she leaves; the highest of two 假日威龙陈', () => {
+test('T1 节约风气 on others while she is on the field: another 【狙击】 operator\'s 弹药类技能 22 %, her own (PRTS 修正 over the text\'s 10 %; RPR-X stage 3: 20 %), another 远程 operator\'s 0 % / 12 % (RPR-X stage 3), never a 技能 without "攻击装有X发" nor a summon; none once she leaves; the highest of two 假日威龙陈', () => {
   const t0 = FORMS['2/1/4/0'].talents.find((t) => t.index === 0);
-  assert.deepEqual(t0.bb, { 'spareshot_chen.prob': 0.2, prob: 0.1 }, 'the base row: 20 % / the text\'s 10 %');
-  assert.deepEqual(modOf(6, RX).talentChanges[0].bb, { 'e_spareshot_chen.prob': 0.25, 'chen2_t_002[spareshot][other].prob': 0.12, 'chen2_t_002[spareshot][sniper].prob': 0.2 });
-  for (const [tier, elite, mod, sniper, other] of [[5, false, null, 0.2, 0], [5, true, RX, 0.2, 0], [6, true, RX, 0.2, 0.12], [6, true, RY, 0.2, 0]]) {
+  assert.deepEqual(t0.bb, { 'spareshot_chen.prob': 0.22, prob: 0.1 }, 'the base row: 22 % / the text\'s 10 %');
+  assert.deepEqual(modOf(6, RX).talentChanges[0].bb, { 'e_spareshot_chen.prob': 0.27, 'chen2_t_002[spareshot][other].prob': 0.12, 'chen2_t_002[spareshot][sniper].prob': 0.2 });
+  for (const [tier, elite, mod, sniper, other] of [[5, false, null, 0.22, 0], [5, true, RX, 0.22, 0], [6, true, RX, 0.2, 0.12], [6, true, RY, 0.22, 0]]) {
     const others = [
       { uid: 2, chessId: 'chess_char_1_01_a', row: 11, col: 3 },   // 隐现 (狙击): S2 "攻击装有14发弹药"
       { uid: 3, chessId: 'chess_char_5_03_a', row: 12, col: 3 },   // 烛煌 (术师, 远程): S3 "攻击装有18发弹药"
@@ -326,7 +326,8 @@ test('T1 节约风气 on others while she is on the field: another 【狙击】 
     assert.deepEqual([spareChance(h.b, inside), spareChance(h.b, blaze)], [0, 0], 'only while she is on the field');
     done(h);
   }
-  // two 假日威龙陈 (a shared field): each takes the highest — the RPR-X stage-3 one gives the other 20 % (≥ her own 20 %)
+  // two 假日威龙陈 (a shared field): each takes the highest — the RPR-X stage-3 one gives the other 20 % (below her own 22 %,
+  // which she keeps), the other gives her 22 % (below her own 27 %)
   const h = makeBattle({
     defs: { enemies: ENEMIES }, timeLimit: 60, autoFinish: false, seed: 3, flags: { dpPerSec: 0 },
     units: [{ uid: 1, diy: { slot: 6, charId: CHEN, skillIndex: 0, uniEquipId: RX }, elite: true, row: 10, col: 4 },
@@ -334,7 +335,7 @@ test('T1 节约风气 on others while she is on the field: another 【狙击】 
       { uid: 3, chessId: 'chess_char_5_03_a', row: 12, col: 3 }],
   });
   h.step();
-  assert.deepEqual([spareChance(h.b, h.unit(1)), spareChance(h.b, h.unit(2)), spareChance(h.b, h.unit(3))], [0.25, 0.2, 0.12]);
+  assert.deepEqual([spareChance(h.b, h.unit(1)), spareChance(h.b, h.unit(2)), spareChance(h.b, h.unit(3))], [0.27, 0.22, 0.12]);
   done(h);
 });
 

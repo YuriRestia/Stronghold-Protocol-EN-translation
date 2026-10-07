@@ -247,7 +247,8 @@ test('a --no-install build of the temporary checkout zips exactly the plan in on
     assert.deepEqual(fs.readdirSync(out), [path.basename(zip)], 'the stage is removed after zipping');
     if (hasUnzip) {
       const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
-      assert.deepEqual(entries.sort(), [...SHIPPED_TRACKED, ...ART].map((f) => `${FOLDER}/${f}`).sort());
+      // and MANIFEST.json, written after npm ci (server/update.js; test/update-package.test.js checks its content)
+      assert.deepEqual(entries.sort(), [...SHIPPED_TRACKED, ...ART, 'MANIFEST.json'].map((f) => `${FOLDER}/${f}`).sort());
     }
     const again = runTool(['--root', dir, '--out', out, '--no-install', '--allow-dirty']);
     assert.equal(again.status, 1, 'an existing zip is not replaced without --force');

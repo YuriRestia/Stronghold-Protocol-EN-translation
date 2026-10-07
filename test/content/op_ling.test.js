@@ -74,8 +74,8 @@ test('令 in every 自选 form: her kit (all three skills authored), the form\'s
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 852 / 406 / 114, E2 Lv60 1002 / 450 / 130; SUM-Y +100 / +30 → +150 / +50 HP / ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [852, 406, 1002, 450]);
+  // the numbers of the forms (zh_CN): E2 Lv1 852 / 430 / 114, E2 Lv60 1002 / 474 / 130; SUM-Y +100 / +30 → +150 / +50 HP / ATK
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [852, 430, 1002, 474]);
   assert.deepEqual([modOf(5, SUMY).attr, modOf(6, SUMY).attr], [{ maxHp: 100, atk: 30 }, { maxHp: 150, atk: 50 }]);
 });
 
@@ -127,14 +127,14 @@ test('T1 挑灯问梦: her skill\'s summon is her piece; the deck — 5 held, ca
   assert.deepEqual(SOUL_OF.map((t, i) => [tokOf(t, 6, true, i, SUMY).stats.maxHp - tokOf(t, 6, true, i, null).stats.maxHp, tokOf(t, 6, true, i, SUMY).stats.atk - tokOf(t, 6, true, i, null).stats.atk]), [[150, 45], [100, 35], [250, 60]]);
 });
 
-test('T2 随付笺咏醉屠苏: a summon knocked out, recalled or absorbed ⇒ +3 SP and a stack of ATK +3 % (at most 5); not when her summons leave with her; no SP while a timed skill of hers runs', () => {
+test('T2 随付笺咏醉屠苏: a summon knocked out, recalled or absorbed ⇒ +4 SP and a stack of ATK +3 % (at most 5); not when her summons leave with her; no SP while a timed skill of hers runs', () => {
   const { h, u, ss } = field({ tier: 6, elite: true, skill: 0, souls: [[Q, 10, 6], [Q, 11, 6], [Q, 9, 6]] });
   const t1 = formOf(6, true).talents.find((t) => t.index === 1).bb;
-  assert.deepEqual(t1, { max_stack_cnt: 5, sp: 3, atk: 0.03 });
+  assert.deepEqual(t1, { max_stack_cnt: 5, sp: 4, atk: 0.03 });
   const atk0 = u.s.atk;
   const sp0 = u.skill.sp;
   h.b.kill(ss[0], null);
-  approx(u.skill.sp - sp0, 3, '+3 SP', 1e-3);
+  approx(u.skill.sp - sp0, 4, '+4 SP', 1e-3);
   assert.equal(u.findBuff('ling:t2').stacks, 1, 'one stack');
   approx(u.s.atk, atk0 * 1.03, 'ATK +3 %');
   for (let i = 0; i < 6; i++) { h.b.kill(ss[1 + (i % 2)], null); h.runUntil(() => ss.every((s) => s.alive), 15); }
@@ -222,14 +222,14 @@ test('S2 笑鸣瑟 (2 charges): her cast-attack strikes 2 enemies for 310 % / 37
     const struck = new Set(h.hooksOf('damaged').filter((x) => x.dmg?.isSkill).map((x) => x.target));
     assert.ok(struck.size >= 2 && [...struck].every((e) => e.s.flags.bind), 'every struck enemy bound');
     void a; void b; void c;
-    // 1.2 s after the cast: the summon below half HP is recalled (T2: +3 SP, a stack)
+    // 1.2 s after the cast: the summon below half HP is recalled (T2: +4 SP, a stack)
     h.runUntil(() => h.b.time >= castAt + 1.1, 2);
     assert.ok(hurt.alive, 'not before 1.2 s');
     const spBefore = u.skill.sp;
     assert.ok(h.runUntil(() => !hurt.alive, 0.2), 'recalled at 1.2 s');
     assert.deepEqual([hurt.alive, muted.alive, fine.alive], [false, true, true], 'only the one below half');
     assert.equal(deck.held, 2, '+1 held');
-    assert.ok(Math.abs(u.skill.sp - spBefore - 3) < 0.2, `T2: +3 SP (${spBefore} → ${u.skill.sp})`);
+    assert.ok(Math.abs(u.skill.sp - spBefore - 4) < 0.2, `T2: +4 SP (${spBefore} → ${u.skill.sp})`);
     assert.equal(u.findBuff('ling:t2').stacks, 1, 'T2 stack');
     void sp0;
     done(h);

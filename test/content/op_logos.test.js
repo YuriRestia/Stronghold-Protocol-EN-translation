@@ -73,9 +73,9 @@ test('逻各斯 in every 自选 form: his operator kit (all three skills authore
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1297 / 556, E2 Lv60 1540 / 632; CCR-Δ +100 / +36 → +170 / +67 HP / ATK,
+  // the numbers of the forms (zh_CN, full potential): E2 Lv1 1297 / 583, E2 Lv60 1540 / 659; CCR-Δ +100 / +36 → +170 / +67 HP / ATK,
   // CCR-Y +35 / +5 → +60 / +5 ATK / RES
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1297, 556, 1540, 632]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1297, 583, 1540, 659]);
   assert.deepEqual([modOf(5, CCRD).attr, modOf(6, CCRD).attr, modOf(5, CCRY).attr, modOf(6, CCRY).attr], [{ maxHp: 100, atk: 36 }, { maxHp: 170, atk: 67 }, { atk: 35, res: 5 }, { atk: 60, res: 5 }]);
 });
 
@@ -166,10 +166,10 @@ test('S2 提喻 (MANUAL, data DEFAULT): 20 s, RES +40 / +50; locks one target wi
     for (let i = 1; i < hits.length; i++) approx(hits[i].t - hits[i - 1].t, 0.5, `T${tier}: cadence`, 0.07);
     hits.forEach((c, i) => {
       assert.equal(c.target, e, `T${tier}: the locked target`);
-      // + 剜魂具辞's 150 (the first hit marks it already); the target's RES 0
-      approx(c.amount, u.s.atk * (b['attack@atk_scale_base'] + b['attack@atk_scale_delta'] * Math.min(10, i)) + 150, `T${tier}: hit ${i}`, 1e-4);
+      // + 剜魂具辞's 165 (the first hit marks it already); the target's RES 0
+      approx(c.amount, u.s.atk * (b['attack@atk_scale_base'] + b['attack@atk_scale_delta'] * Math.min(10, i)) + 165, `T${tier}: hit ${i}`, 1e-4);
     });
-    assert.ok(Math.abs(hits[10].amount - (u.s.atk * b['attack@atk_scale_base'] * 3 + 150)) < 1e-3 * hits[10].amount, `T${tier}: 3× after 5 s`);
+    assert.ok(Math.abs(hits[10].amount - (u.s.atk * b['attack@atk_scale_base'] * 3 + 165)) < 1e-3 * hits[10].amount, `T${tier}: 3× after 5 s`);
     approx(e.findBuff(`logos:lockSlow:${u.id}`).mods.moveMul, 0.4, `T${tier}: 40 % speed`);
     // a stun breaks it: the slow goes, the next hits start over
     h.b.applyStatus(u, 'stun', { duration: 1, source: e });
@@ -178,7 +178,7 @@ test('S2 提喻 (MANUAL, data DEFAULT): 20 s, RES +40 / +50; locks one target wi
     const n1 = atkHits(h, u).length;
     h.run(1.6);
     const after = atkHits(h, u).slice(n1);
-    approx(after[0].amount, u.s.atk * b['attack@atk_scale_base'] + 150, `T${tier}: reset`, 1e-4);
+    approx(after[0].amount, u.s.atk * b['attack@atk_scale_base'] + 165, `T${tier}: reset`, 1e-4);
     // beam: the hit lands as the attack is made (no bolt in flight)
     const atks = h.hooksOf('attack').filter((c) => c.attacker === u);
     assert.ok(Math.abs(atks[atks.length - 1].t - after[after.length - 1].t) < 1e-9, `T${tier}: instant`);
@@ -203,7 +203,7 @@ test('S2 提喻 keeps its lock while another enemy comes first in the order, and
   h.run(1.1);
   const next = atkHits(h, u).slice(n1);
   assert.ok(next.length >= 2 && next.every((c) => c.target !== a));
-  approx(next[0].amount, u.s.atk * 0.5 + 150, 'a new lock starts at the base scale', 1e-4);
+  approx(next[0].amount, u.s.atk * 0.5 + 165, 'a new lock starts at the base scale', 1e-4);
   done(h);
 });
 
@@ -263,7 +263,7 @@ test('S3 延异视阈: enemy shots on his range fly at 5 % of their speed (back 
   }
 });
 
-test('T1 语汇演化: 40 % per attacked target for an extra 60 % ATK arts hit on a random enemy of his range + 停顿 0.8 s; CCR-Δ stage 3: 60 % and 60 % ATK 元素伤害 on a target in its 凋亡 burst; CCR-Y stage 3: two executions at 65 %', () => {
+test('T1 语汇演化: 40 % per attacked target for an extra 65 % ATK arts hit on a random enemy of his range + 停顿 0.8 s; CCR-Δ stage 3: 60 % and 60 % ATK 元素伤害 on a target in its 凋亡 burst; CCR-Y stage 3: two executions at 70 %', () => {
   for (const f of [[5, false, null], [5, true, CCRD], [6, true, CCRD], [6, true, CCRY]]) {
     const [tier, elite, mod] = f;
     const t = talentOf(tier, elite, mod, 0);
@@ -279,7 +279,7 @@ test('T1 语汇演化: 40 % per attacked target for an extra 60 % ATK arts hit o
     for (const c of extra.slice(0, 6)) {
       assert.ok(es.includes(c.target), `${label(f)}: an enemy of his range (air too)`);
       const marked = h.hooksOf('damaged').some((d) => d.source === u && d.target === c.target && d.dmg?.isAttack && d.t <= c.t && c.t - d.t <= 5);
-      approx(c.amount, u.s.atk * t.atk_scale + (marked ? 150 : 0), `${label(f)}: ${t.atk_scale * 100} % ATK (+ 剜魂具辞 on a marked one)`, 1e-4);
+      approx(c.amount, u.s.atk * t.atk_scale + (marked ? 165 : 0), `${label(f)}: ${t.atk_scale * 100} % ATK (+ 剜魂具辞 on a marked one)`, 1e-4);
     }
     const slug = h.hooksOf('statusApplied').filter((c) => c.source === u && c.status === 'sluggish');
     assert.ok(slug.length >= extra.length * 0.95 && slug.every((c) => Math.abs(c.duration - t.sluggish) < 1e-9), `${label(f)}: 停顿 ${t.sluggish} s`);
@@ -295,7 +295,7 @@ test('T1 语汇演化: 40 % per attacked target for an extra 60 % ATK arts hit o
   }
   // the module texts
   assert.match(modOf(6, CCRD).talentChanges.find((t) => t.talentIndex === 0).desc, /60%几率.*凋亡损伤爆发期间则同时造成相当于攻击力60%的元素伤害/);
-  assert.match(modOf(6, CCRY).talentChanges.find((t) => t.talentIndex === 0).desc, /两个随机目标造成相当于攻击力65%/);
+  assert.match(modOf(6, CCRY).talentChanges.find((t) => t.talentIndex === 0).desc, /两个随机目标造成相当于攻击力70%/);
   assert.equal(modOf(5, CCRD).talentChanges.find((t) => t.talentIndex === 0), undefined, 'stage 1: the talent unchanged');
 });
 
@@ -321,22 +321,22 @@ test('T1 语汇演化 also follows 殁亡\'s follow-up hit (备注 "可触发第
   done(h);
 });
 
-test('T2 剜魂具辞: each of his attack hits gives the target RES −10 and +150 on every arts damage it takes for 5 s — the hit itself included, other casters\' arts too; one instance per enemy', () => {
+test('T2 剜魂具辞: each of his attack hits gives the target RES −10 and +165 on every arts damage it takes for 5 s — the hit itself included, other casters\' arts too; one instance per enemy', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, CCRY]]) {
     const t = talentOf(tier, elite, mod, 1);
-    assert.deepEqual(t, { duration: 5, magic_resistance: -10, atk_addition: 150 });
+    assert.deepEqual(t, { duration: 5, magic_resistance: -10, atk_addition: 165 });
     const { h, u } = field({ tier, elite, mod, skill: 0, seed: 9 });
     const e = h.spawn('enemy_dummy', { pos: [10, 7] });
     e.base.res = 30; e.markDirty();
     const first = () => atkHits(h, u)[0];
     assert.ok(h.runUntil(() => !!first(), 4));
     const c = first();
-    approx(c.amount, (u.s.atk + 150) * (1 - 0.2), `T${tier}: (ATK + 150) × (1 − (30 − 10) %) on the very hit`, 1e-4);
+    approx(c.amount, (u.s.atk + 165) * (1 - 0.2), `T${tier}: (ATK + 165) × (1 − (30 − 10) %) on the very hit`, 1e-4);
     const mark = e.findBuff('logos:soulRend');
-    assert.ok(mark && Math.abs(mark.mods.resFlat + 10) < 1e-9 && mark.data.value === 150);
+    assert.ok(mark && Math.abs(mark.mods.resFlat + 10) < 1e-9 && mark.data.value === 165);
     approx(e.s.res, 20, `T${tier}: RES −10`);
-    // another source's arts damage gets the 150 too; physical does not
-    approx(h.b.dealDamage(null, e, { amount: 1000, type: 'arts', canDodge: false }), (1000 + 150) * 0.8, 'arts +150');
+    // another source's arts damage gets the 165 too; physical does not
+    approx(h.b.dealDamage(null, e, { amount: 1000, type: 'arts', canDodge: false }), (1000 + 165) * 0.8, 'arts +165');
     approx(h.b.dealDamage(null, e, { amount: 1000, type: 'phys', canDodge: false }), 1000, 'phys unchanged');
     // it lapses 5 s after his last hit
     h.b.applyStatus(u, 'stun', { duration: 20, source: null });

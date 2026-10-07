@@ -76,7 +76,7 @@ test('闪灵 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1451 / 424 / 110, E2 Lv60 1558 / 494 / 129; PHY-Y +35 ATK +5 ASPD → +60 / +7,
+  // the numbers of the forms (zh_CN): E2 Lv1 1451 / 424 / 135, E2 Lv60 1558 / 494 / 154; PHY-Y +35 ATK +5 ASPD → +60 / +7,
   // PHY-X +45 ATK +13 DEF → +63 / +20
   assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1451, 424, 1558, 494]);
   assert.deepEqual([modOf(5, PHYY).attr, modOf(6, PHYY).attr, modOf(5, PHYX).attr, modOf(6, PHYX).attr], [{ atk: 35, aspd: 5 }, { atk: 60, aspd: 7 }, { atk: 45, def: 13 }, { atk: 63, def: 20 }]);
@@ -185,19 +185,19 @@ test('S3 教条力场 (MANUAL, data DEFAULT): 60 s, ATK +30 % / +40 %, every all
   }
 });
 
-test('T1 黑恶魔的庇护: allies in her range DEF +60 (herself too, not outside); PHY-Y stage 3: +100 and 地面 units +40 more (stage 1: +60 only)', () => {
+test('T1 黑恶魔的庇护: allies in her range DEF +65 (herself too, not outside); PHY-Y stage 3: +105 and 地面 units +40 more (stage 1: +65 only)', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u, ground, high, out } = field({ tier, elite, mod, skill: 0 });
     h.run(0.3);
     const y3 = elite && tier === 6 && mod === PHYY;
-    const d = y3 ? 100 : 60, low = y3 ? 40 : 0;
+    const d = y3 ? 105 : 65, low = y3 ? 40 : 0;
     assert.deepEqual(ground.findBuff('talent:shining:def')?.mods, { defFlat: d + low }, `${label(f)}: 地面 ally`);
     assert.deepEqual(high.findBuff('talent:shining:def')?.mods, { defFlat: d }, `${label(f)}: 高台 ally`);
     assert.deepEqual(u.findBuff('talent:shining:def')?.mods, { defFlat: d }, `${label(f)}: herself (高台)`);
     assert.equal(out.findBuff('talent:shining:def'), null, `${label(f)}: outside her range`);
     approx(ground.s.def, 100 + d + low, `${label(f)}: DEF of the 地面 ally`);
-    if (y3) assert.match(u.def.raw.talents.find((t) => t.index === 0).desc, /防御力\+100，地面单位防御力额外\+40/);
+    if (y3) assert.match(u.def.raw.talents.find((t) => t.index === 0).desc, /防御力\+105（\+5），地面单位防御力额外\+40/);
     h.b.retreat(u);
     h.run(0.3);
     assert.equal(ground.findBuff('talent:shining:def'), null, `${label(f)}: gone once she leaves`);
@@ -205,13 +205,13 @@ test('T1 黑恶魔的庇护: allies in her range DEF +60 (herself too, not outsi
   }
 });
 
-test('T2 法典: ASPD +10; PHY-X stage 3: ASPD +15, ATK +25 % with 自动掩护 picked, SP +0.6/s with 教条力场 picked (stage 1: ASPD +10 only)', () => {
+test('T2 法典: ASPD +13; PHY-X stage 3: ASPD +18, ATK +25 % with 自动掩护 picked, SP +0.6/s with 教条力场 picked (stage 1: ASPD +13 only)', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     for (const skill of [0, 1, 2]) {
       const { h, u } = field({ tier, elite, mod, skill });
       const x3 = elite && tier === 6 && mod === PHYX;
-      approx(u.s.aspd, u.base.aspd + (x3 ? 15 : 10), `${label(f)} S${skill + 1}: ASPD`);
+      approx(u.s.aspd, u.base.aspd + (x3 ? 18 : 13), `${label(f)} S${skill + 1}: ASPD`);
       approx(u.s.atk, u.base.atk * (1 + (x3 && skill === 1 ? 0.25 : 0)), `${label(f)} S${skill + 1}: ATK`);
       approx(u.s.spRecovery, 1 + (x3 && skill === 2 ? 0.6 : 0), `${label(f)} S${skill + 1}: SP/s`);
       if (x3 && skill === 2) {

@@ -489,7 +489,8 @@ describe('placement mirror (canPlace)', () => {
     const consumable = Object.values(items).find((x) => x.itemType === 'EQUIP' && String(x.kind).startsWith('consume_on_equip'));
     const cons = item(consumable.id);
     const ctxC = ctxFor(privWith({ board: [b], hand: [{ idx: 3, piece: cons }] }));
-    assert.equal(dropIntent(ctxC, cons.uid, { area: 'board', row: 9, col: 3 }).confirmReplace, false, 'consumed on equip: nothing is replaced');
+    // consumed on equip: a full carrier still replaces first (GitHub #263, test/ui/leftovers.test.js)
+    assert.equal(dropIntent(ctxC, cons.uid, { area: 'board', row: 9, col: 3 }).confirmReplace, true, 'consumed on equip: still replaces on a full carrier');
     const ar = dropIntent(ctx, art.uid, { area: 'board', row: 12, col: 6 });
     assert.deepEqual(ar, { t: 'g.art', fields: { itemUid: art.uid, row: 12, col: 6 } });
     for (const i of [mv, back, eqI, eqH, ar]) assert.equal(validateC2S({ t: i.t, ...i.fields }), null, i.t);

@@ -57,7 +57,8 @@ export class BattleEconomy {
    * whose half of the field it fell on: PRTS 卫戍协议：盟约 决策 "该敌人于对应玩家所属区域倒下时，使相应玩家获得额外资金"
    * [ASSUMED for 联防: no source names the payee of a death nobody caused there]. Until 0.2.0 that fallback was the
    * leaker, who has no entry in a 联防 battle, and addCoins dropped the coins (community report of 2026-10-06
-   * 「被源石地板烫死的悬赏没给赏金」: until 0.1.3 the 联防 field was the round's map, 战场#04's 活性源石 included).
+   * 「被源石地板烫死的悬赏没给赏金」: in 0.1.x the 联防 field was the round's map, as it is again since 0.2.1, 战场#04's
+   * 活性源石 included).
    */
   _bountyPayee(unit, killer = null) {
     if (killer && killer.side === 'ally' && killer.ownerId != null && this._pp(killer.ownerId)) return killer.ownerId;

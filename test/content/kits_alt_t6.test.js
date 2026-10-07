@@ -1421,7 +1421,7 @@ test('module 维娜 秩序圣“球”: 战栗 6 s (elite / leader 12 s), ×1.15
   done(d);
 });
 
-test('module 焰影苇草 “独属自己的一隅”: damage ×1.1 while an operator of her range is injured; 灼痕 38 % / 8 s', () => {
+test('module 焰影苇草 “独属自己的一隅”: damage ×1.1 while an operator of her range is injured; 灼痕 40 % / 8 s (full potential)', () => {
   const id = ELITE('chess_char_6_08'), M = 'uniequip_003_reed2';
   const h = run({ defs: { chess: { a: plain('a') }, enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 10, col: 4, moduleId: M, carryState: IDLE }, { chessId: 'a', row: 11, col: 5 }], enemies: [{ key: 'e', pos: [10, 6] }] });
   const u = h.unit(id), a = h.unit('a');
@@ -1430,7 +1430,7 @@ test('module 焰影苇草 “独属自己的一隅”: damage ×1.1 while an ope
   a.hp = a.s.maxHp * 0.5;
   h.run(0.5);
   approx(u.findBuff('reed2:corner')?.mods.dmgDealtMul ?? 1, 1.1, 'injured ally ⇒ ×1.1');
-  approx(tal(id, MOD(M)).damage_scale, 1.38);
+  approx(tal(id, MOD(M)).damage_scale, 1.4);   // 1.38 + the potential step
   done(h);
   const d = run({ defs: { chess: { a: plain('a') } }, units: [{ chessId: id, row: 10, col: 4, carryState: IDLE }, { chessId: 'a', row: 11, col: 5 }] });
   d.step();
@@ -1494,7 +1494,7 @@ test('module 迷迭香 特限证章: two hits (one aftershock) instead of three'
   }
 });
 
-test('module 流明 “幸运”: far heals are not reduced; 应急处理 heals 100 % with a 10 s cooldown', () => {
+test('module 流明 “幸运”: far heals are not reduced; 应急处理 heals 100 % with an 8 s cooldown (full potential)', () => {
   const id = ELITE('chess_char_6_14'), M = 'uniequip_003_lumen';
   for (const [moduleId, mul] of [[M, 1], [null, tbOf(id).heal_scale]]) {
     const h = run({ defs: { chess: { f: plain('f', { stats: { maxHp: 1e5 } }) } }, units: [{ chessId: id, row: 10, col: 3, moduleId, carryState: IDLE }, { chessId: 'f', row: 10, col: 6 }] });
@@ -1506,7 +1506,7 @@ test('module 流明 “幸运”: far heals are not reduced; 应急处理 heals 
     done(h);
   }
   approx(tal(id, MOD(M), 1).heal_scale, 1);
-  approx(tal(id, MOD(M), 1).duration, 10);
+  approx(tal(id, MOD(M), 1).duration, 8);   // 10 s − the potential step
 });
 
 test('module 仇白 欲雪时: the first hit on an enemy binds it 3 s; ASPD +12 with ≥2 enemies in range', () => {

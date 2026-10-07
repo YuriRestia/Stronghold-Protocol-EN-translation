@@ -210,7 +210,8 @@ test('纸偶: appear burst = its ATK × damage_scale arts on the 8 surrounding t
 test('狼群: board piece becomes 伺夜\'s 援军; 2→3 狼影 (block & hits), fatal sheds a shadow, DEF ignore vs blocked, 战术点形态 after the last one', REAL, () => {
   let wolfHits = 0;
   const h = makeBattle({
-    defs: { enemies: { enemy_walker: walker({ def: 200, atk: 0 }) } },
+    // DEF 250: above the pack's 200 DEF ignore (its talent at 伺夜's full potential), so a bite shows the partial ignore
+    defs: { enemies: { enemy_walker: walker({ def: 250, atk: 0 }) } },
     kits: { chess_char_3_19_a: genericNoSkill },
     // the wolf is listed before its owner (higher row): it must still be linked to 伺夜 (owner-level variant)
     units: [{ kind: 'token', tokenId: TOKEN_IDS.wolfPack, row: 9, col: 6, uid: 1, ownerUid: 2 }, { chessId: 'chess_char_3_19_b', row: 10, col: 4, uid: 2 }],
@@ -228,11 +229,12 @@ test('狼群: board piece becomes 伺夜\'s 援军; 2→3 狼影 (block & hits),
   assert.equal(wolf.s.blockCnt, 2);
   const e = h.enemy('enemy_walker');
   assert.ok(h.runUntil(() => e.blockedBy === wolf && wolfHits >= 2, 30), 'blocks and bites');
-  // DEF ignore: every bite does ATK − (200 − 175)
+  // DEF ignore: every bite does ATK − (250 − 200)
+  assert.equal(tokDef(TOKEN_IDS.wolfPack, 'chess_char_3_19_b').talents[1].bb.def_penetrate_fixed, 200, 'the pack ignores 200 DEF (175 + the potential step)');
   let dealt = null;
   h.b.on('damaged', (c) => { if (c.source === wolf && c.type === 'phys') dealt = c.amount; });
   h.runUntil(() => dealt != null, 5);
-  approx(dealt, wolf.s.atk - (200 - 175), 1e-9, 'def pen');
+  approx(dealt, wolf.s.atk - (250 - 200), 1e-9, 'def pen');
   h.runUntil(() => wolfShadows(wolf) === 3, 30);
   assert.equal(wolf.s.blockCnt, 3);
   assert.equal(wolf.profile.hitsFn(h.b, wolf), 3);
@@ -927,7 +929,7 @@ test('every token variant: a spawn with that owner takes the owner-level stats (
   assert.ok(n >= 38, `variants checked: ${n}`);
 });
 
-test('elite numbers: 沙之碑 230 %/1.5 s, 香槟炸弹 170 %, 纸偶 its ATK × 2.7, “耀阳” 100 % + ×1.15 vs blocked, 医疗探机 ATK 114', REAL, () => {
+test('elite numbers: 沙之碑 230 %/1.5 s, 香槟炸弹 170 %, 纸偶 its ATK × 2.75 (full potential), “耀阳” 100 % + ×1.15 vs blocked, 医疗探机 ATK 114', REAL, () => {
   const burstOf = (ownerId, tokenId, r, c, ePos) => {
     const base = ownerId.replace(/_[ab]$/, '_a');
     const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, kits: { [base]: genericNoSkill }, units: [{ chessId: ownerId, row: 12, col: 2 }], enemies: [{ key: 'enemy_dummy', pos: ePos }], autoFinish: false, timeLimit: 10 });
@@ -951,7 +953,7 @@ test('elite numbers: 沙之碑 230 %/1.5 s, 香槟炸弹 170 %, 纸偶 its ATK �
   {
     const { t, e } = burstOf('chess_char_2_11_b', TOKEN_IDS.paperDoll, 10, 6, [11, 7]);
     assert.equal(t.base.atk, 728);
-    approx(1e7 - e.hp, 728 * 2.7, 1e-9, '纸偶 elite');
+    approx(1e7 - e.hp, 728 * 2.75, 1e-9, '纸偶 elite (2.7 + the potential step of 风丸)');
   }
   {
     const { o, e } = burstOf('chess_char_6_17_b', TOKEN_IDS.radiantSword, 10, 6, [10, 7]);
@@ -1124,6 +1126,28 @@ test('Touch talents: 攫升 +3 SP to the healed unit, 超脱 +5 SP when an opera
   checkInvariants(h.b);
 });
 
+test('GitHub #260: the 外勤医疗 Touch casts 恳切福音 on an injured ally only inside the skill\'s 5-2 (ACTIVE_RANGE, as the 补位 Touch); a full-HP or unhealable one does not', REAL, () => {
+  // Touch stands on (10,2) facing right: her 3-3 reaches column 5, the skill's 5-2 column 7
+  const h = makeBattle({ stageId: 'act2autochess_m01', defs: { chess: { test_guard: guard({ stats: { maxHp: 10000, atk: 0 } }) } },
+    units: [{ chessId: 'test_guard', row: 10, col: 7 }], autoFinish: false, timeLimit: 60 });
+  h.step();
+  const touch = spawnMapChar(h.b, 'p1', TOKEN_IDS.touch);
+  assert.deepEqual([touch.tileR, touch.tileC], [10, 2]);
+  assert.equal(touch.skill.rule, 'ACTIVE_RANGE');
+  const ally = h.unit('test_guard');
+  touch.skill.gainSp(1000);
+  h.run(3);
+  assert.equal(touch.skill.activations, 0, 'every ally at full HP: no cast');
+  ally.hp = 4000;
+  const buff = h.b.addBuff(ally, { key: 'test:noHeal', flags: { noHeal: true } });
+  h.run(2);
+  assert.equal(touch.skill.activations, 0, 'an ally no heal can pick: no cast');
+  h.b.removeBuff(ally, buff);
+  assert.ok(h.runUntil(() => touch.skill.activations === 1, 2), 'the injured ally five tiles ahead (outside her 3-3) casts the skill');
+  assert.ok(h.runUntil(() => ally.hp > 4000, 5), 'and she heals it from the larger range');
+  checkInvariants(h.b);
+});
+
 test('spawnMapChar: per-player slots — unite: p1 #1 (10,2), p2 its multi-only slot (10,10); boss: L (3,2), R (3,18); solo never multi-only', REAL, () => {
   const players = [
     { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [], bonds: {} },
@@ -1206,7 +1230,7 @@ test('tactical point: without a board piece the 援军 (狼群) stands on an ene
   checkInvariants(h.b);
 });
 
-test('狼群 (generic 伺夜): 伺夜\'s own attacks on pack-blocked enemies ignore 175 DEF and get the S3 bonus; the pack leaves with 伺夜', REAL, () => {
+test('狼群 (generic 伺夜): 伺夜\'s own attacks on pack-blocked enemies ignore 200 DEF (full potential) and get the S3 bonus; the pack leaves with 伺夜', REAL, () => {
   const kit = () => ({ generic: true, talents: [], skill: { kind: 'duration', duration: 60, trigger: 'SP_FULL', spCost: 1, initSp: 1 } });
   const own = [], bonus = [];
   // RES 100: the 弱点伤害 garrison keeps the attacks physical (arts would do 5 %)
@@ -1222,8 +1246,8 @@ test('狼群 (generic 伺夜): 伺夜\'s own attacks on pack-blocked enemies ign
   assert.ok(h.runUntil(() => own.some((x) => x.blocked) && bonus.some((x) => x.src === 'chess_char_3_19_a'), 30), 'owner hits a pack-blocked enemy');
   const hit = own.find((x) => x.blocked);
   assert.equal(hit.type, 'phys');
-  // tactician trait ×1.5 vs enemies its 援军 blocks; DEF 300 − 175
-  approx(hit.amount, vigil.s.atk * 1.5 - (300 - 175), 1e-6, 'DEF ignore on 伺夜\'s attack');
+  // tactician trait ×1.5 vs enemies its 援军 blocks; DEF 300 − 200
+  approx(hit.amount, vigil.s.atk * 1.5 - (300 - 200), 1e-6, 'DEF ignore on 伺夜\'s attack');
   approx(bonus.find((x) => x.src === 'chess_char_3_19_a').amount, vigil.s.atk * 0.2 * 0.05, 1e-6, 'S3 bonus: 20 % ATK arts vs RES 100 (5 % floor)');
   assert.ok(bonus.some((x) => x.src === TOKEN_IDS.wolfPack), 'the pack\'s bites carry the bonus too');
   // the 援军 leaves with its tactician (no respawn afterwards)

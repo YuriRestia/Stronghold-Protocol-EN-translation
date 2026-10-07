@@ -80,8 +80,8 @@ test('赤刃明霄陈 in every 自选 form: her operator kit (all three skills a
       done(h);
     }
   }
-  // E2 Lv1 2211 / 542 / 352, E2 Lv60 2674 / 627 / 400; AFT-X +240 / +30 → +420 / +60 (HP / ATK)
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2211, 542, 2674, 627]);
+  // E2 Lv1 2211 / 570 / 352, E2 Lv60 2674 / 655 / 400; AFT-X +240 / +30 → +420 / +60 (HP / ATK)
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2211, 570, 2674, 655]);
   assert.deepEqual([modOf(5, AFTX).attr, modOf(6, AFTX).attr], [{ maxHp: 240, atk: 30 }, { maxHp: 420, atk: 60 }]);
 });
 
@@ -93,15 +93,15 @@ test('a 自选 pick: 赤刃明霄陈 is offered at tiers 5 and 6 (she has a kit)
     { ok: true, picks: { [SLOT[5]]: { charId: CHEN3, skillIndex: 1, uniEquipId: AFTX } } });
 });
 
-test('T1 形意洞照: ATK +13 %, ASPD +13; every physical / arts damage of hers is 弱点伤害 — physical on a high-RES enemy, arts on a high-DEF one', () => {
+test('T1 形意洞照: ATK +16 %, ASPD +16; every physical / arts damage of hers is 弱点伤害 — physical on a high-RES enemy, arts on a high-DEF one', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t0 = tOf(tier, elite, mod, 0);
-    assert.deepEqual([t0.atk, t0.attack_speed], [0.13, 13]);
+    assert.deepEqual([t0.atk, t0.attack_speed], [0.16, 16]);
     const { h, u } = field({ tier, elite, mod, skill: 0 });
-    approx(u.s.atk, u.base.atk * 1.13, `${label(f)}: ATK`);
+    approx(u.s.atk, u.base.atk * 1.16, `${label(f)}: ATK`);
     const as = elite && mod === AFTX ? 8 : 0;   // she blocks nobody yet: AFT-X's +8 on top
-    assert.equal(u.s.aspd, 100 + 13 + as, `${label(f)}: ASPD`);
+    assert.equal(u.s.aspd, 100 + 16 + as, `${label(f)}: ASPD`);
     u.skill.sp = 0;
     const mage = h.spawn('enemy_mage', { pos: [10, 6] });
     h.runUntil(() => from(h, u, (c) => c.target === mage).length > 0, 3);
@@ -129,17 +129,17 @@ test('AFT-X “记忆残页” (stages 1 / 3): ASPD +8 while she blocks nobody �
     assert.ok(h.runUntil(() => u.blocking.length > 0, 30), `${label(f)}: the walker reaches her`);
     h.step();
     assert.equal(u.findBuff('trait:chen3:unblocked'), null, `${label(f)}: blocking`);
-    assert.equal(u.s.aspd, 113, `${label(f)}: ASPD while blocking`);
+    assert.equal(u.s.aspd, 116, `${label(f)}: ASPD while blocking`);
     done(h);
   }
 });
 
-test('T2 寒暑觉知: every 7 s (AFT-X stage 3: 6 s) without damage a self-heal of ATK × a whole random percent of [30, 161) ([50, 201)) and one held dodge; any damage restarts the count', () => {
+test('T2 寒暑觉知: every 7 s (AFT-X stage 3: 6 s) without damage a self-heal of ATK × a whole random percent of [35, 166) ([55, 206)) and one held dodge; any damage restarts the count', () => {
   for (const f of [[5, false, null], [6, true, null], [5, true, AFTX], [6, true, AFTX]]) {
     const [tier, elite, mod] = f;
     const t1 = tOf(tier, elite, mod, 1);
     const st = t1.stack_time, lo = t1.heal_atk_scale_min, hi = t1.heal_atk_scale_max;
-    assert.deepEqual([st, lo, hi], elite && mod === AFTX && tier === 6 ? [6, 50, 201] : [7, 30, 161], label(f));
+    assert.deepEqual([st, lo, hi], elite && mod === AFTX && tier === 6 ? [6, 55, 206] : [7, 35, 166], label(f));
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     u.hp = 100;
     const heals = () => h.hooksOf('heal').filter((c) => c.target === u && c.source === u && !c.opts?.regen);
@@ -196,7 +196,7 @@ test('S1 赤霄·奔夜 (MANUAL, data DEFAULT): ATK +65 % / +80 % for 18 s, ever
     u.skill.gainSp(999);
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast`);
-    approx(u.s.atk, u.base.atk * (1 + 0.13 + sk.bb.atk), `T${tier}: ATK`);
+    approx(u.s.atk, u.base.atk * (1 + 0.16 + sk.bb.atk), `T${tier}: ATK`);
     const n0 = from(h, u).length;
     h.runUntil(() => from(h, u).length >= n0 + 2, 3);
     const two = from(h, u).slice(n0, n0 + 2);
@@ -246,7 +246,7 @@ test('S2 赤霄·绝影-驰 (MANUAL, 技能范围 x-1, data SKILL_RANGE): 10 sla
     assert.ok(cuts.every((c) => c.target === near), `T${tier}: on the nearest`);
     cuts.forEach((c, i) => approx(c.t - cuts[0].t, 0.4 * i, `T${tier}: slash ${i + 1}`, 0.04));
     approx(cuts[0].t, t0, `T${tier}: the first at the cast`, 0.05);
-    for (const c of cuts) { approx(c.amount, u.base.atk * 1.13 * sk.bb.atk_scale, `T${tier}: ${sk.bb.atk_scale * 100} % ATK`); assert.deepEqual([c.type, c.dmg.isSkill], ['arts', true]); }
+    for (const c of cuts) { approx(c.amount, u.base.atk * 1.16 * sk.bb.atk_scale, `T${tier}: ${sk.bb.atk_scale * 100} % ATK`); assert.deepEqual([c.type, c.dmg.isSkill], ['arts', true]); }
     // the move onto the target's tile, the 6 s state
     const moves = h.hooksOf('deploy').filter((c) => c.unit === u && c.move);
     assert.equal(moves.length, 1, `T${tier}: one 【移动】`);
@@ -254,12 +254,12 @@ test('S2 赤霄·绝影-驰 (MANUAL, 技能范围 x-1, data SKILL_RANGE): 10 sla
     assert.equal(from(h, u, (c) => c.dmg.isAttack && c.t < moves[0].t).length, 0, `T${tier}: no attack while slashing`);
     assert.deepEqual([u.tileR, u.tileC], [11, 6], `T${tier}: moved onto its tile`);
     assert.ok(!u.s.flags.invulnerable && !u.s.flags.noBlock, `T${tier}: the slashing is over`);
-    approx(u.s.atk, u.base.atk * (1 + 0.13 + sk.bb['chen3_s2[respawn_buff].atk']), `T${tier}: ATK`);
+    approx(u.s.atk, u.base.atk * (1 + 0.16 + sk.bb['chen3_s2[respawn_buff].atk']), `T${tier}: ATK`);
     approx(u.s.dodgePhys, sk.bb['chen3_s2[respawn_buff].prob'], `T${tier}: physical dodge`);
     approx(u.s.dodgeArts, sk.bb['chen3_s2[respawn_buff].prob'], `T${tier}: arts dodge`);
     approx(u.skill.timeLeft, 6, `T${tier}: 6 s from the move`, 0.05);
     h.runUntil(() => !u.skill.active, 7);
-    approx(u.s.atk, u.base.atk * 1.13, `T${tier}: back`);
+    approx(u.s.atk, u.base.atk * 1.16, `T${tier}: back`);
     assert.equal(from(h, u, (c) => tagged(c, 'chen3:slash') && c.target === far).length, 0, `T${tier}: the farther one is never slashed`);
     done(h);
   }

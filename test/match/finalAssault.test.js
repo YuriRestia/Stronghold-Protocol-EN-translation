@@ -79,6 +79,7 @@ for (const n of [1, 2, 3, 4]) {
       assert.deepEqual(f.opts.rect, GEO.BOSS_RECT);
       assert.equal(f.opts.timeLimit, Infinity);
       assert.equal(f.opts.flags.layerGainsEnabled, false);
+      assert.deepEqual(f.opts.flags.enemyScale, m.gd.enemyScale(14), 'the round\'s enemy effects for the leader\'s summons (PR #272)');
       assert.ok(f.opts.players.every((p) => p.lpForBoss === m.teamLp));
       if (f.opts.players.length === 2) {
         assert.deepEqual(f.opts.players.map((p) => p.side), ['L', 'R']);

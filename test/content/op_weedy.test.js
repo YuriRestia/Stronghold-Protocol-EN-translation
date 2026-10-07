@@ -127,7 +127,8 @@ test('S2 水炮模式 (AUTO, SP_FULL): ATK +140 % / +170 %, interval ×3.2, rang
     h.step();
     assert.ok(u.skill.active, `T${tier}: on at full SP, no enemy needed`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
-    approx(u.s.interval, 1.2 * (1 + sk.bb.base_attack_time), `T${tier}: interval`);
+    // full potential: her ASPD is 108 (潜能「攻击速度+8」), so the interval ×100 / 108
+    approx(u.s.interval, 1.2 * (1 + sk.bb.base_attack_time) * 100 / 108, `T${tier}: interval`);
     assert.deepEqual(u.liveRangeGrid, [[0, 0], [0, 1], [0, 2]], `T${tier}: +1 tile`);
     const main = h.spawn('enemy_dummy', { pos: [10, 7] });
     const side = h.spawn('enemy_fly', { pos: [10.6, 7] });

@@ -74,9 +74,9 @@ test('帕拉斯 in every 自选 form: her operator kit (all three skills authore
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1413 / 577 / 382, E2 Lv60 1778 / 650 / 430; INS-X +150 HP +55 ATK → +210 / +83,
-  // trait 130 %; INS-Y +40 ATK +3 ASPD → +60 / +5
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/1/4/0'].stats.def, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1413, 577, 382, 1778, 650]);
+  // the numbers of the forms (zh_CN, full potential: ATK +25): E2 Lv1 1413 / 602 / 382, E2 Lv60 1778 / 675 / 430; INS-X +150 HP
+  // +55 ATK → +210 / +83, trait 130 %; INS-Y +40 ATK +3 ASPD → +60 / +5
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/1/4/0'].stats.def, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1413, 602, 382, 1778, 675]);
   assert.deepEqual([modOf(5, INSX).attr, modOf(6, INSX).attr, modOf(5, INSY).attr, modOf(6, INSY).attr], [{ maxHp: 150, atk: 55 }, { maxHp: 210, atk: 83 }, { atk: 40, aspd: 3 }, { atk: 60, aspd: 5 }]);
   assert.deepEqual([formOf(5, false).trait.bb.atk_scale, modOf(5, INSX).traitOverride.bb.atk_scale, modOf(6, INSY).traitOverride.bb.atk_scale], [1.2, 1.3, 1.2]);
 });
@@ -158,7 +158,7 @@ test('T1 英雄的诞生: while she is deployed, every 米诺斯 operator (her t
   }
 });
 
-test('T2 女神的振奋: every damage instance she deals heals her and the ally on the tile in front 40 HP (INS-Y stage 3: 60, and every 米诺斯 operator — her too — 40 more), through 禁疗, not a 不成为治疗目标 ally, not the one behind', () => {
+test('T2 女神的振奋: every damage instance she deals heals her and the ally on the tile in front 45 HP (INS-Y stage 3: 65, and every 米诺斯 operator — her too — 40 more), through 禁疗, not a 不成为治疗目标 ally, not the one behind', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const others = [{ uid: 2, chessId: 'chess_char_1_02_a', row: 10, col: 6 }, { uid: 3, chessId: 'test_minos_a', row: 10, col: 4 }];
@@ -166,7 +166,7 @@ test('T2 女神的振奋: every damage instance she deals heals her and the ally
     const front = h.unit(2), behind = h.unit(3);
     const t = talentOf(u, 1);
     const y3 = elite && mod === INSY && tier === 6;
-    assert.deepEqual([t.value, t['pallas_e_t_2.value']], y3 ? [60, 40] : [40, undefined], `${label(f)}: the talent of the form`);
+    assert.deepEqual([t.value, t['pallas_e_t_2.value']], y3 ? [65, 40] : [45, undefined], `${label(f)}: the talent of the form`);
     for (const a of [u, front, behind]) a.hp = a.s.maxHp * 0.5;
     h.b.addBuff(front, { key: 'test:healFree', flags: { healFree: true } });   // 禁疗: the heal ignores it
     h.spawn('enemy_dummy', { pos: [10, 7] });

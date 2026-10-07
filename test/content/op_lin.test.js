@@ -69,8 +69,8 @@ test('林 in every 自选 form: her operator kit (all three skills authored), th
       done(h);
     }
   }
-  // E2 Lv1 1679 / 730 / 212, E2 Lv60 1924 / 809 / 232; PLX-X +62 / +45 → +77 / +53 ATK / DEF, PLX-Y +50 / +20 → +73 / +40
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1679, 730, 1924, 809]);
+  // E2 Lv1 1679 / 764 / 212, E2 Lv60 1924 / 843 / 232; PLX-X +62 / +45 → +77 / +53 ATK / DEF, PLX-Y +50 / +20 → +73 / +40
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1679, 764, 1924, 843]);
   assert.deepEqual([modOf(5, PLXX).attr, modOf(6, PLXX).attr, modOf(5, PLXY).attr, modOf(6, PLXY).attr], [{ atk: 62, def: 45 }, { atk: 77, def: 53 }, { atk: 50, def: 20 }, { atk: 73, def: 40 }]);
 });
 
@@ -200,7 +200,7 @@ test('S3 流光乍裂 (MANUAL, data CUSTOM_RANGE x-2, 26 / 28 s): cast with an e
   }
 });
 
-test('T1 计出万全 (every form): a 琉璃璧 from deployment — a hit ≤ 200 absorbed whole, a hit over 200 goes through less 200 and breaks it: stun 1 s first, then 100 % / 110 % ATK arts on her range, regrowing after 8 s / 6 s (PLX-Y stage 3); a lethal hit still breaks it', () => {
+test('T1 计出万全 (every form): a 琉璃璧 from deployment — a hit ≤ 200 absorbed whole, a hit over 200 goes through less 200 and breaks it: stun 1 s first, then 110 % / 120 % ATK arts on her range, regrowing after 8 s / 6 s (PLX-Y stage 3); a lethal hit still breaks it', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const order = [];
@@ -210,7 +210,7 @@ test('T1 计出万全 (every form): a 琉璃璧 from deployment — a hit ≤ 20
     } });
     const t0 = u.def.raw.talents.find((t) => t.index === 0).bb;
     const y3 = elite && tier === 6 && mod === PLXY;
-    assert.deepEqual([t0.value, t0.atk_scale, t0.stun, t0.interval], [200, y3 ? 1.1 : 1, 1, y3 ? 6 : 8], label(f));
+    assert.deepEqual([t0.value, t0.atk_scale, t0.stun, t0.interval], [200, y3 ? 1.2 : 1.1, 1, y3 ? 6 : 8], label(f));
     assert.equal(glassOf(u)?.shield, 200, `${label(f)}: up from deployment`);
     const e = h.spawn('enemy_dummy', { pos: [10, 7] }), out = h.spawn('enemy_dummy', { pos: [10, 9] });
     h.step();
@@ -240,13 +240,13 @@ test('T1 计出万全 (every form): a 琉璃璧 from deployment — a hit ≤ 20
   }
 });
 
-test('T2 韬光: each damage instance she takes rolls 50 % for +1 SP (PLX-X stage 3: 75 %, +2) — one the 琉璃璧 absorbs whole too; a 流失 never', () => {
+test('T2 韬光: each damage instance she takes rolls 55 % for +1 SP (PLX-X stage 3: 80 %, +2) — one the 琉璃璧 absorbs whole too; a 流失 never', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 2, seed: 33 });
     const x3 = elite && tier === 6 && mod === PLXX;
     const t1 = u.def.raw.talents.find((t) => t.index === 1).bb;
-    assert.deepEqual([t1.prob, t1.sp], x3 ? [0.75, 2] : [0.5, 1], label(f));
+    assert.deepEqual([t1.prob, t1.sp], x3 ? [0.8, 2] : [0.55, 1], label(f));
     const e = h.spawn('enemy_dummy', { pos: [10, 9] });
     h.step();
     const gains = () => h.hooksOf('spGain').filter((c) => c.unit === u && c.reason === 'talent');

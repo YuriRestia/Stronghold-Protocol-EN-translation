@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_188_helage, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), PRTS 赫拉格 (talents,
 // skills, modules: no 备注), PRTS 分支特性信息 §武者 ("常态持有禁疗；通过自身特性/天赋/技能产生的作用于自身的治疗效果会无视自身的
 // 禁疗"; "特性治疗于干员每次输出伤害时触发（不局限于攻击）"), gamedata_const ba.berserk 坚忍 ("根据已损失的生命值获得相应比例的
@@ -15,14 +15,13 @@
 // - T1 月盈星亏 "在场时，自身获得最高+100攻击速度的坚忍（损失70%生命值时达到最大加成）": ASPD + min_attack_speed × the share of
 //   the HP lost up to 1 − min_hp_ratio (linear, 坚忍), refreshed every tick. SBL-X stage 3: +130 at 50 % lost (the module
 //   talent change).
-// - T2 运筹帷幄 "未阻挡敌人时每秒回复60生命": hp_recovery_per_sec is the 生命回复速度 attribute (the stat hpRecoveryPerSec;
-//   SIM.md §4: an hpRegen buff, not a heal — no 治疗加成, never stopped by 禁疗), on while he blocks nobody [ASSUMED: PRTS
-//   has no 备注 on it; the blackboard key is the attribute's, as 角峰 S1 / 宴 S1 in their kits — the 0.2.0 生命回复速度 audit
-//   lists such 「每秒回复」 + hp_recovery_per_sec effects as open; a heal would reach him too, 武者's own heals ignore his
-//   禁疗, and only 治疗加成 would differ]. SBL-Y stage 3
-//   "未阻挡敌人或生命值低于30%时每秒回复80生命": 80 / s and the hidden module talent (index 2, hp_ratio / hp_recovery_per_sec):
-//   the same regeneration below hp_ratio while he blocks [ASSUMED: the text's 或 — 80 / s when either holds, never both
-//   parts at once].
+// - T2 运筹帷幄 "未阻挡敌人时每秒回复60生命" (full potential: 70): hp_recovery_per_sec is the 生命回复速度 attribute (the stat
+//   hpRecoveryPerSec; SIM.md §4: an hpRegen buff, not a heal — no 治疗加成, never stopped by 禁疗), on while he blocks nobody
+//   [ASSUMED: PRTS has no 备注 on it; the blackboard key is the attribute's, as 角峰 S1 / 宴 S1 in their kits — the 0.2.0
+//   生命回复速度 audit lists such 「每秒回复」 + hp_recovery_per_sec effects as open; a heal would reach him too, 武者's own
+//   heals ignore his 禁疗, and only 治疗加成 would differ]. SBL-Y stage 3 "未阻挡敌人或生命值低于30%时每秒回复80生命" (full
+//   potential: 90): 90 / s and the hidden module talent (index 2, hp_ratio / hp_recovery_per_sec): the same regeneration
+//   below hp_ratio while he blocks [ASSUMED: the text's 或 — 90 / s when either holds, never both parts at once].
 // - Module SBL-X “藏锋” "生命值低于50%时，获得25%的庇护" (a display trait part; the effect is the hidden talent part hp_ratio /
 //   damage_resistance, merged into talent 0's blackboard): below hp_ratio of his max HP the physical and arts damage he takes
 //   ×(1 − damage_resistance) (as 宴's elite module) — 庇护, "同名效果取最高": the shared effect (tier1.js holdProtect).

@@ -74,8 +74,9 @@ test('怒潮凛冬 in every 自选 form: her operator kit (all three skills auth
       done(h);
     }
   }
-  // zh_CN: E2 Lv1 2301 / 1060 / 346, E2 Lv60 2731 / 1194 / 387; HAM-X +250 / +63 / +21 → +380 / +83 / +30
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2301, 1060, 2731, 1194]);
+  // zh_CN (full potential: ATK +40): E2 Lv1 2301 / 1100 / 346, E2 Lv60 2731 / 1234 / 387; HAM-X +250 / +63 / +21 →
+  // +380 / +83 / +30
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2301, 1100, 2731, 1234]);
   assert.deepEqual([modOf(5, HAMX).attr, modOf(6, HAMX).attr], [{ maxHp: 250, atk: 63, def: 21 }, { maxHp: 380, atk: 83, def: 30 }]);
 });
 
@@ -115,12 +116,12 @@ test('trait + T1 汹涌怒火 + HAM-X: the target takes ATK, the others within 1
   }
 });
 
-test('T1 汹涌怒火 高台: every 高台 the 1.0 circle around her target touches hits the ground enemies of its x-5 0.1 s later — 24 % ATK physical 溅射 (no dodge, 无来源, 远程途径) + 停顿 0.5 s; HAM-X: ×1.15 with 3 there', () => {
+test('T1 汹涌怒火 高台: every 高台 the 1.0 circle around her target touches hits the ground enemies of its x-5 0.1 s later — 27 % ATK physical 溅射 (no dodge, 无来源, 远程途径) + 停顿 0.5 s; HAM-X: ×1.15 with 3 there', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, noSp: true, rows: ONE_HIGH });
     const t0 = t0Of(u);
-    assert.deepEqual([t0['attack@splash_atk_scale'], t0['attack@sluggish']], [0.24, 0.5], label(f));
+    assert.deepEqual([t0['attack@splash_atk_scale'], t0['attack@sluggish']], [0.27, 0.5], label(f));
     assert.equal(h.b.grid.tile(11, 7).height, 'HIGH');
     const a = h.spawn('enemy_dummy', { pos: [10, 6] });
     const b = h.spawn('enemy_dummy', { pos: [12, 7] });        // only on (11, 7)'s x-5
@@ -136,7 +137,7 @@ test('T1 汹涌怒火 高台: every 高台 the 1.0 circle around her target touc
     assert.equal(hb.length, 1, `${label(f)}: the 高台 splash`);
     const d = hb[0];
     approx(d.t - atkT, 0.1, `${label(f)}: 0.1 s after the attack`, 0.4);
-    approx(d.amount, atk * 0.24, `${label(f)}: 24 % ATK`);
+    approx(d.amount, atk * 0.27, `${label(f)}: 27 % ATK`);
     assert.deepEqual([d.type, d.source, d.credit, d.dmg.isSplash, d.dmg.canDodge, d.dmg.sourceless, d.dmg.isProjectile], ['phys', null, u, true, false, true, true], `${label(f)}: physical 溅射, 无来源 credited to her, 远程途径`);
     const st = h.hooksOf('statusApplied').filter((s) => s.target === b && s.status === 'sluggish');
     assert.ok(st.length === 1 && Math.abs(st[0].duration - 0.5) < 1e-9, `${label(f)}: 停顿 0.5 s`);
@@ -149,7 +150,7 @@ test('T1 汹涌怒火 高台: every 高台 the 1.0 circle around her target touc
     h.run(u.s.interval + 0.2);
     const next = dmgOn(h, b, highland).slice(n0);
     assert.ok(next.length >= 1, `${label(f)}: the next attack's 高台 splash`);
-    approx(next[0].amount, u.s.atk * 0.24 * (elite && mod === HAMX ? 1.15 : 1), `${label(f)}: ×${elite && mod === HAMX ? 1.15 : 1} with 3 on the x-5`);
+    approx(next[0].amount, u.s.atk * 0.27 * (elite && mod === HAMX ? 1.15 : 1), `${label(f)}: ×${elite && mod === HAMX ? 1.15 : 1} with 3 on the x-5`);
     done(h);
   }
 });
@@ -179,18 +180,18 @@ test('S2 绝不罢休\'s passive: +1 SP per 高台 that triggers 汹涌怒火 (n
   done(h);
 });
 
-test('T2 万众巨潮: while a skill of hers runs every operator of the field ATK / DEF +14 % — 【乌萨斯学生自治团】 (her, 古米) +28 % — and nothing before or after it', () => {
+test('T2 万众巨潮: while a skill of hers runs every operator of the field ATK / DEF +18 % — 【乌萨斯学生自治团】 (her, 古米) +36 % — and nothing before or after it', () => {
   for (const [tier, elite, skill] of [[5, false, 0], [6, true, 1]]) {
     const others = [{ uid: 2, chessId: 'chess_char_1_10_a', row: 11, col: 3 }, { uid: 3, chessId: 'chess_char_1_08_a', row: 12, col: 3 }];
     const { h, u } = field({ tier, elite, skill, others });
     const gummy = h.unit(2), texas = h.unit(3);
     const t1 = u.def.raw.talents.find((t) => t.index === 1).bb;
-    assert.deepEqual([t1.atk, t1.def, t1.scale_bonus], [0.14, 0.14, 2]);
+    assert.deepEqual([t1.atk, t1.def, t1.scale_bonus], [0.18, 0.18, 2]);
     h.run(0.5);
     for (const o of [u, gummy, texas]) assert.equal(o.findBuff(TIDE), null, `T${tier}: nothing before her skill (${o.def.charId})`);
     u.skill.gainSp(999);
     if (skill === 0) { h.spawn('enemy_dummy', { pos: [10, 6] }); assert.ok(h.runUntil(() => u.skill.active, 3)); } else assert.ok(h.runUntil(() => u.skill.active, 1), 'S2 at full SP');
-    for (const [o, v] of [[u, 0.28], [gummy, 0.28], [texas, 0.14]]) {
+    for (const [o, v] of [[u, 0.36], [gummy, 0.36], [texas, 0.18]]) {
       const m = o.findBuff(TIDE)?.mods;
       assert.ok(m, `T${tier}: ${o.def.charId} in her skill`);
       approx(m.atkPct, v, `T${tier}: ${o.def.charId} ATK`);
@@ -204,7 +205,7 @@ test('T2 万众巨潮: while a skill of hers runs every operator of the field AT
   }
 });
 
-test('S1 誓不低头 (MANUAL, DEFAULT): 30 s, ATK +32 % / 39 %, ASPD +35 / 40 (her own 万众巨潮 +28 % on top); all back after', () => {
+test('S1 誓不低头 (MANUAL, DEFAULT): 30 s, ATK +32 % / 39 %, ASPD +35 / 40 (her own 万众巨潮 +36 % on top); all back after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
@@ -215,7 +216,7 @@ test('S1 誓不低头 (MANUAL, DEFAULT): 30 s, ATK +32 % / 39 %, ASPD +35 / 40 (
     h.spawn('enemy_dummy', { pos: [10, 6] });
     assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast with an enemy in range`);
     approx(u.skill.timeLeft, 30, `T${tier}: 30 s`, 0.01);
-    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.28), `T${tier}: ATK`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.36), `T${tier}: ATK`);
     approx(u.s.aspd, 100 + sk.bb.attack_speed, `T${tier}: ASPD`);
     h.runUntil(() => !u.skill.active, 40);
     approx(u.s.atk, u.base.atk, `T${tier}: ATK back`);
@@ -232,8 +233,8 @@ test('S2 绝不罢休 (AUTO, SP_FULL — a self buff): at full SP with no enemy,
     assert.equal(u.skill.activations, 0, `T${tier}: not before full SP`);
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: at full SP, no enemy on the field`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 2-5 while it runs`);
-    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.28), `T${tier}: ATK (+ her 万众巨潮)`);
-    approx(u.s.def, u.base.def * (1 + sk.bb.def + 0.28), `T${tier}: DEF`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.36), `T${tier}: ATK (+ her 万众巨潮)`);
+    approx(u.s.def, u.base.def * (1 + sk.bb.def + 0.36), `T${tier}: DEF`);
     h.run(15.9);
     assert.ok(u.skill.active, `T${tier}: 16 s`);
     h.run(0.2);
@@ -241,8 +242,8 @@ test('S2 绝不罢休 (AUTO, SP_FULL — a self buff): at full SP with no enemy,
     assert.deepEqual(u.liveRangeGrid, [[0, 0], [0, 1]], `T${tier}: 1-1 again`);
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: the second cast`);
-    approx(u.s.atk, u.base.atk * (1 + sk.bb['headb2_s_2[second].atk'] + 0.28), `T${tier}: ATK doubled`);
-    approx(u.s.def, u.base.def * (1 + sk.bb['headb2_s_2[second].def'] + 0.28), `T${tier}: DEF doubled`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb['headb2_s_2[second].atk'] + 0.36), `T${tier}: ATK doubled`);
+    approx(u.s.def, u.base.def * (1 + sk.bb['headb2_s_2[second].def'] + 0.36), `T${tier}: DEF doubled`);
     h.run(200);
     assert.ok(u.skill.active, `T${tier}: 持续时间无限`);
     h.b.retreat(u);
@@ -250,7 +251,7 @@ test('S2 绝不罢休 (AUTO, SP_FULL — a self buff): at full SP with no enemy,
     h.step();
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 1));
-    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.28), `T${tier}: a new deployment's first cast`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.36), `T${tier}: a new deployment's first cast`);
     done(h);
   }
 });
@@ -275,7 +276,7 @@ test('S3 无可抵挡 (MANUAL, data CUSTOM_RANGE): five hammers on the Skill_3 c
     h.runUntil(() => !u.skill.active, 12);
     approx(h.b.time - t0, SKILL3_T, `T${tier}: over with the clip`, 0.02);
     assert.equal(h.hooksOf('attack').filter((c) => c.attacker === u && c.t > t0 && c.t < t0 + SKILL3_T - 0.1).length, 0, `T${tier}: no normal attack`);
-    const atkK = (k) => u.base.atk * (1 + sk.bb.atk_base + 0.28 + sk.bb.atk_step * (k - 1));
+    const atkK = (k) => u.base.atk * (1 + sk.bb.atk_base + 0.36 + sk.bb.atk_step * (k - 1));
     const mh = dmgOn(h, main, (c) => c.t >= t0 && hammerHit(c));
     assert.equal(mh.length, 5, `T${tier}: five hammers on the target ahead`);
     mh.forEach((c, i) => { approx(c.t - t0, HAMMER_T[i], `T${tier}: hammer ${i + 1} at ${HAMMER_T[i].toFixed(3)} s`, 0.02); approx(c.amount, atkK(i + 1) * sk.bb.atk_scale, `T${tier}: hammer ${i + 1} ${sk.bb.atk_scale * 100} %`); });
@@ -286,7 +287,7 @@ test('S3 无可抵挡 (MANUAL, data CUSTOM_RANGE): five hammers on the Skill_3 c
     const counts = under.map((e) => dmgOn(h, e, (c) => c.t >= t0 && highland(c)).length);
     assert.deepEqual(counts, [5, 4, 3, 2], `T${tier}: (11, 7) every hammer, (11, 8) from the 2nd, (11, 9) the 3rd, (11, 10) the 4th`);
     const first = dmgOn(h, under[0], (c) => c.t >= t0 && highland(c));
-    first.forEach((c, i) => approx(c.amount, atkK(i + 1) * 0.24 * 3.5, `T${tier}: 高台 ×3.5 at hammer ${i + 1}`));
+    first.forEach((c, i) => approx(c.amount, atkK(i + 1) * 0.27 * 3.5, `T${tier}: 高台 ×3.5 at hammer ${i + 1}`));
     const last = dmgOn(h, under[3], (c) => c.t >= t0 && highland(c));
     approx(last[0].t - (t0 + HAMMER_T[3]), 0.1 + 3 * 0.125, `T${tier}: 0.1 s, then three spread steps of 0.125 s after the 4th hammer`, 0.03);
     const binds = h.hooksOf('statusApplied').filter((s) => s.target === under[0] && s.status === 'bind' && s.t >= t0);

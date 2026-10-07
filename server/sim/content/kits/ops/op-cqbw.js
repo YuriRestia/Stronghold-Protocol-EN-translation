@@ -5,7 +5,7 @@
 //
 // Forms (data/backups.json units.char_113_cqbw, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
 // elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05.
-// Potential 0 [ASSUMED: no account]. Sources: character_table / skill_table / battle_equip_table and the token record
+// Full potential (the owner's decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table and the token record
 // (zh_CN, as built into backups.json); PRTS W, 此面向敌 and 溅射半径一览 (the 备注 quoted below); the client's skill prefabs
 // ([uc]skills skchr_cqbw_1 / 2 / 3, sktok_cqbw_token) and buff templates (cqbw_t_1, cqbw_t_2, cqbw_e_dmg,
 // cqbw_e_sp[kill_with_projectile] / [kill_with_token], cqbw_e_003_t).
@@ -24,13 +24,13 @@
 //   1.25%攻击力，上限16层），受到伤害时…清空攻击力提升效果"): one stack of ATK +atk (直接乘算) every second from her deployment,
 //   at most max_stack_cnt, all cleared by any damage she takes (a 流失, an element 损伤 or a dodged hit is none; a hit a
 //   shield absorbs is one [ASSUMED]).
-// - T2 落井下石 "攻击范围内的敌人在被晕眩时受到的物理伤害+18%" (cqbw_t_2 on the enemies of her range: ON_TAKE_DAMAGE, STUNNED,
-//   DamageScale PHYSICAL): any physical damage, whoever deals it, on an enemy standing in her attack range while it is
-//   晕眩 (the catalogue stun — not 冻结 / 浮空) ×damage_scale; two W keep the strongest (同名 buff). ART-X stage 2+ (+24 % at
-//   stage 3) adds "击倒敌人时获得1点技力" — PRTS 修正 "被自身的远程攻击击倒时" and 备注 "当受天赋影响的单位被W的弹道（包括
-//   D12的炸弹）击倒，W将恢复1点技力（无视阻回）…当此面向敌击倒敌人时，不论该敌人是否受天赋效果影响，也会令W获得1点技力（无视
-//   阻回）": +sp SP (forced) when her projectile — a normal attack, 红桃K, a D12 bomb — knocks out an enemy of her range,
-//   or one of her mines knocks out any enemy.
+// - T2 落井下石 "攻击范围内的敌人在被晕眩时受到的物理伤害+18%" (full potential: +21%; cqbw_t_2 on the enemies of her range:
+//   ON_TAKE_DAMAGE, STUNNED, DamageScale PHYSICAL): any physical damage, whoever deals it, on an enemy standing in her
+//   attack range while it is 晕眩 (the catalogue stun — not 冻结 / 浮空) ×damage_scale; two W keep the strongest (同名 buff).
+//   ART-X stage 2+ (+27 % at stage 3, full potential) adds "击倒敌人时获得1点技力" — PRTS 修正 "被自身的远程攻击击倒时" and
+//   备注 "当受天赋影响的单位被W的弹道（包括D12的炸弹）击倒，W将恢复1点技力（无视阻回）…当此面向敌击倒敌人时，不论该敌人是否受天赋效果
+//   影响，也会令W获得1点技力（无视阻回）": +sp SP (forced) when her projectile — a normal attack, 红桃K, a D12 bomb — knocks out an
+//   enemy of her range, or one of her mines knocks out any enemy.
 // - S1 红桃K (MANUAL, data DEFAULT): "立即发射一枚榴弹…并使命中目标晕眩" — cast like an attack (prefab
 //   `_shouldCastLikeAttack`): the attack it is cast for throws the grenade at her target instead (an instant skill with
 //   an attack override): atk_scale × ATK physical to every enemy within GRENADE_RADIUS (PRTS 备注 "榴弹爆炸范围半径为1.2"),

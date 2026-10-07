@@ -45,7 +45,7 @@ test('chess: 133 base chess — 74 PRESET / 55 NORMAL / 4 DIY — and every reco
   for (const c of ofType('PRESET')) assert.equal(c.backup.charId, c.charId, `${c.chessId}: 特许 — its own backup`);
   for (const c of ofType('NORMAL')) {
     assert.ok(c.backup.charId && c.backup.charId !== c.charId, `${c.chessId}: a NORMAL chess names another character`);
-    assert.equal(c.backup.potRank, 0, `${c.chessId}: stand-ins fight at potential 0`);
+    assert.equal(c.backup.potRank, 0, `${c.chessId}: the official row names potential 0 (moot: the 原型干员 have no potential ranks)`);
     assert.ok(c.tier >= 3, `${c.chessId}: no NORMAL chess below tier 3`);
   }
   for (const c of ofType('DIY')) assert.deepEqual(c.backup, { charId: null, tmplId: null, skillIndex: 0, uniEquipId: null, potRank: 0 });
@@ -172,6 +172,8 @@ test('backups: the stand-in numbers re-derived from the raw official tables', { 
   for (const c of all.filter((x) => x.chessType === 'NORMAL')) {
     const r = standInRecord(c, backups);
     const ch = CT[c.backup.charId];
+    // full potential for every unit (the owner's decision of 2026-10-07) is the plain keyframes here: no 原型干员 has a potential rank
+    assert.equal((ch.potentialRanks || []).length, 0, `${c.backup.charId}: no potential ranks`);
     const P = ch.phases[c.status.phase];
     const k0 = P.attributesKeyFrames[0], k1 = P.attributesKeyFrames[P.attributesKeyFrames.length - 1];
     const t = (c.status.level - k0.level) / (k1.level - k0.level || 1);
@@ -274,10 +276,10 @@ test('DIY: the 71 owned 6★ picks — a form at every slot status with all thre
     assert.deepEqual(Object.keys(rec.variants), rec.owners, `${id}: owners = variant keys`);
     for (const o of rec.owners) assert.ok(/^char_\w+@\d+\/\d+\/\d+\/\d+$/.test(o) && ownedPool.includes(o.split('@')[0]), `${id}: owner ${o}`);
   }
-  // spot checks (zh_CN client data): 推进之王 E2 Lv60 = 2046 HP / 484 ATK, SOL-X stage 1 ATK +60 DEF +40 and its trait, stage 3
-  // the 万兽之王 change; 令 S1 / S2 / S3 summon 清平 / 逍遥 / 弦惊
+  // spot checks (zh_CN client data): 推进之王 E2 Lv60 = 2046 HP / 484 ATK (+ 攻击力+25 at full potential: 509; cost 2 lower),
+  // SOL-X stage 1 ATK +60 DEF +40 and its trait, stage 3 the 万兽之王 change; 令 S1 / S2 / S3 summon 清平 / 逍遥 / 弦惊
   const siege = backups.units.char_112_siege.forms;
-  assert.deepEqual([siege['2/60/7/1'].stats.maxHp, siege['2/60/7/1'].stats.atk], [2046, 484]);
+  assert.deepEqual([siege['2/60/7/1'].stats.maxHp, siege['2/60/7/1'].stats.atk], [2046, 509]);
   const solx1 = siege['2/60/7/1'].modules.find((m) => m.typeName === 'SOL-X');
   assert.deepEqual([solx1.attr, solx1.traitOverride.bb, solx1.talentChanges], [{ atk: 60, def: 40 }, { atk: 0.08, def: 0.08 }, []]);
   assert.deepEqual(siege['2/60/7/3'].modules.find((m) => m.typeName === 'SOL-X').talentChanges.map((t) => [t.talentIndex, t.bb]), [[0, { atk: 0.08, def: 0.08 }]]);

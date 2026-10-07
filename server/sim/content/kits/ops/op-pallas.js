@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_485_pallas, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 帕拉斯 (英勇的祝福 备注
 // "持有增益的干员撤退时，增益立刻转交至帕拉斯；自身持有增益，满足条件的干员部署时，帕拉斯的增益立刻转交给对方"; 女神的振奋 备注
 // "本天赋无视自身获得的禁疗，且必定进行治疗"); gamedata_const ba.strong 精力充沛 "生命值高于一定比例时获得一定属性加成（同类属性取
@@ -19,12 +19,13 @@
 //   several sources is "同类属性取最高": one buff per ally carrying the highest ATK bonus whose HP condition holds (her T1
 //   and her S3 alike, several 帕拉斯 of a shared field too), re-evaluated every tick. 帕拉斯 is the only minos operator of
 //   the data (chess.json and backups.json), so in practice the talent is hers.
-// - T2 女神的振奋 "每攻击一名敌人时为自身与身前一格的我方干员恢复40点生命值" (bb value): pallas_t_2 is ON_OUTPUT_DAMAGE — every
-//   damage instance she deals (S1's two strikes, each S3 target) heals every ally on her 1-1 (her tile and the tile in
-//   front, rotated with her) `value` HP, a heal that ignores 禁疗 (FixedValueHeal _ignoreHealFree; PRTS 备注) but not
-//   "不成为其他角色的治疗目标" (the heal's selector is HEAL-purpose). INS-Y “赫里亚之辉” stage 2+: value 60 and "并使所有【米诺斯】干员
-//   额外恢复40点生命值" (talent bb pallas_e_t_2.value): pallas_e_t_2[trigger] (ON_OUTPUT_DAMAGE) uses pallas_e_heal on every
-//   ally its aura marks — tags minos, _selfOption INCLUDE, so herself too — for that much more (also ignoring 禁疗).
+// - T2 女神的振奋 "每攻击一名敌人时为自身与身前一格的我方干员恢复40点生命值" (full potential: 45; bb value): pallas_t_2 is
+//   ON_OUTPUT_DAMAGE — every damage instance she deals (S1's two strikes, each S3 target) heals every ally on her 1-1 (her tile and
+//   the tile in front, rotated with her) `value` HP, a heal that ignores 禁疗 (FixedValueHeal _ignoreHealFree; PRTS 备注) but not
+//   "不成为其他角色的治疗目标" (the heal's selector is HEAL-purpose). INS-Y “赫里亚之辉” stage 2+: value 60 (full potential: 65)
+//   and "并使所有【米诺斯】干员额外恢复40点生命值" (talent bb pallas_e_t_2.value): pallas_e_t_2[trigger] (ON_OUTPUT_DAMAGE) uses
+//   pallas_e_heal on every ally its aura marks — tags minos, _selfOption INCLUDE, so herself too — for that much more (also
+//   ignoring 禁疗).
 // - Module INS-Y "可以额外部署在远程位" (hidden module talent buildable_type 2) is a placement rule of the prep, not of the
 //   battle: by the owner's decision of 2026-10-04 (shared/highGround.js) only elite 歌蕾蒂娅 + HOK-Y may take a 高台, so a
 //   帕拉斯 piece stays on the melee tiles — an open question for the owner (DESIGN draft 0.2.0.o9), nothing in this kit.
@@ -101,7 +102,7 @@ export function blessingHolder(battle, unit) {
 export default {
   char_485_pallas: (bb, chess) => {
     const t0 = talentBb(chess, 0);   // 英雄的诞生 (INS-X stage 3: hp_ratio 0.5, atk 0.3)
-    const t1 = talentBb(chess, 1);   // 女神的振奋 (INS-Y stage 3: value 60, pallas_e_t_2.value 40)
+    const t1 = talentBb(chess, 1);   // 女神的振奋 (INS-Y stage 3: value 65, pallas_e_t_2.value 40)
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
     const blessDef = num(b3['attack@def']), blessBlock = num(b3['attack@block_cnt']);
     const blessHp = num(b3['attack@peak_performance.hp_ratio'], 0.8), blessAtk = num(b3['attack@peak_performance.atk']);

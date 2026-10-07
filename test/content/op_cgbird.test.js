@@ -193,8 +193,8 @@ test('S3 圣域 (MANUAL, data ACTIVE_RANGE on y-4): cast for an injured ally ins
     for (const uid of [2, 6, 7]) assert.deepEqual(a(uid).findBuff('skill:cgbird:sanctuary')?.mods, { resMul: 1 + sk.bb.magic_resistance, dodgeArts: sk.bb.prob }, `${label(f)}: uid ${uid} in y-4`);
     assert.deepEqual(u.findBuff('skill:cgbird:sanctuary')?.mods, { resMul: 1 + sk.bb.magic_resistance, dodgeArts: sk.bb.prob }, `${label(f)}: herself`);
     assert.equal(a(8).findBuff('skill:cgbird:sanctuary'), null, `${label(f)}: outside`);
-    // RES = (10 + 15 talent) × (1 + v) on an ally (base 10)
-    approx(a(7).s.res, Math.min(100, (10 + 15) * (1 + sk.bb.magic_resistance)), `${label(f)}: RES`);
+    // RES = (10 + 17 talent) × (1 + v) on an ally (base 10)
+    approx(a(7).s.res, Math.min(100, (10 + 17) * (1 + sk.bb.magic_resistance)), `${label(f)}: RES`);
     approx(a(7).s.dodgeArts, sk.bb.prob, `${label(f)}: arts dodge`);
     u.skill.end('test');
     h.run(0.3);
@@ -204,18 +204,18 @@ test('S3 圣域 (MANUAL, data ACTIVE_RANGE on y-4): cast for an injured ally ins
   }
 });
 
-test('T1 白恶魔的庇护: allies in her range RES +15 (herself too, not outside); RIN-X: its range tile too, stage 3 also 受到的治疗效果 ×1.05', () => {
+test('T1 白恶魔的庇护: allies in her range RES +17 (herself too, not outside); RIN-X: its range tile too, stage 3 also 受到的治疗效果 ×1.05', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u, a } = field({ tier, elite, mod, skill: 0 });
     h.run(0.3);
     const rinx = elite && mod === RINX, x3 = rinx && tier === 6;
-    const want = x3 ? { resFlat: 15, healingTakenMul: 1.05 } : { resFlat: 15 };
+    const want = x3 ? { resFlat: 17, healingTakenMul: 1.05 } : { resFlat: 17 };
     for (const uid of [2, 3, 4, 5]) assert.deepEqual(a(uid).findBuff('talent:cgbird:res')?.mods, want, `${label(f)}: uid ${uid}`);
     assert.deepEqual(u.findBuff('talent:cgbird:res')?.mods, want, `${label(f)}: herself`);
     assert.deepEqual(a(6).findBuff('talent:cgbird:res')?.mods ?? null, rinx ? want : null, `${label(f)}: (11,5) — the RIN-X tile`);
     for (const uid of [7, 8]) assert.equal(a(uid).findBuff('talent:cgbird:res'), null, `${label(f)}: uid ${uid} outside`);
-    approx(a(2).s.res, 10 + 15, `${label(f)}: RES`);
+    approx(a(2).s.res, 10 + 17, `${label(f)}: RES`);
     if (x3) {
       a(2).hp = 1000;
       const n0 = h.hooksOf('heal').length;

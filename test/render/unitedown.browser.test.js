@@ -10,7 +10,7 @@
 
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildBattleSpec } from '../../server/sim/spec.js';
@@ -21,6 +21,8 @@ const OUT = path.join(ROOT, 'test/e2e/out');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const enabled = process.env.RENDER_E2E === '1' && existsSync(CHROME) && existsSync(path.join(ROOT, 'public/assets'));
 const skip = enabled ? false : 'set RENDER_E2E=1 (needs Chrome and downloaded assets)';
+// 德克萨斯's redeploy time and cost from the data (at full potential since 0.2.1: 60 s and 11; 70 s and 13 before)
+const TEXAS = JSON.parse(readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8')).chess_char_1_08_a.stats;
 
 // the right-hand helper of a two-helper 联防 (colOffset +8): 德克萨斯 knocked out in its own combat,
 // with 艾雅法拉 standing at half HP; the only enemy spawns long after the check (it keeps the battle running)
@@ -115,12 +117,13 @@ describe('联防: an operator knocked out in its own combat enters down (headles
       assert.equal(st[texas].down, 0, 'down, its timer counting');
       assert.ok(st[texas].ring, 'redeploy ring');
       const gt = await page.evaluate(() => window.__sim.battle.time);
-      assert.ok(gt > 5.9 && ['64', '65', '66'].includes(st[texas].label), `its full 70 s timer (${st[texas].label} s left at ${gt.toFixed(2)} s)`);
+      const left = [6, 5, 4].map((k) => String(TEXAS.respawnTime - k));
+      assert.ok(gt > 5.9 && left.includes(st[texas].label), `its full ${TEXAS.respawnTime} s timer (${st[texas].label} s left at ${gt.toFixed(2)} s)`);
       assert.equal(st[texas].dieClip, 'Die', 'held Die pose');
       assert.ok(st[texas].alpha > 0.8, `drawn (alpha ${st[texas].alpha})`);
       assert.deepEqual([Math.round(st[texas].x), Math.round(st[texas].y)], [12, 10], 'on its own tile (board col 4 + 8)');
       assert.equal(st[eyja].alive, true, 'the teammate stands');
-      // fast-forward to the redeploy (DP 10 + 1/s ≥ cost 13 long before the 70 s timer ends)
+      // fast-forward to the redeploy (DP 10 + 1/s reaches her cost long before her redeploy timer ends)
       await run(40, 60);
       await run(30, 2);
       st = await page.evaluate(() => window.__sim.state());

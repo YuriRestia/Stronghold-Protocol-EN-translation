@@ -76,9 +76,9 @@ test('棘刺 in every 自选 form: his operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2063 / 575 / 333, E2 Lv60 2427 / 665 / 379; LOR-X +160 / +39 / +5 → +260 / +55 / +7,
+  // the numbers of the forms (zh_CN): E2 Lv1 2063 / 601 / 333, E2 Lv60 2427 / 691 / 379; LOR-X +160 / +39 / +5 → +260 / +55 / +7,
   // LOR-Δ +80 / +60 / +5 → +150 / +75 / +7 (HP / ATK / ASPD)
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2063, 575, 2427, 665]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2063, 601, 2427, 691]);
   assert.deepEqual([modOf(5, LORX).attr, modOf(6, LORX).attr, modOf(5, LORD).attr, modOf(6, LORD).attr],
     [{ maxHp: 160, atk: 39, aspd: 5 }, { maxHp: 260, atk: 55, aspd: 7 }, { maxHp: 80, atk: 60, aspd: 5 }, { maxHp: 150, atk: 75, aspd: 7 }]);
 });
@@ -229,11 +229,11 @@ test('S3 至高之术 (MANUAL, attack SP, data ACTIVE_RANGE on 3-3): 30 s of ran
   }
 });
 
-test('T1 神经腐蚀: an attack poisons its target — 3 ticks of 125 arts (250 on an enemy that attacks at range: RANGED / ALL), the first a second in, 持续伤害; a new hit refreshes it without a second instance', () => {
+test('T1 神经腐蚀: an attack poisons its target — 3 ticks of 140 arts (280 on an enemy that attacks at range: RANGED / ALL), the first a second in, 持续伤害; a new hit refreshes it without a second instance', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const t0 = t0Of(tier, elite, null);
-    assert.deepEqual([t0['damage[normal]'], t0['damage[ranged]'], t0.duration], [125, 250, 3]);
-    for (const [key, dmg] of [['enemy_dummy', 125], ['enemy_ranged', 250], ['enemy_both', 250]]) {
+    assert.deepEqual([t0['damage[normal]'], t0['damage[ranged]'], t0.duration], [140, 280, 3]);
+    for (const [key, dmg] of [['enemy_dummy', 140], ['enemy_ranged', 280], ['enemy_both', 280]]) {
       const { h, u } = field({ tier, elite, skill: 0 });
       u.skill.sp = 0;
       const e = h.spawn(key, { pos: [10, 6] });
@@ -258,15 +258,15 @@ test('T1 神经腐蚀: an attack poisons its target — 3 ticks of 125 arts (250
     assert.equal(e.buffs.filter((b) => b.key === `thorns:poison:${u.id}`).length, 1, `T${tier}: one instance`);
     const ticks = from(h, u, (c) => tagged(c, 'thorns:poison'));
     assert.ok(ticks.length >= 8 && ticks.length <= 10, `T${tier}: ${ticks.length} ticks in 10 s`);
-    assert.ok(ticks.every((c) => Math.abs(c.amount - 125) < 1e-6), `T${tier}: the value never changes`);
+    assert.ok(ticks.every((c) => Math.abs(c.amount - 140) < 1e-6), `T${tier}: the value never changes`);
     done(h);
   }
 });
 
-test('T1 + LOR-X stage 3 "可叠加4次": the tick is 135 × the hits so far (≤ 4), 270 on a ranged enemy; stage 1 leaves the talent (125, one layer); a dodged hit poisons nothing', () => {
+test('T1 + LOR-X stage 3 "可叠加4次": the tick is 150 × the hits so far (≤ 4), 300 on a ranged enemy; stage 1 leaves the talent (140, one layer); a dodged hit poisons nothing', () => {
   const t03 = t0Of(6, true, LORX), t01 = t0Of(5, true, LORX);
-  assert.deepEqual([t03['damage[normal]'], t03['damage[ranged]'], t03.max_cnt, t01['damage[normal]'], t01.max_cnt], [135, 270, 4, 125, undefined]);
-  for (const [tier, per, cap] of [[6, 135, 4], [5, 125, 1]]) {
+  assert.deepEqual([t03['damage[normal]'], t03['damage[ranged]'], t03.max_cnt, t01['damage[normal]'], t01.max_cnt], [150, 300, 4, 140, undefined]);
+  for (const [tier, per, cap] of [[6, 150, 4], [5, 140, 1]]) {
     const { h, u } = field({ tier, elite: true, mod: LORX, skill: 0 });
     u.skill.sp = 0;
     h.spawn('enemy_dummy', { pos: [10, 6] });
@@ -323,7 +323,7 @@ test('LOR-Δ “沙蚀” (stages 1 / 3): every damage instance he deals carries
   }
   // stage 3: the poison on an enemy in its 神经 burst
   const t03 = t0Of(6, true, LORD);
-  assert.deepEqual([t03['damage[normal]'], t03['damage[ranged]'], t03.ep_break_multi], [300, 600, 2.5]);
+  assert.deepEqual([t03['damage[normal]'], t03['damage[ranged]'], t03.ep_break_multi], [315, 630, 2.5]);
   {
     const { h, u } = field({ tier: 6, elite: true, mod: LORD, skill: 0 });
     u.skill.sp = 0;
@@ -332,7 +332,7 @@ test('LOR-Δ “沙蚀” (stages 1 / 3): every damage instance he deals carries
     h.run(4);
     const ticks = from(h, u, (c) => tagged(c, 'thorns:poison'));
     assert.ok(ticks.length >= 2, 'ticks');
-    for (const c of ticks) { approx(c.amount, 300 * 2.5, '×2.5'); assert.deepEqual([c.type, c.dmg.element], ['elemental', 'neural']); }
+    for (const c of ticks) { approx(c.amount, 315 * 2.5, '×2.5'); assert.deepEqual([c.type, c.dmg.element], ['elemental', 'neural']); }
     // thorns_e_003_t has no independentCharacterSource: one poison per enemy, not one per 棘刺
     assert.deepEqual([!!e.findBuff('thorns:poison'), !!e.findBuff(`thorns:poison:${u.id}`)], [true, false], 'the shared poison');
     done(h);
@@ -344,7 +344,7 @@ test('LOR-Δ “沙蚀” (stages 1 / 3): every damage instance he deals carries
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.b.addBuff(e, { key: 'neuralBurst', duration: 30, flags: { burstLock: true } });
     h.run(4);
-    for (const c of from(h, u, (x) => tagged(x, 'thorns:poison'))) { approx(c.amount, 125, 'stage 1: 125'); assert.equal(c.type, 'arts'); }
+    for (const c of from(h, u, (x) => tagged(x, 'thorns:poison'))) { approx(c.amount, 140, 'stage 1: 140'); assert.equal(c.type, 'arts'); }
     done(h);
   }
   // S2 spikes: they poison at stage 1 and without a module, never at LOR-Δ stage 3
@@ -359,14 +359,14 @@ test('LOR-Δ “沙蚀” (stages 1 / 3): every damage instance he deals carries
   }
 });
 
-test('T2 故土潮声: 生命回复速度 +3.5 % max HP/s (an hpRegenRatio buff, no 治疗: 禁疗 does not stop it) once his last attack is 2 s old — off while he attacks; S2\'s spikes are no 主动攻击', () => {
+test('T2 故土潮声: 生命回复速度 +4 % max HP/s (an hpRegenRatio buff, no 治疗: 禁疗 does not stop it) once his last attack is 2 s old — off while he attacks; S2\'s spikes are no 主动攻击', () => {
   for (const f of [[5, false, null], [6, true, LORX]]) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     const r = formOf(tier, elite).talents.find((t) => t.index === 1).bb;
-    assert.deepEqual([r.delay, r.hp_recovery_per_sec_by_max_hp_ratio], [2, 0.035]);
-    assert.deepEqual(u.findBuff('talent:thorns:tide')?.mods, { hpRegenRatio: 0.035 }, `${label(f)}: on from the deployment`);
-    approx(u.s.hpRegen, u.s.maxHp * 0.035, `${label(f)}: 3.5 % max HP / s`);
+    assert.deepEqual([r.delay, r.hp_recovery_per_sec_by_max_hp_ratio], [2, 0.04]);
+    assert.deepEqual(u.findBuff('talent:thorns:tide')?.mods, { hpRegenRatio: 0.04 }, `${label(f)}: on from the deployment`);
+    approx(u.s.hpRegen, u.s.maxHp * 0.04, `${label(f)}: 4 % max HP / s`);
     u.skill.sp = 0;
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 3);
@@ -381,7 +381,7 @@ test('T2 故土潮声: 生命回复速度 +3.5 % max HP/s (an hpRegenRatio buff,
     h.b.addBuff(u, { key: 'test:healFree', flags: { healFree: true, noHeal: true } });
     u.hp = u.s.maxHp * 0.5;
     h.run(1);
-    approx(u.hp, u.s.maxHp * (0.5 + 0.035), `${label(f)}: +3.5 % in a second under 禁疗`, 0.01);
+    approx(u.hp, u.s.maxHp * (0.5 + 0.04), `${label(f)}: +4 % in a second under 禁疗`, 0.01);
     done(h);
   }
   // S2: the spikes keep the regeneration on

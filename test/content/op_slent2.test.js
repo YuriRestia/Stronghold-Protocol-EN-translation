@@ -230,14 +230,14 @@ test('T1 无声砥柱: every ally of her range (herself too) holds 庇护 base �
   }
 });
 
-test('T2 丰润羽翼: an ally of her range below 50 % HP gets 生命回复速度 5 % of her ATK (hpRegen, from 1 s after; 禁疗 does not stop it), a 【莱茵生命】 operator twice; none at ≥ 50 % or outside; BLS-X stage 3: 7 % and max HP +10 % (×2 莱茵生命) in her range; stage 1: neither', () => {
+test('T2 丰润羽翼: an ally of her range below 50 % HP gets 生命回复速度 6 % of her ATK (hpRegen, from 1 s after; 禁疗 does not stop it), a 【莱茵生命】 operator twice; none at ≥ 50 % or outside; BLS-X stage 3: 8 % and max HP +10 % (×2 莱茵生命) in her range; stage 1: neither', () => {
   for (const [tier, elite, mod] of [[5, false, null], [5, true, X], [6, true, X]]) {
     const x3 = mod === X && tier === 6;
     const { h, u } = field({ tier, elite, mod, skill: 0, others: [ally(2, 10, 6), ally(3, 11, 6, 'test_rhine_a'), ally(4, 9, 6)] });
     const a = h.unit(2), r = h.unit(3), full = h.unit(4);
     assert.ok(RHINE.has(r.def.charId) && !RHINE.has(a.def.charId));
-    const ratio = x3 ? 0.07 : 0.05;
-    assert.equal(formOf(tier, elite).talents[1].bb.atk_to_hp_recovery_ratio, 0.05);
+    const ratio = x3 ? 0.08 : 0.06;
+    assert.equal(formOf(tier, elite).talents[1].bb.atk_to_hp_recovery_ratio, 0.06);
     approx(a.s.maxHp, 2000 * (x3 ? 1.1 : 1), 'max HP');
     approx(r.s.maxHp, 2000 * (x3 ? 1.2 : 1), '莱茵生命 max HP');
     h.b.addBuff(a, { key: 'test:healFree', flags: { noHeal: true, healFree: true } });

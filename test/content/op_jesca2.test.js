@@ -85,9 +85,9 @@ test('涤火杰西卡 in every 自选 form: her operator kit (all three skills a
       done(h);
     }
   }
-  // E2 Lv1 2589 / 433 / 522, E2 Lv60 3265 / 492 / 651; SPT-X +180 / +50 / +25 → +250 / +65 / +37, SPT-Y +180 / +52 → +325 / +83;
-  // the shield 3041 / 619, 3545 / 709, SPT-X stage 3 3925 / 788 and 60 s
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.def], [2589, 433, 3265, 651]);
+  // E2 Lv1 2589 / 461 / 522, E2 Lv60 3265 / 520 / 651 (full potential: ATK +28); SPT-X +180 / +50 / +25 → +250 / +65 / +37,
+  // SPT-Y +180 / +52 → +325 / +83; the shield 3041 / 619, 3545 / 709, SPT-X stage 3 3925 / 788 and 60 s
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.def], [2589, 461, 3265, 651]);
   assert.deepEqual([modOf(5, SPTX).attr, modOf(6, SPTX).attr, modOf(5, SPTY).attr, modOf(6, SPTY).attr], [{ maxHp: 180, atk: 50, def: 25 }, { maxHp: 250, atk: 65, def: 37 }, { maxHp: 180, atk: 52 }, { maxHp: 325, atk: 83 }]);
   assert.deepEqual([tokenStats(5, false).maxHp, tokenStats(5, true).maxHp, tokenStats(6, true, SPTX).maxHp, tokenStats(6, true, SPTX).def, tokenTalent(6, true, SPTX).duration, tokenTalent(5, true, SPTX).duration], [3041, 3545, 3925, 788, 60, 50]);
 });
@@ -100,7 +100,7 @@ test('a 自选 pick: 涤火杰西卡 is offered at tiers 5 and 6 (she has a kit)
     { ok: true, picks: { [SLOT[6]]: { charId: JESCA, skillIndex: 2, uniEquipId: SPTY } } });
 });
 
-test('T1 灵活应变: she turns to face her shield (her range turns with her) and back once it leaves; while it stands next to her she and the unit on the tile behind her DEF +15 % (孤立 too), nobody else', () => {
+test('T1 灵活应变: she turns to face her shield (her range turns with her) and back once it leaves; while it stands next to her she and the unit on the tile behind her DEF +18 % (孤立 too), nobody else', () => {
   for (const f of [[5, false, null], [6, true, SPTX], [6, true, SPTY]]) {
     const [tier, elite, mod] = f;
     // shield above (11, 4): she faces UP; behind her is (9, 4); 德克萨斯 at (10, 3) was behind her RIGHT facing only
@@ -108,7 +108,7 @@ test('T1 灵活应变: she turns to face her shield (her range turns with her) a
     const { h, u, t } = field({ tier, elite, mod, skill: 0, shield: ABOVE, others });
     const yak = h.unit(3), texas = h.unit(4);
     const d = talentOf(tier, elite, mod, 0).def;
-    assert.equal(d, 0.15);
+    assert.equal(d, 0.18);
     assert.deepEqual([u.dir, t.dir], ['UP', 'UP'], `${label(f)}: she faces her shield, it faces away from her`);
     const ext = mod === SPTY ? 1 : 0;
     assert.deepEqual(sortN(u.rangeKeys), sortN([...Array(3 + ext).keys()].map((i) => K(10 + i, 4))), `${label(f)}: her range turned UP`);
@@ -174,12 +174,12 @@ test('T1 灵活应变: the shield lasts 50 s (SPT-X stage 3: 60 s), comes back o
   }
 });
 
-test('T2 蓄能释放: each damage instance on the shield (next to her) gives her 1 SP with 50 % (SPT-Y stage 3: 60 % and its next redeploy −1 s per success, ≤ 14 s); a 流失 does not count', () => {
+test('T2 蓄能释放: each damage instance on the shield (next to her) gives her 1 SP with 55 % (SPT-Y stage 3: 65 % and its next redeploy −1 s per success, ≤ 14 s); a 流失 does not count', () => {
   for (const f of [[5, false, null], [6, true, SPTY], [5, true, SPTY]]) {
     const [tier, elite, mod] = f;
     const tb = talentOf(tier, elite, mod, 1);
     const y3 = tier === 6 && mod === SPTY;
-    assert.deepEqual([tb.prob, tb.sp, tb.respawn_time ?? 0, tb.respawn_time_max ?? 0], y3 ? [0.6, 1, 1, 14] : [0.5, 1, 0, 0], label(f));
+    assert.deepEqual([tb.prob, tb.sp, tb.respawn_time ?? 0, tb.respawn_time_max ?? 0], y3 ? [0.65, 1, 1, 14] : [0.55, 1, 0, 0], label(f));
     const { h, u, t } = field({ tier, elite, mod, skill: 0, shield: ABOVE, seed: 17 });
     // a shooter beside the shield and out of her range: it picks the shield (taunt 1), she cannot reach it
     h.spawn('enemy_shooter', { pos: [12, 5] });
@@ -216,7 +216,7 @@ test('S1 坚守阵线 (AUTO, SP_FULL): at full SP with no enemy, 持续时间无
     assert.ok(t.alive);
     h.step();
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `${label(f)}: ATK`);
-    approx(u.s.def, u.base.def * (1 + sk.bb.def + 0.15), `${label(f)}: DEF (+15 % T1)`);
+    approx(u.s.def, u.base.def * (1 + sk.bb.def + 0.18), `${label(f)}: DEF (+18 % T1)`);
     approx(t.s.def, t.base.def * (1 + sk.bb.def), `${label(f)}: shield DEF`);
     approx(t.mem.lifeEnd - t.deployedAt, life + 20, `${label(f)}: shield life +20 s`);
     h.run(200);
@@ -264,7 +264,7 @@ test('S3 饱和迸射 (MANUAL, data ACTIVE_RANGE on 2-2 + 1): 20 bullets, range 
     assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast`);
     assert.deepEqual(sortN(u.rangeKeys), sortN([...Array(4 + ext).keys()].map((i) => K(10, 4 - i))), `${label(f)}: +1 tile (${ext ? 'and SPT-Y\'s' : 'no module'})`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `${label(f)}: ATK`);
-    approx(u.s.def, u.base.def * (1 + sk.bb['jesca2_s_3[def].def'] + 0.15), `${label(f)}: DEF (+15 % T1)`);
+    approx(u.s.def, u.base.def * (1 + sk.bb['jesca2_s_3[def].def'] + 0.18), `${label(f)}: DEF (+18 % T1)`);
     approx(u.s.interval, 1.8, `${label(f)}: 1.2 + 0.6 s`);
     approx(t.s.def, t.base.def * (1 + sk.bb['jesca2_s_3_token[def].def']), `${label(f)}: shield DEF`);
     assert.deepEqual([sk.bb.atk, sk.bb['jesca2_s_3[def].def'], sk.bb['jesca2_s_3_token[def].def']], elite ? [2.7, 0.65, 1.35] : [2.4, 0.5, 1], label(f));

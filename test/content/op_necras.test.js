@@ -155,7 +155,7 @@ test('复燃: no deployable kill tile ⇒ a random free low melee tile of her ra
   done(h);
 });
 
-test('回光黯淡: her and her summons\' damage on an enemy below 50 % HP ×1.4 (the final damage); SOC-X "攻击力提升至115%" on an enemy her summon blocks (stage 1 and 3), which she can attack anywhere', () => {
+test('回光黯淡: her and her summons\' damage on an enemy below 60 % HP ×1.45 (the final damage); SOC-X "攻击力提升至115%" on an enemy her summon blocks (stage 1 and 3), which she can attack anywhere', () => {
   for (const [tier, elite, mod] of [[5, false, null], [5, true, X], [6, true, X]]) {
     const f = label([tier, elite, mod]);
     const { h, u } = field({ tier, elite, mod, skill: 1, row: 9, col: 3 });
@@ -164,10 +164,10 @@ test('回光黯淡: her and her summons\' damage on an enemy below 50 % HP ×1.4
     const hits = () => h.hooksOf('damaged').filter((c) => c.source === u && c.target === e && c.dmg.isAttack);
     const full = hits().at(-1).amount;
     approx(full, u.s.atk, `${f}: ×1 at full HP`);
-    e.hp = e.s.maxHp * 0.49;
+    e.hp = e.s.maxHp * 0.59;
     const n0 = hits().length;
     h.run(2);
-    approx(hits().slice(n0).at(-1).amount, u.s.atk * 1.4, `${f}: ×1.4 below 50 %`);
+    approx(hits().slice(n0).at(-1).amount, u.s.atk * 1.45, `${f}: ×1.45 below 60 %`);
     done(h);
   }
   // the trait: she attacks the enemy her summon blocks out of her range (×1.15 with SOC-X)

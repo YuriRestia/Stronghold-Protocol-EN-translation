@@ -73,7 +73,7 @@ test('维什戴尔 in every 自选 form: her kit (all three skills authored), th
     }
   }
   assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule, s.trigger.rawRule]), [['AUTO', 'DEFAULT', 'DEFAULT'], ['MANUAL', 'DEFAULT', 'DEFAULT'], ['MANUAL', 'SP_FULL', 'ALWAYS']]);
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1434, 583, 1735, 652]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1434, 615, 1735, 684]);
   assert.deepEqual([modOf(5, BOM).attr, modOf(6, BOM).attr], [{ atk: 45, aspd: 5 }, { atk: 65, aspd: 7 }]);
   const data = { chess: CHESS, backups: BACKUPS };
   assert.ok(KITTED_CHARS.includes(WD) && [5, 6].every((t) => diyPool(t, { data, kitted: KITTED_CHARS }).includes(WD)));
@@ -85,7 +85,7 @@ test('trait 投掷手 + T1 好礼: the main target ×1.15 (BOM-X stage 3 ×1.25)
     const [tier, elite, mod] = f;
     const t0 = t0Of(tier, elite, mod);
     const shocks = elite && mod ? 2 : 1;
-    assert.deepEqual([t0['attack@main_atk_scale'], t0['attack@bomb_atk_scale']], elite && mod === BOM && tier === 6 ? [1.25, 1.75] : [1.15, 1.5], label(f));
+    assert.deepEqual([t0['attack@main_atk_scale'], t0['attack@bomb_atk_scale']], elite && mod === BOM && tier === 6 ? [1.25, 1.85] : [1.15, 1.6], label(f));
     assert.equal(formOf(tier, elite).trait.bb['attack@append_atk_scale'], 0.5, label(f));
     if (elite && mod) assert.equal(modOf(tier, mod).traitOverride.bb['attack@enable_third_attack'], 1, label(f));
     const { h, u } = field({ tier, elite, mod, skill: 1, seed: 21 });
@@ -113,7 +113,7 @@ test('trait 投掷手 + T1 好礼: the main target ×1.15 (BOM-X stage 3 ×1.25)
   }
 });
 
-test('T1 好礼: each aftershock on a marked enemy goes off 15 % of the time — 150 % (175 %) ATK physical to every enemy within 1.1, air too, stun 1 s, the mark spent; the 残影 leave with her', () => {
+test('T1 好礼: each aftershock on a marked enemy goes off 15 % of the time — 160 % (185 %) ATK physical to every enemy within 1.1, air too, stun 1 s, the mark spent; the 残影 leave with her', () => {
   for (const f of [[5, false, null], [6, true, BOM]]) {
     const [tier, elite, mod] = f;
     const t0 = t0Of(tier, elite, mod);

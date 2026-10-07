@@ -68,7 +68,7 @@ function redeployNow(h, u) {
   assert.ok(h.b.redeploy(u, { free: true }), `${u.name} redeployed`);
 }
 
-test('傀影 in every 自选 form: his operator kit (all three skills authored), the form\'s stats + module attributes, 1-1, blocks 1, melee ground-only, 18 s redeploy, 维多利亚, no 特质; his placed 镜中虚影 deploys after him with the variant\'s stats, 禁疗 and its copy of his skill', () => {
+test('傀影 in every 自选 form: his operator kit (all three skills authored), the form\'s stats + module attributes, 1-1, blocks 1, melee ground-only, 16 s redeploy, 维多利亚, no 特质; his placed 镜中虚影 deploys after him with the variant\'s stats, 禁疗 and its copy of his skill', () => {
   assert.equal(OPERATOR_KITS[PHATOM], KITS[PHATOM]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -77,7 +77,7 @@ test('傀影 in every 自选 form: his operator kit (all three skills authored),
       const form = formOf(tier, elite), m = elite ? modOf(tier, mod) : null, tw = twinOf(tier, elite, mod);
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, u.skill.kind, !!u.kit.generic, u.kit.skillSource], [PHATOM, SLOT[tier], form.skills[skill].skillId, 'passive', false, 'skills'], label(f));
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.aspd, u.base.respawnTime, u.base.cost],
-        [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), 100 + (m?.attr.aspd ?? 0), 18, 10], `${label(f)}: stats`);
+        [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), 100 + (m?.attr.aspd ?? 0), 16, 8], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly], [1, 'melee', 'phys', false], `${label(f)}: 处决者`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 1-1`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['victoriaShip'], []], `${label(f)}: bonds / 特质`);
@@ -91,9 +91,9 @@ test('傀影 in every 自选 form: his operator kit (all three skills authored),
       done(h);
     }
   }
-  // the numbers (zh_CN): 傀影 E2 Lv1 1283 / 435 / 270, E2 Lv60 1523 / 517 / 304; the twin 1126 / 429 / 226 → 1318 / 508 / 254,
+  // the numbers (zh_CN): 傀影 E2 Lv1 1413 / 457 / 270, E2 Lv60 1653 / 539 / 304; the twin 1126 / 429 / 226 → 1318 / 508 / 254,
   // EXE-Y stage 3 "属性进一步增强" 1418 / 568 / 294; modules
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1283, 435, 1523, 517]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1413, 457, 1653, 539]);
   assert.deepEqual([twinOf(5, false).stats.maxHp, twinOf(5, true).stats.atk, twinOf(6, true, EY).stats.maxHp, twinOf(6, true, EY).stats.atk, twinOf(5, true, EY).stats.atk], [1126, 508, 1418, 568, 508]);
   assert.deepEqual([modOf(5, EX).attr, modOf(6, EX).attr, modOf(5, EY).attr, modOf(6, EY).attr, modOf(5, IS).attr, modOf(6, IS).attr],
     [{ maxHp: 100, atk: 50 }, { maxHp: 140, atk: 73 }, { atk: 40, def: 24 }, { atk: 75, def: 30 }, { atk: 37, aspd: 5 }, { atk: 71, aspd: 7 }]);

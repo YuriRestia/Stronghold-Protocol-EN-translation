@@ -4,8 +4,8 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)"); the summon deck: ../shared/summoner.js.
 //
 // Forms (data/backups.json units.char_248_mgllan): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / the tokens' character_table rows (zh_CN, as built
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / the tokens' character_table rows (zh_CN, as built
 // into backups.json); PRTS 麦哲伦 (光学折射配件 备注 "无人机实际获得隐匿（异常效果）而非隐匿"; S1 / S2 / S3 备注 "技能结束时的回收
 // 仅是触发召唤物的技能，技能无法触发的场合不会产生效果"; S3 备注 "主动开启时，无人机攻击的爆炸半径从0.75增加至1.25"; SUM-Y 特性
 // "※龙腾.F：部署费用-1；龙腾.L、龙腾.A：部署费用-3", stage 3 "※龙腾.F：生命上限+100，防御+50 / 龙腾.L：攻击+40，攻击速度+3 /
@@ -30,11 +30,11 @@
 //   her skills' end, below). 龙腾.F (ATK 0) makes no attack (the engine's rule for a 0-ATK summon; a commented-out PRTS
 //   note "缴械，普通攻击不造成伤害" agrees [ASSUMED]); 龙腾.L strikes one ground enemy on its own tile for arts damage; 龙腾.A
 //   fires physical shells that blow up within BLAST (0.75) of their target, air units too.
-// - T2 光学折射配件 "无人机在部署后的20秒内处于隐匿状态": each drone holds 隐匿 (the anomaly — flag `stealth`: only an enemy it
-//   blocks could target it, enemy areas skip it) for its token talent's hidden_duration from each deployment. SUM-X stage
-//   2+ "26秒…若麦哲伦在其周围四格则享受相同效果": the drones' 26 s (the module variant), and she holds 隐匿 while she stands on
-//   the x-5 of a drone still inside its e_hidden_duration window [ASSUMED: the window of that drone's deployment — the equip
-//   aura's buff lasts e_hidden_duration and drops when she leaves the x-5].
+// - T2 光学折射配件 "无人机在部署后的20秒内处于隐匿状态" (full potential: 22 s): each drone holds 隐匿 (the anomaly — flag
+//   `stealth`: only an enemy it blocks could target it, enemy areas skip it) for its token talent's hidden_duration from each
+//   deployment. SUM-X stage 2+ "26秒…若麦哲伦在其周围四格则享受相同效果": the drones' 28 s at full potential (the module
+//   variant), and she holds 隐匿 while she stands on the x-5 of a drone still inside its e_hidden_duration window [ASSUMED:
+//   the window of that drone's deployment — the equip aura's buff lasts e_hidden_duration and drops when she leaves the x-5].
 // - S1 高效制冷模块 (MANUAL, data DEFAULT, 15 s): passive (while S1 is picked and not running) every attack@interval (3) s from
 //   her deployment / the skill's end, every enemy (air units too) on her attack range and on each of her standing drones'
 //   ranges (龙腾.F: x-4) takes 停顿 attack@sluggish s; while it runs, every 3 s from the cast, 束缚 attack@frozen_duration s

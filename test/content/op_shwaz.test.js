@@ -59,7 +59,7 @@ test('黑 in every 自选 form: her operator kit (all three skills authored), th
       const form = formOf(tier, elite), m = elite ? modOf(tier, mod) : null;
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [SHWAZ, SLOT[tier], form.skills[skill].skillId, false, 'skills'], label(f));
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def], [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0)], `${label(f)}: stats`);
-      // ARC-X “定制弩配件套装”: "再部署时间减少" — the attribute respawn_time −25 (70 → 45 s)
+      // ARC-X “定制弩配件套装”: "再部署时间减少" — the attribute respawn_time −25 (66 → 41 s at full potential)
       assert.equal(u.base.respawnTime, form.stats.respawnTime + (m?.attr.respawnTime ?? 0), `${label(f)}: redeploy time`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.canHitFly, u.profile.dmgType, u.base.bat], [1, 'ranged', true, 'phys', 1.6], `${label(f)}: 重射手`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-6`);
@@ -69,9 +69,9 @@ test('黑 in every 自选 form: her operator kit (all three skills authored), th
     }
   }
   // the data: all three DEFAULT (S3's 「攻击范围改为」 is an attack-range change, not a 技能范围 — tools/build-data.mjs
-  // ATTACK_RANGE_CHANGE); E2 Lv1 1393 / 646 / 164, Lv60 1685 / 775 / 204
+  // ATTACK_RANGE_CHANGE); E2 Lv1 1393 / 676 / 164, Lv60 1685 / 805 / 204
   assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'DEFAULT']);
-  assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [646, 775]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [676, 805]);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr, modOf(5, Y).attr, modOf(6, Y).attr],
     [{ maxHp: 130, atk: 55, respawnTime: -25 }, { maxHp: 170, atk: 75, respawnTime: -25 }, { atk: 80, def: 10 }, { atk: 120, def: 16 }]);
 });
@@ -187,11 +187,11 @@ test('T1 破甲箭头: a proc ×160 % (ARC-Y stage 3: 170 %) and, once it hit, D
   }
 });
 
-test('T2 交叉火力: with another 【狙击】 operator on the field every sniper (her too, a partner\'s too) ATK +8 % — not 角峰, not alone, not once she leaves; ARC-X stage 3 "携带": +13 % on her player\'s snipers for the whole battle', () => {
+test('T2 交叉火力: with another 【狙击】 operator on the field every sniper (her too, a partner\'s too) ATK +10 % — not 角峰, not alone, not once she leaves; ARC-X stage 3 "携带": +15 % on her player\'s snipers for the whole battle', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const squad = tier === 6 && mod === X;
-    const v = squad ? 0.13 : 0.08;
+    const v = squad ? 0.15 : 0.1;
     const t1 = { ...formOf(tier, elite).talents[1].bb, ...(modOf(tier, mod)?.talentChanges ?? []).filter((t) => t.talentIndex === 1).reduce((o, t) => ({ ...o, ...t.bb }), {}) };
     assert.equal(t1.atk, v, label(f));
     // alone: nothing
@@ -220,7 +220,7 @@ test('T2 交叉火力: with another 【狙击】 operator on the field every sni
     { playerId: 'p1', seat: 0, side: 'L', colOffset: 0, units: [{ uid: 1, kind: 'chess', chessId: tier === 6 ? 'chess_char_6_diy1_b' : 'chess_char_5_diy1_b', diy: { charId: SHWAZ, skillIndex: 0, uniEquipId: mod }, row: 10, col: 5 }], bonds: {}, bandId: null, playerEffects: [] },
     { playerId: 'p2', seat: 1, side: 'L', colOffset: 0, units: [{ uid: 1, kind: 'chess', chessId: PROVE, row: 12, col: 3 }], bonds: {}, bandId: null, playerEffects: [] },
   ] });
-  for (const [mod, tier, want] of [[null, 6, 0.08], [X, 6, null]]) {
+  for (const [mod, tier, want] of [[null, 6, 0.1], [X, 6, null]]) {
     const { h } = pair(mod, tier);
     h.run(1);
     const mine = h.b.allyUnits.find((a) => a.ownerId === 'p1'), theirs = h.b.allyUnits.find((a) => a.ownerId === 'p2');

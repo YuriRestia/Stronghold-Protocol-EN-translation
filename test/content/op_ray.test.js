@@ -106,8 +106,8 @@ test('trait 猎手: 8 bullets, one per attack at ×1.2 (HUN-Y ×1.33); empty ⇒
     const hits = atkHits(h, u);
     assert.equal(hits.length, 8);
     const sc = mod === HY ? 1.33 : 1.2;
-    // (入神 adds +8 % / +9 % per attack on the same target; the first shot has one layer)
-    const t1 = (mod === HY && tier === 6) ? 0.09 : 0.08;
+    // (入神 adds +9 % / +10 % per attack on the same target; the first shot has one layer)
+    const t1 = (mod === HY && tier === 6) ? 0.1 : 0.09;
     approx(hits[0].amount, u.base.atk * (1 + t1) * sc, `${mod}: ×${sc}`);
     const iv = u.s.interval;
     approx(iv, 1.6 * 100 / (u.base.aspd + 100), 'ASPD +100 shortens her attacks');
@@ -149,12 +149,12 @@ test('莱伊 shoots air units (猎手 "可对空"): a flyer in her range is her 
   }
 });
 
-test('T2 入神: +8 % ATK per attack on the same target, ≤ 3 layers (HUN-Y stage 3: +9 %, ≤ 4), lost on a new target (one layer again)', () => {
+test('T2 入神: +9 % ATK per attack on the same target, ≤ 3 layers (HUN-Y stage 3: +10 %, ≤ 4), lost on a new target (one layer again)', () => {
   for (const [tier, elite, mod] of [[5, false, null], [5, true, HY], [6, true, HY], [6, true, HX]]) {
     const y3 = tier === 6 && mod === HY;
-    const [per, max] = y3 ? [0.09, 4] : [0.08, 3];
+    const [per, max] = y3 ? [0.1, 4] : [0.09, 3];
     const t1 = (mod ? formOf(tier, true) : formOf(tier, elite)).talents.find((t) => t.index === 1).bb;
-    if (!y3) assert.deepEqual(t1, { atk: 0.08, max_stack_cnt: 3 });
+    if (!y3) assert.deepEqual(t1, { atk: 0.09, max_stack_cnt: 3 });
     const { h, u } = field({ tier, elite, mod, skill: 1 });
     u.skill.sp = 0;
     h.b.addBuff(u, { key: 'test:noSp', flags: { noSp: true } });
@@ -237,7 +237,7 @@ test('S2 广域警觉 (AUTO, attack SP 16): on at full SP — no enemy needed be
     assert.ok(h.runUntil(() => u.skill.active, 120), `T${tier}: on`);
     assert.equal(h.hooksOf('attack').filter((c) => c.attacker === u).length, 16, `T${tier}: after 16 attacks (reloads give no SP)`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 4-10`);
-    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + u.mem.rayStacks * 0.08), `T${tier}: ATK (with 入神's layers)`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + u.mem.rayStacks * 0.09), `T${tier}: ATK (with 入神's layers)`);
     h.b.kill(e, null);
     h.run(200);
     assert.ok(u.skill.active, `T${tier}: 持续时间无限`);

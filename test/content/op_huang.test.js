@@ -66,9 +66,9 @@ test('煌 in every 自选 form: her operator kit (all three skills authored), th
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2115 / 581 / 303, E2 Lv60 2583 / 703 / 347; CEN-X +240 / +50 → +285 / +86
+  // the numbers of the forms (zh_CN, full potential): E2 Lv1 2115 / 609 / 303, E2 Lv60 2583 / 731 / 347; CEN-X +240 / +50 → +285 / +86
   // HP / ATK, CEN-Y +300 / +40 → +345 / +66
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2115, 581, 2583, 703]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2115, 609, 2583, 731]);
   assert.deepEqual([modOf(5, CENX).attr, modOf(6, CENX).attr, modOf(5, CENY).attr, modOf(6, CENY).attr], [{ maxHp: 240, atk: 50 }, { maxHp: 285, atk: 86 }, { maxHp: 300, atk: 40 }, { maxHp: 345, atk: 66 }]);
 });
 
@@ -207,12 +207,12 @@ test('S3 沸腾爆裂: the 流失 never takes her below 1 HP; a 晕眩 ends the 
   done(r.h);
 });
 
-test('T1 紧急除颤: 不死 until her HP first reaches ≤ 25 % — then +50 % max HP and for 6 s no damage takes her below 50 % (a 流失 still does); once per deployment, again after a redeploy', () => {
+test('T1 紧急除颤: 不死 until her HP first reaches ≤ 25 % — then +50 % max HP and for 7 s no damage takes her below 50 % (a 流失 still does); once per deployment, again after a redeploy', () => {
   for (const f of [[5, false, null], [6, true, CENX], [5, true, CENY]]) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     const t0 = u.def.raw.talents.find((t) => t.index === 0).bb;
-    assert.deepEqual([t0.hp_ratio, t0['huang_t_1[heal].hp_ratio'], t0['huang_t_1[lock].min_hp_ratio'], t0['huang_t_1[lock].duration']], [0.25, 0.5, 0.5, 6], label(f));
+    assert.deepEqual([t0.hp_ratio, t0['huang_t_1[heal].hp_ratio'], t0['huang_t_1[lock].min_hp_ratio'], t0['huang_t_1[lock].duration']], [0.25, 0.5, 0.5, 7], label(f));
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     const max = u.s.maxHp;
     // a lethal hit from full HP: 不死 keeps her at 1 HP, the talent heals 50 %
@@ -220,14 +220,14 @@ test('T1 紧急除颤: 不死 until her HP first reaches ≤ 25 % — then +50 %
     assert.ok(u.alive, `${label(f)}: 不死`);
     approx(u.hp, 1 + max * 0.5, `${label(f)}: 1 HP + 50 %`);
     const lockStart = h.b.time;
-    // inside 6 s: a 60 % hit stops at exactly 50 %
+    // inside 7 s: a 60 % hit stops at exactly 50 %
     h.b.dealDamage(e, u, { amount: max * 0.6, type: 'true' });
     approx(u.hp, max * 0.5, `${label(f)}: held at 50 %`);
     h.b.dealDamage(e, u, { amount: max * 0.3, type: 'true' });
     approx(u.hp, max * 0.5, `${label(f)}: below 50 % nothing passes`);
     h.b.loseHp(u, max * 0.1, { source: e });
     approx(u.hp, max * 0.4, `${label(f)}: a 流失 is not held`);
-    h.run(6 - (h.b.time - lockStart) + 0.1);
+    h.run(7 - (h.b.time - lockStart) + 0.1);
     h.b.dealDamage(e, u, { amount: max * 0.3, type: 'true' });
     approx(u.hp, max * 0.1, `${label(f)}: the lock is over`);
     h.b.dealDamage(e, u, { amount: max, type: 'true' });
@@ -241,19 +241,19 @@ test('T1 紧急除颤: 不死 until her HP first reaches ≤ 25 % — then +50 %
   }
 });
 
-test('T2 严酷训练: 15 s after each deployment 抵抗 (control statuses last half as long); CEN-X stage 3 adds ATK +6 % after 30 s and ASPD +12 after 45 s (stage 1: nothing more)', () => {
+test('T2 严酷训练: 12 s after each deployment 抵抗 (control statuses last half as long); CEN-X stage 3 adds ATK +6 % after 30 s and ASPD +12 after 45 s (stage 1: nothing more)', () => {
   for (const f of [[5, false, null], [5, true, CENX], [6, true, CENX], [6, true, CENY]]) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     const x3 = tier === 6 && mod === CENX;
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
-    h.run(14.8);
-    assert.equal(h.b.resistOf(u), 0, `${label(f)}: no 抵抗 before 15 s`);
+    h.run(11.8);
+    assert.equal(h.b.resistOf(u), 0, `${label(f)}: no 抵抗 before 12 s`);
     h.run(0.4);
-    assert.equal(h.b.resistOf(u), 0.5, `${label(f)}: 抵抗 at 15 s`);
+    assert.equal(h.b.resistOf(u), 0.5, `${label(f)}: 抵抗 at 12 s`);
     h.b.applyStatus(u, 'stun', { duration: 2, source: e });
     approx(u.findBuff('stun').timeLeft, 1, `${label(f)}: a 2 s stun lasts 1 s`);
-    h.run(15);
+    h.run(18);
     assert.equal(!!u.findBuff('talent:huang:atk'), x3, `${label(f)}: ATK +6 % after 30 s`);
     if (x3) approx(u.s.atk, u.base.atk * 1.06, 'ATK +6 %');
     h.run(15);
@@ -265,8 +265,8 @@ test('T2 严酷训练: 15 s after each deployment 抵抗 (control statuses last 
     h.b.redeploy(u);
     h.step();
     assert.deepEqual([h.b.resistOf(u), !!u.findBuff('talent:huang:atk')], [0, false], `${label(f)}: reset by the redeploy`);
-    h.run(15.2);
-    assert.equal(h.b.resistOf(u), 0.5, `${label(f)}: 抵抗 again 15 s later`);
+    h.run(12.2);
+    assert.equal(h.b.resistOf(u), 0.5, `${label(f)}: 抵抗 again 12 s later`);
     done(h);
   }
 });
@@ -295,7 +295,7 @@ test('CEN-X (stages 1 and 3): ×1.1 ATK scale on every damage of hers to a block
   }
 });
 
-test('CEN-Y stage 1: −20 % physical damage taken above 50 % HP (arts untouched); stage 3: 紧急除颤 at 50 % then a second trigger at 25 % (its own 不死, 8 s), and 150 DEF ignored while above 50 %', () => {
+test('CEN-Y stage 1: −20 % physical damage taken above 50 % HP (arts untouched); stage 3: 紧急除颤 at 50 % then a second trigger at 25 % (its own 不死, 9 s), and 150 DEF ignored while above 50 %', () => {
   for (const tier of [5, 6]) {
     const { h, u } = field({ tier, elite: true, mod: CENY, skill: 0 });
     assert.deepEqual(u.def.raw.trait.bb, { hp_ratio: 0.5, damage_resistance: 0.2 });
@@ -319,18 +319,18 @@ test('CEN-Y stage 1: −20 % physical damage taken above 50 % HP (arts untouched
     approx(hp - u.hp, Math.max(1000 - u.s.def, 50), `T${tier}: at 50 % (not above) the full physical damage`);
     done(h);
   }
-  // stage 3: the talent fires at 50 % (8 s), the hidden part at 25 % — only once the first is spent
+  // stage 3: the talent fires at 50 % (9 s), the hidden part at 25 % — only once the first is spent
   const { h, u } = field({ tier: 6, elite: true, mod: CENY, skill: 0 });
   const t0 = u.def.raw.talents.find((t) => t.index === 0).bb;
   const hid = Object.assign({}, ...u.def.raw.talents.filter((t) => t.index === -1).map((t) => t.bb));
-  assert.deepEqual([t0.hp_ratio, t0['huang_t_1[lock].duration'], hid.def_penetrate_fixed, hid['huang_e_003[lock].check_hp_ratio'], hid['huang_e_003[lock].duration']], [0.5, 8, 150, 0.25, 8]);
+  assert.deepEqual([t0.hp_ratio, t0['huang_t_1[lock].duration'], hid.def_penetrate_fixed, hid['huang_e_003[lock].check_hp_ratio'], hid['huang_e_003[lock].duration']], [0.5, 9, 150, 0.25, 9]);
   const e = h.spawn('enemy_dummy', { pos: [10, 6] });
   h.step();
   assert.equal(u.s.defIgnoreFlat, 150, 'above 50 %: 150 DEF ignored');
   const max = u.s.maxHp;
   h.b.dealDamage(e, u, { amount: max * 0.6, type: 'true' });     // 100 % → 40 %: the 50 % trigger
   approx(u.hp, max * 0.9, '50 % trigger: +50 %');
-  h.run(8.2);
+  h.run(9.2);
   h.b.dealDamage(e, u, { amount: max * 0.3, type: 'true' });     // 90 % → 60 %
   h.step();
   assert.equal(u.s.defIgnoreFlat, 150);
@@ -342,8 +342,8 @@ test('CEN-Y stage 1: −20 % physical damage taken above 50 % HP (arts untouched
   assert.ok(u.alive, 'the second 不死');
   approx(u.hp, 1 + max * 0.5, '25 % trigger: +50 %');
   h.b.dealDamage(e, u, { amount: max * 0.4, type: 'true' });
-  approx(u.hp, max * 0.5, 'its 8 s lock holds 50 %');
-  h.run(8.2);
+  approx(u.hp, max * 0.5, 'its 9 s lock holds 50 %');
+  h.run(9.2);
   h.b.dealDamage(e, u, { amount: max, type: 'true' });
   assert.ok(!u.alive, 'both spent');
   done(h);

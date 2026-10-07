@@ -14,7 +14,10 @@
 // make the wearer its member, 本局禁用 marked; on a wearer's card the pairing it wears highlighted, 生效中 — GitHub issue
 // #1, DESIGN §21.26) and a bond item (`giveBondId`) the line "与变形同构体一同装备时，携带者视为【X】成员" (MorphGrantLine);
 // tokens — the owner's variant (a golden owner's summon: its `_b` stats / skill), how a placed summon takes
-// the field (shared/constants.js SKILL_SUMMON_START_DEPLOY), its token skill and talents; enemies — stats, rank,
+// the field (shared/constants.js SKILL_SUMMON_START_DEPLOY), its token skill and talents; a band map character (外勤医疗's
+// Touch / 预备干员-医疗, tokens.json kind 'mapChar') — an operator of the mode: 干员, its class, 特性, skill and talents
+// from its own record (MapCharDetail, GitHub #260); a skill text the game contradicts gets the line under it that says
+// what the sim does (SKILL_TEXT_NOTES: Touch 恳切福音's 低于一半, PRTS 修正); enemies — stats, rank,
 // faction tags, abilities. Selling / destroying is the underframe's job in the
 // match (research 09 §5, ui/underframe.js): the panel's own 出售 / 销毁 buttons only render for callers that pass
 // `editable` + handlers. `side` 'right' docks the panel at the right edge (the game screen picks the side away from a
@@ -51,6 +54,13 @@ const SP_TYPE = { INCREASE_WITH_TIME: N_('自动回复'), INCREASE_WHEN_ATTACK: 
 const SKILL_TYPE = { MANUAL: N_('自动触发'), AUTO: N_('自动触发'), PASSIVE: N_('被动') };
 /** Fallback type icon by trigger, for a garrison record without its official `eventTypeIcon` (garrisonTypeIconKey). */
 const EVENT_ICON = { IN_BATTLE: 's_icon_battle', SERVER_GAIN: 's_icon_bond', SERVER_PREP_START: 's_icon_bond', SERVER_PREP_FIN: 's_icon_bond', SERVER_CHESS_SOLD: 's_icon_gold', SERVER_PRICE: 's_icon_gold', SERVER_REFRESH_SHOP: 's_icon_gold' };
+/**
+ * A skill text the game contradicts, by skill id: the record keeps the official sentence, the card adds what the sim
+ * does under it (a PRTS 修正 the kit follows). Touch 恳切福音 (the 外勤医疗 map character's and the Touch 补位's):
+ * "对生命值不高于一半的友方单位" — PRTS corrects it to 低于 (原因 6), and content/tokens.js touchGospel boosts strictly
+ * below half (GitHub #260).
+ */
+const SKILL_TEXT_NOTES = { skchr_acmedc_3: N_('实际为生命值低于一半时提高治疗量，正好一半不提高（PRTS 修正，原文为“不高于”）') };
 const RANK = { NORMAL: N_('普通'), ELITE: N_('精英'), BOSS: N_('领袖') };
 const DMG = { phys: N_('物理'), arts: N_('法术'), heal: N_('治疗'), true: N_('真实'), none: N_('无') };
 
@@ -357,6 +367,22 @@ export function chessStatsBlock({ rec, chess, live = null }) {
     </div>`;
 }
 
+/** A skill's tags (SP type, trigger, initial SP · cost, duration, charges): the operator card's and a map character's. */
+function skillTags(sk) {
+  return html`
+    <span class="dsp dsp--${sk.spType === 'INCREASE_WHEN_ATTACK' ? 'atk' : sk.spType === 'INCREASE_WHEN_TAKEN_DAMAGE' ? 'def' : 'time'}">${t(SP_TYPE[sk.spType]) || t('技力')}</span>
+    <span class="dsp dsp--trig">${t(SKILL_TYPE[sk.skillType]) || t('自动触发')}</span>
+    ${sk.spType !== 'ON_DEPLOY' && sk.skillType !== 'PASSIVE' ? html`<span class="dsp__num"><${GIcon} name="bolt" />${t('初始')} <b class="num">${sk.initSp ?? 0}</b> ${t('· 消耗')} <b class="num">${sk.spCost ?? 0}</b></span>` : null}
+    ${sk.duration > 0 ? html`<span class="dsp__num">${t('持续')} <b class="num">${sk.duration}</b>s</span>` : null}
+    ${sk.maxChargeTime > 1 ? html`<span class="dsp__num">${t('充能')} <b class="num">${sk.maxChargeTime}</b></span>` : null}`;
+}
+
+/** The line under a skill text the game contradicts (SKILL_TEXT_NOTES), or null. */
+function skillTextNote(sk) {
+  const note = sk && SKILL_TEXT_NOTES[sk.skillId];
+  return note ? html`<p class="dhint dhint--rule" data-skill-note=${sk.skillId}><${Icon} name="info" />${t(note)}</p>` : null;
+}
+
 export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bonds, offBonds = null, loadout, onBond, live = null, hint = null, unitItems = null, standIn = null, diy = null }) {
   const m = data.get('assets');
   const hp = hpOf(live, snapHp);
@@ -424,16 +450,11 @@ export function ChessDetail({ chess, piece, unit, snapHp, editable, onSell, bond
         <${Img} src=${skIcon} class="dskill__icon" fallback=${html`<span class="dskill__icon dskill__icon--empty">${skSlot ? html`<b class="num">${skSlot}</b>` : null}</span>`} />
         <div class="dskill__meta">
           <b class="dskill__name">${skSlot && (lo?.choices || 0) > 1 ? html`<span class="dskill__slot num" title=${t('技能 {skSlot}', { skSlot })}>${skSlot}</span>` : null}${sk.name}${lo && !lo.defaultSkill && !si ? html`<span class="dtag-loadout" title=${t('干员调配中选择的技能')}>${t('已调配')}</span>` : null}</b>
-          <div class="dskill__tags">
-            <span class="dsp dsp--${sk.spType === 'INCREASE_WHEN_ATTACK' ? 'atk' : sk.spType === 'INCREASE_WHEN_TAKEN_DAMAGE' ? 'def' : 'time'}">${t(SP_TYPE[sk.spType]) || t('技力')}</span>
-            <span class="dsp dsp--trig">${t(SKILL_TYPE[sk.skillType]) || t('自动触发')}</span>
-            ${sk.spType !== 'ON_DEPLOY' && sk.skillType !== 'PASSIVE' ? html`<span class="dsp__num"><${GIcon} name="bolt" />${t('初始')} <b class="num">${sk.initSp ?? 0}</b> ${t('· 消耗')} <b class="num">${sk.spCost ?? 0}</b></span>` : null}
-            ${sk.duration > 0 ? html`<span class="dsp__num">${t('持续')} <b class="num">${sk.duration}</b>s</span>` : null}
-            ${sk.maxChargeTime > 1 ? html`<span class="dsp__num">${t('充能')} <b class="num">${sk.maxChargeTime}</b></span>` : null}
-          </div>
+          <div class="dskill__tags">${skillTags(sk)}</div>
         </div>
       </div>
       <${RichText} as="p" text=${sk.descRaw || sk.desc} class="dtext" />
+      ${skillTextNote(sk)}
     <//>` : null;
   blocks.module = golden && lo?.module ? html`<${Section} key="module" title=${t('模组')} micro="MODULE" class="dsec--module">
       <div class=${cx('dmodule', lo.module.none && 'is-none')} data-module=${lo.module.id}>
@@ -581,8 +602,62 @@ function tokenOwnerId(piece, pieces) {
   return owner && owner.kind === 'chess' ? owner.id : null;
 }
 
+/**
+ * A band map character's card (TokenDetail): labelled 干员 with its class (医疗 · 远程位), its 特性, the four stats, its
+ * skill — the operator card's row (icon, SP, duration), its text and SKILL_TEXT_NOTES — and its talents, all from the
+ * tokens.json record. Until 0.2.1 it took the summon path: 召唤物, base stats only (GitHub #260).
+ */
+function MapCharDetail({ token, snapHp, live, m }) {
+  const s = token.stats || {};
+  const hp = hpOf(live, snapHp);
+  const st = {
+    maxHp: liveStat(live, 'maxHp', s.maxHp), atk: liveStat(live, 'atk', s.atk), def: liveStat(live, 'def', s.def),
+    blockCnt: liveStat(live, 'blockCnt', s.blockCnt, (v) => String(v)),
+  };
+  const sk = token.skill && token.skill.desc ? token.skill : null;
+  const talents = chessTalents(token);
+  const trait = token.trait?.descRaw || token.trait?.desc || token.descRaw || token.desc || '';
+  return html`
+    <div class="dhead dhead--item" data-map-char=${token.tokenId}>
+      <div class="dhead__icon"><${Img} src=${tokenAvatarUrl(m, token.tokenId)} fallback=${html`<${GIcon} name="target" />`} /></div>
+      <div class="dhead__info">
+        <div class="dhead__chips"><span class="dtag-kind">${t('干员')}</span></div>
+        <h3 class="dhead__name">${token.name}</h3>
+        <div class="dhead__class">
+          <${Img} src=${profIconUrl(m, token.profession)} class="dhead__prof" />
+          <span>${t(PROF_NAME[token.profession]) || token.profession || ''}</span>
+          <span class="dhead__pos">${token.position === 'MELEE' ? t('近战位') : t('远程位')}</span>
+        </div>
+        ${hp ? html`<div class="dhp"><i style=${`width:${Math.max(0, Math.min(100, (hp.hp / Math.max(1, hp.max)) * 100))}%`}></i><span class="num">${fmtNum(hp.hp)} / ${fmtNum(hp.max)}</span></div>` : null}
+      </div>
+    </div>
+    ${trait ? html`<p class="dtrait"><${Icon} name="info" /><${RichText} text=${trait} /></p>` : null}
+    <div class=${cx('dstats', live && 'is-live')} data-live=${live ? live.src || 'prep' : undefined}>
+      <${LiveTag} live=${live} />
+      <${Stat} k=${t('生命上限')} ...${st.maxHp} /><${Stat} k=${t('攻击')} ...${st.atk} />
+      <${Stat} k=${t('防御')} ...${st.def} /><${Stat} k=${t('阻挡数')} ...${st.blockCnt} />
+    </div>
+    ${sk ? html`<${Section} title=${t('技能')} micro="SKILL" class="dsec--skill">
+      <div class="dskill" data-skill=${sk.skillId || ''}>
+        <${Img} src=${skillRecordIconUrl(m, sk, { empty: false })} class="dskill__icon" fallback=${html`<span class="dskill__icon dskill__icon--empty"></span>`} />
+        <div class="dskill__meta">
+          <b class="dskill__name">${sk.name}</b>
+          <div class="dskill__tags">${skillTags(sk)}</div>
+        </div>
+      </div>
+      <${RichText} as="p" text=${sk.descRaw || sk.desc} class="dtext" />
+      ${skillTextNote(sk)}
+    <//>` : null}
+    ${talents.length ? html`<${Section} title=${t('天赋')} micro="TALENT" class="dsec--talent">
+      ${talents.map((x, i) => html`<div key=${i} class="dtalent"><b>${x.name}</b><${RichText} text=${x.descRaw || x.desc} class="dtext" /></div>`)}
+    <//>` : null}`;
+}
+
 export function TokenDetail({ token, piece, ownerId = null, snapHp = null, live = null }) {
   const m = data.get('assets');
+  // a band map character (外勤医疗's Touch / 预备干员-医疗, tokens.json kind 'mapChar') is an operator of the mode, not a
+  // summon: no owner variants — its stats, skill, talents and 特性 are on the record (GitHub #260, PR #278)
+  if (token?.kind === 'mapChar') return MapCharDetail({ token, snapHp, live, m });
   // the owner's variant: its stats, talents and token skill (a golden owner's summon is stronger)
   const v0 = tokenVariantFor(token, ownerId);
   const s = v0?.stats || token.stats || {};
@@ -644,7 +719,8 @@ function TerrainDetail({ terrain }) {
  *   m.private.standIns — a unit carrying `standInFor`, and a teammate's bond popup row that says it (`target.standInFor`)
  *   — resolve with `standIn` (the composed stand-in record the card shows: portrait, name, body, with the chess's
  *   bonds and 特质); 0.2.0 自选编队: the player's own pieces and cards of a DIY slot it filled (m.private.diy) — and a
- *   unit carrying `diy` — resolve to the composed 自选 record (`chess`, the operator) with `diy` = the pick
+ *   unit carrying `diy`, and a teammate's bond popup 自选 row that hands its unit's pick on (`target.diy`, 0.2.1) —
+ *   resolve to the composed 自选 record (`chess`, the operator) with `diy` = the pick
  */
 export function resolveDetail(target, pieces, { priv = null, backups = data.get('backups') } = {}) {
   if (!target) return null;
@@ -676,7 +752,9 @@ export function resolveDetail(target, pieces, { priv = null, backups = data.get(
     // do not read the viewer's 补位 list: a teammate's row shows the stand-in only when its unit says it is one —
     // `target.standInFor`, from UnitInfo through ui/watchBonds.js ownerBoard)
     const foreign = !!target.foreign || (target.owner != null && !!priv && target.owner !== priv.playerId);
-    const d = foreign ? null : ownDiy(c);
+    // (a teammate's 自选 row hands its unit's pick on, `target.diy`: their operator, not the empty 甄选干员 slot — 0.2.1)
+    const mate = foreign && c && target.diy && typeof target.diy === 'object' ? diyRecordFor(c, target.diy, dd) : null;
+    const d = mate ? { chess: mate, diy: target.diy } : foreign ? null : ownDiy(c);
     if (d) return { type: 'chess', chess: d.chess, hint: target.hint || null, standIn: null, diy: d.diy, ...(items.length ? { unitItems: items } : {}) };
     const si = !c ? null : foreign ? (typeof target.standInFor === 'string' && target.standInFor ? standInOf(c, backups) : null) : ownSi(c);
     return c ? { type: 'chess', chess: c, hint: target.hint || null, standIn: si, ...(items.length ? { unitItems: items } : {}) } : null;

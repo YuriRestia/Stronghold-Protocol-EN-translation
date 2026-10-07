@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4088_hodrer, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 赫德雷 (备注 of 及锋而试
 // and 死境硝烟); PRTS 卫戍协议/帮助 §技能操作 ("携带状态切换类技能的干员…每次部署后仅开启一次技能"); gamedata_const ba.protect 庇护,
 // ba.stun 晕眩, ba.root 束缚; PRTS 伤害分类 (无来源真实持续伤害); the client's battle data read from the local install —
@@ -11,7 +11,7 @@
 // hodrer_* (named below).
 // - Trait (重剑手) "同时攻击阻挡的所有敌人": the profession (melee physical, ground only, block 2, 2.5 s).
 // - Module CRU-X 新的生活: trait "受到的治疗效果提升20%" (trait bb heal_scale; equip_heal_scale_up): healingTakenMul ×heal_scale —
-//   his own S1 / S3 heals included. Stage 3: 余火之氅 28 % and 物理伤害 +10 % (below).
+//   his own S1 / S3 heals included. Stage 3: 余火之氅 31 % and 物理伤害 +10 % (below).
 // - Module CRU-Y 笔迹: trait "对被阻挡的敌人伤害提升至110%" (trait bb damage_scale; hodrer_e_003_tr: ON_OUTPUT_DAMAGE, CheckBlocked
 //   by the buff's source — him): ×damage_scale (a damage multiplier) on every damage of his on an enemy HE blocks. Stage 3:
 //   及锋而试 130 % / 160 % and its first-hit stun (below).
@@ -24,12 +24,12 @@
 //   the module talent's buff, so they go when he leaves the field and a redeployed 赫德雷 stuns anew) — so a hit that stuns
 //   counts as on a stunned target; a rider lands when the hit is then dodged [ASSUMED: the client applies them in the attack's
 //   damage calculation].
-// - T2 余火之氅 "使自身与身后一格的友军获得18%的庇护" (damage_resistance, talent grid b-1: his tile and the one behind; CRU-X
-//   stage 3 "28%…且造成的物理伤害提升10%" — hodrer_equip_1_3_p2 gives damage_resistance[inf] and hodrer_equip[damage_scale_up]
-//   (ON_OUTPUT_DAMAGE PHYSICAL ×damage_scale) to the same targets, ally side, any motion, removed when they leave): 庇护
-//   (ba.protect "受到的物理和法术伤害降低相应比例（同名效果取最高）") = phys / artsTakenMul 1 − value — the shared 庇护 of every source
-//   (tier1.js holdProtect: damage_resistance[inf] is the common key) — and physDealtMul ×damage_scale (its own one instance per
-//   ally), renewed every PROTECT_IV s on the allies of the grid while he is deployed.
+// - T2 余火之氅 "使自身与身后一格的友军获得18%的庇护" (full potential: 21%; damage_resistance, talent grid b-1: his tile and the one
+//   behind; CRU-X stage 3 "28%…且造成的物理伤害提升10%" (full potential: 31%) — hodrer_equip_1_3_p2 gives damage_resistance[inf] and
+//   hodrer_equip[damage_scale_up] (ON_OUTPUT_DAMAGE PHYSICAL ×damage_scale) to the same targets, ally side, any motion, removed when
+//   they leave): 庇护 (ba.protect "受到的物理和法术伤害降低相应比例（同名效果取最高）") = phys / artsTakenMul 1 − value — the shared
+//   庇护 of every source (tier1.js holdProtect: damage_resistance[inf] is the common key) — and physDealtMul ×damage_scale (its own one
+//   instance per ally), renewed every PROTECT_IV s on the allies of the grid while he is deployed.
 // - S1 重锋不熄 (AUTO, hit SP: INCREASE_WHEN_ATTACK, data DEFAULT): the next attack (every enemy he blocks) at atk_scale × ATK;
 //   hodrer_s[heal] (ON_ABILITY_SPELL_ON, HealViaMaxHpRatio) heals hp_ratio of his max HP once for that attack.
 // - S2 余烬重荷 (MANUAL, data DEFAULT): "被动效果：攻击力+16%" (atk; the skill's extra ability hodrer_s_2[passive]) while it is

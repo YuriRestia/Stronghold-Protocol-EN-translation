@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_2024_chyue, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 重岳 (talent and
 // skill 备注); the client's buff templates (buff_template_data `chyue_t_1` / `_passive`, `chyue_t_2` / `_sp`,
 // `chyue_e_002_t[unkill]`, `chyue_s_1_enhance_judge`, `chyue_s_2_levitate` / `_finish_levitate` / `_atk_scale`,
@@ -11,11 +11,12 @@
 // - Trait (斗士) "能够阻挡一个敌人": the profession default (block 1, melee, ground only). Module FGT-X "拥有15%的物理闪避"
 //   (trait bb prob): a permanent physical dodge. Module FGT-Y "生命值高于50%时攻击速度+10" (trait bb attack_speed /
 //   hp_ratio): ASPD while HP > hp_ratio.
-// - T1 止戈 "对目标普通攻击时，有23%的概率使重岳2.5秒内对其造成的伤害提升65%" (bb prob / damage_scale / up_duration):
-//   chyue_t_1 rolls on every damage instance a normal attack outputs (PRTS 备注 "于普通攻击每次造成伤害时独立触发，重复施加
-//   时仅刷新持续时间" — after it lands, so not for that instance) and marks the target for up_duration s (his own mark:
-//   independentCharacterSource); chyue_t_1_passive: every damage of his to a marked enemy × damage_scale (DamageScale, a
-//   final multiplier — skills included). FGT-Y stage 3: damage_scale 1.75. S2's second segment marks at 100 %.
+// - T1 止戈 "对目标普通攻击时，有23%的概率使重岳2.5秒内对其造成的伤害提升65%" (full potential: 25 % / 70 %; bb prob /
+//   damage_scale / up_duration): chyue_t_1 rolls on every damage instance a normal attack outputs (PRTS 备注 "于普通攻击
+//   每次造成伤害时独立触发，重复施加时仅刷新持续时间" — after it lands, so not for that instance) and marks the target for
+//   up_duration s (his own mark: independentCharacterSource); chyue_t_1_passive: every damage of his to a marked enemy ×
+//   damage_scale (DamageScale, a final multiplier — skills included). FGT-Y stage 3: damage_scale 1.8, prob 0.23 (the
+//   module's blackboard; its text reads 25%（+2%）). S2's second segment marks at 100 %.
 // - T2 万象为宾 "若重岳释放一次技能击倒不少于一个敌人，则回复3点技力" (bb sp): PRTS 备注 — only a kill by skill damage counts,
 //   judged when the skill (or an ability of it) finishes; the SP ignores 阻回 (ModifySp forceFlag). FGT-X stage 3:
 //   4 SP, and "未击倒敌人时变为回复1点技力" (the hidden part's sp: chyue_e_002_t[unkill]). S2's second segment is judged on

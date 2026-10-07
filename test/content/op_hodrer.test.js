@@ -75,8 +75,9 @@ test('赫德雷 in every 自选 form: his operator kit (all three skills authore
       done(h);
     }
   }
-  // zh_CN: E2 Lv1 4670 / 1323 / 0, E2 Lv60 5544 / 1491 / 0; CRU-X +290 / +92 → +450 / +130, CRU-Y +300 / +110 → +400 / +160
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [4670, 1323, 5544, 1491]);
+  // zh_CN (full potential: HP +250, ATK +45): E2 Lv1 4920 / 1368 / 0, E2 Lv60 5794 / 1536 / 0; CRU-X +290 / +92 → +450 / +130,
+  // CRU-Y +300 / +110 → +400 / +160
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [4920, 1368, 5794, 1536]);
   assert.deepEqual([modOf(5, CRUX).attr, modOf(6, CRUX).attr, modOf(5, CRUY).attr, modOf(6, CRUY).attr], [{ maxHp: 290, atk: 92 }, { maxHp: 450, atk: 130 }, { maxHp: 300, atk: 110 }, { maxHp: 400, atk: 160 }]);
 });
 
@@ -159,7 +160,7 @@ test('CRU-Y stage 3: his first damage on an enemy he blocks stuns it 2.5 s — b
   }
 });
 
-test('T2 余火之氅: he and the ally on the tile behind him get 18 % 庇护 (CRU-X stage 3: 28 % and 物理伤害 +10 %); not the ally beside him; gone once he leaves', () => {
+test('T2 余火之氅: he and the ally on the tile behind him get 21 % 庇护 (CRU-X stage 3: 31 % and 物理伤害 +10 %); not the ally beside him; gone once he leaves', () => {
   const others = [{ uid: 2, chessId: 'chess_char_1_08_a', row: 10, col: 4 }, { uid: 3, chessId: 'chess_char_1_10_a', row: 11, col: 5 }];
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -168,7 +169,7 @@ test('T2 余火之氅: he and the ally on the tile behind him get 18 % 庇护 (C
     h.run(0.5);
     const x3 = elite && tier === 6 && mod === CRUX;
     const dr = t1Of(u).damage_resistance;
-    assert.equal(dr, x3 ? 0.28 : 0.18, label(f));
+    assert.equal(dr, x3 ? 0.31 : 0.21, label(f));
     for (const a of [u, behind]) {
       const m = a.findBuff(PROTECT)?.mods;
       assert.ok(m, `${label(f)}: ${a.def.charId} protected`);

@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4065_judge, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 斥罪 (律法卫士 备注:
 // "自身产生的屏障生效优先级为-1000，为单一BUFF，每次“获得”实际效果为补充屏障的吸收量…本天赋的屏障上限仅限制自身通过天赋和技能产生的
 // 屏障量…上限会实时计算"; 荆棘环身 备注 "反伤效果会直接选中伤害来源，但仅对阵营为敌方的来源造成伤害"; S1 备注 on 蓄力; S2 备注
@@ -24,13 +24,13 @@
 //   capped there (a max-HP change leaves the barrier as it is). The buff ends when its absorb runs out (the client keeps
 //   an empty buff; nothing else depends on it here). [ASSUMED] it is spent in the engine's oldest-first order among
 //   several barriers (the client's priority −1000 puts it last); damage reductions (庇护, UNY-X) act before it as the
-//   client's LOW_PRIORITY. UNY-X stage 3: 70 % / 12 % (module talent change). higher_effect_hp_ratio only sizes the
+//   client's LOW_PRIORITY. UNY-X stage 3: 75 % / 12 % (module talent change; full potential). higher_effect_hp_ratio only sizes the
 //   barrier's effect (judge_t_1[effect]) — no gameplay.
 // - T2 荆棘环身 (judge_t_2, ON_TAKE_DAMAGE): every damage instance an enemy source deals her while she holds barrier (its
 //   judge_shield[mark]: the absorb before that hit — the hit that breaks it still counts, t_1 runs LOW_PRIORITY) deals
 //   atk_scale × her ATK arts back to that source (a 普通伤害, InverseDamage `attackType` NORMAL; × the 蓄力 攻击力倍率 while S1's
 //   蓄力 attack is out — PRTS 备注), never for a 流失, an element 损伤, a 无来源 hit or reflected damage (tag 'counter'),
-//   undodgeable [ASSUMED like 星熊's counter]. UNY-Y stage 3: 58 %.
+//   undodgeable [ASSUMED like 星熊's counter]. UNY-Y stage 3: 61 % (full potential).
 // - S1 一锤定音 (AUTO, time SP, data DEFAULT): the next attack adds atk_scale_2 × ATK arts (a 普通伤害 skill hit, after the
 //   physical one). 蓄力 (maxChargeTime 2): SP runs on to twice the cost; casting from there (the client's "available count
 //   ≥ 1" after the cast) also stuns the target `stun` s (before the arts hit) and raises every damage she deals until the

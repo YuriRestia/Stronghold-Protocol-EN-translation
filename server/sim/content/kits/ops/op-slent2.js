@@ -4,7 +4,7 @@
 // an operator (自选)").
 //
 // Forms (data/backups.json units.char_1031_slent2): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), PRTS 淬羽赫默 (无声砥柱 备注
 // "根据其已损失的生命值比例（0%~70%，以1%为最小单位）线性提升…每当庇护数值变化时，重新为该友方单位附加庇护BUFF"; 丰润羽翼 备注
 // on the BLS-Y barrier; 俯瞰视界 备注 "技能期间撤回夜灯时，夜灯立刻返回待部署区并进入再部署时间"; 无畏者协议 备注 "只在没有持有
@@ -28,13 +28,13 @@
 //   n = its lost HP in whole hp_ratio (1 %) steps, at most 1 − min_hp_ratio (70 steps ⇒ 10 % × 2.4 = 24 %), re-read every
 //   0.1 s (the client's trigger) and gone at once when it leaves her range (a lower value takes over within one refresh).
 //   S3 / the 夜灯 scale damage_resistance_base (the client's `_scaleCertainKeyList`), i.e. the whole value.
-// - T2 丰润羽翼 "攻击范围内生命低于50%的友军每秒恢复相当于淬羽赫默攻击力5%的生命，【莱茵生命】干员的恢复效果翻倍": while an
-//   ally of her range is below hp_ratio of its max HP it gains 生命回复速度 (an hpRegen buff, checklist 11 — the template
-//   atk_to_hp_recovery, see above: 禁疗 does not stop it, no 治疗加成) of atk_to_hp_recovery_ratio × her ATK, from 1 s after it
-//   dropped below (waitFirstTriggerInterval) and re-read every 1 s; a 【莱茵生命】 operator (character_table groupId "rhine")
-//   gets it twice (the client's [normal] + [rhine] buffs). One buff per 淬羽赫默 (independentCharacterSource).
+// - T2 丰润羽翼 "攻击范围内生命低于50%的友军每秒恢复相当于淬羽赫默攻击力5%的生命，【莱茵生命】干员的恢复效果翻倍"
+//   (full potential: 6%): while an ally of her range is below hp_ratio of its max HP it gains 生命回复速度 (an hpRegen buff,
+//   checklist 11 — the template atk_to_hp_recovery, see above: 禁疗 does not stop it, no 治疗加成) of atk_to_hp_recovery_ratio × her
+//   ATK, from 1 s after it dropped below (waitFirstTriggerInterval) and re-read every 1 s; a 【莱茵生命】 operator (character_table
+//   groupId "rhine") gets it twice (the client's [normal] + [rhine] buffs). One buff per 淬羽赫默 (independentCharacterSource).
 //   BLS-X stage 2+ (hidden max_hp; slent2_e_002[max_hp]) "攻击范围内友军的最大生命值+10%": allies of her range max HP
-//   +max_hp (MAX_HP MULTIPLIER = Σpct), ×2 for a 【莱茵生命】 operator; and 7 % ATK per second (the talent change's ratio).
+//   +max_hp (MAX_HP MULTIPLIER = Σpct), ×2 for a 【莱茵生命】 operator; and 8 % ATK per second (the talent change's ratio).
 //   BLS-Y stage 2+ (hidden hp_ratio / scale; slent2_e_003_t2) "其中每个干员低于50%生命时仅一次立刻获得淬羽赫默生命上限50%的屏障":
 //   an operator of her range gets a 屏障 (absorbs every type) of scale × her max HP (×2 for 【莱茵生命】, the client's
 //   multi 2) once per deployment of hers (the card mark, cleared when she leaves): when it enters her range below hp_ratio, or

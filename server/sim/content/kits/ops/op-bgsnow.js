@@ -4,9 +4,9 @@
 // ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4055_bgsnow): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json)
-// and PRTS 鸿雪 + “打字机” (点题 备注; the {{**|82%|下降18%}} marks = a final ×0.82; PRTS 伤害分类: "鸿雪2技能三段伤害的后2段"
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json)
+// and PRTS 鸿雪 + “打字机” (点题 备注; the {{**|82%|下降18%}} marks = a final ×0.82 (full potential: ×0.8); PRTS 伤害分类: "鸿雪2技能三段伤害的后2段"
 // are 持续伤害).
 // - Trait (重射手) "高精度的近距离射击": ranged physical arrows, 3-6, can hit air units (PRTS 分支特性信息 重射手 "可对空"),
 //   blocks 1, ground enemies target her (no flag).
@@ -22,10 +22,11 @@
 //   is the copy of hers the data gives (bySkill: sktok_bgsnow_1 / 2 / 3 — the 卫戍 strategy force-opens a summon's manual
 //   skill, PRTS 卫戍协议/帮助): free (spCost 0), once per deployment, by the data's DEFAULT. It is untargetable ("不会受到
 //   攻击"), blocks nothing, hits air units. content/tokens.js has no kit for it: her install gives her pieces this one.
-// - T2 弱点速记 "“打字机”的攻击会使命中目标的防御力下降18%，持续4秒；若“打字机”放在鸿雪周围四格则效果提升至23%": every
-//   damage the typewriter's attacks land cuts the target's DEF by bgsnow_token[def_down]_1 (_2 while the typewriter stands
-//   on one of the 4 tiles next to her — while she is on the field [ASSUMED]) for `duration` s: the catalogue `defDown`
-//   (final ×, 同名 keeps the strongest). ARC-X stage 2+: 28 % / 33 % and "周围八格" (the talent text names the ring).
+// - T2 弱点速记 "“打字机”的攻击会使命中目标的防御力下降18%，持续4秒；若“打字机”放在鸿雪周围四格则效果提升至23%" (full potential:
+//   20% for 5 s, 25%): every damage the typewriter's attacks land cuts the target's DEF by bgsnow_token[def_down]_1 (_2
+//   while the typewriter stands on one of the 4 tiles next to her — while she is on the field [ASSUMED]) for `duration` s:
+//   the catalogue `defDown` (final ×, 同名 keeps the strongest). ARC-X stage 2+: 28 % / 33 % (full potential: 30 % /
+//   35 %) and "周围八格" (the talent text names the ring).
 // - S1 抑扬格 (AUTO, attack SP, data DEFAULT — an AUTO attack buff waits for her next attack): ATK +atk until she leaves the
 //   field ("持续时间无限": a toggle), and every attack meanwhile `prob` to deal ×atk_scale (one roll per attack).
 // - S2 点题 (MANUAL, 2 charges, data SKILL_RANGE on its 3-1): passive — the typewriter's redeploy time ×respawn_time;

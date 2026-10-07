@@ -166,7 +166,8 @@ export function applyRoleFix(roles, fix, durations) {
 /**
  * Spine metadata of extracted models (findLocalEnemyModels / findLocalTokenModels), parsed like processModels does — but
  * read only: the atlas is sized / pma-normalized in memory (extract.py already writes it so), nothing on disk changes.
- * Roles are resolved for skill index 0, like the web enemy and token models, then LOCAL_SPINE_ROLES applied.
+ * Roles are resolved for skill index 0 (an enemy also for its numbered skill clips), like the web enemy and token models,
+ * then LOCAL_SPINE_ROLES applied.
  * @param {string} root absolute public/assets directory
  * @param {Record<string, { dir: string, skel: string, atlas: string, pngs: string[] }>} found
  * @returns {Promise<{ meta: Record<string, LocalSpineMeta>, problems: string[] }>}
@@ -192,7 +193,7 @@ export async function localSpineMeta(root, found) {
       const sk = parseSkel(await readFile(join(root, m.skel)), info.regions);
       if (!sk.animations.length) throw new Error('skeleton has no animations');
       if (sk.missingRegions?.length) problems.push(`${id}: ${sk.missingRegions.length} attachment(s) not in atlas (e.g. ${sk.missingRegions[0]})`);
-      const fixed = applyRoleFix(resolveRoles(sk.animations, { skillIndices: [0], durations: sk.durations }), LOCAL_SPINE_ROLES[id], sk.durations);
+      const fixed = applyRoleFix(resolveRoles(sk.animations, { skillIndices: [0], numberedSkills: id.startsWith('enemy_'), durations: sk.durations }), LOCAL_SPINE_ROLES[id], sk.durations);
       if (fixed.missing.length) problems.push(`${id}: role fix not applied (clip missing) for ${fixed.missing.join(', ')}`);
       meta[id] = {
         skel: base(m.skel), atlas: base(m.atlas), textures: info.pages, pma: true,
@@ -330,7 +331,9 @@ export async function processModels(models, { root, dl, cachePath, download = tr
     if (!sk.animations.length) { problems.push(`${m.key}: skeleton has no animations`); continue; }
     const key = String(m.key);
     const id = key.startsWith('enemy:') ? key.slice('enemy:'.length) : key.startsWith('op:') ? key.split(':')[1] : null; // op:<char>:front|back
-    const fixed = applyRoleFix(resolveRoles(sk.animations, { skillIndices: m.skillIndices, durations: sk.durations }), id ? PREFAB_SPINE_ROLES[id] : undefined, sk.durations);
+    // an enemy's numbered skill clips are resolved too (anims.skills: the clip of each skill slot it casts, PR #275);
+    // operators keep the pool's indices (their equipped skill picks among them)
+    const fixed = applyRoleFix(resolveRoles(sk.animations, { skillIndices: m.skillIndices, numberedSkills: key.startsWith('enemy:'), durations: sk.durations }), id ? PREFAB_SPINE_ROLES[id] : undefined, sk.durations);
     if (fixed.missing.length) problems.push(`${m.key}: role fix not applied (clip missing) for ${fixed.missing.join(', ')}`);
     const anims = fixed.roles;
     entries.set(m.key, {

@@ -72,7 +72,7 @@ test('真言 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1071, 583, 1308, 657]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1071, 614, 1308, 688]);
   assert.deepEqual([modOf(5, PRIX).attr, modOf(6, PRIX).attr], [{ maxHp: 90, atk: 43 }, { maxHp: 145, atk: 87 }]);
 });
 
@@ -284,11 +284,11 @@ test('S3 无言为真: an enemy holding 3 麻痹 entering her range keeps 2 and 
   done(h2);
 });
 
-test('T1 噤声限域: an enemy whose attack a 麻痹 stack interrupts takes 135 % (PRI-X stage 3: 160 %) of her ATK as 元素伤害 (tagged 持续伤害); 10 % / 15 % of the interrupts keep the stack; not for an enemy she cannot select (隐匿)', () => {
+test('T1 噤声限域: an enemy whose attack a 麻痹 stack interrupts takes 145 % (PRI-X stage 3: 170 %) of her ATK as 元素伤害 (tagged 持续伤害); 13 % / 18 % of the interrupts keep the stack; not for an enemy she cannot select (隐匿)', () => {
   for (const f of [[5, false, null], [6, true, null], [5, true, PRIX], [6, true, PRIX]]) {
     const [tier, elite, mod] = f;
     const t = talentOf(tier, elite, mod, 0);
-    assert.deepEqual(t, elite && mod === PRIX && tier === 6 ? { atk_scale: 1.6, prob: 0.15 } : { atk_scale: 1.35, prob: 0.1 }, label(f));
+    assert.deepEqual(t, elite && mod === PRIX && tier === 6 ? { atk_scale: 1.7, prob: 0.18 } : { atk_scale: 1.45, prob: 0.13 }, label(f));
     const { h, u } = field({ tier, elite, mod, skill: 0, seed: 13 });
     const e = h.spawn('enemy_shooter', { pos: [10, 8] });
     h.b.applyStatus(u, 'disarm', { duration: 999, source: null });   // her attacks would kill nothing, but keep it clean

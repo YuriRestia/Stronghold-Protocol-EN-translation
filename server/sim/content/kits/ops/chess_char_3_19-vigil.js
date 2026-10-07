@@ -300,7 +300,7 @@ export default {
         { install(battle, unit) {
           battle.on('hit', (ctx) => {
             const w = wolfOf(unit);
-            // "伺夜和狼群对其的攻击无视其175防御力": their attacks only (not item procs or other non-attack damage)
+            // "伺夜和狼群对其的攻击无视其175防御力" (200 at full potential): their attacks only (not item procs or other non-attack damage)
             if (!w || pen <= 0 || !ctx.dmg.isAttack || (ctx.source !== unit && ctx.source !== w) || ctx.target.blockedBy !== w) return;
             ctx.dmg.defIgnoreFlat += pen;
           }, { owner: unit });

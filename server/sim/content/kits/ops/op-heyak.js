@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4027_heyak, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 霍尔海雅
 // (传承终焉 备注 "技能触发的浮空效果于本天赋结算前进行结算"; S1 备注 "“仅攻击到1名目标”仅判定实际发射的弹道数"; S3 备注 "攻击以自身格
 // 中心处为准，于此处、左1.0、右1.0格在0~0.3s内随机延迟后生成三股旋风", "移动速度1.0，碰撞范围为1×1的正方形，旋风移动至5格远处中心点
@@ -16,12 +16,12 @@
 //   自身30%的技力" and its hidden talents (首次部署 1 点临时目标生命值, the goal-tile 浮空 15 s, stage 3's radius-1.1 skill
 //   splash "自身技能会对敌人及其周围的目标同时造成浮空效果和伤害效果") are battle_equip_table parts with `validInGameTag:
 //   roguelike` — N/A here; what applies is its stats and, at stage 2+, 传承终焉's new numbers (a TALENT_DATA_ONLY part with
-//   no game tag: 145 % / 5 s at stage 3).
-// - T1 传承终焉 "攻击空中目标时攻击力提升至120%，并使其特殊能力失效3秒": every hit of her attacks on an air unit (flying, 近地悬浮
-//   or 浮空) at the hit is × atk_scale and silences it for `silence` s. Her skills' 浮空 of that very hit resolve first (PRTS
-//   备注), so a target her S1 / S2 / S3 lifts takes the ×atk_scale of that hit: the S1 / S2 lifts land in the hit's `hit`
-//   step, ahead of this talent (a dodged hit has lifted already [ASSUMED]). CCR-X stage 3: 135 % / 5 s, ISW-A stage 3:
-//   145 % / 5 s (the talent's merged bb).
+//   no game tag: 148 % / 5 s at stage 3).
+// - T1 传承终焉 "攻击空中目标时攻击力提升至120%，并使其特殊能力失效3秒" (full potential: 123%): every hit of her attacks on an
+//   air unit (flying, 近地悬浮 or 浮空) at the hit is × atk_scale and silences it for `silence` s. Her skills' 浮空 of that
+//   very hit resolve first (PRTS 备注), so a target her S1 / S2 / S3 lifts takes the ×atk_scale of that hit: the S1 / S2
+//   lifts land in the hit's `hit` step, ahead of this talent (a dodged hit has lifted already [ASSUMED]). CCR-X stage 3:
+//   138 % / 5 s, ISW-A stage 3: 148 % / 5 s (the talent's merged bb).
 // - T2 曾有羽翼 "攻击范围内所有生命值高于80%的敌人失重": every enemy of her current attack range (a running S3's included) above
 //   hp_ratio of its HP is 失重 (weight −1 level, 同名效果不可叠加: none of hers while another source's 失重 is on it), off
 //   again at once below it or outside the range. CCR-Y stage 3 lowers it to 50 % and adds "生命值低于50%的敌人获得20%的

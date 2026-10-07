@@ -5,8 +5,8 @@
 // ../README.md ("How to add an operator (自选)"); the summon deck: ../shared/summoner.js.
 //
 // Forms (data/backups.json units.char_4195_radian): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / the tokens' character_table rows (zh_CN, as built
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / the tokens' character_table rows (zh_CN, as built
 // into backups.json); PRTS 电弧 (加油~ 修正 "电弧自身" for the text's "其自身", 备注 "加成效果的数值每秒更新一次"; S1 备注 "技能期间
 // 部署的戴乌在部署时也会获得屏障，此时计算屏障量可享受电弧第二天赋的生命值加成"; S2 备注 on 赛柯's bullets; S3 备注 "召唤物可对空",
 // "停顿与法术脆弱效果为伤害附加效果，于本次伤害前生效", the 协同攻击); PRTS 戴乌 / 赛柯 / 桑特拉 (备注 "持有禁疗"; 赛柯 "不进行索敌，
@@ -34,9 +34,10 @@
 //   `atkCd` 0 here) and has no valid target of its own, and has the asking 桑特拉 inside its attack range ("其自身范围内其他
 //   电弧的召唤物"), shoots a link at it — the link's arrival deals prism_atk_scale × the responder's ATK as arts 普通伤害 to the
 //   first asker's target — and asks the others in turn; its attack restarts [ASSUMED: the link is its attack].
-// - T2 加油~ "电弧的召唤物获得相当于电弧自身12％攻击力、防御力、生命值的鼓舞效果": every INSPIRE_IV (1) s and at each of their
-//   deployments, her summons on the field get 鼓舞 = ratio × her current ATK / DEF / max HP, added after their own
-//   multipliers, the strongest source of each kind kept (the keys 魔王 / 浊心斯卡蒂 use: inspire, inspire:def, inspire:hp).
+// - T2 加油~ "电弧的召唤物获得相当于电弧自身12％攻击力、防御力、生命值的鼓舞效果" (full potential: 15 %): every INSPIRE_IV (1) s
+//   and at each of their deployments, her summons on the field get 鼓舞 = ratio × her current ATK / DEF / max HP, added after
+//   their own multipliers, the strongest source of each kind kept (the keys 魔王 / 浊心斯卡蒂 use: inspire, inspire:def,
+//   inspire:hp).
 // - S1 律动线 (MANUAL, data DEFAULT, 25 s): +cnt held at the cast; she and her summons DEF +def and a 屏障 of hp_ratio × their
 //   own max HP until the skill ends (every damage type but 元素伤害 — shieldType phys / arts / true); a summon deployed while it
 //   runs takes it at its deployment, after its 鼓舞 (PRTS). Passive "召唤物可部署在近战位": placement only.

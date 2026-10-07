@@ -4,8 +4,8 @@
 // ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1034_jesca2): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json);
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / token_table (zh_CN, as built into backups.json);
 // PRTS 涤火杰西卡 (灵活应变 备注 "转向行为不受异常效果影响，仅在机动盾牌持续时间内生效；机动盾牌退场后，涤火杰西卡转回原方向",
 // "本天赋的防御增加效果无视孤立"; 蓄能释放 备注 "受到任何伤害时均可触发（包括无法触发受击回复的伤害）"; S2 备注 "此技能的攻击范围
 // 不受“攻击距离”属性影响"; S3 备注 "仅技能持续期间可触发发射炮弹的行为，技能期间多次部署机动盾牌可触发多次发射炮弹行为（同一时间内最多
@@ -34,7 +34,7 @@
 //   its respawnTime (30 s) after it left, paying its cost (5 DP), only while she stands — her (re)deployment makes a waiting
 //   one ready at once (charge_token[born]) [ASSUMED: the 卫戍 auto redeploy of a placed summon, as 鸿雪's 打字机 / 谬因's 中继器].
 // - T2 蓄能释放: every damage instance the shield takes — any damage, 无来源 / DoT included, not a 流失 or an element 损伤 —
-//   while it stands on her x-5: `prob` to give her `sp` SP (none while a skill of hers runs: AK). SPT-Y stage 3: prob 0.6 and
+//   while it stands on her x-5: `prob` to give her `sp` SP (none while a skill of hers runs: AK). SPT-Y stage 3: prob 0.65 and
 //   each success also cuts the shield's own next redeploy time by respawn_time (1 s), at most respawn_time_max (14 s) per
 //   shield deployment (jesca2_e_003[t_sp]: the card buff lasts until the next spawn; AlwaysNext — the cut comes with the
 //   roll even when no SP can be gained).
@@ -217,7 +217,7 @@ function explode(battle, unit, s) {
 
 export default {
   char_1034_jesca2: (bb, chess) => {
-    const t0 = talentBb(chess, 0);   // 灵活应变: def (+15 %)
+    const t0 = talentBb(chess, 0);   // 灵活应变: def (+18 %)
     const t1 = talentBb(chess, 1);   // 蓄能释放: sp, prob (SPT-Y stage 3: + respawn_time, respawn_time_max)
     const tb = traitBb(chess);       // SPT-Y: ability_range_forward_extend
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);

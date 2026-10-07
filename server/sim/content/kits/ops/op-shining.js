@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_147_shining, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 闪灵 (S2 备注
 // "多个屏障吸收量可叠加，持续时间独立计算，优先消耗先生成的屏障，防御力提升效果不可叠加"; PRTS 术语释义 屏障 "若无特殊说明，
 // 屏障可吸收全种类伤害").
@@ -12,12 +12,13 @@
 //   a 地面 tile (unit.ground, as 赫默's PHY-Y); PHY-X “使徒” "治疗生命值低于50%的友方单位时治疗量提升15%" (heal_scale,
 //   hp_ratio): ×heal_scale when the target is at or below hp_ratio of its max HP before the heal — the client's
 //   shining_e_003_tr is heal_scale_up[hpratio][LE] (as 华法琳's PHY-X; 录武官's reckpr_e_002_tr is LT, strictly below).
-// - T1 黑恶魔的庇护 "攻击范围内的友方单位防御力+60": every ally (operators and summons: 友方单位) standing in her current
-//   attack range — her own tile included — DEF +def (flat). PHY-Y stage 2+ "防御力+100，地面单位防御力额外+40" (talent
-//   change def / def_lowland): def_lowland more on a 地面 tile. Refreshed every AURA s; two sources keep the strongest.
-// - T2 法典 "攻击速度+10": ASPD +attack_speed. PHY-X stage 2+ "攻击速度+15，装备技能2时获得+25%攻击力，装备技能3时技力自然
-//   回复速度+0.6/秒" (talent change attack_speed; the hidden module talent's atk / sp_recovery_per_sec): ATK +atk while 自动
-//   掩护 is her picked skill, SP +sp_recovery_per_sec per second while 教条力场 is.
+// - T1 黑恶魔的庇护 "攻击范围内的友方单位防御力+60" (full potential: +65): every ally (operators and summons: 友方单位)
+//   standing in her current attack range — her own tile included — DEF +def (flat). PHY-Y stage 2+ "防御力+100，地面单位防御力
+//   额外+40" (full potential: +105; talent change def / def_lowland): def_lowland more on a 地面 tile. Refreshed every AURA s;
+//   two sources keep the strongest.
+// - T2 法典 "攻击速度+10" (full potential: +13): ASPD +attack_speed. PHY-X stage 2+ "攻击速度+15，装备技能2时获得+25%攻击力，
+//   装备技能3时技力自然回复速度+0.6/秒" (full potential: ASPD +18; talent change attack_speed; the hidden module talent's atk /
+//   sp_recovery_per_sec): ATK +atk while 自动掩护 is her picked skill, SP +sp_recovery_per_sec per second while 教条力场 is.
 // - S1 信条 (MANUAL, 20 s, data DEFAULT — a heal skill: cast as she is about to heal an injured ally in range): ATK +atk,
 //   ASPD +attack_speed.
 // - S2 自动掩护 (AUTO, 1 charge at rank 4 / 2 at rank 7, data DEFAULT): "下次治疗使目标获得一个持续N秒的屏障，屏障可以吸收相当于
@@ -88,8 +89,8 @@ export default {
   char_147_shining: (bb, chess) => {
     const b1 = bbOf(chess, S1), b2 = bbOf(chess, S2), b3 = bbOf(chess, S3);
     const s2 = skillRec(chess, S2);
-    const t0 = talentBb(chess, 0);   // 黑恶魔的庇护: def (PHY-Y stage 2+: def 100, def_lowland)
-    const t1 = talentBb(chess, 1);   // 法典: attack_speed (PHY-X stage 2+: 15)
+    const t0 = talentBb(chess, 0);   // 黑恶魔的庇护: def (PHY-Y stage 2+: def 105, def_lowland)
+    const t1 = talentBb(chess, 1);   // 法典: attack_speed (PHY-X stage 2+: 18)
     const hidden = moduleBb(chess);  // PHY-X stage 2+: atk (with S2 picked), sp_recovery_per_sec (with S3 picked)
     const tb = traitBb(chess);       // PHY-Y: heal_scale; PHY-X: heal_scale, hp_ratio
     const mod = moduleOn(chess) ? chess.module.id : null;

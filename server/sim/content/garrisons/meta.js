@@ -202,7 +202,9 @@ H.SERVER_ADD_REFRESH_CNT_MULTIPLIER_BOND_LAYER = {
 // (ev.trigger) is no manual refresh: it neither fires nor counts. A new copy (bought, granted) starts at 0, and so does
 // an elite merged this round: a new 拉普兰德, its own first manual refresh this round adds +8 even when its copies
 // already fired (GitHub #169; the owner's decision of 2026-10-06 — PlayerState._mergeChess carries no counter over).
-// [ASSUMED]: a copy bought after selling one this round is a new copy — "获得该干员后" — and fires on its own first
+// A copy gained by a refresh's own effects (贾维's gift on every 6th refresh, or the elite that gift completes) did not
+// witness that refresh: the dispatcher runs the chess that stood there when it happened (effectsMeta.js onRefresh), so
+// her first is the next manual refresh (PR #196). [ASSUMED]: a copy bought after selling one this round is a new copy — "获得该干员后" — and fires on its own first
 // refresh (the server cannot tell it from any other copy; each such +4 costs her price + a refresh − the 1-fund refund,
 // and needs her in the shop again).
 const REFRESH_CNT_KEY = 'garrison:SERVER_GAIN_BOND_LAYER_BY_REFRESH_CNT:refreshes'; // per-piece counter (module-prefixed)

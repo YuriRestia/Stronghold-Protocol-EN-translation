@@ -86,8 +86,8 @@ test('黍 in every 自选 form: her operator kit (all three skills authored), th
       done(h);
     }
   }
-  // zh_CN numbers: E2 Lv1 2313 / 392 / 493, E2 Lv60 2910 / 450 / 565; GUA-X +160/+30/+30 → +270/+50/+50
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2313, 392, 2910, 450]);
+  // zh_CN numbers: E2 Lv1 2513 / 417 / 493, E2 Lv60 3110 / 475 / 565; GUA-X +160/+30/+30 → +270/+50/+50
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2513, 417, 3110, 475]);
   assert.deepEqual([modOf(5, GUAX).attr, modOf(6, GUAX).attr], [{ maxHp: 160, atk: 30, def: 30 }, { maxHp: 270, atk: 50, def: 50 }]);
 });
 
@@ -257,7 +257,7 @@ test('S3 离离枯荣: a ground enemy on a sown tile ⇒ the operators of her ra
   }
 });
 
-test('T1 百谷长青: her heals sow the healed unit\'s tile and the 4 next to it (walkable / deployable tiles only); units on them regenerate 70 / s (80 GUA-X stage 3) and take 10 % (15 %) 庇护 — a 无法被治疗 unit and summons too; all gone when she leaves; GUA-X stage 3 sows her tile at the deployment', () => {
+test('T1 百谷长青: her heals sow the healed unit\'s tile and the 4 next to it (walkable / deployable tiles only); units on them regenerate 75 / s (85 GUA-X stage 3) and take 12 % (17 %) 庇护 — a 无法被治疗 unit and summons too; all gone when she leaves; GUA-X stage 3 sows her tile at the deployment', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const others = [{ uid: 2, chessId: 't_a', row: 9, col: 5 }, { uid: 3, chessId: 't_b', row: 12, col: 9 }, { uid: 4, chessId: 'chess_char_3_19_a', row: 12, col: 3 },
@@ -265,7 +265,7 @@ test('T1 百谷长青: her heals sow the healed unit\'s tile and the 4 next to i
     const { h, u } = field({ tier, elite, mod, skill: 2, others });
     const t0 = u.def.raw.talents.find((t) => t.index === 0);
     const x3 = elite && mod === GUAX && tier === 6;
-    assert.deepEqual([t0.bb.hp_recovery_per_sec, t0.bb.damage_resistance, t0.bbStr?.born_range_id ?? null], x3 ? [80, 0.15, '0-1'] : [70, 0.1, null], label(f));
+    assert.deepEqual([t0.bb.hp_recovery_per_sec, t0.bb.damage_resistance, t0.bbStr?.born_range_id ?? null], x3 ? [85, 0.17, '0-1'] : [75, 0.12, null], label(f));
     assert.equal(sownOf(u).has(key(10, 5)), x3, `${label(f)}: her own tile sown at the deployment (GUA-X stage 3 only)`);
     const [a, b, wolf] = [h.unit(2), h.unit(3), h.unit(5)];
     a.hp = a.s.maxHp * 0.5;

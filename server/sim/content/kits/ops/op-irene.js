@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4009_irene, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), PRTS 艾丽妮 (审判之火
 // 备注: "计算伤害前有概率（地面）/必定（空中单位）获取永久的物理穿透（百分比）Buff（不可叠加，直接加算），该效果仅在成功造成伤害后
 // 消耗", popup "对空中单位造成物理伤害时，不会占用随机数"; S3 备注 "技能范围内仅存在飞行单位时，该技能也可开启 / 技能动画为固定时长
@@ -20,8 +20,8 @@
 //   keeps it, and while she holds one she draws nothing: 不可叠加); a buff on her, so a new deployment starts without one.
 //   SWO-X stage 3: 55 % and "技能期间若击倒空中单位，技能结束时获得6点技力" — an air unit she knocks out while her skill
 //   is active (S1's strike, S2's cut, S3's 3.5 s) gives her +sp SP once that skill ends.
-// - T2 净化之剑 "攻击速度+18，场上有【海怪】敌人时效果翻倍": ASPD +attack_speed; SWO-Y stage 3 adds ATK +5 % (the module talent
-//   change's atk); both doubled while a living 【海怪】 enemy (data tag seamonster) is on the field.
+// - T2 净化之剑 "攻击速度+18，场上有【海怪】敌人时效果翻倍" (full potential: +21): ASPD +attack_speed; SWO-Y stage 3 adds ATK
+//   +5 % (the module talent change's atk); both doubled while a living 【海怪】 enemy (data tag seamonster) is on the field.
 // - S1 起风 (AUTO, attack SP, DEFAULT): the next attack strikes its target once for atk_scale × ATK physical and levitates it
 //   `levitate` s, then hits it again for atk_scale × ATK physical (her skeleton's Skill_1 clip: two OnAttack) — the second
 //   hit meets an air unit when the levitation took.

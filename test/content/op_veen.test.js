@@ -63,7 +63,7 @@ test('维伊 in every 自选 form: her operator kit (all three skills authored),
       const form = formOf(tier, elite), m = elite ? modOf(tier, mod) : null;
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [VEEN, SLOT[tier], form.skills[skill].skillId, false, 'skills'], label(f));
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def], [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def], `${label(f)}: stats`);
-      assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.base.bat, u.base.cost], [1, 'ranged', 'arts', true, 3, 27], `${label(f)}: 秘术师`);
+      assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.base.bat, u.base.cost], [1, 'ranged', 'arts', true, 3, 24], `${label(f)}: 秘术师`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-14`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['emptyShip'], []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
@@ -82,11 +82,11 @@ test('a 自选 pick: 维伊 is offered at tiers 5 and 6 (she has a kit) and a ro
     { ok: true, picks: { [SLOT[6]]: { charId: VEEN, skillIndex: 1, uniEquipId: MSCY } } });
 });
 
-test('trait + T1: with no target her attack check stores one energy (an attack action: the interval restarts — PRTS 分支特性信息), 3 merge into a 转置能量, at most 3 of those (then she stops); ATK +10 % while she holds one, ASPD +15 while she holds none; MSC-Y: ASPD +30 while she holds any energy', () => {
+test('trait + T1: with no target her attack check stores one energy (an attack action: the interval restarts — PRTS 分支特性信息), 3 merge into a 转置能量, at most 3 of those (then she stops); ATK +12 % while she holds one, ASPD +15 while she holds none; MSC-Y: ASPD +30 while she holds any energy', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const t0 = talentOf(tier, elite, mod, 0);
-    assert.deepEqual(t0, { atk: 0.1, attack_speed: 15 }, label(f));
+    assert.deepEqual(t0, { atk: 0.12, attack_speed: 15 }, label(f));
     const msc = elite && mod === MSCY ? 30 : 0;
     const { h, u } = field({ tier, elite, mod, skill: 0 });
     u.skill.sp = 0;
@@ -101,7 +101,7 @@ test('trait + T1: with no target her attack check stores one energy (an attack a
     approx(h.b.time - t2, 3 * 100 / (115 + msc), `${label(f)}: then at the interval of ASPD ${115 + msc}`, 0.03);
     storeUp(h, u, 1, 0);
     approx(u.s.aspd, 100 + msc, `${label(f)}: a 转置能量: the ASPD +15 goes`);
-    approx(u.s.atk, u.base.atk * 1.1, `${label(f)}: ATK +10 %`);
+    approx(u.s.atk, u.base.atk * 1.12, `${label(f)}: ATK +12 %`);
     storeUp(h, u, 3, 0);
     h.run(30);
     assert.deepEqual(stored(u), { s: 0, t: 3 }, `${label(f)}: no more storing at 3 转置能量`);
@@ -109,13 +109,13 @@ test('trait + T1: with no target her attack check stores one energy (an attack a
   }
 });
 
-test('the volley: 转置能量 first (300 % ATK each), the main attack (100 %), then the stored energies (100 %) — one target, all landing together, each with the ATK it left with (+10 % while a 转置能量 was held)', () => {
+test('the volley: 转置能量 first (300 % ATK each), the main attack (100 %), then the stored energies (100 %) — one target, all landing together, each with the ATK it left with (+12 % while a 转置能量 was held)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const { h, u } = field({ tier, elite, skill: 1 });
     u.skill.sp = 0;
     storeUp(h, u, 1, 2);
     const atk = u.s.atk;
-    approx(atk, u.base.atk * 1.1, `T${tier}: holding a 转置能量`);
+    approx(atk, u.base.atk * 1.12, `T${tier}: holding a 转置能量`);
     const e = h.spawn('enemy_fly', { pos: [10, 7] });
     const a0 = atkHits(h, u).length;
     h.runUntil(() => atkHits(h, u).length > a0, 4);
@@ -211,10 +211,10 @@ test('S2 “以鲜血洗去” (MANUAL, data DEFAULT): 28 s, attack interval 3.0
     const hits = atkHits(h, u);
     h.runUntil(() => atkHits(h, u).length >= 3, 4);
     const v = atkHits(h, u).slice(0, 3);
-    // 转置能量 (0 stacks, +10 %), main (3 stacks), stored (4 stacks) — every one +10 % (a 转置能量 was held)
-    approx(v[0].amount, base * (1 + 0.1) * 3, `T${tier}: 转置能量 before any stack`);
-    approx(v[1].amount, base * (1 + 0.1 + 3 * per), `T${tier}: the main shot after 3`);
-    approx(v[2].amount, base * (1 + 0.1 + 4 * per), `T${tier}: the stored one after 4`);
+    // 转置能量 (0 stacks, +12 %), main (3 stacks), stored (4 stacks) — every one +12 % (a 转置能量 was held)
+    approx(v[0].amount, base * (1 + 0.12) * 3, `T${tier}: 转置能量 before any stack`);
+    approx(v[1].amount, base * (1 + 0.12 + 3 * per), `T${tier}: the main shot after 3`);
+    approx(v[2].amount, base * (1 + 0.12 + 4 * per), `T${tier}: the stored one after 4`);
     assert.ok(hits.length <= 3);
     approx(u.s.aspd, 100 + 15 + 5 * perAs, `T${tier}: 5 stacks of ASPD (and T1's +15 again)`);
     h.run(25);

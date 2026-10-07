@@ -76,8 +76,8 @@ test('谬因 in every 自选 form: her operator kit (all three skills authored),
       done(h);
     }
   }
-  // E2 Lv1 1261 / 727, E2 Lv60 1526 / 826, cost 34; BLA-Y −8 cost, +120 / +45 → +200 / +70 HP / ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk, FORMS['2/60/7/1'].stats.cost], [1261, 727, 1526, 826, 34]);
+  // E2 Lv1 1261 / 762, E2 Lv60 1526 / 861, cost 32 (full potential); BLA-Y −8 cost, +120 / +45 → +200 / +70 HP / ATK
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk, FORMS['2/60/7/1'].stats.cost], [1261, 762, 1526, 861, 32]);
   assert.deepEqual([modOf(5, BLAY).attr, modOf(6, BLAY).attr], [{ cost: -8, maxHp: 120, atk: 45 }, { cost: -8, maxHp: 200, atk: 70 }]);
 });
 
@@ -138,13 +138,13 @@ test('the 中继器 (T1 链路协议): ATK +25 % (T6 BLA-Y +35 %) while it stand
   }
 });
 
-test('T2 取样优化: every allied operator standing on her path — her own tile too — ignores 10 RES (法术穿透); none off it', () => {
+test('T2 取样优化: every allied operator standing on her path — her own tile too — ignores 13 RES (法术穿透); none off it', () => {
   for (const f of FORMS_ALL) {
     const others = [{ uid: 3, chessId: 'chess_char_1_02_a', row: 10, col: 4 }, { uid: 4, chessId: 'chess_char_1_02_a', row: 9, col: 6 }];
     const { h, u } = field({ tier: f[0], elite: f[1], mod: f[2], skill: 1, relay: UP4, others });
-    assert.equal(u.def.raw.talents.find((t) => t.index === 1).bb.magic_resist_penetrate_fixed, 10, label(f));
+    assert.equal(u.def.raw.talents.find((t) => t.index === 1).bb.magic_resist_penetrate_fixed, 13, label(f));
     h.run(0.3);
-    assert.deepEqual([u.s.resIgnoreFlat, h.unit(3).s.resIgnoreFlat, h.unit(4).s.resIgnoreFlat], [10, 10, 0], `${label(f)}: herself, the one on the bent path, not the one on the straight line`);
+    assert.deepEqual([u.s.resIgnoreFlat, h.unit(3).s.resIgnoreFlat, h.unit(4).s.resIgnoreFlat], [13, 13, 0], `${label(f)}: herself, the one on the bent path, not the one on the straight line`);
     done(h);
   }
 });
@@ -246,11 +246,11 @@ test('S3 混沌的本质 (MANUAL, data DEFAULT, 20 bullets): 3 s 强制缴械 fr
   }
 });
 
-test('BLA-Y “第三相态” (stages 1 and 3): the 部署费用 attribute (34 → 26); stage 3 only: 35 s 中继器, its redeploy time 30 → 20 s (再部署时间变短), ATK +35 %', () => {
+test('BLA-Y “第三相态” (stages 1 and 3): the 部署费用 attribute (32 → 24); stage 3 only: 35 s 中继器, its redeploy time 30 → 20 s (再部署时间变短), ATK +35 %', () => {
   for (const tier of [5, 6]) {
     for (const mod of [null, BLAY]) {
       const { h, u, r } = field({ tier, elite: true, mod, relay: UP4 });
-      assert.equal(u.base.cost, mod ? 26 : 34, `T${tier} ${mod}: cost`);
+      assert.equal(u.base.cost, mod ? 24 : 32, `T${tier} ${mod}: cost`);
       const y3 = tier === 6 && mod === BLAY;
       assert.deepEqual(r.def.talents.map((t) => t.bb.duration), y3 ? [25, 35] : [25], `T${tier} ${mod}: the piece's talents`);
       assert.equal(r.base.respawnTime, y3 ? 20 : 30, `T${tier} ${mod}: redeploy time`);

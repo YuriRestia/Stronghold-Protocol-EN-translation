@@ -68,9 +68,9 @@ test('年 in every 自选 form: her operator kit (all three skills authored), th
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2737 / 513 / 529, E2 Lv60 3375 / 583 / 660; PRO-X +200 HP / +60 DEF →
+  // the numbers of the forms (zh_CN, full potential): E2 Lv1 2737 / 537 / 559, E2 Lv60 3375 / 607 / 690; PRO-X +200 HP / +60 DEF →
   // +375 / +50 / +80, PRO-Y +320 / +35 / +21 / block +1 → +550 / +70 / +30 / block +1
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/1/4/0'].stats.def, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.def], [2737, 513, 529, 3375, 660]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/1/4/0'].stats.def, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.def], [2737, 537, 559, 3375, 690]);
   assert.deepEqual([modOf(5, PROX).attr, modOf(6, PROX).attr, modOf(5, PROY).attr, modOf(6, PROY).attr],
     [{ maxHp: 200, def: 60 }, { maxHp: 375, atk: 50, def: 80 }, { maxHp: 320, atk: 35, def: 21, blockCnt: 1 }, { maxHp: 550, atk: 70, def: 30, blockCnt: 1 }]);
 });
@@ -196,12 +196,12 @@ test('S3 铁御 (40 s): ATK +65 % / +80 % (her block +0); every other allied ope
   }
 });
 
-test('T1 积甲成山: every 重装 operator of her team (her included) max HP +16 % for the whole battle — +21 % with PRO-Y stage 3; a 先锋 nothing', () => {
+test('T1 积甲成山: every 重装 operator of her team (her included) max HP +20 % for the whole battle — +25 % with PRO-Y stage 3; a 先锋 nothing', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 0, others: [{ uid: 2, chessId: YAK, row: 11, col: 3 }, { uid: 3, chessId: TEXAS, row: 11, col: 7 }] });
     const yak = h.unit(2), tex = h.unit(3);
-    const want = elite && mod === PROY && tier === 6 ? 0.21 : 0.16;
+    const want = elite && mod === PROY && tier === 6 ? 0.25 : 0.2;
     assert.equal(u.def.raw.talents.find((t) => t.index === 0).bb.max_hp, want, `${label(f)}: data`);
     for (const a of [u, yak]) assert.deepEqual(a.findBuff('talent:nian:armor')?.mods, { hpPct: want }, `${label(f)}: ${a.defId}`);
     assert.equal(tex.findBuff('talent:nian:armor'), null, `${label(f)}: 德克萨斯 (先锋)`);
@@ -280,7 +280,7 @@ test('PRO-Y “请勿叩门”: blocks 4 at both stages; stage 3 only: per 重�
     const fort = u.findBuff('trait:nian:fortify');
     approx(fort.mods.hpPct, 0.04 * k, `${n} 重装: max HP`);
     approx(fort.mods.healingTakenMul, 1 + 0.04 * k, `${n} 重装: healing received`);
-    approx(u.s.maxHp, u.base.maxHp * (1 + 0.21 + 0.04 * k), `${n} 重装: with 积甲成山's 21 %`);
+    approx(u.s.maxHp, u.base.maxHp * (1 + 0.25 + 0.04 * k), `${n} 重装: with 积甲成山's 25 %`);
     // a heal of 1000 lands as 1000 × (1 + 0.04 k)
     u.hp = 1;
     const got = h.b.heal(h.unit(9), u, 1000);

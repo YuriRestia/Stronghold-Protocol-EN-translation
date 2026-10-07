@@ -356,20 +356,19 @@ function MatchScreen() {
   const shownMembers = shownField ? ((Array.isArray(pub?.fields) ? pub.fields : []).find((f) => f && f.fieldId === shownField.fieldId)?.players
     || (Array.isArray(shownField.players) ? shownField.players : null)) : null;
   const ownView = showPrep || (shownField ? (shownMembers ? shownMembers.includes(myId) : shownField.fieldId === ownFieldId(myId)) : !watchingOther);
-  // a field on a map of its own (联防: the escaped template's map, GitHub #41) shows that map; leaving it restores the board's
-  const fieldStage = gd.ready && shownField && shownField.stageId && shownField.stageId !== pub?.stageId ? gd.stage(shownField.stageId) : null;
+  // every field is fought on the round's battlefield — 联防 too, its terrain, crates and water included (0.2.1, the
+  // owner's decision of 2026-10-07; 0.2.0 drew the escaped levels' empty road there and restored the board on leaving)
   useEffect(() => {
     if (!view) return;
-    const st = fieldStage || (ownView ? ownStage : baseStage);
+    const st = ownView ? ownStage : baseStage;
     if (st) view.setStage(st);
-  }, [view, ownView, ownStage, baseStage, fieldStage]);
-  // the stage behind the board ON SCREEN — the one view.setStage was just given: a field's own map (联防, GitHub #41),
-  // else the own one (机变 overrides applied) or, while watching a teammate, the plain one — and how a tapped BOARD tile
-  // maps to it (GitHub issue #184: tileClick → gameLogic.terrainInfo). Everywhere but a boss-prep board the two spaces
-  // are the same: a 最终攻势 / 隐秘核心 battle renders the stage's own rows (GEO.BOSS_RECT), 联防 / normal rects are
-  // stage rows; the boss PREP draws the player's half (stage rows 2–5) as board rows 9–12 (render/prepfield.js toDisp),
-  // which is exactly gameLogic.fieldTile.
-  live.current.terrainStage = fieldStage || (ownView ? ownStage : baseStage);
+  }, [view, ownView, ownStage, baseStage]);
+  // the stage behind the board ON SCREEN — the own one (机变 overrides applied) or, while watching a teammate, the plain
+  // one — and how a tapped BOARD tile maps to it (GitHub issue #184: tileClick → gameLogic.terrainInfo). Everywhere but a
+  // boss-prep board the two spaces are the same: a 最终攻势 / 隐秘核心 battle renders the stage's own rows (GEO.BOSS_RECT),
+  // 联防 / normal rects are stage rows; the boss PREP draws the player's half (stage rows 2–5) as board rows 9–12
+  // (render/prepfield.js toDisp), which is exactly gameLogic.fieldTile.
+  live.current.terrainStage = ownView ? ownStage : baseStage;
   live.current.terrainTile = showPrep && (deployField === 'bossL' || deployField === 'bossR')
     ? (row, col) => fieldTile(deployField, row, col)
     : (row, col) => [row, col];
@@ -1335,7 +1334,7 @@ function MatchScreen() {
           onClick=${() => {
             if (!bondsCollapsed && bondOpen?.from === 'strip') setBondOpen(null);
             setBondsCollapsed(!bondsCollapsed);
-          }}><${Icon} name=${bondsCollapsed ? 'chevronRight' : 'chevronLeft'} /><span>${bondsCollapsed ? t('盟约') : t('收起')}</span></button>
+          }}><${Icon} name=${bondsCollapsed ? 'chevronRight' : 'chevronLeft'} /></button>
         <div id="match-bond-strip" class="gm__bond-list" hidden=${bondsCollapsed}>
           <${BondStrip} bonds=${stripBonds} layersDisabled=${layersDisabled} openId=${bondPop && bondPop.ownerId === strip.ownerId ? bondPop.bondId : null}
             owner=${strip.name} onOpen=${(id) => openBond(id, strip.ownerId, 'strip')} />
@@ -1389,7 +1388,7 @@ function MatchScreen() {
       ${bondPop ? html`<${BondPopup} bondId=${bondPop.bondId} entry=${bondPop.entry} priv=${bondPop.priv} banned=${pub?.bannedChess || []} owner=${bondPop.name}
         off=${offBonds.has(bondPop.bondId)}
         place=${bpPlace} over=${!!resolved && bpPlace === dSide}
-        onClose=${() => setBondOpen(null)} onMember=${(id, items, standInFor) => setDetail({ kind: 'chess', id, owner: bondPop.ownerId, items: items || null, standInFor: standInFor || null })} />` : null}
+        onClose=${() => setBondOpen(null)} onMember=${(id, items, standInFor, diy) => setDetail({ kind: 'chess', id, owner: bondPop.ownerId, items: items || null, standInFor: standInFor || null, diy: diy || null })} />` : null}
 
       ${resolved ? html`<${DetailPanel} detail=${resolved} snapHp=${snapHp} onClose=${() => { setDetail(null); setSel(null); }}
         bonds=${detailBonds} offBonds=${offBonds} loadout=${detailLoadout} side=${dSide} shopOpen=${shopOpen} live=${liveStats} voice=${combat}

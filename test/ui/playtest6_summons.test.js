@@ -115,3 +115,37 @@ test('a golden owner\'s summon card shows the golden variant: 精锐 巫恋\'s d
   assert.equal(unit.type, 'token');
   assert.equal(unit.ownerId, 'chess_char_3_15_b');
 });
+
+// GitHub #260 (PR #278): the 外勤医疗 strategy's map characters are operators of the mode — the card read them as summons
+// (召唤物, an owner variant they do not have: base stats only)
+const allText = (v) => {
+  if (v == null || typeof v === 'boolean') return '';
+  if (typeof v === 'string' || typeof v === 'number') return String(v);
+  if (Array.isArray(v)) return v.map(allText).join('');
+  if (typeof v === 'object' && typeof v.type === 'function' && ['Section', 'Stat', 'LiveTag'].includes(v.type.name)) return allText(v.type(v.props));
+  if (typeof v === 'object' && typeof v.props?.text === 'string') return v.props.text;
+  return typeof v === 'object' ? allText(v.props?.children) : '';
+};
+
+test('GitHub #260: Touch / 预备干员-医疗 cards say 干员 · 医疗 and show the skill, talents and 特性 of their record; 恳切福音 says what the sim does (低于一半)', async () => {
+  await data.loadAll('tokens', 'assets');
+  for (const [id, want] of [
+    ['char_613_acmedc', ['恳切福音', '攻击距离<@ba.vup>+2</>', '攫升', '治疗目标时使其获得3点技力', '超脱', '获得5点技力', '恢复友方单位生命', '初始', '持续']],
+    ['char_605_cmedic', ['治疗强化·β型', '攻击力<@ba.vup>+50%</>', '攻击提升', '攻击力+4%', '恢复友方单位生命']],
+  ]) {
+    // a battle click resolves the unit as its token record
+    const detail = resolveDetail({ kind: 'unit', unit: { id: 91, side: 'ally', defId: id } }, new Map());
+    assert.equal(detail.type, 'token');
+    const text = allText(TokenDetail(detail));
+    assert.match(text, /干员/);
+    assert.match(text, /医疗/);
+    assert.doesNotMatch(text, /召唤物/);
+    for (const w of want) assert.ok(text.includes(w), `${id}: ${w}`);
+    assert.equal(/PRTS 修正/.test(text), id === 'char_613_acmedc', `${id}: the 低于一半 line only under 恳切福音`);
+  }
+  // the record keeps the official sentence; the line under it is what touchGospel does (strictly below hp_ratio)
+  assert.match(TOKENS.char_613_acmedc.skill.desc, /不高于一半/);
+  assert.match(allText(TokenDetail({ token: TOKENS.char_613_acmedc })), /实际为生命值低于一半/);
+  // a summon keeps its summon card
+  assert.match(allText(TokenDetail({ token: TOKENS.token_10006_vodfox_doll, ownerId: 'chess_char_3_15_a' })), /召唤物/);
+});

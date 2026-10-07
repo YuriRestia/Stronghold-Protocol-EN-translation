@@ -3,7 +3,7 @@
 // contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4202_haruka): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json), PRTS 遥 (浮光泡影 备注
 // "进行普通攻击判定时，若范围内存在有效目标，则在本次攻击/治疗后同时触发一次赋予浮泡行为；若无有效目标，且范围内存在可赋予
 // 浮泡的单位，则本次普通攻击改为赋予浮泡…赋予浮泡时，仅选择不具有浮泡的我方单位，优先选择其中生命比例最低者…触发浮泡破碎的
@@ -30,9 +30,9 @@
 //   damage_resistance[inf] of other operators, so it multiplies with those) — while her S3 runs ×damage_resistance_scale
 //   (haruka_s_3_scale re-reads every bubble of hers at its start and end). Damage from an enemy (a `source` on the enemy side)
 //   that lowered its holder's HP sets it off: 0.5 s (bb interval) later it breaks — once, later hits change nothing.
-// - T2 扶摇花火 "浮泡破碎时，为所在的单位治疗相当于遥攻击力25%的生命值": the break heals the holder heal_scale × her ATK as it was
-//   when she gave the bubble (a 治疗 — her heal, also after she left). BLS-Y stage 2+ "并有20%的概率回复1点技力": then prob to
-//   give sp SP to the holder (the client's ModifySp on the BUFF_OWNER).
+// - T2 扶摇花火 "浮泡破碎时，为所在的单位治疗相当于遥攻击力25%的生命值" (full potential: 28%): the break heals the holder
+//   heal_scale × her ATK as it was when she gave the bubble (a 治疗 — her heal, also after she left). BLS-Y stage 2+
+//   "并有20%的概率回复1点技力": then prob to give sp SP to the holder (the client's ModifySp on the BUFF_OWNER).
 // - S1 夜啼彩羽 (MANUAL, DEFAULT, 19 / 20 s): ASPD +attack_speed; heals; while it runs a breaking bubble at once gives a new one
 //   to the ally of the 8 tiles around its holder that holds none, the lowest HP share first (haruka_t_1_delay → shield_s1).
 // - S2 幽隙栖萤 (MANUAL, DEFAULT, 22 / 23 s): heals (attack@max_target_heal_add more targets), max_target_shield_add more

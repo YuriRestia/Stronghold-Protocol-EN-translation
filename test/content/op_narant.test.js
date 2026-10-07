@@ -57,7 +57,7 @@ function done(h) {
 const label = ([tier, elite, mod]) => `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
 const TICK = 1 / 30;
 
-test('娜仁图亚 in every 自选 form: her operator kit (all three skills authored), the form\'s stats + module attributes, y-7 range, ranged physical boomerangs that hit air, block 1, 35 % dodge, no 特质', () => {
+test('娜仁图亚 in every 自选 form: her operator kit (all three skills authored), the form\'s stats + module attributes, y-7 range, ranged physical boomerangs that hit air, block 1, 38 % dodge, no 特质', () => {
   assert.equal(OPERATOR_KITS[NARANT], KITS[NARANT]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -69,14 +69,14 @@ test('娜仁图亚 in every 自选 form: her operator kit (all three skills auth
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.projectile, u.profile.canHitFly, u.base.bat, typeof u.profile.canAttack],
         [1, 'ranged', 'phys', 'boomerang', true, 1, 'function'], `${label(f)}: 回环射手`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: y-7`);
-      assert.deepEqual([u.s.dodgePhys, u.s.dodgeArts], [0.35, 0.35], `${label(f)}: 婀娜虚影 dodge`);
+      assert.deepEqual([u.s.dodgePhys, u.s.dodgeArts], [0.38, 0.38], `${label(f)}: 婀娜虚影 dodge`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [BACKUPS.diy.operators[NARANT].bonds, []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       done(h);
     }
   }
-  // E2 Lv1 2000 / 546 / 144, E2 Lv60 2331 / 632 / 161; LPS-X +25 / +25 → +45 / +45 ATK / DEF, LPS-Y +210 / +20 → +300 / +40 HP / ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2000, 546, 2331, 632]);
+  // full potential: E2 Lv1 2000 / 573 / 144, E2 Lv60 2331 / 659 / 161; LPS-X +25 / +25 → +45 / +45 ATK / DEF, LPS-Y +210 / +20 → +300 / +40 HP / ATK
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2000, 573, 2331, 659]);
   assert.deepEqual([modOf(5, LPSX).attr, modOf(6, LPSX).attr, modOf(5, LPSY).attr, modOf(6, LPSY).attr], [{ atk: 25, def: 25 }, { atk: 45, def: 45 }, { maxHp: 210, atk: 20 }, { maxHp: 300, atk: 40 }]);
 });
 
@@ -119,7 +119,7 @@ test('S1 旋刃 (切换: on until she leaves; data DEFAULT): range −1 (the far
     assert.ok(one.length >= 1 && one.every((c) => c.target === lone), `T${tier}: one hit per attack on a lone enemy`);
     assert.equal(new Set(one.map((c) => c.dmg.attackId)).size, one.length, `T${tier}: no bounce`);
     const before = atkHits(h, u).filter((c) => c.t < one[0].t - 1e-9).length;   // her normal attacks' steals so far
-    approx(one[0].amount, (u.base.atk + Math.min(250, 25 * before)) * sk.bb['attack@atk_scale'], `T${tier}: ${sk.bb['attack@atk_scale'] * 100} % (+ the ATK stolen before)`);
+    approx(one[0].amount, (u.base.atk + Math.min(270, 27 * before)) * sk.bb['attack@atk_scale'], `T${tier}: ${sk.bb['attack@atk_scale'] * 100} % (+ the ATK stolen before)`);
     // A (lone) at 10,5; B at 11,5 (1 from A); C at 9,6 (1.41 from A, 2.24 from B)
     const b = h.spawn('enemy_dummy', { pos: [11, 5] }), c = h.spawn('enemy_dummy', { pos: [9, 6] });
     const far = h.spawn('enemy_dummy', { pos: [12, 5] });   // 2 from A, 1 from B: reachable from B only
@@ -180,7 +180,7 @@ test('S2 恶魇 (30 s, attack SP 18 from 5 / 8): 210 % / 225 % ATK + 停顿 1 s;
     // the hit's ATK scale: her ATK at that hit (base + the steals before it) × 225 %
     const before = atkHits(h, u).filter((c) => c.t < main.t - 1e-9).length;
     const sa = formOf(tier, elite).talents.find((t) => t.index === 0).bb['attack@steal_atk'];
-    approx(main.amount, (u.base.atk + Math.min(250, sa * before)) * sk.bb['attack@atk_scale'], `T${tier}: ${sk.bb['attack@atk_scale'] * 100} %`);
+    approx(main.amount, (u.base.atk + Math.min(270, sa * before)) * sk.bb['attack@atk_scale'], `T${tier}: ${sk.bb['attack@atk_scale'] * 100} %`);
     done(h);
   }
 });
@@ -215,13 +215,13 @@ test('S3 吞日 (20 s): 3 boomerangs per attack (3 hits of 145 % / 160 %, flying
   }
 });
 
-test('T1 “我见，我得”: every landing attack hit steals 25 ATK / 20 DEF — the enemy loses, she gains, each capped at 250 / 200 (LPS-X stage 3: 300 / 240, twice within one tile); two of her: the larger loss, not the sum; a dodged hit steals nothing; all given back when she leaves', () => {
+test('T1 “我见，我得”: every landing attack hit steals 27 ATK / 21 DEF — the enemy loses, she gains, each capped at 270 / 210 (LPS-X stage 3: 324 / 252, twice within one tile); two of her: the larger loss, not the sum; a dodged hit steals nothing; all given back when she leaves', () => {
   for (const f of [[5, false, null], [6, true, null], [5, true, LPSX], [6, true, LPSX], [6, true, LPSY]]) {
     const [tier, elite, mod] = f;
     const t0 = formOf(tier, elite).talents.find((t) => t.index === 0).bb;
     const tc = mod === LPSX && tier === 6 ? modOf(6, LPSX).talentChanges.find((t) => t.talentIndex === 0) : null;
     const capA = tc?.bb['attack@steal_atk_max'] ?? t0['attack@steal_atk_max'], capD = tc?.bb['attack@steal_def_max'] ?? t0['attack@steal_def_max'];
-    assert.deepEqual([t0['attack@steal_atk'], t0['attack@steal_def'], capA, capD], [25, 20, ...(tc ? [300, 240] : [250, 200])], label(f));
+    assert.deepEqual([t0['attack@steal_atk'], t0['attack@steal_def'], capA, capD], [27, 21, ...(tc ? [324, 252] : [270, 210])], label(f));
     const twice = !!tc;
     if (twice) assert.match(tc.desc, /攻击到周围8格的敌人时偷取触发2次/);
     // one hit at two tiles, then one at one tile
@@ -229,15 +229,15 @@ test('T1 “我见，我得”: every landing attack hit steals 25 ATK / 20 DEF 
       const { h, u } = field({ tier, elite, mod, skill: 2 });
       const e = h.spawn('enemy_brute', { pos: [10, 5] });
       assert.ok(h.runUntil(() => atkHits(h, u).length === 1, 3));
-      assert.deepEqual(u.findBuff('talent:narant:loot')?.mods, { atkFlat: 25, defFlat: 20 }, `${label(f)}: she gains`);
-      assert.deepEqual(e.findBuff('narant:stolen')?.mods, { atkFlat: -25, defFlat: -20 }, `${label(f)}: the enemy loses`);
-      assert.deepEqual([e.s.atk, e.s.def], [375, 280], `${label(f)}: its stats`);
+      assert.deepEqual(u.findBuff('talent:narant:loot')?.mods, { atkFlat: 27, defFlat: 21 }, `${label(f)}: she gains`);
+      assert.deepEqual(e.findBuff('narant:stolen')?.mods, { atkFlat: -27, defFlat: -21 }, `${label(f)}: the enemy loses`);
+      assert.deepEqual([e.s.atk, e.s.def], [373, 279], `${label(f)}: its stats`);
       h.b.kill(e, null);
       const near = h.spawn('enemy_brute', { pos: [10, 4] });
       assert.ok(h.runUntil(() => atkHits(h, u).length === 2, 4));
       const k = twice ? 2 : 1;
-      assert.deepEqual(near.findBuff('narant:stolen')?.mods, { atkFlat: -25 * k, defFlat: -20 * k }, `${label(f)}: within one tile ×${k}`);
-      assert.deepEqual(u.findBuff('talent:narant:loot')?.mods, { atkFlat: 25 * (1 + k), defFlat: 20 * (1 + k) }, `${label(f)}: hers`);
+      assert.deepEqual(near.findBuff('narant:stolen')?.mods, { atkFlat: -27 * k, defFlat: -21 * k }, `${label(f)}: within one tile ×${k}`);
+      assert.deepEqual(u.findBuff('talent:narant:loot')?.mods, { atkFlat: 27 * (1 + k), defFlat: 21 * (1 + k) }, `${label(f)}: hers`);
       // the caps
       h.run(40);
       assert.deepEqual(u.findBuff('talent:narant:loot')?.mods, { atkFlat: capA, defFlat: capD }, `${label(f)}: her cap`);
@@ -259,7 +259,7 @@ test('T1 “我见，我得”: every landing attack hit steals 25 ATK / 20 DEF 
   h.run(8);
   const n1 = atkHits(h, u).filter((c) => c.target === e).length, n2 = atkHits(h, v).filter((c) => c.target === e).length;
   assert.ok(n1 >= 3 && n2 >= 3, `both hit it (${n1}, ${n2})`);
-  assert.deepEqual(e.findBuff('narant:stolen')?.mods.atkFlat, -Math.min(250, 25 * Math.max(n1, n2)), 'the larger loss');
+  assert.deepEqual(e.findBuff('narant:stolen')?.mods.atkFlat, -Math.min(270, 27 * Math.max(n1, n2)), 'the larger loss');
   const ghost = h.spawn('enemy_brute', { pos: [11, 4] });
   h.b.kill(e, null);
   h.b.addBuff(ghost, { key: 'test:dodge', mods: { dodgePhys: 1 } });

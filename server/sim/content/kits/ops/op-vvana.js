@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4098_vvana, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 薇薇安娜 (备注 of
 // 散华, 光影迅捷剑 and “明灭”, the AFT-Δ trait note); gamedata_const ba.charged 蓄力, ba.shield 护盾, ba.steal 偷取,
 // ba.magicfragile 法术脆弱; PRTS 作战机制 (伤害流程, 远近途径 "有弹道的攻击固定为10，无弹道的攻击固定为01"); range_table 3-2; the
@@ -17,23 +17,24 @@
 //   元素伤害. Stage 3: 燃烛施明's 灼燃损伤 (below).
 // - Module AFT-Y “最后一行”: trait "自身阻挡的敌人受到10%的法术脆弱效果" (trait bb damage_scale 1.1; vvana_equip_2_*: weak[magic]
 //   to every blockee): the 法术脆弱 status (同名效果取最高) on each enemy she blocks, renewed every 0.2 s for 0.3 s (as 史尔特尔's
-//   AFT-Y). Stage 3: 散华 25 %, 2 layers (below).
-// - T1 燃烛施明 "造成的法术伤害+8%，受到的物理和法术伤害-8%。攻击范围内存在精英或领袖敌人时，该效果提升至2倍" (damage_scale_m,
-//   damage_resistance_pm, super_scale; vvana_t_1[self] / [aura] / [super]: an aura on the enemies of her current range —
-//   targetMotion ALL, flyers too, no untargetable one — and on those she blocks; an ELITE / BOSS one swaps [self] for [super],
-//   ×super_scale): artsDealtMul 1 + 0.08 f, phys / artsTakenMul 1 − 0.08 f, f = super_scale while such an enemy is there, else
-//   1 — re-read every tick and before every hit she deals or takes. AFT-D stage 3 "攻击附带相当于9%伤害的灼燃损伤"
+//   AFT-Y). Stage 3: 散华 27 %, 2 layers (below).
+// - T1 燃烛施明 "造成的法术伤害+8%，受到的物理和法术伤害-8%。攻击范围内存在精英或领袖敌人时，该效果提升至2倍" (full potential: 9 %;
+//   damage_scale_m, damage_resistance_pm, super_scale; vvana_t_1[self] / [aura] / [super]: an aura on the enemies of her current
+//   range — targetMotion ALL, flyers too, no untargetable one — and on those she blocks; an ELITE / BOSS one swaps [self] for
+//   [super], ×super_scale): artsDealtMul 1 + 0.09 f, phys / artsTakenMul 1 − 0.09 f, f = super_scale while such an enemy is there,
+//   else 1 — re-read every tick and before every hit she deals or takes. AFT-D stage 3 "攻击附带相当于9%伤害的灼燃损伤"
 //   (ep_damage_ratio_m; the templates' ON_AFTER_OUTPUT_DAMAGE on her non-continuous arts damage, ApplyElementDamageBasedOnDamageValue
 //   FIRE): each arts damage instance of hers that removes HP carries ep × f × that damage as 灼燃损伤.
-// - T2 散华 "攻击精英或领袖敌人时，有18%概率获得一层仅抵挡近战攻击的护盾（最多1层）" (prob; AFT-Y stage 3: 25 %, max_stack_cnt 2;
-//   S3: × talent_scale; vvana_t_2: ON_OUTPUT_DAMAGE on an ELITE_AND_BOSS target, Dice prob, CreateBuff vvana_t_2[block_melee] —
-//   UNIQUE without max_stack_cnt, STACK up to it with — so a roll at the cap changes nothing, PRTS "※自身未存在本天赋的护盾时，每对
-//   符合条件的目标造成一次伤害判定一次本天赋"): one roll per damage instance she outputs on an elite / leader (any damage — the AFT-D
-//   rider too — at the output, before the target's dodge / cancel). vvana_t_2[block_melee]: ON_TAKE_DAMAGE from an ENEMY source
-//   with apply way MELEE → BlockDamage, one layer spent (ba.shield "每层护盾可以抵挡一次伤害"; PRTS "※仅来源于敌方单位的近战途径伤害
-//   可触发本天赋的护盾"): an enemy's damage that did not fly as a projectile (DamageInfo `isProjectile`, ai.js enemyAttack) is
-//   negated whole in a late `hit` handler (cancel, as the enemies' 护盾 layers in content/enemies.js); 无来源 damage has no enemy
-//   source. The enemy content's own projectiles (invisible / leaders / fly kits) are not marked and count as melee [ASSUMED].
+// - T2 散华 "攻击精英或领袖敌人时，有18%概率获得一层仅抵挡近战攻击的护盾（最多1层）" (full potential: 20 %; prob; AFT-Y stage 3:
+//   27 %, max_stack_cnt 2; S3: × talent_scale; vvana_t_2: ON_OUTPUT_DAMAGE on an ELITE_AND_BOSS target, Dice prob, CreateBuff
+//   vvana_t_2[block_melee] — UNIQUE without max_stack_cnt, STACK up to it with — so a roll at the cap changes nothing, PRTS
+//   "※自身未存在本天赋的护盾时，每对符合条件的目标造成一次伤害判定一次本天赋"): one roll per damage instance she outputs on an elite /
+//   leader (any damage — the AFT-D rider too — at the output, before the target's dodge / cancel). vvana_t_2[block_melee]:
+//   ON_TAKE_DAMAGE from an ENEMY source with apply way MELEE → BlockDamage, one layer spent (ba.shield "每层护盾可以抵挡一次伤害";
+//   PRTS "※仅来源于敌方单位的近战途径伤害可触发本天赋的护盾"): an enemy's damage that did not fly as a projectile (DamageInfo
+//   `isProjectile`, ai.js enemyAttack) is negated whole in a late `hit` handler (cancel, as the enemies' 护盾 layers in
+//   content/enemies.js); 无来源 damage has no enemy source. The enemy content's own projectiles (invisible / leaders / fly kits)
+//   are not marked and count as melee [ASSUMED].
 // - S1 光影迅捷剑 (AUTO, 2 charges, data DEFAULT — a "next attack" waits for her attack): the next attack at atk_scale × ATK,
 //   S1_HITS hits (S1_Attack2, `_additionalTimes` 1). 蓄力 (ba.charged "回复至上限2倍时进入蓄力状态…任何时候开启均消耗全部技力"; PRTS
 //   备注 "未满足蓄力所需技力时…仅消耗技能最低所需技力" / "“蓄力”模式将在下一次技能结束时结束" / "“蓄力”模式期间…攻击范围变为3-2";

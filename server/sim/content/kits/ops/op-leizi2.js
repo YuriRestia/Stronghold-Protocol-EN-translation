@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1043_leizi2, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, LIB-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, LIB-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); the client's battle
 // logic — buff_template_data (leizi2_tr, leizi2_e_002_tr, leizi2_s_cast, leizi2_t_1[atk_up] / [on_calcul] / [fly] /
 // [trigger] / [buff_start], leizi2_s_2[try_add_atk], leizi2_s_3), her charpack (Trait buff: triggerInterval 1; the
@@ -22,7 +22,7 @@
 //   (leizi2_e_002_tr: init_atk / (atk / max_stack_cnt) stacks at each deployment) — the profile's rampInit (her DISPLAY
 //   trait part carries no blackboard, unlike 玛恩纳's, so the kit hands it over).
 // - T1 明断 "攻击范围内每个地块每秒有10%的概率落雷对所有敌人造成相当于攻击力100%的法术伤害。未开启技能时起飞；技能期间攻击时攻击
-//   力提升至107%":
+//   力提升至107%" (full potential: 111 %):
 //   · the strikes (PRTS 备注's algorithm, the thunder ability's numbers): every 1.0333 s from each deployment, each tile of
 //     her current attack range — first seen: a counter at a random 0…14; else +1, and at 15 the tile is struck and its
 //     counter restarts at a random 3…7; counters outlive a tile leaving the range and die with the deployment. A strike
@@ -36,8 +36,8 @@
 //     her block count is the trait's 0 from the skill's end on.
 //   · leizi2_t_1[on_calcul] (AtkScaleUp on ON_CALCULATE_DAMAGE while a skill runs; PRTS "对自身技能期间造成的所有伤害生效"):
 //     an atkScaleMul ×atk_scale[skill_up] buff for the skill's time — her attacks (ai.js resolveHit) and every damage this
-//     kit computes (strikes, S1, currents) multiply it. LIB-X stage 2+: the module talent's value (stage 3: 1.13).
-// - T2 追责 "开启技能时，使攻击范围内所有地面地块落雷，对所有敌人造成相当于攻击力100%的法术伤害和2秒战栗": at every cast (each S1
+//     kit computes (strikes, S1, currents) multiply it. LIB-X stage 2+: the module talent's value (stage 3: 1.17).
+// - T2 追责 "开启技能时，使攻击范围内所有地面地块落雷，对所有敌人造成相当于攻击力100%的法术伤害和2秒战栗" (full potential: 3 s): at every cast (each S1
 //   charge too) every low tile of her attack range — the skill's, S2's flood fill included — is struck, ring by ring by
 //   Manhattan distance from her tile (PRTS "自内向外"), 0.25 s per ring (the thunder `_rangeCastDelay`; 0.07 s under S1 —
 //   leizi2_t_1[trigger] `_specialRangeCastDelay`), each landing 0.15 s after its cast: atk_scale_t2 × ATK arts and 战栗

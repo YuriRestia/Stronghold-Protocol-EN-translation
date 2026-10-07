@@ -70,8 +70,8 @@ test('贝洛内 in every 自选 form: his operator kit (all three skills authore
       done(h);
     }
   }
-  // E2 Lv1 2152 / 490 / 298, E2 Lv60 2466 / 566 / 336; FGT-Y +140 / +50 → +230 / +80
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2152, 490, 2466, 566]);
+  // full potential: E2 Lv1 2152 / 514 / 298, E2 Lv60 2466 / 590 / 336; FGT-Y +140 / +50 → +230 / +80
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2152, 514, 2466, 590]);
   assert.deepEqual([modOf(5, FGTY).attr, modOf(6, FGTY).attr], [{ maxHp: 140, atk: 50 }, { maxHp: 230, atk: 80 }]);
 });
 
@@ -101,7 +101,7 @@ test('FGT-Y “实用的工具”: ASPD +10 while his HP is above 50 % (stages 1
   }
 });
 
-test('T1 家族手段: each attack hit puts one more 【手段】 stack on its target before its damage (DEF ×(1 − 7 % × n), FGT-Y stage 3: 8 %; at most 5) for 10 s; and his damage ×1 → ×1.28 (×1.42) linearly as the target falls from 100 % to 20 % HP', () => {
+test('T1 家族手段: each attack hit puts one more 【手段】 stack on its target before its damage (DEF ×(1 − 7 % × n), FGT-Y stage 3: 8 %; at most 5) for 10 s; and his damage ×1 → ×1.36 (×1.5) linearly as the target falls from 100 % to 20 % HP', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
@@ -109,7 +109,7 @@ test('T1 家族手段: each attack hit puts one more 【手段】 stack on its t
     const t = talentOf(u, 0);
     const y3 = elite && mod === FGTY && tier === 6;
     assert.deepEqual([t['attack@def'], t['attack@limited_stack_cnt'], t['attack@s2_limited_stack_cnt'], t['attack@def_dec_duration'], t.min_hp_ratio, t.max_hp_ratio, t.max_add_on_scale],
-      [y3 ? -0.08 : -0.07, 5, 8, 10, 1, 0.2, y3 ? 0.42 : 0.28], `${label(f)}: the talent of the form`);
+      [y3 ? -0.08 : -0.07, 5, 8, 10, 1, 0.2, y3 ? 0.5 : 0.36], `${label(f)}: the talent of the form`);
     const pct = -t['attack@def'];
     const e = h.spawn('enemy_armor', { pos: [10, 6] });
     const n0 = atkHits(h, u).length;

@@ -72,9 +72,9 @@ test('凯尔希·思衡托 in every 自选 form: her operator kit (all three ski
       const { h, u, a } = field({ tier, elite, skill, anchor: { row: 10, col: 9 } });
       const form = formOf(tier, elite), t0 = talentOf(tier, elite, 0);
       assert.deepEqual([u.def.charId, u.def.diyFor, u.skill.id, !!u.kit.generic, u.kit.skillSource], [KALTS2, SLOT[tier], form.skills[skill].skillId, false, 'skills'], label(f));
-      assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.bat, u.base.cost], [form.stats.maxHp, form.stats.atk, form.stats.def, 2.85, 19], `${label(f)}: stats`);
-      approx(u.s.maxHp, form.stats.maxHp * (1 + t0.max_hp), `${label(f)}: 生命上限 +25 %`);
-      approx(u.s.def, form.stats.def * (1 + t0.def), `${label(f)}: 防御力 +25 %`);
+      assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.bat, u.base.cost], [form.stats.maxHp, form.stats.atk, form.stats.def, 2.85, 17], `${label(f)}: stats`);
+      approx(u.s.maxHp, form.stats.maxHp * (1 + t0.max_hp), `${label(f)}: 生命上限 +30 %`);
+      approx(u.s.def, form.stats.def * (1 + t0.def), `${label(f)}: 防御力 +30 %`);
       assert.deepEqual([u.s.blockCnt, u.s.blockRadiusScale, t0.block_cnt, t0.block_radius_scale], [2, 0.23, 1, 0.23], `${label(f)}: 阻挡数 +1, 阻挡半径倍率 +0.23`);
       assert.deepEqual([u.profile.dmgType, u.profile.heal, u.profile.attack, u.def.subProf], ['heal', { mode: 'single' }, 'ranged', 'watchman'], `${label(f)}: 守望者 heal`);
       assert.deepEqual([u.s.flags.liftoff, u.s.flags.blockFly], [true, true], `${label(f)}: 起飞`);
@@ -88,8 +88,8 @@ test('凯尔希·思衡托 in every 自选 form: her operator kit (all three ski
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 1393 / 408 / 220, E2 Lv60 1543 / 476 / 257; the anchor 2235 HP, 3 DP, 70 s
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/3'].stats.atk], [1393, 408, 1543, 476]);
+  // the numbers of the forms (zh_CN): E2 Lv1 1393 / 433 / 220, E2 Lv60 1543 / 501 / 257; the anchor 2235 HP, 3 DP, 70 s
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/3'].stats.atk], [1393, 433, 1543, 501]);
   assert.deepEqual([variantOf(5, false).stats.maxHp, variantOf(6, true).stats.cost, TOKEN.placeable], [2235, 3, true]);
 });
 
@@ -139,11 +139,11 @@ test('T1 遗尘守望 起飞: no ground enemy targets her or is blocked by her; 
   done(h);
 });
 
-test('T2 医者丰碑: an operator entering her range gets 1 护盾 layer (one damage instance blocked) and 生命回复速度 +50 for 30 s (罗德岛 +100); summons and she get nothing; a new entry refreshes, never a 2nd layer', () => {
+test('T2 医者丰碑: an operator entering her range gets 1 护盾 layer (one damage instance blocked) and 生命回复速度 +60 for 30 s (罗德岛 +120); summons and she get nothing; a new entry refreshes, never a 2nd layer', () => {
   for (const f of [[5, false], [6, true]]) {
     const [tier, elite] = f;
     const t1 = talentOf(tier, elite, 1);
-    assert.deepEqual([t1.buff_duration, t1.hp_recovery_per_sec, t1.rhodes_bonus], [30, 50, 2], label(f));
+    assert.deepEqual([t1.buff_duration, t1.hp_recovery_per_sec, t1.rhodes_bonus], [30, 60, 2], label(f));
     const others = [{ uid: 3, chessId: YAK, row: 10, col: 5 }, { uid: 4, chessId: PERFUMER, row: 9, col: 5 },
       { uid: 5, chessId: TEXAS, row: 12, col: 8 }, { uid: 6, diy: { slot: 6, charId: 'char_003_kalts', skillIndex: 0 }, row: 12, col: 2 },
       { uid: 7, kind: 'token', tokenId: 'token_10002_kalts_mon3tr', ownerUid: 6, row: 11, col: 5 }];
@@ -151,7 +151,7 @@ test('T2 医者丰碑: an operator entering her range gets 1 护盾 layer (one d
     const yak = h.unit(3), pf = h.unit(4), tx = h.unit(5), m = h.unit(7);
     assert.equal(pf.def.raw.nationId, 'rhodes');
     assert.ok(yak.findBuff('talent:kalts2:shield') && yak.findBuff('talent:kalts2:shield').shieldHits === 1, `${label(f)}: 角峰 1 护盾 layer`);
-    assert.deepEqual([yak.findBuff('talent:kalts2:regen')?.mods, pf.findBuff('talent:kalts2:regen')?.mods], [{ hpRegen: 50 }, { hpRegen: 100 }], `${label(f)}: 50 / 罗德岛 100 HP/s (生命回复速度)`);
+    assert.deepEqual([yak.findBuff('talent:kalts2:regen')?.mods, pf.findBuff('talent:kalts2:regen')?.mods], [{ hpRegen: 60 }, { hpRegen: 120 }], `${label(f)}: 60 / 罗德岛 120 HP/s (生命回复速度)`);
     approx(yak.findBuff('talent:kalts2:regen').timeLeft, 30, `${label(f)}: 30 s`, 0.01);
     assert.ok(!m.findBuff('talent:kalts2:shield') && !m.findBuff('talent:kalts2:regen'), `${label(f)}: no summon`);
     assert.ok(!u.findBuff('talent:kalts2:shield') && !u.findBuff('talent:kalts2:regen'), `${label(f)}: not herself`);
@@ -179,8 +179,8 @@ test('T2 医者丰碑: an operator entering her range gets 1 护盾 layer (one d
     const r0 = tx.s.hpRegen;   // (调香师's own 熏衣草 regen on everyone)
     assert.ok(h.b.relocate(tx, 9, 3));
     h.step();
-    approx(tx.s.hpRegen - r0, 50, `${label(f)}: 德克萨斯 enters`);
-    assert.deepEqual(tx.findBuff('talent:kalts2:regen')?.mods, { hpRegen: 50 });
+    approx(tx.s.hpRegen - r0, 60, `${label(f)}: 德克萨斯 enters`);
+    assert.deepEqual(tx.findBuff('talent:kalts2:regen')?.mods, { hpRegen: 60 });
     done(h);
   }
 });
@@ -328,7 +328,7 @@ test('S3 with her anchor: 0.1 s after the cast she flies to it (hidden, 无敌, 
     assert.equal(u.mem.summonStock[ANCHOR], 0, `${label(f)}: stock emptied`);
     assert.ok(u.skill.active, label(f));
     approx(u.skill.timeLeft, tl, `${label(f)}: the remaining time kept`, 0.1);
-    assert.equal(sil.findBuff('talent:kalts2:regen')?.mods.hpRegen, 50, `${label(f)}: 赫默, 2.0 from her flight, entered T2`);
+    assert.equal(sil.findBuff('talent:kalts2:regen')?.mods.hpRegen, 60, `${label(f)}: 赫默, 2.0 from her flight, entered T2`);
     h.runUntil(() => !u.skill.active, 40);
     h.run(5);
     assert.ok(!a.alive, `${label(f)}: no anchor back after the skill (stock 0)`);

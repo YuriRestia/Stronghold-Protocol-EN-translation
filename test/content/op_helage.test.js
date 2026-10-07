@@ -68,9 +68,9 @@ test('赫拉格 in every 自选 form: his operator kit (all three skills authore
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 2868 / 632 / 283, E2 Lv60 3502 / 718 / 317; SBL-X +230 HP +55 ATK → +350 / +90,
+  // the numbers of the forms (zh_CN): E2 Lv1 2868 / 658 / 283, E2 Lv60 3502 / 744 / 317; SBL-X +230 HP +55 ATK → +350 / +90,
   // SBL-Y +55 ATK +50 DEF → +90 / +60
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2868, 632, 3502, 718]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [2868, 658, 3502, 744]);
   assert.deepEqual([modOf(5, SBLX).attr, modOf(6, SBLX).attr, modOf(5, SBLY).attr, modOf(6, SBLY).attr], [{ maxHp: 230, atk: 55 }, { maxHp: 350, atk: 90 }, { atk: 55, def: 50 }, { atk: 90, def: 60 }]);
 });
 
@@ -195,11 +195,11 @@ test('T1 月盈星亏: 坚忍 ASPD up to +100 at 70 % of his HP lost (linear); S
   }
 });
 
-test('T2 运筹帷幄: 60 HP / s (生命回复速度) while he blocks nobody, none while blocking; SBL-Y stage 3: 80 / s, and also while blocking below 30 % HP', () => {
+test('T2 运筹帷幄: 70 HP / s (生命回复速度) while he blocks nobody, none while blocking; SBL-Y stage 3: 90 / s, and also while blocking below 30 % HP', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const y3 = elite && mod === SBLY && tier === 6;
-    const regen = y3 ? 80 : 60;
+    const regen = y3 ? 90 : 70;
     const { h, u } = field({ tier, elite, mod, skill: 2, row: 9, col: 5 });
     h.step();
     assert.equal(u.s.hpRegen, regen, `${label(f)}: blocking nobody`);
@@ -214,7 +214,7 @@ test('T2 运筹帷幄: 60 HP / s (生命回复速度) while he blocks nobody, no
     assert.equal(u.s.hpRegen, 0, `${label(f)}: none while blocking above 30 % HP`);
     u.hp = u.s.maxHp * 0.25;
     h.step();
-    assert.equal(u.s.hpRegen, y3 ? 80 : 0, `${label(f)}: blocking below 30 % HP`);
+    assert.equal(u.s.hpRegen, y3 ? 90 : 0, `${label(f)}: blocking below 30 % HP`);
     done(h);
   }
 });

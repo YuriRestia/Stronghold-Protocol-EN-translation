@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_1050_chen3, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, AFT-X at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, AFT-X at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); the client's battle
 // logic — buff_template_data (chen3_t2 / [timer] / [evade], chen3_s1[derived_silence], chen3_s2[dead_listener] /
 // [record_position] / [try_resapwn] / [respawn_buff], chen3_s3[ensure_dmg] / [finish_projectile]), her charpack (talent 1
@@ -15,8 +15,8 @@
 // 移动时可继承闪避效果"; S2 / S3 备注), Terra wiki Ch'en the Dawnstreak (the wave's enemy hitbox 1.3).
 // - Trait (术战者) "攻击造成法术伤害": the artsfghter profile (melee arts, ground only), range 1-1, blocks 1. Module AFT-X
 //   “记忆残页” adds "未阻挡敌人时攻击速度+8" (trait attack_speed): ASPD + while she blocks nobody.
-// - T1 形意洞照 "攻击力+13%，攻击速度+13，造成的物理和法术伤害变为弱点伤害" (PRTS 修正): a permanent ATK / ASPD buff, and
-//   every physical or arts damage instance she deals becomes 弱点伤害 (ba.weaknessatk "根据目标防御力和法术抗性变更伤害类
+// - T1 形意洞照 "攻击力+13%，攻击速度+13，造成的物理和法术伤害变为弱点伤害" (PRTS 修正; full potential: +16% / +16): a permanent ATK /
+//   ASPD buff, and every physical or arts damage instance she deals becomes 弱点伤害 (ba.weaknessatk "根据目标防御力和法术抗性变更伤害类
 //   型"): the type the target resists less (items/battle.js weaknessRetype, as 双模机械臂 / 陈's band 以己之长).
 // - T2 寒暑觉知 "未受到伤害时，每N秒随机治疗自身一定（攻击力的X%~Y%）生命值，并闪避下次物理与法术攻击": a counter +1 every
 //   second (chen3_t2[timer]: triggerInterval 1, the first a second in), back to 0 with every damage instance she takes
@@ -26,7 +26,7 @@
 //   or arts damage instance that can be dodged (Evade PHYSICAL_AND_MAGICAL), then is spent. Its priority is −1000 (PRTS;
 //   onEventPriority LOW_PRIORITY): her other dodges (S2's) are rolled first, and the held dodge is kept when one of them
 //   wins. S2's 【移动】 keeps it (PRTS "二技能移动时可继承闪避效果") — and the counter, as the engine's 【移动】 keeps the rest
-//   (DESIGN §22.3). AFT-X stage 2+: the module talent's numbers (stage 3: 6 s, 50 %–200 %).
+//   (DESIGN §22.3). AFT-X stage 2+: the module talent's numbers (stage 3 at full potential: 6 s, 55 %–205 %).
 // - S1 赤霄·奔夜 (MANUAL, data DEFAULT): ATK +atk for `duration` s, every attack hits twice (二连击) and 特殊能力失效 — 沉默 —
 //   its target until the skill ends (chen3_s1[derived_silence]: derived from the skill's holder buff, independentCharacter
 //   Source): the status for the skill's time left; an early end (she leaves) lifts the ones she set.

@@ -4,7 +4,7 @@
 // add an operator (自选)").
 //
 // Forms (data/backups.json units.char_450_necras): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7, the
-// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no account].
+// module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table / the token row (zh_CN, as built into backups.json), PRTS 死芒
 // (复燃 备注 "天赋无视敌人隐匿效果。优先在被击倒敌人所在地块进行召唤，此地块不可部署或非通过击杀触发此天赋时于攻击范围内随机可部署地块
 // （优先存在敌人的）进行召唤，召唤物的朝向与死芒保持一致", "无法再次召唤时尝试升级召唤物（无视孤立）：优先选择未升级的>生命值最低>仇恨值
@@ -43,8 +43,8 @@
 //   shares): "自身和召唤物攻击范围内敌人被击倒时在10秒内自身攻击力+25%，并在攻击范围内生成一个悲叹的仆役": a knock-out on her range
 //   or on one of her summons' ranges ⇒ her ATK +atk for atk_duration s (refreshed), and one on a summon's range only queues a
 //   summon with no tile (a random tile of her range).
-// - T2 回光黯淡 "自身和召唤物攻击生命低于50%的敌人时攻击力提升至140%": every damage she or her summons deal to an enemy below
-//   hp_ratio HP × damage_scale (necras_t_2 DamageScale: the final damage).
+// - T2 回光黯淡 "自身和召唤物攻击生命低于50%的敌人时攻击力提升至140%" (full potential: 60%, 145%): every damage she or her
+//   summons deal to an enemy below hp_ratio HP × damage_scale (necras_t_2 DamageScale: the final damage).
 // - 悲叹的仆役: the token's stats for her form; arts melee, x-5, blocks 1 (upgraded 2), 禁疗; the normal form holds 阻回 / 沉默 (no
 //   skill). Her leaving withdraws them; each is withdrawn when she leaves (WithdrawTokens).
 // - S1 噩愿 (MANUAL, data DEFAULT): passive — each 悲叹的仆役 made or upgraded (the T1 upgrade) strikes every enemy within

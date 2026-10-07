@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4226_veen, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, MSC-Y at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, MSC-Y at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json) and PRTS 维伊 (the 备注
 // quoted below).
 // - Trait (秘术师) "攻击造成法术伤害，在找不到攻击目标时可以将攻击能量储存起来之后一齐发射" (ranged arts, hits air units,
@@ -19,8 +19,9 @@
 //   备注 "弹道创建顺序"); one volley flies to one target and lands at once, so the kit resolves all its hits as the main bolt
 //   lands (the engine's own hit makes none: `hitsFn` 0), with that attack's attackId, the later ones only on a target still
 //   alive. [ASSUMED] a redeployment holds no energy.
-// - T1 “在挥刀之前” "拥有转置能量时攻击力+10%，未拥有转置能量时攻击速度+15" (bb atk / attack_speed): two toggles on her
-//   stored state (checked every tick — the 备注's "攻击力加成失效存在短暂延迟": the volley that spends the 转置能量 keeps it).
+// - T1 “在挥刀之前” "拥有转置能量时攻击力+10%，未拥有转置能量时攻击速度+15" (full potential: ATK +12 %; bb atk / attack_speed):
+//   two toggles on her stored state (checked every tick — the 备注's "攻击力加成失效存在短暂延迟": the volley that spends the
+//   转置能量 keeps it).
 // - T2 战争技艺 "攻击和储存的能量使目标在5秒内每秒受到90点法术伤害（至多叠加3次，发射转置能量可以叠加3次），维伊不以该效果影响的
 //   敌人为攻击目标" (bb attack@duration / attack@value / attack@max_stack_cnt; MSC-Y stage 3: 120 / 4): each hit adds 1
 //   stack (a 转置能量 3, an S3 bounce 1 — S3 备注 "相当于一发储存能量"), each stack attack@value arts per second, the 5 s

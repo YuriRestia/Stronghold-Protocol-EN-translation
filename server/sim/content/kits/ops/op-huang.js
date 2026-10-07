@@ -3,7 +3,7 @@
 // Kit contract and the 自选 rules: ../README.md ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_017_huang, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
-// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Potential 0 [ASSUMED: no account].
+// elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6). Full potential (the owner's decision of 2026-10-07).
 // Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into backups.json); PRTS 煌 (talent and
 // skill 备注, the CEN-X note); the client's buff templates (buff_template_data `huang_s_3`, `huang_t_1[heal]` / `[lock]`,
 // `huang_e_003[lock]` / `[heal]`, `huang_t_2…`); Arknights Terra Wiki "Blaze" (the S3 notes).
@@ -12,19 +12,19 @@
 //   为攻击力倍率提升" — every damage instance of hers whose target is blocked (by anyone) takes ×atk_scale on its ATK-based
 //   amount (before DEF): normal attacks, S1, the S3 cuts and burst. Module CEN-Y "生命值高于50%时受到的物理伤害降低20%"
 //   (trait bb hp_ratio / damage_resistance): physical damage taken × (1 − damage_resistance) while HP > hp_ratio.
-// - T1 紧急除颤 "在生命值低于25%时，仅一次回复50%的生命值并在6秒内使生命值不低于50%" (bb hp_ratio,
+// - T1 紧急除颤 "在生命值低于25%时，仅一次回复50%的生命值并在6秒内使生命值不低于50%" (full potential: 7 s; bb hp_ratio,
 //   huang_t_1[heal].hp_ratio, huang_t_1[lock].min_hp_ratio / .duration). PRTS 备注: every deployment she holds 不死 until
 //   the first time her HP ratio is ≤ hp_ratio; then the heal (max HP × [heal].hp_ratio, a heal — huang_t_1[heal]
 //   HealViaMaxHpRatio) and for [lock].duration s every damage that would take her below [lock].min_hp_ratio × max HP is
 //   cut to what is left above it ("该伤害减少(伤害值-煌当前生命值+煌最大生命值×50%)点": the `hpDamage` hook after the
 //   shields — a 伤判效果, so a 流失 such as her S3's is not held). CEN-Y stage 3 (talent hp_ratio 0.5 + the hidden
-//   huang_e_003[lock] part): "在生命值首次低于25%、50%时…8秒内…": the talent fires at 50 %, and a second trigger at
+//   huang_e_003[lock] part): "在生命值首次低于25%、50%时…8秒内…" (full potential: 9 s): the talent fires at 50 %, and a second trigger at
 //   check_hp_ratio (25 %) with its own 不死 (huang_e_003[undead]) fires only once the first is spent ("生命值首次低于50%
 //   始终先于…25%生效"), re-checking the HP after the first one's heal [ASSUMED: both read the current HP]; its heal is
 //   skipped while the first lock runs (huang_e_003[heal] "CheckContainsBuff huang_t_1[lock] → IfNot → heal"). The hidden
 //   part's hp_ratio / def_penetrate_fixed (CEN-Y stage 2+): "生命值高于50%时攻击无视目标150点防御力" — a defIgnoreFlat
 //   buff while HP > hp_ratio (every damage of hers).
-// - T2 严酷训练 "在战场停留15秒后获得抵抗" (bb one_minus_status_resistance, interval): `interval` s after each deployment
+// - T2 严酷训练 "在战场停留15秒后获得抵抗" (full potential: 12 s; bb one_minus_status_resistance, interval): `interval` s after each deployment
 //   the engine 抵抗 (huang_t_2 creates status_resistance[inf]: control statuses last half as long) until she leaves.
 //   CEN-X stage 3 adds "30秒后攻击力+6%，45秒后攻速+12" (huang_t_2[e_002_atk].atk / .interval, [e_002_atk_speed]
 //   .attack_speed / .interval: an ATK MULTIPLIER and an ATTACK_SPEED ADDITION, INFINITY lifetime).

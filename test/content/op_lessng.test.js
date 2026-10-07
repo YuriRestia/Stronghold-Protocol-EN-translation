@@ -116,13 +116,13 @@ test('T1 苦痛专注: while he blocks, physical / arts damage from anyone but a
   }
 });
 
-test('T2 痛楚砺刃: any damage aimed at him (a dodged one too) ⇒ ATK +12 % (DRE-X stage 3: +20 %) for 15 s, refreshed, never stacked', () => {
+test('T2 痛楚砺刃: any damage aimed at him (a dodged one too) ⇒ ATK +16 % (DRE-X stage 3: +24 %) for 15 s, refreshed, never stacked', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const { h, u } = field({ tier, elite, mod });
     const t = talentOf(u, 1);
     const x3 = elite && mod === DREX && tier === 6;
-    assert.deepEqual([t.atk, t.add_atk_duration], [x3 ? 0.2 : 0.12, 15], `${label(f)}: the talent of the form`);
+    assert.deepEqual([t.atk, t.add_atk_duration], [x3 ? 0.24 : 0.16, 15], `${label(f)}: the talent of the form`);
     const e = h.spawn('enemy_dummy', { pos: [11, 8] });
     assert.equal(u.findBuff(PAIN_KEY), null);
     h.b.addBuff(u, { key: 'test:dodge', mods: { dodgePhys: 1 } });

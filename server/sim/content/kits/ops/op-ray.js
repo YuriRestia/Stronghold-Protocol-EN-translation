@@ -4,8 +4,8 @@
 // ("How to add an operator (自选)").
 //
 // Forms (data/backups.json units.char_4117_ray): normal = E2 Lv1, skills at rank 4, no module; elite = E2 Lv60, rank 7,
-// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Potential 0 [ASSUMED: no
-// account]. Sources: character_table / skill_table / battle_equip_table / the token's character_table row (zh_CN, as
+// the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05. Full potential (the owner's
+// decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table / the token's character_table row (zh_CN, as
 // built into backups.json) and PRTS 莱伊 (巡哨伙伴 / 入神 / S1 / S2 / S3 备注), PRTS 沙地兽 (备注 "持有禁疗、无敌", "退场时返还1
 // 个可部署的沙地兽", "莱伊退场时强制撤退场上的沙地兽"; its skill "仅在持有者携带技能2时才会携带"), PRTS 分支特性信息 猎手, BWIKI
 // 莱伊 ("装填间隔即为攻击间隔，初始子弹数即为最大子弹数"), PRTS 卫戍协议/帮助 (a placed summon that leaves is deployed again on
@@ -34,7 +34,7 @@
 //   的沙地兽"]; it is untargetable (its trait text), 无敌 and 禁疗 (PRTS 备注), makes no attack (实体类型 装置) [ASSUMED], and
 //   is withdrawn when 莱伊 leaves the field (PRTS 备注). A 沙地兽 that left comes back on its tile once its redeploy time
 //   (×(1 + S2 respawn_time) while 广域警觉 runs) has passed, paying its cost (3 DP), while 莱伊 is on the field.
-// - T2 入神 "攻击相同目标时每次攻击提高自身攻击力8%，最多3层" (bb atk / max_stack_cnt; HUN-Y stage 3: 9 %, 4 layers). PRTS 备注:
+// - T2 入神 "攻击相同目标时每次攻击提高自身攻击力8%，最多3层" (full potential: 9 %; bb atk / max_stack_cnt; HUN-Y stage 3: 10 %, 4 layers). PRTS 备注:
 //   "每次攻击前：若目标与上次攻击目标不同，失去之前获得的增益；随后获得一层增益，持续时间无限" — before each attack (the special
 //   bullet of S1 too; never a reload), lost on a new target, gone when she leaves the field.
 // - S1 脱身矢 (MANUAL, 2 charges, data DEFAULT): "立即用额外特殊子弹攻击目标，造成相当于攻击力N%的物理伤害并将其中等力度地推开，

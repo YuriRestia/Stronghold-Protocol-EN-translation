@@ -79,9 +79,9 @@ test('凯尔希 in every 自选 form: her operator kit (all three skills authore
       done(h);
     }
   }
-  // E2 Lv1 1469 / 392 / 172, E2 Lv60 1578 / 457 / 201; PHY-X +35 / +15 → +60 / +25 ATK / DEF, PHY-Y +115 / +5 → +195 / +7
+  // E2 Lv1 1469 / 417 / 172, E2 Lv60 1578 / 482 / 201 (full potential); PHY-X +35 / +15 → +60 / +25 ATK / DEF, PHY-Y +115 / +5 → +195 / +7
   // HP / ASPD, ISW-A +24 / +5 → +50 / +7 ATK / ASPD; Mon3tr 4292 / 1149 / 336 → 5048 / 1317 / 382
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1469, 392, 1578, 457]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1469, 417, 1578, 482]);
   assert.deepEqual([modOf(5, PHYX).attr, modOf(6, PHYX).attr, modOf(5, PHYY).attr, modOf(6, PHYY).attr, modOf(5, ISWA).attr, modOf(6, ISWA).attr],
     [{ atk: 35, def: 15 }, { atk: 60, def: 25 }, { maxHp: 115, aspd: 5 }, { maxHp: 195, aspd: 7 }, { atk: 24, aspd: 5 }, { atk: 50, aspd: 7 }]);
   assert.deepEqual([variantOf(5, false).stats.maxHp, variantOf(5, false).stats.atk, variantOf(6, true).stats.maxHp], [4292, 1149, 5048]);
@@ -168,12 +168,12 @@ test('T1 Mon3tr: DEF ×0 off her range (PHY-Y stage 3: inside ASPD +20, DEF +20 
   }
 });
 
-test('T2 不毁重构: Mon3tr knocked out ⇒ every enemy of its 3×3 (air units too) takes 1200 true damage (溅射) and a 3 s stun; PHY-X stage 3: 1500 / 3.5 s, and once per deployment when a hit leaves it at or below half HP', () => {
+test('T2 不毁重构: Mon3tr knocked out ⇒ every enemy of its 3×3 (air units too) takes 1400 true damage (溅射) and a 3.5 s stun; PHY-X stage 3: 1700 / 4 s, and once per deployment when a hit leaves it at or below half HP', () => {
   for (const f of [[5, false, null], [6, true, PHYX], [5, true, PHYX], [6, true, PHYY]]) {
     const [tier, elite, mod] = f;
     const rb = rattleOf(tier, elite, mod);
     const x3 = tier === 6 && mod === PHYX;
-    assert.deepEqual([rb.value, rb.stun, rb.hp_ratio ?? 0], x3 ? [1500, 3.5, 0.5] : [1200, 3, 0], label(f));
+    assert.deepEqual([rb.value, rb.stun, rb.hp_ratio ?? 0], x3 ? [1700, 4, 0.5] : [1400, 3.5, 0], label(f));
     const { h, m } = field({ tier, elite, mod, skill: 0 });
     const e1 = h.spawn('enemy_dummy', { pos: [11, 5] }), e2 = h.spawn('enemy_fly', { pos: [9, 3] }), far = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.step();   // the enemies on the tile index

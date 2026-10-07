@@ -76,7 +76,7 @@ test('遥 in every 自选 form: her kit (all three skills authored), the form\'s
       done(h);
     }
   }
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1415, 398, 1728, 452]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1415, 423, 1728, 477]);
   assert.deepEqual([modOf(5, Y).attr, modOf(6, Y).attr], [{ maxHp: 130, atk: 30 }, { maxHp: 210, atk: 52 }]);
 });
 
@@ -144,7 +144,7 @@ test('T1 浮光泡影: with each attack a bubble goes to the ally of her range w
   done(h);
 });
 
-test('T1 / T2: an enemy hit that lowers the holder\'s HP breaks its bubble 0.5 s later (once; a fully shielded hit does not count) and heals it 25 % of her ATK as it was when she gave it; BLS-Y stage 3: 20 % to give the holder 1 SP; stage 1: never', () => {
+test('T1 / T2: an enemy hit that lowers the holder\'s HP breaks its bubble 0.5 s later (once; a fully shielded hit does not count) and heals it 28 % of her ATK as it was when she gave it; BLS-Y stage 3: 20 % to give the holder 1 SP; stage 1: never', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, Y], [5, true, Y]]) {
     const { h, u } = field({ tier, elite, mod, others: [ally(2, 11, 6)] });
     const a = h.unit(2);
@@ -171,7 +171,7 @@ test('T1 / T2: an enemy hit that lowers the holder\'s HP breaks its bubble 0.5 s
     assert.notEqual(a.findBuff(BUBBLE), b, 'broken 0.5 s after the first hit');
     const hs = heals(h, u, n0).filter((x) => x.target === a);
     assert.equal(hs.length, 1, 'one break, one heal');
-    approx(hs[0].amount, atk0 * 0.25, '25 % of the ATK of the grant');
+    approx(hs[0].amount, atk0 * 0.28, '28 % of the ATK of the grant');
     void u;
     done(h);
   }
@@ -340,6 +340,6 @@ test('outside S3 a bubble levitates nobody; a bubble outlasts her leaving and st
   h.b.dealDamage(e, a, { amount: 10, type: 'true' });
   assert.equal(h.hooksOf('statusApplied').filter((c) => c.status === 'levitate').length, 0);
   h.run(0.6);
-  approx(heals(h, u, n0)[0].amount, atk * 0.25, 'her heal after she left');
+  approx(heals(h, u, n0)[0].amount, atk * 0.28, 'her heal after she left');
   done(h);
 });

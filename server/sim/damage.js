@@ -478,12 +478,16 @@ function resolveBurst(battle, source, target, el) {
         },
       });
     } else {
-      // 15 s of 阻回 ("停止并阻止任意形式的技力回复": noSp) + 静默 (no skill activation), −1 SP and 100 arts damage per second
+      // 15 s of 阻回 ("停止并阻止任意形式的技力回复": noSp) + 静默 (no skill activation), −1 SP and 100 arts damage per second.
+      // The loss is of the official 技力 (Skill.spTotal: the stored charges × cost + the SP towards the next) — PRTS 技能
+      // 可充能 "当持有者的技力流失时，充能次数也会实时降低": taking it from the partial bar alone left a full skill every
+      // charge it had (a one-charge skill stayed ready through the burst; PR #262). setSpTotal rebuilds the charges
+      // silently (no spGain) and leaves a running timed skill alone, whose SP was spent at its cast.
       lock(c.duration, {
         flags: { silence: true, noSp: true }, interval: 1,
         onTick: () => {
           const sk = target.skill;
-          if (sk && !sk.noSkill && sk.kind !== 'passive' && !(sk.active && sk.isTimed) && sk.sp > 0) sk.sp = Math.max(0, sk.sp - c.spLossPerSec);
+          if (sk && !sk.noSkill && sk.kind !== 'passive' && !(sk.active && sk.isTimed) && sk.spTotal > 0) sk.setSpTotal(Math.max(0, sk.spTotal - c.spLossPerSec));
           hit(c.dps, c.dpsType);
         },
       });

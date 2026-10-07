@@ -75,9 +75,9 @@ test('电弧 in every 自选 form: her kit (all three skills authored), the form
       done(h);
     }
   }
-  // the numbers of the forms (zh_CN): E2 Lv1 844 / 400 / 118, E2 Lv60 993 / 444 / 135; SO-A +125 / +27 → +165 / +43 HP / ATK,
+  // the numbers of the forms (zh_CN): E2 Lv1 844 / 424 / 118, E2 Lv60 993 / 468 / 135; SO-A +125 / +27 → +165 / +43 HP / ATK,
   // SO-B +41 → +65 ATK
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [844, 400, 993, 444]);
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [844, 424, 993, 468]);
   assert.deepEqual([modOf(5, SOA).attr, modOf(6, SOA).attr, modOf(5, SOB).attr, modOf(6, SOB).attr], [{ maxHp: 125, atk: 27 }, { maxHp: 165, atk: 43 }, { atk: 41 }, { atk: 65 }]);
 });
 
@@ -127,23 +127,23 @@ test('T1 卡带里的灵感: her skill\'s summon is her piece; the deck — 5 he
   }
 });
 
-test('T2 加油~: her summons on the field get 鼓舞 = 12 % of HER current ATK / DEF / max HP (PRTS 修正 电弧自身), added after their own multipliers, refreshed every second; the strongest 鼓舞 of a kind is kept', () => {
+test('T2 加油~: her summons on the field get 鼓舞 = 15 % of HER current ATK / DEF / max HP (PRTS 修正 电弧自身), added after their own multipliers, refreshed every second; the strongest 鼓舞 of a kind is kept', () => {
   for (const f of [[5, false, null], [6, true, SOA]]) {
     const [tier, elite, mod] = f;
     const { h, u, ts } = field({ tier, elite, mod, skill: 0, towers: [[DIVE, 10, 6]] });
     const t = ts[0];
-    assert.deepEqual(formOf(tier, elite).talents.find((x) => x.index === 1).bb, { max_hp: 0.12, def: 0.12, atk: 0.12 });
-    approx(t.s.atk, t.base.atk + 0.12 * u.s.atk, `${label(f)}: ATK`);
-    approx(t.s.def, t.base.def + 0.12 * u.s.def, `${label(f)}: DEF`);
-    approx(t.s.maxHp, t.base.maxHp + 0.12 * u.s.maxHp, `${label(f)}: max HP`);
+    assert.deepEqual(formOf(tier, elite).talents.find((x) => x.index === 1).bb, { max_hp: 0.15, def: 0.15, atk: 0.15 });
+    approx(t.s.atk, t.base.atk + 0.15 * u.s.atk, `${label(f)}: ATK`);
+    approx(t.s.def, t.base.def + 0.15 * u.s.def, `${label(f)}: DEF`);
+    approx(t.s.maxHp, t.base.maxHp + 0.15 * u.s.maxHp, `${label(f)}: max HP`);
     // her ATK rises: the 鼓舞 follows within a second
     h.b.addBuff(u, { key: 'test:atk', mods: { atkPct: 1 } });
     h.run(1.05);
-    approx(t.s.atk, t.base.atk + 0.12 * u.s.atk, 'updated every second');
+    approx(t.s.atk, t.base.atk + 0.15 * u.s.atk, 'updated every second');
     // a summon's own ATK +% does not scale it
     h.b.addBuff(t, { key: 'test:tatk', mods: { atkPct: 0.5 } });
     h.run(1.05);
-    approx(t.s.atk, t.base.atk * 1.5 + 0.12 * u.s.atk, 'after its multipliers');
+    approx(t.s.atk, t.base.atk * 1.5 + 0.15 * u.s.atk, 'after its multipliers');
     // a stronger 鼓舞 of another source stays
     h.b.addBuff(t, { key: 'inspire', mods: { atkFlat: 5000 }, duration: 30, data: { src: -1, val: 5000 } });
     h.run(1.05);
@@ -173,7 +173,7 @@ test('S1 律动线: +1 held; she and her summons DEF +40 % / +60 % and a 屏障 
     assert.deepEqual(bt.shieldType, ['phys', 'arts', 'true'], 'not 元素伤害');
     // the knocked-out one comes back during the skill: its 屏障 counts its 鼓舞 HP
     assert.ok(h.runUntil(() => late.alive, 21), 'back during the skill');
-    approx(late.findBuff('radian:s1:barrier').shield, (late.base.maxHp + 0.12 * u.s.maxHp) * sk.bb.hp_ratio, 'with 鼓舞 HP');
+    approx(late.findBuff('radian:s1:barrier').shield, (late.base.maxHp + 0.15 * u.s.maxHp) * sk.bb.hp_ratio, 'with 鼓舞 HP');
     h.runUntil(() => !u.skill.active, 30);
     assert.ok([u, t, late].every((x) => !x.findBuff('radian:s1:barrier')), 'gone at its end');
     assert.equal(t.findBuff('radian:s1:tower'), null, 'DEF back');

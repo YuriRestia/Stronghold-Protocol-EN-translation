@@ -76,8 +76,8 @@ test('予愿安洁莉娜 in every 自选 form: her operator kit (all three skill
       done(h);
     }
   }
-  // E2 Lv1 1884 / 628 / 410, E2 Lv60 2216 / 739 / 483
-  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk, FORMS['2/60/7/3'].stats.atk], [1884, 628, 739, 739]);
+  // E2 Lv1 1884 / 661 / 410, E2 Lv60 2216 / 772 / 483
+  assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk, FORMS['2/60/7/3'].stats.atk], [1884, 661, 772, 772]);
   assert.deepEqual(FORMS['2/60/7/3'].modules ?? [], []);
 });
 
@@ -115,12 +115,12 @@ test('trait 巡空者: on the ground she blocks ground enemies, not flyers; airb
   }
 });
 
-test('T1 飘浮大地之上: every damage she outputs adds ATK × 35 % arts on a target of weight ≤ 3, else × 25 % — dodged hits too, never on itself; airborne, every enemy of her range is 失重 (weight −1, not with another 失重), gone when she lands', () => {
+test('T1 飘浮大地之上: every damage she outputs adds ATK × 45 % arts on a target of weight ≤ 3, else × 30 % — dodged hits too, never on itself; airborne, every enemy of her range is 失重 (weight −1, not with another 失重), gone when she lands', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
     const t0 = formOf(tier, elite).talents[0].bb;
-    assert.deepEqual([t0.atk_scale_lo, t0.atk_scale_hi, t0.mass_level], [0.25, 0.35, 3], label(f));
-    // on the ground (S3 picked, not cast): weight 0 ⇒ 35 %, weight 4 ⇒ 25 %
+    assert.deepEqual([t0.atk_scale_lo, t0.atk_scale_hi, t0.mass_level], [0.3, 0.45, 3], label(f));
+    // on the ground (S3 picked, not cast): weight 0 ⇒ 45 %, weight 4 ⇒ 30 %
     {
       const { h, u } = field({ tier, elite, skill: 2 });
       u.skill.sp = 0;
@@ -129,13 +129,13 @@ test('T1 飘浮大地之上: every damage she outputs adds ATK × 35 % arts on a
       const hit = ANY_ATK(h, u)[0];
       const ex = extras(h, u).filter((c) => c.target === a);
       assert.equal(ex.length, 1, `${label(f)}: one addition per damage`);
-      approx(ex[0].amount, u.s.atk * 0.35, `${label(f)}: weight 0`, 1e-6);
+      approx(ex[0].amount, u.s.atk * 0.45, `${label(f)}: weight 0`, 1e-6);
       assert.equal(ex[0].type, 'arts');
       approx(hit.amount, u.s.atk, `${label(f)}: her attack 100 %`, 1e-6);
       h.b.kill(a, null);
       const heavy = h.spawn('enemy_heavy', { pos: [10, 5] });
       assert.ok(h.runUntil(() => extras(h, u).some((c) => c.target === heavy), 3));
-      approx(extras(h, u).find((c) => c.target === heavy).amount, u.s.atk * 0.25, `${label(f)}: weight 4 ⇒ 25 %`, 1e-6);
+      approx(extras(h, u).find((c) => c.target === heavy).amount, u.s.atk * 0.3, `${label(f)}: weight 4 ⇒ 30 %`, 1e-6);
       // a dodged hit still adds it
       h.b.addBuff(heavy, { key: 'test:dodge', mods: { dodgePhys: 1 } });
       const n0 = extras(h, u).length, d0 = h.hooksOf('dodge').length;
@@ -143,7 +143,7 @@ test('T1 飘浮大地之上: every damage she outputs adds ATK × 35 % arts on a
       assert.equal(extras(h, u).length, n0 + 1, `${label(f)}: an output, dodged or not`);
       done(h);
     }
-    // airborne (S1): 失重 in range — the weight-4 enemy counts as 3 ⇒ 35 %
+    // airborne (S1): 失重 in range — the weight-4 enemy counts as 3 ⇒ 45 %
     {
       const { h, u } = field({ tier, elite, skill: 0 });
       const heavy = h.spawn('enemy_heavy', { pos: [11, 6] });
@@ -156,7 +156,7 @@ test('T1 飘浮大地之上: every damage she outputs adds ATK × 35 % arts on a
       assert.equal(marked.buffs.filter((b) => b.status === 'weightless').length, 1, `${label(f)}: 同名效果不可叠加`);
       const k0 = extras(h, u).length;
       assert.ok(h.runUntil(() => extras(h, u).slice(k0).some((c) => c.target === heavy), 3));
-      approx(extras(h, u).slice(k0).find((c) => c.target === heavy).amount, u.s.atk * 0.35, `${label(f)}: weight 3 (失重) ⇒ 35 %`, 1e-6);
+      approx(extras(h, u).slice(k0).find((c) => c.target === heavy).amount, u.s.atk * 0.45, `${label(f)}: weight 3 (失重) ⇒ 45 %`, 1e-6);
       u.skill.end('test');
       h.step();
       assert.equal(heavy.weight, 4, `${label(f)}: 失重 gone when she lands`);
@@ -165,28 +165,28 @@ test('T1 飘浮大地之上: every damage she outputs adds ATK × 35 % arts on a
   }
 });
 
-test('T2 天穹间的舞步: while she is on the field every airborne allied operator (her included) has ATK +13 % and, while it blocks, 生命回复速度 +8 % max HP (hpRegenRatio — no heal, 禁疗 does not stop it); none on the ground', () => {
+test('T2 天穹间的舞步: while she is on the field every airborne allied operator (her included) has ATK +18 % and, while it blocks, 生命回复速度 +10 % max HP (hpRegenRatio — no heal, 禁疗 does not stop it); none on the ground', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
     const t1 = formOf(tier, elite).talents[1].bb;
-    assert.deepEqual([t1.atk, t1.hp_recovery_per_sec_by_max_hp_ratio], [0.13, 0.08], label(f));
+    assert.deepEqual([t1.atk, t1.hp_recovery_per_sec_by_max_hp_ratio], [0.18, 0.1], label(f));
     const others = [{ uid: 2, chessId: 'chess_char_1_02_a', row: 12, col: 3 }];
     const { h, u } = field({ tier, elite, skill: 0, row: 9, col: 4, others });
     const yak = h.unit(2);
     h.run(0.3);
-    assert.deepEqual(u.findBuff('talent:aglna2:dance')?.mods, { atkPct: 0.13 }, `${label(f)}: airborne, not blocking`);
-    approx(u.s.atk, u.base.atk * (1 + skillOf(tier, elite, S1).bb.atk + 0.13), `${label(f)}: ATK`);
+    assert.deepEqual(u.findBuff('talent:aglna2:dance')?.mods, { atkPct: 0.18 }, `${label(f)}: airborne, not blocking`);
+    approx(u.s.atk, u.base.atk * (1 + skillOf(tier, elite, S1).bb.atk + 0.18), `${label(f)}: ATK`);
     assert.equal(yak.findBuff('talent:aglna2:dance'), null, `${label(f)}: 角峰 on the ground: none`);
     h.b.addBuff(u, { key: 'test:healFree', flags: { noHeal: true, healFree: true } });
     const fl = h.spawn('enemy_flywalk', { routeIndex: 2 });
     assert.ok(h.runUntil(() => fl.blockedBy === u, 30), 'she blocks a flyer');
     h.run(0.3);
-    assert.deepEqual(u.findBuff('talent:aglna2:dance')?.mods, { atkPct: 0.13, hpRegenRatio: 0.08 }, `${label(f)}: blocking`);
-    approx(u.s.hpRegen, 0.08 * u.s.maxHp, `${label(f)}: 8 % max HP / s as 生命回复速度`);
+    assert.deepEqual(u.findBuff('talent:aglna2:dance')?.mods, { atkPct: 0.18, hpRegenRatio: 0.1 }, `${label(f)}: blocking`);
+    approx(u.s.hpRegen, 0.1 * u.s.maxHp, `${label(f)}: 10 % max HP / s as 生命回复速度`);
     u.hp = u.s.maxHp / 2;
     const hp0 = u.hp;
     h.run(1);
-    approx(u.hp - hp0, 0.08 * u.s.maxHp, `${label(f)}: regenerated under 禁疗`, 0.05);
+    approx(u.hp - hp0, 0.1 * u.s.maxHp, `${label(f)}: regenerated under 禁疗`, 0.05);
     done(h);
   }
   // S3 picked, before its cast: on the ground — no buff
@@ -254,7 +254,7 @@ test('S2 重力自定义 (MANUAL, data ACTIVE_RANGE on 3-10): takes off; 2.5 s �
     h.run(1.6);
     assert.ok(!u.s.flags.disarm && !u.s.flags.invulnerable, `${label(f)}: the 吟唱 over at 2.5 s`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `${label(f)}: 3-10`);
-    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.13), `${label(f)}: ATK (+13 % of her T2)`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.18), `${label(f)}: ATK (+18 % of her T2)`);
     approx(u.s.interval, (1.5 + sk.bb.base_attack_time) * 100 / u.s.aspd, `${label(f)}: interval`);
     for (const p of [[9, 7], [11, 5], [9, 8], [11, 8]]) h.spawn('enemy_dummy', { pos: p });
     const n0 = ANY_ATK(h, u).length;
@@ -285,7 +285,7 @@ test('S3 酸橙的心事 (MANUAL, data ACTIVE_RANGE on 3-9): 30 / 31 bullets, AT
     const range = u.liveRangeGrid.map((p) => p.join(',')).sort();
     for (const p of [...sk.rangeGrid, [1, -1], [0, -1], [-1, -1]]) assert.ok(range.includes(p.join(',')), `${label(f)}: ${p} in her range`);
     h.run(0.25);   // (her T2 refreshes every 0.2 s)
-    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.13), `${label(f)}: ATK`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.18), `${label(f)}: ATK`);
     // 对空庇护
     const flyer = h.spawn('enemy_fly', { pos: [12, 4] });
     const taken = h.b.dealDamage(flyer, u, { amount: 1000, type: 'arts' });

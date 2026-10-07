@@ -4,7 +4,7 @@
 //
 // Forms (data/backups.json units.char_225_haak, the DIY slot statuses): normal = E2 Lv1, skills at rank 4, no module;
 // elite = E2 Lv60, rank 7, the picked module at stage 1 (tier 5) or 3 (tier 6) — the owner's decision of 2026-10-05.
-// Potential 0 [ASSUMED: no account]. Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into
+// Full potential (the owner's decision of 2026-10-07). Sources: character_table / skill_table / battle_equip_table (zh_CN, as built into
 // backups.json); PRTS 阿 (混合药物射击 备注 "每次攻击必定触发随机效果，4种效果的概率平均分布" / "<X模组>先判断是否“同时触发”所有
 // 效果，未触发情况下再判断随机效果"; 爆发剂 备注 "进行完整的15次攻击后阿与目标获得持续时间相当于技能持续时间的增益；15次攻击均为无途径
 // 攻击，但可满足近战/远程攻击相关的触发条件"); PRTS 分支特性信息 怪杰 ("可对空", "每秒流失最大生命值1%的生命值，不会致命且最低保留1
@@ -31,7 +31,7 @@
 //   `prob` to trigger all four at once (haak_e_002[dice]), else the random one; stage 3's numbers are the module's.
 //   [ASSUMED] his 爆发剂 shots at an ally never roll (PRTS names no such effect); the client's haak_t_atk lingers until his
 //   next roll and could scale damage he deals meanwhile — here it scales the attack that rolled it only.
-// - T2 药剂扩散 "自身受到的治疗量+20%": healing received ×heal_scale. GEE-Y stage 2+ (1.25 at stage 3) adds "部署后立即恢复攻击
+// - T2 药剂扩散 "自身受到的治疗量+20%" (full potential: +25%): healing received ×heal_scale. GEE-Y stage 2+ (1.3 at stage 3) adds "部署后立即恢复攻击
 //   范围内一名友方干员（优先选取正前方）的生命值，恢复量为阿攻击力的150％": at each deployment, after the deploy-time buffs, a heal
 //   of healinrange.heal_scale × ATK on the ally frontAlly picks among the healable ones [ASSUMED: injured or not — the
 //   selector has no HP filter; summons count, as for 爆发剂's identical selector].
@@ -138,7 +138,7 @@ function installDice(battle, unit, t0) {
 export default {
   char_225_haak: (bb, chess) => {
     const t0 = talentBb(chess, 0);   // 混合药物射击 (GEE-X stage 2+: + prob, its own numbers)
-    const t1 = talentBb(chess, 1);   // 药剂扩散 (GEE-Y stage 2+: heal_scale 1.25, healinrange.heal_scale)
+    const t1 = talentBb(chess, 1);   // 药剂扩散 (GEE-Y stage 2+: heal_scale 1.3, healinrange.heal_scale)
     const hidden = moduleBb(chess);  // GEE-X: sp_recovery_per_sec
     const b1 = bbOf(chess, S1);
     const stim = (id, key, mods) => {
