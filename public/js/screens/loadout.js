@@ -38,6 +38,7 @@ import { DiyPanel, diyData } from './diy.js';
 import { diyCount, sanitizeDiyPicks, setPick, serializeDiy, parseDiyImport, DIY_IMPORT_MAX_BYTES } from '../ui/diyModel.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { copyText } from '../ui/clipboard.js';
+import { VoiceLangPicker } from '../ui/voiceLang.js';
 import { toast } from '../ui/toasts.js';
 
 export { openLoadout, closeLoadout };
@@ -306,6 +307,7 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
         </span>
         <span class="lo-dhead__bonds">${(chess.bonds || []).map((b) => html`<span key=${b} class="lo-bond">
           <${Img} src=${bondIconUrl(m, b)} class="lo-bond__icon" fallback=${html`<i class="lo-bond__dot"></i>`} />${data.lookup('bonds', b)?.name || b}</span>`)}</span>
+        <${VoiceLangPicker} charId=${chess.charId} class="lo-dhead__voice" />
       </div>
       <${Button} variant="ghost" size="sm" icon="refresh" class="lo-dhead__reset" disabled=${!choice.changed} onClick=${onReset}>${t('恢复默认')}<//>
     </div>

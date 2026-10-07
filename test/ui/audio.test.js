@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceUrlFor } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { PHASE } from '../../shared/constants.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
@@ -721,5 +721,76 @@ describe('漏怪 sound', () => {
       assert.equal(fw.made.started - before, 1, 'a later leak rings again');
       assert.ok(a.limiter.active <= a.limiter.maxVoices);
     } finally { restore(); }
+  });
+});
+
+// ---- 语音语言 (the per-operator voice picker, public/js/ui/voiceLang.js) -----------------------------------
+
+describe('voice language', () => {
+  const V = '/assets/audio/voice/cn/char_102_texas/cn_019.mp3';
+  const am = { voice: { char_102_texas: { select: V }, char_x: { select: '/assets/audio/voice/cn/char_x/cn_021.mp3' } },
+    voiceLangs: { char_102_texas: ['cn', 'jp', 'en', 'kr'], char_x: ['cn', 'jp'] },
+    voiceNative: { char_102_texas: { dir: 'char_102_texas_ita', type: 'ITA' } } };
+
+  test('which languages an operator has, and which one it speaks', () => {
+    assert.deepEqual(voiceLangsOf(am, 'char_102_texas'), ['cn', 'jp', 'en', 'kr', 'native']);
+    assert.deepEqual(voiceLangsOf(am, 'char_x'), ['cn', 'jp']);
+    assert.deepEqual(voiceLangsOf({ voice: am.voice }, 'char_x'), ['cn'], 'a --no-voice-extra manifest: only the base dub');
+    assert.deepEqual(voiceLangsOf(am, 'char_none'), []);
+    const pref = { default: 'en', byChar: { char_102_texas: 'native' } };
+    assert.equal(effectiveVoiceLang(am, 'char_102_texas', pref), 'native', 'its own pick');
+    assert.equal(effectiveVoiceLang(am, 'char_x', pref), 'cn', 'an EN default it lacks ⇒ the base dub');
+    assert.equal(effectiveVoiceLang(am, 'char_x', { default: 'jp' }), 'jp');
+    assert.equal(effectiveVoiceLang(am, 'char_x', null), 'cn');
+    assert.equal(effectiveVoiceLang(am, 'char_none', pref), null);
+  });
+
+  test('a base line → the same line of another dump or of the own-language dub', () => {
+    assert.equal(voiceUrlFor(V, 'jp', 'char_102_texas'), '/assets/audio/voice/jp/char_102_texas/cn_019.mp3');
+    assert.equal(voiceUrlFor(V, 'native', 'char_102_texas', am.voiceNative.char_102_texas), '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3');
+    assert.equal(voiceUrlFor(V, 'cn', 'char_102_texas'), V);
+    assert.equal(voiceUrlFor(V, 'native', 'char_102_texas', null), V, 'no dub ⇒ the base line');
+    assert.equal(voiceUrlFor(V, 'native', 'char_102_texas', { dir: '../x' }), V, 'a malformed dir is never used');
+    assert.equal(voiceUrlFor(V, 'xx', 'char_102_texas'), V);
+    assert.equal(voiceUrlFor(V, 'jp', 'char_other'), V, 'a line of another operator is left alone');
+    assert.equal(voiceUrlFor('/v/odd.mp3', 'jp', 'char_102_texas'), '/v/odd.mp3');
+  });
+
+  test('battle lines play in the picked language, a missing line falls back to the base one; 试听 skips the gate', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    const urls = [];
+    const missing = (u) => u.includes('/voice/kr/');
+    globalThis.fetch = async (u) => { urls.push(u); return missing(u) ? { ok: false, status: 404, headers: { get: () => 'text/html' }, body: null }
+      : { ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => ({ audio: am }) });
+      a.voiceGate = new VoiceGate({ gapMs: 0 });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      a.setVoiceLang({ default: 'jp', byChar: {} });
+      assert.equal(a.voice('char_102_texas', 'select'), true);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.ok(asked(urls, '/assets/audio/voice/jp/char_102_texas/cn_019.mp3'), 'the JP line');
+      assert.ok(!asked(urls, V), 'the base line is not fetched when the picked one exists');
+      a._stopVoice();
+      a.setVoiceLang({ default: 'kr', byChar: {} });
+      urls.length = 0;
+      assert.equal(a.voice('char_102_texas', 'select'), true);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.ok(asked(urls, '/assets/audio/voice/kr/char_102_texas/cn_019.mp3'));
+      assert.ok(asked(urls, V), 'the KR line is missing here ⇒ the CN line');
+      assert.ok(a.voiceNode, 'and it plays');
+      // 试听: outside a battle, over a line on air, in the asked language
+      urls.length = 0;
+      assert.equal(a.voice('char_x', 'select'), false, 'the channel is busy for a battle line');
+      assert.equal(a.previewVoice('char_102_texas', 'native'), true, 'a preview takes it over');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.ok(asked(urls, '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3'));
+      assert.equal(a.previewVoice('char_none', 'jp'), false, 'no voice ⇒ nothing');
+      a.setVolumes({ muted: true });
+      assert.equal(a.previewVoice('char_102_texas', 'jp'), false, 'muted ⇒ silent');
+    } finally { globalThis.fetch = origFetch; }
   });
 });

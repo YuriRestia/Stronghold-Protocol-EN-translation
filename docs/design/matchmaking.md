@@ -2,7 +2,7 @@
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
-## 26. Matchmaking by room merge (搜寻队友) — `server/matchmaker.js`, `server/lobby.js`, `ui/matchSearch.js`
+## 27. Matchmaking by room merge (搜寻队友) — `server/matchmaker.js`, `server/lobby.js`, `ui/matchSearch.js`
 
 The official 搜寻队友 pairs strangers through a queue, which §0 left out of scope. Here searching co-op rooms merge in the lobby instead; there is no queue and no new screen. ▸ marks a choice the owner left open.
 

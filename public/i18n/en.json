@@ -1075,5 +1075,18 @@
   "在线博士 {n}": "{n} {n|Doctor|Doctors} online",
   "在线": "online",
   "此难度有 {n} 名博士正在搜寻": "{n} {n|Doctor|Doctors} searching at this difficulty",
-  "另有 {n} 名博士在搜寻": "{n} other {n|Doctor|Doctors} searching"
+  "另有 {n} 名博士在搜寻": "{n} other {n|Doctor|Doctors} searching",
+  "语音语言": "Voice language",
+  "中文-普通话": "CN - Mandarin",
+  "日文": "Japanese",
+  "英文": "English",
+  "韩文": "Korean",
+  "意大利语": "Italian",
+  "德文": "German",
+  "俄文": "Russian",
+  "法语": "French",
+  "西班牙语": "Spanish",
+  "中文-方言": "CN - Regional",
+  "方": "RG",
+  "本土语言": "Native language"
 }

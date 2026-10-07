@@ -312,6 +312,56 @@ export function resultSpeaker(pp, random = Math.random, charOf = null) {
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))].id;
 }
 
+/** The picker's languages besides the own-language dub, in button order (tools/assets/audio.mjs VOICE_DIRS). */
+export const VOICE_LANGS = Object.freeze(['cn', 'jp', 'en', 'kr']);
+
+/**
+ * The languages operator `charId` has on this server: the manifest's `audio.voiceLangs` (fetch-assets.mjs
+ * compactVoiceExtra) plus 'native' when `audio.voiceNative` lists its own-language dub. A manifest built with
+ * --no-voice-extra (or before the picker) only has the base CN dub.
+ * @param {any} a manifest `audio`
+ * @param {string} charId
+ * @returns {string[]} e.g. ['cn', 'jp', 'en', 'kr', 'native']; [] when the operator has no voice at all
+ */
+export function voiceLangsOf(a, charId) {
+  if (!a?.voice?.[charId]) return [];
+  const list = Array.isArray(a.voiceLangs?.[charId]) ? a.voiceLangs[charId].filter((l) => VOICE_LANGS.includes(l)) : [];
+  if (!list.length) list.push('cn');
+  if (a.voiceNative?.[charId]) list.push('native');
+  return list;
+}
+
+/**
+ * The language `charId` speaks: its own pick, else the default of the settings, else the base dub (the first
+ * language it has — CN). A pick it lacks (an operator without an EN dub under an EN default) falls back the same way.
+ * @param {any} a manifest `audio`
+ * @param {string} charId
+ * @param {{ default?: string, byChar?: Record<string, string> } | null | undefined} pref
+ */
+export function effectiveVoiceLang(a, charId, pref) {
+  const has = voiceLangsOf(a, charId);
+  if (!has.length) return null;
+  for (const l of [pref?.byChar?.[charId], pref?.default]) if (l && has.includes(l)) return l;
+  return has[0];
+}
+
+/**
+ * A base voice line's URL in another language: `/assets/audio/voice/<lang>/<charId>/cn_019.mp3` → the `<lang>`
+ * segment swapped, or for 'native' → `/assets/audio/voice/native/<dir>/cn_019.mp3` (the dub keeps the file names).
+ * @param {string} url a line of `audio.voice`
+ * @param {string|null} lang
+ * @param {string} charId
+ * @param {{ dir?: string } | null | undefined} native `audio.voiceNative[charId]`
+ * @returns {string} `url` itself when nothing applies
+ */
+export function voiceUrlFor(url, lang, charId, native) {
+  if (typeof url !== 'string' || !lang) return url;
+  const m = /^(.*\/audio\/voice\/)([a-z]+)\/([^/]+)\/([^/]+)$/.exec(url);
+  if (!m || m[3] !== charId) return url;
+  if (lang === 'native') return native?.dir && /^[a-z0-9_]+$/.test(native.dir) ? `${m[1]}native/${native.dir}/${m[4]}` : url;
+  return VOICE_LANGS.includes(lang) ? `${m[1]}${lang}/${m[3]}/${m[4]}` : url;
+}
+
 /** Concurrency + cooldown gate for battle SFX. Pure (time is passed in). */
 /** Gestures that may unlock audio: iOS Safari only accepts touchend / click / keydown; pointerdown covers the rest. */
 const UNLOCK_EVENTS = ['pointerdown', 'touchend', 'click', 'keydown'];
@@ -457,6 +507,7 @@ export class AudioManager {
     this.voiceGate = new VoiceGate();
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
+    this.voiceLang = null;    // { default, byChar } — setVoiceLang (public/js/voiceLang.js)
     this.startVoiceDone = false; // 行动出发 of this field (the first operator deployed says it)
     this.uiVoices = 0;
     this.wantBgm = null;      // desired key (kept while locked)
@@ -845,20 +896,64 @@ export class AudioManager {
       if (verdict === 'preempt') this._stopVoice();
       this.voiceGate.start(slot, o.unitKey ?? null, now);
       const token = ++this.voiceToken;
-      this._playVoice(url, token, o.volume);
+      this._playVoice(url, token, o.volume, this._voiceVariant(charId, url));
       return true;
     } catch (err) { this._warn('voice', err); return false; }
   }
 
-  /** Fetch/decode and start one voice line through the voice channel. */
-  _playVoice(url, token, volume) {
+  /**
+   * The player's voice language (public/js/voiceLang.js, settings + the per-operator picker): { default, byChar }.
+   * @param {{ default?: string, byChar?: Record<string, string> } | null} pref
+   */
+  setVoiceLang(pref) {
+    this.voiceLang = pref && typeof pref === 'object' ? pref : null;
+  }
+
+  /** The URL of base line `url` in the language `charId` speaks now (null = the base line itself). */
+  _voiceVariant(charId, url, lang = null) {
+    const a = this.getManifest()?.audio;
+    const want = lang || effectiveVoiceLang(a, charId, this.voiceLang);
+    const v = voiceUrlFor(url, want, charId, a?.voiceNative?.[charId]);
+    return v && v !== url ? v : null;
+  }
+
+  /**
+   * 试听 (the voice picker): one line of `charId` in `lang`, outside a battle — the loadout and the 自选 picker are
+   * no battle, so it skips VoiceGate's cooldowns and takes the channel over from whatever is on air.
+   * @param {string} charId
+   * @param {string} [lang] cn | jp | en | kr | native (default: the language the operator speaks now)
+   * @returns {boolean} whether a line exists and started
+   */
+  previewVoice(charId, lang) {
+    try {
+      if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
+      const slots = this.getManifest()?.audio?.voice?.[charId];
+      if (!slots || typeof slots !== 'object') return false;
+      const slot = ['select', 'place', 'start'].find((s) => slots[s]) || Object.keys(slots)[0];
+      const line = slots[slot];
+      const url = Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line;
+      if (typeof url !== 'string' || !url) return false;
+      this._stopVoice();
+      this.voiceGate.start(slot, null, typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const token = ++this.voiceToken;
+      this._playVoice(url, token, 1, this._voiceVariant(charId, url, lang));
+      return true;
+    } catch (err) { this._warn('voice-preview', err); return false; }
+  }
+
+  /**
+   * Fetch/decode and start one voice line through the voice channel. `variant` is the same line in the picked
+   * language: when it is missing (404, a dub that lacks this one line) the base line `url` plays instead.
+   */
+  _playVoice(url, token, volume, variant = null) {
     // `token` is the line's own `voiceToken`. Every deferred step below — the decode, a failed fetch, `onended` and the
     // safety timer — can land AFTER this line was taken over or stopped: `voiceToken` has moved on and the channel then
     // belongs to the line that replaced it. So each step re-checks its token and, when it is stale, touches NOTHING:
     // `_stopVoice` (takeover / stop) and `setFieldUnits` released the gate themselves. An unconditional release here let
     // a stale callback free the channel the NEW line had just taken, and the next line walked in on top of it (review
     // on #73).
-    this._buffer(url).then((buf) => {
+    const load = variant ? this._buffer(variant).then((b) => b || this._buffer(url)) : this._buffer(url);
+    load.then((buf) => {
       if (token !== this.voiceToken) return;   // taken over / stopped while it decoded: not ours to release
       if (!buf || !this.ctx || !this.voiceGain) { this.voiceGate.release(); return; }
       try {

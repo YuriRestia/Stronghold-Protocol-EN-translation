@@ -16,7 +16,9 @@ import { resolveRoles, roleAnimationNames } from '../tools/assets/anim-roles.mjs
 import { normalizeAtlas, atlasInfo, parseAtlas } from '../tools/assets/atlas.mjs';
 import { pngSize, isCompletePng, isMp3, validate } from '../tools/assets/formats.mjs';
 import { encodeWoff2, decodeWoff2Tables, readSfnt, uintBase128 } from '../tools/assets/woff2.mjs';
-import { assetToPath, pickUnitSfx, indexAudio } from '../tools/assets/audio.mjs';
+import { assetToPath, pickUnitSfx, indexAudio, nativeVoiceDirs } from '../tools/assets/audio.mjs';
+import { compactVoiceExtra } from '../tools/fetch-assets.mjs';
+import { voiceLangProbes } from '../tools/setup.mjs';
 import { mirrorUrl, safeName, encodePath } from '../tools/assets/sources.mjs';
 import { collectEnemyIds, skillIndicesByChar, buildPlan, GUIDE_PAGES, UI_EXTRAS } from '../tools/assets/plan.mjs';
 import { resolveTemplate, collectLeaves } from '../tools/assets/manifest.mjs';
@@ -462,6 +464,54 @@ describe('audio banks and plan id sets', () => {
     assert.deepEqual(r.value.voice, { b: { select: ['/assets/package.json'] } }, 'operator a has no line on disk: no entry at all');
     assert.deepEqual(r.value.empty, [], 'an array that was empty in the template stays');
     assert.deepEqual(r.misses.sort(), ['voice.a.place[0]', 'voice.a.select[0]', 'voice.a.select[1]', 'voice.b.select[0]']);
+  });
+
+  test('voice picker: own-language dubs are the CUSTOM voiceLangDict entries (collab LINKAGE is not)', () => {
+    const charword = {
+      voiceLangTypeDict: { CN_MANDARIN: { groupType: 'CN_MANDARIN' }, ITA: { groupType: 'CUSTOM' }, RUS: { groupType: 'CUSTOM' }, LINKAGE: { groupType: 'LINKAGE' } },
+      voiceLangDict: {
+        char_102_texas: { dict: { CN_MANDARIN: { wordkey: 'char_102_texas' }, ITA: { wordkey: 'char_102_texas_ITA' } } },
+        char_196_sunbr: { dict: { RUS: { wordkey: 'char_196_sunbr' } } },
+        char_1_collab: { dict: { LINKAGE: { wordkey: 'char_1_collab_link' } } },
+      },
+    };
+    assert.deepEqual([...nativeVoiceDirs(charword)], [
+      ['char_102_texas', { dir: 'char_102_texas_ita', type: 'ITA' }],
+      ['char_196_sunbr', { dir: 'char_196_sunbr', type: 'RUS' }],
+    ]);
+    assert.equal(nativeVoiceDirs(null).size, 0);
+  });
+
+  test('voice picker: compactVoiceExtra keeps which languages landed, never their per-line tree', () => {
+    const m = { audio: {
+      voice: { a: { place: '/x' }, b: { place: '/y' }, c: { place: '/z' } },
+      voiceExtra: {
+        a: { jp: { place: ['/j'] }, en: {}, kr: { place: ['/k'] }, native: { place: ['/n'] }, nativeInfo: { dir: 'a_ita', type: 'ITA' } },
+        b: { jp: {}, en: {}, kr: {} },                                  // nothing extra on disk: no entry
+        c: { jp: { place: ['/j2'] }, native: {}, nativeInfo: { dir: 'c_rus', type: 'RUS' } },   // dub missing: no voiceNative
+        gone: { jp: { place: ['/j3'] } },                               // no base voice: ignored
+      },
+    } };
+    compactVoiceExtra(m, 'cn');
+    assert.equal(m.audio.voiceExtra, undefined);
+    assert.deepEqual(m.audio.voiceLangs, { a: ['cn', 'jp', 'kr'], c: ['cn', 'jp'] });
+    assert.deepEqual(m.audio.voiceNative, { a: { dir: 'a_ita', type: 'ITA' } });
+    const plain = { audio: { voice: {} } };
+    compactVoiceExtra(plain);
+    assert.deepEqual(plain, { audio: { voice: {} } }, 'a --no-voice-extra build gains no keys');
+  });
+
+  test('voice picker: setup probes each operator × extra language (the manifest lists no such URL)', () => {
+    const m = { audio: {
+      voice: { char_a: { select: ['/assets/audio/voice/cn/char_a/cn_1.mp3', '/assets/audio/voice/cn/char_a/cn_2.mp3'] }, char_b: { place: '/assets/audio/voice/cn/char_b/cn_3.mp3' } },
+      voiceLangs: { char_a: ['cn', 'jp'], char_b: ['cn'] },
+      voiceNative: { char_a: { dir: 'char_a_ita', type: 'ITA' }, char_b: { dir: '../bad' } },
+    } };
+    assert.deepEqual(voiceLangProbes(m), [
+      { label: 'voice jp char_a', lines: ['/assets/audio/voice/jp/char_a/cn_1.mp3', '/assets/audio/voice/jp/char_a/cn_2.mp3'] },
+      { label: 'voice native char_a', lines: ['/assets/audio/voice/native/char_a_ita/cn_1.mp3', '/assets/audio/voice/native/char_a_ita/cn_2.mp3'] },
+    ], 'the base dub and a malformed dir are never probed');
+    assert.deepEqual(voiceLangProbes({ audio: { voice: m.audio.voice } }), [], 'a --no-voice-extra manifest: nothing extra');
   });
 });
 

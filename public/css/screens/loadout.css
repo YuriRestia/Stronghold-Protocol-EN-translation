@@ -234,6 +234,17 @@
 .lo-bond__icon { width: max(.18rem, 12px); height: max(.18rem, 12px); object-fit: contain; }
 .lo-bond__dot { width: .1rem; height: .1rem; border-radius: 50%; background: var(--mint-700); }
 .lo-dhead__reset { position: absolute; right: .12rem; top: .12rem; }
+/* 语音语言 squares (ui/voiceLang.js): the detail header's last row, right under the 恢复默认 side; the 自选 picker's who row */
+.vl-pick { display: flex; flex-wrap: wrap; gap: max(.04rem, 3px); }
+.vl-pick__sq { display: grid; place-items: center; min-width: max(.34rem, 24px); height: max(.34rem, 24px); padding: 0 .04rem; background: #0a0d0c;
+  border: 1px solid var(--line-2); color: var(--text-lo); font-family: var(--font-num); font-size: max(.12rem, 9px); font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+.vl-pick__sq:hover { color: var(--text-md); border-color: var(--line-3); }
+.vl-pick__sq:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
+.vl-pick__sq--native { border-style: dashed; }
+.vl-pick__sq.is-on { background: var(--mint-500); border-color: var(--mint-500); color: var(--text-on-mint); }
+.lo-dhead__voice { align-self: flex-end; margin-top: .04rem; }
+.diy-pick__voice { flex: none; }
+.sp-coarse .vl-pick__sq { min-width: 30px; height: 30px; }
 
 .lo-detail__body { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: .12rem .18rem .2rem; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
 .lo-sec { display: flex; flex-direction: column; gap: .08rem; }

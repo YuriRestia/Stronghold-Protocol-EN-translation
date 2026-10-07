@@ -23,7 +23,7 @@
 
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, VOICE_DIRS, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
 
@@ -142,6 +142,14 @@ function voiceAlt(asset, lang) {
   if (!charId || !voiceId || !/^[a-z0-9_]+$/i.test(charId) || !/^[a-z]{2}_\d+$/i.test(voiceId)) return null;
   const file = `${charId}/${voiceId.toLowerCase()}.mp3`;
   return alt(`audio/voice/${lang}/${file}`, joinUrl(RAW.aa2voice, `${VOICE_DIRS[lang]}/${file}`));
+}
+
+/** The same line from an operator's own-language dub (audio.mjs nativeVoiceDirs) → `audio/voice/native/<dir>/cn_023.mp3`. */
+function nativeVoiceAlt(asset, dir) {
+  const voiceId = String(asset).split('/')[1];
+  if (!dir || !/^[a-z0-9_]+$/.test(dir) || !voiceId || !/^[a-z]{2}_\d+$/i.test(voiceId)) return null;
+  const file = `${dir}/${voiceId.toLowerCase()}.mp3`;
+  return alt(`audio/voice/native/${file}`, joinUrl(RAW.aa2voice, `${VOICE_CUSTOM_DIR}/${file}`));
 }
 
 /** Sound path under sound_beta_2 → alternative under public/assets/audio/<sub>. */
@@ -296,6 +304,9 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {any} p.modelsData Ark-Models models_data.json
  * @param {any} [p.charword] parsed excel/charword_table.json — the operators' official voice slots (voice)
  * @param {string} [p.voiceLang] voice dump to plan: cn (default) | jp | en | kr
+ * @param {boolean} [p.voiceExtra] also plan the other dumps of VOICE_DIRS and each operator's own-language dub
+ *   (`audio.voiceExtra`, the per-operator voice language picker; fetch-assets.mjs compacts it into
+ *   `audio.voiceLangs` / `audio.voiceNative`); default false
  * @param {Iterable<string>|null} [p.voiceSlots] which voice slots to plan: VOICE_BATTLE_SLOTS (default) plans only the
  *   lines a battle can play, null plans every slot of audio.mjs VOICE_SLOTS (`--voice-all`). The prep-only slots
  *   (干员报到 / 编入队伍 / 任命队长) are never requested by the client and cost 360 files / 19.3 MB of downloads.
@@ -316,7 +327,7 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
-  voiceSlots = VOICE_BATTLE_SLOTS,
+  voiceSlots = VOICE_BATTLE_SLOTS, voiceExtra = false,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
   moduleTypes = [] }) {
   const notes = [];
@@ -622,17 +633,32 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // client never requests them, and downloading them adds 360 files / 19.3 MB to every `npm run assets` — pass --voice-all for
   // the complete official set (`voiceSlots: null`, reviewer note on the voice PR).
   const voice = {};
+  // 语音语言 (the per-operator picker, public/js/voiceLang.js): with `voiceExtra` the same lines of the other dumps and
+  // of the operator's own-language dub land beside the base one. Each line is its own leaf with ONE alternative — a
+  // language missing upstream must stay missing, never be filled with another dub. fetch-assets.mjs only keeps which
+  // languages landed (`audio.voiceLangs` / `audio.voiceNative`): the client derives their URLs from `audio.voice`.
+  const voiceExtraPlan = {};
+  const nativeDirs = voiceExtra ? nativeVoiceDirs(charword) : new Map();
   for (const [charId, slots] of indexVoice(charword, VOICE_ID_LANG, voiceSlots)) {
     if (!chars[charId]) continue;            // only the operators this game can field (`chars`: the 138 pool charIds and the 自选 picks)
     const v = {};
+    const extra = {};
     for (const [slot, assets] of Object.entries(slots)) {
       // one leaf per line (部署1 / 部署2 …): an array stays an array so the client can draw one — chaining them as
       // alternatives of a single leaf would keep only the first line that landed on disk.
       const lines = assets.map((a) => leaf(voiceAlt(a, voiceLang))).filter(Boolean);
       if (!lines.length) continue;
       v[slot] = lines.length === 1 ? lines[0] : lines;
+      if (!voiceExtra) continue;
+      for (const lang of Object.keys(VOICE_DIRS)) {
+        if (lang === voiceLang) continue;
+        (extra[lang] ||= {})[slot] = assets.map((a) => leaf(voiceAlt(a, lang))).filter(Boolean);
+      }
+      const nat = nativeDirs.get(charId);
+      if (nat) (extra.native ||= {})[slot] = assets.map((a) => leaf(nativeVoiceAlt(a, nat.dir))).filter(Boolean);
     }
     if (Object.keys(v).length) voice[charId] = v;
+    if (Object.keys(extra).length) voiceExtraPlan[charId] = { ...extra, ...(nativeDirs.has(charId) ? { nativeInfo: literal(nativeDirs.get(charId)) } : null) };
   }
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
 
@@ -642,6 +668,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       bgm,
       bossBgm: Object.fromEntries(Object.entries(bossBgm).sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))),
       voice,
+      ...(voiceExtra ? { voiceExtra: voiceExtraPlan } : null),
       sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx },
     },
   };

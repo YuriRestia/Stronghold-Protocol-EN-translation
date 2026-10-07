@@ -21,6 +21,7 @@ npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 | `--dry-run` | Print the plan (file and model counts, alias notes) and exit. |
 | `--refresh-index` | Re-download the upstream indexes: `audio_data.json`, `charword_table.json` (the 干员战斗语音 slots) and `models_data.json`. |
 | `--voice-lang=cn` | 干员战斗语音 language: `cn` (default) | `jp` | `en` | `kr` — the same file names under `voice_cn/`, `voice/`, `voice_en/`, `voice_kr/`. |
+| `--no-voice-extra` | Only the `--voice-lang` dub. By default the other three dumps and each operator's own-language dub (`voice_custom/<wordkey>/`, 44 operators) are downloaded too, for the per-operator voice language picker (`audio.voiceLangs` / `audio.voiceNative`, ~8,600 files, ~150 MB). |
 | `--voice-all` | Plan every official voice slot, including the prep-only lines no battle plays (干员报到 / 编入队伍 / 任命队长 — 360 files, one per operator and slot). Off by default: nothing requests them, so planning them only makes every run download more. |
 | `--prune` | Delete files under `public/assets/` that the manifest no longer references, for example after a mapping change. Without this flag they are only listed in the report. `public/assets/local/` (written by `tools/local-extract`) is never pruned. Implies `--allow-shrink`. |
 | `--allow-shrink` | Write `data/assets.json` even when it loses entries the current one has (see "The manifest never shrinks by accident" below). |
@@ -148,7 +149,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   hash: 'a1b2c3d4e5f6',             // content hash (cache busting)
   generator: 'tools/fetch-assets.mjs',
   stats: { files, bytes, chars, charsWithBack, enemies, enemiesWithSpine, tokens, tokensWithSpine,
-           spineModels, bonds, items, bands, skills, modules, ui, sfxUnits, voiceChars },
+           spineModels, bonds, items, bands, skills, modules, ui, sfxUnits, voiceChars, voiceLangChars, voiceNativeChars },
   chars:   { [charId]: { avatar, avatarE2?, portrait, portraitE2?, spine: { front: Spine, back?: Spine } } },
   enemies: { [enemyId]: { icon, spine?: Spine, spineAliasOf?: enemyId,
                           spineLocal?: { group, skel, atlas, textures, …Spine } } },
@@ -186,6 +187,12 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                            // prep-only slots 干员报到 / 编入队伍 / 任命队长 are left out of the plan by default —
                            // nothing requests them and they cost 360 files (19.3 MB) per run — and `--voice-all` adds
                            // them (audio.mjs VOICE_PREP_SLOTS) for the complete official set
+    voiceLangs?:  { [charId]: ['cn', 'jp', 'en', 'kr'] },     // 语音语言 picker: the dumps with at least one line on
+                           // disk, base first (fetch-assets.mjs compactVoiceExtra). The client derives each URL from
+                           // `voice` by swapping the `/voice/<lang>/` segment (audio.js voiceUrlFor) and plays the base
+                           // line when a picked one is missing. Not built with --no-voice-extra
+    voiceNative?: { [charId]: { dir, type } },                // the operator's own-language dub (charword voiceLangDict,
+                           // groupType CUSTOM: ITA / GER / RUS / FRE / SPA / CN_TOPOLECT) → `audio/voice/native/<dir>/`
     sfx: {
       ui:     { click, back, confirm, tab, pick, drop, error, buy, sell, income, refresh, freeze, levelup,
                 merge, equip, itemMerge, bondUp, artPlace, ready, timer, draft, yourTurn, yourTurnCircle,
