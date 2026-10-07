@@ -1070,5 +1070,9 @@
   "停止搜寻": "Stop searching",
   "搜寻已暂停 · 等待所有博士准备就绪": "Search paused · Waiting for all Doctors to be ready",
   "搜寻中 · {time}": "Searching · {time}",
-  "搜寻成功!": "Search successful!"
+  "搜寻成功!": "Search successful!",
+  "在线博士 {n}": "{n} {n|Doctor|Doctors} online",
+  "在线": "online",
+  "此难度有 {n} 名博士正在搜寻": "{n} {n|Doctor|Doctors} searching at this difficulty",
+  "另有 {n} 名博士在搜寻": "{n} other {n|Doctor|Doctors} searching"
 }

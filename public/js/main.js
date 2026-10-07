@@ -51,6 +51,7 @@ import { installDeviceSupport } from './ui/device.js';
 import { LoadoutHost } from './screens/loadout.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
 import { startBuildGuard } from './ui/buildGuard.js';
+import { installPresence } from './ui/presence.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
 
@@ -351,6 +352,7 @@ async function boot() {
   }));
 
   wireNet();
+  installPresence();
   installLoadoutSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });

@@ -26,6 +26,7 @@ import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../stor
 import { difficultyInfo } from './lobby.js';
 import { t, tc } from '../../../shared/i18n.js';
 import { SearchBar, SearchStatus, useSearchNotice } from '../ui/matchSearch.js';
+import { OnlinePill } from '../ui/presence.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -282,7 +283,7 @@ export function RoomScreen() {
           <${Button} variant="danger" size="lg" square=${true} icon="exit" loading=${busy === 'leave'} onClick=${leave} aria-label=${t('离开同盟')} />
         <//>
         <div class="room-ping">
-          <${PingPill} ms=${conn.ping} online=${online} />
+          <span class="room-ping__pills"><${PingPill} ms=${conn.ping} online=${online} /><${OnlinePill} /></span>
           <${MicroLabel}>${t('当前延迟')}<//>
         </div>
         <${GuideButton} class="room-guide" variant="secondary" label=${t('玩法说明')} />

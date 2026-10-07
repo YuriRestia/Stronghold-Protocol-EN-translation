@@ -244,7 +244,10 @@
 .title-invite b { font-size: .2rem; letter-spacing: .2em; color: #ffd08a; }
 .title-conn { display: flex; align-items: center; justify-content: center; gap: .1rem; min-height: .32rem; font-size: .14rem; color: var(--text-lo); }
 /* language menu (中文 | English | …, ui/lang.js) in the top-right corner; more than four languages make it a list */
-.title-lang { display: inline-flex; margin-bottom: .1rem; }
+/* players online (ui/presence.js) sits left of the language menu */
+.title-tr-row { display: flex; align-items: center; justify-content: flex-end; gap: .1rem; margin-bottom: .1rem; }
+.title-online { height: .3rem; font-size: .15rem; }
+.title-lang { display: inline-flex; }
 .title-lang button { min-width: .74rem; height: .3rem; font-size: .14rem; cursor: pointer; }
 .lang-select select { height: .38rem; min-width: 1.6rem; padding: 0 .12rem; background: #0a0d0c; border: 0; color: var(--text-hi); font-size: .16rem; cursor: pointer; }
 .title-lang.lang-select select { height: .3rem; font-size: .14rem; }

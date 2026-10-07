@@ -8,6 +8,7 @@ import { toast } from './toasts.js';
 import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t } from '../../../shared/i18n.js';
+import { useSearching, queuedOthers } from './presence.js';
 
 export const SEARCH_NEWS_PREF = 'news.matchSearch';
 
@@ -32,12 +33,15 @@ export function searchClock(since, now = serverNow()) {
 }
 
 /**
- * The host's search strip, above the room bar because the bar has no room for a third big button.
+ * The search strip, above the room bar because the bar has no room for a third big button: the host's button, and for
+ * every member while the room searches, how many others are in the queue.
  * @param {{ room: any, facts: any, busy: any, online: boolean, run: (kind: string, fn: () => Promise<any>) => any }} props
  */
 export function SearchBar({ room, facts, busy, online, run }) {
-  if (room.mode === 'solo' || !facts.isHost || facts.spectating || facts.occupied.length >= MAX_SEATS) return null;
+  const searching = useSearching();
+  if (room.mode === 'solo' || facts.spectating || facts.occupied.length >= MAX_SEATS) return null;
   const on = !!room.searching;
+  if (!facts.isHost && !on) return null;
   const toggle = () => run('search', async () => {
     await net.request('room.search', { on: !on });
     if (on) toast(t('取消搜寻成功'), 'info');
@@ -45,9 +49,13 @@ export function SearchBar({ room, facts, busy, online, run }) {
   const hint = on ? t('同盟满 4 人后将自动开始模拟')
     : facts.othersReady ? t('与其他正在搜寻的同盟合并，补满 {n} 个空位', { n: facts.emptySeats }) : t('所有博士准备就绪后才能搜寻队友');
   return html`<section class=${`searchbar${on ? ' is-on' : ''}`} aria-label=${t('搜寻队友')}>
-    <${Button} variant=${on ? 'amber' : 'secondary'} size="md" icon=${on ? 'close' : 'search'} active=${on} loading=${busy === 'search'}
-      disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle}>${on ? t('停止搜寻') : t('搜寻队友')}<//>
+    ${facts.isHost ? html`<${Button} variant=${on ? 'amber' : 'secondary'} size="md" icon=${on ? 'close' : 'search'} active=${on} loading=${busy === 'search'}
+      disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle}>${on ? t('停止搜寻') : t('搜寻队友')}<//>` : null}
     <span class=${on ? 't-mint' : facts.othersReady ? 't-lo' : 't-orange'}>${hint}</span>
+    <span class="searchbar__queue t-lo"><${Icon} name="users" />${on
+      // the server counts this room too while it is ready
+      ? t('另有 {n} 名博士在搜寻', { n: queuedOthers(searching, room.difficulty, facts.groupReady ? facts.humans.length : 0) })
+      : t('此难度有 {n} 名博士正在搜寻', { n: queuedOthers(searching, room.difficulty) })}</span>
   </section>`;
 }
 

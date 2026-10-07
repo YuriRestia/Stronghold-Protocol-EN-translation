@@ -68,3 +68,6 @@ purposes only: no selling, paid distribution, paid hosting, ads, donations or an
 can request removal through a GitHub issue and the content will be taken down. No warranty of any kind.
 The English UI strings were seeded from GitHub PR #70 by @YuriRestia (credited, released with the project under
 GPL-3.0-or-later); the English game texts (`data/i18n/en.json`) are official EN client data like `data/*.json`.
+The English names, skills, talents and modules of the operators the EN client does not have yet (可露希尔, 予愿安洁莉娜,
+凯尔希·思衡托, 机械师, 维伊, 谬因, 珊比; in `tools/i18n/fallback-pr70.json`) follow the wording of arknights.wiki.gg
+(https://arknights.wiki.gg/wiki/Operator/List#CN_Operators, CC BY-SA 4.0), with the remake's numbers.

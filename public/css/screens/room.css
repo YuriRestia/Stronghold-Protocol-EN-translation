@@ -318,3 +318,6 @@
   font-size: .15rem;
 }
 .searchbar .btn { white-space: nowrap; }
+.searchbar__queue { display: inline-flex; align-items: center; gap: .06rem; }
+.searchbar__queue .icon { width: .18rem; height: .18rem; }
+.room-ping__pills { display: inline-flex; gap: .08rem; }

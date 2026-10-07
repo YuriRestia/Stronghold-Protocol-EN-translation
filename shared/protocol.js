@@ -410,6 +410,8 @@ export const S2C = [
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)
   'sys.notice',
+  // sys.online { online, searching: { [difficulty]: humans } } — server/presence.js
+  'sys.online',
 ];
 
 /**
