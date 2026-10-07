@@ -32,3 +32,4 @@ normative lines it rewrote).
 | §23 | [history/0.1.3.md](history/0.1.3.md) | 0.1.3 — community reports after 0.1.2 |
 | §24 | [history/0.1.4.md](history/0.1.4.md) | 0.1.4 — community reports after 0.1.3 |
 | §25 | [history/0.2.0.md](history/0.2.0.md) | 0.2.0 |
+| §26 | [design/matchmaking.md](design/matchmaking.md) | Matchmaking by room merge (搜寻队友) |

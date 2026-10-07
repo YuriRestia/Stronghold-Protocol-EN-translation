@@ -1054,5 +1054,21 @@
   "选择「{name}」的朝向": "Choose {name}'s facing",
   "选择朝向": "Choose a facing",
   "朝向：{dir}": "Facing: {dir}",
-  "开发版 · 不稳定，请勿用于公开服务器": "Development build · unstable, not for public servers"
+  "开发版 · 不稳定，请勿用于公开服务器": "Development build · unstable, not for public servers",
+  "同盟已与其他同盟合并，观战席已满": "The Alliance merged with another one and its spectator seats are full",
+  "可搜寻队友补满空位": "Find Teammates to fill empty seats",
+  "创建后可邀请好友、添加 AI 队友或搜寻队友": "After creating, invite friends, add AI Teammates or find teammates",
+  "搜寻中": "Searching",
+  "新功能：搜寻队友": "New: Find Teammates",
+  "创建同盟后，无论同盟中有几名博士，创建者都可以点击「搜寻队友」，与其他正在搜寻的同盟合并补满空位，满 4 人后自动开始模拟。": "Create an Alliance with any number of Doctors, and the Host can press \"Find Teammates\" to merge with other searching Alliances and fill the empty seats. The simulation starts automatically once there are 4 members.",
+  "关闭提示": "Dismiss",
+  "取消搜寻成功": "Search canceled",
+  "同盟满 4 人后将自动开始模拟": "The simulation starts automatically once the Alliance has 4 members",
+  "与其他正在搜寻的同盟合并，补满 {n} 个空位": "Merge with other searching Alliances to fill {n} empty {n|seat|seats}",
+  "所有博士准备就绪后才能搜寻队友": "All Doctors must be ready before searching for teammates",
+  "搜寻队友": "Find Teammates",
+  "停止搜寻": "Stop searching",
+  "搜寻已暂停 · 等待所有博士准备就绪": "Search paused · Waiting for all Doctors to be ready",
+  "搜寻中 · {time}": "Searching · {time}",
+  "搜寻成功!": "Search successful!"
 }

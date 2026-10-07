@@ -58,6 +58,9 @@ const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
 const TICKER_KEEP = 20;
 const EMOTE_KEEP = 20;
+const NOTICE_TOAST_MS = 15000;
+/** sys.notice ids already shown on this page */
+const seenNotices = new Set();
 
 const SCREENS = { title: TitleScreen, lobby: LobbyScreen, room: RoomScreen, game: GameScreen };
 
@@ -193,6 +196,8 @@ const CLOSE_REASON = {
   // 'timeout' = this player was removed after staying disconnected past the lobby grace (server/lobby.js)
   host_left: N_('创建者已离开，同盟已解散'), timeout: N_('由于长时间断开连接，你已离开同盟'), empty: N_('同盟已解散'),
   kicked: N_('你已被移出同盟'), ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
+  // a spectator left behind by a 搜寻队友 merge (no spectator seat free in the target room)
+  merged: N_('同盟已与其他同盟合并，观战席已满'),
 };
 
 function wireNet() {
@@ -210,6 +215,13 @@ function wireNet() {
   net.on('helloError', (err) => toastError(err));
   net.on('replaced', () => toast(t('该身份已在其他页面登录，本页已断开'), 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
+  // operator notice (server/announce.js): once per page, since the server resends it after every hello; shown as
+  // written, not translated. No expiry check: the server only sends active ones and the device clock may be off.
+  net.on('sys.notice', (msg) => {
+    if (typeof msg.text !== 'string' || !Number.isFinite(msg.id) || seenNotices.has(msg.id)) return;
+    seenNotices.add(msg.id);
+    toast(msg.text, 'warn', { ttl: NOTICE_TOAST_MS });
+  });
   net.on('room.state', onRoomState);
   net.on('room.closed', (msg) => {
     backToLobby();

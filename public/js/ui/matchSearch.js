@@ -1,0 +1,84 @@
+// 搜寻队友 UI (DESIGN §26): the room screen's search strip and status line, the 搜寻成功! toast, and the lobby's
+// one-time announcement.
+
+import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { MAX_SEATS } from '../../../shared/constants.js';
+import { html, Button, Icon } from './components.js';
+import { toast } from './toasts.js';
+import { net } from '../net.js';
+import { serverNow, loadPref, savePref } from '../store.js';
+import { t } from '../../../shared/i18n.js';
+
+export const SEARCH_NEWS_PREF = 'news.matchSearch';
+
+export function SearchNews() {
+  const [hidden, setHidden] = useState(() => loadPref(SEARCH_NEWS_PREF, false) === true);
+  if (hidden) return null;
+  const dismiss = () => { savePref(SEARCH_NEWS_PREF, true); setHidden(true); };
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('新功能：搜寻队友')}>
+    <span class="search-news__icon" aria-hidden="true"><${Icon} name="search" /></span>
+    <div class="search-news__text">
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('新功能：搜寻队友')}</span>
+      <p>${t('创建同盟后，无论同盟中有几名博士，创建者都可以点击「搜寻队友」，与其他正在搜寻的同盟合并补满空位，满 4 人后自动开始模拟。')}</p>
+    </div>
+    <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
+  </aside>`;
+}
+
+/** m:ss since `since` (server time). */
+export function searchClock(since, now = serverNow()) {
+  const sec = Math.max(0, Math.floor((now - since) / 1000));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The host's search strip, above the room bar because the bar has no room for a third big button.
+ * @param {{ room: any, facts: any, busy: any, online: boolean, run: (kind: string, fn: () => Promise<any>) => any }} props
+ */
+export function SearchBar({ room, facts, busy, online, run }) {
+  if (room.mode === 'solo' || !facts.isHost || facts.spectating || facts.occupied.length >= MAX_SEATS) return null;
+  const on = !!room.searching;
+  const toggle = () => run('search', async () => {
+    await net.request('room.search', { on: !on });
+    if (on) toast(t('取消搜寻成功'), 'info');
+  });
+  const hint = on ? t('同盟满 4 人后将自动开始模拟')
+    : facts.othersReady ? t('与其他正在搜寻的同盟合并，补满 {n} 个空位', { n: facts.emptySeats }) : t('所有博士准备就绪后才能搜寻队友');
+  return html`<section class=${`searchbar${on ? ' is-on' : ''}`} aria-label=${t('搜寻队友')}>
+    <${Button} variant=${on ? 'amber' : 'secondary'} size="md" icon=${on ? 'close' : 'search'} active=${on} loading=${busy === 'search'}
+      disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle}>${on ? t('停止搜寻') : t('搜寻队友')}<//>
+    <span class=${on ? 't-mint' : facts.othersReady ? 't-lo' : 't-orange'}>${hint}</span>
+  </section>`;
+}
+
+export function SearchStatus({ room, facts }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!room.searching) return undefined;
+    const timer = setInterval(() => tick((n) => n + 1), 1000);
+    return () => clearInterval(timer);
+  }, [room.searching]);
+  if (!room.searching) return null;
+  // groupReady: a merged-in guest would otherwise wait on the host, who never readies
+  if (!facts.groupReady) return html`<span class="t-orange"><${Icon} name="hourglass" />${t('搜寻已暂停 · 等待所有博士准备就绪')}</span>`;
+  const since = Number.isFinite(room.searchSince) ? room.searchSince : serverNow();
+  return html`<span class="t-mint"><${Icon} name="search" />${t('搜寻中 · {time}', { time: searchClock(since) })}</span>`;
+}
+
+/**
+ * 搜寻成功! when a merge grew the room: a new code, or Doctors arriving ready while searching (a join by code arrives
+ * not ready).
+ */
+export function useSearchNotice(room, myId) {
+  const prev = useRef(null);
+  useEffect(() => {
+    const before = prev.current;
+    prev.current = room;
+    if (!room || !before || room.inMatch) return;
+    const ids = (r) => new Set((r.seats || []).filter((s) => s && !s.isBot).map((s) => s.playerId));
+    const had = ids(before);
+    const moved = before.code !== room.code;
+    const arrived = (room.seats || []).some((s) => s && !s.isBot && s.playerId !== myId && !had.has(s.playerId) && s.ready);
+    if (moved || (before.searching && arrived)) toast(t('搜寻成功!'), 'success');
+  }, [room, myId]);
+}

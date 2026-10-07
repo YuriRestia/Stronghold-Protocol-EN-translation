@@ -158,6 +158,39 @@
 .tips__text { margin-top: .1rem; font-size: .17rem; color: var(--text-lo); line-height: 1.6; animation: tip-in var(--t-slow) var(--ease-out); }
 @keyframes tip-in { from { opacity: 0; transform: translateX(.1rem); } }
 
+/* ---- 搜寻队友 announcement (ui/matchSearch.js SearchNews) ------------------------------------------------ */
+.search-news {
+  --bk-c: var(--mint-500);
+  display: flex;
+  align-items: flex-start;
+  gap: .18rem;
+  margin-bottom: .26rem;
+  padding: .16rem .2rem .18rem;
+  background: linear-gradient(90deg, rgba(78, 216, 175, .10), rgba(8, 10, 9, .6) 60%);
+  border: 1px solid var(--mint-700);
+  animation: card-in var(--t-slow) var(--ease-out) backwards;
+}
+.search-news__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: .5rem;
+  height: .5rem;
+  background: var(--mint-500);
+  color: var(--text-on-mint);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.search-news__icon .icon { width: .26rem; height: .26rem; }
+.search-news__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .06rem; font-size: .16rem; line-height: 1.6; color: var(--text-md); }
+.search-news__head { display: flex; align-items: center; gap: .1rem; font-size: .2rem; font-weight: 900; letter-spacing: .06em; color: var(--text-hi); }
+.search-news__tag { padding: .01rem .08rem; background: var(--amber); color: #111; font-size: .12rem; font-weight: 900; letter-spacing: .12em; }
+.search-news__close { flex: none; }
+/* short landscape phones */
+@media (max-height: 460px) {
+  .search-news { margin-bottom: .16rem; padding: .1rem .16rem; }
+  .search-news__icon { width: .4rem; height: .4rem; }
+}
+
 /* ---- difficulty cards -------------------------------------------------------------------------------- */
 .diff-list { display: flex; flex-direction: column; gap: .14rem; }
 .diff-card {

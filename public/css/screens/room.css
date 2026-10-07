@@ -306,3 +306,15 @@
 .ready-count__icons .icon.is-on { color: var(--mint-400); filter: drop-shadow(0 0 4px var(--mint-glow)); }
 
 .room-bar .btn--xl { min-width: 3.2rem; letter-spacing: .2em; }
+
+/* ---- 搜寻队友 strip (ui/matchSearch.js SearchBar) ------------------------------------------------------------- */
+.searchbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .2rem;
+  padding: 0 .6rem .16rem;
+  font-size: .15rem;
+}
+.searchbar .btn { white-space: nowrap; }

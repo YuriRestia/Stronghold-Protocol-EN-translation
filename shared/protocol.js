@@ -344,6 +344,8 @@ export const C2S = {
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.
   'room.spectate': { code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.removeSpectator': { playerId: isId },
+  // 搜寻队友 (DESIGN §26): the host of a co-op room turns the search on or off
+  'room.search': { on: isBool },
 
   // match
   'g.infoReady': {},
@@ -406,6 +408,8 @@ export const S2C = [
   'b.start', 'b.pool', 'b.end',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
+  // sys.notice { id, text, until } — operator notice (server/announce.js)
+  'sys.notice',
 ];
 
 /**
