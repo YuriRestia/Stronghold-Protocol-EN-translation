@@ -1091,6 +1091,19 @@
   "自选干员：在「干员调配 → 自选编队」为 5 阶、6 阶各选 2 名自己拥有的 6★ 干员，技能和模组任选": "Custom operators: in Operator Loadout → Custom Squad, pick 2 of your own 6★ operators each for tier 5 and tier 6, with any skill and module",
   "最终攻势与隐秘核心的领袖生命值按开战时存活的博士人数计算": "Boss HP fix: the Final Assault and Hidden Core leader HP now scales with the number of Doctors alive when the fight starts",
   "语音语言：在「设置」或「干员调配」里为每名干员选择中文、日文、英文、韩文或本土语言配音": "Voice language: choose CN, JP, EN, KR or native voices for each operator in Settings or Operator Loadout",
-  "大厅和搜寻队友时显示在线与正在搜寻的博士人数": "The lobby and Find Teammates now show how many Doctors are online and searching",
-  "大量问题修复": "Many, many bug fixes"
+  "新增「单人匹配」模式：自动与服务器中的其他博士组队": "New Solo Matchmaking mode: Team up with other Doctors in the server automatically.",
+  "大量问题修复": "Many, many bug fixes",
+  "单人匹配": "Solo Matchmaking",
+  "{n} 名博士 · 自动组队": "{n} {n|Doctor|Doctors} · matched automatically",
+  "开始匹配": "Start Matchmaking",
+  "凑齐 4 名博士后立即开始模拟": "The simulation starts as soon as 4 Doctors are found",
+  "关闭后可直接开始模拟": "Off: you can start the simulation right away",
+  "停止搜寻后才能关闭": "Stop searching to turn this off",
+  "连接中断，已退出单人匹配": "Connection lost, you left Solo Matchmaking",
+  "正在搜寻博士…": "Searching for Doctors…",
+  "已等待 {time}": "Waited {time}",
+  "取消匹配": "Cancel Matchmaking",
+  "改为与 AI 队友模拟": "Play with AI Teammates instead",
+  "进入匹配，与其他博士组成满员同盟，凑齐后立即开始模拟。": "Queue up and get matched into a full Alliance with other Doctors. The simulation starts as soon as it fills.",
+  "2 分钟内未能找到博士时，可选择改为与 AI 队友模拟": "If no Doctors can be found within 2 minutes, you can choose to play with AI Teammates instead"
 }

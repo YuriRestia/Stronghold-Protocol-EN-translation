@@ -317,7 +317,29 @@
   padding: 0 .6rem .16rem;
   font-size: .15rem;
 }
-.searchbar .btn { white-space: nowrap; }
-.searchbar__queue { display: inline-flex; align-items: center; gap: .06rem; }
-.searchbar__queue .icon { width: .18rem; height: .18rem; }
+/* the host's switch: big and lit while on, so it reads at a glance */
+.searchbar__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: .12rem;
+  height: .52rem;
+  padding: 0 .2rem 0 .12rem;
+  background: #0a0d0c;
+  border: 1px solid var(--line-2);
+  color: var(--text-lo);
+  font-size: .2rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  white-space: nowrap;
+  transition: border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
+}
+.searchbar__switch .icon { width: .24rem; height: .24rem; }
+.searchbar__track { width: .6rem; height: .3rem; background: var(--bg-3); position: relative; transition: background var(--t-fast); }
+.searchbar__track i { position: absolute; left: .04rem; top: .04rem; width: .22rem; height: .22rem; background: var(--text-lo); transition: transform var(--t-fast), background var(--t-fast); }
+.searchbar__state { min-width: .5rem; font-size: .16rem; }
+.searchbar__switch:hover:not(:disabled) { border-color: var(--line-3); }
+.searchbar__switch.is-on { color: var(--mint-400); border-color: var(--mint-500); box-shadow: 0 0 .3rem rgba(23, 249, 183, .16); }
+.searchbar__switch.is-on .searchbar__track { background: var(--mint-800); }
+.searchbar__switch.is-on .searchbar__track i { transform: translateX(.3rem); background: var(--mint-400); }
+.searchbar__switch:disabled { cursor: default; }
 .room-ping__pills { display: inline-flex; gap: .08rem; }

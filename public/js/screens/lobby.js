@@ -23,6 +23,7 @@ import { getConfig, getMode, getStage, useData } from '../data.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 import { UpdateNews } from '../ui/matchSearch.js';
 import { OnlinePill } from '../ui/presence.js';
+import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
 export const MODE_TEXT = {
@@ -83,6 +84,18 @@ const MODE_CARDS = [
     id: 'coop', name: N_('同盟模拟'), en: 'ALLIANCE SIMULATION', icon: 'users',
     desc: N_('与至多 {n} 名博士组成同盟，共享干员池，联防协作抵御敌潮。'), params: { n: MAX_SEATS - 1 },
     points: [N_('1–{n} 名博士 · 可由 AI 队友补位'), N_('可搜寻队友补满空位'), N_('联防阶段 · 最终攻势合并生命值')], pointParams: { n: MAX_SEATS },
+  },
+  // 单人匹配 (ui/soloQueue.js): the default for a first visit, so the queue fills
+  {
+    // en: "Solo Matchmaking"
+    id: 'match', name: N_('单人匹配'), en: 'SOLO MATCHMAKING', icon: 'search',
+    // en: "Queue up and get matched into a full Alliance with other Doctors. The simulation starts as soon as it fills."
+    desc: N_('进入匹配，与其他博士组成满员同盟，凑齐后立即开始模拟。'),
+    points: [
+      N_('{n} 名博士 · 自动组队'), // en: "{n} Doctors · matched automatically"
+      N_('2 分钟内未能找到博士时，可选择改为与 AI 队友模拟'), // en: "If no Doctors can be found within 2 minutes, you can choose to play with AI Teammates instead"
+    ],
+    pointParams: { n: MAX_SEATS },
   },
 ];
 
@@ -203,8 +216,8 @@ function TipsPanel() {
   </div>`;
 }
 
-function ModeCard({ card, selected, onSelect }) {
-  return html`<button type="button" class=${`mode-card brackets${selected ? ' is-selected' : ''}`} onClick=${() => onSelect(card.id)}
+function ModeCard({ card, selected, onSelect, disabled }) {
+  return html`<button type="button" class=${`mode-card brackets${selected ? ' is-selected' : ''}`} disabled=${!!disabled} onClick=${() => onSelect(card.id)}
       aria-pressed=${selected ? 'true' : 'false'}>
     <span class="mode-card__bg" aria-hidden="true"></span>
     <span class="mode-card__icon"><${Icon} name=${card.icon} /></span>
@@ -218,9 +231,9 @@ function ModeCard({ card, selected, onSelect }) {
   </button>`;
 }
 
-function DifficultyCard({ roomMode, difficulty, selected, onSelect }) {
+function DifficultyCard({ roomMode, difficulty, selected, onSelect, disabled }) {
   const info = difficultyInfo(roomMode, difficulty);
-  return html`<button type="button" class=${`diff-card${selected ? ' is-selected' : ''}`}
+  return html`<button type="button" class=${`diff-card${selected ? ' is-selected' : ''}`} disabled=${!!disabled}
       style=${`--d-color:${DIFFICULTY_COLORS[difficulty]}`} onClick=${() => onSelect(difficulty)} aria-pressed=${selected ? 'true' : 'false'}>
     <span class="diff-card__bar" aria-hidden="true"></span>
     <span class="diff-card__head">
@@ -242,7 +255,14 @@ export function LobbyScreen() {
   const me = useStore((s) => s.me, shallowEqual);
   const conn = useStore((s) => s.connection, shallowEqual);
   useData('config');
-  const [roomMode, setRoomMode] = useState(() => (loadPref('lobby.mode', 'coop') === 'solo' ? 'solo' : 'coop'));
+  // a first visit (nothing saved) starts on 单人匹配; a returning Doctor keeps their last pick
+  const [roomMode, setRoomMode] = useState(() => {
+    const m = loadPref('lobby.mode', 'match');
+    return MODE_CARDS.some((c) => c.id === m) ? m : 'match';
+  });
+  const queue = useSoloQueue();
+  // the room kind the difficulty texts describe (单人匹配 plays a co-op room)
+  const textMode = roomMode === 'solo' ? 'solo' : 'coop';
   const [difficulty, setDifficulty] = useState(() => {
     const d = loadPref('lobby.difficulty', 'FUNNY');
     return DIFFICULTIES.includes(d) ? d : 'FUNNY';
@@ -270,7 +290,9 @@ export function LobbyScreen() {
       if (alive.current) setBusy(null);
     }
   };
-  const create = () => run('create', () => net.request('room.create', { mode: roomMode, difficulty }));
+  const create = () => run('create', () => (roomMode === 'match'
+    ? net.request('queue.join', { difficulty })
+    : net.request('room.create', { mode: roomMode, difficulty })));
   const join = (c = code) => {
     // `onClick=${join}` hands the click EVENT as the first argument, and a default parameter only applies to
     // `undefined` — codeArg keeps an event target out of the key and falls back to the input field
@@ -298,6 +320,7 @@ export function LobbyScreen() {
     }));
   };
   const backToTitle = () => {
+    if (queue.queued) net.request('queue.leave', {}).catch(() => {});
     identity.setEntered(false);
     store.set((s) => ({ session: { ...s.session, entered: false } }));
   };
@@ -331,7 +354,7 @@ export function LobbyScreen() {
         <${UpdateNews} />
         <div class="section-label"><span class="section-label__idx num">01</span>${t('模拟方式')}<${MicroLabel}>MODE<//></div>
         <div class="mode-cards">
-          ${MODE_CARDS.map((c) => html`<${ModeCard} key=${c.id} card=${c} selected=${roomMode === c.id} onSelect=${pickMode} />`)}
+          ${MODE_CARDS.map((c) => html`<${ModeCard} key=${c.id} card=${c} selected=${roomMode === c.id} onSelect=${pickMode} disabled=${queue.queued} />`)}
         </div>
 
         <div class="section-label"><span class="section-label__idx num">03</span>${t('加入同盟')}<${MicroLabel}>JOIN WITH ALLIANCE KEY<//></div>
@@ -339,9 +362,9 @@ export function LobbyScreen() {
           <div class="join-row">
             <${TextField} size="code" icon="key" value=${code} placeholder=${t('输入同盟密钥 / 粘贴邀请链接')}
               transform=${normalizeCode} onInput=${(v) => setCode(normalizeCode(v))} onEnter=${() => join()} />
-            <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !online} onClick=${() => join()}>${t('加入同盟')}<//>
+            <${Button} variant="amber" size="lg" icon="users" loading=${busy === 'join'} disabled=${!codeOk || !online || queue.queued} onClick=${() => join()}>${t('加入同盟')}<//>
             <${Tooltip} text=${t('以观战者身份进入：不占博士席位，只能观看（每个同盟最多 {MAX_SPECTATORS} 名，模拟进行中也可进入）', { MAX_SPECTATORS })}>
-              <${Button} variant="secondary" size="lg" icon="eye" class="join-spectate" loading=${busy === 'spectate'} disabled=${!codeOk || !online} onClick=${spectate}>${t('观战')}<//>
+              <${Button} variant="secondary" size="lg" icon="eye" class="join-spectate" loading=${busy === 'spectate'} disabled=${!codeOk || !online || queue.queued} onClick=${spectate}>${t('观战')}<//>
             <//>
           </div>
           <div class="join-foot">
@@ -357,20 +380,25 @@ export function LobbyScreen() {
       <section class="lobby-right">
         <div class="section-label"><span class="section-label__idx num">02</span>${t('模拟难度')}<${MicroLabel}>DIFFICULTY<//></div>
         <div class="diff-list">
-          ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${roomMode} difficulty=${d} selected=${difficulty === d} onSelect=${pickDifficulty} />`)}
+          ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${textMode} difficulty=${d}
+            selected=${(queue.queued ? queue.difficulty : difficulty) === d} onSelect=${pickDifficulty} disabled=${queue.queued} />`)}
         </div>
-        <div class="create-box">
+        ${queue.queued
+          ? html`<div class="create-box"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
+          : html`<div class="create-box">
           <${Tooltip} block=${true} text=${online ? null : t('正在连接服务器…')}>
             <${Button} variant="primary" size="xl" block=${true} iconRight="chevrons" loading=${busy === 'create'} disabled=${!online} onClick=${create}>
-              ${roomMode === 'solo' ? t('开始独立模拟') : t('创建同盟')}
+              ${/* en (match): "Start Matchmaking" */ roomMode === 'solo' ? t('开始独立模拟') : roomMode === 'match' ? t('开始匹配') : t('创建同盟')}
             <//>
           <//>
           <div class="create-box__hint">
             ${online
-              ? html`<span>${roomMode === 'solo' ? t('创建后即可开始模拟') : t('创建后可邀请好友、添加 AI 队友或搜寻队友')}</span>`
+              // en (match): "The simulation starts as soon as 4 Doctors are found"
+              ? html`<span>${roomMode === 'solo' ? t('创建后即可开始模拟') : roomMode === 'match' ? t('凑齐 4 名博士后立即开始模拟')
+                : t('创建后可邀请好友、添加 AI 队友或搜寻队友')}</span>`
               : html`<${Spinner} size="sm" label="CONNECTING" />`}
           </div>
-        </div>
+        </div>`}
       </section>
     </div>
   </div>`;

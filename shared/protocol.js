@@ -346,6 +346,10 @@ export const C2S = {
   'room.removeSpectator': { playerId: isId },
   // 搜寻队友 (DESIGN §27): the host of a co-op room turns the search on or off
   'room.search': { on: isBool },
+  // 单人匹配 (DESIGN §27): queue from the lobby without a room; queue.ai once queue.state's aiAt has passed
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v) },
+  'queue.leave': {},
+  'queue.ai': {},
 
   // match
   'g.infoReady': {},
@@ -412,6 +416,8 @@ export const S2C = [
   'sys.notice',
   // sys.online { online, searching: { [difficulty]: humans } } — server/presence.js
   'sys.online',
+  // queue.state { queued, difficulty?, since?, aiAt?, placed? } — 单人匹配 (server/lobby.js sendQueue)
+  'queue.state',
 ];
 
 /**

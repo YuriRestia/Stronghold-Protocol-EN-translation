@@ -146,6 +146,10 @@ export class Client {
     });
     page.on('response', (r) => { if (r.status() >= 400) this.problems.push(`http ${r.status()}: ${r.url()}`); });
     page.on('dialog', (d) => d.dismiss().catch(() => {}));
+    // the host's 搜寻队友 switch is on by default (ui/matchSearch.js): these runs start their rooms by hand
+    await page.evaluateOnNewDocument(() => {
+      try { if (localStorage.getItem('sp.pref.room.findMates') == null) localStorage.setItem('sp.pref.room.findMates', 'false'); } catch { /* ignore */ }
+    });
     await page.goto(`${this.base}/${query}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
   }

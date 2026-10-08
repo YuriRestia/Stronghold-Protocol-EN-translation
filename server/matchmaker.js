@@ -6,6 +6,7 @@ import { MAX_SEATS } from '../shared/constants.js';
 export const MATCH_DEFAULTS = Object.freeze({
   matchTickMs: 2000,
   partialMergeAfterMs: 10_000, // 0 = exact fills only
+  soloAiAfterMs: 120_000, // 单人匹配: queue.ai (play with AI teammates instead) is accepted after this wait
 });
 
 /** Occupied seats; bots count. @param {import('./lobby.js').Room} room */
@@ -110,6 +111,8 @@ export class Matchmaker {
       for (const room of [...lobby.rooms.values()]) {
         if (room.searching && !room.disposed && !room.match && roomSize(room) >= MAX_SEATS && groupReady(room)) lobby.autoStart(room);
       }
+      // 单人匹配 first (server/soloQueue.js): solos fill searching rooms exactly before rooms merge partially
+      lobby.placeSolos();
       for (const p of planMerges(lobby.rooms.values(), lobby.now(), this.opts)) lobby.mergeRooms(p.target, p.sources);
     } catch (e) {
       this.lobby.log.error('[match] matchmaking pass failed', e);
@@ -119,9 +122,10 @@ export class Matchmaker {
     this.syncTimer();
   }
 
-  // partial merges are time-based, so a searching room needs the interval even when nothing changes
+  // partial merges are time-based, so a searching room needs the interval even when nothing changes; queued solos
+  // too (a placement refused by a limit is retried)
   syncTimer() {
-    const any = !this.stopped && [...this.lobby.rooms.values()].some((r) => r.searching && !r.disposed && !r.match);
+    const any = !this.stopped && (this.lobby.soloQueue.size > 0 || [...this.lobby.rooms.values()].some((r) => r.searching && !r.disposed && !r.match));
     if (any && !this.timer) {
       this.timer = setInterval(() => this.run(), this.opts.matchTickMs);
       this.timer.unref?.();

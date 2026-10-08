@@ -15,7 +15,7 @@
 .lobby-left, .lobby-right { display: flex; flex-direction: column; min-width: 0; }
 
 /* ---- mode cards ------------------------------------------------------------------------------------ */
-.mode-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .24rem; margin-bottom: .34rem; }
+.mode-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .2rem; margin-bottom: .34rem; }
 .mode-card {
   --bk-c: transparent;
   --bk-l: .2rem;
@@ -25,7 +25,7 @@
   align-items: flex-start;
   gap: .22rem;
   min-height: 4.3rem;
-  padding: .34rem .32rem .3rem;
+  padding: .34rem .26rem .3rem;
   overflow: hidden;
   text-align: left;
   background: linear-gradient(180deg, rgba(28, 34, 31, .92), rgba(13, 16, 15, .94));
@@ -71,7 +71,7 @@
 }
 .mode-card__icon .icon { width: .44rem; height: .44rem; }
 .mode-card__text { position: relative; display: flex; flex-direction: column; gap: .1rem; }
-.mode-card__name { font-size: .46rem; font-weight: 900; letter-spacing: .08em; line-height: 1.1; }
+.mode-card__name { font-size: .36rem; font-weight: 900; letter-spacing: .06em; line-height: 1.1; }
 .mode-card__desc { font-size: .17rem; color: var(--text-lo); line-height: 1.65; max-width: 3.6rem; }
 .mode-card__points { display: flex; flex-direction: column; gap: .05rem; margin-top: .06rem; font-size: .15rem; color: var(--text-md); }
 .mode-card__points span::before {
@@ -111,6 +111,12 @@
 .mode-card.is-selected::before { transform: scaleX(1); }
 .mode-card.is-selected .mode-card__icon { background: var(--mint-500); border-color: var(--mint-400); color: var(--text-on-mint); }
 .mode-card.is-selected .mode-card__check { opacity: 1; transform: none; }
+.mode-card:nth-child(3) { animation-delay: 120ms; }
+.mode-card:disabled { cursor: default; opacity: .55; }
+.mode-card:disabled:hover { border-color: var(--line); --bk-c: transparent; }
+.mode-card.is-selected:disabled { opacity: 1; }
+.diff-card:disabled { cursor: default; }
+.diff-card:disabled:not(.is-selected) { opacity: .45; }
 @keyframes card-in { from { opacity: 0; transform: translateY(.14rem); } }
 
 /* ---- join panel ------------------------------------------------------------------------------------ */
@@ -273,3 +279,32 @@
 .create-box { margin-top: .3rem; display: flex; flex-direction: column; gap: .12rem; }
 .create-box .btn--xl { height: .92rem; font-size: .32rem; letter-spacing: .3em; }
 .create-box__hint { display: flex; align-items: center; justify-content: center; min-height: .3rem; font-size: .14rem; color: var(--text-lo); }
+
+/* 单人匹配 wait (ui/soloQueue.js QueuePanel), in the create button's place */
+.queue-panel {
+  --bk-c: var(--mint-400);
+  --bk-l: .16rem;
+  display: flex;
+  flex-direction: column;
+  gap: .14rem;
+  padding: .24rem .28rem;
+  background: linear-gradient(180deg, rgba(23, 60, 49, .55), rgba(13, 16, 15, .94));
+  border: 1px solid var(--mint-700);
+  box-shadow: 0 0 .44rem rgba(23, 249, 183, .1);
+}
+.queue-panel__head { display: flex; align-items: center; gap: .18rem; }
+.queue-panel__radar {
+  flex: none;
+  width: .34rem;
+  height: .34rem;
+  border-radius: 50%;
+  border: 2px solid var(--mint-500);
+  animation: queue-ping 1.6s var(--ease-out) infinite;
+}
+.queue-panel__title { flex: 1; font-size: .28rem; font-weight: 900; letter-spacing: .12em; color: var(--mint-400); }
+.queue-panel__clock { font-size: .4rem; font-weight: 700; color: var(--text-hi); }
+.queue-panel__hint { font-size: .15rem; }
+.queue-panel__btns { display: flex; gap: .14rem; }
+.queue-panel__btns .btn { flex: 1; }
+@keyframes queue-ping { 0% { box-shadow: 0 0 0 0 rgba(78, 216, 175, .55); } 100% { box-shadow: 0 0 0 .2rem rgba(78, 216, 175, 0); } }
+@media (prefers-reduced-motion: reduce) { .queue-panel__radar { animation: none; } }

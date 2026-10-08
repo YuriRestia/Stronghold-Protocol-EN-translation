@@ -25,7 +25,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
 import { t, tc } from '../../../shared/i18n.js';
-import { SearchBar, SearchStatus, useSearchNotice } from '../ui/matchSearch.js';
+import { SearchBar, SearchButton, SearchStatus, useSearchNotice, useFindMates, canFindMates } from '../ui/matchSearch.js';
 import { OnlinePill } from '../ui/presence.js';
 
 /**
@@ -205,6 +205,7 @@ export function RoomScreen() {
   const inFlight = useRef(false); // synchronous guard against double clicks (state updates are async)
   useEffect(() => () => { alive.current = false; }, []);
   useSearchNotice(room, me.playerId);
+  const [findMates, setFindMates] = useFindMates();
 
   if (!room) return null;
   const online = conn.status === 'online';
@@ -312,7 +313,7 @@ export function RoomScreen() {
       </aside>`}
     </main>
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
-    <${SearchBar} room=${room} facts=${facts} busy=${busy} online=${online} run=${run} />
+    <${SearchBar} room=${room} facts=${facts} findMates=${findMates} setFindMates=${setFindMates} />
 
     <footer class="room-bar">
       <div class="room-bar__left">
@@ -331,7 +332,9 @@ export function RoomScreen() {
       </div>
       <div class="room-bar__right">
         <${LoadoutButton} from="room" size="lg" class="room-loadout" label=${t('干员调配')} />
-        ${facts.isHost
+        ${facts.isHost && canFindMates(room, facts) && (findMates || room.searching)
+          ? html`<${SearchButton} room=${room} facts=${facts} busy=${busy} online=${online} run=${run} />`
+          : facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : t('仍有博士未准备就绪')}>
               <${Button} variant="primary" size="xl" icon="play" loading=${busy === 'start'} disabled=${!facts.canStart || !online} onClick=${start}>${t('开始模拟')}<//>
             <//>`
