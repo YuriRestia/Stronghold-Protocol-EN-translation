@@ -14,6 +14,7 @@ import { createRng } from '../../server/sim/rng.js';
 import { MAX_HOOK_DEPTH, MAX_ALIVE_ENEMIES } from '../../server/sim/constants.js';
 import { getDefaultSource, spawnsFromTemplate } from '../../server/sim/simdata.js';
 import { makeBattle, chessRec, enemyRec, flatStage, checkInvariants, hashOf } from '../helpers/battleHarness.js';
+import { PERF } from '../helpers/perf.js';
 
 const quiet = { error() {}, warn() {}, info() {} };
 const guard = (o = {}) => chessRec({ id: 't_guard', profession: 'WARRIOR', stats: { atk: 300, blockCnt: 2 }, skill: null, ...o });
@@ -736,7 +737,7 @@ test('determinism: shared defs are frozen — a kit that mutates its blackboard 
 /** Speed bar of the heavy boss field, ms per tick (see the header): DESIGN §11's 0.5 ms locally, 1.0 ms on CI runners. */
 const BOSS_FIELD_MS_PER_TICK = process.env.CI ? 1.0 : 0.5;
 
-test(`performance: heavy 2-player boss field (18 ops, ~130 enemies alive) averages < ${BOSS_FIELD_MS_PER_TICK} ms/tick (best of 3)`, () => {
+test(`performance: heavy 2-player boss field (18 ops, ~130 enemies alive) averages < ${BOSS_FIELD_MS_PER_TICK} ms/tick (best of 3)`, PERF, () => {
   const P = realPools();
   if (!ds.getStage('act2autochess_m01') || !ds.getWave('act1autochess_h07_01')) return;
   const keys = ['enemy_1422_lrsldr', 'enemy_1427_lrnazg', 'enemy_1005_yokai', 'enemy_1042_frostd', 'enemy_1425_lrcmra', 'enemy_1040_bombd'].filter((k) => ds.getEnemy(k));

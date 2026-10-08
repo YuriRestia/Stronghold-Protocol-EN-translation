@@ -331,9 +331,12 @@ export function voiceLangsOf(a, charId) {
   return list;
 }
 
+/** The default voice language, then the fallback for an operator without its dub (unreleased-on-global ones have JP). */
+export const VOICE_FALLBACK = Object.freeze(['en', 'jp']);
+
 /**
- * The language `charId` speaks: its own pick, else the default of the settings, else the base dub (the first
- * language it has — CN). A pick it lacks (an operator without an EN dub under an EN default) falls back the same way.
+ * The language `charId` speaks: its own pick, else the default of the settings, else EN, else JP (VOICE_FALLBACK),
+ * else the base dub (the first language it has — CN). A pick it lacks falls back the same way.
  * @param {any} a manifest `audio`
  * @param {string} charId
  * @param {{ default?: string, byChar?: Record<string, string> } | null | undefined} pref
@@ -341,7 +344,7 @@ export function voiceLangsOf(a, charId) {
 export function effectiveVoiceLang(a, charId, pref) {
   const has = voiceLangsOf(a, charId);
   if (!has.length) return null;
-  for (const l of [pref?.byChar?.[charId], pref?.default]) if (l && has.includes(l)) return l;
+  for (const l of [pref?.byChar?.[charId], pref?.default, ...VOICE_FALLBACK]) if (l && has.includes(l)) return l;
   return has[0];
 }
 

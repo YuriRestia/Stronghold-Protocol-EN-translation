@@ -385,7 +385,9 @@ test('client: the index registers the language packs; the menu lists them (butto
   setLang('zh');
   assert.deepEqual([fmtNum(150_000), fmtNum(2.5e8)], ['15.0万', '2.5亿'], 'Chinese as before');
   assert.deepEqual(lang.initialLang('?lang=QAB', () => null), { lang: 'qab', fromUrl: true });
-  assert.deepEqual(lang.initialLang('', () => 'qzz'), { lang: 'zh', fromUrl: false }, 'a stored pack that is gone: Chinese');
+  assert.deepEqual(lang.initialLang('', () => 'qzz'), { lang: 'en', fromUrl: false }, 'a stored pack that is gone: English');
+  assert.deepEqual(lang.initialLang('', () => null), { lang: 'en', fromUrl: false }, 'a first visit: English');
+  assert.deepEqual(lang.initialLang('', () => 'zh'), { lang: 'zh', fromUrl: false }, 'a stored Chinese choice stays');
   assert.deepEqual(lang.initialLang('', () => 'qzz', { tentative: true }), { lang: 'qzz', fromUrl: false }, 'without an index: tried by its code');
   assert.deepEqual([scriptOf('Stronghold Protocol'), scriptOf('卫戍协议'), scriptOf('堅守協定'), scriptOf('위수 협의'), scriptOf('Протокол')], ['alphabetic', 'cjk', 'cjk', 'cjk', 'alphabetic']);
   assert.deepEqual(langMetaOf(readPackIndex(index, 'lang')[1]).numberUnits, ['W', 'Y']);

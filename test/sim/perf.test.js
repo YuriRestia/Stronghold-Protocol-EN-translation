@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Battle } from '../../server/sim/Battle.js';
 import { getDefaultSource, spawnsFromTemplate } from '../../server/sim/simdata.js';
+import { PERF } from '../helpers/perf.js';
 
 const ds = getDefaultSource();
 const quiet = { error() {}, warn() {} };
@@ -19,7 +20,7 @@ function build(spawns, routes, timeLimit, seed = 7) {
   });
 }
 
-test('benchmark: 70-enemy wave (h05) + 10 operators < 0.5 ms/tick average', () => {
+test('benchmark: 70-enemy wave (h05) + 10 operators < 0.5 ms/tick average', PERF, () => {
   const tpl = ds.getWave('act1autochess_h05');
   const { routes, spawns, maxPlayTime } = spawnsFromTemplate(tpl, { mods: { hpMul: 3 } });
   // warm-up (JIT)
@@ -40,7 +41,7 @@ test('benchmark: 70-enemy wave (h05) + 10 operators < 0.5 ms/tick average', () =
   assert.ok(avg < 0.5, `avg ${avg} ms/tick`);
 });
 
-test('benchmark: worst case — 70 enemies alive at once + 10 operators < 0.5 ms/tick', () => {
+test('benchmark: worst case — 70 enemies alive at once + 10 operators < 0.5 ms/tick', PERF, () => {
   const tpl = ds.getWave('act1autochess_h05');
   const { routes } = spawnsFromTemplate(tpl);
   const keys = ['enemy_1422_lrsldr', 'enemy_1427_lrnazg', 'enemy_1005_yokai', 'enemy_1042_frostd', 'enemy_1425_lrcmra', 'enemy_1040_bombd'];

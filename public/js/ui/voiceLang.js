@@ -3,11 +3,12 @@
 // change. The settings row sets the default for everyone and clears the per-operator picks; the square buttons of
 // the 干员调配 detail header and of the 自选 picker set one operator (CN / JP / EN / KR, plus its own-language dub —
 // 意大利语, 俄文, 中文-方言 … — when the server has one) and play a line of it (试听).
-// The languages an operator has come from the manifest (audio.js voiceLangsOf); a pick it lacks falls back to CN.
+// The languages an operator has come from the manifest (audio.js voiceLangsOf); the default is EN, and a pick it
+// lacks falls back to EN, then JP (unreleased on global), then CN.
 
 import { html } from './components.js';
 import { createStore, useStore, loadPref, savePref } from '../store.js';
-import { audio, VOICE_LANGS, voiceLangsOf, effectiveVoiceLang } from '../audio.js';
+import { audio, VOICE_LANGS, VOICE_FALLBACK, voiceLangsOf, effectiveVoiceLang } from '../audio.js';
 import { data } from '../data.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
@@ -31,7 +32,7 @@ const TOPOLECT_SQ = N_('方');
  * @returns {{ default: string, byChar: Record<string, string> }}
  */
 export function sanitizeVoiceLang(v) {
-  const def = VOICE_LANGS.includes(v?.default) ? v.default : 'cn';
+  const def = VOICE_LANGS.includes(v?.default) ? v.default : VOICE_FALLBACK[0];
   const byChar = {};
   if (v?.byChar && typeof v.byChar === 'object') {
     for (const [id, l] of Object.entries(v.byChar)) if (CHAR_ID.test(id) && PICKS.includes(l)) byChar[id] = l;

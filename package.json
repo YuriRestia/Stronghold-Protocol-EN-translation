@@ -26,6 +26,7 @@
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
     "test": "node --test",
+    "test:perf": "node tools/test-perf.mjs",
     "golden": "node tools/golden.mjs",
     "golden:update": "node tools/golden.mjs --update",
     "vendor": "node tools/vendor.mjs",

@@ -739,9 +739,12 @@ describe('voice language', () => {
     assert.deepEqual(voiceLangsOf(am, 'char_none'), []);
     const pref = { default: 'en', byChar: { char_102_texas: 'native' } };
     assert.equal(effectiveVoiceLang(am, 'char_102_texas', pref), 'native', 'its own pick');
-    assert.equal(effectiveVoiceLang(am, 'char_x', pref), 'cn', 'an EN default it lacks ⇒ the base dub');
-    assert.equal(effectiveVoiceLang(am, 'char_x', { default: 'jp' }), 'jp');
-    assert.equal(effectiveVoiceLang(am, 'char_x', null), 'cn');
+    assert.equal(effectiveVoiceLang(am, 'char_x', pref), 'jp', 'an EN default it lacks ⇒ JP (not on global yet)');
+    assert.equal(effectiveVoiceLang(am, 'char_x', { default: 'cn' }), 'cn');
+    assert.equal(effectiveVoiceLang(am, 'char_x', { default: 'kr' }), 'jp', 'a KR default it lacks ⇒ EN, else JP');
+    assert.equal(effectiveVoiceLang(am, 'char_102_texas', null), 'en', 'no settings ⇒ EN');
+    assert.equal(effectiveVoiceLang(am, 'char_x', null), 'jp');
+    assert.equal(effectiveVoiceLang({ voice: am.voice }, 'char_x', pref), 'cn', 'only the base dub ⇒ CN');
     assert.equal(effectiveVoiceLang(am, 'char_none', pref), null);
   });
 

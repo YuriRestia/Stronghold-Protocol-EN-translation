@@ -118,8 +118,14 @@ export async function loadLangChain(lang, doFetch = defaultFetch) {
 export const dataChain = (lang) => langChain(lang).filter((c) => langInfo(c)?.data !== false).map((c) => ({ code: c, url: langInfo(c)?.dataUrl }));
 
 /**
- * The language to start in: the URL's `?lang=`, then the stored choice, then Chinese. `tentative`: also a well-formed
- * code no pack is known for (boot without an index tries to load it).
+ * The language a first visit starts in (this fork's audience is English-speaking): English when its pack is listed
+ * (or, without an index, tried by its code), else the Chinese source.
+ */
+export const START_LANG = 'en';
+
+/**
+ * The language to start in: the URL's `?lang=`, then the stored choice, then START_LANG, then Chinese. `tentative`:
+ * also a well-formed code no pack is known for (boot without an index tries to load it).
  * @param {string} [search] location.search
  * @param {(key: string, fallback: any) => any} [load]
  * @param {{ tentative?: boolean }} [opts]
@@ -132,7 +138,7 @@ export function initialLang(search = globalThis.location?.search || '', load = l
   if (fromUrl) return { lang: fromUrl, fromUrl: true };
   let stored = null;
   try { stored = pick(load(PREF_KEY, null)); } catch { /* ignore */ }
-  return { lang: stored || DEFAULT_LANG, fromUrl: false };
+  return { lang: stored || pick(START_LANG) || DEFAULT_LANG, fromUrl: false };
 }
 
 function stripLangParam() {
@@ -206,7 +212,8 @@ export async function initLang() {
   })();
   const got = await Promise.race([boot, new Promise((r) => setTimeout(() => r(TIMEOUT), BOOT_WAIT_MS))]);
   if (got === TIMEOUT) {
-    boot.then((lang) => { if (lang && normalizeLang(loadPref(PREF_KEY, null)) === lang) applyLang(lang); });
+    // still the language to be in (no other pick in the meantime; a first visit has no stored one — START_LANG)
+    boot.then((lang) => { if (lang && initialLang().lang === lang) applyLang(lang); });
   } else if (got) applyLang(got);
   return getLang();
 }
