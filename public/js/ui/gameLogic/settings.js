@@ -14,14 +14,17 @@ import { DEFAULT_HOTKEYS, sanitizeHotkeys } from './shortcuts.js';
  */
 export const VOICE_LANGS = Object.freeze(['cn', 'jp', 'en', 'kr']);
 
-/** keys: the in-match shortcuts' key map (ui/gameLogic/shortcuts.js; settings → 快捷键). voiceLang: VOICE_LANGS. */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'en', muted: false, damageNumbers: true, quality: 'high', keys: DEFAULT_HOTKEYS });
+/**
+ * keys: the in-match shortcuts' key map (ui/gameLogic/shortcuts.js; settings → 快捷键). voiceLang: VOICE_LANGS. voiceNative:
+ * every operator with an own-language dub (`audio.voiceNative`) speaks it instead of voiceLang (this fork).
+ */
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'en', voiceNative: false, muted: false, damageNumbers: true, quality: 'high', keys: DEFAULT_HOTKEYS });
 const QUALITIES = ['high', 'medium', 'low'];
 
 /**
  * Sanitize persisted settings.
  * @param {any} raw
- * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', muted: boolean, damageNumbers: boolean, quality: 'high'|'medium'|'low',
+ * @returns {{ bgm: number, sfx: number, voice: number, voiceLang: 'cn'|'jp'|'en'|'kr', voiceNative: boolean, muted: boolean, damageNumbers: boolean, quality: 'high'|'medium'|'low',
  *   keys: Record<'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready', string> }}
  */
 export function sanitizeSettings(raw) {
@@ -32,6 +35,7 @@ export function sanitizeSettings(raw) {
     sfx: vol(r.sfx, DEFAULT_SETTINGS.sfx),
     voice: vol(r.voice, DEFAULT_SETTINGS.voice),
     voiceLang: VOICE_LANGS.includes(r.voiceLang) ? r.voiceLang : DEFAULT_SETTINGS.voiceLang,
+    voiceNative: typeof r.voiceNative === 'boolean' ? r.voiceNative : DEFAULT_SETTINGS.voiceNative,
     muted: typeof r.muted === 'boolean' ? r.muted : DEFAULT_SETTINGS.muted,
     damageNumbers: typeof r.damageNumbers === 'boolean' ? r.damageNumbers : DEFAULT_SETTINGS.damageNumbers,
     quality: QUALITIES.includes(r.quality) ? r.quality : DEFAULT_SETTINGS.quality,

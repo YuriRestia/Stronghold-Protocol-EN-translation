@@ -29,12 +29,13 @@ export function sanitizePreloadPref(v) {
 /**
  * The voice packs the voice language settings use: the default language (settings 语音语言), every per-operator pick
  * and, with the manifest's `audio`, the dub each voiced operator really speaks — an operator without the default's dub
- * falls back to EN, then JP (audio.js effectiveVoiceLang), so an EN default also needs the JP pack (`audio.voiceJp`).
- * @param {{ default?: string, byChar?: Record<string, string> } | null | undefined} pref
+ * falls back to EN, then JP (audio.js effectiveVoiceLang), so an EN default also needs the JP pack (`audio.voiceJp`);
+ * the 本土语言 switch (`native`) adds the own-language pack.
+ * @param {{ default?: string, native?: boolean, byChar?: Record<string, string> } | null | undefined} pref
  * @param {any} [a] data/assets.json `audio`
  */
 export function voicePacksOf(pref, a = null) {
-  const used = new Set([pref?.default, ...Object.values(pref?.byChar || {})]);
+  const used = new Set([pref?.default, pref?.native ? 'native' : null, ...Object.values(pref?.byChar || {})]);
   for (const charId of Object.keys(a?.voice || {})) used.add(effectiveVoiceLang(a, charId, pref));
   return VOICE_PACKS.filter((p) => used.has(p));
 }

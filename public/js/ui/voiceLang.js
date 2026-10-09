@@ -1,9 +1,10 @@
 // 语音语言 per operator (user request, plan of 2026-10-07), on top of master's settings 语音语言 (0.2.2). The settings
 // row (ui/settings.js, `settings.voiceLang`: CN / JP / EN / KR, EN by default) is the dub of every operator; changing
-// it clears the per-operator picks (setDefaultVoiceLang). The square buttons of the 干员调配 detail header and of the
+// it, or its 本土语言 switch (`settings.voiceNative`: every operator with an own-language dub speaks it), clears the
+// per-operator picks (setDefaultVoiceLang). The square buttons of the 干员调配 detail header and of the
 // 自选 picker set one operator (CN / JP / EN / KR, plus its own-language dub — 意大利语, 俄文, 中文-方言 … — when the
 // server has one) and play a line of it (试听). The picks are a client-only preference (`sp.pref.voiceLang` =
-// { default, byChar }, never synced to the server; `default` mirrors the settings so the preload's voice packs and the
+// { default, native, byChar }, never synced to the server; `default` and `native` mirror the settings so the preload's voice packs and the
 // picker read one store) pushed into the audio manager (audio.setVoicePicks), which plays them through voiceLine.
 // The languages an operator has come from the manifest (audio.js voiceLangsOf: the trees `audio.voiceJp` /
 // `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`); a language it lacks falls back to EN, then JP (unreleased on
@@ -32,7 +33,7 @@ const TOPOLECT_SQ = N_('方');
 /**
  * Keep only well-formed fields: a known default, per-operator picks of known languages on charIds.
  * @param {any} v
- * @returns {{ default: string, byChar: Record<string, string> }}
+ * @returns {{ default: string, native: boolean, byChar: Record<string, string> }}
  */
 export function sanitizeVoiceLang(v) {
   const def = VOICE_LANGS.includes(v?.default) ? v.default : VOICE_FALLBACK[0];
@@ -40,7 +41,7 @@ export function sanitizeVoiceLang(v) {
   if (v?.byChar && typeof v.byChar === 'object') {
     for (const [id, l] of Object.entries(v.byChar)) if (CHAR_ID.test(id) && PICKS.includes(l)) byChar[id] = l;
   }
-  return { default: def, byChar };
+  return { default: def, native: v?.native === true, byChar };
 }
 
 /**
@@ -57,10 +58,10 @@ function initialVoiceLang() {
     settings = { ...settings, voiceLang: saved.default };
     savePref('settings', settings);
   }
-  return sanitizeVoiceLang({ ...saved, default: settings?.voiceLang ?? saved?.default });
+  return sanitizeVoiceLang({ ...saved, default: settings?.voiceLang ?? saved?.default, native: settings?.voiceNative === true });
 }
 
-/** Voice language store: { default (mirrors settings 语音语言), byChar }. */
+/** Voice language store: { default (mirrors settings 语音语言), native (settings 本土语言), byChar }. */
 export const voiceLangStore = createStore(initialVoiceLang());
 
 voiceLangStore.subscribe((s) => {
@@ -71,12 +72,16 @@ voiceLangStore.subscribe((s) => {
 audio.setVoicePicks(voiceLangStore.get().byChar);
 
 /**
- * Settings 语音语言 changed (ui/settings.js): every operator speaks `lang` — the per-operator picks are cleared. The same
- * language again (any other setting changing) keeps them.
+ * Settings 语音语言 or 本土语言 changed (ui/settings.js): every operator speaks `lang` — or, with `native`, its own-language
+ * dub when it has one — and the per-operator picks are cleared. The same values again (any other setting changing) keep
+ * them.
+ * @param {string} lang
+ * @param {boolean} [native]
  */
-export function setDefaultVoiceLang(lang) {
-  if (!VOICE_LANGS.includes(lang) || voiceLangStore.get().default === lang) return;
-  voiceLangStore.set({ default: lang, byChar: {} });
+export function setDefaultVoiceLang(lang, native = false) {
+  const cur = voiceLangStore.get();
+  if (!VOICE_LANGS.includes(lang) || (cur.default === lang && cur.native === native)) return;
+  voiceLangStore.set({ default: lang, native, byChar: {} });
 }
 
 /**
@@ -91,7 +96,7 @@ export function setCharVoiceLang(a, charId, lang) {
   const cur = voiceLangStore.get();
   const byChar = { ...cur.byChar };
   delete byChar[charId];
-  if (effectiveVoiceLang(a, charId, { default: cur.default, byChar }) !== lang) byChar[charId] = lang;
+  if (effectiveVoiceLang(a, charId, { ...cur, byChar }) !== lang) byChar[charId] = lang;
   voiceLangStore.set({ ...cur, byChar });
 }
 

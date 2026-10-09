@@ -960,6 +960,9 @@ describe('voice language', () => {
     assert.equal(effectiveVoiceLang(am, 'char_x', null), 'jp');
     assert.equal(effectiveVoiceLang({ voice: am.voice }, 'char_x', pref), 'cn', 'only the base dub ⇒ CN');
     assert.equal(effectiveVoiceLang(am, 'char_none', pref), null);
+    assert.equal(effectiveVoiceLang(am, 'char_102_texas', { default: 'en', native: true }), 'native', '本土语言 on: its own-language dub');
+    assert.equal(effectiveVoiceLang(am, 'char_x', { default: 'en', native: true }), 'jp', '本土语言 on, no such dub: the default\'s fallback');
+    assert.equal(effectiveVoiceLang(am, 'char_102_texas', { default: 'en', native: true, byChar: { char_102_texas: 'kr' } }), 'kr', 'a pick still wins');
   });
 
   test("voiceLine: every dub is a tree like master's voiceJp (VOICE_TREES), the Chinese file of the same name its fallback", () => {

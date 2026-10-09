@@ -264,6 +264,7 @@ test('voice packs follow the voice language settings until the player edits the 
   const am = { voice: { char_a: {}, char_b: {} }, voiceEn: { char_a: { select: 'x' } }, voiceJp: { char_b: { select: 'x' } } };
   assert.deepEqual(voicePacksOf({ default: 'en', byChar: {} }, am), ['en', 'jp'], 'char_b has no EN dub: it speaks JP');
   assert.deepEqual(voicePacksOf({ default: 'cn', byChar: {} }, am), ['cn']);
+  assert.ok(voicePacksOf({ default: 'cn', native: true, byChar: {} }).includes('native'), 'the 本土语言 switch ticks the native pack');
   voiceLangStore.set({ default: 'jp', byChar: { char_a: 'native' } });
   followVoiceSettings();
   assert.deepEqual(tickedVoicePacks(), ['jp', 'native'], 'ticked from the current voice settings');

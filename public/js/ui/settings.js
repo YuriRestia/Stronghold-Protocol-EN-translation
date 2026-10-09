@@ -7,7 +7,8 @@
 // for a bug report (diag.js: the error log, this browser, optionally the battle on screen; nothing is uploaded), and the
 // row that opens the asset preload (ui/preload.js). The lobby and the room open it from a 设置 button next to 玩法说明
 // (SettingsButton, GitHub #238); the title screen and the match have their own gear. 语音语言 also offers the
-// per-operator picker's dubs (EN / KR) and hands every change to ui/voiceLang.js, which clears the per-operator picks.
+// per-operator picker's dubs (EN / KR) and, beside them, the 本土语言 switch (every operator with an own-language dub
+// speaks it); every change of either goes to ui/voiceLang.js, which clears the per-operator picks.
 
 import { useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Modal, Button, Icon, MicroLabel } from './components.js';
@@ -26,17 +27,19 @@ import { copyText } from './clipboard.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
-/** Settings store: { bgm, sfx, voice, voiceLang, muted, damageNumbers, quality, keys }. */
+/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, muted, damageNumbers, quality, keys }. */
 export const settingsStore = createStore(sanitizeSettings(loadPref('settings', null)));
 
 settingsStore.subscribe((s) => {
   savePref('settings', sanitizeSettings(s));
   audio.setVolumes(s);
   audio.setVoiceLang(s.voiceLang);
-  setDefaultVoiceLang(s.voiceLang);
+  audio.setVoiceNative(s.voiceNative);
+  setDefaultVoiceLang(s.voiceLang, s.voiceNative);
 });
 audio.setVolumes(settingsStore.get());
 audio.setVoiceLang(settingsStore.get().voiceLang);
+audio.setVoiceNative(settingsStore.get().voiceNative);
 
 /** @param {Partial<ReturnType<typeof sanitizeSettings>>} patch */
 export function updateSettings(patch) {
@@ -73,12 +76,18 @@ function Toggle({ label, micro, value, onChange }) {
 
 const QUALITY = [['high', N_('高')], ['medium', N_('中')], ['low', N_('低')]];
 /**
- * 语音语言: each dub named in its own language, like the interface language switch (ui/lang.js) — the owner's
- * 「中文 / 日本語」 (2026-10-08); VOICE_LANGS order. English / 한국어: the per-operator picker's dubs (ui/voiceLang.js).
+ * 语音语言: each dub named in the interface language (msgids), so a player need not read the other
+ * scripts to find theirs — unlike the interface language switch (ui/lang.js), where whoever opens it may not read the
+ * current one; VOICE_LANGS order. 英语 / 韩语: the per-operator picker's dubs (ui/voiceLang.js).
  */
-const VOICE_LANG_NAMES = { cn: '中文', jp: '日本語', en: 'English', kr: '한국어' }; // i18n-ignore
-/** The `lang` attribute of each dub's name. */
-const VOICE_LANG_HTML = { cn: 'zh', jp: 'ja', en: 'en', kr: 'ko' };
+const VOICE_LANG_NAMES = {
+  cn: N_('中文'), // en: "Chinese"
+  jp: N_('日语'), // en: "Japanese"
+  en: N_('英语'), // en: "English"
+  kr: N_('韩语'), // en: "Korean"
+};
+/** The 本土语言 switch's tooltip (its button: the short `voice-lang::本土语言`, en "Native"). */
+const VOICE_NATIVE_TIP = N_('有本土语言配音时使用'); // en: "Use native-language dub if available"
 /** The rebindable shortcuts' names (msgids), by action. */
 const HOTKEY_NAMES = { refresh: N_('刷新商店'), freeze: N_('冻结 / 解冻商店'), levelUp: N_('升级调度中心'), retreat: N_('撤退选中干员'),
   sell: N_('出售选中干员'), ready: N_('准备就绪 / 暂停（独立模拟）') };
@@ -221,7 +230,7 @@ export function SettingsModal({ open, onClose }) {
   const [tested, setTested] = useState(false);
   const [touchUi] = useState(() => detectFeatures().coarse && !detectFeatures().fine);
   const mtNote = machineTranslationNote(); // a pack marked as machine translation says so under the switch
-  return html`<${Modal} open=${open} onClose=${onClose} title=${t('设置')} micro="SETTINGS" width="7.4rem"
+  return html`<${Modal} open=${open} onClose=${onClose} title=${t('设置')} micro="SETTINGS" width="8.5rem"
     actions=${html`<${Button} variant="secondary" icon="book" class="set-guide" onClick=${() => openGuide(0)}>${t('玩法说明')}<//>
       <${Button} variant="primary" icon="check" onClick=${onClose}>${t('完成')}<//>`}>
     <div class="set-list">
@@ -234,9 +243,15 @@ export function SettingsModal({ open, onClose }) {
       <${Slider} label=${t('干员语音')} micro="VOICE" icon="mic" value=${s.voice} onInput=${(v) => updateSettings({ voice: v })} />
       <div class="set-row">
         <span class="set-row__label">${t('语音语言')}<${MicroLabel}>VOICE LANGUAGE<//></span>
-        <div class="set-seg" role="radiogroup" aria-label=${t('语音语言')} data-testid="voice-lang">
-          ${VOICE_LANGS.map((id) => html`<button key=${id} type="button" role="radio" aria-checked=${s.voiceLang === id ? 'true' : 'false'}
-            lang=${VOICE_LANG_HTML[id]} class=${s.voiceLang === id ? 'is-on' : ''} onClick=${() => updateSettings({ voiceLang: id })}>${VOICE_LANG_NAMES[id]}</button>`)}
+        <div class="set-voice">
+          <div class="set-seg" role="radiogroup" aria-label=${t('语音语言')} data-testid="voice-lang">
+            ${VOICE_LANGS.map((id) => html`<button key=${id} type="button" role="radio" aria-checked=${s.voiceLang === id ? 'true' : 'false'}
+              class=${s.voiceLang === id ? 'is-on' : ''} onClick=${() => updateSettings({ voiceLang: id })}>${t(VOICE_LANG_NAMES[id])}</button>`)}
+          </div>
+          <div class="set-seg">
+            <button type="button" aria-pressed=${s.voiceNative ? 'true' : 'false'} class=${s.voiceNative ? 'is-on' : ''} title=${t(VOICE_NATIVE_TIP)}
+              data-testid="voice-native" onClick=${() => updateSettings({ voiceNative: !s.voiceNative })}>${tc('voice-lang', '本土语言')}</button>
+          </div>
         </div>
       </div>
       <${Slider} label=${t('音效')} micro="SFX" icon="signal" value=${s.sfx}

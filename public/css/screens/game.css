@@ -538,6 +538,9 @@
 .set-toggle.is-on { color: var(--mint-400); border-color: var(--mint-700); }
 .set-toggle.is-on i { background: var(--mint-800); }
 .set-toggle.is-on i::after { transform: translateX(.22rem); background: var(--mint-400); }
+/* 语音语言: the dubs, then the 本土语言 switch (ui/settings.js) */
+.set-voice { grid-column: 2 / 4; justify-self: start; display: flex; flex-wrap: wrap; gap: .1rem; }
+.set-voice .set-seg { grid-column: auto; }
 .set-seg { grid-column: 2 / 4; justify-self: start; display: flex; border: 1px solid var(--line-2); }
 .set-seg button { min-width: .8rem; height: .38rem; background: #0a0d0c; border: 0; border-right: 1px solid var(--line-2); color: var(--text-lo); font-size: .16rem; }
 .set-seg button:last-child { border-right: 0; }

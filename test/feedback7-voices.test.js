@@ -100,10 +100,14 @@ test('settings 语音语言: English by default (this fork), 中文 / 日本語 
   assert.equal(sanitizeSettings({ voiceLang: 'native' }).voiceLang, 'en', 'the own-language dub is a per-operator pick only');
   const ui = fs.readFileSync(path.join(ROOT, 'public/js/ui/settings.js'), 'utf8');
   assert.match(ui, /updateSettings\(\{ voiceLang: id \}\)/);
-  assert.match(ui, /const VOICE_LANG_NAMES = \{ cn: '中文', jp: '日本語', en: 'English', kr: '한국어' \};/, 'each dub named in its own language');
+  assert.match(ui, /cn: N_\('中文'\),.*\n\s*jp: N_\('日语'\),.*\n\s*en: N_\('英语'\),.*\n\s*kr: N_\('韩语'\),/,
+    'each dub named in the interface language (this fork)');
+  assert.match(ui, /\$\{t\(VOICE_LANG_NAMES\[id\]\)\}/);
+  assert.match(ui, /updateSettings\(\{ voiceNative: !s\.voiceNative \}\)/, 'the 本土语言 switch beside the dubs');
+  assert.match(ui, /title=\$\{t\(VOICE_NATIVE_TIP\)\}/);
   for (const code of ['en', 'ja', 'ko', 'zh-TW']) {
     const pack = readJson(`public/i18n/${code}.json`);
-    assert.ok(typeof pack['语音语言'] === 'string' && pack['语音语言'] && pack['语音语言'] !== '语音语言', `${code}: 语音语言`);
+    for (const id of ['语音语言', '中文', '日语', '英语', '韩语', 'voice-lang::本土语言', '有本土语言配音时使用']) assert.ok(typeof pack[id] === 'string' && pack[id], `${code}: ${id}`);
   }
 });
 

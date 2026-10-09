@@ -399,16 +399,17 @@ export function voiceLangsOf(a, charId) {
 export const VOICE_FALLBACK = Object.freeze(['en', 'jp']);
 
 /**
- * The language `charId` speaks: its own pick, else the default of the settings, else EN, else JP (VOICE_FALLBACK),
- * else the base dub (the first language it has — CN). A pick it lacks falls back the same way.
+ * The language `charId` speaks: its own pick, else its own-language dub when the settings ask for it (`native`), else the
+ * default of the settings, else EN, else JP (VOICE_FALLBACK), else the base dub (the first language it has — CN). A pick
+ * it lacks falls back the same way.
  * @param {any} a manifest `audio`
  * @param {string} charId
- * @param {{ default?: string, byChar?: Record<string, string> } | null | undefined} pref
+ * @param {{ default?: string, native?: boolean, byChar?: Record<string, string> } | null | undefined} pref
  */
 export function effectiveVoiceLang(a, charId, pref) {
   const has = voiceLangsOf(a, charId);
   if (!has.length) return null;
-  for (const l of [pref?.byChar?.[charId], pref?.default, ...VOICE_FALLBACK]) if (l && has.includes(l)) return l;
+  for (const l of [pref?.byChar?.[charId], pref?.native && 'native', pref?.default, ...VOICE_FALLBACK]) if (l && has.includes(l)) return l;
   return has[0];
 }
 
@@ -564,6 +565,7 @@ export class AudioManager {
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
     this.voiceLang = 'cn';    // settings 语音语言: 'cn' (audio.voice) | 'jp' (audio.voiceJp, falling back to audio.voice)
+    this.voiceNative = false; // settings 本土语言: an operator with an own-language dub speaks it; setVoiceNative
     this.voicePicks = {};     // charId → its own dub (ui/voiceLang.js, the per-operator picker); setVoicePicks
     this.startVoiceDone = false; // 行动出发 of this field (the first operator deployed says it)
     this.uiVoices = 0;
@@ -716,6 +718,15 @@ export class AudioManager {
   }
 
   /**
+   * The settings' 本土语言 switch: every operator with an own-language dub (`audio.voiceNative`) speaks it instead of
+   * the settings' dub; an operator's own pick still wins.
+   * @param {boolean} on
+   */
+  setVoiceNative(on) {
+    this.voiceNative = on === true;
+  }
+
+  /**
    * The per-operator picks (ui/voiceLang.js, the squares of 干员调配 and the 自选 picker): charId → cn | jp | en | kr |
    * native. An operator without a pick speaks the settings' dub (setVoiceLang).
    * @param {Record<string, string> | null} picks
@@ -724,9 +735,9 @@ export class AudioManager {
     this.voicePicks = picks && typeof picks === 'object' ? { ...picks } : {};
   }
 
-  /** The dub `charId` speaks now: its own pick, else the settings' one, else EN, else JP (effectiveVoiceLang). */
+  /** The dub `charId` speaks now: its own pick, else its own-language dub (setVoiceNative), else the settings' one, else EN, else JP (effectiveVoiceLang). */
   voiceLangOf(charId) {
-    return effectiveVoiceLang(this.getManifest()?.audio, charId, { default: this.voiceLang, byChar: this.voicePicks });
+    return effectiveVoiceLang(this.getManifest()?.audio, charId, { default: this.voiceLang, native: this.voiceNative, byChar: this.voicePicks });
   }
 
   _applyVolumes() {
@@ -1223,13 +1234,13 @@ export const audio = new AudioManager({ getManifest: () => manifestGetter() });
 /**
  * Wire the singleton to the app (called once by main.js): manifest source, settings and store-driven BGM.
  * @param {{ getManifest: () => any, subscribe: (fn: (s:any, prev:any) => void) => () => void, getState: () => any,
- *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean, voiceLang?:string } }} deps
+ *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean, voiceLang?:string, voiceNative?:boolean } }} deps
  */
 export function installAudio(deps) {
   try {
     manifestGetter = typeof deps?.getManifest === 'function' ? deps.getManifest : manifestGetter;
     audio.install();
-    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang); }
+    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang); audio.setVoiceNative(deps.settings.voiceNative); }
     if (typeof deps?.subscribe === 'function' && typeof deps?.getState === 'function') {
       const sync = (s) => {
         try {
