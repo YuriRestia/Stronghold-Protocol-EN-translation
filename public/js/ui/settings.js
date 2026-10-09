@@ -3,7 +3,7 @@
 // the settings modal — which also holds the language switch (ui/lang.js; kept apart in `sp.pref.lang`; under it a note
 // while the current language's pack is a machine translation, `_meta.machineTranslated`) and the 快捷键
 // section that rebinds the in-match shortcuts (the key map: ui/gameLogic/shortcuts.js; the community request
-// 「快捷键可不可以自己设置」, the owner's decision of 2026-10-07).
+// 「快捷键可不可以自己设置」, the owner's decision of 2026-10-07), and the row that opens the asset preload (ui/preload.js).
 
 import { useLayoutEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Modal, Button, Icon, MicroLabel } from './components.js';
@@ -14,6 +14,7 @@ import { openGuide } from './guide.js';
 import { detectFeatures } from './device.js';
 import { LangToggle, machineTranslationNote } from './lang.js';
 import { VoiceLangDefault } from './voiceLang.js';
+import { PreloadRow } from './preload.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -180,6 +181,7 @@ export function SettingsModal({ open, onClose }) {
             class=${s.quality === id ? 'is-on' : ''} onClick=${() => updateSettings({ quality: id })}>${t(label)}</button>`)}
         </div>
       </div>
+      <${PreloadRow} />
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <p class="set-hint">${touchUi ? t('触屏操作：点击单位选中（撤退 / 出售）· 长按单位或卡牌查看详情 · 拖动部署后滑动选择朝向') : t('右键查看详情')}</p>
     </div>

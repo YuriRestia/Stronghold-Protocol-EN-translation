@@ -408,6 +408,36 @@ The 2026-09-27 verification pass also checked:
 - **Browser:** headless Chrome loads and animates all 529 Spine models with the vendored PixiJS 7.4.2 and pixi-spine 4.0.6, with no console errors. Chrome's font sanitizer also accepts the three WOFF2 files.
 - **Official data:** 771 provenance checks against the official data (`activity_table`, `skill_table`, `models_data.json`) all match: avatars, portraits, E2 art, bond, band and item icons, and enemy skeleton files.
 
+## Preload
+
+Settings ▸ Preload Assets keeps the assets on the player's disk, so nothing downloads mid-match.
+
+- **Manifest** `/data/resource-manifest.json` (server/resources.js): every file under `public/assets` and `public/fonts` up
+  to 24 MiB as `[path, size, sha1-12]`. Built once per process in the background at boot; hashes are cached by
+  size + mtime in `node_modules/.cache/sp-resource-hashes.json` (cold build ~12 s for 820 MB, warm ~1.5 s). Served
+  `no-cache` with an ETag, so clients revalidate with a 304.
+- **Packs** (shared/resources.js `packOf`): `visual` (spine, char, local maps, ui, icons, fonts, ≈400 MB) and `audio` (bgm,
+  sfx, guide art, ≈87 MB) are always included; voice packs `cn` / `en` / `jp` / `kr` / `native` (19–90 MB each) are a
+  checklist, pre-ticked from the voice language settings (default + per-operator picks) until the player edits it.
+- **Download** (public/js/resources/store.js): one Cache Storage cache, keyed by path; each entry carries the hash of
+  its bytes in an `X-SP-Resource` header (no shared index, so the page and the worker never overwrite each other). Files are fetched as `<path>?v=<hash>` (audio through `/media/…`), which files.js marks immutable, so
+  Cloudflare caches each version and the VPS sends it once per edge. `cache: 'no-store'` avoids a second copy in the HTTP
+  cache. Size and SHA-1 are checked before a file is stored; 4 lanes for small files plus 1 for files over 4 MiB (1 lane
+  in total during a match); Web Lock so only one tab downloads. Outdated entries are deleted first, and entries the
+  manifest no longer lists only after a complete run. `navigator.storage.persist()` + `estimate()` before starting.
+- **Worker** (public/resource-sw.js, classic): answers GET `/assets/**`, `/fonts/**`, `/media/**` without a query from
+  the cache, but only files whose stored hash equals the current manifest's (re-read at most once a minute, on page
+  loads), with Range support; everything else goes to the network. A file the game fetches that is not saved yet is
+  saved on the way when it is in the manifest, in a pack the player picked (`/__sp-resource-packs__`, written by the
+  page) and its size + SHA-1 match; the download then skips it. Lifecycle: start → pause / resume (saved files are
+  used at once) → complete; the set then stays in use until Clear Cache, which deletes it and unregisters the worker.
+- **Cloudflare** (behind a proxy): a cache rule making `/assets/`, `/media/`, `/fonts/` cache-eligible must stay on, or every preload is
+  served by the VPS (470–820 MB per player).
+
+`node --test test/resources.test.js` covers the path rules (and the worker's copy of them), the manifest and its HTTP
+route, the store against an in-memory Cache Storage (download, resume, changed files, bad checksum, abort, full disk,
+removing a pack), the worker's answers and its saving of fetched files, and the voice-pack default.
+
 ## Licensing and credits
 
 The project's code is GPL-3.0-or-later (`LICENSE`); none of the items below is covered by it. Details: `NOTICE.md` (scope, non-commercial terms) and `THIRD-PARTY-NOTICES.md` (libraries, fonts, licence texts).

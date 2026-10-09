@@ -53,6 +53,8 @@ import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/l
 import { startBuildGuard } from './ui/buildGuard.js';
 import { installPresence } from './ui/presence.js';
 import { installSoloQueue } from './ui/soloQueue.js';
+import { PreloadHost } from './ui/preload.js';
+import { installPreload } from './resources/index.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
 
@@ -298,6 +300,7 @@ function App() {
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ConnectionBanner} />
     <${ToastHost} />
+    <${PreloadHost} />
     <${UiHosts} />
     <${GuideHost} />
     <${LoadoutHost} />
@@ -383,6 +386,8 @@ async function boot() {
     setTimeout(() => splash.remove(), 300);
   }
   globalThis.__SP__ = { store, net, data, version: 1 };
+  // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the first screen (resources/index.js)
+  installPreload();
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
   // (ui/buildGuard.js): watch `/healthz.build`. Outside a match the page reloads itself; during a match the guard says
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,

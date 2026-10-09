@@ -254,6 +254,47 @@
 html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
 .title-conn .ping { height: .26rem; font-size: .15rem; }
 
+/* 预载资源 card (ui/preload.js PreloadCard): small, bottom-right above the footer, the login panel's frame (dark glass,
+   line border, mint top rule) so the start box keeps the focus */
+.title-preload {
+  position: absolute;
+  z-index: 2;
+  right: .44rem;
+  bottom: .66rem;
+  width: 3.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: .07rem;
+  padding: .14rem .16rem;
+  background: linear-gradient(180deg, rgba(20, 25, 23, .78), rgba(10, 13, 12, .86));
+  border: 1px solid var(--line-2);
+  box-shadow: 0 .14rem .36rem rgba(0, 0, 0, .45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  animation: rise-in 600ms 360ms var(--ease-out) backwards;
+}
+.title-preload::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  right: -1px;
+  top: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--mint-500), transparent 60%);
+}
+.title-preload h2 { margin: 0; font-size: .17rem; font-weight: 700; letter-spacing: .06em; color: var(--text-hi); }
+.title-preload__intro { display: flex; align-items: flex-start; gap: .06rem; margin: 0; font-size: .13rem; line-height: 1.5; color: var(--text-lo); }
+.title-preload__intro.is-done { color: var(--mint-400); }
+.title-preload__intro .icon { width: .16rem; height: .16rem; margin-top: .02rem; flex: none; }
+.title-preload__go { margin-top: .02rem; letter-spacing: .06em; }
+.title-preload__row { display: flex; align-items: center; gap: .08rem; margin-top: .02rem; }
+.title-preload__row .btn--block { flex: 1; letter-spacing: .06em; }
+.title-preload__bar { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .04rem; }
+.title-preload__bar .num { font-size: .12rem; color: var(--text-lo); white-space: nowrap; }
+.title-preload__gear { flex: none; width: .36rem; height: .36rem; }
+.title-preload__gear .icon { width: .2rem; height: .2rem; }
+.title-preload__msg { margin: 0; font-size: .13rem; line-height: 1.45; color: var(--amber); }
+
 .title-foot {
   position: absolute;
   z-index: 2;

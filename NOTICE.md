@@ -15,6 +15,9 @@ Copyright (C) 2026 Stronghold-Protocol contributors
 
 **英文翻译致谢**：界面英文文本 `public/i18n/en.json` 与游戏文本的补充译文 `tools/i18n/fallback-pr70.json` 以 GitHub PR #70（分支 `en-translation`）中 **@YuriRestia** 的翻译为基础，经项目所有者决定（2026-10-05）署名沿用，随本项目一同以 GPL-3.0-or-later 发布；PR #70 中取自 ak-spa-database.pages.dev（未声明许可）的文本未被采用。英文游戏文本 `data/i18n/en.json` 本身是官方英文服数据（见第 2 节）。
 
+**资源预载致谢 / Asset preload credit**：「设置 ▸ 预载资源」（`public/resource-sw.js`、`public/js/resources/`、`shared/resources.js`、`server/resources.js`）基于 [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol) 的资源预载模块（`public/resource-sw.js`、`public/js/resources/`、`server/resources.js`，GPL-3.0-or-later），版权归其贡献者，随本项目一同以 GPL-3.0-or-later 发布。
+The asset preload (Settings ▸ Preload Assets) is based on the preloader of xinhai-ai/Stronghold-Protocol (GPL-3.0-or-later); copyright its contributors, distributed under the same license.
+
 **附加许可（GPL-3.0 第 7 条）** — Additional permission under GNU GPL version 3 section 7:
 
 > If you modify this Program, or any covered work, by linking or combining it with the Spine Runtimes (as shipped in

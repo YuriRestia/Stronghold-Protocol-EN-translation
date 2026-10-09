@@ -32,6 +32,7 @@ import { ROOT, listenAddress, serveDirs, makeLogger, parseTrustProxy } from './h
 import { WS_MAX_PAYLOAD, createSessionStack, attachWebSocket } from './http/websocket.js';
 import { DATA_SHIM_JS, createStaticHandler } from './http/static.js';
 import { createPackRegistry } from './packs.js';
+import { createResourceManifest } from './resources.js';
 import { MIME, COMPRESSIBLE, acceptsGzip, parseRange } from './http/files.js';
 import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/buildTag.js';
 import { createRequestHandler } from './http/routes.js';
@@ -57,6 +58,7 @@ export {
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  *   noticeFile?: string | null, noticePollMs?: number, presencePollMs?: number,
+ *   warmResources?: boolean, resourceHashCache?: string | null,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
@@ -74,7 +76,11 @@ export async function startServer(opts = {}) {
   // content packs (docs/PACKS.md): scanned now — the start log names them — and again whenever their folders change
   const packs = createPackRegistry({ publicDir, dataDir, packsDir }, { log });
   packs.refresh(true);
-  const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, packsDir, packs, log });
+  // asset preload file list (server/resources.js): hashed in the background now, so the first player does not wait
+  const resources = createResourceManifest({ publicDir, log,
+    hashCacheFile: opts.resourceHashCache === undefined ? path.join(ROOT, 'node_modules', '.cache', 'sp-resource-hashes.json') : opts.resourceHashCache });
+  if (opts.warmResources) resources.warm(); // the real server (below); tests build it only when they ask for it
+  const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, packsDir, packs, resources, log });
   const startedAt = Date.now();
   // The tag is per process (see buildTag): read the browser runtime once, here, not on every /healthz.
   resetBuildTag();
@@ -135,4 +141,4 @@ export async function startServer(opts = {}) {
 }
 
 // `node server/index.js` / npm start: listen, print the banner, stop on SIGINT / SIGTERM (http/boot.js).
-if (isProcessEntry(import.meta.url)) runMain(startServer);
+if (isProcessEntry(import.meta.url)) runMain(() => startServer({ warmResources: true }));
