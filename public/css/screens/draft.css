@@ -28,6 +28,9 @@
 .dorder.is-cur { border-color: var(--gold); background: linear-gradient(90deg, rgba(255, 198, 0, .12), rgba(12, 15, 14, .82)); box-shadow: 0 0 .2rem rgba(255, 198, 0, .15); }
 .dorder.is-done { border-color: var(--mint-800); }
 .dorder.is-self .dorder__name { color: var(--mint-400); }
+/* the 核心盟约 called in the briefing (ui/bondCall.js BondCallChip) */
+.dorder__call { display: inline-flex; align-items: center; gap: .04rem; font-size: .13rem; color: var(--text-md); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dorder__call-icon { width: .2rem; height: .2rem; flex: none; object-fit: contain; }
 .draft-order__tip { margin-top: auto; font-size: .13rem; line-height: 1.6; color: var(--text-dim); }
 
 .draft-grid {

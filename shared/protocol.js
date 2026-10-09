@@ -417,6 +417,9 @@ export const C2S = {
 
   // match
   'g.infoReady': {},
+  // the briefing's 核心盟约 call (remake feature): the core bond the player is going for, shown to the teammates on the
+  // bond disc; the same bond again or absent / null clears it (INFO_CHECK only, else WRONG_PHASE; server/match/bondCall.js)
+  'g.bondCall': { bondId: nullable(isId), $optional: ['bondId'] },
   'g.band': { bandId: isId },
   'g.bandSkip': {},
   // the strategy highlighted in the draft screen (user playtest #4 item 4): a turn that runs out takes it while it is

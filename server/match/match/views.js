@@ -7,6 +7,7 @@
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { boardOrder, pieceDir } from '../board.js';
 import { bondList, offBondCounts } from '../bondsMeta.js';
+import { bondCallView } from '../bondCall.js';
 import { cardView } from '../choices.js';
 import { bountySpawns, previewOf } from '../waves.js';
 import { timelineAt } from '../fields.js';
@@ -108,6 +109,9 @@ export class MatchViews {
         autoplay: ps.autoplay,
         // the LP this round's own battle will cost at settlement so far (COMBAT / 联防 only, omitted when 0)
         ...this._pendingLpView(ps),
+        // the briefing's 核心盟约 call (INFO_CHECK and BAND_DRAFT — the draft order shows it —, omitted while none;
+        // server/match/bondCall.js)
+        ...(this.phase === PHASE.INFO_CHECK || this.phase === PHASE.BAND_DRAFT ? bondCallView(ps) : {}),
       })),
       fields: this.fields.map((f) => {
         const v = { fieldId: f.fieldId, kind: f.kind, players: f.players.slice(), live: !!f.live };

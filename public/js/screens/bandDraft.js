@@ -23,6 +23,8 @@ import { html, Button, Icon, MicroLabel, useTicker, secondsLeft } from '../ui/co
 import { useGameData, BandIcon, RichText, PlayerAvatar, LpTower, Sprite } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { MatchInfoDialog, matchInfoModel } from '../ui/matchInfo.js';
+import { BondCallChip } from '../ui/bondCall.js';
+import { useTimerWarning } from '../ui/timerWarn.js';
 import { actions, act } from '../ui/gameActions.js';
 import { normalizeDraft, sortedPlayers } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
@@ -211,6 +213,8 @@ export function BandDraftScreen() {
 
   // one countdown (user playtest #4 item 4): the current turn's — m.public.deadline, the same clock as the picker's row
   const clock = solo ? null : draftClock(pub);
+  // the low-time tick (ui/timerWarn.js) during my own turn
+  useTimerWarning(clock?.deadline, myTurn);
   // the highlighted band is what a turn that runs out takes (Match.timeoutBand): report every change before my pick
   const timed = !solo && !!pub?.draft && !pub.draft.untimed;
   const focusSent = useRef(null);
@@ -268,6 +272,7 @@ export function BandDraftScreen() {
               <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
                 : cur ? html`<span class="t-gold"><${Icon} name="hourglass" />${t('决策中')}${turnSecs != null ? html`<b class="num dorder__secs">${turnSecs}s</b>` : null}</span>`
                 : html`<span class="t-dim"><${Icon} name="dots" />${t('等待中')}</span>`}</span>
+            <${BondCallChip} bondId=${solo ? null : p.bondCall} />
             </div>
             <span class="dorder__box">
               ${picked ? html`<${BandIcon} bandId=${picked} size="sm" /><span class="dorder__check"><${Icon} name="check" /></span>`
