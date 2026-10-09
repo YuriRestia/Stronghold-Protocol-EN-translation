@@ -43,3 +43,6 @@ desktop.ini
 .idea/
 .vscode/
 .claude/
+
+# --- this server only: branch / commit for the About panel (scripts/server-info.mjs, written at start) ---
+public/server-info.json

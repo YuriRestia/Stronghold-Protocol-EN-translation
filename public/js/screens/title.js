@@ -27,6 +27,7 @@ import { scriptOf } from '../../../shared/i18nPacks.js';
 import { GIcon } from '../ui/gameComponents.js';
 import { SettingsModal } from '../ui/settings.js';
 import { PreloadCard } from '../ui/preload.js';
+import { AboutServerButton } from '../ui/about.js';
 
 // Same character classes as server/net.js sanitizeName (control, zero-width, bidi, BOM), so a name
 // the client accepts is never rejected by the server's hello validation.
@@ -285,6 +286,7 @@ export function TitleScreen() {
           <${FullscreenButton} class="title-fs" />
         </div>
       </div>
+      <${AboutServerButton} />
     </main>
 
     <${PreloadCard} />
