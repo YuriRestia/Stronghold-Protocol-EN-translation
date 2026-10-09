@@ -277,11 +277,12 @@ export function SettingsModal({ open, onClose }) {
  * The 设置 button of the lobby and the room (GitHub #238 — before it the settings were reachable only from the title
  * screen and a running match): the twin of the 玩法说明 button (ui/guide.js GuideButton), with the settings modal behind it
  * (mounted only while open). The same modal as the title screen's and the match's: nothing in it is match-only.
- * @param {{ class?: string, size?: 'sm'|'md'|'lg'|'xl', variant?: string, label?: string }} props
+ * `square`: the gear alone (the lobby's top bar), the name stays title / aria-label — like GuideButton's.
+ * @param {{ class?: string, size?: 'sm'|'md'|'lg'|'xl', variant?: string, label?: string, square?: boolean }} props
  */
-export function SettingsButton({ class: cls, size = 'sm', variant = 'ghost', label = t('设置') }) {
+export function SettingsButton({ class: cls, size = 'sm', variant = 'ghost', label = t('设置'), square = false }) {
   const [open, setOpen] = useState(false);
-  return html`<${Button} variant=${variant} size=${size} class=${cx('settings-btn', cls)} onClick=${() => setOpen(true)}
-      title=${t('设置')} aria-label=${t('设置')} data-testid="settings-btn"><${GIcon} name="gear" class="btn__icon" />${label}<//>
+  return html`<${Button} variant=${variant} size=${size} square=${square} class=${cx('settings-btn', cls)} onClick=${() => setOpen(true)}
+      title=${t('设置')} aria-label=${t('设置')} data-testid="settings-btn"><${GIcon} name="gear" class="btn__icon" />${square ? null : label}<//>
     ${open ? html`<${SettingsModal} open=${true} onClose=${() => setOpen(false)} />` : null}`;
 }

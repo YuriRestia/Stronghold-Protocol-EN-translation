@@ -36,7 +36,7 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
   const settingsBeforeGuide = (page, screen, guideClass) => page.evaluate((s, g) => {
     const btn = document.querySelector(`${s} [data-testid="settings-btn"]`);
     const guide = document.querySelector(`${s} .${g}`);
-    return !!btn && !!guide && btn.nextElementSibling === guide && /设置/.test(btn.textContent) && btn.querySelector('svg.btn__icon') != null;
+    return !!btn && !!guide && btn.nextElementSibling === guide && /设置/.test(btn.textContent || btn.getAttribute('aria-label')) && btn.querySelector('svg.btn__icon') != null;
   }, screen, guideClass);
   const modalText = (page) => page.evaluate(() => document.querySelector('.modal')?.textContent.replace(/\s+/g, ' ').trim() ?? null);
 
@@ -53,7 +53,7 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
     await page.waitForSelector('.lobby-screen', { timeout: 15000 });
     await sleep(500);
 
-    assert.ok(await settingsBeforeGuide(page, '.lobby-screen .topbar__right', 'lobby-guide'), '设置 sits right before 玩法说明 in the lobby\'s top bar');
+    assert.ok(await settingsBeforeGuide(page, '.lobby-screen .topbar__left', 'lobby-guide'), '设置 (gear) sits right before 玩法说明 (book) on the left of the lobby\'s top bar');
     assert.equal(await modalText(page), null, 'closed until asked');
     await page.click('.lobby-screen [data-testid="settings-btn"]');
     await page.waitForSelector('.modal', { timeout: 5000 });

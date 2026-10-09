@@ -1039,6 +1039,15 @@
 .me-chip { display: flex; align-items: center; gap: .12rem; padding: .06rem .18rem .06rem .06rem; border: 1px solid var(--line); background: rgba(0, 0, 0, .35); }
 .me-chip__text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
 .me-chip__name { font-weight: 700; font-size: .18rem; max-width: 2.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the lobby's chip doubles as the 统计数据 entry */
+.me-chip--btn {
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
+}
+.me-chip--btn:hover { border-color: var(--mint-700); background: rgba(34, 42, 38, .6); }
+.me-chip--btn:active { transform: translateY(1px); }
+.me-chip__stats { flex: none; width: .2rem; height: .2rem; margin-left: .04rem; color: var(--mint-500); opacity: .7; }
+.me-chip--btn:hover .me-chip__stats { opacity: 1; }
 
 .crash { align-items: center; justify-content: center; }
 .crash__box {
