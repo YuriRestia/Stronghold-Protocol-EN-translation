@@ -723,14 +723,17 @@ describe('keyboard & settings', () => {
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
     assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', muted: false, damageNumbers: false, quality: 'high', keys: { ...DEFAULT_SETTINGS.keys } },
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'cn', voiceNative: false, muted: false, damageNumbers: false, quality: 'high', keys: { ...DEFAULT_SETTINGS.keys } },
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
     assert.equal(sanitizeSettings({ bgm: 0.5 }).voice, DEFAULT_SETTINGS.voice, 'a saved profile without `voice` gets the default');
-    // 语音语言 (0.2.2): 中文 by default — a profile saved before it, or any other value, plays the Chinese dub
+    // 语音语言 (0.2.2, plus the per-operator picker's EN / KR): 中文 by default — a profile saved before it, or any other
+    // value, plays the Chinese dub
     assert.equal(DEFAULT_SETTINGS.voiceLang, 'cn');
     assert.equal(sanitizeSettings({ bgm: 0.5 }).voiceLang, 'cn');
-    assert.equal(sanitizeSettings({ voiceLang: 'jp' }).voiceLang, 'jp');
-    for (const bad of ['en', 'kr', 'JP', 'ja', 1, null]) assert.equal(sanitizeSettings({ voiceLang: bad }).voiceLang, 'cn', String(bad));
+    for (const ok of ['cn', 'jp', 'en', 'kr']) assert.equal(sanitizeSettings({ voiceLang: ok }).voiceLang, ok);
+    for (const bad of ['native', 'JP', 'ja', 1, null]) assert.equal(sanitizeSettings({ voiceLang: bad }).voiceLang, 'cn', String(bad));
+    assert.equal(sanitizeSettings({ voiceNative: true }).voiceNative, true);
+    for (const bad of ['yes', 1, null]) assert.equal(sanitizeSettings({ voiceNative: bad }).voiceNative, false, String(bad));
     assert.equal(sanitizeSettings({ bgm: 0.333 }).bgm, 0.33);
     assert.equal(sanitizeSettings({ quality: 'low' }).quality, 'low');
   });

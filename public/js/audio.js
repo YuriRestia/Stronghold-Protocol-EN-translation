@@ -5,6 +5,8 @@
 //   bossBgm { [bossId]: { intro?, loop } },
 //   voice { [charId]: { start, faceEnemy, select, place, skill1…skill4, squad, squadFirst, result*, gacha } },
 //   voiceJp { [charId]: { …the same slots } } (the Japanese dub, settings 语音语言 日本語; see voiceLine),
+//   voiceEn / voiceKr / voiceNative { [charId]: { …the same slots } } (the picker's dubs, VOICE_TREES),
+//   voiceNativeLangType { [charId]: 'ITA' | 'RUS' | … } (the official voiceLangType of the own-language dub, its square's label),
 //   sfx.ui { click, buy, sell, refresh, freeze, levelup, merge, equip, ready, timer, yourTurn, … },
 //   sfx.battle { deploy, tokenDeploy, charDie, tokenDie?, enemyDie, enemyHit, heal, killCoin, … },
 //   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
@@ -28,7 +30,9 @@
 //   channel over — the official scheduling of `audio_data.json battleVoice.voiceTypeOptions` (a tap's 选中 line skips
 //   the gap: VOICE_TAP_SLOTS). Two dubs: 中文 `audio.voice` (default) and 日本語 `audio.voiceJp` (settings 语音语言, not
 //   tied to the interface language; the owner's request of 2026-10-08 「全套的日配语音」) — a JP line the manifest or the
-//   host lacks falls back to the Chinese one (voiceLine).
+//   host lacks falls back to the Chinese one (voiceLine). English / 한국어 join the setting (`audio.voiceEn`
+//   / `audio.voiceKr`, trees like `audio.voiceJp`) and a per-operator pick (ui/voiceLang.js → setVoicePicks: CN / JP /
+//   EN / KR or the operator's own-language dub, `audio.voiceNative`), all through voiceLine (VOICE_TREES).
 // - Battle SFX from `b.ev` tuples (`handleBattleEvents`): at most MAX_VOICES concurrent unit sounds, at most
 //   MAX_PER_URL overlapping copies of one sound (the official banks' maxSoundAllowed 2), a per-unit cooldown and a
 //   per-URL minimum gap (SfxLimiter), so a 60-unit fight stays listenable. A `['skill', id, 1]` that arrives before its
@@ -299,10 +303,13 @@ export const VOICE_TAP_SLOTS = Object.freeze(['select']);
  * slot when the JP tree lacks it (a file the fetch could not get is left out of the manifest), and per line at play time
  * — `fallback` is the Chinese file of the same name, played when the host does not have the JP one (a full zip built
  * without the JP dub, before setup downloaded it). A slot with several lines draws one (`random` ∈ [0, 1)).
+ * The per-operator picker's dubs (ui/voiceLang.js) are trees of the same kind (VOICE_TREES): 'en' `audio.voiceEn`, 'kr'
+ * `audio.voiceKr` and 'native' `audio.voiceNative` (the operator's own-language dub) — the same slots and file names,
+ * the same two fallbacks.
  * @param {any} audio the manifest's `audio`
  * @param {string} charId
  * @param {string} slot
- * @param {'cn'|'jp'|string} [lang]
+ * @param {'cn'|'jp'|'en'|'kr'|'native'|string} [lang]
  * @param {() => number} [random]
  * @returns {{ url: string, fallback: string|null } | null}
  */
@@ -310,14 +317,21 @@ export function voiceLine(audio, charId, slot, lang = 'cn', random = Math.random
   const lines = (line) => (Array.isArray(line) ? line : [line]).filter((u) => typeof u === 'string' && u);
   const draw = (list) => (list.length ? list[Math.min(list.length - 1, Math.floor(random() * list.length))] : null);
   const cn = lines(audio?.voice?.[charId]?.[slot]);
-  const jp = lang === 'jp' ? draw(lines(audio?.voiceJp?.[charId]?.[slot])) : null;
-  if (jp) {
+  const tree = VOICE_TREES[lang];
+  const dub = tree ? draw(lines(audio?.[tree]?.[charId]?.[slot])) : null;
+  if (dub) {
     const file = (u) => u.slice(u.lastIndexOf('/') + 1);
-    return { url: jp, fallback: cn.find((u) => file(u) === file(jp)) ?? draw(cn) };
+    return { url: dub, fallback: cn.find((u) => file(u) === file(dub)) ?? draw(cn) };
   }
   const url = draw(cn);
   return url ? { url, fallback: null } : null;
 }
+
+/**
+ * The manifest tree of each dub besides `audio.voice` (中文): master's `audio.voiceJp` and, in the same shape, the
+ * per-operator picker's `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative` (tools/assets/plan.mjs VOICE_TREE_LANGS).
+ */
+export const VOICE_TREES = Object.freeze({ jp: 'voiceJp', en: 'voiceEn', kr: 'voiceKr', native: 'voiceNative' });
 
 /**
  * The settlement slot of a finished 作战: 完美作战 ⇒ 3星结束行动 (绝境 / 终极 ⇒ 完成高难行动 instead), a leaked enemy
@@ -363,6 +377,39 @@ export function resultSpeaker(pp, random = Math.random, charOf = null) {
   if (!pool.length) return null;
   return pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))].id;
 }
+
+/** The picker's languages besides the own-language dub, in button order (tools/assets/audio.mjs VOICE_DIRS). */
+export const VOICE_LANGS = Object.freeze(['cn', 'jp', 'en', 'kr']);
+
+/**
+ * The languages operator `charId` has on this server: 中文 (`audio.voice`), then each dub tree (VOICE_TREES) that
+ * voices it, in button order, the own-language dub last. A manifest built with --no-optional-voice has 中文 and the JP
+ * tree only.
+ * @param {any} a manifest `audio`
+ * @param {string} charId
+ * @returns {string[]} e.g. ['cn', 'jp', 'en', 'kr', 'native']; [] when the operator has no voice at all
+ */
+export function voiceLangsOf(a, charId) {
+  if (!a?.voice?.[charId]) return [];
+  const has = (l) => l === 'cn' || Object.keys(a[VOICE_TREES[l]]?.[charId] || {}).length > 0;
+  return [...VOICE_LANGS, 'native'].filter(has);
+}
+
+/**
+ * The language `charId` speaks: its own pick, else its own-language dub when the settings ask for it (`native`), else the
+ * default of the settings, else the base dub (the first language it has — 中文). A pick it lacks falls back the same
+ * way.
+ * @param {any} a manifest `audio`
+ * @param {string} charId
+ * @param {{ default?: string, native?: boolean, byChar?: Record<string, string> } | null | undefined} pref
+ */
+export function effectiveVoiceLang(a, charId, pref) {
+  const has = voiceLangsOf(a, charId);
+  if (!has.length) return null;
+  for (const l of [pref?.byChar?.[charId], pref?.native && 'native', pref?.default]) if (l && has.includes(l)) return l;
+  return has[0];
+}
+
 
 /** Concurrency + cooldown gate for battle SFX. Pure (time is passed in). */
 /** Gestures that may unlock audio: iOS Safari only accepts touchend / click / keydown; pointerdown covers the rest. */
@@ -515,6 +562,8 @@ export class AudioManager {
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
     this.voiceLang = 'cn';    // settings 语音语言: 'cn' (audio.voice) | 'jp' (audio.voiceJp, falling back to audio.voice)
+    this.voiceNative = false; // settings 本土语言: an operator with an own-language dub speaks it; setVoiceNative
+    this.voicePicks = {};     // charId → its own dub (ui/voiceLang.js, the per-operator picker); setVoicePicks
     this.startVoiceDone = false; // 行动出发 of this field (the first operator deployed says it)
     this.uiVoices = 0;
     this.wantBgm = null;      // desired key (kept while locked)
@@ -656,12 +705,36 @@ export class AudioManager {
   }
 
   /**
-   * The voice dub (settings 语音语言): 'jp' plays `audio.voiceJp`, anything else `audio.voice` (中文, the default). The
-   * line on air finishes in its own dub; the next one follows the setting.
+   * The voice dub (settings 语音语言): 'jp' plays `audio.voiceJp`, 'en' / 'kr' the picker's other dubs (voiceLine),
+   * anything else `audio.voice` (中文, the default). The line on air finishes in its own dub; the next one follows the
+   * setting. An operator's own pick (setVoicePicks) wins over it.
    * @param {string} lang
    */
   setVoiceLang(lang) {
-    this.voiceLang = lang === 'jp' ? 'jp' : 'cn';
+    this.voiceLang = VOICE_LANGS.includes(lang) ? lang : 'cn';
+  }
+
+  /**
+   * The settings' 本土语言 switch: every operator with an own-language dub (`audio.voiceNative`) speaks it instead of
+   * the settings' dub; an operator's own pick still wins.
+   * @param {boolean} on
+   */
+  setVoiceNative(on) {
+    this.voiceNative = on === true;
+  }
+
+  /**
+   * The per-operator picks (ui/voiceLang.js, the squares of 干员调配 and the 自选 picker): charId → cn | jp | en | kr |
+   * native. An operator without a pick speaks the settings' dub (setVoiceLang).
+   * @param {Record<string, string> | null} picks
+   */
+  setVoicePicks(picks) {
+    this.voicePicks = picks && typeof picks === 'object' ? { ...picks } : {};
+  }
+
+  /** The dub `charId` speaks now: its own pick, else its own-language dub (setVoiceNative), else the settings' one, else EN, else JP (effectiveVoiceLang). */
+  voiceLangOf(charId) {
+    return effectiveVoiceLang(this.getManifest()?.audio, charId, { default: this.voiceLang, native: this.voiceNative, byChar: this.voicePicks });
   }
 
   _applyVolumes() {
@@ -906,8 +979,9 @@ export class AudioManager {
     try {
       if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
-      // the chosen dub's line (settings 语音语言), with the Chinese file of the same name as its fallback (voiceLine)
-      const line = voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLang);
+      // the dub the operator speaks (its own pick, else settings 语音语言), with the Chinese file of the same name as its
+      // fallback (voiceLine)
+      const line = voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLangOf(charId) || this.voiceLang);
       if (!line) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);
@@ -918,6 +992,29 @@ export class AudioManager {
       this._playVoice(line.url, token, o.volume, line.fallback);
       return true;
     } catch (err) { this._warn('voice', err); return false; }
+  }
+
+  /**
+   * 试听 (the voice picker): one line of `charId` in `lang`, outside a battle — the loadout and the 自选 picker are
+   * no battle, so it skips VoiceGate's cooldowns and takes the channel over from whatever is on air.
+   * @param {string} charId
+   * @param {string} [lang] cn | jp | en | kr | native (default: the language the operator speaks now)
+   * @returns {boolean} whether a line exists and started
+   */
+  previewVoice(charId, lang) {
+    try {
+      if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
+      const slots = this.getManifest()?.audio?.voice?.[charId];
+      if (!slots || typeof slots !== 'object') return false;
+      const slot = ['select', 'place', 'start'].find((s) => slots[s]) || Object.keys(slots)[0];
+      const line = voiceLine(this.getManifest()?.audio, charId, slot, lang || this.voiceLangOf(charId) || this.voiceLang);
+      if (!line) return false;
+      this._stopVoice();
+      this.voiceGate.start(slot, null, typeof performance !== 'undefined' ? performance.now() : Date.now());
+      const token = ++this.voiceToken;
+      this._playVoice(line.url, token, 1, line.fallback);
+      return true;
+    } catch (err) { this._warn('voice-preview', err); return false; }
   }
 
   /**
@@ -1134,13 +1231,13 @@ export const audio = new AudioManager({ getManifest: () => manifestGetter() });
 /**
  * Wire the singleton to the app (called once by main.js): manifest source, settings and store-driven BGM.
  * @param {{ getManifest: () => any, subscribe: (fn: (s:any, prev:any) => void) => () => void, getState: () => any,
- *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean, voiceLang?:string } }} deps
+ *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean, voiceLang?:string, voiceNative?:boolean } }} deps
  */
 export function installAudio(deps) {
   try {
     manifestGetter = typeof deps?.getManifest === 'function' ? deps.getManifest : manifestGetter;
     audio.install();
-    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang); }
+    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang); audio.setVoiceNative(deps.settings.voiceNative); }
     if (typeof deps?.subscribe === 'function' && typeof deps?.getState === 'function') {
       const sync = (s) => {
         try {
