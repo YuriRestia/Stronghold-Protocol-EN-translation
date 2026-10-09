@@ -43,6 +43,14 @@ const VOICE_ID_LANG = 'CN';
 export const VOICE_JP_LANG = 'jp';
 
 /**
+ * The per-operator voice picker's trees beside `audio.voiceJp` (`optionalVoice`, on by default in fetch-assets.mjs): the EN
+ * and KR dumps (`voice_en/`, `voice_kr/`) and each operator's own-language dub (`voice_custom/<wordkey>/`, audio.mjs
+ * nativeVoiceDirs) — the same slots and file names, under `audio/voice/<en|kr|native/<dir>>/`. public/js/audio.js
+ * VOICE_TREES plays them; tools/package.mjs FULL_ZIP_OPTIONAL_VOICE decides whether the full zip ships them.
+ */
+export const VOICE_OPTIONAL_TREES = Object.freeze({ voiceEn: 'en', voiceKr: 'kr', voiceNative: 'native' });
+
+/**
  * Enemies whose Spine no community dump carries: the web model is another enemy's (research 07 §5.6). Their official
  * models come from the local client only (tools/local-extract ENEMY_SPINES): `localEnemySpines` adds them as the
  * optional `spineLocal` overlay, which the client draws when data/local-assets.json lists its files (user feedback
@@ -315,9 +323,8 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {string} [p.voiceLang] voice dump of `audio.voice` (the 中文 setting): cn (default) | jp | en | kr — `audio.voiceJp`
  *   is the JP dub (`voice/`) whatever it is
  * @param {boolean} [p.voiceJp] plan the JP tree `audio.voiceJp` (default true)
- * @param {boolean} [p.voiceExtra] also plan the other dumps of VOICE_DIRS (JP only without `voiceJp`) and each
- *   operator's own-language dub (`audio.voiceExtra`, the per-operator voice language picker; fetch-assets.mjs compacts
- *   it into `audio.voiceLangs` / `audio.voiceNative`); default false
+ * @param {boolean} [p.optionalVoice] also plan the per-operator voice picker's trees (VOICE_OPTIONAL_TREES: `audio.voiceEn` /
+ *   `audio.voiceKr` / `audio.voiceNative`, plus `audio.voiceNativeLangType`); default false
  * @param {Iterable<string>|null} [p.voiceSlots] which voice slots to plan: VOICE_BATTLE_SLOTS (default) plans only the
  *   lines a battle can play, null plans every slot of audio.mjs VOICE_SLOTS (`--voice-all`). The prep-only slots
  *   (干员报到 / 编入队伍 / 任命队长) are never requested by the client and cost 360 files / 19.3 MB of downloads.
@@ -338,7 +345,7 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
-  voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, voiceExtra = false,
+  voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
   moduleTypes = [] }) {
   const notes = [];
@@ -646,15 +653,18 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // `audio.voiceJp` (VOICE_JP_LANG): the same slots and lines in the Japanese dub, a second tree beside the Chinese one
   // (the owner's request of 2026-10-08) — same file names, `audio/voice/jp/`.
   const voiceSlotsByChar = indexVoice(charword, VOICE_ID_LANG, voiceSlots);
-  const voiceTree = (lang) => {
+  // `dir` (VOICE_OPTIONAL_TREES native): the operator's own-language folder, or nothing when it has no such dub
+  const voiceTree = (lang, dirOf = null) => {
     const tree = {};
     for (const [charId, slots] of voiceSlotsByChar) {
       if (!chars[charId]) continue;          // only the operators this game can field (`chars`: the 138 pool charIds and the 自选 picks)
+      const dir = dirOf ? dirOf(charId) : null;
+      if (dirOf && !dir) continue;
       const v = {};
       for (const [slot, assets] of Object.entries(slots)) {
         // one leaf per line (部署1 / 部署2 …): an array stays an array so the client can draw one — chaining them as
         // alternatives of a single leaf would keep only the first line that landed on disk.
-        const lines = assets.map((a) => leaf(voiceAlt(a, lang))).filter(Boolean);
+        const lines = assets.map((a) => leaf(dir ? nativeVoiceAlt(a, dir) : voiceAlt(a, lang))).filter(Boolean);
         if (!lines.length) continue;
         v[slot] = lines.length === 1 ? lines[0] : lines;
       }
@@ -665,24 +675,20 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   const voice = voiceTree(voiceLang);
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
 
-  // 语音语言 (the per-operator picker, public/js/ui/voiceLang.js): with `voiceExtra` the same lines of the other dumps
-  // and of the operator's own-language dub land beside the base one. Each line is its own leaf with ONE alternative — a
-  // language missing upstream must stay missing, never be filled with another dub. fetch-assets.mjs only keeps which
-  // languages landed (`audio.voiceLangs` / `audio.voiceNative`): the client derives their URLs from `audio.voice`.
-  // JP is `audio.voiceJp` when that tree is planned (the same files): it is not planned a second time here.
-  const voiceExtraPlan = {};
-  const nativeDirs = voiceExtra ? nativeVoiceDirs(charword) : new Map();
-  const extraLangs = Object.keys(VOICE_DIRS).filter((l) => l !== voiceLang && !(voiceJp && l === VOICE_JP_LANG));
-  for (const [charId, slots] of voiceExtra ? voiceSlotsByChar : []) {
-    if (!voice[charId]) continue;
-    const extra = {};
-    for (const [slot, assets] of Object.entries(slots)) {
-      if (!voice[charId][slot]) continue;
-      for (const lang of extraLangs) (extra[lang] ||= {})[slot] = assets.map((a) => leaf(voiceAlt(a, lang))).filter(Boolean);
-      const nat = nativeDirs.get(charId);
-      if (nat) (extra.native ||= {})[slot] = assets.map((a) => leaf(nativeVoiceAlt(a, nat.dir))).filter(Boolean);
+  // 语音语言 (the per-operator picker, public/js/ui/voiceLang.js): with `optionalVoice` the EN / KR dumps and each
+  // operator's own-language dub are trees beside the JP one, of the same shape (VOICE_OPTIONAL_TREES; public/js/audio.js
+  // VOICE_TREES) — `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`. A line missing upstream stays missing
+  // (the client plays the Chinese one), never filled from another dub. `audio.voiceNativeLangType` names each
+  // own-language dub's official voiceLangType (ITA / RUS / …), the label of its square.
+  const nativeDirs = optionalVoice ? nativeVoiceDirs(charword) : new Map();
+  const optionalTrees = {};
+  if (optionalVoice) {
+    for (const [key, lang] of Object.entries(VOICE_OPTIONAL_TREES)) {
+      optionalTrees[key] = lang === 'native' ? voiceTree(lang, (id) => nativeDirs.get(id)?.dir) : voiceTree(lang);
     }
-    if (Object.keys(extra).length) voiceExtraPlan[charId] = { ...extra, ...(nativeDirs.has(charId) ? { nativeInfo: literal(nativeDirs.get(charId)) } : null) };
+    const types = {};
+    for (const [charId, n] of nativeDirs) if (chars[charId] && voice[charId]) types[charId] = n.type;
+    optionalTrees.voiceNativeLangType = literal(types);
   }
 
   const template = {
@@ -692,7 +698,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       bossBgm: Object.fromEntries(Object.entries(bossBgm).sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true }))),
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
-      ...(voiceExtra ? { voiceExtra: voiceExtraPlan } : null),
+      ...optionalTrees,
       sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx },
     },
   };

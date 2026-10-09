@@ -17,8 +17,7 @@ import { normalizeAtlas, atlasInfo, parseAtlas } from '../tools/assets/atlas.mjs
 import { pngSize, isCompletePng, isMp3, validate } from '../tools/assets/formats.mjs';
 import { encodeWoff2, decodeWoff2Tables, readSfnt, uintBase128 } from '../tools/assets/woff2.mjs';
 import { assetToPath, pickUnitSfx, indexAudio, nativeVoiceDirs } from '../tools/assets/audio.mjs';
-import { compactVoiceExtra } from '../tools/fetch-assets.mjs';
-import { voiceLangProbes } from '../tools/setup.mjs';
+import { tidyVoiceTrees } from '../tools/fetch-assets.mjs';
 import { mirrorUrl, safeName, encodePath } from '../tools/assets/sources.mjs';
 import { collectEnemyIds, skillIndicesByChar, buildPlan, GUIDE_PAGES, UI_EXTRAS } from '../tools/assets/plan.mjs';
 import { resolveTemplate, collectLeaves } from '../tools/assets/manifest.mjs';
@@ -482,36 +481,40 @@ describe('audio banks and plan id sets', () => {
     assert.equal(nativeVoiceDirs(null).size, 0);
   });
 
-  test('voice picker: compactVoiceExtra keeps which languages landed, never their per-line tree', () => {
+  test('voice picker: tidyVoiceTrees drops empty dub trees and the type of a dub that did not land', () => {
     const m = { audio: {
-      voice: { a: { place: '/x' }, b: { place: '/y' }, c: { place: '/z' } },
-      voiceExtra: {
-        a: { jp: { place: ['/j'] }, en: {}, kr: { place: ['/k'] }, native: { place: ['/n'] }, nativeInfo: { dir: 'a_ita', type: 'ITA' } },
-        b: { jp: {}, en: {}, kr: {} },                                  // nothing extra on disk: no entry
-        c: { jp: { place: ['/j2'] }, native: {}, nativeInfo: { dir: 'c_rus', type: 'RUS' } },   // dub missing: no voiceNative
-        gone: { jp: { place: ['/j3'] } },                               // no base voice: ignored
-      },
+      voice: { a: { place: '/x' } },
+      voiceEn: { a: { place: '/e' } }, voiceKr: {},
+      voiceNative: { a: { place: '/n' } }, voiceNativeLangType: { a: 'ITA', c: 'RUS' },
     } };
-    compactVoiceExtra(m, 'cn');
-    assert.equal(m.audio.voiceExtra, undefined);
-    assert.deepEqual(m.audio.voiceLangs, { a: ['cn', 'jp', 'kr'], c: ['cn', 'jp'] });
-    assert.deepEqual(m.audio.voiceNative, { a: { dir: 'a_ita', type: 'ITA' } });
+    tidyVoiceTrees(m);
+    assert.deepEqual(Object.keys(m.audio), ['voice', 'voiceEn', 'voiceNative', 'voiceNativeLangType'], 'an empty voiceKr goes');
+    assert.deepEqual(m.audio.voiceNativeLangType, { a: 'ITA' }, "c's dub has no line on disk: no type");
     const plain = { audio: { voice: {} } };
-    compactVoiceExtra(plain);
-    assert.deepEqual(plain, { audio: { voice: {} } }, 'a --no-voice-extra build gains no keys');
+    tidyVoiceTrees(plain);
+    assert.deepEqual(plain, { audio: { voice: {} } }, 'a --no-optional-voice build gains no keys');
   });
 
-  test('voice picker: setup probes each operator × extra language (the manifest lists no such URL)', () => {
-    const m = { audio: {
-      voice: { char_a: { select: ['/assets/audio/voice/cn/char_a/cn_1.mp3', '/assets/audio/voice/cn/char_a/cn_2.mp3'] }, char_b: { place: '/assets/audio/voice/cn/char_b/cn_3.mp3' } },
-      voiceLangs: { char_a: ['cn', 'jp'], char_b: ['cn'] },
-      voiceNative: { char_a: { dir: 'char_a_ita', type: 'ITA' }, char_b: { dir: '../bad' } },
-    } };
-    assert.deepEqual(voiceLangProbes(m), [
-      { label: 'voice jp char_a', lines: ['/assets/audio/voice/jp/char_a/cn_1.mp3', '/assets/audio/voice/jp/char_a/cn_2.mp3'] },
-      { label: 'voice native char_a', lines: ['/assets/audio/voice/native/char_a_ita/cn_1.mp3', '/assets/audio/voice/native/char_a_ita/cn_2.mp3'] },
-    ], 'the base dub and a malformed dir are never probed');
-    assert.deepEqual(voiceLangProbes({ audio: { voice: m.audio.voice } }), [], 'a --no-voice-extra manifest: nothing extra');
+  test('voice picker: plan.mjs plans EN / KR / own-language trees like voiceJp (same slots and file names)', () => {
+    const charword = {
+      charWords: {
+        a: { charId: 'char_102_texas', wordKey: 'char_102_texas', placeType: 'BATTLE_SELECT', voiceId: 'CN_021', voiceIndex: 21, voiceAsset: 'char_102_texas/CN_021' },
+        b: { charId: 'char_263_skadi', wordKey: 'char_263_skadi', placeType: 'BATTLE_SELECT', voiceId: 'CN_021', voiceIndex: 21, voiceAsset: 'char_263_skadi/CN_021' },
+      },
+      voiceLangTypeDict: { ITA: { groupType: 'CUSTOM' } },
+      voiceLangDict: { char_102_texas: { dict: { ITA: { wordkey: 'char_102_texas_ITA' } } } },
+    };
+    const extraOperators = { char_102_texas: { name: '德克萨斯', skills: [] }, char_263_skadi: { name: '斯卡蒂', skills: [] } };
+    const plan = (o) => buildPlan({ assets07: {}, ops03: {}, enemies05: {}, maps05: {}, audio: indexAudio({}), modelsData: {},
+      charword, extraOperators, ...o }).template.audio;
+    const a = plan({ optionalVoice: true });
+    assert.deepEqual(Object.keys(a), ['bgm', 'bossBgm', 'voice', 'voiceJp', 'voiceEn', 'voiceKr', 'voiceNative', 'voiceNativeLangType', 'sfx']);
+    assert.equal(a.voiceEn.char_102_texas.select.alts[0].rel, 'audio/voice/en/char_102_texas/cn_021.mp3');
+    assert.equal(a.voiceKr.char_263_skadi.select.alts[0].rel, 'audio/voice/kr/char_263_skadi/cn_021.mp3');
+    assert.equal(a.voiceNative.char_102_texas.select.alts[0].rel, 'audio/voice/native/char_102_texas_ita/cn_021.mp3');
+    assert.equal(a.voiceNative.char_263_skadi, undefined, 'no own-language dub: no entry');
+    assert.deepEqual(Object.getOwnPropertySymbols(a.voiceNativeLangType).map((s) => a.voiceNativeLangType[s]), [{ char_102_texas: 'ITA' }], 'a literal: written as is');
+    assert.deepEqual(Object.keys(plan({})), ['bgm', 'bossBgm', 'voice', 'voiceJp', 'sfx'], 'without optionalVoice: master\'s trees only');
   });
 });
 

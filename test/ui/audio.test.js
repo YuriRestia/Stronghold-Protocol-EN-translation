@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceUrlFor, voiceLine } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { PHASE } from '../../shared/constants.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
@@ -935,18 +935,21 @@ describe('漏怪 sound', () => {
 
 describe('voice language', () => {
   const V = '/assets/audio/voice/cn/char_102_texas/cn_019.mp3';
-  const am = { voice: { char_102_texas: { select: V }, char_x: { select: '/assets/audio/voice/cn/char_x/cn_021.mp3' } },
-    voiceLangs: { char_102_texas: ['cn', 'jp', 'en', 'kr'], char_x: ['cn', 'jp'] },
-    voiceNative: { char_102_texas: { dir: 'char_102_texas_ita', type: 'ITA' } } };
+  const X = '/assets/audio/voice/cn/char_x/cn_021.mp3';
+  const as = (lang, url) => url.replace('/voice/cn/', `/voice/${lang}/`);
+  // char_102_texas: every dub; char_x: CN + JP only (not on the global server yet)
+  const am = { voice: { char_102_texas: { select: V }, char_x: { select: X } },
+    voiceJp: { char_102_texas: { select: as('jp', V) }, char_x: { select: as('jp', X) } },
+    voiceEn: { char_102_texas: { select: as('en', V) } }, voiceKr: { char_102_texas: { select: as('kr', V) } },
+    voiceNative: { char_102_texas: { select: '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3' } },
+    voiceNativeLangType: { char_102_texas: 'ITA' } };
 
   test('which languages an operator has, and which one it speaks', () => {
-    assert.deepEqual(voiceLangsOf(am, 'char_102_texas'), ['cn', 'jp', 'en', 'kr', 'native']);
+    assert.deepEqual(voiceLangsOf(am, 'char_102_texas'), ['cn', 'jp', 'en', 'kr', 'native'], 'button order');
     assert.deepEqual(voiceLangsOf(am, 'char_x'), ['cn', 'jp']);
-    assert.deepEqual(voiceLangsOf({ voice: am.voice }, 'char_x'), ['cn'], 'a --no-voice-extra manifest: only the base dub');
-    assert.deepEqual(voiceLangsOf({ voice: am.voice, voiceJp: { char_x: { select: 'x' } } }, 'char_x'), ['cn', 'jp'],
-      "master's JP tree (audio.voiceJp) counts as JP");
-    assert.deepEqual(voiceLangsOf({ ...am, voiceLangs: { char_102_texas: ['cn', 'en', 'kr'] }, voiceJp: { char_102_texas: { select: 'x' } } }, 'char_102_texas'),
-      ['cn', 'jp', 'en', 'kr', 'native'], 'JP from audio.voiceJp lands in button order');
+    assert.deepEqual(voiceLangsOf({ voice: am.voice }, 'char_x'), ['cn'], 'a manifest with no dub tree: only 中文');
+    assert.deepEqual(voiceLangsOf({ voice: am.voice, voiceJp: am.voiceJp }, 'char_102_texas'), ['cn', 'jp'], '--no-optional-voice: master\'s trees');
+    assert.deepEqual(voiceLangsOf({ ...am, voiceEn: { char_x: {} } }, 'char_x'), ['cn', 'jp'], 'an empty entry is no dub');
     assert.deepEqual(voiceLangsOf(am, 'char_none'), []);
     const pref = { default: 'en', byChar: { char_102_texas: 'native' } };
     assert.equal(effectiveVoiceLang(am, 'char_102_texas', pref), 'native', 'its own pick');
@@ -959,18 +962,16 @@ describe('voice language', () => {
     assert.equal(effectiveVoiceLang(am, 'char_none', pref), null);
   });
 
-  test("voiceLine: master's JP tree for jp, the picker's derived dumps for en / kr / native, the Chinese line as fallback", () => {
-    const cnUrl = '/assets/audio/voice/cn/char_x/cn_021.mp3';
-    const jpUrl = '/assets/audio/voice/jp/char_x/cn_021.mp3';
-    const m = { ...am, voiceJp: { char_x: { select: jpUrl } } };
-    assert.deepEqual(voiceLine(m, 'char_x', 'select', 'jp'), { url: jpUrl, fallback: cnUrl }, 'audio.voiceJp, as on master');
-    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'en'), { url: '/assets/audio/voice/en/char_102_texas/cn_019.mp3', fallback: V });
+  test("voiceLine: every dub is a tree like master's voiceJp (VOICE_TREES), the Chinese file of the same name its fallback", () => {
+    assert.deepEqual(VOICE_TREES, { jp: 'voiceJp', en: 'voiceEn', kr: 'voiceKr', native: 'voiceNative' });
+    assert.deepEqual(voiceLine(am, 'char_x', 'select', 'jp'), { url: as('jp', X), fallback: X }, 'audio.voiceJp, as on master');
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'en'), { url: as('en', V), fallback: V });
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'kr'), { url: as('kr', V), fallback: V });
     assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'native'),
       { url: '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3', fallback: V });
-    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'jp'), { url: '/assets/audio/voice/jp/char_102_texas/cn_019.mp3', fallback: V },
-      'no JP tree but a listed JP dump: derived like EN');
-    assert.deepEqual(voiceLine(am, 'char_x', 'select', 'kr'), { url: cnUrl, fallback: null }, 'a dub the operator lacks: the Chinese line');
+    assert.deepEqual(voiceLine(am, 'char_x', 'select', 'kr'), { url: X, fallback: null }, 'a dub the operator lacks: the Chinese line');
     assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'cn'), { url: V, fallback: null });
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'xx'), { url: V, fallback: null }, 'an unknown dub: the Chinese line');
   });
 
   test('the audio manager: an operator\'s pick wins over the settings dub, which falls back EN → JP → CN', () => {
@@ -984,17 +985,6 @@ describe('voice language', () => {
     a.setVoicePicks(null);
     assert.equal(a.voiceLangOf('char_102_texas'), 'cn');
     assert.equal(a.voiceLangOf('char_none'), null);
-  });
-
-  test('a base line → the same line of another dump or of the own-language dub', () => {
-    assert.equal(voiceUrlFor(V, 'jp', 'char_102_texas'), '/assets/audio/voice/jp/char_102_texas/cn_019.mp3');
-    assert.equal(voiceUrlFor(V, 'native', 'char_102_texas', am.voiceNative.char_102_texas), '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3');
-    assert.equal(voiceUrlFor(V, 'cn', 'char_102_texas'), V);
-    assert.equal(voiceUrlFor(V, 'native', 'char_102_texas', null), V, 'no dub ⇒ the base line');
-    assert.equal(voiceUrlFor(V, 'native', 'char_102_texas', { dir: '../x' }), V, 'a malformed dir is never used');
-    assert.equal(voiceUrlFor(V, 'xx', 'char_102_texas'), V);
-    assert.equal(voiceUrlFor(V, 'jp', 'char_other'), V, 'a line of another operator is left alone');
-    assert.equal(voiceUrlFor('/v/odd.mp3', 'jp', 'char_102_texas'), '/v/odd.mp3');
   });
 
   test('battle lines play in the picked language, a missing line falls back to the base one; 试听 skips the gate', async () => {

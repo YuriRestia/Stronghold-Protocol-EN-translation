@@ -7,7 +7,8 @@ import { sanitizeVoiceLang, voiceLangStore, setDefaultVoiceLang, setCharVoiceLan
 import { audio } from '../../public/js/audio.js';
 
 const am = { voice: { char_a: { select: '/assets/audio/voice/cn/char_a/cn_1.mp3' }, char_b: { select: '/assets/audio/voice/cn/char_b/cn_1.mp3' } },
-  voiceLangs: { char_a: ['cn', 'jp', 'en', 'kr'], char_b: ['cn', 'jp'] }, voiceNative: { char_a: { dir: 'char_a_ita', type: 'ITA' } } };
+  voiceJp: { char_a: { select: 'j' }, char_b: { select: 'j' } }, voiceEn: { char_a: { select: 'e' } }, voiceKr: { char_a: { select: 'k' } },
+  voiceNative: { char_a: { select: 'n' } }, voiceNativeLangType: { char_a: 'ITA' } };
 
 test('sanitize: unknown languages, malformed charIds and junk are dropped', () => {
   assert.deepEqual(sanitizeVoiceLang(null), { default: 'en', byChar: {} }, 'EN by default');

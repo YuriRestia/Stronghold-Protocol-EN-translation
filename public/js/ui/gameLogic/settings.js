@@ -8,7 +8,7 @@ import { DEFAULT_HOTKEYS, sanitizeHotkeys } from './shortcuts.js';
 
 /**
  * The operator voice dubs (settings 语音语言): 'cn' 中文 (`audio.voice`), 'jp' 日本語 (`audio.voiceJp`), and the
- * per-operator picker's 'en' English / 'kr' 한국어 (`audio.voiceLangs`, ui/voiceLang.js) — each falling back to the
+ * per-operator picker's 'en' English / 'kr' 한국어 (`audio.voiceEn` / `audio.voiceKr`, ui/voiceLang.js) — each falling back to the
  * Chinese line it lacks (public/js/audio.js voiceLine). Not tied to the interface language. The fork's default is
  * English (an operator not on the global server yet speaks JP, audio.js VOICE_FALLBACK).
  */

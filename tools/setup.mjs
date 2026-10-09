@@ -178,27 +178,6 @@ function manifestUrls(node, out = []) {
 }
 
 /**
- * Each operator × extra voice language of the manifest (`audio.voiceLangs` / `audio.voiceNative`) with the URLs of
- * its lines — derived from `audio.voice` like public/js/audio.js voiceUrlFor.
- * @param {any} m data/assets.json
- * @returns {{ label: string, lines: string[] }[]}
- */
-export function voiceLangProbes(m) {
-  const a = m?.audio;
-  const out = [];
-  for (const [charId, slots] of Object.entries(a?.voice || {})) {
-    const base = manifestUrls(slots).filter((u) => u.includes(`/audio/voice/`));
-    const langs = (Array.isArray(a.voiceLangs?.[charId]) ? a.voiceLangs[charId] : []).slice(1).filter((l) => /^[a-z]+$/.test(l));
-    for (const l of langs) out.push({ label: `voice ${l} ${charId}`, lines: base.map((u) => u.replace(/\/audio\/voice\/[a-z]+\//, `/audio/voice/${l}/`)) });
-    const dir = a.voiceNative?.[charId]?.dir;
-    if (typeof dir === 'string' && /^[a-z0-9_]+$/.test(dir)) {
-      out.push({ label: `voice native ${charId}`, lines: base.map((u) => u.replace(/\/audio\/voice\/[a-z]+\/[^/]+\//, `/audio/voice/native/${dir}/`)) });
-    }
-  }
-  return out;
-}
-
-/**
  * Downloaded art/audio complete? Compares data/assets.json with public/.
  * @returns {{ ok: boolean, present: boolean, manifest: boolean, total: number, missing: number, sample: string[], bytes: number }}
  */
@@ -209,18 +188,10 @@ export function checkAssets() {
   if (!m) return { ok: false, present, manifest: false, total: 0, missing: 0, sample: [], bytes: 0 };
   const urls = [...new Set(manifestUrls(m))];
   const missing = [];
-  const onDisk = (u) => {
+  for (const u of urls) {
     let st = null;
     try { st = fs.statSync(path.join(pub, ...u.split('/').filter(Boolean).map(decodeURIComponent))); } catch { /* missing */ }
-    return !!st && st.size > 0;
-  };
-  for (const u of urls) if (!onDisk(u)) missing.push(u);
-  // 语音语言 picker: the other dubs are not listed URL by URL (fetch-assets.mjs compactVoiceExtra) — an operator's
-  // language counts as present when any of its lines is on disk (a single line may be missing upstream: the client
-  // plays the CN one), so a server updated from a build without them downloads them on the next setup.
-  for (const p of voiceLangProbes(m)) {
-    urls.push(p.label);
-    if (!p.lines.some(onDisk)) missing.push(p.label);
+    if (!st || !st.size) missing.push(u);
   }
   return { ok: present && missing.length === 0 && urls.length > 0, present, manifest: true, total: urls.length, missing: missing.length, sample: missing.slice(0, 5), bytes: Number(m.stats?.bytes) || 0 };
 }

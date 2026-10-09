@@ -5,6 +5,8 @@
 //   bossBgm { [bossId]: { intro?, loop } },
 //   voice { [charId]: { start, faceEnemy, select, place, skill1…skill4, squad, squadFirst, result*, gacha } },
 //   voiceJp { [charId]: { …the same slots } } (the Japanese dub, settings 语音语言 日本語; see voiceLine),
+//   voiceEn / voiceKr / voiceNative { [charId]: { …the same slots } } (the picker's dubs, VOICE_TREES),
+//   voiceNativeLangType { [charId]: 'ITA' | 'RUS' | … } (the official voiceLangType of the own-language dub, its square's label),
 //   sfx.ui { click, buy, sell, refresh, freeze, levelup, merge, equip, ready, timer, yourTurn, … },
 //   sfx.battle { deploy, tokenDeploy, charDie, tokenDie?, enemyDie, enemyHit, heal, killCoin, … },
 //   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
@@ -28,9 +30,9 @@
 //   channel over — the official scheduling of `audio_data.json battleVoice.voiceTypeOptions` (a tap's 选中 line skips
 //   the gap: VOICE_TAP_SLOTS). Two dubs: 中文 `audio.voice` (default) and 日本語 `audio.voiceJp` (settings 语音语言, not
 //   tied to the interface language; the owner's request of 2026-10-08 「全套的日配语音」) — a JP line the manifest or the
-//   host lacks falls back to the Chinese one (voiceLine). This fork adds English / 한국어 to the setting and a
-//   per-operator pick (ui/voiceLang.js → setVoicePicks: CN / JP / EN / KR or the operator's own-language dub), whose
-//   lines are the Chinese ones with the dub's folder swapped in (`audio.voiceLangs` / `audio.voiceNative`, voiceUrlFor).
+//   host lacks falls back to the Chinese one (voiceLine). This fork adds English / 한국어 to the setting (`audio.voiceEn`
+//   / `audio.voiceKr`, trees like `audio.voiceJp`) and a per-operator pick (ui/voiceLang.js → setVoicePicks: CN / JP /
+//   EN / KR or the operator's own-language dub, `audio.voiceNative`), all through voiceLine (VOICE_TREES).
 // - Battle SFX from `b.ev` tuples (`handleBattleEvents`): at most MAX_VOICES concurrent unit sounds, at most
 //   MAX_PER_URL overlapping copies of one sound (the official banks' maxSoundAllowed 2), a per-unit cooldown and a
 //   per-URL minimum gap (SfxLimiter), so a 60-unit fight stays listenable. A `['skill', id, 1]` that arrives before its
@@ -301,9 +303,9 @@ export const VOICE_TAP_SLOTS = Object.freeze(['select']);
  * slot when the JP tree lacks it (a file the fetch could not get is left out of the manifest), and per line at play time
  * — `fallback` is the Chinese file of the same name, played when the host does not have the JP one (a full zip built
  * without the JP dub, before setup downloaded it). A slot with several lines draws one (`random` ∈ [0, 1)).
- * The per-operator picker's other dubs (ui/voiceLang.js: 'en' / 'kr', 'native', and 'jp' for an operator without a JP
- * tree) are not listed line by line (`audio.voiceLangs` / `audio.voiceNative`): their line is the Chinese one with the
- * dub's folder swapped in (voiceUrlFor), the Chinese line its fallback.
+ * The per-operator picker's dubs (ui/voiceLang.js) are trees of the same kind (VOICE_TREES): 'en' `audio.voiceEn`, 'kr'
+ * `audio.voiceKr` and 'native' `audio.voiceNative` (the operator's own-language dub) — the same slots and file names,
+ * the same two fallbacks.
  * @param {any} audio the manifest's `audio`
  * @param {string} charId
  * @param {string} slot
@@ -315,19 +317,21 @@ export function voiceLine(audio, charId, slot, lang = 'cn', random = Math.random
   const lines = (line) => (Array.isArray(line) ? line : [line]).filter((u) => typeof u === 'string' && u);
   const draw = (list) => (list.length ? list[Math.min(list.length - 1, Math.floor(random() * list.length))] : null);
   const cn = lines(audio?.voice?.[charId]?.[slot]);
-  const jp = lang === 'jp' ? draw(lines(audio?.voiceJp?.[charId]?.[slot])) : null;
-  if (jp) {
+  const tree = VOICE_TREES[lang];
+  const dub = tree ? draw(lines(audio?.[tree]?.[charId]?.[slot])) : null;
+  if (dub) {
     const file = (u) => u.slice(u.lastIndexOf('/') + 1);
-    return { url: jp, fallback: cn.find((u) => file(u) === file(jp)) ?? draw(cn) };
+    return { url: dub, fallback: cn.find((u) => file(u) === file(dub)) ?? draw(cn) };
   }
   const url = draw(cn);
-  if (!url) return null;
-  if (lang !== 'cn' && !(lang === 'jp' && audio?.voiceJp?.[charId]) && voiceLangsOf(audio, charId).includes(lang)) {
-    const other = voiceUrlFor(url, lang, charId, audio?.voiceNative?.[charId]);
-    if (other !== url) return { url: other, fallback: url };
-  }
-  return { url, fallback: null };
+  return url ? { url, fallback: null } : null;
 }
+
+/**
+ * The manifest tree of each dub besides `audio.voice` (中文): master's `audio.voiceJp` and, in the same shape, the
+ * per-operator picker's `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative` (tools/assets/plan.mjs VOICE_TREE_LANGS).
+ */
+export const VOICE_TREES = Object.freeze({ jp: 'voiceJp', en: 'voiceEn', kr: 'voiceKr', native: 'voiceNative' });
 
 /**
  * The settlement slot of a finished 作战: 完美作战 ⇒ 3星结束行动 (绝境 / 终极 ⇒ 完成高难行动 instead), a leaked enemy
@@ -378,22 +382,17 @@ export function resultSpeaker(pp, random = Math.random, charOf = null) {
 export const VOICE_LANGS = Object.freeze(['cn', 'jp', 'en', 'kr']);
 
 /**
- * The languages operator `charId` has on this server: the manifest's `audio.voiceLangs` (fetch-assets.mjs
- * compactVoiceExtra), 'jp' when master's JP tree `audio.voiceJp` voices it, plus 'native' when `audio.voiceNative`
- * lists its own-language dub. A manifest built with --no-voice-extra (or before the picker) only has the base CN dub
- * (and JP, when `audio.voiceJp` is there).
+ * The languages operator `charId` has on this server: 中文 (`audio.voice`), then each dub tree (VOICE_TREES) that
+ * voices it, in button order, the own-language dub last. A manifest built with --no-optional-voice has 中文 and the JP
+ * tree only.
  * @param {any} a manifest `audio`
  * @param {string} charId
  * @returns {string[]} e.g. ['cn', 'jp', 'en', 'kr', 'native']; [] when the operator has no voice at all
  */
 export function voiceLangsOf(a, charId) {
   if (!a?.voice?.[charId]) return [];
-  const listed = Array.isArray(a.voiceLangs?.[charId]) ? a.voiceLangs[charId] : [];
-  const has = new Set(listed.length ? listed : ['cn']);
-  if (a.voiceJp?.[charId] && Object.keys(a.voiceJp[charId]).length) has.add('jp');
-  const list = VOICE_LANGS.filter((l) => has.has(l));
-  if (a.voiceNative?.[charId]) list.push('native');
-  return list;
+  const has = (l) => l === 'cn' || Object.keys(a[VOICE_TREES[l]]?.[charId] || {}).length > 0;
+  return [...VOICE_LANGS, 'native'].filter(has);
 }
 
 /** The default voice language, then the fallback for an operator without its dub (unreleased-on-global ones have JP). */
@@ -413,22 +412,6 @@ export function effectiveVoiceLang(a, charId, pref) {
   return has[0];
 }
 
-/**
- * A base voice line's URL in another language: `/assets/audio/voice/<lang>/<charId>/cn_019.mp3` → the `<lang>`
- * segment swapped, or for 'native' → `/assets/audio/voice/native/<dir>/cn_019.mp3` (the dub keeps the file names).
- * @param {string} url a line of `audio.voice`
- * @param {string|null} lang
- * @param {string} charId
- * @param {{ dir?: string } | null | undefined} native `audio.voiceNative[charId]`
- * @returns {string} `url` itself when nothing applies
- */
-export function voiceUrlFor(url, lang, charId, native) {
-  if (typeof url !== 'string' || !lang) return url;
-  const m = /^(.*\/audio\/voice\/)([a-z]+)\/([^/]+)\/([^/]+)$/.exec(url);
-  if (!m || m[3] !== charId) return url;
-  if (lang === 'native') return native?.dir && /^[a-z0-9_]+$/.test(native.dir) ? `${m[1]}native/${native.dir}/${m[4]}` : url;
-  return VOICE_LANGS.includes(lang) ? `${m[1]}${lang}/${m[3]}/${m[4]}` : url;
-}
 
 /** Concurrency + cooldown gate for battle SFX. Pure (time is passed in). */
 /** Gestures that may unlock audio: iOS Safari only accepts touchend / click / keydown; pointerdown covers the rest. */

@@ -22,7 +22,8 @@
 // files data/assets.json lists, public/fonts, and the local-client extraction (public/assets/local/,
 // data/local-assets.json) when present — nothing else on disk, so art the data no longer lists (焰狐龙梓兰, left out of
 // 自选 in 0.2.0, or files of an old mapping) never ships even when this machine still has it. FULL_ZIP_JP_VOICE (below)
-// decides whether the full zip carries the Japanese voice dub too (default: yes).
+// decides whether the full zip carries the Japanese voice dub too (default: yes), FULL_ZIP_OPTIONAL_VOICE the voice picker's
+// EN / KR / own-language dubs (default: yes).
 // Left out: test/, the maintainer tools (build-data, golden, botbench, i18n, check-imports, this file …),
 // scripts/make-windows-bundle.mjs, the other docs (DESIGN, SIM, the research notes, docs/img …), public/dev/, handoff/,
 // .github/, types/, lint / editor / Docker files (Docker builds from a git clone).
@@ -105,6 +106,17 @@ export const PLAYER_NPM_SCRIPTS = ['start', 'setup', 'doctor', 'launch', 'postin
 export const FULL_ZIP_JP_VOICE = true;
 /** Where the JP dub lies (plan.mjs voiceAlt: audio/voice/<lang>/<charId>/<file>). */
 export const JP_VOICE_DIR = 'public/assets/audio/voice/jp/';
+
+/**
+ * THE SWITCH for the per-operator voice picker's dubs in the full zip (`audio.voiceEn` / `audio.voiceKr` /
+ * `audio.voiceNative` of data/assets.json, tools/assets/plan.mjs VOICE_OPTIONAL_TREES: ~5,700 files under
+ * public/assets/audio/voice/{en,kr,native}/, about 180 MB on disk). Works like FULL_ZIP_JP_VOICE: true ships them; false
+ * holds them back (`held`) — setup downloads them on the first start, the picker plays the Chinese line until then
+ * (public/js/audio.js voiceLine), and an update never deletes a player's copy. The lite zip carries no art either way.
+ */
+export const FULL_ZIP_OPTIONAL_VOICE = true;
+/** Where the picker's dubs lie (plan.mjs voiceAlt / nativeVoiceAlt). */
+export const OPTIONAL_VOICE_DIRS = Object.freeze(['public/assets/audio/voice/en/', 'public/assets/audio/voice/kr/', 'public/assets/audio/voice/native/']);
 
 /**
  * Refused in a plan and in a stage: 0.1.x's list (owner-only notes, the promo project, caches, per-machine config) and
@@ -219,9 +231,10 @@ export const manifestFiles = listedArtFiles;
  * The art of a full package: every file data/assets.json lists, public/fonts, public/assets/local/ and
  * data/local-assets.json (when present). `missing`: listed files not on disk; `orphans`: files under public/assets
  * that nothing lists (left out); `held`: listed files the zip holds back on purpose — the JP voice dub when `jpVoice`
- * (FULL_ZIP_JP_VOICE) is off: neither shipped nor missing, and never deleted by an update.
+ * (FULL_ZIP_JP_VOICE) is off, the voice picker's dubs when `optionalVoice` (FULL_ZIP_OPTIONAL_VOICE) is off: neither shipped
+ * nor missing, and never deleted by an update.
  */
-export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE } = {}) {
+export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE, optionalVoice = FULL_ZIP_OPTIONAL_VOICE } = {}) {
   if (lite) return { files: [], missing: [], orphans: [], held: [], local: false };
   const listed = manifestFiles(readJson(path.join(root, 'data', 'assets.json')) ?? {});
   const local = isFile(path.join(root, 'data', 'local-assets.json'));
@@ -231,6 +244,7 @@ export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE } = {}
   const held = [];
   for (const f of listed) {
     if (!jpVoice && f.startsWith(JP_VOICE_DIR)) held.push(f);
+    else if (!optionalVoice && OPTIONAL_VOICE_DIRS.some((d) => f.startsWith(d))) held.push(f);
     else if (isFile(path.join(root, f))) files.add(f);
     else missing.push(f);
   }
@@ -352,13 +366,14 @@ function groupOf(rel) {
  * scan and `measure: false` the node_modules / public/vendor sizes (tests that only want the selection).
  * @param {string} root
  * @param {{ lite?: boolean, paths?: string[], allowDirty?: boolean, env?: object, scan?: boolean, measure?: boolean,
- *   jpVoice?: boolean }} [opts] jpVoice: the full zip's JP dub (default FULL_ZIP_JP_VOICE)
+ *   jpVoice?: boolean, optionalVoice?: boolean }} [opts] jpVoice: the full zip's JP dub (default FULL_ZIP_JP_VOICE);
+ *   optionalVoice: the voice picker's EN / KR / own-language dubs (default FULL_ZIP_OPTIONAL_VOICE)
  */
 export function plan(root, opts = {}) {
   const lite = !!opts.lite;
   const all = (opts.paths || trackedFiles(root)).map(posixRel);
   const { keep, drop } = selectTracked(all);
-  const art = artPlan(root, { lite, jpVoice: opts.jpVoice ?? FULL_ZIP_JP_VOICE });
+  const art = artPlan(root, { lite, jpVoice: opts.jpVoice ?? FULL_ZIP_JP_VOICE, optionalVoice: opts.optionalVoice ?? FULL_ZIP_OPTIONAL_VOICE });
   const pkg = readJson(path.join(root, 'package.json')) || {};
   const lock = readJson(path.join(root, 'package-lock.json')) || {};
   const generated = shipsPacks(keep) ? [GENERATED_PACK_INDEX] : [];
@@ -426,7 +441,7 @@ export function formatSummary(p) {
   const groups = Object.entries(p.dropped).sort((a, b) => b[1].bytes - a[1].bytes);
   if (groups.length) lines.push(`left out: ${groups.map(([g, v]) => `${g} ${v.files} (${MB(v.bytes)})`).join(', ')}`);
   if (!p.lite && p.orphans.length) lines.push(`left out art: ${p.orphans.length} files under public/assets that nothing lists (${MB(p.bytes.orphans)})`);
-  if (!p.lite && p.held?.length) lines.push(`held back: ${p.held.length} files of the JP voice dub (FULL_ZIP_JP_VOICE off: setup downloads them on the first start)`);
+  if (!p.lite && p.held?.length) lines.push(`held back: ${p.held.length} voice files (FULL_ZIP_JP_VOICE / FULL_ZIP_OPTIONAL_VOICE off: setup downloads them on the first start)`);
   lines.push(`personal-info scan: ${p.scanned} files, ${p.names ? `home paths + ${p.names} account name(s)` : 'home paths only (no account name to refuse)'}`);
   lines.push(p.problems.length ? `PROBLEMS (${p.problems.length}):\n${p.problems.map((x) => `  ${x}`).join('\n')}` : 'checks: ok');
   return lines.join('\n') + '\n';
@@ -616,7 +631,7 @@ export function buildUpdate(root, p, bases, { out, install = true, force = false
     }
   }
   // a path no update deletes (a per-machine name such as node_modules/x/.env.example) stays behind, named in the summary
-  // …nor a file this zip holds back on purpose (the JP dub with FULL_ZIP_JP_VOICE off): the manifest still lists it
+  // …nor a file this zip holds back on purpose (a voice dub with FULL_ZIP_JP_VOICE / FULL_ZIP_OPTIONAL_VOICE off): the manifest still lists it
   const heldBack = new Set(p.held || []);
   const diff = diffBases(next, bases, { removable: (rel) => !removalProblem(rel) && !heldBack.has(rel) });
   for (const rel of diff.left) {

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { buildPlan, VOICE_JP_LANG } from '../tools/assets/plan.mjs';
 import { indexAudio, VOICE_DIRS } from '../tools/assets/audio.mjs';
 import { RAW } from '../tools/assets/sources.mjs';
-import { artPlan, FULL_ZIP_JP_VOICE, JP_VOICE_DIR } from '../tools/package.mjs';
+import { artPlan, FULL_ZIP_JP_VOICE, JP_VOICE_DIR, FULL_ZIP_OPTIONAL_VOICE, OPTIONAL_VOICE_DIRS } from '../tools/package.mjs';
 import { DEFAULT_SETTINGS, VOICE_LANGS, sanitizeSettings } from '../public/js/ui/gameLogic.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -137,6 +137,35 @@ test('package: the full zip ships the JP dub by default; FULL_ZIP_JP_VOICE off h
   // the update zip keeps a held file out of `removed` (tools/package.mjs buildUpdate)
   const src = fs.readFileSync(path.join(ROOT, 'tools/package.mjs'), 'utf8');
   assert.match(src, /removable: \(rel\) => !removalProblem\(rel\) && !heldBack\.has\(rel\)/);
+});
+
+test('package: FULL_ZIP_OPTIONAL_VOICE ships the voice picker\'s EN / KR / own-language dubs by default; off holds them back like the JP switch', () => {
+  assert.equal(FULL_ZIP_OPTIONAL_VOICE, true);
+  assert.deepEqual([...OPTIONAL_VOICE_DIRS], ['public/assets/audio/voice/en/', 'public/assets/audio/voice/kr/', 'public/assets/audio/voice/native/']);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-voiceopt-'));
+  try {
+    const rel = {
+      cn: 'public/assets/audio/voice/cn/char_102_texas/cn_021.mp3', jp: 'public/assets/audio/voice/jp/char_102_texas/cn_021.mp3',
+      en: 'public/assets/audio/voice/en/char_102_texas/cn_021.mp3', kr: 'public/assets/audio/voice/kr/char_102_texas/cn_021.mp3',
+      native: 'public/assets/audio/voice/native/char_102_texas_ita/cn_021.mp3',
+    };
+    for (const r of Object.values(rel)) { fs.mkdirSync(path.dirname(path.join(dir, r)), { recursive: true }); fs.writeFileSync(path.join(dir, r), 'ID3'); }
+    fs.mkdirSync(path.join(dir, 'data'));
+    const url = (r) => `/${r.slice('public/'.length)}`;
+    const tree = (r) => ({ char_102_texas: { select: url(r) } });
+    fs.writeFileSync(path.join(dir, 'data', 'assets.json'), JSON.stringify({ audio: { voice: tree(rel.cn), voiceJp: tree(rel.jp),
+      voiceEn: tree(rel.en), voiceKr: tree(rel.kr), voiceNative: tree(rel.native), voiceNativeLangType: { char_102_texas: 'ITA' } } }));
+    const on = artPlan(dir);
+    assert.deepEqual(on.files, Object.values(rel).sort(), 'every dub ships');
+    assert.deepEqual([on.held, on.missing, on.orphans], [[], [], []]);
+    const off = artPlan(dir, { optionalVoice: false });
+    assert.deepEqual(off.files, [rel.cn, rel.jp].sort(), 'the picker\'s dubs stay out; master\'s JP is its own switch');
+    assert.deepEqual(off.held, [rel.en, rel.kr, rel.native].sort(), 'held back on purpose');
+    assert.deepEqual([off.missing, off.orphans], [[], []], 'neither missing nor orphans');
+    assert.deepEqual(artPlan(dir, { jpVoice: false, optionalVoice: false }).files, [rel.cn], 'both switches off: the Chinese dub only');
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('选中干员 on every card tap (review of fb7-voices): two shop / reward cards of one operator are two taps, a re-render is none', async () => {

@@ -5,8 +5,8 @@
 // server has one) and play a line of it (试听). The picks are a client-only preference (`sp.pref.voiceLang` =
 // { default, byChar }, never synced to the server; `default` mirrors the settings so the preload's voice packs and the
 // picker read one store) pushed into the audio manager (audio.setVoicePicks), which plays them through voiceLine.
-// The languages an operator has come from the manifest (audio.js voiceLangsOf: `audio.voiceJp` for JP,
-// `audio.voiceLangs` / `audio.voiceNative` for the rest); a language it lacks falls back to EN, then JP (unreleased on
+// The languages an operator has come from the manifest (audio.js voiceLangsOf: the trees `audio.voiceJp` /
+// `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`); a language it lacks falls back to EN, then JP (unreleased on
 // global), then CN.
 
 import { html } from './components.js';
@@ -101,7 +101,7 @@ export const useVoiceLang = () => useStore((s) => s, Object.is, voiceLangStore);
 /** The square label and full name of language `lang` for `charId` (the own-language dub reads its official type). */
 function labelOf(a, charId, lang) {
   if (lang !== 'native') return LANG_LABEL[lang];
-  const type = a?.voiceNative?.[charId]?.type;
+  const type = a?.voiceNativeLangType?.[charId];
   const [text, name] = NATIVE_LABEL[type] || [String(type || '★').slice(0, 2), N_('本土语言')];
   return [text ?? t(TOPOLECT_SQ), name];
 }

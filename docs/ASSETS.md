@@ -21,7 +21,7 @@ npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 | `--dry-run` | Print the plan (file and model counts, alias notes) and exit. |
 | `--refresh-index` | Re-download the upstream indexes: `audio_data.json`, `charword_table.json` (the 干员战斗语音 slots) and `models_data.json`. |
 | `--voice-lang=cn` | The dub of `audio.voice` (the 中文 voice setting): `cn` (default) | `jp` | `en` | `kr` — the same file names under `voice_cn/`, `voice/`, `voice_en/`, `voice_kr/`. `audio.voiceJp` (the 日本語 setting) is always the JP dub: every run plans both trees. |
-| `--no-voice-extra` | Only the `--voice-lang` dub and `audio.voiceJp`. By default the EN / KR dumps and each operator's own-language dub (`voice_custom/<wordkey>/`, 44 operators) are downloaded too, for the per-operator voice language picker (`audio.voiceLangs` / `audio.voiceNative`; JP comes from `audio.voiceJp`). |
+| `--no-optional-voice` | Only the `--voice-lang` dub and `audio.voiceJp`. By default the EN / KR dumps and each operator's own-language dub (`voice_custom/<wordkey>/`, 44 operators) are downloaded too, for the per-operator voice language picker (the trees `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`, beside master's `audio.voiceJp`). |
 | `--voice-all` | Plan every official voice slot, including the prep-only lines no battle plays (干员报到 / 编入队伍 / 任命队长 — 360 files, one per operator and slot). Off by default: nothing requests them, so planning them only makes every run download more. |
 | `--prune` | Delete files under `public/assets/` that the manifest no longer references, for example after a mapping change. Without this flag they are only listed in the report. `public/assets/local/` (written by `tools/local-extract`) is never pruned. Implies `--allow-shrink`. |
 | `--allow-shrink` | Write `data/assets.json` even when it loses entries the current one has (see "The manifest never shrinks by accident" below). |
@@ -149,7 +149,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   hash: 'a1b2c3d4e5f6',             // content hash (cache busting)
   generator: 'tools/fetch-assets.mjs',
   stats: { files, bytes, chars, charsWithBack, enemies, enemiesWithSpine, tokens, tokensWithSpine,
-           spineModels, bonds, items, bands, skills, modules, ui, sfxUnits, voiceChars, voiceJpChars, voiceLangChars, voiceNativeChars },
+           spineModels, bonds, items, bands, skills, modules, ui, sfxUnits, voiceChars, voiceJpChars, voiceEnChars, voiceKrChars, voiceNativeChars },
   chars:   { [charId]: { avatar, avatarE2?, portrait, portraitE2?, spine: { front: Spine, back?: Spine } } },
   enemies: { [enemyId]: { icon, spine?: Spine, spineAliasOf?: enemyId,
                           spineLocal?: { group, skel, atlas, textures, …Spine } } },
@@ -194,13 +194,16 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                            // square of the per-operator picker, ui/voiceLang.js) and falls back to
                            // `voice` for a slot it lacks or a file the host does not have (public/js/audio.js voiceLine);
                            // the full zip ships it unless tools/package.mjs FULL_ZIP_JP_VOICE is off
-    voiceLangs?:  { [charId]: ['cn', 'en', 'kr'] },           // 语音语言 picker: the dumps with at least one line on
-                           // disk, base first (fetch-assets.mjs compactVoiceExtra; JP is `voiceJp`, counted by
-                           // audio.js voiceLangsOf). The client derives each URL from `voice` by swapping the
-                           // `/voice/<lang>/` segment (audio.js voiceUrlFor) and plays the base line when a picked one is
-                           // missing. Not built with --no-voice-extra
-    voiceNative?: { [charId]: { dir, type } },                // the operator's own-language dub (charword voiceLangDict,
-                           // groupType CUSTOM: ITA / GER / RUS / FRE / SPA / CN_TOPOLECT) → `audio/voice/native/<dir>/`
+    voiceEn?: { [charId]: { …the slots of `voice` } },      // the per-operator voice picker's dubs (ui/voiceLang.js; settings
+    voiceKr?: { [charId]: { …the slots of `voice` } },      // 语音语言 English / 한국어), trees exactly like `voiceJp`: the
+                           // same slots and file names under /assets/audio/voice/en/ and /kr/ (AA2 `voice_en/`,
+                           // `voice_kr/`); an operator not on the global server yet has no entry (it speaks JP). The
+                           // client plays them through voiceLine (audio.js VOICE_TREES) with the same fallback to `voice`
+    voiceNative?: { [charId]: { …the slots of `voice` } },  // the operator's own-language dub (charword voiceLangDict,
+                           // groupType CUSTOM) under /assets/audio/voice/native/<wordkey>/ (AA2 `voice_custom/`)
+    voiceNativeLangType?: { [charId]: 'ITA' | 'GER' | 'RUS' | 'FRE' | 'SPA' | 'CN_TOPOLECT' },   // its official voiceLangType,
+                           // the label of its square in the picker. The four picker keys are not built with
+                           // --no-optional-voice; the full zip ships them unless tools/package.mjs FULL_ZIP_OPTIONAL_VOICE is off
     sfx: {
       ui:     { click, back, confirm, tab, pick, drop, error, buy, sell, income, refresh, freeze, levelup,
                 merge, equip, itemMerge, bondUp, artPlace, ready, timer, draft, yourTurn, yourTurnCircle,

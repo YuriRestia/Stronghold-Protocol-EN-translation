@@ -261,7 +261,7 @@ test('voice packs follow the voice language settings until the player edits the 
   assert.deepEqual(sanitizePreloadPref({ started: true, voice: ['kr', 'xx', 'en'] }), { started: true, paused: false, voice: ['en', 'kr'] });
   assert.deepEqual(voicePacksOf({ default: 'en', byChar: { char_a: 'jp', char_b: 'native' } }), ['en', 'jp', 'native']);
   // with the manifest: the dub each operator really speaks — an EN default needs JP for one without EN (audio.voiceJp)
-  const am = { voice: { char_a: {}, char_b: {} }, voiceLangs: { char_a: ['cn', 'en'] }, voiceJp: { char_b: { select: 'x' } } };
+  const am = { voice: { char_a: {}, char_b: {} }, voiceEn: { char_a: { select: 'x' } }, voiceJp: { char_b: { select: 'x' } } };
   assert.deepEqual(voicePacksOf({ default: 'en', byChar: {} }, am), ['en', 'jp'], 'char_b has no EN dub: it speaks JP');
   assert.deepEqual(voicePacksOf({ default: 'cn', byChar: {} }, am), ['cn']);
   voiceLangStore.set({ default: 'jp', byChar: { char_a: 'native' } });

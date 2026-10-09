@@ -920,6 +920,32 @@ test('干员战斗语音 (DESIGN §21.30): the manifest data, the official prior
   assert.equal(manifest.stats.voiceJpChars, charIds.length);
   assert.match(doc('docs/ASSETS.md'), /voiceJp: \{ \[charId\]: \{ …the slots of `voice` \} \}/);
   assert.match(doc('docs/DEPLOY.md'), /`FULL_ZIP_JP_VOICE` 改成 `false` 时/);
+  // the per-operator voice picker's dubs (audio.voiceEn / voiceKr / voiceNative): trees exactly like voiceJp — a subset
+  // of the voiced operators, each line the Chinese one under the dub's folder, the same file name — and
+  // voiceNativeLangType, the official voiceLangType of each own-language dub, for exactly the operators of voiceNative
+  for (const [key, lang] of [['voiceEn', 'en'], ['voiceKr', 'kr']]) {
+    const tree = manifest.audio?.[key] ?? {};
+    assert.ok(Object.keys(tree).length > 0, `${key} is built (fetch-assets without --no-optional-voice)`);
+    assert.equal(manifest.stats[`${key}Chars`], Object.keys(tree).length);
+    for (const [id, slots] of Object.entries(tree)) {
+      assert.ok(voice[id], `${key}.${id}: a voiced operator`);
+      for (const [slot, lines] of Object.entries(slots)) {
+        const cn = [voice[id][slot]].flat();
+        for (const u of [lines].flat()) assert.ok(cn.includes(u.replace(`/voice/${lang}/`, '/voice/cn/')), `${key}.${id}.${slot}: ${u} is a Chinese line's twin`);
+      }
+    }
+  }
+  const native = manifest.audio?.voiceNative ?? {};
+  const types = manifest.audio?.voiceNativeLangType ?? {};
+  assert.deepEqual(Object.keys(types).sort(), Object.keys(native).sort(), 'a type for every own-language dub, and only for those');
+  for (const t of Object.values(types)) assert.ok(['CN_TOPOLECT', 'ITA', 'GER', 'RUS', 'FRE', 'SPA'].includes(t), `official CUSTOM voiceLangType: ${t}`);
+  for (const [id, slots] of Object.entries(native)) {
+    for (const u of [Object.values(slots)].flat(2)) assert.match(u, /^\/assets\/audio\/voice\/native\/[a-z0-9_]+\/cn_\d+\.mp3$/, `voiceNative.${id}`);
+    assert.ok(voice[id], `voiceNative.${id}: a voiced operator`);
+  }
+  assert.match(doc('docs/ASSETS.md'), /voiceEn\?: \{ \[charId\]: \{ …the slots of `voice` \} \}/);
+  assert.match(doc('docs/ASSETS.md'), /voiceNativeLangType\?: \{ \[charId\]:/);
+  assert.match(doc('docs/DEPLOY.md'), /开关是 `FULL_ZIP_OPTIONAL_VOICE`/);
   assert.match(PLAYING, /「语音语言」选 \*\*中文 \/ 日本語\*\*（默认中文，和界面语言无关/);
   assert.match(PLAYING, /会说一句官方的「选中干员」语音，休整期也一样/);
   assert.match(SIM, /\['engage', id\]/);
