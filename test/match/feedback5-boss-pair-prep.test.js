@@ -56,6 +56,7 @@ test('a move of the partner reaches the player\'s m.private and a scout of eithe
   const h = bossPrep(4, 5102);
   const m = h.m;
   const b = place(h, 'p_1', chessOfTier(1)[1]);
+  const held = give(m, h.ps('p_0'), chessOfTier(1)[2]); // into p_0's hand
   m.flush(true);
   // p_3 (eliminated) scouts p_0: the scout shows p_0's half and p_1's board on the other half
   h.ps('p_3').eliminate(13);
@@ -63,6 +64,9 @@ test('a move of the partner reaches the player\'s m.private and a scout of eithe
   let scout = h.lastTo('p_3', 'm.field');
   assert.deepEqual([scout.kind, scout.side, scout.mate], ['boss', 'L', { playerId: 'p_1', side: 'R' }]);
   assert.ok(scout.units.some((u) => u.uid === b.piece.uid && u.x >= 10), 'the partner\'s piece on the right half');
+  // the area tags survive the boss-half remap (the rows do not): the bond popup tells the bench from the board (GitHub #385)
+  assert.equal(scout.units.find((u) => u.uid === b.piece.uid).area, 'board');
+  assert.equal(scout.units.find((u) => u.uid === held.uid).area, 'hand', 'a held operator stays tagged as held');
   // p_1 moves its piece: p_0's m.private and p_3's scout of p_0 follow
   const ps1 = h.ps('p_1');
   const to = legalTileFor(m, ps1, b.piece.id, new Set([`${b.tile[0]},${b.tile[1]}`]));

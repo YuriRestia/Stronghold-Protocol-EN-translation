@@ -12,6 +12,8 @@
 
 import { createStore, loadPref, savePref, store, selectRoute } from '../store.js';
 import { voiceLangStore } from '../ui/voiceLang.js';
+import { effectiveVoiceLang } from '../audio.js';
+import { data } from '../data.js';
 import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, SUMMARY_URL, VOICE_PACKS, parseManifest } from '../../../shared/resources.js';
 import { PreloadStore, isQuotaError } from './store.js';
 
@@ -24,9 +26,16 @@ export function sanitizePreloadPref(v) {
   return { started: v?.started === true, paused: v?.paused === true, voice };
 }
 
-/** The voice packs the voice language settings use: the default language and every per-operator pick. */
-export function voicePacksOf(pref) {
+/**
+ * The voice packs the voice language settings use: the default language (settings 语音语言), every per-operator pick
+ * and, with the manifest's `audio`, the dub each voiced operator really speaks — an operator without the default's dub
+ * falls back to EN, then JP (audio.js effectiveVoiceLang), so an EN default also needs the JP pack (`audio.voiceJp`).
+ * @param {{ default?: string, byChar?: Record<string, string> } | null | undefined} pref
+ * @param {any} [a] data/assets.json `audio`
+ */
+export function voicePacksOf(pref, a = null) {
   const used = new Set([pref?.default, ...Object.values(pref?.byChar || {})]);
+  for (const charId of Object.keys(a?.voice || {})) used.add(effectiveVoiceLang(a, charId, pref));
   return VOICE_PACKS.filter((p) => used.has(p));
 }
 
@@ -34,7 +43,7 @@ export const preloadPref = createStore(sanitizePreloadPref(loadPref('preload', n
 preloadPref.subscribe((s) => savePref('preload', sanitizePreloadPref(s)));
 
 /** The ticked voice packs right now. */
-export const tickedVoicePacks = () => preloadPref.get().voice ?? voicePacksOf(voiceLangStore.get());
+export const tickedVoicePacks = () => preloadPref.get().voice ?? voicePacksOf(voiceLangStore.get(), data.get('assets')?.audio);
 
 /**
  * What the panel renders. phase: idle | checking | download | foreign (another tab downloads) | ready | paused | error.

@@ -5,6 +5,7 @@ import { sortEnemyTargets, canTargetEnemy } from '../../../targeting.js';
 import { rotateOffset } from '../../../dir.js';
 import { bodyDist } from '../../../body.js';
 import { num, tbb, hasBond, ANY, selectedSkill, skillGridOf, WHOLE_FIELD, bstate, aura } from '../shared/tier6.js';
+import { hypot, sin, cos, atan2 } from '../../../detmath.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // 荒芜拉普兰德 chess_char_6_18 (驭械术师) — S3 终幕·浩劫; 头狼; 叙拉古的荣幸
@@ -39,10 +40,10 @@ function whitw2(bb, chess, def) {
   // ① `k` drones leave her evenly spread, the first along her facing (row 0 is the bottom row: angles in the (col, row)
   // plane, counter-clockwise)
   const releaseDrones = (unit, k) => {
-    const a0 = Math.atan2(unit.fwd[0], unit.fwd[1]);
+    const a0 = atan2(unit.fwd[0], unit.fwd[1]);
     for (let i = 0; i < k; i++) {
       const a = a0 + (2 * Math.PI * i) / k;
-      unit.mem.drones.push({ x: unit.x, y: unit.y, hx: Math.cos(a), hy: Math.sin(a), v: WHITW2_SPREAD.v0, age: 0, phase: 'spread', t: null, cd: 0, rampId: null, ramp: 0, orbit: null });
+      unit.mem.drones.push({ x: unit.x, y: unit.y, hx: cos(a), hy: sin(a), v: WHITW2_SPREAD.v0, age: 0, phase: 'spread', t: null, cd: 0, rampId: null, ramp: 0, orbit: null });
     }
   };
   // speed v → v + acc·dt (capped); the distance covered at the mean of the two (exact under constant acceleration)
@@ -56,7 +57,7 @@ function whitw2(bb, chess, def) {
     let best = null, bd = Infinity, bh = Infinity;
     for (const e of battle.enemies) {
       if (!ok(e)) continue;
-      const de = Math.hypot(e.x - d.x, e.y - d.y), dh = Math.hypot(e.x - unit.x, e.y - unit.y);
+      const de = hypot(e.x - d.x, e.y - d.y), dh = hypot(e.x - unit.x, e.y - unit.y);
       if (de < bd - 1e-9 || (de <= bd + 1e-9 && dh < bh - 1e-9)) { best = e; bd = de; bh = dh; }
     }
     return best;
@@ -65,9 +66,9 @@ function whitw2(bb, chess, def) {
   const circle = (d, dt) => {
     const { r, v } = WHITW2_ORBIT;
     if (!d.orbit) d.orbit = { cx: d.x - d.hy * r, cy: d.y + d.hx * r };
-    const a = Math.atan2(d.y - d.orbit.cy, d.x - d.orbit.cx) + (v / r) * dt;
-    d.x = d.orbit.cx + r * Math.cos(a); d.y = d.orbit.cy + r * Math.sin(a);
-    d.hx = -Math.sin(a); d.hy = Math.cos(a);
+    const a = atan2(d.y - d.orbit.cy, d.x - d.orbit.cx) + (v / r) * dt;
+    d.x = d.orbit.cx + r * cos(a); d.y = d.orbit.cy + r * sin(a);
+    d.hx = -sin(a); d.hy = cos(a);
   };
   // one tick of one drone: spread → (pick) → chase → on the target, attacking like a normal drone. [ASSUMED] its attack
   // clock runs all the time (one attack per interval of hers at most, whatever it chased in between) and its first hit
@@ -103,7 +104,7 @@ function whitw2(bb, chess, def) {
     if (d.phase === 'chase') {
       const s = accelerate(d, WHITW2_CHASE, dt);
       if (bodyDist(t, d.x, d.y) > s + 1e-9) {
-        const dx = t.x - d.x, dy = t.y - d.y, L = Math.hypot(dx, dy);
+        const dx = t.x - d.x, dy = t.y - d.y, L = hypot(dx, dy);
         if (L > 1e-9) { d.hx = dx / L; d.hy = dy / L; }
         d.x += d.hx * s; d.y += d.hy * s;
         return;
@@ -127,6 +128,8 @@ function whitw2(bb, chess, def) {
     // grid only selects those targets — no rangeId, no 攻击范围 in the text — so the card keeps her 3-1 (showOwnRange)
     skchr_whitw2_1: {
       kind: 'toggle',
+      // [ASSUMED] her drones lock enemies only (install): 白铁's 铁钳号 alone does not open S1 / S2 (skills.js allyTargetsOk)
+      allyTargets: false,
       mods: { atkPct: num(bb.atk) },
       targeting: { rangeGrid: WHOLE_FIELD, showOwnRange: true },
       onStart({ unit }) { unit.mem.lazyLock = null; },
@@ -135,6 +138,7 @@ function whitw2(bb, chess, def) {
     // (install); each drone hit ramps on its own target (trait init → max) and fears it attack@fear s with attack@prob
     skchr_whitw2_2: {
       kind: 'duration',
+      allyTargets: false,
       mods: { atkPct: num(bb.atk) },
       ...(skillGridW ? { targeting: { rangeGrid: skillGridW } } : {}),
       attack: {

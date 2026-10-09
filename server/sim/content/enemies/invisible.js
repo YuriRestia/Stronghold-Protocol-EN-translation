@@ -2,13 +2,16 @@
 // content/enemies.js).
 
 import { canTargetAlly, enemyStealthed } from '../../targeting.js';
+import { ALLY_COLLIDER_RADIUS } from '../../constants.js';
 import { T, elem, hurt, targetsNear, byPriority, auraBuff } from './helpers.js';
 import { stealth, onHitStatus, skill, kitStealth } from './archetypes.js';
+import { hypot } from '../../detmath.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
 
-/** "数个目标" of 假想敌：骨刺 while stealthed [ASSUMED]. */
+/** 假想敌：骨刺's targets at once while its 隐匿 holds: 3 — the level's own description 「隐匿；隐匿状态下同时攻击3个目标。」
+ *  (enemy_database; the handbook line says 「数个目标」) and PRTS 天赋 「隐匿期间可同时攻击3个目标」 (GitHub #365). */
 const ACBUNN_TARGETS = 3;
 
 /** 重弩突袭者 直击 reach along a row/column [ASSUMED]; the skill's length and its charge before the bolt (PRTS 直击 "蓄力1.4s后
@@ -20,8 +23,8 @@ const CROSS_REACH = 6, CROSS_SKILL = 2.5, CROSS_CHARGE = 1.4;
 
 function kitCrossbow(ab) {
   const s = ab.sk.CrossAttack;
-  const aligned = (b, e) => b.allies().filter((u) => canTargetAlly(e, u, true) && (Math.abs(u.y - e.y) < 0.5 || Math.abs(u.x - e.x) < 0.5) && Math.hypot(u.x - e.x, u.y - e.y) <= CROSS_REACH);
-  const nearest = (b, e, l) => l.sort((p, q) => Math.hypot(p.x - e.x, p.y - e.y) - Math.hypot(q.x - e.x, q.y - e.y))[0];
+  const aligned = (b, e) => b.allies().filter((u) => canTargetAlly(e, u, true) && (Math.abs(u.y - e.y) < 0.5 || Math.abs(u.x - e.x) < 0.5) && hypot(u.x - e.x, u.y - e.y) <= CROSS_REACH);
+  const nearest = (b, e, l) => l.sort((p, q) => hypot(p.x - e.x, p.y - e.y) - hypot(q.x - e.x, q.y - e.y))[0];
   // PRTS 重弩突袭者: 天赋 "隐匿（被阻挡，主动攻击期间均可解除）"; 直击 "蓄力1.4s后向目标方向发射1支弩箭，对击中的首个目标造成攻击力100%
   // 的法术伤害与5s晕眩 ※技能持续2.5s": revealed for the whole skill, the bolt leaves CROSS_CHARGE s in — at the nearest unit still
   // in line in the aimed direction; it stands meanwhile [ASSUMED], and a stun / silence or its death before the release
@@ -108,16 +111,29 @@ function kitShadowBlade(ab) {
     tick(b, e) {
       const partner = b.enemiesInRadius(e.x, e.y, 3).find((o) => /enemy_1174_duholy/.test(o.defId));
       const r = partner && partner.mem.ab ? (T(partner.mem.ab, 'traitAbility.range_radius') ?? 1.1) : 1.1;
-      if (partner && Math.hypot(partner.x - e.x, partner.y - e.y) <= r + 1e-9 && e.base.bat > 0) auraBuff(b, e, 'ab:shadowSync', 0.5, { batPct: bat / e.base.bat });
+      if (partner && hypot(partner.x - e.x, partner.y - e.y) <= r + 1e-9 && e.base.bat > 0) auraBuff(b, e, 'ab:shadowSync', 0.5, { batPct: bat / e.base.bat });
     },
   }];
 }
 
+/**
+ * 假想敌：骨刺 — PRTS 天赋 (级别0): 「自身普通攻击索敌不受阻挡影响」 — profile `blockFree` (as 自制投石机): blocked, and so out of its
+ * 隐匿, it still picks by priority among the allies in reach, not its blocker first, and a 隐匿 / 迷彩 blocker is no target
+ * (targeting.js canTargetAlly); 「不会攻击飞行单位」 — profile `canTarget`; 「隐匿（解除阻挡0秒后恢复）」 — stealth(); 「隐匿期间
+ * 可同时攻击3个目标」: while its 隐匿 holds, the first ACBUNN_TARGETS by priority among the allies its normal attack could hit
+ * (ai.js attackTargets: the same reach — rangeRadius + the ally collider — and the same rules); one otherwise. Until
+ * 0.2.2 (PR #365 by @Sukvii, the PRTS lines checked for this port): blocker first, flyers hit, the 3 picked within the bare
+ * rangeRadius.
+ */
 function kitBoneSpike() {
   return [stealth(), {
+    spawn(b, e) {
+      e.profile.blockFree = true;
+      e.profile.canTarget = (u) => !u.isFlying;
+    },
     before(c, b, e) {
-      if (!enemyStealthed(e)) return;                             // 隐匿状态下同时攻击数个目标 (back 0 s after a block)
-      const l = byPriority(e, targetsNear(b, e, e.base.rangeRadius));
+      if (!enemyStealthed(e)) return;
+      const l = byPriority(e, targetsNear(b, e, e.base.rangeRadius + ALLY_COLLIDER_RADIUS).filter(e.profile.canTarget));
       if (l.length) c.targets = l.slice(0, ACBUNN_TARGETS);
     },
   }];

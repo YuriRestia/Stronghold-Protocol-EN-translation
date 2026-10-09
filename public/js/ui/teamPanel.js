@@ -5,7 +5,10 @@
 // Observing (client-side combat, `observe` prop — the official flow): tapping a teammate's avatar expands a mint
 // "前往查看" button under the row (when that teammate can be observed now; otherwise the reason is toasted through
 // onWatch); while observing, the own row shows a "返回战场" button. Without `observe` (server-run combat) a click
-// watches that player's field at once.
+// watches that player's field at once, and a click while that field is already on screen does not ask again.
+// In PHASE.PREP a double-click on a teammate's avatar opens their field (GitHub #131, the 「前往查看」 shortcut).
+// It does not open a field the teammate does not have, and it does not open one the click already opened.
+// Boss-prep phases (最终攻势 / 隐秘核心) are not PHASE.PREP, so they still use 「前往查看」.
 // Live LP (user playtest #3 item 2): during a normal round's battle each row's tower shows lp − the loss that player's
 // leaks so far will cost (red, −N): the own row the top bar's live value (`self`, ui/hud.js liveLp), a teammate's row
 // m.public players[].pendingLp (server/match/match/views.js, ~1 Hz). 联防 (user playtest #6 item 7): a leaker's row adds the
@@ -15,7 +18,7 @@
 // the player watches, so the number moves with the kills on screen), else m.public players[].uniteLeft (the authority's
 // report, ~1 Hz).
 
-import { useEffect, useState } from '../../vendor/hooks.module.js';
+import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Icon, Tooltip } from './components.js';
 import { PlayerAvatar, LpTower, GIcon, LocalSprite } from './gameComponents.js';
@@ -55,6 +58,45 @@ export function rowLp(p, pub, self = null, { uniteLocal = null, cap = 10 } = {})
   return { lp, pending, unite: (pending > 0 || left != null) && (self ? !!self.unite : pub.phase === PHASE.UNITE), left };
 }
 
+/** True when `watching` is already this teammate's field (their live field, or the prep scout `n:<id>`). */
+export function teammateFieldShown(watching, player) {
+  if (!watching || !player) return false;
+  return watching === player.fieldId || watching === `n:${player.playerId}`;
+}
+
+/**
+ * A single click on a teammate avatar calls onWatch only in server-run combat (no `observe`), and only when
+ * that field is not already on screen. A double-click fires click first; the second click, and any later click
+ * while the view is already theirs, must not open it again. Client combat never watches from the avatar click.
+ * `askedRecently`: this avatar's click already called onWatch in the last moment (the other click of a double-click,
+ * before `watching` has re-rendered).
+ * @param {{ observe?: unknown, watching?: string|null, player?: { playerId?: string, fieldId?: string }|null, askedRecently?: boolean }} [o]
+ * @returns {boolean}
+ */
+export function teammateClickWatches(o = {}) {
+  if (o.observe || o.askedRecently) return false;
+  if (teammateFieldShown(o.watching, o.player)) return false;
+  return !!o.player;
+}
+
+/**
+ * Double-click in PHASE.PREP opens a teammate's field, skipping 「前往查看」. False — do not call onWatch — when
+ * the phase is not PREP, the row is your own, there is no client-combat `observe` (the click already watched),
+ * `canObserve` has no field (do not force a view; the click toasts), or that field is already open.
+ * @param {{ phase?: string, self?: boolean, observe?: { canObserve?: (p: any) => { fieldId?: string }|null }|null,
+ *   watching?: string|null, player?: any, askedRecently?: boolean }} [o]
+ * @returns {boolean}
+ */
+export function prepDblClickWatches(o = {}) {
+  if (o.phase !== PHASE.PREP || o.self || !o.player || !o.observe) return false;
+  if (o.askedRecently || teammateFieldShown(o.watching, o.player)) return false;
+  const view = (typeof o.observe.canObserve === 'function' ? o.observe.canObserve(o.player) : null) || {};
+  return !!view.fieldId;
+}
+
+/** How long the second click of a double-click counts as "already asked" before `watching` re-renders. */
+const AVATAR_CLICK_GAP_MS = 500;
+
 /**
  * Tooltip of a row's LP tower with a pending loss (null without one).
  * @param {{ lp: number|null, pending: number, unite: boolean, left: number|null } | null} lp rowLp(...)
@@ -76,6 +118,8 @@ export function rowLpTip(lp, cap = 10) {
  */
 export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null }) {
   const [openPid, setOpenPid] = useState(null);
+  // the playerId whose avatar just called onWatch, so the other click of a double-click does not open the view again
+  const askedAt = useRef(/** @type {{ id: string|null, at: number }} */ ({ id: null, at: 0 }));
   const phaseKey = `${pub?.phase}:${pub?.round}`;
   useEffect(() => { setOpenPid(null); }, [phaseKey, watching, observe?.observing]);
   const players = sortedPlayers(pub);
@@ -84,19 +128,39 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
   // tinted like the official green; a plain green ring without the local art)
   const team = teamFrameIds(pub, myId);
   const frameArt = team.size ? localAsset('ui/battle', 'bg_team_border') : null;
+  const askedRecently = (p) => askedAt.current.id === p?.playerId && Date.now() - askedAt.current.at < AVATAR_CLICK_GAP_MS;
+  const noteAsked = (p) => { askedAt.current = { id: p.playerId, at: Date.now() }; };
   const click = (p, self) => {
-    if (!observe) { onWatch(p); return; }
+    if (!observe) {
+      // your own row still goes home; a teammate already on screen (or just opened by this double-click) does not
+      if (self || teammateClickWatches({ watching, player: p, askedRecently: askedRecently(p) })) {
+        if (!self) noteAsked(p);
+        onWatch(p);
+      }
+      return;
+    }
     if (self) { if (observe.observing) observe.onBack(); setOpenPid(null); return; }
-    const t = observe.canObserve(p) || {};
-    if (!t.fieldId) { setOpenPid(null); onWatch(p); return; } // the game screen toasts the reason
+    const view = observe.canObserve(p) || {};
+    if (!view.fieldId) {
+      setOpenPid(null);
+      if (!askedRecently(p)) { noteAsked(p); onWatch(p); } // the game screen toasts the reason; a double-click toasts once
+      return;
+    }
     setOpenPid((cur) => (cur === p.playerId ? null : p.playerId));
+  };
+  const dblClick = (e, p, self) => {
+    if (!prepDblClickWatches({ phase: pub?.phase, self, observe, watching, player: p, askedRecently: askedRecently(p) })) return;
+    e.preventDefault();
+    setOpenPid(null);
+    noteAsked(p);
+    onWatch(p);
   };
   return html`<aside class=${cx('team', compact && 'team--compact')} aria-label=${t('同盟成员')}>
     ${players.map((p) => {
       const self = p.playerId === myId;
       const status = p.alive === false ? 'dead' : p.status;
       const meta = STATUS_META[status] || STATUS_META.acting;
-      const watched = watching && (watching === p.fieldId || watching === `n:${p.playerId}`);
+      const watched = teammateFieldShown(watching, p);
       const bubble = bubbles?.get(p.playerId);
       const offline = p.connected === false && !p.isBot;
       const open = !!observe && openPid === p.playerId && !self;
@@ -105,7 +169,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
       const lp = rowLp(p, pub, self ? selfLive : null, { uniteLocal, cap });
       const inTeam = team.has(p.playerId);
       return html`<div key=${p.playerId} class=${cx('team__row', self && 'is-self', inTeam && 'is-team', watched && 'is-watched', p.alive === false && 'is-dead', open && 'is-open')}>
-        <button type="button" class="team__btn" onClick=${() => click(p, self)} title=${inTeam && !self ? `${title} · ${t('与你在同一战场')}` : title} aria-expanded=${observe && !self ? String(open) : undefined}>
+        <button type="button" class="team__btn" onClick=${() => click(p, self)} onDblClick=${(e) => dblClick(e, p, self)} title=${inTeam && !self ? `${title} · ${t('与你在同一战场')}` : title} aria-expanded=${observe && !self ? String(open) : undefined}>
           <${PlayerAvatar} player=${p} self=${self} />
           ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>

@@ -27,6 +27,7 @@
 
 import { MOVE_SCALE, COLS } from './constants.js';
 import { straightClear } from './grid.js';
+import { hypot } from './detmath.js';
 
 /** 半径10格 — the fan's radius (tiles). */
 export const FEAR_RADIUS = 10;
@@ -80,7 +81,7 @@ const passable = (g, fly, r, c) => (fly ? g.flyPassable(r, c) : g.walkable(r, c,
  */
 export function reachableTiles(b, e, st) {
   if (!st || st.self) return [];
-  const dx = st.hx - st.sx, dy = st.hy - st.sy, d = Math.hypot(dx, dy);
+  const dx = st.hx - st.sx, dy = st.hy - st.sy, d = hypot(dx, dy);
   if (!(d > 1e-9)) return [];
   const ux = dx / d, uy = dy / d;
   const g = b.grid, R = g.rect, fly = e.motion === 'FLY';
@@ -90,7 +91,7 @@ export function reachableTiles(b, e, st) {
   const out = [];
   for (let r = R.r0; r <= R.r1; r++) {
     for (let c = R.c0; c <= R.c1; c++) {
-      const vx = c - st.hx, vy = r - st.hy, L = Math.hypot(vx, vy);
+      const vx = c - st.hx, vy = r - st.hy, L = hypot(vx, vy);
       if (L > FEAR_RADIUS + 1e-9) continue;
       if (L > 1e-9 && vx * ux + vy * uy < FEAR_HALF_COS * L - 1e-9) continue;
       if (!passable(g, fly, r, c) || g.tile(r, c).special === 'end') continue;
@@ -219,7 +220,7 @@ export function moveFeared(b, e, dt) {
     for (let guard = 8; dist > 1e-9 && guard > 0; guard--) {
       if (!m.pts || m.i >= m.pts.length) pickCheckpoint(b, e, m);
       const p = m.pts[m.i];
-      const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
+      const dx = p.x - e.x, dy = p.y - e.y, d = hypot(dx, dy);
       if (d <= dist) { e.x = p.x; e.y = p.y; dist -= d; m.i++; } else { e.x += (dx / d) * dist; e.y += (dy / d) * dist; dist = 0; }
       moved = moved || d > 1e-9;
     }

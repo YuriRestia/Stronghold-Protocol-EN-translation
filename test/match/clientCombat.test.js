@@ -9,7 +9,7 @@ import { PHASE } from '../../shared/constants.js';
 import { validateC2S, isBattleResult } from '../../shared/protocol.js';
 import { buildBattleSpec, createBattleFromSpec, resultDigest, compactResult, LocalBossPool, jsonClone } from '../../server/sim/spec.js';
 import { DataSource } from '../../server/sim/simdata.js';
-import { validateClientResult, specBounds } from '../../server/match/fields.js';
+import { validateClientResult, specBounds, syntheticResult } from '../../server/match/fields.js';
 import { CreditPool, SharedBossPool } from '../../server/match/finalAssault.js';
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch, checkInvariants, give, chessOfTier } from './harness.js';
@@ -95,7 +95,14 @@ test('COMBAT: humans get their own spec (authoritative), bots are simulated by t
   assert.deepEqual(m.handle('p_0', { t: 'b.progress', battleId: human.battleId, gt: 4, killed: 3, total: 9, leaks: 0 }), { ok: true });
   m.flush(true);
   const pub = m.publicView();
-  assert.deepEqual(pub.fields.find((f) => f.fieldId === 'n:p_0').progress, { killed: 3, total: 9, done: false });
+  // `resolved` is null while the authority has not reported one — never 0, so the client's `resolved ?? killed` fallback
+  // holds (a report without `resolved` must read as "unknown", not as "nothing resolved")
+  assert.deepEqual(pub.fields.find((f) => f.fieldId === 'n:p_0').progress, { killed: 3, resolved: null, total: 9, done: false });
+  // a report that carries `resolved` is adopted, a reported 0 included (PR #157 capsule numerator)
+  assert.deepEqual(m.handle('p_0', { t: 'b.progress', battleId: human.battleId, gt: 5, killed: 3, total: 9, leaks: 0, resolved: 0 }), { ok: true });
+  m.flush(true);
+  const pub2 = m.publicView();
+  assert.deepEqual(pub2.fields.find((f) => f.fieldId === 'n:p_0').progress, { killed: 3, resolved: 0, total: 9, done: false });
   // a stale / foreign report is ignored (never an error toast)
   assert.deepEqual(m.handle('p_1', { t: 'b.progress', battleId: human.battleId, gt: 9, killed: 9, total: 9 }), { ok: true });
   assert.equal(human.progress.killed, 3);
@@ -509,6 +516,10 @@ test('Final Assault: an early boss b.result (forced at t≈0) does not end the p
 
 test('Final Assault: a 999-layer kill faster than the budget — the \'cleared\' b.result whose report covers the pool waits for the budget, no takeover (QA 6b)', () => {
   const { h, m, f } = faWithForger(9122);
+  const ps = h.ps('p_0');
+  const training = DATA.choices.cards.bounty.find((c) => c.payout === 'perfect' && m.gd.enemy(c.enemyKey));
+  m.addBounty(ps, { ...training, rounds: 2, multiRound: false });
+  const pending = ps.pendingFunds;
   const max = m.bossPool.maxHp;
   h.sched.advance(500); // 1 game s on the field clock: the budget credits ≤ 20 % of the pool
   const gt = m._fieldElapsed(f);
@@ -537,8 +548,139 @@ test('Final Assault: a 999-layer kill faster than the budget — the \'cleared\'
   assert.equal(f.resultSource, 'client', 'the held client result completed the field');
   assert.equal(m.verifyStats.takeovers, takeovers0);
   assert.equal(m.verifyStats.rejected, rejected0);
+  assert.equal(ps.pendingFunds, pending + training.coin, 'validated held client result earns the server card amount');
+  assert.equal(ps.bounties[0].roundsLeft, 1);
+  assert.deepEqual(m.handle('p_0', { t: 'b.result', battleId: f.battleId, result: res }), { ok: true });
+  assert.equal(ps.pendingFunds, pending + training.coin, 'duplicate accepted result does not pay twice');
+  assert.equal(ps.bounties[0].roundsLeft, 1);
   for (const pid of f.players) assert.ok(Math.abs((f.bossBy[pid] || 0) - Math.min(by[pid], max)) <= max * 1e-9 + 5, `${pid} credited as reported (${f.bossBy[pid]} vs ${by[pid]})`);
   m.dispose();
+});
+
+test('boss bounty eligibility: forced real results on a team victory qualify; synthetic, leaked and team defeat do not', () => {
+  for (const [ending, synthetic, perfect, leaked, eligible] of [
+    ['cleared', false, true, [], true],
+    ['cleared', true, true, [], false],
+    ['cleared', false, false, [], false],
+    ['cleared', false, true, [{ counted: true }], false],
+    ['cleared', false, true, [{ counted: false }], true],
+    ['forced', false, true, [], false],
+  ]) {
+    const { m, f } = faWithForger(9122);
+    const ps = m.players.get(f.players[0]);
+    const card = DATA.choices.cards.bounty.find((c) => c.payout === 'perfect' && m.gd.enemy(c.enemyKey));
+    m.addBounty(ps, { ...card, rounds: 2, multiRound: false });
+    m.addBounty(ps, { ...card, rounds: 2, multiRound: false });
+    const res = syntheticResult(f.players);
+    if (!synthetic) delete res.synthetic;
+    res.reason = 'forced';
+    Object.assign(res.perPlayer[ps.playerId], { perfect, leaked, coins: 3 });
+    const pending = ps.pendingFunds, gained = ps.stats.fundsGained;
+    m._finalEnding = ending;
+    m.bossPool.hp = 0; // even a late clearing report cannot override an already-registered team defeat
+    m._finishFinal(false, () => res);
+    assert.equal(ps.pendingFunds, pending + 3 + (eligible ? 2 * card.coin : 0));
+    assert.equal(ps.stats.fundsGained, gained + 3 + (eligible ? 2 * card.coin : 0));
+    assert.deepEqual(ps.bounties.map((b) => b.roundsLeft), [1, 1]);
+    m.dispose();
+  }
+});
+
+// ---- a perfect-payout bounty and what the authority reported (a modified client could tell the two halves apart) -------
+
+/**
+ * A Final Assault pair field played by hand (the SimClient of p_0, the authority, is muted): both players hold the same
+ * perfect-payout card; the authority sends one b.progress — `leaks` (the field's LP cost) and `leaksBy` (its per-player
+ * split, when given) — then a 'cleared' b.result whose leaked lists hold `leaked[pid]` counted leaks (lpr 1); the fight
+ * is driven to its end. Returns the funds each player was paid (kill coins: none) and what the server charged.
+ */
+function bossPaid(seed, { leaks = 0, leaksBy = null, leaked = {} }) {
+  const { h, m, f } = faWithForger(seed);
+  const card = DATA.choices.cards.bounty.find((c) => c.payout === 'perfect' && m.gd.enemy(c.enemyKey));
+  const ps = f.players.map((pid) => h.ps(pid));
+  for (const p of ps) m.addBounty(p, { ...card, rounds: 2, multiRound: false });
+  const before = ps.map((p) => p.pendingFunds);
+  const lp0 = m.teamLp;
+  const max = m.bossPool.maxHp;
+  h.sched.advance(500);
+  const gt = m._fieldElapsed(f);
+  const by = { [f.players[0]]: max * 0.6, [f.players[1]]: max * 0.4 + 5 };
+  const progress = { t: 'b.progress', battleId: f.battleId, gt, killed: 0, total: 0, bossDmg: max + 5, by, leaks, ...(leaksBy ? { leaksBy } : {}) };
+  assert.equal(validateC2S(progress), null);
+  assert.deepEqual(m.handle('p_0', progress), { ok: true });
+  const entry = (pid) => ({ enemyKey: card.enemyKey, mods: null, lpr: 1, sourcePlayerId: pid, tag: null, counted: true, spawned: true });
+  const res = { reason: 'cleared', time: gt, killed: 0, total: 0, errors: 0,
+    perPlayer: Object.fromEntries(f.players.map((pid) => {
+      const list = Array.from({ length: leaked[pid] || 0 }, () => entry(pid));
+      return [pid, { killed: 0, total: 0, leaked: list, perfect: list.length === 0, layerGains: {}, coins: 0, damageDealt: by[pid], bossDamage: by[pid], healingDone: 0, deaths: 0, unitsEnd: [], unitStats: [] }];
+    })) };
+  assert.equal(isBattleResult(res), true);
+  assert.deepEqual(m.handle('p_0', { t: 'b.result', battleId: f.battleId, result: res }), { ok: true });
+  h.drive(() => m._finalEnding != null || m.phase !== PHASE.FINAL_ASSAULT, { maxSteps: 2e5 });
+  const out = { ending: m._finalEnding, source: f.resultSource, coin: card.coin, charged: lp0 - m.teamLp, paid: ps.map((p, i) => p.pendingFunds - before[i]), left: ps.map((p) => p.bounties.map((b) => b.roundsLeft)) };
+  m.dispose();
+  return out;
+}
+
+test('Final Assault, a modified authority: LP charged by b.progress while both leaked lists are empty pays no perfect-payout card', () => {
+  const r = bossPaid(9124, { leaks: 1, leaked: {} });
+  assert.equal(r.ending, 'cleared');
+  assert.equal(r.source, 'client');
+  assert.equal(r.charged, 1, 'the server charged the team leak');
+  assert.deepEqual(r.paid, [0, 0], 'a result that shows no leak after a charged one is not believed');
+  assert.deepEqual(r.left, [[1], [1]], 'the boss battle still used one of the cards\' battles');
+});
+
+test('Final Assault, a modified authority: one seat\'s reported leak cannot be moved to the other — nobody is paid', () => {
+  // progress: the leak is p_0's; the result pins it on p_1 so that p_0 reads perfect (and p_1 cannot be paid anyway)
+  const r = bossPaid(9125, { leaks: 1, leaksBy: { p_0: 1, p_1: 0 }, leaked: { p_1: 1 } });
+  assert.equal(r.ending, 'cleared');
+  assert.equal(r.charged, 1);
+  assert.deepEqual(r.paid, [0, 0]);
+  // …and with no split at all the result decides nothing either: the same leak pinned on p_1
+  assert.deepEqual(bossPaid(9126, { leaks: 1, leaked: { p_1: 1 } }).paid, [0, 0]);
+});
+
+test('Final Assault, honest authority: the seat whose half let nothing through is paid, the leaker is not; a leader\'s own LP effect costs nobody the card', () => {
+  const leak = bossPaid(9127, { leaks: 1, leaksBy: { p_0: 0, p_1: 1 }, leaked: { p_1: 1 } });
+  assert.equal(leak.charged, 1);
+  assert.deepEqual(leak.paid, [leak.coin, 0]);
+  // 2 LP of leader "扣除目标生命" effects (no leaked enemy): the report says so, the result agrees — both halves are perfect
+  const fx = bossPaid(9128, { leaks: 2, leaksBy: { p_0: 0, p_1: 0 }, leaked: {} });
+  assert.equal(fx.charged, 2);
+  assert.deepEqual(fx.paid, [fx.coin, fx.coin]);
+  // nothing charged, nothing leaked: as before
+  assert.deepEqual(bossPaid(9129, { leaks: 0, leaked: {} }).paid.map((n, i, a) => n === a[0]), [true, true]);
+  assert.ok(bossPaid(9130, { leaks: 0, leaked: {} }).paid.every((n) => n > 0));
+});
+
+test('Final Assault, honest clients (client-side combat): a leak on one half costs that seat its perfect-payout card, not its partner; the leader\'s own LP effect costs nobody', () => {
+  const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 9132, fake: true, clientCombat: true, instant: false,
+    script: (b) => (b.kind === 'boss' ? { bossDps: 20000, leaks: { p_1: 1 }, leakEvents: [{ at: 1, lpr: 1 }], lpLossEvents: [{ at: 1.5, amount: 2 }] } : { duration: 2 }) }).start();
+  const m = h.m;
+  h.autoHumans();
+  h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
+  const card = DATA.choices.cards.bounty.find((c) => c.payout === 'perfect' && m.gd.enemy(c.enemyKey));
+  const [p0, p1] = [h.ps('p_0'), h.ps('p_1')];
+  for (const p of [p0, p1]) m.addBounty(p, { ...card, rounds: 2, multiRound: false });
+  const [a, b] = [p0.pendingFunds, p1.pendingFunds];
+  const end = h.runToEnd();
+  assert.equal(end.victory, true);
+  const f = fields(h)[0];
+  assert.equal(f.resultSource, 'client');
+  assert.equal(f.lpReported, 3, 'leak lpr 1 + leader effect 2');
+  assert.deepEqual(f.leaksBy, { p_1: 1 }, 'the authority split it: p_1\'s one leak (the other 2 LP are the leader\'s effect), nothing on p_0');
+  assert.equal(p0.pendingFunds - a, card.coin, 'the seat that let nothing through is paid');
+  assert.equal(p1.pendingFunds - b, 0, 'the seat that leaked is not');
+  m.dispose();
+});
+
+test('b.progress carries `leaksBy`, the per-player split of a boss field\'s leak LP (shared/protocol.js)', () => {
+  const base = { t: 'b.progress', battleId: 'a.1.1.b1', gt: 3, killed: 0, total: 0, leaks: 2, bossDmg: 10, by: { p_0: 10 } };
+  assert.equal(validateC2S({ ...base, leaksBy: { p_0: 1, p_1: 0.5 } }), null);
+  assert.equal(validateC2S({ ...base, leaksBy: {} }), null);
+  assert.equal(validateC2S(base), null, 'optional: a client that never sends it still validates');
+  for (const bad of [{ p_0: -1 }, { p_0: 'x' }, { p_0: 1e7 }, [1, 2], 'p_0', null, { 'a b': 1 }]) assert.notEqual(validateC2S({ ...base, leaksBy: bad }), null, JSON.stringify(bad));
 });
 
 test('Final Assault: a \'cleared\' b.result whose report does NOT cover the pool is still handed over (the partner takes the field)', () => {

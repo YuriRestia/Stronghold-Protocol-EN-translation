@@ -24,6 +24,7 @@
 // `hitRect`).
 
 import { ROWS, COLS } from './constants.js';
+import { hypot } from './detmath.js';
 
 /**
  * Validated hit area of a data record (`{ w, h, dx, dy }`, tiles) or null for a regular (point) unit.
@@ -83,10 +84,10 @@ export function bodyInKeys(u, keys) {
 /** Distance (tiles) from point (x, y) to the unit's body: its position, or its rectangle (0 inside). */
 export function bodyDist(u, x, y) {
   const R = hitRect(u);
-  if (!R) return Math.hypot(u.x - x, u.y - y);
+  if (!R) return hypot(u.x - x, u.y - y);
   const dx = x < R.x0 ? R.x0 - x : x > R.x1 ? x - R.x1 : 0;
   const dy = y < R.y0 ? R.y0 - y : y > R.y1 ? y - R.y1 : 0;
-  return Math.hypot(dx, dy);
+  return hypot(dx, dy);
 }
 
 /** Is the unit's body within `r` tiles of point (x, y)? (the same ≤ r + 1e-9 test as Battle.enemiesInRadius) */

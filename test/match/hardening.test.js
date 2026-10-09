@@ -397,6 +397,22 @@ test('collectViolations reports corrupted state (funds, pool accounting, duplica
   m.dispose();
 });
 
+test('collectViolations: a 教鞭 choice belongs to its owner\'s open prep only', () => {
+  const { m, ps } = prepSolo({ seed: 922 });
+  const art = giveItem(m, ps, 'chess_item_6_03_m');
+  assert.deepEqual(ps.useArt(art.uid, 10, 5), { ok: true });
+  assert.deepEqual(collectViolations(m), [], 'an open choice in its own prep is fine');
+  const pc = ps.personalChoice;
+  pc.round = m.round - 1;
+  assert.match(collectViolations(m).join('\n'), /personal choice outside its own prep/, 'a choice left from an earlier round');
+  pc.round = m.round;
+  pc.cards = [pc.cards[0], pc.cards[0]];
+  assert.match(collectViolations(m).join('\n'), /personal choice of 2 cards/, 'the same card twice');
+  ps.personalChoice = null;
+  assert.deepEqual(collectViolations(m), []);
+  m.dispose();
+});
+
 test('the rule auditor flags an LP loss that does not match the leaks (engine regression guard)', () => {
   const h = makeMatch({ mode: 'coop', humans: 2, seed: 921, fake: true, script: (b) => (b.kind === 'normal' ? { leaks: Object.fromEntries(b.players.map((p) => [p, 2])) } : {}) }).start();
   const m = h.m;

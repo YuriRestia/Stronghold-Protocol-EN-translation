@@ -222,6 +222,18 @@ describe('3: the temp overflow row (临时整备区)', () => {
     assert.deepEqual(tempInfo(null), { count: 0, items: 0 });
   });
 
+  test('Ready shows the personal-choice reason and describes it even with no temp pieces', () => {
+    for (const temp of [[], [{ uid: 1, kind: 'item' }]]) {
+      const v = ReadyToggle({ priv: { ...priv(temp), canReady: false, personalChoice: { id: 'choice.1' } }, onToggle() {} });
+      const nodes = [...walk(v)];
+      const btn = nodes.find((n) => n.type === 'button');
+      assert.equal(btn.props.disabled, true);
+      assert.equal(btn.props['aria-describedby'], 'readywrap-why');
+      assert.equal(textOf(nodes.find((n) => hasClass(n, 'readywrap__why'))), '请先完成教鞭选择');
+      assert.equal(nodes.find((n) => n.type?.name === 'Tooltip').props.text, '请先完成教鞭选择');
+    }
+  });
+
   test('the row frame: the outer corners of both end tiles, the label on the side with room (mirrored Final Assault prep too)', () => {
     // tileScreen polys: [back-left, back-right, front-right, front-left] (render/app.js tileScreen corner order)
     const tile = (cx, y, w = 100, d = 60) => ({ x: cx, y, s: w, poly: [[cx - w / 2 + 6, y - d / 2], [cx + w / 2 - 6, y - d / 2], [cx + w / 2, y + d / 2], [cx - w / 2, y + d / 2]] });
@@ -258,7 +270,7 @@ describe('3: the temp overflow row (临时整备区)', () => {
   test('while the ready button shows its reason the effects column moves down a line (on phones the ready count ran into it)', () => {
     const game = read('public/js/screens/game.js');
     // the same condition as ReadyToggle's reason: PREP, alive, not ready, pieces in the row
-    assert.match(game, /const readyWhy = phase === PHASE\.PREP && alive && !priv\?\.ready && temp\.count > 0;/);
+    assert.match(game, /const readyWhy = phase === PHASE\.PREP && alive && !priv\?\.ready && \(hasPersonalChoice \|\| temp\.count > 0\);/);
     assert.match(game, /readyWhy && 'has-readywhy'/);
     const css = read('public/css/screens/game.css');
     assert.match(css, /\.gm__effects \{ position: absolute; right: \.3rem; top: 2\.4rem; \}/);
@@ -387,6 +399,18 @@ describe('9: busy indicators and data loading', () => {
     // the pick landed (m.public) while the request still waits for its reply
     const landed = ChoiceView({ pub: { players: [] }, sp: { ...sp, pickOf: new Map([['me', 1]]), cards: [sp.cards[0], { ...sp.cards[1], takenBy: 'me' }] }, myId: 'me', solo: true, busyIdx: 1 });
     assert.ok(![...walk(landed)].some((n) => hasClass(n, 'spcard__busy')));
+  });
+
+  test('choice requests carry the personal ID while global requests keep their existing shape', async () => {
+    const { net } = await import('../../public/js/net.js');
+    const { actions } = await import('../../public/js/ui/gameActions.js');
+    const request = net.request, sent = [];
+    net.request = async (t, fields) => { sent.push([t, fields]); };
+    try {
+      assert.equal(await actions.choice(0), true);
+      assert.equal(await actions.choice(2, 'seed.choice.3'), true);
+      assert.deepEqual(sent, [['g.choice', { idx: 0 }], ['g.choice', { idx: 2, choiceId: 'seed.choice.3' }]]);
+    } finally { net.request = request; }
   });
 
   test('the "作战结束，等待队友完成作战" hourglass stands still', () => {

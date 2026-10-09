@@ -319,6 +319,39 @@ test('S3 赤霄·天喟 (MANUAL, data ACTIVE_RANGE on 3-12): range 3-12, each at
   }
 });
 
+// 用户报告: 「自选干员赤刃明霄陈三技能的龙剑气看不到」. 波是 kit 自己管的探针（会拐弯、跟技能同寿），不在快照的 projectile
+// 列表里，所以客户端只能靠 fx 事件画它——原来只在起手发了一个 `dash`、每次命中发 `slash`，波本身**没有任何事件**。
+// 现在每 WAVE_FX_EVERY(0.12) 秒发一次 `chen3Wave`：位置 + 上一个点（拖尾）+ 方向（月牙朝向）。
+test('S3: the 龙剑气 streams its position to the client as `chen3Wave` fx (position, previous point, direction)', () => {
+  const { h, u } = field({ tier: 6, elite: true, skill: 2 });
+  u.skill.gainSp(999);
+  h.spawn('enemy_dummy', { pos: [10, 6] });          // a target in range: the MANUAL skill casts
+  const waveFx = () => h.events.filter((e) => e[0] === 'fx' && e[1] === 'chen3Wave');
+  assert.ok(h.runUntil(() => u.skill.active, 2));
+  h.run(1);
+  const fx = waveFx();
+  assert.ok(fx.length >= 6, `每 0.12 秒一次 ⇒ 1 秒约 8 次（实际 ${fx.length}）`);
+  for (const [, , x, y, ex] of fx) {
+    assert.equal(ex.id, u.id, '带着她的 id（可定位到玩家/队伍）');
+    assert.equal(ex.skill, 'chen3:wave');
+    assert.ok(Math.abs(x - u.tileC) <= 12 && Math.abs(y - u.tileR) <= 12, '波在场上');
+  }
+  // 位置随时间前移、方向与朝向一致（row 10 向右），from 是上一个点（拖尾）
+  const [, , x0, , ex0] = fx[0];
+  const last = fx[fx.length - 1];
+  assert.ok(last[2] > x0, `向前推进（${x0.toFixed(2)} → ${last[2].toFixed(2)}）`);
+  assert.deepEqual([last[4].dc, last[4].dr], [1, 0], '方向 = 她的朝向（向右）');
+  assert.ok(Math.abs(ex0.fromX - u.tileC) < 0.5 && Math.abs(ex0.fromY - u.tileR) < 0.5, '第一个事件从上场点开始');
+  assert.ok(last[4].fromX < last[2], 'from 是上一个事件的点（拖尾向前）');
+  // 技能结束后不再发
+  h.runUntil(() => !u.skill.active, 25);
+  h.step();
+  const n = waveFx().length;
+  h.run(2);
+  assert.equal(waveFx().length, n, '技能结束后不再有波的 fx');
+  done(h);
+});
+
 test('S3: the sword wave leaves her tile forward at 1.5 tiles/s, hits each enemy within 1.3 once per straight run (air too) for max(6 % of its HP, 530 % / 550 % ATK) arts, turns clockwise at the field\'s edge / high ground / gates and forgets whom it hit, and is gone with the skill', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);

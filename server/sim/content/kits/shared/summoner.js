@@ -27,6 +27,7 @@
 // its owner), else the engine's removal reason.
 
 import { num, up } from './tier1.js';
+import { atPotential } from '../../../../../shared/potential.js';
 
 /** Seconds between two tries of a piece waiting to come back (its owner off the field, timer, holding, DP, tile). */
 export const DECK_RETRY = 0.25;
@@ -73,8 +74,9 @@ export function summonTriggerArea(battle, owner, skillId, area) {
 }
 
 /**
- * A field of a summon's token record at its owner's form and module (data/backups.json `tokens[id].variants[<charId>@
- * <status>]`, `byModule[uniEquipId]`): the stats the normalised def drops (`deployLimit`, `deckStack`).
+ * A field of a summon's token record at its owner's form, module and potential (data/backups.json `tokens[id].variants[<charId>@
+ * <status>]`, `byModule[uniEquipId]`; shared/potential.js atPotential): the stats the normalised def drops (`deployLimit`,
+ * `deckStack`).
  * @param {object} battle
  * @param {object} owner the summoner unit
  * @param {string} tokenId
@@ -82,7 +84,7 @@ export function summonTriggerArea(battle, owner, skillId, area) {
  */
 export function tokenStat(battle, owner, tokenId, key) {
   const raw = battle.data?.rawToken?.(tokenId) ?? null;
-  const v = raw?.variants?.[owner?.def?.tokenOwner] ?? null;
+  const v = atPotential(raw?.variants?.[owner?.def?.tokenOwner] ?? null, owner?.def?.loadout?.potential);
   const mod = owner?.def?.loadout?.diy?.uniEquipId ?? owner?.def?.loadout?.moduleId ?? null;
   const st = (mod && v?.byModule?.[mod]?.stats) || v?.stats || raw?.stats || null;
   return st && Number.isFinite(st[key]) ? st[key] : (Number.isFinite(raw?.[key]) ? raw[key] : null);

@@ -212,8 +212,9 @@ test('S1 坚守阵线 (AUTO, SP_FULL): at full SP with no enemy, 持续时间无
     const life = tokenTalent(tier, elite, mod).duration;
     assert.ok(h.runUntil(() => u.skill.active, sk.spCost + 1), `${label(f)}: cast at ${sk.spCost} s with no enemy`);
     approx(h.b.time, sk.spCost, `${label(f)}: at full SP`, 0.02);
-    // the first shield expired before (life < cost) and came back at life + 30: it gets the 20 s now
-    assert.ok(t.alive);
+    // the first shield expired before (life < cost) and came back at life + 30: it gets the 20 s now — or, T6 (60 + 30 =
+    // the 90 s cost), on its return a tick after the cast (its timers count from its deployment on the first tick)
+    assert.ok(h.runUntil(() => t.alive, 0.1), `${label(f)}: the shield is on the field`);
     h.step();
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `${label(f)}: ATK`);
     approx(u.s.def, u.base.def * (1 + sk.bb.def + 0.18), `${label(f)}: DEF (+18 % T1)`);

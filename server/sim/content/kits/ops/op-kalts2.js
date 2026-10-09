@@ -76,6 +76,7 @@
 import { num, talentBb, skillRec, batMod, up } from '../shared/tier1.js';
 import { releaseSkillSummon } from '../../tokens.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_kalts2_1';
 const S2 = 'skchr_kalts2_2';
@@ -235,7 +236,7 @@ function startTransport(battle, unit, anchor) {
     }, { owner: unit });
   }
   const from = { x: unit.x, y: unit.y }, to = { x: anchor.x, y: anchor.y };
-  const T = Math.hypot(to.x - from.x, to.y - from.y) / TRANSPORT_SPEED;
+  const T = hypot(to.x - from.x, to.y - from.y) / TRANSPORT_SPEED;
   const f = { t0: battle.time, T, from, to, hit: new Set(), anchor, r: anchor.tileR, c: anchor.tileC, dir: anchor.dir };
   unit.mem.k2flight = f;
   battle.releaseBlocked(unit);

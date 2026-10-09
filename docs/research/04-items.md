@@ -352,7 +352,7 @@ Combo check: `equip_chess_id` in blackboard is the partner's id WITHOUT the `_a/
 
 - Buff keys: 画卷 `trap_copy_front_char{}`; 教鞭 `trap_create_self_choice{choice_event=hunter_band_1}`; 神秘顾客 additionally `trap_disney_special{count=1}`.
 - `hunter_band_1` (choiceType PERSONAL_CHOOSE, "悬赏决策") pool is server-side. [ASSUMED] offer 3 random `enemyeffect_b_*` bounties (e.g. 碎骨·悬赏 +1, 萨卡兹百夫长·悬赏 +2, 泥岩·悬赏 +4, 锏·悬赏 +5, “复仇者”·悬赏 +6 funds; buff `add_enemy_kill_gain_coin{count,enemy_id,coin,round=1}`): adds 1 enemy to your next battle, killer gets `coin` funds.
-- 画卷 copy: duplicates the operator (same chess id incl. elite `_b`) AND clones its equipped items into the copy [DATA desc "包括精锐状态和装备"]; copy goes to hand [ASSUMED]; if hand full -> temporary hand.
+- 画卷 copy: duplicates the operator (same chess id incl. elite `_b`) AND its equipped items [DATA desc "包括精锐状态和装备"]; the copied items arrive unequipped (PRTS 画卷 备注 "使用后销毁，获得的装备为未装备状态"), gained like any item — the hand, overflow temp (destroyed with the usual toast when both are full); copy goes to hand [ASSUMED]; if hand full -> temporary hand.
 
 ## 8. Item sources other than the shop [DATA]
 

@@ -9,11 +9,13 @@
 //   #4.1  picking by tile ("地上都画好了一个一个方格，点击对应方格就选中那个方格的人物就行"): a press anywhere on a tile — board
 //         (adjacent rows and columns, high ground), bench, temporary bench — selects the unit on it and an empty tile
 //         nothing (a press on a unit's head, drawn over the tile behind it, is a press on that tile), in prep and in battle
-//         (allies by their tile, enemies by their ground position or drawn body); a dragged unit is held under the pointer — its drawn
-//         feet DRAG_HOLD_TILES below it, the model around it — for a mouse and a finger (phone, 844×390); the drop, its
-//         tileHover and the direction wheel are the tile under the pointer; equipment dropped on a tile equips the unit
-//         on it (not the one in front whose head is drawn there); on a phone a release on a bench slot lands there and one
-//         over the shop bar goes back.
+//         (allies by their tile, enemies by their ground position or drawn body); a dragged unit stands on the tile under
+//         the pointer while that is a legal target — wherever the pointer is on the tile, as in the official deploy drag
+//         (the owner's recording of 2026-10-09; PR #403's report) — and is held under the pointer elsewhere (over the
+//         shop bar: its drawn feet DRAG_HOLD_TILES below it, the model around it), for a mouse and a finger (phone,
+//         844×390); the drop, its tileHover and the direction wheel are the tile under the pointer; equipment dropped on
+//         a tile equips the unit on it (not the one in front whose head is drawn there); on a phone a release on a bench
+//         slot lands there and one over the shop bar goes back.
 //
 // Opt-in (starts Chrome): RENDER_E2E=1 node --test test/render/models.browser.test.js
 // Chrome path: $CHROME_PATH or the macOS default. Screenshots → test/e2e/out/models-*.png.
@@ -315,13 +317,23 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
     assert.deepEqual(problems, []);
   });
 
-  /** The dragged view against the pointer (client px): its drawn feet, px per tile, and the Spine model's drawn bounds. */
+  /** The dragged view against the pointer (client px): its drawn feet, px per tile, and the Spine model's drawn bounds;
+   * its world point (wx = col, wy = row, wz) and the height of the board tile under it (hz). */
   const ghostAt = (page, uid) => page.evaluate((u) => {
     const R = globalThis.__SP_VIEW__.raw, cv = R.debug.app.view.getBoundingClientRect(), v = R.debug.views.get('p:' + u);
     const b = v.actor && v.spineReady && !v.imp ? v.actor.spine.getBounds() : null;
-    return { lift: v.lift, x: cv.left + v.screen.x, y: cv.top + v.screen.y, s: v.screen.s, model: b && { x0: cv.left + b.x, y0: cv.top + b.y, x1: cv.left + b.x + b.width, y1: cv.top + b.y + b.height } };
+    return { lift: v.lift, x: cv.left + v.screen.x, y: cv.top + v.screen.y, s: v.screen.s, model: b && { x0: cv.left + b.x, y0: cv.top + b.y, x1: cv.left + b.x + b.width, y1: cv.top + b.y + b.height },
+      wx: v.x, wy: v.y, wz: v.z, hz: R.debug.tiles.heightAt(Math.round(v.y), Math.round(v.x)) };
   }, uid);
-  /** The model is under the pointer: its feet DRAG_HOLD_TILES (0.45) below it, the pointer inside its drawn body. */
+  /** Over a legal target the model stands on the pointer's tile (the official deploy drag): its world point is that
+   * tile — the tile's top on the board, the bench pad on the bench — and it is lifted. */
+  const assertStands = (g, [row, col], label) => {
+    assert.ok(g.lift > 0, `${label}: lifted`);
+    assert.ok(Math.abs(g.wx - col) < 1e-6 && Math.abs(g.wy - row) < 1e-6, `${label}: stands on (${row},${col}) (at ${g.wx.toFixed(3)},${g.wy.toFixed(3)})`);
+    if (row !== 7) assert.ok(Math.abs(g.wz - g.hz) < 1e-6, `${label}: on the tile's top (z ${g.wz} vs ${g.hz})`);
+    else assert.ok(g.wz > 0, `${label}: on the bench pad (z ${g.wz})`);
+  };
+  /** Elsewhere the model is under the pointer: its feet DRAG_HOLD_TILES (0.45) below it, the pointer inside its drawn body. */
   const assertHeld = (g, ptr, label) => {
     assert.ok(g.lift > 0, `${label}: lifted`);
     assert.ok(Math.abs(g.x - ptr.x) < 1.5 && Math.abs(g.y - ptr.y - 0.45 * g.s) < 1.5, `${label}: feet 0.45 tile below the pointer (feet ${g.x.toFixed(1)},${g.y.toFixed(1)}, pointer ${ptr.x.toFixed(1)},${ptr.y.toFixed(1)}, s ${g.s.toFixed(1)})`);
@@ -331,7 +343,7 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
     }
   };
 
-  test('#4.1 drag (mouse): the unit is held under the pointer; target, tileHover and the direction wheel are the pointer\'s tile', async () => {
+  test('#4.1 drag (mouse): the unit stands on the pointer\'s tile over a legal target, held under the pointer elsewhere; target, tileHover and the direction wheel are the pointer\'s tile', async () => {
     const { page, problems } = await open('phase=PREP');
     const hand = await page.evaluate(() => { const p = globalThis.__MOCK__.S().priv; const i = p.hand.findIndex((x) => x && x.kind === 'chess'); return { uid: p.hand[i].uid, idx: i }; });
     await page.evaluate(() => { window.__hover = []; globalThis.__SP_VIEW__.raw.on('tileHover', (t) => window.__hover.push(t && [t.row, t.col])); });
@@ -340,17 +352,46 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
     await page.mouse.move(from.x, from.y); await page.mouse.down();
     for (let i = 1; i <= 12; i++) { await page.mouse.move(from.x + ((to.x - from.x) * i) / 12, from.y + ((to.y - from.y) * i) / 12); await sleep(16); }
     await sleep(150);
-    assertHeld(await ghostAt(page, hand.uid), to, 'mouse');
+    const first = await ghostAt(page, hand.uid);
+    assertStands(first, [9, 4], 'mouse');
     assert.deepEqual(await page.evaluate(() => window.__hover.at(-1)), [9, 4], 'tileHover = the tile under the pointer');
     await page.screenshot({ path: path.join(OUT, 'models-drag-ghost.png') });
-    // the whole way: the model stays under the pointer (sampled at every step of a second drag leg)
+    // the pointer moving about inside the tile leaves the model where it is (the official recording: the finger moves,
+    // the model stays on its tile)
+    for (const [u, v] of [[-0.6, -0.3], [0.6, -0.3], [-0.5, 0.7], [0, 0]]) { // (the nearest strip is hidden by row 8: SPOTS)
+      const pt = await tileSpot(page, 9, 4, u, v);
+      await page.mouse.move(pt.x, pt.y);
+      await sleep(40);
+      const g = await ghostAt(page, hand.uid);
+      assertStands(g, [9, 4], `mouse at (${u}, ${v}) of the tile`);
+      assert.ok(Math.abs(g.x - first.x) < 0.5 && Math.abs(g.y - first.y) < 0.5, `mouse at (${u}, ${v}): the model did not move on screen`);
+    }
+    // the whole way: on a legal tile the model stands on the pointer's tile, elsewhere it is under the pointer (sampled
+    // at every step of a second drag leg; the legal tiles are the view's own 'legal' highlight)
+    const legal = new Set(await page.evaluate(() => globalThis.__SP_VIEW__.raw.debug.tiles.highlights.get('legal').tiles.map(([r, c]) => `${r},${c}`)));
     const leg = await tileSpot(page, 10, 5);
+    const seen = { stands: 0, held: 0 };
     for (let i = 1; i <= 6; i++) {
       const pt = { x: to.x + ((leg.x - to.x) * i) / 6, y: to.y + ((leg.y - to.y) * i) / 6 };
       await page.mouse.move(pt.x, pt.y);
       await sleep(40);
-      assertHeld(await ghostAt(page, hand.uid), pt, `mouse step ${i}`);
+      const tile = await page.evaluate(() => window.__hover.at(-1));
+      if (legal.has(`${tile}`)) { seen.stands++; assertStands(await ghostAt(page, hand.uid), tile, `mouse step ${i}`); }
+      else { seen.held++; assertHeld(await ghostAt(page, hand.uid), pt, `mouse step ${i}`); }
     }
+    assert.ok(seen.stands > 0, `the leg crosses legal tiles (${JSON.stringify(seen)})`);
+    // over the shop bar (DOM over the canvas: no target) the model is held under the pointer, so the player still sees
+    // what they carry
+    const bar = await page.evaluate(() => { const el = [...document.querySelectorAll('.scard')][2], r = el && el.getBoundingClientRect(); return r && { x: r.left + r.width / 2, y: r.top + r.height * 0.3 }; });
+    assert.ok(bar, 'premise: a shop card');
+    assert.ok(await page.evaluate((x, y) => !!document.elementFromPoint(x, y)?.closest('.shopbar'), bar.x, bar.y), 'premise: the point is on the shop bar');
+    await page.mouse.move(bar.x, bar.y, { steps: 6 });
+    await sleep(60);
+    assert.equal(await page.evaluate(() => window.__hover.at(-1)), null, 'no tile under the shop bar');
+    assertHeld(await ghostAt(page, hand.uid), bar, 'mouse over the shop bar');
+    await page.mouse.move(to.x, to.y, { steps: 6 });
+    await sleep(60);
+    assertStands(await ghostAt(page, hand.uid), [9, 4], 'mouse back on (9,4)');
     await page.mouse.move(to.x, to.y);
     await sleep(60);
     await page.mouse.up();
@@ -402,10 +443,10 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
     assert.deepEqual(problems, []);
   });
 
-  // a phone (touch, landscape 844×390): the finger holds the model like the mouse (no lift above the finger); on the
-  // bench (the lowest canvas row, the shop bar right under it) a release on the slot lands there, one on the shop bar
-  // goes back
-  test('#4.1 touch (phone): held under the finger, dropped on the tile under it; a release over the shop bar goes back', async () => {
+  // a phone (touch, landscape 844×390): the finger drags the model like the mouse — standing on the finger's tile over a
+  // legal target, under the finger elsewhere (no lift above the finger); on the bench (the lowest canvas row, the shop
+  // bar right under it) a release on the slot lands there, one on the shop bar goes back
+  test('#4.1 touch (phone): stands on the finger\'s tile (under the finger over the shop bar), dropped on the tile under it; a release over the shop bar goes back', async () => {
     const page = await browser.newPage();
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -436,10 +477,10 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
       await page.keyboard.press('Escape');
       await sleep(200);
     }
-    // a bench operator onto the board: held under the finger, the wheel on the finger's tile
+    // a bench operator onto the board: standing on the finger's tile, the wheel on that tile
     const hand = await page.evaluate(() => { const p = globalThis.__MOCK__.S().priv; const i = p.hand.findIndex((x) => x && x.kind === 'chess'); return { uid: p.hand[i].uid, idx: i }; });
     const to = await tileSpot(page, 9, 4, -0.3, 0.3);
-    await touchDrag(await tileSpot(page, 7, hand.idx), to, { hold: async () => assertHeld(await ghostAt(page, hand.uid), to, 'touch') });
+    await touchDrag(await tileSpot(page, 7, hand.idx), to, { hold: async () => assertStands(await ghostAt(page, hand.uid), [9, 4], 'touch') });
     await page.waitForSelector('.fwheel__dia', { timeout: 3000 });
     const w = await page.evaluate(() => { const r = document.querySelector('.fwheel__dia').getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
     const c = await tileSpot(page, 9, 4);
@@ -457,9 +498,9 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
       return null;
     }, slot);
     assert.ok(bar, 'premise: the shop bar covers the canvas right below the bench slot');
-    await touchDrag(await tileSpot(page, unit.row, unit.col), bar);
+    await touchDrag(await tileSpot(page, unit.row, unit.col), bar, { hold: async () => assertHeld(await ghostAt(page, unit.uid), bar, 'touch over the shop bar') });
     assert.ok(await page.evaluate((u) => globalThis.__MOCK__.S().priv.board.some((b) => b.uid === u), unit.uid), 'released over the shop bar: back on the board');
-    await touchDrag(await tileSpot(page, unit.row, unit.col), slot);
+    await touchDrag(await tileSpot(page, unit.row, unit.col), slot, { hold: async () => assertStands(await ghostAt(page, unit.uid), [7, 5], 'touch on the free bench slot') });
     assert.equal(await page.evaluate(() => globalThis.__MOCK__.S().priv.hand[5]?.uid ?? null), unit.uid, 'released on the bench slot: it is there');
     await page.screenshot({ path: path.join(OUT, 'models-touch-phone.png') });
     await page.close();

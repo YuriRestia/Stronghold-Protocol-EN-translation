@@ -67,6 +67,7 @@ import { num, talentBb, moduleBb, traitBb, skillRec, batMod, up, toggleBuff } fr
 import { canTargetEnemy, sortEnemyTargets } from '../../../targeting.js';
 import { hasHp } from '../../../damage.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_ebnhlz_1';
 const S2 = 'skchr_ebnhlz_2';
@@ -116,7 +117,7 @@ function remnantTiles(battle, unit) {
   const rank = new Map();
   foes.forEach((e, i) => { const k = Math.round(e.y) * COLS + Math.round(e.x); if (!rank.has(k)) rank.set(k, i); });
   battle.rng.shuffle(tiles);   // the random order of the last group, and of equal distances [ASSUMED]
-  const dist = (r, c) => { let d = Infinity; for (const e of foes) d = Math.min(d, Math.hypot(e.x - c, e.y - r)); return d; };
+  const dist = (r, c) => { let d = Infinity; for (const e of foes) d = Math.min(d, hypot(e.x - c, e.y - r)); return d; };
   const keyed = tiles.map(([r, c], i) => ({ r, c, i, on: rank.get(r * COLS + c) ?? Infinity, d: dist(r, c) }));
   keyed.sort((a, b) => a.on - b.on || a.d - b.d || a.i - b.i);
   return keyed.map((x) => [x.r, x.c]);

@@ -8,6 +8,7 @@ import { html, Button, Icon, MicroLabel, Modal, ProgressBar, confirmDialog } fro
 import { createStore, useStore } from '../store.js';
 import { GIcon } from './gameComponents.js';
 import { useVoiceLang } from './voiceLang.js';
+import { data } from '../data.js';
 import { BASE_PACKS, VOICE_PACKS, formatBytes } from '../../../shared/resources.js';
 import { preloadPref, preloadState, tickedVoicePacks, voicePacksOf, missingBytes, inspectPreload, inspectPreloadLight, startPreload, pausePreload,
   clearPreload, setVoicePack, followVoiceSettings, removeVoicePacks } from '../resources/index.js';
@@ -229,7 +230,7 @@ export function PreloadHost() {
       </div>
       <ul class="preload__packs">
         ${VOICE_PACKS.map((p) => html`<${PackRow} key=${p} st=${st} pack=${p} name=${t(VOICE_NAMES[p])}
-          tag=${voicePacksOf(voicePref).includes(p) ? t(TX.voiceTag) : ''} checked=${voice.includes(p)} disabled=${working}
+          tag=${voicePacksOf(voicePref, data.get('assets')?.audio).includes(p) ? t(TX.voiceTag) : ''} checked=${voice.includes(p)} disabled=${working}
           onChange=${(on) => setVoicePack(p, on)} />`)}
       </ul>
       <p class="preload__sum num">${t(TX.sum, { saved: formatBytes(saved), need: formatBytes(need) })}</p>

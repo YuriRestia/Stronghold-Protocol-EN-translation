@@ -13,6 +13,25 @@ import { timelineAt } from '../fields.js';
 import { bossFieldPlacement } from '../finalAssault.js';
 import { battleProgress } from '../../sim/spec.js';
 
+/** A reported capsule numerator clamped to its denominator, else null (unknown — never a fabricated 0). */
+const finiteOrNull = (v, cap = Infinity) => {
+  if (v == null) return null;   // Number(null) === 0: an unreported value must not read as "0 resolved"
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(Number.isFinite(cap) ? cap : Infinity, Math.trunc(n)));
+};
+
+/**
+ * A scouted operator's potential (below 6) and 练度 (0.2.2), like the sim's UnitInfo: PlayerState.loadoutFor's
+ * `potential` / `cultivate` (null for a stand-in or a prototype 自选 pick: neither field).
+ */
+function cultivationInfo(lo) {
+  const out = {};
+  if (lo && Number.isInteger(lo.potential) && lo.potential < 6) out.potential = lo.potential;
+  if (lo && Number.isInteger(lo.cultivate)) out.cultivate = lo.cultivate;
+  return out;
+}
+
 export class MatchViews {
   statusOf(ps) {
     if (ps.left) return 'left';
@@ -127,25 +146,45 @@ export class MatchViews {
     return v;
   }
 
-  /** m.public.fields[].progress: { killed, total, done } (teammates' waiting UI). */
+  /**
+   * m.public.fields[].progress: { killed, resolved, total, done } (teammates' waiting UI). `resolved` is the HUD
+   * capsule's numerator — the field's own scheduled enemies knocked out or leaked (Battle.resolved / the reported
+   * b.progress `resolved`); it is `null` (never 0) while unknown, so the client's `resolved ?? killed` fallback holds.
+   * `total` is the capsule's denominator: only the enemies the round scheduled (runtime splits / summons — boss summons
+   * included — are in neither part).
+   */
   _fieldProgress(f) {
     if (!f) return null;
     if (!f.cc) {
       const b = f.battle;
       if (!b) return null;
-      return { killed: Number(b.killed) || 0, total: Number(b.total) || 0, done: !f.live };
+      const total = Number(b.total) || 0;
+      return { killed: Number(b.killed) || 0, resolved: finiteOrNull(b.resolved, total), total, done: !f.live };
     }
     if (f.done && f.result) {
-      let killed = 0, total = 0;
-      for (const pp of Object.values(f.result.perPlayer || {})) { killed += Number(pp && pp.killed) || 0; total += Number(pp && pp.total) || 0; }
-      if (f.result.synthetic) { killed = f.progress.killed; total = f.progress.total; }
-      return { killed, total, done: true };
+      let killed = 0, total = 0, own = 0, ownKnown = true;
+      for (const pp of Object.values(f.result.perPlayer || {})) {
+        killed += Number(pp && pp.killed) || 0;
+        total += Number(pp && pp.total) || 0;
+        if (Number.isFinite(pp && pp.resolved)) own += Number(pp.resolved); else ownKnown = false;
+      }
+      // the FIELD's numerator (the validated client result / Battle.result(): what the capsule showed) — not the sum of the
+      // players' own: an enemy that spawns on one half and leaks on the other (a 联防 lane, the boss pair's crossing routes)
+      // is billed to one player's `total` and to the other's leak, so their own min(total, …) clamp it to 0
+      let resolved = finiteOrNull(f.result.resolved, total);
+      if (resolved == null && ownKnown) resolved = Math.min(total, own);
+      if (f.result.synthetic) { killed = f.progress.killed; total = f.progress.total; resolved = finiteOrNull(f.progress.resolved, total); }
+      return { killed, resolved, total, done: true };
     }
     if (f.mode === 'server' && f.timeline) {
-      const [, killed, total] = timelineAt(f.timeline, this._fieldElapsed(f));
-      return { killed, total, done: false };
+      // a server-run / bot field: no authority ever sends a b.progress, so the capsule reads the battle's own counters —
+      // the timeline sample carries `resolved` (Battle.resolved: knocked out + leaked among the field's own enemies),
+      // never the report-driven `progress.leaks`, which would leave such a field at 0 forever
+      const [, killed, total, resolved] = timelineAt(f.timeline, this._fieldElapsed(f));
+      return { killed, resolved: finiteOrNull(resolved, total), total, done: false };
     }
-    return { killed: f.progress.killed, total: f.progress.total, done: false };
+    const total = f.progress.total;
+    return { killed: f.progress.killed, resolved: finiteOrNull(f.progress.resolved, total), total, done: false };
   }
 
   /**
@@ -197,7 +236,8 @@ export class MatchViews {
     return p ? { charId: p.charId, skillIndex: p.skillIndex, uniEquipId: p.uniEquipId } : undefined;
   }
 
-  /** UnitInfo of a player's board pieces on their (board) tiles — a prep scout's board, the boss partner's (bossMateView). */
+  /** UnitInfo of a player's board pieces on their (board) tiles — a prep scout's board, the boss partner's (bossMateView).
+   *  `area: 'board'` (a bench unit says 'hand' / 'temp': prepFieldMeta). */
   _prepBoardUnits(ps) {
     const units = [];
     // the player's own view of the data (0.2.0 自选编队: its slotted DIY slots are its operators — player/diy.js)
@@ -209,10 +249,11 @@ export class MatchViews {
       const rec = piece.kind === 'token' ? gd.token(piece.id) : ps.fieldRecord(chess);
       const assets = (rec && rec.assets) || {};
       // DESIGN §16: the skill / module THIS player's operator fights with (the scout's detail card shows it, like the
-      // sim's UnitInfo in a shared field); moduleId only for an elite
+      // sim's UnitInfo in a shared field); moduleId only for an elite; 0.2.2 its potential (below 6) and 练度
       const lo = piece.kind === 'chess' && chess ? ps.loadoutFor(chess) : null;
       units.push({
         id: piece.uid, uid: piece.uid, kind: piece.kind === 'token' ? 'token' : 'op', side: 'ally', ownerId: ps.playerId, defId: piece.id,
+        area: 'board',
         name: rec ? rec.name : piece.id, tier: rec && Number.isInteger(rec.tier) ? rec.tier : 1, golden: !!(rec && rec.isGolden),
         spine: assets.spine || (rec && rec.charId) || piece.id, avatar: assets.avatar || (rec && rec.charId) || piece.id,
         x: c, y: r, dir: pieceDir(piece), facing: pieceDir(piece) === 'LEFT' ? -1 : 1, maxHp: rec && rec.stats && Number.isFinite(rec.stats.maxHp) ? rec.stats.maxHp : 1,
@@ -222,6 +263,7 @@ export class MatchViews {
         items: piece.kind === 'chess' && Array.isArray(piece.items) && piece.items.length ? piece.items.map((it) => it.id) : undefined,
         standInFor: rec && rec.standInFor ? rec.standInFor : undefined,
         diy: this._diyInfo(ps, piece),
+        ...cultivationInfo(lo),
       });
     }
     return units;
@@ -264,7 +306,11 @@ export class MatchViews {
     // (test/match/spectator.test.js). User playtest #2 item 1 (GitHub #44).
     // (a held chess the player fields as its stand-in is the stand-in there too — name, art, max HP — and carries
     // `standInFor`, like a board piece: the owner's recall of the official mode, 2026-10-06, the hand shows the stand-in)
-    const benchUnit = (piece, i, y) => {
+    // Each unit says where it waits (`area` 'hand' | 'temp'; a board unit 'board'): the bond popup of a watched player
+    // counts it like the player's own (ui/watchBonds.js ownerBoard — a hand operator is owned and counts for 投资人 远见
+    // 奇迹, a temp one counts for nothing; GitHub #385, PR #387). The tag survives the boss-half remap (_onBossHalf), the
+    // row does not.
+    const benchUnit = (piece, i, y, area) => {
       const rec = piece.kind === 'item' ? gd.item(piece.id) : piece.kind === 'token' ? gd.token(piece.id) : gd.chess(piece.id);
       const standIn = piece.kind === 'chess' && rec && ps.fieldsStandIn(rec) ? this.gd.standIn(rec.chessId) : null;
       const body = standIn || rec;
@@ -272,7 +318,7 @@ export class MatchViews {
       const lo = piece.kind === 'chess' && rec ? ps.loadoutFor(rec) : null;
       units.push({
         id: piece.uid, uid: piece.uid, kind: piece.kind === 'token' ? 'token' : piece.kind === 'item' ? 'item' : 'op',
-        side: 'ally', ownerId: ps.playerId, defId: piece.id,
+        side: 'ally', ownerId: ps.playerId, defId: piece.id, area,
         name: body ? body.name : piece.id, tier: rec && Number.isInteger(rec.tier) ? rec.tier : 1, golden: !!(rec && rec.isGolden),
         spine: assets.spine || (body && body.charId) || piece.id, avatar: assets.avatar || (body && body.charId) || piece.id,
         x: i, y, maxHp: body && body.stats && Number.isFinite(body.stats.maxHp) ? body.stats.maxHp : 1,
@@ -281,13 +327,14 @@ export class MatchViews {
         items: piece.kind === 'chess' && Array.isArray(piece.items) && piece.items.length ? piece.items.map((it) => it.id) : undefined,
         standInFor: standIn && standIn.standInFor ? standIn.standInFor : undefined,
         diy: this._diyInfo(ps, piece),
+        ...cultivationInfo(lo),
       });
     };
     for (let i = 0; i < ps.hand.length; i++) {
-      if (ps.hand[i]) benchUnit(ps.hand[i], i, GEO.HAND_ROW);
+      if (ps.hand[i]) benchUnit(ps.hand[i], i, GEO.HAND_ROW, 'hand');
     }
     for (let i = 0; i < ps.temp.length; i++) {
-      if (ps.temp[i]) benchUnit(ps.temp[i], GEO.TEMP_C0 + i, GEO.TEMP_ROW);
+      if (ps.temp[i]) benchUnit(ps.temp[i], GEO.TEMP_C0 + i, GEO.TEMP_ROW, 'temp');
     }
     // `nextEnemies`: the scouted player's coming enemies — their preview pen shows on the scouting board too (research 09
     // §2.2 "Teammates"; render/app.js enterBattle({ prep: true, nextEnemies }))

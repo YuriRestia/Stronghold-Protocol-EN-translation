@@ -150,6 +150,8 @@ test('机变 (co-op): 6 shared cards, random order, 30 s first / 16 s others, ti
   assert.deepEqual(sp.order.slice().sort(), ['p_0', 'p_1', 'p_2']);
   assert.equal(Math.round((m2.deadline - h2.sched.now()) / 1000), 30, 'first picker 30 s');
   const [a, b, c] = sp.order;
+  assert.equal(m2.handle(a, { t: 'g.choice', idx: 2, choiceId: 'old.choice.1' }).error, ERR.WRONG_PHASE);
+  assert.deepEqual(m2.sp.picks, {}, 'personal IDs never fall through to the global draft');
   assert.equal(m2.handle(b, { t: 'g.choice', idx: 0 }).error, ERR.NOT_YOUR_TURN);
   assert.deepEqual(m2.handle(a, { t: 'g.choice', idx: 2 }), { ok: true });
   assert.equal(m2.handle(a, { t: 'g.choice', idx: 3 }).error, ERR.ALREADY);

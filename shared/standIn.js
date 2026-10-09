@@ -15,6 +15,7 @@
 // chess's ids, so its kit must be looked up by its `charId`, never by `baseId` (that is the replaced operator's kit).
 
 import { composeStats, composeTalents } from './loadoutRecord.js';
+import { stripPotential } from './potential.js';
 
 /** The key of a unit form: a chess record's `status` as `${phase}/${level}/${skillLevel}/${equipLevel}`. */
 export function statusKey(status) {
@@ -44,7 +45,9 @@ const byNatural = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: 
  * The same rules as tools/build-data.mjs buildChess: stats = form stats + the module's `attr`, trait = the module's
  * `traitOverride` or the form's, talents = form talents + the module's `talentChanges`; `module` is active only when
  * `status.equipLevel > 0` and the module has that level; an elite with `equipLevel > 0` carries
- * `statsBase` / `traitBase` / `talentsBase` / `modules[]`; `tokens` are the summons the selection produces.
+ * `statsBase` / `traitBase` / `talentsBase` / `modules[]`; `tokens` are the summons the selection produces. The record is
+ * composed at ONE potential: pass the form at the wanted potential (shared/potential.js atPotential — a stand-in has none)
+ * and the result carries no potential annotation (`potDown`, chained talents).
  * @param {object} identity the data/chess.json record whose identity the unit takes (IDENTITY_FIELDS)
  * @param {object} unit backups.units[charId]
  * @param {object} form backups.units[charId].forms[statusKey(identity.status)]
@@ -63,7 +66,7 @@ export function composeUnitRecord(identity, unit, form, { skillIndex, moduleId =
   const skill = skills.find((s) => s && s.index === skillIndex) ?? null;
   const mods = Array.isArray(form.modules) ? form.modules : null;
   const mod = moduleId && mods ? mods.find((m) => m && m.uniEquipId === moduleId) ?? null : null;
-  const talents = mod ? composeTalents(form.talents, mod.talentChanges) : form.talents;
+  const talents = composeTalents(form.talents, mod ? mod.talentChanges : null);
   // summons: listed by the character, produced by the selected skill or a talent (buildChess `tokens`)
   const known = new Set(form.tokens || []);
   const tokenIds = new Set([...(form.displayTokens || []), skill?.overrideTokenKey, ...(talents || []).map((t) => t?.tokenKey)]
@@ -95,8 +98,8 @@ export function composeUnitRecord(identity, unit, form, { skillIndex, moduleId =
   if (golden && equipLevel > 0) {
     out.statsBase = form.stats;
     out.traitBase = form.trait;
-    out.talentsBase = form.talents;
-    out.modules = (mods || []).map((m) => ({ ...m, isDefault: m.uniEquipId === moduleId }));
+    out.talentsBase = stripPotential(form.talents);
+    out.modules = (mods || []).map((m) => ({ ...stripPotential(m), isDefault: m.uniEquipId === moduleId }));
   }
   if (standInFor) out.standInFor = standInFor;
   return out;

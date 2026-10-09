@@ -345,7 +345,7 @@ describe('user playtest #2 item 10 — boss-round prep on the boss field (real s
   });
 
   test('co-op 险境 (R14): host on the left half, guest on the mirrored right half; scouting and 返回 keep the pen hidden', { skip: only('coop'), timeout: 10 * 60 * 1000 }, async () => {
-    const srv = await startRealServer({ fast: { timerScale: 0.5, combatSpeed: 8, startRound: 'boss' } });
+    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 8, startRound: 'boss', items: ['chess_item_6_03_m'] } });
     const P = await pptr();
     const host = new Client(P, srv.base, 'host', { prefix: 'fix' });
     const guest = new Client(P, srv.base, 'guest', { prefix: 'fix', w: 1280, h: 720 });
@@ -412,6 +412,47 @@ describe('user playtest #2 item 10 — boss-round prep on the boss field (real s
         assert.deepEqual(back.prepField, { kind: 'bossPrep', side: 'L', mirror: false }, '返回: the own boss half again');
       }
       await penRoundTrip(guest, 'guest');
+      // Real clients open their own 教鞭 candidates together; refreshing one tab restores that same private choice.
+      const choiceOf = (c) => c.page.evaluate(() => JSON.parse(JSON.stringify(globalThis.__SP__.store.get().match.private.personalChoice)));
+      const deadline = await host.page.evaluate(() => globalThis.__SP__.store.get().match.public.deadline);
+      await Promise.all([[host, hp], [guest, gp]].map(async ([c, placed]) => {
+        const art = (await c.handPieces('item')).find((p) => p.id === 'chess_item_6_03_m');
+        assert.ok(art, `${c.label}: starter 教鞭`);
+        await c.drag(await c.piecePoint(art.uid), await c.tilePoint(placed.row, placed.col));
+        await c.page.waitForSelector('.spov[aria-label="教鞭选择"]', { timeout: 6000 });
+      }));
+      const hostChoice = await choiceOf(host), guestChoice = await choiceOf(guest);
+      assert.notEqual(hostChoice.id, guestChoice.id);
+      for (const c of [host, guest]) {
+        assert.equal((await choiceOf(c)).cards.length, 3);
+        assert.equal((await c.st()).canReady, false);
+        assert.equal(await c.page.$('.spov__order'), null);
+        assert.equal(await c.page.evaluate(() => globalThis.__SP__.store.get().match.public.deadline), deadline);
+      }
+      await host.page.reload({ waitUntil: 'networkidle0' });
+      await host.page.waitForSelector('.spov[aria-label="教鞭选择"]', { timeout: 20000 });
+      assert.deepEqual(await choiceOf(host), hostChoice, 'refresh reuses the ID and cards');
+      assert.deepEqual(await choiceOf(guest), guestChoice, 'the teammate keeps its own candidates');
+      await host.page.evaluate(async () => { await (await import('/js/ui/lang.js')).switchLang('en'); });
+      await host.page.waitForSelector('.spov[aria-label="Pointing Stick Choice"]');
+      assert.match(await host.page.$eval('.spov__title', (el) => el.textContent), /Pointing Stick · Tactical Training/);
+      assert.equal(await host.page.$eval('[data-testid="ready-why"]', (el) => el.textContent), 'Complete the Pointing Stick choice first');
+      assert.equal(await guest.page.$eval('.spov', (el) => el.getAttribute('aria-label')), '教鞭选择', 'language stays per client');
+      assert.deepEqual(await choiceOf(host), hostChoice, 'language switch does not replace the offer');
+      await host.page.evaluate(async () => { await (await import('/js/ui/lang.js')).switchLang('zh'); });
+      await host.page.waitForSelector('.spov[aria-label="教鞭选择"]');
+      const refused = await host.page.evaluate(async (id) => {
+        try { await globalThis.__SP__.net.request('g.choice', { idx: 0, choiceId: id }); return null; }
+        catch (e) { return e.code; }
+      }, guestChoice.id);
+      assert.equal(refused, 'BAD_TARGET', 'a live client cannot submit the teammate\'s ID');
+      await host.shot('dobermann-private-reconnect');
+      for (const c of [host, guest]) {
+        await c.click('.spcard.is-pickable');
+        assert.ok(await choiceOf(c), 'first tap only highlights');
+        await c.click('.spov__confirm');
+        await c.page.waitForFunction(() => globalThis.__SP__.store.get().match.private.personalChoice === null, { timeout: 6000 });
+      }
       for (const c of [host, guest]) await c.click('.readybtn');
       await checkBossBattle(host, hp, 'L', 'host');
       await checkBossBattle(guest, gp, 'R', 'guest');

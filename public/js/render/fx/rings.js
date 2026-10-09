@@ -74,8 +74,13 @@ export class FxRings {
     this._aura(view, true);
   }
 
-  /** Active-skill aura: a soft gold glow and a slowly turning hex on the ground under the unit (fading in / out). */
+  /**
+   * Active-skill aura: a soft gold glow and a slowly turning hex on the ground under the unit (fading in / out). An ammo
+   * skill (UnitInfo.ammoSkill) has none: its magazine is the yellow cells under the HP bar, which shrink with every round
+   * — a standing glow would read as a buff that never changes. The activation burst (skill()) is the same for all.
+   */
   _aura(view, on) {
+    if (on && view.info?.ammoSkill) return;
     const P = this.P;
     let a = this.auras.get(view.id);
     if (on) {

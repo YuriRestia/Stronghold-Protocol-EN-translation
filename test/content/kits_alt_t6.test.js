@@ -78,6 +78,8 @@ test('every tier-6 skill × module choice (normal + elite) survives a real wave 
           units: [{ chessId: id, row: 10, col: 4, skillIndex: s.index, moduleId, carryState: READY }, { chessId: 'chess_char_1_01_a', row: 9, col: 4 }, { chessId: 'chess_char_2_06_a', row: 11, col: 5 }],
           enemies: [{ key: 'enemy_1007_slime', count: 8, interval: 1.5 }, { key: 'enemy_1007_slime', route: 1, count: 8, interval: 1.5, time: 3 }],
         });
+        // (a medic acts on the hurt only, and the slimes may fall before they reach anyone: the team starts at half HP)
+        if (base.profession === 'MEDIC') { h.step(); for (const a of h.b.allyUnits) a.hp = a.s.maxHp / 2; }
         h.runToEnd(90);
         done(h);
         const u = h.b.allyUnits.find((x) => x.defId === id);
@@ -258,7 +260,7 @@ test('6_03 余 S1 今日做东: taunt +1 while carried; TAKE_DAMAGE cast, HP/DEF
     const sid = 'skchr_yu_1', bb = bbOf(id, sid);
     const h = run({
       defs: { enemies: { hit: enemyRec({ key: 'hit', hp: 1e7, speed: 0, atk: 300, bat: 1 }) } },
-      units: [U(id, sid, 10, 4, { carryState: READY })], enemies: [{ key: 'hit', pos: [10, 4] }],
+      units: [U(id, sid, 10, 4, { carryState: READY })], enemies: [{ key: 'hit', pos: [10, 4] }], hooks: [...HOOKS, 'elementBurst'],
     });
     const u = h.unit(id);
     usesSkill(u, sid);
@@ -270,8 +272,10 @@ test('6_03 余 S1 今日做东: taunt +1 while carried; TAKE_DAMAGE cast, HP/DEF
     approx(skillBuff(u).mods.defPct, bb.def);
     const t0 = h.b.time;
     h.run(4);
-    const burns = h.hooksOf('elementHit').filter((c) => c.source === u && c.dmg.element === 'burn' && c.t > t0 && (c.dmg.tags || []).includes('skill'));
-    const taken = h.hooksOf('damaged').filter((c) => c.target === u && c.dmg?.isAttack && c.t > t0);
+    // the burns build a 燃烧 burst on the attacker, which refuses same-element fills while it runs: compare up to it
+    const end = h.hooksOf('elementBurst').find((c) => c.element === 'burn' && c.t > t0)?.t ?? Infinity;
+    const burns = h.hooksOf('elementHit').filter((c) => c.source === u && c.dmg.element === 'burn' && c.t > t0 && c.t <= end && (c.dmg.tags || []).includes('skill'));
+    const taken = h.hooksOf('damaged').filter((c) => c.target === u && c.dmg?.isAttack && c.t > t0 && c.t <= end);
     assert.ok(burns.length >= 1 && burns.length === taken.length, `one burn per attack taken (${burns.length}/${taken.length})`);
     approx(burns[0].dmg.amount, u.s.atk * bb.ep_damage_ratio, 'ep_damage_ratio × ATK');
     done(h);

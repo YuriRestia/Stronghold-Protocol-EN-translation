@@ -129,10 +129,13 @@ export class SimClient {
   _progress(e) {
     const p = battleProgress(e.battle);
     const msg = { t: 'b.progress', battleId: e.battleId, gt: p.gt, killed: Math.min(p.killed, p.total), total: p.total, done: p.done };
+    // the HUD capsule's numerator, like public/js/battle/runner.js (kept only when the battle reports one)
+    if (Number.isFinite(p.resolved)) msg.resolved = Math.min(p.resolved, p.total);
     const bossLike = e.spec.kind === 'boss' || e.spec.kind === 'hidden';
     if (bossLike) {
       const pool = e.battle.sharedBoss;
       msg.leaks = e.meter.lp;
+      if (p.leaksBy) msg.leaksBy = p.leaksBy; // like public/js/battle/runner.js
       msg.bossDmg = pool && Number.isFinite(pool.cum) ? pool.cum : 0;
       if (pool && pool.byPlayer) msg.by = { ...pool.byPlayer };
     } else {

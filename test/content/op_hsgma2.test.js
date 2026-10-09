@@ -300,6 +300,33 @@ test('S3 临死模式 (a 主动关闭 only — no strategy of this mode closes i
   }
 });
 
+// 社区反馈 (PR #383 by @Convey123): 「绿条被打空以后受到伤害就会涨红条，这里看不到红条」 — the official HP bar shows the 我执 pool as a red bar
+// growing over the drained green one. The sim has kept the pool since 0.2.0 (unit.mem.hsEgo); the snapshot now lists its share of the
+// cap (b.snap `neg`, snapshot.js negView — display only) and render/units.js draws it (test/render/hud-readouts.test.js).
+test('T1 业火 我执: the pool reaches the client as b.snap `neg` — its share of the cap (2 × max HP) from the first lethal hit, growing with the damage, gone with 我执', () => {
+  const { h, u } = field({ tier: 6, elite: true, skill: 0, others: [{ uid: 2, chessId: TEXAS, row: 12, col: 9 }] });
+  const e = h.spawn('enemy_dummy', { pos: [10, 8] });
+  h.step();
+  const max = u.s.maxHp;
+  const negOf = () => (h.b.snapshot().neg || []).find((x) => x[0] === u.id);
+  assert.equal(h.b.snapshot().neg, undefined, 'not in 我执: no list');
+  h.b.dealDamage(e, u, { amount: u.hp + 300, type: 'true' });
+  h.step();
+  assert.ok(u.mem.hsEgo, '已进入 我执');
+  const cap = 2 * max;                      // max_minus_hp_ratio
+  approx(negOf()[1], 300 / cap, 'the share of the cap', 0.02);
+  h.b.dealDamage(e, u, { amount: 400, type: 'true' });
+  h.step();
+  approx(negOf()[1], 700 / cap, 'it grew with the damage', 0.02);
+  assert.ok(negOf()[1] < 1, 'still below a full pool');
+  assert.ok(u.hp / max < 0.01, 'her green bar sits on the 1-HP floor: the red bar is the whole story');
+  assert.equal(h.b.snapshot().units.find((t) => t[0] === u.id).length, 9, 'the tuple is not widened');
+  assert.ok(h.runUntil(() => !u.mem.hsEgo, 60), 'the quiet-time regeneration clears the pool');
+  h.step();
+  assert.equal(h.b.snapshot().neg, undefined, 'no pool, no red bar');
+  done(h);
+});
+
 test('T1 业火 我执: a lethal hit leaves her on the field (HP floor) with the excess as negative HP; later damage goes there (受击回复 SP still), 禁疗 meanwhile; 200 % of max HP knocks her out; 4 s without damage ⇒ 生命回复速度 5 %/s clears it and she leaves 我执', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const t0 = formOf(tier, elite).talents.find((t) => t.index === 0).bb;

@@ -1,6 +1,6 @@
 // server/match/player/basics.js — PlayerState methods: the basics — seat flags and counts (isHumanActive,
 // botControlled, deployCap, deployCount, tempEmpty), the prep that resolves a temp piece (tempDue, _putTemp: every
-// write into a temp slot), the operator loadout (DESIGN §16: setLoadout, loadoutFor), the not-owned operators fielded
+// write into a temp slot), the operator loadout (DESIGN §16: setLoadout, loadoutFor; 0.2.2 潜能 / 练度: cultivationFor), the not-owned operators fielded
 // as their stand-ins (0.2.0 补位: setNotOwned, fieldsStandIn, fieldRecord), the deploy map on the field the
 // player deploys on (Match.deployFieldOf) and the withdrawal of pieces a terrain / deploy-field change left on tiles
 // they may no longer occupy (_evictIllegal), dirty.
@@ -9,8 +9,18 @@
 
 import { PHASE } from '../../../shared/constants.js';
 import { msg, dn } from '../../../shared/i18n.js';
-import { checkLoadout, checkNotOwned, resolveLoadout } from '../../../shared/protocol.js';
+import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, resolveLoadout } from '../../../shared/protocol.js';
+import { cultivationOf } from '../../../shared/potential.js';
 import { tileKey, boardOrder } from '../board.js';
+
+/** The charIds a player may set a potential / 练度 for, per game-data object (shared/protocol.js cultivationCharIds). */
+const OPS_IDS = new WeakMap();
+function opsCharIds(raw) {
+  if (!raw || typeof raw !== 'object') return new Set();
+  let ids = OPS_IDS.get(raw);
+  if (!ids) { ids = cultivationCharIds(raw.chess, raw.backups); OPS_IDS.set(raw, ids); }
+  return ids;
+}
 
 export class PlayerBasics {
   get isHumanActive() { return !this.isBot && !this.left; }
@@ -46,14 +56,35 @@ export class PlayerBasics {
   }
 
   /**
-   * Replace the operator loadout (DESIGN §16) after re-checking it against this match's data. Accepts the checked
-   * form `{ id: { skill, module|null } }` or raw `room.loadout` entries. Returns false (loadout unchanged) when it does
-   * not fit the data; bots keep the defaults.
+   * Replace the operator loadout (DESIGN §16) — and, when `ops` is given, the per-operator 潜能 / 练度 (0.2.2; null = none
+   * set, undefined = unchanged) — after re-checking them against this match's data. Accepts the checked form
+   * `{ id: { skill, module|null } }` or raw `room.loadout` entries, and the checked or raw `ops`. Returns false (nothing
+   * changes) when either does not fit the data; bots keep the defaults.
    * @param {any} loadout
+   * @param {any} [ops]
    * @returns {boolean}
    */
-  setLoadout(loadout) {
+  setLoadout(loadout, ops = undefined) {
     if (this.isBot) return false;
+    let opsRes = null;
+    if (ops !== undefined) {
+      const raw = {};
+      if (ops && typeof ops === 'object' && !Array.isArray(ops)) {
+        for (const [id, e] of Object.entries(ops)) {
+          if (!e || typeof e !== 'object') continue;
+          const x = {};
+          if (Number.isInteger(e.potential)) x.potential = e.potential;
+          if (Number.isInteger(e.cultivate)) x.cultivate = e.cultivate;
+          if (Object.keys(x).length) raw[id] = x;
+        }
+      }
+      const ids = opsCharIds(this.gd.raw);
+      opsRes = checkLoadoutOps(raw, (id) => ids.has(id));
+      if (!opsRes || !opsRes.ok) {
+        this.m.log?.warn?.(`[match ${this.m.roomCode}] operator settings of ${this.playerId} ignored: ${opsRes && opsRes.detail}`);
+        return false;
+      }
+    }
     const entries = {};
     if (loadout && typeof loadout === 'object' && !Array.isArray(loadout)) {
       for (const [id, e] of Object.entries(loadout)) {
@@ -72,7 +103,25 @@ export class PlayerBasics {
     const out = {};
     for (const [id, e] of Object.entries(res.loadout)) out[id] = Object.freeze({ skill: e.skill, module: e.module ?? null });
     this.loadout = Object.freeze(out);
+    if (opsRes) {
+      const o = {};
+      for (const [id, e] of Object.entries(opsRes.ops)) o[id] = Object.freeze({ potential: e.potential, cultivate: e.cultivate });
+      this.ops = Object.freeze(o);
+    }
     return true;
+  }
+
+  /**
+   * The potential / 练度 this player's piece of chess record `chessRecord` fights at (0.2.2; shared/potential.js
+   * cultivationOf over `this.ops` — defaults 潜能 6, 精英2 Lv.60): the operator the player owns — the chess fielded as
+   * itself, an owned 自选 pick (its charId) — or null for a 补位 stand-in and a prototype 自选 pick.
+   * @param {object|null} chessRecord
+   * @returns {{ potential: number, cultivate: number } | null}
+   */
+  cultivationFor(chessRecord) {
+    if (!chessRecord || this.fieldsStandIn(chessRecord)) return null;
+    const rec = chessRecord.isDiy && typeof chessRecord.chessId === 'string' ? this.gd.chess(chessRecord.chessId) || chessRecord : chessRecord;
+    return cultivationOf(rec, this.ops);
   }
 
   /**
@@ -83,10 +132,12 @@ export class PlayerBasics {
    */
   loadoutFor(chessRecord) {
     if (this.fieldsStandIn(chessRecord)) {
-      return resolveLoadout(null, this.gd.standIn(chessRecord.chessId), (id) => this.gd.standIn(id) || this.gd.chess(id));
+      return { ...resolveLoadout(null, this.gd.standIn(chessRecord.chessId), (id) => this.gd.standIn(id) || this.gd.chess(id)), potential: null, cultivate: null };
     }
     const rec = chessRecord && chessRecord.isDiy && typeof chessRecord.chessId === 'string' ? this.gd.chess(chessRecord.chessId) || chessRecord : chessRecord;
-    return resolveLoadout(this.loadout, rec, (id) => this.gd.chess(id));
+    // 0.2.2: with the operator's potential / 练度 (null for a prototype 自选 pick) — the 自选 summons' hand count reads it
+    const cv = this.cultivationFor(chessRecord);
+    return { ...resolveLoadout(this.loadout, rec, (id) => this.gd.chess(id)), potential: cv ? cv.potential : null, cultivate: cv ? cv.cultivate : null };
   }
 
   /**

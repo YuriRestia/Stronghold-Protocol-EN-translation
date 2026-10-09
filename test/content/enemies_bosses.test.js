@@ -186,6 +186,67 @@ test(`${nm('enemy_9008_acbunn')}: attacks several targets at once while stealthe
   assert.ok(atk.targets.length >= 2, `targets ${atk.targets.length}`);
 });
 
+// 骨刺 — PRTS 天赋 (级别0) 「自身普通攻击索敌不受阻挡影响 / 不会攻击飞行单位，隐匿（解除阻挡0秒后恢复） / 隐匿期间可同时攻击3个目标」
+// and the level description 「隐匿；隐匿状态下同时攻击3个目标。」 (PR #365, the targeting part checked against PRTS).
+function boneArena(o = {}) {
+  const h = arena({
+    units: ['t_wall', 't_wall2', 't_wall3', 't_wall4'].map((chessId, i) => ({ chessId, row: 9 + (i % 2), col: 6 + Math.floor(i / 2) })),
+    captureNoisy: true, hooks: ['attack'], ...o,
+  });
+  h.step();
+  for (const u of h.allies()) h.b.addBuff(u, { key: 'test:noBlock', persist: true, flags: { noBlock: true } });
+  const e = put(h, 'enemy_9008_acbunn', [9, 6]);
+  return { h, e };
+}
+/** The targets of `e`'s next attack. */
+function boneNext(h, e) {
+  const n = h.hooksOf('attack').filter((c) => c.attacker === e).length;
+  assert.ok(h.runUntil(() => h.hooksOf('attack').filter((c) => c.attacker === e).length > n, 8), 'a new attack');
+  return h.hooksOf('attack').filter((c) => c.attacker === e)[n].targets;
+}
+
+test(`${nm('enemy_9008_acbunn')}: 3 targets while hidden, 1 once blocked or revealed — by priority, not its blocker first; 3 again when hidden`, () => {
+  for (const cause of ['block', 'reveal']) {
+    const { h, e } = boneArena();
+    const wall = h.unit('t_wall'), taunter = h.unit('t_wall4');
+    assert.equal(new Set(boneNext(h, e)).size, 3, `${cause}: hidden — three distinct targets of the four in reach`);
+    h.b.addBuff(taunter, { key: 'test:taunt', mods: { taunt: 5 } });
+    if (cause === 'block') { h.b.removeBuff(wall, 'test:noBlock'); h.step(2); assert.equal(e.blockedBy, wall); }
+    else h.b.addBuff(e, { key: 'test:reveal', persist: true, flags: { reveal: true } });
+    assert.deepEqual(boneNext(h, e), [taunter], `${cause}: one target, the taunt-5 one (索敌不受阻挡影响)`);
+    if (cause === 'block') { h.b.addBuff(wall, { key: 'test:noBlock', persist: true, flags: { noBlock: true } }); h.b.releaseBlocked(wall); }
+    else h.b.removeBuff(e, 'test:reveal');
+    assert.equal(boneNext(h, e).length, 3, `${cause}: hidden again (0 s after the block) — three`);
+    checkInvariants(h.b);
+  }
+});
+
+test(`${nm('enemy_9008_acbunn')}: never targets a flying unit (炎佑, taunt 5), hidden or revealed`, () => {
+  for (const revealed of [false, true]) {
+    const { h, e } = boneArena({ content: 'full', extraContent: [] });
+    const [air] = spawnYanyou(h.b, 'p1', { count: 1, hp: 50000 });
+    assert.ok(air?.isFlying);
+    air.x = 6.5; air.y = 9;
+    h.b.applyStatus(air, 'stun', { duration: 30, force: true });
+    h.b.addBuff(air, { key: 'test:taunt', mods: { taunt: 5 } });
+    if (revealed) h.b.addBuff(e, { key: 'test:reveal', persist: true, flags: { reveal: true } });
+    const t = boneNext(h, e);
+    assert.equal(t.length, revealed ? 1 : 3);
+    assert.ok(!t.includes(air), `${revealed ? 'revealed' : 'hidden'}: the flyer is no target`);
+  }
+});
+
+test(`${nm('enemy_9008_acbunn')}: its 3 hidden targets come from its normal attack's reach (2 + the 0.25 ally collider)`, () => {
+  const { h, e } = boneArena();
+  const edge = h.unit('t_wall3'), outside = h.unit('t_wall4');
+  edge.x = e.x + 2.1; edge.y = e.y;
+  outside.x = e.x + 2.3; outside.y = e.y;
+  h.b.addBuff(edge, { key: 'test:taunt', mods: { taunt: 5 } });
+  const t = boneNext(h, e);
+  assert.ok(t.includes(edge), 'the ally 2.1 away is one of the three');
+  assert.ok(!t.includes(outside), 'the one 2.3 away is out of reach');
+});
+
 test(`${nm('enemy_1175_dushdo_2')}: stealth; next to 深池伙友卫队精英 its attack interval drops by traitAbility.base_attack_time`, () => {
   const h = arena();
   h.step();
@@ -1034,6 +1095,28 @@ test(`${nm('enemy_1112_emppnt')} / 中枢: every attack is a shell that lands 3 
     // the target (latest deployed in range 2) is t_wall3 or t_wall2; the blast covers every wall within 1.2 of it
     assert.ok(hit.length >= 2 && hit.every((w) => Math.abs(w.stats.taken - e.s.atk) < 1e-6), `${key}: ${hit.map((w) => w.defId)}`);
     assert.ok(h.b.time - t0 >= 3 - 1e-6);
+  }
+});
+
+test(`${nm('enemy_1112_emppnt_2')} / 先兆者: the shell's 1.2 circle takes every ally whose collider touches it — the impact tile and the 8 around it, not the cross (GitHub #364)`, () => {
+  for (const key of ['enemy_1112_emppnt_2', 'enemy_1112_emppnt']) {
+    // the enemy on (10, 8) reaches only the wall on (10, 6): the impact; the others stand around it, out of its reach
+    const h = arena({ units: [
+      { chessId: 't_wall', row: 10, col: 6 }, { chessId: 't_wall2', row: 10, col: 5 },
+      { chessId: 't_wall3', row: 9, col: 5 }, { chessId: 't_wall4', row: 10, col: 4 },
+    ], captureNoisy: true });
+    h.step();
+    const e = put(h, key, [10, 8], { route: 2 });
+    assert.ok(h.runUntil(() => e.stats.attacks >= 1, 10), 'attacks');
+    const shell = h.eventsOf('fx').find((ev) => ev[1] === 'bombardShell');
+    assert.ok(Math.abs(shell[4].r - 1.45) < 1e-9, 'drawn at the reach: 1.2 + the 0.25 collider');
+    h.run(3.1);
+    const taken = (id) => h.unit(id).stats.taken;
+    for (const [id, what] of [['t_wall', 'the impact'], ['t_wall2', 'its orthogonal neighbour (1 away)'], ['t_wall3', 'a diagonal neighbour (√2 away)']]) {
+      assert.ok(Math.abs(taken(id) - e.s.atk) < 1e-6, `${key}: ${what} takes the shell`);
+    }
+    assert.equal(taken('t_wall4'), 0, `${key}: two tiles away stays out`);
+    checkInvariants(h.b);
   }
 });
 
@@ -1985,7 +2068,7 @@ test(`${nm('enemy_10098_crhro')}: 重生 once after ${tb('enemy_10098_crhro', 'r
   assert.ok(!e.alive);
 });
 
-test('失衡: 弧光锋卫 bleeds per tile pushed; 冒失的小弟 is stunned; 拥霜羽兽 drops its egg (faster, unblockable)', () => {
+test('失衡: 弧光锋卫 bleeds every 0.066 s while unbalanced; 冒失的小弟 is stunned; 拥霜羽兽 drops its egg (faster, unblockable)', () => {
   const h = arena({ hooks: ['statusApplied'] });
   h.step();
   const j = put(h, 'enemy_1328_cbjedi', [10, 7]);
@@ -1993,17 +2076,20 @@ test('失衡: 弧光锋卫 bleeds per tile pushed; 冒失的小弟 is stunned; �
   const p = put(h, 'enemy_10141_xdpeng_2', [12, 7]);
   h.step(2);
   const hp0 = j.hp;
-  const moved = h.b.displace(j, { x: 1, y: 0 }, 1, { force: 3 });
+  // 弧光锋卫: its 失衡 state — a 受力等级 0 push holds 0.8 s (24 frames) — bleeds unbalanced_bleed.damage every .interval s
+  // (PRTS "处于失衡状态时，每0.066s受到400点无来源真实持续伤害"): 12 hits; until 0.2.2 one hit per tile moved [ASSUMED]
+  h.b.push(j, j.s.massLevel, { from: { x: j.x - 1, y: j.y } });
   h.b.displace(g, { x: 1, y: 0 }, 1, { force: 3 });
   h.b.displace(p, { x: 1, y: 0 }, 1, { force: 3 });
   h.step();
-  approx(hp0 - j.hp, (tb('enemy_1328_cbjedi', 'unbalanced_bleed.damage') * moved) / (tb('enemy_1328_cbjedi', 'unbalanced_bleed.interval') * 5), 0.05);
   assert.equal(statuses(h, g.id, 'stun').length, 1);
   approx(statuses(h, g.id, 'stun')[0].duration, tb('enemy_10112_ymgds', 'StunAfterUnbalance.stun'));
   assert.ok(p.s.flags.unblockable);
   assert.equal(p.findBuff('ab:noEgg').mods.moveMul, 1 + tb('enemy_10141_xdpeng_2', 'speed.move_speed'));
   assert.ok(p.profile.noAttack, '拥霜羽兽 失去蛋的模式: 不进行普通攻击 (no attack, so no stand for its clip)');
   assert.equal(typeof p.profile.canTarget === 'function' && p.profile.canTarget({ isFlying: true }), false, '拥霜羽兽: 不会攻击飞行单位');
+  h.run(0.8);
+  approx(hp0 - j.hp, 12 * tb('enemy_1328_cbjedi', 'unbalanced_bleed.damage'), 1e-6);
   // 雪孩子: pushed into high ground (row 12 col 2 is 'h' on the flat stage) ⇒ hitWall.value
   const sn = put(h, 'enemy_10138_xdsnow', [10, 3]);
   const sn2 = put(h, 'enemy_10138_xdsnow', [11, 6]);

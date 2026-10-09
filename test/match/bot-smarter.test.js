@@ -38,7 +38,43 @@ test('bounty pick: the card the own board can beat, never one it cannot (even wh
   assert.equal(botPickCard(m, ps, [hard, easy, huge].map((c, idx) => ({ ...c, idx })), [0, 1, 2]), 1);
   ps.lp = 2;
   assert.equal(botPickCard(m, ps, [hard, huge, easy].map((c, idx) => ({ ...c, idx })), [0, 1, 2]), 2, 'low LP: still the beatable one');
+  const raw = [hard, easy].map((c) => DATA.choices.cards.bounty.find((x) => x.effectId === c.id));
+  assert.deepEqual(m.offerBountyChoice(ps, raw, 'chess_item_6_03_m'), { ok: true });
+  assert.deepEqual(m.autoPickPersonalChoice(ps, 'bot'), { ok: true });
+  assert.equal(ps.personalChoice, null);
+  assert.equal(ps.bounties.at(-1).card.enemyKey, easy.enemyKey, 'personal cards use bounty scoring too');
+  const metaState = m.rngMeta.state(), botState = m.rngBots.state();
+  m.autoPickPersonalChoice(ps, 'bot');
+  m.autoPickPersonalChoice(ps, 'random');
+  assert.equal(m.rngMeta.state(), metaState);
+  assert.equal(m.rngBots.state(), botState, 'nothing pending: no RNG draws');
   m.dispose();
+});
+
+test('a bot\'s 教鞭 pick is deterministic: one seed offers the same three cards and picks the same one, drawing only on the bots\' rng', () => {
+  const runs = [];
+  for (let k = 0; k < 2; k++) {
+    const h = soloBot({ seed: 5, difficulty: 'HARD' }).start();
+    const m = h.m;
+    const ps = m.order[0];
+    h.run(() => m.phase === PHASE.PREP && m.round === 1);
+    ps.lp = 999;
+    h.run(() => m.phase === PHASE.PREP && m.round === 5);
+    const art = giveItem(m, ps, 'chess_item_6_03_m');
+    assert.deepEqual(ps.useArt(art.uid, 10, 5), { ok: true });
+    const offered = ps.personalChoice.cards.map((c) => c.effectId);
+    assert.equal(offered.length, 3);
+    assert.equal(new Set(offered).size, 3, 'three different cards');
+    const meta = m.rngMeta.state(), bots = m.rngBots.state();
+    assert.deepEqual(m.autoPickPersonalChoice(ps, 'bot'), { ok: true });
+    assert.equal(m.rngMeta.state(), meta, 'the pick leaves the meta rng alone');
+    assert.notEqual(m.rngBots.state(), bots, 'one scoring draw per card from the bots\' rng');
+    assert.equal(ps.personalChoice, null);
+    runs.push({ offered, picked: ps.bounties.at(-1).card.effectId, bots: m.rngBots.state() });
+    assert.ok(offered.includes(runs[k].picked));
+    m.dispose();
+  }
+  assert.deepEqual(runs[0], runs[1]);
 });
 
 test('bounty pick in real drafts (绝境 R3 悬赏决策): a card the board likely beats (p ≥ 0.5) whenever a near-sure one (p ≥ 0.9) is offered', () => {
@@ -138,9 +174,12 @@ test('bounty Arts (教鞭): kept after a battle with leaks, used after a perfect
     assert.ok(owns(ps, WHIP), 'kept after a battle with leaks (not destroyed)');
     h.run(() => m.phase === PHASE.PREP && m.round === 4);
     m.lastResults.set(ps.playerId, clean);
+    giveItem(m, ps, WHIP);
     const bounties = ps.bounties.length;
     h.run(() => m.phase === PHASE.COMBAT && m.round === 4);
-    assert.ok(!owns(ps, WHIP) && ps.bounties.length > bounties, 'used after a perfect battle');
+    assert.ok(!owns(ps, WHIP) && ps.bounties.length === bounties + 2, 'both Arts used and picked after a perfect battle');
+    assert.equal(ps.personalChoice, null);
+    assert.equal(ps.round.arts, 2);
     assert.equal(m.errorCount, 0);
     m.dispose();
   }

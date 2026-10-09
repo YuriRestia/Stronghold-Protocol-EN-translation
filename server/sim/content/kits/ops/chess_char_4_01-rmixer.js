@@ -30,7 +30,9 @@ export default withDefaults({
     return {
       skills: alt(def, {
         // 铳骑主考官: the next attack is a triple hit of atk_scale each and reloads `charge` bullet(s) into ONE other
-        // 拉特兰 operator around him (8 tiles, [ASSUMED] nearest first) whose ammo skill runs
+        // 拉特兰 operator around him whose ammo skill runs — PRTS 备注 「补弹范围为周围8格，仅选择可补弹的干员为目标，优先选择最后
+        // 部署的干员」: the latest deployment first (battle-wide deploySeq: a redeploy is a new deployment). Until 0.2.2 the
+        // nearest first [ASSUMED] (GitHub #325, PR #329)
         skchr_rmixer_1: () => ({
           kind: instantKind(def),
           attack: {
@@ -39,7 +41,7 @@ export default withDefaults({
               const n = num(bb.charge, 1);
               const cand = battle.alliesInRadius(unit.x, unit.y, 1.5, unit.ownerId)
                 .filter((a) => a !== unit && a.kind === 'op' && nationOf(a) === 'laterano' && a.skill && a.skill.active && a.skill.kind === 'ammo')
-                .sort((a, b) => Math.hypot(a.x - unit.x, a.y - unit.y) - Math.hypot(b.x - unit.x, b.y - unit.y) || a.id - b.id);
+                .sort((a, b) => b.deploySeq - a.deploySeq || a.id - b.id);
               if (!cand[0] || !(n > 0)) return;
               cand[0].skill.addAmmo(n);
               battle.fx('reload', { x: cand[0].x, y: cand[0].y, id: cand[0].id, n });

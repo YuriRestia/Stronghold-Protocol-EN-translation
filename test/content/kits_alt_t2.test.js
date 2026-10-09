@@ -421,8 +421,9 @@ test('2_16 拉普兰德 S1 日晷: toggle (持续时间无限) ATK +atk; blocks 
     const bb = bbAlt(id);
     for (const roll of [true, false]) {
       const seen = [];
+      // 120 hits a minute at bat 0.5, each at the 5 % floor (12.5): 1500 in the 60 s, short of the normal form's 1791 HP
       const h = run({
-        defs: { enemies: { e: dummy('e', { atk: 300, bat: 0.5 }) } }, units: [U(id, 9, 5, { carryState: READY })], enemies: [{ key: 'e', pos: [9, 5] }],
+        defs: { enemies: { e: dummy('e', { atk: 250, bat: 0.5 }) } }, units: [U(id, 9, 5, { carryState: READY })], enemies: [{ key: 'e', pos: [9, 5] }],
         setup: (b) => { b.rng.chance = (p) => { seen.push(p); return roll; }; },
       });
       const u = h.unit(id);

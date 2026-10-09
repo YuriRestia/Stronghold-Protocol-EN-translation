@@ -4,6 +4,7 @@
 import { COLS } from '../../../constants.js';
 import { rotateOffset } from '../../../dir.js';
 import { AURA_IV, AURA_DUR, num, talent, traitBb, skillGrid, isOp, leaderOf, whileOn } from '../shared/tier5.js';
+import { hypot, sin, cos } from '../../../detmath.js';
 
 /** 魔王 T1 微尘: collision radius of one mote (PRTS 备注 0.4); orbit radius / speed come from the talent bb. */
 const MOTE_HIT_RADIUS = 0.4;
@@ -82,11 +83,11 @@ export default {
               const ang = spd * t + (2 * Math.PI * k) / cnt;
               // the orbit turns with his direction: angle 0 = straight ahead, π/2 = his left hand
               const [fr, fc] = unit.fwd, [lr, lc] = rotateOffset(1, 0, unit.dir);
-              const mx = unit.x + orbit * (fc * Math.cos(ang) + lc * Math.sin(ang)), my = unit.y + orbit * (fr * Math.cos(ang) + lr * Math.sin(ang));
+              const mx = unit.x + orbit * (fc * cos(ang) + lc * sin(ang)), my = unit.y + orbit * (fr * cos(ang) + lr * sin(ang));
               let hit = null, hd = Infinity;
               for (const a of cands) {
                 if (a.findBuff('cetsyr:mote')) continue;
-                const d = Math.hypot(a.x - mx, a.y - my);
+                const d = hypot(a.x - mx, a.y - my);
                 if (d <= MOTE_HIT_RADIUS + 1e-9 && d < hd) { hd = d; hit = a; }
               }
               if (!hit) continue;

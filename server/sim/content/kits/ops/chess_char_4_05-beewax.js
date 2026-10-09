@@ -5,6 +5,7 @@ import { COLS } from '../../../constants.js';
 import {
   num, tbb, grid, targetsInRange, targetsInGrid, toggleBuff, skillActive, withDefaults,
 } from '../shared/tier4.js';
+import { hypot } from '../../../detmath.js';
 
 /**
  * Free tile for a summon/device: in the rect, standable, not reserved (Battle.isReservedTile: empty, no knocked-out
@@ -39,7 +40,7 @@ export default withDefaults({
           for (const k of unit.rangeKeys || []) {
             const r = (k / COLS) | 0, c = k % COLS;
             if (!freeTile(battle, r, c)) continue;
-            const d = Math.hypot(c - ref.x, r - ref.y) + (battle.grid.groundPassable(r, c) ? 0 : 5);
+            const d = hypot(c - ref.x, r - ref.y) + (battle.grid.groundPassable(r, c) ? 0 : 5);
             if (d < bd - 1e-9) { bd = d; best = [r, c]; }
           }
           if (!best) return;

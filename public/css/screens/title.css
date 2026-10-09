@@ -243,9 +243,11 @@
 .title-invite .icon { width: .2rem; height: .2rem; }
 .title-invite b { font-size: .2rem; letter-spacing: .2em; color: #ffd08a; }
 .title-conn { display: flex; align-items: center; justify-content: center; gap: .1rem; min-height: .32rem; font-size: .14rem; color: var(--text-lo); }
+/* 统计 (the local stats page) beside the language menu in the top-right corner */
+.title-corner__tools { display: flex; align-items: center; justify-content: flex-end; gap: .1rem; margin-bottom: .1rem; }
+.title-corner__tools .title-lang { margin-bottom: 0; }
 /* language menu (中文 | English | …, ui/lang.js) in the top-right corner; more than four languages make it a list */
-/* players online (ui/presence.js) sits left of the language menu */
-.title-tr-row { display: flex; align-items: center; justify-content: flex-end; gap: .1rem; margin-bottom: .1rem; }
+/* players online (ui/presence.js) sits first in .title-corner__tools, left of 统计 and the language menu */
 .title-online { height: .3rem; font-size: .15rem; }
 .title-lang { display: inline-flex; }
 .title-lang button { min-width: .74rem; height: .3rem; font-size: .14rem; cursor: pointer; }

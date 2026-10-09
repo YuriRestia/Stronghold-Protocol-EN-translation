@@ -30,6 +30,21 @@
 .gtop > * { pointer-events: auto; }
 .gtop__left { display: flex; align-items: center; gap: .16rem; }
 .gtop__meta { display: flex; flex-direction: column; align-items: flex-start; gap: .06rem; }
+/* the latency pill and, beside it, the 观战席 capsule (ui/hud.js SpectatorPill: an eye + how many are watching; opens the roster) */
+.gtop__net { display: flex; align-items: center; gap: .08rem; }
+.specpill { --btn-bg: rgba(0, 0, 0, .5); --btn-bg-hover: rgba(0, 0, 0, .66); --btn-bd: var(--line); height: .32rem; min-width: 0; padding: 0 .12rem; gap: .05rem; border-radius: 99px; }
+.specpill .btn__icon { width: .18rem; height: .18rem; color: var(--mint-500); }
+.specpill__num { font-size: .18rem; font-weight: 700; color: var(--mint-400); }
+.specpill.is-me { --btn-bd: var(--mint-600); }
+/* the roster inside its modal */
+.spec__roster { display: flex; flex-direction: column; gap: .06rem; margin: 0 0 .1rem; padding: 0; list-style: none; }
+.spec__row { display: flex; align-items: center; gap: .1rem; min-height: .44rem; padding: .04rem .1rem; background: rgba(255, 255, 255, .03); border: 1px solid transparent; }
+.spec__row.is-me { border-color: var(--mint-700); background: rgba(45, 212, 191, .08); }
+.spec__row.is-offline .spec__name { color: var(--text-dim); }
+.spec__ico { width: .18rem; height: .18rem; flex: none; color: var(--mint-500); }
+.spec__row.is-offline .spec__ico { color: var(--text-dim); }
+.spec__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .19rem; color: var(--text-hi); }
+.spec__hint { margin: .04rem 0 0; font-size: .15rem; line-height: 1.45; }
 .gtop__exit { box-shadow: 0 .06rem .2rem rgba(0, 0, 0, .5); }
 .gtop__center {
   --bk-c: var(--mint-700);
@@ -501,6 +516,10 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---- settings modal ------------------------------------------------------------------------------------------------ */
+/* the 设置 trigger of the lobby and the room (ui/settings.js SettingsButton, GitHub #238): the 玩法说明 button's twin; its gear sits
+   inside the label, so the label lays glyph and text out like the button itself */
+.settings-btn .btn__label { display: inline-flex; align-items: center; gap: .1rem; }
+.settings-btn .btn__icon { color: var(--mint-500); }
 .set-list { display: flex; flex-direction: column; gap: .16rem; padding-top: .06rem; }
 .set-row { display: grid; grid-template-columns: 3.3rem 1fr auto; align-items: center; gap: .18rem; min-height: .44rem; }
 .set-row__label { display: flex; align-items: center; gap: .1rem; font-size: .18rem; color: var(--text-hi); white-space: nowrap; }
@@ -562,6 +581,26 @@
 .preload__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .08rem; }
 /* the tools' top rule: the downloaded / ticked-packs progress */
 .preload__bar { flex: 0 0 100%; margin-bottom: .02rem; }
+/* 问题反馈 (ui/settings.js DiagSection): laid out like 快捷键 — a head with its button, a hint, the result line; the
+   recorded-error count in the figure face of the slider values (amber once there is one); the report box only when the
+   clipboard refused it, styled like 干员调配's 导出 box (screens/loadout.css .lo-io__text) */
+.set-diag { display: flex; flex-direction: column; gap: .08rem; padding-top: .1rem; border-top: 1px solid var(--line); }
+.set-diag__meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .04rem .2rem; }
+.set-diag__stat { display: inline-flex; align-items: baseline; gap: .1rem; font-size: .14rem; color: var(--text-lo); }
+.set-diag__count { font-family: var(--font-num); font-size: .2rem; line-height: 1; color: var(--mint-400); }
+.set-diag__count.is-warn { color: var(--amber); }
+.set-diag__url { min-width: 0; font-size: .13rem; color: var(--text-dim); overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
+.set-diag__battle-hint { margin-top: -.06rem; }
+.set-diag__text {
+  box-sizing: border-box; width: 100%; height: max(2rem, 140px); min-height: 120px; resize: vertical;
+  padding: max(.1rem, 8px) max(.12rem, 10px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: max(.13rem, 11px); line-height: 1.5;
+  color: var(--text-hi); background: rgba(4, 10, 8, .55); border: 1px solid var(--line-2); border-radius: 2px; outline: none;
+  white-space: pre-wrap; overflow-wrap: anywhere; overflow-y: auto;
+}
+.set-diag__text:focus { border-color: var(--mint-700); }
+/* touch: 16 px, below which iOS zooms into the focused box (as 干员调配's 导出 box and ui/clipboard.js) */
+.sp-coarse .set-diag__text { font-size: 16px; }
 @media (max-width: 767px) { .set-keys__list { grid-template-columns: minmax(0, 1fr); } }
 @media (max-height: 600px) and (pointer: coarse), (max-height: 600px) and (any-pointer: coarse) {
   .set-key { height: max(.38rem, 30px); }

@@ -3,6 +3,7 @@
 
 import { bodyInKeys } from '../../../body.js';
 import { num, tbb, keySet, skillActive, isSel, alt, instantKind, withDefaults } from '../shared/tier4.js';
+import { hypot } from '../../../detmath.js';
 
 /** 阿罗玛's 非首次标记 (talent 起泡性能测试): one per enemy, shared by every 阿罗玛 (PRTS 备注). */
 const AROMA_MARK = 'aroma:bubbled';
@@ -71,7 +72,7 @@ export default withDefaults({
           const lo = num(tb.min_dist, 0), hi = num(tb.max_dist, 4);
           battle.on('hit', (c) => {
             if (c.source !== unit || !c.dmg.isAttack) return;
-            const d = Math.hypot(c.target.x - unit.x, c.target.y - unit.y);
+            const d = hypot(c.target.x - unit.x, c.target.y - unit.y);
             c.dmg.mul *= 1 + ds * Math.max(0, Math.min(1, (d - lo) / Math.max(1e-6, hi - lo)));
           }, { owner: unit });
         }

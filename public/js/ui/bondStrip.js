@@ -17,7 +17,9 @@
 // already did.
 // Watching a teammate (DESIGN §20.15, ui/watchBonds.js) the strip and the popup show THAT player's bonds and layers:
 // the strip carries an amber "👁 name" tag (`owner`, the observing pill's spelling, research 09 §3.1) and amber rings,
-// the popup a "👁 name 的盟约" line; its member list reads the teammate's operators on the field (no hand: never sent).
+// the popup a "👁 name 的盟约" line; its member list reads the teammate's operators on the field — in prep their bench
+// too, counted like their own popup counts it (ui/watchBonds.js ownerBoard: hand / temp by the scout's `area`, GitHub
+// #385); a battle sends no bench.
 // 0.2.0 补位: a member the player fields as its stand-in (the own m.private.standIns; a teammate's unit that says so —
 // UnitInfo `standInFor`) is drawn as the stand-in — avatar, name, a small 「替补」 mark on the thumbnail — and its row
 // opens the stand-in's card (gameLogic memberStandIn; the owner's recall of the official mode, 2026-10-06).

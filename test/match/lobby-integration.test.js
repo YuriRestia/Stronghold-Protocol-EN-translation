@@ -202,6 +202,69 @@ test('co-op spectator over websockets: watches the real match like an eliminated
   assert.deepEqual(errors, []);
 });
 
+// GitHub #120 (PR #120 by @salt-fishes — the in-match 观战席 list, ui/hud.js SpectatorPill): the host frees a spectator seat WHILE
+// the match runs. The server took room.removeSpectator at any time (server/lobby.js removeSpectator; its header says "any
+// time") but the lobby tests only removed one in the lobby: this is the running match.
+test('co-op spectator removed by the host while the match runs: room.closed {kicked}, the seat freed and refilled, no frame after it, the other spectator watches on', async () => {
+  FakeBattle.reset();
+  FakeBattle.script = () => ({ duration: 1 });
+  const watcher = async (name) => {
+    const srvNow = await server();
+    const c = await TestClient.connect(`ws://127.0.0.1:${srvNow.port}/ws`);
+    clients.push(c);
+    const w = await c.hello(name);
+    c.id = w.playerId;
+    c.token = w.token;
+    return c;
+  };
+  const a = await player('A');
+  await ok(a, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+  const st = await a.waitFor('room.state');
+  await ok(a, { t: 'room.addBot' });
+  const s1 = await watcher('Spec1');
+  const s2 = await watcher('Spec2');
+  await ok(s1, { t: 'room.spectate', code: st.code });
+  await ok(s2, { t: 'room.spectate', code: st.code });
+  await ok(a, { t: 'room.start' });
+  await s1.waitFor('m.public', (p) => p.phase === 'INFO_CHECK');
+  await ok(a, { t: 'g.infoReady' });
+  await pickCoopBands([a]);
+  await a.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 1, 10000);
+  const running = await a.waitFor('room.state', (x) => x.inMatch && x.spectators.length === 2);
+  assert.deepEqual(running.spectators.map((x) => x.playerId), [s1.id, s2.id], 'both seats are listed while the match runs: what the game screen\'s capsule shows');
+
+  // who may remove: the host only, and only a spectator of this room
+  assert.equal((await s1.request({ t: 'room.removeSpectator', playerId: s2.id })).code, 'NOT_HOST', 'a spectator cannot remove another');
+  assert.equal((await a.request({ t: 'room.removeSpectator', playerId: 'nobody' })).code, 'BAD_TARGET');
+  assert.equal((await a.request({ t: 'room.removeSpectator', playerId: a.id })).code, 'BAD_TARGET', 'a player is no spectator');
+
+  // the host removes the first one: told room.closed {kicked}; the room.state of the match now lists the other only
+  await ok(a, { t: 'room.removeSpectator', playerId: s1.id });
+  assert.equal((await s1.waitFor('room.closed', () => true, 5000)).reason, 'kicked');
+  const after = await a.waitFor('room.state', (x) => x.inMatch && x.spectators.length === 1);
+  assert.deepEqual(after.spectators.map((x) => x.playerId), [s2.id]);
+  assert.equal((await s2.waitFor('room.state', (x) => x.inMatch && x.spectators.length === 1)).spectators[0].playerId, s2.id, 'the other spectator is told too');
+  assert.equal((await a.request({ t: 'room.removeSpectator', playerId: s1.id })).code, 'BAD_TARGET', 'a seat already freed');
+  assert.equal((await s1.request({ t: 'g.watch', fieldId: `n:${a.id}` })).code, 'NOT_IN_ROOM', 'out of the room: no more watching');
+
+  // the match runs on: the removed seat gets no frame of it any more, the other spectator and the player do
+  const mark = s1.log.length;
+  s2.log.length = 0;
+  await ok(a, { t: 'g.ready', ready: true });
+  await s2.waitFor('b.start', (x) => x.kind === 'normal', 10000);
+  await a.waitFor('m.public', (p) => p.phase === 'PREP' && p.round === 2, 15000);
+  assert.deepEqual(s1.log.slice(mark).filter((x) => x.t !== 'pong').map((x) => x.t), [], 'nothing reaches the removed spectator');
+  assert.ok(s2.log.some((x) => x.t === 'm.public'), 'the other spectator still gets the match');
+
+  // the freed seat can be taken again (no ban list: the key is all it takes)
+  const s3 = await watcher('Spec3');
+  await ok(s3, { t: 'room.spectate', code: st.code });
+  const refilled = await a.waitFor('room.state', (x) => x.inMatch && x.spectators.length === 2);
+  assert.deepEqual(refilled.spectators.map((x) => x.playerId), [s2.id, s3.id]);
+  assert.deepEqual(errors, []);
+  await ok(a, { t: 'g.leave' });
+});
+
 test('server-run fallback (SP_COMBAT=server): the match simulates every field and streams m.field + b.snap', async () => {
   FakeBattle.reset();
   FakeBattle.script = () => ({ duration: 1 });

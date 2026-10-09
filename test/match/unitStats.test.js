@@ -42,6 +42,11 @@ test('protocol: g.unitStats { seq? } and g.bandFocus { bandId? } validate; m.uni
   assert.equal(validateC2S({ t: 'g.bandFocus', bandId: 'band_bldsk' }), null);
   assert.notEqual(validateC2S({ t: 'g.bandFocus', bandId: 'a b' }), null);
   assert.ok(S2C.includes('m.unitStats'));
+  assert.equal(validateC2S({ t: 'g.choice', idx: 0 }), null);
+  assert.equal(validateC2S({ t: 'g.choice', idx: 2, choiceId: 'seed-2.choice.12' }), null);
+  for (const choiceId of [null, '', 'a b', 12, 'a'.repeat(65)]) {
+    assert.notEqual(validateC2S({ t: 'g.choice', idx: 0, choiceId }), null);
+  }
 });
 
 test('unitStatsEntry: effective stats next to the base, rounded for display; the interval from bat / aspd when absent', () => {

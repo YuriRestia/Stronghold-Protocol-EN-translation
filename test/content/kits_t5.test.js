@@ -711,7 +711,7 @@ test('凛御银灰 S2 auto-cast: SKILL_RANGE — an enemy inside the skill range
 });
 
 // ------------------------------------------------------------------------------------------------------------------
-test('引星棘刺 S2: alchemy unit (+3 s with an op in range) — 120 % ATK arts/s, healing ×0.5 on ground enemies, heals allies; T1 ATK +10 %; T2 ASPD ±10 on long roads', () => {
+test('引星棘刺 S2: alchemy unit (+3 s with an op in range) — 120 % ATK arts/s, healing ×0.5 on ground enemies, allies recover (生命回复速度); T1 ATK +10 %; T2 ASPD ±10 on long roads', () => {
   const h = makeBattle({
     defs: { enemies: { enemy_dummy: dummy() }, chess: { t_near: ally('t_near') } },
     units: [{ chessId: 'chess_char_5_15_a', row: 10, col: 3 }, { chessId: 't_near', row: 11, col: 5 }],
@@ -734,7 +734,7 @@ test('引星棘刺 S2: alchemy unit (+3 s with an op in range) — 120 % ATK art
   const ticks = tagged(h, 'alchemy', e);
   assert.ok(ticks.length >= 1);
   approx(ticks[0].amount, u.s.atk * bb.atk_scale, 1e-6);
-  assert.ok(near.hp > 5000, 'allies inside heal');
+  assert.ok(near.hp > 5000, 'allies inside recover');
   h.run(bb.projectile_delay_time + t0.projectile_extend);
   assert.equal(u.mem.zones.length, 0, 'expired');
   clean(h);

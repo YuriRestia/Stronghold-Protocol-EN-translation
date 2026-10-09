@@ -1,6 +1,7 @@
 // Community report of 2026-10-06 「独行这种盟约是不能叠层的（顺便排查下还有没有类似的）」 (item 21). PRTS 卫戍协议：盟约 下半/
 // PRTS盟约记录, its header: 「下述盟约中部分盟约不会显示叠加层数，但是叠加层数的特质/策略/装备等效果仍然对其生效」 — the four
-// bonds.json `noStack` bonds (调和 协防干员 独行 绝技) do take layers (助力, 余, 华法琳 …), the game only never shows them. The
+// bonds.json `noStack` bonds (调和 协防干员 独行 绝技) do take layers (助力, 华法琳 … — not 余's 文火慢炖, the owner's decision
+// of 2026-10-08), the game only never shows them. The
 // bond strip and its popup hide them since 0.1.4 (PR #66, test/ui/feedback1b-bonds.test.js); the result card still printed
 // them (「独行 24」) and ordered its six bonds by them. resultBonds: no number, no rank for a hidden count.
 import { test } from 'node:test';

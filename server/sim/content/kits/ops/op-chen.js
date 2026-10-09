@@ -114,9 +114,13 @@ export default {
         },
         [S2]: {
           kind: num(s2?.maxChargeTime, 1) > 1 ? 'charges' : 'instant',
+          // 白铁's 铁钳号·原型机 (a registered ally target) is drawn on like an enemy, after every enemy (嘲讽等级 −2) — the
+          // owner's rule of 2026-10-08; its kit cancels the hits [ASSUMED] (skills.js allyTargetsOk)
+          allyTargets: true,
           onStart({ battle, unit }) {
             const list = battle.enemiesInKeys(keysOf(unit, grid2), unit, AIR);
             sortEnemyTargets(battle, unit, list, null);
+            list.push(...battle.allyTargetsInKeys(keysOf(unit, grid2), unit));
             const v = list.slice(0, Math.max(1, Math.floor(num(b2.max_target, 1))));
             battle.fx('slash', { x: unit.x, y: unit.y, id: unit.id, n: v.length, skill: 'chen:draw' });
             const amount = () => unit.s.atk * num(b2.atk_scale, 1);
@@ -132,6 +136,9 @@ export default {
           duration: S3_CLIP,
           flags: { invulnerable: true, noBlock: true },
           attack: { noAttack: true },
+          // [ASSUMED] its slashes and its guard (guardActivation) take ground enemies only: 白铁's 铁钳号 alone does not open
+          // it (skills.js allyTargetsOk) — the skill ends at once without a target
+          allyTargets: false,
           onStart({ battle, unit }) {
             battle.releaseBlocked(unit); // 无法阻挡
             unit.mem.chenS3 = { t: 0, n: 0, target: null };

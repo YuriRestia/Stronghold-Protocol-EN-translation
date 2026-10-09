@@ -58,6 +58,7 @@ import { num, talentBb, moduleBb, traitBb, up, toggleBuff, summonTileFree } from
 import { absoluteRangeKeys, canTargetEnemy } from '../../../targeting.js';
 import { bodyOnTile } from '../../../body.js';
 import { COLS } from '../../../constants.js';
+import { atPotential } from '../../../../../shared/potential.js';
 
 const S1 = 'skchr_doroth_1';
 const S2 = 'skchr_doroth_2';
@@ -112,7 +113,7 @@ export default {
     /** The token's deploy limit for her loadout (variant stats, the module's when it carries one); her max stock too. */
     function limitOf(battle, unit) {
       const raw = battle.data.rawToken?.(RESONATOR);
-      const v = raw?.variants?.[unit.def?.tokenOwner];
+      const v = atPotential(raw?.variants?.[unit.def?.tokenOwner], unit.def?.loadout?.potential);
       const mod = unit.def?.loadout?.moduleId;
       const n = num(v?.byModule?.[mod]?.stats?.deployLimit, num(v?.stats?.deployLimit, num(raw?.deployLimit, 0)));
       if (n > 0) return n;

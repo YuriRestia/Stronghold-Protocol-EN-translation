@@ -465,6 +465,33 @@ test('ADD_BOND 耀骑士临光 145 / 160 (real chess): self + front get 144 (red
   }
 });
 
+test('respawnTimeByBond 144 has no 5% floor (#370): redeployMul is max(0, 1 + respawn_time * steps)', () => {
+  for (const [gid, rt] of [['garrison_144_a', -0.015], ['garrison_144_b', -0.03]]) {
+    assert.equal(GR(gid).bb.respawn_time, rt);
+    assert.deepEqual(Object.keys(GR(gid).bb).sort(), ['divide_num', 'respawn_time']);
+    // 96 / 192 layers: the old 0.05 floor bound the elite / the normal form (raw 0.04); 300: below zero
+    for (const layers of [9, 96, 192, 300]) {
+      const k = Math.floor(layers / 3);
+      const want = Math.max(0, 1 + rt * k);
+      const h = battle({
+        units: [{ id: 'op', g: [gid], row: 10, col: 4, o: { stats: { respawnTime: 100 } } }],
+        bonds: { kazimierzShip: B(layers) },
+      });
+      const u = h.unit('op');
+      approx(u.findBuff(`gar:${gid}`).mods.redeployMul, want, `${gid} @ ${layers}`);
+      h.b.dealDamage(null, u, { amount: 1e9, type: 'true' });
+      assert.equal(u.alive, false);
+      approx(u.respawnAt - u.deathAt, 100 * want, `${gid} timer @ ${layers}`);
+      if (want === 0) {
+        h.step(2);
+        assert.ok(u.alive && u.deployed, `${gid} @ ${layers}: a 0 s timer brings it straight back`);
+        assert.equal(h.b.errorCount, 0);
+      }
+    }
+    cover(gid);
+  }
+});
+
 // ---------------------------------------------------------------------------------------------------------------------
 // 魔王
 

@@ -140,8 +140,8 @@ export function captureHotkey(e) {
  * Map a keydown to a game shortcut under the player's key map (defaults: R refresh, F freeze, D level-up, Q retreat,
  * X sell, Space ready) or Esc (close; fixed). A shortcut key means its action even while a HUD button has focus (a
  * mouse click leaves the shop card / 刷新 focused, and Space must not re-trigger it); the caller prevents the button's
- * own activation. Enter still activates buttons (it cannot be a shortcut). Nothing while Ctrl / ⌘ / Alt is held or a
- * text field has the focus.
+ * own activation. Enter still activates buttons (it cannot be a shortcut; behind the facing wheel only its ✕:
+ * facingEnter). Nothing while Ctrl / ⌘ / Alt is held or a text field has the focus.
  * @param {{ key?: string, code?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean, repeat?: boolean, target?: any }} e
  * @param {any} [keys] the player's map (settings `keys`)
  * @returns {'refresh'|'freeze'|'levelUp'|'retreat'|'sell'|'ready'|'escape'|null}
@@ -164,14 +164,36 @@ export function shortcutFor(e, keys = DEFAULT_HOTKEYS) {
  */
 export const facingSwallows = (e, keys = DEFAULT_HOTKEYS) => e?.key === ' ' || actionForKey(e, keys) != null;
 
+// what a focused element is when Enter would activate it (a button, a link, a form field, an ARIA control)
+const CONTROL = 'button, a[href], input, select, textarea, summary, [contenteditable=""], [contenteditable="true"], '
+  + '[role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="tab"], [role="menuitem"], [role="option"]';
+
+/**
+ * What Enter does while the facing wheel is open (GitHub #394, PR #395): on the wheel's own ✕ button it cancels; on
+ * any other control (准备, 刷新, 设置, 玩法说明, a shop card … — Tab reaches them behind the wheel) nothing happens — the
+ * wheel holds the keyboard as it holds Space and the shortcuts; with the focus anywhere else (the wheel itself, the
+ * page) it confirms the previewed direction, and does nothing while none is previewed. null: not Enter.
+ * @param {{ key?: string, target?: any }} e @param {boolean} chosen a direction is previewed
+ * @returns {'cancel'|'commit'|'swallow'|null}
+ */
+export function facingEnter(e, chosen) {
+  if (e?.key !== 'Enter') return null;
+  const t = e.target;
+  const closest = (sel) => (t && typeof t.closest === 'function' ? t.closest(sel) : null);
+  if (closest('.fwheel__cancel')) return 'cancel';
+  if (closest(CONTROL)) return 'swallow';
+  return chosen ? 'commit' : 'swallow';
+}
+
 /**
  * Whether a press on the field closes the open detail card: a card opened from the field itself (an own piece — tap,
  * right-click or long press — or a battle / teammate unit). Shop, reward, bond-member and intel (enemy) cards stay.
  * @param {{ kind?: string }|null|undefined} detail
  */
-// a card opened BY a field press (a piece, a unit, a special terrain tile: issue #184) closes on the next press of
-// the field; the ones opened from the shop / hand / HUD stay until their own close button (or the flow that opened them)
-export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail?.kind === 'unit' || detail?.kind === 'terrain';
+// a card opened BY a field press (a piece, a unit, a special terrain tile: issue #184, a stage device: #228) closes on the
+// next press of the field; the ones opened from the shop / hand / HUD stay until their own close button (or the flow that
+// opened them)
+export const closesOnFieldPress = (detail) => detail?.kind === 'piece' || detail?.kind === 'unit' || detail?.kind === 'terrain' || detail?.kind === 'device';
 
 /**
  * Whether an open overlay swallows a game shortcut: a modal / the guide own the keyboard (Esc included — they close

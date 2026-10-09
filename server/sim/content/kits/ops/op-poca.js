@@ -36,6 +36,7 @@
 
 import { num, talentBb, moduleBb, moduleOn, traitBb, skillRec, statBuff, onHitBy, enemiesInGrid, up } from '../shared/tier1.js';
 import { hasHp } from '../../../damage.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skcom_atk_up[3]';
 const S2 = 'skchr_poca_2';
@@ -161,7 +162,7 @@ export default {
         if (ds > 0) {
           onHitBy(battle, unit, ({ target, dmg }) => {
             if (!dmg.isAttack) return;
-            const d = Math.hypot(target.x - unit.x, target.y - unit.y);
+            const d = hypot(target.x - unit.x, target.y - unit.y);
             dmg.mul *= 1 + ds * Math.max(0, Math.min(1, (d - lo) / Math.max(1e-6, hi - lo)));
           });
         }

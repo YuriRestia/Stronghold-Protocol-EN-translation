@@ -8,6 +8,8 @@
 // player's units say it themselves (UnitInfo `diy`: the sim's, Match.prepFieldMeta's for scouting, m.result lineups). The
 // composed record is shared/diy.js diyRecordOf over chess.json + backups.json — the one the server and the sim use.
 // `data` below = `{ chess, backups }` (the client's data.get('chess') / data.get('backups'), localized copies).
+// 0.2.2: a pick may carry `potential` (the owner's 潜能 of the operator — m.private.ops for the player's own, UnitInfo
+// `potential` for another player's unit): the record is composed at it (an owned pick; a prototype has none).
 
 import { diyRecordOf } from '../../../../shared/diy.js';
 import { isObj } from './shared.js';
@@ -26,7 +28,10 @@ export function ownDiyPick(priv, chess) {
   if (!isObj(chess) || !chess.isDiy) return null;
   const slot = typeof chess.diyFor === 'string' ? chess.diyFor : chess.baseId || chess.chessId;
   const p = diyPicks(priv)[slot];
-  return isObj(p) && typeof p.charId === 'string' ? p : null;
+  if (!isObj(p) || typeof p.charId !== 'string') return null;
+  // 0.2.2: at the player's 潜能 of that operator (m.private.ops; none set = 6)
+  const pot = isObj(priv?.ops) && isObj(priv.ops[p.charId]) ? priv.ops[p.charId].potential : null;
+  return Number.isInteger(pot) && pot >= 1 && pot < 6 ? { ...p, potential: pot } : p;
 }
 
 /** Per backups object: `chessId|charId|skill|module` → composed record (or null). */
@@ -44,10 +49,11 @@ export function diyRecordFor(chess, pick, data) {
   if (!isObj(pick) || !isObj(data?.backups)) return null;
   let m = CACHE.get(data.backups);
   if (!m) { m = new Map(); CACHE.set(data.backups, m); }
-  const key = `${chess.chessId}|${pick.charId}|${pick.skillIndex ?? ''}|${pick.uniEquipId ?? ''}`;
+  const pot = Number.isInteger(pick.potential) ? pick.potential : null;
+  const key = `${chess.chessId}|${pick.charId}|${pick.skillIndex ?? ''}|${pick.uniEquipId ?? ''}|${pot ?? ''}`;
   if (m.has(key)) return m.get(key);
   let rec;
-  try { rec = diyRecordOf(chess, pick, data); } catch { rec = null; }
+  try { rec = diyRecordOf(chess, pick, data, { potential: pot }); } catch { rec = null; }
   m.set(key, rec);
   return rec;
 }
@@ -65,8 +71,14 @@ export function ownDiyRecord(chess, priv, data) {
  */
 export function cardDiy(chess, { priv = null, unit = null, data = null } = {}) {
   if (!isObj(chess) || !chess.isDiy) return null;
-  if (unit) return isObj(unit.diy) ? diyRecordFor(chess, unit.diy, data) : null;
+  if (unit) return isObj(unit.diy) ? diyRecordFor(chess, unitPick(unit), data) : null;
   return ownDiyRecord(chess, priv, data);
+}
+
+/** A unit's 自选 pick with its potential (UnitInfo `diy` + `potential`, 0.2.2), or null. */
+export function unitPick(unit) {
+  if (!isObj(unit) || !isObj(unit.diy)) return null;
+  return Number.isInteger(unit.potential) ? { ...unit.diy, potential: unit.potential } : unit.diy;
 }
 
 /**

@@ -88,8 +88,10 @@ test('终极 Final Assault (+200 layers per active bond): one pool (bloodPoint �
         for (const k of MUL_STATS) assert.ok(!(k in b.mods), `${u.name}: ${b.key} is a 直接乘算 bonus, not ${k} (${JSON.stringify(b.mods)})`);
       }
       const { add, mul } = aggregateMods(u.buffs);
-      const want = Math.max(0, ((u.base.atk + (add.atkFlat ?? 0)) * Math.max(0, 1 + (add.atkPct ?? 0)) + (add.atkFinal ?? 0)) * (mul.atkMul ?? 1));
-      assert.ok(Math.abs(u.s.atk - want) <= 1e-6 * Math.max(1, want), `${u.name}: ATK = ((base + flat) × (1 + Σ%) + 最终加算) × Π(提升至/runes)`);
+      // the 练度 multiplier (0.2.2, the unit's own cultMul: default 精英2 Lv.60 = ×1.1) is a separate factor, after 直接乘算
+      const cult = u.cultMul ? u.cultMul.atk : 1;
+      const want = Math.max(0, ((u.base.atk + (add.atkFlat ?? 0)) * Math.max(0, 1 + (add.atkPct ?? 0)) + (add.atkFinal ?? 0)) * (mul.atkMul ?? 1) * cult);
+      assert.ok(Math.abs(u.s.atk - want) <= 1e-6 * Math.max(1, want), `${u.name}: ATK = ((base + flat) × (1 + Σ%) + 最终加算) × Π(提升至/runes) × 练度`);
     }
   }
   assert.ok(ops >= 12 && withBonds >= 8, `the bots' lineups carry bond / item bonuses (${withBonds} of ${ops})`);

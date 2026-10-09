@@ -5,12 +5,16 @@
 // present: operator_preset, image_skill_select_outline, skill_select_deco, icon_equip_non; the module type icons of
 // groups.module — lettered tiles without them).
 //
-// Left: roster of the 112 visible chess (tier / class / bond filters, search, 仅看已调整) — each card shows the equipped
-// skill (S1–S3) and, when changed, the elite's module badge. Right: the selected chess — skills (icon, name, 默认,
+// Left: the 112 visible chess as one list (tier / class / bond filters, search, 仅看已调整) — a row per operator, its columns
+// aligned (0.2.2; the quick choices of PR #301 by @farridge, laid out as one list instead of three columns of cards — the
+// owner's decision of 2026-10-08): portrait, name and bonds (a click opens the detail), the skills and the elite's modules
+// to tap (不装备 first), the 潜能 and 练度 selects (screens/cultivation.js). Right: the selected chess — its 潜能 / 练度,
+// its 特质 (the in-match card's block, PR #301), skills (icon, name, 默认,
 // SP recovery, 初始 / 消耗 SP, duration, description at 普通 Lv.4 or 精锐 Lv.7), 局内数值 (the stats, 攻击范围, 特性 and
 // 天赋 the chosen variant — 精锐 first, 普通 on the toggle — fights with under the chosen skill and module: the detail
 // card's own block and pure functions, GitHub issue #64) and the elite's modules (不装备 / X / Y … with the stat bonus,
-// the trait upgrade and the talent changes), 恢复默认; 全部恢复默认 in the top bar.
+// the trait upgrade and the talent changes), 恢复默认; 全部恢复默认 in the top bar. The detail's 普通 / 精锐 skill toggle is one
+// preview for the skills, the 特质 and the rows' skill details (display only: never stored).
 // The loadout lives in ui/loadoutSync.js (localStorage + room.loadout); the model is ui/loadoutModel.js.
 // The second tab, 干员持有 (0.2.0 补位, screens/ownership.js): which NORMAL chess the player owns — a chess marked 未持有 is
 // deployed as its official stand-in (room.ownership; ui/ownershipModel.js) — with its own 导出 / 导入 / 全部持有.
@@ -22,16 +26,20 @@ import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.
 import { html, Icon, MicroLabel, Button, TierChip, TextField, Countdown, Spinner, confirmDialog, hasDeadline, Modal, Fragment } from '../ui/components.js';
 import { Img, RichText, UnitThumb } from '../ui/gameComponents.js';
 import { chessAvatarUrl, chessPortraitUrl, subProfIconUrl, bondIconUrl, moduleTypeIconUrl } from '../ui/assetUrls.js';
-import { chessStatsBlock, traitText, chessTalents } from '../ui/detailPanel.js';
+import { chessStatsBlock, traitText, chessTalents, GarrisonBlock } from '../ui/detailPanel.js';
 import { chessLoadout } from '../ui/gameLogic.js';
 import { data, useData, localAsset, DATA_FILES } from '../data.js';
 import { useStore } from '../store.js';
 import { PHASE } from '../../../shared/constants.js';
 import {
   MODULE_NONE, PROF_ORDER, PROF_NAME, rosterOf, filterRoster, recordsOf, chessOptions, effectiveChoice, setChoice, resetChoice,
-  changedCount, skillLabel, moduleBadge, attrRows, skillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES,
+  changedCount, skillLabel, moduleBadge, attrRows, skillTags, quickSkillTags, traitLines, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES,
+  opsOf, setOps, resetOps, moduleRecord,
 } from '../ui/loadoutModel.js';
-import { loadoutStore, openLoadout, closeLoadout, setEntries, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
+import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
+import { CultivationSelects, CultivationSection } from './cultivation.js';
+import { cultivationCharIds } from '../../../shared/protocol.js';
+import { atPotential } from '../../../shared/potential.js';
 import { setOwned, notOwnedCount, serializeOwnership, parseOwnershipImport, OWNERSHIP_IMPORT_MAX_BYTES } from '../ui/ownershipModel.js';
 import { OwnershipPanel, useOwnershipRoster } from './ownership.js';
 import { DiyPanel, diyData } from './diy.js';
@@ -141,37 +149,95 @@ export function ModuleGlyph({ m, rec, id, size = 'md' }) {
   </span>`;
 }
 
-// ---- roster card ---------------------------------------------------------------------------------------------------
+// ---- roster rows -----------------------------------------------------------------------------------------------------
+//
+// One list, one row per operator, its columns aligned (the head row names them): the quick choices of PR #301 (by
+// @farridge) without its three columns of cards. Every row is the same few columns — tap a skill, a module, a 潜能 / 练度 —
+// so the eye runs down a column; the portrait and name open the detail (on a phone it slides over; a quick choice keeps
+// the list). Hook-free (the tests draw it).
 
-function RosterCard({ m, chess, golden, entries, selected, onPick, notOwned = false }) {
-  const choice = effectiveChoice(entries, chess, golden);
-  const opt = chessOptions(chess, golden);
-  const skillRec = opt.skillOptions.find((s) => s.index === choice.skill)?.normal || chess.skill;
-  const modRec = golden && choice.module !== MODULE_NONE ? opt.moduleOptions.find((x) => x.id === choice.module)?.rec || null : null;
-  const modChanged = golden && choice.module !== opt.defaultModule;
-  return html`<button type="button" role="option" aria-selected=${selected ? 'true' : 'false'} data-chess=${chess.chessId}
-      class=${cx('lo-card', `lo-card--t${chess.tier}`, selected && 'is-sel', choice.changed && 'is-changed')} onClick=${() => onPick(chess.chessId)}
-      title=${`${chess.name} · ${skillRec?.name || ''}`}>
-    <span class="lo-card__art">
-      <${Img} src=${chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-card__glyph">${[...(chess.name || '?')][0]}</span>`} />
-    </span>
-    <${TierChip} tier=${chess.tier} size="sm" class="lo-card__tier" />
-    ${choice.changed ? html`<span class="lo-card__flag" aria-label=${t('已调整')}></span>` : null}
-    ${notOwned ? html`<span class="lo-card__sub" title=${t('未持有（干员持有）：由替补干员上场')} aria-label=${t('未持有')}>${t('替补')}</span>` : null}
-    <span class="lo-card__name">${chess.name}</span>
-    <span class="lo-card__kit">
-      <span class=${cx('lo-card__sk', choice.skill !== opt.defaultSkill && 'is-alt')}>
-        <${SkillIcon} m=${m} rec=${skillRec} index=${choice.skill} size="xs" />
-        <b class="num">${skillLabel(choice.skill)}</b>
-      </span>
-      ${golden ? html`<span class=${cx('lo-card__mod', modChanged && 'is-alt')} title=${modRec ? `${modRec.typeName} ${modRec.name}` : t('不装备模组')}>
-        ${choice.module === MODULE_NONE ? '—' : moduleBadge(modRec)}
-      </span>` : null}
-    </span>
+/** One skill to tap: its icon, the equipped one ringed; the label / tooltip says slot, name, SP and duration (quickSkillTags). */
+function QuickSkill({ m, opt, on, elite, onPick }) {
+  const rec = elite ? opt.elite || opt.normal : opt.normal || opt.elite;
+  const tags = quickSkillTags(rec);
+  const label = `${skillLabel(opt.index)} · ${rec?.name || t('未知技能')} · ${tags.sp} · ${t('初始')} ${tags.init ?? '—'} / ${t('消耗')} ${tags.cost ?? '—'} · ${t('持续')} ${tags.duration}`;
+  return html`<button type="button" class=${cx('lo-q', 'lo-q--skill', on && 'is-on')} data-skill=${opt.index} aria-pressed=${on ? 'true' : 'false'}
+      aria-label=${label} title=${label} onClick=${() => onPick(opt.index)}>
+    <${SkillIcon} m=${m} rec=${rec} index=${opt.index} on=${on} size="q" />
   </button>`;
 }
 
+/** One module to tap (不装备 first): the type icon with its letter in the corner; the elite's equipped one ringed. */
+function QuickModule({ m, opt, on, onPick }) {
+  const label = opt.id === MODULE_NONE ? t('不装备模组') : `${opt.rec?.typeName || ''} · ${opt.rec?.name || opt.id}`;
+  return html`<button type="button" class=${cx('lo-q', 'lo-q--mod', on && 'is-on')} data-module=${opt.id} aria-pressed=${on ? 'true' : 'false'}
+      aria-label=${label} title=${label} onClick=${() => onPick(opt.id)}>
+    <${ModuleGlyph} m=${m} rec=${opt.rec} id=${opt.id} size="q" />
+    ${opt.id !== MODULE_NONE ? html`<b class="lo-q__type num" aria-hidden="true">${moduleBadge(opt.rec, opt.id)}</b>` : null}
+  </button>`;
+}
+
+/** The list's column heads (the rows share its grid). */
+export function RosterHead() {
+  return html`<div class="lo-list__head" aria-hidden="true">
+    <span class="lo-list__h lo-list__h--op">${t('干员')}</span>
+    <span class="lo-list__h lo-list__h--skills">${t('技能')}</span>
+    <span class="lo-list__h lo-list__h--mods" title=${t('模组仅在精锐形态生效')}>${t('模组')}<small>${t('精锐')}</small></span>
+    <span class="lo-list__h lo-list__h--cult">${t('潜能')} · ${t('练度')}</span>
+  </div>`;
+}
+
+/**
+ * One operator's row (`.lo-card`, like the cards before it): portrait + name + bonds (`.lo-card__pick`: selects it, opens
+ * the detail), three skill slots (an empty one when the chess has two skills), the elite's modules, the 潜能 / 练度 selects.
+ * `level` 'elite': the skills' details at 精锐 Lv.7 (the shared preview). A chess marked not owned (干员持有) shows the
+ * 「替补」 tag: its stand-in fights with a fixed skill and no 潜能 / 练度, the choices here apply once it is owned again.
+ */
+export function RosterRow({ m, chess, golden, entries, ops = {}, selected, onPick, onChange, onOps, level = 'normal', notOwned = false }) {
+  const choice = effectiveChoice(entries, chess, golden);
+  const opt = chessOptions(chess, golden);
+  const cv = opsOf(ops, chess.charId);
+  const changed = choice.changed || cv.changed;
+  const modules = [...opt.moduleOptions].sort((a, b) => Number(b.id === MODULE_NONE) - Number(a.id === MODULE_NONE));
+  const elite = level === 'elite' && !!golden;
+  const slots = [0, 1, 2].map((i) => opt.skillOptions[i] || null);
+  const standInNote = notOwned ? t('未持有（干员持有）：由替补干员上场，替补干员没有潜能与练度') : null;
+  return html`<div role="listitem" data-chess=${chess.chessId} data-variant=${elite ? 'elite' : 'normal'}
+      class=${cx('lo-card', `lo-card--t${chess.tier}`, selected && 'is-sel', changed && 'is-changed', notOwned && 'is-standin')}>
+    <button type="button" class="lo-card__pick" aria-pressed=${selected ? 'true' : 'false'} title=${chess.name} onClick=${() => onPick(chess.chessId)}>
+      <span class="lo-card__art">
+        <${Img} src=${chessAvatarUrl(m, chess)} fallback=${html`<span class="lo-card__glyph">${[...(chess.name || '?')][0]}</span>`} />
+        <${TierChip} tier=${chess.tier} size="sm" class="lo-card__tier" />
+      </span>
+      <span class="lo-card__id">
+        <span class="lo-card__name">${chess.name}</span>
+        <span class="lo-card__bonds">${(chess.bonds || []).map((b) => html`<${Img} key=${b} src=${bondIconUrl(m, b)} class="lo-card__bond"
+          alt=${data.lookup('bonds', b)?.name || b} fallback=${html`<i class="lo-bond__dot" title=${data.lookup('bonds', b)?.name || b}></i>`} />`)}</span>
+        ${notOwned ? html`<span class="lo-card__sub" title=${t('未持有（干员持有）：由替补干员上场')}>${t('替补')}</span>` : null}
+      </span>
+    </button>
+    ${changed ? html`<span class="lo-card__flag" aria-label=${t('已调整')}></span>` : null}
+    <div class="lo-card__skills lo-quick" role="group" aria-label=${t('选择技能')}>
+      ${slots.map((sk, i) => (sk ? html`<${QuickSkill} key=${sk.index} m=${m} opt=${sk} elite=${elite} on=${sk.index === choice.skill}
+        onPick=${(skill) => onChange(chess.chessId, { skill })} />` : html`<span key=${`e${i}`} class="lo-q lo-q--empty" aria-hidden="true"></span>`))}
+    </div>
+    <div class="lo-card__mods lo-quick" role="group" aria-label=${t('选择模组')} title=${t('模组仅在精锐形态生效')}>
+      ${golden ? modules.map((mo) => html`<${QuickModule} key=${mo.id} m=${m} opt=${mo} on=${mo.id === choice.module}
+        onPick=${(module) => onChange(chess.chessId, { module })} />`) : null}
+    </div>
+    <${CultivationSelects} charId=${chess.charId} ops=${ops} onSet=${onOps} note=${standInNote} />
+  </div>`;
+}
+
 // ---- detail --------------------------------------------------------------------------------------------------------------
+
+/** The same attribute records and rich-text renderer as the in-match card, including literal trigger markers. */
+export function LoadoutGarrisons({ chess, m }) {
+  const records = (chess?.garrisonIds || []).map((id) => data.lookup('garrisons', id)).filter(Boolean);
+  return records.length ? html`<section class="lo-garrisons" data-variant=${chess.isGolden ? 'elite' : 'normal'}>
+    ${records.map((garrison) => html`<${GarrisonBlock} key=${garrison.garrisonId} garrison=${garrison} m=${m} />`)}
+  </section>` : null;
+}
 
 function SkillOption({ m, opt, on, level, onPick }) {
   const rec = level === 'elite' ? opt.elite || opt.normal : opt.normal || opt.elite;
@@ -199,9 +265,16 @@ function SkillOption({ m, opt, on, level, onPick }) {
   </button>`;
 }
 
-export function ModuleInfo({ m, golden, opt }) {
+/**
+ * The chosen module's card: its stat bonus, the 特性 it fights with, its talent changes — read at the operator's 潜能
+ * (`potential`, 0.2.2: the elite composed at it first, shared/potential.js atPotential, as 局内数值 and the battle do; the
+ * data record is the full-potential one — 余's 闲云隐市 「生命上限2%（+0.5%）」 is 「1.5%」 at 潜能1). null = full potential.
+ * @param {{ m: any, golden: any, opt: { id: string, rec: any, isDefault?: boolean }, potential?: number|null }} props
+ */
+export function ModuleInfo({ m, golden, opt, potential = null }) {
   if (!golden) return null;
-  const rec = opt.id === MODULE_NONE ? null : opt.rec;
+  const at = atPotential(golden, potential);
+  const rec = opt.id === MODULE_NONE ? null : at === golden ? opt.rec : moduleRecord(at, opt.id) || opt.rec;
   if (!rec) {
     const traitBase = golden.traitBase || null;
     return html`<div class="lo-minfo lo-minfo--none">
@@ -241,13 +314,15 @@ const standInName = (chess) => data.get('backups')?.units?.[chess?.backup?.charI
  * @param {any} base normal chess record @param {any} golden its elite record or null
  * @param {Record<string, any>} entries the stored loadout @param {'normal'|'elite'} level
  * @param {(id: string) => any} getChess
+ * @param {Record<string, any>|null} [ops] the stored 潜能 / 练度 (0.2.2: the numbers at the operator's settings — the
+ *   练度 multiplier needs effects.json; none set = 潜能 6, 精英2 Lv.60)
  * @returns {{ elite: boolean, chess: any, lo: any, record: any, trait: string, talents: any[] } | null} null without a record
  */
-export function statsPreview(base, golden, entries, level, getChess) {
+export function statsPreview(base, golden, entries, level, getChess, ops = null) {
   const elite = level === 'elite' && !!golden;
   const chess = elite ? golden : base;
   if (!chess) return null;
-  const lo = chessLoadout(chess, entries, getChess);
+  const lo = chessLoadout(chess, entries, getChess, { ops, effects: data.get('effects') });
   const record = lo?.record || chess;
   // (the card's own rule: the 特性 line exists when the chess has one; its text follows the chosen module)
   return { elite, chess, lo, record, trait: chess.trait?.desc ? traitText(chess, !!chess.isGolden, lo) || '' : '', talents: chessTalents(record) };
@@ -260,9 +335,10 @@ export function statsPreview(base, golden, entries, level, getChess) {
  * toggle picks the 普通 or the 精锐 record; 精锐 is the default because the module only exists there.
  * @param {{ base: any, golden: any, entries: Record<string, any>, level: 'normal'|'elite', onLevel: (l: 'normal'|'elite') => void, getChess?: (id: string) => any }} props
  */
-export function LoadoutStats({ base, golden, entries, level, onLevel, getChess = getChessRec }) {
-  const pv = statsPreview(base, golden, entries, level, getChess);
+export function LoadoutStats({ base, golden, entries, level, onLevel, getChess = getChessRec, ops = null }) {
+  const pv = statsPreview(base, golden, entries, level, getChess, ops);
   if (!pv) return null;
+  // (the caption names 潜能 / 练度 when the numbers carry both — the 练度 multiplier needs effects.json)
   return html`<section class="lo-sec lo-sec--stats" aria-label=${t('局内数值')} data-variant=${pv.elite ? 'elite' : 'normal'}>
     <header class="lo-sec__head">
       <h3>${t('局内数值')}<${MicroLabel}>STATS<//></h3>
@@ -277,18 +353,19 @@ export function LoadoutStats({ base, golden, entries, level, onLevel, getChess =
       ${pv.talents.map((tal, i) => html`<div key=${i} class="lo-minfo__row"><span class="lo-minfo__k">${t('天赋')}</span>
         <span class="lo-minfo__v"><b class="lo-minfo__tname">${tal.name}</b><${RichText} text=${tal.descRaw || tal.desc || ''} /></span></div>`)}
     </div>` : null}
-    <p class="lo-stats__cap">${pv.elite ? t('数值含所选模组；') : golden ? t('普通干员没有模组，所选模组在「精锐」中生效；') : ''}${t('不含技能发动、装备、盟约等局内加成')}</p>
+    <p class="lo-stats__cap">${pv.elite ? t('数值含所选模组；') : golden ? t('普通干员没有模组，所选模组在「精锐」中生效；') : ''}${pv.lo?.cultivation && data.get('effects') ? t('含潜能与练度；') : ''}${t('不含技能发动、装备、盟约等局内加成')}</p>
   </section>`;
 }
 
-function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned = false }) {
-  const [level, setLevel] = useState('normal');
+function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false }) {
   const [statLevel, setStatLevel] = useState('elite'); // 局内数值: the 精锐 shows the chosen module's effect
+  const setLevel = onLevel;
   const bodyRef = useRef(null);
   useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [chess?.chessId]);
   if (!chess) return html`<aside class="lo-detail lo-detail--empty"><p class="t-dim">${t('没有符合条件的干员')}</p></aside>`;
   const opt = chessOptions(chess, golden);
   const choice = effectiveChoice(entries, chess, golden);
+  const changed = choice.changed || opsOf(ops, chess.charId).changed;
   const modOpt = opt.moduleOptions.find((x) => x.id === choice.module) || null;
   const lv = (c) => c?.status?.skillLevel ?? '—';
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
@@ -298,7 +375,7 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
       </div>
       <div class="lo-dhead__info">
         <div class="lo-dhead__chips"><${TierChip} tier=${chess.tier} size="md" />
-          ${choice.changed ? html`<span class="lo-badge lo-badge--changed">${t('已调整')}</span>` : html`<span class="lo-badge lo-badge--plain">${t('默认配置')}</span>`}</div>
+          ${changed ? html`<span class="lo-badge lo-badge--changed">${t('已调整')}</span>` : html`<span class="lo-badge lo-badge--plain">${t('默认配置')}</span>`}</div>
         <h2 class="lo-dhead__name">${chess.name}</h2>
         <span class="lo-dhead__en">${chess.appellation || ''}</span>
         <span class="lo-dhead__class">
@@ -309,9 +386,11 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
           <${Img} src=${bondIconUrl(m, b)} class="lo-bond__icon" fallback=${html`<i class="lo-bond__dot"></i>`} />${data.lookup('bonds', b)?.name || b}</span>`)}</span>
         <${VoiceLangPicker} charId=${chess.charId} class="lo-dhead__voice" />
       </div>
-      <${Button} variant="ghost" size="sm" icon="refresh" class="lo-dhead__reset" disabled=${!choice.changed} onClick=${onReset}>${t('恢复默认')}<//>
+      <${Button} variant="ghost" size="sm" icon="refresh" class="lo-dhead__reset" disabled=${!changed} onClick=${onReset}>${t('恢复默认')}<//>
     </div>
     <div class="lo-detail__body" ref=${bodyRef}>
+      <${CultivationSection} charId=${chess.charId} ops=${ops} onSet=${onOps} standIn=${notOwned} />
+      <${LoadoutGarrisons} chess=${level === 'elite' && golden ? golden : chess} m=${m} />
       <section class="lo-sec">
         <header class="lo-sec__head">
           <h3>${t('技能')}<${MicroLabel}>SKILL<//></h3>
@@ -325,7 +404,7 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
             onPick=${(i) => onChange({ skill: i })} />`)}
         </div>
       </section>
-      <${LoadoutStats} base=${chess} golden=${golden} entries=${entries} level=${statLevel} onLevel=${setStatLevel} />
+      <${LoadoutStats} base=${chess} golden=${golden} entries=${entries} ops=${ops} level=${statLevel} onLevel=${setStatLevel} />
       ${golden ? html`<section class="lo-sec lo-sec--mod">
         <header class="lo-sec__head">
           <h3>${t('模组')}<${MicroLabel}>MODULE<//></h3>
@@ -343,7 +422,7 @@ function Detail({ m, chess, golden, entries, onChange, onReset, locked, notOwned
             ${mo.isDefault ? html`<span class="lo-badge lo-badge--def lo-mod__def">${t('默认')}</span>` : null}
           </button>`)}
         </div>
-        ${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} />` : null}
+        ${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} potential=${opsOf(ops, chess.charId).potential} />` : null}
       </section>` : null}
       ${notOwned ? html`<p class="lo-locknote lo-locknote--standin" data-testid="loadout-standin-note"><${Icon} name="info" />${standInName(chess) ? t('干员持有中标记为未持有：此棋子由替补干员 {name} 上场，技能与模组固定（补位干员技能不可更改）；这里的调配在改回「持有」后生效', { name: standInName(chess) })
         : t('干员持有中标记为未持有：此棋子由替补干员上场，技能与模组固定（补位干员技能不可更改）；这里的调配在改回「持有」后生效')}</p>` : null}
@@ -435,7 +514,7 @@ export function DataMissing({ files }) {
 
 /** The overlay screen. */
 function LoadoutScreen({ st }) {
-  const ready = useData('chess', 'bonds', 'assets', 'local', 'backups');
+  const ready = useData('chess', 'bonds', 'assets', 'local', 'backups', 'garrisons', 'effects');
   const phase = useStore((s) => s.match?.public?.phase || null);
   const inMatch = useStore((s) => !!s.room?.inMatch);
   // co-op briefing (INFO_CHECK, 25 s): the overlay covers the briefing's own countdown, so it shows the time left — the
@@ -450,14 +529,16 @@ function LoadoutScreen({ st }) {
     return (data.list('bonds') || []).filter((b) => b && used.has(b.bondId))
       .sort((a, b) => (b.isCore ? 1 : 0) - (a.isCore ? 1 : 0) || (a.bondOrder ?? 0) - (b.bondOrder ?? 0) || String(a.name).localeCompare(String(b.name), 'zh'));
   }, [ready, roster]);
-  const list = filterRoster(roster, st.filters, st.entries, getChess, getBond);
+  const list = filterRoster(roster, st.filters, st.entries, getChess, getBond, st.ops);
   const selId = st.sel && roster.some((c) => c.chessId === st.sel) ? st.sel : list[0]?.chessId || roster[0]?.chessId || null;
   const { base, golden } = selId ? recordsOf(selId, getChess) : { base: null, golden: null };
-  const nChanged = changedCount(st.entries, getChess);
+  const nChanged = changedCount(st.entries, getChess, st.ops, roster);
   const locked = (inMatch && phase && phase !== PHASE.INFO_CHECK && phase !== PHASE.LOBBY) || st.sync === 'locked';
   const gridRef = useRef(null);
   const fileRef = useRef(null);                            // hidden <input type=file> of the 导入 dialog
   const [narrowDetail, setNarrowDetail] = useState(false); // phones: the detail slides over the roster
+  // the detail's 普通 / 精锐 skill toggle: one preview for its skills, its 特质 and the rows' skill details (display only)
+  const [previewLevel, setPreviewLevel] = useState('normal');
   const [io, setIo] = useState(null);                      // 导出 / 导入 dialog: { mode, text } | null
 
   const tab = st.tab === 'ownership' || st.tab === 'diy' ? st.tab : 'loadout';
@@ -481,12 +562,30 @@ function LoadoutScreen({ st }) {
     if (ok) setNotOwned([]);
   };
   const pick = (id) => { loadoutStore.set({ sel: id }); setNarrowDetail(true); };
+  // a row's quick choice (PR #301): the same setChoice / setEntries path; the row becomes the selection, a phone stays on the list
+  const quickChange = (id, patch) => {
+    const recs = recordsOf(id, getChess);
+    setEntries(setChoice(loadoutStore.get().entries, recs.base, recs.golden, patch));
+    loadoutStore.set({ sel: id });
+  };
   const change = (patch) => { if (base) setEntries(setChoice(loadoutStore.get().entries, base, golden, patch)); };
-  const resetOne = () => { if (base) setEntries(resetChoice(loadoutStore.get().entries, base.chessId)); };
+  // 0.2.2: an operator's 潜能 / 练度 (by charId: its normal, elite and 自选 forms share them)
+  const setOpsOf = (charId, patch) => setOpsMap(setOps(loadoutStore.get().ops, charId, patch));
+  const resetOne = () => {
+    if (!base) return;
+    setOpsMap(resetOps(loadoutStore.get().ops, base.charId));
+    setEntries(resetChoice(loadoutStore.get().entries, base.chessId));
+  };
   const resetAll = async () => {
     if (!nChanged) return;
-    const ok = await confirmDialog({ title: t('全部恢复默认'), text: t('将 {nChanged} 名干员的技能与模组恢复为默认配置？', { nChanged }), okText: t('恢复默认'), danger: true });
-    if (ok) setEntries({});
+    const ok = await confirmDialog({ title: t('全部恢复默认'), text: t('将 {nChanged} 名干员的技能、模组、潜能与练度恢复为默认配置？', { nChanged }), okText: t('恢复默认'), danger: true });
+    if (!ok) return;
+    // the roster's operators only: a 自选 pick's settings belong to the 自选编队 tab
+    const rosterChars = new Set(roster.map((c) => c.charId));
+    const keep = {};
+    for (const [id, e] of Object.entries(loadoutStore.get().ops || {})) if (!rosterChars.has(id)) keep[id] = e;
+    setOpsMap(keep);
+    setEntries({});
   };
 
   // 导出 / 导入 the loadout (or, on the 干员持有 tab, the not-owned list) as the versioned payload (a downloaded file,
@@ -497,7 +596,7 @@ function LoadoutScreen({ st }) {
   const openExport = () => setIo(tab === 'ownership'
     ? { mode: 'export', kind: 'ownership', text: serializeOwnership(loadoutStore.get().notOwned) }
     : tab === 'diy' ? { mode: 'export', kind: 'diy', text: serializeDiy(loadoutStore.get().diy) }
-      : { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries) });
+      : { mode: 'export', kind: 'loadout', text: serializeExport(loadoutStore.get().entries, { ops: loadoutStore.get().ops }) });
   const openImport = () => setIo({ mode: 'import', kind: tab, text: '' });
   const ioCopy = async () => {
     const ok = await copyText(ioText);
@@ -538,13 +637,17 @@ function LoadoutScreen({ st }) {
     }
     const res = parseImport(ioText);
     if (!res.ok) { toast(t('导入失败：{error}', { error: res.error }), 'error'); return; }
-    const { applied, dropped } = applyLoadoutEntries(res.entries, getChess);
+    // 0.2.2: a payload with `ops` replaces the 潜能 / 练度 too (an older export leaves them alone)
+    const opIds = res.ops ? cultivationCharIds(data.get('chess'), data.get('backups')) : null;
+    const r = applyLoadoutEntries(res.entries, getChess, res.ops ? { ops: res.ops, isOperator: (id) => opIds.has(id) } : {});
+    const { applied, dropped } = r;
+    const nOps = r.ops ?? 0;
     // nothing survived sanitising (unknown chess, or every choice already the default): keep the current loadout
-    if (!applied) { toast(t('导入失败：这份数据在当前版本没有可用的调配，未做任何改动'), 'error'); return; }
+    if (!applied && !nOps) { toast(t('导入失败：这份数据在当前版本没有可用的调配，未做任何改动'), 'error'); return; }
     setIo(null);
-    toast(dropped
-      ? t('已导入 {applied} 名干员（另有 {dropped} 项未导入）', { applied, dropped })
-      : t('已导入 {applied} 名干员的调配', { applied }), dropped ? 'warn' : 'success');
+    toast(!applied ? t('已导入 {n} 名干员的潜能与练度', { n: nOps })
+      : dropped ? t('已导入 {applied} 名干员（另有 {dropped} 项未导入）', { applied, dropped })
+        : t('已导入 {applied} 名干员的调配', { applied }), dropped ? 'warn' : 'success');
   };
 
   // Esc closes; ←/→ browse the filtered roster (not while typing in the search field)
@@ -556,8 +659,10 @@ function LoadoutScreen({ st }) {
       const typing = e.target && /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeLoadout(); return; }
       if (typing) return;
+      // (a row's quick choices: ←/→ stay with the focused group, PR #301)
+      if (e.target?.closest?.('.lo-quick') && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) return;
       if ((e.key === 'ArrowRight' || e.key === 'ArrowLeft') && loadoutStore.get().tab !== 'ownership' && loadoutStore.get().tab !== 'diy') {
-        const ids = filterRoster(rosterOf(data.list('chess')), loadoutStore.get().filters, loadoutStore.get().entries, getChess, getBond).map((c) => c.chessId);
+        const ids = filterRoster(rosterOf(data.list('chess')), loadoutStore.get().filters, loadoutStore.get().entries, getChess, getBond, loadoutStore.get().ops).map((c) => c.chessId);
         if (!ids.length) return;
         const cur = Math.max(0, ids.indexOf(loadoutStore.get().sel));
         const next = ids[(cur + (e.key === 'ArrowRight' ? 1 : -1) + ids.length) % ids.length];
@@ -579,7 +684,7 @@ function LoadoutScreen({ st }) {
 
   const [syncText, syncCls] = tab === 'ownership' ? OWN_SYNC_TEXT[st.ownSync] || OWN_SYNC_TEXT.idle
     : tab === 'diy' ? DIY_SYNC_TEXT[st.diySync] || DIY_SYNC_TEXT.idle : SYNC_TEXT[st.sync] || SYNC_TEXT.idle;
-  const fromText = st.from === 'briefing' ? t('确认本局信息阶段结束前可调整本局配置') : t('开始模拟前可调整干员携带的技能与模组，干员等级不可调整');
+  const fromText = st.from === 'briefing' ? t('确认本局信息阶段结束前可调整本局配置') : t('开始模拟前可调整干员携带的技能与模组，以及潜能与练度；干员的局内等级不可调整');
   // 干员持有 is out of match: a running match keeps the list its seat had at its start
   const ownLocked = inMatch && !!phase && phase !== PHASE.LOBBY;
   const ownText = ownLocked ? t('干员持有是局外设置：本局按开局时的设置进行，修改将在下一局生效')
@@ -633,20 +738,25 @@ function LoadoutScreen({ st }) {
       : html`<p class=${cx('lo-note', locked && 'is-locked')}><${Icon} name="info" />${locked ? t('本局的调配已锁定（确认本局信息后无法修改），修改将在下一局生效') : fromText}</p>`}
     ${!ready ? html`<div class="lo-loading"><${Spinner} size="sm" />${t('正在载入干员数据（打开页面后仅载入一次）…')}</div>`
       : lost.length ? html`<${DataMissing} files=${lost} />` : tab === 'diy'
-      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} onSet=${setDiySlot} />`
+      ? html`<${DiyPanel} m=${m} picks=${st.diy || {}} legal=${diyLegal} kitted=${st.diyKitted} onSet=${setDiySlot} ops=${st.ops} onOps=${setOpsOf} />`
       : tab === 'ownership'
       ? html`<${OwnershipPanel} m=${m} roster=${ownRoster} notOwned=${st.notOwned} onToggle=${toggleOwned} />`
       : html`<main class=${cx('lo-body', narrowDetail && 'is-detail')}>
       <section class="lo-roster">
         <${Filters} m=${m} filters=${st.filters} bonds=${bonds} onFilters=${(filters) => loadoutStore.set({ filters })} />
-        <div class="lo-grid" role="listbox" aria-label=${t('干员列表')} ref=${gridRef}>
-          ${list.length ? list.map((c) => html`<${RosterCard} key=${c.chessId} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null}
-            entries=${st.entries} selected=${c.chessId === selId} onPick=${pick} notOwned=${(st.notOwned || []).includes(c.chessId)} />`) : html`<p class="lo-empty t-dim">${t('没有符合条件的干员')}</p>`}
+        <div class="lo-list" ref=${gridRef}>
+          <${RosterHead} />
+          <div class="lo-list__rows" role="list" aria-label=${t('干员列表')}>
+            ${list.length ? list.map((c) => html`<${RosterRow} key=${c.chessId} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null}
+              entries=${st.entries} ops=${st.ops} selected=${c.chessId === selId} onPick=${pick} onChange=${quickChange} onOps=${setOpsOf}
+              level=${previewLevel} notOwned=${(st.notOwned || []).includes(c.chessId)} />`) : html`<p class="lo-empty t-dim">${t('没有符合条件的干员')}</p>`}
+          </div>
         </div>
       </section>
       <div class="lo-detail-wrap">
         <button type="button" class="lo-detail-back tapx" onClick=${() => setNarrowDetail(false)}><${Icon} name="chevronLeft" />${t('干员列表')}</button>
-        <${Detail} m=${m} chess=${base} golden=${golden} entries=${st.entries} onChange=${change} onReset=${resetOne} locked=${locked}
+        <${Detail} m=${m} chess=${base} golden=${golden} entries=${st.entries} ops=${st.ops} onChange=${change} onOps=${setOpsOf} onReset=${resetOne} locked=${locked}
+          level=${golden ? previewLevel : 'normal'} onLevel=${setPreviewLevel}
           notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} />
       </div>
     </main>`}
@@ -713,11 +823,13 @@ export function LoadoutHost() {
 /**
  * The entry button's badge: the same number as the screen's 已调整 N (a stored entry of a chess the data no longer offers
  * never applies) once chess.json is loaded; before that the stored entries (the badge alone must not trigger the 1.6 MB
- * download). Review fix: it counted stale entries the screen does not.
+ * download). Review fix: it counted stale entries the screen does not. With `ops` (0.2.2) the operators whose 潜能 / 练度
+ * differ count too (before chess.json: the stored entries plus the stored settings, an operator possibly twice).
  * @param {Record<string, any>} entries @param {((id: string) => any) | null} getChess null while chess.json is not loaded
+ * @param {Record<string, any>|null} [ops] @param {any[]|null} [roster] rosterOf(…) of the loaded data
  */
-export function badgeCount(entries, getChess) {
-  return getChess ? changedCount(entries, getChess) : Object.keys(entries || {}).length;
+export function badgeCount(entries, getChess, ops = null, roster = null) {
+  return getChess ? changedCount(entries, getChess, ops, roster) : Object.keys(entries || {}).length + Object.keys(ops || {}).length;
 }
 
 /**
@@ -727,9 +839,11 @@ export function badgeCount(entries, getChess) {
 export function LoadoutButton({ from, size = 'md', variant = 'secondary', class: cls, label = t('干员调配') }) {
   useData('local'); // the official preset icon (re-render once the local-art manifest arrives)
   const entries = useStore((s) => s.entries, Object.is, loadoutStore);
+  const ops = useStore((s) => s.ops, Object.is, loadoutStore);
   const notOwned = useStore((s) => s.notOwned, Object.is, loadoutStore);
   const diy = useStore((s) => s.diy, Object.is, loadoutStore);
-  const n = badgeCount(entries, data.status('chess') === 'ready' ? (id) => data.lookup('chess', id) : null);
+  const chessReady = data.status('chess') === 'ready';
+  const n = badgeCount(entries, chessReady ? (id) => data.lookup('chess', id) : null, ops, chessReady ? rosterOf(data.list('chess')) : null);
   // 0.2.0 补位: how many operators the player marked as not owned (the 干员持有 tab) — easy to forget between sessions
   const off = Array.isArray(notOwned) ? notOwned.length : 0;
   // 0.2.0 自选编队: how many DIY slots the player filled

@@ -2,8 +2,12 @@
 // directional), pull, the raw mover displace and who can be moved at all.
 // Installed on Battle.prototype by server/sim/Battle.js (a method container: never instantiated; `this` is the battle).
 
-import { COLS, PUSH_TILES, PUSH_TILES_EFFECT, PULL_WEAK_SHARE, PULL_CRAWL, PULL_ORIGIN, PULL_STOP_RADIUS, PUSH_DIRECTIONAL_MIN_DIST } from '../constants.js';
+import {
+  COLS, PUSH_TILES, PUSH_TILES_EFFECT, PULL_WEAK_SHARE, PULL_CRAWL, PULL_ORIGIN, PULL_STOP_RADIUS, PUSH_DIRECTIONAL_MIN_DIST,
+  PUSH_UNBALANCE, PULL_UNBALANCE, PULL_UNBALANCE_WEAK, UNBALANCE_MIN,
+} from '../constants.js';
 import { fin } from './util.js';
+import { hypot } from '../detmath.js';
 
 /**
  * Official push distance (tiles) of a 受力等级 (constants.js PUSH_TILES: ≤ −3 → 0, ≥ 3 → the 3 value); `effect` = a 特效
@@ -13,6 +17,18 @@ export function pushTiles(level, effect = false) {
   const l = Math.round(fin(level, -99));
   if (l <= -3) return 0;
   return (effect ? PUSH_TILES_EFFECT : PUSH_TILES)[Math.min(3, l)];
+}
+
+/** 失衡 (UNBALANCE) of a push of 受力等级 `level`, game seconds (constants.js PUSH_UNBALANCE: ≤ −3 → 0, ≥ 3 → the 3 value). */
+export function pushUnbalance(level) {
+  const l = Math.round(fin(level, -99));
+  return l <= -3 ? 0 : PUSH_UNBALANCE[Math.min(3, l)];
+}
+
+/** 失衡 of a pull of 受力等级 `level`: its force window (PULL_UNBALANCE, 0.5 s below −1), none at ≤ −3 (force 0). */
+export function pullUnbalance(level) {
+  const l = Math.round(fin(level, -99));
+  return l <= -3 ? 0 : l < -1 ? PULL_UNBALANCE_WEAK : PULL_UNBALANCE;
 }
 
 export class BattleDisplacement {
@@ -39,13 +55,13 @@ export class BattleDisplacement {
    * Returns the tiles moved.
    */
   push(e, force, { from = null, dir = null, fixed = false, fixedAngle = false, inward = false, effect = false } = {}) {
-    if (!this._displaceable(e)) return 0;
+    if (!this._displaceable(e)) { this._staticForce(e, force, false); return 0; }
     let level = this.forceLevel(e, force);
     const fx0 = fin(from?.x, e.x), fy0 = fin(from?.y, e.y);
-    const vx = e.x - fx0, vy = e.y - fy0, d = Math.hypot(vx, vy);
+    const vx = e.x - fx0, vy = e.y - fy0, d = hypot(vx, vy);
     let ux = 0, uy = 0;
     const dirX = dir ? fin(dir.x, 0) : 0, dirY = dir ? fin(dir.y, 0) : 0;
-    const dl = Math.hypot(dirX, dirY);
+    const dl = hypot(dirX, dirY);
     if (dl > 0) {
       ux = dirX / dl; uy = dirY / dl;
       if (from && !fixed && (d < PUSH_DIRECTIONAL_MIN_DIST || (!fixedAngle && vx * ux + vy * uy < d * Math.SQRT1_2))) {
@@ -57,7 +73,12 @@ export class BattleDisplacement {
     else return 0;
     let dist = pushTiles(level, effect);
     if (inward && !(dl > 0)) { ux = -ux; uy = -uy; dist = Math.min(dist, Math.max(0, d - PULL_STOP_RADIUS)); }
-    return this.displace(e, { x: ux, y: uy }, dist);
+    // 失衡 for the row's 位移时间 — also when the 特效 column or a wall shortens the slide [ASSUMED for the wall]; a slide a
+    // wall stops at the first step gets the 0.1 s floor, like a body that cannot move [ASSUMED: 碰撞、停止 is 待补充]
+    const hold = pushUnbalance(level);
+    const moved = this.displace(e, { x: ux, y: uy }, dist, { dur: hold });
+    if (hold > 0) this._unbalance(e, moved > 0 ? hold : UNBALANCE_MIN);
+    return moved;
   }
 
   /**
@@ -67,12 +88,17 @@ export class BattleDisplacement {
    * the official 拉力起点 in front of an operator. Returns the tiles moved.
    */
   pull(e, force, { to, center = null, stop = PULL_STOP_RADIUS } = {}) {
-    if (!this._displaceable(e) || !to) return 0;
+    if (!to) return 0;
     // an enemy the puller itself blocks already stands in front of it (at contact) [ASSUMED: no pull, no unblocking]
-    if (center && center.side === 'ally' && e.blockedBy === center) return 0;
+    if (e && center && center.side === 'ally' && e.blockedBy === center) return 0;
+    if (!this._displaceable(e)) { this._staticForce(e, force, true); return 0; }
+    const level = this.forceLevel(e, force);
+    // 失衡 for the force window, whatever the travel: the 急停 zeroes the movement, the state lasts to the window's end
+    const hold = pullUnbalance(level);
+    if (!(hold > 0)) return 0;
     const tx = fin(to.x, e.x), ty = fin(to.y, e.y);
-    const dx = tx - e.x, dy = ty - e.y, d0 = Math.hypot(dx, dy);
-    if (!(d0 > 1e-6)) return 0;
+    const dx = tx - e.x, dy = ty - e.y, d0 = hypot(dx, dy);
+    if (!(d0 > 1e-6)) { this._unbalance(e, hold); return 0; }
     const ux = dx / d0, uy = dy / d0;
     // travel until inside the stop circle around `center` (smaller root of |e + t·u − c| = stop), else up to `to`
     let full = d0;
@@ -83,9 +109,10 @@ export class BattleDisplacement {
       const disc = wu * wu - w2 + r * r;
       if (disc >= 0) { const t = -wu - Math.sqrt(disc); if (t >= 0) full = Math.min(full, t); }
     }
-    const level = this.forceLevel(e, force);
-    const dist = level >= 0 ? full : level === -1 ? Math.min(full, PULL_WEAK_SHARE * d0) : level === -2 ? Math.min(full, PULL_CRAWL) : 0;
-    return dist > 1e-6 ? this.displace(e, { x: ux, y: uy }, dist) : 0;
+    const dist = level >= 0 ? full : level === -1 ? Math.min(full, PULL_WEAK_SHARE * d0) : Math.min(full, PULL_CRAWL);
+    const moved = dist > 1e-6 ? this.displace(e, { x: ux, y: uy }, dist, { dur: hold }) : 0;
+    this._unbalance(e, hold);
+    return moved;
   }
 
   /** Official distance (tiles) a push of 力度 `force` would move `e` on open ground (0 when it cannot be displaced). */
@@ -106,10 +133,41 @@ export class BattleDisplacement {
    * 失衡状态 … 但物理层面上无法产生任何速度或移动" — every air unit of the mode except “炎佑”, plus the boss 昆图斯 (build-data
    * STATIC_BODIES; player report after 0.1.0, "飞机可以被薄绿的技能拉走"). A skill that reaches it still hits it (its targeting
    * is the skill's own: 锏 S3, 薄绿, the 钩索师 …); only the movement is 0, so distance-based effects (drag damage, 见行者 S2's
-   * wall stun) come to nothing. [ASSUMED] the 0.1 s 失衡硬直 a 静态刚体 still gets is not modelled (no displacement models it).
+   * wall stun) come to nothing — but a force > 0 still puts it in the 失衡 state for its 0.1 s floor (_staticForce).
    */
   _displaceable(e) {
     return !!(e && e.alive && e.side === 'enemy' && !e.isBoss && !e.s.flags.noDisplace && !(e.def && e.def.staticBody));
+  }
+
+  /**
+   * A push (`pull` false) / pull of 力度 `force` on a 静态刚体 (data `staticBody`; not 失衡免疫 `noDisplace` — PRTS 特殊机制
+   * 静态刚体: unlike 失衡免疫 it "可以进入失衡状态并启用物理，但物理层面上无法产生任何速度或移动", leaving it 「在失去施力后立刻」 with
+   * 「0.1 秒保底持续时间」): no movement, the state as long as the force acts — a push's is instant (推与拉 「作用时间：瞬间」) so
+   * the UNBALANCE_MIN floor, a pull's is its window (pullUnbalance: 1 s, 0.5 s below −1); a force > 0 (受力等级 ≥ −2) only.
+   * Leaders (the boss pool) stay out.
+   */
+  _staticForce(e, force, pull = false) {
+    if (!(e && e.alive && e.side === 'enemy' && !e.isBoss && !e.s.flags.noDisplace && e.def && e.def.staticBody)) return;
+    const level = this.forceLevel(e, force);
+    if (level >= -2) this._unbalance(e, pull ? Math.max(UNBALANCE_MIN, pullUnbalance(level)) : UNBALANCE_MIN);
+  }
+
+  /**
+   * Put enemy `e` in the 失衡 (UNBALANCE) state for `dur` game seconds from now (a running one is kept when it lasts longer):
+   * a state machine, not a status (PRTS 异常效果: no 阻止攻击 status — no stun, no immunity, SP untouched) — ai.js
+   * updateEnemy reads `unbalanceUntil`: the enemy neither walks (恐惧 / 诱导 included) nor starts a normal attack, a swing
+   * short of its frame is cut; checks that ignore the state (水遁忍者's damage, content abilities) go on. The state machine
+   * switch ends the attack clip it stood for (PRTS 状态机: the states are exclusive — UNBALANCE, then DEFAULT → MOVE). It
+   * ends with its time, or at once with 浮空 (术语释义 浮空 「触发浮空时清除受到的推/拉力…无法陷入失衡」, ai.js), a 重生 or a route
+   * APPEAR (forced state switches). No skill meanwhile either (失衡免疫 「…使用技能」): content skills, blinks and scripted moves
+   * check `enemies/helpers.js unbalancedNow` (docs/SIM.md lists what deliberately keeps running).
+   */
+  _unbalance(e, dur) {
+    if (!(dur > 0) || !e || !e.alive) return;
+    const until = this.time + dur;
+    if (!(e.unbalanceUntil >= until)) e.unbalanceUntil = until;
+    this._cutAttackStand(e);
+    e.atkStandUntil = -Infinity;
   }
 
   /**
@@ -119,10 +177,10 @@ export class BattleDisplacement {
    * ⇒ no movement (_displaceable). The tiles it may cross follow its movement (`motion`): a hovering enemy walks the
    * ground, so it stays on ground-passable tiles.
    */
-  displace(e, dir, distance) {
+  displace(e, dir, distance, { dur = 0 } = {}) {
     if (!this._displaceable(e) || !dir) return 0;
     const dxv = fin(dir.x, 0), dyv = fin(dir.y, 0);
-    const len = Math.hypot(dxv, dyv);
+    const len = hypot(dxv, dyv);
     if (!(len > 0)) return 0;
     const eff = Math.min(fin(distance, 0), 2 * COLS);
     if (!(eff > 0)) return 0;
@@ -140,9 +198,11 @@ export class BattleDisplacement {
     if (moved > 0) {
       this._unblock(e);
       // 失衡 ends the attack clip it stood for (PRTS 状态机: the states are exclusive — UNBALANCE, then DEFAULT → MOVE)
+      this._cutAttackStand(e);
       e.atkStandUntil = -Infinity;
       if (e.route) e.route.pts = null;
-      this.fx('displace', { x: e.x, y: e.y, id: e.id });
+      // `dur` (game s): the 失衡 the push / pull gives — the client's slide takes that long (render/units.js slideTo)
+      this.fx('displace', dur > 0 ? { x: e.x, y: e.y, id: e.id, dur } : { x: e.x, y: e.y, id: e.id });
     }
     return moved;
   }

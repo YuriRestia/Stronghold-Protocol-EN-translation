@@ -49,6 +49,7 @@ import { num, traitBb, skillRec, up, giveSp } from '../shared/tier1.js';
 import { absoluteRangeKeys } from '../../../targeting.js';
 import { COLS } from '../../../constants.js';
 import { startCountdown } from '../../tokens.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_weedy_1';
 const S2 = 'skchr_weedy_2';
@@ -92,7 +93,7 @@ export function rupture(battle, src, e, { duration, perTile, interval }) {
     return;
   }
   const st = { x: e.x, y: e.y, moved: 0, acc: 0 };
-  const step = (u) => { st.moved += Math.hypot(u.x - st.x, u.y - st.y); st.x = u.x; st.y = u.y; };
+  const step = (u) => { st.moved += hypot(u.x - st.x, u.y - st.y); st.x = u.x; st.y = u.y; };
   const flush = (u) => {
     const m = st.moved;
     st.moved = 0;
@@ -121,7 +122,7 @@ export function liquidNitrogen(battle, { shooter, src, atk, sbb, grid, force, pi
   const keys = absoluteRangeKeys(grid ?? GRID_4_1, shooter.tileR, shooter.tileC, shooter.dir, 0);
   const cands = battle.enemiesInKeys(keys, shooter, { canHitFly: true });
   if (!cands.length) return false;
-  const key = pick === 'nearest' ? (e) => Math.hypot(e.x - shooter.x, e.y - shooter.y) : (e) => battle.remainingDistance(e);
+  const key = pick === 'nearest' ? (e) => hypot(e.x - shooter.x, e.y - shooter.y) : (e) => battle.remainingDistance(e);
   let target = null, best = Infinity;
   for (const e of cands) {
     const v = key(e);

@@ -64,6 +64,7 @@ import { acquireTargets } from '../../../ai.js';
 import { aggregateMods } from '../../../buffs.js';
 import { dirVec } from '../../../dir.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_radian_1';
 const S2 = 'skchr_radian_2';
@@ -160,7 +161,7 @@ function flyBullets(battle, t, dt) {
     const hit = () => {
       const near = battle.foesInRadius(b.x, b.y, BULLET_RADIUS).filter((e) => e.alive && !e.isFlying);
       if (!near.length) return false;
-      near.sort((p, q) => Math.hypot(p.x - b.x, p.y - b.y) - Math.hypot(q.x - b.x, q.y - b.y) || p.spawnSeq - q.spawnSeq);
+      near.sort((p, q) => hypot(p.x - b.x, p.y - b.y) - hypot(q.x - b.x, q.y - b.y) || p.spawnSeq - q.spawnSeq);
       battle.dealDamage(t, near[0], { amount: b.atk, type: 'phys', isAttack: true, tags: [TAG_BULLET] });
       return true;
     };

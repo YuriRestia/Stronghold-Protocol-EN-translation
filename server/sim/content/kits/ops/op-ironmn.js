@@ -56,7 +56,8 @@
 //   白铁's S2 runs: s2.interval s and s2.hp_ratio (both timers restart when the mode changes, as the client re-creates the
 //   buffs on its mode switch).
 // - 铁钳号·原型机 (S3), an enemy-camp summon: our attacks select it like an enemy, after every real one (嘲讽等级 −2;
-//   Battle.setAllyTarget — the engine extension of this kit), enemies never (untargetable); every damage it takes is cancelled
+//   Battle.setAllyTarget — the engine extension of this kit), and a non-heal skill's automatic start counts it like an enemy
+//   (skills.js `_allyTargetIn`, the owner's rule of 2026-10-08), enemies never (untargetable); every damage it takes is cancelled
 //   and gives it 1 SP (受击回复), and +hp_ratio of its max HP when the source is a 工匠 operator (trait, ignores 禁疗). 团结的力
 //   量: the operator on its b-1 (its tile and the one behind it) takes physical damage ×(1 − damage_resistance) — one effect per
 //   device. Its skill (AUTO, 5 SP, data DEFAULT — it never attacks, so the engine checks it every tick: an enemy, flyers too, in

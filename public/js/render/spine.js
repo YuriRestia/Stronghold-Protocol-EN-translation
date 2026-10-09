@@ -62,18 +62,51 @@ export function windUpPlan(loopDur, hit, interval, lead) {
   return { ts, tsWind, start };
 }
 
-/** Whether any skin of the skeleton data has a clipping attachment (pixi-spine AttachmentType.Clipping = 6). */
+/** A clipping attachment (pixi-spine AttachmentType.Clipping = 6). */
+const isClip = (a) => !!a && (a.type === 6 || a.constructor?.name === 'ClippingAttachment' || ('endSlot' in a && 'vertices' in a && !('uvs' in a)));
+
+/** Whether any skin of the skeleton data has a clipping attachment. */
 export function hasClipping(data) {
   try {
     for (const skin of data?.skins || []) {
       const list = typeof skin.getAttachments === 'function' ? skin.getAttachments() : [];
-      for (const e of list) {
-        const a = e && e.attachment;
-        if (a && (a.type === 6 || a.constructor?.name === 'ClippingAttachment' || ('endSlot' in a && 'vertices' in a && !('uvs' in a)))) return true;
-      }
+      for (const e of list) if (isClip(e && e.attachment)) return true;
     }
   } catch { /* unknown runtime shape: assume none */ }
   return false;
+}
+
+/**
+ * Is (x, y) inside the polygon of `n` points `pts` (flat [x0, y0, x1, y1, …])? Ray casting (PR #384 by @Convey123).
+ */
+export function pointInPolygon(x, y, pts, n) {
+  let inside = false;
+  for (let i = 0, j = n - 1; i < n; j = i++) {
+    const xi = pts[i * 2], yi = pts[i * 2 + 1], xj = pts[j * 2], yj = pts[j * 2 + 1];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * World centre of what a slot draws, into `out` ([x, y]); false when it draws nothing measurable. A mesh: the mean of its
+ * world vertices (`buf` grows to fit); a region: its quad's centre — the attachment's (x, y) through the bone (the four
+ * corners sit symmetrically around it; RegionAttachment.computeWorldVertices takes a bone in runtime 3.8, a slot in 4.1).
+ */
+function slotCentre(slot, att, buf, out) {
+  const n = att.worldVerticesLength | 0;
+  if (n >= 2 && typeof att.computeWorldVertices === 'function') {
+    if (buf.v.length < n) buf.v = new Float32Array(n);
+    const v = buf.v;
+    att.computeWorldVertices(slot, 0, n, v, 0, 2);
+    let cx = 0, cy = 0;
+    for (let k = 0; k < n; k += 2) { cx += v[k]; cy += v[k + 1]; }
+    out[0] = cx / (n >> 1); out[1] = cy / (n >> 1);
+  } else if (att.region !== undefined && Number.isFinite(att.x) && Number.isFinite(att.y) && slot.bone) {
+    const b = slot.bone;
+    out[0] = b.a * att.x + b.b * att.y + b.worldX; out[1] = b.c * att.x + b.d * att.y + b.worldY;
+  } else return false;
+  return Number.isFinite(out[0]) && Number.isFinite(out[1]);
 }
 
 export class SpineActor {
@@ -91,11 +124,12 @@ export class SpineActor {
     this.names = new Set((spineData.animations || []).map((a) => a.name));
     /**
      * Clipping attachments render as stencil masks (≈1.5 ms of GPU each per frame on tiled GPUs): such skeletons
-     * are drawn through the impostor atlas while clipping is on, and clipping is switched off (unclipped slots,
-     * visually negligible on battle chibis) when too many of them share a field (app.js budget).
+     * are drawn through the impostor atlas while clipping is on, and clipping is switched off when too many of them
+     * share a field (app.js budget) — then _eyeMaskFallback hides what a closed eyelid would cut (GitHub #177).
      */
     this.clipped = hasClipping(spineData);
     this.clipOn = true;
+    this._clipHidden = new Set(); // slot indexes the eyelid fallback hid in its last pass (_eyeMaskFallback)
     if (this.clipped) {
       const sp = this.spine;
       const orig = typeof sp.createGraphics === 'function' ? sp.createGraphics.bind(sp) : null;
@@ -134,6 +168,7 @@ export class SpineActor {
     on = !!on;
     if (!this.clipped || on === this.clipOn) return;
     this.clipOn = on;
+    if (on) this._showClipHidden();   // the stencil takes over from the eyelid fallback
     for (const slot of this.spine?.skeleton?.slots || []) {
       if (!slot.clippingContainer) continue;
       slot.clippingContainer.mask = on ? slot.currentGraphics || null : null;
@@ -198,6 +233,41 @@ export class SpineActor {
     if (change && this.has(change)) this._change(change);
     else if (this.mode === 'base') this._play(this._baseName(), true);
     else if (this.mode === 'stun' && this.has(this.roles.stun?.loop)) this._play(this.roles.stun.loop, true);
+  }
+
+  /**
+   * Re-pose on the clip set in force right after an immediate form switch (render/units.js STEALTH_FORMS: 假想敌：骨刺's
+   * stealth bit; PR #365): a running attack goes on in the new set's attack clip at the same point relative to its
+   * strike frame (a pending wind-up still strikes at windUntil), a stun / the resting state restarts on the new set's
+   * clip without a crossfade, and the skeleton is posed at once — also while a freeze holds it (`frozen`).
+   */
+  syncFormPose() {
+    if (this.dead) return;
+    if (this.mode === 'attack') {
+      const track = this.spine.state.tracks[0];
+      const clip = this._attackClip();
+      if (!track || !clip) return;
+      const dur = this.dur(clip.loop);
+      const oldHit = this._hitTime(this.current, this.dur(this.current));
+      const hit = this._hitTime(clip.loop, dur);
+      const start = clampN(track.trackTime + hit - oldHit, 0, dur);
+      const lead = this.wound && this.windUntil != null
+        ? Math.max(0, this.windUntil - this.clock) : 0;
+      const ts = lead > 0 ? Math.max(0, hit - start) / lead : track.timeScale;
+      const tailTs = lead > 0 ? this.windTs : ts;
+      this._play(clip.loop, track.loop, { start, timeScale: ts, mix: 0 });
+      this.attackUntil = this.clock + lead +
+        Math.max(0, dur - (lead > 0 ? hit : start)) / tailTs;
+    } else if (this.mode === 'stun') {
+      const name = this.has(this.roles.stun?.loop) ? this.roles.stun.loop : this._baseName();
+      this._play(name, true, { mix: 0 });
+    } else if (this.mode === 'base') {
+      this._play(this._baseName(), true, { mix: 0 });
+    } else {
+      return;
+    }
+    // Apply the new attachments even when normal updates are frozen.
+    this.spine.update(0);
   }
 
   /** Play a form's transition clip once; attacks and the resting state wait for it (mode 'change'). */
@@ -332,9 +402,13 @@ export class SpineActor {
     this.windUntil = null;
     this.wound = false;
     if (!wasAttacking) {
-      // not wound up (no look-ahead, e.g. a batch that arrived late): the sim already resolved the hit, so show
-      // the strike frame now
-      this._play(clip.loop, !single, { timeScale: ts, start: hit, mix: 0.06 });
+      // not wound up (no look-ahead, e.g. a batch that arrived late): the sim already resolved the hit, so show the
+      // strike frame now — unless a clip-per-attack actor's rhythm leaves room for the whole clip (interval ≥ clip):
+      // then the clip plays complete from its wind-up at its own speed, the strike a little late (重犯's iron ball
+      // lifts before the slam; #246 by @TsangAsuna, accepted by the owner on 2026-10-07)
+      const whole = per && this.interval >= loopDur;
+      if (whole) this.attackUntil = this.clock + loopDur / ts;
+      this._play(clip.loop, !single, { timeScale: ts, start: whole ? 0 : hit, mix: 0.06 });
     } else if (single) {
       const e = this.spine.state.tracks[0];
       if (e) e.timeScale = ts;
@@ -546,6 +620,56 @@ export class SpineActor {
     if (!this.frozen) {
       try { this.spine.update(dt); } catch { /* a broken skeleton must not stop the frame */ }
     }
+    if (this.clipped && !this.clipOn) this._eyeMaskFallback();
+  }
+
+  /**
+   * The eyelids without the stencil masks (GitHub #177; PR #384 by @Convey123, re-implemented). On this roster the
+   * clipping attachments are eyelids: the polygon is the eye's opening and the eyeball / eye-white meshes drawn after
+   * it are clipped to it, so a closing eye (a blink, a knock-down) is hidden by the mask, not by the art. The masks
+   * are off on a crowded field or below high quality (render/app.js pickClipping), and the eyeballs showed through
+   * the closed lids (佩佩, 仇白, 隐德来希, 琳琅诗怀雅 …). While they are off, every slot a clip covers — walked in draw
+   * order from the clipping slot to its endSlot, with the attachments in force (any skin), as pixi-spine does — is
+   * hidden for the frame when the centre of what it draws lies outside the clip polygon [ASSUMED: all or nothing per
+   * slot, an approximation of the mask's cut]. pixi-spine shows every attached slot container again on each update.
+   */
+  _eyeMaskFallback() {
+    const sp = this.spine, skel = sp && sp.skeleton, boxes = sp && sp.slotContainers;
+    if (!skel || !Array.isArray(skel.drawOrder) || !boxes) return;
+    this._showClipHidden();   // undo the last pass (a pixi-spine update re-shows them anyway; a frozen one does not)
+    try {
+      const buf = this._clipBuf || (this._clipBuf = { v: new Float32Array(64), poly: new Float32Array(16), c: [0, 0] });
+      let pn = -1, end = null;   // pn: points of the clip in force (−1: none; < 3: degenerate, hides nothing)
+      for (const slot of skel.drawOrder) {
+        const att = typeof slot.getAttachment === 'function' ? slot.getAttachment() : slot.attachment;
+        if (isClip(att)) {
+          const n = att.worldVerticesLength | 0;
+          if (buf.poly.length < n) buf.poly = new Float32Array(n);
+          if (n >= 6) att.computeWorldVertices(slot, 0, n, buf.poly, 0, 2);
+          pn = n >> 1;
+          end = att.endSlot && att.endSlot !== slot.data ? att.endSlot : null;
+          continue;
+        }
+        if (pn < 0) continue;
+        const box = boxes[slot.data.index];
+        if (pn >= 3 && att && box && slotCentre(slot, att, buf, buf.c) && !pointInPolygon(buf.c[0], buf.c[1], buf.poly, pn)) {
+          box.visible = false;
+          this._clipHidden.add(slot.data.index);
+        }
+        if (end && slot.data === end) { pn = -1; end = null; }
+      }
+    } catch { /* an unknown runtime shape must never stop the frame */ }
+  }
+
+  /** Show the slot containers the fallback hid (those still drawing an attachment). */
+  _showClipHidden() {
+    if (!this._clipHidden.size) return;
+    const slots = this.spine?.skeleton?.slots, boxes = this.spine?.slotContainers;
+    for (const i of this._clipHidden) {
+      const slot = slots && slots[i];
+      if (boxes && boxes[i] && slot && (typeof slot.getAttachment === 'function' ? slot.getAttachment() : slot.attachment)) boxes[i].visible = true;
+    }
+    this._clipHidden.clear();
   }
 
   /** Model height in skeleton units (setup-pose bounds, else a chibi default). */

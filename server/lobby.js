@@ -8,9 +8,10 @@
 //     Humans and bots take the lowest free seat index; seat indexes never compact.
 //   * ▸ Being in a LOBBY room and sending room.create / room.join implicitly leaves it. While your room is
 //     in a match, create/join of another room fails with ROOM_STARTED (send g.leave or room.leave first).
-//   * Host-only: room.setDifficulty, room.addBot, room.removeBot, room.kick, room.start. ▸ Changing the difficulty
-//     un-readies the other humans. ▸ room.start requires every other human to be connected and ready;
-//     the host's start counts as the host's ready (the host may still toggle room.ready for display).
+//   * Host-only: room.setDifficulty, room.setAiPicksLast, room.addBot, room.removeBot, room.kick, room.start.
+//     ▸ Changing the difficulty or the AI-picks-last option (co-op only) un-readies the other humans.
+//     ▸ room.start requires every other human to be connected and ready; the host's start counts as the host's
+//     ready (the host may still toggle room.ready for display).
 //   * room.kick {seat, playerId} (community report #17, owner approved): before the match only, the host removes another
 //     human like an AI seat (an AI seat stays room.removeBot's; never the host itself). `playerId` names the player the
 //     host confirmed: a seat that changed hands meanwhile (left, someone else joined) is refused with BAD_TARGET. The
@@ -37,10 +38,10 @@
 //     that window coalesce into one deferred resync, so hello spam cannot amplify into ~15 KB per request.
 //   * Result replay: the match's final m.public and each human's m.result are kept after the match ends. A
 //     human who resyncs (resume after a drop, a reloaded tab, a repeated hello) while the room is back in LOBBY
-//     gets room.state followed by those two frames again, until they act in the room (ready, difficulty, AI
-//     seats, start), leave it, or a new match starts. A human removed by the lobby grace gets them right after
-//     `room.closed {timeout}` on their next resume (Match.onReconnect cannot do this: the lobby drops the
-//     match reference at onEnd and disposes it on the next macrotask).
+//     gets room.state followed by those two frames again, until they act in the room (ready, difficulty, the
+//     AI-picks-last option, AI seats, start), leave it, or a new match starts. A human removed by the lobby grace
+//     gets them right after `room.closed {timeout}` on their next resume (Match.onReconnect cannot do this: the
+//     lobby drops the match reference at onEnd and disposes it on the next macrotask).
 //   * Per-network limits (internet clients only, see net.js clientAddress): at most `maxRoomsPerAddr` rooms
 //     created from one network may exist at once and at most `maxMatchesPerAddr` matches started from one
 //     network may run at once (room.create / room.start → ERR.RATE). Without them a socket loop could fill
@@ -64,6 +65,9 @@
 //     (or outside a room) it simply replaces the stored one; while the room's match runs it is also handed to
 //     match.setLoadout(playerId, loadout), which accepts it only during INFO_CHECK (the 干员调配 entry of the briefing)
 //     and refuses it afterwards (WRONG_PHASE: the match's loadout is locked, the stored one applies to the next match).
+//     ▸ Its `ops` (0.2.2: the per-operator 潜能 / 练度, shared/protocol.js checkLoadoutOps — an operator of the 干员调配
+//     roster or the 自选 owned pool, strict like the entries) travel with it: session.ops / seat.ops / seats[].ops and
+//     match.setLoadout(playerId, loadout, ops); a message without `ops` sets none (every operator 潜能 6, 精英2 Lv.60).
 //   * Operator ownership (干员持有, 0.2.0 补位, owner's decision 2026-10-05): room.ownership { notOwned } — the base chess
 //     ids the player marked as not owned — is checked leniently (shared/protocol.js checkNotOwned: anything that is not
 //     a droppable NORMAL chess is dropped, never the whole list; only a malformed list is BAD_MSG) and stored on the
@@ -93,15 +97,15 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
-//   * 搜寻队友 (DESIGN §27): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
+//   * 搜寻队友 (DESIGN §28): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
 //     mergeRooms / autoStart below carry them out. room.state carries `searching` / `searchSince`.
-//   * 单人匹配 (DESIGN §27): queue.join {difficulty} / queue.leave / queue.ai from the lobby, no room meanwhile;
+//   * 单人匹配 (DESIGN §28): queue.join {difficulty} / queue.leave / queue.ai from the lobby, no room meanwhile;
 //     server/soloQueue.js plans, placeSolos below seats and starts in one step. queue.state {queued, ...} answers.
 //     Disconnect, expiry, room.create / room.join / room.spectate leave the queue.
 
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
-import { checkLoadout, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
+import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
@@ -135,6 +139,7 @@ const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 /**
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
  *             connected: boolean, left: boolean, loadout?: Record<string, { skill: number, module: string|null }> | null,
+ *             ops?: Readonly<Record<string, { potential: number, cultivate: number }>> | null,
  *             notOwned?: readonly string[] | null, diy?: Readonly<Record<string, DiyLoadout>> | null }} Seat
  * @typedef {{ charId: string, skillIndex: number, uniEquipId: string|null }} DiyLoadout
  */
@@ -144,6 +149,22 @@ function freezeLoadout(loadout) {
   const out = {};
   for (const [id, e] of Object.entries(loadout || {})) out[id] = Object.freeze({ skill: e.skill, module: e.module ?? null });
   return Object.freeze(out);
+}
+
+/** Deep-frozen copy of checked operator settings (0.2.2 潜能 / 练度; shared by the session, the seat and the match). */
+function freezeOps(ops) {
+  const out = {};
+  for (const [id, e] of Object.entries(ops || {})) out[id] = Object.freeze({ potential: e.potential, cultivate: e.cultivate });
+  return Object.freeze(out);
+}
+
+/** The charIds a player may set a potential / 练度 for, per data object (shared/protocol.js cultivationCharIds). */
+const OPS_IDS = new WeakMap();
+function opsCharIds(data) {
+  if (!data || typeof data !== 'object') return new Set();
+  let ids = OPS_IDS.get(data);
+  if (!ids) { ids = cultivationCharIds(data.chess, data.backups); OPS_IDS.set(data, ids); }
+  return ids;
 }
 
 /** Deep-frozen copy of checked 自选 picks (shared by the session, the seat and the match's PlayerState). */
@@ -160,6 +181,11 @@ export class Room {
     this.code = code;
     this.mode = mode;
     this.difficulty = difficulty;
+    /**
+     * 「AI 队友最后选择」 (room.setAiPicksLast, GitHub #338; co-op only, off by default): the match's strategy and 机变 drafts
+     * put every human seat before every AI seat (Match opts.aiPicksLast). Kept across the room's matches.
+     */
+    this.aiPicksLast = false;
     /** @type {string | null} */
     this.hostId = null;
     /** @type {(Seat | null)[]} */
@@ -213,6 +239,7 @@ export class Room {
       hostId: this.hostId,
       mode: this.mode,
       difficulty: this.difficulty,
+      aiPicksLast: this.aiPicksLast,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
@@ -326,6 +353,7 @@ export class Lobby {
       case 'room.leave': return this.leave(session);
       case 'room.ready': return this.ready(session, msg);
       case 'room.setDifficulty': return this.setDifficulty(session, msg);
+      case 'room.setAiPicksLast': return this.setAiPicksLast(session, msg);
       case 'room.addBot': return this.addBot(session);
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
@@ -525,6 +553,22 @@ export class Lobby {
     return OK;
   }
 
+  /** 「AI 队友最后选择」 (GitHub #338): host-only, before the match, co-op rooms only (a solo room has no AI seat). */
+  setAiPicksLast(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.ROOM_STARTED);
+    if (room.mode === 'solo') return fail(ERR.BAD_TARGET, 'solo rooms have no AI teammates');
+    this.dropReplay(room, session.playerId);
+    if (room.aiPicksLast !== on) {
+      room.aiPicksLast = on;
+      for (const s of room.seats) if (s && !s.isBot && s.playerId !== room.hostId) s.ready = false;
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
   addBot(session) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
@@ -602,24 +646,30 @@ export class Lobby {
   }
 
   /**
-   * room.loadout (DESIGN §16): check the operator loadout against the game data, store it on the session and the seat,
-   * and — while a match runs — hand it to the match (accepted only during INFO_CHECK, see the header).
+   * room.loadout (DESIGN §16): check the operator loadout — and its per-operator 潜能 / 练度 `ops` (0.2.2) — against the
+   * game data, store both on the session and the seat, and — while a match runs — hand them to the match (accepted only
+   * during INFO_CHECK, see the header). Either part refused: nothing is stored.
    */
-  loadout(session, { entries }) {
+  loadout(session, { entries, ops }) {
     const data = this.safeData();
     const res = checkLoadout(entries, (id) => lookup('chess', id, data));
     if (!res || res.error) return fail(res && isErrCode(res.error) ? res.error : ERR.BAD_MSG, res && res.detail);
+    const ids = opsCharIds(data);
+    const resOps = checkLoadoutOps(ops, (id) => ids.has(id));
+    if (!resOps || resOps.error) return fail(resOps && isErrCode(resOps.error) ? resOps.error : ERR.BAD_MSG, resOps && resOps.detail);
     const loadout = freezeLoadout(res.loadout);
+    const opsSet = freezeOps(resOps.ops);
     session.loadout = loadout;
+    session.ops = opsSet;
     const room = this.roomOf(session);
     if (!room) return OK;
     const seat = room.seatOf(session.playerId);
-    if (seat) seat.loadout = loadout;
+    if (seat) { seat.loadout = loadout; seat.ops = opsSet; }
     if (!room.match || !seat) return OK; // a spectator's loadout stays on its session, never reaching the match
     if (typeof room.match.setLoadout !== 'function') return fail(ERR.ROOM_STARTED, 'stored for the next match');
     let r;
     try {
-      r = room.match.setLoadout(session.playerId, loadout);
+      r = room.match.setLoadout(session.playerId, loadout, opsSet);
     } catch (e) {
       this.log.error(`[lobby] ${room.code} match.setLoadout threw`, e);
       return fail(ERR.INTERNAL);
@@ -681,8 +731,9 @@ export class Lobby {
     if (host) host.ready = true;
     const seats = room.seats.filter(Boolean).map((s) => ({
       seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
-      // DESIGN §16: the human's checked operator loadout (bots fight with the defaults)
+      // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
       loadout: s.isBot ? null : s.loadout || null,
+      ops: s.isBot ? null : s.ops || null,
       // 0.2.0 补位: the chess the human marked as not owned (bots own every operator)
       notOwned: s.isBot ? null : s.notOwned || null,
       // 0.2.0 自选编队: the human's checked DIY picks (bots field no 自选 piece [ASSUMED])
@@ -698,6 +749,8 @@ export class Lobby {
         mode: room.mode,
         difficulty: room.difficulty,
         modeId: modeIdFor(room.mode, room.difficulty),
+        // 「AI 队友最后选择」 (GitHub #338): fixed for the match
+        aiPicksLast: room.mode !== 'solo' && room.aiPicksLast === true,
         seats,
         // the spectator seats (header): watched like eliminated players, never players
         spectators: room.spectators.map((s) => s.playerId),
@@ -1167,6 +1220,7 @@ export class Lobby {
     return {
       seat: idx, playerId: session.playerId, name: session.name, isBot: false, ready: false, connected: session.connected, left: false,
       loadout: session.loadout || null,
+      ops: session.ops || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,
     };

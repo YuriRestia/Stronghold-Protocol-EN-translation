@@ -68,6 +68,7 @@ import { absoluteRangeKeys } from '../../../targeting.js';
 import { bodyInKeys } from '../../../body.js';
 import { hasHp, burstLocked } from '../../../damage.js';
 import { MIN_DAMAGE_RATIO } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_phatm2_1';
 const S2 = 'skchr_phatm2_2';
@@ -134,7 +135,7 @@ function callKit(t, owner, b2) {
         const keys = keysAt(grid, tok);
         const cands = battle.enemiesInKeys([...keys], tok, ANY).filter((e) => !lured.includes(e) && !e.s.flags.attract
           && (e.motion === 'FLY' || !!battle.grid.waypoints(Math.round(e.y), Math.round(e.x), tok.tileR, tok.tileC)));
-        cands.sort((a, b) => (isElite(b) - isElite(a)) || (Math.hypot(a.x - tok.x, a.y - tok.y) - Math.hypot(b.x - tok.x, b.y - tok.y)) || a.spawnSeq - b.spawnSeq);
+        cands.sort((a, b) => (isElite(b) - isElite(a)) || (hypot(a.x - tok.x, a.y - tok.y) - hypot(b.x - tok.x, b.y - tok.y)) || a.spawnSeq - b.spawnSeq);
         for (const e of cands) {
           if (lured.length >= cap) break;
           if (battle.applyStatus(e, 'attract', { duration: Math.max(0.05, endAt - battle.time), source: tok, point: [tok.tileR, tok.tileC] })) {
@@ -146,7 +147,7 @@ function callKit(t, owner, b2) {
       // the first lured enemy within `arrive` of it: it leaves
       battle.on('tick', () => {
         if (!up(tok)) return;
-        if (lured.some((e) => e.alive && mine(e) && Math.hypot(e.x - tok.x, e.y - tok.y) <= arrive + 1e-9)) battle.retreat(tok, { reason: 'expired', permanent: true });
+        if (lured.some((e) => e.alive && mine(e) && hypot(e.x - tok.x, e.y - tok.y) <= arrive + 1e-9)) battle.retreat(tok, { reason: 'expired', permanent: true });
       }, { owner: tok });
       // leaving (any reason): 停顿 + the damage over time on every selectable enemy of its x-1; the 诱导 ends
       battle.on('death', (c) => {

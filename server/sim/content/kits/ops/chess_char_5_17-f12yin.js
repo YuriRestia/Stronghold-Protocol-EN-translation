@@ -39,6 +39,9 @@ export default {
       }),
       skill: {
         kind: 'toggle',
+        // [ASSUMED] its attacks reach the enemies he blocks; the unblockable 铁钳号 of 白铁 never: it does not open it (skills.js
+        // allyTargetsOk)
+        allyTargets: false,
         mods: mods({ atkPct: num(bb.atk), defPct: num(bb.def), blockCnt: num(bb.block_cnt), hpRegenRatio: num(bb.hp_recovery_per_sec_by_max_hp_ratio) }),
         targeting: skillGrid(chess, def) ? { rangeGrid: skillGrid(chess, def) } : undefined,
         attack: { hitAllBlocked: true },

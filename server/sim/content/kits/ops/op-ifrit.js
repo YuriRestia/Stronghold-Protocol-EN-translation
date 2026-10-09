@@ -52,6 +52,7 @@
 import { num, talentBb, moduleBb, traitBb, skillRec, up, giveSp } from '../shared/tier1.js';
 import { bodyInKeys } from '../../../body.js';
 import { hasHp } from '../../../damage.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_ifrit_1';
 const S2 = 'skchr_ifrit_2';
@@ -197,7 +198,7 @@ export default {
           battle.on('hit', (c) => {
             const e = c.target;
             if (c.source !== unit || !e || e.side !== 'enemy' || c.dmg.type === 'element' || !up(unit)) return;
-            const d = Math.hypot(e.x - unit.x, e.y - unit.y);
+            const d = hypot(e.x - unit.x, e.y - unit.y);
             c.dmg.mul *= 1 + ds * (hi > lo ? Math.max(0, Math.min(1, (d - lo) / (hi - lo))) : 1);
           }, { owner: unit });
         }

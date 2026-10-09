@@ -50,6 +50,7 @@
 import { num, up, traitBb, talentBb, skillRec, batMod, giveSp, protectMods } from '../shared/tier1.js';
 import { absoluteRangeKeys } from '../../../targeting.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_haruka_1';
 const S2 = 'skchr_haruka_2';
@@ -167,9 +168,10 @@ export default {
     return {
       trait: atkTargets > 1 ? { maxTargets: atkTargets } : null,
       skills: {
-        [S1]: { kind: 'duration', mods: { aspd: num(b1.attack_speed) }, attack: healAttack(healTargets) },
+        // [ASSUMED] her skills' attacks heal: 白铁's 铁钳号 (禁疗, no patient) alone does not open them (skills.js allyTargetsOk)
+        [S1]: { kind: 'duration', mods: { aspd: num(b1.attack_speed) }, attack: healAttack(healTargets), allyTargets: false },
         [S2]: {
-          kind: 'duration', attack: healAttack(healTargets + Math.max(0, Math.floor(num(b2['attack@max_target_heal_add'])))),
+          kind: 'duration', attack: healAttack(healTargets + Math.max(0, Math.floor(num(b2['attack@max_target_heal_add'])))), allyTargets: false,
           onStart({ battle, unit }) {
             unit.mem.harukaS2Uses = (unit.mem.harukaS2Uses ?? 0) + 1;
             unit.mem.harukaS2Endless = unit.mem.harukaS2Uses >= 2;
@@ -184,6 +186,7 @@ export default {
           kind: 'duration',
           mods: { atkPct: num(b3.atk), batPct: batMod(b3.base_attack_time, chess) },
           targeting: { rangeGrid: s3?.rangeGrid ?? null },
+          allyTargets: false,
           attack: healAttack(healTargets),
           onStart({ battle, unit }) { rescale(battle, unit); },
           onEnd({ battle, unit }) { rescale(battle, unit); },   // (`active` is already false: ×1 again)
@@ -217,7 +220,7 @@ export default {
             if (c.source !== unit || c.opts?.regen || !skillOn(unit, S2) || !(c.amount > 0) || !(scale > 0) || !n) return;
             const t = c.target;
             const foes = battle.foesInRadius(t.x, t.y, r);
-            foes.sort((x, y) => Math.hypot(x.x - t.x, x.y - t.y) - Math.hypot(y.x - t.x, y.y - t.y) || x.spawnSeq - y.spawnSeq);
+            foes.sort((x, y) => hypot(x.x - t.x, x.y - t.y) - hypot(y.x - t.x, y.y - t.y) || x.spawnSeq - y.spawnSeq);
             const amount = c.amount * scale;
             for (const e of foes.slice(0, n)) battle.dealDamage(unit, e, { amount, type: 'arts', isSkill: true, tags: ['skill', 'haruka:s2'] });
             if (foes.length) battle.fx('aoe', { x: t.x, y: t.y, radius: r, id: unit.id, skill: 'haruka:s2' });

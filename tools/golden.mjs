@@ -39,7 +39,9 @@
 //            each of its skills, then every prototype pick with a kit at its locked selection, both forms of each tier;
 //            12 pieces per battle on a real stage against the round's real wave three times over (diyScenarios)
 // Battles run through the production BattleSpec path (server/sim/spec.js buildBattleSpec → createBattleFromSpec, the
-// path browsers and the server's headless fields use) with every option explicit; matches construct Match directly
+// path browsers and the server's headless fields use) with every option explicit — every operator the player owns at
+// the default player's settings, 潜能 6 and 练度 精英2 Lv.60 (PlayerBattleInput `potential` / `cultivate`, as
+// PlayerState.battleInput states them, 0.2.2; a stand-in and a prototype 自选 pick neither); matches construct Match directly
 // with a VirtualScheduler (as tools/botbench.mjs) — test-harness defaults never move a digest.
 //
 // Digest (battle): end time, ticks, reason, kills / total / leaks, per player (kills, leaks, coins, damage, boss
@@ -75,10 +77,13 @@ import { VirtualScheduler } from '../server/match/scheduler.js';
 import { resolveRecordLoadout, loadoutRecord, attackRangeGrid } from '../shared/loadoutRecord.js';
 import { diyRecordOf, DIY_TIERS } from '../shared/diy.js';
 import { unitForm } from '../shared/standIn.js';
+import { POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from '../shared/potential.js';
 import { OPERATOR_KITS, KITTED_CHARS } from '../server/sim/content/kits/index.js';
 import { GEO } from '../shared/constants.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/** The default player's 潜能 / 练度 of every owned operator (shared/potential.js; the owner's decision of 2026-10-08). */
+const DEFAULT_CULTIVATION = Object.freeze({ potential: POTENTIAL_DEFAULT, cultivate: CULTIVATE_DEFAULT });
 export const GOLDEN_DIR = join(ROOT, 'test', 'golden');
 export const FAMILY_NAMES = Object.freeze(['roster', 'bonds', 'fields', 'matches', 'standins', 'diy']);
 
@@ -351,6 +356,7 @@ function layout(gd, stageId, wanted, { field = 'normal', colOffset = 0, max = 12
     if (w.skillIndex != null) u.skillIndex = w.skillIndex;
     if (w.moduleId != null) u.moduleId = w.moduleId;
     if (w.standIn) u.standIn = true;
+    else Object.assign(u, DEFAULT_CULTIVATION); // an owned operator: the default player's 潜能 / 练度 (0.2.2)
     if (w.carryState) u.carryState = w.carryState;
     units.push(u);
   }
@@ -953,7 +959,8 @@ function diyLayout(stageId, wanted) {
     const [r, c] = free[0];
     used.add(tileKey(r, c));
     const dir = units.length % 7 === 6 ? ['UP', 'LEFT', 'DOWN'][Math.floor(units.length / 7) % 3] : 'RIGHT';
-    units.push({ uid: uid++, kind: 'chess', chessId: w.chessId, diy: { ...w.diy }, row: r, col: c, dir, items: [] });
+    // an owned pick at the default player's 潜能 / 练度 (0.2.2); a prototype has neither
+    units.push({ uid: uid++, kind: 'chess', chessId: w.chessId, diy: { ...w.diy }, row: r, col: c, dir, items: [], ...(w.rec.diyProto ? null : DEFAULT_CULTIVATION) });
   }
   return units;
 }

@@ -1,4 +1,4 @@
-// server/soloQueue.js — 单人匹配 (DESIGN §26): a Doctor queues from the lobby without a room. The server only places
+// server/soloQueue.js — 单人匹配 (DESIGN §28): a Doctor queues from the lobby without a room. The server only places
 // queued Doctors when it can fill a room to MAX_SEATS, and starts that match at once: no room screen, no drip-feed.
 // This file holds the queue and decides who goes where; the seating and the start are Lobby methods (placeSolos).
 // The queue size is never sent to anyone.

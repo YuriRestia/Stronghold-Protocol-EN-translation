@@ -7,7 +7,9 @@ import { MOVE_SCALE, COLS, STEALTH_RESTORE } from '../../constants.js';
 import {
   HUSK_REBIRTH, BOOM_RADIUS, POLLUTION_INTERVAL, STEALTH_RESTORE_BY_KEY, DUCK_STEALTH_RESTORE, nthOf, stOf, safe, num, T, elem, hurt,
   areaAllies, areaAlliesInTiles, zone, spawnChildren, stepToward, setHits, hitCount, setForm, absorbArts, auraBuff,
+  unbalancedNow,
 } from './helpers.js';
+import { hypot } from '../../detmath.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // archetypes
@@ -105,7 +107,7 @@ function pathKeysAhead(e) {
   if (!R || !Array.isArray(R.pts)) return keys;
   let x = e.x, y = e.y;
   for (let i = R.ptIdx ?? 0; i < R.pts.length; i++) {
-    const p = R.pts[i], n = Math.max(1, Math.ceil(Math.hypot(p.x - x, p.y - y) * 4));
+    const p = R.pts[i], n = Math.max(1, Math.ceil(hypot(p.x - x, p.y - y) * 4));
     for (let k = 1; k <= n; k++) keys.add(Math.round(y + ((p.y - y) * k) / n) * COLS + Math.round(x + ((p.x - x) * k) / n));
     x = p.x; y = p.y;
   }
@@ -180,15 +182,17 @@ const deathSpawn = (key, cnt, extra = {}) => ({
 
 /**
  * Death explosion on the allies within r it can select (areaAllies — PRTS 高能源石虫 / 冰爆源石虫 / 卷心籽 死亡爆炸 "…无视迷彩，
- * 不可对空", no 无视无法选择: a 隐匿 ally is spared; the dead enemy blocks nobody).
+ * 不可对空", no 无视无法选择: a 隐匿 ally is spared; the dead enemy blocks nobody). `noAir` (default — all three say so):
+ * a flying ally (the 炎佑 dragon) is skipped; until 0.2.1 it took the blast (community report: 炎祐吃到了不该吃到的地面伤害).
  */
-const deathBoom = ({ scale, type = 'phys', r = BOOM_RADIUS, status = null, sil = true, cond = null }) => ({
+const deathBoom = ({ scale, type = 'phys', r = BOOM_RADIUS, status = null, sil = true, cond = null, noAir = true }) => ({
   sil,
   death(c, b, e, a) {
     if (c.reason !== 'killed' || (cond && !cond(e, a))) return;
     const atk = e.s.atk;
     b.fx('explode', { x: e.x, y: e.y, r, kind: 'deathBoom', id: e.id });
     for (const u of areaAllies(b, e, e.x, e.y, r)) {
+      if (noAir && u.isFlying) continue;
       if (scale > 0) hurt(b, e, u, atk * scale, type);
       if (status && u.alive) b.applyStatus(u, status.key, { duration: status.dur, source: e, value: status.value });
     }
@@ -353,6 +357,7 @@ function reborn({ dur = 0, hpRatio = 1, invincible = 0, onKo = null, during = nu
       a.state = 'reborn';
       a.t0 = b.time;
       a.noAtk = e.profile.noAttack;
+      e.unbalanceUntil = -Infinity;   // a 重生 is a forced state change: it ends a 失衡 (PRTS 失衡位移机制 「例如复活」)
       rebirthCleanse(b, e);
       e.hp = Math.min(1, e.s.maxHp);
       if (onKo) safe(b, e, () => onKo(b, e, a));
@@ -405,7 +410,7 @@ function unbalanced(onMove) {
       a.px = e.x; a.py = e.y; a.hid = e.hidden;
       if (px == null || hid || e.hidden) return;
       const own = e.s.moveSpeed * MOVE_SCALE * dt * 1.5 + 1e-3;
-      const extra = Math.hypot(e.x - px, e.y - py) - own;
+      const extra = hypot(e.x - px, e.y - py) - own;
       a.lx = px; a.ly = py;                                          // where the move started (direction for onMove)
       if (extra > 0.05) onMove(b, e, a, extra);
     },
@@ -474,6 +479,7 @@ function husk({ hits, delay, stealthy = true, unblock = false, onHusk = null, ke
       if (a.state === 'husk' || !(hits > 0) || !(delay > 0)) return false;   // the husk's knock-out is the real death
       a.state = 'husk';
       a.rebornUntil = b.time + HUSK_REBIRTH;
+      e.unbalanceUntil = -Infinity;   // a 重生 is a forced state change: it ends a 失衡 (PRTS 失衡位移机制 「例如复活」)
       a.noAtk = e.profile.noAttack;
       a.max = a.max ?? e.base.maxHp;
       rebirthCleanse(b, e);
@@ -598,6 +604,7 @@ const skill = (s, fire, { cond = null, sil = false, cd = null, icd = null, id = 
 
 /** Blink past the blocker along the path (弑君者 / 卢西恩). Returns the start position. */
 export function blinkForward(b, e, dist) {
+  if (unbalancedNow(b, e)) return null;                              // 失衡: 「无法…使用技能」 — no blink meanwhile
   const from = { x: e.x, y: e.y };
   const R = e.route;
   let left = dist;
@@ -605,7 +612,7 @@ export function blinkForward(b, e, dist) {
     let i = R.ptIdx;
     while (left > 1e-9 && i < R.pts.length) {
       const p = R.pts[i];
-      const d = Math.hypot(p.x - e.x, p.y - e.y);
+      const d = hypot(p.x - e.x, p.y - e.y);
       if (d <= left) { e.x = p.x; e.y = p.y; left -= d; i++; } else { stepToward(e, p.x, p.y, left); left = 0; }
     }
   } else if (R && R.legs && R.legs[R.legIdx] && R.legs[R.legIdx].r != null) {

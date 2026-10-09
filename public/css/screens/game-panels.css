@@ -515,6 +515,8 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 
 /* ---- direction wheel (ui/facingWheel.js, research 09 §1.2): white diamond, 4 chevrons, "✕ 点击取消", orange range ---- */
 .fwheel { position: fixed; inset: 0; z-index: 6; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; }
+/* the wheel takes the keyboard focus when it opens (Enter confirms there, GitHub #394): no ring around the whole screen */
+.fwheel:focus-visible { outline: none; }
 .fwheel__stripes { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .fwheel__dia { position: absolute; transform: translate(-50%, -50%); pointer-events: none; animation: fwheel-in 160ms var(--ease-out); }
 @keyframes fwheel-in { from { opacity: 0; transform: translate(-50%, -50%) scale(.82); } }

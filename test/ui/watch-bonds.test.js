@@ -281,15 +281,44 @@ describe('§20.15 the bonds: views + live layers', () => {
     assert.deepEqual(mate.bonds.map((b) => [b.bondId, b.layers]), [['sargonShip', 44], ['kjeragShip', 7]], 'THEIR bonds, THEIR live count');
     assert.deepEqual(playerBonds({ pub, priv: PRIV, myId: ME, ownerId: 'p3', live }).map((b) => b.layers), [120]);
   });
-  test('ownerBoard: the teammate\'s operators on the field on screen feed the popup\'s member list (no hand)', () => {
+  test('ownerBoard: the teammate\'s operators on the field on screen feed the popup\'s member list; a scout\'s bench goes to hand / temp', () => {
     const field = { fieldId: 'n:p2', prep: true, units: [
-      { id: 1, kind: 'op', side: 'ally', ownerId: 'p2', defId: 'chess_char_1_19_a' },
-      { id: 2, kind: 'token', side: 'ally', ownerId: 'p2', defId: 'tok' },
+      { id: 1, kind: 'op', side: 'ally', ownerId: 'p2', defId: 'chess_char_1_19_a', area: 'board' },
+      { id: 2, kind: 'token', side: 'ally', ownerId: 'p2', defId: 'tok', area: 'board' },
       { id: 3, kind: 'op', side: 'ally', ownerId: 'p3', defId: 'chess_other' },
       { id: 4, kind: 'enemy', side: 'enemy', ownerId: null, defId: 'enemy_1' },
+      { id: 5, kind: 'op', side: 'ally', ownerId: 'p2', defId: 'chess_char_1_03_a', area: 'hand' },
+      { id: 6, kind: 'op', side: 'ally', ownerId: 'p2', defId: 'chess_char_2_04_a', area: 'temp' },
+      { id: 7, kind: 'item', side: 'ally', ownerId: 'p2', defId: 'chess_item_1_01_e_a', area: 'hand' },
     ] };
-    assert.deepEqual(ownerBoard(field, 'p2'), { board: [{ kind: 'chess', id: 'chess_char_1_19_a' }], hand: [], temp: [] });
+    assert.deepEqual(ownerBoard(field, 'p2'), {
+      board: [{ kind: 'chess', id: 'chess_char_1_19_a' }], hand: [{ kind: 'chess', id: 'chess_char_1_03_a' }], temp: [{ kind: 'chess', id: 'chess_char_2_04_a' }],
+    });
+    // a unit without an area (a battle's, an older server's prep scout) is on the board
+    assert.deepEqual(ownerBoard({ units: [{ kind: 'op', ownerId: 'p2', defId: 'chess_char_1_19_a' }] }, 'p2').board, [{ kind: 'chess', id: 'chess_char_1_19_a' }]);
     assert.equal(ownerBoard(null, 'p2'), null);
+  });
+  test('GitHub #385: a scouted bench counts in the popup\'s 成员 header as in the player\'s own (hand for 远见 / 奇迹 / 投资人, temp never)', () => {
+    // 远见 (BOARD_AND_DECK, countsHand: the server's 在场 is 2 — 赫默 on the board, 初雪 in the hand; 伊内丝 waits in temp)
+    // 炎 (BOARD: 在场 1 — 小满; 琳琅诗怀雅 in the hand, 烛煌 in temp)
+    const u = (id, defId, area) => ({ id, kind: 'op', side: 'ally', ownerId: 'p2', defId, area });
+    const field = { fieldId: 'n:p2', prep: true, units: [
+      u(1, 'chess_char_2_02_a', 'board'), u(2, 'chess_char_2_04_a', 'board'),
+      u(3, 'chess_char_3_14_a', 'hand'), u(4, 'chess_char_3_04_a', 'hand'),
+      u(5, 'chess_char_4_04_a', 'temp'), u(6, 'chess_char_5_03_a', 'temp'),
+    ] };
+    const head = (bondId) => {
+      const v = BondPopup({ bondId, entry: bond(bondId, 0, 0, 0), priv: ownerBoard(field, 'p2'), owner: '阿米娅', onClose() {} });
+      const h4 = [...walk(v)].find((x) => x.type === 'h4' && /成员/.test(textOf(x)));
+      const members = [...walk(v)].filter((x) => hasClass(x, 'bpop__member'));
+      return { head: textOf(h4).replace(/\s+/g, ''), on: members.filter((x) => hasClass(x, 'is-on')).length, owned: members.filter((x) => hasClass(x, 'is-owned')).length };
+    };
+    const visi = head('visiShip');
+    assert.match(visi.head, /^成员2\//, '远见: the board member and the hand member (含整备区), not the temp one');
+    assert.deepEqual([visi.on, visi.owned], [1, 2], 'only 赫默 is 在场; 初雪 and 伊内丝 are owned');
+    const yan = head('yanShip');
+    assert.match(yan.head, /^成员1\//, '炎: the board member only');
+    assert.deepEqual([yan.on, yan.owned], [1, 2]);
   });
   test('ownerBoard: under client-side combat the battle on screen\'s operators join (the runner\'s meta predates their deploy)', () => {
     const meta = { fieldId: 'b1', local: true, units: [{ id: 90, kind: 'enemy', side: 'enemy', ownerId: null, defId: 'boss' }] };
@@ -405,7 +434,7 @@ describe('§20.15 the popup of a card\'s bond chip: the UNIT owner\'s bond (a sh
     assert.deepEqual([v.entry.bondId, v.entry.count, v.entry.active, v.entry.layers], ['sargonShip', 2, true, 55], 'the partner\'s count / tier, their live layers');
     assert.notEqual(v.priv, PRIV, 'not the viewer\'s pieces');
     assert.deepEqual(v.priv.board.map((x) => x.id).sort(), ['chess_char_1_09_a', 'chess_char_1_12_a'], 'the partner\'s operators on the field on screen');
-    assert.deepEqual([v.priv.hand, v.priv.temp], [[], []], 'their hand is never sent');
+    assert.deepEqual([v.priv.hand, v.priv.temp], [[], []], 'a battle field sends no bench');
   });
   test('popupView: your own bond (m.private entry with thresholds, your pieces, no name); a bond not listed → no entry; nothing open → null', () => {
     const own = popupView({ open: { id: 'yanShip', ownerId: ME, from: 'detail' }, pub, priv: PRIV, myId: ME, field: b1, live: null });

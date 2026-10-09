@@ -56,6 +56,7 @@
 import { num, talentBb, traitBb, moduleOn, skillRec, up, statBuff } from '../shared/tier1.js';
 import { toLocal } from '../../../dir.js';
 import { COLS, PROJECTILE_SPEEDS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_phenxi_1';
 const S2 = 'skchr_phenxi_2';
@@ -136,7 +137,7 @@ function s3Shot(battle, unit, b3) {
   battle.addProjectile({ from: unit, to: { x, y }, speed: S3_SPEED, visual: 'bomb', source: unit, onHit: () => {
     battle.fx('aoe', { x, y, radius: S3_RADIUS, id: unit.id, skill: 'phenxi:s3' });
     for (const e of battle.foesInRadius(x, y, S3_RADIUS, true)) {
-      const sc = Math.hypot(e.x - x, e.y - y) <= core + 1e-9 ? hi : lo;
+      const sc = hypot(e.x - x, e.y - y) <= core + 1e-9 ? hi : lo;
       battle.dealDamage(unit, e, { amount: unit.s.atk * sc * unit.s.atkScaleMul, type: 'phys', isAttack: true, isSkill: true, isSplash: true, tags: ['skill', 'phenxi:s3'] });
     }
   } });

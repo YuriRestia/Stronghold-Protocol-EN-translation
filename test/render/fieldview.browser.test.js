@@ -1,7 +1,8 @@
 // test/render/fieldview.browser.test.js — field-view features in headless Chrome through the dev demo
 // (public/dev/render-demo.html): the enemy preview pen (research 09 §2.2 / 08 §4.2) on the 3D and the 2D board and
 // the 0.25 s pan to it and back, the Final Assault prep on the player's half of the boss field (research 09 §1.2:
-// drop targets / directions stay in board space, the right half mirrored) with the round's leader on its spawn tile and
+// drop targets / directions stay in board space, the right half mirrored; a dragged unit stands on its target's
+// boss-field tile) with the round's leader on its spawn tile and
 // its red hit tiles beside a range preview (community report #12), damage numbers that never touch, the
 // automatic rebuild of a 3D board whose WebGL context was lost, and frame rates on a 4× throttled CPU.
 // Screenshots → test/e2e/out/pen-*.png, fa-prep-*.png, fa-leader-*.png, dmgnum-*.png; perf → test/e2e/out/fieldview-perf.json.
@@ -194,6 +195,9 @@ describe('field view features in headless Chrome', { skip }, () => {
       await page.mouse.move(cx, cy);
       await page.mouse.down();
       for (let i = 1; i <= 12; i++) await page.mouse.move(cx + (target.x - cx) * i / 12, cy + (target.y - cy) * i / 12);
+      // over the legal target the dragged unit stands on it (the official deploy drag): on that board tile's boss-field
+      // tile, as the drop will place it — row − 7, the column mirrored on the right half
+      const stood = await page.evaluate((uid) => { const v = window.__demo.view.debug.views.get('p:' + uid); return { x: v.x, y: v.y, lift: v.lift }; }, info.hand.uid);
       await page.mouse.up();
       await wait(400);
       const drops = await page.evaluate(() => window.__drops);
@@ -222,6 +226,7 @@ describe('field view features in headless Chrome', { skip }, () => {
       await page.close();
       assert.deepEqual(problems, []);
       assert.deepEqual(drops[0], { area: 'board', row: target.row, col: target.col }, `drop target in board space: ${JSON.stringify(drops)}`);
+      assert.deepEqual(stood, { x: side === 'R' ? 20 - target.col : target.col, y: target.row - 7, lift: 0.3 }, 'while dragged over it: standing on the target\'s boss-field tile');
       assert.deepEqual(dirs, { a: side === 'R' ? 'LEFT' : 'RIGHT', u: 'UP' });
       assert.deepEqual(past, { field: true, wallBelow: null, below: null, wallAbove: true, pen: null, pad: true });
     });

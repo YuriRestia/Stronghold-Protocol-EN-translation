@@ -4,7 +4,7 @@
 
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { elementView } from '../damage.js';
-import { unitInfo, snapshotUnits } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, wolfView, negView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -33,11 +33,30 @@ export class BattleEvents {
   }
 
   /**
+   * Record that an enemy's attack recovery (atkStandUntil) is cut or ignored now — snapshot `standCut`, display metadata
+   * (render/interp.js); never changes the attack's timing or state.
+   */
+  _cutAttackStand(unit) {
+    if (unit.side === 'enemy' && Number.isFinite(unit.atkStandUntil) && unit.atkStandUntil > this.time) {
+      unit.atkStandCutAt = this.time;
+    }
+  }
+
+  /**
    * Compact full snapshot of this field (DESIGN §8.2 b.snap), plus (only when non-empty):
    *   down: [[id, respawnAt, respawnTime, state, row, col]] — operators that left the field waiting to redeploy (isDown): the
    *         game time their respawn timer ends, its length (s), constants.js DOWN_STATE and the tile they lie on (and
    *         come back on: _layBody — where they fell, or their home);
-   *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (damage.js elementView).
+   *   elem: [[id, element, fill, cooldownEnd, cooldown]] — the element gauge each unit shows (damage.js elementView);
+   *   ammo: [[id, rounds left, rounds in the magazine]] — a running ammo skill, whole rounds (snapshot.js ammoView): the segmented bar;
+   *   wolves: [[id, 狼影 left, the talent's maximum]] — 伺夜's 狼群 (snapshot.js wolfView): the pips under the HP bar;
+   *   neg: [[id, fill]] — the share of its cap a negative-HP pool holds (snapshot.js negView; 斩业星熊's 我执): the red bar;
+   *   stand: [[id, until]] — when each enemy's attack recovery ends (atkStandUntil; alive, deployed, visible, not
+   *         feared or stunned) — display metadata (render/interp.js holds the position until then);
+   *   standCut: [[id, at]] — the latest time each listed enemy's recovery was cut or ignored (_cutAttackStand), the
+   *         dying ones in their death window included.
+   * ammo / wolves / neg / stand / standCut are display only: no sim state reads them, and the nine-field unit tuples are
+   * unchanged.
    */
   snapshot() {
     const snap = {
@@ -47,6 +66,9 @@ export class BattleEvents {
       dp: this.players.length ? Math.floor(this.players[0].dp) : 0,
       killed: this.killed,
       total: this.total,
+      // the HUD capsule's numerator (DESIGN §14): the field's own scheduled enemies that are 已解决 (down or leaked).
+      // `killed` above counts every counted knock-out (runtime splits / summons too) and may exceed `total`.
+      resolved: this.resolved,
     };
     if (this.players.length > 1) {
       snap.dps = {};
@@ -60,13 +82,33 @@ export class BattleEvents {
       (down || (down = [])).push([u.id, r2(u.respawnAt), r2(Math.max(0, u.respawnAt - u.deathAt)), this._downState(u), ...this.restTile(u)]);
     }
     if (down) snap.down = down;
-    let elem = null;
+    let elem = null, ammo = null, wolves = null, neg = null, stand = null, standCut = null;
+    let listed = null;   // the ids in snap.units, built for the first enemy with a cut to report
     for (const u of this.units) {
+      if (u.side === 'enemy' && u.atkStandCutAt >= 0) {
+        const cutAt = Math.round(u.atkStandCutAt * 1000) / 1000;
+        if (cutAt <= snap.t && (listed || (listed = new Set(snap.units.map((x) => x[0])))).has(u.id)) (standCut || (standCut = [])).push([u.id, cutAt]);
+      }
       if (!u.alive || !u.deployed || u.hidden) continue;
+      const until = Math.round(u.atkStandUntil * 1000) / 1000;
+      if (u.side === 'enemy' && !u.s.flags.fear && !u.s.flags.stun && Number.isFinite(until) && until > snap.t) {
+        (stand || (stand = [])).push([u.id, until]);
+      }
       const v = elementView(u, this.time);
       if (v) (elem || (elem = [])).push([u.id, v[0], v[1], v[2], v[3]]);
+      const am = ammoView(u);
+      if (am) (ammo || (ammo = [])).push([u.id, am[0], am[1]]);
+      const wv = wolfView(u);
+      if (wv) (wolves || (wolves = [])).push([u.id, wv[0], wv[1]]);
+      const ng = negView(u);
+      if (ng) (neg || (neg = [])).push([u.id, ng]);
     }
     if (elem) snap.elem = elem;
+    if (ammo) snap.ammo = ammo;
+    if (wolves) snap.wolves = wolves;
+    if (neg) snap.neg = neg;
+    if (stand) snap.stand = stand;
+    if (standCut) snap.standCut = standCut;
     return snap;
   }
 

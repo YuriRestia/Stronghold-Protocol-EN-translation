@@ -71,6 +71,37 @@ test('迅捷: member skill end +12 SP (p=1 at high L), ≥40 layers every operat
   assert.equal(off.s_x, 0);
 });
 
+test('迅捷 refills 引星棘刺 S1 at once: it is cast at most once per attack interval, and her attacks go on untouched (GitHub #298)', () => {
+  // S1 度算浪波: AUTO, no duration, no attack of its own, SP_FULL, cost 6; 迅捷 refunds 12 + 15 SP at ≥ 40 layers
+  const run = ({ aspd = 0, enemy = true, silence = false } = {}) => {
+    const h = makeBattle({
+      seed: 1, bonds: { swiftShip: bond(2, 229, 3) }, autoFinish: false, timeLimit: 30,
+      units: [{ chessId: 'chess_char_5_15_b', skillIndex: 0, row: 10, col: 4 }],
+      enemies: enemy ? [{ key: 'enemy_still', route: { motion: 'WALK', start: [10, 6], end: [10, 6], checkpoints: [] } }] : [],
+      defs: { enemies: { enemy_still: enemyRec({ key: 'enemy_still', hp: 1e9, atk: 0, speed: 0, blockCnt: 0 }) } },
+    });
+    h.step();
+    const u = h.unit('chess_char_5_15_b');
+    if (aspd) h.b.addBuff(u, { key: 'test:aspd', mods: { aspd } });
+    if (silence) h.b.addBuff(u, { key: 'test:mute', flags: { silence: true } });
+    if (enemy) assert.ok(h.b.enemiesInKeys(u.rangeKeys, u, u.profile).length, 'an enemy stays in range');
+    u.skill.gainSp(u.skill.spCost, 'test');
+    const n0 = u.skill.activations, a0 = u.stats.attacks;
+    h.run(6);
+    checkInvariants(h.b);
+    return { n: u.skill.activations - n0, attacks: u.stats.attacks - a0, interval: u.s.interval };
+  };
+  const base = run(), muted = run({ silence: true });
+  // the first at once, then one per interval (1.36 s): 5 in 6 s — every tick before (180)
+  assert.ok(base.n >= 4 && base.n <= 5, `one cast per attack interval (${base.interval.toFixed(2)} s): ${base.n} in 6 s`);
+  assert.ok(base.attacks > 0 && base.attacks === muted.attacks, `the casts take no attack (${base.attacks} vs ${muted.attacks} silenced)`);
+  const fast = run({ aspd: 500 }), fastMuted = run({ aspd: 500, silence: true });
+  assert.ok(fast.n >= 23 && fast.n <= 25, `ASPD +500 (interval ${fast.interval.toFixed(2)} s): ${fast.n} casts`);
+  assert.equal(fast.attacks, fastMuted.attacks, 'still no attack taken');
+  const alone = run({ enemy: false });
+  assert.ok(alone.n >= 4 && alone.n <= 5 && alone.attacks === 0, `no enemy: still fires at full SP (#124), one per interval — ${alone.n}`);
+});
+
 test('迅捷 / 突袭: SP gifts after end do not recharge a zero-SP deployment skill or trigger a ready raid', () => {
   const h = makeBattle({
     defs: { chess: { t_deploy: chessRec({ id: 't_deploy', bonds: ['swiftShip', 'raidShip'], skill: { spCost: 0 } }) } },

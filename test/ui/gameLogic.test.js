@@ -11,7 +11,7 @@ import {
   phaseMode, phaseBanner, isCombatPhase, isBossPhase, countdownState, phaseTotalSeconds, sortBonds, bondTier, nextThreshold,
   battleOverSfx, ownRoundLoss, uniteResultBox, battleResultBox, roundResultBox, RESULT_BOX_MS,
   bondMembers, memberHeadCount, bannedPerBond, priceTone, mergeProgress, shopBlockReason, deploySets, indexPieces, placementContext, canPlace,
-  boardTargets, dropIntent, normalizeDraft, normalizeSp, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
+  boardTargets, dropIntent, normalizeDraft, normalizeSp, normalizePersonalChoice, groupEnemies, factionTypes, snapHud, bossFrac, attackInterval, fmtNum,
   rangeGridBox, shortcutFor, sanitizeSettings, DEFAULT_SETTINGS, normalizeResult, cycleField, fieldLabel, homeFieldId,
   activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo,
 } from '../../public/js/ui/gameLogic.js';
@@ -442,6 +442,58 @@ describe('placement mirror (canPlace)', () => {
     assert.equal(canPlace(ctx, h0.uid, { area: 'hand', idx: 10 }).ok, false);
     assert.equal(canPlace(ctx, h0.uid, { area: 'hand', idx: -1 }).ok, false);
   });
+  test('summoner withdrawal: a full hand accepts a drop onto its own summon stack', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const ctx = ctxFor(privWith({ board: [b], hand: [...Array.from({ length: 9 }, () => item(EQUIP)), stack] }));
+    const to = { area: 'hand', idx: 9 };
+    assert.deepEqual(canPlace(ctx, b.uid, to), { ok: true, action: 'move' });
+    assert.deepEqual(dropIntent(ctx, b.uid, to), { t: 'g.move', fields: { uid: b.uid, to } });
+    assert.equal(dropFailureReason(ctx, b.uid, to), null);
+  });
+  test('summoner withdrawal: its own stack frees space when dropped onto another item or token', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const other = { ...stack, uid: ++uid, ownerUid: ++uid };
+    const ctx = ctxFor(privWith({ board: [b], hand: [...Array.from({ length: 8 }, () => item(EQUIP)), other, stack] }));
+    for (const idx of [0, 8]) {
+      const to = { area: 'hand', idx };
+      assert.deepEqual(canPlace(ctx, b.uid, to), { ok: true, action: 'move' });
+      assert.deepEqual(dropIntent(ctx, b.uid, to), { t: 'g.move', fields: { uid: b.uid, to } });
+      assert.equal(dropFailureReason(ctx, b.uid, to), null);
+    }
+  });
+  test('summoner withdrawal: a full hand without its own hand stack still refuses the move', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const other = { ...stack, uid: ++uid, ownerUid: ++uid };
+    const hand = Array.from({ length: 10 }, () => item(EQUIP));
+    const cases = [
+      privWith({ board: [b], hand }),
+      privWith({ board: [{ ...b, id: MELEE }], hand }),
+      privWith({ board: [b], hand: [...hand.slice(0, 9), other] }),
+      privWith({ board: [b], hand, temp: [stack] }),
+      privWith({ board: [b, { ...stack, row: 9, col: 3 }], hand }),
+      privWith({ board: [b], hand: [...hand.slice(0, 9), { ...item(EQUIP), ownerUid: b.uid }] }),
+    ];
+    for (const priv of cases) {
+      const ctx = ctxFor(priv);
+      for (const idx of [0, 9]) {
+        const to = { area: 'hand', idx };
+        assert.equal(canPlace(ctx, b.uid, to).code, 'HAND_FULL');
+        assert.equal(dropIntent(ctx, b.uid, to), null);
+        assert.equal(dropFailureReason(ctx, b.uid, to), '整备区已满');
+      }
+    }
+  });
+  test('summoner withdrawal: freed space does not bypass an illegal chess swap', () => {
+    const b = { ...piece('chess_char_2_02_a'), row: 10, col: 4 };
+    const stack = { uid: ++uid, kind: 'token', id: 'token_10000_silent_healrb', ownerUid: b.uid, count: 1 };
+    const ctx = ctxFor(privWith({ board: [b], hand: [piece(MELEE), ...Array.from({ length: 8 }, () => item(EQUIP)), stack] }));
+    const to = { area: 'hand', idx: 0 };
+    assert.equal(canPlace(ctx, b.uid, to).code, 'BAD_TILE');
+    assert.equal(dropIntent(ctx, b.uid, to), null);
+  });
   test('items: equip on chess (board or hand), arts on tiles, not on tokens', () => {
     const b = { ...piece(MELEE), row: 9, col: 3 };
     const hChess = piece(RANGED);
@@ -532,6 +584,32 @@ describe('drafts', () => {
     assert.equal(normalizeSp(null), null);
     assert.equal(normalizeSp({ cards: new Array(9).fill({}) }).cards.length, 6, 'at most 6 cards');
   });
+  test('personal choice: only the living recipient in the current PREP, independent of the public draft', () => {
+    const pub = { phase: PHASE.PREP, round: 14, sp: { family: 'supply', cards: ['global'] } };
+    const priv = { playerId: 'a', alive: true, canReady: false, temp: [], personalChoice: {
+      id: 'seed.choice.3', round: 14, sourceItemId: 'chess_item_6_03_m',
+      cards: [{ id: 'e1', kind: 'bounty', name: '战术特训', coin: 2 }, { id: 'e2', kind: 'bounty' }],
+    } };
+    const before = JSON.stringify({ pub, priv });
+    const sp = normalizePersonalChoice(pub, priv, 'a');
+    assert.equal(sp.id, priv.personalChoice.id);
+    assert.equal(sp.family, 'bounty');
+    assert.equal(sp.name, '教鞭 · 战术特训');
+    assert.equal(sp.turnPid, 'a');
+    assert.equal(sp.pickOf.size, 0);
+    assert.deepEqual(sp.cards.map((c) => c.idx), [0, 1]);
+    assert.ok(sp.cards.every((c) => c.takenBy === null));
+    assert.equal(JSON.stringify({ pub, priv }), before);
+    assert.equal(shopBlockReason('ready', { priv, editable: true }), '请先完成教鞭选择');
+    assert.equal(shopBlockReason('ready', { priv: { ...priv, temp: [{}] }, editable: true }), '请先完成教鞭选择');
+    assert.match(shopBlockReason('ready', { priv: { ...priv, personalChoice: null }, editable: true }), /临时整备区/);
+    for (const phase of [PHASE.SP_DRAFT, PHASE.COMBAT, PHASE.ROUND_START]) assert.equal(normalizePersonalChoice({ ...pub, phase }, priv, 'a'), null);
+    assert.equal(normalizePersonalChoice(pub, null, 'a'), null, 'spectator has no private state');
+    assert.equal(normalizePersonalChoice(pub, priv, 'b'), null);
+    assert.equal(normalizePersonalChoice(pub, { ...priv, alive: false }, 'a'), null);
+    assert.equal(normalizePersonalChoice({ ...pub, round: 15 }, priv, 'a'), null);
+    assert.equal(normalizePersonalChoice(pub, { ...priv, personalChoice: null }, 'a'), null);
+  });
 });
 
 describe('fields, players, emotes', () => {
@@ -583,7 +661,10 @@ describe('enemies, HUD, stats', () => {
     assert.deepEqual(factionTypes(['FLY', { type: 'TIMES' }, { id: 'SPECIAL' }, 'FLY', 3, null]), ['FLY', 'TIMES', 'SPECIAL']);
   });
   test('snapHud / bossFrac', () => {
-    assert.deepEqual(snapHud({ killed: 3, total: 9, dp: 20 }), { killed: 3, total: 9, dp: 20, boss: null });
+    assert.deepEqual(snapHud({ killed: 3, total: 9, dp: 20 }), { killed: 3, resolved: 3, total: 9, dp: 20, boss: null });
+    // the capsule's numerator: the field's own enemies knocked out or leaked (a runtime split / summon knocked down
+    // counts in `killed` only, so the two may differ — 5/9 down but 3/9 of the round's own list resolved)
+    assert.deepEqual(snapHud({ killed: 5, resolved: 3, total: 9, dp: 20 }), { killed: 5, resolved: 3, total: 9, dp: 20, boss: null });
     assert.deepEqual(snapHud({ boss: { hp: 50, max: 200 } }).boss, { hp: 50, max: 200 });
     assert.equal(snapHud(null), null);
     assert.equal(bossFrac({ hp: 50, max: 200 }), 0.25);
@@ -642,9 +723,15 @@ describe('keyboard & settings', () => {
   test('sanitizeSettings', () => {
     assert.deepEqual(sanitizeSettings(null), { ...DEFAULT_SETTINGS });
     assert.deepEqual(sanitizeSettings({ bgm: 3, sfx: -1, voice: 2, muted: 'yes', damageNumbers: false, quality: 'ultra' }),
-      { bgm: 1, sfx: 0, voice: 1, muted: false, damageNumbers: false, quality: 'high', keys: { ...DEFAULT_SETTINGS.keys } },
+      { bgm: 1, sfx: 0, voice: 1, voiceLang: 'en', muted: false, damageNumbers: false, quality: 'high', keys: { ...DEFAULT_SETTINGS.keys } },
       'a saved profile without `keys` (before 0.2.0) gets the default key map (test/ui/feedback5-hotkeys.test.js)');
     assert.equal(sanitizeSettings({ bgm: 0.5 }).voice, DEFAULT_SETTINGS.voice, 'a saved profile without `voice` gets the default');
+    // 语音语言 (0.2.2; this fork adds EN / KR and defaults to English) — a profile saved before it, or any other value,
+    // plays the English dub
+    assert.equal(DEFAULT_SETTINGS.voiceLang, 'en');
+    assert.equal(sanitizeSettings({ bgm: 0.5 }).voiceLang, 'en');
+    for (const ok of ['cn', 'jp', 'en', 'kr']) assert.equal(sanitizeSettings({ voiceLang: ok }).voiceLang, ok);
+    for (const bad of ['native', 'JP', 'ja', 1, null]) assert.equal(sanitizeSettings({ voiceLang: bad }).voiceLang, 'en', String(bad));
     assert.equal(sanitizeSettings({ bgm: 0.333 }).bgm, 0.33);
     assert.equal(sanitizeSettings({ quality: 'low' }).quality, 'low');
   });

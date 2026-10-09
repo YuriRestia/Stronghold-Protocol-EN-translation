@@ -44,9 +44,10 @@
 // clicks and hover (battleUnitAt), the pen (penUnitAt) — is render/pick.js over the tile under the pointer (groundTile:
 // raised tops first); battle enemies, which walk between tiles, by their ground position (flying ones by their drawn
 // body; a huge boss also anywhere on its hit area — data/enemies.json `hitArea`, user playtest #5). A dragged piece
-// is held under the pointer — a unit with its drawn feet DRAG_HOLD_TILES below it (the pointer on its body), an item
-// plate centred on it — and drops on the tile under the pointer (render/drag.js); an item dropped on a unit's tile
-// equips that unit.
+// drops on the tile under the pointer (render/drag.js). A dragged unit stands on that tile while it is a legal target
+// (a board tile or a bench slot: drag.js dragStandTile; the official deploy drag, the owner's recording of 2026-10-09,
+// PR #403's report) and is held under the pointer elsewhere — its drawn feet DRAG_HOLD_TILES below it, the pointer on
+// its body; an item plate stays centred on the pointer. An item dropped on a unit's tile equips that unit.
 //   Direction step (ui/facingWheel.js, research 09 §1.2):
 //   view.tileScreen(row, col) → { x, y, s, poly: [[x,y]×4] } (client px: tile-top centre, px per tile, corners) | null
 //   view.holdPiece(uid, {row,col} | null)       keep a dropped prep piece standing on a tile while its direction is
@@ -117,9 +118,9 @@ import { fxForm } from '../../../shared/protocol.js';
 import { Camera, presetCamera, lerpCamera, easeInOutCubic, pickTile, normRect } from './projection.js';
 import { SnapshotBuffer, frameTime } from './interp.js';
 import { TileField } from './tiles.js';
-import { UnitView, ItemView, DeviceView, FORMS } from './units.js';
+import { UnitView, ItemView, DeviceView, FORMS, syncView } from './units.js';
 import { FxSystem, ensureDamageFonts } from './fx.js';
-import { createDragController, pieceTile } from './drag.js';
+import { createDragController, pieceTile, dragStandTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, silhouetteTexture } from './textures.js';
 import { TILE_H, TIER_COLORS, COLORS } from './style.js';
 import { loadBoardArt } from './boardArt.js';
@@ -148,14 +149,17 @@ export { releaseGl } from './app/host.js';
 /**
  * Create the battlefield view inside `host` (an element sized by CSS; the canvas fills it).
  * @param {HTMLElement} host
- * @param {{ data?: any, assets?: any, audio?: any, settings?: { damageNumbers?: boolean, quality?: string },
+ * @param {{ data?: any, assets?: any, audio?: any, settings?: { damageNumbers?: boolean, quality?: string }, signal?: AbortSignal,
  *           padding?: object|((kind:string, size:{width:number,height:number}) => object),
  *           hud?: {top:number,bottom:number}|((kind:'prep'|'bossPrep', size:{width:number,height:number}, o:{shop:boolean}) => {top:number,bottom:number}|null) }} [opts]
  */
 export async function createFieldView(host, options = {}) {
   if (!host || typeof host.appendChild !== 'function') throw new TypeError('createFieldView: host element required');
   const opts = options && typeof options === 'object' ? options : {};
-  const P = await ensurePixi();
+  const signal = opts.signal;
+  signal?.throwIfAborted();
+  const P = await withTimeout(ensurePixi(), null, signal);
+  signal?.throwIfAborted();
   const assets = resolveAssets(opts.assets);
   const data = makeData(opts.data);
   const settings = { damageNumbers: true, quality: 'high', ...(opts.settings || {}) };
@@ -164,19 +168,28 @@ export async function createFieldView(host, options = {}) {
   const want3d = boardPref !== '2d' && webgl2Available(boardPref === '3d');
   // three.js (~2 MB) is fetched only when the local-art manifest lists the board atlas (in parallel with the art)
   const artListed = want3d ? boardArtListed(assets).catch(() => false) : Promise.resolve(false);
-  const threePromise = artListed.then((ok) => (ok ? loadThree() : null));
-  const packPromise = artListed.then((ok) => (ok ? Promise.resolve(assets.ready ? assets.ready() : null).catch(() => null).then(() => loadBoardPack(assets)) : null));
+  const threePromise = artListed.then((ok) => (ok ? loadThree() : null)).catch(() => null);
+  const packPromise = artListed.then((ok) => (ok ? Promise.resolve(assets.ready ? assets.ready() : null).catch(() => null).then(() => loadBoardPack(assets)) : null)).catch(() => null);
   // the manifest, and the optional local-art manifest in parallel: unit views pick an enemy's local-client model by it
   // (assets.js spineEntry, DESIGN §13 — 灼热源石虫 / 炽焰源石虫); absent or slow, they draw the web models
   await withTimeout(Promise.all([assets.ready ? assets.ready() : null, assets.local ? assets.local() : null]
-    .map((p) => Promise.resolve(p).catch(() => {}))), 4000);
+    .map((p) => Promise.resolve(p).catch(() => {}))), 4000, signal);
+  signal?.throwIfAborted();
   // web fonts for the bitmap damage numbers / tier chips (never block long)
-  try { if (document.fonts?.load) await withTimeout(Promise.all([document.fonts.load('700 40px Bender'), document.fonts.load('700 40px Oxanium')]), 1500); } catch { /* ignore */ }
+  try { if (document.fonts?.load) await withTimeout(Promise.all([document.fonts.load('700 40px Bender'), document.fonts.load('700 40px Oxanium')]), 1500, signal); } catch { /* optional fonts */ }
+  signal?.throwIfAborted();
 
   const size = () => ({ width: Math.max(1, host.clientWidth || 1), height: Math.max(1, host.clientHeight || 1) });
   const dpr = () => Math.min(globalThis.devicePixelRatio || 1, QUALITY_RES[settings.quality] || 2);
   const boardDpr = () => Math.min(globalThis.devicePixelRatio || 1, BOARD_RES[settings.quality] || 2);
   const s0 = size();
+  // Construction is synchronous until the complete view can own cancellation. If setup throws,
+  // dispose only the resources acquired by this attempt, never another view's host contents.
+  const setupCleanup = [];
+  let destroyed = false;
+  let view = null;
+  let onAbort;
+  try {
   const app = new P.Application({
     // MSAA only where it pays: dense (DPR ≥ 1.5) screens are sharp enough without it and it would cost 4× the fill
     // transparent: the 3D board canvas shows through (the 2D board paints an opaque backdrop itself)
@@ -184,6 +197,11 @@ export async function createFieldView(host, options = {}) {
     resolution: dpr(), autoDensity: true, powerPreference: 'high-performance',
   });
   const canvas = app.view;
+  setupCleanup.push(() => {
+    releaseGl(app.renderer);
+    try { app.destroy(true, { children: true, texture: false, baseTexture: false }); }
+    finally { canvas.remove(); }
+  });
   canvas.style.display = 'block';
   canvas.style.width = '100%';
   canvas.style.height = '100%';
@@ -240,7 +258,6 @@ export async function createFieldView(host, options = {}) {
     for (const fn of [...set]) { try { fn(payload); } catch (err) { console.error(`[render] ${name} listener failed`, err); } }
   };
 
-  let destroyed = false;
   let mode = 'idle';          // 'idle' | 'prep' | 'battle'
   let stageRec = null;
   let cam = presetCamera('prep', { width: s0.width, height: s0.height, padding: defaultPadding('prep', s0) }, { hud: hudBands('prep', s0) });
@@ -300,12 +317,14 @@ export async function createFieldView(host, options = {}) {
     renderer: app.renderer,
     frameNo: () => frameNo,
     impostorInterval: () => impInterval,
+    impostorSlot: () => impSlot++,
     clipAllowed: () => clipAllowed,
     viewport: () => vp,
     loadLevel: () => loadLevel,
     surfaceLayer: (row) => tiles.surfaceLayer(row),
   };
   const tiles = new TileField({ ground: layers.ground, overlay: layers.overlay, props: layers.units, anim: layers.anim });
+  setupCleanup.push(() => tiles.destroy());
   const fx = new FxSystem({
     P, layers, cam: () => cam, settings, assets, heightAt, redVignette: bg.red, surfaceLayer: ctx.surfaceLayer,
     timeScale: () => ctx.timeScale(),
@@ -320,10 +339,12 @@ export async function createFieldView(host, options = {}) {
       return Math.max(80, Math.min(size().height * 0.4, p.y));
     },
   });
+  setupCleanup.push(() => fx.destroy());
   ctx.fx = fx;
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
   ctx.createBox = () => switchableBox({ board: () => board3d, pixi: () => tiles.createBox() });
   const impostors = new ImpostorAtlas(app.renderer);
+  setupCleanup.push(() => impostors.destroy());
   ctx.impostors = impostors;
   tiles.setView(bandFor('prep'), camRect(), fieldRows('prep'));
   // the real board art of the local client (optional): wait briefly so the first frame already uses it; a late
@@ -332,7 +353,6 @@ export async function createFieldView(host, options = {}) {
     if (art && !destroyed) { tiles.setArt(art); tiles.project(cam, true); }
     return art;
   }, () => null);
-  await withTimeout(artPromise, 2500);
 
   // ---- 3D board layer (render/board3d, DESIGN §15) -----------------------------------------------------------
   let board3d = null;          // BoardScene while the 3D board is on
@@ -340,6 +360,7 @@ export async function createFieldView(host, options = {}) {
   let board3dError = null;
   // lost-context recovery: the THREE module + art pack of the last 3D board, the pending retry, failures so far
   const recover = { THREE: null, pack: null, timer: 0, tries: 0, since: 0, off: false, count: 0 };
+  setupCleanup.push(() => { clearTimeout(recover.timer); disable3d(); });
   function enable3d(THREE, pack) {
     if (destroyed || board3d || !THREE || !pack) return false;
     recover.THREE = THREE; recover.pack = pack;
@@ -409,13 +430,13 @@ export async function createFieldView(host, options = {}) {
       if (!enable3d(recover.THREE, recover.pack)) scheduleRecover();
     }, delay);
   }
-  if (want3d) {
-    const ready = Promise.all([threePromise, packPromise]).then(([THREE, pack]) => (THREE && pack ? enable3d(THREE, pack) : false), () => false);
-    await withTimeout(ready, 6000);
-  }
+  // Attach the board only after synchronous setup completes; enable3d also guards late arrivals.
+  const boardReady = Promise.all([threePromise, packPromise]).then(([THREE, pack]) => (THREE && pack ? enable3d(THREE, pack) : false), () => false);
   // the official soft shadow sprite replaces the procedural one once loaded (may already be cached; asked again when the
   // manifest arrives late)
   let shadowAsked = false;
+  let offShadow = null;
+  setupCleanup.push(() => offShadow?.());
   function loadShadow() {
     const shadowUrl = !shadowAsked && assets.ui ? assets.ui('battle/sprite_shadow') : null;
     if (!shadowUrl) return;
@@ -428,7 +449,11 @@ export async function createFieldView(host, options = {}) {
         for (const v of views.values()) if (v.shadow && !v.destroyed) v.shadow.texture = t;
         for (const v of penViews.values()) if (v.shadow && !v.destroyed) v.shadow.texture = t;
       };
-      if (t.baseTexture.valid) use(); else t.baseTexture.once('loaded', use);
+      if (t.baseTexture.valid) use();
+      else {
+        t.baseTexture.once('loaded', use);
+        offShadow = () => t.baseTexture.off('loaded', use);
+      }
     } catch { /* optional */ }
   }
   loadShadow();
@@ -1059,23 +1084,33 @@ export async function createFieldView(host, options = {}) {
   function moveDragVisual(p) {
     if (!dragState) return;
     const v = dragState.view;
-    // held under the pointer: a unit with its drawn (lifted) feet DRAG_HOLD_TILES of its own px per tile below it (the
-    // scale at the pointer's ground, refined once at the feet), an item plate centred on it; the drop target
-    // (p.target, highlighted below) is the tile under the pointer
     const item = v instanceof ItemView;
-    const g = cam.unproject(p.x, p.y, 0);
-    const hold = item ? 0 : DRAG_HOLD_TILES;
-    const s0 = g ? cam.scaleAt(g.x, g.y, 0) : cam.scale;
-    const t = pickTile(cam, p.x, p.y + hold * s0, heightAt, tiles.levels);
-    const z = t ? heightAt(t.row, t.col) : 0;
-    const up = item ? z : z + (v.lift || 0) + (v.hover || 0);
-    let w = cam.unproject(p.x, p.y + hold * s0, up);
-    if (w && hold) w = cam.unproject(p.x, p.y + hold * cam.scaleAt(w.x, w.y, up), up) || w;
-    if (w) {
-      v.x = Math.max(-1, Math.min(21, w.x));
-      v.y = Math.max(-1, Math.min(19, w.y));
-      v.z = z;
+    // a unit over a legal drop target — the tile under the pointer, on the board or the bench (render/drag.js
+    // dragStandTile) — stands on it, lifted, as in the official deploy drag (the owner's recording of 2026-10-09): the
+    // world point the drop tween goes to (boardWorld, the prep field transform applied), set at once, no tween
+    const stand = item ? null : dragStandTile(p);
+    if (stand) {
+      const w = boardWorld(stand.row, stand.col, stand.bench);
+      v.x = w.x; v.y = w.y; v.z = w.z;
+    } else {
+      // otherwise held under the pointer (the player still sees what they carry): a unit with its drawn (lifted) feet
+      // DRAG_HOLD_TILES of its own px per tile below it (the scale at the pointer's ground, refined once at the feet), an
+      // item plate centred on it
+      const g = cam.unproject(p.x, p.y, 0);
+      const hold = item ? 0 : DRAG_HOLD_TILES;
+      const s0 = g ? cam.scaleAt(g.x, g.y, 0) : cam.scale;
+      const t = pickTile(cam, p.x, p.y + hold * s0, heightAt, tiles.levels);
+      const z = t ? heightAt(t.row, t.col) : 0;
+      const up = item ? z : z + (v.lift || 0) + (v.hover || 0);
+      let w = cam.unproject(p.x, p.y + hold * s0, up);
+      if (w && hold) w = cam.unproject(p.x, p.y + hold * cam.scaleAt(w.x, w.y, up), up) || w;
+      if (w) {
+        v.x = Math.max(-1, Math.min(21, w.x));
+        v.y = Math.max(-1, Math.min(19, w.y));
+        v.z = z;
+      }
     }
+    // the drop target (p.target, highlighted) is the tile under the pointer
     if (p.target && p.target.area !== 'temp') {
       const r = p.target.area === 'board' ? p.target.row : GEO.HAND_ROW;
       const c = p.target.area === 'board' ? p.target.col : p.target.idx;
@@ -1206,6 +1241,17 @@ export async function createFieldView(host, options = {}) {
   // the 收起 toggle of PR #149 moved the discs one button to the right) opened the bond popup instead of selecting the
   // unit. As a click target that holds the finger's point the canvas wins: a tap on the board stays on the tile under it.
   const onTapTarget = () => {};
+  const removeInput = () => {
+    canvas.removeEventListener('pointerdown', onPointerDown);
+    canvas.removeEventListener('pointermove', onPointerMove);
+    canvas.removeEventListener('pointerup', onPointerUp);
+    canvas.removeEventListener('pointercancel', onPointerCancel);
+    canvas.removeEventListener('pointerleave', onPointerLeave);
+    canvas.removeEventListener('contextmenu', onContext);
+    canvas.removeEventListener('touchend', onTouchEnd);
+    canvas.removeEventListener('click', onTapTarget);
+  };
+  setupCleanup.push(removeInput);
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
@@ -1412,6 +1458,14 @@ export async function createFieldView(host, options = {}) {
           consumedIds.add(e[4].id);
           if (consumedIds.size > 200) consumedIds.delete(consumedIds.values().next().value);
         }
+        // 推拉: a push / pull (battle/displacement.js) moves the enemy inside one call; its `displace` fx carries the
+        // destination ['fx', 'displace', x, y, { id }] and the view slides there (UnitView.slideTo, PR #380) — normally
+        // started already by syncBattle's look-ahead, which this repeats harmlessly
+        if (e[1] === 'displace') {
+          const d = e[4] && typeof e[4] === 'object' ? e[4] : null;
+          const v = d && d.id != null ? views.get(d.id) : null;
+          if (v && v.slideTo) v.slideTo(Number(e[2]), Number(e[3]), Number(d.dur) > 0 ? { dur: Number(d.dur) } : {});
+        }
         // an enemy's mode change — the `form` of a sim setForm fx (shared/protocol.js fxForm: 掠海漂移体 → 爬行模式, user
         // playtest #5 item 1; 转译基底's forms, a 逐火 ember and its revival, the leaders' 重生, 守墓石像 — user report after
         // 0.1.0) — switches the view's clip set (UnitView.setForm; a kind without a clip set of that skeleton changes
@@ -1464,10 +1518,25 @@ export async function createFieldView(host, options = {}) {
     if (best) { tiles.flashObjective(best[0], best[1]); board3d?.flashObjective(best[0], best[1]); }
   }
 
+  /** syncBattle's look-ahead: a queued `displace` fx ['fx', 'displace', x, y, { id }] starts that view's slide. */
+  let slideAt = 0;
+  function startSlide(e) {
+    if (!Array.isArray(e) || e[0] !== 'fx' || e[1] !== 'displace') return;
+    const extra = e[4] && typeof e[4] === 'object' ? e[4] : null;
+    const v = extra && extra.id != null ? views.get(extra.id) : null;
+    // `dur`: the push / pull's 失衡 time in game seconds (battle/displacement.js) — the slide's length
+    if (v && v.slideTo) v.slideTo(Number(e[2]), Number(e[3]), Number(extra.dur) > 0 ? { at: slideAt, dur: Number(extra.dur) } : { at: slideAt });
+  }
   let renderT0Battle = null;   // game time of the first rendered battle frame (spawn puffs skip the initial wave)
   let downSeq = 0;             // syncBattle pass counter: a view still marked down after a pass left the `down` list
   function syncBattle(renderT) {
     if (renderT0Battle == null) renderT0Battle = renderT;
+    // A push / pull's slide starts as soon as the interval sampled below ends on the snapshot that carries the
+    // destination: its `displace` fx is due only when renderT reaches that snapshot, and by then sample() has already
+    // lerped (≤ teleport) or snapped the enemy most of the way — no frames in between (PR #380). The fx are still queued
+    // here (processEvents took only those ≤ renderT); the view holds until `at`, then eases into the sim's position.
+    slideAt = interp.nextSnapT(renderT);
+    if (slideAt > renderT) interp.forEachUpcoming(renderT, slideAt, startSlide);
     interp.sample(renderT, sample);
     for (const [id, s] of sample) {
       let v = views.get(id);
@@ -1478,9 +1547,7 @@ export async function createFieldView(host, options = {}) {
       if (!v) v = battleView(id) || createUnknown(id, s);
       if (!v) continue;
       if (!v._seen) { v._seen = true; v.fadeIn = 0; }
-      if (v.alive || v.info?.kind === 'device') v.sync(s, renderT);
-      else if (v.dying > 0) { v.x = s.x; v.y = s.y; }
-      else if (s.anim !== ANIM.DIE && s.hp > 0) { v.revive?.(); v.sync(s, renderT); }
+      syncView(v, s, renderT);
     }
     // knocked-out operators waiting to redeploy (b.snap `down`, user playtest #4 item 9): their view stays on the
     // field knocked down under a redeploy ring (UnitView.setDown) — made on the spot for one already down when this
@@ -1531,6 +1598,10 @@ export async function createFieldView(host, options = {}) {
   let cpuMs = 0;
   let frameNo = 0;
   let impInterval = 0;
+  // Each frame the impostor units take slots 0, 1, 2 … in update order (units.js _updateImpostor): a unit refreshes when
+  // (frame + slot) % interval === 0, so a frame refreshes ⌊n/k⌋ or ⌈n/k⌉ of n units. Random per-unit phases left the
+  // busiest frame 20–66% above that (16–48 units, intervals 2–6) and set the frame-time peaks of a crowded battle.
+  let impSlot = 0;
   let vp = { width: s0.width, height: s0.height };   // viewport (CSS px) of this frame: unit culling
   let culledCount = 0;
   // Adaptive load level 0–3: a device that cannot hold the frame rate with the current work switches crowds to
@@ -1547,8 +1618,9 @@ export async function createFieldView(host, options = {}) {
   // Crowded fields render skeletons through staggered RenderTexture impostors (units.js): the interval grows with
   // the number of Spine units so the per-frame vertex work stays roughly constant (hysteresis: re-evaluated
   // every 30 frames). Prep and ordinary fields keep full-rate direct rendering.
-  // Spine clipping masks (only eyeball clips on the current roster, invisible at chibi scale) each cost a stencil
-  // render-pass break (~2–5 ms of GPU on tiled GPUs): kept only for a lone clipped skeleton at high quality
+  // Spine clipping masks (the eyelids on the current roster) each cost a stencil render-pass break (~2–5 ms of GPU on
+  // tiled GPUs): kept only for a lone clipped skeleton at high quality; without them SpineActor hides the eyeball slots a
+  // closed lid would cut (GitHub #177, spine.js _eyeMaskFallback)
   let clipAllowed = true;
   function pickClipping() {
     let n = 0;
@@ -1571,6 +1643,7 @@ export async function createFieldView(host, options = {}) {
   }
   function frameBody(now) {
     frameNo++;
+    impSlot = 0;
     if (frameNo % 30 === 1) {
       impInterval = pickImpostorInterval(); clipAllowed = pickClipping();
       culledCount = 0;
@@ -1655,6 +1728,7 @@ export async function createFieldView(host, options = {}) {
   let ro = null;
   if (typeof ResizeObserver === 'function') {
     ro = new ResizeObserver(() => resize());
+    setupCleanup.push(() => ro.disconnect());
     ro.observe(host);
   }
   // a DPR change without a size change (window dragged to another monitor, zoom) must re-rasterise too; polled
@@ -1677,6 +1751,7 @@ export async function createFieldView(host, options = {}) {
     leader?.view.retryAssets?.();
   }
   const offAssets = typeof assets.onChange === 'function' ? assets.onChange(onAssets) : null;
+  setupCleanup.push(() => offAssets?.());
   const onVisible = () => {
     if (destroyed || globalThis.document?.visibilityState !== 'visible') return;
     if (assets.loaded === false && typeof assets.ready === 'function') assets.ready();
@@ -1685,10 +1760,11 @@ export async function createFieldView(host, options = {}) {
     leader?.view.retryAssets?.();
   };
   globalThis.document?.addEventListener?.('visibilitychange', onVisible);
+  setupCleanup.push(() => globalThis.document?.removeEventListener?.('visibilitychange', onVisible));
 
   // ---- public API ---------------------------------------------------------------------------------------------
 
-  const view = {
+  view = {
     setStage,
     setCamera,
     setPrep,
@@ -1804,14 +1880,9 @@ export async function createFieldView(host, options = {}) {
       try { ro?.disconnect(); } catch { /* ignore */ }
       try { offAssets?.(); } catch { /* ignore */ }
       globalThis.document?.removeEventListener?.('visibilitychange', onVisible);
-      canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('pointermove', onPointerMove);
-      canvas.removeEventListener('pointerup', onPointerUp);
-      canvas.removeEventListener('pointercancel', onPointerCancel);
-      canvas.removeEventListener('pointerleave', onPointerLeave);
-      canvas.removeEventListener('contextmenu', onContext);
-      canvas.removeEventListener('touchend', onTouchEnd);
-      canvas.removeEventListener('click', onTapTarget);
+      removeInput();
+      offShadow?.();
+      signal?.removeEventListener('abort', onAbort);
       app.ticker.remove(frame);
       app.ticker.remove(preRender);
       app.ticker.remove(postRender);
@@ -1829,6 +1900,7 @@ export async function createFieldView(host, options = {}) {
       try { board3dCanvas?.remove(); } catch { /* ignore */ }
       releaseGl(app.renderer);
       try { app.destroy(true, { children: true, texture: false, baseTexture: false }); } catch { /* ignore */ }
+      canvas.remove();
     },
     stats() {
       return {
@@ -1848,5 +1920,22 @@ export async function createFieldView(host, options = {}) {
       pick: { pieceAt, battleUnitAt, penUnitAt, groundTile },
     },
   };
+  // All teardown dependencies now exist. Aborting during either asset wait immediately releases
+  // the renderer, ticker and listeners; late shared asset results see destroyed and do nothing.
+  setupCleanup.length = 0;
+  onAbort = () => view.destroy();
+  signal?.addEventListener('abort', onAbort, { once: true });
+  signal?.throwIfAborted();
+  await withTimeout(artPromise, 2500, signal);
+  if (want3d) await withTimeout(boardReady, 6000, signal);
+  signal?.throwIfAborted();
   return view;
+  } catch (err) {
+    if (view) view.destroy();
+    else {
+      destroyed = true;
+      for (const dispose of setupCleanup.reverse()) { try { dispose(); } catch { /* continue cleanup */ } }
+    }
+    throw err;
+  }
 }

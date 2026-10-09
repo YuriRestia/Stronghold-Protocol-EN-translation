@@ -31,6 +31,8 @@ function rosmon(bb, chess, def) {
     // two 战术装备 on melee tiles of her range (the token kit: appear stun, blocked enemies DEF −160, lifetime)
     skchr_rosmon_3: {
       kind: 'duration',
+      // [ASSUMED] blocked enemies only; 白铁's unblockable 铁钳号 never: it does not open it (skills.js allyTargetsOk)
+      allyTargets: false,
       mods: { batPct: batOf(bb.base_attack_time, def, true), atkPct: num(bb.atk) },
       targeting: { maxTargets: Math.max(1, Math.floor(num(bb['attack@max_target'], 2))) },
       onStart({ battle, unit }) {

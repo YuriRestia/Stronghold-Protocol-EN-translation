@@ -51,6 +51,8 @@ function yu(bb, chess, def) {
     // 'teleport' fx). PRTS's 0.13 s between the damage and the teleport is not modelled (same tick).
     skchr_yu_2: {
       kind: 'duration',
+      // [ASSUMED] its burst and teleport pick enemies; 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
+      allyTargets: false,
       mods: { hpPct: num(bb.max_hp), atkPct: num(bb.atk), blockCnt: num(bb.block_cnt) },
       attack: { dmgType: 'arts' },
       onStart({ battle, unit }) {
@@ -79,6 +81,7 @@ function yu(bb, chess, def) {
     skill: {
       kind: 'duration',
       mods: { hpPct: num(bb.max_hp), atkPct: num(bb.atk), defPct: num(bb.def) },
+      allyTargets: false,   // [ASSUMED] its wall burns enemies crossing it; 白铁's 铁钳号 alone does not open it
       // the wall runs through his tile perpendicular to his direction (RIGHT / LEFT: his column; UP / DOWN: his row —
       // it turns with the deploy direction like a range) [ASSUMED orientation for UP / DOWN]
       onStart({ battle, unit }) {

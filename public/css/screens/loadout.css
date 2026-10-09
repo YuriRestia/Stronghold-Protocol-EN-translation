@@ -138,56 +138,93 @@
 .lo-toggle.is-on .lo-toggle__box { background: var(--mint-500); border-color: var(--mint-400); }
 .lo-toggle.is-on .lo-toggle__box .icon { opacity: 1; }
 
-/* ---- roster grid ------------------------------------------------------------------------------------------------------------ */
-.lo-grid {
+/* ---- roster: one list, one row per operator (0.2.2) ------------------------------------------------------------------------ */
+/* The quick choices of PR #301 (by @farridge) as ONE list instead of three columns of cards (the owner's decision of
+   2026-10-08: 「三个竖排有点乱影响观感」): every row has the same four columns — the operator (portrait, name, bonds), the
+   skills, the elite's modules, 潜能 / 练度 — aligned under a sticky head row, so the eye runs down a column. Sizes: --q a
+   quick button (a skill / module), --art the portrait; a coarse pointer gets 40 px targets. */
+.lo-list {
+  --q: max(.4rem, 32px); --qg: max(.05rem, 4px); --art: max(.52rem, 40px);
+  --cols: minmax(max(2.2rem, 110px), max(3.2rem, 260px)) calc(3 * var(--q) + 2 * var(--qg)) calc(4 * var(--q) + 3 * var(--qg)) max(2.2rem, 160px);
   flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(max(1.16rem, 64px), 1fr)); grid-auto-rows: max-content;
-  align-content: start; gap: .1rem; padding: .06rem .08rem .2rem .02rem;
-  scrollbar-width: thin; scrollbar-color: var(--line-3) transparent;
+  padding: 0 .06rem .2rem 0; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent;
 }
-.lo-empty { grid-column: 1 / -1; padding: .4rem; text-align: center; font-size: max(.16rem, 11px); }
+.sp-coarse .lo-list { --q: max(.44rem, 40px); }
+.lo-list__head, .lo .lo-card { display: grid; grid-template-columns: var(--cols); justify-content: start; align-items: center; column-gap: max(.12rem, 8px); }
+/* (the head has the rows' box — the same borders, transparent, and padding — so its columns are the rows' to the pixel) */
+.lo-list__head {
+  position: sticky; top: 0; z-index: 2; padding: .05rem .1rem .05rem .07rem; border: 1px solid transparent; border-left-width: 3px;
+  font-size: max(.12rem, 9px); font-weight: 700; letter-spacing: .12em; color: var(--text-dim);
+  background: linear-gradient(180deg, #0d1110 70%, rgba(13, 17, 16, .85)); box-shadow: inset 0 -1px 0 var(--line);
+}
+.lo-list__h small { margin-left: .05rem; font-weight: 400; letter-spacing: .04em; color: var(--gold-2); opacity: .8; }
+.lo-list__rows { display: flex; flex-direction: column; gap: max(.04rem, 3px); padding-top: max(.05rem, 4px); }
+.lo-empty { padding: .4rem; text-align: center; font-size: max(.16rem, 11px); }
 
-.lo-card {
+.lo .lo-card {
   --tc: var(--tier-1);
-  position: relative; display: flex; flex-direction: column; align-items: stretch; min-width: 0;
-  padding: 0; font: inherit; color: var(--text-hi); text-align: left; cursor: pointer;
-  background: linear-gradient(180deg, rgba(34, 41, 38, .95), rgba(14, 17, 16, .98));
-  border: 1px solid var(--line); box-shadow: inset 0 -2px 0 var(--tc);
-  transition: border-color var(--t-fast), transform var(--t-fast), box-shadow var(--t-fast);
-  touch-action: manipulation;
+  position: relative; min-width: 0; padding: max(.05rem, 4px) .1rem max(.05rem, 4px) .07rem;
+  background: rgba(255, 255, 255, .025); border: 1px solid var(--line); border-left: 3px solid var(--tc);
+  transition: background var(--t-fast), border-color var(--t-fast);
 }
 .lo-card--t1 { --tc: var(--tier-1); } .lo-card--t2 { --tc: var(--tier-2); } .lo-card--t3 { --tc: var(--tier-3); }
 .lo-card--t4 { --tc: var(--tier-4); } .lo-card--t5 { --tc: var(--tier-5); } .lo-card--t6 { --tc: var(--tier-6); }
-.lo-card:hover { border-color: var(--line-3); transform: translateY(-1px); }
-.lo-card.is-sel { border-color: var(--mint-400); box-shadow: inset 0 -2px 0 var(--tc), 0 0 0 1px var(--mint-500), 0 0 .16rem rgba(23, 249, 183, .35); }
-.lo-card:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
-.lo-card__art { position: relative; display: block; aspect-ratio: 1; overflow: hidden; background: #1b201e; }
-.lo-card__art img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lo-card__art::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(180deg, transparent, rgba(8, 10, 9, .85)); }
-.lo-card__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: .44rem; font-weight: 900; color: var(--text-dim); }
-.lo-card__tier { position: absolute; left: .03rem; top: .03rem; z-index: 1; }
-.lo-card__flag {
-  position: absolute; right: 0; top: 0; z-index: 1; width: .22rem; height: .22rem;
-  background: linear-gradient(225deg, var(--mint-400) 50%, transparent 50%);
-}
-/* 0.2.0 补位: a chess marked 未持有 on the 干员持有 tab (its stand-in fights with a fixed skill) */
-.lo-card__sub { position: absolute; right: .03rem; top: .26rem; z-index: 1; padding: 0 .04rem; font-size: max(.11rem, 8px); font-weight: 700; line-height: 1.4; color: var(--ice-900); background: var(--ice); }
+.lo .lo-card:hover { background: rgba(255, 255, 255, .045); border-color: var(--line-3); border-left-color: var(--tc); }
+.lo .lo-card.is-sel { background: linear-gradient(90deg, rgba(78, 216, 175, .1), rgba(78, 216, 175, .02) 60%); border-color: var(--mint-700); border-left-color: var(--tc); box-shadow: 0 0 0 1px var(--mint-500) inset; }
+.lo-card button:focus-visible, .lo-card select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
+.lo-card__pick { display: flex; align-items: center; gap: max(.1rem, 6px); min-width: 0; padding: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
+.lo-card__art { position: relative; flex: none; width: var(--art); height: var(--art); overflow: hidden; background: #1b201e; border: 1px solid var(--line-2); }
+.lo-card__art > img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lo-card__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: max(.24rem, 16px); font-weight: 900; color: var(--text-dim); }
+.lo-card__tier { position: absolute; left: 1px; top: 1px; z-index: 1; transform-origin: 0 0; transform: scale(.8); }
+.lo-card__id { display: flex; flex-direction: column; gap: max(.03rem, 2px); min-width: 0; }
+.lo-card__name { font-size: max(.17rem, 12px); font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lo-card__bonds { display: flex; flex-wrap: wrap; gap: max(.04rem, 3px); min-height: max(.16rem, 12px); }
+.lo-card__bond, .lo-card__bonds .lo-bond__dot { width: max(.18rem, 13px); height: max(.18rem, 13px); object-fit: contain; }
+.lo-card__flag { position: absolute; right: 0; top: 0; z-index: 1; width: max(.16rem, 10px); height: max(.16rem, 10px); background: linear-gradient(225deg, var(--mint-400) 50%, transparent 50%); pointer-events: none; }
+/* 0.2.0 补位: a chess marked 未持有 on the 干员持有 tab — its stand-in fights with a fixed skill and no 潜能 / 练度; the choices
+   here apply once it is owned again */
+.lo-card__sub { align-self: flex-start; padding: 0 .04rem; font-size: max(.11rem, 8px); font-weight: 700; line-height: 1.4; color: var(--ice-900); background: var(--ice); }
+.lo .lo-card.is-standin .lo-card__skills, .lo .lo-card.is-standin .lo-card__mods, .lo .lo-card.is-standin .lo-cult { opacity: .55; }
 .lo-locknote--standin { color: var(--ice); }
-.lo-card__name {
-  position: absolute; left: .05rem; right: .05rem; top: calc(100% - max(.64rem, 34px)); z-index: 1;
-  font-size: max(.15rem, 10px); font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  text-shadow: 0 1px 2px #000;
+
+.lo-card__skills, .lo-card__mods { display: flex; align-items: center; gap: var(--qg); min-width: 0; }
+.lo-card__mods { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+.lo-q {
+  position: relative; flex: none; display: grid; place-items: center; width: var(--q); height: var(--q); padding: 0;
+  font: inherit; color: var(--text-lo); background: none; border: 0; cursor: pointer; touch-action: manipulation;
 }
-.lo-card__kit { display: flex; align-items: center; justify-content: space-between; gap: .04rem; height: max(.3rem, 18px); padding: 0 .04rem; background: rgba(0, 0, 0, .4); }
-.lo-card__sk { display: inline-flex; align-items: center; gap: .04rem; font-size: max(.13rem, 9px); color: var(--text-lo); }
-.lo-card__sk b { font-family: var(--font-num); letter-spacing: .04em; }
-.lo-card__sk.is-alt { color: var(--mint-400); }
-.lo-card__mod {
-  display: inline-grid; place-items: center; min-width: max(.24rem, 15px); height: max(.2rem, 13px); padding: 0 .03rem;
-  font-family: var(--font-num); font-size: max(.13rem, 9px); font-weight: 700; color: var(--text-lo);
-  border: 1px solid var(--line-2); background: rgba(255, 255, 255, .04);
-}
-.lo-card__mod.is-alt { color: var(--text-on-mint); background: var(--gold-2); border-color: var(--gold); }
+.lo-q--empty { border: 1px dashed rgba(255, 255, 255, .07); cursor: default; }
+.lo-q:not(.is-on):not(.lo-q--empty) { opacity: .62; }
+.lo-q:not(.is-on):not(.lo-q--empty):hover { opacity: 1; }
+.lo-q__type { position: absolute; left: 0; bottom: 0; padding: 0 2px; font-size: max(.11rem, 8px); line-height: 1.3; color: var(--text-hi); background: rgba(0, 0, 0, .7); pointer-events: none; }
+.lo-q--mod.is-on .lo-mglyph { border-color: var(--gold-2); box-shadow: 0 0 .08rem rgba(255, 198, 0, .35); }
+
+/* 潜能 / 练度 (screens/cultivation.js): two compact selects side by side in the row's last column; at the defaults (潜能 6,
+   精英2 Lv.60 — the same on every row) they stay quiet, a changed one is mint */
+.lo-cult { display: flex; align-items: center; gap: max(.04rem, 3px); min-width: 0; }
+.lo .lo-cult .lo-select { min-height: 0; height: max(.32rem, 22px); padding-left: 0; border-color: transparent; background: rgba(255, 255, 255, .03); }
+.lo .lo-cult .lo-select:hover, .lo .lo-cult .lo-select:focus-within { border-color: var(--line-3); }
+.lo .lo-cult .lo-select select { width: 100%; min-width: 0; padding: 0 max(.2rem, 14px) 0 max(.06rem, 4px); font-size: max(.14rem, 10px); color: var(--text-lo); }
+.lo-cult__pot { flex: 0 0 auto; }
+.lo-cult__tier { flex: 1 1 auto; min-width: 0; }
+.lo .lo-cult .lo-select.is-off { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
+.lo .lo-cult .lo-select.is-off select { color: var(--mint-400); font-weight: 700; }
+.sp-coarse .lo .lo-cult .lo-select { height: max(.32rem, 28px); }
+
+/* the detail's 潜能 / 练度 section */
+.lo-sec--cult { padding: .08rem .1rem .1rem; margin-bottom: .14rem; background: rgba(0, 0, 0, .22); border: 1px solid var(--line); border-left: 3px solid var(--mint-500); }
+.lo-sec--cult .lo-sec__head .lo-badge { margin-left: auto; }
+.lo-cult__row { display: grid; grid-template-columns: max(.5rem, 30px) minmax(0, 1fr); align-items: center; gap: .08rem; }
+.lo-cult__k { font-size: max(.13rem, 10px); color: var(--text-dim); letter-spacing: .08em; }
+.lo .lo-cult__row .lo-seg { margin-left: 0; flex-wrap: wrap; justify-self: start; }
+.lo-seg--pot button { min-width: max(.36rem, 26px); font-family: var(--font-num); }
+.lo-seg--tier button { padding: 0 .1rem; }
+.lo-cult__eff { margin: .02rem 0 0; font-size: max(.14rem, 10px); line-height: 1.5; color: var(--text-md); }
+.lo-cult__eff b { color: var(--mint-400); margin-right: .04rem; }
+.lo-cult__note { margin: 0; font-size: max(.12rem, 9px); line-height: 1.5; color: var(--text-dim); }
+.lo-sec--cult.is-moot .lo-cult__row, .lo-sec--cult.is-moot .lo-cult__eff { opacity: .55; }
+.lo-sec--cult.is-moot .lo-cult__note { color: var(--ice); }
 
 /* ---- skill icon / module glyph ---------------------------------------------------------------------------------------------- */
 .lo-sicon { position: relative; flex: none; display: inline-grid; place-items: center; width: .72rem; height: .72rem; background: #151a18; border: 1px solid var(--line-2); }
@@ -195,9 +232,13 @@
 .lo-sicon--xs { width: max(.2rem, 13px); height: max(.2rem, 13px); border: 0; background: transparent; }
 .lo-sicon--xs .lo-sicon__glyph { display: none; }
 .lo-sicon--md { width: max(.72rem, 38px); height: max(.72rem, 38px); }
+.lo-sicon--q { width: 86%; height: 86%; }
 .lo-sicon__glyph { font-family: var(--font-num); font-size: max(.2rem, 12px); font-weight: 700; color: var(--text-lo); letter-spacing: .04em; }
 .lo-sicon.is-on { border-color: #1ea0ff; }
-.lo-sicon__outline { position: absolute; inset: -.05rem; width: calc(100% + .1rem) !important; height: calc(100% + .1rem) !important; object-fit: fill; pointer-events: none; }
+/* the selected skill's frame (a 30 × 30 sprite, a 3 px ring to its edges) drawn .05rem outside the icon on every side, square:
+   theme.css `img { max-width: 100% }` clamped its width to the icon's while its height grew by .1rem, and `.lo-sicon img`
+   (more specific) made it `cover` — a tall, left-shifted frame with clipped side lines (GitHub #398, PR #399) */
+.lo-sicon .lo-sicon__outline { position: absolute; inset: -.05rem; width: calc(100% + .1rem) !important; height: calc(100% + .1rem) !important; max-width: none; object-fit: fill; pointer-events: none; }
 .lo-sicon__ring { position: absolute; inset: -.05rem; border: 2px solid #1ea0ff; pointer-events: none; }
 
 .lo-mglyph { position: relative; flex: none; display: inline-grid; place-items: center; width: max(.56rem, 30px); height: max(.56rem, 30px);
@@ -205,6 +246,7 @@
 .lo-mglyph img { width: 78%; height: 78%; object-fit: contain; }
 .lo-mglyph__t { font-family: var(--font-num); font-size: max(.26rem, 15px); font-weight: 700; color: var(--gold-2); line-height: 1; }
 .lo-mglyph--none { background: #121615; border-style: dashed; }
+.lo-mglyph--q { width: 86%; height: 86%; }
 .lo-mglyph__slash { position: absolute; inset: 22%; border-radius: 50%; border: 2px solid var(--text-dim); }
 .lo-mglyph__slash::after { content: ''; position: absolute; left: 50%; top: -10%; bottom: -10%; width: 2px; background: var(--text-dim); transform: translateX(-50%) rotate(45deg); }
 
@@ -247,6 +289,11 @@
 .sp-coarse .vl-pick__sq { min-width: 30px; height: 30px; }
 
 .lo-detail__body { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: .12rem .18rem .2rem; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
+.lo-garrisons { margin-bottom: .18rem; }
+.lo-garrisons .dgarrison__k { font-size: max(.14rem, 11px); }
+.lo-garrisons .dgarrison__type { font-size: max(.12rem, 10px); }
+.lo-garrisons .dgarrison__icon { width: max(.18rem, 14px); height: max(.18rem, 14px); }
+.lo-garrisons .dgarrison__text { font-size: max(.15rem, 11px); }
 .lo-sec { display: flex; flex-direction: column; gap: .08rem; }
 .lo-sec + .lo-sec { margin-top: .18rem; }
 .lo-sec__head { display: flex; align-items: center; gap: .12rem; min-height: max(.36rem, 22px); }
@@ -436,6 +483,9 @@
 .diy-slot__sicon, .diy-slot__micon { flex: none; display: inline-grid; place-items: center; width: max(.24rem, 16px); height: max(.24rem, 16px); object-fit: contain; font-size: .8em; color: var(--text-lo); }
 .diy-slot__micon--none { border: 1px solid var(--line-2); }
 .diy-slot__acts { display: flex; flex-direction: column; gap: .04rem; }
+/* 0.2.2: an owned pick's 潜能 / 练度 (screens/cultivation.js) — a prototype has neither (a dim line instead) */
+.diy-slot__cult { display: block; margin-top: .03rem; font-size: max(.12rem, 9px); }
+.diy-slot__cult .lo-cult { max-width: max(2.6rem, 200px); }
 .diy-slot__bad { display: flex; align-items: center; gap: .04rem; margin: .02rem 0 0; font-size: max(.12rem, 9px); color: var(--amber); }
 .diy-slot.is-bad { border-color: rgba(255, 196, 0, .45); }
 .diy-tag { display: inline-flex; align-items: center; height: 1.5em; padding: 0 .4em; font-size: max(.11rem, 8px); font-weight: 700; border-radius: 1em; white-space: nowrap; }
@@ -538,9 +588,13 @@
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
   }
 }
-/* phones (the root scale is clamped at 40 px: less than ~14 rem of width): the detail slides over the roster */
+/* phones and small tablets (up to 1000 px wide; 0.2.2 — 760 px before the roster became one list with quick choices): the
+   list takes the whole width and the detail slides over it — a row's quick choice keeps the list, its portrait / name
+   opens the detail */
 @media (max-width: 760px) {
   .lo-top { padding: 0 .16rem; }
+}
+@media (max-width: 1000px) {
   .lo-body { grid-template-columns: minmax(0, 1fr); }
   .lo-detail-wrap { display: none; }
   .lo-body.is-detail .lo-roster { display: none; }
@@ -551,11 +605,14 @@
   }
   .lo-detail-back .icon { width: .2rem; height: .2rem; }
 }
+/* narrow phones: the row's bonds give their line to the name, the columns keep their place */
+@media (max-width: 700px) {
+  .lo-card__bonds { display: none; }
+}
 @media (max-height: 520px) {
   .lo-note { display: none; }
   .lo-dhead { grid-template-columns: max(1rem, 48px) minmax(0, 1fr); padding: .1rem .14rem; }
   .lo-dhead__en { display: none; }
-  .lo-grid { grid-template-columns: repeat(auto-fill, minmax(max(1rem, 58px), 1fr)); }
 }
 /* the shared Button / TextField scale with the root (40 px/rem on phones ⇒ 6–7 px text, 14–20 px tall): the overlay's
    own controls (返回, 全部恢复默认, 恢复默认, the search field) keep a readable size and a tappable height (review fix) */
@@ -566,7 +623,7 @@
 .lo .lo-search .field__icon { width: max(.22rem, 14px); height: max(.22rem, 14px); }
 .sp-coarse .lo-chip, .sp-coarse .lo-toggle, .sp-coarse .lo-select { min-height: 30px; }
 .sp-coarse .lo-seg button { min-height: 28px; }
-@media (prefers-reduced-motion: reduce) { .lo, .lo-card { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .lo, .lo .lo-card { animation: none; transition: none; } }
 
 /* 导出 / 导入 (干员调配 presets): the dialog is the shared Modal, rendered NEXT TO `.lo` (a sibling) rather than inside
    it — so components.css `.modal { position: fixed }` and its z-index above the overlay apply as they do everywhere

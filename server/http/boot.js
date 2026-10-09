@@ -14,18 +14,43 @@ import fs from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { APP_VERSION, DEV_BUILD } from '../../shared/constants.js';
+import { limitKeyOf } from '../net.js';
 import { applyPendingUpdate } from '../update.js';
 import { ROOT } from './config.js';
 
-/** Non-internal IPv4 addresses as http URLs. @param {number} port */
+/**
+ * Non-internal addresses as http URLs — IPv4 first, then IPv6 (an IPv6 literal needs brackets: `http://[240e:…]:3000`).
+ * Link-local (`fe80::`) is left out: a URL cannot carry the zone id. Several privacy addresses in one /64 collapse
+ * to one URL (`limitKeyOf`).
+ * @param {number} port
+ */
 export function lanUrls(port) {
-  const out = [];
+  const v4 = [];
+  const v6 = [];
+  const v6Seen = new Set();
   for (const addrs of Object.values(os.networkInterfaces())) {
     for (const a of addrs || []) {
-      if ((a.family === 'IPv4' || a.family === 4) && !a.internal) out.push(`http://${a.address}:${port}`);
+      if (a.internal) continue;
+      if (a.family === 'IPv4' || a.family === 4) { v4.push(`http://${a.address}:${port}`); continue; }
+      if (a.family !== 'IPv6' && a.family !== 6) continue;
+      if (/^fe80:/i.test(a.address)) continue;
+      const prefix = limitKeyOf(a.address);
+      if (v6Seen.has(prefix)) continue;
+      v6Seen.add(prefix);
+      v6.push(`http://[${a.address}]:${port}`);
     }
   }
-  return out;
+  return [...v4, ...v6];
+}
+
+/**
+ * The host as it appears in the local URL. A wildcard bind (`0.0.0.0` or `::`) reads `localhost`. An IPv6 literal
+ * is bracketed (`http://[2001:db8::1]:3000`); an IPv4 address or a name is kept.
+ * @param {string} host
+ */
+export function displayHost(host) {
+  if (host === '0.0.0.0' || host === '::') return 'localhost';
+  return host.includes(':') ? `[${host}]` : host;
 }
 
 /** Is the module whose `import.meta.url` is `metaUrl` the file node was started with? */

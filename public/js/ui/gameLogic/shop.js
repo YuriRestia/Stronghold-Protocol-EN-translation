@@ -1,4 +1,5 @@
-// ui/gameLogic/shop.js — shop prices, merges, offers, the ready-funds prompt. Re-exported from ../gameLogic.js.
+// ui/gameLogic/shop.js — shop prices, merges, offers, the ready-funds prompt, the shop bar's fold on 准备. Re-exported from
+// ../gameLogic.js.
 
 import { GEO } from '../../../../shared/constants.js';
 import { isObj } from './shared.js';
@@ -139,7 +140,10 @@ export function offerHeader(offer) {
 export function shopBlockReason(kind, { priv, editable, slot } = {}) {
   if (!priv) return t('尚未就绪');
   if (priv.alive === false) return t('你已被淘汰');
-  if (kind === 'ready') return priv.canReady === false ? t('临时整备区不为空，请先处理溢出的资源') : null;
+  if (kind === 'ready') {
+    if (priv.personalChoice) return t('请先完成教鞭选择');
+    return priv.canReady === false ? t('临时整备区不为空，请先处理溢出的资源') : null;
+  }
   if (!editable) {
     if (kind === 'reward') return t('当前无法选择');
     return priv.ready ? t('已准备就绪，取消准备后才能操作') : t('当前阶段无法进行该操作');
@@ -182,4 +186,19 @@ export function readyFundsPrompt(priv, { ready = true, keptBands = null, autopla
     title: t('剩余资金'), micro: 'FUNDS LEFT', okText: t('准备就绪'), cancelText: t('继续整备'),
     text: t('还有 {funds} 资金未使用。休整期结束时，本回合的剩余资金将清零。确定准备就绪吗？', { funds }),
   };
+}
+
+/**
+ * The shop bar follows the player's ready state (GitHub #138, the owner's decision of 2026-10-07): pressing 准备就绪 folds
+ * the bar — the board is set, the fight is what to look at —, cancelling it unfolds the bar again. Read from the own CONFIRMED
+ * state (m.private.ready — a refused 准备 folds nothing) and only a change inside one prep counts: the first state seen (a
+ * reconnect in the middle of a prep, the prep's start), the new round's reset to not ready and anything outside a prep are
+ * not a press. The player can still fold / unfold by hand in between.
+ * @param {{ round: any, ready: boolean }|null|undefined} prev the own prep state seen last (null: none — outside a prep)
+ * @param {{ round: any, ready: boolean }|null|undefined} cur the own prep state now (null outside a prep)
+ * @returns {'fold'|'unfold'|null}
+ */
+export function readyShopFold(prev, cur) {
+  if (!isObj(prev) || !isObj(cur) || prev.round !== cur.round || !!prev.ready === !!cur.ready) return null;
+  return cur.ready ? 'fold' : 'unfold';
 }

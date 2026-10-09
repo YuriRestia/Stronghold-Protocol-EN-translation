@@ -33,7 +33,9 @@
 //   助力 deputShip     all operators DEF +(base + per·L), redeploy time ×(1 + respawn_time)
 //   突袭 raidShip      member idle ≥ no_attack_duration s (or skill ready — a passive skill that is on counts, GitHub
 //                      #49, and so does a deploy-timed skill while it runs, #109) with no enemy in range → "保留技力立即再部署"
-//                      next to the most advanced ground enemy it can reach: on a free tile of a board of its field
+//                      next to the most advanced ground enemy it can reach — a 隐匿 (unrevealed) ground enemy too, and one
+//                      in its range counts for 「范围内没有敌人」 (the owner's decision of 2026-10-08 from the official game,
+//                      GitHub #316; asleep, untargetable and flying ones stay out: raidGroundEnemy): on a free tile of a board of its field
 //                      (Battle.onFieldBoard: its own or a teammate's on the same field — the two-helper 联防 field and a
 //                      pair field open both halves, the owner's decision of 2026-10-07; never a boss field's hand /
 //                      临时整备区 rows, never the empty other half of a lone 联防 helper or a solo boss field — community
@@ -62,9 +64,9 @@
 // Hooks registered only when a bond needs them. Priorities: `hit` −20 (坚守 redirect, after other modifiers had their
 // say), `death` 10 (不屈, the bond slot of the revive/redeploy convention); everything else 0.
 
-import { canTargetEnemy, extendedGrid } from '../../../targeting.js';
+import { canTargetEnemy, enemyStealthed, extendedGrid } from '../../../targeting.js';
 import { normDir, rotateOffset, localOrder, localBefore } from '../../../dir.js';
-import { bodyKeys } from '../../../body.js';
+import { bodyKeys, bodyInKeys } from '../../../body.js';
 import { isHpLoss } from '../../../damage.js';
 import {
   num, bondRecord, buffParams, bondTier, bondLayers, isMember, isElite, isGroundOp, onField, playerOps, passiveBuff,
@@ -315,15 +317,39 @@ function raidTile(battle, u, e, reach) {
 }
 
 /**
- * Jump candidates of player `pid`, in priority order: the ground enemies an operator may target (not flying,
- * canTargetEnemy) — those of the player's own field (`ownerId`), the others only when it has none —, the most advanced
- * first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18]. The same list for
- * every member of the player (canTargetEnemy reads the enemy, not the attacker).
+ * A ground enemy 突袭 jumps toward, and that counts for 「范围内没有敌人」 while it stands in a member's range: one an
+ * operator may target (canTargetEnemy, ground), or a 隐匿 one that only its 隐匿 keeps out — the owner's decision of
+ * 2026-10-08 from the official game (GitHub #316 "Raid operator doesn't deploy to invisible enemy units, it does in
+ * official"; the bond text says 敌人 / 地面敌人). Asleep, untargetable and flying enemies stay out, as before.
+ */
+function raidGroundEnemy(u, e) {
+  if (!e || e.isFlying) return false;
+  if (canTargetEnemy(u, e, { canHitFly: false })) return true;
+  if (!e.alive || e.hidden || !e.deployed || !enemyStealthed(e)) return false;
+  const f = e.s.flags;
+  if (f.untargetable || f.sleep) return false;
+  const skip = u.profile && u.profile.skipEnemy;
+  return !(typeof skip === 'function' && skip(e));
+}
+
+/** A 隐匿 ground enemy (raidGroundEnemy) on `u`'s range: enemiesInKeys leaves 隐匿 out, so the poll checks this too. */
+function raidStealthInRange(battle, u) {
+  const keys = u.rangeKeySet || u.rangeKeys;
+  if (!keys) return false;
+  for (const e of battle.enemies) if (e.alive && enemyStealthed(e) && raidGroundEnemy(u, e) && bodyInKeys(e, keys)) return true;
+  return false;
+}
+
+/**
+ * Jump candidates of player `pid`, in priority order: the ground enemies of raidGroundEnemy (visible, or 隐匿; not
+ * flying, asleep or untargetable) — those of the player's own field (`ownerId`), the others only when it has none —,
+ * the most advanced first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18].
+ * The same list for every member of the player (the checks read the enemy, not the attacker).
  */
 function raidTargets(battle, u, pid) {
   const own = [], other = [];
   for (const e of battle.enemies) {
-    if (e.isFlying || !canTargetEnemy(u, e, { canHitFly: false })) continue;
+    if (!raidGroundEnemy(u, e)) continue;
     (e.ownerId === pid ? own : other).push(e);
   }
   const list = own.length ? own : other;
@@ -352,7 +378,8 @@ function raidPoll(battle, st) {
     const ready = !!(sk && !sk.noSkill && ((sk.ready && !(sk.active && sk.isTimed)) || deploySkillOn));
     const idleOk = battle.time - since >= idle - 1e-9;
     if (!(ready || idleOk)) continue;
-    if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length) continue;
+    // 「若范围内没有敌人」: a targetable enemy, or a 隐匿 ground one (the owner's decision of 2026-10-08, raidGroundEnemy)
+    if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length || raidStealthInRange(battle, u)) continue;
     const list = (targets ??= raidTargets(battle, u, st.pid));
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no

@@ -352,8 +352,9 @@ reported the 战场#01 lower-gate enemies walking up the col-9 floor lane, where
 `server/sim/grid.js` keeps every official route LENGTH and the official route itself unless the 2026-09-29
 road-over-floor preference route (equal-length ties to the chain with the fewest non-blockable floor / gate tiles,
 smoothing that never cuts across floor its grid route does not walk, the corner tiles of a diagonal step included)
-crosses strictly fewer non-blockable tiles; in that comparison a segment that only touches a floor tile's corner does
-not cross it. Used alone (0.1.0) the preference also bent official diagonals into L shapes — the D5 report after
+crosses strictly fewer non-blockable tiles and no more 深水区 (GitHub #375, 0.2.2: the 深水区 is non-blockable too, and
+on 战场#08(下半) the patrolling leaders had waded through two water tiles to dodge one floor tile); in that comparison a
+segment that only touches a floor tile's corner does not cross it. Used alone (0.1.0) the preference also bent official diagonals into L shapes — the D5 report after
 0.1.0: on 战场#04 the lower-gate enemies walked (9,10) → (9,8) → (10,8) instead of the official diagonal (9,10) →
 (10,7), which only brushes the corner of the floor (10,9). Lanes that still differ from the table above (21 of the 154
 stage × gate × field routes, test/sim/pathing-official.test.js):

@@ -63,6 +63,7 @@ import { bodyInKeys } from '../../../body.js';
 import { hasHp } from '../../../damage.js';
 import { RESIST_STATUSES } from '../../../buffs.js';
 import { TICK } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_aglna2_1';
 const S2 = 'skchr_aglna2_2';
@@ -342,7 +343,7 @@ export default {
           if (!st || !skillOn(unit, S3) || !up(unit) || st.flight || !unit.canAct || unit.blocking.length) return;
           const tgt = moveTarget(battle, unit);
           if (!tgt) return;
-          const dur = Math.hypot(tgt.r - unit.tileR, tgt.c - unit.tileC) / MOVE_SPEED;
+          const dur = hypot(tgt.r - unit.tileR, tgt.c - unit.tileC) / MOVE_SPEED;
           const act = unit.skill.activations;
           st.flight = tgt;
           battle.releaseBlocked(unit);

@@ -12,6 +12,7 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, createStore, isSpectating } from '../store.js';
 import { GIcon } from './gameComponents.js';
 import { GuideButton } from './guide.js';
+import { recordQuit } from './stats.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 
 /**
@@ -37,18 +38,27 @@ export const awayEnds = (s, prev) => (!!prev?.match?.public && !s?.match?.public
 store.subscribe((s, prev) => { if (awayStore.get().away && awayEnds(s, prev)) awayStore.set({ away: false }); });
 
 /**
- * Leave the match for good (g.leave → room.leave), then drop local room/match state.
+ * Leave the match for good (g.leave → room.leave), then drop local room/match state. The server sends a leaver no
+ * settlement, so the page records the match itself before it is cleared (本机统计, ui/stats.js recordQuit: a 中途退出
+ * entry of the history; it counts only when a round had been cleared) — once the leave went through.
  * @returns {Promise<void>}
  */
 export async function quitMatch() {
+  const before = store.get();
+  let left = false;
   try {
     try { await net.request('g.leave', {}); } catch (err) {
       if (err?.code !== 'NOT_IN_ROOM' && err?.code !== 'WRONG_PHASE' && err?.code !== 'OFFLINE') throw err;
     }
     try { await net.request('room.leave', {}); } catch (err) { if (err?.code !== 'NOT_IN_ROOM' && err?.code !== 'OFFLINE') throw err; }
+    left = true;
   } catch (err) {
     toastError(err);
   } finally {
+    // (a settlement that arrived while the leave was in flight is the match's record already)
+    if (left && !store.get().match.result) {
+      try { recordQuit(before); } catch (err) { console.warn('[stats] quit record failed', err); }
+    }
     store.set({ room: null, match: emptyMatch() });
   }
 }

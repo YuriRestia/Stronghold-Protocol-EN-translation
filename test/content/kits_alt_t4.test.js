@@ -113,6 +113,30 @@ test('信仰搅拌机 S1 铳骑主考官 (自动触发 ⇒ DEFAULT: hurt SP, fir
   }
 });
 
+test('信仰搅拌机 S1 reloads the latest-deployed 拉特兰 ammo user around him, not the nearest (PRTS 备注; GitHub #325, PR #329)', () => {
+  for (const redeploy of [false, true]) {
+    // 隐现 ×2: the orthogonal neighbour deployed first, the diagonal one after it (both on his 8 surrounding tiles)
+    const h = battle([U('chess_char_4_01_a', 10, 5, 0), U('chess_char_1_01_a', 10, 4, null, null, { uid: 2 }), U('chess_char_1_01_a', 9, 4, null, null, { uid: 3 })]);
+    h.step();
+    const u = h.unit('chess_char_4_01_a'), near = h.unit(2), far = h.unit(3);
+    if (redeploy) { // a redeploy is the latest deployment
+      h.b.retreat(near, { reason: 'raid' });
+      assert.ok(h.b._deploy(near));
+    }
+    const latest = redeploy ? near : far, other = redeploy ? far : near;
+    assert.ok(latest.deploySeq > other.deploySeq);
+    for (const a of [near, far]) { assert.ok(a.skill.activate('test', { free: true })); a.skill.ammoLeft = 5; }
+    const e = h.spawn('enemy_dummy', { pos: [10, 6] });
+    assert.ok(u.skill.activate('test', { free: true }));
+    h.b.forceAttack(u, [e]);
+    h.run(0.5);
+    const reloads = h.eventsOf('fx').filter((x) => x[1] === 'reload');
+    assert.ok(reloads.length > 0, 'a reload happened');
+    assert.ok(reloads.every((x) => x[4].id === latest.id), `${redeploy ? 'after a redeploy, the redeployed one' : 'the later-deployed diagonal one'} is reloaded`);
+    checkInvariants(h.b);
+  }
+});
+
 test('信仰搅拌机 S2 八臂电锯侠: ammo skill, ATK/DEF up; a lethal hit is negated for ammo_cost bullets; with fewer it is still negated, every bullet goes and the skill ends (PRTS 备注)', () => {
   for (const id of pair('chess_char_4_01_a')) {
     const bb = D(id, 1).skill.bb;

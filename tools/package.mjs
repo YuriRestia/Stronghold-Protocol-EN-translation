@@ -21,7 +21,8 @@
 // stage adds the production node_modules and (postinstall) public/vendor. The full zip adds the git-ignored art: the
 // files data/assets.json lists, public/fonts, and the local-client extraction (public/assets/local/,
 // data/local-assets.json) when present — nothing else on disk, so art the data no longer lists (焰狐龙梓兰, left out of
-// 自选 in 0.2.0, or files of an old mapping) never ships even when this machine still has it.
+// 自选 in 0.2.0, or files of an old mapping) never ships even when this machine still has it. FULL_ZIP_JP_VOICE (below)
+// decides whether the full zip carries the Japanese voice dub too (default: yes).
 // Left out: test/, the maintainer tools (build-data, golden, botbench, i18n, check-imports, this file …),
 // scripts/make-windows-bundle.mjs, the other docs (DESIGN, SIM, the research notes, docs/img …), public/dev/, handoff/,
 // .github/, types/, lint / editor / Docker files (Docker builds from a git clone).
@@ -92,6 +93,18 @@ export const shipsPacks = (files) => files.some((f) => /^public\/i18n\/[^/]+\.js
 const NOT_TRACKED_SHIP = ['public/dev/', 'public/assets/', 'public/fonts/', 'public/vendor/'];
 /** The npm scripts a player runs: each `node <file>` of them must ship. */
 export const PLAYER_NPM_SCRIPTS = ['start', 'setup', 'doctor', 'launch', 'postinstall', 'vendor', 'assets'];
+
+/**
+ * THE SWITCH for the Japanese voice dub in the full zip (`audio.voiceJp` of data/assets.json: 2674 files under
+ * public/assets/audio/voice/jp/, 89,388,041 bytes = 85.2 MiB on disk, about 76 MB zipped). true (0.2.2): the full zip ships both
+ * dubs, so it still runs with nothing to download. false: the full zip (and an update zip built from it) leaves the JP
+ * files out — setup downloads them on the first start like the lite zip's art, the 日本語 setting plays the Chinese line
+ * until then (public/js/audio.js voiceLine), and an update never deletes a player's copy (`held`). The lite zip carries
+ * no art either way.
+ */
+export const FULL_ZIP_JP_VOICE = true;
+/** Where the JP dub lies (plan.mjs voiceAlt: audio/voice/<lang>/<charId>/<file>). */
+export const JP_VOICE_DIR = 'public/assets/audio/voice/jp/';
 
 /**
  * Refused in a plan and in a stage: 0.1.x's list (owner-only notes, the promo project, caches, per-machine config) and
@@ -205,17 +218,20 @@ export const manifestFiles = listedArtFiles;
 /**
  * The art of a full package: every file data/assets.json lists, public/fonts, public/assets/local/ and
  * data/local-assets.json (when present). `missing`: listed files not on disk; `orphans`: files under public/assets
- * that nothing lists (left out).
+ * that nothing lists (left out); `held`: listed files the zip holds back on purpose — the JP voice dub when `jpVoice`
+ * (FULL_ZIP_JP_VOICE) is off: neither shipped nor missing, and never deleted by an update.
  */
-export function artPlan(root, { lite = false } = {}) {
-  if (lite) return { files: [], missing: [], orphans: [], local: false };
+export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE } = {}) {
+  if (lite) return { files: [], missing: [], orphans: [], held: [], local: false };
   const listed = manifestFiles(readJson(path.join(root, 'data', 'assets.json')) ?? {});
   const local = isFile(path.join(root, 'data', 'local-assets.json'));
   if (local) for (const f of manifestFiles(readJson(path.join(root, 'data', 'local-assets.json')) ?? {})) listed.add(f);
   const files = new Set();
   const missing = [];
+  const held = [];
   for (const f of listed) {
-    if (isFile(path.join(root, f))) files.add(f);
+    if (!jpVoice && f.startsWith(JP_VOICE_DIR)) held.push(f);
+    else if (isFile(path.join(root, f))) files.add(f);
     else missing.push(f);
   }
   for (const f of listTree(root, 'public/fonts')) files.add(f);
@@ -224,9 +240,9 @@ export function artPlan(root, { lite = false } = {}) {
     files.add('data/local-assets.json');
   }
   // without case: on Windows / macOS a file whose name differs only in case is the listed one (fetch-assets orphanFiles)
-  const lower = new Set([...files].map((f) => f.toLowerCase()));
+  const lower = new Set([...files, ...held].map((f) => f.toLowerCase()));
   const orphans = listTree(root, 'public/assets').filter((f) => !lower.has(f.toLowerCase()));
-  return { files: [...files].sort(), missing: missing.sort(), orphans, local };
+  return { files: [...files].sort(), missing: missing.sort(), orphans, held: held.sort(), local };
 }
 
 const URL_MOUNTS = [['/data/', 'data/'], ['/shared/', 'shared/'], ['/sim/', 'server/sim/']];
@@ -335,13 +351,14 @@ function groupOf(rel) {
  * Everything a package would hold, with every check: no copying, no install. `scan: false` skips the personal-info
  * scan and `measure: false` the node_modules / public/vendor sizes (tests that only want the selection).
  * @param {string} root
- * @param {{ lite?: boolean, paths?: string[], allowDirty?: boolean, env?: object, scan?: boolean, measure?: boolean }} [opts]
+ * @param {{ lite?: boolean, paths?: string[], allowDirty?: boolean, env?: object, scan?: boolean, measure?: boolean,
+ *   jpVoice?: boolean }} [opts] jpVoice: the full zip's JP dub (default FULL_ZIP_JP_VOICE)
  */
 export function plan(root, opts = {}) {
   const lite = !!opts.lite;
   const all = (opts.paths || trackedFiles(root)).map(posixRel);
   const { keep, drop } = selectTracked(all);
-  const art = artPlan(root, { lite });
+  const art = artPlan(root, { lite, jpVoice: opts.jpVoice ?? FULL_ZIP_JP_VOICE });
   const pkg = readJson(path.join(root, 'package.json')) || {};
   const lock = readJson(path.join(root, 'package-lock.json')) || {};
   const generated = shipsPacks(keep) ? [GENERATED_PACK_INDEX] : [];
@@ -383,7 +400,7 @@ export function plan(root, opts = {}) {
   const dropBytes = Object.values(dropped).reduce((n, g) => n + g.bytes, 0);
   return {
     version: pkg.version || '0.0.0', lite, tracked: keep, art: art.files, generated, files, dropped, orphans: art.orphans,
-    localArt: art.local, problems, names: names.length, scanned,
+    held: art.held, localArt: art.local, problems, names: names.length, scanned,
     bytes: {
       tracked: trackedBytes, art: artBytes, modules: modulesBytes, vendor: vendorBytes,
       total: trackedBytes + artBytes + modulesBytes + vendorBytes,
@@ -409,6 +426,7 @@ export function formatSummary(p) {
   const groups = Object.entries(p.dropped).sort((a, b) => b[1].bytes - a[1].bytes);
   if (groups.length) lines.push(`left out: ${groups.map(([g, v]) => `${g} ${v.files} (${MB(v.bytes)})`).join(', ')}`);
   if (!p.lite && p.orphans.length) lines.push(`left out art: ${p.orphans.length} files under public/assets that nothing lists (${MB(p.bytes.orphans)})`);
+  if (!p.lite && p.held?.length) lines.push(`held back: ${p.held.length} files of the JP voice dub (FULL_ZIP_JP_VOICE off: setup downloads them on the first start)`);
   lines.push(`personal-info scan: ${p.scanned} files, ${p.names ? `home paths + ${p.names} account name(s)` : 'home paths only (no account name to refuse)'}`);
   lines.push(p.problems.length ? `PROBLEMS (${p.problems.length}):\n${p.problems.map((x) => `  ${x}`).join('\n')}` : 'checks: ok');
   return lines.join('\n') + '\n';
@@ -423,11 +441,16 @@ export function packageOutIsUnsafe(out, root = REPO) {
   return inside(r, o) || inside(o, r);
 }
 
-function zipFolder(cwd, zipPath) {
+/**
+ * Zip `cwd`/FOLDER into `zipPath`: Info-ZIP `zip`, else a bsdtar `tar --format zip` (Windows 10+, macOS). bsdtar writes
+ * the names in UTF-8 (flag bit 11) only when told: its default is the system code page, which loses a name it cannot
+ * spell (卫戍 becomes ?? on Windows code page 1252) and leaves no UTF-8 copy for a reader.
+ */
+export function zipFolder(cwd, zipPath) {
   // deflate everything: storing PNG / MP3 as they are made the full zip 8.5 MB larger and saved no real time
   const z = spawnSync('zip', ['-q', '-r', '-X', zipPath, FOLDER], { cwd, stdio: 'inherit' });
   if (!z.error && z.status === 0) return;
-  const t = spawnSync('tar', ['-c', '--format', 'zip', '-f', zipPath, FOLDER], { cwd, stdio: 'inherit' }); // bsdtar (Windows 10+, macOS)
+  const t = spawnSync('tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, FOLDER], { cwd, stdio: 'inherit' });
   if (t.error || t.status !== 0 || !isFile(zipPath)) throw new Error('zipping failed: install `zip` (or a bsdtar `tar`)');
 }
 
@@ -593,7 +616,9 @@ export function buildUpdate(root, p, bases, { out, install = true, force = false
     }
   }
   // a path no update deletes (a per-machine name such as node_modules/x/.env.example) stays behind, named in the summary
-  const diff = diffBases(next, bases, { removable: (rel) => !removalProblem(rel) });
+  // …nor a file this zip holds back on purpose (the JP dub with FULL_ZIP_JP_VOICE off): the manifest still lists it
+  const heldBack = new Set(p.held || []);
+  const diff = diffBases(next, bases, { removable: (rel) => !removalProblem(rel) && !heldBack.has(rel) });
   for (const rel of diff.left) {
     const bad = pathProblem(rel);
     if (bad) throw new Error(`a base ships ${rel}, which is ${bad}`);

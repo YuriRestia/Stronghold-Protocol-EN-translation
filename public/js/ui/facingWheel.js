@@ -13,7 +13,8 @@
 //     LEFT, facing.js boardDir): the chevrons follow the finger, the range / model / intent use the board direction;
 //   * release outside the centre commits (g.move {uid, to, dir} / g.art {…, dir}); release inside the centre, a tap
 //     on ✕, a press outside the diamond or Esc cancels (the piece returns to where it came from). Arrow keys preview a
-//     direction and Enter commits it (keyboard alternative). Mouse, pen and touch all use pointer events.
+//     direction and Enter commits it (keyboard alternative) — Enter on a focused ✕ cancels, on any other focused
+//     button does nothing while the wheel is open (GitHub #394). Mouse, pen and touch all use pointer events.
 //
 // View bridge: the field view (render/app.js or the DOM fallback) may implement `tileScreen(row, col)`,
 // `holdPiece(uid, tile|null)` and `setPieceDir(uid, dir)` (render/app.js does, DESIGN §9); a view without them falls
@@ -25,7 +26,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks
 import { html } from './components.js';
 import { LocalSprite } from './gameComponents.js';
 import { DIRS, DIR_LABEL, DEAD_ZONE_TILES, dirFromDelta, dirFromKey, rangeTiles, normDir, boardDir, viewMirrored } from './facing.js';
-import { facingSwallows } from './gameLogic.js';
+import { facingSwallows, facingEnter } from './gameLogic.js';
 import { settingsStore } from './settings.js';
 import { t } from '../../../shared/i18n.js';
 
@@ -236,24 +237,36 @@ export function FacingWheel({ view, row, col, grid, name = '', onPreview, onComm
   };
   const onPointerCancel = () => { setDrag(null); setDir(null); };
 
-  // keyboard: arrows preview, Enter commits, Esc cancels (capture: the game's own shortcuts must not see them)
+  // keyboard: arrows preview, Enter commits, Esc cancels (capture: the game's own shortcuts must not see them). Enter
+  // follows the focus (gameLogic facingEnter, GitHub #394): on ✕ it cancels, on any other button (Tab reaches the HUD
+  // behind the wheel) it does nothing, elsewhere it commits the previewed direction. The wheel takes the focus when it
+  // opens, so a button focused before the drop (a click leaves it focused) cannot swallow the confirming Enter; Tab then
+  // reaches ✕ first. Nothing gives the focus back when it closes (a restored 准备 would take the next Enter / Space).
+  const rootRef = useRef(null);
   useEffect(() => {
     const onKey = (e) => {
       const L = live.current;
       if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); L.onCancel(); return; }
       const k = dirFromKey(e.key);
       if (k) { e.preventDefault(); e.stopImmediatePropagation(); setDir(k); return; }
-      if (e.key === 'Enter' && L.dir) { e.preventDefault(); e.stopImmediatePropagation(); L.onCommit(L.bdir); return; }
+      const enter = facingEnter(e, !!L.dir);
+      if (enter) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (enter === 'cancel') L.onCancel();
+        else if (enter === 'commit') L.onCommit(L.bdir);
+        return;
+      }
       // no ready / shop while choosing: Space and every key of the player's map (设置 → 快捷键)
       if (facingSwallows(e, settingsStore.get().keys)) { e.preventDefault(); e.stopImmediatePropagation(); }
     };
     window.addEventListener('keydown', onKey, true);
+    try { rootRef.current?.focus({ preventScroll: true }); } catch { /* no focus: Enter still follows whatever has it */ }
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
   const outside = !!drag && !!dir;
   const box = half * 2;
-  return html`<div class=${cx('fwheel', drag && 'is-pressed', dir && `is-${dir.toLowerCase()}`)} role="dialog" aria-label=${name ? t('选择「{name}」的朝向', { name }) : t('选择朝向')}
+  return html`<div ref=${rootRef} tabIndex="-1" class=${cx('fwheel', drag && 'is-pressed', dir && `is-${dir.toLowerCase()}`)} role="dialog" aria-label=${name ? t('选择「{name}」的朝向', { name }) : t('选择朝向')}
       onPointerDown=${onDown} onPointerMove=${onMove} onPointerUp=${onUp} onPointerCancel=${onPointerCancel}
       onContextMenu=${(e) => { e.preventDefault(); onCancel(); }}>
     ${g ? html`<${Stripes} tiles=${tiles} view=${view} row=${row} col=${col} />` : null}

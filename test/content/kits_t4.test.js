@@ -454,6 +454,27 @@ test('歌蕾蒂娅 S3: binds the farthest target, tornado pulses 85 % ATK arts e
   checkInvariants(h.b);
 });
 
+test('歌蕾蒂娅 S3: the skill-end 捕网 has radius 1, the tornado 1.5 (PRTS 备注; GitHub #324, PR #329)', () => {
+  const id = 'chess_char_4_12_a';
+  const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 3 }], timeLimit: 200, autoFinish: false });
+  h.step();
+  const u = h.unit(id);
+  h.spawn('enemy_dummy', { pos: [10, 6] });   // the farthest enemy: bound, the tornado sits on it
+  h.step();
+  assert.ok(u.skill.activate('test', { free: true }));
+  assert.deepEqual([u.mem.tornado.x, u.mem.tornado.y], [6, 10]);
+  const at = (x, y) => { const e = h.spawn('enemy_dummy', { pos: [10, 6] }); e.x = x; e.y = y; return e; };
+  const inner = at(6, 9.1), outer = at(6, 11.25);   // 0.9 and 1.25 from the centre
+  h.step();
+  for (const e of [inner, outer]) assert.ok(e.findBuff(`glady:slow:${u.id}`), 'both inside the tornado (slowed)');
+  const p0 = [inner.x, inner.y, outer.x, outer.y];
+  u.skill.end('test');
+  h.run(0.6);
+  assert.ok(Math.hypot(inner.x - p0[0], inner.y - p0[1]) > 0.3, 'the net pulls the enemy 0.9 from the centre');
+  assert.deepEqual([outer.x, outer.y], [p0[2], p0[3]], 'the one 1.25 from the centre stays: outside the net');
+  checkInvariants(h.b);
+});
+
 test('歌蕾蒂娅 阿戈尔的波涛: 深海猎人 regen 2.5 %/s and −25 % damage from 海怪; elite drag damage', () => {
   const id = 'chess_char_4_12_a', t0 = D(id).talents[0].bb;
   const sea = withTags(dummy({ key: 'enemy_sea', atk: 0 }), ['seamonster']);

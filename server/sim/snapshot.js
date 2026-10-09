@@ -1,9 +1,10 @@
 // server/sim/snapshot.js — compact serialization for clients (DESIGN §8.2).
 //
-// b.snap  = { fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total }
+// b.snap  = { fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved }
 //   (hp of a countdown summon — unit.countdown, content/tokens.js startCountdown — is maxHp × the share of its life left)
 // UnitInfo = { id, kind, side, ownerId, defId, name, tier, golden, spine, avatar, x, y, facing, dir, maxHp, motion?, boss?, uid?,
-//   form?, skillIndex?, moduleId?, items?, standInFor?, diy? }  (standInFor = the replaced operator's charId of a 补位
+//   form?, skillIndex?, ammoSkill?, moduleId?, items?, standInFor?, diy? }  (ammoSkill = an ally whose skill is an ammo
+//   magazine: the HP bar shows its rounds as cells, b.snap `ammo`; standInFor = the replaced operator's charId of a 补位
 //   stand-in; diy = a 自选 piece's pick { charId, skillIndex, uniEquipId } — defId is its slot, spine / avatar the operator's;
 //   form = the unit's current model form — an enemy's, content/enemies/helpers.js setForm:
 //   掠海漂移体 'crawl', 暴鸰 'bombed', 转译基底·α's forms …; a 傀儡师 fighting as its 替身 'doll', professions.js — a view built
@@ -48,6 +49,9 @@ export function unitInfo(u) {
     uid: u.uid ?? undefined,
     // DESIGN §16: the equipped skill's index (the renderer / audio pick that skill's Spine clip and sound)
     skillIndex: u.side === 'ally' && Number.isInteger(d.skill?.index) ? d.skill.index : undefined,
+    // an ally whose skill is an ammo magazine: the renderer shows it as the segmented bar under the HP bar (b.snap `ammo`) and
+    // draws no sustained skill aura for it — known from the unit's first appearance, before any snapshot or skill event
+    ammoSkill: u.side === 'ally' && u.skill?.kind === 'ammo' ? true : undefined,
     // DESIGN §16: an elite ally's equipped module (uniEquipId | 'none'; display only — a teammate's unit in a shared
     // field shows its owner's module in the detail card)
     moduleId: u.side === 'ally' && d.golden && typeof d.loadout?.moduleId === 'string' ? d.loadout.moduleId : undefined,
@@ -59,6 +63,10 @@ export function unitInfo(u) {
     standInFor: u.side === 'ally' && u.kind === 'op' && typeof d.standInFor === 'string' ? d.standInFor : undefined,
     // 自选: the pick of a DIY slot's piece (the detail card composes its record, shared/diy.js diyRecord)
     diy: u.side === 'ally' && u.kind === 'op' && d.diyFor && d.loadout?.diy ? { ...d.loadout.diy } : undefined,
+    // 0.2.2: an ally operator's potential below 6 and its 练度 tier (a teammate's unit shows ITS owner's numbers; absent:
+    // full potential, no 练度 — a stand-in, a prototype 自选 pick)
+    potential: u.side === 'ally' && u.kind === 'op' && d.loadout?.potentialIsDefault === false ? d.loadout.potential : undefined,
+    cultivate: u.side === 'ally' && u.kind === 'op' && Number.isInteger(u.cultivate) ? u.cultivate : undefined,
   };
 }
 
@@ -116,6 +124,45 @@ export function unitTuple(u, t) {
   const left = cd ? Math.max(0, Math.min(1, (cd.until - t) / Math.max(1e-9, cd.until - cd.from))) : 1;
   const hp = u.alive ? Math.min(Math.max(1, Math.ceil(cd ? maxHp * left : u.hp)), maxHp) : 0;
   return [u.id, r2(u.x), r2(u.y), hp, maxHp, r1(sp), spMax, flagsOf(u), animOf(u, t)];
+}
+
+/**
+ * The three optional HUD readouts of b.snap (events.js snapshot(): `ammo`, `wolves`, `neg`; each only for a living,
+ * deployed, visible unit and only when it has one). They ride beside the 9-field tuples — the tuple, and the SP
+ * fraction the ammo skill still puts in it, stay as they are.
+ *
+ * `ammoView(u)` = `[rounds left, rounds in the magazine]` of a running ammo skill (whole numbers; the magazine is the
+ * activation's real total — extra bullets and refills included — that unitTuple's SP fraction runs on): the segmented
+ * yellow bar under the HP bar (隐现's S2 holds 14 rounds, skill_table skchr_inside_2 `attack@trigger_time`).
+ */
+export function ammoView(u) {
+  const sk = u.skill;
+  if (u.side !== 'ally' || !sk || !sk.active || sk.kind !== 'ammo') return null;
+  const left = Math.max(0, Math.ceil(sk.ammoLeft - 1e-9));
+  return [left, Math.max(1, Math.ceil((sk.ammoMax || sk.ammo || 0) - 1e-9), left)];
+}
+
+/**
+ * `wolfView(u)` = `[狼影 left, the talent's maximum]` of 伺夜's 狼群 pack (content/tokens.js wolfPack and the managed kit
+ * chess_char_3_19-vigil.js keep the count in `mem.shadows` and the maximum in `mem.wolfCapacity`): the pips under the HP
+ * bar. A pack in its 战术点形态 is not alive and shows nothing.
+ */
+export function wolfView(u) {
+  const cap = u.mem?.wolfCapacity, n = u.mem?.shadows;
+  if (u.side !== 'ally' || !(cap >= 1) || !Number.isFinite(n)) return null;
+  const max = Math.round(cap);
+  return [Math.max(0, Math.min(max, Math.round(n))), max];
+}
+
+/**
+ * `negView(u)` = the share (0.01–1) of its cap that a unit's negative-HP pool holds, null without a pool: 斩业星熊's 我执
+ * (kits/ops/op-hsgma2.js sets `unit.negFill`, the pool read when the snapshot is taken) — the red bar over the drained HP
+ * bar. The pool itself, and the 1-HP floor she stands on, are the sim's and are not touched.
+ */
+export function negView(u) {
+  if (typeof u.negFill !== 'function') return null;
+  const v = u.negFill();
+  return v > 0 ? Math.min(1, Math.max(0.01, r2(v))) : null;
 }
 
 /** Units included in a snapshot: deployed & visible, plus recently dead ones (DIE animation). */

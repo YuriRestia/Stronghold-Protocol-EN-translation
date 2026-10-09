@@ -5,8 +5,9 @@
 // preference field = 0.1.0's — equal-length ties to the chain with the fewest non-blockable tiles, a line of sight that
 // covers non-blockable tiles, diagonal-step corners included, only on the own raw chain — whose pointer replaces the
 // official one where its route crosses fewer non-blockable tiles, or as few while only skipping the official waypoint
-// (on the straight line to it, leading there); "crosses" = positive-length intersection with the tile, found here by
-// clipping the segment against each tile, independently of grid.js crossTiles):
+// (on the straight line to it, leading there), and no more 深水区 than the official route (GitHub #375); "crosses" =
+// positive-length intersection with the tile, found here by clipping the segment against each tile, independently of
+// grid.js crossTiles):
 //   * the 8 active stages with their match-start devices: the smoothed chain from EVERY walkable tile of the normal,
 //     联防 and boss rects to every goal equals the full-map reference one (the sim's rect limit changes nothing);
 //   * 400 random crate / block layouts: identical chains to the same algorithm limited to the rect;
@@ -56,6 +57,8 @@ function official(sid, { crates: extraCrates = [], blocks: extraBlocks = [], rec
     if (t.tileKey === 'tile_deepsea') return true;
     return !(t.heightType === 'LOWLAND' && (t.buildableType === 'ALL' || t.buildableType === 'MELEE'));
   };
+  /** 深水区 — the preference may not cross more of it than the official route (#375) */
+  const deep = (r, c) => ['tile_deepsea', 'tile_deepwater'].includes(tile(r, c).tileKey);
   const bres = ([r0, c0], [r1, c1], clear) => {
     const dr = Math.abs(r1 - r0), dc = Math.abs(c1 - c0), sr = r1 > r0 ? 1 : -1, sc = c1 > c0 ? 1 : -1;
     let err = dc - dr, r = r0, c = c0;
@@ -140,12 +143,15 @@ function official(sid, { crates: extraCrates = [], blocks: extraBlocks = [], rec
     const off = spfa(false);
     const dist = off.dist;
     const segNb = (a, b) => through(a, b).filter(([y, x]) => !(y === a[0] && x === a[1]) && nb(y, x)).length;
+    const segWet = (a, b) => through(a, b).filter(([y, x]) => !(y === a[0] && x === a[1]) && deep(y, x)).length;
     let nxt = smooth(off, false);
     if (prefer) {
       // per tile in increasing distance: the preference pointer when its route crosses fewer non-blockable tiles (or as
       // few while it only skips the official waypoint: o strictly inside the segment a → p, and o's chosen pointer is p)
+      // and no more 深水区 than the official pointer's route
       const nxtP = smooth(spfa(true), true);
       const cost = new Map([[D, 0]]);
+      const wet = new Map([[D, 0]]);
       const chosen = new Map();
       const skips = (a, o, p) => {
         const t = through(a, p);
@@ -155,9 +161,11 @@ function official(sid, { crates: extraCrates = [], blocks: extraBlocks = [], rec
         if (k === D) continue;
         const a = unkey(k), o = nxt.get(k), p = nxtP.get(k);
         const co = segNb(a, o) + cost.get(key(o)), cp = segNb(a, p) + cost.get(key(p));
-        const useP = cp < co || (cp === co && key(o) !== key(p) && key(chosen.get(key(o)) ?? []) === key(p) && skips(a, o, p));
+        const wo = segWet(a, o) + wet.get(key(o)), wp = segWet(a, p) + wet.get(key(p));
+        const useP = wp <= wo && (cp < co || (cp === co && key(o) !== key(p) && key(chosen.get(key(o)) ?? []) === key(p) && skips(a, o, p)));
         chosen.set(k, useP ? p : o);
         cost.set(k, useP ? cp : co);
+        wet.set(k, useP ? wp : wo);
       }
       nxt = chosen;
     }

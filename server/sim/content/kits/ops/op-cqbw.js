@@ -62,6 +62,7 @@ import { sortEnemyTargets, canTargetEnemy } from '../../../targeting.js';
 import { bodyInKeys } from '../../../body.js';
 import { hasHp, isHpLoss } from '../../../damage.js';
 import { COLS, PROJECTILE_SPEEDS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_cqbw_1';
 const S2 = 'skchr_cqbw_2';
@@ -133,7 +134,7 @@ function mineTile(battle, unit) {
   let best = [], bd = Infinity;
   for (const t of tiles) {
     let d = Infinity;
-    for (const e of foes) d = Math.min(d, Math.hypot(e.x - t[1], e.y - t[0]));
+    for (const e of foes) d = Math.min(d, hypot(e.x - t[1], e.y - t[0]));
     if (d < bd - 1e-9) { bd = d; best = [t]; } else if (Math.abs(d - bd) <= 1e-9) best.push(t);
   }
   return best.length === 1 ? best[0] : battle.rng.pick(best);

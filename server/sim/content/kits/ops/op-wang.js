@@ -34,11 +34,14 @@
 //   that touch on a side (上下 / 左右) activate each other and stay active once activated [ASSUMED from the S2 备注]; an
 //   enemy (air units too) on an active one's tile sets it off: its effect, then it is used up (a 棋子 leaves the field; a
 //   跟子 is gone) [ASSUMED: a trap is spent by its trigger]. A spent 棋子 comes back on its tile ("原地再部署") after its
-//   redeploy time (2 s), paying its cost and one of her stock, while 望 is on the field. That return is the mode's
-//   deployment of her card: it counts as a 手动部署 for 铸子 —
-//   one 跟子 on a tile next to it (the PRTS order above), at most attack@max_spawn_cnt on the field [ASSUMED: the battle-start
-//   deployment does not count]. When 望 leaves the field her 棋子 and 跟子 vanish (PRTS 分支特性信息); the 棋子 come back
-//   with her.
+//   redeploy time (2 s), paying its cost and one of her stock, while 望 is on the field. 铸子 "手动部署棋子时，望在相邻位置额外
+//   部署一枚棋子": the 棋子 the player placed deploy at the battle start (PRTS 卫戍协议/帮助: a placement in 休整 fires no
+//   deployment effect, the piece deploys when the combat starts) — that deployment drops one 跟子 on a tile next to it (the
+//   PRTS order above; community report, 0.2.2 — until 0.2.1 the battle start dropped none, so a lone 棋子 never set off), at
+//   most attack@max_spawn_cnt on the field; each later return counts as one too [ASSUMED]. The battle start deploys one
+//   piece after another (Battle.start), so a 跟子 may land on the tile of a piece still to come: "跟子所在格进行部署（或进行类似
+//   部署的行为）时，该跟子会随之消失" (PRTS 铸子 备注) — any deployment on its tile removes it. When 望 leaves the field her 棋子
+//   and 跟子 vanish (PRTS 分支特性信息); the 棋子 come back with her.
 // - T2 料敌机先 (attack@per_atk_scale / attack@per_magic_resist_penetrate_fixed / attack@max_trigger_cnt): an active 棋子 / 跟子
 //   gets one stack per piece of the unbroken line it is part of (itself included; the longer of its lines; ≤ the cap),
 //   kept once reached [ASSUMED]; its damage ×(1 + n × per) and n × pen RES ignored. TRP-X stage 3: 15 % / 13.
@@ -52,8 +55,9 @@
 //   attack@duration s, each one on its own timer, added up (speed ≥ 0.1). Active as S1.
 // - S3 天下劫 (MANUAL, data ACTIVE_RANGE on its 4-12; ammo trigger_time): passive — the pieces' trigger and damage area is the
 //   token skill's range (x-6 in the data; PRTS writes x-1), atk_scale × her ATK arts on every enemy there. Active — no
-//   attacks, range 4-12; +cnt stock, the part over the cap placed at once as 跟子 on the enemies of her range first (her
-//   target order), then on other tiles of it by the 铸子 order [ASSUMED for the ties: nearest to her, then by tile]; a 棋子
+//   attacks, range 4-12; +cnt stock, the part over the cap placed at once as 跟子 on the tiles of her range by the 铸子 order
+//   (S3 备注 "采用相同的位置选择优先顺序"): enemy tiles first, then 不可部署 > 可部署地面 > 高台 [ASSUMED for the ties: her target
+//   order among enemy tiles, then nearest to her, then by tile]; a 棋子
 //   coming back inside her range during it drops up to 3 跟子, one bullet each ("第一天赋额外至多部署3枚棋子并消耗等量弹药");
 //   it ends when the bullets are spent ("棋子耗尽" [ASSUMED]); bullets left at another end return to the stock.
 
@@ -231,6 +235,9 @@ export default {
           const w = owner.mem.wang;
           unit.mem.wangNode = { seq: ++w.seq, act: false, h: false, v: false, stacks: 0 };
           w.stock = Math.max(0, w.stock - 1);   // it occupies her stock (the owner's decision of 2026-10-06)
+          // 铸子: the battle-start deployment of a placed 棋子 is its 手动部署 — one 跟子 next to it (a return drops its own in
+          // scheduleReturn)
+          if (ctx.initial && up(owner)) dropFollowers(battle, owner, unit.tileR, unit.tileC, 1);
         }, { owner: unit });
         battle.on('death', (ctx) => {
           if (ctx.unit !== unit || battle.finished) return;
@@ -264,28 +271,22 @@ export default {
             const total = w.stock + Math.max(0, Math.floor(num(b3.cnt)));
             const over = Math.max(0, total - stockCap);
             w.stock = Math.min(stockCap, total);
-            // "将超出上限的棋子优先部署在范围内敌人所在位置": enemies of her (4-12) range first, then other tiles of it
-            let n = Math.min(over, followCap - w.followers.length);
+            // "将超出上限的棋子优先部署在范围内敌人所在位置" and the 备注's "采用相同的位置选择优先顺序" (铸子): the free tiles of her
+            // (4-12) range, those holding an enemy she can target first, then 不可部署 > 可部署地面 > 高台; [ASSUMED] ties: her
+            // target order among enemy tiles, then nearest to her, then by tile
+            const n = Math.min(over, followCap - w.followers.length);
             if (!(n > 0)) return;
             const taken = new Set(piecesOf(battle, unit).map((p) => keyOf(p.r, p.c)));
             const foes = sortEnemyTargets(battle, unit, battle.enemiesInKeys(unit.rangeKeys, unit, ANY), unit.profile?.priority ?? null);
-            for (const e of foes) {
-              if (n <= 0) break;
-              const r = Math.round(e.y), c = Math.round(e.x);
-              if (!followerFree(battle, unit, r, c, taken)) continue;
-              taken.add(keyOf(r, c));
-              addFollower(battle, unit, r, c);
-              n--;
-            }
-            if (n <= 0) return;
-            const rest = [];
+            const cands = [];
             for (const k of unit.rangeKeys ?? []) {
               const r = Math.floor(k / COLS), c = k % COLS;
               if (!followerFree(battle, unit, r, c, taken)) continue;
-              rest.push({ r, c, k, cls: tileClass(battle, r, c), d: Math.max(Math.abs(r - unit.tileR), Math.abs(c - unit.tileC)) });
+              const fi = foes.findIndex((e) => e.alive && bodyOnTile(e, r, c));
+              cands.push({ r, c, k, foe: fi >= 0 ? 0 : 1, fi: fi >= 0 ? fi : 0, cls: tileClass(battle, r, c), d: Math.max(Math.abs(r - unit.tileR), Math.abs(c - unit.tileC)) });
             }
-            rest.sort((a, b) => a.cls - b.cls || a.d - b.d || a.k - b.k);
-            for (const t of rest.slice(0, n)) addFollower(battle, unit, t.r, t.c);
+            cands.sort((a, b) => a.foe - b.foe || a.cls - b.cls || a.fi - b.fi || a.d - b.d || a.k - b.k);
+            for (const t of cands.slice(0, n)) addFollower(battle, unit, t.r, t.c);
           },
           onEnd({ unit, reason }) {
             const w = unit.mem.wang;
@@ -360,6 +361,15 @@ export default {
           const w = unit.mem.wang;
           w.followers = w.followers.filter((f) => f !== n);
         };
+        // "跟子所在格进行部署（或进行类似部署的行为）时，该跟子会随之消失" (PRTS 铸子 备注): any ally deploying on a 跟子's tile
+        // (priority 50: before that piece's own 铸子 drop)
+        battle.on('deploy', (ctx) => {
+          const a = ctx.unit, w = unit.mem.wang;
+          if (!a || a.side !== 'ally' || !w || !w.followers.length) return;
+          const n0 = w.followers.length;
+          w.followers = w.followers.filter((f) => f.r !== a.tileR || f.c !== a.tileC);
+          if (w.followers.length !== n0) battle.fx('disappear', { x: a.tileC, y: a.tileR, id: unit.id });
+        }, { owner: unit, priority: 50 });
         battle.on('tick', () => {
           if (!up(unit) || battle.finished) return;
           const nodes = piecesOf(battle, unit);

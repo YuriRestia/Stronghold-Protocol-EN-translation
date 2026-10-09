@@ -158,9 +158,10 @@ export default {
     return {
       trait: targets > 1 ? { maxTargets: targets } : null,
       skills: {
-        [S1]: { kind: 'duration', mods: { atkPct: num(b1.atk) }, attack: healAttack },
+        // [ASSUMED] her skills' attacks heal: 白铁's 铁钳号 (禁疗, no patient) alone does not open them (skills.js allyTargetsOk)
+        [S1]: { kind: 'duration', mods: { atkPct: num(b1.atk) }, attack: healAttack, allyTargets: false },
         [S2]: {
-          kind: 'duration', mods: { aspd: num(b2.attack_speed) }, attack: healAttack,
+          kind: 'duration', mods: { aspd: num(b2.attack_speed) }, attack: healAttack, allyTargets: false,
           onStart({ battle, unit }) {
             // a 夜灯 already up (the battle-start deploy) is this skill's drone; else her placed piece takes the field
             if (!battle.allyUnits.some((t) => t.kind === 'token' && t.defId === LAMP && t.ownerUnit === unit && t.alive)) releaseSkillSummon(battle, unit, LAMP);
@@ -168,7 +169,7 @@ export default {
           onEnd({ battle, unit }) { withdrawLamps(battle, unit); },
         },
         [S3]: {
-          kind: 'duration', mods: { atkPct: num(b3.atk) }, attack: healAttack,
+          kind: 'duration', mods: { atkPct: num(b3.atk) }, attack: healAttack, allyTargets: false,
           onStart({ unit }) { unit.mem.slent2Grave = true; },   // the one 不死 of this cast (slent2_shallow_grave[self])
           onEnd({ unit }) { unit.mem.slent2Grave = false; },
         },

@@ -674,6 +674,7 @@ export function makeCtx(m, ps, source, hook, ev = null) {
 
     // ---- bounties / choices
     addBounty: (card) => m.addBounty(ps, card),
+    offerBountyChoice: (cards, sourceItemId) => m.offerBountyChoice(ps, cards, sourceItemId),
 
     // ---- messaging
     // a string or a shared/i18n.js msg(msgid, params)

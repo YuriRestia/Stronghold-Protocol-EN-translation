@@ -20,7 +20,7 @@ test('settings batch set clears the picks; a pick equal to the default is no ove
   setCharVoiceLang(am, 'char_a', 'native');
   setCharVoiceLang(am, 'char_b', 'jp');
   assert.deepEqual(voiceLangStore.get().byChar, { char_a: 'native', char_b: 'jp' });
-  assert.deepEqual(audio.voiceLang, voiceLangStore.get(), 'the audio manager follows the store');
+  assert.deepEqual(audio.voicePicks, voiceLangStore.get().byChar, 'the audio manager follows the picks');
   setCharVoiceLang(am, 'char_b', 'cn');
   assert.deepEqual(voiceLangStore.get().byChar, { char_a: 'native' }, 'back to what the default gives ⇒ the override goes');
   setDefaultVoiceLang('en');

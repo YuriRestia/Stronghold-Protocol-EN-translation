@@ -1097,6 +1097,32 @@ test('异客: the S3 storm stops when she leaves the field', () => {
   assert.equal(h.eventsOf('fx').filter((e) => e[1] === 'lightning').length, n, 'no strike after her retreat');
 });
 
+test('异客: the S3 storm is range x-1 — the 13-tile diamond — around the tile of the target\'s centre (PRTS 备注; GitHub #322, PR #329)', () => {
+  // the storm's target stands off its tile centre at (5.4, 10.4) — tile (10, 5) — and is removed right after the cast, so
+  // every strike starts on the probe (no chain bounce from the target) when, and only when, the probe is in the zone
+  const strikes = ([dx, dy]) => {
+    const h = battle({ units: [{ chessId: 'chess_char_6_05_a', row: 10, col: 3 }], autoFinish: false });
+    h.step();
+    const u = h.unit('chess_char_6_05_a');
+    const tgt = h.spawn('enemy_dummy2', { pos: [10, 5], mods: { hpMul: 2 } });
+    tgt.x = 5.4; tgt.y = 10.4;
+    h.step();
+    assert.ok(u.skill.activate('test', { free: true }));
+    const storm = h.eventsOf('fx').find((e) => e[1] === 'storm');
+    assert.deepEqual([storm[2], storm[3]], [5, 10], 'the storm sits on the centre of the target\'s tile');
+    h.b.dealDamage(null, tgt, { amount: 1e12, type: 'true' });
+    const p = h.spawn('enemy_dummy', { pos: [10, 5] });
+    p.x = 5 + dx; p.y = 10 + dy;
+    h.run(4.2);
+    checkInvariants(h.b);
+    return h.dmg.filter((d) => d.src === u.id && d.tgt === p.id && d.tags.includes('storm')).length;
+  };
+  // in the diamond (|Δrow| + |Δcol| ≤ 2 by tile): (2, 0) / (0, −2) / (1.95, 0.4) lay outside the old 1.5 circle
+  for (const off of [[0, 0], [2, 0], [0, -2], [-2, 0], [1.45, 1.45], [1.95, 0.4]]) assert.equal(strikes(off), 8, `(${off}) struck by all 8 strikes`);
+  // outside it: tile (+2, +1), and tile (+3, 0) — (1.55, 1.05) was inside the old circle around the target's position
+  for (const off of [[2, 1], [1.55, 1.05], [0, 2.6]]) assert.equal(strikes(off), 0, `(${off}) never struck`);
+});
+
 test('蕾缪安: 通缉 needs a continuous 8 s stay in a 拉特兰 range (leaving restarts the count)', () => {
   const h = battle({
     units: [{ chessId: 'chess_char_6_01_a', row: 12, col: 2 }, { chessId: 'test_lat_a', row: 10, col: 2 }],

@@ -344,10 +344,10 @@ export const VOICE_SLOTS = Object.freeze({
 });
 
 /**
- * The slots a running battle can actually request — the only ones `public/js/audio.js` ever asks for (the 休整期 is
- * silent, so nothing else is played): 行动出发 start, 首次接敌 faceEnemy, 作战中1-4 skillN, 部署 place (the deploy
- * events) and 选中干员 select (the detail panel, behind its combat flag), plus the settlement lines
- * resultFour / resultThree / resultTwo / resultLose (public/js/screens/game.js onResult).
+ * The slots the client can actually request — the only ones `public/js/audio.js` ever asks for: 行动出发 start, 首次接敌
+ * faceEnemy, 作战中1-4 skillN, 部署 place (a running battle's deploy events), the settlement lines resultFour /
+ * resultThree / resultTwo / resultLose (public/js/screens/game.js onResult) and 选中干员 select (the detail panel opening
+ * on an operator the player tapped, in every phase since 0.2.2).
  * `buildPlan` plans these by default; `--voice-all` widens it to every slot of VOICE_SLOTS.
  */
 export const VOICE_BATTLE_SLOTS = Object.freeze(['start', 'faceEnemy', 'select', 'place',
@@ -358,7 +358,7 @@ export const VOICE_BATTLE_SLOTS = Object.freeze(['start', 'faceEnemy', 'select',
  * 任命队长 squadFirst). `test/docs-consistency.test.js` proves the client never asks for one, so planning them only
  * makes every `npm run assets` download 360 files (19.3 MB, CN dub) that no player will ever hear — they are left out
  * unless `--voice-all` is passed. 部署 `place` and 选中干员 `select` deliberately stay in: the official client groups
- * them with the prep lines, but a battle does play them (the deploy events; the detail panel behind its combat flag).
+ * them with the prep lines, but the client does play them (the deploy events; a tap on an operator).
  */
 export const VOICE_PREP_SLOTS = Object.freeze(['gacha', 'squad', 'squadFirst']);
 

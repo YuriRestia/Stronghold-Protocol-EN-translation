@@ -172,6 +172,8 @@ describe('#43: a blocked 隐匿 enemy hides again only 3 s after the block ends 
     h.run(0.2);
     assert.equal(hidden(h, e), true, `+${STEALTH_RESTORE + 0.1} s: 隐匿 again`);
     assert.ok(Math.abs(h.b.time - t0 - STEALTH_RESTORE - 0.1) < 0.05);
+    // an arrow loosed before it hid still lands (a projectile keeps its target): count from when none is in flight
+    h.runUntil(() => !h.b.projectiles.list.some((p) => p.target === e), 1);
     const after = e.stats.taken;
     h.run(2);
     assert.equal(e.stats.taken, after, 'no ranged hit once it hides');

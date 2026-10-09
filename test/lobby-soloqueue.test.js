@@ -1,4 +1,4 @@
-// test/lobby-soloqueue.test.js — 单人匹配 (DESIGN §27): planSolos, and queue.join / queue.leave / queue.ai end to end. A
+// test/lobby-soloqueue.test.js — 单人匹配 (DESIGN §28): planSolos, and queue.join / queue.leave / queue.ai end to end. A
 // queued Doctor is only ever placed into a room that starts at once: their first room.state already says inMatch.
 import { describe, test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';

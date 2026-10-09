@@ -52,10 +52,14 @@ describe('user playtest #2 item 1 — loadout chosen in the UI fights in the loc
       await c.click('.lo-search input');
       await c.page.keyboard.type('野鬃');
       await c.page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-      await c.click('.lo-card');
-      await c.click('.lo-detail .lo-skill[data-skill="0"]');
-      await c.click('.lo-detail .lo-mod[data-module="none"]');
-      await c.page.waitForFunction(() => document.querySelector('.lo-skill.is-on[data-skill="0"]') && document.querySelector('.lo-mod.is-on[data-module="none"]'), { timeout: 3000 });
+      await c.click('.lo-card__pick');
+      // the row's quick choices (0.2.2: the roster is one list, a row per operator with its skills and the elite's
+      // modules; the detail's own module cards sit below the fold) — the row and the detail agree on S1 + 不装备
+      await c.click('.lo-card .lo-q--skill[data-skill="0"]');
+      await c.click('.lo-card .lo-q--mod[data-module="none"]');
+      await c.page.waitForFunction(() => document.querySelector('.lo-card .lo-q--skill[data-skill="0"]')?.getAttribute('aria-pressed') === 'true'
+        && document.querySelector('.lo-card .lo-q--mod[data-module="none"]')?.getAttribute('aria-pressed') === 'true'
+        && document.querySelector('.lo-detail .lo-skill.is-on[data-skill="0"]') && document.querySelector('.lo-detail .lo-mod.is-on[data-module="none"]'), { timeout: 3000 });
       await c.page.waitForFunction(() => /已同步/.test(document.querySelector('.lo-sync')?.textContent || ''), { timeout: 8000 });
       await c.shot('overlay');
       await c.page.keyboard.press('Escape');
@@ -116,8 +120,11 @@ describe('user playtest #2 item 1 — loadout chosen in the UI fights in the loc
       assert.ok(detail, 'the detail card opens for the placed elite');
       assert.ok(detail.skill.includes(s1.name) && detail.tag, `detail card: ${s1.name} 已调配 (${JSON.stringify(detail)})`);
       assert.ok(detail.none && detail.module.includes('未装备模组'), `detail card: 未装备模组 (${JSON.stringify(detail)})`);
-      // …and the stats / 特性 the unit fights with: no module (ATK 524, interval 1.00 s, "获得1点") — not the default module's
-      assert.equal(detail.stats['攻击'], String(rec.statsBase.atk), `detail card ATK without the module (${JSON.stringify(detail.stats)})`);
+      // …and the stats / 特性 the unit fights with: no module (ATK 524, interval 1.00 s, "获得1点") — not the default module's;
+      // 0.2.2: the card's base value carries the player's 练度, here the default 精英2 Lv.60 (effects.json aceffect_char_4,
+      // ×1.1 ATK — a multiplier of its own, the unit's def keeps the record's 524)
+      const t4 = JSON.parse(readFileSync(path.join(ROOT, 'data/effects.json'), 'utf8')).aceffect_char_4.buffs.find((b) => b.key === 'char_attribute_mul').bb;
+      assert.equal(detail.stats['攻击'], String(Math.round(rec.statsBase.atk * t4.atk)), `detail card ATK without the module, at the default 练度 (${JSON.stringify(detail.stats)})`);
       assert.equal(detail.stats['攻击间隔'], '1.00s', 'detail card interval: ASPD 100');
       assert.match(detail.trait, /获得1点部署费用/, `detail card 特性 without the module (${detail.trait})`);
       await c.shot('detail');

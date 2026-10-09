@@ -5,6 +5,8 @@ rem Output goes to logs\server.log (rotated at 10 MB to logs\server.old.log); th
 setlocal EnableExtensions
 cd /d "%~dp0.."
 set "NODE_EXE=node"
+rem Dual-stack default (IPv6 and IPv4 on one socket). scripts\service.env.cmd may override HOST.
+set "HOST=::"
 if exist "%~dp0service.env.cmd" call "%~dp0service.env.cmd"
 if not exist "logs" mkdir "logs"
 

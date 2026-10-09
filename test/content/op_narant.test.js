@@ -124,10 +124,11 @@ test('S1 旋刃 (切换: on until she leaves; data DEFAULT): range −1 (the far
     const b = h.spawn('enemy_dummy', { pos: [11, 5] }), c = h.spawn('enemy_dummy', { pos: [9, 6] });
     const far = h.spawn('enemy_dummy', { pos: [12, 5] });   // 2 from A, 1 from B: reachable from B only
     h.run(0.1);
-    const n0 = atkHits(h, u).length;
+    const before0 = atkHits(h, u), n0 = before0.length;
     h.run(4);
     const after = atkHits(h, u).slice(n0);
-    const id = after[0].dmg.attackId;
+    // the first attack thrown after that (one in flight then has already hit A before the others came)
+    const id = after.find((x) => !before0.some((y) => y.dmg.attackId === x.dmg.attackId)).dmg.attackId;
     const chain = after.filter((x) => x.dmg.attackId === id);
     assert.equal(chain.length, 4, `T${tier}: the hit + 3 bounces`);
     assert.equal(chain[0].target, lone, `T${tier}: her target`);

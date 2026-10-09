@@ -5,11 +5,17 @@ import { absoluteRangeKeys, canTargetEnemy } from '../../../targeting.js';
 import { CHAIN_RADIUS } from '../../../constants.js';
 import { bodyDist, bodyInKeys } from '../../../body.js';
 import { num, bv, tbb, live, ANY, enemiesIn, batOf, N4, aura } from '../shared/tier6.js';
+import { powi } from '../../../detmath.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // 异客 chess_char_6_05 (链术师) — S3 辉煌裂片; 机理分析; 孤卒
 
-const STORM_RADIUS = 1.5; // [ASSUMED] storm zone radius (not in data)
+/** S3 雷暴区域: PRTS 备注 「以其判定中心所在格为中心生成一个x-1的雷暴区域」 — range x-1 (range_table: the diamond of radius 2,
+ *  13 tiles) around the tile of the target's centre (GitHub #322, PR #329). Until 0.2.2 a 1.5-tile circle around the
+ *  target's exact position [ASSUMED]. The chain of each strike bounces on its own radius, inside or outside the zone. */
+const STORM_GRID = Object.freeze([[2, 0], [1, -1], [1, 0], [1, 1], [0, -2], [0, -1], [0, 0], [0, 1], [0, 2], [-1, -1], [-1, 0], [-1, 1], [-2, 0]]);
+/** The storm fx's ring radius (tiles): the diamond's reach — drawn only, the zone is STORM_GRID. */
+const STORM_FX_RADIUS = 2;
 
 function pasngr(bb, chess, def) {
   const t0 = tbb(def, 0), t1 = tbb(def, 1), tb = def?.traitBb || {};
@@ -25,7 +31,7 @@ function pasngr(bb, chess, def) {
     for (let i = 0; i < count && prev; i++) {
       hit.add(prev.id);
       battle.fx('lightning', { x: prev.x, y: prev.y, id: prev.id, src: unit.id });
-      battle.dealDamage(unit, prev, { amount: unit.s.atk * scale * Math.pow(1 - num(ch.falloff, 0.15), i), type: 'arts', isSkill: true, isAttack: true, tags: ['skill', 'storm'] });
+      battle.dealDamage(unit, prev, { amount: unit.s.atk * scale * powi(1 - num(ch.falloff, 0.15), i), type: 'arts', isSkill: true, isAttack: true, tags: ['skill', 'storm'] });
       if (slug > 0 && prev.alive) battle.applyStatus(prev, 'sluggish', { duration: slug, source: unit });
       let best = null, bd = Infinity;
       for (const x of battle.foesInRadius(prev.x, prev.y, ch.radius || CHAIN_RADIUS)) {
@@ -68,16 +74,18 @@ function pasngr(bb, chess, def) {
         const cands = enemiesIn(battle, unit, keys);
         if (!cands.length) return;
         const tgt = cands.reduce((a, b) => (b.hp > a.hp ? b : a));
-        const cx = tgt.x, cy = tgt.y;
+        // 判定中心所在格: the tile of the target's centre (the rounding of body.js posKey); fixed for the storm's 4 s
+        const cx = Math.round(tgt.x), cy = Math.round(tgt.y);
+        const zoneKeys = absoluteRangeKeys(STORM_GRID, cy, cx, 1, 0);
         const dur = num(bb.duration, 4), iv = Math.max(0.1, num(bb.interval, 0.5)), scale = num(bb.atk_scale, 1);
         const n = Math.max(1, Math.round(dur / iv));
-        battle.fx('storm', { x: cx, y: cy, id: unit.id, duration: dur, r: STORM_RADIUS });
+        battle.fx('storm', { x: cx, y: cy, id: unit.id, duration: dur, r: STORM_FX_RADIUS });
         let k = 0;
         const seq = unit.deploySeq;
         const h = battle.every(iv, () => {
           if (!live(unit) || unit.deploySeq !== seq) { h.cancel(); return; } // the storm ends when she leaves the field
           if (++k >= n) h.cancel();
-          const zone = battle.foesInRadius(cx, cy, STORM_RADIUS).filter((e) => canTargetEnemy(unit, e, ANY));
+          const zone = enemiesIn(battle, unit, zoneKeys);   // every enemy she can select whose body is on the 13 tiles
           const e = battle.rng.pick(zone);
           if (e) strike(battle, unit, e, scale);
         }, { owner: unit });

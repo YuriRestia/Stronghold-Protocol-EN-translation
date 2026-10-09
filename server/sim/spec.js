@@ -25,9 +25,15 @@
 // 自选 (DATA.md §18): an operator entry of a DIY slot (`chessId` its `_a` / `_b` id) carries `diy: { charId, skillIndex?,
 // uniEquipId? }` (kept when well-formed; the data layer checks legality — shared/diy.js checkDiyPick) and is fielded as
 // simdata getChess(id, { diy }).
+// Potential and 练度 (0.2.2, shared/potential.js — the player's 干员调配 settings, the owner's decision of 2026-10-08): an
+// operator entry may carry `potential` (潜能 1–6: the def at that potential, its summons' talents at it) and
+// `cultivate` (练度 0–3: the effects.json CHAR_MAP aceffect_char_1…4 — a ×ATK / ×DEF / ×max HP of the unit, its own
+// multiplier); each kept only when well-formed and never on a stand-in. Absent: full potential and no 练度 (a raw
+// unit — the match always states both for an owned operator: PlayerState.battleInput).
 
 import { Battle } from './Battle.js';
 import { toDataSource, withUnitLoadouts } from './simdata.js';
+import { isPotential, isCultivate } from '../../shared/potential.js';
 import { BOSS_POOL_MIN_HP } from './constants.js';
 
 export const SPEC_VERSION = 1;
@@ -101,14 +107,18 @@ function cleanDiyPick(d) {
 
 /**
  * Keep a unit's `skillIndex` / `moduleId` only when well-formed (the data layer checks legality), `standIn` only when
- * exactly `true` (补位) and `diy` only as a well-formed pick (自选). Mutates `u`.
+ * exactly `true` (补位), `diy` only as a well-formed pick (自选), `potential` (1–6) / `cultivate` (0–3) only when
+ * well-formed and not on a stand-in. Mutates `u`.
  */
 export function sanitizeUnitLoadout(u) {
   if ('skillIndex' in u && !(Number.isInteger(u.skillIndex) && u.skillIndex >= 0 && u.skillIndex <= 9)) delete u.skillIndex;
   if ('moduleId' in u && !(typeof u.moduleId === 'string' && LOADOUT_ID.test(u.moduleId))) delete u.moduleId;
   if ('standIn' in u && u.standIn !== true) delete u.standIn;
   if ('diy' in u) { const d = cleanDiyPick(u.diy); if (d) u.diy = d; else delete u.diy; }
-  if (u.kind === 'token') { delete u.skillIndex; delete u.moduleId; delete u.standIn; delete u.diy; }
+  if ('potential' in u && !isPotential(u.potential)) delete u.potential;
+  if ('cultivate' in u && !isCultivate(u.cultivate)) delete u.cultivate;
+  if (u.standIn === true) { delete u.potential; delete u.cultivate; }
+  if (u.kind === 'token') { delete u.skillIndex; delete u.moduleId; delete u.standIn; delete u.diy; delete u.potential; delete u.cultivate; }
   return u;
 }
 
@@ -262,8 +272,11 @@ export function uniteLeft(battle) {
 }
 
 /**
- * Progress numbers of a battle for b.progress / the teammates' waiting UI: game time, kills, total, counted leaks
- * (normal / unite), the boss pool damage of this field and — unite fields — `left` (uniteLeft: each leaker's enemies
+ * Progress numbers of a battle for b.progress / the teammates' waiting UI: game time, kills, total, the capsule's
+ * `resolved` (this field's own scheduled enemies knocked out or leaked — Battle.resolved), counted leaks
+ * (normal / unite), the boss pool damage of this field, `leaksBy` of a boss / hidden field — per player, the LP the
+ * enemies that reached its goal cost (every leak entry the result will show, × its `lpr`; the field's LP meter minus
+ * their sum is the leader's own "扣除目标生命" effects) — and, unite fields, `left` (uniteLeft: each leaker's enemies
  * still standing).
  */
 export function battleProgress(battle) {
@@ -273,10 +286,14 @@ export function battleProgress(battle) {
   for (const k of Object.keys(pp)) for (const l of pp[k].leaked || []) if (l && l.counted !== false) leaks++;
   const pool = battle && battle.sharedBoss;
   const gt = Number(battle && battle.time) || 0;
+  const total = Math.max(0, Math.trunc(Number(battle && battle.total) || 0));
   const out = {
     gt: Math.round(gt * 1000) / 1000,
     killed: Math.max(0, Math.trunc(Number(battle && battle.killed) || 0)),
-    total: Math.max(0, Math.trunc(Number(battle && battle.total) || 0)),
+    total,
+    // `null` (never 0) when the battle cannot report it: a display replica / a stand-in must not look like "0 resolved"
+    // (a `0` from here would defeat every `resolved ?? killed` fallback of the HUD)
+    resolved: numberOrNull(battle && battle.resolved, total),
     leaks,
     bossDmg: pool && Number.isFinite(pool.cum) ? pool.cum : 0,
     done: !!(battle && battle.finished),
@@ -285,7 +302,20 @@ export function battleProgress(battle) {
     const left = uniteLeft(battle);
     if (left) out.left = left;
   }
+  if (battle && (battle.kind === 'boss' || battle.kind === 'hidden')) {
+    const leaksBy = {};
+    for (const pid of Object.keys(pp).slice(0, 4)) leaksBy[pid] = Math.min(1e6, leakEntries(pp[pid]).reduce((n, l) => n + leakLpr(l), 0));
+    out.leaksBy = leaksBy;
+  }
   return out;
+}
+
+/** A finite, non-negative integer (never above `cap`), else null — a value the HUD may fall back from. */
+function numberOrNull(v, cap = Infinity) {
+  if (v == null) return null;   // Number(null) === 0: a battle without the counter (a stand-in) must not read as "0"
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(cap, Math.trunc(n)));
 }
 
 const r4 = (v) => Math.round((Number(v) || 0) * 1e4) / 1e4;
@@ -320,8 +350,12 @@ export function resultDigest(result) {
 const fnum = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const cap = (list, n) => (Array.isArray(list) ? list.slice(0, n) : []);
 const isKey = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
-const uidOr = (v) => (Number.isInteger(v) && v >= 1 && v <= 2 ** 31 ? v : null);
+const uidOr = (v) => (Number.isInteger(v) && v >= 1 && v <= 0x80000000 ? v : null);
 const keyOr = (v) => (isKey(v) ? v : null);
+/** A player's leak entries as the b.result carries them (compactResult: a valid enemy key, at most 400). */
+const leakEntries = (p) => cap(p && p.leaked, 400).filter((l) => l && isKey(l.enemyKey));
+/** What one leak entry costs the team on the wire: its `lpr` (0 … 1000), 1 when absent. */
+const leakLpr = (l) => Math.max(0, Math.min(1000, fnum(l && l.lpr, 1)));
 
 function compactMods(m) {
   if (!m || typeof m !== 'object') return null;
@@ -348,10 +382,12 @@ export function compactResult(res) {
     for (const [k, v] of Object.entries(p.layerGains || {}).slice(0, 40)) if (isKey(k) && fnum(v) > 0) layerGains[k] = Math.min(1e4, fnum(v));
     const total = Math.max(0, Math.trunc(fnum(p.total)));
     perPlayer[pid] = {
-      killed: Math.min(total, Math.max(0, Math.trunc(fnum(p.killed)))),
+      // `killed` keeps the sim's reading (every counted knock-out, runtime splits / summons included) and is deliberately
+      // NOT clamped to `total`: the denominator counts only the round's own scheduled enemies (Battle.resolved)
+      killed: Math.max(0, Math.trunc(fnum(p.killed))),
       total,
-      leaked: cap(p.leaked, 400).filter((l) => l && isKey(l.enemyKey)).map((l) => {
-        const o = { enemyKey: l.enemyKey, mods: compactMods(l.mods), lpr: Math.max(0, Math.min(1000, fnum(l.lpr, 1))), sourcePlayerId: keyOr(l.sourcePlayerId), tag: typeof l.tag === 'string' && l.tag.length <= 16 ? l.tag : null, counted: l.counted !== false };
+      leaked: leakEntries(p).map((l) => {
+        const o = { enemyKey: l.enemyKey, mods: compactMods(l.mods), lpr: leakLpr(l), sourcePlayerId: keyOr(l.sourcePlayerId), tag: typeof l.tag === 'string' && l.tag.length <= 16 ? l.tag : null, counted: l.counted !== false };
         if (l.boss) o.boss = true;
         if (l.spawned) o.spawned = true;
         return o;
@@ -373,6 +409,9 @@ export function compactResult(res) {
         taken: Math.max(0, Math.round(fnum(u.taken))), attacks: Math.max(0, Math.trunc(fnum(u.attacks))),
       })),
     };
+    // the HUD capsule's numerator (or absent for a result that has none: the teammate UI falls back to `killed`)
+    const resolved = Number.isFinite(p.resolved) ? Math.max(0, Math.min(total, Math.trunc(p.resolved))) : null;
+    if (resolved != null) perPlayer[pid].resolved = resolved;
   }
   const out = {
     reason: ['cleared', 'timeout', 'forced'].includes(r.reason) ? r.reason : 'forced',
@@ -382,7 +421,7 @@ export function compactResult(res) {
     perPlayer,
     errors: Math.max(0, Math.min(1e9, Math.trunc(fnum(r.errors)))),
   };
-  if (out.killed > out.total) out.killed = out.total;
+  if (Number.isFinite(r.resolved)) out.resolved = Math.max(0, Math.min(out.total, Math.trunc(r.resolved)));
   if (Array.isArray(r.unspawned) && r.unspawned.length) {
     out.unspawned = cap(r.unspawned, 400).filter((u) => u && isKey(u.enemyKey)).map((u) => ({
       enemyKey: u.enemyKey, sourcePlayerId: keyOr(u.sourcePlayerId), tag: typeof u.tag === 'string' && u.tag.length <= 16 ? u.tag : null,

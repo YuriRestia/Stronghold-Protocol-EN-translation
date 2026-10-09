@@ -2,6 +2,7 @@
 // Conventions of the tier-2 kits: ../shared/tier2.js; kit contract and rules: ../README.md.
 
 import { num, talentBb, traitBb, onHitBy, alliesInGridOf, toggleBuff } from '../shared/tier1.js';
+import { hypot } from '../../../detmath.js';
 
 export default {
   // ---------------------------------------------------------------------------------------------------------------
@@ -33,7 +34,7 @@ export default {
           const mn = num(tb.min_dist), mx = num(tb.max_dist, 4), ds = num(tb.damage_scale);
           onHitBy(battle, unit, ({ target, dmg }) => {
             if (!dmg.isAttack) return;
-            const d = Math.hypot(target.x - unit.x, target.y - unit.y);
+            const d = hypot(target.x - unit.x, target.y - unit.y);
             dmg.amount *= 1 + ds * (mx > mn ? Math.max(0, Math.min(1, (d - mn) / (mx - mn))) : 1);
           });
         }

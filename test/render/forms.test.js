@@ -19,6 +19,9 @@ import { installFakePixi, fakeViewCtx } from './fakepixi.js';
 import { presetCamera } from '../../public/js/render/projection.js';
 import { UF, ANIM } from '../../shared/constants.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
+import * as enemiesMod from '../../server/sim/content/enemies.js';
+import { enemyStealthed } from '../../server/sim/targeting.js';
+import { flagsOf } from '../../server/sim/snapshot.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const assets = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
@@ -132,6 +135,194 @@ async function enemy(id, info = {}) {
   assert.ok(v.actor, 'Spine model built');
   return v;
 }
+
+describe('骨刺 effective stealth drives A/B clips', () => {
+  const BONE = 'enemy_9008_acbunn';
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} ≈ ${b}`);
+  function arena() {
+    const h = makeBattle({
+      content: 'generic', extraContent: [enemiesMod], seed: 7, autoFinish: false,
+      defs: { chess: { wall: chessRec({ id: 'wall', profession: 'TANK', stats: { atk: 0, maxHp: 1e7, def: 0, res: 0, blockCnt: 3 }, rangeGrid: [[0, 0]], skill: null }) } },
+      kits: { wall: () => ({ trait: { noAttack: true } }) }, units: [{ chessId: 'wall', row: 9, col: 6 }],
+    });
+    h.step();
+    const e = h.spawn(BONE, { pos: [9, 6], routeIndex: 0, mods: { speedMul: 0 } });
+    return { h, e, wall: h.unit('wall') };
+  }
+  function pose(v, h, e, hidden) {
+    const flags = flagsOf(e);
+    assert.equal(enemyStealthed(e), hidden);
+    assert.equal(!!(flags & UF.STEALTH), hidden);
+    v.sync({ ...sample(flags), x: e.x, y: e.y }, h.b.time);
+    assert.equal(v.form, hidden ? null : 'revealed');
+    assert.equal(clip(v), hidden ? 'Idle_A' : 'Idle_B');
+    v.fadeIn = 1;
+    v.update(1 / 60, cam(), h.b.time);
+    assert.equal(v.root.alpha, hidden ? 0.45 : 1);
+  }
+
+  test('骨刺: actual blocking, blocker stun, reveal and expiry give A → B → A → B → A', async () => {
+    const { h, e, wall } = arena();
+    const v = await enemy(BONE);
+    try {
+      pose(v, h, e, true);
+      h.step(2); assert.equal(e.blockedBy, wall); pose(v, h, e, false);
+      h.b.applyStatus(wall, 'stun', { duration: 30, force: true });
+      h.step(2); assert.equal(e.blockedBy, null); pose(v, h, e, true);
+      h.b.addBuff(e, { key: 'test:reveal', duration: 1, flags: { reveal: true } });
+      pose(v, h, e, false);
+      h.run(1.1); pose(v, h, e, true);
+    } finally { v.destroy(); }
+  });
+
+  test('骨刺: overlapping block and reveal keep B until both end', async () => {
+    const { h, e, wall } = arena();
+    const v = await enemy(BONE);
+    try {
+      h.step(2); assert.equal(e.blockedBy, wall);
+      h.b.addBuff(e, { key: 'test:reveal', duration: 0.1, flags: { reveal: true } });
+      pose(v, h, e, false);
+      h.run(0.2); assert.equal(e.blockedBy, wall); pose(v, h, e, false);
+      h.b.addBuff(e, { key: 'test:reveal', duration: 1, flags: { reveal: true } });
+      h.b.applyStatus(wall, 'stun', { duration: 30, force: true });
+      h.step(2); assert.equal(e.blockedBy, null); pose(v, h, e, false);
+      h.run(1.1); pose(v, h, e, true);
+    } finally { v.destroy(); }
+  });
+
+  test('骨刺: switching an ongoing attack maps A 0.8 ↔ B 1.0 without another attack or a repeated-snapshot restart', async () => {
+    const v = await enemy(BONE);
+    try {
+      v.sync(sample(UF.STEALTH), 1);
+      v.atkInterval = 4;
+      v.onAttack(null, 1.1);
+      v.actor.clock = 2;
+      v.actor.spine.state.tracks[0].trackTime = 0.8;
+      const last = v.lastAtk, interval = v.atkInterval;
+      v.imp = { dirty: false };
+      v.sync(sample(0), 2);
+      assert.equal(clip(v), 'Attack_B');
+      near(v.actor.spine.state.tracks[0].trackTime, 1);
+      near(v.actor.attackUntil, 2.5);
+      assert.equal(v.imp.dirty, true);
+      const track = v.actor.spine.state.tracks[0];
+      v.sync(sample(0), 2.1);
+      assert.equal(v.actor.spine.state.tracks[0], track);
+      v.sync(sample(UF.STEALTH), 2.2);
+      assert.equal(clip(v), 'Attack_A');
+      near(v.actor.spine.state.tracks[0].trackTime, 0.8);
+      near(v.actor.attackUntil, 2.7);
+      assert.equal(v.lastAtk, last);
+      assert.equal(v.atkInterval, interval);
+      assert.equal(v.actor.wound, false);
+      v.imp = null;
+    } finally { v.imp = null; v.destroy(); }
+  });
+
+  for (const fromB of [false, true]) {
+    test(`骨刺: ${fromB ? 'B → A truncated' : 'A → B'} wind-up retains its deadline and tail speed`, async () => {
+      const v = await enemy(BONE);
+      try {
+        v.sync(sample(fromB ? 0 : UF.STEALTH), 1);
+        v.actor.clock = 2;
+        const lead = fromB ? 0.633 : 0.333;
+        assert.ok(v.actor.windUp(4, lead));
+        v.actor.spine.state.tracks[0].trackTime = fromB ? 0.1 : 0.2;
+        const until = v.actor.windUntil, last = v.lastAtk, interval = v.atkInterval;
+        v.sync(sample(fromB ? UF.STEALTH : 0), 2);
+        const track = v.actor.spine.state.tracks[0];
+        assert.equal(clip(v), fromB ? 'Attack_A' : 'Attack_B');
+        near(track.trackTime, fromB ? 0 : 0.4);
+        near(track.timeScale, fromB ? 0.533 / lead : 1);
+        assert.equal(v.actor.windUntil, until);
+        assert.equal(v.actor.windTs, 1);
+        assert.equal(v.actor.wound, true);
+        near(v.actor.attackUntil, 2 + lead + 1.5 - (fromB ? 0.533 : 0.733));
+        assert.equal(v.lastAtk, last);
+        assert.equal(v.atkInterval, interval);
+        v.sync(sample(fromB ? UF.STEALTH : 0), 2.1);
+        assert.equal(v.actor.spine.state.tracks[0], track);
+        v.actor.update(lead + 0.001);
+        assert.equal(track.timeScale, 1, 'the original tail speed resumes');
+      } finally { v.destroy(); }
+    });
+  }
+
+  for (const control of [UF.FROZEN, UF.STUNNED, UF.SLEEP]) {
+    test(`骨刺: control ${control} keeps the skeleton frozen while B/A attachments are applied immediately`, async () => {
+      const v = await enemy(BONE);
+      try {
+        v.sync(sample(UF.STEALTH | control), 1);
+        let zeroUpdates = 0;
+        const update = v.actor.spine.update.bind(v.actor.spine);
+        v.actor.spine.update = (dt) => { if (dt === 0) zeroUpdates++; update(dt); };
+        for (const hidden of [false, true]) {
+          v.sync(sample(control | (hidden ? UF.STEALTH : 0)), 2);
+          assert.equal(clip(v), hidden ? 'Idle_A' : 'Idle_B');
+          assert.equal(v.actor.mode, 'stun');
+          assert.equal(v.actor.frozen, true);
+          assert.equal(v.actor.spine.state.tracks[0].mixDuration, 0);
+        }
+        assert.equal(zeroUpdates, 2);
+        v.sync(sample(UF.STEALTH, ANIM.MOVE), 3);
+        assert.equal(v.actor.frozen, false);
+        assert.equal(clip(v), 'Move_A');
+      } finally { v.destroy(); }
+    });
+  }
+
+  test('骨刺: a first snapshot with flags = 0 selects B even though previous flags were also 0', async () => {
+    const v = await enemy(BONE);
+    try {
+      assert.equal(v.flags, 0);
+      v.sync(sample(0), 1);
+      assert.equal(v.form, 'revealed');
+      assert.equal(clip(v), 'Idle_B');
+    } finally { v.destroy(); }
+  });
+
+  for (const finalFlags of [0, UF.STEALTH, UF.FROZEN]) {
+    test(`骨刺: delayed model loading applies the latest snapshot (${finalFlags}), including frozen B`, async () => {
+      const a = store(BONE);
+      let resolve;
+      a.spine.acquire = () => new Promise((r) => { resolve = r; });
+      const v = new UnitView(fakeViewCtx(fake.P, { assets: a, cam }), { id: 9, side: 'enemy', kind: 'enemy', defId: BONE, spine: BONE, maxHp: 1000 });
+      const proto = fake.P.spine.Spine.prototype, update = proto.update;
+      let zeroUpdates = 0;
+      proto.update = function (dt) { if (dt === 0) zeroUpdates++; return update.call(this, dt); };
+      try {
+        v.sync(sample(0), 1);
+        assert.equal(v.actor, null);
+        assert.equal(v.form, 'revealed');
+        v.sync(sample(finalFlags), 2);
+        resolve({ animations: Object.keys(a.spineEntry().animations).map((name) => ({ name })) });
+        await tick(); await tick();
+        assert.ok(v.actor);
+        assert.equal(clip(v), finalFlags & UF.STEALTH ? 'Idle_A' : 'Idle_B');
+        assert.ok(zeroUpdates > 0, 'the loaded pose is applied at zero time');
+        assert.equal(v.actor.frozen, !!(finalFlags & UF.FROZEN));
+      } finally { proto.update = update; v.destroy(); }
+    });
+  }
+
+  for (const hidden of [true, false]) {
+    test(`骨刺: ${hidden ? 'A' : 'B'} idle, move and death; a DIE snapshot selects its form before dying`, async () => {
+      const flags = hidden ? UF.STEALTH : 0, suffix = hidden ? 'A' : 'B';
+      const v = await enemy(BONE), w = await enemy(BONE);
+      try {
+        v.sync(sample(flags, ANIM.MOVE), 1); assert.equal(clip(v), `Move_${suffix}`);
+        v.sync(sample(flags, ANIM.IDLE), 2); assert.equal(clip(v), `Idle_${suffix}`);
+        v.die(); assert.equal(clip(v), `Die_${suffix}`);
+        w.sync(sample(hidden ? 0 : UF.STEALTH), 1);
+        w.sync(sample(flags, ANIM.DIE), 2); assert.equal(clip(w), `Die_${suffix}`);
+        w.sync(sample(hidden ? 0 : UF.STEALTH, ANIM.DIE), 3);
+        frames(w, 10);
+        assert.equal(clip(w), `Die_${suffix}`, 'death keeps its chosen form');
+        assert.equal(w.form, hidden ? null : 'revealed');
+      } finally { v.destroy(); w.destroy(); }
+    });
+  }
+});
 
 describe('转译基底·α forms (user report after 0.1.0, #5)', () => {
   const TR = 'enemy_10081_mpplai';

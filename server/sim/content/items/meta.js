@@ -13,17 +13,19 @@
 //               the target's items skipped the item after a merge)
 //   紧急调度券   a shop operator leaves its slot only when it was actually granted (built-in cleared the slot first)
 //   寻呼模块     the special refresh shows `refresh_cnt` DIFFERENT operators (fewer when the pool has no more)
-//   教鞭       trap_create_self_choice {choice_event: hunter_band_1}: the bounty is a 战术特训 card (choices.json
-//               cards.bounty payout `perfect`, e.g. 战术特训·飞行I "若各自行动阶段就达成完美作战，获得1资金") — PRTS
-//               卫戍协议：盟约 下半/PRTS盟约记录 §法术 教鞭 "于3个战术特训的悬赏任务中选择一项", §机变阶段 "※以下悬赏任务仅由
-//               法术教鞭生成", and 杜宾 加练！ "<教鞭>：使用后为下场战斗添加额外敌人，若自身战斗完美作战可获得资金" (user
-//               playtest #6 item 4 review; the built-in drew any tier ≤ II kill bounty, and research 04 §7 [ASSUMED]
-//               the band family `enemyeffect_b_*`).
-//   “神秘顾客”  the same trap_create_self_choice ("选择一项特殊悬赏任务"; no band grants it in act2, research 04): a band
-//               bounty `enemyeffect_b_*` (research 04 §7 [ASSUMED]: "adds 1 enemy to your next battle, killer gets `coin`
-//               funds").
-//               Both: [ASSUMED simplification, engine: no PERSONAL_CHOOSE overlay] 3 cards whose enemy can appear in the
-//               mode are drawn and one of them is taken at random; the built-in runs when the family is empty.
+//   教鞭       trap_create_self_choice {choice_event: hunter_band_1, choiceType PERSONAL_CHOOSE}: a personal choice of
+//               one of THREE 战术特训 cards (choices.json cards.bounty payout `perfect`, e.g. 战术特训·飞行I "若各自行动阶段就
+//               达成完美作战，获得1资金") whose enemy the mode can field — PRTS 卫戍协议：盟约 下半/PRTS盟约记录 §法术 教鞭
+//               "使用后销毁，于3个战术特训的悬赏任务中选择一项", §机变阶段 "※以下悬赏任务仅由法术教鞭生成", and 杜宾 加练！
+//               "<教鞭>：使用后为下场战斗添加额外敌人，若自身战斗完美作战可获得资金". onArt → ctx.offerBountyChoice
+//               (Match.offerBountyChoice): the three cards go to the owner alone, who confirms one inside the PREP
+//               (g.choice with the offer's id); the prep's deadline or an AI seat resolves it (docs/META.md §2.5). Until
+//               0.2.2 the engine took one of the three at random (user playtest #6 item 4 review; the built-in drew any
+//               tier ≤ II kill bounty, and research 04 §7 [ASSUMED] the band family `enemyeffect_b_*`).
+//   “神秘顾客”  the same trap_create_self_choice ("选择一项特殊悬赏任务"; no band grants it in act2, research 04, and PRTS
+//               lists no pool): still [ASSUMED simplification] 3 band bounties `enemyeffect_b_*` (research 04 §7 [ASSUMED]:
+//               "adds 1 enemy to your next battle, killer gets `coin` funds") whose enemy can appear in the mode, one of them
+//               taken at random; the built-in runs when the family is empty.
 //   “神秘顾客”  trap_disney_special: when actively destroyed, +count funds and the Art passes to the next alive player
 //               (seat order, cyclic)
 //   天师古鼎     equip_with_another_gain_coin_when_gain_char: a 【炎】 carrier also holding 炎国短刀 (either quality)
@@ -31,6 +33,7 @@
 
 import { itemKeyOf, isCoreBond } from '../support/index.js';
 import { metaBonds } from '../support/meta.js';
+import { msg, dn } from '../../../../shared/i18n.js';
 
 const int = (v, d = 0) => (Number.isFinite(v) ? Math.trunc(v) : d);
 
@@ -48,7 +51,7 @@ function pieceIsMember(ctx, piece, bondId) {
   return bonds.includes('maniShip') && isCoreBond(bondId) && ctx.bondActive('maniShip') && ctx.bondActive(bondId);
 }
 
-/** Offer size of the personal bounty choice (PRTS 法术 教鞭 "于3个战术特训的悬赏任务中选择一项"). */
+/** Cards drawn before “神秘顾客” takes one at random. */
 const OFFER_SIZE = 3;
 /** cards.bounty entries matching `test` whose enemy can appear in this mode. */
 function bountyCards(ctx, test) {
@@ -100,38 +103,49 @@ export function registerMeta(registry) {
         if (id) ids.push(id);
       }
       if (ids.length) ctx.offerChess(ids, { source: 'item' });
+      // nothing to offer (e.g. 缪尔赛思's 调和 below shop level 6): still destroyed — say why (GitHub #401, builtinMeta toastNothing)
+      else ctx.toast(msg('{who}：没有可获得的同盟约干员', { who: dn(ctx.gd.item(ev.item?.id)?.name || '') }), 'warn');
     },
   }));
 
-  // 教鞭 / “神秘顾客” — trap_create_self_choice {choice_event}: 教鞭 a 战术特训 card, “神秘顾客” a band bounty (enemyeffect_b_*)
-  for (const [key, family] of [['chess_item_6_03_m', isTraining], ['chess_item_6_01_m', isBandBounty]]) {
-    wrap(registry, key, (base) => ({
-      onArt(ctx, ev) {
-        const cards = bountyCards(ctx, family);
-        if (!cards.length) { if (typeof base.onArt === 'function') base.onArt.call(base, ctx, ev); return; }
-        const offer = ctx.rng.shuffle(cards.slice()).slice(0, OFFER_SIZE);
-        const card = ctx.rng.pick(offer);
-        if (!card || !ctx.addBounty(card)) { ev.error = 'BAD_TARGET'; ev.detail = 'no bounty available'; }
-      },
-    }));
-  }
+  // 教鞭 — trap_create_self_choice {choice_event}: the server keeps the offered 战术特训 cards until confirmed.
+  wrap(registry, 'chess_item_6_03_m', () => ({
+    onArt(ctx, ev) {
+      const result = ctx.offerBountyChoice(bountyCards(ctx, isTraining), ev.item.id);
+      if (!result.ok) { ev.error = result.error; ev.detail = result.detail; }
+    },
+  }));
 
-  // 画卷 — trap_copy_front_char: copy the operator in range (elite status included) with its equipment. A copied
-  // normal item that completes a pair with an owned one merges at once and the golden stays in the hand (research 04
-  // addendum "两个同名道具（无论是否被装备）会自动合并…并自动返回整备区"); the built-in equipped that golden on the copy.
+  // “神秘顾客” — a random band bounty (enemyeffect_b_*).
+  wrap(registry, 'chess_item_6_01_m', (base) => ({
+    onArt(ctx, ev) {
+      const cards = bountyCards(ctx, isBandBounty);
+      if (!cards.length) { if (typeof base.onArt === 'function') base.onArt.call(base, ctx, ev); return; }
+      const offer = ctx.rng.shuffle(cards.slice()).slice(0, OFFER_SIZE);
+      const card = ctx.rng.pick(offer);
+      if (!card || !ctx.addBounty(card)) { ev.error = 'BAD_TARGET'; ev.detail = 'no bounty available'; }
+    },
+  }));
+
+  // 画卷 — trap_copy_front_char: copy the operator in range (elite status included) and its equipment. The copied items
+  // are gained unequipped, like any gained item — the hand, overflow temp, destroyed with the usual toast when both are
+  // full — never put on the copy (PRTS 画卷 备注 "使用后销毁，获得的装备为未装备状态"; until 0.2.2 a copied item that did
+  // not merge was equipped onto the copy). A copied normal item that completes a pair with an owned one merges at once,
+  // the golden in the hand (research 04 addendum "两个同名道具（无论是否被装备）会自动合并…并自动返回整备区"). A copy that
+  // completes a three-copy merge (GitHub #389, PR #390): the promotion returns the copies' equipment to the hand too
+  // (PRTS 帮助 "在失去该干员（…合并等）…时自动卸除"), so the elite wears nothing and a copied normal item merges with the
+  // returned original.
   wrap(registry, 'chess_item_6_02_m', () => ({
     onArt(ctx, ev) {
       const target = (ev.targets || []).find((p) => p && p.kind === 'chess');
       if (!target) { ev.error = 'BAD_TARGET'; ev.detail = 'no operator in range'; return; }
+      // snapshot before the gain: a gain that completes a merge consumes the target and empties `target.items`, and an
+      // item merge detaches the original's copy from `target.items` while we iterate (the built-in's live loop then
+      // skipped the next item)
+      const itemIds = (target.items || []).map((it) => it.id);
       const copy = ctx.grantChess(target.id, { requirePool: false, source: 'item:chess_item_6_02_m' });
       if (!copy) { ev.error = 'HAND_FULL'; return; }
-      // snapshot first: a merge detaches the original's copy of the item from `target.items` while we iterate
-      // (the built-in's live loop then skipped the next item)
-      for (const itemId of (target.items || []).map((it) => it.id)) {
-        const got = ctx.grantItem(itemId, { source: 'item:chess_item_6_02_m' });
-        const holder = got ? ctx.piece(copy.uid) : null;
-        if (got && got.id === itemId && holder && holder.kind === 'chess') ctx.equipDirect(got.uid, holder.uid);
-      }
+      for (const itemId of itemIds) ctx.grantItem(itemId, { source: 'item:chess_item_6_02_m' });
     },
   }));
 

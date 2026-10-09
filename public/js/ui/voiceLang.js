@@ -1,10 +1,13 @@
-// 语音语言 (user request, plan of 2026-10-07): which dub each operator speaks in battle. A client-only preference
-// (`sp.pref.voiceLang` = { default, byChar }, never synced to the server) pushed into the audio manager on every
-// change. The settings row sets the default for everyone and clears the per-operator picks; the square buttons of
-// the 干员调配 detail header and of the 自选 picker set one operator (CN / JP / EN / KR, plus its own-language dub —
-// 意大利语, 俄文, 中文-方言 … — when the server has one) and play a line of it (试听).
-// The languages an operator has come from the manifest (audio.js voiceLangsOf); the default is EN, and a pick it
-// lacks falls back to EN, then JP (unreleased on global), then CN.
+// 语音语言 per operator (user request, plan of 2026-10-07), on top of master's settings 语音语言 (0.2.2). The settings
+// row (ui/settings.js, `settings.voiceLang`: CN / JP / EN / KR, EN by default) is the dub of every operator; changing
+// it clears the per-operator picks (setDefaultVoiceLang). The square buttons of the 干员调配 detail header and of the
+// 自选 picker set one operator (CN / JP / EN / KR, plus its own-language dub — 意大利语, 俄文, 中文-方言 … — when the
+// server has one) and play a line of it (试听). The picks are a client-only preference (`sp.pref.voiceLang` =
+// { default, byChar }, never synced to the server; `default` mirrors the settings so the preload's voice packs and the
+// picker read one store) pushed into the audio manager (audio.setVoicePicks), which plays them through voiceLine.
+// The languages an operator has come from the manifest (audio.js voiceLangsOf: `audio.voiceJp` for JP,
+// `audio.voiceLangs` / `audio.voiceNative` for the rest); a language it lacks falls back to EN, then JP (unreleased on
+// global), then CN.
 
 import { html } from './components.js';
 import { createStore, useStore, loadPref, savePref } from '../store.js';
@@ -40,19 +43,39 @@ export function sanitizeVoiceLang(v) {
   return { default: def, byChar };
 }
 
-/** Voice language store: { default, byChar }. */
-export const voiceLangStore = createStore(sanitizeVoiceLang(loadPref('voiceLang', null)));
+/**
+ * The stored picks, with the default the settings hold. Before the picker moved its default into master's settings
+ * 语音语言, `sp.pref.voiceLang.default` was the only one: a profile that has it and no settings `voiceLang` yet hands it
+ * over once (this module loads before ui/settings.js reads its store — settings.js imports it).
+ */
+function initialVoiceLang() {
+  const saved = loadPref('voiceLang', null);
+  let settings = null;
+  try { settings = loadPref('settings', null); } catch { /* ignore */ }
+  if (!settings || typeof settings !== 'object') settings = null;
+  if (VOICE_LANGS.includes(saved?.default) && settings?.voiceLang === undefined) {
+    settings = { ...settings, voiceLang: saved.default };
+    savePref('settings', settings);
+  }
+  return sanitizeVoiceLang({ ...saved, default: settings?.voiceLang ?? saved?.default });
+}
+
+/** Voice language store: { default (mirrors settings 语音语言), byChar }. */
+export const voiceLangStore = createStore(initialVoiceLang());
 
 voiceLangStore.subscribe((s) => {
   const v = sanitizeVoiceLang(s);
   savePref('voiceLang', v);
-  audio.setVoiceLang(v);
+  audio.setVoicePicks(v.byChar);
 });
-audio.setVoiceLang(voiceLangStore.get());
+audio.setVoicePicks(voiceLangStore.get().byChar);
 
-/** Settings: every operator speaks `lang` (the per-operator picks are cleared). */
+/**
+ * Settings 语音语言 changed (ui/settings.js): every operator speaks `lang` — the per-operator picks are cleared. The same
+ * language again (any other setting changing) keeps them.
+ */
 export function setDefaultVoiceLang(lang) {
-  if (!VOICE_LANGS.includes(lang)) return;
+  if (!VOICE_LANGS.includes(lang) || voiceLangStore.get().default === lang) return;
   voiceLangStore.set({ default: lang, byChar: {} });
 }
 
@@ -101,14 +124,5 @@ export function VoiceLangPicker({ charId, class: cls }) {
         aria-checked=${on === l ? 'true' : 'false'} aria-label=${t(name)} title=${t(name)} data-lang=${l}
         onClick=${() => { setCharVoiceLang(a, charId, l); audio.previewVoice(charId, l); }}>${text}</button>`;
     })}
-  </div>`;
-}
-
-/** Settings row: the default language of every operator (CN / JP / EN / KR). */
-export function VoiceLangDefault() {
-  const pref = useVoiceLang();
-  return html`<div class="set-seg" role="radiogroup" aria-label=${t('语音语言')} data-testid="voice-lang-default">
-    ${VOICE_LANGS.map((l) => html`<button key=${l} type="button" role="radio" aria-checked=${pref.default === l ? 'true' : 'false'}
-      class=${pref.default === l ? 'is-on' : ''} title=${t(LANG_LABEL[l][1])} onClick=${() => setDefaultVoiceLang(l)}>${LANG_LABEL[l][0]}</button>`)}
   </div>`;
 }

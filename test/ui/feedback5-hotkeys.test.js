@@ -11,7 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   HOTKEY_ACTIONS, DEFAULT_HOTKEYS, isBindableCode, hotkeyLabel, sanitizeHotkeys, rebindHotkey, isDefaultHotkeys, hotkeyOf,
-  actionForKey, captureHotkey, facingSwallows, shortcutFor, shortcutBlocked, sanitizeSettings, DEFAULT_SETTINGS,
+  actionForKey, captureHotkey, facingSwallows, facingEnter, shortcutFor, shortcutBlocked, sanitizeSettings, DEFAULT_SETTINGS,
 } from '../../public/js/ui/gameLogic.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -200,6 +200,59 @@ describe('the one lookup (actionForKey) and shortcutFor', () => {
     assert.equal(facingSwallows({ key: 'r', code: 'KeyR' }, g), false, 'R is free once refresh moved');
     assert.equal(facingSwallows({ key: ' ', code: 'Space' }, { ...DEFAULT_HOTKEYS, ready: 'KeyE' }), true, 'Space always: a focused button must not activate');
     assert.equal(facingSwallows({ key: 'z', code: 'KeyZ' }), false);
+  });
+
+  // GitHub #394 / PR #395: Enter followed the previewed direction whatever had the focus — Tab to 准备 / 设置 / ✕ and
+  // Enter deployed. A tiny element tree whose closest() understands the selector forms facingEnter uses.
+  const el = (tag, attrs = {}, parent = null) => {
+    const self = {
+      tagName: tag.toUpperCase(), attrs, parent,
+      matches(sel) {
+        return sel.split(',').map((s) => s.trim()).some((s) => {
+          const m = /^([a-z]*)((?:\.[\w-]+)*)((?:\[[\w-]+(?:="[^"]*")?\])*)$/.exec(s);
+          if (!m) return false;
+          if (m[1] && m[1].toUpperCase() !== self.tagName) return false;
+          const classes = String(attrs.class || '').split(/\s+/);
+          if (m[2] && !m[2].slice(1).split('.').every((c) => classes.includes(c))) return false;
+          for (const [, k, v] of m[3].matchAll(/\[([\w-]+)(?:="([^"]*)")?\]/g)) {
+            if (!(k in attrs) || (v !== undefined && String(attrs[k]) !== v)) return false;
+          }
+          return !!(m[1] || m[2] || m[3]);
+        });
+      },
+      closest(sel) { for (let n = self; n; n = n.parent) if (n.matches(sel)) return n; return null; },
+    };
+    return self;
+  };
+  test('the facing wheel\'s Enter follows the focus: ✕ cancels, another control does nothing, elsewhere it commits', () => {
+    const body = el('body');
+    const wheel = el('div', { class: 'fwheel', role: 'dialog', tabindex: '-1' }, body);
+    const cancel = el('button', { class: 'fwheel__cancel' }, el('div', { class: 'fwheel__dia' }, wheel));
+    const cancelText = el('span', {}, cancel);
+    const ready = el('button', { class: 'ready' }, el('header', {}, body));
+    const gear = el('button', { class: 'gm__gear' }, body);
+    const card = el('div', { role: 'button', tabindex: '0' }, body);
+    const link = el('a', { href: '#' }, body);
+    const field = el('input', { type: 'text' }, body);
+    for (const chosen of [true, false]) {
+      assert.equal(facingEnter({ key: 'Enter', target: cancel }, chosen), 'cancel', 'Enter on ✕ cancels (a direction previewed or not)');
+      assert.equal(facingEnter({ key: 'Enter', target: cancelText }, chosen), 'cancel');
+      for (const t of [ready, gear, card, link, field]) assert.equal(facingEnter({ key: 'Enter', target: t }, chosen), 'swallow', 'another control does nothing');
+    }
+    assert.equal(facingEnter({ key: 'Enter', target: wheel }, true), 'commit', 'the wheel has the focus when it opens: Enter confirms');
+    assert.equal(facingEnter({ key: 'Enter', target: body }, true), 'commit');
+    assert.equal(facingEnter({ key: 'Enter', target: null }, true), 'commit');
+    assert.equal(facingEnter({ key: 'Enter', target: wheel }, false), 'swallow', 'nothing to confirm yet');
+    assert.equal(facingEnter({ key: ' ', target: cancel }, true), null, 'not Enter: Space stays with facingSwallows');
+    assert.equal(facingEnter({ key: 'ArrowUp', target: body }, true), null);
+    assert.equal(facingEnter(null, true), null);
+  });
+  test('the wheel wires it: Enter through facingEnter, the wheel focusable and focused when it opens', () => {
+    const src = read('public/js/ui/facingWheel.js');
+    assert.match(src, /const enter = facingEnter\(e, !!L\.dir\);/);
+    assert.doesNotMatch(src, /e\.key === 'Enter' && L\.dir/, 'no Enter that ignores the focus');
+    assert.match(src, /<div ref=\$\{rootRef\} tabIndex="-1" class=\$\{cx\('fwheel'/);
+    assert.match(src, /rootRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
   });
 });
 

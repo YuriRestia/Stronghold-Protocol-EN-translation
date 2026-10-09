@@ -56,7 +56,9 @@ async function checkHud(c, where) {
     const s = globalThis.__SP__.store.get();
     const pub = s.match.public; const priv = s.match.private;
     const txt = (sel) => document.querySelector(sel)?.textContent?.trim() ?? null;
-    const shopChess = (priv?.shop?.slots || []).filter((x) => x && x.kind !== 'item').length;
+    // a chess slot is any slot but the item's: a slot a 调度中心 upgrade opened stays null until the next roll and shows an
+    // empty card (DESIGN §27.52, ui/shopBar.js chessSlots)
+    const shopChess = (priv?.shop?.slots || []).filter((x) => !x || x.kind !== 'item').length;
     return {
       phase: pub?.phase, round: pub?.round, lastRound: pub?.lastRound, players: (pub?.players || []).length,
       lp: priv?.lp, teamLp: pub?.teamLp, funds: priv?.funds, cap: priv?.deployCap, count: priv?.deployCount,

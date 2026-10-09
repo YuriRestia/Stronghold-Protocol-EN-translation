@@ -9,6 +9,7 @@ import { useEffect, useReducer } from '../../vendor/hooks.module.js';
 import htm from '../../vendor/htm.module.js';
 import { ERR_TEXT } from '../../../shared/constants.js';
 import { t } from '../../../shared/i18n.js';
+import { recordError } from '../diag.js';
 
 // no shared static vnodes (see components.js hFresh: htm's static cache would retain unmounted DOM)
 function hFresh(type, props, ...children) {
@@ -108,6 +109,7 @@ export function describeError(err) {
  * @returns {number}
  */
 export function toastError(err) {
+  recordError('request', err);
   return toast(describeError(err), 'error');
 }
 

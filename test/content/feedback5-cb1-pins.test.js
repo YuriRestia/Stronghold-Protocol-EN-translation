@@ -49,7 +49,7 @@ test('50: two 空弦 made 阿戈尔 (变形同构体 + 阿戈尔重刃) in a row
   }
 });
 
-test('45: 寻呼模块 / 简易通讯机 on 缪尔赛思 below shop level 6 — nothing qualifies (调和, tier ≤ shop level), the item is used up', () => {
+test('45: 寻呼模块 / 简易通讯机 on 缪尔赛思 below shop level 6 — nothing qualifies (调和, tier ≤ shop level), the item is used up with a toast saying why', () => {
   for (const itemId of ['chess_item_4_01_e_a', 'chess_item_2_06_e_a']) {
     for (const level of [5, 6]) {
       const h = makeMatch({ mode: 'solo', difficulty: 'NORMAL', humans: 1, seed: 7, fake: true }).start();
@@ -60,11 +60,20 @@ test('45: 寻呼模块 / 简易通讯机 on 缪尔赛思 below shop level 6 — 
       const item = ps.acquireItem(itemId, { source: 'test' });
       const owned = () => [...ps.board.values(), ...ps.hand, ...ps.temp].filter((p) => p && p.id === 'chess_char_6_11_a').length;
       const n0 = owned(), offers0 = ps.offers.length;
+      const warns = [];
+      const toast0 = h.m.toast.bind(h.m);
+      h.m.toast = (who, kind, text) => { if (kind === 'warn') warns.push(text?.msgid ?? text); return toast0(who, kind, text); };
       assert.deepEqual(h.m.handle('p_0', { t: 'g.equip', itemUid: item.uid, targetUid: mly.uid }), { ok: true });
       assert.equal(ps.find(item.uid), null, `${itemId} @${level}: consumed`);
       const got = owned() - n0 + (ps.offers.length - offers0);
-      if (level < 6) assert.equal(got, 0, `${itemId} @${level}: nothing (no 调和 operator of tier ≤ ${level})`);
-      else assert.equal(got, 1, `${itemId} @6: 缪尔赛思 (granted, or offered by 寻呼模块)`);
+      // used up with nothing: a toast says why (GitHub #401, the owner's OK of 2026-10-09)
+      if (level < 6) {
+        assert.equal(got, 0, `${itemId} @${level}: nothing (no 调和 operator of tier ≤ ${level})`);
+        assert.deepEqual(warns, ['{who}：没有可获得的同盟约干员'], `${itemId} @${level}: the toast`);
+      } else {
+        assert.equal(got, 1, `${itemId} @6: 缪尔赛思 (granted, or offered by 寻呼模块)`);
+        assert.deepEqual(warns, [], `${itemId} @6: no toast`);
+      }
     }
   }
 });

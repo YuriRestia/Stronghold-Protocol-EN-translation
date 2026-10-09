@@ -8,7 +8,8 @@
 // local art, 标准 = 战场#01 only; user playtest #3 (DESIGN §17): temp overflow kept until the first prep its player can
 // act in (never wiped at the round start), the 回环射手 boomerang and 蕾缪安's shells one by one, the live LP, the detail
 // card order and the static game data; user playtest #4 (DESIGN §18): picking by the tile under the pointer and the
-// dragged model held under it, a single human untimed, the strategy draft's one countdown, 机变 two taps, knocked-out
+// dragged model held under it (standing on that tile while it is a legal target, §27.62), a single human untimed, the
+// strategy draft's one countdown, 机变 two taps, knocked-out
 // operators and the official element gauges, live stats, the shop-only items, skill summons, 炎佑; user playtest #5
 // (DESIGN §19): blocking by contact radius, 联防 forced exit, huge-boss hit areas and 自缚, the element pipeline rules,
 // boss-field deployment, the phone prep camera — and the normative §3 / §5.1 / §5.5 / §6.1 / §7 lines that changed; user
@@ -22,7 +23,7 @@
 // the 突变细胞 bench rule (§21.1: the carrier destroyed, its new operator gained into the 整备区 — official footage, PR #2),
 // the closing additions §21.26–§21.28 (GitHub issues #1 / #5 / #8), the owner's deliberate trigger deviation for six
 // 重装 skills (§21.29, GitHub issue #4 / PR #12) and the operator battle voice the user asked for the same day (§21.30,
-// battle only — the 休整期 is silent).
+// battle only — since 0.2.2 a tap on an operator says 选中干员 in every phase).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -294,11 +295,15 @@ test('lost models, live LP, detail card order, static game data (user playtest #
 });
 
 test('user playtest #4 (DESIGN §18): picking by tile, timers, 机变 two taps, down / element state, content — code and every doc agree', () => {
-  // #1 the tile under the pointer; the dragged model held under the pointer (no touch lift, probe or body shapes)
+  // #1 the tile under the pointer; the dragged model held under the pointer (no touch lift, probe or body shapes) —
+  // standing on the pointer's tile while that is a legal target (§27.62, the official deploy drag)
   assert.equal(ENEMY_REACH, 0.6);
   const app = readFileSync(join(ROOT, 'public/js/render/app.js'), 'utf8');
   const tune = readFileSync(join(ROOT, 'public/js/render/app/tune.js'), 'utf8');
   assert.match(tune, /export const DRAG_HOLD_TILES = 0\.45;/);
+  assert.match(app, /dragStandTile\(p\)/);
+  assert.match(DESIGN, /`dragStandTile/);
+  assert.match(PLAYING, /干员模型直接站在这一格上/);
   assert.ok(!/TOUCH_LIFT_TILES|drawnAt|pickShape|pieceDragOver/.test(app), 'no touch lift, pixel probe or body shapes (user playtest #4 item 1)');
   assert.match(DESIGN, /`DRAG_HOLD_TILES` = 0\.45 tile/);
   assert.match(DESIGN, /`ENEMY_REACH` 0\.6 tile/);
@@ -490,7 +495,8 @@ test('user playtest #6 (DESIGN §20): summons, skill triggers, blocking, push fo
   assert.match(sec(17), /\*\*revised by §20\.6\*\*/);
   assert.ok(!/the own battle's count stays on show as an upper bound tagged 联防中/.test(DESIGN), '§17.5: the frozen 联防 count is gone');
   assert.match(sec(8), /uniteLeft\? \/\* 联防: the leaker's enemies still standing/);
-  assert.match(sec(14), /`b\.progress \{ battleId, gt, killed, total, leaks\?, left\?, bossDmg\?, by\?, done\? \}`/);
+  assert.match(sec(14), /`b\.progress \{ battleId, gt, killed, total, resolved\?, leaks\?, left\?, bossDmg\?, by\?, leaksBy\?, done\? \}`/);
+  assert.match(doc('shared/protocol.js'), /leaksBy: \(v\) => isMap\(v, RESULT_LIMITS\.players, isId, \(x\) => isNum\(x, 0, 1e6\)\)/);
   assert.match(sec(6), /3 \*\*different\*\* free chess of tier `min\(level\+1, 6\)`/);
   assert.match(S20, /105 cards: 56 next-battle incl\. 源石虫·特训, 42 two-battle, 7 multi-round/);
   // #11 / #9 / #13: the gauge look (§18.3 / §19.5 superseded, §8.2 fill), model scale and fear (§9, §5.3, §2)
@@ -868,7 +874,7 @@ test('the deliberate trigger deviation (DESIGN §21.29): six 重装 skills DEFAU
   assert.match(doc('CHANGELOG.md'), /深巡、雷蛇的二技能，号角的二、三技能，灰毫的一、二技能改为攻击范围内有敌人时就释放/);
 });
 
-test('干员战斗语音 (DESIGN §21.30): the manifest data, the official priorities, and the 休整期 stays silent', async () => {
+test('干员战斗语音 (DESIGN §21.30): the manifest data, the official priorities, and only a tap\'s 选中干员 speaks outside battle', async () => {
   const { VOICE_PRIORITY, VOICE_COOLDOWN_MS, resultVoiceSlot } = await import('../public/js/audio.js');
   const manifest = JSON.parse(readFileSync(join(ROOT, 'data/assets.json'), 'utf8'));
   const voice = manifest.audio?.voice ?? {};
@@ -902,22 +908,30 @@ test('干员战斗语音 (DESIGN §21.30): the manifest data, the official prior
   assert.equal(VOICE_PRIORITY.select, 10);
   assert.equal(VOICE_COOLDOWN_MS.skill1, 10000);
   assert.equal(VOICE_COOLDOWN_MS.faceEnemy, 3000);
-  assert.equal(VOICE_COOLDOWN_MS.select, 1500);
+  assert.equal(VOICE_COOLDOWN_MS.select, 0, 'official FOCUS_CHAR cooldown 0 (1.5 s until 0.2.2)');
   assert.equal(resultVoiceSlot({ perfect: true }), 'resultThree');
   // the docs
   assert.match(DESIGN, /### 21\.30 /);
   assert.match(DESIGN, /\*\*Where each line plays — battle only\.\*\*/);
   assert.match(doc('docs/ASSETS.md'), /\| 干员战斗语音 \|/);
   assert.match(doc('docs/ASSETS.md'), /voiceChars/);
+  // 0.2.2: the Japanese dub beside the Chinese one (audio.voiceJp, settings 语音语言, the full zip's switch)
+  assert.equal(Object.keys(manifest.audio?.voiceJp ?? {}).length, charIds.length, 'every voiced operator has its JP tree');
+  assert.equal(manifest.stats.voiceJpChars, charIds.length);
+  assert.match(doc('docs/ASSETS.md'), /voiceJp: \{ \[charId\]: \{ …the slots of `voice` \} \}/);
+  assert.match(doc('docs/DEPLOY.md'), /`FULL_ZIP_JP_VOICE` 改成 `false` 时/);
+  assert.match(PLAYING, /「语音语言」选 \*\*中文 \/ 日本語\*\*（默认中文，和界面语言无关/);
+  assert.match(PLAYING, /会说一句官方的「选中干员」语音，休整期也一样/);
   assert.match(SIM, /\['engage', id\]/);
   // the code: every slot the client asks for comes from a running battle's own stream — the three prep-only lines
-  // (干员报到 / 编入队伍 / 任命队长) are never requested, and 选中干员 sits behind the panel's combat flag
+  // (干员报到 / 编入队伍 / 任命队长) are never requested — except 选中干员, the detail panel's line on every tap of an
+  // operator, in every phase (0.2.2: the owner's request of 2026-10-08)
   const panel = doc('public/js/ui/detailPanel.js');
   const game = doc('public/js/screens/game.js');
   for (const [name, src] of [['audio.js', doc('public/js/audio.js')], ['game.js', game], ['detailPanel.js', panel]]) {
     assert.ok(!/voice\([^)]*'(gacha|squad|squadFirst)'/.test(src), `${name}: no prep slot is played`);
   }
   assert.match(panel, /const selectKey = voice && detail\?\.type === 'chess'/);
-  assert.match(game, /voice=\$\{combat\}/);
+  assert.match(game, /voice=\$\{true\}/);
   assert.match(game, /audio\.voice\(charId, resultVoiceSlot\(/);
 });

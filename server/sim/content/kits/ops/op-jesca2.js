@@ -58,6 +58,7 @@
 import { num, talentBb, traitBb, moduleOn, skillRec, batMod, up, giveSp, installReveal } from '../shared/tier1.js';
 import { offsetTile, dirFromDelta, dirVec } from '../../../dir.js';
 import { isHpLoss } from '../../../damage.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_jesca2_1';
 const S2 = 'skchr_jesca2_2';
@@ -182,7 +183,7 @@ function fireBomb(battle, unit, b3) {
   };
   (unit.mem.jescaShells ??= []).push(bomb);
   unit.atkCd = unit.s.interval;   // the shell is her attack: the timer restarts [ASSUMED]
-  battle.fx('bombardShell', { x: bomb.tx, y: bomb.ty, id: unit.id, r: bomb.radius, t: Math.hypot(bomb.tx - bomb.x, bomb.ty - bomb.y) / BOMB_SPEED });
+  battle.fx('bombardShell', { x: bomb.tx, y: bomb.ty, id: unit.id, r: bomb.radius, t: hypot(bomb.tx - bomb.x, bomb.ty - bomb.y) / BOMB_SPEED });
 }
 
 /** Move the shells one tick; a shell touching an enemy or reaching its end point explodes. */
@@ -192,7 +193,7 @@ function flyShells(battle, unit, dt) {
   const keep = [];
   for (const s of list) {
     const dx = s.tx - s.x, dy = s.ty - s.y;
-    const d = Math.hypot(dx, dy);
+    const d = hypot(dx, dy);
     const step = BOMB_SPEED * dt;
     let hit = battle.foesInRadius(s.x, s.y, BOMB_HIT_RADIUS).length > 0;
     if (!hit) {

@@ -50,6 +50,7 @@
 import { num, talentBb, moduleBb, moduleOn, skillRec, statBuff, toggleBuff, up } from '../shared/tier1.js';
 import { toLocal } from '../../../dir.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_haak_1';
 const S2 = 'skchr_haak_2';
@@ -80,7 +81,7 @@ export function frontAlly(battle, unit, heal = false) {
     if (heal && (a.s.flags.noHeal || a.s.flags.healFree || a.profile?.noHeal)) continue;
     const dr = a.tileR - unit.tileR, dc = a.tileC - unit.tileC;
     const [lr, lc] = toLocal(dr, dc, unit.dir);
-    const k = [lr === 0 && lc > 0 ? 0 : 1, Math.hypot(dr, dc), -(a.s.taunt || 0), -(a.aggroSeq || a.deploySeq || 0), a.id];
+    const k = [lr === 0 && lc > 0 ? 0 : 1, hypot(dr, dc), -(a.s.taunt || 0), -(a.aggroSeq || a.deploySeq || 0), a.id];
     let less = !bk;
     for (let i = 0; !less && i < k.length; i++) {
       if (k[i] === bk[i]) continue;

@@ -3,10 +3,61 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE } from '../../shared/constants.js';
 import { fieldModel, planLayout, rehearse, rangeTiles, REHEARSAL_VARIANTS, LAYOUT_PARAMS, botPickCard, botPickBand } from '../../server/match/bot.js';
-import { FIELD, canPlace, placeClass, parseKey } from '../../server/match/board.js';
-import { makeMatch, checkInvariants, give, DATA } from './harness.js';
+import { FIELD, canPlace, placeClass, parseKey, legalTiles, tileKey } from '../../server/match/board.js';
+import { makeMatch, checkInvariants, give, giveItem, DATA } from './harness.js';
+import { makeBattle } from '../helpers/battleHarness.js';
 
 const soloBot = (o = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], ...o });
+
+test('user: Given a saturated layout, When placing a self-range defender, Then prefer a free enemy path tile', () => {
+  const h = makeMatch({ mode: 'solo', seed: 11 }).start().toPrep();
+  const m = h.m;
+  const ps = m.order[0];
+  try {
+    const pieces = ['chess_char_6_03_a', 'chess_char_5_11_a', 'chess_char_1_02_a',
+      'chess_char_1_10_a', 'chess_char_2_08_a', 'chess_char_3_16_a'].map((id) => give(m, ps, id, 'hand'));
+    const plan = planLayout(m, ps, pieces);
+    // act2autochess_m04, first wave: the ground route crosses these deployable tiles.
+    const road = new Set(['9,9', '9,8', '9,7', '9,6', '11,5', '11,4', '10,4', '9,4', '9,3']);
+    assert.equal(m.stageId, 'act2autochess_m04');
+    assert.ok(road.has(plan.get(pieces.at(-1).uid)), `Cuora must block the route, got ${plan.get(pieces.at(-1).uid)}`);
+    for (const [key, expectedToBlock] of [[plan.get(pieces.at(-1).uid), true], ['12,5', false]]) {
+      const [row, col] = parseKey(key);
+      const battle = makeBattle({ stageId: m.stageId, waveTemplate: 'act1autochess_01',
+        units: [{ chessId: 'chess_char_3_16_a', row, col }] });
+      battle.runToEnd();
+      assert.equal(battle.hooksOf('blocked').length > 0, expectedToBlock, `blocking at ${key}`);
+      assert.equal(battle.result().perPlayer.p1.damageDealt > 0, expectedToBlock, `damage at ${key}`);
+    }
+    // When every path position is occupied, a legal fallback remains available.
+    const fallback = planLayout(m, ps, [pieces.at(-1)], undefined, { occupied: road });
+    const key = fallback.get(pieces.at(-1).uid);
+    assert.ok(key && !road.has(key));
+    assert.equal(ps.deployMap().get(key), 'melee');
+  } finally { m.dispose(); }
+});
+
+test('self-range blockers (range 0-1, only their own tile) fill the free enemy-road tiles before any other tile, on every stage and seed', () => {
+  // official range_table "0-1": the one grid (0,0) — 角峰 古米 泡泡 折桠 菲莱 蛇屠箱 塞雷娅 余
+  const guards = Object.values(DATA.chess).filter((c) => c && !c.isGolden && c.rangeGrid && c.rangeGrid.length === 1 && c.rangeGrid[0].every((v) => v === 0));
+  assert.equal(guards.length, 8);
+  const stages = new Set();
+  for (let seed = 1; seed <= 40; seed++) {
+    const h = makeMatch({ mode: 'solo', seed }).start().toPrep();
+    const m = h.m;
+    const ps = m.order[0];
+    try {
+      stages.add(m.stageId);
+      const pieces = guards.map((c) => give(m, ps, c.chessId, 'hand'));
+      const plan = planLayout(m, ps, pieces);
+      const model = fieldModel(m, ps);
+      const road = legalTiles(ps.deployMap(), 'melee').filter(([r, c]) => model.ground.has(tileKey(r, c)));
+      const onRoad = pieces.filter((p) => model.ground.has(plan.get(p.uid))).length;
+      assert.equal(onRoad, Math.min(pieces.length, road.length), `seed ${seed}, ${m.stageId}: ${onRoad} of ${pieces.length} guards on the ${road.length} road tiles`);
+    } finally { m.dispose(); }
+  }
+  assert.equal(stages.size, 8, 'every stage was tried');
+});
 
 test('field model: the round\'s routes traced over the own board, weighted by the enemies that use them', () => {
   const h = soloBot({ seed: 2 }).start();
@@ -220,6 +271,32 @@ test('a sliced rehearsal is dropped when the prep ends first; the default layout
   assert.equal(m.errorCount, 0);
   checkInvariants(m);
   m.dispose();
+});
+
+test('AI takeover resolves a personal choice in untimed PREP, including generator-error Ready cleanup', () => {
+  for (const broken of [false, true]) {
+    const h = makeMatch({ mode: 'coop', humans: 1, seed: 6, fake: true, botSliceMs: 0 }).start();
+    h.toPrep(1);
+    const m = h.m, ps = h.ps('p_0');
+    assert.equal(m.deadline, 0, 'single-human co-op is untimed');
+    const art = giveItem(m, ps, 'chess_item_6_03_m');
+    assert.deepEqual(ps.useArt(art.uid, 10, 5), { ok: true });
+    const pick = m.autoPickPersonalChoice.bind(m), modes = [];
+    m.autoPickPersonalChoice = (p, mode) => {
+      if (p.personalChoice) modes.push(mode);
+      if (broken && mode === 'bot') throw new Error('scripted choice scoring failure');
+      return pick(p, mode);
+    };
+    assert.deepEqual(m.handle(ps.playerId, { t: 'g.autoplay', on: true }), { ok: true });
+    assert.ok(h.run(() => m.phase !== PHASE.PREP));
+    assert.equal(ps.personalChoice, null);
+    assert.equal(ps.bounties.length, 1);
+    assert.equal(ps.round.arts, 1);
+    assert.ok(ps.ready);
+    assert.ok(modes.includes(broken ? 'random' : 'bot'));
+    assert.equal(m.errorCount > 0, broken);
+    m.dispose();
+  }
 });
 
 test('economy: the bot fills the board first (8 units by round 4), levels on its curve and keeps a hand slot free', () => {

@@ -28,6 +28,7 @@
 
 import { genericKit, genericTalents } from './generic.js';
 import { withUnitLoadouts } from '../simdata.js';
+import { isPotential } from '../../../shared/potential.js';
 
 // Content files are loaded with guarded dynamic imports: a module that fails to load (syntax error, throwing
 // top-level code, missing file) is logged and replaced by an empty module instead of breaking the server.
@@ -136,7 +137,8 @@ function inputEntry(unit) {
  * The loadout `{ skillIndex, moduleId }` a unit's PlayerBattleInput entry gives; an entry without loadout fields means
  * the DEFAULT loadout (`{}`), never "whatever the data view maps this chess id to" (another player's choice in a
  * multi-player field). `standIn: true` rides along (补位: the stand-in def whatever the skill / module fields say), as
- * does `diy` (自选: the pick of a DIY slot's piece). Null when the unit has no input entry.
+ * do `diy` (自选: the pick of a DIY slot's piece) and `potential` (0.2.2: 1–6, never a stand-in's). Null when the unit
+ * has no input entry.
  */
 function inputLoadout(unit) {
   const x = inputEntry(unit);
@@ -144,6 +146,7 @@ function inputLoadout(unit) {
   const extra = {
     ...(x.standIn === true ? { standIn: true } : null),
     ...(x.diy && typeof x.diy === 'object' ? { diy: x.diy } : null),
+    ...(x.standIn !== true && isPotential(x.potential) ? { potential: x.potential } : null),
   };
   if (x.skillIndex == null && x.moduleId == null) return extra;
   return { skillIndex: x.skillIndex ?? null, moduleId: x.moduleId ?? null, ...extra };

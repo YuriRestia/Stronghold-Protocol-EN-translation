@@ -96,7 +96,8 @@ test('seats[].diy → PlayerState.diy (re-checked, frozen; bots none); the playe
     const want = diyRecord(T5A, SIEGE_PICK, { elite, data: DATA });
     assert.deepEqual([rec.name, rec.charId, rec.diyFor, rec.bonds, rec.garrisonIds, rec.tier, rec.price, rec.sellPrice], [want.name, SIEGE, T5A, ['victoriaShip'], [], 5, 4, 1]);
     assert.equal(rec.skill.skillId, 'skchr_siege_3');
-    assert.deepEqual(p0.loadoutFor(h.m.gd.chess(id)), { skillIndex: 2, moduleId: elite ? 'uniequip_002_siege' : null }, 'the pick, never the loadout');
+    // (0.2.2: an owned pick at the player's 潜能 / 练度 — none set: 6 / 3)
+    assert.deepEqual(p0.loadoutFor(h.m.gd.chess(id)), { skillIndex: 2, moduleId: elite ? 'uniequip_002_siege' : null, potential: 6, cultivate: 3 }, 'the pick, never the loadout');
     assert.equal(h.m.gd.chess(id).name, DATA.chess[id].name, 'the match\'s own record is the slot');
   }
   const s1 = DATA.backups.units[SIEGE].forms['2/1/4/0'].skills.find((x) => x.index === 0).skillId;

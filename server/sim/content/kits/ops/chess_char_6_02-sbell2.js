@@ -4,6 +4,7 @@
 import { COLS } from '../../../constants.js';
 import { bodyInKeys } from '../../../body.js';
 import { num, tbb, moduleBb, live, keyOf, enemiesIn, isTok, instantKind, AROUND8, aura } from '../shared/tier6.js';
+import { hypot } from '../../../detmath.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // 圣聆初雪 chess_char_6_02 (阵法术师) — S3 群山俯首; 无垠的雪景; 圣山的祝福; module 千分之一的心
@@ -217,7 +218,7 @@ function lureGoal(battle, unit, e) {
   for (const [dr, dc] of AROUND8) {
     const r = unit.tileR + dr, c = unit.tileC + dc;
     if (!battle.grid.groundPassable(r, c)) continue;
-    const d = Math.hypot(e.x - c, e.y - r);
+    const d = hypot(e.x - c, e.y - r);
     if (d < bd - 1e-9) { bd = d; goal = [r, c]; }
   }
   return goal;

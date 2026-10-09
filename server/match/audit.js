@@ -229,7 +229,7 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
         if (f0 - ps.funds !== price && !fx && !hasSpendEffects(m, ps)) fail(`${ps.playerId}: level-up paid ${f0 - ps.funds}, price ${price}`);
         const next = gd.upgradeBase(ps.shop.level) ?? 0;
         if (ps.shop.upgradePrice !== next) fail(`${ps.playerId}: upgrade price after level-up ${ps.shop.upgradePrice}, expected ${next}`);
-        // the new level's extra slots open at once (item 19 of 2026-10-06); the cards shown before stay in place
+        // the new level's extra slots open at once, empty (GitHub #332 / PR #333); the cards shown before stay in place
         const { chess, item } = gd.shopSlots(ps.shop.level);
         const want = Math.max(chess, layout0.chess) + Math.max(item, layout0.item);
         if (ps.shop.slots.length !== want) fail(`${ps.playerId}: ${ps.shop.slots.length} shop slots after the level-up to ${ps.shop.level}, expected ${want}`);

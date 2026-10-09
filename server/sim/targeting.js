@@ -193,7 +193,12 @@ const PRIORITY_FNS = {
 };
 
 /**
- * Sort candidate enemies for an attacker (in place) and return them.
+ * Sort candidate enemies for an attacker (in place) and return them: the enemies it blocks first (the user's rule after
+ * playtest #6, "阻挡了就一定要能打到", for every blocker — DESIGN §20.3), then the special priority, taunt, the remaining
+ * route, the spawn order. One exception, the owner's decision of 2026-10-08 (GitHub #220 by TsangAsuna, #205): the 速射手 air priority
+ * (trait 优先攻击空中单位 — priority 'fly', a skill's too) comes before its own blocked enemy, so a 速狙 on a melee tile
+ * blocking a ground enemy shoots the flyer in its range (PRTS 索敌的概念 「阻挡（近战限定）→特殊优先级→…」); every other
+ * priority keeps the blocked enemy first.
  * @param {object} attacker ally unit
  * @param {object[]} cands enemies
  * @param {string|null} priority profile/skill priority key
@@ -201,6 +206,7 @@ const PRIORITY_FNS = {
 export function sortEnemyTargets(battle, attacker, cands, priority) {
   if (cands.length <= 1) return cands;
   const pf = priority ? (PRIORITY_FNS[priority] || (priority === 'nearest' || priority === 'farthest' ? null : null)) : null;
+  const airFirst = priority === 'fly';
   const ax = attacker.x, ay = attacker.y;
   const keyed = cands.map((e) => ({
     e,
@@ -210,7 +216,7 @@ export function sortEnemyTargets(battle, attacker, cands, priority) {
     d: battle.remainingDistance(e),
     s: e.spawnSeq,
   }));
-  keyed.sort((a, b) => a.b - b.b || a.p - b.p || a.t - b.t || a.d - b.d || a.s - b.s);
+  keyed.sort((a, b) => (airFirst ? a.p - b.p : 0) || a.b - b.b || a.p - b.p || a.t - b.t || a.d - b.d || a.s - b.s);
   for (let i = 0; i < keyed.length; i++) cands[i] = keyed[i].e;
   return cands;
 }

@@ -151,27 +151,30 @@ export function withLiveLayers(bonds, live) {
  * A teammate's board as far as the screen shows it, in the m.private shape the bond popup's member list reads
  * (gameLogic bondMembers): their operators on the field meta on screen (the prep scouting board, a server-run battle
  * field's units) and, under client-side combat, the battle on screen's (`extra` = battle/runner.js ownerOps: the meta
- * the runner publishes is taken before the operators deploy). Their hand is never sent — members count as owned only
- * when they are on the field. Their operators keep the items the unit info carries (UnitInfo `items`), so a 变形同构体
- * wearer is listed as a member of the bond it grants (gameLogic grantedBonds), and a 补位 unit its `standInFor` (the
- * popup draws the stand-in). null without a field or battle.
- * @param {any} field @param {string} ownerId @param {any[]|null} [extra] UnitInfo-like { kind, ownerId, defId, items?, standInFor? }
+ * the runner publishes is taken before the operators deploy). A prep scout also carries their bench, each unit tagged
+ * with its `area` (server prepFieldMeta): a 'hand' operator goes to the hand list, a 'temp' one to the temp list, so the
+ * popup counts them as the player's own popup does (GitHub #385, PR #387) — owned, not 在场; a hand operator counts for
+ * the bonds that count the 整备区 (投资人 远见 奇迹: memberHeadCount), the 5 temporary slots for none. A unit without
+ * an area (a battle's, an older server's) is on the board; a battle sends no bench. Their operators keep the items the
+ * unit info carries (UnitInfo `items`), so a 变形同构体 wearer is listed as a member of the bond it grants (gameLogic
+ * grantedBonds), and a 补位 unit its `standInFor` (the popup draws the stand-in). null without a field or battle.
+ * @param {any} field @param {string} ownerId @param {any[]|null} [extra] UnitInfo-like { kind, ownerId, defId, area?, items?, standInFor? }
  */
 export function ownerBoard(field, ownerId, extra = null) {
   const fromField = isObj(field) && Array.isArray(field.units) ? field.units : null;
   const fromBattle = Array.isArray(extra) ? extra : null;
   if (!fromField && !fromBattle) return null;
-  const board = [...(fromField || []), ...(fromBattle || [])]
-    .filter((u) => isObj(u) && u.ownerId === ownerId && u.kind === 'op' && typeof u.defId === 'string')
-    .map((u) => {
-      const p = Array.isArray(u.items) && u.items.length ? { kind: 'chess', id: u.defId, items: u.items.filter((x) => typeof x === 'string') } : { kind: 'chess', id: u.defId };
-      // 0.2.0 自选编队: a DIY slot's unit names its operator (UnitInfo diy) — the popup counts it for that operator's bonds
-      if (isObj(u.diy) && typeof u.diy.charId === 'string') p.diy = u.diy;
-      // 0.2.0 补位: a unit fighting as its stand-in says so (UnitInfo standInFor) — the popup draws that member as the stand-in
-      if (typeof u.standInFor === 'string' && u.standInFor) p.standInFor = u.standInFor;
-      return p;
-    });
-  return { board, hand: [], temp: [] };
+  const out = { board: /** @type {any[]} */ ([]), hand: /** @type {any[]} */ ([]), temp: /** @type {any[]} */ ([]) };
+  for (const u of [...(fromField || []), ...(fromBattle || [])]) {
+    if (!isObj(u) || u.ownerId !== ownerId || u.kind !== 'op' || typeof u.defId !== 'string') continue;
+    const p = Array.isArray(u.items) && u.items.length ? { kind: 'chess', id: u.defId, items: u.items.filter((x) => typeof x === 'string') } : { kind: 'chess', id: u.defId };
+    // 0.2.0 自选编队: a DIY slot's unit names its operator (UnitInfo diy) — the popup counts it for that operator's bonds
+    if (isObj(u.diy) && typeof u.diy.charId === 'string') p.diy = u.diy;
+    // 0.2.0 补位: a unit fighting as its stand-in says so (UnitInfo standInFor) — the popup draws that member as the stand-in
+    if (typeof u.standInFor === 'string' && u.standInFor) p.standInFor = u.standInFor;
+    out[u.area === 'hand' ? 'hand' : u.area === 'temp' ? 'temp' : 'board'].push(p);
+  }
+  return out;
 }
 
 /**

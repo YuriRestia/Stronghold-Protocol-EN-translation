@@ -8,6 +8,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { RAW } from './sources.mjs';
 import { MirrorPolicy } from './network.mjs';
+import { guardDefaultFetch } from './env-proxy.mjs';
 
 /**
  * Read a cached JSON file, downloading it first when missing or unparsable.
@@ -26,6 +27,8 @@ import { MirrorPolicy } from './network.mjs';
  * @returns {Promise<any>} parsed JSON
  */
 export async function cachedJson({ cacheFile, url, refresh = false, offline = false, log = console.log, source = 'direct', proxyPrefix, fetchImpl = globalThis.fetch, mirrorPolicy, timeoutMs = 180000, backoffMs = 500 }) {
+  // Same rule as the file downloader: a configured proxy must not be skipped.
+  const fetchFn = guardDefaultFetch(fetchImpl);
   if (!refresh || offline) {
     try { return JSON.parse(await readFile(cacheFile, 'utf8')); } catch (e) {
       if (offline) throw new Error(`--offline: cached index ${cacheFile} is missing or corrupt (${e.message}); run once online`);
@@ -40,7 +43,7 @@ export async function cachedJson({ cacheFile, url, refresh = false, offline = fa
       let text, json;
       try {
         log(`[cache] downloading ${src}`);
-        const res = await network.request(src, fetchImpl, {}, timeoutMs);
+        const res = await network.request(src, fetchFn, {}, timeoutMs);
         if (!res.ok) {
           await res.body?.cancel();
           if (res.status === 404 || res.status === 410) {

@@ -49,7 +49,7 @@ export default withDefaults({
             unit.mem.sentry = null;
             unit.mem.inesSentryAt = null;
             const ax = from.x, ay = from.y, bx = unit.x, by = unit.y;
-            const L2 = (bx - ax) ** 2 + (by - ay) ** 2;
+            const L2 = (bx - ax) * (bx - ax) + (by - ay) * (by - ay);
             const w = num(bb.projectile_range, 1.4);
             const hits = [];
             for (const e of battle.aliveEnemies()) {

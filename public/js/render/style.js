@@ -60,9 +60,14 @@ export const COLORS = Object.freeze({
   hpBoss: 0xff2d55,
   hpGhost: 0xfff0c8,
   hpBack: 0x0c0f0e,
+  // the red bar of a negative-HP pool (斩业星熊's 我执, b.snap `neg`) — the same red as an enemy's HP
+  hpNeg: 0xff4b3e,
   sp: 0x6fd3ff,
   spReady: 0xffe066,
   spActive: 0xffb347,
+  // the ammo bar's yellow cells (b.snap `ammo`) and 伺夜's 狼影 pips (b.snap `wolves`)
+  ammo: 0xffd04a,
+  wolf: 0xe8f0ff,
   shield: 0xdfe8ff,
 });
 

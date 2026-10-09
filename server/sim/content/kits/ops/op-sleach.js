@@ -58,6 +58,7 @@ import { num, talentBb, moduleBb, traitBb, moduleOn, skillRec, up } from '../sha
 import { absoluteRangeKeys, sortEnemyTargets } from '../../../targeting.js';
 import { offsetTile } from '../../../dir.js';
 import { COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skcom_assist_cost[3]';
 const S2 = 'skchr_sleach_2';
@@ -150,7 +151,7 @@ function s3Tile(battle, unit, grid) {
   for (const k of keys) {
     const r = (k / COLS) | 0, c = k % COLS;
     if (!ground(r, c) || battle.unitAt(r, c)) continue;
-    const d = Math.hypot(c - top.x, r - top.y);
+    const d = hypot(c - top.x, r - top.y);
     if (d < bd - 1e-9) { bd = d; best = [r, c]; }
   }
   return best ?? [unit.tileR, unit.tileC];

@@ -1,7 +1,7 @@
 // test/lobby-loadout.test.js — room.loadout end to end over WebSocket (DESIGN §16): strict validation, storage on the
 // session (follows the player into rooms, survives a resume) and on the seat, seats[].loadout handed to the Match
 // (bots: none), re-sendable until the match leaves INFO_CHECK (real Match: accepted in the briefing, WRONG_PHASE after),
-// the heavy-intent rate limit.
+// the heavy-intent rate limit; its per-operator 潜能 / 练度 `ops` (0.2.2): validated with it, stored and handed over beside it.
 import { describe, test, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -111,6 +111,39 @@ describe('room.loadout (lobby, stub match)', () => {
     await back.terminate();
   });
 
+  test('潜能 / 练度 (ops, 0.2.2): strict validation, defaults dropped, stored per session and seat beside the loadout; a message without ops sets none', async () => {
+    const VENDLA = C('chess_char_1_06_a').charId;   // a 特许 operator of the roster
+    const KALTS = 'char_003_kalts';                   // an owned-6★ 自选 pick
+    const a = await pool.player('Ops');
+    await err(a, { t: 'room.loadout', entries: {}, ops: [] }, ERR.BAD_MSG);
+    await err(a, { t: 'room.loadout', entries: {}, ops: { [VENDLA]: {} } }, ERR.BAD_MSG);
+    await err(a, { t: 'room.loadout', entries: {}, ops: { [VENDLA]: { potential: 0 } } }, ERR.BAD_MSG);
+    await err(a, { t: 'room.loadout', entries: {}, ops: { [VENDLA]: { potential: 7 } } }, ERR.BAD_MSG);
+    await err(a, { t: 'room.loadout', entries: {}, ops: { [VENDLA]: { cultivate: 4 } } }, ERR.BAD_MSG);
+    await err(a, { t: 'room.loadout', entries: {}, ops: { [VENDLA]: { potential: 2, elite: 1 } } }, ERR.BAD_MSG);
+    await err(a, { t: 'room.loadout', entries: {}, ops: { char_609_acguad: { potential: 1 } } }, ERR.BAD_TARGET); // a prototype
+    await err(a, { t: 'room.loadout', entries: {}, ops: { char_999_nobody: { potential: 1 } } }, ERR.BAD_TARGET);
+    // a refusal of the ops refuses the entries too (nothing stored)
+    await err(a, { t: 'room.loadout', entries: { [INSIDE]: { skill: 0 } }, ops: { char_999_nobody: { potential: 1 } } }, ERR.BAD_TARGET);
+    await ok(a, { t: 'room.loadout', entries: { [INSIDE]: { skill: 0 } }, ops: { [VENDLA]: { potential: 1, cultivate: 0 }, [KALTS]: { cultivate: 2 }, [C(INSIDE).charId]: { potential: 6, cultivate: 3 } } });
+    await createRoom(a, 'solo');
+    await ok(a, { t: 'room.start' });
+    await a.waitFor('m.public', (p) => p.phase === 'INFO_CHECK');
+    const seat = RecordingStub.instances.at(-1).opts.seats[0];
+    assert.deepEqual(seat.loadout, { [INSIDE]: { skill: 0, module: 'uniequip_002_inside' } });
+    assert.deepEqual(seat.ops, { [VENDLA]: { potential: 1, cultivate: 0 }, [KALTS]: { potential: 6, cultivate: 2 } }, 'complete entries, defaults dropped');
+    assert.ok(Object.isFrozen(seat.ops) && Object.isFrozen(seat.ops[VENDLA]));
+    // an older client's message (no ops): none set — the next match fields every operator at 潜能 6 / 精英2 Lv.60
+    await err(a, { t: 'room.loadout', entries: {} }, ERR.ROOM_STARTED);
+    const b = await pool.player('Old');
+    await ok(b, { t: 'room.loadout', entries: { [INSIDE]: { skill: 0 } } });
+    await createRoom(b, 'solo');
+    await ok(b, { t: 'room.start' });
+    await b.waitFor('m.public', (p) => p.phase === 'INFO_CHECK');
+    assert.deepEqual(RecordingStub.instances.at(-1).opts.seats[0].ops, {});
+    assert.deepEqual(cap.errors, []);
+  });
+
   test('heavy-intent limit: a burst of room.loadout beyond the bucket is rate-limited', async () => {
     const a = await pool.player('Spam');
     const replies = await Promise.all(Array.from({ length: 10 }, () => a.request({ t: 'room.loadout', entries: {} })));
@@ -144,6 +177,21 @@ describe('room.loadout (lobby + real match)', () => {
     await a.waitFor('m.public', (p) => p.phase === PHASE.BAND_DRAFT, 3000);
     const r = await err(a, { t: 'room.loadout', entries: {} }, ERR.WRONG_PHASE);
     assert.match(r.detail || '', /locked/);
+    assert.deepEqual(cap.errors, []);
+  });
+
+  test('潜能 / 练度 (0.2.2): taken with the loadout in the briefing (m.private.ops), stated in the battle input; locked afterwards', async () => {
+    const VENDLA = C('chess_char_1_06_a').charId;
+    const a = await pool.player('Solo2');
+    await createRoom(a, 'solo');
+    await ok(a, { t: 'room.start' });
+    await a.waitFor('m.public', (p) => p.phase === PHASE.INFO_CHECK, 5000);
+    await ok(a, { t: 'room.loadout', entries: {}, ops: { [VENDLA]: { potential: 2, cultivate: 1 } } });
+    const priv = await a.waitFor('m.private', (p) => p.ops && p.ops[VENDLA], 3000);
+    assert.deepEqual(priv.ops, { [VENDLA]: { potential: 2, cultivate: 1 } });
+    await ok(a, { t: 'g.infoReady' });
+    await a.waitFor('m.public', (p) => p.phase === PHASE.BAND_DRAFT, 3000);
+    await err(a, { t: 'room.loadout', entries: {}, ops: {} }, ERR.WRONG_PHASE);
     assert.deepEqual(cap.errors, []);
   });
 });

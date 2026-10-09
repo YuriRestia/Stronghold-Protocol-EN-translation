@@ -42,6 +42,7 @@
 import { num, talentBb, moduleBb, traitBb, skillRec, statBuff, toggleBuff, onHitBy, enemiesInGrid, cheb, up, giveSp } from '../shared/tier1.js';
 import { canTargetEnemy } from '../../../targeting.js';
 import { isHpLoss } from '../../../damage.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_narant_1';
 const S2 = 'skchr_narant_2';
@@ -138,7 +139,7 @@ export default {
         if (left <= 0 || !ctx.home()) { ctx.comeBack(x, y); return; }
         const cands = battle.foesInRadius(x, y, BOUNCE_RADIUS).filter((e) => e !== on && canTargetEnemy(unit, e, ctx.profile));
         if (!cands.length) { ctx.comeBack(x, y); return; }
-        const d2 = (e) => (e.x - x) ** 2 + (e.y - y) ** 2;
+        const d2 = (e) => (e.x - x) * (e.x - x) + (e.y - y) * (e.y - y);
         cands.sort((a, b) => (hit.has(a) ? 1 : 0) - (hit.has(b) ? 1 : 0) || d2(a) - d2(b) || a.spawnSeq - b.spawnSeq);
         const tgt = cands[0];
         left--;
@@ -158,7 +159,7 @@ export default {
     const dash = (ctx) => {
       const { battle, unit } = ctx;
       let dx = ctx.x - unit.x, dy = ctx.y - unit.y;
-      const len = Math.hypot(dx, dy);
+      const len = hypot(dx, dy);
       if (len > 1e-9) { dx /= len; dy /= len; } else { const [fr, fc] = unit.fwd; dx = fc; dy = fr; }
       const ahead = DASH_SPEED * Math.max(0, num(b2['attack@move_ahead_time'], 0.5));
       battle.addProjectile({ from: { x: ctx.x, y: ctx.y }, to: { x: ctx.x + dx * ahead, y: ctx.y + dy * ahead }, speed: DASH_SPEED, visual: 'boomerang', source: unit, hitDead: true,

@@ -6,6 +6,7 @@ import { bodyInKeys } from '../../../body.js';
 import { absoluteRangeKeys, sortEnemyTargets } from '../../../targeting.js';
 import { isHpLoss } from '../../../damage.js';
 import { num, tbb, whileDeployed, toggleBuff, skillActive, isSel, alt, withDefaults } from '../shared/tier4.js';
+import { hypot } from '../../../detmath.js';
 
 const LINE = Object.freeze(Array.from({ length: COLS }, (_, i) => Object.freeze([0, i])));
 const tileKey = (u) => Math.round(u.y) * COLS + Math.round(u.x);
@@ -83,7 +84,7 @@ export default withDefaults({
         battle.on('hit', (c) => {
           if (c.source !== unit || !c.dmg.isAttack) return;
           if (S3 && skillActive(unit) && unit.baseRangeKeys && !bodyInKeys(c.target, unit.baseRangeKeys)) c.dmg.mul *= num(bb.damage_scale, 1.25);
-          if (ds > 0) { const d = Math.hypot(c.target.x - unit.x, c.target.y - unit.y); c.dmg.mul *= 1 + ds * Math.max(0, Math.min(1, (d - lo) / Math.max(1e-6, hi - lo))); }
+          if (ds > 0) { const d = hypot(c.target.x - unit.x, c.target.y - unit.y); c.dmg.mul *= 1 + ds * Math.max(0, Math.min(1, (d - lo) / Math.max(1e-6, hi - lo))); }
         }, { owner: unit });
       },
     };

@@ -217,6 +217,12 @@ test('boss field: the local pool follows b.pool (server hp − unacknowledged lo
   assert.ok(last.bossDmg <= pool.cum);
   assert.ok(last.by && typeof last.by === 'object');
   assert.equal(typeof last.leaks, 'number');
+  // the per-player split of the leak LP (the server holds the result's leaked lists to it, Match._bossLeaksAgree): the
+  // leaks of every player of the field, never more than the field's LP cost (leader effects make up the rest)
+  assert.ok(last.leaksBy && typeof last.leaksBy === 'object', 'boss progress carries leaksBy');
+  assert.deepEqual(Object.keys(last.leaksBy).sort(), start.spec.players.map((p) => p.playerId).sort());
+  assert.ok(Object.values(last.leaksBy).every((n) => Number.isFinite(n) && n >= 0));
+  assert.ok(Object.values(last.leaksBy).reduce((a, b) => a + b, 0) <= last.leaks + 1e-9);
   r.net.emit('b.pool', { hp: pool.maxHp * 0.5, max: pool.maxHp, teamLp: 20, acked: { [start.fieldId]: pool.cum } });
   assert.ok(Math.abs(pool.hp - pool.maxHp * 0.5) < 1e-6, 'server hp when everything is acknowledged');
   r.runner.dispose();
@@ -432,8 +438,10 @@ test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle 
   assert.equal(got.interval, Math.round(s.interval * 100) / 100);
   assert.equal(got.blockCnt, s.blockCnt);
   assert.equal(got.hp, Math.round(ally.hp));
-  assert.equal(got.base.atk, Math.round(ally.base.atk));
-  assert.equal(got.base.maxHp, Math.round(ally.base.maxHp));
+  // the unit's own numbers: its base with its 练度 (0.2.2: the match states 精英2 Lv.60 by default — ×1.1)
+  assert.equal(ally.cultivate, 3);
+  assert.equal(got.base.atk, Math.round(ally.base.atk * ally.cultMul.atk));
+  assert.equal(got.base.maxHp, Math.round(ally.base.maxHp * ally.cultMul.hp));
   assert.equal(r.runner.unitStats(ally.id, start.fieldId)?.id, ally.id, 'on the named field');
   assert.equal(r.runner.unitStats(ally.id, 'n:someone_else'), null, 'another field: nothing');
   assert.equal(r.runner.unitStats(999999), null, 'unknown unit');

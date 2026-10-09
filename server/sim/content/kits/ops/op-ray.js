@@ -63,6 +63,7 @@ import { sortEnemyTargets } from '../../../targeting.js';
 import { bodyInKeys } from '../../../body.js';
 import { PUSH_DIRECTIONAL_MIN_DIST } from '../../../constants.js';
 import { startCountdown } from '../../tokens.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_ray_1';
 const S2 = 'skchr_ray_2';
@@ -159,7 +160,7 @@ export default {
               if (!target.alive) { unit.mem.rayLoadExtra = num(unit.mem.rayLoadExtra) + Math.max(0, Math.floor(num(b1.cnt, 1))); return; }
               const force = num(b1.force, 1);
               const [fr, fc] = unit.fwd;
-              const vx = target.x - unit.x, vy = target.y - unit.y, d = Math.hypot(vx, vy);
+              const vx = target.x - unit.x, vy = target.y - unit.y, d = hypot(vx, vy);
               if (d >= PUSH_DIRECTIONAL_MIN_DIST && vx * fc + vy * fr >= d * Math.SQRT1_2) battle.push(target, force, { from: unit, dir: { x: fc, y: fr }, fixed: true });
               else battle.push(target, force - 1, { from: unit });
             },

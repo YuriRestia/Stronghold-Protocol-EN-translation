@@ -177,6 +177,8 @@ export default {
         },
         [S2]: {
           kind: 'duration',
+          // [ASSUMED] its glue / belt act on ground enemies only: 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
+          allyTargets: false,
           // the owner's rule for a skill whose area is larger than her range (her tile): cast as soon as a ground enemy she
           // can affect is on the glue's first five tiles — her tile, the front one, its two sides and the one beyond
           // (glueTiles' PRTS order), as 余 S2's x-1 (§22.10); the data's DEFAULT (重装 exception) only saw her own tile
@@ -200,6 +202,7 @@ export default {
         },
         [S3]: {
           kind: 'duration',
+          allyTargets: false,
           // likewise on the conveyor: her tile and the four ahead (the owner's larger-area rule; 余 S2 precedent)
           trigger: { rule: 'ACTIVE_RANGE', grid: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]] },
           mods: nz({ atkPct: num(b3.atk), defPct: num(b3.def), blockCnt: num(b3.block_cnt) }),

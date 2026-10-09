@@ -22,6 +22,13 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 ## 4. Time model
 
 - Simulation time is **game seconds**. Fixed step `TICK = 1/30 s`.
+- Timers count in ticks and take what is within 1e-9 as reached — attack cooldowns and enemy wind-ups (`ai.js
+  attackCountdown`), time SP against its cost (`skills.js gainSp`), skill durations, buff intervals, `every()` /
+  `after()`, enemy abilities, the 失衡 end —, so a whole number of ticks takes exactly that many: 1 s = 30 ticks (PRTS
+  作战机制/sandbox 「帧对齐机制对攻速的影响」: one frame = 1/30 s). Floating point alone held 1 s attacks and 10-SP charges a
+  tick longer until 0.2.2 (PR #402, §27.61). A non-integer count ends on the tick that crosses the line, ⌈30 × t⌉ (1.25 s
+  = 38); the official game rounds it (四舍五入 since 2019-12-24: 能天使's 0.678 s is 20 frames there, 21 here) — an older
+  difference, not changed.
 - Combat runs at **2× real time** (forced, like the original): 60 ticks per real second — in the browser's runner (§14) or, for server-run fields, the server's accumulator (2 ticks every real 1/30 s, never more than 8 ticks per interval to avoid spirals).
 - Combat time limits come from `data/config.json → modes[m].rounds[r].combatTimeLimit` (= the level's `maxPlayTime`; also `modes[m].combatTimeLimit[r]`) and are **real seconds of the forced-2× battle** (verified by the balance pass: spawn schedules exceed the limit when read as game seconds). The server passes `2 × value` game seconds to the Battle (`server/match/gamedata.js → combatTimeLimit`; `config.combatTimeScale`, default 2); the countdown players see equals the data value. When time runs out, living non-boss enemies count as leaked. 联防 uses the round's limit.
 - Final Assault / Hidden Core have **no hard stop** and their clocks are real seconds too: the boss level's `levelMaxPlayTime` (120 real s) is only the HUD countdown (`m.public.deadline`; the battle goes on past it), and the overtime drain (`bossOvertimeAfter` 150 / `bossOvertimeDrainPerSec` 1 = official `bossTurnHpReduceTime`) takes 1 team LP per whole **real** second from 150 real s (= 300 game s on the 2× field clock; first point at 151 s — `gamedata.js bossOvertimeDue`). `m.public.overtimeAt` = the ms epoch when the drain starts; both are placed on the field clock.

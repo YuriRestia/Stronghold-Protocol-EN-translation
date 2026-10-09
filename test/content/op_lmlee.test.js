@@ -207,7 +207,9 @@ test('S2 驱凶辟邪: passive ASPD +15 / +20; cast on his attack, the target is
     approx(h.b.time - t0, sk.bb.paper_duration, `T${tier}: after 5 s`, 0.05);
     const dmg = h.hooksOf('damaged').slice(n0);
     const burst = dmg.filter((c) => c.source === u && c.dmg.tags.includes('lmlee:burst'));
-    const hits = h.hooksOf('damaged').filter((c) => c.target === t && c.source === u && !c.dmg.tags.includes('lmlee:burst') && h.b.time >= t0).length;
+    // his hits on it before the burst (one of his hits in the burst's own tick lands after it and is not counted)
+    const all = h.hooksOf('damaged');
+    const hits = all.slice(0, all.indexOf(burst[0])).filter((c) => c.target === t && c.source === u && !c.dmg.tags.includes('lmlee:burst')).length;
     assert.deepEqual(burst.map((c) => c.target).sort((a, b) => a.id - b.id), [t, near].sort((a, b) => a.id - b.id), `T${tier}: radius ${MARK_RADIUS}, the flyer too, not 2 tiles away`);
     assert.ok(!burst.some((c) => c.target === far));
     for (const c of burst) {

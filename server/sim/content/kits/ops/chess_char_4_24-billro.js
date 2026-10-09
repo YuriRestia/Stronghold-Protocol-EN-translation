@@ -37,6 +37,8 @@ export default withDefaults({
       skills: alt(def, {
         skchr_billro_1: () => ({
           kind: 'duration',
+          // [ASSUMED] a charged cast makes no attack at all: 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
+          allyTargets: false,
           mods: { atkPct: num(bb.atk), defPct: num(bb.def) },
           onStart({ battle, unit, skill }) {
             unit.mem.billroCharged = isCharged(skill);

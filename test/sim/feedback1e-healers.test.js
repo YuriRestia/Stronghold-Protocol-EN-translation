@@ -247,7 +247,9 @@ test('E2 audit: healers on the lane tiles of every boss / hidden field deal no d
     const lead = (e) => e.isBoss || e.tag === 'boss' || e.tag === 'part' || LUCIEN.test(e.defId);
     let healsOnLead = 0;
     h.b.on('heal', (c) => { if (healers.includes(c.source) && c.amount > 0 && c.source.blocking.some(lead)) healsOnLead++; });
-    for (let i = 0; i < 120 * 30; i++) {
+    // 200 s on the fields whose leaders / parts a healer must block (the solo 铳 field's springs first meet a healer at
+    // 145 s since their 末日布道 chase lasts its whole 5 s — PR #347), 120 s elsewhere
+    for (let i = 0; i < (EXPECT[key] ? 200 : 120) * 30; i++) {
       h.step();
       // operators break the 碎铳之簧 shields (unblockable while shielded): a hit of the kind each shield yields to
       for (const e of h.b.enemies) {

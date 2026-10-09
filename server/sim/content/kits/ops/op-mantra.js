@@ -46,6 +46,7 @@ import { hasHp } from '../../../damage.js';
 import { canTargetEnemy, enemyStealthed } from '../../../targeting.js';
 import { bodyInKeys } from '../../../body.js';
 import { COLS, PALSY_MAX } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_mantra_1';
 const S2 = 'skchr_mantra_2';
@@ -91,7 +92,7 @@ function nearestFoe(battle, unit, x, y, r, skip) {
   let best = null, bd = Infinity;
   for (const e of battle.enemiesInRadius(x, y, r)) {
     if (skip.has(e) || !canTargetEnemy(unit, e, ANY)) continue;
-    const d = Math.hypot(e.x - x, e.y - y);
+    const d = hypot(e.x - x, e.y - y);
     if (d < bd - 1e-9 || (Math.abs(d - bd) <= 1e-9 && best && e.spawnSeq < best.spawnSeq)) { bd = d; best = e; }
   }
   return best;

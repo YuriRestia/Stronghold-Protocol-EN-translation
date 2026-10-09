@@ -1,7 +1,8 @@
 // Blockable-ground preference of the ground pathing (grid.js header; user playtest #2: on 战场#01 the lower-gate enemies
 // walked up the col-9 floor lane, where no operator can stand, instead of the col-8 road). The flow field keeps the
 // official route unless the preference route — the fewest non-blockable tiles among equal-length chains, smoothing
-// that never cuts across floor its grid route does not walk — crosses fewer non-blockable tiles. "Crosses" = the
+// that never cuts across floor its grid route does not walk — crosses fewer non-blockable tiles and no more 深水区
+// (GitHub #375). "Crosses" = the
 // segment passes through the tile's interior (grid.js segmentTiles; brushing a corner is not crossing — the D5 report
 // after 0.1.0, test/sim/pathing-official.test.js). Audit: every active stage × gate × field (normal, 联防 both halves,
 // boss both halves incl. the solo `_s` templates) — the non-blockable tiles an enemy still crosses are listed and
@@ -69,32 +70,49 @@ function nbCrossed(g, s, e) {
 
 /**
  * Fewest non-blockable tiles (start and goal excluded) over all 4-connected crate-free routes s → e of length ≤ the
- * shortest + `slack`; { best, min } (min = the minimum over those lengths).
+ * shortest + `slack` that cross at most `maxWet` 深水区 tiles (grid.js: the tie-break never walks into more 深水区 than
+ * the official route — GitHub #375); { best, min } (min = the minimum over those lengths).
  */
-function fewestNb(g, s, e, slack = 2) {
+function fewestNb(g, s, e, slack = 2, maxWet = Infinity) {
   const f = g.flowField(e[0], e[1]);
   const best = f.dist[s[0] * COLS + s[1]];
   if (best < 0 || best >= 1000) return null;
   const ek = e[0] * COLS + e[1];
   const cost = (k) => (k === ek ? 0 : g.unblockable[k]);
-  let cur = new Map([[s[0] * COLS + s[1], 0]]);
+  const wetOf = Number.isFinite(maxWet) ? (k) => (k === ek ? 0 : g.deepWater[k]) : () => 0;
+  // tile → (深水区 so far → fewest non-blockable so far)
+  let cur = new Map([[s[0] * COLS + s[1], new Map([[0, 0]])]]);
   let min = Infinity;
   for (let L = 0; L <= best + slack; L++) {
-    if (cur.has(ek)) min = Math.min(min, cur.get(ek));
+    if (cur.has(ek)) for (const p of cur.get(ek).values()) min = Math.min(min, p);
     const nx = new Map();
-    for (const [k, p] of cur) {
+    for (const [k, byWet] of cur) {
       if (k === ek) continue;
       const r = (k / COLS) | 0, c = k % COLS;
       for (const [dr, dc] of [[1, 0], [0, 1], [-1, 0], [0, -1]]) {
         const nr = r + dr, nc = c + dc;
         if (!g.walkable(nr, nc) || g.isCrate(nr, nc)) continue;
-        const nk = nr * COLS + nc, np = p + cost(nk);
-        if (!nx.has(nk) || nx.get(nk) > np) nx.set(nk, np);
+        const nk = nr * COLS + nc;
+        let m = nx.get(nk);
+        for (const [w, p] of byWet) {
+          const nw = w + wetOf(nk), np = p + cost(nk);
+          if (nw > maxWet) continue;
+          if (!m) nx.set(nk, m = new Map());
+          if (!m.has(nw) || m.get(nw) > np) m.set(nw, np);
+        }
       }
     }
     cur = nx;
   }
   return { best, min };
+}
+
+/** 深水区 tiles crossed from s to e (start and goal excluded). */
+function wetCrossed(g, s, e) {
+  const wp = g.waypoints(s[0], s[1], e[0], e[1]);
+  const seen = new Set();
+  for (const [r, c] of crossed(wp)) if (!(r === s[0] && c === s[1]) && !(r === e[0] && c === e[1]) && g.deepWater[r * COLS + c]) seen.add(`${r},${c}`);
+  return seen.size;
 }
 
 /** Tiles an enemy of `route` visits (rounded position per tick) and whether `u` blocked it. */
@@ -293,12 +311,15 @@ test('audit: every WALK leg of every wave template (normal / 联防 / boss / hid
       if (!grids.has(key)) grids.set(key, stageGrid(sid, rect));
       const g = grids.get(key);
       if (!g.walkable(from[0], from[1]) || !g.walkable(to[0], to[1])) continue;
-      const eq = fewestNb(g, from, to, 0);
-      if (!eq) continue;
+      if (!fewestNb(g, from, to, 0)) continue;
       const got = nbCrossed(g, from, to);
+      // compared with the routes that wade through no more 深水区 than ours (#375: 战场#08(下半)'s patrol legs to (2,3) /
+      // (2,17) keep the official upper road, not the lower one through two water tiles that crosses one floor tile less)
+      const wet = wetCrossed(g, from, to);
+      const eq = fewestNb(g, from, to, 0, wet);
       const what = `${sid} ${id} (${from}) → (${to}) crosses ${got.join(' ')}`;
       assert.ok(got.length <= eq.min, `${what}, an equal-length route only ${eq.min}`);
-      const near = fewestNb(g, from, to, 2);
+      const near = fewestNb(g, from, to, 2, wet);
       if (near.min < got.length) {
         assert.ok(rect === GEO.BOSS_RECT && got.every(arena), `${what}: a route of length ≤ ${near.best}+2 crosses only ${near.min}`);
         accepted.push(what);

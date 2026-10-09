@@ -3,6 +3,7 @@
 
 import { PUSH_DIRECTIONAL_MIN_DIST } from '../../../constants.js';
 import { num, defOf, talentBb, traitBb, onTiles, gridKeys, fx, copyGrid } from '../shared/tier3.js';
+import { hypot } from '../../../detmath.js';
 
 /** Two enemy bodies touch within this distance (tiles) — 见行者 collision stun. */
 const COLLIDE = 0.6;
@@ -33,7 +34,7 @@ export default {
             // (only the angle: a target nearer than 0.25 tile still turns radial at 受力等级 −2) — by the official
             // 力度 − 重量 distance of a 特效 push (PRTS 推与拉 names 见行者's skills 特效类; Battle.push / pushDistance);
             // stopped short of it ⇒ it hit a wall
-            const near = Math.hypot(e.x - unit.x, e.y - unit.y) < PUSH_DIRECTIONAL_MIN_DIST;
+            const near = hypot(e.x - unit.x, e.y - unit.y) < PUSH_DIRECTIONAL_MIN_DIST;
             const expect = battle.pushDistance(e, near ? force - 2 : force, { effect: true });
             const moved = battle.push(e, force, { from: unit, dir: { x: unit.fwd[1], y: unit.fwd[0] }, fixedAngle: true, effect: true });
             const wall = expect > 0 && moved + 0.05 < expect;

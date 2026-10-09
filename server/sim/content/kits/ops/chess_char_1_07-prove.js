@@ -28,7 +28,9 @@ export default {
     const s2On = (u) => !!(u.skill && u.skill.active && u.skill.id === S2);
     return {
       skill: { kind: 'passive' },
-      skills: { [S2]: { kind: 'duration', mods: { atkPct: num(skillBbOf(chess, S2).atk) } } },
+      // [ASSUMED] S2 never shoots 白铁's 铁钳号 (its damage is cancelled, so it never drops below 80 %): the device alone does
+      // not open it (skills.js allyTargetsOk)
+      skills: { [S2]: { kind: 'duration', mods: { atkPct: num(skillBbOf(chess, S2).atk) }, allyTargets: false } },
       trait: {
         canAttack: (battle, u) => !s2On(u) || battle.enemiesInKeys(u.rangeKeys, u, u.profile).some(huntable),
       },

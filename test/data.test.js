@@ -16,6 +16,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { stripPotential } from '../shared/potential.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 // DATA_DIR lets the suite validate an alternative build output (e.g. `--out /tmp/x`).
@@ -558,7 +559,8 @@ test('chess: golden modules[] (+ statsBase/traitBase/talentsBase) compose back t
     // default loadout = the record's own stats / trait / talents
     assert.deepEqual(composeStats(c.statsBase, dm?.attr), c.stats, `${c.chessId}: statsBase + default attr = stats`);
     assert.deepEqual(dm?.traitOverride ?? c.traitBase, c.trait, `${c.chessId}: trait`);
-    assert.deepEqual(composeTalents(c.talentsBase, dm?.talentChanges), c.talents, `${c.chessId}: talents`);
+    // (the record's own lists chain their lower-potential entries — shared/potential.js; a composed list carries none)
+    assert.deepEqual(composeTalents(c.talentsBase, dm?.talentChanges), stripPotential(c.talents), `${c.chessId}: talents`);
     assert.equal(new Set(c.modules.map((m) => m.uniEquipId)).size, c.modules.length);
     for (const m of c.modules) {
       nMods++;
@@ -725,6 +727,32 @@ test('official spot checks (hard-coded values from the zh_CN client data)', () =
   assert.deepEqual([bands.band_sarkazb.totalHp, bands.band_lisa.totalHp], [45, 20]);
   assert.deepEqual(config.modes.mode_multi_abyss.rounds['15'].prepTime, 215);
   assert.equal(config.modes.mode_multi_abyss.enemyScale['6'].hp, 2.239488);   // 1.2^4 × 1.08
+});
+
+test('a module trait part that only adds a display line writes that line only (GitHub #400): 圣约送葬人 REA-Y heals 50 per enemy hit, its line ASPD +12', () => {
+  // official battle_equip_table uniequip_003_excu2: a DISPLAY part whose blackboard `value` 12 belongs to its own
+  // 「攻击速度+{value}」; the class trait's 「回复自身{value}生命」 stays the base 50 (REA-X's TRAIT_DATA_ONLY part rewrites it: 60)
+  const g = chess.chess_char_5_01_b;
+  const y = g.modules.find((m) => m.uniEquipId === 'uniequip_003_excu2').traitOverride;
+  assert.equal(y.desc, g.traitBase.desc, 'the class trait as without a module');
+  assert.match(y.desc, /每攻击到一个敌人回复自身50生命/);
+  assert.match(y.descRaw, /回复自身<@ba\.kw>50<\/>生命/);
+  assert.equal(y.moduleDesc, '攻击范围内存在2名及以上敌人时攻击速度+12');
+  assert.match(g.modules.find((m) => m.uniEquipId === 'uniequip_002_excu2').traitOverride.desc, /回复自身60生命/, 'REA-X');
+  // no other module record carries a trait line that differs from its owner's class trait only in a number its own
+  // display line uses (the class of this bug)
+  const forms = [...Object.values(chess), ...Object.values(D.backups.units || {}).flatMap((u) => Object.values(u.forms || {}))];
+  for (const f of forms) {
+    for (const m of f.modules || []) {
+      const o = m.traitOverride;
+      if (!o?.moduleDesc || !f.traitBase?.desc || o.desc === f.traitBase.desc) continue;
+      const nums = (t) => String(t).match(/\d+(?:\.\d+)?/g) || [];
+      const sameWords = o.desc.replace(/\d+(?:\.\d+)?/g, '#') === f.traitBase.desc.replace(/\d+(?:\.\d+)?/g, '#');
+      if (!sameWords) continue;
+      const moved = nums(o.desc).filter((n, i) => n !== nums(f.traitBase.desc)[i]);
+      assert.ok(!moved.every((n) => nums(o.moduleDesc).includes(n)), `${f.chessId || f.charId} ${m.uniEquipId}: ${o.desc} / ${o.moduleDesc}`);
+    }
+  }
 });
 
 /** Read an official cache file (only called when HAS_CACHE). */

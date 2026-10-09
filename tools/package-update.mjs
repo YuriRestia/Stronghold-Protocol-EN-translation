@@ -8,7 +8,8 @@
 // every later 0.2.x given as a base); `removed` lists the files some base shipped that the new version does not, with
 // the bytes each base had (the player's copy is deleted only when it still holds them). A removed path that differs
 // from a new one only in case is the same file on Windows / macOS: it is left out of `removed` (`caseOnly`).
-// The zip reader handles what tools/package.mjs and GitHub hand out: stored and deflated entries, zip64, UTF-8 names.
+// The zip reader handles what tools/package.mjs and GitHub hand out: stored and deflated entries, zip64, UTF-8 names —
+// also a name zip on Windows (Info-ZIP) stored in the system code page, through its Unicode Path extra field.
 
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -30,6 +31,28 @@ function readAt(fd, pos, len) {
 
 const SIG = { eocd: 0x06054b50, loc64: 0x07064b50, eocd64: 0x06064b50, central: 0x02014b50, local: 0x04034b50 };
 const U32 = 0xffffffff;
+
+/**
+ * The name of the central-directory entry at `p`: the header bytes when flag bit 11 marks them UTF-8; otherwise the
+ * Info-ZIP Unicode Path extra field (0x7075, APPNOTE 4.6.9) when its CRC matches the header name — Info-ZIP's zip on
+ * Windows stores a non-ASCII name in the system code page and the UTF-8 name only there; without that field the header
+ * bytes, read as UTF-8 (an ASCII name).
+ */
+function entryName(cd, p, flags, nameLen, extraLen) {
+  const raw = cd.subarray(p + 46, p + 46 + nameLen);
+  if (!(flags & 0x800)) {
+    for (let q = p + 46 + nameLen, end = q + extraLen; q + 4 <= end;) {
+      const id = cd.readUInt16LE(q);
+      const len = cd.readUInt16LE(q + 2);
+      if (id === 0x7075 && len >= 5 && cd[q + 4] === 1 && q + 4 + len <= end
+        && (typeof zlib.crc32 !== 'function' || (zlib.crc32(raw) >>> 0) === cd.readUInt32LE(q + 5))) {
+        return cd.toString('utf8', q + 9, q + 4 + len);
+      }
+      q += 4 + len;
+    }
+  }
+  return raw.toString('utf8');
+}
 
 /**
  * Call `onFile(name, data)` for every file entry of a zip (directories skipped), in central-directory order.
@@ -73,7 +96,7 @@ export function readZip(zipPath, onFile) {
       const commentLen = cd.readUInt16LE(p + 32);
       const external = cd.readUInt32LE(p + 38);
       let offset = cd.readUInt32LE(p + 42);
-      const name = cd.toString('utf8', p + 46, p + 46 + nameLen);
+      const name = entryName(cd, p, flags, nameLen, extraLen);
       if (packedSize === U32 || rawSize === U32 || offset === U32) {
         // the zip64 extra field carries the values the header marks 0xFFFFFFFF, in this order
         for (let q = p + 46 + nameLen, end = q + extraLen; q + 4 <= end;) {

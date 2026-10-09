@@ -8,6 +8,10 @@
 //   a 404/410 moves on immediately. Each candidate uses its opt-in prefix proxy
 //   first (when enabled), then the original URL and jsDelivr fallback. The proxy gets one short attempt
 //   per file and shares a run-wide circuit breaker with the index/font fetchers.
+// - HTTP(S)_PROXY: the default fetch uses it only when this process was started
+//   with NODE_USE_ENV_PROXY=1 (Node >=22.21 or >=24); on such a Node started
+//   without it, it fails closed; an older Node warns and connects directly
+//   (tools/assets/env-proxy.mjs). Pass fetchImpl to bypass that, as tests do.
 // - Idempotent: an existing file is kept when its size matches the ledger entry
 //   of a previous download or the expected byte count from research, or (when
 //   neither is known) when it passes format validation. The ledger lives in
@@ -18,6 +22,7 @@ import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promis
 import { dirname, join } from 'node:path';
 import { MirrorPolicy } from './network.mjs';
 import { validate } from './formats.mjs';
+import { guardDefaultFetch } from './env-proxy.mjs';
 
 /**
  * @typedef {{ rel: string, urls: string[], kind: string, bytes?: number, mutable?: boolean }} Job
@@ -60,7 +65,7 @@ export class Downloader {
     /** @type {Set<string>} the files (paths under root) this run wrote */
     this.written = new Set();
     this.log = log;
-    this.fetch = fetchImpl;
+    this.fetch = guardDefaultFetch(fetchImpl);
     this.network = mirrorPolicy ?? new MirrorPolicy({ source, proxyPrefix, log });
     this.backoffMs = Math.max(0, Number(backoffMs) || 0);
     this.ledger = { files: {} };

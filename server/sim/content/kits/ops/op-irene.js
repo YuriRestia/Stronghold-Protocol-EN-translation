@@ -100,6 +100,9 @@ export default {
         },
         [S2]: {
           kind: num(s2?.maxChargeTime, 1) > 1 ? 'charges' : 'instant',
+          // [ASSUMED] its strike and its guard (guardActivation) take ground enemies only: 白铁's 铁钳号 alone does not open
+          // it (skills.js allyTargetsOk)
+          allyTargets: false,
           onStart({ battle, unit }) {
             const list = battle.enemiesInKeys(keysOf(unit, grid2), unit, GROUND);
             sortEnemyTargets(battle, unit, list, null);
@@ -116,9 +119,12 @@ export default {
           kind: 'duration',
           duration: S3_DURATION,
           attack: { noAttack: true },
+          // 白铁's 铁钳号·原型机 (a registered ally target) is struck like an enemy — the owner's rule of 2026-10-08; its kit
+          // cancels the hits [ASSUMED: its strikes take it like a ground enemy of the skill range] (skills.js allyTargetsOk)
+          allyTargets: true,
           onStart({ battle, unit }) {
             unit.mem.ireneS3 = { t: 0, n: 0 };
-            const v = battle.enemiesInKeys(keysOf(unit, grid3), unit, GROUND);
+            const v = [...battle.enemiesInKeys(keysOf(unit, grid3), unit, GROUND), ...battle.allyTargetsInKeys(keysOf(unit, grid3), unit)];
             battle.fx('aoe', { x: unit.x, y: unit.y, radius: 1.5, id: unit.id, skill: 'irene:judgment' });
             for (const e of v) {
               battle.dealDamage(unit, e, { amount: unit.s.atk * num(b3.atk_scale, 1), type: 'phys', isSkill: true, tags: ['skill'] });
@@ -132,11 +138,12 @@ export default {
             const iv = Math.max(0.05, num(b3.multi_hit_interval, 0.3)), times = Math.max(0, Math.floor(num(b3.multi_times, 10)));
             while (m.n < times && m.t + 1e-9 >= (m.n + 1) * iv) {
               m.n++;
-              const cands = battle.enemiesInKeys(keysOf(unit, grid3), unit, AIR);
+              const foes = battle.enemiesInKeys(keysOf(unit, grid3), unit, AIR);
+              const cands = foes.length ? foes : battle.allyTargetsInKeys(keysOf(unit, grid3), unit);   // (the 铁钳号 when no enemy)
               if (!cands.length) continue;
               const c = battle.rng.pick(cands);
               battle.fx('aoe', { x: c.x, y: c.y, radius: S3_SPLASH, id: unit.id, skill: 'irene:judgment' });
-              for (const e of battle.foesInRadius(c.x, c.y, S3_SPLASH, true)) {
+              for (const e of [...battle.foesInRadius(c.x, c.y, S3_SPLASH, true), ...battle.allyTargetsInRadius(c.x, c.y, S3_SPLASH, unit)]) {
                 battle.dealDamage(unit, e, { amount: unit.s.atk * num(b3.multi_atk_scale, 1), type: 'phys', isSkill: true, isSplash: e !== c, tags: ['skill'] });
               }
               if (!unit.alive || !unit.skill?.active) return;

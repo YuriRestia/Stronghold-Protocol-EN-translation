@@ -61,10 +61,11 @@ export function freePort() {
  * `port`: e.g. the port of a server just stopped — a server restart the open clients reconnect to).
  * @param {{ port?: number, fast?: { timerScale?: number, combatSpeed?: number, startRound?: 'boss'|'hidden'|number, kit?: number, chess?: string[],
  *   items?: string[], idleBots?: boolean, kits?: string[][], botChess?: string[], autoPlace?: boolean, eliminate?: number[], stage?: string,
- *   finishAfter?: number } }} [opts]
+ *   finishAfter?: number, slowSpawns?: string } }} [opts]
  *   kits: per-human starter kits (seat order); botChess: the AI seats' kit; autoPlace: the kits go onto the board at the
  *   first prep; eliminate: humans (seat order) eliminated at the jump; stage: the stage of every match; finishAfter: the
- *   match ends (RESULT) once that round has settled — fastServer.mjs hooks
+ *   match ends (RESULT) once that round has settled; slowSpawns: '<humanIdx>:<factor>' — that human's normal battles
+ *   spawn at factor × the scheduled times — fastServer.mjs hooks
  * @returns {Promise<{ base: string, port: number, logs: string[], stop: (o?: { hard?: boolean }) => Promise<void> }>}
  */
 export async function startRealServer(opts = {}) {
@@ -90,6 +91,7 @@ export async function startRealServer(opts = {}) {
     if (opts.fast.stage) env.SP_STAGE = String(opts.fast.stage);
     if (opts.fast.level) env.SP_START_LEVEL = String(opts.fast.level);
     if (opts.fast.finishAfter) env.SP_FINISH_AFTER = String(opts.fast.finishAfter);
+    if (opts.fast.slowSpawns) env.SP_SLOW_SPAWNS = String(opts.fast.slowSpawns);
   }
   const child = spawn(process.execPath, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
   const logs = [];

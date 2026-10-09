@@ -8,6 +8,7 @@ import {
   AURA_IV, AURA_DUR, RING1, num, on, talent, skillGrid, maxCharges, mods, dist, isOp, selectedId, lazySkills,
   instantKind, whileOn, permBuff,
 } from '../shared/tier5.js';
+import { hypot } from '../../../detmath.js';
 
 /** Straight-road length through each tile (max of the horizontal and vertical runs of ground-passable tiles). */
 const ROAD_CACHE = new WeakMap();
@@ -36,12 +37,16 @@ function straightRun(battle, r, c) {
 export default {
   // ---------------------------------------------------------------------------------------------------------------
   // 引星棘刺 — S2 解构涌潮 (instant / 2 charges elite): throws an alchemy unit at the target: for 12/15 s ground enemies
-  // around it get healing ×0.5, take 120/140 % ATK arts per second, allies heal 12/15 % ATK per second; the unit drifts
+  // around it get healing ×0.5, take 120/140 % ATK arts per second, allies recover 12/15 % ATK per second; the unit drifts
   // along the throw direction and its radius grows. T1 心相: ATK +10 %, +3 s when another op is in range.
   // T2 视界: allies ASPD +5, enemies −5 (doubled on straight roads ≥ 6 tiles). Module (elite): +0.1 SP/s with a unit out.
   // S1 度算浪波 (instant): an alchemy unit thrown at the ally in her range with the lowest HP ratio: for
-  // projectile_delay_time s (+3 s 心相) allies on the landing tile and the 8 around it get DEF +def and heal
-  // hp_recovery_per_sec_ratio × ATK per second. S3 “我的海疆”: passive — her range is the skill range; active
+  // projectile_delay_time s (+3 s 心相) allies on the landing tile and the 8 around it get DEF +def and recover
+  // hp_recovery_per_sec_ratio × ATK per second. The recovery of S1 / S2 ("每秒回复/恢复相当于攻击力…的生命") is 生命回复速度,
+  // an hpRegen buff per alchemy unit set at each 1 s pulse until the next — the wording and blackboard key of 锡人 S2, whose
+  // PRTS 备注 says "生命恢复的提供方式为增加目标的“生命回复速度”属性，不受治疗加成和禁疗影响" (the only other 炼金师): 不屈者 and
+  // 禁疗 units recover too (community report: 炼金单元无法给不屈者等禁疗的干员提供生命恢复; it was a heal up to 0.2.1).
+  // S3 “我的海疆”: passive — her range is the skill range; active
   // (instant) — alchemy units on the max_target_token operators with the lowest block count: for projectile_delay_time s
   // the enemies around each of them (RING1, following it) get ATK/DEF/RES −, one strongest instance (不叠加), and take
   // atk_scale × ATK arts per second, everything ramping +per_interval each `interval` s up to max_stack_cnt steps.
@@ -62,11 +67,14 @@ export default {
       if (z.type === 'guard') {
         const inZone = (a) => Math.abs(a.tileR - z.r) <= 1 && Math.abs(a.tileC - z.c) <= 1;
         const allies = battle.alliesFor(unit).filter(inZone);
-        for (const a of allies) battle.addBuff(a, { key: 'thorn2:bastion', duration: AURA_DUR, mods: mods({ defFlat: num(bb.def) }) });
+        // one DEF buff per alchemy unit, so two units on one ally add up (+60 +60; PRTS 度算浪波 备注 「效果均可叠加」,
+        // GitHub #388 — one shared key let the last unit's buff replace the other's)
+        z.defKey ??= `thorn2:bastion:${unit.id}:${unit.mem.bastionSeq = (unit.mem.bastionSeq ?? 0) + 1}`;
+        for (const a of allies) battle.addBuff(a, { key: z.defKey, duration: AURA_DUR, mods: mods({ defFlat: num(bb.def) }) });
         if (z.acc >= 1 - 1e-9) {
           z.acc -= 1;
-          const heal = unit.s.atk * num(bb.hp_recovery_per_sec_ratio);
-          if (heal > 0) for (const a of allies) if (a.hp < a.s.maxHp) battle.heal(unit, a, heal, { aura: true });
+          const regen = unit.s.atk * num(bb.hp_recovery_per_sec_ratio);   // 生命回复速度 (see the header)
+          if (regen > 0) for (const a of allies) battle.addBuff(a, { key: z.key, duration: 1 + 2 * battle.dt, source: unit, mods: { hpRegen: regen } });
         }
         return;
       }
@@ -92,9 +100,12 @@ export default {
           // (GitHub #124 「引星棘刺一技能不会在满技力时自动释放」)
           trigger: { rule: 'SP_FULL' },
           onStart({ battle, unit }) {
-            const t = battle.alliesInGrid(unit).filter((a) => a.hp > 0).sort((a, b) => a.hpRatio - b.hpRatio || b.blocking.length - a.blocking.length || dist(a, unit) - dist(b, unit) || a.id - b.id)[0];
+            // PRTS 备注 「※优先选择生命比例最低>最晚部署的我方单位（不含装置职业单位）」: the lowest HP ratio, a tie to the
+            // latest deployment (alliesInGrid has no devices); until 0.2.2 a tie went to more blocking, then the nearer
+            const t = battle.alliesInGrid(unit).filter((a) => a.hp > 0).sort((a, b) => a.hpRatio - b.hpRatio || b.deploySeq - a.deploySeq || a.id - b.id)[0];
             if (!t) return;
-            const z = { type: 'guard', r: t.tileR, c: t.tileC, x: t.x, y: t.y, t: 0, acc: 0, dur: num(bb.projectile_delay_time, 6) + extend(battle, unit) };
+            const key = `thorn2:guard:${unit.id}:${unit.mem.zoneSeq = (unit.mem.zoneSeq ?? 0) + 1}`;   // its regen buff ("效果均可叠加")
+            const z = { type: 'guard', r: t.tileR, c: t.tileC, x: t.x, y: t.y, t: 0, acc: 0, dur: num(bb.projectile_delay_time, 6) + extend(battle, unit), key };
             (unit.mem.zones ??= []).push(z);
             battle.fx('zone', { x: z.x, y: z.y, id: unit.id, r: RING1, duration: z.dur });
           },
@@ -115,10 +126,13 @@ export default {
       }),
       skill: {
         kind: maxCharges(chess, def) > 1 ? 'charges' : 'instant',
+        // 白铁's 铁钳号·原型机 (a registered ally target) is a target like an enemy when no enemy is in her range — the owner's
+        // rule of 2026-10-08: the unit lands on it and its pulses hit it (cancelled by its kit) [ASSUMED] (skills.js allyTargetsOk)
+        allyTargets: true,
         onStart({ battle, unit }) {
           const list = battle.enemiesInKeys(unit.rangeKeys, unit, unit.profile);
           sortEnemyTargets(battle, unit, list, null);
-          let t = list.find((e) => !e.isFlying) ?? list[0];
+          let t = list.find((e) => !e.isFlying) ?? list[0] ?? battle.allyTargetsInKeys(unit.rangeKeys, unit)[0];
           if (!t) {
             // PRTS 备注: no enemy in range → thrown at the farthest tile straight ahead inside her range
             let best = null;
@@ -134,7 +148,7 @@ export default {
           }
           const extra = battle.alliesInGrid(unit).some((a) => a !== unit && isOp(a)) ? Math.min(num(t0.projectile_extend), num(t0.projectile_extend_max, Infinity)) : 0;
           // it drifts away from her deployment tile ("移动方向始终为远离棘刺部署位置中心的方向")
-          const dx = t.x - unit.x, dy = t.y - unit.y, len = Math.hypot(dx, dy) || 1;
+          const dx = t.x - unit.x, dy = t.y - unit.y, len = hypot(dx, dy) || 1;
           // `key`: the fx re-sent every second as the unit drifts and grows is this one zone — the client updates it in
           // place instead of stacking a new layer each second (render/fx/zones.js; community report of 2026-10-06)
           const key = `thorn2:${unit.id}:${unit.mem.zoneSeq = (unit.mem.zoneSeq ?? 0) + 1}`;
@@ -185,8 +199,14 @@ export default {
             if (z.acc >= 1 - 1e-9) {
               z.acc -= 1;
               for (const e of foes) battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, tags: ['skill', 'alchemy'] });
-              const heal = unit.s.atk * num(bb.hp_recovery_per_sec_ratio_chr);
-              if (heal > 0) for (const a of battle.alliesInRadius(z.x, z.y, r, null)) if (a.hp < a.s.maxHp) battle.heal(unit, a, heal, { aura: true });
+              // (白铁's 铁钳号 too, like a ground enemy — its kit cancels the hit)
+              for (const a of battle.allyTargetsInRadius(z.x, z.y, r, unit)) battle.dealDamage(unit, a, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, tags: ['skill', 'alchemy'] });
+              const regen = unit.s.atk * num(bb.hp_recovery_per_sec_ratio_chr);   // 生命回复速度 (see the header)
+              if (regen > 0) {
+                for (const a of battle.alliesInRadius(z.x, z.y, r, null)) {
+                  if (battle.allySelectable(a, unit)) battle.addBuff(a, { key: `${z.key}:regen`, duration: 1 + 2 * battle.dt, source: unit, mods: { hpRegen: regen } });
+                }
+              }
               battle.fx('zone', { x: z.x, y: z.y, id: unit.id, r, duration: Math.max(0, z.dur - z.t), key: z.key });
             }
           }

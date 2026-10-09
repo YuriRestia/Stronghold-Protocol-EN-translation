@@ -46,7 +46,10 @@
 //   field, the stage tiles beyond it are another player's half] —, an 侵入点 or a 保护目标 it turns 90° clockwise (four
 //   turns at most per tick; boxed in on every side it waits) and forgets whom it hit; each enemy it can select within 1.3
 //   (air too) is hit once per straight run for the larger of hp_ratio × its current HP (the unit's own HP, PRTS) and
-//   projectile_min_atk_scale × her ATK at the hit, arts (RES applies — PRTS "非伤害保底或无视法术抗性"; 普通伤害). Her
+//   projectile_min_atk_scale × her ATK at the hit, arts (RES applies — PRTS "非伤害保底或无视法术抗性"; 普通伤害).
+//   The wave is a kit-managed probe, not a snapshot projectile, so it is shown with `fx('chen3Wave')` events every
+//   WAVE_FX_EVERY s (its position, the previous point and its direction — render/fx 'qi': a procedural blade trail with
+//   a crescent head, not the official particle prefab); before that the 龙剑气 had no visual at all (PR #382). Her
 //   begin clips (S1 0.2 s, S3 0.433 s) are not modelled [ASSUMED: the engine starts skills at once].
 
 import { num, talentBb, traitBb, skillRec, statBuff, toggleBuff, up } from '../shared/tier1.js';
@@ -69,6 +72,14 @@ const RETARGET_RADIUS = 1.7;
 const WAVE_SPEED = 1.5;
 const WAVE_PROBE = 0.25;
 const WAVE_HIT_RADIUS = 1.3;
+/**
+ * How often the wave's position is sent to the client as an `fx` (`chen3Wave`, carrying the previous point and its
+ * direction). The wave is a kit-managed probe (it turns corners and lives as long as the skill), so it is not in the
+ * snapshot's projectile list: without these events the client has nothing to draw and the 龙剑气 is invisible (the cast
+ * emitted one `dash` puff and each hit a `slash` spark). The rate is the renderer's: each event draws a short blade
+ * trail whose life outlasts the gap, so the events join into one continuous wave.
+ */
+const WAVE_FX_EVERY = 0.12;
 /** S1's early end: a silence of hers that ends within this of the skill's planned end ended with it. */
 const SILENCE_SLACK = 0.1;
 const AIR = Object.freeze({ canHitFly: true });
@@ -215,7 +226,8 @@ export default {
           attack: { atkScale: num(b3['attack@atk_scale'], 1), hits: 3 },   // `_additionalTimes` 2
           onStart({ battle, unit, skill }) {
             const [dr, dc] = unit.fwd;
-            unit.mem.chen3Wave = { x: unit.x, y: unit.y, dr, dc, hit: new Set(), act: skill.activations, seq: unit.deploySeq };
+            unit.mem.chen3Wave = { x: unit.x, y: unit.y, dr, dc, hit: new Set(), act: skill.activations, seq: unit.deploySeq,
+              fx: 0, fxX: unit.x, fxY: unit.y };
             battle.fx('dash', { x: unit.x, y: unit.y, id: unit.id, skill: 'chen3:wave' });
           },
           onEnd({ unit }) { unit.mem.chen3Wave = null; },
@@ -285,8 +297,17 @@ export default {
             w.dr = 0 - w.dc;    // (`0 - x`: never a negative zero)
             w.dc = dr;
             w.hit.clear();
+            w.fxX = w.x; w.fxY = w.y;   // the drawn trail starts again at the corner (no streak across the turn)
           }
           if (!waveBlocked(battle, w)) { w.x += w.dc * WAVE_SPEED * dt; w.y += w.dr * WAVE_SPEED * dt; }
+          // the 龙剑气 itself: tell the client where it is now (and where it came from) so it can be drawn — while it
+          // runs, while it is boxed in waiting, and after a turn (the direction comes along for the renderer)
+          w.fx += dt;
+          if (w.fx >= WAVE_FX_EVERY) {
+            w.fx = 0;
+            battle.fx('chen3Wave', { x: w.x, y: w.y, fromX: w.fxX, fromY: w.fxY, dr: w.dr, dc: w.dc, id: unit.id, skill: 'chen3:wave' });
+            w.fxX = w.x; w.fxY = w.y;
+          }
           for (const e of battle.foesInRadius(w.x, w.y, WAVE_HIT_RADIUS)) {
             if (w.hit.has(e) || !canTargetEnemy(unit, e, AIR)) continue;
             w.hit.add(e);

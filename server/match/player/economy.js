@@ -93,11 +93,14 @@ export class PlayerEconomy {
   }
 
   /**
-   * The 调度中心's upgrade opens the new level's extra slots at once, each with a new card drawn at the new level; the
-   * cards already shown stay where they are (chess slots keep their index, the item slot stays after them). Official: the
-   * tutorial's 休整期 page 「升级：…升级后将出现更多的商品栏位、可调度干员以及新装备」; the community report of 2026-10-06
-   * (item 19) 「升级商店获得新的商店位时用新卡补上，而不是空着」. Until 0.2.0 the extra slots waited for the next roll (a
-   * refresh or the round start). [ASSUMED] the new card follows the freeze toggle, as a manual refresh's cards do.
+   * The 调度中心's upgrade opens the new level's extra slots at once — EMPTY: no card is drawn into them (a `null` slot).
+   * The next roll (a manual refresh or the round start) fills them with the other unfrozen slots; the cards already shown
+   * stay where they are (chess slots keep their index, the item slot stays after them). Official: the footage of a 1→2
+   * upgrade (bilibili BV1AXwuzdEys 1:39, GitHub #332 / PR #333 by @2321Robin) shows the new slot appear and stay empty, and
+   * the texts only name the slots — the tutorial's 休整期 page 「升级后将出现更多的商品栏位」, PRTS 帮助 「增加刷新栏位」 —,
+   * never a card that comes with them. 0.2.0 drew a card into each new slot instead (item 19 of the community report of
+   * 2026-10-06, 「升级商店获得新的商店位时用新卡补上，而不是空着」, one uncorroborated remark; its follow-on, that the new card
+   * follows the freeze toggle, was [ASSUMED]); until then the extra slots waited for the next roll as well.
    */
   _openLevelSlots() {
     const { chess: nChess, item: nItem } = this.gd.shopSlots(this.shop.level);
@@ -106,9 +109,8 @@ export class PlayerEconomy {
     if (nChess <= layout.chess && nItem <= layout.item) return;
     const chess = old.slice(0, layout.chess);
     const items = old.slice(layout.chess);
-    const fresh = (s) => { if (s) s.frozen = this.shop.frozen; return s; };
-    while (chess.length < nChess) chess.push(fresh(this._rollChessSlot()));
-    while (items.length < nItem) items.push(fresh(this._rollItemSlot()));
+    while (chess.length < nChess) chess.push(null);
+    while (items.length < nItem) items.push(null);
     this.shop.slots = [...chess, ...items];
     this.shop.layout = { chess: chess.length, item: items.length };
   }
@@ -209,7 +211,9 @@ export class PlayerEconomy {
     if (loc.piece.kind !== 'chess') return fail(ERR.BAD_TARGET, loc.piece.kind === 'item' ? 'items cannot be sold' : 'tokens cannot be sold');
     const piece = loc.piece;
     // its equipment returns to the hand (overflow temp): refuse rather than destroy it when there is no room
-    const room = this.hand.filter((x) => x == null).length + this.temp.filter((x) => x == null).length + (loc.area === 'hand' || loc.area === 'temp' ? 1 : 0);
+    // Removing the owner's summon stacks frees one slot per stack, regardless of its summon count.
+    const freed = (x) => x == null || (x.kind === 'token' && x.ownerUid === piece.uid);
+    const room = this.hand.filter(freed).length + this.temp.filter(freed).length + (loc.area === 'hand' || loc.area === 'temp' ? 1 : 0);
     if ((piece.items || []).length > room) return fail(ERR.HAND_FULL, 'no room for the equipment');
     this._detach(loc);
     this.removeTokensOf(piece.uid);

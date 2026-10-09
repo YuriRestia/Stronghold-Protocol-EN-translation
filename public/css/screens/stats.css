@@ -1,0 +1,193 @@
+/* ==========================================================================================
+   screens/stats.css — 统计数据 (js/screens/stats.js): the local match record as a full-screen overlay in the grammar of
+   干员调配 (screens/loadout.css) — a top bar with the back button, four tabs (总览 / 策略 / 战斗累计 / 对局记录) and
+   导出 / 导入 / 清空, a note line, a scrolling body of number cards, tables, the six 评语 and the history list; a stored
+   match re-viewed as its settlement fills the overlay (.st--replay).
+   Sizes are design px ÷ 100 (theme.css root scale); text that must stay readable on phones uses max(.xxrem, N px)
+   (the root scale is clamped at 40 px there, so a bare .15rem would be 6 px). Ported from PR #323 by @2321Robin.
+   ========================================================================================== */
+
+.st {
+  position: fixed; inset: 0; z-index: 55; /* like .lo: above every screen (1) and the in-match banners (40), below the connection
+                                             banner (60), modals / confirm dialogs (80), toasts and tooltips */
+  display: flex; flex-direction: column;
+  padding: var(--sa-t, 0px) var(--sa-r, 0px) var(--sa-b, 0px) var(--sa-l, 0px);
+  background: var(--bg-0);
+  color: var(--text-hi);
+  outline: none;
+  animation: st-in 200ms var(--ease-out) backwards;
+  overscroll-behavior: contain;
+}
+@keyframes st-in { from { opacity: 0; } }
+.st__bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(70% 90% at 18% 10%, rgba(78, 216, 175, .07), transparent 60%),
+    radial-gradient(60% 70% at 100% 100%, rgba(246, 163, 41, .05), transparent 60%),
+    linear-gradient(rgba(78, 216, 175, .035) 1px, transparent 1px) 0 0 / .6rem .6rem,
+    linear-gradient(90deg, rgba(78, 216, 175, .035) 1px, transparent 1px) 0 0 / .6rem .6rem,
+    linear-gradient(180deg, #0f1312, #090b0a);
+}
+.st-top, .st-note, .st-body { position: relative; }
+/* the app screens behind the overlay do not need to animate */
+.sp-stats-open .app-root > .screen { visibility: hidden; }
+/* a stored match re-viewed as its settlement (the result screen fills the overlay) */
+.st--replay { background: var(--bg-0); }
+
+/* ---- top bar ----------------------------------------------------------------------------------------------------- */
+.st-top {
+  flex: none; display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); align-items: center; gap: .2rem;
+  height: max(1rem, 48px); padding: 0 .36rem;
+  background: linear-gradient(180deg, rgba(8, 10, 9, .95), rgba(10, 13, 12, .6));
+  border-bottom: 1px solid var(--line);
+}
+.st-top::after {
+  content: ''; position: absolute; left: .36rem; right: .36rem; bottom: -1px; height: 1px;
+  background: linear-gradient(90deg, var(--mint-700), transparent 26%, transparent 74%, var(--mint-700));
+}
+.st-top__left { justify-self: start; display: flex; align-items: center; gap: .14rem; }
+.st-top__center { display: flex; flex-direction: column; align-items: center; gap: .02rem; min-width: 0; }
+.st-top__right { justify-self: end; display: flex; align-items: center; gap: .16rem; min-width: 0; }
+.st-tabs { display: flex; align-items: stretch; gap: .04rem; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.st-tab {
+  display: inline-flex; align-items: center; padding: .02rem .16rem; font: inherit; font-size: max(.24rem, 13px); font-weight: 900;
+  letter-spacing: .12em; line-height: 1.2; color: var(--text-lo); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  touch-action: manipulation; white-space: nowrap;
+}
+.st-tab:hover { color: var(--text-hi); }
+.st-tab.is-on { color: var(--text-hi); border-bottom-color: var(--mint-500); }
+
+/* the note lines under the bar: where the data lives, what went wrong with the stored value */
+.st-note {
+  flex: none; display: flex; align-items: center; gap: .08rem; margin: 0; padding: .07rem .36rem;
+  font-size: max(.15rem, 10px); color: var(--text-lo);
+  background: linear-gradient(90deg, rgba(78, 216, 175, .08), transparent 70%);
+  border-bottom: 1px solid rgba(47, 58, 53, .6);
+}
+.st-note .icon { width: max(.16rem, 11px); height: max(.16rem, 11px); color: var(--mint-500); flex: none; }
+.st-note.is-warn { color: var(--amber); background: linear-gradient(90deg, rgba(246, 163, 41, .12), transparent 70%); }
+.st-note.is-warn .icon { color: var(--amber); }
+
+/* ---- body ------------------------------------------------------------------------------------------------------------ */
+.st-body {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+  padding: .2rem .36rem .32rem; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent;
+}
+.st-body > * { max-width: max(12.4rem, 760px); margin-left: auto; margin-right: auto; }
+.st-loading { flex: 1; display: grid; place-items: center; min-height: 2rem; }
+.st-empty { margin: .6rem auto; text-align: center; font-size: max(.2rem, 13px); color: var(--text-lo); letter-spacing: .06em; }
+
+.st-sec__h { display: flex; align-items: baseline; gap: .12rem; margin: 0 0 .1rem; font-size: max(.22rem, 14px); font-weight: 800; letter-spacing: .1em; color: var(--text-hi); }
+.st-sub { margin: .22rem 0 .08rem; font-size: max(.17rem, 12px); font-weight: 700; letter-spacing: .08em; color: var(--text-md); }
+
+/* number cards */
+.st-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(1.5rem, 96px), 1fr)); gap: .08rem; }
+.st-card {
+  display: flex; flex-direction: column; gap: .02rem; min-width: 0; padding: .08rem .12rem .07rem;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--line);
+}
+.st-card--mint { border-color: var(--mint-800); background: var(--mint-a10); }
+.st-card--gold { border-color: rgba(246, 163, 41, .45); background: rgba(246, 163, 41, .07); }
+.st-card__num { font-size: max(.3rem, 17px); font-weight: 900; line-height: 1.15; color: var(--text-hi); overflow-wrap: anywhere; }
+.st-card--mint .st-card__num { color: var(--mint-400); }
+.st-card--gold .st-card__num { color: var(--amber); }
+.st-card__label { font-size: max(.14rem, 10px); color: var(--text-md); letter-spacing: .06em; }
+.st-split { display: flex; gap: .26rem; margin: .1rem 0 .14rem; font-size: max(.15rem, 11px); color: var(--text-md); }
+.st-split b { margin-left: .06rem; font-size: max(.18rem, 12px); color: var(--text-hi); }
+
+/* tables (难度 / 策略 / 对局记录) */
+.st-tablewrap { overflow-x: auto; }
+.st-table { width: 100%; border-collapse: collapse; font-size: max(.17rem, 11px); }
+.st-table th {
+  padding: .05rem .1rem; text-align: left; font-size: max(.14rem, 10px); font-weight: 600; letter-spacing: .08em;
+  color: var(--text-lo); border-bottom: 1px solid var(--line-2); white-space: nowrap;
+}
+.st-table td { padding: .06rem .1rem; color: var(--text-md); border-bottom: 1px solid var(--line); vertical-align: middle; }
+/* the per-difficulty and per-strategy tables stay narrow enough to read across; the history takes the width */
+.st-table:not(.st-table--history) { max-width: max(9.4rem, 560px); }
+.st-table th.num, .st-table td.num { text-align: right; }
+.st-table tbody tr:hover td { background: rgba(78, 216, 175, .05); }
+.st-table td.st-diff { color: var(--d-color, var(--text-md)); font-weight: 700; white-space: nowrap; }
+.st-band { display: inline-flex; align-items: center; gap: .06rem; color: var(--text-hi); white-space: nowrap; vertical-align: middle; }
+.st-band .bandicon { flex: none; }
+.st-t { font-family: var(--font-num); font-size: max(.15rem, 10px); color: var(--text-lo); white-space: nowrap; }
+.st-rate { white-space: nowrap; }
+.st-rate b { color: var(--text-hi); font-weight: 700; }
+.st-bar { display: inline-block; width: max(.8rem, 48px); height: max(.07rem, 4px); margin-right: .1rem; vertical-align: middle; background: var(--line); }
+.st-bar i { display: block; height: 100%; background: var(--mint-500); }
+
+/* 对局记录: result colours, the 不计入统计 chip, clickable rows */
+.st-res { white-space: nowrap; }
+.t-win { color: var(--mint-400); font-weight: 800; }
+.t-lose { color: var(--red-premium); font-weight: 800; }
+.t-quit { color: var(--amber); font-weight: 800; }
+.st-chip {
+  display: inline-block; margin-left: .08rem; padding: 0 .06rem; font-style: normal; font-size: max(.12rem, 9px); letter-spacing: .04em;
+  color: var(--text-lo); border: 1px solid var(--line-2); white-space: nowrap;
+}
+.st-table tr.is-excluded td { opacity: .6; }
+.st-table tr.is-clickable { cursor: pointer; }
+.st-table tr.is-clickable:hover td, .st-table tr.is-clickable:focus-visible td { background: rgba(78, 216, 175, .1); color: var(--text-hi); }
+.st-table tr.is-clickable:focus-visible { outline: 2px solid var(--mint-400); outline-offset: -2px; }
+.st-go { width: .24rem; color: var(--text-lo); }
+.st-go .icon { width: max(.18rem, 12px); height: max(.18rem, 12px); }
+.st-table tr.is-clickable:hover .st-go { color: var(--mint-400); }
+.st-more { display: flex; justify-content: center; margin: .14rem 0 0; }
+.st-hint { margin: .1rem 0 0; font-size: max(.13rem, 10px); line-height: 1.6; color: var(--text-lo); letter-spacing: .04em; }
+
+/* the six 评语 with their counts */
+.st-titles { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(1.9rem, 120px), 1fr)); gap: .08rem; }
+.st-title { display: flex; align-items: center; gap: .08rem; min-width: 0; padding: .06rem .1rem; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.st-title.is-none { opacity: .45; }
+.st-title__icon { width: max(.38rem, 24px); height: max(.38rem, 24px); flex: none; object-fit: contain; }
+.st-title__text { display: flex; flex-direction: column; min-width: 0; }
+.st-title__text span { font-size: max(.15rem, 10px); color: var(--text-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-title__text b { font-size: max(.22rem, 14px); font-weight: 900; color: var(--amber); line-height: 1.1; }
+
+/* what counts (the rule of ui/stats.js countsTowardStats) */
+.st-rule { display: flex; flex-wrap: wrap; align-items: center; gap: .06rem; margin: .24rem 0 0; font-size: max(.14rem, 10px); line-height: 1.6; color: var(--text-lo); }
+.st-rule .icon { width: max(.16rem, 11px); height: max(.16rem, 11px); flex: none; color: var(--mint-500); }
+.st-rule b { color: var(--amber); font-weight: 700; }
+
+/* 战斗累计 */
+.st-sums { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(2.4rem, 150px), 1fr)); gap: .06rem; }
+.st-sum { display: flex; align-items: baseline; justify-content: space-between; gap: .08rem; padding: .08rem .12rem; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); }
+.st-sum span { font-size: max(.15rem, 10px); color: var(--text-md); }
+.st-sum b { font-size: max(.22rem, 14px); font-weight: 800; color: var(--text-hi); }
+
+/* the shared Button scales with the root (40 px/rem on phones ⇒ 6–7 px text, 14–20 px tall): the overlay's own controls keep a
+   readable size and a tappable height */
+.st .st-back { height: max(.5rem, 32px); padding: 0 max(.2rem, 10px) 0 max(.12rem, 6px); font-size: max(.18rem, 12px); }
+.st .st-top__right .btn, .st .st-more .btn { height: max(.36rem, 28px); padding: 0 max(.16rem, 8px); font-size: max(.15rem, 11px); }
+
+/* the entry buttons of the lobby / room top bars: on the narrowest phones (≤ 700 px) the icon alone — the room's top bar has
+   no room for another label beside 玩法说明 (its title ran under the label at 640 px); the name stays aria-label / title */
+@media (max-width: 700px) {
+  .stats-entry .btn__icon + .btn__label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+}
+
+/* ---- narrow / short viewports ------------------------------------------------------------------------------------------ */
+@media (max-width: 1200px) {
+  .st-tab { padding: .02rem .08rem; letter-spacing: .04em; }
+}
+/* phones in landscape (up to 932 px wide): 返回 shows its icon only (the text stays its name) */
+@media (max-width: 1000px) {
+  .st-top .btn__icon + .btn__label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+}
+@media (max-width: 760px) {
+  .st-top { padding: 0 .16rem; gap: .1rem; }
+  .st-top::after { left: .16rem; right: .16rem; }
+  .st-note { padding: .07rem .16rem; }
+  .st-body { padding: .12rem .16rem .2rem; }
+}
+@media (max-height: 520px) {
+  .st-note { display: none; }
+  .st-body { padding-top: .12rem; }
+  .st-split { margin: .06rem 0 .08rem; }
+}
+.sp-coarse .st-tab, .sp-coarse .st-table tr.is-clickable td { min-height: 30px; }
+@media (prefers-reduced-motion: reduce) { .st { animation: none; } }

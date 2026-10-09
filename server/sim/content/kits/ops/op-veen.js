@@ -42,6 +42,7 @@
 
 import { num, talentBb, moduleBb, traitBb, skillRec, batMod, toggleBuff } from '../shared/tier1.js';
 import { canTargetEnemy, sortEnemyTargets } from '../../../targeting.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_veen_1';
 const S2 = 'skchr_veen_2';
@@ -115,7 +116,7 @@ export default {
           if (!pool.length) pool = near;
           let next = null, bd = Infinity;
           for (const e of pool) {
-            const d = Math.hypot(e.x - cur.x, e.y - cur.y);
+            const d = hypot(e.x - cur.x, e.y - cur.y);
             if (d < bd - 1e-9 || (Math.abs(d - bd) <= 1e-9 && next && e.spawnSeq < next.spawnSeq)) { bd = d; next = e; }
           }
           if (!next) return;   // nobody within reach: the bounces left are lost

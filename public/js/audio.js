@@ -4,6 +4,7 @@
 //   bgm { lobby, prep, combat, combatAlts?: [ {intro?, loop}, … ], boss: { intro?, loop } },
 //   bossBgm { [bossId]: { intro?, loop } },
 //   voice { [charId]: { start, faceEnemy, select, place, skill1…skill4, squad, squadFirst, result*, gacha } },
+//   voiceJp { [charId]: { …the same slots } } (the Japanese dub, settings 语音语言 日本語; see voiceLine),
 //   sfx.ui { click, buy, sell, refresh, freeze, levelup, merge, equip, ready, timer, yourTurn, … },
 //   sfx.battle { deploy, tokenDeploy, charDie, tokenDie?, enemyDie, enemyHit, heal, killCoin, … },
 //   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
@@ -18,14 +19,24 @@
 //   schedule), so every client of a match hears the same one, a fight never switches track halfway through and the
 //   联防 that follows a 作战 keeps its round's track.
 // - 干员战斗语音 (`audio.voice`, user request): an operator says the official line of the moment it is in —
-//   行动出发 start, 行动开始 faceEnemy, 选中干员 select, 部署 place, 作战中1-4 skillN and the settlement's
-//   结算 result* (all battle-only; the 休整期 is silent). Voices are seconds long and a battle deploys eight
+//   行动出发 start, 行动开始 faceEnemy, 部署 place, 作战中1-4 skillN and the settlement's 结算 result* (battle-only),
+//   and 选中干员 select whenever the player taps an operator — in the prep, the shop and the hand too (the owner's
+//   request of 2026-10-08 「添加一下干员点击上去的语气一样的语音」, which lifts 2026-10-03's 「整备阶段不需要干员语音」 for
+//   this line only). Voices are seconds long and a battle deploys eight
 //   operators, then fires dozens of skills, so they run on their own channel (own gain, settings 干员语音) through
 //   VoiceGate: one line at a time, a global gap, a per-unit per-slot cooldown, and a higher-priority line taking the
-//   channel over — the official scheduling of `audio_data.json battleVoice.voiceTypeOptions`.
+//   channel over — the official scheduling of `audio_data.json battleVoice.voiceTypeOptions` (a tap's 选中 line skips
+//   the gap: VOICE_TAP_SLOTS). Two dubs: 中文 `audio.voice` (default) and 日本語 `audio.voiceJp` (settings 语音语言, not
+//   tied to the interface language; the owner's request of 2026-10-08 「全套的日配语音」) — a JP line the manifest or the
+//   host lacks falls back to the Chinese one (voiceLine). This fork adds English / 한국어 to the setting and a
+//   per-operator pick (ui/voiceLang.js → setVoicePicks: CN / JP / EN / KR or the operator's own-language dub), whose
+//   lines are the Chinese ones with the dub's folder swapped in (`audio.voiceLangs` / `audio.voiceNative`, voiceUrlFor).
 // - Battle SFX from `b.ev` tuples (`handleBattleEvents`): at most MAX_VOICES concurrent unit sounds, at most
 //   MAX_PER_URL overlapping copies of one sound (the official banks' maxSoundAllowed 2), a per-unit cooldown and a
-//   per-URL minimum gap (SfxLimiter), so a 60-unit fight stays listenable.
+//   per-URL minimum gap (SfxLimiter), so a 60-unit fight stays listenable. A `['skill', id, 1]` that arrives before its
+//   unit is known is held and played once the unit is tracked (`pendingSkill`): a unit that casts inside its own deploy
+//   tick emits that first cue before its `['spawn', unitInfo]`, and dropping it left the one cast silent while every
+//   later one played (GitHub PR #292 by @LimitlessHPPK).
 // - Impact sounds (user playtest #4 item 6): a 'dmg' plays the `hit` sound of the unit whose hostile attack ('atk' on a
 //   unit of the other side) aimed at the target — once, within IMPACT_WINDOW_MS, and only for phys / arts / true damage.
 //   A heal "attack" ('atk' of a healer on an ally, chain heals) never makes the healer the author of the next damage
@@ -76,6 +87,8 @@ const CHAIN_KINDS = new Set(['chain', 'chainHeal']);
 const IMPACT_TYPES = new Set(['phys', 'arts', 'true']);
 /** A 'dmg' later than this (real ms) after the attack aimed at the target is not that attack's impact. */
 const IMPACT_WINDOW_MS = 2500;
+/** Casts held for a unit that is not tracked yet (`pendingSkill`): a hold per unit of a field, never more than this. */
+const PENDING_SKILL_MAX = 64;
 /** Official operator sound files of a skill mode: `…_d` / `…_h` / `…_s` (+ digits) — the normal attack's end in `_n`. */
 const SKILL_MODE_FILE = /_(d|h|s)\d*\.mp3$/i;
 
@@ -248,9 +261,9 @@ export function unitSoundPlays(mix, roll) {
 /**
  * Voice priorities — the official battle voice types (`audio_data.json battleVoice.voiceTypeOptions`) mapped onto the
  * manifest's slots: BATTLE_START 100, BATTLE_FACE_ENEMY 90, SKILL_ACTIVE 70, PASSIVE_IMP 60, PASSIVE_NOR 50,
- * PLACE_CHAR 20, FOCUS_CHAR 10. The settlement lines are no battle voice of the official scheduler: they sit at 85,
- * above 作战中 (70) but below 接敌 (90), so a battle's last word is never cut off by an ordinary line. The four prep
- * slots (部署 / 编入队伍 / 任命队长 / 干员报到) keep their levels although the 休整期 is silent (see the header).
+ * PLACE_CHAR 20, FOCUS_CHAR 10 (选中干员). The settlement lines are no battle voice of the official scheduler: they sit at
+ * 85, above 作战中 (70) but below 接敌 (90), so a battle's last word is never cut off by an ordinary line. The three
+ * prep-only slots (编入队伍 / 任命队长 / 干员报到) keep their levels although nothing plays them (see the header).
  */
 export const VOICE_PRIORITY = Object.freeze({
   start: 100, faceEnemy: 90,
@@ -259,13 +272,62 @@ export const VOICE_PRIORITY = Object.freeze({
   gacha: 60, squadFirst: 45, squad: 30, place: 20, select: 10,
 });
 
-/** Per-unit per-slot cooldowns (ms): the official 10 s of the 作战中 (passive skill) lines, 3 s between 接敌 lines. */
+/**
+ * Per-unit per-slot cooldowns (ms): the official 10 s of the 作战中 (passive skill) lines, 3 s between 接敌 lines. 选中干员
+ * has none — official FOCUS_CHAR `cooldown: 0` (it was 1.5 s until 0.2.2, when a tap in the prep made it audible).
+ */
 export const VOICE_COOLDOWN_MS = Object.freeze({
   start: 0, faceEnemy: 3000,
   skill1: 10000, skill2: 10000, skill3: 10000, skill4: 10000,
   resultFour: 0, resultThree: 0, resultTwo: 0, resultLose: 0,
-  gacha: 0, squadFirst: 0, squad: 0, place: 0, select: 1500,
+  gacha: 0, squadFirst: 0, squad: 0, place: 0, select: 0,
 });
+
+/**
+ * The slot a player's tap asks for: 选中干员 (official FOCUS_CHAR — priority 10, cooldown 0, `overlapIfSamePriority:
+ * true`). The battle lines are timed by the gate's global gap; a tap is the player's own request and answers at once:
+ * on an idle channel it always plays (no gap, no cooldown), a newer tap replaces the 选中 line still on air (the same
+ * priority, overlapIfSamePriority), and it still never interrupts a higher-priority line (部署, 作战中, 开战 …). Nor does
+ * it start a gap of its own: the battle lines keep the gap of the last battle line (a tap restarting it dropped a 部署 /
+ * 技能 / 接敌, which the battle asks for once, after a 选中 line shorter than the gap had already ended — many are).
+ */
+export const VOICE_TAP_SLOTS = Object.freeze(['select']);
+
+/**
+ * The line an operator says for a slot, in the chosen dub (settings 语音语言, ui/gameLogic/settings.js VOICE_LANGS):
+ * { url, fallback }, or null for an operator no dub voices (the 预备干员 / 原型干员 stand-ins, 盟约·辅助干员, summons)
+ * or a slot it lacks. 'cn' draws from `audio.voice`; 'jp' from
+ * `audio.voiceJp`, the same slots and file names in the Japanese dub, and falls back to the Chinese line twice over: per
+ * slot when the JP tree lacks it (a file the fetch could not get is left out of the manifest), and per line at play time
+ * — `fallback` is the Chinese file of the same name, played when the host does not have the JP one (a full zip built
+ * without the JP dub, before setup downloaded it). A slot with several lines draws one (`random` ∈ [0, 1)).
+ * The per-operator picker's other dubs (ui/voiceLang.js: 'en' / 'kr', 'native', and 'jp' for an operator without a JP
+ * tree) are not listed line by line (`audio.voiceLangs` / `audio.voiceNative`): their line is the Chinese one with the
+ * dub's folder swapped in (voiceUrlFor), the Chinese line its fallback.
+ * @param {any} audio the manifest's `audio`
+ * @param {string} charId
+ * @param {string} slot
+ * @param {'cn'|'jp'|'en'|'kr'|'native'|string} [lang]
+ * @param {() => number} [random]
+ * @returns {{ url: string, fallback: string|null } | null}
+ */
+export function voiceLine(audio, charId, slot, lang = 'cn', random = Math.random) {
+  const lines = (line) => (Array.isArray(line) ? line : [line]).filter((u) => typeof u === 'string' && u);
+  const draw = (list) => (list.length ? list[Math.min(list.length - 1, Math.floor(random() * list.length))] : null);
+  const cn = lines(audio?.voice?.[charId]?.[slot]);
+  const jp = lang === 'jp' ? draw(lines(audio?.voiceJp?.[charId]?.[slot])) : null;
+  if (jp) {
+    const file = (u) => u.slice(u.lastIndexOf('/') + 1);
+    return { url: jp, fallback: cn.find((u) => file(u) === file(jp)) ?? draw(cn) };
+  }
+  const url = draw(cn);
+  if (!url) return null;
+  if (lang !== 'cn' && !(lang === 'jp' && audio?.voiceJp?.[charId]) && voiceLangsOf(audio, charId).includes(lang)) {
+    const other = voiceUrlFor(url, lang, charId, audio?.voiceNative?.[charId]);
+    if (other !== url) return { url: other, fallback: url };
+  }
+  return { url, fallback: null };
+}
 
 /**
  * The settlement slot of a finished 作战: 完美作战 ⇒ 3星结束行动 (绝境 / 终极 ⇒ 完成高难行动 instead), a leaked enemy
@@ -317,16 +379,19 @@ export const VOICE_LANGS = Object.freeze(['cn', 'jp', 'en', 'kr']);
 
 /**
  * The languages operator `charId` has on this server: the manifest's `audio.voiceLangs` (fetch-assets.mjs
- * compactVoiceExtra) plus 'native' when `audio.voiceNative` lists its own-language dub. A manifest built with
- * --no-voice-extra (or before the picker) only has the base CN dub.
+ * compactVoiceExtra), 'jp' when master's JP tree `audio.voiceJp` voices it, plus 'native' when `audio.voiceNative`
+ * lists its own-language dub. A manifest built with --no-voice-extra (or before the picker) only has the base CN dub
+ * (and JP, when `audio.voiceJp` is there).
  * @param {any} a manifest `audio`
  * @param {string} charId
  * @returns {string[]} e.g. ['cn', 'jp', 'en', 'kr', 'native']; [] when the operator has no voice at all
  */
 export function voiceLangsOf(a, charId) {
   if (!a?.voice?.[charId]) return [];
-  const list = Array.isArray(a.voiceLangs?.[charId]) ? a.voiceLangs[charId].filter((l) => VOICE_LANGS.includes(l)) : [];
-  if (!list.length) list.push('cn');
+  const listed = Array.isArray(a.voiceLangs?.[charId]) ? a.voiceLangs[charId] : [];
+  const has = new Set(listed.length ? listed : ['cn']);
+  if (a.voiceJp?.[charId] && Object.keys(a.voiceJp[charId]).length) has.add('jp');
+  const list = VOICE_LANGS.filter((l) => has.has(l));
   if (a.voiceNative?.[charId]) list.push('native');
   return list;
 }
@@ -418,7 +483,9 @@ export class SfxLimiter {
 
 /**
  * Voice gate: one line at a time, a global gap between two lines, a per-unit per-slot cooldown, and takeover by a
- * clearly more important line (the caller fades the playing one out first). Pure — the clock is passed in.
+ * clearly more important line (the caller fades the playing one out first). A tap's 选中干员 skips the gap and the
+ * cooldown on an idle channel, replaces a 选中 line on air and starts no gap itself (VOICE_TAP_SLOTS). Pure — the clock
+ * is passed in.
  */
 export class VoiceGate {
   /** @param {{ gapMs?: number, preemptMargin?: number, maxUnits?: number }} [o] */
@@ -449,10 +516,13 @@ export class VoiceGate {
    */
   request(slot, unitKey, now) {
     const pri = VOICE_PRIORITY[slot] ?? 0;
+    const tap = VOICE_TAP_SLOTS.includes(slot);
     if (this.playing) {
+      if (tap && this.playing.slot === slot) return 'preempt';   // a newer tap replaces the 选中 line on air
       if (pri < this.playing.pri + this.preemptMargin) return 'drop';
       return 'preempt';                       // a clearly more important line takes the channel
     }
+    if (tap) return 'play';                   // a tap on an idle channel always answers (FOCUS_CHAR cooldown 0, no gap)
     if (now - this.lastAt < this.gapMs) return 'drop';
     if (unitKey != null && now < (this.unitUntil.get(`${unitKey}:${slot}`) || 0)) return 'drop';
     return 'play';
@@ -461,7 +531,7 @@ export class VoiceGate {
   /** Record a line that started (call right after request() answered play / preempt). */
   start(slot, unitKey, now) {
     this.playing = { slot, pri: VOICE_PRIORITY[slot] ?? 0 };
-    this.lastAt = now;
+    if (!VOICE_TAP_SLOTS.includes(slot)) this.lastAt = now;   // the gap is between battle lines: a tap starts none
     const cd = VOICE_COOLDOWN_MS[slot] ?? 0;
     if (unitKey != null && cd > 0) {
       if (this.unitUntil.size > this.maxUnits) this.unitUntil.clear();
@@ -510,13 +580,15 @@ export class AudioManager {
     this.voiceGate = new VoiceGate();
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
-    this.voiceLang = null;    // { default, byChar } — setVoiceLang (public/js/voiceLang.js)
+    this.voiceLang = 'cn';    // settings 语音语言: 'cn' (audio.voice) | 'jp' (audio.voiceJp, falling back to audio.voice)
+    this.voicePicks = {};     // charId → its own dub (ui/voiceLang.js, the per-operator picker); setVoicePicks
     this.startVoiceDone = false; // 行动出发 of this field (the first operator deployed says it)
     this.uiVoices = 0;
     this.wantBgm = null;      // desired key (kept while locked)
     this.bgm = null;          // { key, loopUrl, nodes: [{src, gain}], gain }
     this.bgmToken = 0;
     this.units = new Map();   // battle unit id → defId
+    this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
     this.lastAttacker = new Map(); // target id → { def, at } of the hostile attack last aimed at it (its impact sound)
     this.consumed = new Set();     // summons used up by their own effect (香槟炸弹 exploded): no death sound
     this.installed = false;
@@ -648,6 +720,30 @@ export class AudioManager {
       muted: typeof v?.muted === 'boolean' ? v.muted : this.volumes.muted,
     };
     this._applyVolumes();
+  }
+
+  /**
+   * The voice dub (settings 语音语言): 'jp' plays `audio.voiceJp`, 'en' / 'kr' the picker's other dumps (voiceLine),
+   * anything else `audio.voice` (中文, the default). The line on air finishes in its own dub; the next one follows the
+   * setting. An operator's own pick (setVoicePicks) wins over it.
+   * @param {string} lang
+   */
+  setVoiceLang(lang) {
+    this.voiceLang = VOICE_LANGS.includes(lang) ? lang : 'cn';
+  }
+
+  /**
+   * The per-operator picks (ui/voiceLang.js, the squares of 干员调配 and the 自选 picker): charId → cn | jp | en | kr |
+   * native. An operator without a pick speaks the settings' dub (setVoiceLang).
+   * @param {Record<string, string> | null} picks
+   */
+  setVoicePicks(picks) {
+    this.voicePicks = picks && typeof picks === 'object' ? { ...picks } : {};
+  }
+
+  /** The dub `charId` speaks now: its own pick, else the settings' one, else EN, else JP (effectiveVoiceLang). */
+  voiceLangOf(charId) {
+    return effectiveVoiceLang(this.getManifest()?.audio, charId, { default: this.voiceLang, byChar: this.voicePicks });
   }
 
   _applyVolumes() {
@@ -877,9 +973,11 @@ export class AudioManager {
   // ---- operator battle voice ----------------------------------------------------------------------------------
 
   /**
-   * Play an operator's battle line (`audio.voice[charId][slot]`; a slot with several lines draws one at random).
-   * Only in battle: every caller is a running battle's own event stream or its settlement (user request — the 休整期
-   * is silent). The line must pass VoiceGate: one at a time, a global gap, a per-unit cooldown, higher priority wins.
+   * Play an operator's battle line (`audio.voice[charId][slot]`, or `audio.voiceJp` when the 语音语言 setting is 日本語 —
+   * voiceLine; a slot with several lines draws one at random).
+   * Every caller is a running battle's own event stream or its settlement, except 选中干员: the detail panel opening on
+   * an operator the player tapped, in every phase (ui/detailPanel.js `voice`; the owner's request of 2026-10-08). The
+   * line must pass VoiceGate: one at a time, a global gap, a per-unit cooldown, higher priority wins.
    * @param {string} charId e.g. 'char_263_skadi'
    * @param {'start'|'faceEnemy'|'select'|'place'|'skill1'|'skill2'|'skill3'|'skill4'|'squad'|'squadFirst'
    *   |'resultFour'|'resultThree'|'resultTwo'|'resultLose'|'gacha'} slot
@@ -890,34 +988,19 @@ export class AudioManager {
     try {
       if (!this.ctx || !this.voiceGain || this.volumes.muted || this.volumes.voice <= 0) return false;
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
-      const line = this.getManifest()?.audio?.voice?.[charId]?.[slot];
-      const url = Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line;
-      if (typeof url !== 'string' || !url) return false;
+      // the dub the operator speaks (its own pick, else settings 语音语言), with the Chinese file of the same name as its
+      // fallback (voiceLine)
+      const line = voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLangOf(charId) || this.voiceLang);
+      if (!line) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);
       if (verdict === 'drop') return false;
       if (verdict === 'preempt') this._stopVoice();
       this.voiceGate.start(slot, o.unitKey ?? null, now);
       const token = ++this.voiceToken;
-      this._playVoice(url, token, o.volume, this._voiceVariant(charId, url));
+      this._playVoice(line.url, token, o.volume, line.fallback);
       return true;
     } catch (err) { this._warn('voice', err); return false; }
-  }
-
-  /**
-   * The player's voice language (public/js/voiceLang.js, settings + the per-operator picker): { default, byChar }.
-   * @param {{ default?: string, byChar?: Record<string, string> } | null} pref
-   */
-  setVoiceLang(pref) {
-    this.voiceLang = pref && typeof pref === 'object' ? pref : null;
-  }
-
-  /** The URL of base line `url` in the language `charId` speaks now (null = the base line itself). */
-  _voiceVariant(charId, url, lang = null) {
-    const a = this.getManifest()?.audio;
-    const want = lang || effectiveVoiceLang(a, charId, this.voiceLang);
-    const v = voiceUrlFor(url, want, charId, a?.voiceNative?.[charId]);
-    return v && v !== url ? v : null;
   }
 
   /**
@@ -933,32 +1016,36 @@ export class AudioManager {
       const slots = this.getManifest()?.audio?.voice?.[charId];
       if (!slots || typeof slots !== 'object') return false;
       const slot = ['select', 'place', 'start'].find((s) => slots[s]) || Object.keys(slots)[0];
-      const line = slots[slot];
-      const url = Array.isArray(line) ? line[Math.floor(Math.random() * line.length)] : line;
-      if (typeof url !== 'string' || !url) return false;
+      const line = voiceLine(this.getManifest()?.audio, charId, slot, lang || this.voiceLangOf(charId) || this.voiceLang);
+      if (!line) return false;
       this._stopVoice();
       this.voiceGate.start(slot, null, typeof performance !== 'undefined' ? performance.now() : Date.now());
       const token = ++this.voiceToken;
-      this._playVoice(url, token, 1, this._voiceVariant(charId, url, lang));
+      this._playVoice(line.url, token, 1, line.fallback);
       return true;
     } catch (err) { this._warn('voice-preview', err); return false; }
   }
 
   /**
-   * Fetch/decode and start one voice line through the voice channel. `variant` is the same line in the picked
-   * language: when it is missing (404, a dub that lacks this one line) the base line `url` plays instead.
+   * Fetch/decode and start one voice line through the voice channel. `fallback`: the line to play instead when this one
+   * cannot be loaded (a JP file the host lacks → the Chinese file of the same name; voiceLine) — same token, same gate.
    */
-  _playVoice(url, token, volume, variant = null) {
+  _playVoice(url, token, volume, fallback = null) {
     // `token` is the line's own `voiceToken`. Every deferred step below — the decode, a failed fetch, `onended` and the
     // safety timer — can land AFTER this line was taken over or stopped: `voiceToken` has moved on and the channel then
     // belongs to the line that replaced it. So each step re-checks its token and, when it is stale, touches NOTHING:
     // `_stopVoice` (takeover / stop) and `setFieldUnits` released the gate themselves. An unconditional release here let
     // a stale callback free the channel the NEW line had just taken, and the next line walked in on top of it (review
     // on #73).
-    const load = variant ? this._buffer(variant).then((b) => b || this._buffer(url)) : this._buffer(url);
-    load.then((buf) => {
+    const failed = () => {
+      if (token !== this.voiceToken) return;   // taken over / stopped meanwhile: not ours to release
+      if (fallback && fallback !== url && this.ctx && this.voiceGain) this._playVoice(fallback, token, volume);
+      else this.voiceGate.release();
+    };
+    this._buffer(url).then((buf) => {
       if (token !== this.voiceToken) return;   // taken over / stopped while it decoded: not ours to release
-      if (!buf || !this.ctx || !this.voiceGain) { this.voiceGate.release(); return; }
+      if (!buf) { failed(); return; }
+      if (!this.ctx || !this.voiceGain) { this.voiceGate.release(); return; }
       try {
         const src = this.ctx.createBufferSource();
         src.buffer = buf;
@@ -986,7 +1073,7 @@ export class AudioManager {
         this._warn('voice-play', err);
         if (token === this.voiceToken) this.voiceGate.release();
       }
-    }, () => { if (token === this.voiceToken) this.voiceGate.release(); });
+    }, failed);
   }
 
   /** Fade the line on air out (a higher priority line is taking the channel over). */
@@ -1010,6 +1097,9 @@ export class AudioManager {
   /** Reset the unit map for a new field (m.field.units = UnitInfo[]). */
   setFieldUnits(units) {
     this.units.clear();
+    // unit ids belong to one battle: a cast still held for a unit of the field left must not sound for a unit of the new
+    // one that happens to share its id
+    this.pendingSkill.clear();
     this.lastAttacker.clear();
     this.consumed.clear();
     // a new field is a new battle: the first operator deployed says 行动出发 again and no cooldown carries over
@@ -1024,6 +1114,12 @@ export class AudioManager {
     // official class sounds (operator vs summon vs device)
     this.units.set(u.id, { def: u.spine || u.defId, defId: u.defId ?? null, kind: u.kind ?? null, side: u.side, boss: !!u.boss,
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null });
+    // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
+    const held = this.pendingSkill.get(u.id);
+    if (held) {
+      this.pendingSkill.delete(u.id);
+      this.handleBattleEvents([held]);
+    }
   }
 
   /** Play a resolved battle sound for a unit event, limited like unit sounds. */
@@ -1068,6 +1164,13 @@ export class AudioManager {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;
               this.voice(u.def, `skill${n}`, { unitKey: e[1] });
             }
+          } else {
+            // The unit is not tracked yet. The sim emits the cast of a deployment that fires inside its own first tick
+            // (`initSp` already at `spCost`, 宴's deploy-timed skill) BEFORE the unit's `['spawn', unitInfo]` — the same
+            // batch or the next one — so the cue waits here and `_track` plays it when the spawn arrives. Only a skill
+            // turning ON is a cast; a hold for a unit that never appears goes with the field (`setFieldUnits`).
+            if (this.pendingSkill.size >= PENDING_SKILL_MAX) this.pendingSkill.delete(this.pendingSkill.keys().next().value);
+            this.pendingSkill.set(e[1], e);
           }
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
@@ -1137,13 +1240,13 @@ export const audio = new AudioManager({ getManifest: () => manifestGetter() });
 /**
  * Wire the singleton to the app (called once by main.js): manifest source, settings and store-driven BGM.
  * @param {{ getManifest: () => any, subscribe: (fn: (s:any, prev:any) => void) => () => void, getState: () => any,
- *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean } }} deps
+ *   selectRoute: (s:any) => string, settings?: { bgm:number, sfx:number, voice:number, muted:boolean, voiceLang?:string } }} deps
  */
 export function installAudio(deps) {
   try {
     manifestGetter = typeof deps?.getManifest === 'function' ? deps.getManifest : manifestGetter;
     audio.install();
-    if (deps?.settings) audio.setVolumes(deps.settings);
+    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang); }
     if (typeof deps?.subscribe === 'function' && typeof deps?.getState === 'function') {
       const sync = (s) => {
         try {

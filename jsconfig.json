@@ -18,6 +18,7 @@
   "include": [
     "shared/**/*.js",
     "server/sim/rng.js",
+    "server/sim/detmath.js",
     "server/sim/dir.js",
     "server/sim/constants.js",
     "types/**/*.js"

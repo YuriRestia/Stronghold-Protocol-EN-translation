@@ -6,6 +6,7 @@
 import { ELEMENT } from '../../constants.js';
 import { canTargetAlly, sortAllyTargets, areaSelectable, auraSelectable } from '../../targeting.js';
 import { mitigate } from '../../damage.js';
+import { hypot } from '../../detmath.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
@@ -131,7 +132,15 @@ export function T(ab, ...keys) { for (const k of keys) { const v = ab.t[k]; if (
 
 export function silenced(e) { return !!e.s.flags.silence; }
 
-export function canCast(e, sil) { return e.alive && !e.hidden && !e.s.flags.stun && !(sil && e.s.flags.silence); }
+/**
+ * Is enemy `e` in its 失衡 (UNBALANCE) state now (battle/displacement.js _unbalance; the 1e-9 keeps a float-summed
+ * end — 35/30 s — on its frame)? PRTS 异常效果图鉴/失衡免疫: 「失衡期间无法自主移动、发动攻击、使用技能」 — content skills
+ * (canCast), blinks and scripted moves wait for its end.
+ */
+export function unbalancedNow(b, e) { return !!(b && e && b.time < e.unbalanceUntil - 1e-9); }
+
+/** Can enemy `e` use a skill now: alive, on the field, not stunned, not silenced (`sil`), not in its 失衡 state (`b` given). */
+export function canCast(e, sil, b = null) { return e.alive && !e.hidden && !e.s.flags.stun && !(sil && e.s.flags.silence) && !unbalancedNow(b, e); }
 
 // ---------------------------------------------------------------------------------------------------------------
 // helpers (exported for bosses.js)
@@ -295,7 +304,7 @@ export function spawnChildren(b, parent, key, n, opts = {}) {
 /** Move a unit straight toward (tx, ty) by `dist` tiles. Returns true on arrival. */
 export function stepToward(u, tx, ty, dist) {
   const dx = tx - u.x, dy = ty - u.y;
-  const d = Math.hypot(dx, dy);
+  const d = hypot(dx, dy);
   if (d <= dist + 1e-9) { u.x = tx; u.y = ty; return true; }
   u.x += (dx / d) * dist;
   u.y += (dy / d) * dist;

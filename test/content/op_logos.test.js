@@ -248,9 +248,10 @@ test('S3 延异视阈: enemy shots on his range fly at 5 % of their speed (back 
     for (const g of h.enemies()) h.b.applyStatus(g, 'stun', { duration: 99, source: null });   // no new shot
     const held = h.b.projectiles.list.filter((p) => p.source && p.source.side === 'enemy').length;
     assert.ok(held >= 1, `${held} shots in the air as it ends`);
-    const taken = u.stats.taken;
     h.runUntil(() => !u.skill.active, 2);
     h.step();
+    // (until the end a held shot still reaches him at its 5 % speed — one a second from the gun 2 tiles away)
+    const taken = u.stats.taken;
     const left = h.b.projectiles.list.filter((p) => p.source && p.source.side === 'enemy');
     if (!disarm) {
       assert.equal(left.length, 0, 'cleared');

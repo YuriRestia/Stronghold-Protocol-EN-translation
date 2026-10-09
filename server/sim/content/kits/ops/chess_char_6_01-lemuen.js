@@ -58,7 +58,11 @@ function lemuen(bb, chess, def) {
   const d2 = num(bb['attack@dist_2'], num(bb['attack@projectile_range'], 1.5));
   const s1 = num(bb['attack@proj_atk_scale_1'], 1), s2 = num(bb['attack@proj_atk_scale_2'], 1);
   const pickLock = (battle, unit, locks) => {
-    const cands = battle.enemiesInKeys(unit.rangeKeys, unit, unit.profile);
+    let cands = battle.enemiesInKeys(unit.rangeKeys, unit, unit.profile);
+    // 白铁's 铁钳号·原型机 (a registered ally target, an enemy-camp summon) is locked like an enemy when no enemy is in her
+    // range — the owner's rule of 2026-10-08 (it draws aggro like an enemy): her bullets are spent on it, the shells' hits
+    // are cancelled by it [ASSUMED: after every enemy, its 嘲讽等级 −2]
+    if (!cands.length) cands = battle.allyTargetsInKeys(unit.rangeKeys, unit);
     if (!cands.length) return null;
     sortEnemyTargets(battle, unit, cands, 'lowDef');
     const cnt = (e) => locks.reduce((n, L) => n + (L.e === e ? 1 : 0), 0);
@@ -84,6 +88,10 @@ function lemuen(bb, chess, def) {
       if (e.s.flags.untargetable) continue;
       const d = bodyDist(e, x, y);
       battle.dealDamage(unit, e, { amount: atk * (d <= d1 + 1e-9 ? s1 : s2), type: 'phys', isSkill: true, isSplash: true, tags: ['skill', 'bombard'] });
+    }
+    // (the 铁钳号 too, like an enemy — its kit cancels the hit)
+    for (const a of battle.allyTargetsInRadius(x, y, d2, unit)) {
+      battle.dealDamage(unit, a, { amount: atk * s2, type: 'phys', isSkill: true, isSplash: true, tags: ['skill', 'bombard'] });
     }
   };
   const bombard = (battle, unit, locks) => {
@@ -164,6 +172,7 @@ function lemuen(bb, chess, def) {
       kind: 'ammo',
       ammo: Math.max(1, Math.floor(num(bb['attack@trigger_time'], 5))),
       attack: { noAttack: true },
+      allyTargets: true,   // its locks take 白铁's 铁钳号 too (pickLock) — skills.js allyTargetsOk
       onStart({ unit }) { unit.mem.lemLocks = []; unit.mem.lemAcc = aim; },
       onTick({ battle, unit, skill, dt }) {
         const m = unit.mem;

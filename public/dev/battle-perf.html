@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Battle perf · 卫戍协议：盟约</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230c0f0e'/%3E%3Cpath fill='%234ed8af' d='M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/fonts/fonts.css" />
+  <link rel="stylesheet" href="/css/theme.css" />
+  <script type="importmap">
+    { "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }
+  </script>
+  <!-- PixiJS 7 + pixi-spine as classic scripts (global PIXI / PIXI.spine), like the game page -->
+  <script src="/vendor/pixi.min.js"></script>
+  <script src="/vendor/pixi-spine.js"></script>
+  <style>
+    /* Battle perf panel: the game's own tokens (css/theme.css — green-grey glass, mint, Bender figures, bracket corners)
+       in px, not the game's viewport-scaled rem. The one loud element is the frame-time strip. */
+    html, body { margin: 0; height: 100%; background: var(--bg-0); overflow: hidden; }
+    #field { position: fixed; inset: 0; }
+    .bp { position: fixed; top: 10px; right: 10px; z-index: 5; width: 320px; max-width: calc(100vw - 20px); max-height: calc(100vh - 20px);
+      overflow: auto; background: var(--bg-glass); border: 1px solid var(--line); color: var(--text-md);
+      font: 13px/1.45 var(--font-cjk); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); --bk-l: 10px; }
+    .bp.is-hidden, .bp [hidden] { display: none; }
+    .bp-body { display: grid; gap: 10px; padding: 10px 12px 12px; }
+    .bp-head { display: flex; align-items: center; gap: 8px; }
+    .bp-head h1 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-hi); flex: 1; }
+    .bp button, .bp select { font: 13px/1.2 var(--font-cjk); color: var(--text-hi); background: var(--bg-2); border: 1px solid var(--line-2);
+      padding: 5px 8px; cursor: pointer; min-height: 30px; }
+    .bp button:hover, .bp select:hover { border-color: var(--line-3); }
+    .bp button:focus-visible, .bp select:focus-visible, .bp summary:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 1px; }
+    .bp button:disabled { opacity: .5; cursor: default; }
+    .bp-ctl { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+    .bp-ctl select { min-width: 0; }
+    .bp-ctl #spec { grid-column: 1 / -1; }
+
+    .bp-live { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: end; }
+    .bp-fps { font: 600 44px/0.95 var(--font-num); color: var(--text-hi); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .bp-fps small { font: 400 13px var(--font-cjk); color: var(--text-lo); margin-left: 4px; }
+    .bp-figs { display: grid; grid-template-columns: auto auto; gap: 1px 10px; justify-content: end; font-size: 12px; color: var(--text-lo); }
+    /* decimals: Bender's point is nearly invisible at small sizes (4.2 reads as 42), so small figures use the CJK face */
+    .bp-figs b { font: 600 13px var(--font-cjk); color: var(--text-hi); text-align: right; font-variant-numeric: tabular-nums; }
+    .bp-meta { grid-column: 1 / -1; font-size: 12px; color: var(--text-lo); }
+
+    .bp-strip { position: relative; height: 70px; background: var(--bg-0); border: 1px solid var(--line); }
+    .bp-strip canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .bp-freeze { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 0 12px;
+      font-size: 12px; color: var(--text-md); background: rgba(12, 15, 14, .72); }
+    .bp-key { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 11.5px; color: var(--text-lo); }
+    .bp-key i { display: inline-block; width: 8px; height: 8px; margin-right: 4px; }
+
+    .bp .bp-measure { position: relative; overflow: hidden; width: 100%; min-height: 36px; font-weight: 700;
+      color: var(--text-on-mint); background: var(--mint-500); border-color: var(--mint-500); }
+    .bp .bp-measure:hover { background: var(--mint-400); border-color: var(--mint-400); }
+    .bp-fill { position: absolute; inset: 0; background: var(--mint-800); transform-origin: left; transform: scaleX(0); }
+    .bp .bp-measure.is-running { color: var(--text-hi); background: var(--mint-900); border-color: var(--mint-700); cursor: default; opacity: 1; }
+    .bp-measure.is-running .bp-fill { animation: bp-fill 10s linear forwards; }
+    .bp-measure span { position: relative; }
+    @keyframes bp-fill { to { transform: scaleX(1); } }
+
+    .bp-result { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+    .bp-verdict { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; color: var(--text-hi); font-weight: 700; }
+    .bp-verdict::before { content: ''; width: 10px; height: 10px; flex: none; align-self: center; background: var(--v, var(--mint-500)); }
+    .bp-verdict small { font-weight: 400; color: var(--text-lo); font-size: 12px; }
+    .bp-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .bp-sum div { display: grid; background: var(--bg-1); border: 1px solid var(--line); padding: 5px 7px; min-width: 0; }
+    .bp-sum span { font-size: 11.5px; color: var(--text-lo); }
+    .bp-sum b { font: 700 16px/1.3 var(--font-cjk); color: var(--text-hi); font-variant-numeric: tabular-nums; }
+    .bp-result details { font-size: 12px; }
+    .bp-result summary { cursor: pointer; color: var(--text-md); }
+    .bp-report { margin: 6px 0 0; font: 12px/1.6 var(--font-cjk); color: var(--text-hi); white-space: pre-wrap; word-break: break-word;
+      background: var(--bg-0); border: 1px solid var(--line); padding: 6px 8px; max-height: 30vh; overflow: auto; user-select: text; }
+
+    /* collapsed: a chip with the live figures and a mini strip */
+    .bp .bp-chip { display: none; align-items: center; gap: 8px; width: 100%; padding: 4px 8px 4px 10px; background: none; border: 0; }
+    .bp-chip b { font: 600 20px/1 var(--font-num); color: var(--text-hi); font-variant-numeric: tabular-nums; }
+    .bp-chip span { font-size: 12px; color: var(--text-lo); white-space: nowrap; }
+    .bp-chip canvas { width: 72px; height: 22px; display: block; margin-left: 4px; }
+    .bp.is-collapsed { width: auto; }
+    .bp.is-collapsed .bp-body { display: none; }
+    .bp.is-collapsed .bp-chip { display: flex; }
+    @media (prefers-reduced-motion: reduce) { .bp-measure.is-running .bp-fill { animation: none; transform: scaleX(1); } }
+  </style>
+</head>
+<body>
+  <div id="field"></div>
+  <section class="bp brackets" id="panel" aria-label="战斗性能测试">
+    <button class="bp-chip" id="expand" type="button" aria-expanded="false" aria-controls="bp-body" title="展开面板">
+      <b id="chip-fps">–</b><span id="chip-ms">FPS</span><canvas id="chip-strip" aria-hidden="true"></canvas>
+    </button>
+    <div class="bp-body" id="bp-body">
+      <div class="bp-head"><h1>战斗性能测试</h1><button id="collapse" type="button" aria-expanded="true" aria-controls="bp-body">收起</button></div>
+      <div class="bp-ctl">
+        <select id="spec" aria-label="战斗场景"></select>
+        <select id="quality" aria-label="画质"><option value="high">高画质</option><option value="medium">中画质</option><option value="low">低画质</option></select>
+        <button id="restart" type="button">重新开始</button>
+      </div>
+      <div class="bp-live">
+        <div class="bp-fps"><span id="fps">–</span><small>FPS</small></div>
+        <div class="bp-figs">
+          <span>帧耗时</span><b id="f-frame">–</b>
+          <span>渲染 CPU</span><b id="f-view">–</b>
+          <span>模拟单步</span><b id="f-sim">–</b>
+        </div>
+        <div class="bp-meta" id="meta">正在加载战斗…</div>
+      </div>
+      <div class="bp-strip" title="近 10 秒逐帧耗时">
+        <canvas id="strip" role="img" aria-label="近 10 秒逐帧耗时"></canvas>
+        <div class="bp-freeze" id="freeze" hidden>测量进行中，图表暂停刷新以避免干扰结果</div>
+      </div>
+      <div class="bp-key"><span><i style="background:var(--mint-500)"></i>≤ 16.7 ms（≥ 60 FPS）</span><span><i style="background:var(--amber)"></i>16.7–33.3 ms</span><span><i style="background:var(--red)"></i>&gt; 33.3 ms（卡顿帧）</span></div>
+      <button class="bp-measure" id="measure" type="button" disabled><i class="bp-fill" aria-hidden="true"></i><span id="measure-label">开始测量（10 秒）</span></button>
+      <div class="bp-result" id="result" hidden aria-live="polite">
+        <div class="bp-verdict" id="verdict"></div>
+        <div class="bp-sum">
+          <div><span>平均帧率</span><b id="r-fps">–</b></div>
+          <div><span>P95 帧耗时</span><b id="r-p95">–</b></div>
+          <div><span>卡顿帧占比</span><b id="r-over">–</b></div>
+        </div>
+        <details><summary>完整报告（提交反馈时请附上）</summary><pre class="bp-report" id="out"></pre></details>
+        <button id="copy" type="button">复制报告</button>
+      </div>
+    </div>
+  </section>
+  <script type="module" src="/dev/battle-perf.js"></script>
+</body>
+</html>

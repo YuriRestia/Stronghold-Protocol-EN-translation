@@ -741,6 +741,16 @@ const plain = (pred = () => true) => Object.values(DATA.chess)
   .filter((c) => c.visible && !c.isGolden && (c.garrisonIds || []).every((g) => DATA.garrisons[g].eventType === 'IN_BATTLE') && pred(c))
   .map((c) => c.chessId).sort();
 /** Record the chess granted by item effects (acquireChess with an `item:` source). */
+/** The warn toasts sent to the match's players from now on: [{ msgid, who, name }] (server msg() objects). */
+function spyWarns(m) {
+  const got = [];
+  const orig = m.toast.bind(m);
+  m.toast = (ps, kind, text) => {
+    if (kind === 'warn') got.push({ msgid: text?.msgid ?? text, who: text?.params?.who?.dn ?? null, name: text?.params?.name?.dn ?? null });
+    return orig(ps, kind, text);
+  };
+  return got;
+}
 function spyGrants(ps) {
   const got = [];
   const orig = ps.acquireChess.bind(ps);
@@ -958,11 +968,14 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
     assert.equal(m.pool.left(cid), 0, 'elite 3 + 2 normal = the pool cap 5');
     const before = chessIn(ps);
     const got = spyGrants(ps);
+    const warns = spyWarns(m);
     const it = giveItem(m, ps, item);
     assert.deepEqual(equip(it, t), OK, item);
     assert.deepEqual(got, [], `${item}: nothing granted`);
     assert.deepEqual(chessIn(ps), before, `${item}: no other operator, no second elite`);
     assert.ok(!ps.find(it.uid), `${item}: consumed`);
+    // …and says why (GitHub #401, the owner's OK of 2026-10-09)
+    assert.deepEqual(warns, [{ msgid: '{who}：卡池中已没有{name}', who: '拟态物质', name: '溯光星源' }], `${item}: the toast`);
   }
   // 2 normal copies, no elite, the pool drained by other players: nothing either
   {
@@ -971,9 +984,11 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
     give(m, ps, cid, 'hand');
     m.pool.take(cid, m.pool.left(cid));
     const got = spyGrants(ps);
+    const warns = spyWarns(m);
     assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
     assert.deepEqual(got, []);
     assert.deepEqual(chessIn(ps), [cid, cid]);
+    assert.deepEqual(warns.map((w) => w.msgid), ['{who}：卡池中已没有{name}']);
   }
   // 2 normal copies with copies left: the 3rd merges into the elite
   {
@@ -981,10 +996,25 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
     const t = give(m, ps, cid, 'hand');
     give(m, ps, cid, 'hand');
     assert.equal(m.pool.left(cid), 3);
+    const warns = spyWarns(m);
     assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
     assert.deepEqual(chessIn(ps), [elite]);
+    assert.deepEqual(warns, [], 'a grant: no warn toast');
     assert.equal(m.pool.left(cid), 2, 'the elite holds 3 copies');
   }
+});
+
+test('拟态物质 with fewer than 2 copies and no same-bond operator left gives nothing and says so (GitHub #401)', () => {
+  // 缪尔赛思's only bond is 调和 and she is its only member: one copy owned, the rest of her pool taken by others
+  const cid = 'chess_char_6_11_a';
+  const { m, ps, equip } = setup({ seed: 9 });
+  const t = give(m, ps, cid, 'hand');
+  m.pool.take(cid, m.pool.left(cid));
+  const got = spyGrants(ps);
+  const warns = spyWarns(m);
+  assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
+  assert.deepEqual(got, [], 'nothing granted');
+  assert.deepEqual(warns, [{ msgid: '{who}：没有可获得的同盟约干员', who: '拟态物质', name: null }]);
 });
 
 test('博士投影: golden promotes at once; normal stays equipped and promotes at the next round start', () => {
@@ -1121,10 +1151,11 @@ test('画卷 (Art): copies the operator on the tile / in front with its elite st
   const copy = ps.hand.find((p) => p && p.kind === 'chess');
   assert.equal(copy && copy.id, DATA.chess[cid].goldenId, 'elite copy in the hand');
   // the copied 激光发射器 pairs with the original's (items merge "无论是否被装备") ⇒ the golden goes to the hand;
-  // 变形同构体 never merges ⇒ the copy wears it too
-  assert.deepEqual(copy.items.map((x) => x.id), [A('6_09')]);
+  // 变形同构体 never merges ⇒ its copy waits in the hand too, unequipped (PRTS 画卷 备注 "获得的装备为未装备状态";
+  // until 0.2.2 the copy wore it)
+  assert.deepEqual(copy.items.map((x) => x.id), [], 'the copy wears nothing');
   assert.deepEqual(ps.find(target.uid).piece.items.map((x) => x.id), [A('6_09')]);
-  assert.deepEqual(handIds(ps, 'item'), [B('3_03')], 'merged golden in the hand (regression: was equipped on the copy)');
+  assert.deepEqual(handIds(ps, 'item').slice().sort(), [B('3_03'), A('6_09')].sort(), 'the merged golden and the copied 变形同构体 in the hand');
   const art2 = giveItem(m, ps, 'chess_item_6_02_m');
   assert.equal(m.handle('p_0', { t: 'g.art', itemUid: art2.uid, row: 11, col: 7 }).error, 'BAD_TARGET', 'no operator in range');
   cover('chess_item_6_02_m');
@@ -1139,7 +1170,23 @@ test('教鞭 (Art): a 战术特训 bounty (PRTS "于3个战术特训的悬赏任
     const { m, ps } = setup({ seed: 60 + s });
     for (let k = 0; k < 2; k++) {
       const art = giveItem(m, ps, 'chess_item_6_03_m');
+      const deadline = m.deadline;
       assert.deepEqual(m.handle('p_0', { t: 'g.art', itemUid: art.uid, row: 10, col: 5 }), OK);
+      const pending = ps.personalChoice;
+      assert.equal(ps.bounties.length, k, 'offering cards does not add a bounty');
+      assert.equal(pending.cards.length, 3);
+      assert.equal(new Set(pending.cards.map((c) => c.effectId)).size, 3);
+      assert.equal(pending.round, m.round);
+      assert.equal(pending.sourceItemId, art.id);
+      assert.equal(m.deadline, deadline, 'uses the existing PREP clock');
+      assert.equal(ps.find(art.uid), null);
+      assert.equal(ps.round.arts, k + 1, 'consumed when offered');
+      for (const c of pending.cards) assert.ok(training.has(c.effectId) && !m.gd.inactiveEnemies.has(c.enemyKey));
+      assert.deepEqual(m.handle('p_0', { t: 'g.choice', idx: 1, choiceId: pending.id }), OK);
+      assert.equal(ps.personalChoice, null);
+      assert.equal(ps.bounties[k].card.effectId, pending.cards[1].effectId, 'the submitted card is applied');
+      assert.equal(ps.round.arts, k + 1, 'picking does not consume another Art');
+      assert.equal(m.handle('p_0', { t: 'g.choice', idx: 1, choiceId: pending.id }).error, 'BAD_TARGET');
     }
     assert.equal(ps.bounties.length, 2);
     for (const b of ps.bounties) {
@@ -1150,7 +1197,7 @@ test('教鞭 (Art): a 战术特训 bounty (PRTS "于3个战术特训的悬赏任
       seen.add(b.card.effectId);
     }
   }
-  assert.ok(seen.size >= 5, 'random pick');
+  assert.ok(seen.size >= 5, 'different offered cards across seeds');
   const { h, m } = setup({ mode: 'coop', humans: 2, seed: 7 });
   const p0 = h.ps('p_0'), p1 = h.ps('p_1');
   const art = giveItem(m, p0, 'chess_item_6_01_m');
@@ -1161,7 +1208,58 @@ test('教鞭 (Art): a 战术特训 bounty (PRTS "于3个战术特训的悬赏任
   const passed = p1.hand.find((p) => p && p.id === 'chess_item_6_01_m');
   assert.deepEqual(m.handle('p_1', { t: 'g.art', itemUid: passed.uid, row: 10, col: 5 }), OK);
   assert.match(p1.bounties[0].card.effectId, /^enemyeffect_b_/);
+  assert.equal(p1.personalChoice, null, '神秘顾客 still applies its random bounty immediately');
   cover('chess_item_6_03_m', 'chess_item_6_01_m');
+});
+
+test('教鞭: pending and empty-pool failures keep the Art, Arts count and RNG; short offers use actual cards', () => {
+  const { m, ps } = setup();
+  const first = giveItem(m, ps, 'chess_item_6_03_m');
+  const second = giveItem(m, ps, 'chess_item_6_03_m', 'temp');
+  assert.deepEqual(ps.useArt(first.uid, 10, 5), OK);
+  const pending = ps.personalChoice;
+  const rng = m.rngMeta.state(), uid = m.uidSeq;
+  assert.deepEqual(ps.useArt(second.uid, 10, 5), { error: 'BAD_TARGET', detail: '请先完成当前教鞭选择' });
+  assert.equal(ps.personalChoice, pending);
+  assert.ok(ps.find(second.uid));
+  assert.equal(ps.round.arts, 1);
+  assert.equal(m.rngMeta.state(), rng);
+  assert.equal(m.uidSeq, uid);
+  assert.equal(m.pickPersonalChoice(ps, -1, pending.id).error, 'BAD_TARGET');
+  assert.equal(m.pickPersonalChoice(ps, 0.5, pending.id).error, 'BAD_TARGET');
+  assert.equal(m.pickPersonalChoice(ps, 3, pending.id).error, 'BAD_TARGET');
+  assert.equal(ps.personalChoice, pending);
+  assert.deepEqual(m.pickPersonalChoice(ps, 0, pending.id), OK);
+  const training = DATA.choices.cards.bounty.filter((c) => c.payout === 'perfect');
+  m.gd.inactiveEnemies = new Set(training.map((c) => c.enemyKey));
+  assert.deepEqual(ps.useArt(second.uid, 10, 5), { error: 'BAD_TARGET', detail: '当前没有可用的战术特训' });
+  assert.ok(ps.find(second.uid));
+  assert.equal(ps.round.arts, 1);
+  assert.equal(ps.personalChoice, null);
+  assert.equal(m.rngMeta.state(), rng);
+  const allowed = training.find((c) => c.multiRound && m.gd.enemy(c.enemyKey));
+  m.gd.inactiveEnemies.delete(allowed.enemyKey);
+  assert.deepEqual(ps.useArt(second.uid, 10, 5), OK);
+  assert.ok(ps.personalChoice.cards.length > 0 && ps.personalChoice.cards.length < 3);
+  assert.equal(new Set(ps.personalChoice.cards.map((c) => c.effectId)).size, ps.personalChoice.cards.length);
+  assert.equal(ps.find(second.uid), null, 'Arts in temp are consumed too');
+  const view = ps.privateView().personalChoice;
+  assert.ok(view.cards.every((c) => c.kind === 'bounty' && c.rounds === 2));
+  assert.ok(view.cards.every((c) => !/每场/.test(c.descRaw || c.desc)), 'multi-round candidates use the same two-battle text as applied bounties');
+  m.dispose();
+});
+
+test('教鞭: an open choice goes with a player who is eliminated, and nothing of it is left in its views', () => {
+  const { h, m } = setup({ mode: 'coop', humans: 2, seed: 8 });
+  const a = h.ps('p_0');
+  const art = giveItem(m, a, 'chess_item_6_03_m');
+  assert.deepEqual(a.useArt(art.uid, 10, 5), { ok: true });
+  assert.equal(a.privateView().personalChoice.cards.length, 3);
+  a.eliminate(m.round);
+  assert.equal(a.personalChoice, null);
+  assert.equal(a.privateView().personalChoice, null);
+  assert.equal(a.privateView().canReady, false);
+  m.dispose();
 });
 
 test('merging: two identical normal items become the golden one (upgradeNum 2); upgradeNum-100 items never merge', () => {

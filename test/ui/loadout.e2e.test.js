@@ -101,7 +101,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     // search → one card
     await page.type('.lo-search input', '隐现');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-    await page.click('.lo-card');
+    await page.click('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-skill[data-skill="0"]', { visible: true });
     await page.click('.lo-detail .lo-skill[data-skill="0"]');
     await page.click('.lo-detail .lo-mod[data-module="none"]');
@@ -134,6 +134,64 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await ctx.close();
   });
 
+  test('import: Tab stays in the dialog and Enter cannot edit a background module', async () => {
+    const { ctx, page, problems } = await open();
+    try {
+      await clickSel(page, '.lobby-screen [data-testid="loadout-open"]');
+      await page.waitForSelector('.lo-mod.is-on');
+      const module = () => page.$eval('.lo-mod.is-on', (el) => el.dataset.module);
+      const original = await module();
+      const saved = () => page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.loadout') || '{}').entries || {});
+      const openImport = async () => {
+        await clickSel(page, '[data-testid="loadout-import"]');
+        await page.waitForSelector('.modal textarea');
+        await page.waitForFunction(() => !document.querySelector('.modal__box').getAnimations().some((a) => a.playState === 'running'));
+      };
+      const focused = () => page.evaluate(() => document.activeElement.getAttribute('data-testid'));
+      await openImport();
+      await page.click('.modal textarea');
+      await page.keyboard.down('Shift');
+      await page.keyboard.press('Tab');
+      await page.keyboard.up('Shift');
+      assert.equal(await focused(), 'loadout-io-pick', 'Shift+Tab wraps past the disabled import and hidden file input');
+      const chooser = page.waitForFileChooser();
+      await page.keyboard.press('Enter');
+      await (await chooser).cancel();
+      assert.ok(await page.$('.modal'), 'Enter acts on the file picker inside the dialog');
+      assert.equal(await module(), original, 'the background module cannot be activated');
+      assert.deepEqual(await saved(), {});
+      await page.keyboard.press('Tab');
+      assert.equal(await focused(), 'loadout-io-text', 'Tab wraps back to the textarea');
+      await page.keyboard.press('Tab');
+      assert.equal(await page.evaluate(() => document.activeElement.textContent.trim()), '取消');
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('.modal', { hidden: true });
+      assert.equal(await focused(), 'loadout-import', 'cancel restores the opener');
+      assert.equal(await module(), original);
+      assert.deepEqual(await saved(), {});
+
+      await openImport();
+      await page.keyboard.press('Escape');
+      await page.waitForSelector('.modal', { hidden: true });
+      assert.ok(await page.$('.lo'), 'Esc closes only the import');
+      assert.equal(await focused(), 'loadout-import');
+
+      await openImport();
+      await page.click('.modal textarea');
+      await page.keyboard.type(JSON.stringify({ v: 1, kind: 'stronghold.loadout', entries: { [INSIDE]: { skill: 0 } } }));
+      await page.keyboard.down('Shift');
+      await page.keyboard.press('Tab');
+      await page.keyboard.up('Shift');
+      assert.equal(await focused(), 'loadout-io-apply', 'the enabled import becomes the last stop');
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('.modal', { hidden: true });
+      assert.deepEqual(await saved(), { [INSIDE]: { skill: 0 } }, 'keyboard confirmation still imports');
+      assert.equal(await focused(), 'loadout-import');
+      // Optional art / fonts / audio can be absent; this keyboard regression needs no asset pack.
+      assert.deepEqual(problems.filter((p) => p.startsWith('pageerror:')), []);
+    } finally { await ctx.close(); }
+  });
+
   test('desktop: 导出 hands out a versioned payload; 导入 restores it and refuses junk', async () => {
     const { ctx, page, problems } = await open();
     await clickSel(page, '.lobby-screen [data-testid="loadout-open"]');
@@ -141,7 +199,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     // one edit, so there is something to export
     await page.type('.lo-search input', '隐现');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-    await page.click('.lo-card');
+    await page.click('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-skill[data-skill="0"]', { visible: true });
     await page.click('.lo-detail .lo-skill[data-skill="0"]');
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.loadout')));
@@ -210,7 +268,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     await page.type('.lo-search input', '隐现');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-    await page.click('.lo-card');
+    await page.click('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-skill[data-skill="0"]', { visible: true });
     // choose S1, close and confirm at once — well inside the sync's debounce
     await page.click('.lo-detail .lo-skill[data-skill="0"]');
@@ -273,7 +331,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.setViewport({ width: 1920, height: 1080 });
     await page.type('.lo-search input', '隐现');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-    await page.click('.lo-card');
+    await page.click('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-skill[data-skill="0"]', { visible: true });
     // edit, and the briefing ends before the debounced send (every human ready: the requests stand in for the timer)
     await page.click('.lo-detail .lo-skill[data-skill="0"]');
@@ -297,7 +355,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     await page.type('.lo-search input', '烛煌');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-    await page.click('.lo-card');
+    await page.click('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-mod[data-module="none"]', { visible: true });
     // wait for every module tile to settle (image loaded or lettered fallback)
     await page.waitForFunction(() => [...document.querySelectorAll('.lo-mod:not(.lo-mod--none) .lo-mglyph')]
@@ -320,36 +378,50 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await ctx.close();
   });
 
-  test('phone 844×390 (touch): roster + detail side by side, tier / class filters, tap to choose', async () => {
+  test('phone 844×390 (touch): one list with the quick choices (0.2.2), the detail slides over it, tier / class filters, tap to choose', async () => {
     const { ctx, page, problems } = await open({ w: 844, h: 390, touch: true });
     await page.tap('.lobby-screen [data-testid="loadout-open"]');
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     await assertBgLayer(page);
     await page.screenshot({ path: path.join(OUT, 'loadout-phone.png') });
     // review fix: the shared Button / TextField shrink to 6–7 px text on phones — the overlay's own controls stay readable
-    // and tappable (返回, 全部恢复默认, the detail's 恢复默认, the search input)
-    const ctl = await page.evaluate(() => Object.fromEntries(['.lo-back', '.lo-top__right .btn', '.lo-dhead__reset', '.lo-search .field__input'].map((sel) => {
+    // and tappable (返回, 全部恢复默认, the search input; the detail's 恢复默认 below)
+    const measure = (sels) => page.evaluate((list) => Object.fromEntries(list.map((sel) => {
       const el = document.querySelector(sel);
       const b = el.getBoundingClientRect();
       return [sel, { h: Math.round(b.height), fs: parseFloat(getComputedStyle(el).fontSize) }];
-    })));
-    for (const [sel, v] of Object.entries(ctl)) {
-      assert.ok(v.fs >= 11, `${sel} text ≥ 11 px (${JSON.stringify(v)})`);
-      if (sel !== '.lo-search .field__input') assert.ok(v.h >= 28, `${sel} ≥ 28 px tall (${JSON.stringify(v)})`);
-    }
+    })), sels);
+    const check = (ctl) => {
+      for (const [sel, v] of Object.entries(ctl)) {
+        assert.ok(v.fs >= 11, `${sel} text ≥ 11 px (${JSON.stringify(v)})`);
+        if (sel !== '.lo-search .field__input') assert.ok(v.h >= 28, `${sel} ≥ 28 px tall (${JSON.stringify(v)})`);
+      }
+    };
+    check(await measure(['.lo-back', '.lo-top__right .btn', '.lo-search .field__input']));
+    // the list takes the whole width (no detail beside it below 1000 px); the quick choices are 40 px touch targets
+    assert.equal(await page.$eval('.lo-detail-wrap', (el) => getComputedStyle(el).display), 'none');
+    const q = await page.$eval('.lo-card .lo-q--skill', (el) => { const b = el.getBoundingClientRect(); return [Math.round(b.width), Math.round(b.height)]; });
+    assert.ok(q[0] >= 40 && q[1] >= 40, `quick targets ${q}`);
+    assert.equal(await page.evaluate(() => document.querySelector('.lo').scrollWidth > innerWidth + 1), false, 'no horizontal overflow');
     await page.tap('.lo-chip--t6');
     await page.waitForFunction(() => [...document.querySelectorAll('.lo-card')].every((c) => c.classList.contains('lo-card--t6')));
     await page.tap('.lo-chip--prof[title="狙击"]');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length >= 1);
-    await page.tap('.lo-card');
+    // a quick choice keeps the list
+    await page.tap('.lo-card .lo-q--skill[data-skill="0"]');
+    assert.notEqual(await page.$eval('.lo-roster', (el) => getComputedStyle(el).display), 'none', 'a quick choice keeps the list');
+    await page.tap('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-skill', { visible: true });
-    assert.notEqual(await page.$eval('.lo-roster', (el) => getComputedStyle(el).display), 'none', 'side by side');
+    assert.equal(await page.$eval('.lo-roster', (el) => getComputedStyle(el).display), 'none', 'the detail covers the list');
+    check(await measure(['.lo-dhead__reset']));
     // every skill option is reachable inside the viewport (the detail body scrolls)
     const r = await page.$eval('.lo-detail .lo-skill:last-child', (el) => { el.scrollIntoView({ block: 'nearest' }); const b = el.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
     assert.ok(r.top >= 0 && r.bottom <= 390, JSON.stringify(r));
     await page.tap('.lo-detail .lo-skill:last-child');
     await page.waitForFunction(() => document.querySelector('.lo-detail .lo-skill:last-child').classList.contains('is-on'));
     await page.screenshot({ path: path.join(OUT, 'loadout-phone-detail.png') });
+    await page.tap('.lo-detail-back');
+    await page.waitForSelector('.lo-roster', { visible: true });
     assert.deepEqual(problems, []);
     await ctx.close();
   });
@@ -359,7 +431,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.tap('.lobby-screen [data-testid="loadout-open"]');
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     assert.equal(await page.$eval('.lo-detail-wrap', (el) => getComputedStyle(el).display), 'none');
-    await page.tap('.lo-card');
+    await page.tap('.lo-card__pick');
     await page.waitForSelector('.lo-detail .lo-skill', { visible: true });
     assert.equal(await page.$eval('.lo-roster', (el) => getComputedStyle(el).display), 'none', 'detail covers the roster');
     await page.screenshot({ path: path.join(OUT, 'loadout-small-phone.png') });
@@ -372,6 +444,8 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
   // ---- 局内数值 (GitHub issue #64) -------------------------------------------------------------------------------------
   const CHESS = () => JSON.parse(readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8'));
   const fmt = (n) => Math.round(n).toLocaleString('en-US');
+  // 0.2.2: the numbers carry the 练度 — none set: 精英2 Lv.60, effects.json aceffect_char_4 (×1.1 ATK / DEF / max HP)
+  const T4 = JSON.parse(readFileSync(path.join(ROOT, 'data/effects.json'), 'utf8')).aceffect_char_4.buffs.find((b) => b.key === 'char_attribute_mul').bb;
   /** The section's eight stats: label → shown value. */
   const shownStats = (page) => page.$$eval('.lo-sec--stats .dstat', (els) => Object.fromEntries(els.map((e) => [e.querySelector('.dstat__k').textContent, e.querySelector('.dstat__v').textContent])));
   const rangeTiles = (page) => page.$$eval('.lo-sec--stats .rgrid i.on', (els) => els.length);
@@ -380,7 +454,11 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.keyboard.press('Backspace');
     await page.type('.lo-search input', name);
     await page.waitForFunction((n) => document.querySelectorAll('.lo-card').length === 1 && document.querySelector('.lo-card .lo-card__name')?.textContent === n, { timeout: 5000 }, name);
-    await page.click('.lo-card');
+    await page.click('.lo-card__pick');
+    // the detail shows the picked chess and its body is back at the top: screens/loadout.js resets the scroll for a new
+    // chess after paint, and a click that puppeteer scrolled into view before that reset lands outside the viewport (the
+    // 0.2.2 detail opens with 潜能与练度 and 特质, so 局内数值 / 模组 sit below the fold at 1920 × 1080)
+    await page.waitForFunction((n) => document.querySelector('.lo-dhead__name')?.textContent === n && document.querySelector('.lo-detail__body')?.scrollTop === 0, { timeout: 5000 }, name);
     await page.waitForSelector('.lo-sec--stats .dstat', { visible: true });
   }
 
@@ -394,25 +472,25 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     await pickChess(page, '隐现');
     // between the skills and the modules, 精锐 shown first: the default module's numbers, the 3 × 4 range
-    assert.deepEqual(await page.$$eval('.lo-detail__body > .lo-sec > header h3', (els) => els.map((e) => e.firstChild.textContent)), ['技能', '局内数值', '模组']);
+    assert.deepEqual(await page.$$eval('.lo-detail__body > .lo-sec > header h3', (els) => els.map((e) => e.firstChild.textContent)), ['潜能与练度', '技能', '局内数值', '模组']);
     const stats = await shownStats(page);
     assert.deepEqual(Object.keys(stats), ['生命上限', '攻击', '防御', '法术抗性', '攻击间隔', '阻挡数', '部署费用', '再部署']);
-    assert.equal(stats['生命上限'], fmt(golden.statsBase.maxHp + mod.attr.maxHp));
-    assert.equal(stats['攻击'], fmt(golden.statsBase.atk + mod.attr.atk));
+    assert.equal(stats['生命上限'], fmt((golden.statsBase.maxHp + mod.attr.maxHp) * T4.max_hp));
+    assert.equal(stats['攻击'], fmt((golden.statsBase.atk + mod.attr.atk) * T4.atk));
     assert.equal(await rangeTiles(page), base.rangeGrid.length);
     assert.equal(await page.$eval('.lo-sec--stats', (el) => el.dataset.variant), 'elite');
     await page.screenshot({ path: path.join(OUT, 'loadout-stats-desktop.png') });
     // 不装备 → the base numbers; the skill choice changes nothing; 普通 → the normal chess; both toggles are independent
     await page.click('.lo-detail .lo-mod[data-module="none"]');
-    await page.waitForFunction((v) => document.querySelector('.lo-sec--stats .dstat__v')?.textContent === v, {}, fmt(golden.statsBase.maxHp));
-    assert.equal((await shownStats(page))['攻击'], fmt(golden.statsBase.atk));
+    await page.waitForFunction((v) => document.querySelector('.lo-sec--stats .dstat__v')?.textContent === v, {}, fmt(golden.statsBase.maxHp * T4.max_hp));
+    assert.equal((await shownStats(page))['攻击'], fmt(golden.statsBase.atk * T4.atk));
     await page.click('.lo-detail .lo-skill[data-skill="0"]');
-    assert.equal((await shownStats(page))['攻击'], fmt(golden.statsBase.atk), 'a skill is not a stat');
+    assert.equal((await shownStats(page))['攻击'], fmt(golden.statsBase.atk * T4.atk), 'a skill is not a stat');
     await page.click('.lo-sec--stats .lo-seg button[data-variant="normal"]');
-    await page.waitForFunction((v) => document.querySelector('.lo-sec--stats .dstat__v')?.textContent === v, {}, fmt(base.stats.maxHp));
+    await page.waitForFunction((v) => document.querySelector('.lo-sec--stats .dstat__v')?.textContent === v, {}, fmt(base.stats.maxHp * T4.max_hp));
     assert.equal(await page.$eval('.lo-sec--stats', (el) => el.dataset.variant), 'normal');
     assert.equal(await page.$eval('.lo-skill.is-on', (el) => el.dataset.skill), '0');
-    assert.equal(await page.$eval('.lo-seg button.is-on', (el) => el.textContent.startsWith('普通')), true, 'the skill level toggle is its own');
+    assert.equal(await page.$eval('.lo-sec:not(.lo-sec--cult) .lo-seg button.is-on', (el) => el.textContent.startsWith('普通')), true, 'the skill level toggle is its own');
     // the layout: no sideways overflow, the range box beside the numbers
     const box = await page.evaluate(() => {
       const body = document.querySelector('.lo-detail__body');
@@ -443,7 +521,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
     await page.type('.lo-search input', '隐现');
     await page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-    await page.tap('.lo-card');
+    await page.tap('.lo-card__pick');
     await page.waitForSelector('.lo-sec--stats .dstat', { visible: true });
     await page.$eval('.lo-sec--stats', (el) => el.scrollIntoView({ block: 'start' }));
     const m = await page.evaluate(() => {
@@ -471,8 +549,36 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await page.screenshot({ path: path.join(OUT, 'loadout-stats-phone.png') });
     // a choice made further down updates it (touch: the module card, 不装备)
     await page.tap('.lo-detail .lo-mod[data-module="none"]');
-    await page.waitForFunction((v) => document.querySelector('.lo-sec--stats .dstat__v')?.textContent === v, {}, fmt(golden.statsBase.maxHp));
-    assert.equal((await shownStats(page))['攻击'], fmt(golden.statsBase.atk));
+    await page.waitForFunction((v) => document.querySelector('.lo-sec--stats .dstat__v')?.textContent === v, {}, fmt(golden.statsBase.maxHp * T4.max_hp));
+    assert.equal((await shownStats(page))['攻击'], fmt(golden.statsBase.atk * T4.atk));
+    assert.deepEqual(problems, []);
+    await ctx.close();
+  });
+
+  test('潜能 / 练度 (0.2.2): a row\'s selects and the detail\'s buttons set the operator\'s settings — stored, synced, the numbers follow', async () => {
+    const chess = CHESS();
+    const v = chess.chess_char_1_06_a; // 刺玫: 潜能1 ATK 413 / cost 17; elite statsBase 508 at 潜能1
+    const { ctx, page, problems } = await open();
+    await clickSel(page, '.lobby-screen [data-testid="loadout-open"]');
+    await page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
+    await pickChess(page, '刺玫');
+    // a row's select: 潜能 1
+    await page.select('.lo-card[data-chess="chess_char_1_06_a"] select[data-cult="potential"]', '1');
+    await page.waitForFunction((id) => JSON.parse(localStorage.getItem('sp.pref.loadout') || '{}').ops?.[id]?.potential === 1, {}, v.charId);
+    await page.click('.lo-sec--stats .lo-seg button[data-variant="normal"]');
+    await page.waitForFunction((x) => [...document.querySelectorAll('.lo-sec--stats .dstat')].some((e) => e.querySelector('.dstat__k').textContent === '部署费用' && e.querySelector('.dstat__v').textContent === x), {}, '17');
+    assert.equal((await shownStats(page))['攻击'], fmt(413 * T4.atk), '潜能1 at 精英2 Lv.60');
+    // the detail's 练度 buttons: 未精英化 → ×1
+    await page.click('.lo-sec--cult [data-cultivate="0"]');
+    await page.waitForFunction(() => document.querySelector('.lo-sec--cult [data-cultivate="0"]').getAttribute('aria-checked') === 'true');
+    assert.equal((await shownStats(page))['攻击'], fmt(413));
+    assert.equal(await page.$eval('.lo-card[data-chess="chess_char_1_06_a"] select[data-cult="cultivate"]', (el) => el.value), '0', 'the row follows');
+    assert.ok(await page.$eval('.lo-card[data-chess="chess_char_1_06_a"]', (el) => el.classList.contains('is-changed')), 'a changed operator');
+    await page.waitForFunction(() => /已同步/.test(document.querySelector('.lo-sync')?.textContent || ''), { timeout: 8000 });
+    // 恢复默认 resets them with the skill / module
+    await page.click('.lo-dhead__reset');
+    await page.waitForFunction((id) => !JSON.parse(localStorage.getItem('sp.pref.loadout') || '{}').ops?.[id], {}, v.charId);
+    assert.equal((await shownStats(page))['攻击'], fmt(v.stats.atk * T4.atk));
     assert.deepEqual(problems, []);
     await ctx.close();
   });

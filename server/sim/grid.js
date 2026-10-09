@@ -26,8 +26,7 @@
 // 0.1.0: on 战场#04 活性源石 the lower-gate enemies must cross diagonally from row 9 into row 10 as officially, not
 // walk two tiles left of the gate and then straight up). A tile is non-blockable when it is walkable but not LOW
 // ground buildable for melee (floor / gate / goal / teleport / 深水区 tiles — `blockable()` false; no gate route of 战场#08
-// changed when its 深水区 became non-buildable, a few off-route smoothed steps of its boss field, rows 4–5, go around the
-// water instead of cutting across it). Each field holds two candidate
+// changed when its 深水区 became non-buildable). Each field holds two candidate
 // pointers per tile, both with the official `dist` (so the crate cost 1000 and every grid route length stay official):
 //   * official: the plain algorithm above;
 //   * preference (0.1.0's): the SPFA relaxes on (dist, pen) lexicographically, `pen` = non-blockable tiles on the chain
@@ -36,7 +35,10 @@
 //     only on the tile's own raw chain between its two ends, so it never slips past a road tile beside floor its grid
 //     route does not walk.
 // `next[tile]` is the official pointer unless the preference pointer leads to a route CROSSING strictly fewer
-// non-blockable tiles (`cost`, counted to the destination in increasing `dist` order). A segment crosses the tiles
+// non-blockable tiles (`cost`, counted to the destination in increasing `dist` order) and no more 深水区 (`deep`): 深水区
+// is non-blockable itself, so without that test the preference waded into the pool to dodge floor (GitHub #375: on
+// 战场#08(下半) the patrolling 铳 / 卢西恩 took the lower road (3,9) → (2,3) through two water tiles, one floor tile fewer
+// than the official upper road with one). A segment crosses the tiles
 // whose interior it passes through (`crossTiles`, exact geometry); one it only touches at a corner point is not crossed
 // — the first version counted the corner tiles there too and so bent official diagonals into L shapes (D5). On equal
 // counts the official pointer stays, except where the preference one merely skips it (the official waypoint lies on
@@ -54,6 +56,7 @@
 // off-centre unit may walk straight to a tile centre (ai.js planLeg, fear.js: else it steps back to its tile centre).
 
 import { ROWS, COLS } from './constants.js';
+import { hypot } from './detmath.js';
 
 /** Move cost of an obstacle-like tile (client `Tile.get_moveCost`: obstacle-like ? 1000 : 1). */
 export const OBSTACLE_COST = 1000;
@@ -165,9 +168,12 @@ export class Grid {
     }
     /** 1 = walkable terrain an operator cannot block on (floor, gate, goal, teleport…): the path tie-break penalty */
     this.unblockable = new Uint8Array(ROWS * COLS);
+    /** 1 = walkable 深水区 (terrain 'deepsea': tile_deepsea / tile_deepwater): the tie-break never walks into more of it */
+    this.deepWater = new Uint8Array(ROWS * COLS);
     for (let k = 0; k < ROWS * COLS; k++) {
       const t = this.tiles[k];
       this.unblockable[k] = t.pass === 'ALL' && !isBlockableTile(t) ? 1 : 0;
+      this.deepWater[k] = t.pass === 'ALL' && t.terrain === 'deepsea' ? 1 : 0;
     }
     /** obstacle bits per tile (OB_BLOCK | OB_CRATE) */
     this.obstacle = new Uint8Array(ROWS * COLS);
@@ -271,10 +277,10 @@ export class Grid {
 
   _buildField(er, ec, allowDiagonal, ignore) {
     const N = ROWS * COLS;
-    const f = { dest: -1, dist: null, parent: null, pen: null, next: null, official: null, cost: null, len: null, version: this.version, allowDiagonal, ignore };
+    const f = { dest: -1, dist: null, parent: null, pen: null, next: null, official: null, cost: null, deep: null, len: null, version: this.version, allowDiagonal, ignore };
     if (!this.inBounds(er, ec)) {
       const none = new Int32Array(N).fill(-1);
-      return Object.assign(f, { dist: none, parent: none, next: none, official: none, pen: new Int32Array(N), cost: new Int32Array(N) });
+      return Object.assign(f, { dist: none, parent: none, next: none, official: none, pen: new Int32Array(N), cost: new Int32Array(N), deep: new Int32Array(N) });
     }
     const dest = er * COLS + ec;
     f.dest = dest;
@@ -299,25 +305,30 @@ export class Grid {
       (n) => { for (let x = n, g = N; x >= 0 && g-- > 0; x = pref.parent[x]) onChain[x] = n; });
     // per tile, in increasing distance: the official pointer unless the preference one crosses strictly fewer
     // non-blockable tiles on the way to the destination — or as few while only skipping the official waypoint o, which
-    // then lies on the straight line to it and leads there (the same walk, one waypoint fewer)
+    // then lies on the straight line to it and leads there (the same walk, one waypoint fewer) — and no more 深水区
+    // than the official one (GitHub #375)
     const order = [];
     for (let k = 0; k < N; k++) if (dist[k] >= 0) order.push(k);
     order.sort((a, b) => dist[a] - dist[b] || a - b);
     const through = (a, b) => { let n = -unb[a]; crossTiles(a, b, (r, c) => { n += unb[r * COLS + c]; }); return n; };
+    const deepW = this.deepWater;
+    const wet = (a, b) => { let n = -deepW[a]; crossTiles(a, b, (r, c) => { n += deepW[r * COLS + c]; }); return n; };
     const next = new Int32Array(N).fill(-1);
     const cost = new Int32Array(N);
+    const deep = new Int32Array(N);
     for (const k of order) {
       const o = nextO[k], p = nextP[k];
       if (o < 0) continue; // the destination
-      let use = o, best = through(k, o) + cost[o];
+      let use = o, best = through(k, o) + cost[o], bestWet = wet(k, o) + deep[o];
       if (p >= 0 && p !== o) {
-        const cp = through(k, p) + cost[p];
-        if (cp < best || (cp === best && next[o] === p && onSegment(k, o, p))) { use = p; best = cp; }
+        const cp = through(k, p) + cost[p], wp = wet(k, p) + deep[p];
+        if (wp <= bestWet && (cp < best || (cp === best && next[o] === p && onSegment(k, o, p)))) { use = p; best = cp; bestWet = wp; }
       }
       next[k] = use;
       cost[k] = best;
+      deep[k] = bestWet;
     }
-    return Object.assign(f, { dist, parent: pref.parent, pen: pref.pen, next, official: nextO, cost });
+    return Object.assign(f, { dist, parent: pref.parent, pen: pref.pen, next, official: nextO, cost, deep });
   }
 
   /**
@@ -376,7 +387,7 @@ export class Grid {
     for (let i = stack.length - 1; i >= 0; i--) {
       const a = stack[i], b = f.next[a];
       const ar = (a / COLS) | 0, ac = a - ar * COLS, br = (b / COLS) | 0, bc = b - br * COLS;
-      f.len[a] = f.len[b] + Math.hypot(br - ar, bc - ac);
+      f.len[a] = f.len[b] + hypot(br - ar, bc - ac);
     }
     return f.len[k];
   }
@@ -420,7 +431,7 @@ export class Grid {
   /** Length (tiles) of a polyline of [r,c] points. */
   static pathLength(pts) {
     let len = 0;
-    for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    for (let i = 1; i < pts.length; i++) len += hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
     return len;
   }
 }
@@ -433,8 +444,9 @@ export class Grid {
  * @property {Int32Array} pen non-blockable tiles on that raw chain (tile included, destination excluded)
  * @property {Int32Array} official smoothed parent of the pure official algorithm
  * @property {Int32Array} next the tile to walk straight toward (official, or the preference pointer when it crosses fewer
- *   non-blockable tiles — see the module header)
+ *   non-blockable tiles and no more 深水区 — see the module header)
  * @property {Int32Array} cost non-blockable tiles the route of `next` crosses from the tile (excluded) to the destination
+ * @property {Int32Array} deep 深水区 tiles the route of `next` crosses from the tile (excluded) to the destination
  * @property {Float64Array|null} len memoised smoothed length (fieldLength)
  */
 

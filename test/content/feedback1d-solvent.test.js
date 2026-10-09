@@ -450,8 +450,8 @@ test('enemy-side BUFF damage (PRTS 伤害分类 "深水区/涨潮水蚀", "弧�
   const j = h.spawn('enemy_1328_cbjedi', { pos: [10, 7], routeIndex: 0, mods: { speedMul: 0 } });
   h.step(2);
   const hp0 = j.hp;
-  h.b.displace(j, { x: 1, y: 0 }, 1, { force: 3 });
-  h.step();
+  h.b.push(j, 3, { from: { x: j.x - 1, y: j.y } });                  // its 失衡 state (the bleed runs while it lasts)
+  h.run(0.2);
   const bleed = h.hooksOf('damaged').filter((c) => c.target === j);
   assert.ok(bleed.length >= 1 && hp0 > j.hp, 'bled');
   for (const c of bleed) { assert.equal(c.source, null); assert.equal(c.type, 'true'); assert.ok(!hpLoss(c), '失衡 bleed is damage'); }

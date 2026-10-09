@@ -101,12 +101,23 @@ test('望 in every 自选 form: her kit, stats + module attributes, 3-3, blocks 
   assert.equal(validateDiyPicks({ [SLOT[6]]: { charId: WANG, skillIndex: 2, uniEquipId: X } }, { data, kitted: KITTED_CHARS }).ok, true);
 });
 
-test('铸子: a lone 棋子 never sets off; two side by side activate each other — an enemy (air too) on one sets it off and it is used up; it stays active once its partner is gone', () => {
-  { // lone
-    const { h, st } = field({ tier: 6, elite: true, skill: 1, stones: [[9, 6]] });
+test('铸子: the battle-start deployment of a placed 棋子 is its 手动部署 — one 跟子 next to it, so a lone 棋子 is live; with no free neighbour it never sets off; two side by side activate each other — an enemy (air too) on one sets it off and it is used up; it stays active once its partner is gone', () => {
+  { // lone: its 跟子 上 of it (its neighbours are road, 下 is off the field) — they connect
+    const { h, u, st } = field({ tier: 6, elite: true, skill: 1, stones: [[9, 6]] });
+    assert.deepEqual(placed(h), [[10, 6]], 'the battle start drops one 跟子, 上 first among equal tiles');
+    assert.equal(u.mem.wang.stock, 6, 'the 棋子 takes one of her 7; the 跟子 none');
+    h.spawn('enemy_dummy', { pos: [9, 6] });
+    h.step();
+    assert.ok(!st[0].alive && stoneHits(h).length > 0, 'a lone 棋子 with its 跟子 sets off');
+    done(h);
+  }
+  { // no free neighbour (operators on 上 / 右 / 左, 下 off the field): no 跟子, never sets off
+    const others = [[10, 6], [9, 7], [9, 5]].map(([row, col], i) => ({ uid: 10 + i, chessId: 'chess_char_1_01_a', row, col }));
+    const { h, st } = field({ tier: 6, elite: true, skill: 1, stones: [[9, 6]], others });
+    assert.equal(placed(h).length, 0, 'nowhere to put it');
     h.spawn('enemy_dummy', { pos: [9, 6] });
     h.run(3);
-    assert.equal(stoneHits(h).length, 0, 'a lone 棋子');
+    assert.equal(stoneHits(h).length, 0, 'a 棋子 with no partner');
     assert.ok(st[0].alive);
     done(h);
   }
@@ -115,7 +126,7 @@ test('铸子: a lone 棋子 never sets off; two side by side activate each other
     h.step();
     const a = at(st, 9, 6), b = at(st, 9, 7);
     assert.ok(a.mem.wangNode.act && b.mem.wangNode.act, 'connected ⇒ active');
-    assert.equal(placed(h).length, 0, 'the battle-start deployment drops no 跟子');
+    assert.deepEqual(placed(h), [[10, 6], [10, 7]], 'the battle start drops one 跟子 上 of each');
     const fl = h.spawn('enemy_fly', { pos: [9, 7] });
     h.step();
     assert.ok(!b.alive && a.alive, 'the flyer set off its 棋子, which is used up');
@@ -142,11 +153,10 @@ test('铸子: a spent 棋子 comes back on its tile 2 s later for its cost (TRP-
     const dp0 = h.b.players[0].dp;
     assert.ok(h.runUntil(() => b.alive, 1), 'back');
     approx(h.b.players[0].dp, dp0 - (mod === X ? 2 : 3), `${mod ?? 'none'}: its cost`);
-    // the 跟子: 上 of (10,7) is (11,7) — deployable ground; no enemy anywhere ⇒ undeployable first: (10,7)'s neighbours on
-    // the flat stage are all deployable road but 右 (10,8) … the order 上 > 右 > 下 > 左 among equals
-    const f = u.mem.wang.followers;
-    assert.equal(f.length, 1, 'one 跟子');
-    assert.deepEqual([f[0].r, f[0].c], [11, 7], '上 first among equal tiles');
+    // the battle start dropped one 跟子 上 of each (equal road tiles: 上 > 右 > 下 > 左); the return of (10,7) finds its 上
+    // (11,7) taken by its own and (10,6) by the other 棋子, so 右 (10,8)
+    assert.deepEqual(placed(h), [[11, 6], [11, 7], [10, 8]], `${mod ?? 'none'}: 上 at the battle start, then 右`);
+    assert.equal(u.mem.wang.followers.length, 3);
     done(h);
   }
   { // an enemy tile first; undeployable ground before deployable ground
@@ -156,23 +166,36 @@ test('铸子: a spent 棋子 comes back on its tile 2 s later for its cost (TRP-
     h.step();
     assert.ok(!b.alive);
     h.b.kill(h.b.enemies.find((x) => x.alive), null);
+    // the battle start: (11,9) deploys first (a column top to bottom) — its 右 (11,10) is undeployable floor, before its
+    // road 上; then (10,9) takes its floor 右 (10,10)
+    assert.deepEqual(placed(h), [[11, 10], [10, 10]], '不可部署地块 > 可部署地面地块 (before 上)');
     const fl = h.spawn('enemy_fly', { pos: [9, 9] });   // 下 of (10,9) holds an enemy (a flyer: no block on the trap rule)
     assert.ok(h.runUntil(() => b.alive, 3), 'back (a flyer does not stop it)');
-    assert.deepEqual(placed(h), [[9, 9]], 'the enemy tile first (before the undeployable 右 (10,10))');
+    assert.deepEqual(placed(h)[2], [9, 9], 'the return: the enemy tile first');
     h.step();
     assert.ok(h.hooksOf('damaged').some((c) => c.target === fl && c.source === u && c.dmg.tags.includes('wang:stone')), 'the 跟子 sets off at once — its damage is 望\'s');
-    assert.equal(u.mem.wang.followers.length, 0);
+    assert.equal(u.mem.wang.followers.length, 2, 'the two on the floor stay; the one on the flyer is spent');
     done(h);
   }
-  { // no enemy around: undeployable ground (10,10) before the road
+  { // a return with no enemy around: undeployable ground (10,10) before the road
     const { h, u, st } = field({ tier: 6, elite: true, skill: 1, stones: [[10, 9], [11, 9]], dp: 50 });
     const b = at(st, 10, 9);
     const e = h.spawn('enemy_dummy', { pos: [10, 9] });
     h.step();
     h.b.kill(e, null);
+    u.mem.wang.followers.length = 0;   // (the battle start's 跟子 gone: the floor beside it is free again)
+    const n0 = placed(h).length;
     assert.ok(h.runUntil(() => b.alive, 3));
-    assert.deepEqual(placed(h), [[10, 10]], '不可部署地块 > 可部署地面地块');
-    void u;
+    assert.deepEqual(placed(h).slice(n0), [[10, 10]], '不可部署地块 > 可部署地面地块');
+    done(h);
+  }
+  { // a 跟子 on the tile of a piece still to come at the battle start goes when that piece deploys there ("跟子所在格进行部署…
+    // 时，该跟子会随之消失"): (10,3)'s 上 holds an operator, so its 跟子 takes 右 (10,4) — the next 棋子's tile —, which
+    // deploys there and drops its own 上 (11,4)
+    const { h, u } = field({ tier: 6, elite: true, skill: 1, stones: [[10, 3], [10, 4]], others: [{ uid: 10, chessId: 'chess_char_1_01_a', row: 11, col: 3 }] });
+    assert.deepEqual(placed(h), [[10, 4], [11, 4]]);
+    assert.deepEqual(u.mem.wang.followers.map((f) => [f.r, f.c]), [[11, 4]], 'the one on (10,4) is gone');
+    assert.ok(h.eventsOf('fx').some((e) => e[1] === 'disappear' && e[2] === 4 && e[3] === 10), 'it vanishes');
     done(h);
   }
   { // 望 away ⇒ her 棋子 leave and wait for her; her 跟子 are gone
@@ -269,6 +292,8 @@ test('her stock (the owner\'s decision of 2026-10-06): the placed 棋子 occupy 
     assert.deepEqual([u.skill.activations, w.stock], [1, 7], `${S}: 立即获得两枚棋子`);
     h.step();
     assert.ok(!u.s.flags.noSp, `${S}: below the cap, no 阻回`);
+    assert.ok(u.skill.nextCastAt > h.b.time, `${S}: the next cast waits one attack interval (GitHub #298)`);
+    h.run(u.skill.nextCastAt - h.b.time);           // wait it out
     u.skill.gainSp(999);
     h.step();
     assert.deepEqual([u.skill.activations, w.stock], [2, 8], `${S}: 最多拥有8枚`);
@@ -306,13 +331,14 @@ test('S2 连星 (AUTO, SP_FULL): a triggered piece hits every enemy on its conne
     const { h, u } = field({ tier, elite, skill: 1, stones: [[10, 6], [10, 7]] });
     const onLine = h.spawn('enemy_fly', { pos: [10, 9] });       // 3 tiles right of (10,6)…(10,7)+2: on the horizontal line
     const beyond = h.spawn('enemy_dummy', { pos: [10, 11] });    // 4 tiles past (10,7)
-    const off = h.spawn('enemy_dummy', { pos: [11, 7] });        // off the line (vertical never activated)
+    const vertical = h.spawn('enemy_dummy', { pos: [12, 7] });   // its battle-start 跟子 (11,7) is 上 of it: the vertical line is on
+    const off = h.spawn('enemy_dummy', { pos: [9, 4] });         // on neither line
     const trig = h.spawn('enemy_runner', { pos: [10, 7] });
     h.b.applyStatus(trig, 'stun', { duration: 99, force: true });   // it stays on the tile (the slow is read off its speed stat)
     h.step();
     const hit = stoneHits(h);
     const victims = new Set(hit.map((c) => c.target));
-    assert.ok(victims.has(trig) && victims.has(onLine), `T${tier}: the line, air included`);
+    assert.ok(victims.has(trig) && victims.has(onLine) && victims.has(vertical), `T${tier}: the lines, air included`);
     assert.ok(!victims.has(beyond) && !victims.has(off), `T${tier}: not beyond ± 3 / off the line`);
     for (const c of hit.filter((x) => x.target === trig)) approx(c.amount, u.s.atk * sk.bb['attack@atk_scale'] * 1.24, `T${tier}: 2 stacks`, 1e-4);
     const slow = trig.findBuff('wang:slow');
@@ -359,8 +385,9 @@ test('S3 天下劫 (MANUAL, ACTIVE_RANGE 4-12, 20 bullets): passive — the piec
       assert.equal(u.skill.attackOverride()?.noAttack, true, `T${tier}: 停止攻击`);
       assert.equal(u.mem.wang.stock, 8, `T${tier}: +8, capped`);
       const fl = placed(h).map(([r, c]) => `${r},${c}`);
-      assert.equal(fl.length, 5, `T${tier}: (7 − 2 placed) + 8 − 8 over the cap`);
-      assert.deepEqual(fl.slice(0, 2).sort(), ['10,7', '9,5'], `T${tier}: the enemies' tiles first (${fl})`);
+      assert.deepEqual(fl.slice(0, 2), ['12,6', '12,7'], `T${tier}: the battle start's 跟子, 上 of each (${fl})`);
+      assert.equal(fl.length, 7, `T${tier}: then (7 − 2 placed) + 8 − 8 over the cap`);
+      assert.deepEqual(fl.slice(2, 4).sort(), ['10,7', '9,5'], `T${tier}: the overflow on the enemies' tiles first (${fl})`);
       assert.ok(h.hooksOf('damaged').some((c) => c.target === a && c.source === u && c.dmg.tags.includes('wang:stone')), `T${tier}: they set off`);
       // inside her range a 棋子 comes back onto an enemy ("可部署至敌人所在位置") — and sets off again
       h.b.kill(a, null); h.b.kill(b, null);
@@ -388,6 +415,18 @@ test('S3 天下劫 (MANUAL, ACTIVE_RANGE 4-12, 20 bullets): passive — the piec
       done(h);
     }
   }
+});
+
+test('S3 天下劫: the overflow 跟子 take her range by the 铸子 order (S3 备注 "采用相同的位置选择优先顺序") — enemy tiles first, an enemy on undeployable floor before one on the road her target order puts first, then the floor', () => {
+  const { h, u } = field({ tier: 6, elite: true, skill: 2, row: 10, col: 6, stones: [[11, 4], [11, 5]], dp: 300 });
+  assert.deepEqual(placed(h), [[12, 4], [12, 5]], 'the battle start');
+  u.skill.gainSp(999);
+  h.spawn('enemy_dummy', { pos: [10, 10] });   // on tile_floor
+  h.spawn('enemy_dummy', { pos: [10, 8] });    // on the road, nearer the goal
+  assert.ok(h.runUntil(() => u.skill.active, 2));
+  const fl = placed(h).slice(2).map(([r, c]) => `${r},${c}`);
+  assert.deepEqual(fl, ['10,10', '10,8', '9,10', '11,10', '12,10'], `(7 − 2) + 8 − 8 = 5: the enemies' tiles by class, then the undeployable tiles (${fl})`);
+  done(h);
 });
 
 test('the hand: deploying her in prep brings 7 棋子 (TRP-X "可同时部署的陷阱数量提升": 8) — the match\'s data view reads the module variant\'s deploy limit', () => {

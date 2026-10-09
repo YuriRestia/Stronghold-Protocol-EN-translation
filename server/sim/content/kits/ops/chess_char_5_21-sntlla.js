@@ -2,6 +2,7 @@
 // Conventions of the tier-5 kits: ../shared/tier5.js; kit contract and rules: ../README.md.
 
 import { COLS } from '../../../constants.js';
+import { attackCountdown } from '../../../ai.js';
 import { toLocal } from '../../../dir.js';
 import { num, talent, skillGrid, batPct, mods, lazySkills, whileOn } from '../shared/tier5.js';
 
@@ -33,7 +34,7 @@ export default {
         attack: { noAttack: true },
         onStart({ unit }) { unit.mem.iceCd = 0; unit.mem.iceRow = 0; },
         onTick({ battle, unit, dt }) {
-          unit.mem.iceCd -= dt;
+          unit.mem.iceCd = attackCountdown(unit.mem.iceCd, dt);   // (the engine's attack countdown, PR #402)
           if (unit.mem.iceCd > 0 || !unit.canAct || unit.s.flags.disarm) return;
           if (!battle.enemiesInKeys(unit.rangeKeys, unit, { canHitFly: true }).length) return;
           unit.mem.iceCd = unit.s.interval;

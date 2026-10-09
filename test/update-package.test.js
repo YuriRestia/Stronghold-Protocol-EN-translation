@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, applyPendingUpdate, checkInstall, parseUpdate, removalProblem } from '../server/update.js';
 import { compareVersions, diffBases, readBase, readZip } from '../tools/package-update.mjs';
-import { FOLDER, readBases, scanFiles, stageProblems } from '../tools/package.mjs';
+import { FOLDER, readBases, scanFiles, stageProblems, zipFolder } from '../tools/package.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = path.join(ROOT, 'tools', 'package.mjs');
@@ -307,13 +307,11 @@ test('the zip reader: stored and deflated entries, zip64, UTF-8 names; damaged a
       const z = spawnSync('zip', ['-q', '-r', ...args, name, FOLDER], { cwd: dir });
       if (!z.error && z.status === 0) zipped.push(name);
     };
-    make('plain.zip', ['-X']);
+    // plain.zip is what tools/package.mjs writes (zip, else bsdtar); the other two need Info-ZIP
+    zipFolder(dir, path.join(dir, 'plain.zip'));
+    zipped.push('plain.zip');
     make('stored.zip', ['-X', '-0']);
     make('zip64.zip', ['-X', '-fz']);
-    if (!zipped.length) {
-      const t = spawnSync('tar', ['-c', '--format', 'zip', '-f', 'plain.zip', FOLDER], { cwd: dir });
-      if (!t.error && t.status === 0) zipped.push('plain.zip');
-    }
     assert.ok(zipped.length > 0);
     for (const z of zipped) {
       const b = readBase(path.join(dir, z));
@@ -336,6 +334,66 @@ test('the zip reader: stored and deflated entries, zip64, UTF-8 names; damaged a
     put(dir, 'other/x.txt', 'x');
     const z = spawnSync('zip', ['-q', '-r', 'foreign.zip', 'other'], { cwd: dir });
     if (!z.error && z.status === 0) assert.throws(() => readBase(path.join(dir, 'foreign.zip')), /outside the Stronghold-Protocol\/ folder/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+/**
+ * A zip of stored entries built byte by byte: `{ name: Buffer (the header bytes), data, flags?, extra? }` each — the
+ * name encodings and extra fields a zip tool would write, independent of the zip tool and locale of the machine.
+ */
+function storedZip(entries) {
+  const locals = [], centrals = [];
+  let offset = 0;
+  for (const { name, data, flags = 0, extra = Buffer.alloc(0) } of entries) {
+    const crc = zlib.crc32(data) >>> 0;
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0); local.writeUInt16LE(20, 4); local.writeUInt16LE(flags, 6);
+    local.writeUInt32LE(crc, 14); local.writeUInt32LE(data.length, 18); local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    locals.push(local, name, data);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0); central.writeUInt16LE(20, 4); central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(flags, 8); central.writeUInt32LE(crc, 16); central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24); central.writeUInt16LE(name.length, 28); central.writeUInt16LE(extra.length, 30);
+    central.writeUInt32LE(offset, 42);
+    centrals.push(central, name, extra);
+    offset += 30 + name.length + data.length;
+  }
+  const cd = Buffer.concat(centrals);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0); eocd.writeUInt16LE(entries.length, 8); eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(cd.length, 12); eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, eocd]);
+}
+
+/** Info-ZIP's Unicode Path extra field (0x7075, version 1): the CRC of the header name, then the UTF-8 name. */
+function unicodePath(utf8, headerName, crc = zlib.crc32(headerName) >>> 0) {
+  const name = Buffer.from(utf8, 'utf8');
+  const f = Buffer.alloc(9);
+  f.writeUInt16LE(0x7075, 0); f.writeUInt16LE(5 + name.length, 2); f.writeUInt8(1, 4); f.writeUInt32LE(crc, 5);
+  return Buffer.concat([f, name]);
+}
+
+test('the zip reader takes the UTF-8 name of Info-ZIP\'s Unicode Path field for a name stored in the system code page (zip on Windows)', { skip: typeof zlib.crc32 !== 'function' && 'zlib.crc32 needs Node ≥ 22.2' }, () => {
+  const dir = tmp('zipname');
+  try {
+    // 卫戍 in GBK (code page 936), as Info-ZIP on a Chinese Windows writes it; on code page 1252 it is "??"
+    const gbk = Buffer.concat([Buffer.from('F/'), Buffer.from('cec0caf9', 'hex'), Buffer.from(' a.png')]);
+    const lossy = Buffer.from('F/?? b.png');
+    const utf8 = Buffer.from('F/卫戍 c.png', 'utf8');
+    const zip = path.join(dir, 'names.zip');
+    fs.writeFileSync(zip, storedZip([
+      { name: gbk, data: Buffer.from('a'), extra: unicodePath('F/卫戍 a.png', gbk) },
+      { name: lossy, data: Buffer.from('b'), extra: unicodePath('F/卫戍 b.png', lossy) },
+      { name: utf8, data: Buffer.from('c'), flags: 0x800 },
+      // a field whose CRC does not match the header name (renamed by a tool that kept the field) is ignored
+      { name: Buffer.from('F/plain.txt'), data: Buffer.from('d'), extra: unicodePath('F/stale.txt', Buffer.from('F/old.txt')) },
+    ]));
+    const names = [];
+    readZip(zip, (name) => names.push(name));
+    assert.deepEqual(names, ['F/卫戍 a.png', 'F/卫戍 b.png', 'F/卫戍 c.png', 'F/plain.txt']);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

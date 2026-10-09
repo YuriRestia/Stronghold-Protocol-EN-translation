@@ -41,6 +41,7 @@
 import { num, talentBb, moduleOn, traitBb, skillRec, batMod, onHitBy, skillBusy, up } from '../shared/tier1.js';
 import { canTargetEnemy, sortEnemyTargets } from '../../../targeting.js';
 import { ROWS, COLS } from '../../../constants.js';
+import { hypot } from '../../../detmath.js';
 
 const S1 = 'skcom_quickattack[3]';
 const S2 = 'skchr_typhon_2';
@@ -204,7 +205,7 @@ export default {
         if (ds > 0) {
           onHitBy(battle, unit, ({ target, dmg }) => {
             if (!dmg.isAttack) return;
-            const d = Math.hypot(target.x - unit.x, target.y - unit.y);
+            const d = hypot(target.x - unit.x, target.y - unit.y);
             dmg.mul *= 1 + ds * Math.max(0, Math.min(1, (d - lo) / Math.max(1e-6, hi - lo)));
           });
         }

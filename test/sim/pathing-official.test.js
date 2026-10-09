@@ -1,7 +1,8 @@
 // Official route shapes (community report after 0.1.0, D5: on 战场#04 活性源石 the lower-gate enemies walked two tiles
 // straight left of the red gate and then straight up, instead of crossing diagonally from the 4th row to the 3rd as in
 // the official game). grid.js keeps the official flow field (research 08 §3.1) unless the blockable-ground preference
-// route of user playtest #2 (0.1.0's) crosses strictly fewer non-blockable tiles (floor, gates) — a segment that only
+// route of user playtest #2 (0.1.0's) crosses strictly fewer non-blockable tiles (floor, gates) and no more 深水区
+// (GitHub #375) — a segment that only
 // brushes a floor tile's corner does not cross it. Audit: every stage (active or not) × gate × field against the pure
 // official algorithm; the routes that still differ are listed, each avoiding floor the official route walks over.
 import { test } from 'node:test';
@@ -125,6 +126,43 @@ test('audit: every route of every stage (11, active or not) × gate × field is 
   }
   assert.equal(seen.size, Object.keys(DEVIATIONS).length, 'every listed deviation still exists');
   assert.equal(official, stages.length * legs.length - seen.size);
+});
+
+// GitHub #375 (FrogThai: 「水图boss会从下面这条路往蓝门走，实际应该从上路走」): on 战场#08(下半) 涨潮控制 the patrolling leaders
+// (铳 — level_act1autochess_h07_02 route 6 —, 卢西恩 — act2autochess_h07_05 route 8: PATROL_MOVE (3,9) → (2,3) → (5,9))
+// took the lower road (3,9) → (2,3) through the two 深水区 tiles (3,6) / (4,6) — one floor tile fewer than the official
+// upper road along row 5, which crosses one water tile. The tie-break may not wade into more 深水区 than the official
+// route (grid.js), so these legs are official again.
+test('#375 战场#08(下半): the (3,9) → (2,3) patrol leg stays on the official upper road', REAL, () => {
+  const sid = 'act2autochess_m04';
+  const g = stageGrid(sid, GEO.BOSS_RECT), pure = stageGrid(sid, GEO.BOSS_RECT, true);
+  for (const [s, e, wp] of [
+    [[3, 9], [2, 3], '3,9 5,9 5,4 2,4 2,3'],
+    [[3, 11], [2, 17], '3,11 5,11 5,16 2,16 2,17'],
+    [[3, 10], [2, 3], '3,10 5,9 5,4 2,4 2,3'],
+    [[4, 10], [3, 9], '4,10 3,9'],
+  ]) {
+    assert.deepEqual(g.waypoints(s[0], s[1], e[0], e[1]), pure.waypoints(s[0], s[1], e[0], e[1]), `(${s}) → (${e})`);
+    assert.equal(str(g.waypoints(s[0], s[1], e[0], e[1])), wp);
+  }
+});
+
+test('#375 real battle (act2 m04, 铳 on act1autochess_h07_02): the patrol walks row 5 to (2,3) and steps on one 深水区 only', REAL, () => {
+  const h = makeBattle({ kind: 'boss', stageId: 'act2autochess_m04', waveTemplate: 'act1autochess_h07_02', units: [], autoFinish: false, timeLimit: 120,
+    sharedBoss: { hp: 1e12, maxHp: 1e12, damage(pid, n) { this.hp -= n; } } });
+  const rows = getDefaultSource().getStage('act2autochess_m04').raw.rows;
+  const tiles = [];
+  h.b.on('tick', () => {
+    const e = h.b.enemies.find((u) => u.alive && u.defId === 'enemy_9017_achunt');
+    if (!e) return;
+    const k = `${Math.round(e.y)},${Math.round(e.x)}`;
+    if (tiles[tiles.length - 1] !== k) tiles.push(k);
+  });
+  assert.ok(h.runUntil(() => tiles.includes('2,4'), 60), `reaches (2,4): ${tiles.join(' ')}`);
+  const upTo = tiles.slice(0, tiles.indexOf('2,4') + 1);
+  assert.deepEqual(upTo.slice(0, 4), ['4,10', '3,9', '4,9', '5,9'], `up to row 5 first: ${upTo.join(' ')}`);
+  const water = upTo.filter((k) => { const [r, c] = k.split(',').map(Number); return rows[r][c] === 'd'; });
+  assert.deepEqual(water, ['5,6'], `深水区 stepped on: ${water.join(' ')} (route ${upTo.join(' ')})`);
 });
 
 test('D5: an operator on (9,9), (9,8) or (10,8) blocks the lower-gate enemy on the official diagonal', REAL, () => {

@@ -128,7 +128,13 @@ export const DOT_KITS = Object.freeze({
     tick(b, e2) {
       const r = (e2.def.raw.stats && e2.def.raw.stats.rawRangeRadius) || 1.6;
       b.fx('explode', { x: e2.x, y: e2.y, r, kind: 'boil' });
-      for (const u of areaAllies(b, e2, e2.x, e2.y, r)) { hurt(b, e2, u, e2.s.atk * (T(ab, 'aoe.atk_scale') ?? 1), 'arts'); elem(b, e2, u, 'burn', e2.s.atk * (T(ab, 'aoe.ep_damage_ratio') ?? 0)); }
+      // PRTS 鼎沸 "攻击范围内的所有我方单位每秒受到…法术持续伤害与…灼燃损伤（不可对空）": never a flying ally (the 炎佑 dragon;
+      // until 0.2.1 it burned)
+      for (const u of areaAllies(b, e2, e2.x, e2.y, r)) {
+        if (u.isFlying) continue;
+        hurt(b, e2, u, e2.s.atk * (T(ab, 'aoe.atk_scale') ?? 1), 'arts');
+        elem(b, e2, u, 'burn', e2.s.atk * (T(ab, 'aoe.ep_damage_ratio') ?? 0));
+      }
     },
   }],
 });

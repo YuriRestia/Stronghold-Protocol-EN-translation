@@ -1,10 +1,10 @@
-# DESIGN §27 — Matchmaking
+# DESIGN §28 — Matchmaking
 
 Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 
-## 27. Matchmaking by room merge (搜寻队友) — `server/matchmaker.js`, `server/lobby.js`, `ui/matchSearch.js`
+## 28. Matchmaking by room merge (搜寻队友) — `server/matchmaker.js`, `server/lobby.js`, `ui/matchSearch.js`
 
-The official 搜寻队友 pairs strangers through a queue, which §0 left out of scope. Here searching co-op rooms merge in the lobby instead, and lone Doctors queue without a room (§27.1). ▸ marks a choice the owner left open.
+The official 搜寻队友 pairs strangers through a queue, which §0 left out of scope. Here searching co-op rooms merge in the lobby instead, and lone Doctors queue without a room (§28.1). ▸ marks a choice the owner left open.
 
 - **Protocol**: `room.search {on}` (host, co-op lobby; `NOT_HOST`, `ROOM_STARTED`, `ROOM_FULL` for solo or full rooms, `NOT_READY`), `room.state.searching` / `searchSince`, `room.closed {reason:'merged'}` for a spectator that does not fit.
 - **Ready gate**: the host can search only while every other human is connected and ready. A searching room that stops being ready (an un-ready, a friend joining by code, a difficulty change, a drop) pauses until it is ready again.
@@ -14,7 +14,7 @@ The official 搜寻队友 pairs strangers through a queue, which §0 left out of
 - **Client**: the host's strip above the room bar holds the 搜寻队友 switch (pref `room.findMates`, on by default). While it is on and a seat is free, the big button is 搜寻队友 / 停止搜寻 instead of 开始模拟; it cannot be switched off mid-search. Empty seats read 搜寻中, the status line shows the search time, and a merge toasts 搜寻成功!. No queue size is shown anywhere: an empty-looking queue keeps people out of it (`sys.online.searching` is still sent, unused). The strings use the official `AUTO_CHESS_*` wording of each client where one exists.
 - Tests: `test/matchmaker.test.js`, `test/lobby-matchmaking.test.js`.
 
-### 27.1 Solo queue (单人匹配) — `server/soloQueue.js`, `ui/soloQueue.js`
+### 28.1 Solo queue (单人匹配) — `server/soloQueue.js`, `ui/soloQueue.js`
 
 A lone Doctor queues from the lobby without a room, so a room never takes solos one by one (each with a chance to leave) and the solo never sees a room screen.
 

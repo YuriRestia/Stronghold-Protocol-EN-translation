@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceUrlFor } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceUrlFor, voiceLine } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { PHASE } from '../../shared/constants.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
@@ -250,6 +250,130 @@ describe('operator battle voice', () => {
     g2.release();
     g2.reset();
     assert.equal(g2.request('skill1', 'u1', 10001), 'play', 'a new battle inherits no cooldown');
+  });
+
+  test('选中干员 on every tap (0.2.2; official FOCUS_CHAR: priority 10, cooldown 0): the prep speaks too, an idle channel always answers, a newer tap replaces it, a higher line is never interrupted', async () => {
+    // the owner's request of 2026-10-08 「添加一下干员点击上去的语气一样的语音」: the game screen lets the detail panel speak
+    // in every phase — a tap on a piece in the field / hand, a shop card — not only while a battle runs
+    const game = readFileSync(path.join(ROOT, 'public/js/screens/game.js'), 'utf8');
+    assert.match(game, /<\$\{DetailPanel\}[^`]*?voice=\$\{true\}/, 'the detail panel speaks outside battle too');
+    assert.doesNotMatch(game, /voice=\$\{combat\}/);
+    assert.equal(VOICE_PRIORITY.select, 10, 'official FOCUS_CHAR priority');
+    assert.equal(VOICE_COOLDOWN_MS.select, 0, 'official FOCUS_CHAR cooldown 0');
+    const g = new VoiceGate();                     // the real 1.2 s global gap
+    assert.equal(g.request('select', null, 0), 'play');
+    g.start('select', null, 0); g.release();       // tap A, its line ended
+    assert.equal(g.request('select', null, 300), 'play', 'an idle channel: the global gap never drops a tap');
+    g.start('select', 'u1', 300); g.release();
+    assert.equal(g.request('select', 'u1', 400), 'play', 'no cooldown either, keyed or not');
+    g.start('select', null, 400);
+    assert.equal(g.request('select', null, 600), 'preempt', 'a newer tap replaces the 选中 line on air (overlapIfSamePriority)');
+    g.start('select', null, 600);
+    assert.equal(g.request('place', 'u2', 700), 'preempt', '部署 (20) still takes the channel from 选中 (10)');
+    g.start('place', 'u2', 700);
+    assert.equal(g.request('select', null, 800), 'drop', 'a tap never interrupts a higher-priority line');
+    g.reset();
+    g.start('skill1', 'u3', 0);
+    assert.equal(g.request('select', null, 100), 'drop', '… nor a 作战中 line');
+    g.reset();
+    // a tap starts no gap of its own (review of fb7-voices): a 部署 at 0 holds the battle lines until 1200; a tap at 500
+    // answers, its short line ends at 944, and a 作战中 the battle asks for once at 1300 still plays (it was dropped: the
+    // tap had moved the gap's start to 500)
+    g.start('place', 'u4', 0); g.release();
+    assert.equal(g.request('select', null, 500), 'play');
+    g.start('select', null, 500); g.release();
+    assert.equal(g.request('skill1', 'u5', 1100), 'drop', 'inside the 部署 gap a battle line still waits');
+    assert.equal(g.request('skill1', 'u5', 1300), 'play', 'the gap ends where the 部署 put it: the tap did not restart it');
+    g.reset();
+    g.start('select', null, 0); g.release();
+    assert.equal(g.request('place', 'u6', 100), 'play', 'a battle line right after a tap: no gap behind a 选中 line');
+    g.reset();
+    // the manager: two taps 0.3 s apart in the prep (no battle, the real gate) both speak, the second replacing the first
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const vm = { audio: { sfx: { ui: {}, battle: {}, units: {} }, voice: { char_a: { select: '/v/a_sel.mp3' }, char_b: { select: '/v/b_sel.mp3' } } } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(a.voice('char_a', 'select'), true, 'tap A');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(a.voiceNode?.url, '/v/a_sel.mp3');
+      assert.equal(a.voice('char_b', 'select'), true, 'tap B while A still speaks');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(a.voiceNode?.url, '/v/b_sel.mp3', 'B replaced A');
+      a._stopVoice();                              // B ended
+      assert.equal(a.voice('char_a', 'select'), true, 'tap A again right after: no gap');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test('语音语言 (0.2.2): 日本語 plays audio.voiceJp — the same slots and file names — and falls back to the Chinese line per slot and per line', async () => {
+    const audioM = {
+      voice: { char_a: { select: ['/a/voice/cn/char_a/cn_021.mp3', '/a/voice/cn/char_a/cn_022.mp3'], place: '/a/voice/cn/char_a/cn_023.mp3', start: '/a/voice/cn/char_a/cn_019.mp3' } },
+      voiceJp: { char_a: { select: ['/a/voice/jp/char_a/cn_021.mp3', '/a/voice/jp/char_a/cn_022.mp3'], place: '/a/voice/jp/char_a/cn_023.mp3' } },
+    };
+    assert.deepEqual(voiceLine(audioM, 'char_a', 'place'), { url: '/a/voice/cn/char_a/cn_023.mp3', fallback: null }, '中文 by default');
+    assert.deepEqual(voiceLine(audioM, 'char_a', 'place', 'cn'), { url: '/a/voice/cn/char_a/cn_023.mp3', fallback: null });
+    assert.deepEqual(voiceLine(audioM, 'char_a', 'place', 'jp'), { url: '/a/voice/jp/char_a/cn_023.mp3', fallback: '/a/voice/cn/char_a/cn_023.mp3' });
+    // a drawn line keeps its Chinese twin as the fallback (选中干员2 ⇒ 选中干员2)
+    assert.deepEqual(voiceLine(audioM, 'char_a', 'select', 'jp', () => 0.99), { url: '/a/voice/jp/char_a/cn_022.mp3', fallback: '/a/voice/cn/char_a/cn_022.mp3' });
+    assert.deepEqual(voiceLine(audioM, 'char_a', 'select', 'jp', () => 0), { url: '/a/voice/jp/char_a/cn_021.mp3', fallback: '/a/voice/cn/char_a/cn_021.mp3' });
+    assert.deepEqual(voiceLine(audioM, 'char_a', 'start', 'jp'), { url: '/a/voice/cn/char_a/cn_019.mp3', fallback: null }, 'a slot the JP tree lacks: the Chinese line');
+    assert.equal(voiceLine(audioM, 'char_zz', 'select', 'jp'), null, 'an operator no dub voices (stand-ins, 盟约·辅助干员, summons) stays silent');
+    assert.equal(voiceLine({ voice: {} }, 'char_a', 'select', 'jp'), null);
+    assert.equal(voiceLine(null, 'char_a', 'select', 'jp'), null);
+    assert.deepEqual(voiceLine({ voice: audioM.voice }, 'char_a', 'place', 'jp'), { url: '/a/voice/cn/char_a/cn_023.mp3', fallback: null }, 'a manifest without voiceJp');
+    // the real manifest: every operator with a Chinese line has its Japanese twin
+    const real = voiceLine(manifest.audio, 'char_263_skadi', 'select', 'jp', () => 0);
+    assert.match(real.url, /^\/assets\/audio\/voice\/jp\/char_263_skadi\/cn_021\.mp3$/);
+    assert.equal(real.fallback, '/assets/audio/voice/cn/char_263_skadi/cn_021.mp3');
+
+    // the manager: the setting picks the tree; a JP file the host lacks (404) plays the Chinese one, holding the channel
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    const urls = [];
+    const missing = new Set(['/a/voice/jp/char_a/cn_023.mp3', mediaUrl('/a/voice/jp/char_a/cn_023.mp3')]);
+    globalThis.fetch = async (u) => { urls.push(u); return missing.has(u) ? { ok: false, status: 404 } : { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    const tick = () => new Promise((r) => setTimeout(r, 10));
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => ({ audio: { sfx: { ui: {}, battle: {}, units: {} }, ...audioM } }) });
+      a.voiceGate = new VoiceGate({ gapMs: 0 });   // the gap itself is covered above
+      a.install();
+      fw.fire('pointerdown');
+      await tick();
+      assert.equal(a.voiceLang, 'cn');
+      a.setVoiceLang('jp');
+      assert.equal(a.voiceLang, 'jp');
+      assert.equal(a.voice('char_a', 'select'), true);
+      await tick();
+      assert.match(a.voiceNode?.url ?? '', /^\/a\/voice\/jp\/char_a\/cn_02[12]\.mp3$/, '日本語: the JP line');
+      a._stopVoice();
+      assert.equal(a.voice('char_a', 'place', { unitKey: 1 }), true);
+      await tick(); await tick();
+      assert.ok(asked(urls, '/a/voice/jp/char_a/cn_023.mp3'), 'the JP file was asked for first');
+      assert.equal(a.voiceNode?.url, '/a/voice/cn/char_a/cn_023.mp3', 'the host lacks it: the Chinese line of the same name plays');
+      assert.equal(a.voice('char_a', 'place', { unitKey: 2 }), false, 'the fallback holds the channel like any line');
+      a._stopVoice();
+      a.setVoiceLang('cn');
+      assert.equal(a.voice('char_a', 'select'), true);
+      await tick();
+      assert.match(a.voiceNode?.url ?? '', /^\/a\/voice\/cn\/char_a\/cn_02[12]\.mp3$/, '中文 again');
+      a._stopVoice();
+      a.setVoiceLang('kr');
+      assert.equal(a.voiceLang, 'kr', "the picker's dubs are settings too (this fork: EN / KR)");
+      a.setVoiceLang('xx');
+      assert.equal(a.voiceLang, 'cn', 'an unknown dub is 中文');
+      // the settings store hands the choice over (installAudio and ui/settings.js)
+      const settings = readFileSync(path.join(ROOT, 'public/js/ui/settings.js'), 'utf8');
+      assert.match(settings, /audio\.setVoiceLang\(s\.voiceLang\)/);
+      assert.match(settings, /t\('语音语言'\)/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 
   test('AudioManager.voice: manifest slots (a drawn array), the gate, and the battle events that drive them', async () => {
@@ -577,6 +701,89 @@ describe('AudioManager', () => {
       } finally { globalThis.fetch = origFetch; }
     }
   });
+
+  // 「技能音效有时候不触发」 (PR #292 by @LimitlessHPPK): the sim emits the cast of a deployment that fires inside its own first
+  // tick (`initSp` already at `spCost`, 宴's deploy-timed skill, 银灰 S3 真银斩 …) before the unit's `['spawn', unitInfo]` — the
+  // same batch, or the next — so `handleBattleEvents` used to skip the cue for good: that first cast was silent and every
+  // later one played. The cue is held and answered once, when the unit is tracked (`_track`); it never outlives its field.
+  test('a cast that arrives before its unit is known is held and plays once when the unit is tracked', () => {
+    const vm = { audio: { sfx: { ui: {}, battle: {}, units: { char_a: { skill: '/s/a_skill.mp3' } } },
+      voice: { char_a: { skill3: '/v/a_s3.mp3' } } } };
+    const a = new AudioManager({ win: null, getManifest: () => vm });
+    a.ctx = {};                                   // unlocked: every path below is the real one
+    const played = [], voiced = [];
+    a._play = (url) => { played.push(url); };     // the cue itself, and the 作战中 line that goes with it
+    a.voice = (charId, slot, o) => { voiced.push([charId, slot, o.unitKey]); return true; };
+    /** UnitInfo of the operator `char_a` (spine = the sfx.units key; skillIndex picks its 作战中N slot). */
+    const info = (id, skillIndex) => ({ id, side: 'ally', spine: 'char_a', kind: 'op', skillIndex });
+
+    // (1) the sim's order inside one batch: the cast, then the unit's spawn — the cast waits, then sounds once
+    a.handleBattleEvents([['skill', 8, 1]]);
+    assert.deepEqual(played, [], 'nothing to play yet: the unit is unknown');
+    a.handleBattleEvents([['spawn', info(8, 2)]]);
+    assert.deepEqual(played, ['/s/a_skill.mp3'], 'the held cast plays as soon as the unit is tracked');
+    assert.deepEqual(voiced, [['char_a', 'skill3', 8]], 'with the 作战中N line its skillIndex picks');
+    a.handleBattleEvents([['skill', 7, 1], ['atk', 7, 8, 'none'], ['spawn', info(7, 0)]]);
+    assert.equal(played.length, 2, 'the same batch: the cast waits for the spawn of its own batch');
+    assert.deepEqual(voiced.at(-1), ['char_a', 'skill1', 7]);
+    // (2) once: a unit that is told about again (a repeated spawn) never replays it; a later cast plays directly
+    a.handleBattleEvents([['spawn', info(8, 2)], ['spawn', info(7, 0)]]);
+    assert.equal(played.length, 2, 'no second cue for the held cast');
+    a.handleBattleEvents([['skill', 8, 1]]);
+    assert.equal(played.length, 3, 'a later cast of a known unit plays through');
+    assert.deepEqual(voiced.at(-1), ['char_a', 'skill3', 8], 'and sounds the same as the replayed one');
+    // (3) skill off (`['skill', id, 0]`) is no cast: nothing is held for it
+    a.handleBattleEvents([['skill', 9, 0]]);
+    a.handleBattleEvents([['spawn', info(9, 0)]]);
+    assert.equal(played.length, 3, 'the off event holds nothing');
+    assert.equal(a.pendingSkill.size, 0);
+  });
+
+  test('a held cast does not outlive its field: a unit of the next field that shares its id does not sound it', () => {
+    const vm = { audio: { sfx: { ui: {}, battle: {}, units: { char_a: { skill: '/s/a_skill.mp3' } } }, voice: {} } };
+    const a = new AudioManager({ win: null, getManifest: () => vm });
+    a.ctx = {};
+    const played = [];
+    a._play = (url) => { played.push(url); };
+    a.voice = () => true;
+    const info = (id) => ({ id, side: 'ally', spine: 'char_a', kind: 'op' });
+    a.handleBattleEvents([['skill', 9, 1]]);          // a cast whose unit never appeared on this field
+    assert.equal(a.pendingSkill.size, 1);
+    a.setFieldUnits([info(9)]);                       // another battle: unit ids are per battle, 9 is a different unit
+    assert.equal(a.pendingSkill.size, 0, 'the field change drops the hold');
+    a.handleBattleEvents([['spawn', info(9)]]);
+    assert.deepEqual(played, [], 'the old field\'s cast never sounds in the new one');
+    // the hold is bounded: casts of units that never appear cannot pile up
+    for (let id = 100; id < 400; id++) a.handleBattleEvents([['skill', id, 1]]);
+    assert.ok(a.pendingSkill.size <= 64, `${a.pendingSkill.size} holds`);
+    assert.ok(a.pendingSkill.has(399) && !a.pendingSkill.has(100), 'the oldest holds go first');
+  });
+
+  test('a real battle: the deploy-tick cast of a deployment-activated skill is heard, once', () => {
+    // The reported shape in 0.2.0's own sim: 宴's kit activates its skill on deployment (activateOnDeploy, PR #109), and
+    // `sim/battle/deploy.js` runs `skill.reset()` (→ `activate` → `['skill', id, 1]`) BEFORE it emits
+    // `['spawn', unitInfo]` — three events earlier in 宴's case (a status and an fx come between). Fed to the audio as
+    // the socket delivers it, that cast used to be dropped for good.
+    const chessId = 'chess_char_1_18_a';   // 宴 (char_337_utage): a deploy-timed skill with a skill sound
+    const h = makeBattle({ seed: 7, autoFinish: false, timeLimit: 5, units: [{ chessId, row: 9, col: 5 }] });
+    h.step(3);
+    const ev = h.events;
+    const iCast = ev.findIndex((e) => e[0] === 'skill' && e[2]);
+    const iSpawn = ev.findIndex((e) => e[0] === 'spawn');
+    assert.ok(iCast >= 0 && iSpawn > iCast, `the sim emits the deploy-tick cast before the unit info (${iCast} < ${iSpawn})`);
+    // the cast's sound, resolved as `unit()` does (the equipped skill's own ON_SKILL_START file, else its `skill`)
+    const info = ev[iSpawn][1];
+    const rec = manifest.audio.sfx.units[info.spine];
+    const url = (Number.isInteger(info.skillIndex) && rec?.skills ? rec.skills[info.skillIndex] : null) ?? rec?.skill;
+    assert.ok(typeof url === 'string', `前提：${info.spine} 有技能音效`);
+    const played = [];
+    const a = new AudioManager({ win: null, getManifest: () => manifest });
+    a.ctx = {};
+    a._play = (u) => { played.push(u); };
+    a.voice = () => true;
+    a.handleBattleEvents(ev);
+    assert.equal(played.filter((u) => u === url).length, 1, 'the cast of the deployment is heard, exactly once');
+  });
 });
 
 // user playtest #4 item 6: 纯烬艾雅法拉's skill sound rang outside her skill — her manifest `hit` is her S3 impact
@@ -736,6 +943,10 @@ describe('voice language', () => {
     assert.deepEqual(voiceLangsOf(am, 'char_102_texas'), ['cn', 'jp', 'en', 'kr', 'native']);
     assert.deepEqual(voiceLangsOf(am, 'char_x'), ['cn', 'jp']);
     assert.deepEqual(voiceLangsOf({ voice: am.voice }, 'char_x'), ['cn'], 'a --no-voice-extra manifest: only the base dub');
+    assert.deepEqual(voiceLangsOf({ voice: am.voice, voiceJp: { char_x: { select: 'x' } } }, 'char_x'), ['cn', 'jp'],
+      "master's JP tree (audio.voiceJp) counts as JP");
+    assert.deepEqual(voiceLangsOf({ ...am, voiceLangs: { char_102_texas: ['cn', 'en', 'kr'] }, voiceJp: { char_102_texas: { select: 'x' } } }, 'char_102_texas'),
+      ['cn', 'jp', 'en', 'kr', 'native'], 'JP from audio.voiceJp lands in button order');
     assert.deepEqual(voiceLangsOf(am, 'char_none'), []);
     const pref = { default: 'en', byChar: { char_102_texas: 'native' } };
     assert.equal(effectiveVoiceLang(am, 'char_102_texas', pref), 'native', 'its own pick');
@@ -746,6 +957,33 @@ describe('voice language', () => {
     assert.equal(effectiveVoiceLang(am, 'char_x', null), 'jp');
     assert.equal(effectiveVoiceLang({ voice: am.voice }, 'char_x', pref), 'cn', 'only the base dub ⇒ CN');
     assert.equal(effectiveVoiceLang(am, 'char_none', pref), null);
+  });
+
+  test("voiceLine: master's JP tree for jp, the picker's derived dumps for en / kr / native, the Chinese line as fallback", () => {
+    const cnUrl = '/assets/audio/voice/cn/char_x/cn_021.mp3';
+    const jpUrl = '/assets/audio/voice/jp/char_x/cn_021.mp3';
+    const m = { ...am, voiceJp: { char_x: { select: jpUrl } } };
+    assert.deepEqual(voiceLine(m, 'char_x', 'select', 'jp'), { url: jpUrl, fallback: cnUrl }, 'audio.voiceJp, as on master');
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'en'), { url: '/assets/audio/voice/en/char_102_texas/cn_019.mp3', fallback: V });
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'native'),
+      { url: '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3', fallback: V });
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'jp'), { url: '/assets/audio/voice/jp/char_102_texas/cn_019.mp3', fallback: V },
+      'no JP tree but a listed JP dump: derived like EN');
+    assert.deepEqual(voiceLine(am, 'char_x', 'select', 'kr'), { url: cnUrl, fallback: null }, 'a dub the operator lacks: the Chinese line');
+    assert.deepEqual(voiceLine(am, 'char_102_texas', 'select', 'cn'), { url: V, fallback: null });
+  });
+
+  test('the audio manager: an operator\'s pick wins over the settings dub, which falls back EN → JP → CN', () => {
+    const a = new AudioManager({ win: fakeWindow().win, getManifest: () => ({ audio: am }) });
+    a.setVoiceLang('en');
+    assert.equal(a.voiceLangOf('char_102_texas'), 'en');
+    assert.equal(a.voiceLangOf('char_x'), 'jp', 'no EN dub ⇒ JP');
+    a.setVoicePicks({ char_102_texas: 'native' });
+    assert.equal(a.voiceLangOf('char_102_texas'), 'native');
+    a.setVoiceLang('cn');
+    a.setVoicePicks(null);
+    assert.equal(a.voiceLangOf('char_102_texas'), 'cn');
+    assert.equal(a.voiceLangOf('char_none'), null);
   });
 
   test('a base line → the same line of another dump or of the own-language dub', () => {
@@ -772,13 +1010,13 @@ describe('voice language', () => {
       a.install();
       fw.fire('pointerdown');
       await new Promise((r) => setTimeout(r, 10));
-      a.setVoiceLang({ default: 'jp', byChar: {} });
+      a.setVoiceLang('jp');
       assert.equal(a.voice('char_102_texas', 'select'), true);
       await new Promise((r) => setTimeout(r, 10));
       assert.ok(asked(urls, '/assets/audio/voice/jp/char_102_texas/cn_019.mp3'), 'the JP line');
       assert.ok(!asked(urls, V), 'the base line is not fetched when the picked one exists');
       a._stopVoice();
-      a.setVoiceLang({ default: 'kr', byChar: {} });
+      a.setVoiceLang('kr');
       urls.length = 0;
       assert.equal(a.voice('char_102_texas', 'select'), true);
       await new Promise((r) => setTimeout(r, 10));
@@ -787,7 +1025,7 @@ describe('voice language', () => {
       assert.ok(a.voiceNode, 'and it plays');
       // 试听: outside a battle, over a line on air, in the asked language
       urls.length = 0;
-      assert.equal(a.voice('char_x', 'select'), false, 'the channel is busy for a battle line');
+      assert.ok(a.voiceNode, 'a line is on air');
       assert.equal(a.previewVoice('char_102_texas', 'native'), true, 'a preview takes it over');
       await new Promise((r) => setTimeout(r, 10));
       assert.ok(asked(urls, '/assets/audio/voice/native/char_102_texas_ita/cn_019.mp3'));

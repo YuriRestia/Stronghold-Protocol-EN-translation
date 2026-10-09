@@ -29,6 +29,10 @@
 //   (noAttack profiles) evaluate DEFAULT every tick instead. DEFAULT with `trigger.allies` (+ `hpAtMost`): the basic
 //   rule AND such an ally on the trigger grid — the cast replaces the attack about to be made (塞雷娅 S1 "触发时会替换当
 //   次攻击"); should that ally condition fail before the attack, the cast is withdrawn and its charge returned.
+//   A registered ally target (Battle.setAllyTarget: 白铁's 铁钳号·原型机, an enemy-camp summon our attacks select) counts
+//   like an enemy in each of these enemy conditions for a skill that acts on it (`_allyTargetIn`, `allyTargetsOk` — the
+//   owner's rule of 2026-10-08): one that acts through the unit's own attacks, or whose kit flags `allyTargets: true` (its
+//   selectors take ally targets too); a skill that picks its own victims among enemies only is not opened by it.
 // Automatic operations cool down (constants.js AUTO_OP_COOLDOWN, "自动操作具有3s冷却，在完成一次操作或作战开始时部署的单位
 //   将进入冷却"): the engine auto-casts a MANUAL skill (def.skillType) no sooner than 3 s after its previous cast (so a
 //   charged skill spends its charges 3 s apart) or after the unit's deployment at the battle start (Battle._deploy
@@ -42,7 +46,8 @@
 //   mods, flags, targeting {maxTargets, rangeGrid, priority, allInRange, rangeExtend, noRangeExtend (the range ignores
 //   the unit's 攻击距离), showOwnRange (rangeGrid only selects targets: the detail card keeps the unit's own range)},
 //   attack {dmgType, atkScale, splashRadius, splashScale, hits, projectile, maxTargets, dmgMul, onHit, heal…},
-//   heal (bool: heal-type skill for the trigger rule), onStart(ctx), onEnd(ctx), onHit(ctx), onAttack(ctx), onTick(ctx).
+//   heal (bool: heal-type skill for the trigger rule), allyTargets (bool: the skill acts on a registered ally target — see
+//   `allyTargetsOk`), onStart(ctx), onEnd(ctx), onHit(ctx), onAttack(ctx), onTick(ctx).
 // ctx passed to spec callbacks: { battle, unit, skill, bb, target?, dealt?, targets?, dt?, reason? }; onAttack's ctx
 //   also carries `noAmmo` (set it to true: this attack spends no ammo). onEnd runs while the skill's mods / range are
 //   still applied (`active` is already false); they are removed right after it (unless onEnd re-activated the skill).
@@ -103,6 +108,7 @@ export class SkillRuntime {
     // the official skill strategies automate the manual 开启: only MANUAL skills wait for the operation cooldown
     this.manual = String(d.skillType ?? 'MANUAL').toUpperCase() === 'MANUAL';
     this.opReadyAt = -Infinity;   // no automatic cast before this battle time (AUTO_OP_COOLDOWN)
+    this.nextCastAt = -Infinity;  // instant / charges with no attack of its own: no cast from the tick before (GitHub #298)
     if (this.kind === 'passive') this.baseSpCost = 0;
     this._spCostMul = 1;          // content may set spCostMul (e.g. 绝技 ×0.7) — see the accessor below
     this.sp = 0;
@@ -161,10 +167,43 @@ export class SkillRuntime {
         if (Array.isArray(x)) keys = x;
         else if (x && typeof x === 'object' && x.side === 'ally' && x.alive && x.deployed && !x.hidden) keys = x.rangeKeys;
         else if (x && typeof x === 'object' && Array.isArray(x.keys)) { keys = x.keys; if (x.profile) prof = x.profile; }
-        if (keys && keys.length && b.enemiesInKeys(keys, u, prof).length) return true;
+        if (keys && keys.length && (b.enemiesInKeys(keys, u, prof).length || this._allyTargetIn(keys))) return true;
       }
     }
     return false;
+  }
+
+  /**
+   * A registered ally target (Battle.setAllyTarget: 白铁's 铁钳号·原型机, a summon of the enemy camp our attacks select) on
+   * `keys` (tile keys or a Set): a non-heal skill's automatic start counts it like an enemy — the owner's rule of
+   * 2026-10-08 (a community report and their recall of the official mode: 干员攻击范围/技能范围内有白铁的装置时技能也自动开、自动
+   * 消耗，装置对干员的仇恨类似敌方单位; PRTS 铁钳号·原型机 备注 "该召唤物阵营为敌方"). It stays out of enemiesInKeys /
+   * canTargetEnemy (every other selector keeps to enemies); a heal skill never counts it (禁疗: not a patient).
+   */
+  _allyTargetIn(keys) {
+    if (!keys || !this.allyTargetsOk) return false;
+    const b = this.battle;
+    return !!(b._allyTargets && b._allyTargets.size) && b.allyTargetsInKeys(keys, this.unit).length > 0;
+  }
+
+  /**
+   * Does this skill act on a registered ally target, so that one may start it (`_allyTargetIn`)? Never a heal skill.
+   * SkillSpec `allyTargets` (true / false) answers for a kit: true where its selectors take ally targets too
+   * (allyTargetsInKeys / allyTargetsInRadius — 蕾缪安 S3, 艾丽妮 S3, 陈 S2, 引星棘刺 S2), false where they never do although
+   * the skill keeps attacking. Without it: a skill that acts through the unit's own attacks — which select the device
+   * (ai.js acquireTargets) —, a timed one that keeps attacking (no `attack.noAttack`) or a cast that is the next attack
+   * (`spec.attack`), on a unit that attacks. [ASSUMED] Any other skill picks its victims itself among the enemies
+   * (enemiesInKeys, foesInRadius …) and would be spent on nothing: the device does not open it — it waits for an enemy.
+   * (Grok's review of round 22: 蕾缪安 S3 / 艾丽妮 S3 / 陈 S2 / 引星棘刺 S2 opened on the device alone and did nothing.)
+   */
+  get allyTargetsOk() {
+    if (this.healSkill || this.noSkill || this.kind === 'passive') return false;
+    const s = this.spec;
+    if (s.allyTargets != null) return !!s.allyTargets;
+    const p = this.unit.profile;
+    if (p && p.noAttack) return false;
+    if (s.attack && s.attack.noAttack) return false;
+    return this.isTimed || !!s.attack;
   }
 
   get spCost() {
@@ -231,6 +270,7 @@ export class SkillRuntime {
     this._trigKeys = null;
     this._trigSet = null;
     this.opReadyAt = -Infinity;   // (Battle._deploy starts the operation cooldown of the battle-start deployment)
+    this.nextCastAt = -Infinity;
     if (this.noSkill) return;
     if (this.kind === 'passive') {
       this._startPassive();
@@ -298,9 +338,11 @@ export class SkillRuntime {
     }
     if (cost <= 0) return 0; // free skills never recharge (see reset)
     this.sp += amt;
-    while (this.sp >= cost && this.charges < this.maxCharges) {
+    // within 1e-9 of the cost is the cost (the timer tolerance of `timeLeft` below; PR #402): 300 time gains of 1/30 SP
+    // add up to 9.999999999999975 in floating point, which held a 10-SP charge one tick
+    while (this.sp > cost - 1e-9 && this.charges < this.maxCharges) {
       this.charges++;
-      if (this.charges < this.maxCharges) this.sp -= cost;
+      if (this.charges < this.maxCharges) this.sp = Math.max(0, this.sp - cost);
       else this.sp = cost;
     }
     if (this.charges >= this.maxCharges) this.sp = cost;
@@ -312,9 +354,9 @@ export class SkillRuntime {
     if (this.noSkill || this.kind === 'passive') return;
     const cost = this.spCost;
     if (cost <= 0) { if (this.sp > 0) { this.sp = 0; this.charges = this.maxCharges; } return; } // became free
-    while (this.sp >= cost && this.charges < this.maxCharges) {
+    while (this.sp > cost - 1e-9 && this.charges < this.maxCharges) {   // (the 1e-9 of gainSp)
       this.charges++;
-      this.sp = this.charges < this.maxCharges ? this.sp - cost : cost;
+      this.sp = this.charges < this.maxCharges ? Math.max(0, this.sp - cost) : cost;
     }
     if (this.sp > cost) this.sp = cost;
   }
@@ -351,6 +393,9 @@ export class SkillRuntime {
     if (this.active && this.isTimed) return;
     // a cast "next attack" still waits for its attack: another charge now would be spent on the same attack
     if (this.pending || this._opCooling()) return;
+    // an instant / charge skill with no attack of its own is cast at most once per attack interval of its unit
+    // (activate sets nextCastAt; GitHub #298): the casts checked here wait for it — the unit's attacks are not touched
+    if (!this.isTimed && !this.spec.attack && this.battle.time < this.nextCastAt - 1e-9) return;
     if (TICK_RULES.has(this.rule)) {
       if (this._tickRuleSatisfied()) this.activate(this.rule);
     } else if (this.rule !== 'TAKE_DAMAGE' && this.rule !== 'NEVER') {
@@ -405,27 +450,31 @@ export class SkillRuntime {
     // SEARCH: an enemy inside the initial attack range, every tick (librators / phalanxes and 安洁莉娜 do not attack
     // while the skill is off, so DEFAULT's "about to attack" never comes)
     if (this.rule === 'SEARCH') return this._defaultCondition();
+    // (CUSTOM_RANGE / SKILL_RANGE / GDGLOW_SKILL_2 / the DEFAULT condition: a registered ally target — 白铁's 铁钳号·原型机 —
+    // counts like an enemy for a non-heal skill, `_allyTargetIn`)
     if (this.rule === 'CUSTOM_RANGE') {
       if (!this.triggerGrid) return this._defaultCondition();
-      return b.enemiesInKeys(this._triggerKeys(), u, { canHitFly: true }).length > 0;
+      const keys = this._triggerKeys();
+      return b.enemiesInKeys(keys, u, { canHitFly: true }).length > 0 || this._allyTargetIn(this._trigSet);
     }
     if (this.rule === 'SKILL_RANGE') {
       if (this.triggerAllies) return this._allyTriggerSatisfied();
       if (!this.triggerGrid) return this._defaultCondition();
-      return b.anyEnemyInKeys(this._triggerKeys());
+      return b.anyEnemyInKeys(this._triggerKeys()) || this._allyTargetIn(this._trigSet);
     }
     if (this.rule === 'ACTIVE_RANGE') return this._defaultCondition(this.triggerGrid ? this._triggerKeys() : null);
     // GDGLOW_SKILL_2 "全场存在可选目标时释放技能": a targetable enemy anywhere (heal skill: an ally that needs healing)
     if (this.rule === 'GDGLOW_SKILL_2') {
       if (this.healSkill) return b.injuredAlliesInKeys(ALL_TILES, u, !!u.profile?.heal?.elementHealRatio).length > 0;
-      return b.enemies.some((e) => canTargetEnemy(u, e, TRIGGER_PROFILE));
+      return b.enemies.some((e) => canTargetEnemy(u, e, TRIGGER_PROFILE)) || this._allyTargetIn(ALL_TILES);
     }
     return false;
   }
 
   /**
    * DEFAULT rule condition: an enemy (or injured ally for heal skills) inside the initial range (baseRangeKeys: own
-   * grid + permanent rangeExtend), or an enemy inside a content trigger range (addTriggerRange; not for heal skills).
+   * grid + permanent rangeExtend) — a registered ally target there too (`_allyTargetIn`: 铁钳号·原型机; not for heal
+   * skills) — or an enemy inside a content trigger range (addTriggerRange; not for heal skills).
    * `range` (ACTIVE_RANGE): those absolute tile keys instead of the initial range.
    */
   _defaultCondition(range = null) {
@@ -435,7 +484,7 @@ export class SkillRuntime {
     const keys = range || u.baseRangeKeys || u.rangeKeys;
     if (keys) {
       if (this.healSkill) return b.injuredAlliesInKeys(keys, u).length > 0;
-      if (b.enemiesInKeys(keys, u, u.profile).length > 0) return true;
+      if (b.enemiesInKeys(keys, u, u.profile).length > 0 || this._allyTargetIn(keys)) return true;
     }
     // the enemies a unit blocks are always its targets (Battle.blockedTargets), in range or not — PRTS 卫戍协议/帮助
     // "敌人被近战干员自身阻挡" satisfies the target condition of the basic strategy (a ranged blocker too: user playtest #6)
@@ -451,7 +500,8 @@ export class SkillRuntime {
     if (this.pending || this._opCooling()) return false;
     if (!this._defaultCondition()) return false;
     if (this.triggerAllies && !this._allyTriggerSatisfied()) return false;
-    return this.activate('DEFAULT');
+    this._beforeAttack = true;   // the attack follows this cast in the same check (ai.js updateAlly): attacks pace it
+    try { return this.activate('DEFAULT'); } finally { this._beforeAttack = false; }
   }
 
   /** TAKE_DAMAGE trigger + INCREASE_WHEN_TAKEN_DAMAGE SP. */
@@ -499,7 +549,16 @@ export class SkillRuntime {
     // bullets added in skillStart (拉特兰's ×(1.05 + 0.015 × layers), 逃犯引渡手续, talents): the bar's full mark
     // (community report #35: the extra bullets sat above a full bar until fewer than the base count were left)
     if (this.active && this.ammoLeft > this.ammoMax) this.ammoMax = this.ammoLeft;
-    if (!this.isTimed && !this.pending) this.end('instant');
+    if (!this.isTimed && !this.pending) {
+      this.end('instant');
+      // an instant / charge skill with no attack of its own (no spec.attack: a throw, a heal, a buff, DP …) waits one
+      // attack interval of its unit before it is cast again from the tick (GitHub #298: 引星棘刺 S1 度算浪波, an SP_FULL
+      // cast, was recast every tick once 迅捷's refund refilled its bar at once, whatever the attack speed) — on the skill
+      // only: the cast is no attack, the unit's attacks / heals keep their own rhythm. [ASSUMED] one attack interval: PRTS
+      // prints no 前后摇 for such casts. A cast made right before an attack (DEFAULT) is paced by those attacks already;
+      // a cast onEnd opened again owns its own gap.
+      if (!this.active && !this.spec.attack && !this._beforeAttack && u.alive && u.s.interval > 0) this.nextCastAt = b.time + u.s.interval;
+    }
     return true;
   }
 
