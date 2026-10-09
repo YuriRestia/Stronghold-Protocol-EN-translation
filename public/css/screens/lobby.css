@@ -308,3 +308,22 @@
 .queue-panel__btns .btn { flex: 1; }
 @keyframes queue-ping { 0% { box-shadow: 0 0 0 0 rgba(78, 216, 175, .55); } 100% { box-shadow: 0 0 0 .2rem rgba(78, 216, 175, 0); } }
 @media (prefers-reduced-motion: reduce) { .queue-panel__radar { animation: none; } }
+
+/* ---- difficulty details (ui/difficultyDetails.js) --------------------------------------------------------- */
+.diff-details-btn { align-self: flex-end; margin-top: .06rem; }
+.diff-details__scroll { overflow-x: auto; }
+.diff-details__table { width: 100%; border-collapse: collapse; font-size: .15rem; }
+.diff-details__table th, .diff-details__table td { padding: .08rem .12rem; border-bottom: 1px solid var(--line-1, rgba(255, 255, 255, .08)); text-align: left; white-space: nowrap; }
+.diff-details__table thead th { color: var(--d-color); font-weight: 700; }
+.diff-details__table thead th .icon, .diff-details__table thead th svg { width: .18rem; height: .18rem; margin-right: .06rem; vertical-align: -.03rem; }
+.diff-details__table tbody th { color: var(--text-lo); font-weight: 500; white-space: normal; min-width: 1.8rem; }
+.diff-details__table td { color: var(--text-hi); }
+.diff-details__rounds { margin-top: .12rem; }
+.diff-details__rounds > summary { cursor: pointer; color: var(--mint-400); font-size: .15rem; padding: .06rem 0; }
+.diff-details__pair { display: flex; flex-wrap: wrap; gap: .24rem; margin-top: .08rem; }
+.diff-details__pair > * { flex: 1 1 4.4rem; }
+.diff-details__table--rounds th, .diff-details__table--rounds td { padding: .04rem .1rem; }
+.diff-details__table--rounds tbody th { min-width: 0; }
+.diff-details__mode { display: inline-flex; width: max-content; margin-bottom: .12rem; }
+.diff-details__mode .dpick__opt { --d-color: var(--mint-400); padding: 0 .2rem; }
+.diff-details__group th { color: var(--mint-400); font-weight: 700; padding-top: .12rem; }

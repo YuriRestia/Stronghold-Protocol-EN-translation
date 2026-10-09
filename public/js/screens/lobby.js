@@ -26,6 +26,7 @@ import { t, tc, N_ } from '../../../shared/i18n.js';
 import { UpdateNews } from '../ui/matchSearch.js';
 import { OnlinePill } from '../ui/presence.js';
 import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
+import { DifficultyDetailsButton } from '../ui/difficultyDetails.js';
 
 /** Official mode texts (activity_table act2autochess.modeDataDict), fallback when config.json is absent. */
 export const MODE_TEXT = {
@@ -388,6 +389,7 @@ export function LobbyScreen() {
           ${DIFFICULTIES.map((d) => html`<${DifficultyCard} key=${d} roomMode=${textMode} difficulty=${d}
             selected=${(queue.queued ? queue.difficulty : difficulty) === d} onSelect=${pickDifficulty} disabled=${queue.queued} />`)}
         </div>
+        <${DifficultyDetailsButton} roomMode=${textMode} />
         ${queue.queued
           ? html`<div class="create-box"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
           : html`<div class="create-box">
