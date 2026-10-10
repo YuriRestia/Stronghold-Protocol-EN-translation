@@ -35,7 +35,7 @@ import { copyText } from './clipboard.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
-/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, voiceOverrides, muted, damageNumbers, quality, textSize, keys }. */
+/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, muted, damageNumbers, quality, textSize, keys }. */
 export const settingsStore = createStore(sanitizeSettings(loadPref('settings', null)));
 
 /**
@@ -53,13 +53,13 @@ export function applyTextSize(v) {
 settingsStore.subscribe((s) => {
   savePref('settings', sanitizeSettings(s));
   audio.setVolumes(s);
-  audio.setVoiceLang(s.voiceLang, s.voiceOverrides);
+  audio.setVoiceLang(s.voiceLang);
   audio.setVoiceNative(s.voiceNative);
   setDefaultVoiceLang(s.voiceLang, s.voiceNative);
   applyTextSize(s.textSize);
 });
 audio.setVolumes(settingsStore.get());
-audio.setVoiceLang(settingsStore.get().voiceLang, settingsStore.get().voiceOverrides);
+audio.setVoiceLang(settingsStore.get().voiceLang);
 audio.setVoiceNative(settingsStore.get().voiceNative);
 // before the first render (main.js boot renders after its imports ran): the stored step is on screen without a flash
 applyTextSize(settingsStore.get().textSize);

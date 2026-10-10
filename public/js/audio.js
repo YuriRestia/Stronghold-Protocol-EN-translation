@@ -69,7 +69,6 @@
 // `bgmKeyFor(route, pub)` picks the track for the current screen/phase (main.js calls `audio.install()`,
 // which follows the store).
 
-import { sanitizeVoiceOverrides } from './voicePrefs.js';
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
 
@@ -575,7 +574,6 @@ export class AudioManager {
     this.voiceGate = new VoiceGate();
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
-    this.voiceOverrides = {};
     this.voiceLang = 'cn';    // settings 语音语言: 'cn' (audio.voice) | 'jp' (audio.voiceJp, falling back to audio.voice)
     this.voiceNative = false; // settings 本土语言: an operator with an own-language dub speaks it; setVoiceNative
     this.voicePicks = {};     // charId → its own dub (ui/voiceLang.js, the per-operator picker); setVoicePicks
@@ -726,10 +724,8 @@ export class AudioManager {
    * setting. An operator's own pick (setVoicePicks) wins over it.
    * @param {string} lang
    */
-  setVoiceLang(lang, overrides = this.voiceOverrides) {
+  setVoiceLang(lang) {
     this.voiceLang = VOICE_LANGS.includes(lang) ? lang : 'cn';
-    // master's per-operator cn / jp map (voicePrefs.js); the fork's picks (setVoicePicks) win over it (voiceLangOf)
-    this.voiceOverrides = sanitizeVoiceOverrides(overrides);
   }
 
   /**
@@ -752,7 +748,7 @@ export class AudioManager {
 
   /** The dub `charId` speaks now: its own pick, else its own-language dub (setVoiceNative), else the settings' one, else EN, else JP (effectiveVoiceLang). */
   voiceLangOf(charId) {
-    return effectiveVoiceLang(this.getManifest()?.audio, charId, { default: this.voiceLang, native: this.voiceNative, byChar: { ...this.voiceOverrides, ...this.voicePicks } });
+    return effectiveVoiceLang(this.getManifest()?.audio, charId, { default: this.voiceLang, native: this.voiceNative, byChar: this.voicePicks });
   }
 
   _applyVolumes() {
@@ -1272,7 +1268,7 @@ export function installAudio(deps) {
   try {
     manifestGetter = typeof deps?.getManifest === 'function' ? deps.getManifest : manifestGetter;
     audio.install();
-    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang, deps.settings.voiceOverrides); audio.setVoiceNative(deps.settings.voiceNative); }
+    if (deps?.settings) { audio.setVolumes(deps.settings); audio.setVoiceLang(deps.settings.voiceLang); audio.setVoiceNative(deps.settings.voiceNative); }
     if (typeof deps?.subscribe === 'function' && typeof deps?.getState === 'function') {
       const sync = (s) => {
         try {

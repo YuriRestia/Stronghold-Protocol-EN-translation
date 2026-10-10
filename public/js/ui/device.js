@@ -163,13 +163,17 @@ export function FullscreenButton({ class: cls = '' }) {
   </button>`;
 }
 
-/** Only a browser-issued install offer shows a button; installed and unsupported environments stay quiet. */
-export function PwaInstallButton({ class: cls = '', size = 'sm' }) {
+/**
+ * Only a browser-issued install offer shows a button; installed and unsupported environments stay quiet.
+ * `square`: the glyph alone (the lobby's top bar, beside ⚙ / 📖), the name stays title / aria-label.
+ */
+export function PwaInstallButton({ class: cls = '', size = 'sm', square = false }) {
   const [available, setAvailable] = useState(pwaInstall.available);
   useEffect(() => pwaInstall.subscribe(setAvailable), []);
   if (!available) return null;
-  return html`<${Button} variant="secondary" size=${size} icon="download" class=${cls}
-    data-testid="pwa-install" onClick=${() => pwaInstall.request()}>${t('添加到桌面')}<//>`;
+  return html`<${Button} variant="secondary" size=${size} icon="homePlus" square=${square} class=${cls}
+    title=${t('添加到桌面')} aria-label=${t('添加到桌面')}
+    data-testid="pwa-install" onClick=${() => pwaInstall.request()}>${square ? null : t('添加到桌面')}<//>`;
 }
 
 export function updateRotateHintPwaI18n(doc = globalThis.document) {

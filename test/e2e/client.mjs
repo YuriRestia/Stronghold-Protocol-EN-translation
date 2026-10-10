@@ -152,6 +152,11 @@ export class Client {
     await page.evaluateOnNewDocument(() => {
       try { if (localStorage.getItem('sp.pref.room.findMates') == null) localStorage.setItem('sp.pref.room.findMates', 'false'); } catch { /* ignore */ }
     });
+    // this fork starts in English (ui/lang.js START_LANG); these runs read the Chinese msgids, so a page without its own
+    // language choice (stored or `?lang=`) starts in 中文
+    await page.evaluateOnNewDocument(() => {
+      try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* ignore */ }
+    });
     await page.goto(`${this.base}/${query}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
   }

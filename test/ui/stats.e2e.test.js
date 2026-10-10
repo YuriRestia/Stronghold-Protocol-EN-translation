@@ -64,7 +64,8 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
   after(async () => { for (const c of clients) await c.close(); await srv?.stop(); });
 
   /** A fresh browser on `base` with `sp.pref.stats` (a string) stored before the page loads. */
-  async function open({ w = 1920, h = 1080, stored = null, entered = true, base = srv.base, lang = null } = {}) {
+  async function open({ w = 1920, h = 1080, stored = null, entered = true, base = srv.base, lang = 'zh' } = {}) {
+    // lang 'zh': this fork starts in English (ui/lang.js START_LANG); the checks read the Chinese msgids
     const c = new Client(puppeteer, base, 'stats', { prefix: 'stats', w, h });
     clients.push(c);
     c.browser = await puppeteer.launch({

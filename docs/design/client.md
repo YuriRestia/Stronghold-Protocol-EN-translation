@@ -92,11 +92,10 @@ Explicit false and unmarked raw displacements face the travel direction. Normal 
 
 ### Local preferences and recovery (§28.14, §28.18–20)
 
-Settings persist `textSize` (sm/md/lg/xl; default sm) and `voiceOverrides` (charId → cn/jp; default empty) alongside the
-existing global `voiceLang`. CSS text uses `--t`; the layout rem, camera and board geometry stay unchanged. Larger text
-and translated controls wrap within the settings modal. The normal roster detail and chosen DIY cards expose each
-operator's voice preference, shared across that charId's forms. An absent override follows the global preference;
-missing Japanese lines retain the existing Chinese fallback. Overrides are local listening preferences, absent from
+Settings persist `textSize` (sm/md/lg/xl; default sm) alongside the existing global `voiceLang`. CSS text uses `--t`;
+the layout rem, camera and board geometry stay unchanged. Larger text and translated controls wrap within the settings
+modal. This fork replaces master's per-operator dub dropdown (`ui/operatorVoice.js`, `settings.voiceOverrides`) with
+its square picker (`ui/voiceLang.js`, `sp.pref.voiceLang.byChar`): one per-operator system, client-only, absent from
 room loadouts and their exports.
 
 The title and lobby offer explicit recovery of a previously saved local match seat. `sp.matches` stores bounded name /

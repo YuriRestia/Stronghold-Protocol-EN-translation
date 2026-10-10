@@ -1031,6 +1031,12 @@
 .topbar__center { display: flex; flex-direction: column; align-items: center; gap: .03rem; text-align: center; }
 .topbar__title { display: flex; align-items: center; gap: .18rem; font-size: calc(.3 * var(--t)); font-weight: 700; letter-spacing: .1em; line-height: 1.2; }
 .topbar__sep { width: 1px; height: .28rem; background: var(--line-2); }
+/* the lobby's ⚙ / 📖 / install squares: a size up from `sm` and spaced apart; on touch screens at least 40 px each with
+   a 10 px gap, so their 44 px hit areas (css/devices.css) never overlap and a tap lands on the intended one */
+.topbar__tools { display: flex; align-items: center; gap: .14rem; }
+.topbar__tools .btn--square.btn--sm { --sq: .46rem; height: var(--sq); min-width: var(--sq); }
+.sp-coarse .topbar__tools { gap: max(.16rem, 10px); }
+.sp-coarse .topbar__tools .btn--square.btn--sm { --sq: max(.56rem, 40px); }
 .topbar__right { justify-self: end; display: flex; align-items: center; gap: .16rem; min-width: 0; }
 
 .section-label { display: flex; align-items: baseline; gap: .12rem; margin: 0 0 .14rem; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .08em; }

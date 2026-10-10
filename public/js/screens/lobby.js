@@ -336,8 +336,11 @@ export function LobbyScreen() {
         <${PingPill} ms=${conn.ping} online=${online} />
         <${OnlinePill} />
         <span class="topbar__sep" aria-hidden="true"></span>
-        <${SettingsButton} class="lobby-settings" variant="secondary" square=${true} />
-        <${GuideButton} class="lobby-guide" variant="secondary" square=${true} />
+        <div class="topbar__tools">
+          <${SettingsButton} class="lobby-settings" variant="secondary" square=${true} />
+          <${GuideButton} class="lobby-guide" variant="secondary" square=${true} />
+          <${PwaInstallButton} class="lobby-pwa" square=${true} />
+        </div>
       </div>
       <div class="topbar__center">
         <${MicroLabel} tone="mint">SIMULATION PROTOCOL SELECT<//>
@@ -345,7 +348,6 @@ export function LobbyScreen() {
       </div>
       <div class="topbar__right">
         <${ResumeMatchButton} />
-        <${PwaInstallButton} class="lobby-pwa" />
         <${LoadoutButton} from="lobby" size="sm" class="lobby-loadout" label=${t('干员调配')} />
         <button type="button" class="me-chip me-chip--btn stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>
           <${AvatarFrame} size="sm" name=${me.name} seat=${0} self=${true} />
