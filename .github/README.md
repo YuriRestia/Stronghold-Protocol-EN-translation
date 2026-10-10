@@ -1,10 +1,10 @@
 # 卫戍协议：盟约 · Stronghold Protocol: Alliance
 
-> English translation of [README.md](README.md). The Chinese original is the authoritative version.
+> English translation of [README.md](../README.md). The Chinese original is the authoritative version.
 
 An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal auto-chess tower-defense mode of *Arknights*: play instantly in the browser, solo or 1–4 player online co-op.
 
-![version](https://img.shields.io/badge/version-0.2.2-2ea44f)
+![version](https://img.shields.io/badge/version-0.2.3-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -14,15 +14,15 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 > - This project is an **unofficial fan work** made by players. It has **no relationship whatsoever** with Shanghai Hypergryph Network Technology Co., Ltd. (Hypergryph), Yostar or their affiliates, and is not authorized or endorsed by them.
 > - The names, characters, art, music, sound effects, text, data and other material related to *Arknights* and *Stronghold Protocol* are copyright of their respective owners. This material is **not** covered by this project's GPL-3.0 license; the GPL covers only the code written by this project.
 > - For study, discussion and personal non-commercial use only. **Any form of profit is strictly prohibited**, including but not limited to: selling this project or its bundles, paid downloads or paid distribution, paid servers or paid hosting-for-hire, ads / tips / memberships or any other monetization, and any other commercial use.
-> - The source repository does not contain the game's art or audio (only data generated from the official data tables and a few game screenshots, which are likewise not covered by the GPL). The full bundles in [Releases](../../releases/latest) include the assets for players' convenience (the lite bundles do not; they download them from public mirrors on first start); downloading one means you agree to this disclaimer. Do not use the assets for anything other than this project, and do not redistribute them separately. The full terms are in [NOTICE.en.md](NOTICE.en.md).
+> - The source repository does not contain the game's art or audio (only data generated from the official data tables and a few game screenshots, which are likewise not covered by the GPL). The full bundles in [Releases](../../../releases/latest) include the assets for players' convenience (the lite bundles do not; they download them from public mirrors on first start); downloading one means you agree to this disclaimer. Do not use the assets for anything other than this project, and do not redistribute them separately. The full terms are in [NOTICE.en.md](../NOTICE.en.md).
 > - If a rights holder believes this project infringes their rights, please contact us through an Issue and we will **remove the content immediately**.
 > - This project is provided "as is", **without any warranty**; use it at your own risk.
 
 | Alliance room | Strategy draft | Rest Phase (shop / Alliances) |
 |---|---|---|
-| ![Room](docs/img/room.jpg) | ![Strategy](docs/img/band-draft.jpg) | ![Rest Phase](docs/img/prep.jpg) |
+| ![Room](../docs/img/room.jpg) | ![Strategy](../docs/img/band-draft.jpg) | ![Rest Phase](../docs/img/prep.jpg) |
 | **Deployment direction wheel** | **Battle** | **Final Assault** |
-| ![Direction](docs/img/facing-wheel.jpg) | ![Battle](docs/img/combat.jpg) | ![Final Assault](docs/img/final-assault.jpg) |
+| ![Direction](../docs/img/facing-wheel.jpg) | ![Battle](../docs/img/combat.jpg) | ![Final Assault](../docs/img/final-assault.jpg) |
 
 ## Contents
 
@@ -37,7 +37,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 - **Solo Simulation** (single player) and **Team Simulation** (1–4 player **co-op**, no PvP; empty seats can be filled with AI teammates).
 - The server is a single Node.js program. **Combat is simulated in each player's browser** (just like the official game); the server only handles the economy and rounds, so a low-power mini PC can host.
-- Current version 0.2.2: each Operator's Potential and Development can be set individually (default: max Potential, Elite 2 Lv.60); Japanese voices and a Stats page are new; rules such as Unbalance and 30-frame whole-second attack intervals now follow the official game; and the issues reported by players and on GitHub after the 0.2.1 release are fixed — see [CHANGELOG.en.md](CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
+- Current version 0.2.3: the six-star Clementia joins Custom Squad, and Shu and Ulpianus get new Modules; Text Size, per-Operator voice language, Add to Home Screen, setup reroll and Resume local match are new; and the issues reported by players and on GitHub after the 0.2.2 release are fixed — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
 
 ## Features
 
@@ -62,19 +62,19 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 ### Option 1: All-in-one bundle (recommended)
 
-[Releases](../../releases/latest) offers two bundles with exactly the same code and runtime dependencies; pick one. If you already have 0.2.x installed, you only need the update bundle to upgrade:
+[Releases](../../../releases/latest) offers two bundles with exactly the same code and runtime dependencies; pick one. If you already have 0.2.x installed, you only need the update bundle to upgrade:
 
 - **Full bundle** `Stronghold-Protocol-v<version>.zip` (about 505 MB, about 710 MB unzipped): includes all art / audio (including both the Chinese and Japanese Operator voices and the official 3D board textures). Unzip it and play — nothing else to download. **Recommended.**
 - **Lite bundle** `Stronghold-Protocol-v<version>-lite.zip` (about 22 MB): no assets; on first start it automatically downloads the art, Spine models, audio, fonts, emotes and the "How to Play" tutorial images from public mirrors (about 550 MB; can be interrupted, and the next start resumes). Local-client assets such as the official 3D board are not included (see "Local-client assets" below). Useful when downloading large files is inconvenient.
-- **Update bundle** `Stronghold-Protocol-v<version>-update.zip` (available from 0.2.1; its size depends on how much changed, usually only a few MB): contains only the files changed since the earlier 0.2.x versions, to upgrade an existing 0.2.x install (installed from the full or the lite bundle) to the new version without downloading the whole bundle again. How to use it: first stop the server (close the window; if you installed start on boot, run `scripts\install-service-windows.ps1 -Stop`), then merge the entire contents of the `Stronghold-Protocol` folder in the zip into your install folder, overwriting files with the same name (copy and paste in Windows Explorer works; on macOS do not drag and drop in Finder, which replaces the whole folder — use `unzip -o`, see section 1.5 of [docs/DEPLOY.en.md](docs/DEPLOY.en.md)), and then start it as usual. On start it first verifies all program files and deletes old files the new version no longer uses, then runs normally; if the folder is not the version the update bundle is for (e.g. 0.1.x, or program files have been modified), it tells you to download the full bundle and the server does not start. For a fresh install use the full or the lite bundle.
+- **Update bundle** `Stronghold-Protocol-v<version>-update.zip` (available from 0.2.1; its size depends on how much changed, usually only a few MB): contains only the files changed since the earlier 0.2.x versions, to upgrade an existing 0.2.x install (installed from the full or the lite bundle) to the new version without downloading the whole bundle again. How to use it: first stop the server (close the window; if you installed start on boot, run `scripts\install-service-windows.ps1 -Stop`), then merge the entire contents of the `Stronghold-Protocol` folder in the zip into your install folder, overwriting files with the same name (copy and paste in Windows Explorer works; on macOS do not drag and drop in Finder, which replaces the whole folder — use `unzip -o`, see section 1.5 of [docs/DEPLOY.en.md](../docs/DEPLOY.en.md)), and then start it as usual. On start it first verifies all program files and deletes old files the new version no longer uses, then runs normally; if the folder is not the version the update bundle is for (e.g. 0.1.x, or program files have been modified), it tells you to download the full bundle and the server does not start. For a fresh install use the full or the lite bundle.
 
-Both bundles contain only the files needed to run and deploy (server, client, data, start scripts, the setup / doctor / asset download tools, licenses and notices, [docs/PLAYING.md](docs/PLAYING.md) and [docs/DEPLOY.md](docs/DEPLOY.md)); tests, development tools and design docs are only in the source repository.
+Both bundles contain only the files needed to run and deploy (server, client, data, start scripts, the setup / doctor / asset download tools, licenses and notices, [docs/PLAYING.md](../docs/PLAYING.md) and [docs/DEPLOY.md](../docs/DEPLOY.md)); tests, development tools and design docs are only in the source repository.
 
 1. **Install Node.js 22 or 24 (LTS)**
    - Windows: run `winget install OpenJS.NodeJS.LTS` in PowerShell, or download the installer from <https://nodejs.org/en/download>.
    - macOS: `brew install node@22`, or download the installer from the official site.
    - Linux: your distribution's package manager, nvm or fnm.
-2. **Download**: download the latest full bundle (or lite bundle) from the [Releases](../../releases/latest) page and unzip it into a folder with a short path (on Windows, preferably not inside a OneDrive-synced folder).
+2. **Download**: download the latest full bundle (or lite bundle) from the [Releases](../../../releases/latest) page and unzip it into a folder with a short path (on Windows, preferably not inside a OneDrive-synced folder).
 3. **Start**
    - Windows: double-click **`scripts\start-windows.bat`**. If a "Security Warning" pops up, click "Run"; if the Windows Firewall prompt appears, tick "Private networks" and allow it.
    - macOS / Linux: run `./scripts/start.sh` (or `bash scripts/start.sh`) inside the unzipped folder.
@@ -92,7 +92,7 @@ npm start          # start the server: http://localhost:3000
 
 You can also run the start script directly (Windows `scripts\start-windows.bat`, macOS / Linux `scripts/start.sh`): on first run it installs dependencies and downloads the assets automatically, then starts the server and opens the browser.
 
-- **Local-client assets (optional)**: the official 3D board, some official UI icons (the frames of the Chat button and emote panel, Module type icons, etc.) and the official models of the Blazing / Pyric Originium Slugs and 39 summons (most of them Custom Squad summons) must be extracted from a local *Arknights* PC client (the native Windows client, or CrossOver / PlayCover on macOS). When `npm run setup` detects a client it asks whether to extract (requires Python 3.8+; dependencies are installed into the project's own `.venv-extract` and do not touch the system). Afterwards you can re-extract with `node tools/setup.mjs --local`, or point at a path with `--game "<…/StreamingAssets/AB/Windows>"`. Without a client the game runs normally and these few things use substitutes: a 2D board, similar-looking icons, recolored regular Originium Slugs, and summon avatars. The emotes and the "How to Play" tutorial images are downloaded from public mirrors together with the assets above and do not need a client. A server without a client (e.g. a Linux VPS) can also copy `public/assets/local/` and `data/local-assets.json` from the bundle (the full bundle; the lite one does not have them) of **the same version**; see "Local-client assets" in [docs/DEPLOY.en.md](docs/DEPLOY.en.md).
+- **Local-client assets (optional)**: the official 3D board, some official UI icons (the frames of the Chat button and emote panel, Module type icons, etc.) and the official models of the Blazing / Pyric Originium Slugs and 39 summons (most of them Custom Squad summons) must be extracted from a local *Arknights* PC client (the native Windows client, or CrossOver / PlayCover on macOS). When `npm run setup` detects a client it asks whether to extract (requires Python 3.8+; dependencies are installed into the project's own `.venv-extract` and do not touch the system). Afterwards you can re-extract with `node tools/setup.mjs --local`, or point at a path with `--game "<…/StreamingAssets/AB/Windows>"`. Without a client the game runs normally and these few things use substitutes: a 2D board, similar-looking icons, recolored regular Originium Slugs, and summon avatars. The emotes and the "How to Play" tutorial images are downloaded from public mirrors together with the assets above and do not need a client. A server without a client (e.g. a Linux VPS) can also copy `public/assets/local/` and `data/local-assets.json` from the bundle (the full bundle; the lite one does not have them) of **the same version**; see "Local-client assets" in [docs/DEPLOY.en.md](../docs/DEPLOY.en.md).
 - Asset downloads try GitHub first and automatically fall back to the jsDelivr mirror on failure.
 - `npm run doctor` (i.e. `node tools/doctor.mjs`) diagnoses things at any time: Node version, asset completeness, port usage, LAN addresses and the firewall.
 
@@ -119,6 +119,7 @@ Listens on **TCP 3000** by default. To change the port: add `--port 3001` to the
 | `TRUST_PROXY` | `auto` | Whether to trust forwarding headers such as `X-Forwarded-For`: `auto` trusts only proxies on the local machine / private network; `1` always; `0` never |
 | `DEBUG` | empty | Set to any value for verbose logs |
 | `SP_NO_BROWSER` | empty | Set to `1` so the start script does not open the browser |
+| `SP_BOT_EMOTES` | empty | AI teammates' in-match emote reactions (instant `m.emote` broadcasts on battle, Rest Phase, merges, Joint Defense and gifts); set to `0` to turn them off entirely |
 
 How to set them: macOS / Linux `PORT=8080 npm start`; PowerShell `$env:PORT=8080; npm start`; cmd `set "PORT=8080" && npm start`. Health check: `GET /healthz`.
 
@@ -133,7 +134,7 @@ After a page refresh or disconnect, reopen the page within 10 minutes (Team Simu
 
 ## Online play
 
-When your friends are not on the same LAN, here are a few common approaches — pick whichever suits you. This is only a brief overview; the tools and services mentioned are just examples, this project has no relationship with them and does not endorse them. Refer to each one's official documentation for installation, pricing and terms of use. Deployment details (firewall, start on boot, reverse proxy and HTTPS, Docker) are in **[docs/DEPLOY.en.md](docs/DEPLOY.en.md)**.
+When your friends are not on the same LAN, here are a few common approaches — pick whichever suits you. This is only a brief overview; the tools and services mentioned are just examples, this project has no relationship with them and does not endorse them. Refer to each one's official documentation for installation, pricing and terms of use. Deployment details (firewall, start on boot, reverse proxy and HTTPS, Docker) are in **[docs/DEPLOY.en.md](../docs/DEPLOY.en.md)**.
 
 | Approach | How | Good for |
 |---|---|---|
@@ -158,33 +159,33 @@ General notes:
 | Sell / Retreat / Destroy Equipment | Tap the tile the unit is on → the bottom buttons "Sell +1" and "Retreat"; you can also drag an Operator from the board back to the Bench to retreat it. Equipment and Arts on the Bench can only be "Destroyed"; assigned Equipment is locked to its Operator (it returns to the Bench when the Operator is sold or merged into an Elite) |
 | Equipment | Drag Equipment onto the tile an Operator is on (2 per Operator; when full a replace dialog pops up and the replaced piece is destroyed); drag Arts onto a tile and choose a direction |
 | View details | Right-click or long-press a unit / card (stats are live values: green when above base, red when below) |
-| Shortcuts | `R` Refresh · `F` Freeze · `D` Upgrade · `Q` Retreat / `X` Sell the selected Operator · `Space` Ready · `Esc` Cancel / Close; all except `Esc` can be rebound under "Settings → Hotkeys" ([gameplay guide §11](docs/PLAYING.en.md#11-hotkeys)) |
+| Shortcuts | `R` Refresh · `F` Freeze · `D` Upgrade · `Q` Retreat / `X` Sell the selected Operator · `Space` Ready · `Esc` Cancel / Close; all except `Esc` can be rebound under "Settings → Hotkeys" ([gameplay guide §11](../docs/PLAYING.en.md#11-hotkeys)) |
 | Direction wheel keyboard controls | Arrow keys to preview · `Enter` to confirm · `Esc` to cancel |
 | Pause (Solo Simulation) | During a battle (including Final Assault / Hidden Core) click "Pause" in the top bar or press `Space`; click "Resume Battle" (or `Space`) to continue. Team Simulation battles cannot be paused |
 | Emotes | "Chat" in the bottom-left corner; swipe left / right (or arrow keys) to switch sets; 1-second cooldown |
 | Spectate | After your own battle ends (or during the Rest Phase), click a teammate's avatar on the left → "Go View"; friends who are not playing can enter the Alliance Key in the lobby and click "Spectate" (up to 2 spectators per alliance; new in this remake) |
-| Stats (local) | "Stats" in the top-right of the title screen, in the lobby and in the room: win rate, Strategy clear rates, titles, battle totals and match history (click a row to review its result screen); stored only in this browser, can be exported / imported; matches left before the first round is cleared are not counted ([gameplay guide §12](docs/PLAYING.en.md#13-stats-local)) |
+| Stats (local) | "Stats" in the top-right of the title screen, in the lobby and in the room: win rate, Strategy clear rates, titles, battle totals and match history (click a row to review its result screen); stored only in this browser, can be exported / imported; matches left before the first round is cleared are not counted ([gameplay guide §12](../docs/PLAYING.en.md#13-stats-local)) |
 
-Full rules, numbers and tips are in **[docs/PLAYING.en.md](docs/PLAYING.en.md)** (there is also "How to Play" in the bottom-left corner in game).
+Full rules, numbers and tips are in **[docs/PLAYING.en.md](../docs/PLAYING.en.md)** (there is also "How to Play" in the bottom-left corner in game).
 
 ## Documentation
 
 | Document | Contents |
 |---|---|
-| [CHANGELOG.en.md](CHANGELOG.en.md) | Change log: what each version fixed, and which reports were verified not to be problems |
-| [docs/PLAYING.en.md](docs/PLAYING.en.md) | Gameplay guide: flow, economy, recruiting and promotion, formations, Unite, Alliances, Final Assault, result titles |
-| [docs/DEPLOY.en.md](docs/DEPLOY.en.md) | Deployment guide: hosting on Windows and starting on boot, firewall, mesh VPN / tunnels, reverse proxy and HTTPS, Docker, systemd, troubleshooting |
-| [docs/WINDOWS.en.md](docs/WINDOWS.en.md) | Windows portable bundle: how to build a "zero-install" bundle (`scripts/make-windows-bundle.mjs`), what goes in it, licensing notes |
-| [docs/DESIGN.md](docs/DESIGN.md) | Architecture and contracts (English): an index that finds files by section number; the current rules are in `docs/design/` (scope and directory responsibilities, coordinates and time, battle engine, match, network protocol, rendering and UI), and the rule revisions after each playtest and release, with their evidence, in `docs/history/` |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code map (English): the server, the network protocol and the battle simulation shared by client and server, the directory layout after the 0.2.0 refactor, data flow, golden results and import boundaries, where common changes start |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contributing: setting up, running tests, the fidelity principles, commit and PR conventions, how to add a Custom Squad Operator (Chinese, with an English summary at the end) |
-| [docs/SIM.md](docs/SIM.md) | Battle simulation engine reference (English): hooks, skill description format, profession default behavior |
-| [docs/META.md](docs/META.md) | Match and economy engine (English): implementation details of the round flow, shop, Unite and Final Assault |
-| [docs/DATA.md](docs/DATA.md) | Game data generated from the official data tables (English) |
-| [docs/ASSETS.md](docs/ASSETS.md) | Asset sources, directory layout and manifest (English) |
-| [docs/I18N.md](docs/I18N.md) | Interface languages (English): how UI text, game texts and server messages are translated, and the coverage; **adding a language only takes one language file in `public/i18n/`** (community translation steps under "Adding a language", pack format in [docs/PACKS.md](docs/PACKS.md)) |
-| [docs/BALANCE.md](docs/BALANCE.md) | Difficulty model and measurements (English) |
-| [docs/research/](docs/research/00-INDEX.md) | Research notes on the official rules, data and UI |
+| [CHANGELOG.en.md](../CHANGELOG.en.md) | Change log: what each version fixed, and which reports were verified not to be problems |
+| [docs/PLAYING.en.md](../docs/PLAYING.en.md) | Gameplay guide: flow, economy, recruiting and promotion, formations, Unite, Alliances, Final Assault, result titles |
+| [docs/DEPLOY.en.md](../docs/DEPLOY.en.md) | Deployment guide: hosting on Windows and starting on boot, firewall, mesh VPN / tunnels, reverse proxy and HTTPS, Docker, systemd, troubleshooting |
+| [docs/WINDOWS.en.md](../docs/WINDOWS.en.md) | Windows portable bundle: how to build a "zero-install" bundle (`scripts/make-windows-bundle.mjs`), what goes in it, licensing notes |
+| [docs/DESIGN.md](../docs/DESIGN.md) | Architecture and contracts (English): an index that finds files by section number; the current rules are in `docs/design/` (scope and directory responsibilities, coordinates and time, battle engine, match, network protocol, rendering and UI), and the rule revisions after each playtest and release, with their evidence, in `docs/history/` |
+| [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) | Code map (English): the server, the network protocol and the battle simulation shared by client and server, the directory layout after the 0.2.0 refactor, data flow, golden results and import boundaries, where common changes start |
+| [CONTRIBUTING.md](../CONTRIBUTING.md) | Contributing: setting up, running tests, the fidelity principles, commit and PR conventions, how to add a Custom Squad Operator (Chinese, with an English summary at the end) |
+| [docs/SIM.md](../docs/SIM.md) | Battle simulation engine reference (English): hooks, skill description format, profession default behavior |
+| [docs/META.md](../docs/META.md) | Match and economy engine (English): implementation details of the round flow, shop, Unite and Final Assault |
+| [docs/DATA.md](../docs/DATA.md) | Game data generated from the official data tables (English) |
+| [docs/ASSETS.md](../docs/ASSETS.md) | Asset sources, directory layout and manifest (English) |
+| [docs/I18N.md](../docs/I18N.md) | Interface languages (English): how UI text, game texts and server messages are translated, and the coverage; **adding a language only takes one language file in `public/i18n/`** (community translation steps under "Adding a language", pack format in [docs/PACKS.md](../docs/PACKS.md)) |
+| [docs/BALANCE.md](../docs/BALANCE.md) | Difficulty model and measurements (English) |
+| [docs/research/](../docs/research/00-INDEX.md) | Research notes on the official rules, data and UI |
 
 ## Development and testing
 
@@ -200,9 +201,9 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # frame-time benchmar
 
 - Game data is generated from the official data tables by `npm run build-data` (`tools/build-data.mjs`); do not edit `data/*.json` by hand.
 - Performance testing: `/dev/battle-perf.html` runs a real battle in the browser (the battle runner, simulation and rendering a match uses) and shows the frame rate and per-frame time live; open it on a phone and tap "Start measuring (10 s)", and the report it produces can be copied and attached to feedback. The battles it uses come from data `node tools/capture-specs.mjs` captures from fixed-seed bot matches (`public/dev/perf/`).
-- A commit that only refactors, without changing gameplay, must not change `test/golden/*.json`; when you change gameplay on purpose, run `npm run golden:update`, check the differences, and commit them with the change (see [test/golden/README.md](test/golden/README.md)).
-- GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs `npm ci`, `node --test` and a server smoke test on Ubuntu and Windows with Node 22 / 24.
-- For how the code is layered and which file to start from when changing a rule, see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- A commit that only refactors, without changing gameplay, must not change `test/golden/*.json`; when you change gameplay on purpose, run `npm run golden:update`, check the differences, and commit them with the change (see [test/golden/README.md](../test/golden/README.md)).
+- GitHub Actions ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) runs `npm ci`, `node --test` and a server smoke test on Ubuntu and Windows with Node 22 / 24.
+- For how the code is layered and which file to start from when changing a rule, see [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
 ## Project structure
 
@@ -219,14 +220,14 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # frame-time benchmar
 
 ## License
 
-- **Code**: the code written by this project is released under **GPL-3.0-or-later**; the full text is in [LICENSE](LICENSE). There is also an additional permission under GPL section 7 allowing combined distribution with the Spine Runtimes in pixi-spine (see [NOTICE.en.md](NOTICE.en.md)).
-- **Game assets are not covered by the license**: the art, music, sound effects, text, data and other material related to *Arknights* are copyright of their respective owners and not covered by the GPL; see the [Disclaimer](#disclaimer) above and [NOTICE.en.md](NOTICE.en.md) for the usage restrictions.
-- **Third-party components** follow their own licenses: libraries installed via npm (the bundle's `node_modules` includes each one's license file), the algorithm in `tools/local-extract/aklz4.py` (BSD-3-Clause), fonts, etc. The list and full license texts are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+- **Code**: the code written by this project is released under **GPL-3.0-or-later**; the full text is in [LICENSE](../LICENSE). There is also an additional permission under GPL section 7 allowing combined distribution with the Spine Runtimes in pixi-spine (see [NOTICE.en.md](../NOTICE.en.md)).
+- **Game assets are not covered by the license**: the art, music, sound effects, text, data and other material related to *Arknights* are copyright of their respective owners and not covered by the GPL; see the [Disclaimer](#disclaimer) above and [NOTICE.en.md](../NOTICE.en.md) for the usage restrictions.
+- **Third-party components** follow their own licenses: libraries installed via npm (the bundle's `node_modules` includes each one's license file), the algorithm in `tools/local-extract/aklz4.py` (BSD-3-Clause), fonts, etc. The list and full license texts are in [THIRD-PARTY-NOTICES.md](../THIRD-PARTY-NOTICES.md).
 
 ## Credits and data sources
 
 - Game data: [Kengxxiao/ArknightsGameData](https://github.com/Kengxxiao/ArknightsGameData).
-- Asset sources: [yuanyan3060/ArknightsGameResource](https://github.com/yuanyan3060/ArknightsGameResource), [fexli/ArknightsResource](https://github.com/fexli/ArknightsResource), [isHarryh/Ark-Models](https://github.com/isHarryh/Ark-Models), [ArknightsAssets/ArknightsAssets2](https://github.com/ArknightsAssets/ArknightsAssets2); fonts from [TimWangZi/The-font-of-Arknights](https://github.com/TimWangZi/The-font-of-Arknights) and Google Fonts (Noto Sans SC). See [docs/ASSETS.md](docs/ASSETS.md).
+- Asset sources: [yuanyan3060/ArknightsGameResource](https://github.com/yuanyan3060/ArknightsGameResource), [fexli/ArknightsResource](https://github.com/fexli/ArknightsResource), [isHarryh/Ark-Models](https://github.com/isHarryh/Ark-Models), [ArknightsAssets/ArknightsAssets2](https://github.com/ArknightsAssets/ArknightsAssets2); fonts from [TimWangZi/The-font-of-Arknights](https://github.com/TimWangZi/The-font-of-Arknights) and Google Fonts (Noto Sans SC). See [docs/ASSETS.md](../docs/ASSETS.md).
 - Rules cross-checked against: [PRTS, the Chinese Arknights wiki](https://prts.wiki/).
 - LZ4AK unpacking: the algorithm in `tools/local-extract/aklz4.py` comes from [isHarryh/Ark-Unpacker](https://github.com/isHarryh/Ark-Unpacker) (BSD-3-Clause, via MooncellWiki/UnityPy); Unity assets are parsed with [UnityPy](https://github.com/K0lb3/UnityPy) (MIT).
 - Libraries: [PixiJS](https://pixijs.com/) (MIT), [pixi-spine](https://github.com/pixijs/spine) (MIT; the Spine Runtime it contains is additionally subject to the [Spine Runtimes License](https://esotericsoftware.com/spine-runtimes-license)), [three.js](https://threejs.org/) (MIT), [Preact](https://preactjs.com/) + [htm](https://github.com/developit/htm) (MIT), [ws](https://github.com/websockets/ws) (MIT).
@@ -237,7 +238,7 @@ Thanks to the authors and maintainers of the projects above, and to Hypergryph f
 
 Issues reporting bugs, differences from the official rules or suggestions for improvement are welcome, as are Pull Requests:
 
-- Setup, running tests, the fidelity principles and the commit conventions are in [CONTRIBUTING.md](CONTRIBUTING.md).
+- Setup, running tests, the fidelity principles and the commit conventions are in [CONTRIBUTING.md](../CONTRIBUTING.md).
 - Run `node --test` before submitting and update the related docs; docs are written in Simplified Chinese, code and comments in English.
 - Submitted code will be released under GPL-3.0-or-later.
 - Do not commit any game asset files (`public/assets/` and similar directories are excluded by `.gitignore`).

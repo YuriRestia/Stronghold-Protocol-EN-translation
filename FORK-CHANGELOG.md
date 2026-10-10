@@ -1,0 +1,69 @@
+# Fork changelog (dev-0.2)
+
+Changes made in this fork ([YuriRestia/Stronghold-Protocol-EN-translation](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation))
+on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)). Upstream's
+own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
+[CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
+
+## 2026-10-10
+
+### Upstream merge
+
+- Merged upstream 0.2.3 at [`1db8e510`](https://github.com/sganggs/Stronghold-Protocol/commit/1db8e51023ae6abaec9370beb81a513d5c4d0b01) (`f81c8602`).
+  Upstream's per-Operator voice overrides were removed so the fork keeps a single voice language system (the voice
+  language picker below).
+
+### Contributions
+
+- English translations of README, CHANGELOG, NOTICE and the DEPLOY, PLAYING and WINDOWS guides
+  ([PR #3](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/3), thanks to @evenifyouforget). Kept in
+  sync with the Chinese originals from now on, which stay authoritative. The English README lives at
+  [.github/README.md](.github/README.md), so GitHub shows it on the repo page; the Chinese README.md stays at the root.
+
+### Changes
+
+- Briefing: click a core Alliance to tell your teammates which Alliance you're going for; the call shows on the Alliance
+  disc, and two players calling the same one are flagged as a conflict (`g.bondCall`).
+- Ready / unready sounds, and a low-timer sound on the Strategy select screen.
+- Lobby header redesign; the "Add to Home Screen" button moved into the lobby.
+- In-game news updated for 0.2.2.
+
+## 2026-10-09
+
+### Upstream merge
+
+- Merged upstream 0.2.2 at [`62eb1134`](https://github.com/sganggs/Stronghold-Protocol/commit/62eb113419123d9a3a63606107bbf85230c5dd2f) (`60745dd1`).
+
+### Changes
+
+- About server panel on the title screen with the server's contact points.
+- Asset preloading: start, pause / resume and finish downloading the game's assets ahead of time; they're used until
+  Clear Cache. Based on [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol), thanks to
+  @xinhai-ai.
+- English is the default interface language; voices fall back English → Japanese → Chinese.
+- The voice selector shows language names in the current interface language, with a toggle for the native-language dub
+  where one exists; the implementation was brought closer to upstream's.
+- The three performance benchmarks moved out of `npm test` into `npm run test:perf`.
+
+## 2026-10-08
+
+### Changes
+
+- Solo queue matchmaker: players searching alone are grouped into rooms automatically.
+- Fixed the link preview (Open Graph / Twitter card) when the site is shared.
+
+## 2026-10-07
+
+### Upstream merge
+
+- Branched from upstream 0.2.0 at [`13033214`](https://github.com/sganggs/Stronghold-Protocol/commit/1303321407f9a9b80c68e0a4d47b40871a5d06c3).
+- Merged upstream 0.2.1 at [`c2a2ef77`](https://github.com/sganggs/Stronghold-Protocol/commit/c2a2ef778cf728ff29b953b9842b2a39b1e9cbea) (`6ce79acc`).
+
+### Changes
+
+- Matchmaking and server restart announcements ported over from the 0.1.x fork.
+- Player counter in the lobby and while queueing.
+- English names, skills, talents and Modules for Operators the EN client doesn't have yet, following the wording of
+  [arknights.wiki.gg](https://arknights.wiki.gg/wiki/Operator/List#CN_Operators) (CC BY-SA 4.0).
+- Voice language selectors.
+- Announcement banner updated for 0.2.1.

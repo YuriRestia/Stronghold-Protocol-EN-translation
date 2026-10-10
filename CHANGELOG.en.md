@@ -2,6 +2,46 @@
 
 > English translation of [CHANGELOG.md](CHANGELOG.md). The Chinese original is the authoritative version.
 
+## 0.2.3 — 2026-10-10
+
+### New content
+
+- The six-star Clementia joins Custom Squad (three skills, two talents, Potential and Development); Shu gets the Module "A Fine Season" GUA-Y and Ulpianus gets "The Road Ahead" CRU-Y. The numbers come from the CN 2.7.81 official tables and the mechanics were checked against PRTS; collision bounds, splash and bombardment timing the sources don't confirm yet are implemented by inference and written up in [DESIGN §28](docs/history/0.2.3.md), to be corrected against the sources later.
+
+### New features
+
+- Settings has four Text Size steps; longer translations and buttons wrap automatically, and the board size stays the same (#435, PR #446, thanks to @7eLaryn).
+- In Operator Loadout each Operator can be set to Chinese, Japanese or the global voice setting, with the preference saved only on this device (#436).
+- Where the browser supports it the game can be added to the home screen; the icon keeps the mint-green castle, refined; there is no offline cache (PR #413, thanks to @Cromemadnd).
+- On the setup confirmation page the host can start a reroll; once every online human player agrees, the match setup is randomized again, keeping the room and everyone's own settings; this is a convenience feature of the remake (#77, PR #408, thanks to @Siornya).
+- "Resume local match" on the title screen and in the lobby: a closed window can return to its original identity and room, and a window that is in use, refreshing or starting up won't have its seat taken by another window (#431).
+
+### Rules (as in the official game)
+
+- Lemuen can trigger her skill with a Wanted target outside her range, and the first Wanted timing, multiple sources and the clean-up on retreat are fixed (#428, thanks to @CurlyZhu); Necrass's S1 and S2 can be triggered by out-of-range enemies blocked by her own summons, and both wait for the normal attack timing before activating (#440, #438, #439).
+- Saria's and Shu's S1 also heal allies at or below half HP on the Attack Interval when there are no enemies; Kal'tsit - Esperanta's S2 can be triggered by enemies inside the enlarged range (#406, thanks to @ChengCC0101, @shadiaojumao-hyb).
+- Ch'en the Dawnstreak's S3 also activates automatically when only flying enemies are in her attack range.
+- The trait granted by Fartooth also stacks when a Dollkeeper switches between its main body and substitute, sharing the original cap with deployment (#415, PR #429, thanks to @rosexxxp, @CXUtk).
+- A lethal hammer blow / Mariner stun no longer hits Operators redeployed within the same blow, such as through Resilient; Bards and Skadi the Corrupting Heart keep their continuous regeneration while stunned; Noble Sacrifice no longer gives Ægir stacks when the Alliance isn't active; the damage-reduction condition of "OpFor: Gun" counts the other Gun as an ally too; the SP returned by Desert Compass isn't limited by the SP-return block.
+- In co-op the starting Strategy pick gives each player 50 seconds (skips included); solo matches and matches with only one human player stay untimed.
+- While Clementia's S2 is transporting enemies, an enemy that dies, becomes invisible, can't be transported or has no path frees its seat and weight at once.
+
+### Interface
+
+- Pushed and pulled enemies keep their facing while sliding (#418, PR #427, thanks to @YinqiMargatroid); the still models of downed and frozen units are no longer redrawn every frame, and the redeploy countdowns share number textures (PR #434, thanks to @Cloudnyco).
+- The missing attack and hit sounds during the skills of Leizi the Thunderbringer, Ch'en the Dawnstreak and other Operators are added, and each skill sound keeps its own volume and play chance (PR #410, thanks to @Convey123).
+- Entry animations are no longer lost when models load slowly; they continue from the elapsed time (the issue raised in PR #416, thanks to @Cromemadnd).
+- Copying the diagnostics in a dialog also works in older browsers, and focus returns to where it was after copying (#433, thanks to @RushFTK); when the renderer fails to start, the message now explains why and offers a reload.
+
+### Bots
+
+- AI teammates buying high-tier cards compete less with their teammates' starting Alliances (PR #407, thanks to @IceCodeNew); with human players in the match they send a limited number of emote reactions, which `SP_BOT_EMOTES=0` turns off (PR #444, thanks to @DDDarkstar).
+- Fixed the counterattacks of the echoes and of Vendela and Bubble recursing past the limit against high-frequency HP changes.
+
+### Tools and development
+
+- The asset download reports the manifest entries it skipped and gains an optional strict mode (PR #421, thanks to @LimitlessHPPK); the Korean text was polished (PR #414, thanks to @D-Roote); a Chinese PR template was added (PR #432, thanks to @Xinglan233).
+
 ## 0.2.2 — 2026-10-09
 
 The version after 0.2.1: each Operator's Potential and owned-Operator bonus are now set per Operator in "Operator Loadout" (default: max Potential, Elite 2 Lv.60); Japanese voices, Operator selection voices and a local Statistics page are new; a large batch of rules was corrected against the official data and PRTS (pushed and pulled enemies go into Unbalance, the teleporters on Leader fields, Dobermann's "Pointing Stick" pick-1-of-3, Raid jumping next to invisible enemies, etc.), the issues reported by the community and on GitHub were fixed, and PRs from several contributors were ported. The battle simulation now uses browser-independent math functions, so battle results are bit-for-bit identical across browsers and the server. Rules were checked against the official data and PRTS; see DESIGN §27 ([docs/history/0.2.2.md](docs/history/0.2.2.md)); intentional differences from the official game are listed under "Intentional differences from the official game".
