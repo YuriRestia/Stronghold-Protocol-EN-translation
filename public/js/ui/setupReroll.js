@@ -25,18 +25,18 @@ export function SetupReroll({ pub }) {
     try { await fn(); } finally { pending.current = false; setBusy(false); }
   };
   if (!vote && (!host || !me)) return null;
-  return html`<section class="brief-reroll" aria-label=${t('重刷本局')} aria-live="polite">
-    <div class="brief-reroll__text">
-      <strong>${vote ? t('重刷本局投票：{agreed}/{total}', { agreed: vote.agreed.length, total: vote.voters.length }) : t('重刷本局')}</strong>
-      <span>${vote ? t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时已暂停。') : t('保留房间和个人配置，重新随机全部开局信息。')}</span>
-      ${vote ? html`<div class="brief-reroll__players">${vote.voters.map((id) => {
-        const p = players.find((p) => p.playerId === id);
-        return html`<span key=${id} class=${vote.agreed.includes(id) ? 'is-agreed' : ''}>${p?.name || id} · ${vote.agreed.includes(id) ? t('已同意') : t('待同意')}</span>`;
-      })}</div>` : null}
-    </div>
+  // a compact footer group (briefing, lower left): one button without a vote; during one, the count + the vote buttons —
+  // the explanation and who agreed sit in the tooltip
+  const who = vote ? vote.voters.map((id) => {
+    const p = players.find((p) => p.playerId === id);
+    return `${p?.name || id} · ${vote.agreed.includes(id) ? t('已同意') : t('待同意')}`;
+  }).join('\n') : '';
+  return html`<div class="brief-reroll" role="group" aria-label=${t('重刷本局')} aria-live="polite">
+    ${vote ? html`<span class="brief-reroll__count num" title=${`${t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时已暂停。')}\n${who}`}>
+      ${t('重刷本局投票：{agreed}/{total}', { agreed: vote.agreed.length, total: vote.voters.length })}</span>` : null}
     <div class="brief-reroll__actions">
-      ${!vote ? html`<${Button} icon="refresh" size="lg" loading=${busy} disabled=${!online || !allConnected}
-        title=${allConnected ? t('全体真人玩家一致同意后刷新，随机结果可能重复。') : t('请等待所有玩家连接后再发起投票')}
+      ${!vote ? html`<${Button} icon="refresh" loading=${busy} disabled=${!online || !allConnected}
+        title=${allConnected ? `${t('保留房间和个人配置，重新随机全部开局信息。')}\n${t('全体真人玩家一致同意后刷新，随机结果可能重复。')}` : t('请等待所有玩家连接后再发起投票')}
         onClick=${() => send(() => actions.rerollSetup(pub.setupRevision ?? 0))}>${t('重刷本局')}<//>` : null}
       ${vote && voter ? html`<${Button} variant="primary" loading=${busy} disabled=${!online || agreed}
         onClick=${() => send(() => actions.rerollVote(vote.id, true))}>${agreed ? t('已同意') : t('同意重刷')}<//>
@@ -45,5 +45,5 @@ export function SetupReroll({ pub }) {
       ${vote && host && me ? html`<${Button} disabled=${busy || !online}
         onClick=${() => send(() => actions.cancelReroll(vote.id))}>${t('取消投票')}<//>` : null}
     </div>
-  </section>`;
+  </div>`;
 }

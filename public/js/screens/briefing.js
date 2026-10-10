@@ -58,7 +58,7 @@ export function BriefingScreen() {
   const call = solo ? null : {
     calls: bondCallsOf(pub), myId,
     onCall: me ? (bondId) => act('g.bondCall', { bondId }, { sfx: 'pick' }) : null,
-    hint: me ? t('点击核心盟约，告诉队友你打算走的路线') : null, // en: "Click a core alliance to tell your teammates which strategy you're going for"
+    hint: me ? t('点击盟约，标记你的路线') : null, // en: "Click an alliance to call your plan"
   };
 
   const ready = async () => {
@@ -105,8 +105,8 @@ export function BriefingScreen() {
         <${MatchInfo} model=${info} call=${call} />
       </section>
     </main>
-    <${SetupReroll} pub=${pub} />
     <footer class="brief__foot">
+      <${SetupReroll} pub=${pub} />
       <${LoadoutButton} from="briefing" size="lg" class="brief-loadout" />
       <div class="brief-ready">
         <span class="brief-ready__txt">${t('已就绪')} <b class="num">${readyN}</b><span class="num">/${players.length}</span></span>

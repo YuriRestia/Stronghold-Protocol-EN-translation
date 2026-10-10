@@ -27,7 +27,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 ### Changes
 
 - Briefing: click a core Alliance to tell your teammates which Alliance you're going for; the call shows on the Alliance
-  disc, and two players calling the same one are flagged as a conflict (`g.bondCall`).
+  disc, and two players calling the same one are flagged as a conflict (`g.bondCall`). The hint now sits on the Core
+  Alliances heading, right after the "Core Bonds" label, as a glowing mint chip ("Click an alliance to call your plan")
+  instead of small grey text above the discs; the Core Alliances panel has more room around it.
+- Briefing: the setup reroll banner is now a single "Reroll stage setup" button at the lower left of the footer; during
+  a vote it shows the count and the Agree / Reject / Cancel buttons there, with the explanation and who agreed in the
+  tooltip.
+- Co-op briefing timer raised from the official 25 s to 45 s, so the team has time to agree on core Alliances (solo
+  stays untimed).
 - Ready / unready sounds, and a low-timer sound on the Strategy select screen.
 - Lobby header redesign; the "Add to Home Screen" button moved into the lobby.
 - In-game news updated for 0.2.2.

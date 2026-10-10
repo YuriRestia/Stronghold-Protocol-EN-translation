@@ -255,13 +255,13 @@ test('solo: no deadline outside combat (INFO_CHECK, strategy draft, 机变, prep
   m.dispose();
 });
 
-test('co-op keeps its guards: INFO_CHECK 25 s, prep timer, transition deadlines', () => {
+test('co-op keeps its guards: INFO_CHECK 45 s, prep timer, transition deadlines', () => {
   // two humans: a single human is untimed like solo (Match.soloUntimed, user playtest #4 item 3)
   const h = makeMatch({ mode: 'coop', humans: 2, bots: 1, seed: 12 }).start();
   const m = h.m;
   const pub = h.lastBc('m.public');
   assert.equal(pub.phase, PHASE.INFO_CHECK);
-  assert.equal(pub.deadline - pub.serverNow, 25000);
+  assert.equal(pub.deadline - pub.serverNow, 45000);
   h.toPrep(1);
   assert.ok(m.deadline > 0, 'co-op prep is timed');
   m.dispose();

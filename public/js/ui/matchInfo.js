@@ -80,9 +80,9 @@ export function DiyBannedLine({ model, class: cls = 'brief-banned__diy' }) {
  */
 export function MatchBondRow({ title, micro, bonds, model, calls = null, onCall = null, myId = null, hint = null }) {
   const m = data.get('assets');
-  return html`<div class="brief-bonds">
-    <h3 class="brief-h"><span>${title}</span><${MicroLabel}>${micro}</${MicroLabel}></h3>
-    ${hint ? html`<p class="brief-call__hint">${hint}</p>` : null}
+  return html`<div class=${cx('brief-bonds', hint && 'brief-bonds--call')}>
+    <h3 class=${cx('brief-h', hint && 'brief-h--hint')}><span>${title}</span><${MicroLabel}>${micro}</${MicroLabel}>
+      ${hint ? html`<span class="brief-call__hint"><${Icon} name="info" />${hint}</span>` : null}</h3>
     <div class="brief-bonds__row">
       ${bonds.map((b) => {
         const state = model.stateOf(b.bondId);

@@ -8,12 +8,12 @@ import { BAND_TURN_SECONDS } from '../../server/match/Match.js';
 
 const TURN_MS = BAND_TURN_SECONDS * 1000;
 
-test('INFO_CHECK: ends when every human confirmed (bots/departed count as ready) or at the 25 s deadline', () => {
+test('INFO_CHECK: ends when every human confirmed (bots/departed count as ready) or at the 45 s deadline', () => {
   const h = makeMatch({ mode: 'coop', humans: 2, bots: 1, seed: 1 }).start();
   const m = h.m;
   assert.equal(m.phase, PHASE.INFO_CHECK);
   const pub = h.lastBc('m.public');
-  assert.equal(pub.deadline - pub.serverNow, 25000);
+  assert.equal(pub.deadline - pub.serverNow, 45000);
   assert.equal(pub.players.find((p) => p.playerId === 'ai_0').status, 'ready');
   assert.equal(pub.players.find((p) => p.playerId === 'p_0').status, 'deciding');
   assert.deepEqual(m.handle('p_0', { t: 'g.infoReady' }), { ok: true });
@@ -25,7 +25,7 @@ test('INFO_CHECK: ends when every human confirmed (bots/departed count as ready)
   assert.deepEqual(m.handle('p_0', { t: 'g.infoReady' }), { error: ERR.WRONG_PHASE });
   m.dispose();
   const h2 = makeMatch({ mode: 'coop', humans: 2, seed: 1 }).start();
-  h2.sched.advance(24999);
+  h2.sched.advance(44999);
   assert.equal(h2.m.phase, PHASE.INFO_CHECK);
   h2.sched.advance(2);
   assert.equal(h2.m.phase, PHASE.BAND_DRAFT, 'deadline');
@@ -272,7 +272,7 @@ test('a single human (a 同盟 room started alone or with AI teammates only) is 
   const h = makeMatch({ mode: 'coop', humans: 2, bots: 1, seed: 12 }).start();
   assert.equal(h.m.soloUntimed, false);
   const pub = h.lastBc('m.public');
-  assert.equal(pub.deadline - pub.serverNow, 25000, 'INFO_CHECK 25 s');
+  assert.equal(pub.deadline - pub.serverNow, 45000, 'INFO_CHECK 45 s');
   h.toPrep(1);
   assert.ok(h.m.deadline > 0, 'co-op prep is timed');
   h.m.dispose();

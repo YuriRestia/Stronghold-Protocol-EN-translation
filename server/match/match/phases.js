@@ -14,7 +14,7 @@ export class MatchPhases {
   enterInfoCheck() {
     this.phase = PHASE.INFO_CHECK;
     for (const ps of this.order) if (ps.botControlled) ps.infoReady = true;
-    // solo: no time limit (the player confirms); co-op: the official 25 s guard
+    // solo: no time limit (the player confirms); co-op: 45 s (the official 25 s + 20 s, tools/build-data.mjs)
     this.setDeadline(this.soloUntimed ? 0 : this.gd.timer('infoCheck'), () => this.enterBandDraft());
     this.markPublic();
     for (const ps of this.order) this.markPrivate(ps);

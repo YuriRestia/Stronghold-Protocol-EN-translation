@@ -42,7 +42,7 @@ server/match/
 ## 1. Match flow
 
 ```
-LOBBY → INFO_CHECK (co-op 25 s; solo and single-human matches untimed; all humans confirmed ⇒ next) → BAND_DRAFT → BATTLE_CHECK (3 s)
+LOBBY → INFO_CHECK (co-op 45 s; solo and single-human matches untimed; all humans confirmed ⇒ next) → BAND_DRAFT → BATTLE_CHECK (3 s)
 → for r = 1..lastRound (+ hidden):
      ROUND_START (2 s)  income + pending coins, upgrade price −1 (r > 1, floor 0), temp NOT wiped (what overflowed after
                         the last prep's deadline — battle-result grants, a SETTLE merge's elite with no copy deployed,
@@ -79,7 +79,7 @@ legal from R14 into R15. The client mirrors it
 
 | Timer (real s, × `opts.timerScale`) | Value |
 |---|---|
-| INFO_CHECK | `config.timers.infoCheck` 25 |
+| INFO_CHECK | `config.timers.infoCheck` 45 (official 25 + 20, fork) |
 | band draft turn | `Match.BAND_TURN_SECONDS` 50 (owner official-play report, 2026-10-10) (= `timers.bandTurn`), the step's only countdown: `m.public.deadline` = the current turn's end, no step cap (`timers.bandDraft` 50 = the official whole step, informational) (co-op; solo / single human untimed) |
 | BATTLE_CHECK | `battleCheck` 3 |
 | 机变 first / other pickers | `spFirst` 30 / `spTurn` 16 (co-op; solo / single human untimed) |

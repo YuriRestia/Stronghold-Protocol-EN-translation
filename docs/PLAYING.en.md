@@ -13,7 +13,7 @@ Operator voices (official lines): "Operator Voices" in "Settings" sets the volum
 ## 1. Flow of a match
 
 ```
-Confirm Match Info (Team: 25 s) → Choose Strategy (draft) → Execute Protocol
+Confirm Match Info (Team: 45 s) → Choose Strategy (draft) → Execute Protocol
 → each round: [Improv] → Rest Phase → Battle → [Unite] → Settlement
 → round 14: Final Assault → (if conditions are met) round 15: Hidden Core → result titles
 ```

@@ -3694,7 +3694,9 @@ function buildConfig(ctx, waves, stages, bands) {
       templates: { 1: templateIdOf(act.constData.escapedBattleTemplateMapSinglePlayer), 2: templateIdOf(act.constData.escapedBattleTemplateMapMultiPlayer) } },
     finalAssault: { pairing: 'seatOrderPairs', oddPlayerAlone: true, movableBossPerAlivePlayerSide: true, layerGainsEnabled: false },
     timers: {
-      infoCheck: step('INFO_CHECK')?.time ?? 25, infoCheckHint: step('INFO_CHECK')?.hintTime ?? 5,
+      // infoCheck: the co-op briefing (solo is untimed) = the official 25 s + 20 s to agree on the 核心盟约 call (fork,
+      // 2026-10-10); enterSteps keeps the official value as reference
+      infoCheck: (step('INFO_CHECK')?.time ?? 25) + 20, infoCheckHint: step('INFO_CHECK')?.hintTime ?? 5,
       // bandTurn: one turn of the co-op strategy draft = its only countdown (server/match/Match.js BAND_TURN_SECONDS,
       // owner official-play report 2026-10-10: 50 s per turn; the official whole-step value stays as reference)
       bandDraft: step('BAND_CHECK')?.time ?? 50, bandDraftHint: step('BAND_CHECK')?.hintTime ?? 15, bandTurn: 50,
