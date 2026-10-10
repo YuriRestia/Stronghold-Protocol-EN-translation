@@ -312,14 +312,14 @@
 /* ---- difficulty details (ui/difficultyDetails.js) --------------------------------------------------------- */
 .diff-details-btn { align-self: flex-end; margin-top: .06rem; }
 .diff-details__scroll { overflow-x: auto; }
-.diff-details__table { width: 100%; border-collapse: collapse; font-size: .15rem; }
+.diff-details__table { width: 100%; border-collapse: collapse; font-size: calc(.15 * var(--t)); }
 .diff-details__table th, .diff-details__table td { padding: .08rem .12rem; border-bottom: 1px solid var(--line-1, rgba(255, 255, 255, .08)); text-align: left; white-space: nowrap; }
 .diff-details__table thead th { color: var(--d-color); font-weight: 700; }
 .diff-details__table thead th .icon, .diff-details__table thead th svg { width: .18rem; height: .18rem; margin-right: .06rem; vertical-align: -.03rem; }
 .diff-details__table tbody th { color: var(--text-lo); font-weight: 500; white-space: normal; min-width: 1.8rem; }
 .diff-details__table td { color: var(--text-hi); }
 .diff-details__rounds { margin-top: .12rem; }
-.diff-details__rounds > summary { cursor: pointer; color: var(--mint-400); font-size: .15rem; padding: .06rem 0; }
+.diff-details__rounds > summary { cursor: pointer; color: var(--mint-400); font-size: calc(.15 * var(--t)); padding: .06rem 0; }
 .diff-details__pair { display: flex; flex-wrap: wrap; gap: .24rem; margin-top: .08rem; }
 .diff-details__pair > * { flex: 1 1 4.4rem; }
 .diff-details__table--rounds th, .diff-details__table--rounds td { padding: .04rem .1rem; }

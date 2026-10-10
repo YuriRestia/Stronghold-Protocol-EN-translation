@@ -19,6 +19,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   ([PR #3](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/3), thanks to @evenifyouforget). Kept in
   sync with the Chinese originals from now on, which stay authoritative. The English README lives at
   [.github/README.md](.github/README.md), so GitHub shows it on the repo page; the Chinese README.md stays at the root.
+- Lobby "Difficulty Details" dialog: what each difficulty actually changes, side by side for Solo and Team Simulation
+  (enemy HP/ATK multipliers per round, Leader HP per Leader, Alliance bans, map pool, Improv rounds, Hidden Core entry,
+  battle time limits), read from the same data the match uses
+  ([PR #4](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/4), thanks to @evenifyouforget).
 
 ### Changes
 
