@@ -1,20 +1,28 @@
-// Player settings (BGM/SFX/voice volume, the voice dub 语音语言, mute, damage numbers, render quality, the shortcut keys): a
-// tiny observable store persisted in localStorage (`sp.pref.settings`), applied to the audio manager on every change, plus
-// the settings modal — which also holds the language switch (ui/lang.js; kept apart in `sp.pref.lang`; under it a note
-// while the current language's pack is a machine translation, `_meta.machineTranslated`) and the 快捷键
-// section that rebinds the in-match shortcuts (the key map: ui/gameLogic/shortcuts.js; the community request
-// 「快捷键可不可以自己设置」, the owner's decision of 2026-10-07) and 问题反馈, which copies the diagnostics of this page
-// for a bug report (diag.js: the error log, this browser, optionally the battle on screen; nothing is uploaded), and the
-// row that opens the asset preload (ui/preload.js). The lobby and the room open it from a 设置 button next to 玩法说明
-// (SettingsButton, GitHub #238); the title screen and the match have their own gear. 语音语言 also offers the
-// per-operator picker's dubs (EN / KR) and, beside them, the 本土语言 switch (every operator with an own-language dub
-// speaks it); every change of either goes to ui/voiceLang.js, which clears the per-operator picks.
+// Player settings (BGM/SFX/voice volume, the voice dub 语音语言, mute, damage numbers, render quality, 文字大小, the
+// shortcut keys): a tiny observable store persisted in localStorage (`sp.pref.settings`), applied to the audio manager
+// and to the document on every change, plus the settings modal — which also holds the language switch (ui/lang.js; kept
+// apart in `sp.pref.lang`; under it a note while the current language's pack is a machine translation,
+// `_meta.machineTranslated`) and the 快捷键 section that rebinds the in-match shortcuts (the key map:
+// ui/gameLogic/shortcuts.js; the community request 「快捷键可不可以自己设置」, the owner's decision of 2026-10-07) and
+// 问题反馈, which copies the diagnostics of this page for a bug report (diag.js: the error log, this browser, optionally
+// the battle on screen; nothing is uploaded). The lobby and the room open it from a 设置 button next to 玩法说明
+// (SettingsButton, GitHub #238); the title screen and the match have their own gear.
+//
+// 文字大小 (textSize, applied by applyTextSize): the interface text root `--t` of css/theme.css — a phone clamps the
+// layout root `1rem` at 40 px (theme.css), which left the .18rem body text at 7.2 CSS px while the browser's own font
+// settings only inflate the glyphs inside fixed boxes (and page zoom is off: index.html's viewport, ui/device.js).
+// Only font-size declarations read `--t`, so the board, the HUD bands the prep camera keeps clear and the detail
+// card's side do not move — the field is sized from the host element's clientWidth (render/app.js).
+//
+// This fork: 语音语言 also offers the per-operator picker's dubs (EN / KR) and, beside them, the 本土语言 switch
+// (every operator with an own-language dub speaks it); every change of either goes to ui/voiceLang.js, which clears
+// the per-operator picks. Below the quality and 文字大小 rows sits the row that opens the asset preload (ui/preload.js).
 
 import { useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Modal, Button, Icon, MicroLabel } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { createStore, useStore, loadPref, savePref, store } from '../store.js';
-import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS } from './gameLogic.js';
+import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS, TEXT_SIZES } from './gameLogic.js';
 import { audio } from '../audio.js';
 import { openGuide } from './guide.js';
 import { detectFeatures } from './device.js';
@@ -27,19 +35,34 @@ import { copyText } from './clipboard.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
-/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, muted, damageNumbers, quality, keys }. */
+/** Settings store: { bgm, sfx, voice, voiceLang, voiceNative, voiceOverrides, muted, damageNumbers, quality, textSize, keys }. */
 export const settingsStore = createStore(sanitizeSettings(loadPref('settings', null)));
+
+/**
+ * 设置 →「文字大小」: put the step on <html data-text> — css/theme.css turns it into the text root `--t`
+ * (`:root[data-text="md"] { --t: … }`), which every readable font-size reads; no layout value does. The attribute
+ * (not an inline style) keeps the default in the stylesheet: without it — no JavaScript, an old saved profile, a
+ * value a future version dropped — the page is the design's own sizes. Values outside TEXT_SIZES fall back to 小.
+ * @param {'sm'|'md'|'lg'|'xl'} v
+ */
+export function applyTextSize(v) {
+  const el = globalThis.document?.documentElement;
+  if (el) el.dataset.text = TEXT_SIZES.includes(v) ? v : 'sm';
+}
 
 settingsStore.subscribe((s) => {
   savePref('settings', sanitizeSettings(s));
   audio.setVolumes(s);
-  audio.setVoiceLang(s.voiceLang);
+  audio.setVoiceLang(s.voiceLang, s.voiceOverrides);
   audio.setVoiceNative(s.voiceNative);
   setDefaultVoiceLang(s.voiceLang, s.voiceNative);
+  applyTextSize(s.textSize);
 });
 audio.setVolumes(settingsStore.get());
-audio.setVoiceLang(settingsStore.get().voiceLang);
+audio.setVoiceLang(settingsStore.get().voiceLang, settingsStore.get().voiceOverrides);
 audio.setVoiceNative(settingsStore.get().voiceNative);
+// before the first render (main.js boot renders after its imports ran): the stored step is on screen without a flash
+applyTextSize(settingsStore.get().textSize);
 
 /** @param {Partial<ReturnType<typeof sanitizeSettings>>} patch */
 export function updateSettings(patch) {
@@ -75,6 +98,11 @@ function Toggle({ label, micro, value, onChange }) {
 }
 
 const QUALITY = [['high', N_('高')], ['medium', N_('中')], ['low', N_('低')]];
+/**
+ * 文字大小: one step of TEXT_SIZES (ui/gameLogic/settings.js) with its label — 小 is the design's own sizes, the others
+ * raise the text root `--t` (css/theme.css) and with it every readable font-size; the board and the HUD's boxes stay.
+ */
+const TEXT_SCALES = [['sm', N_('小')], ['md', N_('中')], ['lg', N_('大')], ['xl', N_('特大')]];
 /**
  * 语音语言: each dub named in the interface language (msgids), so a player need not read the other
  * scripts to find theirs — unlike the interface language switch (ui/lang.js), where whoever opens it may not read the
@@ -255,7 +283,7 @@ export function SettingsModal({ open, onClose }) {
         </div>
       </div>
       <${Slider} label=${t('音效')} micro="SFX" icon="signal" value=${s.sfx}
-        onInput=${(v) => { updateSettings({ sfx: v }); if (!tested) { setTested(true); setTimeout(() => setTested(false), 400); audio.sfx('click'); } }} />
+                 onInput=${(v) => { updateSettings({ sfx: v }); if (!tested) { setTested(true); setTimeout(() => setTested(false), 400); audio.sfx('click'); } }} />
       <${Toggle} label=${t('静音')} micro="MUTE" value=${s.muted} onChange=${(v) => updateSettings({ muted: v })} />
       <${Toggle} label=${t('显示伤害数字')} micro="DAMAGE NUMBERS" value=${s.damageNumbers} onChange=${(v) => updateSettings({ damageNumbers: v })} />
       <div class="set-row">
@@ -265,6 +293,14 @@ export function SettingsModal({ open, onClose }) {
             class=${s.quality === id ? 'is-on' : ''} onClick=${() => updateSettings({ quality: id })}>${t(label)}</button>`)}
         </div>
       </div>
+      <div class="set-row">
+        <span class="set-row__label">${t('文字大小')}<${MicroLabel}>TEXT SIZE<//></span>
+        <div class="set-seg set-textsize" role="radiogroup" aria-label=${t('文字大小')} data-testid="text-size">
+          ${TEXT_SCALES.map(([id, label]) => html`<button key=${id} type="button" role="radio" aria-checked=${s.textSize === id ? 'true' : 'false'}
+            class=${s.textSize === id ? 'is-on' : ''} onClick=${() => updateSettings({ textSize: id })}>${t(label)}</button>`)}
+        </div>
+      </div>
+      <p class="set-hint set-textsize-note">${t('调整界面文字大小，棋盘保持原比例。')}</p>
       <${PreloadRow} />
       <${HotkeySection} keys=${s.keys} touchUi=${touchUi} />
       <${DiagSection} />

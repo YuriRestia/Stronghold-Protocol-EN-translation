@@ -46,7 +46,8 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/`, { waitUntil: 'networkidle0', timeout: 60000 });
+    // this fork starts in English (ui/lang.js START_LANG); these checks read the Chinese msgids
+    await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0', timeout: 60000 });
     await page.waitForSelector('input', { timeout: 15000 });
     await page.type('input', '测试博士');
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /开始/.test(b.textContent))?.click());
@@ -61,14 +62,18 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
     assert.match(text, /设置/);
     assert.match(text, /背景音乐/);
     assert.match(text, /快捷键/);
-    assert.doesNotMatch(text, /棋盘/, 'no board-style option (declined)');
-    assert.doesNotMatch(text, /后台/, 'no background-music option (declined)');
+    // The text-size hint mentions the unchanged board scale; the declined options concern controls, not help copy.
+    const optionLabels = await page.$$eval('.modal .set-row__label', (nodes) => nodes.map((n) => n.textContent).join(' '));
+    assert.doesNotMatch(optionLabels, /棋盘/, 'no board-style option (declined)');
+    assert.doesNotMatch(optionLabels, /后台/, 'no background-music option (declined)');
     await page.keyboard.press('Escape');
     await sleep(300);
     assert.equal(await modalText(page), null, 'Esc closes it');
     assert.ok(await page.$('.lobby-screen'), 'the lobby is still there');
 
-    // the room: 创建同盟 → the same button, closed with 完成
+    // the room: 创建同盟 → the same button, closed with 完成 (this fork's lobby opens on 单人匹配: pick 同盟模拟 first)
+    await page.evaluate(() => [...document.querySelectorAll('.mode-card')].find((b) => /同盟模拟/.test(b.textContent))?.click());
+    await sleep(200);
     await page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /创建同盟/.test(b.textContent))?.click());
     await page.waitForSelector('.room-screen', { timeout: 15000 });
     await sleep(500);

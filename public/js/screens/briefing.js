@@ -13,6 +13,7 @@ import { useGameData, Img, RichText } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { MatchInfo, matchInfoModel } from '../ui/matchInfo.js';
 import { LoadoutButton } from './loadout.js';
+import { SetupReroll } from '../ui/setupReroll.js';
 import { actions, act } from '../ui/gameActions.js';
 import { bondCallsOf } from '../ui/bondCall.js';
 import { useTimerWarning } from '../ui/timerWarn.js';
@@ -63,7 +64,7 @@ export function BriefingScreen() {
   const ready = async () => {
     if (busy || me?.ready) return;
     setBusy(true);
-    await actions.infoReady();
+    await actions.infoReady(pub.setupRevision ?? 0);
     setBusy(false);
   };
 
@@ -104,6 +105,7 @@ export function BriefingScreen() {
         <${MatchInfo} model=${info} call=${call} />
       </section>
     </main>
+    <${SetupReroll} pub=${pub} />
     <footer class="brief__foot">
       <${LoadoutButton} from="briefing" size="lg" class="brief-loadout" />
       <div class="brief-ready">
@@ -111,7 +113,7 @@ export function BriefingScreen() {
         <span class="brief-ready__pips">${players.map((p) => html`<i key=${p.playerId} class=${cx(p.ready && 'on', p.playerId === myId && 'me')} title=${p.name}><${Icon} name="user" /></i>`)}</span>
       </div>
       <${Button} variant="primary" size="xl" icon=${me?.ready ? 'check' : me ? 'play' : 'eye'} active=${!!me?.ready} loading=${busy}
-        disabled=${!!me?.ready || !me} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>
+        disabled=${!!me?.ready || !me || !!pub.rerollVote} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>
     </footer>
     <${ExitModal} open=${exit} onClose=${() => setExit(false)} solo=${solo} />
   </div>`;
