@@ -81,13 +81,22 @@
 .brief-bond__ban { position: absolute; top: -.04rem; right: .08rem; display: inline-flex; align-items: center; gap: .01rem; font-size: calc(.12 * var(--t)); font-weight: 700; padding: 0 .05rem; background: var(--red); color: #fff; line-height: 1.5; box-shadow: 0 0 0 1px #000; }
 .brief-bond__ban .icon { width: .12rem; height: .12rem; }
 .brief-bond.is-partial .bond__core { box-shadow: 0 0 0 2px rgba(255, 84, 84, .5); }
+/* the box beside a bond's tooltip (matchInfo.js BondBannedAside): its banned members with avatar, name and bonds */
+.brief-bantip { display: flex; flex-direction: column; gap: .06rem; }
+.brief-bantip__h { font-size: calc(.12 * var(--t)); font-weight: 700; letter-spacing: .06em; color: var(--red); }
+.brief-bantip__op { display: flex; align-items: center; gap: .08rem; }
+.brief-bantip__op .uthumb { flex: none; }
+.brief-bantip__txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.brief-bantip__txt b { font-size: calc(.14 * var(--t)); color: var(--text-hi); }
+.brief-bantip__txt > span { font-size: calc(.12 * var(--t)); color: var(--text-lo); }
+.brief-bantip__txt .is-this { color: var(--mint-400); }
 /* the 核心盟约 call (ui/bondCall.js): the hint is a mint chip right after the heading's micro label (wraps below on narrow rows);
    P1–P4 at the disc's top-left, red without text on a conflict */
 .brief-bonds--call { padding: .22rem .24rem .28rem; }
 .brief-h--hint { flex-wrap: wrap; row-gap: .08rem; margin-bottom: .24rem; }
 .brief-call__hint { margin-left: .06rem; display: inline-flex; align-items: center; gap: .06rem; padding: .02rem .1rem;
   font-size: calc(.15 * var(--t)); font-weight: 600; letter-spacing: .02em; line-height: 1.3; color: var(--mint-400);
-  background: rgba(78, 216, 175, .1); border: 1px solid var(--mint-a35); border-radius: .04rem; animation: brief-hint-glow 2.4s ease-in-out infinite; }
+  background: rgba(78, 216, 175, .1); border: 1px solid var(--mint-a35); border-radius: .04rem;}
 .brief-call__hint .icon { flex: none; width: 1.1em; height: 1.1em; }
 @keyframes brief-hint-glow { 50% { border-color: var(--mint-500); box-shadow: 0 0 .1rem rgba(78, 216, 175, .35); } }
 .brief-call { position: absolute; top: -.06rem; left: .08rem; z-index: 1; display: grid; place-items: center; width: .26rem; height: .26rem; border-radius: 50%; font-size: min(calc(.11 * var(--t)), .13rem); font-weight: 700; line-height: 1; background: #1d2421; color: var(--text-md); border: 2px solid var(--mint-500); box-shadow: 0 0 0 1px #000; pointer-events: none; }

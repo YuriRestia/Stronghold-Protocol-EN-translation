@@ -535,24 +535,27 @@ export function DialogHost() {
 
 // ---- Tooltip -----------------------------------------------------------------------------------
 
-let tipState = null; // { id, content, rect, placement }
+let tipState = null; // { id, content, aside, rect, placement }
 let tipSeq = 0;
 const tipListeners = new Set();
 const setTip = (s) => { tipState = s; for (const fn of [...tipListeners]) fn(); };
 
 /**
  * Hover/focus tooltip around its children. Content renders in <TooltipLayer/> (fixed, viewport-clamped).
- * @param {{ text: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, class?: string, children?: any }} props
+ * `aside`: an optional second box in the same style, beside the tooltip (right of it; left when there is no room).
+ * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, class?: string, children?: any }} props
  */
 const TOUCH_TIP_MS = 450;
 
-export function Tooltip({ text, placement = 'top', delay = 120, block = false, class: cls, children }) {
+export function Tooltip({ text, aside = null, placement = 'top', delay = 120, block = false, class: cls, children }) {
   const ref = useRef(null);
   const idRef = useRef(0);
   const timer = useRef(null);
   const textRef = useRef(text);
+  const asideRef = useRef(aside);
   const pressed = useRef(false); // pointer pressed inside: the focus that follows is not a keyboard focus
   textRef.current = text;
+  asideRef.current = aside;
   if (!idRef.current) idRef.current = ++tipSeq;
   const show = () => {
     clearTimeout(timer.current);
@@ -561,7 +564,7 @@ export function Tooltip({ text, placement = 'top', delay = 120, block = false, c
       const el = ref.current;
       const content = textRef.current; // the text of the render current when the delay ends (a click may change it)
       if (!el || !el.isConnected || content == null || content === '') return;
-      setTip({ id: idRef.current, content, rect: el.getBoundingClientRect(), placement });
+      setTip({ id: idRef.current, content, aside: asideRef.current, rect: el.getBoundingClientRect(), placement });
     }, delay);
   };
   const hide = () => {
@@ -597,7 +600,7 @@ export function Tooltip({ text, placement = 'top', delay = 120, block = false, c
   useEffect(() => {
     if (tipState?.id !== idRef.current) return;
     if (text == null || text === '') setTip(null);
-    else setTip({ ...tipState, content: text });
+    else setTip({ ...tipState, content: text, aside: asideRef.current });
   }, [text]);
   return html`<span ref=${ref} class=${cx('tt-anchor', block && 'tt-anchor--block', cls)}
       onMouseEnter=${onMouseEnter} onMouseLeave=${onLeave} onFocusIn=${onFocusIn} onFocusOut=${onLeave} onPointerDown=${onPointerDown}
@@ -610,6 +613,7 @@ export function Tooltip({ text, placement = 'top', delay = 120, block = false, c
 export function TooltipLayer() {
   const [, force] = useReducer((c) => c + 1, 0);
   const boxRef = useRef(null);
+  const asideRef = useRef(null);
   const [pos, setPos] = useState(null);
   useEffect(() => {
     tipListeners.add(force);
@@ -629,13 +633,31 @@ export function TooltipLayer() {
     if (place === 'bottom' && top + b.height > vh - m) { place = 'top'; top = Math.max(m, r.top - b.height - m); }
     let left = r.left + r.width / 2 - b.width / 2;
     left = Math.max(m, Math.min(vw - b.width - m, left));
-    const next = { top: Math.round(top), left: Math.round(left), place, id: tipState.id };
-    if (!pos || pos.top !== next.top || pos.left !== next.left || pos.id !== next.id || pos.place !== next.place) setPos(next);
+    // the aside: right of the box (left when it does not fit), growing away from the anchor (bottom-aligned above it,
+    // top-aligned below it), kept in the viewport
+    let aTop = null, aLeft = null;
+    const a = asideRef.current?.getBoundingClientRect();
+    if (a) {
+      const gap = 4;
+      aLeft = left + b.width + gap;
+      if (aLeft + a.width > vw - m) aLeft = left - gap - a.width;
+      aLeft = Math.max(m, Math.min(vw - a.width - m, aLeft));
+      aTop = place === 'top' ? top + b.height - a.height : top;
+      aTop = Math.max(m, Math.min(vh - a.height - m, aTop));
+    }
+    const next = { top: Math.round(top), left: Math.round(left), place, id: tipState.id,
+      aTop: aTop == null ? null : Math.round(aTop), aLeft: aLeft == null ? null : Math.round(aLeft) };
+    if (!pos || pos.top !== next.top || pos.left !== next.left || pos.id !== next.id || pos.place !== next.place
+      || pos.aTop !== next.aTop || pos.aLeft !== next.aLeft) setPos(next);
   });
   if (!tipState) return null;
   const ready = pos && pos.id === tipState.id;
+  const hasAside = tipState.aside != null && tipState.aside !== '';
+  const off = 'top:-9999px;left:-9999px';
   return html`<div ref=${boxRef} class=${cx('tooltip', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
-    style=${ready ? `top:${pos.top}px;left:${pos.left}px` : 'top:-9999px;left:-9999px'}>${tipState.content}</div>`;
+    style=${ready ? `top:${pos.top}px;left:${pos.left}px` : off}>${tipState.content}</div>
+    ${hasAside ? html`<div ref=${asideRef} class=${cx('tooltip', 'tooltip--aside', ready && pos.aTop != null && 'is-shown', ready && `tooltip--${pos.place}`)}
+      role="tooltip" style=${ready && pos.aTop != null ? `top:${pos.aTop}px;left:${pos.aLeft}px` : off}>${tipState.aside}</div>` : null}`;
 }
 
 // ---- ProgressBar, Tabs, Spinner ----------------------------------------------------------------

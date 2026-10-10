@@ -508,6 +508,7 @@
   white-space: pre-line;
 }
 .tooltip.is-shown { opacity: 1; }
+.tooltip--aside { max-width: 3.2rem; white-space: normal; }
 .tooltip--top.is-shown { animation: tip-up var(--t-fast) var(--ease-out); }
 .tooltip--bottom.is-shown { animation: tip-down var(--t-fast) var(--ease-out); }
 @keyframes tip-up { from { transform: translateY(4px); } }

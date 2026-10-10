@@ -30,6 +30,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   disc, and two players calling the same one are flagged as a conflict (`g.bondCall`). The hint now sits on the Core
   Alliances heading, right after the "Core Bonds" label, as a glowing mint chip ("Click an alliance to call your plan")
   instead of small grey text above the discs; the Core Alliances panel has more room around it.
+- Briefing: hovering an alliance with banned operators opens a second box beside its tooltip listing them, each with
+  avatar, name and alliances (the hovered one in mint). The shared `Tooltip` gained an optional `aside` for this.
 - Briefing: the setup reroll banner is now a single "Reroll stage setup" button at the lower left of the footer; during
   a vote it shows the count and the Agree / Reject / Cancel buttons there, with the explanation and who agreed in the
   tooltip.
