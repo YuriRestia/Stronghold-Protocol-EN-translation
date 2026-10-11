@@ -343,6 +343,28 @@ export function voiceLine(audio, charId, slot, lang = 'cn', random = Math.random
  */
 export const VOICE_TREES = Object.freeze({ jp: 'voiceJp', en: 'voiceEn', kr: 'voiceKr', native: 'voiceNative' });
 
+// ---- outfit voices (fork, docs/OUTFITS.md) -------------------------------------------------------------------
+// An outfit with its own voice set (data/outfits.json `voice`) has it in the voice trees under its word key
+// ('char_4064_mlynar_epoque#28'). The operator's language pick still applies (it is the operator's), and the dub falls
+// back like any line (EN → JP → 中文; an outfit not dubbed in EN yet speaks JP). A slot the set lacks is the operator's.
+
+let voiceKeyResolver = null;
+/** Set the function that names a unit's outfit voice key ((unitInfo | { charId, ownerId }) => key | null; ui/outfits.js). */
+export function setOutfitVoiceResolver(fn) { voiceKeyResolver = typeof fn === 'function' ? fn : null; }
+/** The outfit voice key of a tracked unit / an operator, or null. */
+export function outfitVoiceKey(u) {
+  try { return (voiceKeyResolver && voiceKeyResolver(u)) || null; } catch { return null; }
+}
+
+/** The line of `slot` in outfit voice set `key` (the operator's language pick, EN → JP → 中文), or null. */
+function outfitVoiceLine(am, charId, slot, key) {
+  if (typeof key !== 'string' || !key) return null;
+  const a = am.getManifest()?.audio;
+  if (!a?.voice?.[key]?.[slot]) return null;
+  const lang = effectiveVoiceLang(a, key, { default: am.voicePicks?.[charId] || am.voiceLang, native: false, byChar: {} });
+  return voiceLine(a, key, slot, lang || am.voiceLang);
+}
+
 /**
  * The settlement slot of a finished 作战: 完美作战 ⇒ 3星结束行动 (绝境 / 终极 ⇒ 完成高难行动 instead), a leaked enemy
  * ⇒ 非3星结束行动, nothing killed at all ⇒ 行动失败.
@@ -1004,7 +1026,8 @@ export class AudioManager {
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
       // the dub the operator speaks (its own pick, else settings 语音语言), with the Chinese file of the same name as its
       // fallback (voiceLine)
-      const line = voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLangOf(charId) || this.voiceLang);
+      // (fork) the outfit's own voice set: a battle unit's (o.voiceKey, null = none), else the player's own choice
+      const line = outfitVoiceLine(this, charId, slot, o.voiceKey !== undefined ? o.voiceKey : outfitVoiceKey({ charId })) || voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLangOf(charId) || this.voiceLang);
       if (!line) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);
@@ -1126,7 +1149,9 @@ export class AudioManager {
     if (!u || typeof u !== 'object' || u.id == null) return;
     // UnitInfo.spine is the model id (charId / tokenId / enemyId) — the key of sfx.units; kind/defId pick the
     // official class sounds (operator vs summon vs device). `skillActive` follows the ['skill', id, 1] / 0 events.
+    // (fork, docs/OUTFITS.md) `voiceKey`: the voice set of the outfit its owner chose (null = the operator's own)
     this.units.set(u.id, { def: u.spine || u.defId, defId: u.defId ?? null, kind: u.kind ?? null, side: u.side, boss: !!u.boss,
+      voiceKey: u.side === 'enemy' ? null : outfitVoiceKey(u),
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
@@ -1178,7 +1203,7 @@ export class AudioManager {
             // 作战中N: the equipped skill's own slot (0-based; 作战中4 is the fallback of a 4th slot)
             if (unitSoundClass(u) === 'char') {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;
-              this.voice(u.def, `skill${n}`, { unitKey: e[1] });
+              this.voice(u.def, `skill${n}`, { unitKey: e[1], voiceKey: u.voiceKey });
             }
           } else {
             // The unit is not tracked yet. The sim emits the cast of a deployment that fires inside its own first tick
@@ -1197,7 +1222,7 @@ export class AudioManager {
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
           const u = this.units.get(e[1]);
-          if (u && unitSoundClass(u) === 'char') this.voice(u.def, 'faceEnemy', { unitKey: e[1] });
+          if (u && unitSoundClass(u) === 'char') this.voice(u.def, 'faceEnemy', { unitKey: e[1], voiceKey: u.voiceKey });
         } else if (kind === 'die') {
           const u = this.units.get(e[1]);
           if (!u) continue;
@@ -1230,8 +1255,8 @@ export class AudioManager {
           if (unitSoundClass(u) === 'char') {
             if (!this.startVoiceDone) {
               this.startVoiceDone = true;
-              if (!this.voice(u.def, 'start')) this.voice(u.def, 'place', { unitKey: e[1] });
-            } else this.voice(u.def, 'place', { unitKey: e[1] });
+              if (!this.voice(u.def, 'start', { voiceKey: u.voiceKey })) this.voice(u.def, 'place', { unitKey: e[1], voiceKey: u.voiceKey });
+            } else this.voice(u.def, 'place', { unitKey: e[1], voiceKey: u.voiceKey });
           }
           if (!url) continue;
           const own = url === m?.audio?.sfx?.units?.[u.def]?.born;

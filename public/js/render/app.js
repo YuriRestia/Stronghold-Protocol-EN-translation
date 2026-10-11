@@ -314,6 +314,8 @@ export async function createFieldView(host, options = {}) {
     lookupDef: (info) => (info.side === 'enemy' ? data.enemy(info.defId)
       : (info.standInFor && data.standIn(info.defId)) || (info.diy && data.diy(info.defId, info.diy)) || data.chess(info.defId) || data.token(info.defId)),
     crowded: () => views.size > 90,
+    // (fork, docs/OUTFITS.md) the outfit model a unit wears (its owner's choice; ui/outfits.js outfitModelOf), or null
+    outfitOf: typeof opts.outfitOf === 'function' ? opts.outfitOf : null,
     renderer: app.renderer,
     frameNo: () => frameNo,
     impostorInterval: () => impInterval,

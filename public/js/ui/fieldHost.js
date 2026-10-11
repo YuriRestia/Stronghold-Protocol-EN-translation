@@ -13,6 +13,7 @@ import { createFallbackView } from './fallbackField.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
 import { settingsStore } from './settings.js';
+import { outfitModelOf } from './outfits.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 const METHODS = ['setStage', 'setCamera', 'setPrep', 'enterBattle', 'pushSnapshot', 'pushEvents', 'highlightTiles', 'on', 'resize', 'destroy'];
@@ -217,6 +218,8 @@ export async function mountFieldView(host, { signal } = {}) {
   checkActive(signal);
   const pref = renderPref();
   const opts = { data, assets: data.get('assets'), audio, settings: settingsStore.get(), padding: hudPadding, hud: hudBands };
+  // (fork, docs/OUTFITS.md) the outfit model of a unit (its owner's choice), read by render/units.js
+  opts.outfitOf = outfitModelOf;
   if (pref !== 'fallback') {
     const controller = new AbortController();
     const onAbort = () => controller.abort(abortError(signal));

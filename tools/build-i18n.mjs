@@ -136,6 +136,8 @@ const TABLES = [
   { rel: 'excel/item_table.json', pick: (j) => j?.items },
   { rel: 'excel/token_table.json' },
   { rel: 'levels/enemydata/enemy_database.json', pick: (j) => (Array.isArray(j?.enemies) ? kvMap(j.enemies) : j) },
+  // fork: the outfit names and series of data/outfits.json (tools/build-outfits.mjs, docs/OUTFITS.md)
+  { rel: 'excel/skin_table.json', pick: (j) => ({ charSkins: j?.charSkins, brandList: j?.brandList }) },
 ];
 
 /** A Unity-style list of { Key, Value } entries as a plain map (the two dumps serialize some tables either way). */
@@ -151,7 +153,9 @@ const SEASON_SCOPE = 'act2';
 
 /** data/*.json files localized, in output order. */
 export const DATA_FILES = Object.freeze(['chess', 'backups', 'tokens', 'bonds', 'garrisons', 'items', 'bands', 'effects',
-  'choices', 'enemies', 'factions', 'stages', 'bosses', 'config', 'emotes']);
+  'choices', 'enemies', 'factions', 'stages', 'bosses', 'config', 'emotes', 'outfits']);
+/** Files whose names never feed the `names` map (no server message names an outfit). */
+const NO_NAMES = new Set(['outfits']);
 
 /**
  * Research / developer notes of the data files (English with Chinese terms; no screen shows them): never translated,
@@ -678,6 +682,7 @@ export function buildOverlay({ zh, en, data, fallback = {}, corrections = {}, so
       const leaves = typeof record === 'string' ? translateScalar(file, id, record, tr, stats, samples) : translateRecord(file, id, record, tr, stats, samples);
       const ov = buildRecordOverlay(leaves.map(({ path, zh: z, en: e }) => ({ path, zh: z, en: e })));
       if (ov) out[id] = ov;
+      if (NO_NAMES.has(file)) continue;
       for (const l of leaves) {
         // record-level names (and the stand-ins' operator names): what server messages name
         const top = l.path.length === 1
@@ -760,7 +765,8 @@ async function main() {
   const readDict = async (abs) => (existsSync(abs) ? JSON.parse(await readFile(abs, 'utf8')) : {});
   // the remake's own strings and PR #70's are English; another language falls back to its pack's UI strings only
   const fallback = opts.lang === 'en' ? {
-    remake: await readDict(join(ROOT, 'tools', 'i18n', 'fallback-remake.json')),
+    // fork: + the English names of the CN-only outfits (arknights.wiki.gg; docs/OUTFITS.md), counted as 'remake'
+    remake: { ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-outfits-en.json')), ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-remake.json')) },
     pr70: await readDict(join(ROOT, 'tools', 'i18n', 'fallback-pr70.json')),
     ui: await readDict(join(ROOT, 'public', 'i18n', 'en.json')),
   } : { ui: await readDict(join(ROOT, 'public', 'i18n', `${opts.lang}.json`)) };

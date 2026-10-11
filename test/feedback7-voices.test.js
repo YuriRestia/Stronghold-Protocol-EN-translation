@@ -70,12 +70,15 @@ test('data/assets.json: voiceJp gives every voiced operator the JP twin of each 
   assert.deepEqual(Object.keys(jp), Object.keys(cn), 'the same operators');
   assert.equal(m.stats.voiceJpChars, Object.keys(jp).length);
   assert.equal(m.stats.voiceChars, Object.keys(cn).length);
-  assert.equal(Object.keys(jp).length, 192);
+  // (fork, docs/OUTFITS.md) the trees also carry the outfits' own voice sets, keyed by their word key ('…_epoque#28')
+  const outfitKeys = new Set(Object.values(readJson('data/outfits.json')).map((r) => r.voice).filter(Boolean));
+  assert.deepEqual(Object.keys(jp).filter((k) => k.includes('#')).sort(), [...outfitKeys].sort(), 'the outfit voice sets');
+  assert.equal(Object.keys(jp).filter((k) => !k.includes('#')).length, 192);
   // the JP tree is the Chinese one with the folder swapped: same slots, same lines in the same order, same file names
   assert.deepEqual(JSON.parse(JSON.stringify(cn).replaceAll('/assets/audio/voice/cn/', '/assets/audio/voice/jp/')), jp);
   const lines = [];
   const walk = (x) => { if (typeof x === 'string') lines.push(x); else if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') Object.values(x).forEach(walk); };
-  walk(jp);
+  for (const [k, v] of Object.entries(jp)) if (!k.includes('#')) walk(v);
   assert.equal(lines.length, 2688);
   for (const u of lines) assert.match(u, /^\/assets\/audio\/voice\/jp\/char_[^/]+\/cn_\d+\.mp3$/);
   // no voice: the 17 stand-ins of data/backups.json (预备干员 / 原型干员), the mode's 盟约·辅助干员, every summon

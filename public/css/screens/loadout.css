@@ -656,3 +656,56 @@
 }
 
 .diy-choice__tags { display: flex; flex-wrap: wrap; gap: .08rem; color: var(--text-lo); font-size: max(calc(.12 * var(--t)), 10px); }
+
+/* ---- 时装 / Outfits (fork, docs/OUTFITS.md; screens/outfits.js) ---------------------------------------------------- */
+/* the switch above the detail header: 调配 ⇄ 时装 (top right) */
+.lo-dtop { flex: none; display: flex; justify-content: flex-end; padding: .08rem .12rem 0; }
+.lo-oswitch { display: inline-flex; border: 1px solid var(--line-2); }
+.lo-oswitch button { display: inline-flex; align-items: center; gap: .05rem; min-height: max(.32rem, 22px); padding: 0 .14rem; background: #0a0d0c;
+  border: 0; color: var(--text-lo); font-size: max(.14rem, 10px); font-weight: 700; letter-spacing: .08em; cursor: pointer; }
+.lo-oswitch button + button { border-left: 1px solid var(--line-2); }
+.lo-oswitch button:hover { color: var(--text-md); }
+.lo-oswitch button.is-on { color: var(--text-on-mint); background: var(--mint-500); }
+.lo-oswitch button:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
+.sp-coarse .lo-oswitch button { min-height: 30px; }
+/* the panel: artwork (most of the width, tall: a click opens it full size) + the sprite, then the cards */
+.ofit-stage { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: .1rem; height: max(5.2rem, 320px); margin-bottom: .16rem; }
+.ofit-art, .ofit-sprite { position: relative; display: grid; place-items: center; overflow: hidden; min-width: 0; min-height: 0;
+  background: radial-gradient(ellipse at 50% 70%, rgba(78, 216, 175, .08), transparent 70%), #0d1110; border: 1px solid var(--line-2); }
+button.ofit-art { padding: 0; color: inherit; font: inherit; cursor: zoom-in; }
+button.ofit-art:hover { border-color: var(--line-3); }
+button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
+.ofit-art img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.ofit-art__zoom { position: absolute; right: .06rem; bottom: .06rem; display: grid; place-items: center; width: max(.3rem, 20px); height: max(.3rem, 20px);
+  background: rgba(0, 0, 0, .55); border: 1px solid var(--line-2); color: var(--text-md); font-size: max(.14rem, 11px); }
+.ofit-sprite { cursor: pointer; }
+.ofit-sprite canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* the full-size artwork (ArtViewer) */
+.ofit-viewer .modal__body { padding: .08rem; }
+.ofit-viewer__art { position: relative; height: min(76vh, 12rem); background: #0d1110; }
+/* (fill + contain: a grid item's max-height: 100% resolves against its auto row and never shrank the 1024 px art) */
+.ofit-viewer__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+/* the 自选编队 picker's 时装 section (OutfitPickSection): smaller cards in the narrow detail column */
+.ofit-list--compact { grid-template-columns: repeat(auto-fill, minmax(max(2rem, 130px), 1fr)); gap: .06rem; }
+.ofit-list--compact .ofit-card__ava { width: max(.42rem, 28px); height: max(.42rem, 28px); }
+.diy-pick__outfits .lo-sec__head { flex-wrap: wrap; }
+/* the 自选编队 slot's dialog (OutfitDialog): the panel without the detail's scroll box */
+.ofit-dialog .lo-detail__body { overflow: visible; padding: 0; }
+.ofit-dialog .ofit-stage { height: min(56vh, 5.6rem); }
+.ofit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(2.4rem, 150px), 1fr)); gap: .08rem; }
+.ofit-card { position: relative; display: flex; align-items: center; gap: .08rem; min-width: 0; padding: .06rem .08rem; text-align: left; cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--line-2); color: var(--text-md); }
+.ofit-card:hover, .ofit-card.is-shown { border-color: var(--line-3); }
+.ofit-card.is-on { color: var(--text-hi); background: linear-gradient(90deg, rgba(78, 216, 175, .14), rgba(78, 216, 175, .02) 75%); border-color: var(--mint-500); }
+.ofit-card:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
+.ofit-card__ava { flex: none; display: grid; place-items: center; width: max(.5rem, 32px); height: max(.5rem, 32px); overflow: hidden; background: #1b201e; border: 1px solid var(--line); }
+.ofit-card__ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ofit-card__text { min-width: 0; display: flex; flex-direction: column; gap: .01rem; }
+.ofit-card__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: max(.15rem, 11px); }
+.ofit-card__series { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-num); font-size: max(.12rem, 9px); letter-spacing: .06em; color: var(--text-dim); }
+.ofit-card__on { position: absolute; right: .04rem; top: .04rem; }
+.ofit-none { margin: .06rem 0 0; font-size: max(.14rem, 10px); }
+.ofit-io { display: flex; justify-content: flex-end; gap: .06rem; margin-top: .1rem; }
+@media (max-width: 760px) {
+  .ofit-stage { grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); height: max(3.6rem, 260px); }
+}

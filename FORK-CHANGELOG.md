@@ -17,6 +17,17 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- Outfits (时装). Operator Loadout gets a Loadout / Outfits switch above the detail header. The Outfits view shows the
+  selected Operator's worn outfit: a large artwork (click it for full size) and the battle sprite at its in-game scale
+  (click it to play the attack). Click a card (Default or an official outfit) to wear it. There's a separate JSON
+  Export / Import. Custom Squad slots get an Outfits button that opens the same panel, and the Custom Squad operator picker lists
+  the outfits of the Operator being picked. Everyone owns every outfit. An outfit replaces the whole look, E2 art
+  included: avatar, portrait, shop and bench icons, battle model, its summons' looks and its own voice lines, where the
+  outfit has them. Other players see it through `room.outfits` and room.state. It's cosmetic only: no sim or golden
+  change. Data comes from `tools/build-outfits.mjs` (`data/outfits.json`, 273 outfits of 174 Operators, Custom Squad ones included). Art and
+  models come from the usual dumps. The artwork is converted to WebP on download: sharp, a new optional dependency,
+  shrinks ~900 MB of PNGs to ~56 MB. Preload has an optional Outfits pack, with its own "Remove Unticked Outfits" button. CN-only outfit names come from
+  arknights.wiki.gg. Docs: `docs/OUTFITS.md`.
 - Battle summary screen: the left column no longer scrolls sideways. "Simulation Complete" was too wide for it; an
   alphabetic headline now wraps at its space and shrinks to fit. The match damage chart uses two columns, and hovering
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now

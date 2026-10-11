@@ -432,6 +432,11 @@ export class UnitView {
     this.ctx = ctx;
     this.P = P;
     this.info = { ...info };
+    // (fork, docs/OUTFITS.md) the outfit its owner chose: `model` = the outfit's model / picture id (assets.js outfitRec),
+    // for the Spine and the picture only — FORMS, sounds and voice stay keyed by `spine` (the operator's own id)
+    if (this.info.model == null && info.side !== 'enemy' && typeof ctx.outfitOf === 'function') {
+      try { const o = ctx.outfitOf(info); if (o) this.info.model = o; } catch { /* the default look */ }
+    }
     this.id = info.id;
     this.uid = info.uid ?? null;
     // the skill slot whose Spine clip the unit shows (DESIGN §16): an ally's equipped skill; an enemy's cast slot when the
@@ -565,7 +570,7 @@ export class UnitView {
   _loadPicture() {
     const a = this.ctx.assets;
     // (an ICE_TOKENS unit takes no picture: the token fallback would be its owner's face — assets.js tokenAvatarUrl)
-    const url = ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? a.picture(this.info.avatar) || a.picture(this.info.defId) || a.picture(this.info.spine) : null);
+    const url = ICE_TOKENS.has(this.info.defId) ? null : a && (a.picture ? (this.info.model && a.picture(this.info.model)) || a.picture(this.info.avatar) || a.picture(this.info.defId) || a.picture(this.info.spine) : null);
     this._pic = { key: String(this.info.avatar || this.info.defId || 'unknown'), color: this._frameColor(), img: null, state: 'none', shown: null, t0: nowMs() };
     if (!url || !a.image) return;
     const cached = typeof a.imageNow === 'function' ? a.imageNow(url) : null;
@@ -588,11 +593,18 @@ export class UnitView {
     pic.shown = want;
   }
 
+  /** The model id drawn: the owner's outfit when the manifest has its model (fork, docs/OUTFITS.md), else the unit's own. */
+  _modelId() {
+    const o = this.info.model;
+    if (o && this.ctx.assets?.spineEntry?.(o)) return o;
+    return this.info.spine || this.info.defId;
+  }
+
   /** @param {boolean} [retry] load again even after a remembered failure (assets.js acquire `{ retry }`) */
   _loadSpine(retry = false) {
     const a = this.ctx.assets;
     if (!a || !a.spineEntry || !a.spine) return;
-    const id = this.info.spine || this.info.defId;
+    const id = this._modelId();
     // Front/Back rule (research 07 §5.5 / 09 §1.2): Front facing right/down (mirrored for left), Back facing up — while
     // standing (a knocked-out operator lies with the model that has a fall: _wantsBack).
     const back = this._wantsBack();
@@ -912,7 +924,7 @@ export class UnitView {
    */
   _wantsBack() {
     const a = this.ctx.assets;
-    const id = this.info.spine || this.info.defId;
+    const id = this._modelId();
     if (this.isEnemy || this.dir !== 'UP' || !id || !a || typeof a.hasBack !== 'function' || !a.hasBack(id)) return false;
     return this.alive || dieClipDur(typeof a.spineEntry === 'function' ? a.spineEntry(id, { back: true }) : null) > 0;
   }
@@ -1061,7 +1073,7 @@ export class UnitView {
   /** Seconds of the fall of the model the unit wants now (its manifest entry's Die clip), 0 without one. */
   _fallDur() {
     const a = this.ctx.assets;
-    const id = this.info.spine || this.info.defId;
+    const id = this._modelId();
     return a && typeof a.spineEntry === 'function' && id ? dieClipDur(a.spineEntry(id, { back: this._wantsBack() })) : 0;
   }
 

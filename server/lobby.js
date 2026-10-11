@@ -106,6 +106,7 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
+import { cleanOutfits } from '../shared/outfits.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
@@ -244,7 +245,9 @@ export class Room {
       aiPicksLast: this.aiPicksLast,
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left,
+          // (fork, docs/OUTFITS.md) the seat's outfit choice, when it has one
+          ...(s.outfits && Object.keys(s.outfits).length ? { outfits: s.outfits } : null) }
         : null)),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected })),
       searching: this.searching,
@@ -390,6 +393,7 @@ export class Lobby {
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
+      case 'room.outfits': return this.outfits(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
       case 'room.removeSpectator': return this.removeSpectator(session, msg);
       case 'room.search': return this.search(session, msg);
@@ -753,6 +757,22 @@ export class Lobby {
     const seat = room.seatOf(session.playerId);
     if (seat) seat.diy = kept;
     if (room.match && seat) return fail(ERR.ROOM_STARTED, 'stored for the next match');
+    return OK;
+  }
+
+  /**
+   * room.outfits (fork, docs/OUTFITS.md): keep the outfits data/outfits.json knows, store them on the session and the
+   * seat, and show them to the room (room.state seats[].outfits). Any phase: cosmetic, the match never reads them.
+   */
+  outfits(session, { outfits }) {
+    const kept = Object.freeze(cleanOutfits(outfits, this.safeData()?.outfits || {}));
+    const same = JSON.stringify(kept) === JSON.stringify(session.outfits || {});
+    session.outfits = kept;
+    const room = this.roomOf(session);
+    if (!room) return OK;
+    const seat = room.seatOf(session.playerId);
+    if (seat) seat.outfits = kept;
+    if (seat && !same) this.broadcastState(room);
     return OK;
   }
 
@@ -1264,6 +1284,7 @@ export class Lobby {
       ops: session.ops || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,
+      outfits: session.outfits || null,
     };
   }
 

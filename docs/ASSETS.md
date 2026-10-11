@@ -238,6 +238,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                                     // 'emoticon/basic/pic_happy_battle', 'guide/autochess_home_1': the data/local-assets.json
                                     // group + name of the same picture (the client takes the local one first)
   prof:    { icon: {caster…warrior}, large: {…}, battlecard: {…, token}, sub: {[subProfessionId]: url} },
+  // (fork) the outfits (时装): docs/OUTFITS.md — files under /assets/outfit/, the artwork converted to WebP; the
+  // outfits' own voice sets sit in the voice trees below under their word key ('char_x_epoque#28')
+  outfits: { chars: { [skinId]: { avatar, portrait, art, spine: { front, back? } } },
+             tokens: { [tokenSkinId]: { token, avatar?, spine? } }, defaults: { [charId]: { art } } },
   audio: {
     bgm:     { lobby, prep, combat, combatAlts?: [{ intro?, loop }, …], unite?: { intro?, loop }, boss: { intro?, loop } },
              // intro then crossfade to loop (1 s); combatAlts = the 开战 tracks of the mode's own act, chosen by the

@@ -432,15 +432,19 @@ export const VOICE_PREP_SLOTS = Object.freeze(['gacha', 'squad', 'squadFirst']);
 
 /**
  * Index charword_table.json into per-character voice slots, in voiceIndex order (one slot may have several lines).
- * Only the base word key (`wordKey === charId`) is used: the dump has no folder for a skin variant's word key
- * (`char_x_ita`, `char_x_epoque#28`, …) — those files simply do not exist upstream.
+ * By default only the base word key (`wordKey === charId`) is used. An outfit's own voice set has its own word key
+ * (`char_4064_mlynar_epoque#28`): the dump does have those folders (`voice_cn/char_4064_mlynar_epoque%2328/`, verified
+ * 2026-10-11 — the '#' must be URL-encoded), and `wordKeys` (fork, docs/OUTFITS.md: data/outfits.json `voice`) indexes
+ * them under the word key instead of the charId.
  * @param {any} charword parsed excel/charword_table.json
  * @param {string} [lang] voiceId prefix — the zh_CN table carries the `CN_*` lines; the other dubs share the numbering
  * @param {Iterable<string>|null} [only] slot names to keep; null/omitted keeps every slot (VOICE_BATTLE_SLOTS is what
  *   the plan uses by default, so a battle's own lines are planned and the prep-only ones are not)
- * @returns {Map<string, Record<string, string[]>>} charId → slot → voiceAsset ('char_263_skadi/CN_023')
+ * @param {Iterable<string>} [wordKeys] outfit word keys to index too (each under its own key)
+ * @returns {Map<string, Record<string, string[]>>} charId (or outfit word key) → slot → voiceAsset ('char_263_skadi/CN_023')
  */
-export function indexVoice(charword, lang = 'CN', only = null) {
+export function indexVoice(charword, lang = 'CN', only = null, wordKeys = []) {
+  const extra = new Set(wordKeys || []);
   const keep = only ? new Set(only) : null;
   const out = new Map();
   const words = charword?.charWords;
@@ -449,7 +453,8 @@ export function indexVoice(charword, lang = 'CN', only = null) {
   const seen = new Map();
   for (const e of Object.values(words)) {
     if (!e || typeof e !== 'object') continue;
-    const charId = e.charId, slot = VOICE_SLOTS[e.placeType], vid = e.voiceId;
+    const slot = VOICE_SLOTS[e.placeType], vid = e.voiceId;
+    const charId = extra.has(e.wordKey) ? e.wordKey : e.charId;
     if (!charId || !slot || (keep && !keep.has(slot)) || typeof vid !== 'string' || !vid.startsWith(`${lang}_`)) continue;
     if (e.wordKey !== charId) continue;
     if (typeof e.voiceAsset !== 'string' || !e.voiceAsset) continue;

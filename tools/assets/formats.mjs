@@ -32,6 +32,17 @@ export function isCompletePng(buf) {
 }
 
 /**
+ * True when the buffer is a complete WebP (RIFF container whose size field matches the buffer, 'WEBP' form type).
+ * @param {Buffer} buf
+ * @returns {boolean}
+ */
+export function isWebp(buf) {
+  if (!buf || buf.length < 16) return false;
+  if (buf.toString('latin1', 0, 4) !== 'RIFF' || buf.toString('latin1', 8, 12) !== 'WEBP') return false;
+  return buf.readUInt32LE(4) + 8 === buf.length;
+}
+
+/**
  * True when the buffer looks like an MP3 (ID3v2 tag or MPEG audio frame sync).
  * @param {Buffer} buf
  * @returns {boolean}
@@ -94,6 +105,7 @@ export function isSkelBinary(buf) {
 export function validate(kind, buf) {
   switch (kind) {
     case 'png': return isCompletePng(buf);
+    case 'webp': return isWebp(buf);
     case 'mp3': return isMp3(buf);
     case 'font': return isSfnt(buf);
     case 'atlas': return isAtlasText(buf);
@@ -112,6 +124,7 @@ export function validate(kind, buf) {
 export function kindOf(name) {
   const ext = String(name).toLowerCase().split('.').pop();
   if (ext === 'png') return 'png';
+  if (ext === 'webp') return 'webp';
   if (ext === 'mp3') return 'mp3';
   if (ext === 'otf' || ext === 'ttf') return 'font';
   if (ext === 'atlas') return 'atlas';
