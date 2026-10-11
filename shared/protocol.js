@@ -491,6 +491,8 @@ export const S2C = [
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)
   'sys.notice',
+  // sys.retire { gen } — a newer server generation took over: go to `/` once no match is on screen (server/generation.js)
+  'sys.retire',
   // sys.online { online, searching: { [difficulty]: humans } } — server/presence.js
   'sys.online',
   // queue.state { queued, difficulty?, since?, aiAt?, placed? } — 单人匹配 (server/lobby.js sendQueue)

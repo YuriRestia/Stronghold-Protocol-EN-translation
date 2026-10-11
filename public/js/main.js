@@ -60,6 +60,7 @@ import { installPreload } from './resources/index.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
 import { recordError } from './diag.js';
+import { GEN, genUrl, goHome, RETIRED_FLAG } from './gen.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -68,6 +69,10 @@ const EMOTE_KEEP = 20;
 const NOTICE_TOAST_MS = 15000;
 /** sys.notice ids already shown on this page */
 const seenNotices = new Set();
+/** ui/buildGuard.js — set in boot(); sys.retire hands it the move to the new generation */
+let buildGuard = null;
+/** sys.retire before the guard started (a fast first hello): handed over once it does */
+let retirePending = false;
 
 const SCREENS = { title: TitleScreen, lobby: LobbyScreen, room: RoomScreen, game: GameScreen };
 
@@ -236,6 +241,11 @@ function wireNet() {
     if (typeof msg.text !== 'string' || !Number.isFinite(msg.id) || seenNotices.has(msg.id)) return;
     seenNotices.add(msg.id);
     toast(msg.text, 'warn', { ttl: NOTICE_TOAST_MS });
+  });
+  // a newer server generation took over (server/generation.js): leave for it as soon as no match is on screen
+  net.on('sys.retire', () => {
+    if (!GEN) return; // only a page served under a generation prefix can move
+    if (buildGuard) buildGuard.retire(); else retirePending = true;
   });
   net.on('room.state', onRoomState);
   net.on('room.closed', (msg) => {
@@ -414,13 +424,29 @@ async function boot() {
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,
   // so a running game is never thrown away.
   try {
-    startBuildGuard({
+    buildGuard = startBuildGuard({
+      healthUrl: genUrl('/healthz'),
+      home: () => goHome(),
       inMatch: () => selectRoute(store.get()) === 'game',
       onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
     });
+    // a pending reload / move happens the moment the match (settlement screen included) leaves the screen
+    let route = selectRoute(store.get());
+    store.subscribe(() => {
+      const next = selectRoute(store.get());
+      if (next !== route) { route = next; buildGuard?.settle(); }
+    });
+    if (retirePending) buildGuard.retire();
   } catch (err) {
     console.warn('[app] build guard failed to start', err);
   }
+  // the page was moved here from a retired generation (gen.js goHome)
+  try {
+    if (sessionStorage.getItem(RETIRED_FLAG)) {
+      sessionStorage.removeItem(RETIRED_FLAG);
+      toast(t('服务器已更新到新版本'), 'info'); // en: "The server was updated to a new version."
+    }
+  } catch { /* private mode */ }
 }
 
 boot().catch((err) => {

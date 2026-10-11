@@ -15,6 +15,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   §90 (upstream's 0.2.4 history took §29); §90 and up are reserved for fork sections, and the no-gap check in
   `test/docs-paths.test.js` skips them.
 
+### Changes
+
+- Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
+  screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
+  The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.
+
 ## 2026-10-10
 
 ### Upstream merge

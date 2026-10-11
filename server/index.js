@@ -20,7 +20,8 @@
 // (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
 //
 // Operator notices: announce.js watches logs/announce.json (option `noticeFile`, null disables). presence.js sends
-// the online count and the 搜寻队友 queue sizes (sys.online).
+// the online count and the 搜寻队友 queue sizes (sys.online). Behind scripts/router.mjs (SP_GEN + SP_GEN_FILE, options
+// `gen` / `genFile`) generation.js retires this process once the router's generations.json names a newer one.
 //
 // Programmatic use (tests): `const srv = await startServer({ port: 0, quiet: true }); … await srv.close();`
 // The server only auto-listens when this file is the process entry point.
@@ -40,6 +41,8 @@ import { answerClientError } from './http/common.js';
 import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { NoticeBoard } from './announce.js';
 import { Presence } from './presence.js';
+import { GenerationWatch } from './generation.js';
+import { GEN_ID_RE } from '../shared/gen.js';
 
 // The public API of this module (tests and tools import it from here); the code lives in ./http/.
 export {
@@ -59,11 +62,13 @@ export {
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  *   noticeFile?: string | null, noticePollMs?: number, presencePollMs?: number,
  *   warmResources?: boolean, resourceHashCache?: string | null,
+ *   gen?: string | null, genFile?: string | null, genPollMs?: number,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
  *                     registry: import('./net.js').SessionRegistry, packs: ReturnType<typeof createPackRegistry>,
- *                     notices: NoticeBoard | null, presence: Presence, close: () => Promise<void> }>}
+ *                     notices: NoticeBoard | null, presence: Presence, generation: GenerationWatch | null,
+ *                     close: () => Promise<void> }>}
  */
 export async function startServer(opts = {}) {
   const { port, host } = listenAddress(opts);
@@ -94,8 +99,19 @@ export async function startServer(opts = {}) {
     };
   }
   const presence = new Presence({ network, lobby, pollMs: opts.presencePollMs });
+  // behind scripts/router.mjs: this process is one generation (server/generation.js); both set, or neither
+  const gen = opts.gen === undefined ? process.env.SP_GEN || null : opts.gen;
+  const genFile = opts.genFile === undefined ? process.env.SP_GEN_FILE || null : opts.genFile;
+  if (gen && !GEN_ID_RE.test(gen)) throw new Error(`SP_GEN ${JSON.stringify(gen)} is not a generation id`);
+  const generation = gen && genFile ? new GenerationWatch({ gen, file: genFile, registry, lobby, pollMs: opts.genPollMs, log }) : null;
+  if (generation) {
+    const helloBefore = lobby.onHello.bind(lobby);
+    lobby.onHello = (session, info) => {
+      try { helloBefore(session, info); } finally { generation.onHello(session); }
+    };
+  }
 
-  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby }, log }));
+  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby, generation }, log }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log });
 
@@ -135,6 +151,7 @@ export async function startServer(opts = {}) {
   server.on('error', (e) => log.error('[http] server error', e));
   notices?.start();
   presence.start();
+  generation?.start();
 
   const addr = server.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
@@ -147,6 +164,7 @@ export async function startServer(opts = {}) {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       notices?.stop();
       presence.stop();
+      generation?.stop();
       network.close();
       await new Promise((resolve) => {
         server.close(() => resolve());
@@ -158,7 +176,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, notices, presence, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, notices, presence, generation, close };
 }
 
 // `node server/index.js` / npm start: listen, print the banner, stop on SIGINT / SIGTERM (http/boot.js).

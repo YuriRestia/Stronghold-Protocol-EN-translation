@@ -26,10 +26,11 @@ import { GIcon } from './gameComponents.js';
 import { data, useData, localAsset, artUrls, nextArtUrl } from '../data.js';
 import { loadPref, savePref } from '../store.js';
 import { t } from '../../../shared/i18n.js';
+import { genUrl } from '../gen.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
-export const EMOTE_CSS_HREF = '/css/emotes.css';
+export const EMOTE_CSS_HREF = genUrl('/css/emotes.css');
 const PREF_THEME = 'emoteTheme';
 const SWIPE_PX = 40;      // horizontal drag distance that turns the page
 const DRAG_SLOP_PX = 8;   // below this a press is a tap, not a drag

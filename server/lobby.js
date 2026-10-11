@@ -135,6 +135,8 @@ export const BOT_NAMES = Object.freeze(['AI·华法琳', 'AI·阿米娅', 'AI·�
 const OK = Object.freeze({ ok: true });
 const fail = (code, detail) => (detail ? { error: code, detail } : { error: code });
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
+/** What a retiring lobby refuses (retire()): everything that opens a room, a queue or a match. */
+const RETIRED_MSGS = new Set(['room.create', 'room.join', 'room.spectate', 'room.start', 'room.search', 'queue.join', 'queue.ai']);
 
 /**
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
@@ -282,6 +284,27 @@ export class Lobby {
     this.limitLog = { at: -Infinity, suppressed: 0 };
     this.soloQueue = new SoloQueue();
     this.matchmaker = new Matchmaker(this, options);
+    /** a newer generation took over (server/generation.js): running matches finish, nothing new starts here */
+    this.retiring = false;
+  }
+
+  /**
+   * Stop taking new rooms, queues and matches for good (server/generation.js). Running matches play on; the waiting
+   * rooms and queues are left to the clients, which `sys.retire` sends to the new generation.
+   */
+  retire() {
+    if (this.retiring) return;
+    this.retiring = true;
+    this.matchmaker.stop();
+    this.soloQueue.clear();
+    for (const r of this.rooms.values()) if (!r.match && r.searching) { r.searching = false; r.searchSince = null; }
+  }
+
+  /** room.join / room.spectate of the room the session is already in (a restore after a reload): allowed while retiring. */
+  ownRoomMsg(session, msg) {
+    if (msg.t !== 'room.join' && msg.t !== 'room.spectate') return false;
+    const cur = this.roomOf(session);
+    return !!cur && cur.code === String(msg.code ?? '').trim().toUpperCase();
   }
 
   /** @param {string} code @returns {Room | null} */
@@ -290,15 +313,18 @@ export class Lobby {
   /** Counters for /healthz. */
   stats() {
     let matches = 0;
+    let humanMatches = 0;
     let humans = 0;
     let bots = 0;
     let spectators = 0;
     for (const r of this.rooms.values()) {
       if (r.match) matches++;
+      // a match a human still plays (scripts/generations.mjs reap: a retiring generation stops at 0)
+      if (r.match && r.seats.some((s) => s && !s.left && !s.isBot)) humanMatches++;
       for (const s of r.seats) if (s && !s.left) (s.isBot ? bots++ : humans++);
       spectators += r.spectators.length;
     }
-    return { rooms: this.rooms.size, matches, humans, bots, spectators };
+    return { rooms: this.rooms.size, matches, humanMatches, humans, bots, spectators };
   }
 
   // ---------------------------------------------------------------------------------------------------
@@ -347,6 +373,7 @@ export class Lobby {
    * @returns {{ ok: true } | { error: string, detail?: string }}
    */
   onMessage(session, msg) {
+    if (this.retiring && RETIRED_MSGS.has(msg.t) && !this.ownRoomMsg(session, msg)) return fail(ERR.RETIRING, 'this server is being replaced');
     switch (msg.t) {
       case 'room.create': return this.create(session, msg);
       case 'room.join': return this.join(session, msg);
@@ -740,6 +767,7 @@ export class Lobby {
 
   /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
   startMatch(room, key = null) {
+    if (this.retiring) return fail(ERR.RETIRING, 'this server is being replaced');
     const host = room.seatOf(room.hostId);
     if (host) host.ready = true;
     const seats = room.seats.filter(Boolean).map((s) => ({

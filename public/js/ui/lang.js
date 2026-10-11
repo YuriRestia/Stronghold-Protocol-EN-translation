@@ -25,6 +25,7 @@ import { loadPref, savePref } from '../store.js';
 import { data } from '../data.js';
 import { updateRotateHintPwaI18n } from './device.js';
 import { html } from './components.js';
+import { genUrl } from '../gen.js';
 
 /** The switch's own label, in both languages (whoever opens it may not read the current one). */
 const SWITCH_LABEL = 'Language / 语言'; // i18n-ignore
@@ -42,7 +43,7 @@ let indexLoad = null;
 let indexOk = false;
 /** Only the latest boot or explicit selection may apply its loaded language. */
 let langRequest = 0;
-const INDEX_URL = `${PACKS_URL}${PACK_INDEX_FILE}`;
+const INDEX_URL = genUrl(`${PACKS_URL}${PACK_INDEX_FILE}`);
 
 const defaultFetch = (...a) => globalThis.fetch(...a);
 
@@ -79,7 +80,7 @@ export function loadLangIndex(doFetch = defaultFetch) {
 export function loadUiMessages(lang, doFetch = defaultFetch) {
   if (lang === DEFAULT_LANG) return Promise.resolve(true);
   if (uiLoads.has(lang)) return uiLoads.get(lang);
-  const url = langInfo(lang)?.ui || `/i18n/${lang}.json`;
+  const url = genUrl(langInfo(lang)?.ui || `/i18n/${lang}.json`);
   const p = (async () => {
     try {
       const res = await doFetch(url, { cache: 'no-cache' });

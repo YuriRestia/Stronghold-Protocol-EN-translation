@@ -30,6 +30,7 @@ import { difficultyInfo } from './lobby.js';
 import { t, tc } from '../../../shared/i18n.js';
 import { SearchBar, SearchButton, SearchStatus, useSearchNotice, useFindMates, canFindMates } from '../ui/matchSearch.js';
 import { OnlinePill } from '../ui/presence.js';
+import { publicPath } from '../gen.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -91,10 +92,10 @@ export function aiLastOption(room, myId) {
   return { on: room.aiPicksLast === true, editable: room.hostId != null && room.hostId === myId };
 }
 
-/** Invite link for a room code (current page URL with ?room=CODE). */
+/** Invite link for a room code (current page URL with ?room=CODE; without a generation prefix, public/js/gen.js). */
 export function inviteLink(code) {
   const loc = globalThis.location;
-  const base = loc ? `${loc.origin}${loc.pathname}` : '';
+  const base = loc ? `${loc.origin}${publicPath(loc.pathname)}` : '';
   return `${base}?room=${encodeURIComponent(code)}`;
 }
 
