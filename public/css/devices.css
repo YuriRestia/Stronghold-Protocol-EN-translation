@@ -44,7 +44,6 @@ input, textarea, select { -webkit-user-select: text; user-select: text; }
    corner). */
 .gm__hud > .shopbar { bottom: calc(.2rem - var(--sa-b)); }
 .gm > .spov { left: calc(2.8rem + var(--sa-l)); right: var(--sa-r); }
-.gm > .sppeek { right: calc(.3rem + var(--sa-r)); top: calc(1.3rem + var(--sa-t)); }
 /* every other screen is laid out inside the safe area (the app backdrop fills the notch strip) */
 .screen:not(.gm) { top: var(--sa-t); right: var(--sa-r); bottom: var(--sa-b); left: var(--sa-l); }
 .guide, .awayov { padding: var(--sa-t) var(--sa-r) var(--sa-b) var(--sa-l); }

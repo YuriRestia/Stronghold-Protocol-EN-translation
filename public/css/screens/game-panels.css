@@ -480,19 +480,6 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spcard__confirm b { font-size: .18rem; font-weight: 900; letter-spacing: .22em; padding-left: .22em; }
 .spcard__confirm small { font-size: .12rem; letter-spacing: .1em; opacity: .75; }
 .spov__confirm { animation: pulse-gold 1.2s var(--ease-in-out) infinite; }
-/* » (top left, above the title): the overlay steps aside for a look at the match; « (top right, under the round
-   counter, clear of the centred 敌方情报 drawer) brings it back — gold and pulsing while the pick is mine */
-.spov__hide { position: absolute; left: .3rem; top: .36rem; z-index: 1; }
-.sppeek { position: absolute; right: .3rem; top: 1.3rem; z-index: 20; animation: screen-in var(--t-med) var(--ease-out); }
-/* both are a bare chevron: no frame, fill or hover brackets (the keyboard focus brackets stay); it lights up on hover */
-.spov__hide, .sppeek__btn { --btn-bg-hover: transparent; --btn-fg: var(--text-lo); }
-.spov__hide .btn__icon, .sppeek__btn .btn__icon { width: 75%; height: 75%; }
-.spov__hide:not(:disabled):hover, .sppeek__btn:not(:disabled):hover { color: var(--mint-400); filter: drop-shadow(0 0 .08rem rgba(78, 216, 175, .7)); }
-.spov__hide:not(:disabled):hover::after, .sppeek__btn:not(:disabled):hover::after { opacity: 0; }
-/* my pick pending: the « glows gold */
-.sppeek.is-mine .sppeek__btn { --btn-fg: var(--gold); animation: chev-gold 1.2s var(--ease-in-out) infinite; }
-.sppeek.is-mine .sppeek__btn:not(:disabled):hover { color: var(--gold-2); }
-@keyframes chev-gold { 50% { filter: drop-shadow(0 0 .1rem rgba(255, 198, 0, .85)); } }
 /* Short landscape phones (height < 10.8rem: the root size is clamped at 40 px, theme.css, so the page is only ≈ 9rem
    tall): a tighter header (no CONTINGENCY micro line, smaller margins) gives the grid ≈ .65rem more, and a smaller icon
    and tighter spacing leave a 3×2 card room for 7 lines of text (≈ 4 – 5.4 × 2.9rem: 162 × 116 px at 640×360, the

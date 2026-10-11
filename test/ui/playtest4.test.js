@@ -156,7 +156,7 @@ describe('2: 机变 cards take two taps (select → confirm), like buying in the
     const src = read('public/js/ui/choiceOverlay.js');
     assert.match(src, /export function ChoiceOverlay\(props\) \{[\s\S]*useState\(null\)[\s\S]*armedCard\(sel, sp/);
     assert.match(src, /e\.key === 'Escape'/);
-    assert.match(src, /closest\('\.spcard, \.spov__confirm, \.spov__hide'\)/);
+    assert.match(src, /closest\('\.spcard, \.spov__confirm'\)/);
     const css = read('public/css/screens/game-panels.css');
     assert.match(css, /\.spcard\.is-armed/);
     assert.match(css, /\.spcard__confirm \{/);
