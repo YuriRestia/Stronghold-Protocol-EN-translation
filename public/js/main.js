@@ -52,6 +52,7 @@ import { LoadoutHost } from './screens/loadout.js';
 import { StatsHost } from './screens/stats.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
+import { installOutfitSync } from './ui/outfits.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { installPresence } from './ui/presence.js';
 import { installSoloQueue } from './ui/soloQueue.js';
@@ -392,6 +393,7 @@ async function boot() {
   installLoadoutSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });
+  installOutfitSync({ net }); // (fork, docs/OUTFITS.md) room.outfits
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });

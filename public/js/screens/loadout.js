@@ -37,6 +37,8 @@ import {
 } from '../ui/loadoutModel.js';
 import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
 import { CultivationSelects, CultivationSection } from './cultivation.js';
+import { OutfitSwitch, OutfitPanel } from './outfits.js';
+import { outfitStore } from '../ui/outfits.js';
 import { cultivationCharIds } from '../../../shared/protocol.js';
 import { atPotential } from '../../../shared/potential.js';
 import { setOwned, notOwnedCount, serializeOwnership, parseOwnershipImport, OWNERSHIP_IMPORT_MAX_BYTES } from '../ui/ownershipModel.js';
@@ -306,7 +308,7 @@ export function ModuleInfo({ m, golden, opt, potential = null }) {
 const standInName = (chess) => data.get('backups')?.units?.[chess?.backup?.charId]?.name ?? null;
 
 
-function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false }) {
+function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false, view = 'loadout', onView }) {
   const [statLevel, setStatLevel] = useState('elite'); // 局内数值: the 精锐 shows the chosen module's effect
   const setLevel = onLevel;
   const bodyRef = useRef(null);
@@ -317,7 +319,9 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   const changed = choice.changed || opsOf(ops, chess.charId).changed;
   const modOpt = opt.moduleOptions.find((x) => x.id === choice.module) || null;
   const lv = (c) => c?.status?.skillLevel ?? '—';
+  const outfitView = view === 'outfit';
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
+    <div class="lo-dtop"><${OutfitSwitch} view=${view} onView=${onView} /></div>
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
         <${Img} src=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
@@ -337,7 +341,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
       </div>
       <${Button} variant="ghost" size="sm" icon="refresh" class="lo-dhead__reset" disabled=${!changed} onClick=${onReset}>${t('恢复默认')}<//>
     </div>
-    <div class="lo-detail__body" ref=${bodyRef}>
+    ${outfitView ? html`<${OutfitPanel} m=${m} chess=${chess} />` : html`<div class="lo-detail__body" ref=${bodyRef}>
       <${CultivationSection} charId=${chess.charId} ops=${ops} onSet=${onOps} standIn=${notOwned} />
       <${LoadoutGarrisons} chess=${level === 'elite' && golden ? golden : chess} m=${m} />
       <section class="lo-sec">
@@ -376,7 +380,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
       ${notOwned ? html`<p class="lo-locknote lo-locknote--standin" data-testid="loadout-standin-note"><${Icon} name="info" />${standInName(chess) ? t('干员持有中标记为未持有：此棋子由替补干员 {name} 上场，技能与模组固定（补位干员技能不可更改）；这里的调配在改回「持有」后生效', { name: standInName(chess) })
         : t('干员持有中标记为未持有：此棋子由替补干员上场，技能与模组固定（补位干员技能不可更改）；这里的调配在改回「持有」后生效')}</p>` : null}
       ${locked ? html`<p class="lo-locknote"><${Icon} name="info" />${t('本局的调配已锁定，修改将在下一局生效')}</p>` : null}
-    </div>
+    </div>`}
   </aside>`;
 }
 
@@ -489,6 +493,9 @@ function LoadoutScreen({ st }) {
   // the detail's 普通 / 精锐 skill toggle: one preview for its skills, its 特质 and the rows' skill details (display only)
   const [previewLevel, setPreviewLevel] = useState('normal');
   const [io, setIo] = useState(null);                      // 导出 / 导入 dialog: { mode, text } | null
+  const [detailView, setDetailView] = useState('loadout'); // (fork, docs/OUTFITS.md) the detail's 调配 / 时装 switch
+  useStore((s) => s.outfits, Object.is, outfitStore);      // (fork) the rows' and the header's art follow the outfit choice
+  useData('outfits');
 
   const tab = st.tab === 'ownership' || st.tab === 'diy' ? st.tab : 'loadout';
   const lost = ready ? missingGameData(tab) : [];
@@ -706,7 +713,7 @@ function LoadoutScreen({ st }) {
         <button type="button" class="lo-detail-back tapx" onClick=${() => setNarrowDetail(false)}><${Icon} name="chevronLeft" />${t('干员列表')}</button>
         <${Detail} m=${m} chess=${base} golden=${golden} entries=${st.entries} ops=${st.ops} onChange=${change} onOps=${setOpsOf} onReset=${resetOne} locked=${locked}
           level=${golden ? previewLevel : 'normal'} onLevel=${setPreviewLevel}
-          notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} />
+          notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} view=${detailView} onView=${setDetailView} />
       </div>
     </main>`}
   </div>

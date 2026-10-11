@@ -732,6 +732,9 @@ fill one slot with different operators. A variant is the token at the owner's st
 trait and talents (`tools/build-data.mjs buildDiyTokens`); simdata `getToken` merges them with the pick as the owner's
 loadout. No id is also a tokens.json record.
 
+(Fork) `outfits.json`: the roster's official outfits (时装), built by `tools/build-outfits.mjs`, not by build-data. It is
+cosmetic only (the sim never reads it); see docs/OUTFITS.md.
+
 Not in this data: a player's ownership roster and 自选 picks (browser settings sent with `room.ownership` / `room.diy`),
 the DIY stock (per player in the match, `PlayerState.diyStock`: `config.economy.poolCopies` of the slot's tier — no excel
 field), 助战 borrows (`borrowCount` 20), and a player's potential / 练度 per operator (the 干员调配 settings sent with

@@ -8,6 +8,8 @@
 // /diy.js). Out of match: the next match takes the picks. The picks live in ui/loadoutSync.js (localStorage + room.diy);
 // the model is ui/diyModel.js. Styles: css/screens/loadout.css (diy-*). An owned pick's card carries its operator's 潜能 /
 // 练度 selects (0.2.2, screens/cultivation.js — the same per-operator settings as 干员调配, `ops`); a prototype has neither.
+// (fork, docs/OUTFITS.md) A filled slot whose operator has outfits gets a 时装 button: the outfit panel in a dialog. The
+// picker's detail lists the outfits of the operator being picked too (screens/outfits.js OutfitPickSection).
 
 import { useLayoutEffect, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, Button, TierChip } from '../ui/components.js';
@@ -20,6 +22,8 @@ import { LoadoutStats } from '../ui/loadoutStats.js';
 import { CultivationSelects } from './cultivation.js';
 import { t } from '../../../shared/i18n.js';
 import { VoiceLangPicker } from '../ui/voiceLang.js';
+import { OutfitDialog, OutfitPickSection } from './outfits.js';
+import { outfitsOf } from '../ui/outfits.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -43,7 +47,7 @@ function Bonds({ bonds }) {
 }
 
 /** One slot: the pick (operator, class, bonds, skill, module, an owned pick's 潜能 / 练度) or an empty slot to fill. */
-function SlotCard({ m, slot, pick, illegal, onOpen, onClear, ops = {}, onOps = null }) {
+function SlotCard({ m, slot, pick, illegal, onOpen, onClear, ops = {}, onOps = null, onDress = null }) {
   const D = diyData();
   const rec = pick ? slotRecord(slot.slotId, pick, D) : null;
   const elite = pick ? slotRecord(slot.slotId, pick, D, { elite: true }) : null;
@@ -62,6 +66,7 @@ function SlotCard({ m, slot, pick, illegal, onOpen, onClear, ops = {}, onOps = n
   const proto = !!pick && D.backups?.diy?.prototypes?.[slot.tier]?.includes(pick.charId);
   const sk = rec.skill;
   const mod = elite?.module?.active ? elite.module : null;
+  // (fork) the 时装 button: '更换这名干员的时装' // en: "Change this operator's outfit"
   return html`<div class=${cx('diy-slot', `diy-slot--t${slot.tier}`, illegal && 'is-bad')} data-slot=${slot.slotId} data-char=${rec.charId}>
     <div class="diy-slot__art"><${Img} src=${chessPortraitUrl(m, elite || rec)} fallback=${html`<b>${[...(rec.name || '?')][0]}</b>`} /></div>
     <div class="diy-slot__body">
@@ -83,6 +88,8 @@ function SlotCard({ m, slot, pick, illegal, onOpen, onClear, ops = {}, onOps = n
     </div>
     <div class="diy-slot__acts">
       <${Button} variant="secondary" size="sm" icon="refresh" data-testid="diy-change" onClick=${() => onOpen(slot.slotId)}>${t('更换')}<//>
+      ${onDress && outfitsOf(rec.charId).length ? html`<${Button} variant="ghost" size="sm" data-testid="diy-outfit"
+        onClick=${() => onDress({ charId: rec.charId, name: rec.name })} title=${t('更换这名干员的时装')}>${t('时装')}<//>` : null}
       <${Button} variant="ghost" size="sm" icon="close" data-testid="diy-clear" onClick=${() => onClear(slot.slotId)}>${t('清空')}<//>
     </div>
   </div>`;
@@ -222,6 +229,7 @@ export function DiyPickerView({ m, slot, picks, kitted, onDone, onClose, filter,
             <${VoiceLangPicker} charId=${draft.charId} class="diy-pick__voice" />
           </div>
           ${!ch.proto && onOps ? html`<section class="lo-sec"><header class="lo-sec__head"><h3>${t('潜能与练度')}</h3></header><${CultivationSelects} charId=${draft.charId} ops=${ops} onSet=${onOps} /></section>` : null}
+          <${OutfitPickSection} key=${draft.charId} m=${m} charId=${draft.charId} name=${unit.name} />
           <${LoadoutStats} base=${base} golden=${golden} entries=${previewEntries} level=${previewLevel}
             onLevel=${onPreviewLevel} getChess=${previewChess} ops=${ch.proto ? null : ops} />
           <h4 class="diy-pick__sec">${t('技能')}${ch.proto ? html`<small>${t('原型干员的技能与补位时一致，不可更改')}</small>` : null}</h4>
@@ -255,11 +263,15 @@ export function DiyPickerView({ m, slot, picks, kitted, onDone, onClose, filter,
  */
 export function DiyPanel(props) {
   const [picking, setPicking] = useState(null);
-  return DiyPanelView({ ...props, picking, onPicking: setPicking });
+  const [dressing, setDressing] = useState(null);
+  return DiyPanelView({ ...props, picking, onPicking: setPicking, dressing, onDressing: setDressing });
 }
 
-/** The tab's view (no hooks: the tests draw it): `picking` = the slot being filled, or null. */
-export function DiyPanelView({ m, picks, legal, kitted, onSet, picking, onPicking: setPicking, ops = {}, onOps = null }) {
+/**
+ * The tab's view (no hooks: the tests draw it): `picking` = the slot being filled, or null; `dressing` = the operator
+ * whose 时装 dialog is open (fork, docs/OUTFITS.md: { charId, name }), or null.
+ */
+export function DiyPanelView({ m, picks, legal, kitted, onSet, picking, onPicking: setPicking, ops = {}, onOps = null, dressing = null, onDressing = null }) {
   const slots = diySlotList(diyData());
   const slot = picking ? slots.find((s) => s.slotId === picking) : null;
   const tiers = [...new Set(slots.map((s) => s.tier))];
@@ -272,11 +284,12 @@ export function DiyPanelView({ m, picks, legal, kitted, onSet, picking, onPickin
         <h3 class="own-tier__head"><${TierChip} tier=${tier} size="sm" /><span class="num">${ROMAN[tier]}</span><span>${t('阶')}</span></h3>
         <div class="diy-grid">
           ${slots.filter((s) => s.tier === tier).map((s) => html`<${SlotCard} key=${s.slotId} m=${m} slot=${s} pick=${picks[s.slotId] || null}
-            illegal=${!!picks[s.slotId] && !legal[s.slotId]} onOpen=${setPicking} onClear=${(id) => onSet(id, null)} ops=${ops} onOps=${onOps} />`)}
+            illegal=${!!picks[s.slotId] && !legal[s.slotId]} onOpen=${setPicking} onClear=${(id) => onSet(id, null)} ops=${ops} onOps=${onOps} onDress=${onDressing} />`)}
         </div>
       </section>`)}
     </div>
     ${slot ? html`<${DiyPicker} m=${m} slot=${slot} picks=${picks} kitted=${kitted} ops=${ops} onOps=${onOps} onClose=${() => setPicking(null)}
       onDone=${(pick) => { onSet(slot.slotId, pick); setPicking(null); }} />` : null}
+    ${dressing && onDressing ? html`<${OutfitDialog} m=${m} unit=${dressing} onClose=${() => onDressing(null)} />` : null}
   </main>`;
 }

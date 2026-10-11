@@ -14,7 +14,7 @@ import { createStore, loadPref, savePref, store, selectRoute } from '../store.js
 import { voiceLangStore } from '../ui/voiceLang.js';
 import { effectiveVoiceLang } from '../audio.js';
 import { data } from '../data.js';
-import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, SUMMARY_URL, VOICE_PACKS, parseManifest } from '../../../shared/resources.js';
+import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest } from '../../../shared/resources.js';
 import { PreloadStore, isQuotaError } from './store.js';
 
 export const SW_URL = '/resource-sw.js';
@@ -23,7 +23,8 @@ export const DOWNLOAD_LOCK = 'sp-resources-preload';
 /** @param {any} v */
 export function sanitizePreloadPref(v) {
   const voice = Array.isArray(v?.voice) ? VOICE_PACKS.filter((p) => v.voice.includes(p)) : null;
-  return { started: v?.started === true, paused: v?.paused === true, voice };
+  // (fork) the optional outfits pack (docs/OUTFITS.md): stored only while ticked (off by default)
+  return { started: v?.started === true, paused: v?.paused === true, voice, ...(v?.outfits === true ? { outfits: true } : null) };
 }
 
 /**
@@ -45,6 +46,13 @@ preloadPref.subscribe((s) => savePref('preload', sanitizePreloadPref(s)));
 
 /** The ticked voice packs right now. */
 export const tickedVoicePacks = () => preloadPref.get().voice ?? voicePacksOf(voiceLangStore.get(), data.get('assets')?.audio);
+/** The optional packs ticked (the voice packs, then the outfits pack when on): what a preload adds to BASE_PACKS. */
+export const tickedPacks = () => [...tickedVoicePacks(), ...(preloadPref.get().outfits ? [OUTFITS_PACK] : [])];
+
+/** Tick or untick the outfits pack (fork, docs/OUTFITS.md). */
+export function setOutfitsPack(on) {
+  preloadPref.set({ ...preloadPref.get(), outfits: !!on });
+}
 
 /**
  * What the panel renders. phase: idle | checking | download | foreign (another tab downloads) | ready | paused | error.
@@ -182,7 +190,7 @@ export async function clearPreload() {
 /** Keep the worker's capture list in step with the checklist (only once a download was started). */
 function syncCapturePacks() {
   if (!preloadPref.get().started) return;
-  context().then((st) => st.setCapturePacks([...BASE_PACKS, ...tickedVoicePacks()])).catch(() => {});
+  context().then((st) => st.setCapturePacks([...BASE_PACKS, ...tickedPacks()])).catch(() => {});
 }
 preloadPref.subscribe(syncCapturePacks);
 voiceLangStore.subscribe(syncCapturePacks);
@@ -205,6 +213,18 @@ export async function removeVoicePacks(packs) {
   if (running) return;
   const st = await context();
   await st.removePacks(packs.filter((p) => VOICE_PACKS.includes(p)));
+  notifyWorker();
+  await inspectPreload();
+}
+
+/**
+ * (fork, docs/OUTFITS.md) Delete the saved files of the Outfits pack while it is unticked — its own button, apart from
+ * the voices' (the user's call, 2026-10-12). A ticked pack is kept.
+ */
+export async function removeOutfitsPack() {
+  if (running || preloadPref.get().outfits) return;
+  const st = await context();
+  await st.removePacks([OUTFITS_PACK]);
   notifyWorker();
   await inspectPreload();
 }
@@ -237,7 +257,7 @@ async function run(signal, force) {
     return;
   }
   await ensureWorker();
-  const voice = tickedVoicePacks();
+  const voice = tickedPacks();
   const packs = [...BASE_PACKS, ...voice];
   // the worker saves what the game fetches meanwhile, for these packs only
   await st.setCapturePacks(packs).catch(() => {});

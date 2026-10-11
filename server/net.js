@@ -66,8 +66,10 @@ export const NET_DEFAULTS = Object.freeze({
  * edits), room.ownership
  * (a ≤ 160-id list, the same way), room.diy (≤ 8 自选 picks checked against the data, the same way) and room.spectate
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate).
+ * (fork, docs/OUTFITS.md) room.outfits: a ≤ 256-entry map, and a change broadcasts room.state to the whole room (any
+ * phase), so it shares the bucket too; the client debounces its edits and retries a RATE refusal.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.outfits']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });

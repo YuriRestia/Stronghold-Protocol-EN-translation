@@ -75,6 +75,7 @@ import {
 import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
+import { outfitRoster } from './build-outfits.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const ASSETS = join(ROOT, 'public', 'assets');
@@ -305,6 +306,14 @@ function tidyManifest(m) {
     for (const [sid, iconId] of Object.entries(m.skillsById)) if (!m.skills?.[iconId]) delete m.skillsById[sid];
   }
   for (const c of Object.values(m.chars || {})) if (c.spine && !Object.keys(c.spine).length) delete c.spine;
+  // (fork) an outfit or summon look none of whose art landed is no entry (the client then draws the default look)
+  for (const group of ['chars', 'tokens']) {
+    const g = m.outfits?.[group] || {};
+    for (const [id, o] of Object.entries(g)) {
+      if (o.spine && !Object.keys(o.spine).length) delete o.spine;
+      if (!o.spine && !o.avatar && !o.portrait && !o.art) delete g[id];
+    }
+  }
 }
 
 /**
@@ -417,8 +426,8 @@ async function main() {
   const audio = indexAudio(audioData);
   // The game data built by tools/build-data.mjs (when present) may reference more
   // spawnable enemies/tokens than research lists (e.g. 机变 enemy swaps): cover them too.
-  const [dataEnemies, dataTokens, dataBosses, dataBackups, dataChess] = await Promise.all(
-    ['data/enemies.json', 'data/tokens.json', 'data/bosses.json', 'data/backups.json', 'data/chess.json'].map((f) => readJson(f).catch(() => null)));
+  const [dataEnemies, dataTokens, dataBosses, dataBackups, dataChess, dataOutfits] = await Promise.all(
+    ['data/enemies.json', 'data/tokens.json', 'data/bosses.json', 'data/backups.json', 'data/chess.json', 'data/outfits.json'].map((f) => readJson(f).catch(() => null)));
   const extras = dataExtras(dataBackups, dataChess);
   const extraHandbook = {};
   for (const b of Object.values(dataBosses || {})) if (b?.enemyKey && typeof b.handbookId === 'string') extraHandbook[b.enemyKey] = b.handbookId;
@@ -436,6 +445,10 @@ async function main() {
     localTokenSpines,
     extraOperators: extras.extraOperators,
     moduleTypes: extras.moduleTypes,
+    // fork (docs/OUTFITS.md): the outfits of tools/build-outfits.mjs, and the operators (roster + 自选编队) whose default
+    // artwork the picker shows
+    outfits: dataOutfits,
+    outfitChars: outfitRoster(dataChess, dataBackups),
   });
   const leaves = collectLeaves(plan.template);
   log(`[plan] ${leaves.length} files + ${plan.models.size} Spine models ` +

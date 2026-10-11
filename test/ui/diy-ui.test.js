@@ -253,6 +253,44 @@ describe('自选编队 tab (screens/diy.js)', () => {
     assert.ok(hasClass(slots[1], 'is-empty') && textOf(slots[1]).includes('选择干员'));
   });
 
+  test('(fork, docs/OUTFITS.md) a filled slot whose operator has outfits gets a 时装 button: it opens that operator\'s outfit dialog', async () => {
+    await data.loadAll('outfits');
+    const dressed = [];
+    const props = { m: data.get('assets'), picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } }, legal: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } },
+      kitted: KIT, onSet() {}, picking: null, onPicking() {}, onDressing: (u) => dressed.push(u) };
+    const slots = [...walk(expand(DiyPanelView(props)))].filter((v) => hasClass(v, 'diy-slot'));
+    const btn = (slot) => [...walk(slot)].find((v) => v.props?.['data-testid'] === 'diy-outfit');
+    assert.ok(btn(slots[0]), 'Siege (2 outfits) has the button');
+    assert.equal(btn(slots[2]), undefined, 'a prototype without outfits has none');
+    btn(slots[0]).props.onClick();
+    assert.deepEqual(dressed, [{ charId: SIEGE, name: DATA.backups.units[SIEGE].name }]);
+    // the open dialog draws the outfit panel of that operator (OutfitDialog → Modal → OutfitPanel)
+    const open = [...walk(expand(DiyPanelView({ ...props, dressing: dressed[0] })))];
+    assert.ok(open.some((v) => v.props?.unit?.charId === SIEGE || v.props?.chess?.charId === SIEGE), 'the outfit dialog for Siege');
+    assert.ok(![...walk(expand(DiyPanelView(props)))].some((v) => v.props?.unit?.charId === SIEGE || v.props?.chess?.charId === SIEGE), 'closed: no dialog');
+  });
+
+  test('(fork, docs/OUTFITS.md) the picker\'s detail carries the 时装 section of the operator being picked', async () => {
+    await data.loadAll('outfits');
+    const view = (draft) => DiyPickerView({ m: data.get('assets'), slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks: {}, kitted: KIT, onDone() {}, onClose() {},
+      filter: 'all', query: '', draft, onFilter() {}, onQuery() {}, onDraft() {} });
+    const sec = (tree) => [...walk(tree)].find((v) => v.props?.charId && typeof v.type === 'function' && v.type.name === 'OutfitPickSection');
+    const s = sec(view({ ...SIEGE_PICK }));
+    assert.ok(s, 'Siege: the section');
+    assert.equal(s.props.charId, SIEGE);
+    assert.equal(s.props.name, DATA.backups.units[SIEGE].name);
+    assert.equal(sec(view(null)), undefined, 'nothing picked yet: no section');
+    // the section's cards: 默认 + Siege's outfits; a click wears one at once (not part of the pick)
+    const { OutfitCards } = await import('../../public/js/screens/outfits.js');
+    const { outfitStore, setOutfit, outfitsOf } = await import('../../public/js/ui/outfits.js');
+    const list = outfitsOf(SIEGE);
+    const cards = [...walk(OutfitCards({ m: data.get('assets'), charId: SIEGE, name: 'Siege', list, worn: null, compact: true }))].filter((v) => hasClass(v, 'ofit-card'));
+    assert.deepEqual(cards.map((c) => c.props['data-outfit']), ['default', ...list.map((r) => r.id)]);
+    cards[1].props.onClick();
+    assert.equal(outfitStore.get().outfits[SIEGE], list[0].id);
+    setOutfit(SIEGE, null);
+  });
+
   test('the picker: the slot\'s operators; choosing one and its skill / module confirms the pick', () => {
     const done = [];
     let draft = { ...SIEGE_PICK };

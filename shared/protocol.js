@@ -5,6 +5,7 @@ import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } fro
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from './potential.js';
+import { isOutfitMap } from './outfits.js';
 
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
@@ -406,6 +407,9 @@ export const C2S = {
   // 自选编队 (0.2.0 DIY): the player's DIY slot picks; stored per session / seat like room.ownership (a match takes the
   // picks its seat had when it started; during a match they are stored for the next one: ROOM_STARTED)
   'room.diy': { picks: isDiyPicks },
+  // (fork, docs/OUTFITS.md) 时装: the player's outfit choice { [charId]: skinId } — stored per session / seat and shown to
+  // every member through room.state seats[].outfits; accepted in any phase (cosmetic: the match never reads it)
+  'room.outfits': { outfits: isOutfitMap },
   // spectator seats (remake feature, community report #26; MAX_SPECTATORS): take one of a co-op room's spectator seats —
   // in its lobby or while its match runs — never a player seat; the host frees one by playerId (the spectator gets
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.

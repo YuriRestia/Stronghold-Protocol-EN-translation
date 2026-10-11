@@ -153,6 +153,8 @@ export function subProfIconUrl(m, sub) {
 export function spineEntry(m, id, opts) {
   const s = str(id);
   if (!s) return null;
+  const of = outfitRec(m, s);
+  if (of) return outfitSpine(of, opts);
   const ch = get(get(m, 'chars'), s) || get(get(m, 'chars'), baseCharId(s));
   if (ch && isObj(ch.spine)) {
     const sp = (opts && opts.back && isObj(ch.spine.back)) ? ch.spine.back : ch.spine.front;
@@ -201,8 +203,42 @@ export function localSpineEntry(sl, local, web) {
   return entry;
 }
 
+// ---- outfits (fork, docs/OUTFITS.md) -------------------------------------------------------------------------
+// Manifest `outfits`: `chars[skinId]` { avatar, portrait, art, spine: { front, back? } } and `tokens[tokenSkinId]`
+// { token, avatar, spine } (tools/assets/plan.mjs planOutfits), `defaults[charId]` { art }. An outfit id passed as a unit's
+// model id resolves here first: spineEntry / unitPictureUrl / hasBackSpine. A front-only outfit draws its Front model
+// facing away too (hasBackSpine false); a missing model is null, and the view keeps the operator's own (units.js).
+
+/** An outfit (`char_x@brand#n`) or summon look (`token_x_…#n`) record of the manifest, or null. */
+export function outfitRec(m, id) {
+  const s = str(id);
+  if (!s || !s.includes('#')) return null;
+  const o = get(m, 'outfits');
+  return get(get(o, 'chars'), s) || get(get(o, 'tokens'), s) || null;
+}
+
+function outfitSpine(of, opts) {
+  if (validSpine(of.spine)) return of.spine;               // a summon look: one model
+  const sp = get(of, 'spine');
+  const pick = (opts && opts.back && isObj(get(sp, 'back'))) ? sp.back : get(sp, 'front');
+  return validSpine(pick) ? pick : null;
+}
+
+/** An outfit's art: kind 'avatar' | 'portrait' | 'art' (the full artwork, WebP); `id` an outfit id. */
+export function outfitArtUrl(m, id, kind) {
+  const of = outfitRec(m, id);
+  return of ? str(get(of, kind)) : null;
+}
+
+/** The roster operator's own full artwork (E2, else E1) — the outfit picker's 默认 card. */
+export function defaultArtUrl(m, charId) {
+  return str(get(get(get(get(m, 'outfits'), 'defaults'), str(charId) || ''), 'art'));
+}
+
 /** Whether an operator/token/enemy has a Back model. */
 export function hasBackSpine(m, id) {
+  const of = outfitRec(m, id);
+  if (of) return !validSpine(of.spine) && validSpine(get(get(of, 'spine'), 'back'));
   const ch = get(get(m, 'chars'), str(id) || '') || get(get(m, 'chars'), baseCharId(id) || '');
   return !!(ch && isObj(ch.spine) && validSpine(ch.spine.back));
 }
@@ -213,7 +249,7 @@ export function validSpine(sp) {
 
 /** Best 2D picture for a unit asset id (operator avatar, token avatar, enemy icon, item icon). */
 export function unitPictureUrl(m, id) {
-  return avatarUrl(m, id) || tokenAvatarUrl(m, id) || enemyIconUrl(m, id) || itemIconUrl(m, id) || null;
+  return outfitArtUrl(m, id, 'avatar') || avatarUrl(m, id) || tokenAvatarUrl(m, id) || enemyIconUrl(m, id) || itemIconUrl(m, id) || null;
 }
 
 // ---- audio ---------------------------------------------------------------------------------------------------

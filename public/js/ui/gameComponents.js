@@ -6,6 +6,7 @@ import { html, Icon, TierChip, Tooltip } from './components.js';
 import { data, useData, localAsset } from '../data.js';
 import { parseRichText, rtClassName } from './richText.js';
 import { t as tr } from '../../../shared/i18n.js';
+import { outfitOptsOf } from './outfits.js';
 import {
   uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
@@ -14,7 +15,8 @@ const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 /** Data files the in-match screens use (`backups`: the 补位 stand-ins' bodies — cards, the board model, the detail card). */
 export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands', 'enemies', 'bosses', 'stages', 'tokens',
-  'choices', 'effects', 'garrisons', 'factions', 'local', 'backups'];
+  'choices', 'effects', 'garrisons', 'factions', 'local', 'backups',
+  'outfits']; // (fork, docs/OUTFITS.md) the summons' looks and the outfits' voice sets (ui/outfits.js)
 
 /**
  * Load every in-match data file; returns lookups (sync, null until loaded).
@@ -102,11 +104,13 @@ export const isGoldenPiece = (piece, chess) => !!(piece?.golden || chess?.isGold
 /**
  * Square unit thumbnail for a piece / chess / item / token / enemy: art + tier chip + elite frame.
  * @param {{ kind?: 'chess'|'item'|'token'|'enemy', id: string, golden?: boolean, size?: 'xs'|'sm'|'md'|'lg', tier?: number,
- *   showTier?: boolean, class?: string, dim?: boolean, badge?: any, title?: string, rec?: any }} props
+ *   showTier?: boolean, class?: string, dim?: boolean, badge?: any, title?: string, rec?: any, outfitOwner?: string|null }} props
  *   `rec`: the chess record to draw instead of the data's (a 自选 piece's composed record — 0.2.0, gameLogic/diy.js; a
  *   补位 stand-in's — gameLogic/standIn.js: drawn with a small 「替补」 mark in the corner)
+ *   `outfitOwner` (fork, docs/OUTFITS.md): the player whose unit it is — another player's operator wears that player's
+ *   outfit (ui/outfits.js outfitOptsOf); null / the own id: the own choice
  */
-export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null }) {
+export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showTier = true, class: cls, dim = false, badge = null, title, rec = null, outfitOwner = null }) {
   const m = data.get('assets');
   let src = null;
   let name = '';
@@ -115,7 +119,7 @@ export function UnitThumb({ kind = 'chess', id, golden, size = 'md', tier, showT
   if (kind === 'chess') {
     const c = rec || data.lookup('chess', id);
     si = rec && typeof rec.standInFor === 'string' && rec.standInFor ? rec : null;
-    src = chessAvatarUrl(m, c);
+    src = chessAvatarUrl(m, c, outfitOptsOf(c?.charId, outfitOwner));
     name = c?.name || '';
     t = t ?? c?.tier;
     golden = golden ?? !!c?.isGolden;
