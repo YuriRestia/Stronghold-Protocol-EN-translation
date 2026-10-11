@@ -38,6 +38,9 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   Ela and Muelsyse (and the Damazti Cluster strategy's grant of the same item) now skip the stock and hold no
   copy. Ported from upstream [PR #496](https://github.com/sganggs/Stronghold-Protocol/pull/496) (`1d1ff3b1`).
 - Lobby announcement banner lists both fixes above (new dismiss key `news.0.2.4.fixes`, so it shows again).
+- Fixed: the About panel read "Running HEAD @ …" since generations, because each release worktree is detached.
+  `deploy` now records `app/`'s branch as `SP_BRANCH` in the generation's env file, and `scripts/server-info.mjs`
+  uses it when git reports a detached HEAD.
 
 ## 2026-10-10
 

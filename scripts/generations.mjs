@@ -183,7 +183,12 @@ async function deploy(ref = 'HEAD') {
   fs.mkdirSync(ENVS, { recursive: true });
   run('chown', [`${USER}:${USER}`, RELEASES]);
   const commit = out('git', ['-C', APP, 'rev-parse', '--verify', `${ref}^{commit}`]);
-  console.log(`[deploy] ${gen}: ${commit.slice(0, 10)} on port ${port}`);
+  // the release worktree is detached, so its own HEAD has no branch: record app/'s now, for the About panel
+  // (scripts/server-info.mjs); empty for a bare commit hash or a detached app/
+  let branch = '';
+  try { branch = out('git', ['-C', APP, 'rev-parse', '--symbolic-full-name', '--abbrev-ref', ref]); } catch { /* none */ }
+  if (branch === 'HEAD') branch = '';
+  console.log(`[deploy] ${gen}: ${commit.slice(0, 10)}${branch ? ` (${branch})` : ''} on port ${port}`);
   asUser('git', ['-C', APP, 'worktree', 'add', '--detach', rel, commit]);
   for (const link of SHARED_LINKS) {
     const src = path.join(APP, link);
@@ -199,7 +204,7 @@ async function deploy(ref = 'HEAD') {
   else asUser('npm', ['ci', '--omit=dev'], { cwd: rel });
   asUser('node', ['tools/setup.mjs', '--no-local', '--quiet'], { cwd: rel });
   ensureAssets(rel);
-  fs.writeFileSync(path.join(ENVS, `${gen}.env`), `PORT=${port}\nHOST=127.0.0.1\nSP_GEN=${gen}\nSP_GEN_FILE=${TABLE}\n`);
+  fs.writeFileSync(path.join(ENVS, `${gen}.env`), `PORT=${port}\nHOST=127.0.0.1\nSP_GEN=${gen}\nSP_GEN_FILE=${TABLE}\n${branch ? `SP_BRANCH=${branch}\n` : ''}`);
   run('systemctl', ['enable', '--now', `stronghold@${gen}`]);
   const until = Date.now() + HEALTH_WAIT_MS;
   let h = null;
