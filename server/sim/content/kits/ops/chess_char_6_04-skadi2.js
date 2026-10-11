@@ -2,6 +2,7 @@
 // Conventions of the tier-6 kits: ../shared/tier6.js; kit contract and rules: ../README.md.
 
 import { aggregateMods } from '../../../buffs.js';
+import { applyRedirectCut, redirectShare } from '../../../damage.js';
 import { COLS } from '../../../constants.js';
 import { bardRegen } from '../../../professions.js';
 import { startCountdown } from '../../tokens.js';
@@ -123,12 +124,15 @@ function skadi2(bb, chess, def) {
           if (!(share > 0) || !t || t === unit || t.side !== 'ally' || t.kind === 'device' || !live(unit) || !unit.skill?.active) return;
           if (d.type === 'element' || d.type === 'elemental' || d.skadiShare || d.tags?.includes('transfer') || !inCover(battle, unit, t)) return;
           d.skadiShare = { share, tag: TAG }; // 同类效果取最高: one transfer per damage instance
-          d.mul *= 1 - share;
+          applyRedirectCut(d, share); // her share of the pre-redirect hit; the victim keeps the rest
         }, { owner: unit, priority: -20 });
         battle.on('damaged', (ctx) => {
           const x = ctx.dmg?.skadiShare;
           if (!x || x.tag !== TAG || !(ctx.amount > 0) || !live(unit)) return;
-          battle.dealDamage(ctx.source, unit, { amount: ctx.amount * x.share / Math.max(1e-6, 1 - x.share), type: 'true', canDodge: false, tags: ['transfer'] });
+          // Keep the earlier 坚守 redirect's marker. Rebuilding damage without it lets the same two effects bounce
+          // the hit forever; each existing sharing effect still gets its first application along this path.
+          battle.dealDamage(ctx.source, unit, { amount: redirectShare(ctx.amount, x.share, ctx.dmg.redirectCuts), type: 'true', canDodge: false,
+            tags: ['transfer', ...(ctx.dmg.tags?.includes('bond:stead:share') ? ['bond:stead:share'] : [])] });
         }, { owner: unit });
       }
       // module 新生代: "自身技能期间，攻击范围内的友军获得30点物理与法术伤害减免" (flat reduction per hit)

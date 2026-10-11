@@ -256,9 +256,11 @@ test('place in the detail: after the skills, before the modules; the first .lo-s
   const mods = detail.indexOf('<section class="lo-sec lo-sec--mod">');
   assert.ok(toggle > 0 && skills > toggle && stats > skills && mods > stats, 'skills (and their level toggle) → 局内数值 → modules');
   // one record resolution, shared with the card: chessLoadout, the card's block, trait and talent helpers — no stat arithmetic of its own
-  assert.match(src, /import \{ chessStatsBlock, traitText, chessTalents, GarrisonBlock \} from '\.\.\/ui\/detailPanel\.js';/);
-  assert.match(src, /import \{ chessLoadout \} from '\.\.\/ui\/gameLogic\.js';/);
-  const fn = src.slice(src.indexOf('export function statsPreview'), src.indexOf('export function LoadoutStats'));
+  const shared = read('public/js/ui/loadoutStats.js');
+  assert.match(src, /import \{ LoadoutStats \} from '\.\.\/ui\/loadoutStats\.js';/);
+  assert.match(shared, /import \{ chessStatsBlock, traitText, chessTalents \} from '\.\/detailPanel\.js';/);
+  assert.match(shared, /import \{ chessLoadout \} from '\.\/gameLogic\.js';/);
+  const fn = shared.slice(shared.indexOf('export function statsPreview'), shared.indexOf('export function LoadoutStats'));
   assert.ok(!/composeStats|attr\b|maxHp|statsBase/.test(fn), 'no stat arithmetic in the screen');
   // the screen's own state: 精锐 by default, independent of the skill toggle's 普通
   assert.match(src, /const \[statLevel, setStatLevel\] = useState\('elite'\)/);

@@ -137,7 +137,7 @@ TOKEN_SPINES = [
     'token_10005_mgllan_drone3', 'token_10007_phatom_twin', 'token_10008_cqbw_box', 'token_10009_weedy_cannon',
     'token_10020_ling_soul1', 'token_10020_ling_soul2', 'token_10020_ling_soul3', 'token_10024_ebnhlz_rcube',
     'token_10025_doroth_recttp', 'token_10026_bgsnow_subbow', 'token_10027_ironmn_pile1', 'token_10027_ironmn_pile2',
-    'token_10027_ironmn_pile3', 'token_10029_slent2_protrb', 'token_10032_jesca2_jckshd', 'token_10034_ray_sndbst',
+    'token_10027_ironmn_pile3', 'token_10029_slent2_protrb', 'token_10031_swire2_gdtrap', 'token_10032_jesca2_jckshd', 'token_10034_ray_sndbst',
     'token_10035_wisdel_wward', 'token_10041_cathy_catsld', 'token_10043_necras_skeltn', 'token_10050_monstr_prosts',
     'token_10051_radian_tower1', 'token_10052_radian_tower2', 'token_10053_radian_tower3', 'token_10054_phatm2_encdool',
     'token_10057_svash2_eagle1', 'token_10057_svash2_eagle2', 'token_10057_svash2_eagle3', 'token_10059_nasti_nstdef',

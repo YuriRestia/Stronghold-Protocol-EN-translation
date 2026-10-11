@@ -108,11 +108,14 @@ test('bench vs board, half pairs, two 变形同构体, the equip order, distinct
   // half pairs grant nothing
   wearer(h, 'p_0', target, [HAMMER]);
   assert.equal(count(ps, bond), 0, 'the bond item alone');
+  // A normal plus its golden occupy 3 of the tier-VI cap. The lone copy is a separate match so the pair can sit at that cap.
+  const alone = prep({ fake: true });
+  wearer(alone, 'p_0', target, [ISO]);
+  assert.equal(count(alone.ps('p_0'), bond), 0, '变形同构体 alone');
   const h2 = prep({ fake: true });
-  wearer(h2, 'p_0', target, [ISO]);
   const other = Object.values(DATA.chess).find((c) => c.visible && !c.isGolden && c.tier <= 2 && !c.bonds.includes(bond) && c.chessId !== target).chessId;
   wearer(h2, 'p_0', other, [ISO, ISO_B]);
-  assert.equal(count(h2.ps('p_0'), bond), 0, '变形同构体 alone / two of them');
+  assert.equal(count(h2.ps('p_0'), bond), 0, 'two of them');
   // order: 变形同构体 first
   const h3 = prep({ fake: true });
   const w = wearer(h3, 'p_0', target, [ISO, HAMMER], { board: false });
@@ -136,7 +139,7 @@ test('bench vs board, half pairs, two 变形同构体, the equip order, distinct
   const h5 = prep({ fake: true });
   wearer(h5, 'p_0', members(bond)[0], [ISO, HAMMER]);
   assert.equal(count(h5.ps('p_0'), bond), 1);
-  for (const x of [h, h2, h3, h4, h5]) x.invariants();
+  for (const x of [h, alone, h2, h3, h4, h5]) x.invariants();
 });
 
 test('a teammate\'s views: m.public counts the wearer; the scouting UnitInfo and the battle\'s UnitInfo carry the items', () => {

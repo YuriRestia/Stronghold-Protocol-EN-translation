@@ -97,9 +97,9 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
-//   * 搜寻队友 (DESIGN §29): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
+//   * 搜寻队友 (DESIGN §90): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
 //     mergeRooms / autoStart below carry them out. room.state carries `searching` / `searchSince`.
-//   * 单人匹配 (DESIGN §29): queue.join {difficulty} / queue.leave / queue.ai from the lobby, no room meanwhile;
+//   * 单人匹配 (DESIGN §90): queue.join {difficulty} / queue.leave / queue.ai from the lobby, no room meanwhile;
 //     server/soloQueue.js plans, placeSolos below seats and starts in one step. queue.state {queued, ...} answers.
 //     Disconnect, expiry, room.create / room.join / room.spectate leave the queue.
 

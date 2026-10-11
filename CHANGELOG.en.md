@@ -2,6 +2,23 @@
 
 > English translation of [CHANGELOG.md](CHANGELOG.md). The Chinese original is the authoritative version.
 
+## 0.2.4 — 2026-10-11
+
+### Rules (as in the official game)
+- The shared card pool and equipment stock now follow the official rules (based on 路标档案馆's test videos and public material): solo and Alliance have different Operator copy counts (Alliance has 2×, with a few low-tier Operators excepted in solo); equipment also has a team-wide shared stock, with some special equipment excepted; normal / advanced equipment takes 1 / 2 copies, the shop display takes none and stock is checked again on purchase, an Improv card can no longer be picked once its stock runs out, and consuming, destroying, selling and elimination all return copies. Commercial Packaging Plan means holding at most 2 at a time, not buying at most 2 per match; Mimic Matter draws by the eligible Operators' identities, and refits never exceed the stock.
+- A Raid member that revives without blocking an enemy picks a landing tile once more by the new priority (Taunt first, then the one nearest the Blue Gate); with an enemy underfoot it stays put, and normal polling and redeploys keep the existing rules. In online Leader / Hidden Core Leader battles, Raid can jump to the normal deploy tiles of an empty half; the hand, the Temporary Bench, solo mode and solo Unite's empty half still cannot (#475).
+- When Skadi the Corrupting Heart's S1 and Durable are active together, damage no longer bounces between them and freezes the battle, and the damage both sides take over adds up to the original damage (PR #464, thanks to @HappyTanuki).
+- Harold's S2 can be activated when allies only have Elemental Damage (PR #459); Jessica the Liberated's shield can only be placed on the four adjacent tiles (PR #460); Famiglia Insignia triggers on the first hit after Camouflage ends (PR #461); Pinecone's S2 grows anew on every redeploy (PR #462). Thanks to @Xinglan233.
+- Clementia's S2 splash is corrected per the updated material (radius 1.1, 100% ATK), and it also auto-activates when the only selectable targets in the extended range are aerial (#467); when Ptilopsis copies Gladiia / Yu, the preparation-phase gift no longer requires the three-Operator condition (#473, per in-game footage, limited to these two cases).
+- Swire the Elegant Wit's Champagne Bomb is no longer targeted by allies' auras, inspiration or healing (PR #468 / #476, thanks to @Siornya).
+- The extra grace on Leader battle overtime HP loss is kept only for teams with AI teammates.
+
+### Interface
+- The coins from Swire the Elegant Wit's skill show under her HP bar with the balance and the cap (PR #450, thanks to @IceCodeNew); the Field Medic strategy shows the Reserve Operator - Medic during preparation (PR #451, thanks to @YinqiMargatroid); Champagne Bomb can use its default-skin model.
+- The lobby title bar is redesigned (PR #471, thanks to @YuriRestia); the Japanese interface uses the official JP server's terms (PR #448, thanks to @scutkane); with large text, the settlement screen's return button is no longer pushed off screen.
+- Custom Squad details and Operator Loadout share the same stats, skill, and potential / training display; damage notices for Custom Squad / Reserve Operators show the correct names.
+- After a render asset fails to load, it retries automatically and the 3D view can recover without restarting the battle in progress; a 2D mode you chose yourself is kept. Re-entering the same battle mid-combat, devices such as crates can still be clicked for their description.
+
 ## 0.2.3 — 2026-10-10
 
 ### New content

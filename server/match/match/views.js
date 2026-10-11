@@ -142,7 +142,8 @@ export class MatchViews {
     if (this.phase === PHASE.SP_DRAFT && this.sp) {
       const s = this.sp;
       v.sp = {
-        family: s.family, name: s.name, desc: s.desc, eventId: s.eventId, cards: s.cards.map(cardView), order: s.order.slice(),
+        family: s.family, name: s.name, desc: s.desc, eventId: s.eventId,
+        cards: s.cards.map(c => ({ ...cardView(c), soldOut: c.kind === 'item' && !this.itemPool.canGain(c.id) })), order: s.order.slice(),
         turn: this.spTurn(), picks: { ...s.picks }, taken: { ...s.taken }, untimed: !!s.untimed,
       };
     }
@@ -247,10 +248,29 @@ export class MatchViews {
     return p ? { charId: p.charId, skillIndex: p.skillIndex, uniEquipId: p.uniEquipId } : undefined;
   }
 
+  /** The 外勤医疗 reserve medic already standing on each player's field in preparation. Touch replaces it only at
+   * battleStart, so the prep view always uses the reserve medic, regardless of the current elite count. The stage's
+   * normal-board slot is transformed to the correct half of a boss field by _onBossHalf / the client prep camera. */
+  prepMapChars(ps) {
+    if (!ps?.alive || this.phase !== PHASE.PREP || !this.order.some((p) => p.alive && p.bandId === 'band_amedic')) return [];
+    const id = 'char_605_cmedic';
+    const slot = this.stage?.mapChars?.find((m) => m?.key === id && Array.isArray(m.pos) && m.pos[0] >= 9 && m.pos[0] <= 12
+      && m.pos[1] >= 0 && m.pos[1] <= 10 && !/multi_only/.test(String(m.alias)));
+    const rec = this.gd.token(id);
+    if (!slot || !rec) return [];
+    const dir = slot.dir || 'RIGHT';
+    return [{
+      id: -ps.seat - 1, uid: -ps.seat - 1, kind: 'token', side: 'ally', ownerId: ps.playerId, defId: id,
+      area: 'board', name: rec.name || id, tier: 1, golden: false,
+      spine: rec.assets?.spine || id, avatar: rec.assets?.avatar || id,
+      x: slot.pos[1], y: slot.pos[0], dir, facing: dir === 'LEFT' ? -1 : 1, maxHp: rec.stats?.maxHp || 1,
+    }];
+  }
+
   /** UnitInfo of a player's board pieces on their (board) tiles — a prep scout's board, the boss partner's (bossMateView).
    *  `area: 'board'` (a bench unit says 'hand' / 'temp': prepFieldMeta). */
   _prepBoardUnits(ps) {
-    const units = [];
+    const units = this.prepMapChars(ps);
     // the player's own view of the data (0.2.0 自选编队: its slotted DIY slots are its operators — player/diy.js)
     const gd = ps.gd || this.gd;
     for (const { r, c, piece } of boardOrder(ps.board)) {

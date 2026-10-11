@@ -4,7 +4,7 @@
 
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { elementView } from '../damage.js';
-import { unitInfo, snapshotUnits, ammoView, wolfView, negView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -102,6 +102,8 @@ export class BattleEvents {
       if (wv) (wolves || (wolves = [])).push([u.id, wv[0], wv[1]]);
       const ng = negView(u);
       if (ng) (neg || (neg = [])).push([u.id, ng]);
+      const purse = coinView(u);
+      if (purse) (snap.coins || (snap.coins = [])).push([u.id, ...purse]);
     }
     if (elem) snap.elem = elem;
     if (ammo) snap.ammo = ammo;

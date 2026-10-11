@@ -466,44 +466,44 @@
   padding: .1rem; font: inherit; color: var(--text-md); background: none; border: 0; cursor: pointer; touch-action: manipulation;
 }
 .diy-slot__fill:hover { background: rgba(255, 255, 255, .05); color: var(--text-hi); }
-.diy-slot__fill b { font-size: max(.16rem, 11px); }
-.diy-slot__fill small { font-size: max(.12rem, 9px); color: var(--text-lo); }
+.diy-slot__fill b { font-size: max(calc(.16 * var(--t)), 11px); }
+.diy-slot__fill small { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); }
 .diy-slot__plus { display: grid; place-items: center; width: max(.4rem, 26px); height: max(.4rem, 26px); border: 1px solid var(--line-3); border-radius: 50%; }
 .diy-slot__plus .icon { width: 60%; height: 60%; }
 .diy-slot__art { display: grid; place-items: center; width: max(.9rem, 56px); height: max(1.3rem, 84px); overflow: hidden; background: #0a0d0c; border: 1px solid var(--line-2); }
 .diy-slot__art img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
-.diy-slot__art b { font-size: max(.3rem, 18px); color: var(--text-lo); }
+.diy-slot__art b { font-size: max(calc(.3 * var(--t)), 18px); color: var(--text-lo); }
 .diy-slot__body { display: flex; flex-direction: column; gap: .03rem; min-width: 0; }
 .diy-slot__head { display: flex; align-items: center; gap: .05rem; }
-.diy-slot__label { font-size: max(.12rem, 9px); color: var(--text-lo); letter-spacing: .06em; }
-.diy-slot__name { font-size: max(.17rem, 12px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.diy-slot__class { font-size: max(.12rem, 9px); color: var(--text-lo); }
-.diy-slot__kit { display: flex; align-items: center; gap: .05rem; min-width: 0; font-size: max(.13rem, 9px); color: var(--text-md); }
+.diy-slot__label { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); letter-spacing: .06em; }
+.diy-slot__name { font-size: max(calc(.17 * var(--t)), 12px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diy-slot__class { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); }
+.diy-slot__kit { display: flex; align-items: center; gap: .05rem; min-width: 0; font-size: max(calc(.13 * var(--t)), 9px); color: var(--text-md); }
 .diy-slot__kit > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .diy-slot__sicon, .diy-slot__micon { flex: none; display: inline-grid; place-items: center; width: max(.24rem, 16px); height: max(.24rem, 16px); object-fit: contain; font-size: .8em; color: var(--text-lo); }
 .diy-slot__micon--none { border: 1px solid var(--line-2); }
 .diy-slot__acts { display: flex; flex-direction: column; gap: .04rem; }
 /* 0.2.2: an owned pick's 潜能 / 练度 (screens/cultivation.js) — a prototype has neither (a dim line instead) */
-.diy-slot__cult { display: block; margin-top: .03rem; font-size: max(.12rem, 9px); }
+.diy-slot__cult { display: block; margin-top: .03rem; font-size: max(calc(.12 * var(--t)), 9px); }
 .diy-slot__cult .lo-cult { max-width: max(2.6rem, 200px); }
-.diy-slot__bad { display: flex; align-items: center; gap: .04rem; margin: .02rem 0 0; font-size: max(.12rem, 9px); color: var(--amber); }
+.diy-slot__bad { display: flex; align-items: center; gap: .04rem; margin: .02rem 0 0; font-size: max(calc(.12 * var(--t)), 9px); color: var(--amber); }
 .diy-slot.is-bad { border-color: rgba(255, 196, 0, .45); }
-.diy-tag { display: inline-flex; align-items: center; height: 1.5em; padding: 0 .4em; font-size: max(.11rem, 8px); font-weight: 700; border-radius: 1em; white-space: nowrap; }
+.diy-tag { display: inline-flex; align-items: center; height: 1.5em; padding: 0 .4em; font-size: max(calc(.11 * var(--t)), 8px); font-weight: 700; border-radius: 1em; white-space: nowrap; }
 .diy-tag--proto { color: var(--ice-900); background: var(--ice); }
 .diy-tag--own { color: var(--text-on-mint); background: var(--mint-500); }
 .diy-bonds { display: flex; flex-wrap: wrap; gap: .03rem .06rem; }
-.diy-bond { display: inline-flex; align-items: center; gap: .03rem; font-size: max(.12rem, 9px); color: var(--text-md); }
+.diy-bond { display: inline-flex; align-items: center; gap: .03rem; font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-md); }
 .diy-bond .bglyph, .diy-bond img { width: max(.16rem, 11px); height: max(.16rem, 11px); }
 /* the picker covers the tab: the list of the slot's tier on the left, the chosen operator's skill / module on the right */
 .diy-pick { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: .08rem; padding: .12rem .3rem .14rem; background: var(--bg-1, #0d1110); }
-.diy-pick__head { flex: none; display: flex; align-items: center; gap: .08rem; font-size: max(.16rem, 11px); }
-.diy-pick__note { flex: 1; min-width: 0; font-size: max(.12rem, 9px); color: var(--text-lo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diy-pick__head { flex: none; display: flex; align-items: center; gap: .08rem; font-size: max(calc(.16 * var(--t)), 11px); }
+.diy-pick__note { flex: 1; min-width: 0; font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .diy-pick__x { display: grid; place-items: center; width: max(.4rem, 28px); height: max(.4rem, 28px); color: var(--text-md); background: none; border: 1px solid var(--line-2); cursor: pointer; }
 .diy-pick__bar { flex: none; display: flex; align-items: center; gap: .1rem; flex-wrap: wrap; }
-.diy-pick__search { flex: 1 1 2rem; min-width: 120px; height: max(.36rem, 26px); padding: 0 .08rem; font: inherit; font-size: max(.13rem, 10px); color: var(--text-hi); background: rgba(255, 255, 255, .04); border: 1px solid var(--line-2); }
+.diy-pick__search { flex: 1 1 2rem; min-width: 120px; height: max(.36rem, 26px); padding: 0 .08rem; font: inherit; font-size: max(calc(.13 * var(--t)), 10px); color: var(--text-hi); background: rgba(255, 255, 255, .04); border: 1px solid var(--line-2); }
 .diy-pick__main { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: .12rem; }
 .diy-pick__list, .diy-pick__detail { min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
-.diy-pick__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(3.2rem, 200px), 1fr)); align-content: start; gap: .06rem; }
+.diy-pick__list { display: grid; grid-template-columns: 1fr; align-content: start; gap: .06rem; }
 .diy-opt {
   position: relative; display: flex; align-items: center; gap: .07rem; min-width: 0; padding: .06rem; font: inherit; color: var(--text-hi); text-align: left;
   background: rgba(255, 255, 255, .03); border: 1px solid var(--line); cursor: pointer; touch-action: manipulation;
@@ -515,19 +515,19 @@
 .diy-opt__ava img { width: 100%; height: 100%; object-fit: cover; }
 .diy-opt__txt { display: flex; flex-direction: column; gap: .02rem; min-width: 0; }
 .diy-opt__top { display: flex; align-items: center; gap: .04rem; min-width: 0; }
-.diy-opt__name { font-size: max(.15rem, 11px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.diy-opt__class { display: inline-flex; align-items: center; gap: .03rem; font-size: max(.11rem, 8px); color: var(--text-lo); }
+.diy-opt__name { font-size: max(calc(.15 * var(--t)), 11px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.diy-opt__class { display: inline-flex; align-items: center; gap: .03rem; font-size: max(calc(.11 * var(--t)), 8px); color: var(--text-lo); }
 .diy-opt__prof { width: max(.14rem, 10px); height: max(.14rem, 10px); }
-.diy-opt__taken { position: absolute; right: .04rem; bottom: .03rem; font-size: max(.1rem, 8px); color: var(--amber); }
+.diy-opt__taken { position: absolute; right: .04rem; bottom: .03rem; font-size: max(calc(.1 * var(--t)), 8px); color: var(--amber); }
 .diy-pick__detail { display: flex; flex-direction: column; gap: .06rem; padding: .06rem; background: rgba(255, 255, 255, .02); border: 1px solid var(--line); }
 .diy-pick__who { display: flex; align-items: center; gap: .08rem; }
 .diy-pick__ava { display: grid; place-items: center; width: max(.6rem, 40px); height: max(.6rem, 40px); overflow: hidden; background: #0a0d0c; border: 1px solid var(--line-2); }
 .diy-pick__ava img { width: 100%; height: 100%; object-fit: cover; }
 .diy-pick__wtxt { display: flex; flex-direction: column; flex: 1; min-width: 0; }
-.diy-pick__wtxt b { font-size: max(.17rem, 12px); }
-.diy-pick__wtxt small { font-size: max(.12rem, 9px); color: var(--text-lo); }
-.diy-pick__sec { display: flex; align-items: baseline; gap: .06rem; margin: .04rem 0 0; font-size: max(.14rem, 10px); color: var(--text-md); }
-.diy-pick__sec small { font-size: max(.11rem, 8px); color: var(--text-lo); font-weight: 400; }
+.diy-pick__wtxt b { font-size: max(calc(.17 * var(--t)), 12px); }
+.diy-pick__wtxt small { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); }
+.diy-pick__sec { display: flex; align-items: baseline; gap: .06rem; margin: .04rem 0 0; font-size: max(calc(.14 * var(--t)), 10px); color: var(--text-md); }
+.diy-pick__sec small { font-size: max(calc(.11 * var(--t)), 8px); color: var(--text-lo); font-weight: 400; }
 .diy-pick__choices { display: flex; flex-direction: column; gap: .04rem; }
 .diy-choice {
   display: flex; align-items: flex-start; gap: .07rem; padding: .05rem; font: inherit; color: var(--text-hi); text-align: left;
@@ -538,8 +538,8 @@
 .diy-choice__icon { flex: none; display: grid; place-items: center; width: max(.36rem, 24px); height: max(.36rem, 24px); color: var(--text-lo); }
 .diy-choice__icon img { width: 100%; height: 100%; object-fit: contain; }
 .diy-choice__body { display: flex; flex-direction: column; gap: .02rem; min-width: 0; }
-.diy-choice__head { display: flex; align-items: center; gap: .05rem; flex-wrap: wrap; font-size: max(.14rem, 10px); }
-.diy-choice__desc { font-size: max(.12rem, 9px); line-height: 1.45; color: var(--text-md); }
+.diy-choice__head { display: flex; align-items: center; gap: .05rem; flex-wrap: wrap; font-size: max(calc(.14 * var(--t)), 10px); }
+.diy-choice__desc { font-size: max(calc(.12 * var(--t)), 9px); line-height: 1.45; color: var(--text-md); }
 .diy-pick__foot { flex: none; display: flex; justify-content: flex-end; gap: .08rem; }
 /* 0.2.0 自选编队: the slots the player filled (the entry button's chip) */
 .lo-entry__diy { color: var(--text-on-mint); background: var(--mint-500); }
@@ -601,7 +601,7 @@
   .lo-body.is-detail .lo-detail-wrap { display: flex; }
   .lo-detail-back {
     display: inline-flex; align-self: flex-start; align-items: center; gap: .04rem; margin-bottom: .08rem; padding: .04rem .12rem .04rem .04rem;
-    font: inherit; font-size: max(.15rem, 11px); color: var(--mint-400); background: transparent; border: 1px solid var(--mint-800); cursor: pointer;
+    font: inherit; font-size: max(calc(.15 * var(--t)), 11px); color: var(--mint-400); background: transparent; border: 1px solid var(--mint-800); cursor: pointer;
   }
   .lo-detail-back .icon { width: .2rem; height: .2rem; }
 }
@@ -616,10 +616,10 @@
 }
 /* the shared Button / TextField scale with the root (40 px/rem on phones ⇒ 6–7 px text, 14–20 px tall): the overlay's
    own controls (返回, 全部恢复默认, 恢复默认, the search field) keep a readable size and a tappable height (review fix) */
-.lo .lo-back { height: max(.5rem, 32px); padding: 0 max(.2rem, 10px) 0 max(.12rem, 6px); font-size: max(.18rem, 12px); }
-.lo .lo-top__right .btn, .lo .lo-dhead__reset { height: max(.36rem, 28px); padding: 0 max(.16rem, 8px); font-size: max(.15rem, 11px); }
+.lo .lo-back { height: max(.5rem, 32px); padding: 0 max(.2rem, 10px) 0 max(.12rem, 6px); font-size: max(calc(.18 * var(--t)), 12px); }
+.lo .lo-top__right .btn, .lo .lo-dhead__reset { height: max(.36rem, 28px); padding: 0 max(.16rem, 8px); font-size: max(calc(.15 * var(--t)), 11px); }
 .lo .lo-search .field__box { height: max(.56rem, 28px); padding: 0 max(.16rem, 6px); }
-.lo .lo-search .field__input { font-size: max(.2rem, 12px); }
+.lo .lo-search .field__input { font-size: max(calc(.2 * var(--t)), 12px); }
 .lo .lo-search .field__icon { width: max(.22rem, 14px); height: max(.22rem, 14px); }
 .sp-coarse .lo-chip, .sp-coarse .lo-toggle, .sp-coarse .lo-select { min-height: 30px; }
 .sp-coarse .lo-seg button { min-height: 28px; }
@@ -628,15 +628,15 @@
 /* 导出 / 导入 (干员调配 presets): the dialog is the shared Modal, rendered NEXT TO `.lo` (a sibling) rather than inside
    it — so components.css `.modal { position: fixed }` and its z-index above the overlay apply as they do everywhere
    else, and `.lo > *` needs no exception for it. Below: the payload textarea + the hidden input behind 选择文件. */
-.lo-io__hint { margin: 0 0 max(.1rem, 8px); font-size: max(.18rem, 12px); line-height: 1.55; color: var(--text-md); }
-.lo-io__hint b { color: var(--mint-400); font-size: max(.22rem, 13px); margin: 0 .02rem; }
+.lo-io__hint { margin: 0 0 max(.1rem, 8px); font-size: max(calc(.18 * var(--t)), 12px); line-height: 1.55; color: var(--text-md); }
+.lo-io__hint b { color: var(--mint-400); font-size: max(calc(.22 * var(--t)), 13px); margin: 0 .02rem; }
 .lo-io__hint strong { color: var(--gold); }
 .lo-io__text {
   box-sizing: border-box; width: 100%; height: max(2.4rem, 160px); min-height: 120px; resize: vertical;
   padding: max(.1rem, 8px) max(.12rem, 10px);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* 16 px: iOS zooms into a focused field below that (same reason as ui/clipboard.js) */
-  font-size: max(.2rem, 16px); line-height: 1.45;
+  font-size: max(calc(.2 * var(--t)), 16px); line-height: 1.45;
   color: var(--text-hi); background: rgba(4, 10, 8, .55);
   border: 1px solid var(--line-2); border-radius: 2px; outline: none;
   /* wrap instead of a horizontal scrollbar: phones are narrow and the payload is meant to be read/copied whole */
@@ -645,3 +645,14 @@
 .lo-io__text:focus { border-color: var(--mint-700); }
 .lo-io__text::placeholder { color: var(--text-lo); }
 .lo-io__file { display: none; }
+
+/* DIY uses the same aligned rows and detail sections as operator loadout. */
+.diy-pick__list .diy-opt { min-height: 64px; padding: .1rem; }
+.diy-pick__list .diy-opt__txt { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: .1rem; }
+.diy-pick__list .diy-opt__top { flex-wrap: wrap; }
+.diy-pick__detail > .lo-sec { flex: none; }
+@media (max-width: 900px) {
+  .diy-pick__list .diy-opt__txt { display: flex; flex-direction: column; align-items: flex-start; gap: .04rem; }
+}
+
+.diy-choice__tags { display: flex; flex-wrap: wrap; gap: .08rem; color: var(--text-lo); font-size: max(calc(.12 * var(--t)), 10px); }

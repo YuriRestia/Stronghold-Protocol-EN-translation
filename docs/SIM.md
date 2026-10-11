@@ -463,7 +463,7 @@ recorded for the player whose half contains the goal it reached, with `sourcePla
   0, so float dust of the pool sync can never keep a leader alive; user playtest #6). A boss/hidden battle **with a
   `sharedBoss`** ends only when the pool reaches 0 or on `forceEnd` (DESIGN §5.5) — an emptied field keeps running
   (the h07_04 pair leader has no wait step and can walk into the objective: the leak costs its `lpr`, then the field
-  idles while another field may still empty the pool or the match's overtime drain — team LP, from 150 real s — ends it); without a pool
+  idles while another field may still empty the pool or the match's overtime drain — team LP, from 120 real s for all-human teams / 150 with an AI teammate — ends it); without a pool
   (sandboxes, tools) it still ends `cleared` when empty. `timeout`: `time ≥ timeLimit` —
   every living non-boss enemy becomes a leak; spawns that never happened are dropped from `total` and listed in `unspawned`.
 - `leaked[].counted = false` for `notCountInTotal`/`unharmful`/boss parts (LP rules: normal rounds count only `counted`
@@ -907,7 +907,7 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
 | `getPlayer(playerId)` | `{ playerId, seat, side, colOffset, mirror, dir (default unit direction: RIGHT, mirrored side LEFT), facing (its sign), bonds (live copy, layers updated by addLayers), bandId, playerEffects, lpForBoss, dp, units }` |
 | `mapTile(ps, row, col, abs?)` / `mapDir(ps, dir, abs?)` | board → field tile / direction of a player (the FA right-side mirror) |
 | `onOwnBoard(ps, r, c)` | whether a field tile lies on the player's own board — GEO.FIELD (rows 9–12, cols 2–10) mapped onto this field: the 联防 right-hand helper's +8 columns, the boss field's rows 2–5 (never its hand / 临时整备区 rows 0–1), the mirrored right half; 乌尔比安's S3 【移动】 takes only such tiles (DESIGN §25.17.2) |
-| `onFieldBoard(r, c)` | whether a field tile lies on the board of a player of this field — `onOwnBoard` of any of `players` (the players whose units the battle holds; an eliminated or absent teammate is not one): both halves of the two-helper 联防 field and of a Final Assault / Hidden Core pair field, the own half only for a lone 联防 helper and on a solo boss field, never a boss field's hand / 临时整备区 rows; the 突袭 landing takes only such tiles (DESIGN §25.18, §26.1) |
+| `onFieldBoard(r, c)` | whether a field tile lies on the board of a player of this field — `onOwnBoard` of any of `players` (the players whose units the battle holds; an eliminated or absent teammate is not one): both halves of the two-helper 联防 field and of a Final Assault / Hidden Core pair field, the own half only for a lone helper/player, never a boss field's hand / 临时整备区 rows. Raid additionally admits the empty deployment half only in `mode_multi_*` boss/hidden fights (rows 2–5, cols 2–18), without changing this general method or terrain/reservation checks (DESIGN §29.13, #475) |
 | `addDp(playerId, n)`, `retreat(unit, {reason, permanent, dying})`, `relocate(unit, r, c)` | `relocate` only changes the tile (state kept, no event) |
 | `moveRedeploy(unit, r, c, { clearSp })` | a 【移动】 (PRTS 术语释义: "不退场，以当前血量在目标位置部署", a special retreat + redeploy): `relocate`'s checks (false = refused, nothing changed), then a new deployment (`deploySeq` / `aggroSeq` / `deployedAt`) and `deploy {initial:false, move:true}` (deploy effects fire again); no `die` / `death`, timer or cost (不屈 / 阿戈尔's revive never see it); HP, buffs and a running skill are kept (owner's deviation, DESIGN §22.3); `clearSp` empties the SP before the deploy handlers run — 乌尔比安 S3's move (kits/ops/chess_char_5_05-ulpia.js) and 【返回】 (`clearSp`; also the 从不混淆的方向 fallback, content/tokens.js) |
 | `redeploy(unit, { free=true, tile, keepSp })` | immediate (re)deployment of a dead/retreated ally (full HP, `deploy {initial:false}`); `free: false` pays `base.cost` DP (refused without it); without `tile` it lands on the unit's rest tile (`restTile`: where a knocked-out operator lies, else home); `tile: [r, c]` lands on that tile once (home unchanged; refused when off-rect, occupied or a knocked-out operator's tile, no fallback); `keepSp` keeps SP/charges (保留技力), restored before `deploy` fires — but not for a skill that costs no SP, which the reset re-arms as at every deployment (伊内丝 S3 casts again on a 突袭 landing) — 突袭 raids, 阿戈尔 / 不屈 revives where the unit lies |
@@ -1381,7 +1381,7 @@ Unknown subprofessions fall back to the profession default (test `professions.te
 
 ## 9. Wire format (snapshot.js, DESIGN §8.2)
 
-- `snapshot()` → `{ fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved, dps?, boss?, down?, elem?, ammo?, wolves?, neg?, stand?, standCut? }`.
+- `snapshot()` → `{ fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved, dps?, boss?, down?, elem?, ammo?, coins?, wolves?, neg?, stand?, standCut? }`.
   `killed` counts every `counted` knock-out (§1.3) and `total` only the enemies this field scheduled (`inTotal`), so it may
   exceed it; `resolved = min(total, killedInTotal + leakedInTotal)` is the HUD capsule's numerator (DESIGN §14 顶栏胶囊).
   `sp/spMax` show remaining duration/ammo as a draining bar while a timed skill is active (ammo: `ammoLeft / ammoMax`, the
@@ -1561,3 +1561,11 @@ yet — enemy content must pick one); 抵抗 covers the control statuses of `RES
 “余音” owns a same-call pulse queue (DESIGN §28.24): reflected hits enqueue their earned pulses instead of recursively
 entering another pulse. This retains the lethal-hit pulse and prevents valid high hit-count chains from tripping the
 general hook guard. The queue is emptied in `finally`; it introduces no timer or simulation RNG.
+
+### Community follow-up contracts (DESIGN §29)
+
+- Optional snapshot `coins: [[id, balance, cap]]` comes from `snapshot.js coinView`: a live allied Swire skill's nonnegative integer balance and blackboard cap, including zero. Invalid/missing entries are omitted; interpolation clears absent values.
+- Raid's one reselect after a revive orders by taunt, then remaining route distance, then id, and jumps while the operator is not blocking (contact on the current tile is refreshed first). Ordinary polls keep remaining-distance order and the empty-range prerequisite.
+- Healing skill activation includes elemental-only injury when the operator's heal profile can cure it. Pinecone S2 growth is deployment-local. Skadi S1 and Stead preserve redirect ancestry and take both shares from the pre-redirect hit, so the total damage is conserved.
+
+`champagneHold` includes the internal `isolated` ally-selection flag (§29.11): device-type champagne bombs are excluded from ordinary allied auras/inspiration in both creation paths. Other unhealable summons retain their own selection behavior.

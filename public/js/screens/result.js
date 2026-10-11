@@ -144,6 +144,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
     <div class="result__grid" aria-hidden="true"></div>
     <main class="result__main">
       <section class="result__hero">
+        <div class="result__summary">
         <div class="result__logo"><${Sprite} k="entry/season_logo_settle" class="result__logoimg" fallback=${html`<${MicroLabel} tone="mint">STRONGHOLD PROTOCOL</${MicroLabel}>`} /></div>
         ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" />` : null}
         <h1 class="result__headline">${r.victory ? t('模拟完成') : t('模拟失败')}</h1>
@@ -162,6 +163,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
             <span class="medal__label">${t('隐秘核心')}</span></div>` : null}
         </div>
         ${mins ? html`<p class="result__time t-lo">${tParts('本局耗时 {n} 分钟', { n: html`<b class="num">${mins}</b>`, mins })}</p>` : null}
+        </div>
         <footer class="result__foot">
           <${Button} variant="primary" size="xl" icon="chevronLeft" onClick=${onBack}>${backLabel}<//>
         </footer>

@@ -15,7 +15,7 @@ import {
   buildBoard, classifyStage, heightOf, AREAS, areaFor, unionAreas, objToBoard, boxProjectUV, tube, Geom, uvAt, ROWS, COLS,
 } from '../../public/js/render/board3d/layout.js';
 import { BoardScene, gatePulse, DIR_TURNS, boxData, LIGHTING } from '../../public/js/render/board3d/scene.js';
-import { loadBoardPack, resetBoardPack, PACK_IMAGES } from '../../public/js/render/board3d/load.js';
+import { loadBoardPack, loadThree, resetBoardPack, PACK_IMAGES } from '../../public/js/render/board3d/load.js';
 import { parseStage } from '../../public/js/render/tiles.js';
 import { TILE_H } from '../../public/js/render/style.js';
 import { presetCamera, syncThreeCamera } from '../../public/js/render/projection.js';
@@ -303,6 +303,30 @@ describe('BoardScene (three.js scene graph, stub renderer)', () => {
 });
 
 describe('asset pack loader (fake store)', () => {
+  test('resetBoardPack lets a later three.js import try again after three failures', async () => {
+    resetBoardPack();
+    const missing = new URL('./no-such-three.mjs', import.meta.url).href;
+    for (let i = 0; i < 3; i++) assert.equal(await loadThree(missing), null);
+    assert.equal(await loadThree(missing), null, 'three failures stop further imports');
+    resetBoardPack();
+    const mod = await loadThree(new URL('./fake-three.mjs', import.meta.url).href);
+    assert.equal(typeof mod?.WebGLRenderer, 'function');
+    resetBoardPack();
+  });
+  test('a transient diffuse-image failure is retried by the next mount instead of cached as permanent 2D', async () => {
+    resetBoardPack();
+    let calls = 0;
+    const store = { local: async () => ({ groups: {} }), localUrl: (g, n) => n === 'TX_autochessi_D' ? '/test/atlas.png' : null,
+      image: async () => ++calls === 1 ? null : { width: 8, height: 8 } };
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: false });
+    try {
+      assert.equal(await loadBoardPack(store), null);
+      const pack = await loadBoardPack(store);
+      assert.ok(pack?.images.D); assert.equal(calls, 2);
+      assert.equal(await loadBoardPack(store), pack, 'successful pack remains shared');
+    } finally { globalThis.fetch = original; resetBoardPack(); }
+  });
   test('loads images through the store and meshes through fetch; null without the diffuse atlas', async () => {
     resetBoardPack();
     const manifest = { groups: {} };

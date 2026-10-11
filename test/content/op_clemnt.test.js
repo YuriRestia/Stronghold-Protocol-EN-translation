@@ -11,8 +11,8 @@ const approx = (a, b, label = '') => assert.ok(Math.abs(a - b) < 1e-5 * Math.max
 const enemy = (key, opts = {}) => enemyRec({ key, hp: 1e8, atk: 0, speed: 0, ...opts });
 const defs = { enemies: { dummy: enemy('dummy'), light: enemy('light', { mass: 3 }), mid: enemy('mid', { mass: 4 }), heavy: enemy('heavy', { mass: 9 }),
   fly: enemy('fly', { motion: 'FLY' }), zero: enemy('zero', { mass: 0 }), armored: enemy('armored', { def: 100 }) } };
-function field({ tier = 6, elite = true, skill = 0, potential = 6, dir = 'RIGHT', row = 10, col = 3 } = {}) {
-  const h = makeBattle({ seed: 23, autoFinish: false, timeLimit: 180, defs,
+function field({ tier = 6, elite = true, skill = 0, potential = 6, dir = 'RIGHT', row = 10, col = 3, flags = {} } = {}) {
+  const h = makeBattle({ seed: 23, autoFinish: false, timeLimit: 180, defs, flags,
     hooks: ['damaged', 'attack', 'elementBurst', 'ammoUsed'], captureNoisy: true,
     units: [{ uid: 1, diy: { slot: tier, charId: C, skillIndex: skill }, elite, potential, row, col, dir }] });
   h.step(); return { h, u: h.unit(1) };
@@ -20,6 +20,26 @@ function field({ tier = 6, elite = true, skill = 0, potential = 6, dir = 'RIGHT'
 function done(h) { checkInvariants(h.b); assert.deepEqual(h.b.errors, []); }
 function start(u) { u.skill.gainSp(999, 'init'); assert.equal(u.skill.activate('test'), true); }
 const hits = (h, tag) => h.hooksOf('damaged').filter((c) => c.dmg?.tags?.includes(tag));
+
+for (const tier of [5, 6]) for (const elite of [false, true]) test(`风暴潮 air-only automation retains ground-only normal attacks (${tier}/${elite})`, () => {
+  const { h, u } = field({ tier, elite, skill: 1, flags: { startOpCooldown: 3 } });
+  const e = h.spawn('fly', { pos: [10, 6] }); u.skill.gainSp(999, 'init');
+  h.run(2); assert.equal(u.skill.activations, 0, 'operation cooldown still applies');
+  assert.ok(h.runUntil(() => u.skill.active, 2)); h.run(3);
+  const damaged = h.hooksOf('damaged').filter(c => c.source === u && c.target === e);
+  assert.ok(damaged.length > 0, 'the vortex hits the air-only target');
+  assert.ok(damaged.every(c => !c.dmg.isAttack), 'normal attacks remain ground-only'); done(h);
+});
+test('风暴潮 auto-cast rejects distant/hidden/sleeping flyers and waits through stun', () => {
+  const { h, u } = field({ skill: 1 }); u.skill.gainSp(999, 'init');
+  h.spawn('fly', { pos: [12, 12] }); h.run(0.3); assert.equal(u.skill.activations, 0);
+  const e = h.spawn('fly', { pos: [10, 6] }); h.b.addBuff(e, { key: 'test:hide', flags: { stealth: true } });
+  h.run(0.3); assert.equal(u.skill.activations, 0);
+  h.b.removeBuff(e, 'test:hide'); h.b.applyStatus(e, 'sleep', { duration: 0.5 });
+  h.run(0.3); assert.equal(u.skill.activations, 0);
+  h.b.applyStatus(u, 'stun', { duration: 0.6 }); h.run(0.4); assert.equal(u.skill.activations, 0);
+  h.run(0.5); assert.equal(u.skill.activations, 1); done(h);
+});
 
 test('克莱门莎 is selectable with authored skills in both slots, every form and potential', () => {
   assert.ok(KITTED_CHARS.includes(C));
@@ -184,6 +204,22 @@ test('风暴潮 normal attack hits five ground enemies in total, never all neigh
   performAttack(h.b, u, effectiveProfile(u), [es[0]]);
   const victims = new Set(h.hooksOf('damaged').slice(before).filter((c) => c.dmg.isAttack).map((c) => c.target));
   assert.equal(victims.size, 5); assert.ok(!victims.has(fly)); done(h);
+});
+
+for (const elite of [false, true]) test(`风暴潮 splash uses the published 1.1 collision radius and 100% ATK (${elite})`, () => {
+  const { h, u } = field({ skill: 1, elite }); start(u); h.run(1.6); h.b.rng = () => 0.99;
+  const main = h.spawn('dummy', { pos: [10, 4] });
+  const near = h.spawn('dummy', { pos: [10, 5] });
+  const outside = h.spawn('dummy', { pos: [10, 5.2] });
+  const body = h.spawn('dummy', { pos: [10, 5.8] });
+  body.hitArea = { w: 1.6, h: 1, dx: 0, dy: 0 };
+  const hp = [main, near, outside, body].map(e => e.hp);
+  performAttack(h.b, u, effectiveProfile(u), [main]);
+  approx(hp[0] - main.hp, u.s.atk * u.skill.bb['attack@aoe_atk_scale']);
+  approx(hp[1] - near.hp, u.s.atk);
+  assert.equal(outside.hp, hp[2], 'a point outside radius 1.1 is not splashed');
+  approx(hp[3] - body.hp, u.s.atk, 'a large collision body overlapping radius 1.1 is splashed');
+  done(h);
 });
 
 test('与海为敌 normal attacks hit three and spend no ammunition; remote erosion bursts fire three cross-shaped mixed hits', () => {

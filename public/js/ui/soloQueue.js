@@ -1,4 +1,4 @@
-// 单人匹配 UI (DESIGN §29): the client side of queue.join / queue.leave / queue.ai. The Doctor stays on the lobby screen
+// 单人匹配 UI (DESIGN §90): the client side of queue.join / queue.leave / queue.ai. The Doctor stays on the lobby screen
 // while queued; the server places them only into a room that starts at once, so the next screen is the match. No
 // queue size is shown (an empty-looking queue keeps people from joining it).
 

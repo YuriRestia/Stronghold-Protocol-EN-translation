@@ -53,13 +53,13 @@ export class DiyStock {
 
   has(baseId) { return this.entries.has(baseId); }
   cap(baseId) { return this.entries.get(baseId)?.cap ?? 0; }
-  left(baseId) { return this.entries.get(baseId)?.left ?? 0; }
+  left(baseId) { return Math.max(0, this.entries.get(baseId)?.left ?? 0); }
 
   /** Take up to n copies; returns the number taken (0 for a base id without stock). */
-  take(baseId, n = 1) {
+  take(baseId, n = 1, { overdraw = false } = {}) {
     const e = this.entries.get(baseId);
     if (!e || !(n > 0)) return 0;
-    const k = Math.min(e.left, Math.floor(n));
+    const k = overdraw ? Math.floor(n) : Math.min(Math.max(0, e.left), Math.floor(n));
     e.left -= k;
     return k;
   }
@@ -76,7 +76,7 @@ export class DiyStock {
   /** { baseId: left } (tests / diagnostics). */
   snapshot() {
     const o = {};
-    for (const [id, e] of this.entries) o[id] = e.left;
+    for (const [id, e] of this.entries) o[id] = Math.max(0, e.left);
     return o;
   }
 }

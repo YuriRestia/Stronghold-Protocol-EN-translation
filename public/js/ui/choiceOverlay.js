@@ -91,13 +91,13 @@ export function pickBusy(busyIdx, card, mine) {
 
 /**
  * Whether I may pick a card right now: my turn (solo: always), no pick of mine yet, the card free and no pick in flight.
- * @param {any} sp normalizeSp(...) @param {{ idx: number, takenBy?: string|null } | null | undefined} card
+ * @param {any} sp normalizeSp(...) @param {{ idx: number, takenBy?: string|null, soldOut?: boolean } | null | undefined} card
  * @param {{ myId: string, solo: boolean, busyIdx?: number|null }} o
  */
 export function cardPickable(sp, card, { myId, solo, busyIdx = null }) {
   if (!sp || !card) return false;
   const myTurn = solo || sp.turnPid === myId;
-  return myTurn && sp.pickOf.get(myId) == null && !card.takenBy && busyIdx == null;
+  return myTurn && sp.pickOf.get(myId) == null && !card.takenBy && !card.soldOut && busyIdx == null;
 }
 
 /**
@@ -218,7 +218,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           const busy = pickBusy(busyIdx, card, mine);
           const isArmed = can && armed === card.idx;
           const takerName = taker ? (card.takenBy === myId ? t('你') : taker.name) : null;
-          return html`<button key=${card.idx} type="button" class=${cx('spcard', `spcard--${r.kind}`, card.takenBy && 'is-taken', card.takenBy === myId && 'is-mine', can && 'is-pickable', isArmed && 'is-armed', busy && 'is-busy')}
+          return html`<button key=${card.idx} type="button" class=${cx('spcard', `spcard--${r.kind}`, (card.takenBy || card.soldOut) && 'is-taken', card.takenBy === myId && 'is-mine', can && 'is-pickable', isArmed && 'is-armed', busy && 'is-busy')}
               aria-busy=${busy ? 'true' : undefined} aria-pressed=${can ? String(isArmed) : undefined} disabled=${!can} onClick=${() => can && onTap(card.idx)}
               aria-label=${isArmed ? t('{name}，已选中，再次点击确认', { name: r.name }) : takerName ? t('{name}，{takerName}已选择', { name: r.name, takerName }) : r.name} title=${`${r.name}\n${richTextPlain(r.desc)}`}>
             <span class="spcard__glow" aria-hidden="true"></span>
@@ -233,6 +233,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
               </span>
             </span>
             <${RichText} text=${r.desc} class="spcard__desc" />
+            ${card.soldOut && !taker ? html`<span class="spcard__busy" role="status">${t('库存不足')}</span>` : null}
             ${r.tier ? html`<${TierChip} tier=${r.tier} size="md" class="spcard__tier" />` : null}
             ${taker ? html`<span class="spcard__taker" title=${t('{name} 已选择', { name: taker.name })}><${PlayerAvatar} player=${taker} size="sm" /></span>` : null}
             ${isArmed ? html`<span class="spcard__confirm" role="status"><b>${t('确认选择')}</b><small>${t('再次点击')}</small></span>` : null}

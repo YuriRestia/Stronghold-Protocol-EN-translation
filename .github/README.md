@@ -4,7 +4,7 @@
 
 An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal auto-chess tower-defense mode of *Arknights*: play instantly in the browser, solo or 1–4 player online co-op.
 
-![version](https://img.shields.io/badge/version-0.2.3-2ea44f)
+![version](https://img.shields.io/badge/version-0.2.4-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -37,7 +37,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 - **Solo Simulation** (single player) and **Team Simulation** (1–4 player **co-op**, no PvP; empty seats can be filled with AI teammates).
 - The server is a single Node.js program. **Combat is simulated in each player's browser** (just like the official game); the server only handles the economy and rounds, so a low-power mini PC can host.
-- Current version 0.2.3: the six-star Clementia joins Custom Squad, and Shu and Ulpianus get new Modules; Text Size, per-Operator voice language, Add to Home Screen, setup reroll and Resume local match are new; and the issues reported by players and on GitHub after the 0.2.2 release are fixed — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
+- Current version 0.2.4: the shared card pool and equipment stock are completed per the official rules; the rules for Raid revive targeting, Clementia, Skadi the Corrupting Heart and Durable are corrected; Raid can jump to an empty half in online Leader battles; and the issues reported by players and on GitHub after the 0.2.3 release are fixed — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
 
 ## Features
 

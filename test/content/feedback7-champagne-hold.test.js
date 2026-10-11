@@ -10,6 +10,26 @@ import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.
 
 const TRAP = 'token_10031_swire2_gdtrap';
 const SW = 'chess_char_3_04_a';
+for (const path of ['owner', 'token']) test(`香槟炸弹 (${path}) rejects ordinary allied auras and inspiration without isolating normal summons (#476)`, () => {
+  const { h, bomb: ownBomb } = herBomb({ units: [
+    { uid: 2, chessId: 'chess_char_5_20_a', row: 10, col: 4, skillIndex: 0 },
+    { uid: 3, chessId: 'chess_char_6_04_a', row: 10, col: 5, skillIndex: 1 },
+  ] });
+  const angelina = h.unit(2), skadi = h.unit(3);
+  if (path === 'token') h.b.retreat(ownBomb, { reason: 'expired', permanent: true });
+  const bomb = path === 'owner' ? ownBomb : h.b.spawnToken(h.unit(1), TRAP, 9, 6);
+  const control = h.b.spawnToken(skadi, 'token_10017_skadi2_dedant', 9, 4);
+  assert.ok(bomb && control);
+  assert.ok(skadi.skill.activate('test', { free: true })); h.run(0.7);
+  assert.equal(h.b.allySelectable(bomb, angelina), false);
+  assert.equal(bomb.s.aspd, bomb.base.aspd);
+  assert.equal(bomb.s.hpRegen, 0);
+  assert.equal(bomb.findBuff('inspire'), null);
+  assert.equal(bomb.findBuff('inspire:def'), null);
+  assert.ok(h.b.allySelectable(control, angelina), 'a normal unhealable summon is still selectable');
+  assert.ok(control.s.aspd > control.base.aspd, 'Angelina still affects the ordinary summon');
+  assert.ok(bomb.alive && bomb.hp === bomb.s.maxHp); checkInvariants(h.b);
+});
 /** 琳琅诗怀雅 on (9,5) of a field whose only free x-6 tile is (9,6) — 活性源石 when `infected`; she throws one bomb there. */
 function herBomb({ infected = false, units = [], enemies = [] } = {}) {
   const row9 = infected ? '##ERRriRrrSrrrrrrrS##' : '##ERRrrRrrSrrrrrrrS##';

@@ -85,7 +85,7 @@ export class BattlePlayers {
    * rows 2–5, the mirrored right half of a pair (whatever coordinates the player's input uses). Never the hand / 临时
    * 整备区 rows of a boss field (rows 0–1, inside BOSS_RECT) nor the other half of a 联防 or boss field. Moves that must
    * stay where the player could deploy read it (乌尔比安's S3 【移动】, kits/ops/chess_char_5_05-ulpia.js); the 突袭
-   * landing reads onFieldBoard (any player of this field).
+   * landing reads onFieldBoard (any player of this field), with a Raid-only multiplayer boss/hidden exception (§29.13).
    */
   onOwnBoard(ps, r, c) {
     if (!ps) return false;
@@ -104,7 +104,8 @@ export class BattlePlayers {
    * the players whose units this battle holds (a teammate eliminated before it or playing another field is not one).
    * Both halves on the two-helper 联防 field and on a Final Assault / Hidden Core pair field; the own half only for a
    * lone 联防 helper and on a solo boss field; never a boss field's hand / 临时整备区 rows. The 突袭 landing reads it
-   * (bonds/addon/battle.js raidTile — the owner's decision of 2026-10-07, DESIGN §26.1).
+   * (bonds/addon/battle.js raidTile — the owner's decision of 2026-10-07, DESIGN §26.1), then separately admits the
+   * empty deployment half in multiplayer boss/hidden battles only (§29.13); this general method is unchanged.
    */
   onFieldBoard(r, c) {
     for (const ps of this.players) if (this.onOwnBoard(ps, r, c)) return true;

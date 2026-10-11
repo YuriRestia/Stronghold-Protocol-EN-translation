@@ -810,30 +810,30 @@ const BY_ITEM = {
     const partner = partnerOf(p);
     const key = S.key('stealth');
     const per = num(p.atk_per_sec), max = num(p.max_atk, 1);
-    const st = { bonus: 0, wasStealth: false, armed: false, seq: -1 };
+    const st = { bonus: 0, seq: -1 };
     const TICKS = 0.25;
     S.every(TICKS, () => {
-      if (u.deploySeq !== st.seq) { st.seq = u.deploySeq; st.bonus = 0; st.armed = false; st.wasStealth = false; }
+      if (u.deploySeq !== st.seq) { st.seq = u.deploySeq; st.bonus = 0; }
       if (!onField(u) || !memberOf(battle, u, 'siracusaShip')) return;
       const stealth = !!u.s.flags.stealth;
       if (stealth && st.bonus < max) {
         st.bonus = Math.min(max, st.bonus + per * TICKS);
         S.buff(u, { key, mods: directMods({ atk: st.bonus }), refresh: 'replace' });
       }
-      if (st.wasStealth && !stealth && st.bonus > 0) st.armed = true;
-      st.wasStealth = stealth;
     });
     S.on('damaged', (c) => {
-      if (c.source !== u || !st.armed || isProc(c.dmg) || !(c.amount > 0)) return;
-      st.armed = false;
+      // A hit may follow stealth ending before the next growth poll. Decide at the hit, and consume once before
+      // the combo deals synchronous damage; the ATK buff still supplies that combo's attack value.
+      if (c.source !== u || isProc(c.dmg) || !(c.amount > 0) || st.bonus <= 0
+        || u.deploySeq !== st.seq || !onField(u) || u.s.flags.stealth) return;
+      st.bonus = 0;
       if (partner && carries(battle, u, partner) && c.target && c.target.alive && c.target.side === 'enemy') {
         battle.dealDamage(u, c.target, { amount: u.s.atk * num(p.atk_scale), type: 'true', canDodge: false, tags: procTags('crest') });
         battle.fx('strike', { x: c.target.x, y: c.target.y, id: c.target.id, src: 'item:chess_item_6_11_e', key: rec.id, from: u.id });
       }
-      st.bonus = 0;
       battle.removeBuff(u, key);
     });
-    S.on('death', (c) => { if (c.unit === u) { st.bonus = 0; st.armed = false; } });
+    S.on('death', (c) => { if (c.unit === u) st.bonus = 0; });
   },
 };
 

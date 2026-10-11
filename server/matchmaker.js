@@ -1,4 +1,4 @@
-// server/matchmaker.js — 搜寻队友 by merging searching lobby rooms (rules: DESIGN §29). This file decides who merges
+// server/matchmaker.js — 搜寻队友 by merging searching lobby rooms (rules: DESIGN §90). This file decides who merges
 // with whom; the merge and the auto-start are Lobby methods (mergeRooms / autoStart).
 
 import { MAX_SEATS } from '../shared/constants.js';

@@ -54,11 +54,12 @@ describe('自选编队 picker: reselecting retains the draft (real server, no ar
         await c.click('.lobby-screen [data-testid="loadout-open"]');
         await c.click('.lo .lo-tab[data-tab="diy"]');
         await open();
-        await c.click(operator);
-        await c.click(`${picker} [data-skill="0"]`);
-        await c.click(`${picker} [data-module="none"]`);
+        await c.page.$eval(operator, e => e.scrollIntoView({ block: 'nearest' }));
+        await c.page.click(operator);
+        await c.page.click(`${picker} [data-skill="0"]`);
+        await c.page.click(`${picker} [data-module="none"]`);
         await c.shot('empty-edited');
-        await c.click(operator);
+        await c.page.click(operator);
         await c.shot('empty-reselected');
         assert.deepEqual(await choices(), { skill: '0', module: 'none' }, 'an empty slot retains its edited draft');
         // Hide the current operator, then find and reselect it through the filter/search controls.
@@ -67,15 +68,15 @@ describe('自选编队 picker: reselecting retains the draft (real server, no ar
         await c.click(`${picker} [data-filter="owned"]`);
         await c.click(`${picker} input[type="search"]`);
         await c.page.keyboard.type('推进');
-        await c.click(operator);
+        await c.page.click(operator);
         assert.deepEqual(await choices(), { skill: '0', module: 'none' });
         await confirm(edited);
         await c.shot('empty-saved');
         // A saved non-default pick must not overwrite new edits on a repeated operator click.
         await open();
-        await c.click(`${picker} [data-skill="1"]`);
-        await c.click(`${picker} [data-module="uniequip_003_siege"]`);
-        await c.click(operator);
+        await c.page.click(`${picker} [data-skill="1"]`);
+        await c.page.click(`${picker} [data-module="uniequip_003_siege"]`);
+        await c.page.click(operator);
         assert.deepEqual(await choices(), { skill: '1', module: 'uniequip_003_siege' });
         await c.shot('saved-reselected');
         await c.click(`${picker} .diy-pick__foot button`, '取消');
@@ -83,9 +84,9 @@ describe('自选编队 picker: reselecting retains the draft (real server, no ar
         assert.deepEqual(await saved(), edited, 'cancel leaves the saved pick unchanged');
         await open();
         assert.deepEqual(await choices(), { skill: '0', module: 'none' });
-        await c.click(`${picker} [data-skill="1"]`);
-        await c.click(`${picker} [data-module="uniequip_003_siege"]`);
-        await c.click(operator);
+        await c.page.click(`${picker} [data-skill="1"]`);
+        await c.page.click(`${picker} [data-module="uniequip_003_siege"]`);
+        await c.page.click(operator);
         await confirm(changed);
         await c.page.reload({ waitUntil: 'domcontentloaded' });
         await c.page.waitForSelector('.lobby-screen', { timeout: 20000 });
@@ -178,10 +179,11 @@ describe('0.2.0 自选编队 — a slotted operator in the own shop and battle (
       await c.page.waitForSelector(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"]`, { visible: true, timeout: 8000 });
       const listed = await c.page.evaluate(() => [...document.querySelectorAll('[data-testid="diy-picker"] .diy-opt')].map((el) => el.dataset.char));
       assert.ok(listed.includes('char_609_acguad') && listed.includes('char_601_cguard'), 'the tier-5 prototypes are listed');
+      await c.page.$eval(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"]`, e => e.scrollIntoView({ block: 'nearest' }));
       await c.click(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"]`);
       await c.page.waitForSelector('[data-testid="diy-picker"] .diy-choice[data-skill="2"]', { visible: true, timeout: 5000 });
-      await c.click('[data-testid="diy-picker"] .diy-choice[data-skill="2"]');
-      await c.click('[data-testid="diy-picker"] .diy-choice[data-module="uniequip_002_siege"]');
+      await c.page.click('[data-testid="diy-picker"] .diy-choice[data-skill="2"]');
+      await c.page.click('[data-testid="diy-picker"] .diy-choice[data-module="uniequip_002_siege"]');
       await c.shot('picker');
       await c.click('[data-testid="diy-confirm"]');
       await c.page.waitForFunction((slot, id) => document.querySelector(`.diy-slot[data-slot="${slot}"]`)?.dataset.char === id, { timeout: 4000 }, SLOT, SIEGE);

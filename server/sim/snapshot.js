@@ -142,6 +142,13 @@ export function ammoView(u) {
   return [left, Math.max(1, Math.ceil((sk.ammoMax || sk.ammo || 0) - 1e-9), left)];
 }
 
+/** 琳琅诗怀雅's skill purse: zero is a balance; no purse is null. Display only. */
+export function coinView(u) {
+  const n = u.mem?.coins, max = u.skill?.bb?.sp;
+  if (u.side !== 'ally' || !Number.isSafeInteger(n) || n < 0 || !Number.isSafeInteger(max) || max < 1) return null;
+  return [Math.min(n, max), max];
+}
+
 /**
  * `wolfView(u)` = `[狼影 left, the talent's maximum]` of 伺夜's 狼群 pack (content/tokens.js wolfPack and the managed kit
  * chess_char_3_19-vigil.js keep the count in `mem.shadows` and the maximum in `mem.wolfCapacity`): the pips under the HP

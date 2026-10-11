@@ -15,8 +15,10 @@ export default {
     const kit = {
       skill: {
         kind: 'duration',
-        onStart({ battle, unit, skill }) {
-          const atk = steps[Math.min(steps.length - 1, Math.max(0, skill.activations - 1))];
+        onStart({ battle, unit }) {
+          const uses = unit.mem.pinecnS2Uses ?? 0;
+          unit.mem.pinecnS2Uses = uses + 1;
+          const atk = steps[Math.min(steps.length - 1, uses)];
           battle.addBuff(unit, { key: 'skill:pinecn_atk', mods: { atkPct: atk } });
         },
         onEnd({ battle, unit }) { battle.removeBuff(unit, 'skill:pinecn_atk'); },
@@ -33,7 +35,10 @@ export default {
       }),
       talents: [{ install(battle, unit) {
         battle.on('deploy', (ctx) => {
-          if (ctx.unit === unit) battle.addBuff(unit, { key: 'talent:pinecn_power', duration: num(t0.duration, 60), mods: { spRecoveryFlat: num(t0.sp_recovery_per_sec) } });
+          if (ctx.unit !== unit) return;
+          // PRTS 松果: count skill uses since this deployment; the runtime's activation identity stays cumulative.
+          unit.mem.pinecnS2Uses = 0;
+          battle.addBuff(unit, { key: 'talent:pinecn_power', duration: num(t0.duration, 60), mods: { spRecoveryFlat: num(t0.sp_recovery_per_sec) } });
         }, { owner: unit });
       } }],
     };

@@ -3,12 +3,13 @@
 //
 // Model:
 //   * Every visible (non-hidden, non-DIY) base chess that is not banned this match has `cap` copies
-//     (config.economy.poolCopies[tier], overrides e.g. 缪尔赛思 4). `left[baseId]` = copies not owned by anyone.
+//     (config.economy.poolCopies[tier], measured identity overrides; co-op shared stock doubled). `left` is the
+//     signed capacity minus occupation; the public left() and shop sampling clamp a deficit to zero.
 //   * Owning a piece takes copies: a normal piece holds 1, an elite holds 3 (merge of 3 normals). Shop displays
 //     do NOT reserve copies; buying fails (SOLD_OUT) when left = 0.
 //   * Pieces remember how many copies they hold (`piece.poolCopies`), so selling / elimination / temp wipes return
 //     exactly what was taken — chess granted by effects while the pool is empty (or hidden/banned chess) hold 0.
-//   * Invariant (tests): 0 ≤ left ≤ cap and left + Σ held copies == cap for every base chess.
+//   * Invariant: raw left ≤ cap and raw left + Σ held copies == cap. Mimic can exceed stock, but its copies still occupy it.
 //
 // Rolls: each chess slot draws ONE copy uniformly from all remaining copies of eligible chess with tier ≤ shop level
 // ("copy-weighted"; duplicates within a roll allowed). The item slot picks a tier with the same tier shares, then a
@@ -72,13 +73,13 @@ export class SharedPool {
   /** Whether a base chess is part of this match's pool (visible, not banned). */
   has(baseId) { return this.entries.has(baseId); }
   cap(baseId) { return this.entries.get(baseId)?.cap ?? 0; }
-  left(baseId) { return this.entries.get(baseId)?.left ?? 0; }
+  left(baseId) { return Math.max(0, this.entries.get(baseId)?.left ?? 0); }
 
   /** Take up to n copies; returns the number actually taken (0 when not in the pool / empty). */
-  take(baseId, n = 1) {
+  take(baseId, n = 1, { overdraw = false } = {}) {
     const e = this.entries.get(baseId);
     if (!e || !(n > 0)) return 0;
-    const k = Math.min(e.left, Math.floor(n));
+    const k = overdraw ? Math.floor(n) : Math.min(Math.max(0, e.left), Math.floor(n));
     e.left -= k;
     return k;
   }
@@ -96,14 +97,14 @@ export class SharedPool {
    * Remaining copies of eligible chess (tier ≤ maxTier, or exactly `tier`): the pool's entries, then `extra` ([id, entry]
    * pairs of the same shape — a player's 自选 stock) under the same filters.
    */
-  _eligible({ maxTier = 6, tier = null, filter = null, extra = null } = {}) {
+  _eligible({ maxTier = 6, tier = null, filter = null, extra = null, ignoreCounts = false } = {}) {
     const out = [];
     const scan = (list) => {
       for (const [id, e] of list) {
-        if (e.left <= 0) continue;
+        if (!ignoreCounts && e.left <= 0) continue;
         if (tier != null ? e.tier !== tier : e.tier > maxTier) continue;
         if (filter && !filter(id, e)) continue;
-        out.push([id, e.left]);
+        out.push([id, ignoreCounts ? 1 : e.left]);
       }
     };
     scan(this.entries);
@@ -145,7 +146,7 @@ export class SharedPool {
    * Item roll for the shop's item slot: tier by the chess tier shares at this level, uniform item within the tier,
    * falling back to lower tiers when a tier has no item. Returns an item id or null.
    */
-  rollItem(rng, maxTier) {
+  rollItem(rng, maxTier, stock = null) {
     const shares = this.tierShares(maxTier);
     const tiers = Object.keys(shares).map(Number).sort((a, b) => a - b);
     let tier = null;
@@ -157,12 +158,12 @@ export class SharedPool {
       tier = 1 + Math.floor(rng() * Math.max(1, maxTier));
     }
     for (let t = tier; t >= 1; t--) {
-      const list = this.gd.shopItemsByTier[t];
-      if (list && list.length) return list[Math.floor(rng() * list.length)];
+      const list = (this.gd.shopItemsByTier[t] || []).filter(id => !stock || stock.canGain(id));
+      if (list.length) return stock ? stock.pick(rng, list) : list[Math.floor(rng() * list.length)];
     }
     for (let t = tier + 1; t <= 6; t++) {
-      const list = this.gd.shopItemsByTier[t];
-      if (list && list.length) return list[Math.floor(rng() * list.length)];
+      const list = (this.gd.shopItemsByTier[t] || []).filter(id => !stock || stock.canGain(id));
+      if (list.length) return stock ? stock.pick(rng, list) : list[Math.floor(rng() * list.length)];
     }
     return null;
   }
@@ -170,13 +171,51 @@ export class SharedPool {
   /** { baseId: left } snapshot (tests / diagnostics). */
   snapshot() {
     const o = {};
-    for (const [id, e] of this.entries) o[id] = e.left;
+    for (const [id, e] of this.entries) o[id] = Math.max(0, e.left);
     return o;
   }
 
   totalLeft() {
     let n = 0;
-    for (const e of this.entries.values()) n += e.left;
+    for (const e of this.entries.values()) n += Math.max(0, e.left);
     return n;
+  }
+}
+
+/** Shared equipment stock, derived from actual ownership. Merges, equips and returns cannot lose a reservation:
+ * normal equipment occupies one, upgraded equipment two. Shop/choice displays reserve nothing. Source: the original
+ * experiment BV1eLXXBqEgF, 1:30 and 2:30. [ASSUMED] An item that is consumed/destroyed or removed by elimination no
+ * longer occupies stock, consistently with the video's ownership model; this is not a per-match purchase limit. */
+export class SharedItemPool {
+  constructor(gd, players) { this.gd = gd; this.players = players; }
+  cap(id) { return this.gd.itemPoolCopies(id); }
+  need(id) { return this.gd.isGolden(id) ? 2 : 1; }
+  held(id) {
+    const base = this.gd.baseIdOf(id);
+    let count = 0;
+    const see = p => {
+      if (!p) return;
+      if (p.kind === 'item' && this.gd.baseIdOf(p.id) === base) count += this.need(p.id);
+      for (const item of p.items || []) if (this.gd.baseIdOf(item.id) === base) count += this.need(item.id);
+    };
+    for (const ps of this.players()) {
+      for (const p of ps.hand) see(p);
+      for (const p of ps.temp) see(p);
+      for (const p of ps.board.values()) see(p);
+    }
+    return count;
+  }
+  left(id) { const cap = this.cap(id); return cap == null ? Infinity : Math.max(0, cap - this.held(id)); }
+  canGain(id) { return this.left(id) >= this.need(id); }
+  /** Stock gates eligibility, not probability: retain the existing uniform item draw or explicit data weights.
+   * The measured stock table alone does not establish shop probabilities. */
+  pick(rng, ids, weights = null) {
+    const list = [...new Set(ids)].filter(id => this.canGain(id));
+    const pairs = list.map(id => [id, weights ? Math.max(0, Number(weights.get(id)) || 0) : 1]);
+    const total = pairs.reduce((n, p) => n + Math.max(0, p[1]), 0);
+    if (!(total > 0)) return null;
+    let r = rng() * total;
+    for (const [id, weight] of pairs) if ((r -= Math.max(0, weight)) < 0) return id;
+    return pairs.at(-1)?.[0] || null;
   }
 }

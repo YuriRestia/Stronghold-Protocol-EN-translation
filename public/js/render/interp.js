@@ -116,7 +116,7 @@ export function normalizeSnapshot(snap) {
       if (tu && tu.length === 9) tu.push(e[1], clamp(finite(e[2]), 0, 1), finite(e[3]), Math.max(0, finite(e[4])));
     }
   }
-  const ammo = countList(snap.ammo, units), wolves = countList(snap.wolves, units);
+  const ammo = countList(snap.ammo, units), wolves = countList(snap.wolves, units), coins = countList(snap.coins, units);
   let neg = null;
   if (Array.isArray(snap.neg)) {
     for (const e of snap.neg) {
@@ -147,7 +147,7 @@ export function normalizeSnapshot(snap) {
       (standCut || (standCut = new Map())).set(e[0], e[1]);
     }
   }
-  return { t, units, down, ammo, wolves, neg, stand, standCut, raw: snap };
+  return { t, units, down, ammo, wolves, coins, neg, stand, standCut, raw: snap };
 }
 
 /**
@@ -402,6 +402,7 @@ export class SnapshotBuffer {
       // the HP-bar readouts come with the older snapshot, like flags (whole rounds step with the skill flag)
       o.ammo = A.ammo ? A.ammo.get(id) || null : null;
       o.wolves = A.wolves ? A.wolves.get(id) || null : null;
+      o.coins = A.coins?.get(id) ?? null;
       o.neg = A.neg ? A.neg.get(id) || 0 : 0;
       o.seen = stamp;
     }

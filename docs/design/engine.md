@@ -224,3 +224,12 @@ the hook-depth guard on scaled hit-count HP; the guard remains unchanged for oth
   as well as by its aura tick, including the first hit and immediately after the last companion leaves.
 
 Sources and the feedback items requiring no simulation change are recorded in [§28.25](../history/0.2.3.md#2825-community-feedback-of-2026-10-10).
+
+Community corrections in §29 are normative: Raid's one reselect after a revive uses taunt then route distance and jumps while unblocked, after refreshing contact on the current tile; ordinary polls stay on route distance and the empty-range rule. Healing cast conditions include curable elemental injury; Pinecone S2 growth restarts per deployment; crest consumption is checked on damage. Mixed Skadi/Stead redirects preserve ancestry and both take their share from the pre-redirect hit, so the victim keeps the remainder and the total is conserved. Clementia S2 secondary splash is 100% ATK within a 1.1 collision radius (four additional ground targets), while its main hit and 1.5-radius vortex keep their own coefficients. Final-mode leaders retain their erosion immunity, explicitly stated in the PRTS mode tips. 整备 does not upgrade a purchase when the golden's second copy would exceed shared item stock, and it does not spend its charge in that case.
+
+Raid alone may land on an empty deployment half in multiplayer (`mode_multi_*`) Final Assault / Hidden Core battles
+(#475, maintainer-approved, §29.13): rows 2–5, cols 2–18, subject to the existing field rect, terrain, occupied/downed
+tile and attack-reach checks. Hand/temp rows, empty halves in single-player mode or lone-helper 联防 stay excluded.
+The general `onOwnBoard`/`onFieldBoard` contracts, other movement, summons and preparation placement remain unchanged.
+
+香槟炸弹 also rejects ordinary allied auras and inspiration as a device, through its shared internal selection barrier (§29.11). This does not isolate other unhealable summons or alter its detonation.

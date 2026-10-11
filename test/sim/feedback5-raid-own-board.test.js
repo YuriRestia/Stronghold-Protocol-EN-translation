@@ -10,11 +10,12 @@
 // taken — the two-helper 联防 field and a Final Assault / Hidden Core pair field: raidTile takes the tiles of
 // Battle.onFieldBoard (the board of any player of the field). The lone helper's empty half, a solo boss field's other
 // half and the hand rows stay closed; 乌尔比安's S3 【移动】 keeps his own board.
+// 0.2.4 (#475, maintainer-approved): only multiplayer boss/hidden Raid may also land on the empty half's board.
 // Run: node --test test/sim/feedback5-raid-own-board.test.js
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, flatStage, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 
 const ID = 'chess_char_6_13_a'; // 新约能天使 (RANGED), given the 突袭 bond as the 转职球 / 突袭手雷 would
@@ -26,8 +27,8 @@ const BONDS = { raidShip: { count: 2, active: true, tier: 1, layers: 0 } };
 const dummy = enemyRec({ key: 'dummy', hp: 1e9, speed: 0, mass: 0 });
 const defs = { enemies: { dummy }, chess: { [ID]: raider } };
 
-function jump({ kind, stageId, players, enemyPos, seconds = 11 }) {
-  const h = makeBattle({ kind, stageId, autoFinish: false, timeLimit: 60, defs, players });
+function jump({ kind, stageId, players, enemyPos, seconds = 11, modeId }) {
+  const h = makeBattle({ kind, stageId, autoFinish: false, timeLimit: 60, defs, players, modeId });
   h.step();
   const mine = h.b.allyUnits.filter((u) => u.defId === ID);
   const homes = mine.map((u) => [u.tileR, u.tileC]);
@@ -44,7 +45,7 @@ const mate = (playerId, s, o = {}) => seat(playerId, s, { ...o, bonds: {}, units
 
 test('boss field (solo 最终攻势): a ranged 突袭 member never lands on the hand row 0 or the 临时整备区 row 1', () => {
   // 战场#01: the enemy on the telin (1,3); before the fix the member landed on the hand tile (0,3)
-  const { h, mine } = jump({ kind: 'boss', stageId: 'act1autochess_m01', players: [seat('p1', 0, { units: [unitAt(12, 3)] })], enemyPos: [1, 3] });
+  const { h, mine } = jump({ modeId: 'mode_single_normal', kind: 'boss', stageId: 'act1autochess_m01', players: [seat('p1', 0, { units: [unitAt(12, 3)] })], enemyPos: [1, 3] });
   const u = mine[0];
   assert.deepEqual([u.tileR, u.tileC], [2, 3], 'the board tile next to it, not (0,3)');
   assert.ok(h.b.onOwnBoard(u.player, u.tileR, u.tileC));
@@ -55,7 +56,7 @@ test('boss field (solo 最终攻势): a ranged 突袭 member never lands on the 
   // no partner: the field's boards are its own (the right half stays closed)
   for (let r = 0; r <= 5; r++) for (let c = 0; c <= 20; c++) assert.equal(h.b.onFieldBoard(r, c), h.b.onOwnBoard(u.player, r, c), `(${r},${c})`);
   // an enemy only the temp row could reach: it stays home and does not hop
-  const far = jump({ kind: 'boss', stageId: 'act1autochess_m01', players: [seat('p1', 0, { units: [unitAt(12, 3)] })], enemyPos: [0, 9] });
+  const far = jump({ modeId: 'mode_single_normal', kind: 'boss', stageId: 'act1autochess_m01', players: [seat('p1', 0, { units: [unitAt(12, 3)] })], enemyPos: [0, 9] });
   assert.deepEqual([far.mine[0].tileR, far.mine[0].tileC], far.homes[0]);
 });
 
@@ -123,4 +124,85 @@ test('联防 with two helpers (escaped_multi): a member lands on its teammate\'s
   checkInvariants(ul.b);
   assert.ok(ul.b.onFieldBoard(10, 13) && !ul.b.onOwnBoard(a.player, 10, 13));
   assert.deepEqual([a.tileR, a.tileC], [10, 7], 'he stays on his own half');
+});
+
+for (const kind of ['boss', 'hidden']) for (const side of ['L', 'R']) {
+  test(`#475 ${kind}, lone ${side} multiplayer player: ranged Raid reaches the empty half, without opening its hand rows`, () => {
+    const c = side === 'L' ? 17 : 3;
+    const players = [seat('p1', 0, { side, units: [unitAt(12, 3)] })];
+    for (const modeId of ['mode_multi_normal', 'mode_multi_hard']) {
+      const { h, mine } = jump({ kind, modeId, stageId: 'act1autochess_m01', players, enemyPos: [1, c] });
+      assert.deepEqual([mine[0].tileR, mine[0].tileC], [2, c]);
+      assert.equal(h.b.onFieldBoard(2, c), false, 'the general board contract still excludes an absent teammate');
+      const far = jump({ kind, modeId, stageId: 'act1autochess_m01', players, enemyPos: [0, c] });
+      assert.deepEqual([far.mine[0].tileR, far.mine[0].tileC], far.homes[0], 'no legal board tile reaches the hand-only target');
+    }
+    for (const modeId of ['mode_single_normal', 'mode_single_hard']) {
+      const solo = jump({ kind, modeId, stageId: 'act1autochess_m01', players, enemyPos: [1, c] });
+      assert.deepEqual([solo.mine[0].tileR, solo.mine[0].tileC], solo.homes[0], 'actual solo mode keeps its own half');
+    }
+  });
+}
+
+// Give the member only its own tile as attack range, so each case has exactly one possible landing. All tested
+// off-board tiles are intentionally buildable: the scope predicate, not incidental terrain, must reject them.
+function emptyHalfLanding({ kind = 'boss', side = 'L', pos, glyph = 'r', ranged = false, reserved = false }) {
+  const stage = flatStage({ rows: Object.fromEntries(Array.from({ length: 7 }, (_, r) => [r, 'r'.repeat(21)])) });
+  stage.rows[pos[0]] = stage.rows[pos[0]].slice(0, pos[1]) + glyph + stage.rows[pos[0]].slice(pos[1] + 1);
+  const h = makeBattle({
+    kind, modeId: 'mode_multi_normal', stage, autoFinish: false,
+    defs: { enemies: { dummy }, chess: {
+      probe: chessRec({ id: 'probe', position: ranged ? 'RANGED' : 'MELEE', bonds: ['raidShip'], rangeGrid: [[0, 0]], skill: null }),
+      guard: chessRec({ id: 'guard', skill: null, stats: { respawnTime: 60 } }),
+    } },
+    players: [seat('p1', 0, { side, units: [unitAt(12, 3, 1, 'probe'),
+      ...(reserved ? [{ ...unitAt(pos[0], pos[1], 2, 'guard'), abs: true }] : []),
+    ] })],
+  });
+  h.step();
+  h.spawn('dummy', { pos });
+  return h;
+}
+
+for (const kind of ['boss', 'hidden']) for (const side of ['L', 'R']) {
+  test(`#475 ${kind}, lone ${side} multiplayer player: melee Raid reaches the empty half`, () => {
+    const pos = [3, side === 'L' ? 17 : 3];
+    const h = emptyHalfLanding({ kind, side, pos });
+    const u = h.unit('probe');
+    h.run(11);
+    assert.deepEqual([u.tileR, u.tileC], pos);
+    assert.equal(h.b.onFieldBoard(...pos), false);
+    checkInvariants(h.b);
+    assert.equal(h.b.errors.length, 0);
+  });
+}
+
+test('#475: even buildable hand, temporary-storage, side-margin and off-rect tiles remain invalid Raid landings', () => {
+  for (const pos of [[0, 3], [1, 3], [0, 17], [1, 17], [3, 1], [3, 19], [6, 17]]) {
+    const h = emptyHalfLanding({ pos, ranged: true });
+    const u = h.unit('probe'), home = [u.tileR, u.tileC];
+    h.run(11);
+    assert.deepEqual([u.tileR, u.tileC], home, `excluded tile ${pos}`);
+    checkInvariants(h.b);
+  }
+});
+
+test('#475: empty-half Raid still respects melee/high-ground, water and occupied/downed-unit reservations', () => {
+  for (const glyph of ['h', 'd']) {
+    const h = emptyHalfLanding({ pos: [3, 17], glyph });
+    const u = h.unit('probe'), home = [u.tileR, u.tileC];
+    assert.equal(h.b.grid.canStand(3, 17), false, `terrain ${glyph} is undeployable for melee`);
+    h.run(11);
+    assert.deepEqual([u.tileR, u.tileC], home, `terrain ${glyph}`);
+  }
+  const h = emptyHalfLanding({ pos: [3, 17], reserved: true });
+  const u = h.unit('probe'), guard = h.unit('guard'), home = [u.tileR, u.tileC];
+  h.run(11);
+  assert.deepEqual([u.tileR, u.tileC], home, 'living occupant');
+  h.b.kill(guard, null);
+  assert.equal(h.b.isReservedTile(3, 17), true, 'downed operator reserves its rest tile');
+  h.run(11);
+  assert.deepEqual([u.tileR, u.tileC], home, 'downed occupant');
+  checkInvariants(h.b);
+  assert.equal(h.b.errors.length, 0);
 });

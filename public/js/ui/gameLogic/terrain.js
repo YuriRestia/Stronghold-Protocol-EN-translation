@@ -296,3 +296,16 @@ export function noteDeviceUnits(map, { units = null, events = null } = {}) {
   for (const e of Array.isArray(events) ? events : []) if (Array.isArray(e) && e[0] === 'spawn' && isObj(e[1]) && e[1].kind === 'device' && e[1].id != null) map.set(e[1].id, e[1]);
   return map;
 }
+
+/**
+ * The device-unit map after entering a field. A refresh of the same field whose new meta names no device
+ * (the start-of-battle list: crates and turrets arrive as `spawn` and are not repeated) keeps the units
+ * already noted. A meta that names devices replaces the map. A different field does not keep the previous one.
+ * @param {Map<number, any>|null|undefined} previous
+ * @param {Map<number, any>} noted
+ * @param {boolean} sameField
+ */
+export function deviceUnitsForEntry(previous, noted, sameField) {
+  if (!(noted instanceof Map) || noted.size > 0 || !sameField) return noted instanceof Map ? noted : new Map();
+  return previous instanceof Map && previous.size > 0 ? previous : noted;
+}

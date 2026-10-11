@@ -1040,6 +1040,20 @@
 .sp-coarse .topbar__tools .btn--square.btn--sm { --sq: max(.56rem, 40px); }
 .topbar__right { justify-self: end; display: flex; align-items: center; gap: .16rem; min-width: 0; }
 
+/* Optional resume/install controls and translated XL titles must share actual space instead of overlapping the
+   centered 1fr/auto/1fr title. On narrow displays the title has its own row; the controls stay in their two groups. */
+.lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr) auto; height: auto; min-height: 1.1rem; padding-block: .12rem; }
+.lobby-screen .topbar__center { min-width: 0; }
+.lobby-screen .topbar__center .micro { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lobby-screen .topbar__title { justify-content: center; overflow-wrap: anywhere; }
+@media (max-width: 1000px) {
+  .lobby-screen .topbar { grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .2rem; }
+  .lobby-screen .topbar__center { grid-column: 1 / -1; grid-row: 2; }
+  .lobby-screen .topbar__center .micro { display: none; }
+  .lobby-screen .topbar__right { grid-column: 2; grid-row: 1; }
+  .lobby-screen .me-chip__name { max-width: 1.5rem; }
+}
+
 .section-label { display: flex; align-items: baseline; gap: .12rem; margin: 0 0 .14rem; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .08em; }
 .section-label__idx { font-size: calc(.15 * var(--t)); color: var(--mint-500); padding: 0 .06rem; border: 1px solid var(--mint-800); line-height: 1.35; letter-spacing: .06em; }
 

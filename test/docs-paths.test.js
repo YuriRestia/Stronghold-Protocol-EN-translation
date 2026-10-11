@@ -108,7 +108,8 @@ test('DESIGN: every section is a `## N.` heading exactly once in docs/design/ or
     }
   }
   assert.deepEqual(sectionsOf(index), [], 'the index holds no section of its own');
-  const max = Math.max(...where.keys());
+  // fork: §90 and up are this fork's own sections (matchmaking), numbered apart so upstream's new sections never collide
+  const max = Math.max(...[...where.keys()].filter((n) => n < 90));
   assert.ok(max >= 25, `sections up to §${max}`);
   for (let n = 0; n <= max; n++) assert.ok(where.has(n), `§${n} has a file`);
   // the index's table: one row per file, naming exactly the sections that file holds, with a link that resolves

@@ -121,7 +121,7 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
         await net.request('room.join', { code }); await net.request('room.ready', { ready: true });
       }, code);
       await host.evaluate(() => globalThis.__SP__.net.request('room.start', {}));
-      for (const p of [host, guest]) await p.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase === 'INFO_CHECK');
+      for (const p of [host, guest]) await p.waitForFunction(() => globalThis.__SP__.store.get().match.public?.phase === 'INFO_CHECK', { polling: 50 });
       await guest.evaluate(() => globalThis.__SP__.net.request('g.infoReady', { setupRevision: 0 }));
       await host.waitForSelector('.brief-reroll button');
       await host.bringToFront();
@@ -129,20 +129,25 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
       await guest.waitForSelector('.brief-reroll .btn--primary');
       assert.equal(await guest.evaluate(() => globalThis.__SP__.store.get().match.public.deadline), 0);
       await guest.bringToFront();
-      await guest.click('.brief-reroll .btn--primary');
-      for (const p of [host, guest]) await p.waitForFunction(() => globalThis.__SP__.store.get().match.public?.setupRevision === 1);
+      // The host is now a background tab: WebSocket/store updates continue, but animation-frame polling can stop.
+      // Arm its state wait before the vote so the regression covers a result arriving after the initial check.
+      await Promise.all([
+        host.waitForFunction(() => globalThis.__SP__.store.get().match.public?.setupRevision === 1, { polling: 50 }),
+        guest.click('.brief-reroll .btn--primary'),
+      ]);
+      await guest.waitForFunction(() => globalThis.__SP__.store.get().match.public?.setupRevision === 1, { polling: 50 });
       const state = await guest.evaluate(() => globalThis.__SP__.store.get().match.public);
       assert.equal(state.rerollVote, null);
       assert.ok(state.players.filter((p) => !p.isBot).every((p) => !p.ready));
+      await host.bringToFront();
       await host.waitForFunction(() => !!document.querySelector('.brief-reroll button:not(:disabled)'));
       // Wait out the documented server anti-burst interval before a second request.
       await new Promise((resolve) => setTimeout(resolve, 350));
-      await host.bringToFront();
       await host.click('.brief-reroll button');
       await guest.waitForSelector('.brief-reroll .btn--danger');
       await guest.bringToFront();
       await guest.click('.brief-reroll .btn--danger');
-      await host.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote);
+      await host.waitForFunction(() => !globalThis.__SP__.store.get().match.public.rerollVote, { polling: 50 });
       assert.equal(await host.evaluate(() => globalThis.__SP__.store.get().match.public.setupRevision), 1);
     } finally { await ctx.close(); }
   });

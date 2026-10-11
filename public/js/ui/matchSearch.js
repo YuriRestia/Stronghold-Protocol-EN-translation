@@ -1,4 +1,4 @@
-// 搜寻队友 UI (DESIGN §29): the room screen's search strip and status line, the 搜寻成功! toast, and the lobby's
+// 搜寻队友 UI (DESIGN §90): the room screen's search strip and status line, the 搜寻成功! toast, and the lobby's
 // update announcement (shown until closed; one per release).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';

@@ -406,6 +406,9 @@ test('机密商店 E2E (co-op): two identical cards are two cards — both can b
   // six 变形同构体: every slot draws the one item `coin` names
   const one = Object.values(DATA.items).find((i) => i.name === '变形同构体' && !i.isGolden).id;
   const data = dataWith('mode_multi_hard', 3, 'shop');
+  // This case isolates card-index ownership with sufficient stock; shared-stock.test.js covers exhaustion.
+  data.config = { ...data.config, economy: { ...data.config.economy,
+    itemPoolCopiesOverrides: { ...data.config.economy.itemPoolCopiesOverrides, [one]: 8 } } };
   data.choices = { ...data.choices, shopDraft: { ...data.choices.shopDraft, rounds: [3], slots: Array.from({ length: 6 }, () => ({ coin: 1 })), coin: one } };
   const h = makeMatch({ mode: 'coop', difficulty: 'HARD', humans: 2, bots: 2, seed: 43, data, registry: REG, fake: true });
   const m = h.m;

@@ -954,7 +954,7 @@ test('拟态物质: owning 2 copies gives the 3rd (→ elite); otherwise a rando
   cover(A('5_05'), B('5_05'));
 });
 
-test('拟态物质 with 2 copies owned and none left in the pool gives nothing — never a same-bond operator; with copies left the 3rd still merges (GitHub #207)', () => {
+test('拟态物质 grants the third copy even when stock is empty; the gain still merges and occupies stock (measured pool rule)', () => {
   // the report: an elite 溯光星源 (3 of the Ⅵ阶's 5 copies) and 2 normal ones — the pool is empty, the item text's 否则
   // (a random same-bond operator) is only for fewer than 2 owned
   const cid = 'chess_char_6_16_a';
@@ -966,18 +966,17 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
     const t = give(m, ps, cid, 'hand');
     give(m, ps, cid, 'hand');
     assert.equal(m.pool.left(cid), 0, 'elite 3 + 2 normal = the pool cap 5');
-    const before = chessIn(ps);
     const got = spyGrants(ps);
     const warns = spyWarns(m);
     const it = giveItem(m, ps, item);
     assert.deepEqual(equip(it, t), OK, item);
-    assert.deepEqual(got, [], `${item}: nothing granted`);
-    assert.deepEqual(chessIn(ps), before, `${item}: no other operator, no second elite`);
+    assert.deepEqual(got, [cid], `${item}: same operator granted despite empty stock`);
+    assert.deepEqual(chessIn(ps), [elite, elite], `${item}: the third normal copy merges`);
     assert.ok(!ps.find(it.uid), `${item}: consumed`);
-    // …and says why (GitHub #401, the owner's OK of 2026-10-09)
-    assert.deepEqual(warns, [{ msgid: '{who}：卡池中已没有{name}', who: '拟态物质', name: '溯光星源' }], `${item}: the toast`);
+    assert.deepEqual(warns, [], `${item}: a successful grant must not report an empty-pool failure`);
+    assert.equal(m.pool.entries.get(cid).left, -1, 'the sixth owned copy still occupies the pool');
   }
-  // 2 normal copies, no elite, the pool drained by other players: nothing either
+  // 2 normal copies, no elite, the pool drained by other players: the third copy is still granted.
   {
     const { m, ps, equip } = setup({ seed: 9 });
     const t = give(m, ps, cid, 'hand');
@@ -986,9 +985,9 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
     const got = spyGrants(ps);
     const warns = spyWarns(m);
     assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
-    assert.deepEqual(got, []);
-    assert.deepEqual(chessIn(ps), [cid, cid]);
-    assert.deepEqual(warns.map((w) => w.msgid), ['{who}：卡池中已没有{name}']);
+    assert.deepEqual(got, [cid]);
+    assert.deepEqual(chessIn(ps), [elite]);
+    assert.deepEqual(warns, []);
   }
   // 2 normal copies with copies left: the 3rd merges into the elite
   {
@@ -1004,7 +1003,7 @@ test('拟态物质 with 2 copies owned and none left in the pool gives nothing �
   }
 });
 
-test('拟态物质 with fewer than 2 copies and no same-bond operator left gives nothing and says so (GitHub #401)', () => {
+test('拟态物质 with fewer than 2 copies samples eligible identities independently of remaining stock', () => {
   // 缪尔赛思's only bond is 调和 and she is its only member: one copy owned, the rest of her pool taken by others
   const cid = 'chess_char_6_11_a';
   const { m, ps, equip } = setup({ seed: 9 });
@@ -1013,8 +1012,8 @@ test('拟态物质 with fewer than 2 copies and no same-bond operator left gives
   const got = spyGrants(ps);
   const warns = spyWarns(m);
   assert.deepEqual(equip(giveItem(m, ps, A('5_05')), t), OK);
-  assert.deepEqual(got, [], 'nothing granted');
-  assert.deepEqual(warns, [{ msgid: '{who}：没有可获得的同盟约干员', who: '拟态物质', name: null }]);
+  assert.deepEqual(got, [cid], 'the only eligible identity remains available even with no stock');
+  assert.deepEqual(warns, []);
 });
 
 test('博士投影: golden promotes at once; normal stays equipped and promotes at the next round start', () => {
