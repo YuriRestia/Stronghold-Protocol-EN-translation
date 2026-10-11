@@ -239,7 +239,10 @@ H.SERVER_GAIN_EQUIP = {
   run(ctx) {
     const { bb, bbStr } = ctx.source;
     if (!ctx.gd.item(bbStr.chess)) return;
-    for (let i = 0; i < Math.min(10, num(bb.count, 1)); i++) ctx.grantItem(bbStr.chess);
+    // 诗怀雅 / 卡涅利安 / 耶拉 / 缪尔赛思's trait-fixed equipment has no quantity cap (路标月报#2 item 7):
+    // noPool — no stock gate, no shared copy. NOT a blanket trait exemption: the pool-draw traits
+    // (洛洛 91 SERVER_POOL_EQUIP / 焰尾 149 SERVER_POOL_CHAR, sub-pools of the shared pools) stay pool-bound.
+    for (let i = 0; i < Math.min(10, num(bb.count, 1)); i++) ctx.grantItem(bbStr.chess, { noPool: true });
   },
 };
 

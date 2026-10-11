@@ -26,6 +26,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   so lobby pages reloaded in a loop. A generation now retires only once the table lists it, and `deploy` refuses
   to switch to one that came up retired.
 - Lobby announcement banner updated for 0.2.4 (shown again to everyone who closed the 0.2.2 one).
+- EN text corrections layer: `tools/i18n/corrections-en.json` overrides an official EN text that contradicts the
+  Chinese data and the engine, before the official data is used. First entry: the Victoria Alliance 6-operator bonus
+  reads "+50% ATK per equipment carried, +80% per upgraded" (the official EN read as a flat bonus).
+- Fixed ([upstream #488](https://github.com/sganggs/Stronghold-Protocol/issues/488)): Muelsyse's on-acquire Damazti
+  Isomorph stopped coming once the shared item stock (3 copies) ran dry. The trait-fixed items of Swire, Carnelian,
+  Ela and Muelsyse (and the Damazti Cluster strategy's grant of the same item) now skip the stock and hold no
+  copy. Ported from upstream [PR #496](https://github.com/sganggs/Stronghold-Protocol/pull/496) (`1d1ff3b1`).
+- Lobby announcement banner lists both fixes above (new dismiss key `news.0.2.4.fixes`, so it shows again).
 
 ## 2026-10-10
 

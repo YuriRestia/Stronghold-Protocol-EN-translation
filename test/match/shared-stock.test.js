@@ -133,3 +133,77 @@ test('Mimic can exceed the pool; excess copies keep stock empty until enough own
   const elite = p.allChess().find(c => m.gd.baseIdOf(c.id) === id);
   assert.ok(p.sell(elite.uid).ok); assert.equal(m.pool.left(id), 2); checkInvariants(m); m.dispose();
 });
+
+test('the equipment a trait produces outright (SERVER_GAIN_EQUIP) holds no shared stock and survives a drained pool', () => {
+  const h = makeMatch({ mode: 'coop', humans: 2, seed: 11, fake: true }).start().toPrep();
+  const m = h.m, a = h.ps('p_0'), b = h.ps('p_1');
+  const ITEM = 'chess_item_6_09_e_a'; // 变形同构体, tier Ⅵ, 3 copies — 缪尔赛思 76's <获得时> equipment
+  assert.equal(m.itemPool.left(ITEM), 3);
+  assert.ok(a.acquireChess('chess_char_6_11_a', { source: 'test' }));
+  const made = [...a.hand, ...a.temp].filter((p) => p && p.kind === 'item' && m.gd.baseIdOf(p.id) === ITEM);
+  assert.equal(made.length, 1, '缪尔赛思 <获得时> produces one 变形同构体');
+  assert.ok(made[0].noPool);
+  assert.equal(m.itemPool.held(ITEM), 0, 'the produced copy holds no stock');
+  assert.equal(m.itemPool.left(ITEM), 3);
+  const x = b.acquireItem(ITEM), y = b.acquireItem(ITEM), z = a.acquireItem(ITEM);
+  assert.ok(x && y && z, 'ordinary acquisitions still occupy and drain the pool');
+  assert.equal(m.itemPool.left(ITEM), 0);
+  assert.ok(b.acquireChess('chess_char_6_11_b', { source: 'test', fromPool: false }));
+  const made2 = [...b.hand, ...b.temp].filter((p) => p && p.kind === 'item' && p.noPool && m.gd.baseIdOf(p.id) === ITEM);
+  assert.equal(made2.length, 2, 'the elite trait still produces two with the pool drained (no 装备库存不足 refusal)');
+  assert.equal(m.itemPool.held(ITEM), 3, 'only the bought copies count');
+  assert.ok(a.upgradeItem(made[0]), '整备 of a trait-produced copy needs no second stock copy');
+  assert.equal(m.gd.isGolden(made[0].id), true);
+  assert.ok(made[0].noPool, 'the marker rides onto the golden');
+  assert.equal(m.itemPool.held(ITEM), 3);
+  checkInvariants(m);
+  m.dispose();
+});
+
+test('a golden merged from trait-produced copies stays outside the pool; a mixed merge keeps counting', () => {
+  const h = makeMatch({ mode: 'coop', humans: 2, seed: 11, fake: true }).start().toPrep();
+  const m = h.m, a = h.ps('p_0');
+  const RATION = 'chess_item_3_05_e_a'; // 迅捷作战粮, tier Ⅲ, 7 copies, mergeable — 卡涅利安's <获得时> equipment (garrison 49)
+  assert.equal(m.itemPool.left(RATION), 7);
+  assert.ok(a.acquireItem(RATION, { noPool: true }));
+  assert.ok(a.acquireItem(RATION, { noPool: true }));
+  const gold = [...a.hand, ...a.temp].find((p) => p && m.gd.isGolden(p.id) && m.gd.baseIdOf(p.id) === RATION);
+  assert.ok(gold && gold.noPool, 'two trait-produced copies merge into an exempt golden');
+  assert.equal(m.itemPool.held(RATION), 0);
+  assert.ok(a.destroy(gold.uid).ok);
+  assert.equal(m.itemPool.held(RATION), 0, 'destroying it frees nothing: it never occupied');
+  assert.ok(a.acquireItem(RATION));
+  assert.equal(m.itemPool.left(RATION), 6);
+  assert.ok(a.acquireItem(RATION, { noPool: true }));
+  const g2 = [...a.hand, ...a.temp].find((p) => p && m.gd.isGolden(p.id) && m.gd.baseIdOf(p.id) === RATION);
+  assert.ok(g2 && !g2.noPool, 'a mixed merge keeps the bought twin\'s occupation');
+  assert.equal(m.itemPool.held(RATION), 2);
+  checkInvariants(m);
+  m.dispose();
+});
+
+test('变形者集群 R5 grants the trait-fixed 变形同构体 outside the stock; 马克维茨 R1 商业包装方案 stays stock-bound', () => {
+  const h = makeMatch({ mode: 'coop', humans: 2, seed: 11, fake: true }).start().toPrep();
+  const m = h.m, a = h.ps('p_0'), b = h.ps('p_1');
+  const ITEM = 'chess_item_6_09_e_a';
+  assert.equal(m.gd.isTraitFixedItem(ITEM), true);
+  assert.equal(m.gd.isTraitFixedItem('chess_item_6_09_e_b'), true, 'the golden counts too');
+  assert.equal(m.gd.isTraitFixedItem('chess_item_5_07_e_a'), false);
+  assert.equal(m.gd.isTraitFixedItem('chess_char_6_11_a'), false, 'a chess id is never a trait-fixed item');
+  for (let i = 0; i < 3; i++) assert.ok(b.acquireItem(ITEM));
+  assert.equal(m.itemPool.left(ITEM), 0, 'the shop stock is drained');
+  a.bandId = 'band_damaztic';
+  m.round = 5;
+  m.dispatch(a, 'onRoundStart', { round: 5 });
+  const made = [...a.hand, ...a.temp].filter((p) => p && m.gd.baseIdOf(p.id) === ITEM);
+  assert.equal(made.length, 1, 'the strategy grant survives the drained stock like the trait');
+  assert.ok(made[0].noPool && m.itemPool.held(ITEM) === 3, 'and it holds no stock');
+  const PACK = 'chess_item_5_07_e_a';
+  assert.ok(b.acquireItem(PACK)); assert.ok(b.acquireItem(PACK));
+  assert.equal(m.itemPool.left(PACK), 0);
+  a.bandId = 'band_malkie';
+  m.dispatch(a, 'onRoundStart', { round: 1 });
+  assert.equal([...a.hand, ...a.temp].some((p) => p && m.gd.baseIdOf(p.id) === PACK), false, 'an ordinary strategy item stays gated (#466)');
+  checkInvariants(m);
+  m.dispose();
+});

@@ -9,8 +9,8 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the 0.2.2 one ('news.0.2.2') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.4';
+// A new key per announcement, so everyone who closed the earlier one ('news.0.2.4') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.2.4.fixes';
 
 /** The 0.2.4 announcement's points (msgids). */
 const UPDATE_POINTS = [
@@ -21,6 +21,8 @@ const UPDATE_POINTS = [
   N_('「设置」新增文字大小选项；游戏可添加到主屏幕'), // en: "Settings has a Text Size option, and the game can be added to your Home Screen"
   N_('共享卡池与装备库存现按官方规则计算'), // en: "The shared card pool and equipment stock now follow the official rules"
   N_('服务器更新不再中断进行中的对局'), // en: "Server updates no longer end matches in progress"
+  N_('缪尔赛思特质获得的变形同构体不再受装备库存限制'), // en: "Fixed: Muelsyse's trait no longer stops giving Damazti Isomorphs when the equipment stock runs out"
+  N_('修正英文版【维多利亚】盟约描述：每携带1件装备攻击力+50%（进阶装备+80%）'), // en: "Fixed the English Victoria Alliance description: +50% ATK per equipment carried (+80% per upgraded equipment)"
   N_('大量问题修复'), // en: "Many, many bug fixes"
 ];
 

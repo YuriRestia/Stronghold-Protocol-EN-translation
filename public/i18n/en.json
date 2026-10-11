@@ -1260,6 +1260,8 @@
   "「设置」新增文字大小选项；游戏可添加到主屏幕": "Settings has a Text Size option, and the game can be added to your Home Screen",
   "共享卡池与装备库存现按官方规则计算": "The shared card pool and equipment stock now follow the official rules",
   "服务器更新不再中断进行中的对局": "Server updates no longer end matches in progress",
+  "缪尔赛思特质获得的变形同构体不再受装备库存限制": "Fixed: Muelsyse's trait no longer stops giving Damazti Isomorphs when the equipment stock runs out",
+  "修正英文版【维多利亚】盟约描述：每携带1件装备攻击力+50%（进阶装备+80%）": "Fixed the English Victoria Alliance description: +50% ATK per equipment carried (+80% per upgraded equipment)",
   "大量问题修复": "Many, many bug fixes",
   "单人匹配": "Solo Matchmaking",
   "{n} 名博士 · 自动组队": "{n} {n|Doctor|Doctors} · matched automatically",

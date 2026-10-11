@@ -568,6 +568,9 @@ export function makeCtx(m, ps, source, hook, ev = null) {
       const p = ps.acquireItem(itemId, {
         source: opts.source || source.key || 'effect',
         toTemp: !!opts.toTemp,
+        // noPool: true — the white-give sources of the four operators' trait-fixed equipment (SERVER_GAIN_EQUIP, and
+        // a strategy granting the same fixed item) take no shared item pool copy and skip the stock gate
+        noPool: !!opts.noPool,
         deferMerge: ps._deferItemMerge > 0,
       });
       return p ? view(p) : null;

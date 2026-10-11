@@ -198,14 +198,15 @@ export class PlayerAcquire {
   }
 
   /** Normal item → golden version in place (整备). A golden occupies two shared copies and this piece
-   * already occupies one, so the upgrade waits when no second copy is free. The caller keeps its charge. */
+   * already occupies one, so the upgrade waits when no second copy is free. The caller keeps its charge.
+   * A 特质-produced piece (noPool) holds no shared copy: its golden inherits the marker and never waits. */
   upgradeItem(piece) {
     const rec = this.gd.item(piece.id);
     if (!rec || rec.isGolden) return false;
     const gid = rec.upgradeChessId || rec.goldenId;
     if (!gid || !this.gd.item(gid)) return false;
-    if (this.m.itemPool.left(piece.id) < 1) return false;
-    piece.id = gid;
+    if (!piece.noPool && this.m.itemPool.left(piece.id) < 1) return false;
+    piece.id = gid; // a noPool marker rides along onto the golden
     this.recompute();
     return true;
   }
@@ -284,15 +285,22 @@ export class PlayerAcquire {
    * call, even when an identical normal copy is already owned. The next prep's start runs checkItemMerges. Nothing
    * already equipped is taken off for the fight about to start. Hand and temp both full keeps the 「整备区已满，获得的装备已销毁」
    * outcome. [ASSUMED] every item granted at 休整期结束, not only 维多利亚's 战栗维式重锤 (owner's decision 2026-10-04).
+   * `noPool: true` — the white-give sources of the four operators' trait-fixed equipment (SERVER_GAIN_EQUIP, and a
+   * strategy granting the same fixed item — 变形者集群): skip the stock gate and hold no shared copy (路标月报#2
+   * item 7: what the four can obtain is uncapped — held() skips the marker). NOT a blanket exemption: unlike the
+   * chess pool there is no `requirePool` passthrough for items — a plain `requirePool: false` on an ordinary item
+   * must stay gated (#466: any acquisition occupies, a third 商业包装方案 must fail), and a gate-skipped-but-counted
+   * grant would break the held ≤ cap invariant. A golden inherits the marker only when every consumed copy was
+   * exempt; 整备 of an exempt piece never waits for a second stock copy.
    */
-  acquireItem(itemId, { source = 'grant', toTemp = false, silent = false, deferMerge = false } = {}) {
+  acquireItem(itemId, { source = 'grant', toTemp = false, silent = false, deferMerge = false, noPool = false } = {}) {
     const rec = this.gd.item(itemId);
     if (!rec) return null;
-    if (!this.m.itemPool.canGain(itemId)) {
+    if (!noPool && !this.m.itemPool.canGain(itemId)) {
       this.m.toast(this, 'warn', '装备库存不足，未获得该装备');
       return null;
     }
-    let piece = this.newPiece('item', itemId);
+    let piece = this.newPiece('item', itemId, noPool ? { noPool: true } : {});
     // A prep-end grant may sit beside an identical copy until the next prep. The invariant counts only copies
     // without this mark, so the fight that is about to start is not reported as a missed merge.
     if (deferMerge) piece.deferMerge = true;
@@ -318,7 +326,9 @@ export class PlayerAcquire {
     // remember where equipped twins sat: with a full hand AND a full temp the golden item takes the first one's slot
     const slotOf = consumed.filter((l) => l.area === 'equipped').map((l) => ({ holder: l.holder, idx: l.holder.items.indexOf(l.piece) }));
     for (const l of consumed) if (l.area !== 'new') this._detach(l);
-    const golden = this.newPiece('item', rec.upgradeChessId || rec.goldenId);
+    // the golden inherits noPool only when EVERY consumed copy was 特质-produced (held none); a mix keeps counting —
+    // the bought twin's copy still occupies, and a half-occupied golden is not expressible without a per-piece ledger
+    const golden = this.newPiece('item', rec.upgradeChessId || rec.goldenId, consumed.every((l) => l.piece.noPool) ? { noPool: true } : {});
     if (!this.stow(golden, { allowTemp: true })) {
       const at = slotOf[0];
       if (!at || !this.find(at.holder.uid)) {
