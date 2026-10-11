@@ -1261,7 +1261,7 @@ export class UnitView {
         const was = this.actor.clipOn;
         this.actor.setClipping(clip);
         clipFlip = was !== this.actor.clipOn;
-        if (clip && this.ctx.impostors) interval = Math.max(1, interval);
+        if (this.actor.clipOn && this.ctx.impostors) interval = Math.max(1, interval);
       }
       // a pose that cannot change (a knocked-out operator lying in its held Die pose, a frozen model) is neither re-posed
       // nor redrawn — it would draw the same pixels again; the actor's clock still runs

@@ -78,6 +78,34 @@ export function hasClipping(data) {
   return false;
 }
 
+const EYEISH = /eye|lid|pupil/i;
+
+/**
+ * Whether the skeleton has a clipping attachment that is not an eyelid — a weapon / rope / chain cut (Miksaparato's
+ * F_Weapon_mask, Mlynar's F_Sword_Cut, …). _eyeMaskFallback only approximates eyelids (it hides whole slots); such a
+ * clip cuts parts of slots that stay drawn, so without the stencil the art shows uncut (an oversized weapon). A clip is
+ * an eyelid when its slot, attachment or end slot is named like one, or every slot it covers (setup draw order) is.
+ */
+export function needsClipping(data) {
+  try {
+    const slots = data?.slots || [];
+    for (const skin of data?.skins || []) {
+      const list = typeof skin.getAttachments === 'function' ? skin.getAttachments() : [];
+      for (const e of list) {
+        const a = e && e.attachment;
+        if (!isClip(a)) continue;
+        const slot = slots[e.slotIndex], end = a.endSlot;
+        if (EYEISH.test(`${slot?.name || ''} ${a.name || ''} ${end?.name || ''}`)) continue;
+        const from = (slot ? slot.index : e.slotIndex) + 1, to = end ? end.index : from - 1;
+        const covered = slots.slice(from, to + 1);
+        if (covered.length && covered.every((s) => EYEISH.test(s.name))) continue;
+        return true;
+      }
+    }
+  } catch { /* unknown runtime shape: treat as eyelids (the old behaviour) */ }
+  return false;
+}
+
 /**
  * Is (x, y) inside the polygon of `n` points `pts` (flat [x0, y0, x1, y1, …])? Ray casting (PR #384 by @Convey123).
  */
@@ -133,6 +161,7 @@ export class SpineActor {
      * share a field (app.js budget) — then _eyeMaskFallback hides what a closed eyelid would cut (GitHub #177).
      */
     this.clipped = hasClipping(spineData);
+    this.clipNeeded = this.clipped && needsClipping(spineData); // non-eyelid clips: the masks stay on (setClipping)
     this.clipOn = true;
     this._clipHidden = new Set(); // slot indexes the eyelid fallback hid in its last pass (_eyeMaskFallback)
     if (this.clipped) {
@@ -176,9 +205,9 @@ export class SpineActor {
     this._play(this._idleName(), true);
   }
 
-  /** Enable / disable the skeleton's clipping masks. */
+  /** Enable / disable the skeleton's clipping masks (always on when a clip is not an eyelid: needsClipping). */
   setClipping(on) {
-    on = !!on;
+    on = !!on || this.clipNeeded;
     if (!this.clipped || on === this.clipOn) return;
     this.clipOn = on;
     if (on) this._showClipHidden();   // the stencil takes over from the eyelid fallback

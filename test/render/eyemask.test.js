@@ -24,7 +24,7 @@ const dirOf = (id) => path.join(ROOT, 'public', 'assets', 'spine', 'op', id, 'fr
 const have = (id) => existsSync(path.join(dirOf(id), `${id}.skel`)) && existsSync(path.join(dirOf(id), `${id}.atlas`));
 const MODELS = ['char_4058_pepe', 'char_4082_qiubai', 'char_4010_etlchi', 'char_1033_swire2'];
 
-let SpineActor, pointInPolygon, rt, base, core;
+let SpineActor, pointInPolygon, needsClipping, rt, base, core;
 before(async () => {
   // headless pixi: its shader-precision probe and Texture.WHITE ask for a canvas; no WebGL context is needed to build
   // and update a Spine's display tree
@@ -35,7 +35,7 @@ before(async () => {
   base = require('@pixi-spine/base');
   core = require('@pixi/core');
   globalThis.PIXI = { spine: { Spine: rt.Spine } };   // SpineActor builds `new PIXI.spine.Spine(data)`
-  ({ SpineActor, pointInPolygon } = await import('../../public/js/render/spine.js'));
+  ({ SpineActor, pointInPolygon, needsClipping } = await import('../../public/js/render/spine.js'));
 });
 
 const cache = new Map();
@@ -131,5 +131,33 @@ describe('eyelids on the official skeletons, drawn by the real pixi-spine runtim
     assert.deepEqual(hidden(off), [], 'shown again for the stencil');
     const clip = off.spine.skeleton.slots.find((s) => s.clippingContainer);
     assert.equal(clip.clippingContainer.mask, clip.currentGraphics, 'the mask is back on');
+  });
+
+  test('eyelid-only skeletons may drop their masks (needsClipping false)', () => {
+    for (const id of MODELS) assert.equal(needsClipping(skeletonData(id)), false, id);
+  });
+});
+
+// Miksaparato's Boc outfit cuts its weapon with F_Weapon_mask (→ F_Weapons_3): with the masks off (two clipped
+// skeletons on the field) the eyelid fallback left F_Weapons_5 drawn uncut — an oversized gun.
+const RMIXER = path.join(ROOT, 'public', 'assets', 'outfit', 'spine', 'char_4194_rmixer_boc_12', 'front', 'char_4194_rmixer_boc_12');
+const RMIXER_ENTRY = { anims: {}, animations: {} };
+describe('a weapon clip keeps its stencil mask', { skip: !(existsSync(`${RMIXER}.skel`) && existsSync(`${RMIXER}.atlas`)) && 'the outfit skeleton is not in public/assets (npm run assets)' }, () => {
+  let data;
+  before(() => {
+    const atlas = new base.TextureAtlas(readFileSync(`${RMIXER}.atlas`, 'utf8'), (line, cb) => cb(new core.BaseTexture(null, { width: 1024, height: 1024 })));
+    data = new rt.SkeletonBinary(new rt.AtlasAttachmentLoader(atlas)).readSkeletonData(new Uint8Array(readFileSync(`${RMIXER}.skel`)));
+  });
+
+  test('needsClipping: the weapon mask is not an eyelid', () => assert.equal(needsClipping(data), true));
+
+  test('setClipping(false) on the field budget leaves the mask on and hides nothing', () => {
+    const a = new SpineActor(data, RMIXER_ENTRY);
+    a.setClipping(false);
+    a.update(0.1);
+    assert.equal(a.clipOn, true);
+    assert.deepEqual(hidden(a), []);
+    const clip = a.spine.skeleton.slots.find((s) => s.clippingContainer);
+    assert.equal(clip.clippingContainer.mask, clip.currentGraphics);
   });
 });
