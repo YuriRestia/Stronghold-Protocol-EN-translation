@@ -9,7 +9,8 @@
 // is a line break.
 //
 // API:
-//   parseRichText(src)            → Seg[]  where Seg = { text, cls: string[], term: boolean } | { br: true }
+//   parseRichText(src)            → Seg[]  where Seg = { text, cls: string[], term: boolean, termId? } | { br: true }
+//                                   (termId: the innermost term tag's id, e.g. 'ba.stun' — data/terms.json, ui/termTip.js)
 //   richTextPlain(src)            → string (markup stripped, newlines kept)
 //   rtClassName(cls)              → CSS class for an official style id ('ba.vup' → 'rt-vup')
 //   formatBondEffect(bond, layers)→ bond `effectDescRaw` with its `{i:fmt}` placeholders resolved
@@ -63,12 +64,13 @@ export function parseRichText(src) {
     if (!buf) return;
     const cls = stack.map((t) => t.cls);
     const term = stack.some((t) => t.term);
+    const termId = term ? [...stack].reverse().find((t) => t.term).cls : undefined;
     const prev = out[out.length - 1];
     // merge with the previous segment when styles are identical
-    if (prev && !prev.br && prev.term === term && prev.cls.length === cls.length && prev.cls.every((c, i) => c === cls[i])) {
+    if (prev && !prev.br && prev.term === term && prev.termId === termId && prev.cls.length === cls.length && prev.cls.every((c, i) => c === cls[i])) {
       prev.text += buf;
     } else {
-      out.push({ text: buf, cls, term });
+      out.push(term ? { text: buf, cls, term, termId } : { text: buf, cls, term });
     }
     buf = '';
   };

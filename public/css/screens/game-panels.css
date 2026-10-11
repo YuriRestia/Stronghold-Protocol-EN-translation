@@ -688,3 +688,21 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .eqr__hint { margin: .04rem 0 0; text-align: center; font-size: calc(.15 * var(--t)); color: var(--text-lo); min-height: .24rem; }
 .eqr__hint b { color: var(--text-hi); }
 .eqr__ok-icon { width: .2rem; height: .2rem; margin-right: .06rem; vertical-align: -.03rem; filter: brightness(0) invert(1); }
+
+/* ---- status keyword glossary (ui/termTip.js) ------------------------------------------------------------ */
+.rt-term[data-term] { cursor: help; }
+.rt-term[data-term]:focus-visible { outline: 1px solid #9fd4ff; outline-offset: 1px; }
+.term-tip {
+  position: fixed;
+  z-index: 10000;
+  max-width: 3.6rem;
+  padding: .1rem .14rem;
+  border: 1px solid rgba(159, 212, 255, .5);
+  background: rgba(12, 16, 18, .97);
+  box-shadow: 0 .06rem .24rem rgba(0, 0, 0, .6);
+  font-size: calc(.14 * var(--t));
+  line-height: 1.45;
+  pointer-events: auto;
+}
+.term-tip__name { color: #9fd4ff; font-weight: 700; margin-bottom: .04rem; }
+.term-tip__desc { color: var(--text-hi); }

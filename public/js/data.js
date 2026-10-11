@@ -47,6 +47,8 @@ export const DATA_FILES = Object.freeze({
   assets: 'assets.json',
   // 补位 stand-ins (DATA.md §18): the bodies the 干员持有 screen, the cards and the detail card compose (shared/standIn.js)
   backups: 'backups.json',
+  // the status keyword glossary (gamedata_const termDescriptionDict): ui/termTip.js
+  terms: 'terms.json',
   // Optional art extracted from a local game client (DESIGN §13): { groups: { '<subdir>': { name: { path, w, h } } } }.
   // The emotes and the 玩法说明 pages are in data/assets.json too (downloaded from the mirror): artUrls().
   local: 'local-assets.json',

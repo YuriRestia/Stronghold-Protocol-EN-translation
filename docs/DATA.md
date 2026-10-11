@@ -750,3 +750,14 @@ burn hammers 2 each; limited accelerator 1; shield drone and laser emitter 4 eac
 Ashlock 10, Fartooth 3. Rebuild `choices.json` offline; these weights do not exempt draws from shared availability.
 The runtime derives unlimited fixed-gift families from `SERVER_GAIN_EQUIP`; this is a grant-source exemption,
 not a zero-occupancy flag or a manually maintained second list in generated data.
+
+## 19. `terms.json` — status keyword glossary — `{ [termId]: { name, desc } }` (55)
+
+The official definitions of the status keywords the texts tag (`<$ba.stun>晕眩</>`; `public/js/ui/richText.js` keeps the
+id as `termId`), from `excel/gamedata_const.json` `termDescriptionDict` (`termName` → `name`, `description` → `desc`):
+every term id found in the other built files, plus the terms their own descriptions mention (`desc` is rich text and
+may tag other keywords — 元素损伤 lists the five 损伤). Keys sorted. A tap on a tagged keyword opens its definition
+(`public/js/ui/termTip.js`). The language overlays (`data/i18n/<code>.json` `files.terms`) take the official texts of
+each client's `termDescriptionDict`; keywords a client lacks fall back to `tools/i18n/fallback-remake[.<code>].json`
+(docs/I18N.md §2), else to the Chinese.
+
