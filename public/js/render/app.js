@@ -54,6 +54,8 @@
 //                                               chosen / the move is in flight (null releases; setPrep then settles it)
 //   view.setPieceDir(uid, dir)                  show a prep piece facing UP|RIGHT|DOWN|LEFT (wheel preview / stored dir)
 //   view.setSettings({ damageNumbers, quality: 'high'|'medium'|'low' }) ; view.resize() ; view.destroy()
+//   (dev, public/dev/sandbox: settings.forceImpostors draws every unit through the impostor atlas, as a crowd would;
+//   settings.legacyImpostorBox sizes those boxes from the first rendered pose, the behaviour before per-clip extents)
 //   view.stats() → { fps, frameMs, cpuMs, renderMs, units, particles, impostor, impostorAtlas, boardArt, … } (dev / perf)
 //
 // Enemy preview pen (research 09 §2.2 / 08 §4.2, render/pen.js): in prep the next round's enemies idle in the pen
@@ -324,6 +326,8 @@ export async function createFieldView(host, options = {}) {
     viewport: () => vp,
     loadLevel: () => loadLevel,
     surfaceLayer: (row) => tiles.surfaceLayer(row),
+    // dev (public/dev/sandbox): impostor boxes from the first rendered pose, as before the per-clip extents
+    legacyImpostorBox: () => !!settings.legacyImpostorBox,
   };
   const tiles = new TileField({ ground: layers.ground, overlay: layers.overlay, props: layers.units, anim: layers.anim });
   setupCleanup.push(() => tiles.destroy());
@@ -1648,6 +1652,7 @@ export async function createFieldView(host, options = {}) {
     return settings.quality === 'high' && n <= 1;
   }
   function pickImpostorInterval() {
+    if (settings.forceImpostors) return 2;
     let n = 0;
     for (const v of views.values()) if (v.actor && v.spineReady) n++;
     const q = settings.quality;

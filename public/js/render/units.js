@@ -455,6 +455,11 @@ export class UnitView {
     // a fast enemy walks on its model's own Run cycle when it has one (PR #275 by @xcdoge: 猎狗pro, moveSpeed 1.9, Run_Loop
     // 0.53 s next to Move_Loop 0.80 s; also 深池侦察犬 1.7). [ASSUMED] the threshold: faster than the standard 1
     this.moveFast = this.isEnemy && Number(def?.stats?.moveSpeed) > 1;
+    // (fork) a 重炮手 (fortress: Horn, Ashlock) melees while blocking and shoots its cannon otherwise (sim ai.js: the
+    // melee 'atk' carries kind 'none'); each attack's kind picks its model's clip set (SpineActor.rangedShot). Unblocked
+    // at first, so the cannon.
+    this.fortress = !this.isEnemy && ctx.lookupDef?.(info)?.subProfessionId === 'fortress';
+    this.rangedShot = this.fortress;
     // the official's own model quirks (enemies.json, read from its battle prefabs — tools/local-extract/enemy_model_offsets.py,
     // PR #211): a vertical stretch (its Graphic scale's sy / sx, the two 帝国炮火先兆者 at 1.263) and a mirrored X scale
     // (the Graphic's sx is negative, so the official draws the authored model flipped: 木制瑞印)
@@ -656,6 +661,7 @@ export class UnitView {
         actor.setRunMode(this.moveFast);
         // enemies play their attack clip once per attack, then walk on (GitHub #58: the sim stands them for that clip)
         actor.clipPerAttack = this.isEnemy;
+        actor.rangedShot = this.rangedShot;
       } catch (err) {
         console.warn('[render] spine build failed', id, err?.message || err);
         this._releaseEntry(entry);
@@ -999,8 +1005,16 @@ export class UnitView {
       this.lungeDir.x = dx / len; this.lungeDir.y = dy / len;
     }
     this.lunge = 1;
+    this._shotKind(kind);
     if (this.actor) this.actor.attack(this.atkInterval, once); // game seconds: the actor's clock runs in game time
     if (this.imp) this.imp.dirty = true;
+  }
+
+  /** A fortress: this attack's kind ('none' = its melee) picks the clip set the coming attack plays. */
+  _shotKind(kind) {
+    if (!this.fortress) return;
+    this.rangedShot = !!kind && kind !== 'none';
+    if (this.actor) this.actor.rangedShot = this.rangedShot;
   }
 
   /**
@@ -1010,6 +1024,7 @@ export class UnitView {
    */
   windUp(lead, kind) {
     if (!this.alive || !this.actor || !this.spineReady) return false;
+    this._shotKind(kind);
     const ok = this.actor.windUp(this.atkInterval, lead, !!PROJ[kind]?.once);
     if (ok && this.imp) this.imp.dirty = true;
     return ok;
@@ -1633,7 +1648,7 @@ export class UnitView {
     // every pose of the model (SpineActor.extents): a box from the pose of the first render cut later ones off at its
     // edge (Ashlock's cannon when firing reached 412 units, the box 412 at most). Rebuilt when the extents change (the
     // deploy clip ends).
-    const e = this.actor.extents?.() || null;
+    const e = this.ctx.legacyImpostorBox?.() ? null : this.actor.extents?.() || null;
     if (this._box && this._box.src === e) return this._box;
     if (e) {
       const pad = 24 + 0.04 * Math.max(e[2] - e[0], e[3] - e[1]); // mixes between clips, poses between samples

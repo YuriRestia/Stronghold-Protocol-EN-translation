@@ -7,6 +7,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-12
 
+### Changes
+
+- Dev sandbox page, `/dev/sandbox.html`: pick any Operator from the pool (normal or elite, a skill, an outfit, a
+  facing), add it to the bench and drag it onto the board like in a match (legal tiles light up, drop on a unit to
+  swap, off the field to send it back), then start a real battle against captured round-13 waves (the browser sim,
+  like the match). The outfit is the sandbox's own per unit and leaves your saved outfit choices alone. Options can draw every unit as an impostor (the crowd path) and switch back to the old impostor box, to
+  compare the cut-off sprites with the fix. The board stays in the URL, so a link reopens the same setup.
+
 ### Fixes
 
 - Operator sprites no longer get cut off at a straight edge when they attack or use a skill (Ashlock's cannon when
@@ -14,6 +22,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   through a cached image whose box came from its first rendered pose, usually the start of the deploy drop, so poses
   reaching further were clipped. The asset manifest now carries each clip's extents (`tools/assets/skel.mjs`
   `clipExtents`, `data/assets.json` +0.4 MB) and the box grows with the clips the unit actually plays.
+- Horn now plays her cannon animation when she shoots, her skills included; before, every shot played her melee
+  swing (her model's `_B` clips are the cannon, the `_A` ones the melee she uses while blocking).
+- Fortress shots (Horn, Ashlock) fly in a curved, artillery-shell arc and land with a burst, like in the game, instead
+  of a straight tracer. Cosmetic only: the flight time is unchanged, so hits land exactly when they did.
 
 ## 2026-10-11
 

@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Sandbox · Stronghold Protocol</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230c0f0e'/%3E%3Cpath fill='%234ed8af' d='M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/fonts/fonts.css" />
+  <link rel="stylesheet" href="/css/theme.css" />
+  <script type="importmap">
+    { "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }
+  </script>
+  <!-- PixiJS 7 + pixi-spine as classic scripts (global PIXI / PIXI.spine), like the game page -->
+  <script src="/vendor/pixi.min.js"></script>
+  <script src="/vendor/pixi-spine.js"></script>
+  <style>
+    /* Sandbox panel: the battle perf page's look (css/theme.css tokens in px) */
+    html, body { margin: 0; height: 100%; background: var(--bg-0); overflow: hidden; }
+    #field { position: fixed; inset: 0; }
+    /* the open panel must not cover the bench / board: the field starts right of it (the view follows its box) */
+    @media (min-width: 900px) { body:has(.sb:not(.is-collapsed)) #field { left: 360px; } }
+    .sb { position: fixed; top: 10px; left: 10px; z-index: 5; width: 340px; max-width: calc(100vw - 20px); max-height: calc(100vh - 20px);
+      overflow: auto; background: var(--bg-glass); border: 1px solid var(--line); color: var(--text-md);
+      font: 13px/1.45 var(--font-cjk); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); --bk-l: 10px; }
+    .sb-body { display: grid; gap: 10px; padding: 10px 12px 12px; }
+    .sb.is-collapsed .sb-body > :not(.sb-head) { display: none; }
+    .sb-head { display: flex; align-items: center; gap: 8px; }
+    .sb-head h1 { margin: 0; font-size: 14px; font-weight: 700; color: var(--text-hi); flex: 1; }
+    .sb button, .sb select, .sb input { font: 13px/1.2 var(--font-cjk); color: var(--text-hi); background: var(--bg-2); border: 1px solid var(--line-2);
+      padding: 5px 8px; min-height: 30px; box-sizing: border-box; }
+    .sb button { cursor: pointer; }
+    .sb button:hover, .sb select:hover { border-color: var(--line-3); }
+    .sb button:focus-visible, .sb select:focus-visible, .sb input:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 1px; }
+    .sb button:disabled { opacity: .5; cursor: default; }
+    .sb label { display: grid; gap: 3px; font-size: 12px; color: var(--text-lo); min-width: 0; }
+    /* long option texts (skill names) must not widen the panel */
+    .sb label > input, .sb label > select { width: 100%; min-width: 0; }
+    .sb-body > *, .sb-add > *, .sb-row > *, .sb-row3 > * { min-width: 0; }
+    .sb .sb-check { display: flex; align-items: center; gap: 6px; color: var(--text-md); font-size: 12.5px; }
+    .sb .sb-check input { min-height: 0; width: 15px; height: 15px; padding: 0; flex: none; }
+    .sb-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .sb-row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    .sb-add { display: grid; gap: 6px; border: 1px solid var(--line); padding: 8px; background: var(--bg-1); }
+    .sb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+    .sb-list li { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; background: var(--bg-1); border: 1px solid var(--line); padding: 4px 4px 4px 8px; }
+    .sb-list b { color: var(--text-hi); font-weight: 600; }
+    .sb-list small { display: block; color: var(--text-lo); font-size: 11.5px; }
+    .sb-list button { min-height: 26px; padding: 2px 8px; }
+    .sb-empty { color: var(--text-lo); font-size: 12px; }
+    .sb .sb-go { font-weight: 700; color: var(--text-on-mint); background: var(--mint-500); border-color: var(--mint-500); min-height: 36px; }
+    .sb .sb-go:hover { background: var(--mint-400); border-color: var(--mint-400); }
+    .sb-status { font-size: 12px; color: var(--text-lo); min-height: 1.4em; }
+    .sb-status.is-error { color: var(--red); }
+    .sb-hint { font-size: 11.5px; color: var(--text-lo); margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="field"></div>
+  <section class="sb brackets" id="panel" aria-label="Sandbox">
+    <div class="sb-body">
+      <div class="sb-head"><h1>Sandbox</h1><button id="collapse" type="button" aria-expanded="true">Hide</button></div>
+      <div class="sb-add">
+        <label>Operator <input id="op-search" list="op-list" placeholder="Type a name, e.g. Ashlock" autocomplete="off" /></label>
+        <datalist id="op-list"></datalist>
+        <div class="sb-row3">
+          <label>Skill <select id="op-skill"></select></label>
+          <label>Form <select id="op-elite"><option value="0">Normal</option><option value="1">Elite</option></select></label>
+          <label>Facing <select id="op-dir"><option>RIGHT</option><option>LEFT</option><option>UP</option><option>DOWN</option></select></label>
+        </div>
+        <label>Outfit <select id="op-skin"></select></label>
+        <button id="op-add" type="button">Add to bench</button>
+        <p class="sb-hint">Then drag it from the bench onto a highlighted tile, like in a match. Drag a unit onto another to swap, or off the field to send it back.</p>
+      </div>
+      <ul class="sb-list" id="squad" aria-label="Board"></ul>
+      <div class="sb-row">
+        <label>Enemies <select id="enemies"></select></label>
+        <label>Speed <select id="speed"><option value="1">1×</option><option value="2" selected>2×</option><option value="4">4×</option></select></label>
+      </div>
+      <label class="sb-check"><input type="checkbox" id="impostors" checked /> Draw units as impostors (crowd path)</label>
+      <label class="sb-check"><input type="checkbox" id="legacy" /> Old impostor box (to see the clipping)</label>
+      <button class="sb-go" id="fight" type="button">Start combat</button>
+      <div class="sb-row"><button id="reset" type="button">Back to prep</button><button id="clear" type="button">Clear board</button></div>
+      <div class="sb-status" id="status" role="status" aria-live="polite">Loading…</div>
+      <p class="sb-hint">The board and options stay in the URL, so a reload or a shared link reopens the same setup.</p>
+    </div>
+  </section>
+  <script type="module" src="/dev/sandbox.js"></script>
+</body>
+</html>

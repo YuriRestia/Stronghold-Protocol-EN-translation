@@ -23,6 +23,12 @@ const SHELL_RISE = 0.34, SHELL_UP = 5.5;
 /** 蕾缪安 S3 shell (fx 'bombardShell'); `look` 'mortar' is its own flight (_stepMortar). */
 const BOMBARD_SHELL = Object.freeze({ look: 'mortar', tint: 0xfff2d8, glow: 0xff9c33, trail: 0xffb35c, smoke: 0x3a3430, len: 1.3, width: 0.3, head: 0.56 });
 
+/**
+ * (fork) A 重炮手's (fortress) cannon round: lobbed on an arc onto the target's feet, as in the official mode, instead of
+ * the sim kind's straight tracer ('arrow'). Cosmetic only: the kind — and so the flight time, projSpeed — is the sim's.
+ */
+const FORTRESS_SHELL = Object.freeze({ look: 'shell', tint: 0xffeed0, glow: 0xff8a3d, len: 0.8, width: 0.3, head: 0.56, trail: 0xff9c4a, arc: 1.0, smoke: 0x2e2824, muzzle: 0xffb35c, hit: 'boom' });
+
 export class FxProjectiles {
   // ---- helpers ------------------------------------------------------------------------------------------
 
@@ -55,7 +61,7 @@ export class FxProjectiles {
     // chain: the source is the previous target of the bounce (sim ai.js), so the arc hops unit to unit
     if (kind === 'chain' || kind === 'chainHeal') { if (tgt && tgt !== src) this._beam(src, tgt, kind === 'chainHeal' ? 0x7dffa8 : 0xc9a2ff, 0.22, 1, true); return; }
     if (kind === 'beam') { if (tgt && tgt !== src) this._beam(src, tgt, src.isEnemy ? 0xff7a5a : 0xffe6a8, 0.18, 0.15); return; }
-    const spec = PROJ[kind];
+    const spec = PROJ[kind] && src.fortress ? FORTRESS_SHELL : PROJ[kind];
     if (!spec || !tgt) {
       if (kind === 'none' || !kind) this._slashAt = src.id;
       return;
