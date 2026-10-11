@@ -9,28 +9,30 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the 0.2.1 one ('news.0.2.1.solo') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.2';
+// A new key per announcement, so everyone who closed the 0.2.2 one ('news.0.2.2') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.2.4';
 
-/** The 0.2.2 announcement's points (msgids). */
+/** The 0.2.4 announcement's points (msgids). */
 const UPDATE_POINTS = [
-  N_('自选干员：在「干员调配 → 自选编队」为 5 阶、6 阶各选 2 名自己拥有的 6★ 干员，技能和模组任选'),
-  N_('新增在「确认本局信息」与「选择策略」阶段告知队友核心盟约的功能'), // en: "Added the ability to communicate core alliance selection in briefing & strategy select phase."
-  N_('语音语言：在「设置」或「干员调配」里为每名干员选择中文、日文、英文、韩文或本土语言配音'),
-  N_('点击玩家头像可查看统计数据'), // en: "Click on player profile for stats page"
-  N_('新增「预载资源」，避免游戏过程中因下载资源而卡顿'), // en: "Added an Asset Preloader to prevent gameplay disruptions due to asset downloading."
-  N_('大量问题修复'),
+  N_('新干员：六星克莱门莎加入自选编队；黍和乌尔比安新增模组'), // en: "New Operator: Clementia (6★) joins Custom Squad; Shu and Ulpianus get new Modules"
+  N_('伤害统计：「交流」旁的按钮显示每名干员本回合的伤害，结算界面显示整局统计'), // en: "Damage Stats: the button next to Chat shows each Operator's damage this round, and the result screen shows the whole match"
+  N_('大厅新增「难度详情」，并排列出单人与组队模式下各难度的具体变化'), // en: "Difficulty Details in the lobby shows what each difficulty changes, Solo and Team side by side"
+  N_('确认本局信息：全员同意后房主可重刷本局配置；悬停盟约可查看其被禁用的干员'), // en: "Confirm Match Info: the host can reroll the stage setup once everyone agrees, and hovering an Alliance lists its banned Operators"
+  N_('「设置」新增文字大小选项；游戏可添加到主屏幕'), // en: "Settings has a Text Size option, and the game can be added to your Home Screen"
+  N_('共享卡池与装备库存现按官方规则计算'), // en: "The shared card pool and equipment stock now follow the official rules"
+  N_('服务器更新不再中断进行中的对局'), // en: "Server updates no longer end matches in progress"
+  N_('大量问题修复'), // en: "Many, many bug fixes"
 ];
 
-// '0.2.2 更新' — en: "Update 0.2.2"
+// '0.2.4 更新' — en: "Update 0.2.4"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.2 更新')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.4 更新')}>
     <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.2 更新')}</span>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.4 更新')}</span>
       <ul class="search-news__list">${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}</ul>
     </div>
     <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
