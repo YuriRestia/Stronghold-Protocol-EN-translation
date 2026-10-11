@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { startServer } from '../../server/index.js';
 import { TestClient } from '../helpers/wsClient.js';
 import { ERR } from '../../shared/constants.js';
+import { readFileSync } from 'node:fs';
+
+/** The co-op briefing countdown of data/config.json (timers.infoCheck): what a reroll restarts. */
+const INFO_CHECK_S = JSON.parse(readFileSync(new URL('../../data/config.json', import.meta.url), 'utf8')).timers.infoCheck;
 
 const ok = async (c, msg) => {
   const r = await c.request(msg);
@@ -69,7 +73,7 @@ test('real four-player sockets: host-only proposal, unanimous sync, reconnect an
   for (const p of fresh) {
     assert.deepEqual(setupOf(p), setupOf(fresh[0]));
     assert.equal(p.deadline, fresh[0].deadline, 'all players share the same new deadline');
-    assert.equal(Math.ceil((p.deadline - p.serverNow) / 1000), 25, 'each player sees a fresh 25-second countdown');
+    assert.equal(Math.ceil((p.deadline - p.serverNow) / 1000), INFO_CHECK_S, `each player sees a fresh ${INFO_CHECK_S}-second countdown`);
     assert.equal(p.rerollVote, null);
     assert.ok(p.players.every((ps) => !ps.ready));
   }
