@@ -61,6 +61,8 @@
 //                           0.1.0). Read-only: it takes the stats the sim computed last (`unit._s`) and the range grid it
 //                           keeps, and never makes the unit recompute them, so looking never changes the battle's floats.
 //   battleRunner.unitIdOf(uid, ownerId, fieldId?) → the id of an own board piece's unit in that battle | null
+//   battleRunner.damageUnits(ownerId) → [{ kind, defId, dmg, diy?, standInFor?, by? }] that player's units' damage in
+//     the battles this client runs (ui/damageLog.js) | null
 //   battleRunner.ownerOps(ownerId, fieldId?) → [{ kind: 'op', ownerId, defId, items?, standInFor? }] that player's
 //                           operators in the battle on screen with their equipment (a teammate's bond popup: the members in
 //                           play, DESIGN §20.15, 变形同构体 wearers included; a 补位 stand-in names the replaced charId) | []
@@ -885,6 +887,37 @@ export function createBattleRunner(deps) {
           const si = u.def && typeof u.def.standInFor === 'string' ? u.def.standInFor : null;
           return si ? { ...o, standInFor: si } : o;
         });
+    },
+    /**
+     * The damage `ownerId`'s units dealt so far in the battle this client runs for that player (its own field, or the
+     * shared field of a 联防 / boss round: `own` entries, never a watched teammate's replica) — the damage chart
+     * (ui/damageLog.js). Each unit's `stats.dmg` (damage.js: to the other side only); a token carries its summoner's
+     * identity as `by`. null when no such battle is kept.
+     * @param {string} ownerId
+     * @returns {Array<{ kind: string, defId: string, dmg: number, diy?: any, standInFor?: string, by?: any }>|null}
+     */
+    damageUnits(ownerId) {
+      if (typeof ownerId !== 'string' || !ownerId) return null;
+      const who = (u) => {
+        const d = u.def || {};
+        const o = { kind: u.kind === 'token' ? 'token' : 'op', defId: u.kind !== 'token' && typeof d.diyFor === 'string' ? d.diyFor : u.defId };
+        if (u.kind === 'op' && d.diyFor && d.loadout?.diy) o.diy = { ...d.loadout.diy };
+        if (u.kind === 'op' && typeof d.standInFor === 'string' && d.standInFor) o.standInFor = d.standInFor;
+        return o;
+      };
+      let out = null;
+      for (const e of entries.values()) {
+        if (!e.own || !e.battle) continue;
+        const list = Array.isArray(e.battle.allyUnits) ? e.battle.allyUnits : [];
+        for (const u of list) {
+          if (!u || u.ownerId !== ownerId || (u.kind !== 'op' && u.kind !== 'token') || typeof u.defId !== 'string') continue;
+          const row = { ...who(u), dmg: Number(u.stats?.dmg) || 0 };
+          const s = u.kind === 'token' ? u.ownerUnit : null;
+          if (s && s.kind === 'op' && typeof s.defId === 'string') row.by = who(s);
+          (out ||= []).push(row);
+        }
+      }
+      return out;
     },
     /** Re-show the current battle (the game screen remounted). */
     reshow() { if (cur) show(cur); },

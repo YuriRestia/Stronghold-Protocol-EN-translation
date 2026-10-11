@@ -26,6 +26,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- Damage chart: a chart button next to Chat (lower left) opens a bar chart of each of your Operators' damage, live
+  during combat and the previous round's during the Rest Phase, with the round total. Copies of the same Operator (and
+  its elite form) share one bar, and summons count for their summoner. The result screen adds a match chart under the
+  player cards, with each bar split into its rounds. Only your own Operators are shown, since the numbers come from the
+  battle your browser runs. They're kept in memory, so a page reload mid-match starts the chart over.
 - Briefing: click a core Alliance to tell your teammates which Alliance you're going for; the call shows on the Alliance
   disc, and two players calling the same one are flagged as a conflict (`g.bondCall`). The hint now sits on the Core
   Alliances heading, right after the "Core Bonds" label, as a glowing mint chip ("Click an alliance to call your plan")

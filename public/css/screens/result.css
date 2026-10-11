@@ -34,6 +34,9 @@
 .result__players { display: flex; flex-direction: column; gap: .1rem; min-height: 0; overflow: auto; padding-right: .06rem; }
 .result__players > :first-child { margin-top: auto; }
 .result__players > :last-child { margin-bottom: auto; }
+/* the match's damage chart under the cards (js/ui/damageChart.js DamageSummary; rows: screens/game.css .dmg__*) */
+.dmg--summary { flex-shrink: 0; padding: .12rem .16rem; background: rgba(8, 11, 10, .72); border: 1px solid var(--line-2); }
+.dmg--summary .dmg__row { grid-template-columns: auto calc(1.6 * var(--t)) 1fr auto; }
 .rcard {
   display: flex; flex-direction: column; gap: .09rem; padding: .12rem .18rem .14rem; background: rgba(11, 15, 13, .9); border: 1px solid var(--line);
   border-left: 3px solid var(--line-3); animation: card-in var(--t-slow) var(--ease-out) backwards;

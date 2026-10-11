@@ -1343,5 +1343,10 @@
   "随机 {list}": "{list} at random",
   "所有仍在场的博士的已激活盟约层数之和，在第 14 回合休整期结束时计算；还需要赢下第 14 回合，并且全队剩余目标生命值大于 1。": "The total Stacks of the active Alliances of every Doctor still in the match, added together and counted at the end of the round-14 Rest Phase; the team also has to win round 14 with more than 1 LP left.",
   "最终攻势领袖生命": "Final Assault Leader HP",
-  "第 {n} 回合": "Round {n}"
+  "第 {n} 回合": "Round {n}",
+  "伤害统计": "Damage Stats",
+  "总伤害": "Total Damage",
+  "上一回合": "Last Round",
+  "暂无伤害数据": "No damage data yet",
+  "全部回合": "All Rounds"
 }

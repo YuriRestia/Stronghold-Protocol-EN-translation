@@ -386,6 +386,29 @@
 .gm__gear .icon { width: .28rem; height: .28rem; }
 .gm__gear:hover { color: var(--mint-400); border-color: var(--mint-700); }
 
+/* ---- damage chart (js/ui/damageChart.js): the corner's 伤害统计 button + panel, and the result screen's match chart -- */
+.dmgbtn { position: relative; }
+.dmgbtn__btn.is-on { color: var(--mint-400); border-color: var(--mint-700); }
+.dmgbtn__panel {
+  position: absolute; left: 0; bottom: calc(100% + .08rem); z-index: 5; width: calc(4.6 * var(--t)); max-width: calc(100vw - .48rem);
+  max-height: 60vh; overflow: auto; padding: .12rem .14rem; background: rgba(8, 11, 10, .92); border: 1px solid var(--line-2);
+}
+.dmg__head { display: flex; align-items: baseline; justify-content: space-between; gap: .1rem; margin-bottom: .08rem; font-size: calc(.17 * var(--t)); color: var(--text-hi); letter-spacing: .08em; }
+.dmg__tag { font-size: calc(.13 * var(--t)); color: var(--text-lo); letter-spacing: .04em; }
+.dmg__tag.is-live { color: var(--mint-400); }
+.dmg__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .05rem; }
+.dmg__row { display: grid; grid-template-columns: auto calc(1.2 * var(--t)) 1fr auto; align-items: center; gap: .08rem; font-size: calc(.14 * var(--t)); }
+.dmg__name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: var(--text-md); }
+.dmg__track { position: relative; height: calc(.14 * var(--t)); background: rgba(255, 255, 255, .05); }
+.dmg__bar { display: flex; height: 100%; min-width: 1px; background: var(--mint-700); }
+.dmg__bar.is-stacked { background: none; gap: 1px; }
+.dmg__seg { flex: 1 1 0; min-width: 1px; background: var(--mint-700); }
+.dmg__seg.is-alt { background: var(--mint-500); }
+.dmg__num { min-width: calc(.6 * var(--t)); text-align: right; color: var(--text-hi); }
+.dmg__total { display: flex; justify-content: space-between; margin-top: .08rem; padding-top: .06rem; border-top: 1px solid var(--line-2); font-size: calc(.15 * var(--t)); color: var(--text-lo); }
+.dmg__total b { color: var(--text-hi); }
+.dmg__empty { font-size: calc(.14 * var(--t)); color: var(--text-dim); }
+
 .ewheel { position: relative; }
 .ewheel__btn {
   display: flex; align-items: center; gap: .08rem; height: .56rem; padding: 0 .2rem 0 .14rem;

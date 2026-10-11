@@ -122,11 +122,12 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 /* The left-docked detail card then ends above that two-row corner (.24rem + 交流 + .1rem gap + ⚙ row + .1rem): at its
    desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
 @media (max-width: 767px) {
-  .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(72px, calc(3 * .56rem + .2rem)); }
+  /* (the 伤害统计 chart button sits beside 交流 on the bottom row: room for 交流 + one button, ⚙ / 📖 / ⛶ above) */
+  .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(72px + .66rem, calc(3 * .56rem + .2rem)); }
   .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem); }
 }
 @media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
-  .gm__corner { width: max(96px, calc(3 * max(.56rem, 34px) + .2rem)); }
+  .gm__corner { width: max(96px + max(.56rem, 34px) + .1rem, calc(3 * max(.56rem, 34px) + .2rem)); }
   .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px)); }
 }
 /* With the shop folded (收起) no bar covers the corner: one row again, so the folded shop's prep camera, which keeps the
