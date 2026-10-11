@@ -2,8 +2,9 @@
 // layout is shared/gen.js, the operator side scripts/generations.mjs).
 //
 // SP_GEN names the generation, SP_GEN_FILE is the router's generations.json `{ current, gens: { [id]: { port, … } } }`.
-// This polls the file like announce.js polls its notice. Once `current` names ANOTHER generation, this one retires —
-// for good, a rollback starts a fresh generation instead:
+// This polls the file like announce.js polls its notice. Once `current` names ANOTHER generation while the table lists
+// this one (or after this one was current), it retires — for good, a rollback starts a fresh generation instead. A new
+// generation is not listed until its deploy makes it current, and waits meanwhile:
 //   * lobby.retire(): no new room, queue or match (ERR.RETIRING); running matches play to their end;
 //   * `sys.retire { gen }` to every session now and after every later hello. The client goes to `/` (the router sends it
 //     to the new generation) once no match is on screen; a waiting room is lost on purpose (the operator's decision).
@@ -28,6 +29,8 @@ export class GenerationWatch {
     this.pollMs = pollMs;
     this.log = log || { info() {}, warn() {} };
     this.retiring = false;
+    /** the table named this generation current at least once (check()) */
+    this.wasCurrent = false;
     /** @type {string | null} mtime:size at the last read */
     this.stamp = null;
     this.busy = false;
@@ -59,9 +62,17 @@ export class GenerationWatch {
       const stamp = st ? `${st.mtimeMs}:${st.size}` : null;
       if (!st || stamp === this.stamp) return;
       this.stamp = stamp;
-      let current = null;
-      try { current = JSON.parse(await fsp.readFile(this.file, 'utf8'))?.current; } catch { /* half-written: next poll */ this.stamp = null; }
-      if (typeof current === 'string' && current && current !== this.gen) this.retire(current);
+      let table = null;
+      try { table = JSON.parse(await fsp.readFile(this.file, 'utf8')); } catch { /* half-written: next poll */ this.stamp = null; }
+      const current = table?.current;
+      if (typeof current !== 'string' || !current) return;
+      if (current === this.gen) { this.wasCurrent = true; return; }
+      // A fresh deploy starts BEFORE the table lists it (scripts/generations.mjs adds it once its /healthz answers), so
+      // "another generation is current" alone must not retire it — that retired every new generation at its start and
+      // sent pages round in a reload loop (2026-10-11). Retire only a generation the table lists (a restarted old one
+      // too), or one that was current and has been dropped.
+      const listed = !!table.gens && typeof table.gens === 'object' && Object.hasOwn(table.gens, this.gen);
+      if (listed || this.wasCurrent) this.retire(current);
     } finally {
       this.busy = false;
     }

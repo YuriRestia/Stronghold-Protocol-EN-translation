@@ -22,6 +22,9 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.
+- Fixed: a freshly deployed generation retired itself at startup (the table still named the old one as current),
+  so lobby pages reloaded in a loop. A generation now retires only once the table lists it, and `deploy` refuses
+  to switch to one that came up retired.
 - Lobby announcement banner updated for 0.2.4 (shown again to everyone who closed the 0.2.2 one).
 
 ## 2026-10-10
