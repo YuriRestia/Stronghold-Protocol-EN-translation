@@ -17,6 +17,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- Battle summary screen: the left column no longer scrolls sideways. "Simulation Complete" was too wide for it; an
+  alphabetic headline now wraps at its space and shrinks to fit. The match damage chart uses two columns, and hovering
+  a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
+  accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
   next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on

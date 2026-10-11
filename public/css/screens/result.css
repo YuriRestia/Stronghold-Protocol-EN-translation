@@ -10,9 +10,12 @@
   -webkit-mask-image: radial-gradient(70% 70% at 25% 50%, #000, transparent); mask-image: radial-gradient(70% 70% at 25% 50%, #000, transparent); }
 .result__main { position: relative; z-index: 1; flex: 1; min-height: 0; display: grid; grid-template-columns: 5.6rem 1fr; gap: .5rem; padding: .36rem .5rem .3rem .6rem; }
 .result__hero { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; padding-top: .3rem; min-height: 0; }
-.result__summary { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; min-height: 0; width: 100%; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.result__summary { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; min-height: 0; width: 100%; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; container-type: inline-size; }
 .result__logoimg { height: 1.1rem; width: auto; opacity: .92; }
 .result__headline { font-size: calc(.96 * var(--t)); font-weight: 900; letter-spacing: .12em; line-height: 1.05; color: var(--mint-400); text-shadow: 0 0 .4rem rgba(23, 249, 183, .45); animation: head-in 600ms var(--ease-out); }
+/* an alphabetic headline ("SIMULATION COMPLETE") wraps at its space and its longest word fits the column (cqi:
+   .result__summary is the container); the CJK one keeps its size */
+html[data-script="alphabetic"] .result__headline { font-size: min(calc(.96 * var(--t)), 9.5cqi); letter-spacing: .06em; max-width: 100%; overflow-wrap: anywhere; }
 .result.is-lose .result__headline { color: var(--red-premium); text-shadow: 0 0 .4rem rgba(255, 60, 60, .4); }
 @keyframes head-in { from { opacity: 0; letter-spacing: .5em; } }
 .result__sub { font-size: calc(.2 * var(--t)); color: var(--text-lo); letter-spacing: .1em; }
@@ -37,7 +40,9 @@
 .result__players > :last-child { margin-bottom: auto; }
 /* the match's damage chart under the cards (js/ui/damageChart.js DamageSummary; rows: screens/game.css .dmg__*) */
 .dmg--summary { flex-shrink: 0; padding: .12rem .16rem; background: rgba(8, 11, 10, .72); border: 1px solid var(--line-2); }
-.dmg--summary .dmg__row { grid-template-columns: auto calc(1.6 * var(--t)) 1fr auto; }
+.dmg--summary .dmg__row { grid-template-columns: auto calc(1.4 * var(--t)) 1fr auto; }
+/* two columns, ranked down the first then the second (DamageBars cols=2 sets --dmg-rows) */
+.dmg--summary .dmg__list.is-cols { display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--dmg-rows, 1), auto); grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: .3rem; }
 .rcard {
   display: flex; flex-direction: column; gap: .09rem; padding: .12rem .18rem .14rem; background: rgba(11, 15, 13, .9); border: 1px solid var(--line);
   border-left: 3px solid var(--line-3); animation: card-in var(--t-slow) var(--ease-out) backwards;

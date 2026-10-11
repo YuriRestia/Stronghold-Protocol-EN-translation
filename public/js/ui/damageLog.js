@@ -88,8 +88,9 @@ export function createDamageLog({ runner, store, setIv = setInterval, clearIv = 
       listeners.add(fn);
       return () => listeners.delete(fn);
     },
-    /** Test hooks. */
+    /** Test hooks (`seed`: replace the history — the dev mock's result screen, public/dev/game-mock.js). */
     poll, reset,
+    seed(h) { stop(); round = null; history = h && typeof h === 'object' ? { ...h } : {}; notify(); },
     dispose() { stop(); for (const off of offs) { try { off?.(); } catch { /* ignore */ } } listeners.clear(); },
   };
 }

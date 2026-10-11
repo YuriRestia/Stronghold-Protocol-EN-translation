@@ -34,24 +34,30 @@ function rowUnit(row, gd) {
   return { rec, name: rec?.name || chess?.name || row.defId };
 }
 
+/** A round segment's words: "第 6 回合: 12.3K". */
+const segText = (p) => `${t('第 {n} 回合', { n: p.round })}: ${fmtNum(p.dmg)}`;
+
 /**
- * The bars, most damage first: `rows` of one round, or the match's rows with `parts` (one segment per round).
- * @param {{ rows: any[], stacked?: boolean }} props
+ * The bars, most damage first: `rows` of one round, or the match's rows with `parts` (one segment per round, each with
+ * its own hover tip). `cols`: 2 lays the bars out in two columns, ranked down the first column then the second.
+ * @param {{ rows: any[], stacked?: boolean, cols?: number }} props
  */
-export function DamageBars({ rows, stacked = false }) {
+export function DamageBars({ rows, stacked = false, cols = 1 }) {
   const gd = useGameData();
   const max = rows.reduce((m, r) => Math.max(m, r.dmg), 0);
-  return html`<ol class="dmg__list">
+  const perCol = Math.max(1, Math.ceil(rows.length / cols));
+  return html`<ol class=${cx('dmg__list', cols > 1 && 'is-cols')} style=${cols > 1 ? `--dmg-rows:${perCol}` : undefined}>
     ${rows.map((r) => {
       const u = rowUnit(r, gd);
       const w = max > 0 ? (r.dmg / max) * 100 : 0;
+      const parts = stacked && r.parts?.length ? r.parts : null;
       return html`<li key=${r.key} class="dmg__row">
         <${UnitThumb} kind=${r.kind === 'token' ? 'token' : 'chess'} id=${r.defId} size="xs" rec=${u.rec} showTier=${false} />
         <span class="dmg__name" title=${u.name}>${u.name}</span>
-        <span class="dmg__track" aria-hidden="true">
-          ${stacked && r.parts?.length
-            ? html`<span class="dmg__bar is-stacked" style=${`width:${w}%`}>${r.parts.map((p, i) => html`<span key=${p.round}
-                class=${cx('dmg__seg', i % 2 && 'is-alt')} style=${`flex-grow:${p.dmg}`} title=${`${t('第 {n} 回合', { n: p.round })}: ${fmtNum(p.dmg)}`}></span>`)}</span>`
+        <span class="dmg__track" role=${parts ? 'img' : undefined} aria-label=${parts ? parts.map(segText).join(', ') : undefined} aria-hidden=${parts ? undefined : 'true'}>
+          ${parts
+            ? html`<span class="dmg__bar is-stacked" style=${`width:${w}%`}>${parts.map((p, i) => html`<span key=${p.round}
+                class=${cx('dmg__seg', i % 2 && 'is-alt')} style=${`flex-grow:${p.dmg}`}><span class="dmg__tip">${segText(p)}</span></span>`)}</span>`
             : html`<span class="dmg__bar" style=${`width:${w}%`}></span>`}
         </span>
         <b class="dmg__num num">${fmtNum(r.dmg)}</b>
@@ -91,13 +97,13 @@ export function DamageButton({ open, onToggle }) {
   </div>`;
 }
 
-/** The result screen's match chart: every round of the log, one segment per round on each bar; null when empty. */
+/** The result screen's match chart: every round of the log, one segment per round on each bar, two columns; null when empty. */
 export function DamageSummary({ history }) {
   const rows = totalDamage(history);
   if (!rows.length) return null;
   return html`<section class="dmg dmg--summary" aria-label=${t('伤害统计')}>
     <header class="dmg__head"><b>${t('伤害统计')}</b><span class="dmg__tag">${t('全部回合')}</span></header>
-    <${DamageBars} rows=${rows} stacked=${true} />
+    <${DamageBars} rows=${rows} stacked=${true} cols=${rows.length > 1 ? 2 : 1} />
     <${Total} rows=${rows} />
   </section>`;
 }

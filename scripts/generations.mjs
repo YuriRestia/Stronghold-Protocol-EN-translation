@@ -31,7 +31,6 @@ export const KEEP_RELEASES = 2;
 export const HEALTH_WAIT_MS = 180_000;
 /** gitignored parts of app/ every release links to (absent ones are skipped) */
 export const SHARED_LINKS = Object.freeze(['public/assets', 'public/fonts', '.cache', 'logs', 'data/local-assets.json']);
-
 // ---- pure decisions (test/generations.test.js) ------------------------------------------------------------------
 
 /** UTC yymmdd-hhmmss. @param {Date} [d] */

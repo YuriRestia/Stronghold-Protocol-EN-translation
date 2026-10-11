@@ -18,6 +18,9 @@ import { installAudio } from '/js/audio.js';
 import { settingsStore } from '/js/ui/settings.js';
 import { awayStore } from '/js/ui/matchChrome.js';
 import { GAME_FILES } from '/js/ui/gameComponents.js';
+import { damageLog } from '/js/ui/damageLog.js';
+import { baseChessId } from '/js/ui/gameLogic/damage.js';
+import { initLang } from '/js/ui/lang.js';
 import { PHASE, GEO } from '/shared/constants.js';
 
 const params = new URLSearchParams(location.search);
@@ -335,15 +338,31 @@ function setPhase(phase, variant) {
     case PHASE.COMBAT: case PHASE.UNITE: case PHASE.SETTLE: case PHASE.FINAL_ASSAULT: case PHASE.HIDDEN_CORE:
       startCombat(phase);
       break;
-    case PHASE.RESULT:
+    case PHASE.RESULT: {
       pub.round = 14;
-      store.patch('match', { result: buildResult(!VARIANTS.has('defeat')) });
+      const result = buildResult(!VARIANTS.has('defeat'));
+      store.patch('match', { result });
+      // the result screen's match damage chart (ui/damageChart.js DamageSummary) from your final lineup
+      damageLog?.seed(mockDamageHistory(result.players.find((p) => p.playerId === ME)?.lineup || [], result.roundsPassed));
       break;
+    }
     default:
       break;
   }
   refreshPrivate();
   applyUiVariants();
+}
+
+// ui/damageLog.js history ({ [round]: DamageRow[] }): each lineup operator joins a few rounds in and hits harder as it goes
+function mockDamageHistory(lineup, rounds) {
+  const history = {};
+  const ops = lineup.map((u, k) => ({ key: baseChessId(u.id), defId: u.id, joins: 1 + ((k * 3) % 6), power: 900 + rnd() * 2600 }));
+  for (let r = 1; r <= rounds; r++) {
+    history[r] = ops.filter((o) => r >= o.joins)
+      .map((o) => ({ key: o.key, kind: 'op', defId: o.defId, diy: null, standInFor: null, dmg: Math.round(o.power * r * (0.5 + rnd())) }))
+      .sort((a, b) => b.dmg - a.dmg);
+  }
+  return history;
 }
 
 // m.result in the exact shape of server/match/results.js buildResult (title = config.titles record, stats.gold = spent)
@@ -833,6 +852,8 @@ async function boot() {
       ...(VARIANTS.has('spectators') ? { spectators: [{ playerId: 'sp_1', name: '观战者甲', connected: true }, { playerId: 'sp_2', name: '观战者乙', connected: false }] } : {}),
     },
   });
+  // ?lang=en|ja|… previews a translation (without it the mock stays in the Chinese source, as the e2e suites expect)
+  if (params.has('lang')) await initLang().catch((err) => console.warn('[mock] language setup failed', err));
   await data.loadAll(GAME_FILES);
   installDeviceSupport();
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });
