@@ -10,12 +10,12 @@
   -webkit-mask-image: radial-gradient(70% 70% at 25% 50%, #000, transparent); mask-image: radial-gradient(70% 70% at 25% 50%, #000, transparent); }
 .result__main { position: relative; z-index: 1; flex: 1; min-height: 0; display: grid; grid-template-columns: 5.6rem 1fr; gap: .5rem; padding: .36rem .5rem .3rem .6rem; }
 .result__hero { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; padding-top: .3rem; min-height: 0; }
-.result__summary { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; min-height: 0; width: 100%; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; container-type: inline-size; }
+.result__summary { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; min-height: 0; width: 100%; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .result__logoimg { height: 1.1rem; width: auto; opacity: .92; }
 .result__headline { font-size: calc(.96 * var(--t)); font-weight: 900; letter-spacing: .12em; line-height: 1.05; color: var(--mint-400); text-shadow: 0 0 .4rem rgba(23, 249, 183, .45); animation: head-in 600ms var(--ease-out); }
-/* an alphabetic headline ("SIMULATION COMPLETE") wraps at its space and its longest word fits the column (cqi:
-   .result__summary is the container); the CJK one keeps its size */
-html[data-script="alphabetic"] .result__headline { font-size: min(calc(.96 * var(--t)), 9.5cqi); letter-spacing: .06em; max-width: 100%; overflow-wrap: anywhere; }
+/* an alphabetic headline ("SIMULATION COMPLETE") wraps at its space and its longest word fits the column (.53rem ≈
+   9.5% of the fixed 5.6rem .result__main column; no container queries — Safari 15 / Firefox ESR 115); the CJK one keeps its size */
+html[data-script="alphabetic"] .result__headline { font-size: min(calc(.96 * var(--t)), .53rem); letter-spacing: .06em; max-width: 100%; overflow-wrap: anywhere; }
 .result.is-lose .result__headline { color: var(--red-premium); text-shadow: 0 0 .4rem rgba(255, 60, 60, .4); }
 @keyframes head-in { from { opacity: 0; letter-spacing: .5em; } }
 .result__sub { font-size: calc(.2 * var(--t)); color: var(--text-lo); letter-spacing: .1em; }

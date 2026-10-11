@@ -16,6 +16,21 @@ export const OUTFITS_IMPORT_MAX_BYTES = 64 * 1024;
 const CHAR_RE = /^char_\d+_[a-z0-9]+$/;
 const SKIN_RE = /^char_\d+_[a-z0-9]+@[A-Za-z0-9_]+#\d+$/;
 
+/**
+ * The operators that can wear an outfit, sorted: the roster's (data/chess.json) and the 自选编队 operators
+ * (data/backups.json `diy.operators`, which are also the 补位 stand-ins). tools/build-outfits.mjs builds their outfits,
+ * tools/fetch-assets.mjs plans their default artwork from the same list.
+ * @param {any} chess data/chess.json
+ * @param {any} [backups] data/backups.json
+ * @returns {string[]}
+ */
+export function outfitRoster(chess, backups = {}) {
+  const ids = Object.values(chess || {}).map((c) => c?.charId);
+  const diy = backups?.diy?.operators;
+  if (diy && typeof diy === 'object') ids.push(...Object.keys(diy));
+  return [...new Set(ids.filter((id) => typeof id === 'string' && id.startsWith('char_')))].sort();
+}
+
 /** Whether `skinId` is an outfit of `charId` by its shape (its own prefix). */
 export const isOutfitOf = (charId, skinId) => typeof charId === 'string' && typeof skinId === 'string'
   && CHAR_RE.test(charId) && SKIN_RE.test(skinId) && skinId.startsWith(`${charId}@`);

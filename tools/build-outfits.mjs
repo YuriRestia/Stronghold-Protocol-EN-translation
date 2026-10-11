@@ -30,6 +30,7 @@ import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { outfitRoster } from '../shared/outfits.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const GAMEDATA_URL = 'https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/';
@@ -37,20 +38,9 @@ const GAMEDATA_URL = 'https://raw.githubusercontent.com/Kengxxiao/ArknightsGameD
 /** An outfit id: 'char_<n>_<name>@<brand>#<n>' (the built-in looks have no '@'). */
 export const OUTFIT_ID_RE = /^char_\d+_[a-z0-9]+@[A-Za-z0-9_]+#\d+$/;
 
-/**
- * The operators that can wear an outfit, sorted: the roster's (data/chess.json) and the 自选编队 operators
- * (data/backups.json `diy.operators`, which are also the 补位 stand-ins). tools/fetch-assets.mjs plans their default
- * artwork from the same list.
- * @param {any} chess data/chess.json
- * @param {any} [backups] data/backups.json
- * @returns {string[]}
- */
-export function outfitRoster(chess, backups = {}) {
-  const ids = Object.values(chess || {}).map((c) => c?.charId);
-  const diy = backups?.diy?.operators;
-  if (diy && typeof diy === 'object') ids.push(...Object.keys(diy));
-  return [...new Set(ids.filter((id) => typeof id === 'string' && id.startsWith('char_')))].sort();
-}
+// the operators that can wear an outfit (shared/outfits.js: tools/fetch-assets.mjs ships and reads it too; this tool
+// does not ship)
+export { outfitRoster };
 
 /**
  * Build the outfit catalog (pure; exported for tests).

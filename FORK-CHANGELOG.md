@@ -29,7 +29,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   shrinks ~900 MB of PNGs to ~56 MB. Preload has an optional Outfits pack, with its own "Remove Unticked Outfits" button. CN-only outfit names come from
   arknights.wiki.gg. Docs: `docs/OUTFITS.md`.
 - Battle summary screen: the left column no longer scrolls sideways. "Simulation Complete" was too wide for it; an
-  alphabetic headline now wraps at its space and shrinks to fit. The match damage chart uses two columns, and hovering
+  alphabetic headline now wraps at its space and shrinks to fit (a fixed size, no container query, so it also works on
+  Safari 15 / Firefox ESR 115). The match damage chart uses two columns, and hovering
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
