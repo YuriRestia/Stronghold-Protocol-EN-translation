@@ -5,6 +5,16 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-10-12
+
+### Fixes
+
+- Operator sprites no longer get cut off at a straight edge when they attack or use a skill (Ashlock's cannon when
+  firing, Sankta Miksaparato's skill, and 159 of 209 Operator models in some pose). On crowded fields a unit is drawn
+  through a cached image whose box came from its first rendered pose, usually the start of the deploy drop, so poses
+  reaching further were clipped. The asset manifest now carries each clip's extents (`tools/assets/skel.mjs`
+  `clipExtents`, `data/assets.json` +0.4 MB) and the box grows with the clips the unit actually plays.
+
 ## 2026-10-11
 
 ### Upstream merge

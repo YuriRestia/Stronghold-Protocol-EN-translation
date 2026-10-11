@@ -196,7 +196,7 @@ export function localSpineEntry(sl, local, web) {
   const textures = Array.isArray(sl.textures) ? sl.textures.map(url) : [];
   let entry = null;
   if (skel && atlas && skel.replace(/\.skel$/, '.atlas') === atlas && textures.length && textures.every(Boolean)) {
-    entry = { skel, atlas, textures, pma: !!sl.pma, anims: sl.anims, animations: sl.animations, events: sl.events, hits: sl.hits, bounds: sl.bounds, local: true, fallback: web || null };
+    entry = { skel, atlas, textures, pma: !!sl.pma, anims: sl.anims, animations: sl.animations, events: sl.events, hits: sl.hits, bounds: sl.bounds, extents: sl.extents, local: true, fallback: web || null };
     if (!validSpine(entry)) entry = null;
   }
   localSpines.set(sl, { local, web, entry });

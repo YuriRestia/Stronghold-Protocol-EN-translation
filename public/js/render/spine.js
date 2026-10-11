@@ -111,6 +111,9 @@ function slotCentre(slot, att, buf, out) {
   return Number.isFinite(out[0]) && Number.isFinite(out[1]);
 }
 
+/** Union of two [x0, y0, x1, y1] boxes (a may be null); a new array. */
+const unionBox = (a, b) => (a ? [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])] : b.slice());
+
 export class SpineActor {
   /**
    * @param {any} spineData PIXI.spine skeleton data
@@ -527,6 +530,35 @@ export class SpineActor {
   /** Seconds into the deploy clip while it plays, else null (a model swapped mid-deploy carries it over: units.js). */
   deployElapsed() {
     return this.mode === 'deploy' ? Math.max(0, this.clock - (this.deployAt || 0)) : null;
+  }
+
+  /**
+   * [x0, y0, x1, y1] (skeleton units) holding every pose this actor has shown: the union of the manifest's per-clip
+   * `extents` (sampled at build time, tools/assets/skel.mjs clipExtents) over the clips it has played (and is mixing
+   * from), the idle clip from the start. It only grows, so a unit's box settles after its first attack and skill; a
+   * union over every clip would size every unit for effects it never plays (Pallas: 3948 × 4065 units against ~1300 ×
+   * 570 for her S3). The deploy clip (a drop from far above) counts only while it plays. Null without the extents
+   * (an older manifest). A new box is a new array, so callers may compare by identity.
+   */
+  extents() {
+    const per = this.entry?.extents;
+    if (!per) return null;
+    const ext = this._ext || (this._ext = { seen: new Set(), box: null, deploy: null });
+    const deployName = this.roles.deploy;
+    let grew = false;
+    const see = (name) => {
+      if (!name || name === deployName || ext.seen.has(name) || !per[name]) return;
+      ext.seen.add(name);
+      ext.box = unionBox(ext.box, per[name]);
+      grew = true;
+    };
+    see(this._idleName());
+    for (const tr of this.spine?.state?.tracks || []) {
+      for (let e = tr; e; e = e.mixingFrom) see(e.animation?.name);
+    }
+    if (grew) ext.deploy = null;
+    if (this.mode === 'deploy' && per[deployName]) return ext.deploy || (ext.deploy = unionBox(ext.box, per[deployName]));
+    return ext.box;
   }
 
   /** The skeleton's death clip, or null. */

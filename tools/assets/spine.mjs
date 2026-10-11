@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { assetUrl, safeName, urlDir } from './sources.mjs';
 import { kindOf, pngSize } from './formats.mjs';
 import { atlasInfo, normalizeAtlas } from './atlas.mjs';
-import { parseSkel } from './skel.mjs';
+import { parseSkel, clipExtents } from './skel.mjs';
 import { resolveRoles } from './anim-roles.mjs';
 
 async function fileStat(p) { try { const s = await stat(p); return s.isFile() ? s : null; } catch { return null; } }
@@ -190,7 +190,8 @@ export async function localSpineMeta(root, found) {
       if (norm.missingSize.length) throw new Error(`cannot size pages ${norm.missingSize.join(',')}`);
       const info = atlasInfo(norm.text);
       if (!info.pages.length) throw new Error('atlas without pages');
-      const sk = parseSkel(await readFile(join(root, m.skel)), info.regions);
+      const bytes = await readFile(join(root, m.skel));
+      const sk = parseSkel(bytes, info.regions);
       if (!sk.animations.length) throw new Error('skeleton has no animations');
       if (sk.missingRegions?.length) problems.push(`${id}: ${sk.missingRegions.length} attachment(s) not in atlas (e.g. ${sk.missingRegions[0]})`);
       const fixed = applyRoleFix(resolveRoles(sk.animations, { skillIndices: [0], numberedSkills: id.startsWith('enemy_'), durations: sk.durations }), LOCAL_SPINE_ROLES[id], sk.durations);
@@ -199,6 +200,7 @@ export async function localSpineMeta(root, found) {
         skel: base(m.skel), atlas: base(m.atlas), textures: info.pages, pma: true,
         anims: fixed.roles,
         animations: sk.durations, events: sk.events, hits: sk.hits, bounds: sk.bounds,
+        extents: clipExtents(bytes, norm.text),
       };
     } catch (e) {
       problems.push(`${id}: ${e.message}`);
@@ -309,11 +311,14 @@ export async function processModels(models, { root, dl, cachePath, download = tr
     const info = atlasInfo(norm.text);
     // Parse the skeleton (cached by file size + mtime).
     const ck = `${m.skel.rel}|${skelSt.size}|${Math.floor(skelSt.mtimeMs)}|${atlasSt?.size}|${Math.floor(atlasSt?.mtimeMs ?? 0)}`;
-    let sk = cache[m.skel.rel]?.key === ck ? cache[m.skel.rel].info : null;
+    // (an entry cached before clip extents existed is parsed again)
+    let sk = cache[m.skel.rel]?.key === ck && cache[m.skel.rel].info && 'clipExtents' in cache[m.skel.rel].info ? cache[m.skel.rel].info : null;
     if (sk) cached++;
     else {
       try {
-        sk = parseSkel(await readFile(skelAbs), info.regions);
+        const bytes = await readFile(skelAbs);
+        sk = parseSkel(bytes, info.regions);
+        sk.clipExtents = clipExtents(bytes, norm.text);
         parsed++;
       } catch (e) {
         // A corrupt skeleton would otherwise be kept forever (its size matches the ledger):
@@ -346,6 +351,7 @@ export async function processModels(models, { root, dl, cachePath, download = tr
       events: sk.events,
       hits: sk.hits,
       bounds: sk.bounds,
+      extents: sk.clipExtents,
     });
     if (Date.now() - t0 > 0 && (parsed + cached) % 100 === 0) log(`[spine] processed ${parsed + cached}/${list.length}`);
   }

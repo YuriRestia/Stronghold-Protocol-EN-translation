@@ -143,6 +143,7 @@ describe('D3: the official slug models are an optional overlay of the web alias'
       assert.deepEqual(meta.enemy_9999_slime, {
         skel: 'enemy_1007_slime.skel', atlas: 'enemy_1007_slime.atlas', textures: ['enemy_1007_slime.png'], pma: true,
         anims: web.anims, animations: web.animations, events: web.events, hits: web.hits, bounds: web.bounds,
+        extents: web.extents,
       });
       assert.ok(readFileSync(path.join(dst, 'enemy_1007_slime.atlas')).equals(atlasBefore), 'read only');
       assert.equal(statSync(path.join(dst, 'enemy_1007_slime.atlas')).mtimeMs, mtime);

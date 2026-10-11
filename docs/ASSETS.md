@@ -317,8 +317,14 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   events: [name],                     // e.g. ['OnAttack', 'OnStart']
   hits: { [animName]: [seconds] },    // OnAttack event times (apply damage / spawn projectile)
   bounds: { x, y, width, height } | null  // skeleton AABB (setup pose, skeleton units)
+  extents: { [animName]: [x0, y0, x1, y1] } | null  // each clip's reach, sampled every 1/20 s (skel.mjs clipExtents)
 }
 ```
+
+`extents` sizes the impostor box (render/units.js `_impBox`): the union of the clips the unit has played
+(`SpineActor.extents`), the deploy clip only while it plays. Units are y-down as pixi-spine draws them; invisible
+attachments are skipped. A manifest without them falls back to the bounds of the first rendered pose, which cuts off
+poses that reach further (a cannon's recoil, a skill effect).
 
 The enemies' attack clip lengths are also a data input: `tools/build-data.mjs` copies each enemy model's
 `anims.attack.loop` length and first `hits` time into data/enemies.json `attackAnim` (the sim stands an unblocked
