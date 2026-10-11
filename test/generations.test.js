@@ -9,7 +9,7 @@ import path from 'node:path';
 import { splitGenPath, genPath, rewriteIndexHtml, isGenSharedPath } from '../shared/gen.js';
 import { genOf, publicPath, goHome, RETIRED_FLAG } from '../public/js/gen.js';
 import { parseGenerations, route, createRouter } from '../scripts/router.mjs';
-import { newGenId, allocPort, withNewGen, reapPlan, releasesToPrune } from '../scripts/generations.mjs';
+import { newGenId, allocPort, withNewGen, reapPlan, releasesToPrune, missingAssets } from '../scripts/generations.mjs';
 import { startBuildGuard } from '../public/js/ui/buildGuard.js';
 import { startServer } from '../server/index.js';
 import { S2C } from '../shared/protocol.js';
@@ -117,6 +117,13 @@ describe('scripts/generations.mjs decisions', () => {
     assert.deepEqual(q.stop.sort(), ['dead', 'empty']);
     assert.ok(q.table.gens.busy && q.table.gens.c && q.table.gens.lingering);
     assert.equal(q.table.gens.lingering.idleSince, 0);
+  });
+  test('missingAssets lists absent or empty /assets and /fonts files once', () => {
+    const manifest = { audio: { voice: { a: { select: ['/assets/v/1.mp3', '/assets/v/2.mp3'], start: '/assets/v/1.mp3' } } },
+      fonts: { css: '/fonts/f.css' }, other: 'https://x/y', n: 3 };
+    const sizes = { '/assets/v/1.mp3': 10, '/assets/v/2.mp3': 0 };
+    assert.deepEqual(missingAssets(manifest, (u) => sizes[u] ?? 0), ['/assets/v/2.mp3', '/fonts/f.css']);
+    assert.deepEqual(missingAssets(manifest, () => 1), []);
   });
   test('releasesToPrune keeps the table and the newest idle ones', () => {
     const names = ['261001-000000', '261002-000000', '261003-000000', '261004-000000', 'notes.txt'];

@@ -78,6 +78,24 @@ export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceM
   return { stop, table: { current: table.current, gens } };
 }
 
+/**
+ * The '/assets/…' and '/fonts/…' files of data/assets.json that are absent or empty (same walk as tools/setup.mjs
+ * checkAssets). A new operator from upstream lands here when the cached audio indexes predate it: setup's plain
+ * fetch-assets then plans none of its files.
+ * @param {any} manifest data/assets.json
+ * @param {(url: string) => number} sizeOf the file's size, 0 when it is absent
+ * @returns {string[]}
+ */
+export function missingAssets(manifest, sizeOf) {
+  const urls = new Set();
+  const walk = (n) => {
+    if (typeof n === 'string') { if (/^\/(assets|fonts)\//.test(n)) urls.add(n); }
+    else if (n && typeof n === 'object') for (const x of Object.values(n)) walk(x);
+  };
+  walk(manifest);
+  return [...urls].filter((u) => !(sizeOf(u) > 0));
+}
+
 /** Release dirs to delete: those not in the table beyond the KEEP newest. @param {string[]} names @param {{ gens: object }} table */
 export function releasesToPrune(names, table, keep = KEEP_RELEASES) {
   const idle = names.filter((n) => GEN_ID_RE.test(n) && !Object.hasOwn(table?.gens || {}, n)).sort().reverse();
@@ -126,6 +144,34 @@ async function health(port, timeoutMs = 3000) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** The release's missing asset files (public/ is the shared app/public/assets through the symlink). */
+function releaseMissing(rel) {
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(path.join(rel, 'data', 'assets.json'), 'utf8')); } catch { return []; }
+  const pub = path.join(rel, 'public');
+  return missingAssets(manifest, (u) => {
+    try { return fs.statSync(path.join(pub, ...u.split('/').filter(Boolean).map(decodeURIComponent))).size; } catch { return 0; }
+  });
+}
+
+/**
+ * Files data/assets.json lists but the server lacks → fetch-assets with fresh audio / model indexes, run in the
+ * release (it writes into the shared public/assets and .cache; any rewrite of data/assets.json stays in the release,
+ * app/ keeps a clean checkout). What still misses is only a warning: a silent sound or a placeholder image must not
+ * hold back a deploy, e.g. while the upstream source is down.
+ */
+function ensureAssets(rel) {
+  let missing = releaseMissing(rel);
+  if (!missing.length) return;
+  console.log(`[deploy] ${missing.length} asset file(s) missing (e.g. ${missing[0]}) — fetch-assets --refresh-index`);
+  try { asUser('node', ['tools/fetch-assets.mjs', '--refresh-index'], { cwd: rel }); } catch { /* reported below */ }
+  missing = releaseMissing(rel);
+  if (!missing.length) { console.log('[deploy] assets complete'); return; }
+  console.warn(`[deploy] WARNING: still ${missing.length} asset file(s) missing; the deploy goes on. First ones:`);
+  for (const u of missing.slice(0, 10)) console.warn(`  ${u}`);
+  console.warn(`  retry later: cd ${APP} && sudo -u ${USER} node tools/fetch-assets.mjs --refresh-index && sudo -u ${USER} git checkout -- data/assets.json`);
+}
+
 async function deploy(ref = 'HEAD') {
   if (!isRoot()) throw new Error('run as root: sudo node scripts/generations.mjs deploy');
   const table = readTable();
@@ -152,6 +198,7 @@ async function deploy(ref = 'HEAD') {
   if (sameLock) asUser('cp', ['-al', path.join(prev, 'node_modules'), path.join(rel, 'node_modules')]);
   else asUser('npm', ['ci', '--omit=dev'], { cwd: rel });
   asUser('node', ['tools/setup.mjs', '--no-local', '--quiet'], { cwd: rel });
+  ensureAssets(rel);
   fs.writeFileSync(path.join(ENVS, `${gen}.env`), `PORT=${port}\nHOST=127.0.0.1\nSP_GEN=${gen}\nSP_GEN_FILE=${TABLE}\n`);
   run('systemctl', ['enable', '--now', `stronghold@${gen}`]);
   const until = Date.now() + HEALTH_WAIT_MS;

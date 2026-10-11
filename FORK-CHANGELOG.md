@@ -25,6 +25,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Fixed: a freshly deployed generation retired itself at startup (the table still named the old one as current),
   so lobby pages reloaded in a loop. A generation now retires only once the table lists it, and `deploy` refuses
   to switch to one that came up retired.
+- Fixed: a deploy after an upstream merge that adds an Operator left that Operator's voice and sound files missing
+  (Clementia's 404'd, so her voice preview was silent). `deploy` now checks every file `data/assets.json` lists and,
+  when some are missing, runs `fetch-assets --refresh-index` (the cached audio indexes predated her). Files still
+  missing after that are a warning; the deploy goes on.
 - Lobby announcement banner updated for 0.2.4 (shown again to everyone who closed the 0.2.2 one).
 - EN text corrections layer: `tools/i18n/corrections-en.json` overrides an official EN text that contradicts the
   Chinese data and the engine, before the official data is used. First entry: the Victoria Alliance 6-operator bonus
