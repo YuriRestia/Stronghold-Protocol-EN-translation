@@ -1,0 +1,17 @@
+# /etc/systemd/system/stronghold@.service — one game server generation (scripts/generations.mjs starts and stops these).
+[Unit]
+Description=Stronghold Protocol game server, generation %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/stronghold/releases/%i
+EnvironmentFile=/opt/stronghold/gens/%i.env
+ExecStartPre=-/usr/bin/node scripts/server-info.mjs
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+RestartSec=5
+User=stronghold
+
+[Install]
+WantedBy=multi-user.target

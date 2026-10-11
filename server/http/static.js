@@ -18,6 +18,8 @@
 //
 // Traversal & dotfile protection, a directory without its trailing slash → 301, 404 page; an absent
 // data/local-assets.json is answered with an empty manifest. Files go out through files.js serveFile.
+// Under a generation prefix (routes.js strips it, shared/gen.js) the 301 keeps the prefix and index.html is rewritten
+// to load its modules from the generation.
 
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -29,6 +31,7 @@ import { serveMedia } from './media.js';
 import { createPackRegistry } from '../packs.js';
 import { PACKS_URL, PACK_INDEX_FILE } from '../../shared/packs.js';
 import { MANIFEST_URL, SUMMARY_URL } from '../../shared/resources.js';
+import { rewriteIndexHtml } from '../../shared/gen.js';
 import { createResourceManifest } from '../resources.js';
 
 /** Browser stand-in of server/data.js, served at /data.js (see the header). Served byte for byte: its first line names the entry, server/index.js. */
@@ -56,7 +59,8 @@ const EMPTY_LOCAL_ART = Buffer.from(JSON.stringify({ version: 1, source: 'none',
  *   packs?: ReturnType<typeof createPackRegistry>, resources?: ReturnType<typeof createResourceManifest>, log?: object }} dirs
  *   resources: the preload manifest (/data/resource-manifest.json; default: one over publicDir, built on first request)
  *   packs: the server's pack registry (default: one over publicDir, dataDir and packsDir — ROOT/packs)
- * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, rawPath: string, query: string) => Promise<void>}
+ * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, rawPath: string, query: string,
+ *   gen?: { gen: string|null, base: string } | null) => Promise<void>}
  */
 export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = path.join(ROOT, 'server', 'sim'), packsDir = path.join(ROOT, 'packs'), packs = null, resources = null, log = noopLog }) {
   const registry = packs || createPackRegistry({ publicDir, dataDir, packsDir }, { log: /** @type {any} */ (log) });
@@ -72,7 +76,10 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
   const gzipCache = new GzipCache();
   const manifest = resources || createResourceManifest({ publicDir, log });
 
-  return async function serveStatic(req, res, rawPath, query) {
+  const indexHtml = path.join(path.resolve(publicDir), 'index.html');
+
+  /** @param {{ gen: string|null, base: string } | null} [gen] the request's generation prefix (routes.js), already stripped */
+  return async function serveStatic(req, res, rawPath, query, gen = null) {
     let decoded;
     try { decoded = decodeURIComponent(rawPath); } catch { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
     if (!decoded.startsWith('/') || decoded.includes('\0') || decoded.includes('\\')) {
@@ -130,7 +137,8 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       if (stat.isDirectory()) {
         if (!decoded.endsWith('/')) {
           // Built from normalized segments (never from the raw path) so "//host" can't become an open redirect.
-          const loc = (mount.prefix + segments.map(encodeURIComponent).join('/') + '/').replace(/\/{2,}/g, '/');
+          // (a generation prefix stays in front: the redirect must not leave the page's generation)
+          const loc = ((gen?.base || '') + mount.prefix + segments.map(encodeURIComponent).join('/') + '/').replace(/\/{2,}/g, '/');
           res.writeHead(301, { Location: loc + (query ? `?${query}` : ''), 'Cache-Control': 'no-cache', 'Content-Length': 0 });
           res.end();
           return;
@@ -163,6 +171,13 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
         log.error('[http] stat failed', e);
         sendError(req, res, 500, '服务器内部错误 · Internal error');
       }
+      return;
+    }
+    if (gen?.gen && absPath === indexHtml) {
+      // the page of a generation (shared/gen.js): its module / style / import-map paths point into the generation
+      const body = Buffer.from(rewriteIndexHtml(await fsp.readFile(absPath, 'utf8'), gen.gen));
+      res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache', 'Content-Length': body.length });
+      res.end(req.method === 'HEAD' ? undefined : body);
       return;
     }
     await serveFile(req, res, absPath, stat, mount.name, segments, query, gzipCache, log);

@@ -27,8 +27,11 @@ async function listFiles(publicDir) {
       if (e.name.startsWith('.') || e.name.endsWith('~')) continue;
       const child = path.join(abs, e.name);
       const childRel = `${rel}/${e.name}`;
-      if (e.isDirectory()) await walk(child, childRel);
-      else if (e.isFile()) out.push([childRel, child]);
+      // a symlink (scripts/generations.mjs links each release's public/assets to the shared copy) counts as its target
+      const st = e.isSymbolicLink() ? await fsp.stat(child).catch(() => null) : e;
+      if (!st) continue;
+      if (st.isDirectory()) await walk(child, childRel);
+      else if (st.isFile()) out.push([childRel, child]);
     }
   };
   for (const tree of RESOURCE_TREES) await walk(path.join(publicDir, tree), `/${tree}`);

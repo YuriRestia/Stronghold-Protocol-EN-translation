@@ -12,8 +12,9 @@
 
 import { resolveUvTable } from './atlas.js';
 import { parseObj } from './obj.js';
+import { genUrl } from '../../gen.js';
 
-export const THREE_URL = '/vendor/three.module.js';
+export const THREE_URL = genUrl('/vendor/three.module.js');
 
 let threePromise = null;
 let threeFailures = 0;

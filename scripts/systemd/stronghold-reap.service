@@ -1,0 +1,8 @@
+# /etc/systemd/system/stronghold-reap.service — stops retired generations that are done (run by stronghold-reap.timer).
+[Unit]
+Description=Stronghold Protocol: stop finished old generations
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/stronghold/app
+ExecStart=/usr/bin/node scripts/generations.mjs reap
