@@ -98,7 +98,9 @@ const isRoot = () => typeof process.getuid === 'function' && process.getuid() ==
 const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit', ...opts });
 /** as SP_USER when root (git, npm, setup must not leave root-owned files in a release) */
 const asUser = (cmd, args, opts = {}) => (isRoot() ? run('runuser', ['-u', USER, '--', cmd, ...args], opts) : run(cmd, args, opts));
-const out = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
+/** a command's stdout — as SP_USER when root too: git refuses a repository owned by another user ("dubious ownership") */
+const out = (cmd, args, opts = {}) => execFileSync(isRoot() ? 'runuser' : cmd, isRoot() ? ['-u', USER, '--', cmd, ...args] : args,
+  { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], ...opts }).trim();
 
 function readTable() {
   try { return JSON.parse(fs.readFileSync(TABLE, 'utf8')); } catch { return null; }
