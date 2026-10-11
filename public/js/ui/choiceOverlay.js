@@ -127,11 +127,15 @@ export function armedCard(armed, sp, o) {
 
 /**
  * The overlay: keeps the two-tap selection and renders ChoiceView. `onPick(idx)` sends the confirmed card (g.choice).
- * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, onPick:(idx:number)=>void, busyIdx?:number|null, total?:number|null }} props
+ * 隐藏 hides it for a while (the choice stays pending on the server) so the match UI behind it — 敌方情报, the board,
+ * the scoreboard — can be checked before picking; the ChoicePeek pill brings it back. `onHidden(bool)` tells the screen.
+ * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, onPick:(idx:number)=>void, busyIdx?:number|null, total?:number|null,
+ *   onHidden?:(hidden:boolean)=>void }} props
  */
 export function ChoiceOverlay(props) {
-  const { sp, myId, solo, busyIdx = null, onPick } = props;
+  const { sp, myId, solo, busyIdx = null, onPick, onHidden } = props;
   const [sel, setSel] = useState(null);
+  const [hidden, setHidden] = useState(false);
   const armed = armedCard(sel, sp, { myId, solo, busyIdx });
   // a selection whose card cannot be picked any more (taken, the turn moved on, a pick in flight) is dropped
   useEffect(() => { if (sel != null && armed == null) setSel(null); }, [sel, armed]);
@@ -141,7 +145,12 @@ export function ChoiceOverlay(props) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [armed]);
+  useEffect(() => {
+    onHidden?.(hidden);
+    return () => { if (hidden) onHidden?.(false); };
+  }, [hidden]);
   if (!sp) return null;
+  if (hidden) return html`<${ChoicePeek} ...${props} onShow=${() => setHidden(false)} />`;
   const tap = (idx) => {
     const card = sp.cards.find((c) => c && c.idx === idx);
     const r = spTap(armed, idx, cardPickable(sp, card, { myId, solo, busyIdx }));
@@ -149,15 +158,35 @@ export function ChoiceOverlay(props) {
     if (r.pick != null) onPick(r.pick);
   };
   return html`<${ChoiceView} ...${props} armed=${armed} onTap=${tap}
-    onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)} />`;
+    onConfirm=${() => { if (armed != null) tap(armed); }} onDisarm=${() => setSel(null)}
+    onHide=${() => { setSel(null); setHidden(true); }} />`;
+}
+
+/**
+ * The hidden overlay's « button (pure, like ChoiceView), at the right edge the overlay slid out past, under the HUD's
+ * countdown (the same deadline, so it has none of its own): gold and pulsing while the pick is mine; the choice's state
+ * is its tooltip. A tap brings the overlay back. Strings: '返回选择' // en: "Back to choice"; ChoiceView's » button:
+ * '暂时隐藏，查看敌方情报与战场后再选择' // en: "Hide for now to check enemy intel and the board, then choose"
+ * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, onShow?:()=>void }} props
+ */
+export function ChoicePeek({ pub, sp, myId, solo, personal = false, onShow = () => {} }) {
+  if (!sp) return null;
+  const myTurn = solo || personal || sp.turnPid === myId;
+  const mine = sp.pickOf.get(myId);
+  const turnName = sortedPlayers(pub).find((p) => p.playerId === sp.turnPid)?.name || t('队友');
+  const state = mine != null ? t('已完成选择') : myTurn ? t('当前轮到你决策') : t('{turnName} 正在决策…', { turnName });
+  return html`<div class=${cx('sppeek', mine == null && myTurn && 'is-mine')}>
+    <${Button} variant="ghost" size="md" square icon="chevronsLeft" class="sppeek__btn" data-testid="sp-show"
+      aria-label=${t('返回选择')} title=${`${t('返回选择')}\n${state}`} onClick=${onShow} />
+  </div>`;
 }
 
 /**
  * The overlay's view (pure: no hooks — test/ui renders it as a function).
  * @param {{ pub:any, sp:any, myId:string, solo:boolean, personal?:boolean, busyIdx?:number|null, total?:number|null, armed?:number|null,
- *   onTap?:(idx:number)=>void, onConfirm?:()=>void, onDisarm?:()=>void }} props
+ *   onTap?:(idx:number)=>void, onConfirm?:()=>void, onDisarm?:()=>void, onHide?:(()=>void)|null }} props
  */
-export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = null, total = null, armed = null, onTap = () => {}, onConfirm = () => {}, onDisarm = () => {} }) {
+export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = null, total = null, armed = null, onTap = () => {}, onConfirm = () => {}, onDisarm = () => {}, onHide = null }) {
   if (!sp) return null;
   const fam = data.get('choices')?.families?.[sp.family] || null;
   const rawFam = data.getRaw('choices')?.families?.[sp.family] || null;
@@ -170,15 +199,18 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
   const timed = personal ? pub?.deadline > 0 : !solo && !sp.untimed;
   const armedCardRec = armed != null ? sp.cards.find((c) => c && c.idx === armed) : null;
   const armedName = armedCardRec ? resolveSpCard(armedCardRec, sp.family).name : null;
-  // a press anywhere but a card or the confirm button drops the selection
+  // a press anywhere but a card or the confirm button drops the selection (隐藏 drops it itself: dropped on press, the
+  // confirm button would vanish and slide 隐藏 out from under the finger before its click)
   const onDown = (e) => {
     if (armed == null) return;
     const t = e.target;
-    if (t && typeof t.closest === 'function' && t.closest('.spcard, .spov__confirm')) return;
+    if (t && typeof t.closest === 'function' && t.closest('.spcard, .spov__confirm, .spov__hide')) return;
     onDisarm();
   };
   return html`<div class=${cx('spov', armed != null && 'has-armed')} role="dialog" aria-label=${personal ? t('教鞭选择') : t('机变阶段')} onPointerDown=${onDown}>
     <div class="spov__veil" aria-hidden="true"></div>
+    ${onHide ? html`<${Button} variant="ghost" size="md" square icon="chevrons" class="spov__hide" data-testid="sp-hide"
+        aria-label=${t('暂时隐藏，查看敌方情报与战场后再选择')} title=${t('暂时隐藏，查看敌方情报与战场后再选择')} onClick=${onHide} />` : null}
     <div class="spov__inner">
       <header class="spov__head">
         <div class="spov__titles">

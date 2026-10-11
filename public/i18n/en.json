@@ -398,6 +398,8 @@
   " · 点击卡牌选中，再次点击确认": " · Tap a card to select, tap again to confirm",
   "已完成选择": "Choice made",
   "当前轮到你决策": "Your turn to decide",
+  "返回选择": "Back to choice",
+  "暂时隐藏，查看敌方情报与战场后再选择": "Hide for now to check enemy intel and the board, then choose",
   "确认选择「{armedName}」（再次点击卡牌亦可）": "Confirm [{armedName}] (or tap the card again)",
   "{name}，已选中，再次点击确认": "{name}, selected, tap again to confirm",
   "{name}，{takerName}已选择": "{name}, selected by {takerName}",
