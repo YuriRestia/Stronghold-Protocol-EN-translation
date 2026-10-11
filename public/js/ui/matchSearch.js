@@ -9,16 +9,18 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the earlier one ('news.0.2.4') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.4.fixes';
+// A new key per announcement, so everyone who closed the earlier one ('news.0.2.4.fixes') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.2.4.1';
 
-/** The 0.2.4 announcement's points (msgids). */
+/** The 0.2.4.1 announcement's emphasized line, shown above the points (msgid). */
+const UPDATE_HIGHLIGHT = N_('干员调配新增时装系统'); // en: "Added the Outfits system to Operator Loadout"
+
+/** The 0.2.4.1 announcement's points (msgids). */
 const UPDATE_POINTS = [
   N_('新干员：六星克莱门莎加入自选编队；黍和乌尔比安新增模组'), // en: "New Operator: Clementia (6★) joins Custom Squad; Shu and Ulpianus get new Modules"
   N_('伤害统计：「交流」旁的按钮显示每名干员本回合的伤害，结算界面显示整局统计'), // en: "Damage Stats: the button next to Chat shows each Operator's damage this round, and the result screen shows the whole match"
   N_('大厅新增「难度详情」，并排列出单人与组队模式下各难度的具体变化'), // en: "Difficulty Details in the lobby shows what each difficulty changes, Solo and Team side by side"
   N_('确认本局信息：全员同意后房主可重刷本局配置；悬停盟约可查看其被禁用的干员'), // en: "Confirm Match Info: the host can reroll the stage setup once everyone agrees, and hovering an Alliance lists its banned Operators"
-  N_('「设置」新增文字大小选项；游戏可添加到主屏幕'), // en: "Settings has a Text Size option, and the game can be added to your Home Screen"
   N_('共享卡池与装备库存现按官方规则计算'), // en: "The shared card pool and equipment stock now follow the official rules"
   N_('服务器更新不再中断进行中的对局'), // en: "Server updates no longer end matches in progress"
   N_('缪尔赛思特质获得的变形同构体不再受装备库存限制'), // en: "Fixed: Muelsyse's trait no longer stops giving Damazti Isomorphs when the equipment stock runs out"
@@ -26,16 +28,19 @@ const UPDATE_POINTS = [
   N_('大量问题修复'), // en: "Many, many bug fixes"
 ];
 
-// '0.2.4 更新' — en: "Update 0.2.4"
+// '0.2.4.1 更新' — en: "Update 0.2.4.1"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.4 更新')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.4.1 更新')}>
     <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.4 更新')}</span>
-      <ul class="search-news__list">${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}</ul>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.4.1 更新')}</span>
+      <ul class="search-news__list">
+        <li class="search-news__highlight"><strong>${t(UPDATE_HIGHLIGHT)}</strong></li>
+        ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}
+      </ul>
     </div>
     <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
   </aside>`;

@@ -191,6 +191,7 @@
 .search-news__head { display: flex; align-items: center; gap: .1rem; font-size: calc(.2 * var(--t)); font-weight: 900; letter-spacing: .06em; color: var(--text-hi); }
 .search-news__tag { padding: .01rem .08rem; background: var(--amber); color: #111; font-size: calc(.12 * var(--t)); font-weight: 900; letter-spacing: .12em; }
 .search-news__close { flex: none; }
+.search-news__highlight { font-size: calc(.18 * var(--t)); font-weight: 900; color: var(--mint-400); }
 .search-news__list { margin: 0; padding-left: .22rem; display: flex; flex-direction: column; gap: .02rem; }
 .search-news__list li::marker { color: var(--mint-500); }
 /* short landscape phones */

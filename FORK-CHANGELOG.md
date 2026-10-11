@@ -46,6 +46,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   when some are missing, runs `fetch-assets --refresh-index` (the cached audio indexes predated her). Files still
   missing after that are a warning; the deploy goes on.
 - Lobby announcement banner updated for 0.2.4 (shown again to everyone who closed the 0.2.2 one).
+- Lobby announcement bumped to Update 0.2.4.1 and shown again to everyone: an emphasized top line "Added the
+  Outfits system to Operator Loadout"; the Settings Text Size / Home Screen line is gone.
 - EN text corrections layer: `tools/i18n/corrections-en.json` overrides an official EN text that contradicts the
   Chinese data and the engine, before the official data is used. First entry: the Victoria Alliance 6-operator bonus
   reads "+50% ATK per equipment carried, +80% per upgraded" (the official EN read as a flat bonus).
