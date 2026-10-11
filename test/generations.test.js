@@ -250,6 +250,39 @@ describe('two generations behind the router', () => {
   });
 });
 
+describe('a new generation starting before the table lists it (deploy order)', () => {
+  let dir, file, old, next;
+  before(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-gens-order-'));
+    file = path.join(dir, 'generations.json');
+  });
+  after(async () => {
+    await old?.close();
+    await next?.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('does not retire itself while another generation is current (the reload-loop bug, 2026-10-11)', async () => {
+    const opts = { port: 0, host: '127.0.0.1', quiet: true, noticeFile: null, MatchClass: StubMatch, genFile: file, genPollMs: 20 };
+    old = await startServer({ ...opts, gen: 'g1' });
+    fs.writeFileSync(file, JSON.stringify({ current: 'g1', gens: { g1: { port: old.port } } }));
+    next = await startServer({ ...opts, gen: 'g2' }); // what `deploy` does: start, then wait for /healthz
+    await sleep(150);
+    const health = async (srv) => (await fetch(`http://127.0.0.1:${srv.port}/healthz`)).json();
+    assert.equal((await health(next)).retiring, false, 'the new generation waits, it does not retire');
+    assert.equal((await health(old)).retiring, false);
+    // the deploy makes g2 current: only g1 retires
+    fs.writeFileSync(file, JSON.stringify({ current: 'g2', gens: { g1: { port: old.port, retiringSince: 1 }, g2: { port: next.port } } }));
+    await sleep(150);
+    assert.equal((await health(old)).retiring, true);
+    assert.equal((await health(next)).retiring, false);
+    // a later deploy (g3) makes g2 retire too, even though g3 is not running here
+    fs.writeFileSync(file, JSON.stringify({ current: 'g3', gens: { g2: { port: next.port, retiringSince: 2 }, g3: { port: 1 } } }));
+    await sleep(150);
+    assert.equal((await health(next)).retiring, true);
+  });
+});
+
 test('protocol: sys.retire and ERR.RETIRING exist', () => {
   assert.ok(S2C.includes('sys.retire'));
   assert.equal(ERR.RETIRING, 'RETIRING');

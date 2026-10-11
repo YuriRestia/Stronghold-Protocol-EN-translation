@@ -157,9 +157,11 @@ async function deploy(ref = 'HEAD') {
   const until = Date.now() + HEALTH_WAIT_MS;
   let h = null;
   while (Date.now() < until && !(h && h.gen === gen)) { await sleep(2000); h = await health(port); }
-  if (!(h && h.gen === gen)) {
+  if (!(h && h.gen === gen) || h.retiring) {
     run('systemctl', ['disable', '--now', `stronghold@${gen}`]);
-    throw new Error(`${gen} did not answer /healthz in ${HEALTH_WAIT_MS / 1000} s — nothing changed for players. See: journalctl -u stronghold@${gen} -n 50`);
+    throw new Error(h?.retiring
+      ? `${gen} came up already retired (it would send pages round in a loop) — nothing changed for players. See: journalctl -u stronghold@${gen} -n 50`
+      : `${gen} did not answer /healthz in ${HEALTH_WAIT_MS / 1000} s — nothing changed for players. See: journalctl -u stronghold@${gen} -n 50`);
   }
   await withLock(() => {
     const cur = readTable();
