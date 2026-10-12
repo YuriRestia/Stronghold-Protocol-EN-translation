@@ -30,6 +30,9 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   an empty wave you fill enemy by enemy (enemy, route, time, count, interval, HP / ATK ×), saved as a preset in the
   browser. A Map picker offers the 7 maps of the Hard rotation, each with its own 13 rounds from a bot match on that
   map (`tools/capture-specs.mjs --stages`); a preset belongs to the map it was saved on.
+- Lobby announcement bumped to Update 0.2.5 - PRTS and shown again to everyone (new dismiss key `news.0.2.5`): Outfits
+  on top, then official 3D battlefield scenes, Official Damage Numbers, Alliance stack sounds, pending HP loss,
+  uncut Operator models, Horn / Ashlock animations, Fortress Defender arcs and Lord Guard melee, and many fixes.
 
 ### Fixes
 

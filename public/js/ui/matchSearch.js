@@ -9,34 +9,33 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the earlier one ('news.0.2.4.fixes') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.4.1';
+// A new key per announcement, so everyone who closed the earlier one ('news.0.2.4.1') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.2.5';
 
-/** The 0.2.4.1 announcement's emphasized line, shown above the points (msgid). */
+/** The 0.2.5 announcement's emphasized line, shown above the points (msgid). */
 const UPDATE_HIGHLIGHT = N_('干员调配新增时装系统'); // en: "Added the Outfits system to Operator Loadout"
 
-/** The 0.2.4.1 announcement's points (msgids). */
+/** The 0.2.5 announcement's points (msgids). */
 const UPDATE_POINTS = [
-  N_('新干员：六星克莱门莎加入自选编队；黍和乌尔比安新增模组'), // en: "New Operator: Clementia (6★) joins Custom Squad; Shu and Ulpianus get new Modules"
-  N_('伤害统计：「交流」旁的按钮显示每名干员本回合的伤害，结算界面显示整局统计'), // en: "Damage Stats: the button next to Chat shows each Operator's damage this round, and the result screen shows the whole match"
-  N_('大厅新增「难度详情」，并排列出单人与组队模式下各难度的具体变化'), // en: "Difficulty Details in the lobby shows what each difficulty changes, Solo and Team side by side"
-  N_('确认本局信息：全员同意后房主可重刷本局配置；悬停盟约可查看其被禁用的干员'), // en: "Confirm Match Info: the host can reroll the stage setup once everyone agrees, and hovering an Alliance lists its banned Operators"
-  N_('共享卡池与装备库存现按官方规则计算'), // en: "The shared card pool and equipment stock now follow the official rules"
-  N_('服务器更新不再中断进行中的对局'), // en: "Server updates no longer end matches in progress"
-  N_('缪尔赛思特质获得的变形同构体不再受装备库存限制'), // en: "Fixed: Muelsyse's trait no longer stops giving Damazti Isomorphs when the equipment stock runs out"
-  N_('修正英文版【维多利亚】盟约描述：每携带1件装备攻击力+50%（进阶装备+80%）'), // en: "Fixed the English Victoria Alliance description: +50% ATK per equipment carried (+80% per upgraded equipment)"
-  N_('大量问题修复'), // en: "Many, many bug fixes"
+  N_('战场现使用官方3D场景（如沙地战场），取代金属棋盘'), // en: "Battlefields now use the official 3D scenes, such as the sand stages, in place of the metal board"
+  N_('新增「官方伤害数字」设置（默认关闭）：只显示官方游戏会显示的伤害数字'), // en: "New \"Official Damage Numbers\" setting (off by default): shows only the damage numbers the official game shows"
+  N_('盟约层数音效现会在回合开始、机变、休整期与战斗中播放'), // en: "Alliance stack sounds now play at round start, in Improv, in the Rest Phase and in combat"
+  N_('结算前生命值保持当前数值，并在旁边显示待扣除的 −N'), // en: "HP keeps its current value until settlement, with the pending −N shown beside it"
+  N_('干员模型在攻击或释放技能时不再被直线边缘截断'), // en: "Operator models no longer get cut off at a straight edge when they attack or use a skill"
+  N_('号角与灰毫现使用正确的攻击动画'), // en: "Horn and Ashlock use the correct attack animations"
+  N_('重炮手的炮弹以抛物线飞行并在落地时爆炸；领主近卫在近距离时使用近战动画'), // en: "Fortress Defenders shots fly in an artillery arc and burst on landing; Lord Guards use their melee animation up close"
+  N_('大量问题修复'), // en: "Many fixes"
 ];
 
-// '0.2.4.1 更新' — en: "Update 0.2.4.1"
+// '0.2.5 更新 - PRTS' — en: "Update 0.2.5 - PRTS"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.4.1 更新')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.5 更新 - PRTS')}>
     <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.4.1 更新')}</span>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.5 更新 - PRTS')}</span>
       <ul class="search-news__list">
         <li class="search-news__highlight"><strong>${t(UPDATE_HIGHLIGHT)}</strong></li>
         ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}
