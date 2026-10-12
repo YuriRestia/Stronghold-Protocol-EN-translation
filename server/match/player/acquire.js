@@ -198,15 +198,14 @@ export class PlayerAcquire {
   }
 
   /** Normal item → golden version in place (整备). A golden occupies two shared copies and this piece
-   * already occupies one, so the upgrade waits when no second copy is free. The caller keeps its charge.
-   * A 特质-produced piece (noPool) holds no shared copy: its golden inherits the marker and never waits. */
+   * already occupies one, so the upgrade waits when no second copy is free. The caller keeps its charge. */
   upgradeItem(piece) {
     const rec = this.gd.item(piece.id);
     if (!rec || rec.isGolden) return false;
     const gid = rec.upgradeChessId || rec.goldenId;
     if (!gid || !this.gd.item(gid)) return false;
-    if (!piece.noPool && this.m.itemPool.left(piece.id) < 1) return false;
-    piece.id = gid; // a noPool marker rides along onto the golden
+    if (this.m.itemPool.left(piece.id) < 1) return false;
+    piece.id = gid;
     this.recompute();
     return true;
   }
@@ -216,8 +215,11 @@ export class PlayerAcquire {
    * copy-weighted roll from the shared pool excluding the ones already drawn; a tier left without another chess tops
    * up from the tier below (user playtest #6 item 19: the official promotion reward never offers one operator twice —
    * the user's first-hand report; the normal shop's slots may repeat). The offer reserves no copies (the pick takes one).
-   * The player's slotted 自选 pieces join the draw like in its shop (player/diy.js diyRollEntries: once the 调度中心 is at
-   * the slot's level) — the reward is a temporary refresh of the shop ("临时刷新3名…干员") [ASSUMED].
+   * The player's slotted 自选 pieces of the reward tier join the draw (player/diy.js diyStockEntries: copies left, then
+   * the roll's tier — not the ordinary shop's shopLevel gate). 卫戍协议/帮助 干员晋升 names one temporary refresh one tier
+   * above the 调度中心 and no separate pool; the owner decided on 2026-10-12 that the refresh includes 自选 of the newly
+   * reached tier. 0.2.0 had [ASSUMED] the shop-level gate on this refresh too (DESIGN §25); §30.23 reverses that.
+   * An offer built from explicit `ids` does not roll.
    */
   pushRewardOffer(source = 'merge', { tier = null, ids = null, label = null } = {}) {
     const ro = this.gd.rewardOffer();
@@ -229,7 +231,7 @@ export class PlayerAcquire {
       const fresh = (id) => !list.includes(id);
       for (let i = 0; i < ro.count; i++) {
         let id = null;
-        for (let tt = t; tt >= 1 && !id; tt--) id = this.m.pool.roll(this.m.rngShop, { tier: tt, filter: fresh, extra: this.diyRollEntries() });
+        for (let tt = t; tt >= 1 && !id; tt--) id = this.m.pool.roll(this.m.rngShop, { tier: tt, filter: fresh, extra: this.diyStockEntries() });
         if (id) list.push(id);
       }
     }
@@ -285,22 +287,18 @@ export class PlayerAcquire {
    * call, even when an identical normal copy is already owned. The next prep's start runs checkItemMerges. Nothing
    * already equipped is taken off for the fight about to start. Hand and temp both full keeps the 「整备区已满，获得的装备已销毁」
    * outcome. [ASSUMED] every item granted at 休整期结束, not only 维多利亚's 战栗维式重锤 (owner's decision 2026-10-04).
-   * `noPool: true` — the white-give sources of the four operators' trait-fixed equipment (SERVER_GAIN_EQUIP, and a
-   * strategy granting the same fixed item — 变形者集群): skip the stock gate and hold no shared copy (路标月报#2
-   * item 7: what the four can obtain is uncapped — held() skips the marker). NOT a blanket exemption: unlike the
-   * chess pool there is no `requirePool` passthrough for items — a plain `requirePool: false` on an ordinary item
-   * must stay gated (#466: any acquisition occupies, a third 商业包装方案 must fail), and a gate-skipped-but-counted
-   * grant would break the held ≤ cap invariant. A golden inherits the marker only when every consumed copy was
-   * exempt; 整备 of an exempt piece never waits for a second stock copy.
    */
-  acquireItem(itemId, { source = 'grant', toTemp = false, silent = false, deferMerge = false, noPool = false } = {}) {
+  acquireItem(itemId, { source = 'grant', toTemp = false, silent = false, deferMerge = false, requirePool = true } = {}) {
     const rec = this.gd.item(itemId);
     if (!rec) return null;
-    if (!noPool && !this.m.itemPool.canGain(itemId)) {
+    // Only the fixed operator-gift families can overdraw. Several unrelated strategy grants also pass
+    // requirePool:false; they must retain their stock limit (for example commercial packaging).
+    const unlimitedGift = !requirePool && this.gd.isUnlimitedGiftItem(itemId);
+    if (!unlimitedGift && !this.m.itemPool.canGain(itemId)) {
       this.m.toast(this, 'warn', '装备库存不足，未获得该装备');
       return null;
     }
-    let piece = this.newPiece('item', itemId, noPool ? { noPool: true } : {});
+    let piece = this.newPiece('item', itemId);
     // A prep-end grant may sit beside an identical copy until the next prep. The invariant counts only copies
     // without this mark, so the fight that is about to start is not reported as a missed merge.
     if (deferMerge) piece.deferMerge = true;
@@ -326,9 +324,7 @@ export class PlayerAcquire {
     // remember where equipped twins sat: with a full hand AND a full temp the golden item takes the first one's slot
     const slotOf = consumed.filter((l) => l.area === 'equipped').map((l) => ({ holder: l.holder, idx: l.holder.items.indexOf(l.piece) }));
     for (const l of consumed) if (l.area !== 'new') this._detach(l);
-    // the golden inherits noPool only when EVERY consumed copy was 特质-produced (held none); a mix keeps counting —
-    // the bought twin's copy still occupies, and a half-occupied golden is not expressible without a per-piece ledger
-    const golden = this.newPiece('item', rec.upgradeChessId || rec.goldenId, consumed.every((l) => l.piece.noPool) ? { noPool: true } : {});
+    const golden = this.newPiece('item', rec.upgradeChessId || rec.goldenId);
     if (!this.stow(golden, { allowTemp: true })) {
       const at = slotOf[0];
       if (!at || !this.find(at.holder.uid)) {

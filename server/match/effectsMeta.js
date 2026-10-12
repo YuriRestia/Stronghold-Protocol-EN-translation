@@ -480,6 +480,7 @@ export function makeCtx(m, ps, source, hook, ev = null) {
     lp: () => ps.lp,
     alive: () => ps.alive,
     bandId: () => ps.bandId,
+    teamMedicGranted: () => m.teamMedicGranted(),
     shopLevel: () => ps.shop.level,
     bond: (id) => (ps.bonds[id] ? { ...ps.bonds[id] } : null),
     bonds: () => Object.fromEntries(Object.entries(ps.bonds).map(([k, v]) => [k, { ...v }])),
@@ -568,10 +569,8 @@ export function makeCtx(m, ps, source, hook, ev = null) {
       const p = ps.acquireItem(itemId, {
         source: opts.source || source.key || 'effect',
         toTemp: !!opts.toTemp,
-        // noPool: true — the white-give sources of the four operators' trait-fixed equipment (SERVER_GAIN_EQUIP, and
-        // a strategy granting the same fixed item) take no shared item pool copy and skip the stock gate
-        noPool: !!opts.noPool,
         deferMerge: ps._deferItemMerge > 0,
+        requirePool: opts.requirePool !== false,
       });
       return p ? view(p) : null;
     },

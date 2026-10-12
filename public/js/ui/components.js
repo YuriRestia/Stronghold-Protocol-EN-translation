@@ -542,7 +542,7 @@ const setTip = (s) => { tipState = s; for (const fn of [...tipListeners]) fn(); 
 
 /**
  * Hover/focus tooltip around its children. Content renders in <TooltipLayer/> (fixed, viewport-clamped).
- * `aside`: an optional second box in the same style, beside the tooltip (right of it; left when there is no room).
+ * `aside`: a second section in the same clamped, scrollable box; stacked on narrow screens.
  * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, class?: string, children?: any }} props
  */
 const TOUCH_TIP_MS = 450;
@@ -564,7 +564,8 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
       const el = ref.current;
       const content = textRef.current; // the text of the render current when the delay ends (a click may change it)
       if (!el || !el.isConnected || content == null || content === '') return;
-      setTip({ id: idRef.current, content, aside: asideRef.current, rect: el.getBoundingClientRect(), placement });
+      setTip({ id: idRef.current, content, aside: asideRef.current, rect: el.getBoundingClientRect(), placement,
+        hold: () => clearTimeout(timer.current), hide });
     }, delay);
   };
   const hide = () => {
@@ -574,7 +575,7 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
   // A click hides the tooltip until the pointer leaves: the focus it gives the button must not bring it back
   // (with the text of the click's closure) over whatever the click opened. Keyboard focus still shows it.
   // Touch: a tap never shows it (the compatibility mouseenter that follows a tap is ignored); a long press
-  // (≥ 450 ms) does, and it goes away shortly after the finger lifts.
+  // (≥ 450 ms) does. Ordinary tips expire after release; compound lists stay open for scrolling until dismissed.
   const touchAt = useRef(0);
   const longTimer = useRef(null);
   const onPointerDown = (e) => {
@@ -590,18 +591,24 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
     if (!e || e.pointerType === 'mouse') return;
     touchAt.current = Date.now();
     clearTimeout(longTimer.current);
-    if (tipState?.id === idRef.current) { clearTimeout(timer.current); timer.current = setTimeout(hide, 1600); }
+    if (tipState?.id === idRef.current && !asideRef.current) { clearTimeout(timer.current); timer.current = setTimeout(hide, 1600); }
   };
   const onMouseEnter = () => { if (Date.now() - touchAt.current > 900) show(); };
   const onFocusIn = () => { if (!pressed.current && Date.now() - touchAt.current > 900) show(); };
-  const onLeave = () => { pressed.current = false; if (Date.now() - touchAt.current > 900) hide(); };
+  const onLeave = () => {
+    pressed.current = false;
+    if (Date.now() - touchAt.current > 900) {
+      if (asideRef.current) { clearTimeout(timer.current); timer.current = setTimeout(hide, 250); }
+      else hide();
+    }
+  };
   useEffect(() => () => { clearTimeout(longTimer.current); hide(); }, []);
   // Keep the visible tooltip's content fresh when `text` changes (and hide it when text goes away).
   useEffect(() => {
     if (tipState?.id !== idRef.current) return;
     if (text == null || text === '') setTip(null);
     else setTip({ ...tipState, content: text, aside: asideRef.current });
-  }, [text]);
+  }, [text, aside]);
   return html`<span ref=${ref} class=${cx('tt-anchor', block && 'tt-anchor--block', cls)}
       onMouseEnter=${onMouseEnter} onMouseLeave=${onLeave} onFocusIn=${onFocusIn} onFocusOut=${onLeave} onPointerDown=${onPointerDown}
       onPointerUp=${onPointerEnd} onPointerCancel=${onPointerEnd} onContextMenu=${(e) => { if (Date.now() - touchAt.current < 900) e.preventDefault(); }}>
@@ -617,7 +624,12 @@ export function TooltipLayer() {
   const [pos, setPos] = useState(null);
   useEffect(() => {
     tipListeners.add(force);
-    return () => tipListeners.delete(force);
+    const outside = (e) => { if (tipState?.aside && !e.target?.closest?.('.tooltip')) tipState.hide?.(); };
+    const escape = (e) => { if (e.key === 'Escape') tipState?.hide?.(); };
+    document.addEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('resize', force);
+    return () => { tipListeners.delete(force); document.removeEventListener('pointerdown', outside); document.removeEventListener('keydown', escape); window.removeEventListener('resize', force); };
   }, []);
   useLayoutEffect(() => {
     const el = boxRef.current;
@@ -633,31 +645,21 @@ export function TooltipLayer() {
     if (place === 'bottom' && top + b.height > vh - m) { place = 'top'; top = Math.max(m, r.top - b.height - m); }
     let left = r.left + r.width / 2 - b.width / 2;
     left = Math.max(m, Math.min(vw - b.width - m, left));
-    // the aside: right of the box (left when it does not fit), growing away from the anchor (bottom-aligned above it,
-    // top-aligned below it), kept in the viewport
-    let aTop = null, aLeft = null;
-    const a = asideRef.current?.getBoundingClientRect();
-    if (a) {
-      const gap = 4;
-      aLeft = left + b.width + gap;
-      if (aLeft + a.width > vw - m) aLeft = left - gap - a.width;
-      aLeft = Math.max(m, Math.min(vw - a.width - m, aLeft));
-      aTop = place === 'top' ? top + b.height - a.height : top;
-      aTop = Math.max(m, Math.min(vh - a.height - m, aTop));
-    }
-    const next = { top: Math.round(top), left: Math.round(left), place, id: tipState.id,
-      aTop: aTop == null ? null : Math.round(aTop), aLeft: aLeft == null ? null : Math.round(aLeft) };
-    if (!pos || pos.top !== next.top || pos.left !== next.left || pos.id !== next.id || pos.place !== next.place
-      || pos.aTop !== next.aTop || pos.aLeft !== next.aLeft) setPos(next);
+    top = Math.max(m, Math.min(vh - b.height - m, top));
+    const next = { top: Math.round(top), left: Math.round(left), place, id: tipState.id };
+    if (!pos || pos.top !== next.top || pos.left !== next.left || pos.id !== next.id || pos.place !== next.place) setPos(next);
   });
   if (!tipState) return null;
   const ready = pos && pos.id === tipState.id;
   const hasAside = tipState.aside != null && tipState.aside !== '';
   const off = 'top:-9999px;left:-9999px';
-  return html`<div ref=${boxRef} class=${cx('tooltip', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
-    style=${ready ? `top:${pos.top}px;left:${pos.left}px` : off}>${tipState.content}</div>
-    ${hasAside ? html`<div ref=${asideRef} class=${cx('tooltip', 'tooltip--aside', ready && pos.aTop != null && 'is-shown', ready && `tooltip--${pos.place}`)}
-      role="tooltip" style=${ready && pos.aTop != null ? `top:${pos.aTop}px;left:${pos.aLeft}px` : off}>${tipState.aside}</div>` : null}`;
+  return html`<div ref=${boxRef} class=${cx('tooltip', hasAside && 'tooltip--compound', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
+    tabIndex=${hasAside ? 0 : undefined} onMouseEnter=${() => tipState?.hold?.()} onMouseLeave=${() => tipState?.hide?.()}
+    onFocusIn=${() => tipState?.hold?.()} onPointerDown=${() => tipState?.hold?.()}
+    onFocusOut=${(e) => { if (!e.currentTarget.contains(e.relatedTarget)) tipState?.hide?.(); }}
+    style=${ready ? `top:${pos.top}px;left:${pos.left}px` : off}>
+    ${hasAside ? html`<div class="tooltip__main">${tipState.content}</div><div class="tooltip--aside">${tipState.aside}</div>` : tipState.content}
+  </div>`;
 }
 
 // ---- ProgressBar, Tabs, Spinner ----------------------------------------------------------------

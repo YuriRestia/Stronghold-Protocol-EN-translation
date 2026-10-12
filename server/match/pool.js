@@ -6,7 +6,8 @@
 //     (config.economy.poolCopies[tier], measured identity overrides; co-op shared stock doubled). `left` is the
 //     signed capacity minus occupation; the public left() and shop sampling clamp a deficit to zero.
 //   * Owning a piece takes copies: a normal piece holds 1, an elite holds 3 (merge of 3 normals). Shop displays
-//     do NOT reserve copies; buying fails (SOLD_OUT) when left = 0.
+//     do NOT reserve copies. An item buy fails (SOLD_OUT) when left = 0; an operator card already shown in the shop or a
+//     reward can still be taken and overdraws (a negative raw left, the debt — GitHub #498, the owner's decision).
 //   * Pieces remember how many copies they hold (`piece.poolCopies`), so selling / elimination / temp wipes return
 //     exactly what was taken — chess granted by effects while the pool is empty (or hidden/banned chess) hold 0.
 //   * Invariant: raw left ≤ cap and raw left + Σ held copies == cap. Mimic can exceed stock, but its copies still occupy it.
@@ -14,8 +15,9 @@
 // Rolls: each chess slot draws ONE copy uniformly from all remaining copies of eligible chess with tier ≤ shop level
 // ("copy-weighted"; duplicates within a roll allowed). The item slot picks a tier with the same tier shares, then a
 // uniform shop-eligible item of that tier (falling back to lower tiers). A roll may add entries outside the pool
-// (`extra`, after its own): one player's 自选 stock (0.2.0, player/diy.js diyRollEntries) — weighted by its copies like
-// any chess, drawn by that player's shop only.
+// (`extra`, after its own): one player's 自选 stock — the ordinary shop passes diyRollEntries (the shopLevel gate);
+// the promotion reward and random grants pass diyStockEntries (the roll's own tier, DESIGN §30.23). Weighted by its
+// copies like any chess, drawn by that player only.
 
 /**
  * Per-match disabled bond set D and banned chess (research 01 A2): D = uniform sample of `core` core bonds and `addon`
@@ -185,10 +187,7 @@ export class SharedPool {
 /** Shared equipment stock, derived from actual ownership. Merges, equips and returns cannot lose a reservation:
  * normal equipment occupies one, upgraded equipment two. Shop/choice displays reserve nothing. Source: the original
  * experiment BV1eLXXBqEgF, 1:30 and 2:30. [ASSUMED] An item that is consumed/destroyed or removed by elimination no
- * longer occupies stock, consistently with the video's ownership model; this is not a per-match purchase limit.
- * The four uncapped <获得时> fixed-equipment traits (SERVER_GAIN_EQUIP: 诗怀雅 / 卡涅利安 / 耶拉 / 缪尔赛思 —
- * 路标月报#2 item 7) carry `noPool` and hold no stock (acquireItem marks them; held() skips them). Pool-draw
- * traits (洛洛 / 焰尾, SERVER_POOL_*) stay pool-bound like any acquisition. */
+ * longer occupies stock, consistently with the video's ownership model; this is not a per-match purchase limit. */
 export class SharedItemPool {
   constructor(gd, players) { this.gd = gd; this.players = players; }
   cap(id) { return this.gd.itemPoolCopies(id); }
@@ -198,8 +197,8 @@ export class SharedItemPool {
     let count = 0;
     const see = p => {
       if (!p) return;
-      if (p.kind === 'item' && !p.noPool && this.gd.baseIdOf(p.id) === base) count += this.need(p.id);
-      for (const item of p.items || []) if (!item.noPool && this.gd.baseIdOf(item.id) === base) count += this.need(item.id);
+      if (p.kind === 'item' && this.gd.baseIdOf(p.id) === base) count += this.need(p.id);
+      for (const item of p.items || []) if (this.gd.baseIdOf(item.id) === base) count += this.need(item.id);
     };
     for (const ps of this.players()) {
       for (const p of ps.hand) see(p);

@@ -100,6 +100,10 @@ export class GameData {
     const chess = this.raw.chess && typeof this.raw.chess === 'object' ? this.raw.chess : {};
     this._chess = chess;
     this._items = this.raw.items && typeof this.raw.items === 'object' ? this.raw.items : {};
+    // Fixed operator gifts are unlimited outputs, but every produced normal/advanced item still occupies 1/2 copies
+    // (card-pool experiment BV1eLXXBqEgF, maintainer-confirmed 2026-10-11). Random subset gifts are not exempt.
+    this._fixedGiftItems = new Set(Object.values(this.raw.garrisons || {})
+      .filter(g => g.effectKey === 'SERVER_GAIN_EQUIP').map(g => g.bbStr?.chess).filter(id => this._items[id]));
     this._bonds = this.raw.bonds && typeof this.raw.bonds === 'object' ? this.raw.bonds : {};
     /** visible, shop-eligible base (normal) chess ids */
     this.visibleChess = Object.keys(chess).filter((id) => {
@@ -312,25 +316,8 @@ export class GameData {
     return Number.isInteger(count) && count >= 0 ? count : null;
   }
 
-  /**
-   * Whether `itemId` is one of the four operators' trait-fixed equipment (the SERVER_GAIN_EQUIP targets: 盟约之币 /
-   * 迅捷作战粮 / 谢拉格不融冰 / 变形同构体 — and their goldens). 路标月报#2 item 7: what 诗怀雅 / 卡涅利安 / 耶拉 /
-   * 缪尔赛思 can obtain has no cap — their white-give sources (the trait itself, and a strategy granting the same
-   * fixed item) run outside the shared item stock, while shop purchases and every other acquisition stay bound.
-   */
-  isTraitFixedItem(id) {
-    if (!this._traitFixed) {
-      this._traitFixed = new Set();
-      for (const g of Object.values(this.raw.garrisons)) {
-        if (g?.effectKey === 'SERVER_GAIN_EQUIP' && this.item(g.bbStr?.chess)) {
-          const rec = this.item(g.bbStr.chess);
-          this._traitFixed.add(g.bbStr.chess);
-          if (rec.goldenId) this._traitFixed.add(rec.goldenId);
-        }
-      }
-    }
-    return this._traitFixed.has(id) || this._traitFixed.has(this.baseIdOf(id));
-  }
+  /** Whether a fixed trait gift may be produced beyond stock (including the advanced version of that item). */
+  isUnlimitedGiftItem(id) { return this._fixedGiftItems.has(this.baseIdOf(id)); }
 
   /** Copies needed to merge (0 = never merges: golden chess). */
   mergeCount(id) {

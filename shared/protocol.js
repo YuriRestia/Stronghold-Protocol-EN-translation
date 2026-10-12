@@ -485,6 +485,8 @@ export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'room.state', 'room.closed',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
+  // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.
+  'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
   'm.unitStats',
   // client-side combat (DESIGN §14): b.start { battleId, fieldId, kind, spec, authoritative, startAt, serverNow, elapsed,

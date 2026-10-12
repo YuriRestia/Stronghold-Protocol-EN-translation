@@ -136,9 +136,7 @@ K.preparation_start_gain_chess_from_round = (ps) => ({
     for (const p of ps) {
       const id = p.chess ?? p.chess_id;
       if (ctx.round !== int(p.round, -1) || !id) continue;
-      // a grant of one of the four operators' trait-fixed items runs outside the shared item stock like the trait
-      // itself (变形者集群's 变形同构体 — 路标月报#2 item 7); ordinary items stay stock-bound (#466)
-      for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) grant(ctx, id, { requirePool: false, source: 'band', noPool: ctx.gd.isTraitFixedItem(id) });
+      for (let k = 0; k < Math.max(1, int(p.count, 1)); k++) grant(ctx, id, { requirePool: false, source: 'band' });
     }
   },
 });
