@@ -35,7 +35,8 @@ The asset preload (Settings ▸ Preload Assets) is based on the preloader of xin
 - Release 完整包中的 `public/assets/**`（含从官方客户端本地提取的 3D 棋盘模型与贴图 `public/assets/local/**`）和 `public/fonts/**`（字体归各自作者）；
 - 由官方数据表生成的 `data/*.json` 与 `data/i18n/*.json`（官方英文服文本），以及含有或派生自游戏数据的 `docs/research/*.json`、`test/fixtures/official-waves.json`、`public/dev/recordings/*.json`；
 - `docs/img/` 中的游戏截图；
-- `docs/` 中引用的 PRTS、BWIKI、NGA、巴哈姆特等社区页面的文字（仍按其来源的许可，维基文本为 CC BY-NC-SA）。
+- `docs/` 中引用的 PRTS、BWIKI、NGA、巴哈姆特等社区页面的文字（仍按其来源的许可，维基文本为 CC BY-NC-SA）；
+- `public/icons/result-alt.jpg`：画师 **3e46** 绘制的插画（匿名委托，原帖：https://x.com/Gan3E_CSL/status/2030836795823231164），经画师许可使用（全部权利归画师所有）。
 
 这些内容**不在 GPL-3.0 授权范围内**，本项目也无权就它们向任何人授予任何权利。
 

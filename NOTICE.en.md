@@ -37,7 +37,8 @@ All **names, characters, art, Spine models, UI images, music and sound effects, 
 - `public/assets/**` in the full Release bundle (including the 3D board models and textures extracted locally from the official client, `public/assets/local/**`) and `public/fonts/**` (fonts belong to their respective authors);
 - `data/*.json` and `data/i18n/*.json` (official EN server texts) generated from the official data tables, and `docs/research/*.json`, `test/fixtures/official-waves.json` and `public/dev/recordings/*.json`, which contain or are derived from game data;
 - the game screenshots in `docs/img/`;
-- text from community pages such as PRTS, BWIKI, NGA and Bahamut quoted in `docs/` (still under the license of their source; wiki text is CC BY-NC-SA).
+- text from community pages such as PRTS, BWIKI, NGA and Bahamut quoted in `docs/` (still under the license of their source; wiki text is CC BY-NC-SA);
+- `public/icons/result-alt.jpg`, artwork by **3e46** (commissioned by an anonymous patron; original post: https://x.com/Gan3E_CSL/status/2030836795823231164), used with the artist's permission (all rights remain with the artist).
 
 This content is **not within the scope of the GPL-3.0 grant**, and this project has no right to grant anyone any rights to it.
 

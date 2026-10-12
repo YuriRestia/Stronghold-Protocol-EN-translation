@@ -203,6 +203,9 @@ export function normalizeRecord(raw) {
     players,
   };
   if (r.compact === true) rec.compact = true;
+  // (fork) the alternate result background (m.result.altArt): noted in the record; the re-view (recordToResult)
+  // doesn't show it, only the screen right after the match does
+  if (r.altArt === true) rec.altArt = true;
   // an id-less (hand-made) record gets a content id, so both copies of it land on the same key
   if (!rec.id) rec.id = `c.${fnv1a(JSON.stringify(rec))}`;
   return rec;
@@ -393,6 +396,7 @@ export function buildRecord(res, ctx = {}) {
     roomMode: roomModeOf(str(r.modeId), ctx.roomMode),
     selfId: myId,
     players: r.players,
+    altArt: r.altArt === true,
   });
 }
 
@@ -524,6 +528,7 @@ export function recordToResult(rec) {
     players: r.players,
   };
   if (Number.isFinite(r.lastRound)) res.lastRound = r.lastRound;
+  // (fork) no `altArt`: the alternate background is for the live result only (normalizeRecord above)
   return res;
 }
 

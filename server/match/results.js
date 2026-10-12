@@ -84,6 +84,29 @@ function rewardFor(gd, roundsPassed) {
 }
 
 /**
+ * (fork) The alternate result background (m.result.altArt, cosmetic only): every ALT_ART_EVERY-th match this server
+ * process created (Match.serverMatchNo) that reached the Hidden Core, with ALT_ART_CHAR on a final board.
+ */
+export const ALT_ART_EVERY = 10;
+const ALT_ART_CHAR = /^char_\d+_kalts\d*$/;
+
+/** @param {any} gd @param {{ id: string, diy?: { charId: string } }} e a result lineup entry */
+function isAltArtUnit(gd, e) {
+  const charId = e.diy?.charId || gd.chess(e.id)?.charId || '';
+  return ALT_ART_CHAR.test(charId);
+}
+
+/**
+ * @param {import('./Match.js').Match} m
+ * @param {boolean} hiddenReached
+ * @param {{ lineup: any[] }[]} rows the result rows (lineup = the final board)
+ */
+export function altArtResult(m, hiddenReached, rows) {
+  if (!hiddenReached || !(m.serverMatchNo > 0) || m.serverMatchNo % ALT_ART_EVERY !== 0) return false;
+  return rows.some((row) => row.lineup.some((e) => isAltArtUnit(m.gd, e)));
+}
+
+/**
  * @param {import('./Match.js').Match} m
  * @param {{ victory: boolean, hiddenReached: boolean, hiddenCleared: boolean, reason: string }} outcome
  */
@@ -139,6 +162,8 @@ export function buildResult(m, outcome) {
     roundsPassed: teamRounds,
     hiddenReached,
     hiddenCleared,
+    // (fork) only when it fires, so every other payload (and the golden matches) keeps its shape
+    ...(altArtResult(m, hiddenReached, rows) ? { altArt: true } : {}),
     reason: outcome.reason,
     // the merged Final Assault pool (null before round 14); players[].lp are the alive players' shares of it
     teamLp: m.teamLp != null ? Math.max(0, Math.round(m.teamLp)) : null,

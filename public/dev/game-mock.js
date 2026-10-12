@@ -341,6 +341,12 @@ function setPhase(phase, variant) {
     case PHASE.RESULT: {
       pub.round = 14;
       const result = buildResult(!VARIANTS.has('defeat'));
+      // (fork) the alternate result background (server/match/results.js altArtResult); a local, untracked
+      // dev/alt-art-tuner.js adds a tuning panel when present
+      if (VARIANTS.has('alt-art')) {
+        Object.assign(result, { altArt: true, hiddenReached: true });
+        import('/dev/alt-art-tuner.js').then((m) => m.installAltArtTuner(), () => {});
+      }
       store.patch('match', { result });
       // the result screen's match damage chart (ui/damageChart.js DamageSummary) from your final lineup
       damageLog?.seed(mockDamageHistory(result.players.find((p) => p.playerId === ME)?.lineup || [], result.roundsPassed));

@@ -289,6 +289,8 @@ export class Lobby {
     this.matchmaker = new Matchmaker(this, options);
     /** a newer generation took over (server/generation.js): running matches finish, nothing new starts here */
     this.retiring = false;
+    /** (fork) every match this process created, all rooms (results.js altArtResult counts them; resets on restart) */
+    this.matchesCreated = 0;
   }
 
   /**
@@ -818,6 +820,7 @@ export class Lobby {
         seed,
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
         matchNo: room.matchCount + 1,
+        serverMatchNo: this.matchesCreated + 1,
         data: this.safeData(),
         log: this.log,
         now: this.now,
@@ -833,6 +836,7 @@ export class Lobby {
       room.searching = false; // no re-queue after the match
       room.searchSince = null;
       room.matchCount++;
+      this.matchesCreated++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
       this.broadcastState(room);
       match.start();

@@ -1025,6 +1025,76 @@ export class AudioManager {
     } catch { /* ignore */ }
   }
 
+  /**
+   * (fork) A UI sound torn apart for `seconds`, the alternate result background's signal loss (screens/result.js): the clip is cut
+   * into short grains that play on, stutter (one grain repeated), jump to a random spot at another pitch, or drop out
+   * to a burst of static; everything runs through a bit-crush. One UI voice for the whole cue.
+   * @param {string} name sfx.ui key
+   * @param {{ seconds?: number, volume?: number }} [o]
+   */
+  glitchSfx(name, { seconds = 1.5, volume = 0.9 } = {}) {
+    try {
+      const url = this.getManifest()?.audio?.sfx?.ui?.[name];
+      if (typeof url !== 'string' || !this.ctx || this.volumes.muted || this.volumes.sfx <= 0 || this.uiVoices >= 12) return;
+      this.uiVoices += 1;
+      let released = false;
+      const release = () => { if (!released) { released = true; this.uiVoices = Math.max(0, this.uiVoices - 1); } };
+      this._buffer(url).then((buf) => {
+        if (!buf || !this.ctx) { release(); return; }
+        try { this._glitchCue(buf, seconds, volume); } catch { /* ignore */ }
+        setTimeout(release, (seconds + 0.4) * 1000);
+      }, release);
+    } catch { /* ignore */ }
+  }
+
+  _glitchCue(buf, seconds, volume) {
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, rnd = Math.random;
+    const out = ctx.createGain();
+    out.gain.value = Math.max(0, Math.min(1.5, volume));
+    out.connect(this.sfxGain);
+    // bit-crush: overdrive, then snap to 10 levels (a stair-step curve)
+    const crush = ctx.createWaveShaper();
+    const curve = new Float32Array(2048);
+    for (let i = 0; i < curve.length; i++) { const x = (i / (curve.length - 1)) * 2 - 1; curve[i] = Math.round(Math.tanh(x * 2.2) * 10) / 10; }
+    crush.curve = curve;
+    crush.connect(out);
+    // static for the dropouts: white noise, high-passed
+    const noiseBuf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.25), ctx.sampleRate);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = rnd() * 2 - 1;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 1800;
+    hp.connect(out);
+    const nodes = [];
+    const grain = (when, offset, dur, rate) => {
+      const s = ctx.createBufferSource();
+      s.buffer = buf; s.playbackRate.value = rate; s.connect(crush);
+      s.start(when, Math.max(0, Math.min(buf.duration - 0.01, offset)), dur * rate);
+      nodes.push(s);
+    };
+    const hiss = (when, dur) => {
+      const s = ctx.createBufferSource(), g = ctx.createGain();
+      s.buffer = noiseBuf; s.loop = true; g.gain.value = 0.22;
+      s.connect(g); g.connect(hp);
+      s.start(when, rnd() * 0.2); s.stop(when + dur);
+      nodes.push(s);
+    };
+    let t = 0, pos = 0, last = 0;
+    while (t < seconds) {
+      const r = rnd();
+      const len = 0.03 + rnd() * 0.09;
+      if (r < 0.35) { grain(t0 + t, pos, len, 1); last = pos; pos += len; t += len; } // plays on
+      else if (r < 0.6) { // stutter: the same sliver 2–4 times
+        const sl = 0.02 + rnd() * 0.03, n = 2 + Math.floor(rnd() * 3);
+        for (let k = 0; k < n; k++) grain(t0 + t + k * sl, last, sl, 1);
+        t += sl * n;
+      } else if (r < 0.8) { grain(t0 + t, rnd() * buf.duration * 0.9, len, 0.55 + rnd() * 1.1); t += len; } // pitch jump
+      else { hiss(t0 + t, len); t += len; } // the signal drops to static
+      if (pos >= buf.duration * 0.95) pos = 0;
+    }
+    setTimeout(() => { for (const n of nodes) { try { n.disconnect(); } catch { /* ignore */ } } try { out.disconnect(); } catch { /* ignore */ } }, (seconds + 0.4) * 1000);
+  }
+
   /** Battle sound by name (sfx.battle keys), limited like unit sounds. */
   battle(name, o = {}) {
     try {

@@ -49,6 +49,8 @@ export function normalizeResult(res, pub) {
     // the Hidden Core (R15) was fought: only then does the result show its boss medal (m.result.hiddenReached;
     // older payloads without it: a clear implies it was reached)
     hiddenReached: typeof r.hiddenReached === 'boolean' ? (r.hiddenReached || !!r.hiddenCleared) : !!r.hiddenCleared,
+    // (fork) the alternate result background (server/match/results.js altArtResult)
+    altArt: r.altArt === true,
     difficulty: r.difficulty || pub?.difficulty || null,
     modeId: r.modeId || pub?.modeId || null,
     bossId: r.bossId ?? pub?.bossId ?? null,

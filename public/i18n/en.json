@@ -886,6 +886,7 @@
   "{names}的盟约本局全部禁用，不会出现在你的商店": "Every Alliance of {names} is disabled this match: not in your shop",
   "自选编队：所选技能与模组，没有特质，盟约按所属阵营分配": "Custom Squad: the chosen skill and module, no Attribute, Alliances by its factions",
   "自选编队：{name}": "Custom Squad: {name}",
+  "鸣谢：{name}，匿名委托": "Credits: {name}, commissioned by anonymous",
   "替补": "Stand-in",
   "{name}的替补": "Stand-in for {name}",
   "未持有{name}：由替补干员 {standIn} 上场（盟约、特质、阶级与价格不变）": "{name} not owned: the stand-in {standIn} takes the field (Alliances, Attribute, tier and price unchanged)",
