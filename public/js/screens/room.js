@@ -20,6 +20,7 @@ import {
 import { toast, toastError } from '../ui/toasts.js';
 import { copyText } from '../ui/clipboard.js';
 import { GuideButton } from '../ui/guide.js';
+import { DiscordButton } from '../ui/discord.js';
 import { openStats } from './stats.js';
 import { SettingsButton } from '../ui/settings.js';
 import { LoadoutButton } from './loadout.js';
@@ -321,9 +322,13 @@ export function RoomScreen() {
           <span class="room-ping__pills"><${PingPill} ms=${conn.ping} online=${online} /><${OnlinePill} /></span>
           <${MicroLabel}>${t('当前延迟')}<//>
         </div>
-        <${Button} variant="secondary" size="sm" icon="chart" class="stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')}>${t('统计')}<//>
-        <${SettingsButton} class="room-settings" variant="secondary" label=${t('设置')} />
-        <${GuideButton} class="room-guide" variant="secondary" label=${t('玩法说明')} />
+        <span class="topbar__sep" aria-hidden="true"></span>
+        <div class="topbar__tools">
+          <${Button} variant="secondary" size="sm" square=${true} icon="chart" class="stats-entry" onClick=${openStats} title=${t('统计数据')} aria-label=${t('统计数据')} />
+          <${SettingsButton} class="room-settings" variant="secondary" square=${true} />
+          <${GuideButton} class="room-guide" variant="secondary" square=${true} />
+          <${DiscordButton} class="room-discord" variant="secondary" square=${true} />
+        </div>
       </div>
       <div class="topbar__center">
         <${MicroLabel} tone="mint">${coop ? 'ALLIANCE LOBBY' : 'SOLO SIMULATION'}<//>

@@ -1091,3 +1091,16 @@
   --bk-c: var(--red-premium);
 }
 .crash__box h2 { font-size: calc(.3 * var(--t)); }
+
+/* ---- Discord link (ui/discord.js): an <a> styled as a .btn, the Clyde mark in Discord blurple --------------- */
+.discord-btn { text-decoration: none; }
+.discord-btn .discord-btn__icon { fill: #5865f2; }
+.btn--square.discord-btn .discord-btn__icon { width: 56%; height: 56%; }
+.discord-btn:hover, .discord-btn:focus-visible { --btn-bd-hover: #5865f2; --btn-glow: rgba(88, 101, 242, .3); }
+.discord-btn:hover .discord-btn__icon, .discord-btn:focus-visible .discord-btn__icon { fill: #7984f5; }
+/* on the narrowest phones the mark alone, like .stats-entry (stats.css): the room's top bar has no room for the label */
+@media (max-width: 700px) {
+  .discord-btn .btn__icon + .btn__label {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
+}

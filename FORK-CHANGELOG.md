@@ -5,6 +5,15 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-10-13
+
+### Changes
+
+- A Discord button (the blurple Discord mark) on the title screen's top-right corner and the lobby and room top bars
+  links to the server's Discord community (`public/js/ui/discord.js`). On screens ≤ 700 px wide it shows the mark only.
+- The room's top bar takes the lobby's tool style: Stats, Settings, Guide and Discord are icon-only square buttons in a
+  group after a divider (the names stay as tooltips / accessible labels).
+
 ## 2026-10-12
 
 ### Upstream merge

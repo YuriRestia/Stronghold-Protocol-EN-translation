@@ -29,6 +29,7 @@ import { GIcon } from '../ui/gameComponents.js';
 import { SettingsModal } from '../ui/settings.js';
 import { PreloadCard } from '../ui/preload.js';
 import { AboutServerButton } from '../ui/about.js';
+import { DiscordButton } from '../ui/discord.js';
 
 // Same character classes as server/net.js sanitizeName (control, zero-width, bidi, BOM), so a name
 // the client accepts is never rejected by the server's hello validation.
@@ -253,6 +254,7 @@ export function TitleScreen() {
         <div class="title-corner__tools">
           ${online ? html`<${OnlinePill} class="title-online" />` : null}
           <${Button} variant="ghost" size="sm" icon="chart" class="title-stats" onClick=${openStats} title=${t('统计数据')}>${t('统计')}<//>
+          <${DiscordButton} class="title-discord" />
           <${LangToggle} class="title-lang" />
         </div>
         <${MicroLabel} tone="hi">TARGET POINT<//><br /><${MicroLabel}>STRONGHOLD PROTOCOL<//>
