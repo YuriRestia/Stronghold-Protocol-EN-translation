@@ -2,6 +2,40 @@
 
 Answers to the items in [TODO.md](TODO.md), investigated 2026-10-09 on branch `bookkeeping-tasks`.
 
+## Update (2026-10-11)
+
+The sections below describe the old `en-translation` code. `main` is now based on `yuri/dev-0.2` (which includes
+sganggs/master 0.2.2). What changed, per section:
+
+1. **Tool: still Claude Code, now more strongly.** The sentence "There is no `CLAUDE.md` / `AGENTS.md`" is out of date:
+   upstream added both in 0.2.2 (`713a2924`, sganggs, "an entry point for AI coding assistants", GitHub #379).
+   `CLAUDE.md` is Claude Code's own convention; it just points to `AGENTS.md`. `tools/i18n/official-en.mjs`, quoted
+   as evidence, no longer exists (see 2).
+2. **Translations:** refreshed against the 0.2.2 Chinese docs and merged upstream (Yuri #3), then updated by Yuri.
+   `tools/i18n/glossary.json` is gone. Terms now come from `public/i18n/en.json` (UI) and `data/i18n/en.json` (game
+   texts, `tools/build-i18n.mjs`).
+3. **Build and test:**
+   - Still builds and runs here. The test suite is bigger: about 5,800 tests (`wip/keyword-popup`: 5797, 5752 pass).
+   - `test/static-local-art.test.js` no longer fails: the failure came from the old `en-translation` layer (PR #2 fixed
+     it there), and the new base never had that layer.
+   - New: `test/ipv6-bind.test.js` fails in this container only, because it has no IPv6. It passes on GitHub.
+   - Upstream's own CI is `npm run ci` (tools/ci.mjs: tests, smoke, lint, imports, typecheck); `--only=` and
+     `--keep-going` select steps. GitHub Actions now runs on the fork too.
+   - Assets are about 550 MB now (Chinese and Japanese voices), not 270 MB.
+   - Browser language: `public/js/i18n.js` and `resolveLang()` are gone. The language comes from `ui/lang.js` and
+     `shared/i18n.js`. `?lang=zh` in the URL pins Chinese, which the e2e helpers still need (they click "开始").
+     The browser suites (`SP_E2E`, `SP_REAL_E2E`, `RENDER_E2E`) have not been re-run on the new base.
+4. **Rules ownership: still accurate.** Nothing is downloaded or patched at runtime; every `fetch()` in
+   `server/`, `shared/` and `public/js/` still targets the game's own server. Additions and corrections:
+   - New generated files: `data/i18n/<lang>.json` (game texts in en, ja, ko, zh-TW) and `data/terms.json` (status
+     keyword glossary).
+   - New runtime-read files on disk: `logs/announce.json` (operator notices, `scripts/announce.mjs`) and `packs/`
+     (content and language packs, `server/packs.js`).
+   - The browser can now keep assets in Cache Storage through the asset-preload Service Worker
+     (`public/resource-sw.js`). It still fetches from the game's own server only.
+   - The table's advice "Edit the JSON directly" now conflicts with an upstream hard rule (AGENTS.md: never hand-edit
+     `data/*.json`; change `tools/build-data.mjs` and regenerate). For fork changes, use code or an override layer.
+
 ## 1. What tool was this vibe coded with?
 
 **Verdict: almost certainly Claude Code** (high confidence, but circumstantial — nothing in the repo names the tool outright).

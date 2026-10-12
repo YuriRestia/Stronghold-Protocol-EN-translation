@@ -2,6 +2,39 @@
 
 How feasible each idea in ROADMAP Appendix A is, based on reading the code at `en-translation` @ `091989f`, and a recommendation for the next PR. Effort ratings are relative: **S** ≈ a day or less, **M** ≈ a few days, **L** ≈ a week or more with design work.
 
+## Status (2026-10-11)
+
+This scoping was written against the old `en-translation` code. `main` has since been rebuilt on `yuri/dev-0.2` (which
+includes sganggs/master 0.2.2), so read the sections below with these corrections.
+
+**Done**
+- **P1 Lobby rules + (a) +2 Deployment Limit, (b) +2 Funds, (d) untimed**: on main, shown as "Custom Lobby Modifications".
+  The rules never needed to travel in the BattleSpec, because all three only act between battles; ideas that change
+  combat (Alliance Modules, the rebalance) still must.
+- **Difficulty details**: on main (#7) and merged upstream (Yuri #4).
+- **Keyword popup**: on main (#8); `yuri/keyword-popup` pushed for upstream.
+
+**Facts that changed**
+- **Fact 1 is no longer true.** Upstream added matchmaking: solo matchmaking (`queue.join`, `server/soloQueue.js`) and
+  "Find Teammates" for co-op rooms (`room.search`, `server/matchmaker.js`). A room with Custom Lobby Modifications on
+  can be merged with strangers through Find Teammates. The "official rules only for matchmaking" question from the
+  ROADMAP is real now.
+- **Fact 3:** the host now sets three things before a match: the difficulty, "AI Teammates Pick Last"
+  (`room.setAiPicksLast`) and the lobby rules (`room.setRules`).
+- **Translations:** upstream replaced the old `T()` layer with `t()` (`shared/i18n.js`), UI packs in `public/i18n/` and
+  game-text overlays in `data/i18n/<lang>.json` (`tools/build-i18n.mjs`). `tools/i18n/official-en.mjs` is gone.
+- **Hard rule upstream (AGENTS.md):** never hand-edit `data/*.json`; change `tools/build-data.mjs` and regenerate. This
+  is one more reason P2 overlays must live outside `data/*.json`.
+
+**Moved paths** (upstream split the big files into modules)
+- `PlayerState.deployCap` → `server/match/player/basics.js`; round income → `server/match/player/round.js`.
+- `Match.soloUntimed` → `server/match/match/infra.js`; the result tally (`unitStats`) → `server/match/match/settle.js`.
+- Unchanged: `server/sim/spec.js`, `server/match/pool.js`, `server/match/waves.js`, `public/js/render/units.js`,
+  `public/js/screens/result.js`, `server/sim/content/bonds/core.js`.
+
+**Still open from below:** status duration ring + status value, damage chart, P2 data overlays and everything behind
+them, choosing bans / map, (c) doubled waves, and the questions in §5. New since: ROADMAP's "Reboot for updates".
+
 ## 0. Facts about the code that shape everything below
 
 1. **There is no matchmaking.** `server/lobby.js` has only two room types. `solo` is one human. `coop` is up to 4 seats (humans plus AI bots) that players join with a 4-letter code. Every match is already a "solo or custom lobby". The rules about locking things for matchmaking or banning custom modules from it have nothing to apply to today. They become a single "official rules only" check if matchmaking is ever added.

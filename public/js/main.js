@@ -37,6 +37,7 @@ import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/compone
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { TermTipHost } from './ui/termTip.js';
+import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
 import { net, identity, NetError } from './net.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
@@ -220,6 +221,7 @@ function wireNet() {
   });
   net.on('clock', (c) => store.set({ clock: { offset: c.offset, rtt: c.rtt, synced: c.synced } }));
   net.on('welcome', onWelcome);
+  net.on('welcome', clearMaintenance); // the server that says hello resends its maintenance, if any
   net.on('helloError', (err) => toastError(err));
   net.on('replaced', () => toast(t('该身份已在其他页面登录，本页已断开'), 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
@@ -230,6 +232,7 @@ function wireNet() {
     seenNotices.add(msg.id);
     toast(msg.text, 'warn', { ttl: NOTICE_TOAST_MS });
   });
+  net.on('sys.maintenance', applyMaintenance);
   net.on('room.state', onRoomState);
   net.on('room.closed', (msg) => {
     backToLobby();
@@ -309,6 +312,7 @@ function App() {
     <div class="app-bg" aria-hidden="true"></div>
     ${error ? html`<${ScreenCrashed} error=${error} reset=${resetError} />` : html`<${Screen} key=${route} />`}
     <${ConnectionBanner} />
+    <${MaintenanceBar} />
     <${ToastHost} />
     <${PreloadHost} />
     <${UiHosts} />

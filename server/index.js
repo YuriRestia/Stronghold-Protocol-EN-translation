@@ -19,7 +19,8 @@
 // Per-network limits for internet clients (see net.js clientAddress; local/LAN peers are exempt): open sockets
 // (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
 //
-// Operator notices: announce.js watches logs/announce.json (option `noticeFile`, null disables). presence.js sends
+// Operator notices: announce.js watches logs/announce.json (option `noticeFile`, null disables). Planned maintenance:
+// maintenance.js watches logs/maintenance.json (option `maintenanceFile`, null disables; scripts/maintenance.mjs). presence.js sends
 // the online count and the 搜寻队友 queue sizes (sys.online).
 //
 // Programmatic use (tests): `const srv = await startServer({ port: 0, quiet: true }); … await srv.close();`
@@ -39,6 +40,7 @@ import { createRequestHandler } from './http/routes.js';
 import { answerClientError } from './http/common.js';
 import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { NoticeBoard } from './announce.js';
+import { MaintenanceBoard } from './maintenance.js';
 import { Presence } from './presence.js';
 
 // The public API of this module (tests and tools import it from here); the code lives in ./http/.
@@ -57,7 +59,8 @@ export {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
- *   noticeFile?: string | null, noticePollMs?: number, presencePollMs?: number,
+ *   noticeFile?: string | null, noticePollMs?: number, maintenanceFile?: string | null, maintenancePollMs?: number,
+ *   presencePollMs?: number,
  *   warmResources?: boolean, resourceHashCache?: string | null,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
@@ -87,15 +90,20 @@ export async function startServer(opts = {}) {
   buildTag();
   const noticeFile = opts.noticeFile === undefined ? path.join(ROOT, 'logs', 'announce.json') : opts.noticeFile;
   const notices = noticeFile ? new NoticeBoard({ file: noticeFile, registry, startedAt, pollMs: opts.noticePollMs, log }) : null;
-  if (notices) {
+  const maintenanceFile = opts.maintenanceFile === undefined ? path.join(ROOT, 'logs', 'maintenance.json') : opts.maintenanceFile;
+  const maintenance = maintenanceFile
+    ? new MaintenanceBoard({ file: maintenanceFile, registry, lobby, startedAt, pollMs: opts.maintenancePollMs, log })
+    : null;
+  lobby.maintenance = maintenance; // Lobby.startMatch & co. ask maintenance.closed()
+  if (notices || maintenance) {
     const lobbyHello = lobby.onHello.bind(lobby);
     lobby.onHello = (session, info) => {
-      try { lobbyHello(session, info); } finally { notices.onHello(session); }
+      try { lobbyHello(session, info); } finally { notices?.onHello(session); maintenance?.onHello(session); }
     };
   }
   const presence = new Presence({ network, lobby, pollMs: opts.presencePollMs });
 
-  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby }, log }));
+  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby, maintenance }, log }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log });
 
@@ -134,6 +142,7 @@ export async function startServer(opts = {}) {
   }
   server.on('error', (e) => log.error('[http] server error', e));
   notices?.start();
+  maintenance?.start();
   presence.start();
 
   const addr = server.address();
@@ -146,6 +155,7 @@ export async function startServer(opts = {}) {
     closing = (async () => {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       notices?.stop();
+      maintenance?.stop();
       presence.stop();
       network.close();
       await new Promise((resolve) => {
@@ -158,7 +168,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, notices, presence, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, notices, maintenance, presence, close };
 }
 
 // `node server/index.js` / npm start: listen, print the banner, stop on SIGINT / SIGTERM (http/boot.js).

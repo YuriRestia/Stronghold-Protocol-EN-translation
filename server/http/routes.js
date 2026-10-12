@@ -17,15 +17,17 @@ const MAX_URL_LENGTH = 4096;
 /**
  * The GET /healthz body.
  * @param {{ startedAt: number, network: import('../net.js').Network, registry: import('../net.js').SessionRegistry,
- *           lobby: import('../lobby.js').Lobby }} health
+ *           lobby: import('../lobby.js').Lobby, maintenance?: import('../maintenance.js').MaintenanceBoard | null }} health
  */
-export function healthReport({ startedAt, network, registry, lobby }) {
+export function healthReport({ startedAt, network, registry, lobby, maintenance = null }) {
   return {
     ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     // the runtime the server is serving right now (public/js/ui/buildGuard.js): a page whose own build is
     // older than this reloads itself, so a deploy reaches clients that never reload
     build: buildTag(),
     sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
+    // planned maintenance (scripts/maintenance.mjs): { at, closed, stopWhenIdle } or null
+    maintenance: maintenance?.report() ?? null,
   };
 }
 

@@ -1,4 +1,5 @@
-// Operator notice for every online player, e.g. before a restart (see server/announce.js).
+// Operator notice for every online player: a one-off message (see server/announce.js). For a planned restart use
+// scripts/maintenance.mjs instead: a live countdown, no new matches, and a stop once the matches end (docs/DEPLOY.md §1.6).
 //
 //   node scripts/announce.mjs "Server restarting in 5 min for an update"   (active 10 min)
 //   node scripts/announce.mjs --minutes 15 "Restarting at 12:00 UTC"
@@ -20,7 +21,8 @@ const MAX_MINUTES = 24 * 60;
 const USAGE = `Usage:
   node scripts/announce.mjs [--minutes N] "message"   send a notice (active ${DEFAULT_MINUTES} min by default, max ${MAX_MINUTES})
   node scripts/announce.mjs --show                    show the active notice
-  node scripts/announce.mjs --clear                   remove the notice`;
+  node scripts/announce.mjs --clear                   remove the notice
+For a planned restart (countdown, no new matches, stop when idle) see: node scripts/maintenance.mjs --help`;
 
 function fail(msg) {
   console.error(msg);

@@ -486,6 +486,9 @@ export const S2C = [
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)
   'sys.notice',
+  // sys.maintenance { at, closed, serverNow } — planned maintenance (server/maintenance.js): the countdown target (ms,
+  // server clock) or null, and whether new matches are refused; at null + closed false = cleared
+  'sys.maintenance',
   // sys.online { online, searching: { [difficulty]: humans } } — server/presence.js
   'sys.online',
   // queue.state { queued, difficulty?, since?, aiAt?, placed? } — 单人匹配 (server/lobby.js sendQueue)

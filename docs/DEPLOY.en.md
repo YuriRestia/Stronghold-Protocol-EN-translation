@@ -106,6 +106,43 @@ powershell -ExecutionPolicy Bypass -File scripts\install-service-windows.ps1 -Re
 
 Without start-on-boot, replace the last step with double-clicking `start-windows.bat` again. If you use the Releases full bundle: stop the server, unzip the new version's full bundle into a new directory and start from there (assets are included; if start-on-boot is installed, run `install-service-windows.ps1` once more from the new directory). If you use GitHub's "Download ZIP" source archive: after unzipping the new version, copy `public\assets`, `public\fonts`, `.cache` and `data\local-assets.json` (if present) over from the old directory to avoid re-downloading.
 
+### 1.6 Planned maintenance (before an update)
+
+Updating needs a restart, and a restart ends the matches in progress. `scripts/maintenance.mjs` (also `npm run maintenance -- …`) warns the players, stops new matches and stops the server once the matches are over. It never updates or starts anything itself.
+
+**Started by hand from source:** the one line in the README (section "Updating a running server") does everything:
+`npm run maintenance -- --close --stop-when-idle --back-in 20 --wait && git checkout -- data/assets.json && git pull && npm ci && scripts/start.sh`.
+
+**The options** (they combine, and each run adds to what is already set):
+
+```powershell
+node scripts/maintenance.mjs --status            # live matches, rooms and players, and the maintenance in force (--json for scripts)
+node scripts/maintenance.mjs --in 15             # every player sees a countdown at the top: "Server maintenance in 14:59"
+node scripts/maintenance.mjs --at 21:30          # or a clock time (this machine's time; tomorrow if it has passed)
+node scripts/maintenance.mjs --close             # no new simulations from now on; matches in progress play on (--open undoes)
+node scripts/maintenance.mjs --stop-when-idle    # stop the server as soon as no match is live, once (--keep-running undoes)
+node scripts/maintenance.mjs --back-in 20        # the downtime players are told to expect (or --back-at 21:45)
+node scripts/maintenance.mjs --message "Update 0.2.3"   # a line of text in the players' bar (--message "" removes it)
+node scripts/maintenance.mjs --wait              # wait until the server has stopped (needs --stop-when-idle)
+node scripts/maintenance.mjs --cancel            # remove all of it; the bar disappears
+```
+
+- **Players** see a bar at the top of every screen: the countdown, "restarting once the current matches end", "no new simulations", the expected downtime and your message. Starting a simulation (including matchmaking and Find Teammates) is refused with an explanation. Matches in progress are never interrupted, and the countdown reaching 0 does nothing by itself. When the server stops, players see "Server restarting, back around 21:45" while their page waits to reconnect; it reconnects by itself once the server is back.
+- **Ctrl+C** in the server's window is a normal, clean stop. While matches are running it asks first (press it again within 10 s to stop anyway); a stop from a service manager (SIGTERM) is never delayed.
+- **Use `--close --stop-when-idle`** rather than watching `--status` and stopping the server by hand: a match can start between your check and your Ctrl+C, while the server checks and stops in one step. Without `--close`, new matches keep the server running.
+- **Starting again** is up to whatever runs the server: started by hand, start it again (or use the README line, which does); the start-on-boot task and NSSM restart it; systemd with `Restart=always` restarts it, but **`Restart=on-failure` does not**, because the idle stop exits with code 0. A service restarts the **old** version unless you update it first: with a service, update its files and then restart it (section 1.5, `install-service-windows.ps1 -Restart`), and don't use the README line, which starts a second server.
+- **Announcements:** `scripts/announce.mjs` stays for a one-off message; for a planned restart use this script.
+- The setting is one-shot: the server removes `logs/maintenance.json` when it stops, and ignores (and removes) a file written while it was not running. On a VPS run the script as the service user (`sudo -u stronghold node scripts/maintenance.mjs …`).
+
+**For scripts and your own tooling.** These are stable (changed only with care, and noted in the CHANGELOG):
+- `logs/maintenance.json`: `{ "createdAt": ms, "at": ms|null, "closed": bool, "stopWhenIdle": bool, "backIn": minutes|null, "backAt": ms|null, "message": string|null }`. Writing it yourself works the same as running the script; the server reads it within about 2 seconds and only if `createdAt` is after its own start.
+- `GET /healthz`: `matches`, `rooms`, `humans`, `uptimeSec`, and `maintenance` (the fields above without `createdAt`, or `null`).
+- `node scripts/maintenance.mjs --status --json`: `{ "file": …, "server": <the /healthz body> | null }`.
+- `--wait` exit codes: `0` stopped, `1` no server answering (nothing changed), `3` the server was started again meanwhile (a service manager; don't continue), `130` interrupted (the maintenance stays set).
+- The server exits with code 0 after an idle stop.
+
+The script's normal text output and the wording of the players' bar are for people and may change. Our tools never run `git pull` or touch your service setup; to build on them, start from `server/maintenance.js` (the server side), `public/js/ui/maintenance.js` (the bar) and `docs/design/network.md` (the `sys.maintenance` message).
+
 ## 2. Letting friends on other networks join
 
 ### 2.1 Tailscale / ZeroTier (recommended for a home mini PC)

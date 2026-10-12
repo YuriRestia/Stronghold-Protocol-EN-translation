@@ -131,6 +131,16 @@ npm start          # 启动服务器：http://localhost:3000
 
 刷新页面或断线后，同盟模拟 10 分钟内、独立模拟 24 小时内重新打开即可回到原座位。服务器把房间和对局都保存在内存里，**重启服务器会结束所有对局**。
 
+### 更新正在运行的服务器
+
+更新要重启服务器，而重启会结束正在进行的对局。如果服务器是你从源码手动启动的（`npm start` 或启动脚本），在项目文件夹里另开一个终端运行下面这一行：它会通知玩家、不再开新局、等最后一局结束，然后更新并重新启动服务器：
+
+```bash
+npm run maintenance -- --close --stop-when-idle --back-in 20 --wait && git checkout -- data/assets.json && git pull && npm ci && scripts/start.sh
+```
+
+Windows 上把最后一段换成 `scripts\start-windows.bat`，并在「命令提示符」或 PowerShell 7 中运行（Windows PowerShell 5 不支持 `&&`，请把几段依次分开运行）。`--back-in 20` 是告诉玩家的预计停机时间（分钟）。等待这一步失败或按了 Ctrl+C 时，后面的步骤都不会运行。整合包请改用更新包更新。作为服务运行的服务器、其他安排方式和全部选项见 [docs/DEPLOY.md](docs/DEPLOY.md) 第 1.6 节。
+
 ## 联机方式
 
 朋友不在同一个局域网时，下面是几类常见做法，按自己的情况选一种即可。这里只做简单介绍，提到的工具和服务只是举例，本项目与它们没有任何关系，也不做推荐；具体的安装、费用和使用规则请以各自的官方说明为准。部署细节（防火墙、开机自启、反向代理与 HTTPS、Docker）见 **[docs/DEPLOY.md](docs/DEPLOY.md)**。

@@ -1324,5 +1324,15 @@
   "各回合、各难度的敌人生命与攻击": "Enemy HP and ATK by round and difficulty",
   "各领袖、各难度的领袖生命": "Leader HP by Leader and difficulty",
   "每局随机抽取一名领袖，各领袖的生命见下方「各领袖、各难度的领袖生命」。敌人生命倍率对领袖不生效。": "Each match draws one Leader at random; see \"Leader HP by Leader and difficulty\" below for each one's HP. The enemy HP multiplier doesn't apply to Leaders.",
-  "每局随机抽取一名领袖，各领袖的生命见下方「各领袖、各难度的领袖生命」。领袖的总生命为该数值 × 开战时存活的博士人数；敌人生命倍率对领袖不生效。": "Each match draws one Leader at random; see \"Leader HP by Leader and difficulty\" below for each one's HP. The Leader's total HP is this value × the number of Doctors alive when the fight starts; the enemy HP multiplier doesn't apply to Leaders."
+  "每局随机抽取一名领袖，各领袖的生命见下方「各领袖、各难度的领袖生命」。领袖的总生命为该数值 × 开战时存活的博士人数；敌人生命倍率对领袖不生效。": "Each match draws one Leader at random; see \"Leader HP by Leader and difficulty\" below for each one's HP. The Leader's total HP is this value × the number of Doctors alive when the fight starts; the enemy HP multiplier doesn't apply to Leaders.",
+  "服务器即将维护，暂时无法开始新的模拟": "The server is about to go down for maintenance: new simulations can't be started right now",
+  "服务器将在 {time} 后维护": "Server maintenance in {time}",
+  "服务器维护即将开始": "Server maintenance starting now",
+  "服务器即将维护": "Server maintenance soon",
+  "暂不开始新的模拟": "no new simulations",
+  "服务器正在重启，预计 {time} 恢复": "Server restarting, back around {time}",
+  "服务器正在重启": "Server restarting",
+  "当前对局结束后服务器将重启": "restarting once the current matches end",
+  "预计 {time} 恢复": "back around {time}",
+  "预计停机约 {n} 分钟": "down for about {n} min"
 }
