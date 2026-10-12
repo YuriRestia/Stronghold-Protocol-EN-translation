@@ -2,6 +2,51 @@
 
 > English translation of [CHANGELOG.md](CHANGELOG.md). The Chinese original is the authoritative version.
 
+## 0.2.5 — 2026-10-12
+
+### New features
+- The 3D board shows each battlefield's official scene: with the official scenes extracted, the 11 battlefields show their own sand, Siracusan street or industrial scenes; without them the metal tiles are still used, and devices, entrances / exits and terrain overlays show as usual (#532, PR #533, thanks to @andrew05060414). The full bundle comes with the scenes already extracted; with the lite bundle or the source, `node tools/setup.mjs --scenes` downloads and extracts them on your machine, and if the extraction dependencies are missing the metal tiles stay. The repository itself stores no official files.
+- New "Official Damage Numbers" setting (off by default): when on, only the red integers of PRTS's "red damage text (critical)" show, plus a MISS when a hit that should have shown red text is dodged; when off, every hit still shows (#412, thanks to @ZizhaoNi, @andrew05060414).
+- The title screen footer has a new "Repository" link that opens this project's repository in a new tab (#543).
+
+### Rules (as in the official game)
+- Added the missing auto-activation checks for Leizi the Thunderbringer's S2, Hoshiguma the Breacher's S3 against aerial targets, and the surrounding range of Angelina the Mellow Wish's S3.
+- Leader pairings are now random every match and stay fixed from preparation into combat; Hidden Core Leaders keep the same match's grouping. The client board and the teammate frames follow the actual pairing.
+- Fixed Ægir in Unite that inherited low HP settling the opening devour again and wrongly triggering a revive; the exact HP ratio and SP are kept.
+- The Touch from Field Medic is kept as a team entitlement for the match: when its holder is eliminated or leaves, the next battle's medic no longer disappears (kept as confirmed by the maintainer; the original game's lifetime rule still awaits in-game confirmation).
+- Fixed gifts are no longer blocked by the shared stock (the 'When obtained' gifts of Carnelian, Beeswax, Muelsyse, Kjera and Swire, and the same equipment handed out by the 'Damazti Cluster'): they still count toward the stock and keep being handed out at the cap (#488, #491, #495, idea from PR #496, thanks to @2321Robin); the 'When obtained' sub-pools of Rockrock and Flametail draw by the measured weights from 路标 Monthly Report #2 (PR #497, thanks to @2321Robin).
+- Operator shop cards and reward cards already on display no longer fail to claim when the stock runs out afterwards; item purchases and rewards keep the stock check (#498, also thanks to @YinqiMargatroid for PR #529).
+- Fixed Clementia's S3 being triggered by an ally's Corrosion burst, Horn not attacking unblockable enemies underfoot, and the Handmade Catapult's splash radius; Vulpisfoglia's first damage also deals Pursuit's extra Arts damage (PR #502, thanks to @Xinglan233).
+- Kjeragi Nevermeltice and Teargas Can now check on dealing damage, including Ascalon's damage over time (#489, also thanks to @Siornya for PR #526).
+- The invulnerability after 'Free''s rebirth can no longer be locked onto by normal attacks or by auto skills that need a selectable target (#510).
+- Field Medic's reserve map character keeps an earlier targeting order than normal starting Operators when combat starts (both Reserve Operator - Medic and Touch; [ASSUMED], the maintainer decided on 2026-10-12 to implement it as the author described); in preparation you can open that character's details and attack range (PR #523, thanks to @YinqiMargatroid).
+- A Sarkaz Witherer or Sarkaz Witherer Captain knocked down while already silenced leaves no Contamination Corrosion. The maintainer's in-game recollection on 2026-10-12 is that silence stops this cloud, which is the opposite of the PRTS / in-game text "cannot be silenced"; only these two enemies have this death ability, and other Wither enemies' silence rules are unchanged (#470). The behavior has been this way since 0.2.0; this time the recorded reason changes to that recollection.
+- At Dispatch Center level 4 the Elite 5 Promotion Reward can offer an Elite 5 pick, and at level 5 the Elite 6 Promotion Reward can offer an Elite 6 pick; the normal shop still only rolls them at level 5 / 6; they aren't guaranteed, and bans and stock apply as before (#515, thanks to @SpiritedAwayCN; the same fix is in PR #544, thanks to @Siornya).
+- A Mech-accord Caster's unreleased drones now add one extra hit of damage to the Operator's own attack (initially 20% of ATK, +15 per attack on the same target, up to 110%); drones released by skills still deal skill damage (PR #537, thanks to @Xinglan233).
+- Skills that only change the normal attack keep the Operator's own hit. Kjera's S2 (base and hidden) still lands a 100% normal attack while releasing drones, and Cold checks once for her and once for the drones; with Lappland the Decadenza's S1 on it is still her own hit plus two unreleased drones. Skills where only the drones attack don't get this extra hit.
+- When an Operator is redeployed, the drone multiplier returns to its initial value and the per-target multipliers are cleared; free movement is kept. Drones already in flight settle at the multiplier they hit with (PR #536, thanks to @Xinglan233).
+- Drones released by Rockrock's S2 stay locked on after the target leaves the attack range and only return on a kill or when the skill ends; during the skill the unreleased-drone extra damage no longer stacks (PR #535, thanks to @Xinglan233).
+- The hit tile is rounded per the official round-half-to-even rule, and an enemy held at the field edge stays on that edge tile (PR #520, thanks to @Cloudnyco).
+
+### Interface
+- Added the missing Alliance stack sounds at round start, in Improv, in the Rest Phase and in combat; at most one of each kind plays, a new trigger replaces the old sound, and reconnects and settlement backfill don't replay them (#482).
+- HP keeps its current value until settlement, with the pending −N shown beside it (#479, PR #504, thanks to @robll-v1); a refresh request isn't sent again before it returns (#501, PR #507, thanks to @robll-v1).
+- The Alliance tooltip lists the members banned this match (#484, PR #494, thanks to @YuriRestia); Victoria's English effect is reworded as a per-equipment bonus (PR #499, thanks to @YuriRestia); Korean interface fixes (PR #490, thanks to @D-Roote).
+- A loadout can be exported when only custom Potential / training was changed (PR #503); the Alliance member list while spectating includes Custom Squad Operators (PR #505); while Operator Loadout sync is waiting for game data, Reset to Default or later changes cancel the old request still being prepared, so old skills aren't written back to the server (PR #540); importing a loadout file with Potential / training is rejected as a whole if the game data Custom Squad needs is missing, instead of wiping the saved training (PR #538). Thanks to @Xinglan233.
+- Fixed an Operator's model looping on and swinging once more after an attack; the existing wind-up sync for late messages is kept (#506).
+- An enemy's overhead HP bar height is now computed from the height above the origin, so enemies whose origin is mid-body no longer push the bar to the cap (PR #524, thanks to @xcdoge).
+- Fixed the AI takeover overlay covering the "Continue on This Page" button (PR #511, thanks to @RainoutOvO).
+
+### Bots
+- When choosing an opening strategy and build focus, the AI softly gives way to factions already chosen by teammates still in the match; this stops once the teammate is eliminated. It doesn't lock stock or prevent immediate merges (#514, PR #518, thanks to @IceCodeNew).
+
+### Tools and development
+- The player bundle's package.json keeps only scripts that point at files in the bundle; `npm test` no longer shows a pass when there are no tests. In the bundled docs, links to files not shipped with the bundle now point to that version tag on GitHub (#531, #530, thanks to @modusensus).
+- Local extraction decodes normal maps the way Unity does, so both BC5 and DXT5nm storage give correct results, fixing the grey 3D metal board; if you extracted assets before the 2026-10 client update, extract map/autochess once more (PR #534, thanks to @andrew05060414).
+- The Windows start script's Node version check no longer wrongly reports an outdated version under version managers such as Volta (#539, PR #541, thanks to @BowenJXD).
+- Added a development simulation consistency check page, `/dev/sim-check.html` (PR #492); powi's results for ±0 match Math.pow (PR #519). Thanks to @Cloudnyco.
+- PR titles starting with fix / feat / docs get a type label automatically (PR #517, thanks to @Xinglan233).
+
 ## 0.2.4 — 2026-10-11
 
 ### Rules (as in the official game)

@@ -4,7 +4,7 @@
 
 An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal auto-chess tower-defense mode of *Arknights*: play instantly in the browser, solo or 1–4 player online co-op.
 
-![version](https://img.shields.io/badge/version-0.2.4-2ea44f)
+![version](https://img.shields.io/badge/version-0.2.5-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -37,7 +37,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 - **Solo Simulation** (single player) and **Team Simulation** (1–4 player **co-op**, no PvP; empty seats can be filled with AI teammates).
 - The server is a single Node.js program. **Combat is simulated in each player's browser** (just like the official game); the server only handles the economy and rounds, so a low-power mini PC can host.
-- Current version 0.2.4: the shared card pool and equipment stock are completed per the official rules; the rules for Raid revive targeting, Clementia, Skadi the Corrupting Heart and Durable are corrected; Raid can jump to an empty half in online Leader battles; and the issues reported by players and on GitHub after the 0.2.3 release are fixed — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
+- Current version 0.2.5: the 3D board shows each battlefield's official scene; a new "Official Damage Numbers" setting; Leaders are paired at random every match; fixed gifts and Operator cards already on display are no longer blocked by the stock; and the issues reported by players and on GitHub after the 0.2.4 release are fixed — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
 
 ## Features
 
@@ -54,7 +54,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 - **Final Assault and Hidden Core**: two players share one battlefield and the whole team whittles down a single Leader HP bar; 10 Enemy Leaders, huge Leaders with a hit area of about 5×3 tiles, and the official damage-cap rules.
 - **Result titles**: 6 titles such as Stronghold Star, Steadfast Alliance and Rock-Solid Defense.
 - **Reconnect**: in Team Simulation, reopen the page within 10 minutes of a disconnect to return to your seat — while you are away your formation fights automatically, or you can "Step Away" and hand over to AI Autopilot; a Solo Simulation can be resumed within 24 hours (same browser).
-- **Interaction details**: the LP in the top bar drops live as enemies leak (settled at the end of the round); selecting, drag-and-drop and assigning Equipment all work by board tile; buying, upgrading and Improv card picks all need two taps to confirm; with only one player, nothing is timed except battles.
+- **Interaction details**: the top bar marks the LP about to be lost in red with a "−N" as enemies leak (it is only deducted at settlement); selecting, drag-and-drop and assigning Equipment all work by board tile; buying, upgrading and Improv card picks all need two taps to confirm; with only one player, nothing is timed except battles.
 - **Visuals and sound**: real Spine chibis, official BGM and sound effects, emotes (6 sets × 6), battle effects; optional official 3D board (requires textures extracted from a local game client).
 - **Phone and PC**: touch drag, long-press for details, landscape recommended; graphics quality can be lowered in Settings.
 
@@ -64,8 +64,8 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 [Releases](../../../releases/latest) offers two bundles with exactly the same code and runtime dependencies; pick one. If you already have 0.2.x installed, you only need the update bundle to upgrade:
 
-- **Full bundle** `Stronghold-Protocol-v<version>.zip` (about 505 MB, about 710 MB unzipped): includes all art / audio (including both the Chinese and Japanese Operator voices and the official 3D board textures). Unzip it and play — nothing else to download. **Recommended.**
-- **Lite bundle** `Stronghold-Protocol-v<version>-lite.zip` (about 22 MB): no assets; on first start it automatically downloads the art, Spine models, audio, fonts, emotes and the "How to Play" tutorial images from public mirrors (about 550 MB; can be interrupted, and the next start resumes). Local-client assets such as the official 3D board are not included (see "Local-client assets" below). Useful when downloading large files is inconvenient.
+- **Full bundle** `Stronghold-Protocol-v<version>.zip` (about 550 MB, about 780 MB unzipped): includes all art / audio (including both the Chinese and Japanese Operator voices, the official 3D board textures and each battlefield's official scene). Unzip it and play — nothing else to download. **Recommended.**
+- **Lite bundle** `Stronghold-Protocol-v<version>-lite.zip` (about 22 MB): no assets; on first start it automatically downloads the art, Spine models, audio, fonts, emotes and the "How to Play" tutorial images from public mirrors (about 550 MB; can be interrupted, and the next start resumes). Local-client assets such as the official 3D board are not included (see "Local-client assets" below; each battlefield's official scene can be downloaded and extracted on your own machine with `node tools/setup.mjs --scenes`). Useful when downloading large files is inconvenient.
 - **Update bundle** `Stronghold-Protocol-v<version>-update.zip` (available from 0.2.1; its size depends on how much changed, usually only a few MB): contains only the files changed since the earlier 0.2.x versions, to upgrade an existing 0.2.x install (installed from the full or the lite bundle) to the new version without downloading the whole bundle again. How to use it: first stop the server (close the window; if you installed start on boot, run `scripts\install-service-windows.ps1 -Stop`), then merge the entire contents of the `Stronghold-Protocol` folder in the zip into your install folder, overwriting files with the same name (copy and paste in Windows Explorer works; on macOS do not drag and drop in Finder, which replaces the whole folder — use `unzip -o`, see section 1.5 of [docs/DEPLOY.en.md](../docs/DEPLOY.en.md)), and then start it as usual. On start it first verifies all program files and deletes old files the new version no longer uses, then runs normally; if the folder is not the version the update bundle is for (e.g. 0.1.x, or program files have been modified), it tells you to download the full bundle and the server does not start. For a fresh install use the full or the lite bundle.
 
 Both bundles contain only the files needed to run and deploy (server, client, data, start scripts, the setup / doctor / asset download tools, licenses and notices, [docs/PLAYING.md](../docs/PLAYING.md) and [docs/DEPLOY.md](../docs/DEPLOY.md)); tests, development tools and design docs are only in the source repository.

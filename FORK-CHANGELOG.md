@@ -7,6 +7,15 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-12
 
+### Upstream merge
+
+- Merged upstream 0.2.5-dev at [`cf7a9400`](https://github.com/sganggs/Stronghold-Protocol/commit/cf7a9400270d5aa79b2e601e405dab782e25f120).
+  Upstream's fix for the trait-gift stock (#488) replaces the fork's port of PR #496: fixed gifts now still take 1 / 2
+  copies of the shared stock but are never refused when it runs out (`requirePool:false` + `isUnlimitedGiftItem`).
+  The `noPool` marker and its tests are gone. Upstream's one-clip-per-attack Spine timing is taken, and the fork's
+  melee / ranged clip twins (Horn, Ashlock, lords) still apply on top of it. The banned-members box beside the
+  Alliance tooltip is upstream's single scrollable box now. Upstream's per-Operator voice strings stay out.
+
 ### Changes
 
 - Dev sandbox page, `/dev/sandbox.html`: pick any Operator from the pool (normal or elite, a skill, an outfit, a
