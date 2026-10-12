@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { assetUrl, safeName, urlDir } from './sources.mjs';
 import { kindOf, pngSize } from './formats.mjs';
 import { atlasInfo, normalizeAtlas } from './atlas.mjs';
-import { parseSkel, clipExtents } from './skel.mjs';
+import { parseSkel, clipExtents, CLIP_EXTENTS_VERSION } from './skel.mjs';
 import { resolveRoles } from './anim-roles.mjs';
 
 async function fileStat(p) { try { const s = await stat(p); return s.isFile() ? s : null; } catch { return null; } }
@@ -311,14 +311,15 @@ export async function processModels(models, { root, dl, cachePath, download = tr
     const info = atlasInfo(norm.text);
     // Parse the skeleton (cached by file size + mtime).
     const ck = `${m.skel.rel}|${skelSt.size}|${Math.floor(skelSt.mtimeMs)}|${atlasSt?.size}|${Math.floor(atlasSt?.mtimeMs ?? 0)}`;
-    // (an entry cached before clip extents existed is parsed again)
-    let sk = cache[m.skel.rel]?.key === ck && cache[m.skel.rel].info && 'clipExtents' in cache[m.skel.rel].info ? cache[m.skel.rel].info : null;
+    // (an entry cached before clip extents existed, or by an older clipExtents, is parsed again)
+    let sk = cache[m.skel.rel]?.key === ck && cache[m.skel.rel].info?.clipExtentsVersion === CLIP_EXTENTS_VERSION ? cache[m.skel.rel].info : null;
     if (sk) cached++;
     else {
       try {
         const bytes = await readFile(skelAbs);
         sk = parseSkel(bytes, info.regions);
         sk.clipExtents = clipExtents(bytes, norm.text);
+        sk.clipExtentsVersion = CLIP_EXTENTS_VERSION;
         parsed++;
       } catch (e) {
         // A corrupt skeleton would otherwise be kept forever (its size matches the ledger):

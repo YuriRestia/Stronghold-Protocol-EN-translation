@@ -99,10 +99,18 @@ export function parseSkel(bytes, atlasRegions) {
 
 const EXTENT_STEP = 1 / 20, EXTENT_MAX = 48; // sample spacing (s) and cap per clip
 
+/** Bumped whenever clipExtents' output changes, so cached extents are recomputed (tools/assets/spine.mjs). */
+export const CLIP_EXTENTS_VERSION = 2;
+
 /**
  * Per-clip extents of a Spine 3.8 skeleton: the union of its bounds over each animation, sampled every EXTENT_STEP s.
  * Region attachments need their atlas sizes, so this parses again with the real atlas (the page images are not read).
  * Invisible attachments (faded-out effects) are skipped: they draw nothing.
+ *
+ * Region (sprite) attachments: pixi-spine draws them as sprites from x / y / width / height and never calls
+ * RegionAttachment.updateOffset, so their offsets stay 0 and Skeleton.getBounds saw each as a point. Version 1 left
+ * them out of every box (Gummy's Summer outfit: the easel, a sprite, was cut at the box edge). The page stand-in also
+ * needs a `resolution` (the atlas divides the region sizes by it: undefined gave NaN).
  * @param {Uint8Array} bytes .skel file contents
  * @param {string} atlasText the matching .atlas
  * @returns {Record<string, [number, number, number, number]>|null} clip → [x0, y0, x1, y1] (skeleton units, y down
@@ -113,9 +121,18 @@ export function clipExtents(bytes, atlasText) {
   const B = require('@pixi-spine/base');
   let data;
   try {
-    const atlas = new B.TextureAtlas(atlasText, (_line, cb) => cb({ width: 4096, height: 4096, valid: true, resource: {} }));
+    const page = { width: 4096, height: 4096, realWidth: 4096, realHeight: 4096, resolution: 1, valid: true, resource: {}, setSize() {} };
+    const atlas = new B.TextureAtlas(atlasText, (_line, cb) => cb(page));
     data = new r.SkeletonBinary(new r.AtlasAttachmentLoader(atlas)).readSkeletonData(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
   } catch { return null; }
+  for (const skin of data.skins) {
+    for (const e of skin.getAttachments()) {
+      const at = e.attachment;
+      if (!(at instanceof r.RegionAttachment) || !at.region) continue;
+      try { at.updateOffset(); } catch { continue; }
+      if (!at.offset.every(Number.isFinite)) at.offset.fill(0);   // a region the atlas could not size: a point, as before
+    }
+  }
   const sk = new r.Skeleton(data);
   const off = new B.Vector2(), size = new B.Vector2(), tmp = [];
   const out = {};

@@ -73,3 +73,20 @@ test('clipExtents samples every clip of a model', { skip: !existsSync(skel + '.s
   for (const b of Object.values(e)) assert.ok(b[2] > b[0] && b[3] > b[1]);
   assert.ok(e.Start[1] < e.Idle[1] - 1000, 'the deploy drop starts far above');
 });
+
+// Sprite (region) attachments: pixi-spine never calls RegionAttachment.updateOffset, so clipExtents v1 saw each as a
+// point and left it out of the box. Gummy's Summer outfit holds her easel, a sprite, left of her: it was cut off.
+test('the manifest box of Gummy\'s Summer outfit holds the easel', () => {
+  const m = JSON.parse(readFileSync(join(root, 'data', 'assets.json'), 'utf8'));
+  const e = m.outfits?.chars?.['char_196_sunbr@summer#1']?.spine?.front?.extents;
+  assert.ok(e && e.Idle, 'per-clip extents');
+  assert.ok(e.Idle[0] <= -195, `the easel's left edge (~-201) is inside the idle box, got ${e.Idle[0]}`);
+});
+
+const gummy = join(root, 'public/assets/outfit/spine/char_196_sunbr_summer_1/front/char_196_sunbr_summer_1');
+test('clipExtents sizes sprite attachments', { skip: !existsSync(gummy + '.skel') || !skelParserAvailable() }, () => {
+  const e = clipExtents(readFileSync(gummy + '.skel'), readFileSync(gummy + '.atlas', 'utf8'));
+  assert.ok(e && e.Idle);
+  assert.ok(e.Idle[0] <= -195, `easel inside the box, got ${e.Idle[0]}`);
+  for (const b of Object.values(e)) assert.ok(b.every(Number.isFinite) && b[2] > b[0] && b[3] > b[1]);
+});
