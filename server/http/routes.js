@@ -19,9 +19,10 @@ const MAX_URL_LENGTH = 4096;
 /**
  * The GET /healthz body.
  * @param {{ startedAt: number, network: import('../net.js').Network, registry: import('../net.js').SessionRegistry,
- *           lobby: import('../lobby.js').Lobby, generation?: { gen: string, retiring: boolean } | null }} health
+ *           lobby: import('../lobby.js').Lobby, generation?: { gen: string, retiring: boolean } | null,
+ *           maintenance?: import('../maintenance.js').MaintenanceBoard | null }} health
  */
-export function healthReport({ startedAt, network, registry, lobby, generation = null }) {
+export function healthReport({ startedAt, network, registry, lobby, generation = null, maintenance = null }) {
   return {
     ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     // the runtime the server is serving right now (public/js/ui/buildGuard.js): a page whose own build is
@@ -30,6 +31,8 @@ export function healthReport({ startedAt, network, registry, lobby, generation =
     sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
     // behind the router (server/generation.js): which generation this is, and whether a newer one replaced it
     ...(generation ? { gen: generation.gen, retiring: generation.retiring } : {}),
+    // planned maintenance (scripts/maintenance.mjs): { at, closed, stopWhenIdle } or null
+    maintenance: maintenance?.report() ?? null,
   };
 }
 

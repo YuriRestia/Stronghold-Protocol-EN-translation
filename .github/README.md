@@ -132,6 +132,16 @@ How to set them: macOS / Linux `PORT=8080 npm start`; PowerShell `$env:PORT=8080
 
 After a page refresh or disconnect, reopen the page within 10 minutes (Team Simulation) or 24 hours (Solo Simulation) to return to your seat. The server keeps rooms and matches in memory, so **restarting the server ends every match**.
 
+### Updating a running server
+
+Updating restarts the server, and a restart ends the matches in progress. If you started the server by hand from source (`npm start` or the start script), run this in a second terminal in the project folder. It warns the players, stops new matches, waits until the last match has ended, then updates and starts the server again:
+
+```bash
+npm run maintenance -- --close --stop-when-idle --back-in 20 --wait && git checkout -- data/assets.json && git pull && npm ci && scripts/start.sh
+```
+
+On Windows, end it with `scripts\start-windows.bat` and run it in Command Prompt or PowerShell 7 (Windows PowerShell 5 does not support `&&`: run the parts one after another). `--back-in 20` is the downtime players are told to expect. If the waiting part fails or you press Ctrl+C, nothing after it runs. A release bundle updates with the update bundle instead. For servers that run as a service, other schedules and every option, see section 1.6 of [docs/DEPLOY.en.md](../docs/DEPLOY.en.md).
+
 ## Online play
 
 When your friends are not on the same LAN, here are a few common approaches — pick whichever suits you. This is only a brief overview; the tools and services mentioned are just examples, this project has no relationship with them and does not endorse them. Refer to each one's official documentation for installation, pricing and terms of use. Deployment details (firewall, start on boot, reverse proxy and HTTPS, Docker) are in **[docs/DEPLOY.en.md](../docs/DEPLOY.en.md)**.
