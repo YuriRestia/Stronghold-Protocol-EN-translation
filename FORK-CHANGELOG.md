@@ -14,6 +14,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   swap, off the field to send it back), then start a real battle against captured round-13 waves (the browser sim,
   like the match). The outfit is the sandbox's own per unit and leaves your saved outfit choices alone. Options can draw every unit as an impostor (the crowd path) and switch back to the old impostor box, to
   compare the cut-off sprites with the fix. The board stays in the URL, so a link reopens the same setup.
+- Dev sandbox, round 2: sound (BGM, battle SFX and voices at your volume settings); Custom Squad picks (any Operator a
+  tier-5 / tier-6 custom slot may field, normal or elite, no module); the match's direction wheel after each drop
+  instead of a facing menu (drop a unit on its own tile to turn it); the skill last picked for an Operator is
+  remembered; enemy waves of every normal round 1–13 (`public/dev/sandbox/`, `tools/capture-specs.mjs --kind normal`);
+  an empty wave you fill enemy by enemy (enemy, route, time, count, interval, HP / ATK ×), saved as a preset in the
+  browser. A Map picker offers the 7 maps of the Hard rotation, each with its own 13 rounds from a bot match on that
+  map (`tools/capture-specs.mjs --stages`); a preset belongs to the map it was saved on.
 
 ### Fixes
 
@@ -27,7 +34,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   opposite problem: he fired his cannon at enemies he was blocking; he now uses his shield bash on them.
 - Lords (SilverAsh, Lappland, Thorns, Ayerscarpe, Qiubai and `char_617_sharp2`) now use their melee
   animation on an enemy on their own or front tile and keep the ranged one (SilverAsh's cane point with the eagle) for
-  shots further out; their melee strikes no longer fire a tracer.
+  shots further out; their melee strikes no longer fire a tracer. Thorns' clips are the other way round from the
+  rest (his default `Attack_1` is the melee, `Attack_2` the ranged throw).
 - Fortress shots (Horn, Ashlock) fly in a curved, artillery-shell arc and land with a burst, like in the game, instead
   of a straight tracer. Cosmetic only: the flight time is unchanged, so hits land exactly when they did.
 

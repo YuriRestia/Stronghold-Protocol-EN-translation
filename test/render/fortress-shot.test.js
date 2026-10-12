@@ -80,9 +80,9 @@ test('Ashlock: the cannon is Attack01 (the roles), the melee his shield bash Att
   assert.equal(s.current, 'Skill_Loop');
 });
 
-test('lords: Attack is the ranged shot (银灰 cane + eagle), the melee its Combat twin; Thorns Attack_2, Qiubai Combat_A', () => {
+test('lords: Attack is the ranged shot (银灰 cane + eagle), the melee its Combat twin; Thorns the reverse (Attack_1 melee), Qiubai Combat_A', () => {
   for (const [id, ranged, melee] of [['char_172_svrash', 'Attack', 'Combat'], ['char_140_whitew', 'Attack', 'Combat'],
-    ['char_294_ayer', 'Attack', 'Combat'], ['char_617_sharp2', 'Attack', 'Combat'], ['char_293_thorns', 'Attack_1', 'Attack_2'],
+    ['char_294_ayer', 'Attack', 'Combat'], ['char_617_sharp2', 'Attack', 'Combat'], ['char_293_thorns', 'Attack_2', 'Attack_1'],
     ['char_4082_qiubai', 'Attack', 'Combat_A']]) {
     for (const [r, clip] of [[true, ranged], [false, melee]]) {
       const a = actor(id, 0, r);

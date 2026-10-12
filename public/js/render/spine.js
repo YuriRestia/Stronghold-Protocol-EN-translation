@@ -50,9 +50,12 @@ const SKILL_CLIP_MIN = 0.2;
  * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
  * wins. Ashlock: Attack01 is his cannon, Attack02 the shield bash (it animates F_weapon_dun). 领主 (lord): Attack is
  * the ranged shot (银灰's cane point with the eagle, user playtest 2026-10-12), Combat the melee; [ASSUMED] the same for
- * Thorns (Attack_1 / Attack_2) and Qiubai (Attack / Combat_A), whose two clips animate the same bones.
+ * Qiubai (Attack / Combat_A), whose two clips animate the same bones.
  */
-const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Attack_1: ['Attack_2'] });
+const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'] });
+/** (fork) The other way round (SpineActor.shot 'ranged'): Thorns' manifest Attack_1 is his melee, Attack_2 the thrown
+ *  shot (user playtest 2026-10-12). */
+const RANGED_TWIN = Object.freeze({ Attack_1: ['Attack_2'] });
 
 /**
  * Attack clip timing (pure). `loopDur` / `hit` are clip seconds (strike frame at `hit`), `interval` and `lead` game
@@ -481,10 +484,12 @@ export class SpineActor {
   }
 
   /** The clip `name` plays as under `shot`: the model's twin for this attack where it has one, else `name`.
-   *  'ranged': the `_B` cannon (号角 Attack_A → Attack_B, Skill_3_A_Loop → Skill_3_B_Loop); 'melee': MELEE_TWIN. */
+   *  'ranged': RANGED_TWIN, else the `_B` cannon (号角 Attack_A → Attack_B, Skill_3_A_Loop → Skill_3_B_Loop);
+   *  'melee': MELEE_TWIN. */
   _shot(name) {
     if (!this.shot || typeof name !== 'string') return name;
     if (this.shot === 'ranged') {
+      for (const t of RANGED_TWIN[name] || []) if (this.has(t)) return t;
       const t = name.replace(/_A(?=_|$)/, '_B');
       return t !== name && this.has(t) ? t : name;
     }

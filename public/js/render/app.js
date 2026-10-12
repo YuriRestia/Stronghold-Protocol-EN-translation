@@ -679,8 +679,9 @@ export async function createFieldView(host, options = {}) {
     // 0.2.0 补位: a piece of a chess the player does not own (m.private.standIns) is its stand-in's model, in the hand,
     // the 临时整备区 and on the board alike (the owner's recall of the official mode, 2026-10-06)
     const si = chess && standInList.includes(chess.baseId || chess.chessId) ? data.standIn(piece.id) : null;
-    // 0.2.0 自选编队: a DIY slot the player filled is its operator, on the board and on the bench alike
-    const pick = chess && chess.isDiy ? diyPicks[chess.baseId || chess.chessId] : null;
+    // 0.2.0 自选编队: a DIY slot the player filled is its operator, on the board and on the bench alike (a piece's own
+    // `diy` first: the dev sandbox fields several picks of one slot)
+    const pick = chess && chess.isDiy ? piece.diy || diyPicks[chess.baseId || chess.chessId] : null;
     const dr = pick ? data.diy(piece.id, pick) : null;
     const rec = si || dr || chess;
     return {
