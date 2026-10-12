@@ -1402,7 +1402,7 @@ export async function createFieldView(host, options = {}) {
     if (e[0] !== 'atk' || woundUp.has(e) || CHAIN_KINDS.has(e[3])) return;
     const v = views.get(e[1]);
     if (!v || !v.windUp) return;
-    if (v.windUp(t - upcomingT, e[3])) woundUp.add(e);
+    if (v.windUp(t - upcomingT, e[3], views.get(e[2]) || null)) woundUp.add(e);
   }
 
   const EVS = [];

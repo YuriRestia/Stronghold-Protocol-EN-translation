@@ -61,6 +61,8 @@ export class FxProjectiles {
     // chain: the source is the previous target of the bounce (sim ai.js), so the arc hops unit to unit
     if (kind === 'chain' || kind === 'chainHeal') { if (tgt && tgt !== src) this._beam(src, tgt, kind === 'chainHeal' ? 0x7dffa8 : 0xc9a2ff, 0.22, 1, true); return; }
     if (kind === 'beam') { if (tgt && tgt !== src) this._beam(src, tgt, src.isEnemy ? 0xff7a5a : 0xffe6a8, 0.18, 0.15); return; }
+    // (fork) a lord's melee strike (UnitView.meleeReach) is a slash, not a shot: its sim kind is 'arrow' either way
+    if (src.lord && src.shot === 'melee') { this._slashAt = src.id; return; }
     const spec = PROJ[kind] && src.fortress ? FORTRESS_SHELL : PROJ[kind];
     if (!spec || !tgt) {
       if (kind === 'none' || !kind) this._slashAt = src.id;

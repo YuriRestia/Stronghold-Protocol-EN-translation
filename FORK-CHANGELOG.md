@@ -23,7 +23,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   reaching further were clipped. The asset manifest now carries each clip's extents (`tools/assets/skel.mjs`
   `clipExtents`, `data/assets.json` +0.4 MB) and the box grows with the clips the unit actually plays.
 - Horn now plays her cannon animation when she shoots, her skills included; before, every shot played her melee
-  swing (her model's `_B` clips are the cannon, the `_A` ones the melee she uses while blocking).
+  swing (her model's `_B` clips are the cannon, the `_A` ones the melee she uses while blocking). Ashlock had the
+  opposite problem: he fired his cannon at enemies he was blocking; he now uses his shield bash on them.
+- Lords (SilverAsh, Lappland, Thorns, Ayerscarpe, Qiubai and `char_617_sharp2`) now use their melee
+  animation on an enemy on their own or front tile and keep the ranged one (SilverAsh's cane point with the eagle) for
+  shots further out; their melee strikes no longer fire a tracer.
 - Fortress shots (Horn, Ashlock) fly in a curved, artillery-shell arc and land with a burst, like in the game, instead
   of a straight tracer. Cosmetic only: the flight time is unchanged, so hits land exactly when they did.
 

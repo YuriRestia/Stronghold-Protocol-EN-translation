@@ -47,6 +47,14 @@ export const MAX_WIND_SPEEDUP = 2.5;
 const SKILL_CLIP_MIN = 0.2;
 
 /**
+ * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
+ * wins. Ashlock: Attack01 is his cannon, Attack02 the shield bash (it animates F_weapon_dun). 领主 (lord): Attack is
+ * the ranged shot (银灰's cane point with the eagle, user playtest 2026-10-12), Combat the melee; [ASSUMED] the same for
+ * Thorns (Attack_1 / Attack_2) and Qiubai (Attack / Combat_A), whose two clips animate the same bones.
+ */
+const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Attack_1: ['Attack_2'] });
+
+/**
  * Attack clip timing (pure). `loopDur` / `hit` are clip seconds (strike frame at `hit`), `interval` and `lead` game
  * seconds. The clip plays at `ts = loopDur / interval` (one loop per attack); started `lead` before the attack it
  * reaches the strike frame on time: from `start = hit − lead·ts` at `ts` when little of the wind-up is lost,
@@ -195,11 +203,11 @@ export class SpineActor {
     this.clipPerAttack = false;
     this.wound = false;           // clipPerAttack: wound up for the coming attack (windUp → attack)
     /**
-     * (fork) A 重炮手 (fortress) model carries two sets of attack clips: `_A` melee (while blocking) and `_B` the cannon
-     * (号角: Attack_B / Skill_N_B* animate the F_Muzzle bone, the `_A` clips do not). The manifest's roles name the `_A`
-     * set; on, the attack and skill clips play their `_B` twin where the model has one (UnitView.setRangedShot).
+     * (fork) A model with a melee clip set next to its ranged one, the manifest's roles naming one of them: a 重炮手
+     * (fortress) melees while blocking, a 领主 (lord) at its own / front tile. 'ranged' | 'melee' = the coming attack's
+     * kind (UnitView._shotKind), which _shot maps to the model's twin; null = neither, the roles as they are.
      */
-    this.rangedShot = false;
+    this.shot = null;
     this._applied = false;       // an update has posed the skeleton since its clip last changed (poseHeld)
     this._appliedTint = undefined; // the tint that update put on the slots (pixi-spine applies `tint` in update)
     this._play(this._idleName(), true);
@@ -472,12 +480,16 @@ export class SpineActor {
     }
   }
 
-  /** The clip `name` plays as: its `_B` (cannon) twin while rangedShot is on and the model has one (Attack_A → Attack_B,
-   *  Skill_3_A_Loop → Skill_3_B_Loop), else `name` itself. */
+  /** The clip `name` plays as under `shot`: the model's twin for this attack where it has one, else `name`.
+   *  'ranged': the `_B` cannon (号角 Attack_A → Attack_B, Skill_3_A_Loop → Skill_3_B_Loop); 'melee': MELEE_TWIN. */
   _shot(name) {
-    if (!this.rangedShot || typeof name !== 'string') return name;
-    const b = name.replace(/_A(?=_|$)/, '_B');
-    return b !== name && this.has(b) ? b : name;
+    if (!this.shot || typeof name !== 'string') return name;
+    if (this.shot === 'ranged') {
+      const t = name.replace(/_A(?=_|$)/, '_B');
+      return t !== name && this.has(t) ? t : name;
+    }
+    for (const t of MELEE_TWIN[name] || []) if (this.has(t)) return t;
+    return name;
   }
 
   _attackClip() {

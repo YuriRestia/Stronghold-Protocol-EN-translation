@@ -456,10 +456,14 @@ export class UnitView {
     // 0.53 s next to Move_Loop 0.80 s; also 深池侦察犬 1.7). [ASSUMED] the threshold: faster than the standard 1
     this.moveFast = this.isEnemy && Number(def?.stats?.moveSpeed) > 1;
     // (fork) a 重炮手 (fortress: Horn, Ashlock) melees while blocking and shoots its cannon otherwise (sim ai.js: the
-    // melee 'atk' carries kind 'none'); each attack's kind picks its model's clip set (SpineActor.rangedShot). Unblocked
+    // melee 'atk' carries kind 'none'); each attack's kind picks its model's clip set (SpineActor.shot). Unblocked
     // at first, so the cannon.
-    this.fortress = !this.isEnemy && ctx.lookupDef?.(info)?.subProfessionId === 'fortress';
-    this.rangedShot = this.fortress;
+    // A 领主 (lord) strikes in melee an enemy it blocks or one on its own / front tile and shoots otherwise (sim
+    // professions.js lord dmgMul); its 'atk' kind is 'arrow' either way, so the view reads the target's place.
+    const sub = this.isEnemy ? null : ctx.lookupDef?.(info)?.subProfessionId;
+    this.fortress = sub === 'fortress';
+    this.lord = sub === 'lord';
+    this.shot = this.fortress || this.lord ? 'ranged' : null;
     // the official's own model quirks (enemies.json, read from its battle prefabs — tools/local-extract/enemy_model_offsets.py,
     // PR #211): a vertical stretch (its Graphic scale's sy / sx, the two 帝国炮火先兆者 at 1.263) and a mirrored X scale
     // (the Graphic's sx is negative, so the official draws the authored model flipped: 木制瑞印)
@@ -661,7 +665,7 @@ export class UnitView {
         actor.setRunMode(this.moveFast);
         // enemies play their attack clip once per attack, then walk on (GitHub #58: the sim stands them for that clip)
         actor.clipPerAttack = this.isEnemy;
-        actor.rangedShot = this.rangedShot;
+        actor.shot = this.shot;
       } catch (err) {
         console.warn('[render] spine build failed', id, err?.message || err);
         this._releaseEntry(entry);
@@ -1005,26 +1009,42 @@ export class UnitView {
       this.lungeDir.x = dx / len; this.lungeDir.y = dy / len;
     }
     this.lunge = 1;
-    this._shotKind(kind);
+    this._shotKind(kind, target);
     if (this.actor) this.actor.attack(this.atkInterval, once); // game seconds: the actor's clock runs in game time
     if (this.imp) this.imp.dirty = true;
   }
 
-  /** A fortress: this attack's kind ('none' = its melee) picks the clip set the coming attack plays. */
-  _shotKind(kind) {
-    if (!this.fortress) return;
-    this.rangedShot = !!kind && kind !== 'none';
-    if (this.actor) this.actor.rangedShot = this.rangedShot;
+  /**
+   * A fortress: this attack's kind ('none' = its melee) picks the clip set the coming attack plays; a lord: where its
+   * target stands (meleeReach). Without a target the last set stays.
+   */
+  _shotKind(kind, target) {
+    if (this.fortress) this.shot = !kind || kind === 'none' ? 'melee' : 'ranged';
+    else if (this.lord && target) this.shot = this.meleeReach(target) ? 'melee' : 'ranged';
+    else return;
+    if (this.actor) this.actor.shot = this.shot;
+  }
+
+  /**
+   * A lord's melee reach, as the sim's lord dmgMul has it: the target blocked by it or on its own tile or the one in
+   * front. The view has no blocking state: [ASSUMED] the target within half a tile of either centre stands for both
+   * (a blocked enemy stands on its blocker's tile).
+   */
+  meleeReach(target) {
+    const [sx, sy] = DIR_STEP[this.dir] || DIR_STEP.RIGHT;
+    const near = (cx, cy) => Math.abs(target.x - cx) <= 0.5 && Math.abs(target.y - cy) <= 0.5;
+    const r = Math.round(this.y), c = Math.round(this.x);
+    return near(c, r) || near(c + sx, r + sy);
   }
 
   /**
    * An attack by this unit is `lead` game seconds ahead in the snapshot buffer: start the Spine attack wind-up now
    * so the strike frame lines up with the attack. True once started (then stop calling for that attack). `kind` = the
-   * 'atk' projKind (a one-off cast winds up at the clip's own speed).
+   * 'atk' projKind (a one-off cast winds up at the clip's own speed); `target` = its target's view (a lord's melee).
    */
-  windUp(lead, kind) {
+  windUp(lead, kind, target = null) {
     if (!this.alive || !this.actor || !this.spineReady) return false;
-    this._shotKind(kind);
+    this._shotKind(kind, target);
     const ok = this.actor.windUp(this.atkInterval, lead, !!PROJ[kind]?.once);
     if (ok && this.imp) this.imp.dirty = true;
     return ok;
