@@ -415,7 +415,7 @@ describe('match UI of a 自选 piece', () => {
 
   test('the renderer draws the operator (pieceInfo reads m.private.diy; UnitInfo diy is kept)', () => {
     const src = readFileSync(path.join(ROOT, 'public/js/render/app.js'), 'utf8');
-    assert.match(src, /const pick = chess && chess\.isDiy \? diyPicks\[chess\.baseId \|\| chess\.chessId\] : null;/);
+    assert.match(src, /const pick = chess && chess\.isDiy \? piece\.diy \|\| diyPicks\[chess\.baseId \|\| chess\.chessId\] : null;/);
     assert.match(src, /diyPicks = src\.diy && typeof src\.diy === 'object' \? src\.diy : \{\};/);
     assert.match(readFileSync(path.join(ROOT, 'public/js/render/app/info.js'), 'utf8'), /diy: u\.diy && typeof u\.diy === 'object'/);
   });
