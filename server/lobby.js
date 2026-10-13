@@ -110,6 +110,7 @@ import { cleanOutfits } from '../shared/outfits.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
+import { altArtChance } from './match/results.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { Matchmaker, groupReady, roomSize } from './matchmaker.js';
 import { SoloQueue, planSolos } from './soloQueue.js';
@@ -291,6 +292,8 @@ export class Lobby {
     this.retiring = false;
     /** (fork) every match this process created, all rooms (results.js altArtResult counts them; resets on restart) */
     this.matchesCreated = 0;
+    /** (fork) server/altArt.js AltArtLedger: picked rooms + the journal (server/index.js sets it; null = neither) */
+    this.altArt = null;
   }
 
   /**
@@ -806,6 +809,8 @@ export class Lobby {
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
     let seed = 0;
     try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
+    let altChance = null;
+    try { altChance = altArtChance(this.matchesCreated + 1, !!this.altArt?.isPicked(room.code)); } catch { /* cosmetic */ }
     try {
       const match = new this.MatchClass({
         roomCode: room.code,
@@ -821,6 +826,7 @@ export class Lobby {
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
         matchNo: room.matchCount + 1,
         serverMatchNo: this.matchesCreated + 1,
+        altArtChance: altChance,
         data: this.safeData(),
         log: this.log,
         now: this.now,
@@ -838,6 +844,12 @@ export class Lobby {
       room.matchCount++;
       this.matchesCreated++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
+      if (altChance && this.altArt) {
+        try {
+          ctx.altArt = this.altArt.start({ code: room.code, matchNo: room.matchCount, serverMatchNo: this.matchesCreated, chance: altChance,
+            players: seats.filter((s) => !s.isBot).map((s) => s.name) });
+        } catch (e) { this.log.error('[lobby] alt-art start failed', e); }
+      }
       this.broadcastState(room);
       match.start();
     } catch (e) {
@@ -861,6 +873,7 @@ export class Lobby {
     room.replay = this.buildReplay(room, ctx);
     setImmediate(() => this.disposeMatchCtx(ctx));
     this.log.info(`[lobby] ${room.code} match #${room.matchCount} ended`);
+    if (ctx.altArt) { try { this.altArt?.end(ctx.altArt, summary); } catch (e) { this.log.error('[lobby] alt-art end failed', e); } }
     for (let i = 0; i < room.seats.length; i++) {
       const s = room.seats[i];
       if (!s || s.isBot) continue;

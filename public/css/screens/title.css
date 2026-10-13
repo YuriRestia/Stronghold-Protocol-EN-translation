@@ -339,3 +339,23 @@ html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
 .about__facts dt { color: var(--text-lo); }
 .about__facts dd { margin: 0; overflow-wrap: anywhere; }
 .about__dim { color: var(--text-lo); }
+
+/* Discord (ui/discord.js) in the top-right corner: a filled blurple button with a slow glow, so it stands out beside the
+   ghost 统计 / language buttons; the label stays visible on phones too (the corner has the room) */
+.title-corner__tools .title-discord {
+  --btn-bg: #5865f2; --btn-bg-hover: #4752c4; --btn-fg: #fff; --btn-bd: #7984f5; --btn-bd-hover: #fff;
+  --btn-glow: rgba(88, 101, 242, .55); --bk-c: #9aa2f8;
+  height: max(.3rem, 1.4em); padding: 0 .14rem; font-size: calc(.15 * var(--t)); letter-spacing: .04em;
+  animation: discord-glow 2.8s var(--ease-out) infinite;
+}
+.title-corner__tools .title-discord .discord-btn__icon,
+.title-corner__tools .title-discord:hover .discord-btn__icon,
+.title-corner__tools .title-discord:focus-visible .discord-btn__icon { fill: #fff; }
+@keyframes discord-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(88, 101, 242, 0); }
+  50% { box-shadow: 0 0 .16rem .02rem rgba(88, 101, 242, .6); }
+}
+@media (max-width: 700px) {
+  .title-corner__tools .title-discord .btn__icon + .btn__label { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .title-corner__tools .title-discord { animation: none; } }

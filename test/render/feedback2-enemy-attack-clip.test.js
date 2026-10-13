@@ -92,37 +92,58 @@ test('an attack seen late plays the whole clip from its wind-up when the rhythm 
   assert.ok(Math.abs(track(op).trackTime - 1) < 1e-9);
 });
 
-test('an operator keeps rhythm scaling but stops after this attack recovery instead of swinging twice', () => {
+// (fork) Operators loop over their rhythm while attacks keep coming; without the next attack the loop drops to rest
+// just before its next strike frame, so no swing is shown without an actual attack (#506's aim, kept).
+test('(fork) an operator loops over its rhythm but drops to rest just before an unconfirmed next strike', () => {
   const a = actor(JSHOOT, false);
   a.attack(2.7);
-  assert.equal(track(a).loop, false);
+  assert.equal(track(a).loop, true);
   assert.ok(Math.abs(track(a).timeScale - 1 / 2.7) < 1e-9);
-  run(a, 2);
+  run(a, 2.55);
+  assert.equal(a.current, 'Attack', 'still swinging toward the next strike (period 2.7 s, drop 0.08 s before it)');
+  run(a, 0.15);
   assert.equal(a.current, 'Move', 'no second swing without a second actual attack');
-  assert.ok(a.windUp(2.7, 0.2)); run(a, 0.2); const prepared = track(a);
-  a.attack(2.7); assert.equal(track(a), prepared, 'consume the prepared attack without replaying it');
-  assert.equal(track(a).loop, false); run(a, 2); assert.equal(a.current, 'Move');
 });
 
-test('operator attacks with no look-ahead restart once each, including attacks faster than recovery', () => {
+test('(fork) the next wind-up confirms the running loop: same clip, no restart, speed eased onto the strike', () => {
+  const a = actor(JSHOOT, false);
+  a.attack(2.7); const first = track(a);
+  run(a, 2.4); first.trackTime = 0.533 + 2.4 / 2.7;   // where the loop is by now (the fake runtime does not advance)
+  assert.ok(a.windUp(2.7, 0.2));
+  assert.equal(track(a), first, 'the loop goes on into the next swing');
+  const toHit = 1.533 - first.trackTime;
+  assert.ok(Math.abs(first.timeScale - toHit / 0.2) < 1e-9, 'eased so the strike lands in 0.2 s');
+  run(a, 0.2); a.attack(2.7);
+  assert.equal(track(a), first); assert.equal(track(a).loop, true);
+  run(a, 2.55); assert.equal(a.current, 'Attack');
+  run(a, 0.15); assert.equal(a.current, 'Move', 'the last attack ends the loop before the following strike');
+});
+
+test('(fork) a wind-up too far from the running loop\'s strike restarts from the wind-up', () => {
+  const a = actor(JSHOOT, false);
+  a.attack(2.7); const first = track(a);
+  first.trackTime = 0.533;                          // right on the strike just shown: the next one is a loop away
+  assert.ok(a.windUp(2.7, 0.2));
+  assert.notEqual(track(a), first); assert.equal(track(a).loop, true);
+});
+
+test('(fork) operator attacks with no look-ahead re-phase the running loop; quicker than the clip they stay in it', () => {
   const a = actor(JSHOOT, false);
   a.attack(0.08); const first = track(a); run(a, 0.08);
-  a.attack(0.08); assert.notEqual(track(a), first, 'the next real attack starts a new clip');
-  assert.equal(track(a).loop, false); run(a, 0.4); assert.equal(a.current, 'Move');
-  a.windUp(0.08, 0.02); run(a, 0.02); a.attack(0.08); run(a, 0.02);
-  assert.ok(a.windUp(0.08, 0.02), 'the next queued attack can interrupt the preceding recovery');
+  a.attack(0.08); assert.equal(track(a), first, 'the running loop takes the next attack');
+  assert.equal(track(a).loop, true); run(a, 0.4); assert.equal(a.current, 'Move');
 });
 
-test('Provence: one real attack has one visual clip across slow/fast rhythms; late events keep the strike frame', () => {
+test('Provence: no extra swing without an attack across slow/fast rhythms; late events keep the strike frame', () => {
   const entry = assets.chars.char_145_prove.spine.front;
   for (const interval of [0.08, 1.6, 8]) {
     const a = new SpineActor(dataOf(entry), entry);
     const clip = entry.anims.attack.loop, hit = entry.hits[clip][0];
     a.attack(interval);
-    assert.equal(track(a).loop, false); assert.equal(track(a).trackTime, hit);
+    assert.equal(track(a).loop, true); assert.equal(track(a).trackTime, hit);
     run(a, interval + 4); assert.notEqual(a.current, clip, 'no extra swing without an attack');
     assert.ok(a.windUp(interval, 0.1)); run(a, 0.1); const prepared = track(a);
-    a.attack(interval); assert.equal(track(a), prepared); assert.equal(track(a).loop, false);
+    a.attack(interval); assert.equal(track(a), prepared);
     run(a, interval + 4); assert.notEqual(a.current, clip);
     a.destroy();
   }
@@ -144,7 +165,13 @@ test('real Spine timeline: batched wind-up updates retain operator hit-phase cor
       a.attack(1.6);
       const hit = entry.hits[entry.anims.attack.loop][0];
       assert.ok(Math.abs(hit - track(a).trackTime) / track(a).timeScale <= 0.065, `dt ${dt}: the prepared strike must stay near the real attack`);
-      assert.equal(track(a), prepared); assert.equal(track(a).loop, false);
+      assert.equal(track(a), prepared); assert.equal(track(a).loop, true);
+      // (fork) the next attack's wind-up continues the same loop and its strike lands on that attack
+      run(a, 1.4, dt); assert.ok(a.windUp(1.6, 0.2), `dt ${dt}: the running loop takes the next wind-up`);
+      run(a, 0.2, dt); a.attack(1.6);
+      assert.equal(track(a), prepared, `dt ${dt}: no restart between continuous attacks`);
+      const t = track(a).trackTime % track(a).animation.duration;
+      assert.ok(Math.abs(hit - t) / track(a).timeScale <= 0.065, `dt ${dt}: the continued strike stays near the attack`);
       run(a, 3); assert.notEqual(a.current, entry.anims.attack.loop); a.destroy();
     }
   } finally { fake.P.spine.Spine = FakeSpine; }

@@ -13,6 +13,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   links to the server's Discord community (`public/js/ui/discord.js`). On screens ≤ 700 px wide it shows the mark only.
 - The room's top bar takes the lobby's tool style: Stats, Settings, Guide and Discord are icon-only square buttons in a
   group after a divider (the names stay as tooltips / accessible labels).
+- The title screen's Discord button is a filled blurple button with a white mark, its label and a slow glow, so it
+  stands out in the top-right corner (no glow with reduced motion).
 
 ## 2026-10-12
 
