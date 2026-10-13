@@ -40,6 +40,7 @@ import { createRequestHandler } from './http/routes.js';
 import { answerClientError } from './http/common.js';
 import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { NoticeBoard } from './announce.js';
+import { AltArtLedger } from './altArt.js';
 import { Presence } from './presence.js';
 import { GenerationWatch } from './generation.js';
 import { GEN_ID_RE } from '../shared/gen.js';
@@ -62,7 +63,7 @@ export {
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  *   noticeFile?: string | null, noticePollMs?: number, presencePollMs?: number,
  *   warmResources?: boolean, resourceHashCache?: string | null,
- *   gen?: string | null, genFile?: string | null, genPollMs?: number,
+ *   gen?: string | null, genFile?: string | null, genPollMs?: number, altArtDir?: string | null,
  * }} [opts]
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
@@ -104,6 +105,8 @@ export async function startServer(opts = {}) {
   const genFile = opts.genFile === undefined ? process.env.SP_GEN_FILE || null : opts.genFile;
   if (gen && !GEN_ID_RE.test(gen)) throw new Error(`SP_GEN ${JSON.stringify(gen)} is not a generation id`);
   const generation = gen && genFile ? new GenerationWatch({ gen, file: genFile, registry, lobby, pollMs: opts.genPollMs, log }) : null;
+  // (fork) picked rooms + journal of the alternate result background (server/altArt.js); only the real server writes it
+  if (opts.altArtDir) lobby.altArt = new AltArtLedger({ dir: opts.altArtDir, log, gen });
   if (generation) {
     const helloBefore = lobby.onHello.bind(lobby);
     lobby.onHello = (session, info) => {
@@ -180,4 +183,4 @@ export async function startServer(opts = {}) {
 }
 
 // `node server/index.js` / npm start: listen, print the banner, stop on SIGINT / SIGTERM (http/boot.js).
-if (isProcessEntry(import.meta.url)) runMain(() => startServer({ warmResources: true }));
+if (isProcessEntry(import.meta.url)) runMain(() => startServer({ warmResources: true, altArtDir: path.join(ROOT, 'logs') }));

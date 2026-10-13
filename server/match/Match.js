@@ -38,6 +38,8 @@
 //                                              makes this match's battleIds unique within the room (DESIGN §14)
 //   opts.serverMatchNo integer ≥ 1 (optional, fork) the server-wide match number (lobby: matchesCreated + 1); every
 //                                              ALT_ART_EVERY-th match may get the alternate result background (results.js)
+//   opts.altArtChance 'every' | 'picked' | null (optional, fork) the lobby's results.js altArtChance(); absent =
+//                                              derived from serverMatchNo
 //   opts.data        frozen game data (server/data.js getData()); may lack keys while data is generated
 //   opts.log         { info, warn, error, debug }
 //   opts.now         () => ms epoch             injectable clock (Date.now in production)
@@ -241,6 +243,7 @@ export class Match {
     this.seed = (Number(opts.seed) >>> 0) || 1;
     // (fork) the server-wide match number (lobby: every match this server process created); 0 = not counted
     this.serverMatchNo = Number.isInteger(opts.serverMatchNo) && opts.serverMatchNo > 0 ? opts.serverMatchNo : 0;
+    if (opts.altArtChance !== undefined) this.altArtChance = opts.altArtChance === 'every' || opts.altArtChance === 'picked' ? opts.altArtChance : null;
     this.log = opts.log || noopLog;
     this.sendFn = opts.send;
     this.broadcastFn = opts.broadcast;

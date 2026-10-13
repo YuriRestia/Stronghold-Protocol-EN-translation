@@ -84,10 +84,21 @@ function rewardFor(gd, roundsPassed) {
 }
 
 /**
- * (fork) The alternate result background (m.result.altArt, cosmetic only): every ALT_ART_EVERY-th match this server
- * process created (Match.serverMatchNo) that reached the Hidden Core, with ALT_ART_CHAR on a final board.
+ * (fork) The alternate result background (m.result.altArt, cosmetic only): a match with the chance (every
+ * ALT_ART_EVERY-th match this server process created, Match.serverMatchNo, or one in a room picked with
+ * scripts/announce.mjs --pick, Match.altArtChance) that reached the Hidden Core, with ALT_ART_CHAR on a final board.
  */
 export const ALT_ART_EVERY = 10;
+
+/**
+ * Why a match has the chance, or null (the lobby asks once, when the match starts).
+ * @param {number} serverMatchNo @param {boolean} [picked] the room was picked with scripts/announce.mjs --pick
+ * @returns {'picked' | 'every' | null}
+ */
+export function altArtChance(serverMatchNo, picked = false) {
+  if (picked) return 'picked';
+  return serverMatchNo > 0 && serverMatchNo % ALT_ART_EVERY === 0 ? 'every' : null;
+}
 const ALT_ART_CHAR = /^char_\d+_kalts\d*$/;
 
 /** @param {any} gd @param {{ id: string, diy?: { charId: string } }} e a result lineup entry */
@@ -102,7 +113,8 @@ function isAltArtUnit(gd, e) {
  * @param {{ lineup: any[] }[]} rows the result rows (lineup = the final board)
  */
 export function altArtResult(m, hiddenReached, rows) {
-  if (!hiddenReached || !(m.serverMatchNo > 0) || m.serverMatchNo % ALT_ART_EVERY !== 0) return false;
+  const chance = m.altArtChance !== undefined ? m.altArtChance : altArtChance(m.serverMatchNo);
+  if (!hiddenReached || !chance) return false;
   return rows.some((row) => row.lineup.some((e) => isAltArtUnit(m.gd, e)));
 }
 

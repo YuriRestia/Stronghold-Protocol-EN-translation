@@ -33,7 +33,9 @@
 //   update(dt)                            advances the skeleton (autoUpdate is off: one clock for everything)
 //   poseHeld()                            true while the pose cannot change (render/units.js then neither re-poses nor
 //                                         redraws the model, only advances `clock`)
-// Each attack plays its clip once, then the end clip (if any) and base — except the attacks of a skill
+// (fork) An operator's attack clip loops over its rhythm while the next attack's wind-up confirms each coming swing;
+// without one it stops just before that strike frame (no swing without an attack). Enemies and `once` casts play each
+// attack's clip once. Then the end clip (if any) and base — except the attacks of a skill
 // with its own idle clip, which go straight back to that idle: the skill's end clip closes the skill, not each spell of
 // attacks while it runs.
 
@@ -44,6 +46,8 @@ export const MAX_WIND_SPEEDUP = 2.5;
 
 /** Floor for the one-shot window of a skill clip with no Begin / own Idle (a very short clip still gets frames). */
 const SKILL_CLIP_MIN = 0.2;
+/** (fork) Game seconds before the next strike frame at which an operator's unconfirmed rhythm loop drops to rest. */
+const RHYTHM_DROP_MARGIN = 0.08;
 
 /**
  * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
@@ -200,7 +204,8 @@ export class SpineActor {
     /**
      * Enemies (render/units.js, GitHub #58): each attack plays the attack clip once — at its own speed, faster only when
      * the attacks come quicker than the clip — and then the resting state; the sim stands the enemy for exactly that
-     * clip (server/sim/ai.js attackStand). Off (operators): retain rhythm scaling, but still play each attack once.
+     * clip (server/sim/ai.js attackStand). Off (operators): (fork) the clip loops over the attack rhythm while attacks
+     * keep coming, each next swing confirmed by its wind-up; unconfirmed, it drops to rest just before that strike.
      */
     this.clipPerAttack = false;
     this.wound = false;           // wound up for the coming attack (windUp → attack)
@@ -422,13 +427,17 @@ export class SpineActor {
     // a one-off cast plays at the clip's own speed (one loop per clip length), whatever the attack rhythm
     const iv = once ? loopDur : clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     const hit = this._hitTime(loop, loopDur);
+    const rhythm = !once && !this.clipPerAttack;
+    // (fork) an operator's rhythm loop already swinging: this attack takes the coming swing, no restart
+    if (rhythm && this.mode === 'attack' && this.current === loop && this._confirmSwing(loopDur, hit, iv, lead)) return true;
     // clip per attack: its own speed, sped up only when the attacks come quicker than the clip
     const plan = windUpPlan(loopDur, hit, this.clipPerAttack && !once ? Math.min(iv, loopDur) : iv, lead);
     if (!(hit > 0) || lead * plan.ts > hit + 1e-6) return false;
     if (!once) this.interval = iv;
     this.mode = 'attack';
-    this.attackUntil = this.clock + lead + Math.max(0, loopDur - hit) / plan.ts;
-    this._play(loop, false, { timeScale: plan.tsWind, start: plan.start, mix: 0.06 });
+    this.attackUntil = rhythm ? this._rhythmUntil(this.clock + lead, plan.ts, loopDur)
+      : this.clock + lead + Math.max(0, loopDur - hit) / plan.ts;
+    this._play(loop, rhythm, { timeScale: plan.tsWind, start: plan.start, mix: 0.06 });
     this.windTs = plan.ts;
     this.windUntil = this.clock + lead;
     this.wound = true;
@@ -450,10 +459,13 @@ export class SpineActor {
     // clip per attack: its own speed (ts 1), faster only when the attacks come quicker than the clip
     const ts = once ? 1 : per ? clampN(loopDur / Math.min(this.interval, loopDur), 1, 4) : clampN(loopDur / this.interval, 0.35, 4);
     const hit = this._hitTime(loop, loopDur);
-    // (a clip-per-attack actor still playing the previous attack's clip was not wound up for this one)
-    const wasAttacking = this.mode === 'attack' && this.current === loop && this.wound;
+    const rhythm = !once && !per;
+    // (a clip-per-attack actor still playing the previous attack's clip was not wound up for this one; an operator's
+    // rhythm loop still running goes on, re-phased below)
+    const wasAttacking = this.mode === 'attack' && this.current === loop
+      && (this.wound || (rhythm && !!this.spine.state.tracks[0]?.loop));
     this.mode = 'attack';
-    this.attackUntil = this.clock + Math.max(0, loopDur - hit) / ts;
+    this.attackUntil = rhythm ? this._rhythmUntil(this.clock, ts, loopDur) : this.clock + Math.max(0, loopDur - hit) / ts;
     this.windUntil = null;
     this.wound = false;
     if (!wasAttacking) {
@@ -463,7 +475,7 @@ export class SpineActor {
       // lifts before the slam; #246 by @TsangAsuna, accepted by the owner on 2026-10-07)
       const whole = per && this.interval >= loopDur;
       if (whole) this.attackUntil = this.clock + loopDur / ts;
-      this._play(loop, false, { timeScale: ts, start: whole ? 0 : hit, mix: 0.06 });
+      this._play(loop, rhythm, { timeScale: ts, start: whole ? 0 : hit, mix: 0.06 });
     } else {
       const e = this.spine.state.tracks[0];
       if (e) {
@@ -478,6 +490,35 @@ export class SpineActor {
         }
       }
     }
+  }
+
+  /** (fork) When an operator's rhythm loop, striking at `strikeAt` at `ts`, drops to its resting state: just before
+   *  the next strike frame, unless the next attack's wind-up confirms that swing first (no swing without an attack). */
+  _rhythmUntil(strikeAt, ts, loopDur) {
+    const period = loopDur / ts;
+    return strikeAt + period - Math.min(RHYTHM_DROP_MARGIN, period * 0.25);
+  }
+
+  /**
+   * (fork) The next attack is due in `lead` while the rhythm loop is already swinging toward its next strike: ease the
+   * loop's speed so that strike lands on time (the speed returns to the rhythm at windUntil, as after a wind-up) and
+   * keep the loop going. False when that strike is too far off to reach (the caller restarts from the wind-up).
+   */
+  _confirmSwing(loopDur, hit, interval, lead) {
+    const e = this.spine.state.tracks[0];
+    if (!e || !e.loop || !(hit > 0) || !(lead >= 0)) return false;
+    const ts = clampN(loopDur / Math.max(0.08, interval), 0.35, 4);
+    let toHit = hit - (e.trackTime % loopDur);
+    if (toHit < 0) toHit += loopDur;
+    const tsWind = lead > 0 ? toHit / lead : Infinity;
+    if (!(tsWind >= ts * 0.4 && tsWind <= ts * MAX_WIND_SPEEDUP)) return false;
+    this.interval = interval;
+    e.timeScale = tsWind;
+    this.windTs = ts;
+    this.windUntil = this.clock + lead;
+    this.attackUntil = this._rhythmUntil(this.clock + lead, ts, loopDur);
+    this.wound = true;
+    return true;
   }
 
   /** The clip `name` plays as under `shot`: the model's twin for this attack where it has one, else `name`.
@@ -693,6 +734,10 @@ export class SpineActor {
         if (this.clock > this.attackUntil) {
           this.mode = 'base';
           this.wound = false;
+          this.windUntil = null;
+          // (fork) an unconfirmed rhythm loop stops short of its next strike: hold its pose through the crossfade
+          const out = this.spine.state.tracks[0];
+          if (out && out.loop) out.timeScale = 0;
           const clip = this._attackClip() || this.roles.attack;
           // a skill with its own idle: back to that idle (its end clip is for the end of the skill, setSkill(false))
           const toSkillIdle = clip === this.roles.skill && !!this._skillIdle();
