@@ -4,7 +4,7 @@
 
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { elementView } from '../damage.js';
-import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView, statusView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -51,11 +51,13 @@ export class BattleEvents {
    *   ammo: [[id, rounds left, rounds in the magazine]] — a running ammo skill, whole rounds (snapshot.js ammoView): the segmented bar;
    *   wolves: [[id, 狼影 left, the talent's maximum]] — 伺夜's 狼群 (snapshot.js wolfView): the pips under the HP bar;
    *   neg: [[id, fill]] — the share of its cap a negative-HP pool holds (snapshot.js negView; 斩业星熊's 我执): the red bar;
+   *   st: [[id, status, endsAt, duration, value]] — the time left and the strength of each status icon (snapshot.js
+   *       statusView): the ring around the icon and its number;
    *   stand: [[id, until]] — when each enemy's attack recovery ends (atkStandUntil; alive, deployed, visible, not
    *         feared or stunned) — display metadata (render/interp.js holds the position until then);
    *   standCut: [[id, at]] — the latest time each listed enemy's recovery was cut or ignored (_cutAttackStand), the
    *         dying ones in their death window included.
-   * ammo / wolves / neg / stand / standCut are display only: no sim state reads them, and the nine-field unit tuples are
+   * ammo / wolves / neg / st / stand / standCut are display only: no sim state reads them, and the nine-field unit tuples are
    * unchanged.
    */
   snapshot() {
@@ -82,7 +84,7 @@ export class BattleEvents {
       (down || (down = [])).push([u.id, r2(u.respawnAt), r2(Math.max(0, u.respawnAt - u.deathAt)), this._downState(u), ...this.restTile(u)]);
     }
     if (down) snap.down = down;
-    let elem = null, ammo = null, wolves = null, neg = null, stand = null, standCut = null;
+    let elem = null, ammo = null, wolves = null, neg = null, st = null, stand = null, standCut = null;
     let listed = null;   // the ids in snap.units, built for the first enemy with a cut to report
     for (const u of this.units) {
       if (u.side === 'enemy' && u.atkStandCutAt >= 0) {
@@ -102,6 +104,8 @@ export class BattleEvents {
       if (wv) (wolves || (wolves = [])).push([u.id, wv[0], wv[1]]);
       const ng = negView(u);
       if (ng) (neg || (neg = [])).push([u.id, ng]);
+      const sv = u.buffs.length ? statusView(u, this.time) : null;
+      if (sv) for (const row of sv) (st || (st = [])).push([u.id, ...row]);
       const purse = coinView(u);
       if (purse) (snap.coins || (snap.coins = [])).push([u.id, ...purse]);
     }
@@ -109,6 +113,7 @@ export class BattleEvents {
     if (ammo) snap.ammo = ammo;
     if (wolves) snap.wolves = wolves;
     if (neg) snap.neg = neg;
+    if (st) snap.st = st;
     if (stand) snap.stand = stand;
     if (standCut) snap.standCut = standCut;
     return snap;

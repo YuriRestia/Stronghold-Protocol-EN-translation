@@ -68,7 +68,7 @@
 import { UF, ANIM } from '../../../shared/constants.js';
 import { SpineActor } from './spine.js';
 import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, HUD_DISC, ELEMENT_RING } from './textures.js';
-import { COLORS, TIER_COLORS, ENEMY_FRAME, UNIT, PROJ, statusIconKey, statusIconSuppressed } from './style.js';
+import { COLORS, TIER_COLORS, ENEMY_FRAME, UNIT, PROJ, statusIconKey, statusIconSuppressed, statusValueLabel } from './style.js';
 import { drawCrate, rowDepthKey, ROW_KEY, deviceBoxOf, DEVICE_BOX } from './tiles.js';
 
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
@@ -526,6 +526,7 @@ export class UnitView {
     this.coins = null;            // [balance, cap] of 琳琅诗怀雅's skill purse, including zero
     this.coinHud = null;
     this.neg = 0;                 // the share of its cap a negative-HP pool holds, 0 = none (sync; b.snap `neg`, 斩业星熊's 我执)
+    this.st = null;               // [[status, endsAt, duration, value]] of its status icons (sync; b.snap `st`): ring and number
     this.flags = 0; this.anim = ANIM.IDLE;
     this.statuses = new Set();
     this.alive = true;
@@ -802,12 +803,16 @@ export class UnitView {
       h.addChild(this.chip);
     }
     this.icons = [];
+    // each icon's time ring (track + arc) and number (b.snap `st`), drawn over it
+    this.iconMarks = [];
     for (let i = 0; i < 4; i++) {
       const s = new P.Sprite(P.Texture.EMPTY);
       s.anchor.set(0.5);
       s.visible = false;
       h.addChild(s);
       this.icons.push(s);
+      const mk = () => { const sp = new P.Sprite(P.Texture.EMPTY); sp.anchor.set(0.5); sp.visible = false; h.addChild(sp); return sp; };
+      this.iconMarks.push({ track: mk(), arc: mk(), label: mk(), text: null, res: 0 });
     }
     this.blockIcon = new P.Sprite(statusTexture('blocked'));
     this.blockIcon.anchor.set(0.5);
@@ -882,6 +887,7 @@ export class UnitView {
     this.sp = s.sp; this.spMax = s.spMax;
     this.ammo = s.ammo || null; this.wolves = s.wolves || null; this.neg = s.neg > 0 ? Math.min(1, s.neg) : 0;
     this.coins = s.coins || null;
+    this.st = s.st || null;
     const prevFlags = this.flags;
     this.flags = s.flags | 0;
     this.anim = s.anim | 0;
@@ -1483,13 +1489,15 @@ export class UnitView {
     for (let i = 0; i < this.icons.length; i++) {
       const ic = this.icons[i];
       const key = icons[i];
-      if (!key || !this.alive || prep) { ic.visible = false; continue; }
+      const mark = this.iconMarks[i];
+      if (!key || !this.alive || prep) { ic.visible = false; this._hideIconMark(mark); continue; }
       const tex = statusTexture(key);
-      if (!tex) { ic.visible = false; continue; }
+      if (!tex) { ic.visible = false; this._hideIconMark(mark); continue; }
       ic.texture = tex;
       ic.visible = true;
       ic.width = ic.height = isz;
       ic.position.set(x - ((icons.length - 1) * (isz + 2)) / 2 + i * (isz + 2), iy);
+      this._updateIconMark(mark, key, ic.position.x, iy, isz, alpha);
     }
     // 狼影 pips under the bars (b.snap `wolves`), then the element gauge row under them (b.snap `elem`); redeploy ring above a
     // knocked-down operator (b.snap `down`)
@@ -1816,6 +1824,47 @@ export class UnitView {
       this.actor.spine.position.set(0, 0);
       this.body.addChild(this.actor.spine);
     }
+  }
+
+  /** The ring and number of status icon `icon` (b.snap `st` rows whose status draws that icon); hidden without either. */
+  _updateIconMark(mark, icon, cx, cy, isz, alpha) {
+    let end = null, dur = null, value = null, valueKey = null;
+    for (const row of this.st || []) {
+      if (statusIconKey(row[0]) !== icon) continue;
+      if (row[1] != null && (end == null || row[1] > end)) { end = row[1]; dur = row[2]; }
+      // statuses sharing an icon have different units (减速 % and 攻击速度降低 points both draw 'slow'): the icon's own
+      // status first, else the first one with a value
+      if (row[3] != null && (value == null || (row[0] === icon && valueKey !== icon))) { value = row[3]; valueKey = row[0]; }
+    }
+    const left = end == null ? 0 : end - this.gameT;
+    if (left > 0 && dur > 0) {
+      const tex = hudRings();
+      const k = (isz / 2 + 2) / 26; // textures.js RING_R
+      mark.track.texture = tex.track;
+      mark.arc.texture = ringArc(clamp(left / dur, 0, 1));
+      for (const sp of [mark.track, mark.arc]) { sp.scale.set(k); sp.position.set(cx, cy); sp.alpha = alpha; sp.visible = true; }
+    } else {
+      mark.track.visible = false;
+      mark.arc.visible = false;
+    }
+    const text = statusValueLabel(valueKey, value);
+    if (!text) { mark.label.visible = false; return; }
+    const res = this.ctx.renderer?.resolution || 1;
+    if (mark.text !== text || mark.res !== res) {
+      mark.text = text;
+      mark.res = res;
+      mark.label.texture = downLabel(text, '#ffe08a', res);
+    }
+    mark.label.scale.set((isz * 0.5) / 32); // DOWN_LABEL_STYLE fontSize
+    mark.label.position.set(cx, cy + isz * 0.5);
+    mark.label.alpha = alpha;
+    mark.label.visible = true;
+  }
+
+  _hideIconMark(mark) {
+    mark.track.visible = false;
+    mark.arc.visible = false;
+    mark.label.visible = false;
   }
 
   _iconKeys() {

@@ -51,6 +51,23 @@ Known issue: stale browser data (2026-10-10)
 - What the browser keeps (server/http/files.js cacheControlFor): html, code and data are `no-cache` (revalidated every load); public/assets, public/fonts and public/vendor are cached for 1 day; `?v=` URLs are immutable. The asset-preload Service Worker (public/resource-sw.js) also stores /assets, /fonts and /media in Cache Storage. The vendor libraries did not change between en-translation and main, so the 1-day cache and the Service Worker's stored art are the leading suspects.
 - Possible fixes to look at: version-stamp the 1-day-cached URLs per build (`?v=<build>`), show a "new version, reload" prompt when the build changes (upstream already detects new builds, CHANGELOG 0.2.2), and have the engine-failure toast offer a reload / cache clear.
 
+Next batch (2026-10-14), two PRs into main, both built on `wip/sync-yuri-0.2.5`
+
+- PR A `wip/status-details` (display only, also for Yuri): status icons show a ring for the time left and the value
+  (脆弱 30 %, 减速 50 % …). Same-name statuses don't add up (同名效果取最高): the icon shows the strongest in force, and a
+  weaker one that outlasts it takes over when it ends.
+- PR B (custom lobbies only, behind host options):
+  - choose the map and the alliance bans (unchosen slots stay random);
+  - Alliance Modules: Laterano Mod B, Victoria Mod C (matchmaking stays on Mod A);
+  - rebalanced alliances: Virtuosa also in Swift and Aid; Blaze replaces Catherine in her shop slot (tier 4, price 3,
+    Catherine's skill slot and levels; Yan + Victoria; when sold, produces Blaze the Igniting Spark).
+  - Follow ROADMAP SPA-CC's rule categories: modules are Neutral, map / ban picks are RNG Reducers ("seeded" on the end
+    screen), the existing +2 Funds / +2 Deploy Limit / untimed are Cheats ("WITH CHEATS" watermark). This needs a
+    rules selector with room for many more options, and the end screen listing every rule in force.
+- [ ] Investigate SPA-CC (ROADMAP "SPA-CC"): a Contingency-Contract-style difficulty above Ultimate — difficulty tags
+  worth risk, shown as e.g. "Ultimate+5 seeded". Go through the tag ideas one by one (which hooks exist, which enemies
+  are in the data, effort), and say which tags are cheap, which need new sim hooks, and which need Fish's input.
+
 # to be ported to yuri
 
 - [x] English docs (README, CHANGELOG, NOTICE, DEPLOY, PLAYING, WINDOWS `.en.md`): Yuri #3, merged, then updated by Yuri for the current repo state.

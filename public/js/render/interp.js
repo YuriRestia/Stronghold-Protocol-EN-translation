@@ -89,8 +89,8 @@ export function frameTime(msg) {
 
 /**
  * Validate & normalise a b.snap payload. Returns `{ t, units: Map<id, tuple>, down: [[id, respawnAt, respawnTime,
- * state, row?, col?]] | null, ammo, wolves: Map id → [left, max] | null, neg: Map id → fill | null, stand: Map<id, until> | null,
- * standCut: Map<id, at> | null, raw }` or null when unusable. Tuples with a non-finite id/x/y are skipped; other numbers
+ * state, row?, col?]] | null, ammo, wolves: Map id → [left, max] | null, neg: Map id → fill | null, st: Map id → [[status,
+ * endsAt, duration, value]] | null, stand: Map<id, until> | null, standCut: Map<id, at> | null, raw }` or null when unusable. Tuples with a non-finite id/x/y are skipped; other numbers
  * default to 0; a unit's `elem` entry (see header) is appended to its tuple; malformed `elem` / `down` / `ammo` / `wolves` /
  * `neg` entries are dropped. `stand` keeps finite end times after `t` of units in the snapshot; `standCut` keeps finite
  * times in [0, t] of units in it.
@@ -133,6 +133,20 @@ export function normalizeSnapshot(snap) {
       (down || (down = [])).push(e);
     }
   }
+  // the time left and strength of each status icon (server/sim/snapshot.js statusView): endsAt / duration finite or both
+  // null, value finite or null
+  let st = null;
+  if (Array.isArray(snap.st)) {
+    for (const e of snap.st) {
+      if (!Array.isArray(e) || !units.has(e[0]) || typeof e[1] !== 'string') continue;
+      const timed = Number.isFinite(e[2]) && Number.isFinite(e[3]) && e[3] > 0;
+      const value = Number.isFinite(e[4]) ? e[4] : null;
+      if (!timed && value == null) continue;
+      const row = [e[1], timed ? e[2] : null, timed ? e[3] : null, value];
+      const list = (st || (st = new Map())).get(e[0]);
+      if (list) list.push(row); else st.set(e[0], [row]);
+    }
+  }
   let stand = null;
   if (Array.isArray(snap.stand)) {
     for (const e of snap.stand) {
@@ -147,7 +161,7 @@ export function normalizeSnapshot(snap) {
       (standCut || (standCut = new Map())).set(e[0], e[1]);
     }
   }
-  return { t, units, down, ammo, wolves, coins, neg, stand, standCut, raw: snap };
+  return { t, units, down, ammo, wolves, coins, neg, st, stand, standCut, raw: snap };
 }
 
 /**
@@ -404,6 +418,7 @@ export class SnapshotBuffer {
       o.wolves = A.wolves ? A.wolves.get(id) || null : null;
       o.coins = A.coins?.get(id) ?? null;
       o.neg = A.neg ? A.neg.get(id) || 0 : 0;
+      o.st = A.st?.get(id) ?? null;
       o.seen = stamp;
     }
     for (const id of out.keys()) if (!A.units.has(id)) out.delete(id);

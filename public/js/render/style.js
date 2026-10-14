@@ -193,6 +193,21 @@ export function statusIconSuppressed(key, statuses) {
   return typeof statuses.has === 'function' ? statuses.has('silence') : Array.isArray(statuses) && statuses.includes('silence');
 }
 
+/** Statuses whose value is a share (0.3 = 30 %): 脆弱 and its kinds, 减速, 虚弱, 防御力降低, 抵抗. */
+const SHARE_STATUS = new Set(['fragile', 'artsFragile', 'physFragile', 'elemFragile', 'slow', 'weaken', 'defDown', 'resist']);
+
+/**
+ * The number on a status icon (b.snap `st` value, server/sim/snapshot.js statusView): a share as a whole percent ("30%"),
+ * 攻击速度降低 / 法术抗性降低 as points ("30"), 麻痹 as its stacks ("3"); null for a status without a shown value.
+ */
+export function statusValueLabel(key, value) {
+  if (!Number.isFinite(value)) return null;
+  if (SHARE_STATUS.has(key)) return `${Math.round(Math.abs(value) * 100)}%`;
+  if (key === 'aspdDown' || key === 'resDown') return String(Math.round(Math.abs(value)));
+  if (key === 'palsy') return value >= 1 ? String(Math.round(value)) : null;
+  return null;
+}
+
 /** Icon key (textures STATUS_KEYS) for a b.ev status key or flag name; null when it has no icon. */
 export function statusIconKey(key) {
   if (typeof key !== 'string' || !key) return null;
