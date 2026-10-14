@@ -7,6 +7,20 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-14
 
+### Changes
+
+- `GET /healthz?traffic=1` (loopback / private-network clients only, as before) also reports what blocks the main
+  thread: `loop`, the event loop's lateness per minute (mean / p50 / p99 / max from `monitorEventLoopDelay`, and how
+  often a 10 ms tick fired 50 / 100 / 250 / 1000 ms late, with the longest), and `sim`, the time the server's own
+  battle simulation took per minute, by kind (`headless` bot seats and takeovers, `rehearsal`, `prep` bot decisions,
+  `boss`, `runner`) with the longest single slice and the longest burst of back-to-back slices (`server/http/loopStats.js`, `server/match/simMeter.js`). The wait a player's action sees
+  is the `loop` delay; when `sim` rises with it, the simulation is what holds the thread. A measurement on the public
+  server (2026-10-14, about 150 matches and 30 AI seats) had found stalls of 100 ms to 1 s several times a minute.
+- One log line per combat start: `[match CODE] R<n> combat: <fields> field(s), <k> server-run`, so the server journal
+  can be read against those stalls (`server/match/match/combat.js`).
+- `SP_BOT_REHEARSAL` (0–8, default 3) sets how many layouts an AI teammate rehearses with the real simulation per Rest
+  Phase; `0` skips the rehearsal. A knob for a public host, README env table.
+
 ### Fixes
 
 - The last 15 cut-off models are fixed: the clip measurement also poses every animation key (and the instant before

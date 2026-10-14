@@ -17,6 +17,8 @@
 //   http/routes.js     the request listener: security headers, 414 / 400 / 405, GET /healthz → JSON status, else static
 //   http/traffic.js    the traffic counters: bytes sent per category (assets / audio / code / data) and on the
 //                      WebSocket, since the start (GET /healthz?traffic=1)
+//   http/loopStats.js  (fork) the event loop's lateness per minute, and match/simMeter.js the server-side simulation
+//                      time per minute (both GET /healthz?traffic=1)
 //   http/common.js     what every answer shares: security headers, URL split, error page, JSON replies, bare 400
 //   http/boot.js       a pending update package first (update.js: old files deleted, the install verified against
 //                      MANIFEST.json), banner (Local / LAN / tunnel URLs), port-in-use hint, graceful shutdown on SIGINT /
@@ -44,6 +46,8 @@ import { MIME, COMPRESSIBLE, acceptsGzip, pickEncoding, parseRange } from './htt
 import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/buildTag.js';
 import { createRequestHandler } from './http/routes.js';
 import { createTrafficCounter } from './http/traffic.js';
+import { createLoopStats } from './http/loopStats.js';
+import { simMeter } from './match/simMeter.js';
 import { createAssetIndex } from './http/assetIndex.js';
 import { createManifestViews } from './http/assetViews.js';
 import { answerClientError } from './http/common.js';
@@ -131,7 +135,8 @@ export async function startServer(opts = {}) {
   }
 
   const traffic = createTrafficCounter();
-  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby, traffic, assetIndex, views, generation }, log, trustProxy: network.opts.trustProxy }));
+  const loop = createLoopStats(); // (fork) /healthz?traffic=1 `loop` and `sim`: what blocks the main thread
+  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby, traffic, assetIndex, views, generation, loop, sim: simMeter }, log, trustProxy: network.opts.trustProxy }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log, traffic });
 
@@ -167,6 +172,7 @@ export async function startServer(opts = {}) {
   } catch (e) {
     network.close(); // stop heartbeat/sweep timers of the half-built server
     assetIndex?.close();
+    loop.stop();
     throw e;
   }
   server.on('error', (e) => log.error('[http] server error', e));
@@ -186,6 +192,7 @@ export async function startServer(opts = {}) {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       notices?.stop();
       presence.stop();
+      loop.stop();
       generation?.stop();
       network.close();
       assetIndex?.close();

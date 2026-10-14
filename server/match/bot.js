@@ -88,6 +88,7 @@ import { withBounties, isFlyKey } from './waves.js';
 import { mitigate } from '../sim/damage.js';
 import { HOVER_KEYS } from '../sim/content/enemies.js';
 import { attackRangeGrid, loadoutRecord, resolveRecordLoadout } from '../../shared/loadoutRecord.js';
+import { simMeter } from './simMeter.js';
 
 /**
  * Drive a step generator (planLayoutSteps, createRehearsalSteps, arrangeSteps, botPrepBeginSteps …) to its end in one
@@ -1134,6 +1135,11 @@ export function* createRehearsalSteps(m, ps, chosen, plans) {
     best: cands[0],
     done: false,
     run(budgetMs = Infinity) {
+      const t0 = performance.now();
+      try { return runInner(budgetMs); } finally { simMeter.add('rehearsal', performance.now() - t0); } // (fork) simMeter.js
+    },
+  };
+  const runInner = (budgetMs) => {
       const timed = Number.isFinite(budgetMs);
       const t0 = timed ? performance.now() : 0;
       let n = 0;
@@ -1170,7 +1176,6 @@ export function* createRehearsalSteps(m, ps, chosen, plans) {
       }
       job.done = true;
       return true;
-    },
   };
   return job;
 }
