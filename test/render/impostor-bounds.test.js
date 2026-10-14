@@ -92,11 +92,12 @@ describe('clip bounds (render/spine.js): what a skeleton draws, measured once pe
     const recA = spine.requestClipBounds(a, rt.Skeleton, ['Wave', 'Still']);
     spine.requestClipBounds(b, rt.Skeleton, ['Still']);
     assert.equal(spine.pendingClipBounds(), 3);
-    // a spent budget still poses once per call: 'Wave' (1 s: 48 + 1 poses) takes 49 calls
+    // a spent budget still poses once per call: 'Wave' (1 s: 48 + 1 poses, plus (fork) the instants just before its
+    // keys at 0.5 s and 1 s — spine.js clipTimes) takes 51 calls
     let calls = 0, finished = 0;
     while (!finished) { finished = spine.stepClipBounds(0); calls++; }
-    assert.equal(calls, spine.CLIP_SAMPLE_MAX + 1);
-    near(recA.rects.get('Wave'), [-50, -200, 425, 25], 'Wave across 49 calls');
+    assert.equal(calls, spine.CLIP_SAMPLE_MAX + 1 + 2);
+    near(recA.rects.get('Wave'), [-50, -200, 425, 25], 'Wave across 51 calls');
     assert.equal(spine.pendingClipBounds(), 2);
     assert.equal(spine.stepClipBounds(0), 1, 'Still: one pose');
     assert.equal(spine.stepClipBounds(0), 1, 'then the next skeleton\'s');

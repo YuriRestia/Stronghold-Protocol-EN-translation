@@ -1987,6 +1987,9 @@ export class UnitView {
 
   /** Is a clip outside the box (`over`) on screen — the track's clip or one it is still mixing out of? */
   _impOver() {
+    // (fork) a crossfade drawing past the box (SpineActor.mixRect: a blend of two poses passes outside both clips)
+    const m = this.actor.mixRect, b = this._box;
+    if (m && b && (m[0] < b.x0 || m[1] < b.y0 || m[2] > b.x0 + b.w || m[3] > b.y0 + b.h)) return true;
     const over = this._box && this._box.over;
     if (!over || !over.size) return false;
     const tracks = this.actor.spine && this.actor.spine.state ? this.actor.spine.state.tracks : null;

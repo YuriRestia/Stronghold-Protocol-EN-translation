@@ -25,9 +25,28 @@ const MODELS = {
   miksaparato: { id: 'char_4194_rmixer' },
   gummySummer: { id: 'char_196_sunbr_summer_1', outfit: 'char_196_sunbr@summer#1' },
 };
+/** (fork) Models whose pose fell between two even samples of the clip measurement (spine.js clipTimes posts key times
+ *  too): a pose past both the measured and the extents box before. Key → the clip that left it. */
+const KEYED = {
+  'char_188_helage': 'Skill', 'char_4226_veen': 'Skill_1_Attack', 'char_2015_dusk': 'Skill3_Attack',
+  'char_4065_judge': 'Skill_1_Attack', 'char_4145_ulpia': 'Skill_1_Begin', 'char_1043_leizi2': 'Skill_3_Loop',
+  'char_1016_agoat2@epoque#34': 'Skill_3_Loop', 'char_1023_ghost2@boc#6': 'Idle_B', 'char_188_helage@boc#2': 'Skill',
+  'char_2015_dusk@nian#7': 'Skill3_Attack', 'char_391_rosmon@epoque#17': 'Attack_A',
+  'char_4027_heyak@ambienceSynesthesia#4': 'Skill_3_Loop', 'char_4064_mlynar@iteration#3': 'Skill_3_Loop',
+  'char_430_fartth@whirlwind#5': 'Attack_Loop', 'char_491_humus@marthe#10': 'Skill_2_Loop',
+};
+for (const key of Object.keys(KEYED)) {
+  const [charId] = key.split('@');
+  const e = key.includes('@') ? ASSETS.outfits?.chars?.[key]?.spine?.front : ASSETS.chars[key]?.spine?.front;
+  const file = e?.skel ? decodeURIComponent(e.skel) : '';
+  MODELS[key] = { id: path.basename(file, '.skel'), outfit: key.includes('@') ? key : null, charId, clip: KEYED[key] };
+}
+MODELS.ines = { id: 'char_4087_ines' };
+MODELS.inesBoc = { id: 'char_4087_ines_boc_8', outfit: 'char_4087_ines@boc#8' };
 for (const m of Object.values(MODELS)) {
-  m.dir = path.join(ROOT, 'public', 'assets', m.outfit ? 'outfit/spine' : 'spine/op', m.id, 'front');
   m.entry = m.outfit ? ASSETS.outfits?.chars?.[m.outfit]?.spine?.front : ASSETS.chars[m.id]?.spine?.front;
+  m.dir = m.entry?.skel ? path.dirname(path.join(ROOT, 'public', decodeURIComponent(m.entry.skel)))
+    : path.join(ROOT, 'public', 'assets', m.outfit ? 'outfit/spine' : 'spine/op', m.id, 'front');
 }
 const have = (m) => !!m.entry && existsSync(path.join(m.dir, `${m.id}.skel`)) && existsSync(path.join(m.dir, `${m.id}.atlas`));
 
@@ -53,10 +72,10 @@ function skeletonData(m) {
 function unit(m) {
   const a = new spine.SpineActor(skeletonData(m), m.entry);
   const view = Object.assign(Object.create(units.UnitView.prototype), {
-    actor: a, lodIdle: false, fortress: !!m.fortress, lord: !!m.lord, info: { spine: m.id, defId: m.id },
+    actor: a, lodIdle: false, fortress: !!m.fortress, lord: !!m.lord, info: { spine: m.charId || m.id, defId: m.charId || m.id },
   });
   let box = view._impBox();
-  for (let frames = 0; !box && frames < 10000; frames++) { spine.stepClipBounds(); box = view._impBox(); }
+  for (let frames = 0; !box && frames < 100000; frames++) { spine.stepClipBounds(50); box = view._impBox(); }
   assert.ok(box, 'the box is measured');
   return { a, view, box };
 }
@@ -150,8 +169,9 @@ describe('impostor boxes of the models this fork fixed (render/units.js _impBox)
     assert.ok(!view._clipNames().has('Attack02'));
   });
 
-  test('every model above: every clip it plays, at 30 Hz, inside the box unless left to a direct draw', { skip: skipOf(...Object.values(MODELS)) }, (t) => {
-    for (const m of Object.values(MODELS)) {
+  const named = ['ashlock', 'horn', 'thorns', 'silverash', 'miksaparato', 'gummySummer'].map((k) => MODELS[k]);
+  test('every model above: every clip it plays, at 30 Hz, inside the box unless left to a direct draw', { skip: skipOf(...named) }, (t) => {
+    for (const m of named) {
       const { a, view, box } = unit(m);
       const { worst, at } = worstPose(a, view, box);
       t.diagnostic(`${m.id}: closest to the edge ${(-worst).toFixed(1)} units inside (${at}); over: ${[...box.over].join(', ') || '—'}`);
@@ -184,6 +204,84 @@ describe('widenByExtents: the measured box grown to the build-time extents', () 
     assert.equal(units.widenByExtents(box, { Idle: [-100, -300, 100, 0] }, names), box);
     assert.equal(units.widenByExtents(box, undefined, names), box);
     assert.equal(units.widenByExtents(box, { Idle: [NaN, 0, 0, 0] }, names), box);
+  });
+});
+
+describe('poses between two even samples: the clip measurement posts key times too (spine.js clipTimes)', () => {
+  const keyed = Object.keys(KEYED).map((k) => MODELS[k]);
+  test('every clip of the 15 models a roster sweep found past both boxes, at 30 Hz, inside the box now', { skip: skipOf(...keyed) }, (t) => {
+    for (const m of keyed) {
+      const { a, view, box } = unit(m);
+      const { worst, at } = worstPose(a, view, box);
+      t.diagnostic(`${m.outfit || m.id}: closest to the edge ${(-worst).toFixed(1)} units inside (${at})`);
+      assert.ok(worst <= 0, `${m.outfit || m.id}: ${at} is ${worst.toFixed(1)} units past the box`);
+    }
+  });
+});
+
+describe('a crossfade draws nothing far from both of its clips (SpineActor._mixGuard)', () => {
+  /** A real actor, its clips measured, driven like a battle unit: attacks every `iv` s without a wind-up, `frames` at 60 fps. */
+  function drive(m, iv, frames, onFrame) {
+    const a = new spine.SpineActor(skeletonData(m), m.entry);
+    const names = [...new Set(Object.keys(m.entry.animations || {}))];
+    while (a.clipBounds(names) === null) spine.stepClipBounds(1000);
+    a.update(1.3);
+    let t = 0, next = 0.3;
+    for (let f = 0; f < frames; f++) {
+      if (t >= next) { a.attack(iv); next += iv; }
+      a.update(1 / 60); t += 1 / 60;
+      onFrame(a, t);
+    }
+    return a;
+  }
+  /** The visible slots drawn past `x` (or above `y` from below: `dy`), as [slot, alpha]. */
+  function drawnPast(a, { x = Infinity, y = Infinity }) {
+    const out = [];
+    for (const sl of a.spine.skeleton.drawOrder) {
+      const att = sl.getAttachment();
+      if (!att || !sl.bone.active || !a.spine.slotContainers[sl.data.index].visible) continue;
+      const al = sl.color.a * att.color.a;
+      if (al <= 0.004) continue;
+      let n = 8;
+      if (att instanceof rt.RegionAttachment) { att.updateOffset(); att.computeWorldVertices(sl.bone, V, 0, 2); }
+      else if (att instanceof rt.MeshAttachment) { n = att.worldVerticesLength; att.computeWorldVertices(sl, 0, n, V, 0, 2); }
+      else continue;
+      for (let k = 0; k < n; k += 2) if (V[k] > x || V[k + 1] > y) { out.push([sl.data.name, al]); break; }
+    }
+    return out;
+  }
+
+  test('伊内丝 Ines: her slashes (A1–A4, parked ~1600 units to her right at alpha 0) never show away from her blade', { skip: skipOf(MODELS.ines) }, () => {
+    let seen = 0, mixing = 0;
+    for (const iv of [0.6, 0.9, 1.25, 1.6]) {
+      drive(MODELS.ines, iv, 60 * 5, (a) => {
+        if (a.spine.state.tracks[0]?.mixingFrom) mixing++;
+        const far = drawnPast(a, { x: 420 });
+        if (far.length) seen++;
+        assert.deepEqual(far, [], `nothing drawn past x 420 (her measured clips reach ${Math.round(MODELS.ines.entry.extents.Attack[2])})`);
+      });
+    }
+    assert.ok(mixing > 0 && seen === 0, 'crossfades happened, none drew a slash away from her');
+  });
+
+  test('伊内丝\'s \'boc\' outfit: the crossfade back to idle no longer slides her body up from 900 units below her', { skip: skipOf(MODELS.inesBoc) }, () => {
+    drive(MODELS.inesBoc, 0.7, 60 * 3, (a, t) => {
+      const far = drawnPast(a, { y: 200 });
+      assert.deepEqual(far, [], `at ${t.toFixed(2)} s nothing drawn below y 200 (her clips reach ${Math.round(MODELS.inesBoc.entry.extents.Idle[3])})`);
+    });
+  });
+
+  test('a crossfade inside both clips keeps every slot and its blend', { skip: skipOf(MODELS.ashlock) }, () => {
+    let mixed = 0;
+    drive(MODELS.ashlock, 1.3, 60 * 4, (a) => {
+      const tr = a.spine.state.tracks[0];
+      if (!tr?.mixingFrom) return;
+      mixed++;
+      for (const sl of a.spine.skeleton.drawOrder) {
+        if (sl.getAttachment()) assert.ok(a.spine.slotContainers[sl.data.index].visible, `${sl.data.name} stays drawn`);
+      }
+    });
+    assert.ok(mixed > 0, 'his attacks crossfade');
   });
 });
 

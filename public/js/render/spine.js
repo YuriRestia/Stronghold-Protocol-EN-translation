@@ -192,33 +192,61 @@ const rectOk = (r) => !!r && Number.isFinite(r[0]) && Number.isFinite(r[1]) && N
 
 /** Grow `r` by everything `skel` draws in its current pose (see "clip bounds"); `buf.v` is a scratch vertex buffer. */
 function poseRect(skel, r, buf) {
-  const grow = (x, y) => { if (x < r[0]) r[0] = x; if (x > r[2]) r[2] = x; if (y < r[1]) r[1] = y; if (y > r[3]) r[3] = y; };
-  for (const slot of skel.drawOrder) {
-    const bone = slot.bone;
-    if (!bone || bone.active === false) continue;
-    const att = typeof slot.getAttachment === 'function' ? slot.getAttachment() : slot.attachment;
-    if (!att || (slot.color ? slot.color.a : 1) * (att.color ? att.color.a : 1) <= 0.004) continue;
-    if (att.type === ATT_MESH && typeof att.computeWorldVertices === 'function') {
-      const n = att.worldVerticesLength | 0;
-      if (n < 2) continue;
-      if (buf.v.length < n) buf.v = new Float32Array(n);
-      const v = buf.v;
-      att.computeWorldVertices(slot, 0, n, v, 0, 2);
-      for (let k = 0; k < n; k += 2) grow(v[k], v[k + 1]);
-    } else if (att.type === ATT_REGION && bone.matrix) {
-      // the attachment rectangle (width × height × scale, rotated, at x / y) through the bone (a PIXI matrix)
-      const m = bone.matrix;
-      const hw = (att.width * att.scaleX) / 2, hh = (att.height * att.scaleY) / 2;
-      const rad = (att.rotation * Math.PI) / 180, c = Math.cos(rad), s = Math.sin(rad);
-      for (let q = 0; q < 4; q++) {
-        const px = q === 0 || q === 3 ? -hw : hw, py = q < 2 ? -hh : hh;
-        const lx = px * c - py * s + att.x, ly = px * s + py * c + att.y;
-        grow(m.a * lx + m.c * ly + m.tx, m.b * lx + m.d * ly + m.ty);
-      }
-    }
-  }
+  for (const slot of skel.drawOrder) slotRect(slot, r, buf);
   return r;
 }
+
+/**
+ * (fork) Grow `r` by what one slot draws in the current pose (poseRect; SpineActor._mixGuard): false when it draws
+ * nothing (no attachment, an inactive bone, alpha ≈ 0, another attachment type).
+ */
+function slotRect(slot, r, buf) {
+  const grow = (x, y) => { if (x < r[0]) r[0] = x; if (x > r[2]) r[2] = x; if (y < r[1]) r[1] = y; if (y > r[3]) r[3] = y; };
+  const bone = slot.bone;
+  if (!bone || bone.active === false) return false;
+  const att = typeof slot.getAttachment === 'function' ? slot.getAttachment() : slot.attachment;
+  if (!att || (slot.color ? slot.color.a : 1) * (att.color ? att.color.a : 1) <= 0.004) return false;
+  if (att.type === ATT_MESH && typeof att.computeWorldVertices === 'function') {
+    const n = att.worldVerticesLength | 0;
+    if (n < 2) return false;
+    if (buf.v.length < n) buf.v = new Float32Array(n);
+    const v = buf.v;
+    att.computeWorldVertices(slot, 0, n, v, 0, 2);
+    for (let k = 0; k < n; k += 2) grow(v[k], v[k + 1]);
+    return true;
+  }
+  if (att.type === ATT_REGION && bone.matrix) {
+    // the attachment rectangle (width × height × scale, rotated, at x / y) through the bone (a PIXI matrix)
+    const m = bone.matrix;
+    const hw = (att.width * att.scaleX) / 2, hh = (att.height * att.scaleY) / 2;
+    const rad = (att.rotation * Math.PI) / 180, c = Math.cos(rad), s = Math.sin(rad);
+    for (let q = 0; q < 4; q++) {
+      const px = q === 0 || q === 3 ? -hw : hw, py = q < 2 ? -hh : hh;
+      const lx = px * c - py * s + att.x, ly = px * s + py * c + att.y;
+      grow(m.a * lx + m.c * ly + m.tx, m.b * lx + m.d * ly + m.ty);
+    }
+    return true;
+  }
+  return false;
+}
+
+/** (fork) A clip's timelines that decide what its slots draw (attachment and colour keys; SpineActor._hiddenByOutgoing),
+ *  listed once per clip. */
+const slotTimelinesOf = new WeakMap();
+function slotTimelines(anim) {
+  let list = slotTimelinesOf.get(anim);
+  if (!list) {
+    list = (anim.timelines || []).filter((tl) => tl && Number.isInteger(tl.slotIndex) && typeof tl.apply === 'function'
+      && !(tl.attachment && 'vertices' in tl.attachment));   // not the deform timelines (vertex offsets only)
+    slotTimelinesOf.set(anim, list);
+  }
+  return list;
+}
+
+/** (fork) SpineActor._mixGuard: how far past the mixed clips' bounds a slot may reach while they crossfade — `min`
+ *  skeleton units + `share` × the bounds' longer side (a blend of two poses sits between them; poses between two
+ *  samples). [ASSUMED] the values. */
+export const MIX_GUARD_PAD = Object.freeze({ min: 40, share: 0.08 });
 
 /** The scratch skeleton of a bounds record (made on demand, dropped once its queued clips are sampled). */
 function scratchSkeleton(rec) {
@@ -258,7 +286,53 @@ function startClip(rec, name) {
   const d = Number.isFinite(anim.duration) && anim.duration > 0 ? anim.duration : 0;
   const n = d > 0 ? Math.min(CLIP_SAMPLE_MAX, Math.max(1, Math.ceil(d * CLIP_SAMPLE_HZ))) : 0;
   scratchSkeleton(rec).setToSetupPose();
-  return { name, anim, d, n, i: 0, r: emptyRect() };
+  const times = clipTimes(anim, d, n);
+  return { name, anim, d, n: times.length - 1, i: 0, times, r: emptyRect() };
+}
+
+/** (fork) At most this many key-time poses (a key and the instant before it) on top of a clip's even samples (thinned evenly past it). */
+export const CLIP_SAMPLE_KEYS = 480;
+/** (fork) Seconds before a key also posed (the pose a timeline reaches just before it jumps at the key). */
+export const CLIP_KEY_LEAD_S = 0.0002;
+
+/**
+ * (fork) The times a clip is posed at: the even samples t = d·i/n, plus every key of its timelines (at most
+ * CLIP_SAMPLE_KEYS of them) — a pose held for a frame between two even samples (赫拉格 Hellagur's katana reaching 160
+ * units further at 0.70 s of his 1.33 s skill, 维伊 Veen's shadow) left the box otherwise. Sorted, the ones within 1 ms
+ * of another dropped. Key times are read from each timeline's `frames` (pixi-spine 3.x: one time per getFrameCount()
+ * entries, its first; 4.x: getFrameEntries()); a timeline that does not expose them adds nothing.
+ */
+function clipTimes(anim, d, n) {
+  const even = [];
+  for (let i = 0; i <= n; i++) even.push(n ? (d * i) / n : 0);
+  if (!(d > 0) || !Array.isArray(anim.timelines)) return even;
+  const keys = [];
+  for (const tl of anim.timelines) {
+    const f = tl && tl.frames;
+    if (!f || typeof f.length !== 'number') continue;
+    let count = 0, stride = 0;
+    try {
+      if (typeof tl.getFrameEntries === 'function') { stride = tl.getFrameEntries(); count = f.length / stride; }
+      else if (typeof tl.getFrameCount === 'function') { count = tl.getFrameCount(); stride = count > 0 ? f.length / count : 0; }
+    } catch { continue; }
+    if (!(count > 0) || !Number.isInteger(stride) || stride < 1) continue;
+    for (let k = 0; k < count; k++) { const t = f[k * stride]; if (Number.isFinite(t) && t > 0 && t <= d) keys.push(t); }
+  }
+  if (!keys.length) return even;
+  // one entry per key time (timelines share most of them: a clip authored at 30 fps has at most 30 a second)
+  keys.sort((x, y) => x - y);
+  const uniq = [];
+  for (const t of keys) if (!uniq.length || t - uniq[uniq.length - 1] > CLIP_KEY_LEAD_S / 2) uniq.push(t);
+  // a key and the instant before it: a pose can jump there (维伊's shadow 160 units further 1 ms before a deform key)
+  keys.length = 0;
+  for (const t of uniq) { if (t - CLIP_KEY_LEAD_S > 0) keys.push(t - CLIP_KEY_LEAD_S); if (t < d) keys.push(t); }
+  const picked = keys.length > CLIP_SAMPLE_KEYS
+    ? Array.from({ length: CLIP_SAMPLE_KEYS }, (_, i) => keys[Math.floor((i * keys.length) / CLIP_SAMPLE_KEYS)])
+    : keys;
+  const all = [...even, ...picked].sort((x, y) => x - y);
+  const out = [];
+  for (const t of all) if (!out.length || t - out[out.length - 1] > CLIP_KEY_LEAD_S / 2) out.push(t);
+  return out;
 }
 
 /**
@@ -315,7 +389,7 @@ export function stepClipBounds(budgetMs = CLIP_BOUNDS_BUDGET_MS) {
     try {
       const skel = scratchSkeleton(rec);
       while (j.i <= j.n) {
-        const t = j.n ? (j.d * j.i) / j.n : 0;
+        const t = j.times ? j.times[j.i] : j.n ? (j.d * j.i) / j.n : 0;
         j.anim.apply(skel, t, t, false, null, 1, 0, 0);   // MixBlend.setup, MixDirection.mixIn: the clip's own pose at t
         skel.updateWorldTransform();
         poseRect(skel, j.r, rec.buf);
@@ -360,6 +434,7 @@ export class SpineActor {
     this.clipNeeded = this.clipped && needsClipping(spineData); // non-eyelid clips: the masks stay on (setClipping)
     this.clipOn = true;
     this._clipHidden = new Set(); // slot indexes the eyelid fallback hid in its last pass (_eyeMaskFallback)
+    this.mixRect = null;          // (fork) what a crossfade drew in the last update, [x0, y0, x1, y1] (_mixGuard)
     if (this.clipped) {
       const sp = this.spine;
       const orig = typeof sp.createGraphics === 'function' ? sp.createGraphics.bind(sp) : null;
@@ -986,6 +1061,8 @@ export class SpineActor {
       } catch { /* a broken skeleton must not stop the frame */ }
     }
     if (this.clipped && !this.clipOn) this._eyeMaskFallback();
+    this.mixRect = null;
+    if (!this.frozen) this._mixGuard();
     this._applied = true;
     this._appliedTint = this.spine.tint;
   }
@@ -1037,6 +1114,87 @@ export class SpineActor {
       if (boxes && boxes[i] && slot && (typeof slot.getAttachment === 'function' ? slot.getAttachment() : slot.attachment)) boxes[i].visible = true;
     }
     this._clipHidden.clear();
+  }
+
+  /**
+   * (fork) A crossfade draws nothing far from where both of its clips draw. Bones a clip moves far away while it hides
+   * their slots (effects and props waiting out of sight) are blended in from there while the other clip shows those
+   * slots: 伊内丝 Ines's slashes (A1–A4) wait about 1600 units to her right at alpha 0 and slid in half-faded as her
+   * attack began (the "extra sprite" by her attack); her 'boc' outfit moves its waist bone 900 units below her for the
+   * last frames of its attack, so its crossfade back to idle slid her whole body up from there. While a clip mixes in
+   * (track 0), a visible slot reaching MIX_GUARD_PAD past the union of the mixed clips' measured bounds (clipBounds —
+   * what each clip draws on its own):
+   *   - is hidden for the frame when a clip mixing out does not draw it now (pixi-spine shows it again on its next
+   *     update);
+   *   - otherwise ends the crossfade (the incoming clip alone from the next frame, posed now): a slot both clips draw
+   *     blended that far out is the body itself, and hiding it would tear the model apart.
+   * `mixRect` is then what the crossfade draws ([x0, y0, x1, y1], null without one): render/units.js draws the model
+   * directly while it leaves the impostor box (a blend of two poses can pass outside both). No guard while a mixed clip
+   * is not measured.
+   */
+  _mixGuard() {
+    const sp = this.spine, tr = sp && sp.state && sp.state.tracks ? sp.state.tracks[0] : null, rec = this._bounds;
+    if (!tr || !tr.mixingFrom || !rec || !rec.rects || !sp.skeleton || !sp.slotContainers) return;
+    let u = null;
+    for (let e = tr, d = 0; e && d < 4; e = e.mixingFrom, d++) {
+      const r = rec.rects.get(e.animation && e.animation.name);
+      if (!r) return;   // not sampled, unmeasurable (false) or drawing nothing (null): no guard
+      u = unionBox(u, r);
+    }
+    const pad = MIX_GUARD_PAD.min + MIX_GUARD_PAD.share * Math.max(u[2] - u[0], u[3] - u[1]);
+    const lim = [u[0] - pad, u[1] - pad, u[2] + pad, u[3] + pad];
+    const buf = this._mixBuf || (this._mixBuf = { v: new Float32Array(256) });
+    const r = [0, 0, 0, 0];
+    let hidden = null;   // slot indexes an outgoing clip does not draw now (worked out on the first slot out of bounds)
+    let cut = false;
+    const drawn = [Infinity, Infinity, -Infinity, -Infinity];
+    try {
+      for (const slot of sp.skeleton.drawOrder) {
+        const box = sp.slotContainers[slot.data.index];
+        if (!box || !box.visible) continue;
+        r[0] = r[1] = Infinity; r[2] = r[3] = -Infinity;
+        if (!slotRect(slot, r, buf)) continue;
+        if (r[0] < lim[0] || r[1] < lim[1] || r[2] > lim[2] || r[3] > lim[3]) {
+          if (!hidden) hidden = this._hiddenByOutgoing(tr);
+          if (hidden.has(slot.data.index)) { box.visible = false; continue; }
+          cut = true;
+          break;
+        }
+        if (r[0] < drawn[0]) drawn[0] = r[0]; if (r[1] < drawn[1]) drawn[1] = r[1];
+        if (r[2] > drawn[2]) drawn[2] = r[2]; if (r[3] > drawn[3]) drawn[3] = r[3];
+      }
+      if (cut) {
+        tr.mixingFrom = null;   // the outgoing clips leave the mix (AnimationState drops them with no further pose)
+        tr.mixDuration = 0;
+        // this frame: the incoming clip alone, from the setup pose as it is measured (no bone left where the outgoing
+        // clip had moved it)
+        sp.skeleton.setToSetupPose();
+        sp.update(0);
+        if (this.clipped && !this.clipOn) this._eyeMaskFallback();
+      } else if (drawn[0] <= drawn[2]) this.mixRect = drawn;
+    } catch { /* an unknown runtime shape must never stop the frame */ }
+  }
+
+  /**
+   * (fork, _mixGuard) The slot indexes some clip mixing out of `tr` does not draw at its current time (no attachment, or
+   * alpha ≈ 0), from that clip's attachment and colour timelines on a probe skeleton (slots only, no bones posed).
+   */
+  _hiddenByOutgoing(tr) {
+    const out = new Set();
+    const data = this.spine.spineData, Skeleton = this.spine.skeleton.constructor;
+    const probe = this._probe || (this._probe = new Skeleton(data));
+    for (let e = tr.mixingFrom, d = 0; e && d < 3; e = e.mixingFrom, d++) {
+      const anim = e.animation;
+      if (!anim) continue;
+      const t = typeof e.getAnimationTime === 'function' ? e.getAnimationTime() : e.trackTime;
+      probe.setSlotsToSetupPose();
+      for (const tl of slotTimelines(anim)) tl.apply(probe, t, t, null, 1, 0, 0);   // MixBlend.setup, MixDirection.mixIn
+      for (const slot of probe.slots) {
+        const att = slot.getAttachment();
+        if (!att || (slot.color ? slot.color.a : 1) * (att.color ? att.color.a : 1) <= 0.004) out.add(slot.data.index);
+      }
+    }
+    return out;
   }
 
   /**
