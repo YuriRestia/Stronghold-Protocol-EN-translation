@@ -4,6 +4,7 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { PHASE } from '../../../shared/constants.js';
+import { simMeter } from '../simMeter.js';
 import { botPrepBeginSteps, botPrepEndSteps } from '../bot.js';
 import { DELAYS } from './common.js';
 
@@ -53,10 +54,12 @@ export class MatchPrep {
       try {
         do r = gen.next(); while (!r.done && !(bounded && now() - t0 >= this.botSliceMs));
       } catch (e) {
+        simMeter.add('prep', now() - t0); // (fork) simMeter.js
         this.reportError(`bot ${ps.playerId}${label}`, e);
         then(null);
         return;
       }
+      simMeter.add('prep', now() - t0); // (fork) simMeter.js
       if (r.done) { then(r.value); return; }
       this.later(0, () => { if (valid()) drive(gen, label, then); });
     };

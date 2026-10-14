@@ -35,6 +35,7 @@ import { TICK, SNAPSHOT_EVERY } from '../sim/constants.js';
 import { layerGainRoom } from '../../shared/constants.js';
 import { uniteLeft } from '../sim/spec.js';
 import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
+import { simMeter } from './simMeter.js';
 
 export const MAX_TICKS_PER_INTERVAL = 8;
 export const INTERVAL_MS = 1000 / 30;
@@ -139,6 +140,11 @@ export class FieldRunner {
   }
 
   _pump() {
+    const t0 = perfNow();
+    try { this._pumpInner(); } finally { simMeter.add('runner', perfNow() - t0); } // (fork) simMeter.js
+  }
+
+  _pumpInner() {
     if (this.stopped || this.done) return;
     const now = this.m.sched.now();
     const dt = Math.max(0, now - this.last);
@@ -302,8 +308,12 @@ export class HeadlessJob {
 
   run(budgetMs = Infinity, now = perfNow) {
     if (this.done) return true;
+    const t0 = now();
+    try { return this._run(budgetMs, now, t0); } finally { simMeter.add('headless', now() - t0); } // (fork) simMeter.js
+  }
+
+  _run(budgetMs, now, t0) {
     const timed = Number.isFinite(budgetMs);
-    const t0 = timed ? now() : 0;
     let b = this.battle;
     try {
       let k = 0;
@@ -428,6 +438,11 @@ export class HeadlessPacer {
   _clear() { if (this.interval) { this.m.sched.clearInterval(this.interval); this.interval = null; } }
 
   _pump() {
+    const t0 = perfNow();
+    try { this._pumpInner(); } finally { simMeter.add('boss', perfNow() - t0); } // (fork) simMeter.js
+  }
+
+  _pumpInner() {
     if (this.stopped) return;
     const now = this.m.sched.now();
     const dt = Math.max(0, now - this.last);

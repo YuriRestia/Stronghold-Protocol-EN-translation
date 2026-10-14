@@ -5,7 +5,8 @@
 //   * any method but GET / HEAD → 405 with `Allow: GET, HEAD`;
 //   * GET /healthz → JSON status (protocol `version`, release `app`, uptime, the served `build`, sockets, sessions,
 //     rooms, matches; behind the router also its `gen` and `retiring`), never cached; `?traffic=1` adds the traffic
-//     counters (traffic.js: bytes by category since the start, WebSocket wire and payload bytes) for a loopback or
+//     counters (traffic.js: bytes by category since the start, WebSocket wire and payload bytes), (fork) the event
+//     loop's lateness (loopStats.js `loop`) and the server-side simulation time (match/simMeter.js `sim`) for a loopback or
 //     private-network client only — the maintainer's decision of 2026-10-12: the figures are the host's, so any other
 //     client, also one a tunnel or proxy on this machine forwards, gets the plain report (net.js clientAddress,
 //     honouring TRUST_PROXY like the WebSocket limits);
@@ -28,10 +29,12 @@ const MAX_URL_LENGTH = 4096;
  *           lobby: import('../lobby.js').Lobby, traffic?: ReturnType<typeof import('./traffic.js').createTrafficCounter>,
  *           assetIndex?: ReturnType<typeof import('./assetIndex.js').createAssetIndex> | null,
  *           views?: ReturnType<typeof import('./assetViews.js').createManifestViews> | null,
- *           generation?: { gen: string, retiring: boolean } | null }} health
+ *           generation?: { gen: string, retiring: boolean } | null,
+ *           loop?: ReturnType<typeof import('./loopStats.js').createLoopStats> | null,
+ *           sim?: ReturnType<typeof import('../match/simMeter.js').createSimMeter> | null }} health
  * @param {boolean} [withTraffic]
  */
-export function healthReport({ startedAt, network, registry, lobby, traffic, assetIndex, views, generation = null }, withTraffic = false) {
+export function healthReport({ startedAt, network, registry, lobby, traffic, assetIndex, views, generation = null, loop = null, sim = null }, withTraffic = false) {
   const report = {
     ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     // the runtime the server is serving right now (public/js/ui/buildGuard.js): a page whose own build is
@@ -44,6 +47,8 @@ export function healthReport({ startedAt, network, registry, lobby, traffic, ass
   if (withTraffic && traffic) report.traffic = traffic.snapshot();
   // content-hashed asset URLs (assetIndex.js / assetViews.js): off, building, or ready with how many files and URLs
   if (withTraffic) report.assetHashes = assetIndex ? { ...assetIndex.stats(), views: views ? views.stats() : null } : null;
+  // (fork) the main thread's lateness and the server's own simulation time, per minute (loopStats.js, simMeter.js)
+  if (withTraffic) { report.loop = loop ? loop.snapshot() : null; report.sim = sim ? sim.snapshot() : null; }
   return report;
 }
 

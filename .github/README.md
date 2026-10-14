@@ -116,6 +116,7 @@ Listens on **TCP 3000** by default. To change the port: add `--port 3001` to the
 | `HOST` | `::` | Listen address. The default `::` is dual-stack: the same port accepts both IPv6 and IPv4; `0.0.0.0` = IPv4 only; `127.0.0.1` = local machine only, use it behind a reverse proxy |
 | `SP_COMBAT` | `client` | `client`: each player's browser simulates its own battle (very low server load); `server`: the server simulates and streams it |
 | `SP_VERIFY` | `off` | Server re-simulates the battle results reported by clients: `off` / `sample` (spot-check about 1 in 8) / `all` (re-simulate everything, more CPU) |
+| `SP_BOT_REHEARSAL` | `3` | (fork) How many candidate layouts an AI teammate rehearses with the real simulation in each Rest Phase (0–8): `0` places by heuristics only and skips the rehearsal, which cuts server CPU; `3` is upstream's default |
 | `TRUST_PROXY` | `auto` | Whether to trust forwarding headers such as `X-Forwarded-For`: `auto` trusts only proxies on the local machine / private network; `1` always; `0` never |
 | `DEBUG` | empty | Set to any value for verbose logs |
 | `SP_NO_BROWSER` | empty | Set to `1` so the start script does not open the browser |

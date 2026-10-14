@@ -128,7 +128,7 @@
 //   opts.battleContent 'full' | 'generic' | 'none' (sim content mode, default 'full')
 //   opts.timerScale    multiplier on every real-time phase timer (default 1)
 //   opts.combatSpeed   game seconds per real second while battles run in real time (default 2, the forced 2×)
-//   opts.botRehearsal  candidate layouts a bot simulates per prep before placing (default 3, 0 = heuristic only;
+//   opts.botRehearsal  candidate layouts a bot simulates per prep before placing (default 3, 0 = heuristic only; (fork) env SP_BOT_REHEARSAL when unset;
 //                      a whole battle per candidate: ~20–300 ms of CPU each, see server/match/bot.js createRehearsal)
 //   opts.botSliceMs    wall-clock ms of rehearsal per scheduler callback (default 8 with a real scheduler, unbounded
 //                      with a virtual one); the rest runs in later callbacks (scheduleBotPrep)
@@ -213,6 +213,13 @@ const BOT_SLICE_MS = 8;
 const env = (k) => (typeof process !== 'undefined' && process.env ? process.env[k] : undefined);
 /** Default combat mode: client-side unless SP_COMBAT=server. */
 const envClientCombat = () => String(env('SP_COMBAT') || '').toLowerCase() !== 'server';
+/** (fork) SP_BOT_REHEARSAL → layouts a bot rehearses per prep: an integer 0…8, anything else = unset. @param {unknown} v */
+export function parseBotRehearsal(v) {
+  const s = String(v ?? '').trim();
+  if (!/^\d{1,2}$/.test(s)) return undefined;
+  const n = Number(s);
+  return n >= 0 && n <= 8 ? n : undefined;
+}
 /** SP_VERIFY → 'off' | 'sample' | 'all'. */
 export function parseVerify(v) {
   const s = String(v ?? '').trim().toLowerCase();
@@ -263,7 +270,8 @@ export class Match {
     this.timerScale = Number.isFinite(opts.timerScale) && opts.timerScale >= 0 ? opts.timerScale : 1;
     this.gameSpeed = Number.isFinite(opts.combatSpeed) && opts.combatSpeed > 0 ? Math.min(opts.combatSpeed, 200) : GAME_SPEED;
     /** layouts a bot rehearses per prep with the real simulation (bot.js; 0 = heuristic placement only) */
-    this.botRehearsal = Number.isInteger(opts.botRehearsal) && opts.botRehearsal >= 0 ? Math.min(opts.botRehearsal, 8) : BOT_REHEARSAL_DEFAULT;
+    const wantRehearsal = opts.botRehearsal ?? parseBotRehearsal(env('SP_BOT_REHEARSAL')); // (fork) the env when no option
+    this.botRehearsal = Number.isInteger(wantRehearsal) && wantRehearsal >= 0 ? Math.min(wantRehearsal, 8) : BOT_REHEARSAL_DEFAULT;
     /** wall-clock budget of one rehearsal slice (scheduleBotPrep) */
     this.botSliceMs = Number.isFinite(opts.botSliceMs) && opts.botSliceMs > 0 ? opts.botSliceMs : this.sched.virtual ? Infinity : BOT_SLICE_MS;
     this.ds = dataSourceFor(this.data);

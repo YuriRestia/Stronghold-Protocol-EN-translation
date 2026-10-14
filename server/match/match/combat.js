@@ -91,6 +91,8 @@ export class MatchCombat {
     const limit = this.wave ? this.wave.timeLimit : 60;
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this._launch(fields);
+    // (fork) one line per combat start, so a server log can be read against the main-thread stalls of simMeter.js
+    this.log.info?.(`[match ${this.roomCode}] R${this.round} combat: ${fields.length} field(s), ${fields.filter((f) => f.mode !== 'client').length} server-run`);
     // every fighting human runs its own field; eliminated humans (and spectator seats) keep watching (research 09 §3.1
     // "Keep-watching auto-observes the first available field", switching freely with 前往查看): a replica of the field
     // of the player they follow — the one they last watched, else the first player still in (item 56) — else the first
