@@ -7,6 +7,24 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-13
 
+### Upstream merge
+
+- Merged upstream 0.2.6 at [`488db49f`](https://github.com/sganggs/Stronghold-Protocol/commit/488db49f11daf862b67ce26fa4cf89aa6cba2466).
+  The fork's generations router keeps working with upstream's content-hashed asset URLs, brotli, WebSocket deflate and
+  `/healthz?traffic=1` (the generation prefix is stripped first, `/assets` stays unprefixed). Upstream's new
+  「弹药数量」 (ammo count) setting sits next to the fork's voice settings. Upstream's per-Operator `voiceOverrides` stays
+  out, as before.
+- The asset preload works with the content-hashed URLs: the service worker reads `/assets/~<hash>/…`,
+  `/fonts/~<hash>/…` and `/media/~<hash>/…` as the plain file's path (`shared/resources.js`, `public/resource-sw.js`),
+  so the files the game now requests are answered from the saved copies again instead of always going to the network.
+- Impostor boxes (the cached image a unit is drawn through on crowded fields) now come from upstream's runtime
+  measurement of every clip a unit can play (#542), grown to the fork's build-time per-clip extents where those reach
+  further; the extents alone are the fallback when a model cannot be measured. The melee / ranged twin clips of
+  fortress and lord Operators (Horn, Ashlock, Thorns, SilverAsh…) are measured too. Across all 483 Operator and outfit
+  models, 15 still have a pose past their box (upstream's box alone: 28, the extents box alone: 28).
+  `test/render/impostor-fork-models.test.js` keeps Ashlock's cannon, Sankta Miksaparato's skill, Gummy's Summer easel and
+  the twins inside the box.
+
 ### Changes
 
 - A Discord button (the blurple Discord mark) on the title screen's top-right corner and the lobby and room top bars
@@ -91,7 +109,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

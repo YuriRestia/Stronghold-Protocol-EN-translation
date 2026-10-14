@@ -9,6 +9,7 @@
 // edge instead of the VPS.
 
 import { AUDIO_EXTS, MEDIA_PREFIX } from './media.js';
+import { splitHashedPath } from './assetPaths.js';
 
 export const MANIFEST_URL = '/data/resource-manifest.json';
 /** Per-pack totals only ({ version, packs: { <pack>: { files, bytes } } }): what the title screen shows before a download. */
@@ -59,7 +60,8 @@ export function isResourcePath(pathname) {
  * @param {string} pathname
  */
 export function resourceKey(pathname) {
-  try { return encodeURI(decodeURI(String(pathname || ''))); } catch { return null; }
+  // the served manifests' content-hash segment (`/assets/~<hash>/x` → `/assets/x`, shared/assetPaths.js): one key per path
+  try { return encodeURI(decodeURI(splitHashedPath(String(pathname || '')).path)); } catch { return null; }
 }
 
 /**
@@ -69,7 +71,7 @@ export function resourceKey(pathname) {
  * @returns {string[]} cache keys
  */
 export function mediaKeys(pathname) {
-  const p = String(pathname || '');
+  const p = splitHashedPath(String(pathname || '')).path;
   if (!p.startsWith(MEDIA_PREFIX)) return [];
   const rest = p.slice(MEDIA_PREFIX.length);
   const segments = rest.split('/');

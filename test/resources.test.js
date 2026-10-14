@@ -82,18 +82,24 @@ test('keys: one key for encoded and raw brackets; /media/… maps to the stored 
   assert.equal(mediaKeys('/media/bgm/act1.ogg')[0], '/assets/audio/bgm/act1.ogg');
   assert.deepEqual(mediaKeys('/media/../x'), []);
   assert.deepEqual(mediaKeys('/assets/x.png'), []);
+  // the served manifests' content-hashed URLs (shared/assetPaths.js) are the same files
+  assert.equal(resourceKey('/assets/~0123456789abcdef/x/[opt]a.png'), '/assets/x/%5Bopt%5Da.png');
+  assert.equal(resourceKey('/fonts/~0123456789abcdef/a.woff2'), '/fonts/a.woff2');
+  assert.equal(resourceKey('/assets/~xyz/a.png'), '/assets/~xyz/a.png', 'a malformed hash segment is part of the path');
+  assert.deepEqual(mediaKeys('/media/~0123456789abcdef/bgm/act1'), mediaKeys('/media/bgm/act1'));
   assert.equal(formatBytes(470e6), '470 MB');
 });
 
 test('the worker\'s copy of the path rules matches shared/resources.js', () => {
   const sw = loadWorker();
-  for (const p of ['/assets/x/[opt]a.png', '/assets/x/%5Bopt%5Da.png', '/assets/a b.png', '/assets/%E4%B8%AD.png', '/assets/%zz.png']) {
+  for (const p of ['/assets/x/[opt]a.png', '/assets/x/%5Bopt%5Da.png', '/assets/a b.png', '/assets/%E4%B8%AD.png', '/assets/%zz.png',
+    '/assets/~0123456789abcdef/a.png', '/fonts/~0123456789abcdef/a.woff2', '/assets/~0123456789ABCDEF/a.png', '/assets/~0123456789abcdef']) {
     assert.equal(sw.spResources.resourceKey(p), resourceKey(p), p);
   }
   for (const p of ['/assets/audio/voice/kr/a/1.mp3', '/assets/audio/voice/xx/a/1.mp3', '/assets/audio/bgm/a.mp3', '/assets/local/guide/p.png', '/assets/ui/guide/p.png', '/assets/spine/a.skel', '/assets/outfit/art/char_x_epoque_1.webp']) {
     assert.equal(sw.spResources.packOf(p), packOf(p), p);
   }
-  for (const p of ['/media/bgm/act1', '/media/voice/en/char_a/cn_001.mp3', '/media/x.wav', '/media/.x', '/media/']) {
+  for (const p of ['/media/bgm/act1', '/media/voice/en/char_a/cn_001.mp3', '/media/x.wav', '/media/.x', '/media/', '/media/~0123456789abcdef/bgm/act1']) {
     assert.deepEqual([...sw.spResources.mediaKeys(p)], mediaKeys(p), p);
   }
 });

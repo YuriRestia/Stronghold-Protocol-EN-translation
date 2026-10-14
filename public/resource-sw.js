@@ -26,12 +26,24 @@ const AUDIO_EXTS = ['.mp3', '.m4a', '.aac', '.ogg', '.oga', '.opus', '.wav'];
 /** Re-read the manifest at most this often on a page load (a deploy restarts the server and changes its ETag). */
 const RECHECK_MS = 60 * 1000;
 
+/** Copy of shared/assetPaths.js splitHashedPath (path only): `/assets/~<16 hex>/x` → `/assets/x`. */
+const HASHED_ROOTS = ['/assets/', '/fonts/', '/media/'];
+function unhashed(p) {
+  for (const root of HASHED_ROOTS) {
+    if (!p.startsWith(root)) continue;
+    const slash = p.indexOf('/', root.length);
+    if (slash < 0) break;
+    return /^~[0-9a-f]{16}$/.test(p.slice(root.length, slash)) ? root + p.slice(slash + 1) : p;
+  }
+  return p;
+}
+
 function resourceKey(pathname) {
-  try { return encodeURI(decodeURI(String(pathname || ''))); } catch { return null; }
+  try { return encodeURI(decodeURI(unhashed(String(pathname || '')))); } catch { return null; }
 }
 
 function mediaKeys(pathname) {
-  const p = String(pathname || '');
+  const p = unhashed(String(pathname || ''));
   if (!p.startsWith(MEDIA_PREFIX)) return [];
   const rest = p.slice(MEDIA_PREFIX.length);
   const segments = rest.split('/');
