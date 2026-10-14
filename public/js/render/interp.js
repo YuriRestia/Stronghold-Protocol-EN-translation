@@ -147,6 +147,14 @@ export function normalizeSnapshot(snap) {
       if (list) list.push(row); else st.set(e[0], [row]);
     }
   }
+  // the 屏障 a unit holds (server/sim/snapshot.js shieldView): a positive amount
+  let sh = null;
+  if (Array.isArray(snap.sh)) {
+    for (const e of snap.sh) {
+      if (!Array.isArray(e) || !units.has(e[0]) || !(Number.isFinite(e[1]) && e[1] > 0)) continue;
+      (sh || (sh = new Map())).set(e[0], e[1]);
+    }
+  }
   let stand = null;
   if (Array.isArray(snap.stand)) {
     for (const e of snap.stand) {
@@ -161,7 +169,7 @@ export function normalizeSnapshot(snap) {
       (standCut || (standCut = new Map())).set(e[0], e[1]);
     }
   }
-  return { t, units, down, ammo, wolves, coins, neg, st, stand, standCut, raw: snap };
+  return { t, units, down, ammo, wolves, coins, neg, st, sh, stand, standCut, raw: snap };
 }
 
 /**
@@ -419,6 +427,7 @@ export class SnapshotBuffer {
       o.coins = A.coins?.get(id) ?? null;
       o.neg = A.neg ? A.neg.get(id) || 0 : 0;
       o.st = A.st?.get(id) ?? null;
+      o.sh = A.sh?.get(id) ?? 0;
       o.seen = stamp;
     }
     for (const id of out.keys()) if (!A.units.has(id)) out.delete(id);

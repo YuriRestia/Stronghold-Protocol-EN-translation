@@ -177,6 +177,8 @@ const RAISED_Z = 0.12;
  * ride the body (`hover`); range highlights are tiles.
  */
 export const FLY_HOVER = 1.3;
+/** Share of the current HP bar a 屏障 of `r` × max HP covers: r / (1 + r) — 100 % → half, 400 % → 80 %, never all of it. */
+export const barrierShare = (r) => (r > 0 ? r / (1 + r) : 0);
 /**
  * A push / pull slide (推拉, PR #380 by @xcdoge). The sim displaces at once — server/sim/battle/displacement.js walks its
  * 0.1-tile steps inside one call — and then holds the enemy in its 失衡 (UNBALANCE) state (PR #392's idea): a push for the
@@ -527,6 +529,7 @@ export class UnitView {
     this.coinHud = null;
     this.neg = 0;                 // the share of its cap a negative-HP pool holds, 0 = none (sync; b.snap `neg`, 斩业星熊's 我执)
     this.st = null;               // [[status, endsAt, duration, value]] of its status icons (sync; b.snap `st`): ring and number
+    this.barrier = 0;             // the 屏障 HP it holds (sync; b.snap `sh`): drawn over its HP bar
     this.flags = 0; this.anim = ANIM.IDLE;
     this.statuses = new Set();
     this.alive = true;
@@ -786,6 +789,7 @@ export class UnitView {
     // a negative-HP pool (斩业星熊's 我执), drawn over the drained HP bar as the red bar
     this.negFill = bar(P, h, COLORS.hpNeg);
     this.shieldBar = bar(P, h, COLORS.shield, 0.95);
+    this.barrierFill = bar(P, h, COLORS.shield, 0.9);
     this.spBg = bar(P, h, COLORS.hpBack, 0.85);
     this.spFill = bar(P, h, COLORS.sp);
     this.spGlow = new P.Sprite(fxAtlas().tex.glow);
@@ -794,7 +798,7 @@ export class UnitView {
     this.spGlow.blendMode = P.BLEND_MODES.ADD;
     h.addChild(this.spGlow);
     // nothing shows until the first HUD update decides (a culled or prep view never draws bars)
-    for (const b of [this.hpBg, this.hpGhost, this.hpFill, this.negFill, this.shieldBar, this.spBg, this.spFill, this.spGlow]) b.visible = false;
+    for (const b of [this.hpBg, this.hpGhost, this.hpFill, this.negFill, this.shieldBar, this.barrierFill, this.spBg, this.spFill, this.spGlow]) b.visible = false;
     this.chip = null;
     // operators only: summon tokens have no tier (hand and field alike)
     if (!this.isEnemy && !this.isToken && this.info.kind !== 'device') {
@@ -888,6 +892,7 @@ export class UnitView {
     this.ammo = s.ammo || null; this.wolves = s.wolves || null; this.neg = s.neg > 0 ? Math.min(1, s.neg) : 0;
     this.coins = s.coins || null;
     this.st = s.st || null;
+    this.barrier = s.sh > 0 ? s.sh : 0;
     const prevFlags = this.flags;
     this.flags = s.flags | 0;
     this.anim = s.anim | 0;
@@ -1245,7 +1250,9 @@ export class UnitView {
     }
     // a flyer keeps its lift through the Die clip and drops only as it fades out: the client removes the fly offset in
     // CharacterAnimator.OnFinish, when the finish state ends; a knocked-down flyer lies on the ground
-    const hoverTo = this.flying && (this.alive || (this.dying > DIE_FADE_TAIL && !this.down)) ? FLY_HOVER : 0;
+    // a flyer — or an ally in 起飞 (UF.LIFTOFF: 蒂比's skills), drawn at a flyer's height as the official client does
+    const aloft = this.flying || (!this.isEnemy && (this.flags & UF.LIFTOFF));
+    const hoverTo = aloft && (this.alive || (this.dying > DIE_FADE_TAIL && !this.down)) ? FLY_HOVER : 0;
     if (this.hover !== hoverTo) this.hover = Math.abs(hoverTo - this.hover) < 1e-3 ? hoverTo : this.hover + (hoverTo - this.hover) * Math.min(1, dt * 6);
     const p = cam.project(this.x, this.y, this.z + this.hover + this.lift, this.screen);
     const s = p.s;
@@ -1445,7 +1452,16 @@ export class UnitView {
     const neg = showHp ? this.neg : 0;
     this.negFill.visible = neg > 0;
     if (neg > 0) { this.negFill.position.set(x0, cy); this.negFill.width = bw * neg; this.negFill.height = bh; }
-    const shielded = showHp && (this.flags & UF.SHIELD);
+    // 屏障 (b.snap `sh`): over the current HP, from its right end leftwards, as the official HUD — a barrier of r × max HP
+    // covers r / (1 + r) of the current HP bar (400 % → 80 %), never all of it; a hit-count shield (no amount) keeps the
+    // thin bar above
+    const barrier = showHp && this.barrier > 0 && this.maxHp > 0 ? barrierShare(this.barrier / this.maxHp) * clamp(this.hp / this.maxHp, 0, 1) : 0;
+    this.barrierFill.visible = barrier > 0;
+    if (barrier > 0) {
+      const k = clamp(this.hp / this.maxHp, 0, 1);
+      this.barrierFill.position.set(x0 + bw * (k - barrier), cy); this.barrierFill.width = bw * barrier; this.barrierFill.height = bh;
+    }
+    const shielded = showHp && (this.flags & UF.SHIELD) && !(barrier > 0);
     this.shieldBar.visible = !!shielded;
     if (shielded) { this.shieldBar.position.set(x0, cy - bh / 2 - 1); this.shieldBar.width = bw; this.shieldBar.height = Math.max(1.5, bh * 0.35); }
     // SP — or, while an ammo skill runs, its magazine: yellow cells, one per round, emptying from the right (b.snap `ammo`;

@@ -89,6 +89,7 @@ export function flagsOf(u) {
   if (f.cold) bits |= UF.COLD;
   if (f.sleep) bits |= UF.SLEEP;
   if (u.motion === 'FLY') bits |= UF.FLYING;
+  if (u.side === 'ally' && f.liftoff) bits |= UF.LIFTOFF;
   return bits;
 }
 
@@ -205,6 +206,13 @@ export function statusView(u, t) {
     }
   }
   return out;
+}
+
+/** `shieldView(u)` = the 屏障 a unit holds (HP it absorbs, u.s.shield), whole, or null without one: the barrier drawn over
+ *  its HP bar (render/units.js). Display only. */
+export function shieldView(u) {
+  const v = u.s?.shield;
+  return v > 0 && Number.isFinite(v) ? Math.ceil(v) : null;
 }
 
 /** Units included in a snapshot: deployed & visible, plus recently dead ones (DIE animation). */
