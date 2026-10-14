@@ -201,6 +201,11 @@ The `stem` of a Spine model is the upstream file name. Two examples: `char_107_l
   - Ark-Models enemy atlases get `pma: true`, because their textures are premultiplied. pixi-spine reads this and sets `ALPHA_MODES.PMA`.
   - Page names are sanitized to safe file names.
   - All of this is idempotent.
+- **Page art fixes** (fork, `tools/assets/texture-fixes.mjs RIM_FIXES`): after the atlas is normalized, a listed
+  model's eyelid regions (found by name in its atlas) get their dark outer rim painted skin-coloured, keeping the
+  pixels within `keep` px of the eye hole. 铃兰 Suzuran's default model (`F_Face_Default_h` / `_i`) drew those rims as
+  a pair of glasses. Needs sharp (skipped with a problem line without it); idempotent, a fixed page is not rewritten.
+  The painted page changes size, so the downloader keeps it by its content (`mutable`), like an atlas.
 - **Skeletons:** every `.skel` (Spine 3.8.99 binary) is parsed in Node with `@pixi-spine/runtime-3.8`, the parser the client ships.
   - The parse extracts animation names and durations, event names, `OnAttack` times per animation, and bounds.
   - Attachment paths are checked against the atlas regions.

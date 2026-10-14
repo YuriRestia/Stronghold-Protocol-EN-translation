@@ -620,7 +620,10 @@ export class UnitView {
     const sub = this.isEnemy ? null : ctx.lookupDef?.(info)?.subProfessionId;
     this.fortress = sub === 'fortress';
     this.lord = sub === 'lord';
-    this.shot = this.fortress || this.lord ? 'ranged' : null;
+    // An agent (伊内丝 Ines) melees the enemy it blocks (Combat) and shoots otherwise (Attack); its 'atk' kind is
+    // 'none' either way, so the view reads whether the target is blocked on its tile (blocksTarget)
+    this.agent = sub === 'agent';
+    this.shot = this.fortress || this.lord || this.agent ? 'ranged' : null;
     // the official's own model quirks (enemies.json, read from its battle prefabs — tools/local-extract/enemy_model_offsets.py,
     // PR #211): a vertical stretch (its Graphic scale's sy / sx, the two 帝国炮火先兆者 at 1.263) and a mirrored X scale
     // (the Graphic's sx is negative, so the official draws the authored model flipped: 木制瑞印)
@@ -1184,6 +1187,7 @@ export class UnitView {
   _shotKind(kind, target) {
     if (this.fortress) this.shot = !kind || kind === 'none' ? 'melee' : 'ranged';
     else if (this.lord && target) this.shot = this.meleeReach(target) ? 'melee' : 'ranged';
+    else if (this.agent && target) this.shot = this.blocksTarget(target) ? 'melee' : 'ranged';
     else return;
     if (this.actor) this.actor.shot = this.shot;
   }
@@ -1193,6 +1197,16 @@ export class UnitView {
    * front. The view has no blocking state: [ASSUMED] the target within half a tile of either centre stands for both
    * (a blocked enemy stands on its blocker's tile).
    */
+  /**
+   * (fork) A 情报官 / agent (伊内丝 Ines) strikes in melee the enemy it blocks and throws its shadow otherwise. The view
+   * knows an enemy is blocked (UF.BLOCKED), not by whom: [ASSUMED] a blocked target within half a tile of this unit's
+   * own tile is blocked by it (a blocked enemy stands on its blocker's tile).
+   */
+  blocksTarget(target) {
+    if (!(target.flags & UF.BLOCKED)) return false;
+    return Math.abs(target.x - Math.round(this.x)) <= 0.5 && Math.abs(target.y - Math.round(this.y)) <= 0.5;
+  }
+
   meleeReach(target) {
     const [sx, sy] = DIR_STEP[this.dir] || DIR_STEP.RIGHT;
     const near = (cx, cy) => Math.abs(target.x - cx) <= 0.5 && Math.abs(target.y - cy) <= 0.5;
@@ -1956,7 +1970,7 @@ export class UnitView {
     if (idle) out.set(idle, false);
     if (!this.lodIdle) {
       // (fork) a 重炮手 / 领主 also plays its clips' melee / ranged twins, which no role names (SpineActor.shotTwins)
-      const twins = (this.fortress || this.lord) && typeof a.shotTwins === 'function';
+      const twins = (this.fortress || this.lord || this.agent) && typeof a.shotTwins === 'function';
       for (const [name, once] of playedClips(anims, FORMS[this.info.spine || this.info.defId] || null)) {
         for (const n of twins ? [name, ...a.shotTwins(name)] : [name]) {
           if (a.has(n)) out.set(n, out.has(n) ? out.get(n) && once : once);

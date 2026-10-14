@@ -19,6 +19,7 @@ import { kindOf, pngSize } from './formats.mjs';
 import { atlasInfo, normalizeAtlas } from './atlas.mjs';
 import { parseSkel, clipExtents, CLIP_EXTENTS_VERSION } from './skel.mjs';
 import { resolveRoles } from './anim-roles.mjs';
+import { RIM_FIXES, applyRimFixes } from './texture-fixes.mjs';
 
 async function fileStat(p) { try { const s = await stat(p); return s.isFile() ? s : null; } catch { return null; } }
 
@@ -252,6 +253,8 @@ export const loadLocalEnemySpines = loadLocalSpines;
 export async function processModels(models, { root, dl, cachePath, download = true, writable = () => true, log = console.log }) {
   const problems = [];
   const list = [...models.values()];
+  // (fork) a page that RIM_FIXES paints changes size: the downloader keeps it by its content, like an atlas
+  for (const m of list) if (RIM_FIXES[m.key]) for (const p of m.pngs) p.mutable = true;
   if (download) {
     const jobs = [];
     for (const m of list) jobs.push(m.skel, m.atlas, ...m.pngs);
@@ -306,6 +309,15 @@ export async function processModels(models, { root, dl, cachePath, download = tr
       if (!writable(m.atlas.rel)) { problems.push(`${m.key}: atlas needs normalizing, left as it is (an existing file)`); continue; }
       await writeFile(atlasAbs + '.tmp', norm.text);
       await rename(atlasAbs + '.tmp', atlasAbs);
+    }
+    // (fork) art fixes painted into the pages (tools/assets/texture-fixes.mjs), again after every download
+    if (RIM_FIXES[m.key]) {
+      try {
+        const fixed = await applyRimFixes(m.key, norm.text, (p) => join(root, m.dir + safeName(p)),
+          { writable: (p) => writable(m.dir + safeName(p)), readFile, writeFile, rename });
+        if (fixed.problem) problems.push(fixed.problem);
+        if (fixed.painted) log(`[spine] ${m.key}: texture fix painted ${fixed.painted} px (${fixed.pages.join(', ')})`);
+      } catch (e) { problems.push(`${m.key}: texture fix failed (${e.message})`); }
     }
     const atlasSt = await fileStat(atlasAbs);
     const info = atlasInfo(norm.text);

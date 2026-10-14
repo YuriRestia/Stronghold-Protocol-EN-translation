@@ -58,9 +58,10 @@ const RHYTHM_DROP_MARGIN = 0.08;
  * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
  * wins. Ashlock: Attack01 is his cannon, Attack02 the shield bash (it animates F_weapon_dun). 领主 (lord): Attack is
  * the ranged shot (银灰's cane point with the eagle, user playtest 2026-10-12), Combat the melee; [ASSUMED] the same for
- * Qiubai (Attack / Combat_A), whose two clips animate the same bones.
+ * Qiubai (Attack / Combat_A), whose two clips animate the same bones. Agent (伊内丝 Ines): Attack / Skill_2_Attack throw
+ * her shadow, Combat / Skill_2_Combat strike the enemy she blocks.
  */
-const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'] });
+const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Skill_2_Attack: ['Skill_2_Combat'] });
 /** (fork) The other way round (SpineActor.shot 'ranged'): Thorns' manifest Attack_1 is his melee, Attack_2 the thrown
  *  shot (user playtest 2026-10-12). */
 const RANGED_TWIN = Object.freeze({ Attack_1: ['Attack_2'] });
@@ -245,8 +246,9 @@ function slotTimelines(anim) {
 
 /** (fork) SpineActor._mixGuard: how far past the mixed clips' bounds a slot may reach while they crossfade — `min`
  *  skeleton units + `share` × the bounds' longer side (a blend of two poses sits between them; poses between two
- *  samples). [ASSUMED] the values. */
-export const MIX_GUARD_PAD = Object.freeze({ min: 40, share: 0.08 });
+ *  samples). A crossfade whose visible slots include more than `swapMin` and `swapShare` × of them that no outgoing
+ *  clip draws now swaps one body for another (伊内丝's 'boc' outfit) and is cut. [ASSUMED] the values. */
+export const MIX_GUARD_PAD = Object.freeze({ min: 40, share: 0.08, swapMin: 12, swapShare: 0.4 });
 
 /** The scratch skeleton of a bounds record (made on demand, dropped once its queued clips are sampled). */
 function scratchSkeleton(rec) {
@@ -452,6 +454,7 @@ export class SpineActor {
     this.skillOn = false;
     this.skillClipOnce = false;    // skillBegin: the skill's own clip plays once (a clip with no Begin / own Idle)
     this.skillEndPending = false;  // … and the skill turned off inside it: play its End clip / base when it ends
+    this.skillEndAfterAttack = false;   // (fork) the skill turned off during its own attack clip: its End clip after it
     this.attackUntil = 0;
     this.clock = 0;
     this.current = '';
@@ -848,6 +851,7 @@ export class SpineActor {
     // a skill that ends as the unit (re)deploys — 乌尔比安's 【返回】 is a 【移动】 (sim Battle.moveRedeploy) right before
     // his S3's 'skill' off event — lets the deploy clip play out (then the plain idle) instead of cutting it with the End
     if (!on && this.mode === 'deploy') return;
+    this.skillEndAfterAttack = false;
     if (on && sk) {
       this.skillEndPending = false;
       this.skillClipOnce = false;
@@ -878,6 +882,13 @@ export class SpineActor {
         return;
       }
       this.skillClipOnce = false;
+      // (fork) a charge / instant skill whose attack is its loop clip switches off right after that attack (sim
+      // skills.js: 'skill' 1, the attack, 'skill' 0 in one tick — 风笛 Bagpipe's S2 double shot): the attack plays out,
+      // then its End clip (update, mode 'attack')
+      if (this.has(sk.end) && this.mode === 'attack' && this.current === this._shot(sk.loop) && this.clock < this.attackUntil) {
+        this.skillEndAfterAttack = true;
+        return;
+      }
       if (this.has(sk.end)) {
         this.mode = 'skillEnd';
         this._play(sk.end, false, { mix: 0.08 });
@@ -1012,7 +1023,15 @@ export class SpineActor {
           const clip = this._attackClip() || this.roles.attack;
           // a skill with its own idle: back to that idle (its end clip is for the end of the skill, setSkill(false))
           const toSkillIdle = clip === this.roles.skill && !!this._skillIdle();
-          if (clip && this.has(clip.end) && !toSkillIdle) { this._play(clip.end, false); this._queue(this._baseName(), true); }
+          const sk = this.roles.skill;
+          const endSkill = this.skillEndAfterAttack;
+          this.skillEndAfterAttack = false;
+          if (endSkill && sk && this.has(sk.end) && this.current === this._shot(sk.loop)) {
+            // (fork) the skill switched off during its own attack: its End clip closes it now
+            this.mode = 'skillEnd';
+            this._play(sk.end, false, { mix: 0.08 });
+            this.skillEndUntil = this.clock + this.dur(sk.end);
+          } else if (clip && this.has(clip.end) && !toSkillIdle) { this._play(clip.end, false); this._queue(this._baseName(), true); }
           else this._play(this._baseName(), true, { mix: 0.15 });
         }
         break;
@@ -1128,6 +1147,9 @@ export class SpineActor {
    *     update);
    *   - otherwise ends the crossfade (the incoming clip alone from the next frame, posed now): a slot both clips draw
    *     blended that far out is the body itself, and hiding it would tear the model apart.
+   * A crossfade that mostly draws slots no outgoing clip draws (MIX_GUARD_PAD.swap*) is cut too: the 'boc' outfit's
+   * attack swaps to a second body rig whose bones wait 900 units up and to her left while hidden, so the attack's
+   * crossfade drew that body dashing in from there.
    * `mixRect` is then what the crossfade draws ([x0, y0, x1, y1], null without one): render/units.js draws the model
    * directly while it leaves the impostor box (a blend of two poses can pass outside both). No guard while a mixed clip
    * is not measured.
@@ -1145,17 +1167,19 @@ export class SpineActor {
     const lim = [u[0] - pad, u[1] - pad, u[2] + pad, u[3] + pad];
     const buf = this._mixBuf || (this._mixBuf = { v: new Float32Array(256) });
     const r = [0, 0, 0, 0];
-    let hidden = null;   // slot indexes an outgoing clip does not draw now (worked out on the first slot out of bounds)
     let cut = false;
     const drawn = [Infinity, Infinity, -Infinity, -Infinity];
     try {
+      const hidden = this._hiddenByOutgoing(tr);   // slot indexes an outgoing clip does not draw now
+      let shown = 0, fresh = 0;   // visible slots; those of them an outgoing clip does not draw
       for (const slot of sp.skeleton.drawOrder) {
         const box = sp.slotContainers[slot.data.index];
         if (!box || !box.visible) continue;
         r[0] = r[1] = Infinity; r[2] = r[3] = -Infinity;
         if (!slotRect(slot, r, buf)) continue;
+        shown++;
+        if (hidden.has(slot.data.index)) fresh++;
         if (r[0] < lim[0] || r[1] < lim[1] || r[2] > lim[2] || r[3] > lim[3]) {
-          if (!hidden) hidden = this._hiddenByOutgoing(tr);
           if (hidden.has(slot.data.index)) { box.visible = false; continue; }
           cut = true;
           break;
@@ -1163,6 +1187,9 @@ export class SpineActor {
         if (r[0] < drawn[0]) drawn[0] = r[0]; if (r[1] < drawn[1]) drawn[1] = r[1];
         if (r[2] > drawn[2]) drawn[2] = r[2]; if (r[3] > drawn[3]) drawn[3] = r[3];
       }
+      // a body swap: the incoming clip draws a set of slots the outgoing one does not (its bones parked anywhere),
+      // nothing to blend from
+      if (!cut && fresh > Math.max(MIX_GUARD_PAD.swapMin, MIX_GUARD_PAD.swapShare * shown)) cut = true;
       if (cut) {
         tr.mixingFrom = null;   // the outgoing clips leave the mix (AnimationState drops them with no further pose)
         tr.mixDuration = 0;

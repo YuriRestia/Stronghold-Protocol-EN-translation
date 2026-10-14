@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installFakePixi, fakeViewCtx } from './fakepixi.js';
 import { presetCamera } from '../../public/js/render/projection.js';
+import { UF } from '../../shared/constants.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const assets = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
@@ -115,6 +116,34 @@ test('a lord view picks melee for a target on its own or front tile, the shot be
   fx.attack(v, { id: 2, x: 6, y: 10, z: 0, hover: 0, _headTiles: 1.2, alive: true, isEnemy: true, info: {} }, 'arrow');
   assert.equal(fx.projs.length, 0);
   assert.equal(fx._slashAt, 1);
+});
+
+test('(fork) 伊内丝 Ines (agent): Combat / Skill_2_Combat on the enemy she blocks, Attack / Skill_2_Attack otherwise', async () => {
+  for (const [r, clip] of [[true, 'Attack'], [false, 'Combat']]) {
+    const a = actor('char_4087_ines', 0, r);
+    a.attack(1.3);
+    assert.equal(a.current, clip, `normal attack ranged=${r}`);
+  }
+  for (const [r, clip] of [[true, 'Skill_2_Attack'], [false, 'Skill_2_Combat']]) {
+    const a = actor('char_4087_ines', 1, r);
+    a.setSkill(true);
+    run(a, 0.5);
+    a.attack(1.3);
+    assert.equal(a.current, clip, `S2 attack ranged=${r}`);
+  }
+  const { UnitView } = await import('../../public/js/render/units.js');
+  const cam = presetCamera('normal', { width: 1600, height: 900 });
+  const ctx = fakeViewCtx(fake.P, { cam });
+  ctx.lookupDef = () => ({ subProfessionId: 'agent' });
+  const v = new UnitView(ctx, { id: 1, side: 'ally', kind: 'chess', defId: 'char_4087_ines', tier: 3, x: 5, y: 10, maxHp: 1000, dir: 'RIGHT' });
+  assert.equal(v.agent, true);
+  assert.equal(v.shot, 'ranged', 'nothing blocked yet: her shadow throw');
+  v._shotKind('none', { x: 5.2, y: 10, flags: UF.BLOCKED });
+  assert.equal(v.shot, 'melee', 'blocked on her tile');
+  v._shotKind('none', { x: 5.1, y: 10, flags: 0 });
+  assert.equal(v.shot, 'ranged', 'passing through her tile unblocked (blocked by no one, or a flyer)');
+  v._shotKind('none', { x: 6, y: 10, flags: UF.BLOCKED });
+  assert.equal(v.shot, 'ranged', 'blocked by someone else in front');
 });
 
 test('a fortress shooter lobs its round on an arc; any other arrow stays a straight tracer', () => {

@@ -7,6 +7,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-14
 
+### Changes
+
+- Lobby announcement bumped to Update 0.2.6 and shown again to everyone (new dismiss key `news.0.2.6`): Outfits stay on
+  top, then Suzuran without glasses, the official scenes' lighting, raised / water platforms and sealed ground on the
+  scenes, the round-start deploy replay, the Ammo Count setting, uncut models on crowded boards and Wiš'adel's summons
+  on deploy tiles.
+
 ### Fixes
 
 - The last 15 cut-off models are fixed: the clip measurement also poses every animation key (and the instant before
@@ -19,6 +26,20 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   outside both clips is hidden if the outgoing clip doesn't show it, and the crossfade is cut if it does (her 'boc'
   outfit's body rose from 900 units below her on its way back to idle). A crossfade that leaves the impostor box is
   drawn directly for those frames.
+- Ines's 'boc' (Bloodline of Combat) outfit no longer dashes in from the left on each normal attack. Her attack
+  switches to a second copy of her body whose bones wait about 900 units away while hidden, and the 0.06 s crossfade
+  blended that copy in from there. A crossfade that mostly draws slots the outgoing clip doesn't show (over 40% of the
+  visible slots) now swaps straight to the new clip. Skadi and Bagpipe (and their outfits) swap bodies the same way
+  and are cut too.
+- Bagpipe's S2 (next attack ×2) plays its double shot again. The sim turns a charge skill on, attacks and turns it off
+  in the same tick, so the skill-off cut the Skill_2_Loop shot straight into Skill_2_End and idle. A skill that switches
+  off during its own attack clip now lets that attack play out, then plays its End clip.
+- Ines strikes the enemy she blocks with her melee clip (Combat, and Skill_2_Combat during S2) instead of her ranged
+  shadow throw (Attack / Skill_2_Attack), as in the official game. The sim's attack event doesn't say which, so the view
+  checks whether the target is blocked and standing on her tile.
+- Suzuran's default model no longer looks like she's wearing glasses: the dark outer rims of her eyelid patches are
+  painted skin-coloured in her atlas image (the line around each eye stays), so she still blinks. Her outfits are unchanged.
+  `fetch-assets` paints the fix itself after every download (tools/assets/texture-fixes.mjs), so an asset refresh keeps it.
 
 ## 2026-10-13
 

@@ -9,33 +9,32 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the earlier one ('news.0.2.4.1') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.5';
+// A new key per announcement, so everyone who closed the earlier one ('news.0.2.5') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.2.6';
 
-/** The 0.2.5 announcement's emphasized line, shown above the points (msgid). */
+/** The 0.2.6 announcement's emphasized line, shown above the points (msgid). */
 const UPDATE_HIGHLIGHT = N_('干员调配新增时装系统'); // en: "Added the Outfits system to Operator Loadout"
 
-/** The 0.2.5 announcement's points (msgids). */
+/** The 0.2.6 announcement's points (msgids). */
 const UPDATE_POINTS = [
-  N_('战场现使用官方3D场景（如沙地战场），取代金属棋盘'), // en: "Battlefields now use the official 3D scenes, such as the sand stages, in place of the metal board"
-  N_('新增「官方伤害数字」设置（默认关闭）：只显示官方游戏会显示的伤害数字'), // en: "New \"Official Damage Numbers\" setting (off by default): shows only the damage numbers the official game shows"
-  N_('盟约层数音效现会在回合开始、机变、休整期与战斗中播放'), // en: "Alliance stack sounds now play at round start, in Improv, in the Rest Phase and in combat"
-  N_('结算前生命值保持当前数值，并在旁边显示待扣除的 −N'), // en: "HP keeps its current value until settlement, with the pending −N shown beside it"
-  N_('干员模型在攻击或释放技能时不再被直线边缘截断'), // en: "Operator models no longer get cut off at a straight edge when they attack or use a skill"
-  N_('号角与灰毫现使用正确的攻击动画'), // en: "Horn and Ashlock use the correct attack animations"
-  N_('重炮手的炮弹以抛物线飞行并在落地时爆炸；领主近卫在近距离时使用近战动画'), // en: "Fortress Defenders shots fly in an artillery arc and burst on landing; Lord Guards use their melee animation up close"
-  N_('大量问题修复'), // en: "Many fixes"
+  N_('铃兰不再戴眼镜'), // en: "Suzuran no longer wears glasses"
+  N_('官方战场场景恢复正确光照，不再偏暗'), // en: "Official battlefield scenes use their proper lighting again and are no longer too dark"
+  N_('官方场景上现会显示高台、水上平台与封印的地面'), // en: "Raised platforms, water platforms and sealed ground now show on the official scenes"
+  N_('每回合开始时，干员会重播入场动画与落地音效'), // en: "Operators replay their deploy animation and landing sound at the start of each round"
+  N_('新增「弹药数量」设置（默认关闭）：在弹药类技能的弹药条下方显示剩余弹药'), // en: "New \"Ammo Count\" setting (off by default): shows remaining ammo under ammo-skill bars"
+  N_('场上单位较多时，干员模型不再被截断或留下残影'), // en: "Operator models no longer get cut off or leave trails on crowded boards"
+  N_('维什戴尔的召唤物现只会落在部署格上'), // en: "Wiš'adel's summons now only land on deploy tiles"
 ];
 
-// '0.2.5 更新 - PRTS' — en: "Update 0.2.5 - PRTS"
+// '0.2.6 更新' — en: "Update 0.2.6"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.5 更新 - PRTS')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.6 更新')}>
     <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.5 更新 - PRTS')}</span>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.6 更新')}</span>
       <ul class="search-news__list">
         <li class="search-news__highlight"><strong>${t(UPDATE_HIGHLIGHT)}</strong></li>
         ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}

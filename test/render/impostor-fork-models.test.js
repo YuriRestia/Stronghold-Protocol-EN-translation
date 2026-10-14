@@ -271,6 +271,26 @@ describe('a crossfade draws nothing far from both of its clips (SpineActor._mixG
     });
   });
 
+  test('伊内丝\'s \'boc\' outfit: her attack swaps to a second body rig; no crossfade blends that rig in from its parked pose (the "dash in from the left")', { skip: skipOf(MODELS.inesBoc) }, () => {
+    const ref = new rt.Skeleton(skeletonData(MODELS.inesBoc));
+    for (const iv of [0.7, 1, 1.4]) {
+      drive(MODELS.inesBoc, iv, 60 * 4, (a, t) => {
+        const tr = a.spine.state.tracks[0];
+        if (!tr) return;
+        ref.setToSetupPose();
+        tr.animation.apply(ref, tr.getAnimationTime(), tr.getAnimationTime(), false, null, 1, 0, 0);
+        ref.updateWorldTransform();
+        for (const sl of a.spine.skeleton.drawOrder) {
+          const att = sl.getAttachment();
+          if (!att || !sl.bone.active || !a.spine.slotContainers[sl.data.index].visible || sl.color.a * att.color.a <= 0.004) continue;
+          const b = ref.bones[sl.bone.data.index];
+          const off = Math.hypot(b.worldX - sl.bone.worldX, b.worldY - sl.bone.worldY);
+          assert.ok(off < 200, `${t.toFixed(2)} s ${tr.animation.name}: ${sl.data.name} drawn ${Math.round(off)} units from its own pose`);
+        }
+      });
+    }
+  });
+
   test('a crossfade inside both clips keeps every slot and its blend', { skip: skipOf(MODELS.ashlock) }, () => {
     let mixed = 0;
     drive(MODELS.ashlock, 1.3, 60 * 4, (a) => {
