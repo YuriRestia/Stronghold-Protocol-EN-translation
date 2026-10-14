@@ -15,7 +15,7 @@ const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 /** Data files the in-match screens use (`backups`: the 补位 stand-ins' bodies — cards, the board model, the detail card). */
 export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands', 'enemies', 'bosses', 'stages', 'tokens',
-  'choices', 'effects', 'garrisons', 'factions', 'local', 'backups',
+  'choices', 'effects', 'garrisons', 'factions', 'local', 'backups', 'terms',
   'outfits']; // (fork, docs/OUTFITS.md) the summons' looks and the outfits' voice sets (ui/outfits.js)
 
 /**
@@ -94,7 +94,10 @@ export function RichText({ text, class: cls, as = 'span' }) {
   return html`<${Tag} class=${cx('rt', cls)}>${segs.map((s, i) => (s.br
     ? html`<br key=${i} />`
     : s.cls.length || s.term
-      ? html`<span key=${i} class=${cx(s.cls.map((c) => rtClassName(c)), s.term && 'rt-term')}>${s.text}</span>`
+      ? s.termId
+        // a status keyword: ui/termTip.js opens its official definition on a tap / Enter (document-level listener)
+        ? html`<span key=${i} class=${cx(s.cls.map((c) => rtClassName(c)), 'rt-term')} data-term=${s.termId} role="button" tabindex="0">${s.text}</span>`
+        : html`<span key=${i} class=${cx(s.cls.map((c) => rtClassName(c)), s.term && 'rt-term')}>${s.text}</span>`
       : s.text))}<//>`;
 }
 

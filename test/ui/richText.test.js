@@ -22,7 +22,7 @@ describe('parseRichText', () => {
       { text: '<在场', cls: [], term: false },
       { text: '3', cls: ['autochess.dgreen'], term: false },
       { text: '名>改为', cls: [], term: false },
-      { text: '晕眩', cls: ['ba.stun'], term: true },
+      { text: '晕眩', cls: ['ba.stun'], term: true, termId: 'ba.stun' },
     ]);
   });
   test('nesting, escaped newlines, stray closers, unterminated tags', () => {

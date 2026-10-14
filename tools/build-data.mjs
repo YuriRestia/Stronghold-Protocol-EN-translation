@@ -4,7 +4,7 @@
 // Reads the official zh_CN client data (Kengxxiao/ArknightsGameData) plus the research JSON in
 // docs/research/ and emits compact, game-ready JSON into data/:
 //   config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves,
-//   stages, bosses, tokens, backups (every field is documented in docs/DATA.md).
+//   stages, bosses, tokens, backups, terms (every field is documented in docs/DATA.md).
 //
 // Usage:  node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>]
 //                                   [--report <file>] [--quiet] [--no-research] [--force]
@@ -4064,6 +4064,33 @@ function validateAll(f) {
   return errors;
 }
 
+// ===== terms ====================================================================================
+
+const TERM_TAG = /<\$([A-Za-z0-9_.\-]{1,48})>/g;
+
+/**
+ * The glossary of the status keywords the texts use (`<$ba.stun>晕眩</>`, public/js/ui/richText.js): every term id found in
+ * the built files, plus the terms their own descriptions mention, from gamedata_const `termDescriptionDict`.
+ * @param {Record<string, any>} dict termDescriptionDict
+ * @param {Record<string, any>} files the other built files
+ * @returns {Record<string, { name: string, desc: string }>}
+ */
+function buildTerms(dict, files) {
+  const want = new Set();
+  for (const obj of Object.values(files)) for (const m of JSON.stringify(obj).matchAll(TERM_TAG)) want.add(m[1]);
+  const out = {};
+  const queue = [...want];
+  while (queue.length) {
+    const id = queue.shift();
+    if (out[id]) continue;
+    const e = dict?.[id];
+    if (!e || typeof e.termName !== 'string' || typeof e.description !== 'string') { warn(`term ${id}: no termDescriptionDict entry`); continue; }
+    out[id] = { name: e.termName, desc: e.description };
+    for (const m of e.description.matchAll(TERM_TAG)) if (!out[m[1]]) queue.push(m[1]);
+  }
+  return Object.fromEntries(Object.keys(out).sort().map((k) => [k, out[k]]));
+}
+
 // ===== main =====================================================================================
 
 async function main() {
@@ -4097,6 +4124,7 @@ async function main() {
   for (const b of Object.values(bands)) b.bondIds = bandBondIds(b, { bonds, pools: choices.pools });
   const config = buildConfig(ctx, waves, stages, bands, chess, items);
   const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups };
+  files.terms = buildTerms((await loadGamedata('excel/gamedata_const.json'))?.termDescriptionDict, files);
 
   // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)
   const errors = [...validateAll(files), ...passes.flatMap((p) => checkUnitFormParity(p.ctx, p.chess).map((e) => `${e} (potential rank ${p.ctx.potRank})`))];

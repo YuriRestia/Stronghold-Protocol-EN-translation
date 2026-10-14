@@ -1,5 +1,5 @@
 {
-  "_about": "Fallback English for the remake's own data texts (names and notes tools/build-data.mjs writes; no official counterpart). Official EN terms where they exist: 'Active Originium', 'High Tide', 'Mutated Cells', 'Rockrock', 'Stronghold Protocol: Alliance' (the EN activity name). '排气格栅' follows PR #70's wording (no official EN occurrence found).",
+  "_about": "Fallback English for the remake's own data texts (names and notes tools/build-data.mjs writes; no official counterpart). Official EN terms where they exist: 'Active Originium', 'High Tide', 'Mutated Cells', 'Rockrock', 'Stronghold Protocol: Alliance' (the EN activity name). '排气格栅' follows PR #70's wording (no official EN occurrence found). Status keyword names and definitions (data/terms.json) the EN client does not have yet are here too (names after arknights.wiki.gg, as in the operators' skill texts; Anti-Air Sanctuary's definition from the wiki, the others drafted in the official EN wording); an official EN text, once the client has one, takes precedence.",
   "卫戍协议：盟约": "Stronghold Protocol: Alliance",
   "活性源石": "Active Originium",
   "涨潮": "High Tide",
@@ -7,5 +7,15 @@
   "联防阵地（1名玩家）": "Unite Field (1 player)",
   "联防阵地（2名玩家）": "Unite Field (2 players)",
   "维多利亚盟约每25层 / 洛洛的定制品": "Victoria Alliance (every 25 stacks) / Rockrock's custom items",
-  "生效时原干员销毁，突变细胞与其他装备退回整备区，可再次配发；随后获得一名高一阶的随机初始干员（最高6阶），进入整备区，需要重新部署": "When it takes effect, the Operator is destroyed and the Mutated Cells and other equipment return to the Bench, ready to be equipped again; then a random starting Operator one Tier higher (up to Tier 6) joins the Bench and has to be deployed again"
+  "生效时原干员销毁，突变细胞与其他装备退回整备区，可再次配发；随后获得一名高一阶的随机初始干员（最高6阶），进入整备区，需要重新部署": "When it takes effect, the Operator is destroyed and the Mutated Cells and other equipment return to the Bench, ready to be equipped again; then a random starting Operator one Tier higher (up to Tier 6) joins the Bench and has to be deployed again",
+  "缚地": "Grounded",
+  "目标变为地面单位，无法移动；使部分近地悬浮敌人掉落；对重量大于3的单位持续时间减半": "Target becomes a ground unit and cannot move; causes some Low-Altitude Hovering enemies to drop. Duration halved if Weight is greater than 3",
+  "对空庇护": "Anti-Air Sanctuary",
+  "受到来自空中的物理和法术伤害降低相应比例（同名效果取最高）": "Reduces incoming Physical and Arts damage from aerial units by the corresponding amount (only the strongest effect of this type applies)",
+  "迟钝": "Dull",
+  "移动速度、攻击速度、部分技能施放速度和冷却速度、部分异常状态的恢复速度降低相应比例（同名效果取最高）": "Reduces Movement Speed, Attack Speed, the casting and cooldown speed of some skills, and the recovery speed of some negative statuses by the corresponding amount (only the strongest effect of this type applies)",
+  "部署费用下限": "Minimum DP",
+  "部署费用可降低至部署费用下限；部署费用小于0时部署费用自然回复速度-50%": "DP can be reduced down to Minimum DP; while DP is below 0, natural DP regeneration is reduced by 50%",
+  "狂躁损伤": "",
+  "狂躁损伤累计至1000时，15秒内攻击速度+50，但每秒受到100点真实伤害（每次攻击时提升50，最多600）": ""
 }
