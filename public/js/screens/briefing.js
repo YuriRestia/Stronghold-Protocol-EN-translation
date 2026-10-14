@@ -3,7 +3,9 @@
 // tag, the ready count x/N with person pips, the 准备就绪 button (g.infoReady) and the countdown. The right column — 核心盟约
 // / 附加盟约 rows of bond discs (disabled bonds greyed with the banned-member badge), the legend and the 本局禁用干员
 // avatars, with the player's own 自选 pieces out of the shop (m.private.diyBanned) — is ui/matchInfo.js MatchInfo, the same
-// blocks the strategy draft's 本局信息 dialog shows (screens/bandDraft.js).
+// blocks the strategy draft's 本局信息 dialog shows (screens/bandDraft.js). Co-op only: the 核心盟约 call (ui/bondCall.js) —
+// a tap on a core bond tells the teammates which strategy the player is going for (g.bondCall). The last 10 s tick until
+// 准备就绪 (ui/timerWarn.js).
 
 import { useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, MicroLabel } from '../ui/components.js';
@@ -11,7 +13,9 @@ import { useGameData, Img, RichText } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { MatchInfo, matchInfoModel } from '../ui/matchInfo.js';
 import { LoadoutButton } from './loadout.js';
-import { actions } from '../ui/gameActions.js';
+import { actions, act } from '../ui/gameActions.js';
+import { bondCallsOf } from '../ui/bondCall.js';
+import { useTimerWarning } from '../ui/timerWarn.js';
 import { factionTypes, sortedPlayers, phaseTotalSeconds } from '../ui/gameLogic.js';
 import { enemyIconUrl, factionIconUrl } from '../ui/assetUrls.js';
 import { useStore } from '../store.js';
@@ -29,6 +33,9 @@ export function BriefingScreen() {
   const gd = useGameData();
   const [exit, setExit] = useState(false);
   const [busy, setBusy] = useState(false);
+  const meNow = sortedPlayers(pub).find((p) => p.playerId === myId);
+  // the low-time tick (ui/timerWarn.js) until 准备就绪
+  useTimerWarning(pub?.deadline, !!meNow && !meNow.ready);
   if (!pub) return null;
 
   const players = sortedPlayers(pub);
@@ -46,6 +53,12 @@ export function BriefingScreen() {
   const types = factionTypes(pub.factions);
   const factions = gd.factions?.types || {};
   const m = gd.m;
+  // the 核心盟约 call (co-op; a spectator sees the calls, read-only)
+  const call = solo ? null : {
+    calls: bondCallsOf(pub), myId,
+    onCall: me ? (bondId) => act('g.bondCall', { bondId }, { sfx: 'pick' }) : null,
+    hint: me ? t('点击核心盟约，告诉队友你打算走的路线') : null, // en: "Click a core alliance to tell your teammates which strategy you're going for"
+  };
 
   const ready = async () => {
     if (busy || me?.ready) return;
@@ -88,7 +101,7 @@ export function BriefingScreen() {
         </div>
       </section>
       <section class="brief__right">
-        <${MatchInfo} model=${info} />
+        <${MatchInfo} model=${info} call=${call} />
       </section>
     </main>
     <footer class="brief__foot">

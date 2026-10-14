@@ -8,6 +8,7 @@ import { unitStatsEntry } from '../../../shared/protocol.js';
 import { PHASE, ERR, EMOTES, EMOTE_COOLDOWN_MS, GEO } from '../../../shared/constants.js';
 import { deriveSeed } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
+import { setBondCall } from '../bondCall.js';
 
 export class MatchIntents {
   _handle(ps, msg) {
@@ -16,6 +17,8 @@ export class MatchIntents {
         if (this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE);
         if (!ps.infoReady) { ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
         return OK;
+      // the briefing's 核心盟约 call (server/match/bondCall.js)
+      case 'g.bondCall': return setBondCall(this, ps, msg.bondId ?? null);
       case 'g.band': return this.pickBand(ps, msg.bandId);
       case 'g.bandSkip': return this.skipBand(ps);
       // the strategy highlighted in the draft screen (what a timed-out turn takes, timeoutBand)

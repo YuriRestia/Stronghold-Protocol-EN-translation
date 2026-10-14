@@ -520,6 +520,9 @@
    inside the label, so the label lays glyph and text out like the button itself */
 .settings-btn .btn__label { display: inline-flex; align-items: center; gap: .1rem; }
 .settings-btn .btn__icon { color: var(--mint-500); }
+/* square (the lobby's gear alone): the label box drops out so the gear sizes and centres against the button, like an `icon` */
+.settings-btn.btn--square .btn__label { display: contents; }
+.settings-btn.btn--square .btn__icon { width: 62%; height: 62%; } /* the gear glyph is drawn smaller in its box than the book */
 .set-list { display: flex; flex-direction: column; gap: .16rem; padding-top: .06rem; }
 .set-row { display: grid; grid-template-columns: 3.3rem 1fr auto; align-items: center; gap: .18rem; min-height: .44rem; }
 .set-row__label { display: flex; align-items: center; gap: .1rem; font-size: .18rem; color: var(--text-hi); white-space: nowrap; }

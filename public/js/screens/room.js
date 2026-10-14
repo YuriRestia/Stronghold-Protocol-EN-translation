@@ -26,6 +26,7 @@ import { openStats } from './stats.js';
 import { SettingsButton } from '../ui/settings.js';
 import { LoadoutButton } from './loadout.js';
 import { net } from '../net.js';
+import { audio } from '../audio.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating } from '../store.js';
 import { difficultyInfo } from './lobby.js';
 import { t, tc } from '../../../shared/i18n.js';
@@ -289,7 +290,8 @@ export function RoomScreen() {
     }
   };
 
-  const toggleReady = () => run('ready', () => net.request('room.ready', { ready: !myReady }));
+  // the strategy draft's 确认选择 sound on ready (gameActions SUCCESS_SFX g.band), 'back' on cancel — as the HUD's g.ready
+  const toggleReady = () => run('ready', async () => { const on = !myReady; await net.request('room.ready', { ready: on }); audio.sfx(on ? 'confirm' : 'back'); });
   const start = () => run('start', () => net.request('room.start', {}));
   const addBot = () => run('add', () => net.request('room.addBot', {}));
   const removeBot = (seat) => run(`rm${seat}`, () => net.request('room.removeBot', { seat }));

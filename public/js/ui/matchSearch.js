@@ -1,5 +1,5 @@
 // 搜寻队友 UI (DESIGN §28): the room screen's search strip and status line, the 搜寻成功! toast, and the lobby's
-// update announcement (shown until closed; 0.2.1's replaced the 搜寻队友 one).
+// update announcement (shown until closed; one per release).
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
@@ -9,26 +9,28 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement: bumped for 单人匹配, so everyone who closed the 0.2.1 one ('news.0.2.1') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.1.solo';
+// A new key per announcement, so everyone who closed the 0.2.1 one ('news.0.2.1.solo') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.2.2';
 
-/** The 0.2.1 announcement's points (msgids). */
+/** The 0.2.2 announcement's points (msgids). */
 const UPDATE_POINTS = [
   N_('自选干员：在「干员调配 → 自选编队」为 5 阶、6 阶各选 2 名自己拥有的 6★ 干员，技能和模组任选'),
-  N_('最终攻势与隐秘核心的领袖生命值按开战时存活的博士人数计算'),
+  N_('新增在「确认本局信息」与「选择策略」阶段告知队友核心盟约的功能'), // en: "Added the ability to communicate core alliance selection in briefing & strategy select phase."
   N_('语音语言：在「设置」或「干员调配」里为每名干员选择中文、日文、英文、韩文或本土语言配音'),
-  N_('新增「单人匹配」模式：自动与服务器中的其他博士组队'), // en: "New Solo Matchmaking mode: Team up with other Doctors in the server automatically."
+  N_('点击玩家头像可查看统计数据'), // en: "Click on player profile for stats page"
+  N_('新增「预载资源」，避免游戏过程中因下载资源而卡顿'), // en: "Added an Asset Preloader to prevent gameplay disruptions due to asset downloading."
   N_('大量问题修复'),
 ];
 
+// '0.2.2 更新' — en: "Update 0.2.2"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.1 重大更新')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.2 更新')}>
     <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.1 重大更新')}</span>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.2 更新')}</span>
       <ul class="search-news__list">${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}</ul>
     </div>
     <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />

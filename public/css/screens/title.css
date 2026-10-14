@@ -319,3 +319,16 @@ html[data-script="alphabetic"] .title-login .btn--xl { letter-spacing: .3em; }
   font-weight: 700;
   letter-spacing: .02em;
 }
+
+/* About this server (ui/about.js): a quiet text button under the login panel, and its panel */
+.title-about { margin-top: .12rem; animation: rise-in 600ms 320ms var(--ease-out) backwards; }
+.title-about__btn { height: .3rem; font-size: .13rem; color: var(--text-lo); opacity: .75; }
+.title-about__btn:hover, .title-about__btn:focus-visible { opacity: 1; }
+.about .modal__body { font-size: .15rem; line-height: 1.55; }
+.about .modal__body p { margin: 0 0 .1rem; }
+.about .modal__body h3 { margin: .16rem 0 .04rem; font-size: .15rem; color: var(--text-hi); letter-spacing: .04em; }
+.about .modal__body a { color: var(--mint-400); }
+.about__facts { display: grid; grid-template-columns: auto 1fr; gap: .04rem .16rem; margin: 0 0 .16rem; }
+.about__facts dt { color: var(--text-lo); }
+.about__facts dd { margin: 0; overflow-wrap: anywhere; }
+.about__dim { color: var(--text-lo); }
