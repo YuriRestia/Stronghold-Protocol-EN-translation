@@ -122,7 +122,7 @@ export function VoiceLangPicker({ charId, class: cls }) {
   const langs = typeof charId === 'string' ? voiceLangsOf(a, charId) : [];
   if (langs.length < 2) return null;
   const on = effectiveVoiceLang(a, charId, pref);
-  return html`<div class=${cx('vl-pick', cls)} role="radiogroup" aria-label=${t('干员语音')} data-testid="voice-lang">
+  return html`<div class=${cx('vl-pick', cls)} role="radiogroup" aria-label=${t('干员语音')} data-testid="voice-lang" data-voice-char=${charId}>
     ${langs.map((l) => {
       const [text, name] = labelOf(a, charId, l);
       return html`<button key=${l} type="button" role="radio" class=${cx('vl-pick__sq', l === 'native' && 'vl-pick__sq--native', on === l && 'is-on')}

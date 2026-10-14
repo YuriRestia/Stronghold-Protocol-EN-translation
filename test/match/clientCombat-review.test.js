@@ -22,6 +22,23 @@ import { DATA, makeMatch, checkInvariants } from './harness.js';
 
 const gd = new GameData(DATA, 'mode_multi_hard');
 
+test('client result names DIY and stand-in operators from the authoritative lineup, never the client or empty slot (#469)', () => {
+  const ordinary = Object.values(DATA.chess).find(c => c.visible && !c.isGolden && gd.standIn(c.chessId));
+  const cases = [
+    { chessId: 'chess_char_6_diy1_a', diy: { charId: 'char_4231_clemnt', skillIndex: 2, uniEquipId: null }, expected: '克莱门莎' },
+    { chessId: ordinary.chessId, standIn: true, expected: gd.standIn(ordinary.chessId).name },
+  ];
+  for (const { expected, ...unit } of cases) {
+    const spec = buildBattleSpec({ battleId: 'names', fieldId: 'n:p', kind: 'normal', seed: 1, round: 3, timeLimit: 60,
+      players: [{ playerId: 'p', units: [{ uid: 7, kind: 'chess', row: 10, col: 3, items: [], ...unit }], bonds: {} }],
+      spawns: [{ enemyKey: plainKey, count: 1, time: 1 }], flags: { layerGainsEnabled: true } });
+    const raw = { reason: 'cleared', time: 20, killed: 1, total: 1, errors: 0,
+      perPlayer: { p: perPlayer({ killed: 1, total: 1, unitStats: [{ uid: 7, defId: 'forged', name: 'forged', kind: 'op', dmg: 1e6 }] }) } };
+    const v = validateClientResult(spec, raw, { gd }); assert.ok(v.ok, v.reason);
+    assert.equal(v.result.perPlayer.p.unitStats[0].name, expected);
+  }
+});
+
 test('eliminated humans auto-observe the first field at COMBAT start (display replica) and may switch freely', () => {
   const h = makeMatch({ mode: 'coop', humans: 3, bots: 1, seed: 9301, fake: true, clientCombat: true, instant: false, pace: 'paced',
     script: () => ({ duration: 6 }) }).start();

@@ -8,6 +8,7 @@ import { ERR } from '../../../shared/constants.js';
 import { msg, dn } from '../../../shared/i18n.js';
 import { tileKey, parseKey, inField, canPlace, placeClass, freeSlot, pieceDir, parseDir, ownerRangeKeys } from '../board.js';
 import { attackRangeGrid, loadoutRecord, resolveRecordLoadout } from '../../../shared/loadoutRecord.js';
+import { summonPlacementGrid } from '../../../shared/summonPlacement.js';
 import { OK, fail } from './common.js';
 
 export class PlayerPlacement {
@@ -46,7 +47,8 @@ export class PlayerPlacement {
    * Where piece may stand on (r, c): the deploy map of its position class (board.js canPlace) and, for a summon whose
    * text reads "只能部署在召唤者攻击范围内" (tokens.json `ownerRange`: 伺夜's 狼群, 缪尔赛思's 流形, Mon3tr's 重构体), a tile of
    * its owner's attack range (summonRange); for one marked `ownerRangeOutside` (凯尔希·思衡托's 战术锚点), a tile outside it
-   * (summonExcluded). `owner` = the owner's position after the move being checked ({ key, piece, dir }: a summon swapped
+   * (summonExcluded). Jessica's shield instead uses the fixed four-adjacent-tile grid (shared/summonPlacement.js).
+   * `owner` = the owner's position after the move being checked ({ key, piece, dir }: a summon swapped
    * with its own owner).
    */
   _legal(piece, r, c, owner = null) {
@@ -62,15 +64,18 @@ export class PlayerPlacement {
    * The 'r,c' keys of the attack range of a range-bound summon's owner (player report #9 after 0.1.0: 伺夜's tactical
    * point could be placed anywhere; PRTS 狼群 特性 "只能部署在召唤者攻击范围内"): the owner's loadout-resolved range grid
    * (shared/loadoutRecord.js attackRangeGrid — what the deploy wheel previews) rotated by its facing around its board
-   * tile (board.js ownerRangeKeys). Null when the piece is not range-bound or its owner is not on the board (the other
+   * tile (board.js ownerRangeKeys). Jessica's shield uses its four-adjacent-tile placement grid, independent of her
+   * facing, skill or module. Null when the piece is not range-bound or its owner is not on the board (the other
    * rules refuse such a placement).
    * @param {any} piece
    * @param {{ key: string, piece: any, dir: string } | null} [owner] the owner's position to use instead of its current one
    * @returns {Set<string> | null}
    */
   summonRange(piece, owner = null) {
-    if (!piece || piece.kind !== 'token' || this.gd.token(piece.id)?.ownerRange !== true) return null;
-    return this._ownerRangeOf(piece, owner);
+    if (!piece || piece.kind !== 'token') return null;
+    const grid = summonPlacementGrid(piece.id);
+    if (!grid && this.gd.token(piece.id)?.ownerRange !== true) return null;
+    return this._ownerRangeOf(piece, owner, grid);
   }
 
   /**
@@ -86,14 +91,14 @@ export class PlayerPlacement {
     return this._ownerRangeOf(piece, owner);
   }
 
-  /** The owner's attack-range keys of a summon piece (summonRange / summonExcluded), or null when its owner is off the board. */
-  _ownerRangeOf(piece, owner = null) {
+  /** The owner's attack or fixed placement range of a summon, or null when its owner is off the board. */
+  _ownerRangeOf(piece, owner = null, placementGrid = null) {
     let at = owner;
     if (!at) for (const [key, p] of this.board) if (p.uid === piece.ownerUid && p.kind === 'chess') { at = { key, piece: p, dir: pieceDir(p) }; break; }
     const chess = at && this.gd.chess(at.piece.id);
     if (!chess) return null;
     const rec = this.fieldRecord(chess); // 0.2.0 补位: a stand-in's own range (its backup selection)
-    const grid = attackRangeGrid(loadoutRecord(rec, resolveRecordLoadout(rec, this.loadoutFor(chess)))) || rec.rangeGrid;
+    const grid = placementGrid || attackRangeGrid(loadoutRecord(rec, resolveRecordLoadout(rec, this.loadoutFor(chess)))) || rec.rangeGrid;
     const [r, c] = parseKey(at.key);
     return ownerRangeKeys(grid, r, c, at.dir);
   }
@@ -108,7 +113,7 @@ export class PlayerPlacement {
    * battle. Returns the number taken off the board; a toast names them.
    */
   _liftOutOfRange() {
-    const back = [], gone = [], backOut = [], goneOut = [];
+    const back = [], gone = [], backOut = [], goneOut = [], backAdjacent = [], goneAdjacent = [];
     for (const [k, p] of [...this.board]) {
       if (p.kind !== 'token') continue;
       const range = this.summonRange(p);
@@ -117,14 +122,17 @@ export class PlayerPlacement {
       if (!inside && (!range || range.has(k))) continue;
       this.board.delete(k);
       const ok = this._returnToken(p, null, { allowTemp: true });
-      (inside ? (ok ? backOut : goneOut) : (ok ? back : gone)).push(this.gd.token(p.id)?.name || p.id);
+      const returned = inside ? (ok ? backOut : goneOut) : summonPlacementGrid(p.id) ? (ok ? backAdjacent : goneAdjacent) : (ok ? back : gone);
+      returned.push(this.gd.token(p.id)?.name || p.id);
     }
     if (back.length) this.m.toast(this, 'warn', msg('{names}只能部署在召唤者攻击范围内，已退回整备区', { names: back.map(dn) }));
     if (gone.length) this.m.toast(this, 'warn', msg('{names}只能部署在召唤者攻击范围内，整备区已满，下回合返还', { names: gone.map(dn) }));
     // an outside-bound summon (战术锚点) its owner's new range now covers
     if (backOut.length) this.m.toast(this, 'warn', msg('{names}只能部署在召唤者攻击范围外，已退回整备区', { names: backOut.map(dn) }));
     if (goneOut.length) this.m.toast(this, 'warn', msg('{names}只能部署在召唤者攻击范围外，整备区已满，下回合返还', { names: goneOut.map(dn) }));
-    return back.length + gone.length + backOut.length + goneOut.length;
+    if (backAdjacent.length) this.m.toast(this, 'warn', msg('{names}只能部署在召唤者相邻四格，已退回整备区', { names: backAdjacent.map(dn) }));
+    if (goneAdjacent.length) this.m.toast(this, 'warn', msg('{names}只能部署在召唤者相邻四格，整备区已满，下回合返还', { names: goneAdjacent.map(dn) }));
+    return back.length + gone.length + backOut.length + goneOut.length + backAdjacent.length + goneAdjacent.length;
   }
 
   /**

@@ -147,9 +147,9 @@ export function pickOptions(slotId, picks, data, kitted) {
  * The record a slot shows for a pick (shared/diy.js diyRecord: the operator at the slot's normal form, or the elite).
  * @param {string} slotId @param {any} pick @param {any} data @param {{ elite?: boolean }} [opts]
  */
-export function slotRecord(slotId, pick, data, { elite = false } = {}) {
+export function slotRecord(slotId, pick, data, { elite = false, potential = null } = {}) {
   if (!isObj(pick)) return null;
-  try { return diyRecord(slotId, pick, { elite, data }); } catch { return null; }
+  try { return diyRecord(slotId, pick, { elite, data, potential }); } catch { return null; }
 }
 
 /** Set (or with null, clear) one slot. Returns a new roster (the input is not changed). */

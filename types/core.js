@@ -121,6 +121,7 @@
  * @property {ElemSnap[]} [elem]
  * @property {CountSnap[]} [ammo]
  * @property {CountSnap[]} [wolves]
+ * @property {CountSnap[]} [coins] 琳琅诗怀雅 skill balance and cap, including zero
  * @property {NegSnap[]} [neg]
  * @property {[number, number][]} [stand]
  * @property {[number, number][]} [standCut]

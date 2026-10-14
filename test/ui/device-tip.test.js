@@ -18,7 +18,7 @@ import { makeBattle } from '../helpers/battleHarness.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const { resolveDetail } = await import('../../public/js/ui/detailPanel.js');
-const { deviceInfo, deviceTipAt, noteDeviceUnits, effectiveStage, closesOnFieldPress } = await import('../../public/js/ui/gameLogic.js');
+const { deviceInfo, deviceTipAt, noteDeviceUnits, deviceUnitsForEntry, effectiveStage, closesOnFieldPress } = await import('../../public/js/ui/gameLogic.js');
 
 const stages = JSON.parse(readFileSync(path.join(ROOT, 'data', 'stages.json'), 'utf8'));
 const pack = (code) => { const p = JSON.parse(readFileSync(path.join(ROOT, 'public', 'i18n', `${code}.json`), 'utf8')); delete p._meta; return p; };
@@ -267,6 +267,15 @@ test('the prep and a scouted prep board: the stage\'s own device entries answer 
   assert.deepEqual([...m.keys()], [2, 3]);
   assert.equal(noteDeviceUnits(new Map(), {}).size, 0);
   assert.equal(noteDeviceUnits(new Map(), { units: 'x', events: 5 }).size, 0);
+  // a same-field refresh whose meta has no device keeps spawn-noted crates; a meta that names devices replaces them;
+  // another field does not
+  const kept = deviceUnitsForEntry(m, new Map(), true);
+  assert.equal(kept, m);
+  const fresh = new Map([[9, { id: 9, kind: 'device' }]]);
+  assert.equal(deviceUnitsForEntry(m, fresh, true), fresh);
+  assert.notEqual(deviceUnitsForEntry(m, new Map(), false), m);
+  assert.equal(deviceUnitsForEntry(null, new Map(), true).size, 0);
+  assert.equal(deviceUnitsForEntry(m, null, true).size, 0);
 });
 
 test('a device target resolves into the panel card; a malformed one resolves to nothing; the card closes on a field press', () => {

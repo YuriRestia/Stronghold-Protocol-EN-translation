@@ -136,6 +136,14 @@ describe('local stats: record building', () => {
     assert.equal(buildRecord(null, { myId: 'p1' }), null);
   });
 
+  test('(fork) altArt is noted in the record, but the history re-view does not show it', () => {
+    const rec = buildRecord(baseResult({ altArt: true }), { myId: 'p1', now: 1 });
+    assert.equal(rec.altArt, true);
+    const res = recordToResult(rec);
+    assert.ok(res);
+    assert.equal(res.altArt, undefined);
+    assert.equal(normalizeResult(res).altArt, false);
+  });
   test('roomMode falls back to the modeId (single → solo, multi → coop, else null)', () => {
     assert.equal(roomModeOf('mode_multi_funny', null), 'coop');
     assert.equal(roomModeOf('mode_single_normal', 'coop'), 'coop'); // explicit room mode wins

@@ -15,6 +15,11 @@ Exceptions:
 - `tools/local-extract/aklz4.py` comes from [isHarryh/Ark-Unpacker](https://github.com/isHarryh/Ark-Unpacker) and keeps its BSD-3-Clause license (see `tools/local-extract/LICENSE-Ark-Unpacker.txt`).
 - Third-party libraries installed through npm (PixiJS, pixi-spine, Preact, htm, three.js, ws, etc.) and fonts keep their own licenses; see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
 
+**English translation credit**: the English UI strings in `public/i18n/en.json` and the supplementary game-text translations in `tools/i18n/fallback-pr70.json` are based on the translations by **@YuriRestia** in GitHub PR #70 (branch `en-translation`). By decision of the project owner (2026-10-05) they are used with credit and released with this project under GPL-3.0-or-later; the texts in PR #70 taken from ak-spa-database.pages.dev (no license stated) were not used. The English game texts in `data/i18n/en.json` are themselves official EN server data (see section 2).
+
+**Asset preload credit**: "Settings ▸ Preload Assets" (`public/resource-sw.js`, `public/js/resources/`, `shared/resources.js`, `server/resources.js`) is based on the asset preload module of [xinhai-ai/Stronghold-Protocol](https://github.com/xinhai-ai/Stronghold-Protocol) (`public/resource-sw.js`, `public/js/resources/`, `server/resources.js`, GPL-3.0-or-later); copyright belongs to its contributors, and it is released with this project under GPL-3.0-or-later.
+The asset preload (Settings ▸ Preload Assets) is based on the preloader of xinhai-ai/Stronghold-Protocol (GPL-3.0-or-later); copyright its contributors, distributed under the same license.
+
 **Additional permission (GPL-3.0 section 7)** — Additional permission under GNU GPL version 3 section 7:
 
 > If you modify this Program, or any covered work, by linking or combining it with the Spine Runtimes (as shipped in
@@ -30,9 +35,10 @@ Exceptions:
 All **names, characters, art, Spine models, UI images, music and sound effects, text and game data** related to *Arknights* and *Stronghold Protocol* are copyright of Shanghai Hypergryph Network Technology Co., Ltd. and its licensors (Yostar, etc.). Specifically this includes:
 
 - `public/assets/**` in the full Release bundle (including the 3D board models and textures extracted locally from the official client, `public/assets/local/**`) and `public/fonts/**` (fonts belong to their respective authors);
-- `data/*.json` generated from the official data tables, and `docs/research/*.json`, `test/fixtures/official-waves.json` and `public/dev/recordings/*.json`, which contain or are derived from game data;
+- `data/*.json` and `data/i18n/*.json` (official EN server texts) generated from the official data tables, and `docs/research/*.json`, `test/fixtures/official-waves.json` and `public/dev/recordings/*.json`, which contain or are derived from game data;
 - the game screenshots in `docs/img/`;
-- text from community pages such as PRTS, BWIKI, NGA and Bahamut quoted in `docs/` (still under the license of their source; wiki text is CC BY-NC-SA).
+- text from community pages such as PRTS, BWIKI, NGA and Bahamut quoted in `docs/` (still under the license of their source; wiki text is CC BY-NC-SA);
+- `public/icons/result-alt.jpg`, artwork by **3e46** (commissioned by an anonymous patron; original post: https://x.com/Gan3E_CSL/status/2030836795823231164), used with the artist's permission (all rights remain with the artist).
 
 This content is **not within the scope of the GPL-3.0 grant**, and this project has no right to grant anyone any rights to it.
 
@@ -66,3 +72,11 @@ art, models, audio and data — including everything under `public/assets/` in t
 Yostar and their licensors, are **not** covered by the GPL, and may be used for study and personal non-commercial
 purposes only: no selling, paid distribution, paid hosting, ads, donations or any other monetisation. Rights holders
 can request removal through a GitHub issue and the content will be taken down. No warranty of any kind.
+The English UI strings were seeded from GitHub PR #70 by @YuriRestia (credited, released with the project under
+GPL-3.0-or-later); the English game texts (`data/i18n/en.json`) are official EN client data like `data/*.json`.
+The English names, skills, talents and modules of the operators the EN client does not have yet (可露希尔, 予愿安洁莉娜,
+凯尔希·思衡托, 机械师, 维伊, 谬因, 珊比, 克莱门莎; in `tools/i18n/fallback-pr70.json`) follow the wording of arknights.wiki.gg
+(https://arknights.wiki.gg/wiki/Operator/List#CN_Operators, CC BY-SA 4.0), with the remake's numbers. The wiki has no
+English for the CN-only modules 好时节 ("A Fine Season", Shu, GUA-Y) and “前路” ("The Road Ahead", Ulpianus, CRU-Y), or
+for the GUA-Y upgrade of Shu's 天有四时 ("From Seasons Fourfold") talent; those are this fork's own wording until the
+EN client adds them.

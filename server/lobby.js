@@ -97,18 +97,20 @@
 //     time → room.closed {kicked} to it. A spectator in a LOBBY room may take a free player seat with room.join of the same
 //     code; a player never switches to spectating in place (ALREADY). Disconnect / grace / reconnect / expiry work as for
 //     a player seat (the seat is kept and given back on resume).
-//   * 搜寻队友 (DESIGN §28): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
+//   * 搜寻队友 (DESIGN §90): room.search {on} (host, co-op, the others ready); server/matchmaker.js plans the merges,
 //     mergeRooms / autoStart below carry them out. room.state carries `searching` / `searchSince`.
-//   * 单人匹配 (DESIGN §28): queue.join {difficulty} / queue.leave / queue.ai from the lobby, no room meanwhile;
+//   * 单人匹配 (DESIGN §90): queue.join {difficulty} / queue.leave / queue.ai from the lobby, no room meanwhile;
 //     server/soloQueue.js plans, placeSolos below seats and starts in one step. queue.state {queued, ...} answers.
 //     Disconnect, expiry, room.create / room.join / room.spectate leave the queue.
 
 import { randomBytes, randomInt } from 'node:crypto';
 import { ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor, normalizeRules } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks } from '../shared/protocol.js';
+import { cleanOutfits } from '../shared/outfits.js';
 import { encode, isDroppable, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
+import { altArtChance } from './match/results.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { Matchmaker, groupReady, roomSize } from './matchmaker.js';
 import { SoloQueue, planSolos } from './soloQueue.js';
@@ -135,6 +137,8 @@ export const BOT_NAMES = Object.freeze(['AI·华法琳', 'AI·阿米娅', 'AI·�
 const OK = Object.freeze({ ok: true });
 const fail = (code, detail) => (detail ? { error: code, detail } : { error: code });
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
+/** What a retiring lobby refuses (retire()): everything that opens a room, a queue or a match. */
+const RETIRED_MSGS = new Set(['room.create', 'room.join', 'room.spectate', 'room.start', 'room.search', 'queue.join', 'queue.ai']);
 
 /**
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
@@ -245,7 +249,9 @@ export class Room {
       rules: { ...this.rules },
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
-        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left }
+        ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left,
+          // (fork, docs/OUTFITS.md) the seat's outfit choice, when it has one
+          ...(s.outfits && Object.keys(s.outfits).length ? { outfits: s.outfits } : null) }
         : null)),
       spectators: this.spectators.map((s) => ({ playerId: s.playerId, name: s.name, connected: s.connected })),
       searching: this.searching,
@@ -287,6 +293,31 @@ export class Lobby {
     /** Planned maintenance (server/maintenance.js MaintenanceBoard), wired by server/index.js; null = none. */
     this.maintenance = null;
     this.matchmaker = new Matchmaker(this, options);
+    /** a newer generation took over (server/generation.js): running matches finish, nothing new starts here */
+    this.retiring = false;
+    /** (fork) every match this process created, all rooms (results.js altArtResult counts them; resets on restart) */
+    this.matchesCreated = 0;
+    /** (fork) server/altArt.js AltArtLedger: picked rooms + the journal (server/index.js sets it; null = neither) */
+    this.altArt = null;
+  }
+
+  /**
+   * Stop taking new rooms, queues and matches for good (server/generation.js). Running matches play on; the waiting
+   * rooms and queues are left to the clients, which `sys.retire` sends to the new generation.
+   */
+  retire() {
+    if (this.retiring) return;
+    this.retiring = true;
+    this.matchmaker.stop();
+    this.soloQueue.clear();
+    for (const r of this.rooms.values()) if (!r.match && r.searching) { r.searching = false; r.searchSince = null; }
+  }
+
+  /** room.join / room.spectate of the room the session is already in (a restore after a reload): allowed while retiring. */
+  ownRoomMsg(session, msg) {
+    if (msg.t !== 'room.join' && msg.t !== 'room.spectate') return false;
+    const cur = this.roomOf(session);
+    return !!cur && cur.code === String(msg.code ?? '').trim().toUpperCase();
   }
 
   /** @param {string} code @returns {Room | null} */
@@ -295,15 +326,18 @@ export class Lobby {
   /** Counters for /healthz. */
   stats() {
     let matches = 0;
+    let humanMatches = 0;
     let humans = 0;
     let bots = 0;
     let spectators = 0;
     for (const r of this.rooms.values()) {
       if (r.match) matches++;
+      // a match a human still plays (scripts/generations.mjs reap: a retiring generation stops at 0)
+      if (r.match && r.seats.some((s) => s && !s.left && !s.isBot)) humanMatches++;
       for (const s of r.seats) if (s && !s.left) (s.isBot ? bots++ : humans++);
       spectators += r.spectators.length;
     }
-    return { rooms: this.rooms.size, matches, humans, bots, spectators };
+    return { rooms: this.rooms.size, matches, humanMatches, humans, bots, spectators };
   }
 
   // ---------------------------------------------------------------------------------------------------
@@ -352,6 +386,7 @@ export class Lobby {
    * @returns {{ ok: true } | { error: string, detail?: string }}
    */
   onMessage(session, msg) {
+    if (this.retiring && RETIRED_MSGS.has(msg.t) && !this.ownRoomMsg(session, msg)) return fail(ERR.RETIRING, 'this server is being replaced');
     switch (msg.t) {
       case 'room.create': return this.create(session, msg);
       case 'room.join': return this.join(session, msg);
@@ -364,9 +399,12 @@ export class Lobby {
       case 'room.removeBot': return this.removeBot(session, msg);
       case 'room.kick': return this.kick(session, msg);
       case 'room.start': return this.start(session);
+      case 'room.rerollSetup': return this.rerollSetup(session, msg);
+      case 'room.cancelReroll': return this.rerollSetup(session, msg, true);
       case 'room.loadout': return this.loadout(session, msg);
       case 'room.ownership': return this.ownership(session, msg);
       case 'room.diy': return this.diy(session, msg);
+      case 'room.outfits': return this.outfits(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
       case 'room.removeSpectator': return this.removeSpectator(session, msg);
       case 'room.search': return this.search(session, msg);
@@ -668,6 +706,17 @@ export class Lobby {
     return this.startMatch(room, key);
   }
 
+  /** Host authorization stays in the lobby; the match owns the vote and setup. */
+  rerollSetup(session, msg, cancel = false) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (room.spectatorOf(session.playerId)) return fail(ERR.SPECTATOR);
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    const method = cancel ? 'cancelSetupReroll' : 'requestSetupReroll';
+    if (!room.match || typeof room.match[method] !== 'function') return fail(ERR.WRONG_PHASE);
+    return this.callMatch(room, method, session.playerId, cancel ? msg.voteId : msg.setupRevision) || fail(ERR.INTERNAL);
+  }
+
   /**
    * room.loadout (DESIGN §16): check the operator loadout — and its per-operator 潜能 / 练度 `ops` (0.2.2) — against the
    * game data, store both on the session and the seat, and — while a match runs — hand them to the match (accepted only
@@ -739,6 +788,22 @@ export class Lobby {
     return OK;
   }
 
+  /**
+   * room.outfits (fork, docs/OUTFITS.md): keep the outfits data/outfits.json knows, store them on the session and the
+   * seat, and show them to the room (room.state seats[].outfits). Any phase: cosmetic, the match never reads them.
+   */
+  outfits(session, { outfits }) {
+    const kept = Object.freeze(cleanOutfits(outfits, this.safeData()?.outfits || {}));
+    const same = JSON.stringify(kept) === JSON.stringify(session.outfits || {});
+    session.outfits = kept;
+    const room = this.roomOf(session);
+    if (!room) return OK;
+    const seat = room.seatOf(session.playerId);
+    if (seat) seat.outfits = kept;
+    if (seat && !same) this.broadcastState(room);
+    return OK;
+  }
+
   /** Extra fields of every `welcome` (net.js): the operators a 自选 slot may field (shared/diy.js `kitted`). */
   welcomeInfo() {
     return { diyKitted: KITTED_CHARS };
@@ -748,13 +813,14 @@ export class Lobby {
   // Match wiring
   // ---------------------------------------------------------------------------------------------------
 
-  /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
   /** Planned maintenance closed the server to new matches (scripts/maintenance.mjs --close). */
   closedForMaintenance() {
     return this.maintenance?.closed() === true;
   }
 
+  /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
   startMatch(room, key = null) {
+    if (this.retiring) return fail(ERR.RETIRING, 'this server is being replaced');
     // every new match starts here (room.start, 搜寻队友 / 单人匹配 placements): none during planned maintenance
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     const host = room.seatOf(room.hostId);
@@ -773,6 +839,8 @@ export class Lobby {
     const ctx = { live: true, ended: false, disposed: false, match: null, lastPublic: null, sharedResult: null, results: new Map() };
     let seed = 0;
     try { seed = this.seedFn() >>> 0; } catch { seed = randomInt(2 ** 32); }
+    let altChance = null;
+    try { altChance = altArtChance(this.matchesCreated + 1, !!this.altArt?.isPicked(room.code)); } catch { /* cosmetic */ }
     try {
       const match = new this.MatchClass({
         roomCode: room.code,
@@ -789,6 +857,8 @@ export class Lobby {
         seed,
         // the room's match number: with the seed it keeps battleIds unique across the room's matches (DESIGN §14)
         matchNo: room.matchCount + 1,
+        serverMatchNo: this.matchesCreated + 1,
+        altArtChance: altChance,
         data: this.safeData(),
         log: this.log,
         now: this.now,
@@ -804,7 +874,14 @@ export class Lobby {
       room.searching = false; // no re-queue after the match
       room.searchSince = null;
       room.matchCount++;
+      this.matchesCreated++;
       this.log.info(`[lobby] ${room.code} match #${room.matchCount} starting (${room.mode}/${room.difficulty}, ${seats.length} seats, seed ${seed})`);
+      if (altChance && this.altArt) {
+        try {
+          ctx.altArt = this.altArt.start({ code: room.code, matchNo: room.matchCount, serverMatchNo: this.matchesCreated, chance: altChance,
+            players: seats.filter((s) => !s.isBot).map((s) => s.name) });
+        } catch (e) { this.log.error('[lobby] alt-art start failed', e); }
+      }
       this.broadcastState(room);
       match.start();
     } catch (e) {
@@ -828,6 +905,7 @@ export class Lobby {
     room.replay = this.buildReplay(room, ctx);
     setImmediate(() => this.disposeMatchCtx(ctx));
     this.log.info(`[lobby] ${room.code} match #${room.matchCount} ended`);
+    if (ctx.altArt) { try { this.altArt?.end(ctx.altArt, summary); } catch (e) { this.log.error('[lobby] alt-art end failed', e); } }
     for (let i = 0; i < room.seats.length; i++) {
       const s = room.seats[i];
       if (!s || s.isBot) continue;
@@ -1258,6 +1336,7 @@ export class Lobby {
       ops: session.ops || null,
       notOwned: session.notOwned || null,
       diy: session.diy || null,
+      outfits: session.outfits || null,
     };
   }
 

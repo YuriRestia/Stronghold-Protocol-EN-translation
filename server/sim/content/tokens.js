@@ -1046,7 +1046,9 @@ function manifold(bb, raw, def) {
  * and a medic healed a hurt one.
  */
 export function champagneHold(battle, bomb) {
-  battle.addBuff(bomb, { key: 'token:champagneHold', flags: { noHeal: true, healFree: true }, persist: true, allowDead: true });
+  // PRTS 香槟炸弹: entity type 装置, not selected by ordinary auras/talents. The internal selection barrier has no
+  // visible status icon; it does not change the owner's explosion or the established HP protection (#476).
+  battle.addBuff(bomb, { key: 'token:champagneHold', flags: { noHeal: true, healFree: true, isolated: true }, persist: true, allowDead: true });
   battle.on('hit', (ctx) => { if (ctx.target === bomb) ctx.dmg.cancel = true; }, { owner: bomb, priority: 1000 });
   battle.on('elementHit', (ctx) => { if (ctx.target === bomb) ctx.dmg.cancel = true; }, { owner: bomb, priority: 1000 });
   battle.on('damaged', (ctx) => { if (ctx.target === bomb && bomb.alive) bomb.hp = bomb.s.maxHp; }, { owner: bomb, priority: 1000 });
@@ -1564,9 +1566,11 @@ function touchKit(bb, raw, def) {
 
 /**
  * Spawn a band map character (char_605_cmedic 预备干员-医疗 / char_613_acmedc Touch) at its stage position on the
- * player's half (data/stages.json `mapChars`; `_multi_only` positions only with a partner). Returns the unit or null.
+ * player's half (data/stages.json `mapChars`; `_multi_only` positions only with a partner). A prepared character may
+ * supply `preBattleAggroSeq` so its targeting order precedes the ordinary battle-start deployment. Returns the unit
+ * or null.
  */
-export function spawnMapChar(battle, playerId, tokenId, { alias = null } = {}) {
+export function spawnMapChar(battle, playerId, tokenId, { alias = null, preBattleAggroSeq = null } = {}) {
   const list = battle.stage?.raw?.mapChars ?? battle.stage?.mapChars ?? [];
   const ps = battle.getPlayer(playerId);
   const multi = battle.players.length > 1;
@@ -1583,7 +1587,7 @@ export function spawnMapChar(battle, playerId, tokenId, { alias = null } = {}) {
   for (const m of cands) {
     if (!tileFree(battle, m.pos[0], m.pos[1])) continue;
     // stage positions are field tiles: their direction is taken as it is (default RIGHT)
-    const u = battle.spawnToken(playerId, tokenId, m.pos[0], m.pos[1], { dir: normDir(m.dir) });
+    const u = battle.spawnToken(playerId, tokenId, m.pos[0], m.pos[1], { dir: normDir(m.dir), preBattleAggroSeq });
     if (u) return u;
   }
   return null;

@@ -91,17 +91,40 @@ test('build-i18n matching: exact, blackboard templates, plain from raw, composit
   assert.equal(shapeKey('攻击力<@ba.vup>+{atk:0%}</>'), shapeKey('攻击力+80%'));
 });
 
+test('build-i18n corrections: tried before the official text, the plain twin is stripped from the corrected raw one', () => {
+  const zh = [{ t: { a: '攻击力<@ba.vup>+50%</>' } }];
+  const en = [{ t: { a: 'ATK <@ba.vup>+50%</> flat' } }];
+  const data = { effects: { e1: { descRaw: '攻击力<@ba.vup>+50%</>', desc: '攻击力+50%' } } };
+  const { overlay, report } = buildOverlay({ zh, en, data, corrections: { _about: 'x', '攻击力<@ba.vup>+50%</>': 'ATK <@ba.vup>+50%</> per item' } });
+  const e = applyRecordOverlay(data.effects.e1, overlay.files.effects.e1).value;
+  assert.equal(e.descRaw, 'ATK <@ba.vup>+50%</> per item');
+  assert.equal(e.desc, 'ATK +50% per item');
+  assert.equal(report.coverage.effects.correction, 2);
+  assert.equal(report.coverage.effects.translated, 2);
+  // another language reads its own corrections the same way (build-i18n loads tools/i18n/corrections-<lang>.json)
+  const ko = buildOverlay({ zh, en: [{ t: { a: '공격력 <@ba.vup>+50%</>' } }], data, lang: 'ko', corrections: { '攻击力<@ba.vup>+50%</>': '장비 1개당 공격력 <@ba.vup>+50%</>' } });
+  assert.equal(applyRecordOverlay(data.effects.e1, ko.overlay.files.effects.e1).value.descRaw, '장비 1개당 공격력 <@ba.vup>+50%</>');
+  assert.equal(ko.report.coverage.effects.correction, 2);
+});
+
+test('data/i18n/en.json: the 维多利亚 6-member ATK bonus reads per item, as installVictoria applies it (corrections-en.json)', () => {
+  const en = JSON.parse(readFileSync(path.join(ROOT, 'data', 'i18n', 'en.json'), 'utf8'));
+  for (const t of [en.files.bonds.victoriaShip.effectDesc, en.files.bonds.victoriaShip.effectDescRaw, en.files.effects.bondeffect_victoria.desc]) {
+    assert.match(t, /\+50%(?:<\/>)? ATK per equipment carried, or (?:<@ba\.vup>)?\+80%(?:<\/>)? per upgraded equipment/);
+  }
+});
+
 test('data/i18n/en.json: shape, the 盟约 season of the EN build, coverage and the names map', () => {
   assert.equal(OVERLAY.version, 1);
   assert.equal(OVERLAY.lang, 'en');
   assert.equal(OVERLAY.meta.source.season, 'act2autochess', 'built from an EN client that has 卫戍协议：盟约 下半');
-  // the 自选 data (0.2.0) brings 71 owned 6★, some of them (and some newer modules) not in the EN client yet: their
-  // names, skills, talents and modules stay Chinese — measured 97.6 % in all, skills 95.9 / talents 95.1 % (2026-10-05)
+  // 0.2.3 adds Clementia before her EN release: official untranslated names/skills/talents remain Chinese.
+  // Measured 2026-10-09: total 97.4%, skills 95.9%, talents 94.9%; other category floors stay unchanged.
   assert.ok(OVERLAY.meta.totals.pct >= 97, `coverage ${OVERLAY.meta.totals.pct} %`);
   for (const kind of ['operators', 'skills', 'talents', 'modules', 'traits', 'enemies', 'bonds', 'items', 'effects', 'bands', 'garrisons', 'stages', 'tokens', 'choices', 'config']) {
     const c = OVERLAY.meta.coverage[kind];
     assert.ok(c && c.texts > 0, `coverage of ${kind}`);
-    assert.ok(c.pct >= (['operators', 'skills', 'talents', 'modules'].includes(kind) ? 95 : 98), `${kind}: ${c.pct} %`);
+    assert.ok(c.pct >= (kind === 'talents' ? 94.9 : ['operators', 'skills', 'modules'].includes(kind) ? 95 : 98), `${kind}: ${c.pct} %`);
   }
   assert.deepEqual(Object.keys(OVERLAY.files).filter((f) => !DATA_FILES.includes(f)), []);
   assert.equal(OVERLAY.names['琳琅诗怀雅'], 'Swire the Elegant Wit');

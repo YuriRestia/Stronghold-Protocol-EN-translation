@@ -12,6 +12,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { designText, DESIGN_DIRS } from './helpers/designDocs.js';
+import { PLAYER_MARKDOWN, rewritePlayerDoc, selectTracked, trackedFiles } from '../tools/package.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** Each document with the least number of paths it names (a guard against an extraction that finds nothing). */
@@ -108,7 +109,8 @@ test('DESIGN: every section is a `## N.` heading exactly once in docs/design/ or
     }
   }
   assert.deepEqual(sectionsOf(index), [], 'the index holds no section of its own');
-  const max = Math.max(...where.keys());
+  // fork: §90 and up are this fork's own sections (matchmaking), numbered apart so upstream's new sections never collide
+  const max = Math.max(...[...where.keys()].filter((n) => n < 90));
   assert.ok(max >= 25, `sections up to §${max}`);
   for (let n = 0; n <= max; n++) assert.ok(where.has(n), `§${n} has a file`);
   // the index's table: one row per file, naming exactly the sections that file holds, with a link that resolves
@@ -140,4 +142,29 @@ test('DESIGN: every "DESIGN §N" cited in the repository (code comments, tests, 
   }
   assert.ok(cited >= 700, `only ${cited} citations found — is the scan broken?`);
   assert.deepEqual(bad, [], 'citations of a section or subsection with no heading');
+});
+
+test('shipped markdown: a source link exists or is releases/latest, and the packaged copy only links to shipped files', () => {
+  const shipped = new Set(selectTracked(trackedFiles(ROOT)).keep);
+  const version = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
+  assert.ok(PLAYER_MARKDOWN.length >= 6, PLAYER_MARKDOWN.join(' '));
+  for (const rel of PLAYER_MARKDOWN) {
+    const md = readFileSync(join(ROOT, rel), 'utf8');
+    for (const m of md.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const href = m[1];
+      if (/^(?:[a-z]+:|#)/i.test(href)) continue;
+      const raw = href.replace(/#.*$/, '');
+      const norm = normalize(join(dirname(rel), raw)).split('\\').join('/');
+      if (norm.startsWith('..')) assert.match(norm, /^(?:\.\.\/)+releases\/latest$/, `${rel} → ${href}`);
+      else assert.ok(existsSync(join(ROOT, norm)), `${rel} → ${href}`);
+    }
+    const next = rewritePlayerDoc(md, rel, shipped, version);
+    for (const m of next.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const href = m[1];
+      if (/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(href)) continue;
+      const raw = href.replace(/#.*$/, '');
+      const norm = normalize(join(dirname(rel), raw)).split('\\').join('/');
+      assert.ok(shipped.has(norm), `${rel} packaged link ${href} (${norm}) is not in the zip`);
+    }
+  }
 });

@@ -84,6 +84,41 @@ function rewardFor(gd, roundsPassed) {
 }
 
 /**
+ * (fork) The alternate result background (m.result.altArt, cosmetic only): a match with the chance (every
+ * ALT_ART_EVERY-th match this server process created, Match.serverMatchNo, or one in a room picked with
+ * scripts/announce.mjs --pick, Match.altArtChance) that reached the Hidden Core, with ALT_ART_CHAR on a final board.
+ */
+export const ALT_ART_EVERY = 10;
+
+/**
+ * Why a match has the chance, or null (the lobby asks once, when the match starts).
+ * @param {number} serverMatchNo @param {boolean} [picked] the room was picked with scripts/announce.mjs --pick
+ * @returns {'picked' | 'every' | null}
+ */
+export function altArtChance(serverMatchNo, picked = false) {
+  if (picked) return 'picked';
+  return serverMatchNo > 0 && serverMatchNo % ALT_ART_EVERY === 0 ? 'every' : null;
+}
+const ALT_ART_CHAR = /^char_\d+_kalts\d*$/;
+
+/** @param {any} gd @param {{ id: string, diy?: { charId: string } }} e a result lineup entry */
+function isAltArtUnit(gd, e) {
+  const charId = e.diy?.charId || gd.chess(e.id)?.charId || '';
+  return ALT_ART_CHAR.test(charId);
+}
+
+/**
+ * @param {import('./Match.js').Match} m
+ * @param {boolean} hiddenReached
+ * @param {{ lineup: any[] }[]} rows the result rows (lineup = the final board)
+ */
+export function altArtResult(m, hiddenReached, rows) {
+  const chance = m.altArtChance !== undefined ? m.altArtChance : altArtChance(m.serverMatchNo);
+  if (!hiddenReached || !chance) return false;
+  return rows.some((row) => row.lineup.some((e) => isAltArtUnit(m.gd, e)));
+}
+
+/**
  * @param {import('./Match.js').Match} m
  * @param {{ victory: boolean, hiddenReached: boolean, hiddenCleared: boolean, reason: string }} outcome
  */
@@ -139,6 +174,8 @@ export function buildResult(m, outcome) {
     roundsPassed: teamRounds,
     hiddenReached,
     hiddenCleared,
+    // (fork) only when it fires, so every other payload (and the golden matches) keeps its shape
+    ...(altArtResult(m, hiddenReached, rows) ? { altArt: true } : {}),
     reason: outcome.reason,
     // the merged Final Assault pool (null before round 14); players[].lp are the alive players' shares of it
     teamLp: m.teamLp != null ? Math.max(0, Math.round(m.teamLp)) : null,

@@ -5,20 +5,125 @@
 
 .result__bg { position: absolute; inset: 0; z-index: 0; background: var(--result-bg, none) center / cover no-repeat; opacity: .55; filter: saturate(.9); }
 .result__bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 11, 10, .72), rgba(8, 11, 10, .5) 40%, rgba(8, 11, 10, .88) 62%); }
+/* (fork) the alternate result background (js/screens/result.js has-alt-art): the screen opens like a normal one,
+   then at --alt-at the whole screen glitches for --alt-glitch and the art (its own layer, .result__alt, with a
+   lighter shade) cuts in through it, at full opacity when it ends. Only the left column's blocks stay gone (the
+   return button and the player cards come back). Preview: /dev/game-mock.html?phase=RESULT&variant=alt-art.
+   icons/result-alt.jpg is a crop of the 5376×3024 original (left 2215, top 818, 1860×1052), shown at cover */
+.result.has-alt-art {
+  --alt-size: cover; --alt-pos: center; --alt-opacity: 1; --alt-sat: 1;
+  --alt-shade-l: .63; --alt-shade-m: .12; --alt-shade-r: .78; --alt-mid: 40%; --alt-right: 64%; --alt-card: .82;
+  --alt-at: 3s; --alt-glitch: 1s; --alt-stagger: .07s; --alt-static: .4;
+  --alt-credit-opacity: .63; --alt-credit-x: .14rem; --alt-credit-y: .08rem;
+}
+/* steps(1) holds each keyframe, so every glitch jumps instead of sliding; `backwards` holds the 0% frame until --alt-at */
+.result__alt { position: absolute; inset: 0; z-index: 0; background: var(--alt-art, none) var(--alt-pos) / var(--alt-size) no-repeat;
+  opacity: var(--alt-opacity); filter: saturate(var(--alt-sat)); animation: alt-swap var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+.result__alt::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 11, 10, var(--alt-shade-l)), rgba(8, 11, 10, var(--alt-shade-m)) var(--alt-mid), rgba(8, 11, 10, var(--alt-shade-r)) var(--alt-right)); }
+/* the art cuts in and out in torn strips, a bad signal locking on */
+@keyframes alt-swap {
+  0% { opacity: 0; }
+  10% { opacity: var(--alt-opacity); clip-path: inset(18% 0 52% 0); transform: translateX(-.25rem); }
+  20% { opacity: 0; }
+  32% { opacity: var(--alt-opacity); clip-path: inset(56% 0 8% 0); transform: translateX(.3rem); }
+  44% { opacity: var(--alt-opacity); clip-path: inset(0 0 58% 0); transform: translateX(-.12rem); }
+  54% { opacity: 0; }
+  66% { opacity: var(--alt-opacity); clip-path: inset(30% 0 0 0); transform: translateX(.16rem); }
+  78% { opacity: var(--alt-opacity); clip-path: none; transform: translateX(-.06rem); }
+  90%, 100% { opacity: var(--alt-opacity); clip-path: none; transform: none; }
+}
+/* the rest of the screen tears and splits into RGB (the settle art runs it backwards, out of step with the UI) */
+.result.has-alt-art .result__main { animation: alt-jolt var(--alt-glitch) steps(1, end) var(--alt-at); }
+.result.has-alt-art .result__bg { animation: alt-jolt var(--alt-glitch) steps(1, end) var(--alt-at) reverse; }
+@keyframes alt-jolt {
+  0% { transform: translateX(.08rem); clip-path: inset(0 0 46% 0); filter: drop-shadow(4px 0 rgba(255, 0, 80, .8)) drop-shadow(-4px 0 rgba(0, 240, 255, .8)); }
+  12% { transform: translateX(-.16rem) skewX(-6deg); clip-path: inset(40% 0 12% 0); }
+  24% { transform: none; clip-path: none; filter: none; }
+  36% { transform: translateX(.2rem); clip-path: inset(10% 0 62% 0); filter: drop-shadow(-5px 0 rgba(255, 0, 80, .8)) drop-shadow(5px 0 rgba(0, 240, 255, .8)); }
+  48% { transform: translateX(-.06rem); clip-path: inset(66% 0 0 0); }
+  60% { transform: none; clip-path: none; filter: none; }
+  72% { transform: translateX(-.14rem) skewX(8deg); clip-path: inset(22% 0 30% 0); filter: drop-shadow(3px 0 rgba(255, 0, 80, .9)) drop-shadow(-3px 0 rgba(0, 240, 255, .9)); }
+  84% { transform: translateX(.05rem); filter: drop-shadow(-2px 0 rgba(255, 0, 80, .8)) drop-shadow(2px 0 rgba(0, 240, 255, .8)); clip-path: none; }
+  92%, 100% { transform: none; clip-path: none; filter: none; }
+}
+/* the grid and the cards' usual opacity hold until the glitch ends, then switch to the alternate look */
+.result.has-alt-art .result__grid { opacity: 0; animation: alt-hold-on var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+@keyframes alt-hold-on { from { opacity: 1; } }
+.result.has-alt-art .rcard { background: rgba(11, 15, 13, var(--alt-card));
+  animation: card-in var(--t-slow) var(--ease-out) backwards, alt-card var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+@keyframes alt-card { from { background-color: rgba(11, 15, 13, .9); } }
+.result.has-alt-art .rcard.is-self { background: linear-gradient(90deg, rgba(78, 216, 175, .08), rgba(11, 15, 13, var(--alt-card)) 40%);
+  animation: card-in var(--t-slow) var(--ease-out) backwards, alt-card-self var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+@keyframes alt-card-self { from { background-image: linear-gradient(90deg, rgba(78, 216, 175, .08), rgba(11, 15, 13, .9) 40%); } }
+/* the second animation would reset the cards' staggered entrance (.rcard:nth-child below); keep it */
+.result.has-alt-art .rcard:nth-child(3) { animation-delay: 80ms, var(--alt-at); }
+.result.has-alt-art .rcard:nth-child(4) { animation-delay: 160ms, var(--alt-at); }
+.result.has-alt-art .rcard:nth-child(5) { animation-delay: 240ms, var(--alt-at); }
+/* a link to the artist's post; above the static (z 2) so it stays clickable, brightens on hover / focus */
+.result__credit { position: absolute; right: var(--alt-credit-x); bottom: var(--alt-credit-y); z-index: 3;
+  font-size: calc(.12 * var(--t)); letter-spacing: .06em; color: var(--text-lo); opacity: var(--alt-credit-opacity); text-decoration: none;
+  animation: alt-credit .4s ease-out calc(var(--alt-at) + var(--alt-glitch)) backwards; }
+@keyframes alt-credit { from { opacity: 0; } }
+.result__credit:hover, .result__credit:focus-visible { opacity: 1; color: var(--text-hi); text-decoration: underline; }
+/* TV static over everything for the length of the glitch (js/screens/result.js plays the `disconnect` cue on its
+   animationstart) */
+.result__static { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+  background: repeating-linear-gradient(rgba(255, 255, 255, .07) 0 1px, transparent 1px 3px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 220px 220px;
+  animation: alt-static var(--alt-glitch) steps(1, end) var(--alt-at); }
+@keyframes alt-static {
+  0% { opacity: var(--alt-static); background-position: 0 0, 0 0; }
+  10% { opacity: calc(var(--alt-static) * .5); background-position: 0 1px, -61px 37px; }
+  20% { opacity: var(--alt-static); background-position: 0 2px, 83px -120px; }
+  32% { opacity: calc(var(--alt-static) * .7); background-position: 0 0, -150px 12px; }
+  44% { opacity: var(--alt-static); background-position: 0 1px, 40px 95px; }
+  56% { opacity: calc(var(--alt-static) * .6); background-position: 0 2px, -17px -66px; }
+  68% { opacity: calc(var(--alt-static) * .8); background-position: 0 0, 133px 41px; }
+  80% { opacity: calc(var(--alt-static) * .35); background-position: 0 1px, -98px -150px; }
+  92%, 100% { opacity: 0; }
+}
+/* the lost blocks: inside the glitch, one by one (`--i` × --alt-stagger), each collapses like a dying CRT and stays
+   gone; hidden blocks keep their space, so the return button doesn't move */
+.result.has-alt-art .result__summary > * {
+  --alt-out: alt-vanish .18s ease-in calc(var(--alt-at) + var(--i, 0) * var(--alt-stagger)) forwards;
+  animation: var(--alt-out);
+}
+/* the headline keeps its own entrance (head-in above) */
+.result.has-alt-art .result__headline { animation: head-in 600ms var(--ease-out), var(--alt-out); }
+.result.has-alt-art .result__summary > :nth-child(2) { --i: 1; }
+.result.has-alt-art .result__summary > :nth-child(3) { --i: 2; }
+.result.has-alt-art .result__summary > :nth-child(4) { --i: 3; }
+.result.has-alt-art .result__summary > :nth-child(5) { --i: 4; }
+.result.has-alt-art .result__summary > :nth-child(6) { --i: 5; }
+.result.has-alt-art .result__summary > :nth-child(7) { --i: 6; }
+.result.has-alt-art .result__summary > :nth-child(8) { --i: 7; }
+@keyframes alt-vanish {
+  0% { opacity: 1; }
+  45% { opacity: 1; transform: scale(1.04, .12); }
+  100% { opacity: 0; transform: scale(0, .02); visibility: hidden; }
+}
+/* reduced motion (theme.css shortens every animation to 1ms): a plain cut at --alt-at, no tearing, no static, no sound */
+@media (prefers-reduced-motion: reduce) {
+  .result__static, .result.has-alt-art .result__main, .result.has-alt-art .result__bg { animation: none; }
+}
 .result__grid { position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background: linear-gradient(rgba(78, 216, 175, .04) 1px, transparent 1px) 0 0 / .6rem .6rem, linear-gradient(90deg, rgba(78, 216, 175, .04) 1px, transparent 1px) 0 0 / .6rem .6rem;
   -webkit-mask-image: radial-gradient(70% 70% at 25% 50%, #000, transparent); mask-image: radial-gradient(70% 70% at 25% 50%, #000, transparent); }
 .result__main { position: relative; z-index: 1; flex: 1; min-height: 0; display: grid; grid-template-columns: 5.6rem 1fr; gap: .5rem; padding: .36rem .5rem .3rem .6rem; }
 .result__hero { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; padding-top: .3rem; min-height: 0; }
+.result__summary { display: flex; flex-direction: column; align-items: flex-start; gap: .16rem; min-height: 0; width: 100%; overflow: hidden auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .result__logoimg { height: 1.1rem; width: auto; opacity: .92; }
-.result__headline { font-size: .96rem; font-weight: 900; letter-spacing: .12em; line-height: 1.05; color: var(--mint-400); text-shadow: 0 0 .4rem rgba(23, 249, 183, .45); animation: head-in 600ms var(--ease-out); }
+.result__headline { font-size: calc(.96 * var(--t)); font-weight: 900; letter-spacing: .12em; line-height: 1.05; color: var(--mint-400); text-shadow: 0 0 .4rem rgba(23, 249, 183, .45); animation: head-in 600ms var(--ease-out); }
+/* an alphabetic headline ("SIMULATION COMPLETE") wraps at its space and its longest word fits the column (.53rem ≈
+   9.5% of the fixed 5.6rem .result__main column; no container queries — Safari 15 / Firefox ESR 115); the CJK one keeps its size */
+html[data-script="alphabetic"] .result__headline { font-size: min(calc(.96 * var(--t)), .53rem); letter-spacing: .06em; max-width: 100%; overflow-wrap: anywhere; }
 .result.is-lose .result__headline { color: var(--red-premium); text-shadow: 0 0 .4rem rgba(255, 60, 60, .4); }
 @keyframes head-in { from { opacity: 0; letter-spacing: .5em; } }
-.result__sub { font-size: .2rem; color: var(--text-lo); letter-spacing: .1em; }
+.result__sub { font-size: calc(.2 * var(--t)); color: var(--text-lo); letter-spacing: .1em; }
 .result__rounds { display: flex; align-items: baseline; gap: .12rem; margin-top: .1rem; }
-.result__rlabel { font-size: .22rem; color: var(--text-md); letter-spacing: .14em; }
-.result__rnum { font-size: 1.5rem; line-height: .9; font-weight: 700; color: #fff; }
-.result__rof { font-size: .4rem; color: var(--text-dim); }
+.result__rlabel { font-size: calc(.22 * var(--t)); color: var(--text-md); letter-spacing: .14em; }
+.result__rnum { font-size: calc(1.5 * var(--t)); line-height: .9; font-weight: 700; color: #fff; }
+.result__rof { font-size: calc(.4 * var(--t)); color: var(--text-dim); }
 .result__medals { display: flex; gap: .24rem; margin-top: .12rem; }
 .medal { position: relative; width: 1.1rem; display: flex; flex-direction: column; align-items: center; gap: .08rem; }
 .medal img { width: .96rem; height: .96rem; object-fit: cover; border-radius: 50%; border: 3px solid var(--line-3); background: #151a18; filter: grayscale(.7) brightness(.7); }
@@ -27,13 +132,18 @@
 .medal__check { position: absolute; right: .04rem; top: .64rem; width: .32rem; height: .32rem; display: grid; place-items: center; background: var(--text-dim); color: #fff; border-radius: 50%; }
 .medal.is-done .medal__check { background: var(--gold); color: #1d1400; }
 .medal__check .icon { width: .2rem; height: .2rem; }
-.medal__label { font-size: .14rem; color: var(--text-lo); }
-.result__time { font-size: .16rem; }
+.medal__label { font-size: calc(.14 * var(--t)); color: var(--text-lo); }
+.result__time { font-size: calc(.16 * var(--t)); }
 .result__time b { color: var(--text-hi); }
 
 .result__players { display: flex; flex-direction: column; gap: .1rem; min-height: 0; overflow: auto; padding-right: .06rem; }
 .result__players > :first-child { margin-top: auto; }
 .result__players > :last-child { margin-bottom: auto; }
+/* the match's damage chart under the cards (js/ui/damageChart.js DamageSummary; rows: screens/game.css .dmg__*) */
+.dmg--summary { flex-shrink: 0; padding: .12rem .16rem; background: rgba(8, 11, 10, .72); border: 1px solid var(--line-2); }
+.dmg--summary .dmg__row { grid-template-columns: auto calc(1.4 * var(--t)) 1fr auto; }
+/* two columns, ranked down the first then the second (DamageBars cols=2 sets --dmg-rows) */
+.dmg--summary .dmg__list.is-cols { display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--dmg-rows, 1), auto); grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: .3rem; }
 .rcard {
   display: flex; flex-direction: column; gap: .09rem; padding: .12rem .18rem .14rem; background: rgba(11, 15, 13, .9); border: 1px solid var(--line);
   border-left: 3px solid var(--line-3); animation: card-in var(--t-slow) var(--ease-out) backwards;
@@ -45,34 +155,34 @@
 .rcard__head { display: grid; grid-template-columns: auto minmax(1.5rem, 2.1rem) minmax(0, 1fr) auto 2.3rem; gap: .18rem; align-items: center; }
 .rcard__head .pavatar { --pa: .6rem; }
 .rcard__who { display: flex; flex-direction: column; gap: .03rem; min-width: 0; }
-.rcard__name { font-size: .22rem; display: flex; align-items: center; gap: .08rem; }
-.rcard__ai, .rcard__you { font-size: .11rem; padding: 0 .05rem; font-weight: 700; }
+.rcard__name { font-size: calc(.22 * var(--t)); display: flex; align-items: center; gap: .08rem; }
+.rcard__ai, .rcard__you { font-size: calc(.11 * var(--t)); padding: 0 .05rem; font-weight: 700; }
 .rcard__ai { background: #a9c3d8; color: #0b1520; }
 .rcard__you { background: var(--mint-500); color: var(--text-on-mint); }
-.rcard__band { display: inline-flex; align-items: center; gap: .06rem; font-size: .15rem; color: var(--text-lo); }
+.rcard__band { display: inline-flex; align-items: center; gap: .06rem; font-size: calc(.15 * var(--t)); color: var(--text-lo); }
 .rcard__round { display: flex; flex-direction: column; align-items: center; }
-.rcard__round b { font-size: .34rem; line-height: 1; color: #fff; }
-.rcard__gain { display: flex; gap: .08rem; margin-top: .03rem; font-size: .13rem; color: var(--gold); }
+.rcard__round b { font-size: calc(.34 * var(--t)); line-height: 1; color: #fff; }
+.rcard__gain { display: flex; gap: .08rem; margin-top: .03rem; font-size: calc(.13 * var(--t)); color: var(--gold); }
 .rcard__gain span { display: inline-flex; align-items: center; gap: .02rem; }
 .rcard__gain .icon { width: .14rem; height: .14rem; }
-.rcard__gain b { font-size: .14rem; color: var(--gold); }
+.rcard__gain b { font-size: calc(.14 * var(--t)); color: var(--gold); }
 .rcard__title { display: flex; align-items: center; gap: .08rem; padding: .06rem .14rem .06rem .06rem; border: 1px solid rgba(255, 198, 0, .4); background: rgba(255, 198, 0, .06); min-width: 0; }
 .rcard__title--none { border-style: dashed; border-color: var(--line); background: none; height: .64rem; }
 .rcard__title > span { display: flex; flex-direction: column; }
-.rcard__title b { font-size: .19rem; color: var(--gold); }
+.rcard__title b { font-size: calc(.19 * var(--t)); color: var(--gold); }
 .rcard__ticon { width: .5rem; height: .5rem; object-fit: contain; }
 .rcard__title .icon { width: .3rem; height: .3rem; color: var(--gold); }
 .rcard__mid { display: flex; flex-direction: column; justify-content: center; gap: .06rem; min-width: 0; }
 .rcard__lineup .uthumb { --ut: .46rem; }
 .rcard__lineup { display: flex; flex-wrap: wrap; gap: .05rem; }
-.rcard__noinfo { font-family: var(--font-display); font-size: .14rem; letter-spacing: .3em; color: var(--text-dim); padding: .14rem .2rem; border: 1px dashed var(--line-2); }
+.rcard__noinfo { font-family: var(--font-display); font-size: calc(.14 * var(--t)); letter-spacing: .3em; color: var(--text-dim); padding: .14rem .2rem; border: 1px dashed var(--line-2); }
 .rcard__bonds { display: flex; gap: .05rem; flex-wrap: wrap; }
-.rbond { display: inline-flex; align-items: center; gap: .04rem; padding: .01rem .07rem .01rem .03rem; border: 1px solid var(--line-2); font-size: .13rem; color: var(--text-lo); }
+.rbond { display: inline-flex; align-items: center; gap: .04rem; padding: .01rem .07rem .01rem .03rem; border: 1px solid var(--line-2); font-size: calc(.13 * var(--t)); color: var(--text-lo); }
 .rbond .bglyph { width: .2rem; height: .2rem; }
 .rbond.is-on { border-color: var(--mint-800); color: var(--mint-400); }
 .rcard__stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; }
-.rstat { display: flex; align-items: baseline; justify-content: space-between; gap: .06rem; padding: .05rem .1rem; background: #0e1210; box-shadow: 0 0 0 1px var(--line); font-size: .13rem; color: var(--text-lo); white-space: nowrap; min-width: 0; }
-.rstat b { font-size: .18rem; color: #fff; }
+.rstat { display: flex; align-items: baseline; justify-content: space-between; gap: .06rem; padding: .05rem .1rem; background: #0e1210; box-shadow: 0 0 0 1px var(--line); font-size: calc(.13 * var(--t)); color: var(--text-lo); white-space: nowrap; min-width: 0; }
+.rstat b { font-size: calc(.18 * var(--t)); color: #fff; }
 .rstat.is-best b { color: var(--gold); }
-.result__foot { margin-top: auto; padding-top: .2rem; display: flex; }
+.result__foot { flex: 0 0 auto; margin-top: auto; padding-top: .2rem; display: flex; }
 .result__foot .btn { min-width: 3.4rem; }

@@ -70,7 +70,7 @@ We must also decide which scripts are meant for humans (and thus subject to inte
 
 All of these will require some input from the dev before the details are finalized.
 
-- A difficulty higher than Ultimate.
+- A difficulty higher than Ultimate. (see section SPA-CC)
 - Gameplay modifiers which the host of the lobby (for simplicity, we can ignore matchmaking for this and only consider solo or custom lobbies) can choose to enable for the whole lobby. (a) +2 Deployment Limit (b) +2 Funds every round (c) Doubled enemy waves (the enemy list is copied once) (d) Disable time limit for all user action screens (but not the autobattle timer) (e) Enable rebalanced Alliance effects.
 - Alliance Modules. Like how Operator Modules give a choice of different gameplay for each Operator, Alliance Modules give a choice of different gameplay for an Alliance. Not all Alliances will have Module selections, so it is an optional field. For matchmaking, all Alliance Modules are locked to Mod A (the original effect). For solo/custom lobbies, the host of the lobby can select the Modules for all Alliances, and this is shared between all players. (it must be this way because the final boss combines 2 players' boards, and if we allowed per-user selections, there may be a conflict in the combined board)
 - Custom Operator Modules. In the original game, releasing new Modules are the preferred way to buff old Operators that don't really hold up to modern standards anymore, rather than buffing the Operator directly. These custom Modules would be banned for matchmaking (rather than lockout, it's probably easier on the fly to detect the custom module and instead swap loadout to the first available module, or remove the module if there are no non-custom modules available. this way we fail gracefully) and allowed in solo/custom lobbies.
@@ -144,3 +144,57 @@ I'll bundle others into this category if they don't fit as an Alliance Mod B or 
 *Add-on Alliance · ??? · activates at 2*
 
 Enemies take +(10 + 1 × stacks)% True damage.
+
+### SPA-CC - Stronghold Protocol: Alliance - Contingency Contract
+
+Arknights's original most famous endgame challenge mode is Contingency Contract. One stage, that is not too hard to just clear, with a variety of "tags" to choose from, which each make the stage harder while rewarding 1 to 3 "risk". The goal then (for competitive/tryhard players) is to clear the stage with the highest total risk. Other games have a similar system, but CC, Tags, and Risk is the language Arknights players are familiar with.
+
+After discussing with a pro player, our initial draft of Ultimate+ ended up with a long list of changes to make the game harder, and I didn't personally agree with all of them. I also realized that fundamentally, prescribing a single Ultimate+ experience to everyone means it must be very thoroughly balance tested, and that's just something I can't do.
+
+A CC-like model is the solution here. If "All operators -25% SP recovery" and "Investor no longer counts off-field operators" are both worth 1 Risk, but one is easier than the other, that's fine. We can still offer both tags. Players will naturally pick the easiest combination when chasing high risk, and risk 18 (or any number) remains a valid benchmark that means something.
+
+Tags can be implemented as lobby rules, which means we need a revamp of the lobby rules selector to accomodate a much larger number of tags.
+
+As some initial design decisions, I'm setting some conventions to hopefully make for efficient communication. Lobby rules can be classified into 4 groups:
+
+- Neutral, which is free to take.
+- Cheats, which add a very visible "WITH CHEATS" watermark to the end screen. This includes +2 Funds, +2 Deploy Limit, and No Time Limit.
+- RNG Reducers, which add "seeded" to the result title. This includes directly selecting alliance bans and map.
+- Difficulty Tags, which increase the Risk.
+
+Thus the end screen may display strings such as:
+
+- Ultimate+5 seeded
+- Dire+15
+- Dire seeded
+
+All lobby rules regardless of category should be possible to see in the end screen somehow. Youtubers making videos will likely show the full list.
+
+Tags belonging to a sequence are mutually exclusive with each other. (ex. Operators have -15/25/40% ATK)
+
+#### Tag Ideas
+
+Don't worry about getting this exactly right on the first try. There will be feedback.
+
+- (1 risk) Operators on the bench no longer count toward activating Investor
+- (1 risk) Final boss gains 50 RES after taking 50% max HP as Arts damage
+- (1 risk) Final boss gains 5000 DEF after taking 50% max HP as Physical damage
+- (1/2 risk) Non-leader enemies gain +30/100% max HP
+- (1/2 risk) Non-leader enemies gain +15/40% MSPD and +15/40 ASPD
+- (1/2/3 risk) Final boss gains +50/150/400% max HP and +15/25/50% ATK
+- (1/2/3 risk) Final boss becomes invulnerable for 10 seconds (in-game time) every 68/28/18% max HP lost
+- (1/2/3 risk) Operators' auto recovery skills gain SP slower by 0.2/0.5/0.8 SP/s
+- (1 risk) Upgrading barge from tier 4 to tier 5 costs 2 additional Funds
+- - (2 risk) Also affects tier 5 to tier 6
+- (1 risk) Round 9 improv always offers Deathless Black Snake as an option, worth 0 Funds (no bounty); not taking Mandragora causes final boss to have +200% max HP.
+- - (2 risk) Also adds Patriot and FrostNova to the wave; penalty for skipping also gives final boss +100% ATK
+- (1 risk) On rounds 10~13, the player with the least total stacks will have 5 Vein Guardian added to their wave.
+- (1/2 risk) Leader enemies have 50/90% Physical and Arts DR while not under an elemental burst effect.
+- (1 risk) On final boss round, Rosmontis, Simulated Sentry is added to the wave. (does not need to be killed to be victorious)
+- - (2 risk) Matrix no longer provides any buffs; final boss cannot die as long as Rosmontis, Simulated Sentry is alive
+
+Final boss modifiers affect both the regular final boss and the hidden core boss.
+
+For the tags that involve certain enemies: if these enemies are not available here, I can suggest alternate picks. We also have the option to adjust their stats just for SPA-CC, just as SPA already adjusted boss enemies compared to their normal versions.
+
+DR = damage reduction. This should already be implemented on certain enemies.

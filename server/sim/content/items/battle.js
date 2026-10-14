@@ -33,7 +33,7 @@
 // 0.2.0 both revived in place (`fatal` savers at −101 / −110): no 被击倒时 / 部署时 effect fired (community report
 // 「像砾和瑕光这种死亡和部署的叠层效果，如果有艾芒加德的3次复活似乎是无法触发」).
 // 骑士戒律's free in-skill undying runs early (20). Flat damage reduction 'hit' −10 (after the other damage modifiers).
-// Proc damage dealt by items carries the tag 'item' and never re-triggers item procs.
+// Proc damage dealt by items carries the tag 'item'; damage-producing item riders exclude it to avoid recursion.
 //
 // 蒸汽之心 (Victoria carrier) — LIVE model: the hammer types (灼燃/坚固/加速/战栗维式重锤) carried by the owner's operators
 // that are on the field right now (cached ≤ 0.5 s, dropped whenever an operator deploys or leaves) are granted to the
@@ -389,6 +389,15 @@ function onAttackEnemies(S, u, fn) {
   });
 }
 
+/** Actual carrier damage to enemies, including DoT/skill/splash. Element gauge fill and HP loss are not damage. */
+function onDamageEnemies(S, u, fn) {
+  S.on('damaged', (c) => {
+    if (c.source !== u || c.type === 'element' || isHpLoss(c.dmg) || !(c.amount > 0)
+      || !c.target || c.target.side !== 'enemy' || !hasHp(c.target)) return;
+    fn(c.target, c);
+  });
+}
+
 /** Generic buff-key behaviours (shared by several items). */
 const BY_BUFF = {
   // 源石溶剂: the text's "每秒流失 damage 点生命值" is officially 每秒受到 damage 点真实伤害 (PRTS 盟约记录 修正 "并非流失", 备注
@@ -636,18 +645,19 @@ const BY_ITEM = {
       fxOn(battle, 'revive', u, 'item:chess_item_4_12_e', rec.id, { left: max - used });
     }, PRIO_RESPAWN); // a knock-out: after every 不死 (the hammer's lock), whatever the equip order (header)
   },
-  // 催泪瓦斯: on attack prob ⇒ 1 麻痹 stack
+  // PRTS 盟约记录 corrects both items' "攻击时" to "造成伤害时" (#489); no attack event is required.
+  // 催泪瓦斯: on damage prob ⇒ 1 麻痹 stack
   chess_item_5_01_e(battle, u, rec, S) {
     const p = bp(rec, 'act1autochess_equip_acarm058_global_buff');
     const pr = p ? num(p.prob) : 0;
-    if (pr > 0) onAttackEnemies(S, u, (t) => { if (chance(battle, pr)) battle.applyStatus(t, 'palsy', { value: 1, source: u }); });
+    if (pr > 0) onDamageEnemies(S, u, (t) => { if (chance(battle, pr)) battle.applyStatus(t, 'palsy', { value: 1, source: u }); });
   },
-  // 谢拉格不融冰: on attack prob ⇒ 寒冷 `cold` s
+  // 谢拉格不融冰: on damage prob ⇒ 寒冷 `cold` s
   chess_item_5_02_e(battle, u, rec, S) {
     const p = bp(rec, 'act1vautochess_equip_acarm003_global_buff');
     if (!p) return;
     const pr = num(p.prob), d = num(p.cold);
-    if (pr > 0 && d > 0) onAttackEnemies(S, u, (t) => { if (chance(battle, pr)) battle.applyStatus(t, 'cold', { duration: d, source: u }); });
+    if (pr > 0 && d > 0) onDamageEnemies(S, u, (t) => { if (chance(battle, pr)) battle.applyStatus(t, 'cold', { duration: d, source: u }); });
   },
   // 双模机械臂: physical/arts damage becomes 弱点伤害 (whichever type the target resists less)
   chess_item_5_03_e(battle, u, rec, S) {
@@ -735,7 +745,7 @@ const BY_ITEM = {
       }
     });
   },
-  // 黄沙罗盘: 初始技力 +init_sp each deploy; (萨尔贡) first skill end +sp; + 萨尔贡浓茶: each cast all 萨尔贡 +addition_sp
+  // 黄沙罗盘 (PRTS: all its SP ignores 阻回): 初始技力 +init_sp each deploy; (萨尔贡) first skill end +sp; + 萨尔贡浓茶: each cast all 萨尔贡 +addition_sp
   chess_item_6_07_e(battle, u, rec, S) {
     const p = bp(rec, 'act1autochess_equip_acarm103_global_buff');
     if (!p) return;
@@ -749,14 +759,14 @@ const BY_ITEM = {
     S.on('skillEnd', (c) => {
       if (c.unit !== u || firstDone || c.reason === 'death' || !memberOf(battle, u, 'sargonShip')) return;
       firstDone = true;
-      if (u.skill && u.alive) u.skill.gainSp(num(p.sp), 'item');
+      if (u.skill && u.alive) u.skill.gainSp(num(p.sp), 'item', false, { ignoreLock: true });
     });
     S.on('skillStart', (c) => {
       if (c.unit !== u || !partner || !memberOf(battle, u, 'sargonShip') || !carries(battle, u, partner)) return;
       const n = num(p.addition_sp);
       if (!(n > 0)) return;
       for (const a of battle.allyUnits) {
-        if (a.kind === 'op' && a.ownerId === u.ownerId && onField(a) && a.skill && memberOf(battle, a, 'sargonShip')) a.skill.gainSp(n, 'item');
+        if (a.kind === 'op' && a.ownerId === u.ownerId && onField(a) && a.skill && memberOf(battle, a, 'sargonShip')) a.skill.gainSp(n, 'item', false, { ignoreLock: true });
       }
     });
   },
@@ -810,30 +820,30 @@ const BY_ITEM = {
     const partner = partnerOf(p);
     const key = S.key('stealth');
     const per = num(p.atk_per_sec), max = num(p.max_atk, 1);
-    const st = { bonus: 0, wasStealth: false, armed: false, seq: -1 };
+    const st = { bonus: 0, seq: -1 };
     const TICKS = 0.25;
     S.every(TICKS, () => {
-      if (u.deploySeq !== st.seq) { st.seq = u.deploySeq; st.bonus = 0; st.armed = false; st.wasStealth = false; }
+      if (u.deploySeq !== st.seq) { st.seq = u.deploySeq; st.bonus = 0; }
       if (!onField(u) || !memberOf(battle, u, 'siracusaShip')) return;
       const stealth = !!u.s.flags.stealth;
       if (stealth && st.bonus < max) {
         st.bonus = Math.min(max, st.bonus + per * TICKS);
         S.buff(u, { key, mods: directMods({ atk: st.bonus }), refresh: 'replace' });
       }
-      if (st.wasStealth && !stealth && st.bonus > 0) st.armed = true;
-      st.wasStealth = stealth;
     });
     S.on('damaged', (c) => {
-      if (c.source !== u || !st.armed || isProc(c.dmg) || !(c.amount > 0)) return;
-      st.armed = false;
+      // A hit may follow stealth ending before the next growth poll. Decide at the hit, and consume once before
+      // the combo deals synchronous damage; the ATK buff still supplies that combo's attack value.
+      if (c.source !== u || isProc(c.dmg) || !(c.amount > 0) || st.bonus <= 0
+        || u.deploySeq !== st.seq || !onField(u) || u.s.flags.stealth) return;
+      st.bonus = 0;
       if (partner && carries(battle, u, partner) && c.target && c.target.alive && c.target.side === 'enemy') {
         battle.dealDamage(u, c.target, { amount: u.s.atk * num(p.atk_scale), type: 'true', canDodge: false, tags: procTags('crest') });
         battle.fx('strike', { x: c.target.x, y: c.target.y, id: c.target.id, src: 'item:chess_item_6_11_e', key: rec.id, from: u.id });
       }
-      st.bonus = 0;
       battle.removeBuff(u, key);
     });
-    S.on('death', (c) => { if (c.unit === u) { st.bonus = 0; st.armed = false; } });
+    S.on('death', (c) => { if (c.unit === u) st.bonus = 0; });
   },
 };
 

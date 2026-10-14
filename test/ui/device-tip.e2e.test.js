@@ -171,6 +171,23 @@ describe('stage device tip in the browser', { skip: !ENABLED && 'set SP_E2E=1 (a
     assert.ok(text !== null, 'the tap opened a card');
     assert.match(text, new RegExp(CRATE.name), text);
     assert.equal(await hpText(page), '100 / 100');
+    // A repeated same-field meta can omit once-spawned devices. The screen's remembered device must also remain a
+    // device in the renderer, not an unknown enemy which intercepts the tile click before the card lookup.
+    const deviceId = await page.evaluate(() => globalThis.__MOCK__.S().battle.devices[0].id);
+    await page.evaluate(async () => {
+      const { net } = await import('/js/net.js');
+      const { store } = globalThis.__MOCK__;
+      await net.request('g.watch', { fieldId: store.get().match.field.fieldId });
+    });
+    await page.waitForFunction((id) => globalThis.__SP_VIEW__?.raw?.debug.views.get(id)?.info.kind === 'device', {}, deviceId);
+    const p = await at();
+    await page.mouse.click(p.x, p.y);
+    await page.waitForSelector('.dpanel');
+    assert.match(await card(page), new RegExp(CRATE.name));
+    assert.ok(await page.evaluate(() => globalThis.__MOCK__.hurtDevice(0, 40)));
+    await page.waitForFunction(() => /60 \/ 100/.test(document.querySelector('.dpanel .dhp')?.textContent || ''));
+    assert.ok(await page.evaluate(() => globalThis.__MOCK__.hurtDevice(0, 100)));
+    await page.waitForFunction(() => !document.querySelector('.dpanel'));
     assert.deepEqual(problems, []);
     await page.close();
   });

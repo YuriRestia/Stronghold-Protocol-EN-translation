@@ -52,7 +52,7 @@ test('standins: every active skill a chess names for its stand-in is cast; passi
 });
 
 test('matches: the 补位 match\'s human seat fields stand-ins (listed per round) and the match ends without errors', () => {
-  const dg = MATCHES.scenarios['coop2-NORMAL-14-standins'];
+  const dg = MATCHES.scenarios['coop2-NORMAL-1-coverage-standins'];
   assert.ok(dg, 'scenario present');
   assert.deepEqual(dg.errors, { engine: 0, logged: 0, sim: 0, dispatcher: 0 });
   const fielded = dg.standIns.rounds.filter(([, s]) => s).flatMap(([, s]) => s.split(' '));

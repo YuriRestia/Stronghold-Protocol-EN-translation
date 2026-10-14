@@ -26,8 +26,7 @@ import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.
 import { html, Icon, MicroLabel, Button, TierChip, TextField, Countdown, Spinner, confirmDialog, hasDeadline, Modal, Fragment } from '../ui/components.js';
 import { Img, RichText, UnitThumb } from '../ui/gameComponents.js';
 import { chessAvatarUrl, chessPortraitUrl, subProfIconUrl, bondIconUrl, moduleTypeIconUrl } from '../ui/assetUrls.js';
-import { chessStatsBlock, traitText, chessTalents, GarrisonBlock } from '../ui/detailPanel.js';
-import { chessLoadout } from '../ui/gameLogic.js';
+import { GarrisonBlock } from '../ui/detailPanel.js';
 import { data, useData, localAsset, DATA_FILES } from '../data.js';
 import { useStore } from '../store.js';
 import { PHASE } from '../../../shared/constants.js';
@@ -38,11 +37,15 @@ import {
 } from '../ui/loadoutModel.js';
 import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport } from '../ui/loadoutSync.js';
 import { CultivationSelects, CultivationSection } from './cultivation.js';
+import { OutfitSwitch, OutfitPanel } from './outfits.js';
+import { outfitStore } from '../ui/outfits.js';
 import { cultivationCharIds } from '../../../shared/protocol.js';
 import { atPotential } from '../../../shared/potential.js';
 import { setOwned, notOwnedCount, serializeOwnership, parseOwnershipImport, OWNERSHIP_IMPORT_MAX_BYTES } from '../ui/ownershipModel.js';
 import { OwnershipPanel, useOwnershipRoster } from './ownership.js';
 import { DiyPanel, diyData } from './diy.js';
+import { LoadoutStats } from '../ui/loadoutStats.js';
+export { LoadoutStats, statsPreview } from '../ui/loadoutStats.js';
 import { diyCount, sanitizeDiyPicks, setPick, serializeDiy, parseDiyImport, DIY_IMPORT_MAX_BYTES } from '../ui/diyModel.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 import { copyText } from '../ui/clipboard.js';
@@ -301,63 +304,11 @@ export function ModuleInfo({ m, golden, opt, potential = null }) {
   </div>`;
 }
 
-const getChessRec = (id) => data.lookup('chess', id);
 /** The name of a chess's 补位 stand-in (data/backups.json), or null. */
 const standInName = (chess) => data.get('backups')?.units?.[chess?.backup?.charId]?.name ?? null;
 
-/**
- * What 局内数值 shows (GitHub issue #64): the chess variant — the 精锐 record when asked for and the chess has one, else
- * the normal one — as the stored loadout makes it. chessLoadout (ui/gameLogic.js) resolves the skill and module the way
- * the in-match detail card and the sim do (shared/loadoutRecord.js): the elite's chosen module's stats / 特性 / talents
- * (不装备: the base ones), the chosen skill's passive range; a normal chess has no module, the skill does not change its
- * stats. Nothing is recomputed here.
- * @param {any} base normal chess record @param {any} golden its elite record or null
- * @param {Record<string, any>} entries the stored loadout @param {'normal'|'elite'} level
- * @param {(id: string) => any} getChess
- * @param {Record<string, any>|null} [ops] the stored 潜能 / 练度 (0.2.2: the numbers at the operator's settings — the
- *   练度 multiplier needs effects.json; none set = 潜能 6, 精英2 Lv.60)
- * @returns {{ elite: boolean, chess: any, lo: any, record: any, trait: string, talents: any[] } | null} null without a record
- */
-export function statsPreview(base, golden, entries, level, getChess, ops = null) {
-  const elite = level === 'elite' && !!golden;
-  const chess = elite ? golden : base;
-  if (!chess) return null;
-  const lo = chessLoadout(chess, entries, getChess, { ops, effects: data.get('effects') });
-  const record = lo?.record || chess;
-  // (the card's own rule: the 特性 line exists when the chess has one; its text follows the chosen module)
-  return { elite, chess, lo, record, trait: chess.trait?.desc ? traitText(chess, !!chess.isGolden, lo) || '' : '', talents: chessTalents(record) };
-}
 
-/**
- * 局内数值: the stats, 攻击范围, 特性 and 天赋 of the selected chess under its chosen skill and module — the detail
- * card's stats block (ui/detailPanel.js chessStatsBlock) without live numbers, so what a player reads here is what the
- * shop / board card shows before a battle (not the equipment, bond or skill-cast changes of a running match). The
- * toggle picks the 普通 or the 精锐 record; 精锐 is the default because the module only exists there.
- * @param {{ base: any, golden: any, entries: Record<string, any>, level: 'normal'|'elite', onLevel: (l: 'normal'|'elite') => void, getChess?: (id: string) => any }} props
- */
-export function LoadoutStats({ base, golden, entries, level, onLevel, getChess = getChessRec, ops = null }) {
-  const pv = statsPreview(base, golden, entries, level, getChess, ops);
-  if (!pv) return null;
-  // (the caption names 潜能 / 练度 when the numbers carry both — the 练度 multiplier needs effects.json)
-  return html`<section class="lo-sec lo-sec--stats" aria-label=${t('局内数值')} data-variant=${pv.elite ? 'elite' : 'normal'}>
-    <header class="lo-sec__head">
-      <h3>${t('局内数值')}<${MicroLabel}>STATS<//></h3>
-      <div class="lo-seg" role="tablist" aria-label=${t('数值版本')}>
-        <button type="button" role="tab" aria-selected=${pv.elite ? 'false' : 'true'} class=${cx(!pv.elite && 'is-on')} data-variant="normal" onClick=${() => onLevel('normal')}>${t('普通')}</button>
-        <button type="button" role="tab" aria-selected=${pv.elite ? 'true' : 'false'} class=${cx(pv.elite && 'is-on')} data-variant="elite" disabled=${!golden} onClick=${() => onLevel('elite')}>${t('精锐')}</button>
-      </div>
-    </header>
-    ${chessStatsBlock({ rec: pv.record, chess: pv.chess })}
-    ${pv.trait || pv.talents.length ? html`<div class="lo-minfo lo-minfo--kit">
-      ${pv.trait ? html`<div class="lo-minfo__row"><span class="lo-minfo__k">${t('特性')}</span><${RichText} class="lo-minfo__v" text=${pv.trait} /></div>` : null}
-      ${pv.talents.map((tal, i) => html`<div key=${i} class="lo-minfo__row"><span class="lo-minfo__k">${t('天赋')}</span>
-        <span class="lo-minfo__v"><b class="lo-minfo__tname">${tal.name}</b><${RichText} text=${tal.descRaw || tal.desc || ''} /></span></div>`)}
-    </div>` : null}
-    <p class="lo-stats__cap">${pv.elite ? t('数值含所选模组；') : golden ? t('普通干员没有模组，所选模组在「精锐」中生效；') : ''}${pv.lo?.cultivation && data.get('effects') ? t('含潜能与练度；') : ''}${t('不含技能发动、装备、盟约等局内加成')}</p>
-  </section>`;
-}
-
-function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false }) {
+function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false, view = 'loadout', onView }) {
   const [statLevel, setStatLevel] = useState('elite'); // 局内数值: the 精锐 shows the chosen module's effect
   const setLevel = onLevel;
   const bodyRef = useRef(null);
@@ -368,7 +319,9 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   const changed = choice.changed || opsOf(ops, chess.charId).changed;
   const modOpt = opt.moduleOptions.find((x) => x.id === choice.module) || null;
   const lv = (c) => c?.status?.skillLevel ?? '—';
+  const outfitView = view === 'outfit';
   return html`<aside class="lo-detail" aria-label=${t('{name} 调配', { name: chess.name })}>
+    <div class="lo-dtop"><${OutfitSwitch} view=${view} onView=${onView} /></div>
     <div class="lo-dhead">
       <div class=${cx('lo-dhead__art', `lo-dhead__art--t${chess.tier}`)}>
         <${Img} src=${chessPortraitUrl(m, golden || chess)} fallback=${html`<${UnitThumb} kind="chess" id=${chess.chessId} size="lg" />`} />
@@ -388,7 +341,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
       </div>
       <${Button} variant="ghost" size="sm" icon="refresh" class="lo-dhead__reset" disabled=${!changed} onClick=${onReset}>${t('恢复默认')}<//>
     </div>
-    <div class="lo-detail__body" ref=${bodyRef}>
+    ${outfitView ? html`<${OutfitPanel} m=${m} chess=${chess} />` : html`<div class="lo-detail__body" ref=${bodyRef}>
       <${CultivationSection} charId=${chess.charId} ops=${ops} onSet=${onOps} standIn=${notOwned} />
       <${LoadoutGarrisons} chess=${level === 'elite' && golden ? golden : chess} m=${m} />
       <section class="lo-sec">
@@ -427,7 +380,7 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
       ${notOwned ? html`<p class="lo-locknote lo-locknote--standin" data-testid="loadout-standin-note"><${Icon} name="info" />${standInName(chess) ? t('干员持有中标记为未持有：此棋子由替补干员 {name} 上场，技能与模组固定（补位干员技能不可更改）；这里的调配在改回「持有」后生效', { name: standInName(chess) })
         : t('干员持有中标记为未持有：此棋子由替补干员上场，技能与模组固定（补位干员技能不可更改）；这里的调配在改回「持有」后生效')}</p>` : null}
       ${locked ? html`<p class="lo-locknote"><${Icon} name="info" />${t('本局的调配已锁定，修改将在下一局生效')}</p>` : null}
-    </div>
+    </div>`}
   </aside>`;
 }
 
@@ -502,6 +455,20 @@ export function importRefusal(kind, ready, status = data.status) {
   return null;
 }
 
+/**
+ * A loadout payload that carries `ops` (including empty `ops`) replaces 潜能 / 练度. 自选 operators are in that list
+ * and only backups.json names them, so the refusal is the 自选编队 one: chess.json and backups.json both loaded.
+ * Null when the payload has no `ops` (an older file leaves the current 练度 alone) or that data is ready (GitHub #538).
+ * @param {Record<string, any> | null | undefined} ops
+ * @param {boolean} ready
+ * @param {(name: string) => string} [status]
+ * @returns {{ text: string, tone: 'warn'|'error' } | null}
+ */
+export function loadoutOpsImportRefusal(ops, ready, status = data.status) {
+  if (ops == null) return null;
+  return importRefusal('diy', ready, status);
+}
+
 /** In place of a tab whose game data did not load (missingGameData): which files, and what to try (GitHub #173). */
 export function DataMissing({ files }) {
   const urls = files.map((name) => `/data/${DATA_FILES[name] || `${name}.json`}`);
@@ -540,6 +507,9 @@ function LoadoutScreen({ st }) {
   // the detail's 普通 / 精锐 skill toggle: one preview for its skills, its 特质 and the rows' skill details (display only)
   const [previewLevel, setPreviewLevel] = useState('normal');
   const [io, setIo] = useState(null);                      // 导出 / 导入 dialog: { mode, text } | null
+  const [detailView, setDetailView] = useState('loadout'); // (fork, docs/OUTFITS.md) the detail's 调配 / 时装 switch
+  useStore((s) => s.outfits, Object.is, outfitStore);      // (fork) the rows' and the header's art follow the outfit choice
+  useData('outfits');
 
   const tab = st.tab === 'ownership' || st.tab === 'diy' ? st.tab : 'loadout';
   const lost = ready ? missingGameData(tab) : [];
@@ -637,6 +607,10 @@ function LoadoutScreen({ st }) {
     }
     const res = parseImport(ioText);
     if (!res.ok) { toast(t('导入失败：{error}', { error: res.error }), 'error'); return; }
+    // ops replaces 潜能 / 练度, including 自选 operators that only backups.json names. Missing data used to drop
+    // them and still save, clearing a 练度 the file did not mean to erase (GitHub #538).
+    const opsRefused = loadoutOpsImportRefusal(res.ops, ready);
+    if (opsRefused) { toast(opsRefused.text, opsRefused.tone); return; }
     // 0.2.2: a payload with `ops` replaces the 潜能 / 练度 too (an older export leaves them alone)
     const opIds = res.ops ? cultivationCharIds(data.get('chess'), data.get('backups')) : null;
     const r = applyLoadoutEntries(res.entries, getChess, res.ops ? { ops: res.ops, isOperator: (id) => opIds.has(id) } : {});
@@ -726,7 +700,7 @@ function LoadoutScreen({ st }) {
         ${inMatch && hasDeadline(infoDeadline) ? html`<${Countdown} deadline=${infoDeadline} size="sm" gauge=${false} label=${t('调配截止')} class="lo-deadline" />` : null}
         ${syncText ? html`<span class=${cx('lo-sync', syncCls)} role="status">${t(syncText)}</span>` : null}
         <span class="lo-count">${t('已调整')} <b class="num">${nChanged}</b><span class="num t-dim">/${roster.length}</span></span>
-        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
+        <${Button} variant="ghost" size="sm" data-testid="loadout-export" disabled=${!nChanged && !Object.keys(st.ops || {}).length} onClick=${openExport} title=${t('导出当前调配（可复制或下载）')}>${t('导出')}<//>
         <${Button} variant="ghost" size="sm" data-testid="loadout-import" disabled=${!ready} onClick=${openImport} title=${t('导入调配（粘贴或选择文件）')}>${t('导入')}<//>
         <${Button} variant="secondary" size="sm" icon="refresh" disabled=${!nChanged} onClick=${resetAll}>${t('全部恢复默认')}<//>
       </div>`}
@@ -757,7 +731,7 @@ function LoadoutScreen({ st }) {
         <button type="button" class="lo-detail-back tapx" onClick=${() => setNarrowDetail(false)}><${Icon} name="chevronLeft" />${t('干员列表')}</button>
         <${Detail} m=${m} chess=${base} golden=${golden} entries=${st.entries} ops=${st.ops} onChange=${change} onOps=${setOpsOf} onReset=${resetOne} locked=${locked}
           level=${golden ? previewLevel : 'normal'} onLevel=${setPreviewLevel}
-          notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} />
+          notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} view=${detailView} onView=${setDetailView} />
       </div>
     </main>`}
   </div>

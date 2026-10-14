@@ -152,6 +152,11 @@ export class Client {
     await page.evaluateOnNewDocument(() => {
       try { if (localStorage.getItem('sp.pref.room.findMates') == null) localStorage.setItem('sp.pref.room.findMates', 'false'); } catch { /* ignore */ }
     });
+    // this fork starts in English (ui/lang.js START_LANG); these runs read the Chinese msgids, so a page without its own
+    // language choice (stored or `?lang=`) starts in 中文
+    await page.evaluateOnNewDocument(() => {
+      try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* ignore */ }
+    });
     await page.goto(`${this.base}/${query}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
   }
@@ -193,7 +198,15 @@ export class Client {
     throw new Error(`${this.label}: timed out waiting for ${what} (last: ${JSON.stringify(last)})`);
   }
 
-  async close() { await this.browser?.close().catch(() => {}); }
+  async close() {
+    const child = this.browser?.process();
+    await this.browser?.close().catch(() => {});
+    // Chrome's crash/update helpers can inherit stderr after the launched browser exits. Release only our
+    // exited child's pipes; otherwise readline keeps the test alive after all its assertions have finished.
+    if (child && (child.exitCode != null || child.signalCode != null)) {
+      for (const stream of child.stdio) stream?.destroy?.();
+    }
+  }
 
   /** Real mouse click on the `nth` visible, uncovered element matching `sel` whose text includes `text`. */
   async click(sel, text = null, { timeout = 15000, optional = false, nth = 0, button = 'left', any = false } = {}) {

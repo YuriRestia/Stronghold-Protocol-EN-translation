@@ -6,8 +6,8 @@
 //
 // Driving (units.js calls these; the sim is authoritative, the actor only visualises):
 //   setBase('idle'|'move'|'stun')        the resting state from the snapshot anim code
-//   attack(interval, once)                one attack happened now (b.ev 'atk'): plays begin→loop, re-phases the loop
-//                                         so its OnAttack frame lands now, timeScale = loopDuration / interval;
+//   attack(interval, once)                one attack happened now (b.ev 'atk'): consumes its wind-up or starts at
+//                                         OnAttack, once; operator timeScale = loopDuration / interval;
 //                                         `once` (a one-off cast, style.js PROJ[kind].once — 暴鸰's bomb drop): the
 //                                         clip plays once at its own speed, then base; `clipPerAttack` (enemies,
 //                                         GitHub #58): every attack plays the clip once — at its own speed, faster
@@ -31,8 +31,11 @@
 //                                         closing clip timed to end `in` s from now (a 重生's last clip ends with the
 //                                         重生), landing in `roles`
 //   update(dt)                            advances the skeleton (autoUpdate is off: one clock for everything)
-// Attack mode lasts until ~1.4 attack intervals without a new attack (a `once` cast and every attack of a
-// `clipPerAttack` actor: to the end of its clip), then the end clip (if any) and base — except the attacks of a skill
+//   poseHeld()                            true while the pose cannot change (render/units.js then neither re-poses nor
+//                                         redraws the model, only advances `clock`)
+// (fork) An operator's attack clip loops over its rhythm while the next attack's wind-up confirms each coming swing;
+// without one it stops just before that strike frame (no swing without an attack). Enemies and `once` casts play each
+// attack's clip once. Then the end clip (if any) and base — except the attacks of a skill
 // with its own idle clip, which go straight back to that idle: the skill's end clip closes the skill, not each spell of
 // attacks while it runs.
 
@@ -43,6 +46,19 @@ export const MAX_WIND_SPEEDUP = 2.5;
 
 /** Floor for the one-shot window of a skill clip with no Begin / own Idle (a very short clip still gets frames). */
 const SKILL_CLIP_MIN = 0.2;
+/** (fork) Game seconds before the next strike frame at which an operator's unconfirmed rhythm loop drops to rest. */
+const RHYTHM_DROP_MARGIN = 0.08;
+
+/**
+ * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
+ * wins. Ashlock: Attack01 is his cannon, Attack02 the shield bash (it animates F_weapon_dun). 领主 (lord): Attack is
+ * the ranged shot (银灰's cane point with the eagle, user playtest 2026-10-12), Combat the melee; [ASSUMED] the same for
+ * Qiubai (Attack / Combat_A), whose two clips animate the same bones.
+ */
+const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'] });
+/** (fork) The other way round (SpineActor.shot 'ranged'): Thorns' manifest Attack_1 is his melee, Attack_2 the thrown
+ *  shot (user playtest 2026-10-12). */
+const RANGED_TWIN = Object.freeze({ Attack_1: ['Attack_2'] });
 
 /**
  * Attack clip timing (pure). `loopDur` / `hit` are clip seconds (strike frame at `hit`), `interval` and `lead` game
@@ -73,6 +89,34 @@ export function hasClipping(data) {
       for (const e of list) if (isClip(e && e.attachment)) return true;
     }
   } catch { /* unknown runtime shape: assume none */ }
+  return false;
+}
+
+const EYEISH = /eye|lid|pupil/i;
+
+/**
+ * Whether the skeleton has a clipping attachment that is not an eyelid — a weapon / rope / chain cut (Miksaparato's
+ * F_Weapon_mask, Mlynar's F_Sword_Cut, …). _eyeMaskFallback only approximates eyelids (it hides whole slots); such a
+ * clip cuts parts of slots that stay drawn, so without the stencil the art shows uncut (an oversized weapon). A clip is
+ * an eyelid when its slot, attachment or end slot is named like one, or every slot it covers (setup draw order) is.
+ */
+export function needsClipping(data) {
+  try {
+    const slots = data?.slots || [];
+    for (const skin of data?.skins || []) {
+      const list = typeof skin.getAttachments === 'function' ? skin.getAttachments() : [];
+      for (const e of list) {
+        const a = e && e.attachment;
+        if (!isClip(a)) continue;
+        const slot = slots[e.slotIndex], end = a.endSlot;
+        if (EYEISH.test(`${slot?.name || ''} ${a.name || ''} ${end?.name || ''}`)) continue;
+        const from = (slot ? slot.index : e.slotIndex) + 1, to = end ? end.index : from - 1;
+        const covered = slots.slice(from, to + 1);
+        if (covered.length && covered.every((s) => EYEISH.test(s.name))) continue;
+        return true;
+      }
+    }
+  } catch { /* unknown runtime shape: treat as eyelids (the old behaviour) */ }
   return false;
 }
 
@@ -109,6 +153,9 @@ function slotCentre(slot, att, buf, out) {
   return Number.isFinite(out[0]) && Number.isFinite(out[1]);
 }
 
+/** Union of two [x0, y0, x1, y1] boxes (a may be null); a new array. */
+const unionBox = (a, b) => (a ? [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])] : b.slice());
+
 export class SpineActor {
   /**
    * @param {any} spineData PIXI.spine skeleton data
@@ -128,6 +175,7 @@ export class SpineActor {
      * share a field (app.js budget) — then _eyeMaskFallback hides what a closed eyelid would cut (GitHub #177).
      */
     this.clipped = hasClipping(spineData);
+    this.clipNeeded = this.clipped && needsClipping(spineData); // non-eyelid clips: the masks stay on (setClipping)
     this.clipOn = true;
     this._clipHidden = new Set(); // slot indexes the eyelid fallback hid in its last pass (_eyeMaskFallback)
     if (this.clipped) {
@@ -156,16 +204,25 @@ export class SpineActor {
     /**
      * Enemies (render/units.js, GitHub #58): each attack plays the attack clip once — at its own speed, faster only when
      * the attacks come quicker than the clip — and then the resting state; the sim stands the enemy for exactly that
-     * clip (server/sim/ai.js attackStand). Off (operators): the clip loops over the attack rhythm.
+     * clip (server/sim/ai.js attackStand). Off (operators): (fork) the clip loops over the attack rhythm while attacks
+     * keep coming, each next swing confirmed by its wind-up; unconfirmed, it drops to rest just before that strike.
      */
     this.clipPerAttack = false;
-    this.wound = false;           // clipPerAttack: wound up for the coming attack (windUp → attack)
+    this.wound = false;           // wound up for the coming attack (windUp → attack)
+    /**
+     * (fork) A model with a melee clip set next to its ranged one, the manifest's roles naming one of them: a 重炮手
+     * (fortress) melees while blocking, a 领主 (lord) at its own / front tile. 'ranged' | 'melee' = the coming attack's
+     * kind (UnitView._shotKind), which _shot maps to the model's twin; null = neither, the roles as they are.
+     */
+    this.shot = null;
+    this._applied = false;        // an update has posed the skeleton since its clip last changed (poseHeld)
+    this._appliedTint = undefined; // the tint that update put on the slots (pixi-spine applies `tint` in update)
     this._play(this._idleName(), true);
   }
 
-  /** Enable / disable the skeleton's clipping masks. */
+  /** Enable / disable the skeleton's clipping masks (always on when a clip is not an eyelid: needsClipping). */
   setClipping(on) {
-    on = !!on;
+    on = !!on || this.clipNeeded;
     if (!this.clipped || on === this.clipOn) return;
     this.clipOn = on;
     if (on) this._showClipHidden();   // the stencil takes over from the eyelid fallback
@@ -247,15 +304,16 @@ export class SpineActor {
       const track = this.spine.state.tracks[0];
       const clip = this._attackClip();
       if (!track || !clip) return;
-      const dur = this.dur(clip.loop);
+      const loop = this._shot(clip.loop);
+      const dur = this.dur(loop);
       const oldHit = this._hitTime(this.current, this.dur(this.current));
-      const hit = this._hitTime(clip.loop, dur);
+      const hit = this._hitTime(loop, dur);
       const start = clampN(track.trackTime + hit - oldHit, 0, dur);
       const lead = this.wound && this.windUntil != null
         ? Math.max(0, this.windUntil - this.clock) : 0;
       const ts = lead > 0 ? Math.max(0, hit - start) / lead : track.timeScale;
       const tailTs = lead > 0 ? this.windTs : ts;
-      this._play(clip.loop, track.loop, { start, timeScale: ts, mix: 0 });
+      this._play(loop, track.loop, { start, timeScale: ts, mix: 0 });
       this.attackUntil = this.clock + lead +
         Math.max(0, dur - (lead > 0 ? hit : start)) / tailTs;
     } else if (this.mode === 'stun') {
@@ -310,6 +368,7 @@ export class SpineActor {
       if (start) e.trackTime = start;
     }
     this.current = name;
+    this._applied = false;
     return true;
   }
 
@@ -317,6 +376,7 @@ export class SpineActor {
     if (!this.has(name)) return false;
     const e = this.spine.state.addAnimation(0, name, loop, 0);
     if (e) e.timeScale = timeScale;
+    this._applied = false;
     return true;
   }
 
@@ -360,20 +420,24 @@ export class SpineActor {
     if (this.dead || this.mode === 'stun' || this.mode === 'die' || this.mode === 'change' || !(lead >= 0)) return false;
     const clip = this._attackClip();
     if (!clip) return false;
-    const single = once || this.clipPerAttack;
-    // in rhythm: attack() re-phases; a clip-per-attack actor starts each attack's clip anew unless already wound up for it
-    if (this.mode === 'attack' && this.current === clip.loop && (!this.clipPerAttack || once || this.wound)) return false;
-    const loopDur = this.dur(clip.loop);
+    const loop = this._shot(clip.loop);
+    // One queued attack owns one wind-up. A later attack may begin while the previous recovery is still playing.
+    if (this.mode === 'attack' && this.current === loop && (once || this.wound)) return false;
+    const loopDur = this.dur(loop);
     // a one-off cast plays at the clip's own speed (one loop per clip length), whatever the attack rhythm
     const iv = once ? loopDur : clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
-    const hit = this._hitTime(clip.loop, loopDur);
+    const hit = this._hitTime(loop, loopDur);
+    const rhythm = !once && !this.clipPerAttack;
+    // (fork) an operator's rhythm loop already swinging: this attack takes the coming swing, no restart
+    if (rhythm && this.mode === 'attack' && this.current === loop && this._confirmSwing(loopDur, hit, iv, lead)) return true;
     // clip per attack: its own speed, sped up only when the attacks come quicker than the clip
     const plan = windUpPlan(loopDur, hit, this.clipPerAttack && !once ? Math.min(iv, loopDur) : iv, lead);
     if (!(hit > 0) || lead * plan.ts > hit + 1e-6) return false;
     if (!once) this.interval = iv;
     this.mode = 'attack';
-    this.attackUntil = this.clock + lead + (single ? Math.max(0, loopDur - hit) / plan.ts : Math.max(0.45, iv * 1.4));
-    this._play(clip.loop, !single, { timeScale: plan.tsWind, start: plan.start, mix: 0.06 });
+    this.attackUntil = rhythm ? this._rhythmUntil(this.clock + lead, plan.ts, loopDur)
+      : this.clock + lead + Math.max(0, loopDur - hit) / plan.ts;
+    this._play(loop, rhythm, { timeScale: plan.tsWind, start: plan.start, mix: 0.06 });
     this.windTs = plan.ts;
     this.windUntil = this.clock + lead;
     this.wound = true;
@@ -389,16 +453,19 @@ export class SpineActor {
     if (!once) this.interval = clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     const clip = this._attackClip();
     if (!clip) return;
-    const loopDur = this.dur(clip.loop);
+    const loop = this._shot(clip.loop);
+    const loopDur = this.dur(loop);
     const per = this.clipPerAttack && !once;
-    const single = once || per;
     // clip per attack: its own speed (ts 1), faster only when the attacks come quicker than the clip
     const ts = once ? 1 : per ? clampN(loopDur / Math.min(this.interval, loopDur), 1, 4) : clampN(loopDur / this.interval, 0.35, 4);
-    const hit = this._hitTime(clip.loop, loopDur);
-    // (a clip-per-attack actor still playing the previous attack's clip was not wound up for this one)
-    const wasAttacking = this.mode === 'attack' && this.current === clip.loop && (!per || this.wound);
+    const hit = this._hitTime(loop, loopDur);
+    const rhythm = !once && !per;
+    // (a clip-per-attack actor still playing the previous attack's clip was not wound up for this one; an operator's
+    // rhythm loop still running goes on, re-phased below)
+    const wasAttacking = this.mode === 'attack' && this.current === loop
+      && (this.wound || (rhythm && !!this.spine.state.tracks[0]?.loop));
     this.mode = 'attack';
-    this.attackUntil = this.clock + (single ? Math.max(0, loopDur - hit) / ts : Math.max(0.45, this.interval * 1.4));
+    this.attackUntil = rhythm ? this._rhythmUntil(this.clock, ts, loopDur) : this.clock + Math.max(0, loopDur - hit) / ts;
     this.windUntil = null;
     this.wound = false;
     if (!wasAttacking) {
@@ -408,21 +475,64 @@ export class SpineActor {
       // lifts before the slam; #246 by @TsangAsuna, accepted by the owner on 2026-10-07)
       const whole = per && this.interval >= loopDur;
       if (whole) this.attackUntil = this.clock + loopDur / ts;
-      this._play(clip.loop, !single, { timeScale: ts, start: whole ? 0 : hit, mix: 0.06 });
-    } else if (single) {
-      const e = this.spine.state.tracks[0];
-      if (e) e.timeScale = ts;
+      this._play(loop, rhythm, { timeScale: ts, start: whole ? 0 : hit, mix: 0.06 });
     } else {
       const e = this.spine.state.tracks[0];
       if (e) {
         e.timeScale = ts;
-        // re-phase gently so the strike frame lines up with this attack
-        const t = e.trackTime % loopDur;
-        let d = hit - t;
-        if (d > loopDur / 2) d -= loopDur; else if (d < -loopDur / 2) d += loopDur;
-        e.trackTime += d * 0.8;
+        // Preserve operator hit-phase correction when a coarse/batched update crossed windUntil.
+        // This adjusts the prepared single clip; it does not start another visual swing.
+        if (!once && !per) {
+          const t = e.trackTime % loopDur;
+          let d = hit - t;
+          if (d > loopDur / 2) d -= loopDur; else if (d < -loopDur / 2) d += loopDur;
+          e.trackTime += d * 0.8;
+        }
       }
     }
+  }
+
+  /** (fork) When an operator's rhythm loop, striking at `strikeAt` at `ts`, drops to its resting state: just before
+   *  the next strike frame, unless the next attack's wind-up confirms that swing first (no swing without an attack). */
+  _rhythmUntil(strikeAt, ts, loopDur) {
+    const period = loopDur / ts;
+    return strikeAt + period - Math.min(RHYTHM_DROP_MARGIN, period * 0.25);
+  }
+
+  /**
+   * (fork) The next attack is due in `lead` while the rhythm loop is already swinging toward its next strike: ease the
+   * loop's speed so that strike lands on time (the speed returns to the rhythm at windUntil, as after a wind-up) and
+   * keep the loop going. False when that strike is too far off to reach (the caller restarts from the wind-up).
+   */
+  _confirmSwing(loopDur, hit, interval, lead) {
+    const e = this.spine.state.tracks[0];
+    if (!e || !e.loop || !(hit > 0) || !(lead >= 0)) return false;
+    const ts = clampN(loopDur / Math.max(0.08, interval), 0.35, 4);
+    let toHit = hit - (e.trackTime % loopDur);
+    if (toHit < 0) toHit += loopDur;
+    const tsWind = lead > 0 ? toHit / lead : Infinity;
+    if (!(tsWind >= ts * 0.4 && tsWind <= ts * MAX_WIND_SPEEDUP)) return false;
+    this.interval = interval;
+    e.timeScale = tsWind;
+    this.windTs = ts;
+    this.windUntil = this.clock + lead;
+    this.attackUntil = this._rhythmUntil(this.clock + lead, ts, loopDur);
+    this.wound = true;
+    return true;
+  }
+
+  /** The clip `name` plays as under `shot`: the model's twin for this attack where it has one, else `name`.
+   *  'ranged': RANGED_TWIN, else the `_B` cannon (号角 Attack_A → Attack_B, Skill_3_A_Loop → Skill_3_B_Loop);
+   *  'melee': MELEE_TWIN. */
+  _shot(name) {
+    if (!this.shot || typeof name !== 'string') return name;
+    if (this.shot === 'ranged') {
+      for (const t of RANGED_TWIN[name] || []) if (this.has(t)) return t;
+      const t = name.replace(/_A(?=_|$)/, '_B');
+      return t !== name && this.has(t) ? t : name;
+    }
+    for (const t of MELEE_TWIN[name] || []) if (this.has(t)) return t;
+    return name;
   }
 
   _attackClip() {
@@ -475,7 +585,7 @@ export class SpineActor {
         this._play(sk.begin, false, { mix: 0.08 });
         this.skillBeginUntil = this.clock + this.dur(sk.begin);
         // then the skill's own idle until an attack plays its loop (community report #23); without one, the loop
-        const next = this._skillIdle() || (this.has(sk.loop) ? sk.loop : null);
+        const next = this._skillIdle() || (this.has(sk.loop) ? this._shot(sk.loop) : null);
         if (next) this._queue(next, true);
       } else if (!this.has(sk.idle) && this.has(sk.loop) && sk.via !== 'attack' && sk.loop !== this.roles.attack?.loop && !this._skillIsBuffOnly()) {
         // No Begin and no own Idle: the skill's clip IS its animation (德克萨斯 剑雨 — anims.skill {begin:null,
@@ -485,8 +595,9 @@ export class SpineActor {
         // through to the base clip and show no skill animation at all (player report).
         this.mode = 'skillBegin';
         this.skillClipOnce = true;
-        this._play(sk.loop, false, { mix: 0.08 });
-        this.skillBeginUntil = this.clock + Math.max(SKILL_CLIP_MIN, this.dur(sk.loop));
+        const once = this._shot(sk.loop);
+        this._play(once, false, { mix: 0.08 });
+        this.skillBeginUntil = this.clock + Math.max(SKILL_CLIP_MIN, this.dur(once));
       } else if (this.mode === 'base') this._play(this._baseName(), true);
     } else if (!on && sk) {
       // an instant skill switches off while its own one-shot clip runs: let the clip finish — the state machine plays
@@ -523,6 +634,35 @@ export class SpineActor {
     return this.mode === 'deploy' ? Math.max(0, this.clock - (this.deployAt || 0)) : null;
   }
 
+  /**
+   * [x0, y0, x1, y1] (skeleton units) holding every pose this actor has shown: the union of the manifest's per-clip
+   * `extents` (sampled at build time, tools/assets/skel.mjs clipExtents) over the clips it has played (and is mixing
+   * from), the idle clip from the start. It only grows, so a unit's box settles after its first attack and skill; a
+   * union over every clip would size every unit for effects it never plays (Pallas: 3948 × 4065 units against ~1300 ×
+   * 570 for her S3). The deploy clip (a drop from far above) counts only while it plays. Null without the extents
+   * (an older manifest). A new box is a new array, so callers may compare by identity.
+   */
+  extents() {
+    const per = this.entry?.extents;
+    if (!per) return null;
+    const ext = this._ext || (this._ext = { seen: new Set(), box: null, deploy: null });
+    const deployName = this.roles.deploy;
+    let grew = false;
+    const see = (name) => {
+      if (!name || name === deployName || ext.seen.has(name) || !per[name]) return;
+      ext.seen.add(name);
+      ext.box = unionBox(ext.box, per[name]);
+      grew = true;
+    };
+    see(this._idleName());
+    for (const tr of this.spine?.state?.tracks || []) {
+      for (let e = tr; e; e = e.mixingFrom) see(e.animation?.name);
+    }
+    if (grew) ext.deploy = null;
+    if (this.mode === 'deploy' && per[deployName]) return ext.deploy || (ext.deploy = unionBox(ext.box, per[deployName]));
+    return ext.box;
+  }
+
   /** The skeleton's death clip, or null. */
   dieClip() {
     const d = this.roles.die || (this.has('Die') ? 'Die' : null);
@@ -546,6 +686,24 @@ export class SpineActor {
     if (idle) this._play(idle, false, { mix: 0.1, timeScale: 0 });
     else this.frozen = true;
     return 0;
+  }
+
+  /**
+   * True while an update would draw the same pixels: a frozen model, or a dead one whose only clip — track 0, not
+   * looping, not mixing — has played out (the held end of a death clip; a skeleton without one holds its idle at
+   * timeScale 0). Only once an update has posed the current clip and put the current tint on the slots (pixi-spine applies
+   * `tint` in update: the grey of a knocked-out operator, a hit flash). Never while a form's closing clip or a wind-up is
+   * pending: those act on the clock.
+   */
+  poseHeld() {
+    if (!this._applied || this.spine.tint !== this._appliedTint || this.endClip || this.windUntil != null) return false;
+    if (this.frozen) return true;
+    if (this.mode !== 'die') return false;
+    const tracks = this.spine.state.tracks;
+    for (let i = 1; i < tracks.length; i++) if (tracks[i]) return false;
+    const e = tracks[0];
+    if (!e || e.loop || e.mixingFrom) return false;
+    return e.timeScale === 0 || e.trackTime >= e.animationEnd - e.animationStart;
   }
 
   /** Revive (redeploy after death). */
@@ -576,6 +734,10 @@ export class SpineActor {
         if (this.clock > this.attackUntil) {
           this.mode = 'base';
           this.wound = false;
+          this.windUntil = null;
+          // (fork) an unconfirmed rhythm loop stops short of its next strike: hold its pose through the crossfade
+          const out = this.spine.state.tracks[0];
+          if (out && out.loop) out.timeScale = 0;
           const clip = this._attackClip() || this.roles.attack;
           // a skill with its own idle: back to that idle (its end clip is for the end of the skill, setSkill(false))
           const toSkillIdle = clip === this.roles.skill && !!this._skillIdle();
@@ -621,6 +783,8 @@ export class SpineActor {
       try { this.spine.update(dt); } catch { /* a broken skeleton must not stop the frame */ }
     }
     if (this.clipped && !this.clipOn) this._eyeMaskFallback();
+    this._applied = true;
+    this._appliedTint = this.spine.tint;
   }
 
   /**

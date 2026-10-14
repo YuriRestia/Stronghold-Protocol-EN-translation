@@ -37,8 +37,9 @@
 //                      in its range counts for 「范围内没有敌人」 (the owner's decision of 2026-10-08 from the official game,
 //                      GitHub #316; asleep, untargetable and flying ones stay out: raidGroundEnemy): on a free tile of a board of its field
 //                      (Battle.onFieldBoard: its own or a teammate's on the same field — the two-helper 联防 field and a
-//                      pair field open both halves, the owner's decision of 2026-10-07; never a boss field's hand /
-//                      临时整备区 rows, never the empty other half of a lone 联防 helper or a solo boss field — community
+//                      pair field open both halves, the owner's decision of 2026-10-07; #475 also opens an empty half
+//                      for multiplayer boss/hidden Raid only, approved 2026-10-10; never a boss field's hand /
+//                      临时整备区 rows, never the empty other half of a lone 联防 helper or a single-mode boss field — community
 //                      reports of 2026-10-06, items 40 and 16.3) its position may be deployed
 //                      on from which its range covers that enemy (GitHub issue #51 [ASSUMED]: the first of the 8 most
 //                      advanced that has such a tile; none → it stays and the next poll looks again, never a jump that
@@ -52,7 +53,13 @@
 //                      ATK/HP +(base + per·L) until it leaves the field; knocked out after a jump it lies where it fell
 //                      and comes back there (the engine's rest tile, Battle._layBody — PRTS 卫戍协议/帮助 "原地留下一个
 //                      “倒地干员”…自动部署至该位置"; its own home when it fell on another board piece's home);
-//                      L ≥ power_bond_stack_cnt: every operator ASPD +power_attack_speed
+//                      L ≥ power_bond_stack_cnt: every operator ASPD +power_attack_speed.
+//                      Ordinary polls order candidates by remaining path distance, then id (the 0.2.3 rule). The one
+//                      reselect right after a revive — knocked out, and back before the respawn timer (不屈 / 阿戈尔 /
+//                      复活, or the same kill + immediate redeploy) — orders by taunt, then that distance, and jumps
+//                      while the operator is not blocking. An enemy already standing on its tile counts: the 0.25 s
+//                      poll runs before that tick's block pass, so the reselect refreshes contact first. A retreat,
+//                      a move, a redeploy that waited out its timer, and Raid's own jump do not arm that reselect.
 //   不屈 indomShip     ground operator knocked out → p = min(1, base + per·L) immediate free redeploy where it lies
 //                      (the engine's rest tile); tier 2: every operator on the field +sp SP
 //   协防 emptyShip     all operators phys/arts taken ×(1 − damage_resistance); members dealt ×damage_scale_normal
@@ -67,7 +74,9 @@
 import { canTargetEnemy, enemyStealthed, extendedGrid } from '../../../targeting.js';
 import { normDir, rotateOffset, localOrder, localBefore } from '../../../dir.js';
 import { bodyKeys, bodyInKeys } from '../../../body.js';
-import { isHpLoss } from '../../../damage.js';
+import { applyRedirectCut, isHpLoss, redirectShare } from '../../../damage.js';
+import { BOSS_ROW_OFFSET } from '../../../constants.js';
+import { GEO } from '../../../../../shared/constants.js';
 import {
   num, bondRecord, buffParams, bondTier, bondLayers, isMember, isElite, isGroundOp, onField, playerOps, passiveBuff,
   fxOn, N4, N8, directMods, COLS,
@@ -272,15 +281,26 @@ function raidReach(u) {
   return out;
 }
 
+/** #475: multiplayer boss/hidden Raid may use an absent partner's deployment half (maintainer-approved, §29.13).
+ * Keep this exception local to Raid: onFieldBoard/onOwnBoard still describe actual players' deployment regions.
+ */
+function raidBoard(battle, r, c) {
+  if (battle.onFieldBoard(r, c)) return true;
+  return battle.modeId?.startsWith('mode_multi_') && (battle.kind === 'boss' || battle.kind === 'hidden')
+    && r >= GEO.FIELD.r0 + BOSS_ROW_OFFSET && r <= GEO.FIELD.r1 + BOSS_ROW_OFFSET
+    && c >= GEO.FIELD.c0 && c <= COLS - 1 - GEO.FIELD.c0;
+}
+
 /**
  * Landing tile [row, col] of a jump to enemy `e`, or null: a tile from which the member's range (`reach`, raidReach)
  * covers the enemy's body (a huge enemy: any tile it occupies — body.js), within RAID_SEARCH tiles (Chebyshev) of the
  * enemy, inside the field rect and on a board of its field (Battle.onFieldBoard — "再部署" goes where a player of the
  * field deploys: its own board or a teammate's half when both halves are taken, the two-helper 联防 field and a pair
  * field — the owner's decision of 2026-10-07, DESIGN §26.1; never a boss field's hand row 0 or 临时整备区 row 1, both
- * inside BOSS_RECT and buildable high ground, nor the empty other half of the one-helper 联防 map or a solo boss field;
+ * inside BOSS_RECT and buildable high ground, nor the empty other half of the one-helper 联防 map or a single-mode boss field;
  * community reports of 2026-10-06, items 40 and 16.3: a ranged member landed on the 临时整备区 row of a solo leader
- * round, and on the right half of the one-helper 联防 map), that the member's
+ * round, and on the right half of the one-helper 联防 map). #475 additionally opens the empty deployment half only
+ * in multiplayer boss/hidden battles (raidBoard, approved 2026-10-10, §29.13). The tile must be one that the member's
  * position may be deployed on (grid.canStand: never the 深水区 —
  * player report #3 after 0.1.0 —, and for a melee member low ground only, never a 高台: GitHub #148) and that is free
  * (Battle.isReservedTile: no living unit, no knocked-out operator's body — player report F5 —, no waiting piece's tile).
@@ -305,7 +325,7 @@ function raidTile(battle, u, e, reach) {
     for (let i = 0; i < reach.length; i += 2) {
       const r = br - reach[i], c = bc - reach[i + 1], dr = r - er, dc = c - ec;
       if (Math.abs(dr) > RAID_SEARCH || Math.abs(dc) > RAID_SEARCH) continue;
-      if (!battle.grid.inRect(r, c) || !battle.onFieldBoard(r, c) || !battle.grid.canStand(r, c, { ranged }) || battle.isReservedTile(r, c)) continue;
+      if (!battle.grid.inRect(r, c) || !raidBoard(battle, r, c) || !battle.grid.canStand(r, c, { ranged }) || battle.isReservedTile(r, c)) continue;
       const t = r * COLS + c;
       const p = path && battle.grid.tile(r, c).pass === 'ALL' && (path.has(t) || body.includes(t)) ? 0 : 1;   // its block applies
       const d = Math.max(Math.abs(dr), Math.abs(dc)) + 0.01 * (Math.abs(dr) + Math.abs(dc));
@@ -341,12 +361,12 @@ function raidStealthInRange(battle, u) {
 }
 
 /**
- * Jump candidates of player `pid`, in priority order: the ground enemies of raidGroundEnemy (visible, or 隐匿; not
- * flying, asleep or untargetable) — those of the player's own field (`ownerId`), the others only when it has none —,
- * the most advanced first (least remaining path distance, then the earliest spawned) [ASSUMED, research 02 §3.18].
- * The same list for every member of the player (the checks read the enemy, not the attacker).
+ * Jump candidates of player `pid`: the ground enemies of raidGroundEnemy (visible, or 隐匿; not flying, asleep or
+ * untargetable) — those of the player's own field (`ownerId`), the others only when it has none. Ordinary polls sort
+ * by remaining path distance, then stable id. `taunt` is only the one reselect after a revive (maintainer 2026-10-10):
+ * highest taunt, then that distance, then id. The two orders are not one shared list.
  */
-function raidTargets(battle, u, pid) {
+function raidTargets(battle, u, pid, { taunt = false } = {}) {
   const own = [], other = [];
   for (const e of battle.enemies) {
     if (!raidGroundEnemy(u, e)) continue;
@@ -354,16 +374,38 @@ function raidTargets(battle, u, pid) {
   }
   const list = own.length ? own : other;
   const dist = new Map(list.map((e) => [e, num(battle.remainingDistance ? battle.remainingDistance(e) : 0)]));
-  list.sort((a, b) => dist.get(a) - dist.get(b) || a.id - b.id);
+  list.sort((a, b) => (taunt ? num(b.s.taunt) - num(a.s.taunt) : 0) || dist.get(a) - dist.get(b) || a.id - b.id);
   return list;
+}
+
+/**
+ * The block pass has not run yet this tick (the poll is in the scheduled phase, and `_deploy` clears `blocking`).
+ * Refresh contact the same way `updateEnemy` does before an enemy moves: an enemy already on this tile is blocked
+ * now, so a revive does not treat that tile as empty and jump away.
+ */
+function raidRefreshContact(battle, u) {
+  for (const e of battle.enemies) {
+    if (!e.alive || e.blockedBy || e.hidden) continue;
+    if (Math.abs(Math.round(e.y) - u.tileR) > 1 || Math.abs(Math.round(e.x) - u.tileC) > 1) continue;
+    battle._checkBlock(e);
+  }
 }
 
 function raidPoll(battle, st) {
   const bb = st.bb[ID.raid];
   const idle = num(bb.no_attack_duration, 10);
-  let targets = null; // the player's candidates (raidTargets), shared by its members until a jump changes the field
+  // Ordinary and post-revive orders stay separate: one poll can hold a member of each.
+  let plain = null, taunted = null;
   for (const u of st.members[ID.raid]) {
     if (!onField(u) || !u.canAct) continue;
+    // Maintainer 2026-10-10: one fresh target check after revival when unblocked, even with enemies in attack range.
+    // Ordinary later polls retain their original empty-range rule and distance order. A Raid jump cannot arm another check.
+    const revived = u.mem.raidReviveSeq === u.deploySeq;
+    if (revived) {
+      u.mem.raidReviveSeq = 0;
+      raidRefreshContact(battle, u);
+    }
+    if (revived && u.blocking.some((e) => e.alive && e.blockedBy === u)) continue;
     const since = Math.max(u.lastAttackAt ?? -Infinity, u.deployedAt ?? -Infinity, u.mem[KEY.raid] ?? -Infinity);
     // 技能就绪: a charged skill, or a passive skill that is on (GitHub #49: skills.js `ready` is false for every passive,
     // so 缄默德克萨斯 / 宴 … only ever jumped on the idle trigger; the reporter's footage of the official game shows
@@ -377,10 +419,10 @@ function raidPoll(battle, st) {
     const deploySkillOn = !!(sk && sk.active && (sk.kind === 'passive' || sk.spType === 'none'));
     const ready = !!(sk && !sk.noSkill && ((sk.ready && !(sk.active && sk.isTimed)) || deploySkillOn));
     const idleOk = battle.time - since >= idle - 1e-9;
-    if (!(ready || idleOk)) continue;
+    if (!(revived || ready || idleOk)) continue;
     // 「若范围内没有敌人」: a targetable enemy, or a 隐匿 ground one (the owner's decision of 2026-10-08, raidGroundEnemy)
-    if (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length || raidStealthInRange(battle, u)) continue;
-    const list = (targets ??= raidTargets(battle, u, st.pid));
+    if (!revived && (battle.enemiesInKeys(u.rangeKeys || [], u, u.profile).length || raidStealthInRange(battle, u))) continue;
+    const list = revived ? (taunted ??= raidTargets(battle, u, st.pid, { taunt: true })) : (plain ??= raidTargets(battle, u, st.pid));
     if (!list.length) continue;
     // either trigger: raidTile only offers tiles with the target in range (without that a ready skill that finds no
     // target would redeploy — firing every 部署时 effect — at every poll; the idle trigger, which lacked it up to
@@ -389,8 +431,9 @@ function raidPoll(battle, st) {
     for (let i = 0; i < list.length && i < RAID_TARGETS; i++) {
       const tile = raidTile(battle, u, list[i], reach);
       if (!tile) continue;
-      targets = null; // the retreat / redeploy handlers (部署时 effects) may change the enemies: the next member re-sorts
+      plain = taunted = null; // the retreat / redeploy handlers (部署时 effects) may change the enemies: the next member re-sorts
       const res = raidRedeploy(battle, u, tile[0], tile[1]);
+      u.mem.raidReviveSeq = 0;
       if (!res) continue;
       u.mem[KEY.raid] = battle.time; // with deployedAt: the idle time starts again from the landing
       if (res === 'raid') {
@@ -459,6 +502,13 @@ export function install(battle) {
   if (has(ID.raid)) {
     const raid = states.filter((st) => st.tiers[ID.raid] && st.members[ID.raid].size);
     if (raid.length) {
+      battle.on('deploy', (c) => {
+        const u = c.unit;
+        // Only a revive: the previous exit was a knock-out and the operator is back before its respawn timer.
+        // A retreat (宴 / 史尔特尔 / 伊内丝 / 耀骑士临光), a move, a timer redeploy and the initial deploy stay on the old poll.
+        if (!u || c.initial || c.move || u.removeReason !== 'killed' || !(u.respawnAt > battle.time + 1e-9)) return;
+        if (raid.some((st) => st.members[ID.raid].has(u))) u.mem.raidReviveSeq = u.deploySeq;
+      });
       battle.every(RAID_POLL, () => { for (const st of raid) raidPoll(battle, st); });
     }
   }
@@ -542,7 +592,8 @@ export function install(battle) {
   if (stead) {
     battle.on('hit', (c) => {
       const t = c.target, dmg = c.dmg;
-      if (!t || t.side !== 'ally' || t.kind !== 'op' || !dmg || dmg.cancel || dmg.steadShare || dmg.steadCut || dmg.type === 'element') return;
+      if (!t || t.side !== 'ally' || t.kind !== 'op' || !dmg || dmg.cancel || dmg.steadShare || dmg.steadCut
+        || dmg.tags?.includes('bond:stead:share') || dmg.type === 'element') return;
       const st = byPid[t.ownerId];
       if (!st || (st.tiers[ID.stead] ?? 0) < 2 || st.members[ID.stead].has(t)) return;
       let any = false;
@@ -550,7 +601,8 @@ export function install(battle) {
       if (!any) return;
       const ratio = Math.max(0, Math.min(1, num(st.bb[ID.stead].damage_resistance)));
       if (!(ratio > 0) || ratio >= 1) return;
-      dmg.mul *= 1 - ratio;
+      // Both redirects take their share from the pre-redirect hit (applyRedirectCut). The victim keeps the rest.
+      applyRedirectCut(dmg, ratio);
       dmg.steadCut = ratio;
     }, { priority: -20 });
   }
@@ -565,14 +617,16 @@ export function install(battle) {
         if (dmg.steadCut) {
           const ratio = dmg.steadCut;
           dmg.steadCut = 0;
-          const share = (num(c.amount) / (1 - ratio)) * ratio;
+          const share = redirectShare(num(c.amount), ratio, dmg.redirectCuts);
           if (!(share > 0)) return;
           const on = [];
           for (const m of st.members[ID.stead]) if (onField(m)) on.push(m);
           // the share is already mitigated and already carries the attacker's damage multipliers: deal it sourceless
           // (the member's own damage-taken modifiers and shields still apply), never re-scaled by the attacker
           for (const m of on) {
-            const d = battle.makeDamage({ amount: share / on.length, type: 'true', canDodge: false, tags: ['bond:stead:share'] });
+            // Preserve sharing ancestry across Skadi's redirect, so neither sharing effect revisits its own output.
+            const d = battle.makeDamage({ amount: share / on.length, type: 'true', canDodge: false,
+              tags: ['bond:stead:share', ...(dmg.tags?.includes('transfer') ? ['transfer'] : [])] });
             d.steadShare = true;
             battle.dealDamage(null, m, d);
           }

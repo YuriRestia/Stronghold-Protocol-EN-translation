@@ -7,7 +7,7 @@ const OP = 'chess_char_1_06_a'; // 刺玫, the operator of the report
 const SCROLL = 'chess_item_6_02_m';
 const HAMMER = 'chess_item_1_01_e_a';
 const SHIELD = 'chess_item_1_02_e_a';
-const FILLER = 'chess_item_6_09_e_a'; // non-mergeable
+const FILLER = 'chess_item_2_03_e_b'; // non-mergeable effect-only item: fill storage without exhausting shop stock
 const OK = { ok: true };
 
 function prep(t, { copies = 2, golden = false, items = [HAMMER] } = {}) {

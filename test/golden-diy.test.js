@@ -11,7 +11,7 @@ const MATCHES = read('./golden/matches.json');
 const BACKUPS = read('../data/backups.json');
 
 test('matches: the 自选 match\'s human seat draws its 自选 pieces in its shop and fields 推进之王 in battle', () => {
-  const [id, dg] = Object.entries(MATCHES.scenarios).find(([k]) => /-diy$/.test(k)) || [];
+  const [id, dg] = Object.entries(MATCHES.scenarios).find(([k]) => /-coverage-diy$/.test(k)) || [];
   assert.ok(dg, 'scenario present');
   assert.deepEqual(dg.errors, { engine: 0, logged: 0, sim: 0, dispatcher: 0 }, id);
   assert.deepEqual(Object.keys(dg.diy.picks).sort(), Object.keys(BACKUPS.diy.slots).sort(), 'all four slots filled');

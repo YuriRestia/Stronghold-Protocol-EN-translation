@@ -81,7 +81,15 @@ summon that came in during the initial deployment (also one an operator's deploy
 the operators in the aggro order (`unit.aggroSeq`, §1.2). On a shared field (联防, the boss field)
 the players' fields deploy side by side: the i-th operators of all players come in together (in `players` order), then
 the summons the same way, and the summons rank after the operators of all players **[ASSUMED]** (PRTS describes one
-field — units deploy one after another with a fixed delay from the battle start — and "两处阵地将前后拼接为一处阵地"). Register hooks before the first step (e.g. `opts.setup(battle)` or right after `new Battle`).
+field — units deploy one after another with a fixed delay from the battle start — and "两处阵地将前后拼接为一处阵地").
+
+外勤医疗's prepared slot is a preparation view record, not a combat `Unit`. The `battleStart` handler creates either
+预备干员-医疗 or Touch after counting deployed elites. [ASSUMED] Its effective targeting order precedes ordinary
+initial deployments (`preBattleAggroSeq`); its actual `deploySeq` still identifies the later runtime spawn. Prepared
+slots on a shared field follow player order [ASSUMED]. A later `spawnMapChar` without this option keeps its ordinary
+summon order (§30.22).
+
+Register hooks before the first step (e.g. `opts.setup(battle)` or right after `new Battle`).
 
 **Tick order:** scheduled callbacks → spawns → DP → buffs (+HP regen) → enemies (attack, move, block) →
 enemy tile index → allies (skill tick, attack) → projectiles → auto-redeploys → boss pool sync → `tick` hook →
@@ -164,14 +172,18 @@ the old tile-key order), so a rotated layout plays the same (test/sim/facing-inv
 directions on an open field). 余 S3's fire wall runs through his tile perpendicular to his direction (his column facing
 RIGHT / LEFT, his row facing UP / DOWN; fx `firewall.axis` = `'col'|'row'`).
 `carryState: { hpPct, sp }` restores unite helpers' operators (HP ratio, and the SP = the official 技力, stored charges
-included: `unitsEnd` reports `skill.spTotal`, reset rebuilds the charges from it, and `skill.setSpTotal` sets it again after
-the `deploy` hook — PRTS "部署完成后…技力修改至与上一阶段结束时相同", so 独行 / 黄沙罗盘's deploy-time SP does not add to it;
+included: `unitsEnd` reports `skill.spTotal`; after all initial deployments and `battleStart` hooks, HP is restored
+against the new maximum and `skill.setSpTotal` restores the charges — PRTS "部署完成后…技力修改至与上一阶段结束时相同",
+so 独行 / 黄沙罗盘's opening SP does not add to it. Positive ratios are not raised to 1% or 1 HP;
 later redeploys keep those gifts); `carryState: { sp }` a board summon
 piece's SP only (PRTS "召唤物仅修改技力"). Nothing else is carried: a skill running at the end of the own combat enters
 switched off with the SP it had left — spent at its activation, 0 for a one-charge skill (`unitsEnd.skillActive` is
 reported, never carried; community report #34 — it used to restart for free).
 Timed deployment skills (`activateOnDeploy`) trigger once from the new deployment, consuming their deployment charge;
 they do not resume the previous skill state.
+The approved Egir carry policy rebuilds opening devour attributes while skipping its repeated HP loss on a living
+carry target; this prevents artificial knock-outs and revival-slot consumption before restoration. A fresh target
+without a previous state still takes that opening damage. Later combat, HP loss and redeploys follow the normal rules.
 `carryState: { down: true }` = an operator knocked out at the end of the helper's own combat (PRTS 卫戍协议/帮助 "上一阶段为
 退场状态的干员强制退场", user playtest #5 item 2): `start()` deploys it with everyone (initial `deploy` fires), then — before
 `battleStart` — withdraws it with reason `FORCED_EXIT` (constants.js `'forcedExit'`) and HP 0 (the end-of-phase HP ratio, as after
@@ -370,7 +382,7 @@ enemy: 隐匿 kept out, 起飞 not), 【污染秽蚀】 on every ally inside (fl
 `alliesInRadius`) — through `dealDamage`, so shields absorb a damage
 tick, damage-taken modifiers scale it and it counts for 受击回复 SP and TAKE_DAMAGE skills like any hit (§4; element fills
 excepted). 【污染秽蚀】 (萨卡兹枯朽战车's 秽蚀轰击,
-萨卡兹枯朽战士's death — none when it dies silenced, its client template checks 沉默, DESIGN §25.18) is **true** damage, 50 / 25 per second on low / high ground (PRTS "每秒受到50/25点真实普通伤害 …
+萨卡兹枯朽战士 / 组长's death — none when either dies while silenced. The owner's official-play recall of 2026-10-12 is that a silenced death creates no fog, which contradicts the PRTS / in-game text 「不可沉默」; only `enemy_1267_nhpbr` and `enemy_1267_nhpbr_2` share this PollutedDie ability, DESIGN §30.23) is **true** damage, 50 / 25 per second on low / high ground (PRTS "每秒受到50/25点真实普通伤害 …
 同名效果不叠加", user playtest #6): a unit covered by several zones takes one tick per second (`unit.mem.pollutedAt`), so
 a crowd of dying 萨卡兹枯朽战士 totals 50 / s, not 50 × n. It is "可对空，无视无法选择": it also burns an airborne 起飞 ally
 (`ignoreSelect`), at the low-ground rate on a low tile. The other zones are no exception to 对地规避: a ground enemy's
@@ -463,7 +475,7 @@ recorded for the player whose half contains the goal it reached, with `sourcePla
   0, so float dust of the pool sync can never keep a leader alive; user playtest #6). A boss/hidden battle **with a
   `sharedBoss`** ends only when the pool reaches 0 or on `forceEnd` (DESIGN §5.5) — an emptied field keeps running
   (the h07_04 pair leader has no wait step and can walk into the objective: the leak costs its `lpr`, then the field
-  idles while another field may still empty the pool or the match's overtime drain — team LP, from 150 real s — ends it); without a pool
+  idles while another field may still empty the pool or the match's overtime drain — team LP, from 120 real s for all-human teams / 150 with an AI teammate — ends it); without a pool
   (sandboxes, tools) it still ends `cleared` when empty. `timeout`: `time ≥ timeLimit` —
   every living non-boss enemy becomes a leak; spawns that never happened are dropped from `total` and listed in `unspawned`.
 - `leaked[].counted = false` for `notCountInTotal`/`unharmful`/boss parts (LP rules: normal rounds count only `counted`
@@ -533,10 +545,16 @@ Getters: `s` (aggregated stats), `maxHp`, `atk`, `hpRatio`, `sp`, `spMax`, `canA
 flag `float` (近地悬浮, PRTS 术语释义 "算作空中单位") or `levitate` (浮空 "变为空中单位") — never an enemy under 缚地 (flag
 `groundbind`, "目标变为地面单位") unless a 浮空 lifts it again; movement and pathing read `motion` (a hovering enemy keeps
 walking the ground path). `deploySeq` counts deployments (and identifies one: `seq === u.deploySeq`);
-`aggroSeq` is the aggro order (= deploySeq, except the summons of the initial deployment, §1).
+`aggroSeq` is the aggro order (= deploySeq, except the summons of the initial deployment and prepared 外勤医疗 map
+characters, §1).
+
+克莱门莎 S2's kit stores its cabin in `unit.mem.clemntCabin`. Before boarding each tick, it removes passengers
+that died, became hidden / uncarryable or cannot path to the next cabin position, removes their carry buff and
+returns their current `weight` (including modifiers). The same tick's count and weight limits use that cleaned
+list and budget (DESIGN §28.27); this is local to the kit, not a change to general displacement.
 
 **Hit areas (`body.js`, user playtest #5 item 10).** A regular enemy is a point: in a grid range when the tile of its
-position (`round(y)`, `round(x)`) is a range tile, in a radius when its position is (DESIGN §3). A huge enemy (巨型单位:
+position (`roundHalfEven(y)`, `roundHalfEven(x)` — PRTS 作战机制 "四舍六入五成双"; `Math.round` would take 2.5 to 3) is a range tile, in a radius when its position is (DESIGN §3). An enemy held on the field edge is inset by `FIELD_EDGE_INSET` (1/1048576) [ASSUMED] so that rounding keeps it on the edge tile; movement, knockback and a unit's standing tile for range keys still use `Math.round` (§30.27). A huge enemy (巨型单位:
 `enemy.hitArea` from data/enemies.json `hitArea` — 假想敌：胄 / 管 / 盐风主教昆图斯 / 阿利斯泰尔 / “萨米的意志”, PRTS
 "受击判定区域为长4.95、宽2.95的长方形，向上偏移1.0") is hit anywhere on a rectangle `w` × `h` tiles centred on its position
 moved `dx` columns right / `dy` rows up: it occupies every tile the rectangle overlaps (`bodyKeys` — 5 × 3 tiles; PRTS
@@ -840,7 +858,7 @@ registration order. `battle.off(handle)` / `battle.off(name, fn)` / `battle.offO
 | `tick` | `{ dt }` | end of every tick |
 | `beforeAttack` | `{ attacker, targets, isSkill, profile }` | allies **and** enemies; replace/filter `ctx.targets` |
 | `enemyAttackStart` | `{ enemy, targets }` | an enemy starts a normal attack (it has targets), **before** 麻痹 may interrupt it (ai.js enemyAttack; the client's ON_BEFORE_ABILITY_SPELL_ON): a burst a handler causes interrupts that very attack (酒神 堕梦, PRTS 备注 "触发的元素爆发可打断当次普攻"); a handler that kills or stuns the enemy ends it |
-| `attack` | `{ attacker, targets, isSkill }` | an attack/heal was performed (projectiles may still be in flight) |
+| `attack` | `{ attacker, targets, isSkill, targetDeployments? }` | an attack/heal was performed (projectiles may still be in flight). Normal enemy attacks provide a `Map<Unit, deploySeq>` captured before their damage; post-attack control effects must not cross a target redeployment. |
 | `hit` | `{ source, target, dmg, credit }` | before mitigation; mutate `dmg` (not fired for gauge fills — see `elementHit`). `source` may be null (terrain; 无来源 `dmg.sourceless` bursts, whose `credit` names the unit credited) |
 | `elementHit` | `{ source, target, dmg }` | before a gauge fill (`dmg.type === 'element'`); mutate `dmg.amount`/`dmg.mul`, set `dmg.cancel` |
 | `damaged` | `{ source, target, amount, type, dmg, credit }` | after application (`amount` may be 0 when shielded); element fills too (with their source); 无来源: `source` null, `credit` set |
@@ -848,7 +866,7 @@ registration order. `battle.off(handle)` / `battle.off(name, fn)` / `battle.offO
 | `heal` | `{ source, target, amount, opts }` | mutable `amount` |
 | `fatal` | `{ unit, source, credit, dmg, amount, prevented }` | HP would reach 0 — set `prevented` (substitutes, kit savers, 不死 items; the 复活 — M3茧甲, 埃芒加德 — and 不屈 are `death` hooks). Fired by every HP loss of a unit without a boss pool — hits of any type, element bursts, 无来源 damage, `loseHp` 流失. Order: kits' own savers (10 … −60) → items' 不死 (坚固维式重锤 — once per deployment: `items/battle.js deploymentOf`, a key every deploy changes (a 复活's redeploy too); one battle-level hook holds the running windows (`holdsUndying`), so a window outlasts a lend, DESIGN §21.21 — the lock `PRIO_REVIVE` −100 after the substitutes (−100, registered first), the running windows `PRIO_UNDYING_HELD` −99 before them: a 傀儡师 holding 不死 does not switch, PRTS 分支特性信息 傀儡师 "未持有不死的情况下", DESIGN §22.11) → 淬羽赫默 S3's 不死 (−100.5: PRTS 衍生生命 "无畏者协议提供的不死效果仅在目标没有不死效果时才会触发"; its running windows held at −99 like the hammer's). The 复活 act on the knock-out after this step (PRTS "复活" acts on a knock-out, which a 不死 prevents): `death`, below |
 | `dollSwitch` | `{ unit, reason, done }` | content switches a 傀儡师 to its <替身> now (归溟幽灵鲨 S2 "技能结束后立刻切换为<替身>": no lethal HP loss); its trait does it unless it already is one or is not on the field, and sets `done` |
-| `dollSwap` | `{ unit, form }` | a 傀儡师 starts a switch — to its <替身> (`form` `'doll'`) or back to its <本体> (`null`); not when it is knocked out as the 替身 (不屈 rolls on it: "切换<替身>与<本体>时") |
+| `dollSwap` | `{ unit, form }` | a 傀儡师 starts a switch — to its <替身> (`form` `'doll'`) or back to its <本体> (`null`); not when it is knocked out as the 替身 (不屈 rolls on it: "切换<替身>与<本体>时"). 远牙's granted `garrison_108_a/b` gains on it too (player-confirmed, DESIGN §28.5), sharing its deployment cap and active-bond checks. |
 | `kill` | `{ killer, victim }` | victim HP reached 0 (a handler may revive by restoring HP) |
 | `death` | `{ unit, reason:'killed'|'leak'|'retreat'|'merchant'|'expired'|'forcedExit', killer, dying, revivedBy? }` | unit removed (`'forcedExit'`: an operator entering 联防 knocked out, §1.1; `dying`: a `retreat` that plays the death animation — 史尔特尔's 余烬, 骑士戒律 + 竞技旗). Revives of a knock-out redeploy the operator inside it, free, where it lies — PRTS "“复活”的实现方式为：受益者因移动之外的原因退场时下次部署的再部署时间和费用归零", so the 被击倒时 and 部署时 effects both run (a deploy-timed skill — `activateOnDeploy` — starts anew: a 突袭 member with one jumps at once, DESIGN §25.17.5): M3茧甲 (`PRIO_RESPAWN` 13) → 埃芒加德 (`PRIO_BAND_REVIVE` 12) — `items/battle.js reviveNow`, which sets `revivedBy` ('item' / 'band'; 阿戈尔 5 does not count such a knock-out as the member's first) — → 阿戈尔 5 (11; a knock-out by the battle-start devour waits for the last devour pass, then the knocked-out members go by board position, DESIGN §25.22.5) → 不屈 (10); until 0.2.0 the two 复活 were `fatal` savers that kept the unit standing |
 | `skillStart` / `skillEnd` | `{ unit, skill, reason }` | mutate `skill.ammoLeft` / `skill.timeLeft` in skillStart (bullets added there raise `skill.ammoMax`, the ammo bar's full mark) |
@@ -886,7 +904,7 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
 | `applyStatus(tgt, key, {duration, source, value, force, point, stackAs})`, `removeStatus(tgt, key)`, `resistOf(unit)` | §3 |
 | `applyStrongest(tgt, key, {duration, value, mods, source})` | §3 — "同名效果取最高" for a non-catalogue effect |
 | `addBuff(unit, buff)`, `removeBuff(unit, key)` | §3 |
-| `spawnToken(ownerUnit | playerId, tokenId, row, col, { def, stats, hp, duration, untargetable, dir, kit, force, anySource })` | field tiles; def from data/tokens.json `variants[ownerChessId]` for the owner unit's selected skill / module (`tokenDef`); `dir` defaults to the owner unit's (else the player's: RIGHT, mirrored side LEFT; a legacy `facing` ±1 is still read); returns the token or null (tile busy; or the owner runs a **non-default** skill that does not produce the token — `producesToken` — unless `anySource`: kit install hooks written for the default skill run under every skill). `spawnDevice(key, row, col, { …, dir })` likewise |
+| `spawnToken(ownerUnit | playerId, tokenId, row, col, { def, stats, hp, duration, untargetable, dir, kit, force, anySource, preBattleAggroSeq })` | field tiles; def from data/tokens.json `variants[ownerChessId]` for the owner unit's selected skill / module (`tokenDef`); `dir` defaults to the owner unit's (else the player's: RIGHT, mirrored side LEFT; a legacy `facing` ±1 is still read); `preBattleAggroSeq` is a negative priority reserved for a prepared stage map character, before ordinary initial units; returns the token or null (tile busy; or the owner runs a **non-default** skill that does not produce the token — `producesToken` — unless `anySource`: kit install hooks written for the default skill run under every skill). `spawnDevice(key, row, col, { …, dir })` likewise |
 | `tokenDef(tokenId, ownerUnit | chessId)`, `producesToken(ownerUnit, tokenId)` | the token def a summon of that owner gets — `getToken(id, owner.defId, owner.def.loadout)`, exact even when two players of one field give the same chess different loadouts (prefer it over an id-only `battle.data.getToken(id, unit.defId)` for summon stats / blackboards); whether the owner's loadout makes the token (DATA.md §14 `sources` has 'skill' or 'talent'; true when the data does not tell: no own variant, player-owned summons) |
 | `spawnEnemy(enemyKey, { routeIndex, route, pos, mods, tag, sourcePlayerId, ownerPlayerId, bounty, countInTotal, inTotal, def })` | returns the enemy, or null past `MAX_ALIVE_ENEMIES`; `def` = inline record (enemies.json shape or normalised) for keys missing from data. A runtime spawn is never `inTotal` (§1.3 — the HUD capsule's own set) unless content passes `inTotal: true` explicitly |
 | `spawnDevice(key, row, col, { hp, obstacle, blockCnt, name, def, res, atk, bat, aspd })`, `setObstacle(r, c, on)` | obstacles re-path enemies; spawnDevice returns null outside the rect, on a living unit or on a knocked-out operator's tile |
@@ -902,13 +920,13 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
 | `getPlayer(playerId)` | `{ playerId, seat, side, colOffset, mirror, dir (default unit direction: RIGHT, mirrored side LEFT), facing (its sign), bonds (live copy, layers updated by addLayers), bandId, playerEffects, lpForBoss, dp, units }` |
 | `mapTile(ps, row, col, abs?)` / `mapDir(ps, dir, abs?)` | board → field tile / direction of a player (the FA right-side mirror) |
 | `onOwnBoard(ps, r, c)` | whether a field tile lies on the player's own board — GEO.FIELD (rows 9–12, cols 2–10) mapped onto this field: the 联防 right-hand helper's +8 columns, the boss field's rows 2–5 (never its hand / 临时整备区 rows 0–1), the mirrored right half; 乌尔比安's S3 【移动】 takes only such tiles (DESIGN §25.17.2) |
-| `onFieldBoard(r, c)` | whether a field tile lies on the board of a player of this field — `onOwnBoard` of any of `players` (the players whose units the battle holds; an eliminated or absent teammate is not one): both halves of the two-helper 联防 field and of a Final Assault / Hidden Core pair field, the own half only for a lone 联防 helper and on a solo boss field, never a boss field's hand / 临时整备区 rows; the 突袭 landing takes only such tiles (DESIGN §25.18, §26.1) |
+| `onFieldBoard(r, c)` | whether a field tile lies on the board of a player of this field — `onOwnBoard` of any of `players` (the players whose units the battle holds; an eliminated or absent teammate is not one): both halves of the two-helper 联防 field and of a Final Assault / Hidden Core pair field, the own half only for a lone helper/player, never a boss field's hand / 临时整备区 rows. Raid additionally admits the empty deployment half only in `mode_multi_*` boss/hidden fights (rows 2–5, cols 2–18), without changing this general method or terrain/reservation checks (DESIGN §29.13, #475) |
 | `addDp(playerId, n)`, `retreat(unit, {reason, permanent, dying})`, `relocate(unit, r, c)` | `relocate` only changes the tile (state kept, no event) |
 | `moveRedeploy(unit, r, c, { clearSp })` | a 【移动】 (PRTS 术语释义: "不退场，以当前血量在目标位置部署", a special retreat + redeploy): `relocate`'s checks (false = refused, nothing changed), then a new deployment (`deploySeq` / `aggroSeq` / `deployedAt`) and `deploy {initial:false, move:true}` (deploy effects fire again); no `die` / `death`, timer or cost (不屈 / 阿戈尔's revive never see it); HP, buffs and a running skill are kept (owner's deviation, DESIGN §22.3); `clearSp` empties the SP before the deploy handlers run — 乌尔比安 S3's move (kits/ops/chess_char_5_05-ulpia.js) and 【返回】 (`clearSp`; also the 从不混淆的方向 fallback, content/tokens.js) |
 | `redeploy(unit, { free=true, tile, keepSp })` | immediate (re)deployment of a dead/retreated ally (full HP, `deploy {initial:false}`); `free: false` pays `base.cost` DP (refused without it); without `tile` it lands on the unit's rest tile (`restTile`: where a knocked-out operator lies, else home); `tile: [r, c]` lands on that tile once (home unchanged; refused when off-rect, occupied or a knocked-out operator's tile, no fallback); `keepSp` keeps SP/charges (保留技力), restored before `deploy` fires — but not for a skill that costs no SP, which the reset re-arms as at every deployment (伊内丝 S3 casts again on a 突袭 landing) — 突袭 raids, 阿戈尔 / 不屈 revives where the unit lies |
 | `refreshRange(unit)`, `setExtraRange(unit, keys)`, `rangeChanged(unit)` | rebuild the ranges after changing `unit.rangeGrid` (流形 copies); extra targetable tiles (absolute keys; merged into every later rebuild until set again; `null` clears; never in `baseRangeKeys`): 蕾缪安 wanted, 维娜 S3 |
-| `push(enemy, force, {from, dir, fixed, fixedAngle, inward, effect})`, `pull(enemy, force, {to, center, stop})`, `pullToFront(enemy, unit, force)`, `forceLevel(enemy, force)`, `pushDistance(enemy, force, {effect})` | the official 位移 (PRTS 游戏数据基础 §重量公式 / 推与拉; user playtest #6 item 14): 受力等级 = 力度 (微小力 −1, 小力 0, 中力 1, 较大力 2, 大力 3 …) − current 重量等级 (massLevel, 失重 counts). Push distance per level (`constants.js PUSH_TILES`, PRTS 推与拉's 弹道 column): ≤ −3 → 0, −2 → 0.12, −1 → 0.44, 0 → 1.7, 1 → 2.14, 2 → 2.96, ≥ 3 → 3.53 tiles; `effect` = a 特效 push (`PUSH_TILES_EFFECT`: −2 → 0.085, −1 → 0.374, 0 → 1.562, 1 → 1.987, 2 → 2.773, ≥ 3 → 3.331 — 见行者 S1 / S2, `PUSH_EFFECT_SKILLS`; every other pusher uses the 弹道 column [ASSUMED]); radial (away from `from`; the client's buff template `knockback[relative]`: 莫斯提马 S3, 山 S3, 琳琅诗怀雅 S3 — also PRTS 备注 "推开效果为径向推动") unless `dir` (directional; template `knockback[dir]` = Knockback {`_useSourceDirection` true, `_decreaseForceLevelWhenNotInDirection` 2}: 推击手, 野鬃 S2 "往攻击方向" (charpack char_496_wildmn: buff `wildmn_s_2[force]`) — > 45° off or < 0.25 tile ⇒ radial and level −2; `fixed` waives both (圣聆初雪 S1 朝部署方向, `KnockBackWithCharacterDirection`), `fixedAngle` only the angle (见行者 S2)); `inward` = a push towards `from` (薄绿 S2), stopping at the 急停 radius. Pull: level ≥ 0 → to `to` / the 急停 radius around `center`, −1 → 35 % of the way, −2 → 0.03, ≤ −3 → 0; `pullToFront` aims at the 拉力起点 0.5 tile ahead of the unit with the 急停 radius 0.6708 around it (never moves an enemy the unit itself blocks — nor does a pull towards an ally's centre, e.g. the 流形 S3 pulse) A 静态刚体 (data `staticBody`: every air unit of the mode except “炎佑”, plus 昆图斯 — PRTS 特殊机制 "可以进入失衡状态…但物理层面上无法产生任何速度或移动", "与单位的行动方式无关") moves 0 from every source while the skills that reach it still hit it (薄绿 S2, 锏 S3, the 钩索师 …; player report after 0.1.0). **失衡 (UNBALANCE)** (PR #392's idea, its timing re-done from the sources): the move stays instant, then the enemy is held in the 失衡 state — a state machine, not a status (PRTS 失衡位移机制; 异常效果 「失衡…不属于异常效果」: no stun, no immunity, SP untouched), `enemy.unbalanceUntil`, read by `ai.js updateEnemy`: no walking (恐惧 / 诱导 included — no fear exemption) and no normal attack started, a swing short of its frame cut, the attack clip's stand ended; and no skill (失衡免疫 「失衡期间无法自主移动、发动攻击、使用技能」): content skills wait (`enemies/helpers.js canCast(e, sil, battle)`, `unbalancedNow`), so do blinks (`blinkForward`) and scripted moves (枯朽之种's dive, the 碎铳之簧 / 铳 charges), and 乌顶巨角卢鲁's clash waits for its end. Left running on purpose: checks the state does not stop (异常效果: 水遁忍者's damage — 「仍然能正常造成伤害」), passive auras and terrain / periodic effects (no skills), death / damage-taken triggers, skill cooldowns (only the cast waits) — and 弧光锋卫's bleed, which is the state's own (天赋 「处于失衡状态时，每0.066s受到400点无来源真实持续伤害」: every 0.066 s for as long as it lasts — until 0.2.2 one hit per tile moved [ASSUMED]). Length, game seconds: a push — the 位移时间 of its 受力等级, PRTS 游戏数据基础 推力-位移近似对应表 (`constants.js PUSH_UNBALANCE`: −2 → 0.2, −1 → 0.4, 0 → 0.8, 1 → 0.9, 2 → 32/30, ≥ 3 → 35/30), the level push() computes (the −2 correction included), kept when the 特效 column or a wall shortens the slide ([ASSUMED] for the wall; a wall at the first step → the 0.1 s floor [ASSUMED]); a pull — its force window, 推与拉 「作用时间默认为 1 s；若本次受力等级 < −1，作用时间改为 0.5 s」 (`PULL_UNBALANCE` / `_WEAK`), to its end after the 急停 too (「目标将仍保持失衡状态至拉力作用时间结束为止」), none at ≤ −3; a 静态刚体 hit by a force > 0 — no movement, the state while the force acts (特殊机制 静态刚体: 「在失去施力后立刻」 out, 「0.1 秒保底」): a push 0.1 s (`UNBALANCE_MIN`; a push's force is instant), a pull its window; 失衡免疫 and leaders never. 浮空 ends it (术语释义 浮空), so do a 重生 (重生 / 逐火's 余烬) and a route APPEAR relocation — forced state switches (失衡位移机制). The end compares with 1e-9 so a float-summed 35/30 s keeps its 35 frames. The `displace` fx carries the length (`dur`): the client's slide takes as long (render/units.js slideTo). PR #392's 0.6387·√tiles (from the page's μ = 0.5 单位假设) and its fear exemption are not taken |
-| `displace(enemy, {x, y}, tiles, {dur})` | the raw mover behind push / pull: along passable tiles (by `motion`: FLY in the rect, else ground-passable), no weight rule, no 失衡 state of its own (push / pull add it; `dur` only rides on its `displace` fx); nothing for 失衡免疫 (`noDisplace`: 近地悬浮 incl. 喷气人's 飞行模式, 浮空, the 胄 parts, 守墓石像's statue and flight), 静态刚体 (`def.staticBody`) and leaders (`_displaceable`); unblocks + re-paths |
+| `push(enemy, force, {from, dir, fixed, fixedAngle, inward, effect, keepFacing})`, `pull(enemy, force, {to, center, stop, keepFacing})`, `pullToFront(enemy, unit, force)`, `forceLevel(enemy, force)`, `pushDistance(enemy, force, {effect})` | the official 位移 (PRTS 游戏数据基础 §重量公式 / 推与拉; user playtest #6 item 14): 受力等级 = 力度 (微小力 −1, 小力 0, 中力 1, 较大力 2, 大力 3 …) − current 重量等级 (massLevel, 失重 counts). Push distance per level (`constants.js PUSH_TILES`, PRTS 推与拉's 弹道 column): ≤ −3 → 0, −2 → 0.12, −1 → 0.44, 0 → 1.7, 1 → 2.14, 2 → 2.96, ≥ 3 → 3.53 tiles; `effect` = a 特效 push (`PUSH_TILES_EFFECT`: −2 → 0.085, −1 → 0.374, 0 → 1.562, 1 → 1.987, 2 → 2.773, ≥ 3 → 3.331 — 见行者 S1 / S2, `PUSH_EFFECT_SKILLS`; every other pusher uses the 弹道 column [ASSUMED]); radial (away from `from`; the client's buff template `knockback[relative]`: 莫斯提马 S3, 山 S3, 琳琅诗怀雅 S3 — also PRTS 备注 "推开效果为径向推动") unless `dir` (directional; template `knockback[dir]` = Knockback {`_useSourceDirection` true, `_decreaseForceLevelWhenNotInDirection` 2}: 推击手, 野鬃 S2 "往攻击方向" (charpack char_496_wildmn: buff `wildmn_s_2[force]`) — > 45° off or < 0.25 tile ⇒ radial and level −2; `fixed` waives both (圣聆初雪 S1 朝部署方向, `KnockBackWithCharacterDirection`), `fixedAngle` only the angle (见行者 S2)); `inward` = a push towards `from` (薄绿 S2), stopping at the 急停 radius. Pull: level ≥ 0 → to `to` / the 急停 radius around `center`, −1 → 35 % of the way, −2 → 0.03, ≤ −3 → 0; `pullToFront` aims at the 拉力起点 0.5 tile ahead of the unit with the 急停 radius 0.6708 around it (never moves an enemy the unit itself blocks — nor does a pull towards an ally's centre, e.g. the 流形 S3 pulse) A 静态刚体 (data `staticBody`: every air unit of the mode except “炎佑”, plus 昆图斯 — PRTS 特殊机制 "可以进入失衡状态…但物理层面上无法产生任何速度或移动", "与单位的行动方式无关") moves 0 from every source while the skills that reach it still hit it (薄绿 S2, 锏 S3, the 钩索师 …; player report after 0.1.0). **失衡 (UNBALANCE)** (PR #392's idea, its timing re-done from the sources): the move stays instant, then the enemy is held in the 失衡 state — a state machine, not a status (PRTS 失衡位移机制; 异常效果 「失衡…不属于异常效果」: no stun, no immunity, SP untouched), `enemy.unbalanceUntil`, read by `ai.js updateEnemy`: no walking (恐惧 / 诱导 included — no fear exemption) and no normal attack started, a swing short of its frame cut, the attack clip's stand ended; and no skill (失衡免疫 「失衡期间无法自主移动、发动攻击、使用技能」): content skills wait (`enemies/helpers.js canCast(e, sil, battle)`, `unbalancedNow`), so do blinks (`blinkForward`) and scripted moves (枯朽之种's dive, the 碎铳之簧 / 铳 charges), and 乌顶巨角卢鲁's clash waits for its end. Left running on purpose: checks the state does not stop (异常效果: 水遁忍者's damage — 「仍然能正常造成伤害」), passive auras and terrain / periodic effects (no skills), death / damage-taken triggers, skill cooldowns (only the cast waits) — and 弧光锋卫's bleed, which is the state's own (天赋 「处于失衡状态时，每0.066s受到400点无来源真实持续伤害」: every 0.066 s for as long as it lasts — until 0.2.2 one hit per tile moved [ASSUMED]). Length, game seconds: a push — the 位移时间 of its 受力等级, PRTS 游戏数据基础 推力-位移近似对应表 (`constants.js PUSH_UNBALANCE`: −2 → 0.2, −1 → 0.4, 0 → 0.8, 1 → 0.9, 2 → 32/30, ≥ 3 → 35/30), the level push() computes (the −2 correction included), kept when the 特效 column or a wall shortens the slide ([ASSUMED] for the wall; a wall at the first step → the 0.1 s floor [ASSUMED]); a pull — its force window, 推与拉 「作用时间默认为 1 s；若本次受力等级 < −1，作用时间改为 0.5 s」 (`PULL_UNBALANCE` / `_WEAK`), to its end after the 急停 too (「目标将仍保持失衡状态至拉力作用时间结束为止」), none at ≤ −3; a 静态刚体 hit by a force > 0 — no movement, the state while the force acts (特殊机制 静态刚体: 「在失去施力后立刻」 out, 「0.1 秒保底」): a push 0.1 s (`UNBALANCE_MIN`; a push's force is instant), a pull its window; 失衡免疫 and leaders never. 浮空 ends it (术语释义 浮空), so do a 重生 (重生 / 逐火's 余烬) and a route APPEAR relocation — forced state switches (失衡位移机制). The end compares with 1e-9 so a float-summed 35/30 s keeps its 35 frames. The `displace` fx carries the length (`dur`): the client's slide takes as long (render/units.js slideTo). PR #392's 0.6387·√tiles (from the page's μ = 0.5 单位假设) and its fear exemption are not taken |
+| `displace(enemy, {x, y}, tiles, {dur, keepFacing})` | the raw mover behind push / pull: along passable tiles (by `motion`: FLY in the rect, else ground-passable), no weight rule, no 失衡 state of its own (push / pull add it; `dur` only rides on its `displace` fx); nothing for 失衡免疫 (`noDisplace`: 近地悬浮 incl. 喷气人's 飞行模式, 浮空, the 胄 parts, 守墓石像's statue and flight), 静态刚体 (`def.staticBody`) and leaders (`_displaceable`); unblocks + re-paths |
 | `after(seconds, fn, {owner})`, `every(seconds, fn, {owner, immediate})` | return `{cancel()}`; fn(battle, sched) |
 | `fx(kind, params)`, `rng()` (+ `rng.int/range/chance/pick/shuffle/weighted`) | never use Math.random; for distances, angles and powers use `hypot`, `sin`, `cos`, `atan2`, `powi` from `server/sim/detmath.js`, never `Math.hypot` / `sin` / `cos` / `atan2` / `pow` / `**` (their last bits differ between browsers) |
 | `forceAttack(unit, targets?, { noAmmo })` | an immediate attack with the current profile (hooks, attack SP, a running ammo skill's bullet); `noAmmo: true` = spends no bullet and emits no `ammoUsed` (圣约送葬人 extra attack). Returns true when it attacked |
@@ -916,6 +934,14 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
 | `effectiveProfile(unit)`, `reduceElement(unit, amount, el?)` | |
 | `battle.grid` | `tile(r,c)` → `{glyph, key, height:'LOW'|'HIGH', build, pass:'ALL'|'FLY'|'NONE', terrain, special}`, `inRect`, `canStand(r,c,{ranged})` (every automatic placement: the 突袭 landing tile, tactical points, summon tiles — `build` is the effective deploy type, so never the 深水区 `tile_deepsea` (PRTS 深水区 地形信息 "拒绝部署（待补充）"; the 特制水上平台 of the inactive act1 m05 is not modelled, its tiles stay NONE here [ASSUMED]); no melee unit on a hard-blocked 射击台 / mound tile), `groundPassable`, `isLow`, `findPath(sr,sc,er,ec)`, `specialTiles('start'|'end'|…)`; `battle.rect`, `battle.stage` (normalised stage incl. `special` terrain params) |
 | `battle.data` | DataSource: `getChess(id, loadout?)`, `getEnemy(key)`, `getToken(id, ownerChessId, ownerLoadout?)`, `getStage(id)`, `getWave(id)` (normalised defs; raw record in `def.raw`; the per-battle loadout view, §12) |
+
+`keepFacing` is presentation metadata emitted by `push` and `pull` by default: `displace` includes it in the fx so the
+client retains the enemy's pre-hit facing through its slide. Directional Wild Mane S2 (#418) and radial Mostima S3 have
+official footage directly showing unchanged facing. Mint S2 uses `push({ inward: true })`, while hook pulls such as
+Gladiia S1/S2 use `pullToFront` → `pull`; the supplied drag clips directly show unchanged facing before and after the
+shown pulls. Applying that observation to pulls against prior facing and other sources is [ASSUMED]. Either method can
+pass `keepFacing: false` for a documented exception. Raw `displace` calls still face their travel direction. No facing
+flag alters movement or 失衡.
 
 ---
 
@@ -939,13 +965,15 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
   **and** about to attack/heal **and** an enemy (heal skills: an injured ally) inside the **initial** range
   (`unit.baseRangeKeys`: its own grid + its permanent rangeExtend — "攻击范围扩大" modules/talents as persist never-expiring
   `rangeExtend` buffs; no skill range, no temporary extend, no extra keys) or blocked by the melee unit — or, checked
-  **every tick**, an enemy (flyers included) inside a content trigger range (`unit.skill.addTriggerRange(fn)`,
+  **every tick**, an enemy (flyers included) inside a content trigger range (`unit.skill.addTriggerRange(fn, { attackOnly: false })`,
   `fn(battle, unit)` → list of ally units (their current range), tile-key arrays or `{ keys, profile }` (tile keys with
   the enemy profile the effect selects by — `canHitFly` false: ground enemies only); returns an unregister fn; not for
   heal skills: 海嗣 "攻击范围视为自身攻击范围的延伸", 流形, 谬因 S2's beam, and the areas a skill acts through around its
   owner's standing summons — 麦哲伦 S1 (her drones' ranges), 令 S3 (each summon's x-5, ground), 电弧 S2 (赛柯's range,
   ground) / S3 (桑特拉's range): the owner's larger-range rule of 2026-10-06, kits/shared/summoner.js
-  `summonTriggerArea`); `SKILL_RANGE` — "不通过普通攻击/治疗触发技能，仅在技能范围内存在敌人（无视其不可选中）时释放技能": any
+  `summonTriggerArea`). 赤刃明霄陈 S3 uses an air-capable content range on its expanded grid for `ACTIVE_RANGE` too
+  (§28.26): the wave can hit flyers, its normal attacks remain ground-only. [ASSUMED] This activation area includes
+  permanent range extension but not the wave's eventual route. With `{ attackOnly: true }`, the extra range is checked only at the normal attack opportunity, not each tick: 蕾缪安’s own wanted targets and 死芒’s own living summons’ blocked targets (S1/S2); normal selectability and the skill’s actual effect range remain intact (§28.13). `SKILL_RANGE` — "不通过普通攻击/治疗触发技能，仅在技能范围内存在敌人（无视其不可选中）时释放技能": any
   living enemy (stealthed, untargetable, flying included) on `trigger.customRangeGrid` (= the skill's rangeGrid), every
   tick, no attack needed; `trigger.allies` (+ `hpAtMost`, default 1) — set by a kit, or by the data for an ally row (黍 S3's
   official `TRY_SEARCH_ALLY_SKILL`, "技能范围内存在可治疗的我方单位时释放技能": tools/build-data.mjs `TRIGGER_ALLY_RULES`,
@@ -958,9 +986,11 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
   on `trigger.customRangeGrid` (= that running range, grown by the unit's permanent rangeExtend unless the skill's
   `targeting.noRangeExtend`), every tick, no attack needed (the 外勤医疗 map character Touch's 恳切福音 too, on its 5-2:
   set by its kit, content/tokens.js `touchKit` — the map character's record keeps DEFAULT, build-data widens operators'
-  skills only; GitHub #260); `DEFAULT` with `trigger.allies` (+ `hpAtMost`,
-  `grid`) = the basic rule **and** such an ally on the grid: the cast replaces the attack about to be made (塞雷娅 S1 "触发
-  时会替换当次攻击", ≤ half HP); a cast whose ally condition fails before that attack is withdrawn, its charge returned;
+  skills only; GitHub #260). A mixed attack/heal skill may set `trigger.enemies` to also open for a selectable enemy
+  on that range (凯尔希·思衡托 S2), retaining the injured-ally condition; `DEFAULT` with `trigger.allies` (+ `hpAtMost`,
+  `grid`) = an attack interval ready **and** such an ally on the grid, without requiring an enemy:
+  the cast replaces that attack with a heal (塞雷娅 / 黍 S1, ≤ half HP). The check follows cooldown decrement
+  and control/disarm checks, preserving the same cadence with or without enemies; a cast whose ally condition fails before that attack is withdrawn, its charge returned;
   `TAKE_DAMAGE` — ready and just hit (重装: "不受技能范围影响，受到伤害时释放技能"; in the data every MANUAL 重装 skill but
   the six of DESIGN §21.29 — 深巡 / 雷蛇 S2, 号角 S2 / S3, 灰毫 S1 / S2 — which are `DEFAULT`, a deliberate deviation (深巡
   S2 then `ACTIVE_RANGE` on its 3-2), and 余 S2 厚礼上宾, `SKILL_RANGE` on its own x-1 since DESIGN §22.10);
@@ -986,8 +1016,10 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
   attack speed paces it, and an SP refund that refills the bar at once (迅捷) no longer recasts it every tick (GitHub #298,
   引星棘刺 S1; [ASSUMED] one attack interval: PRTS prints no 前后摇 for such casts). The cast is no attack: the unit's
   attacks and heals keep their own rhythm, and its first cast comes as soon as it is ready (#124). `gainSp` is ignored while a duration/ammo/toggle skill
-  runs (its bar shows the skill), whatever the reason, and — any reason but `'init'` — while the unit has the `noSp`
-  flag (阻回: "停止并阻止任意形式的技力回复"; the operators' 凋亡 burst, §3).
+  runs (its bar shows the skill), and while the unit has `noSp` (阻回; the operators' 凋亡 burst, §3), except for
+  deployment initialization (`reason: 'init'`) and explicitly documented bypasses.
+  `gainSp(n, reason, silent, { ignoreLock: true })` bypasses both locks while retaining the source reason, charge cap
+  and `spGain` hook; used by 黄沙罗盘 (PRTS says all its SP ignores 阻回), including its caster's +3 SP.
 - Kinds: `duration` (mods for `duration` s), `ammo` (mods until `ammo` attacks were made, optional duration cap),
   `instant` (onStart + optional one-shot attack override applied to the next attack), `charges` (instant with charges),
   `passive` (always on from deployment, no SP), `toggle` (stays on until death once activated).
@@ -1001,7 +1033,7 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
   `skillEnd` fires. `onAttack` ctx carries `noAmmo` (set it to true: this attack spends no bullet, no `ammoUsed` — 流明's
   free heals).
 - Runtime helpers on `unit.skill`: `activate(reason, {free})`, `end(reason)`, `stop()`, `addAmmo(n)`, `extend(s)`,
-  `addCharge(n)`, `gainSp(n, reason)`, `addTriggerRange(fn)`, `setTrigger(rule, grid)` (a kit's own rule change mid-battle —
+  `addCharge(n)`, `gainSp(n, reason)`, `addTriggerRange(fn, { attackOnly?: boolean })`, `setTrigger(rule, grid)` (a kit's own rule change mid-battle —
   薇薇安娜 S3's ACTIVE_RANGE on 3-2 after its first cast; 0.2.0); fields `sp, spCost (= floor(base×spCostMul + spCostFlat)), spCostMul, charges,
   maxCharges, active, timeLeft, ammoLeft, ammoMax, activations, kind, rule, bb` (`ammoMax`: the most bullets the running ammo skill
   has held — set at activation, raised by skillStart additions and `addAmmo` above it; 0 when inactive).
@@ -1046,6 +1078,11 @@ has the generic spec. Summons: `battle.tokenDef(tokenId, unit)` / `battle.spawnT
 (token skill of that slot: `variants[owner].bySkill[i]`, module attributes: `.byModule[id]`). Coverage of the selectable
 skills: `node tools/kit-coverage.mjs --missing [--tier N] [--strict]`.
 
+忍冬's 追凶 records the per-enemy start time and applies its arts addition in the same `damaged` callback,
+including the first instance (PRTS talent remarks; DESIGN §30.3). It does not refresh the ten-second window on
+repeated hits. Its `vulpisHunt` / `addition` tags and re-entrancy guard prevent the rider from feeding itself.
+`test/content/vulpis-first-hit.test.js` checks actual HP loss and damage events with naturally ready skills.
+
 Timed deployment kits: 宴 S2 uses `bb.duration` and skill ATK mods, loses current HP once on landing, and converts normal
 physical attacks to arts only while S2 is active; S1 has no such conversion. 斯卡蒂 S2 uses its own record's
 `s.bb.duration` / `s.bb.atk`; DRE-Y revival in place does not restart it. 野鬃 S1 uses its record's `duration` /
@@ -1088,14 +1125,14 @@ Element conventions of the kits (user playtest #5 #3; official term dictionary: 
   duration,              // s (duration kind; optional cap for ammo)
   ammo,                  // attacks (ammo kind)
   spCost, initSp, charges, spType: 'time'|'attack'|'hurt'|'none',   // optional overrides of the data values
-  trigger: 'DEFAULT' | { rule, grid, allies?, hpAtMost? },     // optional override (allies / hpAtMost: an injured ally condition, §7.1)
-  heal: bool,            // heal-type skill for the DEFAULT trigger (default: unit is a healer)
+  trigger: 'DEFAULT' | { rule, grid, allies?, hpAtMost?, enemies? },     // optional override (allies / hpAtMost: an injured ally condition, §7.1)
+  heal: bool,            // heal-type skill for the DEFAULT trigger (default: unit is a healer); trigger.enemies also permits enemies
   mods: { …mod keys },   // buff while active (instant: only during the pending attack)
   flags: { …flags },
   targeting: { maxTargets, rangeGrid, rangeExtend, priority, allInRange, canHitFly,
                noRangeExtend /* the skill's range ignores the unit's 攻击距离 (rangeExtend): 信仰搅拌机 S3, PRTS 备注 */,
                showOwnRange /* rangeGrid only selects targets, no official range change: the card keeps the unit's own range */ },
-  attack: { dmgType, atkScale, healScale, splashRadius, splashScale, hits, projectile, maxTargets, dmgMul,
+  attack: { dmgType, atkScale, healScale, splashRadius, splashScale, hits, funnelMul, funnelBodyHits, projectile, maxTargets, dmgMul,
             chain: {count, falloff, radius, sluggish}, heal: {mode, count, falloff, hpAtMost /* targets at or below this HP ratio only */}, onHitStatus: {key, duration, value},
             onHit(ctx),                           // once per attack (main target; target may be null for a splash landing)
             onEachHit(ctx) },                     // per victim: main, every splash / chain victim — ctx += { dealt, kind:'main'|'splash'|'chain', isSplash, isChain, main, attackId }
@@ -1180,10 +1217,11 @@ chess_char_2_07_a: (bb) => ({
 ```
 
 **3. Instant burst caster — 至简 `chess_char_3_13_a` 神工意匠** (bb `atk_scale 1.3, ct 2`; next attack 130 % arts, hits
-twice; 2 charges; the funnel profile already ramps damage on the same target):
+twice; 2 charges; the funnel profile's unreleased drones are additional damage that ramps on the same target, and this
+charged attack sets two body hits):
 ```js
 chess_char_3_13_a: (bb) => ({
-  skill: { kind: 'charges', attack: { atkScale: bb.atk_scale, hits: 2, dmgType: 'arts' } },
+  skill: { kind: 'charges', attack: { atkScale: bb.atk_scale, hits: 2, funnelBodyHits: 2, dmgType: 'arts' } },
 }),
 ```
 An AoE instant (德克萨斯 剑雨, bb `stun 2`: two hits of 120 % arts around her + stun) uses `onStart` instead:
@@ -1322,7 +1360,7 @@ header of professions.js).
 | loopshooter | 回环射手 (user playtest #3): every attack throws a boomerang (`ai.js throwBoomerang`, projectile `'boomerang'`) out to the target at 15 tiles/s — it hits on arrival — and back to the thrower's current position at 3.75 tiles/s without damage (PRTS 跃跃 "投射物飞行速度15，返回时飞行速度3.75"); attacks only while holding it (every boomerang thrown caught — "必须回收全部回旋投掷物才可以进行下一次攻击", `unit.trait.boomerangsOut`) and with the attack cooldown ready, so the real interval is the longer of the two; a target dead mid-flight is not hit (it still flies to the last position and back); knocked out / withdrawn ⇒ lost, a redeployed thrower holds a fresh one; 跃跃 S2's extra boomerangs share the one flight (cnt hits); each catch fires `boomerangCaught`, and an attack profile's `boomerangOnward(ctx)` flies it on after the first hit before it turns back — ctx `hit` (a hit of the same attack), `comeBack(x, y)` once (a content error sends it back from the hit point): 娜仁图亚 S1 bounces, S2 dashes on and hits on its way back (kits/ops/op-narant.js) |
 | reaperrange | hits every enemy in range; ×1.5 (bb atk_scale) on the trait front grid (or its own line ahead) — both along its direction |
 | chain | chain N (trait text/bb max_target) with −15 % per jump (bb chain.atk_scale), 1.7-tile jumps (constants.js CHAIN_RADIUS, PRTS 溅射半径一览: 链术师 1.7; 1.8 until 0.1.1), sluggish on each hit |
-| funnel | drone damage 20 % → +15 %/hit on the same target → 110 % (bb init/delta/max) |
+| funnel | normal attack: one 100 % ATK body hit plus separate drone additional damage, 20 % → +15 %/hit on the same target → 110 % (bb init/delta/max; modules can change init/cap). `funnelMul` holds the drone ramp; `dmgMul` applies to both. Extra drones (`hits`) do not duplicate the body; an unreleased skill attack can set `funnelBodyHits` (至简 S2: two body hits and two additions). Body and additions share an `attackId`, but only the body is `isAttack`; additions carry `addition, funnel`. [ASSUMED] body instances first at the existing impact, one ramp per volley. A skill that only buffs or retargets the normal attack keeps the body; `isSkill` does not remove it. `funnelBodyHits: 0` is drone-only (荒芜拉普兰德 S2). 耶拉 S2 detaches `funnelMul`: one 100 % `isAttack` body in range, the unreleased addition off, and `1 + attack@cnt` arts skill drones (`kjera:drone`, `isSkill`, not `isAttack`) that keep the lock until the enemy dies or the skill ends. [ASSUMED] Those drones use the trait ramp; her blackboard has no drone scale. The base form continues the per-target ramp (one step per volley on a shared target) and writes it back; the hidden form restarts each drone at init and does not write the scales back. [ASSUMED] No flight delay; an untargetable lock is dropped and retargeted; stun and disarm do not pause the drones. 澄闪's skills and 荒芜拉普兰德 S3 stay on their own `dealDamage` paths. A normal deployment resets target, scale and any per-target ramp map to init, including revival against the same living target. A free move (`moveRedeploy`, the same carry as a 秘术师's stored energy and 乌尔比安 S3) keeps the ramp. An in-flight drone recomputes the ramp on impact. 洛洛 S2 detaches this multiplier from new body shots and inherits the trait ramp in an independent skill tick: `rockr:drone`, arts, `isSkill:true`, `isAttack:false`. Older projectiles cannot change its local ramp. A living selectable lock need not remain in body range; the drone returns on a kill or when the skill ends, and ending hands the ramp back and restores the normal multiplier (§30.26) |
 | mystic | 秘术师 (PRTS 分支特性信息 秘术师, GitHub #181): at its attack check (the attack ready, able to act, not disarmed) with no valid target — no target, or its kit's `canAttack` false (深靛 never picks a bound enemy) — it stores one energy (`storeEnergy`, up to bb times: 3, 深靛's MSC-X 4), an attack action: the attack interval restarts; a full store idles with the attack ready. The energies leave with its next attack that happens (`releaseEnergy` in `performAttack`, after `beforeAttack`: an attack cancelled before its shot keeps them) and land with the main hit, one arts attack hit each (`hitsFn` reads the hit's `info.energy`); a redeployment holds none [ASSUMED]. 维伊 / 黑键 plug their own `storeEnergy` (转置能量, elite energies) into the same check |
 | phalanx | no attack & DEF +200 %, RES +20 (bb) while the skill is off; while on, `rangeAoe`: each attack strikes every selectable enemy on its range at once (blocked enemies included; a stealthed one only when revealed or blocked), the same damage near and far, instant (`'beam'`) — "群体法术伤害" (secondary: Terra Wiki, Phalanx Caster: "attacks hit all enemies within their range"; supporting: PRTS 林 S3 备注 "单次普攻最多触发1次效果" — one normal attack can kill several — the same 锁定攻击范围 shape as the 轰击术师, and PRTS 溅射半径一览 documents no splash radius for it (it omits the 撼地者 too, so this is not proof); no primary source states a target cap; community report E3: it used to be one bolt + a 1.1 splash). 卡涅利安's charged S1 keeps the skill-off trait, 不攻击 included (kit `canAttack`, PRTS 备注) |
 | physician | heal the lowest HP% injured ally in range (a skill `targeting.maxTargets` widens any heal profile) |
@@ -1362,7 +1400,7 @@ Unknown subprofessions fall back to the profession default (test `professions.te
 
 ## 9. Wire format (snapshot.js, DESIGN §8.2)
 
-- `snapshot()` → `{ fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved, dps?, boss?, down?, elem?, ammo?, wolves?, neg?, stand?, standCut? }`.
+- `snapshot()` → `{ fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved, dps?, boss?, down?, elem?, ammo?, coins?, wolves?, neg?, stand?, standCut? }`.
   `killed` counts every `counted` knock-out (§1.3) and `total` only the enemies this field scheduled (`inTotal`), so it may
   exceed it; `resolved = min(total, killedInTotal + leakedInTotal)` is the HUD capsule's numerator (DESIGN §14 顶栏胶囊).
   `sp/spMax` show remaining duration/ammo as a draining bar while a timed skill is active (ammo: `ammoLeft / ammoMax`, the
@@ -1467,6 +1505,11 @@ objects), and call `checkInvariants` at the end. Run: `node --test test/sim/*.te
 
 ## 11. Tools
 
+Equipment/fortress corrections (§30.3): Kjerag Ice and Tear Gas use actual enemy damage events, including DoT,
+not attack declarations or element-gauge/HP-loss events. Fortress fallback targeting and skill automation include
+the operator's own tile after blocked/ranged candidates; only explicitly enabled skills retain melee splash.
+`performAttack` captures each shot's `fortressMelee` flag for impact resolution, independent of later target changes.
+
 `node tools/simrun.mjs --mode mode_multi_normal --round 5 --stage act2autochess_m01 --lineup "角峰@9,7 隐现@10,4 艾丝黛尔*@12,5" --ascii 10`
 prints a per-unit damage/DPS/kills/heal table (+ ASCII frames: letters = operators, digits = ground enemies per tile,
 `^` = flyers, `■` = crates). `--wave <template>`, `--seed`, `--content generic`, `--hpMul/--atkMul/--speedMul`,
@@ -1476,6 +1519,30 @@ Golden results (`tools/golden.mjs`, `test/golden/README.md`): a fixed corpus of 
 skill × module, every bond at its threshold and at 999 layers, every leader field, 联防 — and bot-only matches,
 reduced to digests in `test/golden/*.json`; `test/golden.test.js` fails, naming the scenario and the field, when a
 digest moves. A refactor must leave them unchanged; `npm run golden:update` records an intended gameplay change.
+
+Cross-engine check (`tools/sim-check.mjs`, `public/dev/sim-check.html`): a browser simulates its battles and the server
+re-simulates them (SP_VERIFY, takeovers), so every engine must give the bits Node gives. `node tools/sim-check.mjs`
+builds the golden battle corpus (roster, bonds, fields, standins, diy — 267 BattleSpecs) and traces it in Node into
+`public/dev/simcheck/data/` (git-ignored, about a minute): after every tick the state (battle time, RNG state and per
+unit alive / removed / deployed, x, y, hp, atkCd, SP, the five element gauges, damage dealt / taken, healing, blocking
+count) hashed to the exact IEEE-754 bits, one hash per 30 ticks; every 30 ticks `b.snapshot()` (what viewers are sent);
+every 150 ticks a bounded traversal of unit-reachable state (depth 8; definitions, profile/kit, battle pointers, functions,
+accessors and `seq` left out); and `resultDigest(b.result())`. `/dev/sim-check.html` — on any device that reaches the server, a phone
+included — runs the corpus (or its fast subset, or a family) with the client's own loader (`loadBrowserSim`) and
+compares block by block: a battle that parts is reported with the first interval where a difference was detected, the level (the outcome, the
+snapshot, the state, or the hidden state only), and a download of that block's state vectors;
+`node tools/sim-check.mjs --diff <file>` replays the same ticks in Node and names differing recorded vector entries
+(with both values' bits). It cannot locate view-only/deep-only differences absent from those vectors.
+Special float values, including negative zero, survive JSON export. `--engines chromium,firefox,webkit [--subset fast|all|<family>]` runs the page headless after
+the trace (Firefox and WebKit through the `playwright` package when it is installed, `npx playwright install firefox
+webkit`; Chrome through puppeteer-core otherwise) and exits 1 on a difference. The tracing, comparison and page
+(`public/dev/simcheck/core.js`, `ui.js`, `node.mjs`) have no dependency on this repository; `stronghold.js` is the part
+that knows the sim. `--engines chrome` uses the local executable selected by `CHROME_PATH` (including Edge).
+The reference, corpus and dump share a content identity over scenarios, served sim/shared code and data. Dirty changes
+invalidate the reference. The page rechecks inputs before runs/dumps; `--diff` rejects stale or mismatched inputs.
+An empty/unknown selection, max-tick truncation or runtime exception is an error, never a zero-battle success.
+All-green means the recorded fields, sampled snapshots and result hashes agree: it does not prove equality of every
+internal field, event, projectile queue or rendered frame. Verification results belong to the tested revision.
 
 ## 12. Data notes (simdata.js)
 
@@ -1537,3 +1604,16 @@ window — `push` / `pull`; a wall-shortened slide keeps its row time, a wall at
 platforms/mounds are ground obstacles that elevate operators; the generic kit maps 凋亡 to `apoptosis` (侵蚀 has no element key
 yet — enemy content must pick one); 抵抗 covers the control statuses of `RESIST_STATUSES` (the official term lists 晕眩/寒冷/
 冻结/恐惧/诱导…, the rest follow the operator kits that grant it) and caps at 0.95; tactical points prefer enemy path tiles.
+
+
+“余音” owns a same-call pulse queue (DESIGN §28.24): reflected hits enqueue their earned pulses instead of recursively
+entering another pulse. This retains the lethal-hit pulse and prevents valid high hit-count chains from tripping the
+general hook guard. The queue is emptied in `finally`; it introduces no timer or simulation RNG.
+
+### Community follow-up contracts (DESIGN §29)
+
+- Optional snapshot `coins: [[id, balance, cap]]` comes from `snapshot.js coinView`: a live allied Swire skill's nonnegative integer balance and blackboard cap, including zero. Invalid/missing entries are omitted; interpolation clears absent values.
+- Raid's one reselect after a revive orders by taunt, then remaining route distance, then id, and jumps while the operator is not blocking (contact on the current tile is refreshed first). Ordinary polls keep remaining-distance order and the empty-range prerequisite.
+- Healing skill activation includes elemental-only injury when the operator's heal profile can cure it. Pinecone S2 growth is deployment-local. Skadi S1 and Stead preserve redirect ancestry and take both shares from the pre-redirect hit, so the total damage is conserved.
+
+`champagneHold` includes the internal `isolated` ally-selection flag (§29.11): device-type champagne bombs are excluded from ordinary allied auras/inspiration in both creation paths. Other unhealable summons retain their own selection behavior.

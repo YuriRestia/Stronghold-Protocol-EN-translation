@@ -36,8 +36,8 @@ import { useErrorBoundary } from '../vendor/hooks.module.js';
 import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/components.js';
 import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
-import { TermTipHost } from './ui/termTip.js';
 import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
+import { TermTipHost } from './ui/termTip.js';
 import { net, identity, NetError } from './net.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
@@ -46,7 +46,7 @@ import { TitleScreen, sanitizeName } from './screens/title.js';
 import { LobbyScreen, rememberRoom, parseRoomParam } from './screens/lobby.js';
 import { RoomScreen } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
-import { installAudio } from './audio.js';
+import { audio, installAudio } from './audio.js';
 import { settingsStore } from './ui/settings.js';
 import { GuideHost } from './ui/guide.js';
 import { installDeviceSupport } from './ui/device.js';
@@ -54,6 +54,7 @@ import { LoadoutHost } from './screens/loadout.js';
 import { StatsHost } from './screens/stats.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync } from './ui/loadoutSync.js';
+import { installOutfitSync } from './ui/outfits.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { installPresence } from './ui/presence.js';
 import { installSoloQueue } from './ui/soloQueue.js';
@@ -62,6 +63,7 @@ import { installPreload } from './resources/index.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
 import { t, N_, translateWire } from '../../shared/i18n.js';
 import { recordError } from './diag.js';
+import { GEN, genUrl, goHome, RETIRED_FLAG } from './gen.js';
 
 const RESTORE_GRACE_MS = 1500;
 const JOIN_DELAY_MS = 350;
@@ -70,6 +72,10 @@ const EMOTE_KEEP = 20;
 const NOTICE_TOAST_MS = 15000;
 /** sys.notice ids already shown on this page */
 const seenNotices = new Set();
+/** ui/buildGuard.js — set in boot(); sys.retire hands it the move to the new generation */
+let buildGuard = null;
+/** sys.retire before the guard started (a fast first hello): handed over once it does */
+let retirePending = false;
 
 const SCREENS = { title: TitleScreen, lobby: LobbyScreen, room: RoomScreen, game: GameScreen };
 
@@ -145,6 +151,7 @@ function maybeFinishRestore() {
  * follow the store themselves).
  */
 function backToLobby() {
+  identity.rememberMatch(null);
   clearTimeout(restoreTimer);
   const s = store.get();
   if (s.room || s.match.public) closeAllDialogs();
@@ -154,9 +161,11 @@ function backToLobby() {
 
 function onWelcome(msg) {
   identity.saveToken(msg.token);
+  identity.rememberMatch(null);
   const prev = store.get();
   const prevId = prev.me.playerId;
   const name = typeof msg.name === 'string' && msg.name ? msg.name : prev.me.name;
+  identity.saveName(name);
   store.set({ me: { playerId: msg.playerId ?? null, name, token: typeof msg.token === 'string' ? msg.token : null } });
   welcomeAt = Date.now();
 
@@ -197,6 +206,8 @@ function onRoomState(msg) {
   // A (new) match starts: forget the previous match's state so stale results never show.
   if (room.inMatch && !(prevRoom && prevRoom.inMatch && prevRoom.code === room.code)) store.set({ match: emptyMatch() });
   store.set({ room });
+  identity.rememberMatch(room.inMatch && seats.some((seat) => seat?.playerId === myId)
+    ? { name: store.get().me.name, code: room.code || '' } : null);
   if (room.mode === 'coop' && typeof room.code === 'string') rememberRoom(room.code);
   maybeFinishRestore();
 }
@@ -222,7 +233,10 @@ function wireNet() {
   net.on('clock', (c) => store.set({ clock: { offset: c.offset, rtt: c.rtt, synced: c.synced } }));
   net.on('welcome', onWelcome);
   net.on('welcome', clearMaintenance); // the server that says hello resends its maintenance, if any
-  net.on('helloError', (err) => toastError(err));
+  net.on('helloError', (err) => {
+    if (err.code === 'SESSION_IN_USE') identity.rejectToken();
+    toastError(err);
+  });
   net.on('replaced', () => toast(t('该身份已在其他页面登录，本页已断开'), 'warn', { ttl: 6000 }));
   net.on('unhandledError', (err) => toastError(err));
   // operator notice (server/announce.js): once per page, since the server resends it after every hello; shown as
@@ -231,6 +245,11 @@ function wireNet() {
     if (typeof msg.text !== 'string' || !Number.isFinite(msg.id) || seenNotices.has(msg.id)) return;
     seenNotices.add(msg.id);
     toast(msg.text, 'warn', { ttl: NOTICE_TOAST_MS });
+  });
+  // a newer server generation took over (server/generation.js): leave for it as soon as no match is on screen
+  net.on('sys.retire', () => {
+    if (!GEN) return; // only a page served under a generation prefix can move
+    if (buildGuard) buildGuard.retire(); else retirePending = true;
   });
   net.on('sys.maintenance', applyMaintenance);
   net.on('room.state', onRoomState);
@@ -241,6 +260,10 @@ function wireNet() {
   });
   net.on('m.public', (msg) => { matchAt = Date.now(); store.patch('match', { public: payload(msg) }); maybeFinishRestore(); });
   net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: payload(msg) }); });
+  net.on('m.layer', (msg) => {
+    const s = store.get();
+    if (selectRoute(s) === 'game' && msg.playerId === s.me?.playerId) audio.layerGain(msg.bondId, msg.add);
+  });
   net.on('m.field', (msg) => store.patch('match', { field: payload(msg) }));
   net.on('m.result', (msg) => {
     const res = payload(msg);
@@ -380,6 +403,7 @@ async function boot() {
   installLoadoutSync({ net });
   installOwnershipSync({ net });
   installDiySync({ net });
+  installOutfitSync({ net }); // (fork, docs/OUTFITS.md) room.outfits
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   installAudio({ getManifest: () => data.get('assets'), subscribe: store.subscribe, getState: store.get, selectRoute, settings: settingsStore.get() });
@@ -412,13 +436,29 @@ async function boot() {
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,
   // so a running game is never thrown away.
   try {
-    startBuildGuard({
+    buildGuard = startBuildGuard({
+      healthUrl: genUrl('/healthz'),
+      home: () => goHome(),
       inMatch: () => selectRoute(store.get()) === 'game',
       onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
     });
+    // a pending reload / move happens the moment the match (settlement screen included) leaves the screen
+    let route = selectRoute(store.get());
+    store.subscribe(() => {
+      const next = selectRoute(store.get());
+      if (next !== route) { route = next; buildGuard?.settle(); }
+    });
+    if (retirePending) buildGuard.retire();
   } catch (err) {
     console.warn('[app] build guard failed to start', err);
   }
+  // the page was moved here from a retired generation (gen.js goHome)
+  try {
+    if (sessionStorage.getItem(RETIRED_FLAG)) {
+      sessionStorage.removeItem(RETIRED_FLAG);
+      toast(t('服务器已更新到新版本'), 'info'); // en: "The server was updated to a new version."
+    }
+  } catch { /* private mode */ }
 }
 
 boot().catch((err) => {

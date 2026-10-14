@@ -47,6 +47,16 @@
 //   sound of that target. An operator's attack / hit sound that is a skill-mode file of its own (official names end in
 //   `_n` for the normal attack, `_d` / `_h` / `_s` for its skill modes — the manifest picked 纯烬艾雅法拉's S3 impact
 //   p_imp_gtshpbrnch_s as her `hit`) never plays for a normal attack (normalAttackSfx).
+// - The attack sound of the RUNNING skill (`attacks`, 技能1 / 2 / 3 = `_d` / `_h` / `_s`): an operator whose every attack
+//   belongs to a skill mode has no normal attack bank at all — 司霆惊蛰 (解放者: she only attacks while a skill runs) was
+//   completely silent when she attacked (report 「三技能攻击没有音效」). The manifest then carries that mode's own file
+//   per skill index (`attacks`, tools/assets/audio.mjs pickModeAttacks) and it plays while the skill is active, from the
+//   `['skill', id, 1]` / `0` events; a unit with a normal bank too (能天使 S2 过载模式, 史尔特尔 S2) keeps that bank
+//   outside the skill. Being the official file of that very skill, it is not the normalAttackSfx case above.
+// - …and its impact (`hits`): a mode's swing is not always the whole difference — 赤刃明霄陈 S3's slashes swing
+//   p_atk_hljdswd_s AND land p_imp_hljdswd_s, while her normal attack uses p_atk_hljdswd_n / p_imp_hljdswd_n
+//   (report 「开启三技能后斩击音效应该和普通攻击不一样」). Same mechanism and the same window: the `hit` of an attack
+//   aimed while the skill ran — the attacker's state travels with `lastAttacker`.
 // - The official bank mix of a unit's own attack / hit / die / born sound (`mix`, tools/assets/audio.mjs bankMix; community
 //   report #30): it plays with chance `p` — 猎狗pro / 深池侦察犬's attack bank is 80 % silence, so they bark on about one
 //   attack in five (never replaced by the generic enemy sound) — at its base gain × `vol`, capped at 1: an official volume
@@ -333,6 +343,28 @@ export function voiceLine(audio, charId, slot, lang = 'cn', random = Math.random
  */
 export const VOICE_TREES = Object.freeze({ jp: 'voiceJp', en: 'voiceEn', kr: 'voiceKr', native: 'voiceNative' });
 
+// ---- outfit voices (fork, docs/OUTFITS.md) -------------------------------------------------------------------
+// An outfit with its own voice set (data/outfits.json `voice`) has it in the voice trees under its word key
+// ('char_4064_mlynar_epoque#28'). The operator's language pick still applies (it is the operator's), and the dub falls
+// back like any line (EN → JP → 中文; an outfit not dubbed in EN yet speaks JP). A slot the set lacks is the operator's.
+
+let voiceKeyResolver = null;
+/** Set the function that names a unit's outfit voice key ((unitInfo | { charId, ownerId }) => key | null; ui/outfits.js). */
+export function setOutfitVoiceResolver(fn) { voiceKeyResolver = typeof fn === 'function' ? fn : null; }
+/** The outfit voice key of a tracked unit / an operator, or null. */
+export function outfitVoiceKey(u) {
+  try { return (voiceKeyResolver && voiceKeyResolver(u)) || null; } catch { return null; }
+}
+
+/** The line of `slot` in outfit voice set `key` (the operator's language pick, EN → JP → 中文), or null. */
+function outfitVoiceLine(am, charId, slot, key) {
+  if (typeof key !== 'string' || !key) return null;
+  const a = am.getManifest()?.audio;
+  if (!a?.voice?.[key]?.[slot]) return null;
+  const lang = effectiveVoiceLang(a, key, { default: am.voicePicks?.[charId] || am.voiceLang, native: false, byChar: {} });
+  return voiceLine(a, key, slot, lang || am.voiceLang);
+}
+
 /**
  * The settlement slot of a finished 作战: 完美作战 ⇒ 3星结束行动 (绝境 / 终极 ⇒ 完成高难行动 instead), a leaked enemy
  * ⇒ 非3星结束行动, nothing killed at all ⇒ 行动失败.
@@ -564,6 +596,9 @@ export class AudioManager {
     this.voiceGate = new VoiceGate();
     this.voiceNode = null;    // { src, gain, url, token } of the line on air
     this.voiceToken = 0;
+    this.bondCueNode = null;
+    this.bondCueToken = 0;
+    this.bondCueScope = null;
     this.voiceLang = 'cn';    // settings 语音语言: 'cn' (audio.voice) | 'jp' (audio.voiceJp, falling back to audio.voice)
     this.voiceNative = false; // settings 本土语言: an operator with an own-language dub speaks it; setVoiceNative
     this.voicePicks = {};     // charId → its own dub (ui/voiceLang.js, the per-operator picker); setVoicePicks
@@ -574,7 +609,8 @@ export class AudioManager {
     this.bgmToken = 0;
     this.units = new Map();   // battle unit id → defId
     this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
-    this.lastAttacker = new Map(); // target id → { def, at } of the hostile attack last aimed at it (its impact sound)
+    this.lastAttacker = new Map(); // target id → { def, at, skillIndex, skillActive } of the hostile attack aimed at it (its impact sound,
+                                   // including the running skill's own `hits` — 赤刃明霄陈 S3's slash)
     this.consumed = new Set();     // summons used up by their own effect (香槟炸弹 exploded): no death sound
     this.installed = false;
     this._unlock = this._unlock.bind(this);
@@ -705,6 +741,7 @@ export class AudioManager {
       muted: typeof v?.muted === 'boolean' ? v.muted : this.volumes.muted,
     };
     this._applyVolumes();
+    if (this.volumes.muted || this.volumes.sfx <= 0) this.stopBondCue();
   }
 
   /**
@@ -896,6 +933,58 @@ export class AudioManager {
 
   // ---- SFX ------------------------------------------------------------------------------------------------
 
+  /**
+   * True while a cue of `scope` started less than `ms` ago. One preparation update can both add layers (m.layer → layerGain)
+   * and raise the active-bond count (screens/game.js): the second trigger of that same update keeps the playing cue
+   * instead of cutting it off and starting it again. A later gain still replaces the cue at once (no cooldown).
+   */
+  bondCueRecent(scope, ms = 400) {
+    if (this.bondCueScope !== scope || typeof performance === 'undefined') return false;
+    return performance.now() - (this.bondCueAt || 0) < ms;
+  }
+
+  /** The official ADD_BOND bank has maxSoundAllowed=1 / popOldest=true. No extra cooldown. */
+  stopBondCue(scope = null) {
+    if (scope && this.bondCueScope !== scope) return;
+    this.bondCueToken++;
+    this.bondCueScope = null;
+    const cur = this.bondCueNode;
+    this.bondCueNode = null;
+    if (!cur) return;
+    try { cur.src.stop(); } catch { /* already ended */ }
+    cur.end();
+  }
+
+  _playBondCue(url, volume, scope = 'prep') {
+    this.stopBondCue();
+    const token = this.bondCueToken, ctx = this.ctx;
+    if (!ctx || !url || this.volumes.muted || this.volumes.sfx <= 0) return;
+    this.bondCueScope = scope;
+    this.bondCueAt = typeof performance !== 'undefined' ? performance.now() : 0;
+    this._buffer(url).then((buf) => {
+      if (!buf || token !== this.bondCueToken || ctx !== this.ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
+      let src, gain;
+      const end = () => {
+        try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
+        if (this.bondCueNode?.src === src) this.bondCueNode = null;
+      };
+      try {
+        src = ctx.createBufferSource(); gain = ctx.createGain();
+        src.buffer = buf;
+        gain.gain.value = Math.max(0, Math.min(1.5, volume));
+        src.connect(gain); gain.connect(this.sfxGain);
+        src.onended = end;
+        this.bondCueNode = { src, gain, end };
+        src.start();
+      } catch { end(); }
+    }, () => {});
+  }
+
+  /** One cue per real gain, including several layers at once or an inactive bond. */
+  layerGain(bondId, add, scope = 'prep') {
+    if (typeof bondId === 'string' && bondId && Number.isFinite(add) && add > 0) this.sfx('bondUp', { volume: 0.7, scope });
+  }
+
   _play(url, { volume = 1, rate = 1, limited = false, unitKey = null } = {}) {
     if (!this.ctx || !url || this.volumes.muted || this.volumes.sfx <= 0) return;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -924,13 +1013,86 @@ export class AudioManager {
   /**
    * UI sound by name (sfx.ui keys). Unknown names are ignored.
    * @param {string} name
-   * @param {{ volume?: number }} [o]
+   * @param {{ volume?: number, scope?: string }} [o]
    */
   sfx(name, o = {}) {
     try {
       const url = this.getManifest()?.audio?.sfx?.ui?.[name];
-      if (typeof url === 'string') this._play(url, { volume: o.volume ?? 0.9 });
+      if (typeof url === 'string') {
+        if (name === 'bondUp') this._playBondCue(url, o.volume ?? 0.9, o.scope);
+        else this._play(url, { volume: o.volume ?? 0.9 });
+      }
     } catch { /* ignore */ }
+  }
+
+  /**
+   * (fork) A UI sound torn apart for `seconds`, the alternate result background's signal loss (screens/result.js): the clip is cut
+   * into short grains that play on, stutter (one grain repeated), jump to a random spot at another pitch, or drop out
+   * to a burst of static; everything runs through a bit-crush. One UI voice for the whole cue.
+   * @param {string} name sfx.ui key
+   * @param {{ seconds?: number, volume?: number }} [o]
+   */
+  glitchSfx(name, { seconds = 1.5, volume = 0.9 } = {}) {
+    try {
+      const url = this.getManifest()?.audio?.sfx?.ui?.[name];
+      if (typeof url !== 'string' || !this.ctx || this.volumes.muted || this.volumes.sfx <= 0 || this.uiVoices >= 12) return;
+      this.uiVoices += 1;
+      let released = false;
+      const release = () => { if (!released) { released = true; this.uiVoices = Math.max(0, this.uiVoices - 1); } };
+      this._buffer(url).then((buf) => {
+        if (!buf || !this.ctx) { release(); return; }
+        try { this._glitchCue(buf, seconds, volume); } catch { /* ignore */ }
+        setTimeout(release, (seconds + 0.4) * 1000);
+      }, release);
+    } catch { /* ignore */ }
+  }
+
+  _glitchCue(buf, seconds, volume) {
+    const ctx = this.ctx, t0 = ctx.currentTime + 0.02, rnd = Math.random;
+    const out = ctx.createGain();
+    out.gain.value = Math.max(0, Math.min(1.5, volume));
+    out.connect(this.sfxGain);
+    // bit-crush: overdrive, then snap to 10 levels (a stair-step curve)
+    const crush = ctx.createWaveShaper();
+    const curve = new Float32Array(2048);
+    for (let i = 0; i < curve.length; i++) { const x = (i / (curve.length - 1)) * 2 - 1; curve[i] = Math.round(Math.tanh(x * 2.2) * 10) / 10; }
+    crush.curve = curve;
+    crush.connect(out);
+    // static for the dropouts: white noise, high-passed
+    const noiseBuf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.25), ctx.sampleRate);
+    const nd = noiseBuf.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = rnd() * 2 - 1;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass'; hp.frequency.value = 1800;
+    hp.connect(out);
+    const nodes = [];
+    const grain = (when, offset, dur, rate) => {
+      const s = ctx.createBufferSource();
+      s.buffer = buf; s.playbackRate.value = rate; s.connect(crush);
+      s.start(when, Math.max(0, Math.min(buf.duration - 0.01, offset)), dur * rate);
+      nodes.push(s);
+    };
+    const hiss = (when, dur) => {
+      const s = ctx.createBufferSource(), g = ctx.createGain();
+      s.buffer = noiseBuf; s.loop = true; g.gain.value = 0.22;
+      s.connect(g); g.connect(hp);
+      s.start(when, rnd() * 0.2); s.stop(when + dur);
+      nodes.push(s);
+    };
+    let t = 0, pos = 0, last = 0;
+    while (t < seconds) {
+      const r = rnd();
+      const len = 0.03 + rnd() * 0.09;
+      if (r < 0.35) { grain(t0 + t, pos, len, 1); last = pos; pos += len; t += len; } // plays on
+      else if (r < 0.6) { // stutter: the same sliver 2–4 times
+        const sl = 0.02 + rnd() * 0.03, n = 2 + Math.floor(rnd() * 3);
+        for (let k = 0; k < n; k++) grain(t0 + t + k * sl, last, sl, 1);
+        t += sl * n;
+      } else if (r < 0.8) { grain(t0 + t, rnd() * buf.duration * 0.9, len, 0.55 + rnd() * 1.1); t += len; } // pitch jump
+      else { hiss(t0 + t, len); t += len; } // the signal drops to static
+      if (pos >= buf.duration * 0.95) pos = 0;
+    }
+    setTimeout(() => { for (const n of nodes) { try { n.disconnect(); } catch { /* ignore */ } } try { out.disconnect(); } catch { /* ignore */ } }, (seconds + 0.4) * 1000);
   }
 
   /** Battle sound by name (sfx.battle keys), limited like unit sounds. */
@@ -946,18 +1108,27 @@ export class AudioManager {
    * @param {string} defId charId/tokenId/enemyId (or chess id — mapped via its spine/char id by the caller)
    * @param {'attack'|'hit'|'skill'|'die'|'born'} kind
    * @param {number|string} unitId battle unit id (cooldown key)
+   * @param {number} [skillIndex] the unit's equipped skill slot (0-based)
+   * @param {boolean} [skillActive] whether that skill runs right now (`attacks` / `hits` need it, see header)
    * @returns {boolean} whether a unit-specific sound exists
    */
-  unit(defId, kind, unitId, skillIndex) {
+  unit(defId, kind, unitId, skillIndex, skillActive = false) {
     try {
       const u = this.getManifest()?.audio?.sfx?.units?.[defId];
       // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`) when the manifest has it
       const own = kind === 'skill' && Number.isInteger(skillIndex) && u?.skills ? u.skills[skillIndex] : null;
-      const url = typeof own === 'string' ? own : u?.[kind];
+      // the running skill's own swing / impact (header); only while it runs — otherwise 能天使 S2's file would ring on
+      // every normal attack of hers (exactly what normalAttackSfx keeps out). 赤刃明霄陈 S3: `attacks[2]` = the S3 swing,
+      // `hits[2]` = the S3 slash's impact.
+      const table = kind === 'attack' ? u?.attacks : kind === 'hit' ? u?.hits : null;
+      const mode = skillActive && Number.isInteger(skillIndex) && table ? table[skillIndex] : null;
+      const url = typeof own === 'string' ? own : typeof mode === 'string' ? mode : u?.[kind];
       if (typeof url !== 'string') return false;
-      if ((kind === 'attack' || kind === 'hit') && !normalAttackSfx(defId, url)) return false;
+      // a skill-mode file is fine here when it IS the running skill's (mode); the gate is for normal attacks
+      if ((kind === 'attack' || kind === 'hit') && typeof mode !== 'string' && !normalAttackSfx(defId, url)) return false;
       // the official bank's mix (header): a silent roll still counts as the unit's own sound (no generic fallback)
-      const mix = kind === 'skill' ? null : u?.mix?.[kind];
+      const mix = kind === 'skill' ? null : typeof mode === 'string'
+        ? (kind === 'attack' ? u?.attackMix : u?.hitMix)?.[skillIndex] : u?.mix?.[kind];
       if (!unitSoundPlays(mix, this.random())) return true;
       this._play(url, { volume: unitGain(kind === 'attack' || kind === 'hit' ? 0.55 : 0.8, mix), limited: true, unitKey: `${unitId}:${kind}` });
       return true;
@@ -984,7 +1155,8 @@ export class AudioManager {
       if (typeof charId !== 'string' || typeof slot !== 'string') return false;
       // the dub the operator speaks (its own pick, else settings 语音语言), with the Chinese file of the same name as its
       // fallback (voiceLine)
-      const line = voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLangOf(charId) || this.voiceLang);
+      // (fork) the outfit's own voice set: a battle unit's (o.voiceKey, null = none), else the player's own choice
+      const line = outfitVoiceLine(this, charId, slot, o.voiceKey !== undefined ? o.voiceKey : outfitVoiceKey({ charId })) || voiceLine(this.getManifest()?.audio, charId, slot, this.voiceLangOf(charId) || this.voiceLang);
       if (!line) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
       const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);
@@ -1090,6 +1262,7 @@ export class AudioManager {
 
   /** Reset the unit map for a new field (m.field.units = UnitInfo[]). */
   setFieldUnits(units) {
+    this.stopBondCue();
     this.units.clear();
     // unit ids belong to one battle: a cast still held for a unit of the field left must not sound for a unit of the new
     // one that happens to share its id
@@ -1105,9 +1278,11 @@ export class AudioManager {
   _track(u) {
     if (!u || typeof u !== 'object' || u.id == null) return;
     // UnitInfo.spine is the model id (charId / tokenId / enemyId) — the key of sfx.units; kind/defId pick the
-    // official class sounds (operator vs summon vs device)
+    // official class sounds (operator vs summon vs device). `skillActive` follows the ['skill', id, 1] / 0 events.
+    // (fork, docs/OUTFITS.md) `voiceKey`: the voice set of the outfit its owner chose (null = the operator's own)
     this.units.set(u.id, { def: u.spine || u.defId, defId: u.defId ?? null, kind: u.kind ?? null, side: u.side, boss: !!u.boss,
-      skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null });
+      voiceKey: u.side === 'enemy' ? null : outfitVoiceKey(u),
+      skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
     if (held) {
@@ -1133,30 +1308,34 @@ export class AudioManager {
         if (!Array.isArray(e)) continue;
         const kind = e[0];
         if (kind === 'spawn') { this._track(e[1]); continue; }
-        if (kind === 'atk') {
+        if (kind === 'layer') {
+          this.layerGain(e[2], e[3], 'battle');
+        } else if (kind === 'atk') {
           // a chain bounce: its first id is the previous target, whose attack sound this is not (see header)
           if (CHAIN_KINDS.has(e[3])) { this.lastAttacker.delete(e[2]); continue; }
           const src = this.units.get(e[1]);
           if (!src) continue;
           // only a hostile attack authors the target's next impact (a heal — an ally aiming at an ally — never does)
           const tgt = this.units.get(e[2]);
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, at: now });
-          if (!this.unit(src.def, 'attack', e[1]) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk`, volume: 0.35 });
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, at: now, skillIndex: src.skillIndex ?? null, skillActive: !!src.skillActive });
+          if (!this.unit(src.def, 'attack', e[1], src.skillIndex ?? undefined, src.skillActive) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk`, volume: 0.35 });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
-          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`);
+          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive);
         } else if (kind === 'heal') {
           this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.35 });
         } else if (kind === 'skill' && e[2]) {
           const u = this.units.get(e[1]);
           if (u) {
+            // the running skill's own swing / impact (`attacks` / `hits`, header) follow this flag
+            u.skillActive = true;
             this.unit(u.def, 'skill', e[1], u.skillIndex ?? undefined);
             // 作战中N: the equipped skill's own slot (0-based; 作战中4 is the fallback of a 4th slot)
             if (unitSoundClass(u) === 'char') {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;
-              this.voice(u.def, `skill${n}`, { unitKey: e[1] });
+              this.voice(u.def, `skill${n}`, { unitKey: e[1], voiceKey: u.voiceKey });
             }
           } else {
             // The unit is not tracked yet. The sim emits the cast of a deployment that fires inside its own first tick
@@ -1166,10 +1345,16 @@ export class AudioManager {
             if (this.pendingSkill.size >= PENDING_SKILL_MAX) this.pendingSkill.delete(this.pendingSkill.keys().next().value);
             this.pendingSkill.set(e[1], e);
           }
+        } else if (kind === 'skill') {
+          // ['skill', id, 0] = the skill ENDED (the sim's skills.js: `b._ev(['skill', u.id, 0])`): back to the unit's own
+          // attack / impact. The end carries no sound of its own (the activation sound belongs to the start).
+          const u = this.units.get(e[1]);
+          if (u) u.skillActive = false;
+          this.pendingSkill.delete(e[1]);
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
           const u = this.units.get(e[1]);
-          if (u && unitSoundClass(u) === 'char') this.voice(u.def, 'faceEnemy', { unitKey: e[1] });
+          if (u && unitSoundClass(u) === 'char') this.voice(u.def, 'faceEnemy', { unitKey: e[1], voiceKey: u.voiceKey });
         } else if (kind === 'die') {
           const u = this.units.get(e[1]);
           if (!u) continue;
@@ -1202,8 +1387,8 @@ export class AudioManager {
           if (unitSoundClass(u) === 'char') {
             if (!this.startVoiceDone) {
               this.startVoiceDone = true;
-              if (!this.voice(u.def, 'start')) this.voice(u.def, 'place', { unitKey: e[1] });
-            } else this.voice(u.def, 'place', { unitKey: e[1] });
+              if (!this.voice(u.def, 'start', { voiceKey: u.voiceKey })) this.voice(u.def, 'place', { unitKey: e[1], voiceKey: u.voiceKey });
+            } else this.voice(u.def, 'place', { unitKey: e[1], voiceKey: u.voiceKey });
           }
           if (!url) continue;
           const own = url === m?.audio?.sfx?.units?.[u.def]?.born;
@@ -1245,6 +1430,11 @@ export function installAudio(deps) {
       const sync = (s) => {
         try {
           const pub = s.match?.public ?? null;
+          if (deps.selectRoute(s) !== 'game') audio.stopBondCue();
+          else if (![PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE].includes(pub?.phase)) {
+            // A new prep gain can precede its m.public phase update. Cancel only the previous battle's cue.
+            audio.stopBondCue('battle');
+          }
           // 开战 BGM: the round's own track out of bgm.combatAlts (骑士之日 / 无畏者 are fixed per round, not drawn),
           // so every client of a room hears the same one, a mid-fight re-render (or a teammate view) never switches,
           // and the next round moves on by the table. 联防 shares its round ⇒ same key ⇒ the loop keeps playing.

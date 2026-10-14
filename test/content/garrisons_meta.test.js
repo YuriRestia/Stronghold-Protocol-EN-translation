@@ -839,6 +839,26 @@ test('塞雷娅 99 / 白面鸮 86: the copier runs the front operator\'s prep-en
   assert.equal(w.ps.shop.freeRefreshes, 3);
 });
 
+// Maintainer-confirmed replay of the linked official-game footage (#473): only Ptilopsis copying these two gifts.
+for (const targetId of ['chess_char_4_12_a', 'chess_char_6_03_a']) {
+  for (const ownRow of [false, true]) for (const sourceRow of [false, true]) {
+    test(`白面 copies ${targetId} gift without either row condition (own=${ownRow}, source=${sourceRow})`, () => {
+      const s = setup(11);
+      const white = give(s.m, s.ps, 'chess_char_4_21_a', 'board', [11, 4]); white.dir = 'DOWN';
+      give(s.m, s.ps, targetId, 'board', [10, 4]);
+      const fillers = plain(c => c.position === 'RANGED').slice(0, 4); let filler = 0;
+      for (const [r, on] of [[11, ownRow], [10, sourceRow]]) if (on) {
+        give(s.m, s.ps, fillers[filler++], 'board', [r, 3]);
+        give(s.m, s.ps, fillers[filler++], 'board', [r, 5]);
+      }
+      s.ps.recompute(); const before = s.ps.round.gainedChess;
+      s.roundStart();
+      assert.equal(s.ps.round.gainedChess - before, 1 + (sourceRow ? 1 : 0), 'copier always gives one; original still checks its own row');
+      s.h.invariants();
+    });
+  }
+}
+
 test('triggerGainEffects export (band 铃兰): re-runs 获得时 garrisons ×投资人 and returns the effects run', () => {
   const s = setup();
   const p = give(s.m, s.ps, 'chess_char_5_03_a', 'board', [10, 4]);   // 烛煌 炎/维多利亚 +5

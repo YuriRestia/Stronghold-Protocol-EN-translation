@@ -38,6 +38,7 @@ function fixture() {
     AbortController, DOMException, URLSearchParams, Promise,
     console: { warn: (...args) => warnings.push(args) },
     audio: {}, data: { get() { return null; } }, settingsStore: { get() { return {}; } },
+    outfitModelOf: () => null, // (fork, docs/OUTFITS.md) ui/outfits.js
     setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
     clearTimeout(id) { timers.delete(id); },
     importAssets: async () => null,

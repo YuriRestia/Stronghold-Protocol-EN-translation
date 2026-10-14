@@ -13,6 +13,7 @@ import { useGameData, Img, RichText } from '../ui/gameComponents.js';
 import { StepHeader, ExitModal } from '../ui/matchChrome.js';
 import { MatchInfo, matchInfoModel } from '../ui/matchInfo.js';
 import { LoadoutButton } from './loadout.js';
+import { SetupReroll } from '../ui/setupReroll.js';
 import { actions, act } from '../ui/gameActions.js';
 import { bondCallsOf } from '../ui/bondCall.js';
 import { useTimerWarning } from '../ui/timerWarn.js';
@@ -57,13 +58,13 @@ export function BriefingScreen() {
   const call = solo ? null : {
     calls: bondCallsOf(pub), myId,
     onCall: me ? (bondId) => act('g.bondCall', { bondId }, { sfx: 'pick' }) : null,
-    hint: me ? t('点击核心盟约，告诉队友你打算走的路线') : null, // en: "Click a core alliance to tell your teammates which strategy you're going for"
+    hint: me ? t('点击盟约，标记你的路线') : null, // en: "Click an alliance to call your plan"
   };
 
   const ready = async () => {
     if (busy || me?.ready) return;
     setBusy(true);
-    await actions.infoReady();
+    await actions.infoReady(pub.setupRevision ?? 0);
     setBusy(false);
   };
 
@@ -105,13 +106,14 @@ export function BriefingScreen() {
       </section>
     </main>
     <footer class="brief__foot">
+      <${SetupReroll} pub=${pub} />
       <${LoadoutButton} from="briefing" size="lg" class="brief-loadout" />
       <div class="brief-ready">
         <span class="brief-ready__txt">${t('已就绪')} <b class="num">${readyN}</b><span class="num">/${players.length}</span></span>
         <span class="brief-ready__pips">${players.map((p) => html`<i key=${p.playerId} class=${cx(p.ready && 'on', p.playerId === myId && 'me')} title=${p.name}><${Icon} name="user" /></i>`)}</span>
       </div>
       <${Button} variant="primary" size="xl" icon=${me?.ready ? 'check' : me ? 'play' : 'eye'} active=${!!me?.ready} loading=${busy}
-        disabled=${!!me?.ready || !me} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>
+        disabled=${!!me?.ready || !me || !!pub.rerollVote} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>
     </footer>
     <${ExitModal} open=${exit} onClose=${() => setExit(false)} solo=${solo} />
   </div>`;

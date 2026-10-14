@@ -70,6 +70,9 @@ test('packs: visuals, music / sfx / guide art, and one pack per voice language',
   assert.equal(packOf('/assets/audio/sfx/hit.mp3'), 'audio');
   assert.equal(packOf('/assets/local/guide/p1.png'), 'audio', 'tutorial art rides with tier 2');
   for (const l of ['cn', 'en', 'jp', 'kr', 'native']) assert.equal(packOf(`/assets/audio/voice/${l}/char_a/x.mp3`), l);
+  // (fork, docs/OUTFITS.md) the outfits' art and models: their own optional pack; an outfit's voice set rides with its dub
+  assert.equal(packOf('/assets/outfit/spine/char_x_epoque_1/front/a.skel'), 'outfits');
+  assert.equal(packOf('/assets/audio/voice/en/char_x_epoque_1/cn_001.mp3'), 'en');
 });
 
 test('keys: one key for encoded and raw brackets; /media/… maps to the stored audio files', () => {
@@ -87,7 +90,7 @@ test('the worker\'s copy of the path rules matches shared/resources.js', () => {
   for (const p of ['/assets/x/[opt]a.png', '/assets/x/%5Bopt%5Da.png', '/assets/a b.png', '/assets/%E4%B8%AD.png', '/assets/%zz.png']) {
     assert.equal(sw.spResources.resourceKey(p), resourceKey(p), p);
   }
-  for (const p of ['/assets/audio/voice/kr/a/1.mp3', '/assets/audio/voice/xx/a/1.mp3', '/assets/audio/bgm/a.mp3', '/assets/local/guide/p.png', '/assets/ui/guide/p.png', '/assets/spine/a.skel']) {
+  for (const p of ['/assets/audio/voice/kr/a/1.mp3', '/assets/audio/voice/xx/a/1.mp3', '/assets/audio/bgm/a.mp3', '/assets/local/guide/p.png', '/assets/ui/guide/p.png', '/assets/spine/a.skel', '/assets/outfit/art/char_x_epoque_1.webp']) {
     assert.equal(sw.spResources.packOf(p), packOf(p), p);
   }
   for (const p of ['/media/bgm/act1', '/media/voice/en/char_a/cn_001.mp3', '/media/x.wav', '/media/.x', '/media/']) {
@@ -286,6 +289,18 @@ test('lifecycle: no "off" — pause keeps the set started (and in use), only Cle
   preloadPref.set({ started: true, paused: false, voice: null });
   pausePreload();
   assert.deepEqual({ ...preloadPref.get(), voice: null }, { started: true, paused: true, voice: null }, 'paused, still started: the worker stays');
+});
+
+test('(fork, docs/OUTFITS.md) the unticked voices and the unticked Outfits pack have separate remove buttons', async () => {
+  const idx = fs.readFileSync(path.join(ROOT, 'public/js/resources/index.js'), 'utf8');
+  const ui = fs.readFileSync(path.join(ROOT, 'public/js/ui/preload.js'), 'utf8');
+  const body = (src, name) => src.slice(src.indexOf(`export async function ${name}(`)).split('\n}\n')[0];
+  assert.match(body(idx, 'removeVoicePacks'), /packs\.filter\(\(p\) => VOICE_PACKS\.includes\(p\)\)\)/, 'the voice button removes voice packs only');
+  assert.doesNotMatch(body(idx, 'removeVoicePacks'), /OUTFITS_PACK/);
+  assert.match(body(idx, 'removeOutfitsPack'), /preloadPref\.get\(\)\.outfits\) return/, 'a ticked Outfits pack is kept');
+  assert.match(body(idx, 'removeOutfitsPack'), /removePacks\(\[OUTFITS_PACK\]\)/);
+  assert.match(ui, /const staleVoice = VOICE_PACKS\.filter/, 'the voice button only counts voice packs');
+  assert.match(ui, /onClick=\$\{removeOutfitsPack\}>\$\{t\(TX\.removeOutfits\)\}/, 'the Outfits pack has its own button');
 });
 
 test('worker: a file the game fetches is saved on the way (picked packs only, verified), and the download then skips it', async () => {

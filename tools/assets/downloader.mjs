@@ -17,6 +17,10 @@
 //   neither is known) when it passes format validation. The ledger lives in
 //   .cache/assets-ledger.json. `keepExisting` (fetch-assets --add-only) keeps
 //   every existing file as it is; `written` = the files this run wrote.
+// - Converted files (fork, docs/OUTFITS.md): a job with `from` = the kind the source serves ('png') and `kind` 'webp' is
+//   validated as `from` when fetched, converted (`convertImage`, sharp — an optional dependency) and stored converted;
+//   the ledger records the converted size, so a re-run keeps it like any other file. Without sharp the job fails
+//   (an error, retried by the next run), never a miss.
 
 import { mkdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -24,8 +28,43 @@ import { MirrorPolicy } from './network.mjs';
 import { validate } from './formats.mjs';
 import { guardDefaultFetch } from './env-proxy.mjs';
 
+/** Longest side of a converted artwork (px) and its WebP quality. */
+export const WEBP_MAX_SIDE = 1024;
+export const WEBP_QUALITY = 82;
+/** Conversions at once: a 2048² artwork decodes to ~16 MB, so 16 parallel downloads must not all decode together (a
+ * small VPS runs the game beside the deploy). */
+export const CONVERT_CONCURRENCY = 2;
+
+let converting = 0;
+const convertQueue = [];
+async function convertSlot(fn) {
+  if (converting >= CONVERT_CONCURRENCY) await new Promise((r) => convertQueue.push(r));
+  converting++;
+  try { return await fn(); } finally { converting--; convertQueue.shift()?.(); }
+}
+
+let sharpLoad = null;
+/** sharp, or null when the optional dependency is not installed (loaded once). */
+async function loadSharp() {
+  sharpLoad ??= import('sharp').then((m) => m.default || m, () => null);
+  return sharpLoad;
+}
+
 /**
- * @typedef {{ rel: string, urls: string[], kind: string, bytes?: number, mutable?: boolean }} Job
+ * Convert a downloaded image to `kind` (only 'webp': fitted inside WEBP_MAX_SIDE, never enlarged, alpha kept).
+ * @param {Buffer} buf @param {string} kind
+ * @returns {Promise<Buffer>}
+ */
+export async function convertImage(buf, kind) {
+  if (kind !== 'webp') throw new Error(`no conversion to ${kind}`);
+  const sharp = await loadSharp();
+  if (!sharp) throw new Error('sharp is not installed (npm install): cannot convert to WebP');
+  return convertSlot(() => sharp(buf).resize({ width: WEBP_MAX_SIDE, height: WEBP_MAX_SIDE, fit: 'inside', withoutEnlargement: true })
+    .webp({ quality: WEBP_QUALITY, alphaQuality: 90 }).toBuffer());
+}
+
+/**
+ * @typedef {{ rel: string, urls: string[], kind: string, from?: string, bytes?: number, mutable?: boolean }} Job
  * @typedef {{ status: 'ok'|'skip'|'miss'|'error', bytes: number, url?: string, error?: string, sizeChanged?: boolean }} JobResult
  */
 
@@ -168,9 +207,13 @@ export class Downloader {
     for (const url of job.urls) {
       const sources = this.network.urls(url);
       for (const src of sources) {
-        const r = await this.fetchWithRetries(src, job.kind);
+        const r = await this.fetchWithRetries(src, job.from || job.kind);
         if (r.notFound || r.skipped) continue;
         if (r.error) { lastError = r.error; continue; }
+        if (job.from && job.from !== job.kind) {
+          try { r.buf = await convertImage(r.buf, job.kind); } catch (e) { return { status: 'error', bytes: 0, error: `convert failed: ${e.message}` }; }
+          if (!validate(job.kind, r.buf)) return { status: 'error', bytes: 0, error: `convert produced no valid ${job.kind}` };
+        }
         const abs = join(this.root, job.rel);
         await mkdir(dirname(abs), { recursive: true });
         const tmp = `${abs}.part${process.pid}`;

@@ -414,6 +414,30 @@ test('live leaks: a boss field is not counted (the merged team LP moves through 
   r2.runner.dispose();
 });
 
+test('damage chart: damageUnits(ownerId) reads every own unit\'s stats.dmg of the battles this client runs; tokens name their summoner', async () => {
+  const start = realStart(7305);
+  const r = rig();
+  r.net.emit('b.start', start);
+  await r.settle();
+  const e = r.runner._entries.get(start.battleId);
+  for (let i = 0; i < 80 && !e.battle.allyUnits.some((u) => u.stats.dmg > 0); i++) r.advance(500, 50);
+  const ally = e.battle.allyUnits.find((u) => u.kind === 'op' && u.stats.dmg > 0);
+  assert.ok(ally, 'an operator that dealt damage');
+  const mine = e.battle.allyUnits.filter((u) => u.ownerId === ally.ownerId && (u.kind === 'op' || u.kind === 'token'));
+  const got = r.runner.damageUnits(ally.ownerId);
+  assert.equal(got.length, mine.length);
+  assert.equal(got.reduce((s, u) => s + u.dmg, 0), mine.reduce((s, u) => s + u.stats.dmg, 0));
+  assert.ok(got.some((u) => u.kind === 'op' && u.defId === ally.defId && u.dmg === ally.stats.dmg));
+  for (const u of got) if (u.kind === 'token' && u.by) assert.equal(u.by.kind, 'op');
+  assert.equal(r.runner.damageUnits('someone_else'), null);
+  // a watched teammate's replica is not the player's own battle
+  e.own = false;
+  assert.equal(r.runner.damageUnits(ally.ownerId), null);
+  e.own = true;
+  r.runner.clear();
+  assert.equal(r.runner.damageUnits(ally.ownerId), null, 'dropped with the battle');
+});
+
 test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle on screen — the sim\'s last computed stats, never unit.s (no recompute from the UI)', async () => {
   const start = realStart(7305);
   const r = rig();

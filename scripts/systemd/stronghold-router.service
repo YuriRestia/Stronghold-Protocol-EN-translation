@@ -1,0 +1,17 @@
+# /etc/systemd/system/stronghold-router.service — the front door on 127.0.0.1:3000 (Caddy proxies here, unchanged).
+# Restart it only for a router code change or after a crash: open matches survive (their pages reconnect).
+[Unit]
+Description=Stronghold Protocol generation router
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=/opt/stronghold/app
+Environment=PORT=3000 HOST=127.0.0.1 SP_GEN_FILE=/opt/stronghold/generations.json
+ExecStart=/usr/bin/node scripts/router.mjs
+Restart=always
+RestartSec=2
+User=stronghold
+
+[Install]
+WantedBy=multi-user.target

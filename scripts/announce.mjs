@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
+import { ALT_ART_CODE_RE, ALT_ART_JOURNAL_FILE, ALT_ART_ROOMS_FILE, parsePicks, summarizeJournal } from '../server/altArt.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAX_LEN = 200; // server/announce.js NOTICE_MAX_LEN
@@ -52,6 +53,13 @@ try {
       clear: { type: 'boolean' },
       file: { type: 'string' },
       help: { type: 'boolean', short: 'h' },
+      // (fork) server/altArt.js picked rooms + journal, kept next to the notice file
+      pick: { type: 'string' },
+      unpick: { type: 'string' },
+      picks: { type: 'boolean' },
+      stats: { type: 'boolean' },
+      hours: { type: 'string' },
+      days: { type: 'string' },
     },
   });
 } catch (e) {
@@ -62,6 +70,8 @@ const file = path.resolve(opt.file || path.join(ROOT, 'logs', 'announce.json'));
 
 if (opt.help) {
   console.log(USAGE);
+} else if (opt.pick != null || opt.unpick != null || opt.picks || opt.stats) {
+  altArt(path.dirname(file));
 } else if (opt.show) {
   const n = readNotice(file);
   if (!n || !Number.isFinite(n.until) || Date.now() >= n.until) console.log('No active notice.');
@@ -96,4 +106,68 @@ if (opt.help) {
     writeFailed(e, file);
   }
   console.log(`Notice saved. Online players get it within ~2 s; players who join get it until ${time(notice.until)}.\n  ${text}`);
+}
+
+// (fork) Room picks + outcomes of the alternate result background (server/altArt.js), in `dir` (logs/ by default):
+//   --pick CODE [--hours N] (12 h, max 168) | --unpick CODE | --picks | --stats [--days N]
+function altArt(dir) {
+  const roomsFile = path.join(dir, ALT_ART_ROOMS_FILE);
+  const now = Date.now();
+  const readPicks = () => { try { return parsePicks(JSON.parse(fs.readFileSync(roomsFile, 'utf8')), now); } catch { return []; } };
+  const writePicks = (rooms) => {
+    const tmp = `${roomsFile}.${process.pid}.tmp`;
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(tmp, JSON.stringify({ rooms }) + '\n', { mode: 0o644 });
+      fs.renameSync(tmp, roomsFile);
+    } catch (e) {
+      try { fs.rmSync(tmp, { force: true }); } catch { /* ignore */ }
+      writeFailed(e, roomsFile);
+    }
+  };
+  const roomCode = (v) => {
+    const code = String(v).trim().toUpperCase();
+    if (!ALT_ART_CODE_RE.test(code)) fail(`"${v}" is not a room code (4 letters, e.g. ABCD).`);
+    return code;
+  };
+
+  if (opt.pick != null) {
+    const code = roomCode(opt.pick);
+    const hours = opt.hours == null ? 12 : Number(opt.hours);
+    if (!Number.isFinite(hours) || hours <= 0 || hours > 168) fail('--hours must be a number above 0 and at most 168.');
+    const until = now + Math.round(hours * 3_600_000);
+    writePicks([...readPicks().filter((r) => r.code !== code), { code, until }]);
+    console.log(`Picked ${code}. Its next matches have the chance until ${time(until)}.`);
+    console.log('Room codes are reused once a room closes, so unpick it when you are done.');
+  } else if (opt.unpick != null) {
+    const code = roomCode(opt.unpick);
+    const before = readPicks();
+    const rooms = before.filter((r) => r.code !== code);
+    writePicks(rooms);
+    console.log(rooms.length < before.length ? `Unpicked ${code}.` : `${code} was not picked.`);
+  } else if (opt.picks) {
+    const rooms = readPicks();
+    if (!rooms.length) console.log('No picked rooms.');
+    for (const r of rooms) console.log(`  ${r.code}  until ${time(r.until)} (${Math.ceil((r.until - now) / 60000)} min left)`);
+  } else {
+    const days = opt.days == null ? null : Number(opt.days);
+    if (days != null && (!Number.isFinite(days) || days <= 0)) fail('--days must be a number above 0.');
+    let text = '';
+    try { text = fs.readFileSync(path.join(dir, ALT_ART_JOURNAL_FILE), 'utf8'); } catch { /* no journal yet */ }
+    const rows = summarizeJournal(text, days == null ? 0 : now - days * 86_400_000);
+    const count = (pred) => rows.filter(pred).length;
+    console.log(`Matches with the chance${days == null ? '' : ` (last ${days} d)`}: ${rows.length}`
+      + ` (${count((r) => r.start.chance === 'every')} every-10th, ${count((r) => r.start.chance === 'picked')} picked room)`);
+    console.log(`  shown:                      ${count((r) => r.end?.outcome === 'shown')}`);
+    console.log(`  Hidden Core not reached:    ${count((r) => r.end?.outcome === 'no-core')}`);
+    console.log(`  no matching unit on board:  ${count((r) => r.end?.outcome === 'no-unit')}`);
+    console.log(`  unfinished / dropped:       ${count((r) => !r.end)}`);
+    if (rows.length) {
+      console.log('\nLatest:');
+      for (const r of rows.slice(-10)) {
+        const players = (r.start.players || []).join(', ') || '-';
+        console.log(`  ${time(r.start.at)}  ${r.start.code} #${r.start.matchNo}  ${r.start.chance.padEnd(6)}  ${(r.end?.outcome || 'unfinished').padEnd(10)}  ${players}`);
+      }
+    }
+  }
 }

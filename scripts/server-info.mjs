@@ -17,8 +17,11 @@ const OUT = path.join(ROOT, 'public', 'server-info.json');
 const git = (...args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 
 try {
+  const head = git('rev-parse', '--abbrev-ref', 'HEAD');
   const info = {
-    branch: git('rev-parse', '--abbrev-ref', 'HEAD'),
+    // a generation's release worktree is detached ("HEAD"): its branch comes from SP_BRANCH, which
+    // scripts/generations.mjs deploy writes to the generation's env file
+    branch: head === 'HEAD' && process.env.SP_BRANCH ? process.env.SP_BRANCH : head,
     commit: git('rev-parse', 'HEAD'),
     date: git('log', '-1', '--format=%cI'),
   };

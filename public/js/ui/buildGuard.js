@@ -16,6 +16,10 @@
 // NEVER reloads: a restarting server must not turn a playing page into the browser's error page. A new tag is acted on
 // only after two checks in a row report the SAME one, so a deploy that is still copying files cannot ping-pong a page.
 //
+// Behind the router (zero-downtime restarts, server/generation.js) a newer generation does not change the page's own
+// /healthz — the old generation keeps serving its build. Its `sys.retire` calls `retire()` instead: the page goes to `/`
+// (`home`, public/js/gen.js goHome) right away outside a match, else as soon as the match, settlement included, is over.
+//
 // Kept dependency-free and injectable (fetch / reload / inMatch / timers) so test/ui/buildGuard.test.js can drive it.
 
 /** How often a page re-asks the server for its build tag. */
@@ -24,13 +28,18 @@ export const BUILD_CHECK_MS = 60_000;
 export const BUILD_FETCH_TIMEOUT_MS = 5_000;
 /** How many checks in a row must report the same NEW build before the page acts on it. */
 export const BUILD_CONFIRMATIONS = 2;
+/** fetchBuild()'s answer for a generation the router has dropped (HTTP 410). */
+export const GONE = '\u0000gone';
 
 /**
  * Fetch `/healthz` and return its `build` tag (null when unavailable, not reported, or too slow). Never throws.
- * @param {Function} fetchFn @param {{ timeoutMs?: number, setTimeout?: Function, clearTimeout?: Function }} [o]
+ * @param {Function} fetchFn
+ * @param {{ healthUrl?: string, timeoutMs?: number, setTimeout?: Function, clearTimeout?: Function }} [o]
+ *   healthUrl: the page's own generation's /healthz (public/js/gen.js genUrl), default '/healthz'
  * @returns {Promise<string|null>}
  */
 export async function fetchBuild(fetchFn, o = {}) {
+  const healthUrl = typeof o.healthUrl === 'string' && o.healthUrl ? o.healthUrl : '/healthz';
   const timeoutMs = Number.isFinite(o.timeoutMs) && o.timeoutMs > 0 ? o.timeoutMs : BUILD_FETCH_TIMEOUT_MS;
   const setT = o.setTimeout || ((fn, ms) => globalThis.setTimeout(fn, ms));
   const clearT = o.clearTimeout || ((h) => globalThis.clearTimeout(h));
@@ -40,7 +49,9 @@ export async function fetchBuild(fetchFn, o = {}) {
     timer = setT(() => { try { ctrl?.abort(); } catch { /* ignore */ } reject(new Error('timeout')); }, timeoutMs);
   });
   try {
-    const res = await Promise.race([fetchFn('/healthz', { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }), tooSlow]);
+    const res = await Promise.race([fetchFn(healthUrl, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }), tooSlow]);
+    // 410: the router no longer knows this page's generation (scripts/router.mjs) — it is gone for good
+    if (res && res.status === 410) return GONE;
     if (!res || !res.ok) return null;
     const body = await res.json();
     return body && typeof body.build === 'string' && body.build ? body.build : null;
@@ -53,12 +64,14 @@ export async function fetchBuild(fetchFn, o = {}) {
 
 /**
  * One check, against the build this page already knows.
- * @param {{ fetchFn?: Function, known?: string|null, timeoutMs?: number, setTimeout?: Function, clearTimeout?: Function }} [o]
- * @returns {Promise<{ status: 'first'|'current'|'new'|'unknown', build: string|null }>}
+ * @param {{ fetchFn?: Function, known?: string|null, healthUrl?: string, timeoutMs?: number, setTimeout?: Function,
+ *           clearTimeout?: Function }} [o]
+ * @returns {Promise<{ status: 'first'|'current'|'new'|'unknown'|'gone', build: string|null }>}
  */
 export async function checkBuildOnce(o = {}) {
   const fetchFn = o.fetchFn || ((url, init) => globalThis.fetch(url, init));
   const build = await fetchBuild(fetchFn, o);
+  if (build === GONE) return { status: 'gone', build: null };
   if (!build) return { status: 'unknown', build: null };            // unreachable / not reported: never a reload
   if (!o.known) return { status: 'first', build };
   return { status: o.known === build ? 'current' : 'new', build };
@@ -66,14 +79,18 @@ export async function checkBuildOnce(o = {}) {
 
 /**
  * Watch for a new build.
- * @param {{ fetchFn?: Function, reload?: Function, inMatch?: () => boolean, intervalMs?: number, timeoutMs?: number,
+ * @param {{ fetchFn?: Function, reload?: Function, home?: Function, inMatch?: () => boolean, healthUrl?: string,
+ *           intervalMs?: number, timeoutMs?: number,
  *           setInterval?: Function, clearInterval?: Function, setTimeout?: Function, clearTimeout?: Function,
  *           onStale?: (info: { build: string, known: string|null, waiting: boolean }) => void }} [o]
- * @returns {{ stop: () => void, check: () => Promise<object>, stale: () => boolean, known: () => string|null }}
+ *   home: how a retired page leaves its generation (public/js/gen.js goHome; default: reload)
+ * @returns {{ stop: () => void, check: () => Promise<object>, retire: () => void, settle: () => boolean,
+ *             stale: () => boolean, retired: () => boolean, known: () => string|null }}
  */
 export function startBuildGuard(o = {}) {
   const fetchFn = o.fetchFn || ((url, init) => globalThis.fetch(url, init));
   const reload = o.reload || (() => globalThis.location.reload());
+  const home = o.home || reload;
   const inMatch = typeof o.inMatch === 'function' ? o.inMatch : () => false;
   const setIv = o.setInterval || ((fn, ms) => globalThis.setInterval(fn, ms));
   const clearIv = o.clearInterval || ((h) => globalThis.clearInterval(h));
@@ -82,22 +99,33 @@ export function startBuildGuard(o = {}) {
   let candidate = null;  // the last new build seen; needs BUILD_CONFIRMATIONS checks in a row to be acted on
   let seen = 0;          // consecutive checks that reported `candidate`
   let stale = false;     // a new build is confirmed → reload as soon as no match is on screen
+  let retired = false;   // sys.retire: a newer generation took over → `home()` as soon as no match is on screen
   let pending = false;
   let timer = null;
   let stopped = false;
 
   const stopTimer = () => { if (timer != null) { clearIv(timer); timer = null; } };
   const reloadNow = () => { stopped = true; stopTimer(); reload(); };
+  // a retired generation (sys.retire) is left for `/`, not reloaded: a reload would load the same old generation again
+  const goHomeNow = () => { stopped = true; stopTimer(); home(); };
+  const settle = () => {
+    if (stopped || inMatch()) return false;
+    if (retired) { goHomeNow(); return true; }
+    if (stale) { reloadNow(); return true; }
+    return false;
+  };
 
   const check = async () => {
     if (stopped) return { status: 'stopped', build: null };
     if (pending) return { status: 'pending', build: null };
     pending = true;
     let r;
-    try { r = await checkBuildOnce({ fetchFn, known, timeoutMs: o.timeoutMs, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout }); }
+    try { r = await checkBuildOnce({ fetchFn, known, healthUrl: o.healthUrl, timeoutMs: o.timeoutMs, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout }); }
     finally { pending = false; }
     if (stopped) return { status: 'stopped', build: null };
     if (r.status === 'unknown') { candidate = null; seen = 0; return r; }   // review: a failed check never reloads
+    // the generation is gone (missed sys.retire, e.g. a page asleep in the background): its match is over too
+    if (r.status === 'gone') { retired = true; settle(); return r; }
     if (r.status === 'first') { known = r.build; return r; }
     if (r.status === 'current') { candidate = null; seen = 0; return r; }
     // a different build: only BUILD_CONFIRMATIONS checks in a row with the SAME tag count (a deploy that is still
@@ -112,13 +140,18 @@ export function startBuildGuard(o = {}) {
     return { status: 'stale', build: r.build, known };
   };
 
-  const tick = () => { check().catch(() => {}); };
+  const tick = () => { if (retired) { settle(); return; } check().catch(() => {}); };
   check().catch(() => {});
   timer = setIv(tick, intervalMs);
   return {
     stop: () => { stopped = true; stopTimer(); },
     check,
+    /** sys.retire: leave for the new generation now, or as soon as no match is on screen (settle()). */
+    retire: () => { if (stopped) return; retired = true; settle(); },
+    /** Act on a pending reload / retire now if no match is on screen (main.js calls it when the screen changes). */
+    settle,
     stale: () => stale,
+    retired: () => retired,
     known: () => known,
   };
 }

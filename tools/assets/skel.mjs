@@ -96,3 +96,62 @@ export function parseSkel(bytes, atlasRegions) {
     missingRegions: [...missing].sort(),
   };
 }
+
+const EXTENT_STEP = 1 / 20, EXTENT_MAX = 48; // sample spacing (s) and cap per clip
+
+/** Bumped whenever clipExtents' output changes, so cached extents are recomputed (tools/assets/spine.mjs). */
+export const CLIP_EXTENTS_VERSION = 2;
+
+/**
+ * Per-clip extents of a Spine 3.8 skeleton: the union of its bounds over each animation, sampled every EXTENT_STEP s.
+ * Region attachments need their atlas sizes, so this parses again with the real atlas (the page images are not read).
+ * Invisible attachments (faded-out effects) are skipped: they draw nothing.
+ *
+ * Region (sprite) attachments: pixi-spine draws them as sprites from x / y / width / height and never calls
+ * RegionAttachment.updateOffset, so their offsets stay 0 and Skeleton.getBounds saw each as a point. Version 1 left
+ * them out of every box (Gummy's Summer outfit: the easel, a sprite, was cut at the box edge). The page stand-in also
+ * needs a `resolution` (the atlas divides the region sizes by it: undefined gave NaN).
+ * @param {Uint8Array} bytes .skel file contents
+ * @param {string} atlasText the matching .atlas
+ * @returns {Record<string, [number, number, number, number]>|null} clip → [x0, y0, x1, y1] (skeleton units, y down
+ *   as drawn by pixi-spine); null when the skeleton cannot be posed with this atlas
+ */
+export function clipExtents(bytes, atlasText) {
+  const r = loadRuntime();
+  const B = require('@pixi-spine/base');
+  let data;
+  try {
+    const page = { width: 4096, height: 4096, realWidth: 4096, realHeight: 4096, resolution: 1, valid: true, resource: {}, setSize() {} };
+    const atlas = new B.TextureAtlas(atlasText, (_line, cb) => cb(page));
+    data = new r.SkeletonBinary(new r.AtlasAttachmentLoader(atlas)).readSkeletonData(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+  } catch { return null; }
+  for (const skin of data.skins) {
+    for (const e of skin.getAttachments()) {
+      const at = e.attachment;
+      if (!(at instanceof r.RegionAttachment) || !at.region) continue;
+      try { at.updateOffset(); } catch { continue; }
+      if (!at.offset.every(Number.isFinite)) at.offset.fill(0);   // a region the atlas could not size: a point, as before
+    }
+  }
+  const sk = new r.Skeleton(data);
+  const off = new B.Vector2(), size = new B.Vector2(), tmp = [];
+  const out = {};
+  for (const a of data.animations) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const n = Math.min(EXTENT_MAX, Math.max(1, Math.ceil(a.duration / EXTENT_STEP)));
+    for (let i = 0; i <= n; i++) {
+      sk.setToSetupPose();
+      a.apply(sk, 0, (a.duration * i) / n, false, null, 1, B.MixBlend.setup, B.MixDirection.mixIn);
+      sk.updateWorldTransform();
+      for (const s of sk.slots) {
+        const at = s.attachment;
+        if (at && s.color.a * (at.color ? at.color.a : 1) < 0.02) s.attachment = null;
+      }
+      sk.getBounds(off, size, tmp);
+      if (!Number.isFinite(off.x) || !Number.isFinite(off.y) || !(size.x > 0) || !(size.y > 0)) continue;
+      x0 = Math.min(x0, off.x); y0 = Math.min(y0, off.y); x1 = Math.max(x1, off.x + size.x); y1 = Math.max(y1, off.y + size.y);
+    }
+    if (Number.isFinite(x0)) out[a.name] = [Math.floor(x0), Math.floor(y0), Math.ceil(x1), Math.ceil(y1)];
+  }
+  return out;
+}

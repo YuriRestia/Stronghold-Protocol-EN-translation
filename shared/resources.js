@@ -27,7 +27,10 @@ export const HASH_LEN = 12;
 export const VOICE_PACKS = Object.freeze(['cn', 'en', 'jp', 'kr', 'native']);
 /** Always part of a preload: visuals (tier 1) and music, sound effects, tutorial art (tier 2). */
 export const BASE_PACKS = Object.freeze(['visual', 'audio']);
-export const ALL_PACKS = Object.freeze([...BASE_PACKS, ...VOICE_PACKS]);
+/** (fork, docs/OUTFITS.md) The outfits' art and models (`/assets/outfit/…`): optional, like a voice pack (the outfits'
+ * own voice lines ride with their dub's pack). */
+export const OUTFITS_PACK = 'outfits';
+export const ALL_PACKS = Object.freeze([...BASE_PACKS, ...VOICE_PACKS, OUTFITS_PACK]);
 
 /**
  * The pack a file belongs to. `path` is a site path (`/assets/…`, `/fonts/…`), encoded or not.
@@ -36,6 +39,7 @@ export const ALL_PACKS = Object.freeze([...BASE_PACKS, ...VOICE_PACKS]);
  */
 export function packOf(path) {
   const p = String(path || '');
+  if (p.startsWith('/assets/outfit/')) return OUTFITS_PACK;
   const voice = /^\/assets\/audio\/voice\/([a-z]+)\//.exec(p);
   if (voice) return VOICE_PACKS.includes(voice[1]) ? voice[1] : 'audio';
   if (p.startsWith('/assets/audio/')) return 'audio';

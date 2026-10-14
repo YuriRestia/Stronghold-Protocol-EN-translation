@@ -1,4 +1,4 @@
-// test/render/token-models.browser.test.js — the 39 summon models only the local client has (tools/local-extract/
+// test/render/token-models.browser.test.js — the 40 original summon models extracted from the local client (tools/local-extract/
 // extract.py TOKEN_SPINES → data/assets.json tokens[id].spineLocal, docs/ASSETS.md "Token models from the local client")
 // drawn on the prep board of the dev render demo (public/dev/render-demo.html) in headless Chrome: every summon placed on
 // a board tile draws its official model (the local entry, not the avatar diamond), on its own idle clip (the mapped ones

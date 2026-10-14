@@ -50,7 +50,7 @@ const M = {
   audio: {
     bgm: { prep: { loop: '/bgm/prep.mp3' }, lobby: { intro: '/bgm/i.mp3', loop: '/bgm/l.mp3' } },
     bossBgm: { boss_1: { loop: '/bgm/b1.mp3' } },
-    sfx: { ui: { buy: '/sfx/buy.mp3' }, battle: { deploy: '/sfx/dep.mp3' }, units: { char_010_chen: { attack: '/sfx/c_atk.mp3', skills: { 2: '/sfx/c_s3.mp3' }, skill: '/sfx/c_s.mp3' } } },
+    sfx: { ui: { buy: '/sfx/buy.mp3' }, battle: { deploy: '/sfx/dep.mp3' }, units: { char_010_chen: { attack: '/sfx/c_atk.mp3', hit: '/sfx/c_hit.mp3', skills: { 2: '/sfx/c_s3.mp3' }, skill: '/sfx/c_s.mp3', attacks: { 2: '/sfx/c_atk_s3.mp3' }, hits: { 2: '/sfx/c_hit_s3.mp3' } } } },
   },
 };
 
@@ -134,6 +134,12 @@ describe('URL helpers (synthetic manifest)', () => {
     assert.equal(unitSfxUrl(M, 'char_010_chen', 'skill', 2), '/sfx/c_s3.mp3');
     assert.equal(unitSfxUrl(M, 'char_010_chen', 'skill', 0), '/sfx/c_s.mp3');
     assert.equal(unitSfxUrl(M, 'char_010_chen_2', 'attack'), '/sfx/c_atk.mp3');
+    // the running skill's own attack sound (sfx.units[id].attacks, tools/assets/audio.mjs pickModeAttacks)
+    assert.equal(unitSfxUrl(M, 'char_010_chen', 'attack', 2), '/sfx/c_atk_s3.mp3');
+    assert.equal(unitSfxUrl(M, 'char_010_chen', 'attack', 0), '/sfx/c_atk.mp3', 'no attacks[0] ⇒ the normal bank');
+    assert.equal(unitSfxUrl(M, 'char_010_chen', 'hit', 2), '/sfx/c_hit_s3.mp3', 'the running skill\'s own impact');
+    assert.equal(unitSfxUrl(M, 'char_010_chen', 'hit', 1), '/sfx/c_hit.mp3', 'no hits[1] ⇒ the normal impact');
+    assert.equal(unitSfxUrl(M, 'char_010_chen', 'die', 2), null, 'only an attack / an impact has a per-skill file');
     assert.equal(unitSfxUrl(M, 'nobody', 'attack'), null);
   });
 });
@@ -497,7 +503,8 @@ describe('createAssets store', () => {
 
   test('image cache + preload progress (failures resolve to null)', async () => {
     const loaded = [];
-    const a = createAssets({ manifest: M, loadImage: async (u) => { loaded.push(u); if (u.includes('bad')) throw new Error('x'); return { src: u }; } });
+    let fail = true;
+    const a = createAssets({ manifest: M, loadImage: async (u) => { loaded.push(u); if (u.includes('bad') && fail) throw new Error('x'); return { src: u }; } });
     const progress = [];
     const r = await a.preload(['/a.png', '/bad.png', '/a.png', null, ''], (d, t) => progress.push([d, t]));
     assert.deepEqual(r, { ok: 1, failed: 1, total: 2 });
@@ -507,6 +514,11 @@ describe('createAssets store', () => {
     assert.equal(loaded.filter((u) => u === '/a.png').length, 1, 'cached');
     assert.equal(a.imageNow('/a.png').src, '/a.png');
     assert.equal(await a.image(null), null);
+    fail = false;
+    assert.equal(await a.image('/bad.png'), null, 'ordinary consumers retain the remembered failure');
+    assert.equal((await a.image('/bad.png', { retry: true })).src, '/bad.png');
+    assert.equal(loaded.filter((u) => u === '/bad.png').length, 2, 'explicit board retry performs a new load');
+    assert.equal((await a.image('/bad.png')).src, '/bad.png');
   });
 
   test('spine acquire/release through the store with an injected loader', async () => {

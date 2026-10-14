@@ -11,12 +11,26 @@ export function uiUrl(m, key) {
   return str(obj(obj(m)?.ui)?.[key]);
 }
 
+// (fork, docs/OUTFITS.md) The player's own outfit choice: `charId → skinId | null`, set by ui/outfits.js. An operator in
+// an outfit shows the outfit's avatar / portrait instead of its own (normal and elite alike: the official client's rule —
+// an outfit replaces the E2 art too); without a choice (or the outfit's art) nothing changes.
+let outfitPick = null;
+/** @param {((charId: string) => string|null) | null} fn */
+export function setOutfitPicker(fn) { outfitPick = typeof fn === 'function' ? fn : null; }
+// `o.outfit` (a skinId, or null = the default look) overrides the own choice: another player's unit (ui/detailPanel.js).
+function outfitArt(m, chess, kind, o) {
+  const id = o && 'outfit' in o ? o.outfit : outfitPick && str(chess?.charId) ? outfitPick(chess.charId) : null;
+  return id ? str(obj(obj(obj(m)?.outfits)?.chars)?.[id]?.[kind]) : null;
+}
+
 /**
  * Operator avatar for a chess record (golden → E2 art when present).
  * @param {any} m manifest
  * @param {any} chess chess.json record (or { assets: { avatar } })
  */
-export function chessAvatarUrl(m, chess) {
+export function chessAvatarUrl(m, chess, o) {
+  const of = outfitArt(m, chess, 'avatar', o);
+  if (of) return of;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.avatar) || str(chess?.charId);
   if (!chars || !id) return null;
@@ -32,7 +46,9 @@ export function chessAvatarUrl(m, chess) {
  * @param {any} m
  * @param {any} chess
  */
-export function chessPortraitUrl(m, chess) {
+export function chessPortraitUrl(m, chess, o) {
+  const of = outfitArt(m, chess, 'portrait', o);
+  if (of) return of;
   const chars = obj(obj(m)?.chars);
   const id = str(chess?.assets?.portrait);
   if (!chars) return null;

@@ -16,6 +16,11 @@
 // (withHeavyHitters): the bots' own hits of ≥ 300000 came from whatever 维多利亚 / 精准 / 奥术 mix they drafted — none
 // since 0.2.0's CB3 (the 受到攻击时 counters answer every damage instance) re-drafted seed 22, whose best hit is now
 // about half the limit; the cancel path itself is unchanged (the earlier captures still cancel the same hits).
+// 无来源 HP (drone 死亡集群 links and 剑 / 锤 transfers) likewise, on a fourth copy (withTransferWindow). Shared co-op
+// stock (DESIGN §29.8) re-drafted seed 22: the 999-layer boards now clear in tens of seconds, before a drone is killed
+// on every field and before a blade takes a transferable hit (a forced replace is not damage). The transfer path is
+// unchanged — the 0.2.3 specs of this seed still lose leader HP on every field under this sim. The copy keeps the
+// drafted operators and holds 维多利亚 / 精准 / 奥术 / 卡西米尔 / 绝技 at 1 layer so the fight lasts long enough.
 //
 // Opt-in (starts Chrome): SIM_E2E=1 node --test test/sim/bossfield.browser.test.js   (or RENDER_E2E=1)
 // Run browser test files one at a time. Chrome path: $CHROME_PATH or the macOS default.
@@ -118,6 +123,23 @@ function withHeavyHitters(spec) {
 }
 
 /**
+ * A copy of `spec` whose 维多利亚 / 精准 / 奥术 / 卡西米尔 / 绝技 layers are held at 1. At 999 those bonds end seed 22's
+ * shared-stock boards before a 死亡集群 drone dies on every field and before a 斩胄之剑 / 破胄之锤 takes damage
+ * (DESIGN §29.8). One layer keeps the bond and lets the parts land; the operators stay the ones the bots drafted.
+ */
+const TRANSFER_BONDS = ['victoriaShip', 'preciShip', 'arcaneShip', 'kazimierzShip', 'suntShip'];
+function withTransferWindow(spec) {
+  const s = JSON.parse(JSON.stringify(spec));
+  for (const p of s.players || []) {
+    for (const id of TRANSFER_BONDS) {
+      const b = p.bonds && p.bonds[id];
+      if (b && b.active && b.layers > 1) b.layers = 1;
+    }
+  }
+  return s;
+}
+
+/**
  * Runs a spec to the end (the same code in Node and in the page: `S` = spec module, `ds` = data source) and returns
  * its digest, the local pool, the fx count per kind and the leader-side checks (奥术 instances, 无来源 HP losses).
  * Serialised into the page with Function#toString, so it uses nothing from this module's scope.
@@ -158,9 +180,9 @@ describe('Final Assault / Hidden Core fields in the browser sim', { skip }, () =
   test('real boss specs at 999 layers: Chrome and Node give the same digest, pool and fx; 限伤, drones, 瘫痪 and 奥术 all occur', { timeout: 180000 }, async () => {
     const specs = captureBossSpecs();
     assert.deepEqual(specs.map((s) => `${s.kind}:${s.bossId}`).sort(), ['boss:boss_1', 'boss:boss_1', 'hidden:boss_8', 'hidden:boss_8']);
-    // the four as captured, the same four with a 麻痹 source on every field (withTearGas), and with 限伤-sized hits
-    // on every field (withHeavyHitters)
-    const runs = [...specs, ...specs.map(withTearGas), ...specs.map(withHeavyHitters)];
+    // the four as captured, the same four with a 麻痹 source on every field (withTearGas), with 限伤-sized hits
+    // on every field (withHeavyHitters), and with the damage bonds held at 1 layer (withTransferWindow)
+    const runs = [...specs, ...specs.map(withTearGas), ...specs.map(withHeavyHitters), ...specs.map(withTransferWindow)];
     const ds = new DataSource(DATA, null);
     const node = runs.map((spec) => runField({ createBattleFromSpec, resultDigest }, ds, spec, MAX_SECONDS));
 
@@ -180,7 +202,7 @@ describe('Final Assault / Hidden Core fields in the browser sim', { skip }, () =
     await page.close();
     assert.deepEqual(problems, []);
 
-    const copies = ['', ' +催泪瓦斯', ' +heavy hitters'];
+    const copies = ['', ' +催泪瓦斯', ' +heavy hitters', ' +transfer window'];
     runs.forEach((spec, i) => {
       const at = `${spec.kind} ${spec.fieldId} ${spec.bossId}${copies[Math.floor(i / specs.length)]}`;
       assert.equal(node[i].reason, 'cleared', `${at}: the 999-layer pair clears the field`);
@@ -193,11 +215,12 @@ describe('Final Assault / Hidden Core fields in the browser sim', { skip }, () =
     });
     const real = node.slice(0, specs.length);
     const gassed = node.slice(specs.length, 2 * specs.length);
-    const heavy = node.slice(2 * specs.length);
+    const heavy = node.slice(2 * specs.length, 3 * specs.length);
+    const opened = node.slice(3 * specs.length);
     const sum = (rows, k) => rows.reduce((a, r) => a + (r.fx[k] || 0), 0);
     assert.ok(sum(heavy, 'hitCap') >= 1, `a 999-layer hit reached 300000 and was cancelled (限伤: ${heavy.map((r) => r.fx.hitCap || 0)} with the heavy hitters, ${sum(real, 'hitCap')} on the bots' own boards)`);
     assert.ok(sum(gassed, 'palsy') >= 1, `瘫痪 occurred with the 催泪瓦斯 (${gassed.map((r) => r.fx.palsy || 0)})`);
-    assert.ok(real.every((r) => r.hpLoss >= 1), `every field cost the leader 无来源 HP (drone links / 剑 · 锤 transfers: ${real.map((r) => r.hpLoss)})`);
+    assert.ok(opened.every((r) => r.hpLoss >= 1), `holding the damage bonds at 1 layer, every field cost the leader 无来源 HP (drone links / 剑 · 锤 transfers: ${opened.map((r) => r.hpLoss)}; the 999-layer boards: ${real.map((r) => r.hpLoss)})`);
     // 奥术 on the bots' own boards or on the heavy-hitter copy (洛洛 + 深靛 = 奥术 2): seed 22's bots stopped drafting it
     // when 0.2.0's last fixes re-drafted the earlier rounds
     assert.ok([...real, ...heavy].some((r) => r.maxArcane === 1), `the leader carried 奥术 (bots' boards ${real.map((r) => r.maxArcane)}, heavy hitters ${heavy.map((r) => r.maxArcane)})`);

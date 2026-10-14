@@ -66,8 +66,10 @@ export const NET_DEFAULTS = Object.freeze({
  * edits), room.ownership
  * (a ≤ 160-id list, the same way), room.diy (≤ 8 自选 picks checked against the data, the same way) and room.spectate
  * (taking a spectator seat in a running match resends its state like a watcher's g.watch — server/lobby.js spectate).
+ * (fork, docs/OUTFITS.md) room.outfits: a ≤ 256-entry map, and a change broadcasts room.state to the whole room (any
+ * phase), so it shares the bucket too; the client debounces its edits and retries a RATE refusal.
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.outfits']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -96,6 +98,8 @@ export class Session {
     this.ws = null;
     /** @type {boolean} */
     this.connected = false;
+    /** @type {number | null} local first-welcome stamp of the attached client (optional, not authentication) */
+    this.claimAt = null;
     /** @type {number} ms epoch of the last inbound frame / pong */
     this.lastSeen = now;
     /** @type {number | null} ms epoch when the socket was lost (null while connected) */
@@ -647,6 +651,11 @@ export class Network {
     if (!session) {
       session = msg.token ? this.registry.byToken(msg.token) : null;
       if (session) {
+        if (session.connected && session.ws && session.ws !== conn.ws
+          && (msg.noReplace || (Number.isFinite(msg.claimAt) && session.claimAt != null && msg.claimAt > session.claimAt))) {
+          this.reply(conn, errorMsg(ERR.SESSION_IN_USE, rid));
+          return;
+        }
         resumed = true;
         if (session.ws && session.ws !== conn.ws) this.detachReplaced(session.ws);
       } else {
@@ -656,6 +665,7 @@ export class Network {
       conn.session = session;
       session.ws = conn.ws;
       session.connected = true;
+      session.claimAt = Number.isFinite(msg.claimAt) ? msg.claimAt : null;
       session.disconnectedAt = null;
     }
     session.name = name;

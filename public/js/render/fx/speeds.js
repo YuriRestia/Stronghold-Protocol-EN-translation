@@ -1,6 +1,7 @@
 // public/js/render/fx/speeds.js — sim projectile speeds (one module-level table) and the flight-time lookup.
 
 import { PROJ } from '../style.js';
+import { genUrl } from '../../gen.js';
 
 /**
  * The sim's projectile speeds (server/sim/constants.js PROJECTILE_SPEEDS — pure data, served read-only at
@@ -22,7 +23,7 @@ export function setSimProjectileSpeeds(table, boomerangReturn = null) {
 }
 
 if (typeof window !== 'undefined' && typeof window.location?.origin === 'string') {
-  import('/sim/constants.js').then((m) => { if (m?.PROJECTILE_SPEEDS) setSimProjectileSpeeds(m.PROJECTILE_SPEEDS, m.BOOMERANG_RETURN_SPEED); }, () => {});
+  import(genUrl('/sim/constants.js')).then((m) => { if (m?.PROJECTILE_SPEEDS) setSimProjectileSpeeds(m.PROJECTILE_SPEEDS, m.BOOMERANG_RETURN_SPEED); }, () => {});
 }
 
 /**

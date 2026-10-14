@@ -4,11 +4,13 @@
 //     protocol, server/net.js), built from the startServer() options (config.js decides which go where);
 //   * WebSocket (ws) at /ws, maxPayload 64 KB, no per-message deflate → Network.handleConnection. Refused at the
 //     upgrade: any other path 404; per-network socket limit for internet clients (maxConnectionsPerAddr, see net.js
-//     clientAddress; local/LAN peers are exempt) 429; server full (maxConnections) or shutting down 503.
+//     clientAddress; local/LAN peers are exempt) 429; server full (maxConnections) or shutting down 503. A generation
+//     prefix is accepted (`/_build/<gen>/_/ws`, shared/gen.js).
 
 import { WebSocketServer } from 'ws';
 import { Network, SessionRegistry, NET_DEFAULTS } from '../net.js';
 import { Lobby } from '../lobby.js';
+import { splitGenPath } from '../../shared/gen.js';
 import { splitUrl } from './common.js';
 import { netOptionsFrom, lobbyOptionsFrom } from './config.js';
 
@@ -47,7 +49,7 @@ export function attachWebSocket(server, { network, log }) {
     const reject = (status, text) => {
       try { socket.end(`HTTP/1.1 ${status} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); } catch { socket.destroy(); }
     };
-    if (!parts || parts.rawPath !== '/ws') { reject(404, 'Not Found'); return; }
+    if (!parts || splitGenPath(parts.rawPath).rest !== '/ws') { reject(404, 'Not Found'); return; }
     const refused = network.admission(req);
     if (refused === 'per-address') { reject(429, 'Too Many Requests'); return; }
     if (refused) { reject(503, 'Service Unavailable'); return; }

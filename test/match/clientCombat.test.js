@@ -264,9 +264,11 @@ test('Final Assault: two client-run pair fields share the server pool (b.progres
   h.drive(() => m.phase === PHASE.FINAL_ASSAULT);
   const [b1, b2] = fields(h);
   assert.deepEqual([b1.fieldId, b2.fieldId], ['b1', 'b2']);
-  assert.deepEqual([b1.mode, b1.authority, b2.mode, b2.authority], ['client', 'p_0', 'client', 'p_2'], 'lowest seat of each pair');
+  const authorities = [b1, b2].map(f => [...f.players].sort((a, b) => h.ps(a).seat - h.ps(b).seat)[0]);
+  assert.deepEqual([b1.mode, b1.authority, b2.mode, b2.authority], ['client', authorities[0], 'client', authorities[1]], 'lowest seat of each pair');
   const startMsgs = h.sent.filter(([, x]) => x.t === 'b.start' && x.kind === 'boss');
-  assert.deepEqual(startMsgs.map(([pid, x]) => `${pid}:${x.fieldId}:${x.authoritative ? 'A' : 'r'}`).sort(), ['p_0:b1:A', 'p_1:b1:r', 'p_2:b2:A', 'p_3:b2:r']);
+  assert.deepEqual(startMsgs.map(([pid, x]) => `${pid}:${x.fieldId}:${x.authoritative ? 'A' : 'r'}`).sort(),
+    [b1, b2].flatMap((f, i) => f.players.map(pid => `${pid}:${f.fieldId}:${pid === authorities[i] ? 'A' : 'r'}`)).sort());
   assert.equal(startMsgs[0][1].spec.boss.poolMax, m.bossPool.maxHp);
   const max = m.bossPool.maxHp;
   h.sched.advance(3000);
@@ -286,7 +288,7 @@ test('Final Assault: two client-run pair fields share the server pool (b.progres
   m.dispose();
 });
 
-test('Final Assault: leaks and leader LP effects from b.progress drain the team LP; overtime after 150 real s at 1 LP/real s; team LP 0 → b.end → defeat', () => {
+test('Final Assault: leaks and leader LP effects from b.progress drain the team LP; all-human overtime after 120 real s at 1 LP/real s; team LP 0 → b.end → defeat', () => {
   const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 2, seed: 9109, fake: true, clientCombat: true, instant: false,
     script: (b) => (b.kind === 'boss' ? { bossDps: 0, leakEvents: [{ at: 2, lpr: 3 }], lpLossEvents: [{ at: 3, amount: 2 }] } : { duration: 2 }) }).start();
   const m = h.m;
@@ -296,14 +298,14 @@ test('Final Assault: leaks and leader LP effects from b.progress drain the team 
   h.sched.advance(4000);
   assert.equal(m.teamLp, lp0 - 5, 'leak lpr 3 + leader effect 2');
   const lp1 = m.teamLp;
-  // overtime (bossTurnHpReduceTime): 150 REAL s like the level's 120 s countdown, then 1 LP per real second
+  // All-human teams start overtime at the visible level countdown, without the AI team's extra 30 seconds.
   const t0 = m._bossStartAt;
   const pub = () => h.bc.filter((x) => x.t === 'm.public').pop();
   m.flush(true);
   assert.equal(pub().deadline, t0 + 120000, 'the HUD counts the boss level\'s 120 s down');
-  assert.equal(pub().overtimeAt, t0 + 150000, 'and knows when the drain starts');
-  h.sched.advance(t0 + 150000 - m.sched.now() + 500);
-  assert.equal(m.teamLp, lp1, 'no drain before 150 real s (the countdown ran out at 120 s, the battle went on)');
+  assert.equal(pub().overtimeAt, t0 + 120000, 'and knows when the drain starts');
+  h.sched.advance(t0 + 120000 - m.sched.now() + 500);
+  assert.equal(m.teamLp, lp1, 'the first deduction is at the next whole real second');
   h.sched.advance(5000);
   assert.ok(m.teamLp <= lp1 - 4 && m.teamLp >= lp1 - 6, `overtime drain ≈ 5 LP over 5 real s (${lp1} → ${m.teamLp})`);
   const end = h.runToEnd();
@@ -597,7 +599,7 @@ test('boss bounty eligibility: forced real results on a team victory qualify; sy
 function bossPaid(seed, { leaks = 0, leaksBy = null, leaked = {} }) {
   const { h, m, f } = faWithForger(seed);
   const card = DATA.choices.cards.bounty.find((c) => c.payout === 'perfect' && m.gd.enemy(c.enemyKey));
-  const ps = f.players.map((pid) => h.ps(pid));
+  const ps = f.players.map((pid) => h.ps(pid)).sort((a, b) => a.seat - b.seat); // return payouts by player, not random side
   for (const p of ps) m.addBounty(p, { ...card, rounds: 2, multiRound: false });
   const before = ps.map((p) => p.pendingFunds);
   const lp0 = m.teamLp;

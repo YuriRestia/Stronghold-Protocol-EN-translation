@@ -141,6 +141,74 @@ function firstMatching(banks, event, abilities, ok = () => true) {
 const SKILL_MODE_FILE = /_(d|h|s)\d*\.mp3$/i;
 /** A bank of an operator's normal attack: none of its files belongs to a skill mode. */
 export const normalModeBank = (paths) => Array.isArray(paths) && paths.length > 0 && !paths.some((p) => SKILL_MODE_FILE.test(p));
+/**
+ * The skill mode of a sound file: 'd' / 'h' / 's' for 技能1 / 2 / 3, null for a normal-mode (`_n`) file. The mode letter
+ * is the official naming of a skill's own sounds — it holds for the whole chain of a skill (原声: `p_skill_lzxqlkl_s`
+ * 技能3发动, `p_atk_lzxqlkl_s` 技能3的攻击, `p_imp_…_s` 技能3命中): 司霆惊蛰's three skills have the activation sounds
+ * `_d` / `_h` / `_s` and the matching attack banks `p_atk_lzxqlkl_d1` / `_h` / `_s`, and every operator whose activation
+ * sounds name a mode agrees with its slot (§ pickModeAttacks).
+ */
+export function skillModeLetter(path) {
+  const m = SKILL_MODE_FILE.exec(typeof path === 'string' ? path : '');
+  return m ? m[1].toLowerCase() : null;
+}
+
+/** [ASSUMED] Slot fallback for operators without a named activation sound; DESIGN §28.17. */
+export const SLOT_MODE_LETTER = Object.freeze({ 0: 'd', 1: 'h', 2: 's' });
+
+/**
+ * The per-skill-mode bank of one unit, by mode letter: `{ d?: string[], h?: string[], s?: string[] }`.
+ *
+ * Why a second table: `pickUnitSfx` builds the operator's NORMAL attack / impact, and for that it refuses every
+ * skill-mode file (`_d` / `_h` / `_s`) — 银灰's S3 swing is not his normal attack. An operator whose library is all
+ * skill modes has therefore no normal bank at all: 司霆惊蛰's attack banks are `ON_ABILITY_ON…attack.1.2.1`
+ * (`p_atk_lzxqlkl_d1`, 技能1), `…attack.4` (`_h2` / `_h`, 技能2) and `…attack.7` (`_s`, 技能3) — she never has a plain
+ * bank, because (解放者) she only attacks while a skill runs. The official client plays that mode's own files during the
+ * skill, so the manifest needs them per skill index (plan.mjs writes `sfx.units[id].attacks` / `hits` = the mode's
+ * attack / impact sound, public/js/audio.js plays them while that skill is active).
+ *
+ * `events` picks which banks count: the attack is cast / held (`ON_ABILITY_START` preferred over `ON_ABILITY_ON`, the
+ * order pickUnitSfx prefers), the impact is the hit (`ON_ABILITY_HIT`). Among equals the plain ability wins over a
+ * numbered variant, then the numeric order. 赤刃明霄陈 S3 (the official banks, `attack.3`):
+ * `ON_ABILITY_START` → `p_atk_hljdswd_s` (the swing: different from her normal `p_atk_hljdswd_n`),
+ * `ON_ABILITY_HIT` → `p_imp_hljdswd_s` (the slash's impact: different from `p_imp_hljdswd_n`).
+ * @param {Map<string,string[]>|undefined} banks unit bank table (from indexAudio().unitBanks)
+ * @param {string[]} events official event prefixes to read
+ * @returns {{ d?: string[], h?: string[], s?: string[] }}
+ */
+export function pickModeBanks(banks, events) {
+  const cands = new Map(); // letter → [{ rank, rest, paths }]
+  if (!banks || !banks.size) return {};
+  for (const [name, paths] of banks) {
+    const ev = events.find((e) => name.startsWith(e + '.'));
+    if (!ev || !Array.isArray(paths) || !paths.length) continue;
+    const ability = name.slice(ev.length + 1).split('.')[0];
+    if (!/attack|combat/i.test(ability)) continue;
+    const letter = skillModeLetter(paths[0]);
+    if (!letter || paths.some((p) => skillModeLetter(p) !== letter)) continue;
+    const rest = name.slice(ev.length + 1 + ability.length);
+    const numbered = rest ? 1 : 0;                    // 'attack.1.2.1' / 'attack.4' vs the plain 'attack'
+    const rank = `${events.indexOf(ev)}${numbered}`;
+    if (!cands.has(letter)) cands.set(letter, []);
+    cands.get(letter).push({ rank, rest, paths });
+  }
+  const out = {};
+  for (const [letter, list] of cands) {
+    list.sort((a, b) => (a.rank !== b.rank ? (a.rank < b.rank ? -1 : 1) : abilityOrder(a.rest, b.rest)));
+    out[letter] = list[0].paths;
+  }
+  return out;
+}
+
+/** The per-skill-mode ATTACK bank of one unit (the swing / cast while that skill runs) — see pickModeBanks. */
+export const pickModeAttacks = (banks) => pickModeBanks(banks, ['ON_ABILITY_START', 'ON_ABILITY_ON']);
+
+/**
+ * The per-skill-mode IMPACT bank of one unit (the hit sound while that skill runs): 赤刃明霄陈's S3 slashes hit with
+ * `p_imp_hljdswd_s`, not her normal `p_imp_hljdswd_n`. A mode without an `ON_ABILITY_HIT` bank keeps the unit's normal
+ * impact (司霆惊蛰's S3 has none: only its 技能2 swings `_h` and impacts `_h`).
+ */
+export const pickModeHits = (banks) => pickModeBanks(banks, ['ON_ABILITY_HIT']);
 
 /**
  * Pick role → candidate sound paths for one unit.
@@ -364,15 +432,19 @@ export const VOICE_PREP_SLOTS = Object.freeze(['gacha', 'squad', 'squadFirst']);
 
 /**
  * Index charword_table.json into per-character voice slots, in voiceIndex order (one slot may have several lines).
- * Only the base word key (`wordKey === charId`) is used: the dump has no folder for a skin variant's word key
- * (`char_x_ita`, `char_x_epoque#28`, …) — those files simply do not exist upstream.
+ * By default only the base word key (`wordKey === charId`) is used. An outfit's own voice set has its own word key
+ * (`char_4064_mlynar_epoque#28`): the dump does have those folders (`voice_cn/char_4064_mlynar_epoque%2328/`, verified
+ * 2026-10-11 — the '#' must be URL-encoded), and `wordKeys` (fork, docs/OUTFITS.md: data/outfits.json `voice`) indexes
+ * them under the word key instead of the charId.
  * @param {any} charword parsed excel/charword_table.json
  * @param {string} [lang] voiceId prefix — the zh_CN table carries the `CN_*` lines; the other dubs share the numbering
  * @param {Iterable<string>|null} [only] slot names to keep; null/omitted keeps every slot (VOICE_BATTLE_SLOTS is what
  *   the plan uses by default, so a battle's own lines are planned and the prep-only ones are not)
- * @returns {Map<string, Record<string, string[]>>} charId → slot → voiceAsset ('char_263_skadi/CN_023')
+ * @param {Iterable<string>} [wordKeys] outfit word keys to index too (each under its own key)
+ * @returns {Map<string, Record<string, string[]>>} charId (or outfit word key) → slot → voiceAsset ('char_263_skadi/CN_023')
  */
-export function indexVoice(charword, lang = 'CN', only = null) {
+export function indexVoice(charword, lang = 'CN', only = null, wordKeys = []) {
+  const extra = new Set(wordKeys || []);
   const keep = only ? new Set(only) : null;
   const out = new Map();
   const words = charword?.charWords;
@@ -381,7 +453,8 @@ export function indexVoice(charword, lang = 'CN', only = null) {
   const seen = new Map();
   for (const e of Object.values(words)) {
     if (!e || typeof e !== 'object') continue;
-    const charId = e.charId, slot = VOICE_SLOTS[e.placeType], vid = e.voiceId;
+    const slot = VOICE_SLOTS[e.placeType], vid = e.voiceId;
+    const charId = extra.has(e.wordKey) ? e.wordKey : e.charId;
     if (!charId || !slot || (keep && !keep.has(slot)) || typeof vid !== 'string' || !vid.startsWith(`${lang}_`)) continue;
     if (e.wordKey !== charId) continue;
     if (typeof e.voiceAsset !== 'string' || !e.voiceAsset) continue;

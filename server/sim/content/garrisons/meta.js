@@ -76,6 +76,12 @@ function sameRowCount(ctx, me) {
 }
 function rowCondition(ctx, me) {
   const { bb, bbStr } = ctx.source;
+  // Maintainer 2026-10-10, #473's official-game recording: Ptilopsis's copied Gladiia / Yu prep-start gifts skip
+  // the three-in-a-row gate. This is not a general change to copying or to either original operator's condition.
+  const from = ctx.source.copiedFrom;
+  if (from && ctx.source.garrison?.eventType === 'SERVER_PREP_START'
+    && ctx.chessRecord(me?.id)?.charId === 'char_128_plosis'
+    && ['char_474_glady', 'char_2026_yu'].includes(ctx.chessRecord(from.id)?.charId)) return true;
   if (bbStr.conditionkey === 'character_same_row') return sameRowCount(ctx, me) >= num(bb.check_count, 0);
   return true;
 }
@@ -233,7 +239,7 @@ H.SERVER_GAIN_EQUIP = {
   run(ctx) {
     const { bb, bbStr } = ctx.source;
     if (!ctx.gd.item(bbStr.chess)) return;
-    for (let i = 0; i < Math.min(10, num(bb.count, 1)); i++) ctx.grantItem(bbStr.chess);
+    for (let i = 0; i < Math.min(10, num(bb.count, 1)); i++) ctx.grantItem(bbStr.chess, { requirePool: false });
   },
 };
 

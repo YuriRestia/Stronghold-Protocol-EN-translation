@@ -64,7 +64,8 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
   after(async () => { for (const c of clients) await c.close(); await srv?.stop(); });
 
   /** A fresh browser on `base` with `sp.pref.stats` (a string) stored before the page loads. */
-  async function open({ w = 1920, h = 1080, stored = null, entered = true, base = srv.base, lang = null } = {}) {
+  async function open({ w = 1920, h = 1080, stored = null, entered = true, base = srv.base, lang = 'zh' } = {}) {
+    // lang 'zh': this fork starts in English (ui/lang.js START_LANG); the checks read the Chinese msgids
     const c = new Client(puppeteer, base, 'stats', { prefix: 'stats', w, h });
     clients.push(c);
     c.browser = await puppeteer.launch({
@@ -88,8 +89,8 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
   }
   const texts = (c, sel) => c.page.$$eval(sel, (els) => els.map((e) => e.innerText.replace(/\s+/g, ' ').trim()));
   const stored = (c) => c.page.evaluate(() => { const r = localStorage.getItem('sp.pref.stats'); return r ? JSON.parse(r) : null; });
-  const openStats = async (c, from = '.lobby-screen .me-chip--btn') => {
-    await c.click(from, from.includes('me-chip') ? null : '统计');
+  const openStats = async (c, from = '.lobby-screen .stats-entry') => {
+    await c.click(from, from.includes('stats-entry') ? null : '统计');
     await c.page.waitForSelector('.st .st-tab', { visible: true, timeout: 15000 });
   };
   const toast = (c) => c.page.waitForFunction(() => document.querySelector('.toast')?.textContent || false, { timeout: 8000 }).then((h) => h.jsonValue());
@@ -305,7 +306,7 @@ describe('统计数据: the real flows (a fast real server, headless Chrome)', {
       assert.equal(env.records[0].players[0].roundsPassed, 1, 'one round cleared — the server\'s own count for a quit in round 2');
       assert.ok(env.records[0].players[0].bandId, 'its strategy');
       // the page: one game counted, one left out, both in the history
-      await c.click('.lobby-screen .me-chip--btn');
+      await c.click('.lobby-screen .stats-entry');
       await c.page.waitForSelector('.st .st-card', { visible: true });
       assert.equal((await c.page.$$eval('.st-card__num', (els) => els.map((e) => e.textContent)))[0], '1');
       assert.match(await c.page.$eval('.st-rule', (e) => e.textContent), /另有 1 局未计入统计/);

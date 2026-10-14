@@ -12,8 +12,11 @@
 // The match is deterministic for a seed, so a plain run reproduces the committed specs byte for byte as long as the
 // game data and the bots do not change.
 //
-// Usage: node tools/capture-specs.mjs [--difficulty HARD] [--seed 7] [--out public/dev/perf] [--all]
+// Usage: node tools/capture-specs.mjs [--difficulty HARD] [--seed 7] [--out public/dev/perf] [--all] [--kind normal]
 //   --all   write every battle seat 1 played, not only the four defaults
+//   --kind  write every battle of that kind only
+//   --stages  one match per stage of the difficulty, every battle of --kind (default normal) under <out>/<stageId>/
+//             (the sandbox's waves: node tools/capture-specs.mjs --stages --out public/dev/sandbox)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -78,15 +81,66 @@ export function captureMatch({ difficulty = 'HARD', seed = 7, data = getData({ l
   return { captured, summary };
 }
 
+/** The stages a match of `difficulty` may draw (active, weighted), in data order. */
+export function matchStages({ difficulty = 'HARD', data = getData({ log: { warn() {}, error() {}, info() {} } }) } = {}) {
+  const probe = new Match({ roomCode: 'PERF', mode: 'coop', difficulty, seats: [{ seat: 0, playerId: 'p_0', name: 'P1', isBot: false, connected: true }],
+    seed: 1, data, scheduler: new VirtualScheduler(), log: { info() {}, debug() {}, warn() {}, error() {} }, send: () => true, broadcast: () => {}, onEnd: () => {} });
+  const ids = (probe.gd.mode.stages || []).filter((id) => { const s = probe.gd.stage(id); return s && s.active !== false && Number(s.weight) > 0; });
+  probe.dispose();
+  return ids;
+}
+
+/** The first seed from `seed` on whose match is fought on `stageId` (the stage is drawn when the Match is built), or null. */
+export function seedForStage(stageId, { difficulty = 'HARD', seed = 7, tries = 500, data = getData({ log: { warn() {}, error() {}, info() {} } }) } = {}) {
+  const seats = [0, 1, 2, 3].map((i) => ({ seat: i, playerId: i < 2 ? `p_${i}` : `ai_${i}`, name: `P${i + 1}`, isBot: i >= 2, connected: true }));
+  for (let s = seed; s < seed + tries; s++) {
+    const m = new Match({ roomCode: 'PERF', mode: 'coop', difficulty, seats, seed: s, data, scheduler: new VirtualScheduler(), clientCombat: true,
+      log: { info() {}, debug() {}, warn() {}, error() {} }, send: () => true, broadcast: () => {}, onEnd: () => {} });
+    const hit = m.stageId === stageId;
+    m.dispose();
+    if (hit) return s;
+  }
+  return null;
+}
+
+/**
+ * --stages: one bot match per stage the difficulty draws (the first seed from `seed` on that lands on it), every battle
+ * of `kind` written to <out>/<stageId>/<name>.json; <out>/index.json lists them all (rows carry `stageId` and `dir`).
+ */
+function captureStages({ difficulty, seed, out, kind }) {
+  const data = getData({ log: { warn() {}, error() {}, info() {} } });
+  const index = [];
+  for (const stageId of matchStages({ difficulty, data })) {
+    const s = seedForStage(stageId, { difficulty, seed, data });
+    if (s == null) { console.warn(`${stageId}: no seed lands on it, skipped`); continue; }
+    const { captured, summary } = captureMatch({ difficulty, seed: s, data });
+    if (!summary) { console.warn(`${stageId}: the match (seed ${s}) did not end, skipped`); continue; }
+    const keep = [...new Map(captured.map((c) => [`${c.msg.kind}-r${c.round}`, c])).values()].filter((c) => c.msg.kind === kind);
+    fs.mkdirSync(path.join(out, stageId), { recursive: true });
+    for (const c of keep) {
+      const meta = specMeta(difficulty, c.msg, c.round);
+      fs.writeFileSync(path.join(out, stageId, `${meta.name}.json`), JSON.stringify(cleanStart(c.msg)));
+      index.push({ ...meta, dir: stageId, seed: s });
+    }
+    console.log(`${stageId.padEnd(18)} seed ${s}: ${keep.length} ${kind} battles (match: ${summary.reason}, rounds ${summary.roundsPassed})`);
+  }
+  fs.writeFileSync(path.join(out, 'index.json'), `${JSON.stringify(index, null, 1)}\n`);
+  console.log(`${index.length} specs → ${path.relative(ROOT, out)}`);
+  return 0;
+}
+
 function main() {
   const argv = process.argv.slice(2);
   const opt = (k, d) => { const i = argv.indexOf(`--${k}`); return i >= 0 ? argv[i + 1] : d; };
   const difficulty = String(opt('difficulty', 'HARD')).toUpperCase();
   const seed = Number(opt('seed', 7));
   const out = path.resolve(ROOT, opt('out', 'public/dev/perf'));
+  if (argv.includes('--stages')) return captureStages({ difficulty, seed, out, kind: opt('kind', 'normal') });
   const { captured, summary } = captureMatch({ difficulty, seed });
   if (!summary) { console.error('the match did not end'); return 1; }
-  const keep = argv.includes('--all') ? [...new Map(captured.map((c) => [`${c.msg.kind}-r${c.round}`, c])).values()] : pickDefaults(captured);
+  const kind = opt('kind', null);
+  let keep = argv.includes('--all') || kind ? [...new Map(captured.map((c) => [`${c.msg.kind}-r${c.round}`, c])).values()] : pickDefaults(captured);
+  if (kind) keep = keep.filter((c) => c.msg.kind === kind);
   fs.mkdirSync(out, { recursive: true });
   const index = [];
   for (const c of keep) {
