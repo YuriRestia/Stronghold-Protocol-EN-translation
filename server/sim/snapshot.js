@@ -18,6 +18,7 @@
 import { UF, ANIM } from '../../shared/constants.js';
 import { DIE_ANIM_TIME, ATTACK_ANIM_TIME, DEPLOY_ANIM_TIME } from './constants.js';
 import { enemyStealthed } from './targeting.js';
+import { STATUS } from './buffs.js';
 
 const r2 = (v) => Math.round(v * 100) / 100;
 const r1 = (v) => Math.round(v * 10) / 10;
@@ -88,6 +89,7 @@ export function flagsOf(u) {
   if (f.cold) bits |= UF.COLD;
   if (f.sleep) bits |= UF.SLEEP;
   if (u.motion === 'FLY') bits |= UF.FLYING;
+  if (u.side === 'ally' && f.liftoff) bits |= UF.LIFTOFF;
   return bits;
 }
 
@@ -170,6 +172,47 @@ export function negView(u) {
   if (typeof u.negFill !== 'function') return null;
   const v = u.negFill();
   return v > 0 ? Math.min(1, Math.max(0.01, r2(v))) : null;
+}
+
+/**
+ * `statusView(u, t)` = `[[status, endsAt, duration, value], …]` of the catalogue statuses on a unit (buffs.js STATUS),
+ * or null: the ring and the number on its status icons (render/units.js). Display only.
+ *   * endsAt: the game time the status runs out (t + timeLeft), null when it does not run out; duration: the length the
+ *     ring is drawn against (the buff's own, never shorter than what is left).
+ *   * value: the strength of a "同名效果取最高" status (`valued`: 脆弱 0.3 = +30 % damage taken, 减速 0.5 = −50 % move speed,
+ *     攻击速度降低 −30 …) or the stacks of 麻痹; null otherwise. Same-name statuses never add up: only the strongest runs,
+ *     and weaker ones wait until it ends (Battle._applyValuedStatus) — so the icon shows the one in force, and the next one
+ *     takes over the icon when it ends.
+ * A status with neither an end nor a value is left out (the plain icon says it all).
+ */
+export function statusView(u, t) {
+  let out = null;
+  for (const b of u.buffs) {
+    const key = b.status;
+    if (!key || !b.visible || !STATUS[key]) continue;
+    const ends = Number.isFinite(b.timeLeft) && b.timeLeft > 0;
+    const tpl = STATUS[key];
+    let value = null;
+    if (tpl.palsy) value = Number.isFinite(b.stacks) ? b.stacks : null;
+    else if (tpl.valued != null && Number.isFinite(b.data?.value)) value = b.data.value;
+    if (!ends && value == null) continue;
+    const row = [key, ends ? r2(t + b.timeLeft) : null, ends ? r2(Math.max(b.duration, b.timeLeft)) : null, value == null ? null : r2(value * 1000) / 1000];
+    const prev = out && out.find((r) => r[0] === key);
+    if (!prev) (out || (out = [])).push(row);
+    // two buffs of one status (an `independent` one): the longest-running end, the strongest value
+    else {
+      if (row[1] == null || (prev[1] != null && row[1] > prev[1])) { prev[1] = row[1]; prev[2] = row[2]; }
+      if (row[3] != null && (prev[3] == null || Math.abs(row[3]) > Math.abs(prev[3]))) prev[3] = row[3];
+    }
+  }
+  return out;
+}
+
+/** `shieldView(u)` = the 屏障 a unit holds (HP it absorbs, u.s.shield), whole, or null without one: the barrier drawn over
+ *  its HP bar (render/units.js). Display only. */
+export function shieldView(u) {
+  const v = u.s?.shield;
+  return v > 0 && Number.isFinite(v) ? Math.ceil(v) : null;
 }
 
 /** Units included in a snapshot: deployed & visible, plus recently dead ones (DIE animation). */
