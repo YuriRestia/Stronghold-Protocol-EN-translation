@@ -584,12 +584,15 @@ describe('websocket lobby', () => {
     // bursts until the server closes it: the close needs more than abuseDropsPerSec drops inside one 1 s window, and on
     // a heavily loaded machine a single burst of 600 can be read over more than a second — the old single burst then
     // never closed the socket and `await c.closed` (no timeout) hung the whole file
+    // and with no more than ~1 MB queued on the client at a time: the close handshake (the client's close frame) sits
+    // behind whatever the client has queued, which the server no longer reads once it closes — on Windows CI the 'close'
+    // event then waited for ws's 30 s close timeout, past the old 10 s wait
     const t0 = Date.now();
     while (c.isOpen && Date.now() - t0 < 20000) {
-      for (let i = 0; i < 600 && c.isOpen; i++) c.send({ t: 'ping', c: i, rid: null });
+      if (c.ws.bufferedAmount < 1 << 20) for (let i = 0; i < 600 && c.isOpen; i++) c.send({ t: 'ping', c: i, rid: null });
       await delay(50);
     }
-    const info = await Promise.race([c.closed, delay(10000).then(() => null)]);
+    const info = await Promise.race([c.closed, delay(35000).then(() => null)]); // ws closes by itself after 30 s at worst
     assert.ok(info, 'the server closed the flooding socket');
     assert.equal(info.code, 1008);
   });
