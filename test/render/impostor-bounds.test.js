@@ -299,7 +299,7 @@ describe('impostor atlas (render/impostor.js): every slot is cleared and clipped
         assert.deepEqual(s.mask.rect, [s.x, s.y, s.w, s.h], 'mask = the slot');
         assert.equal(s.box.mask, s.mask);
         assert.equal(s.mask.parent, s.box, 'the mask lives in the box (its transform follows the page)');
-        assert.deepEqual([s.eraser.x, s.eraser.y, s.eraser.width, s.eraser.height], [s.x, s.y, s.w, s.h], 'the eraser clears all of it');
+        assert.deepEqual(s.eraser.rect, { x: s.x, y: s.y, w: s.w, h: s.h }, 'the eraser clears all of it');
         assert.equal(s.box.visible, false, 'nothing drawn until queued');
       }
       assert.equal(drawn.length, 2);
@@ -325,6 +325,43 @@ describe('impostor atlas (render/impostor.js): every slot is cleared and clipped
     assert.ok(t.box.destroyed, 'the box and its mask are gone');
     imp.flush();
     assert.deepEqual(renders.at(-1), { clear: false, boxes: 0 }, 'later passes do not clear the page');
+  });
+
+  test('the eraser is a scissored gl.clear of exactly its slot (no blend state: a GPU restart on Android left ERASE quads erasing nothing)', () => {
+    const calls = [];
+    const gl = {
+      SCISSOR_TEST: 'S', COLOR_BUFFER_BIT: 'C',
+      enable: (c) => calls.push(['enable', c]), disable: (c) => calls.push(['disable', c]),
+      scissor: (...a) => calls.push(['scissor', ...a]), clearColor: (...a) => calls.push(['clearColor', ...a]), clear: (m) => calls.push(['clear', m]),
+    };
+    const R = { resolution: 2, gl, batch: { flush: () => calls.push(['flush']) }, scissor: { getStackLength: () => 0 }, render: () => {} };
+    const imp = new ImpostorAtlas(R);
+    const s = imp.alloc(100, 110), t = imp.alloc(60, 40);
+    s.eraser.render(R);
+    assert.deepEqual(calls, [], 'an eraser whose slot is not queued clears nothing');
+    imp.draw(s, new fake.P.Container(), { a: 1, d: 1, tx: 0, ty: 0 });
+    s.eraser.render(R); t.eraser.render(R);
+    assert.deepEqual(calls, [
+      ['flush'], ['enable', 'S'], ['scissor', s.x * 2, s.y * 2, s.w * 2, s.h * 2], ['clearColor', 0, 0, 0, 0], ['clear', 'C'], ['disable', 'S'],
+    ], 'the slot in physical px, then the scissor test off again; the neighbour untouched');
+  });
+
+  test('reset() and a failed pass clear the page whole on its next pass; a failure goes to onError', () => {
+    const renders = [], errors = [];
+    let fail = false;
+    const R = { resolution: 1, render: (obj, o) => { if (fail) throw new Error('lost'); renders.push(o.clear); } };
+    const imp = new ImpostorAtlas(R, { onError: (e) => errors.push(e.message) });
+    const s = imp.alloc(100, 110), body = new fake.P.Container();
+    const pass = () => { imp.draw(s, body, { a: 1, d: 1, tx: 0, ty: 0 }); imp.flush(); };
+    pass(); pass();
+    assert.deepEqual(renders, [true, false]);
+    imp.reset();
+    pass(); pass();
+    assert.deepEqual(renders, [true, false, true, false], 'cleared whole once after reset()');
+    fail = true; pass(); fail = false; pass();
+    assert.deepEqual(errors, ['lost']);
+    assert.deepEqual(renders.slice(4), [true], 'the pass after a failure clears the page');
+    assert.equal(body.parent, imp.parked, 'the skeleton is parked again after a failed pass');
   });
 });
 

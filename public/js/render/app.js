@@ -137,6 +137,7 @@ import { createDragController, pieceTile, dragStandTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, refreshDownLabels, silhouetteTexture } from './textures.js';
 import { TILE_H, TIER_COLORS, COLORS } from './style.js';
 import { loadBoardArt } from './boardArt.js';
+import { recordError } from '../diag.js';
 import { ImpostorAtlas } from './impostor.js';
 import { stepClipBounds } from './spine.js';
 import { loadThree, loadBoardPack, loadScenePack, webgl2Available, boardArtListed } from './board3d/load.js';
@@ -374,7 +375,7 @@ export async function createFieldView(host, options = {}) {
   ctx.fx = fx;
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
   ctx.createBox = () => switchableBox({ board: () => board3d, pixi: () => tiles.createBox() });
-  const impostors = new ImpostorAtlas(app.renderer);
+  const impostors = new ImpostorAtlas(app.renderer, { onError: (err) => recordError('render', err, 'impostor atlas pass failed') });
   setupCleanup.push(() => impostors.destroy());
   ctx.impostors = impostors;
   tiles.setView(bandFor('prep'), camRect(), fieldRows('prep'));
@@ -1893,8 +1894,26 @@ export async function createFieldView(host, options = {}) {
   }
   const offAssets = typeof assets.onChange === 'function' ? assets.onChange(onAssets) : null;
   setupCleanup.push(() => offAssets?.());
+  // The GPU may have been restarted while the page was away (Android Chrome after switching apps; chrome://gpucrash
+  // reproduces it), or the WebGL context lost and restored: PIXI's cached GL state is sent again, every impostor page is
+  // cleared whole and every impostor redrawn (render/impostor.js), so nothing drawn before the restart stays on screen.
+  function refreshGl(why) {
+    if (destroyed) return;
+    try { app.renderer.reset(); } catch { /* ignore */ }
+    impostors.reset();
+    for (const v of views.values()) if (v.imp) v.imp.dirty = true;
+    for (const v of penViews.values()) if (v.imp) v.imp.dirty = true;
+    if (leader?.view?.imp) leader.view.imp.dirty = true;
+    if (why) recordError('render', why);
+  }
+  const onLost = () => recordError('render', 'WebGL context lost');
+  const onRestored = () => refreshGl('WebGL context restored');
+  canvas.addEventListener?.('webglcontextlost', onLost);
+  canvas.addEventListener?.('webglcontextrestored', onRestored);
+  setupCleanup.push(() => { canvas.removeEventListener?.('webglcontextlost', onLost); canvas.removeEventListener?.('webglcontextrestored', onRestored); });
   const onVisible = () => {
     if (destroyed || globalThis.document?.visibilityState !== 'visible') return;
+    refreshGl(null);
     retryBoard();
     if (assets.loaded === false && typeof assets.ready === 'function') assets.ready();
     for (const v of views.values()) v.retryAssets?.();

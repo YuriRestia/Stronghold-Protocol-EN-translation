@@ -20,6 +20,16 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   can be read against those stalls (`server/match/match/combat.js`).
 - `SP_BOT_REHEARSAL` (0–8, default 3) sets how many layouts an AI teammate rehearses with the real simulation per Rest
   Phase; `0` skips the rehearsal. A knob for a public host, README env table.
+- Afterimages on mobile fixed: after switching apps and back on Android Chrome / Brave (a GPU process restart;
+  `chrome://gpucrash` reproduces it), units drawn through the impostor atlas (crowds, and clipped skeletons in prep)
+  piled every new pose onto the old ones and showed pieces of other units until a reload. The slot erase is now a
+  scissored `gl.clear` instead of an ERASE-blend quad, and returning to the page or a restored WebGL context resets
+  PIXI's GL state, clears every atlas page and redraws every impostor. A failed atlas pass and context loss / restore
+  are written to the diagnostics log (`public/js/render/impostor.js`, `public/js/render/app.js`).
+- HP bars, projectiles, redeploy rings and other drawn HUD pieces no longer vanish after that GPU restart: Chrome
+  blanks every GPU-backed 2D canvas when its GPU process restarts, and PIXI re-uploaded those empty canvases. Every
+  canvas the game draws a texture on (and every canvas PIXI makes for itself, `Texture.WHITE` and text) is now kept in
+  CPU memory (`willReadFrequently`), which a GPU restart doesn't touch (`cpuCanvas` in `public/js/render/app/pixi.js`).
 - Lobby announcement bumped to Update 0.2.6 and shown again to everyone (new dismiss key `news.0.2.6`): Outfits stay on
   top, then Suzuran without glasses, the official scenes' lighting, raised / water platforms and sealed ground on the
   scenes, the round-start deploy replay, the Ammo Count setting, uncut models on crowded boards and Wiš'adel's summons
@@ -156,7 +166,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

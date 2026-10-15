@@ -7,8 +7,13 @@
 // impostor of a frame is drawn into slots of a few shared atlas pages in ONE render call per page, before the
 // main pass starts:
 //   page  = RenderTexture (2048² physical px) + a batch container [erasers…, slot boxes…]
-//   slot  = shelf-packed rect (16 px grid) owned by one unit; erased (ERASE blend quad over exactly the slot) then
-//           redrawn when due. The skeleton is drawn inside the slot's own box — a container masked by the slot
+//   slot  = shelf-packed rect (16 px grid) owned by one unit; erased (a scissored gl.clear of exactly the slot, at the
+//           start of the page's pass) then redrawn when due. The erase is a real clear, not an ERASE-blend quad: the quad
+//           depended on the blend state and PIXI's white texture, and after a GPU process restart on Android Chrome
+//           (switching apps and back; reproduced with chrome://gpucrash) it stopped erasing until a reload, so every
+//           redraw piled onto the last (afterimages moving with each unit, pieces of the neighbouring slots). `reset()`
+//           (render/app.js: page shown again, WebGL context restored) also clears every page whole on its next pass.
+//           The skeleton is drawn inside the slot's own box — a container masked by the slot
 //           rectangle, which PIXI turns into a scissor rect (an axis-aligned rectangle mask: no stencil, no render-pass
 //           break) — so nothing a unit draws can land outside its slot: a pose wider than the unit's box (render/units.js
 //           _impBox) is cut at the slot's edge instead of painting into the neighbouring slots or the free space
@@ -25,11 +30,12 @@
 // vertex buffer of its own (render/app.js turns PIXI's BatchRenderer.canUploadSameBuffer off — PIXI's own setting on iOS:
 // uploading the batch's one shared buffer again for every flush stalled Apple GPUs once the slots were clipped).
 //
-//   const imp = new ImpostorAtlas(renderer)
+//   const imp = new ImpostorAtlas(renderer, { onError })   // onError(err): a failed page pass (diag log)
 //   const slot = imp.alloc(w, h)            // CSS px; null when full
 //   imp.draw(slot, displayObject, matrixLike { a, d, tx, ty })   // queue for this frame (object must be parked here)
 //   imp.park(displayObject) / imp.unpark(displayObject)          // keep skeletons of impostor units in the batch
 //   imp.flush()                             // once per frame, after every unit update, before the main render
+//   imp.reset()                             // every page cleared whole on its next pass (the caller redraws every unit)
 //   imp.free(slot) ; imp.destroy()
 
 const MAX_PAGES = { main: 3, clip: 2 };
@@ -37,10 +43,11 @@ const PAGE_PX = { main: 2048, clip: 1024 };
 const GRID = 16;
 
 export class ImpostorAtlas {
-  /** @param {any} renderer PIXI renderer */
-  constructor(renderer) {
+  /** @param {any} renderer PIXI renderer @param {{ onError?: (err: any) => void }} [opts] */
+  constructor(renderer, { onError = null } = {}) {
     this.P = globalThis.PIXI;
     this.R = renderer;
+    this.onError = onError;
     this.res = Math.max(1, Math.min(2, renderer.resolution || 1));
     this.pages = [];
     this.parked = new this.P.Container(); // skeletons of impostor units (never rendered directly)
@@ -101,10 +108,10 @@ export class ImpostorAtlas {
   _slot(page, sh, x, w) {
     const P = this.P;
     const y = sh.y, h = sh.h;
-    const eraser = new P.Sprite(P.Texture.WHITE);
-    eraser.blendMode = P.BLEND_MODES.ERASE;
-    eraser.position.set(x, y);
-    eraser.width = w; eraser.height = h;
+    // the eraser draws nothing: in the page's pass it clears its rectangle (the erasers come before every slot box)
+    const eraser = new P.Container();
+    eraser.rect = { x, y, w, h };
+    eraser.render = (renderer) => { if (eraser.visible) this._erase(renderer, eraser.rect); };
     eraser.visible = false;
     page.erasers.addChild(eraser);
     // the slot's own pass: its skeleton is drawn in `box`, clipped to the slot rectangle (a scissor rect)
@@ -120,6 +127,28 @@ export class ImpostorAtlas {
     const tex = new P.Texture(page.rt.baseTexture, new P.Rectangle(x, y, w, h));
     sh.live = (sh.live || 0) + 1;
     return { page, shelf: sh, clip: page.kind === 'clip', x, y, w, h, eraser, box, mask, tex, freed: false };
+  }
+
+  /**
+   * Clear `r` (CSS px of the page being rendered) to transparent: a scissored gl.clear, which depends on no blend state,
+   * texture or shader. The scissor is the page's own pixels (render-texture y is not flipped, as in PIXI's ScissorSystem);
+   * PIXI's scissor state is put back afterwards (none is active this early in the pass).
+   */
+  _erase(renderer, r) {
+    const gl = renderer.gl;
+    if (!gl) return;
+    const res = this.res;   // every page is created at this resolution
+    renderer.batch?.flush?.();
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(Math.round(r.x * res), Math.round(r.y * res), Math.round(r.w * res), Math.round(r.h * res));
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    if (renderer.scissor?.getStackLength?.() > 0) renderer.scissor._useCurrent(); else gl.disable(gl.SCISSOR_TEST);
+  }
+
+  /** Every page is cleared whole on its next pass; the caller marks every impostor for a redraw. */
+  reset() {
+    for (const page of this.pages) page.cleared = false;
   }
 
   /** Back to the parking lot: every skeleton queued in a slot's box (never destroyed here — the actors own them). */
@@ -179,7 +208,11 @@ export class ImpostorAtlas {
       try {
         this.R.render(page.batch, { renderTexture: page.rt, clear: !page.cleared, skipUpdateTransform: false });
         page.cleared = true;
-      } catch { /* lost context etc. */ }
+      } catch (err) {
+        // lost context etc.: the page is cleared whole next time (what this pass left half-drawn goes too)
+        page.cleared = false;
+        try { this.onError?.(err); } catch { /* ignore */ }
+      }
       drawn += page.queued;
       page.queued = 0;
       for (const e of page.erasers.children) e.visible = false;

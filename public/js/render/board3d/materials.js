@@ -14,6 +14,7 @@
 // geometry when the camera moves.
 
 import { ORIGINIUM } from '../style.js';
+import { cpuCanvas } from '../app/pixi.js';
 
 /** Shared focus uniforms (one object for every lit material). */
 export function focusUniforms(THREE) {
@@ -480,7 +481,7 @@ export function sceneWaterMaterial(THREE, tex, focus, info) {
 export function environmentMap(THREE, renderer) {
   if (typeof document === 'undefined' || !renderer) return null;
   const W = 256, H = 128;
-  const c = document.createElement('canvas');
+  const c = cpuCanvas(document.createElement('canvas'));
   c.width = W; c.height = H;
   const g = c.getContext('2d');
   const grad = g.createLinearGradient(0, 0, 0, H);
@@ -504,7 +505,7 @@ export function environmentMap(THREE, renderer) {
 /** Canvas texture of a dash pattern (cyan field edge). */
 export function dashTexture(THREE) {
   if (typeof document === 'undefined') return null;
-  const c = document.createElement('canvas');
+  const c = cpuCanvas(document.createElement('canvas'));
   c.width = 128; c.height = 8;
   const g = c.getContext('2d');
   g.clearRect(0, 0, 128, 8);
@@ -521,7 +522,7 @@ export function dashTexture(THREE) {
 /** Soft radial falloff texture (contact shadow of the island on the background, glow cards). */
 export function softTexture(THREE, size = 64) {
   if (typeof document === 'undefined') return null;
-  const c = document.createElement('canvas');
+  const c = cpuCanvas(document.createElement('canvas'));
   c.width = c.height = size;
   const g = c.getContext('2d');
   const grad = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);

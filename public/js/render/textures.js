@@ -14,10 +14,13 @@
 
 import { statusIconKey, ORIGINIUM, linearToSrgb255 } from './style.js';
 
+import { cpuCanvas } from './app/pixi.js';
+
 const PIXI = () => globalThis.PIXI;
 
+/** A texture canvas: CPU-backed, so a GPU process restart cannot blank it (app/pixi.js cpuCanvas). */
 export function makeCanvas(w, h) {
-  const c = document.createElement('canvas');
+  const c = cpuCanvas(document.createElement('canvas'));
   c.width = Math.max(1, Math.ceil(w));
   c.height = Math.max(1, Math.ceil(h));
   return c;
