@@ -21,6 +21,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - ESLint skips the local `ArknightsGamedata/` and `stronghold-protocol-alliance-database-main/` clones (their own
   configs broke `npm run lint`); the asset-index test links its folder with a junction, so it runs on Windows without
   symlink rights.
+- Status keyword names follow the current official EN data: Sluggish (was Dull), DP Lower Limit (was Minimum DP), and
+  Necrosis / Corrosion / Nervous Impairment - Ally (was - Player).
 
 ## 2026-10-14
 
