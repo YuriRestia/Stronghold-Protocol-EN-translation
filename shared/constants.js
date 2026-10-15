@@ -150,6 +150,7 @@ export const ERR = Object.freeze({
   ELIMINATED: 'ELIMINATED',
   SPECTATOR: 'SPECTATOR',         // a spectator seat only watches (MAX_SPECTATORS)
   RETIRING: 'RETIRING',           // this server generation is being replaced (server/generation.js): reload
+  MAINTENANCE: 'MAINTENANCE',     // planned maintenance: no new matches (server/maintenance.js)
   INTERNAL: 'INTERNAL',
 });
 
@@ -160,7 +161,7 @@ export const ERR_TEXT = {
   WRONG_PHASE: N_('当前阶段无法进行该操作'), NO_FUNDS: N_('资金不足'), HAND_FULL: N_('整备区已满'), BOARD_FULL: N_('已达到部署上限'),
   BAD_TILE: N_('无法部署在该位置'), BAD_TARGET: N_('无效的目标'), SOLD_OUT: N_('已售出'), MAX_LEVEL: N_('调度中心已达最高等级'),
   NOT_YOUR_TURN: N_('尚未轮到你'), ALREADY: N_('已完成该操作'), TEMP_NOT_EMPTY: N_('临时整备区不为空'), ELIMINATED: N_('你已被淘汰'),
-  SPECTATOR: N_('观战中无法进行该操作'), INTERNAL: N_('服务器内部错误'),
+  SPECTATOR: N_('观战中无法进行该操作'), MAINTENANCE: N_('服务器即将维护，暂时无法开始新的模拟'), INTERNAL: N_('服务器内部错误'),
   RETIRING: N_('服务器正在更新，页面即将刷新'), // en: "The server is updating. The page will refresh."
 };
 

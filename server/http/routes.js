@@ -31,10 +31,11 @@ const MAX_URL_LENGTH = 4096;
  *           views?: ReturnType<typeof import('./assetViews.js').createManifestViews> | null,
  *           generation?: { gen: string, retiring: boolean } | null,
  *           loop?: ReturnType<typeof import('./loopStats.js').createLoopStats> | null,
- *           sim?: ReturnType<typeof import('../match/simMeter.js').createSimMeter> | null }} health
+ *           sim?: ReturnType<typeof import('../match/simMeter.js').createSimMeter> | null,
+ *           maintenance?: import('../maintenance.js').MaintenanceBoard | null }} health
  * @param {boolean} [withTraffic]
  */
-export function healthReport({ startedAt, network, registry, lobby, traffic, assetIndex, views, generation = null, loop = null, sim = null }, withTraffic = false) {
+export function healthReport({ startedAt, network, registry, lobby, traffic, assetIndex, views, generation = null, loop = null, sim = null, maintenance = null }, withTraffic = false) {
   const report = {
     ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     // the runtime the server is serving right now (public/js/ui/buildGuard.js): a page whose own build is
@@ -43,6 +44,8 @@ export function healthReport({ startedAt, network, registry, lobby, traffic, ass
     sockets: network.connectionCount, sessions: registry.size, ...lobby.stats(),
     // behind the router (server/generation.js): which generation this is, and whether a newer one replaced it
     ...(generation ? { gen: generation.gen, retiring: generation.retiring } : {}),
+    // planned maintenance (scripts/maintenance.mjs): { at, closed, stopWhenIdle } or null
+    maintenance: maintenance?.report() ?? null,
   };
   if (withTraffic && traffic) report.traffic = traffic.snapshot();
   // content-hashed asset URLs (assetIndex.js / assetViews.js): off, building, or ready with how many files and URLs

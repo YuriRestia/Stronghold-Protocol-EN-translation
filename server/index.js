@@ -27,7 +27,8 @@
 // Per-network limits for internet clients (see net.js clientAddress; local/LAN peers are exempt): open sockets
 // (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
 //
-// Operator notices: announce.js watches logs/announce.json (option `noticeFile`, null disables). presence.js sends
+// Operator notices: announce.js watches logs/announce.json (option `noticeFile`, null disables). Planned maintenance:
+// maintenance.js watches logs/maintenance.json (option `maintenanceFile`, null disables; scripts/maintenance.mjs). presence.js sends
 // the online count and the 搜寻队友 queue sizes (sys.online). Behind scripts/router.mjs (SP_GEN + SP_GEN_FILE, options
 // `gen` / `genFile`) generation.js retires this process once the router's generations.json names a newer one.
 //
@@ -54,6 +55,7 @@ import { answerClientError } from './http/common.js';
 import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { NoticeBoard } from './announce.js';
 import { AltArtLedger } from './altArt.js';
+import { MaintenanceBoard } from './maintenance.js';
 import { Presence } from './presence.js';
 import { GenerationWatch } from './generation.js';
 import { GEN_ID_RE } from '../shared/gen.js';
@@ -74,7 +76,8 @@ export {
  *   ratePerSec?: number, rateBurst?: number, maxConnections?: number, maxRooms?: number,
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
- *   noticeFile?: string | null, noticePollMs?: number, presencePollMs?: number,
+ *   noticeFile?: string | null, noticePollMs?: number, maintenanceFile?: string | null, maintenancePollMs?: number,
+ *   presencePollMs?: number,
  *   warmResources?: boolean, resourceHashCache?: string | null,
  *   gen?: string | null, genFile?: string | null, genPollMs?: number, altArtDir?: string | null,
  *   assetIndex?: boolean | { cacheFile?: string | null, delayMs?: number },
@@ -113,10 +116,15 @@ export async function startServer(opts = {}) {
   buildTag();
   const noticeFile = opts.noticeFile === undefined ? path.join(ROOT, 'logs', 'announce.json') : opts.noticeFile;
   const notices = noticeFile ? new NoticeBoard({ file: noticeFile, registry, startedAt, pollMs: opts.noticePollMs, log }) : null;
-  if (notices) {
+  const maintenanceFile = opts.maintenanceFile === undefined ? path.join(ROOT, 'logs', 'maintenance.json') : opts.maintenanceFile;
+  const maintenance = maintenanceFile
+    ? new MaintenanceBoard({ file: maintenanceFile, registry, lobby, startedAt, pollMs: opts.maintenancePollMs, log })
+    : null;
+  lobby.maintenance = maintenance; // Lobby.startMatch & co. ask maintenance.closed()
+  if (notices || maintenance) {
     const lobbyHello = lobby.onHello.bind(lobby);
     lobby.onHello = (session, info) => {
-      try { lobbyHello(session, info); } finally { notices.onHello(session); }
+      try { lobbyHello(session, info); } finally { notices?.onHello(session); maintenance?.onHello(session); }
     };
   }
   const presence = new Presence({ network, lobby, pollMs: opts.presencePollMs });
@@ -136,7 +144,7 @@ export async function startServer(opts = {}) {
 
   const traffic = createTrafficCounter();
   const loop = createLoopStats(); // (fork) /healthz?traffic=1 `loop` and `sim`: what blocks the main thread
-  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby, traffic, assetIndex, views, generation, loop, sim: simMeter }, log, trustProxy: network.opts.trustProxy }));
+  const server = http.createServer(createRequestHandler({ serveStatic, health: { startedAt, network, registry, lobby, traffic, assetIndex, views, generation, loop, sim: simMeter, maintenance }, log, trustProxy: network.opts.trustProxy }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log, traffic });
 
@@ -177,6 +185,7 @@ export async function startServer(opts = {}) {
   }
   server.on('error', (e) => log.error('[http] server error', e));
   notices?.start();
+  maintenance?.start();
   presence.start();
   generation?.start();
   assetIndex?.start();
@@ -191,6 +200,7 @@ export async function startServer(opts = {}) {
     closing = (async () => {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       notices?.stop();
+      maintenance?.stop();
       presence.stop();
       loop.stop();
       generation?.stop();
@@ -206,7 +216,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, notices, presence, generation, traffic, assetIndex, views, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, notices, maintenance, presence, generation, traffic, assetIndex, views, close };
 }
 
 // `node server/index.js` / npm start: listen, print the banner, stop on SIGINT / SIGTERM (http/boot.js).

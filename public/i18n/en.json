@@ -1398,5 +1398,15 @@
   "导入时装（粘贴或选择文件）": "Import outfits (paste or choose a file)",
   "这不是时装的数据": "This is not Outfits data",
   "里面没有时装的数据": "It contains no Outfits data",
-  "全部时装的立绘、头像与 Spine 模型（未勾选时只在用到时下载）": "Art, icons and Spine models of every outfit (unticked: each one downloads when it's used)"
+  "全部时装的立绘、头像与 Spine 模型（未勾选时只在用到时下载）": "Art, icons and Spine models of every outfit (unticked: each one downloads when it's used)",
+  "服务器即将维护，暂时无法开始新的模拟": "The server is about to go down for maintenance: new simulations can't be started right now",
+  "服务器将在 {time} 后维护": "Server maintenance in {time}",
+  "服务器维护即将开始": "Server maintenance starting now",
+  "服务器即将维护": "Server maintenance soon",
+  "暂不开始新的模拟": "no new simulations",
+  "服务器正在重启，预计 {time} 恢复": "Server restarting, back around {time}",
+  "服务器正在重启": "Server restarting",
+  "当前对局结束后服务器将重启": "restarting once the current matches end",
+  "预计 {time} 恢复": "back around {time}",
+  "预计停机约 {n} 分钟": "down for about {n} min"
 }

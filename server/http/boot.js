@@ -8,7 +8,8 @@
 //   * a server that cannot start exits 1 (with a hint when the port is in use); unhandled rejections and uncaught
 //     exceptions are logged, not fatal;
 //   * graceful shutdown on SIGINT/SIGTERM (rooms get room.closed{reason:'shutdown'}, sockets close 1001); a second
-//     signal exits at once, and the process exits anyway 5 s after the first.
+//     signal exits at once, and the process exits anyway 5 s after the first. Ctrl+C in a terminal while matches are
+//     live warns first (interruptGuard), and a second press within 10 s stops.
 
 import fs from 'node:fs';
 import os from 'node:os';
@@ -71,7 +72,31 @@ export function printBanner(srv) {
   if (srv.host === '0.0.0.0' || srv.host === '::') {
     for (const u of lanUrls(srv.port)) console.log(`  LAN:     ${u}`);
   }
-  console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}` + '\n');
+  console.log('  Internet: cloudflared tunnel --url ' + `http://localhost:${srv.port}`);
+  console.log('  Stop:    Ctrl+C (asks first while matches are running) · to update without ending them: npm run maintenance -- --help\n');
+}
+
+/** How long a Ctrl+C warning waits for the confirming second press. */
+export const INTERRUPT_CONFIRM_MS = 10000;
+
+/**
+ * The Ctrl+C guard of runMain: returns the warning to print instead of stopping, or null to stop now. It warns only
+ * for an interactive terminal with live matches, and not again within INTERRUPT_CONFIRM_MS (that press confirms).
+ * @param {{ interactive: boolean, liveMatches: () => number, now?: () => number }} o
+ * @returns {() => string | null}
+ */
+export function interruptGuard({ interactive, liveMatches, now = Date.now }) {
+  let warnedAt = -Infinity;
+  return () => {
+    if (!interactive) return null;
+    let live;
+    try { live = liveMatches(); } catch { live = 0; }
+    if (live <= 0 || now() - warnedAt <= INTERRUPT_CONFIRM_MS) return null;
+    warnedAt = now();
+    return `\n  ${live} match(es) in progress: stopping now ends ${live === 1 ? 'it' : 'them'}.\n`
+      + `  Press Ctrl+C again within ${INTERRUPT_CONFIRM_MS / 1000} s to stop anyway, or stop once ${live === 1 ? 'it ends' : 'they end'}:\n`
+      + '    npm run maintenance -- --close --stop-when-idle   (in another terminal; docs/DEPLOY.md 1.6)';
+  };
 }
 
 /**
@@ -103,6 +128,15 @@ export async function runMain(start) {
     setTimeout(() => process.exit(0), 5000).unref();
     srv.close().then(() => process.exit(0), () => process.exit(1));
   };
-  process.on('SIGINT', () => stop('SIGINT'));
+  // Ctrl+C typed in the server's terminal while matches are live asks first (scripts/maintenance.mjs stops once they end);
+  // a non-terminal SIGINT and SIGTERM (systemd, NSSM, Docker, the Windows service) stop at once, as before
+  const interrupt = interruptGuard({ interactive: !!process.stdout.isTTY, liveMatches: () => srv.lobby?.stats().matches ?? 0 });
+  process.on('SIGINT', () => {
+    const warning = stopping ? null : interrupt();
+    if (warning) console.log(warning);
+    else stop('SIGINT');
+  });
   process.on('SIGTERM', () => stop('SIGTERM'));
+  // scripts/maintenance.mjs --stop-when-idle: the same clean shutdown once no match is live (server/maintenance.js)
+  if (srv.maintenance) srv.maintenance.onStop = () => stop('maintenance');
 }

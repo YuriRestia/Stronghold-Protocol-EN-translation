@@ -287,6 +287,8 @@ export class Lobby {
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
     this.soloQueue = new SoloQueue();
+    /** Planned maintenance (server/maintenance.js MaintenanceBoard), wired by server/index.js; null = none. */
+    this.maintenance = null;
     this.matchmaker = new Matchmaker(this, options);
     /** a newer generation took over (server/generation.js): running matches finish, nothing new starts here */
     this.retiring = false;
@@ -460,6 +462,7 @@ export class Lobby {
   create(session, { mode, difficulty }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
+    if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     if (this.rooms.size >= this.opts.maxRooms) return fail(ERR.INTERNAL, 'too many rooms');
     const key = session.limitKey || null;
     if (key && this.opts.maxRoomsPerAddr > 0) {
@@ -790,9 +793,16 @@ export class Lobby {
   // Match wiring
   // ---------------------------------------------------------------------------------------------------
 
+  /** Planned maintenance closed the server to new matches (scripts/maintenance.mjs --close). */
+  closedForMaintenance() {
+    return this.maintenance?.closed() === true;
+  }
+
   /** @param {Room} room @param {string | null} [key] per-network limit key of the starter */
   startMatch(room, key = null) {
     if (this.retiring) return fail(ERR.RETIRING, 'this server is being replaced');
+    // every new match starts here (room.start, 搜寻队友 / 单人匹配 placements): none during planned maintenance
+    if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     const host = room.seatOf(room.hostId);
     if (host) host.ready = true;
     const seats = room.seats.filter(Boolean).map((s) => ({
@@ -1068,6 +1078,7 @@ export class Lobby {
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
+    if (on && this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     this.dropReplay(room, session.playerId);
     if (!on) {
       if (room.searching) { room.searching = false; room.searchSince = null; this.broadcastState(room); }
@@ -1134,8 +1145,9 @@ export class Lobby {
 
   autoStart(room) {
     if (room.match || room.disposed) return false;
-    if (!this.matchAllowed(room)) {
-      // over the host network's match limit: stop searching, the host can still start by hand later
+    if (!this.matchAllowed(room) || this.closedForMaintenance()) {
+      // over the host network's match limit, or closed for planned maintenance: stop searching, the host can still
+      // start by hand later (the start is refused while maintenance is closed)
       room.searching = false;
       room.searchSince = null;
       this.broadcastState(room);
@@ -1172,6 +1184,7 @@ export class Lobby {
   queueJoin(session, { difficulty }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
+    if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     if (cur) this.removeMember(cur, session.playerId);
     const e = this.soloQueue.get(session.playerId);
     // a second click keeps the wait; another difficulty starts over

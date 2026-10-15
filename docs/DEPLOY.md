@@ -151,6 +151,43 @@ powershell -ExecutionPolicy Bypass -File scripts\install-service-windows.ps1 -Re
 
 不用更新包也可以：停止服务器，把新版本的整合包解压到新目录后从那里启动（完整包已含素材；装了开机自启的，在新目录重新运行一次 `install-service-windows.ps1`）。用精简包或 GitHub「Download ZIP」源码包的：解压新版本后，把旧目录里的 `public\assets`、`public\fonts`、`.cache` 和 `data\local-assets.json`（若有）复制过去，可避免重新下载（setup 只补下新增的素材）。
 
+### 1.6 计划维护（更新前）
+
+更新要重启服务器，而重启会结束正在进行的对局。`scripts/maintenance.mjs`（也可以用 `npm run maintenance -- …`）负责通知玩家、不再开新局，并在对局都结束后停止服务器；它自己不会更新或启动任何东西。
+
+**从源码手动启动的服务器：** README「更新正在运行的服务器」里的那一行就能完成全部步骤：
+`npm run maintenance -- --close --stop-when-idle --back-in 20 --wait && git checkout -- data/assets.json && git pull && npm ci && scripts/start.sh`。
+
+**全部选项**（可以一起用，每次运行都在已有设置上叠加）：
+
+```powershell
+node scripts/maintenance.mjs --status            # 正在进行的对局、房间、玩家人数，以及当前的维护设置（--json 供脚本使用）
+node scripts/maintenance.mjs --in 15             # 所有玩家屏幕顶部出现倒计时「服务器将在 14:59 后维护」
+node scripts/maintenance.mjs --at 21:30          # 或者指定时刻（本机时间；已过则为明天）
+node scripts/maintenance.mjs --close             # 从现在起不能开始新的模拟，正在进行的对局照常打完（--open 撤销）
+node scripts/maintenance.mjs --stop-when-idle    # 没有进行中的对局时自动停止服务器，只生效一次（--keep-running 撤销）
+node scripts/maintenance.mjs --back-in 20        # 告诉玩家的预计停机时间（或 --back-at 21:45）
+node scripts/maintenance.mjs --message "更新 0.2.3"   # 在玩家的提示条里加一行文字（--message "" 删除）
+node scripts/maintenance.mjs --wait              # 等到服务器真正停止（需要 --stop-when-idle）
+node scripts/maintenance.mjs --cancel            # 全部取消，提示条消失
+```
+
+- **玩家**会在每个界面顶部看到提示条：倒计时、「当前对局结束后服务器将重启」、「暂不开始新的模拟」、预计停机时间和你的文字。开始模拟（包括单人匹配和搜寻队友）会被拒绝并说明原因。正在进行的对局不会被中断，倒计时到 0 也不会自动做任何事。服务器停止时，玩家会看到「服务器正在重启，预计 21:45 恢复」，页面会等待重连，服务器恢复后自动连上。
+- 在服务器窗口按 **Ctrl+C** 是正常、干净的停止方式。有对局正在进行时会先提示（10 秒内再按一次才会停止）；服务管理器发出的停止（SIGTERM）不会被延迟。
+- **请用 `--close --stop-when-idle`**，不要看着 `--status` 再手动停止：在你检查和按 Ctrl+C 之间可能有人开了新局，而服务器自己是在同一步里检查并停止的。不加 `--close` 的话，新开的对局会让服务器一直不停。
+- **重新启动**取决于你运行服务器的方式：手动启动的需要你重新启动（README 那一行会自动完成）；开机自启的计划任务和 NSSM 会自动重启；systemd 的 `Restart=always` 会重启，但 **`Restart=on-failure` 不会**，因为空闲停止的退出码是 0。服务在你更新文件之前重启的是**旧版本**：作为服务运行时，先更新文件再重启服务（第 1.5 节，`install-service-windows.ps1 -Restart`），不要用 README 那一行，它会再启动一个服务器。
+- **公告：** `scripts/announce.mjs` 继续用于一次性的通知；计划重启请用本脚本。
+- 设置只生效一次：服务器停止时会删除 `logs/maintenance.json`；服务器没在运行时写入的文件会被忽略（并删除）。VPS 上请用服务用户运行（`sudo -u stronghold node scripts/maintenance.mjs …`）。
+
+**供脚本和你自己的工具使用。** 下列接口是稳定的（改动会谨慎进行，并写进 CHANGELOG）：
+- `logs/maintenance.json`：`{ "createdAt": 毫秒, "at": 毫秒|null, "closed": 布尔, "stopWhenIdle": 布尔, "backIn": 分钟|null, "backAt": 毫秒|null, "message": 字符串|null }`。自己写这个文件和运行脚本效果相同；服务器约 2 秒内读取，且只认 `createdAt` 晚于它自己启动时间的文件。
+- `GET /healthz`：`matches`、`rooms`、`humans`、`uptimeSec`，以及 `maintenance`（上面的字段去掉 `createdAt`，或 `null`）。
+- `node scripts/maintenance.mjs --status --json`：`{ "file": …, "server": <即 /healthz 的内容> | null }`。
+- `--wait` 的退出码：`0` 已停止，`1` 没有服务器应答（没有做任何改动），`3` 期间服务器又被启动了（服务管理器；不要继续），`130` 被中断（维护设置仍然有效）。
+- 空闲停止后服务器的退出码为 0。
+
+脚本平时的文字输出和玩家提示条的措辞是给人看的，可能会改。我们的工具不会执行 `git pull`，也不会改动你的服务配置；想在它们的基础上开发，从 `server/maintenance.js`（服务器端）、`public/js/ui/maintenance.js`（提示条）和 `docs/design/network.md`（`sys.maintenance` 消息）看起。
+
 ## 2. 让不在同一网络的朋友加入
 
 ### 2.1 Tailscale / ZeroTier（推荐给家用小主机）
