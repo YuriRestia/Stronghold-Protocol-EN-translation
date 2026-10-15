@@ -79,7 +79,7 @@ import { diyRecordOf, DIY_TIERS } from '../shared/diy.js';
 import { unitForm } from '../shared/standIn.js';
 import { POTENTIAL_DEFAULT, CULTIVATE_DEFAULT } from '../shared/potential.js';
 import { OPERATOR_KITS, KITTED_CHARS } from '../server/sim/content/kits/index.js';
-import { GEO } from '../shared/constants.js';
+import { GEO, UF } from '../shared/constants.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 /** The default player's 潜能 / 练度 of every owned operator (shared/potential.js; the owner's decision of 2026-10-08). */
@@ -173,7 +173,8 @@ export function runBattle(sc, probe = {}) {
       const s = b.snapshot();
       const canon = {
         t: s.t, dp: s.dp, dps: s.dps ?? null, killed: s.killed, total: s.total, boss: s.boss ?? null,
-        units: s.units.map((u) => [cid(u[0]), ...u.slice(1)]),
+        // UF.LIFTOFF only tells the view to draw an ally aloft (display, like the snapshot's side tables): masked
+        units: s.units.map((u) => [cid(u[0]), ...u.slice(1, 7), u[7] & ~UF.LIFTOFF, ...u.slice(8)]),
         down: (s.down || []).map((d) => [cid(d[0]), ...d.slice(1)]),
         elem: (s.elem || []).map((d) => [cid(d[0]), ...d.slice(1)]),
       };
