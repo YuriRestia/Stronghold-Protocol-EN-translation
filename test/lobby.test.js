@@ -561,14 +561,18 @@ describe('websocket lobby', () => {
     const c = await pool.player('Spammer');
     const N = 100;
     const rids = [];
+    const t0 = Date.now();
     for (let i = 0; i < N; i++) rids.push(c.send({ t: 'ping', c: i }));
     const replies = [];
     for (const rid of rids) replies.push(await c.waitFor(null, (m) => m.rid === rid, 3000));
+    // the bucket refills at 40 / s while the server reads the burst: on a slow runner (Windows CI, with permessage-
+    // deflate) reading 100 frames took ~0.4 s, so up to 40 × that many more pass — bound by the time it really took
+    const refill = Math.ceil(40 * ((Date.now() - t0) / 1000));
     const pongs = replies.filter((m) => m.t === 'pong').length;
     const limited = replies.filter((m) => m.t === 'error' && m.code === ERR.RATE).length;
     assert.equal(pongs + limited, N);
-    assert.ok(pongs >= 39 && pongs <= 45, `pongs ${pongs}`); // hello used one token
-    assert.ok(limited >= 55, `limited ${limited}`);
+    assert.ok(pongs >= 39 && pongs <= 45 + refill, `pongs ${pongs} (refill allowance ${refill})`); // hello used one token
+    assert.ok(limited >= 55 - refill, `limited ${limited} (refill allowance ${refill})`);
     assert.ok(c.isOpen);
     await delay(1100);
     const ok = await c.request({ t: 'ping', c: 0 });
