@@ -21,6 +21,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - ESLint skips the local `ArknightsGamedata/` and `stronghold-protocol-alliance-database-main/` clones (their own
   configs broke `npm run lint`); the asset-index test links its folder with a junction, so it runs on Windows without
   symlink rights.
+- Sakiko Togawa can be picked in the Custom Squad, with her full kit: notes that wander, home in and (piano) pass
+  through, using the official note flight data; her continuous attack; S1's eight-note volley, S2's piano → organ
+  switch, S3's double-timbre volley; and the Ave Mujica Fever gauge (450 points, 20 s), shared by every Sakiko on a
+  field and carried into the unite phase. High Swift layers lock S1 out of Fever, as in the game.
 - Sakiko Togawa (丰川祥子) is no longer left out of the Custom Squad data with the other collab operators: her units,
   her Master of Melodia outfit and the Fever / Ave Mujica keywords are built (she becomes pickable with her kit). Her
   only dub is the Japanese collab one, so the Chinese voice setting plays those lines, as the game does.

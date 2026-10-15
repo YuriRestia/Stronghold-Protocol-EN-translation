@@ -101,6 +101,14 @@ const KIT_OWNED = [
 ];
 
 /**
+ * Operators whose kit owns a trait attack-speed line of a shape CONDITIONS knows, because the official line differs from
+ * the engine rule: 丰川祥子 LOR-Y 「攻击范围内存在2名及以上敌人时攻击速度+12」 counts her INITIAL range only (PRTS 丰川祥子 模组
+ * "初始攻击范围"; buff oblvns_e_002_tr, a 0.2 s aura on her own grid — her S3's wider range does not count), the engine
+ * rule her live range (ops/op-oblvns.js). Refused as 'kit'.
+ */
+const KIT_OWNED_CHARS = new Set(['char_4182_oblvns']);
+
+/**
  * Lines that only ever apply in another game mode — 集成战略 (ISW modules, e.g. 水月 ISW-A `attack_speed: 50`). This
  * mode is 卫戍协议, and the rest of the repo already ignores their mode-gated halves (shared/loadoutRecord.js
  * `traitRangeExtend` skips 空弦 ISW-A for exactly this reason), so they are refused here too.
@@ -173,6 +181,10 @@ export function traitAttackSpeedRule(def) {
   if (!sources.length) return null;
   const value = num(sources[0].attack_speed);
   if (!value) return null;
+  if (KIT_OWNED_CHARS.has(def?.charId)) {
+    const text = traitClauses(def)[0] ?? null;
+    return { value, condition: null, clause: text ? conditionClause(text) : '', source: text, reason: 'kit' };
+  }
   for (const text of traitClauses(def)) {
     const clause = conditionClause(text);
     if (!clause) continue;

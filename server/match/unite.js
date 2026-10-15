@@ -145,6 +145,9 @@ export function uniteBattleOpts(m, plan, timeLimit) {
     const colOffset = plan.helpers.length > 1 && i === 0 ? 8 : 0;
     // the layers its own combat reached (bondsView, the round's pending gains; PRTS "以其阵地当前的状态") — see header
     const input = ps.battleInput({ side: 'L', colOffset, carry, reached: true });
+    // the Fever gauge of its own combat (sim/fever.js: the field takes the higher of the helpers' [ASSUMED, owner
+    // 2026-10-15]; a new round's battle starts at 0)
+    if (r && Number.isFinite(r.fever) && r.fever > 0) input.feverCarry = r.fever;
     const ev = { input, kind: 'unite', round: m.round, spawns: wave.spawns };
     m.dispatch(ps, 'onBattleStart', ev);
     return ev.input && typeof ev.input === 'object' ? ev.input : input;

@@ -62,7 +62,7 @@ test('plan: audio.voiceJp is the JP dub (ArknightsAssets2 voice/) of the very sl
   assert.ok(plan({ voiceSlots: null }).audio.voiceJp.char_263_skadi.gacha);
 });
 
-test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (192 operators, 2688 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {
+test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (193 operators, 2702 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {
   const m = readJson('data/assets.json');
   const cn = m.audio.voice;
   const jp = m.audio.voiceJp;
@@ -73,13 +73,13 @@ test('data/assets.json: voiceJp gives every voiced operator the JP twin of each 
   // (fork, docs/OUTFITS.md) the trees also carry the outfits' own voice sets, keyed by their word key ('…_epoque#28')
   const outfitKeys = new Set(Object.values(readJson('data/outfits.json')).map((r) => r.voice).filter(Boolean));
   assert.deepEqual(Object.keys(jp).filter((k) => k.includes('#')).sort(), [...outfitKeys].sort(), 'the outfit voice sets');
-  assert.equal(Object.keys(jp).filter((k) => !k.includes('#')).length, 192);
+  assert.equal(Object.keys(jp).filter((k) => !k.includes('#')).length, 193);
   // the JP tree is the Chinese one with the folder swapped: same slots, same lines in the same order, same file names
   assert.deepEqual(JSON.parse(JSON.stringify(cn).replaceAll('/assets/audio/voice/cn/', '/assets/audio/voice/jp/')), jp);
   const lines = [];
   const walk = (x) => { if (typeof x === 'string') lines.push(x); else if (Array.isArray(x)) x.forEach(walk); else if (x && typeof x === 'object') Object.values(x).forEach(walk); };
   for (const [k, v] of Object.entries(jp)) if (!k.includes('#')) walk(v);
-  assert.equal(lines.length, 2688);
+  assert.equal(lines.length, 2702);
   for (const u of lines) assert.match(u, /^\/assets\/audio\/voice\/jp\/char_[^/]+\/cn_\d+\.mp3$/);
   // no voice: the 17 stand-ins of data/backups.json (预备干员 / 原型干员), the mode's 盟约·辅助干员, every summon
   const backups = readJson('data/backups.json');
