@@ -63,6 +63,9 @@ export default [
       'public/dev/**',
       '.cache/**',
       'coverage/**',
+      // local clones for tools/i18n (git-ignored); they carry their own eslint configs
+      'ArknightsGamedata/**',
+      'stronghold-protocol-alliance-database-main/**',
     ],
   },
   {
