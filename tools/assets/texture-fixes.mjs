@@ -23,7 +23,7 @@ const RIM = Object.freeze({ dark: 150, soft: 250, skin: 200 });
 export function regionRects(text, names) {
   const want = new Set(names);
   const out = new Map();
-  const lines = String(text).replace(/^﻿/, '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = String(text).replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').split('\n');
   let page = null;
   let region = null;
   const close = () => {
