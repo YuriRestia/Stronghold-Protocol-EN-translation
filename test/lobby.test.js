@@ -561,14 +561,18 @@ describe('websocket lobby', () => {
     const c = await pool.player('Spammer');
     const N = 100;
     const rids = [];
+    const t0 = Date.now();
     for (let i = 0; i < N; i++) rids.push(c.send({ t: 'ping', c: i }));
     const replies = [];
     for (const rid of rids) replies.push(await c.waitFor(null, (m) => m.rid === rid, 3000));
+    // the bucket refills at 40 / s while the server reads the burst: on a slow runner (Windows CI, with permessage-
+    // deflate) reading 100 frames took ~0.4 s, so up to 40 × that many more pass — bound by the time it really took
+    const refill = Math.ceil(40 * ((Date.now() - t0) / 1000));
     const pongs = replies.filter((m) => m.t === 'pong').length;
     const limited = replies.filter((m) => m.t === 'error' && m.code === ERR.RATE).length;
     assert.equal(pongs + limited, N);
-    assert.ok(pongs >= 39 && pongs <= 45, `pongs ${pongs}`); // hello used one token
-    assert.ok(limited >= 55, `limited ${limited}`);
+    assert.ok(pongs >= 39 && pongs <= 45 + refill, `pongs ${pongs} (refill allowance ${refill})`); // hello used one token
+    assert.ok(limited >= 55 - refill, `limited ${limited} (refill allowance ${refill})`);
     assert.ok(c.isOpen);
     await delay(1100);
     const ok = await c.request({ t: 'ping', c: 0 });
@@ -580,12 +584,15 @@ describe('websocket lobby', () => {
     // bursts until the server closes it: the close needs more than abuseDropsPerSec drops inside one 1 s window, and on
     // a heavily loaded machine a single burst of 600 can be read over more than a second — the old single burst then
     // never closed the socket and `await c.closed` (no timeout) hung the whole file
+    // and with no more than ~1 MB queued on the client at a time: the close handshake (the client's close frame) sits
+    // behind whatever the client has queued, which the server no longer reads once it closes — on Windows CI the 'close'
+    // event then waited for ws's 30 s close timeout, past the old 10 s wait
     const t0 = Date.now();
     while (c.isOpen && Date.now() - t0 < 20000) {
-      for (let i = 0; i < 600 && c.isOpen; i++) c.send({ t: 'ping', c: i, rid: null });
+      if (c.ws.bufferedAmount < 1 << 20) for (let i = 0; i < 600 && c.isOpen; i++) c.send({ t: 'ping', c: i, rid: null });
       await delay(50);
     }
-    const info = await Promise.race([c.closed, delay(10000).then(() => null)]);
+    const info = await Promise.race([c.closed, delay(35000).then(() => null)]); // ws closes by itself after 30 s at worst
     assert.ok(info, 'the server closed the flooding socket');
     assert.equal(info.code, 1008);
   });
