@@ -23,7 +23,7 @@
 
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, pickModeAttacks, pickModeHits, skillModeLetter, SLOT_MODE_LETTER, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickModeAttacks, pickModeHits, skillModeLetter, SLOT_MODE_LETTER, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
 
@@ -756,17 +756,21 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   const outfitVoices = new Set(Object.values(outfits || {}).filter((r) => typeof r?.voice === 'string' && chars[r.charId]).map((r) => r.voice));
   const voiceSlotsByChar = indexVoice(charword, VOICE_ID_LANG, voiceSlots, outfitVoices);
   // `dir` (VOICE_OPTIONAL_TREES native): the operator's own-language folder, or nothing when it has no such dub
+  // A collab operator whose only dub is LINKAGE (丰川祥子 …, audio.mjs linkageOnlyVoice) has no `voice_cn/` lines: the
+  // Chinese tree takes her Japanese ones, as the official client plays them under the 中文 setting (owner, 2026-10-15).
+  const linkageOnly = linkageOnlyVoice(charword);
   const voiceTree = (lang, dirOf = null) => {
     const tree = {};
     for (const [charId, slots] of voiceSlotsByChar) {
       if (!chars[charId] && !outfitVoices.has(charId)) continue; // only the operators this game can field (`chars`: the 138 pool charIds and the 自选 picks) and their outfits
       const dir = dirOf ? dirOf(charId) : null;
       if (dirOf && !dir) continue;
+      const lineLang = lang === 'cn' && linkageOnly.has(charId) ? VOICE_JP_LANG : lang;
       const v = {};
       for (const [slot, assets] of Object.entries(slots)) {
         // one leaf per line (部署1 / 部署2 …): an array stays an array so the client can draw one — chaining them as
         // alternatives of a single leaf would keep only the first line that landed on disk.
-        const lines = assets.map((a) => leaf(dir ? nativeVoiceAlt(a, dir) : voiceAlt(a, lang))).filter(Boolean);
+        const lines = assets.map((a) => leaf(dir ? nativeVoiceAlt(a, dir) : voiceAlt(a, lineLang))).filter(Boolean);
         if (!lines.length) continue;
         v[slot] = lines.length === 1 ? lines[0] : lines;
       }
