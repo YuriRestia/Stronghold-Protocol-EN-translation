@@ -193,6 +193,22 @@ test('store: downloads ?v= URLs (audio via /media/), verifies, indexes, resumes,
   assert.ok(!keys.includes(`${ORIGIN}/assets/audio/voice/jp/char_a/cn_1.mp3`), 'a complete run drops files the manifest no longer lists');
 });
 
+test('(fork) store: a cache too large for Cache.keys() is scanned file by file (status and resume still work)', async () => {
+  const fx = fixture([['/assets/ui/a.png', 'aaa'], ['/assets/ui/b.png', 'bbb']]);
+  const caches = memoryCaches();
+  const st = new PreloadStore(fx.manifest, { caches, fetcher: fx.fetcher, origin: ORIGIN });
+  await st.download({ packs: ['visual'] });
+  const open = caches.open;
+  caches.open = async (name) => Object.assign(await open(name), { keys: async () => { throw new DOMException('Operation too large', 'OperationError'); } });
+  assert.equal((await st.status()).packs.visual.doneFiles, 2);
+  fx.calls.length = 0;
+  const changed = fixture([['/assets/ui/a.png', 'AAA2'], ['/assets/ui/b.png', 'bbb']]);
+  const st2 = new PreloadStore(changed.manifest, { caches, fetcher: changed.fetcher, origin: ORIGIN });
+  assert.equal((await st2.status()).packs.visual.doneFiles, 1, 'an outdated file does not count as saved');
+  await st2.download({ packs: ['visual'] });
+  assert.deepEqual(changed.calls, [`/assets/ui/a.png?v=${sha('AAA2')}`]);
+});
+
 test('store: a bad checksum fails that file only; an abort keeps what was saved', async () => {
   const fx = fixture([['/assets/ui/a.png', 'aaa'], ['/assets/ui/b.png', 'bbb']]);
   const lying = async (url, init) => (url.startsWith('/assets/ui/b.png') ? new Response('xxx') : fx.fetcher(url, init));

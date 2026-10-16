@@ -359,3 +359,23 @@
 }
 .sp-coarse .st-tab, .sp-coarse .st-table tr.is-clickable td { min-height: 30px; }
 @media (prefers-reduced-motion: reduce) { .st { animation: none; } }
+/* the profile gem (rec.altArt count): a black originium crystal around a hollow white rhombus glowing red */
+.st-profile__who { display: flex; align-items: center; gap: .2rem; min-width: 0; }
+.st-profile__gem { display: flex; align-items: center; gap: .06rem; flex: none; }
+.st-profile__gem b { font-size: max(.25rem, 16px); line-height: 1; color: #fff; text-shadow: 0 0 max(.05rem, 4px) rgba(255, 60, 36, .95), 0 0 max(.02rem, 1px) rgba(255, 60, 36, .8); }
+.st-gem { position: relative; display: block; flex: none; width: max(.34rem, 20px); aspect-ratio: .62; filter: drop-shadow(0 0 max(.04rem, 3px) rgba(160, 30, 18, .55)); }
+.st-gem::before {
+  content: ''; position: absolute; inset: 0;
+  clip-path: polygon(50% 0, 74% 22%, 96% 47%, 72% 70%, 50% 100%, 30% 76%, 4% 52%, 24% 28%);
+  background:
+    radial-gradient(circle at 50% 47%, rgba(120, 16, 8, .55) 0, rgba(60, 6, 4, .25) 18%, transparent 32%),
+    linear-gradient(62deg, transparent 58%, rgba(255, 255, 255, .28) 60%, transparent 72%),
+    linear-gradient(118deg, #34343a 0 44%, #0b0b0d 44% 63%, #222227 63%),
+    linear-gradient(180deg, #1c1c20, #030304);
+  background-blend-mode: screen, screen, normal, normal;
+}
+.st-gem::after {
+  content: ''; position: absolute; top: 47%; left: 50%; width: 28%; aspect-ratio: 1;
+  transform: translate(-50%, -50%) rotate(45deg); border: max(.015rem, 1px) solid #fff;
+  box-shadow: 0 0 max(.05rem, 4px) rgba(255, 60, 36, .95), inset 0 0 max(.03rem, 2px) rgba(255, 60, 36, .8);
+}

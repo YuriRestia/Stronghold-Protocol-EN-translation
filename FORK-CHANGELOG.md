@@ -5,6 +5,14 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-10-17
+
+### Fixes
+
+- The preload manager no longer fails with "Couldn't load the asset list: … Operation too large" once a whole pack is
+  saved: Chrome refuses to list a cache of more than about 15,000 files, so the manager then checks each file of the
+  asset list on its own.
+
 ## 2026-10-16
 
 ### Upstream merge
@@ -41,13 +49,6 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   Ground, summons and devices, and three gameplay points); everyone who closed the 0.2.6 banner sees it again.
 - The preload manager (Settings → Preload Assets) imports a preload zip: `npm run package:preload`
   (`tools/preload-pack.mjs`) writes every file the preload lists, the official battle effects included, into one
-  zip a host can offer anywhere; files whose size and SHA-1 match the server's are saved as if downloaded, the rest
-  still download. Upstream's title-screen asset import and download buttons are gone (one place for the art).
-- The preload manager (Settings → Preload Assets) imports a preload zip:   ([resources] preload manifest: 34281 files, 1589 MB, 0 hashed (1596 ms)
-preload pack: Stronghold-Protocol-v0.3.0-preload.zip · 34281 files, 1589 MB · preload manifest a81810800449
-zipping 34282 files → C:UsersYURIRE~1AppDataLocalTempstronghold-protocol-releaseStronghold-Protocol-v0.3.0-preload.zip
-zip: C:UsersYURIRE~1AppDataLocalTempstronghold-protocol-releaseStronghold-Protocol-v0.3.0-preload.zip (1166 MB)
-host it anywhere (a file host, a Discord link); players import it in Settings > Preload Assets) writes every file the preload lists, the official battle effects included, into one
   zip a host can offer anywhere; files whose size and SHA-1 match the server's are saved as if downloaded, the rest
   still download. Upstream's title-screen asset import and download buttons are gone (one place for the art).
 

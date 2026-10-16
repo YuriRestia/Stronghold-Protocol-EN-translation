@@ -142,13 +142,17 @@ function Overview({ agg, gd, nickname, records }) {
   const titles = (Array.isArray(gd.config?.titles) ? gd.config.titles : []).map((x) => ({ ...x, count: agg.titles[x.id]?.count || 0 }));
   // records whose room mode is unknown (`roomMode` null) count in the total but in neither mode row
   const unknownMode = Math.max(0, agg.count - agg.byMode.solo.games - agg.byMode.coop.games);
+  const gems = records.filter((r) => r.altArt).length; // (fork) records with the alternate result background
   return html`<${Section} title=${t('总览')} micro="OVERVIEW">
     <${ModdedSwitch} agg=${agg} />
     ${fonts ? html`<link rel="stylesheet" href=${fonts} />` : null}
     <div class="st-overview-details">
       <div class="st-mode-summary">
         <div class="st-profile">
-          <b class="st-profile__name">Dr. ${nickname || t('未知')}</b>
+          <div class="st-profile__who">
+            <b class="st-profile__name">Dr. ${nickname || t('未知')}</b>
+            ${gems > 0 ? html`<span class="st-profile__gem" data-testid="stats-gem"><i class="st-gem"></i><b class="num">${fmtNum(gems)}</b></span>` : null}
+          </div>
           <div class="st-profile__trophies" title=${t('累计本机保留战绩中获得的奖杯')}>
             <${Img} src=${uiUrl(gd.m, `medalIcon/${trophyMedalOf(agg.trophies, gd.config?.trophies?.medals)?.iconId || ''}`)}
               class="st-profile__medal" fallback=${html`<${Icon} name="crown" />`} />

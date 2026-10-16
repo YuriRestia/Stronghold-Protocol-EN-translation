@@ -72,7 +72,9 @@ export class PreloadStore {
 
   /** The cached paths split by state: `present` (current), `stale` (outdated or unmarked), `orphans` (not in the manifest). */
   async #scan(cache) {
-    const keys = await cache.keys();
+    let keys;
+    // Chrome refuses Cache.keys() past ~15 000 entries ("Operation too large"): a whole download or import stores more
+    try { keys = await cache.keys(); } catch { return this.#scanManifest(cache); }
     const present = new Set();
     const stale = [];
     const orphans = [];
@@ -88,6 +90,22 @@ export class PreloadStore {
       else stale.push(path);
     }));
     return { present, stale, orphans };
+  }
+
+  /** #scan by one lookup per manifest file, for a cache too large to list; orphans stay unknown (none dropped). */
+  async #scanManifest(cache) {
+    const present = new Set();
+    const stale = [];
+    const files = this.manifest.files;
+    for (let i = 0; i < files.length; i += 256) {
+      await Promise.all(files.slice(i, i + 256).map(async (f) => {
+        const hit = await cache.match(this.urlOf(f.path));
+        if (!hit) return;
+        if (hit.headers.get('X-SP-Resource') === f.hash) present.add(f.path);
+        else stale.push(f.path);
+      }));
+    }
+    return { present, stale, orphans: [] };
   }
 
   #tally(present) {
