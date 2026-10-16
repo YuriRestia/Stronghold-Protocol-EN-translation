@@ -9,32 +9,31 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the earlier one ('news.0.2.5') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.2.6';
+// A new key per announcement, so everyone who closed the earlier one ('news.0.2.6') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.3.0';
 
-/** The 0.2.6 announcement's emphasized line, shown above the points (msgid). */
-const UPDATE_HIGHLIGHT = N_('干员调配新增时装系统'); // en: "Added the Outfits system to Operator Loadout"
+/** The 0.3.0 announcement's emphasized line, shown above the points (msgid). */
+const UPDATE_HIGHLIGHT = N_('丰川祥子加入自选编队，技能与特效尽可能忠实还原原作'); // en: "Sakiko Togawa joins the Custom Squad, with her kit and effects recreated as faithfully to the original game as we could"
 
-/** The 0.2.6 announcement's points (msgids). */
+/** The 0.3.0 announcement's points (msgids). */
 const UPDATE_POINTS = [
-  N_('铃兰不再戴眼镜'), // en: "Suzuran no longer wears glasses"
-  N_('官方战场场景恢复正确光照，不再偏暗'), // en: "Official battlefield scenes use their proper lighting again and are no longer too dark"
-  N_('官方场景上现会显示高台、水上平台与封印的地面'), // en: "Raised platforms, water platforms and sealed ground now show on the official scenes"
-  N_('每回合开始时，干员会重播入场动画与落地音效'), // en: "Operators replay their deploy animation and landing sound at the start of each round"
-  N_('新增「弹药数量」设置（默认关闭）：在弹药类技能的弹药条下方显示剩余弹药'), // en: "New \"Ammo Count\" setting (off by default): shows remaining ammo under ammo-skill bars"
-  N_('场上单位较多时，干员模型不再被截断或留下残影'), // en: "Operator models no longer get cut off or leave trails on crowded boards"
-  N_('维什戴尔的召唤物现只会落在部署格上'), // en: "Wiš'adel's summons now only land on deploy tiles"
+  N_('官方战斗特效（早期预览）：命中、弹道与技能可使用游戏原版特效，可在「设置 → 官方特效」中开启'), // en: "Official battle effects (early preview): hits, projectiles and skills can use the game's own effects. Turn them on in Settings → Official Effects"
+  N_('高台、召唤物与装置改用官方模型'), // en: "High Ground, summons and devices use the official models"
+  N_('统计页向官方靠拢：奖杯、独立 / 联合模拟两行、六称号图'), // en: "Stats page redesigned closer to the game's: trophies, Solo / Co-op rows, the six-title chart"
+  N_('手动刷新商店会取消冻结（按官方）'), // en: "Refreshing the shop by hand now cancels the freeze, as in the game"
+  N_('AI 队友的重装与医疗站位更合理'), // en: "AI teammates position their defenders and medics better"
+  N_('攻击出手后，目标走出射程也会打完这一下（按官方）'), // en: "Operators keep attacking a target that leaves range during the attack, as in the game"
 ];
 
-// '0.2.6 更新' — en: "Update 0.2.6"
+// '0.3.0 更新' — en: "Update 0.3.0"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.2.6 更新')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.3.0 更新')}>
     <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
     <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.2.6 更新')}</span>
+      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.3.0 更新')}</span>
       <ul class="search-news__list">
         <li class="search-news__highlight"><strong>${t(UPDATE_HIGHLIGHT)}</strong></li>
         ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}

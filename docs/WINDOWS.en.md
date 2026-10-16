@@ -46,6 +46,7 @@ node\node.exe            Official Windows x64 portable Node (version and sha256 
 node\LICENSE-node.txt    Node's own license (MIT, from the same official archive as node.exe)
 app\                     The game itself: code + production dependencies + public (all assets) + data, fully offline
 启动游戏.bat             ("Start Game.bat") app\scripts\launch.mjs --no-setup
+启动游戏-插件沙箱.bat    ("Start Game - plugin sandbox.bat") same as above, plus --scripts sandbox (script plugins run in the sandbox)
 README-开箱即用.md       ("README - ready to use") instructions for players (incl. the unofficial / no-profit / asset copyright notice)
 LICENSE / NOTICE.md / THIRD-PARTY-NOTICES.md
 ```

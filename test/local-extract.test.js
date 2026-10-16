@@ -40,7 +40,9 @@ describe('extract.py helpers (no UnityPy needed)', { skip: !PY && 'no python3' }
       'arts/maps/common/trap/trap_110.ab',
     ]);
     for (const j of mesh) assert.deepEqual(j.kinds, ['GameObject', 'Material', 'Mesh', 'Texture2D']);
-    assert.equal(new Set(jobs.map((j) => j.sub)).size, jobs.length, 'one output dir per job');
+    // (fork) notes/oblvns is one group filled from several bundles (丰川祥子's sprites + the shared FX textures she uses)
+    const solo = jobs.filter((j) => j.sub !== 'notes/oblvns');
+    assert.equal(new Set(solo.map((j) => j.sub)).size, solo.length, 'one output dir per job');
   });
 
   test('job table: the token Spine models (TOKEN_SPINES) come from the battle token packs into spine/token/<id>; no plain job writes under spine/', () => {

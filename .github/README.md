@@ -4,7 +4,7 @@
 
 An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal auto-chess tower-defense mode of *Arknights*: play instantly in the browser, solo or 1–4 player online co-op.
 
-![version](https://img.shields.io/badge/version-0.2.5-2ea44f)
+![version](https://img.shields.io/badge/version-0.3.0-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -28,7 +28,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 - [Disclaimer](#disclaimer) · [Introduction](#introduction) · [Features](#features)
 - [Quick start](#quick-start): [All-in-one bundle](#option-1-all-in-one-bundle-recommended) · [Run from source](#option-2-run-from-source) · [System requirements](#system-requirements) · [Ports and configuration](#ports-and-configuration) · [LAN play](#playing-with-friends-lan)
-- [Online play](#online-play) · [Controls](#controls) · [Documentation](#documentation) · [Development and testing](#development-and-testing) · [Project structure](#project-structure)
+- [Plugins](#plugins) · [Online play](#online-play) · [Controls](#controls) · [Documentation](#documentation) · [Development and testing](#development-and-testing) · [Project structure](#project-structure)
 - [License](#license) · [Credits and data sources](#credits-and-data-sources) · [Contributing](#contributing)
 
 ## Introduction
@@ -37,7 +37,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 - **Solo Simulation** (single player) and **Team Simulation** (1–4 player **co-op**, no PvP; empty seats can be filled with AI teammates).
 - The server is a single Node.js program. **Combat is simulated in each player's browser** (just like the official game); the server only handles the economy and rounds, so a low-power mini PC can host.
-- Current version 0.2.5: the 3D board shows each battlefield's official scene; a new "Official Damage Numbers" setting; Leaders are paired at random every match; fixed gifts and Operator cards already on display are no longer blocked by the stock; and the issues reported by players and on GitHub after the 0.2.4 release are fixed — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
+- Current version 0.3.0: adds a plugin system (cosmetic, data, DSL, script and interface plugins, a browser plugin studio and an install tool); the optional "Official Effects" use the official battle effects extracted from a local client (included in the full bundle); the official scenes are relit following the client's shaders and get their water surfaces; Wooden Burdenbeast of Ilion and 'Sand Voyager' carry passengers; a manual Refresh after Freezing cancels the Freeze; and the bots' formations, purchases and rehearsals are improved — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
 
 ## Features
 
@@ -64,11 +64,11 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 [Releases](../../../releases/latest) offers two bundles with exactly the same code and runtime dependencies; pick one. If you already have 0.2.x installed, you only need the update bundle to upgrade:
 
-- **Full bundle** `Stronghold-Protocol-v<version>.zip` (about 550 MB, about 780 MB unzipped): includes all art / audio (including both the Chinese and Japanese Operator voices, the official 3D board textures and each battlefield's official scene). Unzip it and play — nothing else to download. **Recommended.**
-- **Lite bundle** `Stronghold-Protocol-v<version>-lite.zip` (about 22 MB): no assets; on first start it automatically downloads the art, Spine models, audio, fonts, emotes and the "How to Play" tutorial images from public mirrors (about 550 MB; can be interrupted, and the next start resumes). Local-client assets such as the official 3D board are not included (see "Local-client assets" below; each battlefield's official scene can be downloaded and extracted on your own machine with `node tools/setup.mjs --scenes`). Useful when downloading large files is inconvenient.
+- **Full bundle** `Stronghold-Protocol-v<version>.zip` (about 800 MB, about 1.16 GB unzipped): includes all art / audio (including the Chinese, Japanese, English, Korean and native-language Operator voices, the official 3D board textures, each battlefield's official scene and the official battle effects). Unzip it and play — nothing else to download. **Recommended.**
+- **Lite bundle** `Stronghold-Protocol-v<version>-lite.zip` (about 25 MB): no assets; on first start it automatically downloads the art, Spine models, audio, fonts, emotes and the "How to Play" tutorial images from public mirrors (about 720 MB; can be interrupted, and the next start resumes). Local-client assets such as the official 3D board are not included (see "Local-client assets" below; each battlefield's official scene can be downloaded and extracted on your own machine with `node tools/setup.mjs --scenes`). Useful when downloading large files is inconvenient.
 - **Update bundle** `Stronghold-Protocol-v<version>-update.zip` (available from 0.2.1; its size depends on how much changed, usually only a few MB): contains only the files changed since the earlier 0.2.x versions, to upgrade an existing 0.2.x install (installed from the full or the lite bundle) to the new version without downloading the whole bundle again. How to use it: first stop the server (close the window; if you installed start on boot, run `scripts\install-service-windows.ps1 -Stop`), then merge the entire contents of the `Stronghold-Protocol` folder in the zip into your install folder, overwriting files with the same name (copy and paste in Windows Explorer works; on macOS do not drag and drop in Finder, which replaces the whole folder — use `unzip -o`, see section 1.5 of [docs/DEPLOY.en.md](../docs/DEPLOY.en.md)), and then start it as usual. On start it first verifies all program files and deletes old files the new version no longer uses, then runs normally; if the folder is not the version the update bundle is for (e.g. 0.1.x, or program files have been modified), it tells you to download the full bundle and the server does not start. For a fresh install use the full or the lite bundle.
 
-Both bundles contain only the files needed to run and deploy (server, client, data, start scripts, the setup / doctor / asset download tools, licenses and notices, [docs/PLAYING.md](../docs/PLAYING.md) and [docs/DEPLOY.md](../docs/DEPLOY.md)); tests, development tools and design docs are only in the source repository.
+Both bundles contain the files to run and deploy, plus the tools, templates, Schemas, plugin docs and battle-test helpers that plugin authors need. The full development tests and design docs are still only in the source repository.
 
 1. **Install Node.js 22 or 24 (LTS)**
    - Windows: run `winget install OpenJS.NodeJS.LTS` in PowerShell, or download the installer from <https://nodejs.org/en/download>.
@@ -86,13 +86,13 @@ Both bundles contain only the files needed to run and deploy (server, client, da
 git clone https://github.com/sganggs/Stronghold-Protocol.git
 cd Stronghold-Protocol
 npm install        # install dependencies (postinstall copies pixi / preact / three into public/vendor)
-npm run setup      # check the environment and download ~550 MB of art / audio from public mirrors (can be interrupted; re-running resumes)
+npm run setup      # check the environment and download ~720 MB of art / audio from public mirrors (can be interrupted; re-running resumes)
 npm start          # start the server: http://localhost:3000
 ```
 
 You can also run the start script directly (Windows `scripts\start-windows.bat`, macOS / Linux `scripts/start.sh`): on first run it installs dependencies and downloads the assets automatically, then starts the server and opens the browser.
 
-- **Local-client assets (optional)**: the official 3D board, some official UI icons (the frames of the Chat button and emote panel, Module type icons, etc.) and the official models of the Blazing / Pyric Originium Slugs and 39 summons (most of them Custom Squad summons) must be extracted from a local *Arknights* PC client (the native Windows client, or CrossOver / PlayCover on macOS). When `npm run setup` detects a client it asks whether to extract (requires Python 3.8+; dependencies are installed into the project's own `.venv-extract` and do not touch the system). Afterwards you can re-extract with `node tools/setup.mjs --local`, or point at a path with `--game "<…/StreamingAssets/AB/Windows>"`. Without a client the game runs normally and these few things use substitutes: a 2D board, similar-looking icons, recolored regular Originium Slugs, and summon avatars. The emotes and the "How to Play" tutorial images are downloaded from public mirrors together with the assets above and do not need a client. A server without a client (e.g. a Linux VPS) can also copy `public/assets/local/` and `data/local-assets.json` from the bundle (the full bundle; the lite one does not have them) of **the same version**; see "Local-client assets" in [docs/DEPLOY.en.md](../docs/DEPLOY.en.md).
+- **Local-client assets (optional)**: the official 3D board, the official battle effects (0.3.0 "Official Effects"), some official UI icons (the frames of the Chat button and emote panel, Module type icons, etc.) and the official models of the Blazing / Pyric Originium Slugs and 39 summons (most of them Custom Squad summons) must be extracted from a local *Arknights* PC client (the native Windows client, or CrossOver / PlayCover on macOS). When `npm run setup` detects a client it asks whether to extract (requires Python 3.8+; dependencies are installed into the project's own `.venv-extract` and do not touch the system). Afterwards you can re-extract with `node tools/setup.mjs --local`, or point at a path with `--game "<…/StreamingAssets/AB/Windows>"`. Without a client the game runs normally and these few things use substitutes: a 2D board, similar-looking icons, recolored regular Originium Slugs, and summon avatars. The emotes and the "How to Play" tutorial images are downloaded from public mirrors together with the assets above and do not need a client. A server without a client (e.g. a Linux VPS) can also copy `public/assets/local/` and `data/local-assets.json` from the bundle (the full bundle; the lite one does not have them) of **the same version**; see "Local-client assets" in [docs/DEPLOY.en.md](../docs/DEPLOY.en.md).
 - Asset downloads try GitHub first and automatically fall back to the jsDelivr mirror on failure.
 - `npm run doctor` (i.e. `node tools/doctor.mjs`) diagnoses things at any time: Node version, asset completeness, port usage, LAN addresses and the firewall.
 
@@ -100,9 +100,9 @@ You can also run the start script directly (Windows `scripts\start-windows.bat`,
 
 | Item | Requirement |
 |---|---|
-| Host computer | Windows / macOS / Linux, Node.js 22 or 24 (LTS); about 700–850 MB of disk (assets, dependencies and the locally extracted textures: the full bundle is about 710 MB unzipped); about 100 MB of free memory, plus a few MB per match |
+| Host computer | Windows / macOS / Linux, Node.js 22 or 24 (LTS); about 1.2–1.4 GB of disk (assets, dependencies and the locally extracted textures, scenes and effects: the full bundle is about 1.16 GB unzipped); about 100 MB of free memory, plus a few MB per match |
 | Players | A modern browser with WebGL (latest Chrome / Edge / Firefox / Safari), on PC, phone or tablet (landscape) |
-| Network | On first entering the game each player downloads a few dozen MB of assets from the host (browser-cached afterwards); traffic during a match is very small |
+| Network | On first entering the game each player downloads a few dozen MB of assets from the host (browser-cached afterwards); traffic during a match is very small. Players who already have the assets can click "Import asset pack" on the title screen (next to "Download all assets") and import from an asset pack zip, a full bundle zip or their own `public/assets` folder; that art is then no longer downloaded from the host. Requires HTTPS or localhost (section 2.5 of [docs/DEPLOY.en.md](../docs/DEPLOY.en.md)). The 0.3.0 asset pack `Stronghold-Protocol-v0.3.0-assets.zip` is offered for download separately by the maintainer and is not among the Releases attachments |
 
 On weak GPUs you can lower the graphics quality in "Settings", or add `?board=2d` (force the 2D board) / `?render=fallback` (simplified non-WebGL rendering) to the URL.
 
@@ -116,7 +116,9 @@ Listens on **TCP 3000** by default. To change the port: add `--port 3001` to the
 | `HOST` | `::` | Listen address. The default `::` is dual-stack: the same port accepts both IPv6 and IPv4; `0.0.0.0` = IPv4 only; `127.0.0.1` = local machine only, use it behind a reverse proxy |
 | `SP_COMBAT` | `client` | `client`: each player's browser simulates its own battle (very low server load); `server`: the server simulates and streams it |
 | `SP_VERIFY` | `off` | Server re-simulates the battle results reported by clients: `off` / `sample` (spot-check about 1 in 8) / `all` (re-simulate everything, more CPU) |
-| `SP_BOT_REHEARSAL` | `3` | (fork) How many candidate layouts an AI teammate rehearses with the real simulation in each Rest Phase (0–8): `0` places by heuristics only and skips the rehearsal, which cuts server CPU; `3` is upstream's default |
+| `SP_ASSET_INDEX` | empty | Asset URLs carry a content hash so browsers cache them long-term (on by default since 0.2.6; hashes kept in `.cache/asset-hashes.json`); `0` turns it off and the asset manifest is sent unchanged |
+| `SP_BOT_REHEARSAL` | `3` | (fork) How many layouts the server itself rehearses for an AI teammate (0–8): `0` places by heuristics only and the server does no rehearsal, using no CPU; `3` is upstream's default. When the host's browser helps with the trial runs (next row) and does not finish, the server takes over with at most this many, and with `0` it places by heuristics directly |
+| `SP_BOT_REHEARSAL_HOST` | on | (fork) The host's browser helps AI teammates trial their formations (a same-origin Worker, 3 layouts each time, returning only the candidate index); `0` / `off` turns it off. Rooms with gameplay plugins are never handed to the browser. Upstream's `SP_BOT_REHEARSAL=host` still turns it on |
 | `TRUST_PROXY` | `auto` | Whether to trust forwarding headers such as `X-Forwarded-For`: `auto` trusts only proxies on the local machine / private network; `1` always; `0` never |
 | `DEBUG` | empty | Set to any value for verbose logs |
 | `SP_NO_BROWSER` | empty | Set to `1` so the start script does not open the browser |
@@ -142,6 +144,17 @@ npm run maintenance -- --close --stop-when-idle --back-in 20 --wait && git check
 ```
 
 On Windows, end it with `scripts\start-windows.bat` and run it in Command Prompt or PowerShell 7 (Windows PowerShell 5 does not support `&&`: run the parts one after another). `--back-in 20` is the downtime players are told to expect. If the waiting part fails or you press Ctrl+C, nothing after it runs. A release bundle updates with the update bundle instead. For servers that run as a service, other schedules and every option, see section 1.6 of [docs/DEPLOY.en.md](../docs/DEPLOY.en.md).
+
+## Plugins
+
+The 0.3.0 development version supports plugins; without plugins you play the original game.
+
+- **Server owners install**: put a plugin folder into the server's `plugins/`, or install one with `node tools/plugin.mjs install <zip path or HTTPS address>`; a remote address needs `--sha256`. The studio can also install from a community catalog and import Forge workshop packs. Server owners can limit the available plugins in `plugins/config.json`.
+- **Hosts turn them on**: in the "Original / Plugins ×N" panel at the top of the room, pick cosmetic or gameplay plugins, change plugin settings and choose the plugin mode. A gameplay plugin's content is downloaded and verified by every player, the room is marked "Unofficial", and the stats overview leaves it out by default.
+- **Players' own settings**: "Settings → Cosmetic plugins / Interface plugins" only affect your own browser; you can't install a gameplay plugin on your own to change the room's rules. Cosmetic plugins only change visuals and sound; interface plugins only read the match information they are allowed to.
+- **Make your own**: open the address on the `Studio:` line of the start window and use the `/studio/` plugin studio to pick a template, choose targets by their official names, drag and drop assets, preview live, play a test match and replay it, and finally pack it to share. The studio is limited to the local machine and LAN, and changes need its key.
+
+Script execution is off by default. Server owners can turn on sandboxed scripts with `SP_PLUGIN_SCRIPTS=sandbox` (or add `--scripts sandbox` at start; on Windows double-click `scripts\start-windows-sandbox.bat`); the native trusted mode additionally needs a review, pinned lock-file hashes and players' consent, and a public deployment needs `trusted-force`. For server setup see the [deployment guide](../docs/DEPLOY.en.md); authors start with the [plugin beginner's guide](../docs/PLUGIN-GUIDE.md), the format and limits are in the [plugin reference](../docs/PLUGINS.md), and the API list is in the [plugin API table](../docs/PLUGIN-API.md).
 
 ## Online play
 
@@ -170,7 +183,7 @@ General notes:
 | Sell / Retreat / Destroy Equipment | Tap the tile the unit is on → the bottom buttons "Sell +1" and "Retreat"; you can also drag an Operator from the board back to the Bench to retreat it. Equipment and Arts on the Bench can only be "Destroyed"; assigned Equipment is locked to its Operator (it returns to the Bench when the Operator is sold or merged into an Elite) |
 | Equipment | Drag Equipment onto the tile an Operator is on (2 per Operator; when full a replace dialog pops up and the replaced piece is destroyed); drag Arts onto a tile and choose a direction |
 | View details | Right-click or long-press a unit / card (stats are live values: green when above base, red when below) |
-| Shortcuts | `R` Refresh · `F` Freeze · `D` Upgrade · `Q` Retreat / `X` Sell the selected Operator · `Space` Ready · `Esc` Cancel / Close; all except `Esc` can be rebound under "Settings → Hotkeys" ([gameplay guide §11](../docs/PLAYING.en.md#11-hotkeys)) |
+| Shortcuts | `W` Buy the hovered shop card (no click needed) · `R` Refresh · `F` Freeze · `D` Upgrade · `Q` Retreat / `X` Sell the hovered Operator (no click needed) · `Space` Ready · `Esc` Cancel / Close; all except `Esc` can be rebound under "Settings → Hotkeys" ([gameplay guide §11](../docs/PLAYING.en.md#11-hotkeys)) |
 | Direction wheel keyboard controls | Arrow keys to preview · `Enter` to confirm · `Esc` to cancel |
 | Pause (Solo Simulation) | During a battle (including Final Assault / Hidden Core) click "Pause" in the top bar or press `Space`; click "Resume Battle" (or `Space`) to continue. Team Simulation battles cannot be paused |
 | Emotes | "Chat" in the bottom-left corner; swipe left / right (or arrow keys) to switch sets; 1-second cooldown |
@@ -185,6 +198,7 @@ Full rules, numbers and tips are in **[docs/PLAYING.en.md](../docs/PLAYING.en.md
 |---|---|
 | [CHANGELOG.en.md](../CHANGELOG.en.md) | Change log: what each version fixed, and which reports were verified not to be problems |
 | [docs/PLAYING.en.md](../docs/PLAYING.en.md) | Gameplay guide: flow, economy, recruiting and promotion, formations, Unite, Alliances, Final Assault, result titles |
+| [docs/PLUGINS.md](../docs/PLUGINS.md) · [docs/PLUGIN-GUIDE.md](../docs/PLUGIN-GUIDE.md) | Plugin format, installation and server-owner policy; a Chinese studio quick start, the DSL and battle tests |
 | [docs/DEPLOY.en.md](../docs/DEPLOY.en.md) | Deployment guide: hosting on Windows and starting on boot, firewall, mesh VPN / tunnels, reverse proxy and HTTPS, Docker, systemd, troubleshooting |
 | [docs/WINDOWS.en.md](../docs/WINDOWS.en.md) | Windows portable bundle: how to build a "zero-install" bundle (`scripts/make-windows-bundle.mjs`), what goes in it, licensing notes |
 | [docs/DESIGN.md](../docs/DESIGN.md) | Architecture and contracts (English): an index that finds files by section number; the current rules are in `docs/design/` (scope and directory responsibilities, coordinates and time, battle engine, match, network protocol, rendering and UI), and the rule revisions after each playtest and release, with their evidence, in `docs/history/` |

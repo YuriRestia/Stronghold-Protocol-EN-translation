@@ -5,6 +5,41 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-10-16
+
+### Upstream merge
+
+- Merged upstream 0.3.0 at [`c24e17ee`](https://github.com/sganggs/Stronghold-Protocol/commit/c24e17eec3af1e6dedfa9935a6d15245cf2f4586) (`33221173`).
+  Upstream's plugin system, Studio and official battle effects work with the fork's generations router: plugin, sim
+  worker, rehearsal, effects and manifest URLs stay in the page's own generation, the CSP also hashes each
+  generation's rewritten import map, and `/healthz` carries both sides' fields (plugin content and trusted runtime
+  next to generation, loop, sim and maintenance).
+- Voice: upstream's voice store replaces the fork's. Its dubs and per-Operator `voiceOverrides` are kept, with the
+  fork's rules on top: English by default, a pick → native → voice language → Japanese → Chinese fallback, and
+  changing the voice language or the native switch clears every per-Operator pick. The fork's square picker drives
+  it, in the Operator detail and on each row of the Custom Squad overview (pick and hear a dub without opening
+  Change); picks saved before the merge carry over on first load.
+- Bot rehearsals now run in the host's browser by default (`SP_BOT_REHEARSAL_HOST`, 3 layouts; `0` turns it off).
+  `SP_BOT_REHEARSAL` is only the server's own count: with `0`, a host that doesn't answer leaves the bot the simple
+  placement, at no server CPU.
+- Matchmaking: a room with gameplay plugins can only be joined by room code (no Find Teammates, no solo queue; turning
+  them on mid-search stops the search). Players merged in by matchmaking don't get the host's cosmetic plugin art.
+- One damage meter: the fork's corner button and result chart; upstream's combat-metrics panel and its setting are
+  left out. The meter now also counts in plugin rooms, where the battle runs in the browser.
+- Left out: the title screen's asset download button (the preloader covers it; the asset import stays, sharing one
+  service worker with the preloader).
+- Fixes found while merging: Sakiko's Fever is no longer lost when a round's battle ran in the player's browser; her
+  note range uses the 0.1 colliders; upstream's cast effects follow the fork's repeating attacks; her note textures
+  moved from `fx/oblvns` to `notes/oblvns` (re-extract or move the folder), clear of the official effects' `fx/`.
+- Official battle effects are opt-in in 0.3.0: extract them from a local client with
+  `tools/local-extract/extract.py --only fx --fx-set used`; without the files the 官方特效 (Official Effects) setting
+  stays hidden.
+
+### Changes
+
+- The lobby news banner announces Update 0.3.0 (Sakiko Togawa, official battle effects, official models for High
+  Ground, summons and devices, and four gameplay points); everyone who closed the 0.2.6 banner sees it again.
+
 ## 2026-10-15
 
 ### Contributions

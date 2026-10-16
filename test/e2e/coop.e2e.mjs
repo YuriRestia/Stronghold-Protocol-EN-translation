@@ -588,7 +588,7 @@ async function watchTeammatePrep(c) {
 }
 
 async function openSettings(c) {
-  await c.click('.gm__gear');
+  await c.click('.gm__gear:not(.dmgbtn__btn):not(.gm__guide):not(.gm__fs)'); // (fork) the damage meter's button is a .gm__gear too
   await c.page.waitForSelector('.modal', { timeout: 4000 });
   await sleep(300);
   await c.shot('settings');

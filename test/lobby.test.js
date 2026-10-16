@@ -672,10 +672,6 @@ describe('websocket lobby', () => {
     for (let i = 0; i < 39; i++) assert.equal((await c.request({ t: 'ping', c: i })).t, 'pong');
     for (let i = 0; i < 400; i++) await expectError(c, { t: 'ping', c: i }, ERR.RATE);
     assert.ok(c.isOpen, '400 drops do not close the socket');
-    // (upstream 0.3.0) a full window of drops is not abuse yet: 39 pongs, then 400 RATE refusals, and the socket stays open
-    for (let i = 0; i < 39; i++) assert.equal((await c.request({ t: 'ping', c: i })).t, 'pong');
-    for (let i = 0; i < 400; i++) await expectError(c, { t: 'ping', c: i }, ERR.RATE);
-    assert.ok(c.isOpen, '400 drops do not close the socket');
     const t0 = Date.now();
     while (c.isOpen && Date.now() - t0 < 20000) {
       if (c.ws.bufferedAmount < 1 << 20) for (let i = 0; i < 600 && c.isOpen; i++) c.send({ t: 'ping', c: i, rid: null });
