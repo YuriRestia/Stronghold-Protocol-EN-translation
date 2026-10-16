@@ -43,7 +43,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
 
   async function open({ w = 1920, h = 1080, touch = false } = {}) {
     const ctx = await browser.createBrowserContext();
-    const page = await ctx.newPage();
+    const page = await ctx.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: w, height: h, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

@@ -15,8 +15,9 @@ import { settingsStore } from '../ui/settings.js';
 import { voicePrefOf } from '../ui/voiceLang.js';
 import { effectiveVoiceLang } from '../audio.js';
 import { data } from '../data.js';
-import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest } from '../../../shared/resources.js';
+import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest, resourceKey } from '../../../shared/resources.js';
 import { PreloadStore, isQuotaError } from './store.js';
+import { openZip } from '../assetPack.js';
 
 // (fork) the origin's one worker (public/sw.js, which loads /resource-sw.js): the asset import registers the same one
 export const SW_URL = '/sw.js';
@@ -236,6 +237,72 @@ export async function removeOutfitsPack() {
   notifyWorker();
   await inspectPreload();
 }
+
+/**
+ * (fork) A zip entry's name as a site path of the manifest: up to its last `public/` stripped (the pack of
+ * `npm run package:preload`, a full zip, a zipped public/ folder), else an `assets/…` / `fonts/…` path as is. Null for
+ * anything else (README.txt, code, data).
+ */
+export function zipEntryPath(name) {
+  const p = String(name || '').replace(/\\/g, '/');
+  if (!p || p.endsWith('/') || p.split('/').includes('..')) return null;
+  const at = p.lastIndexOf('public/');
+  const rel = at >= 0 ? p.slice(at + 'public/'.length) : p.replace(/^\.?\/+/, '');
+  if (!rel.startsWith('assets/') && !rel.startsWith('fonts/')) return null;
+  return resourceKey(`/${rel}`);
+}
+
+/** The import's state for the manager: phase idle | reading | importing | done | error, and its counters. */
+export const preloadImport = createStore({ phase: 'idle', total: 0, done: 0, saved: 0, mismatched: 0, skipped: 0, error: '' });
+let importing = null;
+let importAbort = null;
+
+/**
+ * (fork) Import an asset zip into the preload's cache (the manager's 导入 zip): the files whose size and SHA-1 match the
+ * manifest count as downloaded; the rest still downloads. Waits for a running download to pause first. Afterwards the
+ * preload counts as started and paused, so the worker keeps answering and Resume fetches what the zip lacked.
+ * @param {Blob} file
+ */
+export function importPreloadZip(file) {
+  if (importing) return importing;
+  importAbort = new AbortController();
+  importing = (async () => {
+    const unsupported = unsupportedReason();
+    if (unsupported) { preloadImport.set({ phase: 'error', error: unsupported }); return; }
+    if (running) { pausePreload(); await running.catch(() => {}); }
+    preloadImport.set({ phase: 'reading', total: 0, done: 0, saved: 0, mismatched: 0, skipped: 0, error: '' });
+    try {
+      const st = await context();
+      const zip = await openZip(file);
+      if (!zip.ok) { preloadImport.set({ phase: 'error', error: 'badZip' }); return; }
+      const entries = [];
+      let other = 0;
+      for (const e of zip.entries) {
+        const path = zipEntryPath(e.name);
+        if (path) entries.push({ path, read: () => zip.read(e) });
+        else if (!String(e.name).endsWith('/')) other++;
+      }
+      await ensureWorker();
+      preloadPref.set({ ...preloadPref.get(), started: true, paused: true });
+      await st.setCapturePacks([...BASE_PACKS, ...tickedPacks()]).catch(() => {});
+      await Promise.resolve(globalThis.navigator.storage?.persist?.()).catch(() => null);
+      preloadImport.set({ phase: 'importing' });
+      const r = await st.importEntries(entries, { signal: importAbort.signal,
+        onProgress: (p) => preloadImport.set({ ...p, skipped: p.skipped + other }) });
+      preloadImport.set({ phase: 'done', ...r, skipped: r.skipped + other });
+    } catch (err) {
+      const error = err?.name === 'AbortError' ? 'cancelled' : isQuotaError(err) ? 'quota' : String(err?.message || err);
+      preloadImport.set({ phase: error === 'cancelled' ? 'idle' : 'error', error });
+    } finally {
+      notifyWorker();
+      await inspectPreload();
+    }
+  })().finally(() => { importing = null; importAbort = null; });
+  return importing;
+}
+
+/** Stop a running import (what it saved stays). */
+export function cancelPreloadImport() { importAbort?.abort(); }
 
 async function withLock(job) {
   const locks = globalThis.navigator?.locks;

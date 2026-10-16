@@ -49,7 +49,7 @@ describe('client leftovers — mock harness', { skip: !ENABLED && 'set SP_E2E=1 
   after(async () => { await browser?.close(); await srv?.close(); });
 
   async function open(query, { w = 1920, h = 1080 } = {}) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: w, height: h });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

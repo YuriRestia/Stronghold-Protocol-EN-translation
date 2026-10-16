@@ -33,7 +33,7 @@ describe('the shop refresh single-flights (GitHub #501, mock harness, headless C
   });
 
   test('a tap under a lagging shop pays once: the button dims, the extra tap / R key are dropped, the next tap works', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP&render=fallback`, { waitUntil: 'networkidle0' });
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__, { timeout: 20000 });

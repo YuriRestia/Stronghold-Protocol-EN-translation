@@ -41,7 +41,7 @@ describe('the settings entry of the lobby and the room', { skip: !ENABLED && 'se
   const modalText = (page) => page.evaluate(() => document.querySelector('.modal')?.textContent.replace(/\s+/g, ' ').trim() ?? null);
 
   test('the lobby: 设置 left of 玩法说明 opens the settings modal; Esc closes it; the room has the same entry', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1600, height: 900 });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

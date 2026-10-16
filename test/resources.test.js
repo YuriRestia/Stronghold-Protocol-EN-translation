@@ -357,3 +357,38 @@ test('worker: nothing is saved before a download was started (no packs entry)', 
   assert.equal(PACKS_PATH, '/__sp-resource-packs__', 'the page and the worker use the same entry');
   assert.ok(fs.readFileSync(path.join(ROOT, 'public', 'resource-sw.js'), 'utf8').includes("const PACKS_PATH = '/__sp-resource-packs__';"));
 });
+
+// (fork) the preload zip (tools/preload-pack.mjs) imported in the preload manager (resources/index.js importPreloadZip)
+test('preload zip: the tool writes a zip openZip reads; its entries map to site paths; the store keeps only matching bytes', async () => {
+  const { writeZip } = await import('../tools/preload-pack.mjs');
+  const { openZip } = await import('../public/js/assetPack.js');
+  const { zipEntryPath } = await import('../public/js/resources/index.js');
+  const fx = fixture([['/assets/ui/a.png', 'png-bytes'], ['/assets/local/fx/prefabs/hit.json', '{"k":"hit"}'.repeat(40)], ['/fonts/f.woff2', 'font']]);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-preload-zip-'));
+  try {
+    const zipPath = path.join(tmp, 'p.zip');
+    writeZip(zipPath, [
+      { name: 'pack/README.txt', data: Buffer.from('readme') },
+      { name: 'pack/public/assets/ui/a.png', data: fx.bodies.get('/assets/ui/a.png') },
+      { name: 'pack/public/assets/local/fx/prefabs/hit.json', data: () => fx.bodies.get('/assets/local/fx/prefabs/hit.json') },
+      { name: 'pack/public/fonts/f.woff2', data: Buffer.from('other font') },
+      { name: 'pack/public/assets/ui/not-listed.png', data: Buffer.from('x') },
+    ]);
+    const zip = await openZip(new Blob([fs.readFileSync(zipPath)]));
+    assert.equal(zip.ok, true);
+    assert.equal(zipEntryPath('pack/README.txt'), null);
+    assert.equal(zipEntryPath('a/../public/assets/x.png'), null);
+    assert.equal(zipEntryPath('assets/ui/[opt]a.png'), '/assets/ui/%5Bopt%5Da.png');
+    const entries = zip.entries.map((e) => ({ path: zipEntryPath(e.name), read: () => zip.read(e) })).filter((e) => e.path);
+    assert.deepEqual(entries.map((e) => e.path), ['/assets/ui/a.png', '/assets/local/fx/prefabs/hit.json', '/fonts/f.woff2', '/assets/ui/not-listed.png']);
+    const caches = memoryCaches();
+    const st = new PreloadStore(fx.manifest, { caches, fetcher: fx.fetcher, origin: ORIGIN });
+    const r = await st.importEntries(entries);
+    assert.deepEqual(r, { total: 3, done: 3, saved: 2, mismatched: 1, skipped: 1 }, 'the font differs, the unlisted png is skipped');
+    const status = await st.status();
+    assert.equal(status.packs.visual.doneFiles, 2, 'imported files count as saved (the effects too)');
+    await st.download({ packs: ['visual', 'audio'] });
+    assert.deepEqual(fx.calls.map((u) => u.split('?')[0]), ['/fonts/f.woff2'], 'only the mismatched file is downloaded');
+    assert.deepEqual(await st.importEntries(entries), { total: 3, done: 3, saved: 3, mismatched: 0, skipped: 1 }, 'a second import finds them saved');
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+});

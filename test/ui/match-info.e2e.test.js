@@ -62,7 +62,7 @@ describe('GitHub issue #8 item 1: 本局信息 in the strategy draft (real serve
     const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ARGS, protocolTimeout: 90000 });
     browsers.push(browser);
     const [first] = await browser.pages();
-    const page = first || await browser.newPage();
+    const page = first || await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     if (phone) await page.emulate({ viewport: phone, userAgent: ANDROID_UA });
     else await page.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     const problems = [];

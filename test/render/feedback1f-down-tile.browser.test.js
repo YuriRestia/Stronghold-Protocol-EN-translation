@@ -41,7 +41,7 @@ describe('a knocked-out operator is drawn on the tile it lies on (real sim frame
     const b = h.b;
     b.step();
     const A = h.unit('chess_char_1_18_a'), B = h.unit('chess_char_2_09_a');
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

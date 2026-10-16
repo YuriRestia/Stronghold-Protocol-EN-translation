@@ -187,6 +187,12 @@ export function modeVariant(modes, name, facing, variantsOnly = false) {
   return plain || null;
 }
 
+/** (fork) 丰川祥子's note families (sim op-oblvns.js `look`) → their official projectiles (S1's: _s1_1…_8). */
+const NOTE_PROJECTILES = Object.freeze({
+  attack: 'projectile_chr_oblvns', talent: 'projectile_chr_oblvns_talent', s2: 'projectile_chr_oblvns_s2',
+  s2_slow: 'projectile_chr_oblvns_s2_slow', s3_phy: 'projectile_chr_oblvns_s3_phy', s3_mag: 'projectile_chr_oblvns_s3_mag',
+});
+
 export class FxWiring {
   /**
    * @param {import('./system.js').OfficialFx} ofx
@@ -276,6 +282,26 @@ export class FxWiring {
   skinOf(u) { return u && u.skin && this.idx ? this.idx.skins[u.skin] || null : null; }
 
   /**
+   * (fork) The outfit suffix a view wears (its info.model, the outfit's battle skin id `char_4182_oblvns_avemujica#1`
+   * → 'avemujica#1'), or null — the key of index.json `skinFx` (tools/local-extract/fx.py skin_variant).
+   */
+  outfitOf(v) {
+    const m = v?.info?.model;
+    if (typeof m !== 'string') return null;
+    const r = /_([a-z0-9]+#\d+)$/i.exec(m);
+    return r ? r[1].toLowerCase() : null;
+  }
+
+  /** (fork) Effect key k as the outfit of view `by` plays it: its `<k>_<outfit>#N` twin when extracted, else k. */
+  skinKey(k, by) {
+    const map = this.idx?.skinFx;
+    if (!k || !map || !by) return k;
+    const suf = this.outfitOf(by);
+    const alt = suf ? map[suf]?.[k] : null;
+    return alt && this.ofx.lib.has(lc(alt)) ? lc(alt) : k;
+  }
+
+  /**
    * Where a view stands, as mounts.js reads it: board feet + facing, the view itself (its model's bones: the
    * BoneFollower points) and the camera's tilt (the plane the drawn model faces).
    */
@@ -332,6 +358,13 @@ export class FxWiring {
     for (const k of this.skills.keys(views)) keys.add(k);
     for (const k of this.talents.keys(views)) keys.add(k);
     for (const k of this.funnels.keys(views)) keys.add(k);   // the 驭械术士's floating units (render/vfx/funnelfx.js)
+    // (fork) the worn outfits' twins of those keys (skinKey)
+    const map = this.idx?.skinFx;
+    if (map) {
+      const sufs = new Set();
+      for (const v of views) { const s = this.outfitOf(v); if (s && map[s]) sufs.add(s); }
+      for (const s of sufs) for (const k of [...keys]) { const alt = map[s][lc(k)]; if (alt) keys.add(alt); }
+    }
     return [...keys].map(lc).filter((k) => k && this.ofx.lib.has(k));
   }
 
@@ -470,6 +503,9 @@ export class FxWiring {
   playOn(key, v, o = {}) {
     let k = lc(key);
     if (!k || !this.ofx.lib.has(k)) return null;
+    // (fork) the outfit's twin of the effect: by the unit it comes from (o.by, else the side it is turned from — the
+    // attacker of a hit —, else the unit it plays on)
+    k = this.skinKey(k, o.by || o.flipFrom || v);
     let def = this.ofx.lib.def(k);
     if (def && def.switchable) {
       const alt = lc(this._variant(def.switchable, v, this.pose(v)));
@@ -777,6 +813,9 @@ export class FxWiring {
     if (a) this._casts(a, src, tgt, phase, { owner: !again });
     if (sk) { this.skills.casts(sk, src, tgt, phase, { owner: !again }); if (!again) this.skills.attacked(sk); }
     if (!again) this.attackN.set(id, nth + 1);
+    // (fork) 丰川祥子's note launch (sim notes.js, kind 'note'): only her casts (the swing) — the note flies on its own
+    // path and strikes later (render/fx/notes.js, officialNotes.js), so neither the mode's projectile nor its hits play here
+    if (kind === 'note') return true;
     // the hit rows wait for the damage (each target hit: HitEffectOptions); useOwnerToTargetDirection turns the hit
     // along the blow
     const keysOf = (rows) => rows.flatMap((e) => this._rowKeys(e, src, nth).map((k) => ({ k, along: !!e.useOwnerToTargetDirection })));
@@ -859,7 +898,7 @@ export class FxWiring {
    * blocks whom — an enemy that close is the operator's]
    */
   _combatKind(src, tgt, kind, skillOn) {
-    if (!kind || kind === 'none' || CHAIN.has(kind) || !src || !tgt || src.isEnemy || !tgt.isEnemy) return kind;
+    if (!kind || kind === 'none' || kind === 'note' || CHAIN.has(kind) || !src || !tgt || src.isEnemy || !tgt.isEnemy) return kind;
     if (!((src.flags | 0) & UF.BLOCKED) || !((tgt.flags | 0) & UF.BLOCKED)) return kind;
     const reach = (tgt.flags | 0) & UF.FLYING ? BLOCK_REACH_AIR : BLOCK_REACH;
     if (!(Math.hypot(tgt.x - src.x, tgt.y - src.y) <= reach)) return kind;
@@ -948,8 +987,8 @@ export class FxWiring {
     const parts = projectileParts(proj);
     for (const k of proj.onStart || []) this.playOn(k, src, { toward: tgt, strike: !o.later });
     const placed = this._startOnTarget(proj, src, tgt);
-    const mainKey = parts.main && this.ofx.lib.has(parts.main) ? parts.main : null;
-    const ropeKey = parts.rope && this.ofx.lib.has(parts.rope) ? parts.rope : null;
+    const mainKey = parts.main && this.ofx.lib.has(parts.main) ? this.skinKey(parts.main, src) : null;
+    const ropeKey = parts.rope && this.ofx.lib.has(parts.rope) ? this.skinKey(parts.rope, src) : null;
     // a timer (no flying effect: 溯光星源 S3): its hit when the effect it put on its target lands, at the end of its life
     let hitAt = dur;
     if (!mainKey) {
@@ -1066,7 +1105,7 @@ export class FxWiring {
     const go = () => {
       const now = this.ofx.time;
       if (tgt && !tgt.destroyed) {
-        for (const k of proj.onHit || []) this.playOn(k, tgt, {});
+        for (const k of proj.onHit || []) this.playOn(k, tgt, { by: src || undefined });
         if (rows) {
           const own = new Set((proj.onHit || []).map(lc));
           for (const h of rows) if (!own.has(lc(h.k))) this.playOn(h.k, tgt, { flipFrom: src || undefined, toward: h.along && src ? beyond(src, tgt) : undefined });
@@ -1077,7 +1116,7 @@ export class FxWiring {
       }
       for (const k of proj.onReached || []) {
         const kk = lc(k);
-        if (kk && this.ofx.lib.has(kk)) this.ofx.spawn(kk, { pos: at.slice(), groundZ: at[2] }, {});
+        if (kk && this.ofx.lib.has(kk)) this.ofx.spawn(this.skinKey(kk, src), { pos: at.slice(), groundZ: at[2] }, {});
       }
     };
     if (laterAt == null) go();
@@ -1234,7 +1273,7 @@ export class FxWiring {
     const ps = this.skinOf(this.unitOf(prev)), ns = this.skinOf(this.unitOf(next));
     const a = unitPoint(ps, 'hit', this.pose(prev)), b = unitPoint(ns, 'hit', this.pose(next));
     if (c.line && this.ofx.lib.has(c.line)) {
-      const h = this.ofx.spawn(c.line, { pos: a.slice(), groundZ: -(prev.z || 0) }, {
+      const h = this.ofx.spawn(this.skinKey(c.line, c.src), { pos: a.slice(), groundZ: -(prev.z || 0) }, {
         important: true,
         track: (fx) => {
           if (!prev.destroyed && prev.alive !== false) unitPoint(ps, 'hit', this.pose(prev), a);
@@ -1367,6 +1406,47 @@ export class FxWiring {
     this.lastTargets.clear();
     this.picks.clear();
     this.ofx.timers = [];
+  }
+
+  /**
+   * (fork, sandbox preview) 丰川祥子's note drawn by its official projectile prefab: the flying effect (projectileParts
+   * `main`, the owner's outfit twin) of the note family's projectile (NOTE_PROJECTILES), its anchor and heading read each
+   * frame from `at()` → { x, y, z, hx, hy } (board tiles, height; null: hold). Returns the handle or null (no effects).
+   */
+  noteFlight(owner, look, at) {
+    const proj = this._noteProj(look);
+    const main = proj ? projectileParts(proj).main : null;
+    if (!this.ofx.active || !main || !this.ofx.lib.has(main)) return null;
+    const key = this.skinKey(lc(main), owner);
+    const p0 = at() || { x: 10, y: 9, z: 0 };
+    return this.ofx.spawn(key, { pos: [p0.x - 10, p0.y - 9, -(p0.z || 0)], groundZ: 0 }, {
+      important: true, loop: true,
+      track: (fx) => {
+        const p = at();
+        if (!p) return;
+        fx.anchor[0] = p.x - 10; fx.anchor[1] = p.y - 9; fx.anchor[2] = -(p.z || 0);
+        if (Number.isFinite(p.hx) && Number.isFinite(p.hy) && (p.hx || p.hy)) { fx.mirror = false; fx.yaw = Math.atan2(p.hy, p.hx); fx.pitch = 0; }
+      },
+    });
+  }
+
+  /** (fork, sandbox preview) A note struck: its projectile's onHit on the target (the owner's outfit twin), else at (x, y, z). */
+  noteHit(owner, look, tgt, x, y, z) {
+    const proj = this._noteProj(look);
+    if (!this.ofx.active || !proj) return false;
+    let n = 0;
+    for (const k of proj.onHit || []) {
+      if (tgt && !tgt.destroyed) { if (this.playOn(k, tgt, { by: owner || undefined })) n++; continue; }
+      const kk = this.skinKey(lc(k), owner);
+      if (kk && this.ofx.lib.has(kk) && this.ofx.spawn(kk, { pos: [x - 10, y - 9, -(z || 0)], groundZ: 0 }, {})) n++;
+    }
+    return n > 0;
+  }
+
+  /** The index projectile of a note family (render/fx/notes.js `look`). */
+  _noteProj(look) {
+    const pk = NOTE_PROJECTILES[look] || (/^s1_[1-8]$/.test(look || '') ? `projectile_chr_oblvns_${look}` : null);
+    return pk && this.idx ? this.idx.projectiles[pk] || null : null;
   }
 
   /** Called once per frame: delayed actions on the battle clock (and the frame count the skills' same-frame rules use). */

@@ -64,7 +64,7 @@ describe('the 孤岛风云 prisoners draw confined → warning → freed (headle
 
   for (const board of ['2d', '3d']) {
     test(`${board} board: grey out of the gate, orange from the warning, red once freed — each model as its sim form`, async (t) => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       const problems = [];
       page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

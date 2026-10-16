@@ -111,7 +111,7 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
   });
 
   async function open(query, w = 1920, h = 1080) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -466,7 +466,7 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
   // legal target, under the finger elsewhere (no lift above the finger); on the bench (the lowest canvas row, the shop
   // bar right under it) a release on the slot lands there, one on the shop bar goes back
   test('#4.1 touch (phone): stands on the finger\'s tile (under the finger over the shop bar), dropped on the tile under it; a release over the shop bar goes back', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 2, isMobile: true, hasTouch: true, isLandscape: true });

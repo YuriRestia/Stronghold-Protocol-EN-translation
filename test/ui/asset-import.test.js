@@ -552,6 +552,12 @@ test('the worker answers only hashed asset GET, and its copy matches the module'
     URL: globalThis.URL,
     Response: globalThis.Response,
     Promise: globalThis.Promise,
+    // (fork) public/sw.js also loads the preload's rules (resource-sw.js, test/resources.test.js covers them): here they
+    // answer nothing, so this test sees the import's own behaviour
+    importScripts(url) {
+      assert.equal(url, '/resource-sw.js');
+      sandbox.self.spResources = { handleFetch: () => false, isResourcePath: () => false, changed: () => {} };
+    },
   };
   vm.runInNewContext(sw, sandbox, { filename: 'public/sw.js' });
   const install = {};

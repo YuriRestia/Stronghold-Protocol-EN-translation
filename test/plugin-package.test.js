@@ -116,7 +116,7 @@ test('offline release stage runs plugin CLI, native author harness and sandbox t
 
 test('Docker copies real production dependencies and separate author resources with narrow context exceptions', () => {
   const docker = fs.readFileSync(path.join(ROOT, 'Dockerfile'), 'utf8');
-  const ignore = fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8').split('\n');
+  const ignore = fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8').split(/\r?\n/); // (fork) a CRLF checkout (core.autocrlf) too
   assert.match(docker, /npm ci --omit=dev --ignore-scripts/);
   assert.match(docker, /COPY --from=deps \/app\/node_modules \.\/node_modules/);
   assert.match(docker, /SP_PLUGIN_RESOURCES=\/app\/plugin-resources/);

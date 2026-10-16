@@ -46,7 +46,7 @@ describe('the studio catalogue page', { skip: !ENABLED && 'set SP_E2E=1 (and hav
       srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, pluginsDir: plugins, assetIndex: false, fetch: fetchImpl });
       const P = (await import('puppeteer-core')).default;
       browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-first-run'] });
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
       page.on('pageerror', (e) => problems.push(e.message));
       page.on('requestfailed', (r) => { if (!/\/assets\/|\/fonts\//.test(r.url())) problems.push(`${r.url()} ${r.failure()?.errorText}`); });
@@ -98,7 +98,7 @@ describe('the studio catalogue page', { skip: !ENABLED && 'set SP_E2E=1 (and hav
       srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, pluginsDir: plugins, assetIndex: false, fetch: fetchImpl });
       const P = (await import('puppeteer-core')).default;
       browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-first-run'] });
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       page.on('console', (m) => { if (m.type() === 'error') problems.push(m.text()); });
       page.on('pageerror', (e) => problems.push(e.message));
       page.on('requestfailed', (r) => { if (!/\/assets\/|\/fonts\//.test(r.url())) problems.push(`${r.url()} ${r.failure()?.errorText}`); });

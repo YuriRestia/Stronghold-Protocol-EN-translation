@@ -39,7 +39,7 @@ describe('user playtest #4 item 13: no screen-sized UI flash (mock battle, headl
 
   for (const [w, h] of [[1920, 1080], [1280, 720]]) {
     test(`${w}×${h}: a bond layer gained in battle pops its icon at ~46 px — also the first time (icon still loading)`, async () => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
       await page.setViewport({ width: w, height: h });

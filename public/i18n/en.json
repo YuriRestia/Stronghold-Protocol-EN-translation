@@ -1291,7 +1291,6 @@
   "高台、召唤物与装置改用官方模型": "High Ground, summons and devices use the official models",
   "统计页向官方靠拢：奖杯、独立 / 联合模拟两行、六称号图": "Stats page redesigned closer to the game's: trophies, Solo / Co-op rows, the six-title chart",
   "手动刷新商店会取消冻结（按官方）": "Refreshing the shop by hand now cancels the freeze, as in the game",
-  "AI 队友的重装与医疗站位更合理": "AI teammates position their defenders and medics better",
   "攻击出手后，目标走出射程也会打完这一下（按官方）": "Operators keep attacking a target that leaves range during the attack, as in the game",
   "单人匹配": "Solo Matchmaking",
   "{n} 名博士 · 自动组队": "{n} {n|Doctor|Doctors} · matched automatically",
@@ -1981,5 +1980,14 @@
   "其余 {n} 个已移到 plugins/_removed/。": "The other {n} {n|was|were} moved to plugins/_removed/.",
   "已移到 plugins/_removed/：{n} 个插件": "Moved to plugins/_removed/: {n} {n|plugin|plugins}",
   "选中「{name}」": "Select \"{name}\"",
-  "符号链接的插件文件夹不能在这里删除。": "A plugin folder that is a symbolic link cannot be deleted here."
+  "符号链接的插件文件夹不能在这里删除。": "A plugin folder that is a symbolic link cannot be deleted here.",
+  "已有本服务器提供的预载 zip？在这里导入，与服务器文件一致的部分无需再下载。不用解压。": "Have this server's preload zip? Import it here: every file that matches the server's is not downloaded again. No need to unzip.",
+  "导入 zip": "Import zip",
+  "或把 zip 拖到这里": "or drop the zip here",
+  "正在读取 zip…": "Reading the zip…",
+  "正在校验并保存：{done} / {total}": "Checking and saving: {done} / {total}",
+  "导入完成：保存 {saved} 个文件，{mismatched} 个与本服务器版本不符，{skipped} 个不属于预载": "Import done: {saved} files saved, {mismatched} didn't match this server's version, {skipped} aren't part of the preload",
+  "这不是有效的 zip。": "This isn't a valid zip.",
+  "浏览器存储空间已满：已导入的文件会保留。": "Browser storage is full. The files imported so far are kept.",
+  "导入失败：{0}": "Import failed: {0}"
 }

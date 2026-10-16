@@ -50,7 +50,7 @@ describe('起飞 and 屏障 in headless Chrome', { skip }, () => {
       const { t, ...rest } = b.snapshot();
       frames.push({ snap: { ...rest, t: 'b.snap', gt: t }, ev: b.drainEvents(), gt: t });
     }
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     try {

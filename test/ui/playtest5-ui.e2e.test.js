@@ -63,7 +63,7 @@ describe('user playtest #5 — UI items 8 / 9 (mock harness, headless Chrome)', 
   });
 
   async function open(query, { w, h, touch, insets }) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: touch, hasTouch: touch });
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

@@ -42,6 +42,15 @@ describe('fx.py encodings (no UnityPy needed)', { skip: !PY && 'no python3' }, (
     assert.equal(out[4], 'x_1');
   });
 
+  test('(fork) skin_variant / skin_fx_map: an outfit twin is <key>_<outfit>#N, the suffix mid-key too', () => {
+    const out = py(`print(json.dumps([fx.skin_variant('oblvns_attack_01_hit_avemujica#1'), fx.skin_variant('amgoat_skill_03_buff_sanrio#2_l'),
+      fx.skin_variant('common_hit_01'), fx.skin_fx_map(['a_hit', 'a_hit_boc#1', 'b_hit_boc#1'])]))`);
+    assert.deepEqual(out[0], ['oblvns_attack_01_hit', 'avemujica#1']);
+    assert.deepEqual(out[1], ['amgoat_skill_03_buff_l', 'sanrio#2']);
+    assert.equal(out[2], null);
+    assert.deepEqual(out[3], { 'boc#1': { a_hit: 'a_hit_boc#1' } }, 'a twin without its base is not mapped');
+  });
+
   test('f6: six significant digits, -0 → 0, integers stay, NaN / ±inf → null', () => {
     const out = py(`print(json.dumps([fx.f6(x) for x in [1.0000004, -0.0, 3, 0.258819049, 1e-13, float('nan'), float('inf'), True, 2.0, 1234567.8]]))`);
     assert.deepEqual(out, [1, 0, 3, 0.258819, 0, null, null, true, 2, 1234570]);

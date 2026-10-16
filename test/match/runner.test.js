@@ -663,14 +663,16 @@ test('a Worker host never attaches the combat meter, even when the setting is on
   r.runner.dispose();
 });
 
-test('settings expose 作战统计 off by default and the match hides the button unless it is on', () => {
+// (fork) upstream's 作战统计 panel and its setting are left out (the fork's damage meter, ui/damageChart.js, is the one
+// meter): the stored setting stays off and harmless, the interface plugins' hud.right slot stays
+test('作战统计 stays off (no settings row, no panel); the hud.right plugin slot and the diagnostics line remain', () => {
   const settings = readFileSync(new URL('../../public/js/ui/settings.js', import.meta.url), 'utf8');
   const game = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
   const logic = readFileSync(new URL('../../public/js/ui/gameLogic/settings.js', import.meta.url), 'utf8');
   assert.match(logic, /combatMetrics: false/);
-  assert.match(settings, /label=\$\{t\('作战统计'\)\} micro="COMBAT STATS" value=\$\{s\.combatMetrics\}/);
-  assert.match(game, /setCombatMetrics\(s\?\.combatMetrics === true\)/);
-  assert.match(game, /const showMetrics = metricsSetting && !modRoom && !spectator/);
+  assert.doesNotMatch(settings, /t\('作战统计'\)/);
+  assert.doesNotMatch(game, /CombatMetricsPanel/);
+  assert.match(game, /DamageButton/);
   assert.match(game, /data-ui-slot="hud\.right"/);
   const state = { me: {}, room: null, match: { public: null, battle: null }, connection: { status: 'online' } };
   const line = (s) => buildDiagnostics({ state, env: {}, settings: s }).split('\n').find((l) => l.startsWith('settings:'));

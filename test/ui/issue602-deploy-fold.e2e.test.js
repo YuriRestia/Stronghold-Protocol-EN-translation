@@ -34,7 +34,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
 
   /** Open the mock PREP match with a free deploy slot (one board operator sold, like facing.e2e.test.js). */
   async function openPage(viewport) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     if (viewport) await page.setViewport(viewport);
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -117,7 +117,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
   // is the tile under the finger under the NEW camera (render/drag.js refresh) — and ends on the exact shop camera.
   // Touch input: a resting mouse gets Chrome's synthetic moves when the layout changes (the shop bar folding), a finger not.
   test('engine (touch): the pickup zooms at once, a resting finger keeps the tile under it as the target, the end restores the exact shop camera', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1280, height: 720, hasTouch: true });
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

@@ -45,7 +45,7 @@ describe('the shop bar folds on 准备就绪', { skip: !ENABLED && 'set SP_E2E=1
   };
 
   test('ready folds the shop bar, cancelling unfolds it; the tab still unfolds it by hand', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1600, height: 900 });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

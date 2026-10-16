@@ -197,7 +197,7 @@ describe('player reports after 0.1.0: the models follow the knock-out forms (hea
   });
 
   async function page() {
-    const p = await browser.newPage();
+    const p = await browser.newPage(); await p.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     p.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     p.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

@@ -112,7 +112,12 @@ export class NoteLayer {
     this.hits = [];           // hit bursts { sp, flash, look, x, y, t, rot }
     this._tex = new Map();
     this._p = { x: 0, y: 0, s: 0, depth: 0 };
+    /** 'ours' (this layer's notes) | 'official' (sandbox preview: ctx.official draws the official projectile prefabs). */
+    this.mode = 'ours';
   }
+
+  /** (sandbox preview) Draw the notes launched from now on as 'ours' or 'official'; notes in flight keep theirs. */
+  setMode(m) { this.mode = m === 'official' ? 'official' : 'ours'; }
 
   /** A local texture of notes/oblvns (cached; null when the client art is absent). */
   tex(name) {
@@ -241,6 +246,12 @@ export class NoteLayer {
     // at the struck enemy's body (where its note was heading); else the note's own height
     const tv = ex.tgt != null ? this.ctx.view(ex.tgt) : null;
     const z = tv && !tv.destroyed ? bodyZ(this.ctx.cam(), tv, SHOT_HEIGHT.aim) : this.notes.get(ex.id)?.z ?? HEAD_Z;
+    // (sandbox preview) an official note strikes with its projectile's official hit
+    if (this.mode === 'official' && typeof this.ctx.official?.hit === 'function') {
+      let ok;
+      try { ok = this.ctx.official.hit(this.ctx.view(ex.owner), ex.look || '', tv && !tv.destroyed ? tv : null, x, y, z); } catch { ok = false; }
+      if (ok) return;
+    }
     const P = this.P;
     const L = noteLookOf(this.ctx.view(ex.owner));
     const lk = NOTE_LOOKS[L];
@@ -281,9 +292,10 @@ export class NoteLayer {
     if (this.hits.length) this._updateHits(dt, cam);
     for (const n of list) {
       let r = this.notes.get(n.id);
-      if (!r) { r = this._make(n, noteLookOf(this.ctx.view(n.owner))); this.notes.set(n.id, r); }
+      if (!r) { r = this._make(n, noteLookOf(this.ctx.view(n.owner))); this.notes.set(n.id, r); this._official(r, n); }
       r.seen = frame; r.fade = 0; r.x = n.x; r.y = n.y;
       this._height(r, n, cam, dt);
+      if (r.ofx) { const a = r.at; a.x = n.x; a.y = n.y; a.z = r.z; a.hx = n.hx; a.hy = n.hy; }
       const last = r.pts[r.pts.length - 1];
       if (!last || Math.hypot(n.x - last[0], n.y - last[1]) >= TRAIL_MIN_STEP) {
         r.pts.push([n.x, n.y, T, r.z]);
@@ -324,6 +336,21 @@ export class NoteLayer {
         this._ribbon(r, cam, k, T);
       }
     }
+  }
+
+  /**
+   * (sandbox preview) In 'official' mode a new note is drawn by its official projectile prefab (ctx.official.flight:
+   * render/vfx/wiring.js noteFlight, following r.at); this layer's sprites stay hidden. Without the official effects
+   * (none extracted, the layer off) the note stays ours.
+   */
+  _official(r, n) {
+    if (this.mode !== 'official' || typeof this.ctx.official?.flight !== 'function') return;
+    r.at = { x: n.x, y: n.y, z: r.z, hx: n.hx, hy: n.hy };
+    let h;
+    try { h = this.ctx.official.flight(this.ctx.view(n.owner), n.look, () => r.at); } catch { h = null; }
+    if (!h) { r.at = null; return; }
+    r.ofx = h;
+    for (const d of [r.head, r.lift, r.glow, r.ring, r.trail]) if (d) d.visible = false;
   }
 
   /** Her launch height (bullets leave her there); HEAD_Z once she is gone. */
@@ -513,6 +540,7 @@ export class NoteLayer {
   }
 
   _drop(r) {
+    if (r.ofx) { try { r.ofx.stop(); } catch { /* ignore */ } r.ofx = null; }
     r.head.destroy(); r.lift.destroy(); r.glow.destroy(); r.trail.destroy({ children: true }); if (r.ring) r.ring.destroy();
   }
 

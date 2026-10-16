@@ -15,7 +15,7 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
   });
   after(async () => { await browser?.close(); await server?.close(); });
   async function pageIn(ctx, phone = false, random = null) {
-    const page = await ctx.newPage();
+    const page = await ctx.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: phone ? 844 : 1440, height: phone ? 390 : 900 });
     if (random != null) await page.evaluateOnNewDocument((value) => { Math.random = () => value; }, random);
     await page.evaluateOnNewDocument(() => { localStorage.setItem('sp.name', 'Recovery Test'); sessionStorage.setItem('sp.entered', '1'); });

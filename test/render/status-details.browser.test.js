@@ -64,7 +64,7 @@ describe('status icon rings and numbers in headless Chrome', { skip }, () => {
 
   test('each status icon has its ring, and 脆弱 / 减速 / 虚弱 their numbers', async () => {
     const { meta, frames, enemyIds } = recordBattle();
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

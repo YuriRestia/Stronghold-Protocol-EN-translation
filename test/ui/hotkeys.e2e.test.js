@@ -41,7 +41,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
   }
 
   test('撤退 rebound to W in a mock match: keyboard only, swap, Esc, refusal, the HUD hint, a reload', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     try {
       const problems = await open(page);
       await page.click('.gm__gear');
@@ -116,7 +116,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
   });
 
   test('phone width (640×360, touch): the keys need a keyboard, the folded list opens and fits, no horizontal scroll', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     try {
       const problems = await open(page, { width: 640, height: 360, touch: true });
       await page.tap('.gm__gear');
@@ -146,7 +146,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
   test('W buys the hovered shop card without clicking, with purchase guards and no stale target', async (t) => {
     const context = await browser.createBrowserContext();
     t.after(() => context.close());
-    const page = await context.newPage();
+    const page = await context.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = await open(page, { width: 1920, height: 1080 });
     const card = (i) => `.shopbar .scard[data-shop-slot="${i}"]`;
     const frame = () => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -271,7 +271,7 @@ describe('rebindable shortcuts (设置 → 快捷键)', { skip: !ENABLED && 'set
   test('a legacy W binding survives; buy can be rebound and persists across reload', async (t) => {
     const context = await browser.createBrowserContext();
     t.after(() => context.close());
-    const page = await context.newPage();
+    const page = await context.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.evaluateOnNewDocument(() => {
       if (!localStorage.getItem('sp.pref.settings')) localStorage.setItem('sp.pref.settings', JSON.stringify({ keys: { retreat: 'KeyW' } }));
     });

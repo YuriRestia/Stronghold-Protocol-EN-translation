@@ -44,7 +44,7 @@ describe('settlement result box in the browser', { skip: !ENABLED && 'set SP_E2E
 
   /** A mock page; `seen()` tells whether a result box was EVER in the DOM (it closes by itself after ~3 s). */
   async function open(query, { w = 1920, h = 1080 } = {}) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: w, height: h });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

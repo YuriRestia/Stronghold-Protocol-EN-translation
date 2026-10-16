@@ -41,7 +41,7 @@ describe('stage device tip in the browser', { skip: !ENABLED && 'set SP_E2E=1 (a
   });
 
   async function open(url, { w = 1600, h = 900, waitUntil = 'networkidle0' } = {}) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: w, height: h });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

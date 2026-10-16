@@ -65,7 +65,7 @@ describe('an interface plugin that navigates its own frame', { skip: !ENABLED },
         return e && e.files && e.entry ? `/p/nav-meter/${String(e.files[e.entry] || '').slice(0, 8)}/${e.entry}` : null;
       });
       const url = entry && /\/p\/nav-meter\/[0-9a-f]{8}\//.test(entry) ? entry : '/p/nav-meter/00000000/ui/index.html';
-      const top = await c.browser.newPage();
+      const top = await c.browser.newPage(); await top.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       const res = await top.goto(srv.base + url, { waitUntil: 'load' });
       assert.match(res.headers()['content-security-policy'] || '', /(^|;)\s*sandbox allow-scripts\b/);
       const probe = await top.evaluate(() => {

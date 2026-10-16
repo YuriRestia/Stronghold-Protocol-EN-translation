@@ -61,7 +61,7 @@ describe('strategy skip eligibility (real server, normal browser operations)', {
   }
   async function player(name, suffix = '') {
     const context = await browser.createBrowserContext();
-    const page = await context.newPage();
+    const page = await context.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
     const errors = [];
     const frames = [];

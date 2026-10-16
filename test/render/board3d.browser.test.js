@@ -43,7 +43,7 @@ describe('3D board in headless Chrome', { skip }, () => {
   });
 
   async function open(query, w, h) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -214,7 +214,7 @@ describe('3D board in headless Chrome', { skip }, () => {
   });
 
   test('no local-art manifest: 2D board, three.js is never downloaded; settings quality toggles the 3D shadows', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [], three = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setRequestInterception(true);

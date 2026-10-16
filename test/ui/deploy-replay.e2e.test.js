@@ -41,7 +41,7 @@ describe('the round start replays the own board\'s Start clips in deployment ord
   });
 
   test('SETTLE → 回合开始: one landing per piece, in order and 50 ms apart; once per round; purchases and moves land once', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1600, height: 900 });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

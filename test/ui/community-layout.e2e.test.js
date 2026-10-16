@@ -1,6 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url'; // (fork) Windows-safe paths
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -18,7 +19,7 @@ describe('settlement return control under enlarged text (#458)', { skip: !ENABLE
   after(async () => { await browser?.close(); await srv?.close(); });
   for (const [width, height] of [[1366, 768], [844, 390]]) for (const textSize of ['md', 'lg', 'xl']) {
     test(`${width}×${height}, ${textSize}: return is inside the viewport and clickable`, async () => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       try {
         await page.setViewport({ width, height });
         await page.evaluateOnNewDocument(ts => localStorage.setItem('sp.pref.settings', JSON.stringify({ textSize: ts })), textSize);
@@ -31,7 +32,7 @@ describe('settlement return control under enlarged text (#458)', { skip: !ENABLE
           await document.fonts.ready;
         }, results['coop4-hard']);
         await page.waitForSelector('.result__foot button');
-        await page.screenshot({ path: new URL(`../e2e/out/result-text-${width}-${textSize}.png`, import.meta.url).pathname });
+        await page.screenshot({ path: fileURLToPath(new URL(`../e2e/out/result-text-${width}-${textSize}.png`, import.meta.url)) });
         const bounds = await page.$eval('.result__foot button', b => {
           const r = b.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
           return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, reachable: !!hit && (hit === b || b.contains(hit)) };

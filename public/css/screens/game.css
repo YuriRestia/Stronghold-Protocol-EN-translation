@@ -700,6 +700,9 @@
 .preload__msg { font-size: calc(.15 * var(--t)); line-height: 1.5; color: var(--mint-400); }
 .preload__msg.is-error { color: var(--amber); }
 .preload__tools { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .08rem; }
+.preload__import { display: grid; gap: .06rem; padding: .08rem 0; border-top: 1px solid var(--line, rgba(255,255,255,.08)); }
+.preload__import-row { display: flex; flex-wrap: wrap; align-items: center; gap: .08rem; }
+.preload__import-file { display: none; }
 /* the tools' top rule: the downloaded / ticked-packs progress */
 .preload__bar { flex: 0 0 100%; margin-bottom: .02rem; }
 /* 问题反馈 (ui/settings.js DiagSection): laid out like 快捷键 — a head with its button, a hint, the result line; the

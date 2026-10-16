@@ -264,6 +264,8 @@ About https / wss: when the page is opened over https the client connects to `ws
 
 ### 2.5 Players importing assets they already have (needs HTTPS)
 
+> **(fork)** This fork has neither title-screen button. Players use **Settings → Preload Assets** (or the Preload card on the title screen): it downloads the art from this server, and its **Import zip** takes a preload zip the host offers elsewhere. Build that zip with `npm run package:preload` (`tools/preload-pack.mjs`; one zip of every file the preload lists, the official battle effects included once extracted, about 1.6 GB, not split), host it yourself and share the link. The import keeps only files whose size and SHA-1 match this server's preload list; the rest still download. The upstream text below describes the upstream buttons.
+
 Below the login box on the title screen there are two buttons side by side: "Download all assets" downloads every asset from this server (it starts as soon as the window opens); "Import asset pack" reads the player's own folder or zip, to avoid transferring duplicate art. Opening the import window requests no assets from the server and starts no download; when the import actually starts, the browser reads only the three asset manifests from the server.
 
 - Importing only works over **HTTPS** or on **localhost**. Browsers only provide Service Workers and a usable Cache Storage in a secure context. `http://LAN-IP:3000` plays the game normally and can use "Download all assets", but cannot import; the reason is explained below the button and in the import window, rather than shown as an error.

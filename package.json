@@ -42,7 +42,8 @@
     "check:imports": "node tools/check-imports.mjs",
     "ci": "node tools/ci.mjs",
     "package": "node tools/package.mjs",
-    "package:lite": "node tools/package.mjs --lite"
+    "package:lite": "node tools/package.mjs --lite",
+    "package:preload": "node tools/preload-pack.mjs"
   },
   "engines": {
     "node": ">=22"

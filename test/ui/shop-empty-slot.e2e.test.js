@@ -38,7 +38,7 @@ describe('the empty slot of the shop bar', { skip: !ENABLED && 'set SP_E2E=1 (an
   })));
 
   test('a null slot is a bare frame, a bought one still says 已招募, and a refresh fills the empty one', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1600, height: 900 });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
@@ -85,7 +85,7 @@ describe('the empty slot of the shop bar', { skip: !ENABLED && 'set SP_E2E=1 (an
   });
 
   test('the upgrade itself: tapping the level card twice opens the fifth slot empty, the cards shown stay', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport({ width: 1600, height: 900 });
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

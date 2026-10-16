@@ -95,7 +95,7 @@ test('a data-plugin DSL operator fights the same battle on the server and in the
 
   const runtime = path.join(f.dir, 'runtime');
   fs.mkdirSync(path.join(runtime, 'server'), { recursive: true });
-  fs.cpSync('server/sim', path.join(runtime, 'server/sim'), { recursive: true, filter: (src) => !src.endsWith('/nodeData.js') });
+  fs.cpSync('server/sim', path.join(runtime, 'server/sim'), { recursive: true, filter: (src) => !src.endsWith(`${path.sep}nodeData.js`) /* (fork) Windows paths use a backslash */ });
   fs.cpSync('shared', path.join(runtime, 'shared'), { recursive: true });
   fs.writeFileSync(path.join(runtime, 'package.json'), '{"type":"module"}');
   fs.writeFileSync(path.join(runtime, 'server/data.js'), DATA_SHIM_JS);

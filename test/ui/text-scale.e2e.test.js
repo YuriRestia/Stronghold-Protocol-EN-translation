@@ -41,7 +41,7 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
 
   /** A page watching for console / page errors, with `sp.pref.settings` seeded before the first script runs. */
   async function open(url, textSize, { seed = true } = {}) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.setViewport(PHONE);
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

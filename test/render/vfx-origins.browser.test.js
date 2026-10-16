@@ -44,7 +44,7 @@ describe('official shot and weapon-effect origins in a battle', { skip }, () => 
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: [...gpuArgs(), '--window-size=1280,720'] });
     mkdirSync(OUT, { recursive: true });
-    page = await browser.newPage();
+    page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });

@@ -22,7 +22,7 @@ describe('collapsible bond strip (issue #142)', { skip: !ENABLED && 'set SP_E2E=
 
   for (const [width, height, touch] of [[1920, 1080, false], [640, 360, true]]) {
     test(`collapse releases field input and keeps current bonds at ${width}×${height}`, async () => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
       const activate = (selector) => touch ? page.tap(selector) : page.click(selector);

@@ -5,6 +5,7 @@ Run through extract.py (needs the client and .venv-extract; nothing is extracted
   .venv/bin/python tools/local-extract/extract.py --only fx                 the Phase 1a sample (FX_SAMPLE_*)
   .venv/bin/python tools/local-extract/extract.py --only fx --fx-set used   every effect the mode's units reference
   .venv/bin/python tools/local-extract/extract.py --only fx --fx-keys common_hit_01,buff_stun
+  .venv/bin/python tools/local-extract/extract.py --only fx --fx-skins      (fork) add the outfit twins of the set
 
 What is read (paths relative to the AB root, see extract.py CANDIDATES):
   battle/prefabs/effects/<code>.ab, pkgrps/btl_pfb_fx_*.ab   the effect prefabs (one prefab = one effect key)
@@ -320,6 +321,38 @@ def fx_file(key):
     `#`, `[`, `]`: 'buff_ fragile_01', 'x#1')."""
     s = FX_SAFE.sub('_', key).strip('._') or 'fx'
     return s if s == key else f'{s}-{zlib.crc32(key.encode("utf-8")) & 0xffffffff:08x}'
+
+
+SKIN_SEG = re.compile(r'_([a-z0-9]+#\d+)(?=_|$)')
+
+
+def skin_variant(key):
+    """(fork) An outfit's twin of an effect prefab: (base key, outfit suffix) — `oblvns_attack_01_hit_avemujica#1` →
+    ('oblvns_attack_01_hit', 'avemujica#1'), `amgoat_skill_03_buff_sanrio#2_l` → ('amgoat_skill_03_buff_l', 'sanrio#2')
+    — else None. The suffix is the outfit's battle skin id minus its owner's id (skin_table battleSkin.skinOrPrefabId
+    `char_4182_oblvns_avemujica#1`)."""
+    m = SKIN_SEG.search(key or '')
+    return (key[:m.start()] + key[m.end():], m.group(1)) if m else None
+
+
+def skin_variants(names, wanted):
+    """{base: {suffix: variant}} of the prefabs in `names` that are an outfit's twin of a key in `wanted`."""
+    out = {}
+    for n in names:
+        sv = skin_variant(n)
+        if sv and sv[0] in wanted:
+            out.setdefault(sv[0], {})[sv[1]] = n
+    return out
+
+
+def skin_fx_map(keys):
+    """index.json `skinFx` (fork): {suffix: {base: variant}} over the exported keys whose base was exported too."""
+    have, out = set(keys), {}
+    for k in sorted(have):
+        sv = skin_variant(k)
+        if sv and sv[0] in have:
+            out.setdefault(sv[1], {})[sv[0]] = k
+    return out
 
 
 def f6(v):
@@ -3132,7 +3165,8 @@ def _read_json(path):
         return None
 
 
-def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, jobs=None, root=None, fx_manifest=None):
+def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, jobs=None, root=None, fx_manifest=None,
+              skins_only=False):
     """The fx run (extract.py --only fx): writes <out_root>/fx/** and `fx_manifest` (default <root>/data/local-fx.json:
     the groups FX_GROUPS, every file); returns the number of files written. `manifest` (the groups of
     data/local-assets.json) gets nothing: extract.py drops the fx groups an earlier run left there (ran_groups). A
@@ -3154,6 +3188,10 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
 
     t0 = time.time()
     gd = game_data(root)
+    twins = lambda ks: {v for d in skin_variants(eff, set(ks)).values() for v in d.values()}  # noqa: E731
+    if skins_only:
+        prev_idx = _read_json(out / 'index.json') or {}
+        keys = sorted(twins((prev_idx.get('prefabs') or {}).keys())) or ['__none__']
     if keys:
         unit_ids = []
     elif selection == 'sample':
@@ -3169,6 +3207,8 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
 
     generic = {v for group in FX_GENERIC.values() for v in group.values()}
     generic |= {k for k, rel in eff.items() if rel in FX_GENERIC_BUNDLES}
+    # (fork) every exported effect's outfit twins come along (`<key>_<outfit>#N`, skin_variant): the outfits play them
+    # instead (render/vfx/wiring.js skinKey); a --fx-skins run adds only the twins of the earlier set's prefabs
     if keys:
         wanted = set(keys)
     else:                         # the used set holds the sample too (a full run never drops a key a sample has)
@@ -3177,6 +3217,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
     for k in missing:
         log(f'  skip (no such effect prefab in this client) {k}')
     wanted -= set(missing)
+    wanted |= twins(wanted)
 
     # -- descriptors, textures, meshes; then the keys the exported behaviours name (variants by facing, chained
     #    effects), until nothing new is named
@@ -3201,6 +3242,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
                     log(line)
             named = {r for e in entries.values() for r in e.get('refs', [])}
             todo = {k for k in named if k in eff and k not in done}
+            todo |= {k for k in twins(todo) if k not in done}
     timings['prefabs'] = time.time() - t0
 
     summaries = {k: {f: v[f] for f in ('file', 'bundle', 'nodes', 'particleSystems', 'liveParticles', 'duration', 'looping', 'refs',
@@ -3232,6 +3274,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         'source': {'root': ab_root.name, 'client': client_version(ab_root)},
         'units': units, 'projectiles': projectiles, 'skills': skills, 'skins': skins,
         'generic': {**FX_GENERIC, 'keys': sorted(k for k in generic if k in summaries)},
+        'skinFx': skin_fx_map(summaries),
         'prefabs': dict(sorted(summaries.items())),
     }
     write_atomic(out / 'index.json', json.dumps(index, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))

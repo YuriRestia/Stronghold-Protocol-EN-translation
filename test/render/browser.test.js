@@ -34,7 +34,7 @@ describe('render engine in headless Chrome', { skip }, () => {
   });
 
   async function open(query, w = 1920, h = 1080) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -77,7 +77,7 @@ describe('render engine in headless Chrome', { skip }, () => {
 
   test('Spine models load through the served manifest\'s content-hashed URLs, cached immutably (host bandwidth layer 1)', async (t) => {
     if (!srv.assetIndex) { t.skip('SP_ASSET_INDEX=0: no content hashes'); return; }
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const spine = [];
     const problems = [];
     page.on('response', (r) => {

@@ -21,7 +21,6 @@ const UPDATE_POINTS = [
   N_('高台、召唤物与装置改用官方模型'), // en: "High Ground, summons and devices use the official models"
   N_('统计页向官方靠拢：奖杯、独立 / 联合模拟两行、六称号图'), // en: "Stats page redesigned closer to the game's: trophies, Solo / Co-op rows, the six-title chart"
   N_('手动刷新商店会取消冻结（按官方）'), // en: "Refreshing the shop by hand now cancels the freeze, as in the game"
-  N_('AI 队友的重装与医疗站位更合理'), // en: "AI teammates position their defenders and medics better"
   N_('攻击出手后，目标走出射程也会打完这一下（按官方）'), // en: "Operators keep attacking a target that leaves range during the attack, as in the game"
 ];
 

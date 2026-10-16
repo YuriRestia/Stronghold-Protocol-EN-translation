@@ -45,7 +45,7 @@ describe('机密商店: the same item twice (mock harness, headless Chrome)', { 
 
   for (const [name, w, h, touch] of [['756x366', 756, 366, true], ['1920x1080', 1920, 1080, false]]) {
     test(`${name}: two 变形同构体 are two cards; the second stays pickable after the first is taken, and picking it sends its own index`, { timeout: 120000 }, async () => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: touch, hasTouch: touch });
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

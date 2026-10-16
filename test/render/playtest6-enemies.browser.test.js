@@ -48,7 +48,7 @@ describe('enemy model sizes and the 萨科塔 flutter (headless Chrome, real sim
   });
 
   test('威龙 ≈ 1.08× a 妖怪 on screen; the feared bird turns left and right inside its tile', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

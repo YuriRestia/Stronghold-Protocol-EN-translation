@@ -196,10 +196,10 @@ test('a symlink id is not followed: status has no version, and --force renames t
   fs.mkdirSync(plugins);
   fs.mkdirSync(path.join(real, 'elsewhere'), { recursive: true });
   fs.writeFileSync(path.join(real, 'elsewhere', 'plugin.json'), JSON.stringify({ version: '9.9.9' }));
-  fs.symlinkSync(path.join(real, 'elsewhere'), path.join(plugins, 'demo-skin'));
+  fs.symlinkSync(path.join(real, 'elsewhere'), path.join(plugins, 'demo-skin'), process.platform === 'win32' ? 'junction' : 'dir'); // (fork) a junction on Windows (no symlink rights)
   const incoming = path.join(tmp, 'incoming-target');
   fs.mkdirSync(incoming);
-  fs.symlinkSync(incoming, path.join(plugins, '_incoming'));
+  fs.symlinkSync(incoming, path.join(plugins, '_incoming'), process.platform === 'win32' ? 'junction' : 'dir');
   try {
     assert.equal(installedPluginVersion(plugins, 'demo-skin'), null);
     assert.throws(() => installPluginBytes(pluginZip('demo-skin'), { pluginsDir: plugins }), (e) => e.code === 'PLUGIN_INSTALL_ZIP');

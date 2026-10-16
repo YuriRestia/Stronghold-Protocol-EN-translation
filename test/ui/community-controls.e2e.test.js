@@ -1,6 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url'; // (fork) Windows-safe paths
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const enabled = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -37,7 +38,7 @@ describe('community UI: lobby header and shared DIY details', { skip: !enabled }
       await page.waitForFunction(() => document.querySelector('.spcard').disabled && !document.querySelector('.spcard.is-armed'));
       assert.match(await page.$eval('.spcard', e => e.textContent), /库存不足/);
       assert.equal(await page.evaluate(() => window.__picks?.length || 0), 0);
-      await page.screenshot({ path: new URL('../e2e/out/shared-stock-unavailable.png', import.meta.url).pathname });
+      await page.screenshot({ path: fileURLToPath(new URL('../e2e/out/shared-stock-unavailable.png', import.meta.url)) });
       await page.click('.spcard:nth-child(2)'); await page.click('.spcard:nth-child(2)');
       assert.deepEqual(await page.evaluate(() => window.__picks), [1]);
     } finally { await context.close(); }
@@ -84,7 +85,7 @@ describe('community UI: lobby header and shared DIY details', { skip: !enabled }
           assert.ok(Math.min(a.right, b.right) - Math.max(a.x, b.x) <= 1 || Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) <= 1,
             `${a.label} overlaps ${b.label}`);
         }
-        await page.screenshot({ path: new URL(`../e2e/out/lobby-header-${width}-${lang}.png`, import.meta.url).pathname });
+        await page.screenshot({ path: fileURLToPath(new URL(`../e2e/out/lobby-header-${width}-${lang}.png`, import.meta.url)) });
         await page.click('.stats-entry'); await page.waitForSelector('.st .st-tab');
         await page.click('.st-back');
         await page.waitForSelector('.st', { hidden: true });
@@ -112,7 +113,7 @@ describe('community UI: lobby header and shared DIY details', { skip: !enabled }
       const restored = await detail(); assert.deepEqual(restored.stats, elite.stats);
       // Independent scrolling must reach all skills/modules without displacing the fixed confirm control.
       await page.$eval(`${picker} .diy-pick__detail`, e => { e.scrollTop = e.scrollHeight; });
-      await page.screenshot({ path: new URL(`../e2e/out/diy-detail-${width}-xl.png`, import.meta.url).pathname });
+      await page.screenshot({ path: fileURLToPath(new URL(`../e2e/out/diy-detail-${width}-xl.png`, import.meta.url)) });
       const accessible = await page.$eval('[data-testid="diy-confirm"]', e => {
         const r = e.getBoundingClientRect(), at = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
         return r.bottom <= innerHeight && (at === e || e.contains(at));

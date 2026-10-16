@@ -23,7 +23,7 @@ describe('facing wheel keyboard (mock match, headless Chrome)', { skip: !ENABLED
   after(async () => { await browser?.close(); await srv?.close(); });
 
   async function setup(t) {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     t.after(() => page.close());
     await page.setViewport({ width: 1920, height: 1080 });
     const errors = [];

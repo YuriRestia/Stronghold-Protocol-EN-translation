@@ -44,7 +44,7 @@ describe('an airborne 蒂比 is no target of ground enemies in the client replic
   });
 
   test('控潮术师 hits 角峰 while 蒂比 is airborne, and her again once she lands', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     try {

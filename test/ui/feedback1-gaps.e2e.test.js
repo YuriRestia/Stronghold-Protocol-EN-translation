@@ -58,7 +58,7 @@ describe('0.1.1 gaps: 变形同构体 pairings and 调和\'s +1 (mock harness, h
 
   for (const [name, w, h, touch] of [['1920x1080', 1920, 1080, false], ['844x390', 844, 390, true], ['756x366', 756, 366, true]]) {
     test(`${name}: the 变形同构体 card, its wearer's card and the 调和 row of the bond popup`, { timeout: 120000 }, async () => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: touch, hasTouch: touch });
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
@@ -136,7 +136,7 @@ describe('0.1.1 gaps: 变形同构体 pairings and 调和\'s +1 (mock harness, h
   // switches off read 本局禁用 on their card and in the detail pane — and can still be picked
   for (const [name, w, h, touch] of [['1920x1080', 1920, 1080, false], ['844x390', 844, 390, true]]) {
     test(`${name}: the 标准 strategy draft marks 潘格尼尼 / 克莱门莎 / 玛恩纳 本局禁用, and 潘格尼尼 can still be picked`, { timeout: 120000 }, async () => {
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       await page.setViewport({ width: w, height: h, deviceScaleFactor: 1, isMobile: touch, hasTouch: touch });
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

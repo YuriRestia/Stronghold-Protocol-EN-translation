@@ -38,7 +38,18 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 ### Changes
 
 - The lobby news banner announces Update 0.3.0 (Sakiko Togawa, official battle effects, official models for High
-  Ground, summons and devices, and four gameplay points); everyone who closed the 0.2.6 banner sees it again.
+  Ground, summons and devices, and three gameplay points); everyone who closed the 0.2.6 banner sees it again.
+- The preload manager (Settings → Preload Assets) imports a preload zip: `npm run package:preload`
+  (`tools/preload-pack.mjs`) writes every file the preload lists, the official battle effects included, into one
+  zip a host can offer anywhere; files whose size and SHA-1 match the server's are saved as if downloaded, the rest
+  still download. Upstream's title-screen asset import and download buttons are gone (one place for the art).
+- The preload manager (Settings → Preload Assets) imports a preload zip:   ([resources] preload manifest: 34281 files, 1589 MB, 0 hashed (1596 ms)
+preload pack: Stronghold-Protocol-v0.3.0-preload.zip · 34281 files, 1589 MB · preload manifest a81810800449
+zipping 34282 files → C:UsersYURIRE~1AppDataLocalTempstronghold-protocol-releaseStronghold-Protocol-v0.3.0-preload.zip
+zip: C:UsersYURIRE~1AppDataLocalTempstronghold-protocol-releaseStronghold-Protocol-v0.3.0-preload.zip (1166 MB)
+host it anywhere (a file host, a Discord link); players import it in Settings > Preload Assets) writes every file the preload lists, the official battle effects included, into one
+  zip a host can offer anywhere; files whose size and SHA-1 match the server's are saved as if downloaded, the rest
+  still download. Upstream's title-screen asset import and download buttons are gone (one place for the art).
 
 ## 2026-10-15
 

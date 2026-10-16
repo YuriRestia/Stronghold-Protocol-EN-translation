@@ -35,7 +35,7 @@ describe('Forge import in the studio page', { skip: !ENABLED && 'set SP_E2E=1 (a
       walk(SKIN, '');
       const zipPath = path.join(tmp, 'rose-skin.zip');
       fs.writeFileSync(zipPath, zipFiles(files));
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       // (domcontentloaded: the studio keeps its event stream open, so the network never idles)
       await page.goto(srv.studio.pageUrl(srv.url), { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="forge-import"]');
@@ -79,7 +79,7 @@ describe('Forge import in the studio page', { skip: !ENABLED && 'set SP_E2E=1 (a
         { name: 'chess.json', data: Buffer.from(JSON.stringify({ chess_rose_kit_a: pair('chess_rose_kit_a', false), chess_rose_kit_b: pair('chess_rose_kit_b', true) })) },
         { name: 'kits/chess_rose_kit_a.js', data: Buffer.from("export default function kit() { return { skill: { kind: 'passive', mods: { atkPct: 0.1 } } }; }\n") },
       ]));
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       await page.goto(srv.studio.pageUrl(srv.url), { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('[data-testid="forge-import"]');
       await page.click('[data-testid="forge-import"]');
@@ -133,7 +133,7 @@ describe('Forge import in the studio page', { skip: !ENABLED && 'set SP_E2E=1 (a
       const zipB = path.join(tmp, 'b.zip');
       fs.writeFileSync(zipA, zipFiles(files));
       fs.writeFileSync(zipB, zipFiles(files));
-      const page = await browser.newPage();
+      const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
       await page.evaluateOnNewDocument(() => {
         const orig = FileReader.prototype.readAsDataURL;
         FileReader.prototype.readAsDataURL = function (blob) {

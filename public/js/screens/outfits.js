@@ -11,7 +11,19 @@ import { html, Button, MicroLabel, Modal, Spinner } from '../ui/components.js';
 import { Img } from '../ui/gameComponents.js';
 import { data, useData } from '../data.js';
 import { useStore } from '../store.js';
-import { outfitArtUrl, defaultArtUrl, spineEntry } from '../assets.js';
+// (fork) Not imported from assets.js: main.js reaches this screen at boot, and the asset store loads only when it is
+// needed (test/ui/plugins-client.test.js). The three manifest lookups the cards need, as in assets.js
+// outfitArtUrl / defaultArtUrl / spineEntry as a yes/no (an outfit or operator id; the 3D view itself imports assets.js on demand).
+const obj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const text = (v) => (typeof v === 'string' && v ? v : null);
+const outfitOf = (m, id) => (text(id)?.includes('#') ? (m?.outfits?.chars?.[id] || m?.outfits?.tokens?.[id] || null) : null);
+const outfitArtUrl = (m, id, kind) => text(outfitOf(m, id)?.[kind]);
+const defaultArtUrl = (m, charId) => text(m?.outfits?.defaults?.[charId]?.art);
+const hasModel = (sp) => obj(sp) && typeof sp.skel === 'string' && typeof sp.atlas === 'string';
+const hasSpine = (m, id) => {
+  const of = outfitOf(m, id);
+  return of ? (hasModel(of.spine) || hasModel(of.spine?.front)) : hasModel(m?.chars?.[id]?.spine?.front);
+};
 import { outfitStore, setOutfit, outfitsOf, applyOutfitsImport } from '../ui/outfits.js';
 import { serializeOutfits, parseOutfitsImport, OUTFITS_IMPORT_MAX_BYTES } from '../../../shared/outfits.js';
 import { copyText } from '../ui/clipboard.js';
@@ -254,7 +266,7 @@ export function OutfitPanel({ m, chess }) {
   const wornRec = worn ? list.find((r) => r.id === worn) : null;
   const art = worn ? outfitArtUrl(m, worn, 'art') : defaultArtUrl(m, charId);
   const artName = wornRec?.name || chess.name || charId;
-  const model = worn && spineEntry(m, worn) ? worn : charId;
+  const model = worn && hasSpine(m, worn) ? worn : charId;
   // the artwork button: '点击查看大图' // en: "Click to view full size" · '查看大图：{name}' // en: "View full size: {name}"
   return html`<div class="lo-detail__body ofit" data-testid="outfit-panel">
     <section class="ofit-stage">

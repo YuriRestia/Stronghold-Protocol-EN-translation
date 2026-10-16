@@ -41,7 +41,7 @@ describe('the local-client summon models on the prep board (headless Chrome)', {
   });
 
   test('every summon draws its official model on its idle clip, over its tile, facing its deploy direction', async (t) => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     let least = { drawn: Infinity };
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

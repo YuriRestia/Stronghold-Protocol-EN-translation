@@ -3,7 +3,7 @@
 // ticked from the voice language settings (ui/voiceLang.js) until the player edits it. The download itself runs in
 // resources/index.js and keeps going after the manager is closed.
 
-import { useEffect } from '../../vendor/hooks.module.js';
+import { useEffect, useRef } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, MicroLabel, Modal, ProgressBar, confirmDialog } from './components.js';
 import { createStore, useStore } from '../store.js';
 import { GIcon } from './gameComponents.js';
@@ -11,7 +11,7 @@ import { useVoiceLang } from './voiceLang.js';
 import { data } from '../data.js';
 import { BASE_PACKS, VOICE_PACKS, OUTFITS_PACK, formatBytes } from '../../../shared/resources.js';
 import { preloadPref, preloadState, tickedPacks, setOutfitsPack, voicePacksOf, missingBytes, inspectPreload, inspectPreloadLight, startPreload, pausePreload,
-  clearPreload, setVoicePack, followVoiceSettings, removeVoicePacks, removeOutfitsPack } from '../resources/index.js';
+  clearPreload, setVoicePack, followVoiceSettings, removeVoicePacks, removeOutfitsPack, preloadImport, importPreloadZip, cancelPreloadImport } from '../resources/index.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 const ui = createStore({ open: false });
@@ -59,6 +59,17 @@ const TX = {
   cardMore: N_('可下载更多'), // en: "Download More"
   options: N_('预载设置'), // en: "Preload Settings"
   resumeShort: N_('继续'), // en: "Resume"
+  importHead: N_('导入素材包'), // en: "Import asset pack"
+  importHint: N_('已有本服务器提供的预载 zip？在这里导入，与服务器文件一致的部分无需再下载。不用解压。'), // en: "Have this server's preload zip? Import it here: every file that matches the server's is not downloaded again. No need to unzip."
+  importZip: N_('导入 zip'), // en: "Import zip"
+  importDrop: N_('或把 zip 拖到这里'), // en: "or drop the zip here"
+  importCancel: N_('取消导入'), // en: "Cancel import"
+  importReading: N_('正在读取 zip…'), // en: "Reading the zip…"
+  importProgress: N_('正在校验并保存：{done} / {total}'), // en: "Checking and saving: {done} / {total}"
+  importDone: N_('导入完成：保存 {saved} 个文件，{mismatched} 个与本服务器版本不符，{skipped} 个不属于预载'), // en: "Import done: {saved} files saved, {mismatched} didn't match this server's version, {skipped} aren't part of the preload"
+  importBadZip: N_('这不是有效的 zip。'), // en: "This isn't a valid zip."
+  importQuota: N_('浏览器存储空间已满：已导入的文件会保留。'), // en: "Browser storage is full. The files imported so far are kept."
+  importFailed: N_('导入失败：{0}'), // en: "Import failed: {0}"
 };
 
 /** Status messages of resources/index.js, by key ({0} = its `detail`). */
@@ -195,6 +206,48 @@ export function PreloadCard({ class: cls }) {
   </section>`;
 }
 
+/** The status line of a zip import (resources/index.js preloadImport). */
+function importText(im) {
+  if (im.phase === 'reading') return t(TX.importReading);
+  if (im.phase === 'importing') return t(TX.importProgress, { done: im.done, total: im.total });
+  if (im.phase === 'done') return t(TX.importDone, { saved: im.saved, mismatched: im.mismatched, skipped: im.skipped });
+  if (im.phase !== 'error') return '';
+  if (im.error === 'badZip') return t(TX.importBadZip);
+  if (im.error === 'quota') return t(TX.importQuota);
+  if (MESSAGES[im.error]) return t(MESSAGES[im.error]);
+  return t(TX.importFailed, { 0: im.error });
+}
+
+/**
+ * (fork) The manager's import: a preload zip (tools/preload-pack.mjs) picked or dropped goes into the preload's own
+ * cache, so the download skips the files it brought (the title screen's separate 导入素材包 is gone).
+ */
+function ImportZip({ disabled }) {
+  const im = useStore((s) => s, Object.is, preloadImport);
+  const fileRef = useRef(null);
+  const running = im.phase === 'reading' || im.phase === 'importing';
+  const take = (file) => { if (file && !disabled && !running) void importPreloadZip(file); };
+  const onDrop = (e) => {
+    e.preventDefault();
+    const f = [...(e.dataTransfer?.files || [])].find((x) => /\.zip$/i.test(x.name));
+    take(f);
+  };
+  const text = importText(im);
+  return html`<div class="preload__import" onDragOver=${(e) => e.preventDefault()} onDrop=${onDrop} data-testid="preload-import">
+    <span class="set-row__label">${t(TX.importHead)}</span>
+    <p class="set-hint">${t(TX.importHint)}</p>
+    <div class="preload__import-row">
+      <${Button} variant="secondary" size="sm" icon="plus" disabled=${disabled || running} data-testid="preload-import-zip"
+        onClick=${() => fileRef.current?.click()}>${t(TX.importZip)}<//>
+      ${running ? html`<${Button} variant="ghost" size="sm" onClick=${cancelPreloadImport}>${t(TX.importCancel)}<//>` : html`<span class="t-lo">${t(TX.importDrop)}</span>`}
+    </div>
+    <input class="preload__import-file" type="file" accept=".zip,application/zip" ref=${fileRef} tabindex="-1" aria-hidden="true"
+      data-testid="preload-import-input" onChange=${(e) => { take(e.currentTarget.files?.[0]); e.currentTarget.value = ''; }} />
+    ${im.phase === 'importing' && im.total ? html`<${ProgressBar} value=${im.done} max=${im.total} size="sm" tone="mint" />` : null}
+    ${text ? html`<p class=${`preload__msg${im.phase === 'error' ? ' is-error' : ''}`} role="status" aria-live="polite" data-testid="preload-import-status">${text}</p>` : null}
+  </div>`;
+}
+
 /** The manager modal (mounted once in main.js). */
 export function PreloadHost() {
   const { open } = useStore((s) => s, Object.is, ui);
@@ -242,6 +295,7 @@ export function PreloadHost() {
         <${PackRow} st=${st} pack=${OUTFITS_PACK} name=${t(TX.outfits)} hint=${t(TX.outfitsHint)} checked=${!!pref.outfits} disabled=${working}
           onChange=${setOutfitsPack} />
       </ul>
+      <${ImportZip} disabled=${!!st.unsupported} />
       <p class="preload__sum num">${t(TX.sum, { saved: formatBytes(saved), need: formatBytes(need) })}</p>
       ${msg ? html`<p class=${`preload__msg${st.phase === 'error' ? ' is-error' : ''}`} role="status" aria-live="polite">${msg}</p>` : null}
       ${st.worker ? html`<p class="preload__msg is-error">${t(TX.worker, { 0: st.worker })}</p>` : null}

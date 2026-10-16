@@ -43,7 +43,7 @@ describe('掠海漂移体 drops to 爬行模式: its model crawls (headless Chro
   });
 
   test('hover clips before the stun, \'Change\' on the drop, then the crawl clips while 山 blocks and hits it', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

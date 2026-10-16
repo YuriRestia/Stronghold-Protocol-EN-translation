@@ -59,7 +59,7 @@ describe('阵法术师 group attack in headless Chrome (community report E3)', {
     const attacks = frames.filter((f) => f.ev.some((e) => e[0] === 'atk' && e[1] === opId));
     assert.ok(attacks.length >= 3, 'she attacked');
     for (const f of attacks) assert.equal(new Set(f.ev.filter((e) => e[0] === 'atk' && e[1] === opId).map((e) => e[2])).size, 5, 'one attack, five targets');
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

@@ -14,6 +14,7 @@
 
 import { ALL_PACKS, CACHE_NAME, MAX_FILE_BYTES, PACKS_PATH } from '../../../shared/resources.js';
 import { mediaUrl } from '../media.js';
+import { contentTypeFor } from '../assetCache.js';
 
 /** Files above this share one lane (a 20 MB texture should not race four others for memory and bandwidth). */
 const BIG_FILE_BYTES = 4 << 20;
@@ -220,6 +221,63 @@ export class PreloadStore {
     const result = { ...snapshot(), complete };
     onProgress?.(result);
     return result;
+  }
+
+  /**
+   * (fork) Store the files of an asset zip the player picked: every entry that is a file of the manifest with its size
+   * and SHA-1 is saved like a downloaded one (the same header), so the download skips it. `entries`: { path, read }
+   * with `path` a site path (`/assets/…`) and `read()` → { ok, bytes }. Nothing is fetched.
+   * @param {{ path: string, read: () => Promise<{ ok: boolean, bytes?: Uint8Array }> }[]} entries
+   * @param {{ signal?: AbortSignal, onProgress?: (p: { total: number, done: number, saved: number, mismatched: number, skipped: number }) => void }} [opts]
+   * @returns {Promise<{ total: number, done: number, saved: number, mismatched: number, skipped: number }>}
+   */
+  async importEntries(entries, { signal, onProgress } = {}) {
+    // per-file lookups, no Cache.keys(): Chrome refuses to list a cache of a whole pack's size
+    const cache = await this.caches.open(CACHE_NAME);
+    const todo = [];
+    const seen = new Set();
+    let skipped = 0;
+    for (const e of entries) {
+      const f = this.byPath.get(e.path);
+      if (!f || seen.has(f.path)) { skipped++; continue; }
+      seen.add(f.path);
+      todo.push([f, e]);
+    }
+    const p = { total: todo.length, done: 0, saved: 0, mismatched: 0, skipped };
+    let lastEmit = 0;
+    const emit = (force = false) => {
+      const now = this.now();
+      if (!onProgress || (!force && now - lastEmit < 150)) return;
+      lastEmit = now;
+      onProgress({ ...p });
+    };
+    emit(true);
+    for (const [f, e] of todo) {
+      if (signal?.aborted) throw abortError();
+      const old = await cache.match(this.urlOf(f.path));
+      if (old?.headers.get('X-SP-Resource') === f.hash) { p.saved++; p.done++; emit(); continue; }
+      const got = await e.read().catch(() => null);
+      const bytes = got?.ok ? got.bytes : null;
+      if (!bytes || bytes.byteLength !== f.size || await sha1Prefix(bytes) !== f.hash) p.mismatched++;
+      else {
+        try {
+          await cache.put(this.urlOf(f.path), new Response(bytes, { status: 200, headers: {
+            'Content-Type': contentTypeFor(f.path), 'Content-Length': String(bytes.byteLength), 'X-SP-Resource': f.hash } }));
+        } catch (err) {
+          if (isQuotaError(err)) {
+            const quota = new Error('quota exceeded');
+            quota.name = 'QuotaExceededError';
+            throw quota;
+          }
+          throw err;
+        }
+        p.saved++;
+      }
+      p.done++;
+      emit();
+    }
+    emit(true);
+    return { ...p };
   }
 
   /** Delete the saved files of `packs` (an unticked voice pack). */

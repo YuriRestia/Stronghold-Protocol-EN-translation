@@ -328,7 +328,7 @@ test('malicious zip and directory input is refused and a script in the pack is n
     const linked = path.join(parent, 'linked');
     fs.mkdirSync(linked);
     fs.writeFileSync(path.join(linked, 'pack.json'), '{"id":"rose-linked","name":"x","version":"1.0.0"}');
-    fs.symlinkSync('/tmp', path.join(linked, 'escape'));
+    fs.symlinkSync(os.tmpdir(), path.join(linked, 'escape'), process.platform === 'win32' ? 'junction' : 'dir'); // (fork) a junction on Windows (no symlink rights)
     const sym = await importForge(linked, opts);
     assert.equal(sym.issues[0].code, 'PLUGIN_FORGE_ZIP');
     assert.match(sym.issues[0].detail, /symbolic link/);

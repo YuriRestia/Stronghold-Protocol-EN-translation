@@ -90,6 +90,7 @@ import { isFlyKey } from './waves.js';
 import { mitigate } from '../sim/damage.js';
 import { HOVER_KEYS } from '../sim/content/enemies.js';
 import { attackRangeGrid, loadoutRecord, resolveRecordLoadout } from '../../shared/loadoutRecord.js';
+import { simMeter } from './simMeter.js';
 
 /**
  * Drive a step generator (planLayoutSteps, createRehearsalSteps, arrangeSteps, botPrepBeginSteps …) to its end in one
@@ -1165,8 +1166,10 @@ export function createRehearsalJob(m, ps, chosen, plans, inputs, prebuilt = null
       if (job.done) return true;
       if (!run) run = new RehearsalRun(factories, ps.playerId, cap);
       const timed = Number.isFinite(budgetMs);
-      const t0 = timed ? performance.now() : 0;
-      job.done = run.run(timed ? () => performance.now() - t0 >= budgetMs : null);
+      const t0 = performance.now();
+      try {
+        job.done = run.run(timed ? () => performance.now() - t0 >= budgetMs : null);
+      } finally { simMeter.add('rehearsal', performance.now() - t0); } // (fork) simMeter.js
       job.best = job.plans[run.score.index] || job.best;
       return job.done;
     },

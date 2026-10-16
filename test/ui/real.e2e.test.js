@@ -45,7 +45,7 @@ class Client {
   async open(query = '') {
     this.browser = await this.puppeteer.launch({ executablePath: CHROME, headless: true, args: CHROME_ARGS, protocolTimeout: 60000 });
     const [first] = await this.browser.pages();
-    const page = first || await this.browser.newPage();
+    const page = first || await this.browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     this.page = page;
     await page.setViewport({ width: this.w, height: this.h });
     page.on('console', (m) => { if (m.type() === 'error') this.problems.push(`console: ${m.text()}`); });

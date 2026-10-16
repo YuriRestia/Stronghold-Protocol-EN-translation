@@ -346,7 +346,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     try {
       for (const b of [browser, b12]) {
         for (const [w, h, touch] of [[1280, 720], [1366, 657], [1920, 1080], [2560, 1440], [844, 390, true], [640, 360, true]]) {
-          const page = await b.newPage();
+          const page = await b.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
           await page.emulate({ viewport: { width: w, height: h, deviceScaleFactor: 1, isMobile: !!touch, hasTouch: !!touch, isLandscape: true }, userAgent: await b.userAgent() });
           await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP`, { waitUntil: 'networkidle0' });
           await page.waitForSelector('.ewheel__btn');
@@ -376,7 +376,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
   });
 
   test('portrait phone: the rotate hint covers the page', async () => {
-    const page = await browser.newPage();
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await page.emulate({ viewport: { width: 390, height: 844, deviceScaleFactor: 3, isMobile: true, hasTouch: true }, userAgent: IOS_UA });
     await page.goto(`${base}/`, { waitUntil: 'networkidle0' });
     await sleep(400);
@@ -384,7 +384,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     await page.screenshot({ path: path.join(OUT, 'device-portrait-rotate.png') });
     await page.close();
     // review regression: a narrow desktop window (half a 1080p screen, portrait monitor) cannot be "rotated" — no hint
-    const desk = await browser.newPage();
+    const desk = await browser.newPage(); await desk.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     await desk.setViewport({ width: 900, height: 1000 });
     await desk.goto(`${base}/`, { waitUntil: 'networkidle0' });
     await desk.waitForSelector('.title-screen', { timeout: 10000 });
