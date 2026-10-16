@@ -631,7 +631,7 @@ describe('AudioManager', () => {
       const shape = a.fever.node.gain.gain.log;
       assert.deepEqual(shape[0], ['set', 1], 'full volume from the start (no fade in)');
       assert.ok(!shape.some(([k, v]) => k === 'ramp' && v === 1), 'nothing ramps it up');
-      assert.deepEqual(shape[shape.length - 1], ['ramp', 0], 'it fades out at its end');
+      assert.deepEqual(shape[shape.length - 1], ['ramp', 0], 'only a click guard at its very end');
       const first = a.fever;
       a.handleBattleEvents([['fx', 'fever', 0, 0, { on: 0 }], ['fx', 'fever', 0, 0, { on: 1 }]]);
       assert.equal(a.fever, first, 'Fever ending does nothing; a new Fever neither restarts nor queues it');

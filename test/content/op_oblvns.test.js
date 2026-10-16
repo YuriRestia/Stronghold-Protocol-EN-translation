@@ -351,19 +351,26 @@ test('转向速度 (PRTS 弹道): the turned direction is not renormalised — a
   }
 });
 
-test('a note looking for a target takes hers first (owner 2026-10-16): the enemy she blocks, else her pick in range — only then the nearest to itself', () => {
-  // a note far ahead of her, right next to another enemy: it still goes for the one she blocks
+test('a note looking for a target over her range takes hers first (owner 2026-10-16): the enemy she blocks, else her pick in range — outside her range (owner 2026-10-17) or with none of hers, the nearest to itself', () => {
+  // a note over her range: it goes for the one she blocks
   const { h, u } = field({ foes: [[10, 5], [10, 10]] });
   h.runUntil(() => u.blocking.length > 0, 5);
   const [blocked, far] = [u.blocking[0], h.b.enemies.find((e) => e !== u.blocking[0])];
-  const n = h.b.notes.add({ owner: u, kind: NOTE_KINDS.attackFree, x: far.x - 0.3, y: far.y, dx: 1, dy: 0, onHit: () => {} });
+  const n = h.b.notes.add({ owner: u, kind: NOTE_KINDS.attackFree, x: u.x, y: u.y, dx: 1, dy: 0, onHit: () => {} });
   h.b.notes.update(TICK);
-  assert.equal(n.target, blocked, 'the blocked enemy, not the one beside the note');
+  assert.equal(n.target, blocked, 'her blocked enemy');
+  // a note outside her range, right next to another enemy: its own pick, not hers
+  const o = h.b.notes.add({ owner: u, kind: NOTE_KINDS.attackFree, x: far.x - 0.3, y: far.y, dx: 1, dy: 0, onHit: () => {} });
+  assert.ok(!u.rangeKeySet.has(Math.round(o.y) * COLS + Math.round(o.x)), 'the setup: outside her range');
+  h.b.notes.update(TICK);
+  assert.equal(o.target, far, 'the one beside the note');
   // she blocks nothing: her own pick in range (the one nearest the blue box), not the one beside the note
   const g = field({ foes: [[10, 7], [10, 9]] });
   const lead = g.h.b.enemies.slice().sort((a, b) => g.h.b.remainingDistance(a) - g.h.b.remainingDistance(b))[0];
   const other = g.h.b.enemies.find((e) => e !== lead);
-  const m = g.h.b.notes.add({ owner: g.u, kind: NOTE_KINDS.attackFree, x: other.x, y: other.y + 0.3, dx: 1, dy: 0, onHit: () => {} });
+  // the note on her range's last tile (8, 10), nearer the other one (9, 10) than her pick (7, 10)
+  const m = g.h.b.notes.add({ owner: g.u, kind: NOTE_KINDS.attackFree, x: other.x - 0.6, y: other.y + 0.3, dx: 1, dy: 0, onHit: () => {} });
+  assert.ok(g.u.rangeKeySet.has(Math.round(m.y) * COLS + Math.round(m.x)), 'the setup: over her range');
   g.h.b.notes.update(TICK);
   assert.equal(m.target, lead, 'her pick');
   // none in her range and she blocks none: the nearest to the note itself (PRTS)
@@ -372,7 +379,17 @@ test('a note looking for a target takes hers first (owner 2026-10-16): the enemy
   const q = k.h.b.notes.add({ owner: k.u, kind: NOTE_KINDS.attackFree, x: e.x - 0.5, y: e.y, dx: 1, dy: 0, onHit: () => {} });
   k.h.b.notes.update(TICK);
   assert.equal(q.target, e, 'its own pick');
-  done(h); done(g.h); done(k.h);
+  // S3 outside her range (owner 2026-10-17): its own pick still takes the highest RES / DEF within its radius
+  const t = field({ skill: 2, foes: [[10, 10, 'e_tank'], [10, 11, 'e_arts']] });   // e_arts lands at x 10.5 (the map's edge)
+  const [tank, arts] = ['e_tank', 'e_arts'].map((id) => t.h.b.enemies.find((x) => x.defId === `enemy_${id}`));
+  const s3 = (prefer) => t.h.b.notes.add({ owner: t.u, kind: NOTE_KINDS.attackFree, x: 9.9, y: 10, dx: 1, dy: 0, data: { prefer }, onHit: () => {} });
+  const [pn, an, plain] = [s3('res'), s3('def'), s3(null)];
+  assert.ok(!t.u.rangeKeySet.has(10 * COLS + 10), 'the setup: outside her range');
+  t.h.b.notes.update(TICK);
+  assert.equal(pn.target, arts, 'S3 phys: the higher RES, though farther');
+  assert.equal(an.target, tank, 'S3 arts: the higher DEF');
+  assert.equal(plain.target, tank, 'no preference: the nearest');
+  done(h); done(g.h); done(k.h); done(t.h);
 });
 
 test('the notes\' priority (owner 2026-10-16): her blocked enemies → her own range → the range another member lends her; S3 takes the highest RES / DEF within that group', () => {

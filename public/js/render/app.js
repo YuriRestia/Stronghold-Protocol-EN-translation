@@ -69,8 +69,8 @@
 //                                                mysticEnergy: 设置「秘术师能量」, a 秘术师's stored/cap — PR #636;
 //                                                officialFx: 设置「官方特效」 'auto'|'off'|'lite'|'full', the official battle
 //                                                effects on the 3D board — render/vfx, DESIGN §9 "Official battle effects")
-//                                                noteFx (fork, sandbox): 'ours'|'official' — 丰川祥子's notes by
-//                                                render/fx/notes.js or by her official projectile prefabs
+//                                                noteFx (fork, sandbox): 'official' (default: her official projectile
+//                                                prefabs, render/fx/notes.js the fallback)|'ours' — 丰川祥子's notes
 //   view.stats() → { fps, frameMs, cpuMs, renderMs, units, particles, impostor, impostorAtlas, boardArt, pen, penHidden, … }
 //                                               (dev / perf; pen = the pen's figures, penHidden = the camera hides them)
 //   (dev, public/dev/sandbox: settings.forceImpostors draws every unit through the impostor atlas, as a crowd would;
@@ -403,13 +403,14 @@ export async function createFieldView(host, options = {}) {
   // 丰川祥子's free-flight notes (b.snap `notes`, render/fx/notes.js): drawn every battle frame where the sim has them
   const noteLayer = new NoteLayer({ P, layer: layers.fxAdd, cam: () => cam, view: (id) => views.get(id) || null, fxTex: fx.tex,
     localUrl: (g, n) => (typeof assets.localUrl === 'function' ? assets.localUrl(g, n) : null),
-    // (sandbox preview, settings.noteFx 'official') the notes drawn by their official projectile prefabs
+    // the notes drawn by their official projectile prefabs while the official effects are on (ours the fallback)
     official: {
+      active: () => ofx.active,
       flight: (owner, look, at) => (ofx.active ? wiring.noteFlight(owner, look, at) : null),
       hit: (owner, look, tgt, x, y, z) => (ofx.active ? wiring.noteHit(owner, look, tgt, x, y, z) : false),
     } });
   setupCleanup.push(() => noteLayer.destroy());
-  if (settings.noteFx === 'official') noteLayer.setMode('official');
+  if (settings.noteFx === 'ours') noteLayer.setMode('ours');
   const noteList = [];
   let noteFrame = 0;
   // the official battle effects (设置「官方特效」, render/vfx): drawn on the 3D board only (the 2D board fallback keeps the
@@ -2196,7 +2197,7 @@ export async function createFieldView(host, options = {}) {
       if (typeof s.mysticEnergy === 'boolean') settings.mysticEnergy = s.mysticEnergy;   // likewise
       if (s.quality === 'high' || s.quality === 'medium' || s.quality === 'low') settings.quality = s.quality;
       if (typeof s.officialFx === 'string' && s.officialFx !== settings.officialFx) { settings.officialFx = s.officialFx; syncOfficialFx(); }
-      if (s.noteFx === 'ours' || s.noteFx === 'official') noteLayer.setMode(s.noteFx);   // (fork) sandbox preview
+      if (s.noteFx === 'ours' || s.noteFx === 'official') noteLayer.setMode(s.noteFx);   // (fork) sandbox comparison
       if (q !== settings.quality) { board3d?.setQuality?.(settings.quality); resize(); }
     },
     resize,
@@ -2245,7 +2246,7 @@ export async function createFieldView(host, options = {}) {
         fps: Math.round(fps * 10) / 10, frameMs: Math.round(frameMs * 100) / 100, cpuMs: Math.round(cpuMs * 100) / 100, renderMs: Math.round(renderMs * 100) / 100, mode, units: views.size, impostor: impInterval, impostorAtlas: { ...impostors.stats }, boardArt: !!tiles.atlas.art,
         board3d: board3d ? { on: true, ...board3d.stats(), losses: recover.count } : { on: false, error: board3dError, recovering: !!recover.timer, losses: recover.count },
         pen: penViews.size, penHidden, prepField: prepXf.kind === 'bossPrep' ? prepXf.side : null, lod: loadLevel, culled: culledCount,
-        ...fx.counts, officialFx: ofx.stats(), spine: assets.spine?.stats ? assets.spine.stats() : null, renderT: interp.renderT, rate: interp.rate,
+        ...fx.counts, officialFx: ofx.stats(), notes: noteLayer.stats(), spine: assets.spine?.stats ? assets.spine.stats() : null, renderT: interp.renderT, rate: interp.rate,
         buffered: interp.size, camera: cam.params(),
       };
     },

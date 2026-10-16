@@ -10,8 +10,8 @@
 //        `~<charId>` = the operator a 自选 slot (chess_char_5/6_diy*_a/_b) fields (shared/diy.js)
 //        &map=<stageId> (one of the 7 HARD maps, default act2autochess_m01; a preset belongs to the map it was saved on)
 //        &enemies=hard-normal-rN | empty | preset:<name> (default hard-normal-r13) &speed=1|2|4 &imp=0 (normal
-//        rendering) &legacy=1 (old box) &fight=1 (start the battle on load) &notes=official (Sakiko's notes drawn by
-//        her official effects instead of ours, to compare; needs the official effects extracted)
+//        rendering) &legacy=1 (old box) &fight=1 (start the battle on load) &notes=ours (Sakiko's notes drawn by our
+//        fallback renderer instead of her official effects, to compare)
 // Operators: the pool's (data/chess.json, normal and elite forms) and the Custom Squad picks (自选: the DIY slots of
 // tier 5 / 6 filled with any operator a slot may field that has a kit — KITTED_CHARS; no module). 补位 stand-ins are not
 // offered. Deploying is the match's prep: "Add to bench" puts the pick in the first free bench slot, then it is dragged
@@ -141,7 +141,7 @@ async function main() {
   if (['1', '2', '4'].includes(q.get('speed'))) $('speed').value = q.get('speed');
   $('impostors').checked = q.get('imp') !== '0';
   $('legacy').checked = q.get('legacy') === '1';
-  $('note-official').checked = q.get('notes') === 'official';
+  $('note-ours').checked = q.get('notes') === 'ours';
 
   const stage = data.lookup('stages', template.spec.stageId);
   const tiles = deployMap(stage);   // 'r,c' → 'melee' | 'ranged'
@@ -330,7 +330,7 @@ async function main() {
     p.set('speed', $('speed').value);
     if ($('impostors').checked) p.delete('imp'); else p.set('imp', '0');
     if ($('legacy').checked) p.set('legacy', '1'); else p.delete('legacy');
-    if ($('note-official').checked) p.set('notes', 'official'); else p.delete('notes');
+    if ($('note-ours').checked) p.set('notes', 'ours'); else p.delete('notes');
     p.delete('fight');
     history.replaceState(null, '', `${location.pathname}?${p}`);
   };
@@ -373,7 +373,7 @@ async function main() {
 
   // ---- the field ---------------------------------------------------------------------------------------------
   const settings = () => ({ quality: 'high', damageNumbers: true, forceImpostors: $('impostors').checked, legacyImpostorBox: $('legacy').checked,
-    noteFx: $('note-official').checked ? 'official' : 'ours' });
+    noteFx: $('note-ours').checked ? 'ours' : 'official' });
   // the outfit of each unit, by board uid: prep pieces and battle units both carry it (prepState / me.units below)
   const skinByUid = new Map();
   const outfitOf = (info) => (info && info.side !== 'enemy' && info.kind !== 'token' ? skinByUid.get(info.uid) || null : null);
@@ -540,8 +540,8 @@ async function main() {
   $('speed').onchange = sync;
   $('impostors').onchange = () => { sync(); view.setSettings(settings()); };
   $('legacy').onchange = () => { sync(); view.setSettings(settings()); };
-  // Sakiko's notes: ours (render/fx/notes.js) or her official projectile prefabs — from the next note launched
-  $('note-official').onchange = () => { sync(); view.setSettings(settings()); };
+  // Sakiko's notes: her official projectile prefabs or our fallback (render/fx/notes.js) — from the next note launched
+  $('note-ours').onchange = () => { sync(); view.setSettings(settings()); };
 
   const fight = async () => {
     if (facing) return;

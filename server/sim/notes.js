@@ -6,9 +6,10 @@
 //   【自由移动】 wander: from its launch direction, either straight (speed → finalSpeed at accel/s) or on an 扩张正弦方向
 //      path (PRTS 特殊机制: origin = where it entered the state, x along the heading at `sx` tiles/s, y = ±sin(x) with the
 //      n-th period's amplitude amp × n, n ≤ 3, the sign 50/50 — the prefab `_moveType` 6, `count` 3, `speed_scale` = amp);
-//   every `tick` s (Body `_tickTime`) it updates: without a trace target it takes its owner's target (_ownerPick: the
-//      enemy she blocks, else one in her own range, else one in her lent range — ownerTarget, owner 2026-10-16), else the nearest selectable enemy
-//      within `radius` (Selector CircleCollider2D r) of itself (PRTS); with one, once `minFree` s of wander have passed (Body
+//   every `tick` s (Body `_tickTime`) it updates: without a trace target, while it is over its owner's attack range (own
+//      + lent tiles) it takes her target (_ownerPick: the enemy she blocks, else one in her own range, else one in her
+//      lent range — ownerTarget, owner 2026-10-16; outside it, owner 2026-10-17: its own pick), else the nearest selectable enemy
+//      (S3: the highest RES / DEF first, owner 2026-10-17) within `radius` (Selector CircleCollider2D r) of itself (PRTS); with one, once `minFree` s of wander have passed (Body
 //      `_switchToTracingTime`, on EVERY entry: owner 2026-10-16, the 血狼破军 flowchart — PRTS only names the first), it
 //      switches to
 //   【追踪移动】 trace: speed `trace` toward the target, its velocity turned by `turn` of the way per frame (PRTS 弹道
@@ -165,14 +166,25 @@ export class NoteSystem {
     return e;
   }
 
-  /** The nearest selectable enemy whose body is within the note's radius (ties: the earlier spawn). */
-  _nearest(n, r, skip = null) {
-    let best = null, bd = Infinity;
+  /** Is the note over its owner's attack range? (her current tiles, own + lent; the frozen ones once she has left) */
+  _inside(n) {
+    const o = n.owner;
+    return n.range ? n.range.has(roundHalfEven(n.y) * COLS + roundHalfEven(n.x)) : !!(o && o.alive && o.deployed && inRange(o, n.x, n.y));
+  }
+
+  /**
+   * The note's own pick: a selectable enemy whose body is within the note's radius — the highest `prefer` stat first
+   * (S3's 'res' / 'def', owner 2026-10-17: kept outside her range too), then the nearest, then the earlier spawn.
+   */
+  _nearest(n, r, prefer = null, skip = null) {
+    let best = null, bd = Infinity, bs = -Infinity;
     for (const e of this.battle.enemies) {
       if (skip && skip.has(e) || !canTargetEnemy(n.owner, e, PROFILE)) continue;
       const d = bodyDist(e, n.x, n.y);
       if (d > r + 1e-9) continue;
-      if (d < bd - 1e-9 || (Math.abs(d - bd) <= 1e-9 && best && e.spawnSeq < best.spawnSeq)) { bd = d; best = e; }
+      const st = prefer ? e.s[prefer] : 0;
+      if (st > bs + 1e-9 || (Math.abs(st - bs) <= 1e-9 &&
+        (d < bd - 1e-9 || (Math.abs(d - bd) <= 1e-9 && best && e.spawnSeq < best.spawnSeq)))) { bs = st; bd = d; best = e; }
     }
     return best;
   }
@@ -194,7 +206,8 @@ export class NoteSystem {
         n.tickT += n.kind.tick;
         if (n.state === 'free') {
           if (!n.target) {
-            const e = this._ownerPick(n) || this._nearest(n, n.kind.radius);
+            // over her range: her target first (owner 2026-10-17); outside it the note picks for itself
+            const e = (this._inside(n) ? this._ownerPick(n) : null) || this._nearest(n, n.kind.radius, n.data?.prefer ?? null);
             if (e) { n.target = e; n.tseq = e.deploySeq; }
           }
           if (n.target && n.freeT >= n.kind.minFree - 1e-9) { n.state = 'trace'; n.vx = n.hx; n.vy = n.hy; }
@@ -204,9 +217,7 @@ export class NoteSystem {
       else this._moveTrace(n, dt);
       if (n.dead) continue;
       // the off-range rule: no trace target, outside the owner's attack range, for more than a second
-      const o = n.owner;
-      const inside = n.range ? n.range.has(roundHalfEven(n.y) * COLS + roundHalfEven(n.x)) : !!(o && o.alive && o.deployed && inRange(o, n.x, n.y));
-      if (!n.target && !inside) {
+      if (!n.target && !this._inside(n)) {
         n.offRange += dt;
         if (n.offRange > OFF_RANGE_GRACE + 1e-9) n.dead = true;
       } else n.offRange = 0;

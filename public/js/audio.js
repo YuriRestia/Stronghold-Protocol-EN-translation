@@ -110,9 +110,12 @@ const XFADE_S = 1;
 const NOTE_VOICES = 48;
 /**
  * The Fever track (manifest bgm.fever: the vocal KiLLKiSS, owner 2026-10-15) starts at full volume the moment Fever
- * starts (owner 2026-10-16: no fade in) and fades out over this (s) at its end; the round's track comes back over it.
+ * starts (owner 2026-10-16: no fade in) and plays as fully as it can (owner 2026-10-17): only this (s) at its very
+ * end ramps it to 0, against a click.
  */
-const FEVER_FADE_S = 1.2;
+const FEVER_END_S = 0.05;
+/** After the Fever song the round's track comes back over this (s). */
+const FEVER_BACK_S = 1.2;
 /** The round's track drops under the Fever song this fast (s): a cut, short enough not to click. */
 const FEVER_DUCK_S = 0.08;
 const FADE_S = 0.8;
@@ -1025,7 +1028,7 @@ export class AudioManager {
    * A Fever started on the watched field (b.ev ['fx', 'fever', …, { on: 1 }]): the Fever track (manifest `bgm.fever`, the
    * vocal KiLLKiSS — owner 2026-10-15) plays ONCE over the round's music, which drops out under it and fades back
    * after it. It starts at once at full volume and plays to its end even when Fever is over (the mode runs at 2×:
-   * Fever is shorter than the song), fading out at its end; a Fever that starts while it plays changes nothing (no
+   * Fever is shorter than the song), to its last note (FEVER_END_S); a Fever that starts while it plays changes nothing (no
    * queue: owner 2026-10-16). Fever ending does nothing.
    */
   feverStart() {
@@ -1050,7 +1053,7 @@ export class AudioManager {
         src.connect(gain); gain.connect(this.bgmGain);
         const t0 = ctx.currentTime, end = t0 + buf.duration;
         gain.gain.setValueAtTime(1, t0);
-        gain.gain.setValueAtTime(1, Math.max(t0, end - FEVER_FADE_S));
+        gain.gain.setValueAtTime(1, Math.max(t0, end - FEVER_END_S));
         gain.gain.linearRampToValueAtTime(0, end);
         src.start(t0);
         this.fever.node = { src, gain };
@@ -1082,7 +1085,7 @@ export class AudioManager {
     this._duckBgm(false);
   }
 
-  /** The round's track under the Fever song: cut out (`down`, FEVER_DUCK_S) and faded back (FEVER_FADE_S). */
+  /** The round's track under the Fever song: cut out (`down`, FEVER_DUCK_S) and faded back (FEVER_BACK_S). */
   _duckBgm(down) {
     const cur = this.bgm;
     if (!cur || !this.ctx) return;
@@ -1090,7 +1093,7 @@ export class AudioManager {
       const t = this.ctx.currentTime;
       cur.gain.gain.cancelScheduledValues(t);
       cur.gain.gain.setValueAtTime(cur.gain.gain.value, t);
-      cur.gain.gain.linearRampToValueAtTime(down ? 0 : 1, t + (down ? FEVER_DUCK_S : FEVER_FADE_S));
+      cur.gain.gain.linearRampToValueAtTime(down ? 0 : 1, t + (down ? FEVER_DUCK_S : FEVER_BACK_S));
     } catch { /* ignore */ }
   }
 

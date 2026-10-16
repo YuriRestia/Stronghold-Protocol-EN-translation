@@ -282,13 +282,14 @@ export class FxWiring {
   skinOf(u) { return u && u.skin && this.idx ? this.idx.skins[u.skin] || null : null; }
 
   /**
-   * (fork) The outfit suffix a view wears (its info.model, the outfit's battle skin id `char_4182_oblvns_avemujica#1`
-   * → 'avemujica#1'), or null — the key of index.json `skinFx` (tools/local-extract/fx.py skin_variant).
+   * (fork) The outfit suffix a view wears (its info.model: `char_4182_oblvns@avemujica#1` → 'avemujica#1'), or null — the key of index.json `skinFx` (tools/local-extract/fx.py skin_variant).
    */
   outfitOf(v) {
     const m = v?.info?.model;
     if (typeof m !== 'string') return null;
-    const r = /_([a-z0-9]+#\d+)$/i.exec(m);
+    // an operator's model is its outfit id (`char_4182_oblvns@avemujica#1`, ui/outfits.js outfitModelOf), a token's its
+    // look's id (`token_10002_kalts_mon3tr_sale#14`)
+    const r = /[_@]([a-z0-9]+#\d+)$/i.exec(m);
     return r ? r[1].toLowerCase() : null;
   }
 
@@ -1436,7 +1437,11 @@ export class FxWiring {
     if (!this.ofx.active || !proj) return false;
     let n = 0;
     for (const k of proj.onHit || []) {
-      if (tgt && !tgt.destroyed) { if (this.playOn(k, tgt, { by: owner || undefined })) n++; continue; }
+      if (tgt && !tgt.destroyed) {
+        // the note's damage follows in the same batch: the official hit stands for its spark (damage(): arrived)
+        if (this.playOn(k, tgt, { by: owner || undefined })) { n++; this.arrived.set(tgt.id ?? tgt.info?.id, this.ofx.time); }
+        continue;
+      }
       const kk = this.skinKey(lc(k), owner);
       if (kk && this.ofx.lib.has(kk) && this.ofx.spawn(kk, { pos: [x - 10, y - 9, -(z || 0)], groundZ: 0 }, {})) n++;
     }

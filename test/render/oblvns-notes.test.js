@@ -76,6 +76,49 @@ describe('render/fx/notes.js', () => {
     L.destroy();
   });
 
+  test('official effects on: a note is the official prefab only (nothing of ours built); off: ours is the fallback', () => {
+    const P = globalThis.PIXI;
+    const views = new Map([[1, { info: {} }]]);
+    let on = true;
+    const flights = [], hits = [];
+    const official = {
+      active: () => on,
+      flight: (owner, look, at) => { const h = { look, at, stopped: false, stop() { this.stopped = true; } }; flights.push(h); return h; },
+      hit: (owner, look) => { hits.push(look); return true; },
+    };
+    const ctx = { ...ctxWith(views, P), official };
+    const L = new NoteLayer(ctx);
+    const kids = () => L.root.children.length;
+    const note = (id, x) => ({ id, owner: 1, x, y: 10, hx: 1, hy: 0, look: 'attack', state: 0 });
+    L.sync([note(7, 6)], 0.016, 1);
+    assert.equal(flights.length, 1, 'the official prefab draws it');
+    assert.equal(kids(), 0, 'no sprite, trail or glow of ours');
+    assert.equal(L.notes.get(7).head, undefined);
+    L.sync([note(7, 6.5)], 0.016, 2);
+    assert.equal(flights[0].at().x, 6.5, 'the prefab follows the note');
+    L.hit({ id: 7, owner: 1, look: 'attack' }, 6.5, 10);
+    assert.deepEqual(hits, ['attack'], 'the official hit');
+    assert.equal(L.hits.length, 0, 'no burst of ours');
+    L.sync([], 0.016, 3);
+    assert.ok(flights[0].stopped && L.notes.size === 0, 'gone from the snapshot: stopped at once');
+    // 官方特效 switched off: a note in flight goes on as ours, a new one is ours
+    L.sync([note(8, 6)], 0.016, 4);
+    on = false;
+    L.sync([note(8, 6.2), note(9, 6)], 0.016, 5);
+    assert.ok(flights[1].stopped, 'the official prefab stops');
+    assert.ok(L.notes.get(8).head && L.notes.get(9).head, 'both drawn by this layer');
+    assert.ok(kids() > 0);
+    L.hit({ id: 9, owner: 1, look: 'attack' }, 6, 10);
+    assert.equal(L.hits.length, 1, 'our burst');
+    // the sandbox comparison: always ours
+    on = true;
+    L.setMode('ours');
+    L.sync([note(10, 6)], 0.016, 6);
+    assert.equal(flights.length, 2);
+    assert.ok(L.notes.get(10).head);
+    L.destroy();
+  });
+
   test("height: born at her launch height, a locked note reaches its enemy's body, the hit bursts there, a free note eases back", () => {
     const P = globalThis.PIXI;
     const sak = { x: 5, y: 10, info: {}, _headTiles: 1.2 }, foe = { x: 9, y: 10, info: {}, _headTiles: 3 };

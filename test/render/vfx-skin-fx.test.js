@@ -67,7 +67,7 @@ async function setup() {
 describe('(fork) official effects of an outfit', () => {
   test('an outfit plays its twins: cast, flight and hit; the default look keeps the base keys', async () => {
     const { w, spawned, view, frame, land } = await setup();
-    const a = view(1, 'char_700_shot', 5, 'char_700_shot_sk#1'), b = view(2, 'char_700_shot', 5), t = view(3, 'enemy_800_foe', 8);
+    const a = view(1, 'char_700_shot', 5, 'char_700_shot@sk#1'), b = view(2, 'char_700_shot', 5), t = view(3, 'enemy_800_foe', 8);
     frame();
     assert.equal(w.attack(a, t, 'arrow', 1), true);
     assert.ok(spawned.includes('p_cast_sk#1') && spawned.includes('p_trail_sk#1'));
@@ -79,16 +79,23 @@ describe('(fork) official effects of an outfit', () => {
     assert.ok(spawned.includes('p_cast') && spawned.includes('p_trail') && !spawned.some((k) => k.includes('#')));
   });
 
+  test('the outfit comes from the model the field view sets (an outfit id), a token look\'s id too', async () => {
+    const { w, view } = await setup();
+    assert.equal(w.outfitOf(view(1, 'char_4182_oblvns', 5, 'char_4182_oblvns@avemujica#1')), 'avemujica#1');
+    assert.equal(w.outfitOf(view(2, 'token_10002_kalts_mon3tr', 5, 'token_10002_kalts_mon3tr_sale#14')), 'sale#14');
+    assert.equal(w.outfitOf(view(3, 'char_4182_oblvns', 5)), null);
+  });
+
   test('preload: the worn outfits\' twins join the units\' keys', async () => {
     const { w, view } = await setup();
-    const keys = w.keysFor([view(1, 'char_700_shot', 5, 'char_700_shot_sk#1')], false);
+    const keys = w.keysFor([view(1, 'char_700_shot', 5, 'char_700_shot@sk#1')], false);
     assert.ok(keys.includes('p_trail') && keys.includes('p_trail_sk#1') && keys.includes('p_hit_sk#1'));
     assert.ok(!w.keysFor([view(2, 'char_700_shot', 5)], false).some((k) => k.includes('#')));
   });
 
   test('丰川祥子\'s note launch: her cast (the outfit\'s) only, no projectile flown', async () => {
     const { w, spawned, view, frame } = await setup();
-    const s = view(1, 'char_4182_oblvns', 5, 'char_4182_oblvns_sk#1'), t = view(2, 'enemy_800_foe', 8);
+    const s = view(1, 'char_4182_oblvns', 5, 'char_4182_oblvns@sk#1'), t = view(2, 'enemy_800_foe', 8);
     frame();
     assert.equal(w.attack(s, t, 'note', 1), true, 'drawn: no procedural shot either');
     assert.deepEqual(spawned, ['n_start_sk#1']);
@@ -97,7 +104,7 @@ describe('(fork) official effects of an outfit', () => {
 
   test('sandbox preview: noteFlight follows the note in the outfit\'s trail, noteHit plays its hit', async () => {
     const { w, spawned, view } = await setup();
-    const s = view(1, 'char_4182_oblvns', 5, 'char_4182_oblvns_sk#1'), d = view(3, 'char_4182_oblvns', 5), t = view(2, 'enemy_800_foe', 8);
+    const s = view(1, 'char_4182_oblvns', 5, 'char_4182_oblvns@sk#1'), d = view(3, 'char_4182_oblvns', 5), t = view(2, 'enemy_800_foe', 8);
     const at = { x: 6, y: 10, z: 0.5, hx: 0, hy: 1 };
     const h = w.noteFlight(s, 'attack', () => at);
     assert.equal(h.key, 'n_trail_sk#1');
@@ -109,5 +116,6 @@ describe('(fork) official effects of an outfit', () => {
     assert.equal(w.noteFlight(s, 'unknown', () => at), null);
     assert.equal(w.noteHit(s, 'attack', t, 8, 10, 0.5), true);
     assert.ok(spawned.includes('n_hit_sk#1'));
+    assert.equal(w.damage(t, 'phys', null, 2), true, 'the note\'s damage right after: no procedural spark on top');
   });
 });
