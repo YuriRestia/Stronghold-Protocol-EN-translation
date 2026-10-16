@@ -7,6 +7,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-17
 
+### Changes
+
+- Match Found Sound: the official match-found chime plays as the match briefing opens, however the match started
+  (Solo Matchmaking, a room's start, Find Teammates), and also while the game's tab is in the background. On by
+  default; Settings → Match Found Sound turns it off. Mute and the SFX volume apply.
+
 ### Fixes
 
 - The preload manager no longer fails with "Couldn't load the asset list: … Operation too large" once a whole pack is

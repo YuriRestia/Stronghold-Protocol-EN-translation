@@ -1231,6 +1231,25 @@ export class AudioManager {
   }
 
   /**
+   * (fork) A UI sound through an <audio> element, heard from a background tab: the context is suspended there
+   * (_onVis), an element still plays once the page has had a click. Mute and the SFX volume apply.
+   * @param {string} name sfx.ui key
+   */
+  alert(name) {
+    try {
+      const url = this.getManifest()?.audio?.sfx?.ui?.[name];
+      const El = this.win?.Audio;
+      if (typeof url !== 'string' || typeof El !== 'function' || this.volumes.muted || this.volumes.sfx <= 0) return;
+      const media = mediaUrl(url);
+      const el = new El(media);
+      el.volume = Math.min(1, this.volumes.sfx);
+      // a host without /media/: the original URL, as _buffer does
+      if (media !== url) el.addEventListener('error', () => { el.src = url; el.play().catch(() => {}); }, { once: true });
+      el.play().catch(() => {});
+    } catch { /* ignore */ }
+  }
+
+  /**
    * (fork) A UI sound torn apart for `seconds`, the alternate result background's signal loss (screens/result.js): the clip is cut
    * into short grains that play on, stutter (one grain repeated), jump to a random spot at another pitch, or drop out
    * to a burst of static; everything runs through a bit-crush. One UI voice for the whole cue.

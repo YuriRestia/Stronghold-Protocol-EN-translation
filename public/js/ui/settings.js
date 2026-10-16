@@ -360,6 +360,8 @@ export function SettingsModal({ open, onClose }) {
     return () => { live = false; };
   }, [open]);
   const fxTier = resolveOfficialFx(s.officialFx, true);
+  // (fork) 匹配提示音 en: "Match Found Sound" · 进入作战简报时播放提示音，页面在后台也能听到。 en: "Plays a sound when the
+  // match briefing opens, even while this tab is in the background."
   return html`<${Modal} open=${open} onClose=${onClose} title=${t('设置')} micro="SETTINGS" width="8.5rem"
                         actions=${html`<${Button} variant="secondary" icon="book" class="set-guide" onClick=${() => openGuide(0)}>${t('玩法说明')}<//>
                         <${Button} variant="primary" icon="check" onClick=${onClose}>${t('完成')}<//>`}>
@@ -385,6 +387,8 @@ export function SettingsModal({ open, onClose }) {
       <${Slider} label=${t('音效')} micro="SFX" icon="signal" value=${s.sfx}
                  onInput=${(v) => { updateSettings({ sfx: v }); if (!tested) { setTested(true); setTimeout(() => setTested(false), 400); audio.sfx('click'); } }} />
       <${Toggle} label=${t('静音')} micro="MUTE" value=${s.muted} onChange=${(v) => updateSettings({ muted: v })} />
+      <${Toggle} label=${t('匹配提示音')} micro="MATCH FOUND SOUND" value=${s.matchAlert} onChange=${(v) => updateSettings({ matchAlert: v })} />
+      <p class="set-hint">${t('进入作战简报时播放提示音，页面在后台也能听到。')}</p>
       <${Toggle} label=${t('显示伤害数字')} micro="DAMAGE NUMBERS" value=${s.damageNumbers} onChange=${(v) => updateSettings({ damageNumbers: v })} />
       <${Toggle} label=${t('官方伤害数字')} micro="OFFICIAL NUMBERS" value=${s.officialDamageNumbers} onChange=${(v) => updateSettings({ officialDamageNumbers: v })} />
       <p class="set-hint">${t('只显示达到官方暴击条件的红色数字。关闭时仍显示每一次命中。')}</p>

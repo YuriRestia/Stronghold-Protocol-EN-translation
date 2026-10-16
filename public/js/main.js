@@ -42,6 +42,7 @@ import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { TermTipHost } from './ui/termTip.js';
 import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
 import { net, identity, NetError } from './net.js';
+import { PHASE } from '../../shared/constants.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
@@ -449,6 +450,12 @@ async function boot() {
     onFailed: (url) => cosmetics.fail(url) });
   // …and the music follows the art: the screen's track again when the cosmetic layers change its URLs
   cosmetics.subscribe(() => audio.refreshBgm());
+  // (fork) 设置「匹配提示音」: a sound as the briefing opens (solo queue, room start or matchmaking alike), through an
+  // <audio> element so a Doctor in another tab hears it too
+  store.subscribe((s, prev) => {
+    if (s.match?.public?.phase === PHASE.INFO_CHECK && prev?.match?.public?.phase !== PHASE.INFO_CHECK
+      && settingsStore.get().matchAlert) audio.alert('matchSucceed');
+  });
   data.load('assets').catch(() => {});
   // Warm the data cache in the background (missing files are tolerated).
   data.loadAll('config').catch(() => {});

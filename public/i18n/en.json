@@ -157,6 +157,8 @@
   "语音语言": "Voice Language",
   "音效": "Sound Effects",
   "静音": "Mute",
+  "匹配提示音": "Match Found Sound",
+  "进入作战简报时播放提示音，页面在后台也能听到。": "Plays a sound when the match briefing opens, even while this tab is in the background.",
   "显示伤害数字": "Damage Numbers",
   "官方伤害数字": "Official Damage Numbers",
   "只显示达到官方暴击条件的红色数字。关闭时仍显示每一次命中。": "Show only red numbers that meet the official crit rule. While off, every hit still shows a number.",
