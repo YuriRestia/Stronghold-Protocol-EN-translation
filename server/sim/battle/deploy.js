@@ -43,6 +43,8 @@ export class BattleDeploy {
     u.deployedAt = this.time;
     u.atkCd = 0;
     u.lastAttackAt = -Infinity;
+    u.lastAnimAttackAt = -Infinity;
+    u.quietAttack = false;
     u.elem.burn = u.elem.neural = u.elem.necrosis = u.elem.apoptosis = u.elem.erosion = 0;
     u.ground = this.grid.isLow(R0, C0) && !this._elevated?.has(k);
     u.markDirty();

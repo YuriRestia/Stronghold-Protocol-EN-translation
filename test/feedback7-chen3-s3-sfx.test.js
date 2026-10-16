@@ -92,6 +92,7 @@ test('no operator takes a skill-mode file as its normal attack or impact (commun
   let n = 0;
   for (const [id, u] of Object.entries(units)) {
     if (!id.startsWith('char_')) continue;
+    if (u?.notes) continue;   // 丰川祥子: her official normal swing (ON_ABILITY_ON.attack.0.1) is an `_h` file
     for (const kind of ['attack', 'hit']) {
       const url = u?.[kind];
       if (typeof url !== 'string') continue;

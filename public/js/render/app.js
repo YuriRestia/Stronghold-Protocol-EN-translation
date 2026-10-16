@@ -133,6 +133,7 @@ import { SnapshotBuffer, frameTime } from './interp.js';
 import { TileField } from './tiles.js';
 import { UnitView, ItemView, DeviceView, FORMS, syncView } from './units.js';
 import { FxSystem, ensureDamageFonts } from './fx.js';
+import { NoteLayer } from './fx/notes.js';
 import { createDragController, pieceTile, dragStandTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, refreshDownLabels, silhouetteTexture } from './textures.js';
 import { TILE_H, TIER_COLORS, COLORS } from './style.js';
@@ -303,6 +304,7 @@ export async function createFieldView(host, options = {}) {
   const interp = new SnapshotBuffer({ delay: 0.1, rate: 2 });
   const sample = new Map();
   const meleePending = new Map(); // target id → { src, t }
+  const notePending = new Map();  // target id → time of 丰川祥子's note strike (its damage follows in the same batch)
   const consumedIds = new Set();  // battle ids used up by their own effect (fx `consumed`): no death particles
   let canPlaceFn = null;
   let editable = false;
@@ -373,6 +375,12 @@ export async function createFieldView(host, options = {}) {
   });
   setupCleanup.push(() => fx.destroy());
   ctx.fx = fx;
+  // 丰川祥子's free-flight notes (b.snap `notes`, render/fx/notes.js): drawn every battle frame where the sim has them
+  const noteLayer = new NoteLayer({ P, layer: layers.fxAdd, cam: () => cam, view: (id) => views.get(id) || null, fxTex: fx.tex,
+    localUrl: (g, n) => (typeof assets.localUrl === 'function' ? assets.localUrl(g, n) : null) });
+  setupCleanup.push(() => noteLayer.destroy());
+  const noteList = [];
+  let noteFrame = 0;
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
   ctx.createBox = () => switchableBox({ board: () => board3d, pixi: () => tiles.createBox() });
   const impostors = new ImpostorAtlas(app.renderer, { onError: (err) => recordError('render', err, 'impostor atlas pass failed') });
@@ -972,7 +980,9 @@ export async function createFieldView(host, options = {}) {
     battleMeta = null;
     interp.reset();
     fx.clear();
+    noteLayer.clear();
     meleePending.clear();
+    notePending.clear();
     consumedIds.clear();
     tiles.setBattleRect(null);
     board3d?.setBattleRect(null);
@@ -1424,7 +1434,9 @@ export async function createFieldView(host, options = {}) {
     gone.clear();
     interp.reset();
     fx.clear();
+    noteLayer.clear();
     meleePending.clear();
+    notePending.clear();
     consumedIds.clear();
     clearHl();
     renderT0Battle = null;
@@ -1506,6 +1518,10 @@ export async function createFieldView(host, options = {}) {
     return interp.pushEvents(list, performance.now() / 1000, t);
   }
 
+  // 丰川祥子's 持续攻击 with no enemy in range (['atk', id, 0, 'note']): the trait's notes just appear, she plays no attack
+  // clip — neither its wind-up nor the attack itself; only an attack on an enemy animates (owner 2026-10-16)
+  const isQuietNoteAttack = (e) => e[3] === 'note' && !e[2];
+
   // attack wind-ups: an 'atk' still queued in the buffer starts its Spine clip early enough for the strike frame to
   // land when the event is rendered (the look-ahead is the interpolation delay, ~0.2 game s)
   function windUpAttacks(renderT) {
@@ -1515,6 +1531,7 @@ export async function createFieldView(host, options = {}) {
   let upcomingT = 0;
   function onUpcoming(e, t) {
     if (e[0] !== 'atk' || woundUp.has(e) || CHAIN_KINDS.has(e[3])) return;
+    if (isQuietNoteAttack(e)) return;   // 丰川祥子's targetless 持续攻击: no clip to wind up
     const v = views.get(e[1]);
     if (!v || !v.windUp) return;
     if (v.windUp(t - upcomingT, e[3], views.get(e[2]) || null)) woundUp.add(e);
@@ -1549,6 +1566,7 @@ export async function createFieldView(host, options = {}) {
         break;
       }
       case 'atk': {
+        if (isQuietNoteAttack(e)) break;
         const src = views.get(e[1]) || battleView(e[1]);
         const tgt = views.get(e[2]) || battleView(e[2]);
         // chain / chainHeal bounces: the "source" is the previous target of the bounce, not an attacker
@@ -1564,6 +1582,9 @@ export async function createFieldView(host, options = {}) {
         const m = meleePending.get(v.id);
         let src = null;
         if (m && now - m.t < 0.35) { src = m.src; meleePending.delete(v.id); fx._slashAt = src.id; }
+        // a note's damage: its spark where the note struck (the body), not at the chest point
+        const nt = notePending.get(v.id);
+        if (nt !== undefined) { notePending.delete(v.id); if (now - nt < 0.35) fx._noteHitAt = v.id; }
         fx.damage(v, amt, e[3], src, e[4]);
         break;
       }
@@ -1589,6 +1610,11 @@ export async function createFieldView(host, options = {}) {
       }
       case 'status': { const v = views.get(e[1]); if (v) v.onStatus?.(e[2], !!e[3]); break; }
       case 'fx': {
+        // 丰川祥子's note strikes (sim notes.js): the burst of the note's look at the hit point
+        if (e[1] === 'note' && e[4] && e[4].on === 'hit') {
+          noteLayer.hit(e[4], Number(e[2]), Number(e[3]));
+          if (e[4].tgt != null) notePending.set(e[4].tgt, now);
+        }
         if (e[4] && typeof e[4] === 'object' && e[4].consumed && e[4].id != null) {
           consumedIds.add(e[4].id);
           if (consumedIds.size > 200) consumedIds.delete(consumedIds.values().next().value);
@@ -1812,6 +1838,7 @@ export async function createFieldView(host, options = {}) {
         if (Number.isFinite(renderT)) {
           processEvents(renderT);
           syncBattle(renderT);
+          noteLayer.sync(interp.notesAt(renderT, noteList), dt, ++noteFrame, renderT);
           windUpAttacks(renderT);
         }
       } else if (mode === 'prep') {

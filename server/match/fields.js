@@ -910,6 +910,11 @@ export function validateClientResult(spec, raw, { gd = null } = {}) {
       // the HUD capsule's numerator: kept only when the client reported one (an absent value must stay absent — the
       // teammate UI then falls back to `killed`, never to a fabricated 0); clamped to the denominator
       if (Number.isInteger(p.resolved) && p.resolved >= 0) perPlayer[pid].resolved = Math.min(p.total, p.resolved);
+      // the Fever gauge the field ended with (sim/fever.js, 联防 carries it: unite.js); absent on fields without one
+      if (p.fever != null) {
+        if (!finiteIn(p.fever, 0, 450 + 1e-6)) return bad('fever');
+        perPlayer[pid].fever = p.fever;
+      }
     }
     if (coinsSum > B.bountyCoins + 1e-6) return bad('coins');
     const result = { time: raw.time, reason: raw.reason, perPlayer, killed: 0, total: 0, errors: Math.max(0, Math.trunc(Number(raw.errors) || 0)) };

@@ -35,6 +35,8 @@ export class BattlePlayers {
       bandId: p.bandId ?? null,
       playerEffects: clone(p.playerEffects ?? []),
       lpForBoss: p.lpForBoss ?? null,
+      // 联防: the Fever gauge this player's own combat ended with (sim/fever.js; match/unite.js)
+      feverCarry: Number.isFinite(p.feverCarry) && p.feverCarry > 0 ? p.feverCarry : 0,
       dp: this.flags.dpInit,
       units: [],
       input: p,

@@ -503,7 +503,14 @@ describe('operator battle voice', () => {
 function fakeWindow() {
   const listeners = new Map();
   const made = { sources: 0, started: 0 };
-  class Param { constructor() { this.value = 1; } setValueAtTime(v) { this.value = v; } linearRampToValueAtTime(v) { this.value = v; } setTargetAtTime(v) { this.value = v; } cancelScheduledValues() {} }
+  // the value is the last one scheduled; `log` keeps every automation call ([kind, value]) for the tests that need the shape
+  class Param {
+    constructor() { this.value = 1; this.log = []; }
+    setValueAtTime(v) { this.value = v; this.log.push(['set', v]); }
+    linearRampToValueAtTime(v) { this.value = v; this.log.push(['ramp', v]); }
+    setTargetAtTime(v) { this.value = v; this.log.push(['target', v]); }
+    cancelScheduledValues() {}
+  }
   class Node { connect() {} disconnect() {} }
   class Gain extends Node { constructor() { super(); this.gain = new Param(); } }
   class Src extends Node { constructor() { super(); this.playbackRate = new Param(); made.sources++; } start() { made.started++; } stop() {} }
@@ -528,6 +535,74 @@ function fakeWindow() {
 }
 
 describe('AudioManager', () => {
+  test('丰川祥子 (committed manifest): each note type its official bank; the notes own every impact (no generic hit), her swing is attack.0.1, S3 its own', () => {
+    const u = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx.units.char_4182_oblvns;
+    const f = (url) => url?.split('/').pop();
+    const want = {
+      attack: [undefined, 'p_imp_mjckyrdnt.mp3'], talent: ['p_atk_mjckyrdnt.mp3', 'p_imp_mjckyrdnt.mp3'],
+      s1: [undefined, 'p_imp_mjckyrdglsnt.mp3'], s2: ['p_atk_mjckyrdnt_r.mp3', 'p_imp_mjckyrdnt_r.mp3'],
+      s2_slow: ['p_atk_mjckyrdnt_p.mp3', 'p_imp_mjckyrdnt_p.mp3'], s3_phy: ['p_atk_mjckyrdnt_r.mp3', 'p_imp_mjckyrdslnt.mp3'],
+      s3_mag: ['p_atk_mjckyrdnt_p.mp3', 'p_imp_mjckyrdslnt.mp3'],
+    };
+    for (const [look, [born, hit]] of Object.entries(want)) assert.deepEqual([f(u.notes[look]?.born), f(u.notes[look]?.hit)], [born, hit], look);
+    assert.equal(u.hit, undefined); assert.equal(u.hits, undefined);
+    assert.equal(f(u.attack), 'p_atk_mjckyrdnt_h.mp3');
+    assert.equal(f(u.attacks?.[2]), 'p_atk_mjckyrdslnt.mp3');
+  });
+
+  test('丰川祥子: per-note born / hit sounds, every one; the Fever song starts at full volume over the round track, a second Fever changes nothing (no queue), resets with the field', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const vm = { audio: {
+        bgm: { combat: { loop: '/b/combat.mp3' }, fever: { intro: '/b/fever.mp3', loop: '/b/fever.mp3' } },
+        sfx: { ui: {}, battle: {}, units: { char_4182_oblvns: { notes: { s1: { hit: '/s/s1_hit.mp3' }, talent: { born: '/s/t_born.mp3' } } } } },
+      } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      a.setFieldUnits([{ id: 3, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4182_oblvns' }]);
+      const urls = [];
+      const play = a._play.bind(a);
+      a._play = (url, o) => { urls.push(url); return play(url, o); };
+      const ev = [];
+      for (let i = 0; i < 30; i++) ev.push(['fx', 'note', 5, 10, { id: i, owner: 3, look: 's1_' + ((i % 8) + 1), on: 'hit', tgt: 9 }]);
+      ev.push(['fx', 'note', 5, 10, { id: 99, owner: 3, look: 'unknown', on: 'born' }]);
+      a.handleBattleEvents(ev);
+      assert.equal(urls.length, 30, 'every note hit plays');
+      assert.ok(urls.every((u) => u === '/s/s1_hit.mp3'), 'S1 notes share the s1 bank');
+      // Fever: the song starts at once at full volume (no fade in), the round track drops out
+      a.playBgm('combat');
+      await new Promise((r) => setTimeout(r, 10));
+      a.handleBattleEvents([['fx', 'fever', 0, 0, { on: 1 }]]);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.ok(a.fever && a.fever.node, 'the Fever song plays');
+      const shape = a.fever.node.gain.gain.log;
+      assert.deepEqual(shape[0], ['set', 1], 'full volume from the start (no fade in)');
+      assert.ok(!shape.some(([k, v]) => k === 'ramp' && v === 1), 'nothing ramps it up');
+      assert.deepEqual(shape[shape.length - 1], ['ramp', 0], 'it fades out at its end');
+      const first = a.fever;
+      a.handleBattleEvents([['fx', 'fever', 0, 0, { on: 0 }], ['fx', 'fever', 0, 0, { on: 1 }]]);
+      assert.equal(a.fever, first, 'Fever ending does nothing; a new Fever neither restarts nor queues it');
+      assert.equal(a.fever.queued, undefined);
+      // her targetless 持续攻击 (target id 0) plays no attack sound — only an attack on an enemy does (owner 2026-10-16)
+      const calls = [];
+      const unit = a.unit.bind(a);
+      a.unit = (...args) => { calls.push(args[1]); return unit(...args); };
+      a.handleBattleEvents([['atk', 3, 0, 'note']]);
+      assert.equal(calls.length, 0, 'no attack sound without a target');
+      a.handleBattleEvents([['atk', 3, 9, 'note']]);
+      assert.deepEqual(calls, ['attack'], 'an attack on an enemy has one');
+      a.unit = unit;
+      a.setFieldUnits([]);
+      assert.equal(a.fever, null, 'a new field stops it');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   test('no AudioContext / no manifest: every call is a silent no-op', () => {
     const a = new AudioManager({ win: null, getManifest: () => null });
     a.install();

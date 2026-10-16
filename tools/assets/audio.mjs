@@ -370,6 +370,22 @@ export const VOICE_DIRS = Object.freeze({ cn: 'voice_cn', jp: 'voice', en: 'voic
 export const VOICE_CUSTOM_DIR = 'voice_custom';
 
 /**
+ * The operators whose only dub is the collab one (charword `voiceLangDict[charId].dict` holds LINKAGE and no
+ * CN_MANDARIN — 丰川祥子 and the other 联动 operators): the official client plays those Japanese lines, from the `voice/`
+ * dump, under every voice setting — there is no `voice_cn/` folder for them (checked on the mirror 2026-10-15).
+ * @param {any} charword excel/charword_table.json
+ * @returns {Set<string>} charIds
+ */
+export function linkageOnlyVoice(charword) {
+  const out = new Set();
+  for (const [id, v] of Object.entries(charword?.voiceLangDict || {})) {
+    const dubs = Object.keys(v?.dict || {});
+    if (dubs.includes('LINKAGE') && !dubs.includes('CN_MANDARIN')) out.add(id);
+  }
+  return out;
+}
+
+/**
  * The own-language dub of each operator that has one: charword `voiceLangDict` entries whose language is of
  * `groupType` CUSTOM in `voiceLangTypeDict` (collab voices, LINKAGE, are not). The dub's folder under
  * VOICE_CUSTOM_DIR is its word key in lower case (`char_102_texas_ITA` → `char_102_texas_ita`; some dubs, e.g.

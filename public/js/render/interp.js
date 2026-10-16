@@ -56,6 +56,11 @@ const ELEMENT_KEYS = new Set(['neural', 'erosion', 'burn', 'apoptosis', 'necrosi
 const MAX_EVENTS = 6000;
 const finite = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+/** Uniform Catmull-Rom between p1 and p2 at t ∈ [0, 1] (p0 / p3 the neighbours): passes through every point. */
+const catmull = (p0, p1, p2, p3, t) => {
+  const t2 = t * t, t3 = t2 * t;
+  return 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (3 * p1 - p0 - 3 * p2 + p3) * t3);
+};
 
 /**
  * Game time unit `id` starts moving between snapshot `a` and the newer `b` (interpolation and extrapolation share it):
@@ -169,7 +174,23 @@ export function normalizeSnapshot(snap) {
       (standCut || (standCut = new Map())).set(e[0], e[1]);
     }
   }
-  return { t, units, down, ammo, wolves, coins, neg, st, sh, stand, standCut, raw: snap };
+  // 丰川祥子's free-flight notes (server/sim/notes.js; b.snap `notes`): [id, owner, x, y, hx, hy, look, state]
+  let notes = null;
+  if (Array.isArray(snap.notes)) {
+    for (const e of snap.notes) {
+      if (!Array.isArray(e) || !Number.isFinite(e[0]) || !Number.isFinite(e[2]) || !Number.isFinite(e[3])) continue;
+      (notes || (notes = new Map())).set(e[0], [e[0], e[1], e[2], e[3], finite(e[4]), finite(e[5]), typeof e[6] === 'string' ? e[6] : '', finite(e[7]) | 0, Number.isFinite(e[8]) ? e[8] : null]);
+    }
+  }
+  // the Fever gauge each Ave Mujica member shows (server/sim/fever.js; b.snap `fever`): id → [fill 0..1, active]
+  let fever = null;
+  if (Array.isArray(snap.fever)) {
+    for (const e of snap.fever) {
+      if (!Array.isArray(e) || !units.has(e[0]) || !Number.isFinite(e[1])) continue;
+      (fever || (fever = new Map())).set(e[0], [clamp(e[1], 0, 1), e[2] ? 1 : 0]);
+    }
+  }
+  return { t, units, down, ammo, wolves, coins, neg, st, sh, stand, standCut, notes, fever, raw: snap };
 }
 
 /**
@@ -351,6 +372,38 @@ export class SnapshotBuffer {
    * The `down` list (knocked-out operators waiting to redeploy, see header) of the snapshot shown at `time` (default
    * renderT) — the same snapshot sample() reads flags from — or null.
    */
+  /**
+   * The notes in the air at `time` (b.snap `notes`): each note of the older snapshot, its position on a Catmull-Rom
+   * spline through the snapshots around `time` (the one before, the two framing it, the one after — a wandering note
+   * curves smoothly between the snapshots, 0.1 s apart, instead of turning corners at each), the newer snapshot's end
+   * point when it is the last one; a new note appears where it is, a gone one is not drawn. Fills and returns `out`
+   * (an array of { id, owner, x, y, hx, hy, look, state, tgt }).
+   */
+  notesAt(time = this.renderT, out = []) {
+    out.length = 0;
+    const s = this.snaps;
+    if (!s.length || !Number.isFinite(time)) return out;
+    let ia = this._indexAt(time);
+    if (ia < 0) ia = 0;
+    const A = s[ia], B = ia + 1 < s.length ? s[ia + 1] : null;
+    if (!A.notes) return out;
+    const P0 = ia > 0 ? s[ia - 1] : null, P3 = ia + 2 < s.length ? s[ia + 2] : null;
+    const span = B ? B.t - A.t : 0;
+    const k = B && span > 0 ? clamp((time - A.t) / span, 0, 1) : 0;
+    for (const [id, a] of A.notes) {
+      const b = B && B.notes ? B.notes.get(id) : null;
+      let x = a[2], y = a[3];
+      if (b) {
+        // the neighbours (a note born or gone there repeats the end it has)
+        const p0 = (P0 && P0.notes && P0.notes.get(id)) || a, p3 = (P3 && P3.notes && P3.notes.get(id)) || b;
+        x = catmull(p0[2], a[2], b[2], p3[2], k);
+        y = catmull(p0[3], a[3], b[3], p3[3], k);
+      }
+      out.push({ id, owner: a[1], x, y, hx: b ? b[4] : a[4], hy: b ? b[5] : a[5], look: a[6], state: b ? b[7] : a[7], tgt: b ? b[8] : a[8] });
+    }
+    return out;
+  }
+
   downAt(time = this.renderT) {
     const s = this.snaps;
     if (!s.length || !Number.isFinite(time)) return null;
@@ -428,6 +481,7 @@ export class SnapshotBuffer {
       o.neg = A.neg ? A.neg.get(id) || 0 : 0;
       o.st = A.st?.get(id) ?? null;
       o.sh = A.sh?.get(id) ?? 0;
+      o.fever = A.fever?.get(id) ?? null;
       o.seen = stamp;
     }
     for (const id of out.keys()) if (!A.units.has(id)) out.delete(id);

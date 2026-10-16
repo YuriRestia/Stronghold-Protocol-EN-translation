@@ -691,7 +691,11 @@ function MatchScreen() {
     const b = phaseBanner(phase, pub, { alive, spectator });
     if (b) setBanner({ ...b, key: phaseKey });
     if (phase === PHASE.ROUND_START) audio.sfx('roundStart');
-    else if (phase === PHASE.PREP) audio.sfx('rest', { volume: 0.7 });
+    else if (phase === PHASE.PREP) {
+      audio.sfx('rest', { volume: 0.7 });
+      // the Fever song belongs to the battle: back in prep it fades out (owner 2026-10-16)
+      audio.feverStop();
+    }
     else if (phase === PHASE.COMBAT) audio.sfx('battleStart');
     else if (phase === PHASE.UNITE) audio.sfx('defenceUnite');
     else if (phase === PHASE.FINAL_ASSAULT) audio.sfx(solo ? 'bossRoundSingle' : 'bossRoundTeam');

@@ -105,6 +105,16 @@ JOBS = [
     *[(f'ui/emoticon/theme/[uc]{theme}.ab', f'emoticon/{sub}', {'Sprite'}, BATTLE_EMOTE) for theme, sub in EMOTE_THEMES],
     ('arts/guidebookpages/[pack]autochess.ab', 'guide', {'Sprite', 'Texture2D'}),
     ('battle/prefabs/[uc]projectiles.ab', 'projectiles', {'Sprite', 'Texture2D'}),
+    # 丰川祥子's battle effects (the note sprites, trails and hit flashes of her default look and of 旋律的主人 —
+    # oblvns_* / oblvns_skin_*, with the shared star / ray / mask textures her particle systems use): render/fx/notes.js
+    ('battle/prefabs/effects/oblvns.ab', 'fx/oblvns', {'Texture2D'}),
+    # …and the trail textures her TrailRenderers take from the shared FX texture bundles: the default look's wavy strands
+    # (oblvns_trail_01), 旋律的主人's ribbon strips and its sparkling background band (oblvns_skin_11 / _03)
+    ('refs/fx/texture/trail.ab', 'fx/oblvns', {'Texture2D'}, r'^oblvns_trail_01$'),
+    ('refs/fx/texture/object.ab', 'fx/oblvns', {'Texture2D'}, r'^oblvns_skin_(03|11)$'),
+    # the default look's band fade (rosmon_xxx_05_02) and dot layer (pattern_07)
+    ('refs/fx/texture/mask.ab', 'fx/oblvns', {'Texture2D'}, r'^rosmon_xxx_05_02$'),
+    ('refs/fx/texture/pattern.ab', 'fx/oblvns', {'Texture2D'}, r'^pattern_07$'),
     # official module (uniequip) type icons, keyed by lower-case type name (e.g. 'mar-x')
     ('spritepack/ui_equip_type_hub_h2_0.ab', 'module', {'Sprite'}),
     *[(rel, f'mesh/{sub}', {'Mesh', 'GameObject', 'Material', 'Texture2D'}) for rel, sub in MESH_BUNDLES],

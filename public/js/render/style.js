@@ -68,6 +68,8 @@ export const COLORS = Object.freeze({
   // the ammo bar's yellow cells (b.snap `ammo`) and 伺夜's 狼影 pips (b.snap `wolves`)
   ammo: 0xffd04a,
   wolf: 0xe8f0ff,
+  // the Ave Mujica Fever gauge (render/units.js _updateFever): the official grey note filling in pink
+  feverEmpty: 0x6f6a72, feverFill: 0xff5f9e,
   shield: 0xdfe8ff,
 });
 

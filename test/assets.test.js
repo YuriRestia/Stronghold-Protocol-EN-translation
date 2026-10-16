@@ -16,7 +16,7 @@ import { resolveRoles, roleAnimationNames } from '../tools/assets/anim-roles.mjs
 import { normalizeAtlas, atlasInfo, parseAtlas } from '../tools/assets/atlas.mjs';
 import { pngSize, isCompletePng, isMp3, validate } from '../tools/assets/formats.mjs';
 import { encodeWoff2, decodeWoff2Tables, readSfnt, uintBase128 } from '../tools/assets/woff2.mjs';
-import { assetToPath, pickUnitSfx, indexAudio, nativeVoiceDirs } from '../tools/assets/audio.mjs';
+import { assetToPath, pickUnitSfx, indexAudio, nativeVoiceDirs, linkageOnlyVoice } from '../tools/assets/audio.mjs';
 import { tidyVoiceTrees } from '../tools/fetch-assets.mjs';
 import { mirrorUrl, safeName, encodePath } from '../tools/assets/sources.mjs';
 import { collectEnemyIds, skillIndicesByChar, buildPlan, GUIDE_PAGES, UI_EXTRAS } from '../tools/assets/plan.mjs';
@@ -519,6 +519,19 @@ describe('audio banks and plan id sets', () => {
       ['char_196_sunbr', { dir: 'char_196_sunbr', type: 'RUS' }],
     ]);
     assert.equal(nativeVoiceDirs(null).size, 0);
+  });
+
+  test('voice: a collab operator with only the LINKAGE dub (丰川祥子) — the 中文 tree plays her Japanese lines', () => {
+    const charword = { voiceLangDict: {
+      char_102_texas: { dict: { CN_MANDARIN: {}, JP: {} } },
+      char_1_collab: { dict: { LINKAGE: { wordkey: 'char_1_collab' } } },
+      char_2_both: { dict: { CN_MANDARIN: {}, LINKAGE: {} } },
+    } };
+    assert.deepEqual([...linkageOnlyVoice(charword)], ['char_1_collab']);
+    assert.equal(linkageOnlyVoice(null).size, 0);
+    const m = JSON.parse(readFileSync(join(ROOT, 'data/assets.json'), 'utf8'));
+    const v = m.audio?.voice?.char_4182_oblvns;
+    if (v) for (const line of [v.start, v.place].flat()) assert.match(line, /^\/assets\/audio\/voice\/jp\/char_4182_oblvns\//, '丰川祥子: no voice_cn dub');
   });
 
   test('voice picker: tidyVoiceTrees drops empty dub trees and the type of a dub that did not land', () => {

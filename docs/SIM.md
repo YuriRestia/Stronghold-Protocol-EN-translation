@@ -92,7 +92,7 @@ summon order (§30.22).
 Register hooks before the first step (e.g. `opts.setup(battle)` or right after `new Battle`).
 
 **Tick order:** scheduled callbacks → spawns → DP → buffs (+HP regen) → enemies (attack, move, block) →
-enemy tile index → allies (skill tick, attack) → projectiles → auto-redeploys → boss pool sync → `tick` hook →
+enemy tile index → allies (skill tick, attack) → projectiles → notes (`notes.js`) → auto-redeploys → boss pool sync → `tick` hook →
 release hooks/timers of units removed this tick (§1.4) → `time += TICK` → end checks.
 
 **Knocked-out operators** (PRTS 卫戍协议/帮助 §作战阶段 单位部署; player report F5 after 0.1.0): "干员退场后…原地留下一个
@@ -449,7 +449,8 @@ recorded for the player whose half contains the goal it reached, with `sourcePla
       leaked: [{ enemyKey, mods, lpr, sourcePlayerId, tag, counted, boss?, spawned }],
       layerGains: {bondId: n}, coins, damageDealt, bossDamage, healingDone, deaths,
       unitsEnd: [{ uid, id, defId, hpPct, sp, skillActive, alive }],   // operators + board summon pieces; sp = skill.spTotal
-      unitStats: [{ id, uid, defId, name, kind, dmg, kills, heal, taken, attacks }] } } }
+      unitStats: [{ id, uid, defId, name, kind, dmg, kills, heal, taken, attacks }],
+      fever? } } }                                                      // the Fever gauge at the end (a field with one: fever.js)
 ```
 - **Two sets of counters, and they never cross.** `counted` drives the official LP / 完美作战 / `killed` reading (master's,
   untouched): every counted enemy — a runtime split child, a summon, a boss's summon included — is in it. `inTotal` (the
@@ -911,6 +912,8 @@ instance) and skip `'counter'` / `'reflect'` damage. When the guard trips, the l
 | `isReservedTile(r, c)` | true when a living unit stands there or it is the rest tile (`restTile`) of an ally piece that has not deployed yet / waits to redeploy — the tile a knocked-out operator lies on, else the home tile — every automatic picker (the 突袭 landing tile, tactical points, summon / device tiles) must skip these (`findTacticalPoint` does) |
 | `downOn(r, c, except?)`, `restTile(u)` | the down operator (`isDown`: knocked out or forced out) lying on a tile (no ally deploys / moves there: `_deploy`, `spawnDevice`, `relocate`); the tile a withdrawn ally comes back on — its `body` tile when down, else its home (§1) |
 | `addProjectile({ from, target | to:{x,y}, speed, onHit(ctx), visual, source, hitDead })` | homing; fizzles if the target dies unless `hitDead` |
+| `notes.add({ owner, kind, x, y, dx, dy, target, onHit(note, enemy), data })`, `notes.countOf(owner)`, `notes.ownerLeft(owner)` | free-flight notes (`server/sim/notes.js`, 丰川祥子's 颂乐音符 — kits/ops/op-oblvns.js): a NoteKind `{ tick, minFree, radius, free: { kind: 'straight', speed, accel?, max? } \| { kind: 'sine', sx, amp }, trace, turn, passby? }` from the official projectile prefab; 【自由移动】 (straight or 扩张正弦方向) → every `tick` s the nearest selectable enemy within `radius` becomes its trace target → after `minFree` s 【追踪移动】 (`turn` of the way per frame, PRTS 转向速度) → on reaching the body (≤ 0.1, [ASSUMED]) `onHit` once, then 【已命中】 (`passby`: straight on, striking each enemy its collider touches once) or gone; gone after 10 s and after > 1 s with no target outside the owner's range (once she left: the range she had then, [ASSUMED]); the owner leaving does not clear them (owner 2026-10-16, against PRTS); every return to 【自由移动】 waits `minFree` again (owner, the 血狼破军 flowchart) |
+| `fever` (`server/sim/fever.js` `feverOf(battle)`) | the Ave Mujica Fever gauge, one per field: `add(n)` (not above 450), `tryStart(member)` (full and not running: the gauge is spent, 20 s), `listen({ onStart, onEnd }, owner)`, `active`, `members`; PlayerBattleInput `feverCarry` (联防: the higher of the players' [ASSUMED]) and BattleResult perPlayer `fever` |
 | `allySelectable(ally, by)`, `alliesFor(by, ownerId?)` | may an ability of ally `by` select `ally` — never a 孤立 unit (炎佑, 从不混淆的方向) but `by` itself (PRTS 选择器: "若掩码中孤立为1，且选择器的阵营与目标为友好关系，则不可选中"); `allies()` without the 孤立 ones — content picks ally targets (buffs, auras, 全场 talents, heal picks) through these, `alliesInGrid` too |
 | `unitsInGrid(unit, grid, {side, extend})`, `alliesInGrid(unit)`, `enemiesInRadius(x, y, r, centre?)`, `foesInRadius(x, y, r, centre?)`, `alliesInRadius(x, y, r, ownerId?)` | grid offsets are relative to facing RIGHT, rotated by `unit.dir`; enemies by their body (§2 hit areas: a huge enemy on every tile it occupies / within `r` of its rectangle; `centre` = splash around a target, a 中点判定 by position; `foesInRadius` = the enemies an operator's area effect can select — no untargetable enemy, none whose 隐匿 is on (`targeting.js enemyStealthed`: not blocked, not revealed, not within 3 s of its last block), PRTS 作战机制 §AOE伤害判定 — while enemy-side auras / heals and collisions keep `enemiesInRadius`) |
 | `enemiesInKeys(keys, attacker, profile)`, `blockedTargets(unit, profile)` | targetable enemies whose body is on the tiles (a huge one listed once); the enemies a unit blocks — always selectable by it, a ranged operator on a melee tile included (§1.2 Blocking) |
@@ -1020,6 +1023,9 @@ flag alters movement or 失衡.
   deployment initialization (`reason: 'init'`) and explicitly documented bypasses.
   `gainSp(n, reason, silent, { ignoreLock: true })` bypasses both locks while retaining the source reason, charge cap
   and `spGain` hook; used by 黄沙罗盘 (PRTS says all its SP ignores 阻回), including its caster's +3 SP.
+- 持续攻击 (profile `permanentAttack(battle, unit)` with `fireNotes`, 丰川祥子 only): with no target the attack loop still attacks
+  when the profile says it may (`performAttack` with no victims: no `beforeAttack`, attack SP as any attack); an attack of a
+  `fireNotes` profile launches notes (`notes.js`) instead of hitting — the 'atk' event's projKind is `note`.
 - Kinds: `duration` (mods for `duration` s), `ammo` (mods until `ammo` attacks were made, optional duration cap),
   `instant` (onStart + optional one-shot attack override applied to the next attack), `charges` (instant with charges),
   `passive` (always on from deployment, no SP), `toggle` (stays on until death once activated).
@@ -1417,7 +1423,10 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `ammo: [[id, left, magazine]]`, `wolves: [[id, left, max]]` and `neg: [[id, fill]]` (each only when non-empty; display only) = the HP-bar
   readouts of `snapshot.js` `ammoView` (an ally's running ammo skill: whole rounds, the magazine = `ammoMax`), `wolfView` (伺夜's 狼群:
   `mem.shadows` of `mem.wolfCapacity`) and `negView` (`unit.negFill()`, set by 斩业星熊's T1 业火: the 我执 pool as a share of its cap);
-  UnitInfo `ammoSkill` marks an ally whose skill is an ammo magazine (DESIGN §8.2).
+  UnitInfo `ammoSkill` marks an ally whose skill is an ammo magazine (DESIGN §8.2). `notes: [[noteId, ownerId, x, y, hx, hy,
+  look, state]]` (only while notes fly; display only) = the free-flight notes of `notes.js` (丰川祥子): position, heading, the
+  owner's look key and 0 wander / 1 trace / 2 passby; `fever: [[memberId, fill, active]]` (only on a field with a gauge) = the
+  Fever gauge (`fever.js`) every Ave Mujica member shows, fill 0..1 of 450.
   `st: [[id, status, endsAt, duration, value]]` (only when non-empty; display only) = `snapshot.js statusView`: per catalogue
   status on a unit (buffs.js `STATUS`), the game time it runs out (`t + timeLeft`, null when it does not) and the length the
   icon's ring is drawn against, and its value — the strength of a "同名效果取最高" (`valued`) status in force, or the stacks
