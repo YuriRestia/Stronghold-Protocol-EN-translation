@@ -255,6 +255,7 @@ export async function processModels(models, { root, dl, cachePath, download = tr
   const list = [...models.values()];
   // (fork) a page that RIM_FIXES paints changes size: the downloader keeps it by its content, like an atlas
   for (const m of list) if (RIM_FIXES[m.key]) for (const p of m.pngs) p.mutable = true;
+  const available = (rel) => !dl?.verifier || dl.accepted.has(rel);
   if (download) {
     const jobs = [];
     for (const m of list) jobs.push(m.skel, m.atlas, ...m.pngs);
@@ -262,6 +263,7 @@ export async function processModels(models, { root, dl, cachePath, download = tr
     // Atlases may reference more pages than the index lists.
     const extra = [];
     for (const m of list) {
+      if (!available(m.atlas.rel)) continue;
       const text = await readFile(join(root, m.atlas.rel), 'utf8').catch(() => null);
       if (!text) continue;
       for (const page of atlasInfo(text).pages) {
@@ -287,6 +289,10 @@ export async function processModels(models, { root, dl, cachePath, download = tr
   let ledgerDirty = false;
   const t0 = Date.now();
   for (const m of list) {
+    if (!available(m.skel.rel) || !available(m.atlas.rel)) {
+      problems.push(`${m.key}: unverified skel or atlas`);
+      continue;
+    }
     const skelAbs = join(root, m.skel.rel);
     const atlasAbs = join(root, m.atlas.rel);
     const skelSt = await fileStat(skelAbs);
@@ -297,6 +303,9 @@ export async function processModels(models, { root, dl, cachePath, download = tr
     const sizes = new Map();
     let pagesOk = info0.pages.length > 0;
     for (const page of info0.pages) {
+      if (!available(m.dir + safeName(page))) {
+        pagesOk = false; problems.push(`${m.key}: unverified page ${page}`); continue;
+      }
       const buf = await readFile(join(root, m.dir + safeName(page))).catch(() => null);
       const sz = buf ? pngSize(buf) : null;
       if (!sz) { pagesOk = false; problems.push(`${m.key}: missing/invalid page ${page}`); continue; }
@@ -367,6 +376,14 @@ export async function processModels(models, { root, dl, cachePath, download = tr
       extents: sk.clipExtents,
     });
     if (Date.now() - t0 > 0 && (parsed + cached) % 100 === 0) log(`[spine] processed ${parsed + cached}/${list.length}`);
+  }
+  // A failed model is still planned. Keep its directory, including old extra
+  // pages, without reading a rejected atlas to rediscover those dependencies.
+  if (dl?.verifier) for (const m of list) {
+    if (entries.has(m.key)) continue;
+    for (const file of await readdir(join(root, m.dir), { withFileTypes: true }).catch(() => [])) {
+      if (file.isFile()) dl.preserved.add(m.dir + file.name);
+    }
   }
   await mkdir(dirname(cachePath), { recursive: true });
   await writeFile(cachePath, JSON.stringify(nextCache));

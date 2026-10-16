@@ -87,6 +87,10 @@ test('the path extraction: placeholders, globs, directories and the exemptions',
   assert.deepEqual(namedPaths(md).sort(), ['data/*.json', 'public/assets/', 'server/sim/content/kits/ops/op-<codename>.js', 'test/golden.test.js', 'tools/golden.mjs'].sort());
   assert.deepEqual(fixedPart('server/sim/content/kits/ops/op-<codename>.js'), { path: 'server/sim/content/kits/ops/', dir: true });
   assert.equal(missing('public/assets/'), null);
+  for (const path of ['public/fonts', 'public/fonts/', 'public/fonts/fonts.css', 'public/fonts/*.woff2']) {
+    assert.equal(missing(path), null, `${path} is downloaded, not required in a checkout`);
+  }
+  assert.equal(missing('public/fonts-missing/'), 'public/fonts-missing/: not found');
   assert.equal(missing('server/no-such-file.js'), 'server/no-such-file.js: not found');
   assert.equal(missing('server/index.js/'), 'server/index.js/: not a directory');
 });

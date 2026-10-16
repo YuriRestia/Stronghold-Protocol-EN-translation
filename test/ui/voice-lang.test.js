@@ -1,53 +1,50 @@
-// 语音语言 preference (public/js/ui/voiceLang.js): the persisted { default, byChar }, the settings batch set and the
-// per-operator picks, and what the audio manager receives.
+// 语音语言 per operator (public/js/ui/voiceLang.js) on upstream's store since the 0.3.0 merge: settings.voiceOverrides
+// set by the square picker, cleared when 语音语言 or 本土语言 changes (ui/settings.js updateSettings), and what the audio
+// manager receives.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeVoiceLang, voiceLangStore, setDefaultVoiceLang, setCharVoiceLang } from '../../public/js/ui/voiceLang.js';
+import { voicePrefOf, setCharVoiceLang } from '../../public/js/ui/voiceLang.js';
+import { settingsStore, updateSettings } from '../../public/js/ui/settings.js';
 import { audio, effectiveVoiceLang } from '../../public/js/audio.js';
 
-const am = { voice: { char_a: { select: '/assets/audio/voice/cn/char_a/cn_1.mp3' }, char_b: { select: '/assets/audio/voice/cn/char_b/cn_1.mp3' } },
-  voiceJp: { char_a: { select: 'j' }, char_b: { select: 'j' } }, voiceEn: { char_a: { select: 'e' } }, voiceKr: { char_a: { select: 'k' } },
-  voiceNative: { char_a: { select: 'n' } }, voiceNativeLangType: { char_a: 'ITA' } };
+const am = { voice: { char_1_a: { select: '/assets/audio/voice/cn/char_1_a/cn_1.mp3' }, char_2_b: { select: '/assets/audio/voice/cn/char_2_b/cn_1.mp3' } },
+  voiceJp: { char_1_a: { select: 'j' }, char_2_b: { select: 'j' } }, voiceEn: { char_1_a: { select: 'e' } }, voiceKr: { char_1_a: { select: 'k' } },
+  voiceNative: { char_1_a: { select: 'n' } }, voiceNativeLangType: { char_1_a: 'ITA' } };
+const overrides = () => settingsStore.get().voiceOverrides;
 
-test('sanitize: unknown languages, malformed charIds and junk are dropped', () => {
-  assert.deepEqual(sanitizeVoiceLang(null), { default: 'en', native: false, byChar: {} }, 'EN by default');
-  assert.deepEqual(sanitizeVoiceLang({ default: 'native', byChar: { char_a: 'native', char_b: 'xx', 'bad id': 'jp', char_c: 'kr' } }),
-    { default: 'en', native: false, byChar: { char_a: 'native', char_c: 'kr' } }, 'native is a per-operator pick only, never the default');
-});
-
-test('settings batch set clears the picks; a pick equal to the default is no override', () => {
-  setDefaultVoiceLang('cn');
-  setCharVoiceLang(am, 'char_a', 'native');
-  setCharVoiceLang(am, 'char_b', 'jp');
-  assert.deepEqual(voiceLangStore.get().byChar, { char_a: 'native', char_b: 'jp' });
-  assert.deepEqual(audio.voicePicks, voiceLangStore.get().byChar, 'the audio manager follows the picks');
-  setCharVoiceLang(am, 'char_b', 'cn');
-  assert.deepEqual(voiceLangStore.get().byChar, { char_a: 'native' }, 'back to what the default gives ⇒ the override goes');
-  setDefaultVoiceLang('en');
-  assert.deepEqual(voiceLangStore.get(), { default: 'en', native: false, byChar: {} }, 'the batch set clears every pick');
-  setCharVoiceLang(am, 'char_b', 'jp');
-  assert.deepEqual(voiceLangStore.get().byChar, {}, 'char_b has no EN dub: under an EN default it already speaks JP');
-  setCharVoiceLang(am, 'char_a', 'cn');
-  assert.deepEqual(voiceLangStore.get().byChar, { char_a: 'cn' }, 'char_a has EN: CN is a real override');
-  setDefaultVoiceLang('xx');
-  assert.equal(voiceLangStore.get().default, 'en', 'an unknown default is ignored');
-  setDefaultVoiceLang('cn');
+test('changing 语音语言 clears the picks; a pick equal to what the settings give is no override', () => {
+  updateSettings({ voiceLang: 'cn', voiceNative: false });
+  setCharVoiceLang(am, 'char_1_a', 'native');
+  setCharVoiceLang(am, 'char_2_b', 'jp');
+  assert.deepEqual(overrides(), { char_1_a: 'native', char_2_b: 'jp' });
+  assert.deepEqual(audio.voiceOverrides, overrides(), 'the audio manager follows the picks');
+  setCharVoiceLang(am, 'char_2_b', 'cn');
+  assert.deepEqual(overrides(), { char_1_a: 'native' }, 'back to what the settings give ⇒ the override goes');
+  updateSettings({ voiceLang: 'en' });
+  assert.deepEqual(overrides(), {}, 'another 语音语言 clears every pick');
+  setCharVoiceLang(am, 'char_2_b', 'jp');
+  assert.deepEqual(overrides(), {}, 'char_2_b has no EN dub: under EN it already speaks JP');
+  setCharVoiceLang(am, 'char_1_a', 'cn');
+  assert.deepEqual(overrides(), { char_1_a: 'cn' }, 'char_1_a has EN: CN is a real override');
+  updateSettings({ muted: false });
+  assert.deepEqual(overrides(), { char_1_a: 'cn' }, 'another setting changing keeps the picks');
+  updateSettings({ voiceLang: 'cn' });
 });
 
 test('settings 本土语言: every operator with an own-language dub speaks it, the others the default; toggling clears the picks', () => {
-  setDefaultVoiceLang('en', false);
-  setCharVoiceLang(am, 'char_b', 'cn');
-  setDefaultVoiceLang('en', true);
-  assert.deepEqual(voiceLangStore.get(), { default: 'en', native: true, byChar: {} }, 'switching it on clears the picks');
-  const pref = voiceLangStore.get();
-  assert.equal(effectiveVoiceLang(am, 'char_a', pref), 'native', 'char_a has an ITA dub');
-  assert.equal(effectiveVoiceLang(am, 'char_b', pref), 'jp', 'char_b has none: the default, then its fallback');
-  setCharVoiceLang(am, 'char_a', 'kr');
-  assert.equal(effectiveVoiceLang(am, 'char_a', voiceLangStore.get()), 'kr', 'a per-operator pick still wins');
-  setCharVoiceLang(am, 'char_a', 'native');
-  assert.deepEqual(voiceLangStore.get().byChar, {}, 'native is what the switch already gives: no override');
-  setDefaultVoiceLang('en', false);
-  assert.equal(effectiveVoiceLang(am, 'char_a', voiceLangStore.get()), 'en', 'off: back to the voice language');
-  setDefaultVoiceLang('cn');
+  updateSettings({ voiceLang: 'en', voiceNative: false });
+  setCharVoiceLang(am, 'char_2_b', 'cn');
+  updateSettings({ voiceNative: true });
+  assert.deepEqual(overrides(), {}, 'switching it on clears the picks');
+  const pref = voicePrefOf(settingsStore.get());
+  assert.equal(effectiveVoiceLang(am, 'char_1_a', pref), 'native', 'char_1_a has an ITA dub');
+  assert.equal(effectiveVoiceLang(am, 'char_2_b', pref), 'jp', 'char_2_b has none: the default, then its JP fallback');
+  setCharVoiceLang(am, 'char_1_a', 'kr');
+  assert.equal(effectiveVoiceLang(am, 'char_1_a', voicePrefOf(settingsStore.get())), 'kr', 'a per-operator pick still wins');
+  setCharVoiceLang(am, 'char_1_a', 'native');
+  assert.deepEqual(overrides(), {}, 'native is what the switch already gives: no override');
+  updateSettings({ voiceNative: false });
+  assert.equal(effectiveVoiceLang(am, 'char_1_a', voicePrefOf(settingsStore.get())), 'en', 'off: back to the voice language');
+  updateSettings({ voiceLang: 'cn' });
 });

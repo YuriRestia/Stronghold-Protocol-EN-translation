@@ -6,7 +6,7 @@
 //                                    and its oblvns_03 sparks
 //   旋律的主人 (char_4182_oblvns@avemujica#1) — blue-white: the *_avemujica#1 effects (oblvns_skin_04 / _05 glyphs as
 //                                    they are, star_268 bursts, ray_130 rings)
-// The textures come from the local client (tools/local-extract: public/assets/local/fx/oblvns, git-ignored); without them
+// The textures come from the local client (tools/local-extract: public/assets/local/notes/oblvns, git-ignored); without them
 // the note is drawn from the FX atlas (a soft glow and a drawn ♪ glyph) in the same colours. Cosmetic only.
 
 import { TRAIL_LAYERS, TRAIL_S1_W, GLYPH_S1_SCALE, gradAt } from './noteTrails.js';
@@ -75,7 +75,7 @@ const FREE_EASE = 3;
 const HIT_T = 0.32;             // real s of a hit burst (the official hit prefabs flash for ~0.3 s)
 const MAX_HITS = 24;            // bursts alive at once (a Fever volley strikes many times a second)
 
-/** The two looks: colours from the official materials (_TintColor / _MainColor), texture names under fx/oblvns. */
+/** The two looks: colours from the official materials (_TintColor / _MainColor), texture names under notes/oblvns. */
 export const NOTE_LOOKS = Object.freeze({
   default: {
     head: 0xff5a8c, glow: 0xff2a5a, trail: 0xff4f86, trailCore: 0xffd0de, spark: 0xffb0c8,
@@ -114,13 +114,13 @@ export class NoteLayer {
     this._p = { x: 0, y: 0, s: 0, depth: 0 };
   }
 
-  /** A local texture of fx/oblvns (cached; null when the client art is absent). */
+  /** A local texture of notes/oblvns (cached; null when the client art is absent). */
   tex(name) {
     if (!name) return null;
     if (this._tex.has(name)) return this._tex.get(name);
     let t = null;
     try {
-      const url = this.ctx.localUrl('fx/oblvns', name);
+      const url = this.ctx.localUrl('notes/oblvns', name);
       if (url) t = this.P.Texture.from(encodeURI(url));
     } catch { t = null; }
     this._tex.set(name, t);
@@ -139,9 +139,9 @@ export class NoteLayer {
     if (this._tex.has(key)) return this._tex.get(key);
     let t = null;
     try {
-      const url = this.ctx.localUrl('fx/oblvns', name);
+      const url = this.ctx.localUrl('notes/oblvns', name);
       if (url && typeof document !== 'undefined' && typeof Image !== 'undefined') {
-        const SIZE = 256;   // every fx/oblvns glyph sheet is 256²
+        const SIZE = 256;   // every notes/oblvns glyph sheet is 256²
         const cv = document.createElement('canvas');
         cv.width = cv.height = SIZE;
         t = this.P.Texture.from(cv);
@@ -396,7 +396,7 @@ export class NoteLayer {
     if (this._tex.has(key)) return this._tex.get(key);
     let t = null;
     try {
-      const url = l.tex ? this.ctx.localUrl('fx/oblvns', l.tex) : null;
+      const url = l.tex ? this.ctx.localUrl('notes/oblvns', l.tex) : null;
       if (typeof document !== 'undefined' && (url || !l.tex) && (!url || typeof Image !== 'undefined')) {
         const W = 256, H = 64;
         // one canvas per scroll phase (a still layer: one)

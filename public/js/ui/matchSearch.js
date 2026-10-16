@@ -59,9 +59,12 @@ export function useFindMates() {
   return [on, (v) => { savePref(FIND_MATES_PREF, !!v); setOn(!!v); }];
 }
 
-/** The switch applies: a co-op room with a free seat, seen from a player seat. */
+/**
+ * The switch applies: a co-op room with a free seat, seen from a player seat — and (fork) no gameplay plugins: such a
+ * room is joined by its code only (room.state.content.vanilla false; the server refuses room.search for it too).
+ */
 export function canFindMates(room, facts) {
-  return room.mode !== 'solo' && !facts.spectating && facts.occupied.length < MAX_SEATS;
+  return room.mode !== 'solo' && !facts.spectating && facts.occupied.length < MAX_SEATS && room.content?.vanilla !== false;
 }
 
 /**

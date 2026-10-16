@@ -55,10 +55,11 @@ const NOTE_SFX_LOOKS = Object.freeze([
 ]);
 
 /**
- * The per-operator voice picker's trees beside `audio.voiceJp` (`optionalVoice`, on by default in fetch-assets.mjs): the EN
- * and KR dumps (`voice_en/`, `voice_kr/`) and each operator's own-language dub (`voice_custom/<wordkey>/`, audio.mjs
+ * The extra dub trees beside `audio.voiceJp` (`optionalVoice`, on by default in fetch-assets.mjs): the EN and KR
+ * dubs (`voice_en/`, `voice_kr/`) and each operator's own-language dub (`voice_custom/<wordkey>/`, audio.mjs
  * nativeVoiceDirs) — the same slots and file names, under `audio/voice/<en|kr|native/<dir>>/`. public/js/audio.js
- * VOICE_TREES plays them; tools/package.mjs FULL_ZIP_OPTIONAL_VOICE decides whether the full zip ships them.
+ * VOICE_TREES plays them; tools/package.mjs FULL_ZIP_OPTIONAL_VOICE decides whether the full zip ships them
+ * (default: yes, so the 0.3.0 full zip includes them).
  */
 export const VOICE_OPTIONAL_TREES = Object.freeze({ voiceEn: 'en', voiceKr: 'kr', voiceNative: 'native' });
 
@@ -397,8 +398,9 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {string} [p.voiceLang] voice dump of `audio.voice` (the 中文 setting): cn (default) | jp | en | kr — `audio.voiceJp`
  *   is the JP dub (`voice/`) whatever it is
  * @param {boolean} [p.voiceJp] plan the JP tree `audio.voiceJp` (default true)
- * @param {boolean} [p.optionalVoice] also plan the per-operator voice picker's trees (VOICE_OPTIONAL_TREES: `audio.voiceEn` /
- *   `audio.voiceKr` / `audio.voiceNative`, plus `audio.voiceNativeLangType`); default false
+ * @param {boolean} [p.optionalVoice] also plan the EN / KR / own-language trees (VOICE_OPTIONAL_TREES: `audio.voiceEn` /
+ *   `audio.voiceKr` / `audio.voiceNative`, plus `audio.voiceNativeLangType`); default false so a plan that only asks
+ *   for the two 0.2.2 trees stays those two. fetch-assets passes true unless `--no-optional-voice`.
  * @param {Iterable<string>|null} [p.voiceSlots] which voice slots to plan: VOICE_BATTLE_SLOTS (default) plans only the
  *   lines a battle can play, null plans every slot of audio.mjs VOICE_SLOTS (`--voice-all`). The prep-only slots
  *   (干员报到 / 编入队伍 / 任命队长) are never requested by the client and cost 360 files / 19.3 MB of downloads.
@@ -420,12 +422,13 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  *   outfit's avatar, portrait, artwork (WebP) and battle model, its summons' looks, every roster operator's default
  *   artwork, and the outfits' own voice sets in the voice trees (keyed by their word key)
  * @param {string[]} [p.outfitChars] the roster's charIds (data/chess.json): whose default artwork the outfit picker shows
+ * @param {Array<{name:string,rel:string,urls:string[],kind:string}>} [p.statsTemplate] official statistics UI assets
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
   voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
-  moduleTypes = [], outfits = null, outfitChars = [] }) {
+  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [] }) {
   const notes = [];
   /** @type {Map<string, any>} */
   const models = new Map();
@@ -717,6 +720,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     }
   }
   for (const [group, key, path] of UI_EXTRAS) addUi(group, key, joinUrl(RAW.aa2, path));
+  for (const { name, ...job } of statsTemplate) ui[`statistics/${name}`] = { alts: [job] };
 
   // --- audio ----------------------------------------------------------------
   const bgmLeaf = (bankName) => {
@@ -824,11 +828,11 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   const voice = voiceTree(voiceLang);
   if (!Object.keys(voice).length) notes.push('battle voice: charword_table.json has no slots (index missing?)');
 
-  // 语音语言 (the per-operator picker, public/js/ui/voiceLang.js): with `optionalVoice` the EN / KR dumps and each
-  // operator's own-language dub are trees beside the JP one, of the same shape (VOICE_OPTIONAL_TREES; public/js/audio.js
-  // VOICE_TREES) — `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`. A line missing upstream stays missing
-  // (the client plays the Chinese one), never filled from another dub. `audio.voiceNativeLangType` names each
-  // own-language dub's official voiceLangType (ITA / RUS / …), the label of its square.
+  // English, Korean and each operator's own-language dub (VOICE_OPTIONAL_TREES; public/js/audio.js VOICE_TREES):
+  // `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`, the same slots and file names. A line missing upstream
+  // stays missing (the client plays the Chinese one), never filled from another dub. `audio.voiceNativeLangType`
+  // names each own-language dub's official voiceLangType (ITA / RUS / …) for operators this game fields who also
+  // have a line in the primary `voice` tree.
   const nativeDirs = optionalVoice ? nativeVoiceDirs(charword) : new Map();
   const optionalTrees = {};
   if (optionalVoice) {

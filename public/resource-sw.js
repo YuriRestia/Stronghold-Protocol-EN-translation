@@ -205,16 +205,28 @@ async function respond(scope, event) {
 
 self.spResources = { resourceKey, mediaKeys, packOf, rangeResponse, answer, capture, respond, reset: () => { manifest = null; checkedAt = 0; } };
 
-self.addEventListener('install', (event) => { event.waitUntil(self.skipWaiting()); });
-self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
-// the page says the saved files changed (a download flushed its index, the cache was cleared)
-self.addEventListener('message', (event) => { if (event.data === 'sp-resources-changed') currentManifest(self, true); });
-
-self.addEventListener('fetch', (event) => {
+/**
+ * (fork) The preload's fetch handling, for public/sw.js (the one worker of the origin, importScripts'ing this file):
+ * true when it answered the request (event.respondWith), false to leave it to the caller.
+ */
+function handleFetch(event) {
   const request = event.request;
-  if (request.mode === 'navigate') { currentManifest(self); return; }
+  if (request.mode === 'navigate') { currentManifest(self); return false; }
   let url;
-  try { url = new URL(request.url); } catch { return; }
-  if (request.method !== 'GET' || url.search || !isResourcePath(url.pathname)) return;
+  try { url = new URL(request.url); } catch { return false; }
+  if (request.method !== 'GET' || url.search || !isResourcePath(url.pathname)) return false;
   event.respondWith(respond(self, event).catch(() => fetch(request)));
-});
+  return true;
+}
+self.spResources.handleFetch = handleFetch;
+self.spResources.isResourcePath = isResourcePath;
+self.spResources.changed = () => currentManifest(self, true);
+
+// Registered by itself (an older page of this origin): its own listeners. Loaded by public/sw.js: that worker listens.
+if (!self.spCombinedWorker) {
+  self.addEventListener('install', (event) => { event.waitUntil(self.skipWaiting()); });
+  self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
+  // the page says the saved files changed (a download flushed its index, the cache was cleared)
+  self.addEventListener('message', (event) => { if (event.data === 'sp-resources-changed') currentManifest(self, true); });
+  self.addEventListener('fetch', (event) => { handleFetch(event); });
+}

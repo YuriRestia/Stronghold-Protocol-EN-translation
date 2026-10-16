@@ -19,6 +19,8 @@
 // Behind the router (zero-downtime restarts, server/generation.js) a newer generation does not change the page's own
 // /healthz — the old generation keeps serving its build. Its `sys.retire` calls `retire()` instead: the page goes to `/`
 // (`home`, public/js/gen.js goHome) right away outside a match, else as soon as the match, settlement included, is over.
+// The same `/healthz` body carries what else a page reads of the server before it says hello: `onHealth(body)` is told
+// every body a check reads (main.js: how many plugins the server has, for the title screen — DESIGN §32 P1a).
 //
 // Kept dependency-free and injectable (fetch / reload / inMatch / timers) so test/ui/buildGuard.test.js can drive it.
 
@@ -34,8 +36,9 @@ export const GONE = '\u0000gone';
 /**
  * Fetch `/healthz` and return its `build` tag (null when unavailable, not reported, or too slow). Never throws.
  * @param {Function} fetchFn
- * @param {{ healthUrl?: string, timeoutMs?: number, setTimeout?: Function, clearTimeout?: Function }} [o]
- *   healthUrl: the page's own generation's /healthz (public/js/gen.js genUrl), default '/healthz'
+ * @param {{ healthUrl?: string, timeoutMs?: number, setTimeout?: Function, clearTimeout?: Function, onHealth?: (body: any) => void }} [o]
+ *   healthUrl: the page's own generation's /healthz (public/js/gen.js genUrl), default '/healthz'; onHealth: told the
+ *   body it read (see the header)
  * @returns {Promise<string|null>}
  */
 export async function fetchBuild(fetchFn, o = {}) {
@@ -54,6 +57,7 @@ export async function fetchBuild(fetchFn, o = {}) {
     if (res && res.status === 410) return GONE;
     if (!res || !res.ok) return null;
     const body = await res.json();
+    try { if (body && typeof body === 'object') o.onHealth?.(body); } catch { /* the listener's own trouble */ }
     return body && typeof body.build === 'string' && body.build ? body.build : null;
   } catch {
     return null;
@@ -65,7 +69,7 @@ export async function fetchBuild(fetchFn, o = {}) {
 /**
  * One check, against the build this page already knows.
  * @param {{ fetchFn?: Function, known?: string|null, healthUrl?: string, timeoutMs?: number, setTimeout?: Function,
- *           clearTimeout?: Function }} [o]
+ *           clearTimeout?: Function, onHealth?: (body: any) => void }} [o]
  * @returns {Promise<{ status: 'first'|'current'|'new'|'unknown'|'gone', build: string|null }>}
  */
 export async function checkBuildOnce(o = {}) {
@@ -82,7 +86,8 @@ export async function checkBuildOnce(o = {}) {
  * @param {{ fetchFn?: Function, reload?: Function, home?: Function, inMatch?: () => boolean, healthUrl?: string,
  *           intervalMs?: number, timeoutMs?: number,
  *           setInterval?: Function, clearInterval?: Function, setTimeout?: Function, clearTimeout?: Function,
- *           onStale?: (info: { build: string, known: string|null, waiting: boolean }) => void }} [o]
+ *           onStale?: (info: { build: string, known: string|null, waiting: boolean }) => void,
+ *           onHealth?: (body: any) => void }} [o]  onHealth: every /healthz body a check reads (see the header)
  *   home: how a retired page leaves its generation (public/js/gen.js goHome; default: reload)
  * @returns {{ stop: () => void, check: () => Promise<object>, retire: () => void, settle: () => boolean,
  *             stale: () => boolean, retired: () => boolean, known: () => string|null }}
@@ -120,7 +125,7 @@ export function startBuildGuard(o = {}) {
     if (pending) return { status: 'pending', build: null };
     pending = true;
     let r;
-    try { r = await checkBuildOnce({ fetchFn, known, healthUrl: o.healthUrl, timeoutMs: o.timeoutMs, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout }); }
+    try { r = await checkBuildOnce({ fetchFn, known, healthUrl: o.healthUrl, timeoutMs: o.timeoutMs, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, onHealth: o.onHealth }); }
     finally { pending = false; }
     if (stopped) return { status: 'stopped', build: null };
     if (r.status === 'unknown') { candidate = null; seen = 0; return r; }   // review: a failed check never reloads

@@ -16,7 +16,7 @@ import { buildResourceManifest } from '../server/resources.js';
 import { createStaticHandler } from '../server/index.js';
 import { PreloadStore } from '../public/js/resources/store.js';
 import { sanitizePreloadPref, voicePacksOf, missingBytes, preloadPref, tickedVoicePacks, setVoicePack, followVoiceSettings, pausePreload } from '../public/js/resources/index.js';
-import { voiceLangStore } from '../public/js/ui/voiceLang.js';
+import { updateSettings } from '../public/js/ui/settings.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ORIGIN = 'https://sp.test';
@@ -274,14 +274,15 @@ test('voice packs follow the voice language settings until the player edits the 
   assert.deepEqual(voicePacksOf({ default: 'en', byChar: {} }, am), ['en', 'jp'], 'char_b has no EN dub: it speaks JP');
   assert.deepEqual(voicePacksOf({ default: 'cn', byChar: {} }, am), ['cn']);
   assert.ok(voicePacksOf({ default: 'cn', native: true, byChar: {} }).includes('native'), 'the 本土语言 switch ticks the native pack');
-  voiceLangStore.set({ default: 'jp', byChar: { char_a: 'native' } });
+  updateSettings({ voiceLang: 'jp', voiceNative: false });
+  updateSettings({ voiceOverrides: { char_1_a: 'native' } });
   followVoiceSettings();
   assert.deepEqual(tickedVoicePacks(), ['jp', 'native'], 'ticked from the current voice settings');
-  voiceLangStore.set({ default: 'en', byChar: {} });
+  updateSettings({ voiceLang: 'en' });
   assert.deepEqual(tickedVoicePacks(), ['en'], 'and following them while untouched');
   setVoicePack('kr', true);
   assert.deepEqual(preloadPref.get().voice, ['en', 'kr']);
-  voiceLangStore.set({ default: 'cn', byChar: {} });
+  updateSettings({ voiceLang: 'cn' });
   assert.deepEqual(tickedVoicePacks(), ['en', 'kr'], 'an edited list stays as edited');
   followVoiceSettings();
   assert.deepEqual(tickedVoicePacks(), ['cn']);

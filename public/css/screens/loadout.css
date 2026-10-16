@@ -284,6 +284,12 @@
 .vl-pick__sq:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
 .vl-pick__sq--native { border-style: dashed; }
 .vl-pick__sq.is-on { background: var(--mint-500); border-color: var(--mint-500); color: var(--text-on-mint); }
+/* (fork) a saved pick this server has no files for: shown, crossed out, not clickable */
+.vl-pick__sq--missing { cursor: default; opacity: .55; text-decoration: line-through; }
+.vl-pick__sq--missing:hover { color: var(--text-lo); border-color: var(--line-2); }
+/* (fork) the 自选 overview's slot rows: smaller squares under the class line */
+.vl-pick--compact .vl-pick__sq { min-width: max(.28rem, 22px); height: max(.28rem, 22px); }
+.diy-slot__voice { margin: .02rem 0; }
 .lo-dhead__voice { align-self: flex-end; margin-top: .04rem; }
 .diy-pick__voice { flex: none; }
 .sp-coarse .vl-pick__sq { min-width: 30px; height: 30px; }

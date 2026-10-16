@@ -1,24 +1,23 @@
-// 语音语言 per operator (user request, plan of 2026-10-07), on top of master's settings 语音语言 (0.2.2). The settings
-// row (ui/settings.js, `settings.voiceLang`: CN / JP / EN / KR, EN by default) is the dub of every operator; changing
-// it, or its 本土语言 switch (`settings.voiceNative`: every operator with an own-language dub speaks it), clears the
-// per-operator picks (setDefaultVoiceLang). The square buttons of the 干员调配 detail header and of the
-// 自选 picker set one operator (CN / JP / EN / KR, plus its own-language dub — 意大利语, 俄文, 中文-方言 … — when the
-// server has one) and play a line of it (试听). The picks are a client-only preference (`sp.pref.voiceLang` =
-// { default, native, byChar }, never synced to the server; `default` and `native` mirror the settings so the preload's voice packs and the
-// picker read one store) pushed into the audio manager (audio.setVoicePicks), which plays them through voiceLine.
-// The languages an operator has come from the manifest (audio.js voiceLangsOf: the trees `audio.voiceJp` /
-// `audio.voiceEn` / `audio.voiceKr` / `audio.voiceNative`); a language it lacks falls back to EN, then JP (unreleased on
-// global), then CN.
+// 语音语言 per operator (user request, plan of 2026-10-07; on upstream 0.3.0's store since the 2026-10-16 merge). The
+// settings row (ui/settings.js, `settings.voiceLang`: CN / JP / EN / KR, EN by default) is the dub of every operator;
+// its 本土语言 switch (`settings.voiceNative`) gives every operator with an own-language dub that dub. Changing either
+// clears the per-operator picks (ui/settings.js updateSettings). The square buttons of the 干员调配 detail header, the
+// 自选 picker and each slot of the 自选 overview set one operator (CN / JP / EN / KR, plus its own-language dub —
+// 意大利语, 俄文, 中文-方言 … — when the server has one) and play a line of it (试听). The picks are upstream's
+// `settings.voiceOverrides` (charId → cn | jp | en | kr | native; browser-local, never sent to the server), resolved by
+// voicePrefs.js voiceLangFor: the pick, the own-language dub, the settings' dub, JP, 中文. The languages an operator has
+// come from the manifest (audio.js voiceLangsOf); a saved pick this server lacks shows as a crossed-out square
+// (「此服务器没有」) and the operator speaks the fallback.
 
 import { html } from './components.js';
-import { createStore, useStore, loadPref, savePref } from '../store.js';
-import { audio, VOICE_LANGS, VOICE_FALLBACK, voiceLangsOf, effectiveVoiceLang } from '../audio.js';
+import { loadPref, savePref } from '../store.js';
+import { audio, voiceLangsOf, effectiveVoiceLang } from '../audio.js';
+import { VOICE_PICKS } from '../voicePrefs.js';
+import { useSettings, updateSettings, settingsStore } from './settings.js';
 import { data } from '../data.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
-const CHAR_ID = /^char_[a-z0-9_]+$/i;
-const PICKS = [...VOICE_LANGS, 'native'];
 
 /** Button text and full name (msgid, the official voiceLangTypeDict names) of each language. */
 const LANG_LABEL = { cn: ['CN', N_('中文-普通话')], jp: ['JP', N_('日文')], en: ['EN', N_('英文')], kr: ['KR', N_('韩文')] };
@@ -31,77 +30,44 @@ const NATIVE_LABEL = {
 const TOPOLECT_SQ = N_('方');
 
 /**
- * Keep only well-formed fields: a known default, per-operator picks of known languages on charIds.
- * @param {any} v
- * @returns {{ default: string, native: boolean, byChar: Record<string, string> }}
+ * Before the merge, the picks lived in `sp.pref.voiceLang.byChar`: hand them to settings.voiceOverrides once (only
+ * when the settings hold none yet), then drop the old key's picks.
  */
-export function sanitizeVoiceLang(v) {
-  const def = VOICE_LANGS.includes(v?.default) ? v.default : VOICE_FALLBACK[0];
-  const byChar = {};
-  if (v?.byChar && typeof v.byChar === 'object') {
-    for (const [id, l] of Object.entries(v.byChar)) if (CHAR_ID.test(id) && PICKS.includes(l)) byChar[id] = l;
-  }
-  return { default: def, native: v?.native === true, byChar };
+function migrateOldPicks() {
+  const old = loadPref('voiceLang', null);
+  const byChar = old?.byChar && typeof old.byChar === 'object' ? old.byChar : null;
+  if (!byChar || !Object.keys(byChar).length) return;
+  if (!Object.keys(settingsStore.get().voiceOverrides || {}).length) updateSettings({ voiceOverrides: byChar });
+  savePref('voiceLang', { ...old, byChar: {} });
+}
+// after the module graph ran: ui/settings.js imports this file (through ui/preload.js) before its store exists
+queueMicrotask(() => { try { migrateOldPicks(); } catch { /* a profile it cannot read keeps its settings */ } });
+
+/** The voice preference as voicePrefs.js reads it: { default, native, byChar } from the settings. */
+export function voicePrefOf(s) {
+  return { default: s.voiceLang, native: s.voiceNative === true, byChar: s.voiceOverrides || {} };
+}
+
+/** Preact hook: the current voice preference ({ default, native, byChar }). */
+export function useVoiceLang() {
+  return voicePrefOf(useSettings());
 }
 
 /**
- * The stored picks, with the default the settings hold. Before the picker moved its default into master's settings
- * 语音语言, `sp.pref.voiceLang.default` was the only one: a profile that has it and no settings `voiceLang` yet hands it
- * over once (this module loads before ui/settings.js reads its store — settings.js imports it).
- */
-function initialVoiceLang() {
-  const saved = loadPref('voiceLang', null);
-  let settings = null;
-  try { settings = loadPref('settings', null); } catch { /* ignore */ }
-  if (!settings || typeof settings !== 'object') settings = null;
-  if (VOICE_LANGS.includes(saved?.default) && settings?.voiceLang === undefined) {
-    settings = { ...settings, voiceLang: saved.default };
-    savePref('settings', settings);
-  }
-  return sanitizeVoiceLang({ ...saved, default: settings?.voiceLang ?? saved?.default, native: settings?.voiceNative === true });
-}
-
-/** Voice language store: { default (mirrors settings 语音语言), native (settings 本土语言), byChar }. */
-export const voiceLangStore = createStore(initialVoiceLang());
-
-voiceLangStore.subscribe((s) => {
-  const v = sanitizeVoiceLang(s);
-  savePref('voiceLang', v);
-  audio.setVoicePicks(v.byChar);
-});
-audio.setVoicePicks(voiceLangStore.get().byChar);
-
-/**
- * Settings 语音语言 or 本土语言 changed (ui/settings.js): every operator speaks `lang` — or, with `native`, its own-language
- * dub when it has one — and the per-operator picks are cleared. The same values again (any other setting changing) keep
- * them.
- * @param {string} lang
- * @param {boolean} [native]
- */
-export function setDefaultVoiceLang(lang, native = false) {
-  const cur = voiceLangStore.get();
-  if (!VOICE_LANGS.includes(lang) || (cur.default === lang && cur.native === native)) return;
-  voiceLangStore.set({ default: lang, native, byChar: {} });
-}
-
-/**
- * One operator speaks `lang`. A pick equal to what the default already gives it drops the override instead, so a
- * later change of the default still reaches it.
+ * One operator speaks `lang`. A pick equal to what the settings already give it drops the override instead, so a
+ * later change of the settings still reaches it.
  * @param {any} a manifest `audio`
  * @param {string} charId
  * @param {string} lang
  */
 export function setCharVoiceLang(a, charId, lang) {
-  if (!CHAR_ID.test(charId) || !PICKS.includes(lang)) return;
-  const cur = voiceLangStore.get();
-  const byChar = { ...cur.byChar };
-  delete byChar[charId];
-  if (effectiveVoiceLang(a, charId, { ...cur, byChar }) !== lang) byChar[charId] = lang;
-  voiceLangStore.set({ ...cur, byChar });
+  if (typeof charId !== 'string' || !VOICE_PICKS.includes(lang)) return;
+  const s = settingsStore.get();
+  const voiceOverrides = { ...s.voiceOverrides };
+  delete voiceOverrides[charId];
+  if (effectiveVoiceLang(a, charId, voicePrefOf({ ...s, voiceOverrides })) !== lang) voiceOverrides[charId] = lang;
+  updateSettings({ voiceOverrides });
 }
-
-/** Preact hook: the current voice language preference. */
-export const useVoiceLang = () => useStore((s) => s, Object.is, voiceLangStore);
 
 /** The square label and full name of language `lang` for `charId` (the own-language dub reads its official type). */
 function labelOf(a, charId, lang) {
@@ -113,21 +79,26 @@ function labelOf(a, charId, lang) {
 
 /**
  * The per-operator picker: one square per language the operator has on this server (nothing when it only has the
- * base CN dub, or no voice at all). A click picks the language and plays a line of it.
- * @param {{ charId: string|null|undefined, class?: string }} props
+ * base CN dub, or no voice at all), plus a crossed-out square for a saved pick this server lacks. A click picks the
+ * language and plays a line of it.
+ * @param {{ charId: string|null|undefined, class?: string, compact?: boolean }} props
  */
-export function VoiceLangPicker({ charId, class: cls }) {
+export function VoiceLangPicker({ charId, class: cls, compact = false }) {
   const pref = useVoiceLang();
   const a = data.get('assets')?.audio;
   const langs = typeof charId === 'string' ? voiceLangsOf(a, charId) : [];
   if (langs.length < 2) return null;
+  const saved = pref.byChar[charId];
+  const missing = saved && !langs.includes(saved) ? saved : null;
   const on = effectiveVoiceLang(a, charId, pref);
-  return html`<div class=${cx('vl-pick', cls)} role="radiogroup" aria-label=${t('干员语音')} data-testid="voice-lang" data-voice-char=${charId}>
+  return html`<div class=${cx('vl-pick', compact && 'vl-pick--compact', cls)} role="radiogroup" aria-label=${t('干员语音')} data-testid="voice-lang" data-voice-char=${charId}>
     ${langs.map((l) => {
       const [text, name] = labelOf(a, charId, l);
       return html`<button key=${l} type="button" role="radio" class=${cx('vl-pick__sq', l === 'native' && 'vl-pick__sq--native', on === l && 'is-on')}
         aria-checked=${on === l ? 'true' : 'false'} aria-label=${t(name)} title=${t(name)} data-lang=${l}
-        onClick=${() => { setCharVoiceLang(a, charId, l); audio.previewVoice(charId, l); }}>${text}</button>`;
+        onClick=${(e) => { e.stopPropagation(); setCharVoiceLang(a, charId, l); audio.previewVoice(charId, l); }}>${text}</button>`;
     })}
+    ${missing ? html`<span class="vl-pick__sq vl-pick__sq--missing" data-lang=${missing} role="img"
+      aria-label=${`${t(labelOf(a, charId, missing)[1])}${t('（此服务器没有）')}`} title=${`${t(labelOf(a, charId, missing)[1])}${t('（此服务器没有）')}`}>${labelOf(a, charId, missing)[0] ?? t(TOPOLECT_SQ)}</span>` : null}
   </div>`;
 }

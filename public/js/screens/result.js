@@ -25,6 +25,7 @@ import { store, useStore, emptyMatch } from '../store.js';
 import { audio } from '../audio.js';
 import { useDamageLog, DamageSummary } from '../ui/damageChart.js';
 import { sentText } from '../ui/lang.js';
+import { UnofficialMark } from '../ui/pluginTag.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -120,17 +121,20 @@ export function ResultScreen() {
   const hasRoom = useStore((s) => !!s.room);
   // the local player's damage per operator over the match (ui/damageLog.js: this client only, not in a stored match)
   const dmg = useDamageLog();
+  const content = useStore((s) => s.room?.content ?? null);
   const back = () => store.set({ match: emptyMatch() });
-  return html`<${ResultView} res=${res} pub=${pub} myId=${myId} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} damage=${dmg.history} />`;
+  return html`<${ResultView} res=${res} pub=${pub} myId=${myId} backLabel=${hasRoom ? t('返回同盟') : t('返回大厅')} onBack=${back} damage=${dmg.history} content=${content} />`;
 }
 
 /**
  * The settlement view of one m.result payload — the live screen above, and the stats page's re-view of a stored match
  * (screens/stats.js, which hands it the payload recordToResult rebuilt; `quiet`: no settlement jingle). `damage`: the
  * live match's damage history (ui/damageLog.js), drawn under the player cards.
- * @param {{ res: any, pub?: any, myId?: string|null, backLabel: string, onBack: () => void, quiet?: boolean, damage?: any }} props
+ * `content`: the room's content (room.state.content, or a stats record's) — gameplay plugins mark the result unofficial
+ * (DESIGN §32.6).
+ * @param {{ res: any, pub?: any, myId?: string|null, backLabel: string, onBack: () => void, quiet?: boolean, damage?: any, content?: any }} props
  */
-export function ResultView({ res, pub = null, myId = null, backLabel, onBack, quiet = false, damage = null }) {
+export function ResultView({ res, pub = null, myId = null, backLabel, onBack, quiet = false, damage = null, content = null }) {
   const gd = useGameData();
   const r = normalizeResult(res, pub);
   const titles = Array.isArray(gd.config?.titles) ? gd.config.titles : [];
@@ -169,6 +173,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
         <div class="result__logo"><${Sprite} k="entry/season_logo_settle" class="result__logoimg" fallback=${html`<${MicroLabel} tone="mint">STRONGHOLD PROTOCOL</${MicroLabel}>`} /></div>
         ${r.difficulty ? html`<${DifficultyTag} difficulty=${r.difficulty} size="lg" />` : null}
         <h1 class="result__headline">${r.victory ? t('模拟完成') : t('模拟失败')}</h1>
+        <${UnofficialMark} room=${content ? { content } : null} class="result__modmark" />
         <p class="result__sub">${r.victory ? t('成功卫戍 · 敌方领袖已被击败') : t('防线已被突破')}</p>
         <div class="result__rounds">
           <span class="result__rlabel">${t('通过回合')}</span>
@@ -195,6 +200,7 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
           : html`<p class="t-dim">${t('暂无结算数据')}</p>`}
         ${damage ? html`<${DamageSummary} history=${damage} />` : null}
       </section>
+      <div class="ui-slot" data-ui-slot="result.tab" aria-label=${t('界面插件')} dangerouslySetInnerHTML=${{ __html: '' }}></div>
     </main>
   </div>`;
 }

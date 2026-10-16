@@ -127,6 +127,9 @@ describe('renderer recovery after transient resource failures', { skip: !enabled
   for (const resource of ['atlas', 'three']) test(`${resource} download can recover the 3D board on visibility`, { skip: !art }, async () => {
     const page = await browser.newPage(); let failing = true, requests = 0;
     try {
+      // the imported-art service worker (public/sw.js, PR #628 — registered by an earlier page of this origin) would
+      // fetch the hashed atlas itself, past this page's request interception
+      await page.setBypassServiceWorker(true);
       await page.setRequestInterception(true);
       page.on('request', req => {
         const p = new URL(req.url()).pathname;

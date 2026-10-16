@@ -18,7 +18,7 @@ export const GEN_ROOT = '/_build/';
 export const GEN_APP = '_';
 /** Top-level paths shared by every generation (never prefixed). */
 export const GEN_SHARED_DIRS = Object.freeze(['assets', 'media', 'fonts', 'icons']);
-export const GEN_SHARED_FILES = Object.freeze(['/manifest.json', '/resource-sw.js', '/favicon.ico']);
+export const GEN_SHARED_FILES = Object.freeze(['/manifest.json', '/resource-sw.js', '/sw.js', '/favicon.ico']);
 
 /**
  * Split a raw request path into its generation and the path the server serves.
@@ -59,6 +59,17 @@ export function genPath(gen, p) {
   if (!gen || typeof p !== 'string' || !p.startsWith('/') || p.startsWith('//') || p.startsWith(GEN_ROOT) || isGenSharedPath(p)) return p;
   if (p.startsWith('/shared/')) return `${GEN_ROOT}${gen}${p}`;
   return `${GEN_ROOT}${gen}/${GEN_APP}${p}`;
+}
+
+/**
+ * genPath for the generation a module was loaded from (its own import.meta.url): shared code that builds root URLs in
+ * the browser (shared/plugins/*.js) stays in its page's generation; on the server (file: URLs) nothing changes.
+ * @param {string} moduleUrl @param {string} p
+ */
+export function genPathFor(moduleUrl, p) {
+  let gen = null;
+  try { const u = new (/** @type {any} */ (globalThis).URL)(String(moduleUrl)); if (u.protocol !== 'file:') gen = splitGenPath(u.pathname).gen; } catch { /* no URL */ }
+  return genPath(gen, p);
 }
 
 /**

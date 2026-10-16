@@ -1,6 +1,7 @@
 // public/js/render/app/pixi.js — load PIXI and pixi-spine once (one module-level promise).
 
 import { genUrl } from '../../gen.js';
+import { installPixiNoEval } from './pixiNoEval.js';
 
 const VENDOR = { pixi: genUrl('/vendor/pixi.min.js'), spine: genUrl('/vendor/pixi-spine.js') };
 
@@ -46,11 +47,12 @@ function loadScript(src) {
 
 /** Make sure PIXI and PIXI.spine exist (classic scripts; loaded once). */
 export function ensurePixi() {
-  if (globalThis.PIXI && globalThis.PIXI.spine) { cpuPixiCanvases(globalThis.PIXI); return Promise.resolve(globalThis.PIXI); }
+  if (globalThis.PIXI && globalThis.PIXI.spine) { cpuPixiCanvases(globalThis.PIXI); installPixiNoEval(globalThis.PIXI); return Promise.resolve(globalThis.PIXI); }
   if (!pixiPromise) {
     pixiPromise = (async () => {
       if (!globalThis.PIXI) await loadScript(VENDOR.pixi);
       cpuPixiCanvases(globalThis.PIXI);
+      installPixiNoEval(globalThis.PIXI);
       if (!globalThis.PIXI?.spine) await loadScript(VENDOR.spine);
       if (!globalThis.PIXI || !globalThis.PIXI.spine) throw new Error('PIXI / pixi-spine unavailable');
       return globalThis.PIXI;

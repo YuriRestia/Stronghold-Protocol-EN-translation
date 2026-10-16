@@ -3,21 +3,23 @@
 //
 // Preference `sp.pref.preload` = { started, paused, voice }. Lifecycle (owner's decision, 2026-10-09): the player starts
 // the download, may pause and resume it, and every file saved so far is used at once; a finished set stays and is used
-// until the player clears it (Clear Cache deletes the files and unregisters the worker). There is no "off" in between.
+// until the player clears it (Clear Cache deletes the files; the worker, public/sw.js, stays for imported art). There is no "off" in between.
 // `started` keeps the worker registered; unless `paused`, every page load resumes the download, which after a deploy
 // fetches the changed files only. `voice` is the ticked voice packs, or null to follow the voice language settings (the
-// default language plus every per-operator pick, ui/voiceLang.js) until the player edits the list.
+// default language plus every per-operator pick, settings.voiceOverrides) until the player edits the list.
 // Visuals and music are always part of it. One tab downloads at a time (Web Locks); during a match one lane runs instead
 // of four, so the match's own requests keep the bandwidth.
 
 import { createStore, loadPref, savePref, store, selectRoute } from '../store.js';
-import { voiceLangStore } from '../ui/voiceLang.js';
+import { settingsStore } from '../ui/settings.js';
+import { voicePrefOf } from '../ui/voiceLang.js';
 import { effectiveVoiceLang } from '../audio.js';
 import { data } from '../data.js';
 import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest } from '../../../shared/resources.js';
 import { PreloadStore, isQuotaError } from './store.js';
 
-export const SW_URL = '/resource-sw.js';
+// (fork) the origin's one worker (public/sw.js, which loads /resource-sw.js): the asset import registers the same one
+export const SW_URL = '/sw.js';
 export const DOWNLOAD_LOCK = 'sp-resources-preload';
 
 /** @param {any} v */
@@ -30,7 +32,7 @@ export function sanitizePreloadPref(v) {
 /**
  * The voice packs the voice language settings use: the default language (settings 语音语言), every per-operator pick
  * and, with the manifest's `audio`, the dub each voiced operator really speaks — an operator without the default's dub
- * falls back to EN, then JP (audio.js effectiveVoiceLang), so an EN default also needs the JP pack (`audio.voiceJp`);
+ * falls back to JP (voicePrefs.js voiceLangFor), so an EN default also needs the JP pack (`audio.voiceJp`);
  * the 本土语言 switch (`native`) adds the own-language pack.
  * @param {{ default?: string, native?: boolean, byChar?: Record<string, string> } | null | undefined} pref
  * @param {any} [a] data/assets.json `audio`
@@ -45,7 +47,7 @@ export const preloadPref = createStore(sanitizePreloadPref(loadPref('preload', n
 preloadPref.subscribe((s) => savePref('preload', sanitizePreloadPref(s)));
 
 /** The ticked voice packs right now. */
-export const tickedVoicePacks = () => preloadPref.get().voice ?? voicePacksOf(voiceLangStore.get(), data.get('assets')?.audio);
+export const tickedVoicePacks = () => preloadPref.get().voice ?? voicePacksOf(voicePrefOf(settingsStore.get()), data.get('assets')?.audio);
 /** The optional packs ticked (the voice packs, then the outfits pack when on): what a preload adds to BASE_PACKS. */
 export const tickedPacks = () => [...tickedVoicePacks(), ...(preloadPref.get().outfits ? [OUTFITS_PACK] : [])];
 
@@ -118,13 +120,18 @@ async function ensureWorker() {
   }
 }
 
+/**
+ * Clear Cache: the worker stays (public/sw.js also serves imported art); only a registration of the old stand-alone
+ * /resource-sw.js is dropped. With the cache emptied the preload's rules answer nothing.
+ */
 async function dropWorker() {
   try {
     for (const reg of await globalThis.navigator.serviceWorker.getRegistrations()) {
       const url = reg.active?.scriptURL || reg.installing?.scriptURL || reg.waiting?.scriptURL || '';
-      if (url.endsWith(SW_URL)) await reg.unregister();
+      if (url.endsWith('/resource-sw.js')) await reg.unregister();
     }
   } catch { /* the worker is optional */ }
+  notifyWorker();
 }
 
 /**
@@ -193,7 +200,8 @@ function syncCapturePacks() {
   context().then((st) => st.setCapturePacks([...BASE_PACKS, ...tickedPacks()])).catch(() => {});
 }
 preloadPref.subscribe(syncCapturePacks);
-voiceLangStore.subscribe(syncCapturePacks);
+// after the module graph ran: ui/settings.js → ui/preload.js → here is a cycle, its store is not there yet at this line
+queueMicrotask(() => settingsStore.subscribe(syncCapturePacks));
 
 /** Tick or untick a voice pack (the list stops following the voice settings from here on). */
 export function setVoicePack(pack, on) {

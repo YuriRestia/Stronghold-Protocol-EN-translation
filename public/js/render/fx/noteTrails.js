@@ -1,6 +1,6 @@
 // public/js/render/fx/noteTrails.js — the official trail layers of 丰川祥子's notes (render/fx/notes.js draws them).
 // Read from the client's TrailRenderers (battle/prefabs/effects/oblvns.ab, 2026-10-16): per look and note family, its
-// layers bottom to top — `tex` the texture under fx/oblvns (tools/local-extract: oblvns.ab + refs/fx/texture/*.ab),
+// layers bottom to top — `tex` the texture under notes/oblvns (tools/local-extract: oblvns.ab + refs/fx/texture/*.ab),
 // `rect` its material tiling [scale u, scale v, offset u, offset v] (u along the trail, v across it), `add` additive
 // (else normal) blending, `w` the width (tiles: widthMultiplier × the flat widthCurve), `col` / `a` the colour and alpha
 // keys along it (0 = the head, 1 = the tail). The default look: a solid band (rosmon_xxx_05_02, its fade across) in the

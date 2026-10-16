@@ -26,6 +26,8 @@ export function groupReady(room) {
 
 export function isMatchable(room) {
   if (!room || room.disposed || room.match || room.mode !== 'coop' || !room.searching || !room.hostId) return false;
+  // (fork) a room with gameplay plugins is joined by its code only: strangers never land in other rules (DESIGN §90)
+  if (room.modded) return false;
   const n = roomSize(room);
   return n >= 1 && n < MAX_SEATS && groupReady(room);
 }

@@ -73,6 +73,8 @@ function SlotCard({ m, slot, pick, illegal, onOpen, onClear, ops = {}, onOps = n
       <div class="diy-slot__head"><${TierChip} tier=${slot.tier} size="sm" /><span class="diy-slot__label">${label}</span><${KindTag} proto=${proto} /></div>
       <b class="diy-slot__name">${rec.name}</b>
       <small class="diy-slot__class">${classLine(rec)}</small>
+      ${/* (fork) the operator's dub from the overview: a click sets it and plays a line (no 更换 page needed) */ ''}
+      <${VoiceLangPicker} charId=${rec.charId} class="diy-slot__voice" compact />
       <${Bonds} bonds=${rec.bonds} />
       <span class="diy-slot__kit" data-skill=${sk?.index ?? ''}>
         <${Img} src=${skillRecordIconUrl(m, sk, { empty: false })} class="diy-slot__sicon" fallback=${html`<b class="num">${skillLabel(sk?.index)}</b>`} />

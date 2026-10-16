@@ -93,7 +93,9 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
       await guest.waitForFunction(() => document.body.textContent.includes('此对局仍在其他窗口中'));
       assert.equal(await owner.evaluate(() => sessionStorage.getItem('sp.token')), before.token);
       await owner.evaluate(() => globalThis.finishIdentityInit());
-      await owner.waitForFunction(() => globalThis.__SP__?.store.get().match.public?.phase === 'INFO_CHECK');
+      // the owner is the background tab now (the guest was brought to front): poll on a timer, not on animation
+      // frames, which a background tab does not run once the match screen takes a moment to load
+      await owner.waitForFunction(() => globalThis.__SP__?.store.get().match.public?.phase === 'INFO_CHECK', { polling: 100 });
       const after = await owner.evaluate(() => {
         const s = globalThis.__SP__.store.get();
         return { id: s.me.playerId, code: s.room.code, token: sessionStorage.getItem('sp.token') };
@@ -155,20 +157,20 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
     const ctx = await browser.createBrowserContext();
     try {
       const page = await pageIn(ctx, true);
-      // this fork: master's per-operator dropdown is replaced by the square picker (ui/voiceLang.js, sp.pref.voiceLang)
+      // this fork: the square picker (ui/voiceLang.js) on upstream's settings.voiceOverrides
       const open = async () => { await page.evaluate(async () => (await import('/js/ui/loadoutSync.js')).openLoadout()); await page.waitForSelector('.lo-card__pick'); await page.click('.lo-card__pick'); await page.waitForSelector('[data-voice-char] [data-lang]', { visible: true }); };
       await open();
       const id = await page.$eval('[data-voice-char]', (e) => e.dataset.voiceChar);
       const def = await page.$eval('[data-voice-char] [aria-checked="true"]', (e) => e.dataset.lang);
       const pick = await page.$eval('[data-voice-char] [aria-checked="false"]', (e) => e.dataset.lang);
       await page.click(`[data-voice-char] [data-lang="${pick}"]`);
-      assert.equal(await page.evaluate(async (id) => (await import('/js/audio.js')).audio.voicePicks[id], id), pick);
+      assert.equal(await page.evaluate(async (id) => (await import('/js/audio.js')).audio.voiceOverrides[id], id), pick);
       await page.reload({ waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online');
       await open();
       assert.equal(await page.$eval('[data-voice-char] [aria-checked="true"]', (e) => e.dataset.lang), pick);
       await page.click(`[data-voice-char] [data-lang="${def}"]`);
-      assert.equal(await page.evaluate((id) => JSON.parse(localStorage.getItem('sp.pref.voiceLang')).byChar[id], id), undefined);
+      assert.equal(await page.evaluate((id) => JSON.parse(localStorage.getItem('sp.pref.settings')).voiceOverrides[id], id), undefined);
     } finally { await ctx.close(); }
   });
   test('install manifest is eligible and a dismissed offer is consumed through the actual button', async () => {

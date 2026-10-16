@@ -4,7 +4,7 @@
 
 import { EVENT_BUFFER_CAP } from '../constants.js';
 import { elementView } from '../damage.js';
-import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView, statusView, shieldView } from '../snapshot.js';
+import { unitInfo, snapshotUnits, ammoView, wolfView, negView, coinView, statusView, shieldView, mysticView, layerView, chargeView } from '../snapshot.js';
 
 export class BattleEvents {
   fx(kind, params = {}) {
@@ -54,6 +54,12 @@ export class BattleEvents {
    *   st: [[id, status, endsAt, duration, value]] — the time left and the strength of each status icon (snapshot.js
    *       statusView): the ring around the icon and its number;
    *   sh: [[id, barrier]] — the 屏障 HP a unit holds (snapshot.js shieldView): the barrier over its HP bar;
+   *   energy: [[id, stored, the trait's maximum]] — a 秘术师's stored attack energies (snapshot.js mysticView): the
+   *         count under the HP bar;
+   *   layers: [[id, n]] — the hit-negating 护盾 layers a unit holds (snapshot.js layerView: 泥岩's): the official layer
+   *         effect it shows;
+   *   charges: [[id, stored, maximum]] — the charges an ally's charge skill stores (snapshot.js chargeView: 卡涅利安's): the
+   *         official sand armour of her charges;
    *   stand: [[id, until]] — when each enemy's attack recovery ends (atkStandUntil; alive, deployed, visible, not
    *         feared or stunned) — display metadata (render/interp.js holds the position until then);
    *   standCut: [[id, at]] — the latest time each listed enemy's recovery was cut or ignored (_cutAttackStand), the
@@ -63,8 +69,8 @@ export class BattleEvents {
    *         enemy it is locked on (null: none; the client eases the note's height to that enemy's body);
    *   fever: [[ownerId, fill, active]] — the Fever gauge each Ave Mujica member shows (kits/ops/op-oblvns.js; per field):
    *         fill 0..1 of the 450 points, active 1 while Fever runs.
-   * ammo / wolves / neg / st / sh / stand / standCut / notes / fever are display only: no sim state reads them, and the nine-field unit tuples are
-   * unchanged.
+   * ammo / wolves / neg / st / sh / energy / layers / charges / stand / standCut / notes / fever are display only: no sim
+   * state reads them, and the nine-field unit tuples are unchanged.
    */
   snapshot() {
     const snap = {
@@ -90,7 +96,7 @@ export class BattleEvents {
       (down || (down = [])).push([u.id, r2(u.respawnAt), r2(Math.max(0, u.respawnAt - u.deathAt)), this._downState(u), ...this.restTile(u)]);
     }
     if (down) snap.down = down;
-    let elem = null, ammo = null, wolves = null, neg = null, st = null, sh = null, stand = null, standCut = null;
+    let elem = null, ammo = null, wolves = null, neg = null, st = null, sh = null, energy = null, stand = null, standCut = null;
     let listed = null;   // the ids in snap.units, built for the first enemy with a cut to report
     for (const u of this.units) {
       if (u.side === 'enemy' && u.atkStandCutAt >= 0) {
@@ -116,6 +122,12 @@ export class BattleEvents {
       if (sv) for (const row of sv) (st || (st = [])).push([u.id, ...row]);
       const purse = coinView(u);
       if (purse) (snap.coins || (snap.coins = [])).push([u.id, ...purse]);
+      const en = mysticView(u);
+      if (en) (energy || (energy = [])).push([u.id, en[0], en[1]]);
+      const ly = layerView(u);
+      if (ly) (snap.layers || (snap.layers = [])).push([u.id, ly]);
+      const ch = chargeView(u);
+      if (ch) (snap.charges || (snap.charges = [])).push([u.id, ch[0], ch[1]]);
     }
     if (elem) snap.elem = elem;
     if (ammo) snap.ammo = ammo;
@@ -123,6 +135,7 @@ export class BattleEvents {
     if (neg) snap.neg = neg;
     if (st) snap.st = st;
     if (sh) snap.sh = sh;
+    if (energy) snap.energy = energy;
     if (stand) snap.stand = stand;
     if (standCut) snap.standCut = standCut;
     if (this.notes.list.length) {
