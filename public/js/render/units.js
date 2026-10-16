@@ -633,6 +633,9 @@ export class UnitView {
     // enemies: the official prefab's size factor (1 for operators, summons and enemies at the standard size)
     const def = this.isEnemy && ctx.lookupDef ? ctx.lookupDef(info) : null;
     this.modelK = this.isEnemy ? enemyModelScale(def) : 1;
+    // the invulnerability ribbons' size (InvulnRibbons): a multi-tile boss (a 巨型 enemy, its data `hitArea`) wears them
+    // RIBBON.giant times as big, so they go round it
+    this.ribbonK = this.isEnemy && def && def.hitArea ? RIBBON.giant : 1;
     // a fast enemy walks on its model's own Run cycle when it has one (PR #275 by @xcdoge: 猎狗pro, moveSpeed 1.9, Run_Loop
     // 0.53 s next to Move_Loop 0.80 s; also 深池侦察犬 1.7). [ASSUMED] the threshold: faster than the standard 1
     this.moveFast = this.isEnemy && Number(def?.stats?.moveSpeed) > 1;
@@ -729,6 +732,7 @@ export class UnitView {
     }
     this.body = new P.Container();
     this.root.addChild(this.body);
+    this.ribbons = null;                 // the invulnerability ribbons (InvulnRibbons), made the first time it is invulnerable
     this.fallback = new P.Sprite(P.Texture.EMPTY);
     this.fallback.anchor.set(0.5, 1);
     this.body.addChild(this.fallback);
@@ -1604,6 +1608,11 @@ export class UnitView {
       modelK: this.modelK, modelKY: this.modelKY,
     });
     this.screen.top = by - headTiles * s;
+    // invulnerable (无敌, UF.INVULN): two gold ribbons spinning around the model (InvulnRibbons, made on first need)
+    if (this.flags & UF.INVULN) {
+      if (!this.ribbons) this.ribbons = new InvulnRibbons(this.P, this.root, this.body);
+      this.ribbons.update(t, s * this.ribbonK, -headTiles * s * RIBBON.centre);
+    } else if (this.ribbons) this.ribbons.hide();
     this._updateHud(dt, s, bx, by - headTiles * s, alpha, t);
   }
 
@@ -2437,6 +2446,71 @@ export class ItemView {
 }
 
 // =============================================================================================================
+
+/**
+ * The invulnerability ribbons (after the original game's look): two gold rings around the unit, as if in
+ * 3D — each a short cylinder (thickness `thick` tiles, radius `radius` tiles — `giant` times both on a multi-tile boss —,
+ * centred `centre` of the model's height up)
+ * spinning about its own axis once per second, its near side moving left. Along a ribbon the colour fades from gold
+ * to transparent and back, transparent at 180° (its "back side"); the two are half a turn apart. Axes: screen up, tilted
+ * `tilt`° to the left (the first) or right (the second) about the screen's Z, then `toward`° toward the camera. Drawn
+ * additively: the half turned away from the camera behind the model, the near half in front.
+ */
+const RIBBON = Object.freeze({ radius: 0.5, thick: 0.25, centre: 0.45, perSec: 1, tilt: 20, toward: 10, segs: 48, alpha: 0.85, color: 0xffd34d, giant: 3 });
+
+/** A ribbon's frame (screen x right, y up, z toward the camera): its axis `a` and the ring's basis u, v. */
+function ribbonFrame(side) {
+  const d = Math.PI / 180;
+  const a = [-side * Math.sin(RIBBON.tilt * d) * Math.cos(RIBBON.toward * d), Math.cos(RIBBON.tilt * d) * Math.cos(RIBBON.toward * d), Math.sin(RIBBON.toward * d)];
+  const ul = Math.hypot(a[1], a[0]) || 1;
+  const u = [a[1] / ul, -a[0] / ul, 0];                       // a × z: in the screen plane
+  const v = [a[1] * u[2] - a[2] * u[1], a[2] * u[0] - a[0] * u[2], a[0] * u[1] - a[1] * u[0]]; // a × u
+  // spin so that the ring's nearest point (max z) moves toward −x
+  const tn = Math.atan2(v[2], u[2]);
+  const vx = -Math.sin(tn) * u[0] + Math.cos(tn) * v[0];
+  return { a, u, v, dir: vx > 0 ? -1 : 1 };
+}
+
+class InvulnRibbons {
+  constructor(P, root, body) {
+    this.back = new P.Graphics();
+    this.front = new P.Graphics();
+    for (const g of [this.back, this.front]) g.blendMode = P.BLEND_MODES.ADD;
+    const at = Math.max(0, root.getChildIndex(body));
+    root.addChildAt(this.back, at);
+    root.addChildAt(this.front, at + 2);                       // after the body (now one further down)
+    this.frames = [ribbonFrame(1), ribbonFrame(-1)];
+  }
+  hide() { this.back.clear(); this.front.clear(); }
+  /** @param {number} t seconds @param {number} s the tile size (px) @param {number} cy the ring centre's y in the root */
+  update(t, s, cy) {
+    this.back.clear();
+    this.front.clear();
+    const R = RIBBON.radius * s, h = (RIBBON.thick * s) / 2, n = RIBBON.segs;
+    this.frames.forEach((f, k) => {
+      const spin = f.dir * 2 * Math.PI * RIBBON.perSec * t;
+      const phase = k * Math.PI;                               // the two ribbons in opposite phase
+      const pt = (th, off) => {
+        const c = Math.cos(th), sn = Math.sin(th);
+        const x = R * (c * f.u[0] + sn * f.v[0]) + off * f.a[0];
+        const y = R * (c * f.u[1] + sn * f.v[1]) + off * f.a[1];
+        return [x, cy - y];
+      };
+      for (let i = 0; i < n; i++) {
+        const t0 = (i / n) * 2 * Math.PI, t1 = ((i + 1) / n) * 2 * Math.PI, tm = (t0 + t1) / 2;
+        const m = tm - spin + phase;                              // the ribbon's own angle at this place
+        const al = RIBBON.alpha * (1 + Math.cos(m)) / 2;
+        if (al < 0.02) continue;
+        const z = R * (Math.cos(tm) * f.u[2] + Math.sin(tm) * f.v[2]);
+        const g = z < 0 ? this.back : this.front;
+        const p0 = pt(t0, h), p1 = pt(t1, h), p2 = pt(t1, -h), p3 = pt(t0, -h);
+        g.beginFill(RIBBON.color, al);
+        g.drawPolygon([p0[0], p0[1], p1[0], p1[1], p2[0], p2[1], p3[0], p3[1]]);
+        g.endFill();
+      }
+    });
+  }
+}
 
 /**
  * Battle device unit (kind 'device': crates, “双眼皮” turrets, unknown stage devices): a textured 3D box (the tile
