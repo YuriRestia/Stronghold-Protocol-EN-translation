@@ -10,10 +10,12 @@ import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { NOTE_KINDS } from '../../server/sim/content/kits/ops/op-oblvns.js';
-import { NOTE_LIFETIME } from '../../server/sim/notes.js';
+import { NOTE_LIFETIME, ownerTarget } from '../../server/sim/notes.js';
 import { FEVER_NEED, FEVER_DURATION } from '../../server/sim/fever.js';
 import { diyPool } from '../../shared/diy.js';
-import { TICK } from '../../server/sim/constants.js';
+import { TICK, COLS } from '../../server/sim/constants.js';
+import { animOf } from '../../server/sim/snapshot.js';
+import { ANIM } from '../../shared/constants.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../../data/${f}.json`, import.meta.url), 'utf8'));
 const BACKUPS = load('backups');
@@ -78,6 +80,52 @@ test('持续攻击: with no enemy she keeps attacking (attack SP charged, owner 
   // every note dies within (time to leave the range) + 1 s: the field never holds more than a few
   assert.ok(h.b.notes.list.length <= 6, `${h.b.notes.list.length} notes alive`);
   for (const n of h.b.notes.list) assert.ok(n.age < NOTE_LIFETIME);
+  done(h);
+});
+
+test('a targetless 持续攻击 plays no attack clip (owner 2026-10-16): idle with no enemy, the attack clip on an enemy', () => {
+  const { h, u } = field({ skill: 2 });
+  h.run(1.5);   // past the deploy clip
+  const seen = new Set();
+  for (let i = 0; i < 90; i++) { h.step(); seen.add(animOf(u, h.b.time)); }
+  assert.ok(u.stats.attacks > 0, 'she did attack (her notes left)');
+  assert.ok(!seen.has(ANIM.ATTACK) && !seen.has(ANIM.SKILL), `no attack / skill clip without a target: ${[...seen]}`);
+  // an enemy in range: the clip again
+  const b = field({ skill: 2, foes: [[10, 7]] });
+  b.h.run(1.5);
+  let attacked = false;
+  for (let i = 0; i < 120 && !attacked; i++) { b.h.step(); attacked = animOf(b.u, b.h.b.time) === ANIM.ATTACK; }
+  assert.ok(attacked, 'the attack clip on an enemy');
+  done(h);
+});
+
+test('every return to free flight waits the minimum free time again (owner 2026-10-16, the flowchart)', () => {
+  const { h, u } = field({ foes: [[10, 7], [10, 8]] });
+  h.runUntil(() => h.b.notes.list.some((n) => n.state === 'trace'), 5);
+  const n = h.b.notes.list.find((x) => x.state === 'trace');
+  const other = h.b.enemies.find((e) => e !== n.target);
+  n.target.hp = 0; h.b.kill(n.target);
+  h.step();
+  assert.equal(n.state, 'free', 'target lost → free');
+  assert.equal(n.freeT, 1 / 30, 'the free timer starts over');
+  // it may pick the other enemy at its next check, but only traces once minFree has passed again
+  h.runUntil(() => n.dead || n.state === 'trace', 3);
+  if (!n.dead) assert.ok(n.freeT >= n.kind.minFree - 1e-9, `traced after ${n.freeT} s free (min ${n.kind.minFree})`);
+  void other; void u;
+  done(h);
+});
+
+test('her notes outlive her (owner 2026-10-16): they fly on, still strike (damage + Fever), off-range read from her last range', () => {
+  const { h, u } = field({ foes: [[10, 9]] });
+  h.runUntil(() => h.b.notes.list.some((n) => n.owner === u), 5);
+  const mine = h.b.notes.list.filter((n) => n.owner === u);
+  const fever0 = h.b.fever.value, hits0 = noteHits(h, u).length;
+  h.b.retreat(u);
+  assert.ok(!u.deployed, 'she left');
+  for (const n of mine) { assert.ok(!n.dead, 'not cleared on leaving'); assert.ok(n.range && n.range.size > 0, 'her last range kept'); }
+  h.runUntil(() => noteHits(h, u).length > hits0, 5);
+  assert.ok(noteHits(h, u).length > hits0, 'a note still strikes after she left');
+  assert.ok(h.b.fever.value > fever0, 'and still fills the gauge');
   done(h);
 });
 
@@ -282,4 +330,72 @@ test('determinism: two runs with the same seed give the same notes and damage', 
   };
   assert.equal(run(), run());
   void TICK; void NOTE_KINDS;
+});
+
+test('转向速度 (PRTS 弹道): the turned direction is not renormalised — a note locked on a target behind it brakes, turns back and strikes, it never orbits', () => {
+  for (const [name, kind] of Object.entries(NOTE_KINDS)) {
+    const { h, u } = field({ foes: [[10, 2]] });
+    const e = h.b.enemies[0];
+    // a note in trace flying away from its target (+x) at full speed, its target 1.5 tiles behind it
+    const n = h.b.notes.add({ owner: u, kind, x: e.x + 1.5, y: e.y, dx: 1, dy: 0, target: e, onHit: () => {} });
+    n.state = 'trace'; n.vx = 1; n.vy = 0;
+    let minSpeed = Infinity;
+    for (let i = 0; i < 30 * 8 && !n.dead; i++) {
+      const x0 = n.x, y0 = n.y;
+      h.b.notes.update(TICK);
+      if (!n.dead) minSpeed = Math.min(minSpeed, Math.hypot(n.x - x0, n.y - y0) / TICK);
+    }
+    assert.ok(n.dead && n.hit.has(e), `${name}: struck its target behind it`);
+    assert.ok(minSpeed < kind.trace * 0.5, `${name}: braked while turning (${minSpeed.toFixed(2)} of ${kind.trace})`);
+    done(h);
+  }
+});
+
+test('a note looking for a target takes hers first (owner 2026-10-16): the enemy she blocks, else her pick in range — only then the nearest to itself', () => {
+  // a note far ahead of her, right next to another enemy: it still goes for the one she blocks
+  const { h, u } = field({ foes: [[10, 5], [10, 10]] });
+  h.runUntil(() => u.blocking.length > 0, 5);
+  const [blocked, far] = [u.blocking[0], h.b.enemies.find((e) => e !== u.blocking[0])];
+  const n = h.b.notes.add({ owner: u, kind: NOTE_KINDS.attackFree, x: far.x - 0.3, y: far.y, dx: 1, dy: 0, onHit: () => {} });
+  h.b.notes.update(TICK);
+  assert.equal(n.target, blocked, 'the blocked enemy, not the one beside the note');
+  // she blocks nothing: her own pick in range (the one nearest the blue box), not the one beside the note
+  const g = field({ foes: [[10, 7], [10, 9]] });
+  const lead = g.h.b.enemies.slice().sort((a, b) => g.h.b.remainingDistance(a) - g.h.b.remainingDistance(b))[0];
+  const other = g.h.b.enemies.find((e) => e !== lead);
+  const m = g.h.b.notes.add({ owner: g.u, kind: NOTE_KINDS.attackFree, x: other.x, y: other.y + 0.3, dx: 1, dy: 0, onHit: () => {} });
+  g.h.b.notes.update(TICK);
+  assert.equal(m.target, lead, 'her pick');
+  // none in her range and she blocks none: the nearest to the note itself (PRTS)
+  const k = field({ foes: [[10, 18]] });
+  const e = k.h.b.enemies[0];
+  const q = k.h.b.notes.add({ owner: k.u, kind: NOTE_KINDS.attackFree, x: e.x - 0.5, y: e.y, dx: 1, dy: 0, onHit: () => {} });
+  k.h.b.notes.update(TICK);
+  assert.equal(q.target, e, 'its own pick');
+  done(h); done(g.h); done(k.h);
+});
+
+test('the notes\' priority (owner 2026-10-16): her blocked enemies → her own range → the range another member lends her; S3 takes the highest RES / DEF within that group', () => {
+  // two of her on one row (lent ranges), the back one blocks an enemy; a tougher one stands only in front of the front one
+  const two = [{ uid: 2, diy: { slot: SLOT[6], charId: SAKI, skillIndex: 0, uniEquipId: LORY }, elite: true, row: 10, col: 7 }];
+  const { h, u } = field({ skill: 2, more: two, foes: [[10, 5, 'e_d'], [10, 11, 'e_arts'], [10, 12, 'e_tank']] });
+  h.runUntil(() => u.blocking.length > 0, 5);
+  const mine = u.blocking[0];
+  assert.equal(ownerTarget(h.b, u, 'res'), mine, 'S3 phys: the one she blocks, though another has more RES');
+  assert.equal(ownerTarget(h.b, u, 'def'), mine, 'S3 arts: the one she blocks');
+  assert.equal(ownerTarget(h.b, u), mine);
+  // blocking none: the highest RES / DEF of her own range
+  const g = field({ skill: 2, foes: [[10, 7, 'e_arts'], [10, 8, 'e_tank']] });
+  assert.equal(ownerTarget(g.h.b, g.u, 'res')?.defId, 'enemy_e_arts');
+  assert.equal(ownerTarget(g.h.b, g.u, 'def')?.defId, 'enemy_e_tank');
+  // an enemy only in the lent range is the last resort: one in her own range wins over a tougher lent-range one
+  const f = field({ skill: 0, more: [{ ...two[0], col: 8 }], foes: [[10, 6, 'e_d'], [10, 12, 'e_tank']] });
+  const ext = new Set(f.u.extraRangeKeys || []);
+  const lentOnly = f.h.b.enemies.find((e) => ext.has(e.tileR * COLS + e.tileC));
+  assert.ok(lentOnly, 'the test field puts one enemy in the lent range only');
+  assert.notEqual(ownerTarget(f.h.b, f.u, 'def'), lentOnly, 'her own range first');
+  // the S3 volley launches its notes on those picks
+  h.runUntil(() => h.b.notes.list.some((n) => n.owner === u && n.data.look.startsWith('s3')) || false, 60);
+  for (const n of h.b.notes.list) if (n.owner === u && n.data.look.startsWith('s3') && n.target) assert.equal(n.target, mine, n.data.look);
+  done(h); done(g.h); done(f.h);
 });

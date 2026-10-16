@@ -564,6 +564,28 @@ export const ENEMY_MODEL_FACES_LEFT = false;
 let _whiteTex = null;
 const white = () => (_whiteTex || (_whiteTex = globalThis.PIXI.Texture.WHITE));
 
+/**
+ * The rows the ♪ glyph's ink spans in a Fever gauge Text (local px of its texture, the alpha scanned once), so the fill
+ * runs from the note's foot to its flag instead of the padded text box; the box itself when the canvas can't be read.
+ */
+function feverInk(text) {
+  const box = { y0: 0, y1: text.texture.height || text.height };
+  try {
+    text.updateText?.(false);
+    const cv = text.canvas, g = cv && cv.getContext && cv.getContext('2d');
+    if (!g || !cv.width || !cv.height) return box;
+    const d = g.getImageData(0, 0, cv.width, cv.height).data;
+    let y0 = -1, y1 = -1;
+    for (let y = 0; y < cv.height; y++) {
+      for (let x = 0; x < cv.width; x++) if (d[(y * cv.width + x) * 4 + 3] > 24) { if (y0 < 0) y0 = y; y1 = y + 1; break; }
+    }
+    if (y0 < 0) return box;
+    // canvas px → the Text's local px (its resolution)
+    const res = cv.height / (text.texture.height || cv.height);
+    return { y0: y0 / res, y1: y1 / res };
+  } catch { return box; }
+}
+
 function bar(P, parent, color, alpha = 1) {
   const s = new P.Sprite(white());
   s.tint = color;
@@ -653,6 +675,8 @@ export class UnitView {
     this.sp = 0; this.spMax = 0;
     this.ammo = null;             // [rounds left, rounds in the magazine] while an ammo skill runs (sync; b.snap `ammo`)
     this.wolves = null;           // [狼影 left, the talent's maximum] of a 狼群 (sync; b.snap `wolves`)
+    this.fever = null;            // [fill, active] of the Ave Mujica Fever gauge (sync; b.snap `fever`)
+    this._feverHud = null;        // the gauge's note glyphs (_updateFever)
     this.coins = null;            // [balance, cap] of 琳琅诗怀雅's skill purse, including zero
     this.coinHud = null;
     this.neg = 0;                 // the share of its cap a negative-HP pool holds, 0 = none (sync; b.snap `neg`, 斩业星熊's 我执)
@@ -1024,6 +1048,7 @@ export class UnitView {
     this.hp = hp;
     this.sp = s.sp; this.spMax = s.spMax;
     this.ammo = s.ammo || null; this.wolves = s.wolves || null; this.neg = s.neg > 0 ? Math.min(1, s.neg) : 0;
+    this.fever = s.fever || null;   // [fill 0..1, active] — the Ave Mujica Fever gauge (b.snap `fever`, 丰川祥子)
     this.coins = s.coins || null;
     this.st = s.st || null;
     this.barrier = s.sh > 0 ? s.sh : 0;
@@ -1702,6 +1727,7 @@ export class UnitView {
     let rowsTop = cy + bh / 2 + (showSp ? spH + 1.5 : 0);
     rowsTop += this._updateAmmoCount(showSp && !!ammo && this.ctx.settings?.ammoCount === true, x0 + bw / 2, rowsTop, s);
     const wolfH = this._updateWolfPips(showBars && !this.isEnemy && !!this.wolves, x0, rowsTop, s);
+    this._updateFever(showBars && !this.isEnemy && !!this.fever, x0 + bw + 2, cy - bh / 2, s, t);
     const coinH = this._updateCoins(showBars && !this.isEnemy && !!this.coins, x0, rowsTop + wolfH, s);
     this._updateElementBar(showBars && !!this.el, x0, bw, rowsTop + wolfH + coinH + 1, spH, s, t);
     this._updateDownRing(!prep && !!this.down && !this.alive, x, this.screen.y - DOWN_LOOK.height * s, s, t);
@@ -1805,6 +1831,47 @@ export class UnitView {
     }
     r.root.visible = true;
     return d + 2 + WOLF_PIPS.pad;
+  }
+
+  /**
+   * The Ave Mujica Fever gauge (b.snap `fever`, [fill, active]; sim server/sim/fever.js), as the official HUD shows it: a
+   * music note right of the bars, grey, filling bottom-up in pink; full ⇒ ready (it glows); while Fever runs it pulses.
+   */
+  _updateFever(show, x, top, s, t) {
+    let r = this._feverHud;
+    if (!show) { if (r) r.root.visible = false; return; }
+    const P = this.P;
+    if (!r) {
+      const style = { fontFamily: 'Bender, Oxanium, sans-serif', fontSize: 32, fontWeight: '700', stroke: '#0b0f0e', strokeThickness: 4 };
+      const root = new P.Container();
+      // all three glyphs keep the same stroke width (a transparent one on the fill and glow): a Text's box grows by its
+      // stroke, so a stroke-less fill sat offset from the outlined back
+      const clear = { stroke: 'rgba(0,0,0,0)' };
+      const back = new P.Text('♪', { ...style, fill: COLORS.feverEmpty });
+      const fill = new P.Text('♪', { ...style, ...clear, fill: COLORS.feverFill });
+      const glow = new P.Text('♪', { ...style, ...clear, fill: COLORS.feverFill });
+      glow.blendMode = P.BLEND_MODES.ADD;
+      const mask = new P.Sprite(white());
+      fill.mask = mask;
+      // the mask lives in the fill's own space, so it lines up with the glyph whatever the root's scale
+      fill.addChild(mask);
+      root.addChild(back, fill, glow);
+      this.hud.addChild(root);
+      r = this._feverHud = { root, back, fill, glow, mask };
+    }
+    const [k, active] = this.fever;
+    const size = clamp(s * 0.28, 12, 26);
+    r.root.scale.set(size / 32);
+    r.root.position.set(x, top - size * 0.45);
+    // the mask: the glyph's own ink, its lower k (the Text's box has padding above and below the ♪: fill the ink)
+    const ink = r.ink || (r.ink = feverInk(r.fill));
+    const ih = ink.y1 - ink.y0;
+    r.mask.width = r.fill.texture.width; r.mask.height = ih * k + 0.5;
+    r.mask.position.set(0, ink.y1 - ih * k);
+    const full = k >= 0.999;
+    r.glow.visible = full || !!active;
+    if (r.glow.visible) r.glow.alpha = active ? 0.45 + 0.35 * Math.sin(t * 9) : 0.35 + 0.15 * Math.sin(t * 4);
+    r.root.visible = true;
   }
 
   /** Coin icon and balance/cap, read from the current snapshot rather than transient FX. */

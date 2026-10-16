@@ -42,6 +42,18 @@ const VOICE_ID_LANG = 'CN';
  */
 export const VOICE_JP_LANG = 'jp';
 
+/** Operators whose notes (sim notes.js) carry sounds of their own (the per-note banks of the projectile prefabs). */
+const NOTE_SFX_CHARS = new Set(['char_4182_oblvns']);
+/**
+ * [look key (kits/ops/op-oblvns.js), projectile suffix, custom hit trigger or null]: an attack with a target
+ * (projectile_chr_oblvns — no born bank: the attack swing plays), without (_talent), S2 piano (_s2 / _s2_t), organ
+ * (_s2_slow / _s2_slow_t), S3 (_s3_phy / _s3_mag), S1 (its hit is ON_CUSTOM_TRIGGER …_s1_hit; the volley's swing is the skill's).
+ */
+const NOTE_SFX_LOOKS = Object.freeze([
+  ['attack', '', null], ['talent', '_talent', null], ['s2', '_s2_t', null], ['s2_slow', '_s2_slow_t', null],
+  ['s3_phy', '_s3_phy', null], ['s3_mag', '_s3_mag', null], ['s1', '_s1', '_s1_hit'],
+]);
+
 /**
  * The per-operator voice picker's trees beside `audio.voiceJp` (`optionalVoice`, on by default in fetch-assets.mjs): the EN
  * and KR dumps (`voice_en/`, `voice_kr/`) and each operator's own-language dub (`voice_custom/<wordkey>/`, audio.mjs
@@ -515,6 +527,31 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     if (Object.keys(attackMix).length) u.attackMix = attackMix;
     if (Object.keys(hitMix).length) u.hitMix = hitMix;
     if (mix) u.mix = mix;
+    // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank
+    // (battle.ON_PROJECTILE_BORN / _HIT.projectile_chr_<short>[_<type>], ON_CUSTOM_TRIGGER for S1's hit), by the look key
+    // her kit gives the notes — the client plays them per note, rate-limited (public/js/audio.js noteSound)
+    if (NOTE_SFX_CHARS.has(id)) {
+      const notesSfx = {};
+      for (const [look, pid, hitBank] of NOTE_SFX_LOOKS) {
+        const born = audio.bank(`battle.ON_PROJECTILE_BORN.projectile_chr_${short}${pid}`);
+        const hit = audio.bank(hitBank ? `battle.ON_CUSTOM_TRIGGER.projectile_chr_${short}${hitBank}` : `battle.ON_PROJECTILE_HIT.projectile_chr_${short}${pid}`);
+        const e = {};
+        if (born?.length) e.born = soundLeaf(born, 'sfx', 1);
+        if (hit?.length) e.hit = soundLeaf(hit, 'sfx', 1);
+        if (Object.keys(e).length) notesSfx[look] = e;
+      }
+      if (Object.keys(notesSfx).length) u.notes = notesSfx;
+      // the notes own every impact (each type its bank above): no generic `hit` / `hits` on top of them. Her swing is
+      // ON_ABILITY_ON.<char>.attack.0.1 (p_atk_…nt_h); the generic pick lands on attack.4.1's ON_ABILITY_START
+      // (p_atk_…slnt), which only the S3 volley plays
+      const swing = audio.bank(`battle.ON_ABILITY_ON.${id}.attack.0.1`);
+      const s3Swing = audio.bank(`battle.ON_ABILITY_START.${id}.attack.4.1`);
+      delete u.hit; delete u.hits; delete u.hitMix;
+      if (u.mix) { delete u.mix.hit; delete u.mix.attack; }
+      delete u.attackMix;
+      if (swing?.length) u.attack = soundLeaf(swing);
+      if (s3Swing?.length) u.attacks = { 2: soundLeaf(s3Swing) }; else delete u.attacks;
+    }
     if (Object.keys(u).length) unitsSfx[id] = u;
   }
 
@@ -710,6 +747,11 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // Kept out of `bgm` below when the index has neither bank, so the manifest stays valid for an older audio_data.
   const combatAlts = ['battle.ON_GAME_READY.bat_kazimierz2_1', 'battle.ON_GAME_READY.bat_kazimierz2_2']
     .map((n) => flatBgm(bgmLeaf(n))).filter(Boolean);
+  // Fever (Ave Mujica, 丰川祥子): the VOCAL KiLLKiSS (`battle.ON_CUSTOM_TRIGGER.fever_full`; the game plays the
+  // instrumental fever_mid first — the owner's choice, 2026-10-15), played once over the round's track (audio.js
+  // feverStart). Its loop slot is the official empty one: only the intro is kept.
+  const feverTrack = audio.bgm('battle.ON_CUSTOM_TRIGGER.fever_full');
+  const fever = feverTrack?.intro ? { intro: soundLeaf([feverTrack.intro], 'bgm', 1), loop: soundLeaf([feverTrack.intro], 'bgm', 1) } : null;
   const bgm = {
     lobby: flatBgm(bgmLeaf('sys.ON_ACTIVITY_LOADED.act2autochess')),
     prep: flatBgm(bgmLeaf('battle.ON_GAME_READY.act1autochess_shop')),
@@ -717,6 +759,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     boss: flatBgm(bgmLeaf('battle.ON_GAME_READY.rglk1phantomcastle')),
     ...(combatAlts.length ? { combatAlts } : {}),
     ...(unite ? { unite } : {}),
+    ...(fever ? { fever: flatBgm(fever) } : {}),
   };
   const bossBgm = {};
   for (const lv of Object.values(maps05?.roundLevels || {})) {

@@ -96,6 +96,19 @@ const BUFFER_CACHE = 180;
 /** Decoded-PCM budget of the buffer cache beside its entry count: a voice line decodes to 0.4–1.3 MB (see _buffer). */
 const BUFFER_BYTES = 64 * 1024 * 1024;
 const XFADE_S = 1;
+/**
+ * 丰川祥子's per-note sounds (b.ev ['fx', 'note', …, { look, on }]; manifest sfx.units[charId].notes[look].born / hit):
+ * every one plays (owner 2026-10-16: the old 10/s cap dropped too many), outside the battle limiter so a Fever volley
+ * neither loses its hits nor takes the other units' voices; NOTE_VOICES only guards against a runaway pile-up.
+ */
+const NOTE_VOICES = 48;
+/**
+ * The Fever track (manifest bgm.fever: the vocal KiLLKiSS, owner 2026-10-15) starts at full volume the moment Fever
+ * starts (owner 2026-10-16: no fade in) and fades out over this (s) at its end; the round's track comes back over it.
+ */
+const FEVER_FADE_S = 1.2;
+/** The round's track drops under the Fever song this fast (s): a cut, short enough not to click. */
+const FEVER_DUCK_S = 0.08;
 const FADE_S = 0.8;
 /** Voice: shortest gap between two lines, and the crossfade of a higher-priority line taking the channel (official 0.1 s). */
 const VOICE_GAP_MS = 1200;
@@ -621,6 +634,9 @@ export class AudioManager {
     this.ctx = null;
     this.master = null;
     this.bgmGain = null;
+    this.fever = null;        // the Fever song playing (feverStart): { url, token, node }
+    this.feverToken = 0;
+    this.noteVoices = 0;      // note sounds playing (_noteSound)
     this.sfxGain = null;
     this.voiceGain = null;
     this.volumes = { bgm: 0.6, sfx: 0.8, voice: 0.8, muted: false };
@@ -946,7 +962,8 @@ export class AudioManager {
       gain.connect(this.bgmGain);
       const t0 = ctx.currentTime + 0.05;
       gain.gain.setValueAtTime(0, t0);
-      gain.gain.linearRampToValueAtTime(1, t0 + FADE_S);
+      // under a playing Fever song the new round track waits silent; the song's end brings it in (_duckBgm)
+      if (!this.fever) gain.gain.linearRampToValueAtTime(1, t0 + FADE_S);
       const nodes = [];
       let loopAt = t0;
       if (intro) {
@@ -989,6 +1006,90 @@ export class AudioManager {
       for (const n of cur.nodes) { try { n.src.stop(t + FADE_S + 0.05); } catch { /* ignore */ } }
       setTimeout(() => { try { cur.gain.disconnect(); } catch { /* ignore */ } }, (FADE_S + 0.3) * 1000);
     } catch { /* ignore */ }
+  }
+
+  // ---- Fever (Ave Mujica) -------------------------------------------------------------------------------
+  /**
+   * A Fever started on the watched field (b.ev ['fx', 'fever', …, { on: 1 }]): the Fever track (manifest `bgm.fever`, the
+   * vocal KiLLKiSS — owner 2026-10-15) plays ONCE over the round's music, which drops out under it and fades back
+   * after it. It starts at once at full volume and plays to its end even when Fever is over (the mode runs at 2×:
+   * Fever is shorter than the song), fading out at its end; a Fever that starts while it plays changes nothing (no
+   * queue: owner 2026-10-16). Fever ending does nothing.
+   */
+  feverStart() {
+    try {
+      const url = this.getManifest()?.audio?.bgm?.fever?.intro || this.getManifest()?.audio?.bgm?.fever?.loop;
+      if (!this.ctx || !url || this.volumes.muted || this.bgmSilent) return;
+      if (this.fever) return;
+      this._feverPlay(url);
+    } catch (err) { this._warn('fever', err); }
+  }
+
+  _feverPlay(url) {
+    const token = (this.feverToken = (this.feverToken || 0) + 1);
+    this.fever = { url, token, node: null };
+    this._duckBgm(true);
+    this._buffer(url).then((buf) => {
+      if (!buf || !this.ctx || !this.fever || this.fever.token !== token) return;
+      try {
+        const ctx = this.ctx;
+        const src = ctx.createBufferSource(), gain = ctx.createGain();
+        src.buffer = buf;
+        src.connect(gain); gain.connect(this.bgmGain);
+        const t0 = ctx.currentTime, end = t0 + buf.duration;
+        gain.gain.setValueAtTime(1, t0);
+        gain.gain.setValueAtTime(1, Math.max(t0, end - FEVER_FADE_S));
+        gain.gain.linearRampToValueAtTime(0, end);
+        src.start(t0);
+        this.fever.node = { src, gain };
+        src.onended = () => {
+          try { src.disconnect(); gain.disconnect(); } catch { /* ignore */ }
+          if (!this.fever || this.fever.token !== token) return;
+          this.fever = null;
+          this._duckBgm(false);
+        };
+      } catch (err) { this._warn('fever-start', err); }
+    }, () => { if (this.fever?.token === token) { this.fever = null; this._duckBgm(false); } });
+  }
+
+  /** Stop the Fever track now (a new field, leaving the battle): the round's music comes back. */
+  feverStop() {
+    const f = this.fever;
+    this.fever = null;
+    if (!f) return;
+    this.feverToken = (this.feverToken || 0) + 1;
+    try {
+      if (f.node && this.ctx) {
+        const t = this.ctx.currentTime;
+        f.node.gain.gain.cancelScheduledValues(t);
+        f.node.gain.gain.setValueAtTime(f.node.gain.gain.value, t);
+        f.node.gain.gain.linearRampToValueAtTime(0, t + FADE_S);
+        f.node.src.stop(t + FADE_S + 0.05);
+      }
+    } catch { /* ignore */ }
+    this._duckBgm(false);
+  }
+
+  /** The round's track under the Fever song: cut out (`down`, FEVER_DUCK_S) and faded back (FEVER_FADE_S). */
+  _duckBgm(down) {
+    const cur = this.bgm;
+    if (!cur || !this.ctx) return;
+    try {
+      const t = this.ctx.currentTime;
+      cur.gain.gain.cancelScheduledValues(t);
+      cur.gain.gain.setValueAtTime(cur.gain.gain.value, t);
+      cur.gain.gain.linearRampToValueAtTime(down ? 0 : 1, t + (down ? FEVER_DUCK_S : FEVER_FADE_S));
+    } catch { /* ignore */ }
+  }
+
+  /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): every one, on its own voice pool. */
+  _noteSound(ex) {
+    const u = this.units.get(ex.owner);
+    if (!u) return;
+    const look = typeof ex.look === 'string' ? (ex.look.startsWith('s1_') ? 's1' : ex.look) : '';
+    const url = this.getManifest()?.audio?.sfx?.units?.[u.def]?.notes?.[look]?.[ex.on === 'hit' ? 'hit' : 'born'];
+    if (typeof url !== 'string') return;
+    this._play(url, { volume: ex.on === 'hit' ? 0.55 : 0.45, pool: 'note' });
   }
 
   // ---- SFX ------------------------------------------------------------------------------------------------
@@ -1045,13 +1146,18 @@ export class AudioManager {
     if (typeof bondId === 'string' && bondId && Number.isFinite(add) && add > 0) this.sfx('bondUp', { volume: 0.7, scope });
   }
 
-  _play(url, { volume = 1, rate = 1, limited = false, unitKey = null } = {}) {
+  _play(url, { volume = 1, rate = 1, limited = false, unitKey = null, pool = null } = {}) {
     if (!this.ctx || !url || this.volumes.muted || this.volumes.sfx <= 0) return;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (limited) { if (!this.limiter.tryAcquire(now, unitKey, url)) return; }
+    if (pool === 'note') { if (this.noteVoices >= NOTE_VOICES) return; this.noteVoices += 1; }
+    else if (limited) { if (!this.limiter.tryAcquire(now, unitKey, url)) return; }
     else if (this.uiVoices >= 12) return;
     else this.uiVoices += 1;
-    const release = () => { if (limited) this.limiter.release(url); else this.uiVoices = Math.max(0, this.uiVoices - 1); };
+    const release = () => {
+      if (pool === 'note') this.noteVoices = Math.max(0, this.noteVoices - 1);
+      else if (limited) this.limiter.release(url);
+      else this.uiVoices = Math.max(0, this.uiVoices - 1);
+    };
     this._buffer(url).then((buf) => {
       if (!buf || !this.ctx) { release(); return; }
       try {
@@ -1185,7 +1291,8 @@ export class AudioManager {
       const url = typeof own === 'string' ? own : typeof mode === 'string' ? mode : u?.[kind];
       if (typeof url !== 'string') return false;
       // a skill-mode file is fine here when it IS the running skill's (mode); the gate is for normal attacks
-      if ((kind === 'attack' || kind === 'hit') && typeof mode !== 'string' && !normalAttackSfx(defId, url)) return false;
+      // (丰川祥子's normal swing IS an `_h` file, ON_ABILITY_ON.attack.0.1: an operator with per-note banks is exempt)
+      if ((kind === 'attack' || kind === 'hit') && typeof mode !== 'string' && !u?.notes && !normalAttackSfx(defId, url)) return false;
       // the official bank's mix (header): a silent roll still counts as the unit's own sound (no generic fallback)
       const mix = kind === 'skill' ? null : typeof mode === 'string'
         ? (kind === 'attack' ? u?.attackMix : u?.hitMix)?.[skillIndex] : u?.mix?.[kind];
@@ -1329,6 +1436,8 @@ export class AudioManager {
     this.pendingSkill.clear();
     this.lastAttacker.clear();
     this.consumed.clear();
+    // the Fever song belongs to the field it started on
+    this.feverStop();
     // a new field is a new battle: the first operator deployed says 行动出发 again and no cooldown carries over
     this.startVoiceDone = false;
     try { this.voiceGate.reset(); this._stopVoice(); } catch { /* ignore */ }
@@ -1471,6 +1580,9 @@ export class AudioManager {
         } else if (kind === 'atk') {
           // a chain bounce: its first id is the previous target, whose attack sound this is not (see header)
           if (CHAIN_KINDS.has(e[3])) { this.lastAttacker.delete(e[2]); continue; }
+          // 丰川祥子's targetless 持续攻击 (['atk', id, 0, 'note']): no attack animation, so no attack sound either — the
+          // notes' own born sounds play ('fx' 'note')
+          if (e[3] === 'note' && !e[2]) continue;
           const src = this.units.get(e[1]);
           if (!src) continue;
           // only a hostile attack authors the target's next impact (a heal — an ally aiming at an ally — never does)
@@ -1553,6 +1665,10 @@ export class AudioManager {
           const mix = own ? m.audio.sfx.units[u.def].mix?.born : null;
           if (!unitSoundPlays(mix, this.random())) continue;
           this._playUnitUrl(url, own ? `${e[1]}:born` : 'deploy', own ? unitGain(0.8, mix) : 0.5);
+        } else if (kind === 'fx' && e[1] === 'note') {
+          if (e[4] && typeof e[4] === 'object') this._noteSound(e[4]);
+        } else if (kind === 'fx' && e[1] === 'fever') {
+          if (e[4] && e[4].on) this.feverStart();
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];

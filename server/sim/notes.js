@@ -6,26 +6,63 @@
 //   【自由移动】 wander: from its launch direction, either straight (speed → finalSpeed at accel/s) or on an 扩张正弦方向
 //      path (PRTS 特殊机制: origin = where it entered the state, x along the heading at `sx` tiles/s, y = ±sin(x) with the
 //      n-th period's amplitude amp × n, n ≤ 3, the sign 50/50 — the prefab `_moveType` 6, `count` 3, `speed_scale` = amp);
-//   every `tick` s (Body `_tickTime`) it updates: without a trace target it takes the nearest selectable enemy within
-//      `radius` (Selector CircleCollider2D r) of itself; with one, once `minFree` s of wander have passed (Body
-//      `_switchToTracingTime`, the first entry only), it switches to
-//   【追踪移动】 trace: speed `trace` toward the target, its heading turned by `turn` of the way per frame (PRTS 转向速度:
-//      dir ← dir × (1 − t) + to-target × t; the prefab `_turnSpeed` × 1/30 s); a target lost (dead, unselectable) ⇒
-//      back to wander with the current heading (a fresh sine origin);
+//   every `tick` s (Body `_tickTime`) it updates: without a trace target it takes its owner's target (_ownerPick: the
+//      enemy she blocks, else one in her own range, else one in her lent range — ownerTarget, owner 2026-10-16), else the nearest selectable enemy
+//      within `radius` (Selector CircleCollider2D r) of itself (PRTS); with one, once `minFree` s of wander have passed (Body
+//      `_switchToTracingTime`, on EVERY entry: owner 2026-10-16, the 血狼破军 flowchart — PRTS only names the first), it
+//      switches to
+//   【追踪移动】 trace: speed `trace` toward the target, its velocity turned by `turn` of the way per frame (PRTS 弹道
+//      转向速度: d ← d × (1 − t) + to-target × t, the velocity trace × d; the prefab `_turnSpeed` × 1/30 s). d is NOT
+//      renormalised (PRTS's worked example: speed 10 → 9.52 after one turn): a hard turn brakes the note, a target
+//      behind it stops and reverses it (owner 2026-10-16: kept at full speed it orbited a target it could not reach,
+//      and one dead behind never turned at all); a target lost (dead, unselectable) ⇒
+//      back to wander with the current heading (a fresh sine origin, the minimum free time again);
 //   hit: when the note reaches its target's body (≤ HIT_REACH of its 判定中心, [ASSUMED]: the prefab only says
 //      `_alwaysHitTraceTargetWhenReached`) the owner's `onHit(note, enemy)` runs once, then — with a `passby` state
 //      (piano: the prefab's StriaghtFinal 3.0 for 0.5 s with the 0.8 collider, `_hitPassbyTime` from passby_delay) — it
 //   【已命中】 flies straight on and strikes every other enemy its collider touches once; else it is gone.
 // It is gone after LIFETIME (prefab `_lifeTime` 10 s), when it has had no trace target for more than OFF_RANGE_GRACE s
-// outside its owner's attack range (PRTS "音符位于自身攻击范围外时，若连续1s以上不存在追踪目标则消失"), and — the
-// notes not tracing — when its owner leaves the field (PRTS "自身退场时，清除所有不处于【追踪移动】状态的音符").
+// outside its owner's attack range (PRTS "音符位于自身攻击范围外时，若连续1s以上不存在追踪目标则消失"). Its owner
+// leaving the field does NOT clear it (owner 2026-10-16, against PRTS "自身退场时，清除所有不处于【追踪移动】状态的音符"):
+// it flies on, the off-range rule reading the range she had when she left [ASSUMED] (ownerLeft).
 // The sim moves it every tick (TICK); positions are field tiles (x = column, y = row), headings unit vectors.
 // Deterministic: detmath only, the battle's rng for the 50/50 sine sign; notes update in creation order.
+// Client events (cosmetic): ['fx', 'note', x, y, { id, owner, look, on: 'born' | 'hit', tgt? }] at a note's birth and
+// at each strike — the renderer's hit burst (render/fx/notes.js) and the official born / hit sounds (audio.js).
 
 import { hypot, sin, roundHalfEven } from './detmath.js';
 import { bodyDist } from './body.js';
-import { canTargetEnemy } from './targeting.js';
+import { canTargetEnemy, sortEnemyTargets } from './targeting.js';
 import { TICK, COLS } from './constants.js';
+
+/**
+ * A note owner's target (owner 2026-10-16, over PRTS's "距离音符自身最近" — with two of her, the back one's notes flew to
+ * the front one's enemies): the first non-empty group of (1) the enemies she blocks, (2) those in her own attack range
+ * (her current grid: the skill's while one runs), (3) those only in the range another member lends her (talent 2,
+ * `extraRangeKeys`); within the group the highest `prefer` stat ('res' / 'def': S3's physical / arts notes), then her
+ * usual order (sortEnemyTargets: taunt, nearest the blue box, earliest spawn). Null: none.
+ * @param {any} b battle @param {any} o owner @param {'res'|'def'|null} [prefer]
+ */
+export function ownerTarget(b, o, prefer = null) {
+  if (!o || !o.alive || !o.deployed) return null;
+  const extra = o.extraRangeKeys ? new Set(o.extraRangeKeys) : null;
+  const own = extra ? (o.rangeKeys || []).filter((k) => !extra.has(k)) : (o.rangeKeys || []);
+  const groups = [
+    () => b.blockedTargets(o, PROFILE),
+    () => b.enemiesInKeys(own, o, PROFILE),
+    () => (extra ? b.enemiesInKeys(o.extraRangeKeys, o, PROFILE) : []),
+  ];
+  for (const g of groups) {
+    const cands = g();
+    if (!cands.length) continue;
+    sortEnemyTargets(b, o, cands, null);
+    if (!prefer) return cands[0];
+    let best = cands[0];
+    for (const e of cands) if (e.s[prefer] > best.s[prefer] + 1e-9) best = e;   // ties keep the usual order
+    return best;
+  }
+  return null;
+}
 
 /** Prefab `_lifeTime` (lifeTimeType 2: seconds). */
 export const NOTE_LIFETIME = 10;
@@ -62,13 +99,14 @@ export class NoteSystem {
     const d = hypot(dx, dy) || 1;
     const n = {
       id: ++seq, owner, kind, x, y, hx: dx / d, hy: dy / d,
-      state: 'free', age: 0, freeT: 0, firstFree: true, tickT: 0,
+      state: 'free', age: 0, freeT: 0, tickT: 0, range: null,
       target: target && target.alive ? target : null, tseq: target ? target.deploySeq : 0,
       speed: kind.free.kind === 'straight' ? kind.free.speed : kind.free.sx,
-      sine: null, offRange: 0, hit: new Set(), passT: 0, onHit: onHit ?? null, data, dead: false,
+      vx: 0, vy: 0, sine: null, offRange: 0, hit: new Set(), passT: 0, onHit: onHit ?? null, data, dead: false,
     };
     this._enterFree(n);
     this.list.push(n);
+    this._noteEvent(n, 'born', null);
     return n;
   }
 
@@ -79,15 +117,24 @@ export class NoteSystem {
     return k;
   }
 
-  /** The owner left the field: every note of it that is not tracing goes (PRTS 备注). */
+  /**
+   * The owner left the field: its notes fly on under the normal rules (owner 2026-10-16, against PRTS's "清除所有不处于
+   * 【追踪移动】状态的音符": the owner has seen them outlive her) — the off-range rule now reads the range tiles she had
+   * when she left ([ASSUMED], owner's call). A hit still deals its damage and still fills the Fever gauge.
+   */
   ownerLeft(owner) {
-    for (const n of this.list) if (n.owner === owner && n.state !== 'trace') n.dead = true;
+    const keys = owner && (owner.rangeKeySet || (owner.rangeKeys ? new Set(owner.rangeKeys) : null));
+    const frozen = keys ? new Set(keys) : new Set();
+    for (const n of this.list) if (n.owner === owner) n.range = frozen;
   }
 
-  clear() { this.list = []; }
+  clear() { this.list = []; this._pick = null; }
 
   _enterFree(n) {
     n.state = 'free';
+    // every entry waits the minimum free time again (owner 2026-10-16, the 血狼破军 flowchart: free → minimum free
+    // time → target? → lock; PRTS only names the first entry)
+    n.freeT = 0;
     const f = n.kind.free;
     if (f.kind === 'sine') {
       const sign = this.battle.rng() < 0.5 ? 1 : -1;
@@ -97,6 +144,25 @@ export class NoteSystem {
 
   _valid(n, e) {
     return !!e && e.alive && e.deployed && !e.hidden && e.deploySeq === n.tseq && canTargetEnemy(n.owner, e, PROFILE);
+  }
+
+  /**
+   * The owner's own target for a note looking for one (ownerTarget, by the note's `data.prefer`); null when she is off
+   * the field or has none — the note then picks the nearest one around itself (PRTS). Cached per owner and stat per
+   * tick (many notes ask at once).
+   */
+  _ownerPick(n) {
+    const o = n.owner, b = this.battle;
+    if (!o || !o.alive || !o.deployed) return null;
+    const prefer = n.data?.prefer ?? null;
+    const c = this._pick || (this._pick = new Map());
+    const key = prefer ? `${o.id}:${prefer}` : o.id;
+    const hit = c.get(key);
+    if (hit && hit.t === b.time) return hit.e && hit.e.alive ? hit.e : null;
+    const e = ownerTarget(b, o, prefer);
+    if (c.size > 64) c.clear();
+    c.set(key, { t: b.time, e });
+    return e;
   }
 
   /** The nearest selectable enemy whose body is within the note's radius (ties: the earlier spawn). */
@@ -128,10 +194,10 @@ export class NoteSystem {
         n.tickT += n.kind.tick;
         if (n.state === 'free') {
           if (!n.target) {
-            const e = this._nearest(n, n.kind.radius);
+            const e = this._ownerPick(n) || this._nearest(n, n.kind.radius);
             if (e) { n.target = e; n.tseq = e.deploySeq; }
           }
-          if (n.target && (!n.firstFree || n.freeT >= n.kind.minFree - 1e-9)) { n.state = 'trace'; n.firstFree = false; }
+          if (n.target && n.freeT >= n.kind.minFree - 1e-9) { n.state = 'trace'; n.vx = n.hx; n.vy = n.hy; }
         }
       }
       if (n.state === 'free') this._moveFree(n, dt);
@@ -139,7 +205,8 @@ export class NoteSystem {
       if (n.dead) continue;
       // the off-range rule: no trace target, outside the owner's attack range, for more than a second
       const o = n.owner;
-      if (!n.target && !(o && o.alive && o.deployed && inRange(o, n.x, n.y))) {
+      const inside = n.range ? n.range.has(roundHalfEven(n.y) * COLS + roundHalfEven(n.x)) : !!(o && o.alive && o.deployed && inRange(o, n.x, n.y));
+      if (!n.target && !inside) {
         n.offRange += dt;
         if (n.offRange > OFF_RANGE_GRACE + 1e-9) n.dead = true;
       } else n.offRange = 0;
@@ -169,18 +236,25 @@ export class NoteSystem {
   _moveTrace(n, dt) {
     const e = n.target;
     const tx = e.x - n.x, ty = e.y - n.y, td = hypot(tx, ty) || 1;
-    // 转向速度 per frame (1/30 s); a tick is one frame here
+    // 转向速度 per frame (1/30 s; a tick is one frame here) on the un-normalised direction d (header)
     const t = Math.min(1, n.kind.turn * (dt / TICK));
-    let hx = n.hx * (1 - t) + (tx / td) * t, hy = n.hy * (1 - t) + (ty / td) * t;
-    const h = hypot(hx, hy) || 1;
-    n.hx = hx / h; n.hy = hy / h;
-    const step = n.kind.trace * dt;
-    n.x += n.hx * step; n.y += n.hy * step;
+    n.vx = n.vx * (1 - t) + (tx / td) * t; n.vy = n.vy * (1 - t) + (ty / td) * t;
+    const v = hypot(n.vx, n.vy);
+    if (v > 1e-9) { n.hx = n.vx / v; n.hy = n.vy / v; }   // the heading drawn (and kept when it falls back to free)
+    const step = n.kind.trace * v * dt;
+    n.x += n.vx * n.kind.trace * dt; n.y += n.vy * n.kind.trace * dt;
     if (bodyDist(e, n.x, n.y) <= HIT_REACH + 1e-9 || td <= step + 1e-9) this._strike(n, e);
+  }
+
+  _noteEvent(n, on, e) {
+    const b = this.battle;
+    if (!b.recordEvents) return;
+    b.fx('note', { x: n.x, y: n.y, id: n.id, owner: n.owner ? n.owner.id : null, look: n.data?.look ?? '', on, ...(e ? { tgt: e.id } : null) });
   }
 
   _strike(n, e) {
     n.hit.add(e);
+    this._noteEvent(n, 'hit', e);
     if (n.onHit) this.battle._safe(() => n.onHit(n, e), 'note.onHit', n.owner);
     const p = n.kind.passby;
     if (p && !n.dead) { n.state = 'passby'; n.target = null; n.passT = p.time; n.speed = p.speed; }
@@ -196,6 +270,7 @@ export class NoteSystem {
       if (n.hit.has(e) || !canTargetEnemy(n.owner, e, PROFILE)) continue;
       if (bodyDist(e, n.x, n.y) > p.radius + 1e-9) continue;
       n.hit.add(e);
+      this._noteEvent(n, 'hit', e);
       if (n.onHit) this.battle._safe(() => n.onHit(n, e), 'note.onHit', n.owner);
     }
     if (n.passT <= 1e-9) n.dead = true;

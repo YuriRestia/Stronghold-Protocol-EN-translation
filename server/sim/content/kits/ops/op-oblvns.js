@@ -50,6 +50,7 @@ import { feverOf } from '../../../fever.js';
 import { sin, cos, atan2 } from '../../../detmath.js';
 import { frontOf } from '../../../dir.js';
 import { COLS } from '../../../constants.js';
+import { ownerTarget } from '../../../notes.js';
 
 const S1 = 'skchr_oblvns_1';
 const S2 = 'skchr_oblvns_2';
@@ -91,24 +92,18 @@ const UNDEAD_PRIORITY = -3000;
 const bbOf = (chess, id) => skillRec(chess, id)?.bb ?? {};
 /** The unit's facing angle (radians, field x = column, y = row; RIGHT = 0). */
 const facing = (u) => { const [dr, dc] = frontOf(0, 0, u.dir); return atan2(dr, dc); };
-/** The enemy of `list` with the highest `key` stat (ties: the earlier spawn) — S3's tracing picks. */
-function highest(list, key) {
-  let best = null;
-  for (const e of list) if (!best || e.s[key] > best.s[key] + 1e-9 || (Math.abs(e.s[key] - best.s[key]) <= 1e-9 && e.spawnSeq < best.spawnSeq)) best = e;
-  return best;
-}
 
 /**
  * Launch one note of `unit`: `kind` a NOTE_KINDS entry, `angle` its heading (radians), `target` its first trace target
  * or null, `scale` its 攻击倍率, `type` 'phys' | 'arts', `look` the renderer's family. The damage is cached now (PRTS
  * "所有音符强制使用缓存攻击力与攻击倍率"): ATK × scale × the trait's ranged ratio of this moment.
  */
-function launch(battle, unit, k, { kind, angle, target = null, scale = 1, type = 'phys', look, isSkill = false, attackId = 0 }) {
+function launch(battle, unit, k, { kind, angle, target = null, scale = 1, type = 'phys', look, prefer = null, isSkill = false, attackId = 0 }) {
   if (!up(unit)) return null;
   const amount = unit.s.atk * scale * unit.s.atkScaleMul * k.rangedMul(unit);
   return battle.notes.add({
     owner: unit, kind, x: unit.x, y: unit.y, dx: cos(angle), dy: sin(angle), target,
-    data: { look, type, amount },
+    data: { look, type, amount, prefer },
     onHit: (n, e) => {
       battle.dealDamage(unit, e, { amount: n.data.amount, type: n.data.type, isAttack: true, isSkill, attackId, tags: ['note'] });
     },
@@ -117,7 +112,8 @@ function launch(battle, unit, k, { kind, angle, target = null, scale = 1, type =
 
 /** The skill-dependent attack: which notes one attack of `unit` plays (ai.js profile `fireNotes`). */
 function fireNotes(battle, unit, k, prof, targets, { isSkill, attackId }) {
-  const target = targets.length ? targets[0] : null;
+  // her notes' first target by the notes' own priority (notes.js ownerTarget: blocked → own range → lent range)
+  const target = targets.length ? ownerTarget(battle, unit) ?? targets[0] : null;
   const base = facing(unit);
   const spread = (deg) => base + (battle.rng() * 2 - 1) * deg * DEG;
   const mode = prof.noteMode ?? (unit.skill?.id === S2 ? unit.mem.oblvnsTimbre ?? 'piano' : null);
@@ -134,14 +130,14 @@ function fireNotes(battle, unit, k, prof, targets, { isSkill, attackId }) {
     return;
   }
   if (mode === 's3') {
-    // 2 physical notes on the highest-RES enemy, 2 arts notes on the highest-DEF one (PRTS), attack@atk_scale each
-    const inRange = battle.enemiesInKeys(unit.rangeKeys, unit, unit.profile);
-    const physT = highest(inRange, 'res'), artsT = highest(inRange, 'def');
+    // 2 physical notes on the highest-RES enemy, 2 arts notes on the highest-DEF one (PRTS), attack@atk_scale each —
+    // within the notes' priority groups (ownerTarget: the blocked first, then her own range, then the lent one)
+    const physT = ownerTarget(battle, unit, 'res'), artsT = ownerTarget(battle, unit, 'def');
     const scale = num(k.b3['attack@atk_scale'], 1);
-    const pStep = inRange.length ? TRIGGER_S3.phys.target : TRIGGER_S3.phys.none;
+    const pStep = physT || artsT ? TRIGGER_S3.phys.target : TRIGGER_S3.phys.none;
     for (let i = 0; i < 2; i++) {
-      at(i * pStep, () => launch(battle, unit, k, { kind: NOTE_KINDS.s3, angle: spread(k.spread), target: physT && physT.alive ? physT : null, scale, type: 'phys', look: 's3_phy', isSkill, attackId }));
-      at(i * TRIGGER_S3.arts, () => launch(battle, unit, k, { kind: NOTE_KINDS.s3, angle: spread(k.spread), target: artsT && artsT.alive ? artsT : null, scale, type: 'arts', look: 's3_mag', isSkill, attackId }));
+      at(i * pStep, () => launch(battle, unit, k, { kind: NOTE_KINDS.s3, angle: spread(k.spread), target: physT && physT.alive ? physT : null, scale, type: 'phys', look: 's3_phy', prefer: 'res', isSkill, attackId }));
+      at(i * TRIGGER_S3.arts, () => launch(battle, unit, k, { kind: NOTE_KINDS.s3, angle: spread(k.spread), target: artsT && artsT.alive ? artsT : null, scale, type: 'arts', look: 's3_mag', prefer: 'def', isSkill, attackId }));
     }
     return;
   }
@@ -265,7 +261,7 @@ export default {
         },
       },
       talents: [
-        { install(battle, unit) { // 颂乐音符: the penetration rides on the field hook; her notes leave with her
+        { install(battle, unit) { // 颂乐音符: the penetration rides on the field hook; her notes outlive her (ownerLeft)
           unit.mem.oblvnsPen = { def: num(t0.def_penetrate_ratio), res: num(t0.magic_resist_penetrate_ratio), max: Math.max(0, num(t0.max_cnt, 10)) };
           battle.on('death', (c) => { if (c.unit === unit) battle.notes.ownerLeft(unit); }, { owner: unit });
         } },

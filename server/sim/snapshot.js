@@ -99,7 +99,10 @@ export function animOf(u, t) {
   if (u.s.flags.stun) return ANIM.STUN;
   if (t - u.deployedAt < DEPLOY_ANIM_TIME && u.side === 'ally') return ANIM.DEPLOY;
   if (t < (u.skillAnimUntil ?? -1)) return ANIM.SKILL;
-  if (t - u.lastAttackAt < ATTACK_ANIM_TIME) return u.skill && u.skill.active && u.skill.kind !== 'passive' ? ANIM.SKILL : ANIM.ATTACK;
+  // the last attack that animates: 丰川祥子's targetless 持续攻击 counts as an attack (lastAttackAt) but plays no attack
+  // clip (owner 2026-10-16) — ai.js performAttack keeps the one before it in `lastAnimAttackAt`
+  const atkAt = u.quietAttack ? u.lastAnimAttackAt : u.lastAttackAt;
+  if (t - atkAt < ATTACK_ANIM_TIME) return u.skill && u.skill.active && u.skill.kind !== 'passive' ? ANIM.SKILL : ANIM.ATTACK;
   if (u.side === 'enemy' && u.moving && !u.blockedBy) return ANIM.MOVE;
   return ANIM.IDLE;
 }

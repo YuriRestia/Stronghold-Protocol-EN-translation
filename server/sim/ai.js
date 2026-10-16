@@ -232,6 +232,9 @@ export function performAttack(b, u, prof, targets, opts = null) {
     if (!targets.length || !u.alive) return;
   }
   if (!targets.length && !targetless) return;
+  // a targetless 持续攻击 still counts as an attack (lastAttackAt) but plays no attack clip (owner 2026-10-16): the
+  // snapshot (animOf) then reads the last attack that had a target
+  if (targetless) { if (!u.quietAttack) u.lastAnimAttackAt = u.lastAttackAt; u.quietAttack = true; } else u.quietAttack = false;
   u.lastAttackAt = b.time;
   u.stats.attacks++;
   const attackId = ++b._attackSeq; // every damage instance of this attack (all targets, splash, chain) carries it
@@ -249,7 +252,7 @@ export function performAttack(b, u, prof, targets, opts = null) {
   // an attack that plays notes (profile `fireNotes`, 丰川祥子 — sim/notes.js): the notes pick and strike their victims
   // themselves; the attack itself is the launch ('atk' with projKind 'note': the attack clip, no projectile drawn)
   if (prof.fireNotes && !isHeal) {
-    b._ev(['atk', u.id, targets.length ? targets[0].id : u.id, 'note']);
+    b._ev(['atk', u.id, targets.length ? targets[0].id : 0, 'note']);   // 0: no target (a 持续攻击 without one)
     b._safe(() => prof.fireNotes(b, u, prof, targets, { isSkill, attackId }), 'profile.fireNotes', u);
     if (b._hooks.attack) b.emit('attack', { attacker: u, targets, isSkill });
     if (u.skill) u.skill.onAttackPerformed(targets, isSkill, !!(opts && opts.noAmmo));

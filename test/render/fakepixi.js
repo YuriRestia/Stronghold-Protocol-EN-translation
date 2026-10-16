@@ -108,9 +108,11 @@ export function installFakePixi() {
     }
     update() {}
   }
+  // a mesh of explicit vertices (render/fx/notes.js trail strips)
+  class SimpleMesh extends Container { constructor(tex, vertices, uvs, indices) { super(); Object.assign(this, { texture: tex, vertices, uvs, indices }); } }
   const modes = new Proxy({}, { get: () => 0 });
   const P = {
-    Container, Sprite, TilingSprite, Graphics, Text, BitmapText, Texture, BaseTexture, Rectangle, Matrix, RenderTexture, DisplayObject,
+    Container, Sprite, TilingSprite, Graphics, Text, BitmapText, Texture, BaseTexture, Rectangle, Matrix, RenderTexture, DisplayObject, SimpleMesh,
     ParticleContainer: Container,
     BLEND_MODES: { NORMAL: 0, ADD: 1, MULTIPLY: 2, SCREEN: 3 }, MIPMAP_MODES: modes, SCALE_MODES: modes, WRAP_MODES: modes, ALPHA_MODES: modes,
     BitmapFont: { from() {} },
