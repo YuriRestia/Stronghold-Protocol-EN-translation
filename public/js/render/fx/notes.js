@@ -10,10 +10,14 @@
 // the note is drawn from the FX atlas (a soft glow and a drawn ♪ glyph) in the same colours. Cosmetic only.
 
 import { TRAIL_LAYERS, TRAIL_S1_W, GLYPH_S1_SCALE, gradAt } from './noteTrails.js';
+import { bodyZ, SHOT_HEIGHT } from './camera.js';
 
 const TRAIL_POINTS = 160;       // path points kept per note (oldest dropped)
 const TRAIL_COLS = 48;          // columns of a trail layer's strip
-const TRAIL_MIN_STEP = 0.02;    // tiles: a point is added once the head moved this far
+// tiles: a point is added once the head moved this far — the official TrailRenderers' m_MinVertexDistance (0.1). Closer
+// points made the strip wobble on a straight flight: the snapshot rounds positions to 0.01 tiles, so each 0.02-tile
+// segment's direction was mostly rounding noise
+const TRAIL_MIN_STEP = 0.1;
 /**
  * A trail layer lives as long as the client's (TrailRenderer m_Time, 0.2–1.5 game s: noteTrails.js `time`): each path
  * point dies that long after the note passed it, so the tail fades out there (owner 2026-10-16: our fixed 1.8–2.4
@@ -54,8 +58,20 @@ const RING_SIZE = 0.8;
 const GROW_FROM = 0.45, GROW_TO = 1.3, GROW_T = 0.5;
 /** The glyph sheets' lift (grey by the brightest channel, then ^gamma): low = nearer white (owner 2026-10-16). */
 const GLYPH_GAMMA = 0.4;
+/** The official trail materials scroll their texture along the trail (_MainUSpeed, texture units per game s:
+ * noteTrails.js `us`): baked as SCROLL_PHASES frames of the texture shifted, the colour / alpha keys staying put. */
+const SCROLL_PHASES = 24;
 const FADE = 0.25;              // real s a note lingers (shrinking) after the sim dropped it
-const HEAD_Z = 0.55;            // the note flies at about her chest height (tiles)
+/** Fade-in at launch (s; the trail with the note), from the prefabs: the note's root particle (oblvns_attack_01_trail/…/dan: alpha 0 → 1
+ * by 0.11 of its 0.6 s life) and its bubble (…/dan/huan_x: by 0.24 of 1 s). */
+const FADE_IN = 0.066, RING_FADE_IN = 0.24;
+const HEAD_Z = 0.55;            // the height (tiles) of a note whose owner and target are both gone
+/**
+ * Its height is the client's own (the sim is 2D): born at her launch height (SHOT_HEIGHT.launch, as her bullets), a
+ * locked note (snapshot `tgt`) descends / rises with the distance it has left, so it meets its enemy at that enemy's
+ * body (SHOT_HEIGHT.aim, where bullets strike); a free note drifts back to her launch height (FREE_EASE per s).
+ */
+const FREE_EASE = 3;
 const HIT_T = 0.32;             // real s of a hit burst (the official hit prefabs flash for ~0.3 s)
 const MAX_HITS = 24;            // bursts alive at once (a Fever volley strikes many times a second)
 
@@ -212,7 +228,8 @@ export class NoteLayer {
     // S1's k-th note: its glyph as small as the prefab draws it (its damage falls along the volley)
     const size = (GLYPH_SIZES[fam] ?? GLYPH_SIZE) * (s1k >= 0 ? GLYPH_S1_SCALE[L][s1k] ?? 1 : 1);
     const life = layers.reduce((m, l) => Math.max(m, l.time), 0);
-    return { head, lift, glow, ring, trail, layers, hasTrail: layers.length > 0, life, pts: [], look: L, lk, size, t: 0, seen: 0, fade: 0, x: n.x, y: n.y };
+    return { head, lift, glow, ring, trail, layers, hasTrail: layers.length > 0, life, pts: [], look: L, lk, size, t: 0, seen: 0, fade: 0, x: n.x, y: n.y,
+      z: this._launchZ(n.owner), lock: null, z0: 0, d0: 0 };
   }
 
   /**
@@ -221,6 +238,9 @@ export class NoteLayer {
    */
   hit(ex, x, y) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    // at the struck enemy's body (where its note was heading); else the note's own height
+    const tv = ex.tgt != null ? this.ctx.view(ex.tgt) : null;
+    const z = tv && !tv.destroyed ? bodyZ(this.ctx.cam(), tv, SHOT_HEIGHT.aim) : this.notes.get(ex.id)?.z ?? HEAD_Z;
     const P = this.P;
     const L = noteLookOf(this.ctx.view(ex.owner));
     const lk = NOTE_LOOKS[L];
@@ -230,7 +250,7 @@ export class NoteLayer {
     const flash = new P.Sprite(this.ctx.fxTex.glow || P.Texture.WHITE);
     flash.anchor.set(0.5); flash.blendMode = P.BLEND_MODES.ADD; flash.tint = lk.spark;
     this.root.addChild(flash, sp);
-    this.hits.push({ sp, flash, x, y, t: 0, rot: (ex.id % 8) * 0.39, big: /^s2$|^s3/.test(ex.look || '') });
+    this.hits.push({ sp, flash, x, y, z, t: 0, rot: (ex.id % 8) * 0.39, big: /^s2$|^s3/.test(ex.look || '') });
     while (this.hits.length > MAX_HITS) { const h = this.hits.shift(); h.sp.destroy(); h.flash.destroy(); }
   }
 
@@ -241,7 +261,7 @@ export class NoteLayer {
       h.t += dt;
       if (h.t >= HIT_T) { h.sp.destroy(); h.flash.destroy(); continue; }
       const u = h.t / HIT_T;
-      cam.project(h.x, h.y, HEAD_Z, p);
+      cam.project(h.x, h.y, h.z, p);
       const size = p.s * (h.big ? 0.7 : 0.5) * (0.6 + 0.6 * (1 - (1 - u) * (1 - u)));
       h.sp.position.set(p.x, p.y); h.sp.width = h.sp.height = size; h.sp.rotation = h.rot + u * 0.6; h.sp.alpha = 1 - u;
       h.flash.position.set(p.x, p.y); h.flash.width = h.flash.height = size * 0.8 * (1 - u * 0.5); h.flash.alpha = 0.8 * (1 - u) * (1 - u);
@@ -263,9 +283,10 @@ export class NoteLayer {
       let r = this.notes.get(n.id);
       if (!r) { r = this._make(n, noteLookOf(this.ctx.view(n.owner))); this.notes.set(n.id, r); }
       r.seen = frame; r.fade = 0; r.x = n.x; r.y = n.y;
+      this._height(r, n, cam, dt);
       const last = r.pts[r.pts.length - 1];
       if (!last || Math.hypot(n.x - last[0], n.y - last[1]) >= TRAIL_MIN_STEP) {
-        r.pts.push([n.x, n.y, T]);
+        r.pts.push([n.x, n.y, T, r.z]);
         if (r.pts.length > TRAIL_POINTS) r.pts.splice(0, r.pts.length - TRAIL_POINTS);
       }
     }
@@ -276,7 +297,7 @@ export class NoteLayer {
       }
       const k = 1 - r.fade / FADE;
       if (r.seen === frame) r.t += dt;
-      cam.project(r.x, r.y, HEAD_Z, p);
+      cam.project(r.x, r.y, r.z, p);
       const s = p.s;
       // it starts small and grows (ease-out) to its full size
       const g = Math.min(1, r.t / GROW_T);
@@ -288,11 +309,12 @@ export class NoteLayer {
       for (const sp of [r.head, r.lift]) { sp.position.set(p.x, p.y); sp.height = hs; sp.width = hs * asp; }
       r.glow.position.set(p.x, p.y);
       r.glow.width = r.glow.height = hs * 0.95;
-      r.head.alpha = k; r.lift.alpha = k; r.glow.alpha = 0.35 * k;
+      const kin = k * Math.min(1, r.t / FADE_IN);
+      r.head.alpha = kin; r.lift.alpha = kin; r.glow.alpha = 0.35 * kin;
       if (r.ring) {
         r.ring.position.set(p.x, p.y);
         r.ring.width = r.ring.height = hs * RING_SIZE;
-        r.ring.alpha = 0.8 * k;
+        r.ring.alpha = 0.8 * k * Math.min(1, r.t / RING_FADE_IN);
       }
       if (r.hasTrail) {
         // points older than the longest layer are gone (one kept past it, so the tail can be placed between)
@@ -302,6 +324,32 @@ export class NoteLayer {
         this._ribbon(r, cam, k, T);
       }
     }
+  }
+
+  /** Her launch height (bullets leave her there); HEAD_Z once she is gone. */
+  _launchZ(owner) {
+    const v = owner != null ? this.ctx.view(owner) : null;
+    return v && !v.destroyed ? bodyZ(this.ctx.cam(), v, SHOT_HEIGHT.launch) : HEAD_Z;
+  }
+
+  /**
+   * This frame's height of note `r` (`n` from notesAt): locked on a living enemy, it goes from the height it had at the
+   * lock to that enemy's body in step with the ground distance closed (there at the hit); free, it eases to her launch
+   * height. A new lock (a re-pick) starts again from where the note is.
+   */
+  _height(r, n, cam, dt) {
+    const tv = n.tgt != null ? this.ctx.view(n.tgt) : null;
+    if (tv && !tv.destroyed && tv.alive !== false) {
+      const d = Math.hypot(tv.x - n.x, tv.y - n.y);
+      if (r.lock !== n.tgt) { r.lock = n.tgt; r.z0 = r.z; r.d0 = Math.max(d, 1e-3); }
+      const f = Math.min(1, d / r.d0);
+      const zt = bodyZ(cam, tv, SHOT_HEIGHT.aim);
+      r.z = zt + (r.z0 - zt) * f;
+      return;
+    }
+    r.lock = null;
+    const goal = this._launchZ(n.owner);
+    r.z += (goal - r.z) * Math.min(1, dt * FREE_EASE);
   }
 
   /**
@@ -324,12 +372,12 @@ export class NoteLayer {
         const len = (TRACE_SPEED[fam] ?? 2) * l.time;
         rect = [l.rect[1] * len / Math.max(1e-6, w), l.rect[1], l.rect[2], l.rect[3]];
       }
-      const tex = this._layerTex({ ...l, rect });
-      if (tex) out.push({ mesh: this._strip(tex, l.add), w, time: l.time });
+      const frames = this._layerTex({ ...l, rect });
+      if (frames) out.push({ mesh: this._strip(frames[0], l.add), frames, us: l.us || 0, w, time: l.time });
     }
     if (!out.length) {
       const lk = NOTE_LOOKS[L];
-      const tex = this._layerTex({ tex: null, col: [[0, lk.trail], [1, lk.trail]], a: [[0, 0.8], [1, 0]] });
+      const tex = this._layerTex({ tex: null, col: [[0, lk.trail], [1, lk.trail]], a: [[0, 0.8], [1, 0]] })?.[0];
       const mesh = this._strip(tex || P.Texture.WHITE, true);
       if (!tex) mesh.tint = lk.trail;   // headless: a flat band of the trail colour
       out.push({ mesh, w: TRAIL_FALLBACK_W * wk, time: 0.4 });
@@ -344,17 +392,22 @@ export class NoteLayer {
    * is per vertex, which a batched Pixi mesh has not). `tex` null: a soft plain band. Null without a DOM or the art.
    */
   _layerTex(l) {
-    const key = `layer:${l.tex}:${(l.rect || []).join(',')}:${JSON.stringify(l.col)}:${JSON.stringify(l.a)}`;
+    const key = `layer:${l.tex}:${(l.rect || []).join(',')}:${JSON.stringify(l.col)}:${JSON.stringify(l.a)}:${l.us || 0}`;
     if (this._tex.has(key)) return this._tex.get(key);
     let t = null;
     try {
       const url = l.tex ? this.ctx.localUrl('fx/oblvns', l.tex) : null;
       if (typeof document !== 'undefined' && (url || !l.tex) && (!url || typeof Image !== 'undefined')) {
         const W = 256, H = 64;
-        const cv = document.createElement('canvas');
-        cv.width = W; cv.height = H;
-        t = this.P.Texture.from(cv);
-        const bake = (img) => {
+        // one canvas per scroll phase (a still layer: one)
+        const cvs = Array.from({ length: l.us && l.tex ? SCROLL_PHASES : 1 }, () => {
+          const cv = document.createElement('canvas');
+          cv.width = W; cv.height = H;
+          return cv;
+        });
+        t = cvs.map((cv) => this.P.Texture.from(cv));
+        const bake = (img) => cvs.forEach((cv, f) => {
+          const shift = f / cvs.length;   // texture units the material has scrolled
           const g = cv.getContext('2d', { willReadFrequently: true });
           let src = null, sw = 0, sh = 0;
           if (img) {
@@ -374,7 +427,7 @@ export class NoteLayer {
               const tv = (y + 0.5) / H;
               let r = 255, gg = 255, b = 255, a;
               if (src) {
-                const u = wrap(ou + su * tu), v = wrap(ov + sv * (1 - tv));
+                const u = wrap(ou + su * tu + shift), v = wrap(ov + sv * (1 - tv));
                 const i = ((Math.min(sh - 1, Math.floor((1 - v) * sh)) * sw) + Math.min(sw - 1, Math.floor(u * sw))) * 4;
                 r = src[i]; gg = src[i + 1]; b = src[i + 2]; a = src[i + 3];
               } else a = 255 * Math.max(0, 1 - Math.abs(tv * 2 - 1)) ** 0.8;
@@ -383,8 +436,8 @@ export class NoteLayer {
             }
           }
           g.putImageData(out, 0, 0);
-          t.baseTexture.update();
-        };
+          t[f].baseTexture.update();
+        });
         if (url) {
           const img = new Image();
           img.onload = () => { try { bake(img); } catch { /* a tainted canvas: the layer stays empty */ } };
@@ -416,7 +469,7 @@ export class NoteLayer {
    */
   _ribbon(r, cam, k, T) {
     const pts = r.pts;
-    r.trail.alpha = k;
+    r.trail.alpha = k * Math.min(1, r.t / FADE_IN);
     if (pts.length < 1) { r.trail.visible = false; return; }
     r.trail.visible = true;
     const p = this._p;
@@ -424,15 +477,19 @@ export class NoteLayer {
     // projected path, newest first: the note now, then the kept points back in time
     const m = Math.min(pts.length, TRAIL_POINTS) + 1;
     const sc = this._sc && this._sc.length >= m * 4 ? this._sc : (this._sc = new Float32Array((TRAIL_POINTS + 1) * 4));
-    cam.project(r.x, r.y, HEAD_Z, p);
+    cam.project(r.x, r.y, r.z, p);
     sc[0] = p.x; sc[1] = p.y; sc[2] = p.s; sc[3] = 0;
     for (let q = 1; q < m; q++) {
       const pt = pts[pts.length - q];
-      cam.project(pt[0], pt[1], HEAD_Z, p);
+      cam.project(pt[0], pt[1], pt[3], p);
       sc[q * 4] = p.x; sc[q * 4 + 1] = p.y; sc[q * 4 + 2] = p.s; sc[q * 4 + 3] = Math.max(sc[(q - 1) * 4 + 3], T - pt[2]);
     }
     const oldest = sc[(m - 1) * 4 + 3];
     for (const l of r.layers) {
+      if (l.frames && l.frames.length > 1) {
+        const ph = l.us * T;
+        l.mesh.texture = l.frames[Math.floor((ph - Math.floor(ph)) * l.frames.length) % l.frames.length];
+      }
       const v = l.mesh.vertices;
       let seg = 0;
       for (let j = n - 1; j >= 0; j--) {

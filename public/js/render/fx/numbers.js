@@ -2,7 +2,7 @@
 // Installed on FxSystem.prototype by ./system.js (a method container: never instantiated; `this` is the effect system).
 
 import { DMG_STYLE, HIT_TINT, dmgStyleKey } from '../style.js';
-import { camKey } from './camera.js';
+import { camKey, SHOT_HEIGHT } from './camera.js';
 import { clamp, easeOut } from './limits.js';
 
 const MAX_NUMBERS = 90;
@@ -56,7 +56,10 @@ export class FxNumbers {
   damage(view, amount, type, srcView, mark) {
     if (!view) return;
     const style = dmgStyleKey(type);
-    const p = this._chest(view);
+    // 丰川祥子's note hit (app.js notePending): at the body, where the note's own burst is (render/fx/notes.js)
+    const atBody = this._noteHitAt === view.id;
+    if (atBody) this._noteHitAt = null;
+    const p = atBody ? this._bodyPt(view, SHOT_HEIGHT.aim) : this._chest(view);
     const px = p.x, py = p.y, s = p.s;
     const tint = HIT_TINT[style] || 0xffffff;
     const big = view.maxHp > 0 && amount >= view.maxHp * 0.18;

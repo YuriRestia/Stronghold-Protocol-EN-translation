@@ -179,7 +179,7 @@ export function normalizeSnapshot(snap) {
   if (Array.isArray(snap.notes)) {
     for (const e of snap.notes) {
       if (!Array.isArray(e) || !Number.isFinite(e[0]) || !Number.isFinite(e[2]) || !Number.isFinite(e[3])) continue;
-      (notes || (notes = new Map())).set(e[0], [e[0], e[1], e[2], e[3], finite(e[4]), finite(e[5]), typeof e[6] === 'string' ? e[6] : '', finite(e[7]) | 0]);
+      (notes || (notes = new Map())).set(e[0], [e[0], e[1], e[2], e[3], finite(e[4]), finite(e[5]), typeof e[6] === 'string' ? e[6] : '', finite(e[7]) | 0, Number.isFinite(e[8]) ? e[8] : null]);
     }
   }
   // the Fever gauge each Ave Mujica member shows (server/sim/fever.js; b.snap `fever`): id → [fill 0..1, active]
@@ -377,7 +377,7 @@ export class SnapshotBuffer {
    * spline through the snapshots around `time` (the one before, the two framing it, the one after — a wandering note
    * curves smoothly between the snapshots, 0.1 s apart, instead of turning corners at each), the newer snapshot's end
    * point when it is the last one; a new note appears where it is, a gone one is not drawn. Fills and returns `out`
-   * (an array of { id, owner, x, y, hx, hy, look, state }).
+   * (an array of { id, owner, x, y, hx, hy, look, state, tgt }).
    */
   notesAt(time = this.renderT, out = []) {
     out.length = 0;
@@ -399,7 +399,7 @@ export class SnapshotBuffer {
         x = catmull(p0[2], a[2], b[2], p3[2], k);
         y = catmull(p0[3], a[3], b[3], p3[3], k);
       }
-      out.push({ id, owner: a[1], x, y, hx: b ? b[4] : a[4], hy: b ? b[5] : a[5], look: a[6], state: b ? b[7] : a[7] });
+      out.push({ id, owner: a[1], x, y, hx: b ? b[4] : a[4], hy: b ? b[5] : a[5], look: a[6], state: b ? b[7] : a[7], tgt: b ? b[8] : a[8] });
     }
     return out;
   }

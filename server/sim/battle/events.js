@@ -58,8 +58,9 @@ export class BattleEvents {
    *         feared or stunned) — display metadata (render/interp.js holds the position until then);
    *   standCut: [[id, at]] — the latest time each listed enemy's recovery was cut or ignored (_cutAttackStand), the
    *         dying ones in their death window included;
-   *   notes: [[noteId, ownerId, x, y, hx, hy, look, state]] — the free-flight notes in the air (notes.js, 丰川祥子): position,
-   *         heading, the owner's look key (`data.look`: the prefab's trail family) and 0 wander / 1 trace / 2 passby;
+   *   notes: [[noteId, ownerId, x, y, hx, hy, look, state, targetId]] — the free-flight notes in the air (notes.js, 丰川祥子): position,
+   *         heading, the owner's look key (`data.look`: the prefab's trail family), 0 wander / 1 trace / 2 passby and the
+   *         enemy it is locked on (null: none; the client eases the note's height to that enemy's body);
    *   fever: [[ownerId, fill, active]] — the Fever gauge each Ave Mujica member shows (kits/ops/op-oblvns.js; per field):
    *         fill 0..1 of the 450 points, active 1 while Fever runs.
    * ammo / wolves / neg / st / sh / stand / standCut / notes / fever are display only: no sim state reads them, and the nine-field unit tuples are
@@ -126,7 +127,7 @@ export class BattleEvents {
     if (standCut) snap.standCut = standCut;
     if (this.notes.list.length) {
       const NS = { free: 0, trace: 1, passby: 2 };
-      snap.notes = this.notes.list.filter((n) => !n.dead).map((n) => [n.id, n.owner ? n.owner.id : null, r2(n.x), r2(n.y), r2(n.hx), r2(n.hy), n.data?.look ?? '', NS[n.state] ?? 0]);
+      snap.notes = this.notes.list.filter((n) => !n.dead).map((n) => [n.id, n.owner ? n.owner.id : null, r2(n.x), r2(n.y), r2(n.hx), r2(n.hy), n.data?.look ?? '', NS[n.state] ?? 0, n.target ? n.target.id : null]);
     }
     if (this.fever) {
       const fv = this.fever.view(this);

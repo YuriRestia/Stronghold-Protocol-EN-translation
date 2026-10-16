@@ -304,6 +304,7 @@ export async function createFieldView(host, options = {}) {
   const interp = new SnapshotBuffer({ delay: 0.1, rate: 2 });
   const sample = new Map();
   const meleePending = new Map(); // target id → { src, t }
+  const notePending = new Map();  // target id → time of 丰川祥子's note strike (its damage follows in the same batch)
   const consumedIds = new Set();  // battle ids used up by their own effect (fx `consumed`): no death particles
   let canPlaceFn = null;
   let editable = false;
@@ -981,6 +982,7 @@ export async function createFieldView(host, options = {}) {
     fx.clear();
     noteLayer.clear();
     meleePending.clear();
+    notePending.clear();
     consumedIds.clear();
     tiles.setBattleRect(null);
     board3d?.setBattleRect(null);
@@ -1434,6 +1436,7 @@ export async function createFieldView(host, options = {}) {
     fx.clear();
     noteLayer.clear();
     meleePending.clear();
+    notePending.clear();
     consumedIds.clear();
     clearHl();
     renderT0Battle = null;
@@ -1579,6 +1582,9 @@ export async function createFieldView(host, options = {}) {
         const m = meleePending.get(v.id);
         let src = null;
         if (m && now - m.t < 0.35) { src = m.src; meleePending.delete(v.id); fx._slashAt = src.id; }
+        // a note's damage: its spark where the note struck (the body), not at the chest point
+        const nt = notePending.get(v.id);
+        if (nt !== undefined) { notePending.delete(v.id); if (now - nt < 0.35) fx._noteHitAt = v.id; }
         fx.damage(v, amt, e[3], src, e[4]);
         break;
       }
@@ -1605,7 +1611,10 @@ export async function createFieldView(host, options = {}) {
       case 'status': { const v = views.get(e[1]); if (v) v.onStatus?.(e[2], !!e[3]); break; }
       case 'fx': {
         // 丰川祥子's note strikes (sim notes.js): the burst of the note's look at the hit point
-        if (e[1] === 'note' && e[4] && e[4].on === 'hit') noteLayer.hit(e[4], Number(e[2]), Number(e[3]));
+        if (e[1] === 'note' && e[4] && e[4].on === 'hit') {
+          noteLayer.hit(e[4], Number(e[2]), Number(e[3]));
+          if (e[4].tgt != null) notePending.set(e[4].tgt, now);
+        }
         if (e[4] && typeof e[4] === 'object' && e[4].consumed && e[4].id != null) {
           consumedIds.add(e[4].id);
           if (consumedIds.size > 200) consumedIds.delete(consumedIds.values().next().value);

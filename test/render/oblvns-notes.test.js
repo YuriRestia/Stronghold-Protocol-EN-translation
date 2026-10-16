@@ -9,6 +9,7 @@ import { installFakePixi, fakeViewCtx } from './fakepixi.js';
 import { presetCamera } from '../../public/js/render/projection.js';
 import { SnapshotBuffer, normalizeSnapshot } from '../../public/js/render/interp.js';
 import { TRAIL_LAYERS, TRAIL_S1_W, GLYPH_S1_SCALE, gradAt } from '../../public/js/render/fx/noteTrails.js';
+import { bodyZ, SHOT_HEIGHT } from '../../public/js/render/fx/camera.js';
 
 let fake, NoteLayer, noteLookOf, NOTE_LOOKS, UnitView;
 before(async () => {
@@ -23,9 +24,10 @@ const tuple = (id, x = 5, y = 10) => [id, x, y, 1000, 1000, 0, 0, 0, 0];
 
 describe('interp: b.snap `notes` and `fever`', () => {
   test('normalizeSnapshot keeps well-formed notes and fever rows (fever only for listed units)', () => {
-    const s = normalizeSnapshot({ t: 1, units: [tuple(1)], notes: [[7, 1, 6, 10, 1, 0, 's1_3', 1], ['bad'], [8, 1, NaN, 1]], fever: [[1, 0.5, 0], [9, 1, 1]] });
-    assert.deepEqual([...s.notes.keys()], [7]);
-    assert.deepEqual(s.notes.get(7), [7, 1, 6, 10, 1, 0, 's1_3', 1]);
+    const s = normalizeSnapshot({ t: 1, units: [tuple(1)], notes: [[7, 1, 6, 10, 1, 0, 's1_3', 1, 4], ['bad'], [8, 1, NaN, 1], [9, 1, 6, 10, 1, 0, 'attack', 0]], fever: [[1, 0.5, 0], [9, 1, 1]] });
+    assert.deepEqual([...s.notes.keys()], [7, 9]);
+    assert.deepEqual(s.notes.get(7), [7, 1, 6, 10, 1, 0, 's1_3', 1, 4]);
+    assert.equal(s.notes.get(9)[8], null, 'no target: null');
     assert.deepEqual([...s.fever.entries()], [[1, [0.5, 0]]]);
   });
 
@@ -71,6 +73,29 @@ describe('render/fx/notes.js', () => {
     L.sync([{ id: 9, owner: 1, x: 6, y: 10, hx: 1, hy: 0, look: 'attack', state: 0 }], 0.016, 200);
     L.clear();
     assert.equal(L.notes.size, 0);
+    L.destroy();
+  });
+
+  test("height: born at her launch height, a locked note reaches its enemy's body, the hit bursts there, a free note eases back", () => {
+    const P = globalThis.PIXI;
+    const sak = { x: 5, y: 10, info: {}, _headTiles: 1.2 }, foe = { x: 9, y: 10, info: {}, _headTiles: 3 };
+    const L = new NoteLayer(ctxWith(new Map([[1, sak], [2, foe]]), P));
+    const zl = bodyZ(cam(), sak, SHOT_HEIGHT.launch), za = bodyZ(cam(), foe, SHOT_HEIGHT.aim);
+    assert.ok(za > zl + 0.1, "the tall enemy's body is above her launch height");
+    const at = (x, tgt, f) => L.sync([{ id: 7, owner: 1, x, y: 10, hx: 1, hy: 0, look: 'attack', state: tgt ? 1 : 0, tgt }], 0.016, f);
+    at(5, null, 1);
+    assert.ok(Math.abs(L.notes.get(7).z - zl) < 1e-9, 'born at her launch height');
+    at(5, 2, 2);
+    at(7, 2, 3);
+    const mid = L.notes.get(7).z;
+    assert.ok(mid > zl && mid < za, 'half way there, half way up');
+    at(9, 2, 4);
+    assert.ok(Math.abs(L.notes.get(7).z - za) < 1e-9, 'at the enemy: its body height');
+    assert.ok(L.notes.get(7).pts.every((q) => Number.isFinite(q[3])), 'trail points carry their height');
+    L.hit({ id: 7, owner: 1, look: 'attack', tgt: 2 }, 9, 10);
+    assert.ok(Math.abs(L.hits[0].z - za) < 1e-9, 'the burst at the struck body');
+    for (let f = 5; f < 200; f++) at(9, null, f);
+    assert.ok(Math.abs(L.notes.get(7).z - zl) < 1e-3, 'free again: back to her launch height');
     L.destroy();
   });
 
