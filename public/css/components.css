@@ -1055,11 +1055,14 @@
 .lobby-screen .topbar__center .micro { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .lobby-screen .topbar__title { justify-content: center; overflow-wrap: anywhere; }
 @media (max-width: 1000px) {
-  .lobby-screen .topbar { grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .2rem; }
+  .lobby-screen .topbar { grid-template-columns: auto minmax(0, 1fr); gap: .1rem .2rem; } /* (fork) the right group yields */
   .lobby-screen .topbar__center { grid-column: 1 / -1; grid-row: 2; }
   .lobby-screen .topbar__center .micro { display: none; }
   .lobby-screen .topbar__right { grid-column: 2; grid-row: 1; }
   .lobby-screen .me-chip__name { max-width: 1.5rem; }
+  /* (fork) 恢复本机对局 + 干员调配 share the row with the left squares: long translations (en, XL text) wrap instead
+     of pushing the right group over the install square */
+  .lobby-screen .topbar__right > .btn--sm:not(.btn--square) { flex-shrink: 1; min-width: 0; height: auto; min-height: .36rem; padding-block: .03rem; line-height: 1.1; white-space: normal; text-align: center; }
 }
 
 .section-label { display: flex; align-items: baseline; gap: .12rem; margin: 0 0 .14rem; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .08em; }

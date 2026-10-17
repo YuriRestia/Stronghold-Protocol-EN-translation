@@ -14,7 +14,7 @@
 // plus graceful degradation: WebGL disabled → the DOM view with a notice, local-client art missing → CSS look-alikes,
 // portrait → the rotate hint.
 
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -56,11 +56,16 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     await browser?.close();
     await srv?.close();
   });
+  // (fork) a failed test skips its own page.close(): close what it left open, or its render loop slows every next test
+  const opened = new Set();
+  afterEach(async () => { for (const p of opened) if (!p.isClosed()) await p.close().catch(() => {}); opened.clear(); });
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   async function open(dev, url, { render = 'engine', intercept = null, b = browser, ctx = null } = {}) {
     const page = await (ctx || b).newPage();
+    opened.add(page);
+    await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const d = DEVICES[dev];
     await page.emulate({ viewport: d.viewport, userAgent: d.userAgent || await b.userAgent() });
     const problems = [];
@@ -73,8 +78,10 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
       page.on('request', (r) => (intercept(r.url()) ? r.respond({ status: 404, body: 'gone' }) : r.continue()));
     }
     const full = url.startsWith('/') ? `${base}${url}` : `${base}/dev/game-mock.html?shot=1&render=${render}&${url}`;
-    await page.goto(full, { waitUntil: 'networkidle0' });
-    await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 20000 });
+    // (fork) the game mock never reliably goes network-idle (render loop, Pixi's image worker): wait for its screen instead
+    const mock = !url.startsWith('/');
+    await page.goto(full, { waitUntil: mock ? 'load' : 'networkidle0', timeout: 60000 });
+    await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: mock ? 60000 : 20000 });
     await sleep(url.startsWith('/') ? 600 : 1600);
     return { page, problems };
   }
@@ -279,6 +286,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
         const r = await page.evaluate((s, t) => {
           const el = [...document.querySelectorAll(s)].find((x) => !t || x.textContent.includes(t));
           if (!el) return null;
+          el.scrollIntoView({ block: 'nearest' }); // (fork) the update-news card pushes 创建同盟 below a 360 px screen: a player scrolls
           const b = el.getBoundingClientRect();
           return { x: b.left + b.width / 2, y: b.top + b.height / 2 };
         }, sel, text);
@@ -348,8 +356,8 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
         for (const [w, h, touch] of [[1280, 720], [1366, 657], [1920, 1080], [2560, 1440], [844, 390, true], [640, 360, true]]) {
           const page = await b.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
           await page.emulate({ viewport: { width: w, height: h, deviceScaleFactor: 1, isMobile: !!touch, hasTouch: !!touch, isLandscape: true }, userAgent: await b.userAgent() });
-          await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP`, { waitUntil: 'networkidle0' });
-          await page.waitForSelector('.ewheel__btn');
+          await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP`, { waitUntil: 'load', timeout: 60000 });
+          await page.waitForSelector('.ewheel__btn', { timeout: 60000 });
           await sleep(300);
           const m = await page.$eval('.ewheel__btn', (btn) => {
             const r = btn.getBoundingClientRect();

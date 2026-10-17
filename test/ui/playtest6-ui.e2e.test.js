@@ -23,6 +23,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -65,7 +66,7 @@ describe('user playtest #6 — UI items 6 / 10 (mock harness, headless Chrome)',
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
-    await page.goto(`${base}/dev/game-mock.html?shot=1&${query}`, { waitUntil: 'networkidle0' });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&${query}`);
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 20000 });
     // the real page's web font (index.html loads it from Google Fonts; Android's CJK font has its metrics): the mock has
     // no <link> for it, and the system fallback wraps differently (QA: 海沟实验体 took 8 lines at 640×360 with it) —

@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -51,7 +52,7 @@ describe('战术决策: the same card twice (mock harness, headless Chrome)', { 
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
       page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
-      await page.goto(`${base}/dev/game-mock.html?shot=1&phase=SP_DRAFT&variant=tactic`, { waitUntil: 'networkidle0' });
+      await gotoMock(page, `${base}/dev/game-mock.html?shot=1&phase=SP_DRAFT&variant=tactic`);
       await page.waitForSelector('.spov__grid .spcard', { timeout: 20000 });
       await sleep(600);
       const head = await page.$eval('.spov__title', (e) => e.textContent);

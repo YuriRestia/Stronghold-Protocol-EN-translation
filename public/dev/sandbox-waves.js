@@ -5,7 +5,8 @@
 // the server.
 //
 // Every map a HARD match draws has its own 13 rounds (`--stages`: one bot match per stage, public/dev/sandbox/<stageId>/);
-// a round is named by its file (hard-normal-rN), so `&map=` + `&enemies=` pick one.
+// a round is named by its file (hard-normal-rN), so `&map=` + `&enemies=` pick one. Each map also has its Final Assault
+// (hard-boss-r14) and Hidden Core (hard-hidden-r15): fought on the boss field (`--stages --kind boss,hidden`).
 // A wave: { base, routes, spawns, timeLimit } — `base` the captured spec it was made from (stage, rect, flags, the time
 // limit's floor), `routes` the BattleSpec routes the spawns index (a captured round's own, then the catalogue routes
 // added spawns picked), `spawns` BattleSpec spawn entries ({ time, enemyKey, routeIndex, count, interval, mods, … }).
@@ -16,6 +17,15 @@ export const DEFAULT_WAVE = 'hard-normal-r13';
 /** The map a page without `&map=` opens, and the map of a preset saved before maps could be picked. */
 export const DEFAULT_MAP = 'act2autochess_m01';
 export const LEGACY_STAGE = 'act2autochess_m01';
+/** The captured battle kinds the sandbox offers, and the ones fought on the boss field. */
+export const WAVE_KINDS = new Set(['normal', 'boss', 'hidden']);
+export const BOSS_KINDS = new Set(['boss', 'hidden']);
+/** The wave picker's name of a captured battle (an index row or a b.start: `kind`, `round`). */
+export function waveTitle({ kind, round }) {
+  if (kind === 'boss') return `Final Assault (round ${round})`;
+  if (kind === 'hidden') return `Hidden Core (round ${round})`;
+  return `Round ${round} waves`;
+}
 /** `&enemies=` of the empty wave and the prefix of a preset's. */
 export const EMPTY = 'empty';
 export const PRESET_PREFIX = 'preset:';
@@ -27,7 +37,7 @@ export const PRESET_PREFIX = 'preset:';
 export async function loadRoundIndex(fetchFn = globalThis.fetch) {
   for (const dir of ['/dev/sandbox/', '/dev/perf/']) {
     const list = await fetchFn(`${dir}index.json`).then((r) => (r.ok ? r.json() : null), () => null);
-    const rounds = Array.isArray(list) ? list.filter((s) => s && s.kind === 'normal' && s.stageId) : [];
+    const rounds = Array.isArray(list) ? list.filter((s) => s && WAVE_KINDS.has(s.kind) && s.stageId) : [];
     if (rounds.length) {
       return rounds.sort((a, b) => a.round - b.round)
         .map((s) => ({ ...s, url: `${dir}${s.dir ? `${encodeURIComponent(s.dir)}/` : ''}${encodeURIComponent(s.name)}.json` }));

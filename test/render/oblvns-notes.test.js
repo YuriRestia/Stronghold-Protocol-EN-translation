@@ -142,6 +142,43 @@ describe('render/fx/notes.js', () => {
     L.destroy();
   });
 
+  test("a boss's HitPoint (ctx.hitPoint, where its official hit spawns): the note bends into it in step with the distance closed, bursts there, and drifts back to its sim path once free", () => {
+    const P = globalThis.PIXI;
+    const sak = { x: 5, y: 10, info: {}, _headTiles: 1.2 }, boss = { x: 9, y: 10, info: {}, _headTiles: 3, isBoss: true };
+    const HP = { x: 8.4, y: 10.6, z: 1.7 };
+    const L = new NoteLayer({ ...ctxWith(new Map([[1, sak], [2, boss]]), P), hitPoint: () => HP });
+    const at = (x, tgt, f) => L.sync([{ id: 7, owner: 1, x, y: 10, hx: 1, hy: 0, look: 'attack', state: tgt ? 1 : 0, tgt }], 0.016, f);
+    at(5, 2, 1);
+    const r = L.notes.get(7);
+    assert.ok(Math.abs(r.x - 5) < 1e-9 && Math.abs(r.y - 10) < 1e-9, 'launched on its sim path');
+    at(7, 2, 2);
+    assert.ok(Math.abs(r.x - (7 - 0.3)) < 1e-9 && Math.abs(r.y - 10.3) < 1e-9, 'half way there, half the HitPoint offset');
+    at(9, 2, 3);
+    assert.ok(Math.abs(r.x - HP.x) < 1e-9 && Math.abs(r.y - HP.y) < 1e-9 && Math.abs(r.z - HP.z) < 1e-9, 'at the boss: its HitPoint');
+    assert.deepEqual(r.pts.at(-1).slice(0, 2), [r.x, r.y], 'the trail follows the drawn note');
+    L.hit({ id: 7, owner: 1, look: 'attack', tgt: 2 }, 9, 10);
+    const h = L.hits[0];
+    assert.deepEqual([h.x, h.y, h.z], [HP.x, HP.y, HP.z], 'the burst at the HitPoint');
+    for (let f = 4; f < 200; f++) at(9, null, f);
+    assert.ok(Math.abs(r.x - 9) < 1e-3 && Math.abs(r.y - 10) < 1e-3, 'free again: back on its sim path');
+    L.destroy();
+  });
+
+  test('a normal enemy keeps its body centre even when its model has a HitPoint (only bosses aim there)', () => {
+    const P = globalThis.PIXI;
+    const sak = { x: 5, y: 10, info: {}, _headTiles: 1.2 }, foe = { x: 9, y: 10, info: {}, _headTiles: 3 };
+    const L = new NoteLayer({ ...ctxWith(new Map([[1, sak], [2, foe]]), P), hitPoint: () => ({ x: 8.4, y: 10.6, z: 1.7 }) });
+    const za = bodyZ(cam(), foe, SHOT_HEIGHT.aim);
+    const at = (x, f) => L.sync([{ id: 7, owner: 1, x, y: 10, hx: 1, hy: 0, look: 'attack', state: 1, tgt: 2 }], 0.016, f);
+    at(5, 1); at(7, 2); at(9, 3);
+    const r = L.notes.get(7);
+    assert.ok(Math.abs(r.x - 9) < 1e-9 && Math.abs(r.y - 10) < 1e-9 && Math.abs(r.z - za) < 1e-9, 'on its sim path, at its body height');
+    L.hit({ id: 7, owner: 1, look: 'attack', tgt: 2 }, 9, 10);
+    assert.deepEqual([L.hits[0].x, L.hits[0].y], [9, 10]);
+    assert.ok(Math.abs(L.hits[0].z - za) < 1e-9, 'the burst at its body');
+    L.destroy();
+  });
+
   test('trail and glow ring per family (owner 2026-10-16): attack both, talent ring only, S1 trail only, piano both, organ trail only, S3 phys = piano / arts = organ', () => {
     const P = globalThis.PIXI;
     const L = new NoteLayer(ctxWith(new Map([[1, { info: {} }]]), P));

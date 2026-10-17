@@ -153,6 +153,7 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
     await c.page.waitForSelector('.lobby-screen');
     await openStats(c);
     // 总览: 24 settled + the quit after 6 rounds count, the first-round one does not
+    await c.page.waitForSelector('.st-sec > .st-cards .st-card__num', { timeout: 30000 }); // (fork) after 加载中
     const cards = await texts(c, '.st-sec > .st-cards .st-card__num');
     assert.equal(cards[0], '25', 'games');
     assert.match(await c.page.$$eval('.st-rule', (els) => els.map((e) => e.textContent).join(' ')), /另有 1 局未计入统计/);
@@ -296,7 +297,8 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
     const n = await open({ stored: newer });
     await n.page.waitForSelector('.lobby-screen');
     await openStats(n);
-    assert.match(await n.page.$eval('.st-body', (e) => e.textContent), /更新版本的统计数据/);
+    // (fork) the body shows 加载中 until the game data arrives (slower here): wait for the notice instead of reading at once
+    await n.page.waitForFunction(() => /更新版本的统计数据/.test(document.querySelector('.st-body')?.textContent || ''), { timeout: 30000 });
     assert.ok(await n.page.$eval('[data-testid="stats-clear"]', (b) => b.disabled), 'no 清空 over data this build cannot read');
     assert.equal(await n.page.evaluate(() => localStorage.getItem('sp.pref.stats')), newer);
     noProblems(n);

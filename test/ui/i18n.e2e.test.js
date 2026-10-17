@@ -80,6 +80,11 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
     await page.goto(`${base}/`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.title-screen [data-testid="lang-toggle"]');
+    // (fork) this fork starts in English (ui/lang.js START_LANG): a fresh profile shows the English title; ?lang=zh
+    // then gives the Chinese start the rest of this test switches away from and back to
+    assert.equal(await text(page, '.title-cn'), 'Stronghold Protocol: Alliance', 'English by default (fork)');
+    await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
+    await page.waitForSelector('.title-screen [data-testid="lang-toggle"]');
     assert.equal(await text(page, '.title-cn'), '卫戍协议：盟约');
     assert.equal(await text(page, '.title-login .btn--primary'), '开始');
     assert.equal(await page.evaluate(() => document.documentElement.lang), 'zh-CN');
@@ -149,7 +154,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
       await sleep(1100);
       await page.reload({ waitUntil: 'networkidle0' });
       await page.waitForSelector('.title-screen .title-cn');
-      assert.equal(await text(page, '.title-cn'), '卫戍协议：盟约', 'the stored pack is gone: Chinese');
+      assert.equal(await text(page, '.title-cn'), 'Stronghold Protocol: Alliance', 'the stored pack is gone: the start language (fork: English)');
       assert.deepEqual(await menu(page), SHIPPED);
       assert.deepEqual(problems, []);
     } finally {

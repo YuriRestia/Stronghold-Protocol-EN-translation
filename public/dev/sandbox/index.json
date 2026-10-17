@@ -143,6 +143,28 @@
   "seed": 8
  },
  {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act1autochess_m02",
+  "players": 2,
+  "units": 16,
+  "dir": "act1autochess_m02",
+  "seed": 8
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act1autochess_m02",
+  "players": 2,
+  "units": 16,
+  "dir": "act1autochess_m02",
+  "seed": 8
+ },
+ {
   "name": "hard-normal-r1",
   "title": "普通战 · 第 1 回合",
   "kind": "normal",
@@ -286,6 +308,28 @@
   "seed": 22
  },
  {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act1autochess_m03",
+  "players": 2,
+  "units": 16,
+  "dir": "act1autochess_m03",
+  "seed": 22
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act1autochess_m03",
+  "players": 2,
+  "units": 16,
+  "dir": "act1autochess_m03",
+  "seed": 22
+ },
+ {
   "name": "hard-normal-r1",
   "title": "普通战 · 第 1 回合",
   "kind": "normal",
@@ -429,6 +473,28 @@
   "seed": 15
  },
  {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act1autochess_m04",
+  "players": 2,
+  "units": 17,
+  "dir": "act1autochess_m04",
+  "seed": 15
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act1autochess_m04",
+  "players": 2,
+  "units": 16,
+  "dir": "act1autochess_m04",
+  "seed": 15
+ },
+ {
   "name": "hard-normal-r1",
   "title": "普通战 · 第 1 回合",
   "kind": "normal",
@@ -568,6 +634,28 @@
   "stageId": "act2autochess_m01",
   "players": 1,
   "units": 8,
+  "dir": "act2autochess_m01",
+  "seed": 7
+ },
+ {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act2autochess_m01",
+  "players": 2,
+  "units": 18,
+  "dir": "act2autochess_m01",
+  "seed": 7
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act2autochess_m01",
+  "players": 2,
+  "units": 18,
   "dir": "act2autochess_m01",
   "seed": 7
  },
@@ -715,6 +803,28 @@
   "seed": 12
  },
  {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act2autochess_m02",
+  "players": 2,
+  "units": 17,
+  "dir": "act2autochess_m02",
+  "seed": 12
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act2autochess_m02",
+  "players": 2,
+  "units": 17,
+  "dir": "act2autochess_m02",
+  "seed": 12
+ },
+ {
   "name": "hard-normal-r1",
   "title": "普通战 · 第 1 回合",
   "kind": "normal",
@@ -858,6 +968,28 @@
   "seed": 16
  },
  {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act2autochess_m03",
+  "players": 2,
+  "units": 17,
+  "dir": "act2autochess_m03",
+  "seed": 16
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act2autochess_m03",
+  "players": 2,
+  "units": 17,
+  "dir": "act2autochess_m03",
+  "seed": 16
+ },
+ {
   "name": "hard-normal-r1",
   "title": "普通战 · 第 1 回合",
   "kind": "normal",
@@ -997,6 +1129,28 @@
   "stageId": "act2autochess_m04",
   "players": 1,
   "units": 10,
+  "dir": "act2autochess_m04",
+  "seed": 10
+ },
+ {
+  "name": "hard-boss-r14",
+  "title": "最终攻势 · 第 14 回合",
+  "kind": "boss",
+  "round": 14,
+  "stageId": "act2autochess_m04",
+  "players": 2,
+  "units": 16,
+  "dir": "act2autochess_m04",
+  "seed": 10
+ },
+ {
+  "name": "hard-hidden-r15",
+  "title": "隐秘核心 · 第 15 回合",
+  "kind": "hidden",
+  "round": 15,
+  "stageId": "act2autochess_m04",
+  "players": 2,
+  "units": 16,
   "dir": "act2autochess_m04",
   "seed": 10
  }

@@ -69,7 +69,9 @@ const HEAD_Z = 0.55;            // the height (tiles) of a note whose owner and 
 /**
  * Its height is the client's own (the sim is 2D): born at her launch height (SHOT_HEIGHT.launch, as her bullets), a
  * locked note (snapshot `tgt`) descends / rises with the distance it has left, so it meets its enemy at that enemy's
- * body (SHOT_HEIGHT.aim, where bullets strike); a free note drifts back to her launch height (FREE_EASE per s).
+ * HitPoint when it is a boss (where the official hit spawns, off its centre — the drawn note bends there from the sim's
+ * 2D path, in step with the same distance), else its body (SHOT_HEIGHT.aim, where bullets strike); a free note drifts
+ * back to her launch height and its sim path (FREE_EASE per s).
  */
 const FREE_EASE = 3;
 const HIT_T = 0.32;             // real s of a hit burst (the official hit prefabs flash for ~0.3 s)
@@ -244,7 +246,7 @@ export class NoteLayer {
     const size = (GLYPH_SIZES[fam] ?? GLYPH_SIZE) * (s1k >= 0 ? GLYPH_S1_SCALE[L][s1k] ?? 1 : 1);
     const life = layers.reduce((m, l) => Math.max(m, l.time), 0);
     return { head, lift, glow, ring, trail, layers, hasTrail: layers.length > 0, life, pts: [], look: L, lk, size, t: 0, seen: 0, fade: 0, x: n.x, y: n.y,
-      z: this._launchZ(n.owner), lock: null, z0: 0, d0: 0 };
+      z: this._launchZ(n.owner), lock: null, z0: 0, d0: 0, ox: 0, oy: 0, ox0: 0, oy0: 0 };
   }
 
   /**
@@ -253,9 +255,11 @@ export class NoteLayer {
    */
   hit(ex, x, y) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-    // at the struck enemy's body (where its note was heading); else the note's own height
+    // at the struck enemy's HitPoint / body (where its note was heading); else the note's own height
     const tv = ex.tgt != null ? this.ctx.view(ex.tgt) : null;
-    const z = tv && !tv.destroyed ? bodyZ(this.ctx.cam(), tv, SHOT_HEIGHT.aim) : this.notes.get(ex.id)?.z ?? HEAD_Z;
+    const hp = tv && !tv.destroyed ? this._hitPt(tv) : null;
+    if (hp) { x = hp.x; y = hp.y; }
+    const z = hp ? hp.z : tv && !tv.destroyed ? bodyZ(this.ctx.cam(), tv, SHOT_HEIGHT.aim) : this.notes.get(ex.id)?.z ?? HEAD_Z;
     // an official note strikes with its projectile's official hit (ours only when that cannot play)
     const rec = this.notes.get(ex.id);
     if ((rec ? !!rec.ofx : this._officialOn()) && typeof this.ctx.official?.hit === 'function') {
@@ -306,12 +310,13 @@ export class NoteLayer {
       // the official effects switched off mid-flight: the note goes on as ours
       if (r && r.ofx && !this._officialOn()) { this._drop(r); r = null; }
       if (!r) { r = this._official(n) || this._make(n, noteLookOf(this.ctx.view(n.owner))); this.notes.set(n.id, r); }
-      r.seen = frame; r.fade = 0; r.x = n.x; r.y = n.y;
+      r.seen = frame; r.fade = 0;
       this._height(r, n, cam, dt);
-      if (r.ofx) { const a = r.at; a.x = n.x; a.y = n.y; a.z = r.z; a.hx = n.hx; a.hy = n.hy; continue; }
+      r.x = n.x + r.ox; r.y = n.y + r.oy;
+      if (r.ofx) { const a = r.at; a.x = r.x; a.y = r.y; a.z = r.z; a.hx = n.hx; a.hy = n.hy; continue; }
       const last = r.pts[r.pts.length - 1];
-      if (!last || Math.hypot(n.x - last[0], n.y - last[1]) >= TRAIL_MIN_STEP) {
-        r.pts.push([n.x, n.y, T, r.z]);
+      if (!last || Math.hypot(r.x - last[0], r.y - last[1]) >= TRAIL_MIN_STEP) {
+        r.pts.push([r.x, r.y, T, r.z]);
         if (r.pts.length > TRAIL_POINTS) r.pts.splice(0, r.pts.length - TRAIL_POINTS);
       }
     }
@@ -360,7 +365,8 @@ export class NoteLayer {
    */
   _official(n) {
     if (!this._officialOn()) return null;
-    const r = { ofx: null, at: null, seen: 0, fade: 0, x: n.x, y: n.y, z: this._launchZ(n.owner), lock: null, z0: 0, d0: 0 };
+    const r = { ofx: null, at: null, seen: 0, fade: 0, x: n.x, y: n.y, z: this._launchZ(n.owner), lock: null, z0: 0, d0: 0,
+      ox: 0, oy: 0, ox0: 0, oy0: 0 };
     r.at = { x: n.x, y: n.y, z: r.z, hx: n.hx, hy: n.hy };
     let h;
     try { h = this.ctx.official.flight(this.ctx.view(n.owner), n.look, () => r.at); } catch { h = null; }
@@ -375,24 +381,38 @@ export class NoteLayer {
     return v && !v.destroyed ? bodyZ(this.ctx.cam(), v, SHOT_HEIGHT.launch) : HEAD_Z;
   }
 
+  /** A boss's HitPoint (ctx.hitPoint: where its official hits spawn), or null (any other enemy: its body instead). */
+  _hitPt(v) {
+    if (!v?.isBoss || typeof this.ctx.hitPoint !== 'function') return null;
+    let hp;
+    try { hp = this.ctx.hitPoint(v); } catch { hp = null; }
+    return hp && Number.isFinite(hp.x) && Number.isFinite(hp.y) && Number.isFinite(hp.z) ? hp : null;
+  }
+
   /**
-   * This frame's height of note `r` (`n` from notesAt): locked on a living enemy, it goes from the height it had at the
-   * lock to that enemy's body in step with the ground distance closed (there at the hit); free, it eases to her launch
-   * height. A new lock (a re-pick) starts again from where the note is.
+   * This frame's height and drawn offset of note `r` (`n` from notesAt): locked on a living enemy, it goes from the
+   * height / offset it had at the lock to that enemy's HitPoint (else its body, no offset) in step with the ground
+   * distance closed (there at the hit); free, it eases to her launch height and its sim path. A new lock (a re-pick)
+   * starts again from where the note is.
    */
   _height(r, n, cam, dt) {
     const tv = n.tgt != null ? this.ctx.view(n.tgt) : null;
     if (tv && !tv.destroyed && tv.alive !== false) {
       const d = Math.hypot(tv.x - n.x, tv.y - n.y);
-      if (r.lock !== n.tgt) { r.lock = n.tgt; r.z0 = r.z; r.d0 = Math.max(d, 1e-3); }
+      if (r.lock !== n.tgt) { r.lock = n.tgt; r.z0 = r.z; r.ox0 = r.ox; r.oy0 = r.oy; r.d0 = Math.max(d, 1e-3); }
       const f = Math.min(1, d / r.d0);
-      const zt = bodyZ(cam, tv, SHOT_HEIGHT.aim);
+      const hp = this._hitPt(tv);
+      const zt = hp ? hp.z : bodyZ(cam, tv, SHOT_HEIGHT.aim);
+      const ex = hp ? hp.x - tv.x : 0, ey = hp ? hp.y - tv.y : 0;
       r.z = zt + (r.z0 - zt) * f;
+      r.ox = ex + (r.ox0 - ex) * f; r.oy = ey + (r.oy0 - ey) * f;
       return;
     }
     r.lock = null;
     const goal = this._launchZ(n.owner);
-    r.z += (goal - r.z) * Math.min(1, dt * FREE_EASE);
+    const k = Math.min(1, dt * FREE_EASE);
+    r.z += (goal - r.z) * k;
+    r.ox -= r.ox * k; r.oy -= r.oy * k;
   }
 
   /**

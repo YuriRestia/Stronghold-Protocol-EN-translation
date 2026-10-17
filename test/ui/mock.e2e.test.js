@@ -19,6 +19,7 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { aimedDrag, groundAnchor, anchorPoint, cameraSettled } from '../e2e/client.mjs';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -65,7 +66,7 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('requestfailed', (r) => { if (!/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`); });
     page.on('response', (r) => { if (r.status() >= 400) problems.push(`http ${r.status()}: ${r.url()}`); });
-    await page.goto(`${base}/dev/game-mock.html?shot=1&render=${render}&${query}`, { waitUntil: 'networkidle0' });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&render=${render}&${query}`);
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 15000 });
     await new Promise((r) => setTimeout(r, 900));
     return { page, problems };
@@ -396,9 +397,14 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
     await page.close();
   });
 
+  /** (fork) the page is read at 'load' (e2e/mockPage.mjs), not network-idle: wait until the engine places every piece. */
+  const enginePlaced = (page) => page.waitForFunction(() => { const S = globalThis.__MOCK__?.S?.(); const v = globalThis.__SP_VIEW__;
+    return !!(S && v?.pieceScreenRect && S.priv.board.every((p) => v.pieceScreenRect(p.uid))); }, { timeout: 60000 });
+
   test('engine drag & drop: tap-sell, hand unit → board unit (swap) + wheel', async (t) => {
     if (RENDER !== 'engine') { t.skip('SP_RENDER=fallback'); return; }
     const { page, problems } = await open('phase=PREP');
+    await enginePlaced(page);
     await sleep(1500); // spine models
     const rect = (uid) => page.evaluate((u) => { const r = globalThis.__SP_VIEW__?.pieceScreenRect(u); return r && { x: r.left + r.width / 2, y: r.top + r.height * 0.65 }; }, uid);
     // (aimed after the pickup: the deploy fold zooms the board as a piece is picked up — GitHub #602, e2e/client.mjs)
@@ -502,7 +508,7 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
 
   test('教鞭: PREP cards confirm twice, use its timer, reset on a new ID; old replies cannot clear a new busy pick', async () => {
     const { page, problems } = await open('phase=PREP', { render: 'fallback' });
-    await page.click('.gm__gear');
+    await page.click('.gm__gear:not(.dmgbtn__btn)');
     await page.waitForSelector('.modal .set-keys');
     await page.click('.set-key[data-action="ready"]');
     await page.waitForSelector('.set-key.is-waiting[data-action="ready"]');
@@ -1015,7 +1021,7 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
       if (render === 'engine' && RENDER !== 'engine') { t.skip('SP_RENDER=fallback'); return; }
       const { page, problems } = await open('phase=PREP', { render });
       await page.waitForFunction((k) => globalThis.__SP_VIEW__?.kind === k, { timeout: 15000 }, render);
-      if (render === 'engine') await sleep(1500); // spine models
+      if (render === 'engine') { await enginePlaced(page); await sleep(1500); } // spine models
       const s = await mockState(page);
       const unit = s.board.find((p) => p.kind === 'chess');
       const occupied = new Set(s.board.map((p) => `${p.row},${p.col}`));
@@ -1072,6 +1078,7 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
   test('engine: equipment dropped on an operator\'s tile equips it — the tile under the pointer decides (user playtest #4 item 1)', async (t) => {
     if (RENDER !== 'engine') { t.skip('SP_RENDER=fallback'); return; }
     const { page, problems } = await open('phase=PREP');
+    await enginePlaced(page);
     await sleep(1500); // spine models
     const at = (uid, fy) => page.evaluate((u, f) => { const r = globalThis.__SP_VIEW__?.pieceScreenRect(u); return r && { x: r.left + r.width / 2, y: r.top + r.height * f }; }, uid, fy);
     const tileAt = (row, col) => page.evaluate((r, c) => { const x = globalThis.__SP_VIEW__?.raw?.tileScreen?.(r, c); return x && { x: x.x, y: x.y }; }, row, col);
@@ -1092,7 +1099,7 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
   test('an illegal drop says why (DOM fallback: pieceDrop, engine: cancelled drag)', async () => {
     for (const render of RENDER === 'engine' ? ['fallback', 'engine'] : ['fallback']) {
       const { page, problems } = await open('phase=PREP', { render });
-      if (render === 'engine') await sleep(1500);
+      if (render === 'engine') { await enginePlaced(page); await sleep(1500); }
       // deploy cap reached: a hand operator dropped on any empty board tile is refused
       await page.evaluate(() => globalThis.__MOCK__.mutate((S) => { S.priv.deployCap = S.priv.board.filter((x) => x.kind === 'chess').length; S.priv.deployCount = S.priv.deployCap; }));
       await sleep(200);

@@ -12,9 +12,38 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Match Found Sound: the official match-found chime plays as the match briefing opens, however the match started
   (Solo Matchmaking, a room's start, Find Teammates), and also while the game's tab is in the background. On by
   default; Settings → Match Found Sound turns it off. Mute and the SFX volume apply.
+- Dev sandbox, round 3 — bonds, stacks and items: bonds are counted from the board and the bench by the match's own
+  rules (the server's `bondsMeta.js`, served to the page as `/match/bondsMeta.js`) and go into the battle, so kits that
+  stack bonds in battle do it in the sandbox too. A "Bonds & stacks" panel lists each bond's members and tier, with
+  "+Count" (extra members) and "Stacks" per bond, both kept in the URL. After a battle, "Bank stacks" adds the stacks
+  gained the way the settlement does (capped at 999) and "Bank + next round" also loads the next round's waves; the
+  board and the bench stay, and a history lists what each battle stacked. Changing the waves no longer reloads the page.
+  Each unit can carry up to two items (kept in the URL), including the pairs that grant a bond.
+- Dev sandbox, round 4: Pause / Resume and frame stepping in battle ("+1 frame" / "+10 frames", or Space, "." and
+  ">"); a step is exactly that many 1/30 s ticks of the battle, and a paused, stepped battle ends exactly like one run
+  straight through. A unit already on the board or the bench can change its skill and outfit from its entry in the list.
+  Boss picker: every map's Final Assault (round 14) and Hidden Core (round 15) are in the waves list, fought on the boss
+  field with your units on its left half and the captured partner board on the right (boss fields gain no stacks in
+  battle, the official rule). `tools/capture-specs.mjs --stages --kind boss,hidden` captures them and keeps the rounds
+  already in the index. Core bond presets: "Add the whole bond" puts every Operator of a core bond (normal or elite) on
+  the board's free tiles at once, melee ones on melee tiles, and the rest on the bench.
+- Dev sandbox, round 5 — the match's own widgets: the bond strip over the field (stacks, active state, live stacks in
+  battle, dimmed on boss fields) with its bond popup; clicking a piece, a battle unit, an enemy or the boss opens the
+  usual detail card, with live HP and stats in battle; on a boss field in battle, "My side" / "Whole field" / "Partner's
+  side" move the camera like the match's ‹ › pill. Icon pickers: "Browse…" shows every Operator as an icon grouped by
+  bond (core bonds first, then the others, then the Custom Squad picks, with a filter), and "+ Item…" on a unit shows
+  every item as an icon grouped by name (normal and elite side by side).
+- Dev sandbox battle meter: Damage, Healing, Stacks and Taken tabs with a bar per Operator (a summon counts for its
+  Operator), live during the battle and kept afterwards until the next one starts. Stacks shows which Operator's kit
+  stacked which bond and by how much, gains without an Operator (bond effects, items …) on their own rows, and a total
+  per bond that matches the stacks "Bank stacks" adds.
 
 ### Fixes
 
+- Small phone screens (narrower than 768 px, e.g. 640 × 360): the Damage Stats button sat under the shop bar. It now
+  wraps onto its own row above the ⚙ / 📖 / ⛶ buttons, and the card that opens on the left ends above it.
+- Sakiko's notes fly to the centre of a multi-tile boss before they strike, like other projectiles, instead of
+  striking as soon as they touch the edge of its body.
 - The preload manager no longer fails with "Couldn't load the asset list: … Operation too large" once a whole pack is
   saved: Chrome refuses to list a cache of more than about 15,000 files, so the manager then checks each file of the
   asset list on its own.

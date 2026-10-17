@@ -233,7 +233,8 @@ export class Client {
       const err = r.failure()?.errorText || '';
       // media element swaps, and an <img> whose src changes while it loads (the shop's 冻结 icon flips between
       // frozen_icon and frozen_icon2): the browser cancels the old request — not a failure of the page
-      if (err === 'net::ERR_ABORTED' && /\.(mp3|ogg|wav|m4a|png|webp|jpe?g|gif|svg)(\?|$)/.test(r.url())) return;
+      // (fork) and /media/ sounds without an extension (the audio manager picks the format: match-found cue, 8dd93c31)
+      if (err === 'net::ERR_ABORTED' && (/\.(mp3|ogg|wav|m4a|png|webp|jpe?g|gif|svg)(\?|$)/.test(r.url()) || /\/media\/(~[0-9a-f]+\/)?sfx\//.test(r.url()))) return;
       this.problems.push(`requestfailed: ${r.url()} ${err}`);
     });
     page.on('response', (r) => { if (r.status() >= 400) this.problems.push(`http ${r.status()}: ${r.url()}`); });

@@ -8,7 +8,10 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' fill='%230c0f0e'/%3E%3Cpath fill='%234ed8af' d='M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/fonts/fonts.css" />
   <link rel="stylesheet" href="/css/theme.css" />
-  <!-- the deploy direction wheel (ui/facingWheel.js .fwheel) -->
+  <!-- the game's widgets: the deploy direction wheel (ui/facingWheel.js .fwheel), the bond strip / popup, the detail card,
+       the unit thumbnails (sandbox-ui.js) -->
+  <link rel="stylesheet" href="/css/components.css" />
+  <link rel="stylesheet" href="/css/screens/game.css" />
   <link rel="stylesheet" href="/css/screens/game-panels.css" />
   <script type="importmap">
     { "imports": { "preact": "/vendor/preact.module.js", "preact/hooks": "/vendor/hooks.module.js", "htm": "/vendor/htm.module.js" } }
@@ -60,6 +63,58 @@
     .sb details[open] > summary { margin-bottom: 6px; }
     .sb-wave { display: grid; gap: 6px; }
     .sb-wave .sb-list { max-height: 220px; overflow: auto; }
+    /* bonds & stacks: a row per bond, its two numbers on the right; items under a squad entry */
+    .sb-bonds .sb-list { max-height: 260px; overflow: auto; }
+    .sb-list li.is-active b { color: var(--mint-400); }
+    .sb-list li.is-off { opacity: .55; }
+    .sb-nums { display: flex; gap: 4px; }
+    .sb-nums label { font-size: 10.5px; }
+    .sb .sb-nums input { width: 58px; min-height: 26px; padding: 2px 4px; }
+    .sb-items { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+    .sb .sb-items select { min-height: 24px; padding: 1px 4px; font-size: 11.5px; max-width: 100%; }
+    .sb .sb-items button { min-height: 24px; padding: 1px 6px; font-size: 11.5px; }
+    .sb-log { margin: 0; padding-left: 16px; font-size: 11.5px; color: var(--text-lo); }
+    .sb button[aria-pressed="true"] { border-color: var(--mint-500); color: var(--mint-400); }
+    .sb-pick { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: end; }
+    /* the game's bond strip over the field (sandbox-ui.js), centred on the field beside the open panel */
+    .sb-strip { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; max-width: calc(100vw - 20px); }
+    @media (min-width: 900px) { body:has(.sb:not(.is-collapsed)) .sb-strip { left: calc(50% + 180px); max-width: calc(100vw - 380px); } }
+    #sb-ui .bpop, #sb-ui .dpanel { z-index: 12; }
+    /* the battle meter (sandbox-ui.js Meter) — bottom right, under the detail card */
+    .sb-meter { position: fixed; right: 10px; bottom: 10px; z-index: 7; width: 340px; max-height: 46vh; overflow: auto; padding: 8px 10px;
+      background: rgba(11, 15, 13, .92); border: 1px solid var(--line-2); color: var(--text-md); font: 12.5px/1.35 var(--font-cjk); --bk-l: 10px; }
+    .sb-meter__head { display: flex; align-items: baseline; gap: 8px; }
+    .sb-meter__head b { color: var(--text-hi); }
+    .sb-meter__head small { flex: 1; color: var(--text-lo); }
+    .sb-meter button { font: 12px/1.2 var(--font-cjk); color: var(--text-hi); background: var(--bg-2); border: 1px solid var(--line-2); padding: 3px 7px; cursor: pointer; }
+    .sb-meter__tabs { display: flex; gap: 4px; margin: 6px 0; }
+    .sb-meter__tabs button[aria-selected="true"] { border-color: var(--mint-500); color: var(--mint-400); }
+    .sb-meter__total { display: flex; justify-content: space-between; color: var(--text-lo); margin-bottom: 4px; }
+    .sb-meter__total b { color: var(--text-hi); }
+    .sb-meter .dmg__row { font-size: 12px; grid-template-columns: auto 110px 1fr auto; }
+    .sb-meter .dmg__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .sb-meter__glyph { width: .34rem; text-align: center; color: var(--mint-400); }
+    .sb-meter__empty, .sb-meter__bonds { margin: 6px 0 0; color: var(--text-lo); font-size: 11.5px; }
+    /* the icon pickers */
+    .sbp-back { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, .55); display: grid; place-items: center; }
+    .sbp { width: min(1100px, calc(100vw - 40px)); height: min(820px, calc(100vh - 40px)); display: flex; flex-direction: column;
+      background: rgba(11, 15, 13, .97); border: 1px solid var(--line-2); color: var(--text-md); font: 13px/1.4 var(--font-cjk); --bk-l: 12px; }
+    .sbp__head { display: flex; gap: 8px; align-items: center; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+    .sbp__head h2 { margin: 0; flex: 1; font-size: 15px; color: var(--text-hi); }
+    .sbp__head input, .sbp__head button { font: 13px/1.2 var(--font-cjk); color: var(--text-hi); background: var(--bg-2); border: 1px solid var(--line-2); padding: 6px 8px; }
+    .sbp__head input { width: 260px; }
+    .sbp__head button { cursor: pointer; }
+    .sbp__hint { margin: 6px 12px 0; font-size: 12px; color: var(--text-lo); }
+    .sbp__body { flex: 1; overflow: auto; padding: 6px 12px 14px; }
+    .sbp__group h3 { display: flex; align-items: center; gap: 8px; margin: 12px 0 6px; font-size: 13.5px; color: var(--text-hi); }
+    .sbp__group h3 img { width: 26px; height: 26px; object-fit: contain; }
+    .sbp__group h3 small { color: var(--text-lo); font-weight: 400; }
+    .sbp__grid { display: flex; flex-wrap: wrap; gap: 6px; }
+    .sbp__cell { width: 92px; display: grid; justify-items: center; gap: 3px; padding: 6px 4px; cursor: pointer; background: var(--bg-1);
+      border: 1px solid var(--line); color: var(--text-md); font: 11.5px/1.2 var(--font-cjk); }
+    .sbp__cell:hover, .sbp__cell:focus-visible { border-color: var(--mint-500); outline: none; }
+    .sbp__cell span { text-align: center; color: var(--text-hi); overflow-wrap: anywhere; }
+    .sbp__cell small { color: var(--text-lo); font-size: 10.5px; }
   </style>
 </head>
 <body>
@@ -68,7 +123,10 @@
     <div class="sb-body">
       <div class="sb-head"><h1>Sandbox</h1><button id="collapse" type="button" aria-expanded="true">Hide</button></div>
       <div class="sb-add">
-        <label>Operator <input id="op-search" list="op-list" placeholder="Type a name, e.g. Ashlock" autocomplete="off" /></label>
+        <div class="sb-pick">
+          <label>Operator <input id="op-search" list="op-list" placeholder="Type a name, e.g. Ashlock" autocomplete="off" /></label>
+          <button id="op-browse" type="button">Browse…</button>
+        </div>
         <datalist id="op-list"></datalist>
         <div class="sb-row">
           <label>Skill <select id="op-skill"></select></label>
@@ -77,6 +135,14 @@
         <label>Outfit <select id="op-skin"></select></label>
         <button id="op-add" type="button">Add to bench</button>
         <p class="sb-hint">Then drag it from the bench onto a highlighted tile and pick its facing, like in a match. Drop a unit on its own tile to turn it, onto another to swap, or off the field to send it back.</p>
+      </div>
+      <div class="sb-add">
+        <div class="sb-row">
+          <label>Core bond <select id="bond-preset"></select></label>
+          <label>Form <select id="bond-form"><option value="0">Normal</option><option value="1">Elite</option></select></label>
+        </div>
+        <button id="bond-add" type="button">Add the whole bond</button>
+        <p class="sb-hint">Every operator of the bond at once: onto free tiles of the board first (melee ones on melee tiles), the rest on the bench. Ones already placed are skipped.</p>
       </div>
       <ul class="sb-list" id="squad" aria-label="Board"></ul>
       <label>Map <select id="map"></select></label>
@@ -111,12 +177,28 @@
           <p class="sb-hint">Presets are kept in this browser. Changes to a wave are lost on reload until saved.</p>
         </div>
       </details>
+      <details id="bond-edit">
+        <summary>Bonds &amp; stacks (<span id="bond-active">0</span> active)</summary>
+        <div class="sb-wave sb-bonds">
+          <ul class="sb-list" id="bond-list" aria-label="Bonds"></ul>
+          <label class="sb-check"><input type="checkbox" id="bond-all" /> Show every bond (to stack or boost one without members)</label>
+          <p class="sb-hint">Members are counted from the board (and the bench, for bonds that count it) like in a match. "+Count" adds members (the game's bond count bonus). Stacks stay between rounds: after a battle, "Bank stacks" adds what the kits stacked in it.</p>
+          <ol class="sb-log" id="round-log" aria-label="Stack history"></ol>
+          <button id="bond-reset" type="button">Reset stacks and +count</button>
+        </div>
+      </details>
+      <label class="sb-check"><input type="checkbox" id="meter" checked /> Battle meter (damage, healing, stacks gained, damage taken)</label>
       <label class="sb-check"><input type="checkbox" id="impostors" checked /> Draw units as impostors (crowd path)</label>
       <label class="sb-check"><input type="checkbox" id="legacy" /> Old impostor box (to see the clipping)</label>
       <label class="sb-check"><input type="checkbox" id="note-ours" /> Sakiko's notes: our fallback renderer (compare with official)</label>
       <button class="sb-go" id="fight" type="button">Start combat</button>
       <div class="sb-row"><button id="reset" type="button">Back to prep</button><button id="clear" type="button">Clear board</button></div>
+      <div class="sb-row3"><button id="pause" type="button" disabled>Pause</button><button id="step1" type="button" disabled>+1 frame</button><button id="step10" type="button" disabled>+10 frames</button></div>
+      <div class="sb-row3" id="cam-row" hidden><button id="cam-L" type="button">My side</button><button id="cam-ALL" type="button" aria-pressed="true">Whole field</button><button id="cam-R" type="button">Partner's side</button></div>
+      <div class="sb-hint" id="tick" aria-live="off"></div>
+      <div class="sb-row"><button id="bank" type="button" disabled>Bank stacks</button><button id="bank-next" type="button" disabled>Bank + next round</button></div>
       <div class="sb-status" id="status" role="status" aria-live="polite">Loading…</div>
+      <p class="sb-hint">In battle: Space pauses / resumes, "." steps one frame (1/30 s of battle), "&gt;" ten.</p>
       <p class="sb-hint">The board and options stay in the URL, so a reload or a shared link reopens the same setup.</p>
     </div>
   </section>

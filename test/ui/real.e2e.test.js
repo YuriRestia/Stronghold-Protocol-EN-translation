@@ -45,7 +45,7 @@ class Client {
   async open(query = '') {
     this.browser = await this.puppeteer.launch({ executablePath: CHROME, headless: true, args: CHROME_ARGS, protocolTimeout: 60000 });
     const [first] = await this.browser.pages();
-    const page = first || await this.browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
+    const page = first || await this.browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); if (localStorage.getItem('sp.pref.room.findMates') == null) localStorage.setItem('sp.pref.room.findMates', 'false'); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids; 搜寻队友 off so the host gets 开始模拟
     this.page = page;
     await page.setViewport({ width: this.w, height: this.h });
     page.on('console', (m) => { if (m.type() === 'error') this.problems.push(`console: ${m.text()}`); });
@@ -155,10 +155,13 @@ class Client {
       const x = r.left + r.width / 2, y = r.top + r.height * 0.72;
       return x >= 0 && y >= 0 && x <= innerWidth && y <= innerHeight ? { x, y } : null;
     }, uid);
-    let last = null;
-    for (const end = Date.now() + 2500; Date.now() < end; await sleep(80)) {
+    // (fork) settled = 4 equal reads in a row (~240 ms): two reads 80 ms apart also matched while a slow camera move was
+    // still starting, and the drag then grabbed the spot the piece had already left (no pickup, no direction wheel)
+    let last = null, still = 0;
+    for (const end = Date.now() + 4000; Date.now() < end; await sleep(80)) {
       const p = await read();
-      if (p && last && Math.abs(p.x - last.x) < 1.5 && Math.abs(p.y - last.y) < 1.5) return p;
+      still = p && last && Math.abs(p.x - last.x) < 1.5 && Math.abs(p.y - last.y) < 1.5 ? still + 1 : 0;
+      if (still >= 3) return p;
       last = p;
     }
     return last;

@@ -154,8 +154,8 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     try {
       await page.setViewport({ width: 1280, height: 720 });
       page.setDefaultTimeout(5000);
-      await page.goto(srv.url, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.title-settings');
+      await page.goto(srv.url, { waitUntil: 'domcontentloaded', timeout: 30000 }); // (fork) the module graph alone can take > 5 s here
+      await page.waitForSelector('.title-settings', { timeout: 30000 });
       await page.click('.title-settings');
       await page.waitForFunction(() => document.querySelector('.modal__box')?.contains(document.activeElement));
       const assertInside = async () => assert.equal(await page.evaluate(() => document.querySelector('.modal__box').contains(document.activeElement)), true);
@@ -184,8 +184,8 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     try {
       page.setDefaultTimeout(5000);
-      await page.goto(srv.url, { waitUntil: 'domcontentloaded' });
-      await page.waitForSelector('.title-settings');
+      await page.goto(srv.url, { waitUntil: 'domcontentloaded', timeout: 30000 }); // (fork) the module graph alone can take > 5 s here
+      await page.waitForSelector('.title-settings', { timeout: 30000 });
       await page.click('.title-settings');
       await page.waitForSelector('.set-guide');
       await page.waitForFunction(() => !document.querySelector('.modal__box').getAnimations().some((a) => a.playState === 'running'));

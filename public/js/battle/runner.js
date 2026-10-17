@@ -54,6 +54,7 @@
 //   battleRunner.state()  → { battleId, fieldId, kind, authoritative, watch, done, own, members, loading, paused, leaks,
 //                              uniteLeft, bondLayers } | null
 //   battleRunner.stats()  → { ticks, stepMs, avgTickMs, maxFrameMs, catchups, errors, battles }
+//   battleRunner.stepPaused(n) → (fork) paused: step the battle on screen n ticks (the dev sandbox's frame step)
 //   battleRunner.unitStats(unitId, fieldId?) → the live stats of a unit of the battle on screen (shared/protocol.js
 //                           unitStatsEntry: current HP, effective max HP / ATK / DEF / RES / interval / block / move
 //                           speed next to its base; an ally also its live attack range `range` — unit.liveRangeGrid,
@@ -592,6 +593,21 @@ export function createBattleRunner(deps) {
     schedule();
   }
 
+  /**
+   * (fork) While paused: step the battle on screen exactly `n` ticks (1/30 s each — the dev sandbox's frame step) and
+   * render them; its clock is moved to match, so a resume goes on from there. False when not paused / nothing to step.
+   */
+  function stepPaused(n = 1) {
+    const e = cur;
+    if (pausedAt == null || !e || !running(e) || e.stepping) return false;
+    const target = (e.battle.tickCount || 0) + Math.max(1, Math.min(CATCHUP_TICKS, Math.floor(Number(n)) || 1));
+    // half a tick past the target: targetTick's floor lands on it, whatever the float rounding
+    e.t0 = pausedAt - ((target + 0.5) * TICK * 1000) / e.speed;
+    // (advance runs at most a frame's cap of ticks per call; a remote host steps once, asynchronously)
+    for (let i = 0; i < 64 && running(e) && !e.stepping && (e.battle.tickCount || 0) < target; i++) advance(e, pausedAt, true);
+    return true;
+  }
+
   /** Advance one entry to its clock (bounded); render it when it is on screen. */
   function advance(e, t, render) {
     if (e.battle.finished) { if (!e.done) finished(e); return; }
@@ -1071,7 +1087,7 @@ export function createBattleRunner(deps) {
     _entries: entries,
     _frame: frame,
     _pump: pump,
-    onStart, onPool, onEnd, clear, ensureSim, redeliver, setPaused,
+    onStart, onPool, onEnd, clear, ensureSim, redeliver, setPaused, stepPaused,
     dispose() { clear(); for (const off of offs) { try { off?.(); } catch { /* ignore */ } } },
   };
 }

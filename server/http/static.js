@@ -10,7 +10,8 @@
 //                machine and the local network only) — a path here that is the studio's, in any spelling, is a 404
 //     /data.js → a generated browser stand-in of server/data.js (the sim's content modules
 //                import `../../../data.js`; in the browser it serves the data injected with
-//                /sim/simdata.js setSimData). No other server file is ever served.
+//                /sim/simdata.js setSimData). No other server file is ever served, but for:
+//     /match/bondsMeta.js → (fork) server/match/bondsMeta.js, that one file (the dev sandbox counts bonds with it)
 //     /media/bgm/act1 → public/assets/audio/bgm/act1.mp3 — the same audio files, addressed
 //                **without** an extension so download managers (IDM / 迅雷 …) stop popping a
 //                "下载文件信息" dialog for every BGM track (media.js, shared/media.js, public/js/media.js)
@@ -90,6 +91,9 @@ export function resetData() {}
 `;
 /** Files under server/sim that are never served (Node-only). */
 const SIM_PRIVATE = new Set(['nodedata.js']); // lower-case (compared case-insensitively)
+// (fork) the one server/match module the browser may load (the dev sandbox's bonds); an exact path, never a mount
+const BONDS_META_URL = '/match/bondsMeta.js';
+const BONDS_META_FILE = path.join(ROOT, 'server', 'match', 'bondsMeta.js');
 
 // ---------------------------------------------------------------------------------------------------
 // Static file handler
@@ -175,6 +179,16 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       if (isNotModified(req, shimTag, new Date(0))) { delete headers['Content-Length']; res.writeHead(304, headers); res.end(); return; }
       res.writeHead(200, headers);
       res.end(req.method === 'HEAD' ? undefined : shimBody);
+      return;
+    }
+    // (fork) the dev sandbox's bond rules (public/dev/sandbox.js): server/match/bondsMeta.js as it is — it imports only
+    // shared/constants.js, so the page counts bonds, tiers and layers exactly like the match. No other match file is served.
+    if (decoded === BONDS_META_URL) {
+      try {
+        const st = await fsp.stat(BONDS_META_FILE);
+        const body = await fsp.readFile(BONDS_META_FILE);
+        await serveBuffer(req, res, { body, hash: `bm-${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}`, type: MIME['.js'], cacheControl: 'no-cache', key: 'bondsMeta', cache: gzipCache });
+      } catch { sendError(req, res, 404, '页面不存在 · Not found'); }
       return;
     }
     // (fork) the asset preload's file list (server/resources.js, shared/resources.js)

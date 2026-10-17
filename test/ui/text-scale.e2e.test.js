@@ -9,6 +9,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -48,7 +49,9 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     if (seed && textSize) await seedSettings(page, textSize);
     // this fork starts in English (ui/lang.js START_LANG); these checks read the Chinese msgids
-    await page.goto(`${url}${url.includes('?') ? '&' : '?'}lang=zh`, { waitUntil: 'networkidle0', timeout: 60000 });
+    const target = `${url}${url.includes('?') ? '&' : '?'}lang=zh`;
+    if (url.includes('game-mock')) await gotoMock(page, target); // (fork) the mock never reliably goes network-idle (e2e/mockPage.mjs)
+    else await page.goto(target, { waitUntil: 'networkidle0', timeout: 60000 });
     return { page, problems };
   }
 
@@ -137,6 +140,7 @@ describe('文字大小 on a phone (headless Chrome)', { skip: !ENABLED && 'set S
     const measure = async (textSize) => {
       const { page, problems } = await open(`${base}/dev/game-mock.html?shot=1&phase=PREP&variant=settings`, textSize);
       await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 15000 });
+      await page.waitForSelector('.gm__field canvas', { timeout: 60000 }); // (fork) the engine mounts after the screen
       await sleep(900);
       const m = await page.evaluate(() => {
         const box = (sel) => {

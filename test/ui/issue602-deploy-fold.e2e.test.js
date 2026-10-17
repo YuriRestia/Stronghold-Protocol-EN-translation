@@ -11,6 +11,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -38,7 +39,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
     if (viewport) await page.setViewport(viewport);
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP`);
     await page.waitForSelector('.ff-piece');
     const initial = await page.evaluate(() => JSON.parse(JSON.stringify(globalThis.__MOCK__.S().priv)));
     const sell = initial.board.find((p) => p.kind === 'chess' && !p.golden);
@@ -121,7 +122,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
     await page.setViewport({ width: 1280, height: 720, hasTouch: true });
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/dev/game-mock.html?shot=1&phase=PREP`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&phase=PREP`);
     await page.waitForFunction(() => globalThis.__SP_VIEW__?.raw?.stats?.().mode === 'prep', { timeout: 30000 });
     await sleep(1500);
     const cam = () => page.evaluate(() => JSON.stringify(globalThis.__SP_VIEW__.raw.debug.cam.params()));

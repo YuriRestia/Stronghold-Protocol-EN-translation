@@ -39,7 +39,7 @@
 // 领主's ranged-kind 'atk' on the enemy it blocks is its Combat blow (`_combatKind`); a sim-melee attack whose official
 // ability shoots flies its projectile for show (蒂比: `attack`); a chain's line stays CHAIN_LINE_S (`chain`).
 
-import { spawnPoint, mountPoint, unitPoint, spawnKind, mountKind, spawnRotationKind, mountRotation } from './mounts.js';
+import { spawnPoint, mountPoint, unitPoint, skinPoint, spawnKind, mountKind, spawnRotationKind, mountRotation } from './mounts.js';
 import { projectileParts, paracurve, arcHeight, wobble } from './flight.js';
 import { GROUND_SPAWNS } from './effect.js';
 import { SkillFx, fitsAttack, pickGroup, formMode } from './skillfx.js';
@@ -1446,6 +1446,19 @@ export class FxWiring {
       if (kk && this.ofx.lib.has(kk) && this.ofx.spawn(kk, { pos: [x - 10, y - 9, -(z || 0)], groundZ: 0 }, {})) n++;
     }
     return n > 0;
+  }
+
+  /**
+   * (fork) A view's HitPoint (where its official hits spawn: playOn's HIT_POINT) in board terms { x, y, z } — what
+   * 丰川祥子's notes fly into; null when its skin has none (no index, an unlisted model).
+   */
+  hitPoint(v) {
+    if (!v || v.destroyed) return null;
+    const skin = this.skinOf(this.unitOf(v));
+    if (!skinPoint(skin, 'hit', false)) return null;
+    const pose = this.pose(v);
+    const o = unitPoint(skin, 'hit', pose, this._hitOut || (this._hitOut = [0, 0, 0]));
+    return { x: o[0] + 10, y: o[1] + 9, z: -o[2] };
   }
 
   /** The index projectile of a note family (render/fx/notes.js `look`). */

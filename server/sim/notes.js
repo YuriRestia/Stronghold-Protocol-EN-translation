@@ -18,8 +18,8 @@
 //      behind it stops and reverses it (owner 2026-10-16: kept at full speed it orbited a target it could not reach,
 //      and one dead behind never turned at all); a target lost (dead, unselectable) ⇒
 //      back to wander with the current heading (a fresh sine origin, the minimum free time again);
-//   hit: when the note reaches its target's body (≤ HIT_REACH of its 判定中心, [ASSUMED]: the prefab only says
-//      `_alwaysHitTraceTargetWhenReached`) the owner's `onHit(note, enemy)` runs once, then — with a `passby` state
+//   hit: when the note reaches its target's centre (≤ HIT_REACH of its position, not its hit rectangle's edge: a huge
+//      boss is struck at its middle, like a projectile; [ASSUMED]: the prefab only says `_alwaysHitTraceTargetWhenReached`) the owner's `onHit(note, enemy)` runs once, then — with a `passby` state
 //      (piano: the prefab's StriaghtFinal 3.0 for 0.5 s with the 0.8 collider, `_hitPassbyTime` from passby_delay) — it
 //   【已命中】 flies straight on and strikes every other enemy its collider touches once; else it is gone.
 // It is gone after LIFETIME (prefab `_lifeTime` 10 s), when it has had no trace target for more than OFF_RANGE_GRACE s
@@ -69,7 +69,7 @@ export function ownerTarget(b, o, prefer = null) {
 export const NOTE_LIFETIME = 10;
 /** PRTS 备注: "若连续1s以上不存在追踪目标则消失" outside the owner's attack range. */
 export const OFF_RANGE_GRACE = 1;
-/** [ASSUMED] a tracing note strikes its target once it is this close to the target's body (tiles). */
+/** [ASSUMED] a tracing note strikes its target once it is this close to the target's centre (tiles). */
 export const HIT_REACH = 0.1;
 const TWO_PI = 6.283185307179586;
 /** 扩张正弦方向: the amplitude grows over the first three periods ("1≤n≤3"), then stays. */
@@ -254,7 +254,9 @@ export class NoteSystem {
     if (v > 1e-9) { n.hx = n.vx / v; n.hy = n.vy / v; }   // the heading drawn (and kept when it falls back to free)
     const step = n.kind.trace * v * dt;
     n.x += n.vx * n.kind.trace * dt; n.y += n.vy * n.kind.trace * dt;
-    if (bodyDist(e, n.x, n.y) <= HIT_REACH + 1e-9 || td <= step + 1e-9) this._strike(n, e);
+    // the target's centre (like a homing projectile's arrival), not its hit rectangle's edge: a huge boss is struck
+    // at its middle
+    if (hypot(e.x - n.x, e.y - n.y) <= HIT_REACH + 1e-9 || td <= step + 1e-9) this._strike(n, e);
   }
 
   _noteEvent(n, on, e) {

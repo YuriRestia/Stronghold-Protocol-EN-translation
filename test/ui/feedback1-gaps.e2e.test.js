@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = process.env.SP_E2E_OUT ? path.resolve(process.env.SP_E2E_OUT) : path.join(ROOT, 'test/e2e/out');
@@ -63,7 +64,7 @@ describe('0.1.1 gaps: 变形同构体 pairings and 调和\'s +1 (mock harness, h
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
       page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
-      await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP&variant=funny,morph,harmony`, { waitUntil: 'networkidle0' });
+      await gotoMock(page, `${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP&variant=funny,morph,harmony`);
       await page.waitForSelector('.shopbar__item .scard', { timeout: 20000 });
       await sleep(600);
       const minFont = touch ? 9 : 13.5;
@@ -141,7 +142,7 @@ describe('0.1.1 gaps: 变形同构体 pairings and 调和\'s +1 (mock harness, h
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
       page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
-      await page.goto(`${base}/dev/game-mock.html?shot=1&phase=BAND_DRAFT&variant=funny`, { waitUntil: 'networkidle0' });
+      await gotoMock(page, `${base}/dev/game-mock.html?shot=1&phase=BAND_DRAFT&variant=funny`);
       await page.waitForSelector('.draft-grid .dband[data-band]', { timeout: 20000 });
       await sleep(500);
       const tap = async (sel) => { const el = await page.$(sel); assert.ok(el, sel); await el.scrollIntoView(); if (touch) await el.tap(); else await el.click(); await sleep(300); };

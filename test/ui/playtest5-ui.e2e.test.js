@@ -24,6 +24,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -68,7 +69,7 @@ describe('user playtest #5 — UI items 8 / 9 (mock harness, headless Chrome)', 
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
-    await page.goto(`${base}/dev/game-mock.html?shot=1&${query}`, { waitUntil: 'networkidle0' });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&${query}`);
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__, { timeout: 20000 });
     if (insets) {
       await page.evaluate((i) => {
@@ -183,7 +184,8 @@ describe('user playtest #5 — UI items 8 / 9 (mock harness, headless Chrome)', 
     const { GLYPHS } = await import('../../public/js/ui/gameComponents.js');
     for (const [name, w, h, touch] of [view('844x390'), view('756x366'), view('1920x1080')]) {
       const { page, problems } = await open('phase=PREP', { w, h, touch });
-      const r = await page.evaluate(() => [...document.querySelectorAll('.gm__corner .gm__gear')].map((b) => {
+      // (fork) not the 伤害统计 chart button the fork adds to the corner (ui/damageChart.js): the three of upstream's
+      const r = await page.evaluate(() => [...document.querySelectorAll('.gm__corner .gm__gear:not(.dmgbtn__btn)')].map((b) => {
         const svg = b.querySelector('svg.icon');
         const s = svg.getBoundingClientRect(), br = b.getBoundingClientRect();
         return { cls: b.className, w: s.width, h: s.height, bw: br.width, d: svg.querySelector('path')?.getAttribute('d') };

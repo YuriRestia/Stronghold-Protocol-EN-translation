@@ -68,7 +68,9 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
         return req.continue();
       });
     }
-    await page.goto(`${base}${url}`, { waitUntil: 'networkidle0' });
+    // (fork) the game mock never reliably goes network-idle on Windows (render loop, Pixi's image worker): its own
+    // screen check (below, in the test) is the wait; the UI-kit page still waits for idle
+    await page.goto(`${base}${url}`, { waitUntil: url.includes('game-mock') ? 'load' : 'networkidle0', timeout: 60000 });
     return { page, problems };
   }
 
@@ -322,7 +324,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
 
   test('in-match mock: bubbles beside the senders\' avatars, wheel above 交流', { skip: !HAS_ART && 'no official emote art (neither the local extraction nor the fetched copies)' }, async () => {
     const { page, problems } = await open('/dev/game-mock.html?shot=1&render=fallback&phase=PREP&variant=emote', { w: 1920, h: 1080 });
-    await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 15000 });
+    await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)'), { timeout: 60000 });
     await page.waitForSelector('.team__bubble');
     await page.waitForSelector('.ewheel__panel');
     await sleep(700);

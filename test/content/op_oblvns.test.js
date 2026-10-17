@@ -29,7 +29,8 @@ const formOf = (tier, elite) => FORMS[elite ? (tier === 5 ? '2/60/7/1' : '2/60/7
 const skillBb = (tier, elite, id) => formOf(tier, elite).skills.find((s) => s.skillId === id).bb;
 const approx = (a, b, msg, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps * Math.max(1, Math.abs(b)), `${msg}: ${a} vs ${b}`);
 const dummy = (key, o = {}) => enemyRec({ key, hp: 1e9, speed: 0, mass: 0, ...o });
-const ENEMIES = { e_d: dummy('e_d'), e_tank: dummy('e_tank', { def: 900, res: 10 }), e_arts: dummy('e_arts', { def: 0, res: 60 }) };
+const ENEMIES = { e_d: dummy('e_d'), e_tank: dummy('e_tank', { def: 900, res: 10 }), e_arts: dummy('e_arts', { def: 0, res: 60 }),
+  e_huge: { ...dummy('e_huge'), rank: 'BOSS', hitArea: { w: 3, h: 3, dx: 0, dy: 0 } } };
 const FORMS_ALL = [[5, false, null], [6, false, null], [5, true, null], [5, true, LORY], [6, true, null], [6, true, LORY]];
 const label = ([tier, elite, mod]) => `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
 
@@ -150,6 +151,17 @@ test('a note with a target: launched straight, traces it, strikes once (physical
     approx(hit.dmg.amount, u.s.atk * 0.8, `${label([tier, elite, mod])}: ranged ×0.8`, 1e-3);
     done(h);
   }
+});
+
+test('a huge boss is struck at its centre, like a projectile — not at the edge of its hit rectangle', () => {
+  const { h, u } = field({ skill: 0, foes: [[10, 10, 'e_huge']] });
+  const boss = h.b.enemies[0];
+  h.runUntil(() => noteHits(h, u).length > 0, 10);
+  const hits = h.eventsOf('fx').filter((e) => e[1] === 'note' && e[4]?.on === 'hit');
+  assert.ok(hits.length > 0);
+  // the 3×3 rectangle's edge is 1.5 tiles from its centre
+  for (const [, , x, y] of hits) assert.ok(Math.hypot(x - boss.x, y - boss.y) < 0.5, `hit at (${x}, ${y}), boss at (${boss.x}, ${boss.y})`);
+  done(h);
 });
 
 test('S1 新月的苏醒: 8 notes one by one (0.1 s apart with a target), atk_scale … atk_scale_8, arts; charges 2', () => {

@@ -18,11 +18,12 @@
 //     icon for the chosen skill), detail card skill + 已调配, an elite with its module unequipped shows 未装备模组
 // Screenshots: test/e2e/out/fix-*.png.
 
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -56,6 +57,8 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     await browser?.close();
     await srv?.close();
   });
+  // (fork) a failed test skips its own page.close(): close what it left open, or its render loop slows every next test
+  afterEach(async () => { for (const p of (await browser?.pages()) || []) await p.close().catch(() => {}); });
 
   async function open(query, { w = 1920, h = 1080, render = 'engine' } = {}) {
     const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
@@ -65,7 +68,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('requestfailed', (r) => problems.push(`requestfailed: ${r.url()} ${r.failure()?.errorText}`));
     page.on('response', (r) => { if (r.status() >= 400) problems.push(`http ${r.status()}: ${r.url()}`); });
-    await page.goto(`${base}/dev/game-mock.html?shot=1&render=${render}&${query}`, { waitUntil: 'networkidle0' });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&render=${render}&${query}`);
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__, { timeout: 20000 });
     await sleep(render === 'engine' ? 1600 : 700);
     return { page, problems };
@@ -141,6 +144,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
       });
       await tapPiece(page, uids.chess);
       await page.waitForSelector('.uframe__btn--sell .uframe__plate', { timeout: 3000 });
+      await sleep(300); // (fork) the frame's uframe-in fade (200 ms): sampled mid-fade it reads as the board behind
       const plate = await page.$eval('.uframe__btn--sell .uframe__plate', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height * 0.2, w: r.width * 0.6, h: r.height * 0.6 }; });
       const c = await meanColor(page, plate);
       assert.ok(!(c.r > 225 && c.g > 225 && c.b > 225), `sell plate is not white (${JSON.stringify(c)})`);
@@ -149,6 +153,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
       await page.keyboard.press('Escape');
       await tapPiece(page, uids.item);
       await page.waitForSelector('.uframe__btn--destroy .uframe__plate', { timeout: 3000 });
+      await sleep(300); // (fork) the frame's uframe-in fade (200 ms): sampled mid-fade it reads as the board behind
       const dp = await page.$eval('.uframe__btn--destroy .uframe__plate', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height * 0.2, w: r.width * 0.6, h: r.height * 0.6 }; });
       const d = await meanColor(page, dp);
       assert.ok(!(d.r > 225 && d.g > 225 && d.b > 225), `destroy plate is not white (${JSON.stringify(d)})`);

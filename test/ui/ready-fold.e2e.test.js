@@ -9,6 +9,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -50,7 +51,7 @@ describe('the shop bar folds on 准备就绪', { skip: !ENABLED && 'set SP_E2E=1
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/dev/game-mock.html?phase=PREP&render=fallback`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await gotoMock(page, `${base}/dev/game-mock.html?phase=PREP&render=fallback`);
     await page.waitForSelector('.readybtn', { timeout: 15000 });
     await sleep(500);
 

@@ -144,7 +144,7 @@ describe('时装 / Outfits view (real server, headless browser)', { skip: !ENABL
     await page.click('[data-testid="diy-confirm"]');
     await page.waitForSelector('[data-testid="diy-picker"]', { hidden: true, timeout: 3000 });
     const art = await page.$eval(`.diy-slot[data-char="${SIEGE}"] .diy-slot__art img`, (i) => i.getAttribute('src'));
-    assert.match(art, /\/assets\/outfit\/portrait\//, `the slot's portrait: ${art}`);
+    assert.match(art, /\/assets\/(?:~[0-9a-f]+\/)?outfit\/portrait\//, `the slot's portrait: ${art}`); // ~hash: the asset generation
     assert.deepEqual(problems, [], 'no page errors');
     await ctx.close();
   });

@@ -13,6 +13,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -40,7 +41,7 @@ describe('the 观战席 capsule of the match top bar', { skip: !ENABLED && 'set 
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/dev/game-mock.html?render=fallback&${query}`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await gotoMock(page, `${base}/dev/game-mock.html?render=fallback&${query}`);
     await page.waitForSelector('.gtop', { timeout: 15000 });
     await sleep(400);
     return { page, problems };

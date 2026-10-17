@@ -119,16 +119,20 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 
 /* Narrow viewports (< 768 CSS px: the root scale is clamped at 40 px, so the layout is narrower than the 19.2 rem
    design): the shop bar would cover the corner's ⚙ / 📖 / ⛶ buttons — they wrap into a row above the 交流 button. */
-/* The left-docked detail card then ends above that two-row corner (.24rem + 交流 + .1rem gap + ⚙ row + .1rem): at its
-   desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
+/* The left-docked detail card then ends above that three-row corner (.24rem + 交流 + .1rem gap + ⚙ row + .1rem gap +
+   伤害统计 row + .1rem): at its desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
 @media (max-width: 767px) {
-  /* (the 伤害统计 chart button sits beside 交流 on the bottom row: room for 交流 + one button, ⚙ / 📖 / ⛶ above) */
-  .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(72px + .66rem, calc(3 * .56rem + .2rem)); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem); }
+  /* (the 伤害统计 chart button gets a third row above ⚙ / 📖 / ⛶: beside 交流 it sat under the shop bar at 640 px, and a
+     fourth button in the ⚙ row reaches the shop's level card. The 100 % margin — empty, no hit area — keeps 交流 alone on
+     the bottom row whatever its label width) */
+  .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: calc(3 * .56rem + .2rem); }
+  .gm:not(.is-collapsed) .gm__corner > .ewheel { margin-right: 100%; }
+  .gm:not(.is-collapsed) .gm__corner > .dmgbtn { order: 1; }
+  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem + .66rem); }
 }
 @media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
-  .gm__corner { width: max(96px + max(.56rem, 34px) + .1rem, calc(3 * max(.56rem, 34px) + .2rem)); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + max(.56rem, 34px)); }
+  .gm__corner { width: calc(3 * max(.56rem, 34px) + .2rem); }
+  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + 2 * max(.56rem, 34px) + .1rem); }
 }
 /* With the shop folded (收起) no bar covers the corner: one row again, so the folded shop's prep camera, which keeps the
    bench above the corner's hit areas (ui/fieldHost.js hudBands), grows the board on narrow phones too (public issue #5). */

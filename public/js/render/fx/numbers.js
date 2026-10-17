@@ -59,10 +59,11 @@ export class FxNumbers {
   damage(view, amount, type, srcView, mark, o) {
     if (!view) return;
     const style = dmgStyleKey(type);
-    // 丰川祥子's note hit (app.js notePending): at the body, where the note's own burst is (render/fx/notes.js)
+    // 丰川祥子's note hit (app.js notePending): where the note struck (render/fx/notes.js) — a boss's HitPoint, else the body
     const atBody = this._noteHitAt === view.id;
     if (atBody) this._noteHitAt = null;
-    const p = atBody ? this._bodyPt(view, SHOT_HEIGHT.aim) : this._chest(view);
+    const hp = atBody && view.isBoss && typeof this.ctx.hitPoint === 'function' ? this.ctx.hitPoint(view) : null;
+    const p = hp ? this._proj(hp.x, hp.y, hp.z) : atBody ? this._bodyPt(view, SHOT_HEIGHT.aim) : this._chest(view);
     const px = p.x, py = p.y, s = p.s;
     const tint = HIT_TINT[style] || 0xffffff;
     const big = view.maxHp > 0 && amount >= view.maxHp * 0.18;

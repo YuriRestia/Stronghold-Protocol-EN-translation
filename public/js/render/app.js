@@ -37,6 +37,8 @@
 //                                               model to that clip set (render/units.js FORMS)
 //   view.setLocalFeed({ on, speed })            frames come from the local sim every frame (client-side combat):
 //                                               ~2-frame buffer at the battle's game speed
+//   view.setFrozen(on)                          (fork) hold the battle on its newest frame (the dev sandbox's pause and
+//                                               frame step: a step's frame shows exactly, the units move only by it)
 //   view.highlightTiles(tiles, style)           [[r,c]] | [{row,col}]; style 'legal'|'illegal'|'range'|'rangeStand'|
 //                                               'hover'|'target'|{color,fill,line,group}; highlightTiles(null) clears all
 //   view.on(name, fn) → unsubscribe ; view.off(name, fn)
@@ -327,6 +329,9 @@ export async function createFieldView(host, options = {}) {
   const gone = new Set();
   const woundUp = new WeakSet(); // atk event tuples whose attack wind-up already started
   const interp = new SnapshotBuffer({ delay: 0.1, rate: 2 });
+  // (fork) the dev sandbox's pause (setFrozen): the battle shows the newest frame and holds still — units, effects and
+  // particles get only the game time a frame step added, so a step of one tick shows exactly that tick
+  let frozen = false;
   const sample = new Map();
   const meleePending = new Map(); // target id → { src, t }
   const notePending = new Map();  // target id → time of 丰川祥子's note strike (its damage follows in the same batch)
@@ -391,6 +396,8 @@ export async function createFieldView(host, options = {}) {
     fieldRect: () => (mode === 'battle' && battleMeta ? battleMeta.rect : null),
     subProfOf: (defId, info = null) => ((info && info.standInFor && data.standIn(defId)) || (info && info.diy && data.diy(defId, info.diy)) || data.chess(defId))?.subProfessionId || null,
     view: (id) => views.get(id) || null,
+    // (fork) a boss's HitPoint (render/vfx/wiring.js): 丰川祥子's note sparks strike there (others: the body centre)
+    hitPoint: (v) => wiring.hitPoint(v),
     screenSize: size,
     fieldTop: () => {
       const R = camRect();
@@ -408,7 +415,10 @@ export async function createFieldView(host, options = {}) {
       active: () => ofx.active,
       flight: (owner, look, at) => (ofx.active ? wiring.noteFlight(owner, look, at) : null),
       hit: (owner, look, tgt, x, y, z) => (ofx.active ? wiring.noteHit(owner, look, tgt, x, y, z) : false),
-    } });
+    },
+    // a boss's official hits spawn at its model's HitPoint, off its centre: the notes fly into it, ours burst there too
+    // (any other enemy keeps its body centre)
+    hitPoint: (v) => wiring.hitPoint(v) });
   setupCleanup.push(() => noteLayer.destroy());
   if (settings.noteFx === 'ours') noteLayer.setMode('ours');
   const noteList = [];
@@ -1935,6 +1945,7 @@ export async function createFieldView(host, options = {}) {
     const dtRaw = (now - lastNow) / 1000;
     lastNow = now;
     const dt = Math.min(0.1, Math.max(0, dtRaw));
+    let udt = dt;   // the units' / effects' frame time ((fork) frozen: the game time a step added, set below)
     if (dtRaw < 0.25) frameMs = frameMs * 0.9 + dtRaw * 1000 * 0.1;
     fps = 1000 / Math.max(1, frameMs);
     adaptLoad(dtRaw);
@@ -1954,7 +1965,7 @@ export async function createFieldView(host, options = {}) {
       tiles.project(cam);
       updateBackdrop(clock);
       if (mode === 'battle') {
-        const renderT = interp.update(now / 1000);
+        const renderT = frozen ? interp.snapToNewest() : interp.update(now / 1000);
         if (Number.isFinite(renderT)) {
           processEvents(renderT);
           syncBattle(renderT);
@@ -1964,6 +1975,7 @@ export async function createFieldView(host, options = {}) {
           // skill effects' per-frame part reads the views' fresh sample (render/vfx/skillfx.js sync)
           const gdt = ofxPrevT == null ? 0 : Math.min(0.25, Math.max(0, renderT - ofxPrevT));
           ofxPrevT = renderT;
+          if (frozen) udt = gdt / Math.max(0.25, interp.rate || 1);
           wiring.sync(views.values());
           if (ofx.active) { wiring.tick(); ofx.update(gdt); }
         }
@@ -1979,18 +1991,18 @@ export async function createFieldView(host, options = {}) {
       for (const [key, v] of views) {
         if (v._tween) {
           const tw = v._tween;
-          tw.t = Math.min(1, tw.t + dt / 0.22);
+          tw.t = Math.min(1, tw.t + udt / 0.22);
           const k = 1 - (1 - tw.t) * (1 - tw.t);
           v.x = tw.fx + (tw.tx - tw.fx) * k; v.y = tw.fy + (tw.ty - tw.fy) * k; v.z = tw.fz + (tw.tz - tw.fz) * k;
           if (tw.t >= 1) v._tween = null;
         }
-        v.update(dt, cam, clock);
+        v.update(udt, cam, clock);
         if (v.remove) { dropView(key); if (mode === 'battle') gone.add(key); }
       }
-      if (!penHidden) for (const v of penViews.values()) v.update(dt, cam, clock);
-      if (leader && !leaderHidden) leader.view.update(dt, cam, clock);
+      if (!penHidden) for (const v of penViews.values()) v.update(udt, cam, clock);
+      if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
-      fx.update(dt);
+      fx.update(udt);
       stepClipBounds();
       impostors.flush();
     } catch (err) {
@@ -2095,6 +2107,12 @@ export async function createFieldView(host, options = {}) {
      * every animation frame instead of the network, so the render clock trails them by ~2 frames (not the 100 ms
      * jitter buffer) and runs at the battle's game speed. `{ on: false }` restores the network settings.
      */
+    /** (fork) Hold the battle still (the dev sandbox's pause and frame step); false resumes the normal render clock. */
+    setFrozen(on) {
+      frozen = !!on;
+      if (!frozen) interp.lastNow = NaN;
+      return true;
+    },
     setLocalFeed(o) {
       const on = !!(o && o.on);
       const speed = Number(o && o.speed) > 0 ? Number(o.speed) : 2;

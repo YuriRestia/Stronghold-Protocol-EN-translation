@@ -46,8 +46,9 @@ describe('the round start replays the own board\'s Start clips in deployment ord
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
-    await page.goto(`${base}/dev/game-mock.html?shot=1&render=engine&phase=SETTLE`, { waitUntil: 'networkidle0', timeout: 60000 });
-    await page.waitForFunction(() => globalThis.__SP_VIEW__?.kind === 'engine' && globalThis.__SP_VIEW__.raw.mode === 'battle', { timeout: 20000 });
+    // (fork) 'load', not 'networkidle0': the game mock never reliably goes network-idle; the view check below is the wait
+    await page.goto(`${base}/dev/game-mock.html?shot=1&render=engine&phase=SETTLE`, { waitUntil: 'load', timeout: 60000 });
+    await page.waitForFunction(() => globalThis.__SP_VIEW__?.kind === 'engine' && globalThis.__SP_VIEW__.raw.mode === 'battle', { timeout: 60000 });
     // spy on the landing sound (the view's ctx.audio is this very manager), sample how many landing voices ring, and
     // unlock the page's audio with a key press (a user gesture; Shift is no shortcut) so the landings really start
     await page.evaluate(async () => {
