@@ -30,7 +30,7 @@ export const IDLE_GRACE_MS = 10 * 60 * 1000;
 export const KEEP_RELEASES = 2;
 export const HEALTH_WAIT_MS = 180_000;
 /** gitignored parts of app/ every release links to (absent ones are skipped) */
-export const SHARED_LINKS = Object.freeze(['public/assets', 'public/fonts', '.cache', 'logs', 'data/local-assets.json']);
+export const SHARED_LINKS = Object.freeze(['public/assets', 'public/fonts', '.cache', 'logs', 'data/local-assets.json', 'data/local-fx.json']);
 // ---- pure decisions (test/generations.test.js) ------------------------------------------------------------------
 
 /** UTC yymmdd-hhmmss. @param {Date} [d] */

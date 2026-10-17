@@ -194,6 +194,7 @@ export function indexPieces(priv) {
  * (`field` = `deployFieldOf(pub, myId)`: the own board, or the player's half of the boss field in a boss round).
  * @param {{ priv:any, stage:any, editable:boolean, field?:'normal'|'bossL'|'bossR', getChess?:(id:string)=>any,
  *   getToken?:(id:string)=>any, getItem?:(id:string)=>any, getEffect?:(id:string)=>any }} o
+ * `getChess` and `backups` must supply unlocalized rule records (data.lookupRaw / getRaw; shared/highGround.js, #676).
  */
 export function placementContext({ priv, stage, editable, field = 'normal', getChess = () => null, getToken = () => null, getItem = () => null, getEffect = () => null, backups = null }) {
   const pieces = indexPieces(priv);

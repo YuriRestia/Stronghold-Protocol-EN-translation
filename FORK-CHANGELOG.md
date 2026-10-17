@@ -47,6 +47,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The preload manager no longer fails with "Couldn't load the asset list: … Operation too large" once a whole pack is
   saved: Chrome refuses to list a cache of more than about 15,000 files, so the manager then checks each file of the
   asset list on its own.
+- Gladiia (normal and elite) can be deployed on Ranged Tiles in every language, not only Simplified Chinese: the
+  client's placement check read the translated trait text, so it never found the Chinese one and blocked the drop.
+  It now reads the untranslated records; cards and details stay translated. Ported from upstream
+  [PR #694](https://github.com/sganggs/Stronghold-Protocol/pull/694) by @hesperine.
 
 ## 2026-10-16
 
