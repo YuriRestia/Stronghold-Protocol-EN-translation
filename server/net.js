@@ -72,8 +72,10 @@ export const NET_DEFAULTS = Object.freeze({
  * room.setPlugins (a new visual set: every member downloads its art manifest — server/plugins/visualSet.js).
  * (fork, docs/OUTFITS.md) room.outfits: a ≤ 256-entry map, and a change broadcasts room.state to the whole room (any
  * phase), so it shares the bucket too; the client debounces its edits and retries a RATE refusal.
+ * room.skins (docs/SKINS.md) is a small `{ [charId]: skinId }` map, sent on every edit of the appearance.
+ * (fork) room.skins is upstream's (dormant here: no skin plugin, the fork dresses operators with room.outfits).
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.setPlugins', 'room.outfits']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.setPlugins', 'room.outfits', 'room.skins']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
@@ -124,6 +126,9 @@ export class Session {
     this.notOwned = null;
     /** @type {Readonly<Record<string, { charId: string, skillIndex: number, uniEquipId: string|null }>> | null} checked 自选 picks (lobby-owned, 0.2.0 自选编队) */
     this.diy = null;
+    /** @type {Readonly<Record<string, string>> | null} chosen operator skins (lobby-owned, docs/SKINS.md): keyed by
+     * charId; PUBLIC, unlike the loadout (a teammate sees your skin through Match.publicView().players[].skins) */
+    this.skins = null;
     /** @type {string} client address of the latest connection (logging) */
     this.addr = '?';
     /** @type {string | null} per-network limit key of the latest connection (null = not limited), see clientAddress */

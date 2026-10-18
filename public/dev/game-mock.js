@@ -18,8 +18,8 @@ import { installAudio } from '/js/audio.js';
 import { settingsStore } from '/js/ui/settings.js';
 import { awayStore } from '/js/ui/matchChrome.js';
 import { GAME_FILES } from '/js/ui/gameComponents.js';
-import { damageLog } from '/js/ui/damageLog.js';
-import { baseChessId } from '/js/ui/gameLogic/damage.js';
+import { battleRunner } from '/js/battle/runner.js';
+import { combineRounds } from '/js/battle/metrics.js';
 import { initLang } from '/js/ui/lang.js';
 import { PHASE, GEO } from '/shared/constants.js';
 
@@ -347,9 +347,12 @@ function setPhase(phase, variant) {
         Object.assign(result, { altArt: true, hiddenReached: true });
         import('/dev/alt-art-tuner.js').then((m) => m.installAltArtTuner(), () => {});
       }
-      store.patch('match', { result });
-      // the result screen's match damage chart (ui/damageChart.js DamageSummary) from your final lineup
-      damageLog?.seed(mockDamageHistory(result.players.find((p) => p.playerId === ME)?.lineup || [], result.roundsPassed));
+      // (fork) 数据详情's match damage chart (ui/combatSummary.js) from your final lineup: the runner's records, stubbed
+      const records = mockCombatRecords(result.players.find((p) => p.playerId === ME)?.lineup || [], result.roundsPassed);
+      if (battleRunner) battleRunner.combatRounds = ({ ownerId = null } = {}) => combineRounds(records, ownerId);
+      // late: the RESULT phase first, m.result a moment later (as from the server)
+      if (VARIANTS.has('late')) setTimeout(() => store.patch('match', { result }), 800);
+      else store.patch('match', { result });
       break;
     }
     default:
@@ -359,16 +362,22 @@ function setPhase(phase, variant) {
   applyUiVariants();
 }
 
-// ui/damageLog.js history ({ [round]: DamageRow[] }): each lineup operator joins a few rounds in and hits harder as it goes
-function mockDamageHistory(lineup, rounds) {
-  const history = {};
-  const ops = lineup.map((u, k) => ({ key: baseChessId(u.id), defId: u.id, joins: 1 + ((k * 3) % 6), power: 900 + rnd() * 2600 }));
+// (fork) battle/metrics.js records, one per round: each lineup operator joins a few rounds in and hits harder as it goes;
+// its damage splits over the four types by a fixed mix, and every third operator also heals
+function mockCombatRecords(lineup, rounds) {
+  const ops = lineup.map((u, k) => ({ defId: u.id, name: data.lookup('chess', u.id)?.name || u.id, joins: 1 + ((k * 3) % 6),
+    power: 900 + rnd() * 2600, mix: [rnd(), rnd() * 0.8, rnd() * 0.2, k % 4 === 0 ? rnd() * 0.5 : 0], heals: k % 3 === 2 }));
+  const records = [];
   for (let r = 1; r <= rounds; r++) {
-    history[r] = ops.filter((o) => r >= o.joins)
-      .map((o) => ({ key: o.key, kind: 'op', defId: o.defId, diy: null, standInFor: null, dmg: Math.round(o.power * r * (0.5 + rnd())) }))
-      .sort((a, b) => b.dmg - a.dmg);
+    const rows = ops.filter((o) => r >= o.joins).map((o, k) => {
+      const damage = Math.round(o.power * r * (0.5 + rnd()));
+      const sum = o.mix.reduce((a, b) => a + b, 0) || 1;
+      const types = Object.fromEntries(['phys', 'arts', 'true', 'elemental'].map((ty, i) => [ty, damage * o.mix[i] / sum]));
+      return { key: `${ME}:${k}`, ownerId: ME, uid: k, defId: o.defId, name: o.name, kind: 'op', damage, healing: o.heals ? Math.round(damage * 0.6) : 0, types };
+    });
+    records.push({ seconds: 40 + rnd() * 30, owners: [ME], round: r, rows });
   }
-  return history;
+  return records;
 }
 
 // m.result in the exact shape of server/match/results.js buildResult (title = config.titles record, stats.gold = spent)
@@ -805,7 +814,7 @@ function applyUiVariants() {
       store.set({ emotes: [{ seq: now, playerId: 'p3', id: 'autochess_battle_nice_cooperate', at: now }, { seq: now + 1, playerId: 'ai_2', id: 'slug_autochess_battle_thanks', at: now }] });
     }, 300);
   }
-  if (VARIANTS.has('settings')) clickSel('.gm__gear:not(.dmgbtn__btn)', 400);
+  if (VARIANTS.has('settings')) clickSel('.gm__gear:not(.gm__metrics)', 400);
   if (VARIANTS.has('collapsed')) clickSel('.funds__collapse', 400);
   // the first tap on a shop card selects it and opens its detail (there is no ⓘ corner)
   if (VARIANTS.has('detail')) clickSel('.shopbar__cards .scard:not(.scard--sold)', 500);

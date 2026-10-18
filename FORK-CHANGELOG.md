@@ -7,6 +7,19 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-10-18
 
+### Upstream merge
+
+- Merged upstream 0.3.1 at [`d905c146`](https://github.com/sganggs/Stronghold-Protocol/commit/d905c1464f762a03d236c7ad6bc3ba31a74f4494) (`TBD`).
+  Upstream's plugin skins (`room.skins`, 显示其他玩家的皮肤) are merged but dormant next to the fork's outfits
+  (`room.outfits`), which stay the skin system players use; no skin plugin is installed.
+- Damage meter: the fork's damage meter (`ui/damageChart.js`, `damageLog.js`) is replaced by upstream's Combat
+  statistics, which is now always on (upstream's opt-in setting is removed; an old stored value is dropped). Each
+  record is tagged with its round, and the result screen's Full Report shows a whole-match chart split By Round or
+  By Type, with Total Damage, Total Healing and DPS / HPS.
+- Settings: Fold Shop While Deploying defaults to off. The fork's English voice default and match alert stay;
+  upstream's Ammo and Energy Counts setting is taken.
+- English UI: upstream's new strings use the fork's Alliance / Stacks wording.
+
 ### Changes
 
 - Host bandwidth: the four big file lists (`data/assets.json`, `data/local-assets.json`, `data/local-fx.json` and the
@@ -16,6 +29,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - The service worker no longer fetches the preload manifest for a player who never preloaded (no preload cache).
+
+### Fixes
+
+- Combat statistics: operator names in the in-battle panel are translated (they showed the Chinese name).
 
 ## 2026-10-17
 
@@ -290,7 +307,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

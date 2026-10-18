@@ -63,8 +63,6 @@
 //                           0.1.0). Read-only: it takes the stats the sim computed last (`unit._s`) and the range grid it
 //                           keeps, and never makes the unit recompute them, so looking never changes the battle's floats.
 //   battleRunner.unitIdOf(uid, ownerId, fieldId?) → the id of an own board piece's unit in that battle | null
-//   battleRunner.damageUnits(ownerId) → [{ kind, defId, dmg, diy?, standInFor?, by? }] that player's units' damage in
-//     the battles this client runs (ui/damageLog.js) | null
 //   battleRunner.ownerOps(ownerId, fieldId?) → [{ kind: 'op', ownerId, defId, items?, standInFor?, diy? }] that player's
 //                           operators in the battle on screen with their equipment (a teammate's bond popup: the members in
 //                           play, DESIGN §20.15, 变形同构体 wearers included; a 补位 stand-in names the replaced charId,
@@ -90,7 +88,7 @@ import { spectateEffects } from './observe.js';
 import { recordError, setBattleSource } from '../diag.js';
 import { loadBrowserSim } from './simLoader.js';
 import { InPageSimHost, WorkerSimHost } from './simHost.js';
-import { trackCombat, combineCombat } from './metrics.js';
+import { trackCombat, combineCombat, combineRounds } from './metrics.js';
 import { t } from '../../../shared/i18n.js';
 export { loadBrowserSim, SIM_DATA_FILES } from './simLoader.js';
 
@@ -160,9 +158,8 @@ const SIM_LOGGER = Object.freeze({
  * @param {{ net: any, store: any, loadSim?: () => Promise<{ spec: any, ds: any }>, now?: () => number,
  *   raf?: (fn: (t: number) => void) => any, caf?: (h: any) => void, setInterval?: Function, clearInterval?: Function,
  *   doc?: { hidden?: boolean, addEventListener?: Function } | null, logger?: object,
- *   combatMetrics?: boolean, createHost?: Function }} deps
- * `combatMetrics` true/false pins the 作战统计 meter for a test. Omit it and call setCombatMetrics (the settings
- * screen does; the default is off). A Worker host never attaches the meter.
+ *   createHost?: Function }} deps
+ * (fork) The 作战统计 meter records every in-page battle (no setting, no test pin). A Worker host never attaches it.
  */
 export function createBattleRunner(deps) {
   const net = deps.net;
@@ -199,30 +196,17 @@ export function createBattleRunner(deps) {
   const combatHistory = new Map();
   const rememberCombat = (e) => {
     if (!e.combatMetrics) return;
-    const record = e.combatMetrics();
+    const record = readCombat(e);
     if (!(combatHistory.get(e.battleId)?.seconds > record.seconds)) combatHistory.set(e.battleId, record);
   };
-  // Opt-in (设置「作战统计」, default off). A boolean deps.combatMetrics pins a test and ignores setCombatMetrics.
-  // Otherwise screens/game.js pushes the settings store. A Worker host never attaches: its page battle is wire state.
-  let metricsWanted = false;
-  const metricsEnabled = () => (typeof deps.combatMetrics === 'boolean' ? deps.combatMetrics : metricsWanted);
-  const detachCombat = (e) => {
-    if (!e?.combatMetrics) return;
-    rememberCombat(e);
-    try { e.combatMetrics.stop?.(); } catch { /* the reader is already gone */ }
-    e.combatMetrics = null;
+  // (fork) a battle's snapshot tagged with its round (the spec's), so the results chart can split a bar by round
+  const readCombat = (e) => {
+    const record = e.combatMetrics();
+    const round = e.spec?.round;
+    return Number.isInteger(round) && round > 0 ? { ...record, round } : record;
   };
-  function setCombatMetrics(on) {
-    if (typeof deps.combatMetrics === 'boolean') return;
-    const next = on === true;
-    if (next === metricsWanted) return;
-    metricsWanted = next;
-    // [ASSUMED] turning the meter on does not backfill a battle already prepared: the hooks would have missed the
-    // damage already dealt. The next prepare attaches. Turning it off detaches at once.
-    if (next) return;
-    for (const e of entries.values()) detachCombat(e);
-    for (const e of pending.values()) detachCombat(e);
-  }
+  // (fork) always on: upstream's opt-in 设置「作战统计」 (setCombatMetrics, deps.combatMetrics) is removed. A Worker host
+  // never attaches: its page battle is wire state.
   /** @type {Map<string, any>} battleId → entry of a b.start still being prepared (prepare(); `battle` null until built) */
   const pending = new Map();
   let cur = null;              // entry on screen
@@ -827,8 +811,8 @@ export function createBattleRunner(deps) {
       e.battle = battle;
       e.meter = e.host.meter;
       // The Worker page holds wire state only (time, ids): no `damaged` hook and no `heal`, so trackCombat cannot
-      // run there. An in-page Battle gets the meter only when 作战统计 is on (default off; a test may pin it).
-      if (metricsEnabled() && !e.host.remote) e.combatMetrics = trackCombat(battle);
+      // run there. (fork) Every in-page Battle gets the meter.
+      if (!e.host.remote) e.combatMetrics = trackCombat(battle);
       e.t0 = clock() - (e.elapsed / e.speed) * 1000;
       if (lastPool) await e.host.syncPool(lastPool.hp, lastPool.acked ? lastPool.acked[e.fieldId] : undefined);
       if (e.endReason) await endBattle(e);
@@ -906,6 +890,16 @@ export function createBattleRunner(deps) {
    * Drop every battle (a new round's prep, the match ended, the player left). Each dropped battle keeps its last
    * combat snapshot in combatHistory for the panel's match totals; `keepMetrics` false (a new match) starts over.
    */
+  /** Every battle of the match so far: the dropped ones' snapshots, then the live ones' newer readings. */
+  function matchRecords() {
+    const records = new Map(combatHistory);
+    for (const e of [...entries.values(), ...pending.values()]) if (e.combatMetrics) {
+      const record = readCombat(e);
+      if (!(records.get(e.battleId)?.seconds > record.seconds)) records.set(e.battleId, record);
+    }
+    return records;
+  }
+
   function clear({ keepMetrics = false } = {}) {
     ++startSeq;
     loading = null;
@@ -976,12 +970,6 @@ export function createBattleRunner(deps) {
     },
     state,
     /**
-     * 设置「作战统计」. Ignored when `deps.combatMetrics` pins the runner. Off detaches meters already attached.
-     * On does not attach to a battle that was prepared while the meter was off.
-     * @param {boolean} on
-     */
-    setCombatMetrics,
-    /**
      * Local-only damage/healing accounting (battle/metrics.js) for the 作战统计 panel: the own current battle
      * (`battle`) or every battle simulated so far in this match (`match`), each restricted to `ownerId` when given.
      * Read on demand by the panel — never sent to the server.
@@ -993,14 +981,17 @@ export function createBattleRunner(deps) {
         // scouting another field must not replace the player's own current battle statistics
         const e = ownerId == null ? cur : localEntries.filter((entry) => entry.members.includes(ownerId))
           .sort((a, b) => b.seq - a.seq)[0];
-        return combineCombat(e?.combatMetrics ? [e.combatMetrics()] : [], ownerId);
+        return combineCombat(e?.combatMetrics ? [readCombat(e)] : [], ownerId);
       }
-      const records = new Map(combatHistory);
-      for (const e of localEntries) if (e.combatMetrics) {
-        const record = e.combatMetrics();
-        if (!(records.get(e.battleId)?.seconds > record.seconds)) records.set(e.battleId, record);
-      }
-      return combineCombat(records.values(), ownerId);
+      return combineCombat(matchRecords().values(), ownerId);
+    },
+    /**
+     * (fork) The match totals as the results chart draws them (battle/metrics.js combineRounds): combatMetrics'
+     * `match` scope, each row with its damage per round (`parts`).
+     * @param {{ ownerId?: string|null }} [opts]
+     */
+    combatRounds({ ownerId = null } = {}) {
+      return combineRounds(matchRecords().values(), ownerId);
     },
     /**
      * The battle on screen as a report attaches it (diag.js): its b.start fields and its game time; null without one.
@@ -1049,37 +1040,6 @@ export function createBattleRunner(deps) {
       const e = cur;
       if (!e || typeof ownerId !== 'string' || !ownerId || (fieldId != null && e.fieldId !== fieldId)) return [];
       return e.host.ownerOps(ownerId);
-    },
-    /**
-     * The damage `ownerId`'s units dealt so far in the battle this client runs for that player (its own field, or the
-     * shared field of a 联防 / boss round: `own` entries, never a watched teammate's replica) — the damage chart
-     * (ui/damageLog.js). Each unit's `stats.dmg` (damage.js: to the other side only); a token carries its summoner's
-     * identity as `by`. null when no such battle is kept.
-     * @param {string} ownerId
-     * @returns {Array<{ kind: string, defId: string, dmg: number, diy?: any, standInFor?: string, by?: any }>|null}
-     */
-    damageUnits(ownerId) {
-      if (typeof ownerId !== 'string' || !ownerId) return null;
-      const who = (u) => {
-        const d = u.def || {};
-        const o = { kind: u.kind === 'token' ? 'token' : 'op', defId: u.kind !== 'token' && typeof d.diyFor === 'string' ? d.diyFor : u.defId };
-        if (u.kind === 'op' && d.diyFor && d.loadout?.diy) o.diy = { ...d.loadout.diy };
-        if (u.kind === 'op' && typeof d.standInFor === 'string' && d.standInFor) o.standInFor = d.standInFor;
-        return o;
-      };
-      let out = null;
-      for (const e of entries.values()) {
-        if (!e.own || !e.battle) continue;
-        const list = Array.isArray(e.battle.allyUnits) ? e.battle.allyUnits : [];
-        for (const u of list) {
-          if (!u || u.ownerId !== ownerId || (u.kind !== 'op' && u.kind !== 'token') || typeof u.defId !== 'string') continue;
-          const row = { ...who(u), dmg: Number(u.stats?.dmg) || 0 };
-          const s = u.kind === 'token' ? u.ownerUnit : null;
-          if (s && s.kind === 'op' && typeof s.defId === 'string') row.by = who(s);
-          (out ||= []).push(row);
-        }
-      }
-      return out;
     },
     /** Re-show the current battle (the game screen remounted). */
     reshow() { if (cur) show(cur); },

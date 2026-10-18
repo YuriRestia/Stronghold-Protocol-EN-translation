@@ -4,7 +4,7 @@
 
 An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal auto-chess tower-defense mode of *Arknights*: play instantly in the browser, solo or 1–4 player online co-op.
 
-![version](https://img.shields.io/badge/version-0.3.0-2ea44f)
+![version](https://img.shields.io/badge/version-0.3.1-2ea44f)
 ![license](https://img.shields.io/badge/code%20license-GPL--3.0--or--later-blue)
 ![node](https://img.shields.io/badge/node-22%20%7C%2024-339933)
 
@@ -37,7 +37,7 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 
 - **Solo Simulation** (single player) and **Team Simulation** (1–4 player **co-op**, no PvP; empty seats can be filled with AI teammates).
 - The server is a single Node.js program. **Combat is simulated in each player's browser** (just like the official game); the server only handles the economy and rounds, so a low-power mini PC can host.
-- Current version 0.3.0: adds a plugin system (cosmetic, data, DSL, script and interface plugins, a browser plugin studio and an install tool); the optional "Official Effects" use the official battle effects extracted from a local client (included in the full bundle); the official scenes are relit following the client's shaders and get their water surfaces; Wooden Burdenbeast of Ilion and 'Sand Voyager' carry passengers; a manual Refresh after Freezing cancels the Freeze; and the bots' formations, purchases and rehearsals are improved — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
+- Current version 0.3.1: Forge workshop pack import is much more complete (theme variables, announcements, behavior switches, new Alliances / Equipment / summons / garrisons and official Operators outside the pool, a panel compatibility layer, effects, outfits), and the plugin studio has visual templates for these new features; Settings adds "Asset storage" (ask the browser to keep the assets, clear old versions' assets); the official effects and animations of Yu, Wild Mane, Muelsyse, Blemishine and other Operators are fixed, and Swire the Elegant Wit's S3 no longer turns off by itself, as in the official game — see [CHANGELOG.en.md](../CHANGELOG.en.md). A few rules are still implemented by inference — please report anything that differs from the official game in an Issue.
 
 ## Features
 
@@ -52,11 +52,11 @@ An **unofficial fan remake** of *Stronghold Protocol: Alliance*, the seasonal au
 - **Terrain and enemies**: Barricades, Ranged Tiles, Originium-flow blowers, swamps, exhaust grilles, rising tides and other terrain devices; aerial and low-hover enemies, Bounty enemies.
 - **Unite**: when someone leaks enemies and a teammate has a perfect battle, the teammate with the perfect battle brings their formation to help intercept the leaked enemies.
 - **Final Assault and Hidden Core**: two players share one battlefield and the whole team whittles down a single Leader HP bar; 10 Enemy Leaders, huge Leaders with a hit area of about 5×3 tiles, and the official damage-cap rules.
-- **Result titles**: 6 titles such as Stronghold Star, Steadfast Alliance and Rock-Solid Defense.
+- **Results**: official-style personal battle report and Alliance result page, Stronghold Certification level (the official 60 levels and the Daily Defense Goal, computed from this device's records); 6 result titles such as Stronghold Star, Steadfast Alliance and Rock-Solid Defense.
 - **Reconnect**: in Team Simulation, reopen the page within 10 minutes of a disconnect to return to your seat — while you are away your formation fights automatically, or you can "Step Away" and hand over to AI Autopilot; a Solo Simulation can be resumed within 24 hours (same browser).
 - **Interaction details**: the top bar marks the LP about to be lost in red with a "−N" as enemies leak (it is only deducted at settlement); selecting, drag-and-drop and assigning Equipment all work by board tile; buying, upgrading and Improv card picks all need two taps to confirm; with only one player, nothing is timed except battles.
 - **Visuals and sound**: real Spine chibis, official BGM and sound effects, emotes (6 sets × 6), battle effects; optional official 3D board (requires textures extracted from a local game client).
-- **Phone and PC**: touch drag, long-press for details, landscape recommended; graphics quality can be lowered in Settings.
+- **Phone and PC**: touch drag, long-press for details, landscape recommended; graphics quality can be lowered in Settings; when a punch-hole, notch or curved edge covers the interface, adjust the four edges with "Screen Fit".
 
 ## Quick start
 
@@ -147,7 +147,7 @@ On Windows, end it with `scripts\start-windows.bat` and run it in Command Prompt
 
 ## Plugins
 
-The 0.3.0 development version supports plugins; without plugins you play the original game.
+Plugins are supported from 0.3.0 on; without plugins you play the original game.
 
 - **Server owners install**: put a plugin folder into the server's `plugins/`, or install one with `node tools/plugin.mjs install <zip path or HTTPS address>`; a remote address needs `--sha256`. The studio can also install from a community catalog and import Forge workshop packs. Server owners can limit the available plugins in `plugins/config.json`.
 - **Hosts turn them on**: in the "Original / Plugins ×N" panel at the top of the room, pick cosmetic or gameplay plugins, change plugin settings and choose the plugin mode. A gameplay plugin's content is downloaded and verified by every player, the room is marked "Unofficial", and the stats overview leaves it out by default.
@@ -216,7 +216,7 @@ Full rules, numbers and tips are in **[docs/PLAYING.en.md](../docs/PLAYING.en.md
 
 ```bash
 npm run dev                 # node --watch: restarts automatically when server code changes
-node --test                 # unit + integration tests (about 3170; cases that need assets / a browser skip themselves)
+npm test                    # unit + integration tests (about 3170; cases that need assets / a browser skip themselves; a bare node --test without files also runs the helper modules and fixtures under test/ as tests)
 SP_E2E=1 node --test test/ui/mock.e2e.test.js        # browser end-to-end tests, need a local Chrome (CHROME_PATH sets the path)
 SP_REAL_E2E=1 node --test test/ui/real.e2e.test.js   # needs Chrome + the downloaded assets
 RENDER_E2E=1 node --test 'test/render/*.browser.test.js'   # rendering tests, some need the locally extracted board textures
@@ -227,7 +227,7 @@ node tools/perfbench.mjs --cpu 1,4,6 --profile             # frame-time benchmar
 - Game data is generated from the official data tables by `npm run build-data` (`tools/build-data.mjs`); do not edit `data/*.json` by hand.
 - Performance testing: `/dev/battle-perf.html` runs a real battle in the browser (the battle runner, simulation and rendering a match uses) and shows the frame rate and per-frame time live; open it on a phone and tap "Start measuring (10 s)", and the report it produces can be copied and attached to feedback. The battles it uses come from data `node tools/capture-specs.mjs` captures from fixed-seed bot matches (`public/dev/perf/`).
 - A commit that only refactors, without changing gameplay, must not change `test/golden/*.json`; when you change gameplay on purpose, run `npm run golden:update`, check the differences, and commit them with the change (see [test/golden/README.md](../test/golden/README.md)).
-- GitHub Actions ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) runs `npm ci`, `node --test` and a server smoke test on Ubuntu and Windows with Node 22 / 24.
+- GitHub Actions ([.github/workflows/ci.yml](../.github/workflows/ci.yml)) runs `npm ci`, `npm test` and a server smoke test on Ubuntu and Windows with Node 22 / 24.
 - For how the code is layered and which file to start from when changing a rule, see [docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md).
 
 ## Project structure
@@ -264,7 +264,7 @@ Thanks to the authors and maintainers of the projects above, and to Hypergryph f
 Issues reporting bugs, differences from the official rules or suggestions for improvement are welcome, as are Pull Requests:
 
 - Setup, running tests, the fidelity principles and the commit conventions are in [CONTRIBUTING.md](../CONTRIBUTING.md).
-- Run `node --test` before submitting and update the related docs; docs are written in Simplified Chinese, code and comments in English.
+- Run `npm test` before submitting and update the related docs; docs are written in Simplified Chinese, code and comments in English.
 - Submitted code will be released under GPL-3.0-or-later.
 - Do not commit any game asset files (`public/assets/` and similar directories are excluded by `.gitignore`).
 - This project is strictly non-commercial: do not submit ads, payments, tips or any other monetization features.

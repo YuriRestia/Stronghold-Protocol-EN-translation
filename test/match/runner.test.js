@@ -30,15 +30,14 @@ function fakeNet() {
   return n;
 }
 
-function rig({ hidden = false, combatMetrics = true, pinMetrics = true, createHost = null } = {}) {
+function rig({ hidden = false, createHost = null } = {}) {
   let t = 1000;
   const frames = [];
   const intervals = [];
   const doc = { hidden, addEventListener() {} };
   const net = fakeNet();
   const store = createStore(initialState);
-  // Existing cases pin the meter on, which is what the PR asserted. pinMetrics false leaves the production default
-  // (off) so a test can drive setCombatMetrics. createHost stands in for a Worker sim.
+  // (fork) the meter is always on (no setting, no pin). createHost stands in for a Worker sim.
   const deps = {
     net, store, doc,
     now: () => t,
@@ -49,7 +48,6 @@ function rig({ hidden = false, combatMetrics = true, pinMetrics = true, createHo
     loadSim: async () => ({ spec: specMod, ds: DS }),
     logger: { error() {}, warn() {}, info() {}, debug() {} },
   };
-  if (pinMetrics) deps.combatMetrics = combatMetrics;
   if (createHost) deps.createHost = createHost;
   const runner = createBattleRunner(deps);
   const feed = { snaps: [], evs: [], fields: [] };
@@ -484,28 +482,25 @@ test('live leaks: a boss field is not counted (the merged team LP moves through 
   r2.runner.dispose();
 });
 
-test('damage chart: damageUnits(ownerId) reads every own unit\'s stats.dmg of the battles this client runs; tokens name their summoner', async () => {
+test('(fork) results chart: combatRounds tags each battle with its spec round and splits each row\'s damage by round', async () => {
   const start = realStart(7305);
   const r = rig();
   r.net.emit('b.start', start);
   await r.settle();
   const e = r.runner._entries.get(start.battleId);
   for (let i = 0; i < 80 && !e.battle.allyUnits.some((u) => u.stats.dmg > 0); i++) r.advance(500, 50);
-  const ally = e.battle.allyUnits.find((u) => u.kind === 'op' && u.stats.dmg > 0);
-  assert.ok(ally, 'an operator that dealt damage');
-  const mine = e.battle.allyUnits.filter((u) => u.ownerId === ally.ownerId && (u.kind === 'op' || u.kind === 'token'));
-  const got = r.runner.damageUnits(ally.ownerId);
-  assert.equal(got.length, mine.length);
-  assert.equal(got.reduce((s, u) => s + u.dmg, 0), mine.reduce((s, u) => s + u.stats.dmg, 0));
-  assert.ok(got.some((u) => u.kind === 'op' && u.defId === ally.defId && u.dmg === ally.stats.dmg));
-  for (const u of got) if (u.kind === 'token' && u.by) assert.equal(u.by.kind, 'op');
-  assert.equal(r.runner.damageUnits('someone_else'), null);
-  // a watched teammate's replica is not the player's own battle
-  e.own = false;
-  assert.equal(r.runner.damageUnits(ally.ownerId), null);
-  e.own = true;
-  r.runner.clear();
-  assert.equal(r.runner.damageUnits(ally.ownerId), null, 'dropped with the battle');
+  const round = start.spec.round;
+  assert.ok(Number.isInteger(round) && round > 0, 'the fixture battle has a round');
+  const got = r.runner.combatRounds();
+  const total = r.runner.combatMetrics();
+  assert.ok(got.damage > 0 && Math.abs(got.damage - total.damage) < 1e-6, 'the same totals as the match scope');
+  for (const row of got.rows) {
+    const sum = row.parts.reduce((n, p) => n + p.damage, 0);
+    assert.ok(Math.abs(sum - row.damage) < 1e-6, `${row.key}: its rounds add up`);
+    for (const p of row.parts) assert.equal(p.round, round);
+  }
+  assert.equal(r.runner.combatRounds({ ownerId: 'someone_else' }).rows.length, 0);
+  r.runner.dispose();
 });
 
 test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle on screen — the sim\'s last computed stats, never unit.s (no recompute from the UI)', async () => {
@@ -570,58 +565,30 @@ test('live unit stats (user playtest #4 item 7): unitStats(id) reads the battle 
   r.runner.dispose();
 });
 
-test('the combat meter stays off unless the setting asks, and turning it off detaches it', async () => {
+test('(fork) the combat meter attaches to every in-page battle (no setting) and never reaches the network', async () => {
   const start = realStart(7312);
-  const off = rig({ pinMetrics: false });
-  const on = rig();
-  off.net.emit('b.start', start);
-  on.net.emit('b.start', start);
-  await off.settle();
-  await on.settle();
-  const eOff = off.runner._entries.get(start.battleId);
-  const eOn = on.runner._entries.get(start.battleId);
-  assert.equal(eOff.combatMetrics, null, 'default off does not attach');
-  assert.equal(typeof eOn.combatMetrics, 'function');
-  assert.equal(eOff.battle._hooks.damaged.length + 1, eOn.battle._hooks.damaged.length, 'no damaged hook when the meter is off');
-  assert.equal(Object.prototype.hasOwnProperty.call(eOff.battle, 'heal'), false, 'heal is not wrapped when the meter is off');
-  off.advance(1000);
-  assert.equal(off.runner.combatMetrics().rows.length, 0);
-  // turning it on does not backfill the battle already prepared
-  off.runner.setCombatMetrics(true);
-  off.advance(500);
-  assert.equal(eOff.combatMetrics, null, 'a battle prepared while the meter was off is not backfilled');
-  const next = {
-    ...start,
-    battleId: `${String(start.battleId).slice(0, 58)}-m2`,
-    fieldId: `${String(start.fieldId).slice(0, 28)}-m2`,
-  };
-  await off.runner.onStart(next);
-  const eNext = off.runner._entries.get(next.battleId);
-  assert.equal(typeof eNext.combatMetrics, 'function', 'the next battle prepared after the switch is tracked');
+  const r = rig();
+  r.net.emit('b.start', start);
+  await r.settle();
+  const e = r.runner._entries.get(start.battleId);
+  assert.equal(typeof e.combatMetrics, 'function', 'attached without any setting');
+  assert.equal(r.runner.setCombatMetrics, undefined, 'the opt-in switch is gone');
   let live = 0;
-  for (let i = 0; i < 40 && live <= 0 && !eNext.battle.finished; i++) {
-    off.advance(500, 50);
-    live = (eNext.battle.allyUnits || []).reduce((n, u) => n + (u.stats?.dmg || 0), 0);
+  for (let i = 0; i < 40 && live <= 0 && !e.battle.finished; i++) {
+    r.advance(500, 50);
+    live = (e.battle.allyUnits || []).reduce((n, u) => n + (u.stats?.dmg || 0), 0);
   }
-  const seen = off.runner.combatMetrics().damage;
-  assert.ok(live > 0, `operators dealt no damage by t=${eNext.battle.time}`);
+  const seen = r.runner.combatMetrics().damage;
+  assert.ok(live > 0, `operators dealt no damage by t=${e.battle.time}`);
   assert.ok(Math.abs(seen - live) < 1e-6, `meter ${seen} vs sim ${live}`);
-  const hooks = eNext.battle._hooks.damaged.length;
-  off.runner.setCombatMetrics(false);
-  assert.equal(eNext.combatMetrics, null);
-  assert.equal(eNext.battle._hooks.damaged.length, hooks - 1, 'turning the meter off removes its damaged hook');
-  assert.equal(Object.prototype.hasOwnProperty.call(eNext.battle, 'heal'), false, 'heal is restored');
-  off.advance(2000, 50);
-  assert.equal(off.runner.combatMetrics().damage, seen, 'damage stops accumulating once the meter is off');
-  for (const msg of on.net.sent) {
+  for (const msg of r.net.sent) {
     assert.equal(msg.rows, undefined);
     assert.equal(msg.combatMetrics, undefined);
   }
-  off.runner.dispose();
-  on.runner.dispose();
+  r.runner.dispose();
 });
 
-test('a Worker host never attaches the combat meter, even when the setting is on', async () => {
+test('a Worker host never attaches the combat meter', async () => {
   let hooked = 0;
   const battle = {
     finished: true, time: 0, tickCount: 0, leakedCount: 0, flags: {}, allyUnits: [],
@@ -663,19 +630,16 @@ test('a Worker host never attaches the combat meter, even when the setting is on
   r.runner.dispose();
 });
 
-// (fork) upstream's 作战统计 panel and its setting are left out (the fork's damage meter, ui/damageChart.js, is the one
-// meter): the stored setting stays off and harmless, the interface plugins' hud.right slot stays
-test('作战统计 stays off (no settings row, no panel); the hud.right plugin slot and the diagnostics line remain', () => {
+test('(fork) 作战统计 has no setting (always on): no settings row or key, the panel shown; the hud.right plugin slot remains', () => {
   const settings = readFileSync(new URL('../../public/js/ui/settings.js', import.meta.url), 'utf8');
   const game = readFileSync(new URL('../../public/js/screens/game.js', import.meta.url), 'utf8');
   const logic = readFileSync(new URL('../../public/js/ui/gameLogic/settings.js', import.meta.url), 'utf8');
-  assert.match(logic, /combatMetrics: false/);
+  assert.doesNotMatch(logic, /combatMetrics: (false|typeof)/);
   assert.doesNotMatch(settings, /t\('作战统计'\)/);
-  assert.doesNotMatch(game, /CombatMetricsPanel/);
-  assert.match(game, /DamageButton/);
+  assert.match(game, /CombatMetricsPanel/);
+  assert.doesNotMatch(game, /DamageButton|metricsSetting/);
   assert.match(game, /data-ui-slot="hud\.right"/);
   const state = { me: {}, room: null, match: { public: null, battle: null }, connection: { status: 'online' } };
   const line = (s) => buildDiagnostics({ state, env: {}, settings: s }).split('\n').find((l) => l.startsWith('settings:'));
-  assert.equal(line({ quality: 'high', damageNumbers: true, combatMetrics: true }), 'settings: quality high | damage numbers | combat metrics');
-  assert.equal(line({ quality: 'high', damageNumbers: true, combatMetrics: false }), 'settings: quality high | damage numbers');
+  assert.equal(line({ quality: 'high', damageNumbers: true, combatMetrics: true }), 'settings: quality high | damage numbers', 'an old stored key is not reported');
 });

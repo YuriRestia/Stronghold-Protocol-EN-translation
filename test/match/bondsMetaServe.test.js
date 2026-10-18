@@ -19,7 +19,7 @@ test('/match/bondsMeta.js serves server/match/bondsMeta.js and nothing else of s
   const body = await r.text();
   assert.equal(body, fs.readFileSync(new URL('../../server/match/bondsMeta.js', import.meta.url), 'utf8'));
   const imports = [...body.matchAll(/^import .* from '([^']+)';$/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['../../shared/constants.js'], 'browser-loadable: shared/ imports only');
+  assert.ok(imports.length && imports.every((p) => p.startsWith('../../shared/')), `browser-loadable: shared/ imports only (${imports})`);
   assert.equal((await get('/match/bondsMeta.js', { 'if-none-match': r.headers.get('etag') })).status, 304);
   for (const p of ['/match/Match.js', '/match/gamedata.js', '/match/', '/match', '/match/bondsMeta.js/', '/match/BONDSMETA.JS', '/match/../index.js']) {
     const x = await get(p);

@@ -11,6 +11,16 @@ function operatorOf(source) {
   return source?.side === 'ally' && source.ownerId != null && (source.kind === 'op' || source.kind === 'token') ? source : null;
 }
 
+/** (fork) A 自选 pick / 补位 stand-in's card identity, so the results chart draws the operator it plays as. */
+function cardIdentity(u) {
+  const d = u.def || {};
+  const o = {};
+  if (u.kind === 'op' && typeof d.diyFor === 'string' && d.diyFor) o.diyFor = d.diyFor;
+  if (u.kind === 'op' && d.diyFor && d.loadout?.diy) o.diy = { ...d.loadout.diy };
+  if (u.kind === 'op' && typeof d.standInFor === 'string' && d.standInFor) o.standInFor = d.standInFor;
+  return o;
+}
+
 /** Attach before the first tick, including silent catch-up. The simulation's own counters define effective HP loss. */
 export function trackCombat(battle) {
   const rows = new Map();
@@ -21,7 +31,7 @@ export function trackCombat(battle) {
     if (!u) return null;
     const key = JSON.stringify([u.ownerId, u.uid != null ? `uid:${u.uid}` : `unit:${u.id}:${u.defId}`]);
     if (!rows.has(key)) rows.set(key, {
-      key, ownerId: u.ownerId, uid: u.uid, defId: u.defId, name: u.name, kind: u.kind,
+      key, ownerId: u.ownerId, uid: u.uid, defId: u.defId, name: u.name, kind: u.kind, ...cardIdentity(u),
       damage: 0, healing: 0, types: Object.fromEntries(DAMAGE_TYPES.map((t) => [t, 0])),
     });
     return rows.get(key);
@@ -101,4 +111,29 @@ export function combineCombat(records, ownerId = null) {
     return { ...r, seconds, dps: seconds > 0 ? r.damage / seconds : 0, hps: seconds > 0 ? r.healing / seconds : 0 };
   }).sort((a, b) => b.damage - a.damage || b.healing - a.healing || a.key.localeCompare(b.key));
   return { rows: list, damage: list.reduce((n, r) => n + r.damage, 0), healing: list.reduce((n, r) => n + r.healing, 0) };
+}
+
+/**
+ * (fork) The results chart (ui/combatSummary.js CombatSummary): the match totals of combineCombat, each row with
+ * `parts` — its damage per round, round order, rounds without damage left out. A record's round is `record.round`
+ * (battle/runner.js tags it from the battle's spec); records without one only count toward the totals.
+ */
+export function combineRounds(records, ownerId = null) {
+  const list = [...records];
+  const total = combineCombat(list, ownerId);
+  const byRound = new Map();
+  for (const record of list) {
+    if (!Number.isInteger(record.round)) continue;
+    if (!byRound.has(record.round)) byRound.set(record.round, []);
+    byRound.get(record.round).push(record);
+  }
+  const parts = new Map();
+  for (const round of [...byRound.keys()].sort((a, b) => a - b)) {
+    for (const r of combineCombat(byRound.get(round), ownerId).rows) {
+      if (!(r.damage > 0)) continue;
+      if (!parts.has(r.key)) parts.set(r.key, []);
+      parts.get(r.key).push({ round, damage: r.damage });
+    }
+  }
+  return { ...total, rows: total.rows.map((r) => ({ ...r, parts: parts.get(r.key) || [] })) };
 }

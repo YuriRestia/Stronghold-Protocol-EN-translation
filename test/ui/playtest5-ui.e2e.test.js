@@ -184,8 +184,8 @@ describe('user playtest #5 — UI items 8 / 9 (mock harness, headless Chrome)', 
     const { GLYPHS } = await import('../../public/js/ui/gameComponents.js');
     for (const [name, w, h, touch] of [view('844x390'), view('756x366'), view('1920x1080')]) {
       const { page, problems } = await open('phase=PREP', { w, h, touch });
-      // (fork) not the 伤害统计 chart button the fork adds to the corner (ui/damageChart.js): the three of upstream's
-      const r = await page.evaluate(() => [...document.querySelectorAll('.gm__corner .gm__gear:not(.dmgbtn__btn)')].map((b) => {
+      // (fork) not the 作战统计 button the fork always shows in the corner (ui/combatMetrics.js): the three of upstream's
+      const r = await page.evaluate(() => [...document.querySelectorAll('.gm__corner .gm__gear:not(.gm__metrics)')].map((b) => {
         const svg = b.querySelector('svg.icon');
         const s = svg.getBoundingClientRect(), br = b.getBoundingClientRect();
         return { cls: b.className, w: s.width, h: s.height, bw: br.width, d: svg.querySelector('path')?.getAttribute('d') };

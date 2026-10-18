@@ -2,13 +2,6 @@
 import { InPageSimHost } from './simHost.js';
 import { genUrl } from '../gen.js'; // (fork) this worker's server generation
 
-/** (fork) A unit as runner.damageUnits reads it (kind, defId, stats.dmg, def.diyFor / loadout.diy / standInFor). */
-function damageView(u) {
-  const d = u.def || {};
-  return { kind: u.kind, defId: u.defId, stats: { dmg: Number(u.stats?.dmg) || 0 },
-    def: { diyFor: d.diyFor, standInFor: d.standInFor, loadout: d.loadout?.diy ? { diy: { ...d.loadout.diy } } : undefined } };
-}
-
 export function createSimWorker({ loadSim, prepareScripts = browserScripts } = {}) {
   const host = new InPageSimHost(loadSim ? { loadSim } : {});
   let loaded = false;
@@ -23,10 +16,7 @@ export function createSimWorker({ loadSim, prepareScripts = browserScripts } = {
         leakedCount: b.leakedCount, flags: b.flags,
         // A length marker, not enemy objects; runner's uniteLeftMark uses it.
         enemies: Array(b.enemies?.length || 0).fill(null),
-        // (fork) + what the damage chart reads (runner.damageUnits, ui/damageLog.js): kind, defId, the damage dealt, the
-        // 自选 / 补位 identity and a token's summoner — display only, so a plugin room's chart works too
-        allyUnits: (b.allyUnits || []).map(u => ({ id: u.id, uid: u.uid, ownerId: u.ownerId, ...damageView(u),
-          ...(u.kind === 'token' && u.ownerUnit ? { ownerUnit: damageView(u.ownerUnit) } : {}) })),
+        allyUnits: (b.allyUnits || []).map(u => ({ id: u.id, uid: u.uid, ownerId: u.ownerId })),
         sharedBoss: b.sharedBoss ? { cum: b.sharedBoss.cum, byPlayer: { ...b.sharedBoss.byPlayer } } : null },
       meta: b.fieldMeta(), players: Object.fromEntries(pids.map(id => [id, { bonds: b.getPlayer(id)?.bonds }])),
       ops: Object.fromEntries(pids.map(id => [id, host.ownerOps(id)])), meter: { lp: host.meter.lp },

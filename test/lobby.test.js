@@ -658,26 +658,22 @@ describe('websocket lobby', () => {
     assert.ok(c.isOpen);
   });
 
-  test('flooding far beyond the limit closes the socket (1008)', { timeout: 10000 }, async (t) => {
+  test('flooding far beyond the limit closes the socket (1008)', { timeout: 60000 }, async (t) => {
     const now = Date.now();
     t.mock.method(srv.network, 'now', () => now);
     const c = await pool.player('Flood');
-    // bursts until the server closes it: the close needs more than abuseDropsPerSec drops inside one 1 s window, and on
-    // a heavily loaded machine a single burst of 600 can be read over more than a second — the old single burst then
-    // never closed the socket and `await c.closed` (no timeout) hung the whole file
-    // and with no more than ~1 MB queued on the client at a time: the close handshake (the client's close frame) sits
-    // behind whatever the client has queued, which the server no longer reads once it closes — on Windows CI the 'close'
-    // event then waited for ws's 30 s close timeout, past the old 10 s wait
-    // (upstream 0.3.0) a full window of drops is not abuse yet: 39 pongs, then 400 RATE refusals, and the socket stays open
-    for (let i = 0; i < 39; i++) assert.equal((await c.request({ t: 'ping', c: i })).t, 'pong');
-    for (let i = 0; i < 400; i++) await expectError(c, { t: 'ping', c: i }, ERR.RATE);
-    assert.ok(c.isOpen, '400 drops do not close the socket');
-    const t0 = Date.now();
-    while (c.isOpen && Date.now() - t0 < 20000) {
-      if (c.ws.bufferedAmount < 1 << 20) for (let i = 0; i < 600 && c.isOpen; i++) c.send({ t: 'ping', c: i, rid: null });
-      await delay(50);
+    // Keep one rate window and await replies instead of building a compressed send queue ahead of the close frame.
+    // A slow runner (Windows, Node 24) took more than the client's 2 s default for one of the ~430 round trips, so each
+    // waits up to 10 s; and the drops stop short of the 400 budget so a frame more or less cannot move the boundary.
+    for (let i = 0; i < 39; i++) assert.equal((await c.request({ t: 'ping', c: i }, 10_000)).t, 'pong');
+    for (let i = 0; i < 390; i++) {
+      const r = await c.request({ t: 'ping', c: i }, 10_000);
+      assert.equal(r.t, 'error'); assert.equal(r.code, ERR.RATE);
     }
-    const info = await Promise.race([c.closed, delay(35000).then(() => null)]); // ws closes by itself after 30 s at worst
+    assert.ok(c.isOpen, '390 drops do not close the socket');
+    // past the budget (400 drops a second) the server closes the socket instead of answering
+    for (let i = 0; i < 40 && c.isOpen; i++) c.send({ t: 'ping', c: 400 + i, rid: null });
+    const info = await Promise.race([c.closed, delay(35000).then(() => null)]); // (fork) never hang the file: ws closes by itself after 30 s at worst
     assert.ok(info, 'the server closed the flooding socket');
     assert.equal(info.code, 1008);
     assert.equal(info.reason, 'rate limit');
@@ -1118,7 +1114,7 @@ describe('websocket lobby', () => {
     const clients = [];
     for (let i = 0; i < 5; i++) clients.push(await pool.player(`F${i}`));
     const codes = () => [...srv.lobby.rooms.keys()];
-    const gTypes = ['g.infoReady', 'g.band', 'g.bandSkip', 'g.buy', 'g.refresh', 'g.freeze', 'g.levelUp', 'g.sell', 'g.move', 'g.equip', 'g.art', 'g.destroy', 'g.reward', 'g.choice', 'g.ready', 'g.emote', 'g.watch', 'g.autoplay', 'g.leave'];
+    const gTypes = ['g.infoReady', 'g.band', 'g.bandSkip', 'g.buy', 'g.refresh', 'g.freeze', 'g.levelUp', 'g.sell', 'g.move', 'g.equip', 'g.unequip', 'g.art', 'g.destroy', 'g.reward', 'g.choice', 'g.ready', 'g.emote', 'g.watch', 'g.autoplay', 'g.leave'];
     const junk = [1, -1, 1.5, 'x', '', null, true, [], {}, { area: 'board', row: 1, col: 1 }, 'A'.repeat(70), 2 ** 40];
     const gen = () => {
       const r = rnd();

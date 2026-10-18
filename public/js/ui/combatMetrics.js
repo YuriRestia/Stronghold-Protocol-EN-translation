@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks
 import { html, Icon, useTicker } from './components.js';
 import { UnitThumb } from './gameComponents.js';
 import { battleRunner } from '../battle/runner.js';
-import { t, N_ } from '../../../shared/i18n.js';
+import { t, tName, N_ } from '../../../shared/i18n.js';
 import { combatMetricsLayout } from './combatMetricsLayout.js';
 
 const TYPES = Object.freeze([
@@ -93,7 +93,7 @@ export function CombatMetricsPanel({ myId, onClose, runner = battleRunner }) {
           <span class="combat-metrics__rank">${String(i + 1).padStart(2, '0')}</span>
           <${UnitThumb} kind=${r.kind === 'token' ? 'token' : 'chess'} id=${r.defId} showTier=${false} size="sm" />
           <div class="combat-metrics__unit">
-            <div class="combat-metrics__name"><b title=${r.name}>${r.name || r.defId}</b></div>
+            <div class="combat-metrics__name"><b title=${tName(r.name)}>${tName(r.name) || r.defId}</b></div>
             <div class="combat-metrics__bar" role="img" aria-label=${description} title=${description}>
               ${TYPES.map((t) => html`<span key=${t.id} class=${`combat-metrics__segment combat-metrics__segment--${t.id}`}
                 style=${{ width: `${r.types[t.id] / maximum * 100}%` }}></span>`)}

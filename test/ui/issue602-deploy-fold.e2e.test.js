@@ -35,7 +35,7 @@ describe('the shop folds while deploying a piece and restores afterwards (#602)'
 
   /** Open the mock PREP match with a free deploy slot (one board operator sold, like facing.e2e.test.js). */
   async function openPage(viewport) {
-    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
+    const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); if (localStorage.getItem('sp.pref.settings') == null) localStorage.setItem('sp.pref.settings', JSON.stringify({ prepDeployFold: true })); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids; the fork's deploy fold defaults off
     if (viewport) await page.setViewport(viewport);
     const problems = [];
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));

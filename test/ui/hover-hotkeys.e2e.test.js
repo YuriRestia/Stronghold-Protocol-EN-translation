@@ -120,7 +120,7 @@ describe('hovered operator shortcuts', { skip: !ENABLED && 'set SP_E2E=1 and CHR
       await page.evaluate(() => window.dispatchEvent(new PointerEvent('pointermove', { pointerType: 'touch', clientX: 100, clientY: 100 })));
       await inert('a touch pointer cannot supply a hover target');
 
-      await page.click('.gm__gear:not(.dmgbtn__btn)');
+      await page.click('.gm__gear:not(.gm__metrics)');
       await page.waitForSelector('.modal .set-keys');
       await page.mouse.move(selectedPoint.x, selectedPoint.y);
       await inert('a dialog blocks hovered shortcuts');

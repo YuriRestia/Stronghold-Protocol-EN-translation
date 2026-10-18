@@ -145,6 +145,7 @@ function Overview({ agg, gd, nickname, records }) {
   const gems = records.filter((r) => r.altArt).length; // (fork) records with the alternate result background
   return html`<${Section} title=${t('总览')} micro="OVERVIEW">
     <${ModdedSwitch} agg=${agg} />
+    ${agg.test > 0 ? html`<p class="t-dim" data-testid="stats-test-excluded">${t('测试对局不计入统计。')}</p>` : null}
     ${fonts ? html`<link rel="stylesheet" href=${fonts} />` : null}
     <div class="st-overview-details">
       <div class="st-mode-summary">
