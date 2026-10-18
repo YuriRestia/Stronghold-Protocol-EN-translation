@@ -277,6 +277,13 @@ preparation views: tapping one opens its existing operator-style detail card and
 its board-space position and facing, including on a mirrored boss half. They cannot be dragged, sold or retreated
 from this preview. The inspection affordance does not make the preview a combat unit; the battle sim still creates
 the selected variant at battle start (§30.22).
+(fork) An operator card whose selected skill changes the attack range has 普通 / 技能 buttons under its 攻击范围
+title (`ui/rangePreview.js`, pref `rangePreview`, kept across cards): on 技能, the mini-map and the field overlay show the
+range while the skill runs. The box is sized for the larger of the two maps, so nothing moves on a switch. Battle cards and the dev sandbox read the sim's `unitStatsEntry.skillRange`
+(Battle._refreshRange `skillRangeGrid`: the kit's targeting, 攻击距离 included); prep, shop and 干员调配 cards read the
+record (`shared/loadoutRecord.js skillAttackRangeGrid`, build-data's `skill.activeRange` / `activeExtend`). Without a
+range change (or with a grid that only selects targets, `showOwnRange`) there are no buttons. [ASSUMED] A range only a
+kit knows (远牙 S3's line, 纯烬艾雅法拉 S3's whole field) shows from battle data only.
 
 Audio: autochess BGM per phase, UI SFX (buy/sell/refresh/level/merge/ready/timer), a prep piece's landing sound (its battle deploy sound, once per landing, in landing voices of its own that take over the oldest, §31.8), per-unit attack/hit SFX (throttled; an impact plays for a hostile attack's phys / arts / true damage only, never an operator's skill-mode file for a normal attack; each bank's own instance limit, pitch and delay — §34.25; a skill cue that reaches the client before its unit — the sim emits a deploy-tick cast ahead of the unit's `['spawn']` — is held and sounds once when the unit is tracked, `AudioManager.pendingSkill`, GitHub PR #292 by @LimitlessHPPK; entering a field late hands the sound the buffered `spawn` tuples only, `screens/game/early.js audioEarly`, so no old death, deploy or cast replays), boss music in R14/15. While the music is silent — muted, or the BGM volume at 0 — no BGM is downloaded: the track the screen wants is remembered, a different one still playing stops, and the wanted track is fetched once the music is audible again (`AudioManager.bgmSilent`; about 14 MB a match for a player who turned the music off).
 
@@ -451,6 +458,19 @@ Attack / hit playback follows `excel/audio_data.json soundFXBanks` (§34.25, Git
 `audio.sfx.pools` retains each selected bank's `maxSoundAllowed` / `popOldest` and each candidate file's
 `minPitch` / `maxPitch` / `delay` (seconds). Unit `pools` and per-skill `attackPools` / `hitPools` identify the bank.
 A full pool with `popOldest: true` stops its oldest instance for the new one; otherwise the new sound is dropped.
+(fork) The mix is the client's own MainMixer (`public/js/audioMixer.js`, read from the CN client's
+`sharedassets1.assets`, Default snapshot): its group tree with each group's volume, the compressors on
+FX_Battle_Normal (−10.1 dB) and Battle_Skill_Important (−1.1 dB), and FX_Battle_Normal's duck under the Voice group
+(threshold −16.5 dB, ratio 2.58). Every sound plays at its bank's volume into the group its bank names
+(`customMixerGroup`: `pools[id].group`, `units[id].groups` / `skillGroups`, `sfx.groups`); a bank without one plays on
+UI (an interface sound) or FX_Battle_Normal (a battle sound) [ASSUMED]. The settings sliders drive the three
+`~…_VolumeControl` groups. [ASSUMED] The compressors' ratio (4, hard knee: Unity exposes none) and the duck's sidechain
+mix applied as a scale of its reduction. A 3D bank (its sounds `is2D: false`, `pools[id].spatial`) plays at the client's
+spatialBlend 1, whose distance rolloff (linear 1–500 from the camera) is negligible; [ASSUMED] Unity's pan of a centred
+3D source costs a mono clip 3 dB (constant-power law), so those clips play 3 dB lower (`MONO_3D_DB`). (fork, a
+deliberate deviation) While a song plays (the Fever song; a singing skill, `SONG_SKILLS` in audio.js: 浊心斯卡蒂, 魔王) the
+song plays 3 dB louder and FX_Battle_Normal / FX_Battle_SAtk / FX_Battle_Boss 3 dB lower (`SONG_DUCK`). Left out: the snapshots (none is used by this mode), the underwater bus and the
+gacha pad's duck on Music. Under the Fever song the round's track fades out over 2 s (`duckings` fever_full, fadeTime 2).
 (fork) 丰川祥子's skill stings (`stings[skillIndex]`) play on a cast whose `['skill', id, 1, cue]` carries a cue (the
 kit decides, following the client's buff graphs): one clip drawn by its bank's weights, decoded ahead when she is
 tracked and played on its own voices (the banks are `important` on their own mixer group: the battle limiter's

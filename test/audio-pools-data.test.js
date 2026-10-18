@@ -54,8 +54,9 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   }
   // (fork) + 2 each for 丰川祥子 (char_4182_oblvns): her swing and S3 volley pools (tools/assets/plan.mjs NOTE_SFX_CHARS)
   assert.equal(refs, 954); // 0.3.1 release fetch-assets: + 琳琅诗怀雅 S3, 刻俄柏, 风丸 attacks and 松果's hit (their official pools)
-  // + the four pools above; (fork) + 3: 丰川祥子's S1 / S2 / S3 sting banks (plan.mjs STING_BANKS)
-  assert.equal(Object.keys(pools).length, 946);
+  // + the four pools above; (fork) + 3: 丰川祥子's S1 / S2 / S3 sting banks (plan.mjs STING_BANKS); + 12: her note
+  // born / hit banks (plan.mjs NOTE_SFX_LOOKS: 5 born + 7 hit; attack and S1 have no born bank)
+  assert.equal(Object.keys(pools).length, 958);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });

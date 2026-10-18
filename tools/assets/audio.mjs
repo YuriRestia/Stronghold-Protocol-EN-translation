@@ -72,7 +72,12 @@ export function bankPool(bank) {
     if (!path || sounds[path]) continue;
     sounds[path] = { minPitch: s.minPitch ?? 1, maxPitch: s.maxPitch ?? 1, delay: s.delay ?? 0 };
   }
-  return { id: bank.name, maxSoundAllowed: bank.maxSoundAllowed ?? 2, popOldest: bank.popOldest ?? false, sounds };
+  // (fork) the bank's official mixer group (public/js/audioMixer.js), when it names one
+  const group = typeof bank.customMixerGroup === 'string' && bank.customMixerGroup ? { group: bank.customMixerGroup } : {};
+  // (fork) a 3D bank (its sounds `is2D: false`; no official bank mixes 2D and 3D sounds): the client pans it in the
+  // field, so a mono clip plays below a 2D one (audioMixer.js MONO_3D_DB)
+  const spatial = (bank.sounds || []).some((s) => s?.is2D === false) ? { spatial: true } : {};
+  return { id: bank.name, maxSoundAllowed: bank.maxSoundAllowed ?? 2, popOldest: bank.popOldest ?? false, ...group, ...spatial, sounds };
 }
 
 /**
@@ -82,7 +87,8 @@ export function bankPool(bank) {
  *   unitBanks: Map<string, Map<string, string[]>>, skillBanks: Map<string, Map<string,string[]>>,
  *   mixOf: (paths: string[]|null|undefined) => ({ p?: number, vol?: number }|null),
  *   poolOf: (paths: string[]|null|undefined) => (ReturnType<typeof bankPool>|null),
- *   weightsOf: (paths: string[]|null|undefined) => (number[]|null) }}
+ *   weightsOf: (paths: string[]|null|undefined) => (number[]|null),
+ *   groupOf: (paths: string[]|null|undefined) => (string|null) }}
  */
 export function indexAudio(audioData) {
   const banks = new Map();
@@ -146,7 +152,9 @@ export function indexAudio(audioData) {
   const mixOf = (paths) => (paths && typeof paths === 'object' && mixes.get(paths)) || null;
   const poolOf = (paths) => (paths && typeof paths === 'object' && pools.get(paths)) || null;
   const weightsOf = (paths) => (paths && typeof paths === 'object' && weights.get(paths)) || null;
-  return { bank, bgm, unitBanks, skillBanks, mixOf, poolOf, weightsOf };
+  // (fork) a bank's official mixer group (customMixerGroup), or null
+  const groupOf = (paths) => poolOf(paths)?.group ?? null;
+  return { bank, bgm, unitBanks, skillBanks, mixOf, poolOf, weightsOf, groupOf };
 }
 
 /** Sort key for ability sub-keys: plain first, then numeric suffixes ascending. */
@@ -558,13 +566,16 @@ export const UI_SFX = Object.freeze({
 });
 
 /** In-battle generic SFX: name → { bank } or { path }. */
+// (fork) `group` on a fixed path: the mixer group of the bank the client plays that file from (public/js/audioMixer.js):
+// ON_UNIT_BORN.char / .token and ON_UNIT_DEAD.char = Battle_UI_Important; e_imp_general_w's 50 banks and most of
+// b_enemy_dead_n's = Battle_E_NImp (its generic ON_UNIT_DEAD.enemy names none). win / lose: no group (the default).
 export const BATTLE_SFX = Object.freeze({
-  deploy: { path: 'battle/b_char/b_char_set.mp3' },
-  tokenDeploy: { path: 'battle/b_char/b_char_tokenset.mp3' },
-  charDie: { path: 'battle/b_char/b_char_dead.mp3' },
-  enemyDie: { path: 'battle/b_enemy/b_enemy_dead_n.mp3' },
-  enemyDieHeavy: { path: 'battle/b_enemy/b_enemy_dead_h.mp3' },
-  enemyHit: { path: 'enemy/e_imp/e_imp_general_w.mp3' },
+  deploy: { path: 'battle/b_char/b_char_set.mp3', group: 'Battle_UI_Important' },
+  tokenDeploy: { path: 'battle/b_char/b_char_tokenset.mp3', group: 'Battle_UI_Important' },
+  charDie: { path: 'battle/b_char/b_char_dead.mp3', group: 'Battle_UI_Important' },
+  enemyDie: { path: 'battle/b_enemy/b_enemy_dead_n.mp3', group: 'Battle_E_NImp' },
+  enemyDieHeavy: { path: 'battle/b_enemy/b_enemy_dead_h.mp3', group: 'Battle_E_NImp' },
+  enemyHit: { path: 'enemy/e_imp/e_imp_general_w.mp3', group: 'Battle_E_NImp' },
   heal: { bank: 'battle.ON_MODIFIER_HEAL' },
   // 漏怪: an enemy reached the exit. This is the ORIGINAL Arknights stage cue (`battle.ON_ENEMY_REACHED_EXIT` ->
   // `Battle/b_ui/b_ui_alarmenter`), not an autochess one — the mode itself has no bank named for an escape (all 13,948

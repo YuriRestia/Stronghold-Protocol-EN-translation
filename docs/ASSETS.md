@@ -469,15 +469,22 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 attackMix?: {[skillIndex]: {p?, vol?}}, hitMix?: {[skillIndex]: {p?, vol?}},
                 mix?: { [attack|hit|die|born]: { p?, vol? } },
                 pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId},
-                stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url }} } },  // (fork) 丰川祥子's skill stings
-      pools: { [bankId]: { maxSoundAllowed, popOldest,
-                sounds: { [pathUnderSoundBeta2]: { minPitch, maxPitch, delay } } } }
+                groups?: { [skill|die|born]: mixerGroup }, skillGroups?: {[skillIndex]: mixerGroup},  // (fork) mixer groups
+                stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url, loopGroup?: mixerGroup }},  // (fork) 丰川祥子's skill stings
+                notes?: {[look]: { born?: url, bornPool?: bankId, hit?: url, hitPool?: bankId }} } },  // (fork) her per-note sounds
+      pools: { [bankId]: { maxSoundAllowed, popOldest, group?: mixerGroup,
+                spatial?: true,  // (fork) a 3D bank (audio_data sounds is2D: false): its mono clips play 3 dB lower
+                sounds: { [pathUnderSoundBeta2]: { minPitch, maxPitch, delay } } } },
+      groups: { ui: { [name]: mixerGroup }, battle: { [name]: mixerGroup } }  // (fork) the sfx.ui / sfx.battle sounds' groups
     }
   },
   // units' mix (tools/assets/audio.mjs bankMix; community report #30): the official bank of a role's sound — `p` = the weight
   // of its sounds that have a file over all weights (an empty asset is a chance of silence: 猎狗pro / 深池侦察犬 0.2), `vol` =
   // the played file's volume (妖怪 0.7); only values other than 1. public/js/audio.js plays the role with chance p at its
   // base gain × min(1, vol)
+  // (fork) mixerGroup: the bank's official `customMixerGroup` (audio_data soundFXBanks; a fixed-path battle sound: the group
+  // of the bank the client plays that file from, tools/assets/audio.mjs BATTLE_SFX). public/js/audioMixer.js rebuilds the
+  // client's MainMixer (group volumes, compressors, the voice duck) and every sound plays into its group
   // units' attack / hit (tools/assets/audio.mjs pickUnitSfx): operators get normal-mode banks only — the plain
   // `attack` / `combat` ability first, never a bank holding a skill-mode file (`_d` / `_h` / `_s`; the normal attack's end
   // in `_n`) — with their own projectile banks (ON_PROJECTILE_BORN / _HIT.projectile_chr_<name>) as fallbacks

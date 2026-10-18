@@ -133,6 +133,23 @@
 }
 .dstats__tag.is-battle { background: var(--orange); color: #1d0c00; }
 .drange { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .06rem; padding: .06rem .1rem; background: #0f1311; border: 1px solid var(--line); min-width: 1.1rem; }
+/* (fork) the range buttons (ui/detailPanel.js cardRange): 普通 / 技能 side by side under the fixed title, above the
+   mini-map; both mini-maps share one grid cell (the hidden one a ghost), so the box keeps the larger one's size and
+   nothing moves on a switch. The skill's range in the orange of the battle tag. */
+.drange.has-skill { justify-content: flex-start; }
+.drange.is-skill .rgrid i.on { background: rgba(255, 156, 51, .3); border-color: var(--orange); }
+.drange__seg { display: flex; }
+.drange__maps { display: grid; flex: 1; }
+.drange__map { grid-area: 1 / 1; display: flex; align-items: center; justify-content: center; }
+.drange__map.is-ghost { visibility: hidden; }
+.drange__btn {
+  min-width: .5rem; padding: .02rem .08rem; font-size: calc(.11 * var(--t)); font-weight: 700; letter-spacing: .04em; cursor: pointer;
+  color: var(--text-dim, #9aa); background: transparent; border: 1px solid var(--line);
+}
+.drange__btn + .drange__btn { border-left: 0; }
+.drange__btn:hover, .drange__btn:focus-visible { color: var(--mint-400); }
+.drange__btn.is-on { color: var(--text-on-mint); background: var(--mint-500); border-color: var(--mint-500); }
+.drange.is-skill .drange__btn.is-on { color: #1d0c00; background: var(--orange); border-color: var(--orange); }
 .rgrid { --rg: .14rem; display: grid; gap: 2px; }
 .rgrid i { width: var(--rg); height: var(--rg); border: 1px solid rgba(255, 255, 255, .06); }
 .rgrid i.on { background: rgba(246, 163, 41, .25); border-color: var(--amber); }

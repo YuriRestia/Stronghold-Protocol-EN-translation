@@ -32,13 +32,6 @@ const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
 // The first seven present are shown (+ remaining LP = a 4×2 grid); the title (评语) stats come first.
 // `gold` is the funds a player SPENT (server/match/player/economy.js spend(); the 挥金如土 title stat).
-/** (fork) the alternate result background: artwork used with the artist's permission (NOTICE) */
-const ALT_ART_BG = '/icons/result-alt.jpg';
-/** the artist credited on the screen ('鸣谢：{name}，匿名委托' — en: "Credits: {name}, commissioned by anonymous"),
-    linking to the artist's post of the piece */
-const ALT_ART_ARTIST = '3e46';
-const ALT_ART_SOURCE = 'https://x.com/Gan3E_CSL/status/2030836795823231164';
-
 const STAT_ROWS = [
   ['dmgDealt', N_('造成伤害')], ['kills', N_('击倒敌人')], ['bossDamage', N_('领袖伤害')], ['activatedLayers', N_('盟约层数')],
   ['merges', N_('晋升次数')], ['itemsEquipped', N_('配发装备')], ['gold', N_('消耗资金')], ['perfectRounds', N_('完美作战')],
@@ -133,28 +126,15 @@ export function ResultView({ res, pub = null, myId = null, backLabel, onBack, qu
     if (top && r.players.length > 1) best[k] = top.id;
   }
   useEffect(() => { if (!quiet) audio.sfx(r.victory ? 'settlementSucceed' : 'settlementFail'); }, []);
-  // (fork) alternate background: the signal-loss cue rides the static's CSS animation (result.css alt-static), so it follows the
-  // tuned timing and stays silent under reduced motion (no animation, no animationstart); the clip is torn up for the
-  // length of the glitch (audio.js glitchSfx)
-  const onStatic = (e) => {
-    if (quiet || e.animationName !== 'alt-static') return;
-    const s = parseFloat(getComputedStyle(e.target).animationDuration);
-    audio.glitchSfx('disconnect', { seconds: Number.isFinite(s) && s > 0 ? s : 1.5 });
-  };
   const boss = r.bossId ? gd.boss(r.bossId) : null;
   // the Hidden Core medal (and its corrupted leader) only once R15 was actually fought
   const hidden = r.hiddenBossId && r.hiddenReached ? gd.boss(r.hiddenBossId) : null;
-  // (fork) with m.result.altArt (server/match/results.js altArtResult) the art cuts in over the settle art
-  // (result.css .result__alt)
   const bg = uiUrl(gd.m, r.victory ? 'settle/settlemen_teamshow_success' : 'settle/settlemen_teamshow_fail');
   const mins = r.durationMs ? Math.round(r.durationMs / 60000) : null;
 
-  return html`<div class=${cx('screen', 'result', r.victory ? 'is-win' : 'is-lose', r.altArt && 'has-alt-art')}>
+  return html`<div class=${cx('screen', 'result', r.victory ? 'is-win' : 'is-lose')}>
     <div class="result__bg" aria-hidden="true" style=${bg ? `--result-bg:url("${bg}")` : undefined}></div>
-    ${r.altArt ? html`<div class="result__alt" aria-hidden="true" style=${`--alt-art:url("${ALT_ART_BG}")`}></div>` : null}
     <div class="result__grid" aria-hidden="true"></div>
-    ${r.altArt ? html`<a class="result__credit" href=${ALT_ART_SOURCE} target="_blank" rel="noopener noreferrer">${t('鸣谢：{name}，匿名委托', { name: ALT_ART_ARTIST })}</a>` : null}
-    ${r.altArt ? html`<div class="result__static" aria-hidden="true" onAnimationStart=${onStatic}></div>` : null}
     <main class="result__main">
       <section class="result__hero">
         <div class="result__summary">

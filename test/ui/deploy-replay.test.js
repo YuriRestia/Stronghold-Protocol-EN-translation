@@ -247,8 +247,9 @@ describe('AudioManager.deployCue — the landing sound in its own voices, taken 
       const token = deploySfxUrl(manifest, { def: 'token_10000_silent_healrb', defId: 'token_10000_silent_healrb', kind: 'token', side: 'ally' });
       assert.deepEqual(r.a.landVoices.map((v) => v.url), [manifest.audio.sfx.units[OWN].born, SET, token]);
       assert.equal(token, manifest.audio.sfx.units.token_10000_silent_healrb?.born ?? TOKEN_SET, 'a summon: the token sound');
-      assert.equal(r.a.landVoices[1].gain.gain.value, 0.5, 'the generic file at the battle deploy\'s gain');
-      assert.ok(r.a.landVoices[0].gain.gain.value > 0 && r.a.landVoices[0].gain.gain.value <= 0.8, 'an own file at its bank gain');
+      // (fork) bank volume 1 for both: the official mixer's Battle_UI_Important group sets their level (audioMixer.js)
+      assert.equal(r.a.landVoices[1].gain.gain.value, 1, 'the generic file at the battle deploy\'s gain');
+      assert.ok(r.a.landVoices[0].gain.gain.value > 0 && r.a.landVoices[0].gain.gain.value <= 1, 'an own file at its bank gain');
     } finally { r.restore(); }
   });
 

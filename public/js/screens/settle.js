@@ -33,6 +33,13 @@ import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.j
 import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
+
+/** (fork) the alternate background of the personal report: artwork used with the artist's permission (NOTICE) */
+const ALT_ART_BG = '/icons/result-alt.jpg';
+/** the artist credited on the page ('鸣谢：{name}，匿名委托' — en: "Credits: {name}, commissioned by anonymous"),
+    linking to the artist's post of the piece */
+const ALT_ART_ARTIST = '3e46';
+const ALT_ART_SOURCE = 'https://x.com/Gan3E_CSL/status/2030836795823231164';
 const pad2 = (n) => String(Math.max(0, Math.trunc(n) || 0)).padStart(2, '0');
 const int = (v) => Math.max(0, Math.round(Number(v) || 0));
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -436,7 +443,18 @@ function SelfPage({ r, res, raw, self, gd, prog, content, onNext }) {
     setLeaving(true);
     setTimeout(onNext, LEAVE_MS);
   };
-  return html`<section class=${cx('sself', cleared ? 'is-win' : 'is-lose', leaving && 'is-leaving')} data-testid="settle-self">
+  // (fork) with m.result.altArt (server/match/results.js altArtResult) the art cuts in over this page's settle art
+  // (result.css .has-alt-art); the 同盟 page after it keeps its own. The signal-loss cue rides the static's CSS animation
+  // (alt-static), so it follows the tuned timing and stays silent under reduced motion (no animationstart); the clip is
+  // torn up for the length of the glitch (audio.js glitchSfx)
+  const alt = r.altArt === true;
+  const onStatic = (e) => {
+    if (e.animationName !== 'alt-static') return;
+    const s = parseFloat(getComputedStyle(e.target).animationDuration);
+    audio.glitchSfx('disconnect', { seconds: Number.isFinite(s) && s > 0 ? s : 1.5 });
+  };
+  return html`<section class=${cx('sself', cleared ? 'is-win' : 'is-lose', alt && 'has-alt-art', leaving && 'is-leaving')} data-testid="settle-self">
+    ${alt ? html`<div class="result__alt" aria-hidden="true" style=${`--alt-art:url("${ALT_ART_BG}")`}></div>` : null}
     <div class="settle__stage">
       <span class="sself__bg" style=${at(BG_AT[0], BG_AT[1])} aria-hidden="true"><${Sprite} k=${`settle/settlemen_personal_${cleared ? 'success' : 'fail'}`} /></span>
       <${Rays} lose=${!cleared} />
@@ -461,6 +479,7 @@ function SelfPage({ r, res, raw, self, gd, prog, content, onNext }) {
         <div class="sops__row sops__row--2">${slots.slice(5).map((u, i) => html`<${OpCard} key=${i} u=${u} gd=${gd} i=${i + 5} />`)}</div>
       </div>
       <${BondBar} bonds=${self.bonds} gd=${gd} />
+      ${alt ? html`<a class="result__credit" href=${ALT_ART_SOURCE} target="_blank" rel="noopener noreferrer">${t('鸣谢：{name}，匿名委托', { name: ALT_ART_ARTIST })}</a>` : null}
       <div class="settle__barbg" aria-hidden="true"><${Sprite} k="settle/bottom_bg" /></div>
       ${Array.isArray(milestones) && milestones.length ? html`<${LevelStrip} prog=${prog} milestones=${milestones} />` : null}
       <button type="button" ref=${nextRef} class="settle__next" onClick=${next}>
@@ -468,6 +487,7 @@ function SelfPage({ r, res, raw, self, gd, prog, content, onNext }) {
         <${Sprite} k="settle/next_icon" class="settle__nexticon" fallback=${html`<span class="settle__nexticon"><${Icon} name="chevronRight" /></span>`} /><span>${t('下一步')}</span>
       </button>
     </div>
+    ${alt ? html`<div class="result__static" aria-hidden="true" onAnimationStart=${onStatic}></div>` : null}
   </section>`;
 }
 

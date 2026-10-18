@@ -201,16 +201,44 @@ test('S2 满月的舞会: piano from deployment (ATK +attack@atk, physical notes
 test('S2 with a full gauge: its cast starts Fever instead and keeps piano; during Fever two notes per attack', () => {
   const { h, u } = field({ skill: 1, foes: [[10, 7]] });
   h.b.fever.value = FEVER_NEED;
-  h.runUntil(() => u.skill.active, 20);
-  assert.ok(h.b.fever.active, 'Fever started');
+  h.runUntil(() => h.b.fever.active, 20);
   assert.equal(u.mem.oblvnsTimbre, 'piano');
   assert.equal(h.b.fever.value, 0, 'the gauge is spent whole');
+  assert.equal(u.skill.active, false, 'the Fever cast is not her toggle: the skill is off again');
   const seen = new Set(); let born = 0;
   const atk0 = u.stats.attacks;
   h.runUntil(() => { for (const x of h.b.notes.list) if (!seen.has(x.id)) { seen.add(x.id); born++; } return u.stats.attacks >= atk0 + 3; }, 10);
   h.run(0.3);
   for (const x of h.b.notes.list) if (!seen.has(x.id)) { seen.add(x.id); born++; }
   assert.ok(born >= 2 * 3, `double strike in Fever: ${born} notes for 3 attacks`);
+  done(h);
+});
+
+test('S2 + an S3 member (owner 2026-10-19): the cast that starts Fever is not her one toggle — SP charges again and she still switches to organ, once', () => {
+  const s3 = [{ uid: 2, diy: { slot: SLOT[6], charId: SAKI, skillIndex: 2, uniEquipId: LORY }, elite: true, row: 11, col: 5 }];
+  const { h, u } = field({ skill: 1, more: s3, foes: [[10, 7]] });
+  const v = h.unit(2);
+  // the S3 member starts Fever before her first cast; S2 waits it out while the gauge refills
+  u.skill.sp = 0; u.skill.charges = 0;
+  h.b.fever.value = FEVER_NEED;
+  v.skill.charges = 1; v.skill.opReadyAt = -Infinity;
+  assert.ok(v.skill.activate('manual'));
+  assert.ok(h.b.fever.active);
+  h.runUntil(() => !h.b.fever.active, FEVER_DURATION + 1);
+  h.b.fever.value = FEVER_NEED;
+  // her cast at the full gauge: Fever again, still piano, the skill off
+  h.runUntil(() => h.b.fever.active, 20);
+  assert.equal(u.mem.oblvnsTimbre, 'piano');
+  assert.equal(u.skill.active, false, 'not the toggle');
+  // after that Fever: SP charges and her next cast is the switch
+  h.runUntil(() => !h.b.fever.active, FEVER_DURATION + 1);
+  h.runUntil(() => u.skill.sp > 0 || u.skill.charges > 0, 10);
+  h.runUntil(() => u.mem.oblvnsTimbre === 'organ', 20);
+  assert.ok(u.skill.active, 'the switch is the toggle: it stays on');
+  const n = h.hooksOf('skillStart').filter((c) => c.unit === u).length;
+  h.run(60);
+  assert.equal(h.hooksOf('skillStart').filter((c) => c.unit === u).length, n, 'never cast again');
+  assert.equal(u.mem.oblvnsTimbre, 'organ');
   done(h);
 });
 
@@ -319,8 +347,7 @@ test('sting cues, S2: the switch into organ only; a cast at a full gauge (it sta
   done(a.h);
   const b = field({ skill: 1, foes: [[10, 7]] });
   b.h.b.fever.value = FEVER_NEED;
-  b.h.runUntil(() => b.u.skill.active, 20);
-  assert.ok(b.h.b.fever.active);
+  b.h.runUntil(() => b.h.b.fever.active, 20);
   assert.deepEqual(casts(b.h, b.u).map((e) => e[3]), [{ form: 'piano' }], 'Fever start: silent, she stays on piano');
   done(b.h);
 });

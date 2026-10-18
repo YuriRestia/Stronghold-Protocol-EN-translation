@@ -18,6 +18,7 @@ import { BondStrip, BondPopup } from '../js/ui/bondStrip.js';
 import { DetailPanel } from '../js/ui/detailPanel.js';
 import { bondIconUrl } from '../js/ui/assetUrls.js';
 import { data } from '../js/data.js';
+import { SettingsModal } from '../js/ui/settings.js';
 
 const matches = (q, ...texts) => !q || texts.some((s) => String(s || '').toLowerCase().includes(q));
 
@@ -130,7 +131,7 @@ function Meter({ m, tab, onTab, onClose, bondName }) {
 
 /**
  * Render the overlay into `host`. `s` = { bonds: bondList entries, layersDisabled, bondOpen, priv, offBonds, detail,
- * snapHp, live, picker: { kind: 'op', groups } | { kind: 'item', groups, unitName } | null, on: { openBond, closeBond,
+ * snapHp, live, loadout (the card's { [baseId]: { skill } }: the unit's picked skill), picker: { kind: 'op', groups } | { kind: 'item', groups, unitName } | null, on: { openBond, closeBond,
  * member, closeDetail, pick, closePicker } }.
  */
 export function renderOverlay(host, s) {
@@ -142,7 +143,7 @@ export function renderOverlay(host, s) {
     ${s.bondOpen ? html`<${BondPopup} bondId=${s.bondOpen} entry=${entry} priv=${s.priv} off=${!!entry?.off} place="right"
       onClose=${s.on.closeBond} onMember=${s.on.member} />` : null}
     ${s.detail ? html`<${DetailPanel} detail=${s.detail} snapHp=${s.snapHp} editable=${false} onClose=${s.on.closeDetail} onSell=${() => {}}
-      onDestroy=${() => {}} bonds=${s.bonds} offBonds=${s.offBonds} side="right" live=${s.live} voice=${true} onBond=${s.on.openBond} />` : null}
+      onDestroy=${() => {}} bonds=${s.bonds} offBonds=${s.offBonds} side="right" live=${s.live} loadout=${s.loadout || null} voice=${true} onBond=${s.on.openBond} />` : null}
     ${s.meter ? html`<${Meter} m=${s.meter} tab=${s.meterTab} onTab=${s.on.meterTab} onClose=${s.on.closeMeter}
       bondName=${(id) => data.lookup('bonds', id)?.appellation || data.lookup('bonds', id)?.name || id} />` : null}
     ${s.picker?.kind === 'op' ? html`<${IconGrid} title="Pick an operator" placeholder="Filter by name or bond" groups=${s.picker.groups}
@@ -151,5 +152,6 @@ export function renderOverlay(host, s) {
     ${s.picker?.kind === 'item' ? html`<${IconGrid} title=${`Equip an item on ${s.picker.unitName}`} placeholder="Filter by item name"
       groups=${s.picker.groups} hint="A unit carries two items: a third replaces the oldest."
       onPick=${s.on.pick} onClose=${s.on.closePicker} />` : null}
+    ${s.settings ? html`<${SettingsModal} open=${true} onClose=${s.on.closeSettings} />` : null}
   `, host);
 }

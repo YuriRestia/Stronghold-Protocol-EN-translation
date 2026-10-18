@@ -42,7 +42,7 @@ export const TEXT_SIZES = Object.freeze(['sm', 'md', 'lg', 'xl']);
  *  (fork) matchAlert: 设置「匹配提示音」 — a sound as the briefing (INFO_CHECK) opens, heard from a background tab too
  *  (main.js), on by default. (fork) prepDeployFold defaults to OFF here.
  */
-export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.6, sfx: 0.8, voice: 0.8, voiceLang: 'en', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, matchAlert: true, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, prepDeployFold: false, quality: 'high', officialFx: 'auto', otherSkins: true, textSize: 'sm', keys: DEFAULT_HOTKEYS });
+export const DEFAULT_SETTINGS = Object.freeze({ bgm: 0.8, sfx: 0.8, voice: 0.8, voiceLang: 'en', voiceNative: false, voiceOverrides: Object.freeze({}), muted: false, matchAlert: true, damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, prepDeployFold: false, quality: 'high', officialFx: 'auto', otherSkins: true, textSize: 'sm', keys: DEFAULT_HOTKEYS });
 const QUALITIES = ['high', 'medium', 'low'];
 /** The values of 设置「官方特效」 (render/vfx/tier.js OFFICIAL_FX). Display order in the dialog is low / medium / high. */
 export const OFFICIAL_FX_MODES = Object.freeze(['auto', 'off', 'lite', 'full']);

@@ -276,6 +276,7 @@ function unitSounds(audio, sfx, poolRef) {
   const roles = {};
   let mix = null;
   const pools = {};
+  const groups = {};
   for (const r of ['attack', 'hit', 'die', 'born']) {
     if (!sfx[r]) continue;
     roles[r] = soundLeaf(sfx[r]);
@@ -284,9 +285,14 @@ function unitSounds(audio, sfx, poolRef) {
     if (r === 'attack' || r === 'hit') {
       const id = poolRef(sfx[r]);
       if (id) pools[r] = id;
+    } else {
+      // (fork) die / born have no pool reference: their bank's mixer group on its own (attack / hit: in the pool)
+      const g = audio.groupOf?.(sfx[r]);
+      if (g) groups[r] = g;
     }
   }
   if (Object.keys(pools).length) roles.pools = pools;
+  if (Object.keys(groups).length) roles.groups = groups;
   return { roles, mix };
 }
 
@@ -577,6 +583,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const hits = {};
     const attackMix = {}, hitMix = {};
     const attackPools = {}, hitPools = {};
+    const skillGroups = {};
     for (const i of idx) {
       const s = (o.skills || []).find((k) => k.index === i);
       if (!s) { notes.push(`${id}: skill index ${i} missing in research data`); continue; }
@@ -584,7 +591,11 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       if (s.icon?.url && !skills[iconId]) skills[iconId] = leaf(alt(`skill/${safeName(iconId)}.png`, s.icon.url, s.icon.bytes));
       if (s.skillId) skillsById[s.skillId] = iconId;
       const ss = audio.skillBanks.get(s.skillId)?.get('ON_SKILL_START');
-      if (ss?.length) skillSfx[String(i)] = soundLeaf(ss);
+      if (ss?.length) {
+        skillSfx[String(i)] = soundLeaf(ss);
+        const g = audio.groupOf?.(ss);
+        if (g) skillGroups[String(i)] = g;
+      }
       const ak = assigned.attacks[String(i)];
       if (ak) {
         attacks[String(i)] = soundLeaf(ak);
@@ -605,6 +616,9 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const primarySkill = skillSfx[String(idx[0])];
     if (primarySkill) u.skill = primarySkill;
     if (Object.keys(skillSfx).length > 1) u.skills = skillSfx;
+    // (fork) each skill sound's mixer group (public/js/audioMixer.js): `skill`'s in groups.skill, by index like `skills`
+    if (primarySkill && skillGroups[String(idx[0])]) u.groups = { ...(u.groups || {}), skill: skillGroups[String(idx[0])] };
+    if (u.skills && Object.keys(skillGroups).length) u.skillGroups = skillGroups;
     if (Object.keys(attacks).length) u.attacks = attacks;
     if (Object.keys(hits).length) u.hits = hits;
     if (Object.keys(attackMix).length) u.attackMix = attackMix;
@@ -614,15 +628,19 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     if (mix) u.mix = mix;
     // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank
     // (battle.ON_PROJECTILE_BORN / _HIT.projectile_chr_<short>[_<type>], ON_CUSTOM_TRIGGER for S1's hit), by the look key
-    // her kit gives the notes — the client plays them per note, rate-limited (public/js/audio.js noteSound)
+    // her kit gives the notes — the client plays them per note on the bank's pool (public/js/audio.js _noteSound)
     if (NOTE_SFX_CHARS.has(id)) {
+      // the pool references (#680) follow the swapped banks below; the generic picks' own pools are dropped FIRST: one
+      // of them (projectile_chr_<short>'s hit) is also the plain note's hit bank, re-registered by the loop
+      for (const p of [...Object.values(u.pools || {}), ...Object.values(u.attackPools || {}), ...Object.values(u.hitPools || {})]) delete sfxPools[p];
       const notesSfx = {};
       for (const [look, pid, hitBank] of NOTE_SFX_LOOKS) {
         const born = audio.bank(`battle.ON_PROJECTILE_BORN.projectile_chr_${short}${pid}`);
         const hit = audio.bank(hitBank ? `battle.ON_CUSTOM_TRIGGER.projectile_chr_${short}${hitBank}` : `battle.ON_PROJECTILE_HIT.projectile_chr_${short}${pid}`);
         const e = {};
-        if (born?.length) e.born = soundLeaf(born, 'sfx', 1);
-        if (hit?.length) e.hit = soundLeaf(hit, 'sfx', 1);
+        // each with its bank's official pool (every one: max 2, popOldest, pitch 0.8–1.2)
+        if (born?.length) { e.born = soundLeaf(born, 'sfx', 1); const p = poolRef(born); if (p) e.bornPool = p; }
+        if (hit?.length) { e.hit = soundLeaf(hit, 'sfx', 1); const p = poolRef(hit); if (p) e.hitPool = p; }
         if (Object.keys(e).length) notesSfx[look] = e;
       }
       if (Object.keys(notesSfx).length) u.notes = notesSfx;
@@ -631,8 +649,6 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       // (p_atk_…slnt), which only the S3 volley plays
       const swing = audio.bank(`battle.ON_ABILITY_ON.${id}.attack.0.1`);
       const s3Swing = audio.bank(`battle.ON_ABILITY_START.${id}.attack.4.1`);
-      // the pool references (#680) follow the swapped banks; the generic picks' own pools (her id in each) are dropped
-      for (const p of [...Object.values(u.pools || {}), ...Object.values(u.attackPools || {}), ...Object.values(u.hitPools || {})]) delete sfxPools[p];
       delete u.hit; delete u.hits; delete u.hitMix; delete u.hitPools;
       if (u.mix) { delete u.mix.hit; delete u.mix.attack; }
       delete u.attackMix; delete u.attackPools;
@@ -656,7 +672,11 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
         const pool = poolRef(paths);
         if (pool) e.pool = pool;
         const loop = loopBank ? audio.bank(loopBank) : [];
-        if (loop.length) e.loop = soundLeaf(loop, 'sfx', 1);
+        if (loop.length) {
+          e.loop = soundLeaf(loop, 'sfx', 1);
+          const g = audio.groupOf?.(loop);
+          if (g) e.loopGroup = g;
+        }
         stings[i] = e;
       }
       if (Object.keys(stings).length) u.stings = stings;
@@ -879,10 +899,24 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       if (m && !bossBgm[m[1]] && !String(u).startsWith('mode_training')) bossBgm[m[1]] = flatBgm(bgmLeaf(`battle.ON_GAME_READY.${lv.bgm}`));
     }
   }
+  // (fork) each UI / battle sound's official mixer group (sfx.groups.ui / .battle): its bank's, or the spec's own
+  // `group` for a fixed path (the bank the client plays that file from)
+  const sfxGroups = { ui: {}, battle: {} };
+  const specGroup = (spec) => spec?.group ?? (spec?.bank ? audio.groupOf?.(audio.bank(spec.bank)) ?? null : null);
   const sfxUi = {};
-  for (const [name, spec] of Object.entries(UI_SFX)) { const l = soundLeaf(resolveSpec(spec, audio.bank)); if (l) sfxUi[name] = l; else notes.push(`UI SFX ${name}: no sound`); }
+  for (const [name, spec] of Object.entries(UI_SFX)) {
+    const l = soundLeaf(resolveSpec(spec, audio.bank));
+    if (l) sfxUi[name] = l; else notes.push(`UI SFX ${name}: no sound`);
+    const g = specGroup(spec);
+    if (l && g) sfxGroups.ui[name] = g;
+  }
   const sfxBattle = {};
-  for (const [name, spec] of Object.entries(BATTLE_SFX)) { const l = soundLeaf(resolveSpec(spec, audio.bank)); if (l) sfxBattle[name] = l; else notes.push(`battle SFX ${name}: no sound`); }
+  for (const [name, spec] of Object.entries(BATTLE_SFX)) {
+    const l = soundLeaf(resolveSpec(spec, audio.bank));
+    if (l) sfxBattle[name] = l; else notes.push(`battle SFX ${name}: no sound`);
+    const g = specGroup(spec);
+    if (l && g) sfxGroups.battle[name] = g;
+  }
 
   // --- module type icons ----------------------------------------------------
   const modules = {};
@@ -958,7 +992,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
       ...optionalTrees,
-      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, pools: sfxPools },
+      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, pools: sfxPools, groups: literal(sfxGroups) },
     },
   };
   return { template, models, notes };

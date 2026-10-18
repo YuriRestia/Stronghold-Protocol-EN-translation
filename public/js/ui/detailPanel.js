@@ -49,6 +49,7 @@ import { morphSlotPolicy } from '../../../shared/plugins/rules.js';
 import { audio } from '../audio.js';
 import { tokenVariantFor } from './gameLogic/loadout.js';
 import { outfitOptsOf, outfitVoiceOf } from './outfits.js';
+import { rangePreviewStore, useSkillRangePreview, setSkillRangePreview, skillRangeGrid } from './rangePreview.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -98,8 +99,8 @@ export function cardRangeGrid(live, rec, chess) {
   return attackRangeGrid(rec) || chess?.rangeGrid || null;
 }
 
-/** Mini range map. */
-export function RangeGrid({ grid, class: cls }) {
+/** Mini range map. `ghost` (fork): the same size, no lit cells — a hidden twin that only reserves its space (cardRange). */
+export function RangeGrid({ grid, class: cls, ghost = false }) {
   if (Array.isArray(grid) && grid.length >= FIELD_WIDE_CELLS) return html`<span class=${cx('rgrid-all', cls)} aria-label=${t('攻击范围')}>${t('全场')}</span>`;
   const box = rangeGridBox(grid);
   if (!box.cells.size) return html`<span class="t-dim">—</span>`;
@@ -107,7 +108,7 @@ export function RangeGrid({ grid, class: cls }) {
   for (let r = box.r0; r > box.r0 - box.rows; r--) {
     for (let c = box.c0; c < box.c0 + box.cols; c++) {
       const self = r === 0 && c === 0;
-      cells.push(html`<i key=${`${r},${c}`} class=${cx(box.cells.has(tileKey(r, c)) && 'on', self && 'self')}></i>`);
+      cells.push(html`<i key=${`${r},${c}`} class=${ghost ? undefined : cx(box.cells.has(tileKey(r, c)) && 'on', self && 'self')}></i>`);
     }
   }
   return html`<div class=${cx('rgrid', cls)} style=${rangeGridStyle(box)} aria-label=${t('攻击范围')}>${cells}</div>`;
@@ -368,8 +369,36 @@ export function chessStatsBlock({ rec, chess, live = null }) {
         <${Stat} k=${t('部署费用')} v=${s.cost ?? '—'} />
         <${Stat} k=${t('再部署')} v=${s.respawnTime != null ? `${s.respawnTime}s` : '—'} />
       </div>
-      <div class="drange"><span class="dstat__k">${t('攻击范围')}</span><${RangeGrid} grid=${cardRangeGrid(live, rec, chess)} /></div>
+      ${cardRange(live, rec, chess)}
     </div>`;
+}
+
+/**
+ * (fork) The 攻击范围 box: the range now, or — when the selected skill changes it — 普通 / 技能 buttons, 技能 showing
+ * the range while the skill runs (ui/rangePreview.js; the same switch moves the field overlay, screens/game.js
+ * cardRange). Nothing moves on a switch: the buttons sit right under the fixed title, and both mini-maps share one
+ * cell (`.drange__maps`) — the shown one over a ghost of the other — so the box is always the larger one's size.
+ * A plain function: the panels that show it re-render on the switch (DetailPanel / the 干员调配 section subscribe).
+ */
+function cardRange(live, rec, chess) {
+  const skillGrid = skillRangeGrid(live, rec);
+  if (!skillGrid) {
+    return html`<div class="drange"><span class="dstat__k">${t('攻击范围')}</span><${RangeGrid} grid=${cardRangeGrid(live, rec, chess)} /></div>`;
+  }
+  const normalGrid = cardRangeGrid(live, rec, chess);
+  const on = rangePreviewStore.get().skill;
+  const seg = (skill, label, tip) => html`<button type="button" class=${cx('drange__btn', on === skill && 'is-on')}
+    aria-pressed=${on === skill ? 'true' : 'false'} title=${tip} onClick=${() => setSkillRangePreview(skill)}>${label}</button>`;
+  const normal = seg(false, t('普通'), t('显示当前的攻击范围')); // en: "Normal" / "Show the current attack range"
+  const skill = seg(true, t('技能'), t('显示技能开启时的攻击范围')); // en: "Skill" / "Show the attack range while the skill is active"
+  return html`<div class=${cx('drange', 'has-skill', on && 'is-skill')}>
+    <span class="dstat__k">${t('攻击范围')}</span>
+    <div class="drange__seg" role="group" aria-label=${t('攻击范围')}>${normal}${skill}</div>
+    <div class="drange__maps">
+      <div class="drange__map"><${RangeGrid} grid=${on ? skillGrid : normalGrid} /></div>
+      <div class="drange__map is-ghost" aria-hidden="true"><${RangeGrid} grid=${on ? normalGrid : skillGrid} ghost=${true} /></div>
+    </div>
+  </div>`;
 }
 
 /** A skill's tags (SP type, trigger, initial SP · cost, duration, charges): the operator card's and a map character's. */
@@ -860,6 +889,7 @@ export function selectVoiceKey(detail) {
 export function DetailPanel({ detail, editable, snapHp, onClose, onSell, onDestroy, bonds = [], offBonds = null, loadout = null, ops = null, onBond = null, side = 'left', shopOpen = false, live = null, voice = false, morphMode = 'official', onUnequip = null, unequipAllowed = false }) {
   const getter = typeof live === 'function' ? live : null;
   useTicker(detail && getter ? 250 : 0);
+  useSkillRangePreview(); // (fork) the 攻击范围 box's 技能 toggle re-renders the card (cardRange)
   // 选中干员 voice (audio.voice 'select'): once per opened operator — the panel stays mounted while the target changes,
   // so the key carries what identifies it (its chess record, its piece / battle unit id, the card tap: selectVoiceKey)
   const selectKey = voice && detail?.type === 'chess' ? selectVoiceKey(detail) : null;

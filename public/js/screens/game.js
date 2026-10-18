@@ -141,6 +141,7 @@ import { HUD_HZ_MS, MERGE_HL, SEL_RANGE, cx } from './game/marks.js';
 import { keepEarly, audioEarly } from './game/early.js';
 import { MatchEnded, PausedOverlay } from './game/overlays.js';
 import { inspectRange } from './game/range.js';
+import { useSkillRangePreview } from '../ui/rangePreview.js';
 import { t, tParts } from '../../../shared/i18n.js';
 import { TestConsole } from '../ui/testConsole.js';
 
@@ -1642,11 +1643,13 @@ function MatchScreen() {
   // operator / summon on the field — the range it fights with now (the live stats' `range` and `dir`, the snapshot's
   // tile) — never an enemy, a dead unit or a bench unit (UnitInfo `area` hand / temp); drag, the wheel and the pen
   // draw their own
+  // (fork) the card's 技能 toggle (ui/rangePreview.js): the overlay shows the range while the skill runs
+  const skillRangeOn = useSkillRangePreview();
   const cardRange = !drag && !facing && !pen ? inspectRange({
     target: detailTarget, detail: resolved, pieces: placeCtx.pieces, showPrep, field,
     snapshot: snapUnitsRef.current.get(resolved?.unitId),
     live: typeof liveStats === 'function' ? liveStats() : liveStats,
-    loadout: detailLoadout, getChess: gd.chess, backups: gd.backups,
+    loadout: detailLoadout, getChess: gd.chess, backups: gd.backups, skill: skillRangeOn,
   }) : null;
   const cardRangeKey = cardRange ? JSON.stringify(cardRange) : '';
   useEffect(() => {

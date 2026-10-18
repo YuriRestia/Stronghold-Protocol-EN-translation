@@ -49,6 +49,7 @@ import { setOwned, notOwnedCount, serializeOwnership, parseOwnershipImport, OWNE
 import { OwnershipPanel, useOwnershipRoster } from './ownership.js';
 import { DiyPanel, diyData } from './diy.js';
 import { LoadoutStats } from '../ui/loadoutStats.js';
+import { useSkillRangePreview } from '../ui/rangePreview.js';
 export { LoadoutStats, statsPreview } from '../ui/loadoutStats.js';
 import { diyCount, sanitizeDiyPicks, setPick, serializeDiy, parseDiyImport, DIY_IMPORT_MAX_BYTES } from '../ui/diyModel.js';
 import { t, tParts, N_ } from '../../../shared/i18n.js';
@@ -314,6 +315,7 @@ const standInName = (chess) => data.get('backups')?.units?.[chess?.backup?.charI
 
 function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset, locked, level = 'normal', onLevel, notOwned = false, view = 'loadout', onView }) {
   const [statLevel, setStatLevel] = useState('elite'); // 局内数值: the 精锐 shows the chosen module's effect
+  useSkillRangePreview(); // (fork) 局内数值's 攻击范围 技能 toggle (ui/rangePreview.js)
   const setLevel = onLevel;
   const bodyRef = useRef(null);
   useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [chess?.chessId]);

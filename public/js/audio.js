@@ -13,7 +13,9 @@
 //
 // - The AudioContext is created on the first user gesture (pointerdown/keydown/touchend), so browsers
 //   never block or warn; everything requested before that is remembered (BGM) or dropped (SFX).
-// - Channels: master → { bgm, sfx, voice } gains; volumes from settings (0..1) + mute. Tab hidden ⇒ suspend.
+// - Channels: (fork) the official MainMixer (audioMixer.js) → master (mute); the settings volumes (0..1) drive its
+//   music / voice / SFX control groups, and every sound plays at its bank's volume into its bank's mixer group
+//   (manifest pools[id].group, units[id].groups / skillGroups, sfx.groups). Tab hidden ⇒ suspend.
 // - BGM: `intro` then `loop` (1 s crossfade); switching tracks fades out/in (0.8 s). The same loop URL
 //   keeps playing across phases (prep and combat share a track). While the music is silent — muted, or the BGM volume
 //   at 0 — no track is downloaded (≈ 14 MB a match): the wanted one is remembered, another one playing stops, and the
@@ -86,6 +88,22 @@ export { VOICE_TREES } from './voicePrefs.js';
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
 import { unhashedUrl } from '../../shared/assetPaths.js';
+import { AudioMixer, spatialGain, songGain } from './audioMixer.js';
+
+/**
+ * (fork) The official mixer (audioMixer.js) sets the balance between sounds: every sound plays at its bank's own volume
+ * (1, or the bank's `mix.vol`) into its bank's mixer group. A sound whose bank names no group: [ASSUMED] UI sounds on
+ * `UI`, battle sounds on `FX_Battle_Normal` (compressed, ducked under voice lines like the client's normal sounds).
+ */
+const UI_GROUP = 'UI';
+const BATTLE_GROUP = 'FX_Battle_Normal';
+/**
+ * (fork, owner 2026-10-18) The skills whose ON_SKILL_START sound is a song (char id → 0-based skill indices): while one
+ * plays, the battle sounds step back (audioMixer.js SONG_DUCK), as under the Fever song. 浊心斯卡蒂: every skill sings
+ * (p_skill_samegoaldiffways / burningdarkness / tidesurging, Independent group). 魔王: S1 / S2 / S3 (tpartclhel /
+ * tpartclswth on Battle_UI_Boost, tpartclotmfld on Battle_P_SAtk). The duck lasts as long as the song's own file.
+ */
+const SONG_SKILLS = Object.freeze({ char_1012_skadi2: [0, 1, 2], char_4134_cetsyr: [0, 1, 2] });
 
 const MAX_VOICES = 8;
 // [ASSUMED] Remake anti-spam intervals, retained at high game speeds; not official audio pool parameters (#680).
@@ -110,15 +128,13 @@ const BUFFER_CACHE = 180;
 const BUFFER_BYTES = 64 * 1024 * 1024;
 const XFADE_S = 1;
 /**
- * 丰川祥子's per-note sounds (b.ev ['fx', 'note', …, { look, on }]; manifest sfx.units[charId].notes[look].born / hit):
- * every one plays (owner 2026-10-16: the old 10/s cap dropped too many), outside the battle limiter so a Fever volley
- * neither loses its hits nor takes the other units' voices; NOTE_VOICES only guards against a runaway pile-up.
+ * (fork) 丰川祥子's per-note sounds (b.ev ['fx', 'note', …, { look, on }]; manifest sfx.units[charId].notes[look]), her
+ * skill stings and S3's held loop: bank volume 1, on the bank's mixer group. They play as the official client does
+ * (owner 2026-10-18): each on its bank's pool (every projectile_chr_oblvns* bank: max 2 at once, the oldest giving
+ * way, pitch 0.8–1.2; Battle_P_NAtk / NImp, the S1–S3 notes P_SAtk / SImp), see _playBank.
  */
-const NOTE_VOICES = 48;
-/** (fork) Her note sounds while the Fever song plays (owner 2026-10-18: the song drowned in the note flood): ~−8 dB. */
-const NOTE_FEVER_DUCK = 0.4;
-/** (fork) 丰川祥子's skill stings and S3's held loop (_sting): the gain of a unit's skill sound. */
-const STING_GAIN = 0.8;
+const NOTE_GAIN = 1;
+const STING_GAIN = 1;
 /** S3's loop stops over this (s): soundFXCtrlBanks ON_SKILL_FINISH.skchr_oblvns_3 ctrlStopFadetime 0.2. */
 const STING_LOOP_FADE_S = 0.2;
 /**
@@ -127,15 +143,13 @@ const STING_LOOP_FADE_S = 0.2;
  * end ramps it to 0, against a click.
  */
 const FEVER_END_S = 0.05;
-/**
- * The Fever song's own gain over the BGM bus (owner 2026-10-18: "kinda quiet" under the note flood). ~+3 dB: the file
- * peaks at −3.1 dBFS, so 1.4 keeps it just under 0 dBFS; more would need a limiter on its path.
- */
-const FEVER_GAIN = 1.4;
 /** After the Fever song the round's track comes back over this (s). */
 const FEVER_BACK_S = 1.2;
-/** The round's track drops under the Fever song this fast (s): a cut, short enough not to click. */
-const FEVER_DUCK_S = 0.08;
+/**
+ * (fork) The round's track fades out under the Fever song over this (s): audio_data `duckings`
+ * battle.ON_CUSTOM_TRIGGER.fever_mid / fever_full → volume 0, fadeTime 2 (was a 0.08 s cut).
+ */
+const FEVER_DUCK_S = 2;
 const FADE_S = 0.8;
 /** Voice: shortest gap between two lines, and the crossfade of a higher-priority line taking the channel (official 0.1 s). */
 const VOICE_GAP_MS = 1200;
@@ -314,9 +328,15 @@ export function normalAttackSfx(defId, url) {
 }
 
 /**
+ * (fork) The base gain of a unit's own sound (attack / hit / skill / die / born): 1, the official bank volume — the mixer
+ * group of its bank sets its level against the rest (was attack / hit 0.55, the others 0.8, before the mixer).
+ */
+export const UNIT_BASE_GAIN = 1;
+
+/**
  * Gain of a unit's own sound with its manifest mix (sfx.units[id].mix[role]: the official bank's volume): `base` × `vol`,
  * never above `base` (a bank louder than 1 plays as before — community report #30 asked for quieter, not louder).
- * @param {number} base the role's base gain (attack / hit 0.55, die / born / skill 0.8)
+ * @param {number} base the role's base gain (UNIT_BASE_GAIN; the generic fallbacks their own)
  * @param {{ vol?: number }|null|undefined} mix
  */
 export function unitGain(base, mix) {
@@ -655,14 +675,18 @@ export class AudioManager {
     this.bgmGain = null;
     this.fever = null;        // the Fever song playing (feverStart): { url, token, node }
     this.feverToken = 0;
-    this.noteVoices = 0;      // note sounds playing (_noteSound)
     this.stingLoops = new Map(); // unit id → its skill's held sting loop (_sting): { token, node }
     this.stingToken = 0;
-    this.stingVoices = new Map(); // sting bank id → its playing one-shots in start order (_playSting)
+    this.stingVoices = new Map(); // bank id → its playing stings / note sounds in start order (_playBank)
     this.stingField = 0;          // bumped by stopPoolSounds: a sting decoded after it belongs to the old battle
-    this.sfxGain = null;
+    this.sfxGain = null;      // (fork) the battle sounds' slider (the mixer's FX_Battle_Control)
+    this.uiGain = null;       // (fork) the UI sounds' slider (FX_UI_Control), set with sfxGain
     this.voiceGain = null;
-    this.volumes = { bgm: 0.6, sfx: 0.8, voice: 0.8, muted: false };
+    this.mixer = null;        // (fork) the official MainMixer (audioMixer.js): _out(group) feeds a sound into it
+    this.songNodes = new Set(); // (fork) singing skills' sounds playing (SONG_SKILLS): each holds the mixer's song duck
+    // (fork) all three equal: the official client defaults them alike (SettingManager.CommonSettingData, all 1), so the
+    // mixer's balance between music, SFX and voices holds; 0.8 keeps headroom under the official full volume
+    this.volumes = { bgm: 0.8, sfx: 0.8, voice: 0.8, muted: false };
     this.buffers = new Map(); // url → Promise<AudioBuffer|null> (insertion order = LRU)
     this.bufBytes = new Map(); // url → decoded PCM bytes (the byte budget of the LRU, see _buffer)
     this.warned = new Set();
@@ -739,14 +763,16 @@ export class AudioManager {
       const AC = this.win?.AudioContext || this.win?.webkitAudioContext;
       if (!AC) return;
       this.ctx = new AC();
+      // master (mute) → the official mixer; the sliders are its three ~…_VolumeControl groups, the music and voice
+      // inputs its Music / Voice groups (a sound of the SFX channel picks its group: _out)
       this.master = this.ctx.createGain();
-      this.bgmGain = this.ctx.createGain();
-      this.sfxGain = this.ctx.createGain();
-      this.voiceGain = this.ctx.createGain();
-      this.bgmGain.connect(this.master);
-      this.sfxGain.connect(this.master);
-      this.voiceGain.connect(this.master);
       this.master.connect(this.ctx.destination);
+      this.mixer = new AudioMixer(this.ctx, this.master);
+      [this.bgmGain] = this.mixer.controls('bgm');
+      [this.voiceGain] = this.mixer.controls('voice');
+      [this.sfxGain, this.uiGain] = this.mixer.controls('sfx');
+      this.musicIn = this.mixer.input('Music');
+      this.voiceIn = this.mixer.input('Voice');
       // iOS / iPadOS: a call, Siri or another app's audio moves a running context to 'interrupted' (or 'suspended');
       // a resume without a gesture may then be refused — listen for the next gesture again (dropped once it runs)
       try {
@@ -869,12 +895,27 @@ export class AudioManager {
     try {
       const t = this.ctx.currentTime;
       this.master.gain.setTargetAtTime(this.volumes.muted ? 0 : 1, t, 0.03);
-      // perceptual curve
-      this.bgmGain.gain.setTargetAtTime(this.volumes.bgm ** 2 * 0.55, t, 0.05);
-      this.sfxGain.gain.setTargetAtTime(this.volumes.sfx ** 2 * 0.9, t, 0.03);
-      // no 0.9: a voice line is already mastered as loud as the rest of the official mix (settings 干员语音 tunes it)
+      // perceptual curve; (fork) the balance between the channels is the official mixer's (audioMixer.js), so the
+      // sliders scale their control groups alone (the old 0.55 music / 0.9 SFX trims are gone)
+      this.bgmGain.gain.setTargetAtTime(this.volumes.bgm ** 2, t, 0.05);
+      this.sfxGain.gain.setTargetAtTime(this.volumes.sfx ** 2, t, 0.03);
+      this.uiGain?.gain.setTargetAtTime(this.volumes.sfx ** 2, t, 0.03);
       this.voiceGain.gain.setTargetAtTime(this.volumes.voice ** 2, t, 0.03);
     } catch { /* ignore */ }
+  }
+
+  /**
+   * (fork) Where an SFX-channel sound connects: its official mixer group's input (UI_GROUP / BATTLE_GROUP when the bank
+   * names none). Without the mixer (a test rig that set the gains by hand), the SFX channel's gain.
+   * @param {string|null|undefined} group @param {boolean} [ui] a UI sound (its fallback group is UI_GROUP)
+   */
+  _out(group, ui = false) {
+    return this.mixer ? this.mixer.input(group, ui ? UI_GROUP : BATTLE_GROUP) : this.sfxGain;
+  }
+
+  /** (fork) A UI / battle sound's mixer group by its sfx.ui / sfx.battle name (manifest sfx.groups). */
+  _groupOf(kind, name) {
+    return this.getManifest()?.audio?.sfx?.groups?.[kind]?.[name] ?? null;
   }
 
   /** A sound did not load: tell `onFailed` (a cosmetic plugin's file falls back) and remember that it did. */
@@ -1005,7 +1046,7 @@ export class AudioManager {
     try {
       const ctx = this.ctx;
       const gain = ctx.createGain();
-      gain.connect(this.bgmGain);
+      gain.connect(this.musicIn ?? this.bgmGain);
       const t0 = ctx.currentTime + 0.05;
       gain.gain.setValueAtTime(0, t0);
       // under a playing Fever song the new round track waits silent; the song's end brings it in (_duckBgm)
@@ -1081,10 +1122,12 @@ export class AudioManager {
         const ctx = this.ctx;
         const src = ctx.createBufferSource(), gain = ctx.createGain();
         src.buffer = buf;
-        src.connect(gain); gain.connect(this.bgmGain);
+        src.connect(gain); gain.connect(this.musicIn ?? this.bgmGain);
         const t0 = ctx.currentTime, end = t0 + buf.duration;
-        gain.gain.setValueAtTime(FEVER_GAIN, t0);
-        gain.gain.setValueAtTime(FEVER_GAIN, Math.max(t0, end - FEVER_END_S));
+        // (fork) the song's boost over the battle (audioMixer.js SONG_DUCK)
+        const lvl = this.mixer ? songGain() : 1;
+        gain.gain.setValueAtTime(lvl, t0);
+        gain.gain.setValueAtTime(lvl, Math.max(t0, end - FEVER_END_S));
         gain.gain.linearRampToValueAtTime(0, end);
         src.start(t0);
         this.fever.node = { src, gain };
@@ -1118,6 +1161,11 @@ export class AudioManager {
 
   /** The round's track under the Fever song: cut out (`down`, FEVER_DUCK_S) and faded back (FEVER_BACK_S). */
   _duckBgm(down) {
+    // (fork, owner 2026-10-18) the battle sounds step back under the Fever song too (audioMixer.js SONG_DUCK); held once
+    if (this.mixer && down !== !!this.feverSong) {
+      this.feverSong = down;
+      if (down) this.mixer.songStart(); else this.mixer.songEnd();
+    }
     const cur = this.bgm;
     if (!cur || !this.ctx) return;
     try {
@@ -1128,16 +1176,15 @@ export class AudioManager {
     } catch { /* ignore */ }
   }
 
-  /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): every one, on its own voice pool. */
+  /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): on its official bank's pool (_playBank). */
   _noteSound(ex) {
     const u = this.units.get(ex.owner);
     if (!u) return;
     const look = typeof ex.look === 'string' ? (ex.look.startsWith('s1_') ? 's1' : ex.look) : '';
-    const url = this.getManifest()?.audio?.sfx?.units?.[u.def]?.notes?.[look]?.[ex.on === 'hit' ? 'hit' : 'born'];
-    if (typeof url !== 'string') return;
-    // ducked under the Fever song (NOTE_FEVER_DUCK)
-    const duck = this.fever ? NOTE_FEVER_DUCK : 1;
-    this._play(url, { volume: (ex.on === 'hit' ? 0.55 : 0.45) * duck, pool: 'note' });
+    const e = this.getManifest()?.audio?.sfx?.units?.[u.def]?.notes?.[look];
+    const role = ex.on === 'hit' ? 'hit' : 'born';
+    if (typeof e?.[role] !== 'string') return;
+    this._playBank(e[role], e[role + 'Pool'], NOTE_GAIN);
   }
 
   /**
@@ -1155,27 +1202,29 @@ export class AudioManager {
       let r = Math.max(0, Math.min(0.999999, this.random())) * total;
       let pick = clips[clips.length - 1];
       for (const c of clips) { r -= c.w > 0 ? c.w : 1; if (r < 0) { pick = c; break; } }
-      this._playSting(pick.url, st.pool);
+      this._playBank(pick.url, st.pool, STING_GAIN);
     }
-    if (cue.loop && typeof st.loop === 'string') this._stingLoop(id, st.loop);
+    if (cue.loop && typeof st.loop === 'string') this._stingLoop(id, st.loop, st.loopGroup);
   }
 
-  /** Decode a unit's stings and loops ahead (a tracked unit with `stings`): a cast then plays at once, never late. */
+  /** Decode a unit's stings, loops and note sounds ahead (a tracked unit with them): they then play at once, never late. */
   _warmStings(def) {
-    const st = this.getManifest()?.audio?.sfx?.units?.[def]?.stings;
-    if (!st || !this.ctx) return;
-    for (const e of Object.values(st)) {
+    const sfx = this.getManifest()?.audio?.sfx?.units?.[def];
+    if (!this.ctx) return;
+    for (const e of Object.values(sfx?.stings || {})) {
       for (const c of Array.isArray(e?.clips) ? e.clips : []) if (typeof c?.url === 'string') this._buffer(c.url);
       if (typeof e?.loop === 'string') this._buffer(e.loop);
     }
+    for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
   }
 
   /**
-   * One sting on its own voices: the official banks mark them `important` on their own mixer group (Battle_UI_Boost /
-   * Battle_P_SAtk, 2D), so the battle limiter (8 voices, unit / URL gaps) never drops one; only the bank's own cap holds
-   * (S1 max 2, the oldest giving way; S2 / S3 unlimited). A field change drops a decode still in flight (stingField).
+   * (fork) One sound of 丰川祥子's (a sting, a note's born / hit) on its official bank alone, outside the battle limiter
+   * (8 voices, unit / URL gaps: remake guards the official client does not have): only the bank's own cap holds (max
+   * `maxSoundAllowed` at once, 0 = unlimited; `popOldest` = the oldest gives way, else the new one is dropped) and the
+   * played file's pitch is drawn in its minPitch–maxPitch. A field change drops a decode still in flight (stingField).
    */
-  _playSting(url, poolId) {
+  _playBank(url, poolId, volume) {
     const ctx = this.ctx;
     if (!ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
     const params = this.getManifest()?.audio?.sfx?.pools?.[poolId] ?? null;
@@ -1201,21 +1250,25 @@ export class AudioManager {
         if (!voices.length) this.stingVoices.delete(key);
         try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
       };
+      const sound = params?.sounds?.[unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '')];
+      const lo = sound?.minPitch > 0 ? sound.minPitch : 1;
+      const hi = sound?.maxPitch >= lo ? sound.maxPitch : lo;
+      const rate = lo + (hi - lo) * Math.max(0, Math.min(1, this.random()));
       try {
         src = ctx.createBufferSource(); gain = ctx.createGain();
-        src.buffer = buf;
-        gain.gain.value = STING_GAIN;
-        src.connect(gain); gain.connect(this.sfxGain);
+        src.buffer = buf; src.playbackRate.value = rate;
+        gain.gain.value = volume * spatialGain(params?.spatial, buf.numberOfChannels);
+        src.connect(gain); gain.connect(this._out(params?.group));
         src.onended = end;
         voices.push(voice); this.stingVoices.set(key, voices);
         src.start();
-        setTimeout(end, buf.duration * 1000 + 250); // safety if onended never fires
+        setTimeout(end, buf.duration / rate * 1000 + 250); // safety if onended never fires
       } catch { end(); }
     }, () => {});
   }
 
-  /** The skill's held loop of unit `id` (one per unit: a new one replaces it). */
-  _stingLoop(id, url) {
+  /** The skill's held loop of unit `id` (one per unit: a new one replaces it), on its bank's mixer `group`. */
+  _stingLoop(id, url, group = null) {
     this._stopStingLoop(id);
     const ctx = this.ctx;
     if (!ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
@@ -1228,7 +1281,7 @@ export class AudioManager {
         const src = ctx.createBufferSource(), gain = ctx.createGain();
         src.buffer = buf; src.loop = true;
         gain.gain.value = STING_GAIN;
-        src.connect(gain); gain.connect(this.sfxGain);
+        src.connect(gain); gain.connect(this._out(group));
         src.start();
         cur.node = { src, gain };
       } catch { this.stingLoops.delete(id); }
@@ -1304,7 +1357,7 @@ export class AudioManager {
         src = ctx.createBufferSource(); gain = ctx.createGain();
         src.buffer = buf;
         gain.gain.value = Math.max(0, Math.min(1.5, volume));
-        src.connect(gain); gain.connect(this.sfxGain);
+        src.connect(gain); gain.connect(this._out(this._groupOf('ui', 'bondUp'), true));
         src.onended = end;
         this.bondCueNode = { src, gain, end };
         src.start();
@@ -1319,29 +1372,29 @@ export class AudioManager {
 
   /**
    * @param {string} url
-   * @param {{ volume?: number, rate?: number, limited?: boolean, unitKey?: string | null, again?: (() => unknown) | null, pool?: any }} [o]
+   * @param {{ volume?: number, rate?: number, limited?: boolean, unitKey?: string | null, again?: (() => unknown) | null, pool?: any, group?: string | null }} [o]
    *   again: the sound's URL picked from the manifest again — played instead once when this one was a cosmetic plugin's
-   *   file that would not load (its entry fell back: see the header); pool: (fork) 'note' — Sakiko's note sounds, their
-   *   own small pool (NOTE_VOICES) beside the battle limiter
+   *   file that would not load (its entry fell back: see the header); pool: the official bank pool (_playPool); group:
+   *   (fork) its official mixer group (_out)
    */
-  _play(url, { volume = 1, rate = 1, limited = false, unitKey = null, pool = null, again = null } = {}) {
+  _play(url, { volume = 1, rate = 1, limited = false, unitKey = null, pool = null, again = null, group = null, song = false } = {}) {
     if (!this.ctx || !url || this.volumes.muted || this.volumes.sfx <= 0) return;
     if (limited && pool) { this._playPool(url, { volume, unitKey, again, pool }); return; }
+    // (fork) its mixer group: the call's, else the UI / battle default (_out); a song past its own group's duck
+    const out = song && this.mixer ? this.mixer.songInput(group) : this._out(group, !limited);
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (pool === 'note') { if (this.noteVoices >= NOTE_VOICES) return; this.noteVoices += 1; }
-    else if (limited) { if (!this.limiter.tryAcquire(now, unitKey, url)) return; }
+    if (limited) { if (!this.limiter.tryAcquire(now, unitKey, url)) return; }
     else if (this.uiVoices >= 12) return;
     else this.uiVoices += 1;
     const release = () => {
-      if (pool === 'note') this.noteVoices = Math.max(0, this.noteVoices - 1);
-      else if (limited) this.limiter.release(url);
+      if (limited) this.limiter.release(url);
       else this.uiVoices = Math.max(0, this.uiVoices - 1);
     };
     this._buffer(url).then((buf) => {
       if (!buf && again && this.fellBack.has(url)) {
         release();
         const next = again();
-        if (typeof next === 'string' && next !== url) this._play(next, { volume, rate, limited, unitKey, pool });
+        if (typeof next === 'string' && next !== url) this._play(next, { volume, rate, limited, unitKey, pool, group, song });
         return;
       }
       if (!buf || !this.ctx) { release(); return; }
@@ -1350,10 +1403,18 @@ export class AudioManager {
         s.buffer = buf;
         s.playbackRate.value = rate;
         const g = this.ctx.createGain();
-        g.gain.value = Math.max(0, Math.min(1.5, volume));
-        s.connect(g); g.connect(this.sfxGain);
+        // (fork) a singing skill's song plays its boost over the battle (audioMixer.js SONG_DUCK)
+        g.gain.value = Math.max(0, Math.min(1.5, volume)) * (song && this.mixer ? songGain() : 1);
+        s.connect(g); g.connect(out);
         let done = false;
-        const end = () => { if (!done) { done = true; release(); try { g.disconnect(); } catch { /* ignore */ } } };
+        const mixer = song ? this.mixer : null;
+        if (mixer) { mixer.songStart(); this.songNodes.add(s); }
+        const end = () => {
+          if (done) return;
+          done = true; release();
+          if (mixer && this.songNodes.delete(s)) mixer.songEnd();
+          try { g.disconnect(); } catch { /* ignore */ }
+        };
         s.onended = end;
         setTimeout(end, (buf.duration / rate) * 1000 + 250); // safety if onended never fires
         s.start();
@@ -1455,8 +1516,8 @@ export class AudioManager {
     try {
       src = ctx.createBufferSource(); gain = ctx.createGain();
       src.buffer = buf; src.playbackRate.value = rate;
-      gain.gain.value = Math.max(0, Math.min(1.5, volume));
-      src.connect(gain); gain.connect(this.sfxGain);
+      gain.gain.value = Math.max(0, Math.min(1.5, volume)) * spatialGain(pool.spatial, buf.numberOfChannels);
+      src.connect(gain); gain.connect(this._out(pool.group));
       if (oldest) oldest.stop();
       acquired = this.limiter.tryAcquire(now, unitKey, url, Infinity);
       if (!acquired) { end(); return; }
@@ -1491,7 +1552,7 @@ export class AudioManager {
       const url = pick();
       if (typeof url === 'string') {
         if (name === 'bondUp') this._playBondCue(url, o.volume ?? 0.9, o.scope, pick);
-        else this._play(url, { volume: o.volume ?? 0.9, again: pick });
+        else this._play(url, { volume: o.volume ?? 0.9, again: pick, group: this._groupOf('ui', name) });
       }
     } catch { /* ignore */ }
   }
@@ -1541,7 +1602,7 @@ export class AudioManager {
     const ctx = this.ctx, t0 = ctx.currentTime + 0.02, rnd = Math.random;
     const out = ctx.createGain();
     out.gain.value = Math.max(0, Math.min(1.5, volume));
-    out.connect(this.sfxGain);
+    out.connect(this._out(null, true));
     // bit-crush: overdrive, then snap to 10 levels (a stair-step curve)
     const crush = ctx.createWaveShaper();
     const curve = new Float32Array(2048);
@@ -1590,7 +1651,8 @@ export class AudioManager {
     try {
       const pick = () => this.getManifest()?.audio?.sfx?.battle?.[name];
       const url = pick();
-      if (typeof url === 'string') this._play(url, { volume: o.volume ?? 0.7, limited: true, unitKey: o.unitKey ?? `b:${name}`, again: pick });
+      // (fork) bank volume 1 on the sound's mixer group (sfx.groups.battle); was a flat 0.7 before the mixer
+      if (typeof url === 'string') this._play(url, { volume: o.volume ?? 1, limited: true, unitKey: o.unitKey ?? `b:${name}`, again: pick, group: this._groupOf('battle', name) });
     } catch { /* ignore */ }
   }
 
@@ -1614,9 +1676,9 @@ export class AudioManager {
         // swing, `hits[2]` = the S3 slash's impact.
         const table = kind === 'attack' ? u?.attacks : kind === 'hit' ? u?.hits : null;
         const mode = skillActive && Number.isInteger(skillIndex) && table ? table[skillIndex] : null;
-        return { u, mode, url: typeof own === 'string' ? own : typeof mode === 'string' ? mode : u?.[kind] };
+        return { u, mode, own, url: typeof own === 'string' ? own : typeof mode === 'string' ? mode : u?.[kind] };
       };
-      const { u, mode, url } = pick();
+      const { u, mode, url, own } = pick();
       if (typeof url !== 'string') return false;
       // a skill-mode file is fine here when it IS the running skill's (mode); the gate is for normal attacks
       // (丰川祥子's normal swing IS an `_h` file, ON_ABILITY_ON.attack.0.1: an operator with per-note banks is exempt)
@@ -1629,7 +1691,11 @@ export class AudioManager {
         ? (kind === 'attack' ? u?.attackPools : u?.hitPools)?.[skillIndex] : u?.pools?.[kind];
       const params = this.getManifest()?.audio?.sfx?.pools?.[poolId];
       const pool = params ? { ...params, id: poolId } : null;
-      this._play(url, { volume: unitGain(kind === 'attack' || kind === 'hit' ? 0.55 : 0.8, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool });
+      // (fork) its mixer group: an attack / hit's is in its pool; a skill's in skillGroups, a die / born's in groups
+      const group = kind === 'skill' && typeof own === 'string' ? u?.skillGroups?.[skillIndex] : u?.groups?.[kind];
+      // (fork) a singing skill (SONG_SKILLS): the battle sounds step back while its song plays
+      const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
+      this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       return true;
     } catch { return false; }
   }
@@ -1726,12 +1792,15 @@ export class AudioManager {
         src.buffer = buf;
         const gain = this.ctx.createGain();
         gain.gain.value = Math.max(0, Math.min(1.5, Number.isFinite(volume) ? volume : 1));
-        src.connect(gain); gain.connect(this.voiceGain);
+        src.connect(gain); gain.connect(this.voiceIn ?? this.voiceGain);
+        // (fork) the line is the duck's sidechain: the normal battle sounds go down under it (audioMixer.js)
+        this.mixer?.voiceStart();
         const node = { src, gain, url, token };
         let done = false;
         const end = () => {
           if (done) return;
           done = true;
+          this.mixer?.voiceEnd();
           // this line's own end (natural, or the safety timer): only the line that still owns the channel may free it.
           // A stale end is the takeover's leftovers — `_stopVoice` already faded it out and released the gate.
           if (token === this.voiceToken) {
@@ -1795,7 +1864,7 @@ export class AudioManager {
     this.units.set(u.id, { def: u.spine || u.defId, voice: u.voice || u.spine || u.defId, defId: u.defId ?? null, kind: u.kind ?? null, side: u.side, boss: !!u.boss,
       voiceKey: u.side === 'enemy' ? null : outfitVoiceKey(u),
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
-    // (fork) its skill stings decode now, so its first cast is not late (or dropped)
+    // (fork) its skill stings and note sounds decode now, so its first cast / note is not late (or dropped)
     if (u.side !== 'enemy') this._warmStings(u.spine || u.defId);
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
@@ -1806,8 +1875,19 @@ export class AudioManager {
   }
 
   /** Play a resolved battle sound for a unit event, limited like unit sounds. */
-  _playUnitUrl(url, unitKey, volume = 0.8) {
-    if (typeof url === 'string') this._play(url, { volume, limited: true, unitKey });
+  _playUnitUrl(url, unitKey, volume = UNIT_BASE_GAIN, group = null) {
+    if (typeof url === 'string') this._play(url, { volume, limited: true, unitKey, group });
+  }
+
+  /**
+   * (fork) The mixer group of a unit's die / born sound `url`: its own bank's (sfx.units[def].groups), else the generic
+   * file's (sfx.groups.battle by its sfx.battle name).
+   */
+  _unitUrlGroup(def, role, url) {
+    const s = this.getManifest()?.audio?.sfx;
+    if (url === s?.units?.[def]?.[role]) return s.units[def].groups?.[role] ?? null;
+    for (const [name, u] of Object.entries(s?.battle || {})) if (u === url) return this._groupOf('battle', name);
+    return null;
   }
 
   /**
@@ -1829,7 +1909,7 @@ export class AudioManager {
       if (!url) return false;
       const own = url === m?.audio?.sfx?.units?.[u.def]?.born;
       const mix = own ? m.audio.sfx.units[u.def].mix?.born : null;
-      if (unitSoundPlays(mix, this.random())) this._playLanding(url, `land:${key}`, own ? unitGain(0.8, mix) : 0.5);
+      if (unitSoundPlays(mix, this.random())) this._playLanding(url, `land:${key}`, own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'born', url));
       return true;
     } catch { return false; }
   }
@@ -1842,8 +1922,9 @@ export class AudioManager {
    * @param {string} url
    * @param {string} unitKey the piece's cooldown key (`land:<view id>`)
    * @param {number} volume gain of this sound under the SFX channel
+   * @param {string|null} [group] (fork) its mixer group (_out)
    */
-  _playLanding(url, unitKey, volume) {
+  _playLanding(url, unitKey, volume, group = null) {
     if (!this.ctx || typeof url !== 'string' || !url || this.volumes.muted || this.volumes.sfx <= 0) return;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     const pool = this.landLimiter;
@@ -1868,7 +1949,7 @@ export class AudioManager {
         s.buffer = buf;
         const g = this.ctx.createGain();
         g.gain.value = Math.max(0, Math.min(1.5, volume));
-        s.connect(g); g.connect(this.sfxGain);
+        s.connect(g); g.connect(this._out(group));
         v.src = s; v.gain = g;
         let done = false;
         const end = () => { if (done) return; done = true; v.release(); try { g.disconnect(); } catch { /* ignore */ } };
@@ -1933,14 +2014,14 @@ export class AudioManager {
           // only a hostile attack authors the target's next impact (a heal — an ally aiming at an ally — never does)
           const tgt = this.units.get(e[2]);
           if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, at: now, skillIndex: src.skillIndex ?? null, skillActive: !!src.skillActive });
-          if (!this.unit(src.def, 'attack', e[1], src.skillIndex ?? undefined, src.skillActive) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk`, volume: 0.35 });
+          if (!this.unit(src.def, 'attack', e[1], src.skillIndex ?? undefined, src.skillActive) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
           if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive);
         } else if (kind === 'heal') {
-          this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.35 });
+          this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.8 }); // (fork) the bank's own volume 0.8, on the mixer
         } else if (kind === 'skill' && e[2]) {
           const u = this.units.get(e[1]);
           if (u) {
@@ -1984,7 +2065,7 @@ export class AudioManager {
           const own = url === m?.audio?.sfx?.units?.[u.def]?.die;
           const mix = own ? m.audio.sfx.units[u.def].mix?.die : null;
           if (!unitSoundPlays(mix, this.random())) continue;
-          this._playUnitUrl(url, own ? `${e[1]}:die` : `die:${e[1]}`, own ? unitGain(0.8, mix) : 0.7);
+          this._playUnitUrl(url, own ? `${e[1]}:die` : `die:${e[1]}`, own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'die', url));
         } else if (kind === 'leak') {
           // 漏怪: an enemy reached its goal (Battle.leak emits the sim's own EV.LEAK — it is NOT a `die`, so until now a
           // leak was completely silent, for the player's own field and for a 联防 the helpers could not hold alike).
@@ -1994,7 +2075,7 @@ export class AudioManager {
           if (now - (this.lastLeakSfxAt ?? -Infinity) < LEAK_SFX_GAP_MS) continue;
           if (typeof this.getManifest()?.audio?.sfx?.battle?.leak !== 'string') continue;
           this.lastLeakSfxAt = now;
-          this.battle('leak', { unitKey: 'leak', volume: 0.85 });
+          this.battle('leak', { unitKey: 'leak' });
         } else if (kind === 'deploy') {
           const u = this.units.get(e[1]);
           if (!u || u.side === 'enemy') continue;
@@ -2013,7 +2094,7 @@ export class AudioManager {
           const own = url === m?.audio?.sfx?.units?.[u.def]?.born;
           const mix = own ? m.audio.sfx.units[u.def].mix?.born : null;
           if (!unitSoundPlays(mix, this.random())) continue;
-          this._playUnitUrl(url, own ? `${e[1]}:born` : 'deploy', own ? unitGain(0.8, mix) : 0.5);
+          this._playUnitUrl(url, own ? `${e[1]}:born` : 'deploy', own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'born', url));
         } else if (kind === 'fx' && e[1] === 'note') {
           if (e[4] && typeof e[4] === 'object') this._noteSound(e[4]);
         } else if (kind === 'fx' && e[1] === 'fever') {

@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
+import { songGain } from '../../public/js/audioMixer.js';
 import { PHASE } from '../../shared/constants.js';
 import { makeBattle, chessRec } from '../helpers/battleHarness.js';
 
@@ -599,31 +600,47 @@ describe('AudioManager', () => {
     assert.equal(f(u.attacks?.[2]), 'p_atk_mjckyrdslnt.mp3');
   });
 
-  test('丰川祥子: per-note born / hit sounds, every one; the Fever song starts at full volume over the round track, a second Fever changes nothing (no queue), resets with the field', async () => {
+  test('丰川祥子: per-note born / hit sounds on their official bank pools (max 2, the oldest gives way, pitch 0.8–1.2); the Fever song starts at full volume over the round track, a second Fever changes nothing (no queue), resets with the field', async () => {
     const fw = fakeWindow();
     const origFetch = globalThis.fetch;
     globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
     try {
+      let roll = 0;
+      const bank = (file) => ({ maxSoundAllowed: 2, popOldest: true, sounds: { [file]: { minPitch: 0.8, maxPitch: 1.2, delay: 0 } } });
       const vm = { audio: {
         bgm: { combat: { loop: '/b/combat.mp3' }, fever: { intro: '/b/fever.mp3', loop: '/b/fever.mp3' } },
-        sfx: { ui: {}, battle: {}, units: { char_4182_oblvns: { notes: { s1: { hit: '/s/s1_hit.mp3' }, talent: { born: '/s/t_born.mp3' } } } } },
+        sfx: { ui: {}, battle: {}, pools: { s1h: bank('s1_hit.mp3'), tb: bank('t_born.mp3') },
+          units: { char_4182_oblvns: { notes: { s1: { hit: '/assets/audio/sfx/s1_hit.mp3', hitPool: 's1h' },
+            talent: { born: '/assets/audio/sfx/t_born.mp3', bornPool: 'tb' } } } } },
       } };
-      const a = new AudioManager({ win: fw.win, getManifest: () => vm });
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => roll });
       a.install();
       fw.fire('pointerdown');
       await new Promise((r) => setTimeout(r, 10));
       a.setFieldUnits([{ id: 3, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4182_oblvns' }]);
-      const urls = [];
-      const play = a._play.bind(a);
-      const vols = [];
-      a._play = (url, o) => { urls.push(url); vols.push(o?.volume); return play(url, o); };
+      const plays = [];
+      const play = a._playBank.bind(a);
+      a._playBank = (url, pool, vol) => { plays.push([url, pool, vol]); return play(url, pool, vol); };
       const ev = [];
       for (let i = 0; i < 30; i++) ev.push(['fx', 'note', 5, 10, { id: i, owner: 3, look: 's1_' + ((i % 8) + 1), on: 'hit', tgt: 9 }]);
       ev.push(['fx', 'note', 5, 10, { id: 99, owner: 3, look: 'unknown', on: 'born' }]);
+      const before = fw.made.started;
       a.handleBattleEvents(ev);
-      assert.equal(urls.length, 30, 'every note hit plays');
-      assert.ok(urls.every((u) => u === '/s/s1_hit.mp3'), 'S1 notes share the s1 bank');
-      assert.ok(vols.every((v) => Math.abs(v - 0.55) < 1e-9), 'note hits at their normal volume outside Fever');
+      assert.equal(plays.length, 30, 'every note hit reaches its bank');
+      assert.ok(plays.every(([u, p]) => u.endsWith('/s1_hit.mp3') && p === 's1h'), 'S1 notes share the s1 hit bank');
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(fw.made.started - before, 30, 'each starts (the battle limiter drops none)');
+      assert.equal(a.stingVoices.get('s1h').length, 2, 'official cap: 2 at once, the oldest giving way');
+      // the official pitch range of the played file
+      const srcs = [];
+      const mk = a.ctx.createBufferSource.bind(a.ctx);
+      a.ctx.createBufferSource = () => { const s = mk(); srcs.push(s); return s; };
+      roll = 1;
+      a.handleBattleEvents([['fx', 'note', 5, 10, { id: 100, owner: 3, look: 'talent', on: 'born' }]]);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(a.stingVoices.get('tb').length, 1, 'the talent born bank is its own pool');
+      assert.ok(Math.abs(srcs[0].playbackRate.value - 1.2) < 1e-9, 'pitch drawn in the file\'s 0.8–1.2');
+      roll = 0;
       // Fever: the song starts at once at full volume (no fade in), the round track drops out
       a.playBgm('combat');
       await new Promise((r) => setTimeout(r, 10));
@@ -631,12 +648,10 @@ describe('AudioManager', () => {
       await new Promise((r) => setTimeout(r, 10));
       assert.ok(a.fever && a.fever.node, 'the Fever song plays');
       const shape = a.fever.node.gain.gain.log;
-      assert.deepEqual(shape[0], ['set', 1.4], 'full (boosted) volume from the start (no fade in)');
+      // (fork) at the song's boost over the battle (audioMixer.js SONG_DUCK) when the mixer is up, else 1
+      assert.deepEqual(shape[0], ['set', a.mixer ? songGain() : 1], 'full volume from the start (no fade in)');
       assert.ok(!shape.some(([k, v]) => k === 'ramp' && v > 0), 'nothing ramps it up');
       assert.deepEqual(shape[shape.length - 1], ['ramp', 0], 'only a click guard at its very end');
-      vols.length = 0;
-      a.handleBattleEvents([['fx', 'note', 5, 10, { id: 100, owner: 3, look: 's1_1', on: 'hit', tgt: 9 }]]);
-      assert.ok(Math.abs(vols[0] - 0.55 * 0.4) < 1e-9, 'note sounds duck under the Fever song');
       const first = a.fever;
       a.handleBattleEvents([['fx', 'fever', 0, 0, { on: 0 }], ['fx', 'fever', 0, 0, { on: 1 }]]);
       assert.equal(a.fever, first, 'Fever ending does nothing; a new Fever neither restarts nor queues it');
@@ -688,8 +703,8 @@ describe('AudioManager', () => {
       const sak = (id, skillIndex) => ({ id, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4182_oblvns', skillIndex });
       a.setFieldUnits([sak(3, 0), sak(4, 2)]);
       const plays = [];
-      const play = a._playSting.bind(a);
-      a._playSting = (url, pool) => { plays.push([url, pool]); return play(url, pool); };
+      const play = a._playBank.bind(a);
+      a._playBank = (url, pool, vol) => { plays.push([url, pool]); return play(url, pool, vol); };
       const tick = () => new Promise((r) => setTimeout(r, 10));
       // the draw follows the weights: 0.39 → d1 (0–40), 0.4 → d2 (40–70), 0.95 → d3
       for (const r of [0.39, 0.4, 0.95]) { roll = r; a.handleBattleEvents([['skill', 3, 1, { sting: 1 }]]); }

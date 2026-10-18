@@ -456,6 +456,15 @@ function buildSkill(ctx, skillId, level, trigger, label) {
   // A record without it still matches the line (shared/loadoutRecord.js), which is how a plugin's Chinese skill
   // keeps the preview. The battle kits are not this flag; resolveTrigger still reads the Chinese description.
   if (/被动效果：攻击范围扩大/.test(desc) && Array.isArray(skill.rangeGrid) && skill.rangeGrid.length) skill.passiveRange = true;
+  // (fork) the attack range while the skill runs, for the card's skill-range preview without a live entry
+  // (shared/loadoutRecord.js skillAttackRangeGrid): `activeRange` = its own rangeGrid is that range, `activeExtend` = the
+  // operator's range grown by N (攻击距离+N) — activeAttackGrid's reading of the Chinese text, stored for the localized
+  // record. Absent for any other skill. The battle's own range is the kit's (unitStatsEntry `skillRange`).
+  if (ATTACK_RANGE_CHANGE.test(desc) && !/被动效果：攻击范围扩大/.test(desc)) {
+    const n = Math.round(Number(skill.bb?.ability_range_forward_extend) || 0);
+    if (Array.isArray(skill.rangeGrid) && skill.rangeGrid.length) skill.activeRange = true;
+    else if (n > 0) skill.activeExtend = n;
+  }
   return skill;
 }
 

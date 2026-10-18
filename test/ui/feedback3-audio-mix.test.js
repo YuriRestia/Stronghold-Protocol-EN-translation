@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { AudioManager, unitGain, unitSoundPlays } from '../../public/js/audio.js';
+import { AudioManager, UNIT_BASE_GAIN, unitGain, unitSoundPlays } from '../../public/js/audio.js';
 import { indexAudio, pickUnitSfx, bankMix } from '../../tools/assets/audio.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -57,7 +57,7 @@ test('data/assets.json carries the official mix: dogs 20 %, 妖怪 / 威龙 0.7 
   assert.equal(banks.get('battle.ON_ABILITY_ON.enemy_1005_yokai_2.attack').sounds[0].maxVolume, 0.7);
 });
 
-test('a dog barks only on its chance and never falls back to the generic enemy sound; at most the old gain', () => {
+test('a dog barks only on its chance and never falls back to the generic enemy sound; at its bank volume', () => {
   assert.equal(unitSoundPlays({ p: 0.2 }, 0.19), true);
   assert.equal(unitSoundPlays({ p: 0.2 }, 0.2), false);
   assert.equal(unitSoundPlays(null, 0.99), true);
@@ -66,21 +66,22 @@ test('a dog barks only on its chance and never falls back to the generic enemy s
   for (let i = 0; i < 5; i++) { a.limiter = new a.limiter.constructor(); a.handleBattleEvents([['atk', 1, 2, 'none']]); }
   const barks = a.played.filter((p) => p.url === UNITS.enemy_1000_gopro_2.attack);
   assert.equal(barks.length, 2, 'rolls 0.1 and 0.05 of 0.5 / 0.9 / 0.1 / 0.3 / 0.05');
-  for (const b of barks) assert.equal(b.volume, 0.55, 'official volume 1: the same gain as before');
+  // (fork) the official mixer sets the level (audioMixer.js): a unit sound plays at its bank volume, 1 here
+  for (const b of barks) assert.equal(b.volume, UNIT_BASE_GAIN, 'official volume 1');
   assert.equal(a.played.length, 2, 'the silent rolls play nothing — not the generic enemyHit either');
 });
 
-test('妖怪 plays at 0.55 × 0.7; a bank louder than 1 stays at the old gain; die / born use the mix too', () => {
+test('妖怪 plays at 0.7 of the base; a bank louder than 1 stays at the base; die / born use the mix too', () => {
   assert.equal(unitGain(0.55, { vol: 0.7 }), 0.55 * 0.7);
   assert.equal(unitGain(0.55, { vol: 2 }), 0.55, 'never louder than before');
   assert.equal(unitGain(0.8, null), 0.8);
   const a = manager([]);
   assert.equal(a.unit('enemy_1005_yokai_2', 'attack', 7), true);
-  assert.ok(Math.abs(a.played[0].volume - 0.385) < 1e-9);
+  assert.ok(Math.abs(a.played[0].volume - UNIT_BASE_GAIN * 0.7) < 1e-9);
   assert.equal(a.unit('char_1028_texas2', 'hit', 8), true);
-  assert.equal(a.played[1].volume, 0.55, 'official 2: unchanged');
+  assert.equal(a.played[1].volume, UNIT_BASE_GAIN, 'official 2: the base');
   a.setFieldUnits([{ id: 3, side: 'ally', kind: 'op', spine: 'char_2026_yu', defId: 'chess_char_x' }]);
   a.handleBattleEvents([['deploy', 3]]);
   const born = a.played.find((p) => p.url === UNITS.char_2026_yu.born);
-  assert.ok(born && Math.abs(born.volume - 0.8 * 0.75) < 1e-9, '余 ON_UNIT_BORN at 0.75');
+  assert.ok(born && Math.abs(born.volume - UNIT_BASE_GAIN * 0.75) < 1e-9, '余 ON_UNIT_BORN at 0.75');
 });

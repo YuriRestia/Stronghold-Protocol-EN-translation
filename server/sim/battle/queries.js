@@ -342,6 +342,17 @@ export class BattleQueries {
     const own = !!(tg && tg.showOwnRange);
     const lg = own ? u.rangeGrid || [[0, 0]] : grid, le = own ? u.s.rangeExtend : ext;
     u.liveRangeGrid = le > 0 ? extendedGrid(lg, le) : lg;
+    // (fork) `skillRangeGrid`: the grid the unit attacks with while its skill runs — the detail card's skill-range
+    // preview (unitStatsEntry `skillRange`) — built like the running range above from the kit's targeting; null when
+    // the skill keeps the attack range (no range change, passive, or a grid that only selects targets). Display only,
+    // never read by the sim. A range a kit sets in onStart (unit.rangeGrid, setExtraRange) is not foreseen.
+    const sk = u.skill;
+    const st = sk && !sk.noSkill && sk.kind !== 'passive' ? sk.spec?.targeting : null;
+    if (st && (st.rangeGrid || st.rangeExtend || st.noRangeExtend) && !st.showOwnRange) {
+      const sg = st.rangeGrid || u.rangeGrid || [[0, 0]];
+      const se = (st.noRangeExtend ? 0 : u.s.rangeExtend) + (st.rangeExtend || 0);
+      u.skillRangeGrid = se > 0 ? extendedGrid(sg, se) : sg;
+    } else u.skillRangeGrid = null;
     if (u.kind !== 'device') u.baseRangeKeys = absoluteRangeKeys(u.rangeGrid || [[0, 0]], u.tileR, u.tileC, u.dir, u.s.baseRangeExtend);
     if (u.skill) u.skill._trigKeys = null; // CUSTOM_RANGE trigger grid is relative to the tile
   }

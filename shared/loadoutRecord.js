@@ -180,6 +180,28 @@ export function attackRangeGrid(rec) {
 }
 
 /**
+ * (fork) The attack range a (loadout-resolved) chess record fights with while its selected skill runs — the detail
+ * card's skill-range preview when no live entry says it (shared/protocol.js unitStatsEntry `skillRange`, the kit's own
+ * range, wins): the skill's grid (`skill.activeRange`) grown by the 特性's 攻击距离, or the deployment range
+ * (attackRangeGrid) grown by the skill's 攻击距离+N (`skill.activeExtend`), as Battle._refreshRange builds it.
+ * null when the skill keeps the attack range. [ASSUMED] A kit whose range ignores 攻击距离 (targeting.noRangeExtend)
+ * still shows the extend here; its live entry does not.
+ * @param {object|null} rec loadoutRecord(…) output
+ * @returns {number[][]|null}
+ */
+export function skillAttackRangeGrid(rec) {
+  const sk = rec && typeof rec === 'object' ? rec.skill : null;
+  if (!sk || typeof sk !== 'object') return null;
+  if (sk.activeRange === true && Array.isArray(sk.rangeGrid) && sk.rangeGrid.length) {
+    const ext = traitRangeExtend(rec);
+    return ext ? extendedGrid(sk.rangeGrid, ext) : sk.rangeGrid;
+  }
+  const n = Math.floor(Number(sk.activeExtend) || 0);
+  const g = n > 0 ? attackRangeGrid(rec) : null;
+  return g?.length ? extendedGrid(g, n) : null;
+}
+
+/**
  * The permanent 攻击距离 (ability_range_forward_extend) a record's 特性 grants — a module's, e.g. 信仰搅拌机 SPT-Y
  * "攻击距离+1" (its kit's rangeUp: a persistent rangeExtend buff, s.baseRangeExtend); 0 for one that works in 集成战略
  * only (空弦 ISW-A). `trait.modeOnly` is that reading of the Chinese `moduleDesc`, stored at build time (GitHub #700),

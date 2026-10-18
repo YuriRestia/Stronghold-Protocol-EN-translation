@@ -21,6 +21,7 @@ import { diySlotList, pickChoices, pickOptions, slotRecord, defaultPick } from '
 // 皮肤 (docs/SKINS.md): the same self-contained section the 干员调配 detail draws, keyed by the operator being picked
 import { SkinSection } from '../ui/skinPicker.js';
 import { LoadoutStats } from '../ui/loadoutStats.js';
+import { useSkillRangePreview } from '../ui/rangePreview.js';
 import { CultivationSelects } from './cultivation.js';
 import { t } from '../../../shared/i18n.js';
 import { VoiceLangPicker } from '../ui/voiceLang.js';
@@ -157,6 +158,7 @@ function ModuleRow({ id, rec, on, locked, onPick }) {
  */
 export function DiyPicker(props) {
   const [previewLevel, setPreviewLevel] = useState('elite');
+  useSkillRangePreview(); // (fork) 局内数值's 攻击范围 技能 toggle (ui/rangePreview.js)
   const cur = props.picks[props.slot.slotId] || null;
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');

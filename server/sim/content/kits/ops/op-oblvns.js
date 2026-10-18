@@ -34,7 +34,8 @@
 //   (oblvns_s_1[self] → [no_auto_fever] TriggerSkill) never does: the cast made at maxCharges is the auto one.
 // - S2 满月的舞会 (toggle): starts in 钢琴 piano (prefab `_defaultModeIndex` 2 = S2_Atk); its one cast per deployment
 //   (PRTS 卫戍协议/帮助 §技能操作 状态切换类 — the strict rule, owner 2026-10-15) switches to 风琴 organ — or, the gauge full,
-//   starts Fever and keeps piano (oblvns_s_2[switch]). Piano: ATK +attack@atk, physical notes that pass through
+//   starts Fever and keeps piano (oblvns_s_2[switch]); that Fever cast is not the one cast (the skill goes off again,
+//   [ASSUMED] owner 2026-10-19). Piano: ATK +attack@atk, physical notes that pass through
 //   (passby 0.5 s); organ: ASPD +attack@attack_speed, arts notes, slower. During Fever: a second note of the timbre
 //   0.2 s after the first (S2_Fever `_additionalTimes` 1).
 // - S3 残月的余响 (25 s): the skill range; each attack fires 2 physical notes 0.1 s apart (tracing the highest-RES enemy)
@@ -265,9 +266,13 @@ export default {
           // its official mode's clips, the S2_Atk / S2_AttackSpeed _replaceAnimPairs). A cast that starts Fever keeps it.
           cue: ({ unit }) => (k.fever.full || k.fever.active || unit.mem.oblvnsTimbre === 'organ'
             ? { form: unit.mem.oblvnsTimbre ?? 'piano' } : ORGAN_CUE),
-          // the one cast of the deployment: Fever when the gauge is full (the timbre stays), else piano → organ
+          // the one cast of the deployment: piano → organ — or Fever when the gauge is full (the timbre stays). A cast that
+          // starts Fever is not that one cast: the skill goes off again right after (install's skillStart), SP charges
+          // and her next cast switches. [ASSUMED] owner 2026-10-19: oblvns_s_2[switch] keeps the timbre on a full-gauge
+          // cast and returns to it after Fever; counting it as the toggle left her on piano with no SP for the rest of the
+          // deployment (an S3 member's Fever refills the gauge before her first cast, S2 waits out that Fever)
           onStart({ battle, unit }) {
-            if (k.fever.full && !k.fever.active) { k.fever.tryStart(unit); return; }
+            if (k.fever.full && !k.fever.active) { if (k.fever.tryStart(unit)) unit.mem.oblvnsFeverCast = true; return; }
             setTimbre(battle, unit, unit.mem.oblvnsTimbre === 'organ' ? 'piano' : 'organ');
           },
         },
@@ -328,7 +333,12 @@ export default {
         }
         // a manual cast at a full gauge starts Fever (S2 decides in its own onStart)
         battle.on('skillStart', (c) => {
-          if (c.unit !== unit || sk.id === S2) return;
+          if (c.unit !== unit) return;
+          if (sk.id === S2) {
+            // her Fever-starting cast ends at once: it was not the timbre switch (S2 onStart)
+            if (unit.mem.oblvnsFeverCast) { unit.mem.oblvnsFeverCast = false; sk.end('fever'); }
+            return;
+          }
           if (manualCast(c.skill, c.reason)) g.tryStart(unit);
         }, { owner: unit });
         if (sk.id === S1) {

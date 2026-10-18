@@ -52,7 +52,10 @@ import { deployMap, indexPieces } from '../js/ui/gameLogic/placement.js';
 import { resolveDetail } from '../js/ui/detailPanel.js';
 import { layerCamera } from '../js/battle/observe.js';
 import { previewGrid } from '../js/ui/facing.js';
-import { FacingWheel, holdPiece, setPieceDir } from '../js/ui/facingWheel.js';
+import { FacingWheel, holdPiece, setPieceDir, showRange } from '../js/ui/facingWheel.js';
+import { inspectRange } from '../js/screens/game/range.js';
+import { SEL_RANGE } from '../js/screens/game/marks.js';
+import { rangePreviewStore } from '../js/ui/rangePreview.js';
 import { settingsStore } from '../js/ui/settings.js';
 import { loadLangIndex, loadLangChain } from '../js/ui/lang.js';
 import { audio, installAudio, setOutfitVoiceResolver, combatTrackFor } from '../js/audio.js';
@@ -140,7 +143,8 @@ async function main() {
   // ---- sound: the game's audio manager with the player's settings (BGM, battle SFX, voices) ---------------------------
   setOutfitPicker(null);   // ui/outfits.js (loaded with the direction wheel) must not dress the sandbox in the saved outfits
   installAudio({ getManifest: () => data.get('assets'), settings: settingsStore.get() });
-  settingsStore.subscribe?.((s) => { try { audio.setVolumes(s); } catch { /* ignore */ } });
+  // the Settings dialog changes these live: volumes and the voice dub (the render options stay the sandbox's own)
+  settingsStore.subscribe?.((s) => { try { audio.setVolumes(s); audio.setVoiceLang(s.voiceLang); audio.setVoiceNative(s.voiceNative); } catch { /* ignore */ } });
 
   // ---- the enemy waves ---------------------------------------------------------------------------------------------
   const allRounds = await W.loadRoundIndex();
@@ -618,6 +622,39 @@ async function main() {
   const privOf = () => ({ playerId: myId, hand: bench.map((u) => (u ? piece(u) : null)), temp: [], board: board.map((u) => piece(u, { row: u.row, col: u.col, dir: u.dir })) });
   // the battle's newest snapshot tuples by unit id ([id, …, hp, max, …]: the detail card's HP bar)
   let snapUnits = new Map();
+  /**
+   * The card's loadout (the match's room.loadout shape, { [baseId]: { skill } }): the clicked unit's picked skill, so the
+   * card — its skill, its 攻击范围 and the 技能 toggle — reads the skill it fights with. A 自选 card reads its pick.
+   */
+  const cardLoadout = (detail) => {
+    if (detail?.type !== 'chess' || detail.diy || !detail.chess) return null;
+    const uid = detail.piece?.uid ?? ui.target?.uid ?? detail.unit?.uid;
+    const u = Number.isInteger(uid) ? locate(uid)?.u : null;
+    if (!u || !Number.isInteger(u.skillIndex)) return null;
+    return { [detail.chess.baseId || detail.chess.chessId]: { skill: u.skillIndex } };
+  };
+  /**
+   * The open card's range on the field, as the match draws it (screens/game/range.js inspectRange, SEL_RANGE): an own
+   * board piece in prep, an ally on the field in battle — with the card's 技能 toggle (ui/rangePreview.js) the range
+   * while its skill runs. Nothing while the direction wheel draws its own.
+   */
+  const drawCardRange = (detail, priv, tuple, liveOf, loadout) => {
+    let r = null;
+    if (detail && !facing) {
+      try {
+        // a 自选 piece's card is a `chess` target (the card shows the pick): its range is the piece's
+        const target = ui.target?.kind === 'chess' && Number.isInteger(ui.target.uid) ? { kind: 'piece', uid: ui.target.uid } : ui.target;
+        r = inspectRange({
+          target, detail, pieces: indexPieces(priv), showPrep: !runner, field: battleField, snapshot: tuple,
+          live: liveOf ? liveOf() : null, loadout, getChess: (id) => data.lookup('chess', id), backups: data.get('backups'),
+          skill: rangePreviewStore.get().skill,
+        });
+      } catch (e) { console.warn('[sandbox] card range', e); }
+    }
+    sb.cardRange = r; // (the e2e test reads the drawn range)
+    showRange(view, r?.grid, r?.row, r?.col, r?.dir, SEL_RANGE);
+  };
+  rangePreviewStore.subscribe(() => renderUi());
   const renderUi = (st = bondState()) => {
     // in battle the strip shows the stacks as they grow (runner state().bondLayers), like the match's strip
     const list = (st?.list || []).map((b) => (live?.[b.bondId] != null ? { ...b, layers: live[b.bondId] } : b));
@@ -626,11 +663,15 @@ async function main() {
     try { detail = ui.target ? resolveDetail(ui.target, indexPieces(priv), { priv }) : null; } catch (e) { console.warn('[sandbox] detail', e); }
     const unitId = detail?.unitId;
     const tuple = unitId != null ? snapUnits.get(unitId) : null;
+    const loadout = cardLoadout(detail);
+    const liveOf = unitId != null && runner ? () => { const e = runner?.unitStats?.(unitId); return e ? { ...e, src: 'battle' } : null; } : null;
+    drawCardRange(detail, priv, tuple, liveOf, loadout);
     renderOverlay(uiHost, {
       bonds: list, layersDisabled: onBoss(template), bondOpen: ui.bondOpen, priv, offBonds: st?.offIds || new Set(), detail,
       snapHp: tuple ? { hp: tuple[3], max: tuple[4] } : null,
-      live: unitId != null && runner ? () => { const e = runner?.unitStats?.(unitId); return e ? { ...e, src: 'battle' } : null; } : null,
+      live: liveOf, loadout,
       picker: ui.picker,
+      settings: ui.settings,
       meter: meterShown() ? meter || { title: 'no battle yet', rows: [], other: [], byBond: [], totals: { dmg: 0, heal: 0, taken: 0, stacks: 0 } } : null,
       meterTab: ui.meterTab,
       on: {
@@ -642,10 +683,13 @@ async function main() {
         closeDetail: () => { ui.target = null; renderUi(); },
         pick: (e) => { const p = ui.picker; ui.picker = null; renderUi(); p?.onPick?.(e.pick); },
         closePicker: () => { ui.picker = null; renderUi(); },
+        closeSettings: () => { ui.settings = false; renderUi(); },
       },
     });
   };
   const openPicker = (p) => { ui.picker = p; renderUi(); };
+  // the game's own settings dialog (ui/settings.js): volumes reach the audio manager through settingsStore (above)
+  $('settings').onclick = () => { ui.settings = true; renderUi(); };
 
   // ---- the battle meter: per own unit the sim's counters (unit.stats dmg / heal / taken; a summon counts for its
   // operator) and the stacks it gained. Stacks: Battle.prototype.addLayers is wrapped on this page only — it records what
@@ -726,7 +770,8 @@ async function main() {
     if (e.unitId != null || e.unit) ui.target = { kind: 'unit', unit: e.unit || null, unitId: e.unitId, uid: e.uid };
     else if (Number.isInteger(e.uid)) {
       const at = locate(e.uid);
-      ui.target = at?.u?.diy ? { kind: 'chess', id: at.u.chessId, diy: at.u.diy, foreign: true, items: at.u.items || null } : { kind: 'piece', uid: e.uid };
+      // (a 自选 card keeps its piece's uid: its range on the field, drawCardRange)
+      ui.target = at?.u?.diy ? { kind: 'chess', id: at.u.chessId, diy: at.u.diy, foreign: true, items: at.u.items || null, uid: e.uid } : { kind: 'piece', uid: e.uid };
     } else return;
     try { audio.sfx('click', { volume: 0.4 }); } catch { /* ignore */ }
     renderUi();
@@ -839,6 +884,7 @@ async function main() {
     const rec = recordOf(src.u);
     facing = { uid, target: { area: 'board', row: target.row, col: target.col }, prevDir: src.u.dir || 'RIGHT' };
     sb.facing = facing;
+    showRange(view, null, 0, 0, null, SEL_RANGE); // the wheel draws its own
     holdPiece(view, uid, { row: target.row, col: target.col });
     audio.sfx('pick', { volume: 0.5 });
     const grid = previewGrid({ getChess: () => rec }, { kind: 'chess', id: src.u.chessId });

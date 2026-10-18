@@ -156,3 +156,50 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   assert.deepEqual(await page.evaluate(() => window.__sandbox.addBond('kjeragShip')), { onBoard: 0, onBench: 0, left: 0 }, 'a second click adds nobody');
   assert.deepEqual(errors, []);
 });
+
+// (fork) the card's 普通 / 技能 range buttons move the field highlight — a 自选 pick (丰川祥子) and a normal chess (烛煌
+// S3), in prep and in battle (public/dev/sandbox.js drawCardRange, ui/rangePreview.js)
+test('dev sandbox: the card range buttons light the skill range on the field, 自选 picks included', { skip: !enabled, timeout: 120000 }, async (t) => {
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+  t.after(() => srv.close());
+  const puppeteer = (await import('puppeteer-core')).default;
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const units = 'chess_char_6_diy1_a~char_4182_oblvns:10,5:2:RIGHT;chess_char_5_03_a:11,4:2:RIGHT';
+  await page.goto(`${srv.url}/dev/sandbox.html?${new URLSearchParams({ map: 'act2autochess_m01', enemies: 'hard-normal-r1', units })}`);
+  await page.waitForFunction(() => window.__sandbox?.ready || window.__sandbox?.error, { timeout: 60000 });
+  await page.evaluate(() => localStorage.removeItem('sp.pref.rangePreview'));
+  const tiles = () => page.evaluate(() => window.__sandbox.cardRange?.grid?.length ?? 0);
+  const press = (i) => page.evaluate((i) => document.querySelectorAll('.drange__btn')[i].click(), i);
+  const both = async () => {
+    const before = await tiles();
+    await press(1);
+    await page.waitForFunction((n) => (window.__sandbox.cardRange?.grid?.length ?? 0) !== n, { timeout: 5000 }, before);
+    const during = await tiles();
+    await press(0);
+    await page.waitForFunction((n) => (window.__sandbox.cardRange?.grid?.length ?? 0) === n, { timeout: 5000 }, before);
+    return [before, during];
+  };
+  const [saki, blaze] = await page.evaluate(() => window.__sandbox.boardUids());
+  await page.evaluate((uid) => window.__sandbox.click({ uid }), saki);
+  const [s0, s1] = await both();
+  assert.ok(s0 > 0 && s1 > s0, `Sakiko S3 in prep: ${s0} → ${s1}`);
+  await page.evaluate((uid) => window.__sandbox.click({ uid }), blaze);
+  assert.deepEqual(await both(), [10, 13], '烛煌 S3: 3-1 → 4-11');
+  // in battle: the sim's own skill range
+  await page.evaluate(() => window.__sandbox.fight());
+  await page.waitForFunction(() => { const r = window.__sandbox.runner; try { return !!r?._entries.get(r.state().battleId)?.battle; } catch { return false; } }, { timeout: 30000 });
+  await page.evaluate(() => window.__sandbox.pause(true));
+  const op = await page.evaluate((uid) => {
+    const r = window.__sandbox.runner;
+    const u = [...r._entries.get(r.state().battleId).battle.units].find((x) => x.side === 'ally' && x.uid === uid);
+    return { id: u.id, uid: u.uid, defId: u.defId, x: u.x, y: u.y };
+  }, saki);
+  await page.evaluate((u) => window.__sandbox.click({ unitId: u.id, uid: u.uid, unit: { ...u, side: 'ally', kind: 'op', area: 'board' } }), op);
+  await page.waitForFunction(() => (window.__sandbox.cardRange?.grid?.length ?? 0) > 0, { timeout: 5000 });
+  assert.deepEqual(await both(), [s0, s1], 'the battle unit: the same ranges');
+  assert.deepEqual(errors, []);
+});

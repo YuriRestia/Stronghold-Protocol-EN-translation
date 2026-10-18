@@ -451,20 +451,23 @@ const statView = (x) => ({
  * target-selection grid (the sim's `unit.liveRangeGrid`, Battle._refreshRange; community report E1 after 0.1.0: 烛煌
  * S3's 4-11 never reached the card). `dir`: the unit's facing now (UP / RIGHT / DOWN / LEFT; UnitInfo.dir is the facing
  * at send time and the snapshot tuples carry none) — the detail card's range overlay rotates by it (GitHub PR #281).
- * @param {{ id?: number, uid?: number|null, defId?: string, hp?: number, alive?: boolean, base?: any, liveRangeGrid?: any, dir?: string } | null} u
+ * (fork) `skillRange`: the grid it attacks with while its skill runs, only when the skill changes the range (the sim's
+ * `unit.skillRangeGrid`) — the card's skill-range preview.
+ * @param {{ id?: number, uid?: number|null, defId?: string, hp?: number, alive?: boolean, base?: any, liveRangeGrid?: any, skillRangeGrid?: any, dir?: string } | null} u
  * @param {any} [s] aggregated stats (missing ⇒ the base)
  * @returns {{ id: number|null, uid: number|null, defId: string|null, hp: number, alive: boolean, maxHp: number, atk: number,
  *   def: number, res: number, interval: number|null, blockCnt: number, moveSpeed: number,
  *   base: { maxHp: number, atk: number, def: number, res: number, interval: number|null, blockCnt: number, moveSpeed: number },
- *   range?: Array<[number, number]>, dir?: string }}
+ *   range?: Array<[number, number]>, skillRange?: Array<[number, number]>, dir?: string }}
  */
 export function unitStatsEntry(u, s = null) {
   const own = u && u.base && typeof u.base === 'object' ? u.base : {};
   const base = u && u.cultMul ? cultivatedStats(own, u.cultMul) : own;
   const cur = s && typeof s === 'object' ? s : base;
-  const range = u?.side !== 'enemy' && Array.isArray(u?.liveRangeGrid)
-    ? u.liveRangeGrid.filter((p) => Array.isArray(p) && Number.isInteger(p[0]) && Number.isInteger(p[1])).map((p) => [p[0], p[1]])
-    : null;
+  const cells = (g) => g.filter((p) => Array.isArray(p) && Number.isInteger(p[0]) && Number.isInteger(p[1])).map((p) => [p[0], p[1]]);
+  const range = u?.side !== 'enemy' && Array.isArray(u?.liveRangeGrid) ? cells(u.liveRangeGrid) : null;
+  // (fork) the range while its skill runs, when the skill changes it (Battle._refreshRange `skillRangeGrid`)
+  const skillRange = u?.side !== 'enemy' && Array.isArray(u?.skillRangeGrid) && u.skillRangeGrid.length ? cells(u.skillRangeGrid) : null;
   return {
     id: Number.isInteger(u?.id) ? u.id : null,
     uid: Number.isInteger(u?.uid) ? u.uid : null,
@@ -474,6 +477,7 @@ export function unitStatsEntry(u, s = null) {
     ...statView(cur),
     base: statView(base),
     ...(range ? { range } : {}),
+    ...(skillRange ? { skillRange } : {}),
     ...(isDir(u?.dir) ? { dir: u.dir } : {}),
     // the enemy card greys a SILENCE-format line (折射) from this; absent flags ⇒ not silenced
     silenced: !!(cur.flags && cur.flags.silence),

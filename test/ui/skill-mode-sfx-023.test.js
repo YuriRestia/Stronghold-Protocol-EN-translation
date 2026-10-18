@@ -20,7 +20,8 @@ test('mode uses its own chance and volume, never the normal bank mix', () => {
   const { a, entry, played } = rig();
   a.unit(id, 'attack', 1, 2, true);
   a.unit(id, 'hit', 1, 2, true);
-  assert.deepEqual(played.map((p) => [p.url, p.volume]), [['/mode_s.mp3', 0.33], ['/impact_s.mp3', 0.55]]);
+  // (fork) bank volume × the base (1: the official mixer sets the level); the attack mode's own vol 0.6
+  assert.deepEqual(played.map((p) => [p.url, p.volume]), [['/mode_s.mp3', 0.6], ['/impact_s.mp3', 1]]);
   entry.attackMix[2].p = 0;
   a.unit(id, 'attack', 1, 2, true);
   assert.equal(played.length, 2, 'silent mode does not fall back to normal');

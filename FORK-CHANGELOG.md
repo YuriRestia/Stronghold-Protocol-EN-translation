@@ -35,14 +35,42 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
   injects. The game's pages still have no inline script of their own. Off by default.
 - The service worker no longer fetches the preload manifest for a player who never preloaded (no preload cache).
+- Sakiko S2: a cast that starts Fever no longer uses up her one switch. She stays on piano, the skill goes off again
+  and charges, and her next cast switches to organ. Before, an S2 Sakiko next to an S3 one could get stuck on piano
+  with no SP for the rest of her deployment, since the gauge refilled during the S3's Fever and her first cast
+  started a new one.
 - Sakiko's skill stings, the official short piano / organ clips: S1 plays one of three on every cast, Fever recasts
   included (at most two at once); S2 plays its organ sting when she switches to organ (not when the cast starts
   Fever); S3 plays its sting and holds its ambient loop for the skill, except when Fever is running or the gauge is
   full, as in the game's client. The stings play on their own voices (the busy battle mix no longer drops them) and
   load as soon as she is on the field, so none plays late. A server running locally needs
   `node tools/fetch-assets.mjs --add-only` for the seven new sound files.
-- The Fever song (KiLLKiSS) plays about 3 dB louder, and Sakiko's note sounds drop to 40% while it plays, so the song
-  carries over the volley.
+- Sakiko's note sounds follow the game's own rules: each note sound plays at most twice at once (a new one cuts the
+  oldest) with a slight random pitch, instead of up to 48 stacked copies. A Fever volley no longer buries the Fever
+  song.
+- The sound mix follows the game client's own mixer: music, voice lines and every battle and interface sound play at
+  the levels of the official mixer groups their sounds belong to (attacks, impacts, skills, enemies, alerts …), with
+  the client's compressors on the normal battle sounds and on skill sounds, and the normal battle sounds dipping under
+  an operator's voice line. Music sits about 6 dB higher against the battle sounds than before, so the Fever song
+  carries over Sakiko's volley. The round's track now fades out over 2 seconds when the Fever song starts, as in the
+  game, instead of cutting out.
+- Music, Operator Voices and Sound Effects all start at 80. Music used to start at 60, which put the battle sounds
+  about 5 dB over the music compared with the game client, where the three default alike. Saved settings keep their
+  values.
+- Battle sounds the game plays from a spot on the field (attacks, impacts, most skill sounds) are 3 dB quieter when
+  the clip is mono, matching how the client spreads them between the speakers. Interface sounds, alerts, skill stings
+  and voice lines keep their level.
+- Songs carry over the battle (a fork choice, not in the game client): while the Fever song or a singing skill plays
+  (Skadi the Corrupting Heart's skills, Civilight Eterna's skills), the song plays 3 dB louder and the attack, impact,
+  skill-attack and boss sounds 3 dB quieter. Alerts, skill stings, interface sounds and voice lines don't change.
+- Dev sandbox: a Settings button in the panel header opens the game's own settings dialog, so volumes and the voice
+  language can be changed while testing.
+- Detail card: an operator whose selected skill changes the attack range gets Normal / Skill buttons under its Attack
+  Range title. On Skill, the range preview and the highlighted tiles on the field show the range while the skill is
+  active; the choice is remembered. The box keeps the size of the larger range, so the buttons never move. In battle
+  it uses the battle's own range, so kit-only ranges such as Fartooth S3's line show too. The dev sandbox has it as
+  well: its card and field highlight follow the unit's picked skill, and a Custom Squad pick such as Sakiko now
+  highlights her range on the field when selected.
 - Sakiko's S2 animations follow her official modes: piano attacks play its own attack clip and stance, organ the organ
   pair. Before, she stood in the organ stance from deployment and never played an attack clip in S2.
 - Outfit effects follow each outfit's own replacement list from the game client instead of matching names. Sakiko's

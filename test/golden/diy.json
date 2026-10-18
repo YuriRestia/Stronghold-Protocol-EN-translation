@@ -5940,10 +5940,10 @@
         ["-","~3","device","trap_1105_accrate",null,null,100,1,3,0,0,0,0,0,null]
       ],
       "enemies": {"enemy_1006_shield_3":[21,0,21,23147,336681],"enemy_1043_zomsbr":[66,12,54,3344,304357],"enemy_1402_tgshd_2":[36,0,36,15689,256662]},
-      "hooks": [1,150,6372,275,313,2138,2254,18934,34,145,19,19,3,2645,0,37,123,111,1,34,0,15,0],
+      "hooks": [1,150,6372,275,313,2138,2254,18934,34,145,19,19,3,2646,0,37,123,111,1,34,0,15,0],
       "events": {"atk":313,"deploy":24,"die":34,"dmg":2254,"engage":12,"fx":883,"leak":111,"skill":38,"spawn":138,"status":68},
       "fx": {"anchor":2,"blast":9,"burst":15,"expose":262,"fever":2,"lock":3,"note":534,"teleport":54,"tide":2},
-      "snaps": "d636bbc5 ae475446 949a3cf7 d60cd6a4 a5e0d0cf 190fa271 6e0cee4f f5a055f1 1b97de24 8e57d5a9 67f71391 4a79cacb de41678f 2f226dc1 c3488be3 3cceac36 5a67f9eb cb8ecb3f 21af5e06 dadd4286 8d53adea 6be5bf80"
+      "snaps": "d636bbc5 ae475446 949a3cf7 d60cd6a4 a5e0d0cf 190fa271 6e0cee4f f5a055f1 1ffcfa65 1dd8120f 21d0c0b7 6eb63761 cf1c4d59 13331e03 d9e2b939 f06a5094 32ea5331 347a2e11 a3fecafc cb90abf8 b2d54cd8 e90c1652"
     },
     "diy-137": {
       "about": "5_diy1_b=oblvns/S1/002_oblvns 5_diy2_b=oblvns/S2/002_oblvns 5_diy1_b=oblvns/S3/002_oblvns 6_diy1_a=oblvns/S1 6_diy2_a=oblvns/S2 6_diy1_a=oblvns/S3 6_diy2_b=oblvns/S1 6_diy1_b=oblvns/S2 6_diy2_b=oblvns/S3 6_diy1_b=oblvns/S1/002_oblvns 6_diy2_b=oblvns/S2/002_oblvns 6_diy1_b=oblvns/S3/002_oblvns",

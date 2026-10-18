@@ -5,21 +5,26 @@
 
 .result__bg { position: absolute; inset: 0; z-index: 0; background: var(--result-bg, none) center / cover no-repeat; opacity: .55; filter: saturate(.9); }
 .result__bg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 11, 10, .72), rgba(8, 11, 10, .5) 40%, rgba(8, 11, 10, .88) 62%); }
-/* (fork) the alternate result background (js/screens/result.js has-alt-art): the screen opens like a normal one,
-   then at --alt-at the whole screen glitches for --alt-glitch and the art (its own layer, .result__alt, with a
+/* (fork) the alternate background of the personal report (js/screens/settle.js SelfPage has-alt-art): the page opens
+   like a normal one, then at --alt-at it glitches for --alt-glitch and the art (its own layer, .result__alt, with a
    lighter shade) cuts in through it, at full opacity when it ends. Only the left column's blocks stay gone (the
-   return button and the player cards come back). Preview: /dev/game-mock.html?phase=RESULT&variant=alt-art.
-   icons/result-alt.jpg is a crop of the 5376×3024 original (left 2215, top 818, 1860×1052), shown at cover */
-.result.has-alt-art {
+   lineup, the bonds and the footer come back); the 同盟 page after it keeps its own art.
+   Preview: /dev/game-mock.html?phase=RESULT&variant=alt-art.
+   icons/result-alt.jpg is a crop of the 5376×3024 original (left 2215, top 818, 1860×1052), shown at cover.
+   The selectors carry .sself.has-alt-art so they outrank settle.css (its blocks' entrances, its reduced-motion
+   `animation: none`); each block that also has an entrance there repeats it here. */
+.sself.has-alt-art {
   --alt-size: cover; --alt-pos: center; --alt-opacity: 1; --alt-sat: 1;
-  --alt-shade-l: .63; --alt-shade-m: .12; --alt-shade-r: .78; --alt-mid: 40%; --alt-right: 64%; --alt-card: .82;
+  --alt-shade-l: .63; --alt-shade-m: .12; --alt-shade-r: .78; --alt-mid: 40%; --alt-right: 64%;
   --alt-at: 3s; --alt-glitch: 1s; --alt-stagger: .07s; --alt-static: .4;
-  --alt-credit-opacity: .63; --alt-credit-x: .14rem; --alt-credit-y: .08rem;
+  --alt-credit-opacity: .63; --alt-credit-left: .62rem; --alt-credit-bottom: 1.88rem;
 }
-/* steps(1) holds each keyframe, so every glitch jumps instead of sliding; `backwards` holds the 0% frame until --alt-at */
-.result__alt { position: absolute; inset: 0; z-index: 0; background: var(--alt-art, none) var(--alt-pos) / var(--alt-size) no-repeat;
+/* steps(1) holds each keyframe, so every glitch jumps instead of sliding; `backwards` holds the 0% frame until --alt-at.
+   The layer fills the screen under the 1920×1080 stage (whose own settle art goes once the glitch ends, below) */
+.sself.has-alt-art .result__alt { position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: var(--alt-art, none) var(--alt-pos) / var(--alt-size) no-repeat;
   opacity: var(--alt-opacity); filter: saturate(var(--alt-sat)); animation: alt-swap var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
-.result__alt::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 11, 10, var(--alt-shade-l)), rgba(8, 11, 10, var(--alt-shade-m)) var(--alt-mid), rgba(8, 11, 10, var(--alt-shade-r)) var(--alt-right)); }
+.sself.has-alt-art .result__alt::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 11, 10, var(--alt-shade-l)), rgba(8, 11, 10, var(--alt-shade-m)) var(--alt-mid), rgba(8, 11, 10, var(--alt-shade-r)) var(--alt-right)); }
 /* the art cuts in and out in torn strips, a bad signal locking on */
 @keyframes alt-swap {
   0% { opacity: 0; }
@@ -32,42 +37,37 @@
   78% { opacity: var(--alt-opacity); clip-path: none; transform: translateX(-.06rem); }
   90%, 100% { opacity: var(--alt-opacity); clip-path: none; transform: none; }
 }
-/* the rest of the screen tears and splits into RGB (the settle art runs it backwards, out of step with the UI) */
-.result.has-alt-art .result__main { animation: alt-jolt var(--alt-glitch) steps(1, end) var(--alt-at); }
-.result.has-alt-art .result__bg { animation: alt-jolt var(--alt-glitch) steps(1, end) var(--alt-at) reverse; }
+/* the stage (the page's blocks and its settle art) tears and splits into RGB. `translate` / `skew` would fight the
+   stage's own fitting transform (settle.css .settle__stage), so the tear moves it by the separate `translate` property */
+.sself.has-alt-art .settle__stage { animation: alt-jolt var(--alt-glitch) steps(1, end) var(--alt-at); }
 @keyframes alt-jolt {
-  0% { transform: translateX(.08rem); clip-path: inset(0 0 46% 0); filter: drop-shadow(4px 0 rgba(255, 0, 80, .8)) drop-shadow(-4px 0 rgba(0, 240, 255, .8)); }
-  12% { transform: translateX(-.16rem) skewX(-6deg); clip-path: inset(40% 0 12% 0); }
-  24% { transform: none; clip-path: none; filter: none; }
-  36% { transform: translateX(.2rem); clip-path: inset(10% 0 62% 0); filter: drop-shadow(-5px 0 rgba(255, 0, 80, .8)) drop-shadow(5px 0 rgba(0, 240, 255, .8)); }
-  48% { transform: translateX(-.06rem); clip-path: inset(66% 0 0 0); }
-  60% { transform: none; clip-path: none; filter: none; }
-  72% { transform: translateX(-.14rem) skewX(8deg); clip-path: inset(22% 0 30% 0); filter: drop-shadow(3px 0 rgba(255, 0, 80, .9)) drop-shadow(-3px 0 rgba(0, 240, 255, .9)); }
-  84% { transform: translateX(.05rem); filter: drop-shadow(-2px 0 rgba(255, 0, 80, .8)) drop-shadow(2px 0 rgba(0, 240, 255, .8)); clip-path: none; }
-  92%, 100% { transform: none; clip-path: none; filter: none; }
+  0% { translate: .08rem 0; clip-path: inset(0 0 46% 0); filter: drop-shadow(4px 0 rgba(255, 0, 80, .8)) drop-shadow(-4px 0 rgba(0, 240, 255, .8)); }
+  12% { translate: -.16rem 0; clip-path: inset(40% 0 12% 0); }
+  24% { translate: none; clip-path: none; filter: none; }
+  36% { translate: .2rem 0; clip-path: inset(10% 0 62% 0); filter: drop-shadow(-5px 0 rgba(255, 0, 80, .8)) drop-shadow(5px 0 rgba(0, 240, 255, .8)); }
+  48% { translate: -.06rem 0; clip-path: inset(66% 0 0 0); }
+  60% { translate: none; clip-path: none; filter: none; }
+  72% { translate: -.14rem 0; clip-path: inset(22% 0 30% 0); filter: drop-shadow(3px 0 rgba(255, 0, 80, .9)) drop-shadow(-3px 0 rgba(0, 240, 255, .9)); }
+  84% { translate: .05rem 0; filter: drop-shadow(-2px 0 rgba(255, 0, 80, .8)) drop-shadow(2px 0 rgba(0, 240, 255, .8)); clip-path: none; }
+  92%, 100% { translate: none; clip-path: none; filter: none; }
 }
-/* the grid and the cards' usual opacity hold until the glitch ends, then switch to the alternate look */
-.result.has-alt-art .result__grid { opacity: 0; animation: alt-hold-on var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
-@keyframes alt-hold-on { from { opacity: 1; } }
-.result.has-alt-art .rcard { background: rgba(11, 15, 13, var(--alt-card));
-  animation: card-in var(--t-slow) var(--ease-out) backwards, alt-card var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
-@keyframes alt-card { from { background-color: rgba(11, 15, 13, .9); } }
-.result.has-alt-art .rcard.is-self { background: linear-gradient(90deg, rgba(78, 216, 175, .08), rgba(11, 15, 13, var(--alt-card)) 40%);
-  animation: card-in var(--t-slow) var(--ease-out) backwards, alt-card-self var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
-@keyframes alt-card-self { from { background-image: linear-gradient(90deg, rgba(78, 216, 175, .08), rgba(11, 15, 13, .9) 40%); } }
-/* the second animation would reset the cards' staggered entrance (.rcard:nth-child below); keep it */
-.result.has-alt-art .rcard:nth-child(3) { animation-delay: 80ms, var(--alt-at); }
-.result.has-alt-art .rcard:nth-child(4) { animation-delay: 160ms, var(--alt-at); }
-.result.has-alt-art .rcard:nth-child(5) { animation-delay: 240ms, var(--alt-at); }
-/* a link to the artist's post; above the static (z 2) so it stays clickable, brightens on hover / focus */
-.result__credit { position: absolute; right: var(--alt-credit-x); bottom: var(--alt-credit-y); z-index: 3;
-  font-size: calc(.12 * var(--t)); letter-spacing: .06em; color: var(--text-lo); opacity: var(--alt-credit-opacity); text-decoration: none;
+/* the page's own settle art (the terrain, its target point and rays, the scanline shade) holds until the glitch ends,
+   then is gone: the art under it shows through. `visibility` leaves the target's opacity entrance alone */
+.sself.has-alt-art .sself__bg, .sself.has-alt-art .srays, .sself.has-alt-art .sself__fx { visibility: hidden;
+  animation: alt-hold-on var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+.sself.has-alt-art .starget { visibility: hidden;
+  animation: settle-fade 520ms var(--ease-out) 200ms both, alt-hold-on var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+@keyframes alt-hold-on { from { visibility: visible; } to { visibility: visible; } }
+/* a link to the artist's post at the bottom left, just above the footer (stage coordinates: the footer starts at 9rem
+   of the 10.8rem stage), brightens on hover / focus */
+.sself.has-alt-art .result__credit { position: absolute; left: var(--alt-credit-left); bottom: var(--alt-credit-bottom); z-index: 3;
+  font-size: calc(.12 * var(--t)); letter-spacing: .06em; color: var(--text-lo); opacity: var(--alt-credit-opacity); text-decoration: none; white-space: nowrap;
   animation: alt-credit .4s ease-out calc(var(--alt-at) + var(--alt-glitch)) backwards; }
 @keyframes alt-credit { from { opacity: 0; } }
-.result__credit:hover, .result__credit:focus-visible { opacity: 1; color: var(--text-hi); text-decoration: underline; }
-/* TV static over everything for the length of the glitch (js/screens/result.js plays the `disconnect` cue on its
-   animationstart) */
-.result__static { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; mix-blend-mode: screen;
+.sself.has-alt-art .result__credit:hover, .sself.has-alt-art .result__credit:focus-visible { opacity: 1; color: var(--text-hi); text-decoration: underline; }
+/* TV static over everything for the length of the glitch (js/screens/settle.js SelfPage plays the `disconnect` cue on
+   its animationstart) */
+.sself.has-alt-art .result__static { position: absolute; inset: 0; z-index: 2; pointer-events: none; opacity: 0; mix-blend-mode: screen;
   background: repeating-linear-gradient(rgba(255, 255, 255, .07) 0 1px, transparent 1px 3px),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") 0 0 / 220px 220px;
   animation: alt-static var(--alt-glitch) steps(1, end) var(--alt-at); }
@@ -82,29 +82,29 @@
   80% { opacity: calc(var(--alt-static) * .35); background-position: 0 1px, -98px -150px; }
   92%, 100% { opacity: 0; }
 }
-/* the lost blocks: inside the glitch, one by one (`--i` × --alt-stagger), each collapses like a dying CRT and stays
-   gone; hidden blocks keep their space, so the return button doesn't move */
-.result.has-alt-art .result__summary > * {
-  --alt-out: alt-vanish .18s ease-in calc(var(--alt-at) + var(--i, 0) * var(--alt-stagger)) forwards;
-  animation: var(--alt-out);
-}
-/* the headline keeps its own entrance (head-in above) */
-.result.has-alt-art .result__headline { animation: head-in 600ms var(--ease-out), var(--alt-out); }
-.result.has-alt-art .result__summary > :nth-child(2) { --i: 1; }
-.result.has-alt-art .result__summary > :nth-child(3) { --i: 2; }
-.result.has-alt-art .result__summary > :nth-child(4) { --i: 3; }
-.result.has-alt-art .result__summary > :nth-child(5) { --i: 4; }
-.result.has-alt-art .result__summary > :nth-child(6) { --i: 5; }
-.result.has-alt-art .result__summary > :nth-child(7) { --i: 6; }
-.result.has-alt-art .result__summary > :nth-child(8) { --i: 7; }
+/* the lost blocks — the left column above the footer: the logo, the band, the mode, the title, the rounds, the leader
+   medals, the player plate. Inside the glitch, one by one (`--i` × --alt-stagger), each collapses like a dying CRT
+   and stays gone; the lineup, the bonds, the LV strip and 下一步 stay. Blocks with an entrance (settle.css) keep it */
+.sself.has-alt-art :is(.slogo, .sself__band, .sself__mode, .sself__title, .sself__rounds, .sself__medals, .splate) {
+  --alt-out: alt-vanish .18s ease-in calc(var(--alt-at) + var(--i, 0) * var(--alt-stagger)) forwards; }
+.sself.has-alt-art .slogo { --i: 0; animation: var(--alt-out); }
+.sself.has-alt-art .sself__band { --i: 1; animation: sself-pop 420ms var(--ease-out) 200ms both, var(--alt-out); }
+.sself.has-alt-art .sself__mode { --i: 2; animation: sself-slide 420ms var(--ease-out) 260ms both, var(--alt-out); }
+.sself.has-alt-art .sself__title { --i: 3; animation: sself-title 560ms var(--ease-out) 300ms both, var(--alt-out); }
+.sself.has-alt-art .sself__rounds { --i: 4; animation: sself-slide 420ms var(--ease-out) 380ms both, var(--alt-out); }
+.sself.has-alt-art .sself__medals { --i: 5; animation: var(--alt-out); }
+.sself.has-alt-art .splate { --i: 6; animation: sself-slide 420ms var(--ease-out) 520ms both, var(--alt-out); }
 @keyframes alt-vanish {
   0% { opacity: 1; }
   45% { opacity: 1; transform: scale(1.04, .12); }
   100% { opacity: 0; transform: scale(0, .02); visibility: hidden; }
 }
-/* reduced motion (theme.css shortens every animation to 1ms): a plain cut at --alt-at, no tearing, no static, no sound */
+/* reduced motion (theme.css shortens every animation to 1ms, settle.css drops the page's entrances): a plain cut at
+   --alt-at, no tearing, no static, no sound */
 @media (prefers-reduced-motion: reduce) {
-  .result__static, .result.has-alt-art .result__main, .result.has-alt-art .result__bg { animation: none; }
+  .sself.has-alt-art .result__static, .sself.has-alt-art .settle__stage { animation: none; }
+  .sself.has-alt-art .starget { animation: alt-hold-on var(--alt-glitch) steps(1, end) var(--alt-at) backwards; }
+  .sself.has-alt-art :is(.slogo, .sself__band, .sself__mode, .sself__title, .sself__rounds, .sself__medals, .splate) { animation: var(--alt-out); }
 }
 .result__grid { position: absolute; inset: 0; z-index: 0; pointer-events: none;
   background: linear-gradient(rgba(78, 216, 175, .04) 1px, transparent 1px) 0 0 / .6rem .6rem, linear-gradient(90deg, rgba(78, 216, 175, .04) 1px, transparent 1px) 0 0 / .6rem .6rem;

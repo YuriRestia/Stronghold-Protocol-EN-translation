@@ -4,9 +4,11 @@ import { attackRangeGrid } from '../../../../shared/loadoutRecord.js';
 import { chessLoadout, standInLoadout } from '../../ui/gameLogic.js';
 import { tokenVariantFor } from '../../ui/gameLogic/loadout.js';
 import { normDir } from '../../ui/facing.js';
+import { skillRangeGrid } from '../../ui/rangePreview.js';
 
 /** Resolve the inspected field unit without granting placement or sale actions. */
-export function inspectRange({ target, detail, pieces, showPrep = false, field, snapshot, live, loadout, getChess, backups }) {
+/** `skill` (fork, ui/rangePreview.js): the range while the unit's skill runs, when its skill changes it. */
+export function inspectRange({ target, detail, pieces, showPrep = false, field, snapshot, live, loadout, getChess, backups, skill = false }) {
   if (!detail || (detail.type !== 'chess' && detail.type !== 'token')) return null;
   let row, col, dir;
   if (target?.kind === 'piece' && showPrep) {
@@ -30,6 +32,7 @@ export function inspectRange({ target, detail, pieces, showPrep = false, field, 
   const record = detail.type === 'token' ? { ...detail.token, ...tokenVariantFor(detail.token, detail.ownerId) }
     : detail.standIn ? standInLoadout(detail.standIn, getChess, backups)?.record || detail.standIn
     : chessLoadout(detail.chess, detail.diy ? null : loadout, getChess)?.record || detail.chess;
-  const grid = Array.isArray(live?.range) ? live.range : attackRangeGrid(record);
+  // (only an operator's card has the toggle: ui/detailPanel.js CardRange)
+  const grid = (skill && detail.type === 'chess' && skillRangeGrid(live, record)) || (Array.isArray(live?.range) ? live.range : attackRangeGrid(record));
   return grid?.length ? { grid, row, col, dir } : null;
 }
