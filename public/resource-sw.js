@@ -121,6 +121,23 @@ function currentManifest(scope, force = false) {
   return manifest;
 }
 
+/**
+ * (fork) Is there a preload cache at all? Without one (a player who never preloaded) nothing can be answered or captured,
+ * so the manifest (800 KB) is never fetched for them. `caches.has`, never `caches.open`: open would create the cache.
+ * Remembered for STORE_CHECK_MS (asked on every asset request); the page's 'sp-resources-changed' asks again.
+ */
+const STORE_CHECK_MS = 10 * 1000;
+let storeKnown = null;
+let storeAt = 0;
+
+async function hasStore(scope) {
+  const now = scope.__now ? scope.__now() : Date.now();
+  if (storeKnown !== null && now - storeAt < STORE_CHECK_MS) return storeKnown;
+  storeAt = now;
+  try { storeKnown = typeof scope.caches.has === 'function' ? await scope.caches.has(CACHE_NAME) : true; } catch { storeKnown = false; }
+  return storeKnown;
+}
+
 /** The cache keys a request may be: its own path, or the audio files a /media/… path resolves to. */
 function keysOf(url) {
   return url.pathname.startsWith(MEDIA_PREFIX) ? mediaKeys(url.pathname) : [resourceKey(url.pathname)].filter(Boolean);
@@ -133,6 +150,7 @@ async function answer(scope, request) {
   if (url.origin !== scope.location.origin || url.search || !isResourcePath(url.pathname)) return null;
   const keys = keysOf(url);
   if (!keys.length) return null;
+  if (!await hasStore(scope)) return null;
   const list = await currentManifest(scope);
   const cache = await scope.caches.open(CACHE_NAME);
   for (const key of keys) {
@@ -168,6 +186,7 @@ async function pickedPacks(cache, origin) {
 async function capture(scope, request, response) {
   if (!response || response.status !== 200 || response.type === 'opaque' || request.headers.get('Range')) return null;
   const url = new URL(request.url);
+  if (!await hasStore(scope)) return null;
   const list = await currentManifest(scope);
   if (!list) return null;
   const key = keysOf(url).find((k) => list.has(k));
@@ -203,7 +222,8 @@ async function respond(scope, event) {
   return res;
 }
 
-self.spResources = { resourceKey, mediaKeys, packOf, rangeResponse, answer, capture, respond, reset: () => { manifest = null; checkedAt = 0; } };
+self.spResources = { resourceKey, mediaKeys, packOf, rangeResponse, answer, capture, respond, hasStore,
+  reset: () => { manifest = null; checkedAt = 0; storeKnown = null; } };
 
 /**
  * (fork) The preload's fetch handling, for public/sw.js (the one worker of the origin, importScripts'ing this file):
@@ -211,7 +231,7 @@ self.spResources = { resourceKey, mediaKeys, packOf, rangeResponse, answer, capt
  */
 function handleFetch(event) {
   const request = event.request;
-  if (request.mode === 'navigate') { currentManifest(self); return false; }
+  if (request.mode === 'navigate') { hasStore(self).then((has) => { if (has) currentManifest(self); }).catch(() => {}); return false; }
   let url;
   try { url = new URL(request.url); } catch { return false; }
   if (request.method !== 'GET' || url.search || !isResourcePath(url.pathname)) return false;
@@ -220,13 +240,18 @@ function handleFetch(event) {
 }
 self.spResources.handleFetch = handleFetch;
 self.spResources.isResourcePath = isResourcePath;
-self.spResources.changed = () => currentManifest(self, true);
+/** The page says the saved files changed: ask for the cache again, and re-read the manifest when there is one. */
+function changed() {
+  storeKnown = null;
+  return hasStore(self).then((has) => (has ? currentManifest(self, true) : null));
+}
+self.spResources.changed = changed;
 
 // Registered by itself (an older page of this origin): its own listeners. Loaded by public/sw.js: that worker listens.
 if (!self.spCombinedWorker) {
   self.addEventListener('install', (event) => { event.waitUntil(self.skipWaiting()); });
   self.addEventListener('activate', (event) => { event.waitUntil(self.clients.claim()); });
   // the page says the saved files changed (a download flushed its index, the cache was cleared)
-  self.addEventListener('message', (event) => { if (event.data === 'sp-resources-changed') currentManifest(self, true); });
+  self.addEventListener('message', (event) => { if (event.data === 'sp-resources-changed') changed(); });
   self.addEventListener('fetch', (event) => { handleFetch(event); });
 }

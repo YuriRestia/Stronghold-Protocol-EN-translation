@@ -50,7 +50,7 @@
 // so it can be unit tested without a browser. Helpers never throw on unknown ids — they return null and the
 // caller falls back (docs/ASSETS.md "Other fallbacks").
 
-import { genUrl } from './gen.js';
+import { dataUrl, hasDataHash } from './dataUrls.js';
 import { cosmetics, createCosmeticLayers, EMPTY_MANIFEST } from './cosmetics.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -781,8 +781,10 @@ const transientFetch = (err) => {
 export function createAssets(options) {
   const opts = options && typeof options === 'object' ? options : {};
   const layers = opts.cosmetics && typeof opts.cosmetics.apply === 'function' ? opts.cosmetics : null;
-  const url = opts.url || genUrl('/data/assets.json');
-  const localUrl = opts.localUrl || genUrl('/data/local-assets.json');
+  // (fork) the content-hashed URLs when the page knows them (dataUrls.js): the browser and a CDN may keep those
+  const url = opts.url || dataUrl('assets.json');
+  const localUrl = opts.localUrl || dataUrl('local-assets.json');
+  const revalidate = (u, name) => (u === dataUrl(name) && hasDataHash(name) ? 'default' : 'no-cache');
   let localPromise = isObj(opts.localManifest) ? Promise.resolve(opts.localManifest) : null;
   let localManifest = isObj(opts.localManifest) ? opts.localManifest : null;
   const doFetch = opts.fetch || ((...a) => globalThis.fetch(...a));
@@ -819,7 +821,7 @@ export function createAssets(options) {
 
   /** One fetch of the manifest → the JSON object, or throws (err.status / err.badJson as data.js). */
   async function fetchOnce() {
-    const res = await doFetch(url, { cache: 'no-cache' });
+    const res = await doFetch(url, { cache: revalidate(url, 'assets.json') });
     if (!res || !res.ok) throw Object.assign(new Error(`HTTP ${res ? res.status : '???'}`), { status: res ? res.status : null });
     let json;
     try { json = await res.json(); } catch (err) { throw Object.assign(err instanceof Error ? err : new Error(String(err)), { badJson: true }); }
@@ -925,7 +927,7 @@ export function createAssets(options) {
     if (!localPromise) {
       localPromise = (async () => {
         try {
-          const res = await doFetch(localUrl, { cache: 'no-cache' });
+          const res = await doFetch(localUrl, { cache: revalidate(localUrl, 'local-assets.json') });
           if (!res || !res.ok) return localManifest;
           const json = await res.json();
           if (!localManifest && isObj(json) && isObj(json.groups)) { localManifest = json; notify('local'); }

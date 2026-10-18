@@ -43,6 +43,7 @@ import { useEffect, useReducer } from '../vendor/hooks.module.js';
 import { applyFileOverlay } from '../../shared/i18nData.js';
 import { canonicalLang } from '../../shared/i18nPacks.js';
 import { genUrl } from './gen.js';
+import { dataUrl, hasDataHash } from './dataUrls.js';
 
 /** Known data files (name → URL basename). Unknown names are allowed too (`/data/<name>.json`). */
 export const DATA_FILES = Object.freeze({
@@ -183,7 +184,10 @@ export function createDataStore(opts = {}) {
     }
   };
 
-  const urlFor = (name) => base + (DATA_FILES[name] || `${name}.json`);
+  // (fork) the big art manifests at their content-hashed URL when the page knows it (dataUrls.js) and the store reads
+  // this page's own /data/ (no `base` of a test)
+  const hashedName = (name) => (opts.base === undefined && hasDataHash(DATA_FILES[name] || '') ? DATA_FILES[name] : null);
+  const urlFor = (name) => (hashedName(name) ? dataUrl(hashedName(name)) : base + (DATA_FILES[name] || `${name}.json`));
 
   /**
    * One attempt at a file. Art manifests reject with a transient `{ timeout: true }` when the clock fires; a response
@@ -191,7 +195,7 @@ export function createDataStore(opts = {}) {
    */
   function readJson(name) {
     const run = async () => {
-      const res = await doFetch(urlFor(name), { cache: 'no-cache' });
+      const res = await doFetch(urlFor(name), { cache: hashedName(name) ? 'default' : 'no-cache' });
       if (!res || !res.ok) throw Object.assign(new Error(`HTTP ${res ? res.status : '???'}`), { status: res ? res.status : null });
       try {
         return await res.json();

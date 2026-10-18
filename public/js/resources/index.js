@@ -18,6 +18,7 @@ import { data } from '../data.js';
 import { ALL_PACKS, BASE_PACKS, MANIFEST_URL, OUTFITS_PACK, SUMMARY_URL, VOICE_PACKS, parseManifest, resourceKey } from '../../../shared/resources.js';
 import { PreloadStore, isQuotaError } from './store.js';
 import { openZip } from '../assetPack.js';
+import { dataUrl, hasDataHash } from '../dataUrls.js';
 
 // (fork) the origin's one worker (public/sw.js, which loads /resource-sw.js): the asset import registers the same one
 export const SW_URL = '/sw.js';
@@ -80,7 +81,8 @@ let running = null;
 /** The manifest and its store (once per page; a failure is retried next time). */
 function context() {
   contextPromise ??= (async () => {
-    const res = await fetch(MANIFEST_URL, { cache: 'no-cache' });
+    // (fork) its content-hashed URL when the page knows it (dataUrls.js): a CDN keeps that one
+    const res = hasDataHash('resource-manifest.json') ? await fetch(dataUrl('resource-manifest.json')) : await fetch(MANIFEST_URL, { cache: 'no-cache' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return new PreloadStore(parseManifest(await res.json()));
   })().catch((err) => { contextPromise = null; throw err; });

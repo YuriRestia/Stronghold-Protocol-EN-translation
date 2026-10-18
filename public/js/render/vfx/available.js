@@ -3,9 +3,10 @@
 // when effects were extracted). The served view answers `{ groups: {} }` on an install without effects; a server
 // without the view (an older one, a static host) may answer 404 — both mean "none".
 
-import { genUrl } from '../../gen.js';
+import { dataUrl } from '../../dataUrls.js';
 
-export const FX_LIST_URL = genUrl('/data/local-fx.json'); // (fork) this page's server generation
+// (fork) this page's server generation, at its content-hashed URL when the page knows it (dataUrls.js)
+export const FX_LIST_URL = dataUrl('local-fx.json');
 
 let listPromise = null;
 

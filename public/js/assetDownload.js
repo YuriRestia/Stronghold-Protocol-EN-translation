@@ -2,7 +2,7 @@
 // never decode every model/image/audio file into RAM or persist an unverified "complete" flag.
 // A URL already stored by a local import (assetPack.js) is marked done and not requested again.
 import { mediaUrl } from './media.js';
-import { genUrl } from './gen.js';
+import { dataUrl } from './dataUrls.js';
 import { listImportedPaths } from './assetCache.js';
 
 /**
@@ -98,10 +98,10 @@ export function createAssetDownload({ fetch: doFetch = (...args) => globalThis.f
         emit(true);
         // Sequential manifest reads keep cancellation simple and never leave a rejected sibling promise.
         // (fork) the manifests of this page's server generation (gen.js)
-        const assets = await request(genUrl('/data/assets.json'), true);
-        const local = await request(genUrl('/data/local-assets.json'), true, true);
+        const assets = await request(dataUrl('assets.json'), true);
+        const local = await request(dataUrl('local-assets.json'), true, true);
         // the official battle effects' files (DESIGN §33): optional, like the local manifest
-        const fx = await request(genUrl('/data/local-fx.json'), true, true);
+        const fx = await request(dataUrl('local-fx.json'), true, true);
         if (!assets || typeof assets !== 'object' || Array.isArray(assets)
           || (local !== null && (!local || typeof local !== 'object' || !local.groups))
           || (fx !== null && (!fx || typeof fx !== 'object' || !fx.groups))) throw new Error('Invalid asset manifest');

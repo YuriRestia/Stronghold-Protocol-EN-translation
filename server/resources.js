@@ -114,18 +114,19 @@ export function summarize(doc) {
 
 const encoded = (doc, tag) => {
   const body = Buffer.from(JSON.stringify(doc));
-  return { body, gzip: zlib.gzipSync(body), etag: `"${tag}-${doc.version}"` };
+  return { body, gzip: zlib.gzipSync(body), etag: `"${tag}-${doc.version}"`, hash: doc.version };
 };
 
 /**
  * The manifest (and its per-pack summary), built once per process and served gzip + ETag (no-cache: a client
- * revalidates with a cheap 304).
+ * revalidates with a cheap 304; (fork) static.js serves the full one at `/data/h/<version>/…` as immutable instead).
  * @param {{ publicDir: string, hashCacheFile?: string|null, log?: any }} opts
  */
 export function createResourceManifest(opts) {
   let pending = null;
+  let built = null; // (fork) the finished build, for version()
   const get = () => {
-    pending ??= buildResourceManifest(opts).then((doc) => ({ full: encoded(doc, 'res'), summary: encoded(summarize(doc), 'ress') }))
+    pending ??= buildResourceManifest(opts).then((doc) => (built = { full: encoded(doc, 'res'), summary: encoded(summarize(doc), 'ress') }))
       .catch((err) => { pending = null; throw err; });
     return pending;
   };
@@ -133,13 +134,18 @@ export function createResourceManifest(opts) {
     /** Start building in the background (boot). */
     warm() { get().catch((err) => opts.log?.warn?.(`[resources] manifest build failed: ${err?.message || err}`)); },
     get,
+    /** (fork) The full manifest's version once it is built, else null (never starts or waits for a build). */
+    version() { return built ? built.full.hash : null; },
     /**
      * @param {import('node:http').IncomingMessage} req @param {import('node:http').ServerResponse} res
      * @param {'full'|'summary'} [which]
+     * @param {{ hash?: string|null, cacheControl?: string }} [o] (fork) the hash of a `/data/h/<hash>/…` URL
+     *   (shared/dataHash.js): `cacheControl` when it names the current version, else no-cache
      */
-    async serve(req, res, which = 'full') {
+    async serve(req, res, which = 'full', o = {}) {
       const m = (await get())[which];
-      const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache', ETag: m.etag, Vary: 'Accept-Encoding' };
+      const cacheControl = o.hash && o.hash === m.hash && o.cacheControl ? o.cacheControl : 'no-cache';
+      const headers = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cacheControl, ETag: m.etag, Vary: 'Accept-Encoding' };
       // no Last-Modified is sent, so only If-None-Match can match (a stray If-Modified-Since is ignored)
       if (typeof req.headers['if-none-match'] === 'string' && isNotModified({ headers: { 'if-none-match': req.headers['if-none-match'] } }, m.etag, null)) { res.writeHead(304, headers); res.end(); return; }
       const gz = acceptsGzip(req.headers['accept-encoding']);

@@ -17,7 +17,7 @@
 
 import { splitHashedPath } from '../../shared/assetPaths.js';
 import { mediaUrl } from './media.js';
-import { genUrl } from './gen.js';
+import { dataUrl } from './dataUrls.js';
 import { IMPORTED_ASSET_CACHE, addImportedPaths, putImportedAsset } from './assetCache.js';
 
 export const MAX_ZIP_ENTRIES = 500_000;
@@ -636,9 +636,9 @@ export function createAssetImport({
     publish(true);
     try {
       // (fork) the manifests of this page's server generation (gen.js)
-      const assets = await readManifest(genUrl('/data/assets.json'), false);
-      const local = await readManifest(genUrl('/data/local-assets.json'), true);
-      const fx = await readManifest(genUrl('/data/local-fx.json'), true);
+      const assets = await readManifest(dataUrl('assets.json'), false);
+      const local = await readManifest(dataUrl('local-assets.json'), true);
+      const fx = await readManifest(dataUrl('local-fx.json'), true);
       if (cancelFlag) { phase = 'cancelled'; return; }
       const badLocal = (m) => m !== null && (!m || typeof m !== 'object' || Array.isArray(m) || !m.groups);
       if (!assets || typeof assets !== 'object' || Array.isArray(assets) || badLocal(local) || badLocal(fx)) {

@@ -5,6 +5,18 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-10-18
+
+### Changes
+
+- Host bandwidth: the four big file lists (`data/assets.json`, `data/local-assets.json`, `data/local-fx.json` and the
+  preload's `resource-manifest.json`, about 1.75 MB gzipped together) are also served at content-hashed URLs,
+  `/data/h/<hash>/<name>`, marked `immutable` while the hash is current, so a CDN can keep them; another hash gets the
+  current file with `no-cache`. A generation's page names the hashes in a `<meta name="sp-data-hashes">` tag
+  (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
+  rule for paths containing `/data/h/`.
+- The service worker no longer fetches the preload manifest for a player who never preloaded (no preload cache).
+
 ## 2026-10-17
 
 ### Changes

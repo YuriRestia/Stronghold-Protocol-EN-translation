@@ -50,6 +50,9 @@
 //     /data/assets.json, /data/local-assets.json, /data/local-fx.json → the served manifests (assetViews.js: every
 //                art URL with its content-hash segment; no-cache, the ETag of the view) once the asset index is ready,
 //                the files as they are before that or without an index
+//     /data/h/<hash>/<name> → (fork) the same served manifest, or the preload manifest (shared/dataHash.js): `immutable`
+//                for a year when <hash> is its current hash (a CDN keeps it), else the current file with no-cache. A
+//                generation's index.html names the current hashes in a <meta name="sp-data-hashes"> tag
 //
 // Files under public/assets/ and public/fonts/ get their content hash as ETag when the index has it (a file whose
 // size or mtime changed since asks for a rescan), others size + mtime. Traversal & dotfile protection, a directory
@@ -74,6 +77,8 @@ import { isStudioPath } from '../studio/paths.js';
 import { PACKS_URL, PACK_INDEX_FILE } from '../../shared/packs.js';
 import { MANIFEST_URL, SUMMARY_URL } from '../../shared/resources.js';
 import { rewriteIndexHtml } from '../../shared/gen.js';
+import { DATA_HASH_META, formatDataHashes, splitDataHash } from '../../shared/dataHash.js';
+import { VIEW_MANIFESTS } from './assetViews.js';
 import { createResourceManifest } from '../resources.js';
 import { PLUGINS_URL, PLUGIN_INDEX_VERSION, buildPluginIndex, extOf, isPackPath, isPluginId } from '../../shared/plugins/manifest.js';
 import { csUrlPart } from '../../shared/plugins/identity.js';
@@ -159,6 +164,20 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
   const manifest = resources || createResourceManifest({ publicDir, log });
 
   const indexHtml = path.join(path.resolve(publicDir), 'index.html');
+
+  /** (fork) The current hashes of the files served at /data/h/ (shared/dataHash.js): only those that are ready. */
+  async function dataHashes() {
+    const out = {};
+    if (views) {
+      for (const name of VIEW_MANIFESTS) {
+        const view = await views.get(name).catch(() => null);
+        if (view) out[name] = view.hash;
+      }
+    }
+    const version = typeof manifest.version === 'function' ? manifest.version() : null;
+    if (version) out['resource-manifest.json'] = version;
+    return out;
+  }
 
   /** @param {{ gen: string|null, base: string } | null} [gen] the request's generation prefix (routes.js), already stripped */
   return async function serveStatic(req, res, rawPath, query, gen = null) {
@@ -282,8 +301,26 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       await serveMedia(req, res, decoded.slice(MEDIA_PREFIX.length), query, publicDir, gzipCache, log, { urlHash, assetIndex });
       return;
     }
+    // (fork) a big data file at its content-hashed URL (shared/dataHash.js): immutable while the hash is current
+    const dataHashed = splitDataHash(decoded);
+    if (dataHashed) {
+      if (dataHashed.name === 'resource-manifest.json') {
+        try { await manifest.serve(req, res, 'full', { hash: dataHashed.hash, cacheControl: IMMUTABLE_JSON }); } catch (e) {
+          log.error('[http] resource manifest failed', e);
+          sendError(req, res, 500, '服务器内部错误 · Internal error');
+        }
+        return;
+      }
+      const view = views ? await views.get(dataHashed.name) : null;
+      if (view) {
+        await serveBuffer(req, res, { body: view.body, hash: view.hash, type: MIME['.json'], cacheControl: view.hash === dataHashed.hash ? IMMUTABLE_JSON : 'no-cache', key: `view:/data/${dataHashed.name}`, cache: gzipCache });
+        return;
+      }
+      // no view (no asset index, or not ready): the file at its plain URL, which is never immutable
+      decoded = `/data/${dataHashed.name}`;
+    }
     // The served manifests: every art URL with its content hash (assetViews.js), once the index is ready
-    if (views && (decoded === '/data/assets.json' || decoded === '/data/local-assets.json' || decoded === '/data/local-fx.json')) {
+    if (views &&(decoded === '/data/assets.json' || decoded === '/data/local-assets.json' || decoded === '/data/local-fx.json')) {
       const view = await views.get(decoded.slice('/data/'.length));
       if (view) {
         await serveBuffer(req, res, { body: view.body, hash: view.hash, type: MIME['.json'], cacheControl: 'no-cache', key: `view:${decoded}`, cache: gzipCache });
@@ -362,7 +399,12 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     }
     if (gen?.gen && absPath === indexHtml) {
       // the page of a generation (shared/gen.js): its module / style / import-map paths point into the generation
-      const body = Buffer.from(rewriteIndexHtml(await fsp.readFile(absPath, 'utf8'), gen.gen));
+      let html = rewriteIndexHtml(await fsp.readFile(absPath, 'utf8'), gen.gen);
+      // (fork) the hashes of the big data files, so the page asks for their cacheable /data/h/ URLs (public/js/dataUrls.js)
+      // (only here: behind the router every page is a generation's; a plain index.html keeps the plain URLs)
+      const hashes = formatDataHashes(await dataHashes());
+      if (hashes) html = html.replace('</head>', `  <meta name="${DATA_HASH_META}" content="${hashes}" />\n</head>`);
+      const body = Buffer.from(html);
       res.writeHead(200, { 'Content-Type': MIME['.html'], 'Cache-Control': 'no-cache', 'Content-Length': body.length });
       res.end(req.method === 'HEAD' ? undefined : body);
       return;

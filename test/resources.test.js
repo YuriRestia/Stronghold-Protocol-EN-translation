@@ -281,6 +281,23 @@ test('worker: answers current files (also via /media/ and Range), passes outdate
   assert.equal(await ask('/js/main.js'), null);
 });
 
+test('worker: without a preload cache it never fetches the manifest (fork, host bandwidth)', async () => {
+  const caches = memoryCaches();
+  caches.has = async (name) => caches.all.has(name);
+  const asked = [];
+  const sw = loadWorker({ caches, fetchImpl: async (url) => { asked.push(String(url)); return new Response('net'); } });
+  assert.equal(await sw.spResources.answer(sw, new Request(ORIGIN + '/assets/ui/a.png')), null);
+  assert.equal(await sw.spResources.capture(sw, new Request(ORIGIN + '/assets/ui/a.png'), new Response('aaa')), null);
+  sw.spResources.handleFetch({ request: { mode: 'navigate', url: ORIGIN + '/' } });
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(asked, [], 'no /data/resource-manifest.json for a player who never preloaded');
+  assert.equal(caches.all.has('sp-resources-v1'), false, 'and the check does not create the cache');
+  // a preload starts: the page says so, and the worker reads the manifest again
+  await caches.open('sp-resources-v1');
+  await sw.spResources.changed();
+  assert.ok(asked.includes('/data/resource-manifest.json'));
+});
+
 test('voice packs follow the voice language settings until the player edits the list', () => {
   assert.deepEqual(sanitizePreloadPref(null), { started: false, paused: false, voice: null });
   assert.deepEqual(sanitizePreloadPref({ started: true, voice: ['kr', 'xx', 'en'] }), { started: true, paused: false, voice: ['en', 'kr'] });
