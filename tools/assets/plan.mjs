@@ -53,6 +53,18 @@ const NOTE_SFX_LOOKS = Object.freeze([
   ['attack', '', null], ['talent', '_talent', null], ['s2', '_s2_t', null], ['s2_slow', '_s2_slow_t', null],
   ['s3_phy', '_s3_phy', null], ['s3_mag', '_s3_mag', null], ['s1', '_s1', '_s1_hit'],
 ]);
+/**
+ * 丰川祥子's skill stings: skillId → [sting bank, held loop bank or null] (audio_data soundFXBanks, the PlayAudio / CreateBuff
+ * nodes of buff_template_holder). S1: ON_ABILITY_START (d1/d2/d3, weights 40/30/30, max 2 popOldest). S2: the switch
+ * into organ only — ON_SKILL_START.skchr_oblvns_2.2 = h1 (owner, by ear, 2026-10-18); .1 = h2, the switch back into
+ * piano, which our one-switch S2 never makes (op-oblvns.js). S3: ON_CUSTOM_TRIGGER …[start] (s1/s2, 50/50) and the
+ * oblvns_s_3[loop] buff's own loop (p_atk_…slnt_lp, stopped with a 0.2 s fade: soundFXCtrlBanks ON_SKILL_FINISH).
+ */
+const STING_BANKS = Object.freeze({
+  skchr_oblvns_1: ['battle.ON_ABILITY_START.skchr_oblvns_1', null],
+  skchr_oblvns_2: ['battle.ON_SKILL_START.skchr_oblvns_2.2', null],
+  skchr_oblvns_3: ['battle.ON_CUSTOM_TRIGGER.skchr_oblvns_3[start]', 'battle.ON_BUFF_START.oblvns_s_3[loop]'],
+});
 
 /**
  * The extra dub trees beside `audio.voiceJp` (`optionalVoice`, on by default in fetch-assets.mjs): the EN and KR
@@ -632,6 +644,22 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
         const p = poolRef(s3Swing);
         if (p) u.attackPools = { 2: p };
       } else delete u.attacks;
+      // her skill stings (public/js/audio.js _sting; the sim's cast cue `['skill', id, 1, { sting, loop? }]` says when):
+      // by skill index, every file of the bank with its official draw weight, the bank's pool, S3's held loop
+      const stings = {};
+      for (const [skillId, [bankName, loopBank]] of Object.entries(STING_BANKS)) {
+        const i = (o.skills || []).find((k) => k.skillId === skillId)?.index;
+        const paths = audio.bank(bankName);
+        if (!Number.isInteger(i) || !paths.length) continue;
+        const w = audio.weightsOf?.(paths) || [];
+        const e = { clips: paths.map((p, j) => ({ url: soundLeaf([p], 'sfx', 1), w: w[j] ?? 1 })) };
+        const pool = poolRef(paths);
+        if (pool) e.pool = pool;
+        const loop = loopBank ? audio.bank(loopBank) : [];
+        if (loop.length) e.loop = soundLeaf(loop, 'sfx', 1);
+        stings[i] = e;
+      }
+      if (Object.keys(stings).length) u.stings = stings;
     }
     if (Object.keys(u).length) unitsSfx[id] = u;
   }

@@ -87,6 +87,16 @@ const EQUIP_IV = 0.2;
 const AURA_IV = 0.25;
 /** oblvns_s_3[fever_undead] priority −3000: after every other saver. */
 const UNDEAD_PRIORITY = -3000;
+/**
+ * A cast's sting cue (display only: the client plays the skill slot's sting, `loop` also its held loop). When, per the
+ * client (buff_template_holder PlayAudio / CreateBuff, audio_data banks): S1 every cast — ON_ABILITY_START.skchr_oblvns_1
+ * has no gate, Fever recasts included (owner 2026-10-18: the literal rule; the graph's gated `oblvns_s_1_start` names no
+ * bank); S2 / S3 below.
+ */
+const STING = Object.freeze({ sting: 1 });
+const STING_LOOP = Object.freeze({ sting: 1, loop: 1 });
+/** S2's switch into organ: its sting, and the timbre the model draws from now on (`form`). */
+const ORGAN_CUE = Object.freeze({ sting: 1, form: 'organ' });
 
 /** @param {any} chess @param {string} id */
 const bbOf = (chess, id) => skillRec(chess, id)?.bb ?? {};
@@ -243,9 +253,18 @@ export default {
     return {
       trait,
       skills: {
-        [S1]: { kind: 'charges', attack: { noteMode: 's1' } },
+        // the sting cues (skills.js `cue`: the client's skill stings, public/js/audio.js _sting) — see STING below
+        [S1]: { kind: 'charges', attack: { noteMode: 's1' }, cue: () => STING },
         [S2]: {
           kind: 'toggle',
+          // the switch's sting (oblvns_s_2[switch]: only a real switch plays one; a cast at a full gauge or in Fever
+          // switches to the Fever mode silently). The client's toggle plays h1 into organ and h2 back into piano (owner,
+          // by ear, 2026-10-18); our S2 switches once (piano → organ, the strict 状态切换类 rule above), so only the organ
+          // sting is shipped and h2 (ON_SKILL_START.skchr_oblvns_2.1) never plays — add it if S2 ever toggles back.
+          // The cue also names the timbre she is in from this cast on (`form`, display only: render/units.js FORMS draws
+          // its official mode's clips, the S2_Atk / S2_AttackSpeed _replaceAnimPairs). A cast that starts Fever keeps it.
+          cue: ({ unit }) => (k.fever.full || k.fever.active || unit.mem.oblvnsTimbre === 'organ'
+            ? { form: unit.mem.oblvnsTimbre ?? 'piano' } : ORGAN_CUE),
           // the one cast of the deployment: Fever when the gauge is full (the timbre stays), else piano → organ
           onStart({ battle, unit }) {
             if (k.fever.full && !k.fever.active) { k.fever.tryStart(unit); return; }
@@ -256,6 +275,9 @@ export default {
           kind: 'duration',
           targeting: s3Grid ? { rangeGrid: s3Grid } : undefined,
           attack: { noteMode: 's3' },
+          // oblvns_s_3[switch_mode]: the [start] sting and the [loop] buff (its ambient loop) are made only when Fever is
+          // neither running nor full — a cast that starts Fever, and every S3 Fever casts, has neither
+          cue: () => (k.fever.active || k.fever.full ? null : STING_LOOP),
           // during Fever its duration does not run (PRTS: paused until Fever ends)
           onTick({ skill, dt }) { if (k.fever.active) skill.extend(dt); },
         },

@@ -47,7 +47,9 @@
 //   the unit's 攻击距离), showOwnRange (rangeGrid only selects targets: the detail card keeps the unit's own range)},
 //   attack {dmgType, atkScale, splashRadius, splashScale, hits, projectile, maxTargets, dmgMul, onHit, heal…},
 //   heal (bool: heal-type skill for the trigger rule), allyTargets (bool: the skill acts on a registered ally target — see
-//   `allyTargetsOk`), onStart(ctx), onEnd(ctx), onHit(ctx), onAttack(ctx), onTick(ctx).
+//   `allyTargetsOk`), onStart(ctx), onEnd(ctx), onHit(ctx), onAttack(ctx), onTick(ctx), cue(ctx) (a cast's display
+//   payload: an object returned here rides on the cast's client event as `['skill', id, 1, cue]` — read before onStart,
+//   so it sees the state the cast was made in; display only, never read by the sim).
 // ctx passed to spec callbacks: { battle, unit, skill, bb, target?, dealt?, targets?, dt?, reason? }; onAttack's ctx
 //   also carries `noAmmo` (set it to true: this attack spends no ammo). onEnd runs while the skill's mods / range are
 //   still applied (`active` is already false); they are removed right after it (unless onEnd re-activated the skill).
@@ -556,7 +558,8 @@ export class SkillRuntime {
       // (a targeting-only instant skill must still switch to its skill range for the pending attack)
       if (this.spec.mods || this.spec.flags || this.spec.targeting) this._applyMods();
     }
-    b._ev(['skill', u.id, 1]);
+    const cue = this.spec.cue ? this._call('cue', { reason }) : null;
+    b._ev(cue && typeof cue === 'object' ? ['skill', u.id, 1, cue] : ['skill', u.id, 1]);
     u.skillAnimUntil = b.time + SKILL_ANIM_WINDOW;
     this._call('onStart', { reason });
     if (b._hooks.skillStart) b.emit('skillStart', { unit: u, skill: this, reason });

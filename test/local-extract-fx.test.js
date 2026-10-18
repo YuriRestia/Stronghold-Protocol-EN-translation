@@ -51,6 +51,14 @@ describe('fx.py encodings (no UnityPy needed)', { skip: !PY && 'no python3' }, (
     assert.deepEqual(out[3], { 'boc#1': { a_hit: 'a_hit_boc#1' } }, 'a twin without its base is not mapped');
   });
 
+  test('(fork) skin_fx_map with the skinpack pairs: the official replacement wins over the name rule (丰川祥子 S2 crosswise)', () => {
+    const keys = ['s_a', 's_b', 's_a_avemujica#1', 's_b_avemujica#1', 'birth', 'x_birth_boc#1'];
+    const pairs = { 'avemujica#1': { s_a: 's_b_avemujica#1', s_b: 's_a_avemujica#1' }, 'boc#1': { birth: 'x_birth_boc#1', gone: 'gone_boc#1' } };
+    const out = py(`print(json.dumps(fx.skin_fx_map(${JSON.stringify(keys)}, ${JSON.stringify(pairs)})))`);
+    assert.deepEqual(out['avemujica#1'], { s_a: 's_b_avemujica#1', s_b: 's_a_avemujica#1' }, 'crosswise, as the outfit names them');
+    assert.deepEqual(out['boc#1'], { birth: 'x_birth_boc#1' }, 'a differently named twin counts; an unexported one does not');
+  });
+
   test('f6: six significant digits, -0 → 0, integers stay, NaN / ±inf → null', () => {
     const out = py(`print(json.dumps([fx.f6(x) for x in [1.0000004, -0.0, 3, 0.258819049, 1e-13, float('nan'), float('inf'), True, 2.0, 1234567.8]]))`);
     assert.deepEqual(out, [1, 0, 3, 0.258819, 0, null, null, true, 2, 1234570]);

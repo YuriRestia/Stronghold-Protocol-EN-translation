@@ -377,6 +377,30 @@ const PRISONER_COLOURED = prisoner('_orange', '_red');
 const dollRoles = (idle, die, attack = null) => Object.freeze({
   idle, deploy: idle, die, attack: attack ? Object.freeze({ begin: null, loop: attack, end: null }) : null, attackDown: null, skill: null,
 });
+/**
+ * (fork) 丰川祥子's S2 timbres (sim op-oblvns.js: the cast cue's `form`, render/app.js oblvnsForm): the clips of her
+ * official modes (charpack Modes/S2_Atk, S2_AttackSpeed AnimatorHooker._replaceAnimPairs) — piano Attack → Skill_2_Loop_A,
+ * Idle → Skill_2_Idle_A; organ the _B pair. Her attacks are their loop clip (it has OnAttack), the idle stands between
+ * them; `skill` points at the same pair so the skill role never plays the other timbre's clip (the lord's ranged _A → _B
+ * twin rule turned piano's Skill_2_Idle_A into organ's idle, and no attack clip played at all).
+ */
+const oblvnsTimbre = (x, deploy) => Object.freeze({
+  change: null,
+  roles: Object.freeze({
+    idle: `Skill_2_Idle_${x}`,
+    ...(deploy ? { deploy } : {}),
+    attack: Object.freeze({ begin: null, loop: `Skill_2_Loop_${x}`, end: null }),
+    attackDown: null,
+    // the skill role is the stance only (no Begin: the toggle's cast changes the clip set, it plays no clip of its own)
+    skill: Object.freeze({ begin: null, loop: `Skill_2_Idle_${x}`, end: null, idle: `Skill_2_Idle_${x}`, via: 'attack' }),
+    noShotTwin: true,
+  }),
+});
+// piano is her mode from deployment (prefab _defaultModeIndex 2): S2_Atk also replaces Born with Skill_2_Start
+const OBLVNS_S2 = Object.freeze({ piano: oblvnsTimbre('A', 'Skill_2_Start'), organ: oblvnsTimbre('B') });
+/** The timbre an S2 丰川祥子 starts in, before any cast cue names one (view built at deployment). */
+export const oblvnsStartForm = (info, skillIndex) =>
+  (info?.side !== 'enemy' && (info?.spine === 'char_4182_oblvns' || info?.diy?.charId === 'char_4182_oblvns') && skillIndex === 1 ? 'piano' : null);
 export const FORMS = Object.freeze({
   [MANIFOLD]: Object.freeze({
     Default: Object.freeze({ roles: { ...clipSet('Idle_1', null, 'Stun', 'Attack'), deploy: 'Start', stun: loop('Stun') } }),
@@ -389,6 +413,7 @@ export const FORMS = Object.freeze({
   char_1023_ghost2: Object.freeze({
     doll: Object.freeze({ change: 'Start_B', end: 'Die_B', leave: 'Start_2', roles: dollRoles('Idle_B', 'Die_B_2') }),
   }),
+  char_4182_oblvns: OBLVNS_S2,
   char_4016_kazema: Object.freeze({
     doll: Object.freeze({ change: 'Start_B', leave: 'Start', roles: dollRoles('Idle_B', 'Die_B', 'Attack_B') }),
   }),
@@ -787,7 +812,8 @@ export class UnitView {
     this.screen = { x: 0, y: 0, s: 1, top: 0 };
     this.placed = false;          // set by the first update's projection: until then `screen` is not on screen (bounds)
     this.destroyed = false;
-    this.form = typeof info.form === 'string' ? info.form : null;   // the unit's model form: an enemy's mode, a 傀儡师's 替身 (setForm, FORMS)
+    // the unit's model form: an enemy's mode, a 傀儡师's 替身 (setForm, FORMS); (fork) an S2 丰川祥子's timbre (piano at first)
+    this.form = typeof info.form === 'string' ? info.form : this.prep ? null : oblvnsStartForm(info, this.skillIndex);
     this._dieForm = null;         // the form it died in (die): a model built while it lies down shows that form's death
 
     // --- display objects

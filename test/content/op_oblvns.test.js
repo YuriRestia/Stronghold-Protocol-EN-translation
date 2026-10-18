@@ -296,6 +296,48 @@ test('Fever with S3: its duration does not run during Fever; a Fever-started S3 
   done(h);
 });
 
+// the cast events' sting cue (skills.js `cue` → ['skill', id, 1, cue], op-oblvns.js STING): when the client plays a sting
+const casts = (h, u) => h.eventsOf('skill').filter((e) => e[1] === u.id && e[2] === 1);
+
+test('sting cues, S1: every cast — the full-charge auto cast, the manual one that starts Fever and every Fever recast (owner 2026-10-18: the literal rule)', () => {
+  const { h, u } = field({ skill: 0, foes: [[10, 7]] });
+  h.runUntil(() => casts(h, u).length >= 1, 30);
+  h.b.fever.value = FEVER_NEED;
+  h.runUntil(() => h.b.fever.active, 30);
+  h.run(5);
+  const cs = casts(h, u);
+  assert.ok(cs.length >= 4, `casts: ${cs.length}`);
+  for (const e of cs) assert.deepEqual(e[3], { sting: 1 }, 'a sting on every S1 cast');
+  done(h);
+});
+
+test('sting cues, S2: the switch into organ only; a cast at a full gauge (it starts Fever, no switch) has none — the cue names the timbre for the model', () => {
+  const a = field({ skill: 1, foes: [[10, 7]] });
+  a.h.runUntil(() => a.u.skill.active, 20);
+  assert.equal(a.u.mem.oblvnsTimbre, 'organ');
+  assert.deepEqual(casts(a.h, a.u).map((e) => e[3]), [{ sting: 1, form: 'organ' }], 'piano → organ: h1, organ clips');
+  done(a.h);
+  const b = field({ skill: 1, foes: [[10, 7]] });
+  b.h.b.fever.value = FEVER_NEED;
+  b.h.runUntil(() => b.u.skill.active, 20);
+  assert.ok(b.h.b.fever.active);
+  assert.deepEqual(casts(b.h, b.u).map((e) => e[3]), [{ form: 'piano' }], 'Fever start: silent, she stays on piano');
+  done(b.h);
+});
+
+test('sting cues, S3: sting + loop only when Fever is neither running nor full (oblvns_s_3[switch_mode]); a Fever-started S3 has neither', () => {
+  const a = field({ skill: 2, foes: [[10, 7]] });
+  a.h.runUntil(() => a.u.skill.active, 60);
+  assert.deepEqual(casts(a.h, a.u).map((e) => e[3]), [{ sting: 1, loop: 1 }], 'a plain cast');
+  done(a.h);
+  const b = field({ skill: 2, foes: [[10, 7]] });
+  b.h.b.fever.value = FEVER_NEED;
+  b.h.runUntil(() => b.u.skill.active, 60);
+  assert.ok(b.h.b.fever.active, 'the cast at a full gauge started Fever');
+  assert.deepEqual(casts(b.h, b.u).map((e) => e[3]), [undefined], 'the gauge was full: no sting, no loop');
+  done(b.h);
+});
+
 test('T2: another 丰川祥子 whose base range overlaps lends hers as an extension (PRTS 备注); both share one gauge', () => {
   const two = [{ uid: 2, diy: { slot: SLOT[5], charId: SAKI, skillIndex: 2, uniEquipId: LORY }, elite: true, row: 11, col: 5 }];
   const { h, u } = field({ skill: 2, more: two, foes: [[10, 7]] });

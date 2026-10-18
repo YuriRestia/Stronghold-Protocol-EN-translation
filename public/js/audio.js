@@ -115,12 +115,23 @@ const XFADE_S = 1;
  * neither loses its hits nor takes the other units' voices; NOTE_VOICES only guards against a runaway pile-up.
  */
 const NOTE_VOICES = 48;
+/** (fork) Her note sounds while the Fever song plays (owner 2026-10-18: the song drowned in the note flood): ~−8 dB. */
+const NOTE_FEVER_DUCK = 0.4;
+/** (fork) 丰川祥子's skill stings and S3's held loop (_sting): the gain of a unit's skill sound. */
+const STING_GAIN = 0.8;
+/** S3's loop stops over this (s): soundFXCtrlBanks ON_SKILL_FINISH.skchr_oblvns_3 ctrlStopFadetime 0.2. */
+const STING_LOOP_FADE_S = 0.2;
 /**
  * The Fever track (manifest bgm.fever: the vocal KiLLKiSS, owner 2026-10-15) starts at full volume the moment Fever
  * starts (owner 2026-10-16: no fade in) and plays as fully as it can (owner 2026-10-17): only this (s) at its very
  * end ramps it to 0, against a click.
  */
 const FEVER_END_S = 0.05;
+/**
+ * The Fever song's own gain over the BGM bus (owner 2026-10-18: "kinda quiet" under the note flood). ~+3 dB: the file
+ * peaks at −3.1 dBFS, so 1.4 keeps it just under 0 dBFS; more would need a limiter on its path.
+ */
+const FEVER_GAIN = 1.4;
 /** After the Fever song the round's track comes back over this (s). */
 const FEVER_BACK_S = 1.2;
 /** The round's track drops under the Fever song this fast (s): a cut, short enough not to click. */
@@ -645,6 +656,10 @@ export class AudioManager {
     this.fever = null;        // the Fever song playing (feverStart): { url, token, node }
     this.feverToken = 0;
     this.noteVoices = 0;      // note sounds playing (_noteSound)
+    this.stingLoops = new Map(); // unit id → its skill's held sting loop (_sting): { token, node }
+    this.stingToken = 0;
+    this.stingVoices = new Map(); // sting bank id → its playing one-shots in start order (_playSting)
+    this.stingField = 0;          // bumped by stopPoolSounds: a sting decoded after it belongs to the old battle
     this.sfxGain = null;
     this.voiceGain = null;
     this.volumes = { bgm: 0.6, sfx: 0.8, voice: 0.8, muted: false };
@@ -1068,8 +1083,8 @@ export class AudioManager {
         src.buffer = buf;
         src.connect(gain); gain.connect(this.bgmGain);
         const t0 = ctx.currentTime, end = t0 + buf.duration;
-        gain.gain.setValueAtTime(1, t0);
-        gain.gain.setValueAtTime(1, Math.max(t0, end - FEVER_END_S));
+        gain.gain.setValueAtTime(FEVER_GAIN, t0);
+        gain.gain.setValueAtTime(FEVER_GAIN, Math.max(t0, end - FEVER_END_S));
         gain.gain.linearRampToValueAtTime(0, end);
         src.start(t0);
         this.fever.node = { src, gain };
@@ -1120,7 +1135,122 @@ export class AudioManager {
     const look = typeof ex.look === 'string' ? (ex.look.startsWith('s1_') ? 's1' : ex.look) : '';
     const url = this.getManifest()?.audio?.sfx?.units?.[u.def]?.notes?.[look]?.[ex.on === 'hit' ? 'hit' : 'born'];
     if (typeof url !== 'string') return;
-    this._play(url, { volume: ex.on === 'hit' ? 0.55 : 0.45, pool: 'note' });
+    // ducked under the Fever song (NOTE_FEVER_DUCK)
+    const duck = this.fever ? NOTE_FEVER_DUCK : 1;
+    this._play(url, { volume: (ex.on === 'hit' ? 0.55 : 0.45) * duck, pool: 'note' });
+  }
+
+  /**
+   * (fork) A cast's sting (b.ev ['skill', id, 1, { sting, loop? }]: the sim's skill `cue` says when — 丰川祥子's kit,
+   * op-oblvns.js STING): one file of the equipped skill's `stings[index].clips`, drawn by its official weight, on that
+   * bank's own pool (S1 max 2 popOldest, S2 / S3 unlimited); `loop` also starts the skill's held loop (S3, stopped by
+   * _stopStingLoop when the skill ends, the unit dies or the field changes).
+   */
+  _sting(id, u, cue) {
+    const st = Number.isInteger(u.skillIndex) ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.stings?.[u.skillIndex] : null;
+    if (!st) return;
+    const clips = Array.isArray(st.clips) ? st.clips.filter((c) => typeof c?.url === 'string') : [];
+    if (cue.sting && clips.length) {
+      const total = clips.reduce((s, c) => s + (c.w > 0 ? c.w : 1), 0);
+      let r = Math.max(0, Math.min(0.999999, this.random())) * total;
+      let pick = clips[clips.length - 1];
+      for (const c of clips) { r -= c.w > 0 ? c.w : 1; if (r < 0) { pick = c; break; } }
+      this._playSting(pick.url, st.pool);
+    }
+    if (cue.loop && typeof st.loop === 'string') this._stingLoop(id, st.loop);
+  }
+
+  /** Decode a unit's stings and loops ahead (a tracked unit with `stings`): a cast then plays at once, never late. */
+  _warmStings(def) {
+    const st = this.getManifest()?.audio?.sfx?.units?.[def]?.stings;
+    if (!st || !this.ctx) return;
+    for (const e of Object.values(st)) {
+      for (const c of Array.isArray(e?.clips) ? e.clips : []) if (typeof c?.url === 'string') this._buffer(c.url);
+      if (typeof e?.loop === 'string') this._buffer(e.loop);
+    }
+  }
+
+  /**
+   * One sting on its own voices: the official banks mark them `important` on their own mixer group (Battle_UI_Boost /
+   * Battle_P_SAtk, 2D), so the battle limiter (8 voices, unit / URL gaps) never drops one; only the bank's own cap holds
+   * (S1 max 2, the oldest giving way; S2 / S3 unlimited). A field change drops a decode still in flight (stingField).
+   */
+  _playSting(url, poolId) {
+    const ctx = this.ctx;
+    if (!ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
+    const params = this.getManifest()?.audio?.sfx?.pools?.[poolId] ?? null;
+    const field = this.stingField;
+    this._buffer(url).then((buf) => {
+      if (!buf || ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
+      const key = poolId || url;
+      const voices = this.stingVoices.get(key) || [];
+      const limit = params?.maxSoundAllowed > 0 ? params.maxSoundAllowed : Infinity;
+      if (voices.length >= limit) {
+        if (!params?.popOldest) return;
+        voices[0].stop();
+      }
+      let src, gain, done = false;
+      const voice = {
+        stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
+      };
+      const end = () => {
+        if (done) return;
+        done = true;
+        const i = voices.indexOf(voice);
+        if (i >= 0) voices.splice(i, 1);
+        if (!voices.length) this.stingVoices.delete(key);
+        try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
+      };
+      try {
+        src = ctx.createBufferSource(); gain = ctx.createGain();
+        src.buffer = buf;
+        gain.gain.value = STING_GAIN;
+        src.connect(gain); gain.connect(this.sfxGain);
+        src.onended = end;
+        voices.push(voice); this.stingVoices.set(key, voices);
+        src.start();
+        setTimeout(end, buf.duration * 1000 + 250); // safety if onended never fires
+      } catch { end(); }
+    }, () => {});
+  }
+
+  /** The skill's held loop of unit `id` (one per unit: a new one replaces it). */
+  _stingLoop(id, url) {
+    this._stopStingLoop(id);
+    const ctx = this.ctx;
+    if (!ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
+    const token = ++this.stingToken;
+    const cur = { token, node: null };
+    this.stingLoops.set(id, cur);
+    this._buffer(url).then((buf) => {
+      if (!buf || ctx !== this.ctx || this.stingLoops.get(id) !== cur) return;
+      try {
+        const src = ctx.createBufferSource(), gain = ctx.createGain();
+        src.buffer = buf; src.loop = true;
+        gain.gain.value = STING_GAIN;
+        src.connect(gain); gain.connect(this.sfxGain);
+        src.start();
+        cur.node = { src, gain };
+      } catch { this.stingLoops.delete(id); }
+    }, () => { if (this.stingLoops.get(id) === cur) this.stingLoops.delete(id); });
+  }
+
+  /** Stop unit `id`'s held loop (null: every unit's) over STING_LOOP_FADE_S. */
+  _stopStingLoop(id) {
+    const all = id == null;
+    for (const [k, cur] of [...this.stingLoops]) {
+      if (!all && k !== id) continue;
+      this.stingLoops.delete(k);
+      const n = cur.node;
+      if (!n || !this.ctx) continue;
+      try {
+        const t = this.ctx.currentTime;
+        n.gain.gain.cancelScheduledValues(t);
+        n.gain.gain.setValueAtTime(n.gain.gain.value, t);
+        n.gain.gain.linearRampToValueAtTime(0, t + STING_LOOP_FADE_S);
+        n.src.stop(t + STING_LOOP_FADE_S + 0.02);
+      } catch { /* ignore */ }
+    }
   }
 
   // ---- SFX ------------------------------------------------------------------------------------------------
@@ -1337,13 +1467,17 @@ export class AudioManager {
     } catch { end(); }
   }
 
-  /** Field replacement, battle exit and screen cleanup invalidate downloads/delays and stop every playing pool source. */
+  /** Field replacement, battle exit and screen cleanup invalidate downloads/delays and stop every playing pool source (and every sting loop). */
   stopPoolSounds() {
     this.poolFieldToken++;
     for (const req of this.poolRequests) this._dropPoolRequest(req);
     // Keep empty loads subscribed: clearing this map would attach more handlers to the same stalled promise next field.
     for (const load of this.poolLoads.values()) load.clear();
     for (const voices of this.poolVoices.values()) for (const voice of [...voices]) voice.stop();
+    // (fork) the skills' stings and held loops belong to the same battle
+    this.stingField++;
+    for (const voices of this.stingVoices.values()) for (const voice of [...voices]) voice.stop();
+    this._stopStingLoop(null);
   }
 
   /**
@@ -1661,6 +1795,8 @@ export class AudioManager {
     this.units.set(u.id, { def: u.spine || u.defId, voice: u.voice || u.spine || u.defId, defId: u.defId ?? null, kind: u.kind ?? null, side: u.side, boss: !!u.boss,
       voiceKey: u.side === 'enemy' ? null : outfitVoiceKey(u),
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
+    // (fork) its skill stings decode now, so its first cast is not late (or dropped)
+    if (u.side !== 'enemy') this._warmStings(u.spine || u.defId);
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
     if (held) {
@@ -1811,6 +1947,8 @@ export class AudioManager {
             // the running skill's own swing / impact (`attacks` / `hits`, header) follow this flag
             u.skillActive = true;
             this.unit(u.def, 'skill', e[1], u.skillIndex ?? undefined);
+            // (fork) a cast cue (the sim's skill `cue`, 丰川祥子): the skill's sting, and its held loop
+            if (e[3] && typeof e[3] === 'object') this._sting(e[1], u, e[3]);
             // 作战中N: the equipped skill's own slot (0-based; 作战中4 is the fallback of a 4th slot)
             if (unitSoundClass(u) === 'char') {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;
@@ -1830,11 +1968,13 @@ export class AudioManager {
           const u = this.units.get(e[1]);
           if (u) u.skillActive = false;
           this.pendingSkill.delete(e[1]);
+          this._stopStingLoop(e[1]);
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
           const u = this.units.get(e[1]);
           if (u && unitSoundClass(u) === 'char') this.voice(u.voice, 'faceEnemy', { unitKey: e[1], voiceKey: u.voiceKey });
         } else if (kind === 'die') {
+          this._stopStingLoop(e[1]);
           const u = this.units.get(e[1]);
           if (!u) continue;
           const consumed = this.consumed.delete(e[1]);

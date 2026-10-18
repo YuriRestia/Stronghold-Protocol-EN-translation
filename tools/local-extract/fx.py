@@ -347,13 +347,47 @@ def skin_variants(names, wanted):
     return out
 
 
-def skin_fx_map(keys):
-    """index.json `skinFx` (fork): {suffix: {base: variant}} over the exported keys whose base was exported too."""
+def skin_fx_map(keys, pairs=None):
+    """index.json `skinFx` (fork): {suffix: {base: variant}} over the exported keys whose base was exported too.
+    `pairs` ({suffix: {from: to}}, skin_replace_pairs) are the outfits' own replacements: each wins over the name rule
+    for its `from` key (丰川祥子's outfit swaps S2's start effects crosswise: oblvns_skill_02_start_A →
+    …_start_B_avemujica#1), and a pair whose `to` is no twin of its `from` by name counts too."""
     have, out = set(keys), {}
     for k in sorted(have):
         sv = skin_variant(k)
         if sv and sv[0] in have:
             out.setdefault(sv[1], {})[sv[0]] = k
+    for suf, m in sorted((pairs or {}).items()):
+        for a, b in sorted(m.items()):
+            if a in have and b in have:
+                out.setdefault(suf, {})[a] = b
+    return out
+
+
+def skin_replace_pairs(ab_root, cabs, log=lambda _m: None):
+    """{outfit suffix: {from key: to key}} (lower case) of every skinpack's SkinEffectReplacer `_replaceEffectPairs`
+    (fork) — the official outfit → effect mapping; a skinpack the client does not have, or that names none, adds
+    nothing. The suffix is read off the `to` key (skin_variant)."""
+    out = {}
+    root = Path(ab_root) / 'skinpack'
+    if not root.is_dir():
+        return out
+    for f in sorted(root.glob('*.ab')):
+        env = AssetEnv(ab_root, cabs)
+        try:
+            for sf in env.load(f):
+                for o in sf.objects.values():
+                    if o.type.name != 'MonoBehaviour':
+                        continue
+                    d = env.tt(o)
+                    for p in (d.get('_replaceEffectPairs') or []) if isinstance(d, dict) else []:
+                        a = (p.get('fromEffect') or '').lower() if isinstance(p, dict) else ''
+                        b = (p.get('toEffect') or '').lower() if isinstance(p, dict) else ''
+                        sv = skin_variant(b)
+                        if a and b and sv:
+                            out.setdefault(sv[1], {})[a] = b
+        except Exception as e:  # noqa: BLE001 — one unreadable skinpack keeps the name rule for its outfits
+            log(f'  skip skinpack {f.name}: {e!r}')
     return out
 
 
@@ -3235,6 +3269,13 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         log(f'  skip (no such effect prefab in this client) {k}')
     wanted -= set(missing)
     wanted |= twins(wanted)
+    # (fork) the outfits' own replacements (skinpack _replaceEffectPairs): their targets come along too, a crosswise or
+    # differently named one included; skin_fx_map lets them win over the name rule
+    t0p = time.time()
+    replace_pairs = skin_replace_pairs(ab_root, cabs, log)
+    wanted |= {b for m in replace_pairs.values() for a, b in m.items() if a in wanted and b in eff}
+    log(f'fx: {sum(len(m) for m in replace_pairs.values())} outfit effect replacements in {len(replace_pairs)} outfits '
+        f'({time.time() - t0p:.0f} s)')
 
     # -- descriptors, textures, meshes; then the keys the exported behaviours name (variants by facing, chained
     #    effects), until nothing new is named
@@ -3291,7 +3332,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         'source': {'root': ab_root.name, 'client': client_version(ab_root)},
         'units': units, 'projectiles': projectiles, 'skills': skills, 'skins': skins,
         'generic': {**FX_GENERIC, 'keys': sorted(k for k in generic if k in summaries)},
-        'skinFx': skin_fx_map(summaries),
+        'skinFx': skin_fx_map(summaries, replace_pairs),
         'prefabs': dict(sorted(summaries.items())),
     }
     write_atomic(out / 'index.json', json.dumps(index, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))

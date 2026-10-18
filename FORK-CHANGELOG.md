@@ -35,6 +35,19 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
   injects. The game's pages still have no inline script of their own. Off by default.
 - The service worker no longer fetches the preload manifest for a player who never preloaded (no preload cache).
+- Sakiko's skill stings, the official short piano / organ clips: S1 plays one of three on every cast, Fever recasts
+  included (at most two at once); S2 plays its organ sting when she switches to organ (not when the cast starts
+  Fever); S3 plays its sting and holds its ambient loop for the skill, except when Fever is running or the gauge is
+  full, as in the game's client. The stings play on their own voices (the busy battle mix no longer drops them) and
+  load as soon as she is on the field, so none plays late. A server running locally needs
+  `node tools/fetch-assets.mjs --add-only` for the seven new sound files.
+- The Fever song (KiLLKiSS) plays about 3 dB louder, and Sakiko's note sounds drop to 40% while it plays, so the song
+  carries over the volley.
+- Sakiko's S2 animations follow her official modes: piano attacks play its own attack clip and stance, organ the organ
+  pair. Before, she stood in the organ stance from deployment and never played an attack clip in S2.
+- Outfit effects follow each outfit's own replacement list from the game client instead of matching names. Sakiko's
+  Master of Melodia now plays the outfit's piano and organ attack effects the right way round, with their extra light
+  rays, and a few other outfits gain effects the name rule missed. Run `extract.py --only fx` again to pick this up.
 
 ### Fixes
 

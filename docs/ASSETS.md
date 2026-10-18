@@ -468,7 +468,8 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
       units:  { [charId|tokenId|enemyId]: { attack?, hit?, skill?, skills?: {[skillIndex]: url}, attacks?: {[skillIndex]: url}, hits?: {[skillIndex]: url}, die?, born?,
                 attackMix?: {[skillIndex]: {p?, vol?}}, hitMix?: {[skillIndex]: {p?, vol?}},
                 mix?: { [attack|hit|die|born]: { p?, vol? } },
-                pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId} } },
+                pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId},
+                stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url }} } },  // (fork) 丰川祥子's skill stings
       pools: { [bankId]: { maxSoundAllowed, popOldest,
                 sounds: { [pathUnderSoundBeta2]: { minPitch, maxPitch, delay } } } }
     }

@@ -1801,6 +1801,14 @@ export async function createFieldView(host, options = {}) {
       // activation burst and aura when the official layer shows the skill
       case 'skill': {
         const v = views.get(e[1]);
+        // (fork) a cast cue's `form` (丰川祥子's S2 timbre, sim op-oblvns.js): her clip set from this cast on
+        // (UnitView.setForm → FORMS); the official attack effects already follow the skill's own mode (wiring.mode)
+        const cueForm = e[2] && e[3] && typeof e[3].form === 'string' ? e[3].form : null;
+        if (cueForm) {
+          const inf = infos.get(e[1]);
+          if (inf && FORMS[inf.spine || inf.defId]?.[cueForm]) inf.form = cueForm;
+          v?.setForm?.(cueForm);
+        }
         if (v) { const custom = pluginFx.skill(v, !!e[2]); v.setSkill?.(!!e[2]); if ((!wiring.skill(v, !!e[2]) && !custom) || !e[2]) fx.skill(v, !!e[2]); }
         break;
       }

@@ -905,7 +905,8 @@ export class SpineActor {
    *  'ranged': RANGED_TWIN, else the `_B` cannon (号角 Attack_A → Attack_B, Skill_3_A_Loop → Skill_3_B_Loop);
    *  'melee': MELEE_TWIN. */
   _shot(name) {
-    if (!this.shot || typeof name !== 'string') return name;
+    // (fork) a form whose clips are the official mode's own (render/units.js FORMS `noShotTwin`: 丰川祥子's S2 timbres)
+    if (!this.shot || typeof name !== 'string' || this.roles?.noShotTwin) return name;
     if (this.shot === 'ranged') {
       for (const t of RANGED_TWIN[name] || []) if (this.has(t)) return t;
       const t = name.replace(/_A(?=_|$)/, '_B');

@@ -451,6 +451,11 @@ Attack / hit playback follows `excel/audio_data.json soundFXBanks` (§34.25, Git
 `audio.sfx.pools` retains each selected bank's `maxSoundAllowed` / `popOldest` and each candidate file's
 `minPitch` / `maxPitch` / `delay` (seconds). Unit `pools` and per-skill `attackPools` / `hitPools` identify the bank.
 A full pool with `popOldest: true` stops its oldest instance for the new one; otherwise the new sound is dropped.
+(fork) 丰川祥子's skill stings (`stings[skillIndex]`) play on a cast whose `['skill', id, 1, cue]` carries a cue (the
+kit decides, following the client's buff graphs): one clip drawn by its bank's weights, decoded ahead when she is
+tracked and played on its own voices (the banks are `important` on their own mixer group: the battle limiter's
+8-voice budget and unit / URL gaps never drop one; only the bank's own cap holds, S1 max 2, the oldest giving way); S3's cue
+also holds its loop until the skill ends, she dies or the field changes (0.2 s fade, the official ctrlStopFadetime).
 Aliases share their target bank's pool; distinct banks using one file keep separate limits. Pitch is drawn uniformly
 within the played file's own range with client-only randomness ([ASSUMED] uniform distribution); playback starts after its own delay on the audio clock.
 The maintainer chose 0.3.1 for this change (reply draft A). [ASSUMED] The remake retains its global 8-voice budget,

@@ -81,18 +81,28 @@ export function bankPool(bank) {
  * @returns {{ bank: (name:string)=>string[], bgm: (name:string)=>({intro:string|null, loop:string}|null),
  *   unitBanks: Map<string, Map<string, string[]>>, skillBanks: Map<string, Map<string,string[]>>,
  *   mixOf: (paths: string[]|null|undefined) => ({ p?: number, vol?: number }|null),
- *   poolOf: (paths: string[]|null|undefined) => (ReturnType<typeof bankPool>|null) }}
+ *   poolOf: (paths: string[]|null|undefined) => (ReturnType<typeof bankPool>|null),
+ *   weightsOf: (paths: string[]|null|undefined) => (number[]|null) }}
  */
 export function indexAudio(audioData) {
   const banks = new Map();
   const mixes = new WeakMap(); // a bank's path list (the very array every lookup hands out) → bankMix
   const pools = new WeakMap();
+  const weights = new WeakMap(); // a bank's path list → each file's draw weight (same order)
   for (const b of Array.isArray(audioData?.soundFXBanks) ? audioData.soundFXBanks : []) {
     if (!b || typeof b.name !== 'string') continue;
-    const paths = (Array.isArray(b.sounds) ? b.sounds : []).map((s) => assetToPath(s?.asset)).filter(Boolean);
+    const sounds = Array.isArray(b.sounds) ? b.sounds : [];
     if (!banks.has(b.name)) banks.set(b.name, []);
     const list = banks.get(b.name);
-    for (const p of paths) if (!list.includes(p)) list.push(p);
+    if (!weights.has(list)) weights.set(list, []);
+    const w = weights.get(list);
+    for (const s of sounds) {
+      const p = assetToPath(s?.asset);
+      if (!p || list.includes(p)) continue;
+      list.push(p);
+      const n = Number(s.weight);
+      w.push(Number.isFinite(n) && n > 0 ? n : 1);
+    }
     if (list.length && !mixes.has(list)) { const m = bankMix(b.sounds, list[0]); if (m) mixes.set(list, m); }
     if (list.length && !pools.has(list)) pools.set(list, bankPool(b));
   }
@@ -135,7 +145,8 @@ export function indexAudio(audioData) {
   for (const name of Object.keys(alias)) if (!banks.has(name)) { const p = bank(name); if (p.length) addUnit(name, p); }
   const mixOf = (paths) => (paths && typeof paths === 'object' && mixes.get(paths)) || null;
   const poolOf = (paths) => (paths && typeof paths === 'object' && pools.get(paths)) || null;
-  return { bank, bgm, unitBanks, skillBanks, mixOf, poolOf };
+  const weightsOf = (paths) => (paths && typeof paths === 'object' && weights.get(paths)) || null;
+  return { bank, bgm, unitBanks, skillBanks, mixOf, poolOf, weightsOf };
 }
 
 /** Sort key for ability sub-keys: plain first, then numeric suffixes ascending. */

@@ -1506,7 +1506,9 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   (`none|arrow|bolt|bomb|lob|orb|drone|enemy|boomerang|droneBomb|chain|chainHeal`; a boomerang's way back has no event —
   the renderer flies it back to the thrower at `BOOMERANG_RETURN_SPEED`; an enemy's `profile.shot` may name another
   kind, e.g. `mortar` for 帝国炮火先兆者, which the renderer does not draw — its fx `bombardShell` is the shell), `['dmg', tgt,
-  amount, type]` (`phys|arts|true|burn|neural|necrosis|apoptosis`), `['heal', tgt, amount]`, `['skill', id, 1|0]`,
+  amount, type]` (`phys|arts|true|burn|neural|necrosis|apoptosis`), `['heal', tgt, amount]`, `['skill', id, 1|0]`
+  (a cast whose skill spec has a `cue` carries its object as a 4th element: (fork) 丰川祥子's `{ sting?, loop?, form? }`,
+  the client's skill sting, S3's held loop and S2's timbre ('piano' | 'organ': her official mode clips) — display only),
   `['engage', id]` (an ally's first attack that hits an enemy — the client's 行动开始 voice, DESIGN §21.30), `['die', id,
   reason]`, `['leak', id]`, `['status', id, key, 1|0]`, `['fx', kind, x, y, extra]` (`hitCap` `{ id, n }`: a leader's
   hit cancelled by 限伤 — the renderer draws nothing; `extra.form` = the unit's model form from then on — an enemy's

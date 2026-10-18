@@ -615,13 +615,15 @@ describe('AudioManager', () => {
       a.setFieldUnits([{ id: 3, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4182_oblvns' }]);
       const urls = [];
       const play = a._play.bind(a);
-      a._play = (url, o) => { urls.push(url); return play(url, o); };
+      const vols = [];
+      a._play = (url, o) => { urls.push(url); vols.push(o?.volume); return play(url, o); };
       const ev = [];
       for (let i = 0; i < 30; i++) ev.push(['fx', 'note', 5, 10, { id: i, owner: 3, look: 's1_' + ((i % 8) + 1), on: 'hit', tgt: 9 }]);
       ev.push(['fx', 'note', 5, 10, { id: 99, owner: 3, look: 'unknown', on: 'born' }]);
       a.handleBattleEvents(ev);
       assert.equal(urls.length, 30, 'every note hit plays');
       assert.ok(urls.every((u) => u === '/s/s1_hit.mp3'), 'S1 notes share the s1 bank');
+      assert.ok(vols.every((v) => Math.abs(v - 0.55) < 1e-9), 'note hits at their normal volume outside Fever');
       // Fever: the song starts at once at full volume (no fade in), the round track drops out
       a.playBgm('combat');
       await new Promise((r) => setTimeout(r, 10));
@@ -629,9 +631,12 @@ describe('AudioManager', () => {
       await new Promise((r) => setTimeout(r, 10));
       assert.ok(a.fever && a.fever.node, 'the Fever song plays');
       const shape = a.fever.node.gain.gain.log;
-      assert.deepEqual(shape[0], ['set', 1], 'full volume from the start (no fade in)');
-      assert.ok(!shape.some(([k, v]) => k === 'ramp' && v === 1), 'nothing ramps it up');
+      assert.deepEqual(shape[0], ['set', 1.4], 'full (boosted) volume from the start (no fade in)');
+      assert.ok(!shape.some(([k, v]) => k === 'ramp' && v > 0), 'nothing ramps it up');
       assert.deepEqual(shape[shape.length - 1], ['ramp', 0], 'only a click guard at its very end');
+      vols.length = 0;
+      a.handleBattleEvents([['fx', 'note', 5, 10, { id: 100, owner: 3, look: 's1_1', on: 'hit', tgt: 9 }]]);
+      assert.ok(Math.abs(vols[0] - 0.55 * 0.4) < 1e-9, 'note sounds duck under the Fever song');
       const first = a.fever;
       a.handleBattleEvents([['fx', 'fever', 0, 0, { on: 0 }], ['fx', 'fever', 0, 0, { on: 1 }]]);
       assert.equal(a.fever, first, 'Fever ending does nothing; a new Fever neither restarts nor queues it');
@@ -647,6 +652,84 @@ describe('AudioManager', () => {
       a.unit = unit;
       a.setFieldUnits([]);
       assert.equal(a.fever, null, 'a new field stops it');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  test('丰川祥子 (committed manifest): the skill stings — S1 d1/d2/d3 40/30/30, S2 h1 only (into organ), S3 s1/s2 50/50 + its loop, each on its official pool', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const st = m.units.char_4182_oblvns.stings;
+    const f = (c) => [c.url.split('/').pop(), c.w];
+    assert.deepEqual(st[0].clips.map(f), [['p_skill_mjckyrdglsnt_d1.mp3', 40], ['p_skill_mjckyrdglsnt_d2.mp3', 30], ['p_skill_mjckyrdglsnt_d3.mp3', 30]]);
+    assert.deepEqual(st[1].clips.map(f), [['p_skill_mjckyrdslnt_h1.mp3', 1]], 'h2 (back into piano) is never shipped: S2 switches once');
+    assert.deepEqual(st[2].clips.map(f), [['p_skill_mjckyrdslnt_s1.mp3', 50], ['p_skill_mjckyrdslnt_s2.mp3', 50]]);
+    assert.equal(st[2].loop.split('/').pop(), 'p_atk_mjckyrdslnt_lp.mp3');
+    assert.deepEqual([m.pools[st[0].pool].maxSoundAllowed, m.pools[st[0].pool].popOldest], [2, true], 'S1: max 2, the oldest gives way');
+    assert.equal(m.pools[st[2].pool].maxSoundAllowed, 0);
+  });
+
+  test('丰川祥子: a cast cue plays one weighted sting on its pool; no cue, no sting; S3 holds its loop until the skill ends / she dies / the field changes', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      let roll = 0;
+      const pools = { p1: { maxSoundAllowed: 2, popOldest: true, sounds: {} }, p3: { maxSoundAllowed: 0, popOldest: false, sounds: {} } };
+      const stings = {
+        0: { clips: [{ url: '/s/d1.mp3', w: 40 }, { url: '/s/d2.mp3', w: 30 }, { url: '/s/d3.mp3', w: 30 }], pool: 'p1' },
+        2: { clips: [{ url: '/s/s1.mp3', w: 50 }, { url: '/s/s2.mp3', w: 50 }], pool: 'p3', loop: '/s/lp.mp3' },
+      };
+      const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools, units: { char_4182_oblvns: { stings } } } } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => roll });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      const sak = (id, skillIndex) => ({ id, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4182_oblvns', skillIndex });
+      a.setFieldUnits([sak(3, 0), sak(4, 2)]);
+      const plays = [];
+      const play = a._playSting.bind(a);
+      a._playSting = (url, pool) => { plays.push([url, pool]); return play(url, pool); };
+      const tick = () => new Promise((r) => setTimeout(r, 10));
+      // the draw follows the weights: 0.39 → d1 (0–40), 0.4 → d2 (40–70), 0.95 → d3
+      for (const r of [0.39, 0.4, 0.95]) { roll = r; a.handleBattleEvents([['skill', 3, 1, { sting: 1 }]]); }
+      assert.deepEqual(plays, [['/s/d1.mp3', 'p1'], ['/s/d2.mp3', 'p1'], ['/s/d3.mp3', 'p1']]);
+      await tick();
+      // S1's bank holds 2 and the oldest gives way: never more than 2 at once, and the battle limiter never drops one
+      assert.equal(a.stingVoices.get('p1').length, 2, 'S1: max 2 at once');
+      // a burst of casts right after one another (迅捷) each still start: the unit / URL gaps do not apply
+      const before = fw.made.started;
+      for (let i = 0; i < 4; i++) { roll = 0.1; a.handleBattleEvents([['skill', 3, 1, { sting: 1 }]]); }
+      await tick();
+      assert.equal(fw.made.started - before, 4, 'every cast of a burst starts its sting');
+      assert.equal(a.stingVoices.get('p1').length, 2);
+      plays.length = 0;
+      a.handleBattleEvents([['skill', 3, 1]]);
+      assert.deepEqual(plays, [], 'a cast without a cue plays no sting');
+      // S3: the sting and the held loop together; its end stops the loop
+      roll = 0.6;
+      a.handleBattleEvents([['skill', 4, 1, { sting: 1, loop: 1 }]]);
+      await tick();
+      assert.deepEqual(plays, [['/s/s2.mp3', 'p3']]);
+      assert.equal(a.stingVoices.get('p3').length, 1, 'the S3 sting plays');
+      const held = a.stingLoops.get(4);
+      assert.ok(held?.node?.src.loop, 'the loop plays, looped');
+      a.handleBattleEvents([['skill', 4, 0]]);
+      assert.equal(a.stingLoops.has(4), false, 'the skill ended: the loop stops');
+      assert.deepEqual(held.node.gain.gain.log.at(-1), ['ramp', 0], 'with a fade (0.2 s)');
+      // a Fever-gated cast (no `loop`) starts no loop; death and a new field stop a running one
+      a.handleBattleEvents([['skill', 4, 1, { sting: 1 }]]);
+      await new Promise((r) => setTimeout(r, 10));
+      assert.equal(a.stingLoops.has(4), false, 'no loop without the cue');
+      a.handleBattleEvents([['skill', 4, 1, { sting: 1, loop: 1 }]]);
+      await new Promise((r) => setTimeout(r, 10));
+      a.handleBattleEvents([['die', 4]]);
+      assert.equal(a.stingLoops.has(4), false, 'her death stops it');
+      a.handleBattleEvents([['skill', 4, 1, { sting: 1, loop: 1 }]]);
+      await new Promise((r) => setTimeout(r, 10));
+      a.setFieldUnits([]);
+      assert.equal(a.stingLoops.size, 0, 'a new field stops it');
+      assert.equal(a.stingVoices.size, 0, 'and its stings');
     } finally {
       globalThis.fetch = origFetch;
     }
