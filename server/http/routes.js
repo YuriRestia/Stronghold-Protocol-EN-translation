@@ -23,6 +23,7 @@ import { PROTOCOL_VERSION, APP_VERSION } from '../../shared/constants.js';
 import { splitGenPath } from '../../shared/gen.js';
 import { buildTag } from './buildTag.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
+import { withScriptNonce } from './csp.js';
 import { clientAddress, isLocalIp } from '../net.js';
 
 const MAX_URL_LENGTH = 4096;
@@ -88,13 +89,14 @@ const wantsTraffic = (query) => /(?:^|&)traffic(?:=(?:1|true|yes))?(?:&|$)/i.tes
  * @param {{ serveStatic: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse,
  *             rawPath: string, query: string, gen?: ReturnType<typeof splitGenPath> | null) => Promise<void>,
  *           health: Parameters<typeof healthReport>[0], log: object, trustProxy?: 'auto' | boolean,
- *           csp?: string | null,
+ *           csp?: string | null, cspNonce?: boolean,
  *           studio?: { handles: (rawPath: string) => boolean, handle: (req: any, res: any, rawPath: string, query: string) => Promise<void> } | null }} deps
  *   trustProxy: whose forwarding headers name the client (net.js clientAddress; the server's TRUST_PROXY); studio: the
- *   plugin studio (server/studio/index.js), or none
+ *   plugin studio (server/studio/index.js), or none; cspNonce: (fork) each response's policy gets a fresh script nonce
+ *   (csp.js withScriptNonce, SP_CSP_NONCE=1)
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void}
  */
-export function createRequestHandler({ serveStatic, health, log, trustProxy = 'auto', studio = null, csp = null, trustedRuntime = null }) {
+export function createRequestHandler({ serveStatic, health, log, trustProxy = 'auto', studio = null, csp = null, cspNonce = false, trustedRuntime = null }) {
   async function handleRequest(req, res) {
     const url = req.url || '/';
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
@@ -123,7 +125,7 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
 
   return (req, res) => {
     setSecurityHeaders(res);
-    if (csp) res.setHeader('Content-Security-Policy', csp);
+    if (csp) res.setHeader('Content-Security-Policy', cspNonce ? withScriptNonce(csp) : csp);
     if (health.traffic) health.traffic.meter(res, splitUrl(req.url || '/')?.rawPath || '/');
     handleRequest(req, res).catch((e) => {
       log.error('[http] request failed', e);

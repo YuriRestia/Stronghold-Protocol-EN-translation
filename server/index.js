@@ -193,8 +193,8 @@ export async function startServer(opts = {}) {
   const loop = createLoopStats(); // (fork) /healthz?traffic=1 `loop` and `sim`: what blocks the main thread
   // (fork) the site policy hashes this generation's rewritten import map too (shared/gen.js rewriteIndexHtml), else
   // the browser refuses /g/<gen>/'s map and the page never boots
-  const csp = process.env.SP_CSP === 'off' ? null : siteCsp(publicDir, { gen });
-  const server = http.createServer(createRequestHandler({ serveStatic, csp, health: { startedAt, network, registry, lobby, content, traffic, assetIndex, views, trusted: trustedRuntime?.health, generation, loop, sim: simMeter, maintenance }, log, trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
+  const csp = process.env.SP_CSP === 'off' ? null : siteCsp(publicDir, { gen, cfAnalytics: process.env.SP_CF_ANALYTICS === '1' });
+  const server = http.createServer(createRequestHandler({ serveStatic, csp, cspNonce: process.env.SP_CSP_NONCE === '1', health: { startedAt, network, registry, lobby, content, traffic, assetIndex, views, trusted: trustedRuntime?.health, generation, loop, sim: simMeter, maintenance }, log, trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log, traffic });
 

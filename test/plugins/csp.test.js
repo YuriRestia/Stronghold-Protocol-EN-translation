@@ -6,7 +6,8 @@ import os from 'node:os';
 import { Writable } from 'node:stream';
 import { once } from 'node:events';
 import { createHash } from 'node:crypto';
-import { siteCsp, SIM_WORKER_CSP } from '../../server/http/csp.js';
+import http from 'node:http';
+import { siteCsp, SIM_WORKER_CSP, withScriptNonce } from '../../server/http/csp.js';
 import { createRequestHandler } from '../../server/http/routes.js';
 import { createStaticHandler } from '../../server/http/static.js';
 import { installPixiNoEval } from '../../public/js/render/app/pixiNoEval.js';
@@ -43,6 +44,30 @@ test('page import maps hash exact bytes; no inline executable script/events; pag
       else assert.ok(!m[2].trim(), file);
     }
   }
+});
+
+test('(fork) cfAnalytics allows only the Cloudflare beacon origin and its report endpoint', () => {
+  const plain = siteCsp(publicDir), cf = siteCsp(publicDir, { cfAnalytics: true });
+  assert.ok(!plain.includes('cloudflareinsights'));
+  assert.match(cf, /script-src 'self'[^;]* https:\/\/static\.cloudflareinsights\.com;/);
+  assert.match(cf, /connect-src 'self' https:\/\/cloudflareinsights\.com;/);
+  assert.ok(!/script-src[^;]*'unsafe-inline'/.test(cf));
+});
+
+test('(fork) cspNonce adds a fresh script-src nonce to every response, header only', async t => {
+  const csp = siteCsp(publicDir);
+  assert.equal(withScriptNonce("default-src 'self'; script-src 'self'; style-src 'self'", 'abc'), "default-src 'self'; script-src 'self' 'nonce-abc'; style-src 'self'");
+  const serve = createRequestHandler({ serveStatic: async (_q, r) => { r.end('ok'); }, csp, cspNonce: true, health: {}, log: console });
+  const server = http.createServer(serve); await new Promise(r => server.listen(0, '127.0.0.1', r)); t.after(() => server.close());
+  const { port } = /** @type {import('node:net').AddressInfo} */ (server.address());
+  const nonces = [];
+  for (let i = 0; i < 2; i++) {
+    const policy = (await fetch(`http://127.0.0.1:${port}/`)).headers.get('content-security-policy');
+    const m = /script-src [^;]* 'nonce-([A-Za-z0-9+/=]{24})';/.exec(policy || '');
+    assert.ok(m, policy); nonces.push(m[1]);
+    assert.equal(policy.replace(` 'nonce-${m[1]}'`, ''), csp);
+  }
+  assert.notEqual(nonces[0], nonces[1]);
 });
 
 test('native script HTTP routes serve exact descriptor bytes and JavaScript MIME under site CSP',async t=>{

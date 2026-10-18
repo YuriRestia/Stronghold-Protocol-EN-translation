@@ -489,7 +489,7 @@ symlinks inside the install directory pointing outside may widen what is visible
 
 The whole site sends a CSP by default, covering the main page, the dev pages and `/studio/`; the importmap is allowed by the SHA-256 of its exact content, and pages have no unsafe-eval.
 Fonts keep the Google Fonts domains, styles allow unsafe-inline, images allow data/blob, and WebSocket and same-origin connections and blob Workers
-are kept. Pixi uses a uniform adapter without dynamic evaluation. The server owner can set `SP_CSP=off` to turn the site-wide policy off [ASSUMED]; the interface plugins' `/p/` and
+are kept. Pixi uses a uniform adapter without dynamic evaluation. The server owner can set `SP_CSP=off` to turn the site-wide policy off [ASSUMED], or `SP_CF_ANALYTICS=1` to let the Cloudflare Web Analytics beacon through (script from `https://static.cloudflareinsights.com`, reports to `https://cloudflareinsights.com`), and `SP_CSP_NONCE=1` to add a fresh random nonce to every response's `script-src` so Cloudflare's JavaScript Detections can run (Cloudflare copies the header's nonce onto the script it injects); the interface plugins' `/p/` and
 the simulation Worker's own CSP are not turned off by this switch. The site-wide connect-src keeps only 'self', and the existing same-origin WebSocket still connects. A reverse proxy should keep the CSP response header and not add extra policies that would block the importmap or Workers.
 Worker responses separately allow unsafe-eval for SES evaluate, and set `connect-src 'none'`.
 Trusted page scripts are served from the same-origin `/cs/<cs16>/scripts/<id>/<entry>`, with the descriptor and response bytes verified before a native import;

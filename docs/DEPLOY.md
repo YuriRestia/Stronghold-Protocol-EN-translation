@@ -503,7 +503,7 @@ Node 22 权限模型不是恶意代码安全边界，且不限制网络。SES/V8
 
 整站默认发送 CSP，覆盖主页、开发页面和 `/studio/`；importmap 用精确内容的 SHA-256 放行，页面没有 unsafe-eval。
 字体保留 Google Fonts 域名，样式允许 unsafe-inline，图片允许 data/blob，WebSocket 与同源连接以及 blob Worker
-保留。Pixi 使用无动态求值的 uniform 适配器。服主可设 `SP_CSP=off` 关闭整站策略 [ASSUMED]；界面插件 `/p/` 和
+保留。Pixi 使用无动态求值的 uniform 适配器。服主可设 `SP_CSP=off` 关闭整站策略 [ASSUMED]，或设 `SP_CF_ANALYTICS=1` 放行 Cloudflare Web Analytics 信标（脚本来自 `https://static.cloudflareinsights.com`，上报到 `https://cloudflareinsights.com`），设 `SP_CSP_NONCE=1` 为每个响应的 `script-src` 加一个新的随机 nonce，使 Cloudflare JavaScript Detections 能运行（Cloudflare 把响应头里的 nonce 复制到它注入的脚本上）；界面插件 `/p/` 和
 模拟 Worker 自己的 CSP 不随此开关关闭。整站 connect-src 仅保留 'self'，现有同源 WebSocket 仍可连接。反向代理应保留 CSP 响应头，不要额外叠加会阻断 importmap 或 Worker 的策略。
 Worker 响应单独允许 unsafe-eval 供 SES evaluate 使用，并设 `connect-src 'none'`。
 受信任页面脚本从同源 `/cs/<cs16>/scripts/<id>/<entry>` 下发，先校验描述符与响应字节，再原生 import；
