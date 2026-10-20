@@ -4,7 +4,7 @@
 // placed unit's skill / outfit, the boss picker (Final Assault on the boss field), pause and frame step.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CHROME, hasChrome } from '../e2e/client.mjs';
+import { CHROME, hasChrome, waitForFunctionLong } from '../e2e/client.mjs';
 import { startServer } from '../../server/index.js';
 
 const enabled = process.env.SP_E2E === '1' && hasChrome();
@@ -111,7 +111,7 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   await page.waitForFunction(() => window.__sandbox?.ready || window.__sandbox?.error, { timeout: 60000 });
   assert.deepEqual(await page.evaluate(() => window.__sandbox.bonds().egirShip), { count: 3, active: true, tier: 1, layers: 2 });
   await page.evaluate(() => window.__sandbox.fight());
-  await page.waitForFunction(() => window.__sandbox.gains() || (window.__sandbox.runner?.state?.()?.done && !document.getElementById('bank').disabled), { timeout: 90000, polling: 500 });
+  await waitForFunctionLong(page, () => window.__sandbox.gains() || (window.__sandbox.runner?.state?.()?.done && !document.getElementById('bank').disabled), { timeout: 90000, polling: 500 });
   const gained = (await page.evaluate(() => window.__sandbox.gains()))?.egirShip;
   assert.ok(gained > 0, `Ægir stacked in battle (${gained})`);
   // the battle meter: damage per unit from the sim's counters, the stacks it saw = the result's layerGains
@@ -129,7 +129,7 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   // pause and frame step: the clock stands still while paused, a step is exactly n ticks, and a battle paused and stepped
   // ends exactly like the same battle run straight through (the sim is deterministic per tick)
   await page.evaluate(() => { window.__sandbox.setWave('hard-normal-r1'); window.__sandbox.fight(); });
-  await page.waitForFunction(() => window.__sandbox.lastResult, { timeout: 90000, polling: 500 });
+  await waitForFunctionLong(page, () => window.__sandbox.lastResult, { timeout: 90000, polling: 500 });
   const straight = JSON.stringify(await page.evaluate(() => window.__sandbox.lastResult));
   await page.evaluate(() => window.__sandbox.fight());
   await page.waitForFunction(() => window.__sandbox.tick() > 40, { timeout: 30000, polling: 50 });
@@ -144,7 +144,7 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(await page.evaluate(() => window.__sandbox.tick()), t0 + 11, 'still paused after the steps');
   await page.evaluate(() => window.__sandbox.pause(false));
-  await page.waitForFunction(() => window.__sandbox.lastResult, { timeout: 90000, polling: 500 });
+  await waitForFunctionLong(page, () => window.__sandbox.lastResult, { timeout: 90000, polling: 500 });
   assert.equal(JSON.stringify(await page.evaluate(() => window.__sandbox.lastResult)), straight, 'paused + stepped = straight through');
 
   // core bond preset: the whole of 谢拉格 (Kjerag) in one click, the 3 Ægir operators already placed stay
