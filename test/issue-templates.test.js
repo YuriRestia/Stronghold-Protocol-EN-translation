@@ -28,3 +28,25 @@ for (const file of FILES) {
     assert.match(src, /img\.shields\.io\/github\/v\/release\/sganggs\/Stronghold-Protocol/);
   });
 }
+
+// (fork) the English forms (BugReport.en.yml, FeatureRequest.en.yml) ask for the version the same way
+function versionBlockEn(src) {
+  const parts = src.split(/\n  - type: /).slice(1);
+  return parts.find((b) => b.startsWith('input\n') && b.includes('label: Version')) || '';
+}
+
+for (const file of ['BugReport.en.yml', 'FeatureRequest.en.yml']) {
+  test(`${file}: required Version, badge kept as a hint`, () => {
+    const src = readFileSync(new URL(`../.github/ISSUE_TEMPLATE/${file}`, import.meta.url), 'utf8');
+    const field = versionBlockEn(src);
+    assert.match(field, /^input\n/);
+    assert.match(field, /\n    id: version\n/);
+    assert.match(field, /corner of the title screen/);
+    assert.match(field, /file name of the release zip/);
+    assert.match(field, /git rev-parse --short HEAD/);
+    assert.match(field, /only for comparison/);
+    assert.match(field, /\n    validations:\n      required: true$/);
+    assert.doesNotMatch(field, /shields\.io/);
+    assert.match(src, /img\.shields\.io\/github\/v\/release\/sganggs\/Stronghold-Protocol/);
+  });
+}

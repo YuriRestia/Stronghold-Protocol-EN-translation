@@ -1,3 +1,5 @@
+<!-- English: add `?template=en.md` to this page's URL for the English template (.github/PULL_REQUEST_TEMPLATE/en.md). -->
+
 > [!IMPORTANT]
 > 选择一种改动类型，并填写以下内容。没有相关内容填“无”，不适用填“不适用”。
 
