@@ -198,7 +198,7 @@ export function skillAttackRangeGrid(rec) {
   }
   const n = Math.floor(Number(sk.activeExtend) || 0);
   const g = n > 0 ? attackRangeGrid(rec) : null;
-  return g?.length ? extendedGrid(g, n) : null;
+  return g?.length ? extendedGrid(/** @type {Array<[number, number]>} */ (g), n) : null;
 }
 
 /**
