@@ -3051,7 +3051,7 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log):
             whens[n.get('when')] = whens.get(n.get('when'), 0) + 1
         log(f'fx: {kind}: talents of {sum(1 for x in us if x.get("talents"))} units ({len(tk)} keys, '
             f'{sum(len(t["nodes"]) for t in tk)} nodes), abilities of {sum(1 for x in us if x.get("abilities"))} units '
-            f'({", ".join(f"{k} {sum(1 for a in ab if a["kind"] == k)}" for k in ("common", "general", "trait"))}); '
+            f'({", ".join("{} {}".format(k, sum(1 for a in ab if a["kind"] == k)) for k in ("common", "general", "trait"))}); '
             f'when: {", ".join(f"{k} {v}" for k, v in sorted(whens.items(), key=lambda kv: str(kv[0])))}; '
             f'{sum(1 for n in [n for t in tk for n in t["nodes"]] + ab if n.get("triggers"))} with template triggers')
     for p in projectiles.values():
