@@ -54,6 +54,8 @@ test('offline release stage runs plugin CLI, native author harness and sandbox t
     const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json')));
     for (const [rel, entry] of Object.entries(lock.packages)) {
       if (!rel.startsWith('node_modules/') || entry.dev || entry.link) continue;
+      // (fork) an optional dependency's per-platform builds (sharp's @img/sharp-<os>-<cpu>): npm installs only this one's
+      if (entry.optional && !fs.existsSync(path.join(ROOT, rel))) continue;
       assert.ok(fs.statSync(path.join(ROOT, rel)).isDirectory(), `npm ci needed: ${rel}`);
       fs.cpSync(path.join(ROOT, rel), path.join(stage, rel), { recursive: true, dereference: true });
     }
