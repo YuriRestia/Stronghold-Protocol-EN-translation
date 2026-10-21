@@ -1,0 +1,58 @@
+name: Feature request (English)
+description: Suggest a new feature.
+title: "[Feature]:"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for sharing your idea.
+        Please use a short, clear title that describes the feature you would like added or improved, so the developers can understand your idea.
+
+        > [!important]
+        > Important: if you want to suggest **several features**, please open a separate issue for each one.
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      description: "Before submitting this request, please check:"
+      options:
+        - label: I have updated to the latest test version ![latest version](https://img.shields.io/github/v/release/sganggs/Stronghold-Protocol?include_prereleases&style=flat-square&label=) and looked at the [latest commits](https://github.com/sganggs/Stronghold-Protocol/commits/master/), and the feature I want is not implemented yet. I have also searched the [Issues](https://github.com/sganggs/Stronghold-Protocol/issues?q=-label%3Abug), and the feature I want has not been requested before.
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: |
+        The version you are using. See the version number in the corner of the title screen, or the file name of the release zip. When running from a source checkout, run `git rev-parse --short HEAD` in the repository folder. The number in the badge above is the repository's latest release, only for comparison; it is not your version.
+      placeholder: "e.g. 0.3.0, or a short commit hash"
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        > [!note]
+        > For attachments, **please use GitHub's own attachment upload first**: paste or drag the files into the text box to upload them. Several files can be packed into one zip.
+  - type: textarea
+    id: requested-feature
+    attributes:
+      label: The feature to add or improve
+      description: Describe the feature you want in detail, and which existing bugs or features it relates to (if any). The more specific the description, the more likely it is to be adopted.
+    validations:
+      required: true
+  - type: textarea
+    id: expected-effect
+    attributes:
+      label: Expected result
+      placeholder: |
+        Please describe in detail what this feature should do once it is implemented.
+    validations:
+      required: true
+  - type: checkboxes
+    id: revision
+    attributes:
+      label: Last step
+      description: Look over your answers
+      options:
+        - label: I believe the description above is detailed enough for the developers to understand the feature I want. If my issue does not follow the requirements above, it may be closed without further notice.
+          required: true
