@@ -1,5 +1,6 @@
 // test/render/battle-visuals.test.js — two HUD / model details of the battle view: an ally in 起飞 (UF.LIFTOFF, 蒂比's
-// skills) is drawn at a flyer's height (FLY_HOVER), and a 屏障 (b.snap `sh`, server/sim/snapshot.js shieldView) is drawn
+// skills) is drawn at a flyer's height (FLY_HOVER) and one lifted only by a talent (UF.LIFTOFF_LOW, 司霆惊蛰) just above the
+// ground (LIFTOFF_HOVER), and a 屏障 (b.snap `sh`, server/sim/snapshot.js shieldView) is drawn
 // over the current HP from its right end leftwards, covering r / (1 + r) of it for a barrier of r × max HP.
 
 import { test, before, after } from 'node:test';
@@ -10,10 +11,10 @@ import { normalizeSnapshot } from '../../public/js/render/interp.js';
 import { makeBattle, enemyRec } from '../helpers/battleHarness.js';
 import { UF } from '../../shared/constants.js';
 
-let fake, UnitView, FLY_HOVER, barrierShare;
+let fake, UnitView, FLY_HOVER, LIFTOFF_HOVER, barrierShare;
 before(async () => {
   fake = installFakePixi();
-  ({ UnitView, FLY_HOVER, barrierShare } = await import('../../public/js/render/units.js'));
+  ({ UnitView, FLY_HOVER, LIFTOFF_HOVER, barrierShare } = await import('../../public/js/render/units.js'));
 });
 after(() => fake.restore());
 
@@ -30,6 +31,7 @@ test('起飞: the snapshot flags it and the view rises to a flyer\'s height, the
   h.step(1);
   const tuple = h.b.snapshot().units.find((x) => x[0] === u.id);
   assert.ok(tuple[7] & UF.LIFTOFF, 'UF.LIFTOFF while her skill runs');
+  assert.equal(tuple[7] & UF.LIFTOFF_LOW, 0, 'a skill\'s 起飞 is not the low hover');
   const v = view();
   try {
     for (let i = 0; i < 60; i++) { v.sync(sample({ flags: UF.LIFTOFF }), i / 30); v.update(1 / 30, cam(), i / 30); }
@@ -61,5 +63,20 @@ test('屏障: the snapshot carries it, and the bar covers r / (1 + r) of the cur
     v.sync(sample({ hp: 500 }), 2);
     v.update(0.02, cam(), 2);
     assert.equal(v.barrierFill.visible, false, 'gone with the barrier');
+  } finally { v.destroy(); }
+});
+
+test('起飞 from a talent only (司霆惊蛰 with no skill running): UF.LIFTOFF_LOW, drawn at LIFTOFF_HOVER', () => {
+  const h = makeBattle({ autoFinish: false, timeLimit: 60, units: [{ diy: { slot: 6, charId: 'char_1043_leizi2', skillIndex: 0 }, row: 10, col: 3 }] });
+  h.step(1);
+  const u = h.b.allyUnits.find((x) => x.def.charId === 'char_1043_leizi2');
+  assert.ok(u.s.flags.liftoff, 'her talent lifts her');
+  const tuple = h.b.snapshot().units.find((x) => x[0] === u.id);
+  assert.equal(tuple[7] & (UF.LIFTOFF | UF.LIFTOFF_LOW), UF.LIFTOFF | UF.LIFTOFF_LOW);
+  assert.ok(LIFTOFF_HOVER > 0 && LIFTOFF_HOVER < FLY_HOVER);
+  const v = view();
+  try {
+    for (let i = 0; i < 60; i++) { v.sync(sample({ flags: UF.LIFTOFF | UF.LIFTOFF_LOW }), i / 30); v.update(1 / 30, cam(), i / 30); }
+    assert.ok(Math.abs(v.hover - LIFTOFF_HOVER) < 1e-3, `hover ${v.hover}`);
   } finally { v.destroy(); }
 });

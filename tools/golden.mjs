@@ -174,7 +174,7 @@ export function runBattle(sc, probe = {}) {
       const canon = {
         t: s.t, dp: s.dp, dps: s.dps ?? null, killed: s.killed, total: s.total, boss: s.boss ?? null,
         // UF.LIFTOFF only tells the view to draw an ally aloft (display, like the snapshot's side tables): masked
-        units: s.units.map((u) => [cid(u[0]), ...u.slice(1, 7), u[7] & ~UF.LIFTOFF, ...u.slice(8)]),
+        units: s.units.map((u) => [cid(u[0]), ...u.slice(1, 7), u[7] & ~(UF.LIFTOFF | UF.LIFTOFF_LOW), ...u.slice(8)]),
         down: (s.down || []).map((d) => [cid(d[0]), ...d.slice(1)]),
         elem: (s.elem || []).map((d) => [cid(d[0]), ...d.slice(1)]),
       };
