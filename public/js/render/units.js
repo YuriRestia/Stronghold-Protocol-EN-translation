@@ -200,6 +200,13 @@ const RAISED_Z = 0.12;
  * ride the body (`hover`); range highlights are tiles.
  */
 export const FLY_HOVER = 1.3;
+/**
+ * An ally in 起飞 is drawn at FLY_HOVER when a skill lifts it (蒂比: ≈ 0.75 tile rows from feet to shadow in official
+ * screenshots, ours 0.73–0.83), at LIFTOFF_HOVER when only a talent does (UF.LIFTOFF_LOW — 凯尔希·思衡托 and 司霆惊蛰
+ * hover ≈ 0.25 rows above their shadow in official footage; with this, ours 0.32 and 0.17, their art's own offset
+ * included). Measured by eye from videos (2026-10-21), not read from the client.
+ */
+export const LIFTOFF_HOVER = 0.3;
 /** Share of the current HP bar a 屏障 of `r` × max HP covers: r / (1 + r) — 100 % → half, 400 % → 80 %, never all of it. */
 export const barrierShare = (r) => (r > 0 ? r / (1 + r) : 0);
 /**
@@ -1731,9 +1738,11 @@ export class UnitView {
     }
     // a flyer keeps its lift through the Die clip and drops only as it fades out: the client removes the fly offset in
     // CharacterAnimator.OnFinish, when the finish state ends; a knocked-down flyer lies on the ground
-    // a flyer — or an ally in 起飞 (UF.LIFTOFF: 蒂比's skills), drawn at a flyer's height as the official client does
+    // a flyer — or an ally in 起飞 (UF.LIFTOFF): a skill's at a flyer's height, a talent's just above the ground
+    // (UF.LIFTOFF_LOW, LIFTOFF_HOVER)
+    const low = !this.flying && !this.isEnemy && (this.flags & UF.LIFTOFF_LOW);
     const aloft = this.flying || (!this.isEnemy && (this.flags & UF.LIFTOFF));
-    const hoverTo = aloft && (this.alive || (this.dying > DIE_FADE_TAIL && !this.down)) ? FLY_HOVER : 0;
+    const hoverTo = aloft && (this.alive || (this.dying > DIE_FADE_TAIL && !this.down)) ? (low ? LIFTOFF_HOVER : FLY_HOVER) : 0;
     if (this.hover !== hoverTo) this.hover = Math.abs(hoverTo - this.hover) < 1e-3 ? hoverTo : this.hover + (hoverTo - this.hover) * Math.min(1, dt * 6);
     const p = cam.project(this.x, this.y, this.z + this.hover + this.lift, this.screen);
     this.placed = true;
