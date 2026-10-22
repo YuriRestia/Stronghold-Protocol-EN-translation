@@ -218,7 +218,7 @@ test('fx catalog: absent is skip; a wrong catalog warns; a matching one is ok', 
 
 test('a scene-only gap names --scenes with a client and the full-package copy without one', () => {
   const assessed = assessLocal(manifestMissingTex(), null);
-  const copy = '没有客户端的服务器可以从同一版本的整合包（完整包）复制 public/assets/local 和 data/local-assets.json';
+  const copy = '没有客户端的服务器：运行 npm run assets:release-local，从同一版本的整合包（完整包）下载 public/assets/local 和 data/local-*.json（也可以手动复制）';
   assert.equal(localGaps(assessed), `，已有 76 个分组、1658 项，这一版期望 77 个分组（缺少 scene/tex）。${copy}`);
   assert.doesNotMatch(localGaps(assessed, { client: false }), /--local|--scenes/);
   assert.match(localGaps(assessed, { client: true }), /node tools\/setup\.mjs --scenes/);
@@ -337,7 +337,7 @@ test('an old scene-record version is stale and asks for --scenes once; version 4
   assert.equal(old.missingGroups.length, 0);
   assert.equal(localGaps(old, { client: true }), '，场景版本 无，期望 4，请重新运行 node tools/setup.mjs --scenes');
   assert.doesNotMatch(localGaps(old, { client: true }), /--local|金属地块|已有 11 个战场/);
-  const copy = '没有客户端的服务器可以从同一版本的整合包（完整包）复制 public/assets/local 和 data/local-assets.json';
+  const copy = '没有客户端的服务器：运行 npm run assets:release-local，从同一版本的整合包（完整包）下载 public/assets/local 和 data/local-*.json（也可以手动复制）';
   assert.equal(localGaps(old), `，场景版本 无，期望 4。${copy}`);
   assert.doesNotMatch(localGaps(old), /--scenes|--local/);
   const withClient = doctorLocalDetail(old, true);
