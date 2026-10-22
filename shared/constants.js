@@ -130,6 +130,7 @@ export const BOSS_HIT_LIMIT = 300000;
 export const UF = Object.freeze({
   BLOCKED: 1, STUNNED: 2, FROZEN: 4, STEALTH: 8, SKILL: 16, SHIELD: 32, INVULN: 64, COLD: 128, SLEEP: 256, FLYING: 512,
   LIFTOFF: 1024, // an ally in 起飞 (buffs.js liftoff): drawn at a flyer's height (render/units.js)
+  LIFTOFF_LOW: 2048, // …whose 起飞 only a talent grants (a standing hover): drawn just above the ground (render/units.js)
 });
 
 export const ANIM = Object.freeze({ IDLE: 0, MOVE: 1, ATTACK: 2, SKILL: 3, DIE: 4, STUN: 5, DEPLOY: 6 });
