@@ -325,7 +325,7 @@ function applyUpdate(base, log) {
   if (removal.skipped.length) log.warn(`[update] ${removal.skipped.length} 个旧文件没有删除：${named(removal.skipped, '、')} · ${removal.skipped.length} old files were not deleted`);
   const gaps = u.files.has('data/local-assets.json') ? localArtGaps(base) : [];
   if (gaps.length) {
-    log.warn(`[update] 本地客户端素材不完整：data/local-assets.json 列出的 ${gaps.length} 个文件不在这台电脑上（这个安装原来没有本地素材？例：${named(gaps, '、')}）。从 ${app} 的完整包复制 public/assets/local 和 data/local-assets.json，或运行 node tools/setup.mjs --local 重新提取；不需要时删除 data/local-assets.json 即可 · the local-client art is incomplete (${gaps.length} files data/local-assets.json lists are missing): copy public/assets/local and data/local-assets.json from the full ${app} package, re-extract with node tools/setup.mjs --local, or delete data/local-assets.json`);
+    log.warn(`[update] 本地客户端素材不完整：data/local-assets.json 列出的 ${gaps.length} 个文件不在这台电脑上（这个安装原来没有本地素材？例：${named(gaps, '、')}）。运行 npm run assets:release-local 从 ${app} 的完整包下载（或手动复制 public/assets/local 和 data/local-*.json），或运行 node tools/setup.mjs --local 重新提取；不需要时删除 data/local-assets.json 即可 · the local-client art is incomplete (${gaps.length} files data/local-assets.json lists are missing): run npm run assets:release-local to fetch them from the full ${app} package (or copy public/assets/local and data/local-*.json by hand), re-extract with node tools/setup.mjs --local, or delete data/local-assets.json`);
   }
   return { state: 'applied', renamed, checked: v.checked, notes, art, localGaps: gaps, ...removal };
 }
