@@ -44,10 +44,7 @@ describe('DESIGN §16 — a teammate\'s unit shows its owner\'s loadout (real se
     try {
       await host.open();
       await host.enter('凯尔希');
-      await host.click('.mode-card', '同盟模拟');
-      await host.click('.diff-card', '标准模拟');
-      await host.click('.create-box button', '创建同盟');
-      const room = (await host.waitFor((s) => !!s.room?.code, 'room created')).room;
+      const room = await host.createCoop();
       await guest.open(`?room=${room.code}`);
       await guest.enter('阿米娅');
       await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');

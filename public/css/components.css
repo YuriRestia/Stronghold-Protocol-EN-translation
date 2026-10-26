@@ -460,6 +460,9 @@
   box-shadow: 0 .3rem .9rem rgba(0, 0, 0, .65), 0 0 .4rem rgba(23, 249, 183, .06);
   animation: modal-in var(--t-slow) var(--ease-out);
 }
+/* Japanese never starts a line with a small kana or ー in a dialog, as in the room and on the hub (§35.18 review of the
+   text-fit fixes: 选择模拟协议's 「シミュレーシ|ョン」 on a phone at 特大 once its paragraph wraps `pretty`, lobby.css) */
+.modal__box:lang(ja) { line-break: strict; }
 .modal__box--red { --bk-c: var(--red-premium); --mstripe: var(--red); }
 .modal__box--amber { --bk-c: var(--amber); --mstripe: var(--amber); }
 .modal__box--orange { --bk-c: var(--orange-hi); --mstripe: var(--orange); }
@@ -1044,8 +1047,8 @@
    a 10 px gap, so their 44 px hit areas (css/devices.css) never overlap and a tap lands on the intended one */
 .topbar__tools { display: flex; align-items: center; gap: .14rem; }
 .topbar__tools .btn--square.btn--sm { --sq: .46rem; height: var(--sq); min-width: var(--sq); }
-.sp-coarse .topbar__tools { gap: max(.16rem, 10px); }
-.sp-coarse .topbar__tools .btn--square.btn--sm { --sq: max(.56rem, 40px); }
+.sp-coarse .topbar__tools { gap: max(.16rem, calc(10px * var(--sp-ui, 1))); }
+.sp-coarse .topbar__tools .btn--square.btn--sm { --sq: max(.56rem, 32px, calc(40px * var(--sp-ui, 1))); }
 .topbar__right { justify-self: end; display: flex; align-items: center; gap: .16rem; min-width: 0; }
 
 /* Optional resume/install controls and translated XL titles must share actual space instead of overlapping the
@@ -1059,27 +1062,13 @@
   .lobby-screen .topbar__center { grid-column: 1 / -1; grid-row: 2; }
   .lobby-screen .topbar__center .micro { display: none; }
   .lobby-screen .topbar__right { grid-column: 2; grid-row: 1; }
-  .lobby-screen .me-chip__name { max-width: 1.5rem; }
-  /* (fork) 恢复本机对局 + 干员调配 share the row with the left squares: long translations (en, XL text) wrap instead
-     of pushing the right group over the install square */
+  /* (fork) 恢复本机对局 shares the row with the left squares: long translations (en, XL text) wrap instead of pushing
+     the right group over the install square */
   .lobby-screen .topbar__right > .btn--sm:not(.btn--square) { flex-shrink: 1; min-width: 0; height: auto; min-height: .36rem; padding-block: .03rem; line-height: 1.1; white-space: normal; text-align: center; }
 }
 
 .section-label { display: flex; align-items: baseline; gap: .12rem; margin: 0 0 .14rem; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .08em; }
 .section-label__idx { font-size: calc(.15 * var(--t)); color: var(--mint-500); padding: 0 .06rem; border: 1px solid var(--mint-800); line-height: 1.35; letter-spacing: .06em; }
-
-.me-chip { display: flex; align-items: center; gap: .12rem; padding: .06rem .18rem .06rem .06rem; border: 1px solid var(--line); background: rgba(0, 0, 0, .35); }
-.me-chip__text { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
-.me-chip__name { font-weight: 700; font-size: calc(.18 * var(--t)); max-width: 2.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* the lobby's chip doubles as the 统计数据 entry */
-.me-chip--btn {
-  font: inherit; color: inherit; text-align: left; cursor: pointer;
-  transition: border-color var(--t-fast) var(--ease-out), background-color var(--t-fast) var(--ease-out);
-}
-.me-chip--btn:hover { border-color: var(--mint-700); background: rgba(34, 42, 38, .6); }
-.me-chip--btn:active { transform: translateY(1px); }
-.me-chip__stats { flex: none; width: .2rem; height: .2rem; margin-left: .04rem; color: var(--mint-500); opacity: .7; }
-.me-chip--btn:hover .me-chip__stats { opacity: 1; }
 
 .crash { align-items: center; justify-content: center; }
 .crash__box {
@@ -1132,8 +1121,9 @@
 /* the bar sits where the toasts start: push them below it while it shows */
 .has-maint-bar .toast-host { top: calc(.52rem + var(--sa-t, 0px)); }
 /* ---- plugins (DESIGN §32 P1a): the room's tag 原版 / 插件 ×N (ui/pluginTag.js), its 插件 panel and the title's list (ui/pluginPanel.js) ---- */
+/* (min-height: the tag grows when 大 / 特大 outgrows its .3rem — §35.18 review) */
 .plugtag {
-  display: inline-flex; align-items: center; gap: .06rem; height: .3rem; padding: 0 .12rem;
+  display: inline-flex; align-items: center; gap: .06rem; min-height: .3rem; padding: 1px .12rem;
   border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3); color: var(--text-lo);
   font-size: calc(.13 * var(--t)); letter-spacing: .06em;
 }
@@ -1203,3 +1193,104 @@
 .plugin-settings__row { display: flex; gap: .1rem; align-items: center; justify-content: space-between; }
 .plugin-settings input, .plugin-settings select { color: var(--text-hi); background: var(--bg-2); border: 1px solid var(--line-2); padding: .03rem .06rem; max-width: 2rem; }
 .plugin-settings input[aria-invalid="true"] { border-color: var(--orange); }
+
+/* ---- official versions (DESIGN §35.23): the tag (ui/pluginTag.js VersionTag), the lobby chip and the picker
+   (ui/versionPicker.js), the vote strip (ui/versionVote.js). Names may be long in English: the chip and the tag end in
+   an ellipsis, the strip and the picker wrap. ---- */
+.vertag {
+  display: inline-flex; align-items: center; max-width: 3.2rem; height: .26rem; padding: 0 .1rem; overflow: hidden;
+  border: 1px solid rgba(120, 196, 255, .65); background: rgba(120, 196, 255, .12); color: #9fd3ff;
+  font-size: calc(.13 * var(--t)); font-weight: 700; letter-spacing: .04em; white-space: nowrap; text-overflow: ellipsis;
+  vertical-align: middle;
+}
+/* (the label is its own box: a bare text in an inline-flex box is cut without the ellipsis) */
+.vertag__label { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vertag--compact { height: .2rem; padding: 0 .06rem; font-size: calc(.11 * var(--t)); }
+.verchip-wrap { display: inline-flex; align-items: center; gap: .06rem; min-width: 0; }
+/* [ASSUMED] Keep the season and part whole as 文字大小 grows (§35.23.11): a rem cap cut the part in English and
+   Japanese. The top bar reserves the chip's natural width beside its tools. */
+.verchip {
+  display: inline-flex; align-items: center; gap: .06rem; min-width: 0; height: max(.42rem, 28px); padding: 0 .14rem;
+  border: 1px solid var(--line-2); background: rgba(0, 0, 0, .45); color: var(--text-md);
+  font: inherit; font-size: calc(.14 * var(--t)); font-weight: 700; white-space: nowrap;
+}
+.verchip .icon { flex: none; width: 1.1em; height: 1.1em; color: #9fd3ff; }
+.verchip__k { flex: none; color: var(--text-lo); font-weight: 400; }
+.verchip__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.verchip__state { flex: none; color: var(--text-lo); font-size: calc(.12 * var(--t)); font-weight: 400; }
+.verchip.is-other { border-color: rgba(120, 196, 255, .6); color: #cfe9ff; }
+.verchip.is-failed { border-color: rgba(255, 106, 61, .7); }
+.verchip.is-failed .verchip__state { color: #ff8a5c; }
+.verchip:hover:not(.verchip--ro), .verchip:focus-visible { filter: brightness(1.2); }
+.verchip--ro { cursor: default; }
+.verchip__retry { flex: none; height: max(.42rem, 28px); padding: 0 .12rem; border: 1px solid rgba(255, 106, 61, .7); background: rgba(255, 106, 61, .14); color: #ffb39a; font: inherit; font-size: calc(.13 * var(--t)); }
+.sp-coarse .verchip, .sp-coarse .verchip__retry { min-height: max(32px, calc(40px * var(--sp-ui, 1))); }
+.verpick__lead { margin: 0 0 .12rem; color: var(--text-md); font-size: calc(.15 * var(--t)); line-height: 1.6; }
+.verpick__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .08rem; max-height: 4.8rem; overflow: auto; }
+.verpick__row { border: 1px solid var(--line); background: rgba(0, 0, 0, .25); }
+.verpick__row.is-on { border-color: rgba(120, 196, 255, .7); background: rgba(120, 196, 255, .08); }
+.verpick__pick {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .04rem .12rem; width: 100%; padding: .12rem .16rem;
+  border: 0; background: none; color: var(--text-hi); font: inherit; text-align: left;
+}
+.verpick__pick:disabled { cursor: default; }
+.verpick__pick:hover:not(:disabled), .verpick__pick:focus-visible { background: rgba(255, 255, 255, .04); }
+.verpick__name { font-size: calc(.2 * var(--t)); font-weight: 800; overflow-wrap: anywhere; }
+.verpick__badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .06rem; }
+.verpick__badge { padding: 0 .06rem; border: 1px solid var(--line-2); color: var(--text-lo); font-size: calc(.12 * var(--t)); white-space: nowrap; }
+.verpick__badge.is-current { color: #9fd3ff; border-color: rgba(120, 196, 255, .6); }
+.verpick__badge.is-preview { color: #ffb066; border-color: rgba(255, 159, 67, .5); }
+.verpick__period, .verpick__note { grid-column: 1 / -1; font-size: calc(.13 * var(--t)); line-height: 1.5; overflow-wrap: anywhere; }
+.verpick__note.is-warn { color: #ffb066; }
+.verpick__hint { display: flex; align-items: center; gap: .08rem; margin: .1rem 0 0; color: var(--text-lo); font-size: calc(.14 * var(--t)); }
+.verpick__hint .icon { flex: none; width: 1.1em; height: 1.1em; color: var(--mint-500); }
+.vervote {
+  position: relative; z-index: 3; flex: none;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .14rem .2rem;
+  margin: 0 .6rem .12rem; padding: .12rem .2rem;
+  background: rgba(12, 15, 14, .92); border: 1px solid rgba(120, 196, 255, .6);
+}
+.vervote__text { display: flex; flex-direction: column; gap: .04rem; min-width: 0; flex: 1 1 4rem; font-size: calc(.15 * var(--t)); }
+.vervote__text strong { color: #9fd3ff; font-size: calc(.19 * var(--t)); overflow-wrap: anywhere; }
+.vervote__time { display: inline-flex; align-items: center; gap: .04rem; color: var(--text-md); }
+.vervote__time .icon { width: 1em; height: 1em; }
+.vervote__hint { overflow-wrap: anywhere; }
+.vervote__players { display: flex; flex-wrap: wrap; gap: .06rem .18rem; color: var(--text-dim); }
+.vervote__players .is-agreed { color: var(--mint-400); }
+.vervote__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .1rem; flex-shrink: 0; }
+/* on the settlement screen: over the page's bottom edge (the vote must stay in view); never taller than the screen — a
+   long language at 特大 on a short phone scrolls inside it instead of losing its title off the top (like the room's) */
+.vervote--float {
+  position: fixed; left: 50%; bottom: max(.2rem, env(safe-area-inset-bottom)); z-index: 40; width: min(9rem, calc(100vw - 32px)); margin: 0;
+  max-height: calc(100svh - .2rem - max(.2rem, env(safe-area-inset-bottom))); overflow-y: auto; transform: translateX(-50%);
+}
+/* (it takes the focus as an alertdialog — ui/versionVote.js —: the strip's own border marks it) */
+.vervote--float:focus { outline: none; }
+/* above 干员调配 / 统计数据 (.lo / .st, 55), below the connection banner (75), modals and toasts */
+.vervote--covered { z-index: 56; box-shadow: 0 .06rem .3rem rgba(0, 0, 0, .55); }
+@media (max-width: 900px), (max-height: 520px) {
+  .vervote { margin-inline: .2rem; padding: .08rem .12rem; }
+  .vervote__actions .btn { min-height: 40px; padding-inline: .12rem; }
+}
+/* short landscape phones (1rem is ~40 px: the text gets its own sizes, like the room's — css/screens/room.css) */
+@media (max-height: 520px) {
+  .vervote__text { font-size: calc(.22 * var(--t)); }
+  .vervote__text strong { font-size: calc(.26 * var(--t)); }
+  /* a floating strip too tall for the screen scrolls its text, the buttons stay in view below it */
+  .vervote--float { flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
+  .vervote--float .vervote__text { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
+  .vervote--float .vervote__actions { flex: none; }
+  /* the whole name, on two lines if it must (English 'Season 1 · Part 2' at 特大): the part is what tells two halves apart */
+  .vertag { max-width: 3.4rem; height: auto; padding: 1px 5px; font-size: calc(.2 * var(--t)); line-height: 1.2; white-space: normal; }
+  .vertag__label { white-space: normal; }
+  /* the label is what tells the versions apart: the 版本 key word gives its room (the hourglass and the title say it) */
+  .verchip { font-size: calc(.22 * var(--t)); }
+  .verchip__k { display: none; }
+  .verchip__state, .verchip__retry { font-size: calc(.2 * var(--t)); }
+  .verpick__lead, .verpick__hint { font-size: calc(.22 * var(--t)); }
+  .verpick__list { max-height: 60svh; }
+  .verpick__pick { padding: 6px 10px; }
+  .verpick__name { font-size: calc(.28 * var(--t)); }
+  .verpick__badge { font-size: calc(.2 * var(--t)); }
+  .verpick__period, .verpick__note { font-size: calc(.21 * var(--t)); }
+}

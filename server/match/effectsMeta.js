@@ -16,7 +16,7 @@
 //   onBattleStart onBattleResult onChoicePick onEquip onArt onDestroy onLayers onActiveBonds
 // (onActiveBonds: the set of active bonds changed — PlayerState.recompute, player/round.js _reportActiveBonds.)
 // Garrisons fire only on the hook of their eventType (SERVER_GAIN→onGain of the gained piece, SERVER_PREP_START→
-// onRoundStart, SERVER_PREP_FIN→onPrepEnd, SERVER_CHESS_SOLD→onSold of the sold piece, SERVER_PRICE→onPrice of the
+// onPrepStart — 「进入休整期时」, after a 机变 draft (DESIGN §35.53; the strategies' grants §35.24) —, SERVER_PREP_FIN→onPrepEnd, SERVER_CHESS_SOLD→onSold of the sold piece, SERVER_PRICE→onPrice of the
 // slot's chess, SERVER_REFRESH_SHOP→onRefresh); the dispatcher calls `handler[hook] ?? handler.run`. A handler may
 // widen that per garrison with `garrisonHooks(garrison) → hook[]` (e.g. "<进入休整期时><休整期结束时>"). Owned-piece
 // garrisons fire for board pieces, and for hand pieces unless bbStr.conditionkey is 'character_target_inboard'. A
@@ -50,6 +50,7 @@ import { registerBuiltins } from './builtinMeta.js';
 import { msg, dn } from '../../shared/i18n.js';
 import { onGiftTicker } from './botEmotes.js';
 import { previewContext } from './preview.js';
+import { deriveSeed } from '../sim/rng.js';
 
 export const HOOKS = Object.freeze([
   'onRoundStart', 'onIncome', 'onPrepStart', 'onPrepEnd', 'onGain', 'onSold', 'onRefresh', 'onPrice', 'onBuy',
@@ -62,7 +63,7 @@ const HANDLER_EXTRAS = new Set(['run', 'garrisonHooks']);
 /** Garrison eventType → dispatcher hook. */
 export const GARRISON_HOOK = Object.freeze({
   SERVER_GAIN: 'onGain',
-  SERVER_PREP_START: 'onRoundStart',
+  SERVER_PREP_START: 'onPrepStart',   // 「进入休整期时」: PREP opens, after the 机变 draft (DESIGN §35.53; was onRoundStart)
   SERVER_PREP_FIN: 'onPrepEnd',
   SERVER_CHESS_SOLD: 'onSold',
   SERVER_PRICE: 'onPrice',
@@ -350,7 +351,7 @@ export class EffectDispatcher {
       if (ev && ev.slot && ev.slot.kind === 'chess') run({ uid: 0, kind: 'chess', id: ev.slot.id, items: [] }, 'shop');
       return;
     }
-    if (hook !== 'onRoundStart' && hook !== 'onPrepEnd' && hook !== 'onRefresh') return;
+    if (hook !== 'onPrepStart' && hook !== 'onRoundStart' && hook !== 'onPrepEnd' && hook !== 'onRefresh') return;
     if (refreshed) {
       for (const { piece, area } of refreshed) {
         const loc = ps.find(piece.uid);
@@ -521,6 +522,11 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     data: gd.raw,
     gd,
     rng,
+    /**
+     * A uint32 derived from the match seed and `salt`: the same for every player, dispatch and preview, consuming no
+     * stream — for a draw that every player of a round must share (鸭爵's swaps, GitHub #839: createRng(seedFor(…))).
+     */
+    seedFor: (salt) => deriveSeed(m.seed, `meta:${String(salt)}`),
     log: (msg) => m.log.info?.(`[meta ${m.roomCode}] ${ps.playerId}: ${msg}`),
 
     // ---- reads

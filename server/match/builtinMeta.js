@@ -55,7 +55,7 @@ function rollSameBond(ctx, bonds, maxTier, exclude = null) {
 }
 
 /** 信标: the living teammate (not the caller) with the most members of `bonds` ("相应盟约人数最多"), ties at random; null without one. */
-function mostBondMate(ctx, bonds) {
+function mostBondMate(ctx, bonds, minCount = 0) {
   const mates = ctx.teammates();
   if (!mates.length) return null;
   let best = -1;
@@ -64,7 +64,7 @@ function mostBondMate(ctx, bonds) {
     const score = bonds.reduce((s, b) => s + t.bondCount(b), 0);
     if (score > best) { best = score; pick = [t]; } else if (score === best) pick.push(t);
   }
-  return ctx.rng.pick(pick) || null;
+  return best >= minCount ? ctx.rng.pick(pick) || null : null;
 }
 
 const ITEM_HANDLERS = {
@@ -210,6 +210,40 @@ const ITEM_HANDLERS = {
         ctx.setCounter(k, 0);
         const id = rollSameBond(ctx, ctx.pieceBonds(holder.uid), ctx.shopLevel());
         if (id) ctx.grantChess(id);
+      }
+    },
+  },
+  sell_char_count_gain_equip_owner_original: {
+    onSold(ctx) {
+      const { piece, holder } = ctx.source;
+      if (!piece || !holder) return;
+      const need = Math.max(1, int(paramsOf(ctx, piece).count, 8));
+      const key = `pack:${piece.uid}`;
+      if (ctx.incCounter(key) >= need) {
+        ctx.setCounter(key, 0);
+        ctx.grantChess(ctx.gd.baseIdOf(holder.id));
+      }
+    },
+  },
+  use_equip_give_char_to_player_most_bond: {
+    onEquip(ctx, ev) {
+      const target = ctx.piece(ev.target.uid);
+      if (!target) return;
+      if (ctx.chessRecord(target.id)?.diyFor) { ev.error = 'BAD_TARGET'; return; }
+      const bonds = ctx.pieceBonds(target.uid);
+      const to = mostBondMate(ctx, bonds, 1);
+      ctx.destroyPiece(target.uid);
+      if (to) ctx.addEffect({ id: `gift:${ev.item.uid}`, key: 'effect:builtin_gift', hidden: true, battle: false, params: { toPlayerId: to.playerId, chessId: target.id, bonds } });
+      else ctx.grantChess(target.id);
+    },
+  },
+  use_equip_add_goods_rule_with_refresh_shop: {
+    onEquip(ctx, ev) {
+      const bonds = ctx.pieceBonds(ev.target.uid);
+      // [ASSUMED] Special refresh replaces every slot, including frozen equipment slots; it is not a manual refresh.
+      for (let i = 0; i < ctx.shopSlots().length; i++) {
+        const id = rollSameBond(ctx, bonds, ctx.shopLevel());
+        ctx.setShopSlot(i, id ? { kind: 'chess', id } : null);
       }
     },
   },

@@ -57,7 +57,15 @@ export function bossFieldPlacement(side, row, col, dir = 'RIGHT') {
   return side === 'R' ? { row: r, col: COLS - 1 - col, dir: mirrorDir(d) } : { row: r, col, dir: d };
 }
 
-/** Seeded initial pairing; `previous` carries player-id pairs through prep, combat and Hidden Core. */
+/**
+ * The seed salt of a boss round's pairing draw: the Final Assault's 'boss-pairs' (unchanged since 0.2.5), the Hidden
+ * Core its own `boss-pairs:<round>` — it draws pairs and sides anew (GitHub #845, DESIGN §35.27).
+ */
+export function bossPairSalt(gd, round) {
+  return round === gd.hiddenRound && round !== gd.bossRound ? `boss-pairs:${round}` : 'boss-pairs';
+}
+
+/** Seeded pairing; `previous` carries player-id pairs from a round's plan through its prep and combat. */
 export function pairPlayers(alive, rng, previous = null) {
   const sorted = alive.slice().sort((a, b) => a.seat - b.seat);
   const groups = [];

@@ -68,7 +68,7 @@ const prepEnded = (ctx) => ctx.phase === 'PREP' && ctx.counter(C_PREP_ENDED) ===
 
 function latchVisiDiscount(ctx) {
   if (!ctx.bondActive('visiShip')) return;
-  const p = buff(ctx, 'visiShip', 'bond_multi_layer_char_goods_price_bond_discount');
+  const p = visiDiscount(ctx);
   const L = ctx.layers('visiShip');
   const cur = ctx.counter(C_VISI_DISC);
   const t = L >= n(p.layer2, Infinity) ? 2 : L >= n(p.layer1, Infinity) ? 1 : 0;
@@ -76,6 +76,14 @@ function latchVisiDiscount(ctx) {
     ctx.setCounter(C_VISI_DISC, t);
     ctx.toast(t >= 2 ? '【远见】所有干员购买价格永久降低' : '【远见】远见干员购买价格永久降低', 'info');
   }
+}
+
+function visiDiscount(ctx) {
+  const modern = buff(ctx, 'visiShip', 'bond_multi_layer_char_goods_price_bond_discount');
+  if (modern.layer1 != null) return modern;
+  const own = buff(ctx, 'visiShip', 'bond_layer_char_goods_price_bond_discount');
+  const all = buff(ctx, 'visiShip', 'bond_layer_char_goods_price_discount');
+  return { layer1: own.layer, layer2: all.layer, discount: all.discount ?? own.discount, bond: own.bond };
 }
 
 function visiSettle(ctx) {
@@ -114,7 +122,7 @@ export function registerMeta(registry) {
       if (!ev || ev.kind !== 'chess') return;
       const t = ctx.counter(C_VISI_DISC);
       if (t <= 0) return;
-      const p = buff(ctx, 'visiShip', 'bond_multi_layer_char_goods_price_bond_discount');
+      const p = visiDiscount(ctx);
       const disc = n(p.discount);
       if (!(disc > 0)) return;
       if (t < 2) {
@@ -135,6 +143,19 @@ export function registerMeta(registry) {
       if (ctx.rng() < chance) {
         ctx.grantFreeRefresh(1);
         ctx.toast('【奇迹】下次刷新不消耗资金', 'info');
+      }
+    },
+  });
+
+  registry.bond('skillfulShip', {
+    onRefresh(ctx, ev) {
+      if (ev?.trigger || !ctx.bondActive('skillfulShip') || ctx.roundStats().refreshes !== 1) return;
+      const p = buff(ctx, 'skillfulShip', 'bond_layer_refresh_shop_award_equip');
+      if (ctx.layers('skillfulShip') < n(p.layer, Infinity)) return;
+      let left = n(p.count);
+      for (const [i, slot] of ctx.shopSlots().entries()) {
+        if (left <= 0) break;
+        if (slot?.kind === 'item' && !slot.sold) { ctx.setShopSlot(i, { ...slot, price: n(p.price) }); left--; }
       }
     },
   });

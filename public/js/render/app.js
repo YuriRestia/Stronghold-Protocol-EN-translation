@@ -143,10 +143,12 @@
 // The helpers live in public/js/render/app/*.js and are re-exported below, so existing imports keep
 // working. createFieldView stays here: it is one closure over the view's own state.
 
+import { attackRateEvents } from './attackRate.js';
 import { GEO, ANIM } from '../../../shared/constants.js';
 import { fxForm } from '../../../shared/protocol.js';
 import { Camera, presetCamera, lerpCamera, easeInOutCubic, pickTile, normRect } from './projection.js';
 import { SnapshotBuffer, frameTime } from './interp.js';
+import { BattlePresentation } from './battlePresentation.js';
 import { TileField } from './tiles.js';
 import { UnitView, ItemView, DeviceView, FORMS, syncView } from './units.js';
 import { FxSystem, ensureDamageFonts, projSpeed } from './fx.js';
@@ -170,6 +172,7 @@ import { pickOnTile, pickBattle, hitTiles } from './pick.js';
 import { promotionsOf } from './promote.js';
 import { ensurePixi } from './app/pixi.js';
 import { advanceEffectClock } from './app/playback.js';
+import { createWindUpLookahead } from './app/windup.js';
 import { pieceDirOf, pickUnitOf } from './app/pick.js';
 import { CAMERA_MS, BOARD3D_STABLE_MS, BOARD3D_RETRY_MS, PEN_CAMERA_MS, RANGE_GROUPS, LEADER_HIT_STYLE, DRAG_HOLD_TILES, CHAIN_KINDS, DROP_PENDING_MS, DEPLOY_REPLAY_MS } from './app/tune.js';
 import { boardPreference, switchableBox, bandFor, fieldRows, boardArea, viewKind, restView, flightView } from './app/view.js';
@@ -341,6 +344,7 @@ export async function createFieldView(host, options = {}) {
   // (fork) the dev sandbox's pause (setFrozen): the battle shows the newest frame and holds still — units, effects and
   // particles get only the game time a frame step added, so a step of one tick shows exactly that tick
   let frozen = false;
+  const presentation = new BattlePresentation();
   const sample = new Map();
   const meleePending = new Map(); // target id → { src, t }
   const notePending = new Map();  // target id → time of 丰川祥子's note strike (its damage follows in the same batch)
@@ -1538,6 +1542,7 @@ export async function createFieldView(host, options = {}) {
   function enterBattle(meta) {
     if (destroyed || !meta || typeof meta !== 'object') return false;
     holdScene(true); // before the prep views go: the cache is never "quiet" across the switch
+    presentation.reset();
     drag.reset();
     endDragVisual(false);
     cancelReplay();  // the round start's replay is a prep-board thing: none of it reaches a battle (or a scouted board)
@@ -1704,7 +1709,7 @@ export async function createFieldView(host, options = {}) {
     }
     // the official effects of units joining the battle load ahead of their first attack (render/vfx/wiring.js more)
     if (fresh) wiring.more(fresh);
-    return interp.pushEvents(list, performance.now() / 1000, t);
+    return interp.pushEvents(attackRateEvents(list), performance.now() / 1000, t);
   }
 
   // 丰川祥子's 持续攻击 with no enemy in range (['atk', id, 0, 'note']): the trait's notes just appear, she plays no attack
@@ -1712,30 +1717,10 @@ export async function createFieldView(host, options = {}) {
   const isQuietNoteAttack = (e) => e[3] === 'note' && !e[2];
 
   // attack wind-ups: an 'atk' still queued in the buffer starts its Spine clip early enough for the strike frame to
-  // land when the event is rendered (the look-ahead is the interpolation delay, ~0.2 game s)
-  function windUpAttacks(renderT) {
-    upcomingT = renderT;
-    upSkill.clear();
-    interp.forEachUpcoming(renderT, renderT + 1.5, onUpcoming);
-  }
-  let upcomingT = 0;
-  // the look-ahead's skill state: a ['skill', id, on] queued before an 'atk' of that unit (an instant skill sends 1, its
-  // attack and 0 in one tick) — the official cast effects of the wind-up are the skill's own then
-  const upSkill = new Map();
-  function onUpcoming(e, t) {
-    if (e[0] === 'skill') { upSkill.set(e[1], !!e[2]); return; }
-    if (e[0] !== 'atk' || woundUp.has(e) || CHAIN_KINDS.has(e[3])) return;
-    if (isQuietNoteAttack(e)) return;   // 丰川祥子's targetless 持续攻击: no clip to wind up
-    const v = views.get(e[1]);
-    if (!v || !v.windUp) return;
-    if (v.windUp(t - upcomingT, e[3], views.get(e[2]) || null)) { // (fork) the target: a lord's melee twin
-      woundUp.add(e);
-      // the official cast effects that start with the cast play with the clip (render/vfx/wiring.js castStart)
-      const a = v.actor;
-      const skillOn = upSkill.has(e[1]) ? upSkill.get(e[1]) : undefined;
-      wiring.castStart(v, views.get(e[2]), e[3], a ? { skip: a.windSkip || 0, left: a.windCastLeft || 0, skillOn } : { skillOn });
-    }
-  }
+  // land when the event is rendered (app/windup.js; the official cast effects play with the clip — vfx/wiring.js castStart)
+  const lookahead = createWindUpLookahead({ views, woundUp, castStart: (v, tv, kind, o) => wiring.castStart(v, tv, kind, o),
+    skip: isQuietNoteAttack });   // (fork) 丰川祥子's targetless 持续攻击: no clip to wind up
+  function windUpAttacks(renderT) { lookahead.run(interp, renderT); }
 
   const EVS = [];
   /** State events handed out more than 1.5 game s late (a stall, a hidden tab, a field entered late) → how late. */
@@ -1755,7 +1740,9 @@ export async function createFieldView(host, options = {}) {
         const info = applyInfo(e[1]);
         if (!info) break;
         gone.delete(info.id);
+        const reused = views.get(info.id);   // a 重生 / a second life keeps the view: re-seed its pacing (#729)
         const v = battleView(info.id);
+        if (v && reused) v.respawn?.(info);
         if (v && info.side === 'enemy' && renderT0Battle != null && now - renderT0Battle > 0.2) fx.ring(info.x, info.y, 0, 0.1, 0.7, 0xff5a4a, 0.4);
         // an enemy's or a summon's deploy talents (render/vfx/talentfx.js: auras, birth effects — once per life)
         if (v) wiring.spawned(v);
@@ -1814,7 +1801,9 @@ export async function createFieldView(host, options = {}) {
       }
       // the skill slot an enemy ability casts (PR #275): the view swaps to that slot's clip (a multi-skill boss's Skill_01..04)
       // (and its official skill effects: render/vfx/skillfx.js cast — index v2 has the enemies' skills)
-      case 'cast': { const v = views.get(e[1]); if (v) { v.setSkillSlot?.(e[2] | 0); wiring.enemyCast(v, e[2] | 0, Number(e[3]) || 0); } break; }
+      // an attack-class skill cast in the attack's turn ['cast', id, slot, dur, clip] plays its clip in place of the attack
+      // (UnitView.onCast; DESIGN §35.57)
+      case 'cast': { const v = views.get(e[1]); if (v) { v.setSkillSlot?.(e[2] | 0); v.onCast?.(e[2] | 0, now, e.length > 4 ? Number(e[4]) || 0 : null); wiring.enemyCast(v, e[2] | 0, Number(e[3]) || 0); } break; }
       case 'die': {
         const v = views.get(e[1]);
         const used = consumedIds.delete(e[1]);
@@ -1833,6 +1822,12 @@ export async function createFieldView(host, options = {}) {
           v.dying = 0.25; v.dieDur = 0.25;
         }
         fx.leak();
+        break;
+      }
+      case 'rate': {
+        // the sim's own attack interval changed (a skill, an attack-speed buff): pace the clip over it from the next swing
+        const v = views.get(e[1]);
+        if (v && typeof v.setAtkInterval === 'function') v.setAtkInterval(Number(e[2]));
         break;
       }
       case 'status': { const v = views.get(e[1]); if (v) { v.onStatus?.(e[2], !!e[3]); wiring.status(v, e[2], !!e[3]); } break; }
@@ -1950,7 +1945,7 @@ export async function createFieldView(host, options = {}) {
       if (!v) v = battleView(id) || createUnknown(id, s);
       if (!v) continue;
       if (!v._seen) { v._seen = true; v.fadeIn = 0; }
-      syncView(v, s, renderT);
+      syncView(v, presentation.sample(s), renderT);
     }
     // knocked-out operators waiting to redeploy (b.snap `down`, user playtest #4 item 9): their view stays on the
     // field knocked down under a redeploy ring (UnitView.setDown) — made on the spot for one already down when this
@@ -2084,19 +2079,22 @@ export async function createFieldView(host, options = {}) {
         const renderT = frozen ? interp.snapToNewest() : interp.update(now / 1000);
         if (Number.isFinite(renderT)) {
           processEvents(renderT);
+          const justEnded = presentation.update(renderT, interp.newestT, dt);
           syncBattle(renderT);
           noteLayer.sync(interp.notesAt(renderT, noteList), dt, ++noteFrame, renderT);
-          windUpAttacks(renderT);
+          if (!presentation.ended) windUpAttacks(renderT);
           // the official effects run on the battle clock (render time of the snapshots: 1× / 2×, still while paused); the
           // skill effects' per-frame part reads the views' fresh sample (render/vfx/skillfx.js sync)
-          const gdt = ofxPrevT == null ? 0 : Math.min(opts.playbackTime ? Infinity : 0.25, Math.max(0, renderT - ofxPrevT));
+          const gdt = presentation.ended ? dt : ofxPrevT == null ? 0 : Math.min(opts.playbackTime ? Infinity : 0.25, Math.max(0, renderT - ofxPrevT));
           ofxPrevT = renderT;
+          if (justEnded) { wiring.clear(); ofx.finish(); pluginFx.finish(); }
           if (frozen) udt = gdt / Math.max(0.25, interp.rate || 1);
           pluginFx.update(gdt);
-          pluginFx.sync(views.values());
-          wiring.sync(views.values());
+          if (!presentation.ended) { pluginFx.sync(views.values()); wiring.sync(views.values()); }
+          // [ASSUMED] Bound long-lived one-shots to two presentation seconds after completion.
+          if (presentation.ended && presentation.tail >= 2) { ofx.clear(); pluginFx.clear(); fx.clear(); }
           if (ofx.active) {
-            wiring.tick();
+            if (!presentation.ended) wiring.tick();
             if (opts.playbackTime) advanceEffectClock(ofx, gdt); else ofx.update(gdt);
           }
         }
@@ -2230,6 +2228,7 @@ export async function createFieldView(host, options = {}) {
     /** Enemy preview pen: a list in m.private.nextEnemies shape, or null to empty it (setPrep does this itself). */
     setPen(list) { if (destroyed) return false; setPenList(Array.isArray(list) ? list : null); return true; },
     enterBattle,
+    finishBattle() { if (!destroyed && mode === 'battle') presentation.finish(); },
     pushSnapshot,
     pushEvents,
     /**

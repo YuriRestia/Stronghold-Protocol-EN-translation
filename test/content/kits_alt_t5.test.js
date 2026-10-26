@@ -454,6 +454,9 @@ test('隐德来希 S2 绯红壁合: every 血镰 cut heals the 收割者 trait (
     u.hp = u.s.maxHp * 0.4; // wounded (and above 重盈's 25 %), so every heal shows
     const hp0 = u.hp, t0 = h.b.time;
     h.run(3);
+    h.b.addBuff(u, { key: 'test:stop-attacks', flags: { disarm: true } });
+    u.skill.end('test');
+    h.run(0.3); // Drain the final accepted heal batch; do not truncate it at a pulse boundary.
     const cuts = tagged(h, u, 'bloodSickle').filter((c) => c.t > t0 + 1e-9);
     const healed = heals(h, u, (c) => c.target === u && c.t > t0 + 1e-9);
     assert.ok(cuts.length >= 5, `${cuts.length} cuts`);
@@ -476,6 +479,9 @@ test('隐德来希 S2 绯红壁合: the 收割者 heal is capped by the block co
   u.hp = u.s.maxHp * 0.4;
   const hp0 = u.hp, t0 = h.b.time;
   h.run(3);
+  h.b.addBuff(u, { key: 'test:stop-attacks', flags: { disarm: true } });
+  u.skill.end('test');
+  h.run(0.3); // Drain the final accepted heal batch.
   const cuts = tagged(h, u, 'bloodSickle').filter((c) => c.t > t0 + 1e-9);
   const healed = heals(h, u, (c) => c.target === u && c.t > t0 + 1e-9);
   const ticks = cuts.length / 3; // three enemies stand in the sickle's ring
@@ -1006,6 +1012,27 @@ test('凛御银灰 S3 变革已至: skill range, line attacks bird_atk_scale × 
     h.run(60);
     cast(h, u);
     assert.deepEqual([hi.base.cost, lo.base.cost], [6, 30], 'first activation only');
+    done(h);
+  }
+});
+
+test('凛御银灰 S3 变革已至: a wave of flyers alone fires it — the skill range covers air, his normal attacks do not', () => {
+  // PRTS 备注 可对空: S3's range takes air although the operator is a melee PIONEER (data canHitFly false). The data's
+  // ACTIVE_RANGE condition is asked with the unit's own profile, so before the kit registered its grid as a content
+  // trigger range an air-only wave left the skill ready and closed for the whole battle (reported playtest).
+  for (const id of pair('14')) {
+    const h = run({
+      defs: { enemies: { enemy_air: dummy('enemy_air', { motion: 'FLY' }) } },
+      units: [entry(id, 'skchr_svash2_3', { row: 10, col: 3 })],
+      enemies: [{ key: 'enemy_air', pos: [10, 4] }], flags: { dpPerSec: 0 },
+    });
+    const u = sel(h, id, 'skchr_svash2_3');
+    const e = h.b.enemies[0];
+    assert.equal(u.skill.rule, 'ACTIVE_RANGE');
+    assert.equal(u.profile.canHitFly, false, 'a melee PIONEER: his own attacks stay ground-only');
+    assert.ok(e.isFlying, 'the only enemy on the field is a flyer');
+    cast(h, u);   // full SP: the skill must open on its own, with no attack to trigger it
+    assert.ok(h.runUntil(() => dealt(h, u, (c) => c.dmg.isAttack && c.target === e).length > 0, 5), `${id}: the flyer in the skill range is hit`);
     done(h);
   }
 });

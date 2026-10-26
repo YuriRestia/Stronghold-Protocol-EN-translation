@@ -105,5 +105,7 @@ test('client: the draft order chip names the called bond (nothing for none / unk
   assert.equal(BondCallChip({ bondId: 'noSuchShip' }), null);
   // every row of the draft order renders its player's own call (not just the viewer's)
   const src = readFileSync(path.join(ROOT, 'public/js/screens/bandDraft.js'), 'utf8');
-  assert.match(src, /<\$\{BondCallChip\} bondId=\$\{solo \? null : p\.bondCall\} \/>/);
+  // (sganggs 0.3.3: the rows are OrderRow cards, handed the call)
+  assert.match(src, /<\$\{BondCallChip\} bondId=\$\{bondCall\} \/>/);
+  assert.match(src, /<\$\{OrderRow\}[^`]*bondCall=\$\{solo \? null : p\.bondCall\}/);
 });

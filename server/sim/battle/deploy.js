@@ -216,7 +216,7 @@ export class BattleDeploy {
     if (occ && occ.alive && occ !== unit) return false;
     if (at && this.downOn(at[0], at[1], unit)) return false;
     const ps = this.getPlayer(unit.ownerId);
-    const cost = unit.base.cost;
+    const cost = unit.base.cost * unit.s.costMul;
     let paid = 0;
     if (!free) {
       if (!ps || ps.dp + 1e-9 < cost) return false;
@@ -241,7 +241,7 @@ export class BattleDeploy {
       if (this.time + 1e-9 < u.respawnAt) continue;
       // the DP first: an operator past its timer mostly waits for DP, and the tile checks scan every ally
       const ps = this.getPlayer(u.ownerId);
-      const cost = u.base.cost;
+      const cost = u.base.cost * u.s.costMul;
       if (!ps || ps.dp + 1e-9 < cost) continue;
       const [r, c] = this.restTile(u);
       const occ = this._occ[r * COLS + c];

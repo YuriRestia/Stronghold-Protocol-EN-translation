@@ -1319,7 +1319,8 @@ export function chargeKeys(plan) {
  *               client creates it on the ability's target, the index writes it as a start row); else on the view
  *               `extra.id` names (the fx's point without one)
  *   hold        how long a looping reached effect stays: a blackboard key of our skill record (seconds), 'fx' — the
- *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, else `holdS`
+ *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
+ *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
@@ -1369,12 +1370,14 @@ export const FX_BINDINGS = Object.freeze({
   // 焰影苇草 S2 (a 'strike' from a fireball's carrier every cooldown: id = the enemy, src = the carrier): the fireball
   // projectile_chr_reed2_fire's hit reed2_skill_02_hit on the enemy
   skchr_reed2_2: Object.freeze({ strike: binding({ owner: 'skill', projectile: 'projectile_chr_reed2_fire', holdS: 2, during: true }) }),
-  // 蕾缪安 S3: a 'lock' (id = the enemy, src = her, hold) is the aim projectile on it (projectile_chr_lemuen_s3_aim: its
-  // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held for the lock [ASSUMED 1.5 s without
-  // one]; a 'bombard' (id = her, its point) is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. The
-  // falling shell ('bombardShell': the attack projectile's flight, not flown here) stays procedural
+  // 蕾缪安 S3: a 'lock' (id = the enemy, src = her) is the aim projectile on it (projectile_chr_lemuen_s3_aim: its
+  // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held as the lock mark is (hold 'lock': on
+  // the enemy, at its last spot once it is gone — the shell still falls there —, until that shell's 'bombard'; the
+  // fx's `hold` is a flag: read as a duration of 1 s, the crosshair went before its shell); a 'bombard' (id = her, its point)
+  // is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. The falling shell ('bombardShell': the attack
+  // projectile's flight, not flown here) stays procedural
   skchr_lemuen_3: Object.freeze({
-    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02'], hold: 'fx', holdS: 1.5, during: true }),
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02'], hold: 'lock', during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
   }),
   // 泡泡 S2 (chess_char_2_08-bubble.js): she makes no attack; every damage instance she takes strikes back at its source
@@ -1505,6 +1508,26 @@ export const FX_COVER = Object.freeze({
 /** Whether a skill's official effects stand for a kit fx kind (FX_COVER). */
 export function coverOf(skillId, kind) {
   const list = skillId ? FX_COVER[lc(skillId)] : null;
+  return !!list && list.includes(kind);
+}
+
+/**
+ * FX_COVER for an enemy's skill window (skillfx.js rule 5): unit key → prefabKey (lower case) → kit 'fx' kinds the
+ * window's official effects stand for. Keyed by unit, since enemy prefabKeys repeat across units ('doom', '1', '2' …).
+ * Covered only while that skill's window is open and shows its effects (skillfx.js `_ewinDraws`: the window drew, or the
+ * skill's attack's cast / range rows are installed — they play at the next sync): with 官方特效 off or the prefabs
+ * missing the procedural fx stays.
+ */
+export const ENEMY_FX_COVER = Object.freeze({
+  // 盐风主教昆图斯 【大潮】 (server/sim/content/bosses.js QUINTUS.Tidewater: 'tide' at the boss in the tick of its 'cast'):
+  // the skill's start / range rows in every form (enemy_dslily_skill_02_start_l / _r, enemy_dslily_skill_02_range) are
+  // the wave over the field (0.3.2, history §35.19)
+  enemy_1521_dslily: Object.freeze({ tidewater: Object.freeze(['tide']), tidewaterg1: Object.freeze(['tide']), tidewaterg2: Object.freeze(['tide']) }),
+});
+
+/** Whether an enemy skill's official effects stand for a kit fx kind (ENEMY_FX_COVER). */
+export function enemyCoverOf(unitKey, prefabKey, kind) {
+  const list = unitKey && prefabKey ? ENEMY_FX_COVER[unitKey]?.[lc(prefabKey)] : null;
   return !!list && list.includes(kind);
 }
 

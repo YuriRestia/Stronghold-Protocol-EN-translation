@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
+import { DEFAULT_VERSION } from '../../../shared/versions.js';
 import { html, Button, Icon, Tooltip } from './components.js';
 import { toast } from './toasts.js';
 import { net } from '../net.js';
@@ -62,7 +63,9 @@ export function useFindMates() {
  * room is joined by its code only (room.state.content.vanilla false; the server refuses room.search for it too).
  */
 export function canFindMates(room, facts) {
-  return room.mode !== 'solo' && !facts.spectating && facts.occupied.length < MAX_SEATS && room.content?.vanilla !== false;
+  // the matchmaker merges default-version rooms only (server/lobby.js room.search: another version is BAD_TARGET)
+  return room.mode !== 'solo' && !facts.spectating && facts.occupied.length < MAX_SEATS && room.content?.vanilla !== false
+    && (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION;
 }
 
 /**

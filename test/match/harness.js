@@ -79,6 +79,9 @@ export function makeMatch(o = {}) {
     // bot layout rehearsal (extra simulated battles per bot prep) is off unless a test asks for it: it multiplies the
     // simulation work of full-match suites; test/match/bot.test.js covers it
     botRehearsal: o.botRehearsal ?? 0,
+    botStrategy: o.botStrategy,
+    externalAI: o.externalAI,
+    externalReplay: o.externalReplay,
     botSliceMs: o.botSliceMs,
     clientCombat: o.clientCombat ?? false,
     verify: o.verify ?? 'off',
@@ -90,6 +93,9 @@ export function makeMatch(o = {}) {
     test: o.test === true,
     botRehearsalDelegate: o.botRehearsalDelegate ?? false, // (fork) the Match default is on; tests opt in
     botRehearsalDelegateMs: o.botRehearsalDelegateMs,
+    // the server's own simulation pool for those rehearsals (server/workers/roomPool.js); absent unless a test passes
+    // one, so a harness match keeps every rehearsal on this thread (test/workers-room.test.js covers the pooled path)
+    ...(o.simPool !== undefined ? { simPool: o.simPool } : {}),
     // a gameplay-plugin room (DESIGN §32.6): host rehearsal stays off there (match/rehearsal.js requireCs)
     cs: o.cs,
     vs: o.vs,

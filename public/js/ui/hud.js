@@ -169,13 +169,15 @@ function preloadCapsuleArt() {
 /**
  * Which capsule scene to play: a new one at every phase (or round) change; nothing on the first render (a reload or a
  * late join lands mid-phase) or with reduced motion. `seq` re-keys the capsule so its CSS motion restarts.
- * @param {string|undefined} phase @param {number|undefined} round
+ * `held`: the HUD is hidden under 协议启动！ (screens/game.js hudIn 'wait') — a change meanwhile waits and plays when the
+ * HUD comes in, so the first round's 回合开始 kettles are seen even when 协议启动！ outlasts the start of 回合开始.
+ * @param {string|undefined} phase @param {number|undefined} round @param {boolean} [held]
  */
-function useCapsuleFx(phase, round) {
+function useCapsuleFx(phase, round, held = false) {
   const ref = useRef({ key: null, phase: null, kind: null, seq: 0 });
   const s = ref.current;
   const key = `${phase}:${round}`;
-  if (s.key !== key) {
+  if (s.key !== key && !(held && s.key !== null)) {
     const kind = s.key === null || reducedMotion() ? null : capsuleFxKind(phase, s.phase);
     s.kind = kind && kind !== 'enter' && capsuleArt !== true ? 'enter' : kind;
     s.key = key;
@@ -401,6 +403,17 @@ function CheckBtn({ sprite, cls, label, chev, on, disabled, onClick, testid }) {
 }
 
 /**
+ * The top bar's faint deco type (official hudPanel/frame_deco_txt*; the same words as text without the art pack).
+ * Decoration only: aria-hidden, so a screen reader never reads it.
+ * @param {{ k: 'txt1'|'txt2'|'txt3', text: string, side: 'l'|'c'|'r' }} props
+ */
+function DecoType({ k, text, side }) {
+  return html`<span class=${`gtop__deco gtop__deco--${side}`} aria-hidden="true" data-deco=${k}>
+    <${Sprite} k=${`hudPanel/frame_deco_${k}`} class=${`gtop__decoimg gtop__decoimg--${k}`} fallback=${html`<span class="gtop__decotxt">${text}</span>`} />
+  </span>`;
+}
+
+/**
  * The red overtime (DOT) warning of a boss round (pure view of ui/matchStatus.js overtimeState).
  * @param {{ ot: ReturnType<typeof overtimeState> }} props
  */
@@ -445,22 +458,30 @@ export function PauseButton({ paused, busy = false, onToggle }) {
 }
 
 /**
- * Top bar. The phase capsule plays a scene at each phase change (capsuleFxKind).
+ * Top bar. Its centre (PR #643 / #827, the event's top bar, video 8:01): [🔍] in a bracket frame · + · a long thin band
+ * with 回合 N on the left half and the LP tower on the right half, the phase capsule as a bevelled plate in the middle
+ * · + · [🔍▶▶] in a bracket frame (css/screens/game.css 顶部中栏), with the official deco type above it (hudPanel
+ * frame_deco_txt1 / txt3 RHODES ISLAND TERMINAL SERVICE over the halves, frame_deco_txt2 STRONGHOLD PROTOCOL over the
+ * plate — [ASSUMED] that placement: txt2 is as wide as the gap in the top edge of frame_mid_normal, the plate's frame;
+ * the same words as text without the art pack, hidden from screen readers either way). It comes in as 协议启动！ leaves
+ * (screens/game.js `hudIn`; `held` while it waits); the phase capsule plays a scene at each phase change (capsuleFxKind)
+ * and the round number flips when it changes ([ASSUMED] the flip and the second + mark: #827's additions, #643 had neither).
  * @param {{ pub:any, priv:any, conn:any, hud:any, total:number|null, drawer:string|null, onExit:Function, onDrawer:(tab:string)=>void,
  *   onReady:(r:boolean)=>void, readyBusy?:boolean, readyCount?:number, playerCount?:number,
  *   pen?:boolean, penAvail?:boolean, onPen?:(on:boolean)=>void, config?: any, frozenAt?: number|null,
  *   pause?: { show: boolean, paused: boolean, busy?: boolean, onToggle: () => void } | null,
  *   live?: { pending: number, unite: boolean, left?: number|null } | null,
- *   spectators?: any[]|null, myId?: any, isHost?: boolean, onRemoveSpectator?: ((playerId: any) => any)|null }} props
+ *   spectators?: any[]|null, myId?: any, isHost?: boolean, onRemoveSpectator?: ((playerId: any) => any)|null, held?: boolean }} props
  *   spectators: the room's spectator seats (room.state) — the 观战席 capsule beside the latency (SpectatorPill; the host removes)
  *   room: room.state — a match with gameplay plugins shows the small MOD mark beside the difficulty (DESIGN §32.6)
  *   frozenAt: the server time every clock shows while the solo match is paused (null = live)
  *   live: the own battle's pending LP loss (liveLp): the tower keeps the settled lp and adds a red −N tick, 联防中 during 联防;
  *     `left` (a leaker in 联防): its enemies still standing — the capsule's ×N tag
+ *   held: the HUD waits hidden under 协议启动！ — a phase change's capsule scene waits for it (useCapsuleFx)
  */
 export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, onReady, readyBusy, readyCount, playerCount, pen = false, penAvail = false, onPen = () => {},
   config = null, frozenAt = null, pause = null, live = null, spectator = false,
-  spectators = null, myId = null, isHost = false, onRemoveSpectator = null, room = null }) {
+  spectators = null, myId = null, isHost = false, onRemoveSpectator = null, room = null, held = false }) {
   const phase = pub?.phase;
   const boss = isBossPhase(phase);
   const lp = boss && Number.isFinite(pub?.teamLp) ? pub.teamLp : Number.isFinite(priv?.lp) ? priv.lp : null;
@@ -480,7 +501,7 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
   const cap = Number(config?.lpCapPerRound) > 0 ? Number(config.lpCapPerRound) : 10;
   const frozenSecs = Number.isFinite(frozenAt) ? remainAt(pub?.deadline, frozenAt) : null;
   const btn = checkButtons({ pen, penAvail, infoOpen: !!drawer });
-  const fx = useCapsuleFx(phase, pub?.round);
+  const fx = useCapsuleFx(phase, pub?.round, held);
   useEffect(() => { preloadCapsuleArt(); }, []);
   const onLeft = () => (pen ? onPen(false) : onDrawer('info'));
   const onRight = () => (pen ? onPen(false) : penAvail ? onPen(true) : null);
@@ -499,25 +520,40 @@ export function TopBar({ pub, priv, conn, hud, total, drawer, onExit, onDrawer, 
       </div>
     </div>
 
-    <div class="gtop__center brackets">
-      <${Tooltip} text=${btn.left.tip} placement="bottom">
-        <${CheckBtn} sprite=${btn.left.sprite} cls=${cx('gtop__iconbtn', btn.left.back && 'is-back')} label=${btn.left.label}
-          chev=${btn.left.back ? '◀◀' : null} on=${!!drawer && !pen} onClick=${onLeft} testid="check-player" />
-      <//>
-      <div class="roundbox">
-        <span class="roundbox__label">${t('回合')}</span>
-        <b class="roundbox__num num">${roundText}</b>
+    <div class="gtop__center">
+      <span class="gtop__frame gtop__frame--l">
+        <${Tooltip} text=${btn.left.tip} placement="bottom">
+          <${CheckBtn} sprite=${btn.left.sprite} cls=${cx('gtop__iconbtn', btn.left.back && 'is-back')} label=${btn.left.label}
+            chev=${btn.left.back ? '◀◀' : null} on=${!!drawer && !pen} onClick=${onLeft} testid="check-player" />
+        <//>
+      </span>
+      <i class="gtop__plus gtop__plus--l" aria-hidden="true"></i>
+      <div class="gtop__band">
+        <${DecoType} k="txt1" text="RHODES ISLAND TERMINAL SERVICE" side="l" />
+        <${DecoType} k="txt2" text="STRONGHOLD PROTOCOL" side="c" />
+        <${DecoType} k="txt3" text="RHODES ISLAND TERMINAL SERVICE" side="r" />
+        <div class="gtop__half gtop__half--l">
+          <div class="roundbox">
+            <span class="roundbox__label">${t('回合')}</span>
+            <b class="roundbox__num num" key=${roundText}>${roundText}</b>
+          </div>
+        </div>
+        <div class=${cx('gtop__cap', fx.kind && `is-fx-${fx.kind}`)} key=${`cap${fx.seq}`}>
+          <${PhaseCapsule} pub=${pub} hud=${hud} miss=${!boss && Number.isFinite(live?.left) ? live.left : null} />
+          ${fx.kind && fx.kind !== 'enter' ? html`<${CapsuleScene} kind=${fx.kind} />` : null}
+        </div>
+        <div class="gtop__half gtop__half--r">
+          <${LpTower} value=${lp} size="lg" tone=${lowLp ? 'danger' : boss ? 'team' : null} pending=${pending}
+            note=${pending > 0 && live?.unite ? t('联防中') : null} tip=${pendingTip(lp, pending, { unite: !!live?.unite, cap, left: live?.left ?? null })} />
+        </div>
       </div>
-      <div class=${cx('gtop__cap', fx.kind && `is-fx-${fx.kind}`)} key=${`cap${fx.seq}`}>
-        <${PhaseCapsule} pub=${pub} hud=${hud} miss=${!boss && Number.isFinite(live?.left) ? live.left : null} />
-        ${fx.kind && fx.kind !== 'enter' ? html`<${CapsuleScene} kind=${fx.kind} />` : null}
-      </div>
-      <${LpTower} value=${lp} size="lg" tone=${lowLp ? 'danger' : boss ? 'team' : null} pending=${pending}
-        note=${pending > 0 && live?.unite ? t('联防中') : null} tip=${pendingTip(lp, pending, { unite: !!live?.unite, cap, left: live?.left ?? null })} />
-      <${Tooltip} text=${btn.right.tip} placement="bottom">
-        <${CheckBtn} sprite=${btn.right.sprite} cls=${cx('enemybtn', btn.right.grey && 'is-grey')} label=${btn.right.label}
-          chev=${btn.right.grey ? null : '▶▶'} disabled=${btn.right.grey && !pen} onClick=${onRight} testid="check-enemy" />
-      <//>
+      <i class="gtop__plus gtop__plus--r" aria-hidden="true"></i>
+      <span class="gtop__frame gtop__frame--r">
+        <${Tooltip} text=${btn.right.tip} placement="bottom">
+          <${CheckBtn} sprite=${btn.right.sprite} cls=${cx('enemybtn', btn.right.grey && 'is-grey')} label=${btn.right.label}
+            chev=${btn.right.grey ? null : '▶▶'} disabled=${btn.right.grey && !pen} onClick=${onRight} testid="check-enemy" />
+        <//>
+      </span>
     </div>
 
     <div class="gtop__right">

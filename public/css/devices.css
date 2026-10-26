@@ -83,12 +83,12 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 /* Phones in landscape (short touch screens: 1rem ≈ 40 px here): the most used controls grow a little so they are
    comfortable to hit and to read, without changing the official layout. */
 @media (max-height: 600px) and (pointer: coarse), (max-height: 600px) and (any-pointer: coarse) {
-  .readybtn { height: max(.56rem, 34px); }
+  .readybtn { height: max(.56rem, 32px, calc(34px * var(--sp-ui, 1))); }
   .toolbtn { min-height: max(.5rem, 30px); }
-  .gm__gear { width: max(.56rem, 34px); height: max(.56rem, 34px); }
+  .gm__gear { width: max(.56rem, 32px, calc(34px * var(--sp-ui, 1))); height: max(.56rem, 32px, calc(34px * var(--sp-ui, 1))); }
   /* ⚙ / 📖 / ⛶ keep their desktop proportion (half the button) instead of an 11 px glyph in the grown button */
   .gm__corner .gm__gear .icon { width: max(.28rem, 17px); height: max(.28rem, 17px); }
-  .gtop__exit { min-width: max(.56rem, 34px); min-height: max(.56rem, 34px); }
+  .gtop__exit { min-width: max(.56rem, 32px, calc(34px * var(--sp-ui, 1))); min-height: max(.56rem, 32px, calc(34px * var(--sp-ui, 1))); }
   .gtop__iconbtn.has-sprite, .enemybtn.has-sprite { height: max(.46rem, 26px); width: calc(max(.46rem, 26px) * 35 / 29); }
   .gtop__iconbtn.has-sprite.is-wide, .enemybtn.has-sprite.is-wide { width: calc(max(.46rem, 26px) * 61 / 29); }
   .gtop__iconbtn:not(.has-sprite), .enemybtn:not(.has-sprite) { height: max(.46rem, 26px); min-width: max(.46rem, 26px); }
@@ -97,7 +97,7 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
   .set-toggle, .set-seg button { height: max(.38rem, 30px); }
   /* a taller range input whose visible track stays thin: transparent borders are part of the hit area */
   .set-range { height: 30px; border: 11px solid transparent; border-left-width: 0; border-right-width: 0; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--line-2); }
-  .field--lg .field__box { height: max(.68rem, 40px); }
+  .field--lg .field__box { height: max(.68rem, 32px, calc(40px * var(--sp-ui, 1))); }
 }
 
 /* ---- 4. misc ------------------------------------------------------------------------------------------------------ */
@@ -121,43 +121,43 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 /* Narrow viewports (< 768 CSS px: the root scale is clamped at 40 px, so the layout is narrower than the 19.2 rem
    design): the shop bar would cover the corner's ⚙ / 📖 / ⛶ buttons — they wrap into a row above the 交流 button. */
 /* The left-docked detail card then ends above that three-row corner (.24rem + 交流 + .1rem gap + ⚙ row + .1rem gap +
-   作战统计 row + .1rem): at its desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.) */
+   作战统计 row + .1rem): at its desktop bottom (1.02rem) it hid ⚙ / 📖 / ⛶. (gameLogic panelSlots keeps the taller desktop slot: conservative.)
+   The bottom copies the 交流 / ⚙ size floors exactly, their 32 px minimum included, or at 界面大小 ≤ 90 % it ends below
+   the ⚙ row (DESIGN §35.43; test/ui/ui-size.test.js checks such mirrors). */
 @media (max-width: 767px) {
   /* (the 作战统计 button, .gm__metrics, gets a third row above ⚙ / 📖 / ⛶: beside 交流 it sat under the shop bar at 640 px, and a
      fourth button in the ⚙ row reaches the shop's level card. The 100 % margin — empty, no hit area — keeps 交流 alone on
      the bottom row whatever its label width) */
-  .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: calc(3 * .56rem + .2rem); }
+  .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; width: max(32px, calc(72px * var(--sp-ui, 1)), calc(3 * .56rem + .2rem)); }
   .gm:not(.is-collapsed) .gm__corner > .ewheel { margin-right: 100%; }
   .gm:not(.is-collapsed) .gm__corner > .gm__metrics { order: 1; }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 72px) * 55 / 151 + .56rem + .66rem); }
+  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 32px, calc(72px * var(--sp-ui, 1))) * 55 / 151 + .56rem + .66rem); }
 }
 @media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
-  .gm__corner { width: calc(3 * max(.56rem, 34px) + .2rem); }
-  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 96px) * 55 / 151 + 2 * max(.56rem, 34px) + .1rem); }
+  .gm__corner { width: max(32px, calc(96px * var(--sp-ui, 1)), calc(3 * max(.56rem, 32px, calc(34px * var(--sp-ui, 1))) + .2rem)); }
+  /* the 机变 overlay starts right of that corner (§35.51: at 2.8rem, 112 px on a 667 px phone, it covered 8 px of ⛶) */
+  .gm.has-sp > .spov { left: calc(max(2.8rem, .24rem + max(32px, calc(96px * var(--sp-ui, 1)), calc(3 * max(.56rem, 32px, calc(34px * var(--sp-ui, 1))) + .2rem)) + 2px) + var(--sa-l)); }
+  .dpanel:not(.dpanel--right) { bottom: calc(.44rem + max(1.51rem, 32px, calc(96px * var(--sp-ui, 1))) * 55 / 151 + 2 * max(.56rem, 32px, calc(34px * var(--sp-ui, 1))) + .1rem); }
 }
 /* With the shop folded (收起) no bar covers the corner: one row again, so the folded shop's prep camera, which keeps the
    bench above the corner's hit areas (ui/fieldHost.js hudBands), grows the board on narrow phones too (public issue #5). */
 @media (max-width: 767px) {
   .gm.is-collapsed .gm__corner { flex-wrap: nowrap; width: auto; }
 }
+/* … but not under the 机变 overlay, which starts at the corner's wrapped width (§35.51) */
+@media (max-width: 767px) {
+  .gm.is-collapsed.has-sp .gm__corner { flex-wrap: wrap-reverse; width: max(32px, calc(72px * var(--sp-ui, 1)), calc(3 * .56rem + .2rem)); }
+}
+@media (max-width: 767px) and (pointer: coarse), (max-width: 767px) and (any-pointer: coarse) {
+  .gm.is-collapsed.has-sp .gm__corner { width: max(32px, calc(96px * var(--sp-ui, 1)), calc(3 * max(.56rem, 32px, calc(34px * var(--sp-ui, 1))) + .2rem)); }
+}
 
-/* Short landscape phones (≤ 460 CSS px tall, 1rem = 40 px): the lobby's two columns are compressed so the
-   创建同盟 button and the join panel stay on screen without scrolling. The detail card's header is shorter (no
-   romanised name, a shorter portrait) so the operator's own effect (特质) under it stays in view even in the short card
-   docked above the shop bar (user playtest #3 item 8). */
+/* Short landscape phones (≤ 460 CSS px tall, 1rem = 40 px): the detail card's header is shorter (no romanised name,
+   a shorter portrait) so the operator's own effect (特质) under it stays in view even in the short card docked above
+   the shop bar (user playtest #3 item 8). The lobby's own short-phone rules are in screens/lobby.css. */
 @media (max-height: 460px) {
   .dhead__art { height: 1.66rem; }
   .dhead__en { display: none; }
-  .lobby-body { padding-top: .2rem; padding-bottom: .2rem; gap: .36rem; }
-  .mode-cards { margin-bottom: .2rem; }
-  .mode-card { min-height: 0; gap: .12rem; padding: .22rem .26rem .2rem; }
-  .mode-card__icon { width: .66rem; height: .66rem; }
-  .mode-card__name { font-size: calc(.32 * var(--t)); }
-  .mode-card__points, .diff-card__effects, .tips, .create-box__hint { display: none; }
-  .diff-list { gap: .1rem; }
-  .diff-card { padding-top: .12rem; padding-bottom: .12rem; }
-  .create-box { margin-top: .18rem; }
-  .create-box .btn--xl { height: .8rem; }
 }
 
 .rotate-hint__pwa { pointer-events: auto; margin-top: 6px; }
@@ -170,8 +170,8 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
    off). Only while <html data-fit> is set: with all four at 0 nothing here applies. The bands outside show the page
    background; fixed overlays (dialogs, toasts) still use the whole screen. */
 html[data-fit] {
-  font-size: clamp(40px, min(calc((100vw - var(--fit-l, 0px) - var(--fit-r, 0px)) / 19.2), calc((100vh - var(--fit-t, 0px) - var(--fit-b, 0px)) / 10.8)), 240px);
-  font-size: clamp(40px, min(calc((100vw - var(--fit-l, 0px) - var(--fit-r, 0px)) / 19.2), calc((100svh - var(--fit-t, 0px) - var(--fit-b, 0px)) / 10.8)), 240px);
+  font-size: calc(clamp(40px, min(calc((100vw - var(--fit-l, 0px) - var(--fit-r, 0px)) / 19.2), calc((100vh - var(--fit-t, 0px) - var(--fit-b, 0px)) / 10.8)), 240px) * var(--sp-ui, 1));
+  font-size: calc(clamp(40px, min(calc((100vw - var(--fit-l, 0px) - var(--fit-r, 0px)) / 19.2), calc((100svh - var(--fit-t, 0px) - var(--fit-b, 0px)) / 10.8)), 240px) * var(--sp-ui, 1));
 }
 /* the screens' own box (theme.css .app-root: fixed, inset 0) and the full-page panels fixed over the screens (统计数据,
    干员调配, 玩法说明) */
@@ -180,6 +180,7 @@ html[data-fit] :is(.app-root, .st, .lo, .guide) {
 }
 .set-fit { display: flex; flex-direction: column; gap: .06rem; }
 .set-fit__row { grid-template-columns: minmax(0, 1.5rem) auto minmax(.8rem, 1fr) auto minmax(.36rem, auto); gap: .1rem; }
+.set-fit__row.is-disabled { opacity: .5; } /* 界面大小 at 文字大小 中 and above (ui/screenFit.js) */
 .set-fit__step { flex: none; width: .4rem; min-width: 28px; height: .34rem; min-height: 26px; padding: 0; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3);
   color: var(--text-hi); font-size: calc(.2 * var(--t)); line-height: 1; cursor: pointer; }
 .set-fit__step:disabled { opacity: .35; cursor: default; }

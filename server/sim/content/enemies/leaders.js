@@ -3,10 +3,10 @@
 
 import { TICK, COLS } from '../../constants.js';
 import { aggroCmp, areaSelectable } from '../../targeting.js';
-import { periodicDamage } from '../../damage.js';
+import { periodicDamage } from '../../attack.js';
 import {
   nthOf, T, hurt, alliesInTiles, targetsNear, allTargets, areaAllies, areaAlliesInTiles, auraAllies, targetAndArea,
-  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot,
+  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf,
 } from './helpers.js';
 import {
   unblockable, maxTargets, onHitStatus, splashAttack, pathKeysAhead, noAirTargets, resist, nthAttackStatus, lowHpBuff,
@@ -135,7 +135,7 @@ function kitLeaderMisc(key, ab, e) {
           // the C4 sits on its target (PRTS "在…1个非飞行的我方单位身上安装C4"): it is hit; the blast around it is an area
           b.after(C4_FUSE, () => { b.fx('explode', { x, y, r: C4_RADIUS, kind: 'c4' }); for (const u of targetAndArea(t, areaAllies(b, e2, x, y, C4_RADIUS))) hurt(b, e2, u, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys'); });
         }
-      }, { cond: (b, e2) => targetsNear(b, e2, s.bb.range_radius ?? e2.base.rangeRadius).length > 0 })];
+      }, { cond: (b, e2) => targetsNear(b, e2, s.bb.range_radius ?? e2.base.rangeRadius).length > 0, turn: attackSkillOf(key, 'C4') })];
     }
     case 'enemy_1509_mousek': {
       // 出场时拥有能够吸收大量法术伤害的屏障，屏障存在时防御力大幅增加 (arts-only barrier + DEF while it holds)
@@ -149,7 +149,7 @@ function kitLeaderMisc(key, ab, e) {
           b.fx('telegraph', { x: t.tileC, y: t.tileR, r: DRIFT_REACH, kind: 'driftSand', tiles: 'plus', id: e2.id });
           // the cross ("伤害无视迷彩", no 无视无法选择): an area selection
           for (const u of areaAlliesInTiles(b, e2, t.tileR, t.tileC, 'plus', DRIFT_REACH)) hurt(b, e2, u, ds.bb.damage ?? 0, 'phys');
-        }, { cond: (b, e2) => allTargets(b, e2).length > 0 }),
+        }, { cond: (b, e2) => allTargets(b, e2).length > 0, turn: attackSkillOf(key, 'DriftSand') }),
         // 【沙狱】 the lowest-max-HP unit and those around it: ATK −`atk` and `damage` arts per second for `duration` s
         skill(ss, (b, e2) => {
           const t = allTargets(b, e2).sort((p, q) => p.s.maxHp - q.s.maxHp || aggroCmp(p, q))[0];
@@ -162,7 +162,7 @@ function kitLeaderMisc(key, ab, e) {
             b.addBuff(u, { key: 'ab:sandStorm', duration: dur, refresh: 'replace', interval: 1, visible: true, mods: { atkPct: ss.bb.atk ?? 0 },
               onTick: ({ battle, unit }) => battle.dealDamage(e2, unit, { amount: ss.bb.damage ?? 0, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility', 'sandStorm'] }) });
           }
-        }, { cond: (b, e2) => allTargets(b, e2).length > 0 }),
+        }, { cond: (b, e2) => allTargets(b, e2).length > 0, turn: attackSkillOf(key, 'SandStorm') }),
       ];
     }
     case 'enemy_1511_mdrock': {
@@ -190,7 +190,7 @@ function kitLeaderMisc(key, ab, e) {
             b.fx('explode', { x: cc, y: r, r: 1, kind: 'chargeAttack', tiles: 'plus' });
             for (const u of areaAlliesInTiles(b, e2, r, cc, 'plus', 1)) hurt(b, e2, u, e2.s.atk * (s.bb['dekght[aoe].atk_scale'] ?? s.bb.atk_scale ?? 1), 'phys');
           }, { owner: e2 });
-        }, { cond: (b, e2) => !!(e2.blockedBy && e2.blockedBy.alive) })];
+        }, { cond: (b, e2) => !!(e2.blockedBy && e2.blockedBy.alive), turn: attackSkillOf(key, 'ChargeAttack', false) })];   // its blocker: the swing's turn
     }
     case 'enemy_1513_dekght_2': {
       // 同时攻击两名目标; 爆炸箭: three targets, after `interval` s ATK×atk_scale arts on each target's cross
@@ -208,7 +208,7 @@ function kitLeaderMisc(key, ab, e) {
             for (const u of targetAndArea(t, areaAlliesInTiles(b, e2, r, cc, 'plus', 1))) hurt(b, e2, u, e2.s.atk * scale, 'arts');
           }, { owner: e2 });
         }
-      }, { cond: (b, e2) => cands(b, e2).length > 0 })];
+      }, { cond: (b, e2) => cands(b, e2).length > 0, turn: attackSkillOf(key, 'TripleAttack') })];
     }
     case 'enemy_1539_reid': {
       // 生命值降至一半以下时攻击力大幅度提升; 首次被击倒后重生 (Reborn.duration s), 恢复一半生命值;
@@ -241,7 +241,7 @@ function kitLeaderMisc(key, ab, e) {
           hurt(b, e2, c.target, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys');
           if (c.target.alive) b.applyStatus(c.target, 'stun', { duration: s.bb.stun ?? 0, source: e2 });
         } });
-      }, { cond: (b, e2) => cands(b, e2).length > 0 })];
+      }, { cond: (b, e2) => cands(b, e2).length > 0, turn: attackSkillOf(key, 'StunAttack') })];
     }
     case 'enemy_2004_balloon': {
       // 喷气人 · 升空 when blocked → 飞行模式 for `duration` s: PRTS 喷气人 "近地悬浮，不可阻挡，失衡免疫，移动速度+50%，不进行
@@ -334,7 +334,7 @@ function kitLeaderMisc(key, ab, e) {
           prev = cur;
           cur = near(cur.x, cur.y, jump, seen);
         }
-      }, { sil: true, cond: (b, e2) => b.enemiesInRadius(e2.x, e2.y, e2.base.rangeRadius || 3.5).some((o) => o !== e2) })];
+      }, { sil: true, cond: (b, e2) => b.enemiesInRadius(e2.x, e2.y, e2.base.rangeRadius || 3.5).some((o) => o !== e2), turn: attackSkillOf(key, 'ChainBuff') })];
     }
     case 'enemy_2052_smgia': {
       // 数次攻击后晕眩; 受到来自自然环境的伤害时 (terrain damage), 自身在短时间内获得高额脆弱 (damage taken ×damage_scale)
@@ -489,15 +489,17 @@ function kitXi(ab) {
       if (s2) s2.left = s2.icd;
     },
   });
-  const s1 = skill(sb, burst(sb), { cond: () => !P.form2 });
-  const s2 = skill(sb2, sb2 ? burst(sb2) : null, { cond: () => P.form2 });
+  // the three skills take the attack's turn (DESIGN §35.52); 破桎而出 (MeleeAttack, its `cond` only the form) has no
+  // selector of its own: it waits for a swing at the attack's target (`own` false; PRTS 「触发索敌和普通攻击相同」, §35.54)
+  const s1 = skill(sb, burst(sb), { cond: () => !P.form2, turn: attackSkillOf('enemy_1517_xi', 'ShieldBurst', false) });
+  const s2 = skill(sb2, sb2 ? burst(sb2) : null, { cond: () => P.form2, turn: attackSkillOf('enemy_1517_xi', 'ShieldBurstReborn', false) });
   return [re, s1, s2, doubleHit(() => P.form2),                   // 普通攻击进行两次
     skill(cross, (b, e) => {
       const l = byDist(b, e);
       if (!l.length) return;
       crossAt(b, e, l[0]);
       if (P.form2 && l.length > 1) crossAt(b, e, l[l.length - 1]);   // 额外对最远目标释放
-    }, { cond: (b, e) => allTargets(b, e).length > 0 })];
+    }, { cond: (b, e) => allTargets(b, e).length > 0, turn: attackSkillOf('enemy_1517_xi', 'CrossAttack') })];
 }
 
 /** 锏 · 抵抗; DEF penetration against its blocker; 【速杀】 passes through its blocker hitting those on the way; 【肆虐风雪】
@@ -547,8 +549,9 @@ function kitMace(ab) {
   }, doubleHit(() => P.form2, (c, b, e) => ({ defIgnorePct: penOn(c, e) })),
   skill(ab.sk.Blink, blink(ab.sk.Blink || { bb: {} }), { id: 'blink', cond: (b, e) => !P.form2 && !!e.blockedBy }),
   skill(ab.sk.Blink2, blink(ab.sk.Blink2 || { bb: {} }), { id: 'blink2', cond: (b, e) => P.form2 && !!e.blockedBy }),
-  skill(ab.sk.CircleAttack, circle(ab.sk.CircleAttack || { bb: {} }), { id: 'circle', cond: (b, e) => !P.form2 && inR(b, e, ab.sk.CircleAttack) }),
-  skill(ab.sk.CircleAttack2, circle(ab.sk.CircleAttack2 || { bb: {} }), { id: 'circle2', cond: (b, e) => P.form2 && inR(b, e, ab.sk.CircleAttack2) }),
+  // 【肆虐风雪】 takes the attack's turn (DESIGN §35.52); 【速杀】 (ActiveBuffAbility) keeps its own timer
+  skill(ab.sk.CircleAttack, circle(ab.sk.CircleAttack || { bb: {} }), { id: 'circle', cond: (b, e) => !P.form2 && inR(b, e, ab.sk.CircleAttack), turn: attackSkillOf('enemy_1525_blkswb', 'CircleAttack') }),
+  skill(ab.sk.CircleAttack2, circle(ab.sk.CircleAttack2 || { bb: {} }), { id: 'circle2', cond: (b, e) => P.form2 && inR(b, e, ab.sk.CircleAttack2), turn: attackSkillOf('enemy_1525_blkswb', 'CircleAttack2') }),
   reborn({
     dur: T(ab, 'Reborn.duration') ?? 0, invincible: T(ab, 'Reborn.invincible') ?? 0,
     onReborn(b, e) { P.form2 = true; P.next = 1; b.addBuff(e, { key: 'ab:stealth', flags: { stealth: true }, persist: true }); },
@@ -599,7 +602,7 @@ function kitWolfLord(ab) {
       P.caught = n;
     },
   },
-  // 【溶血骇惧】 every spCost s (enemy SP +1/s [ASSUMED]), first form only, never during its 静默
+  // 【溶血骇惧】 every spCost s (enemy SP +1/s [ASSUMED]), first form only, never during its 静默; cast in the attack's turn
   P.cast = skill(fc, (b, e) => {
     const l = b.rng.shuffle(allTargets(b, e).filter((u) => u.kind === 'op' && !u.findBuff('ab:fearCage'))).slice(0, fc.bb.max_target ?? 3);
     const ramp = Math.max(1, fc.bb.duration_bleed ?? 40), peak = fc.bb.hp_ratio ?? 0;
@@ -616,7 +619,8 @@ function kitWolfLord(ab) {
           battle.loseHp(unit, unit.s.maxHp * peak * k, { source: e });
         } });
     }
-  }, { cd: fc ? fc.sp || fc.cd : null, icd: fc ? fc.sp || fc.icd : null, cond: (b, e) => !P.form2 && !caught(b) && b.time >= P.waitUntil && allTargets(b, e).some((u) => u.kind === 'op') }),
+  }, { cd: fc ? fc.sp || fc.cd : null, icd: fc ? fc.sp || fc.icd : null, cond: (b, e) => !P.form2 && !caught(b) && b.time >= P.waitUntil && allTargets(b, e).some((u) => u.kind === 'op'),
+    turn: attackSkillOf('enemy_1535_wlfmster', 'FearCage') }),   // MeleeAttack: once ready, the attack's turn (DESIGN §35.52)
   doubleHit(() => P.form2),                                     // 攻击变为远程二连击
   reborn({
     dur: T(ab, 'Reborn.duration') ?? 0, invincible: T(ab, 'Passive2.invincible_time') ?? 0,

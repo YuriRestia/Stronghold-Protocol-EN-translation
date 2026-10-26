@@ -157,14 +157,18 @@ describe('ui/outfits.js resolvers', () => {
   test('UnitThumb `outfitOwner` (bond popup, result lineup): another player\'s operator wears THEIR outfit, not the viewer\'s', async (t) => {
     if (!data.get('outfits')) { t.skip('data/outfits.json could not be loaded in this environment'); return; }
     const { UnitThumb } = await import('../public/js/ui/gameComponents.js');
+    const { chessAvatarUrl } = await import('../public/js/ui/assetUrls.js');
     if (!data.get('assets')?.outfits) { t.skip('no assets manifest in the data store'); return; }
     store.set({ me: { playerId: 'p1', name: 'A', token: null }, room: { seats: [{ playerId: 'p1' }, { playerId: 'p2', outfits: { char_1012_skadi2: 'char_1012_skadi2@iteration#2' } }] } });
     mod.setOutfits({ char_4064_mlynar: MLYNAR, char_1012_skadi2: 'char_1012_skadi2@boc#4' });
+    // UnitThumb draws an OperatorImage (a hook component since sganggs 0.3.3): take the owner it is handed and resolve the
+    // avatar the way OperatorImage does (no skin here: the outfit decides)
     const src = (charId, outfitOwner) => {
       const v = UnitThumb({ kind: 'chess', id: 'x', rec: { charId, name: charId, tier: 6 }, outfitOwner });
-      const find = (n) => (!n || typeof n !== 'object' ? null : n.type === 'img' || typeof n.props?.src === 'string' ? n.props.src
+      const find = (n) => (!n || typeof n !== 'object' ? null : n.props?.chess && 'outfitOwner' in n.props ? n
         : [].concat(n.props?.children || []).map(find).find(Boolean) || null);
-      return find(v);
+      const img = find(v);
+      return img ? chessAvatarUrl(data.get('assets'), img.props.chess, { skin: null, ...mod.outfitOptsOf(charId, img.props.outfitOwner) }) : null;
     };
     assert.match(src('char_4064_mlynar', null), /outfit\/avatar\/char_4064_mlynar_epoque_28/, 'own unit: the own outfit');
     assert.doesNotMatch(src('char_4064_mlynar', 'p2') || '', /outfit\//, 'the teammate has none on Młynar: the default look');

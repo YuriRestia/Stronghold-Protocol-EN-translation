@@ -490,7 +490,7 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
   voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
-  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null }) {
+  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
   const notes = [];
   /** @type {Map<string, any>} */
   const models = new Map();
@@ -806,8 +806,17 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   }
   const items = {};
   for (const [trapId, it] of Object.entries(assets07?.items || {})) items[trapId] = leaf(alt(`item/${trapId}.png`, it.icon?.url, it.icon?.bytes));
+  for (const [id, b] of Object.entries(extraBonds)) if (!bonds[id] && b.iconId) {
+    bonds[id] = leaf(alt(`bond/${id}.png`, joinUrl(RAW.aa2, `ui/autochess/[uc]autochesscommon/arts/bondicon/${b.iconId.toLowerCase()}.png`)));
+  }
+  for (const id of Object.keys(extraItems)) if (!items[id]) {
+    items[id] = leaf(alt(`item/${id}.png`, joinUrl(RAW.aa2, `ui/autochess/[uc]autochesscommon/arts/shopitemicon/${id}.png`)));
+  }
   const bands = {};
   for (const [bandId, b] of Object.entries(assets07?.bands || {})) bands[bandId] = leaf(alt(`band/${bandId}.png`, b.icon?.url, b.icon?.bytes));
+  for (const [bandId, b] of Object.entries(extraBands)) if (!bands[bandId] && b.iconId) {
+    bands[bandId] = leaf(alt(`band/${bandId}.png`, joinUrl(RAW.aa2, `ui/autochess/[uc]autochesscommon/arts/bandicon/${b.iconId}.png`)));
+  }
 
   // --- professions ----------------------------------------------------------
   const prof = { icon: {}, large: {}, battlecard: {}, sub: {} };

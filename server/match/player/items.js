@@ -38,6 +38,7 @@ export class PlayerItems {
     if (!rec || rec.itemType !== 'EQUIP') return fail(ERR.BAD_TARGET, 'not equipment');
     const tloc = this.find(targetUid);
     if (!tloc || tloc.piece.kind !== 'chess' || tloc.area === 'equipped') return fail(ERR.BAD_TARGET);
+    if (this.gd.config.version?.rules?.benchEquip === false && tloc.area !== 'board') return fail(ERR.BAD_TARGET);
     const item = iloc.piece;
     const target = tloc.piece;
     if (replaceUid != null && !(Number.isInteger(replaceUid) && (target.items || []).some((x) => x.uid === replaceUid))) return fail(ERR.BAD_TARGET, 'replace: not equipped on the target');

@@ -25,7 +25,7 @@
 //   卡西米尔 kazimierzShip every deployment of one of the player's operators (initial ones included): members ATK
 //                        +atk_when_born, total ≤ base_max_atk_when_born + max_atk_when_born_per_stack·L; 6: blocking
 //                        members pulse damage_atk_scale×ATK true damage + stun around them every damage_interval s,
-//                        non-blocking members' attacks add pure_atk_scale×ATK true damage
+//                        non-blocking members' NORMAL damage carries source-less true ADDITION damage
 //
 // Numbers: data/bonds.json buffs (support.buffParams by bbStr.key); 炎佑's 30 % is parsed from the effect text.
 // Tiers: a bond's upper tier is reached when count ≥ the blackboard threshold (power_bond_char_cnt / ex_bond_char_cnt)
@@ -38,11 +38,11 @@
 // death 10; every `fatal` saver runs before any death hook), layerGain −100 (after 魔王-style modifiers).
 
 import * as S from '../support/index.js';
-import { mitigate } from '../../damage.js';
 import { spawnYanyou } from '../tokens.js';
 import { kjeragColdWind } from '../devices.js';
 import * as items from '../items.js';
 import { FORCED_EXIT } from '../../constants.js';
+import { damageAttackType, isHpLoss } from '../../attack.js';
 import { msg } from '../../../../shared/i18n.js';
 import { bbCap } from '../../../../shared/plugins/officialBounds.js';
 import { textFinite } from '../../../../shared/plugins/textNumber.js';
@@ -76,7 +76,11 @@ export function reached(battle, pid, bondId, cnt) {
   const st = S.bondState(battle, pid, bondId);
   if (!st || !st.active) return false;
   const need = num(cnt, 0);
-  if (!(need > 0)) return true;
+  // On another version's build (S.isVersionData) a threshold the record lacks is a tier that data does not have: not
+  // reached. 上半's 炎 has no 9-member tier (no ex_bond_char_cnt); counting it as reached gave 6 炎 the 9-member tier's
+  // 2 炎佑. The default data never gets here (every core bond's main buff carries power_bond_char_cnt and 炎's
+  // ex_bond_char_cnt is 9); a plugin content set built on it keeps the old rule, reached.
+  if (!(need > 0)) return !S.isVersionData();
   if (num(st.count, 0) >= need) return true;
   const th = S.bondRecord(bondId)?.thresholds;
   const idx = Array.isArray(th) ? th.indexOf(need) : -1;
@@ -284,8 +288,8 @@ function installVictoria(battle, pid, bb, members) {
   for (const u of members) {
     const ids = S.itemsOf(u);
     if (!ids.length) continue;
-    let add = 0;
-    for (const id of ids) add += S.isGoldenId(id) ? golden : normal;
+    let add = num(bb.power_atk, 0);
+    if (bb.power_atk == null) for (const id of ids) add += S.isGoldenId(id) ? golden : normal;
     if (add > 0) S.passiveBuff(battle, u, 'bond:victoria:atk', S.directMods({ atk: add }));
   }
 }
@@ -409,11 +413,12 @@ function devour(battle, pid, bb, members) {
   // nothing — it is forced out, so it is never knocked out again, revived or devoured. Per players' reports (community
   // report #3, GitHub #33 item 3), owner's decision 2026-10-04; until 0.1.2 the forced exit came first and the chain broke.
   const downAtStart = (u) => egirDownAtStart(battle, u);
-  const order = members.filter((u) => S.onField(u) || downAtStart(u)).sort(egirOrder);
+  // Historical text says bottom then left; [ASSUMED] season one's unspecified order follows its deployment.
+  const order = members.filter((u) => S.onField(u) || downAtStart(u)).sort(S.isVersionData()
+    ? (a, b) => a.tileR - b.tileR || boardCol(a) - boardCol(b) || a.id - b.id : egirOrder);
   // the operator in front, whoever owns it (until 0.1.3 only the player's own): a living one, else one lying there since
   // the 联防 start (carry.down, forced out) — a teammate's included
-  const opAt = (u) => {
-    const [r, c] = S.frontTile(u);
+  const opAtTile = (r, c) => {
     const a = S.allyAt(battle, r, c);
     if (a) return S.isOp(a) && a.alive ? a : null;
     const d = battle.downOn(r, c);
@@ -422,24 +427,32 @@ function devour(battle, pid, bb, members) {
   const markedBy = new Map(); // marker → [targets]
   const marks = [];
   for (const m of order) {
+    const trench = S.itemsOf(m).map((id) => S.buffParams(S.itemRecord(id), 'act1autochess_equip_acarm078_global_buff')).find(Boolean);
+    const targets = (u) => S.itemsOf(u).some((id) => S.buffParams(S.itemRecord(id), 'act1autochess_equip_acarm078_global_buff'))
+      ? S.N4.map(([dr, dc]) => opAtTile(u.tileR + dr, u.tileC + dc)).filter(Boolean) : [opAtTile(...S.frontTile(u))].filter(Boolean);
     const mine = [];
     const seen = new Set([m]);
     const queue = [m];
     for (let guard = 0; queue.length && guard < 64; guard++) {
       const x = queue.shift();
-      const t = opAt(x);
-      if (!t || seen.has(t)) continue;
-      if ((markedBy.get(t) ?? []).includes(m)) continue;
-      seen.add(t);
-      mine.push(t);
-      // through a marked 阿戈尔 (for the player's own operators: exactly its members; a teammate's by its own bonds)
-      if (S.isMember(battle, t, 'egirShip')) queue.push(t);
+      for (const t of targets(x)) {
+        if (seen.has(t)) continue;
+        if ((markedBy.get(t) ?? []).includes(m)) continue;
+        seen.add(t);
+        mine.push(t);
+        // through a marked 阿戈尔 (for the player's own operators: exactly its members; a teammate's by its own bonds)
+        if (S.isMember(battle, t, 'egirShip')) queue.push(t);
+      }
     }
     markedBy.set(m, mine);
     if (!mine.length) continue;
     let atk = 0, block = 0;
     for (const t of mine) { atk += num(t.base.atk, 0); block += num(t.base.blockCnt, 0); marks.push([m, t]); }
     const mods = {};
+    if (trench && S.itemsOf(m).some((id) => id.replace(/_[ab]$/, '') === trench.equip_chess_id)) {
+      // [ASSUMED] "等量生命值" uses the victims' base max HP, matching the devour's base ATK/block inheritance.
+      mods.hpFlat = mine.reduce((n, t) => n + num(t.base.maxHp), 0);
+    }
     if (atk > 0) mods.atkFinal = atk; // 最终加算 (units.js _recalc)
     if (block > 0) mods.blockCnt = block;
     if (Object.keys(mods).length) S.passiveBuff(battle, m, 'bond:egir:devour', mods);
@@ -463,7 +476,8 @@ function devour(battle, pid, bb, members) {
     // opening HP loss (or trigger deaths/revives) to an operator restored from the previous field. Battle.start
     // applies its exact HP ratio and SP after the opening hooks. Fresh units and all other battle kinds still pay.
     const restored = battle.kind === 'unite' && Number.isFinite(t.carry?.hpPct) && t.carry.hpPct > 0;
-    if (amount > 0 && !restored) battle.loseHp(t, mitigate(amount, 'phys', t.s), { source: m, tags: ['bond:egir:devour'] });
+  // PRTS: devour is physical HP loss sourced by its victim; the mark's owner receives the kill credit.
+  if (amount > 0 && !restored) battle.dealHPLose({ source: t, credit: m, target: t, amount, type: 'phys', tags: ['bond:egir:devour'] });
     if (!layered.has(t)) {
       layered.add(t);
       S.gainLayers(battle, { playerId: pid, bonds: 'egirShip', n: S.tierOf(t), source: m, reason: 'bond' });
@@ -637,7 +651,8 @@ function installKazimierz(battle, pid, bb, members) {
         const amount = scale * m.s.atk;
         for (const e of hits) {
           if (!e.alive) continue;
-          battle.dealDamage(m, e, { amount, type: 'true', canDodge: false, isSplash: true, tags: ['bond:kazimierz'] });
+          battle.dealDamage({ source: m, target: e, amount, type: 'true', attackType: 'NORMAL',
+            applyWay: 'NONE', dodgeMode: 'ignore', isSplash: true, tags: ['bond:kazimierz'] });
           if (e.alive && stun > 0) battle.applyStatus(e, 'stun', { duration: stun, source: m });
         }
         S.fxOn(battle, 'aoe', m, 'bond:kazimierzShip', 'pulse', { radius, dmgType: 'true', n: hits.length });
@@ -648,9 +663,13 @@ function installKazimierz(battle, pid, bb, members) {
   if (!(pure > 0)) return;
   const onDmg = (ctx) => {
     const u = ctx.source, t = ctx.target, dmg = ctx.dmg;
-    if (!dmg || !dmg.isAttack || !isEnemyTarget(t) || ownTag(dmg, 'bond:kazimierz')) return;
+    if (!dmg || isHpLoss(dmg) || damageAttackType(dmg) !== 'NORMAL' || dmg.type === 'element'
+      || !isEnemyTarget(t) || ownTag(dmg, 'bond:kazimierz')) return;
     if (u.blocking && u.blocking.length) return;
-    battle.dealDamage(u, t, { amount: pure * u.s.atk, type: 'true', canDodge: false, tags: ['bond:kazimierz'] });
+    // [ASSUMED] Retain the legacy damaged-listener timing; PRTS settles class/source, not this relative phase.
+    battle.dealDamage({ source: null, credit: u, target: t, amount: pure * u.s.atk, type: 'true',
+      attackType: 'ADDITION', applyWay: 'NONE', calculation: 'precomputed', dodgeMode: 'ignore',
+      origin: dmg, tags: ['bond:kazimierz'] });
   };
   for (const u of members) onUnitDamaged(battle, u, onDmg);
 }

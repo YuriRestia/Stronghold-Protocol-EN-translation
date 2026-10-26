@@ -28,6 +28,10 @@ const r1 = (v) => Math.round(v * 10) / 10;
 /** Static per-unit info sent on spawn / in m.field. */
 export function unitInfo(u) {
   const d = u.def || {};
+  const interval = u.s?.interval;
+  const atkInterval = Number.isFinite(interval) && interval > 0 ? Math.round(interval * 1000) / 1000 : undefined;
+  // Seed from the first published value, before a later buff can change the interval.
+  if (u._rateSent === undefined) u._rateSent = atkInterval;
   return {
     id: u.id,
     kind: u.kind,
@@ -37,6 +41,10 @@ export function unitInfo(u) {
     name: u.name,
     tier: d.tier ?? (d.rank === 'BOSS' ? 3 : d.rank === 'ELITE' ? 2 : 1),
     golden: !!d.golden,
+    // The unit's OWN attack interval in game seconds (units.js `s.interval`: bat × batPct × 100 / aspd, i.e. with the buffs
+    // this record carries). The renderer stretches the attack clip over it (render/attackRate.js): without it a view started
+    // from the operator's base-record guess and swung in slow motion until two attacks had been measured.
+    atkInterval,
     spine: d.spine ?? d.charId ?? u.defId,
     // 皮肤 (docs/SKINS.md): the owning player's chosen skinId. `undefined` (not null) on purpose — JSON.stringify drops
     // it, so an install with no skins produces the exact same wire format as before and the §8.2 contract holds; the key
@@ -258,6 +266,24 @@ export function chargeView(u) {
   if (u.side !== 'ally' || !sk || sk.noSkill || !(sk.maxCharges > 1)) return null;
   return [Math.max(0, Math.min(sk.maxCharges, Math.floor(sk.charges || 0))), sk.maxCharges];
 }
+
+/**
+ * `moteView(u)` = a unit's orbiting 「微尘」: `[count, wide]` (wide = the S2 半径扩大), null without a ring: 魔王's T1
+ * 过往尘埃 (kits/ops/chess_char_4_25-cetsyr.js sets `unit.moteRing`, read when the snapshot is taken; at most three, six
+ * while S2 runs) — display only: render/motes.js draws that many motes circling her, the sim's own mote logic (a mote
+ * touching an operator, respawn after 6 s, S2 hitting enemies instead) is untouched.
+ */
+export function moteView(u) {
+  if (typeof u.moteRing !== 'function') return null;
+  const v = u.moteRing();
+  if (!Array.isArray(v) || !Number.isFinite(v[0])) return null;
+  const n = Math.max(0, Math.min(MOTE_MAX, Math.floor(v[0])));
+  if (n <= 0) return null;
+  return [n, v[1] ? 1 : 0];
+}
+
+/** Upper bound of the mote count a snapshot may carry (the sim's own caps: 3, six while S2 runs). */
+export const MOTE_MAX = 9;
 
 /** Units included in a snapshot: deployed & visible, plus recently dead ones (DIE animation). */
 export function snapshotUnits(units, t) {

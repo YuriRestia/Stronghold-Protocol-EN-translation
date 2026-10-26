@@ -3,7 +3,7 @@
 
 import { canTargetAlly, enemyStealthed } from '../../targeting.js';
 import { ALLY_COLLIDER_RADIUS } from '../../constants.js';
-import { T, elem, hurt, targetsNear, byPriority, auraBuff, castSlot } from './helpers.js';
+import { T, elem, hurt, targetsNear, byPriority, auraBuff, castSlot, attackSkillOf } from './helpers.js';
 import { stealth, onHitStatus, skill, kitStealth } from './archetypes.js';
 import { hypot } from '../../detmath.js';
 
@@ -47,7 +47,7 @@ function kitCrossbow(ab) {
         if (bb.stun > 0 && c.target.alive) b.applyStatus(c.target, 'stun', { duration: bb.stun, source: e });
       } });
     }, { owner: e });
-  }, { sil: true, cond: (b, e) => aligned(b, e).length > 0 })];
+  }, { sil: true, cond: (b, e) => aligned(b, e).length > 0, turn: attackSkillOf('enemy_1404_msnip', 'CrossAttack') })];   // the attack's turn (DESIGN §35.52)
 }
 
 /**
@@ -85,7 +85,9 @@ function kitJazz(ab, e) {
     // priority: the blocker first), floor(10.6 / 0.5) = 21 ticks at 0.5 … 10.5 s. The channel also ends when that target
     // is gone, makes no normal attacks meanwhile and is never re-cast over itself — the 10 s cooldown (enemy_database
     // skill 'fire') runs out mid-channel, the next cast waits for its end [ASSUMED "持续施法", as 死亡之眼].
-    sil: true, cd: s.cd, icd: s.icd, cond: (b, e2) => revealed(e2) && !(e2.mem.jazzChannel && !e2.mem.jazzChannel.cancelled) && targetsNear(b, e2, r).length > 0,
+    // the attack's turn (RangedAttack: DESIGN §35.52) — while revealed, its trigger the targets in its radius (`own`)
+    sil: true, cd: s.cd, icd: s.icd, sk: s, ...attackSkillOf('enemy_10034_cnvsax', 'fire'),
+    cond: (b, e2) => revealed(e2) && !(e2.mem.jazzChannel && !e2.mem.jazzChannel.cancelled) && targetsNear(b, e2, r).length > 0,
     fire(b, e2) {
       const dur = s.bb['enemy_cnvsax[cd].duration'] ?? 0, iv = s.bb.hit_interval ?? 0.5;
       const t = byPriority(e2, targetsNear(b, e2, r))[0];

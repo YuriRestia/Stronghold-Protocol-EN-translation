@@ -83,6 +83,9 @@ export const ICONS = {
   book: { d: 'M2 4h7.5A3.5 3.5 0 0 1 12 5.1 3.5 3.5 0 0 1 14.5 4H22v16h-7.5a1.5 1.5 0 0 0-1.5 1.5h-2A1.5 1.5 0 0 0 9.5 20H2zm2 2v12h5.5c.5 0 1 .1 1.5.3V7.5A1.5 1.5 0 0 0 9.5 6zm10.5 0A1.5 1.5 0 0 0 13 7.5v10.8c.5-.2 1-.3 1.5-.3H20V6z', eo: true },
   // 观战 (spectator seats; the same eye as gameComponents.js GIcon 'eye')
   eye: { d: 'M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z', eo: true },
+  // 大厅背景与音乐 (ui/lobbyMedia.js): a framed picture (ridges and a sun) and a beamed pair of notes
+  image: { d: 'M3 4h18v16H3zM5 6v9.6l4-4.6 3.5 4 2.5-3 4 4.4V6zM16 7.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z', eo: true },
+  music: { d: 'M18 3h2v13h-2zM8 5.4h2V18H8zM8 5.4 20 3v3L8 8.4zM14 16a3 3 0 1 1 6 0 3 3 0 1 1-6 0zM4 18a3 3 0 1 1 6 0 3 3 0 1 1-6 0z' },
 };
 
 /**
@@ -536,19 +539,91 @@ export function DialogHost() {
 
 // ---- Tooltip -----------------------------------------------------------------------------------
 
-let tipState = null; // { id, content, aside, rect, placement }
+let tipState = null; // { id, content, aside, rect, placement, tipClass, bounds, avoid }
 let tipSeq = 0;
 const tipListeners = new Set();
 const setTip = (s) => { tipState = s; for (const fn of [...tipListeners]) fn(); };
 
+/** @typedef {{ left: number, top: number, right: number, bottom: number, width: number, height: number }} TipRect */
+
+/**
+ * Where the tooltip box goes (TooltipLayer; pure). Without `bounds` / `avoid` (every tooltip but the 特训敌人's): the
+ * `placement` side of the anchor, flipped when it leaves the viewport, centred on the anchor and clamped into the
+ * viewport (8 px margin) — the rule as it always was. With them (ui/matchEnemies.js): the area is the viewport narrowed
+ * to `bounds` (a dialog's box) wherever the box still fits in it; a side is taken only when the box fits there, and only
+ * when it covers none of `avoid` (the leader block's text) — else it slides sideways past what it covers while still
+ * over the anchor, else the other side is tried; then the same in the whole viewport (out of the dialog rather than
+ * over the leader); when no side is clean, the side that fits (or the roomier one) covering the least of `avoid`.
+ * @param {TipRect} r the anchor's box
+ * @param {{ width: number, height: number }} b the tooltip box's size
+ * @param {{ placement?: 'top'|'bottom', vw: number, vh: number, m?: number, bounds?: TipRect|null, avoid?: TipRect[] }} o
+ * @returns {{ top: number, left: number, place: 'top'|'bottom' }}
+ */
+export function placeTooltip(r, b, { placement = 'top', vw, vh, m = 8, bounds = null, avoid = [] }) {
+  if (!bounds && !avoid.length) {
+    let place = placement;
+    let top = place === 'bottom' ? r.bottom + m : r.top - b.height - m;
+    if (place === 'top' && top < m) { place = 'bottom'; top = r.bottom + m; }
+    if (place === 'bottom' && top + b.height > vh - m) { place = 'top'; top = Math.max(m, r.top - b.height - m); }
+    let left = r.left + r.width / 2 - b.width / 2;
+    left = Math.max(m, Math.min(vw - b.width - m, left));
+    top = Math.max(m, Math.min(vh - b.height - m, top));
+    return { top: Math.round(top), left: Math.round(left), place };
+  }
+  const screen = { left: m, top: m, right: vw - m, bottom: vh - m };
+  const area = { ...screen };
+  if (bounds) {
+    const l = Math.max(area.left, bounds.left + m), rr = Math.min(area.right, bounds.right - m);
+    if (rr - l >= b.width) { area.left = l; area.right = rr; }
+    const tp = Math.max(area.top, bounds.top + m), bt = Math.min(area.bottom, bounds.bottom - m);
+    if (bt - tp >= b.height) { area.top = tp; area.bottom = bt; }
+  }
+  const hits = (x, y) => avoid.filter((a) => x < a.right && x + b.width > a.left && y < a.bottom && y + b.height > a.top);
+  const covered = (x, y) => avoid.reduce((sum, a) => sum
+    + Math.max(0, Math.min(x + b.width, a.right) - Math.max(x, a.left)) * Math.max(0, Math.min(y + b.height, a.bottom) - Math.max(y, a.top)), 0);
+  const out = (top, left, place) => ({ top: Math.round(top), left: Math.round(left), place });
+  const yOf = (place) => (place === 'top' ? r.top - b.height - m : r.bottom + m);
+  const fitsIn = (A, place) => yOf(place) >= A.top - 0.5 && yOf(place) + b.height <= A.bottom + 0.5;
+  const centreIn = (A) => Math.max(A.left, Math.min(A.right - b.width, r.left + r.width / 2 - b.width / 2));
+  const sides = placement === 'bottom' ? ['bottom', 'top'] : ['top', 'bottom'];
+  const clean = (A) => {
+    for (const place of sides) {
+      if (!fitsIn(A, place)) continue;
+      const top = yOf(place);
+      const x0 = centreIn(A);
+      const hit = hits(x0, top);
+      if (!hit.length) return out(top, x0, place);
+      // past the right edge of what it covers, or before its left edge — still over the anchor
+      for (const x of [Math.max(...hit.map((a) => a.right)) + m, Math.min(...hit.map((a) => a.left)) - m - b.width]) {
+        if (x < A.left || x + b.width > A.right || x >= r.right || x + b.width <= r.left) continue;
+        if (!hits(x, top).length) return out(top, x, place);
+      }
+    }
+    return null;
+  };
+  const found = clean(area) || (bounds ? clean(screen) : null);
+  if (found) return found;
+  const open = sides.filter((place) => fitsIn(area, place));
+  const tries = open.length ? open : [r.top - area.top >= area.bottom - r.bottom ? 'top' : 'bottom'];
+  const x0 = centreIn(area);
+  const best = tries.map((place) => ({ place, top: Math.max(area.top, Math.min(area.bottom - b.height, yOf(place))) }))
+    .reduce((a, c) => (covered(x0, c.top) < covered(x0, a.top) ? c : a));
+  return out(best.top, x0, best.place);
+}
+
 /**
  * Hover/focus tooltip around its children. Content renders in <TooltipLayer/> (fixed, viewport-clamped).
- * `aside`: a second section in the same clamped, scrollable box; stacked on narrow screens.
- * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, class?: string, children?: any }} props
+ * `aside`: a second section in the same clamped, scrollable box; stacked on narrow screens. `tipClass`: a class on the
+ * tooltip box itself (`class` goes on the anchor around the children). Where it points (placeTooltip): by default the
+ * whole anchor; `anchor` — a selector of the element inside it the box points at instead (a row's icon); `within` — a
+ * selector of an ancestor whose box bounds it too (a dialog); `avoid(anchorEl)` — the elements it must not cover.
+ * @param {{ text: any, aside?: any, placement?: 'top'|'bottom', delay?: number, block?: boolean, tap?: boolean, id?: string, class?: string, tipClass?: string,
+ *   anchor?: string, within?: string, avoid?: (el: Element) => Iterable<Element>, children?: any }} props
  */
 const TOUCH_TIP_MS = 450;
 
-export function Tooltip({ text, aside = null, placement = 'top', delay = 120, block = false, class: cls, children }) {
+export function Tooltip({ text, aside = null, placement = 'top', delay = 120, block = false, tap = false, id, class: cls, tipClass = null,
+  anchor = null, within = null, avoid = null, children }) {
   const ref = useRef(null);
   const idRef = useRef(0);
   const timer = useRef(null);
@@ -558,16 +633,21 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
   textRef.current = text;
   asideRef.current = aside;
   if (!idRef.current) idRef.current = ++tipSeq;
-  const show = () => {
+  const show = (wait = delay) => {
     clearTimeout(timer.current);
     if (textRef.current == null || textRef.current === '') return;
     timer.current = setTimeout(() => {
       const el = ref.current;
       const content = textRef.current; // the text of the render current when the delay ends (a click may change it)
       if (!el || !el.isConnected || content == null || content === '') return;
-      setTip({ id: idRef.current, content, aside: asideRef.current, rect: el.getBoundingClientRect(), placement,
+      const at = (anchor && el.querySelector(anchor)) || el;
+      const box = within ? el.closest(within) : null;
+      let keepOff;
+      try { keepOff = avoid ? [...avoid(el)].map((x) => x.getBoundingClientRect()).filter((x) => x.width > 0 && x.height > 0) : []; } catch { keepOff = []; }
+      setTip({ id: idRef.current, tipId: id, tap, anchor: el, content, aside: asideRef.current, rect: at.getBoundingClientRect(), placement, tipClass,
+        bounds: box ? box.getBoundingClientRect() : null, avoid: keepOff,
         hold: () => clearTimeout(timer.current), hide });
-    }, delay);
+    }, wait);
   };
   const hide = () => {
     clearTimeout(timer.current);
@@ -575,12 +655,17 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
   };
   // A click hides the tooltip until the pointer leaves: the focus it gives the button must not bring it back
   // (with the text of the click's closure) over whatever the click opened. Keyboard focus still shows it.
-  // Touch: a tap never shows it (the compatibility mouseenter that follows a tap is ignored); a long press
+  // Default touch behaviour: a tap never shows it (compatibility mouseenter is ignored); a long press
   // (≥ 450 ms) does. Ordinary tips expire after release; compound lists stay open for scrolling until dismissed.
   const touchAt = useRef(0);
   const longTimer = useRef(null);
   const onPointerDown = (e) => {
     pressed.current = true;
+    if (tap) {
+      clearTimeout(timer.current);
+      if (e.pointerType !== 'mouse') touchAt.current = Date.now();
+      return;
+    }
     hide();
     clearTimeout(longTimer.current);
     if (e && e.pointerType && e.pointerType !== 'mouse') {
@@ -589,6 +674,7 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
     }
   };
   const onPointerEnd = (e) => {
+    if (tap) { pressed.current = false; return; }
     if (!e || e.pointerType === 'mouse') return;
     touchAt.current = Date.now();
     clearTimeout(longTimer.current);
@@ -596,6 +682,12 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
   };
   const onMouseEnter = () => { if (Date.now() - touchAt.current > 900) show(); };
   const onFocusIn = () => { if (!pressed.current && Date.now() - touchAt.current > 900) show(); };
+  const onClick = tap ? (e) => {
+    e.stopPropagation();
+    pressed.current = false;
+    if (tipState?.id === idRef.current) hide();
+    else show(0);
+  } : undefined;
   const onLeave = () => {
     pressed.current = false;
     if (Date.now() - touchAt.current > 900) {
@@ -612,7 +704,7 @@ export function Tooltip({ text, aside = null, placement = 'top', delay = 120, bl
   }, [text, aside]);
   return html`<span ref=${ref} class=${cx('tt-anchor', block && 'tt-anchor--block', cls)}
       onMouseEnter=${onMouseEnter} onMouseLeave=${onLeave} onFocusIn=${onFocusIn} onFocusOut=${onLeave} onPointerDown=${onPointerDown}
-      onPointerUp=${onPointerEnd} onPointerCancel=${onPointerEnd} onContextMenu=${(e) => { if (Date.now() - touchAt.current < 900) e.preventDefault(); }}>
+      onPointerUp=${onPointerEnd} onPointerCancel=${onPointerEnd} onClick=${onClick} onContextMenu=${(e) => { if (Date.now() - touchAt.current < 900) e.preventDefault(); }}>
     ${children}
   </span>`;
 }
@@ -625,8 +717,15 @@ export function TooltipLayer() {
   const [pos, setPos] = useState(null);
   useEffect(() => {
     tipListeners.add(force);
-    const outside = (e) => { if (tipState?.aside && !e.target?.closest?.('.tooltip')) tipState.hide?.(); };
-    const escape = (e) => { if (e.key === 'Escape') tipState?.hide?.(); };
+    const outside = (e) => {
+      if ((tipState?.aside || tipState?.tap) && !e.target?.closest?.('.tooltip')
+          && !(tipState.tap && tipState.anchor.contains(e.target))) tipState.hide?.();
+    };
+    const escape = (e) => {
+      if (e.key !== 'Escape') return;
+      if (tipState?.tap) { e.preventDefault(); e.stopPropagation(); }
+      tipState?.hide?.();
+    };
     document.addEventListener('pointerdown', outside);
     document.addEventListener('keydown', escape);
     window.addEventListener('resize', force);
@@ -635,26 +734,16 @@ export function TooltipLayer() {
   useLayoutEffect(() => {
     const el = boxRef.current;
     if (!tipState || !el) { if (pos) setPos(null); return; }
-    const r = tipState.rect;
     const b = el.getBoundingClientRect();
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const m = 8;
-    let place = tipState.placement;
-    let top = place === 'bottom' ? r.bottom + m : r.top - b.height - m;
-    if (place === 'top' && top < m) { place = 'bottom'; top = r.bottom + m; }
-    if (place === 'bottom' && top + b.height > vh - m) { place = 'top'; top = Math.max(m, r.top - b.height - m); }
-    let left = r.left + r.width / 2 - b.width / 2;
-    left = Math.max(m, Math.min(vw - b.width - m, left));
-    top = Math.max(m, Math.min(vh - b.height - m, top));
-    const next = { top: Math.round(top), left: Math.round(left), place, id: tipState.id };
+    const next = { ...placeTooltip(tipState.rect, b, { placement: tipState.placement, vw: window.innerWidth, vh: window.innerHeight,
+      bounds: tipState.bounds, avoid: tipState.avoid || [] }), id: tipState.id };
     if (!pos || pos.top !== next.top || pos.left !== next.left || pos.id !== next.id || pos.place !== next.place) setPos(next);
   });
   if (!tipState) return null;
   const ready = pos && pos.id === tipState.id;
   const hasAside = tipState.aside != null && tipState.aside !== '';
   const off = 'top:-9999px;left:-9999px';
-  return html`<div ref=${boxRef} class=${cx('tooltip', hasAside && 'tooltip--compound', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
+  return html`<div ref=${boxRef} id=${tipState.tipId} class=${cx('tooltip', tipState.tipClass, hasAside && 'tooltip--compound', ready && 'is-shown', ready && `tooltip--${pos.place}`)} role="tooltip"
     tabIndex=${hasAside ? 0 : undefined} onMouseEnter=${() => tipState?.hold?.()} onMouseLeave=${() => tipState?.hide?.()}
     onFocusIn=${() => tipState?.hold?.()} onPointerDown=${() => tipState?.hold?.()}
     onFocusOut=${(e) => { if (!e.currentTarget.contains(e.relatedTarget)) tipState?.hide?.(); }}
@@ -877,19 +966,60 @@ export function DifficultyTag({ difficulty, size = 'md', class: cls, code }) {
   </span>`;
 }
 
+let measureCanvas = null;
+
 /**
- * Bracketed text input.
- * @param {{ label?: any, micro?: string, value: string, onInput: (v: string) => void, onEnter?: Function,
- *   placeholder?: string, maxLength?: number, transform?: (v: string) => string, autoFocus?: boolean,
- *   disabled?: boolean, size?: 'md'|'lg'|'code', icon?: string, class?: string, inputRef?: any, name?: string }} props
+ * Whether `text` fits an input's inner width in the input's own ::placeholder font (TextField `placeholderShort`); the
+ * letter spacing is added per character, as a canvas measures without it. Where the pseudo-element's style cannot be
+ * read the input's own font stands in; where nothing can be measured, it fits (the whole placeholder stays).
+ * @param {HTMLInputElement} input
+ * @param {string} text
  */
-export function TextField({ label, micro, value, onInput, onEnter, placeholder, maxLength, transform, autoFocus, disabled, size = 'md', icon, class: cls, inputRef, name, hint, invalid }) {
+export function placeholderFits(input, text) {
+  try {
+    let st = null;
+    try { st = getComputedStyle(input, '::placeholder'); } catch { st = null; }
+    if (!st?.fontSize) st = getComputedStyle(input);
+    measureCanvas ||= document.createElement('canvas');
+    const ctx = measureCanvas.getContext('2d');
+    if (!ctx) return true;
+    ctx.font = `${st.fontStyle} ${st.fontWeight} ${st.fontSize} ${st.fontFamily}`;
+    const width = ctx.measureText(text).width + (parseFloat(st.letterSpacing) || 0) * [...text].length;
+    const cs = getComputedStyle(input);
+    return width <= input.clientWidth - parseFloat(cs.paddingLeft || '0') - parseFloat(cs.paddingRight || '0');
+  } catch { return true; }
+}
+
+/**
+ * Bracketed text input. `ariaLabel` names a field without a visible label; `modalFocus` marks the input as the one a
+ * surrounding `Modal` focuses when it opens (`data-autofocus`); `placeholderShort` stands in for `placeholder` while the
+ * whole one does not fit the field (placeholderFits — checked as the field resizes, e.g. a window or 文字大小 change
+ * that moves a neighbour, and as web fonts arrive).
+ * @param {{ label?: any, micro?: string, value: string, onInput: (v: string) => void, onEnter?: Function,
+ *   placeholder?: string, placeholderShort?: string, maxLength?: number, transform?: (v: string) => string, autoFocus?: boolean,
+ *   disabled?: boolean, size?: 'md'|'lg'|'code'|string, icon?: string, class?: string, inputRef?: any, name?: string,
+ *   ariaLabel?: string, modalFocus?: boolean }} props
+ */
+export function TextField({ label, micro, value, onInput, onEnter, placeholder, placeholderShort, maxLength, transform, autoFocus, disabled, size = 'md', icon, class: cls, inputRef, name, hint, invalid, ariaLabel, modalFocus = false }) {
   const localRef = useRef(null);
   const ref = inputRef || localRef;
   const composing = useRef(false);
   useEffect(() => {
     if (autoFocus) setTimeout(() => ref.current?.focus(), 60);
   }, []);
+  const [phShort, setPhShort] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!placeholderShort || !placeholder || !el) { setPhShort(false); return undefined; }
+    let live = true;
+    const check = () => { if (live) setPhShort(!placeholderFits(el, placeholder)); };
+    check();
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(check) : null;
+    ro?.observe(el);
+    const fonts = globalThis.document?.fonts;
+    fonts?.addEventListener?.('loadingdone', check);
+    return () => { live = false; ro?.disconnect(); fonts?.removeEventListener?.('loadingdone', check); };
+  }, [placeholder, placeholderShort]);
   const handle = (e) => {
     let v = e.currentTarget.value;
     if (!composing.current && transform) {
@@ -903,8 +1033,9 @@ export function TextField({ label, micro, value, onInput, onEnter, placeholder, 
     ${label || micro ? html`<span class="field__label">${label}${micro ? html`<span class="micro">${micro}</span>` : null}</span>` : null}
     <span class="field__box brackets">
       ${icon ? html`<${Icon} name=${icon} class="field__icon" />` : null}
-      <input id=${id} ref=${ref} class="field__input" name=${name} value=${value} placeholder=${placeholder}
+      <input id=${id} ref=${ref} class="field__input" name=${name} value=${value} placeholder=${phShort && placeholderShort ? placeholderShort : placeholder}
         maxLength=${maxLength} disabled=${disabled} autocomplete="off" spellcheck=${false}
+        aria-label=${ariaLabel} data-autofocus=${modalFocus ? '' : undefined}
         onInput=${handle}
         oncompositionstart=${() => { composing.current = true; }}
         oncompositionend=${(e) => { composing.current = false; handle(e); }}

@@ -52,11 +52,14 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
       }
     }
   }
-  // (fork) + 2 each for 丰川祥子 (char_4182_oblvns): her swing and S3 volley pools (tools/assets/plan.mjs NOTE_SFX_CHARS)
-  assert.equal(refs, 954); // 0.3.1 release fetch-assets: + 琳琅诗怀雅 S3, 刻俄柏, 风丸 attacks and 松果's hit (their official pools)
-  // + the four pools above; (fork) + 3: 丰川祥子's S1 / S2 / S3 sting banks (plan.mjs STING_BANKS); + 12: her note
-  // born / hit banks (plan.mjs NOTE_SFX_LOOKS: 5 born + 7 hit; attack and S1 have no born bank)
-  assert.equal(Object.keys(pools).length, 958);
+  // 0.3.1 release fetch-assets: 952 (+ 琳琅诗怀雅 S3, 刻俄柏, 风丸 attacks and 松果's hit); 0.3.2 (#848, DESIGN §35.38): + the 26
+  // plain mode-bank slots on 19 operators, and 弑君者 / 莱伊 / 望 / 灰毫's normal attack from their mode-0 banks
+  // The four-version art union adds nine references to installed sounds and 46 official pool records.
+  // (fork) + 2 references for 丰川祥子 (char_4182_oblvns): her swing and S3 volley pools (tools/assets/plan.mjs
+  // NOTE_SFX_CHARS); + 17 pools: those two, her S1 / S2 / S3 sting banks (plan.mjs STING_BANKS) and her note born / hit
+  // banks (plan.mjs NOTE_SFX_LOOKS: 5 born + 7 hit; attack and S1 have no born bank)
+  assert.equal(refs, 989);
+  assert.equal(Object.keys(pools).length, 1030);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
