@@ -1319,7 +1319,8 @@ export function chargeKeys(plan) {
  *               client creates it on the ability's target, the index writes it as a start row); else on the view
  *               `extra.id` names (the fx's point without one)
  *   hold        how long a looping reached effect stays: a blackboard key of our skill record (seconds), 'fx' — the
- *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, else `holdS`
+ *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
+ *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
@@ -1369,12 +1370,14 @@ export const FX_BINDINGS = Object.freeze({
   // 焰影苇草 S2 (a 'strike' from a fireball's carrier every cooldown: id = the enemy, src = the carrier): the fireball
   // projectile_chr_reed2_fire's hit reed2_skill_02_hit on the enemy
   skchr_reed2_2: Object.freeze({ strike: binding({ owner: 'skill', projectile: 'projectile_chr_reed2_fire', holdS: 2, during: true }) }),
-  // 蕾缪安 S3: a 'lock' (id = the enemy, src = her, hold) is the aim projectile on it (projectile_chr_lemuen_s3_aim: its
-  // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held for the lock [ASSUMED 1.5 s without
-  // one]; a 'bombard' (id = her, its point) is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. The
-  // falling shell ('bombardShell': the attack projectile's flight, not flown here) stays procedural
+  // 蕾缪安 S3: a 'lock' (id = the enemy, src = her) is the aim projectile on it (projectile_chr_lemuen_s3_aim: its
+  // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held as the lock mark is (hold 'lock': on
+  // the enemy, at its last spot once it is gone — the shell still falls there —, until that shell's 'bombard'; the
+  // fx's `hold` is a flag: read as a duration of 1 s, the crosshair went before its shell); a 'bombard' (id = her, its point)
+  // is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. The falling shell ('bombardShell': the attack
+  // projectile's flight, not flown here) stays procedural
   skchr_lemuen_3: Object.freeze({
-    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02'], hold: 'fx', holdS: 1.5, during: true }),
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02'], hold: 'lock', during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
   }),
   // 泡泡 S2 (chess_char_2_08-bubble.js): she makes no attack; every damage instance she takes strikes back at its source
