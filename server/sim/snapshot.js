@@ -96,7 +96,11 @@ export function flagsOf(u) {
   if (f.cold) bits |= UF.COLD;
   if (f.sleep) bits |= UF.SLEEP;
   if (u.motion === 'FLY') bits |= UF.FLYING;
-  if (u.side === 'ally' && f.liftoff) bits |= UF.LIFTOFF;
+  if (u.side === 'ally' && f.liftoff) {
+    bits |= UF.LIFTOFF;
+    // a talent's 起飞 (凯尔希·思衡托, 司霆惊蛰) is a standing hover; a skill's (蒂比, 予愿安洁莉娜) flies up
+    if (!u.buffs.some((b) => b.flags?.liftoff && !b.tags?.includes('talent'))) bits |= UF.LIFTOFF_LOW;
+  }
   return bits;
 }
 
