@@ -242,7 +242,7 @@ export function checkAssets() {
 export const LOCAL_ART_FALLBACK = '3D 棋盘改用 2D，部分官方界面图标、灼热/炽焰源石虫模型和多数自选召唤物模型用替代样式';
 /** Where a machine without the client gets the local art (docs/DEPLOY.md §6「本地客户端素材」); shown by doctor (setup's row,
  * printed on every start by scripts/launch.mjs, only points to that section). */
-export const LOCAL_ART_COPY_HINT = '没有客户端的服务器可以从同一版本的整合包（完整包）复制 public/assets/local 和 data/local-assets.json';
+export const LOCAL_ART_COPY_HINT = '没有客户端的服务器：运行 npm run assets:release-local，从同一版本的整合包（完整包）下载 public/assets/local 和 data/local-*.json（也可以手动复制）';
 
 const LOCAL_FX = path.join(ROOT, 'data', 'local-fx.json');
 /** Scene groups a full extract writes: one `scene/<stageId>` per battlefield, plus the shared `scene/tex`. */
@@ -561,7 +561,7 @@ export function sceneInstallPlan(o = {}) {
     return { run: false, state: 'warn', detail: '客户端缺少卫戍协议资源，战场场景未提取。3D 棋盘继续用金属地块' };
   }
   if (!o.client) {
-    return { run: false, state: 'skip', detail: '没有本机客户端，不能提取战场场景（贴图仍取自客户端）。3D 棋盘用金属地块；完整包已带场景时可复制 public/assets/local 和 data/local-assets.json' };
+    return { run: false, state: 'skip', detail: `没有本机客户端，不能提取战场场景（贴图仍取自客户端）。3D 棋盘用金属地块；${LOCAL_ART_COPY_HINT}` };
   }
   if (!o.python) {
     return { run: false, state: 'warn', detail: '没有 Python 3.8+，战场场景未提取。3D 棋盘继续用金属地块' };
