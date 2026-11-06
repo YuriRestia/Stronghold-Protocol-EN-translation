@@ -534,6 +534,8 @@ describe('extract.py: the fx run is opt-in', { skip: !PY && 'no python3' }, () =
     assert.equal(fx.indexVersion, 3);
     assert.equal(fx.meshVersion, 2);
     assert.equal(fx.optIn, true);
+    assert.equal(fx.textureFormat, 'webp');
+    assert.deepEqual(fx.textureFormats, ['webp', 'png']);
     for (const k of ['common_hit_01', 'buff_stun', 'buff_autochess_frozen', 'inside_attack_01_trail_front', 'ifrit_skill_03_buff', 'enemy_tidmag_attack_01_hit']) {
       assert.ok(fx.sample.keys.includes(k), k);
     }
@@ -828,12 +830,17 @@ describe('extracted effects (when fx was extracted on this machine)', { skip: !f
     for (const f of Object.values(index.skins.char_1038_whitw2?.points?.SpecialPoint0 || {})) assert.equal(f.followRot, true, '荒芜拉普兰德\'s wolves turn with their bones');
   });
 
-  test('projectiles of an index written by the fixed extractor: `main` is the projectile class\'s flying effect, a chain\'s line is `link`', { skip: !Object.values(index?.projectiles || {}).some((p) => p.link) && 'an index written before the fix (the runtime reads the behaviours: flight.js projectileParts)' }, () => {
+  test('projectiles of an index written by the fixed extractor: `main` is the projectile class\'s flying effect, a chain\'s line is `link`', { skip: !Object.values(index?.projectiles || {}).some((p) => p.link) && 'an index written before the fix (the runtime reads the behaviours: flight.js projectileParts)' }, (t) => {
+    let legacy = 0;
     for (const [k, p] of Object.entries(index.projectiles)) {
       const own = (p.behaviours || []).find((b) => /Projectile$/.test(b.class) && b.fields && '_mainEffect' in b.fields);
-      if (own) assert.equal(p.main, (own.fields._mainEffect || '').toLowerCase() || null, `${k}: main`);
       const link = (p.behaviours || []).find((b) => /^(ChainLightningEffectBehaviour|HarpoonRenderer)$/.test(b.class) && b.fields?._mainEffect);
+      // --fx-add-only keeps earlier records byte-identical. A mixed index may contain old line records alongside
+      // newly extracted ones; flight.js reads their behaviours. Do not mistake those old records for new output.
+      if (p.rolesVersion !== 1 && !Object.hasOwn(p, 'link')) { legacy++; continue; }
+      if (own) assert.equal(p.main, (own.fields._mainEffect || '').toLowerCase() || null, `${k}: main`);
       if (link) assert.equal(p.link, link.fields._mainEffect.toLowerCase(), `${k}: link`);
     }
+    if (legacy) t.diagnostic(`${legacy} retained legacy projectile records use the runtime behaviour fallback`);
   });
 });

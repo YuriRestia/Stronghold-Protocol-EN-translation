@@ -37,6 +37,11 @@ export class MatchPlatform {
   handle(playerId, msg) {
     const ps = this.players.get(playerId) || this.spectators.get(playerId);
     if (!ps || ps.isBot || ps.left) return fail(ERR.NOT_IN_ROOM);
+    return this._handleSeatIntent(ps, msg);
+  }
+
+  /** Shared human / external-AI semantic validation and dispatch. C2S schema: net.js / the adapter. */
+  _handleSeatIntent(ps, msg) {
     // a spectator seat only watches (the platform routes nothing else of it)
     if (ps.spectator && (!msg || msg.t !== 'g.watch')) {
       // g.test shares the host's rate bucket (applyTestCommand audits SPECTATOR after the stamp).
@@ -66,6 +71,11 @@ export class MatchPlatform {
     try { this.flush(); } catch (e) { this.reportError('flush', e); }
     if (res && typeof res === 'object' && res.error) return res;
     return OK;
+  }
+
+  /** Host-only asynchronous input, journalled by testTrace; never a C2S message. */
+  externalReply(id, reply, failed) {
+    this.guard(() => this.externalAI?.receive(id, reply, failed));
   }
 
   /**
@@ -182,6 +192,8 @@ export class MatchPlatform {
     this.guard(() => {
       ps.left = true;
       this.cancelSetupVote();
+      // A seat that is gone for good takes its reroll cooldown with it (it cannot ask again in this match anyway).
+      this._rerollStartAt.delete(playerId);
       ps.connected = false;
       ps.autoplay = false;
       this.watchers.delete(playerId);
@@ -255,6 +267,7 @@ export class MatchPlatform {
   dispose() {
     if (this.disposed) return;
     this.disposed = true;
+    this.externalAI?.close();
     if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } }
     this._stopClientCombat();
     this._cancelRehearsal();

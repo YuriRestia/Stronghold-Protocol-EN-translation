@@ -330,7 +330,7 @@ export class SkillRuntime {
   gainSp(amount, reason = 'time', silent = false, { ignoreLock = false } = {}) {
     if (this.noSkill || this.kind === 'passive' || !(amount > 0)) return 0;
     if (this.active && this.isTimed && reason !== 'init' && !ignoreLock) return 0;
-    // 阻回 (the operators' 凋亡 burst, damage.js): "停止并阻止任意形式的技力回复" — no SP of any kind (time, attack, hurt, gifts)
+    // 阻回 (the operators' 凋亡 burst, attack/element.js): "停止并阻止任意形式的技力回复" — no SP of any kind (time, attack, hurt, gifts)
     if (reason !== 'init' && !ignoreLock && this.unit.s.flags.noSp) return 0;
     let cost = this.spCost;
     if (this.charges >= this.maxCharges && this.sp >= cost) return 0;
@@ -393,6 +393,15 @@ export class SkillRuntime {
       if (rate > 0) this.gainSp(rate * dt, 'time');
     }
     if (!u.canAct) return;
+    // PRTS 卫戍协议/帮助, removed 2026-03-14: 斩业星熊 S3 closes after half its duration
+    // when an enemy is in its running range. Use the manual close so the kit enters 临死模式.
+    if (this.rule === 'AUTO_STOP' && this.active && this.timeLeft < this.duration / 2 && !this._opCooling() && !u.s.flags.silence) {
+      if (this.battle.rangeChanged(u)) this.battle._refreshRange(u);
+      if (this.battle.anyEnemyInKeys(u.rangeKeys, u)) {
+        this.opReadyAt = this.battle.time + AUTO_OP_COOLDOWN;
+        this.end('manual');
+      }
+    }
     // a DEFAULT cast bound to an ally condition (塞雷娅 S1) replaces the attack about to be made: should the condition
     // have failed before that attack (the ally healed meanwhile), the cast is withdrawn — no heal mode stays behind
     if (this.pending && this.triggerAllies && this.rule !== 'SKILL_RANGE' && !this._allyTriggerSatisfied()) {

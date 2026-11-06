@@ -14,12 +14,14 @@
 // Styles: css/screens/sweep.css (sw-*).
 
 import { useMemo, useState } from '../../vendor/hooks.module.js';
-import { html, Icon, Modal, roman } from '../ui/components.js';
+import { html, Button, Icon, Modal, roman } from '../ui/components.js';
 import { Img, RichText, GIcon } from '../ui/gameComponents.js';
 import { bondIconUrl, bandIconUrl, enemyIconUrl, factionIconUrl, chessAvatarUrl } from '../ui/assetUrls.js';
 import { attackInterval, fmtNum } from '../ui/gameLogic.js';
 import { abilityRows } from '../ui/abilityLines.js';
 import { data, useData } from '../data.js';
+import { contentSet, pageVersion, retryContentSet } from '../content.js';
+import { DEFAULT_VERSION, shownVersion } from '../versions.js';
 import { useStore, loadPref, savePref } from '../store.js';
 import { loadoutStore } from '../ui/loadoutSync.js';
 import { openGuide, guidePages } from '../ui/guide.js';
@@ -357,7 +359,7 @@ function EnemyCodex({ open, m, onClose }) {
     && (!needle || String(e.name || '').toLowerCase().includes(needle) || String(e.handbookIndex || '').toLowerCase().includes(needle)));
   const cur = list.find((e) => e.key === sel) || list[0] || null;
   const counts = Object.fromEntries(RANK_TABS.map(([k]) => [k, pool.filter((e) => k === 'all' || e.rank === k).length]));
-  return html`<${Modal} open=${true} onClose=${onClose} class="sw-codex" closeOnBackdrop=${false}>
+  return html`<${Modal} open=${true} onClose=${onClose} class="sw-codex" veilClass="sw-veil" closeOnBackdrop=${false}>
     <div class="sw-codex__top">
       <button type="button" class="sw-back" onClick=${onClose} aria-label=${t('返回')} title=${t('返回 (Esc)')}><${Icon} name="chevronLeft" /></button>
       <span class="sw-codex__title">${t('敌方图鉴')}</span>
@@ -393,8 +395,15 @@ function handbookPage() {
  * The report overlay. @param {{ onClose: () => void }} props
  */
 export function SweepReport({ onClose }) {
-  const ready = useData('bonds', 'bands', 'bosses', 'factions', 'enemies', 'chess', 'assets');
+  const filesReady = useData('bonds', 'bands', 'bosses', 'factions', 'enemies', 'chess', 'assets');
   useData('local');
+  const version = useStore(shownVersion);
+  const content = useStore((s) => s, Object.is, contentSet);
+  // useData can already be ready for the PREVIOUS version: content.js keeps that set until the new one checks.
+  // Subscribe to the requested version's progress too, and never present the previous set as its report.
+  const failed = content.kind === 'version' && content.version === version && content.status === 'failed';
+  const ready = filesReady && pageVersion() === version
+    && (version === DEFAULT_VERSION || (content.version === version && content.status === 'ready'));
   const m = data.get('assets');
   const notOwned = useStore((s) => s.notOwned, Object.is, loadoutStore);
   const [tab, setTabState] = useState(() => { const v = loadPref(TAB_PREF, 'bonds'); return TABS.some((x) => x.id === v) ? v : 'bonds'; });
@@ -414,7 +423,10 @@ export function SweepReport({ onClose }) {
 
   let left = null;
   let right;
-  if (!ready) {
+  if (failed) {
+    right = html`<div class="sw-loading" role="alert"><p>${t('版本数据校验失败')}</p>
+      <${Button} onClick=${retryContentSet}>${t('重试')}<//></div>`;
+  } else if (!ready) {
     right = html`<p class="sw-loading">${t('正在读取报告…')}</p>`;
   } else if (tab === 'bonds') {
     left = bond ? html`<${BondPanel} key=${bond.bondId} bond=${bond} m=${m} notOwned=${notOwned} />` : null;
@@ -429,7 +441,7 @@ export function SweepReport({ onClose }) {
 
   // the codex is the report's sibling, not its child: the report's body lifts its children over the backdrop
   // (position: relative), which would pull a nested Modal out of its fixed layer
-  return html`<${Modal} open=${true} onClose=${onClose} class="sw" closeOnBackdrop=${false}>
+  return html`<${Modal} open=${true} onClose=${onClose} class="sw" veilClass="sw-veil" closeOnBackdrop=${false}>
     <div class="sw__bg" aria-hidden="true"><i class="sw__mist"></i><i class="sw__lines"></i></div>
     <header class="sw-top">
       <div class="sw-top__left">

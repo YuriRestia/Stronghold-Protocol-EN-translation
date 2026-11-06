@@ -397,6 +397,11 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 
 /* ---- 机变 overlay ---- */
 .spov { position: absolute; inset: 0 0 0 2.8rem; z-index: 20; }
+/* the corner's buttons stay left of the veil (§35.51: in one row at 1280–1920 px 「玩法说明」 sat half and 「全屏」 wholly under it
+   — the HUD is below the overlay): they wrap upwards within the 2.8rem column, as a phone's always do (devices.css) */
+@media (min-width: 768px) {
+  .gm.has-sp .gm__corner { flex-wrap: wrap-reverse; align-content: flex-start; max-width: calc(2.8rem - .24rem - .1rem); }
+}
 .gm.has-sp .gm__bonds, .gm.has-sp .gm__effects { opacity: 0; pointer-events: none; transition: opacity var(--t-med); }
 .spov__veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 10, 10, .58) 0, rgba(8, 10, 10, .8) .5rem, rgba(8, 10, 10, .82)); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); border-left: 1px solid var(--line); }
 .spov__inner { position: absolute; left: .3rem; right: .5rem; top: 1.14rem; bottom: .5rem; display: flex; flex-direction: column; gap: .16rem; animation: screen-in var(--t-slow) var(--ease-out); }
@@ -415,6 +420,30 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov__desc { grid-row: 1; grid-column: 3; align-self: end; font-size: calc(.26 * var(--t)); font-weight: 700; color: #d6fbef; letter-spacing: .04em; text-shadow: none; }
 .spov__sub { grid-row: 2; grid-column: 3; align-self: start; font-size: calc(.15 * var(--t)); color: #a2aaa8; }
 .spov__turn { display: flex; align-items: center; gap: .24rem; }
+/* the header's text keeps each language's breaking rules, as the room and the hub do (§35.51 review: on phones the
+   narrower column moved Korean 「처|치」 and Japanese 「カ|ード」 breaks around) */
+.spov__head:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
+.spov__head:lang(ja) { line-break: strict; }
+/* … and so do the cards' texts (§35.56: Korean 「이 존재|할 경우」, 「오퍼레이터|일 경우」 broke inside words on every phone
+   size); a word longer than its line still breaks */
+.spov .rt:lang(ko), .spov .rt-note:lang(ko), .spov .rt-vup:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
+.spov .rt:lang(ja), .spov .rt-note:lang(ja), .spov .rt-vup:lang(ja) { line-break: strict; }
+/* short landscape phones (≤ 520 px tall): the timing line goes under the title, across the whole title block, and the
+   title is capped, so neither runs under 「当前轮到你决策」 (§35.56: English 「If no choice is made before…」 over 「Your turn to
+   decide」 at 中 – 特大 on phones up to 844×390, both variants; at 特大 「Equipment Supply」 left the description one word a
+   line). Each cap grows a pixel or two a step above 中 (--t-step). [ASSUMED] the caps */
+@media (max-height: 520px) {
+  .spov__titles { flex: 1 1 auto; min-width: 0; }
+  .spov__sub { grid-row: 3; grid-column: 1 / -1; margin-top: .04rem; }
+  .spov__title { font-size: min(calc(.56 * var(--t)), calc(26px + 2 * var(--t-step))); }
+  .spov__desc { font-size: min(calc(.26 * var(--t)), calc(15px + var(--t-step))); }
+  .spov__sub { font-size: min(calc(.15 * var(--t)), calc(10px + var(--t-step) / 2)); }
+  /* at 大 / 特大 the description goes under the name too (beside it, English 「Obtain equipment…」 took one word a line
+     and ran under 「Your turn to decide」) */
+  :root[data-text="lg"] .spov__bar, :root[data-text="xl"] .spov__bar { display: none; }
+  :root[data-text="lg"] .spov__name, :root[data-text="xl"] .spov__name { grid-row: 1; }
+  :root[data-text="lg"] .spov__desc, :root[data-text="xl"] .spov__desc { grid-row: 2; grid-column: 1 / -1; align-self: start; }
+}
 .spov__turntxt { display: flex; align-items: center; gap: .08rem; font-size: calc(.24 * var(--t)); font-weight: 700; color: var(--text-md); }
 .spov__turntxt .icon { width: .26rem; height: .26rem; }
 .spov__turntxt.is-mine { color: var(--mint-400); text-shadow: 0 0 .16rem rgba(23, 249, 183, .45); animation: blink 1.2s ease-in-out infinite; }
@@ -797,3 +826,7 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
   .offerov .spov__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .offerov .spcard__icon { width: .6rem; height: .6rem; }
+
+/* #746: optional selected-unit bond timers; labels wrap at narrow widths and large text sizes. */
+.dbond-times__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .08rem .2rem; margin: .1rem 0; font-size: calc(.24 * var(--t)); }
+.dbond-times__row > span { min-width: 0; overflow-wrap: anywhere; }

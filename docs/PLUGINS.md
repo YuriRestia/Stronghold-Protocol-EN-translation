@@ -4,7 +4,7 @@ A **plugin** is a folder a server owner puts into `plugins/`: a manifest, `plugi
 it names. The interface calls them 「插件」, never 「模组」 (that word is the operators' modules). The design and its
 phases are DESIGN §32 (`docs/history/0.3.0.md`); this file is the reference.
 
-**Status — 0.3.1: content sets, scripts, sandbox execution and the Forge-pack additions (§34).** The server finds, checks and lists plugins and names its content
+**Status — 0.3.3: content sets, scripts, sandbox execution and the Forge-pack additions (§34).** The server finds, checks and lists plugins and names its content
 with a hash (P0); a room's host switches the server's cosmetic plugins on for the whole room, a player switches them on
 for themself (§9) — art, models and audio only: the battles stay the original ones and a room's `cs` stays the vanilla
 one. Language packs (`docs/PACKS.md`) are the plugin class `lang` and work as before. Data plugins (§10) build
@@ -331,13 +331,13 @@ also takes away that entry's local-client model (`spineLocal`, which the client 
 that model: a model write the browser leaves out, or whose file fails to load, leaves the local model too. The split
 battle music `audio.bgm.combatAlts` (the mode's own 开战 tracks, 骑士之日 / 无畏者, fixed per round) is not something a
 plugin changes: the client plays it instead of `combat` in the rounds it covers, so a plugin's `combat` is heard only
-where no such track plays. Writing an
-entry the installation has needs the permission `assets.override`, a new entry `assets.add`. `theme` is the allowlisted variables of §9.1, applied on this player's page only.
+where no such track plays. A player's own lobby music (大厅背景与音乐, `ui/lobbyMedia.js`) outranks a plugin's
+`audio.bgm.lobby` in that player's browser while it is switched on. Writing an
 entry the installation has needs the permission `assets.override`, a new entry `assets.add` — the decision the permission
 is: a write to a path whose entry the installation's manifest already has is an override, whatever it writes there, so an
 operator the manifest has counts as one even when the write only adds a skin under `chars[<charId>].skins` or a field the
-record did not have (`illust`); a new operator is an `assets.add`. `theme` is not applied yet
-(a warning).
+record did not have (`illust`); a new operator is an `assets.add`. `theme` is the allowlisted variables of §9.1, applied
+on this player's page only.
 
 **立绘 and the skins of one operator.** `illust` is the full illustration (立绘), the picture a detail view shows. The
 committed `data/assets.json` of this version carries no `illust` and no `skins` yet, so a plugin that writes one adds that field to the
@@ -389,11 +389,21 @@ server-side install route at all (upstream #652 closed the one that let any clie
 rewrite the shared `data/assets.json`). What a player then picks is a `{ [charId]: skinKey }` map, keyed by the
 **operator** — the container the key is written under — sent as `room.skins` (accepted in any phase: an appearance
 changes nothing a battle does, so it never enters `cs`) and published to teammates in `Match.publicView().players[]`,
-which is how a co-op partner's piece draws your skin. `public/js/assets.js` resolves it (`spineEntry`, `avatarUrl`,
+which is how a co-op partner's piece draws your skin, and, while the room waits, in `room.state.seats[].skins` (the
+名片干员 seat cards; SKINS.md). `public/js/assets.js` resolves it (`spineEntry`, `avatarUrl`,
 `portraitUrl`, `illustUrl` take `opts.skin`) and falls back to the operator's own model and pictures for a skin (or a
 skin's layer) that is not there, so a plugin that replaces only a model still draws a face. 设置「显示其他玩家的皮肤」
-(default on) is a pure client preference: off, this browser draws every OTHER seat's piece on the operator's own model
+(default on) is a pure client preference: off, this browser draws every OTHER seat's piece on the operator's own model and pictures
 while keeping its own player's — their screen keeps showing their skin.
+
+**Picture-only outfits (B6, 0.3.2).** Maintainer decision, 2026-10-18 option A: a skin with an avatar and/or
+portrait but no Spine is wearable. The picker marks it 「仅更换头像与立绘」; all owner-specific cards, panels and
+result rows use its pictures, while battle models use the effective operator's default Front / Back. Missing pictures
+fall back independently to that operator's normal / elite art. #686's per-seat choices, other-player visibility,
+stand-ins and DIY bodies stay in force; model outfits retain their model and image fallback behavior.
+[ASSUMED] The existing `avatarE2`, `portraitE2` and `illust` fields count too; metadata alone is not wearable.
+Official `skin_table.charSkins` separates operator identity, avatar, portrait, illustration and battle skin; the
+missing-plugin policy is the maintainer's choice. See [SKINS.md](SKINS.md#picture-only-outfits-032-b6) and §35.4.
 
 **Spine models and `plugin.lock.json`.** A model's clip roles, durations, events, hit times and bounds come from the
 skeleton itself: `node tools/plugin.mjs pack <dir>` parses it the way `tools/fetch-assets.mjs` parses the game's
@@ -895,6 +905,13 @@ the briefing, the result and the HUD, and left out of the statistics overview un
 cosmetic plugins only still plays the vanilla `cs` and counts as the original game (§9). DESIGN §32.6 keeps the
 decisions, the measurements and the open points.
 
+Gameplay plugins (content, script and trusted) work only in rooms of 第二期下半, the default version. On a server that
+enables the official versions (`SP_VERSIONS`, DESIGN §35.23), a room of another version refuses them: room.setPlugins
+and a version proposal answer VERSION_UNSUPPORTED (`roomSets.resolve({ gameplay: false })`); room.create of such a room
+leaves the server's default gameplay plugins off (warned once in the log), or answers VERSION_UNSUPPORTED when
+`plugins/config.json` fixes every room's plugins (`rooms: "fixed"`); the 插件 panel disables their switches. Cosmetic plugins carry over to every version; a proposal whose cosmetic plugins do not
+resolve on the target version is refused as well.
+
 | File | Role |
 |---|---|
 | `server/plugins/roomSets.js` | what a room's plugin list makes: closed over requirements, ordered, split into the visual set and the content set, the policy's refusals |
@@ -1129,7 +1146,9 @@ export default function setup(sp) {
 by battle, never in a module variable. Child hosts and browsers run setup in the composition's
 resolved load order. While composing a set, a disposable child probes each plugin's registrations (5 s default ceiling per
 uncached plugin (`SP_SCRIPT_PROBE_MS`) [ASSUMED]). The parent combines the registration reports in load order and rejects conflicts.
-The probe uses SIGKILL on timeout; spawnSync waits for the child to exit before composition returns a failure.
+The probe uses SIGKILL on timeout; spawnSync waits for the child to exit before composition returns a failure, whose
+message names the ceiling and the variable (`script setup exceeded 5000 ms; child terminated (SIGKILL); a slow or busy
+server can raise SP_SCRIPT_PROBE_MS`, GitHub #847).
 Results, including failures, are cached per registry by plugin id + lock hash + actual descriptor hash + normalized
 settings (256 recent results [ASSUMED]); changing settings or executable bytes requires another probe. This also
 prevents a stale or missing lock in an explicit CLI test from reusing another source's result.
@@ -1165,6 +1184,18 @@ are unrestricted and never labelled sandboxable; their sim/meta entries still us
 
 Geometry helpers read no battle state and incur no engine-action charge; their caller still uses the callback budget.
 `sortEnemyTargets` remains unavailable: it mutates its candidate array, uses live Unit references and calls Battle.remainingDistance.
+
+**SDK hit and damage helpers (0.3.2 settlement, DESIGN §35.32).** `kit.onHitBy(battle, unit, fn)` (damage `unit` deals to
+an enemy) and `kit.onHitOn(battle, unit, fn)` (damage dealt to `unit`) listen on `hit`: once per HP-damage instance, before
+the calculation, output and injury stages — `ctx.dmg.amount` is the instance's input, no DEF / RES, barrier, shield or
+dodge has acted yet, and a handler may still set `ctx.dmg.cancel`. A 流失 (`dealHPLose`) and a gauge fill (`'element'`)
+never reach `hit`. `kit.onDamagedOn(battle, unit, fn)` listens on `damaged`, after the HP step: `ctx.amount` is the damage
+dealt (on a special-HP target the computed damage, while its HP drops by one point); a hit a barrier absorbs whole reports
+0; a dodged one reports nothing; a 流失 and a gauge fill report too (`isHpLoss(ctx.dmg)`, `ctx.type === 'element'`); a
+无来源 instance has `source: null` and names its `credit`. `kit.byEnemyAttack(ctx)` (= tier1 `byEnemyDamage`) is true for
+damage from an enemy source, never a 流失, a gauge fill or a 无来源 instance; since 0.3.2 a `'counter'` / `'reflect'`
+tag no longer excludes it (the official counters filter by source, type and route), so a counter written with it must
+guard its own output (SIM §5 re-entrancy rule). `test/plugins/sdk-hooks-settlement.test.js` pins this.
 
 **Budget.** Script callbacks and engine actions use the same per-battle/per-plugin counter as DSL (default 8000).
 Setup installs, hooks, timer callbacks and skill callbacks count. Engine actions (damage, buffs, spawning, DP, etc.)
@@ -1216,7 +1247,8 @@ same registered extensions in the set's child; script sets always use a process 
 entries run at startup in one separate child, never the HTTP process. `api.http.route('/x/<id>/…', fn)` registers an
 exact path whose handler receives a frozen `{ method, path, url }` and returns a JSON value. No live request/socket is
 passed. `api.lobby.on(name, fn)` receives frozen copies for `roomCreated`, `playerJoined`, `playerLeft`, `matchStarted`,
-`roomClosed`. `api.health.extend(value)` replaces that plugin's JSON under `/healthz.plugins[id]`. Routes never leave
+`roomClosed`; their `room` is the room.state the members get, so on a server that enables official versions it carries
+`version` and, while a version vote is open, `versionVote` (DESIGN §35.23; absent in 第二期下半 rooms). `api.health.extend(value)` replaces that plugin's JSON under `/healthz.plugins[id]`. Routes never leave
 `/x/<id>/`: both the child API and parent IPC receiver check the loaded plugin id, reject `..`, `%2e` in any
 letter case and backslashes, and dispatch by the same raw path used by the HTTP handler (query excluded). A nonmatch
 continues to the original health/static handler. `health.extend` accepts at most 16 KiB of serialized UTF-8 JSON per

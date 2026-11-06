@@ -41,7 +41,7 @@
 
 import {
   num, buffsOf, bandRecord, isOp, onField, isElite, tierOf, unitBonds, activeBondIds, playerOps, passiveBuff, fxOn,
-  matchBands, gainLayers, alliesAround, N4, baseChessId, isGroundOp, directMods,
+  matchBands, gainLayers, alliesAround, N4, baseChessId, isGroundOp, directMods, isVersionData, isFirstPeriod,
 } from '../support/index.js';
 import { weaknessRetype, addShieldLayer, PRIO_RESPAWN, reviveNow } from '../items/battle.js';
 import { spawnMapChar } from '../tokens.js';
@@ -105,6 +105,11 @@ const BY_KEY = {
     const mul = Math.max(0, 1 + num(p.respawn_time, 0));
     if (mul === 1) return;
     const key = keyOf(bandId);
+    if (isFirstPeriod()) {
+      // The historical text has one reduction, without "每次部署后".
+      for (const u of playerOps(battle, ps.playerId)) passiveBuff(battle, u, key, { redeployMul: mul });
+      return;
+    }
     battle.on('deploy', (c) => {
       const u = c.unit;
       if (!isOp(u) || u.ownerId !== ps.playerId) return;
@@ -173,8 +178,15 @@ const BY_KEY = {
     battle.on('hit', (c) => {
       const s = c.source;
       if (!isOp(s) || s.ownerId !== ps.playerId || !c.target || c.target.side !== 'enemy') return;
+      if (isVersionData() && s.def?.position !== 'RANGED') return;
       weaknessRetype(c.dmg, s, c.target);
     }, { priority: 5 });
+  },
+
+  // Season one: the four strategies' extra clause applies only in 标准模拟.
+  act1autochess_band31_buff(battle, ps, p, bandId) {
+    if (battle.data.raw.config?.modes?.[battle.opts.modeId]?.difficulty !== 'FUNNY') return;
+    for (const u of playerOps(battle, ps.playerId)) passiveBuff(battle, u, `${keyOf(bandId)}:standard`, directMods({ atk: num(p.atk), def: num(p.def), hp: num(p.max_hp) }));
   },
 
   // 夕 墨色真颜
@@ -259,9 +271,14 @@ function installMapChars(battle) {
 /** Band buff keys with a battle part (tests / tooling). */
 export const BATTLE_BUFF_KEYS = Object.freeze([...Object.keys(BY_KEY), 'auto_chess_change_map']);
 
+/** Map-wide support: Touch's characters or historical 森蚺's device aliases. */
+export function isMapCharBuff(b) {
+  return b.key === 'auto_chess_change_map' && Object.keys(b.p || {}).some((k) => (k.startsWith('char_') || k.startsWith('trap_')) && k.includes('#'));
+}
+
 /** Does this band have a battle part? */
 export function hasBattlePart(bandId) {
-  return buffsOf(bandRecord(bandId)).some((b) => (b.bbKey && BY_KEY[b.bbKey]) || b.key === 'auto_chess_change_map');
+  return buffsOf(bandRecord(bandId)).some((b) => (b.bbKey && BY_KEY[b.bbKey]) || isMapCharBuff(b));
 }
 
 export function install(battle) {

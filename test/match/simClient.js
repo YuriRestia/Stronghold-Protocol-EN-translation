@@ -230,12 +230,12 @@ export function attachWsSimClient(tc, opts = {}) {
  * build every candidate with the shared sim (a factory per candidate, so the run builds them as it reaches them — what
  * the server's own job does too), run them with the shared comparison (server/sim/rehearsal.js) and return the winning
  * index.
- * @param {{ playerId: string, cap: number, specs: object[] }} task
+ * @param {{ playerId: string, cap: number, limits?: { stage: number, tickBudget: number }, specs: object[] }} task
  * @param {any} ds DataSource of the match (the same data the server simulates with)
  * @param {{ BattleClass?: Function }} [opts]
  */
 export function simulateRehearsal(task, ds, { BattleClass } = {}) {
-  const run = new RehearsalRun(task.specs.map((spec) => () => createBattleFromSpec(spec, ds, { BattleClass, quiet: true, recordEvents: false })), task.playerId, task.cap);
+  const run = new RehearsalRun(task.specs.map((spec) => () => createBattleFromSpec(spec, ds, { BattleClass, quiet: true, recordEvents: false })), task.playerId, task.cap, task.limits || {});
   run.run();
   return run.score.index;
 }

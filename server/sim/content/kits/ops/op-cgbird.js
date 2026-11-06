@@ -29,8 +29,8 @@
 // - S1 治疗强化·γ型 (MANUAL, 30 s, data DEFAULT — heal skill): ATK +atk.
 // - S2 法术护盾 (AUTO, 2 charges, data DEFAULT — a "next heal" waits for her heal, as 闪灵's S2): "下次治疗使所有目标获得一个
 //   持续N秒的屏障，屏障能吸收相当于夜莺攻击力X%的法术伤害，同时使目标法术抗性+Y" — every target of that heal (3 / 4) gets a
-//   屏障 of atk_scale × her ATK for duration s that absorbs arts damage only (buff shieldType 'arts', damage.js
-//   absorbShields) and RES +magic_resistance (flat) while one of her barriers lasts (op-shining.js grantBarrier: each
+//   屏障 of atk_scale × her ATK for duration s that absorbs arts damage only (buff shieldType 'arts', attack/effects.js
+//   injuryEffects) and RES +magic_resistance (flat) while one of her barriers lasts (op-shining.js grantBarrier: each
 //   barrier its own timer, older ones first, the RES bonus not stacking) [ASSUMED: the bonus goes with the last barrier].
 // - S3 圣域 (MANUAL, 60 s, data ACTIVE_RANGE on its y-4 — the owner's rule: an injured ally inside it): range y-4 while it
 //   runs, ATK +atk; every ally in that range RES +magic_resistance (×(1 + v): "法术抗性+105%") and dodgeArts prob

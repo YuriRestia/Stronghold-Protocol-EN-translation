@@ -121,6 +121,14 @@ test('the game screen hands the mode-disabled set to the shop bar, the detail ca
   assert.match(src, /<\$\{BondPopup\}[\s\S]*?off=\$\{offBonds\.has\(bondPop\.bondId\)\}/);
 });
 
+test('the bond popup closes on outside presses, while its own region and toggle triggers handle themselves', () => {
+  const src = read('public/js/screens/game.js');
+  assert.match(src, /const screen = hudElRef\.current\?\.parentElement/);
+  assert.match(src, /if \(!live\.current\.bondOpen \|\| e\.target\?\.closest\?\.\('\.bpop, \.bslot, \.dbond'\)\) return;\s+setBondOpen\(null\)/);
+  assert.match(src, /screen\.addEventListener\('pointerdown', onDown, true\)/);
+  assert.match(src, /screen\.removeEventListener\('pointerdown', onDown, true\)/);
+});
+
 test('hidden-layer bonds show activation and tiers without a stack badge or layer count', () => {
   for (const bondId of ['maniShip', 'emptyShip', 'soloShip', 'suntShip']) {
     const entry = { bondId, active: true, count: 2, tier: 1, layers: 99 };

@@ -88,7 +88,7 @@ server/
     grid.js                field grid, tile queries, passability, official 4-direction SPFA flow field + line-of-sight smoothing, road-over-floor preference only where it crosses fewer floor tiles (§21.15); DEPLOY_REFUSED_TILES (深水区, §21.3)
     units.js               Unit / Operator / Enemy / Token classes, stat aggregation
     buffs.js               Buff model, status catalogue (stun, freeze, cold, sleep, slow, fragile, stealth, …)
-    damage.js              damage & heal pipeline, element gauges
+    attack.js              settlement API: damage, HP loss, element damage, healing (attack/: the ordered pipeline, element gauges)
     targeting.js           target selection helpers, range tests, priorities
     body.js                hit areas of huge enemies: the one helper behind every range test on enemies (§3, §19.4)
     projectiles.js         projectile flight/impact

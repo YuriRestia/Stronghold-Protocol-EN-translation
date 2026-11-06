@@ -24,7 +24,7 @@
 //   "嵯峨不攻击重伤单位": the kit trait `skipEnemy` (targeting.js canTargetEnemy) — no normal attack, block target or
 //   trigger target of hers is a 重伤 enemy. SOL-X stage 2+ "对生命值低于一半的单位造成的伤害提升15%" (hidden hp_ratio /
 //   damage_scale): ×damage_scale on every damage of hers whose target is below hp_ratio before it.
-//   A shared-pool leader (boss rounds: its HP is the pool's, damage.js runs no `fatal` step for it) is outside 劝善
+//   A shared-pool leader (boss rounds: its HP is the pool's, attack/health.js runs no `fatal` step for it) is outside 劝善
 //   [ASSUMED: her damage there is ordinary].
 // - T2 清明 "生命值低于40%时，仅一次获得70%物理闪避和每秒回复5%的最大生命，持续15秒" (full potential: 6 %, 17 s): once per deployment (PRTS 备注), the first
 //   time a damage leaves her below hp_ratio of her max HP: dodgePhys prob and hpRegenRatio for `duration` s — the

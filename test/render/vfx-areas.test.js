@@ -4,8 +4,8 @@
 // 假想敌：蚀裂's cloud by its kind alone, 鼠王's 沙狱 by its id), an aura's tick its talent loops stand for (深溟巢涌者's
 // pulse and its hit on the units in it, 鼎沸's boil and its debuff loop), the operators' area bindings and covers (号角 S1,
 // 浊心斯卡蒂 S3, 银灰 S2, 琴柳, 珊比, 假日威龙陈), a bound area's point on the ground and its reached effects played once,
-// an attack-rooted enemy skill fired by its kit, a ground-placed effect's root at its point — and the procedural looks
-// kept with the layer off or the prefabs not installed.
+// an attack-rooted enemy skill fired by its kit, 盐风主教昆图斯's 'tide' under its 【大潮】 window (ENEMY_FX_COVER, 0.3.2), a
+// ground-placed effect's root at its point — and the procedural looks kept with the layer off or the prefabs not installed.
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,6 +16,7 @@ import { FxWiring } from '../../public/js/render/vfx/wiring.js';
 import { AURA_HOLD_S } from '../../public/js/render/vfx/skillfx.js';
 import {
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, auraTargets, enemyBindingKeys, modeLoopKeys, bindingEffects, FX_BINDINGS, FX_COVER, coverOf,
+  ENEMY_FX_COVER, enemyCoverOf,
 } from '../../public/js/render/vfx/skills.js';
 import { compileEffect, Effect } from '../../public/js/render/vfx/effect.js';
 
@@ -27,7 +28,8 @@ const LOOPING = new Set(['ymgtop_spin', 'enemy_nhpbr_attack_range', 'enemy_nhtan
   'enemy_cjhot_debuff', 'horn_skill_01_hit_02_buff', 'skadi2_skill_03_buff', 'svrash_skill_02_buff', 'tinman_skill_01_range_01', 'sleach_skill_02_flag_01',
   'sleach_skill_02_ground_01', 'sleach_skill_03_flag_01', 'sleach_skill_03_range_loop_01', 'thumpy_skill_03_range_01']);
 const KEYS = [...LOOPING, 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
-  'tank_shell_hit', 'sleach_skill_03_range_start_01', 'chen2_skill_02_range_01'];
+  'tank_shell_hit', 'sleach_skill_03_range_start_01', 'chen2_skill_02_range_01', 'enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range',
+  'enemy_dslily_skill_01_start'];
 const GROUND = new Set(['enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'mousek_skill_02_range']);
 
 function makeIndex({ installed = KEYS } = {}) {
@@ -69,6 +71,17 @@ function makeIndex({ installed = KEYS } = {}) {
         talents: { RotateEffect: { nodes: [{ node: 'Modes/M1/Body/Talents/RotateEffect', class: 'Talent', ability: 'PassiveBuffAbility', mode: 'M1', when: 'passive' }], uses: [
           { role: 'loop', keys: ['ymgtop_spin'], from: 'PassiveBuffAbility._buffs → template ymgtop_m1_t[rotate_effect]', event: 'ON_BUFF_TRIGGER', action: 'CreateBuff', on: 'owner', node: 'Modes/M1/Body/Talents/RotateEffect', mode: 'M1', life: { type: 'INFINITY', tick: 0.1 } },
         ] } } }),
+      // 盐风主教昆图斯: 【大潮】 (TidewaterG2, a MeleeAttack-rooted skill) — its cast rows (the attack's cast / range) are the
+      // wave; 【崩坍】's own cast row (the real rows: fx/index.json units.enemy_1521_dslily.skills)
+      enemy_1521_dslily: enemy({ skills: {
+        tidewaterg2: { rootClass: 'EnemySkill', rootAbility: 'MeleeAttack', projectiles: [], mode: null, uses: [
+          { role: 'start', keys: ['enemy_dslily_skill_02_start_l'], from: 'UberEffectEmitter._castEffects', node: 'TidewaterG2', ability: 'MeleeAttack', startEvent: 'ON_CAST_START', oneshot: true, list: 'cast' },
+          { role: 'range', keys: ['enemy_dslily_skill_02_range'], from: 'UberEffectEmitter._castEffects', node: 'TidewaterG2', ability: 'MeleeAttack', startEvent: 'ON_CAST_START', oneshot: true, list: 'cast' },
+        ] },
+        rockfallg2: { rootClass: 'EnemySkill', rootAbility: 'MeleeAttack', projectiles: [], mode: null, uses: [
+          { role: 'start', keys: ['enemy_dslily_skill_01_start'], from: 'UberEffectEmitter._castEffects', node: 'RockfallG2', ability: 'MeleeAttack', startEvent: 'ON_CAST_START', oneshot: true, list: 'cast' },
+        ] },
+      } }),
       char_4039_horn: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_horn_1: { rootClass: 'ReplacementSkillFixed', mode: null, projectiles: ['projectile_chr_horn_s1_light'], uses: [] } } },
       char_1012_skadi2: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_skadi2_3: { rootClass: 'CastSkill', mode: null, projectiles: [], uses: [aura('skadi2_skill_03_buff')] } } },
       char_172_svrash: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_svrash_2: { rootClass: 'ToggleSkill', mode: null, projectiles: [], uses: [
@@ -100,6 +113,7 @@ const RECS = {
   enemy_10044_wintun: { skills: [{ prefabKey: 'BlockedBoom', bb: {} }] },
   enemy_1509_mousek: { skills: [{ prefabKey: 'SandStorm', bb: { duration: 15 } }] },
   enemy_1040_bombd: { skills: [{ prefabKey: 'boomb', bb: {} }] },
+  enemy_1521_dslily: { skills: [{ prefabKey: 'TidewaterG2', bb: {} }, { prefabKey: 'RockfallG2', bb: {} }] },
   enemy_10116_ymgtop: { talents: { bb: { 'EndRotate.rotate_duration': 5 } }, skills: [{ prefabKey: 'SwitchModeTrigger', bb: {} }] },
   char_4039_horn: opRec('skchr_horn_1'),
   char_1012_skadi2: opRec('skchr_skadi2_3', { duration: 20 }),
@@ -238,6 +252,44 @@ describe('an enemy\'s zone under the official layer', () => {
     miss.w.death(war3);
     assert.equal(miss.w.simFx('zone', 20, 9, zone({ kind: 'pollution' })), true, 'the tank prefab is missing: the death pool still plays');
     assert.deepEqual(miss.spawned.filter((k) => k.startsWith('enemy_nh')), ['enemy_nhpbr_attack_range']);
+  });
+
+  test("盐风主教昆图斯 【大潮】: its window's official wave stands for the kit's 'tide' (ENEMY_FX_COVER); not another skill's window, not uninstalled or off", async () => {
+    assert.ok(enemyCoverOf('enemy_1521_dslily', 'TidewaterG2', 'tide') && enemyCoverOf('enemy_1521_dslily', 'tidewater', 'tide'));
+    assert.ok(!enemyCoverOf('enemy_1521_dslily', 'rockfallg2', 'tide') && !enemyCoverOf('enemy_9033_acdeer', 'tidewaterg2', 'tide'));
+    assert.deepEqual(Object.keys(ENEMY_FX_COVER.enemy_1521_dslily), ['tidewater', 'tidewaterg1', 'tidewaterg2']);
+    const { w, view, frame, spawned } = await setup();
+    const boss = view(1, 'enemy_1521_dslily', 10, 5);
+    frame();
+    assert.equal(w.simFx('tide', 10, 5, { id: 1 }), false, 'no window open: the procedural tide');
+    w.enemyCast(boss, 0);   // the sim's 'cast' — the kit's 'tide' follows in the same tick
+    assert.equal(w.simFx('tide', 10, 5, { id: 1 }), true, "the tide's window: no generic zone over the wave");
+    frame(); frame();   // no 'atk' (the skill took the attack's turn): its attack's cast / range rows play at the next sync
+    assert.deepEqual(spawned.filter((k) => k.startsWith('enemy_dslily')), ['enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range']);
+    const rock = await setup();
+    const b2 = rock.view(1, 'enemy_1521_dslily', 10, 5);
+    rock.frame();
+    rock.w.enemyCast(b2, 1);
+    assert.equal(rock.w.simFx('tide', 10, 5, { id: 1 }), false, "崩坍's window: not the tide's");
+    const lite = await setup({ installed: KEYS.filter((k) => !k.startsWith('enemy_dslily_skill_02')) });
+    const b3 = lite.view(1, 'enemy_1521_dslily', 10, 5);
+    lite.frame();
+    lite.w.enemyCast(b3, 0);
+    assert.equal(lite.w.simFx('tide', 10, 5, { id: 1 }), false, "the wave's prefabs not installed: the procedural tide");
+    // the window open with its attack's rows planned, but those rows no longer installed: the install check decides
+    const gone = await setup();
+    const b5 = gone.view(1, 'enemy_1521_dslily', 10, 5);
+    gone.frame();
+    gone.w.enemyCast(b5, 0);
+    const win = gone.w.skills.units.get(1)?.ewin;
+    assert.ok(win && !win.draws && win.plan?.attacks?.[0], 'the window is open, has not drawn, and plans its attack');
+    for (const k of ['enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range']) delete gone.index.prefabs[k];
+    assert.equal(gone.w.simFx('tide', 10, 5, { id: 1 }), false, "the tide's window with its rows uninstalled: the procedural tide");
+    const off = await setup({ active: false });
+    const b4 = off.view(1, 'enemy_1521_dslily', 10, 5);
+    off.frame();
+    off.w.enemyCast(b4, 0);
+    assert.equal(off.w.simFx('tide', 10, 5, { id: 1 }), false, '官方特效 off: the procedural tide');
   });
 
   test("假想敌：蚀裂's cloud lands on its killer after its death (no id, no frame): its kind is its own", async () => {

@@ -75,7 +75,10 @@
 //       (4) a cast-flash fx tagged with the skill on the owner while its official skill loops play;
 //       (5) FX_COVER (skills.js): a kind the skill's official effects stand for, while the skill lasts (_lasts: on, its
 //           activation frame, COVER_AFTER_S after its end, or a binding of the owner still held) and its plan's
-//           effects are installed — the client shows the skill's own effects there and no such cue (audit R11);
+//           effects are installed — the client shows the skill's own effects there and no such cue (audit R11); for an
+//           enemy, ENEMY_FX_COVER by unit and prefabKey while that skill's window is open and shows its effects
+//           (_ewinDraws; 盐风主教昆图斯's 【大潮】: its attack's cast / range rows are the wave, no generic 'tide' zone over
+//           them; 0.3.2);
 //       (6) a summon's arrival ('summon' archetypes; a token's arrival burst) on a unit whose official birth effect
 //           FxWiring.deploy drew in that frame (the burst only with the unit's own birth effect): it would repeat it.
 //     FX_BINDINGS entries marked `during` bind only while the skill lasts; an entry with owner 'skill' (the fx names no
@@ -87,7 +90,7 @@
 
 import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
-  eventNum, FX_BINDINGS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf,
+  eventNum, FX_BINDINGS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
@@ -888,6 +891,9 @@ export class SkillFx {
       this.tloops.clear();
       for (const t of this.aloops.values()) t.h.stop();
       this.aloops.clear();
+      // the held crosshairs too (PR #862 review): their handles died with the effects, a later lock starts afresh
+      for (const L of this.locks) this._endLock(L);
+      this.locks.length = 0;
       this.tier = tier;
       this.wasActive = active;
     }
@@ -1059,13 +1065,28 @@ export class SkillFx {
     return drew;
   }
 
-  /** (5) FX_COVER: the fx's owner (`src`, else `id`) has a skill that covers this kind, lasting, with its effects installed. */
+  /**
+   * (5) FX_COVER: the fx's owner (`src`, else `id`) has a skill that covers this kind, lasting, with its effects installed
+   * — or, an enemy, a skill window open that shows its effects (_ewinDraws) and covers it (ENEMY_FX_COVER).
+   */
   _covered(kind, extra) {
     for (const field of ['src', 'id']) {
       const U = extra[field] != null ? this.units.get(extra[field]) : null;
       if (U && U.v && coverOf(U.skillId, kind) && this._lasts(U) && this._planDrawn(U)) return true;
+      if (U && U.v && U.ewin && enemyCoverOf(U.key, U.ewin.plan?.skillId, kind) && this._ewinDraws(U.ewin)) return true;
     }
     return false;
+  }
+
+  /**
+   * An enemy's skill window shows the skill's official effects: its start / range / loop rows drew, or — an
+   * attack-rooted skill (盐风主教昆图斯's 【大潮】 / 【崩坍】) — its attack's cast / range rows are installed: they play at the
+   * next sync (sync: `win.shown`), or with the enemy's attack in the window.
+   */
+  _ewinDraws(win) {
+    if (win.draws) return true;
+    const a = win.plan?.attacks?.[0];
+    return !!a && [...a.cast, ...a.range].some((e) => this.w.ofx.lib.has(e.key));
   }
 
   /**

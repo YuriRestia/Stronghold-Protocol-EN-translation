@@ -282,6 +282,25 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     assert.equal(on(b), 0, 'no shell will come');
   });
 
+  test('蕾缪安 S3: a tier switch clears the held locks (PR #862 review); a later lock starts afresh', async () => {
+    const { w, ofx, view, frame, handles } = await setup();
+    const lem = view(1, 'char_4193_lemuen', 3);
+    view(2, 'enemy_1', 5);
+    frame();
+    w.skill(lem, true);
+    w.simFx('lock', 5, 10, { id: 2, src: 1, hold: 1 });
+    frame();
+    const crosshairs = () => handles.filter((h) => CROSSHAIR.includes(h.key) && h.alive).length;
+    assert.equal(crosshairs(), 2);
+    ofx.tier = 'lite';
+    frame();
+    assert.equal(crosshairs(), 0, 'the switch stops them and forgets the locks');
+    assert.equal(w.skills.locks.length, 0);
+    w.simFx('lock', 5, 10, { id: 2, src: 1, hold: 1 });
+    frame();
+    assert.equal(crosshairs(), 2, 'a new lock after the switch shows');
+  });
+
   test('the table: owner fields, keys, the owner-less kinds, preloading', () => {
     const idx = makeIndex();
     assert.equal(FX_BINDINGS.skchr_tinman_1.zone.hold, 'fx');

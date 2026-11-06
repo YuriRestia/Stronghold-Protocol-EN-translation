@@ -38,6 +38,7 @@ import { performAttack, attackCountdown } from '../ai.js';
 import { sortEnemyTargets } from '../targeting.js';
 import { DIR_VEC, normDir, oppositeDir } from '../dir.js';
 import { hypot } from '../detmath.js';
+import { matchBands, bandRecord, buffsOf } from './support/index.js';
 
 const num = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : (typeof v === 'string' && v.trim() !== '' && Number.isFinite(+v) ? +v : d));
 /** ASPD blackboard values: a fraction (|v| < 1, e.g. −0.6 / −0.05) is ×100 ASPD, otherwise flat (+20). */
@@ -526,6 +527,13 @@ export function install(battle) {
     crateOff: new Set(),
     ticking: false,
   };
+  // Historical 森蚺 grants a turret on every field, including a standalone BattleSpec with no prep dispatcher.
+  for (const ps of battle.players || []) for (const id of matchBands(battle, ps.playerId)) {
+    for (const b of buffsOf(bandRecord(id))) {
+      if (b.key !== 'auto_chess_change_map') continue;
+      for (const [alias, on] of Object.entries(b.p)) if (alias.startsWith('trap_') && alias.includes('#')) st.global.set(alias, truthy(on));
+    }
+  }
   STATE.set(battle, st);
   const devices = battle.stage?.devices || [];
   buildTerrain(battle, st); // grid, stage `special` and overrides are known at construction

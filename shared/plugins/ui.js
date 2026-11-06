@@ -376,7 +376,7 @@ export function subsetPrivate(priv) {
 const EVENT_KEYS = ['t', 'type', 'kind', 'amount', 'dmg', 'damage', 'sourceId', 'targetId', 'unitId', 'defId', 'id'];
 
 /**
- * Numeric slots of a sim tuple. damage.js writes `['dmg', target.id, amount, kind]` and
+ * Numeric slots of a sim tuple. server/sim/attack/health.js writes `['dmg', target.id, amount, kind]` and
  * `['heal', target.id, amount]` — the first number is the unit id, not the HP. `atk` has no amount
  * (source id, target id, kind). Anything not listed keeps the tag only: a `spawn` payload is a
  * unitInfo object and can carry loadout / diy, so it is never copied.

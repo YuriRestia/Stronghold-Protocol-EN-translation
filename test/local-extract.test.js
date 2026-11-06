@@ -82,12 +82,24 @@ print(json.dumps({
     'dyn/battle/prefabs/skins/character/token_10002_kalts_mon3tr/token_10002_kalts_mon3tr_boc#6.prefab',
     'dyn/battle/prefabs/[uc]tokens/token_10000_silent_healrb.prefab', None]],
   'only': [e.spine_ids(o, 'spine/token', ids) for o in ([], ['spine'], ['spine/token'], ['spine/token/token_b'], ['spine/enemy'], ['map'])],
+  'jobs': {p: [j[1] for j in e.select_jobs([p])] for p in ['enemy', 'token', 'fx', 'common', 'spine/enemy', 'spine/token', 'ui/outer/some_sprite']},
+  'short': [e.spine_ids(o, 'spine/token', ids) for o in (['enemy'], ['token'], ['nope'])],
+  'shortEnemy': [e.spine_ids(o, 'spine/enemy', ['enemy_a']) for o in (['enemy'], ['spine/enemy'])],
   'pick': [e.pick_spine_node(nodes)[0], e.pick_spine_node([('Spine', True, {}), ('X', True, {})])[0],
            e.pick_spine_node([('Front', False, {}), ('Other', True, {})])[0], e.pick_spine_node([('A', False, {})])[0], e.pick_spine_node([])],
   'pages': e.atlas_pages('\\ntoken_x.png\\nsize: 64,64\\nformat: RGBA8888\\nC_Body\\n  rotate: false\\n  xy: 2, 2\\n\\ntoken_x2.png\\nsize: 32,32\\nC_Leg\\n  xy: 0, 0\\n'),
 }))`);
     assert.deepEqual(out.ids, ['token_10009_weedy_cannon', 'token_10002_kalts_mon3tr', null, null, null]);
     assert.deepEqual(out.only, [['token_a', 'token_b'], ['token_a', 'token_b'], ['token_a', 'token_b'], ['token_b'], [], []]);
+    // the short form the usage line documents: `--only enemy` selects the enemy list and `--only token` this one, not
+    // an empty selection (a prefix naming nothing stays empty: neither list nor job)
+    assert.deepEqual(out.short, [[], ['token_a', 'token_b'], []]);
+    assert.deepEqual(out.jobs.enemy, out.jobs['spine/enemy']);
+    assert.deepEqual(out.jobs.token, out.jobs['spine/token']);
+    assert.ok(out.jobs['ui/outer/some_sprite'].includes('ui/outer'));
+    assert.ok(!out.jobs.fx.includes('map/fx'));
+    assert.ok(!out.jobs.common.includes('ui/common') && !out.jobs.common.includes('map/common'));
+    assert.deepEqual(out.shortEnemy, [['enemy_a'], ['enemy_a']]);
     assert.deepEqual(out.pick, ['Front', 'Spine', 'Other', 'A', null]);
     assert.deepEqual(out.pages, ['token_x.png', 'token_x2.png']);
   });
@@ -126,18 +138,17 @@ print(json.dumps({'nodes': [[n, a, r['m_PathID']] for n, a, r in nodes], 'pick':
     assert.equal(out.pick, 41, 'the Front skeleton (the fetched tokens use Front / Spine too)');
   });
 
-  test('merge_alpha: the [alpha] texture as A, else the page\'s own alpha; RGB clamped to A (premultiplied input), multiplied for straight input', { skip: spawnSync(PY, ['-c', 'import PIL']).status !== 0 && 'no Pillow' }, () => {
+  test('merge_alpha: the [alpha] texture as A, else the page\'s own alpha; the main RGB stays straight (never clamped to A)', { skip: spawnSync(PY, ['-c', 'import PIL']).status !== 0 && 'no Pillow' }, () => {
     const out = py(`
 from PIL import Image
 rgb = Image.new('RGB', (2, 1)); rgb.putdata([(200, 100, 50), (90, 90, 90)])
 alpha = Image.new('RGB', (2, 1)); alpha.putdata([(128, 128, 128), (255, 255, 255)])
 rgba = Image.new('RGBA', (2, 1)); rgba.putdata([(60, 200, 10, 100), (0, 0, 0, 0)])
 print(json.dumps({'split': list(e.merge_alpha(rgb, alpha).getdata()), 'own': list(e.merge_alpha(rgba, None).getdata()),
-  'opaque': list(e.merge_alpha(rgb, None).getdata()), 'straight': list(e.merge_alpha(rgba, None, True).getdata())}))`);
-    assert.deepEqual(out.split, [[128, 100, 50, 128], [90, 90, 90, 255]], 'A from the [alpha] texture, RGB ≤ A');
-    assert.deepEqual(out.own, [[60, 100, 10, 100], [0, 0, 0, 0]], 'an RGBA page keeps its alpha (the newer tokens: _UseAlphaTex 0)');
+  'opaque': list(e.merge_alpha(rgb, None).getdata())}))`);
+    assert.deepEqual(out.split, [[200, 100, 50, 128], [90, 90, 90, 255]], 'A from the [alpha] texture, the main RGB as it is');
+    assert.deepEqual(out.own, [[60, 200, 10, 100], [0, 0, 0, 0]], 'an RGBA page keeps its own alpha and RGB (the newer tokens: _UseAlphaTex 0)');
     assert.deepEqual(out.opaque, [[200, 100, 50, 255], [90, 90, 90, 255]], 'no alpha anywhere: opaque');
-    assert.deepEqual(out.straight, [[23, 78, 3, 100], [0, 0, 0, 0]], '_StraightAlphaInput 1: RGB × A / 255 (Pillow truncates)');
   });
 
   test('material_info: textures by name with tiling, floats, colours, sorted keywords; unresolvable refs → null', () => {

@@ -1,6 +1,6 @@
 // The shared bot layout rehearsal run (server/sim/rehearsal.js): the candidate comparison the server and the host's
 // browser both use (DESIGN §14). It is pure ESM with no clock of its own — the caller passes the wall-clock slice —, so
-// this file covers the scoring order (fewest counted leaks, then most kills, then the earlier candidate), the early stop,
+// this file covers the scoring order (fewest counted leaks, then most leader damage, then most kills, then the earlier candidate), the early stop,
 // the tick cap, the candidate boundaries a slice stops on and the candidates that cannot be built. The delegation that
 // hands one such run to a browser is test/match/rehearsal-delegate.test.js.
 import { test } from 'node:test';
@@ -47,6 +47,21 @@ test('the shared comparison scores leaks, then kills, then the earlier candidate
   assert.deepEqual(built2, [0], 'the candidate was built once, not once per slice');
   assert.equal(across.score.leaks, 0, 'the candidate was scored by the slice that finished it');
   assert.equal(across.score.score, 9);
+});
+
+test('leader damage breaks a leak tie, and one counted leak still beats any leader damage', () => {
+  const res = (leaks, killed, bossDamage) => ({ perPlayer: { p: { killed, bossDamage, total: 9, leaked: Array.from({ length: leaks }, () => ({ enemyKey: 'e', counted: true })) } } });
+  const battle = (r) => () => ({ finished: true, result: () => r, forceEnd() {}, step() {} });
+  const run = new RehearsalRun([battle(res(0, 9, 10)), battle(res(0, 1, 50)), battle(res(1, 99, 1e7))], 'p', 10);
+  run.run();
+  assert.equal(run.score.index, 1, 'same leaks: more leader damage wins, even with fewer kills');
+  assert.equal(run.score.boss, 50);
+  assert.equal(run.score.leaks, 0);
+  assert.equal(run.score.score, 1 - 0.01, 'the stored score stays the old leaks/kills/position number');
+  const leaks = new RehearsalRun([battle(res(0, 1, 10)), battle(res(1, 1, 1e9))], 'p', 10);
+  leaks.run();
+  assert.equal(leaks.score.index, 0, 'one counted leak loses to a clean layout');
+  assert.equal(leaks.score.score, 1);
 });
 
 test('a candidate the slice never steps cannot run the whole list past the caller\'s budget', () => {

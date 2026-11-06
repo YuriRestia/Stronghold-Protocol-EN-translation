@@ -35,7 +35,7 @@
 //   deploy.js        deploy, kill, retreat, removal bookkeeping, redeploys, leaks
 //   blocking.js      contact blocking, block release, the 隐匿 switch-off after a block
 //   status.js        buffs, catalogue statuses (抵抗, 寒冷 → 冻结, 诱导, 恐惧 …), "同名效果取最高", the buff tick
-//   combat.js        damage / heal / HP loss (damage.js pipeline), projectiles, forced attacks
+//   combat.js        damage / heal / HP loss (the attack.js pipeline), projectiles, forced attacks
 //   queries.js       enemy tile index, unit queries (tiles, grid, radius, selectability), players, range rebuilds
 //   summons.js       tokens (summons), devices, stage devices
 //   tiles.js         obstacles, relocation / 【移动】, knocked-out bodies, reserved tiles, tactical points, ground paths

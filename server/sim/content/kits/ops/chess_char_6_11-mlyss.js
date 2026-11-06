@@ -6,9 +6,21 @@ import {
   pullToward,
 } from '../shared/tier6.js';
 import { holdProtect } from '../shared/tier1.js';
+import { isVersionData } from '../../tokens.js';
 
-/** 莱茵生命 (character_table groupId "rhine") members of this season's pool (checked against the official table). */
+/**
+ * 莱茵生命 (character_table groupId "rhine") members sold as shop chess (checked against the official table): today's five,
+ * the list of before versions M0, which data without config.version (the default data and the plugin content sets on it)
+ * keeps. On another version's build (support isVersionData) also 第一期's 星源 (DESIGN §35.22.4). 伊芙利特 and 淬羽赫默
+ * (shop chess in 第一期, 自选 picks today) and today's other 自选 members are left out until the maintainer decides whether
+ * 自选 members count (M2, DESIGN §35.22.5).
+ */
 const RHINE = new Set(['char_108_silent', 'char_128_plosis', 'char_202_demkni', 'char_249_mlyss', 'char_1047_halo2']);
+const RHINE_VERSION = new Set([...RHINE, 'char_135_halo']);
+/** The 莱茵生命 list of `data` (default: the loaded data). */
+export const rhineOf = (data) => (isVersionData(data) ? RHINE_VERSION : RHINE);
+/** A 莱茵生命 member of the loaded data's list: 开源节流's SP on copy and on deploy, and its cost cut. */
+export const isRhine = (u) => rhineOf().has(u?.def?.charId);
 
 // ------------------------------------------------------------------------------------------------------------------
 // 缪尔赛思 chess_char_6_11 (战术家) — S3 浅层非熵适应; 净水即生命 (流形); 开源节流; module 梳妆流形
@@ -85,7 +97,7 @@ function mlyss(bb, chess, def) {
     }
     copyInto(battle, t, src, num(tokTal(t, 'scale').scale, 1), isRanged(src));
     battle.fx('copy', { x: t.x, y: t.y, id: t.id, src: src.id });
-    if (rhineSp > 0 && RHINE.has(src.def?.charId) && unit.skill) unit.skill.gainSp(rhineSp, 'talent');
+    if (rhineSp > 0 && isRhine(src) && unit.skill) unit.skill.gainSp(rhineSp, 'talent');
   };
   const mineLive = (battle, unit) => battle.allyUnits.filter((x) => isTok(x, tokId, unit) && live(x));
 
@@ -154,7 +166,7 @@ function mlyss(bb, chess, def) {
         }, { owner: unit });
       }
       if (rhineSpOther > 0) battle.on('deploy', ({ unit: u, initial }) => { // the copied 莱茵生命 operator is deployed
-        if (initial || !u || u.kind !== 'op' || u.ownerId !== unit.ownerId || !RHINE.has(u.def?.charId) || !u.skill) return;
+        if (initial || !u || u.kind !== 'op' || u.ownerId !== unit.ownerId || !isRhine(u) || !u.skill) return;
         if (battle.allyUnits.some((t) => isTok(t, tokId, unit) && live(t) && t.mem.mlyss?.from === u.id)) u.skill.gainSp(rhineSpOther, 'talent');
       }, { owner: unit });
     },
@@ -306,7 +318,7 @@ function mlyss(bb, chess, def) {
         S.rhine.add(unit.ownerId);
         const cut = num(t1.cost), first = num(t1.runtime_cost);
         battle.on('battleStart', () => {
-          const rh = battle.allyUnits.filter((a) => a.kind === 'op' && a.ownerId === unit.ownerId && RHINE.has(a.def?.charId)).sort((a, b) => a.deploySeq - b.deploySeq);
+          const rh = battle.allyUnits.filter((a) => a.kind === 'op' && a.ownerId === unit.ownerId && isRhine(a)).sort((a, b) => a.deploySeq - b.deploySeq);
           rh.forEach((a, i) => { a.base.cost = Math.max(0, a.base.cost + cut + (i === 0 ? first : 0)); });
         });
       } },

@@ -171,7 +171,7 @@ export function auraSelectable(src, a) {
  * 萨卡兹悖谬暴虐兵长's 暴击 splash), direct picks (碎铳之簧's counter on its attacker: PRTS 异常效果 "'直接选中'的能力…不受这些
  * 仅在选择时生效的异常效果制约"), the blasts of flying units credited to a ground leader (刺胄之弹, 斩胄之剑 / 破胄之锤) and
  * the ticks of a debuff a ground enemy put on it before it took off (出血, 沙狱, burning DoTs, 【自然涌动】: a tick selects
- * nobody). A shot already in flight is refused [ASSUMED] (damage.js).
+ * nobody). A shot already in flight is refused [ASSUMED] (attack/helpers.js liftoffEvades).
  */
 export function evadesGround(src, a) {
   return !!(a && a.s && a.s.flags.liftoff && src && src.side === 'enemy' && !src.isFlying);

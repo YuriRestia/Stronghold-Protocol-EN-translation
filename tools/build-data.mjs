@@ -6,20 +6,25 @@
 //   config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves,
 //   stages, bosses, tokens, backups, terms (every field is documented in docs/DATA.md).
 //
-// Usage:  node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>]
+// Usage:  node tools/build-data.mjs [--version <id>] [--refresh | --offline] [--out <dir>] [--cache <dir>]
 //                                   [--report <file>] [--quiet] [--no-research] [--force]
+//   --version      the official version to build (shared/versions.js; default act2autochess, today's data/*.json).
+//                  Another version reads its profile tools/versions/<slug>.mjs: the official commits it is pinned to,
+//                  its field adapters and expected counts; it writes data/versions/<slug>/ (docs/DATA.md "Official
+//                  versions (M0)")
 //   --refresh      re-download every official file; fail on download errors even if cached
 //   --offline      never download; fail when a file is missing from the cache
-//   --out          output directory (default: <repo>/data)
-//   --cache        official-data cache directory (default: <repo>/.cache/gamedata)
-//   --report       build report file (default: <repo>/.cache/build-data-report.json)
+//   --out          output directory (default: <repo>/data, or <repo>/data/versions/<slug> for another version)
+//   --cache        official-data cache directory (default: <repo>/.cache/gamedata; a file pinned to a commit is cached
+//                  in <cache>@<sha>)
+//   --report       build report file (default: <repo>/.cache/build-data-report.json, or build-data-report.<slug>.json)
 //   --no-research  ignore docs/research (research-only fields fall back to defaults; for testing)
 //   --force        write the output even when integrity checks fail (default: keep the old files)
 // Unknown options are errors (exit code 2).
 //
 // Official files are cached under <repo>/.cache/gamedata/<repo path> (e.g. excel/activity_table.json)
 // and downloaded from https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/
-// when missing. Research files are optional inputs: when absent, research-only fields fall back to
+// when missing; a version pinned to a commit uses .cache/gamedata@<sha>/ and …/ArknightsGameData/<sha>/zh_CN/gamedata/. Research files are optional inputs: when absent, research-only fields fall back to
 // documented defaults and a warning is printed.
 //
 // Determinism: the output depends only on the input files (object keys are emitted in a stable
@@ -42,25 +47,29 @@ import { bandBondIds } from '../shared/bandBonds.js';
 import { statusKey, composeUnitRecord } from '../shared/standIn.js';
 import { FULL_RANK, atRank, stripPotential } from '../shared/potential.js';
 import { createOfficialUnitBuilders } from '../server/plugins/officialUnitBuilder.js';
+import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
+import { loadProfile, pinnedShaOf } from './versions/profiles.mjs';
+import { applyAdapters } from './versions/adapters.mjs';
 
 // ===== CLI & IO ==================================================================================
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const RESEARCH_DIR = join(ROOT, 'docs', 'research');
 const GAMEDATA_URL = 'https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/master/zh_CN/gamedata/';
-const SEASON = 'act2autochess';
-const USAGE = 'usage: node tools/build-data.mjs [--refresh | --offline] [--out <dir>] [--cache <dir>] [--report <file>] [--quiet] [--no-research] [--force]';
+const pinnedUrl = (sha) => `https://raw.githubusercontent.com/Kengxxiao/ArknightsGameData/${sha}/zh_CN/gamedata/`;
+const USAGE = 'usage: node tools/build-data.mjs [--version <id>] [--refresh | --offline] [--out <dir>] [--cache <dir>] [--report <file>] [--quiet] [--no-research] [--force]';
 
 /**
  * Parse the command line strictly (unknown options and missing values are errors, so a typo can
  * never silently write data somewhere unexpected).
  * @param {string[]} argv
- * @returns {{refresh:boolean, offline:boolean, quiet:boolean, noResearch:boolean, force:boolean, out:string, cache:string, report:string}}
+ * @returns {{refresh:boolean, offline:boolean, quiet:boolean, noResearch:boolean, force:boolean, out:string|null, cache:string, report:string|null, version:string|null}}
+ *   out / report: null = the version's default (set once the version is known)
  */
 function parseArgs(argv) {
   const opts = {
     refresh: false, offline: false, quiet: false, noResearch: false, force: false,
-    out: join(ROOT, 'data'), cache: join(ROOT, '.cache', 'gamedata'), report: join(ROOT, '.cache', 'build-data-report.json'),
+    out: null, cache: join(ROOT, '.cache', 'gamedata'), report: null, version: null,
   };
   const flags = { '--refresh': 'refresh', '--offline': 'offline', '--quiet': 'quiet', '--no-research': 'noResearch', '--force': 'force' };
   const dirs = { '--out': 'out', '--cache': 'cache', '--report': 'report' };
@@ -72,6 +81,13 @@ function parseArgs(argv) {
       const v = inline ?? argv[++i];
       if (!v || v.startsWith('--')) throw new Error(`${name} needs a path argument\n${USAGE}`);
       opts[dirs[name]] = resolve(v);
+      continue;
+    }
+    if (name === '--version') {
+      const v = inline ?? argv[++i];
+      if (!v || v.startsWith('--')) throw new Error(`--version needs a version id (${VERSIONS.map((x) => x.id).join(', ')})\n${USAGE}`);
+      if (!VERSIONS.some((x) => x.id === v)) throw new Error(`unknown version ${v} (valid: ${VERSIONS.map((x) => x.id).join(', ')})\n${USAGE}`);
+      opts.version = v;
       continue;
     }
     throw new Error(`unknown option ${argv[i]}\n${USAGE}`);
@@ -88,6 +104,17 @@ try {
   process.exit(2);
 }
 const CACHE_DIR = OPTS.cache;
+// the version this run builds: its registry entry and its build profile (tools/versions/<slug>.mjs)
+const { entry: VERSION, profile: PROFILE, slug: VERSION_SLUG } = await loadProfile(OPTS.version ?? DEFAULT_VERSION);
+const IS_DEFAULT = VERSION.id === DEFAULT_VERSION;
+OPTS.out ??= join(ROOT, 'data', VERSION.dir);
+OPTS.report ??= join(ROOT, '.cache', IS_DEFAULT ? 'build-data-report.json' : `build-data-report.${VERSION_SLUG}.json`);
+const TABLE_NAMES = ['stock', 'shopDraft', 'tacticDraft', 'bountyDrafts'];
+if (PROFILE.tables !== 'default' && !(PROFILE.tables && TABLE_NAMES.every((k) => PROFILE.tables[k] === null))) {
+  throw new Error(`tools/versions/${VERSION_SLUG}.mjs: tables must be 'default' or { ${TABLE_NAMES.join(', ')} } all null`);
+}
+/** Whether this version uses a 下半-measured table of this build (the profile's `tables`: 'default', or null = left out). */
+const useTable = (name) => PROFILE.tables === 'default' || PROFILE.tables[name] !== null;
 
 const log = (...a) => { if (!OPTS.quiet) console.log(...a); };
 const warnings = [];
@@ -106,15 +133,15 @@ const { stripRich, richRaw, cleanNum, flattenBB, textPair, naturalCmp, phaseIdx,
  * @param {string} rel path relative to zh_CN/gamedata/ (e.g. 'excel/activity_table.json')
  * @returns {Promise<string>} absolute path of the cached file
  */
-async function ensureGamedata(rel) {
-  const abs = join(CACHE_DIR, rel);
+async function ensureGamedata(rel, { cacheDir = CACHE_DIR, baseUrl = GAMEDATA_URL } = {}) {
+  const abs = join(cacheDir, rel);
   if (!OPTS.refresh && existsSync(abs)) return abs;
   if (OPTS.offline) {
     if (existsSync(abs)) return abs;
     throw new Error(`missing cached file ${rel} (offline mode)`);
   }
   await mkdir(dirname(abs), { recursive: true });
-  const url = GAMEDATA_URL + rel;
+  const url = baseUrl + rel;
   let lastErr;
   for (let attempt = 1; attempt <= 4; attempt++) {
     try {
@@ -141,16 +168,35 @@ async function ensureGamedata(rel) {
 const jsonCache = new Map();
 async function loadGamedata(rel) {
   if (jsonCache.has(rel)) return jsonCache.get(rel);
-  const abs = await ensureGamedata(rel);
+  const abs = await ensureGamedata(rel, sourceOf(rel));
   const obj = JSON.parse(await readFile(abs, 'utf8'));
   jsonCache.set(rel, obj);
   return obj;
 }
 
-/** Load an optional research JSON (docs/research/<name>); returns null when absent/unreadable. */
+/**
+ * Where the profile reads an official file: master (.cache/gamedata/) or the commit it pins the file's group to
+ * (.cache/gamedata@<sha>/, tools/versions/profiles.mjs pinnedShaOf).
+ * @param {string} rel
+ * @returns {{ cacheDir: string, baseUrl: string }}
+ */
+function sourceOf(rel) {
+  const sha = pinnedShaOf(PROFILE, rel);
+  return sha ? { cacheDir: `${CACHE_DIR}@${sha}`, baseUrl: pinnedUrl(sha) } : { cacheDir: CACHE_DIR, baseUrl: GAMEDATA_URL };
+}
+
+/**
+ * Load an optional research JSON (docs/research/<name>); returns null when absent/unreadable. A non-default version reads
+ * its own copy from its profile's research directory when there is one, else docs/research/ [ASSUMED] with a warning.
+ */
 async function loadResearch(name) {
   if (OPTS.noResearch) return null;
-  const abs = join(RESEARCH_DIR, name);
+  let abs = join(RESEARCH_DIR, name);
+  if (!IS_DEFAULT) {
+    const own = PROFILE.research ? join(ROOT, PROFILE.research, name) : null;
+    if (own && existsSync(own)) abs = own;
+    else warn(`research ${name}: no ${VERSION_SLUG} copy; using docs/research/${name} [ASSUMED]`);
+  }
   if (!existsSync(abs)) { warn(`research file ${name} not found; research-derived fields use defaults`); return null; }
   try { return JSON.parse(await readFile(abs, 'utf8')); } catch (e) { warn(`research file ${name} unreadable: ${e.message}`); return null; }
 }
@@ -193,9 +239,11 @@ async function loadContext() {
     loadGamedata('excel/enemy_handbook_table.json'),
     loadGamedata('levels/enemydata/enemy_database.json'),
   ]);
-  const act = activity?.activity?.AUTOCHESS_SEASON?.[SEASON];
+  const act = activity?.activity?.AUTOCHESS_SEASON?.[PROFILE.season];
   const ac = activity?.autoChessData;
-  if (!act || !ac) throw new Error('activity_table has no act2autochess / autoChessData section');
+  if (!act || !ac) throw new Error(`activity_table has no ${PROFILE.season} / autoChessData section`);
+  // an older table into the shape this build reads (tools/versions/adapters.mjs); never for the default version
+  if (!IS_DEFAULT) applyAdapters(act, PROFILE.adapters);
 
   // Note: summons/traps live in character_table (token_table.json only lists 4 unrelated traps).
 
@@ -359,7 +407,7 @@ function buildChess(ctx) {
 
     // Every skill unlocked at the chess status (DESIGN §16), at the chess skill level; the trigger is
     // resolved per skill (resolveTrigger: charId rows by index, class rows for every MANUAL skill, 技能范围, and the
-    // deliberate deviations of TRIGGER_DEVIATIONS keyed by the normal chess id).
+    // deliberate deviations of TRIGGER_DEVIATIONS keyed by the operator's charId, over a TAKE_DAMAGE row only).
     const sIdx = shop.defaultSkillIndex ?? 0;
     const sEntry = char.skills?.[sIdx];
     const skillLevel = status.skillLevel || 1;
@@ -1226,25 +1274,27 @@ function buildGarrisons(ctx, chess) {
  * Items the official shop (调度中心) never sells although trapShopChessDatas lists them with `hideInShop` false: they
  * only come from effects (user playtest #4, first-hand: "几个特殊的维式重锤是干员洛洛或者维多利亚阵营获得的，商店是不卖的。
  * 变异针…也是有一个策略自带的，商店不卖"). The official shop pool is server-side (no client table tells), so the list is
- * explicit, by normal item id → where the item comes from. items.json marks both qualities `shopExcluded` (+
+ * explicit, by the NORMAL item's effectId → where the item comes from — never by item id: 上半 (act1autochess) reuses the
+ * item ids for other items (its chess_item_2_03_e_a is 灼燃, not 战栗). items.json marks both qualities `shopExcluded` (+
  * `shopExcludedBy`), and every draw of "shop items" skips them (sim/simdata.js isShopItem: the shop item slot, the
  * 道具补给 / 机密商店 cards, pool_equip_normal / _shop_1 / _kathe / _narant):
  *   战栗 / 坚固 / 加速 / 灼燃维式重锤 — 维多利亚 <每叠加25层> "获得一件带有随机特殊效果的维式重锤" (pool_equip_vict) and
  *     洛洛 特质 "<获得时>随机制造1件洛洛的定制品" (pool_equip_rockr)
  *   突变细胞 — strategy 昆图斯 【不稳定要素】 "第3回合获得1件特殊装备<突变细胞>" (band_quintus)
+ * [ASSUMED] the same in 上半, which has 维多利亚, 洛洛 and 昆图斯 too (its 坚固 is named 坚定维式重锤).
  * Every other effect-granted item stays sold: the plain 维式重锤 is (user), and 变形同构体 / 骑士储蓄罐 (strategy items)
  * appear in the official 机密商店 supply (Bahamut bsn=33651 snA=12294 screenshot i.meee.com.tw/Mb2mtd9.png).
  */
 const SHOP_EXCLUDED_ITEMS = Object.freeze({
-  chess_item_2_03_e_a: '维多利亚盟约每25层 / 洛洛的定制品', // 战栗维式重锤
-  chess_item_3_09_e_a: '维多利亚盟约每25层 / 洛洛的定制品', // 坚固维式重锤
-  chess_item_3_10_e_a: '维多利亚盟约每25层 / 洛洛的定制品', // 加速维式重锤
-  chess_item_4_09_e_a: '维多利亚盟约每25层 / 洛洛的定制品', // 灼燃维式重锤
-  chess_item_5_08_e_a: '策略【不稳定要素】（昆图斯）', // 突变细胞
+  eff_acarm045: '维多利亚盟约每25层 / 洛洛的定制品', // 战栗维式重锤 (下半 chess_item_2_03_e_a)
+  eff_acarm043: '维多利亚盟约每25层 / 洛洛的定制品', // 坚固维式重锤 (chess_item_3_09_e_a; 上半 坚定维式重锤)
+  eff_acarm044: '维多利亚盟约每25层 / 洛洛的定制品', // 加速维式重锤 (chess_item_3_10_e_a)
+  eff_acarm042: '维多利亚盟约每25层 / 洛洛的定制品', // 灼燃维式重锤 (chess_item_4_09_e_a)
+  eff_acarm072: '策略【不稳定要素】（昆图斯）', // 突变细胞 (chess_item_5_08_e_a)
 });
 
 /**
- * Rules the official item text leaves out, by normal item id (both qualities): `note` = a player-facing line shown under
+ * Rules the official item text leaves out, by the NORMAL item's effectId (both qualities; as SHOP_EXCLUDED_ITEMS): `note` = a player-facing line shown under
  * the effect in the item card (items.json `note`), `implFormula` replaces research 04's formula.
  *   突变细胞 — not consumed (player feedback after 0.1.0): PRTS 卫戍协议：盟约 下半/PRTS盟约记录 备注 "生效时，原干员销毁，
  *     获得一名高一阶的随机初始干员（最高六阶）", and a destroyed operator's equipment comes off (PRTS 卫戍协议/帮助 "佩戴的
@@ -1256,7 +1306,7 @@ const SHOP_EXCLUDED_ITEMS = Object.freeze({
  *     what a player gains goes to the 手牌区; pointed out in PR #2).
  */
 const ITEM_RULES = Object.freeze({
-  chess_item_5_08_e_a: {
+  eff_acarm072: { // 突变细胞 (下半 chess_item_5_08_e_a)
     note: '生效时原干员销毁，突变细胞与其他装备退回整备区，可再次配发；随后获得一名高一阶的随机初始干员（最高6阶），进入整备区，需要重新部署',
     implFormula: 'After the battle: the carrier is destroyed wherever it stands (a board tile is freed); its equipment, the '
       + 'cell included, returns to the hand first (overflow temp; the cell is not consumed); then a random NORMAL operator '
@@ -1270,7 +1320,7 @@ const ITEM_RULES = Object.freeze({
  */
 function buildItems(ctx, effects) {
   const { act, charTable } = ctx;
-  const researchItems = new Map((ctx.research.items?.items || []).map((i) => [i.id, i]));
+  const researchItems = new Map((ctx.research.items?.items || []).map((i) => [i.trapId, i]));
   const shopByBase = new Map();
   for (const s of Object.values(act.trapShopChessDatas)) {
     shopByBase.set(s.itemId, s);
@@ -1286,11 +1336,13 @@ function buildItems(ctx, effects) {
     if (!eff) warn(`item ${chessId}: effect ${t.effectId} missing`);
     const trap = charTable[t.charId];
     if (!trap) warn(`item ${chessId}: trap ${t.charId} missing from character_table`);
-    const ri = researchItems.get(baseId);
+    // research 04 by the item's trap (character_table) id: stable across the seasons, which reuse the item ids
+    const ri = researchItems.get(t.charId);
     const isGolden = !!t.isGolden;
     const upgradeNum = t.upgradeNum;
-    const excluded = Object.hasOwn(SHOP_EXCLUDED_ITEMS, baseId) ? SHOP_EXCLUDED_ITEMS[baseId] : null;
-    const rule = Object.hasOwn(ITEM_RULES, baseId) ? ITEM_RULES[baseId] : null;
+    const normalEffect = act.trapChessDataDict[baseId]?.effectId ?? null;
+    const excluded = normalEffect && Object.hasOwn(SHOP_EXCLUDED_ITEMS, normalEffect) ? SHOP_EXCLUDED_ITEMS[normalEffect] : null;
+    const rule = normalEffect && Object.hasOwn(ITEM_RULES, normalEffect) ? ITEM_RULES[normalEffect] : null;
     out[chessId] = {
       id: chessId, baseId, goldenId: shop?.goldenItemId || null, isGolden,
       trapId: t.charId, iconId: t.charId, identifier: t.identifier,
@@ -1401,7 +1453,7 @@ function definedFields(over) {
 /**
  * enemy_database attribute → enemies.json stat. The two element resistances (PRTS 元素 / 游戏数据基础 / enemy pages):
  * `epResistance` (EP_RESISTANCE) = 损伤抵抗, % off element gauge fills → `elementRes`; `epDamageResistance` = 元素抗性,
- * % off 元素伤害 (element HP damage) → `elementDmgRes` (sim: server/sim/damage.js).
+ * % off 元素伤害 (element HP damage) → `elementDmgRes` (sim: server/sim/attack/calculation.js mitigate).
  */
 const ENEMY_STAT_FIELDS = {
   maxHp: 'maxHp', atk: 'atk', def: 'def', magicResistance: 'res', moveSpeed: 'moveSpeed',
@@ -1747,6 +1799,9 @@ function buildEnemies(ctx) {
     const modelScale = MODEL_SCALE_BY_PREFAB.get(mv(data.prefabKey) || key) ?? null;
     const modelScaleY = MODEL_STRETCH_Y_BY_PREFAB.get(mv(data.prefabKey) || key) ?? null;
     const attackAnim = enemyAttackAnim(ctx.manifest, mv(data.prefabKey) || key);
+    // a version's enemy whose model data/assets.json (built from 下半's models) lacks gets no attack clip: the sim keeps
+    // ATTACK_PAUSE for it — an M2 item (DESIGN §35.22.5); the default build stays silent (its manifest covers its modes)
+    if (!IS_DEFAULT && !ctx.manifest?.enemies?.[mv(data.prefabKey) || key]) warn(`enemy ${key}: model ${mv(data.prefabKey) || key} not in data/assets.json, no attackAnim (sim keeps ATTACK_PAUSE) [M2]`);
     out[key] = {
       key, name, level: wantLevel, rank: mv(data.levelType, 'NORMAL'), handbookIndex: hb?.enemyIndex || null,
       desc: stripRich(descRaw), descRaw: richRaw(descRaw),
@@ -2589,8 +2644,8 @@ function buildChoices(ctx, effects, items, chess) {
     let draftExcluded = bountyDraftExclusion(e, main);
     if (draftExcluded === 'hidden' && !/鸭爵|高普尼克|流泪小子|圆仔/.test(e.name || '')) warn(`bounty ${e.effectId} "${e.name}": expected one of the 鸭爵 set`);
     let draftPool = bountyDraftPool(e, main, draftExcluded);
-    // a boss bounty is offered only through a seen R9 group (BOUNTY_BOSS_GROUPS)
-    if (draftPool === 'boss' && !BOUNTY_BOSS_GROUPS.some((g) => g.cards.includes(e.effectId))) draftPool = null;
+    // a boss bounty is offered only through a seen R9 group (BOUNTY_BOSS_GROUPS; 下半-measured, not for a version without it)
+    if (useTable('bountyDrafts') && draftPool === 'boss' && !BOUNTY_BOSS_GROUPS.some((g) => g.cards.includes(e.effectId))) draftPool = null;
     if (!draftExcluded && !draftPool) draftExcluded = 'unseen';
     const sm = /^enemyeffect_(\d+)_\d+$/.exec(e.effectId);
     bounty.push({
@@ -2600,20 +2655,23 @@ function buildChoices(ctx, effects, items, chess) {
     });
   }
   bounty.sort((a, b) => naturalCmp(a.effectId, b.effectId));
-  // the official draft structures (see BOUNTY_INITIAL_SETS) only name cards of their own kind
+  // the official draft structures (see BOUNTY_INITIAL_SETS) only name cards of their own kind (checked when this
+  // version uses them)
   const bountyById = new Map(bounty.map((c) => [c.effectId, c]));
   const checkKind = (ids, kind, what) => { for (const id of ids) if (bountyById.get(id)?.draftPool !== kind) warn(`bounty draft ${what}: ${id} is not a "${kind}" card`); };
-  for (const s of BOUNTY_INITIAL_SETS) checkKind(s.cards, 'initial', 'R3 set');
-  for (const g of BOUNTY_BOSS_GROUPS) checkKind(g.cards, 'boss', 'R9 group');
-  for (const g of BOUNTY_HUNTER_GROUPS) checkKind(g.cards, 'hunter', 'R11 group');
-  for (const g of [...BOUNTY_INITIAL_SETS, ...BOUNTY_BOSS_GROUPS, ...BOUNTY_HUNTER_GROUPS]) {
-    if (new Set(g.cards).size !== g.cards.length) warn(`bounty draft group ${g.cards.join(' ')}: a card twice`);
-    if (g.hits && g.hits.length !== g.cards.length) warn(`bounty draft group ${g.cards.join(' ')}: hits do not match the cards`);
-  }
-  for (const s of BOUNTY_INITIAL_SETS) if (s.cards.map((id) => bountyById.get(id)?.tier).sort().join('') !== '111223') warn(`bounty draft R3 set ${s.cards.join(' ')}: not I I I II II III`);
-  for (const g of BOUNTY_HUNTER_GROUPS) {
-    const giants = g.cards.filter((id) => bountyById.get(id)?.tier === 3).length;
-    if (giants > 1 || g.cards.length + (g.open || 0) !== BOUNTY_HUNTER_RULE.size) warn(`bounty draft R11 group ${g.cards.join(' ')}: not ${BOUNTY_HUNTER_RULE.size} cards with at most one giant`);
+  if (useTable('bountyDrafts')) {
+    for (const s of BOUNTY_INITIAL_SETS) checkKind(s.cards, 'initial', 'R3 set');
+    for (const g of BOUNTY_BOSS_GROUPS) checkKind(g.cards, 'boss', 'R9 group');
+    for (const g of BOUNTY_HUNTER_GROUPS) checkKind(g.cards, 'hunter', 'R11 group');
+    for (const g of [...BOUNTY_INITIAL_SETS, ...BOUNTY_BOSS_GROUPS, ...BOUNTY_HUNTER_GROUPS]) {
+      if (new Set(g.cards).size !== g.cards.length) warn(`bounty draft group ${g.cards.join(' ')}: a card twice`);
+      if (g.hits && g.hits.length !== g.cards.length) warn(`bounty draft group ${g.cards.join(' ')}: hits do not match the cards`);
+    }
+    for (const s of BOUNTY_INITIAL_SETS) if (s.cards.map((id) => bountyById.get(id)?.tier).sort().join('') !== '111223') warn(`bounty draft R3 set ${s.cards.join(' ')}: not I I I II II III`);
+    for (const g of BOUNTY_HUNTER_GROUPS) {
+      const giants = g.cards.filter((id) => bountyById.get(id)?.tier === 3).length;
+      if (giants > 1 || g.cards.length + (g.open || 0) !== BOUNTY_HUNTER_RULE.size) warn(`bounty draft R11 group ${g.cards.join(' ')}: not ${BOUNTY_HUNTER_RULE.size} cards with at most one giant`);
+    }
   }
   // the R11 rule draws over the R11 cards by tier: III the giants, II / I the rest
   const hunterTier = (t) => bounty.filter((c) => c.draftPool === 'hunter' && c.tier === t).map((c) => c.effectId);
@@ -2641,8 +2699,17 @@ function buildChoices(ctx, effects, items, chess) {
 
   const equipNormal = Object.values(items).filter((i) => i.itemType === 'EQUIP' && !i.isGolden);
   const itemByName = (name) => equipNormal.find((i) => i.name === name)?.id || (warn(`pool item "${name}" not found`), null);
-  const chessByName = (name) => Object.values(chess).find((c) => !c.isGolden && c.visible && c.name === name)?.chessId
-    || Object.values(chess).find((c) => !c.isGolden && c.name === name)?.chessId || (warn(`pool chess "${name}" not found`), null);
+  // the pools name items by their NORMAL effectId and operators by charId (the visible normal record first): the
+  // seasons reuse item and chess ids for other items and operators
+  const itemByEffect = (eff) => equipNormal.find((i) => i.effectId === eff)?.id || (warn(`pool item ${eff} not found`), null);
+  const chessByChar = (charId) => Object.values(chess).find((c) => !c.isGolden && c.visible && c.charId === charId)?.chessId
+    || Object.values(chess).find((c) => !c.isGolden && c.charId === charId)?.chessId || (warn(`pool chess ${charId} not found`), null);
+  // an entry this version does not have: null in the default version (validation fails, as it always did); dropped with
+  // a warning in another version [ASSUMED] (the pool may end up empty)
+  const poolItems = (pool, ids) => (IS_DEFAULT ? ids : ids.filter((id) => id !== null || (warn(`pool ${pool}: an entry this version does not have is dropped [ASSUMED]`), false)));
+  // the operators a chess pool names by charId, in the profile's `pools` where the version's trait text names others
+  const poolChars = (pool, chars) => PROFILE.pools?.[pool] ?? chars;
+  const poolWeighted = (pool, pairs) => (IS_DEFAULT ? pairs : pairs.filter(([id]) => id !== null || (warn(`pool ${pool}: an entry this version does not have is dropped [ASSUMED]`), false)));
 
   // Per-mode schedule of families (research 01 A4).
   const schedule = {};
@@ -2680,7 +2747,8 @@ function buildChoices(ctx, effects, items, chess) {
           shop: eventsOf('shop', (e) => e.solo === solo),
           tactic: eventsOf('tactic', (e) => e.solo === solo && (/^hardbuff/.test(e.id) ? diff === 'HARD' || diff === 'ABYSS' : true)),
         },
-        assumed: !(diff === 'HARD' || diff === 'ABYSS') || r === 11,
+        // [ASSUMED] First-season candidate shapes/schedules carry over; measured second-season groups/weights do not.
+        assumed: !useTable('bountyDrafts') || !(diff === 'HARD' || diff === 'ABYSS') || r === 11,
       };
     }
     schedule[modeId] = { spRounds: sp, rounds: m };
@@ -2702,8 +2770,9 @@ function buildChoices(ctx, effects, items, chess) {
     },
     cards: { bounty, tactic },
     // the official 悬赏决策 structures by kind (tools/build-data.mjs BOUNTY_INITIAL_SETS; `seen` = the match numbers of
-    // test/fixtures/official-bounty-drafts.json; `slots` = the official events, the unseen ones built by `rule`)
-    bountyDrafts: {
+    // test/fixtures/official-bounty-drafts.json; `slots` = the official events, the unseen ones built by `rule`).
+    // 下半-measured: a version whose profile leaves a table out omits its key (the match draws uniformly) [ASSUMED]
+    ...useTable('bountyDrafts') && { bountyDrafts: {
       initial: {
         events: eventsOf('bounty', (e) => bountyEventRe.initial.test(e.id) && !e.solo), slots: eventsOf('bounty', (e) => bountyEventRe.initial.test(e.id) && !e.solo).length,
         pick: 'slot', groups: BOUNTY_INITIAL_SETS, rule: BOUNTY_INITIAL_RULE, count: 6,
@@ -2722,23 +2791,23 @@ function buildChoices(ctx, effects, items, chess) {
         rule: { ...BOUNTY_HUNTER_RULE, giants: hunterTier(3), cards: [...hunterTier(2), ...hunterTier(1)] }, count: 6,
         assumed: ['one of the 7 seen lists, picked uniformly (which of the 15 events R11 fires is open)', 'card weights 1 + hits', 'the `open` cards built by `rule`'],
       },
-    },
+    } },
     // the official 机密商店 (SHOP_DRAFT) at `rounds`: `slots` tier → weight (`coin` = 盟约之币), each drawn on its own;
     // `itemWeights` = 1 + the official cards an item showed on (other shop items 1)
-    shopDraft: {
+    ...useTable('shopDraft') && { shopDraft: {
       rounds: SHOP_DRAFT.rounds, slots: SHOP_DRAFT.slots, coin: itemByName(SHOP_DRAFT.coin),
       itemWeights: Object.fromEntries(Object.entries(SHOP_DRAFT.seen).filter(([n]) => n !== SHOP_DRAFT.coin).map(([n, k]) => [itemByName(n), 1 + k]).sort((a, b) => naturalCmp(a[0], b[0]))),
       seen: SHOP_DRAFT.matches, count: 6,
       assumed: ['the slot split', 'item weights 1 + seen', 'solo shows 3 of the 6', 'other rounds (标准 / 险境) keep the previous draw: tiers I–VI with replacement'],
-    },
+    } },
     // the official 战术决策 (TACTIC_DRAFT) at `rounds`: each card drawn on its own (with replacement) from the cards.tactic
     // entries of `kinds`, by `weights` (1 + the official cards it showed on; other cards of those kinds 1)
-    tacticDraft: {
+    ...useTable('tacticDraft') && { tacticDraft: {
       rounds: TACTIC_DRAFT.rounds, kinds: TACTIC_DRAFT.kinds,
       weights: Object.fromEntries(Object.entries(TACTIC_DRAFT.seen).map(([n, k]) => [tacticByName(n), 1 + k]).filter(([id]) => id).sort((a, b) => naturalCmp(a[0], b[0]))),
       seen: TACTIC_DRAFT.matches, count: 6,
       assumed: ['card weights 1 + seen', 'independent draws (no slot structure)', 'no terrain card at R11', 'solo shows 3', 'other rounds (标准 / 险境) keep every card, uniform, with replacement'],
-    },
+    } },
     schedule,
     pools: {
       pool_equip_normal: { kind: 'equip', rule: 'shopEligible', maxTier: 'shopLevel', assumed: true },
@@ -2748,7 +2817,7 @@ function buildChoices(ctx, effects, items, chess) {
       // (maintainer, 2026-10-14: the official offer can roll it at any 调度中心 level, #631). The pool is server-side
       // and the official table names it but not its weights, so the draw stays uniform [ASSUMED]. `also` is appended
       // by Match.rollItemId; the shop item slot does not read it. Until 0.2.0 the pool was capped at the shop level.
-      pool_equip_kathe: { kind: 'equip', rule: 'shopEligible', also: [itemByName('突变细胞')], assumed: true },
+      pool_equip_kathe: { kind: 'equip', rule: 'shopEligible', also: poolItems('pool_equip_kathe', [itemByEffect('eff_acarm072')]), assumed: true }, // 突变细胞
       // 娜仁图亚 见者有份 (preparation_start_add_special_goods_every_n_round): the blackboard names no tier cap. Players'
       // first-hand report (community, 2026-10-14): the two equips can be above the current shop level. Same shape as
       // 凯瑟琳 — every shop-eligible item, uniform [ASSUMED] (until 0.3.0 it was capped at the shop level, so an even
@@ -2756,13 +2825,13 @@ function buildChoices(ctx, effects, items, chess) {
       pool_equip_narant: { kind: 'equip', rule: 'shopEligible', assumed: true },
       // "获得一件带有随机特殊效果的维式重锤": the 4 hammers with a special effect (never sold, SHOP_EXCLUDED_ITEMS); the
       // weights are server-side (PRTS 11-25 note: "装备【灼燃维式重锤】的出现概率调整") — uniform [ASSUMED]
-      pool_equip_vict: { kind: 'equip', items: ['灼燃维式重锤', '坚固维式重锤', '加速维式重锤', '战栗维式重锤'].map(itemByName), assumed: true },
-      pool_equip_pepe: { kind: 'equip', weighted: [['盟约之币', 45], ['萨尔贡浓茶', 45], ['黄沙罗盘', 10]].map(([n, w]) => [itemByName(n), w]), goldenWeights: [40, 40, 20], assumed: true },
+      pool_equip_vict: { kind: 'equip', items: poolItems('pool_equip_vict', ['eff_acarm042', 'eff_acarm043', 'eff_acarm044', 'eff_acarm045'].map(itemByEffect)), assumed: true }, // 灼燃 / 坚固 / 加速 / 战栗维式重锤
+      pool_equip_pepe: { kind: 'equip', weighted: poolWeighted('pool_equip_pepe', [['eff_acarm066', 45], ['eff_acarm050', 45], ['eff_acarm103', 10]].map(([e, w]) => [itemByEffect(e), w])), goldenWeights: [40, 40, 20], assumed: true }, // 盟约之币, 萨尔贡浓茶, 黄沙罗盘
       // 路标月报#2 BV1eLXXBqEgF, card-pool rule 6: measured subset weights. The four special hammers are still
       // exclusive to this and Victoria's pools, but are not the whole of Rockrock's pool.
-      pool_equip_rockr: { kind: 'equip', weighted: [['维式重锤', 10], ['战栗维式重锤', 2], ['坚固维式重锤', 2], ['加速维式重锤', 2], ['灼燃维式重锤', 2], ['有限加速器', 1], ['护盾无人机', 4], ['激光发射器', 4]].map(([n, w]) => [itemByName(n), w]), assumed: true },
-      pool_chess_glady: { kind: 'chess', items: ['斯卡蒂', '幽灵鲨', '深巡'].map(chessByName), assumed: true },
-      pool_char_pinus: { kind: 'chess', weighted: [['野鬃', 10], ['灰毫', 10], ['远牙', 3]].map(([n, w]) => [chessByName(n), w]), assumed: true },
+      pool_equip_rockr: { kind: 'equip', weighted: poolWeighted('pool_equip_rockr', [['eff_acarm041', 10], ['eff_acarm045', 2], ['eff_acarm043', 2], ['eff_acarm044', 2], ['eff_acarm042', 2], ['eff_acarm052', 1], ['eff_acarm061', 4], ['eff_acarm053', 4]].map(([e, w]) => [itemByEffect(e), w])), assumed: true }, // 维式重锤, 战栗 / 坚固 / 加速 / 灼燃维式重锤, 有限加速器, 护盾无人机, 激光发射器
+      pool_chess_glady: { kind: 'chess', items: poolItems('pool_chess_glady', poolChars('pool_chess_glady', ['char_263_skadi', 'char_143_ghost', 'char_4137_udflow']).map(chessByChar)), assumed: true }, // 斯卡蒂, 幽灵鲨, 深巡 (歌蕾蒂娅's garrison_39)
+      pool_char_pinus: { kind: 'chess', weighted: poolWeighted('pool_char_pinus', [['char_496_wildmn', 10], ['char_431_ashlok', 10], ['char_430_fartth', 3]].map(([c, w]) => [chessByChar(c), w])), assumed: true }, // 野鬃, 灰毫, 远牙
       pool_char_later: { kind: 'chess', bond: 'lateranoShip', minTier: 4, golden: true, rule: 'shopEligible', assumed: true },
       ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((t) => [`pool_chess_shop_${t}_reward`, { kind: 'chess', tier: t, rule: 'shopEligible', assumed: true }])),
     },
@@ -2844,10 +2913,11 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
     if (!rec) throw new Error(`pool stock: missing ${name}`);
     return [rec.chessId || rec.id, count];
   }));
-  const chessStock = stockByName(chess, { 普罗旺斯: 10, 德克萨斯: 10, 跃跃: 10, 古米: 10, 格雷伊: 10,
-    风丸: 8, 赫默: 12, 休谟斯: 12, 砾: 12, 蒂比: 12, 调香师: 12 });
-  const itemStock = stockByName(items, { 简易通讯机: 5, 蜂鸣器: 6, 防暴盾: 6, 浓缩嗅盐: 6,
-    寻呼模块: 7, 伪装服: 7, 拉特兰桥夹: 7, 商业包装方案: 2 });
+  // 下半-measured: a version whose profile leaves the stock table out has no overrides (tier copies only) [ASSUMED]
+  const chessStock = useTable('stock') ? stockByName(chess, { 普罗旺斯: 10, 德克萨斯: 10, 跃跃: 10, 古米: 10, 格雷伊: 10,
+    风丸: 8, 赫默: 12, 休谟斯: 12, 砾: 12, 蒂比: 12, 调香师: 12 }) : {};
+  const itemStock = useTable('stock') ? stockByName(items, { 简易通讯机: 5, 蜂鸣器: 6, 防暴盾: 6, 浓缩嗅盐: 6,
+    寻呼模块: 7, 伪装服: 7, 拉特兰桥夹: 7, 商业包装方案: 2 }) : {};
   const addendum = ctx.research.core?._criticAddendum || {};
   const multipliers = addendum.enemyStatMultipliers || DEFAULT_ENEMY_MULTIPLIERS;
   if (!addendum.enemyStatMultipliers) warn('config: using built-in enemy multiplier table (research 01 _criticAddendum missing)');
@@ -2880,7 +2950,7 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
         template, bossTemplates: isBoss ? bossTemplates : null,
         combatTimeLimit: isBoss ? null : (waves[template]?.maxPlayTime ?? null),
         levelMaxPlayTime: waves[tplId]?.maxPlayTime ?? null,
-        prepTime: multi || type === 'LOCAL' ? turn.normalPhaseTime ?? null : null,
+        prepTime: multi || type === 'LOCAL' || PROFILE.config.rules?.soloTimed ? turn.normalPhaseTime ?? null : null,
         prepTimeData: turn.normalPhaseTime ?? null,
         isSpPrepare: entries.some((e) => e.isSpPrepare), isBoss, isHidden,
         bossOvertimeAfter: isBoss ? turn.bossTurnHpReduceTime || 150 : null,
@@ -2937,7 +3007,7 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
   const steps = Array.isArray(ac.enterStepList) ? ac.enterStepList : Object.values(ac.enterStepList || {});
   const step = (t) => steps.find((x) => x.stepType === t);
   return {
-    season: SEASON,
+    season: PROFILE.season,
     seasonName: '卫戍协议：盟约',
     modes,
     economy: {
@@ -2978,7 +3048,7 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
     },
     // minTeamLpExclusive 1 = LP > 1 (at least 2 left): PRTS's user-contributed text, which the community's measurement
     // (Bilibili 路标月报#2, cited on GitHub #645) matches — kept by the owner on 2026-10-15
-    hiddenCore: { single: 350, multi: 1200, minTeamLpExclusive: 1, difficulties: ['NORMAL', 'HARD', 'ABYSS'], checkedAfterRound: 14 },
+    hiddenCore: { single: PROFILE.config.hiddenCore.single, multi: PROFILE.config.hiddenCore.multi, minTeamLpExclusive: 1, difficulties: ['NORMAL', 'HARD', 'ABYSS'], checkedAfterRound: 14 },
     dp: { init: 10, perSec: 1, max: 99 },
     unite: { maxHelpers: 2, helperOrder: 'unitsOnField>activeBond>undownedUnits; pair: unitsOnField>activeBond>activeLayers>undownedUnits, first = right field (PRTS 帮助)', layerGainsEnabled: false, keepsHpSpPositions: true, leakedEnemyFullHp: true,
       templates: { 1: templateIdOf(act.constData.escapedBattleTemplateMapSinglePlayer), 2: templateIdOf(act.constData.escapedBattleTemplateMapMultiPlayer) } },
@@ -3030,10 +3100,15 @@ function buildConfig(ctx, waves, stages, bands, chess, items) {
     },
     constants: {
       maxLevelCnt: ac.constData?.maxLevelCnt ?? 15, bossTrailerStartRound: ac.constData?.bossTrailerStartRound ?? 3,
-      singleReconnectTime: ac.constData?.singleReconnectTime ?? 86400, trainingModeId: act.constData.trainingModeId || null,
+      // 下半's constData has it (24 h); 上半's has none (12e0a020 added it): another version keeps null rather than the
+      // 下半 value, and the lobby's own fallback applies (server/lobby.js SOLO_RECONNECT_FALLBACK_SEC; DESIGN §35.22.3)
+      singleReconnectTime: ac.constData?.singleReconnectTime ?? (IS_DEFAULT ? 86400 : null), trainingModeId: act.constData.trainingModeId || null,
       discountColor: ac.constData?.discountColor || '#59f4ca', premiumColor: ac.constData?.premiumColor || '#ff5454', normalColor: ac.constData?.normalColor || '#ffc600',
       pingConds: (ac.constData?.pingConds || []).map((p) => ({ minMs: p.cond, textRaw: p.txt })),
     },
+    // a non-default version names itself (shared/versions.js versionOfData) and carries its rule switches (inert until
+    // the rules read them); the default data/config.json never has this key
+    ...!IS_DEFAULT && { version: { id: PROFILE.id, family: VERSION.family, rules: { ...PROFILE.config.rules } } },
   };
 }
 
@@ -3146,15 +3221,28 @@ function validateAll(f) {
   const err = m => errors.push(m);
   const { chess, bonds, bands, items, tokens, backups, stages } = f;
   const visible = Object.values(chess).filter((c) => !c.isGolden && c.visible);
-  if (Object.keys(bonds).length !== 23) err(`expected 23 bonds, got ${Object.keys(bonds).length}`);
-  if (Object.keys(bands).length !== 40) err(`expected 40 bands, got ${Object.keys(bands).length}`);
-  if (visible.length !== 112) err(`expected 112 visible non-DIY chess, got ${visible.length}`);
+  // the version's expected counts (its profile, tools/versions/<slug>.mjs)
+  const want = PROFILE.expect;
+  if (Object.keys(bonds).length !== want.bonds) err(`expected ${want.bonds} bonds, got ${Object.keys(bonds).length}`);
+  if (Object.keys(bands).length !== want.bands) err(`expected ${want.bands} bands, got ${Object.keys(bands).length}`);
+  if (visible.length !== want.visibleNonDiy) err(`expected ${want.visibleNonDiy} visible non-DIY chess, got ${visible.length}`);
   // the deliberate trigger deviations (DESIGN §21.29, §22.10) still override an official TAKE_DAMAGE row, on the normal
-  // chess and its elite alike (a DEFAULT one may resolve to the owner's ACTIVE_RANGE on top: 深巡 S2)
+  // chess and its elite alike (a DEFAULT one may resolve to the owner's ACTIVE_RANGE on top: 深巡 S2). A version without
+  // the TANK row ('none': 上半) has no TAKE_DAMAGE row at all, so no deviation can apply there; 'present' (下半 V2_1)
+  // checks the entries of the operators the version has (雷蛇 joined with V2_2).
   const deviationHolds = (rule, trig) => trig.rawRule === 'TAKE_DAMAGE' && (trig.rule === rule || (ACTIVE_RANGE_OVER.has(rule) && trig.rule === 'ACTIVE_RANGE'));
-  for (const [baseId, skillsOf] of Object.entries(TRIGGER_DEVIATIONS)) {
-    const recs = Object.values(chess).filter((c) => c.baseId === baseId);
-    if (recs.length !== 2) err(`trigger deviation ${baseId}: expected the normal and the elite record, got ${recs.length}`);
+  const checkDeviations = want.triggerDeviations === 'default' || want.triggerDeviations === 'present';
+  const onlyPresent = want.triggerDeviations === 'present';
+  if (!checkDeviations) {
+    for (const c of Object.values(chess)) for (const s of c.skills || []) if (s.trigger?.rawRule === 'TAKE_DAMAGE') err(`chess ${c.chessId} ${s.skillId}: a TAKE_DAMAGE row in a version whose profile expects none`);
+    for (const [id, u] of Object.entries(backups?.units || {})) {
+      for (const [key, form] of Object.entries(u.forms)) for (const s of form.skills) if (s.trigger?.rawRule === 'TAKE_DAMAGE') err(`unit ${id}@${key} ${s.skillId}: a TAKE_DAMAGE row in a version whose profile expects none`);
+    }
+  }
+  for (const [charId, skillsOf] of checkDeviations ? Object.entries(TRIGGER_DEVIATIONS) : []) {
+    const recs = Object.values(chess).filter((c) => c.charId === charId);
+    if (onlyPresent && !recs.length) continue;
+    if (recs.length !== 2) err(`trigger deviation ${charId}: expected the normal and the elite record, got ${recs.length}`);
     for (const [skillId, rule] of Object.entries(skillsOf)) {
       for (const c of recs) {
         const s = (c.skills || []).find((x) => x.skillId === skillId);
@@ -3169,16 +3257,17 @@ function validateAll(f) {
   for (const c of Object.values(chess)) {
     for (const s of c.skills || []) {
       if (s.trigger?.rule !== 'ACTIVE_RANGE') continue;
-      const over = TRIGGER_DEVIATIONS[c.baseId]?.[s.skillId] || s.trigger.rawRule;
+      const over = (s.trigger.rawRule === 'TAKE_DAMAGE' && TRIGGER_DEVIATIONS[c.charId]?.[s.skillId]) || s.trigger.rawRule;
       if (s.skillType !== 'MANUAL' || !ACTIVE_RANGE_OVER.has(over) || !c.rangeGrid?.length || !strictlyContains(s.trigger.customRangeGrid || [], c.rangeGrid)) {
         err(`chess ${c.chessId} ${s.skillId}: ACTIVE_RANGE needs a MANUAL basic-strategy or SEARCH skill whose customRangeGrid strictly contains the record's range`);
       }
     }
   }
-  if (backups) {
+  if (backups && checkDeviations) {
     // the 重装 stand-ins' deviations (STANDIN_TRIGGER_DEVIATIONS) still override an official TAKE_DAMAGE row, on every form
     for (const [charId, skillsOf] of Object.entries(STANDIN_TRIGGER_DEVIATIONS)) {
       const forms = Object.values(backups.units[charId]?.forms || {});
+      if (onlyPresent && !forms.length) continue;
       if (!forms.length) err(`stand-in trigger deviation ${charId}: no unit in backups.json`);
       for (const [skillId, rule] of Object.entries(skillsOf)) {
         for (const f of forms) {
@@ -3189,13 +3278,22 @@ function validateAll(f) {
       }
     }
   }
-  for (const id of Object.keys(SHOP_EXCLUDED_ITEMS)) if (!items[id] || items[id].itemType !== 'EQUIP' || items[id].isGolden) err(`SHOP_EXCLUDED_ITEMS: ${id} is not a normal EQUIP item`);
+  // the item tables name the NORMAL item's effectId: exactly one normal EQUIP item in the default version, at most one in
+  // another (a version may lack the item)
+  for (const [table, keys] of [['SHOP_EXCLUDED_ITEMS', Object.keys(SHOP_EXCLUDED_ITEMS)], ['ITEM_RULES', Object.keys(ITEM_RULES)]]) {
+    for (const eff of keys) {
+      const n = Object.values(items).filter((i) => i.effectId === eff && i.itemType === 'EQUIP' && !i.isGolden).length;
+      if (n > 1 || (IS_DEFAULT && n !== 1)) err(`${table}: ${eff} is the effect of ${n} normal EQUIP items, expected ${IS_DEFAULT ? 'one' : 'at most one'}`);
+    }
+  }
+  // the token tables are keyed by token id: a listed token this version does not build is an error in the default only
   for (const [id, fl] of Object.entries(TOKEN_ABNORMAL)) {
-    if (!tokens[id]) err(`TOKEN_ABNORMAL: ${id} is not a token`);
+    if (!tokens[id]) { if (IS_DEFAULT) err(`TOKEN_ABNORMAL: ${id} is not a token`); }
     for (const f of fl) if (f !== 'healFree' && f !== 'isolated') err(`TOKEN_ABNORMAL: ${id}: unknown effect ${f}`);
   }
   for (const [id, pos] of Object.entries(TOKEN_POSITION_CORRECTIONS)) {
     const t = tokens[id] ?? backups?.tokens?.[id];
+    if (!t && !IS_DEFAULT) continue;
     if (!t || t.kind !== 'summon') err(`TOKEN_POSITION_CORRECTIONS: ${id} is not a summon`);
     else if (t.position !== pos || !['MELEE', 'RANGED', 'ALL'].includes(pos)) err(`TOKEN_POSITION_CORRECTIONS: ${id}: position ${t.position}`);
   }
@@ -3278,7 +3376,10 @@ async function main() {
     sizes[name] = Buffer.byteLength(texts[name]);
     total += sizes[name];
   }
-  if (total > 6 * 1024 * 1024) errors.push(`total data size ${total} exceeds 6 MB`);
+  if (total > 6 * 1024 * 1024) errors.push(`total data size ${total} exceeds 6 MB`); // per version
+  // another version carries a byte copy of the hand-maintained data/tuning.json: a gameplay file that loadData and the
+  // content hash read with the rest of a data directory [ASSUMED] the same tuning for every version
+  const extra = IS_DEFAULT ? {} : { tuning: await readFile(join(ROOT, 'data', 'tuning.json')) };
   // Integrity errors keep the previous (valid) output untouched unless --force.
   const write = !errors.length || OPTS.force;
   if (write) {
@@ -3288,6 +3389,12 @@ async function main() {
       const dest = join(OPTS.out, `${name}.json`);
       const tmp = `${dest}.tmp-${process.pid}`;
       await writeFile(tmp, text);
+      await rename(tmp, dest);
+    }
+    for (const [name, bytes] of Object.entries(extra)) {
+      const dest = join(OPTS.out, `${name}.json`);
+      const tmp = `${dest}.tmp-${process.pid}`;
+      await writeFile(tmp, bytes);
       await rename(tmp, dest);
     }
   }
@@ -3309,7 +3416,7 @@ async function main() {
   await mkdir(dirname(OPTS.report), { recursive: true });
   await writeFile(OPTS.report, JSON.stringify(report, null, 2));
 
-  if (write) log(`wrote ${Object.keys(files).length} files to ${OPTS.out} (${(total / 1024 / 1024).toFixed(2)} MB) in ${Date.now() - t0} ms`);
+  if (write) log(`wrote ${Object.keys(files).length + Object.keys(extra).length} files to ${OPTS.out} (${(total / 1024 / 1024).toFixed(2)} MB) in ${Date.now() - t0} ms`);
   else console.error(`integrity errors: ${OPTS.out} left unchanged (re-run with --force to write anyway)`);
   log(Object.entries(report.counts).map(([k, v]) => `${k}=${v}`).join(' '));
   if (warnings.length) {

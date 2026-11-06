@@ -7,7 +7,7 @@
       "textures": [
         "token_10002_kalts_mon3tr.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -109,7 +109,7 @@
       "textures": [
         "token_10003_cgbird_bird.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -172,7 +172,7 @@
       "textures": [
         "token_10005_mgllan_drone1.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -245,7 +245,7 @@
       "textures": [
         "token_10005_mgllan_drone2.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -328,7 +328,7 @@
       "textures": [
         "token_10005_mgllan_drone3.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -411,7 +411,7 @@
       "textures": [
         "token_10007_phatom_twin.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -508,7 +508,7 @@
       "textures": [
         "token_10008_cqbw_box.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -591,7 +591,7 @@
       "textures": [
         "token_10009_weedy_cannon.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -731,7 +731,7 @@
       "textures": [
         "token_10020_ling_soul1.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -825,7 +825,7 @@
       "textures": [
         "token_10020_ling_soul2.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -928,7 +928,7 @@
       "textures": [
         "token_10020_ling_soul3.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1067,7 +1067,7 @@
       "textures": [
         "token_10024_ebnhlz_rcube.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1150,7 +1150,7 @@
       "textures": [
         "token_10025_doroth_recttp.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1233,7 +1233,7 @@
       "textures": [
         "token_10026_bgsnow_subbow.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1344,7 +1344,7 @@
       "textures": [
         "token_10027_ironmn_pile1.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1416,7 +1416,7 @@
       "textures": [
         "token_10027_ironmn_pile2.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1488,7 +1488,7 @@
       "textures": [
         "token_10027_ironmn_pile3.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1571,7 +1571,7 @@
       "textures": [
         "token_10029_slent2_protrb.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1643,7 +1643,7 @@
       "textures": [
         "token_10031_swire2_gdtrap.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1726,7 +1726,7 @@
       "textures": [
         "token_10032_jesca2_jckshd.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1796,7 +1796,7 @@
       "textures": [
         "token_10034_ray_sndbst.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1856,7 +1856,7 @@
       "textures": [
         "token_10035_wisdel_wward.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1927,7 +1927,7 @@
       "textures": [
         "token_10041_cathy_catsld.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -1999,7 +1999,7 @@
       "textures": [
         "token_10043_necras_skeltn.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -2178,7 +2178,7 @@
       "textures": [
         "token_10050_monstr_prosts.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -2264,7 +2264,7 @@
       "textures": [
         "token_10051_radian_tower1.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "C_Skill1_Idle",
         "deploy": "C_Skill1_Start",
@@ -2342,7 +2342,7 @@
       "textures": [
         "token_10052_radian_tower2.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -2428,7 +2428,7 @@
       "textures": [
         "token_10053_radian_tower3.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -2541,7 +2541,7 @@
       "textures": [
         "token_10054_phatm2_encdool.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Loop",
         "deploy": "Start",
@@ -2609,7 +2609,7 @@
       "textures": [
         "token_10057_svash2_eagle.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Default",
         "deploy": "Default",
@@ -2658,7 +2658,7 @@
       "textures": [
         "token_10057_svash2_eagle.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Default",
         "deploy": "Default",
@@ -2707,7 +2707,7 @@
       "textures": [
         "token_10057_svash2_eagle.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Default",
         "deploy": "Default",
@@ -2756,7 +2756,7 @@
       "textures": [
         "token_10059_nasti_nstdef.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -2844,7 +2844,7 @@
       "textures": [
         "token_10060_nasti_nstchr.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle_1",
         "deploy": "Start",
@@ -2981,7 +2981,7 @@
       "textures": [
         "token_10061_nasti_nstbld.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle_1",
         "deploy": "Start",
@@ -3070,7 +3070,7 @@
       "textures": [
         "token_10064_wang_stone1.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -3141,7 +3141,7 @@
       "textures": [
         "token_10066_closur_ourbase.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -3208,7 +3208,7 @@
       "textures": [
         "token_10068_kalts2_mtship.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Default",
         "deploy": "Default",
@@ -3262,7 +3262,7 @@
       "textures": [
         "token_10069_mcnist_mcgraf.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",
@@ -3362,7 +3362,7 @@
       "textures": [
         "token_10070_aphris_pc.png"
       ],
-      "pma": true,
+      "pma": false,
       "anims": {
         "idle": "Idle",
         "deploy": "Start",

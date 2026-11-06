@@ -624,6 +624,20 @@ describe('a push / pull slide (推拉: the official impulse under friction)', ()
     }
   });
 
+  test('a scripted face turns a standing enemy, and a slide keeps its own facing', async () => {
+    const v = await view(11);
+    v.sync({ x: 5, y: 12, hp: 100, maxHp: 100, sp: 0, spMax: 0, flags: 0, anim: 0, vx: 0, face: 1 });
+    assert.equal(v.visFacing, 1, 'a block freezes velocity; the published sign still turns the model');
+    v.sync({ x: 5, y: 12, hp: 100, maxHp: 100, sp: 0, spMax: 0, flags: 0, anim: 0, vx: 0 });
+    assert.equal(v.visFacing, 1, 'no face leaves the last sign');
+    v.sync({ x: 4.5, y: 12, hp: 100, maxHp: 100, sp: 0, spMax: 0, flags: 0, anim: 0, vx: -1 });
+    assert.equal(v.visFacing, -1, 'a walk without a published face follows velocity');
+    v.slideTo(6.5, 12, { keepFacing: true });
+    v.sync({ x: 6.5, y: 12, hp: 100, maxHp: 100, sp: 0, spMax: 0, flags: 0, anim: 0, vx: 0, face: 1 });
+    assert.equal(v.visFacing, -1, 'a slide ignores the published sign');
+    v.destroy();
+  });
+
   test('a snapshot in flight does not teleport it (the slide owns the position until it lands)', async () => {
     const v = await view(7);
     v.slideTo(7.7, 12);
