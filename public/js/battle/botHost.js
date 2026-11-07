@@ -4,12 +4,13 @@
 // from these frames.
 //
 // b.botBattle → the Worker → b.botBattleResult, or `{ error: true }` when this browser cannot run it, so the server asks the
-// next human at once. A bot seat's prep (`task`) has the same shape, and the live frames for it arrive with piece 6.
+// next human at once. b.botTask → b.botReceived → the Worker → b.botMoves (plan) → b.botAck → b.botMoves (final). A hidden tab
+// may be frozen, so it says so (b.botHidden) instead of taking work, and the server moves the work on at once.
 //
 // The socket going down or the match ending drops everything: an answer could not be delivered, and the Worker is terminated.
 // It is built on the first job, so a match that never asks costs nothing.
 //
-//   installBotHost({ net, runner, createWorker, log }) → { busy(), task(), ack(), cancel(), clear(), dispose() } | null
+//   installBotHost({ net, runner, createWorker, log, doc }) → { busy(), task(), ack(), hurry(), cancel(), clear(), dispose() } | null
 
 import { battleRunner } from './runner.js';
 import { genUrl } from '../gen.js';
@@ -17,10 +18,10 @@ import { genUrl } from '../gen.js';
 export const BOT_WORKER_URL = genUrl('/js/battle/botWorker.js'); // (fork) in this page's server generation
 
 /**
- * @param {{ net?: any, runner?: any, createWorker?: () => Worker, log?: any }} [deps]
- * @returns {null | { busy: () => number, task: Function, ack: Function, cancel: Function, clear: () => void, dispose: () => void }}
+ * @param {{ net?: any, runner?: any, createWorker?: () => Worker, log?: any, doc?: any }} [deps] `doc`: the page's document (tests)
+ * @returns {null | { busy: () => number, task: Function, ack: Function, hurry: Function, cancel: Function, clear: () => void, dispose: () => void }}
  */
-export function installBotHost({ net, runner = battleRunner, createWorker = () => new Worker(BOT_WORKER_URL, { type: 'module' }), log = console } = {}) {
+export function installBotHost({ net, runner = battleRunner, createWorker = () => new Worker(BOT_WORKER_URL, { type: 'module' }), log = console, doc = globalThis.document } = {}) {
   if (!net || typeof net.on !== 'function' || !runner || typeof runner.ensureSim !== 'function') return null;
   /** @type {any} the live Worker; replaced as a whole, so a late callback of the old one finds itself unknown */
   let w = null;
@@ -28,6 +29,16 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   let broken = false;
   /** @type {Map<string, { fail: (why: string) => void, onMessage?: (msg: any) => void }>} jobs the Worker owes an answer */
   const jobs = new Map();
+  /** This match has asked for bot work, so the server wants to hear about the tab. */
+  let asked = false;
+  let reportedHidden = false;
+
+  const isHidden = () => doc?.hidden === true;
+  const reportTab = () => {
+    if (reportedHidden === isHidden()) return;
+    reportedHidden = isHidden();
+    net.send('b.botHidden', { hidden: reportedHidden });
+  };
 
   const answerBattle = (battleId, fields) => net.send('b.botBattleResult', { battleId, ...fields });
 
@@ -102,6 +113,8 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   const onBattle = (msg) => {
     if (!msg || typeof msg.battleId !== 'string' || !msg.spec || typeof msg.spec !== 'object') return;
     const { battleId, spec } = msg;
+    asked = true;
+    if (isHidden()) { reportTab(); return; }
     if (broken || (typeof spec.cs === 'string' && spec.cs !== '')) { answerBattle(battleId, { error: true }); return; }
     jobs.set(battleId, {
       fail: () => answerBattle(battleId, { error: true }),
@@ -121,36 +134,63 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   const clear = () => {
     kill();
     jobs.clear();
+    asked = false;
+    reportedHidden = false;
   };
+
+  const startTask = (id, world, { budgetMs, onBatch, onFail }) => {
+    jobs.set(id, {
+      fail: onFail,
+      onMessage(m) {
+        if (m.t !== 'batch') return;
+        if (m.batch === 'final') jobs.delete(id);
+        onBatch(m);
+      },
+    });
+    post(id, { t: 'task', id, world, budgetMs });
+  };
+
+  const onTask = (msg) => {
+    if (!msg || typeof msg.taskId !== 'string' || !msg.world || typeof msg.world !== 'object') return;
+    const { taskId } = msg;
+    asked = true;
+    net.send('b.botReceived', { taskId });
+    if (isHidden()) { reportTab(); return; }
+    if (broken) { net.send('b.botMoves', { taskId, error: true }); return; }
+    startTask(taskId, msg.world, {
+      budgetMs: msg.budgetMs,
+      onBatch: (b) => net.send('b.botMoves', { taskId, batch: b.batch, moves: b.moves, ...(b.memo ? { memo: b.memo } : {}) }),
+      onFail: () => net.send('b.botMoves', { taskId, error: true }),
+    });
+  };
+
+  const ack = (id, { stale = false } = {}) => {
+    if (stale) jobs.delete(id);
+    if (w) w.port.postMessage({ t: 'ack', id, stale });
+  };
+  const hurry = (id) => { if (jobs.has(id) && w) w.port.postMessage({ t: 'hurry', id }); };
 
   const offBattle = net.on('b.botBattle', onBattle);
   const offCancel = net.on('b.botBattleCancel', (msg) => { if (msg && typeof msg.battleId === 'string') drop(msg.battleId); });
   const offStatus = net.on('status', (snap) => { if (!snap || snap.status !== 'online') clear(); });
+  const offTask = net.on('b.botTask', onTask);
+  const offAck = net.on('b.botAck', (msg) => { if (msg && typeof msg.taskId === 'string') ack(msg.taskId, { stale: !!msg.stale }); });
+  const offHurry = net.on('b.botHurry', (msg) => { if (msg && typeof msg.taskId === 'string') hurry(msg.taskId); });
+  const offDrop = net.on('b.botCancel', (msg) => { if (msg && typeof msg.taskId === 'string') drop(msg.taskId); });
+  const onVisibility = () => { if (asked) reportTab(); };
+  doc?.addEventListener?.('visibilitychange', onVisibility);
 
   return {
     /** Jobs the Worker owes an answer (tests). */
     busy: () => jobs.size,
     /**
      * A bot seat's prep. `onBatch` gets the plan batch, then (after `ack`) the final one; `onFail` gets the reason.
-     * @param {string} id @param {any} world
-     * @param {{ budgetMs?: number, onBatch: (batch: any) => void, onFail: (why: string) => void }} o
+     * The socket frames use this too; tests call it directly.
      */
-    task(id, world, { budgetMs, onBatch, onFail }) {
-      jobs.set(id, {
-        fail: onFail,
-        onMessage(m) {
-          if (m.t !== 'batch') return;
-          if (m.batch === 'final') jobs.delete(id);
-          onBatch(m);
-        },
-      });
-      post(id, { t: 'task', id, world, budgetMs });
-    },
-    /** The server's answer to the plan batch: go on, or stop on `stale`. @param {string} id @param {{ stale?: boolean }} [o] */
-    ack(id, { stale = false } = {}) {
-      if (stale) jobs.delete(id);
-      if (w) w.port.postMessage({ t: 'ack', id, stale });
-    },
+    task: startTask,
+    /** The server's answer to the plan batch: go on, or stop on `stale`. */
+    ack,
+    hurry,
     cancel: drop,
     /** The match on screen is over (main.js): nothing of it may keep the Worker busy. */
     clear,
@@ -158,6 +198,11 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
       offBattle();
       offCancel();
       offStatus();
+      offTask();
+      offAck();
+      offHurry();
+      offDrop();
+      doc?.removeEventListener?.('visibilitychange', onVisibility);
       clear();
     },
   };

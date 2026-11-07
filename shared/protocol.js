@@ -71,6 +71,8 @@ const isUnspawned = (u) => isPlain(u) && isId(u.enemyKey) && nullable(isId)(u.so
  * Structural check of a client BattleResult (DESIGN §5.1 / §14 `b.result`): types, ranges and size limits only —
  * the semantic checks against the battle's spec are the server's (server/match/fields.js validateClientResult).
  */
+/** Most moves in one b.botMoves batch (server/match/match/botTasks.js MAX_BATCH_MOVES is the same limit where they apply). */
+export const BOT_MOVES_MAX = 200;
 /** Most samples of a bot battle's progress timeline in one b.botBattleResult. */
 export const BOT_TIMELINE_MAX = 400;
 /** [gt, killed, total, resolved | null(, left)], as server/match/fields.js timelineSample writes it. */
@@ -690,6 +692,17 @@ export const C2S = {
     battleId: isId, result: isBattleResult, timeline: isBotTimeline, error: (v) => v === undefined || v === true,
     $optional: ['result', 'timeline', 'error'],
   },
+  // (fork) A bot seat's prep played in this browser (docs/host-browser-bots.md B2): b.botReceived says the page has the
+  // S2C 'b.botTask' frame; b.botMoves carries a batch of the seat's moves, `plan` (answered by b.botAck) and then `final`
+  // with the bot's own memo, or `error: true` when this browser could not play it. Each move is checked again where it is
+  // applied (server/match/match/botTasks.js). b.botHidden reports a hidden tab, which phones freeze. A stale task or another
+  // sender is ignored.
+  'b.botReceived': { taskId: isId },
+  'b.botMoves': {
+    taskId: isId, batch: (v) => v === 'plan' || v === 'final', moves: (v) => isList(v, BOT_MOVES_MAX, isPlain), memo: isPlain,
+    error: (v) => v === undefined || v === true, $optional: ['batch', 'moves', 'memo', 'error'],
+  },
+  'b.botHidden': { hidden: isBool },
   // State-delta transport (shared/stateDelta.js): the client asks for one full frame after it missed one. The server
   // answers with a full frame on each state channel it speaks (m.public / m.private), which is what restores the
   // baseline; it is rate-limited like the other resend-heavy intents (server/net.js HEAVY_TYPES, and the lobby's
@@ -719,6 +732,10 @@ export const S2C = [
   // (fork) a bot field's real battle (docs/host-browser-bots.md B13): b.botBattle { battleId, spec } — run it in a Worker and
   // answer with a C2S b.botBattleResult · b.botBattleCancel { battleId } — the server no longer waits for it
   'b.botBattle', 'b.botBattleCancel',
+  // (fork) a bot seat's prep (docs/host-browser-bots.md B2): b.botTask { taskId, world, budgetMs } · b.botAck { taskId, stale? }
+  // the plan batch was applied (`stale`: stop, a fresh task follows) · b.botHurry { taskId } stop rehearsing at the best layout
+  // so far · b.botCancel { taskId } the server no longer waits for it
+  'b.botTask', 'b.botAck', 'b.botHurry', 'b.botCancel',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)

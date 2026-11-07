@@ -1,6 +1,6 @@
 # Host-browser bots: design and work split
 
-Status: **pieces 1–4 and 8 built (off by default, not live); pieces 5–7 and 9–11 not started.** Written 2026-11-07 against
+Status: **pieces 1–4, 6 and 8 built (off by default, not live); pieces 5, 7 and 9–11 not started.** Written 2026-11-07 against
 `dev-0.2` at `580c2708`. Each later piece waits for approval.
 
 The rule this serves: the server has to carry hundreds of players with 3 bots each, so the host's browser does **all**
@@ -325,7 +325,8 @@ hundreds of milliseconds, not seconds. Piece 6 measures how often this happens i
 | Bot budget for a prep | `clamp(40% of prep time, 15 s, 60 s)`; 30 s when untimed |
 | Each seat's share | what is left ÷ seats left, so a fast bot's savings go to the next one |
 | Rehearsal slice | 50 ms, so the Worker can hear cancel and hurry without being killed |
-| Receipt ack | 2 s, else fail over |
+| Receipt ack | 5 s, else fail over (2 s lost tasks in a real two-browser game: a page's main thread can be that busy) |
+| Plan batch after the receipt | 10 s, else fail over (a first Worker start took about 3.4 s on the desktop) |
 | Grace on top of the budget | 3 s, else fail over |
 
 **On overrun, keep the best layout.** `RehearsalRun` keeps its best score so far, and the candidates are already ordered with
@@ -385,8 +386,8 @@ bonus, upstream's item hunt (`faLead`) gets per-operator damage, because the reh
 **As built (piece 8):** the code is `server/match/match/botBattles.js`, switched on by `SP_BOT_BATTLES=host`, separate from
 `SP_BOT_EXECUTION` so it can go live first. It branches in `_launch`, not `_authorityFor`, because a boss field's handover also
 calls `_authorityFor` and boss fields are piece 9. A browser has 30 s to answer one field (`BOT_BATTLE_ANSWER_MS`), and two
-timeouts stop a human being asked for the rest of the match. Until piece 11, a room with a content set or an old version
-stays on the server, because the Worker only has the page's official data.
+timeouts stop a human being asked for the rest of the match. Until piece 11, a gameplay-plugin room or an old version stays on
+the server, because the Worker only has the page's official data. Vanilla rooms carry a `cs` too, so the gates test `requireCs`.
 
 `_authorityFor` gets one branch: a field with no human goes to the current executor. A Worker runs the spec headless and
 sends the result early, and the server holds it until the battle's natural end with the existing `_armRelease`, so pacing and
@@ -441,6 +442,9 @@ through a local link and reads the table. Chrome CPU throttling at 4× and 6× g
 | Page stays responsive | no long main-thread task from bot work |
 
 ## Part E: work split
+
+**Stale moves, measured for piece 6:** 0 of 12 tasks went stale over 6 rounds with a human refreshing in the gap of every task,
+the worst case the test can stage. These are early rounds with few bot refreshes, so re-measure in a real room with several humans.
 
 Each piece merges on its own, with no live behaviour change until the flag is set in piece 6. Hours are one dev session's
 working time, including its targeted tests.

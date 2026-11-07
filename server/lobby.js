@@ -2115,6 +2115,9 @@ export class Lobby {
         // the room's host: the current executor of a delegated bot layout rehearsal (DESIGN §14; setHost follows a
         // migration while the match runs)
         hostId: room.hostId,
+        // (fork) bots run in a human's browser (docs/host-browser-bots.md); `SP_BOT_BATTLES=server` keeps their battles here
+        ...(String(process.env.SP_BOT_EXECUTION ?? '').trim().toLowerCase() === 'host'
+          ? { botExecution: 'host', botBattles: String(process.env.SP_BOT_BATTLES ?? '').trim().toLowerCase() === 'server' ? 'server' : 'host' } : {}),
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
         seed,

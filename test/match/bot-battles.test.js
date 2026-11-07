@@ -146,12 +146,17 @@ test('nobody connected: no thinking and no simulating on the server', () => {
 });
 
 test('rooms the Worker has no data for stay on the server until piece 11', () => {
-  for (const o of [{ cs: 'a'.repeat(64) }, { cs: 'a'.repeat(64), requireCs: true }]) {
-    const h = atCombat(o);
-    assert.equal(h.allTo('p_0', 'b.botBattle').length, 0);
-    assert.ok(h.serverRuns.length > 0);
-    h.m.dispose();
-  }
+  const plugin = atCombat({ cs: 'a'.repeat(64), requireCs: true });
+  assert.equal(plugin.allTo('p_0', 'b.botBattle').length, 0);
+  assert.ok(plugin.serverRuns.length > 0);
+  plugin.m.dispose();
+  // every vanilla room has a `cs` too, the official content's hash: that room is the Worker's, and the frame carries no hash
+  const vanilla = atCombat({ cs: 'b'.repeat(64) });
+  assert.equal(vanilla.serverRuns.length, 0);
+  const frames = vanilla.allTo('p_0', 'b.botBattle');
+  assert.ok(frames.length > 0);
+  assert.ok(frames.every((m) => !('cs' in m.spec)));
+  vanilla.m.dispose();
 });
 
 test('boss fields keep today\'s rule (layer traits: test/plugins/operator-traits.test.js)', () => {

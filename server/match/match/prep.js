@@ -172,6 +172,7 @@ export class MatchPrep {
   }
 
   maybeEndPrep() {
+    this._botMaybeHurry(); // (fork) match/botTasks.js
     if (this.phase !== PHASE.PREP || this._prepEndQueued) return;
     const allReady = () => { const alive = this.alivePlayers(); return alive.length > 0 && alive.every((p) => p.ready); };
     if (!allReady()) return;

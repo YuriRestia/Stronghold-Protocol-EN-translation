@@ -8,6 +8,7 @@
 //             ← { t: 'battle', id, spec }                       a bot field's BattleSpec
 //             ← { t: 'task', id, world, budgetMs? }             a bot seat's prep (server/match/botWorld.js buildWorld)
 //             ← { t: 'ack', id, stale? }                        the server took the plan batch: go on, or stop on `stale`
+//             ← { t: 'hurry', id }                              stop rehearsing at the best layout so far
 //             ← { t: 'cancel', id }                             drop that job, running or waiting
 //   postMessage → { t: 'battle-done', id, result, timeline }
 //               | { t: 'batch', id, batch: 'plan', moves, ms }  then, after the ack:
@@ -44,7 +45,7 @@ async function slices(job, step, deadline = Infinity) {
   for (;;) {
     if (step(SLICE_MS)) return true;
     await breathe();
-    if (job.cancelled || performance.now() >= deadline) return false;
+    if (job.cancelled || job.hurried || performance.now() >= deadline) return false;
   }
 }
 
@@ -99,6 +100,11 @@ self.onmessage = (ev) => {
     case 'ack':
       waitingAck.get(msg.id)?.(msg);
       break;
+    case 'hurry': {
+      const job = running && running.id === msg.id ? running : queue.find((x) => x.id === msg.id);
+      if (job) job.hurried = true;
+      break;
+    }
     case 'cancel': {
       const i = queue.findIndex((job) => job.id === msg.id);
       if (i >= 0) queue.splice(i, 1);

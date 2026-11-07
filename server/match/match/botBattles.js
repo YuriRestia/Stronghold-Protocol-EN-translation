@@ -19,15 +19,18 @@ export class MatchBotBattles {
   /** Whether a field `_authorityFor` found no human for goes to a browser instead of the server. */
   _botBattleOnHost(f) {
     if (this.botBattles !== 'host' || f.kind === 'boss' || f.kind === 'hidden') return false;
-    // the Worker has the page's official data only, until piece 11
-    if (this.requireCs || this.cs || (this.version && this.version !== DEFAULT_VERSION)) return false;
+    // the Worker has the page's official data only, until piece 11. A vanilla room has a `cs` too, the official content's hash.
+    if (this.requireCs || (this.version && this.version !== DEFAULT_VERSION)) return false;
     // layer traits keep today's rule on a human's field; a field of bots only is exempt, capped by the same allowance
     return !requiresTraitLayerAuthority(f.spec, this.gd) || f.players.every((pid) => this.players.get(pid)?.isBot);
   }
 
-  /** The room's host, else the lowest seat: connected, not demoted, not tried on this field yet. */
-  _botBattleExecutor(f) {
-    const usable = (ps) => ps && !ps.isBot && !ps.left && ps.connected && !this._botHostDemoted.has(ps.playerId) && !f.botTried?.has(ps.playerId);
+  /**
+   * Who does bot work now (design B9): the room's host, else the lowest seat. Connected, tab visible, not demoted, not tried yet.
+   * @param {Set<string>} [tried]
+   */
+  _botExecutorFor(tried) {
+    const usable = (ps) => ps && !ps.isBot && !ps.left && ps.connected && !this._botHostDemoted.has(ps.playerId) && !this._botHostHidden.has(ps.playerId) && !tried?.has(ps.playerId);
     const host = this.hostId ? this.players.get(this.hostId) : null;
     if (usable(host)) return host.playerId;
     let best = null;
@@ -35,27 +38,36 @@ export class MatchBotBattles {
     return best ? best.playerId : null;
   }
 
+  /** A timeout or a failed job: after BOT_HOST_STRIKES of them a human is not asked again this match. */
+  _botHostStrike(pid) {
+    const strikes = (this._botHostStrikes.get(pid) || 0) + 1;
+    this._botHostStrikes.set(pid, strikes);
+    if (strikes >= BOT_HOST_STRIKES) this._botHostDemoted.add(pid);
+    return strikes;
+  }
+
   /** Send the field to the next executor; with nobody left it gets a synthetic result (no kills, no leaks). */
   _assignBotHost(f) {
-    const pid = this._botBattleExecutor(f);
+    const pid = this._botExecutorFor(f.botTried);
     if (!pid) { this._botBattleGiveUp(f); return; }
     f.mode = 'host';
     f.authority = null;
     f.executor = pid;
     (f.botTried ||= new Set()).add(pid);
     this.botBattleStats.sent++;
-    // armed first: an answer that comes back with the frame itself cannot race the timeout
-    f.botTimer = this.later(this.scaled(this.botBattleAnswerMs), () => {
+    // armed first: an answer that comes back with the frame itself cannot race the timeout. Real time: a browser's work does not
+    // speed up with the match's timer scale.
+    f.botTimer = this.later(this.botBattleAnswerMs, () => {
       f.botTimer = null;
       this.botBattleStats.timeouts++;
-      const strikes = (this._botHostStrikes.get(pid) || 0) + 1;
-      this._botHostStrikes.set(pid, strikes);
-      if (strikes >= BOT_HOST_STRIKES) this._botHostDemoted.add(pid);
+      const strikes = this._botHostStrike(pid);
       this.log.warn?.(`[match ${this.roomCode}] ${f.fieldId}: ${pid} did not answer its bot battle (${strikes})`);
       this._botBattleRelease(f);
       this._assignBotHost(f);
     });
-    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec: f.spec })) {
+    // official content here (_botBattleOnHost), which is what the Worker holds, so the spec needs no content hash
+    const { cs: _cs, ...spec } = f.spec;
+    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec })) {
       this._botBattleDrop(f);
       this._assignBotHost(f);
     }

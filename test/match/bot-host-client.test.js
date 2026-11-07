@@ -161,6 +161,76 @@ test('a bot seat\'s prep: plan, ack, final; stale stops it', async () => {
   assert.equal(host.busy(), 0);
 });
 
+test('the live frames of a bot seat\'s prep: receipt at once, plan, ack, hurry, final', async () => {
+  const { sent, workers, recv, host } = setup();
+  recv('b.botTask', { taskId: 't.1', world: { seat: 1 }, budgetMs: 500 });
+  assert.deepEqual(sent, [{ t: 'b.botReceived', taskId: 't.1' }], 'before the Worker has even started');
+  workers[0].say({ t: 'ready' });
+  await settle();
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'task', id: 't.1', world: { seat: 1 }, budgetMs: 500 });
+  workers[0].say({ t: 'batch', id: 't.1', batch: 'plan', moves: [{ t: 'g.refresh' }], ms: 3 });
+  assert.deepEqual(sent.at(-1), { t: 'b.botMoves', taskId: 't.1', batch: 'plan', moves: [{ t: 'g.refresh' }] });
+  recv('b.botAck', { taskId: 't.1' });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'ack', id: 't.1', stale: false });
+  recv('b.botHurry', { taskId: 't.1' });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'hurry', id: 't.1' });
+  workers[0].say({ t: 'batch', id: 't.1', batch: 'final', moves: [], memo: { _botX: 1 }, ms: 3, finished: false });
+  assert.deepEqual(sent.at(-1), { t: 'b.botMoves', taskId: 't.1', batch: 'final', moves: [], memo: { _botX: 1 } });
+  assert.equal(host.busy(), 0);
+});
+
+test('a prep that fails, goes stale or is cancelled', async () => {
+  const { sent, workers, recv, host } = setup();
+  recv('b.botTask', { taskId: 't.1', world: {} });
+  workers[0].say({ t: 'ready' });
+  await settle();
+  workers[0].say({ t: 'failed', id: 't.1', message: 'boom' });
+  assert.deepEqual(sent.at(-1), { t: 'b.botMoves', taskId: 't.1', error: true });
+  recv('b.botTask', { taskId: 't.2', world: {} });
+  await settle();
+  workers[0].say({ t: 'batch', id: 't.2', batch: 'plan', moves: [] });
+  recv('b.botAck', { taskId: 't.2', stale: true });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'ack', id: 't.2', stale: true });
+  assert.equal(host.busy(), 0);
+  recv('b.botTask', { taskId: 't.3', world: {} });
+  await settle();
+  recv('b.botCancel', { taskId: 't.3' });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'cancel', id: 't.3' });
+  const count = sent.length;
+  workers[0].say({ t: 'batch', id: 't.3', batch: 'plan', moves: [] });
+  assert.equal(sent.length, count, 'a cancelled task stays quiet');
+});
+
+test('a hidden tab says so instead of taking work, and says when it is back', () => {
+  const listeners = new Map();
+  const doc = { hidden: true, addEventListener(t, fn) { listeners.set(t, fn); }, removeEventListener(t) { listeners.delete(t); } };
+  const handlers = new Map();
+  const sent = [];
+  let created = 0;
+  const host = installBotHost({ net: { on(t, fn) { handlers.set(t, fn); return () => handlers.delete(t); }, send(t, f) { sent.push({ t, ...f }); return true; } },
+    runner: { ensureSim: () => Promise.resolve({ raw: {} }) }, createWorker: () => { created++; return { postMessage() {}, terminate() {} }; }, log: { warn() {} }, doc });
+  listeners.get('visibilitychange')();
+  assert.deepEqual(sent, [], 'no bot work asked yet: the server does not need to hear of it');
+  handlers.get('b.botTask')({ taskId: 't.1', world: {} });
+  assert.deepEqual(sent, [{ t: 'b.botReceived', taskId: 't.1' }, { t: 'b.botHidden', hidden: true }]);
+  handlers.get('b.botBattle')({ battleId: 'b.1', spec: {} });
+  assert.equal(sent.length, 2, 'said once');
+  assert.equal(created, 0);
+  doc.hidden = false;
+  listeners.get('visibilitychange')();
+  assert.deepEqual(sent.at(-1), { t: 'b.botHidden', hidden: false });
+  doc.hidden = true;
+  listeners.get('visibilitychange')();
+  assert.deepEqual(sent.at(-1), { t: 'b.botHidden', hidden: true });
+  host.clear();
+  doc.hidden = false;
+  const n = sent.length;
+  listeners.get('visibilitychange')();
+  assert.equal(sent.length, n, 'the match is over');
+  host.dispose();
+  assert.equal(listeners.size, 0);
+});
+
 test('no screen can draw these frames: only botHost.js in the page\'s code knows them, and it does not import the store', () => {
   const root = path.resolve(import.meta.dirname, '../../public/js');
   const knowing = [];

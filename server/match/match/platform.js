@@ -57,7 +57,7 @@ export class MatchPlatform {
     if (this.disposed || this.ended) {
       // A report that crossed the match end (the last b.progress of a field, a delegated rehearsal's answer) is stale:
       // ignored, never an error (DESIGN §14 — an error frame without a rid would surface as a toast in the browser).
-      if (msg && (msg.t === 'b.rehearsalResult' || msg.t === 'b.botBattleResult')) return OK;
+      if (msg && (msg.t === 'b.rehearsalResult' || msg.t === 'b.botBattleResult' || msg.t === 'b.botReceived' || msg.t === 'b.botMoves' || msg.t === 'b.botHidden')) return OK;
       return this.clientCombat && msg && (msg.t === 'b.progress' || msg.t === 'b.result') ? OK : fail(ERR.WRONG_PHASE);
     }
     if (!msg || typeof msg !== 'object' || typeof msg.t !== 'string' || !GAME_TYPES.has(msg.t)) return fail(ERR.BAD_MSG);
@@ -146,6 +146,9 @@ export class MatchPlatform {
       if (this.clientCombat) this._authorityLost(ps, 'disconnect');
       // a rehearsal this host was running falls back to the server (DESIGN §14; a no-op without tasks)
       this._rehearsalHostChanged();
+      // (fork) match/botTasks.js: a page that reconnects reports its tab again
+      this._botHostHidden.delete(ps.playerId);
+      this._botTaskHostLost(ps);
       this.markPublic();
     });
   }
@@ -202,6 +205,7 @@ export class MatchPlatform {
       if (this.clientCombat) this._authorityLost(ps, 'left');
       // a rehearsal the departed seat was running falls back to the server (DESIGN §14; a no-op without tasks)
       this._rehearsalHostChanged();
+      this._botTaskHostLost(ps); // (fork) match/botTasks.js
       this.markPublic();
       if (!this.order.some((p) => !p.isBot && !p.left)) {
         this.finish({ victory: false, reason: 'abandoned' });

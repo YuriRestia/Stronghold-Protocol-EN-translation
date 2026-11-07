@@ -167,7 +167,8 @@
 //   opts.botSliceMs    wall-clock ms of rehearsal per scheduler callback (default 8 with a real scheduler, unbounded
 //                      with a virtual one); the rest runs in later callbacks (scheduleBotPrep)
 //   opts.seatStreams   (fork) bot seats draw from their own random streams and a reserved uid block (match/botTasks.js; default off)
-//   opts.botExecution  (fork) 'local' (default) or 'host': a bot seat's whole prep runs on opts.botExecutor (docs/host-browser-bots.md)
+//   opts.botExecution  (fork) 'local' (default) or 'host': a bot seat's whole prep runs in a human's browser, or on opts.botExecutor
+//                      in tests (docs/host-browser-bots.md; server/lobby.js passes it for SP_BOT_EXECUTION=host)
 //   opts.botBattles    (fork) 'server' (default) or 'host' (env SP_BOT_BATTLES): a field no connected human plays runs in a human's
 //                      browser (match/botBattles.js); opts.botBattleAnswerMs is how long that browser has (default 30 s)
 //   opts.botRehearsalDelegate  offer each bot prep's layout rehearsal to the current host's browser instead (DESIGN §14;
@@ -423,7 +424,8 @@ export class Match {
      * (fork) Bot seats draw from random streams of their own while their moves run (match/botTasks.js). Off by default, so
      * tools, tests and golden results keep the shared streams; `botExecution: 'host'` needs it and turns it on.
      */
-    this.botExecution = opts.botExecution === 'host' ? 'host' : 'local';
+    // Plugin and old-version rooms stay local until piece 11: the Worker has the page's official data only.
+    this.botExecution = opts.botExecution === 'host' && !this.requireCs && !this.version ? 'host' : 'local';
     this.seatStreams = opts.seatStreams === true || this.botExecution === 'host';
     /** (fork) layouts a bot rehearses when its prep runs on the executor (every `m.botRehearsal` gate reads this on the copy) */
     this.botTaskLayouts = Number.isInteger(opts.botTaskLayouts) && opts.botTaskLayouts >= 0 ? Math.min(opts.botTaskLayouts, 8) : BOT_REHEARSAL_DEFAULT;
@@ -437,6 +439,13 @@ export class Match {
     this._botHostStrikes = new Map();
     /** @type {Set<string>} */
     this._botHostDemoted = new Set();
+    /** @type {Set<string>} humans whose tab is hidden (b.botHidden): not asked while it stays so */
+    this._botHostHidden = new Set();
+    this.botTaskStats = { sent: 0, stale: 0, failovers: 0, timeouts: 0, errors: 0, hidden: 0, noHost: 0 };
+    /** The round every human turned Ready in (b.botHurry), and that round's bot budget (_botSeatBudgetMs). */
+    this._botHurryRound = -1;
+    this._botBudgetRound = -1;
+    this._botBudgetUntil = 0;
     /** @type {Array<{ ps: any, token: number, round: number }>} seats waiting for the executor, one at a time */
     this._botQueue = [];
     /** @type {null | { entry: any, task: any, stale: number }} the seat the executor is playing */

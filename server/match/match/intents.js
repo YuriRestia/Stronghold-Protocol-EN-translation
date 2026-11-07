@@ -63,6 +63,10 @@ export class MatchIntents {
       case 'b.rehearsalResult': this._onRehearsalResult(ps, msg); return OK;
       // (fork) a bot field's battle run in this browser: a report too (match/botBattles.js)
       case 'b.botBattleResult': this._onBotBattleResult(ps, msg); return OK;
+      // (fork) a bot seat's prep played in this browser (match/botTasks.js): reports too
+      case 'b.botReceived': return this._onBotReceived(ps, msg);
+      case 'b.botMoves': return this._onBotMoves(ps, msg);
+      case 'b.botHidden': return this._onBotHidden(ps, msg);
       default: return fail(ERR.BAD_MSG);
     }
   }
