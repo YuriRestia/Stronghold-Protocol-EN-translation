@@ -94,7 +94,7 @@ test('screens/bandDraft.js: the 请选择策略 band and the 轮到你 sound, co
   // an early call before the art list is in starts nothing and leaves the next call free to start it
   assert.match(boot, /if \(bootArt !== null \|\| typeof Image !== 'function'\) return;\n\s+const assets = data\.get\('assets'\);\n\s+if \(!assets\) return;[^\n]*\n\s+bootArt = false;/);
   // main.js: a room entered (a match is near) starts them once the art list is in
-  assert.match(read('public/js/main.js'), /data\.loadAll\(GAME_FILES\)\.then\(\(\) => preloadBootArt\(\), \(\) => \{\}\);/);
+  assert.match(read('public/js/main.js'), /data\.loadAll\(GAME_FILES\)\.then\(\(\) => loadLater\(preloadBootArt\), \(\) => \{\}\);/);
   assert.match(d, /<\$\{TurnBanner\} key=\$\{turnBanner\} onDone=\$\{\(\) => setTurnBanner\(0\)\} \/>/);
 });
 

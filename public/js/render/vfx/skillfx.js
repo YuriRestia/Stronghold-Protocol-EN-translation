@@ -213,6 +213,7 @@ export class SkillFx {
     this.tloops = new Map();   // `${target id}|${key}` → { h, until, U, tgt, bySkill } (skills.js targetsOf `hit`)
     this.marks = [];           // FX_BINDINGS reached effects: { owner, r, c, until, h, cover }
     this.locks = [];           // FX_BINDINGS hold 'lock' crosshairs: { src, tv, x, y, shell, idle, hs } (_lockOn)
+    this.shots = new Map();    // FX_BINDINGS `shots`: '<unit id>:<shot id>' → its flight's handle, null before its birth (_lanes)
     this.born = new Map();     // unit id → { frame, own } of its official birth effect (deployed: FxWiring.deploy's key)
     this.frame = 0;            // FxWiring.tick counts frames: events of one frame share a value
     this.sweep = 0;
@@ -791,7 +792,15 @@ export class SkillFx {
    */
   landed(m, v, k) {
     let drew = false;
-    for (const e of uniq(pickGroup(m.groups, k, m.hitOpts, m.seed))) if (this._play(e, v, { flipFrom: m.src })) drew = true;
+    // (fork) FX_ATTACK_LINES: the hit waits for the flight to reach the enemy (the sim's damage lands at the attack)
+    const l = m.U?.plan?.line;
+    const wait = l && m.src ? Math.min(l.life, Math.hypot(v.x - m.src.x, v.y - m.src.y) / l.speed) : 0;
+    for (const e of uniq(pickGroup(m.groups, k, m.hitOpts, m.seed))) {
+      if (!(wait > 0)) { if (this._play(e, v, { flipFrom: m.src })) drew = true; continue; }
+      if (!this._key(e, v)) continue;
+      drew = true;
+      later(this.w.ofx, wait, () => { if (!v.destroyed) this._play(e, v, { flipFrom: m.src }); });
+    }
     if (k === 0) for (const e of uniq(m.buffs)) if (this._targetLoop(m.U, e, v)) drew = true;
     return drew;
   }
@@ -1019,7 +1028,12 @@ export class SkillFx {
     for (const field of ['src', 'id']) {
       const U = extra[field] != null ? this.units.get(extra[field]) : null;
       const bind = U ? FX_BINDINGS[U.skillId]?.[kind] : null;
-      if (bind && bind.owner === field && (!bind.during || this._lasts(U))) return bind.attack ? this._boundAttack(U, bind) : this._bound(U, bind, x, y, extra);
+      if (bind && bind.owner === field && (!bind.during || this._lasts(U))) {
+        if (bind.attack) return this._boundAttack(U, bind);
+        if (bind.shots) return this._lanes(U, bind, extra);
+        if (bind.endsShot) this._endShot(U, extra);
+        return this._bound(U, bind, x, y, extra);
+      }
     }
     // a binding whose fx names no owner: the unit whose skill of that id lasts
     for (const sid of BOUND_BY_SKILL[kind] || []) {
@@ -1124,6 +1138,44 @@ export class SkillFx {
       this.marks.push({ owner: U.id, r: Math.round(y), c: Math.round(x), until: this.w.ofx.time + holdS, h, cover: bind.cover || [] });
     }
     return drew;
+  }
+
+  /**
+   * An FX_BINDINGS `shots` entry: the shots of a kit fx's `lanes`, each from its birth delay on down its lane at the
+   * fx's `speed`, until an `endsShot` fx names it or its way (`len`) ends. False without the prefab: the procedural fx stays.
+   */
+  _lanes(U, bind, extra) {
+    const key = bind.keys.find((k) => this.w.ofx.lib.has(k));
+    if (!key || !Array.isArray(extra.lanes) || !extra.lanes.length) return false;
+    const { dx, dy, len, speed } = extra;
+    for (const [x, y, wait, shot] of extra.lanes) {
+      const id = `${U.id}:${shot}`;
+      this.shots.set(id, null);
+      later(this.w.ofx, wait, () => {
+        if (!this.shots.has(id)) return;   // met an enemy before its birth, or the field was cleared
+        const h = this.w.flyLane(key, U.v, { x, y, dx, dy, len, speed, onEnd: () => this.shots.delete(id) });
+        if (h) this.shots.set(id, h); else this.shots.delete(id);
+      });
+    }
+    return true;
+  }
+
+  /**
+   * (fork) FX_ATTACK_LINES: one attack's flight (plan.line): its effect on the attacker, turned to the target; its own
+   * clip carries it out. False without the flight.
+   */
+  attackLine(U, src, tgt) {
+    const l = U?.plan?.line;
+    if (!l || !src || !tgt) return false;
+    return !!this.w.playOn(l.key, src, { toward: tgt, strike: true, important: true, artYaw: l.artYaw });
+  }
+
+  /** An `endsShot` fx: the flight of the shot it names stops (the projectile clears its main effect as it hits). */
+  _endShot(U, extra) {
+    if (extra.shot == null) return;
+    const id = `${U.id}:${extra.shot}`;
+    this.shots.get(id)?.stop({ hit: true });
+    this.shots.delete(id);
   }
 
   /**
@@ -1429,6 +1481,8 @@ export class SkillFx {
     this.units.clear();
     this.tloops.clear();
     this.marks = [];
+    for (const h of this.shots.values()) h?.stop();
+    this.shots.clear();
     for (const L of this.locks) this._endLock(L);
     this.locks = [];
     this.hitLog = [];

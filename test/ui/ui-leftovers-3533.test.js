@@ -51,7 +51,8 @@ test('short screens: the empty key field takes the placeholder\'s size; 同盟�
   assert.match(short, /\.hub-entry__long \{ display: none; \}\s*\.hub-entry__short \{ display: inline; \}/);
   const js = readFileSync(path.join(ROOT, 'public/js/screens/lobby.js'), 'utf8');
   assert.match(js, /pointShort: N_\('1–\{n\} 名博士'\)/);
-  assert.match(js, /<span class="hub-entry__long">\$\{t\(card\.points\[0\], card\.pointParams\)\}<\/span><span class="hub-entry__short">\$\{t\(card\.pointShort, card\.pointParams\)\}<\/span>/);
+  assert.match(js, /const short = timeShort \? t\(timeShort\) : card\.pointShort \? t\(card\.pointShort, card\.pointParams\) : who;/);
+  assert.match(js, /<span class="hub-entry__long">\$\{who\}<\/span><span class="hub-entry__short">\$\{short\}<\/span>/);
   for (const lang of ['en', 'ja', 'ko', 'zh-TW']) {
     const pack = JSON.parse(readFileSync(path.join(ROOT, `public/i18n/${lang}.json`), 'utf8'));
     assert.match(pack['1–{n} 名博士'], /\{n\}/, lang);

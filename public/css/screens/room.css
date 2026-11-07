@@ -36,6 +36,7 @@
     linear-gradient(90deg, rgba(255, 255, 255, .025) 1px, transparent 1px) 0 0 / 1.1rem 1.1rem,
     radial-gradient(120% 90% at 50% 30%, #161818, #070808);
 }
+/* every in-flow child of the screen has to be positioned or .rs__bg (absolute, after it in paint order) covers it */
 .rs-top, .rs-seats, .rs .specbar, .rs-foot { position: relative; }
 
 /* ---- top bar ------------------------------------------------------------------------------------------- */
@@ -154,7 +155,7 @@
 }
 .rs-key__link:hover, .rs-key__link:focus-visible { border-color: rgba(255, 255, 255, .4); }
 .rs-key__link .icon { width: 60%; height: 60%; }
-.rs-key--solo { gap: .1rem; padding-right: .2rem; font-size: calc(.16 * var(--t)); color: #b7bdbb; }
+.rs-key--solo { height: auto; gap: .1rem; padding-right: .2rem; font-size: calc(.16 * var(--t)); color: #b7bdbb; }
 
 /* ---- seats: a tall card (strip, portrait, state) and the name plate under it ---------------------------------- */
 .rs-seats {
@@ -316,7 +317,10 @@
   color: #fff;
   text-shadow: 0 1px 3px rgba(0, 0, 0, .6);
 }
-.rseat:not(.is-lit) .rseat__state { font-size: calc(.2 * var(--t)); color: #c9cecc; }
+/* a seat that is not ready has no mint wash over its art, so 准备中 sits on the bare picture: grey on a light operator's art
+   could not be read. A brighter colour and a dark outline, the same at every size. [ASSUMED] the values */
+.rseat:not(.is-lit) .rseat__state { font-size: calc(.2 * var(--t)); color: #eef0ef; text-shadow: 0 0 2px #000, 0 0 5px #000, 0 1px 3px #000; }
+.rseat:not(.is-lit) .rseat__box { background: rgba(0, 0, 0, .55); }
 .rseat__said { min-width: 0; overflow-wrap: break-word; }
 .rseat__box { flex: none; display: grid; place-items: center; width: max(.34rem, 20px); height: max(.34rem, 20px); background: rgba(0, 0, 0, .25); border: 2px solid currentColor; border-radius: 4px; }
 .rseat__box .icon { width: 80%; height: 80%; }
@@ -468,9 +472,9 @@
   max-height: 5.2rem;
   display: grid;
   /* a tile at least as wide as a long one-word name at the names' size (em of this font), so the names wrap whole rather
-     than end in an ellipsis (§35.18 review: at 特大 a phone showed 「Ang…」). [ASSUMED] the 6.6em */
+     than end in an ellipsis (§35.18 review: at 特大 a phone showed 「Ang…」). [ASSUMED] the 7.8em (6.6em cut English 「Thunderbringer」) */
   font-size: calc(.14 * var(--t));
-  grid-template-columns: repeat(auto-fill, minmax(max(.96rem, 6.6em), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(max(.96rem, 7.8em), 1fr));
   align-content: start;
   gap: .08rem;
   padding: 2px;
@@ -606,6 +610,7 @@
 .rs-opts__diff:hover:not(:disabled), .rs-opts__diff:focus-visible { border-color: var(--d-color); }
 .rs-opts__diff:disabled { cursor: default; opacity: .6; }
 .room-bar__right { display: flex; align-items: center; justify-content: flex-end; gap: .14rem; }
+.rs-foot__right { flex-direction: column; align-items: flex-end; gap: .08rem; }
 .rs-go.proto-start { flex: none; width: min(4.6rem, 40vw); }
 /* the label (§35.18 review: it shared 选择模拟协议's wrapping label by accident, and on a phone a fixed 46 px button then cut
    every line): like the dialog's, it wraps onto a second line and the button grows (`.proto-start` min-height) rather than
@@ -622,6 +627,9 @@
 .rs-go__icon { flex: none; display: grid; place-items: center; width: max(.5rem, 28px); height: max(.5rem, 28px); }
 .rs-go__icon .icon { width: 100%; height: 100%; }
 .rs-go.is-ready { background: linear-gradient(180deg, #7ff3d4, #4fe0bf); }
+/* 停止搜寻 (ui/matchSearch.js SearchButton): the same button in amber while the search runs */
+.rs-go[data-tone="stop"] { color: #1d1203; background: linear-gradient(180deg, #ffc15e, #f5a524); box-shadow: 0 0 0 1px rgba(255, 193, 94, .6), 0 .06rem .2rem rgba(0, 0, 0, .55); }
+.rs-go[data-tone="stop"] .proto-start__deco { background: repeating-linear-gradient(135deg, rgba(0, 0, 0, .28) 0 5px, transparent 5px 11px), linear-gradient(90deg, rgba(58, 34, 4, .2), rgba(58, 34, 4, .6)); }
 
 /* the plugin panel's mode picker (ui/pluginPanel.js) and the 「AI 队友最后选择」 switch share these */
 .dpick { display: flex; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3); }
@@ -662,41 +670,37 @@
 
 
 
-/* ---- 搜寻队友 strip (ui/matchSearch.js SearchBar) ------------------------------------------------------------- */
-.searchbar {
+/* ---- 搜寻队友 switch (ui/matchSearch.js SearchBar), right above the big button ------------------------------------ */
+/* as wide as the button below it, lit while on so it reads at a glance; a long label takes a second line */
+.searchbar__switch {
   flex: none;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: .2rem;
-  padding: 0 .6rem .16rem;
-  font-size: calc(.15 * var(--t));
-}
-/* the host's switch: big and lit while on, so it reads at a glance */
-.searchbar__switch {
-  display: inline-flex;
-  align-items: center;
   gap: .12rem;
-  height: .52rem;
-  padding: 0 .2rem 0 .12rem;
+  width: min(4.6rem, 40vw);
+  /* min-height: at 特大 on a small window the text is taller than .52rem */
+  min-height: .52rem;
+  padding: 2px .2rem 2px .12rem;
   background: #0a0d0c;
   border: 1px solid var(--line-2);
   color: var(--text-lo);
-  font-size: calc(.2 * var(--t));
+  font-size: min(calc(.2 * var(--t)), .38rem);
   font-weight: 700;
-  letter-spacing: .1em;
-  white-space: nowrap;
+  letter-spacing: .04em;
+  text-align: left;
   transition: border-color var(--t-fast), color var(--t-fast), box-shadow var(--t-fast);
 }
-.searchbar__switch .icon { width: .24rem; height: .24rem; }
-.searchbar__track { width: .6rem; height: .3rem; background: var(--bg-3); position: relative; transition: background var(--t-fast); }
+.searchbar__switch .icon { flex: none; width: .24rem; height: .24rem; }
+.searchbar__label { flex: 1 1 auto; min-width: 0; line-height: 1.1; }
+.searchbar__track { flex: none; width: .6rem; height: .3rem; background: var(--bg-3); position: relative; transition: background var(--t-fast); }
 .searchbar__track i { position: absolute; left: .04rem; top: .04rem; width: .22rem; height: .22rem; background: var(--text-lo); transition: transform var(--t-fast), background var(--t-fast); }
-.searchbar__state { min-width: .5rem; font-size: calc(.16 * var(--t)); }
+.searchbar__state { flex: none; min-width: .5rem; font-size: calc(.16 * var(--t)); }
 .searchbar__switch:hover:not(:disabled) { border-color: var(--line-3); }
 .searchbar__switch.is-on { color: var(--mint-400); border-color: var(--mint-500); box-shadow: 0 0 .3rem rgba(23, 249, 183, .16); }
 .searchbar__switch.is-on .searchbar__track { background: var(--mint-800); }
 .searchbar__switch.is-on .searchbar__track i { transform: translateX(.3rem); background: var(--mint-400); }
 .searchbar__switch:disabled { cursor: default; }
+.searchbar__switch--gap { visibility: hidden; }
 .room-ping__pills { display: inline-flex; gap: .08rem; }
 .trusted-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 90; padding: 5px 16px; background: #9b202b; color: #fff; display: flex; justify-content: space-between; gap: 12px; }
 .trusted-banner button { color: inherit; text-decoration: underline; }
@@ -753,7 +757,10 @@
   .rseat__invite { gap: 2px; padding: 2px 4px; }
   .rseat__invite b { font-size: min(calc(.34 * var(--t)), calc(18px + var(--t-step) / 2)); line-height: 1.15; }
   .rseat__wait small { font-size: min(calc(.16 * var(--t)), calc(15px + var(--t-step) / 2)); }
-  .rseat__add { margin-top: 2px; }
+  /* 添加 AI 队友 was .15 × --t here, 6 px text in a 14 px tall button, and two lines ran past the card at 特大. No robot icon, so
+     the label keeps one line in a card about 110 px wide. [ASSUMED] the sizes */
+  .rseat__add { margin-top: 2px; min-height: 20px; padding-inline: 4px; font-size: min(calc(.28 * var(--t)), calc(11px + var(--t-step) / 2)); letter-spacing: 0; }
+  .rseat__add .btn__icon { display: none; }
   .rseat__plus { width: 26px; height: 26px; }
   .rseat__plus::before { width: 5px; }
   .rseat__plus::after { height: 5px; }
@@ -767,6 +774,15 @@
   .rs-clock > b { font-size: min(calc(.28 * var(--t)), calc(20px + var(--t-step))); }
   .rs-clock__ping, .rs-ready { font-size: min(calc(.22 * var(--t)), calc(15px + var(--t-step))); }
   .rs-hint { font-size: min(calc(.28 * var(--t)), calc(14px + var(--t-step) / 2)); }
+  /* the switch keeps its text readable and stays tappable here (1rem is ~40 px: .2 × --t was 8 px text in a 21 px switch).
+     [ASSUMED] the sizes */
+  .searchbar__switch { min-height: 27px; gap: 4px; padding: 1px 6px; font-size: min(calc(.3 * var(--t)), calc(12px + var(--t-step) / 2)); letter-spacing: 0; }
+  /* no magnifier, so English keeps one line at 特大: a second line would come out of the seat cards */
+  .searchbar__switch .icon { display: none; }
+  .searchbar__track { width: 30px; height: 16px; }
+  .searchbar__track i { left: 2px; top: 2px; width: 12px; height: 12px; }
+  .searchbar__switch.is-on .searchbar__track i { transform: translateX(14px); }
+  .searchbar__state { min-width: 2em; font-size: min(calc(.28 * var(--t)), calc(12px + var(--t-step) / 2)); }
   /* 独立模拟's briefing holds its text without scrolling at every size (§35.18 review of the text-fit fixes: from 大 its
      text grows a pixel a step while the bars above and below take height from it, and at 特大 on the 640–740 px phones its
      last bullet sat half cut at the bottom, 214–217 px of text in 197–212): it may be up to 11rem / 62vw wide (at 小 it
@@ -791,6 +807,14 @@
   .rs-go.proto-start { height: auto; min-height: 46px; }
   .rs-go .proto-start__mark { display: none; }
   .rs-go .proto-start__label { font-size: min(calc(.46 * var(--t)), calc(20px + var(--t-step))); }
+  /* ⚙'s window and the version tag: .13–.2 × --t was 5–8 px text and 14 px tall switches here. Room-only: the tag's own rule in
+     components.css stays as it is for the lobby. [ASSUMED] the sizes */
+  .rs-opts { gap: 6px; padding: 8px 10px; }
+  .rs-opts h4 { font-size: min(calc(.34 * var(--t)), calc(15px + var(--t-step) / 2)); }
+  .rs-opts__row, .ailast { gap: 6px; font-size: min(calc(.28 * var(--t)), calc(12px + var(--t-step) / 2)); }
+  .rs-opts__diff, .ailast__opt { min-height: 30px; padding: 2px 8px; font-size: min(calc(.3 * var(--t)), calc(13px + var(--t-step) / 2)); }
+  .rs-top .plugtag { min-height: 20px; padding: 1px 4px; font-size: min(calc(.28 * var(--t)), calc(11px + var(--t-step) / 2)); letter-spacing: 0; }
+  .rs-top .plugtag .icon { width: 12px; height: 12px; }
   .rs .rs-loadout .btn__label { display: none; }
   /* the tool buttons give way; a settings window already open stays: it is position: fixed but rendered inside this
      toolbar, so hiding the toolbar itself hid the window with it (a desktop shrunk to a phone's 390 px height, #888) */
@@ -804,6 +828,14 @@
    whatever the names; the art gives up that height. On the 360 px tall phones the art has none to give at 大 / 特大
    (「Standing by」, the AI frame's tag and 添加 AI 队友 ran past it with a modded room's tags), so the name keeps its one
    line there. [ASSUMED] two lines, the 370 px */
+/* the 360–375 px phones at 特大: the empty seat's + gives its height to 添加 AI 队友. [ASSUMED] the sizes */
+@media (max-height: 380px) {
+  .rseat__plus { width: 16px; height: 16px; }
+  .rseat__plus::before { width: 3px; }
+  .rseat__plus::after { height: 3px; }
+  .rs-top .plugtag { min-height: 0; gap: 0; padding: 0 3px; line-height: 1.1; }
+  .rs-top .plugtag .icon { display: none; }
+}
 @media (max-height: 520px) and (min-height: 370px) {
   .rseat__plate { min-height: max(32px, calc(36px * var(--sp-ui, 1)), calc(2.2 * min(calc(.28 * var(--t)), calc(18px + var(--t-step) / 2)) + 8px)); }
   .rseat__who { grid-row: 1 / 3; align-self: center; }

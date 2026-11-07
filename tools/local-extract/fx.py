@@ -2000,6 +2000,27 @@ def graph_nodes(state):
     return out
 
 
+def graph_projectiles(state):
+    """The projectile keys an action graph fires itself (`_projectileKey`: EmitProjectile,
+    EmitDirectionalMapEdgeProjectileVolley, …; or a blackboard default its emitter reads,
+    EnsureBlackboardDefaultValue `projectile` — 凛御银灰 S3's Svash2EmitProjectileFixedDirection), first seen first; a
+    node's own fields, as graph_links."""
+    out = []
+    for _typ, n in graph_nodes(state):
+        found = [n.get('_projectileKey')]
+        found += [s.get('valStr') for s in n.get('_defaultSettings') or [] if isinstance(s, dict) and s.get('key') == 'projectile']
+        for k in found:
+            if isinstance(k, str) and k and k not in out:
+                out.append(k)
+    return out
+
+
+def template_owner(tkey):
+    """The operator code a buff template is named after (`oxi_s_3_wave`, `tocka_s3[trigger]`: its first word), or None."""
+    m = re.match(r'[a-z0-9]+(?=[_\[])', tkey or '')
+    return m.group(0) if m else None
+
+
 def graph_links(state):
     """What an action graph does to abilities, modes and buffs (v3): (abilities: [[action type, ability name | None (the
     buff's blackboard `ability_name`), 'cast' | 'stop']…] — TRIGGER_ACTION / STOP_ACTION nodes, switches: [[mode index |
@@ -2508,8 +2529,9 @@ def strings_of(v, out):
 def buff_templates(env, ek):
     """templateKey → {effect: key | None, graph: [[buff event, action node type, field, key]…], abilities?: [[buff
     event, action node type, ability name, 'cast' | 'stop']…], switches?: [[buff event, mode index | 'bb',
-    restoreDefault]…], creates?: [template keys]} for every buff template (BUFF_TEMPLATES, Torappu
-    BuffTemplateHolder._templates) that names an effect, an ability, a mode switch or another template: a buff whose
+    restoreDefault]…], creates?: [template keys], projectiles?: [keys its graph fires]} for every buff template
+    (BUFF_TEMPLATES, Torappu BuffTemplateHolder._templates) that names an effect, an ability, a mode switch, a projectile
+    or another template: a buff whose
     overrideEffectKey is empty loops its template's effectKey; the graph's CreateEffect / CreateBuff nodes play at
     their buff event; the abilities (v3, graph_links) are the ones its TriggerAbility* / Interrupt* actions cast and
     stop — how the client ties a common ability or a talent's ability to an event."""
@@ -2525,7 +2547,7 @@ def buff_templates(env, ek):
             for t in (env.tt(o).get('_templates') or []):
                 if not isinstance(t, dict) or not t.get('templateKey'):
                     continue
-                graph, abilities, switches, creates = [], [], [], []
+                graph, abilities, switches, creates, shots = [], [], [], [], []
                 for it in ((t.get('eventToActions') or {}).get('_items') or []):
                     ev = event_name(BUFF_EVENTS, it.get('key')) or it.get('key')
                     state = (it.get('value') or {}).get('SerializedState')
@@ -2535,11 +2557,13 @@ def buff_templates(env, ek):
                     abilities += [[ev] + x for x in ab]
                     switches += [[ev] + x for x in sw]
                     creates += [x for x in cr if x not in creates]
+                    shots += [x for x in graph_projectiles(state) if x not in shots]
                 effect = ek(t.get('effectKey')) if t.get('effectKey') else None
-                if effect or graph or abilities or switches or creates:
+                if effect or graph or abilities or switches or creates or shots:
                     out[t['templateKey']] = {'effect': effect, 'graph': graph, **({'abilities': abilities} if abilities else {}),
                                              **({'switches': switches} if switches else {}),
-                                             **({'creates': creates} if creates else {})}
+                                             **({'creates': creates} if creates else {}),
+                                             **({'projectiles': shots} if shots else {})}
     return out
 
 
@@ -2651,8 +2675,10 @@ def skill_entry(env, root, ek, pk, effect_refs, templates):
     return e
 
 
-def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log):
-    """index.json's units / projectiles / skills / skins for `unit_ids`, and every effect key they reference."""
+def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, template_owners=None):
+    """index.json's units / projectiles / skills / skins for `unit_ids`, and every effect key they reference.
+    `template_owners` (fork; operator codes): the projectiles that only a buff template of theirs fires (塔露拉 S3's
+    簇火: oxi_s_3_wave's graph, no prefab names it) get their records too, whichever units this run crawls."""
     units, projectiles, skills, skins, referenced = {}, {}, {}, {}, set()
     shared = AssetEnv(ab_root, cabs)                           # [uc]projectiles.ab and [uc]skills.ab, loaded once
     proj_roots = shared.prefabs(PROJECTILES)
@@ -3085,6 +3111,10 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log):
             f'({", ".join("{} {}".format(k, sum(1 for a in ab if a["kind"] == k)) for k in ("common", "general", "trait"))}); '
             f'when: {", ".join(f"{k} {v}" for k, v in sorted(whens.items(), key=lambda kv: str(kv[0])))}; '
             f'{sum(1 for n in [n for t in tk for n in t["nodes"]] + ab if n.get("triggers"))} with template triggers')
+    for tkey, t in sorted(templates.items()):
+        if template_owners and template_owner(tkey) in template_owners:
+            for p in t.get('projectiles') or []:
+                projectile(p)
     for p in projectiles.values():
         referenced.update(p['effects'])
     return units, projectiles, skills, skins, referenced
@@ -3315,7 +3345,10 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         if any(u.startswith('enemy_') for u in unit_ids) else {}
     token_idx = container_index(ab_root, (TOKEN_GLOB,), root / '.cache/fx/tokens.json', jobs, log) \
         if any(not u.startswith(('char_', 'enemy_')) for u in unit_ids) else {}
-    units, projectiles, skills, skins, referenced = crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log)
+    # (fork) a full or add-only `used` run: the operators' template-only projectiles (their effects join `referenced`)
+    owners = {u.split('_', 2)[2] for u in gd['chars'] if u.count('_') >= 2} if selection == 'used' and not keys else None
+    units, projectiles, skills, skins, referenced = crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log,
+                                                                template_owners=owners)
     timings['units'] = time.time() - t0
 
     generic = {v for group in FX_GENERIC.values() for v in group.values()}

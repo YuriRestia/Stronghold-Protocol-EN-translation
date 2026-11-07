@@ -31,6 +31,7 @@ export function preloadDownedArt() {
   const src = uiUrl(data.get('assets'), MAP);
   if (!src) return;
   const img = new Image();
+  img.fetchPriority = 'low'; // (fork) for a later round: never ahead of what is on screen
   img.onload = () => { mapArt = true; };
   img.src = src;
 }

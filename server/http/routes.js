@@ -26,6 +26,8 @@ import { buildTag } from './buildTag.js';
 import { setSecurityHeaders, sendError, sendJson, splitUrl } from './common.js';
 import { withScriptNonce } from './csp.js';
 import { clientAddress, isLocalIp } from '../net.js';
+import { regionsReport } from '../regions.js';
+import { SYNC_PATH } from '../peerLink.js';
 
 const MAX_URL_LENGTH = 4096;
 
@@ -55,12 +57,14 @@ function contentSets(lobby) {
  *           generation?: { gen: string, retiring: boolean } | null,
  *           loop?: ReturnType<typeof import('./loopStats.js').createLoopStats> | null,
  *           sim?: ReturnType<typeof import('../match/simMeter.js').createSimMeter> | null,
- *           maintenance?: import('../maintenance.js').MaintenanceBoard | null }} health
+ *           maintenance?: import('../maintenance.js').MaintenanceBoard | null,
+ *           regions?: ReturnType<typeof import('../regions.js').regionConfigFrom>,
+ *           peer?: import('../peerLink.js').PeerLink | null }} health
  *   content: the server's vanilla content (server/plugins/identity.js); versions / versionHosts: the official versions
  *   and their match hosts (DESIGN §35.23)
  * @param {boolean} [withTraffic]
  */
-export function healthReport({ startedAt, network, registry, lobby, content = null, traffic, assetIndex, views, trusted, versions = null, versionHosts = null, generation = null, loop = null, sim = null, maintenance = null }, withTraffic = false) {
+export function healthReport({ startedAt, network, registry, lobby, content = null, traffic, assetIndex, views, trusted, versions = null, versionHosts = null, generation = null, loop = null, sim = null, maintenance = null, regions = null, peer = null }, withTraffic = false) {
   const report = {
     ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     // the runtime the server is serving right now (public/js/ui/buildGuard.js): a page whose own build is
@@ -75,6 +79,9 @@ export function healthReport({ startedAt, network, registry, lobby, content = nu
     ...(generation ? { gen: generation.gen, retiring: generation.retiring } : {}),
     // planned maintenance (scripts/maintenance.mjs): { at, closed, stopWhenIdle } or null
     maintenance: maintenance?.report() ?? null,
+    // (fork) several servers (server/regions.js): which region this is, and the others (a page reads this to pick one)
+    ...(regions ? { regions: regionsReport(regions) } : {}),
+    ...(peer ? { peer: peer.report() } : {}),
   };
   if (trusted && Object.keys(trusted).length) report.plugins = trusted;
   // the official versions (DESIGN §35.23): only when another one than 第二期下半 is enabled
@@ -111,6 +118,8 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
     if (url.length > MAX_URL_LENGTH) { sendError(req, res, 414, '请求地址过长 · URI too long'); return; }
     const parts = splitUrl(url);
     if (!parts) { sendError(req, res, 400, '请求地址无效 · Bad request'); return; }
+    // (fork) the servers of other regions (server/peerLink.js): signed; absent, this path is an ordinary 404
+    if (health.peer && parts.rawPath === SYNC_PATH) { await health.peer.handleHttp(req, res); return; }
     if (trustedRuntime && parts.rawPath.startsWith('/x/') && await trustedRuntime.route(req,res,parts.rawPath)) return;
     if (studio && studio.handles(parts.rawPath)) { await studio.handle(req, res, parts.rawPath, parts.query); return; }
     if (req.method !== 'GET' && req.method !== 'HEAD') {

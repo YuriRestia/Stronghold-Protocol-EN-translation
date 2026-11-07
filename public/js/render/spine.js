@@ -568,6 +568,7 @@ export class SpineActor {
     this.endRoles = null;
     this.skillIndex = null;       // the skill slot whose clip `skill` plays (setSkillIndex), null = the manifest's primary
     this.strike = null;           // the attack-class skill clip the next / current attack plays (castStrike)
+    this.attackVariant = null;    // (fork) the numbered clip the next attack plays instead of the attack role's (FxWiring.attackClip)
     this.runMode = false;         // move on the model's own Run cycle (setRunMode)
     this.formRoles = null;        // the clip set of the form in force (setForm), over the unit's own roles
     this.skillOn = false;
@@ -1047,8 +1048,17 @@ export class SpineActor {
       return sk;
     }
     const a = this.roles.attack;
-    if (a && this.has(a.loop)) return a;
-    return null;
+    if (!a || !this.has(a.loop)) return null;
+    // (fork) the clip of the ability this attack's effects come from (FxWiring.attackClip)
+    const v = this.attackVariant;
+    return v && v !== a.loop && this.has(v) ? { ...a, loop: v } : a;
+  }
+
+  /** (fork) The numbered clips besides the attack role's that FxWiring.attackClip can pick (Attack_Begin + Attack_A/B/C). */
+  attackVariants() {
+    const a = this.roles.attack;
+    if (!a?.begin || !/^Attack_A$/.test(a.loop || '')) return [];
+    return ['Attack_B', 'Attack_C'].filter((n) => this.has(n));
   }
 
   // Skill loops that are pure stances (no OnAttack in the loop) are still valid attack visuals during a skill;

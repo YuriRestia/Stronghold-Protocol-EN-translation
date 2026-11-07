@@ -16,7 +16,8 @@ import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } fro
 import htm from '../../vendor/htm.module.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t } from '../../../shared/i18n.js';
-import { serverNow } from '../store.js';
+import { serverNow, useStore } from '../store.js';
+import { regionLabel } from './regionNames.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from './assetUrls.js';
 
@@ -927,10 +928,14 @@ export function doctorNo(id) {
  * @param {{ ms?: number|null, online?: boolean, class?: string }} props
  */
 export function PingPill({ ms, online = true, class: cls }) {
+  // (fork) with several servers: which one this number is about (public/js/regions.js)
+  const region = useStore((s) => s.region);
+  const regionName = region?.enabled && region.current ? regionLabel(region.current) : null;
   const ok = online && Number.isFinite(ms);
   const tier = !ok ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high';
   return html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? t('当前延迟 {ms}ms', { ms }) : t('未连接')}>
     <${Icon} name=${ok ? 'signal' : 'wifiOff'} class="ping__icon" />
+    ${regionName ? html`<span class="ping__region" data-testid="ping-region">${regionName}</span>` : null}
     <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
   </span>`;
 }

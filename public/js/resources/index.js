@@ -374,14 +374,17 @@ async function run(signal, force) {
   }
 }
 
-/** Boot (main.js): a started preload keeps its worker and, unless paused, resumes; a stray worker of a cleared one goes. */
-export function installPreload() {
+/**
+ * Boot (main.js): a started preload keeps its worker and, unless paused, resumes; a stray worker of a cleared one goes.
+ * @param {Promise<unknown>} [openingLoaded] (fork) settled once what the opening needs is in: the download waits for it
+ */
+export function installPreload(openingLoaded = Promise.resolve()) {
   if (unsupportedReason()) return;
   const p = preloadPref.get();
   if (p.started) {
     void ensureWorker();
-    // after the first screen: the boot's own requests go first
-    if (!p.paused) setTimeout(() => { void startPreload({ force: true }); }, 4000);
+    // after the first screen and the opening's files: the boot's own requests go first
+    if (!p.paused) openingLoaded.finally(() => setTimeout(() => { void startPreload({ force: true }); }, 4000));
   } else {
     void dropWorker();
   }

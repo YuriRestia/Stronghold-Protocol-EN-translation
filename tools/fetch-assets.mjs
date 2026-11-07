@@ -385,13 +385,14 @@ function countStats(m, bytes, files) {
 }
 
 /** Required assets whose absence makes the run fail (exit code 1). */
-function requiredMisses(m, charIds) {
+function requiredMisses(m, charIds, pictureOnly = new Set()) {
   const out = [];
   for (const id of charIds) {
     const c = m.chars?.[id];
     if (!c?.avatar) out.push(`${id}.avatar`);
     if (!c?.portrait) out.push(`${id}.portrait`);
-    if (!c?.spine?.front) out.push(`${id}.spine.front`);
+    // the operators behind AI seats' names that the roster lacks have no battle model (plan.mjs pictureOnly)
+    if (!c?.spine?.front && !pictureOnly.has(id)) out.push(`${id}.spine.front`);
   }
   return out;
 }
@@ -585,7 +586,7 @@ async function main() {
   if (opts.prune) for (const r of orphans) { try { await unlink(join(ASSETS, r)); } catch { /* ignore */ } }
 
   const charIds = Object.keys(plan.template.chars);
-  const required = requiredMisses(manifest, charIds);
+  const required = requiredMisses(manifest, charIds, new Set(charIds.filter((id) => !plan.template.chars[id].spine)));
   // Leaves the plan had resolved and the manifest loses here (no alternative of theirs on disk): reported on their own
   // line below and kept in the report, whether or not they shrink the committed manifest.
   const droppedLeaves = resolved.droppedLeaves;

@@ -13,6 +13,7 @@ import { createFallbackView } from './fallbackField.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
 import { store } from '../store.js';
+import { needNow } from '../loadLater.js';
 import { settingsStore } from './settings.js';
 import { outfitModelOf } from './outfits.js';
 
@@ -263,14 +264,14 @@ export async function mountFieldView(host, { signal } = {}) {
         opts.assets = am.assets;
         seedAssets(am.assets);
       }
-      const mod = await withTimeout(import('../render/app.js'), LOAD_TIMEOUT_MS, 'render engine import', controller.signal);
+      const mod = await withTimeout(needNow(import('../render/app.js')), LOAD_TIMEOUT_MS, 'render engine import', controller.signal);
       checkActive(controller.signal);
       if (typeof mod?.createFieldView !== 'function') throw new Error('createFieldView missing');
       // A factory that ignores cancellation still belongs to this attempt when it eventually returns.
-      const pending = Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {
+      const pending = needNow(Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {
         if (controller.signal.aborted) dispose(view); else engineView = view;
         return view;
-      });
+      }));
       const view = await withTimeout(pending, LOAD_TIMEOUT_MS, 'createFieldView', controller.signal);
       checkActive(controller.signal);
       const missing = METHODS.filter((k) => typeof view?.[k] !== 'function');

@@ -47,7 +47,7 @@ import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { TermTipHost } from './ui/termTip.js';
 import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
-import { net, identity, NetError } from './net.js';
+import { net, identity, NetError, regions } from './net.js';
 import { PHASE } from '../../shared/constants.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { data } from './data.js';
@@ -57,6 +57,8 @@ import { LobbyScreen, rememberRoom, parseRoomParam, joinKnown } from './screens/
 import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { preloadBootArt } from './ui/protocolBoot.js';
+import { playEntryFilm, watchTitleReturns } from './ui/entryFilm.js';
+import { loadLater } from './loadLater.js';
 import { audio, installAudio } from './audio.js';
 import { installLobbyMedia } from './ui/lobbyMedia.js';
 import { settingsStore } from './ui/settings.js';
@@ -74,7 +76,7 @@ import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsS
 import { installOutfitSync } from './ui/outfits.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { installPresence } from './ui/presence.js';
-import { installSoloQueue } from './ui/soloQueue.js';
+import { installSoloQueue, soloQueue } from './ui/soloQueue.js';
 import { PreloadHost } from './ui/preload.js';
 import { installPreload } from './resources/index.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
@@ -260,6 +262,8 @@ const CLOSE_REASON = {
   kicked: N_('你已被移出同盟'), ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
   // a spectator left behind by a 搜寻队友 merge (no spectator seat free in the target room)
   merged: N_('同盟已与其他同盟合并，观战席已满'),
+  // (fork) a 搜寻队友 match on another server: room.move follows (public/js/regions.js)
+  moved: N_('已找到队友，正在连接…'), // en: "Teammates found. Connecting…"
 };
 
 function wireNet() {
@@ -274,6 +278,9 @@ function wireNet() {
   });
   net.on('clock', (c) => store.set({ clock: { offset: c.offset, rtt: c.rtt, synced: c.synced } }));
   net.on('welcome', onWelcome);
+  net.on('welcome', regions.onWelcome); // (fork) a token belongs to the server that issued it
+  net.on('status', regions.onStatus); // (fork) another region that stays away: back to the page's own server
+  net.on('room.move', regions.follow); // (fork) matched with a group on another server (server/crossMatch.js)
   net.on('welcome', clearMaintenance); // the server that says hello resends its maintenance, if any
   net.on('helloError', (err) => {
     if (err.code === 'SESSION_IN_USE') identity.rejectToken();
@@ -367,9 +374,12 @@ function warmGameData() {
   // default ones would race it; only the art list the sprites need is fetched.
   const go = () => {
     const room = store.get().room;
+    // (fork) the field's code ahead of the match: it must not meet the prep's art and the sim's files at once, on a first
+    // visit that made it time out into the simplified view (ui/fieldHost.js)
+    loadLater(() => import('./render/app.js').catch(() => null));
     if (room?.content?.vanilla === false) return;
-    if (typeof room?.version === 'string') { data.load('assets').then(() => preloadBootArt(), () => {}); return; }
-    data.loadAll(GAME_FILES).then(() => preloadBootArt(), () => {});
+    if (typeof room?.version === 'string') { data.load('assets').then(() => loadLater(preloadBootArt), () => {}); return; }
+    data.loadAll(GAME_FILES).then(() => loadLater(preloadBootArt), () => {}); // (fork) after the room and briefing on screen; the draft asks for it itself
   };
   if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(go, { timeout: 2500 });
   else setTimeout(go, 600);
@@ -455,6 +465,21 @@ function installGlobalErrorHandlers() {
   });
 }
 
+/**
+ * The battlefield renderer's libs (classic scripts, injected by render/app/pixi.js when a match view mounts): warm the
+ * cache at low priority so entering the match doesn't wait on ~800 KB of script. (fork) Not from index.html any more: the
+ * title screen needs none of it, and on a first visit it took the line ahead of the opening's files.
+ */
+function warmBattleScripts() {
+  for (const file of ['/vendor/pixi.min.js', '/vendor/pixi-spine.js']) {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.as = 'script';
+    link.href = genUrl(file);
+    document.head.append(link);
+  }
+}
+
 async function boot() {
   installGlobalErrorHandlers();
   // what this page downloads, by category, for the 问题反馈 report's traffic line (diag.js; nothing is sent anywhere)
@@ -478,6 +503,22 @@ async function boot() {
   }));
 
   wireNet();
+  // (fork) which server the socket uses (public/js/regions.js): a socket stays where a room, a queue or a match is
+  regions.configure({
+    busy: () => { const s = store.get(); return !!s.room || !!s.match.public || soloQueue.get().queued; },
+    inMatch: () => selectRoute(store.get()) === 'game',
+    notify: (what) => {
+      if (what === 'down') toast(t('这台服务器暂时无法连接，已切换到其他服务器'), 'warn'); // en: "This server can't be reached, so you were moved to another one."
+      else toast(t('无法连接到队友所在的服务器，请重新搜寻'), 'warn'); // en: "Couldn't reach your teammates' server. Please search again."
+    },
+  });
+  store.set({ region: regions.snapshot() });
+  regions.subscribe((info) => store.set({ region: info }));
+  store.subscribe((s, prev) => {
+    // out of the room or the match: back to this browser's own server, soon, so a new room is made there
+    if (prev && (prev.room || prev.match?.public) && !s.room && !s.match?.public) setTimeout(() => regions.settle(), 500);
+  });
+  soloQueue.subscribe((q, old) => { if (old?.queued && !q.queued) setTimeout(() => regions.settle(), 500); });
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installPresence();
   installSoloQueue();
@@ -540,13 +581,17 @@ async function boot() {
     splash.classList.add('is-done');
     setTimeout(() => splash.remove(), 300);
   }
-  // the event's entry animation before the title screen (ui/entryFilm.js); never over a restored match
-  import('./ui/entryFilm.js')
-    .then((m) => m.playEntryFilm({ skip: () => selectRoute(store.get()) === 'game' }))
+  // the event's entry animation before the title screen (ui/entryFilm.js); never over a restored match. (fork) In the same
+  // tick as the first render: its cover is up before the title can show. What the opening needs loads first; anything for
+  // later waits for `openingLoaded` (owner 2026-11-07: first the things the game needs now, then the rest).
+  const filmOptions = { skip: () => selectRoute(store.get()) === 'game' };
+  const openingLoaded = playEntryFilm(filmOptions)
     .catch((err) => console.warn('[app] entry film unavailable', err));
-  globalThis.__SP__ = { store, net, data, version: 1 };
-  // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the first screen (resources/index.js)
-  installPreload();
+  watchTitleReturns(filmOptions); // (fork) again on every return to the login screen
+  openingLoaded.then(warmBattleScripts);
+  globalThis.__SP__ = { store, net, regions, data, version: 1 };
+  // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the opening's files (resources/index.js)
+  installPreload(openingLoaded);
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
   // (ui/buildGuard.js): watch `/healthz.build`. Outside a match the page reloads itself; during a match the guard says
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,
@@ -559,6 +604,7 @@ async function boot() {
       onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
       // the same /healthz names how many plugins the server has: the title screen shows it before any hello
       onHealth: (h) => {
+        regions.onHealth(h); // (fork) which servers there are
         const n = pluginCount(h.content), notices = h.content?.notices === true;
         if (n !== store.get().installedPlugins || notices !== store.get().installedNotices) store.set({ installedPlugins: n, installedNotices: notices });
       },

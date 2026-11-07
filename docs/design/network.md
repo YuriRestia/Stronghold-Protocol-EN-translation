@@ -29,6 +29,8 @@ stamp than the attached holder causes `SESSION_IN_USE` before the old socket is 
 can still replace its previous socket. Omitted hints retain legacy behavior; they are not authentication. Client
 selection/stamp rules live in design/client.md. In-flight protection requires the updated server as well as client.
 
+(fork) `room.join` may carry `ticket`, and the server may send `room.move { region, code, ticket }`: a group matched on another server (§90.2).
+
 ### 8.2 Match
 C→S (all carry `rid`): `g.infoReady {setupRevision?}` · `g.bondCall {bondId?}` (the briefing's 核心盟约 call: the core bond the player is going for; the same bond again or absent / null clears it; `WRONG_PHASE` outside INFO_CHECK, `BAD_TARGET` for an add-on bond or one the mode never activates; remake feature, `server/match/bondCall.js`) · `g.band {bandId}` · `g.bandSkip` · `g.bandFocus {bandId?}` (the strategy highlighted in the draft screen — what a timed-out turn takes; absent / null clears it; `WRONG_PHASE` outside BAND_DRAFT, `ALREADY` after the pick, `BAD_TARGET` for a band not allowed; §18.2) · `g.buy {slot}` · `g.refresh` · `g.freeze` · `g.levelUp` · `g.sell {uid}` · `g.move {uid, to:{area:'board', row, col}|{area:'hand', idx}, dir?}` · `g.equip {itemUid, targetUid, replaceUid?}` (`replaceUid`: which equipped item a third one replaces, §6.2) · `g.art {itemUid, row, col, dir?}` (`dir` ∈ UP|RIGHT|DOWN|LEFT from the deploy wheel, §3; absent ⇒ `to.dir`, then RIGHT; `g.move` onto the piece's own tile re-orients it; board pieces in `m.private` / `m.field {prep:true}` carry `dir`) · `g.destroy {uid}` (hand / temp items only; equipped items are locked, §6.2) · `g.reward {idx}` · `g.choice {idx, choiceId?}` (with an ID: the recipient's PREP personal choice; without one: the public SP_DRAFT; stale or wrong IDs never fall through to the public draft) · `g.ready {ready}` · `g.emote {id}` · `g.watch {fieldId, playerId?}` (`playerId`: the player tapped — a shared 联防 / boss pair field shows two; what an eliminated viewer follows, §25) · `g.autoplay {on}` · `g.pause {on}` (solo battles only, §14 Solo pause) · `g.unitStats {seq?}` (ROUND_START / SP_DRAFT / PREP, else `WRONG_PHASE`; eliminated: `ELIMINATED`) → push `m.unitStats` (§18.5) · `g.leave` · `g.test {cmd, args?}` (the current host of a test match only, DESIGN §34.8; a normal match answers `TEST_FORBIDDEN`, a guest `NOT_HOST`, a spectator `SPECTATOR`; `args` omitted is `{}`)
 S→C:
@@ -324,6 +326,22 @@ STUN / TURN service; where the operator configures one, its credentials reach th
 it the way you would share your network with friends, and leave `SP_P2P` unset where you would not.
 Deployment details: [DEPLOY.md](../../DEPLOY.md#26-p2p-公共状态转发).
 
+### 8.7 Several servers, one game (fork) — `shared/regions.js`, `server/regions.js`, `server/peerLink.js`, `public/js/regions.js`
+
+Off unless the operator sets `SP_REGIONS` and `SP_REGION`; without them a server and its pages behave exactly as a single server. Settings and setup: [DEPLOY.md §2.7](../DEPLOY.md).
+
+- **The page never moves.** It always comes from the first region's domain, so a browser's storage (name, stats, settings, loadouts), its art cache and the service worker stay in one origin, and art is cached once. Only the game socket goes to a region: `wss://<region host>/_build/<gen>/_/ws`. A server has no origin check on the socket; the page's CSP lists the other regions in `connect-src`.
+- **A room lives on one region, and its key names which.** The first letter of the key decides (`regionOfCode`): the alphabet is cut into one contiguous run per region, in listed order, so two regions give A–M and N–Z, about 166,000 keys each. A key or an invite link needs no directory and works while the servers cannot reach each other. A room its key's server does not know gets one try on the others.
+- **The cached list is a hint.** A return visit connects from the list its last visit saw (`sp.regions`). Until `/healthz` answers, one failed connect without a token's seat is enough to try the page's own socket, so a list the operator has since turned off costs one attempt.
+- **Which socket a page uses** (`public/js/regions.js`). A reconnect token is valid on one server, so a token goes back to the region that issued it (`sp.regionTokens`): a reload or a reopened tab returns to its room. Otherwise the page uses its home: `?region=<id>` for that tab, else the player's setting (`sp.pref.region`), else the ping test, else the page's own server. The setting and the ping test apply only under `SP_REGION_AUTO=1`.
+- **Ping test.** Once per page, in the background and never delaying the title or the entry film: a short socket to each region sends three `ping` frames with no `hello`. The fastest wins, but the current pick stays unless another beats it by `SWITCH_GAIN_MS` (20 ms). [ASSUMED] the margin and the sample count.
+- **A socket never moves out from under a seat.** It stays while the page is in a room, a queue or a match. A token may have a seat behind it, so nothing moves before that token's server has answered and `SETTLE_GRACE_MS` (1.5 s) has passed without a resumed room. Out of a room on another region, the page goes home, so a new room is made there.
+- **Joining across** (`room.join`, `room.spectate`). A second socket says `hello` and joins on the key's server first; only on `ok` does the page leave its old room and bring the main socket over with that session's token. The new hello replaces the second socket (close 4001). A refused key costs nothing. Inside a match another server's key answers `ROOM_STARTED`, as the server itself would.
+- **A server that stays away.** A page on another region gives up after `FALLBACK_ATTEMPTS` (6) failed reconnects, or `FALLBACK_ATTEMPTS_FIRST` (2) if it never reached that server, and falls back to the page's own server. It tries that region again after `DOWN_MS` (5 minutes), or as soon as a ping test reaches it. In a room or a match it keeps trying instead, as on one server, because the seat outlives a short outage for 10 minutes; a reload then takes the short path if the server is really gone. The page's own server is never given up.
+- **The link** (`server/peerLink.js`, needs `SP_PEER_SECRET`). A server that is not the arbiter (the first region) posts its state every 2 s to the arbiter's unprefixed `POST /_peer/sync`, so the router delivers it to the current generation. Signed with HMAC-SHA256 over `<ms>.<body>`, with 30 s of allowed clock skew; refused before the body is parsed. The answer carries the arbiter's counts and any commands (§90.2). Only the generation players are sent to posts: a prepared or a retiring one stays silent, and a command planned for a generation that has since been replaced fails instead of reaching the new one. Key joins never use the link; a link that is down only makes each server local again and shrinks `sys.online` to its own numbers.
+- **`sys.online`** is the sum of the regions still heard from in the last 7 s. `/healthz` gains `regions { self, list, auto }` and `peer { arbiter, up, peers }`.
+- **One build everywhere.** A page and its server must be the same build, so every server runs the same generation id and commit (`scripts/deploy-regions.mjs`: prepare all, then activate the page's server first). A prepared generation is listed in `generations.json` so the router reaches it, and neither retires nor is reaped until an hour has passed. Reap keeps a generation alive while the same generation on another region reports human matches, because the pages of those matches come from this server.
+
 ---
 
 ## 14. Client-side combat (v2 architecture — supersedes the combat-streaming parts of §4, §8.2, §9)
@@ -340,22 +358,28 @@ Deployment details: [DEPLOY.md](../../DEPLOY.md#26-p2p-公共状态转发).
 - Bots, departed/disconnected players, fields with no connected human: the **server** simulates. Normal and 联防 fields headlessly (`fields.js HeadlessJob`, with a `[gt, killed, total, resolved(, left)]` progress timeline — `resolved`: the capsule's numerator on the field clock (the maintainer's review of PR #157: a bot field has no authority reporting `b.progress`), `left`: the 联防 leakers' enemies still standing, §20.6) in wall-clock slices of `headlessSliceMs` (8 ms) per callback on a real host — never one blocking run per field (3 bot fields ≈ 0.2–0.5 s of CPU at COMBAT start here, seconds on a mini PC); at once in virtual time; the result is released at the battle's natural end on the field clock (so round pacing and the teammates' progress look live). Boss fields in real time without snapshots (`HeadlessPacer`); when no field of a boss round has a connected human the whole round runs server-side as before (FieldRunner with streaming off).
 - Takeover: an authority that disconnects or leaves, or misses its deadline (`timeLimit / speed` real s + 15 s grace, normal/联防) loses the field: normal/联防 → the server re-simulates the spec from t = 0 (deterministic: the same result); boss → the partner's replica is promoted (`b.start authoritative: true`), else the server runs it, fast-forwarded to the field clock through a `CreditPool` that only credits damage beyond what the client already reported (the fast-forward is spread over the pacing intervals, ≤ 240 extra ticks each). A boss authority silent for 12 s is handed over the same way. The former authority gets `b.end { reason: 'takeover' }` and keeps displaying.
 
-**Host rehearsal (optional, `Match.botRehearsalDelegate` / `SP_BOT_REHEARSAL=host`, off unless the value is exactly `host`).** The room host's
-browser can test **AI teammates'** layouts during prep (META §1.5). Human seats under AI 托管 still use the server.
+**Host rehearsal ((fork) on by default; `Match.botRehearsalDelegate`, `SP_BOT_REHEARSAL_HOST=0` / `off` / `false` / `no` turns it off; upstream's `SP_BOT_REHEARSAL=host` still turns it on).** Only the **simulation** of an AI teammate's candidate
+layouts runs in the room host's browser during prep (META §1.5); this is not the whole bot. The server still plays the
+bot's economy (shop, refresh, level, buys and sells), its Strategy and card picks and the building and scoring of the
+candidate layouts, applies the chosen layout and handles every other seat. Human seats under AI 托管 and takeover seats
+are not offered: the server rehearses them itself (`ps.isBot` only).
 The server builds the candidate list from the 0.3.0 preview inputs (normal field seed, start effects, layer gains,
 detached board — the live board, funds, layers and the room's script budget are not touched) and keeps the board.
-The host runs the same `/sim/rehearsal.js` in a same-origin module Worker (`/js/battle/rehearsalWorker.js`; the site
-CSP stays `script-src 'self'`, and this worker is not given `eval` or a `blob:` URL), using the supplied battle
-specs and seeds, and returns its choice. Only the current connected human host may answer a live task. The server
-accepts that index once and applies the layout without simulating it again. An answer never changes another player's state.
+It offers the host `Match.botRehearsalHost` candidates (default 6, 2–8); the server's own count (`SP_BOT_REHEARSAL`, 0–8,
+default 6) only applies when the work is not delegated or comes back. The host runs the same `/sim/rehearsal.js` in a
+same-origin module Worker (`/js/battle/rehearsalWorker.js`; the site CSP stays `script-src 'self'`, and this worker is
+not given `eval` or a `blob:` URL), using the supplied battle specs and seeds, and returns its choice. Only the current
+connected human host may answer a live task. The server accepts that index once and applies the layout without
+simulating it again. An answer never changes another player's state.
 
 A gameplay-plugin room (`requireCs`) does not delegate. Those matches run in a content-set host; the browser has
 only the official data pack and must not run the room's scripts. The server rehearses them on that content. A spec
 that still names a `cs` is answered `error: true` and is not simulated in the page worker.
 
-If there is no connected human host, the server runs the rehearsal. A host change, disconnect, error, invalid or
+If there is no connected human host, the server runs the rehearsal itself with its own count (`SP_BOT_REHEARSAL`; with `0`
+the bot keeps its heuristic layout and no server CPU is spent). A host change, disconnect, error, invalid or
 out-of-range index, or answer timeout (`botRehearsalDelegateMs`, default 3 s) also returns the work to the server,
-using the same candidates. The old browser task is cancelled and late, repeated or forged answers are ignored
+using the same candidates (at most the server's own count of them). The old browser task is cancelled and late, repeated or forged answers are ignored
 (an answer after the match ended is `ok` and changes nothing). If prep ends first, the task is cancelled and the
 default layout stays. Actual battles, round timing and prep deadlines are unchanged.
 

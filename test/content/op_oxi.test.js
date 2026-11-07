@@ -541,6 +541,32 @@ test('S3 lanes: across her facing within normal_half_width (overload_half_width 
   }
 });
 
+test('S3 簇火: the volley fx names every lane and the blast its shot and enemy, for the client to draw them (no outcome moves)', () => {
+  const { h, u } = field({ skill: 2, row: 9, col: 2 });
+  const e = h.spawn('enemy_dummy', { pos: [10, 7] });
+  const volleys = [], blasts = [];
+  const fx = h.b.fx.bind(h.b);
+  h.b.fx = (kind, p) => { if (kind === 'heatwave') volleys.push(p); if (kind === 'blast' && p.skill === 'oxi:heatwave') blasts.push(p); return fx(kind, p); };
+  u.skill.gainSp(999);
+  inTick(h, () => u.skill.activate('test'));
+  assert.ok(h.runUntil(() => blasts.length > 0, 8), 'a volley and an explosion');
+  const v = volleys[0], b = skillOf(6, true, 2).bb;
+  assert.equal(v.lanes.length, v.n);
+  assert.deepEqual([v.dx, v.dy], [1, 0], 'facing right');
+  assert.equal(v.speed, b.wave_speed);
+  const R = h.b.rect;
+  assert.equal(v.len, R.c1 + b.wave_exit_distance - v.lanes[0][0], 'to the exit distance past the far edge');
+  for (const [x, y, wait] of v.lanes) {
+    assert.ok(x >= R.c0 && y >= R.r0 && y <= R.r1, 'starts inside the field');
+    assert.ok(wait >= 0 && wait <= b.random_birth_delay + 1e-3, 'its birth delay');
+  }
+  const ids = volleys.flatMap((x) => x.lanes.map((l) => l[3]));
+  assert.equal(new Set(ids).size, ids.length, 'shot ids are unique');
+  assert.equal(blasts[0].target, e.id);
+  assert.ok(ids.includes(blasts[0].shot), 'the blast names a shot of a volley');
+  assert.deepEqual(JSON.parse(JSON.stringify(v)), v, 'plain data on the wire');
+});
+
 test('S3 簇火: the first enemy it touches (air too) makes it explode — heatwave_atk_scale × the ATK cached at the volley within range_radius; same_wave_repeat_damage_scale on a repeat; 元素伤害 to an enemy in its 灼燃 爆发冷却; a 隐匿 one is passed', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;

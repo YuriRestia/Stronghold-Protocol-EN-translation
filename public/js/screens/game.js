@@ -96,6 +96,7 @@ import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
 import { FinalAssaultPlate, HiddenCorePlate, EndPlate, preloadBossPlateArt, bossPlateArtReady, finalPlateRows, endPlateOf } from '../ui/bossPlates.js';
 import { DownedPlate, downedDue, preloadDownedArt, downedArtReady } from '../ui/downedPlate.js';
+import { loadLater } from '../loadLater.js';
 import { OfferOverlay, offerBlocksPrep } from '../ui/offerOverlay.js';
 import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
@@ -148,7 +149,7 @@ import { keepEarly, audioEarly } from './game/early.js';
 import { MatchEnded, PausedOverlay } from './game/overlays.js';
 import { inspectRange } from './game/range.js';
 import { useSkillRangePreview } from '../ui/rangePreview.js';
-import { t, tParts } from '../../../shared/i18n.js';
+import { t, tParts, shownName } from '../../../shared/i18n.js';
 import { contentSet } from '../content.js';
 import { DEFAULT_VERSION, shownVersion } from '../versions.js';
 import { VersionVote } from '../ui/versionVote.js';
@@ -319,7 +320,7 @@ function MatchScreen() {
   // first view — turns false while a teammate is still in; 继续观战 closes it, 离开模拟 opens the exit dialog
   const [downed, setDowned] = useState(false);
   const wasAlive = useRef(undefined);
-  useEffect(() => { preloadDownedArt(); }, []);
+  useEffect(() => { loadLater(preloadDownedArt); }, []); // (fork) a later round's art: after what is on screen
   useEffect(() => {
     if (!spectator && !priv && !meP) return;
     const was = wasAlive.current;
@@ -333,7 +334,7 @@ function MatchScreen() {
   const scoutPid = watchingOther && field ? (field.fieldId?.startsWith('n:') ? field.fieldId.slice(2)
     : fieldMembers?.length === 1 ? fieldMembers[0] : null) : null;
   const scoutBandId = scoutPid ? ownerBandId(pub, scoutPid) : null;
-  const scoutBandOwner = scoutPid ? (players.find((p) => p.playerId === scoutPid)?.name || null) : null;
+  const scoutBandOwner = scoutPid ? (shownName(players.find((p) => p.playerId === scoutPid)) || null) : null;
   const viewedEffects = watchingOther && field ? (field.effects ?? null) : priv?.effects;
   const personalChoice = !spectator && alive ? normalizePersonalChoice(pub, priv, myId) : null;
   const hasPersonalChoice = !!personalChoice;
@@ -975,7 +976,7 @@ function MatchScreen() {
 
   // the run's end in the server's last pause before RESULT (ui/bossPlates.js endPlateOf: the hidden round over, the team
   // fallen in the 最终攻势 or eliminated at a settlement — 模拟中断 then takes the result box's place); never delays RESULT
-  useEffect(() => { preloadBossPlateArt(); }, []);
+  useEffect(() => { loadLater(preloadBossPlateArt); }, []); // (fork) a later round's art: after what is on screen
   const endKind = bossPlateArtReady() ? endPlateOf(phase, pub) : null;
   useEffect(() => {
     if (!endKind) return;
@@ -1736,9 +1737,9 @@ function MatchScreen() {
   const stripFid = strip.fieldId;
   const liveLayers = (combat || settleMode) && battleState?.bondLayers ? battleState.bondLayers : null;
   // the observing pill names the player whose bonds the strip shows (the same teammate as the strip's "👁 name" tag)
-  const observingName = cc && combat && watchedFid ? (!strip.self && stripFid === watchedFid ? strip.name : (players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid)?.name || t('队友'))) : null;
+  const observingName = cc && combat && watchedFid ? (!strip.self && stripFid === watchedFid ? strip.name : shownName(players.find((p) => p.fieldId === watchedFid || ownFieldId(p.playerId) === watchedFid), t('队友'))) : null;
   const watchedP = watchingOther ? (players.find((p) => p.playerId !== myId && (watching === ownFieldId(p.playerId) || (watching === p.fieldId && String(watching).startsWith('n:')))) || null) : null;
-  const watchedName = watchingOther ? (watchedP?.name || players.find((p) => watching === p.fieldId)?.name || t('队友')) : null;
+  const watchedName = watchingOther ? (shownName(watchedP) || shownName(players.find((p) => watching === p.fieldId), t('队友'))) : null;
   const stripBonds = strip.bonds;
   // a popup opened from the strip closes when the strip changes hands (another teammate scouted / a ‹ › half / back to
   // the own bonds); one opened from a card's chip keeps its unit owner (it carries its own player either way)

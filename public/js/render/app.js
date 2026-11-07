@@ -144,6 +144,7 @@
 // working. createFieldView stays here: it is one closure over the view's own state.
 
 import { pieceItemProgress } from '../itemProgress.js';
+import { loadLater, needNow } from '../loadLater.js';
 import { attackRateEvents } from './attackRate.js';
 import { GEO, ANIM } from '../../../shared/constants.js';
 import { fxForm } from '../../../shared/protocol.js';
@@ -219,7 +220,7 @@ export async function createFieldView(host, options = {}) {
   // three.js (~2 MB) is fetched only when the local-art manifest lists the board atlas (in parallel with the art)
   const artListed = want3d ? boardArtListed(assets).catch(() => false) : Promise.resolve(false);
   const threePromise = artListed.then((ok) => (ok ? loadThree() : null)).catch(() => null);
-  const packPromise = artListed.then((ok) => (ok ? Promise.resolve(assets.ready ? assets.ready() : null).catch(() => null).then(() => loadBoardPack(assets)) : null)).catch(() => null);
+  const packPromise = needNow(artListed.then((ok) => (ok ? Promise.resolve(assets.ready ? assets.ready() : null).catch(() => null).then(() => loadBoardPack(assets)) : null)).catch(() => null));
   // the manifest, and the optional local-art manifest in parallel: unit views pick an enemy's local-client model by it
   // (assets.js spineEntry, DESIGN §13 — 灼热源石虫 / 炽焰源石虫); absent or slow, they draw the web models
   await withTimeout(Promise.all([assets.ready ? assets.ready() : null, assets.local ? assets.local() : null]
@@ -473,7 +474,9 @@ export async function createFieldView(host, options = {}) {
   function syncOfficialFx() {
     ofx.setTier(board3d ? resolveOfficialFx(settings.officialFx, ofx.available) : 'off');
   }
-  ofx.init().then((ok) => { if (!destroyed && ok) { syncOfficialFx(); wiring.ready(); } }, () => {});
+  // (fork) the effects' index (455 KB on the wire, 8.9 MB to parse) after the board and the operators on screen: a battle
+  // that starts first waits for it itself (wiring.begin)
+  ofx.init().then((ok) => { if (!destroyed && ok) { syncOfficialFx(); loadLater(() => (destroyed ? null : wiring.ready())); } }, () => {});
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
   ctx.createBox = (spec) => switchableBox({ board: () => board3d, pixi: () => tiles.createBox(), spec });
   const impostors = new ImpostorAtlas(app.renderer, { onError: (err) => recordError('render', err, 'impostor atlas pass failed') });
@@ -498,7 +501,7 @@ export async function createFieldView(host, options = {}) {
   function useOfficialScene(st) {
     const id = st && typeof st.id === 'string' ? st.id : '';
     if (!id || !board3d) return;
-    loadScenePack(assets, id).then((scene) => {
+    needNow(loadScenePack(assets, id)).then((scene) => {
       if (scene && !destroyed && board3d && stageRec && stageRec.id === id) board3d.setScenePack(id, scene);
     }).catch(() => {});
   }
@@ -1729,7 +1732,7 @@ export async function createFieldView(host, options = {}) {
   // attack wind-ups: an 'atk' still queued in the buffer starts its Spine clip early enough for the strike frame to
   // land when the event is rendered (app/windup.js; the official cast effects play with the clip — vfx/wiring.js castStart)
   const lookahead = createWindUpLookahead({ views, woundUp, castStart: (v, tv, kind, o) => wiring.castStart(v, tv, kind, o),
-    skip: isQuietNoteAttack });   // (fork) 丰川祥子's targetless 持续攻击: no clip to wind up
+    skip: isQuietNoteAttack, attackClip: (v, tv, kind, on) => wiring.attackClip(v, tv, kind, on) });   // (fork) 丰川祥子's targetless 持续攻击: no clip to wind up
   function windUpAttacks(renderT) { lookahead.run(interp, renderT); }
 
   const EVS = [];
@@ -1770,6 +1773,7 @@ export async function createFieldView(host, options = {}) {
         const src = views.get(e[1]) || battleView(e[1]);
         const tgt = views.get(e[2]) || battleView(e[2]);
         // chain / chainHeal bounces: the "source" is the previous target of the bounce, not an attacker
+        if (src?.actor && !woundUp.has(e)) src.actor.attackVariant = wiring.attackClip(src, tgt, e[3]);
         if (src && !CHAIN_KINDS.has(e[3])) src.onAttack?.(tgt, now, e[3]);
         if (e[3] === 'none' || !e[3]) { if (tgt && src) meleePending.set(tgt.id, { src, t: now }); }
         // the unit's official attack (casts, projectile, melee hits — render/vfx/wiring.js) or a chain's bounce (the line of

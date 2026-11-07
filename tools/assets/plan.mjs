@@ -22,6 +22,7 @@
 // emotes and the 19 玩法说明 pages included: UI_EXTRAS), BGM and SFX.
 
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
+import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
 import { pickUnitSfx, assignSkillModeSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
@@ -44,6 +45,17 @@ export const VOICE_JP_LANG = 'jp';
 
 /** Operators whose notes (sim notes.js) carry sounds of their own (the per-note banks of the projectile prefabs). */
 const NOTE_SFX_CHARS = new Set(['char_4182_oblvns']);
+/**
+ * (fork) A kit 'fx' that stands for an official sound no attack event plays: charId → '<fx kind>|<its `skill` tag>' → bank.
+ * 塔露拉 S3: ON_PROJECTILE_BORN (max 1) and _HIT (max 2) of its 簇火, and the overload's custom trigger.
+ */
+const FX_SOUND_BANKS = Object.freeze({
+  char_4247_oxi: Object.freeze({
+    'heatwave|oxi:heatwave': 'battle.ON_PROJECTILE_BORN.projectile_chr_oxi_s_3_heatwave',
+    'blast|oxi:heatwave': 'battle.ON_PROJECTILE_HIT.projectile_chr_oxi_s_3_heatwave',
+    'overload|': 'battle.ON_CUSTOM_TRIGGER.oxi_s_3_overload',
+  }),
+});
 /**
  * [look key (kits/ops/op-oblvns.js), projectile suffix, custom hit trigger or null]: an attack with a target
  * (projectile_chr_oblvns — no born bank: the attack swing plays), without (_talent), S2 piano (_s2 / _s2_t), organ
@@ -527,10 +539,21 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     sfxPools[id] = literal(params);
     return id;
   };
+  // the operators behind the AI seats' names that the mode's roster does not have (阿米娅, 杜宾): their pictures only, for
+  // the room's seat cards. No model, voice or sounds: they never fight
+  const pictureOnly = Object.values(BOT_OPERATORS);
   const known = assets07?.operators || {};
   const extraOps = {};
   for (const [id, x] of Object.entries(extraOperators || {})) if (/^char_\d+_[a-z0-9]+$/i.test(id) && !known[id]) extraOps[id] = patternOperator(id, x);
   const operators = { ...known, ...extraOps };
+  for (const id of pictureOnly) {
+    if (operators[id]) continue;
+    const p = patternOperator(id);
+    chars[id] = {
+      avatar: leaf(alt(`char/avatar/${id}.png`, p.avatar.e0e1.url)),
+      portrait: leaf(alt(`char/portrait/${id}_1.png`, p.portrait.e0e1.url)),
+    };
+  }
   const charIds = Object.keys(operators).sort();
   const skillIdxOf = new Map(); // charId → the skill indices its models resolve (an outfit's model resolves the same)
   for (const id of charIds) {
@@ -615,7 +638,9 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     }
     const primarySkill = skillSfx[String(idx[0])];
     if (primarySkill) u.skill = primarySkill;
-    if (Object.keys(skillSfx).length > 1) u.skills = skillSfx;
+    // (fork) by index for every operator with a choice of skills: the map's absent index is a skill with no cast sound
+    // (public/js/audio.js unit()), and a lone bank on any skill but the primary reaches the client at all
+    if (Object.keys(skillSfx).length && idx.length > 1) u.skills = skillSfx;
     // (fork) each skill sound's mixer group (public/js/audioMixer.js): `skill`'s in groups.skill, by index like `skills`
     if (primarySkill && skillGroups[String(idx[0])]) u.groups = { ...(u.groups || {}), skill: skillGroups[String(idx[0])] };
     if (u.skills && Object.keys(skillGroups).length) u.skillGroups = skillGroups;
@@ -626,6 +651,18 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     if (Object.keys(attackPools).length) u.attackPools = attackPools;
     if (Object.keys(hitPools).length) u.hitPools = hitPools;
     if (mix) u.mix = mix;
+    // (fork) the kit fx's own sounds (public/js/audio.js _fxSound), each on its bank's official pool
+    if (FX_SOUND_BANKS[id]) {
+      const fxSounds = {};
+      for (const [key, bankName] of Object.entries(FX_SOUND_BANKS[id])) {
+        const paths = audio.bank(bankName);
+        if (!paths?.length) continue;
+        fxSounds[key] = { url: soundLeaf(paths, 'sfx', 1) };
+        const p = poolRef(paths);
+        if (p) fxSounds[key].pool = p;
+      }
+      if (Object.keys(fxSounds).length) u.fxSounds = fxSounds;
+    }
     // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank
     // (battle.ON_PROJECTILE_BORN / _HIT.projectile_chr_<short>[_<type>], ON_CUSTOM_TRIGGER for S1's hit), by the look key
     // her kit gives the notes — the client plays them per note on the bank's pool (public/js/audio.js _noteSound)

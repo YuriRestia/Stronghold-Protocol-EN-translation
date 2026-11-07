@@ -667,8 +667,22 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
       plan[role] = plan[role].filter((e) => !bound.has(e.key) || (plan.unmapped.push({ key: e.key, role: e.role, reason: 'bound', from: e.from }), false));
     }
   }
+  attackLinePlan(idx, plan, FX_ATTACK_LINES[id]);
   if (isObj(opts.rec)) tagCasts(plan, skill);
   return plan;
+}
+
+/** (fork) The rows and the flight of an FX_ATTACK_LINES entry; each only with its prefab in the index. */
+function attackLinePlan(idx, plan, line) {
+  if (!line) return;
+  const prefabs = isObj(idx?.prefabs) ? idx.prefabs : {};
+  const row = (key, role, at, hold) => ({ key, role, at, loop: !!prefabs[key].looping, hold, from: line.projectile });
+  for (const k of line.loops) if (prefabs[k]) plan.range.push(row(k, 'range', 'owner', 'skill'));
+  for (const k of line.start) if (prefabs[k]) plan.start.push(row(k, 'start', 'owner', null));
+  if (prefabs[line.hit]) (plan.each.hit[0] ??= []).push(row(line.hit, 'hit', 'target', null));
+  const p = isObj(idx?.projectiles) ? idx.projectiles[line.projectile] : null;
+  const speed = Number(p?.movement?.speed), life = Number(p?.lifeTime);
+  if (prefabs[line.trail] && speed > 0 && life > 0) plan.line = { key: line.trail, speed, life, artYaw: line.artYaw };
 }
 
 /**
@@ -1093,6 +1107,7 @@ export function planKeys(plan) {
   for (const g of plan?.each?.hit || []) for (const e of g) add(e);
   for (const e of plan?.pulse || []) add(e);
   for (const e of plan?.cond || []) add(e);
+  if (plan?.line) out.add(plan.line.key);
   return [...out];
 }
 
@@ -1322,6 +1337,8 @@ export function chargeKeys(plan) {
  *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
  *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
+ *   shots       the fx's `lanes` ([x, y, wait, shot id]…; `dx`, `dy`, `len`, `speed`) fly `keys` along straight lines
+ *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
  * or, instead of a projectile (history §32.14.43):
@@ -1332,9 +1349,39 @@ export function chargeKeys(plan) {
  * AuraHitBehaviour — for the area's life), the strikes their hit effects.
  */
 const binding = (o) => Object.freeze({ ...o, ...(o.cover ? { cover: Object.freeze(o.cover) } : {}), ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
+/**
+ * (fork) A skill whose every attack also flies a projectile no kit fx names, with effects no use of the index places
+ * (skillPlan: attackLinePlan). 凛御银灰 S3 (chess_char_5_14-svash2.js): the client's buff svash2_s_3[bird_on_self] fires
+ * projectile_chr_svash2_s3_bird_self with each of his attacks (Svash2EmitProjectileFixedDirection, _startPositionType
+ * BUFF_OWNER; AdvancedMovement FIXED_DIRECTION, _useStartToTarget, speed 10, life 0.3). The projectile has no main effect:
+ * `trail` (Svash2ProjectileEffectBehaviour._effectsAlignToProjectileDirection) is placed on him, turned to the target
+ * (_rotateType 4, _holdByOwner), and its own clip carries the curved slash out (its `tip`: −0.36 → 4.18 in 0.8 s), so
+ * nothing moves it. Its `static_offset` node is authored at +90° about Z, so the clip runs along the root's +Y although
+ * `_mainDir` says RIGHT: `artYaw` turns the root back to the target (without it a target on the right sent it up, one
+ * above sent it left). `hit` plays on every enemy the projectile reaches, in place of the generic hit (_effectsWhenHit),
+ * after its way at that speed. `start` is the cast row of the BirdAura ability that attaches the bird (the skill fires
+ * it once), `loops` the aura projectile's skill range. The kit never deploys the eye, so the bird stays on him: the _self
+ * projectile, never projectile_chr_svash2_s3_bird and its left / right trails. S3's blackboard has no emit_count, the
+ * size key the emitter reads [ASSUMED: one flight per attack, toward the attack's first target].
+ */
+export const FX_ATTACK_LINES = Object.freeze({
+  skchr_svash2_3: Object.freeze({
+    projectile: 'projectile_chr_svash2_s3_bird_self', trail: 'svash2_skill_03_trail_02', hit: 'svash2_skill_03_hit_01',
+    artYaw: -Math.PI / 2,
+    start: Object.freeze(['svash2_skill_03_deploy_01']), loops: Object.freeze(['svash2_skill_03_range_01']),
+  }),
+});
+
 export const FX_BINDINGS = Object.freeze({
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
   skchr_yu_3: Object.freeze({ firewallBlock: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['yu_skill3_annex_01'] }) }),
+  // 塔露拉 S3 (op-oxi.js volley): the client's buff oxi_s_3_wave fires projectile_chr_oxi_s_3_heatwave down each lane; its
+  // main effect oxi_skill_03_trail_01 is the 簇火, and its action graph's CreateEffectOnProjectile (_useCollisionTarget)
+  // plays oxi_skill_03_hit_01 on the enemy it meets. The kit's 'heatwave' names the lanes, its 'blast' the shot and enemy.
+  skchr_oxi_3: Object.freeze({
+    heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
+    blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
+  }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked
   // enemy (AttachToTarget, _immediatelyReach), whose reached effect clemnt_skill_03_mark_all_01 is the mark and its three

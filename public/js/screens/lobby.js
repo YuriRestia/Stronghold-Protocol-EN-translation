@@ -59,7 +59,7 @@ import { AllianceBackdrop, useLobbyArt } from '../ui/allianceScene.js';
 import { SettingsButton } from '../ui/settings.js';
 import { PwaInstallButton, detectFeatures, useMediaQuery, SHORT_SCREEN_QUERY } from '../ui/device.js';
 import { LoadoutButton } from './loadout.js';
-import { net, identity } from '../net.js';
+import { net, identity, regions } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData } from '../data.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
@@ -236,13 +236,14 @@ export function rememberRoom(code, test = false) {
 }
 
 export async function joinKnown(type, key) {
-  try { return await net.request(type, { code: key }); } catch (err) {
+  // (fork) the key names its server (public/js/regions.js): one server without regions, exactly net.request
+  try { return await regions.join(type, { code: key }); } catch (err) {
     if (err?.code !== ERR.TEST_CONFIRM) throw err;
     const text = type === 'room.spectate'
       ? t('这是测试房间，不计入任何记录。确认观战？')
       : t('这是测试房间，不计入任何记录。确认加入？');
     if (await confirmDialog({ title: t('测试'), text })) {
-      return net.request(type, { code: key, testAck: true });
+      return regions.join(type, { code: key, testAck: true });
     }
   }
 }
@@ -373,13 +374,16 @@ function ProtoFit() {
  * keeps points[0] (「1 名博士」).
  */
 export function HubEntry({ card, onOpen, timePoint = null, timeShort = null }) {
-  const line = timePoint
-    ? html`<span class="hub-entry__long">${t(card.points[0], card.pointParams)} · ${t(timePoint)}</span><span class="hub-entry__short">${timeShort ? t(timeShort) : t(card.points[0], card.pointParams)}</span>`
-    : card.pointShort
-      ? html`<span class="hub-entry__long">${t(card.points[0], card.pointParams)}</span><span class="hub-entry__short">${t(card.pointShort, card.pointParams)}</span>`
-      : t(card.points[0], card.pointParams);
+  // (fork) the description above the card, as wide as the card: who plays on its first line, the rest on its own lines
+  // under it (each pack writes the point as 「who · rest」). A short screen shows only the first line
+  const point = t(card.points[0], card.pointParams);
+  const [who, ...rest] = (timePoint ? `${point} · ${t(timePoint)}` : point).split(' · ');
+  const short = timeShort ? t(timeShort) : card.pointShort ? t(card.pointShort, card.pointParams) : who;
   return html`<div class="hub-entry-wrap">
-    <span class="hub-entry__group"><${Icon} name=${card.icon} />${line}</span>
+    <div class="hub-entry__group">
+      <span class="hub-entry__who"><${Icon} name=${card.icon} /><span class="hub-entry__long">${who}</span><span class="hub-entry__short">${short}</span></span>
+      ${rest.length ? html`<span class="hub-entry__more">${rest.join(' · ')}</span>` : null}
+    </div>
     <button type="button" class=${`mode-card hub-entry hub-entry--${card.id}`} data-mode=${card.id} onClick=${() => onOpen(card.id)}
         title=${t(card.desc, card.params)}>
       <span class="hub-entry__icon" aria-hidden="true"><${Icon} name=${card.icon} /></span>
@@ -821,7 +825,7 @@ export function LobbyScreen() {
         <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout lobby-loadout" label=${t('干员调配')} />
         <${AchievementPlate} onOpen=${() => setAchOpen(true)} />
       </aside>
-      <section class="hub-entries" aria-label=${t('模拟方式')}>
+      <section class=${`hub-entries${queue.queued ? ' is-queued' : ''}`} aria-label=${t('模拟方式')}>
         ${queue.queued ? html`<div class="create-box hub-queue"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
           : MODE_CARDS.filter((c) => c.id !== 'match' || version === DEFAULT_VERSION).map((c) => {
           const timedCard = c.id === 'solo';
