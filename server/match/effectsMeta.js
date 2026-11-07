@@ -753,7 +753,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     giftTicker: (fromName, chessId, fromPlayerId = null) => {
       const c = gd.chess(chessId);
       const shown = c && typeof ps.fieldRecord === 'function' ? ps.fieldRecord(c) || c : c;
-      m.tickerFor('CHAR_GIFT', [String(fromName), shown ? shown.name : String(chessId)], { to: ps.playerId });
+      m.tickerFor('CHAR_GIFT', [String(fromName), shown ? shown.name : String(chessId)], { to: ps.playerId, bot: m.players?.get?.(fromPlayerId)?.isBot === true });
       // the recipient bot thanks the sender when the gift was a real player's CHAR_GIFT (enabled by default; SP_BOT_EMOTES=0 silences it)
       onGiftTicker(m, ps, fromPlayerId);
     },

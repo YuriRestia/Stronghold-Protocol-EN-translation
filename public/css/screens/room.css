@@ -700,6 +700,7 @@
 .searchbar__switch.is-on .searchbar__track { background: var(--mint-800); }
 .searchbar__switch.is-on .searchbar__track i { transform: translateX(.3rem); background: var(--mint-400); }
 .searchbar__switch:disabled { cursor: default; }
+.searchbar__switch--gap { visibility: hidden; }
 .room-ping__pills { display: inline-flex; gap: .08rem; }
 .trusted-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 90; padding: 5px 16px; background: #9b202b; color: #fff; display: flex; justify-content: space-between; gap: 12px; }
 .trusted-banner button { color: inherit; text-decoration: underline; }

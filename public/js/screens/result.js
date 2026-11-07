@@ -26,7 +26,7 @@ import { CombatSummary } from '../ui/combatSummary.js';
 import { sentText } from '../ui/lang.js';
 import { UnofficialMark, VersionTag } from '../ui/pluginTag.js';
 import { TestMark } from '../ui/testConsole.js';
-import { t, tParts, N_ } from '../../../shared/i18n.js';
+import { t, tParts, N_, shownName } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -80,7 +80,7 @@ function PlayerCard({ p, myId, titles, best, solo = false, skinOwnerId = null })
     <header class="rcard__head">
       <${PlayerAvatar} player=${p} self=${p.playerId === myId} />
       <div class="rcard__who">
-        <b class="rcard__name">${p.name}${p.isBot ? html`<span class="rcard__ai">AI</span>` : null}${p.playerId === myId ? html`<span class="rcard__you">${t('你')}</span>` : null}</b>
+        <b class="rcard__name">${shownName(p)}${p.isBot ? html`<span class="rcard__ai">AI</span>` : null}${p.playerId === myId ? html`<span class="rcard__you">${t('你')}</span>` : null}</b>
         ${Number.isInteger(p.aiTakeoverRound) ? html`<small>${t('第 {round} 回合接替 AI；含此前席位数据，不计入个人统计或奖励。', { round: p.aiTakeoverRound })}</small>` : null}
         <span class="rcard__band">${band ? html`<${BandIcon} bandId=${band.bandId} size="xs" />${band.name}` : '—'}</span>
       </div>

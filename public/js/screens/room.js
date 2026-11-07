@@ -72,7 +72,8 @@ import { net } from '../net.js';
 import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } from '../store.js';
 import { data, useData, getConfig } from '../data.js';
 import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
-import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc } from '../ui/seatArt.js';
+import { avatarUrl } from '../assets.js';
+import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { difficultyInfo, ProtocolSelect } from './lobby.js';
@@ -81,7 +82,7 @@ import { audio } from '../audio.js';
 import { SearchBar, SearchButton, SearchStatus, useSearchNotice, useFindMates, canFindMates } from '../ui/matchSearch.js';
 import { OnlinePill } from '../ui/presence.js';
 import { publicPath } from '../gen.js';
-import { t, tc } from '../../../shared/i18n.js';
+import { t, tc, tName, botNameParts as splitBotName } from '../../../shared/i18n.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -175,15 +176,15 @@ export function soloUnlimitedOption(room, myId, timed) {
 }
 
 /**
- * An AI teammate's name split into its 「AI·」 prefix and the rest, for the plate (room.css hides the prefix on a phone:
+ * An AI teammate's name split into its 「AI·」 prefix and the rest in the current language, for the plate (room.css hides the prefix on a phone:
  * the avatar's badge and the card's AI 队友 tag say it, and at 特大 the prefix left one character of the name,
  * 「AI·华…」). Null for a human seat and for a name that is only a number after the prefix (`AI·2`).
  * @param {{ isBot?: boolean, name?: string } | null | undefined} seat
  * @returns {[string, string] | null}
  */
 export function botNameParts(seat) {
-  const m = seat?.isBot ? /^(AI\s*·\s*)(\D.*)$/su.exec(seat.name || '') : null;
-  return m ? [m[1], m[2]] : null;
+  const m = seat?.isBot ? splitBotName(seat.name) : null;
+  return m ? [m[0], tName(m[1])] : null;
 }
 
 /** Invite link for a room code (current page URL with ?room=CODE; without a generation prefix, public/js/gen.js). */
@@ -261,7 +262,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * host of a co-op room, 添加 AI 队友. `portrait` is the outfit's picture, `portraitDefault` the operator's default one
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
-function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, operator = null, onPickCard = null, fresh = false }) {
+function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, fresh = false }) {
   const [badArt, setBadArt] = useState([]);
   const coop = room.mode !== 'solo';
   // the 转场 flash: a seat that turns ready (or becomes the host's), and an AI teammate added while the room is open
@@ -303,7 +304,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <div class="seat__art rseat__art">
       ${art
         ? html`<img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />`
-        : html`<${AvatarFrame} size="xl" name=${seat.name} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
+        : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
         ${isHostSeat ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
         ${seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null}
@@ -331,7 +332,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
     <div class="rseat__plate">
       ${isMe ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
-      <${AvatarFrame} size="sm" name=${seat.name} seat=${index} bot=${seat.isBot} self=${isMe} />
+      <${AvatarFrame} size="sm" name=${seat.name} src=${botAvatar} seat=${index} bot=${seat.isBot} self=${isMe} />
       <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
       <small class="rseat__doc">${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}</small>
     </div>
@@ -718,7 +719,7 @@ export function RoomScreen() {
         const skin = op ? seatCardSkin(s, op.chess.charId, { myId: me.playerId, localSkins, players: facts.occupied, otherSkins }) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
-          portrait=${op ? chessPortraitUrl(data.get('assets'), op.chess, { skin }) : null}
+          portrait=${op ? chessPortraitUrl(data.get('assets'), op.chess, { skin }) : null} botAvatar=${avatarUrl(data.get('assets'), botCharId(s))}
           portraitDefault=${op && skin ? chessPortraitUrl(data.get('assets'), op.chess) : null} operator=${op?.chess} onPickCard=${() => setPicking(true)}
           fresh=${shownRoom.current === room.code} />`;
       })}

@@ -22,6 +22,7 @@
 // emotes and the 19 玩法说明 pages included: UI_EXTRAS), BGM and SFX.
 
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
+import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
 import { pickUnitSfx, assignSkillModeSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
@@ -538,10 +539,21 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     sfxPools[id] = literal(params);
     return id;
   };
+  // the operators behind the AI seats' names that the mode's roster does not have (阿米娅, 杜宾): their pictures only, for
+  // the room's seat cards. No model, voice or sounds: they never fight
+  const pictureOnly = Object.values(BOT_OPERATORS);
   const known = assets07?.operators || {};
   const extraOps = {};
   for (const [id, x] of Object.entries(extraOperators || {})) if (/^char_\d+_[a-z0-9]+$/i.test(id) && !known[id]) extraOps[id] = patternOperator(id, x);
   const operators = { ...known, ...extraOps };
+  for (const id of pictureOnly) {
+    if (operators[id]) continue;
+    const p = patternOperator(id);
+    chars[id] = {
+      avatar: leaf(alt(`char/avatar/${id}.png`, p.avatar.e0e1.url)),
+      portrait: leaf(alt(`char/portrait/${id}_1.png`, p.portrait.e0e1.url)),
+    };
+  }
   const charIds = Object.keys(operators).sort();
   const skillIdxOf = new Map(); // charId → the skill indices its models resolve (an outfit's model resolves the same)
   for (const id of charIds) {

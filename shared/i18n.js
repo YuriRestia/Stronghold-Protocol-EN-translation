@@ -266,6 +266,53 @@ export function tName(name, lang = current) {
   try { return nameResolver(s, lang) || s; } catch { return s; }
 }
 
+// ---- player names: a player's name is never translated, even one that equals an operator's (a human called 能天使 stays
+// 能天使; the old bug of 99af5f99). The one exception is an AI seat's server-given name, 「AI·」 + an operator's Chinese name
+// (server/lobby.js BOT_NAMES), and what decides that is the seat's isBot, never the text of the name.
+
+const BOT_NAME = /^(AI\s*·\s*)(\D.*)$/su;
+
+/**
+ * An AI seat's name split into its 「AI·」 prefix and the operator's name. Null for a name that is only a number after the
+ * prefix (`AI·2`). Only for a name already known to be a bot's.
+ * @param {unknown} name
+ * @returns {[string, string] | null}
+ */
+export function botNameParts(name) {
+  const m = BOT_NAME.exec(String(name ?? ''));
+  return m ? [m[1], m[2]] : null;
+}
+
+/**
+ * An AI seat's name in the current language: the prefix stays, the operator's name goes through tName.
+ * @param {unknown} name
+ * @param {string} [lang]
+ * @returns {string}
+ */
+export function botName(name, lang = current) {
+  const parts = botNameParts(name);
+  return parts ? parts[0] + tName(parts[1], lang) : String(name ?? '');
+}
+
+/**
+ * The name to show for a seat or player record: an AI seat's in the current language, anybody else's exactly as typed.
+ * @param {{ name?: unknown, isBot?: unknown } | null | undefined} p
+ * @param {string} [fallback] shown when the record has no name
+ * @returns {string}
+ */
+export function shownName(p, fallback = '') {
+  if (!p?.name) return fallback;
+  return p.isBot === true ? botName(p.name) : String(p.name);
+}
+
+/**
+ * A player's name as a message param (the server's msg()): `{ bot: name }` for an AI seat, which each client shows in its
+ * language, the plain string for anybody else.
+ * @param {{ name?: unknown, isBot?: unknown } | null | undefined} p
+ * @returns {string | { bot: string }}
+ */
+export const playerParam = (p) => (p?.isBot === true ? { bot: String(p.name ?? '') } : String(p?.name ?? ''));
+
 /**
  * Mark a param as a game-data name (translated by the client's name resolver).
  * @param {unknown} name
@@ -303,6 +350,12 @@ function renderValue(v, lang, resolve) {
       const name = String(/** @type {any} */ (v).dn ?? '');
       if (!resolve || lang === DEFAULT_LANG || !name) return name;
       try { return resolve(name, lang) || name; } catch { return name; }
+    }
+    if (own(v, 'bot')) {
+      const name = String(/** @type {any} */ (v).bot ?? '');
+      const parts = botNameParts(name);
+      if (!parts || !resolve || lang === DEFAULT_LANG) return name;
+      try { return parts[0] + (resolve(parts[1], lang) || parts[1]); } catch { return name; }
     }
     return '';
   }
@@ -565,6 +618,7 @@ function cleanParam(v, depth = 0) {
   if (typeof v === 'boolean') return v;
   if (Array.isArray(v) && depth < 1) return v.slice(0, 32).map((x) => cleanParam(x, depth + 1));
   if (v && typeof v === 'object' && own(v, 'dn')) return { dn: String(/** @type {any} */ (v).dn ?? '').slice(0, 200) };
+  if (v && typeof v === 'object' && own(v, 'bot')) return { bot: String(/** @type {any} */ (v).bot ?? '').slice(0, 200) };
   return null;
 }
 
