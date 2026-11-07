@@ -96,6 +96,7 @@ import { DetailPanel, resolveDetail } from '../ui/detailPanel.js';
 import { RewardOverlay } from '../ui/rewardOverlay.js';
 import { FinalAssaultPlate, HiddenCorePlate, EndPlate, preloadBossPlateArt, bossPlateArtReady, finalPlateRows, endPlateOf } from '../ui/bossPlates.js';
 import { DownedPlate, downedDue, preloadDownedArt, downedArtReady } from '../ui/downedPlate.js';
+import { loadLater } from '../loadLater.js';
 import { OfferOverlay, offerBlocksPrep } from '../ui/offerOverlay.js';
 import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
@@ -319,7 +320,7 @@ function MatchScreen() {
   // first view — turns false while a teammate is still in; 继续观战 closes it, 离开模拟 opens the exit dialog
   const [downed, setDowned] = useState(false);
   const wasAlive = useRef(undefined);
-  useEffect(() => { preloadDownedArt(); }, []);
+  useEffect(() => { loadLater(preloadDownedArt); }, []); // (fork) a later round's art: after what is on screen
   useEffect(() => {
     if (!spectator && !priv && !meP) return;
     const was = wasAlive.current;
@@ -975,7 +976,7 @@ function MatchScreen() {
 
   // the run's end in the server's last pause before RESULT (ui/bossPlates.js endPlateOf: the hidden round over, the team
   // fallen in the 最终攻势 or eliminated at a settlement — 模拟中断 then takes the result box's place); never delays RESULT
-  useEffect(() => { preloadBossPlateArt(); }, []);
+  useEffect(() => { loadLater(preloadBossPlateArt); }, []); // (fork) a later round's art: after what is on screen
   const endKind = bossPlateArtReady() ? endPlateOf(phase, pub) : null;
   useEffect(() => {
     if (!endKind) return;

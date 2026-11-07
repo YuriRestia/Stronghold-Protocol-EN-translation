@@ -84,7 +84,7 @@ groups={'fx/tex':{'shared':{'path':'/assets/local/fx/tex/shared.png','kind':'Tex
 (dest/'textures.json').write_text(json.dumps({'textures':{'shared':texture}}))
 manifest.write_text(json.dumps({'groups':groups}))
 (dest/'untouched.bin').write_bytes(b'keep')
-def crawl(ab,cabs,ids,*args):
+def crawl(ab,cabs,ids,*args,**kwargs):
  assert ids==['char_new'],ids
  return ({'char_new':{'added':1}}, {'shared':{'replace':True},'new':{}},
          {'shared':{'replace':True},'new':{}}, {'char_new':{}}, {'old','new'})

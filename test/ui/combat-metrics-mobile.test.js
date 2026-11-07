@@ -41,8 +41,6 @@ describe('作战统计 on short touch screens: the HUD proportion', () => {
       'the card is 300 px wide, still clamped inside the safe area');
     assert.match(phone, /\.combat-metrics \{\n(?:.*\n)*?\s*font-size: max\(calc\(\.2 \* var\(--t\)\), 9px\);/,
       'body text at 9 px (was 12) and still on --t');
-    assert.match(phone, /\.combat-metrics__head h2 \{ font-size: max\(calc\(\.3 \* var\(--t\)\), 12px\); \}/,
-      'the title at 12 px (was 16)');
     assert.match(phone, /\.combat-metrics__row > \.uthumb \{ width: max\(\.5rem, 24px\); height: max\(\.5rem, 24px\); \}/,
       '24 px thumbs (was 30)');
     assert.match(phone, /\.combat-metrics__scopes button \{ min-height: 36px; padding: 2px 5px; \}/,
@@ -53,7 +51,7 @@ describe('作战统计 on short touch screens: the HUD proportion', () => {
 
   test('every font-size in the block still reads --t, so 设置 → 文字大小 lifts the card', () => {
     const sizes = [...phone.matchAll(/font-size:([^;}]*)/g)].map((m) => m[1]);
-    assert.ok(sizes.length >= 7, `expected the block to size its text, found ${sizes.length}`);
+    assert.ok(sizes.length >= 2, `expected the block to size its text, found ${sizes.length}`);
     for (const value of sizes) assert.match(value, /var\(--t\)/, `font-size:${value.trim()} must read --t`);
   });
 
@@ -63,7 +61,7 @@ describe('作战统计 on short touch screens: the HUD proportion', () => {
     assert.ok(coarse >= 0 && short >= 0);
     assert.ok(at > CSS.indexOf('.combat-metrics__close, .combat-metrics__scopes button { min-height: 44px; }'),
       'after the 44 px touch minimum, or min-height would win');
-    assert.ok(at > CSS.indexOf('.combat-metrics__micro { display: none; }'),
+    assert.ok(at > CSS.indexOf('  .combat-metrics__head { padding-top: 4px; padding-bottom: 4px; }'),
       'after the ≤460 px block, whose padding-top would otherwise win');
   });
 

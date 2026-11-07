@@ -9,7 +9,8 @@
 //   voiceNativeLangType { [charId]: 'ITA' | 'RUS' | … } (the official voiceLangType of the own-language dub: its label),
 //   sfx.ui { click, buy, sell, refresh, freeze, levelup, merge, equip, ready, timer, yourTurn, … },
 //   sfx.battle { deploy, tokenDeploy, charDie, tokenDie?, enemyDie, enemyHit, heal, killCoin, … },
-//   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
+//   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }
+//   (`skills`, by skill index, replaces `skill` for a unit that has it: see unit()).
 //
 // - The AudioContext is created on the first user gesture (pointerdown/keydown/touchend), so browsers
 //   never block or warn; everything requested before that is remembered (BGM) or dropped (SFX).
@@ -87,6 +88,7 @@ import { sanitizeVoiceOverrides, voiceLangFor, VOICE_LANGS, VOICE_TREES, VOICE_P
 export { VOICE_TREES } from './voicePrefs.js';
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { needNow } from './loadLater.js';
 import { unhashedUrl } from '../../shared/assetPaths.js';
 import { AudioMixer, spatialGain, songGain } from './audioMixer.js';
 
@@ -699,6 +701,7 @@ export class AudioManager {
     this.volumes = { bgm: 0.8, sfx: 0.8, voice: 0.8, muted: false };
     this.buffers = new Map(); // url → Promise<AudioBuffer|null> (insertion order = LRU)
     this.bufBytes = new Map(); // url → decoded PCM bytes (the byte budget of the LRU, see _buffer)
+    this.prefetched = new Map(); // (fork) url → Promise<ArrayBuffer|null> downloaded ahead, until _buffer takes it (prefetch)
     this.warned = new Set();
     this.limiter = new SfxLimiter();
     this.poolVoices = new Map(); // official bank id → playing instances in start order
@@ -937,6 +940,41 @@ export class AudioManager {
     return false;
   }
 
+  /**
+   * A sound's bytes from the network. Throws when they cannot be had.
+   * @param {string} url @param {RequestInit} [init] (prefetch: the request's priority)
+   */
+  async _fetchBytes(url, init) {
+    // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
+    const media = mediaUrl(url);
+    let res = await fetch(media, init);
+    if (media !== url && !isAudioResponse(res)) {
+      // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
+      try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
+      res = await fetch(url, init);
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.arrayBuffer();
+  }
+
+  /**
+   * (fork) Download a sound's bytes now, before the first gesture if need be (a download needs no gesture; decoding waits
+   * for the context): the entry film must have its sound ready when it starts (ui/entryFilm.js). `_buffer` takes the bytes
+   * over, so nothing is requested twice.
+   * @param {string} url @param {RequestInit} [init] the request's options (its priority)
+   * @returns {Promise<ArrayBuffer|null>} null when they could not be had
+   */
+  prefetch(url, init) {
+    // already decoded (the film again, on a return to the login screen): nothing to download, and _buffer would never take it
+    if (typeof url !== 'string' || !url || url.startsWith(LOCAL_BGM) || this.buffers.has(url)) return Promise.resolve(null);
+    let p = this.prefetched.get(url);
+    if (!p) {
+      p = this._fetchBytes(url, init).catch(() => null);
+      this.prefetched.set(url, p);
+    }
+    return p;
+  }
+
   /** Fetch + decode (cached, LRU). Resolves null on failure. */
   _buffer(url) {
     if (!this.ctx || typeof url !== 'string' || !url) return Promise.resolve(null);
@@ -955,16 +993,10 @@ export class AudioManager {
           if (!own || url !== LOCAL_BGM + own.id) return null;
           ab = await own.read();
         } else {
-          // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
-          const media = mediaUrl(url);
-          let res = await fetch(media);
-          if (media !== url && !isAudioResponse(res)) {
-            // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
-            try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
-            res = await fetch(url);
-          }
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          ab = await res.arrayBuffer();
+          // (fork) a download already running or finished (prefetch) is used, not started again; one that failed retries
+          const early = this.prefetched.get(url);
+          this.prefetched.delete(url);
+          ab = (early && await early) || await this._fetchBytes(url);
         }
         const buf = await this.decodeBytes(ab);
         if (!buf && !url.startsWith(LOCAL_BGM)) this._failed(url);
@@ -1127,7 +1159,7 @@ export class AudioManager {
   async _startBgm(key, track, token) {
     // kept by _trimBuffers while it loads (before the first await: a cache miss below trims at once)
     this.bgmStarting = { url: track.loop, token };
-    const [intro, loop] = await Promise.all([track.intro ? this._buffer(track.intro) : null, this._buffer(track.loop)]);
+    const [intro, loop] = await needNow(Promise.all([track.intro ? this._buffer(track.intro) : null, this._buffer(track.loop)]));
     if (token !== this.bgmToken || !this.ctx) return;
     // the player's own lobby track that would not load (its file gone or no longer decodable): the official track, and
     // ui/lobbyMedia.js is told (onLobbyTrackFailed) so the switch shows it off
@@ -1278,6 +1310,17 @@ export class AudioManager {
     } catch { /* ignore */ }
   }
 
+  /**
+   * (fork) The official sound a kit fx stands for (manifest sfx.units[charId].fxSounds['<kind>|<skill tag>'], 塔露拉 S3's
+   * 簇火 and overload), on its bank's pool. A volley's launch sound plays once [ASSUMED: its bank allows one at a time, so
+   * the client's per-shot births cut each other], with the volley rather than each shot's birth delay.
+   */
+  _fxSound(kind, ex) {
+    const u = this.units.get(ex.id);
+    const e = u ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.fxSounds?.[`${kind}|${ex.skill ?? ''}`] : null;
+    if (typeof e?.url === 'string') this._playBank(e.url, e.pool, NOTE_GAIN);
+  }
+
   /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): on its official bank's pool (_playBank). */
   _noteSound(ex) {
     const u = this.units.get(ex.owner);
@@ -1318,6 +1361,7 @@ export class AudioManager {
       if (typeof e?.loop === 'string') this._buffer(e.loop);
     }
     for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
+    for (const e of Object.values(sfx?.fxSounds || {})) if (typeof e?.url === 'string') this._buffer(e.url);
   }
 
   /**
@@ -1781,14 +1825,17 @@ export class AudioManager {
     try {
       const pick = () => {
         const u = this.getManifest()?.audio?.sfx?.units?.[defId];
-        // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`) when the manifest has it
-        const own = kind === 'skill' && Number.isInteger(skillIndex) && u?.skills ? u.skills[skillIndex] : null;
+        // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`). (fork) A unit with `skills` plays by
+        // index only: an index without a sound is a skill the official bank table leaves silent, never `skill` (the
+        // primary skill's sound, which rang on 54 operators' other skills)
+        const byIndex = kind === 'skill' && Number.isInteger(skillIndex) && !!u?.skills;
+        const own = byIndex ? u.skills[skillIndex] : null;
         // the running skill's own swing / impact (header); only while it runs — otherwise 能天使 S2's file would ring
         // on every normal attack of hers (exactly what normalAttackSfx keeps out). 赤刃明霄陈 S3: `attacks[2]` = the S3
         // swing, `hits[2]` = the S3 slash's impact.
         const table = kind === 'attack' ? u?.attacks : kind === 'hit' ? u?.hits : null;
         const mode = skillActive && Number.isInteger(skillIndex) && table ? table[skillIndex] : null;
-        return { u, mode, own, url: typeof own === 'string' ? own : typeof mode === 'string' ? mode : u?.[kind] };
+        return { u, mode, own, url: byIndex ? own : typeof mode === 'string' ? mode : u?.[kind] };
       };
       const { u, mode, url, own } = pick();
       if (typeof url !== 'string') return false;
@@ -2214,6 +2261,7 @@ export class AudioManager {
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];
+          if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);
           if (!ex || typeof ex !== 'object' || !ex.consumed || ex.id == null) continue;
           const u = this.units.get(ex.id);
           if (!u || u.side === 'enemy') continue;

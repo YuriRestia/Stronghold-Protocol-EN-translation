@@ -672,6 +672,19 @@ describe('AudioManager', () => {
     }
   });
 
+  test('塔露拉 (committed manifest): S3 has its cast sound by index only, and its kit fx their official banks and pools', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const u = m.units.char_4247_oxi;
+    assert.equal(u.skill, undefined, 'no cast sound on S1 / S2');
+    assert.deepEqual(Object.keys(u.skills), ['2']);
+    assert.match(u.skills[2], /p_skill_xtlfgbw_s\.mp3$/);
+    assert.match(u.fxSounds['heatwave|oxi:heatwave'].url, /p_atk_xtlfgbwfb_s\.mp3$/);
+    assert.match(u.fxSounds['blast|oxi:heatwave'].url, /p_imp_xtlfgbwfb_s\.mp3$/);
+    assert.match(u.fxSounds['overload|'].url, /p_skill_xtlfgbwvl_s\.mp3$/);
+    for (const e of Object.values(u.fxSounds)) assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    assert.equal(u.fxSounds['blast|oxi:retaliate'], undefined, 'S2\'s blast is another sound');
+  });
+
   test('丰川祥子 (committed manifest): the skill stings — S1 d1/d2/d3 40/30/30, S2 h1 only (into organ), S3 s1/s2 50/50 + its loop, each on its official pool', () => {
     const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
     const st = m.units.char_4182_oblvns.stings;
@@ -682,6 +695,46 @@ describe('AudioManager', () => {
     assert.equal(st[2].loop.split('/').pop(), 'p_atk_mjckyrdslnt_lp.mp3');
     assert.deepEqual([m.pools[st[0].pool].maxSoundAllowed, m.pools[st[0].pool].popOldest], [2, true], 'S1: max 2, the oldest gives way');
     assert.equal(m.pools[st[2].pool].maxSoundAllowed, 0);
+  });
+
+  test('塔露拉 S3: each kit fx plays its own sound on its pool; another skill\'s fx of that kind and another unit\'s stay silent; the cast rings on S3 only', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const fxSounds = { 'heatwave|oxi:heatwave': { url: '/s/born.mp3', pool: 'b' }, 'blast|oxi:heatwave': { url: '/s/hit.mp3', pool: 'h' }, 'overload|': { url: '/s/over.mp3', pool: 'o' } };
+      const pools = { b: { maxSoundAllowed: 1, popOldest: true, sounds: {} }, h: { maxSoundAllowed: 2, popOldest: true, sounds: {} }, o: { maxSoundAllowed: 2, popOldest: true, sounds: {} } };
+      const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools, units: { char_4247_oxi: { fxSounds, skills: { 2: '/s/cast.mp3' } } } } } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      const oxi = (id, skillIndex) => ({ id, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4247_oxi', skillIndex });
+      a.setFieldUnits([oxi(3, 2), oxi(4, 0), { id: 5, kind: 'op', side: 'ally', defId: 'char_x', spine: 'char_x', skillIndex: 0 }]);
+      const plays = [];
+      const play = a._playBank.bind(a);
+      a._playBank = (url, pool, vol) => { plays.push([url, pool]); return play(url, pool, vol); };
+      const units = [];
+      const unit = a.unit.bind(a);
+      a.unit = (def, role, key, skillIndex, active) => { if (role === 'skill') units.push([def, skillIndex]); return unit(def, role, key, skillIndex, active); };
+      const fx = (kind, ex) => a.handleBattleEvents([['fx', kind, 5, 9, ex]]);
+      fx('heatwave', { id: 3, skill: 'oxi:heatwave', lanes: [] });
+      fx('blast', { id: 3, skill: 'oxi:heatwave', shot: 1 });
+      fx('overload', { id: 3 });
+      assert.deepEqual(plays, [['/s/born.mp3', 'b'], ['/s/hit.mp3', 'h'], ['/s/over.mp3', 'o']]);
+      plays.length = 0;
+      fx('blast', { id: 3, skill: 'oxi:retaliate' });
+      fx('shield', { id: 3 });
+      fx('overload', { id: 5 });
+      fx('blast', { skill: 'oxi:heatwave' });
+      assert.deepEqual(plays, [], 'nothing else rings');
+      a.handleBattleEvents([['skill', 3, 1]]);
+      a.handleBattleEvents([['skill', 4, 1]]);
+      assert.deepEqual(units.map((u) => u[1]), [2, 0], 'the cast asks for its own skill index');
+      assert.equal(vm.audio.sfx.units.char_4247_oxi.skill, undefined);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 
   test('丰川祥子: a cast cue plays one weighted sting on its pool; no cue, no sting; S3 holds its loop until the skill ends / she dies / the field changes', async () => {
@@ -1467,5 +1520,66 @@ describe('voice language', () => {
       a.setVolumes({ muted: true });
       assert.equal(a.previewVoice('char_102_texas', 'jp'), false, 'muted ⇒ silent');
     } finally { globalThis.fetch = origFetch; }
+  });
+});
+
+// (fork) audio_data's ON_SKILL_START banks are per skill: a unit with `skills` plays by index only. Before, a lone bank on
+// any skill but the primary never reached the client (about two dozen operators stayed silent on it), and the primary's
+// file rang on every skill without a bank of its own (54 operators).
+describe('the cast sound belongs to its own skill', () => {
+  const castOf = (m, def, skillIndex) => {
+    const played = [];
+    const a = new AudioManager({ win: null, getManifest: () => m });
+    a.ctx = {};
+    a._play = (u, o) => { played.push({ url: u, group: o?.group }); };
+    return { heard: a.unit(def, 'skill', 1, skillIndex), played };
+  };
+  const units = (u) => ({ audio: { sfx: { units: { op: u } } } });
+
+  test('an index without a sound is silent: `skill` never stands in for it', () => {
+    const m = units({ skill: 'first.mp3', skills: { 0: 'first.mp3', 2: 'third.mp3' }, skillGroups: { 2: 'Battle_P_Field' } });
+    assert.deepEqual(castOf(m, 'op', 0).played.map((p) => p.url), ['first.mp3']);
+    assert.deepEqual(castOf(m, 'op', 2).played, [{ url: 'third.mp3', group: 'Battle_P_Field' }]);
+    const gap = castOf(m, 'op', 1);
+    assert.equal(gap.heard, false, 'no sound of its own');
+    assert.deepEqual(gap.played, []);
+  });
+
+  test('without `skills` or without an index, `skill` still plays', () => {
+    assert.deepEqual(castOf(units({ skill: 'a.mp3' }), 'op', 1).played.map((p) => p.url), ['a.mp3'], 'a plugin or a one-skill record');
+    assert.deepEqual(castOf(units({ skill: 'a.mp3', skills: { 0: 'a.mp3' } }), 'op').played.map((p) => p.url), ['a.mp3'], 'a unit with no skillIndex');
+  });
+
+  test('data/assets.json: an operator whose lone bank is not on its primary skill keeps it, by index', () => {
+    const LONE = {
+      char_010_chen: [1, 'player/p_skill/p_skill_chixiaobadao.mp3'], char_1033_swire2: [2, 'battle/b_char/b_char_atkboost.mp3'],
+      char_1045_svash2: [2, 'player/p_skill/p_skill_snwlprdg_s.mp3'], char_135_halo: [1, 'battle/b_char/b_char_atkboost.mp3'],
+      char_172_svrash: [1, 'battle/b_char/b_char_defboost.mp3'], char_179_cgbird: [2, 'player/p_skill/p_field_elefield_loop.mp3'],
+      char_183_skgoat: [1, 'player/p_skill/p_field_calcinosis.mp3'], char_196_sunbr: [1, 'battle/b_char/b_char_healboost.mp3'],
+      char_198_blackd: [1, 'battle/b_char/b_char_tactboost.mp3'], char_2025_shu: [2, 'player/p_skill/p_skill_drgndfmrhl.mp3'],
+      char_2027_wang: [2, 'player/p_skill/p_skill_stwctp_s.mp3'], char_218_cuttle: [1, 'battle/b_char/b_char_atkboost.mp3'],
+      char_311_mudrok: [2, 'battle/b_char/b_char_atkboost.mp3'], char_4054_malist: [0, 'battle/b_char/b_char_atkboost.mp3'],
+      char_4098_vvana: [1, 'battle/b_char/b_char_atkboost.mp3'], char_4121_zuole: [1, 'player/p_skill/p_skill_wrrsldisk.mp3'],
+      char_4139_papyrs: [1, 'battle/b_char/b_char_healboost.mp3'], char_4179_monstr: [2, 'battle/b_char/b_char_atkboost.mp3'],
+      char_4204_mantra: [2, 'player/p_skill/p_skill_mtelrncpnt.mp3'], char_4244_tocka: [2, 'battle/b_char/b_char_rylntbw_s.mp3'],
+      char_431_ashlok: [1, 'battle/b_char/b_char_atkboost.mp3'], char_449_glider: [1, 'battle/b_char/b_char_healboost.mp3'],
+      char_473_mberry: [1, 'battle/b_char/b_char_healboost.mp3'],
+    };
+    assert.equal(Object.keys(LONE).length, 23);
+    for (const [id, [index, file]] of Object.entries(LONE)) {
+      const rec = manifest.audio.sfx.units[id];
+      assert.equal(rec.skill, undefined, `${id}: its primary skill has no bank`);
+      assert.deepEqual(Object.keys(rec.skills), [String(index)], `${id}: only that skill`);
+      assert.equal(castOf(manifest, id, index).played[0]?.url, `/assets/audio/sfx/${file}`, id);
+      assert.deepEqual(castOf(manifest, id, index === 0 ? 1 : 0).played, [], `${id}: not on another skill`);
+    }
+  });
+
+  test('data/assets.json: the primary skill\'s sound stays off the skills without a bank', () => {
+    const GAPS = [['char_1041_angel2', 1, [0, 2]], ['char_202_demkni', 1, [0]], ['char_2026_yu', 2, [0]], ['char_4087_ines', 1, [0, 2]]];
+    for (const [id, own, silent] of GAPS) {
+      assert.equal(castOf(manifest, id, own).played[0]?.url, manifest.audio.sfx.units[id].skills[own], `${id}: S${own + 1} keeps its sound`);
+      for (const i of silent) assert.deepEqual(castOf(manifest, id, i).played, [], `${id}: S${i + 1} has no bank`);
+    }
   });
 });
