@@ -94,6 +94,9 @@ export function makeMatch(o = {}) {
     test: o.test === true,
     botRehearsalDelegate: o.botRehearsalDelegate ?? false, // (fork) the Match default is on; tests opt in
     botRehearsalDelegateMs: o.botRehearsalDelegateMs,
+    // (fork) a bot seat's whole prep on an executor (test/match/fakeBotHost.js, test/match/bot-host-parity.test.js)
+    ...(o.seatStreams !== undefined ? { seatStreams: o.seatStreams } : {}),
+    ...(o.botExecution !== undefined ? { botExecution: o.botExecution, botExecutor: o.botExecutor, botTaskLayouts: o.botTaskLayouts } : {}),
     // the server's own simulation pool for those rehearsals (server/workers/roomPool.js); absent unless a test passes
     // one, so a harness match keeps every rehearsal on this thread (test/workers-room.test.js covers the pooled path)
     ...(o.simPool !== undefined ? { simPool: o.simPool } : {}),
