@@ -7,11 +7,16 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-07
 
+### First-visit loading
+
+- The entry film now plays with its sound on a first visit, however slow the connection. What the opening needs (film art, entry cue, lobby music) downloads first, from page load and at high priority, behind a Loading card; the card asks for the tap once they're in. A tap made while loading counts. The battle renderer's scripts and a resuming asset preload wait until those files are in. Before, the film was dropped if its art took over 1.2 s, and the sound only started downloading after the tap.
+- In a room and a match, what the screen needs loads first (`public/js/loadLater.js`). The leader and downed plates, the pre-game boot art, the render engine's code ahead of the match, the battle effects index and the simulation's scripts wait until the screen's images, the board, operator models and music are in (at most 20 s), and the simulation's warm-up only starts from the prep on. On a first visit the field no longer times out into its simplified view while files compete for connections.
+
 ### Upstream merge
 
 - Merged upstream's unreleased 0.3.4 work (`dev` branch) at [`eff7d93a`](https://github.com/sganggs/Stronghold-Protocol/commit/eff7d93abbd1bd6986e2e9c2d7a1e066b1975bbc) (`4d12f915`). Fork-side decisions:
   - Release notes open only from the title footer's button (no automatic opening: the lobby has its own update banner). Non-Chinese pages read `CHANGELOG.en.md`.
-  - The entry film plays once per browser tab session, not on every page load.
+  - The entry film plays every time the login screen is entered. A page load that lands in the lobby plays it once per browser tab session.
   - The three-level deploy-fold setting is taken; it still defaults to off. P2P stays off (`SP_P2P` unset).
   - Toska (冻河), Territoriya (国度) and Talulah (塔露拉) get English text in `tools/i18n/fallback-new-ops-en.json`, using names and terms from arknights.wiki.gg, until official EN data covers them.
   - Not ready to deploy: upstream's new bot logic runs on the server. All bot calculation must move to the host's browser first.

@@ -21,7 +21,7 @@ test('release notes: never open on their own, the button opens them with history
       assert.match(await response.text(), /## 0\.3\.3/, doc);
     }
     assert.equal((await page.goto(`${base}/package.json`)).status(), 404);
-    await page.evaluateOnNewDocument(() => { sessionStorage.setItem('sp.entryFilm.played', '1'); });
+    await page.evaluateOnNewDocument(() => { sessionStorage.setItem('sp.entryFilm.off', '1'); });
     await page.goto(`${base}/?lang=zh`);
     await page.waitForSelector('.release-notes-entry');
     assert.equal(await page.$('.release-notes'), null, 'a fresh install does not open them');

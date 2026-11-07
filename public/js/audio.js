@@ -87,6 +87,7 @@ import { sanitizeVoiceOverrides, voiceLangFor, VOICE_LANGS, VOICE_TREES, VOICE_P
 export { VOICE_TREES } from './voicePrefs.js';
 import { PHASE } from '../../shared/constants.js';
 import { mediaUrl } from './media.js';
+import { needNow } from './loadLater.js';
 import { unhashedUrl } from '../../shared/assetPaths.js';
 import { AudioMixer, spatialGain, songGain } from './audioMixer.js';
 
@@ -699,6 +700,7 @@ export class AudioManager {
     this.volumes = { bgm: 0.8, sfx: 0.8, voice: 0.8, muted: false };
     this.buffers = new Map(); // url → Promise<AudioBuffer|null> (insertion order = LRU)
     this.bufBytes = new Map(); // url → decoded PCM bytes (the byte budget of the LRU, see _buffer)
+    this.prefetched = new Map(); // (fork) url → Promise<ArrayBuffer|null> downloaded ahead, until _buffer takes it (prefetch)
     this.warned = new Set();
     this.limiter = new SfxLimiter();
     this.poolVoices = new Map(); // official bank id → playing instances in start order
@@ -937,6 +939,41 @@ export class AudioManager {
     return false;
   }
 
+  /**
+   * A sound's bytes from the network. Throws when they cannot be had.
+   * @param {string} url @param {RequestInit} [init] (prefetch: the request's priority)
+   */
+  async _fetchBytes(url, init) {
+    // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
+    const media = mediaUrl(url);
+    let res = await fetch(media, init);
+    if (media !== url && !isAudioResponse(res)) {
+      // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
+      try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
+      res = await fetch(url, init);
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.arrayBuffer();
+  }
+
+  /**
+   * (fork) Download a sound's bytes now, before the first gesture if need be (a download needs no gesture; decoding waits
+   * for the context): the entry film must have its sound ready when it starts (ui/entryFilm.js). `_buffer` takes the bytes
+   * over, so nothing is requested twice.
+   * @param {string} url @param {RequestInit} [init] the request's options (its priority)
+   * @returns {Promise<ArrayBuffer|null>} null when they could not be had
+   */
+  prefetch(url, init) {
+    // already decoded (the film again, on a return to the login screen): nothing to download, and _buffer would never take it
+    if (typeof url !== 'string' || !url || url.startsWith(LOCAL_BGM) || this.buffers.has(url)) return Promise.resolve(null);
+    let p = this.prefetched.get(url);
+    if (!p) {
+      p = this._fetchBytes(url, init).catch(() => null);
+      this.prefetched.set(url, p);
+    }
+    return p;
+  }
+
   /** Fetch + decode (cached, LRU). Resolves null on failure. */
   _buffer(url) {
     if (!this.ctx || typeof url !== 'string' || !url) return Promise.resolve(null);
@@ -955,16 +992,10 @@ export class AudioManager {
           if (!own || url !== LOCAL_BGM + own.id) return null;
           ab = await own.read();
         } else {
-          // Extension-less URL first so download managers leave the BGM alone; a host without /media/ still works.
-          const media = mediaUrl(url);
-          let res = await fetch(media);
-          if (media !== url && !isAudioResponse(res)) {
-            // Drop the unusable response (404, or a 200 that is really index.html) before trying the original URL.
-            try { await res.body?.cancel?.(); } catch { /* the fallback request matters more than draining this one */ }
-            res = await fetch(url);
-          }
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          ab = await res.arrayBuffer();
+          // (fork) a download already running or finished (prefetch) is used, not started again; one that failed retries
+          const early = this.prefetched.get(url);
+          this.prefetched.delete(url);
+          ab = (early && await early) || await this._fetchBytes(url);
         }
         const buf = await this.decodeBytes(ab);
         if (!buf && !url.startsWith(LOCAL_BGM)) this._failed(url);
@@ -1127,7 +1158,7 @@ export class AudioManager {
   async _startBgm(key, track, token) {
     // kept by _trimBuffers while it loads (before the first await: a cache miss below trims at once)
     this.bgmStarting = { url: track.loop, token };
-    const [intro, loop] = await Promise.all([track.intro ? this._buffer(track.intro) : null, this._buffer(track.loop)]);
+    const [intro, loop] = await needNow(Promise.all([track.intro ? this._buffer(track.intro) : null, this._buffer(track.loop)]));
     if (token !== this.bgmToken || !this.ctx) return;
     // the player's own lobby track that would not load (its file gone or no longer decodable): the official track, and
     // ui/lobbyMedia.js is told (onLobbyTrackFailed) so the switch shows it off

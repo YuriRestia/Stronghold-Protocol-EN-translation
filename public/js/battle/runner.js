@@ -85,6 +85,7 @@
 // (test/match/runner.test.js and test/match/runner-pending.test.js drive it under Node).
 
 import { net as appNet } from '../net.js';
+import { loadLater } from '../loadLater.js';
 import { store as appStore } from '../store.js';
 import { contentFor as appContentFor, simContent as appSimContent, contentSet as appContentSet } from '../content.js';
 import { fxForm } from '../../../shared/protocol.js';
@@ -1008,6 +1009,7 @@ export function createBattleRunner(deps) {
   // phase changes: combat fields live until the next prep; leaving the match drops everything
   let lastPhase = null;
   let lastRound = 0;
+  let simWarmQueued; // the content set a queued warm-up is for (null = the original); undefined: none queued
   if (store && typeof store.subscribe === 'function') {
     offs.push(store.subscribe((s) => {
       const pub = s && s.match && s.match.public ? s.match.public : null;
@@ -1030,7 +1032,19 @@ export function createBattleRunner(deps) {
       // warm the simulation up as soon as a match runs (the first b.start then starts at once) — on the room's content set
       // when it plays one (DESIGN §32.6), or its official version's (§35.23)
       const roomCs = s && s.room && s.room.content && (s.room.content.vanilla === false || typeof s.room.version === 'string') ? s.room.content.cs : null;
-      if (phase && phase !== 'LOBBY' && (!simP || simCs !== (roomCs || null))) ensureSim(roomCs).catch(() => {});
+      // (fork) from the prep on, once the field and what else the screen needs are in (loadLater.js): hundreds of small files
+      // that held up the art on screen on a first visit, and the render engine so long that the field fell back to its
+      // simplified view. A b.start that comes first loads them itself (ensureSim above), as does a rehearsal task.
+      const wantSim = roomCs || null;
+      if (phase && !['LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(phase) && (!simP || simCs !== wantSim) && simWarmQueued !== wantSim) {
+        simWarmQueued = wantSim;
+        loadLater(() => {
+          simWarmQueued = undefined;
+          const now = store.get?.()?.match?.public?.phase;
+          if (!now || now === 'LOBBY' || (simP && simCs === wantSim)) return null;
+          return ensureSim(wantSim).catch(() => {});
+        });
+      }
     }));
   }
   if (doc && typeof doc.addEventListener === 'function') {
