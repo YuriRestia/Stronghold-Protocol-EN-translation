@@ -70,8 +70,11 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
     await page.evaluateOnNewDocument((l, n) => {
       localStorage.setItem('sp.name', n);
       sessionStorage.setItem('sp.entered', '1');
-      if (l) localStorage.setItem('sp.pref.lang', JSON.stringify(l));
-    }, lang === 'zh' ? null : lang, who);
+      // (fork) English is the default here, so every language is set; 搜寻队友 off so the host's button reads 开始模拟. The
+      // same room with the switch on: room-search-strip.e2e.test.js
+      localStorage.setItem('sp.pref.lang', JSON.stringify(l));
+      localStorage.setItem('sp.pref.room.findMates', 'false');
+    }, lang, who);
     await seedReleaseRead(page);
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen'), { timeout: 30000 });
