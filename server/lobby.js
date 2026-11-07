@@ -2159,7 +2159,7 @@ export class Lobby {
         // one: null keeps every rehearsal on this thread, exactly as before (Match.simPool / MatchRehearsal.poolRehearsal)
         ...(!modded && !versioned && this.simPool ? { simPool: this.simPool } : {}),
         send: (playerId, msg, encoded) => (ctx.live ? this.matchSend(room, ctx, playerId, msg, encoded) : false),
-        broadcast: (msg, encoded) => { if (ctx.live) this.matchBroadcast(room, ctx, msg, encoded); },
+        broadcast: (msg, encoded, except) => { if (ctx.live) this.matchBroadcast(room, ctx, msg, encoded, except); },
         onEnd: (summary) => this.onMatchEnd(room, ctx, summary),
       };
       // a room with gameplay plugins plays in its content set's match host, a room of another official version in that
@@ -2243,9 +2243,9 @@ export class Lobby {
   }
 
   /** Match broadcast; the latest m.public and a broadcast m.result are also kept for the replay. */
-  matchBroadcast(room, ctx, msg, encoded = null) {
+  matchBroadcast(room, ctx, msg, encoded = null, except = null) {
     if (msg.t === 'm.public' && reconcileAiTakeover(this, room)) this.broadcastState(room);
-    const data = this.broadcastRoom(room, msg, encoded);
+    const data = this.broadcastRoom(room, msg, encoded, except);
     if (data == null) return;
     if (msg.t === 'm.public') ctx.lastPublic = data;
     else if (msg.t === 'm.result') ctx.sharedResult = data;
@@ -3102,8 +3102,11 @@ export class Lobby {
     return { msg: { ...msg, deliveryEpoch: stream.epoch, deliverySeq }, bytes };
   }
 
-  /** Match broadcast: encode once, send to every connected member. @returns {string | null} the encoded frame */
-  broadcastRoom(room, msg, encoded = null) {
+  /**
+   * Match broadcast: encode once, send to every connected member but `except` (a playerId, or null).
+   * @returns {string | null} the encoded frame
+   */
+  broadcastRoom(room, msg, encoded = null, except = null) {
     if (room.disposed) return null;
     let data = encoded ?? encode(msg);
     if (data == null) { this.log.error(`[lobby] ${room.code} unserializable broadcast ${msg && msg.t}`); return null; }
@@ -3118,7 +3121,7 @@ export class Lobby {
     // per connection: sendSession runs the state transport, which owns each socket's delta baseline (and the
     // droppable/backpressure rules) - one shared byte string in, one frame per member out
     for (const session of members) {
-      if (routed?.has(session)) continue;
+      if (routed?.has(session) || session.playerId === except) continue;
       sendSession(session, msg, data);
     }
     return data;

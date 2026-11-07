@@ -192,7 +192,7 @@ export class MatchProxy {
     }
     if (this.disposed) return;
     if (m.type === 'send') { try { this.opts.send(m.playerId, m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] send failed`, e); } return; }
-    if (m.type === 'broadcast') { try { this.opts.broadcast(m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] broadcast failed`, e); } return; }
+    if (m.type === 'broadcast') { try { if (m.except) this.opts.broadcast(m.msg, null, m.except); else this.opts.broadcast(m.msg); } catch (e) { this.log.error?.(`[match ${this.roomCode}] broadcast failed`, e); } return; }
     if (m.type === 'end') { this._end(m.summary ?? null); return; }
     if (m.type === 'failed') { this.crash(/** @type {any} */ (this.host).kind === 'version' ? 'version-start' : 'plugin-start', m.error); }
   }

@@ -10,6 +10,7 @@ import { deriveSeed } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
 import { setBondCall } from '../bondCall.js';
 import { onHumanEmote } from '../botEmotes.js';
+import { sendChat } from '../chatWallet.js';
 
 export class MatchIntents {
   _handle(ps, msg) {
@@ -48,6 +49,7 @@ export class MatchIntents {
       case 'g.offerRefresh': return this.requestOfferRefresh(ps, msg.offerId, msg.idx, msg);
       case 'g.ready': return ps.setReady(!!msg.ready);
       case 'g.emote': return this.emote(ps, msg.id);
+      case 'g.chat': return sendChat(this, ps, msg.x);
       // playerId: the player tapped (a shared field names two) — the watch preference (item 56)
       case 'g.watch': return this.watch(ps, msg.fieldId, msg.playerId ?? null);
       case 'g.autoplay': return this.setAutoplay(ps, !!msg.on);
