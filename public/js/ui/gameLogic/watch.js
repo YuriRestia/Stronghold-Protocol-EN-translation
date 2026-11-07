@@ -2,7 +2,7 @@
 
 import { isObj, sortedPlayers } from './shared.js';
 import { isCombatPhase } from './phases.js';
-import { t } from '../../../../shared/i18n.js';
+import { t, shownName } from '../../../../shared/i18n.js';
 
 
 /** Own normal field id (DESIGN §8.3). */
@@ -77,7 +77,7 @@ export function switcherLabel(pub, watching, myId, spectating = false) {
   const cur = fields.find((f) => f.fieldId === watching);
   if (cur) return fieldLabel(cur, pub, myId);
   if (typeof watching === 'string' && watching.startsWith('n:') && watching !== ownFieldId(myId)) {
-    return sortedPlayers(pub).find((p) => p.playerId === watching.slice(2))?.name || t('队友');
+    return shownName(sortedPlayers(pub).find((p) => p.playerId === watching.slice(2)), t('队友'));
   }
   return spectating ? t('观战') : t('自己');
 }
@@ -90,7 +90,7 @@ export function switcherLabel(pub, watching, myId, spectating = false) {
  */
 export function fieldLabel(field, pub, myId) {
   if (!isObj(field)) return '—';
-  const names = new Map(sortedPlayers(pub).map((p) => [p.playerId, p.name || t('博士')]));
+  const names = new Map(sortedPlayers(pub).map((p) => [p.playerId, shownName(p, t('博士'))]));
   const ps = Array.isArray(field.players) ? field.players : [];
   if (field.kind === 'unite') return ps.includes(myId) ? t('联防（自己）') : t('联防阵地');
   if (field.kind === 'boss' || field.kind === 'hidden') {

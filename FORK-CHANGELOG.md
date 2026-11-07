@@ -13,7 +13,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ## 2026-11-07
@@ -25,8 +25,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Battle effects
 
+- SilverAsh the Reignfrost's S3 now shows its official effects: the skill range around him, the bird landing when it starts, a curved bird slash leaving him toward his target with each attack, and the official hit as it reaches each enemy. The bird art was never extracted because the skill names its projectiles only as a buff template's default value; `tools/local-extract/fx.py` now follows those too. The server and the preload zip need the new art.
+- SilverAsh the Reignfrost's normal attacks now play the animation that matches their effect: Attack_A, B or C with the same stab or slash, instead of always Attack_A.
 - Talulah's S3 now plays its official sounds: the cast, each volley's launch, each fireball's impact and the overload.
 - Talulah's S3 now shows its official fireballs flying down every lane and exploding on the enemy they hit. The art was never extracted because the skill fires them from a buff template, and nothing drew them. `tools/local-extract/fx.py` now follows projectiles that an operator's buff templates fire, so local copies need `extract.py --only fx --fx-set used --fx-add-only`; until then the game keeps the procedural ring.
+
+### Outfits
+
+- Added the seven outfits CN released since our last outfit refresh: SilverAsh the Reignfrost's Snowfall Over Londinium, Swire the Elegant Wit's A Prosperous Visage, Blaze the Igniting Spark's Nocturnal Firelight, Shu's Everflowing Waters, Horn's The First Gleam, Vina Victoria's Votive Offering and Catherine's Cozy Bakery. Their skill effects come along through the outfit effect twins. The server and the preload zip need the new art.
 
 ### Upstream merge
 
@@ -64,6 +70,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- AI teammates show their operator's name in the page's language, everywhere a name appears (`AI · Warfarin` instead of `AI · 华法琳`). It's decided by the seat being an AI: a human player named after an operator keeps their name exactly as typed.
+- In the room, AI teammates show their operator's icon instead of the robot. The art pack gains Amiya's and Dobermann's avatar and portrait for this, since they aren't in this mode's roster. A full room keeps the Find Teammates switch's place empty, so the seat cards don't resize when the last seat fills.
 - English text: the Rampage damage name and the Elemental Injury description now show five elements, several operators' potential-locked texts are translated, the 0.2.6 changelog and missing Playing Guide sections are in English, and the host rehearsal docs match the code.
 - Skill cast sounds follow the equipped skill. 23 operators get a cast sound they never played, such as Ch'en S2, SilverAsh S2 and Toska S3, because it wasn't on their primary skill. On 54 operators the primary skill's sound no longer rings on a skill that has no cast sound of its own, such as Exusiai the New Covenant S1 and S3; those skills now cast silently, as the official bank table says. A server needs 9 new files in `audio/sfx`.
 - Room screen: the Find Teammates switch shows its text again. The room layout from upstream 0.3.3 painted its background over it, leaving only its track visible. It now sits directly above the big button, which uses the Start Simulation look (amber with dark text while searching), and its description line is gone so the centre stays clear. On phones the switch, Add AI Teammate, the settings popup and the version tag are larger, and a seat's Preparing state can be read over light art.
@@ -105,7 +113,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -430,7 +438,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

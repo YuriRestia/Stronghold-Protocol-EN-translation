@@ -792,7 +792,15 @@ export class SkillFx {
    */
   landed(m, v, k) {
     let drew = false;
-    for (const e of uniq(pickGroup(m.groups, k, m.hitOpts, m.seed))) if (this._play(e, v, { flipFrom: m.src })) drew = true;
+    // (fork) FX_ATTACK_LINES: the hit waits for the flight to reach the enemy (the sim's damage lands at the attack)
+    const l = m.U?.plan?.line;
+    const wait = l && m.src ? Math.min(l.life, Math.hypot(v.x - m.src.x, v.y - m.src.y) / l.speed) : 0;
+    for (const e of uniq(pickGroup(m.groups, k, m.hitOpts, m.seed))) {
+      if (!(wait > 0)) { if (this._play(e, v, { flipFrom: m.src })) drew = true; continue; }
+      if (!this._key(e, v)) continue;
+      drew = true;
+      later(this.w.ofx, wait, () => { if (!v.destroyed) this._play(e, v, { flipFrom: m.src }); });
+    }
     if (k === 0) for (const e of uniq(m.buffs)) if (this._targetLoop(m.U, e, v)) drew = true;
     return drew;
   }
@@ -1150,6 +1158,16 @@ export class SkillFx {
       });
     }
     return true;
+  }
+
+  /**
+   * (fork) FX_ATTACK_LINES: one attack's flight (plan.line): its effect on the attacker, turned to the target; its own
+   * clip carries it out. False without the flight.
+   */
+  attackLine(U, src, tgt) {
+    const l = U?.plan?.line;
+    if (!l || !src || !tgt) return false;
+    return !!this.w.playOn(l.key, src, { toward: tgt, strike: true, important: true, artYaw: l.artYaw });
   }
 
   /** An `endsShot` fx: the flight of the shot it names stops (the projectile clears its main effect as it hits). */

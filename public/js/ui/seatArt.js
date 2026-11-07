@@ -11,6 +11,8 @@
 
 import { createStore, loadPref, savePref } from '../store.js';
 import { ownerSkin } from './skins.js';
+import { BOT_OPERATORS } from '../../../shared/constants.js';
+import { botNameParts } from '../../../shared/i18n.js';
 
 /** 名片干员: the player's own pick (a localStorage pref, sent as room.card). */
 export const CARD_PREF = 'room.card';
@@ -42,6 +44,18 @@ function hash32(s) {
   let h = 0x811c9dc5;
   for (const ch of String(s)) { h ^= ch.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; }
   return h >>> 0;
+}
+
+/**
+ * The operator behind an AI seat (its picture on the seat card), or null: a human who shares the name gets nothing here, nor
+ * does an AI seat with a numbered name (`AI·2`).
+ * @param {{ isBot?: unknown, name?: unknown } | null | undefined} seat
+ * @returns {string | null} charId
+ */
+export function botCharId(seat) {
+  if (seat?.isBot !== true) return null;
+  const parts = botNameParts(seat.name);
+  return (parts && Object.hasOwn(BOT_OPERATORS, parts[1]) && BOT_OPERATORS[parts[1]]) || null;
 }
 
 /**

@@ -62,13 +62,18 @@ export function useFindMates() {
 }
 
 /**
- * The switch applies: a co-op room with a free seat, seen from a player seat — and (fork) no gameplay plugins: such a
- * room is joined by its code only (room.state.content.vanilla false; the server refuses room.search for it too).
+ * A room that can search at all: co-op, seen from a player seat — and (fork) no gameplay plugins: such a room is joined by
+ * its code only (room.state.content.vanilla false; the server refuses room.search for it too).
  */
-export function canFindMates(room, facts) {
+function searchableRoom(room, facts) {
   // the matchmaker merges default-version rooms only (server/lobby.js room.search: another version is BAD_TARGET)
-  return room.mode !== 'solo' && !facts.spectating && facts.occupied.length < MAX_SEATS && room.content?.vanilla !== false
+  return room.mode !== 'solo' && !facts.spectating && room.content?.vanilla !== false
     && (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION;
+}
+
+/** The switch applies: a room that can search, with a free seat. */
+export function canFindMates(room, facts) {
+  return searchableRoom(room, facts) && facts.occupied.length < MAX_SEATS;
 }
 
 /**
@@ -78,7 +83,14 @@ export function canFindMates(room, facts) {
  * @param {{ room: any, facts: any, findMates: boolean, setFindMates: (on: boolean) => void }} props
  */
 export function SearchBar({ room, facts, findMates, setFindMates }) {
-  if (!canFindMates(room, facts) || !facts.isHost) return null;
+  if (!facts.isHost || !searchableRoom(room, facts)) return null;
+  // a full room has no use for the switch but keeps its place, so filling the last seat does not stretch the seat cards
+  if (!canFindMates(room, facts)) {
+    return html`<div class="searchbar__switch searchbar__switch--gap" aria-hidden="true">
+      <span class="searchbar__track"></span><${Icon} name="search" /><span class="searchbar__label">${t('搜寻队友')}</span>
+      <b class="searchbar__state">${tc('toggle', '开启')}</b>
+    </div>`;
+  }
   const on = !!room.searching;
   const armed = on || findMates;
   // en: "Stop searching to turn this off" / "Off: you can start the simulation right away"
