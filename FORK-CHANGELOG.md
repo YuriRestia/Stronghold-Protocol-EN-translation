@@ -43,6 +43,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- English text: the Rampage damage name and the Elemental Injury description now show five elements, several operators' potential-locked texts are translated, the 0.2.6 changelog and missing Playing Guide sections are in English, and the host rehearsal docs match the code.
 - Plugin studio, script checks and match hosts: their child processes no longer open console windows that steal focus on Windows (`windowsHide`).
 - `fetch-assets` names the operators missing from the local FX index. Their per-skill sounds are then planned differently,
   which can make the run refuse to write `data/assets.json`, and retrying the downloads never helps. The refusal now says
@@ -59,7 +60,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Upstream merge
 
-- Merged upstream 0.3.1 at [`d905c146`](https://github.com/sganggs/Stronghold-Protocol/commit/d905c1464f762a03d236c7ad6bc3ba31a74f4494) (`TBD`).
+- Merged upstream 0.3.1 at [`d905c146`](https://github.com/sganggs/Stronghold-Protocol/commit/d905c1464f762a03d236c7ad6bc3ba31a74f4494) (`99bcb678`).
   Upstream's plugin skins (`room.skins`, 显示其他玩家的皮肤) are merged but dormant next to the fork's outfits
   (`room.outfits`), which stay the skin system players use; no skin plugin is installed.
 - Damage meter: the fork's damage meter (`ui/damageChart.js`, `damageLog.js`) is replaced by upstream's Combat
