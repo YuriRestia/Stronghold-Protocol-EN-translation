@@ -9,7 +9,8 @@
 //   voiceNativeLangType { [charId]: 'ITA' | 'RUS' | … } (the official voiceLangType of the own-language dub: its label),
 //   sfx.ui { click, buy, sell, refresh, freeze, levelup, merge, equip, ready, timer, yourTurn, … },
 //   sfx.battle { deploy, tokenDeploy, charDie, tokenDie?, enemyDie, enemyHit, heal, killCoin, … },
-//   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }.
+//   sfx.units { [charId|tokenId|enemyId]: { attack?, hit?, skill?, die?, born?, mix?: { [role]: { p?, vol? } } } }
+//   (`skills`, by skill index, replaces `skill` for a unit that has it: see unit()).
 //
 // - The AudioContext is created on the first user gesture (pointerdown/keydown/touchend), so browsers
 //   never block or warn; everything requested before that is remembered (BGM) or dropped (SFX).
@@ -1824,14 +1825,17 @@ export class AudioManager {
     try {
       const pick = () => {
         const u = this.getManifest()?.audio?.sfx?.units?.[defId];
-        // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`) when the manifest has it
-        const own = kind === 'skill' && Number.isInteger(skillIndex) && u?.skills ? u.skills[skillIndex] : null;
+        // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`). (fork) A unit with `skills` plays by
+        // index only: an index without a sound is a skill the official bank table leaves silent, never `skill` (the
+        // primary skill's sound, which rang on 54 operators' other skills)
+        const byIndex = kind === 'skill' && Number.isInteger(skillIndex) && !!u?.skills;
+        const own = byIndex ? u.skills[skillIndex] : null;
         // the running skill's own swing / impact (header); only while it runs — otherwise 能天使 S2's file would ring
         // on every normal attack of hers (exactly what normalAttackSfx keeps out). 赤刃明霄陈 S3: `attacks[2]` = the S3
         // swing, `hits[2]` = the S3 slash's impact.
         const table = kind === 'attack' ? u?.attacks : kind === 'hit' ? u?.hits : null;
         const mode = skillActive && Number.isInteger(skillIndex) && table ? table[skillIndex] : null;
-        return { u, mode, own, url: typeof own === 'string' ? own : typeof mode === 'string' ? mode : u?.[kind] };
+        return { u, mode, own, url: byIndex ? own : typeof mode === 'string' ? mode : u?.[kind] };
       };
       const { u, mode, url, own } = pick();
       if (typeof url !== 'string') return false;

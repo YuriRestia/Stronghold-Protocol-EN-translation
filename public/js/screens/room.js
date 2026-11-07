@@ -5,7 +5,7 @@
 // difficulty pill and ⚙ 同盟设置 (co-op; a timed solo's ⚙ is 模拟设置 and holds 「不限时」, DESIGN §35.23.10; the ⚙ sits where the event's pill has 快速搜寻 — matchmaking is dropped by the
 // maintainer's PR #643 keep / drop list of 2026-10-15), and the big 开始模拟 / 准备就绪 button (its disabled reason in
 // the project's Tooltip: hover, or a long press on touch; the status line says it too).
-// (fork) 搜寻队友 is back (ui/matchSearch.js, DESIGN §90): the host's search strip above the bar, the search button in
+// (fork) 搜寻队友 is back (ui/matchSearch.js, DESIGN §90): the host's switch above the big button, the search button in
 // place of 开始模拟 while it is on, the searching status line and the empty seats' 搜寻中.
 // Room settings: a co-op room is created at once from the lobby's 创建同盟 (the event's 联合模拟, research 06 §3.2; the
 // maintainer's decision of 2026-10-21), so the difficulty is chosen here — the host's pill (or ⚙'s 模拟难度 row) opens
@@ -447,8 +447,8 @@ function GearGlyph() {
  * The big button of the bottom right (开始模拟 / 准备就绪 / 已就绪 / 观战中), styled like 选择模拟协议's. A disabled reason goes in
  * the project's Tooltip around it (review of PR #813: a native title never shows on touch).
  */
-function GoButton({ label, onClick, disabled, loading = false, ready = null, icon = null }) {
-  return html`<button type="button" class=${`proto-start rs-go${ready ? ' is-ready' : ''}`} disabled=${disabled} onClick=${onClick}
+function GoButton({ label, onClick, disabled, loading = false, ready = null, icon = null, tone = null }) {
+  return html`<button type="button" class=${`proto-start rs-go${ready ? ' is-ready' : ''}`} data-tone=${tone} disabled=${disabled} onClick=${onClick}
       aria-busy=${loading ? 'true' : 'false'}>
     ${ready != null
       ? html`<span class="rs-go__box" aria-hidden="true">${ready ? html`<${Icon} name="check" />` : null}</span>`
@@ -736,7 +736,6 @@ export function RoomScreen() {
     <${SpectatorBar} facts=${facts} myId=${me.playerId} busy=${busy} onRemove=${removeSpectator} onSit=${sit} />
     <${VersionVote} room=${room} />
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
-    <${SearchBar} room=${room} facts=${facts} findMates=${findMates} setFindMates=${setFindMates} />
 
     <footer class="room-bar rs-foot">
       <div class="rs-foot__left" aria-hidden="true"></div>
@@ -754,8 +753,9 @@ export function RoomScreen() {
         </div>
       </div>
       <div class="room-bar__right rs-foot__right">
+        <${SearchBar} room=${room} facts=${facts} findMates=${findMates} setFindMates=${setFindMates} />
         ${facts.isHost && canFindMates(room, facts) && (findMates || room.searching)
-          ? html`<${SearchButton} room=${room} facts=${facts} busy=${busy} online=${online} run=${run} />`
+          ? html`<${SearchButton} room=${room} facts=${facts} busy=${busy} online=${online} run=${run} Go=${GoButton} />`
           : facts.isHost
           ? html`<${Tooltip} text=${facts.canStart ? null : vote ? t('切换版本投票进行中，请等投票结束') : !facts.contentReady ? (facts.versionRoom ? t('仍有博士未载入「{version}」的数据', { version: versionLabel(curVersion) }) : t('仍有博士未载入房间的插件内容')) : t('仍有博士未准备就绪')}>
               <${GoButton} label=${t('开始模拟')} loading=${busy === 'start'} disabled=${!facts.canStart || !online || busy === 'start' || !!vote} onClick=${start} />
