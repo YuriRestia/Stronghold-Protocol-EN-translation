@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-07
 
+### Battle effects
+
+- Talulah's S3 now plays its official sounds: the cast, each volley's launch, each fireball's impact and the overload.
+- Talulah's S3 now shows its official fireballs flying down every lane and exploding on the enemy they hit. The art was never extracted because the skill fires them from a buff template, and nothing drew them. `tools/local-extract/fx.py` now follows projectiles that an operator's buff templates fire, so local copies need `extract.py --only fx --fx-set used --fx-add-only`; until then the game keeps the procedural ring.
+
 ### Upstream merge
 
 - Merged upstream's unreleased 0.3.4 work (`dev` branch) at [`eff7d93a`](https://github.com/sganggs/Stronghold-Protocol/commit/eff7d93abbd1bd6986e2e9c2d7a1e066b1975bbc) (`4d12f915`). Fork-side decisions:
@@ -81,7 +86,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -406,7 +411,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.
