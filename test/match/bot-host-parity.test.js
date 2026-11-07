@@ -99,7 +99,16 @@ if (FULL) {
 /** A match in its first prep, with a scripted executor. */
 function scripted(submit, { seats = SEATS, ...o } = {}) {
   let h = null;
-  const executor = { submits: [], cancelled: [], submit(t) { executor.submits.push(t); submit(t, h, executor); }, cancel(id) { executor.cancelled.push(id); } };
+  const executor = {
+    submits: [], cancelled: [],
+    submit(t) {
+      // band and card picks are answered: these tests are about a seat's prep
+      if (t.world.pick) { h.m.later(1, () => h.m.receiveBotBatch(t.taskId, { batch: 'final', ...wire(createBotRun(wire(t.world), envOf(h)).pick()) })); return; }
+      executor.submits.push(t);
+      submit(t, h, executor);
+    },
+    cancel(id) { executor.cancelled.push(id); },
+  };
   h = makeMatch({ mode: 'coop', seats, seed: 41, fake: true, botExecution: 'host', botExecutor: executor, botTaskLayouts: 0, ...o }).autoHumans().start();
   return { h, executor };
 }

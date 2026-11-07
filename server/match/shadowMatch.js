@@ -22,7 +22,7 @@ const BORROWED = [
   [MatchInfra, ['alivePlayers', 'bossGroupOf', 'deployFieldOf', 'deployMapFor', 'dispatch', 'dispatchItem', 'nextUid',
     'teamMedicGranted', 'humans', 'bondInPool', 'bondLive', 'scaled', 'reportError', 'guard', 'soloUntimed']],
   [MatchCombat, ['newBattle', '_normalOpts', '_sanitizeSpawns']],
-  [MatchSpDraft, ['autoPickPersonalChoice', 'pickPersonalChoice', 'addBounty', 'offerBountyChoice', 'rollItemId', 'rollPool']],
+  [MatchSpDraft, ['autoPickPersonalChoice', 'pickPersonalChoice', 'addBounty', 'offerBountyChoice', 'rollItemId', 'rollPool', 'spCardAvailable']],
   [MatchViews, ['_bossMateOf', 'bossMateView', 'nextEnemiesFor', 'prepMapChars']],
   [MatchPhases, ['bandTaken']],
 ];

@@ -253,7 +253,7 @@ import { MatchPrep } from './match/prep.js';
 import { MatchCombat } from './match/combat.js';
 import { MatchClientCombat } from './match/clientCombat.js';
 import { MatchRehearsal, REHEARSAL_ANSWER_MS } from './match/rehearsal.js';
-import { MatchBotTasks } from './match/botTasks.js';
+import { MatchBotTasks, guardBotStrategy } from './match/botTasks.js';
 import { MatchBotBattles, BOT_BATTLE_ANSWER_MS } from './match/botBattles.js';
 import { MatchReports } from './match/reports.js';
 import { MatchUnite } from './match/unitePhase.js';
@@ -427,6 +427,11 @@ export class Match {
     // Plugin and old-version rooms stay local until piece 11: the Worker has the page's official data only.
     this.botExecution = opts.botExecution === 'host' && !this.requireCs && !this.version ? 'host' : 'local';
     this.seatStreams = opts.seatStreams === true || this.botExecution === 'host';
+    // The hard rule (docs/host-browser-bots.md): in host mode no bot decision may run here, so a strategy's hooks throw.
+    if (this.botExecution === 'host') {
+      this.bot = guardBotStrategy(this.bot);
+      this.seatBots = Object.freeze(Object.fromEntries(Object.entries(this.seatBots).map(([seat, s]) => [seat, guardBotStrategy(s)])));
+    }
     /** (fork) layouts a bot rehearses when its prep runs on the executor (every `m.botRehearsal` gate reads this on the copy) */
     this.botTaskLayouts = Number.isInteger(opts.botTaskLayouts) && opts.botTaskLayouts >= 0 ? Math.min(opts.botTaskLayouts, 8) : BOT_REHEARSAL_DEFAULT;
     /** (fork) who plays a bot seat's prep in host mode: submit({ taskId, playerId, world }), cancel(taskId); null = nobody */

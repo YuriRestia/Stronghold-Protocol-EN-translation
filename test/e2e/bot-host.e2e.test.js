@@ -69,15 +69,15 @@ test('two browsers: bots play in the host\'s Worker, and the other browser takes
   }
   const worked = await botSent(host);
   const firstReceipt = worked.find((m) => m.t === 'b.botReceived');
-  const firstPlan = worked.find((m) => m.t === 'b.botMoves' && m.batch === 'plan');
-  console.log(`first Worker start plus plan, real time: ${firstPlan.at - firstReceipt.at} ms`);
-  console.log(`host, three rounds: ${countOf(worked, 'b.botReceived')} tasks, ${countOf(worked, 'b.botMoves', (m) => m.batch === 'plan')} plans, ${countOf(worked, 'b.botMoves', (m) => m.batch === 'final')} finals, ${countOf(worked, 'b.botBattleResult')} bot battles, ${countOf(worked, 'b.botMoves', (m) => m.error)} errors`);
+  const firstAnswer = worked.find((m) => m.t === 'b.botMoves');
+  console.log(`first bot task of the match, Worker warmed at the briefing, real time: ${firstAnswer.at - firstReceipt.at} ms`);
   const trace = (sent) => sent.map((m) => `${m.at - firstReceipt.at}:${m.t.slice(5)}${m.batch ? `.${m.batch}` : ''}${m.error ? '!' : ''}${m.hidden !== undefined ? `=${m.hidden}` : ''}`).join(' ');
   console.log(`host frames: ${trace(worked)}`);
   console.log(`guest frames: ${trace(await botSent(guest))}`);
   assert.ok(countOf(worked, 'b.botMoves', (m) => m.batch === 'final') >= 4, 'the host played the bots\' preps');
   assert.ok(worked.some((m) => m.t === 'b.botMoves' && m.moves?.includes('g.move')), 'with real board moves');
   assert.ok(worked.some((m) => m.t === 'b.botMoves' && m.moves?.includes('g.ready')), 'and Ready');
+  assert.ok(worked.some((m) => m.t === 'b.botMoves' && m.moves?.includes('g.band')), 'and the bots\' band picks');
   assert.equal(countOf(worked, 'b.botMoves', (m) => m.error), 0);
   assert.equal(countOf(worked, 'b.botBattleResult', (m) => m.error), 0);
   assert.equal(countOf(await botSent(guest), 'b.botMoves'), 0, 'the guest was not asked while the host was there');

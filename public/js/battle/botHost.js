@@ -174,6 +174,14 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   const offCancel = net.on('b.botBattleCancel', (msg) => { if (msg && typeof msg.battleId === 'string') drop(msg.battleId); });
   const offStatus = net.on('status', (snap) => { if (!snap || snap.status !== 'online') clear(); });
   const offTask = net.on('b.botTask', onTask);
+  // Started when the page has time, so the briefing's own loading goes first; the first job builds it anyway if it comes sooner.
+  const offWarm = net.on('b.botWarm', () => {
+    asked = true;
+    if (isHidden()) { reportTab(); return; }
+    const start = () => { if (asked) worker(); };
+    if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(start, { timeout: 5000 });
+    else setTimeout(start, 1000);
+  });
   const offAck = net.on('b.botAck', (msg) => { if (msg && typeof msg.taskId === 'string') ack(msg.taskId, { stale: !!msg.stale }); });
   const offHurry = net.on('b.botHurry', (msg) => { if (msg && typeof msg.taskId === 'string') hurry(msg.taskId); });
   const offDrop = net.on('b.botCancel', (msg) => { if (msg && typeof msg.taskId === 'string') drop(msg.taskId); });
@@ -199,6 +207,7 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
       offCancel();
       offStatus();
       offTask();
+      offWarm();
       offAck();
       offHurry();
       offDrop();

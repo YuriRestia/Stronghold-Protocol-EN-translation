@@ -87,6 +87,7 @@ export class MatchIntents {
     ps.autoplay = on;
     this.markPublic();
     if (on) this.kickBot(ps);
+    else this.cancelBotTasks(ps.playerId); // (fork) the human took the seat back: a bot task for it must not hold the queue
     return OK;
   }
 

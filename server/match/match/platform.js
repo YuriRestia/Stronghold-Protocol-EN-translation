@@ -26,6 +26,7 @@ export class MatchPlatform {
         return;
       }
       this.enterInfoCheck();
+      this._botWarm(); // (fork) match/botTasks.js
     });
   }
 

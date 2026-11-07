@@ -9,6 +9,10 @@ import { BOT_GRACE_MS, BOT_PLAN_MS, BOT_RECEIPT_MS } from '../../server/match/ma
 import { seatHash } from '../../server/match/botWorld.js';
 import { createBotRun, createBotWorkerEnv } from '../../server/match/botWorkerEnv.js';
 import { wire } from './fakeBotHost.js';
+import { DataSource } from '../../server/sim/simdata.js';
+import { simMeter } from '../../server/match/simMeter.js';
+import { attachFakeBattleHost } from './fakeBotHost.js';
+import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch } from './harness.js';
 
 const human = (seat, connected = true) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected });
@@ -21,10 +25,15 @@ const FRAMES = new Set(['b.botTask', 'b.botAck', 'b.botHurry', 'b.botCancel']);
  * A match at its first prep with bot prep on the live frames. `script` plays the page: it sees each frame sent to a human.
  * Nothing answers by default, so a test can walk the failure it is about.
  */
-function atPrep({ autoplay = false, ...o } = {}) {
+function atPrep({ autoplay = false, picks = true, ...o } = {}) {
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats: SEATS, seed: 3, fake: true, hostId: 'p_0', botExecution: 'host', botTaskLayouts: 0, ...o });
   h.frames6 = [];
   h.onSend.push((pid, msg) => { if (FRAMES.has(msg.t)) h.frames6.push([pid, msg]); });
+  // band and card picks answered unless a test is about them
+  if (picks) h.onSend.push((pid, msg) => {
+    if (msg.t !== 'b.botTask' || !msg.world.pick) return;
+    h.m.later(1, () => { if (h.m._botActive?.task.id === msg.taskId) send(h, pid, { t: 'b.botMoves', taskId: msg.taskId, batch: 'final', ...playPick(msg) }); });
+  });
   if (autoplay) h.autoHumans();
   h.m.start();
   return h;
@@ -34,10 +43,12 @@ const send = (h, pid, msg) => {
   assert.equal(validateC2S(m), null, JSON.stringify(m).slice(0, 200));
   return h.m.handle(pid, m);
 };
-const taskFrames = (h, pid) => h.allTo(pid, 'b.botTask');
+const taskFrames = (h, pid) => h.allTo(pid, 'b.botTask').filter((m) => !m.world.pick);
+const pickFrames = (h, pid) => h.allTo(pid, 'b.botTask').filter((m) => m.world.pick);
+const playPick = (frame) => wire(createBotRun(wire(frame.world), NODE.envFor(frame.world.match.modeId)).pick());
 /** Run to the moment the first bot seat's task has gone out. */
 function toFirstTask(h) {
-  assert.ok(h.run(() => h.m._botActive != null || h.ended != null, { maxSteps: 3e6 }), 'a task went out');
+  assert.ok(h.run(() => (h.m._botActive != null && !h.m._botActive.entry.pick) || h.ended != null, { maxSteps: 3e6 }), 'a task went out');
   assert.ok(h.m._botActive);
   return h.m._botActive;
 }
@@ -48,14 +59,14 @@ function playTask(frame) {
   return { plan: wire(plan), rest() { run.rehearse(); return wire(run.finish()); } };
 }
 /** A page that answers everything, a moment after it arrives. */
-function answering(h, { pid = null, tamper = null } = {}) {
+function answering(h, { pid = null, tamper = null, around = (fn) => fn() } = {}) {
   const runs = new Map();
   h.onSend.push((to, msg) => {
     if (pid && to !== pid) return;
-    if (msg.t === 'b.botTask') {
+    if (msg.t === 'b.botTask' && !msg.world.pick) {
       h.m.later(1, () => {
         send(h, to, { t: 'b.botReceived', taskId: msg.taskId });
-        const run = playTask(wire(msg));
+        const run = around(() => playTask(wire(msg)));
         runs.set(msg.taskId, run);
         const body = { t: 'b.botMoves', taskId: msg.taskId, batch: 'plan', moves: run.plan.moves };
         tamper?.(body);
@@ -63,7 +74,7 @@ function answering(h, { pid = null, tamper = null } = {}) {
       });
     } else if (msg.t === 'b.botAck' && !msg.stale) {
       const run = runs.get(msg.taskId);
-      h.m.later(1, () => { if (run) send(h, to, { t: 'b.botMoves', taskId: msg.taskId, batch: 'final', ...run.rest() }); });
+      h.m.later(1, () => { if (run) send(h, to, { t: 'b.botMoves', taskId: msg.taskId, batch: 'final', ...around(() => run.rest()) }); });
     }
   });
   return h;
@@ -327,6 +338,126 @@ test('nobody connected: the bot seats ready up on rule-level moves', () => {
   assert.ok(h.m.botTaskStats.noHost >= 3);
   assert.equal(h.m.botTaskStats.sent, 0);
   h.m.dispose();
+});
+
+test('a band pick is a task: one g.band from the browser, and it is applied as that seat\'s pick', () => {
+  const h = atPrep();
+  assert.ok(h.run(() => h.m.phase === 'PREP' || h.ended != null, { maxSteps: 3e6 }));
+  const bands = pickFrames(h, 'p_0').filter((m) => m.world.pick === 'band');
+  assert.equal(bands.length, 2, 'the two AI seats');
+  for (const frame of bands) {
+    const pick = playPick(frame);
+    assert.equal(pick.moves.length, 1);
+    assert.equal(pick.moves[0].t, 'g.band');
+    assert.ok(h.ps(frame.world.seats.find((x) => x.seat === frame.world.seat).playerId).bandId);
+  }
+  h.m.dispose();
+});
+
+test('a band pick with nobody answering: the next human, then the rule\'s own pick, and the draft goes on', () => {
+  const h = atPrep({ picks: false });
+  assert.ok(h.run(() => h.m._botActive?.entry.pick === 'band' || h.ended != null, { maxSteps: 3e6 }));
+  const { ps } = h.m._botActive.entry;
+  assert.equal(h.m._botActive.executor, 'p_0');
+  h.sched.advance(BOT_RECEIPT_MS + 1);
+  assert.equal(h.m._botActive.executor, 'p_1');
+  h.sched.advance(BOT_RECEIPT_MS + 1);
+  assert.ok(ps.bandId || h.m.draft?.picks[ps.playerId], 'the seat has a band');
+  h.m.dispose();
+});
+
+test('a refused pick: the rule\'s own pick, and only that seat\'s turn is touched', () => {
+  const h = atPrep({ picks: false });
+  assert.ok(h.run(() => h.m._botActive?.entry.pick === 'band', { maxSteps: 3e6 }));
+  const active = h.m._botActive;
+  const { ps } = active.entry;
+  send(h, 'p_0', { t: 'b.botMoves', taskId: active.task.id, batch: 'final', moves: [{ t: 'g.band', bandId: 'band_nope' }] });
+  assert.ok(h.m.draft?.picks[ps.playerId] || ps.bandId);
+  h.m.dispose();
+});
+
+test('a pick for a turn that ended is dropped, and a late answer changes nothing', () => {
+  const h = atPrep({ picks: false });
+  assert.ok(h.run(() => h.m._botActive?.entry.pick === 'band', { maxSteps: 3e6 }));
+  const active = h.m._botActive;
+  const frame = h.lastTo('p_0', 'b.botTask');
+  const { ps } = active.entry;
+  h.m._applyBand(ps, h.m.timeoutBand(ps.playerId));
+  const band = h.m.draft?.picks[ps.playerId];
+  if (h.m._botActive === active) h.m.cancelBotTasks();
+  send(h, 'p_0', { t: 'b.botMoves', taskId: frame.taskId, batch: 'final', moves: [{ t: 'g.band', bandId: 'band_bldsk' }] });
+  assert.equal(h.m.draft?.picks[ps.playerId], band);
+  h.m.dispose();
+});
+
+test('a card pick is a task: one g.choice from the browser', { timeout: 60000 }, () => {
+  const h = atPrep({ autoplay: true });
+  answering(h);
+  assert.ok(h.run(() => pickFrames(h, 'p_0').some((m) => m.world.pick === 'card') || h.ended != null || h.m.round > 12, { maxSteps: 1e7 }));
+  const frame = pickFrames(h, 'p_0').find((m) => m.world.pick === 'card');
+  assert.ok(frame, `a card draft by round ${h.m.round}`);
+  const pick = playPick(frame);
+  assert.deepEqual(Object.keys(pick.moves[0]).sort(), ['idx', 't']);
+  assert.equal(pick.moves[0].t, 'g.choice');
+  h.m.dispose();
+});
+
+test('the guard: in host mode a strategy\'s decision hooks throw on the server, and a whole game never trips them', { timeout: 120000 }, () => {
+  const seats = [human(0), bot(1), bot(2), bot(3)];
+  const add = simMeter.add;
+  let inHost = false;
+  let onServer = 0;
+  simMeter.add = function metered(kind, ms) {
+    if (!inHost && ['prep', 'rehearsal', 'headless'].includes(kind)) onServer++;
+    return add.call(this, kind, ms);
+  };
+  const around = (fn) => { inHost = true; try { return fn(); } finally { inHost = false; } };
+  try {
+    const h = atPrep({ seats, seed: 9, autoplay: true, clientCombat: true, botBattles: 'host', botTaskLayouts: 2 });
+    const ps = h.ps('ai_1');
+    for (const hook of ['pickBand', 'pickCard', 'prepBegin', 'prepEnd']) assert.throws(() => h.m.botFor(ps)[hook](h.m, ps), /bot code on the server/);
+    assert.equal(typeof h.m.botFor(ps).id, 'string');
+    answering(h, { around });
+    attachFakeBattleHost(h, { ds: new DataSource(DATA, null), BattleClass: FakeBattle, around });
+    h.run(() => h.ended != null || h.m.round > 10, { maxSteps: 2e7 });
+    assert.ok(h.m.round > 8 || h.ended);
+    assert.deepEqual(h.logs.error, []);
+    assert.equal(onServer, 0, 'no bot simulation on the server');
+    assert.ok(h.m.botTaskStats.sent > 20);
+    assert.equal(h.m.botTaskStats.errors, 0);
+    h.m.dispose();
+  } finally {
+    simMeter.add = add;
+  }
+});
+
+test('an AI seat a human takes, or autoplay turned off: its task is cancelled and the queue moves on', () => {
+  const h = atPrep();
+  const active = toFirstTask(h);
+  const frame = h.lastTo('p_0', 'b.botTask');
+  h.m.cancelSeatRehearsal(active.entry.ps.playerId);
+  assert.notEqual(h.m._botActive, active);
+  assert.ok(h.allTo('p_0', 'b.botCancel').some((m) => m.taskId === frame.taskId));
+  h.m.dispose();
+  const auto = atPrep({ autoplay: true });
+  const task = toFirstTask(auto);
+  const human0 = [...auto.m.players.values()].find((p) => !p.isBot);
+  auto.m.cancelBotTasks(human0.playerId);
+  assert.equal(auto.m._botActive === task, task.entry.ps !== human0);
+  auto.m.dispose();
+});
+
+test('the first executor is told early, once; a room without bots or with bots off is not', () => {
+  const h = atPrep();
+  assert.equal(h.allTo('p_0', 'b.botWarm').length, 1);
+  assert.equal(h.allTo('p_1', 'b.botWarm').length, 0);
+  h.m.dispose();
+  const none = atPrep({ seats: [human(0), human(1)] });
+  assert.equal(none.allTo('p_0', 'b.botWarm').length, 0);
+  none.m.dispose();
+  const off = makeMatch({ mode: 'coop', seats: SEATS, seed: 3, fake: true }).start();
+  assert.equal(off.allTo('p_0', 'b.botWarm').length, 0);
+  off.m.dispose();
 });
 
 test('stale measure: a human refreshes against the shared pool in the gap of every bot task, the worst case', { timeout: 120000 }, () => {

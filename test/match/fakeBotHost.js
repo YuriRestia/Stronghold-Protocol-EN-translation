@@ -41,6 +41,7 @@ export function createFakeBotHost(match, env, { tamper = null } = {}) {
         host.acks.push({ taskId, batch, ...ack });
         return ack;
       };
+      if (sent.pick) { send('final', run.pick()); return; }
       const plan = send('plan', run.plan());
       if (plan.stale || plan.error) return;
       run.rehearse();

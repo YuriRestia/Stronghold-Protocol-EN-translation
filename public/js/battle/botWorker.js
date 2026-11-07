@@ -58,6 +58,10 @@ async function runBattle(job) {
 async function runTask(job) {
   const run = createBotRun(job.world, world.envFor(job.world.match.modeId));
   const t0 = performance.now();
+  if (job.world.pick) { // a band or card pick: one move, nothing to rehearse
+    self.postMessage({ t: 'batch', id: job.id, batch: 'final', ms: performance.now() - t0, finished: true, ...run.pick() });
+    return;
+  }
   const plan = run.plan();
   self.postMessage({ t: 'batch', id: job.id, batch: 'plan', ms: performance.now() - t0, ...plan });
   const ack = await new Promise((resolve) => waitingAck.set(job.id, resolve));

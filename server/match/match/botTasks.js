@@ -7,6 +7,8 @@
 // roll what the server will roll. While a bot seat's moves run, on both sides, that seat draws from random streams of its
 // own and takes uids from a reserved block (`withSeatStreams`). Human seats keep the shared streams.
 //
+// A bot's band or card pick is a small task on the same frames: one `final` batch with one move (design B10).
+//
 // Live frames: b.botTask → b.botReceived (at once) → b.botMoves { batch: 'plan' } → b.botAck → b.botMoves { batch: 'final' }.
 // b.botHurry stops the rehearsal at the best layout so far, b.botCancel drops the task. No receipt, a silent executor, a
 // failed task, a hidden tab or a lost connection moves the seat to the next human with a fresh snapshot; moves already
@@ -35,9 +37,18 @@ export const BOT_GRACE_MS = 3000;
 
 /** What a bot's move list may contain. Never g.leave, g.autoplay, g.pause or g.test. */
 const BOT_INTENTS = new Set(['g.buy', 'g.refresh', 'g.freeze', 'g.levelUp', 'g.sell', 'g.move', 'g.equip', 'g.art',
-  'g.destroy', 'g.unequip', 'g.reward', 'g.choice', 'g.ready']);
+  'g.destroy', 'g.unequip', 'g.reward', 'g.choice', 'g.ready', 'g.band']);
 /** The one move with no intent: the rule-level temp resolve bot.js calls (`ps.resolveTemp`). Only this path accepts it. */
 const RESOLVE_TEMP = 'bot.resolveTemp';
+
+/** A strategy whose decision hooks throw: what the server holds in host mode. Its id and external `decide` stay usable. */
+export function guardBotStrategy(strategy) {
+  const hooks = {};
+  for (const hook of ['pickBand', 'pickCard', 'prepBegin', 'prepEnd']) {
+    hooks[hook] = { value: () => { throw new Error(`bot code on the server in host mode: ${hook}`); } };
+  }
+  return Object.create(strategy, hooks);
+}
 
 export class MatchBotTasks {
   /**
@@ -80,6 +91,25 @@ export class MatchBotTasks {
     }
   }
 
+  /** Run a pick on the seat's streams when the match uses them, as its task on the executor does (the parity test compares them). */
+  _onBotSeat(ps, fn) {
+    return this.seatStreams ? this.withSeatStreams(this.newBotTask(ps), fn) : fn();
+  }
+
+  /** Host mode: a band or card pick. `fallback` is the rule's own pick, for when nobody can make it. */
+  _startBotPick(ps, pick, live, fallback) {
+    this.cancelBotTasks(); // a pick still running belongs to a turn that is over
+    this._startBotTask({ ps, pick, live: () => live() && ps.botControlled, fallback });
+  }
+
+  /** Tell the first executor early, so the first pick of a match does not wait for a Worker to start. */
+  _botWarm() {
+    if (this.botExecution !== 'host' && this.botBattles !== 'host') return;
+    if (this.botExecutor || !this.order.some((p) => p.isBot)) return;
+    const pid = this._botExecutorFor();
+    if (pid) this.sendTo(pid, { t: 'b.botWarm' });
+  }
+
   /** Host mode: this seat plays its prep on an executor, one seat at a time per room (each bot changes the shared pool). */
   queueBotPrep(ps) {
     ps._botPrepToken = (ps._botPrepToken || 0) + 1;
@@ -97,7 +127,8 @@ export class MatchBotTasks {
     }
   }
 
-  _botEntryLive({ ps, token, round }) {
+  _botEntryLive({ ps, token, round, live }) {
+    if (live) return live();
     return this.phase === PHASE.PREP && this.round === round && ps.alive && !ps.ready && ps.botControlled && ps._botPrepToken === token;
   }
 
@@ -118,6 +149,7 @@ export class MatchBotTasks {
     let world;
     try {
       world = buildWorld(this, active.entry.ps, active.task);
+      if (active.entry.pick) world.pick = active.entry.pick;
     } catch (e) {
       this.reportError(`bot ${active.entry.ps.playerId} task`, e);
       this._endBotTask(active);
@@ -132,7 +164,7 @@ export class MatchBotTasks {
       }
       return;
     }
-    active.budgetMs = this._botSeatBudgetMs();
+    active.budgetMs = active.entry.pick ? 0 : this._botSeatBudgetMs();
     active.hurried = this._botHurryRound === this.round;
     this.botTaskStats.sent++;
     // armed first: an answer that comes back with the frame itself cannot race the timeout
@@ -323,6 +355,7 @@ export class MatchBotTasks {
   _finishBotSeat(entry) {
     const { ps } = entry;
     if (!this._botEntryLive(entry)) return;
+    if (entry.pick) { entry.fallback(); return; }
     this.autoPickPersonalChoice(ps, 'random');
     ps.resolveTemp();
     ps.setReady(true);

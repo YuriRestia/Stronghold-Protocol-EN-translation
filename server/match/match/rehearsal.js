@@ -199,6 +199,7 @@ export class MatchRehearsal {
     for (const task of [...this._rehearsalTasks.values()]) {
       if (task.playerId === playerId) this._dropRehearsalTask(task, true);
     }
+    this.cancelBotTasks(playerId); // (fork) match/botTasks.js: a human took this AI seat
   }
 
   _cancelRehearsal() {

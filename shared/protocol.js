@@ -736,6 +736,8 @@ export const S2C = [
   // the plan batch was applied (`stale`: stop, a fresh task follows) · b.botHurry { taskId } stop rehearsing at the best layout
   // so far · b.botCancel { taskId } the server no longer waits for it
   'b.botTask', 'b.botAck', 'b.botHurry', 'b.botCancel',
+  // b.botWarm {} — this browser will be asked first: start the Worker when the page has time
+  'b.botWarm',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)

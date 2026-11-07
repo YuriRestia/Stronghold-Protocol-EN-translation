@@ -1,6 +1,6 @@
 # Host-browser bots: design and work split
 
-Status: **pieces 1–4, 6 and 8 built (off by default, not live); pieces 5, 7 and 9–11 not started.** Written 2026-11-07 against
+Status: **pieces 1–4 and 6–8 built (off by default, not live); pieces 5 and 9–11 not started.** Written 2026-11-07 against
 `dev-0.2` at `580c2708`. Each later piece waits for approval.
 
 The rule this serves: the server has to carry hundreds of players with 3 bots each, so the host's browser does **all**
@@ -362,6 +362,14 @@ round.
 `g.choice`). With no executor they use the existing rule-level fallback: the deadline's random pick (`spDraft.js:63`) and
 `timeoutBand`.
 
+**As built (piece 7):** a pick is one `final` batch with one move. It has no budget of its own: the 5 s receipt and 10 s plan windows
+apply, and a timed draft turn still ends at its deadline. So the first pick of a match does not wait for a Worker to start, `b.botWarm`
+tells the first executor at the briefing, and the page starts the Worker when it is idle. The local path runs its picks on seat streams
+too when `seatStreams` is on, which keeps the same-seed parity test meaningful.
+
+**The guard:** in host mode the match holds its strategies through `guardBotStrategy`, so `pickBand`, `pickCard`, `prepBegin` and
+`prepEnd` throw on the server. The external host's `decide` stays usable, and its fallback goes through the queue (decision 9).
+
 ### B11. AI takeover seats
 
 They are `ps.botControlled` like any bot, so they use the same queue, with no special path. This removes the
@@ -443,7 +451,7 @@ through a local link and reads the table. Chrome CPU throttling at 4× and 6× g
 
 ## Part E: work split
 
-**Stale moves, measured for piece 6:** 0 of 12 tasks went stale over 6 rounds with a human refreshing in the gap of every task,
+**Stale moves, measured for piece 6:** 0 of 18 tasks went stale over 6 rounds with a human refreshing in the gap of every task,
 the worst case the test can stage. These are early rounds with few bot refreshes, so re-measure in a real room with several humans.
 
 Each piece merges on its own, with no live behaviour change until the flag is set in piece 6. Hours are one dev session's

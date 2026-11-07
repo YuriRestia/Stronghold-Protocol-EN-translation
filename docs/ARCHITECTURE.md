@@ -67,7 +67,7 @@ Every frame is JSON text, `{ t, rid?, …fields }`.
 | | `b.start` (a BattleSpec), `b.pool` (the shared leader HP), `b.end`; `b.snap` / `b.ev` only in the server-run mode | `server/match/match/clientCombat.js` |
 | | `b.rehearsal`, `b.rehearsalCancel`: ask the host to test AI layouts or stop that task | `server/match/match/rehearsal.js` |
 | | (fork) `b.botBattle`, `b.botBattleCancel`: ask a human's browser to run a bot field's battle or stop it (`SP_BOT_BATTLES=host`) | `server/match/match/botBattles.js` |
-| | (fork) `b.botTask`, `b.botAck`, `b.botHurry`, `b.botCancel`: a bot seat's prep in a human's browser (`SP_BOT_EXECUTION=host`) | `server/match/match/botTasks.js` |
+| | (fork) `b.botTask`, `b.botAck`, `b.botHurry`, `b.botCancel`, `b.botWarm`: a bot seat's prep and picks in a human's browser (`SP_BOT_EXECUTION=host`) | `server/match/match/botTasks.js` |
 
 - A request that carries `rid` is answered with `ok` or `error` echoing it. `server/net.js` rate-limits each socket,
   validates every message against `C2S` and refuses anything unknown; the handlers never trust the client.

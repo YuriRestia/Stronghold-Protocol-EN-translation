@@ -66,7 +66,13 @@ export class MatchPrep {
    * the delegation — which is why the continuation is installed here and not with the frame.
    */
   scheduleBotPrep(ps, i = 0) {
-    if (this.botExecution === 'host') { this.queueBotPrep(ps); return; } // (fork) match/botTasks.js
+    // (fork) match/botTasks.js. The dev-only external host still decides from here; its fallback goes through the queue.
+    if (this.botExecution === 'host') {
+      const round = this.round;
+      const live = () => this.phase === PHASE.PREP && this.round === round && ps.alive && !ps.ready && ps.botControlled;
+      if (!this.botFor(ps).decide?.(this, ps, { kind: 'prep', valid: live, complete: () => ps.ready, fallback: () => this.queueBotPrep(ps) })) this.queueBotPrep(ps);
+      return;
+    }
     const round = this.round;
     /** (fork) seat streams (match/botTasks.js): the seat's own random streams and uid block while its steps run */
     let task = null;

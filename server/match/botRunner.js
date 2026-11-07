@@ -6,11 +6,13 @@
 //   run.plan()          → { moves }: economy and the default layout (`batch: 'plan'`)
 //   run.rehearse(ms)    → true when finished, false when `ms` ran out (the best layout so far stands)
 //   run.finish()        → { moves, memo }: the rehearsed layout, temp and Ready (`batch: 'final'`)
+//   run.pick()          → { moves, memo }: a band or card pick (`world.pick`), one move in one `final` batch
 //
 // Runs in Node and in a browser Worker: no Node APIs.
 
 import { encodeMemo, seatHash } from './botWorld.js';
 import { ShadowMatch } from './shadowMatch.js';
+import { chooseBotBand } from './match/phases.js';
 
 /** Handlers whose outcome the bot can react to: their moves carry the seat hash, which the server compares. */
 const REVEALING = new Set(['g.refresh', 'g.buy', 'g.reward', 'g.equip', 'g.art', 'g.levelUp', 'g.choice']);
@@ -79,6 +81,15 @@ export function createBotRun(world, env) {
     rehearse(budgetMs = Infinity) {
       if (!job || job.done) return true;
       return job.run(budgetMs);
+    },
+    pick() {
+      let move;
+      if (world.pick === 'band') move = { t: 'g.band', bandId: chooseBotBand(m, ps) };
+      else {
+        const avail = m.sp.cards.filter((c) => m.spCardAvailable(c)).map((c) => c.idx);
+        move = { t: 'g.choice', idx: bot.pickCard(m, ps, m.sp.cards, avail) };
+      }
+      return { moves: [move], memo: encodeMemo(ps) };
     },
     finish() {
       // out of budget: `job.best` holds the best layout so far (bot.js createRehearsalJob), which stands as the result

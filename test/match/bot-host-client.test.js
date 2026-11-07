@@ -231,6 +231,16 @@ test('a hidden tab says so instead of taking work, and says when it is back', ()
   assert.equal(listeners.size, 0);
 });
 
+test('b.botWarm starts the Worker when the page has time, and only once', async () => {
+  const { workers, recv } = setup();
+  recv('b.botWarm', {});
+  assert.equal(workers.length, 0, 'not during the frame');
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal(workers.length, 1);
+  recv('b.botBattle', battle('b.1'));
+  assert.equal(workers.length, 1);
+});
+
 test('no screen can draw these frames: only botHost.js in the page\'s code knows them, and it does not import the store', () => {
   const root = path.resolve(import.meta.dirname, '../../public/js');
   const knowing = [];
