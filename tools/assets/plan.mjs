@@ -46,8 +46,7 @@ export const VOICE_JP_LANG = 'jp';
 const NOTE_SFX_CHARS = new Set(['char_4182_oblvns']);
 /**
  * (fork) A kit 'fx' that stands for an official sound no attack event plays: charId → '<fx kind>|<its `skill` tag>' → bank.
- * 塔露拉 S3: ON_PROJECTILE_BORN (max 1) and _HIT (max 2) of its 簇火, and the overload's custom trigger. Her only
- * ON_SKILL_START bank is S3's, which the generic `skill` / `skills` rule below drops (see the unit loop).
+ * 塔露拉 S3: ON_PROJECTILE_BORN (max 1) and _HIT (max 2) of its 簇火, and the overload's custom trigger.
  */
 const FX_SOUND_BANKS = Object.freeze({
   char_4247_oxi: Object.freeze({
@@ -627,7 +626,9 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     }
     const primarySkill = skillSfx[String(idx[0])];
     if (primarySkill) u.skill = primarySkill;
-    if (Object.keys(skillSfx).length > 1) u.skills = skillSfx;
+    // (fork) by index for every operator with a choice of skills: the map's absent index is a skill with no cast sound
+    // (public/js/audio.js unit()), and a lone bank on any skill but the primary reaches the client at all
+    if (Object.keys(skillSfx).length && idx.length > 1) u.skills = skillSfx;
     // (fork) each skill sound's mixer group (public/js/audioMixer.js): `skill`'s in groups.skill, by index like `skills`
     if (primarySkill && skillGroups[String(idx[0])]) u.groups = { ...(u.groups || {}), skill: skillGroups[String(idx[0])] };
     if (u.skills && Object.keys(skillGroups).length) u.skillGroups = skillGroups;
@@ -649,11 +650,6 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
         if (p) fxSounds[key].pool = p;
       }
       if (Object.keys(fxSounds).length) u.fxSounds = fxSounds;
-      // her one cast sound belongs to a later skill: by index, or it would ring on S1 and S2 too
-      if (!u.skill && Object.keys(skillSfx).length) {
-        u.skills = skillSfx;
-        if (Object.keys(skillGroups).length) u.skillGroups = skillGroups;
-      }
     }
     // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank
     // (battle.ON_PROJECTILE_BORN / _HIT.projectile_chr_<short>[_<type>], ON_CUSTOM_TRIGGER for S1's hit), by the look key

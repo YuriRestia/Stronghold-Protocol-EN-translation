@@ -312,7 +312,7 @@ is a number of `data/enemies.json`), so a room's `cs` is the vanilla one whateve
 | `audio.bgm[lobby \| prep \| combat \| unite \| boss]`, `audio.bossBgm[bossId]` | a track `{ loop, intro? }` (audio), written whole — not `audio.bgm.combatAlts` (see below) |
 | `audio.voice[charId]`, `audio.voiceJp[charId]`, `audio.voiceEn[charId]`, `audio.voiceKr[charId]`, `audio.voiceNative[charId]` (the operator's own-language dub) | `<slot>`: an audio file or a list of 1–16 |
 | `audio.sfx.ui[key]`, `audio.sfx.battle[key]` | audio |
-| `audio.sfx.units[id]` | `attack`, `hit`, `skill`, `die`, `born` (audio), `skills` / `attacks` / `hits` `{ <index>: audio }` |
+| `audio.sfx.units[id]` | `attack`, `hit`, `skill`, `die`, `born` (audio), `skills` / `attacks` / `hits` `{ <index>: audio }`; a record with `skills` casts by index only, so `skill` alone does not change an operator that has them |
 
 A value is a **path** inside the plugin folder — an image `.png .jpg .webp`, audio `.mp3 .ogg` —, a **Spine model**
 `{ skel, atlas, textures, pma }` (the `.skel` and the `.atlas` side by side with one name — pixi-spine looks for the atlas
