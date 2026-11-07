@@ -60,13 +60,8 @@ describe('invulnerability ribbons in headless Chrome', { skip }, () => {
         v.setCamera('normal', { rect: meta.rect, side: 'L', instant: true });
         v.setLocalFeed({ on: true, speed: 1 });
       }, meta);
-      const read = (ids) => {
-        const v = window.__demo.view;
-        const m = v.debug.views.get(ids[0]), o = v.debug.views.get(ids[1]);
-        const n = (g) => (g && g.geometry ? g.geometry.graphicsData.length : 0);
-        return { x: m.screen.x, top: m.screen.top, y: m.screen.y, back: n(m.ribbons?.back), front: n(m.ribbons?.front), other: o.ribbons ? n(o.ribbons.back) + n(o.ribbons.front) : 0 };
-      };
-      const state = await page.evaluate(async (all, ids, readSrc) => {
+      // read in the same evaluate: the page's Content-Security-Policy has no 'unsafe-eval'
+      const state = await page.evaluate(async (all, ids) => {
         const v = window.__demo.view;
         for (const f of all) {
           if (f.ev.length) v.pushEvents({ t: 'b.ev', fieldId: f.snap.fieldId, gt: f.gt, ev: f.ev });
@@ -74,8 +69,10 @@ describe('invulnerability ribbons in headless Chrome', { skip }, () => {
           await new Promise((r) => requestAnimationFrame(() => r()));
         }
         await new Promise((r) => setTimeout(r, 800));
-        return (0, eval)(`(${readSrc})`)(ids);
-      }, frames, [mint.id, other.id], read.toString());
+        const m = v.debug.views.get(ids[0]), o = v.debug.views.get(ids[1]);
+        const n = (g) => (g && g.geometry ? g.geometry.graphicsData.length : 0);
+        return { x: m.screen.x, top: m.screen.top, y: m.screen.y, back: n(m.ribbons?.back), front: n(m.ribbons?.front), other: o.ribbons ? n(o.ribbons.back) + n(o.ribbons.front) : 0 };
+      }, frames, [mint.id, other.id]);
       const clip = { x: Math.max(0, state.x - 90), y: Math.max(0, state.top - 30), width: 180, height: Math.max(60, state.y - state.top + 60) };
       for (const k of ['a', 'b', 'c']) {
         await page.screenshot({ clip, path: path.join(OUT, `invuln-${k}.png`) });

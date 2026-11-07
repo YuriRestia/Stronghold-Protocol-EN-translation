@@ -5,6 +5,36 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-07
+
+### Upstream merge
+
+- Merged upstream 0.3.2 at [`c9d804f4`](https://github.com/sganggs/Stronghold-Protocol/commit/c9d804f470b8d7422ae04eb66faf671cef21ad52) (`a47b3db4`), through
+  [#14](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/14), thanks to @evenifyouforget. dev-0.2 had fixed the same Windows test problems itself; upstream's versions of
+  those three test files are taken.
+- Merged upstream 0.3.3 at [`f07b8965`](https://github.com/sganggs/Stronghold-Protocol/commit/f07b8965061bbc311ad7aa815879b09264a1e47d) (`d4958737`), through
+  [#22](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/22), thanks to @evenifyouforget. The fork's matchmaking, outfits, notices, maintenance and generations are kept
+  inside upstream's new lobby, room, loadout, custom-squad and briefing screens. On avatars and portraits an outfit wins
+  over an upstream skin. Upstream already had the sim side of [#18](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/18) and all of [#19](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/19) (upstream PR #862), so
+  those merged into the same code.
+- English README: `--game` also takes the install directory, as in upstream's Chinese README.
+
+### Contributions
+
+- Battle view: invulnerable units wear two spinning gold ribbons, after the original game's look. Multi-tile bosses
+  wear them three times as big ([#12](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/12), thanks to @evenifyouforget).
+- Official effects: the airstrike from Exusiai the New Covenant's talent plays its own official strike (a shell falling
+  with a smoke trail and a red-white burst). Before, it drew the procedural blast that looks like Lemuen's S3
+  ([#18](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/18), thanks to @evenifyouforget).
+- Official effects: Lemuen's S3 lock crosshair stays until her own shell lands, also where a defeated target stood.
+  Before, it vanished about 1 s after each lock ([#19](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/19), thanks to @evenifyouforget).
+- Battle view: a liftoff that only a talent grants (Kal'tsit - Esperanta, Leizi the Thunderbringer) is a low hover of
+  about a quarter tile. A skill's liftoff still flies at a flying enemy's height ([#20](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/20), thanks to @evenifyouforget).
+- Setup: `npm run assets:release-local` downloads a release's local art (`public/assets/local/` and
+  `data/local-*.json`, about 200 MB of the full package) for an install without a game client, such as a VPS. Setup's
+  hint names it ([#21](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/21), thanks to @evenifyouforget).
+- GitHub: English issue and PR templates ([#17](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/17), thanks to @evenifyouforget).
+
 ## 2026-10-18
 
 ### Upstream merge
