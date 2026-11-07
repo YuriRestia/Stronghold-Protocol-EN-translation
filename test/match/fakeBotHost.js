@@ -5,6 +5,7 @@ import { GameData } from '../../server/match/gamedata.js';
 import { getDefaultRegistry } from '../../server/match/effectsMeta.js';
 import { getBotStrategy } from '../../server/match/botStrategies.js';
 import { createBotRun } from '../../server/match/botRunner.js';
+import { createBotBattleRun } from '../../server/match/botBattleRun.js';
 import { DataSource } from '../../server/sim/simdata.js';
 import { Battle } from '../../server/sim/Battle.js';
 
@@ -46,5 +47,29 @@ export function createFakeBotHost(match, env, { tamper = null } = {}) {
       send('final', run.finish());
     },
   };
+  return host;
+}
+
+/**
+ * Answers every b.botBattle frame the way a browser's Worker does, a moment after it arrives (docs/host-browser-bots.md B13).
+ * @param {any} h a test/match/harness.js match
+ * @param {{ ds: any, BattleClass?: any, around?: (fn: () => any) => any }} o `around` wraps the simulation (tests tell it from the server's own)
+ * @returns {{ frames: number }}
+ */
+export function attachFakeBattleHost(h, { ds, BattleClass, around = (fn) => fn() }) {
+  const host = { frames: 0 };
+  h.onSend.push((pid, msg) => {
+    if (msg.t !== 'b.botBattle') return;
+    host.frames++;
+    const spec = wire(msg.spec);
+    h.m.later(1, () => {
+      const body = around(() => {
+        const run = createBotBattleRun(spec, { ds, BattleClass });
+        run.run();
+        return run.output();
+      });
+      h.m.handle(pid, wire({ t: 'b.botBattleResult', battleId: msg.battleId, ...body }));
+    });
+  });
   return host;
 }

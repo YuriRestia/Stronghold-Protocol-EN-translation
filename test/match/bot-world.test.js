@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { BOT_UID_BLOCK } from '../../server/match/match/botTasks.js';
 import { buildWorld, decode, encode, encodeMemo, encodeSeat, applyMemo, BotWorldError, seatHash } from '../../server/match/botWorld.js';
 import { ShadowMatch } from '../../server/match/shadowMatch.js';
+import { botModuleFiles } from '../../server/http/botModules.js';
+import { createBotRun, createBotWorkerEnv } from '../../server/match/botWorkerEnv.js';
 import { createFakeBotHost, nodeBotEnv, wire } from './fakeBotHost.js';
 import { DATA, makeMatch } from './harness.js';
 
@@ -131,22 +133,30 @@ test('the copy brings every match field the bot and the handlers read', () => {
   h.m.dispose();
 });
 
-test('the code a browser Worker would load imports nothing from Node', () => {
-  const seen = new Set();
-  const nodeOnly = [];
-  const walk = (file) => {
-    if (seen.has(file)) return;
-    seen.add(file);
-    const text = fs.readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').split(/\r?\n/).filter((l) => !/^\s*\/\//.test(l)).join('\n');
-    for (const m of text.matchAll(/(?:^|\n)\s*(?:import|export)\s[^;'"]*?from\s+['"]([^'"]+)['"]|(?:^|\n)import\s+['"]([^'"]+)['"]/g)) {
-      const spec = m[1] || m[2];
-      if (!spec.startsWith('.')) { nodeOnly.push(`${path.relative(ROOT, file)} → ${spec}`); continue; }
-      // server/data.js is served to browsers as a stand-in (/data.js, server/http/static.js)
-      const target = path.resolve(path.dirname(file), spec);
-      if (target !== path.join(ROOT, 'server', 'data.js')) walk(target);
-    }
-  };
-  walk(path.join(ROOT, 'server', 'match', 'botRunner.js'));
-  assert.deepEqual(nodeOnly, []);
-  assert.ok(seen.size > 50, `${seen.size} modules walked`);
+test('the modules a browser Worker loads: computed from the imports, no Node, no LLM gate, no Match.js', () => {
+  const files = botModuleFiles();
+  for (const name of ['botWorkerEnv.js', 'botRunner.js', 'botWorld.js', 'shadowMatch.js', 'bot.js', 'botBattleRun.js', 'fields.js', 'match/infra.js']) assert.ok(files.has(name), name);
+  for (const name of ['Match.js', 'llmGate.js', 'llmRelease.js', 'botStrategies.js', 'externalAI.js', 'host/entry.js']) assert.ok(!files.has(name), name);
+  assert.ok(files.size > 40, `${files.size} modules`);
+  // a Node global read in plain code would stop the Worker at load: found only in a real browser otherwise
+  for (const [name, file] of files) {
+    fs.readFileSync(file, 'utf8').split(/\r?\n/).forEach((line, i) => {
+      if (/^\s*(\/\/|\*)/.test(line)) return;
+      assert.ok(!/(?<![.\w])(process\.|Buffer\b|__dirname|__filename|require\()/.test(line), `${name}:${i + 1} ${line.trim()}`);
+    });
+  }
+  // a module that needs Node is refused at the walk
+  assert.throws(() => botModuleFiles(path.join(ROOT, 'server', 'match', 'llmRelease.js')), /cannot run in a browser Worker/);
+});
+
+test('a seat played with the Worker\'s own environment gives the moves of the Node one', () => {
+  const h = makeMatch({ seats: SEATS, seed: 9, fake: true, seatStreams: true }).autoHumans().start();
+  h.runToPhase('PREP', 4);
+  const ps = h.m.players.get('ai_1');
+  const world = wire(buildWorld(h.m, ps, h.m.newBotTask(ps)));
+  const play = (env) => { const run = createBotRun(wire(world), env); const plan = run.plan(); run.rehearse(); return wire({ plan, final: run.finish() }); };
+  const out = play(createBotWorkerEnv(DATA).envFor(world.match.modeId));
+  assert.deepEqual(out, play(nodeBotEnv({ data: DATA, modeId: world.match.modeId })));
+  assert.ok(out.plan.moves.length + out.final.moves.length > 0);
+  h.m.dispose();
 });

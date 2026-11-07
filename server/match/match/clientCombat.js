@@ -28,6 +28,7 @@ export class MatchClientCombat {
   _clearFieldTimers(f) {
     if (!f || !f.cc) return;
     for (const k of ['deadlineTimer', 'doneTimer', 'waitTimer', 'sliceTimer', 'verifyTimer']) if (f[k]) { this.cancel(f[k]); f[k] = null; }
+    if (f.mode === 'host') this._botBattleRelease(f); // (fork) a battle still running in a browser
     f.job = null;
     f.verifyJob = null;
   }
@@ -120,6 +121,7 @@ export class MatchClientCombat {
     for (const f of fields) {
       const auth = this._authorityFor(f);
       if (auth) this._assignClient(f, auth);
+      else if (this._botBattleOnHost(f)) this._assignBotHost(f); // (fork) match/botBattles.js
       else this._runOnServer(f, 'no-human');
     }
   }
@@ -247,5 +249,6 @@ export class MatchClientCombat {
       if (f.kind === 'boss' || f.kind === 'hidden') this._bossHandover(f, why);
       else this._runOnServer(f, why);
     }
+    this._botBattleHostLost(ps); // (fork) match/botBattles.js
   }
 }

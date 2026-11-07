@@ -1,7 +1,7 @@
 # Host-browser bots: design and work split
 
-Status: **pieces 1–3 built (off by default, not live); pieces 4–11 not started.** Written 2026-11-07 against `dev-0.2` at
-`580c2708`. Each later piece waits for approval.
+Status: **pieces 1–4 and 8 built (off by default, not live); pieces 5–7 and 9–11 not started.** Written 2026-11-07 against
+`dev-0.2` at `580c2708`. Each later piece waits for approval.
 
 The rule this serves: the server has to carry hundreds of players with 3 bots each, so the host's browser does **all**
 bot calculation (economy, picks, layout building, simulation). The server only sends state and applies moves.
@@ -381,6 +381,12 @@ The server's `SP_BOT_REHEARSAL=0` then stops mattering in `host` mode, because t
 bonus, upstream's item hunt (`faLead`) gets per-operator damage, because the rehearsal now runs where the bot does.
 
 ### B13. Bot battles on the host
+
+**As built (piece 8):** the code is `server/match/match/botBattles.js`, switched on by `SP_BOT_BATTLES=host`, separate from
+`SP_BOT_EXECUTION` so it can go live first. It branches in `_launch`, not `_authorityFor`, because a boss field's handover also
+calls `_authorityFor` and boss fields are piece 9. A browser has 30 s to answer one field (`BOT_BATTLE_ANSWER_MS`), and two
+timeouts stop a human being asked for the rest of the match. Until piece 11, a room with a content set or an old version
+stays on the server, because the Worker only has the page's official data.
 
 `_authorityFor` gets one branch: a field with no human goes to the current executor. A Worker runs the spec headless and
 sends the result early, and the server holds it until the battle's natural end with the existing `_armRelease`, so pacing and

@@ -168,6 +168,8 @@
 //                      with a virtual one); the rest runs in later callbacks (scheduleBotPrep)
 //   opts.seatStreams   (fork) bot seats draw from their own random streams and a reserved uid block (match/botTasks.js; default off)
 //   opts.botExecution  (fork) 'local' (default) or 'host': a bot seat's whole prep runs on opts.botExecutor (docs/host-browser-bots.md)
+//   opts.botBattles    (fork) 'server' (default) or 'host' (env SP_BOT_BATTLES): a field no connected human plays runs in a human's
+//                      browser (match/botBattles.js); opts.botBattleAnswerMs is how long that browser has (default 30 s)
 //   opts.botRehearsalDelegate  offer each bot prep's layout rehearsal to the current host's browser instead (DESIGN §14;
 //                      (fork) default ON, env SP_BOT_REHEARSAL_HOST=0 turns it off; MatchRehearsal — a rehearsal the
 //                      host did not answer is simulated by the server with at most opts.botRehearsal of the same
@@ -251,6 +253,7 @@ import { MatchCombat } from './match/combat.js';
 import { MatchClientCombat } from './match/clientCombat.js';
 import { MatchRehearsal, REHEARSAL_ANSWER_MS } from './match/rehearsal.js';
 import { MatchBotTasks } from './match/botTasks.js';
+import { MatchBotBattles, BOT_BATTLE_ANSWER_MS } from './match/botBattles.js';
 import { MatchReports } from './match/reports.js';
 import { MatchUnite } from './match/unitePhase.js';
 import { MatchBoss } from './match/bossRounds.js';
@@ -426,6 +429,14 @@ export class Match {
     this.botTaskLayouts = Number.isInteger(opts.botTaskLayouts) && opts.botTaskLayouts >= 0 ? Math.min(opts.botTaskLayouts, 8) : BOT_REHEARSAL_DEFAULT;
     /** (fork) who plays a bot seat's prep in host mode: submit({ taskId, playerId, world }), cancel(taskId); null = nobody */
     this.botExecutor = opts.botExecutor ?? null;
+    /** (fork) 'host': a field no connected human plays runs in a human's browser, never here (match/botBattles.js; default 'server') */
+    this.botBattles = String(opts.botBattles ?? env('SP_BOT_BATTLES') ?? '').trim().toLowerCase() === 'host' ? 'host' : 'server';
+    this.botBattleAnswerMs = Number.isFinite(opts.botBattleAnswerMs) && opts.botBattleAnswerMs > 0 ? opts.botBattleAnswerMs : BOT_BATTLE_ANSWER_MS;
+    this.botBattleStats = { sent: 0, done: 0, rejected: 0, timeouts: 0, synthetic: 0 };
+    /** @type {Map<string, number>} timeouts per human; at BOT_HOST_STRIKES they are not asked again this match */
+    this._botHostStrikes = new Map();
+    /** @type {Set<string>} */
+    this._botHostDemoted = new Set();
     /** @type {Array<{ ps: any, token: number, round: number }>} seats waiting for the executor, one at a time */
     this._botQueue = [];
     /** @type {null | { entry: any, task: any, stale: number }} the seat the executor is playing */
@@ -596,7 +607,7 @@ export class Match {
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)
-for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchRehearsal, MatchBotTasks, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchTestCommands, MatchOffers]) {
+for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchRehearsal, MatchBotTasks, MatchBotBattles, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchTestCommands, MatchOffers]) {
   for (const key of Reflect.ownKeys(part.prototype)) {
     if (key === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Match.prototype, key)) throw new Error(`Match.${String(key)} is defined twice`);

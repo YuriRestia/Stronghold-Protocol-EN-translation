@@ -61,6 +61,8 @@ export class MatchIntents {
       // the host's answer to a delegated bot layout rehearsal (DESIGN §14): a report, never an error — an unknown,
       // expired or foreign task is ignored (MatchRehearsal._onRehearsalResult)
       case 'b.rehearsalResult': this._onRehearsalResult(ps, msg); return OK;
+      // (fork) a bot field's battle run in this browser: a report too (match/botBattles.js)
+      case 'b.botBattleResult': this._onBotBattleResult(ps, msg); return OK;
       default: return fail(ERR.BAD_MSG);
     }
   }

@@ -786,11 +786,12 @@ const sameMods = (a, b) => {
  * neither is complete.
  * @returns {{ ok: true, result: object } | { ok: false, reason: string }}
  */
-export function validateClientResult(spec, raw, { gd = null } = {}) {
+export function validateClientResult(spec, raw, { gd = null, botField = false } = {}) {
   const bad = (reason) => ({ ok: false, reason });
   try {
     if (!spec || !raw || typeof raw !== 'object' || !raw.perPlayer || typeof raw.perPlayer !== 'object') return bad('shape');
-    if (requiresTraitLayerAuthority(spec, gd)) return bad('trait layers require server authority');
+    // (fork) `botField`: a field of bots only, run in a browser (match/botBattles.js); its gains stay under the allowance below
+    if (!botField && requiresTraitLayerAuthority(spec, gd)) return bad('trait layers require server authority');
     const B = specBounds(spec, gd);
     const bossLike = spec.kind === 'boss' || spec.kind === 'hidden';
     if (!['cleared', 'timeout', 'forced'].includes(raw.reason)) return bad('reason');

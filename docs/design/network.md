@@ -382,6 +382,7 @@ removed. It also clears tasks when leaving the match or losing its connection.
   timeout returns the work to the server.
 - S→C `b.rehearsalCancel { taskId }` — stop this task after the server takes over or prep ends. The browser removes
   a queued task or terminates the Worker running it. Other task IDs are ignored; accepted answers are not cancelled.
+- (fork) S→C `b.botBattle { battleId, spec }` — with `SP_BOT_BATTLES=host`, run a field no connected human plays in a Worker. C→S `b.botBattleResult { battleId, result?, timeline?, error? }` — its result and progress timeline, held until the battle's natural end, or `error: true` so the next human is asked. S→C `b.botBattleCancel { battleId }` — the server no longer waits for it (`docs/host-browser-bots.md` B13).
 - S→C `b.end { battleId, fieldId, reason }` — `'cleared'` (pool 0) / `'forced'` (team LP 0): the client calls `battle.forceEnd` and reports; `'takeover'`: stop reporting, keep displaying. Both also reach a battle the client is still preparing (the sim loading, the silent catch-up): Client runner below.
 - `m.public.fields[]` gains `progress: { killed, resolved, total, done }`; `m.public.combatMode`; `m.public.paused: boolean` (always present; solo pause below).
 - `b.snap` / `b.ev` are **not sent for combat** in client mode. `g.watch` rules: see Spectating.

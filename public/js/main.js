@@ -68,6 +68,7 @@ import { LoadoutHost } from './screens/loadout.js';
 import { StatsHost, useStatsOpen } from './screens/stats.js';
 import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
+import { installBotHost } from './battle/botHost.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installCardSync, installSettingsViews, loadoutStore } from './ui/loadoutSync.js';
 import { installOutfitSync } from './ui/outfits.js';
@@ -124,6 +125,8 @@ let joinTimer = null;
 let joinInFlight = false;
 /** The rehearsal installer (battle/rehearsal.js): its tasks follow the match on screen (see wireNet's store hook). */
 let rehearsal = null;
+/** (fork) The bot work this browser does for the match (battle/botHost.js); it follows the match on screen the same way. */
+let botHost = null;
 
 function clearPendingJoin() {
   store.patch('ui', { pendingJoin: null });
@@ -344,7 +347,7 @@ function wireNet() {
     if (s.room && !prev.room) warmGameData();
     // the match on screen is over (left, closed, kicked, a new session): a rehearsal task of it is dead, and the frame
     // that cancels it may never arrive (a disposed match sends nothing) — the page stops what it is running itself
-    if (selectRoute(prev) === 'game' && selectRoute(s) !== 'game') rehearsal?.clear();
+    if (selectRoute(prev) === 'game' && selectRoute(s) !== 'game') { rehearsal?.clear(); botHost?.clear(); }
   });
 }
 
@@ -499,6 +502,8 @@ async function boot() {
   // browser that cannot run one answers `error` and the server rehearses itself. Nothing happens while the server
   // does not delegate. A gameplay-plugin room is never offered (the server keeps that rehearsal).
   rehearsal = installRehearsal({ net });
+  // (fork) Bot fields' battles the server hands this browser (SP_BOT_BATTLES=host); no frame, no Worker.
+  botHost = installBotHost({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)

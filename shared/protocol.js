@@ -71,6 +71,14 @@ const isUnspawned = (u) => isPlain(u) && isId(u.enemyKey) && nullable(isId)(u.so
  * Structural check of a client BattleResult (DESIGN §5.1 / §14 `b.result`): types, ranges and size limits only —
  * the semantic checks against the battle's spec are the server's (server/match/fields.js validateClientResult).
  */
+/** Most samples of a bot battle's progress timeline in one b.botBattleResult. */
+export const BOT_TIMELINE_MAX = 400;
+/** [gt, killed, total, resolved | null(, left)], as server/match/fields.js timelineSample writes it. */
+const isBotTimelineSample = (s) => Array.isArray(s) && (s.length === 4 || s.length === 5)
+  && isNum(s[0], 0, 1e5) && isNum(s[1], 0, 1e5) && isNum(s[2], 0, 1e5) && (s[3] === null || isNum(s[3], 0, 1e5))
+  && (s.length === 4 || isMap(s[4], RESULT_LIMITS.players, isId, (x) => isNum(x, 0, 1e5)));
+const isBotTimeline = (v) => isList(v, BOT_TIMELINE_MAX, isBotTimelineSample);
+
 export function isBattleResult(v) {
   return isPlain(v) && ['cleared', 'timeout', 'forced'].includes(v.reason) && isNum(v.time, 0, 1e5)
     && optional((x) => isInt(x, 0, 1e5))(v.killed) && optional((x) => isInt(x, 0, 1e5))(v.total)
@@ -675,6 +683,13 @@ export const C2S = {
     taskId: isId, choice: (v) => v === undefined || isInt(v, 0, REHEARSAL_MAX_CANDIDATES - 1), error: (v) => v === undefined || v === true,
     $optional: ['choice', 'error'],
   },
+  // (fork) A bot field's real battle run in this browser (docs/host-browser-bots.md B13): the answer to the S2C 'b.botBattle'
+  // frame. `timeline` is the battle's progress for the teammates' waiting UI; `error: true` says this browser cannot run it,
+  // so the server asks the next human at once. A stale battle or another sender is ignored.
+  'b.botBattleResult': {
+    battleId: isId, result: isBattleResult, timeline: isBotTimeline, error: (v) => v === undefined || v === true,
+    $optional: ['result', 'timeline', 'error'],
+  },
   // State-delta transport (shared/stateDelta.js): the client asks for one full frame after it missed one. The server
   // answers with a full frame on each state channel it speaks (m.public / m.private), which is what restores the
   // baseline; it is rate-limited like the other resend-heavy intents (server/net.js HEAVY_TYPES, and the lobby's
@@ -701,6 +716,9 @@ export const S2C = [
   // b.rehearsalCancel { taskId } — the server dropped that task (it timed out, the host changed, the prep ended):
   // the executor drops it too, and only a running simulation (the Worker) is really stopped
   'b.rehearsal', 'b.rehearsalCancel',
+  // (fork) a bot field's real battle (docs/host-browser-bots.md B13): b.botBattle { battleId, spec } — run it in a Worker and
+  // answer with a C2S b.botBattleResult · b.botBattleCancel { battleId } — the server no longer waits for it
+  'b.botBattle', 'b.botBattleCancel',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)
