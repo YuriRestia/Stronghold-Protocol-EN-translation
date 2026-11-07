@@ -2591,5 +2591,13 @@
   "拖动及选择朝向时：关闭保持原视角；适度缩小保留七成大小的商店，镜头适度放大；完全收起使用原有放大视角。结束后恢复原状。": "While dragging or choosing a facing: Off keeps the view; Moderate keeps the shop at 70% with a smaller zoom; Fully collapse uses the original zoom. The view returns afterwards.",
   "出售干员": "Operators sold",
   "点击进入": "Tap to start",
-  "点击跳过": "Tap to skip"
+  "点击跳过": "Tap to skip",
+  "说点什么…": "Say something…",
+  "没有字数了，去杀敌吧": "No letters left. Go kill something.",
+  "还没有击杀，只能发表情": "No kills yet. Emotes only.",
+  "还可输入 {n} 字": "{n} letters left",
+  "发送": "Send",
+  "屏蔽 {name}": "Mute {name}",
+  "取消屏蔽 {name}": "Unmute {name}",
+  "文字": "Text"
 }

@@ -17,9 +17,10 @@ export class MatchMessaging {
     try { return !!this.sendFn(playerId, msg); } catch (e) { this.reportError('send', e); return false; }
   }
 
-  broadcast(msg) {
+  /** @param {any} msg @param {string} [except] a playerId that does not get this frame (a chat line's sender) */
+  broadcast(msg, except) {
     if (this.disposed) return;
-    try { this.broadcastFn(msg); } catch (e) { this.reportError('broadcast', e); }
+    try { if (except) this.broadcastFn(msg, null, except); else this.broadcastFn(msg); } catch (e) { this.reportError('broadcast', e); }
   }
 
   /** @param {string|{ msgid: string, params?: object }} text a string or msg() (shared/i18n.js) */

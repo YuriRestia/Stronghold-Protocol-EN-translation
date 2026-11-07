@@ -124,6 +124,7 @@ Listens on **TCP 3000** by default. To change the port: add `--port 3001` to the
 | `TRUST_PROXY` | `auto` | Whether to trust forwarding headers such as `X-Forwarded-For`: `auto` trusts only proxies on the local machine / private network; `1` always; `0` never |
 | `DEBUG` | empty | Set to any value for verbose logs |
 | `SP_NO_BROWSER` | empty | Set to `1` so the start script does not open the browser |
+| `SP_CHAT` | empty | In-match text chat (docs/design/network.md, "Match chat"); set to `0` to turn it off, and the page shows no box |
 | `SP_BOT_EMOTES` | empty | AI teammates' in-match emote reactions (instant `m.emote` broadcasts on battle, Rest Phase, merges, Joint Defense and gifts); set to `0` to turn them off entirely |
 | `SP_BOT_STRATEGY_SEATS` | unset (every seat uses `SP_BOT_STRATEGY`) | Override the AI strategy per seat: comma-separated `seat:ID` pairs (seats 0–3, the ID must be registered), e.g. `1:ioleta,3:adaptive`; seats not listed use `SP_BOT_STRATEGY`, validated at startup. A seat set to `external` in a release bundle likewise uses the built-in AI. See [BOT_STRATEGIES.md](../docs/BOT_STRATEGIES.md) |
 

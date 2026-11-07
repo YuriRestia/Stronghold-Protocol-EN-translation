@@ -1080,6 +1080,8 @@ trophies, reward }] }`. Trophies and 卫戍认证 follow each row's OWN rounds p
 Hidden-Core trophy row only for the players still in when it was cleared — a teammate eliminated or departed earlier
 gets the table value of its own rounds. `onEnd(summary)` receives the same object (without `t`, plus `errors`).
 
+`m.chat { p, x }` / `g.chat { x }`: the fork's match chat, DESIGN "Match chat" (docs/design/network.md), `server/match/chatWallet.js`.
+
 `m.emote { playerId, id }`: `id` must be one of `shared/constants.js EMOTES` (`BAD_MSG` otherwise, also when `handle()`
 is called without protocol validation); 1 per second per player (`RATE`).
 

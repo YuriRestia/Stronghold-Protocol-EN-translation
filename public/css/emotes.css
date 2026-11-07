@@ -133,6 +133,45 @@
 .ebubble__icon { position: absolute; left: .26rem; top: .12rem; width: .68rem; height: .70rem; display: grid; place-items: center; }
 .ebubble .eart { width: 100%; height: 100%; }
 
+/* (fork) match chat: a text line in the emote bubble's place, the emotes / text switch above the panel, the text pane (ui/chat.js) */
+.cbubble {
+  --ebubble-ttl: 3000ms;
+  --ebubble-age: 0ms;
+  position: relative; display: block; box-sizing: border-box; width: max-content; max-width: 3.2rem; padding: .08rem .13rem;
+  background: rgba(8, 11, 10, .92); border: 1px solid var(--line-2); border-radius: .08rem; color: var(--text-hi, #f2f2f2);
+  font-size: max(.2rem, 12px); line-height: 1.3; white-space: normal; overflow-wrap: anywhere; transform-origin: .09rem 47%;
+  animation: emo-bubble-pop 240ms var(--ease-out) calc(0ms - var(--ebubble-age)) both,
+    emo-bubble-out 300ms var(--ease-in-out) calc(var(--ebubble-ttl) - 300ms - var(--ebubble-age)) forwards;
+  pointer-events: none; z-index: 3;
+}
+.cbubble.team__bubble { position: absolute; }
+.ewheel__tabs { position: absolute; left: .15rem; bottom: 100%; display: flex; gap: .04rem; }
+.ewheel__tab {
+  padding: .04rem .14rem; background: rgba(8, 11, 10, .94); border: 1px solid var(--line-2); border-bottom: 0;
+  color: var(--text-lo); font-size: max(.17rem, 11px); line-height: 1.3; cursor: pointer;
+}
+.ewheel__tab:hover { color: var(--text-hi); }
+.ewheel__tab.is-on { color: var(--mint-400); border-color: var(--mint-700); }
+/* Text tab: a slim bar instead of the emote plate, one row: box, letters left, send */
+.ewheel__panel.is-text {
+  left: 0; width: min(max(4.6rem, 320px), 80vw); height: auto; padding: .1rem; scale: 1; transform-origin: 0 100%;
+  background: rgba(8, 11, 10, .94); border: 1px solid var(--line-2); user-select: text; -webkit-user-select: text;
+}
+.ewheel__panel.is-text::before { content: none; }
+.ewheel__panel.is-text .ewheel__tabs { left: -1px; }
+.ewheel__panel.is-text .ewheel__tab .num { display: none; }
+.ewheel__text { display: flex; align-items: center; gap: .08rem; min-height: max(.42rem, 28px); }
+.ewheel__lock { margin: 0; color: var(--text-lo); font-size: max(.18rem, 12px); line-height: 1.3; }
+.ewheel__field { position: relative; flex: 1 1 auto; min-width: 0; }
+.ewheel__input {
+  display: block; width: 100%; height: max(.42rem, 28px); padding: 0 max(.42rem, 30px) 0 .08rem; box-sizing: border-box; background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--line-2); color: var(--text-hi); font-size: max(.2rem, 16px);
+}
+.ewheel__input::placeholder { font-size: .8em; }
+.ewheel__input:focus { outline: 0; border-color: var(--mint-500); }
+.ewheel__left { position: absolute; right: .08rem; top: 50%; transform: translateY(-50%); color: var(--mint-400); font-size: max(.15rem, 10px); pointer-events: none; }
+.ewheel__send { flex: none; }
+
 @keyframes emo-panel-in { from { opacity: 0; transform: translateY(.06rem) scale(.96); } }
 @keyframes emo-page-in { from { opacity: 0; } }
 @keyframes emo-page-from-right { from { opacity: .2; transform: translateX(45%); } }
@@ -146,5 +185,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ewheel__panel, .ewheel__page, .ewheel__page.is-from-right, .ewheel__page.is-from-left { animation: none; }
-  .ebubble { animation: emo-bubble-out 1ms linear calc(var(--ebubble-ttl) - 1ms - var(--ebubble-age)) forwards; }
+  .ebubble, .cbubble { animation: emo-bubble-out 1ms linear calc(var(--ebubble-ttl) - 1ms - var(--ebubble-age)) forwards; }
 }

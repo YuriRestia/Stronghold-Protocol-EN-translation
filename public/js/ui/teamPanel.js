@@ -22,7 +22,9 @@ import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { PHASE } from '../../../shared/constants.js';
 import { html, Icon, Tooltip } from './components.js';
 import { PlayerAvatar, LpTower, GIcon, LocalSprite } from './gameComponents.js';
-import { EmoteBubble } from './emotes.js';
+import { EmoteBubble, ChatBubble } from './emotes.js';
+import { chatMuted, toggleChatMute } from '../chatState.js';
+import { store, useStore } from '../store.js';
 import { STATUS_META, sortedPlayers, teamFrameIds } from './gameLogic.js';
 import { MissTag, uniteRemaining } from './hud.js';
 import { localAsset } from '../data.js';
@@ -116,7 +118,19 @@ export function rowLpTip(lp, cap = 10) {
  *   observe?: null | { canObserve: (p:any) => { fieldId?: string, reason?: string|null, back?: boolean }, observing: boolean, onBack: () => void } }} props
  *   uniteLocal: the local 联防 replica's per-leaker counts while it is on screen (battle runner state().uniteLeft), else null
  */
-export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null }) {
+/** (fork) match chat: stop seeing a teammate's text bubbles. This page's own (chatState.js); emotes still show. */
+function ChatMuteButton({ player, muted }) {
+  const name = player.name || t('博士');
+  const title = muted
+    ? t('取消屏蔽 {name}', { name }) // en: "Unmute {name}"
+    : t('屏蔽 {name}', { name }); // en: "Mute {name}"
+  return html`<button type="button" class=${cx('team__mute', muted && 'is-on')} aria-pressed=${muted} aria-label=${title} title=${title}
+    onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }}
+    onClick=${() => store.set((s) => ({ chatMute: toggleChatMute(s.chatMute, player.playerId) }))}><${Icon} name=${muted ? 'chatOff' : 'chat'} /></button>`;
+}
+
+export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null, chatOn = false }) {
+  const chatMute = useStore((s) => s.chatMute);
   const [openPid, setOpenPid] = useState(null);
   // the playerId whose avatar just called onWatch, so the other click of a double-click does not open the view again
   const askedAt = useRef(/** @type {{ id: string|null, at: number }} */ ({ id: null, at: 0 }));
@@ -192,13 +206,15 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
               </span>
             <//>
             ${watched && !self ? html`<span class="team__eye" title=${t('正在查看')}><${GIcon} name="eye" /></span>` : null}
+            ${chatOn && !self && !p.isBot ? html`<${ChatMuteButton} player=${p} muted=${chatMuted(chatMute, p.playerId)} />` : null}
           </div>
           ${open ? html`<button type="button" class="btn btn--primary btn--sm team__ob"
             onClick=${() => { setOpenPid(null); onWatch(p); }}><span class="btn__label">${t('前往查看')}</span></button>` : null}
           ${back ? html`<button type="button" class="btn btn--secondary btn--sm team__back"
             onClick=${() => observe.onBack()}><span class="btn__label">${t('返回战场')}</span></button>` : null}
         </div>
-        ${bubble ? html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} class="team__bubble" />` : null}
+        ${bubble?.text != null ? html`<${ChatBubble} key=${bubble.seq} text=${bubble.text} at=${bubble.at} ttl=${bubble.ttl} class="team__bubble" />`
+          : bubble ? html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} class="team__bubble" />` : null}
       </div>`;
     })}
   </aside>`;

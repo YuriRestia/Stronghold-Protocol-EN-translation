@@ -11,6 +11,7 @@ import { uniteLeft } from '../../sim/spec.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg } from '../../../shared/i18n.js';
 import { onStartUnite } from '../botEmotes.js';
+import { noteChatKills } from '../chatWallet.js';
 
 export class MatchUnite {
   startUnite(plan) {
@@ -32,6 +33,7 @@ export class MatchUnite {
         if (this.phase !== PHASE.UNITE) return;
         const res = runner.resultOf(this.fields[0]);
         this._collectSimErrors(this.fields[0], res);
+        noteChatKills(this, this.fields[0], res);
         this.fields[0].live = false;
         this.deadline = 0;
         this.markPublic();
@@ -91,6 +93,7 @@ export class MatchUnite {
     const f = this.fields[0];
     const res = f.result;
     this._collectSimErrors(f, res);
+    noteChatKills(this, f, res);
     this._stopClientCombat();
     f.live = false;
     this.deadline = 0;

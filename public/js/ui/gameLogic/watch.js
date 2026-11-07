@@ -109,11 +109,18 @@ export function fieldLabel(field, pub, myId) {
  * @param {number} [ttl]
  */
 export function activeBubbles(emotes, now, ttl = 3000) {
-  const out = new Map();
+  // each player's newest bubble only: a long text line must not come back when a newer, shorter-lived emote has gone
+  const newest = new Map();
   for (const e of Array.isArray(emotes) ? emotes : []) {
-    if (!isObj(e) || !(now - e.at < ttl) || e.at > now + 1000) continue;
-    const cur = out.get(e.playerId);
-    if (!cur || cur.seq < e.seq) out.set(e.playerId, { id: e.id, seq: e.seq, at: e.at });
+    if (!isObj(e) || e.at > now + 1000) continue;
+    const cur = newest.get(e.playerId);
+    if (!cur || cur.seq < e.seq) newest.set(e.playerId, e);
+  }
+  const out = new Map();
+  for (const [playerId, e] of newest) {
+    const life = Number.isFinite(e.ttl) ? e.ttl : ttl; // a chat line's own time on screen (chatState.js chatEntry)
+    if (!(now - e.at < life)) continue;
+    out.set(playerId, typeof e.text === 'string' ? { seq: e.seq, at: e.at, text: e.text, ttl: life } : { id: e.id, seq: e.seq, at: e.at });
   }
   return out;
 }

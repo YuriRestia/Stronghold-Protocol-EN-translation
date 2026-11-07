@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-07
 
+### Match chat
+
+- Text chat in a match, deliberately cruel: last round's kills are the letters you can type until the next round's result. Round 1 and zero kills leave you with emotes. The server enforces it all and chops anything over the limit; a faked kill count buys no more than the enemies it sent. Lines show as avatar bubbles and are never stored or replayed, and spectators can read but not write. Each line costs about 143 B per recipient, around 1% of a match's traffic in normal use. Mute is per page; `SP_CHAT=0` turns chat off.
+
 ### First-visit loading
 
 - The entry film now plays with its sound on a first visit, however slow the connection. What the opening needs (film art, entry cue, lobby music) downloads first, from page load and at high priority, behind a Loading card; the card asks for the tap once they're in. A tap made while loading counts. The battle renderer's scripts and a resuming asset preload wait until those files are in. Before, the film was dropped if its art took over 1.2 s, and the sound only started downloading after the tap.
@@ -91,7 +95,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -416,7 +420,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

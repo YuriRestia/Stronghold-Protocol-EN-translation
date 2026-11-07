@@ -542,6 +542,13 @@
 .team__info { display: flex; flex-direction: column; gap: .02rem; min-width: 0; padding: .04rem .12rem .04rem .06rem; background: linear-gradient(90deg, rgba(8, 11, 10, .82), rgba(8, 11, 10, 0)); }
 .team__name { font-size: .15rem; font-weight: 500; color: var(--text-md); max-width: 1.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 1px 2px #000; }
 .team__line { display: flex; align-items: center; gap: .1rem; }
+.team__mute {
+  width: .26rem; height: .26rem; padding: 0; display: grid; place-items: center; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .5);
+  color: var(--text-lo); cursor: pointer; pointer-events: auto;
+}
+.team__mute .icon { width: .18rem; height: .18rem; }
+.team__mute:hover { color: var(--mint-400); border-color: var(--mint-700); }
+.team__mute.is-on { color: #e08a8a; border-color: #6b2a2a; }
 .team__status { width: .26rem; height: .26rem; display: grid; place-items: center; border: 1px solid currentColor; background: rgba(0, 0, 0, .5); }
 /* the shared 机变 draft's pick order on the portrait (ui/choiceOverlay.js spMarks): ✓ picked, ••• deciding */
 .team__spmark { position: absolute; right: -.07rem; bottom: -.05rem; z-index: 2; display: grid; place-items: center; width: .24rem; height: .24rem; border-radius: 50%;

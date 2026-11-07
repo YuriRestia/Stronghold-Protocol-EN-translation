@@ -232,7 +232,7 @@ function create(matchId, opts) {
       log,
       now: Date.now,
       send: (playerId, msg) => { post({ type: 'send', matchId, playerId, msg }); return true; },
-      broadcast: (msg) => post({ type: 'broadcast', matchId, msg }),
+      broadcast: (msg, _encoded, except) => post({ type: 'broadcast', matchId, msg, ...(except ? { except } : {}) }),
       onEnd: (summary) => post({ type: 'end', matchId, summary: plain(summary) }),
       ...(sched ? { scheduler: sched } : {}),
     });

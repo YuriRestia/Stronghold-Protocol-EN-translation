@@ -629,6 +629,9 @@ export const C2S = {
   'g.offerRefresh': { offerId: isId, pluginId: isId, seq: (v) => isInt(v, 0, 1000000), cardId: optional(isId), idx: (v) => isInt(v, 0, PLUGIN_OFFER_SLOTS - 1) },
   'g.ready': { ready: isBool },
   'g.emote': { id: (v) => EMOTES.includes(v) },
+  // (fork) match chat: `x` is what the player typed. Any string passes here: the match cleans it and chops it to the
+  // player's kill wallet instead of refusing it (server/match/chatWallet.js). The page sends it without a rid.
+  'g.chat': { x: (v) => typeof v === 'string' },
   // playerId: the player tapped in the team panel (a 联防 / boss pair field shows two) — what an eliminated viewer or a
   // spectator seat follows from then on (Match.watchPref; community report of 2026-10-06, item 56)
   'g.watch': { fieldId: (v) => isStr(v, 32), playerId: isId, $optional: ['playerId'] },
@@ -688,6 +691,9 @@ export const S2C = [
   'p2p.config', 'p2p.signal', 'p2p.frame',
   'room.state', 'room.closed',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
+  // (fork) m.chat { p, x } — a player's chat line: `p` the sender's seat, `x` the cleaned text. To everyone in the room
+  // but the sender (the page shows its own line itself); ephemeral, never replayed on resync.
+  'm.chat',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.
   'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)

@@ -347,3 +347,10 @@ export const emoteArtGroup = (id) => { const e = emoteInfo(id); return e ? `emot
 export const emoteArtPath = (id) => { const e = emoteInfo(id); return e ? `/assets/local/emoticon/${e.dir}/${e.picId}.png` : null; };
 export const EMOTE_COOLDOWN_MS = 1000; // activity_table autoChessData.constData.chatCD (s)
 export const EMOTE_BUBBLE_MS = 3000;   // constData.chatTime (s): how long a bubble stays up
+// (fork) match chat, a remake feature: the kill wallet (server/match/chatWallet.js). What a player can spend is decided by
+// the server; the browser only mirrors it.
+export const CHAT_COOLDOWN_MS = 3000;  // [ASSUMED] one bubble's chatTime, so a message is not replaced before it is read
+export const CHAT_COOLDOWN_GRACE_MS = 500; // the server allows this much less, so network jitter never eats a line the page let through
+export const CHAT_MAX_LETTERS = 200;   // [ASSUMED] a safety ceiling for plugin waves; the official waves stay well under it
+/** [ASSUMED] A text bubble's time on screen: an emote's 3 s plus 100 ms a letter, so a long line can be read. */
+export const chatBubbleMs = (letters) => EMOTE_BUBBLE_MS + 100 * Math.max(0, letters);
