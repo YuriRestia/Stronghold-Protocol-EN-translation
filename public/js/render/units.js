@@ -2666,6 +2666,7 @@ export class UnitView {
         }
       }
       if (!anims.die && a.has('Die')) out.set('Die', false);
+      if (typeof a.attackVariants === 'function') for (const n of a.attackVariants()) if (!out.has(n)) out.set(n, false);
     }
     this._clipsOf = a;
     this._clips = out;

@@ -1732,7 +1732,7 @@ export async function createFieldView(host, options = {}) {
   // attack wind-ups: an 'atk' still queued in the buffer starts its Spine clip early enough for the strike frame to
   // land when the event is rendered (app/windup.js; the official cast effects play with the clip — vfx/wiring.js castStart)
   const lookahead = createWindUpLookahead({ views, woundUp, castStart: (v, tv, kind, o) => wiring.castStart(v, tv, kind, o),
-    skip: isQuietNoteAttack });   // (fork) 丰川祥子's targetless 持续攻击: no clip to wind up
+    skip: isQuietNoteAttack, attackClip: (v, tv, kind, on) => wiring.attackClip(v, tv, kind, on) });   // (fork) 丰川祥子's targetless 持续攻击: no clip to wind up
   function windUpAttacks(renderT) { lookahead.run(interp, renderT); }
 
   const EVS = [];
@@ -1773,6 +1773,7 @@ export async function createFieldView(host, options = {}) {
         const src = views.get(e[1]) || battleView(e[1]);
         const tgt = views.get(e[2]) || battleView(e[2]);
         // chain / chainHeal bounces: the "source" is the previous target of the bounce, not an attacker
+        if (src?.actor && !woundUp.has(e)) src.actor.attackVariant = wiring.attackClip(src, tgt, e[3]);
         if (src && !CHAIN_KINDS.has(e[3])) src.onAttack?.(tgt, now, e[3]);
         if (e[3] === 'none' || !e[3]) { if (tgt && src) meleePending.set(tgt.id, { src, t: now }); }
         // the unit's official attack (casts, projectile, melee hits — render/vfx/wiring.js) or a chain's bounce (the line of

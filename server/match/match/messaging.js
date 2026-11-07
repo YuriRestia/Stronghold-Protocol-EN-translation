@@ -30,14 +30,14 @@ export class MatchMessaging {
   }
 
   /** Broadcast ticker from config.broadcasts by type; `param` picks the variant (SHOP_LEVEL level, BOSS_HIT share…). */
-  tickerFor(type, args = [], { playerId = null, to = null, param = null } = {}) {
+  tickerFor(type, args = [], { playerId = null, to = null, param = null, bot = false } = {}) {
     const list = Array.isArray(this.gd.config.broadcasts) ? this.gd.config.broadcasts.filter((b) => b && b.type === type) : [];
     let b = list[0];
     if (param != null) b = list.find((x) => Array.isArray(x.params) && x.params.includes(String(param))) || b;
     const tpl = b && typeof b.text === 'string' ? b.text : null;
     if (!tpl) return;
     const text = tpl.replace(/\{(\d)\}/g, (_, i) => (args[Number(i)] != null ? String(args[Number(i)]) : ''));
-    const msg = { t: 'm.ticker', text, id: b.id, type, priority: Number(b.priority) || 0, playerId, args: args.map((a) => String(a ?? '')) };
+    const msg = { t: 'm.ticker', text, id: b.id, type, priority: Number(b.priority) || 0, playerId, args: args.map((a) => String(a ?? '')), ...(bot ? { arg0Bot: true } : {}) };
     if (to) this.sendTo(to, msg);
     else this.broadcast(msg);
   }

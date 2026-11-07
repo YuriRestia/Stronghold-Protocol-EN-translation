@@ -705,6 +705,8 @@ export class FxWiring {
         const dx = o.toward.x - pose.x, dy = o.toward.y - pose.y;
         a = Math.abs(dx) + Math.abs(dy) > 1e-4 ? Math.atan2(dy, dx) : bodyYaw(v, pose);
       }
+      // (fork) art authored off its `_mainDir` (FX_ATTACK_LINES `artYaw`)
+      if (o.artYaw) a += o.artYaw;
       if (rt === 2) a = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
       place.yaw = a;
     }
@@ -861,6 +863,26 @@ export class FxWiring {
   }
 
   /**
+   * (fork) The attack clip of the ability this attack's effects come from: an AbilityRandomGroup whose abilities name no
+   * clip (`animKey` empty: 凛御银灰's AttackA / AttackB / AttackC) plays the numbered clip of the same letter, so a stab's
+   * effects come with the stab. The same pick as _attackSet (the unit's seed and attack count). Null for anything else,
+   * a skill's attack included: the actor's own clip. [ASSUMED: by name, the index holds no ability → clip link for them]
+   */
+  attackClip(src, tgt, kind, skillOn) {
+    if (!src || src.isEnemy || !this.idx || CHAIN.has(kind) || this.skills.state(src, skillOn).on) return null;
+    const a = this.mode(this.unitOf(src), src, skillOn)?.attack;
+    if (!a || !/RandomGroup/.test(a.class || '')) return null;
+    const id = src.id ?? src.info?.id;
+    const nth = this.attackN.get(id) || 0;
+    const blocked = !!((src.flags | 0) & UF.BLOCKED);
+    const heal = !!tgt && !tgt.isEnemy;
+    const list = pickAttacks(a, { heal, ranged: !!kind && kind !== 'none', blocked }, seedOf(id, nth), 0, nth, new Map(this.picks.get(id) || []));
+    const x = list[list.length - 1];
+    const m = !x?.animKey && /Attack_?([A-Z])$/.exec(x?.node || '');
+    return m ? `Attack_${m[1]}` : null;
+  }
+
+  /**
    * b.ev 'atk': the casts (those that start with the cast only when its wind-up did not play them: `wound`), the
    * projectile and the blow's hits, which wait for its damage (a melee or direct attack's hit rows on every HP hit of
    * its frame, a MultiHit emitter's groups by the hit's order; a projectile attack's rows with its projectile's hit). While
@@ -893,7 +915,10 @@ export class FxWiring {
     this.castFrame.set(id, this.skills.frame);
     const phase = wound ? 'strike' : 'all';
     if (a) this._casts(a, src, tgt, phase, { owner: !again });
-    if (sk) { this.skills.casts(sk, src, tgt, phase, { owner: !again }); if (!again) this.skills.attacked(sk); }
+    if (sk) {
+      this.skills.casts(sk, src, tgt, phase, { owner: !again });
+      if (!again) { this.skills.attacked(sk); this.skills.attackLine(sk.U, src, tgt); }
+    }
     if (!again) this.attackN.set(id, nth + 1);
     // (fork) 丰川祥子's note launch (sim notes.js, kind 'note'): only her casts (the swing) — the note flies on its own
     // path and strikes later (render/fx/notes.js, officialNotes.js), so neither the mode's projectile nor its hits play here

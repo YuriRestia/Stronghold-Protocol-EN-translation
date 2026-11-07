@@ -60,7 +60,7 @@ export class MatchBoss {
         BOSS_HIT_STEPS.forEach((s, i) => { if (share >= s) reached = Math.max(reached, i + 1); });
         if (reached > done) {
           hitSteps.set(pid, reached);
-          this.tickerFor('BOSS_HIT', [ps.name], { playerId: pid, param: String(BOSS_HIT_STEPS[reached - 1]) });
+          this.tickerFor('BOSS_HIT', [ps.name], { bot: ps.isBot, playerId: pid, param: String(BOSS_HIT_STEPS[reached - 1]) });
         }
       },
     });

@@ -2002,12 +2002,16 @@ def graph_nodes(state):
 
 def graph_projectiles(state):
     """The projectile keys an action graph fires itself (`_projectileKey`: EmitProjectile,
-    EmitDirectionalMapEdgeProjectileVolley, …), first seen first; a node's own fields, as graph_links."""
+    EmitDirectionalMapEdgeProjectileVolley, …; or a blackboard default its emitter reads,
+    EnsureBlackboardDefaultValue `projectile` — 凛御银灰 S3's Svash2EmitProjectileFixedDirection), first seen first; a
+    node's own fields, as graph_links."""
     out = []
     for _typ, n in graph_nodes(state):
-        k = n.get('_projectileKey')
-        if isinstance(k, str) and k and k not in out:
-            out.append(k)
+        found = [n.get('_projectileKey')]
+        found += [s.get('valStr') for s in n.get('_defaultSettings') or [] if isinstance(s, dict) and s.get('key') == 'projectile']
+        for k in found:
+            if isinstance(k, str) and k and k not in out:
+                out.append(k)
     return out
 
 

@@ -62,49 +62,58 @@ export function useFindMates() {
 }
 
 /**
- * The switch applies: a co-op room with a free seat, seen from a player seat — and (fork) no gameplay plugins: such a
- * room is joined by its code only (room.state.content.vanilla false; the server refuses room.search for it too).
+ * A room that can search at all: co-op, seen from a player seat — and (fork) no gameplay plugins: such a room is joined by
+ * its code only (room.state.content.vanilla false; the server refuses room.search for it too).
  */
-export function canFindMates(room, facts) {
+function searchableRoom(room, facts) {
   // the matchmaker merges default-version rooms only (server/lobby.js room.search: another version is BAD_TARGET)
-  return room.mode !== 'solo' && !facts.spectating && facts.occupied.length < MAX_SEATS && room.content?.vanilla !== false
+  return room.mode !== 'solo' && !facts.spectating && room.content?.vanilla !== false
     && (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION;
 }
 
+/** The switch applies: a room that can search, with a free seat. */
+export function canFindMates(room, facts) {
+  return searchableRoom(room, facts) && facts.occupied.length < MAX_SEATS;
+}
+
 /**
- * The search strip above the room bar: the host's 搜寻队友 switch (it turns 开始模拟 into 搜寻队友, room.js) and what
- * the search does. No queue size: an empty-looking queue keeps people out of it.
+ * The host's 搜寻队友 switch, right above the big button (it turns 开始模拟 into 搜寻队友, room.js). Its label and 开启 /
+ * 关闭 are all it shows, so the room's centre stays clear; what the state means is its tooltip. No queue size: an
+ * empty-looking queue keeps people out of it.
  * @param {{ room: any, facts: any, findMates: boolean, setFindMates: (on: boolean) => void }} props
  */
 export function SearchBar({ room, facts, findMates, setFindMates }) {
-  if (!canFindMates(room, facts)) return null;
+  if (!facts.isHost || !searchableRoom(room, facts)) return null;
+  // a full room has no use for the switch but keeps its place, so filling the last seat does not stretch the seat cards
+  if (!canFindMates(room, facts)) {
+    return html`<div class="searchbar__switch searchbar__switch--gap" aria-hidden="true">
+      <span class="searchbar__track"></span><${Icon} name="search" /><span class="searchbar__label">${t('搜寻队友')}</span>
+      <b class="searchbar__state">${tc('toggle', '开启')}</b>
+    </div>`;
+  }
   const on = !!room.searching;
-  if (!facts.isHost && !on) return null;
   const armed = on || findMates;
-  const hint = on ? t('同盟满 4 人后将自动开始模拟')
-    : !findMates ? t('关闭后可直接开始模拟') // en: "Off: you can start the simulation right away"
-    : facts.othersReady ? t('与其他正在搜寻的同盟合并，补满 {n} 个空位', { n: facts.emptySeats }) : t('所有博士准备就绪后才能搜寻队友');
-  return html`<section class=${`searchbar${on ? ' is-on' : ''}${armed ? ' is-armed' : ''}`} aria-label=${t('搜寻队友')}>
-    ${/* title en: "Stop searching to turn this off" */ facts.isHost ? html`<button type="button" class=${`searchbar__switch${armed ? ' is-on' : ''}`} role="switch" aria-checked=${armed ? 'true' : 'false'}
-        disabled=${on} title=${on ? t('停止搜寻后才能关闭') : null} onClick=${() => setFindMates(!findMates)}>
-      <span class="searchbar__track" aria-hidden="true"><i></i></span>
-      <${Icon} name="search" /><span class="searchbar__label">${t('搜寻队友')}</span>
-      <b class="searchbar__state">${armed ? tc('toggle', '开启') : tc('toggle', '关闭')}</b>
-    </button>` : null}
-    <span class=${on ? 't-mint' : !findMates || facts.othersReady ? 't-lo' : 't-orange'}>${hint}</span>
-  </section>`;
+  // en: "Stop searching to turn this off" / "Off: you can start the simulation right away"
+  const why = on ? t('停止搜寻后才能关闭') : !findMates ? t('关闭后可直接开始模拟')
+    : facts.othersReady ? null : t('所有博士准备就绪后才能搜寻队友');
+  return html`<button type="button" class=${`searchbar__switch${armed ? ' is-on' : ''}`} role="switch" aria-checked=${armed ? 'true' : 'false'}
+      aria-label=${t('搜寻队友')} disabled=${on} title=${why} onClick=${() => setFindMates(!findMates)}>
+    <span class="searchbar__track" aria-hidden="true"><i></i></span>
+    <${Icon} name="search" /><span class="searchbar__label">${t('搜寻队友')}</span>
+    <b class="searchbar__state">${armed ? tc('toggle', '开启') : tc('toggle', '关闭')}</b>
+  </button>`;
 }
 
-/** The host's big button while the switch is on: 搜寻队友 / 停止搜寻 (room.search). */
-export function SearchButton({ room, facts, busy, online, run }) {
+/** The host's big button while the switch is on: 搜寻队友 / 停止搜寻 (room.search), in the look of 开始模拟 (`Go`: room.js GoButton). */
+export function SearchButton({ room, facts, busy, online, run, Go }) {
   const on = !!room.searching;
   const toggle = () => run('search', async () => {
     await net.request('room.search', { on: !on });
     if (on) toast(t('取消搜寻成功'), 'info');
   });
   return html`<${Tooltip} text=${on || facts.othersReady ? null : t('仍有博士未准备就绪')}>
-    <${Button} variant=${on ? 'amber' : 'primary'} size="xl" icon=${on ? 'close' : 'search'} active=${on} loading=${busy === 'search'}
-      disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle}>${on ? t('停止搜寻') : t('搜寻队友')}<//>
+    <${Go} label=${on ? t('停止搜寻') : t('搜寻队友')} icon=${on ? 'close' : 'search'} tone=${on ? 'stop' : null} loading=${busy === 'search'}
+      disabled=${!online || (!on && !facts.othersReady)} onClick=${toggle} />
   <//>`;
 }
 
@@ -119,7 +128,7 @@ export function SearchStatus({ room, facts }) {
   // groupReady: a merged-in guest would otherwise wait on the host, who never readies
   if (!facts.groupReady) return html`<span class="t-orange"><${Icon} name="hourglass" />${t('搜寻已暂停 · 等待所有博士准备就绪')}</span>`;
   const since = Number.isFinite(room.searchSince) ? room.searchSince : serverNow();
-  return html`<span class="t-mint"><${Icon} name="search" />${t('搜寻中 · {time}', { time: searchClock(since) })}</span>`;
+  return html`<span class="t-mint" title=${t('同盟满 4 人后将自动开始模拟')}><${Icon} name="search" />${t('搜寻中 · {time}', { time: searchClock(since) })}</span>`;
 }
 
 /**

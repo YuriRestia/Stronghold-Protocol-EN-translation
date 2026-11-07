@@ -20,6 +20,11 @@ export const PLUGIN_API = Object.freeze({ current: 2, min: 1 });
 
 export const MAX_SEATS = 4;
 /**
+ * The operators behind the AI seats' names (server/lobby.js BOT_NAMES), for the room's seat icons. Only for a seat that
+ * isBot: a human may have the same name.
+ */
+export const BOT_OPERATORS = Object.freeze({ 华法琳: 'char_171_bldsk', 阿米娅: 'char_002_amiya', 惊蛰: 'char_306_leizi', 杜宾: 'char_130_doberm', 凯尔希: 'char_003_kalts', 可露希尔: 'char_4228_closur' }); // i18n-ignore: keys of a table
+/**
  * Spectator seats of a co-op room (community report #26, owner's decision 2026-10-04) — a remake feature: the official
  * room has 1–4 players and no spectator seat (there only eliminated players and 联防 bystanders watch, research 09 §3.1).
  * A spectator never counts as a player, may not act, and watches like an eliminated player (server/lobby.js spectate,

@@ -53,7 +53,8 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
   (伊芙利特 S3's flame tongues, eight of 铃兰's tails …) —, so a reader can infer the count from `boneIndices.length /
   vertexCount` and must extract again for the second kind. (2) index.json projectiles (§33.12): `main` and `lifeTime`
   are the projectile class's own (SimpleProjectile, HarpoonProjectile, …; fork: also the ones only an operator's buff
-  template graph fires, `_projectileKey` — 塔露拉 S3's 簇火, oxi_s_3_wave); earlier runs took the last behaviour's
+  template graph fires, `_projectileKey` — 塔露拉 S3's 簇火, oxi_s_3_wave — or a graph's blackboard default `projectile`
+  — 凛御银灰 S3's birds, svash2_s_3[bird_on_self], drawn through skills.js FX_ATTACK_LINES); earlier runs took the last behaviour's
   `_mainEffect` — 30 projectiles named their chain or rope line and lost the flying effect and the life (their
   `behaviours` give both) —; the new `link` names that line (a ChainLightningEffectBehaviour's or a HarpoonRenderer's:
   `behaviours` say which, and how it is drawn — §33.12 Projectile).

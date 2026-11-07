@@ -9,7 +9,7 @@ import { uniteBattleOpts, uniteSurvivors } from '../unite.js';
 import { FieldRunner, timelineAt, uniteBillBounds } from '../fields.js';
 import { uniteLeft } from '../../sim/spec.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
-import { msg } from '../../../shared/i18n.js';
+import { msg, playerParam } from '../../../shared/i18n.js';
 import { onStartUnite } from '../botEmotes.js';
 import { noteChatKills } from '../chatWallet.js';
 
@@ -24,7 +24,7 @@ export class MatchUnite {
     this.deadline = this.sched.instant ? 0 : this.sched.now() + Math.round((limit / this.gameSpeed) * 1000);
     this._defaultWatch();
     this.markPublic();
-    this.tickerText(msg('联防阶段：{names} 迎战突破防线的敌人', { names: plan.helpers.map((p) => p.name) }), FLOW_TICKER_PRIORITY);
+    this.tickerText(msg('联防阶段：{names} 迎战突破防线的敌人', { names: plan.helpers.map(playerParam) }), FLOW_TICKER_PRIORITY);
     onStartUnite(this, plan); // an AI helper says "合作愉快" once on the open of a 联防 (enabled by default; SP_BOT_EMOTES=0 silences it)
     this._uniteLeftKey = null;
     this.runner = new FieldRunner(this, this.fields, {
@@ -85,7 +85,7 @@ export class MatchUnite {
       this._sendStart(ps.playerId, f, { watch: !f.players.includes(ps.playerId) });
     }
     this.markPublic();
-    this.tickerText(msg('联防阶段：{names} 迎战突破防线的敌人', { names: plan.helpers.map((p) => p.name) }), FLOW_TICKER_PRIORITY);
+    this.tickerText(msg('联防阶段：{names} 迎战突破防线的敌人', { names: plan.helpers.map(playerParam) }), FLOW_TICKER_PRIORITY);
   }
 
   _finishUniteClient() {
