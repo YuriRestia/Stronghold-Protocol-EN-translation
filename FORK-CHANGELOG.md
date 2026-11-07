@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-07
 
+### Battle effects
+
+- Talulah's S3 now plays its official sounds: the cast, each volley's launch, each fireball's impact and the overload.
+- Talulah's S3 now shows its official fireballs flying down every lane and exploding on the enemy they hit. The art was never extracted because the skill fires them from a buff template, and nothing drew them. `tools/local-extract/fx.py` now follows projectiles that an operator's buff templates fire, so local copies need `extract.py --only fx --fx-set used --fx-add-only`; until then the game keeps the procedural ring.
+
 ### Upstream merge
 
 - Merged upstream's unreleased 0.3.4 work (`dev` branch) at [`eff7d93a`](https://github.com/sganggs/Stronghold-Protocol/commit/eff7d93abbd1bd6986e2e9c2d7a1e066b1975bbc) (`4d12f915`). Fork-side decisions:

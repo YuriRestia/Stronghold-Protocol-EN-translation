@@ -524,6 +524,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 mix?: { [attack|hit|die|born]: { p?, vol? } },
                 pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId},
                 groups?: { [skill|die|born]: mixerGroup }, skillGroups?: {[skillIndex]: mixerGroup},  // (fork) mixer groups
+                fxSounds?: {['<fx kind>|<skill tag>']: { url, pool?: bankId }},  // fork: a kit fx's official sound (塔露拉 S3's 簇火, overload)
                 stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url, loopGroup?: mixerGroup }},  // (fork) 丰川祥子's skill stings
                 notes?: {[look]: { born?: url, bornPool?: bankId, hit?: url, hitPool?: bankId }} } },  // (fork) her per-note sounds
       pools: { [bankId]: { maxSoundAllowed, popOldest, group?: mixerGroup,

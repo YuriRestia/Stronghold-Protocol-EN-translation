@@ -1278,6 +1278,17 @@ export class AudioManager {
     } catch { /* ignore */ }
   }
 
+  /**
+   * (fork) The official sound a kit fx stands for (manifest sfx.units[charId].fxSounds['<kind>|<skill tag>'], 塔露拉 S3's
+   * 簇火 and overload), on its bank's pool. A volley's launch sound plays once [ASSUMED: its bank allows one at a time, so
+   * the client's per-shot births cut each other], with the volley rather than each shot's birth delay.
+   */
+  _fxSound(kind, ex) {
+    const u = this.units.get(ex.id);
+    const e = u ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.fxSounds?.[`${kind}|${ex.skill ?? ''}`] : null;
+    if (typeof e?.url === 'string') this._playBank(e.url, e.pool, NOTE_GAIN);
+  }
+
   /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): on its official bank's pool (_playBank). */
   _noteSound(ex) {
     const u = this.units.get(ex.owner);
@@ -1318,6 +1329,7 @@ export class AudioManager {
       if (typeof e?.loop === 'string') this._buffer(e.loop);
     }
     for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
+    for (const e of Object.values(sfx?.fxSounds || {})) if (typeof e?.url === 'string') this._buffer(e.url);
   }
 
   /**
@@ -2214,6 +2226,7 @@ export class AudioManager {
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];
+          if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);
           if (!ex || typeof ex !== 'object' || !ex.consumed || ex.id == null) continue;
           const u = this.units.get(ex.id);
           if (!u || u.side === 'enemy') continue;

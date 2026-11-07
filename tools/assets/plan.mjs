@@ -45,6 +45,18 @@ export const VOICE_JP_LANG = 'jp';
 /** Operators whose notes (sim notes.js) carry sounds of their own (the per-note banks of the projectile prefabs). */
 const NOTE_SFX_CHARS = new Set(['char_4182_oblvns']);
 /**
+ * (fork) A kit 'fx' that stands for an official sound no attack event plays: charId → '<fx kind>|<its `skill` tag>' → bank.
+ * 塔露拉 S3: ON_PROJECTILE_BORN (max 1) and _HIT (max 2) of its 簇火, and the overload's custom trigger. Her only
+ * ON_SKILL_START bank is S3's, which the generic `skill` / `skills` rule below drops (see the unit loop).
+ */
+const FX_SOUND_BANKS = Object.freeze({
+  char_4247_oxi: Object.freeze({
+    'heatwave|oxi:heatwave': 'battle.ON_PROJECTILE_BORN.projectile_chr_oxi_s_3_heatwave',
+    'blast|oxi:heatwave': 'battle.ON_PROJECTILE_HIT.projectile_chr_oxi_s_3_heatwave',
+    'overload|': 'battle.ON_CUSTOM_TRIGGER.oxi_s_3_overload',
+  }),
+});
+/**
  * [look key (kits/ops/op-oblvns.js), projectile suffix, custom hit trigger or null]: an attack with a target
  * (projectile_chr_oblvns — no born bank: the attack swing plays), without (_talent), S2 piano (_s2 / _s2_t), organ
  * (_s2_slow / _s2_slow_t), S3 (_s3_phy / _s3_mag), S1 (its hit is ON_CUSTOM_TRIGGER …_s1_hit; the volley's swing is the skill's).
@@ -626,6 +638,23 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     if (Object.keys(attackPools).length) u.attackPools = attackPools;
     if (Object.keys(hitPools).length) u.hitPools = hitPools;
     if (mix) u.mix = mix;
+    // (fork) the kit fx's own sounds (public/js/audio.js _fxSound), each on its bank's official pool
+    if (FX_SOUND_BANKS[id]) {
+      const fxSounds = {};
+      for (const [key, bankName] of Object.entries(FX_SOUND_BANKS[id])) {
+        const paths = audio.bank(bankName);
+        if (!paths?.length) continue;
+        fxSounds[key] = { url: soundLeaf(paths, 'sfx', 1) };
+        const p = poolRef(paths);
+        if (p) fxSounds[key].pool = p;
+      }
+      if (Object.keys(fxSounds).length) u.fxSounds = fxSounds;
+      // her one cast sound belongs to a later skill: by index, or it would ring on S1 and S2 too
+      if (!u.skill && Object.keys(skillSfx).length) {
+        u.skills = skillSfx;
+        if (Object.keys(skillGroups).length) u.skillGroups = skillGroups;
+      }
+    }
     // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank
     // (battle.ON_PROJECTILE_BORN / _HIT.projectile_chr_<short>[_<type>], ON_CUSTOM_TRIGGER for S1's hit), by the look key
     // her kit gives the notes — the client plays them per note on the bank's pool (public/js/audio.js _noteSound)

@@ -391,6 +391,19 @@ print(json.dumps({'own': fx.behaviour_uses('PassiveBuffAbility', own, ek, tpl), 
     assert.deepEqual(out.on, ['targets', 'targets', 'targets', 'token', 'targets', 'owner']);
   });
 
+  test('(fork) graph_projectiles / template_owner: a template\'s own shots (塔露拉 S3\'s volley), by the operator it is named after', () => {
+    const out = py(`
+state = json.dumps({'nodes': [
+  {'$type': 'Torappu.Battle.Action.Nodes+EmitDirectionalMapEdgeProjectileVolley', '_projectileKey': 'projectile_chr_oxi_s_3_heatwave'},
+  {'$type': 'Torappu.Battle.Action.Nodes+IfElse', '_succeedNodes': [{'$type': 'X+EmitProjectile', '_projectileKey': 'p2'},
+                                                                    {'$type': 'X+EmitProjectile', '_projectileKey': 'p2'}, {'$type': 'X+Other', '_projectileKey': ''}]}]})
+print(json.dumps([fx.graph_projectiles(state), fx.graph_projectiles('not json'),
+                  [fx.template_owner(k) for k in ('oxi_s_3_wave', 'tocka_s3[trigger]', 'aglna2_s_3[mode]', 'solo', '', None)]]))`);
+    assert.deepEqual(out[0], ['projectile_chr_oxi_s_3_heatwave', 'p2']);
+    assert.deepEqual(out[1], []);
+    assert.deepEqual(out[2], ['oxi', 'tocka', 'aglna2', null, null, null]);
+  });
+
   test('graph_links / bb_ability_names: the abilities a template casts or stops (an unnamed one: its buff\'s blackboard ability_name), mode switches, created buffs', () => {
     const out = py(`
 N = lambda t, **kw: {'$type': 'Torappu.Battle.Action.Nodes+' + t, **kw}

@@ -1322,6 +1322,8 @@ export function chargeKeys(plan) {
  *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
  *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
+ *   shots       the fx's `lanes` ([x, y, wait, shot id]…; `dx`, `dy`, `len`, `speed`) fly `keys` along straight lines
+ *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
  * or, instead of a projectile (history §32.14.43):
@@ -1335,6 +1337,13 @@ const binding = (o) => Object.freeze({ ...o, ...(o.cover ? { cover: Object.freez
 export const FX_BINDINGS = Object.freeze({
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
   skchr_yu_3: Object.freeze({ firewallBlock: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['yu_skill3_annex_01'] }) }),
+  // 塔露拉 S3 (op-oxi.js volley): the client's buff oxi_s_3_wave fires projectile_chr_oxi_s_3_heatwave down each lane; its
+  // main effect oxi_skill_03_trail_01 is the 簇火, and its action graph's CreateEffectOnProjectile (_useCollisionTarget)
+  // plays oxi_skill_03_hit_01 on the enemy it meets. The kit's 'heatwave' names the lanes, its 'blast' the shot and enemy.
+  skchr_oxi_3: Object.freeze({
+    heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
+    blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
+  }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked
   // enemy (AttachToTarget, _immediatelyReach), whose reached effect clemnt_skill_03_mark_all_01 is the mark and its three
