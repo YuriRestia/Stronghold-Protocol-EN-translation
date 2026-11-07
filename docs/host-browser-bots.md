@@ -1,6 +1,6 @@
 # Host-browser bots: design and work split
 
-Status: **pieces 1–4, 6–9 and 11 built (off by default, not live); pieces 5 and 10 not started.** Written 2026-11-07 against
+Status: **pieces 1–4 and 6–11 built (off by default, not live); piece 5 not started.** Written 2026-11-07 against
 `dev-0.2` at `580c2708`. Each later piece waits for approval.
 
 The rule this serves: the server has to carry hundreds of players with 3 bots each, so the host's browser does **all**
@@ -420,6 +420,12 @@ teammates' progress UI do not change.
 Battle work and prep work never overlap, because they belong to different phases.
 
 ## Part C: what gets retired (piece 10)
+
+**As built:** decision 7 settled the frames and files below. Upstream's `b.rehearsal` frames, `rehearsal.js`, `rehearsalWorker.js`,
+`delegateRehearsal` and their tests stay in place, unused in host mode, so upstream merges stay easy. Only the fork's additions went:
+`SP_BOT_REHEARSAL_HOST`, `botRehearsalHost`, `canDelegateRehearsal`, the delegation's default-on and the fork's edits to `bot.js`, which
+now differs from upstream only by its CPU meter. **So without `SP_BOT_EXECUTION=host` nothing offers a rehearsal to a browser any more:
+with the live `SP_BOT_REHEARSAL=0`, bots keep their heuristic layout until the flag is on.**
 
 | Item | Action |
 |------|--------|

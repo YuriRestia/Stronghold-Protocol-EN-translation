@@ -15,7 +15,7 @@ import { creditedKillsOf } from '../sim/spec.js';
 import { OK } from './match/common.js';
 
 /** The operator's off switch, SP_CHAT=0: the page hides the box (m.private has no wallet) and g.chat does nothing. */
-export const CHAT_ON = process.env.SP_CHAT !== '0';
+export const CHAT_ON = globalThis.process?.env?.SP_CHAT !== '0'; // (fork) this module also loads in the bot Worker
 
 /** More than this many UTF-16 units cannot survive the chop, so they are never even cleaned. */
 const RAW_LIMIT = CHAT_MAX_LETTERS * 8;

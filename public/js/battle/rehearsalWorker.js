@@ -34,8 +34,8 @@ let ds = null;
  */
 function rehearse(task) {
   if (!ds) throw new Error('simulation data not loaded');
-  // this worker has only the official data the page posted. A spec that names a content set (plugin data or scripts)
-  // is the server's rehearsal, never this one.
+  // this worker is handed only the official data the page posted (a limit of this worker, not of the browser: host mode's
+  // botWorker.js loads a room's set). A spec that names a content set is the server's rehearsal, never this one.
   if ((task.specs || []).some((s) => s && typeof s.cs === 'string' && s.cs !== '')) throw new Error('content set is not rehearsed here');
   // a candidate is built when the run reaches it (server/sim/rehearsal.js): a spec that does not build is skipped
   const run = new RehearsalRun(task.specs.map((spec) => () => createBattleFromSpec(spec, ds, { quiet: true, recordEvents: false })), task.playerId, task.cap, task.limits || {});

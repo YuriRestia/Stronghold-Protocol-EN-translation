@@ -358,28 +358,27 @@ Off unless the operator sets `SP_REGIONS` and `SP_REGION`; without them a server
 - Bots, departed/disconnected players, fields with no connected human: the **server** simulates. Normal and 联防 fields headlessly (`fields.js HeadlessJob`, with a `[gt, killed, total, resolved(, left)]` progress timeline — `resolved`: the capsule's numerator on the field clock (the maintainer's review of PR #157: a bot field has no authority reporting `b.progress`), `left`: the 联防 leakers' enemies still standing, §20.6) in wall-clock slices of `headlessSliceMs` (8 ms) per callback on a real host — never one blocking run per field (3 bot fields ≈ 0.2–0.5 s of CPU at COMBAT start here, seconds on a mini PC); at once in virtual time; the result is released at the battle's natural end on the field clock (so round pacing and the teammates' progress look live). Boss fields in real time without snapshots (`HeadlessPacer`); when no field of a boss round has a connected human the whole round runs server-side as before (FieldRunner with streaming off).
 - Takeover: an authority that disconnects or leaves, or misses its deadline (`timeLimit / speed` real s + 15 s grace, normal/联防) loses the field: normal/联防 → the server re-simulates the spec from t = 0 (deterministic: the same result); boss → the partner's replica is promoted (`b.start authoritative: true`), else the server runs it, fast-forwarded to the field clock through a `CreditPool` that only credits damage beyond what the client already reported (the fast-forward is spread over the pacing intervals, ≤ 240 extra ticks each). A boss authority silent for 12 s is handed over the same way. The former authority gets `b.end { reason: 'takeover' }` and keeps displaying.
 
-**Host rehearsal ((fork) on by default; `Match.botRehearsalDelegate`, `SP_BOT_REHEARSAL_HOST=0` / `off` / `false` / `no` turns it off; upstream's `SP_BOT_REHEARSAL=host` still turns it on).** Only the **simulation** of an AI teammate's candidate
+**Host rehearsal (upstream's, off by default: `Match.botRehearsalDelegate`, `SP_BOT_REHEARSAL=host`; (fork) `SP_BOT_EXECUTION=host` replaces it, see `docs/host-browser-bots.md`).** Only the **simulation** of an AI teammate's candidate
 layouts runs in the room host's browser during prep (META §1.5); this is not the whole bot. The server still plays the
 bot's economy (shop, refresh, level, buys and sells), its Strategy and card picks and the building and scoring of the
 candidate layouts, applies the chosen layout and handles every other seat. Human seats under AI 托管 and takeover seats
 are not offered: the server rehearses them itself (`ps.isBot` only).
 The server builds the candidate list from the 0.3.0 preview inputs (normal field seed, start effects, layer gains,
 detached board — the live board, funds, layers and the room's script budget are not touched) and keeps the board.
-It offers the host `Match.botRehearsalHost` candidates (default 6, 2–8); the server's own count (`SP_BOT_REHEARSAL`, 0–8,
-default 6) only applies when the work is not delegated or comes back. The host runs the same `/sim/rehearsal.js` in a
+The host runs the same `/sim/rehearsal.js` in a
 same-origin module Worker (`/js/battle/rehearsalWorker.js`; the site CSP stays `script-src 'self'`, and this worker is
 not given `eval` or a `blob:` URL), using the supplied battle specs and seeds, and returns its choice. Only the current
 connected human host may answer a live task. The server accepts that index once and applies the layout without
 simulating it again. An answer never changes another player's state.
 
-A gameplay-plugin room (`requireCs`) does not delegate. Those matches run in a content-set host; the browser has
-only the official data pack and must not run the room's scripts. The server rehearses them on that content. A spec
+A gameplay-plugin room (`requireCs`) does not delegate. Those matches run in a content-set host, and THIS worker is handed only
+the official data pack. The server rehearses them on that content. This is a limit of this worker, not of browsers: a seated
+browser does load a room's data and scripts, and host mode's bot Worker uses them. A spec
 that still names a `cs` is answered `error: true` and is not simulated in the page worker.
 
-If there is no connected human host, the server runs the rehearsal itself with its own count (`SP_BOT_REHEARSAL`; with `0`
-the bot keeps its heuristic layout and no server CPU is spent). A host change, disconnect, error, invalid or
+If there is no connected human host, the server runs the rehearsal itself. A host change, disconnect, error, invalid or
 out-of-range index, or answer timeout (`botRehearsalDelegateMs`, default 3 s) also returns the work to the server,
-using the same candidates (at most the server's own count of them). The old browser task is cancelled and late, repeated or forged answers are ignored
+using the same candidates. The old browser task is cancelled and late, repeated or forged answers are ignored
 (an answer after the match ended is `ok` and changes nothing). If prep ends first, the task is cancelled and the
 default layout stays. Actual battles, round timing and prep deadlines are unchanged.
 

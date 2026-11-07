@@ -1,5 +1,5 @@
 // server/match/match/rehearsal.js — Match methods: the bot layout rehearsal delegated to the current host's browser
-// (DESIGN §14; Match option `botRehearsalDelegate`; (fork) on by default, env SP_BOT_REHEARSAL_HOST=0 turns it off). A rehearsal is a real
+// (DESIGN §14; Match option `botRehearsalDelegate`, env SP_BOT_REHEARSAL=host, off by default). A rehearsal is a real
 // simulation of this round's wave against each candidate layout, 0.2–1 s of CPU per bot prep — the one part of a bot's
 // play that needs no match state, so the host's browser can do it off the page's main thread instead of the server.
 // Only an AI teammate's prep is offered (`ps.isBot`): a human seat played by "AI 托管" uses the same bot routine, but
@@ -43,9 +43,17 @@ export class MatchRehearsal {
    *   rehearse the candidates itself (delegation off, no host to ask, or the frame could not be sent)
    */
   delegateRehearsal({ ps, chosen, plans, inputs, cap = null, limits = null }) {
-    if (!this.canDelegateRehearsal(ps)) return null;
+    if (!this.botRehearsalDelegate || this.disposed || this.ended) return null;
+    // A gameplay-plugin room (requireCs) runs in a match host on that room's content set. THIS rehearsal Worker is handed only
+    // the official data pack, so the server rehearses these candidates itself. That is a limit of this Worker, not of browsers:
+    // a seated browser does load a room's data and scripts (public/js/content.js), and host mode's bot Worker uses them.
+    if (this.requireCs) return null;
     if (!Array.isArray(inputs) || inputs.length < 2) return null;
-    const host = this.players.get(this.hostId);
+    // an AI teammate only: a human's seat under AI 托管 plays the same bot routine, but its prep is not this feature's
+    // business (the server rehearses it — same candidates, same comparison)
+    if (!ps.isBot) return null;
+    const host = this.hostId ? this.players.get(this.hostId) : null;
+    if (!host || host.isBot || host.left || !host.connected) return null;
     const job = createDelegatedRehearsalJob(this, ps, chosen, plans, inputs, cap, limits);
     const task = {
       // protocol ids are ≤ 64 chars (shared/protocol.js isId): prefix, round, seat and a per-match counter
@@ -67,25 +75,6 @@ export class MatchRehearsal {
     this.rehearsalStats.delegated++;
     this.log.info?.(`[match ${this.roomCode}] bot ${ps.playerId} rehearsal → ${task.executor} (${specs.length} candidates)`);
     return job;
-  }
-
-  /**
-   * (fork) Whether this bot prep's rehearsal may go to the host's browser now — asked before the candidates are planned,
-   * so a match that cannot delegate plans only the server's own count (SP_BOT_REHEARSAL; 0: none, no CPU).
-   * @param {import('../PlayerState.js').PlayerState} ps
-   */
-  canDelegateRehearsal(ps) {
-    if (!this.botRehearsalDelegate || this.disposed || this.ended) return false;
-    // A gameplay-plugin room (requireCs) runs in a match host on that room's content set. The host browser only has
-    // the official data pack and must not load the room's scripts or spend a different script budget, so the server
-    // rehearses these candidates itself — the same preview inputs, on the child's DataSource. The env flag is
-    // inherited by the child; the gate has to live here, because the host proxy does not forward a delegate flag.
-    if (this.requireCs) return false;
-    // an AI teammate only: a human's seat under AI 托管 plays the same bot routine, but its prep is not this feature's
-    // business (the server rehearses it — same candidates, same comparison)
-    if (!ps || !ps.isBot) return false;
-    const host = this.hostId ? this.players.get(this.hostId) : null;
-    return !!host && !host.isBot && !host.left && host.connected;
   }
 
   /**

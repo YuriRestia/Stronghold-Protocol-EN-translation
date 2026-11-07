@@ -2053,27 +2053,13 @@ export function createRehearsalJob(m, ps, chosen, plans, inputs, prebuilt = null
  */
 export function createDelegatedRehearsalJob(m, ps, chosen, plans, inputs, cap = null, limits = null) {
   const job = createRehearsalJob(m, ps, chosen, plans, inputs, null, cap, limits);
-  // (fork) a takeover simulates only the server's own count of these candidates (m.botRehearsal, SP_BOT_REHEARSAL):
-  // below 2 there is nothing to compare, and the bot keeps the default layout already on its board — no server CPU
-  const n = Math.min(plans.length, inputs.length, m.botRehearsal > 0 ? m.botRehearsal : 0);
-  const local = n >= 2 ? createRehearsalJob(m, ps, chosen, plans.slice(0, n), inputs.slice(0, n), null, cap, limits) : null;
+  const step = job.run;
   job.pending = true;
   /** The host's pick (MatchRehearsal checked the sender, the task and the index). */
   job.accept = (index) => { if (!job.pending) return; job.pending = false; job.done = true; job.best = job.plans[index]; };
-  /** The server runs (its count of) the same candidates (timeout, host gone, a failed or refused task). */
-  job.takeOver = () => {
-    if (!job.pending) return;
-    job.pending = false;
-    if (!local) { job.done = true; job.best = job.plans[0]; }
-  };
-  job.run = (budgetMs, control) => {
-    if (job.pending) job.takeOver();
-    if (job.done || !local) return true;
-    const done = local.run(budgetMs, control);
-    job.best = local.best;
-    job.done = done;
-    return done;
-  };
+  /** The server runs the same candidates (timeout, host gone, a failed or refused task). */
+  job.takeOver = () => { job.pending = false; };
+  job.run = (budgetMs, control) => { if (job.pending) job.takeOver(); return step(budgetMs, control); };
   return job;
 }
 
@@ -2105,11 +2091,9 @@ export function createRehearsal(m, ps, chosen, plans) {
 export function* createRehearsalSteps(m, ps, chosen, plans, { delegate = false, pooled = false, limits = null, candidateLimit = m.botRehearsal, maxCandidates = 8 } = {}) {
   const boss = !m.wave && bossWaveOf(m, ps);
   const distinct = distinctPlans(plans);
-  if ((!m.wave && !boss) || distinct.length < 2 || !(candidateLimit > 0)) return null;
+  if ((!m.wave && !boss) || distinct.length < 2 || !(m.botRehearsal > 0)) return null;
   // [ASSUMED] #315: a boss field has no time limit. Cap the rehearsal; do not use the live fight's seed.
   const cap = boss ? faRehearsalTicks(m) : null;
-  // (fork) `candidateLimit`: the host's count (m.botRehearsalHost) when the rehearsal goes to its browser, else the
-  // server's (arrangeSteps)
   const cands = distinct.slice(0, Math.min(maxCandidates, candidateLimit));
   const byUid = new Map(chosen.map((p) => [p.uid, p]));
   const inputs = [];
@@ -2136,11 +2120,6 @@ export function* createRehearsalSteps(m, ps, chosen, plans, { delegate = false, 
   if (delegate && typeof m.delegateRehearsal === 'function') {
     const job = m.delegateRehearsal({ ps, chosen, plans: cands, inputs, cap, limits });
     if (job) return job;
-    // (fork) the host could not take it after all: the server's own count, which may be none (SP_BOT_REHEARSAL=0)
-    const n = Math.min(inputs.length, m.botRehearsal > 0 ? m.botRehearsal : 0);
-    if (n < 2) return null;
-    cands.length = Math.min(cands.length, n);
-    inputs.length = Math.min(inputs.length, n);
   }
   // the server's own simulation pool (server/workers/roomPool.js), when the operator started one: the same candidates,
   // run on a thread instead of this one. A pool that is off, busy or broken returns null and the local run below takes
@@ -3086,11 +3065,8 @@ export function* arrangeSteps(m, ps, { final = false, defer = false, delegate = 
   }
   yield;
   let plans = [];
-  // (fork) the host's browser rehearses its own count (m.botRehearsalHost) when it can take this prep; else the server's
-  const viaHost = !!(delegate && defer && typeof m.canDelegateRehearsal === 'function' && m.canDelegateRehearsal(ps));
-  const count = viaHost ? m.botRehearsalHost : m.botRehearsal;
   // A boss round has no `m.wave`. The already-planned boss group is rehearsed the same way, on its own seed.
-  if (final && (m.wave || bossWaveOf(m, ps)) && count > 0) {
+  if (final && (m.wave || bossWaveOf(m, ps)) && m.botRehearsal > 0) {
     for (const v of REHEARSAL_VARIANTS) plans.push(yield* planLayoutSteps(m, ps, chosen, { ...LAYOUT_PARAMS, ...v }));
     // §37.33 the leader chain goes right after the default plan, inside the rehearsal budget (Final Assault only)
     const chain = leaderChainPlan(m, ps, chosen, plans[0]);
@@ -3123,7 +3099,7 @@ export function* arrangeSteps(m, ps, { final = false, defer = false, delegate = 
       extra = altPlans.length;
     }
   }
-  if (candidatePlans && final && m.wave && count > 1) {
+  if (candidatePlans && final && m.wave && m.botRehearsal > 1) {
     plans = yield* candidatePlans(m, ps, chosen, plans);
   }
   // §37.37 the positional traits' arrangement goes first (the rehearsal still prefers one that leaks less or kills more)
@@ -3211,7 +3187,7 @@ export function* arrangeSteps(m, ps, { final = false, defer = false, delegate = 
   if ((defer || adaptive) && plans.length > 1) {
     const limits = adaptive ? { stage: 3, tickBudget: 6 * (!m.wave && bossWaveOf(m, ps) ? faRehearsalTicks(m) : rehearsalCap(m.wave?.timeLimit)) } : null;
     const job = yield* createRehearsalSteps(m, ps, rehChosen, plans,
-      { delegate: viaHost, pooled, limits, candidateLimit: (adaptive ? 8 : count) + extra + more, maxCandidates: Math.min(REHEARSAL_MAX_CANDIDATES, 8 + more) });
+      { delegate, pooled, limits, candidateLimit: (adaptive ? 8 : m.botRehearsal) + extra + more, maxCandidates: Math.min(REHEARSAL_MAX_CANDIDATES, 8 + more) });
     if (!defer && job) job.run();
     yield* applyPlanSteps(m, ps, !defer && job ? rehChosen : chosen, !defer && job ? job.best : plans[0]);
     return job;

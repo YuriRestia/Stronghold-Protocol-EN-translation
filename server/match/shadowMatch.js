@@ -60,7 +60,6 @@ export class ShadowMatch {
     this.uidSeq = world.task.uidBase;
     // the executor's count of layouts: every `m.botRehearsal` gate in bot.js reads this and needs no edit
     this.botRehearsal = world.task.count;
-    this.botRehearsalHost = world.task.count;
     this.botRehearsalDelegate = false;
     this.simPool = null;
     this.externalAI = null;

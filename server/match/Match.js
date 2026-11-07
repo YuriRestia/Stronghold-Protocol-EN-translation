@@ -129,7 +129,7 @@
 // this mode; g.watch hands out specs. battleIds are `<seed36>[-<matchNo36>].<round>.<seq>[.<fieldId>]` (≤ 64 chars):
 // unique across the matches of a room, so a report that crossed into the next match is ignored like any stale one; a
 // duplicate b.result (a browser re-sending one it believes lost) is answered ok and changes nothing.
-// Bot layout rehearsals (opts.botRehearsalDelegate, (fork) on by default): a bot prep's candidate layouts go to the current
+// Bot layout rehearsals (opts.botRehearsalDelegate, off by default; host mode replaces them): a bot prep's candidate layouts go to the current
 // host's browser as one b.rehearsal frame — its module Worker simulates them off the page's main thread with the same
 // sim, seeds and scoring and answers b.rehearsalResult with the index of its pick (server/sim/rehearsal.js). A timeout,
 // a host that changed / disconnected / left or a task this client cannot run makes the server simulate the very same
@@ -172,10 +172,8 @@
 //   opts.botBattles    (fork) 'server' (default) or 'host' (env SP_BOT_BATTLES): a field no connected human plays runs in a human's
 //                      browser (match/botBattles.js); opts.botBattleAnswerMs is how long that browser has (default 30 s)
 //   opts.botRehearsalDelegate  offer each bot prep's layout rehearsal to the current host's browser instead (DESIGN §14;
-//                      (fork) default ON, env SP_BOT_REHEARSAL_HOST=0 turns it off; MatchRehearsal — a rehearsal the
-//                      host did not answer is simulated by the server with at most opts.botRehearsal of the same
-//                      candidates, seeds and scoring: with 0 the bot keeps its heuristic layout, no server CPU)
-//   opts.botRehearsalHost  (fork) candidate layouts a delegated rehearsal offers the host's browser (default 6, 2…8)
+//                      default off, env SP_BOT_REHEARSAL=host; MatchRehearsal — the server simulates a rehearsal the
+//                      host did not answer, with the same candidates, seeds and scoring)
 //   opts.botRehearsalDelegateMs  wall-clock ms the host has to answer a delegated rehearsal (default 3000) — never an
 //                      extension of the phase: the prep deadline stays the phase's own (MatchPrep.endPrep)
 //   opts.headlessSliceMs  wall-clock ms per callback of a server-run normal / 联防 field (client-side combat: bots,
@@ -290,14 +288,8 @@ export function parseVerify(v) {
   const s = String(v ?? '').trim().toLowerCase();
   return s === 'all' || s === 'sample' ? s : 'off';
 }
-/**
- * (fork) Default of the bot rehearsal delegation: ON — SP_BOT_REHEARSAL_HOST=0 / off / false turns it off (DESIGN §14).
- * SP_BOT_REHEARSAL=host (upstream's spelling) still turns it on. The server's own count stays SP_BOT_REHEARSAL.
- */
-const envBotRehearsal = () => {
-  if (String(env('SP_BOT_REHEARSAL') || '').trim().toLowerCase() === 'host') return true;
-  return !/^(0|off|false|no)$/i.test(String(env('SP_BOT_REHEARSAL_HOST') ?? '').trim());
-};
+/** The bot rehearsal delegation: off unless SP_BOT_REHEARSAL=host. With SP_BOT_EXECUTION=host a bot's prep never reaches it. */
+const envBotRehearsal = () => String(env('SP_BOT_REHEARSAL') || '').trim().toLowerCase() === 'host';
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 
 const dsCache = new WeakMap();
@@ -387,8 +379,6 @@ export class Match {
      * off, env SP_BOT_REHEARSAL=host. The server simulates a rehearsal the host did not answer (see MatchRehearsal).
      */
     this.botRehearsalDelegate = opts.botRehearsalDelegate != null ? !!opts.botRehearsalDelegate : envBotRehearsal();
-    /** (fork) layouts a delegated rehearsal offers the host's browser (its CPU, not the server's) */
-    this.botRehearsalHost = Number.isInteger(opts.botRehearsalHost) && opts.botRehearsalHost >= 2 ? Math.min(opts.botRehearsalHost, 8) : BOT_REHEARSAL_DEFAULT;
     /** wall-clock ms the host has to answer a delegated rehearsal (engine option: tests shorten it) */
     this.botRehearsalDelegateMs = Number.isFinite(opts.botRehearsalDelegateMs) && opts.botRehearsalDelegateMs > 0 ? opts.botRehearsalDelegateMs : REHEARSAL_ANSWER_MS;
     /** the room's current host (opts.hostId; server/lobby.js room.hostId — setHost follows a migration) */
