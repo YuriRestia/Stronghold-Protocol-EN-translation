@@ -34,6 +34,7 @@ import { validateC2S } from '../../shared/protocol.js';
 import { N_ } from '../../shared/i18n.js';
 import { genUrl } from './gen.js';
 import { STATE_DELTA_VERSION, StateReceiver } from '../../shared/stateDelta.js';
+import { PeerTransport } from './p2p.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -122,6 +123,7 @@ export class Net {
    * @param {() => number} [opts.now]
    * @param {() => number} [opts.random]
    * @param {{setTimeout: Function, clearTimeout: Function, setInterval: Function, clearInterval: Function}} [opts.timers]
+   * @param {object} [opts.p2p] optional WebRTC transport dependencies; enabled:false opts out
    */
   constructor(opts = {}) {
     this.url = opts.url || null;
@@ -173,6 +175,7 @@ export class Net {
     this._receiver = new StateReceiver();
     this._stateRoom = null;
     this._resyncAt = 0;        // epoch ms of the last resync request we sent
+    this.peers = new PeerTransport(this, opts.p2p);
   }
 
   // ---- events ----------------------------------------------------------------------------------
@@ -583,6 +586,9 @@ export class Net {
       if (message == null) return;
       msg = message;
     }
+    // Peer delivery (public/js/p2p.js): every snapshot — WebSocket or decoded from m.state — passes the same
+    // server-issued delivery order, so a delayed frame from either transport cannot overwrite newer state.
+    if (msg.t === 'm.public' && !this.peers.directSnapshot(msg)) return;
     const { t } = msg;
     const rid = msg.rid;
     const isHelloError = t === 'error' && rid != null && rid === this._helloRid;
@@ -621,6 +627,18 @@ export class Net {
   }
 
   // ---- heartbeat & clock -----------------------------------------------------------------------
+
+  /** A verified public snapshot; peer traffic never answers a WebSocket heartbeat or request. */
+  acceptPeerSnapshot(msg) {
+    const continuingHandshake = this.status === 'handshaking' && this.ws
+      && this.peers.sessionWs === this.ws && this.peers.sessionPlayerId === this.playerId;
+    if ((this.status !== 'online' && !continuingHandshake) || msg?.t !== 'm.public') return;
+    if (Number.isFinite(msg.serverNow) && !this.clockSynced) {
+      this._addClockSample(msg.serverNow + (this.ping ?? 0) / 2 - this.now(), Infinity);
+    }
+    this._emit('m.public', msg);
+    this._emit('*', msg);
+  }
 
   _startHeartbeat() {
     this._clearTimer('_pingTimer', 'clearInterval');

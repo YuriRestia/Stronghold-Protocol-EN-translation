@@ -210,6 +210,17 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       sendError(req, res, 400, '请求地址无效 · Bad request');
       return;
     }
+    // #603: serve only this root document, including after an update-zip overlay; never mount the repo root.
+    // (fork) also its English translation, for the release notes of a non-Chinese page
+    if (decoded === '/CHANGELOG.md' || decoded === '/CHANGELOG.en.md') {
+      const abs = path.resolve(publicDir, '..', decoded.slice(1));
+      const st = await fsp.stat(abs).catch(() => null);
+      if (!st?.isFile()) { sendError(req, res, 404, '页面不存在 · Not found'); return; }
+      await serveFile(req, res, abs, st, 'release', [decoded.slice(1)], query, gzipCache, log, {
+        cacheControl: 'no-cache', headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+      return;
+    }
     // the plugin studio's page is never a static file (server/studio/index.js isStudioPath: any spelling of /studio/)
     if (isStudioPath(decoded)) { sendError(req, res, 404, '页面不存在 · Not found', decoded.length <= 200 ? decoded : ''); return; }
     // /assets/~<hash>/x → /assets/x (the hash decides the cache policy below)

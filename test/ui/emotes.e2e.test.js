@@ -7,6 +7,7 @@
 // a bubble fades out after 3 s and a newer one replaces it, the neutral glyph fallback when the art is missing, the
 // bubble sits beside the sender's avatar in the team panel, and zero console errors.
 
+import { seedReleaseRead } from '../helpers/releaseNotes.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -68,6 +69,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
         return req.continue();
       });
     }
+    await seedReleaseRead(page);
     // (fork) the game mock never reliably goes network-idle on Windows (render loop, Pixi's image worker): its own
     // screen check (below, in the test) is the wait; the UI-kit page still waits for idle
     await page.goto(`${base}${url}`, { waitUntil: url.includes('game-mock') ? 'load' : 'networkidle0', timeout: 60000 });

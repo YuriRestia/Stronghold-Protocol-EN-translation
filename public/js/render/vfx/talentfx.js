@@ -10,8 +10,10 @@
 //   t.release(v)             death / leak / retreat: every loop of the unit stops
 //   t.form(v, form, extra)   a sim form fx: a 重生's knock-out ('reborn', 'stone') and stand-up ('form2', 'fly'), a husk's
 //                            revival ('revived')
-//   t.fx(kind, extra)        a kit fx naming the unit (`extra.id`): the nodes a template casts on it (talents.js
-//                            triggerKinds: 'substitute', 'undying', 'swap', 'dollEnd'), a talent's added attack ('extraAttack')
+//   t.fx(kind, extra, x, y)  a kit fx naming the unit (`extra.id`): the nodes a template casts on it (talents.js
+//                            triggerKinds: 'substitute', 'undying', 'swap', 'dollEnd'), a talent's added attack ('extraAttack'),
+//                            and a point strike at the fx's (x, y) (talents.js POINT_TRIGGERS: 新约能天使's 火力电台
+//                            'airstrike' with `talent: true` — PR #861; S3's unmarked 'airstrike' keeps the procedural blast)
 //   t.skill(v, on)           the owner's skill turned on: its ON_SKILL_START triggers
 //   t.sync(views)            once per frame: the loops of every binding in force (passive and deploy ones while the unit
 //                            stands, a mode's copy while that mode is on, toggles while their checkers hold, a 重生's

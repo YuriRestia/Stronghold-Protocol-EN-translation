@@ -1,5 +1,6 @@
 // Shared Modal keyboard boundaries, real Chrome. Component fixtures cover nested / empty dialogs; the settings
 // case uses the real title screen. Opt-in: SP_E2E=1 node --test test/ui/modal.e2e.test.js
+import { seedReleaseRead } from '../helpers/releaseNotes.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -24,6 +25,7 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
   };
   async function fixture(page) {
     page.setDefaultTimeout(5000);
+    await seedReleaseRead(page);
     await page.goto(`${srv.url}/dev/uikit.html`, { waitUntil: 'domcontentloaded' });
     await page.evaluate(async () => {
       const { render } = await import('/vendor/preact.module.js');
@@ -154,6 +156,7 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     try {
       await page.setViewport({ width: 1280, height: 720 });
       page.setDefaultTimeout(5000);
+      await seedReleaseRead(page);
       await page.goto(srv.url, { waitUntil: 'domcontentloaded', timeout: 30000 }); // (fork) the module graph alone can take > 5 s here
       await page.waitForSelector('.title-settings', { timeout: 30000 });
       await page.click('.title-settings');
@@ -184,6 +187,7 @@ describe('Modal keyboard focus', { skip: !ENABLED && 'set SP_E2E=1 and have Chro
     const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     try {
       page.setDefaultTimeout(5000);
+      await seedReleaseRead(page);
       await page.goto(srv.url, { waitUntil: 'domcontentloaded', timeout: 30000 }); // (fork) the module graph alone can take > 5 s here
       await page.waitForSelector('.title-settings', { timeout: 30000 });
       await page.click('.title-settings');

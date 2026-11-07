@@ -455,6 +455,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                           // spineLocal: an optional local-client model; file names in a data/local-assets.json group,
                           // not URLs, and always emitted (independent of the disk) — "Enemy aliases" below
   tokens:  { [tokenId]: { owner: charId|null, avatar?, spine?: Spine, spineVariant?: string,
+                          skins?: { [skinId]: { avatar?, illust?, spine: { front, back? } } },  // owner-outfit appearances, docs/SKINS.md
                           spineLocal?: { group, skel, atlas, textures, …Spine } } },
                           // spineLocal: as for enemies — "Token models from the local client" below
   bonds:   { [bondId]: url },       // white glyphs; tint in CSS/canvas
@@ -557,6 +558,13 @@ not download URLs; the actual selected alternative supplies its pitch range and 
 `data/assets.json` grows; no game media is added. The client uses the selected normal/mode reference, draws the
 pitch in that range and schedules the delay on Web Audio's clock. Limits/takeover and the retained [ASSUMED]
 remake anti-spam rules are specified in [design/client.md](design/client.md#skill-mode-sound-and-delayed-models-2817-2822).
+
+`AudioManager` keeps pending generic battle cues on the same field generation as the bank pools. A decode that
+finishes after field replacement, return to preparation or screen cleanup releases its voice without starting the
+old cue or its plugin fallback. UI feedback is independent of this field generation.
+`stopFieldSounds()` is shared by field replacement and the game screen's cleanup: it also invalidates operator voice
+downloads, frees their channel, and cancels prep landings, including downloads still holding a landing voice. Playing
+operator lines and landings fade out using their existing fades. Scoped bond cues and BGM keep their own lifecycle.
 
 ### The `Spine` object
 
@@ -808,9 +816,20 @@ The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js
 `public/js/assetDownload.js`) downloads every unique art/font URL in the server's current `assets.json` and optional
 `local-assets.json`, including Spine skeletons, atlases, pages, scene files, and audio. Audio uses the same `/media/`
 URLs as playback. Four concurrent requests consume complete response bodies without decoding them or retaining
-all files in memory. This warms the existing browser HTTP cache and works over HTTP as well as HTTPS; it does not
-require a service worker. Freshness and eviction remain under the browser's control, so completion is not persisted
-as a permanent/offline guarantee. A later check reads current manifests and uses ordinary HTTP cache validation.
+all files in memory. In a secure context (HTTPS or localhost) each complete body is also kept in the import cache
+(Cache Storage `sp-imported-assets-v1`, `assetCache.js openDownloadStore`; content-hashed URLs only) and added to its
+index, so `public/sw.js` answers it from there and a later check counts it ready without a request (GitHub #725:
+Chrome keeps at most 320 MB of HTTP cache on Windows, 1.28 GB elsewhere — less than a whole art set of about 1 GB —
+and a queue walking every file in order evicts most of it before it is asked for again: with a 320 MB cap a second pass
+sent 93 % of the bytes again, with 4 GB none; history §37.99). Over plain HTTP only the
+browser HTTP cache keeps the files, and the dialog says that a reload may download them again; a failed write (over
+quota) sends the rest of that run to the HTTP cache with a note. Completion itself is still not persisted as a flag: a
+later check reads current manifests, skips the stored files and revalidates the rest through the HTTP cache.
+
+The worker finds a stored file by its URL path exactly as the manifest spells it, so the client requests a manifest URL
+unchanged (`[opt]x.webp`, not `%5Bopt%5Dx.webp`) and takes a file's URL from the manifest rather than a plain path. After
+a whole download a match asks the server for no art but the board's crop table (`map/autochess/tiles.json`, `no-cache`,
+in no manifest); the page shell's plain fonts (`/fonts/fonts.css`) stay outside too.
 
 The dialog shows successful file count, progress, and bytes read (including cache hits). Closing it or leaving the
 title screen pauses and aborts pending requests. Resume keeps completed files for this page; retry requests only

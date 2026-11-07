@@ -33,7 +33,7 @@ test('coverage fails for missing earlier-version pictures, model, skill icon, en
 
 test('presentation union retains the operators behind reused chess ids and their skills', () => {
   const sets = versionAssetData(root), all = presentationUnion(sets);
-  assert.equal(Object.keys(all.operators).length, 230); // (fork) 229 + 丰川祥子, dev-0.2's 自选 pick
+  assert.equal(Object.keys(all.operators).length, 233); // 冻河, 国度 and 塔露拉 (CN 2.7.91, DESIGN §37.91); (fork) + 丰川祥子, dev-0.2's 自选 pick
   assert.ok(all.operators.char_198_blackd.skills.some((s) => s.skillId === 'skchr_blackd_2'));
   assert.ok(all.enemies.enemy_1254_lypa);
   assert.ok(all.bands.band_zumama);

@@ -4,7 +4,28 @@ import { interestDigest, effectText } from '../ai/knowledge.js';
 import { operatorCaps } from '../ai/playbook.js';
 import { ruleOption } from '../../shared/plugins/rules.js';
 import { pieceBonds } from './bondsMeta.js';
-import { advisorBanks } from './aiEconomy.js';
+import { fieldModel, botIntent } from './bot.js';
+import { bossPoolHp } from './finalAssault.js';
+
+/**
+ * §37.71: the Final Assault's numbers as the HUD shows them — the shared leader pool (bloodPoint × the players alive now,
+ * finalAssault.js), the second its LP drain starts (bossRounds.js: 150 with an AI teammate, else the 120 s countdown), the
+ * drain per second and the team LP that drain spends.
+ */
+function faFacts(m, gd) {
+  const alive = typeof m.alivePlayers === 'function' ? m.alivePlayers() : [];
+  const team = (m.order || []).filter(p => !p.left);
+  const level = gd.bossLevelTime(gd.bossRound);
+  return { pool: bossPoolHp(gd, m.bossId, alive.length), alive: alive.length,
+    clockSec: team.length > 1 && team.some(p => p.isBot) ? gd.bossOvertimeAfterReal : (level || gd.bossOvertimeAfterReal),
+    drainPerSec: gd.bossOvertimeDrainReal, teamLp: alive.reduce((s, p) => s + Math.max(0, p.lp), 0) };
+}
+
+/** §37.84: the teammates' plan seats' latest plans and notes (externalAI teamFor), omitted when there are none. */
+function teamPlans(m, ps) {
+  const team = m.externalAI?.teamFor?.(ps);
+  return team?.length ? { team } : {};
+}
 
 export function aiDigest(m, ps, kind, pub, own, pack = null) {
   const gd = ps.gd || m.gd;
@@ -35,9 +56,10 @@ export function aiDigest(m, ps, kind, pub, own, pack = null) {
   const withBounty = card => {
     if (!card || card.kind !== 'bounty') return card;
     let killChance;
-    if (typeof m.bot?.bountyKillChance === 'function') {
+    const bot = m.botFor(ps);
+    if (typeof bot?.bountyKillChance === 'function') {
       try {
-        const p = m.bot.bountyKillChance(m, ps, card);
+        const p = bot.bountyKillChance(m, ps, card);
         if (typeof p === 'number' && Number.isFinite(p)) killChance = p;
       } catch { /* a broken estimator must not drop the observation */ }
     }
@@ -46,6 +68,20 @@ export function aiDigest(m, ps, kind, pub, own, pack = null) {
   };
   const piece = p => ({ ...p, ...named(p.id), ...operator(p), items: (p.items || []).map(i => ({ ...i, ...named(i.id) })) });
   const slots = list => (list || []).map((s, slot) => s && ({ ...s, slot, ...named(s.id), ...operator(s), tier: gd.tierOf(s.id) }));
+  // §37.29 [ASSUMED] The round's routes over the own field as the bot's placement model traces them from the preview's
+  // gates and the map's roads (bot.js fieldModel): ground routes and flyer lines, objective tile excluded, merged.
+  const routes = () => {
+    if (kind !== 'prep') return [];
+    const seen = new Map();
+    try {
+      for (const r of fieldModel(m, ps).routes) {
+        const key = `${r.fly ? 'fly' : 'ground'}|${r.tiles.join(' ')}`;
+        if (!seen.has(key)) seen.set(key, { fly: !!r.fly, tiles: r.tiles.map(parseKey) });
+      }
+    } catch { /* a broken route model must not drop the observation */ }
+    return [...seen.values()];
+  };
+  const battle = m.externalAI?.battleFor(ps);
   const actions = [];
   const add = (intent, text) => actions.push({ id: `a${actions.length + 1}`, text, intent });
   if (kind === 'band' && pub.draft?.turn === ps.playerId) {
@@ -104,27 +140,35 @@ export function aiDigest(m, ps, kind, pub, own, pack = null) {
   }
   return {
     playerId: own.playerId, round: pub.round, phase: pub.phase, lp: own.lp, band: { id: own.bandId, ...named(own.bandId) },
-    availability: { disabledBonds: pub.disabledBonds, bannedChess: pub.bannedChess, diyBanned: own.diyBanned },
+    // round 65: `drawnBonds` = this match's drawn bans — their single-bond members are out of the pool, the bond itself
+    // still counts its other members (pool.js drawDisabledBonds); the rest of disabledBonds never activates
+    availability: { disabledBonds: pub.disabledBonds, ...(pub.drawnDisabledBonds ? { drawnBonds: pub.drawnDisabledBonds } : {}),
+      bannedChess: pub.bannedChess, diyBanned: own.diyBanned },
     factions: pub.factions,
     ...(m.externalAI?.config.mode === 'plan' ? { feedback: m.externalAI.feedbackFor(ps) } : {}),
+    ...(teamPlans(m, ps)),
     economy: { gold: own.funds, interest: interestDigest(gd, own.bandId, own.funds), level: own.shop.level,
       exp: null, upgradePrice: own.shop.upgradePrice, refreshPrice: own.shop.refreshPrice,
       expiringFunds: gd.leftoverKeptBands.includes(own.bandId) ? 0 : own.funds,
-      frozenSlots: own.shop.slots.flatMap((s, slot) => s?.frozen && !s.sold ? [slot] : []),
-      bankOperators: advisorBanks(m, ps).map(p => ({ uid: p.uid, id: p.id, sellValue: gd.sellPrice(p.id) })) },
+      frozenSlots: own.shop.slots.flatMap((s, slot) => s?.frozen && !s.sold ? [slot] : []) },
+    // §37.71: the built-in bot's own defaults for this seat (an empty plan plays them) and the Final Assault's numbers
+    ...(kind === 'band' || kind === 'prep' ? { bot: botIntent(m, ps, kind) } : {}),
+    ...(m.round >= gd.bossRound - 1 && m.round <= gd.bossRound ? { fa: faFacts(m, gd) } : {}),
     bonds: own.bonds.map(b => ({ ...b, ...named(b.bondId), nextThreshold: b.thresholds?.find(n => n > b.count) ?? null })),
     shop: slots(own.shop.slots), rewards: slots(own.shop.rewardOffer?.slots),
     personalChoice: own.personalChoice ? { ...own.personalChoice, cards: (own.personalChoice.cards || []).map(withBounty) } : own.personalChoice,
     bench: own.hand.map((p, slot) => p && ({ ...piece(p), slot })).filter(Boolean),
     overflow: own.temp.filter(Boolean).map(piece), board: own.board.map(piece),
-    deployCap: own.deployCap, upcoming: own.nextEnemies.map(e => ({ ...e, ...named(e.enemyKey) })), boss: { id: pub.bossId, ...named(pub.bossId), round: pub.bossRound },
+    // §37.29: leaders and elites carry the catalogue row as bounty cards do (an evading leader, armour, immunities)
+    deployCap: own.deployCap, upcoming: own.nextEnemies.map(e => ({ ...e, ...named(e.enemyKey), ...(e.boss || e.elite ? { enemy: enemyBrief(e.enemyKey) } : {}) })), boss: { id: pub.bossId, ...named(pub.bossId), round: pub.bossRound },
     // Existing human scouting builder, board only. Never read opponents' privateView/hand/funds/stock.
     opponents: pub.players.filter(p => p.playerId !== own.playerId && p.alive).map(p => ({ playerId: p.playerId,
       lp: p.lp, bandId: p.bandId, bonds: p.bonds, board: m._prepBoardUnits(m.players.get(p.playerId)).map(u =>
         ({ id: u.defId, name: u.name, tier: u.tier, row: u.y, col: u.x, dir: u.dir, items: u.items })) })),
     choices: { cards: pub.sp?.cards?.map(withBounty), offers: pub.offers },
-    geometry: { rows: [FIELD.r0, FIELD.r1], cols: [0, FIELD.c1], tiles: [...ps.deployMap()].map(([key, terrain]) => ({ at: parseKey(key), terrain })) },
+    geometry: { rows: [FIELD.r0, FIELD.r1], cols: [0, FIELD.c1], tiles: [...ps.deployMap()].map(([key, terrain]) => ({ at: parseKey(key), terrain })), routes: routes() },
+    lastBattle: battle ? { ...battle, leaks: battle.leaks.map(l => ({ ...l, ...named(l.enemyKey) })), units: battle.units.map(u => ({ ...u, ...named(u.id) })) } : null,
     actions,
-    actionScope: 'Current-state shortcuts; IDs last only for this observation. Raw intents also support swaps, Arts, consumables, band focus and offer refresh; all actions are revalidated.',
+    actionScope: 'Current-state shortcuts; IDs last only for this observation, and a buy/reward ID fails with STALE_ACTION once an earlier action put something else in its slot. Raw intents also support swaps, Arts, consumables, band focus and offer refresh; all actions are revalidated.',
   };
 }

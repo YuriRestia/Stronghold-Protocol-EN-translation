@@ -30,7 +30,7 @@
 // — an enemy's 重生: the knock-out's handler rows from the sim's knock-out fx to its stand-up fx, then its end rows and
 // the talent's buffs (the 无敌 loop for its blackboard time); null — the sim fx kinds its template triggers name
 // (triggerKinds: a fatal blow → 'substitute' / 'undying', a stand-in buff's end → 'swap' / 'dollEnd', a skill start, the
-// owner's birth); `attack` — the attack it adds or replaces only where a kit fx marks it ('extraAttack'), else nothing.
+// owner's birth; a point strike — 火力电台's talent 'airstrike' at its spot, POINT_TRIGGERS); `attack` — the attack it adds or replaces only where a kit fx marks it ('extraAttack'), else nothing.
 
 import { planUses, emptyPlan, planKeys, resolveSkill } from './skills.js';
 
@@ -142,7 +142,9 @@ const POINT_TRIGGERS = Object.freeze({ 'angel2_t_1[target]': 'airstrike' });
  * The sim 'fx' kinds (with the unit's id) that cast a node a buff template action triggers (`triggers`): the fatal blow
  * (ON_BEFORE_TRY_SET_HP_ZERO) is a 傀儡师's 'substitute' or a kit's 'undying'; a stand-in buff's end (ON_BUFF_FINISH of a
  * `*standin*` buff) the 'swap' / 'dollEnd' back; 'skill' — the owner's skill start (ON_SKILL_START, the 'skill' event); 'born'
- * — its deploy (ON_OWNER_BORN). Other events have no client signal.
+ * — its deploy (ON_OWNER_BORN). One exception casts on a spot instead of the unit: POINT_TRIGGERS (the ON_BUFF_START of
+ * 新约能天使's `angel2_t_1[target]` → the sim's 'airstrike' fx with `talent: true` and the struck spot, PR #861). Other
+ * events have no client signal.
  */
 export function triggerKinds(b) {
   const out = new Set();

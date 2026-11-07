@@ -7,7 +7,7 @@
 // candidate boundaries a slice stops on) is unit-tested in test/sim/rehearsal.test.js, next to its module.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PHASE } from '../../shared/constants.js';
+import { PHASE, REHEARSAL_MAX_CANDIDATES } from '../../shared/constants.js';
 import { validateC2S } from '../../shared/protocol.js';
 import { deriveSeed } from '../../server/sim/rng.js';
 import { RehearsalRun } from '../../server/sim/rehearsal.js';
@@ -375,7 +375,7 @@ test('the task carries the server\'s own candidates: seeds, wave, cap and the sc
   const frame = host.tasks[0].frame;
   assert.equal(typeof frame.taskId, 'string');
   assert.equal(frame.cap, Math.ceil(((h.m.wave.timeLimit || 60) + 5) * 30));
-  assert.ok(frame.specs.length >= 2 && frame.specs.length <= 3);
+  assert.ok(frame.specs.length >= 2 && frame.specs.length <= 6);
   for (const spec of frame.specs) {
     assert.equal(spec.v, 1);
     assert.equal(spec.kind, 'normal');
@@ -433,7 +433,8 @@ test('protocol rejects a forged, out-of-range or non-boolean rehearsal answer', 
   assert.equal(validateC2S({ t: 'b.rehearsalResult', taskId: 's.1.0.1', choice: 2 }), null);
   assert.equal(validateC2S({ t: 'b.rehearsalResult', taskId: 's.1.0.1', error: true }), null);
   assert.equal(validateC2S({ t: 'b.rehearsalResult', taskId: 's.1.0.1' }), null);
-  for (const choice of [8, -1, 1.5, '0', null]) {
+  assert.equal(validateC2S({ t: 'b.rehearsalResult', taskId: 's.1.0.1', choice: REHEARSAL_MAX_CANDIDATES - 1 }), null, 'the last candidate a prep may rehearse');
+  for (const choice of [REHEARSAL_MAX_CANDIDATES, -1, 1.5, '0', null]) {
     assert.equal(typeof validateC2S({ t: 'b.rehearsalResult', taskId: 's.1.0.1', choice }), 'string', String(choice));
   }
   assert.equal(typeof validateC2S({ t: 'b.rehearsalResult', taskId: 's.1.0.1', error: false }), 'string');

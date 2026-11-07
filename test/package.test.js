@@ -1,3 +1,4 @@
+import { PACKAGE_SERVER } from './helpers/packageServer.js';
 // test/package.test.js — tools/package.mjs, the player release zips (docs/DEPLOY.md §7). No network, no npm install, no
 // zip of the repository: the selection rules on sample paths and on the real `git ls-files`, then the packager itself
 // (--dry-run, the scans and guards, one --no-install build) on a small temporary git checkout with fake art.
@@ -48,7 +49,7 @@ test('selection: runtime files in; tests, maintainer tools, other docs, dev page
     'tools/local-extract/extract.py',
     'tools/local-extract/LICENSE-Ark-Unpacker.txt', 'scripts/start.sh', 'scripts/start-windows.bat', 'scripts/start-windows-sandbox.bat', 'scripts/launch.mjs',
     'scripts/install-service-windows.ps1', 'docs/PLAYING.md', 'docs/DEPLOY.md', ...RUNTIME_RESEARCH, 'package.json',
-    'package-lock.json', 'LICENSE', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md', 'README.md', 'CHANGELOG.md',
+    'package-lock.json', 'LICENSE', 'NOTICE.md', 'THIRD-PARTY-NOTICES.md', 'README.md', 'CHANGELOG.md', 'CHANGELOG.en.md',
     // out
     'test/version.test.js', 'tools/golden.mjs', 'tools/build-data.mjs', 'tools/check-imports.mjs', 'tools/package.mjs',
     'tools/i18n/fallback-remake.json', 'scripts/make-windows-bundle.mjs', 'docs/DESIGN.md', 'docs/WINDOWS.md', 'docs/ASSETS.md',
@@ -64,7 +65,7 @@ test('selection: runtime files in; tests, maintainer tools, other docs, dev page
     'docs/research/07-assets.json', 'CHANGELOG.md']) {
     assert.ok(keep.includes(f), `keeps ${f}`);
   }
-  assert.equal(keep.length, 36, keep.join(' '));
+  assert.equal(keep.length, 37, keep.join(' '));
   assert.equal(drop.length, 40, drop.join(' '));
   assert.ok(!keep.some((f) => drop.includes(f)));
 });
@@ -142,7 +143,7 @@ function fakeCheckout() {
     test: 'node --test', golden: 'node tools/golden.mjs', package: 'node tools/package.mjs' };
   put('package.json', JSON.stringify({ name: 'sp-test', version: '9.9.9', main: 'server/index.js', scripts, dependencies: {} }));
   put('package-lock.json', JSON.stringify({ name: 'sp-test', version: '9.9.9', lockfileVersion: 3, packages: { '': { name: 'sp-test' } } }));
-  put('server/index.js', "import './sim/rng.js';\n");
+  put('server/index.js', PACKAGE_SERVER);
   put('server/sim/rng.js');
   put('shared/constants.js');
   put('public/index.html', '<!doctype html>\n');
@@ -261,7 +262,7 @@ test('a --no-install build of the temporary checkout zips exactly the plan in on
     assert.equal(r.status, 0, r.stdout + r.stderr);
     const zip = path.join(out, `${FOLDER}-v9.9.9.zip`);
     assert.ok(fs.statSync(zip).size > 0);
-    assert.deepEqual(fs.readdirSync(out), [path.basename(zip)], 'the stage is removed after zipping');
+    assert.deepEqual(fs.readdirSync(out).sort(), [path.basename(zip), `${path.basename(zip)}.smoke.log`], 'only the archive and smoke log remain');
     if (hasUnzip) {
       const entries = spawnSync('unzip', ['-Z1', zip], { encoding: 'utf8' }).stdout.split('\n').filter((l) => l && !l.endsWith('/'));
       // and MANIFEST.json, written after npm ci (server/update.js; test/update-package.test.js checks its content)

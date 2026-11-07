@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
@@ -33,6 +33,9 @@ const isList = (v, max, item) => Array.isArray(v) && v.length <= max && v.every(
 const isScalar = (v) => isStr(v, 64) || isNum(v) || isBool(v);
 /** An official version id (shared/versions.js: the activity id, `@<sub-version>` for a sub-version) — structural only; the lobby answers VERSION_UNKNOWN for one this server does not enable (DESIGN §35.23). */
 export const isVersionId = (v) => typeof v === 'string' && v.length <= 40 && /^[a-z0-9]{1,32}(?:@[A-Za-z0-9_]{1,16})?$/.test(v);
+const isPeerDescription = (v) => isPlain(v) && (v.type === 'offer' || v.type === 'answer') && isStr(v.sdp, 16 * 1024);
+const isPeerCandidate = (v) => isPlain(v) && isStr(v.candidate, 2048)
+  && (v.sdpMid === null || isStr(v.sdpMid, 256)) && (v.sdpMLineIndex === null || isInt(v.sdpMLineIndex, 0, 65535));
 
 // ---- client-side combat (DESIGN §14): b.progress / b.result payloads -------------------------------------------
 
@@ -516,6 +519,9 @@ export const C2S = {
   // default create stays the message it was.
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited'] },
   'room.join': { $optional: ['testAck'], testAck: (v) => v === true, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  'p2p.enable': { enabled: isBool },
+  'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
+  'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
   'room.leave': {},
   'room.ready': { ready: isBool },
   'room.setDifficulty': { difficulty: (v) => DIFFICULTIES.includes(v) },
@@ -664,9 +670,9 @@ export const C2S = {
   // match state of its own; `error: true` says this client cannot run the task at all (no module Worker, or the
   // simulation data did not load), so the server takes the rehearsal over at once instead of waiting for its timeout.
   // An unknown task, another sender or a task the server already took over is ignored; an invalid `choice` makes the
-  // server run the candidates itself. `choice` stops at 7 because a match rehearses at most 8 candidates.
+  // server run the candidates itself. `choice` stops below REHEARSAL_MAX_CANDIDATES, the most one prep rehearses.
   'b.rehearsalResult': {
-    taskId: isId, choice: (v) => v === undefined || isInt(v, 0, 7), error: (v) => v === undefined || v === true,
+    taskId: isId, choice: (v) => v === undefined || isInt(v, 0, REHEARSAL_MAX_CANDIDATES - 1), error: (v) => v === undefined || v === true,
     $optional: ['choice', 'error'],
   },
   // State-delta transport (shared/stateDelta.js): the client asks for one full frame after it missed one. The server
@@ -679,6 +685,7 @@ export const C2S = {
 // Server → client message types (documentation + client dispatch table keys).
 export const S2C = [
   'welcome', 'ok', 'error', 'pong',
+  'p2p.config', 'p2p.signal', 'p2p.frame',
   'room.state', 'room.closed',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.
@@ -717,6 +724,7 @@ export function validateC2S(msg) {
   if (!msg || typeof msg !== 'object' || Array.isArray(msg)) return 'not an object';
   const spec = typeof msg.t === 'string' && Object.hasOwn(C2S, msg.t) ? C2S[msg.t] : null;
   if (!spec) return `unknown type ${String(msg.t).slice(0, 32)}`;
+  if (msg.t === 'p2p.signal' && (msg.description !== undefined) === (msg.candidate !== undefined)) return 'exactly one signal required';
   if (msg.rid != null && !isInt(msg.rid, 0, 2 ** 31)) return 'bad rid';
   const optional = spec.$optional || [];
   for (const [k, check] of Object.entries(spec)) {
@@ -742,6 +750,8 @@ export const EV = Object.freeze({
   // only: the renderer paces the attack clip over it (render/attackRate.js) instead of waiting to measure two attacks,
   // which is what made the first swing of a skill / buff change slow-motion for a while.
   RATE: 'rate',
+  // ['resource', id, 'cost'|'sp', actual signed delta, source reason]: optional live-display receipts (#657).
+  RESOURCE: 'resource',
 });
 
 /**

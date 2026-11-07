@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { PHASE } from '../../shared/constants.js';
 import { GameData } from '../../server/match/gamedata.js';
 import { computeBonds, bondList, bondSnapshot, bondsWithGains, HARMONY_BOND } from '../../server/match/bondsMeta.js';
-import { botPickBand } from '../../server/match/bot.js';
+import { botPickBand, bandStrength } from '../../server/match/bot.js';
 import { tileKey } from '../../server/match/board.js';
 import { validateClientResult } from '../../server/match/fields.js';
 import { bandBondIds as bandBondIdsOf } from '../../shared/bandBonds.js';
@@ -167,21 +167,27 @@ describe('§21.26 3 — strategies tied to a bond the mode switches off', () => 
     const { solo, coop } = picks('HARD');
     assert.ok(solo.filter((id) => TIED.has(id)).length > 0, `solo ${solo.filter((id) => TIED.has(id)).length}/200`);
     assert.ok(coop.filter((id) => TIED.has(id)).length > 0, `co-op ${coop.filter((id) => TIED.has(id)).length}/800`);
-    // the pre-0.1.1 pick (starting LP only), replayed on the same rng: identical where no bond is off
+    // the pre-0.1.1 pick (starting LP only), replayed on the same rng: identical where no bond is off (§37.34: cubed on
+    // 终极 solo; §37.46: on 终极 times the bots' measured strength with the band, 1 elsewhere)
     const before = (m) => {
       const ids = m.gd.bandIds();
       const lateFunds = (id) => /暂存/.test(String(m.gd.band(id)?.desc || ''));
-      const pairs = ids.map((id) => [id, Math.max(1, (m.gd.startLp(id) - 18) ** 2) * (m.isSolo && lateFunds(id) ? 0.02 : 1)]);
+      const exp = m.isSolo && m.difficulty === 'ABYSS' ? 3 : 2;
+      const pairs = ids.map((id) => [id, Math.max(1, (m.gd.startLp(id) - 18) ** exp) * (m.isSolo && lateFunds(id) ? 0.02 : 1) * bandStrength(m, id)]);
       let r = m.rngBots() * pairs.reduce((a, [, w]) => a + w, 0);
       for (const [id, w] of pairs) { r -= w; if (r < 0) return id; }
       return pairs[pairs.length - 1][0];
     };
+    // §37.69: on 终极 solo, while the pool can still supply 6 distinct 谢拉格 of tier ≤ 5, the AI takes 杰西卡 (same one draw)
+    const kjeragReach = (m) => [...m.pool.entries].filter(([id, e]) => e.left > 0 && e.tier <= 5 && (m.gd.chess(id)?.bonds || []).includes('kjeragShip')).length;
     for (const difficulty of ['NORMAL', 'HARD', 'ABYSS']) {
       for (let seed = 1; seed <= 200; seed++) {
         const seats = [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }];
         const a = makeMatch({ mode: 'solo', difficulty, seats, seed, fake: true });
         const b = makeMatch({ mode: 'solo', difficulty, seats, seed, fake: true });
-        assert.equal(botPickBand(a.m, a.m.order[0]), before(b.m), `${difficulty} seed ${seed}`);
+        const want = before(b.m);
+        assert.equal(botPickBand(a.m, a.m.order[0]), difficulty === 'ABYSS' && kjeragReach(a.m) >= 6 ? 'band_jesica' : want, `${difficulty} seed ${seed}`);
+        assert.equal(a.m.rngBots(), b.m.rngBots(), `${difficulty} seed ${seed}: one draw either way`);
         a.m.dispose();
         b.m.dispose();
       }

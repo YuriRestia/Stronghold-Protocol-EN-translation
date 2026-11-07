@@ -5,7 +5,8 @@ release package. A packaged server has no external host.
 
 This is an English strategy method with Chinese game names, for the opt-in example language-model advisor
 ([API](EXTERNAL_AI.md), [中文指南](EXTERNAL_AI_ZH.md)). It changes advice, not game rules or the legacy AI.
-The model receives reproducible candidate evidence and returns a brief justification and a validated plan.
+The model receives reproducible evidence and returns a brief justification and a validated plan. Since round 65 the
+built-in bot is the floor and the model only overrides it ([adapter v2](#example-llm-adapter-v2-round-65)).
 No claim of improved win rate is made. Every recommendation, estimate, role, score and stage boundary below is
 **[ASSUMED]** unless explicitly identified as a mechanic or the maintainer's testimony. Test it against legacy
 using the existing offline/mocked advisor tools before drawing performance conclusions.
@@ -142,17 +143,23 @@ stacking bond. This is a conservative baseline: special count bonuses and custom
 
 For each main, rank legal sub-bonds by `4 × graph weight + 3 if community-preferred - 3 × competing teammates`.
 Keep the best three positive sub scores; enumerate their two-bond pairs and the best single sub. Use at most two
-subs. At the band draft, return at most eight directions (§35.15). [ASSUMED] Every uncontended
-community/maintainer main that is still a legal draft action is preferred over a second sub-variant of a band
-already listed. When more than eight qualify, keep the eight highest scores, one variant per band and main.
-On the current 绝境 catalogue an empty round-1 draft therefore keeps 佩佩, 潘格尼尼 and 克莱门莎 and cuts
-杜遥夜 (score 28.8, just under the eighth place at 29) and 埃芒加德 (no data bond engine, score 13). In prep,
+subs. At the band draft, return at most eight directions (§35.15), one per band first. Round 65: a band's score is
+its **measured draft prior**, not a heuristic sum — the built-in bot's own normalised draft weights when the host
+sends `digest.bot.bands`, otherwise [ASSUMED] the two measured parts of that weight, LP³ (LP² off 终极) × the §37.46
+strength table, normalised over the offered bands (`draftPriors` in `server/ai/strategy.js`, a copy of `bot.js`
+kept equal by `test/match/llm-adapter-v2.test.js`); the bot's rule pick adds 100 (`forced`: Touch in co-op 终极 once
+a teammate holds 歌利亚 and nobody holds Touch; the solo 杰西卡 pick needs the live pool, so only the host can name it).
+A band whose bond the room switches off weighs 0. The direction parts below become `fitParts` / `fit` and only order
+one band's variants; a direction whose main a teammate publicly claims is left out while others remain. In prep,
 generic variants that share a band and a main collapse into one candidate. Its id is `band:main`, so a later
 sub change is not a new direction. `subOptions` lists each `{subs, score}`. Named community builds and cycle
 recipes keep their own ids and may take a free slot. Fewer than two distinct directions are reported explicitly
 when the legal space is too small. Never fabricate a banned alternative just to fill the list.
 
-The additive `scoreParts` are saved with each candidate:
+The additive direction parts are saved with each candidate (`scoreParts` in prep, `fitParts` at the draft). Round 65
+removed the band-level `survival` term ((LP − 26) × 1.5, §35.62) and the leader counter in `finalAssault` (+8,
+§35.63): the maintainer rejected leader-specific drafting, and the bots rank 叙拉古 near the bottom.
+
 
 | Component | Weight |
 |---|---|
@@ -188,6 +195,11 @@ and actual previews take precedence (e.g. an earlier FUNNY leader).
 | Safety net | 罗素/cheap elites/three 坚守 is the maintainer's example. Cover early leaks while professional teams develop; check the actual enemy counters instead of assuming every defensive board can stop flyers. |
 | Supplier | 芬 buys a missing professional-team operator when the automatic beacon recipient and next-round timing make it useful. Preserve own survival; avoid speculative hoarding long before a beacon. |
 | Economy | Convert band-specific discounts, grants or interest into later shop access and useful pieces. Only bands that carry funds can bank them. Save five for 坎诺特 only when the lost immediate board strength is acceptable. |
+
+Round 65: the example prompt no longer asks one co-op seat to "cover R3–R9 survival" (the bots' healer and LP-saving
+levers were null or negative, §37.40, round 63). Its co-op roles are the measured ones — one 歌利亚 anchor, a Touch
+team medic once 歌利亚 is held (§37.63), a zero-leak backstop (6 谢拉格 / 阿戈尔, the owner's tip) when its members
+are available, carries on distinct main bonds ([adapter v2](#example-llm-adapter-v2-round-65)).
 
 At each decision: inspect last outcome and accepted plan → check bans/team claims/enemy needs → compare candidate
 scores and missing coverage → choose a role/main/sub set → verify what the current shop and board can accomplish
@@ -516,10 +528,11 @@ Mechanical sources are the local official `activity_table.json`:
   A full regular hand blocks purchases even if they would merge (PRTS 帮助, §6.2 / #82). Existing displayed
   offer overdraw remains legal (§29.8); speculative bank buys additionally require available stock.
 
-**[ASSUMED] recommendations:** ordinary builds aim for access to T2/3/4/5/6 around R3/5/7/10/13. The
+**[ASSUMED] recommendations:** ordinary builds aim for access to T2/3/4/5 around R3/5/7/10 (round 65: no L6, the
+bots' §37.38 cap; the T6 step at R13 is gone). The
 `recommendedSchedule` simulates current-mode income, upgrade prices and discounts, without sales, gifts or
 carry; at these access deadlines it can spend the cheapest-piece reserve on the upgrade. In 绝境 its
-R4/7/10/13 levels are 2/4/5/6. This differs from the conservative `schedule` used for threshold-sighting
+R4/7/10/13 levels are 2/4/5/5 (2/4/5/6 before round 65). This differs from the conservative `schedule` used for threshold-sighting
 estimates, which always reserves a purchase. Candidates limit suggested access to their main/sub roster and proposed counter tiers, and report required
 stage-key tiers, inaccessible keys and their eligible public copy share, so the model can explain whether its plan needs faster access or a
 reasoned hold. A cycle candidate's derived `shopHold` limits its recommendation; it must still explicitly
@@ -572,7 +585,8 @@ on the pack and again inside `playbook`. The compact digest named chess and item
 rows share the name 锡人 (`chess_char_1_16_a` T1 and `chess_char_2_19_a` T2; character table /
 `charChessDataDict`).
 
-The example system prompt now uses `slimKnowledge`: one operator row (id, name, tier, cost, class, bonds,
+Round 65 replaced this view with a much smaller one ([adapter v2](#example-llm-adapter-v2-round-65)); the paragraph
+below describes the §35.15 version. The example system prompt then used `slimKnowledge`: one operator row (id, name, tier, cost, class, bonds,
 `caps` from `canHitFly` / `dmgType` / `position` / `stats.blockCnt` / `profession` / `subProfessionId`, first
 trait clipped to 120 characters, skill name), bonds, bands with insights, items, compact bosses, and compact
 enemies (`id, name, hp, def, res, motion, fly`). The playbook copy omits its operator and enemy tables and
@@ -599,19 +613,23 @@ checking the ids. Activated layers on every bond count; do not bench a stronger 
 Goal (maintainer, 2026-10-23): LLM-played seats clear the 终极 Final Assault close to always, solo and 4-player
 co-op, and the lessons go back into the bots. Everything below reads seat-visible state only.
 
-Official facts the prompt now states: starting LP is `bands.json totalHp`; from 150 real seconds of a Final Assault
+Status (maintainer, 2026-11-05): shelved, goal closed (history §37.85). In paired 终极 co-op runs no kind of model
+decision beat the same-code bot; what the seats taught is in the bots (§37.75). The notes below stay for a reopening.
+
+Official facts the prompt then stated (round 65: solo teams drain from the visible 120 s, teams with AI teammates
+from 150 s — `server/match/finalAssault.js`; `digest.fa.clockSec` carries the value): starting LP is `bands.json totalHp`; from 150 real seconds of a Final Assault
 the team loses 1 LP per real second and LP 0 loses; no in-battle layer gains in the Final Assault; a leader hit of
 300000 or more is voided. So LP is both the R5–R13 leak budget and the Final Assault clock, and in-battle stackers
 add nothing in the boss round.
 
 Candidate changes:
 
-- Bands carry `lp`. Every candidate (generic, community build, cycle) has `scoreParts.survival = (lp − 26) × 1.5`
+- Bands carry `lp`. Every candidate (generic, community build, cycle) had `scoreParts.survival = (lp − 26) × 1.5` (round 65: replaced by the measured draft prior, §5)
   [ASSUMED]. Measured before the change: the model followed the ranking to 23–24 LP bands in 6/6 solo matches and
   died before the Final Assault on three of them, where legacy's 25–45 LP picks arrived.
-- The band draft keeps one of its eight slots for the best direction of a band without a community main [ASSUMED].
+- The band draft kept one of its eight slots for the best direction of a band without a community main [ASSUMED] (round 65: the prior ranks 歌利亚 first anyway).
   Every community band starts with 23–29 LP; without the slot no 45 LP opening (歌利亚) was ever listed.
-- The model sees two prep candidates, not four, and one copy of the level-curve basis sentence. Latency, not input
+- The model saw two prep candidates, not four (round 65: none), and one copy of the level-curve basis sentence. Latency, not input
   size, was the limit: the user text grew only from 18.7k to 29.5k characters over a match, while successful replies
   averaged about 2000 output tokens and from R5 every solo prep hit the 28 s HTTP limit.
 - Level holds: waiting a round saves exactly 1 fund and costs a round of higher-tier rolls. `repairPlan` drops a hold
@@ -640,12 +658,12 @@ What the LLM seats got wrong on their own (cycle 2 bench, deepseek-flash, plan m
   first threshold; in cycle 2 the 迅捷 / 精准 / 坚守 mains dealt 2–6 % of the leader pool and the two 卡西米尔 boards 87.5 %
   and 28.7 %. Generic carry candidates now lead with a core bond (`kind: "core"` in the digest), and every candidate
   scores `finalAssault`: top threshold reachable (+6), a 灵巧 / 奥术 / 精准 multiplier among its community pairs (+3), a
-  community counter to the announced leader (+8; 卢西恩: 叙拉古's fear — Bahamut 12316 6F, BV118QcBGEmZ; 铳: true damage
+  community counter to the announced leader (+8, removed in round 65; 卢西恩: 叙拉古's fear — Bahamut 12316 6F, BV118QcBGEmZ; 铳: true damage
   from 卡西米尔 / 叙拉古 — BV1YTX5BbEGW reply, BV1W5XMB8Exj, BV1eBSdBBEig reply). [ASSUMED] weights.
 - **Merges before thresholds before new members.** The model skipped third copies for a "distinct count"; shop rows
   now say `copiesHeld` and `completesMerge`.
 - **The hold floor is not a levelling order.** L2 by R4 (legacy levels at R4, when the price is 2), L3 by R5, L4 by R7,
-  L5 by R9, L6 by R11. `economy.levelOptions` gives the hold / level arithmetic.
+  L5 by R9, L6 by R11 (round 65: no L6 step, the bots stop at L5). `economy.levelOptions` gives the hold / level arithmetic.
 - **Scaled enemies.** `digest.enemyScale` is the round's official multiplier (co-op 终极 R7–R10 HP ×3.58–4.30).
 - **Choice calls only choose.** 机变 / offer / reward calls get `CHOICE_TASK`; the model's `choiceName` corrects a
   mismatched ID. A reply cut off by the output limit is retried once ("decide now").
@@ -671,3 +689,250 @@ The independent-seed rehearsal is §35.64 (counted leaks first; leader damage br
 more layers on the main remain open. RESEARCH §10 Q1 (co-op leader HP 4× too low) does not hold for the current pools:
 they match `activity_table.json` `bossInfoDict` (§35.64).
 
+
+
+### Cycle 6 layer audit (§37.24, round54)
+
+The default legacy bot's solo ABYSS seeds 1–40 still win 0/40. Of 28 boards entering R13, the main selected by
+`_botFocusId` has 74.96 layers after preparation; the 24 surviving R13 have 93.54 after settlement and 102.25
+at R14 after preparation. These are different cutoffs and cohorts, not conflicting estimates. R13 survivors'
+main layers come 57.55% from combat, 15.95% from acquisition, 15.68% from recurring prep/refresh traits,
+9.18% from 助力, and the rest from items/cards. 投资人 activates in none of the 523 ended preps.
+
+Three **[ASSUMED]** trials were measured separately and withdrawn: a cheaper main-layer trade after ordinary
+purchases decline; pricing already-owned refresh traits into refresh value; retaining/buying a second bench
+refresh stacker. Full deployment and a leak-free preceding round did not prevent lost development or guard
+regressions. There is no new production weight, difficulty exception or resource grant. Use
+`node tools/botbench.mjs --configs solo:ABYSS --seeds 40 --jobs 4 --layers --json layers.json` to reproduce the
+source ledger; history §37.24 gives all five configurations and the source/target comparisons.
+
+### Cycle 7: 职业队 (§37.35, round54)
+
+The maintainer (2026-10-28): judge on 终极 only; unless a 职业队 strategy reliably supplies the main bond's operators, the
+draws decide whether layers can be stacked, so no leader-specific (physical / Arts) drafting. The legacy bots now take a
+职业队 strategy's core bond (`gd.bandBondIds`) as the focus from round 1, spend its rigged refreshes (杜遥夜's first two,
+佩佩's after a 2 / 4 / 6 level-up) before levelling, trade every 获得时 layer trait plus the deployed 小满 / 夕 gain count,
+and refresh for 阿罗玛 / 安洁莉娜 / 拉普兰德 layers. Forced 职业队 strategies (9 × 40 solo 终极 seeds): main layers
+20 → 75, pool completion 15.9 → 20.1 %. The Final Assault share rises with the main bond's layers (31 % below 75, 46 % at
+125–200, 59 % at 200+), so roughly 400–500 main layers clear the pool — the community's 「400层保底」. A 职业队-only band
+pick on 终极 lost (solo 19.4 %, co-op 8.5 % completion): the low-LP strategies do not survive rounds 11–13 yet. Open levers,
+per bond: 炎's gain count (the bots gain 2.4–3.5 operators a round with 小满 out), 阿戈尔's battle-start devour placement,
+谢拉格 freeze collectors, 卡西米尔's 远牙 row, and two tank-grade blockers beside a 6-member core.
+
+### Cycle 8: engine-first (§37.36, round54)
+
+A piece whose recurring or battle trait adds layers to the focus bond (its text names the bond, or adds to its own bonds)
+is worth ENGINE_BONUS more to buy and to field until the Final Assault. Normal band picks: solo 终极 1–160 pool completion
+25.1 → 30.7 % (wins 4 → 8), co-op 1–80 24.6 → 23.0 % (noise; 40-seed co-op runs swing about 5 points). Withdrawn: counting
+the most-layered-bond engines (co-op fell), bench engines kept for their per-copy layers (+0.44 pieces a round, flat), a
+two-heavy-blocker floor (more 职业队 boards reach the Final Assault, less damage there, co-op fell) and economy-item values
+(精打细算 still loses to three refreshes on a full board). Front-tile placements (凛御银灰, 阿戈尔's devour, 魔王, 空弦)
+remain open.
+
+### Cycle 9: R11–R13 diagnosis, positional traits, layer-gain rehearsal ties, engine merges (§37.37, round54)
+
+The rounds before the Final Assault leak because boards are outclassed, not misplaced: 79 % of R11–R13 leaks were never
+blocked and walked off with 70 % of their HP, 1599 of 1812 after the first blocker fell; co-op 终极's official enemy HP is
+×3.58 / ×4.30 at R7 / R8 against solo's ×1.73. Wider layout rehearsals and bench 重装 / healer swaps did not help. A Final
+Assault lab (the same seeds replayed with one change at the boss prep) put the lever on layers: all active bonds ×2 lifted
+the leader pool share 40.8 → 58.1 % (wins 3 → 13), +150 focus layers to 57.8 %, +20 LP to 45.4 %, +20 funds to 42.7 %.
+Changes: positional traits (front / behind / row / rightmost / copies / 阿戈尔's devour) arranged first in the rehearsal,
+which now breaks leak and leader-damage ties by the layers the battle gained; skill points on skill-start engines and
+equipment on 维多利亚 members; an engine's second and third copies worth more (an elite doubles its layers); Final
+Assault lineups with a strong bench piece rehearsed. Normal picks: solo 1–160 30.7 → 32.0 %, co-op 1–80 23.0 → 27.4 %;
+职业队 forced 22.3 → 26.4 %, focus layers 90 → 100. Withdrawn: 助力 valued for its +2 / +4 on every active bond (its
+members crowd the main bond out: co-op 27.4 → 20.3 %), an engine-first layout candidate (co-op fell), engine merges ×2.
+The focus bond still activates late (median R6–R8; its members come slowly at shop levels 1–2), the next lever.
+
+### Cycle 10: no level 6 (§37.38, round54)
+
+The gold flow showed little waste (1.6 pieces a game sold without ever being deployed), so the level curve was swept with
+paired standard errors (handoff/round54/band/paired.mjs; 80 co-op seeds carry about 3–4 points of SE, 160 solo seeds 1–2).
+Capping the bots at shop level 5 (still at R9) was the clear winner: the R11 level-up's 10–11 funds and the tier-6 copies
+in every later shop cost more than tier 6 brings. Solo 终极 1–320 pool completion 30.9 → 38.7 % (+7.8 ± 1.5 paired), co-op
+1–160 25.7 → 30.0 % (+4.4 ± 2.0), 职业队 forced 26.4 → 29.0 % (focus layers 100 → 111); 绝境 flat. Later or earlier curves,
+an L4 cap, and holding the level while leaking were worse or flat. Co-op's R7–R9 (enemy HP ×3.58 / ×4.30) leave 0.3–0.9
+perfect seats a game, so 联防 rarely runs then and the team loses 18–23 LP a round: a defensive anchor seat is the open lever.
+
+
+### Cycle 11: co-op band pick and no shop equipment (§37.39, round54)
+
+A per-seat co-op diagnosis (handoff/diag/seatdiag.mjs) found perfect and leaking seats in R7–R9 nearly alike in level, units
+and tiers, and a funds lab showed a richer seat carries the team (one seat +4 funds a round: Final Assault reached 19 → 28 of
+40) — but the rules have no way to move funds between teammates, and teammates yielding bonds to the sturdiest seat did not
+help. What did: (1) the band draft gives 歌利亚 (45 LP, no other effect) to one seat at most, and co-op games with one reach
+the Final Assault 52 % vs 36 %; the cubed LP weight (as on solo 终极) seats one in 94 % of games (co-op 1–320 +3.2 ± 2.5).
+(2) Bots bought nearly every shop item a carrier could hold (8.4 on the board at R13); not buying them turns 2–4 funds a round
+into refreshes, and refreshes at the capped level are worth far more (capping them at 2 a prep cost 7–12 points): merges 4.6 →
+5.4 a game, more elites, more wins everywhere. Together: co-op 30.6 → 35.9 % (+5.3 ± 2.7), solo 38.7 → 40.4 %, 职业队 forced
+29.0 → 33.4 % (+4.5 ± 1.9). Withdrawn: merge farming at level 5, level timing tweaks, expected-layer engine values, the Grok
+band-fix bundle, freezing engines, a higher full-board buy floor. Solo bots would gain ~4 more points by always taking 歌利亚
+(43.0 % vs 34.5 % for the other bands), a benchmark gain rather than better play — left to the owner.
+
+### Cycle 12: co-op play (§37.40, round54)
+
+A long sweep of economy knobs and ablations around §37.39 (items before level 5, buy floors, bench budgets, junk sales, no
+layer trades, no layer refreshes, Grok's second-pass misallocation list, a 远见 economy, collecting 投资人, greedy engines
+with spare LP, a damage-only Final Assault lineup) found nothing for solo: the economy looks near a local optimum. Three
+co-op-only signals that were each inside the noise — no healer term in the lineup, a bench budget of 4, the bounty card
+with the least enemy HP — together lifted 终极 co-op 1–320 from 35.9 to 43.7 % (+7.8 ± 2.5 paired, wins 46 → 73), and
+leaving any one out cost 3.4–4.3 points. Co-op enemies carry 2–2.5× the solo HP from R7, so a dealer is worth more than a
+healer there, and a bounty enemy at that scale costs the seat its perfect battle as well as LP.
+
+### Cycle 13: elite items, dolls, 9 炎, a solo focus prior (§37.41, round55)
+
+The owner's experience (buy little equipment except the 转职 item the plan needs; 缪尔赛思 converted to 炎 gives 9 炎 with 8
+deployed; 精打细算玩偶 early and 见钱眼开玩偶 any time) and Grok's community research (handoff/round55) gave about a dozen
+literal rules; most were null or negative for the bots, because they cost refreshes (§37.39) or a bench slot — 缪尔赛思
+valued as a focus member, morphs held for a carrier, bond items for every focus (a held 维多利亚 hammer cost 哈洛德 15
+points), 维多利亚 equipment, 寻呼模块, community secondary bonds per focus. What held: the two shop items that make an elite
+(博士投影, 拟态物质) in every mode; in solo, the dolls plus a prior on the focus bond taken from the bots' own results by final
+focus (each inside the noise, together +4.3); and the 9 炎 conversion for the one bond whose top tier exceeds the deploy
+cap (杜遥夜 +6.8). 终极 solo 1–320 40.4 → 46.0 % (+5.7 ± 1.8, wins 31 → 44), 职业队 9×80 30.5 → 32.8 % (wins 59 → 79).
+Co-op bundles that differ only slightly swing 2–4 points even on 320 seeds, so co-op keeps only the changes with a
+consistent sign.
+
+### Cycle 14: 缪尔赛思 sold on arrival, the immediate 博士投影 kept for a tier-4 piece (§37.42, round56)
+
+The owner sells 缪尔赛思 at once outside 炎 (her 变形同构体 stays, the copy returns to the pool). For the bots this is neutral:
+they meet her only in the R10–R14 tier-6 merge rewards and took her 8 times in 68, so few games change (solo +0.2, co-op
++1.0, 职业队 0). Farming her for morphs — taking her over the other tier-6 picks, holding morphs, buying the bond item that
+gives one a use — lost: the morphs mostly converted into small bonds, because the focus already stood at its top tier when
+she came. A per-round review of lost games (handoff/diag/review.mjs) found the clear mistake of the round instead: her
+strategy's round-1 item, an advanced 博士投影 that promotes at once, went on a tier-1 piece; kept for a tier-4 piece it lifts
+that strategy from 37.0 to 47.5 % (160 forced seeds, wins 10 → 22). Rehearsal-judged lineup alternatives (a strong bench piece or a whole
+power lineup instead of weak focus members) kept more seats alive but cost solo wins in every version, and late tier-6
+picks by lineup gain lost to buyScore's merge and engine value. 9 炎 stalled at the 7th real 炎 member although the
+bots owned seven or more 炎 in most late rounds: one-swap climbs never cross from 6 to 9 and the 9 tier counted as one more
+tier; a seed from 调和 plus just enough members and a bonus for that tier (§37.43) lift 杜遥夜 by +2.3, nothing else moves.
+A forced sweep of the weak strategies then found the second clear mistake: 娜仁图亚 replaces the 6 萨尔贡 tier with lending a
+skill-starting member's equipment, and §37.39 left the bots with nothing to lend; buying combat items for the 萨尔贡 members
+lifts it from 24.4 to 31.4 % (§37.44). Strategy effects the bots ignore are the cheapest gains left.
+
+### Cycle 15: all 40 strategies forced, 突变细胞 on the highest tier (§37.45, round57)
+
+Forcing each of the 40 strategies for 40 solo 终极 games ranks them for the bots (mean 40.5 %): passive combat buffs lead
+(阿米娅 57, 华法琳 55, 埃芒加德 53; 歌利亚 50 despite its 45 LP), effects the bots barely use trail (克莱门莎 20, 老鲤 24,
+巫恋 26, 铃兰 28). The clear misuse this time was 昆图斯's 突变细胞: it comes back after every transformation, and the bots
+kept injecting their least valuable 1–2阶 piece; injecting the highest tier outside the focus walks a piece from 1阶 to
+6阶 in five battles and lifts that strategy by +6.6 (320 forced seeds, wins 42 → 52). 杜宾's 教鞭 is worth about nothing by the bots' own
+estimate (the best of three 战术特训 cards pays 1–3 funds only on a perfect battle), yet never using it, or using it only
+when that estimate is positive, cost wins; 夕's same-name pairs and not valuing worn recruit items moved nothing. The
+contributed ioleta strategy (opt-in) is 30 points below legacy on forced 伊奥莱塔.
+
+The sweep also says which bands the bots should take. Until now only the starting LP chose (cubed on 终极), so bands the
+bots play badly (杜宾, 梓兰, 马克维茨) were drawn as often as good ones. Multiplying the LP weight by the measured strength
+(80 forced games per band, shrunk toward the mean, to the 6th power; §37.46, the owner's choice among three options)
+lifts solo pool completion by about 3.5 points over three seed sets (wins 65 → 77) and leaves co-op about even: the table
+measures solo play. 歌利亚 keeps the lead on its LP (57 % of solo picks).
+
+Rehearsing every distinct layout instead of the first three (§37.47) was the cheapest general gain of the round: the
+winner sat past the third candidate in one rehearsal of six, and the leaks it saves in rounds 1–13 carry into the Final
+Assault (320 seeds: solo +2.2 ± 0.9, co-op +5.6 ± 1.7 with wins 73 → 92); more layouts in the Final Assault alone changed
+nothing. With §37.46 the round lifts 终极 solo from 46.4 to 50.4 % and co-op from 46.5 to 51.5 %.
+
+### Cycle 16: rehearsals that know the summons, the solo trade bar (§37.60, round58)
+
+Every rehearsal misprediction came from a round whose real board differed from the rehearsed one — mostly 伺夜's wolf
+pack, placed after the layout and planned on an empty field. Putting the pack into the rehearsal made the predictions
+right and the results worse (−1.8 solo): the pack-less rehearsal was the harder test and picked layouts with margin,
+while the obvious margin tie-breaks (fewer own knock-downs, more HP left) lost to the layer-gain one. Re-tuning the layer
+trade bar after §37.47 found the clear gain of the round: alone, a trade or a layer refresh now has to pay 4 layers per
+fund instead of 3 (solo +2.2 over three seed sets, wins 63 → 75); co-op keeps 3.
+
+### Cycle 17: the Final Assault's self-bound leaders (§37.61, round59)
+
+A second-by-second trace of the Final Assault (handoff/diag/fatrace.mjs) showed that in solo losses 4–6 of the 8 deployed
+units never touched the leader. Five of the seven leaders are self-bound huge units: they stand on their spawn tile all
+fight and are hit anywhere on a 5 × 3 body, but the planner walked them down their official route after a 30 s dwell and
+valued them as 10 × 40 000 HP that are soon "killed", so the dealers went to the escorts' road. One more boss candidate
+planned on the body (linear in the DPS that reaches it) joined the rehearsal, which now ranks leader damage less a
+leak's cost (a leak there is about one second of the fight) instead of leaks first: solo +3.9, co-op +3.6, no leader
+worse. Replacing the old candidates instead lost the leader chain that 萨米的意志's column attack needs (crowding the body
+is punished there). A heat-map candidate (where the leader actually stood in the first candidate) adds +0.5, mostly on
+the walking leaders, but cannot be delegated as it is.
+
+### Cycle 18: Final Assault lineups re-chosen for damage (§37.62, round60)
+
+The solo Final Assault is a damage race: 0.4 leaks a game, and the losses run out the overtime drain with the pool
+unfinished. Its lineup was chosen like any other round's — bond thresholds, a healer bonus in solo, two blockers — so 2–5
+healers, supports and 1-tier tanks that never hurt the leader often stood on the field while 5- and 6-tier dealers sat on
+the bench. Re-choosing the lineup with a DPS term and without the healer and blocker terms, and letting the boss rehearsal
+(leader damage first) pick between it and the default lineup: solo +2.0 ± 0.4 (wins 62 → 72; fresh seeds +1.2 ± 0.5), co-op flat (+0.3 ± 0.2: without the solo healer bonus its default lineups were already close). Swapping the lowest-DPS units for the
+highest-DPS bench units directly was half as good — it broke bonds that the re-chosen lineup keeps. In the traced losses
+about half the damage still goes to escorts that shield the leader (铳's 愧悔魂灵圣杯) or split off it (卢西恩's 不祥幻影);
+layouts that ignore or avoid the escorts' roads rehearsed worse.
+
+### Cycle 19: co-op team play — the team medic and lineup alternatives; 阿利斯泰尔's strike (§37.63, §37.64, round61)
+
+Seven parallel investigations against 91024ce0 (economy before the Final Assault, its combat, co-op and solo survival,
+midgame strength, strategies and bonds, items) found two large co-op effects. Touch's 外勤医疗 is a team grant — a reserve
+medic on every field, kept after its holder falls — but the band weights value a strategy for its own seat, so the bots
+drafted it in 50 of 320 co-op 终极 games (64.9 % pool completion with it, 53.0 % without; first of 26 strategies, +11.0,
+in a ridge regression over 91024ce0's 480 games). And 联防 makes LP a team matter: with the same own leaks a leaker lost
+7.65 LP with no perfect teammate, 3.27 with one and 0.26 with two, and dying teams had half as many perfect seats in
+R7–R9 as surviving ones with the same economy and boards. So a drafting AI seat takes Touch once another player holds
+歌利亚 (co-op 终极), and co-op normal rounds R5–R13 rehearse lineup alternatives after the usual layouts — chooseLineup
+re-run with a DPS term, and the two best single bench swaps — because the layouts of one lineup were already saturated
+(§37.47). Co-op 终极 over 480 paired seeds: 54.3 → 74.4 % (+20.1 ± 2.0), wins 164 → 243 (34 → 51 %), deaths before the
+Final Assault 156 → 57, and every leader gains; the cost is prep CPU (+51 % per co-op match under the same load; a
+prep's wall-time p95 0.86 → 1.58 s). In the solo Final Assault, in every traced loss one of 阿利斯泰尔's plus-shaped 【王权号令】
+strikes killed 2–4 of the dealers that the body plan packed side by side at once; one more body plan per lineup spaced
+against it gains +6.5 ± 2.7 on its seeds (fresh seeds +13.8 ± 6.6). Solo gains nothing else (six other Final Assaults
+change because a refused swap now steps aside): an LP at the start of the Final Assault is worth about 0.36 points
+there, and lineups chosen by a leak forecast, a refraction-aware armour model, eight economy policies before the Final
+Assault, midgame level and merge orders and more lineup families showed no clear gain.
+
+## Example LLM adapter v2 (round 65)
+
+**Why.** The last real LLM runs (round 54 cycle 5, older code) won 0/8 solo and 0/4 co-op while the bots now win 31.0 %
+solo and 52.9 % co-op over 480 seeds (`handoff/round65/diag/llm-quality.md`). Besides the executor gates (another lane
+of round 65), the adapter itself worked against the bots' measurements: the prompt asked for L6 by R11, shop items and
+a survival seat; 38 of 48 drafts argued from the leader (a +8 leader counter in the candidates); 8 of 48 executed bands
+were not the model's own choice; Touch and 杰西卡 never appeared on a draft list; `maxRefreshes 0` came in 65 % of the
+plans; the system prefix was 182 045 characters (93 % of every request) and 25 % of the co-op preps came too late.
+
+**Design: the bot is the floor, the model overrides.** The built-in bot executes every plan; an empty plan `{}` plays
+like it, and each field changes only what it names. The adapter therefore shows the model what the bot would do and
+asks only for deliberate, reasoned deviations.
+
+- **Band draft — a choice-only call.** The question is a table of the offered bands: action id, LP, the bot's share
+  (`digest.bot.bands`, else the LP³ × strength prior of §5), the 职业队 bond, `forced` for the bot's rule pick (first
+  row). No leader, no candidates; teammates who have not drafted are `drafted:false`. `{"choice":"bot"}` (or
+  `choiceName:"bot"`) returns a plan without a choice, so `botPickBand` decides; a reply without a choice takes the one
+  band its `choiceName` names. 机变 / offer / reward calls accept `"bot"` too; only `plan.choice` is kept.
+- **Prep.** No strategy candidates. The digest adds `bot` (the bot's `focus`, `second`, `levelTarget` ≤ 5, `route`
+  `'pager'`), `fa` (pool, seats alive, `clockSec`, `drainPerSec`, `teamLp`, plus `budgetSec` = clockSec + teamLp /
+  drainPerSec and `dpsNeeded` = pool / budgetSec), `lastBattle` (12 units by damage, leaks per enemy kind with their
+  gates) and `mainBonds`: for the previous plan's main and the bot's focus / second, the owned members (copies, elite),
+  the missing members by tier (tier 6 only through rewards at the L5 cap; banned members left out) and the members in
+  the current shop. Everything comes from the seat's own view, the public catalogue and bans, never the live pool.
+  Older hosts without `digest.bot` / `digest.fa` still work; the panel then follows the band's 职业队 bond or the core
+  bond with the most owned members.
+- **Repairs** (`tools/ai/llm-plan.mjs`): no L6 step in the hold floor (L2 R4, L3 R5, L4 R7, L5 from R9);
+  `economy.level` clamped to 5; [ASSUMED] a `maxRefreshes` below 3 stays only when `economy.why` says the prep saves
+  (§37.39's control: at most 2 refreshes a prep from L5 cost −12.5 ± 2.3 solo, −9.7 ± 4.2 co-op); `keep` at most 8 owned
+  elites, pairs or members of the plan's bonds or the bot's focus / second; `items.buy` only when the item completes an
+  equipment merge (knowledge items carry `mergeCopies`) or, at the Final Assault prep (`digest.fa`, or from the round
+  before the leader's), for a carrier named in `items.equip`; `placements` dropped (left to the rehearsal).
+- **Prompt.** A short measured playbook (≈ 5k characters): the Final Assault is a damage race (one leader pool per seat
+  alive, 1 LP a second from 120 s solo / 150 s co-op, leaks barely matter); layers on the main decide it (31 % / 46 % /
+  59 % of the pool below 75 / at 125–200 / above 200 main layers, +100 layers ≈ ×1.4 solo); 职业队 bands supply their
+  bond; L5 cap; merges and elites come from refreshes; no shop equipment except merges; the bots' solo pool share by
+  final main; co-op roles and 联防 arithmetic; no leader-specific drafting; when to deviate.
+- **Knowledge view** (`tools/ai/llm-knowledge.mjs`): column rows for bonds, the shop pool's normal operators (id, name,
+  tier, bonds, class, caps, first trait ≤ 90 characters), bands (LP, bond, the §37.46 strength — default version only),
+  items (`mergeCopies`, effect ≤ 60 characters), the economy table, inactive bonds, the maintainer's sub-bonds per main.
+  Dropped: enemies, bosses, community build prose, the bond graph and pairings, duplicate band insights, schedules, the
+  legacy reference, the cycles. zh-CN 终极: 182 045 → 32 840 characters; English 46 826; every packaged language stays
+  within `SYSTEM_BUDGET` (50 000), and a larger content set sheds the trait and item-effect columns first.
+- **Cadence.** `SP_LLM_CALL_ROUNDS` (comma list of prep rounds, default every prep). On the other preps the adapter
+  answers at once with the last accepted plan's `bonds` and `keep` (or `{}`); the model's own last plan stays the
+  continuity baseline (`continuity.carriedSince`). [ASSUMED] A checkpoint list such as `1,4,7,9,11,13,14` would halve
+  the calls (llm-quality.md §5.7); drafts and choice-only calls always ask the model.
+
+The band candidates of `strategyCandidates` (the offline audit, `tools/ai/playbook.mjs --observation`) use the same
+priors. Tests: `test/match/llm-adapter-v2.test.js` (the strength table equals `bot.js`, priors and the Touch rule, the
+band table and `"bot"`, the digest passthrough and panels, the repairs, no leader scoring, the prefix size in five
+languages, the cadence). **Nothing here is measured yet**: the first step is a parity run (a plan stub that returns the
+bot's own focus must play like the bot, CRN-paired), then LLM runs CRN-paired against the bot on the same seeds.

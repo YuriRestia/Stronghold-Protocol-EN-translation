@@ -116,14 +116,17 @@ npm start          # 启动服务器：http://localhost:3000
 | `HOST` | `::` | 监听地址。默认 `::` 是双栈：同一个端口同时接受 IPv6 和 IPv4；`0.0.0.0` = 只 IPv4；`127.0.0.1` = 只允许本机，放在反向代理后面时使用 |
 | `SP_COMBAT` | `client` | `client`：各玩家浏览器模拟自己的战斗（服务器负载极低）；`server`：由服务器模拟并推流 |
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
-| `SP_BOT_REHEARSAL` | `3` | （本分叉）服务器自己为 AI 队友预演的布局方案数（0–8）：`0` 只按启发式摆放、服务器不预演，不占 CPU；`3` 为上游默认。房主浏览器帮忙试算时（下一行），房主没能完成也只按这个数接手，`0` 时直接按启发式摆放 |
-| `SP_BOT_REHEARSAL_HOST` | 开 | （本分叉）房主浏览器帮 AI 队友试算布阵（同源 Worker，每次 3 个方案，只回候选序号）；`0` / `off` 关闭。玩法插件房间始终不交给浏览器。上游写法 `SP_BOT_REHEARSAL=host` 仍会打开它 |
+| `SP_BOT_REHEARSAL` | `6` | （本分叉）服务器自己为 AI 队友预演的布局方案数（0–8）：`0` 只按启发式摆放、服务器不预演，不占 CPU；`6` 为上游默认。房主浏览器帮忙试算时（下一行），房主没能完成也只按这个数接手，`0` 时直接按启发式摆放 |
+| `SP_BOT_REHEARSAL_HOST` | 开 | （本分叉）房主浏览器帮 AI 队友试算布阵（同源 Worker，每次 6 个方案，只回候选序号）；`0` / `off` 关闭。玩法插件房间始终不交给浏览器。上游写法 `SP_BOT_REHEARSAL=host` 仍会打开它 |
+| `SP_P2P` | 不设（关闭） | 显式设为 `1`（或 `true`）时，同盟房间通过 WebRTC 转发公共对局状态，看门狗仍从 WebSocket 补发最新快照；不设或其他值保持服务器直接分发。开启后连接失败会自动回退 WebSocket，见 [部署指南](docs/DEPLOY.md#26-p2p-公共状态转发) |
+| `SP_P2P_ICE_SERVERS` | `[]` | 可选的 STUN / TURN 配置（JSON 数组），仅在 `SP_P2P` 开启时生效，见 [部署指南](docs/DEPLOY.md#26-p2p-公共状态转发) |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
 | `DEBUG` | 空 | 设为任意值输出详细日志 |
 | `SP_NO_BROWSER` | 空 | 设为 `1` 时启动脚本不自动打开浏览器 |
 | `SP_BOT_EMOTES` | 空 | AI 队友的对局表情回应（战斗、整备、合成、联防、收礼时即刻的 `m.emote` 广播）；设为 `0` 时整体关闭 |
 | `SP_ASSET_INDEX` | 空 | 素材地址带内容哈希、浏览器长期缓存（0.2.6 起默认开启，哈希存在 `.cache/asset-hashes.json`）；设为 `0` 时关闭，素材清单原样下发 |
 | `SP_VERSIONS` | 不设（四个官方版本都开，默认第二期下半） | 收窄启用的版本：不设置与 `all` 相同；`act2autochess` 只开第二期下半，大厅不显示「版本」；也可写逗号分隔的版本 id（如 `act1autochess,act2autochess@V2_1`）。`SP_VERSION_DEFAULT` 指定默认版本，`SP_MAX_VERSION_HOSTS` 限制版本模拟进程数（空闲时不额外启动进程）。详见 [DEPLOY.md](docs/DEPLOY.md) §11 |
+| `SP_BOT_STRATEGY_SEATS` | 不设（各席位都用 `SP_BOT_STRATEGY`） | 按席位覆盖 AI 策略：逗号分隔的 `席位:ID`（席位 0–3，ID 须已注册），如 `1:ioleta,3:adaptive`；未列出的席位用 `SP_BOT_STRATEGY`，启动时校验。发布包里选 `external` 的席位同样改用内置 AI。详见 [BOT_STRATEGIES.md](docs/BOT_STRATEGIES.md) |
 | `SP_BOT_STRATEGY` / `SP_EXTERNAL_AI_*` / `SP_LLM_*` | 不设（内置 AI） | 外部 AI 与顾问模式目前只在开发分支上。发布包和 Docker 镜像会忽略这些变量，仍用内置 AI，并打一行日志。详见 [DEPLOY.md](docs/DEPLOY.md) |
 <!-- en: SP_BOT_REHEARSAL: layouts the SERVER rehearses itself (0-8, 0 = heuristics only, no CPU); also the most it takes over when a host's browser does not finish. SP_BOT_REHEARSAL_HOST: on by default, the host's browser rehearses 3 layouts per bot; 0/off disables; upstream's SP_BOT_REHEARSAL=host still enables it. -->
 
@@ -173,6 +176,7 @@ Windows 上把最后一段换成 `scripts\start-windows.bat`，并在「命令�
 
 通用注意事项：
 
+- 同盟可选 **P2P 公共状态转发**（默认关闭，设 `SP_P2P=1` 开启）：开启后服务器把签名后的公共状态交给一名浏览器，由其通过 WebRTC 转给队友和观战者。约 2.5 秒的看门狗到期后，服务器仍向每名接收者的 WebSocket 补发最新快照，确认序号不会取消补发；窗口内的新快照覆盖旧的待补发快照。因此不能把服务器发送量写成从 4 份降为 1 份，实际字节数还受更新频率、签名和压缩影响。私人状态、操作和战斗结果仍走 WebSocket，素材下载和缓存方式不变。需要支持 WebRTC 与 WebCrypto 的浏览器，推荐 HTTPS；普通 HTTP 局域网或 NAT 无法直连时会自动回退。单个浏览器可在地址后加 `?p2p=off` 关闭，详见[部署指南 §2.6](docs/DEPLOY.md#26-p2p-公共状态转发)。
 - 游戏是**单个常驻 Node.js 进程 + WebSocket**（路径 `/ws`），只能跑一个实例，必须部署在域名根路径；Vercel 之类的 Serverless 平台和 GitHub Pages 之类的静态托管都不适用。反向代理要转发 WebSocket 升级。
 - 游戏没有账号系统，**知道地址的人都能进来**。请只把地址发给朋友，不要公开发布，也不要搭建公开大厅；这同时能降低素材版权方面的风险。
 - 有公网 IPv4 时也可以在路由器上做端口转发，但这会把家里的电脑直接暴露在公网上，优先考虑上面的方式。

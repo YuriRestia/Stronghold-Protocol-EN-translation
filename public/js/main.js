@@ -39,6 +39,7 @@
 
 // Polyfills first (older Safari / Firefox ESR): every module evaluated after this one sees them.
 import './ui/compat.js';
+import { ReleaseNotesHost } from './ui/releaseNotes.js';
 import { render } from '../vendor/preact.module.js';
 import { useErrorBoundary } from '../vendor/hooks.module.js';
 import { html, UiHosts, Button, MicroLabel, closeAllDialogs } from './ui/components.js';
@@ -405,6 +406,7 @@ function App() {
     <${UiHosts} />
     <${TermTipHost} />
     <${GuideHost} />
+    <${ReleaseNotesHost} />
     <${LoadoutHost} />
     <${StatsHost} />
     <${VoteOverOverlays} />
@@ -533,6 +535,10 @@ async function boot() {
     splash.classList.add('is-done');
     setTimeout(() => splash.remove(), 300);
   }
+  // the event's entry animation before the title screen (ui/entryFilm.js); never over a restored match
+  import('./ui/entryFilm.js')
+    .then((m) => m.playEntryFilm({ skip: () => selectRoute(store.get()) === 'game' }))
+    .catch((err) => console.warn('[app] entry film unavailable', err));
   globalThis.__SP__ = { store, net, data, version: 1 };
   // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the first screen (resources/index.js)
   installPreload();

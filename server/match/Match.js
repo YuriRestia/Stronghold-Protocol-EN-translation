@@ -159,16 +159,18 @@
 //   opts.battleContent 'full' | 'generic' | 'none' (sim content mode, default 'full')
 //   opts.timerScale    multiplier on every real-time phase timer (default 1)
 //   opts.combatSpeed   game seconds per real second while battles run in real time (default 2, the forced 2×)
-//   opts.botRehearsal  candidate layouts a bot simulates per prep before placing (default 3, 0 = heuristic only; (fork) env SP_BOT_REHEARSAL when unset;
+//   opts.botRehearsal  candidate layouts a bot simulates per prep before placing (default 6, 0 = heuristic only; (fork) env SP_BOT_REHEARSAL when unset;
 //                      a whole battle per candidate: ~20–300 ms of CPU each, see server/match/bot.js createRehearsal)
 //   opts.botStrategy  a registered ID or trusted server-side strategy object; defaults to SP_BOT_STRATEGY / 'legacy'
+//   opts.botStrategySeats  per-seat overrides { [seat 0..3]: ID | object } or 'seat:id,…'; defaults to
+//                      SP_BOT_STRATEGY_SEATS (none); a seat not listed plays opts.botStrategy (getBotStrategySeats)
 //   opts.botSliceMs    wall-clock ms of rehearsal per scheduler callback (default 8 with a real scheduler, unbounded
 //                      with a virtual one); the rest runs in later callbacks (scheduleBotPrep)
 //   opts.botRehearsalDelegate  offer each bot prep's layout rehearsal to the current host's browser instead (DESIGN §14;
 //                      (fork) default ON, env SP_BOT_REHEARSAL_HOST=0 turns it off; MatchRehearsal — a rehearsal the
 //                      host did not answer is simulated by the server with at most opts.botRehearsal of the same
 //                      candidates, seeds and scoring: with 0 the bot keeps its heuristic layout, no server CPU)
-//   opts.botRehearsalHost  (fork) candidate layouts a delegated rehearsal offers the host's browser (default 3, 2…8)
+//   opts.botRehearsalHost  (fork) candidate layouts a delegated rehearsal offers the host's browser (default 6, 2…8)
 //   opts.botRehearsalDelegateMs  wall-clock ms the host has to answer a delegated rehearsal (default 3000) — never an
 //                      extension of the phase: the prep deadline stays the phase's own (MatchPrep.endPrep)
 //   opts.headlessSliceMs  wall-clock ms per callback of a server-run normal / 联防 field (client-side combat: bots,
@@ -229,7 +231,7 @@ import { SharedPool, SharedItemPool, drawDisabledBonds } from './pool.js';
 import { PlayerState } from './PlayerState.js';
 import { EffectDispatcher, getDefaultRegistry } from './effectsMeta.js';
 import { setupMatchWaves } from './waves.js';
-import { getBotStrategy } from './botStrategies.js';
+import { getBotStrategy, getBotStrategySeats } from './botStrategies.js';
 import { GAME_SPEED, HEADLESS_SLICE_MS } from './fields.js';
 import { MatchPlatform } from './match/platform.js';
 import { MatchInfra } from './match/infra.js';
@@ -256,7 +258,13 @@ import { createExternalAI } from './llmGate.js';
 
 export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS } from './match/common.js';
 
-const BOT_REHEARSAL_DEFAULT = 3;
+/**
+ * §37.47 [ASSUMED]: 6 (was 3) — every distinct layout variant of a normal round (the positional plan and the five
+ * REHEARSAL_VARIANTS; 8 rehearsed exactly the same games). In one rehearsal of six the winner was past the third candidate
+ * (终极 solo, 419 rehearsals: hold 8 and kill 3 won 12 %); 终极 1–320 solo +2.19 ± 0.90, co-op +5.60 ± 1.65 (wins 73 → 92),
+ * for about a third more rehearsal time per prep. More layouts only in the Final Assault changed nothing.
+ */
+const BOT_REHEARSAL_DEFAULT = 6;
 /** Wall-clock ms of bot layout rehearsal per scheduler callback (real time; virtual time runs it in one go). */
 const BOT_SLICE_MS = 8;
 const env = (k) => (typeof process !== 'undefined' && process.env ? process.env[k] : undefined);
@@ -362,6 +370,8 @@ export class Match {
     const wantRehearsal = opts.botRehearsal ?? parseBotRehearsal(env('SP_BOT_REHEARSAL')); // (fork) the env when no option
     this.botRehearsal = Number.isInteger(wantRehearsal) && wantRehearsal >= 0 ? Math.min(wantRehearsal, 8) : BOT_REHEARSAL_DEFAULT;
     this.bot = getBotStrategy(opts.botStrategy ?? env('SP_BOT_STRATEGY'));
+    /** per-seat overrides of this.bot (seat → strategy; empty by default — botFor) */
+    this.seatBots = getBotStrategySeats(opts.botStrategySeats ?? env('SP_BOT_STRATEGY_SEATS'));
     /** wall-clock budget of one rehearsal slice (scheduleBotPrep) */
     this.botSliceMs = Number.isFinite(opts.botSliceMs) && opts.botSliceMs > 0 ? opts.botSliceMs : this.sched.virtual ? Infinity : BOT_SLICE_MS;
     /**

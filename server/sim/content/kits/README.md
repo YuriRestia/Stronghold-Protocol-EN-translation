@@ -166,7 +166,7 @@ or a prototype (DATA.md §18, `shared/diy.js`). The prototypes run their stand-i
 an owned 6★ can be picked only once it has a kit of its own: one file per operator, the same rules as every kit above.
 Contributions are welcome — one operator per pull request is easiest to review.
 
-**Who.** The owned-6★ picks are `data/backups.json diy.ownedPool` (73 operators; the collab operators are not included,
+**Who.** The owned-6★ picks are `data/backups.json diy.ownedPool` (76 operators; the collab operators are not included,
 the owner's decision of 2026-10-05 — 丰川祥子 excepted since 2026-10-15). The ones still without a kit:
 
 ```sh

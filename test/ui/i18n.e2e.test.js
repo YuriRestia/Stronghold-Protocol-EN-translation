@@ -13,6 +13,7 @@
 // With more than four languages the menu is a list (ui/lang.js SEGMENTED_MAX): the helpers read and pick either form.
 // No console / page / request errors. docs/I18N.md.
 
+import { seedReleaseRead } from '../helpers/releaseNotes.js';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -78,6 +79,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
+    await seedReleaseRead(page);
     await page.goto(`${base}/`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.title-screen [data-testid="lang-toggle"]');
     // (fork) this fork starts in English (ui/lang.js START_LANG): a fresh profile shows the English title; ?lang=zh
@@ -108,6 +110,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
     assert.equal(await text(page, '.title-cn'), 'Stronghold Protocol: Alliance', 'the choice survives a reload');
     assert.equal(await text(page, '.title-login .btn--primary'), 'Start');
 
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.title-screen .title-cn');
     await sleep(200);
@@ -130,6 +133,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
       fs.writeFileSync(path.join(PACK_DIR, 'pack.json'), JSON.stringify({ type: 'lang', lang: 'qab', name: 'Qabisch', files: { ui: 'ui.json' } }));
       fs.writeFileSync(path.join(PACK_DIR, 'ui.json'), JSON.stringify({ 开始: 'Qab-Start' }));
       await sleep(1100); // the server's registry looks at the folders again after a second
+      await seedReleaseRead(page);
       await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
       await page.waitForFunction(() => [...document.querySelectorAll('.title-screen [data-testid="lang-toggle"] :is(button, option)')].some((e) => (e.dataset.lang ?? e.value) === 'qaa'), { timeout: 8000 });
       assert.deepEqual(await menu(page), [...SHIPPED.slice(0, 4), ['qaa', 'Testisch'], ['qab', 'Qabisch'], SHIPPED[4]]);
@@ -169,6 +173,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     page.on('response', (r) => { if (r.status() >= 400 && !/fonts\.(googleapis|gstatic)/.test(r.url())) problems.push(`http ${r.status()}: ${r.url()}`); });
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await page.waitForSelector('.title-screen [data-testid="lang-toggle"]');
     assert.equal(await settingsNote(page), null, 'Chinese: no machine-translation note');
@@ -229,6 +234,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
   test('a late English pack cannot overwrite a newer Traditional Chinese selection; its cache remains reusable', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await holdPacks(page, ['en']);
     await pick(page, 'en');
@@ -246,6 +252,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
   test('selecting the displayed default language cancels a pending pack', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await holdPacks(page, ['en']);
     await pick(page, 'en');
@@ -260,6 +267,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
   test('repeated selections reuse a pending pack and still supersede an intervening selection', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await holdPacks(page, ['en', 'zh-TW']);
     await pick(page, 'en');
@@ -278,6 +286,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
   test('a failed latest selection keeps the last successful UI and menu; an older pack stays stale', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await holdPacks(page, ['en', 'zh-TW']);
     await pick(page, 'en');
@@ -294,6 +303,7 @@ describe('language switch on the title screen', { skip: !ENABLED && 'set SP_E2E=
   test('a stale failure leaves a newer pending dropdown selection intact', async (t) => {
     const page = await browser.newPage();
     t.after(() => page.close());
+    await seedReleaseRead(page);
     await page.goto(`${base}/?lang=zh`, { waitUntil: 'networkidle0' });
     await holdPacks(page, ['en', 'zh-TW']);
     await pick(page, 'en');
