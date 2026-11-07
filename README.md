@@ -118,8 +118,8 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_VERIFY` | `off` | 服务器复算客户端上报的战斗结果：`off` / `sample`（约 1/8 抽查）/ `all`（全部复算，更耗 CPU） |
 | `SP_BOT_REHEARSAL` | `6` | （本分叉）服务器自己为 AI 队友预演的布局方案数（0–8）：`0` 只按启发式摆放、服务器不预演，不占 CPU；`6` 为上游默认。房主浏览器帮忙试算时（下一行），房主没能完成也只按这个数接手，`0` 时直接按启发式摆放 |
 | `SP_BOT_REHEARSAL_HOST` | 开 | （本分叉）房主浏览器帮 AI 队友试算布阵（同源 Worker，每次 6 个方案，只回候选序号）；`0` / `off` 关闭。玩法插件房间始终不交给浏览器。上游写法 `SP_BOT_REHEARSAL=host` 仍会打开它 |
-| `SP_BOT_EXECUTION` | 关 | （本分叉）`host`：AI 队友的整个备战都在玩家的浏览器（同源 Worker）里运行，服务器只应用其操作；同时打开 `SP_BOT_BATTLES`（设为 `server` 可保留在服务器）。选策略和卡牌也在浏览器里决定。没有可用玩家时，AI 保留现有棋盘并准备，选择按规则默认处理。插件房间和旧版本房间暂时仍在服务器运行。 |
-| `SP_BOT_BATTLES` | 关 | （本分叉）`host`：没有在线玩家操作的战场（包括 Boss 战场）改由玩家的浏览器（同源 Worker）运行，服务器不模拟；无人可用时按无击杀、无漏怪结算。插件房间和旧版本房间暂时仍在服务器运行。 |
+| `SP_BOT_EXECUTION` | 关 | （本分叉）`host`：AI 队友的整个备战都在玩家的浏览器（同源 Worker）里运行，服务器只应用其操作；同时打开 `SP_BOT_BATTLES`（设为 `server` 可保留在服务器）。选策略和卡牌也在浏览器里决定。没有可用玩家时，AI 保留现有棋盘并准备，选择按规则默认处理。插件房间和旧版本房间也一样：浏览器加载该房间的内容。 |
+| `SP_BOT_BATTLES` | 关 | （本分叉）`host`：没有在线玩家操作的战场（包括 Boss 战场）改由玩家的浏览器（同源 Worker）运行，服务器不模拟；无人可用时按无击杀、无漏怪结算。插件房间和旧版本房间也一样。 |
 | `SP_P2P` | 不设（关闭） | 显式设为 `1`（或 `true`）时，同盟房间通过 WebRTC 转发公共对局状态，看门狗仍从 WebSocket 补发最新快照；不设或其他值保持服务器直接分发。开启后连接失败会自动回退 WebSocket，见 [部署指南](docs/DEPLOY.md#26-p2p-公共状态转发) |
 | `SP_P2P_ICE_SERVERS` | `[]` | 可选的 STUN / TURN 配置（JSON 数组），仅在 `SP_P2P` 开启时生效，见 [部署指南](docs/DEPLOY.md#26-p2p-公共状态转发) |
 | `TRUST_PROXY` | `auto` | 是否信任 `X-Forwarded-For` 等转发头：`auto` 只信任来自本机 / 内网的代理；`1` 总是；`0` 从不 |
@@ -131,8 +131,8 @@ npm start          # 启动服务器：http://localhost:3000
 | `SP_BOT_STRATEGY_SEATS` | 不设（各席位都用 `SP_BOT_STRATEGY`） | 按席位覆盖 AI 策略：逗号分隔的 `席位:ID`（席位 0–3，ID 须已注册），如 `1:ioleta,3:adaptive`；未列出的席位用 `SP_BOT_STRATEGY`，启动时校验。发布包里选 `external` 的席位同样改用内置 AI。详见 [BOT_STRATEGIES.md](docs/BOT_STRATEGIES.md) |
 | `SP_BOT_STRATEGY` / `SP_EXTERNAL_AI_*` / `SP_LLM_*` | 不设（内置 AI） | 外部 AI 与顾问模式目前只在开发分支上。发布包和 Docker 镜像会忽略这些变量，仍用内置 AI，并打一行日志。详见 [DEPLOY.md](docs/DEPLOY.md) |
 <!-- en: SP_BOT_REHEARSAL: layouts the SERVER rehearses itself (0-8, 0 = heuristics only, no CPU); also the most it takes over when a host's browser does not finish. SP_BOT_REHEARSAL_HOST: on by default, the host's browser rehearses 3 layouts per bot; 0/off disables; upstream's SP_BOT_REHEARSAL=host still enables it. -->
-<!-- en: SP_BOT_EXECUTION: off by default; `host` runs AI teammates' whole prep in a human's browser (same-origin Worker) and the server only applies their moves; it also turns on SP_BOT_BATTLES (set that to `server` to keep battles on the server). Band and card picks are decided in the browser too. With nobody available, the AI keeps its board and readies up, and picks fall to the rule's default. Plugin rooms and old-version rooms stay on the server for now. -->
-<!-- en: SP_BOT_BATTLES: off by default; `host` runs fields no connected human plays, boss fields included, in a human's browser (same-origin Worker) and the server does not simulate them; with nobody available they settle with no kills and no leaks. Plugin rooms and old-version rooms stay on the server for now. -->
+<!-- en: SP_BOT_EXECUTION: off by default; `host` runs AI teammates' whole prep in a human's browser (same-origin Worker) and the server only applies their moves; it also turns on SP_BOT_BATTLES (set that to `server` to keep battles on the server). Band and card picks are decided in the browser too. With nobody available, the AI keeps its board and readies up, and picks fall to the rule's default. Plugin rooms and old-version rooms work the same way: the browser loads that room's content. -->
+<!-- en: SP_BOT_BATTLES: off by default; `host` runs fields no connected human plays, boss fields included, in a human's browser (same-origin Worker) and the server does not simulate them; with nobody available they settle with no kills and no leaks. Plugin rooms and old-version rooms work the same way. -->
 
 `--room-code` 只接受 4 位字母或数字，不是环境变量，也不会跨重启保留；同一时间只能有一个使用该密钥的房间。固定密钥更容易被猜到，建议只在私服 / 局域网使用。
 

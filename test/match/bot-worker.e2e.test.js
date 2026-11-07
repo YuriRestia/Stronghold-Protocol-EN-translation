@@ -20,20 +20,25 @@ const NODE = createBotWorkerEnv(DATA);
 
 /** Snapshots of bot seats and bot fields' specs from a real match, at several points of the game. */
 function fixtures() {
-  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats: SEATS, seed: 21, clientCombat: true, hostId: 'p_0', botBattles: 'host', botBattleAnswerMs: 1 }).autoHumans().start();
-  const worlds = [];
-  const specs = [];
+  const out = { worlds: [], specs: [] };
+  // HARD too: its mode overrides config, which a Worker without the whole data set would not see
+  for (const difficulty of ['NORMAL', 'HARD']) fixturesOf(difficulty, out);
+  return out;
+}
+
+function fixturesOf(difficulty, { worlds, specs }) {
+  const h = makeMatch({ mode: 'coop', difficulty, seats: SEATS, seed: 21, clientCombat: true, hostId: 'p_0', botBattles: 'host', botBattleAnswerMs: 1 }).autoHumans().start();
   for (const round of [2, 6, 10]) {
     h.run(() => h.m.phase === 'PREP' && h.m.round === round, { maxSteps: 2e7 });
     const ps = h.m.players.get(`ai_${(round % 3) + 1}`);
     const task = h.m.newBotTask(ps);
-    worlds.push({ id: `t.${round}`, world: wire(buildWorld(h.m, ps, { ...task })) });
+    worlds.push({ id: `t.${difficulty}.${round}`, world: wire(buildWorld(h.m, ps, { ...task })) });
     h.run(() => h.m.phase === 'COMBAT' && h.m.round === round, { maxSteps: 2e7 });
     const f = h.m.fields.find((x) => x.players.every((pid) => h.m.players.get(pid).isBot));
-    if (f) specs.push({ battleId: f.battleId, spec: wire(f.spec) });
+    // the same seed gives the same battle ids at both difficulties, and the page's answers are found by id
+    if (f) specs.push({ battleId: `${difficulty}.${f.battleId}`, spec: wire(f.spec) });
   }
   h.m.dispose();
-  return { worlds, specs };
 }
 
 function nodeTask(world) {
@@ -63,14 +68,11 @@ describe('the bot Worker in a real browser', { skip: !enabled && 'set SP_E2E=1 a
     page.on('console', (m) => { if (m.type() === 'warn') console.log('page warning:', m.text()); });
     await page.goto(`http://127.0.0.1:${server.port}/sim/spec.js`);
     await page.evaluate(async () => {
-      const { loadBrowserSim } = await import('/js/battle/runner.js');
       const { installBotHost } = await import('/js/battle/botHost.js');
-      const sim = await loadBrowserSim();
       const handlers = new Map();
       const bridge = window.botTest = { sent: [], created: 0, handlers };
       bridge.host = installBotHost({
         net: { on(type, fn) { handlers.set(type, fn); return () => handlers.delete(type); }, send(type, fields) { bridge.sent.push({ t: type, ...fields }); return true; } },
-        runner: { ensureSim: () => Promise.resolve(sim) },
         createWorker() { bridge.created++; return new Worker('/js/battle/botWorker.js', { type: 'module' }); },
         log: console,
       });
@@ -102,7 +104,7 @@ describe('the bot Worker in a real browser', { skip: !enabled && 'set SP_E2E=1 a
   const { worlds, specs } = enabled ? fixtures() : { worlds: [], specs: [] };
 
   test('a bot seat\'s prep gives the moves and memo Node gives', async () => {
-    assert.equal(worlds.length, 3);
+    assert.equal(worlds.length, 6);
     for (const { id, world } of worlds) {
       const mine = await page.evaluate((i, w) => window.botTest.runTask(i, w), id, world);
       const node = nodeTask(world);
@@ -172,7 +174,7 @@ describe('the bot Worker in a real browser', { skip: !enabled && 'set SP_E2E=1 a
     assert.equal(result.battleId, battleId);
     // the Worker stopped at its own time, so the same battle stepped to that time gives its result
     const run = createBotBossRun(spec, { ds: NODE.ds, battleId });
-    run.stepTo(progress.at(-1).gt);
+    run.stepTo(result.result.time + 1 / 60); // half a tick: the time is rounded, and stepTo floors to a tick
     run.forceEnd('forced');
     assert.deepEqual(result.result, wire(run.result()));
   });

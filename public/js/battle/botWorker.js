@@ -3,9 +3,15 @@
 // It never touches the page's game store, so no screen can draw what it holds. One job at a time, in the order they came:
 // a bot's moves change what the next one sees, and battle work and prep work belong to different phases anyway.
 //
+// One content set per Worker, as with the simulation Worker: the official data, a gameplay plugin set with its scripts, or an old
+// version's set. This file is served with SIM_WORKER_CSP, and it has no fetch: the page hands it checked content. A set with
+// scripts locks down (SES) before any engine module is imported, so nothing here imports the engine at the top.
+//
 //   postMessage → { t: 'ready' }                                once, when this script has been evaluated
-//   onmessage ← { t: 'data', raw }                              the page's /data/*.json (once, before any job)
-//             ← { t: 'battle', id, spec }                       a bot field's BattleSpec
+//   onmessage ← { t: 'content', content }                       once, before any job (`files`: the official data's bytes, or
+//                                                               `data`, `cs`, `scripts`, `hashInput`, … as content.js holds them)
+//   postMessage → { t: 'loaded' } | { t: 'load-failed', message }
+//   onmessage ← { t: 'battle', id, spec }                       a bot field's BattleSpec
 //             ← { t: 'live', id, spec, elapsed, speed }         a bot-only boss field, played on its clock beside other work
 //             ← { t: 'pool', hp, acked }                        the server's b.pool; { t: 'end', id, reason } its b.end
 //             ← { t: 'task', id, world, budgetMs? }             a bot seat's prep (server/match/botWorld.js buildWorld)
@@ -21,21 +27,51 @@
 //
 // A running job stops at its next slice when cancelled. `budgetMs` bounds the rehearsal; past it the best layout so far stands.
 
-// /match and /sim are served from server/, so they are no public/ path a static import could resolve
 const { genUrl } = await import('../gen.js');
-const { setSimData } = await import(genUrl('/sim/simdata.js'));
-const { createBotWorkerEnv, createBotRun, createBotBattleRun, createBotBossRun } = await import(genUrl('/match/botWorkerEnv.js'));
 
 /** Wall-clock ms of work between two looks at the message queue. */
 const SLICE_MS = 50;
 
-/** @type {null | ReturnType<typeof createBotWorkerEnv>} */
+/** The loaded modules and the content's environment; null until the content is in. */
+let mods = null;
+/** @type {any} */
 let world = null;
 /** @type {any[]} */
 const queue = [];
 let running = null;
 /** @type {Map<string, (ack: any) => void>} */
 const waitingAck = new Map();
+
+function deepFreeze(root) {
+  const stack = [root];
+  while (stack.length) {
+    const o = stack.pop();
+    if (o === null || typeof o !== 'object' || Object.isFrozen(o)) continue;
+    Object.freeze(o);
+    for (const v of Object.values(o)) if (v !== null && typeof v === 'object') stack.push(v);
+  }
+  return root;
+}
+
+/**
+ * Lock down when the set has scripts, load the engine, install the scripts, then the match's modules, in the order the server's
+ * match host does it (server/match/host/entry.js). The match code reads the whole data set, not only the simulation's files.
+ */
+async function loadContent(content) {
+  const { prepareScriptRuntime } = await import('./simWorkerRuntime.js');
+  const install = content.scripts?.length ? await prepareScriptRuntime(content) : null;
+  const data = content.data ?? Object.fromEntries(Object.entries(content.files).map(([name, bytes]) => [name, JSON.parse(new TextDecoder('utf-8').decode(bytes))]));
+  const { loadBrowserSim } = await import('./simLoader.js');
+  await loadBrowserSim({ ...content, files: undefined, data, deferScripts: true });
+  const full = deepFreeze(data);
+  const simdata = await import(genUrl('/sim/simdata.js'));
+  simdata.setSimData(full);
+  const support = await import(genUrl('/sim/content/support/index.js'));
+  support.setGameData?.(null);
+  if (install) await install();
+  mods = await import(genUrl('/match/botWorkerEnv.js'));
+  world = mods.createBotWorkerEnv(full);
+}
 
 /** Let waiting messages (a cancel, an ack) be read. A channel, since a nested timer waits at least 4 ms each time. */
 const breathe = () => new Promise((resolve) => {
@@ -88,7 +124,7 @@ function startLive(msg) {
     if (!world) throw new Error('simulation data not loaded');
     const now = performance.now();
     live.set(msg.id, { id: msg.id, elapsed: msg.elapsed, speed: msg.speed, t0: now, reportedAt: 0,
-      fieldId: msg.spec.fieldId, run: createBotBossRun(msg.spec, { ds: world.ds, battleId: msg.id }) });
+      fieldId: msg.spec.fieldId, run: mods.createBotBossRun(msg.spec, { ds: world.ds, battleId: msg.id }) });
     if (!liveTimer) liveTimer = setInterval(pumpLive, LIVE_TICK_MS);
   } catch (e) {
     self.postMessage({ t: 'failed', id: msg.id, message: String((e && e.message) || e) });
@@ -96,13 +132,13 @@ function startLive(msg) {
 }
 
 async function runBattle(job) {
-  const run = createBotBattleRun(job.spec, { ds: world.ds });
+  const run = mods.createBotBattleRun(job.spec, { ds: world.ds });
   await slices(job, run.run);
   if (!job.cancelled) self.postMessage({ t: 'battle-done', id: job.id, ...run.output() });
 }
 
 async function runTask(job) {
-  const run = createBotRun(job.world, world.envFor(job.world.match.modeId));
+  const run = mods.createBotRun(job.world, world.envFor(job.world.match.modeId));
   const t0 = performance.now();
   if (job.world.pick) { // a band or card pick: one move, nothing to rehearse
     self.postMessage({ t: 'batch', id: job.id, batch: 'final', ms: performance.now() - t0, finished: true, ...run.pick() });
@@ -138,9 +174,8 @@ self.onmessage = (ev) => {
   const msg = ev && ev.data;
   if (!msg || typeof msg !== 'object') return;
   switch (msg.t) {
-    case 'data':
-      setSimData(msg.raw);
-      world = createBotWorkerEnv(msg.raw);
+    case 'content':
+      loadContent(msg.content).then(() => self.postMessage({ t: 'loaded' }), (e) => self.postMessage({ t: 'load-failed', message: String((e && e.message) || e) }));
       break;
     case 'battle':
     case 'task':
@@ -180,5 +215,5 @@ self.onmessage = (ev) => {
   }
 };
 
-// The page holds its first job until this arrives: a message posted to a module Worker before its graph is evaluated is lost.
+// The page holds its content until this arrives: a message posted to a module Worker before its graph is evaluated is lost.
 self.postMessage({ t: 'ready' });

@@ -424,8 +424,7 @@ export class Match {
      * (fork) Bot seats draw from random streams of their own while their moves run (match/botTasks.js). Off by default, so
      * tools, tests and golden results keep the shared streams; `botExecution: 'host'` needs it and turns it on.
      */
-    // Plugin and old-version rooms stay local until piece 11: the Worker has the page's official data only.
-    this.botExecution = opts.botExecution === 'host' && !this.requireCs && !this.version ? 'host' : 'local';
+    this.botExecution = opts.botExecution === 'host' ? 'host' : 'local';
     this.seatStreams = opts.seatStreams === true || this.botExecution === 'host';
     // The hard rule (docs/host-browser-bots.md): in host mode no bot decision may run here, so a strategy's hooks throw.
     if (this.botExecution === 'host') {

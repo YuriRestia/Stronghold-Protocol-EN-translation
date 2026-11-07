@@ -12,17 +12,45 @@
 //
 //   installBotHost({ net, runner, createWorker, log, doc }) → { busy(), task(), ack(), hurry(), cancel(), clear(), dispose() } | null
 
-import { battleRunner } from './runner.js';
+import { contentFor as appContentFor } from '../content.js';
 import { genUrl } from '../gen.js';
+import { checkOperatorTraitRuntime } from './simLoader.js';
 
 export const BOT_WORKER_URL = genUrl('/js/battle/botWorker.js'); // (fork) in this page's server generation
 
+/** What the match code reads: server/data.js DATA_FILES but the art manifest, which is the page's business. */
+export const BOT_DATA_FILES = Object.freeze(['config', 'chess', 'bonds', 'garrisons', 'items', 'bands', 'effects', 'choices',
+  'enemies', 'factions', 'waves', 'stages', 'bosses', 'tokens', 'backups']);
+
 /**
- * @param {{ net?: any, runner?: any, createWorker?: () => Worker, log?: any, doc?: any }} [deps] `doc`: the page's document (tests)
+ * The content a Worker is given. A room's set (a plugin or an old version) comes checked from content.js, and a browser that has no
+ * consent for its scripts gets nothing, so the server asks someone else. The official data goes as bytes: the Worker parses it,
+ * not the page's main thread.
+ * @param {string | null} cs
+ * @returns {Promise<{ content: any, transfer: ArrayBuffer[] }>}
+ */
+async function officialOrRoomContent(cs, contentFor = appContentFor) {
+  if (cs) {
+    const content = await contentFor(cs);
+    if (!content) throw new Error('this page does not hold the room\'s content');
+    return { content: { ...content, traitRuntimeVerified: await checkOperatorTraitRuntime(content.data) }, transfer: [] };
+  }
+  const files = {};
+  await Promise.all(BOT_DATA_FILES.map(async (name) => {
+    const res = await globalThis.fetch(genUrl(`/data/${name}.json`));
+    if (!res.ok) throw new Error(`data/${name}.json: ${res.status}`);
+    files[name] = await res.arrayBuffer();
+  }));
+  return { content: { files }, transfer: Object.values(files) };
+}
+
+/**
+ * @param {{ net?: any, loadContent?: typeof officialOrRoomContent, createWorker?: () => Worker, log?: any, doc?: any }} [deps]
+ *   `loadContent`, `doc`: the room's content and the page's document (tests)
  * @returns {null | { busy: () => number, task: Function, ack: Function, hurry: Function, cancel: Function, clear: () => void, dispose: () => void }}
  */
-export function installBotHost({ net, runner = battleRunner, createWorker = () => new Worker(BOT_WORKER_URL, { type: 'module' }), log = console, doc = globalThis.document } = {}) {
-  if (!net || typeof net.on !== 'function' || !runner || typeof runner.ensureSim !== 'function') return null;
+export function installBotHost({ net, loadContent = officialOrRoomContent, createWorker = () => new Worker(BOT_WORKER_URL, { type: 'module' }), log = console, doc = globalThis.document } = {}) {
+  if (!net || typeof net.on !== 'function') return null;
   /** @type {any} the live Worker; replaced as a whole, so a late callback of the old one finds itself unknown */
   let w = null;
   /** The browser cannot run a module Worker: every job is answered as failed at once. */
@@ -57,6 +85,8 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   const onWorkerMessage = (inst, msg) => {
     if (!msg || w !== inst) return;
     if (msg.t === 'ready') { inst.ready(); return; }
+    if (msg.t === 'loaded') { inst.onLoaded(); return; }
+    if (msg.t === 'load-failed') { inst.onLoaded(new Error(msg.message)); return; }
     const job = jobs.get(msg.id);
     if (!job) return; // an answer to a job that was dropped
     if (msg.t === 'failed') {
@@ -68,11 +98,17 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
     job.onMessage?.(msg);
   };
 
-  /** The live Worker, created on the first job; null when this browser cannot run one. */
-  const worker = () => {
+  /**
+   * The live Worker, created on the first job; null when this browser cannot run one. One content set per Worker, so a job for another
+   * set starts a new one (that only happens across rooms).
+   * @param {string | null} cs
+   */
+  const worker = (cs = null) => {
+    if (w && w.cs !== cs) { kill(); failAll('another content set'); }
     if (w || broken) return w;
-    const inst = { port: null, ready: () => {}, loaded: null };
+    const inst = { port: null, cs, ready: () => {}, onLoaded: () => {}, loaded: null };
     const scriptRan = new Promise((resolve) => { inst.ready = resolve; });
+    const engineIn = new Promise((resolve, reject) => { inst.onLoaded = (err) => (err ? reject(err) : resolve()); });
     try {
       inst.port = createWorker();
     } catch (err) {
@@ -89,29 +125,28 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
       failAll('the Worker failed');
     };
     w = inst;
-    // the page's own copy of the data: no second fetch, no second parse. Official data only until piece 11.
-    inst.loaded = scriptRan.then(() => runner.ensureSim()).then((sim) => {
-      if (!sim || !sim.raw || (typeof sim.cs === 'string' && sim.cs !== '')) throw new Error('no official simulation data');
-      if (w === inst) inst.port.postMessage({ t: 'data', raw: sim.raw });
+    inst.loaded = scriptRan.then(() => loadContent(cs)).then(({ content, transfer }) => {
+      if (w === inst) inst.port.postMessage({ t: 'content', content }, transfer);
+      return engineIn;
     });
     inst.loaded.catch((err) => {
       if (w !== inst) return;
-      log.warn?.('[botHost] simulation data unavailable', err);
+      log.warn?.('[botHost] content unavailable', err);
       kill();
-      failAll('no simulation data');
+      failAll('no content');
     });
     return inst;
   };
 
   /** Hand a job over once the Worker can read it; a job dropped meanwhile never goes. */
-  const post = (id, msg) => {
-    const inst = worker();
+  const post = (id, msg, cs = null) => {
+    const inst = worker(cs);
     if (!inst) { const job = jobs.get(id); jobs.delete(id); job?.fail('no module Worker'); return; }
     inst.loaded.then(() => { if (w === inst && jobs.has(id)) inst.port.postMessage(msg); }, () => { /* failAll answered it */ });
   };
 
   /** A bot-only boss field: it reports through the frames a human's battle uses. A failure stays silent: the server's watchdog moves it on. */
-  const startLive = (battleId, spec, { elapsed, speed }) => {
+  const startLive = (battleId, spec, { elapsed, speed }, cs) => {
     jobs.set(battleId, {
       live: true,
       fail: () => {},
@@ -120,19 +155,19 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
         if (m.t !== 'live-done') return;
         jobs.delete(battleId);
         net.send('b.progress', m.msg);
-        net.send('b.result', { battleId, result: m.result });
+        net.send('b.result', { battleId, result: m.result, ...(cs ? { cs } : {}) });
       },
     });
-    post(battleId, { t: 'live', id: battleId, spec, elapsed, speed });
+    post(battleId, { t: 'live', id: battleId, spec, elapsed, speed }, cs);
   };
 
   const onBattle = (msg) => {
     if (!msg || typeof msg.battleId !== 'string' || !msg.spec || typeof msg.spec !== 'object') return;
-    const { battleId, spec } = msg;
+    const { battleId, spec, cs = null } = msg;
     asked = true;
     if (isHidden()) { reportTab(); return; }
-    if (broken || (typeof spec.cs === 'string' && spec.cs !== '')) { answerBattle(battleId, { error: true }); return; }
-    if (msg.live) { startLive(battleId, spec, msg.live); return; }
+    if (broken) { answerBattle(battleId, { error: true }); return; }
+    if (msg.live) { startLive(battleId, spec, msg.live, cs); return; }
     jobs.set(battleId, {
       fail: () => answerBattle(battleId, { error: true }),
       onMessage(m) {
@@ -141,7 +176,7 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
         answerBattle(battleId, { result: m.result, timeline: m.timeline });
       },
     });
-    post(battleId, { t: 'battle', id: battleId, spec });
+    post(battleId, { t: 'battle', id: battleId, spec }, cs);
   };
 
   const drop = (id) => {
@@ -155,7 +190,7 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
     reportedHidden = false;
   };
 
-  const startTask = (id, world, { budgetMs, onBatch, onFail }) => {
+  const startTask = (id, world, { budgetMs, onBatch, onFail, cs = null }) => {
     jobs.set(id, {
       fail: onFail,
       onMessage(m) {
@@ -164,7 +199,7 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
         onBatch(m);
       },
     });
-    post(id, { t: 'task', id, world, budgetMs });
+    post(id, { t: 'task', id, world, budgetMs }, cs);
   };
 
   const onTask = (msg) => {
@@ -176,6 +211,7 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
     if (broken) { net.send('b.botMoves', { taskId, error: true }); return; }
     startTask(taskId, msg.world, {
       budgetMs: msg.budgetMs,
+      cs: msg.cs ?? null,
       onBatch: (b) => net.send('b.botMoves', { taskId, batch: b.batch, moves: b.moves, ...(b.memo ? { memo: b.memo } : {}) }),
       onFail: () => net.send('b.botMoves', { taskId, error: true }),
     });
@@ -195,14 +231,16 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   const offEnd = net.on('b.end', (msg) => {
     if (!msg || !jobs.get(msg.battleId)?.live) return;
     if (msg.reason === 'takeover') { drop(msg.battleId); return; }
-    w?.port.postMessage({ t: 'end', id: msg.battleId, reason: msg.reason });
+    // after the job itself, which may still be waiting for the Worker to load
+    const inst = w;
+    inst?.loaded.then(() => { if (w === inst) inst.port.postMessage({ t: 'end', id: msg.battleId, reason: msg.reason }); }, () => {});
   });
   const offTask = net.on('b.botTask', onTask);
   // Started when the page has time, so the briefing's own loading goes first; the first job builds it anyway if it comes sooner.
-  const offWarm = net.on('b.botWarm', () => {
+  const offWarm = net.on('b.botWarm', (msg) => {
     asked = true;
     if (isHidden()) { reportTab(); return; }
-    const start = () => { if (asked) worker(); };
+    const start = () => { if (asked) worker(msg?.cs ?? null)?.loaded?.catch(() => {}); };
     if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(start, { timeout: 5000 });
     else setTimeout(start, 1000);
   });

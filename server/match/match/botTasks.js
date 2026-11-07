@@ -107,7 +107,7 @@ export class MatchBotTasks {
     if (this.botExecution !== 'host' && this.botBattles !== 'host') return;
     if (this.botExecutor || !this.order.some((p) => p.isBot)) return;
     const pid = this._botExecutorFor();
-    if (pid) this.sendTo(pid, { t: 'b.botWarm' });
+    if (pid) this.sendTo(pid, { t: 'b.botWarm', ...this._botContent() });
   }
 
   /** Host mode: this seat plays its prep on an executor, one seat at a time per room (each bot changes the shared pool). */
@@ -169,7 +169,7 @@ export class MatchBotTasks {
     this.botTaskStats.sent++;
     // armed first: an answer that comes back with the frame itself cannot race the timeout
     this._armBotTimer(active, BOT_RECEIPT_MS);
-    if (!this.sendTo(active.executor, { t: 'b.botTask', taskId: active.task.id, world, budgetMs: active.budgetMs })) this._botFailover(active);
+    if (!this.sendTo(active.executor, { t: 'b.botTask', taskId: active.task.id, world, budgetMs: active.budgetMs, ...this._botContent() })) this._botFailover(active);
   }
 
   /**

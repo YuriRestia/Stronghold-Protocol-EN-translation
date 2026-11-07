@@ -7,6 +7,7 @@
 import { createBotRun } from './botRunner.js';
 import { createBotBattleRun, createBotBossRun } from './botBattleRun.js';
 import { builtinBotStrategy } from './botStrategyList.js';
+import { registerDslMeta } from './dslMeta.js';
 import { getDefaultRegistry } from './effectsMeta.js';
 import { GameData } from './gamedata.js';
 import { Battle } from '../sim/Battle.js';
@@ -21,6 +22,9 @@ export { createBotBattleRun, createBotBossRun, createBotRun };
 export function createBotWorkerEnv(data) {
   const ds = new DataSource(data, null);
   const registry = getDefaultRegistry();
+  // a content set's DSL prep effects, on this Worker's own registry (server/match/host/entry.js installPrepDsl). The seats' grants
+  // of them arrive in the snapshot.
+  for (const [pluginId, specs] of Object.entries(data?.dsl ?? {})) for (const spec of specs) registerDslMeta(registry, spec, { pluginId });
   /** @type {Map<string, any>} */
   const gds = new Map();
   return {

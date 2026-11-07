@@ -5,10 +5,9 @@
 // they do for a server-run field. Timeout, a refused result or a lost executor: the next human, then a synthetic result.
 // The server never simulates such a field. A boss field shares its pool with the other fields, so it runs live in the Worker on
 // the field's clock and reports as a human's browser does (b.progress, b.result): the existing boss rules apply to it, and a lost
-// or silent executor hands it to the next human. Not covered yet: plugin and old-version rooms (piece 11).
+// or silent executor hands it to the next human. A plugin or old-version room's Worker loads that room's content (botHost.js).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
-import { DEFAULT_VERSION } from '../../../shared/versions.js';
 import { syntheticResult, validateClientResult } from '../fields.js';
 import { requiresTraitLayerAuthority } from '../operatorTraits.js';
 
@@ -21,10 +20,16 @@ export class MatchBotBattles {
   /** Whether a field `_authorityFor` found no human for goes to a browser instead of the server. */
   _botBattleOnHost(f) {
     if (this.botBattles !== 'host') return false;
-    // the Worker has the page's official data only, until piece 11. A vanilla room has a `cs` too, the official content's hash.
-    if (this.requireCs || (this.version && this.version !== DEFAULT_VERSION)) return false;
     // layer traits keep today's rule on a human's field; a field of bots only is exempt, capped by the same allowance
     return !requiresTraitLayerAuthority(f.spec, this.gd) || f.players.every((pid) => this.players.get(pid)?.isBot);
+  }
+
+  /**
+   * What a frame says about the content its Worker needs: nothing in a vanilla room, whose `cs` is just the official hash (the Worker
+   * loads the official data), and the room's set in a plugin or old-version room.
+   */
+  _botContent() {
+    return this.requireCs ? { cs: this.cs } : {};
   }
 
   /**
@@ -68,9 +73,8 @@ export class MatchBotBattles {
       this._botBattleRelease(f);
       this._assignBotHost(f);
     });
-    // official content here (_botBattleOnHost), which is what the Worker holds, so the spec needs no content hash
     const { cs: _cs, ...spec } = f.spec;
-    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec })) {
+    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec, ...this._botContent() })) {
       this._botBattleDrop(f);
       this._assignBotHost(f);
     }
@@ -83,7 +87,7 @@ export class MatchBotBattles {
     this.botBattleStats.sent++;
     this._assignClient(f, pid);
     const { cs: _cs, ...spec } = f.spec;
-    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec, live: { elapsed: this._fieldElapsed(f), speed: this.gameSpeed } })) this._assignBotHost(f);
+    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec, live: { elapsed: this._fieldElapsed(f), speed: this.gameSpeed }, ...this._botContent() })) this._assignBotHost(f);
   }
 
   /** A boss field's executor left, went silent or sent an implausible result: the next human, else what the field has so far. */

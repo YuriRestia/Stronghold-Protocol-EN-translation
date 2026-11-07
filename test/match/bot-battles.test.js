@@ -145,17 +145,19 @@ test('nobody connected: no thinking and no simulating on the server', () => {
   h.m.dispose();
 });
 
-test('rooms the Worker has no data for stay on the server until piece 11', () => {
+test('every kind of room goes to a browser: a plugin room\'s frame names its content, a vanilla room\'s does not', () => {
   const plugin = atCombat({ cs: 'a'.repeat(64), requireCs: true });
-  assert.equal(plugin.allTo('p_0', 'b.botBattle').length, 0);
-  assert.ok(plugin.serverRuns.length > 0);
+  assert.equal(plugin.serverRuns.length, 0);
+  const frames = plugin.allTo('p_0', 'b.botBattle');
+  assert.ok(frames.length > 0);
+  assert.ok(frames.every((m) => m.cs === 'a'.repeat(64) && !('cs' in m.spec)));
   plugin.m.dispose();
-  // every vanilla room has a `cs` too, the official content's hash: that room is the Worker's, and the frame carries no hash
+  // every vanilla room has a `cs` too, the official content's hash: the Worker loads the official data
   const vanilla = atCombat({ cs: 'b'.repeat(64) });
   assert.equal(vanilla.serverRuns.length, 0);
-  const frames = vanilla.allTo('p_0', 'b.botBattle');
-  assert.ok(frames.length > 0);
-  assert.ok(frames.every((m) => !('cs' in m.spec)));
+  const plain = vanilla.allTo('p_0', 'b.botBattle');
+  assert.ok(plain.length > 0);
+  assert.ok(plain.every((m) => !('cs' in m) && !('cs' in m.spec)));
   vanilla.m.dispose();
 });
 

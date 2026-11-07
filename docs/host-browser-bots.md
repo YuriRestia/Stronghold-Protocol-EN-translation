@@ -1,6 +1,6 @@
 # Host-browser bots: design and work split
 
-Status: **pieces 1–4 and 6–9 built (off by default, not live); pieces 5, 10 and 11 not started.** Written 2026-11-07 against
+Status: **pieces 1–4, 6–9 and 11 built (off by default, not live); pieces 5 and 10 not started.** Written 2026-11-07 against
 `dev-0.2` at `580c2708`. Each later piece waits for approval.
 
 The rule this serves: the server has to carry hundreds of players with 3 bots each, so the host's browser does **all**
@@ -86,6 +86,14 @@ of the room's data on the host, beside the battle Worker's.
 (`_allowScript`, `DEFAULT_BUDGET`). The shadow would count only its own seat, so the two could disagree only near the limit. Then
 the bot's moves go stale and it ends up keeping its board. The server stays correct either way. Do nothing unless parity shows
 otherwise.
+
+**As built (piece 11):** frames name the room's set in a plugin or old-version room. The Worker loads that set in the order the match
+host does: lockdown when it has scripts, the engine, the scripts, then the match's modules. It is served with `SIM_WORKER_CSP` and has
+no fetch. A browser without the set, or without consent for its scripts, answers `error` and the server asks the next human. Every
+room's Worker now gets the whole data set, because the match code reads `config`, `choices` and more, which the simulation's 11 files
+do not include. The official data goes as bytes, so the Worker parses it and the page's main thread does not. The child process
+checks each revealing move against what it computes, so stale, failover and error counts of 0 in `test/e2e/bot-host-rooms.e2e.test.js`
+are the parity check for these rooms.
 
 ### Measured cost
 

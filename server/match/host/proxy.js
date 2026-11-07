@@ -57,6 +57,13 @@ export function wireOptions(opts) {
     out.test = true;
     if (typeof opts.hostId === 'string') out.hostId = opts.hostId;
   }
+  // (fork) bots run in a human's browser (docs/host-browser-bots.md): the child needs to know who the host is. Only then, so every
+  // other worker payload stays as it was.
+  if (opts.botExecution === 'host' || opts.botBattles === 'host') {
+    if (opts.botExecution !== undefined) out.botExecution = opts.botExecution;
+    if (opts.botBattles !== undefined) out.botBattles = opts.botBattles;
+    if (typeof opts.hostId === 'string') out.hostId = opts.hostId;
+  }
   // Rule switches ride with the content set. A room that declares none keeps today's worker payload.
   if (opts.rules && typeof opts.rules === 'object' && !Array.isArray(opts.rules)) out.rules = opts.rules;
   return out;
@@ -132,10 +139,11 @@ export class MatchProxy {
   onLeave(playerId) { this._notify('onLeave', [playerId]); }
   /**
    * Host migration. A normal plugin match never posted setHost (the proxy had no such method, so lobby
-   * callMatch no-op'd). Only a test match follows the new host, because g.test checks hostId in the worker.
+   * callMatch no-op'd). A test match follows the new host, because g.test checks hostId in the worker, and so does a match whose
+   * bots run in the host's browser.
    */
   setHost(playerId) {
-    if (this.opts.test !== true) return;
+    if (this.opts.test !== true && this.opts.botExecution !== 'host' && this.opts.botBattles !== 'host') return;
     this.opts.hostId = typeof playerId === 'string' ? playerId : null;
     this._notify('setHost', [playerId]);
   }

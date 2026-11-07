@@ -13,6 +13,7 @@ import { DataSource } from '../../server/sim/simdata.js';
 import { simMeter } from '../../server/match/simMeter.js';
 import { attachFakeBattleHost } from './fakeBotHost.js';
 import { FakeBattle } from './fakeBattle.js';
+import { MatchProxy, wireOptions } from '../../server/match/host/proxy.js';
 import { DATA, makeMatch } from './harness.js';
 
 const human = (seat, connected = true) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected });
@@ -80,13 +81,17 @@ function answering(h, { pid = null, tamper = null, around = (fn) => fn() } = {})
   return h;
 }
 
-test('the frames are declared, and the flag leaves a plugin or old-version room local', () => {
+test('the frames are declared, a plugin room\'s task names its content, and without the flag nothing changes', () => {
   for (const t of FRAMES) assert.ok(S2C.includes(t), t);
   const plugin = atPrep({ cs: 'a'.repeat(64), requireCs: true });
-  assert.equal(plugin.m.botExecution, 'local');
+  assert.equal(plugin.m.botExecution, 'host');
+  assert.equal(plugin.lastTo('p_0', 'b.botWarm').cs, 'a'.repeat(64));
+  toFirstTask(plugin);
+  assert.equal(plugin.lastTo('p_0', 'b.botTask').cs, 'a'.repeat(64));
   plugin.m.dispose();
   const vanilla = atPrep({ cs: 'b'.repeat(64) });
   assert.equal(vanilla.m.botExecution, 'host', 'every vanilla room has a cs too, the official content\'s hash');
+  assert.equal('cs' in vanilla.lastTo('p_0', 'b.botWarm'), false);
   vanilla.m.dispose();
   const off = makeMatch({ seats: SEATS, fake: true });
   assert.equal(off.m.botExecution, 'local');
@@ -458,6 +463,23 @@ test('the first executor is told early, once; a room without bots or with bots o
   const off = makeMatch({ mode: 'coop', seats: SEATS, seed: 3, fake: true }).start();
   assert.equal(off.allTo('p_0', 'b.botWarm').length, 0);
   off.m.dispose();
+});
+
+test('the match host\'s child learns who the host is only when bots run in a browser, and follows a new host', () => {
+  const base = { roomCode: 'R', seed: 1, hostId: 'p_0' };
+  assert.equal('hostId' in wireOptions(base), false, 'every other worker payload stays as it was');
+  assert.equal('botExecution' in wireOptions(base), false);
+  const hosted = wireOptions({ ...base, botExecution: 'host', botBattles: 'host' });
+  assert.deepEqual([hosted.hostId, hosted.botExecution, hosted.botBattles], ['p_0', 'host', 'host']);
+  assert.equal(wireOptions({ ...base, botBattles: 'host' }).hostId, 'p_0');
+  const notified = [];
+  const proxyLike = (opts) => Object.assign(Object.create(MatchProxy.prototype), { opts, _notify: (...a) => notified.push(a) });
+  proxyLike({ test: false }).setHost('p_1');
+  assert.deepEqual(notified, []);
+  const live = proxyLike({ botExecution: 'host' });
+  live.setHost('p_1');
+  assert.deepEqual(notified, [['setHost', ['p_1']]]);
+  assert.equal(live.opts.hostId, 'p_1');
 });
 
 test('stale measure: a human refreshes against the shared pool in the gap of every bot task, the worst case', { timeout: 120000 }, () => {

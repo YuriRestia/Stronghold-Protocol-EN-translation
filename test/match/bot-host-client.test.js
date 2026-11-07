@@ -5,11 +5,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { installBotHost } from '../../public/js/battle/botHost.js';
+import { BOT_DATA_FILES, installBotHost } from '../../public/js/battle/botHost.js';
+import { DATA_FILES } from '../../server/data.js';
 
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
-function setup({ sim = { raw: { x: 1 } }, createWorker = null } = {}) {
+const content = (cs) => Promise.resolve({ content: { cs, files: { config: new ArrayBuffer(1) } }, transfer: [] });
+
+function setup({ loadContent = content, createWorker = null } = {}) {
   const handlers = new Map();
   const sent = [];
   const workers = [];
@@ -23,10 +26,12 @@ function setup({ sim = { raw: { x: 1 } }, createWorker = null } = {}) {
     workers.push(w);
     return w;
   });
-  const host = installBotHost({ net, runner: { ensureSim: () => (sim ? Promise.resolve(sim) : Promise.reject(new Error('no data'))) }, createWorker: make, log: { warn() {} } });
+  const host = installBotHost({ net, loadContent, createWorker: make, log: { warn() {} } });
   return { host, net, sent, workers, recv: (t, m) => handlers.get(t)(m), handlers };
 }
 const battle = (id = 'b.1', spec = { fieldId: 'f' }) => ({ battleId: id, spec });
+/** A scripted Worker's boot: its script ran, it took the content, the engine is in. */
+const boot = async (w) => { w.say({ t: 'ready' }); await settle(); w.say({ t: 'loaded' }); await settle(); };
 
 test('no socket: nothing is installed, and no frame means no Worker', () => {
   assert.equal(installBotHost({}), null);
@@ -34,7 +39,7 @@ test('no socket: nothing is installed, and no frame means no Worker', () => {
   assert.equal(workers.length, 0);
 });
 
-test('a battle waits for the script, then the data, then runs; its answer goes out as b.botBattleResult', async () => {
+test('a battle waits for the script, the content and the engine, then runs; its answer goes out as b.botBattleResult', async () => {
   const { sent, workers, recv, host } = setup();
   recv('b.botBattle', battle());
   assert.equal(workers.length, 1);
@@ -42,7 +47,10 @@ test('a battle waits for the script, then the data, then runs; its answer goes o
   assert.deepEqual(workers[0].posted, [], 'nothing before the Worker says it is ready');
   workers[0].say({ t: 'ready' });
   await settle();
-  assert.deepEqual(workers[0].posted.map((m) => m.t), ['data', 'battle']);
+  assert.deepEqual(workers[0].posted.map((m) => m.t), ['content'], 'the job waits for the engine');
+  workers[0].say({ t: 'loaded' });
+  await settle();
+  assert.deepEqual(workers[0].posted.map((m) => m.t), ['content', 'battle']);
   assert.equal(workers[0].posted[1].id, 'b.1');
   assert.equal(host.busy(), 1);
   workers[0].say({ t: 'battle-done', id: 'b.1', result: { time: 3 }, timeline: [[0, 0, 1, null]] });
@@ -50,50 +58,82 @@ test('a battle waits for the script, then the data, then runs; its answer goes o
   assert.equal(host.busy(), 0);
 });
 
-test('one Worker serves every job, and it is given the data once', async () => {
+test('one Worker serves every job, and it is given the content once', async () => {
   const { workers, recv } = setup();
   recv('b.botBattle', battle('b.1'));
   recv('b.botBattle', battle('b.2'));
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   recv('b.botBattle', battle('b.3'));
   await settle();
   assert.equal(workers.length, 1);
-  assert.deepEqual(workers[0].posted.map((m) => m.t), ['data', 'battle', 'battle', 'battle']);
+  assert.deepEqual(workers[0].posted.map((m) => m.t), ['content', 'battle', 'battle', 'battle']);
 });
 
 test('what this browser cannot run is answered error at once', async () => {
-  const cs = setup();
-  cs.recv('b.botBattle', battle('b.1', { cs: 'abc' }));
-  assert.deepEqual(cs.sent, [{ t: 'b.botBattleResult', battleId: 'b.1', error: true }]);
-  assert.equal(cs.workers.length, 0);
-
   const noWorker = setup({ createWorker: () => { throw new Error('no Worker here'); } });
   noWorker.recv('b.botBattle', battle('b.2'));
   await settle();
   noWorker.recv('b.botBattle', battle('b.3'));
   assert.deepEqual(noWorker.sent.map((m) => [m.battleId, m.error]), [['b.2', true], ['b.3', true]]);
 
-  const noData = setup({ sim: null });
-  noData.recv('b.botBattle', battle('b.4'));
-  noData.workers[0].say({ t: 'ready' });
+  const noContent = setup({ loadContent: () => Promise.reject(new Error('no consent')) });
+  noContent.recv('b.botBattle', { ...battle('b.4'), cs: 'c'.repeat(64) });
+  noContent.workers[0].say({ t: 'ready' });
   await settle();
-  assert.deepEqual(noData.sent, [{ t: 'b.botBattleResult', battleId: 'b.4', error: true }]);
-  assert.equal(noData.workers[0].terminated, true);
+  assert.deepEqual(noContent.sent, [{ t: 'b.botBattleResult', battleId: 'b.4', error: true }]);
+  assert.equal(noContent.workers[0].terminated, true);
 
-  const plugin = setup({ sim: { raw: {}, cs: 'abc' } });
-  plugin.recv('b.botBattle', battle('b.5'));
-  plugin.workers[0].say({ t: 'ready' });
+  const engine = setup();
+  engine.recv('b.botBattle', battle('b.5'));
+  engine.workers[0].say({ t: 'ready' });
   await settle();
-  assert.deepEqual(plugin.sent, [{ t: 'b.botBattleResult', battleId: 'b.5', error: true }], 'plugin data is piece 11');
+  engine.workers[0].say({ t: 'load-failed', message: 'SES refused' });
+  await settle();
+  assert.deepEqual(engine.sent, [{ t: 'b.botBattleResult', battleId: 'b.5', error: true }]);
+});
+
+test('a room\'s content: the frame names the set, the Worker gets that set, and another set means another Worker', async () => {
+  const asked = [];
+  const { workers, recv } = setup({ loadContent: (cs) => { asked.push(cs); return content(cs); } });
+  recv('b.botBattle', { ...battle('b.1'), cs: 'c'.repeat(64) });
+  await boot(workers[0]);
+  assert.deepEqual(asked, ['c'.repeat(64)]);
+  assert.equal(workers[0].posted[0].content.cs, 'c'.repeat(64));
+  recv('b.botBattle', { ...battle('b.2'), cs: 'c'.repeat(64) });
+  assert.equal(workers.length, 1);
+  recv('b.botBattle', battle('b.3'));
+  assert.equal(workers.length, 2, 'the official data is another set');
+  assert.equal(workers[0].terminated, true);
+});
+
+test('a live boss field reports through a human battle\'s frames, naming the room\'s content', async () => {
+  const { sent, workers, recv, host } = setup();
+  recv('b.botBattle', { ...battle('b.1'), cs: 'c'.repeat(64), live: { elapsed: 2, speed: 2 } });
+  await boot(workers[0]);
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'live', id: 'b.1', spec: { fieldId: 'f' }, elapsed: 2, speed: 2 });
+  workers[0].say({ t: 'live-progress', id: 'b.1', msg: { battleId: 'b.1', gt: 1 } });
+  assert.deepEqual(sent.at(-1), { t: 'b.progress', battleId: 'b.1', gt: 1 });
+  recv('b.pool', { hp: 5, acked: { f: 1 } });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'pool', hp: 5, acked: { f: 1 } });
+  recv('b.end', { battleId: 'other', reason: 'forced' });
+  assert.deepEqual(workers[0].posted.at(-1).t, 'pool');
+  recv('b.end', { battleId: 'b.1', reason: 'forced' });
+  await settle();
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'end', id: 'b.1', reason: 'forced' });
+  workers[0].say({ t: 'live-done', id: 'b.1', msg: { battleId: 'b.1', gt: 2 }, result: { time: 2 } });
+  assert.deepEqual(sent.slice(-2), [{ t: 'b.progress', battleId: 'b.1', gt: 2 }, { t: 'b.result', battleId: 'b.1', result: { time: 2 }, cs: 'c'.repeat(64) }]);
+  assert.equal(host.busy(), 0);
+  recv('b.botBattle', { ...battle('b.2'), cs: 'c'.repeat(64), live: { elapsed: 0, speed: 1 } });
+  await settle();
+  recv('b.end', { battleId: 'b.2', reason: 'takeover' });
+  assert.deepEqual(workers[0].posted.at(-1), { t: 'cancel', id: 'b.2' });
 });
 
 test('a job that fails, or a Worker that dies, is answered error', async () => {
   const { sent, workers, recv } = setup();
   recv('b.botBattle', battle('b.1'));
   recv('b.botBattle', battle('b.2'));
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   workers[0].say({ t: 'failed', id: 'b.1', message: 'boom' });
   assert.deepEqual(sent.map((m) => m.battleId), ['b.1']);
   workers[0].onerror({ message: 'dead' });
@@ -107,8 +147,7 @@ test('a job that fails, or a Worker that dies, is answered error', async () => {
 test('a cancel drops the job: told to the Worker, and a late answer is not sent', async () => {
   const { sent, workers, recv, host } = setup();
   recv('b.botBattle', battle('b.1'));
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   recv('b.botBattleCancel', { battleId: 'b.1' });
   assert.deepEqual(workers[0].posted.at(-1), { t: 'cancel', id: 'b.1' });
   assert.equal(host.busy(), 0);
@@ -121,8 +160,7 @@ test('a cancel drops the job: told to the Worker, and a late answer is not sent'
 test('the socket going down or the match ending stops the Worker; the next job builds a new one', async () => {
   const { sent, workers, recv, host } = setup();
   recv('b.botBattle', battle('b.1'));
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   recv('status', { status: 'reconnecting' });
   assert.equal(workers[0].terminated, true);
   assert.equal(host.busy(), 0);
@@ -139,8 +177,7 @@ test('a bot seat\'s prep: plan, ack, final; stale stops it', async () => {
   const { workers, host } = setup();
   const batches = [];
   host.task('t.1', { seat: 1 }, { budgetMs: 100, onBatch: (b) => batches.push(b.batch), onFail: assert.fail });
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   assert.deepEqual(workers[0].posted.at(-1), { t: 'task', id: 't.1', world: { seat: 1 }, budgetMs: 100 });
   workers[0].say({ t: 'batch', id: 't.1', batch: 'plan', moves: [] });
   assert.equal(host.busy(), 1);
@@ -165,8 +202,7 @@ test('the live frames of a bot seat\'s prep: receipt at once, plan, ack, hurry, 
   const { sent, workers, recv, host } = setup();
   recv('b.botTask', { taskId: 't.1', world: { seat: 1 }, budgetMs: 500 });
   assert.deepEqual(sent, [{ t: 'b.botReceived', taskId: 't.1' }], 'before the Worker has even started');
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   assert.deepEqual(workers[0].posted.at(-1), { t: 'task', id: 't.1', world: { seat: 1 }, budgetMs: 500 });
   workers[0].say({ t: 'batch', id: 't.1', batch: 'plan', moves: [{ t: 'g.refresh' }], ms: 3 });
   assert.deepEqual(sent.at(-1), { t: 'b.botMoves', taskId: 't.1', batch: 'plan', moves: [{ t: 'g.refresh' }] });
@@ -182,8 +218,7 @@ test('the live frames of a bot seat\'s prep: receipt at once, plan, ack, hurry, 
 test('a prep that fails, goes stale or is cancelled', async () => {
   const { sent, workers, recv, host } = setup();
   recv('b.botTask', { taskId: 't.1', world: {} });
-  workers[0].say({ t: 'ready' });
-  await settle();
+  await boot(workers[0]);
   workers[0].say({ t: 'failed', id: 't.1', message: 'boom' });
   assert.deepEqual(sent.at(-1), { t: 'b.botMoves', taskId: 't.1', error: true });
   recv('b.botTask', { taskId: 't.2', world: {} });
@@ -208,7 +243,7 @@ test('a hidden tab says so instead of taking work, and says when it is back', ()
   const sent = [];
   let created = 0;
   const host = installBotHost({ net: { on(t, fn) { handlers.set(t, fn); return () => handlers.delete(t); }, send(t, f) { sent.push({ t, ...f }); return true; } },
-    runner: { ensureSim: () => Promise.resolve({ raw: {} }) }, createWorker: () => { created++; return { postMessage() {}, terminate() {} }; }, log: { warn() {} }, doc });
+    loadContent: content, createWorker: () => { created++; return { postMessage() {}, terminate() {} }; }, log: { warn() {} }, doc });
   listeners.get('visibilitychange')();
   assert.deepEqual(sent, [], 'no bot work asked yet: the server does not need to hear of it');
   handlers.get('b.botTask')({ taskId: 't.1', world: {} });
@@ -241,6 +276,10 @@ test('b.botWarm starts the Worker when the page has time, and only once', async 
   assert.equal(workers.length, 1);
 });
 
+test('the data the Worker is given is what the match reads: server/data.js DATA_FILES but the art manifest', () => {
+  assert.deepEqual([...BOT_DATA_FILES].sort(), DATA_FILES.filter((f) => f !== 'assets').sort());
+});
+
 test('no screen can draw these frames: only botHost.js in the page\'s code knows them, and it does not import the store', () => {
   const root = path.resolve(import.meta.dirname, '../../public/js');
   const knowing = [];
@@ -254,5 +293,5 @@ test('no screen can draw these frames: only botHost.js in the page\'s code knows
   walk(root);
   assert.deepEqual(knowing, ['battle/botHost.js']);
   const imports = [...fs.readFileSync(path.join(root, 'battle/botHost.js'), 'utf8').matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['./runner.js', '../gen.js']);
+  assert.deepEqual(imports, ['../content.js', '../gen.js', './simLoader.js']);
 });

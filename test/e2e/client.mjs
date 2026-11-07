@@ -16,7 +16,9 @@ export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const hasChrome = () => existsSync(CHROME);
 
 const CHROME_ARGS = ['--no-sandbox', '--no-first-run', '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
-  '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--mute-audio', '--force-device-scale-factor=1'];
+  '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--mute-audio', '--force-device-scale-factor=1',
+  // (fork) the real GPU on Windows: software rendering loads the CPU much more (tools/perfbench.mjs gpuArgs)
+  ...(process.platform === 'win32' ? ['--use-gl=angle', '--use-angle=d3d11', '--enable-gpu', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] : [])];
 /** The CDP protocol timeout of every Client's browser: one DevTools call that takes longer fails (a hung page fails fast). */
 export const PROTOCOL_TIMEOUT_MS = 90000;
 

@@ -462,6 +462,12 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       const worker = await fsp.realpath(path.join(publicDir, 'js/battle/simWorker.js')).catch(() => null);
       if (real === worker) res.setHeader('Content-Security-Policy', SIM_WORKER_CSP);
     }
+    // (fork) the bot Worker runs a room's sandbox scripts too, and has no fetch either
+    if (mount.name === 'public' && path.basename(absPath).toLowerCase() === 'botworker.js') {
+      const real = await fsp.realpath(absPath);
+      const worker = await fsp.realpath(path.join(publicDir, 'js/battle/botWorker.js')).catch(() => null);
+      if (real === worker) res.setHeader('Content-Security-Policy', SIM_WORKER_CSP);
+    }
     if (gen?.gen && absPath === indexHtml) {
       // the page of a generation (shared/gen.js): its module / style / import-map paths point into the generation
       let html = rewriteIndexHtml(await fsp.readFile(absPath, 'utf8'), gen.gen);
