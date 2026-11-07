@@ -71,6 +71,7 @@ export function preloadBossPlateArt() {
   let left = urls.length;
   for (const src of urls) {
     const img = new Image();
+    img.fetchPriority = 'low'; // (fork) for a later round: never ahead of what is on screen
     img.onload = () => { left -= 1; if (left === 0) plateArt = true; };
     img.onerror = () => { left = -1; };
     img.src = src;

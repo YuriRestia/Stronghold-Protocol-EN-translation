@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-07
 
+### First-visit loading
+
+- The entry film now plays with its sound on a first visit, however slow the connection. What the opening needs (film art, entry cue, lobby music) downloads first, from page load and at high priority, behind a Loading card; the card asks for the tap once they're in. A tap made while loading counts. The battle renderer's scripts and a resuming asset preload wait until those files are in. Before, the film was dropped if its art took over 1.2 s, and the sound only started downloading after the tap.
+- In a room and a match, what the screen needs loads first (`public/js/loadLater.js`). The leader and downed plates, the pre-game boot art, the render engine's code ahead of the match, the battle effects index and the simulation's scripts wait until the screen's images, the board, operator models and music are in (at most 20 s), and the simulation's warm-up only starts from the prep on. On a first visit the field no longer times out into its simplified view while files compete for connections.
+
 ### Battle effects
 
 - Talulah's S3 now plays its official sounds: the cast, each volley's launch, each fireball's impact and the overload.
@@ -16,7 +21,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - Merged upstream's unreleased 0.3.4 work (`dev` branch) at [`eff7d93a`](https://github.com/sganggs/Stronghold-Protocol/commit/eff7d93abbd1bd6986e2e9c2d7a1e066b1975bbc) (`4d12f915`). Fork-side decisions:
   - Release notes open only from the title footer's button (no automatic opening: the lobby has its own update banner). Non-Chinese pages read `CHANGELOG.en.md`.
-  - The entry film plays once per browser tab session, not on every page load.
+  - The entry film plays every time the login screen is entered. A page load that lands in the lobby plays it once per browser tab session.
   - The three-level deploy-fold setting is taken; it still defaults to off. P2P stays off (`SP_P2P` unset).
   - Toska (冻河), Territoriya (国度) and Talulah (塔露拉) get English text in `tools/i18n/fallback-new-ops-en.json`, using names and terms from arknights.wiki.gg, until official EN data covers them.
   - Not ready to deploy: upstream's new bot logic runs on the server. All bot calculation must move to the host's browser first.
@@ -49,6 +54,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 ### Changes
 
 - Skill cast sounds follow the equipped skill. 23 operators get a cast sound they never played, such as Ch'en S2, SilverAsh S2 and Toska S3, because it wasn't on their primary skill. On 54 operators the primary skill's sound no longer rings on a skill that has no cast sound of its own, such as Exusiai the New Covenant S1 and S3; those skills now cast silently, as the official bank table says. A server needs 9 new files in `audio/sfx`.
+- Room screen: the Find Teammates switch shows its text again. The room layout from upstream 0.3.3 painted its background over it, leaving only its track visible. It now sits directly above the big button, which uses the Start Simulation look (amber with dark text while searching), and its description line is gone so the centre stays clear. On phones the switch, Add AI Teammate, the settings popup and the version tag are larger, and a seat's Preparing state can be read over light art.
+- Lobby: the update news panel uses its full width and scrolls inside itself when space is short, so it no longer pushes Achievements, Join with Key and Combat Tips off the screen. The mode buttons sit together as one group of equal cards (the long descriptions used to spread them apart): each description now wraps above its card, who plays first, the rest under it. "Solo Matchmaking" is no longer cut off.
 - Damage meters show one metric at a time. The result screen's Damage Stats and the in-match Combat statistics panel get a Damage / DPS / Healing / HPS selector (kept until the page reloads); rows sort by it, the top value fills its bar, and the row's width goes to the bar, so operators compare at a glance. Removed the panel's title, rank numbers, four-number rows, sort label and explanation box, and the chart's per-row DPS / healing text and All Rounds tag; hover a row for all four numbers.
 - Plugin studio, script checks and match hosts: their child processes no longer open console windows that steal focus on Windows (`windowsHide`).
 - `fetch-assets` names the operators missing from the local FX index. Their per-skill sounds are then planned differently,
@@ -86,7 +93,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -411,7 +418,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

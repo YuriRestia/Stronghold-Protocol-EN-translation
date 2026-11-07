@@ -73,6 +73,7 @@ function loadSprite(name) {
   const im = new Image();
   spriteImages.add(im);
   im.decoding = 'async';
+  im.fetchPriority = 'high'; // (fork) the opening and the title show these now; everything else can wait (entryFilm.js)
   const settle = (ok) => {
     spriteImages.delete(im);
     if (spriteLoads.get(name) !== task) { resolve(false); return; }

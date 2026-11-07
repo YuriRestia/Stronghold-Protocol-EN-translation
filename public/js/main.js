@@ -57,6 +57,8 @@ import { LobbyScreen, rememberRoom, parseRoomParam, joinKnown } from './screens/
 import { RoomScreen, TrustedNotice } from './screens/room.js';
 import { GameScreen } from './screens/game.js';
 import { preloadBootArt } from './ui/protocolBoot.js';
+import { playEntryFilm, watchTitleReturns } from './ui/entryFilm.js';
+import { loadLater } from './loadLater.js';
 import { audio, installAudio } from './audio.js';
 import { installLobbyMedia } from './ui/lobbyMedia.js';
 import { settingsStore } from './ui/settings.js';
@@ -364,9 +366,12 @@ function warmGameData() {
   // default ones would race it; only the art list the sprites need is fetched.
   const go = () => {
     const room = store.get().room;
+    // (fork) the field's code ahead of the match: it must not meet the prep's art and the sim's files at once, on a first
+    // visit that made it time out into the simplified view (ui/fieldHost.js)
+    loadLater(() => import('./render/app.js').catch(() => null));
     if (room?.content?.vanilla === false) return;
-    if (typeof room?.version === 'string') { data.load('assets').then(() => preloadBootArt(), () => {}); return; }
-    data.loadAll(GAME_FILES).then(() => preloadBootArt(), () => {});
+    if (typeof room?.version === 'string') { data.load('assets').then(() => loadLater(preloadBootArt), () => {}); return; }
+    data.loadAll(GAME_FILES).then(() => loadLater(preloadBootArt), () => {}); // (fork) after the room and briefing on screen; the draft asks for it itself
   };
   if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(go, { timeout: 2500 });
   else setTimeout(go, 600);
@@ -452,6 +457,21 @@ function installGlobalErrorHandlers() {
   });
 }
 
+/**
+ * The battlefield renderer's libs (classic scripts, injected by render/app/pixi.js when a match view mounts): warm the
+ * cache at low priority so entering the match doesn't wait on ~800 KB of script. (fork) Not from index.html any more: the
+ * title screen needs none of it, and on a first visit it took the line ahead of the opening's files.
+ */
+function warmBattleScripts() {
+  for (const file of ['/vendor/pixi.min.js', '/vendor/pixi-spine.js']) {
+    const link = document.createElement('link');
+    link.rel = 'prefetch';
+    link.as = 'script';
+    link.href = genUrl(file);
+    document.head.append(link);
+  }
+}
+
 async function boot() {
   installGlobalErrorHandlers();
   // what this page downloads, by category, for the 问题反馈 report's traffic line (diag.js; nothing is sent anywhere)
@@ -535,13 +555,17 @@ async function boot() {
     splash.classList.add('is-done');
     setTimeout(() => splash.remove(), 300);
   }
-  // the event's entry animation before the title screen (ui/entryFilm.js); never over a restored match
-  import('./ui/entryFilm.js')
-    .then((m) => m.playEntryFilm({ skip: () => selectRoute(store.get()) === 'game' }))
+  // the event's entry animation before the title screen (ui/entryFilm.js); never over a restored match. (fork) In the same
+  // tick as the first render: its cover is up before the title can show. What the opening needs loads first; anything for
+  // later waits for `openingLoaded` (owner 2026-11-07: first the things the game needs now, then the rest).
+  const filmOptions = { skip: () => selectRoute(store.get()) === 'game' };
+  const openingLoaded = playEntryFilm(filmOptions)
     .catch((err) => console.warn('[app] entry film unavailable', err));
+  watchTitleReturns(filmOptions); // (fork) again on every return to the login screen
+  openingLoaded.then(warmBattleScripts);
   globalThis.__SP__ = { store, net, data, version: 1 };
-  // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the first screen (resources/index.js)
-  installPreload();
+  // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the opening's files (resources/index.js)
+  installPreload(openingLoaded);
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
   // (ui/buildGuard.js): watch `/healthz.build`. Outside a match the page reloads itself; during a match the guard says
   // so instead (the connection banner offers 刷新页面) and reloads once the match — settlement screen included — is over,
