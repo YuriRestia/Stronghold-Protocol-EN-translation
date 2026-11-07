@@ -143,6 +143,26 @@ test('in a match: nothing to spend in round 1; the next prep\'s wallet is round 
   assert.deepEqual(h.lastBc('m.chat'), { t: 'm.chat', p: a.seat, x: 'gg!' });
 });
 
+test('a reconnect: the wallet and the cooldown are still there, m.private says so, and no line is replayed', () => {
+  const h = makeMatch({ mode: 'coop', humans: 2, seed: 67, fake: true }).start();
+  const m = h.m;
+  h.drive(() => m.phase === PHASE.PREP && m.round === 1);
+  const a = m.players.get('p_0');
+  a.chatLeft = 9; a.chatRound = 1;
+  assert.deepEqual(m.handle('p_0', { t: 'g.chat', x: 'gg' }), { ok: true });
+  assert.equal(h.bc.filter((f) => f.t === 'm.chat').length, 1);
+  m.onDisconnect('p_0');
+  h.sent.length = 0;
+  m.onReconnect('p_0');
+  m.flush(true);
+  assert.equal(h.lastTo('p_0', 'm.private').chatLeft, 7);
+  assert.equal(h.lastTo('p_0', 'm.private').chatRound, 1);
+  assert.equal(h.sent.some(([, f]) => f.t === 'm.chat'), false);
+  assert.equal(h.bc.filter((f) => f.t === 'm.chat').length, 1, 'nothing replayed');
+  m.handle('p_0', { t: 'g.chat', x: 'again' });
+  assert.equal(a.chatLeft, 7, 'the cooldown survives the reconnect');
+});
+
 test('lobby: the sender\'s socket gets no frame, every other member does', () => {
   const socket = () => ({ readyState: 1, bufferedAmount: 0, frames: [], send(data, cb) { this.frames.push(data); cb?.(); } });
   const members = ['a', 'b', 'spectator'].map((playerId) => ({ playerId, connected: true, ws: socket() }));

@@ -14,7 +14,7 @@ test('typing, the counter, bubbles, escaping, hotkeys and mute', { skip: process
   const puppeteer = (await import('puppeteer-core')).default;
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, botRehearsal: 0 });
   const clients = [];
-  const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox', '--no-proxy-server', `--explicitly-allowed-ports=${srv.port}`] });
+  const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox', '--no-proxy-server', `--explicitly-allowed-ports=${srv.port}`, ...(process.env.E2E_CHROME_ARGS ? process.env.E2E_CHROME_ARGS.split(' ') : [])] });
   const shot = async (page, name) => { if (process.env.CHAT_SHOT) await page.screenshot({ path: `${process.env.CHAT_SHOT}/${name}.png` }); };
   try {
     const client = async (name) => { const c = await TestClient.connect(srv.url.replace('http', 'ws') + '/ws'); clients.push(c); c.id = (await c.hello(name)).playerId; return c; };
@@ -146,6 +146,16 @@ test('typing, the counter, bubbles, escaping, hotkeys and mute', { skip: process
 
     await page.click('.team__mute');
     await page.waitForFunction(() => !document.querySelector('.team__mute.is-on'));
+
+    // a dropped socket: the page comes back with the server's count, whatever it held before
+    me.chatLeft = 9; me.dirty(); m.flush(true);
+    await openText();
+    await badge(9);
+    await page.evaluate(async () => { const { net } = await import('/js/net.js'); net.ws.close(); });
+    await page.waitForFunction(async () => { const { net } = await import('/js/net.js'); return net.status !== 'online'; }, { timeout: 5000 });
+    me.chatLeft = 4;
+    await page.waitForFunction(async () => { const { net } = await import('/js/net.js'); return net.status === 'online'; }, { timeout: 30000 });
+    await badge(4);
 
     // the switch is remembered, and Esc in the box closes the panel
     me.chatLeft = 5; me.dirty(); m.flush(true);
