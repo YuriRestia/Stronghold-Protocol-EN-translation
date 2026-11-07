@@ -21,11 +21,22 @@ export function countPresence(network, lobby) {
   return { online: network.connectionCount, searching };
 }
 
+/** (fork) This server's counts plus the other regions' (server/peerLink.js; none: just this server). */
+export function withPeers(counts, peer) {
+  if (!peer) return counts;
+  const rest = peer.others();
+  const searching = { ...counts.searching };
+  for (const [d, n] of Object.entries(rest.searching)) searching[d] = (searching[d] || 0) + n;
+  return { online: counts.online + rest.online, searching };
+}
+
 export class Presence {
   /** @param {{ network: import('./net.js').Network, lobby: import('./lobby.js').Lobby, pollMs?: number }} opts */
   constructor({ network, lobby, pollMs = PRESENCE_POLL_MS }) {
     this.network = network;
     this.lobby = lobby;
+    /** (fork) the other regions' numbers (server/peerLink.js), set by startServer */
+    this.peer = null;
     this.pollMs = pollMs;
     this.last = null;
     /** sockets that already have `last` */
@@ -45,7 +56,7 @@ export class Presence {
   }
 
   frame() {
-    return { t: 'sys.online', ...countPresence(this.network, this.lobby) };
+    return { t: 'sys.online', ...withPeers(countPresence(this.network, this.lobby), this.peer) };
   }
 
   /** Send the counts to every socket that does not have them yet. @returns {number} sockets sent to */

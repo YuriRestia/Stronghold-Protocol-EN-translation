@@ -43,6 +43,8 @@ export const REHEARSAL_MAX_CANDIDATES = 16;
  */
 export const SETUP_REROLL_COOLDOWN_MS = 30_000;
 export const ROOM_CODE_LEN = 4;
+/** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
+export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export const NAME_MAX_LEN = 12;
 
 export const DIFFICULTIES = ['FUNNY', 'NORMAL', 'HARD', 'ABYSS'];

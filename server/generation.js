@@ -51,6 +51,9 @@ export class GenerationWatch {
 
   frame() { return { t: 'sys.retire', gen: this.gen }; }
 
+  /** (fork) Is this the generation players are sent to? A prepared or a retiring one does not speak for the region (server/peerLink.js). */
+  active() { return this.wasCurrent && !this.retiring; }
+
   async check() {
     if (this.busy || this.retiring) return;
     this.busy = true;
@@ -72,6 +75,8 @@ export class GenerationWatch {
       // sent pages round in a reload loop (2026-10-11). Retire only a generation the table lists (a restarted old one
       // too), or one that was current and has been dropped.
       const listed = !!table.gens && typeof table.gens === 'object' && Object.hasOwn(table.gens, this.gen);
+      // (fork) prepared for a deploy to several regions: listed so the router reaches it, not current yet (scripts/generations.mjs)
+      if (listed && table.gens[this.gen]?.prepared) return;
       if (listed || this.wasCurrent) this.retire(current);
     } finally {
       this.busy = false;

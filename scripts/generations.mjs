@@ -11,6 +11,10 @@
 //
 //   node scripts/generations.mjs deploy [--ref <git ref>]   start a new generation of app/ (default HEAD), wait for its
 //                                                          /healthz, make it current — the old one retires
+//     (fork) several regions (DESIGN §8.7), run by scripts/deploy-regions.mjs: a page's generation must exist on every
+//     server, so the same id and commit go to all of them in two steps. --gen <id> names it; --prepare starts it and lists
+//     it without making it current; --no-art skips the art download on a server that serves none (the US one).
+//   node scripts/generations.mjs activate <gen>             make a prepared generation current
 //   node scripts/generations.mjs reap                       stop retired generations that are done (the 1-minute timer)
 //   node scripts/generations.mjs rollback                   a NEW generation of the newest older release's commit
 //   node scripts/generations.mjs status                     the table and each generation's /healthz
@@ -54,6 +58,35 @@ export function withNewGen(table, gen, port, now, release) {
   return { current: gen, gens };
 }
 
+/** The table with `gen` listed but not current: the router reaches it, it does not retire (server/generation.js), players are not sent there. */
+export function withPreparedGen(table, gen, port, now, release) {
+  return { current: table?.current ?? gen, gens: { ...(table?.gens || {}), [gen]: { port, release, startedAt: now, prepared: true } } };
+}
+
+/** The table once a prepared `gen` is current. null when it is not listed. */
+export function activateGen(table, gen, now) {
+  const g = table?.gens?.[gen];
+  if (!g) return null;
+  const gens = {};
+  for (const [id, o] of Object.entries(table.gens)) gens[id] = id === gen ? o : { ...o, retiringSince: o.retiringSince ?? now };
+  const { prepared, ...own } = g;
+  gens[gen] = own;
+  return { current: gen, gens };
+}
+
+/**
+ * (fork) A generation's matches on the other regions keep it alive here: the pages of a match on another server come from
+ * this one, so stopping "our idle copy" would break a reload in the middle of that match. MAX_AGE_MS still ends it.
+ * @param {Record<string, any>} health @param {Record<string, number>} remote human matches per generation elsewhere
+ */
+export function withRemoteMatches(health, remote) {
+  const out = { ...health };
+  for (const [id, n] of Object.entries(remote)) {
+    if (n > 0 && out[id]) out[id] = { ...out[id], humanMatches: (Number(out[id].humanMatches) || 0) + n };
+  }
+  return out;
+}
+
 /**
  * Which retiring generations to stop now.
  * @param {{ current: string, gens: Record<string, any> }} table
@@ -66,6 +99,8 @@ export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceM
   for (const [id, g0] of Object.entries(table.gens)) {
     const g = { ...g0 };
     if (id === table.current) { gens[id] = g; continue; }
+    // (fork) prepared and waiting for its activate; a deploy abandoned that long ago is stopped
+    if (g.prepared && now - (g.startedAt ?? now) < maxAgeMs) { gens[id] = g; continue; }
     const h = health[id];
     const since = g.retiringSince ?? now;
     const humans = Number(h?.humanMatches) || 0;
@@ -171,10 +206,11 @@ function ensureAssets(rel) {
   console.warn(`  retry later: cd ${APP} && sudo -u ${USER} node tools/fetch-assets.mjs --refresh-index && sudo -u ${USER} git checkout -- data/assets.json`);
 }
 
-async function deploy(ref = 'HEAD') {
+async function deploy(ref = 'HEAD', { gen = newGenId(), prepare = false, noArt = false } = {}) {
   if (!isRoot()) throw new Error('run as root: sudo node scripts/generations.mjs deploy');
+  if (!GEN_ID_RE.test(gen)) throw new Error(`${gen} is not a generation id`);
   const table = readTable();
-  const gen = newGenId();
+  if (table?.gens?.[gen]) throw new Error(`generation ${gen} is already here`);
   const port = allocPort(table);
   if (port == null) throw new Error(`no free port in ${PORT_RANGE.join('–')}: run reap first`);
   const rel = path.join(RELEASES, gen);
@@ -201,8 +237,8 @@ async function deploy(ref = 'HEAD') {
     && fs.readFileSync(path.join(prev, 'package-lock.json'), 'utf8') === fs.readFileSync(path.join(rel, 'package-lock.json'), 'utf8');
   if (sameLock) asUser('cp', ['-al', path.join(prev, 'node_modules'), path.join(rel, 'node_modules')]);
   else asUser('npm', ['ci', '--omit=dev'], { cwd: rel });
-  asUser('node', ['tools/setup.mjs', '--no-local', '--quiet'], { cwd: rel });
-  ensureAssets(rel);
+  asUser('node', ['tools/setup.mjs', '--no-local', '--quiet', ...(noArt ? ['--no-assets'] : [])], { cwd: rel });
+  if (!noArt) ensureAssets(rel);
   fs.writeFileSync(path.join(ENVS, `${gen}.env`), `PORT=${port}\nHOST=127.0.0.1\nSP_GEN=${gen}\nSP_GEN_FILE=${TABLE}\n${branch ? `SP_BRANCH=${branch}\n` : ''}`);
   run('systemctl', ['enable', '--now', `stronghold@${gen}`]);
   const until = Date.now() + HEALTH_WAIT_MS;
@@ -214,20 +250,85 @@ async function deploy(ref = 'HEAD') {
       ? `${gen} came up already retired (it would send pages round in a loop) — nothing changed for players. See: journalctl -u stronghold@${gen} -n 50`
       : `${gen} did not answer /healthz in ${HEALTH_WAIT_MS / 1000} s — nothing changed for players. See: journalctl -u stronghold@${gen} -n 50`);
   }
+  if (prepare) {
+    await withLock(() => writeTable(withPreparedGen(readTable(), gen, port, Date.now(), rel)));
+    console.log(`[deploy] ${gen} is prepared (build ${h.build}). Players are not sent there until: node scripts/generations.mjs activate ${gen}`);
+    return;
+  }
   await withLock(() => {
     const cur = readTable();
     writeTable(withNewGen(cur, gen, port, Date.now(), rel));
     if (cur?.current) run('systemctl', ['disable', `stronghold@${cur.current}`]); // keeps running; only `gen` comes back after a reboot
   });
   console.log(`[deploy] ${gen} is current (build ${h.build}). Older generations retire; reap stops them when done.`);
+  await warnIfAlone(readTable());
+}
+
+/** Make a prepared generation current (the second step of a deploy to several regions). */
+async function activate(gen) {
+  if (!isRoot()) throw new Error('run as root: sudo node scripts/generations.mjs activate <gen>');
+  await withLock(() => {
+    const cur = readTable();
+    const next = activateGen(cur, gen, Date.now());
+    if (!next) throw new Error(`generation ${gen} is not prepared here`);
+    writeTable(next);
+    if (cur.current && cur.current !== gen) run('systemctl', ['disable', `stronghold@${cur.current}`]);
+  });
+  console.log(`[deploy] ${gen} is current. Older generations retire; reap stops them when done.`);
+}
+
+/**
+ * The other regions that do not run generation `gen`: a page of that generation cannot reach them.
+ * @param {string} gen @param {{ id: string, host: string }[]} others @param {typeof fetch} [fetchFn]
+ * @returns {Promise<string[]>}
+ */
+export async function regionsWithout(gen, others, fetchFn = fetch) {
+  const missing = [];
+  for (const r of others) {
+    let h = null;
+    try {
+      const res = await fetchFn(`https://${r.host}/_build/${gen}/_/healthz`, { signal: AbortSignal.timeout(3000) });
+      h = res.ok ? await res.json() : null;
+    } catch { /* away counts as without */ }
+    if (h?.gen !== gen) missing.push(r.id);
+  }
+  return missing;
+}
+
+/** Warn when the current generation is not on every region. @param {{ current: string, gens: Record<string, { port: number }> }} table */
+async function warnIfAlone(table) {
+  const me = await health(table.gens[table.current]?.port);
+  const others = (me?.regions?.list || []).filter((r) => r.id !== me.regions.self);
+  if (!others.length) return;
+  const missing = await regionsWithout(table.current, others);
+  if (missing.length) console.warn(`WARNING: generation ${table.current} is not on ${missing.join(', ')}: pages from here cannot reach that server. Deploy with scripts/deploy-regions.mjs (DEPLOY.md 2.7).`);
+}
+
+/** Human matches of these generations on the other regions, from their public /healthz. Nothing known counts as none. */
+async function remoteMatches(table, ids) {
+  const out = {};
+  if (!ids.length) return out;
+  const me = await health(table.gens[table.current]?.port);
+  const others = (me?.regions?.list || []).filter((r) => r.id !== me.regions.self);
+  for (const id of ids) {
+    for (const r of others) {
+      try {
+        const res = await fetch(`https://${r.host}/_build/${id}/_/healthz`, { signal: AbortSignal.timeout(3000) });
+        const h = res.ok ? await res.json() : null;
+        if (h?.gen === id) out[id] = (out[id] || 0) + (Number(h.humanMatches) || 0);
+      } catch { /* that server is away: its pages are not being served from here anyway */ }
+    }
+  }
+  return out;
 }
 
 async function reap() {
   await withLock(async () => {
     const table = readTable();
     if (!table) return;
-    const hs = {};
+    let hs = {};
     for (const [id, g] of Object.entries(table.gens)) if (id !== table.current) hs[id] = await health(g.port);
+    hs = withRemoteMatches(hs, await remoteMatches(table, Object.keys(hs)));
     const plan = reapPlan(table, hs, Date.now());
     writeTable(plan.table); // first: the router stops sending anything to them
     for (const id of plan.stop) {
@@ -263,17 +364,20 @@ async function status() {
   if (!table) { console.log(`no ${TABLE} yet`); return; }
   for (const [id, g] of Object.entries(table.gens)) {
     const h = await health(g.port);
-    const state = id === table.current ? 'CURRENT' : `retiring ${Math.round((Date.now() - g.retiringSince) / 60000)} min`;
+    const state = id === table.current ? 'CURRENT' : g.prepared ? 'prepared' : `retiring ${Math.round((Date.now() - g.retiringSince) / 60000)} min`;
     console.log(`${id}  port ${g.port}  ${state.padEnd(16)}  ${h ? `build ${h.build}, ${h.humanMatches} human match(es), ${h.sockets} socket(s), ${h.rooms} room(s)` : 'NO ANSWER'}`);
   }
+  await warnIfAlone(table);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const [cmd, ...rest] = process.argv.slice(2);
   const refAt = rest.indexOf('--ref');
-  const jobs = { deploy: () => deploy(refAt >= 0 ? rest[refAt + 1] : 'HEAD'), reap, rollback, status };
+  const genAt = rest.indexOf('--gen');
+  const deployOptions = { ...(genAt >= 0 ? { gen: rest[genAt + 1] } : {}), prepare: rest.includes('--prepare'), noArt: rest.includes('--no-art') };
+  const jobs = { deploy: () => deploy(refAt >= 0 ? rest[refAt + 1] : 'HEAD', deployOptions), activate: () => activate(rest[0]), reap, rollback, status };
   if (!jobs[cmd]) {
-    console.log('usage: node scripts/generations.mjs deploy [--ref <git ref>] | reap | rollback | status');
+    console.log('usage: node scripts/generations.mjs deploy [--ref <git ref>] [--gen <id>] [--prepare] [--no-art] | activate <gen> | reap | rollback | status');
     process.exit(cmd ? 1 : 0);
   }
   jobs[cmd]().catch((e) => { console.error(`[${cmd}] ${e.message || e}`); process.exit(1); });

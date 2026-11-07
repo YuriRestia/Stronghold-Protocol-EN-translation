@@ -35,6 +35,7 @@ import { N_ } from '../../shared/i18n.js';
 import { genUrl } from './gen.js';
 import { STATE_DELTA_VERSION, StateReceiver } from '../../shared/stateDelta.js';
 import { PeerTransport } from './p2p.js';
+import { createRegions } from './regions.js';
 
 export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
@@ -52,6 +53,7 @@ export const CLIENT_ERR_TEXT = Object.freeze({
   CLOSED: N_('连接已关闭'),
   REPLACED: N_('该身份已在其他页面登录'),
   VERSION: N_('客户端版本与服务器不一致，请刷新页面'),
+  REGION_DOWN: N_('该同盟所在的服务器暂时无法连接'), // en: "The server hosting this alliance can't be reached right now."
 });
 
 /** Server close code: the session was taken over by another socket (server/net.js CLOSE.REPLACED). */
@@ -117,6 +119,7 @@ export class Net {
   /**
    * @param {object} [opts]
    * @param {string} [opts.url] socket URL (default: derived from location at connect time)
+   * @param {() => (string|null)} [opts.getUrl] (fork) the socket URL at each connect; null: the default
    * @param {any} [opts.WebSocket] WebSocket constructor (default: globalThis.WebSocket)
    * @param {() => (string|null)} [opts.getToken] reconnect-token provider for `hello`
    * @param {() => ({ noReplace: boolean, claimAt?: number })} [opts.getTokenClaim] local ownership for this hello
@@ -127,6 +130,8 @@ export class Net {
    */
   constructor(opts = {}) {
     this.url = opts.url || null;
+    /** (fork) asked at every connect when `url` is not fixed: the socket of this page's region (public/js/regions.js) */
+    this.getUrl = typeof opts.getUrl === 'function' ? opts.getUrl : null;
     this.WS = opts.WebSocket || null;
     this.getToken = typeof opts.getToken === 'function' ? opts.getToken : () => null;
     this.getTokenClaim = typeof opts.getTokenClaim === 'function' ? opts.getTokenClaim : () => null;
@@ -233,7 +238,7 @@ export class Net {
     this._clearTimer('_reconnectTimer', 'clearTimeout');
     this.retryAt = 0;
     const WS = this.WS || globalThis.WebSocket;
-    const url = this.url || defaultWsUrl();
+    const url = this.url || this.getUrl?.() || defaultWsUrl();
     let ws;
     try {
       ws = new WS(url);
@@ -279,6 +284,18 @@ export class Net {
     this._failPending('DISCONNECTED', false);
     this.attempt = 0;
     this.connect();
+  }
+
+  /**
+   * (fork) Reconnect to whatever server `getUrl` now names: another clock, so its samples start over; a title-screen
+   * socket swaps quietly. Regions only (public/js/regions.js).
+   */
+  switchServer() {
+    this._clockSamples = [];
+    this.clockSynced = false;
+    this.ping = null;
+    this._quietSwap = this.status === 'connected' && !this.name;
+    this.reconnectNow(this.name);
   }
 
   /**
@@ -1028,4 +1045,17 @@ export function createIdentity(deps = {}) {
 export const identity = createIdentity({ onYield: () => net.reconnectNow(net.helloName || net.name) });
 
 /** Browser connection singleton (created lazily-safe: nothing touches the network until connect()). */
-export const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim() });
+export const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim(), getUrl: () => regions.getUrl() });
+
+/** (fork) Which server this page's socket uses (public/js/regions.js); idle without regions in /healthz. */
+export const regions = createRegions({
+  net,
+  identity,
+  local: safeStorage('localStorage'),
+  session: safeStorage('sessionStorage'),
+  search: globalThis.location?.search,
+  socketPath: () => genUrl('/ws'),
+  secure: () => globalThis.location?.protocol === 'https:',
+  makeNet: (url) => new Net({ url, p2p: { enabled: false } }),
+  makeError: (code) => new NetError(code),
+});
