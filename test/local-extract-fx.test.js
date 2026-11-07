@@ -404,6 +404,16 @@ print(json.dumps([fx.graph_projectiles(state), fx.graph_projectiles('not json'),
     assert.deepEqual(out[2], ['oxi', 'tocka', 'aglna2', null, null, null]);
   });
 
+  test('(fork) graph_projectiles: a blackboard default its emitter reads (凛御银灰 S3: the birds); other defaults are no shots', () => {
+    const out = py(`
+state = json.dumps([
+  {'$type': 'Torappu.Battle.Action.Nodes+EnsureBlackboardDefaultValue', '_defaultSettings': [
+    {'key': 'projectile', 'val': 0.0, 'valStr': 'projectile_chr_svash2_s3_bird_self'}, {'key': 'other', 'valStr': 'not_a_shot'}, {'key': 'projectile', 'valStr': ''}]},
+  {'$type': 'Torappu.Battle.Action.Nodes+Svash2EmitProjectileFixedDirection'}])
+print(json.dumps(fx.graph_projectiles(state)))`);
+    assert.deepEqual(out, ['projectile_chr_svash2_s3_bird_self']);
+  });
+
   test('graph_links / bb_ability_names: the abilities a template casts or stops (an unnamed one: its buff\'s blackboard ability_name), mode switches, created buffs', () => {
     const out = py(`
 N = lambda t, **kw: {'$type': 'Torappu.Battle.Action.Nodes+' + t, **kw}
