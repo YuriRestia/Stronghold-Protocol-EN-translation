@@ -174,3 +174,58 @@ test('two browsers at a boss round: the AI pair\'s boss field runs live in the h
   const noted = srv.logs.filter((l) => /server takeover|handing the field over|nobody can run/.test(l));
   assert.deepEqual(noted.slice(0, 5), [], 'no server takeover and no handover');
 });
+
+test('a host\'s socket replaced mid-match, as a region switch or a network change does: bot work carries on over the new socket', { skip: !enabled && 'set SP_E2E=1 and CHROME_PATH', timeout: 300000 }, async (t) => {
+  const srv = await startRealServer({ fast: { timerScale: 0.25, combatSpeed: 8 }, env: { SP_BOT_EXECUTION: 'host' } });
+  t.after(() => srv.stop());
+  const P = (await import('puppeteer-core')).default;
+  const host = new Client(P, srv.base, 'host', { prefix: 'bothost' });
+  const guest = new Client(P, srv.base, 'guest', { w: 1280, h: 720, prefix: 'bothost' });
+  t.after(async () => { await guest.close().catch(() => {}); await host.close().catch(() => {}); });
+  await host.open();
+  await host.enter('凯尔希');
+  const room = await host.createCoop();
+  await host.click('button', '添加 AI 队友');
+  await sleep(300);
+  await host.click('button', '添加 AI 队友');
+  await guest.open(`?room=${room.code}`);
+  await guest.enter('阿米娅');
+  await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
+  await hookBotFrames(host);
+  await hookBotFrames(guest);
+  await guest.click('.room-bar__right button', '准备就绪');
+  await sleep(400);
+  await host.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+  for (const c of [host, guest]) await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
+  for (const c of [host, guest]) await c.click('.brief__foot .btn--primary', '准备就绪');
+  await toPrep(host, 2);
+  const start = (await host.st()).round;
+  // the same call a region switch makes (public/js/regions.js): a new socket for this session, the old one closed
+  await host.page.evaluate(() => globalThis.__SP__.net.switchServer());
+  await host.waitFor((s) => s.round >= start, 'back online', 30000);
+  await host.page.waitForFunction(() => globalThis.__SP__.net.status === 'online', { timeout: 30000 });
+  const before = await botSent(host);
+  const beforeGuest = await botSent(guest);
+  // play on: the next prep's bot work must be somebody's, and the host is asked again once it is back
+  const t0 = Date.now();
+  let st = await host.st();
+  while (Date.now() - t0 < 120000 && st.round < start + 2) {
+    if (st.phase === 'PREP') for (const c of [host, guest]) await requestReady(c);
+    await sleep(300);
+    st = await host.st();
+  }
+  assert.ok(st.round >= start + 2, `reached round ${st.round} from ${start}`);
+  await toPrep(host, start + 2);
+  await sleep(3000);
+  const after = await botSent(host);
+  const afterGuest = await botSent(guest);
+  const finals = (list) => list.filter((m) => m.t === 'b.botMoves' && m.batch === 'final').length;
+  const newHost = finals(after) - finals(before);
+  const newGuest = finals(afterGuest) - finals(beforeGuest);
+  console.log(`socket replaced in round ${start}: finals since, host ${newHost}, guest ${newGuest}; hidden frames ${after.filter((m) => m.t === 'b.botHidden').length}`);
+  assert.ok(newHost + newGuest >= 2, 'the bots kept playing');
+  assert.ok(newHost >= 1, 'the host took bot work over the new socket');
+  assert.deepEqual(after.filter((m) => m.t === 'b.botMoves' && m.error), []);
+  const serverErrors = srv.logs.filter((l) => /\berror\b/i.test(l) && /bot|match/i.test(l));
+  assert.deepEqual(serverErrors.slice(0, 5), []);
+});
