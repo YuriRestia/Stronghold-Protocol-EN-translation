@@ -32,6 +32,8 @@ export const PROBE_TIMEOUT_MS = 4000;
 /** Failed reconnects before another region is given up: a server restart gets its time, a dead first connect does not. */
 export const FALLBACK_ATTEMPTS = 6;
 export const FALLBACK_ATTEMPTS_FIRST = 2;
+/** A region given up is tried again after this long, or as soon as a ping test reaches it. */
+export const DOWN_MS = 5 * 60_000;
 const WELCOME_WAIT_MS = 8000;
 /** After a welcome the server resends a resumed room at once: this long without one means there is no seat to keep. */
 export const SETTLE_GRACE_MS = 1500;
@@ -84,7 +86,10 @@ export function createRegions(deps) {
   let config = parseConfig(readJson(local, K_CONFIG, null));
   /** the region the socket is on or connecting to; null: the page's own, regions unknown */
   let current = null;
-  const down = new Set();
+  /** @type {Map<string, number>} regions given up, and when */
+  const down = new Map();
+  /** /healthz has answered on this page: until then `config` is only what the last visit saw */
+  let confirmed = false;
   let probing = null;
   let probedOnce = false;
   let everOnline = false;
@@ -97,7 +102,12 @@ export function createRegions(deps) {
 
   const has = (id) => !!config?.list.some((r) => r.id === id);
   const hostOf = (id) => config?.list.find((r) => r.id === id)?.host ?? null;
-  const usable = (id) => has(id) && !down.has(id);
+  const usable = (id) => {
+    if (!has(id)) return false;
+    if (down.has(id) && now() - down.get(id) < DOWN_MS) return false;
+    down.delete(id);
+    return true;
+  };
   const urlOf = (id) => regionSocketUrl(hostOf(id), deps.socketPath(), deps.secure());
 
   const pref = () => read(local, K_PREF) || 'auto';
@@ -133,6 +143,9 @@ export function createRegions(deps) {
     let token;
     try { token = identity.getToken(); } catch { token = null; }
     const owner = token ? tokenRegions()[token] : null;
+    // The list is from the last visit: the operator may have turned regions off since. One failed connect is enough to try
+    // the page's own socket, unless a token says a seat may be waiting there; /healthz settles it either way.
+    if (!confirmed && !owner && (net.attempt ?? 0) > 0) { current = config.self; return null; }
     current = owner && usable(owner) ? owner : home();
     if (owner && owner !== current) { try { identity.clearToken(); } catch { /* its server is gone */ } }
     return urlOf(current);
@@ -207,9 +220,10 @@ export function createRegions(deps) {
     if (probing) return probing;
     if (!config?.auto || force() || pref() !== 'auto') return Promise.resolve(null);
     probing = (async () => {
-      const ids = config.list.map((r) => r.id).filter(usable);
+      const ids = config.list.map((r) => r.id); // a region given up too: an answer brings it back
       const times = await Promise.all(ids.map(pingOnce));
       const rtts = Object.fromEntries(ids.map((id, i) => [id, times[i]]));
+      ids.forEach((id, i) => { if (Number.isFinite(times[i])) down.delete(id); });
       const chosen = pickRegion(rtts, read(local, K_BEST));
       if (chosen) write(local, K_BEST, chosen);
       settle();
@@ -302,6 +316,7 @@ export function createRegions(deps) {
 
   /** Every /healthz body the page reads (ui/buildGuard.js). */
   function onHealth(h) {
+    confirmed = true;
     const next = parseConfig(h?.regions);
     const changed = JSON.stringify(next) !== JSON.stringify(config);
     config = next;
@@ -334,7 +349,11 @@ export function createRegions(deps) {
     if (everOnline && busy()) return;
     if ((snap.attempt ?? 0) < (everOnline ? FALLBACK_ATTEMPTS : FALLBACK_ATTEMPTS_FIRST)) return;
     const lost = current;
-    down.add(lost);
+    const at = now();
+    down.set(lost, at);
+    // it may be back by then: measure again and go home, unless this page is in a room
+    const retry = setTimer(() => { if (now() - at >= DOWN_MS) { void probe(); settle(); } }, DOWN_MS + 50);
+    retry?.unref?.(); // (Node, in tests) nothing waits for it
     notify('down', lost);
     try { identity.clearToken(); } catch { /* none */ }
     everOnline = false;

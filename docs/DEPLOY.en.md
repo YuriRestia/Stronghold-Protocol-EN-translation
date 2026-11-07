@@ -320,6 +320,7 @@ Deployment notes:
 
 - Another server's reverse proxy only needs to forward `/ws`, `/_build/<gen>/_/ws`, `/healthz`, `/_build/<gen>/_/healthz` and `/_peer/`, and can redirect everything else to the main domain.
 - A page and its server must be the same build, so every server deploys the same generation id and commit. On your own PC, run `node scripts/deploy-regions.mjs deploy --hosts main-server,other-server:no-art`. It prepares the new generation on every server and only switches once all have succeeded. If any server fails, players aren't affected. `:no-art` marks a server that doesn't download art.
+- Don't run `generations.mjs deploy` or `rollback` on one server alone: the new generation would exist only there, and pages from it couldn't reach the other server. `generations.mjs status` and `deploy` warn when this happens; another `deploy-regions.mjs` deploy fixes it.
 - Notices must reach every server too: `node scripts/deploy-regions.mjs announce --hosts … --minutes 5 "…"`.
 - The servers talk over signed HTTPS, so no firewall change is needed. While that link is down each server matches locally, and joining by key still works.
 - If the first server goes down, new visitors can't load the page. Pages already open and matches on other servers keep running.

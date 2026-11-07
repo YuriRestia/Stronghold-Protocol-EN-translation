@@ -2615,14 +2615,18 @@ export class Lobby {
   /**
    * A source of a cross-region match: everyone in these rooms and this queue goes to the target. A spectator stays behind,
    * as one that does not fit a local merge does. All or nothing.
-   * @param {{ member?: string, region: string, code: string, ticket: string, rooms: string[], solos: string[] }} cmd
+   * @param {{ member?: string, region: string, code: string, ticket: string, rooms: string[], solos: string[], humans?: number, bots?: number }} cmd
    */
-  crossMove({ member, region, code, ticket, rooms: codes = [], solos: ids = [] }) {
+  crossMove({ member, region, code, ticket, rooms: codes = [], solos: ids = [], humans = null, bots = null }) {
     const rooms = codes.map((c) => this.rooms.get(c));
     if (this.retiring || !rooms.every((r) => isMatchable(r))) return { ok: false, member };
     const difficulty = rooms[0]?.difficulty ?? this.soloQueue.get(ids[0])?.difficulty;
     const sessions = this.crossSolos(ids, difficulty);
     if (!sessions) return { ok: false, member };
+    // the target holds exactly the seats this plan counted: a Doctor who joined since would find no seat and no room
+    const humansHere = rooms.reduce((n, r) => n + r.seats.filter((s) => s && !s.left && !s.isBot).length, 0) + sessions.length;
+    const botsHere = rooms.reduce((n, r) => n + r.seats.filter((s) => s && !s.left && s.isBot).length, 0);
+    if ((humans != null && humans !== humansHere) || (bots != null && bots !== botsHere)) return { ok: false, member };
     const frame = { t: 'room.move', region, code, ticket };
     for (const r of rooms) {
       for (const s of r.seats) {

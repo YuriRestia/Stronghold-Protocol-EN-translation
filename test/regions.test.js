@@ -8,7 +8,13 @@ import { StubMatch } from '../server/match/StubMatch.js';
 import { TestClient } from './helpers/wsClient.js';
 import { parseRegions, regionLetters, regionOfCode, regionSocketUrl } from '../shared/regions.js';
 import { regionConfigFrom, regionConnectSources, regionsReport } from '../server/regions.js';
-import { signBody, verifyBody, signTicket, verifyTicket, compatible, SYNC_PATH } from '../server/peerLink.js';
+import { Net, NetError } from '../public/js/net.js';
+import { createRegions } from '../public/js/regions.js';
+import { GenerationWatch } from '../server/generation.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { PeerLink, signBody, verifyBody, signTicket, verifyTicket, compatible, SYNC_PATH } from '../server/peerLink.js';
 import { planCross } from '../server/crossMatch.js';
 import { CODE_ALPHABET, ERR, MAX_SEATS } from '../shared/constants.js';
 import { siteCsp } from '../server/http/csp.js';
@@ -33,6 +39,14 @@ describe('keys name their server', () => {
   test('three regions leave no letter out', () => {
     const three = [...LIST, { id: 'eu', host: 'c.example' }];
     assert.equal(['sg', 'us', 'eu'].map((id) => regionLetters(three, id)).join(''), CODE_ALPHABET);
+  });
+
+  test('for any number of regions, the letters and the lookup agree, and no letter is left out', () => {
+    for (let n = 2; n <= CODE_ALPHABET.length; n++) {
+      const list = Array.from({ length: n }, (_, i) => ({ id: `r${i}`, host: `h${i}.example` }));
+      assert.equal(list.map((r) => regionLetters(list, r.id)).join(''), CODE_ALPHABET, `${n} regions`);
+      for (const r of list) for (const c of regionLetters(list, r.id)) assert.equal(regionOfCode(`${c}AAA`, list), r.id, `${n} regions, ${c}`);
+    }
   });
 
   test('parseRegions refuses anything it cannot use: one server, as without the setting', () => {
@@ -153,6 +167,60 @@ describe('planCross', () => {
   test('members already in a plan stay out of the next', () => {
     const busy = new Set(['room:AAAA']);
     assert.deepEqual(plan({ rooms: [room('AAAA', 2)], solos: [] }, { rooms: [room('NNNN', 2)], solos: [] }, { busy }), []);
+  });
+});
+
+describe('only the current generation speaks for a region', () => {
+  const config = (self) => ({ self, list: LIST, letters: regionLetters(LIST, self), arbiter: 'sg', auto: true, crossMatch: true, secret: SECRET, crossAfterMs: 0 });
+  const link = (self, more = {}) => new PeerLink({ config: config(self), network: { connectionCount: 1 }, lobby: {}, log: quiet, ...more });
+
+  test('a generation that is prepared or retiring posts nothing', async () => {
+    let posts = 0;
+    let active = false;
+    const l = link('us', { isActive: () => active, fetch: async () => { posts++; return { ok: true, json: async () => ({ region: 'sg' }) }; } });
+    l.tick();
+    await new Promise((done) => setTimeout(done, 5));
+    assert.equal(posts, 0);
+    active = true;
+    l.tick();
+    await new Promise((done) => setTimeout(done, 5));
+    assert.equal(posts, 1);
+  });
+
+  test('a generation is active only once players are sent to it, and until it retires', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-regions-'));
+    const file = path.join(dir, 'generations.json');
+    const write = (table) => fs.writeFileSync(file, JSON.stringify(table));
+    const lobby = { retire() {}, stats: () => ({ humanMatches: 0 }) };
+    const watch = new GenerationWatch({ gen: 'b', file, registry: { all: () => [] }, lobby, log: quiet });
+    try {
+      write({ current: 'a', gens: { a: { port: 1 }, b: { port: 2, prepared: true } } });
+      await watch.check();
+      assert.equal(watch.active(), false, 'prepared');
+      assert.equal(watch.retiring, false, 'and it does not retire');
+      write({ current: 'b', gens: { a: { port: 1, retiringSince: 1 }, b: { port: 2 } } });
+      await watch.check();
+      assert.equal(watch.active(), true, 'current');
+      write({ current: 'c', gens: { b: { port: 2 }, c: { port: 3 } } });
+      await watch.check();
+      assert.equal(watch.active(), false, 'retiring');
+    } finally {
+      watch.stop();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a command planned for a generation that was replaced fails instead of reaching the new one', () => {
+    const results = [];
+    const l = link('sg');
+    l.onResult = (region, r) => results.push([region, r]);
+    l.onSync({ region: 'us', gen: 'old' });
+    l.send('us', { id: 'p1', kind: 'move', member: 'us' });
+    const reply = l.onSync({ region: 'us', gen: 'new' });
+    assert.deepEqual(reply.cmds, []);
+    assert.deepEqual(results, [['us', { id: 'p1', kind: 'move', ok: false, member: 'us' }]]);
+    l.send('us', { id: 'p2', kind: 'move', member: 'us' });
+    assert.deepEqual(l.onSync({ region: 'us', gen: 'new' }).cmds.map((c) => c.id), ['p2'], 'the same generation gets it');
   });
 });
 
@@ -350,6 +418,60 @@ describe('two servers', () => {
       assert.equal(lobby.crossMove({ region: 'sg', code: 'AAAA', ticket: 't', rooms: [room.code], solos: [] }).ok, false);
       assert.equal(lobby.rooms.has(room.code), true);
     } finally { await r.close(); }
+  });
+
+  test('a source that gained a Doctor since the plan refuses the move, so nobody is left without a room', async () => {
+    const r = await twoRegions({ cross: false });
+    try {
+      const lobby = r.us.lobby;
+      const room = await searching(r.us, 2, 'U');
+      assert.equal(lobby.crossMove({ region: 'sg', code: 'AAAA', ticket: 't', rooms: [room.code], solos: [], humans: 1, bots: 0 }).ok, false);
+      assert.equal(lobby.rooms.has(room.code), true);
+      assert.equal(room.members[0].inbox.some((m) => m.t === 'room.move'), false);
+      assert.equal(lobby.crossMove({ region: 'sg', code: 'AAAA', ticket: 't', rooms: [room.code], solos: [], humans: 2, bots: 1 }).ok, false, 'an AI seat counts too');
+      assert.equal(lobby.crossMove({ region: 'sg', code: 'AAAA', ticket: 't', rooms: [room.code], solos: [], humans: 2, bots: 0 }).ok, true, 'as planned, it goes');
+    } finally { await r.close(); }
+  });
+
+  test('the real client joining across: the second socket is replaced and the seat never shows as gone', async () => {
+    const r = await twoRegions({ cross: false });
+    const memory = (seed = {}) => {
+      const m = new Map(Object.entries(seed));
+      return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+    };
+    const cfg = { self: 'sg', list: [{ id: 'sg', host: `127.0.0.1:${r.sg.port}` }, { id: 'us', host: `127.0.0.1:${r.us.port}` }], auto: false };
+    const identity = { t: null, getToken() { return this.t; }, getTokenClaim: () => ({ noReplace: false }), clearToken() { this.t = null; }, saveToken(x) { this.t = x; }, loadName: () => 'Joiner' };
+    const probes = [];
+    const net = new Net({ getToken: () => identity.getToken(), getTokenClaim: () => identity.getTokenClaim(), getUrl: () => regions.getUrl(), p2p: { enabled: false } });
+    const regions = createRegions({
+      net, identity, local: memory({ 'sp.regions': JSON.stringify(cfg) }), session: memory(), search: '', socketPath: () => '/ws', secure: () => false,
+      makeNet: (url) => { const p = new Net({ url, p2p: { enabled: false } }); probes.push(p); return p; }, makeError: (code) => new NetError(code),
+    });
+    try {
+      const host = await player(r.us, 'Host');
+      await ok(host, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
+      const { code } = await host.waitFor('room.state');
+      await new Promise((done) => {
+        net.on('welcome', (m) => { identity.saveToken(m.token); regions.onWelcome(m); done(); });
+        net.setName('Joiner');
+      });
+      assert.equal(regions.snapshot().current, 'sg');
+      await regions.join('room.join', { code });
+      assert.equal(regions.snapshot().current, 'us');
+      assert.equal(net.status, 'online');
+      assert.equal(probes.length, 1);
+      await new Promise((done) => setTimeout(done, 100));
+      assert.equal(probes[0].status, 'closed', 'the second socket is gone');
+      const seat = r.us.lobby.rooms.get(code).seatOf(net.playerId);
+      assert.ok(seat, 'the main socket holds the seat the second socket took');
+      assert.equal(seat.connected, true);
+      const gone = host.inbox.filter((m) => m.t === 'room.state').flatMap((m) => m.seats).filter((s) => s && s.name === 'Joiner' && s.connected === false);
+      assert.deepEqual(gone, [], 'nobody saw the seat drop');
+    } finally {
+      net.close();
+      for (const p of probes) p.close();
+      await r.close();
+    }
   });
 
   test('a queued Doctor moves with a ticket and leaves the queue', async () => {

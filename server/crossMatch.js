@@ -155,7 +155,7 @@ export class CrossMatch {
       f.left = plan.members.length - 1;
       for (const m of plan.members) {
         if (m.region === plan.target) continue;
-        this.order(m.region, { id: res.id, kind: 'move', member: m.region, region: plan.target, code: res.code, ticket: res.ticket, rooms: m.rooms, solos: m.solos });
+        this.order(m.region, { id: res.id, kind: 'move', member: m.region, region: plan.target, code: res.code, ticket: res.ticket, rooms: m.rooms, solos: m.solos, humans: m.humans, bots: m.bots });
       }
       return;
     }

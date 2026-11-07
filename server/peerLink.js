@@ -67,9 +67,11 @@ export class PeerLink {
   /**
    * @param {{ config: NonNullable<ReturnType<typeof import('./regions.js').regionConfigFrom>>,
    *   network: { connectionCount: number }, lobby: any, gen?: string | null, cs?: string | null, log?: any,
-   *   fetch?: typeof fetch, now?: () => number, pollMs?: number }} opts
+   *   fetch?: typeof fetch, now?: () => number, pollMs?: number, isActive?: (() => boolean) | null }} opts
+   *   isActive: is this process the one that speaks for its region? (server/generation.js: a prepared or a retiring
+   *   generation stays silent, or its posts would overwrite the current one's every 2 s for up to an hour); none: always
    */
-  constructor({ config, network, lobby, gen = null, cs = null, log = {}, fetch: fetchFn = globalThis.fetch, now = Date.now, pollMs = POLL_MS }) {
+  constructor({ config, network, lobby, gen = null, cs = null, log = {}, fetch: fetchFn = globalThis.fetch, now = Date.now, pollMs = POLL_MS, isActive = null }) {
     this.config = config;
     this.network = network;
     this.lobby = lobby;
@@ -79,6 +81,7 @@ export class PeerLink {
     this.fetch = fetchFn;
     this.now = now;
     this.pollMs = pollMs;
+    this.isActive = isActive;
     this.isArbiter = config.self === config.arbiter;
     /** @type {Map<string, { state: any, at: number }>} the last state of each other region */
     this.peers = new Map();
@@ -108,6 +111,7 @@ export class PeerLink {
   }
 
   tick() {
+    if (this.isActive && !this.isActive()) return;
     if (!this.isArbiter) { void this.poll(); return; }
     try { this.onTick?.(); } catch (e) { this.log.error?.('[peer] planning failed', e); }
   }
@@ -146,10 +150,10 @@ export class PeerLink {
     return sum;
   }
 
-  /** Arbiter: a command for another region, delivered with its next post. */
+  /** Arbiter: a command for another region's current generation, delivered with its next post. */
   send(region, cmd) {
     if (!this.outbox.has(region)) this.outbox.set(region, []);
-    this.outbox.get(region).push(cmd);
+    this.outbox.get(region).push({ cmd, gen: this.peers.get(region)?.state?.gen ?? null });
   }
 
   /** Not the arbiter: post this server's state; run what comes back. */
@@ -200,8 +204,14 @@ export class PeerLink {
     for (const r of Array.isArray(msg.results) ? msg.results : []) {
       try { this.onResult?.(msg.region, r); } catch (e) { this.log.error?.('[peer] result failed', e); }
     }
-    const cmds = this.outbox.get(msg.region) || [];
+    // a deploy may have replaced the generation it was planned for: that one's rooms are not this one's, so it fails
+    const cmds = [];
+    const queued = this.outbox.get(msg.region) || [];
     this.outbox.delete(msg.region);
+    for (const { cmd, gen } of queued) {
+      if (gen === (msg.gen ?? null)) { cmds.push(cmd); continue; }
+      try { this.onResult?.(msg.region, { id: cmd.id, kind: cmd.kind, ok: false, member: cmd.member }); } catch (e) { this.log.error?.('[peer] result failed', e); }
+    }
     const rest = { online: 0, searching: {} };
     for (const { id, state } of this.freshPeers()) {
       if (id === msg.region) continue;

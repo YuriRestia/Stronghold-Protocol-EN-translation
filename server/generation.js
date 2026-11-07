@@ -51,6 +51,9 @@ export class GenerationWatch {
 
   frame() { return { t: 'sys.retire', gen: this.gen }; }
 
+  /** (fork) Is this the generation players are sent to? A prepared or a retiring one does not speak for the region (server/peerLink.js). */
+  active() { return this.wasCurrent && !this.retiring; }
+
   async check() {
     if (this.busy || this.retiring) return;
     this.busy = true;

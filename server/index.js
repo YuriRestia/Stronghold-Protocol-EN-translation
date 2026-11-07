@@ -258,7 +258,7 @@ export async function startServer(opts = {}) {
   }
 
   // (fork) the link between regions and matchmaking across them (DESIGN §8.7, §90.2): needs SP_PEER_SECRET
-  const peer = regions?.secret ? new PeerLink({ config: regions, network, lobby, gen, cs: content?.cs ?? null, log, pollMs: opts.peerPollMs, fetch: opts.peerFetch }) : null;
+  const peer = regions?.secret ? new PeerLink({ config: regions, network, lobby, gen, cs: content?.cs ?? null, log, pollMs: opts.peerPollMs, fetch: opts.peerFetch, isActive: generation ? () => generation.active() : null }) : null;
   presence.peer = peer;
   if (peer && regions.crossMatch) {
     lobby.crossTicket = (payload) => signTicket(regions.secret, payload);

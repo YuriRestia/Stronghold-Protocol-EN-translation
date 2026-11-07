@@ -9,7 +9,7 @@ import path from 'node:path';
 import { splitGenPath, genPath, rewriteIndexHtml, isGenSharedPath } from '../shared/gen.js';
 import { genOf, publicPath, goHome, RETIRED_FLAG } from '../public/js/gen.js';
 import { parseGenerations, route, createRouter } from '../scripts/router.mjs';
-import { newGenId, allocPort, withNewGen, withPreparedGen, activateGen, withRemoteMatches, reapPlan, releasesToPrune, missingAssets, MAX_AGE_MS } from '../scripts/generations.mjs';
+import { newGenId, allocPort, withNewGen, withPreparedGen, activateGen, withRemoteMatches, regionsWithout, reapPlan, releasesToPrune, missingAssets, MAX_AGE_MS } from '../scripts/generations.mjs';
 import { parseHosts, prepareCommand, activateCommand, announceCommand, shQuote } from '../scripts/deploy-regions.mjs';
 import { startBuildGuard } from '../public/js/ui/buildGuard.js';
 import { startServer } from '../server/index.js';
@@ -358,5 +358,49 @@ describe('scripts/deploy-regions.mjs', () => {
     assert.equal(line.startsWith("sudo bash -c '"), true);
     assert.match(line, /--minutes 5 /);
     assert.equal(shQuote("a'b"), `'a'\\''b'`);
+  });
+});
+
+describe('a generation on one server only', () => {
+  const others = [{ id: 'us', host: 'b.example' }];
+  const answering = (body, ok = true) => async () => ({ ok, json: async () => body });
+
+  test('a region on the same generation is fine; one without it, or away, is named', async () => {
+    assert.deepEqual(await regionsWithout('g1', others, answering({ gen: 'g1' })), []);
+    assert.deepEqual(await regionsWithout('g1', others, answering({ gen: 'g2' })), ['us']);
+    assert.deepEqual(await regionsWithout('g1', others, answering(null, false)), ['us'], 'the router says the generation has ended');
+    assert.deepEqual(await regionsWithout('g1', others, async () => { throw new Error('down'); }), ['us']);
+  });
+});
+
+describe('the router and the link between regions', () => {
+  test('a signed post reaches the current generation whole; a prepared one gets only its own prefix', async () => {
+    const http = await import('node:http');
+    const hits = { current: [], prepared: [] };
+    const fake = (name) => http.createServer((req, res) => {
+      const chunks = [];
+      req.on('data', (c) => chunks.push(c));
+      req.on('end', () => { hits[name].push({ method: req.method, url: req.url, sig: req.headers['x-sp-peer-sig'], body: Buffer.concat(chunks).toString() }); res.end('{}'); });
+    });
+    const listen = (s) => new Promise((ok) => s.listen(0, '127.0.0.1', () => ok(s.address().port)));
+    const [a, b] = [fake('current'), fake('prepared')];
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-router-'));
+    const file = path.join(dir, 'generations.json');
+    fs.writeFileSync(file, JSON.stringify(withPreparedGen({ current: 'g1', gens: { g1: { port: await listen(a) } } }, 'g2', await listen(b), 1, '/rel')));
+    const router = createRouter({ file });
+    try {
+      const port = await listen(router.server);
+      const res = await fetch(`http://127.0.0.1:${port}/_peer/sync`, { method: 'POST', body: '{"region":"us"}', headers: { 'x-sp-peer-sig': 'abc' } });
+      assert.equal(res.status, 200);
+      assert.deepEqual(hits.current, [{ method: 'POST', url: '/_peer/sync', sig: 'abc', body: '{"region":"us"}' }]);
+      assert.deepEqual(hits.prepared, [], 'a prepared generation does not receive the link');
+      await fetch(`http://127.0.0.1:${port}/_build/g2/_/healthz`);
+      assert.equal(hits.prepared.length, 1, 'but a page of that generation reaches it');
+    } finally {
+      await router.close();
+      a.close();
+      b.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

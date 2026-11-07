@@ -34,14 +34,21 @@ export function parseRegions(raw) {
 }
 
 /**
+ * The first letters of the keys of every region, one contiguous run each, in listed order. The one table both directions read.
+ * @param {{ id: string }[]} list
+ * @returns {{ id: string, letters: string }[]}
+ */
+function letterTable(list) {
+  const n = CODE_ALPHABET.length;
+  return list.map((r, i) => ({ id: r.id, letters: CODE_ALPHABET.slice(Math.floor((i * n) / list.length), Math.floor(((i + 1) * n) / list.length)) }));
+}
+
+/**
  * The first letters of the keys of one region: `''` for an id not in the list.
  * @param {{ id: string }[]} list @param {string} id
  */
 export function regionLetters(list, id) {
-  const i = list.findIndex((r) => r.id === id);
-  if (i < 0) return '';
-  const n = CODE_ALPHABET.length;
-  return CODE_ALPHABET.slice(Math.floor((i * n) / list.length), Math.floor(((i + 1) * n) / list.length));
+  return letterTable(list).find((r) => r.id === id)?.letters ?? '';
 }
 
 /**
@@ -51,8 +58,9 @@ export function regionLetters(list, id) {
  */
 export function regionOfCode(code, list) {
   if (!list?.length || typeof code !== 'string') return null;
-  const i = CODE_ALPHABET.indexOf(code.trim().toUpperCase()[0]);
-  return i < 0 ? null : list[Math.floor((i * list.length) / CODE_ALPHABET.length)].id;
+  const first = code.trim().toUpperCase()[0];
+  if (!first) return null;
+  return letterTable(list).find((r) => r.letters.includes(first))?.id ?? null;
 }
 
 /** A host of this machine or the local network: spoken to without TLS (tests, a local two-server setup). */

@@ -261,6 +261,7 @@ async function deploy(ref = 'HEAD', { gen = newGenId(), prepare = false, noArt =
     if (cur?.current) run('systemctl', ['disable', `stronghold@${cur.current}`]); // keeps running; only `gen` comes back after a reboot
   });
   console.log(`[deploy] ${gen} is current (build ${h.build}). Older generations retire; reap stops them when done.`);
+  await warnIfAlone(readTable());
 }
 
 /** Make a prepared generation current (the second step of a deploy to several regions). */
@@ -274,6 +275,33 @@ async function activate(gen) {
     if (cur.current && cur.current !== gen) run('systemctl', ['disable', `stronghold@${cur.current}`]);
   });
   console.log(`[deploy] ${gen} is current. Older generations retire; reap stops them when done.`);
+}
+
+/**
+ * The other regions that do not run generation `gen`: a page of that generation cannot reach them.
+ * @param {string} gen @param {{ id: string, host: string }[]} others @param {typeof fetch} [fetchFn]
+ * @returns {Promise<string[]>}
+ */
+export async function regionsWithout(gen, others, fetchFn = fetch) {
+  const missing = [];
+  for (const r of others) {
+    let h = null;
+    try {
+      const res = await fetchFn(`https://${r.host}/_build/${gen}/_/healthz`, { signal: AbortSignal.timeout(3000) });
+      h = res.ok ? await res.json() : null;
+    } catch { /* away counts as without */ }
+    if (h?.gen !== gen) missing.push(r.id);
+  }
+  return missing;
+}
+
+/** Warn when the current generation is not on every region. @param {{ current: string, gens: Record<string, { port: number }> }} table */
+async function warnIfAlone(table) {
+  const me = await health(table.gens[table.current]?.port);
+  const others = (me?.regions?.list || []).filter((r) => r.id !== me.regions.self);
+  if (!others.length) return;
+  const missing = await regionsWithout(table.current, others);
+  if (missing.length) console.warn(`WARNING: generation ${table.current} is not on ${missing.join(', ')}: pages from here cannot reach that server. Deploy with scripts/deploy-regions.mjs (DEPLOY.md 2.7).`);
 }
 
 /** Human matches of these generations on the other regions, from their public /healthz. Nothing known counts as none. */
@@ -339,6 +367,7 @@ async function status() {
     const state = id === table.current ? 'CURRENT' : g.prepared ? 'prepared' : `retiring ${Math.round((Date.now() - g.retiringSince) / 60000)} min`;
     console.log(`${id}  port ${g.port}  ${state.padEnd(16)}  ${h ? `build ${h.build}, ${h.humanMatches} human match(es), ${h.sockets} socket(s), ${h.rooms} room(s)` : 'NO ANSWER'}`);
   }
+  await warnIfAlone(table);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

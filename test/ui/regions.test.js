@@ -2,7 +2,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRegions, pickRegion, parseConfig, K_PREF, FALLBACK_ATTEMPTS, FALLBACK_ATTEMPTS_FIRST, SETTLE_GRACE_MS } from '../../public/js/regions.js';
+import { createRegions, pickRegion, parseConfig, K_PREF, FALLBACK_ATTEMPTS, FALLBACK_ATTEMPTS_FIRST, SETTLE_GRACE_MS, DOWN_MS } from '../../public/js/regions.js';
 import { ERR } from '../../shared/constants.js';
 
 const CONFIG = { self: 'sg', list: [{ id: 'sg', host: 'a.example' }, { id: 'us', host: 'b.example' }], auto: true };
@@ -225,6 +225,51 @@ describe('moves and failures', () => {
     assert.deepEqual(notes, [['down', 'us']]);
     assert.equal(regions.home(), 'sg');
     assert.equal(regions.snapshot().current, 'sg');
+  });
+
+  test('a region given up is tried again after a while', () => {
+    let clock = 1000;
+    const { regions } = withConfig({ local: { 'sp.regionBest': 'us' }, now: () => clock });
+    regions.onStatus({ status: 'reconnecting', attempt: FALLBACK_ATTEMPTS_FIRST });
+    assert.equal(regions.home(), 'sg');
+    clock += DOWN_MS - 1;
+    assert.equal(regions.home(), 'sg');
+    clock += 2;
+    assert.equal(regions.home(), 'us');
+  });
+
+  test('a ping that reaches a region given up brings it back at once', async () => {
+    const local = memory({ 'sp.regions': JSON.stringify(CONFIG), 'sp.regionBest': 'us' });
+    const net = new FakeNet();
+    class Answers { constructor() { setTimeout(() => this.onopen?.(), 0); } send() { this.onmessage?.({ data: JSON.stringify({ t: 'pong' }) }); } close() {} }
+    const regions = createRegions({
+      net, identity: { getToken: () => null, clearToken() {} }, local, session: memory(), search: '', socketPath: () => '/ws', secure: () => true,
+      makeNet: () => new FakeNet(), makeError: err, WebSocket: Answers,
+    });
+    regions.getUrl();
+    regions.onStatus({ status: 'reconnecting', attempt: FALLBACK_ATTEMPTS_FIRST });
+    assert.equal(regions.home(), 'sg');
+    await regions.probe();
+    assert.deepEqual(regions.usable(), ['sg', 'us']);
+  });
+
+  test('a cached list is a hint: one failed connect tries the page\'s own socket', () => {
+    const { regions, net } = withConfig({ local: { 'sp.regionBest': 'us' } });
+    assert.equal(regions.getUrl(), 'wss://b.example/ws', 'first, the last visit\'s list');
+    net.attempt = 1;
+    assert.equal(regions.getUrl(), null, 'the operator may have turned regions off');
+    assert.equal(regions.snapshot().current, 'sg');
+    regions.onHealth({ regions: CONFIG });
+    assert.equal(regions.getUrl(), 'wss://b.example/ws', '/healthz says the list stands');
+  });
+
+  test('a token keeps its server while the list is unconfirmed: a seat may be waiting there', () => {
+    const local = { 'sp.regions': JSON.stringify(CONFIG), 'sp.regionTokens': JSON.stringify({ tok: 'us' }) };
+    const { regions, net } = setup({ local, token: 'tok' });
+    net.attempt = 3;
+    assert.equal(regions.getUrl(), 'wss://b.example/ws');
+    regions.onHealth({ ok: true });
+    assert.equal(regions.getUrl(), null, 'regions are off: /healthz settles it');
   });
 
   test('a server restart gets its time once it has been reached', () => {
