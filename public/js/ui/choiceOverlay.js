@@ -23,7 +23,7 @@ import { itemIconUrl, enemyIconUrl, uiUrl } from './assetUrls.js';
 import { richTextPlain } from './richText.js';
 import { sortedPlayers } from './gameLogic.js';
 import { data } from '../data.js';
-import { t, tName } from '../../../shared/i18n.js';
+import { t, tName, shownName } from '../../../shared/i18n.js';
 import { sentText } from './lang.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
@@ -221,7 +221,7 @@ export function ChoiceView({ pub, sp, myId, solo, personal = false, busyIdx = nu
           const can = cardPickable(sp, card, { myId, solo, busyIdx });
           const busy = pickBusy(busyIdx, card, mine);
           const isArmed = can && armed === card.idx;
-          const takerName = taker ? (card.takenBy === myId ? t('你') : taker.name) : null;
+          const takerName = taker ? (card.takenBy === myId ? t('你') : shownName(taker)) : null;
           return html`<button key=${card.idx} type="button" class=${cx('spcard', `spcard--${r.kind}`, (card.takenBy || card.soldOut) && 'is-taken', card.takenBy === myId && 'is-mine', can && 'is-pickable', isArmed && 'is-armed', busy && 'is-busy')}
               aria-busy=${busy ? 'true' : undefined} aria-pressed=${can ? String(isArmed) : undefined} disabled=${!can} onClick=${() => can && onTap(card.idx)}
               aria-label=${isArmed ? t('{name}，已选中，再次点击确认', { name: r.name }) : takerName ? t('{name}，{takerName}已选择', { name: r.name, takerName }) : r.name} title=${`${r.name}\n${richTextPlain(r.desc)}`}>

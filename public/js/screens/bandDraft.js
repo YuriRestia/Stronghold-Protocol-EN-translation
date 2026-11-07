@@ -57,7 +57,7 @@ import { settingsStore } from '../ui/settingsStore.js';
 import { chessPortraitUrl, uiUrl } from '../ui/assetUrls.js';
 import { aggregateStats, peekStatsRecords, strategyBadgeIds, trophyMedalOf } from '../ui/stats.js';
 import { modeOffBonds, bandOffBonds, bandOffLine } from '../ui/gameLogic.js';
-import { t, tParts, tName } from '../../../shared/i18n.js';
+import { t, tParts, tName, shownName } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -237,7 +237,7 @@ function OrderRow({ p, i, picked, cur, self, arts, medal, gd, onPeek, bondCall =
         onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />` : null}
       <span class="dorder__face"><${PlayerAvatar} player=${p} self=${self} />${self ? html`<span class="dorder__me" title=${t('你')}><${Icon} name="user" /></span>` : null}</span>
       <div class="dorder__text">
-        <b class="dorder__name">${medal ? html`<${Img} src=${medal} class="dorder__medal" />` : null}<span>${p.name || t('博士')}</span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
+        <b class="dorder__name">${medal ? html`<${Img} src=${medal} class="dorder__medal" />` : null}<span>${shownName(p, t('博士'))}</span>${p.isBot ? html`<span class="dorder__ai">AI</span>` : null}</b>
         <span class="dorder__state">${picked ? html`<span class="t-mint">${pband?.name || t('已选择')}</span>`
           : cur ? html`<span class="t-gold">${t('决策中')}</span>` : html`<span class="t-dim">${t('等待中')}</span>`}</span>
         <${BondCallChip} bondId=${bondCall} />
@@ -354,7 +354,7 @@ export function BandDraftScreen({ held = null } = {}) {
   };
   const pickTile = (id) => { setSel(id); setOpen(true); setPeek(null); audio.sfx('tab', { volume: 0.5 }); };
   const peekBand = (id) => { setPeek(id); setOpen(true); audio.sfx('tab', { volume: 0.5 }); };
-  const turnName = players.find((p) => p.playerId === draft.turnPid)?.name;
+  const turnName = shownName(players.find((p) => p.playerId === draft.turnPid)) || undefined;
   useTicker(clock ? 250 : 0);
   const turnSecs = clock ? secondsLeft(clock.deadline) : null;
   const turnLen = Number(pub?.draft?.turnSeconds) > 0 ? Math.round(pub.draft.turnSeconds) : null;
@@ -479,7 +479,7 @@ export function BandDraftScreen({ held = null } = {}) {
             <div class="draft-detail__eff"><${BandText} band=${shownBand} class="draft-detail__desc" /></div>
           </div>
           <div class="draft-detail__actions">
-            ${peek ? html`<p class="draft-detail__status"><${Icon} name="search" />${myPick === peek ? t('你选择的策略') : t('{names} 选择的策略', { names: (pickers.get(peek) || []).map((x) => x.name).join('、') || t('博士') })}</p>
+            ${peek ? html`<p class="draft-detail__status"><${Icon} name="search" />${myPick === peek ? t('你选择的策略') : t('{names} 选择的策略', { names: (pickers.get(peek) || []).map((x) => shownName(x)).join('、') || t('博士') })}</p>
               <div class="draft-detail__btns"><${Button} variant="secondary" size="lg" icon="chevronLeft" onClick=${() => setPeek(null)}>${t('返回')}<//></div>`
             : html`${selTaken ? html`<p class="draft-detail__status draft-detail__status--taken"><${Icon} name="close" />${t('队友已选，请选择其他策略')}</p>`
                 : !myTurn ? html`<p class="draft-detail__status"><${Icon} name="hourglass" />${!inOrder ? t('观战中') : turnName ? t('{turnName} 正在决策…', { turnName }) : t('等待轮到你')}</p>` : null}

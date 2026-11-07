@@ -31,7 +31,7 @@ import { shownVersion, seasonOf } from '../versions.js';
 import { TestMark } from '../ui/testConsole.js';
 import { ResultView, resultBonds } from './result.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
-import { t } from '../../../shared/i18n.js';
+import { t, shownName } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -549,7 +549,7 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
       <${Sprite} k=${plateArt(p, self)} class="tcard__platebg" />
       <${PlayerAvatar} player=${p} self=${self} class="tcard__ava" />
       <span class="tcard__who">
-        <b class="tcard__name"><span>${p.name}</span>${p.isBot ? html`<span class="tcard__ai">AI</span>` : null}</b>
+        <b class="tcard__name"><span>${shownName(p)}</span>${p.isBot ? html`<span class="tcard__ai">AI</span>` : null}</b>
         ${band ? html`<span class="tcard__band"><${BandIcon} bandId=${band.bandId} size="xs" /><span>${band.name}</span></span>` : null}
       </span>
     </div>

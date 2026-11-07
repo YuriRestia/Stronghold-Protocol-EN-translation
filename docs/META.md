@@ -1083,7 +1083,7 @@ gets the table value of its own rounds. `onEnd(summary)` receives the same objec
 `m.emote { playerId, id }`: `id` must be one of `shared/constants.js EMOTES` (`BAD_MSG` otherwise, also when `handle()`
 is called without protocol validation); 1 per second per player (`RATE`).
 
-Tickers (`m.ticker { text, id, type, priority, playerId }`) from `config.broadcasts`: SHOP_LEVEL, GOLDEN_CHAR,
+Tickers (`m.ticker { text, id, type, priority, playerId, arg0Bot? }`; `arg0Bot`: `args[0]` is an AI seat's name, which each client shows in its language) from `config.broadcasts`: SHOP_LEVEL, GOLDEN_CHAR,
 CHAR_DAMAGE (per board unit per battle, highest threshold; summons created in battle once per unit type — a client
 result may only name the unit types its lineup can field, fields.js validateClientResult), BOSS_HIT (20/50/80 % of the
 current leader per player, each threshold once per boss round: the player's damage to that round's shared pool,

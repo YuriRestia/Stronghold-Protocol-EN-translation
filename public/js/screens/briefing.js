@@ -29,7 +29,7 @@ import { useTimerWarning } from '../ui/timerWarn.js';
 import { sortedPlayers, phaseTotalSeconds } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
 import { data } from '../data.js';
-import { t } from '../../../shared/i18n.js';
+import { t, shownName } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 
@@ -91,7 +91,7 @@ export function BriefingScreen() {
       <${LoadoutButton} from="briefing" size="lg" class="brief-loadout" />
       <div class="brief-ready">
         <span class="brief-ready__txt">${t('已就绪')}<b class="num">${readyN}</b><span class="num">/${players.length}</span></span>
-        <span class="brief-ready__pips">${players.map((p) => html`<i key=${p.playerId} class=${cx(p.ready && 'on', p.playerId === myId && 'me')} title=${p.name}><${Icon} name="user" /></i>`)}</span>
+        <span class="brief-ready__pips">${players.map((p) => html`<i key=${p.playerId} class=${cx(p.ready && 'on', p.playerId === myId && 'me')} title=${shownName(p)}><${Icon} name="user" /></i>`)}</span>
       </div>
       <${Button} variant="primary" size="xl" class="brief-go" icon=${me?.ready ? 'check' : me ? 'play' : 'eye'} active=${!!me?.ready} loading=${busy}
         disabled=${!!me?.ready || !me || !!pub.rerollVote} onClick=${ready}>${me?.ready ? t('已就绪') : me ? t('准备就绪') : t('观战中')}<//>

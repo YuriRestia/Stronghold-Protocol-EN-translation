@@ -174,6 +174,32 @@ describe('the room\'s 搜寻队友 switch (real server, headless Chrome)', { ski
     });
   }
 
+  for (const screen of Object.keys(SCREENS)) {
+    test(`${screen}: filling the last seat keeps the switch's space, so the seat cards do not stretch`, async () => {
+      const { ctx, page } = await openHost('en', screen);
+      try {
+        const seats = () => page.$eval('.rs-seats', (e) => e.getBoundingClientRect().height);
+        const before = await seats();
+        for (let i = 0; i < 3; i++) {
+          const res = await page.evaluate(() => globalThis.__SP__.net.request('room.addBot', {}).then(() => 'ok', (e) => e?.code || String(e)));
+          assert.equal(res, 'ok');
+        }
+        await page.waitForFunction(() => document.querySelectorAll('.room-screen .seat:not(.seat--empty)').length === 4, { timeout: 15000 });
+        await sleep(200);
+        assert.ok(Math.abs(await seats() - before) <= 1, `seats ${before} px, then ${await seats()} px`);
+        const left = await page.evaluate(() => ({
+          role: !!document.querySelector('.room-screen [role="switch"]'),
+          gap: getComputedStyle(document.querySelector('.searchbar__switch--gap')).visibility,
+          label: document.querySelector('.rs-foot__right .rs-go').textContent,
+        }));
+        assert.deepEqual([left.role, left.gap], [false, 'hidden'], 'no switch to press, only its empty place');
+        assert.match(left.label, /Start Simulation/);
+      } finally {
+        await ctx.close();
+      }
+    });
+  }
+
   test('while searching the big button reads dark on amber, not mint on amber', async () => {
     const { ctx, page } = await openHost('en', 'desktop');
     try {

@@ -369,6 +369,7 @@ as newly missing assets. Full illustrations and alternate outfits remain optiona
 version; base/E2 avatars and half-body portraits are mandatory where the data selects them.
 
 - **Operators:** the pool, hidden chess, backups and DIY picks of all installed official versions, keyed by charId (`tools/assets/versions.mjs`). The current union has 229 operators (210 in today’s data and 19 earlier-only), all with Front models and 225 with Back models. Three bards and 安洁莉娜 use one facing. The plan supplies base/E2 avatars and half-body portraits, default battle Spine, every skill icon and skill sound, and sub-profession icons. Extra identities use the established `patternOperator` URL patterns.
+- **AI seats' operators:** `shared/constants.js BOT_OPERATORS`, for the room's seat icons. Those the roster lacks (char_002_amiya, char_130_doberm) get a `chars` entry with `avatar` and `portrait` only: no model, voice or sounds, because they never fight.
 - **Tokens:** the union of each version’s `tokens.json` and backup/DIY summons. The manifest has 58 `token_*` entries; char/enemy-backed summons resolve through those identity tables. Pictures and available default models come from the normal plan, supplemented by the official local-client overlay ("Token models from the local client"). Five effect/marker tokens have no separate Spine and keep that documented presentation.
 - **Enemies:** 258 manifest identities: the existing 252 plus six earlier-only enemies. 心烛 remains without an entry. The set is the union of:
   - the 07 enemy list;

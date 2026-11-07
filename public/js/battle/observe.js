@@ -11,7 +11,7 @@
 
 import { PHASE } from '../../../shared/constants.js';
 import { data } from '../data.js';
-import { t } from '../../../shared/i18n.js';
+import { t, shownName } from '../../../shared/i18n.js';
 
 const isObj = (v) => !!v && typeof v === 'object';
 const COMBAT = new Set([PHASE.COMBAT, PHASE.UNITE, PHASE.FINAL_ASSAULT, PHASE.HIDDEN_CORE]);
@@ -29,7 +29,7 @@ export function fieldOf(pub, playerId) {
 
 /** Display name of a player id ('队友' when unknown). */
 export function nameOf(pub, playerId) {
-  return players(pub).find((p) => p.playerId === playerId)?.name || t('队友');
+  return shownName(players(pub).find((p) => p.playerId === playerId), t('队友'));
 }
 
 /**
@@ -110,7 +110,7 @@ export function teammateProgress(pub, myId) {
     const p = players(pub).find((x) => x.playerId === pid);
     const pr = isObj(f.progress) ? f.progress : null;
     out.push({
-      playerId: pid, name: p?.name || t('队友'), isBot: !!p?.isBot,
+      playerId: pid, name: shownName(p, t('队友')), isBot: !!p?.isBot,
       killed: Number.isFinite(pr?.killed) ? pr.killed : null,
       resolved: Number.isFinite(pr?.resolved) ? pr.resolved : (Number.isFinite(pr?.killed) ? pr.killed : null),
       total: Number.isFinite(pr?.total) ? pr.total : null,

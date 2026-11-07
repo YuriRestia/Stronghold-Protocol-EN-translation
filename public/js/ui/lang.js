@@ -16,7 +16,7 @@
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import {
   DEFAULT_LANG, normalizeLang, getLang, setLang, onLangChange, addMessages, setNameResolver, tName, format, translateWire, t, N_,
-  registerLangs, getLangs, langInfo, langChain, onLangsChange, setI18nWarn, checkTranslation,
+  registerLangs, getLangs, langInfo, langChain, onLangsChange, setI18nWarn, checkTranslation, botName,
 } from '../../../shared/i18n.js';
 import { canonicalLang, computeChain, scriptOf } from '../../../shared/i18nPacks.js';
 import { PACKS_URL, PACK_INDEX_FILE, readPackIndex, langMetaOf } from '../../../shared/packs.js';
@@ -355,7 +355,7 @@ export function sentText(sent, raw, local) {
 
 /**
  * The text of an m.ticker frame in the current language. A config.broadcasts line (`id` + `args`, server ≥ 0.2.0) is
- * rebuilt from the localized broadcast template — `{0}` is the player's name (never translated), other args are
+ * rebuilt from the localized broadcast template — `{0}` is the player's name (never translated; `arg0Bot`: an AI seat's, shown in the language), other args are
  * game-data names or numbers; any other line goes through translateWire (msgid + params, or its text as a msgid).
  * @param {{ text?: string, id?: string|null, args?: unknown[], msgid?: string, params?: any }} msg
  * @returns {string}
@@ -365,7 +365,7 @@ export function tickerText(msg) {
     const list = data.get('config')?.broadcasts;
     const b = Array.isArray(list) ? list.find((x) => x && x.id === msg.id) : null;
     if (b && typeof b.text === 'string') {
-      const args = msg.args.map((a, i) => (i === 0 ? String(a ?? '') : tName(String(a ?? ''))));
+      const args = msg.args.map((a, i) => (i === 0 ? (msg.arg0Bot === true ? botName(a) : String(a ?? '')) : tName(String(a ?? ''))));
       return format(b.text, args);
     }
   }
