@@ -854,6 +854,7 @@
 }
 
 /* ---- ping pill ------------------------------------------------------------------------------------- */
+.ping__region { margin-inline-end: .35em; opacity: .75; white-space: nowrap; } /* (fork) which server, public/js/regions.js */
 .ping {
   --pc: var(--mint-400);
   display: inline-flex;

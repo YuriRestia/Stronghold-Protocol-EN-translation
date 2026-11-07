@@ -2590,5 +2590,13 @@
   "拖动及选择朝向时：关闭保持原视角；适度缩小保留七成大小的商店，镜头适度放大；完全收起使用原有放大视角。结束后恢复原状。": "While dragging or choosing a facing: Off keeps the view; Moderate keeps the shop at 70% with a smaller zoom; Fully collapse uses the original zoom. The view returns afterwards.",
   "出售干员": "Operators sold",
   "点击进入": "Tap to start",
-  "点击跳过": "Tap to skip"
+  "点击跳过": "Tap to skip",
+  "该同盟所在的服务器暂时无法连接": "The server hosting this alliance can't be reached right now.",
+  "已找到队友，正在连接…": "Teammates found. Connecting…",
+  "这台服务器暂时无法连接，已切换到其他服务器": "This server can't be reached, so you were moved to another one.",
+  "无法连接到队友所在的服务器，请重新搜寻": "Couldn't reach your teammates' server. Please search again.",
+  "新加坡": "Singapore",
+  "美国东部": "US East",
+  "服务器": "Server",
+  "自动选择延迟最低的服务器。更改会在你离开同盟后生效。": "Auto picks the server with the lowest ping. A change applies after you leave your alliance."
 }

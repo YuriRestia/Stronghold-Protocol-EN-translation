@@ -9,7 +9,8 @@ import path from 'node:path';
 import { splitGenPath, genPath, rewriteIndexHtml, isGenSharedPath } from '../shared/gen.js';
 import { genOf, publicPath, goHome, RETIRED_FLAG } from '../public/js/gen.js';
 import { parseGenerations, route, createRouter } from '../scripts/router.mjs';
-import { newGenId, allocPort, withNewGen, reapPlan, releasesToPrune, missingAssets } from '../scripts/generations.mjs';
+import { newGenId, allocPort, withNewGen, withPreparedGen, activateGen, withRemoteMatches, reapPlan, releasesToPrune, missingAssets, MAX_AGE_MS } from '../scripts/generations.mjs';
+import { parseHosts, prepareCommand, activateCommand, announceCommand, shQuote } from '../scripts/deploy-regions.mjs';
 import { startBuildGuard } from '../public/js/ui/buildGuard.js';
 import { startServer } from '../server/index.js';
 import { S2C } from '../shared/protocol.js';
@@ -294,4 +295,68 @@ test('protocol: sys.retire and ERR.RETIRING exist', () => {
   assert.ok(S2C.includes('sys.retire'));
   assert.equal(ERR.RETIRING, 'RETIRING');
   assert.ok(ERR_TEXT.RETIRING);
+});
+
+// (fork) several regions (DESIGN §8.7): one id and one commit on every server, in two steps
+describe('deploying to several regions', () => {
+  const table = () => ({ current: 'a', gens: { a: { port: 3101, startedAt: 1 } } });
+
+  test('a prepared generation is listed for the router, not current, and the old one does not retire', () => {
+    const t = withPreparedGen(table(), 'b', 3102, 100, '/rel/b');
+    assert.equal(t.current, 'a');
+    assert.equal(t.gens.b.prepared, true);
+    assert.equal(t.gens.a.retiringSince, undefined);
+    assert.equal(parseGenerations(JSON.stringify(t)).gens.b.port, 3102);
+    assert.equal(route('/_build/b/_/ws', parseGenerations(JSON.stringify(t))).port, 3102, 'a socket of the new page finds it');
+    assert.equal(route('/', parseGenerations(JSON.stringify(t))).location, '/_build/a/', 'new visitors stay on the old one');
+  });
+
+  test('activate makes it current, and every other generation retires', () => {
+    const t = activateGen(withPreparedGen(table(), 'b', 3102, 100, '/rel/b'), 'b', 200);
+    assert.equal(t.current, 'b');
+    assert.equal(t.gens.b.prepared, undefined);
+    assert.equal(t.gens.a.retiringSince, 200);
+  });
+
+  test('activating a generation that is not here changes nothing', () => {
+    assert.equal(activateGen(table(), 'zzz', 200), null);
+  });
+
+  test('reap leaves a prepared generation alone, until a deploy has clearly been abandoned', () => {
+    const t = withPreparedGen(table(), 'b', 3102, 100, '/rel/b');
+    assert.deepEqual(reapPlan(t, { b: { humanMatches: 0, sockets: 0 } }, 200).stop, []);
+    assert.deepEqual(reapPlan(t, { b: { humanMatches: 0, sockets: 0 } }, 100 + MAX_AGE_MS + 1).stop, ['b']);
+  });
+
+  test('a match on the other region keeps this region\'s copy of its generation alive', () => {
+    const t = { current: 'b', gens: { a: { port: 3101, retiringSince: 100 }, b: { port: 3102 } } };
+    const idle = { a: { humanMatches: 0, sockets: 0 } };
+    assert.deepEqual(reapPlan(t, idle, 200).stop, ['a'], 'alone, it looks finished');
+    assert.deepEqual(reapPlan(t, withRemoteMatches(idle, { a: 2 }), 200).stop, [], 'the page of that match comes from here');
+    assert.deepEqual(reapPlan(t, withRemoteMatches(idle, { a: 2 }), 100 + MAX_AGE_MS + 1).stop, ['a'], 'the hour still ends it');
+    assert.deepEqual(reapPlan(t, withRemoteMatches({ a: null }, { a: 2 }), 200).stop, ['a'], 'a generation that no longer answers here is gone');
+  });
+});
+
+describe('scripts/deploy-regions.mjs', () => {
+  test('hosts and their flags', () => {
+    assert.deepEqual(parseHosts('spa, usspa:no-art'), [{ host: 'spa', noArt: false }, { host: 'usspa', noArt: true }]);
+    assert.deepEqual(parseHosts(''), []);
+  });
+
+  test('prepare pulls, names the generation and commit, and passes --no-art only where asked', () => {
+    const plain = prepareCommand({ gen: 'g1', commit: 'abc' });
+    assert.match(plain, /git pull --ff-only/);
+    assert.match(plain, /deploy --prepare --gen g1 --ref abc/);
+    assert.doesNotMatch(plain, /--no-art/);
+    assert.match(prepareCommand({ gen: 'g1', commit: 'abc', noArt: true }), /--no-art/);
+    assert.match(activateCommand('g1'), /generations\.mjs activate g1/);
+  });
+
+  test('announcement text cannot break out of its quotes', () => {
+    const line = announceCommand(5, "it's; rm -rf /");
+    assert.equal(line.startsWith("sudo bash -c '"), true);
+    assert.match(line, /--minutes 5 /);
+    assert.equal(shQuote("a'b"), `'a'\\''b'`);
+  });
 });

@@ -87,6 +87,9 @@ import { NoticeBoard } from './announce.js';
 import { AltArtLedger } from './altArt.js';
 import { MaintenanceBoard } from './maintenance.js';
 import { Presence } from './presence.js';
+import { regionConfigFrom, regionConnectSources } from './regions.js';
+import { PeerLink, signTicket, verifyTicket } from './peerLink.js';
+import { CrossMatch } from './crossMatch.js';
 import { GenerationWatch } from './generation.js';
 import { GEN_ID_RE } from '../shared/gen.js';
 
@@ -195,7 +198,9 @@ export async function startServer(opts = {}) {
     : null;
   log.info(`[versions] enabled: ${versions.ids.map((id) => `${id} (${t(/** @type {any} */ (versionById(id)).label)}${id === versions.defaultId ? ', default' : ''})`).join(', ')}`);
   const simPool = createRoomWorkerPool({ data });
-  const { registry, lobby, network } = createSessionStack(opts, { data, log, content, plugins: roomSets, hosts, versions, versionHosts, simPool });
+  // (fork) several servers, one game (server/regions.js): off unless the operator names the regions
+  const regions = opts.regions === undefined ? regionConfigFrom(process.env, log) : opts.regions;
+  const { registry, lobby, network } = createSessionStack(regions ? { ...opts, codeLetters: regions.letters } : opts, { data, log, content, plugins: roomSets, hosts, versions, versionHosts, simPool });
   // Main-thread event-loop delay sampling (server/health/eventLoop.js): opt-in with SP_LOOP_SAMPLE=1, no worker pool involved, and a
   // LOCAL log line per window (`[loop] p50=… p95=… p99=… max=… cpu=… mem=… rooms=… humans=… phase=…`) — deliberately not
   // part of /healthz. This is what tells an operator whether a stall is the rehearsal / battle slice or something else.
@@ -252,12 +257,21 @@ export async function startServer(opts = {}) {
     };
   }
 
+  // (fork) the link between regions and matchmaking across them (DESIGN §8.7, §90.2): needs SP_PEER_SECRET
+  const peer = regions?.secret ? new PeerLink({ config: regions, network, lobby, gen, cs: content?.cs ?? null, log, pollMs: opts.peerPollMs, fetch: opts.peerFetch }) : null;
+  presence.peer = peer;
+  if (peer && regions.crossMatch) {
+    lobby.crossTicket = (payload) => signTicket(regions.secret, payload);
+    lobby.crossVerify = (ticket) => verifyTicket(regions.secret, ticket, lobby.now());
+    new CrossMatch({ config: regions, lobby, link: peer, log });
+  }
+
   const traffic = createTrafficCounter();
   const loop = createLoopStats(); // (fork) /healthz?traffic=1 `loop` and `sim`: what blocks the main thread
   // (fork) the site policy hashes this generation's rewritten import map too (shared/gen.js rewriteIndexHtml), else
   // the browser refuses /g/<gen>/'s map and the page never boots
-  const csp = process.env.SP_CSP === 'off' ? null : siteCsp(publicDir, { gen, cfAnalytics: process.env.SP_CF_ANALYTICS === '1' });
-  const server = http.createServer(createRequestHandler({ serveStatic, csp, cspNonce: process.env.SP_CSP_NONCE === '1', health: { startedAt, network, registry, lobby, content, traffic, assetIndex, views, trusted: trustedRuntime?.health, generation, loop, sim: simMeter, maintenance, versions, versionHosts }, log, trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
+  const csp = process.env.SP_CSP === 'off' ? null : siteCsp(publicDir, { gen, cfAnalytics: process.env.SP_CF_ANALYTICS === '1', connectSources: regionConnectSources(regions) });
+  const server = http.createServer(createRequestHandler({ serveStatic, csp, cspNonce: process.env.SP_CSP_NONCE === '1', health: { startedAt, network, registry, lobby, content, traffic, assetIndex, views, trusted: trustedRuntime?.health, generation, loop, sim: simMeter, maintenance, versions, versionHosts, regions, peer }, log, trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
   server.on('clientError', answerClientError);
   const wss = attachWebSocket(server, { network, log, traffic });
 
@@ -317,6 +331,7 @@ export async function startServer(opts = {}) {
   notices?.start();
   maintenance?.start();
   presence.start();
+  peer?.start();
   generation?.start();
   assetIndex?.start();
   // started only once the server is listening: the first window then reports real counts, not a half-built hall
@@ -334,6 +349,7 @@ export async function startServer(opts = {}) {
       notices?.stop();
       maintenance?.stop();
       presence.stop();
+      peer?.stop();
       loop.stop();
       generation?.stop();
       try { hosts.close(); } catch (e) { log.error('[shutdown] match hosts', e); }
@@ -355,7 +371,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, content, visual, contents, hosts, notices, maintenance, presence, generation, versions, versionHosts, traffic, assetIndex, views, studio, eventLoop, simPool, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, content, visual, contents, hosts, notices, maintenance, presence, peer, generation, versions, versionHosts, traffic, assetIndex, views, studio, eventLoop, simPool, close };
 }
 
 /**
