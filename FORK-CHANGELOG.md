@@ -35,6 +35,15 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   hint names it ([#21](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/21), thanks to @evenifyouforget).
 - GitHub: English issue and PR templates ([#17](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation/pull/17), thanks to @evenifyouforget).
 
+### Changes
+
+- `fetch-assets` names the operators missing from the local FX index. Their per-skill sounds are then planned differently,
+  which can make the run refuse to write `data/assets.json`, and retrying the downloads never helps. The refusal now says
+  so and gives the extract command that fills the index.
+- Sound: `data/assets.json` is rebuilt on a complete FX index. 19 older-season operators get their battle voices, and
+  operators such as Glider and Ceylon get attack sounds they were missing. A server needs `node tools/fetch-assets.mjs`
+  for the new files (about 1,300 more in the manifest, 34 MB).
+
 ## 2026-10-18
 
 ### Upstream merge

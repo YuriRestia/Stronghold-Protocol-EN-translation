@@ -34,6 +34,14 @@ test('droppedEntries: leaves of the old manifest the new one lacks; build fields
   assert.deepEqual(droppedEntries(null, next), [], 'no current manifest: nothing to lose');
 });
 
+test('fetch-assets names the operators a stale local fx index lacks: no index at all is not a gap, enemies are ignored', async () => {
+  const { fxIndexGaps } = await import('../tools/fetch-assets.mjs');
+  const modes = new Map([['char_1_a', {}]]);
+  assert.deepEqual(fxIndexGaps(modes, ['char_3_c', 'char_1_a', 'enemy_1_x', 'char_2_b']), ['char_2_b', 'char_3_c']);
+  assert.deepEqual(fxIndexGaps(modes, ['char_1_a']), []);
+  assert.deepEqual(fxIndexGaps(null, ['char_1_a']), []);
+});
+
 test('fetch-assets shrink guard: the committed manifest minus some audio entries (PR #7) is refused unless --allow-shrink / --prune', async () => {
   const { shrinkGuard, parseArgs } = await import('../tools/fetch-assets.mjs');
   const before = statSync(MANIFEST).mtimeMs;

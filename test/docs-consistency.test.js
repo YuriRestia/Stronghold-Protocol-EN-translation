@@ -895,7 +895,8 @@ test('干员战斗语音 (DESIGN §21.30): the manifest data, the official prior
     else if (x && typeof x === 'object') Object.values(x).forEach(walk);
   };
   for (const id of charIds) {
-    for (const s of slots) assert.ok(voice[id][s], `${id}.${s}`);
+    // (fork) 锡兰 (char_348_ceylon): the official charword table lists only 作战中1–3, so she has no skill4 line
+    for (const s of slots) if (id !== 'char_348_ceylon' || s !== 'skill4') assert.ok(voice[id][s], `${id}.${s}`);
     for (const s of prepOnly) assert.equal(voice[id][s], undefined, `${id}.${s} is not planned by default`);
     walk(voice[id]);
   }

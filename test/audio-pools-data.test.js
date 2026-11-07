@@ -58,7 +58,9 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 2 references for 丰川祥子 (char_4182_oblvns): her swing and S3 volley pools (tools/assets/plan.mjs
   // NOTE_SFX_CHARS); + 17 pools: those two, her S1 / S2 / S3 sting banks (plan.mjs STING_BANKS) and her note born / hit
   // banks (plan.mjs NOTE_SFX_LOOKS: 5 born + 7 hit; attack and S1 have no born bank)
-  assert.equal(refs, 989);
+  // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
+  // operators their slots and files (the 5 pool-only attack sounds among them)
+  assert.equal(refs, 1026);
   assert.equal(Object.keys(pools).length, 1030);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);

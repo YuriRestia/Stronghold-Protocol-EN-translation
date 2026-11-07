@@ -222,6 +222,21 @@ export function shrinkGuard(prev, next, { allowShrink = false, prune = false } =
   return { dropped, write: dropped.length === 0 || !!allowShrink || !!prune };
 }
 
+const FX_INDEX_FILL = 'Fill the index from a client: python tools/local-extract/extract.py --only fx --fx-set used --fx-add-only --game <client>';
+
+/**
+ * The operators of a plan that the local fx index does not list, e.g. an index extracted before they joined the roster.
+ * buildPlan places their per-skill attack / hit banks by the filename letter instead of their modes, so a run on this
+ * index can drop entries of a manifest built with a complete one, and retrying the downloads never brings them back.
+ * @param {Map<string, unknown>|null} charModes from charModesFromIndex; null when there is no index at all (logged apart)
+ * @param {string[]} unitIds the plan's audio.sfx.units keys (enemies and other non-operators are ignored)
+ * @returns {string[]} sorted operator ids
+ */
+export function fxIndexGaps(charModes, unitIds) {
+  if (!charModes) return [];
+  return unitIds.filter((id) => id.startsWith('char_') && !charModes.has(id)).sort();
+}
+
 /**
  * The one summary line for the leaves the plan had resolved but whose every alternative file is missing on disk
  * (resolveTemplate `droppedLeaves`). Each of them disappears from data/assets.json, so the client has no entry at all —
@@ -490,6 +505,8 @@ async function main() {
     `${Object.keys(plan.template.audio.voiceEn || {}).length} with EN, ` +
     `${Object.keys(plan.template.audio.voiceKr || {}).length} with KR, ` +
     `${Object.keys(plan.template.audio.voiceNative || {}).length} with an own-language dub)`);
+  const fxGaps = fxIndexGaps(charModes, Object.keys(plan.template.audio.sfx.units));
+  if (fxGaps.length) log(`[fx] ${fxGaps.length} operators are not in the local fx index (${fxGaps.slice(0, 8).join(', ')}${fxGaps.length > 8 ? ', …' : ''}): their skill attack slots stay on the filename letter, so the manifest can differ. ${FX_INDEX_FILL}`);
   if (opts.dryRun) {
     for (const n of plan.notes) log(`  note: ${n}`);
     return 0;
@@ -621,6 +638,7 @@ async function main() {
       : `ERROR: data/assets.json NOT written — it would lose ${guard.dropped.length} entries the current one has (their files are missing here):`);
     for (const k of guard.dropped) log(`  ${k}`);
     if (!guard.write) log('  re-run to retry the downloads (--refresh-index for the audio/model indexes), or pass --allow-shrink (or --prune) to write the smaller manifest');
+    if (!guard.write && fxGaps.length) log(`  ${fxGaps.length} operators are not in the local fx index, which changes the plan itself: re-running will not bring those entries back. ${FX_INDEX_FILL}`);
   }
   log(`manifest: ${MANIFEST}${guard.write ? '' : ' (kept)'} · report: ${REPORT} · ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   if (required.length) log(`ERROR: ${required.length} required assets missing: ${required.slice(0, 10).join(', ')}`);
