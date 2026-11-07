@@ -28,7 +28,7 @@ export function preflightScripts(registry, scripts, hashInput) {
     if (!report) {
       const { execArgv = [], ...processOptions } = script.execution === 'sandbox' ? sandboxProcessOptions(128) : {};
       const probe = spawnSync(process.execPath,[...execArgv,fileURLToPath(new URL('./scriptProbe.js',import.meta.url))],{
-        ...processOptions,
+        ...processOptions,windowsHide:true,
         input:JSON.stringify({scripts:[script],hashInput:{plugins:[part],settings:{[script.id]:settings}}}),
         encoding:'utf8',timeout:SCRIPT_PROBE_TIMEOUT_MS,killSignal:'SIGKILL',
         maxBuffer:8*1024*1024,stdio:['pipe','ignore','pipe','pipe'],

@@ -96,7 +96,7 @@ export class StdioAI {
     if (this.closed || Date.now() < this.retryAt) throw new Error('backoff');
     if (this.child) return;
     const [file, ...args] = this.config.command;
-    const child = spawn(file, args, { shell: false, stdio: ['pipe', 'pipe', 'ignore'] });
+    const child = spawn(file, args, { shell: false, stdio: ['pipe', 'pipe', 'ignore'], windowsHide: true });
     this.child = child;
     let buffer = Buffer.alloc(0);
     const fail = () => { if (this.child === child) this.breakChild(); };

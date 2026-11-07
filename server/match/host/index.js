@@ -134,7 +134,7 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       if (this.transport === 'process') {
         // a child process: its memory limit is its own (an out-of-memory abort ends it alone — see the header)
         const mb = Math.max(64, Number(o.resourceLimits?.maxOldGenerationSizeMb) || HOST_DEFAULTS.resourceLimits.maxOldGenerationSizeMb);
-        this.child = sandbox ? forkSandbox(ENTRY, { memoryMb: mb }) : fork(ENTRY, [], { execArgv: [`--max-old-space-size=${mb}`], serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+        this.child = sandbox ? forkSandbox(ENTRY, { memoryMb: mb }) : fork(ENTRY, [], { execArgv: [`--max-old-space-size=${mb}`], windowsHide: true, serialization: 'advanced', stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
         // the last lines it printed (an abort's "FATAL ERROR …") go into the log when it dies
         this.stderr = '';
         this.child.stderr?.on('data', (d) => { this.stderr = (this.stderr + String(d)).slice(-2000); });

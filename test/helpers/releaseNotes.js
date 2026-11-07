@@ -5,5 +5,7 @@ export function seedReleaseRead(page) {
   return page.evaluateOnNewDocument((version) => {
     if (window.top !== window) return; // plugin sandbox frames do not have access to the host's storage
     localStorage.setItem(`sp.pref.release-seen.${version}`, '1');
+    // (fork) this tab has seen the entry film (ui/entryFilm.js): with the art on disk its tap-to-enter card covers the page
+    sessionStorage.setItem('sp.entryFilm.played', '1');
   }, APP_VERSION);
 }

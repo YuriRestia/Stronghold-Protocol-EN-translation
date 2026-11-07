@@ -6,14 +6,14 @@
 
 ### New Operators and Modules (CN 2.7.91)
 
-- Added the Custom Squad Operators Toska, Territoriya and Talulah (the new 6★ of CN 2.7.91): all three skills are selectable, Potential and Development follow the player's settings, and Territoriya comes with the Module "Empty Bottles and Cans"; all three are Ursus, and since the second half has no Ursus Alliance they count as support Operators under the rules. Toska is the first "trigger-type effect" support (§37.91).
+- Added the Custom Squad Operators Toska, Territoriya and Talulah (the new 6★ of CN 2.7.91): all three skills are selectable, Potential and Development follow the player's settings, and Territoriya comes with the Module "Empty Jars"; all three are Ursus, and since the second half has no Ursus Alliance they count as support Operators under the rules. Toska is the first "trigger-type effect" support (§37.91).
 - Four new Modules can be chosen in Operator Loadout: Horn's "Horn's Special Limited Badge", SilverAsh the Reignfrost's "Invitation", Muelsyse's "'Muelsyse and Friends'" and Astgenne the Lightchaser's "Greetings from Afar". Horn's Module is exclusive to Integrated Strategies, so in Stronghold Protocol only its attributes take effect; SilverAsh the Reignfrost still carries no Module by default (§37.91).
 - Clementia's S3: the interval before a tile that was just shelled can be chosen again changes from 5 seconds to 3.5 seconds, per the new data (§37.91).
 - The 5★ Olga and Mirror Smith and the 4★ Bell Ringer from the same update are not 6★ and are not on the Alliance list, so they are not added for now; we wait for the list to be released with "Stronghold Protocol: Protocol" opening on November 8 (§37.91).
 
 ### Fixes
 
-- Fixed the [Territoriya] spawned by "Demon's Blade" being invisible on screen: the tiles covered by the [Territoriya] are now darkened and outlined in purple, and move with it; the new Operator Territoriya's "Territoriya" shows the same (§37.92).
+- Fixed the [Dominion] spawned by "Demon's Blade" being invisible on screen: the tiles covered by the [Dominion] are now darkened and outlined in purple, and move with it; the new Operator Territoriya's "Dominion" shows the same (§37.92).
 - Fixed an Operator wearing two identical pieces of Equipment (for example two Advanced Originium Solvents) getting the effect of only one: the second piece's attributes and HP-drain effect would override the first. Each piece is now calculated separately (two Advanced Originium Solvents give ATK +60%+60% and drain 120 HP per second); a normal piece plus an advanced one always stacked and is unaffected (#902, thanks to @Gaoily).
 - Fixed enemies such as the Heavy Defender, when blocked again from behind, still winding up their normal attack in the old walking direction and only turning once the attack resolved: they now face the target as the wind-up starts, a display-only change (#869, thanks to @YinqiMargatroid for pinpointing it).
 - Fixed the damage-sharing direction of the Chalice of Regret being reversed: the surrounding ground enemies now take only 5% of the damage and the Chalice takes the rest as True damage (before, the enemies took 95% and the Chalice shared only 5%); based on the Chalice talent description on PRTS, changed in all four versions.

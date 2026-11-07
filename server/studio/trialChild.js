@@ -89,7 +89,7 @@ process.once('message', async ({ dirs, request, allowedScripts, temporary, heapM
     const options = scriptExecution(set.scripts || []) === 'sandbox' ? sandboxProcessOptions(heapMb)
       : { execArgv: [`--max-old-space-size=${heapMb}`] };
     const runner = fork(fileURLToPath(new URL('./trialRunner.js', import.meta.url)), [], {
-      ...options, serialization: 'json', stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+      ...options, windowsHide: true, serialization: 'json', stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
     });
     const result = await new Promise((resolve, reject) => {
       runner.once('message', resolve);

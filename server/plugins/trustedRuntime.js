@@ -9,7 +9,7 @@ export async function createTrustedRuntime({registry,log}) {
     .map(p => ({id:p.id,hash:p.script.lockHash,manifestSource:p.script.manifestSource,sources:p.script.sources}));
   if (!plugins.length) return null;
   const pluginIds = new Set(plugins.map(p => p.id));
-  const child = fork(fileURLToPath(new URL('./trustedEntry.js',import.meta.url)),[],{stdio:['ignore','ignore','ignore','ipc'],execArgv:['--max-old-space-size=128']});
+  const child = fork(fileURLToPath(new URL('./trustedEntry.js',import.meta.url)),[],{stdio:['ignore','ignore','ignore','ipc'],execArgv:['--max-old-space-size=128'],windowsHide:true});
   const routes = new Set(), health = Object.create(null), pending = new Map();
   let seq = 0, stopping = false, activated = false, stopReason = 'plugin stopped', stopPromise;
   let readyResolve, exitResolve;

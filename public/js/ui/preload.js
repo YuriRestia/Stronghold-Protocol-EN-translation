@@ -21,6 +21,7 @@ const closePreload = () => ui.set({ open: false });
 /** UI texts (msgids). */
 const TX = {
   title: N_('预载资源'), // en: "Preload Assets"
+  pauseShort: N_('暂停'), // en: "Pause"
   manage: N_('管理'), // en: "Manage"
   downloading: N_('下载中 {pct}%'), // en: "Downloading {pct}%"
   allSaved: N_('全部已保存'), // en: "All saved"
@@ -193,8 +194,8 @@ export function PreloadCard({ class: cls }) {
           <${ProgressBar} value=${done} max=${Math.max(1, total)} size="sm" tone=${paused ? 'amber' : 'mint'} />
           <span class="num">${formatBytes(done)} / ${formatBytes(total)}</span>
         </div>
-        <button type="button" class="title-preload__gear fsbtn tapx" title=${t(paused ? TX.resumeShort : '暂停')}
-          aria-label=${t(paused ? TX.resumeShort : '暂停')} onClick=${() => (paused ? startPreload() : pausePreload())}>
+        <button type="button" class="title-preload__gear fsbtn tapx" title=${t(paused ? TX.resumeShort : TX.pauseShort)}
+          aria-label=${t(paused ? TX.resumeShort : TX.pauseShort)} onClick=${() => (paused ? startPreload() : pausePreload())}>
           <${Icon} name=${paused ? 'play' : 'pause'} /></button>
         ${gear}
       </div>`;

@@ -3363,7 +3363,15 @@ async function main() {
   for (const b of Object.values(bands)) b.bondIds = bandBondIds(b, { bonds, pools: choices.pools });
   const config = buildConfig(ctx, waves, stages, bands, chess, items);
   const files = { config, chess, bonds, garrisons, items, bands, effects, choices, enemies, factions, waves, stages, bosses, tokens, backups };
-  files.terms = buildTerms((await loadGamedata('excel/gamedata_const.json'))?.termDescriptionDict, files);
+  // the keywords of the newer operator tables (pins.character) may be missing from the season's gamedata_const: only those
+  // come from the operator tables' own commit, every term the season has stays as it is
+  const termDict = { ...(await loadGamedata('excel/gamedata_const.json'))?.termDescriptionDict };
+  if (PROFILE.pins?.character && PROFILE.pins.character !== PROFILE.pins.default) {
+    const sha = PROFILE.pins.character;
+    const abs = await ensureGamedata('excel/gamedata_const.json', { cacheDir: `${CACHE_DIR}@${sha}`, baseUrl: pinnedUrl(sha) });
+    for (const [id, e] of Object.entries(JSON.parse(await readFile(abs, 'utf8'))?.termDescriptionDict || {})) if (!termDict[id]) termDict[id] = e;
+  }
+  files.terms = buildTerms(termDict, files);
 
   // the unit forms rebuild every PRESET chess at every rank (before the annotation: each pass as built)
   const errors = [...validateAll(files), ...passes.flatMap((p) => checkUnitFormParity(p.ctx, p.chess).map((e) => `${e} (potential rank ${p.ctx.potRank})`))];

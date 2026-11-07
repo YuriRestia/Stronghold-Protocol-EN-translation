@@ -17,7 +17,7 @@ export function checkCandidate(request, { spawn = fork, timeoutMs = 20000 } = {}
     const fail = e => { error ||= e; if (child?.pid) child.kill('SIGKILL'); else finish(); };
     try {
       child = spawn(fileURLToPath(new URL('./checkChild.js', import.meta.url)), [], {
-        execArgv: ['--max-old-space-size=512'], stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json',
+        execArgv: ['--max-old-space-size=512'], windowsHide: true, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], serialization: 'json',
       });
       timer = setTimeout(() => fail(new StudioError('PLUGIN_STUDIO_TRIAL_TIMEOUT', 504)), timeoutMs);
       child.once('error', () => fail(new StudioError('PLUGIN_STUDIO_TRIAL_FAILED', 500)));

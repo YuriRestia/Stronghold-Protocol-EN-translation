@@ -9,7 +9,7 @@ const pub = { round: 2, bossRound: 14, players: [{ playerId: 'a', seat: 0 }] };
 
 test('middle deploy setting preserves old booleans, defaults and serialized preferences', () => {
   for (const value of [false, true, 'partial']) assert.equal(sanitizeSettings(JSON.parse(JSON.stringify({ prepDeployFold: value }))).prepDeployFold, value);
-  for (const value of [undefined, 'off', 'middle', 0, null]) assert.equal(sanitizeSettings({ prepDeployFold: value }).prepDeployFold, true);
+  for (const value of [undefined, 'off', 'middle', 0, null]) assert.equal(sanitizeSettings({ prepDeployFold: value }).prepDeployFold, false); // (fork) defaults to off
 });
 
 test('partial camera changes live between all levels and restores while still dragging', () => {
