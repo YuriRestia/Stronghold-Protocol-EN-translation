@@ -117,7 +117,7 @@ export function combineCombat(records, ownerId = null) {
 
 /**
  * (fork) The results chart (ui/combatSummary.js CombatSummary): the match totals of combineCombat, each row with
- * `parts` — its damage per round, round order, rounds without damage left out. A record's round is `record.round`
+ * `parts` — its damage and dps per round, round order, rounds without damage left out. A record's round is `record.round`
  * (battle/runner.js tags it from the battle's spec); records without one only count toward the totals.
  */
 export function combineRounds(records, ownerId = null) {
@@ -134,7 +134,7 @@ export function combineRounds(records, ownerId = null) {
     for (const r of combineCombat(byRound.get(round), ownerId).rows) {
       if (!(r.damage > 0)) continue;
       if (!parts.has(r.key)) parts.set(r.key, []);
-      parts.get(r.key).push({ round, damage: r.damage });
+      parts.get(r.key).push({ round, damage: r.damage, dps: r.dps });
     }
   }
   return { ...total, rows: total.rows.map((r) => ({ ...r, parts: parts.get(r.key) || [] })) };

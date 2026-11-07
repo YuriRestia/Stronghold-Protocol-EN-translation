@@ -141,8 +141,9 @@ html[data-script="alphabetic"] .result__headline { font-size: min(calc(.96 * var
 .result__players > :last-child { margin-bottom: auto; }
 /* (fork) the match's damage chart under the cards (js/ui/combatSummary.js CombatSummary; rows: screens/game.css .dmg__*) */
 .dmg--summary { flex-shrink: 0; padding: .12rem .16rem; background: rgba(8, 11, 10, .72); border: 1px solid var(--line-2); }
-.dmg--summary .dmg__row { grid-template-columns: auto calc(1.4 * var(--t)) 1fr auto; }
-/* two columns, ranked down the first then the second (DamageBars cols=2 sets --dmg-rows) */
+.dmg--summary .dmg__row { grid-template-columns: auto minmax(0, 1fr); }
+.dmg--summary .dmg__track { height: calc(.1 * var(--t)); }
+/* two columns, ranked down the first then the second (SummaryBars sets --dmg-rows) */
 .dmg--summary .dmg__list.is-cols { display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--dmg-rows, 1), auto); grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: .3rem; }
 .rcard {
   display: flex; flex-direction: column; gap: .09rem; padding: .12rem .18rem .14rem; background: rgba(11, 15, 13, .9); border: 1px solid var(--line);

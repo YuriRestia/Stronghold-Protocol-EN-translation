@@ -1032,7 +1032,9 @@ No new route or gameplay rule is introduced.
 (fork) Always on: upstream's 设置 →「作战统计」 switch (`combatMetrics`, PR #618 by @robll-v1, default off) is removed,
 and an old stored key is dropped on read. The corner's 作战统计 button (`gm__metrics`, `ui/combatMetrics.js`) opens a
 modeless panel over the running battle: the fight keeps playing behind it, ✕ / Esc closes it, and the next frame's
-prep keeps it usable. Spectators do not get the button.
+prep keeps it usable. Spectators do not get the button. (fork) It shows one metric at a time, picked on a selector
+(伤害 / DPS / 治疗 / HPS, `ui/combatMetricsModel.js`, kept while the page lives): rows sort by it, each with its one number
+and a bar the row's full width, the top value filling its bar; a row's hover text has all four numbers.
 
 `battle/metrics.js` (`trackCombat`) attaches in `prepare` whenever the host is in-page. A gameplay-plugin room
 (`room.content.vanilla === false`) simulates in a Worker: the page holds wire state only (time and ids, no `damaged`
@@ -1042,7 +1044,7 @@ version (DESIGN §35.23: its set is data only and runs on the in-page host). A `
 
 (fork) Each record is tagged with its `round`, and the runner's `combatRounds()` (`metrics.js combineRounds`) feeds the
 result screen's 数据详情 chart (`ui/combatSummary.js`, replacing the fork's old damage meter): the own operators over the
-whole match, bars split 按回合 (by round) or 按类型 (by damage type), with 总伤害 / 总治疗 and dps / hps.
+whole match with the panel's selector and rows, damage metrics' bars split 按回合 (by round) or 按类型 (by damage type).
 
 `combatMetrics({ scope: 'battle' | 'match' | 'last', ownerId })` sits beside `currentBattle()` on the runner. A row is one
 operator: the effective HP the sim's own counters lost (mitigation, silent damage and DoTs included; overkill, element
