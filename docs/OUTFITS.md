@@ -51,7 +51,8 @@ match never read an outfit. This feature exists on this fork only (upstream turn
 
 `{ [skinId]: { id, charId, name, series, model, avatar, portrait, voice, tokens, layout } }`, one record per line,
 sorted by charId and then by the table's order. It covers the roster's operators (data/chess.json) and the 自选编队
-ones (data/backups.json `diy.operators`, also the 补位 stand-ins): `outfitRoster`, which tools/fetch-assets.mjs uses for
+ones (data/backups.json `diy.operators`, also the 补位 stand-ins), and the same of every other official version
+(data/versions/<slug>/): `outfitRoster`, which tools/fetch-assets.mjs uses for
 the 默认 artwork too. Only outfits with a battle model are kept (every one has one). Build it with `node tools/build-outfits.mjs` (`--check` compares,
 `--offline` uses the cache).
 

@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,8 @@ const CHESS = { c1: { charId: 'char_2_b' }, c2: { charId: 'char_1_a' } };
 test('outfitRoster: the chess pool\'s operators and the 自选编队 ones, once each, sorted', () => {
   assert.deepEqual(outfitRoster(CHESS), ['char_1_a', 'char_2_b']);
   assert.deepEqual(outfitRoster(CHESS, { diy: { operators: { char_9_z: {}, char_1_a: {} } } }), ['char_1_a', 'char_2_b', 'char_9_z']);
+  // (fork) another official version's operators and 自选编队 ones count too
+  assert.deepEqual(outfitRoster(CHESS, {}, [{ chess: { c: { charId: 'char_3_c' } }, backups: { diy: { operators: { char_8_y: {} } } } }]), ['char_1_a', 'char_2_b', 'char_3_c', 'char_8_y']);
   assert.deepEqual(outfitRoster({ t: { charId: 'token_1' } }, null), [], 'only operators');
   // a 自选编队 operator's outfits are built like a roster one's
   const { doc } = buildOutfits({ skins: SKINS, chess: CHESS, backups: { diy: { operators: { char_9_z: {} } } } });
@@ -79,7 +81,8 @@ test('build-outfits: layouts from fexli\'s folders (Front+Back, Front only, one 
 
 test('data/outfits.json: every record is an outfit of a roster or 自选编队 operator, with a model and a known layout', () => {
   const doc = readJson('data/outfits.json');
-  const roster = new Set(outfitRoster(readJson('data/chess.json'), readJson('data/backups.json')));
+  const versions = readdirSync(path.join(ROOT, 'data/versions')).map((v) => ({ chess: readJson(`data/versions/${v}/chess.json`), backups: readJson(`data/versions/${v}/backups.json`) }));
+  const roster = new Set(outfitRoster(readJson('data/chess.json'), readJson('data/backups.json'), versions));
   const recs = Object.values(doc);
   assert.ok(recs.length >= 270, `${recs.length} outfits`);
   for (const r of recs) {

@@ -24,10 +24,13 @@ const SKIN_RE = /^char_\d+_[a-z0-9]+@[A-Za-z0-9_]+#\d+$/;
  * @param {any} [backups] data/backups.json
  * @returns {string[]}
  */
-export function outfitRoster(chess, backups = {}) {
-  const ids = Object.values(chess || {}).map((c) => c?.charId);
-  const diy = backups?.diy?.operators;
-  if (diy && typeof diy === 'object') ids.push(...Object.keys(diy));
+export function outfitRoster(chess, backups = {}, versions = []) {
+  const ids = [];
+  for (const set of [{ chess, backups }, ...versions]) {
+    ids.push(...Object.values(set?.chess || {}).map((c) => c?.charId));
+    const diy = set?.backups?.diy?.operators;
+    if (diy && typeof diy === 'object') ids.push(...Object.keys(diy));
+  }
   return [...new Set(ids.filter((id) => typeof id === 'string' && id.startsWith('char_')))].sort();
 }
 

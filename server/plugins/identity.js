@@ -145,6 +145,7 @@ export function contentIndexOf(content, { dataUrl = '/data/', version = null, bo
     v: CONTENT_HASH_VERSION, cs: content.cs, app: content.app, vanilla: true,
     ...(version ? { version } : {}),
     sim: content.sim, simFiles: { ...content.simFiles }, data, plugins: [], settings: {},
+    ...(content.i18n ? { i18n: Object.fromEntries(Object.entries(content.i18n).map(([lang, f]) => [lang, { url: `${dataUrl}${f.file}?v=${f.sha256.slice(0, 8)}`, sha256: f.sha256, bytes: f.bytes }])) } : {}),
     ...(bounds ? { bounds: { official: { ...bounds } } } : {}),
   };
 }
@@ -168,6 +169,15 @@ export function versionContentOf({ vanilla, dataDir, dataUrl, version, hash = no
     } catch (e) { log.warn(`[versions] cannot read ${version} ${f.file}: ${e?.code || e?.message || e}`); }
   }
   if (!Object.keys(data).length) return null;
-  const cs = contentHashOf({ app: vanilla.app, sim: vanilla.sim, data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.sha256])) });
-  return { cs, app: vanilla.app, vanilla: true, sim: vanilla.sim, simFiles: { ...vanilla.simFiles }, data, version, dataUrl };
+  // (fork) the version's own game texts (i18n/<lang>.json, tools/build-i18n.mjs --data <its directory>): in its cs too
+  const i18n = {};
+  const langDir = path.join(dataDir, 'i18n');
+  for (const file of fs.existsSync(langDir) ? fs.readdirSync(langDir).filter((f) => f.endsWith('.json')).sort() : []) {
+    const buf = fs.readFileSync(path.join(langDir, file));
+    i18n[file.slice(0, -'.json'.length)] = { file: `i18n/${file}`, sha256: hash(buf), bytes: buf.length };
+  }
+  const langs = Object.entries(i18n);
+  const cs = contentHashOf({ app: vanilla.app, sim: vanilla.sim, data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, v.sha256])),
+    ...(langs.length ? { i18n: Object.fromEntries(langs.map(([k, v]) => [k, v.sha256])) } : {}) });
+  return { cs, app: vanilla.app, vanilla: true, sim: vanilla.sim, simFiles: { ...vanilla.simFiles }, data, version, dataUrl, ...(langs.length ? { i18n } : {}) };
 }

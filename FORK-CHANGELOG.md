@@ -43,6 +43,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Sound: `data/assets.json` is rebuilt on a complete FX index. 19 older-season operators get their battle voices, and
   operators such as Glider and Ceylon get attack sounds they were missing. A server needs `node tools/fetch-assets.mjs`
   for the new files (about 1,300 more in the manifest, 34 MB).
+- Outfits: the operators of the other official versions get theirs too (26 more, on the 19 operators only Season 1 has,
+  such as Ceylon's Holiday HD49).
+- English: Season 1 and Season 2 part 1 rooms now show English game text. Each version has its own overlay
+  (`data/versions/<slug>/i18n/en.json`, built by `tools/build-i18n.mjs --data`), 99 % translated. They stayed Chinese before.
 
 ## 2026-10-18
 

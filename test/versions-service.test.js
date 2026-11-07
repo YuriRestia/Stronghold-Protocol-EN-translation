@@ -72,7 +72,13 @@ test('the manifest names the version, its data under /data/versions/<slug>/ and 
     assert.equal(d.bytes, body.length);
     assert.equal(d.url.slice(-8), d.sha256.slice(0, 8));
   }
-  assert.equal(contentHashOf({ app: index.app, sim: index.sim, data: Object.fromEntries(Object.entries(index.data).map(([k, d]) => [k, d.sha256])) }), cs);
+  // (fork) its own English game texts: under its directory, checked by hash, and in the cs
+  assert.match(index.i18n.en.url, /^\/data\/versions\/act1autochess\/i18n\/en\.json\?v=[0-9a-f]{8}$/);
+  const en = fs.readFileSync(path.join(dir, 'i18n', 'en.json'));
+  assert.equal(index.i18n.en.sha256, sha(en));
+  assert.equal(index.i18n.en.bytes, en.length);
+  assert.equal(JSON.parse(en.toString('utf8')).files.chess.chess_char_2_14_a.name, 'Ceylon');
+  assert.equal(contentHashOf({ app: index.app, sim: index.sim, data: Object.fromEntries(Object.entries(index.data).map(([k, d]) => [k, d.sha256])), i18n: { en: index.i18n.en.sha256 } }), cs);
   assert.equal(index.bounds.official.url, `/cs/${cs16}/bounds/official.json`);
   const b = v.file(cs16, 'bounds/official.json');
   assert.equal(sha(b.body), index.bounds.official.sha256);

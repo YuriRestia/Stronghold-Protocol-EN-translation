@@ -26,6 +26,7 @@
 // Usage: node tools/build-outfits.mjs [--offline] [--check] [--out data/outfits.json] [--cache .cache/gamedata]
 //   --check    compare with the existing output file instead of writing it (exit 1 when it would change)
 
+import { readdirSync } from 'node:fs';
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -49,13 +50,13 @@ export { outfitRoster };
  *   data/chess.json / data/tokens.json / data/backups.json, and the model folders (modelLayouts)
  * @returns {{ doc: Record<string, any>, warnings: string[] }}
  */
-export function buildOutfits({ skins, chess, tokens = {}, backups = {}, layoutOf = () => null }) {
+export function buildOutfits({ skins, chess, tokens = {}, backups = {}, versions = [], layoutOf = () => null }) {
   const warnings = [];
   const table = skins?.charSkins;
   if (!table || typeof table !== 'object') throw new Error('skin_table: charSkins missing');
   if (!Object.values(chess || {}).some((c) => typeof c?.charId === 'string')) throw new Error('data/chess.json: no charIds');
-  const roster = new Set(outfitRoster(chess, backups));
-  const knownTokens = new Set([...Object.keys(tokens || {}), ...Object.keys(backups?.tokens || {})]);
+  const roster = new Set(outfitRoster(chess, backups, versions));
+  const knownTokens = new Set([{ tokens, backups }, ...versions].flatMap((v) => [...Object.keys(v?.tokens || {}), ...Object.keys(v?.backups?.tokens || {})]));
   const str = (v) => (typeof v === 'string' && v ? v : null);
   const rows = [];
   let order = 0;
@@ -179,7 +180,13 @@ async function main(argv) {
   const tree = opts.offline || opts.check ? null : await fetchFexliTree();
   const fromTree = tree ? layoutsFromTree(tree) : null;
   const layoutOf = (charId, model, skinId) => (fromTree ? fromTree(charId, model) : prev[skinId]?.layout ?? null);
-  const { doc, warnings } = buildOutfits({ skins, chess: await readData('chess'), tokens: await readData('tokens'), backups: await readData('backups'), layoutOf });
+  // the other official versions' operators and summons (data/versions/<slug>/): their rooms wear outfits too
+  const versionsDir = join(ROOT, 'data', 'versions');
+  const versions = await Promise.all((existsSync(versionsDir) ? readdirSync(versionsDir, { withFileTypes: true }) : []).filter((d) => d.isDirectory()).map(async (d) => {
+    const [chess, tokens, backups] = await Promise.all(['chess', 'tokens', 'backups'].map((f) => read(join(versionsDir, d.name, `${f}.json`)).catch(() => ({}))));
+    return { chess, tokens, backups };
+  }));
+  const { doc, warnings } = buildOutfits({ skins, chess: await readData('chess'), tokens: await readData('tokens'), backups: await readData('backups'), versions, layoutOf });
   for (const r of Object.values(doc)) if (!r.layout) warnings.push(`${r.id}: model folder ${modelDir(r.model)} not found on fexli (layout unknown)`);
   for (const w of warnings) console.warn(`build-outfits: ${w}`);
   const text = formatOutfits(doc);

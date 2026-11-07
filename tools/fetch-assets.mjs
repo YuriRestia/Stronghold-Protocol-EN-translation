@@ -491,7 +491,7 @@ async function main() {
     // fork (docs/OUTFITS.md): the outfits of tools/build-outfits.mjs, and the operators (roster + 自选编队) whose default
     // artwork the picker shows
     outfits: dataOutfits,
-    outfitChars: outfitRoster(dataChess, dataBackups),
+    outfitChars: outfitRoster(dataChess, dataBackups, versionSets),
     statsTemplate,
     charModes,
   });

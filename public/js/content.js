@@ -553,7 +553,10 @@ export async function loadVersionSet(cs, id, { fetch: doFetch = defaultFetch, re
   const official = isObj(index.bounds) && isObj(index.bounds.official) ? index.bounds.official : null;
   if (!official || typeof official.url !== 'string' || !isContentHash(official.sha256) || !official.url.startsWith(own) || official.url.includes('..')) throw new Error('bounds: missing, or an address outside this set');
   let again;
-  try { again = contentHashOf({ app: index.app, sim: index.sim, data: Object.fromEntries(entries.map(([name, f]) => [name, f.sha256])) }); } catch { again = null; }
+  // (fork) its own game texts per language: in the cs, fetched and checked when the language asks for them (showVersion)
+  const langs = isObj(index.i18n) ? Object.entries(index.i18n) : [];
+  if (langs.some(([, f]) => !isObj(f) || typeof f.url !== 'string' || !isContentHash(f.sha256) || !Number.isInteger(f.bytes) || !f.url.startsWith(prefix) || f.url.includes('..'))) throw new Error('i18n: a malformed entry');
+  try { again = contentHashOf({ app: index.app, sim: index.sim, data: Object.fromEntries(entries.map(([name, f]) => [name, f.sha256])), ...(langs.length ? { i18n: Object.fromEntries(langs.map(([lang, f]) => [lang, f.sha256])) } : {}) }); } catch { again = null; }
   if (again !== cs) throw new Error('the manifest does not hash to the version\'s cs');
   const total = entries.reduce((n, [, f]) => n + f.bytes, 0);
   let loaded = 0;
@@ -670,8 +673,10 @@ export function installContentSet({ store = appStore, data = dataStore, net = ap
     versionCache.delete(set.cs);
     versionCache.set(set.cs, set);
     while (versionCache.size > VERSION_CACHE) versionCache.delete(versionCache.keys().next().value);
-    // (a version's index carries no translations: its files take only the Chinese texts until M3 — data.js versionFiles)
-    data.setContent({ id: set.cs, values: set.values, overlay: null, langs: [] });
+    // (fork) a version's files take only its own translations (data.js versionFiles); a language it lacks stays Chinese
+    const i18n = isObj(set.index.i18n) ? set.index.i18n : {};
+    const overlay = (lang) => (isObj(i18n[lang]) ? fetchChecked(i18n[lang].url, i18n[lang], { fetch: doFetch, retryDelays, wait }) : Promise.resolve(null));
+    data.setContent({ id: set.cs, values: set.values, overlay, langs: Object.keys(i18n) });
     contentSet.set({ cs: set.cs, kind: 'version', version: set.version, status: 'ready', error: null, kitted: null });
     settleWaiting(set.cs);
     tell(set.cs, true);

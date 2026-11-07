@@ -761,7 +761,11 @@ async function main() {
   try { version = versionFile ? (await readFile(versionFile, 'utf8')).trim() : null; } catch { /* optional */ }
   const data = {};
   for (const f of DATA_FILES) {
-    const abs = join(opts.data, `${f}.json`);
+    // (fork) a version's directory has no emotes / outfits / terms, and its rooms take no default-id overlay: its own
+    // overlay covers the default files it shares (--data data/versions/<slug>)
+    const own = join(opts.data, `${f}.json`);
+    const shared = dirname(opts.data) === join(ROOT, 'data', 'versions') ? join(ROOT, 'data', `${f}.json`) : own;
+    const abs = existsSync(own) ? own : shared;
     if (existsSync(abs)) data[f] = JSON.parse(await readFile(abs, 'utf8'));
   }
   const readDict = async (abs) => (existsSync(abs) ? JSON.parse(await readFile(abs, 'utf8')) : {});

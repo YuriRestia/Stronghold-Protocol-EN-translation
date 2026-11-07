@@ -226,7 +226,8 @@ export function createVersionSets({ enabled, defaultId = DEFAULT_VERSION, dataDi
       const v = /** @type {any} */ (others.get(id));
       return {
         cs, name: id,
-        hashInput: { app: v.content.app, sim: v.content.sim, data: Object.fromEntries(Object.entries(v.content.data).map(([k, f]) => [k, /** @type {any} */ (f).sha256])) },
+        hashInput: { app: v.content.app, sim: v.content.sim, data: Object.fromEntries(Object.entries(v.content.data).map(([k, f]) => [k, /** @type {any} */ (f).sha256])),
+          ...(v.content.i18n ? { i18n: Object.fromEntries(Object.entries(v.content.i18n).map(([k, f]) => [k, /** @type {any} */ (f).sha256])) } : {}) },
         plugins: [], scripts: [], offers: [], bounds: boundsOf(id),
       };
     },
