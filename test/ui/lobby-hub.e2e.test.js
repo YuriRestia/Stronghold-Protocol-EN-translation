@@ -69,7 +69,10 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
     await page.evaluateOnNewDocument((l, ts) => {
       localStorage.setItem('sp.name', '大厅测试');
       sessionStorage.setItem('sp.entered', '1');
-      if (l) localStorage.setItem('sp.pref.lang', JSON.stringify(l));
+      // (fork) English is this fork's default; the suite reads Chinese msgids and passes no language for Chinese
+      localStorage.setItem('sp.pref.lang', JSON.stringify(l || 'zh'));
+      // (fork) Find Teammates is on by default and swaps the host's big button: these tests read 开始模拟 (.rs-go)
+      localStorage.setItem('sp.pref.room.findMates', 'false');
       if (ts) localStorage.setItem('sp.pref.settings', JSON.stringify({ textSize: ts }));
     }, lang, textSize);
     await seedReleaseRead(page);
@@ -95,11 +98,11 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
    * Elements of the screen (and an open dialog) that leave the viewport, and whether the dialog body scrolls. The backdrop
    * layers (.hub-bg, decorative, clipped by its overflow) and 选择模拟协议's picture with its scene (.proto__pic / .ps,
    * decorative: on a desktop it reaches past the stage and under the cards like the event's) may run past the edges on
-   * purpose.
+   * purpose, and the update announcement's text scrolls inside its panel (fork).
    */
   const fit = async (page) => { await settle(page); return page.evaluate(() => {
     const out = [];
-    for (const el of document.querySelectorAll('.lobby-screen *:not(.hub-bg *, .proto__pic, .proto__pic *, .ps, .ps *), .modal__box *:not(.proto__pic, .proto__pic *, .ps, .ps *)')) {
+    for (const el of document.querySelectorAll('.lobby-screen *:not(.hub-bg *, .search-news__body *, .proto__pic, .proto__pic *, .ps, .ps *), .modal__box *:not(.proto__pic, .proto__pic *, .ps, .ps *)')) {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height || getComputedStyle(el).visibility === 'hidden') continue;
       if (r.left < -1 || r.top < -1 || r.right > innerWidth + 1 || r.bottom > innerHeight + 1) out.push(`${el.className?.baseVal ?? el.className ?? el.tagName}`);
@@ -138,7 +141,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       }));
       assert.equal(hub.title, '卫戍协议：盟约');
       assert.equal(await page.$('.lobby-screen .topbar .stats-entry'), null, 'no top-bar 统计数据 chip: the 成就统计 card is the entry');
-      assert.deepEqual(hub.entries, ['solo', 'coop']);
+      assert.deepEqual(hub.entries, ['solo', 'coop', 'match']); // (fork) 单人匹配
       assert.deepEqual(hub.plates, [true, true]);
       assert.equal(hub.dialogs, 0);
       assert.deepEqual((await fit(page)).out, [], 'the hub fits 1920×1080');

@@ -65,7 +65,8 @@ test('the entries: 独立模拟 / 同盟模拟 keep the .mode-card hook and open
   for (const id of ['solo', 'coop']) {
     const opened = [];
     const wrap = HubEntry({ card: MODES[id], onOpen: (m) => opened.push(m) });
-    assert.ok(textOf(byClass(wrap, 'hub-entry__group')[0]).includes(MODES[id].points[0]), 'its line above it');
+    const group = textOf(byClass(wrap, 'hub-entry__group')[0]);
+    for (const part of MODES[id].points[0].split(' · ')) assert.ok(group.includes(part), `its description above it: ${part}`);
     const v = buttons(wrap)[0];
     assert.ok(hasClass(v, 'mode-card') && hasClass(v, 'hub-entry'));
     assert.equal(v.props['data-mode'], id);
@@ -580,7 +581,15 @@ test('the hub keeps its text whole (§35.18 review: English 「Solo / Team Simul
   const short = shortBlock();
   assert.match(short, /\.lobby-hub \{ --hub-entry-w: max\(2\.1rem, 128px\); \}/);
   assert.match(short, /\.hub-entry \{ min-height: max\(1\.1rem, 64px\); padding: \.1rem \.14rem; \}/, 'no room above the text on a phone');
-  assert.match(short, /\.hub-entry \{ width: calc\(var\(--hub-entry-w\) \+ 7 \* max\(0px, var\(--t-step\)\)\); \}/);
+  assert.match(short, /--hub-card-w: calc\(var\(--hub-entry-w\) \+ 14px \+ 7 \* max\(0px, var\(--t-step\)\)\); --hub-gap: max\(\.14rem, 8px\);/);
+  // (fork) the description wraps inside its card's width (one nowrap line spread the cards apart), a short screen keeps its first line
+  assert.match(css, /\.hub-entry-wrap \{ flex: 0 1 var\(--hub-card-w\);/);
+  assert.doesNotMatch(rule('.hub-entry__group'), /nowrap/);
+  assert.match(short, /\.hub-entry__more \{ display: none; \}/);
+  // (fork) the update announcement gives way, not the column's buttons
+  assert.match(css, /\.hub-side > :not\(\.search-news\) \{ flex: none; \}/);
+  assert.match(rule('.search-news'), /flex: 0 1 auto;/);
+  assert.match(rule('.search-news__body'), /overflow-y: auto;/);
   assert.match(short, /\.lobby-hub \.hub-plate \{ font-size: min\(calc\(\.3 \* var\(--t\)\), calc\(18px \+ var\(--t-step\)\)\); \}/);
   assert.match(short, /\.hub-entry__en \{ padding-right: \.44rem; font-size: min\(calc\(\.16 \* var\(--t\)\), calc\(10px \+ var\(--t-step\)\)\);/);
   assert.match(short, /\.hub-entry__name \{ font-size: min\(calc\(\.42 \* var\(--t\)\), calc\(18px \+ var\(--t-step\)\)\); \}/);

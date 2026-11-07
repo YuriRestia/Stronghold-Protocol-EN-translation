@@ -43,6 +43,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- Lobby: the update news panel uses its full width and scrolls inside itself when space is short, so it no longer pushes Achievements, Join with Key and Combat Tips off the screen. The mode buttons sit together as one group of equal cards (the long descriptions used to spread them apart): each description now wraps above its card, who plays first, the rest under it. "Solo Matchmaking" is no longer cut off.
 - Damage meters show one metric at a time. The result screen's Damage Stats and the in-match Combat statistics panel get a Damage / DPS / Healing / HPS selector (kept until the page reloads); rows sort by it, the top value fills its bar, and the row's width goes to the bar, so operators compare at a glance. Removed the panel's title, rank numbers, four-number rows, sort label and explanation box, and the chart's per-row DPS / healing text and All Rounds tag; hover a row for all four numbers.
 - Plugin studio, script checks and match hosts: their child processes no longer open console windows that steal focus on Windows (`windowsHide`).
 - `fetch-assets` names the operators missing from the local FX index. Their per-skill sounds are then planned differently,

@@ -8,7 +8,7 @@
 
 /* ---- hub backdrop ------------------------------------------------------------------------------------- */
 /* the entries' width follows 文字大小 (2.3rem at 小; §35.18 review: at a fixed 2.3rem the names had to stop at 小's size) */
-.lobby-hub { --hub-entry-w: calc(2.3 * var(--t)); --hub-gap: .14rem; background: #050807; }
+.lobby-hub { --hub-entry-w: calc(2.3 * var(--t)); --hub-card-w: calc(2.55 * var(--t)); --hub-gap: .14rem; background: #050807; }
 /* Korean breaks between words, not between the syllables of one (§35.18 review: 「독립 시뮬레이|션」 at 小); a word too
    long for its box still breaks rather than running out of it. The hub's own stage only: 选择模拟协议's button keeps its
    two lines (「독립 시뮬레이션 시작」 took three at 特大 in a 1024×600 window by words) */
@@ -261,6 +261,8 @@
 
 /* ---- left column: 成就统计, 密钥加入, 作战提示 ------------------------------------------------------------ */
 .hub-side { grid-area: side; position: relative; z-index: 1; display: flex; flex-direction: column; gap: .14rem; min-width: 0; padding-top: .3rem; }
+/* (fork) only the update announcement gives way when the column is short (.search-news) */
+.hub-side > :not(.search-news) { flex: none; }
 /* 成就统计 (#643's top-left card, from the event video): a dusk scene with the emblem and the trophy medal, the label strip
    with the LV under it */
 .hub-ach {
@@ -414,20 +416,26 @@
 /* ---- entries (独立模拟 / 同盟模拟), bottom right ----------------------------------------------------------- */
 /* (the card, the line above it, the tips' head and the 成就统计 card's label grow or wrap rather than cut their text at
    大 / 特大 in a small window — §35.18 review; the trophy count under the medal stops at .15rem, 大's size [ASSUMED]) */
-/* (the two cards share a height: the taller one's, their text at the bottom) */
+/* (the cards share a height: the taller one's, their text at the bottom) */
+/* (fork) each entry is exactly as wide as its card: its description wraps inside that width instead of pushing the cards
+   apart (on one line it spread them over the whole row). Where subgrid exists the descriptions share one row and the
+   cards the next, so the tops line up whichever description is longest; without it the cards still share a height, their
+   tops following their descriptions. The queue panel takes the entries' place at its own width (.hub-queue) */
 .hub-entries { grid-area: entries; position: relative; z-index: 1; display: flex; align-items: stretch; justify-content: flex-end; gap: var(--hub-gap); min-width: 0; }
-.hub-entry-wrap { display: flex; flex-direction: column; gap: .05rem; min-width: 0; animation: card-in var(--t-slow) var(--ease-out) backwards; }
+.hub-entry-wrap { flex: 0 1 var(--hub-card-w); display: flex; flex-direction: column; gap: .06rem; min-width: 0; animation: card-in var(--t-slow) var(--ease-out) backwards; }
 .hub-entry-wrap:nth-child(2) { animation-delay: 60ms; }
-.hub-entry__group { display: flex; align-items: center; gap: .06rem; min-height: .22rem; padding-left: .04rem; font-size: calc(.13 * var(--t)); color: rgba(223, 230, 226, .7); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hub-entry__group .icon { flex: none; width: .16rem; height: .16rem; color: var(--mint-400); }
-.hub-entry__long { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.hub-entry__short { display: none; }
-/* Narrow desktop windows keep the full descriptions (phones have their own short labels below).
-   [ASSUMED] A shared two-line minimum keeps both cards level when only one description wraps. */
-@media (max-width: 900px) and (min-height: 521px) {
-  .hub-entry__group { min-height: 3em; white-space: normal; overflow: visible; text-overflow: clip; }
-  .hub-entry__long { white-space: normal; overflow: visible; text-overflow: clip; }
+@supports (grid-template-rows: subgrid) {
+  .hub-entries:not(.is-queued) { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, var(--hub-card-w)); grid-template-rows: auto auto; row-gap: .06rem; }
+  .hub-entries:not(.is-queued) .hub-entry-wrap { grid-row: span 2; display: grid; grid-template-rows: subgrid; }
 }
+/* the description: who plays (a little brighter, with the card's icon), then what sets the mode apart. 10 px at least: a
+   window under 1400 px wide made it 6–9 px at 小. [ASSUMED] the floor and the colours */
+.hub-entry__group { display: flex; flex-direction: column; gap: .01rem; min-width: 0; padding: 0 .02rem; font-size: max(calc(.14 * var(--t)), 10px); line-height: 1.3; color: rgba(223, 230, 226, .66); text-shadow: 0 1px .04rem rgba(0, 0, 0, .85); }
+.hub-entry__who { display: flex; align-items: center; gap: .05rem; font-weight: 700; color: rgba(238, 243, 241, .92); }
+.hub-entry__who .icon { flex: none; width: 1.15em; height: 1.15em; color: var(--mint-400); }
+.hub-entry__long { min-width: 0; }
+.hub-entry__more { text-wrap: pretty; }
+.hub-entry__short { display: none; }
 .hub-entry {
   position: relative;
   display: flex;
@@ -435,8 +443,7 @@
   justify-content: flex-end;
   align-items: flex-start;
   flex: 1 0 auto;
-  width: var(--hub-entry-w);
-  max-width: 100%;
+  width: 100%;
   min-height: calc(1.34 * var(--t));
   padding: .14rem .16rem;
   /* the icon's height kept above the text (below) */
@@ -460,9 +467,14 @@
    language, Chinese 「ALLIANCE / SIMULATION」 at 小, which never reached the icon). A short card keeps its min-height */
 .hub-entry__en { font-family: ui-monospace, Consolas, monospace; font-size: calc(.11 * var(--t)); font-weight: 700; letter-spacing: .22em; color: var(--mint-400); }
 /* the name wraps between words (§35.18 review: on one line English 「Solo Simulation」 / 「Team Simulation」 ran 25–40 px
-   past the 2.3rem card at 小 in every window and 84–100 px at 特大, the card cutting it); 「Simulation」 alone is ~6.2em,
-   and the card (2.3 × --t) keeps ~1.98 × --t inside for the .3 × --t name */
-.hub-entry__name { margin-top: .04rem; font-size: calc(.3 * var(--t)); font-weight: 900; letter-spacing: .06em; line-height: 1.1; }
+   past the 2.3rem card at 小 in every window and 84–100 px at 特大, the card cutting it); 「Simulation」 alone is ~6.2em */
+.hub-entry__name { margin-top: .04rem; font-size: calc(.3 * var(--t)); font-weight: 900; letter-spacing: .06em; line-height: 1.1; overflow-wrap: anywhere; }
+/* (fork) 「Matchmaking」 is the longest word: 7.55em at the spacing above, cut by a 2.3 × --t card. Tighter in English and a card of
+   2.55 × --t (--hub-card-w), it is ~7.1em in the ~2.2 × --t inside; a word still too long breaks rather than being cut */
+.lobby-hub:lang(en) .hub-entry__name { letter-spacing: .02em; }
+/* (fork) three cards at 大 / 特大 in a window this narrow share less than their width: the name stops where its longest word
+   still fits (at 800×600 特大 「Matchmaking」 broke inside the word). [ASSUMED] the 3vw */
+@media (max-width: 880px) and (min-height: 521px) { .hub-entry__name { font-size: min(calc(.3 * var(--t)), 3vw); } }
 .hub-entry__corner { position: absolute; right: 0; bottom: 0; width: .3rem; height: .3rem; background: linear-gradient(135deg, transparent 50%, var(--mint-500) 50%); opacity: .8; }
 /* 同盟模拟, the main way to play: bright */
 .hub-entry--coop { background: linear-gradient(160deg, var(--mint-500), #1f8f72); color: #04140f; border-color: var(--mint-400); }
@@ -1036,6 +1048,8 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
   .hub-center__logo { width: .9rem; }
   .hub-center__mark .emblem__svg { width: .9rem; height: 1rem; }
   .hub-center__title { max-width: none; font-size: calc(.46 * var(--t)); }
+  /* (fork) the third entry reaches under the title: Korean's wide spacing wrapped it onto the line above the entries at 特大 */
+  .lobby-hub:lang(ko) .hub-center__title { letter-spacing: .04em; }
   .hub-right { padding-top: .1rem; }
   .lobby-hub .hub-plate { min-height: max(.7rem, 32px, calc(40px * var(--sp-ui, 1))); }
   .lobby-hub .hub-plate--ach { display: flex; }
@@ -1090,12 +1104,13 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
      [ASSUMED] the caps */
   .lobby-hub .hub-plate { font-size: min(calc(.3 * var(--t)), calc(18px + var(--t-step))); }
   .hub-plate__tag { display: none; }
-  .hub-entry__group { height: auto; font-size: calc(.22 * var(--t)); }
+  .hub-entry__group { font-size: calc(.22 * var(--t)); }
+  .hub-entry__more { display: none; }
   /* 同盟模拟's line keeps only 「1–4 名博士」 here (§35.51: the whole line, nowrap, ran 81–320 px past its entry at 特大 —
      two to four lines if it wrapped; the AI teammates are the room's to show) */
   .hub-entry__long { display: none; }
   .hub-entry__short { display: inline; }
-  .hub-entry { width: calc(var(--hub-entry-w) + 7 * max(0px, var(--t-step))); }
+  .lobby-hub { --hub-card-w: calc(var(--hub-entry-w) + 14px + 7 * max(0px, var(--t-step))); --hub-gap: max(.14rem, 8px); }
   .hub-entry__en { padding-right: .44rem; font-size: min(calc(.16 * var(--t)), calc(10px + var(--t-step))); letter-spacing: .12em; }
   .hub-entry__name { font-size: min(calc(.42 * var(--t)), calc(18px + var(--t-step))); }
   .proto-title .modal__title { font-size: min(calc(.46 * var(--t)), 24px); white-space: nowrap; }
@@ -1195,40 +1210,42 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 /* ==== (fork) Yuri's lobby additions on the hub layout ==== */
 
 /* ---- update announcement (ui/matchSearch.js UpdateNews) -------------------------------------------------- */
+/* the first thing in the left column, and the only part of it that gives way: a long announcement scrolls inside the
+   panel rather than pushing 成就统计 / 密钥加入 / 作战提示 off the screen. The head and the text use the panel's whole width,
+   the highlight is the lead above the points. [ASSUMED] the sizes */
 .search-news {
   --bk-c: var(--mint-500);
+  flex: 0 1 auto;
+  min-height: 1.5rem;
   display: flex;
-  align-items: flex-start;
-  gap: .18rem;
-  margin-bottom: .26rem;
-  padding: .16rem .2rem .18rem;
-  background: linear-gradient(90deg, rgba(78, 216, 175, .10), rgba(8, 10, 9, .6) 60%);
+  flex-direction: column;
+  gap: .08rem;
+  padding: .1rem .14rem .14rem .16rem;
+  background: rgba(8, 14, 13, .82);
   border: 1px solid var(--mint-700);
   animation: card-in var(--t-slow) var(--ease-out) backwards;
 }
-.search-news__icon {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: .5rem;
-  height: .5rem;
-  background: var(--mint-500);
-  color: var(--text-on-mint);
-  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+.search-news__head { flex: none; display: flex; align-items: center; gap: .08rem; font-size: calc(.18 * var(--t)); font-weight: 900; letter-spacing: .04em; color: var(--text-hi); }
+.search-news__head > .icon { flex: none; width: .2rem; height: .2rem; color: var(--mint-500); }
+.search-news__tag { flex: none; padding: .01rem .07rem; background: var(--amber); color: #111; font-size: calc(.11 * var(--t)); font-weight: 900; letter-spacing: .12em; }
+.search-news__title { flex: 1; min-width: 0; }
+.search-news__close { flex: none; margin: -.02rem -.04rem -.02rem 0; }
+.search-news__body {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--mint-700) transparent;
+  font-size: calc(.15 * var(--t));
+  line-height: 1.45;
+  color: var(--text-md);
+  text-wrap: pretty;
 }
-.search-news__icon .icon { width: .26rem; height: .26rem; }
-.search-news__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .06rem; font-size: calc(.16 * var(--t)); line-height: 1.6; color: var(--text-md); }
-.search-news__head { display: flex; align-items: center; gap: .1rem; font-size: calc(.2 * var(--t)); font-weight: 900; letter-spacing: .06em; color: var(--text-hi); }
-.search-news__tag { padding: .01rem .08rem; background: var(--amber); color: #111; font-size: calc(.12 * var(--t)); font-weight: 900; letter-spacing: .12em; }
-.search-news__close { flex: none; }
-.search-news__highlight { font-size: calc(.18 * var(--t)); font-weight: 900; color: var(--mint-400); }
-.search-news__list { margin: 0; padding-left: .22rem; display: flex; flex-direction: column; gap: .02rem; }
+.search-news__body:focus-visible { outline: 1px solid var(--mint-500); outline-offset: 2px; }
+.search-news__highlight { margin: 0 0 .07rem; padding-bottom: .07rem; font-size: calc(.16 * var(--t)); font-weight: 800; color: var(--mint-400); border-bottom: 1px solid var(--line); }
+.search-news__list { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: .04rem; }
 .search-news__list li::marker { color: var(--mint-500); }
-/* short landscape phones */
-@media (max-height: 460px) {
-  .search-news { margin-bottom: .16rem; padding: .1rem .16rem; }
-  .search-news__icon { width: .4rem; height: .4rem; }
-}
 
 /* 单人匹配 wait (ui/soloQueue.js QueuePanel), in the create button's place */
 .queue-panel {
@@ -1278,6 +1295,6 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .diff-details__group th { color: var(--mint-400); font-weight: 700; padding-top: .12rem; }
 
 /* the queue panel in the hub entries' place (screens/lobby.js) */
-.hub-queue { width: min(100%, 5.6rem); margin-left: auto; }
+.hub-queue { flex: 0 1 5.6rem; min-width: 0; }
 .hub-tile:disabled { cursor: default; opacity: .5; }
 .proto-side .diff-details-btn { margin: .06rem .1rem 0 auto; }
