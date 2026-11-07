@@ -1148,6 +1148,32 @@ export class FxWiring {
   }
 
   /**
+   * A shot on a straight line over the field, no target (塔露拉 S3's 簇火: SkillFx._lanes): `key` from tile (x, y) in the
+   * direction (dx, dy) at `speed` tiles / battle s for `len` tiles, over the ground under it (the client's
+   * `_heightOverHighland` 0 [ASSUMED: the height of its tile]). Calls `onEnd` when the way is done; returns the handle.
+   */
+  flyLane(key, src, { x, y, dx, dy, len, speed, onEnd }) {
+    const k = lc(key);
+    if (!k || !this.ofx.lib.has(k) || !(speed > 0)) return null;
+    const heightAt = this.ofx.ctx?.heightAt;
+    const groundAt = (cx, cy) => {
+      const h = typeof heightAt === 'function' ? Number(heightAt(Math.round(cy), Math.round(cx))) : NaN;
+      return Number.isFinite(h) ? -Math.max(0, h) : 0;
+    };
+    const dur = len / speed, skin = this.skinKey(k, src);
+    return this.ofx.spawn(skin, { pos: [x - 10, y - 9, groundAt(x, y)], groundZ: groundAt(x, y), rootRot: ID_ROT }, {
+      important: true,
+      track: (fx) => {
+        const d = Math.min(len, speed * fx.time), cx = x + dx * d, cy = y + dy * d, z = groundAt(cx, cy);
+        fx.anchor[0] = cx - 10; fx.anchor[1] = cy - 9; fx.anchor[2] = z; fx.groundZ = z;
+        if (fx.def?.flipIfLeft && dx < 0) { fx.mirror = true; fx.yaw = Math.atan2(dy, -dx); }
+        else { fx.mirror = false; fx.yaw = Math.atan2(dy, dx); }
+        if (fx.time >= dur) { fx.stop({ hit: true }); onEnd?.(); }
+      },
+    });
+  }
+
+  /**
    * A point of a flight at fraction k (t battle s in): the ground track from the start to the target's point now, the
    * height of the Paracurve arc (else straight), the AmiyaS2 wobble across the path — perpendicular to it in the plane
    * the camera sees [ASSUMED: the projectile body faces its flight and the camera] — into `out`.

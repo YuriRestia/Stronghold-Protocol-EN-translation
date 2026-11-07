@@ -60,8 +60,9 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // banks (plan.mjs NOTE_SFX_LOOKS: 5 born + 7 hit; attack and S1 have no born bank)
   // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
   // operators their slots and files (the 5 pool-only attack sounds among them)
+  // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)
   assert.equal(refs, 1040);
-  assert.equal(Object.keys(pools).length, 1044);
+  assert.equal(Object.keys(pools).length, 1047);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });

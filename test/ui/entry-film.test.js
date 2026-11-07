@@ -6,7 +6,8 @@
 // the entry cue and hands the music back to the screen. holdBgm: with audio.lobbyTrack set nothing fades and playBgm
 // is left alone; without it the screen's music is held and released from its top; a lobbyTrack that arrives during
 // the hold is passed to the real playBgm at once. A sprite that fails to load plays no film. A phone in portrait
-// when the title is entered does not start the film after it rotates to landscape.
+// when the title is entered does not start the film after it rotates to landscape. (fork) The film waits for its art and
+// sound however long they take, downloading them before any tap, and is never dropped for being slow.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -64,10 +65,10 @@ globalThis.fetch = async (url) => {
 const mem = new Map();
 globalThis.localStorage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
 
-const { playEntryFilm, holdBgm } = await import('../../public/js/ui/entryFilm.js');
+const { playEntryFilm, holdBgm, watchTitleReturns } = await import('../../public/js/ui/entryFilm.js');
 const { clearSpriteLoads } = await import('../../public/js/ui/allianceScene.js');
 const { store, selectRoute } = await import('../../public/js/store.js');
-const { audio } = await import('../../public/js/audio.js');
+const { audio, AudioManager } = await import('../../public/js/audio.js');
 const { data } = await import('../../public/js/data.js');
 
 const overlay = () => document.body.children.find((c) => c.className === 'spa-entry') || null;
@@ -285,6 +286,121 @@ test('a sprite that fails to load plays no film', async () => {
   }
 });
 
+/** A prefetch the test finishes by hand: holds the film's sound "still downloading". */
+function holdPrefetch() {
+  const asked = [];
+  let finish;
+  const gate = new Promise((r) => { finish = r; });
+  audio.prefetch = (url) => { asked.push(url); return gate.then(() => new ArrayBuffer(1)); };
+  return { asked, finish };
+}
+
+test('(fork) the film waits for its sound: nothing runs ahead of the download, and the tap is not lost', async () => {
+  const { ctx, sources } = runningContext();
+  Object.assign(audio, { sfxGain: {}, _buffer: async () => ({ duration: 1 }), _fadeOutBgm() {} });
+  PROTO.playBgm = function () {};
+  const { asked, finish } = holdPrefetch();
+  try {
+    const spy = sceneSpy();
+    let opened = false;
+    const opening = playEntryFilm({ mount: spy.mount }).then(() => { opened = true; });
+    const el = overlay();
+    assert.ok(el && el.open, 'the cover is up at once');
+    assert.equal(el.querySelector('.spa-entry__gate').firstChild.textContent, '加载中', 'it says it is loading');
+    await sleep(1500); // past the 1.2 s that used to drop the film
+    assert.equal(overlay(), el, 'still up: the film is not dropped');
+    assert.ok(asked.some((u) => u.includes('g_ui_load')) && asked.some((u) => u.includes('m_sys_')), 'cue and lobby music are downloading before any tap');
+    assert.equal(opened, false, 'and what comes after the opening keeps waiting');
+
+    audio.ctx = ctx; // audio.js's capture listener runs first on the tap
+    el.dispatch('pointerdown');
+    await sleep(700);
+    assert.equal(spy.mounted, 0, 'tapped, sound still downloading: no silent film');
+    assert.equal(sources.length, 0);
+
+    finish();
+    await opening;
+    for (let i = 0; i < 100 && !spy.frames; i++) await sleep(20);
+    assert.equal(spy.mounted, 1, 'the download in: the film starts by itself, no second tap');
+    assert.ok(sources[0]?.started != null, 'with its cue');
+    pressKey();
+    await sleep(400);
+    assert.equal(overlay(), null);
+  } finally { delete audio.prefetch; }
+});
+
+test('(fork) the card asks for the tap only once the files are in', async () => {
+  const { finish } = holdPrefetch();
+  try {
+    const spy = sceneSpy();
+    const opening = playEntryFilm({ mount: spy.mount });
+    const el = overlay();
+    assert.equal(el.querySelector('.spa-entry__gate').firstChild.textContent, '加载中');
+    finish();
+    await opening;
+    await sleep(0);
+    assert.equal(el.querySelector('.spa-entry__gate').firstChild.textContent, '点击进入');
+    assert.equal(spy.mounted, 0, 'sound is locked: the card waits for the tap');
+    enterRoom();
+    assert.equal(overlay(), null);
+  } finally { delete audio.prefetch; }
+});
+
+test('(fork) art slower than the old 1.2 s look still gets the film; a played film is marked only once it has played', async () => {
+  const Real = globalThis.Image;
+  globalThis.Image = class { set src(u) { this._src = u; setTimeout(() => this.onload?.(), 1400); } get src() { return this._src; } };
+  const session = new Map();
+  globalThis.sessionStorage = { getItem: (k) => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)) };
+  const { ctx } = runningContext();
+  Object.assign(audio, { ctx, sfxGain: {}, _buffer: async () => ({ duration: 1 }), _fadeOutBgm() {} });
+  PROTO.playBgm = function () {};
+  try {
+    const spy = sceneSpy();
+    const opening = playEntryFilm({ mount: spy.mount });
+    assert.ok(overlay(), 'the cover is up');
+    assert.equal(session.has('sp.entryFilm.played'), false, 'not marked while it only waits');
+    await opening;
+    for (let i = 0; i < 100 && !spy.frames; i++) await sleep(20);
+    assert.equal(spy.mounted, 1, 'the film plays');
+    assert.equal(session.get('sp.entryFilm.played'), '1');
+    pressKey();
+    await sleep(400);
+  } finally {
+    globalThis.Image = Real;
+    delete globalThis.sessionStorage;
+  }
+});
+
+test('(fork) _buffer takes over a prefetch: one request, and a failed one is asked for again', async () => {
+  const realFetch = globalThis.fetch;
+  const calls = [];
+  const bytes = new ArrayBuffer(4);
+  let up = false;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return up ? { ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => bytes } : { ok: false, status: 503, headers: { get: () => null } };
+  };
+  try {
+    const a = new AudioManager({ win: null });
+    a.ctx = { decodeAudioData: (ab, ok) => ok({ duration: 1, length: 1, numberOfChannels: 1, ab }) };
+    up = true;
+    const url = '/assets/audio/bgm/x.mp3';
+    await a.prefetch(url, { priority: 'high' });
+    assert.equal(calls.length, 1);
+    const buf = await a._buffer(url);
+    assert.equal(buf.ab, bytes, 'decoded from the bytes already downloaded');
+    assert.equal(calls.length, 1, 'no second request');
+
+    up = false;
+    const failed = '/assets/audio/bgm/y.mp3';
+    assert.equal(await a.prefetch(failed), null, 'a failed download resolves null, it does not throw');
+    up = true;
+    const n = calls.length;
+    assert.ok(await a._buffer(failed), 'the sound is asked for again');
+    assert.ok(calls.length > n);
+  } finally { globalThis.fetch = realFetch; }
+});
+
 test('a phone in portrait when the title is entered does not start the film after rotating to landscape', async () => {
   const prevMedia = globalThis.matchMedia;
   const prevW = globalThis.innerWidth, prevH = globalThis.innerHeight;
@@ -314,19 +430,76 @@ test('a phone in portrait when the title is entered does not start the film afte
   }
 });
 
-test('(fork) once per tab session: a film that played is not played again after a reload', async () => {
+test('(fork) a page load landing in the lobby plays it once per tab session; the login screen plays it every time', async () => {
   const session = new Map();
   globalThis.sessionStorage = { getItem: (k) => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)) };
   try {
     session.set('sp.entryFilm.played', '1');
     const spy = sceneSpy();
+    store.set((s) => ({ session: { ...s.session, entered: true } }));
+    assert.equal(selectRoute(store.get()), 'lobby');
     await playEntryFilm({ mount: spy.mount });
-    assert.equal(overlay(), null, 'the title stays uncovered');
-    assert.equal(spy.mounted, 0);
+    assert.equal(overlay(), null, 'seen in this tab: the lobby stays uncovered');
+
+    store.reset();
+    assert.equal(selectRoute(store.get()), 'title');
+    await playEntryFilm({ mount: spy.mount });
+    assert.ok(overlay(), 'the login screen plays it although this tab has seen it');
+    enterRoom();
+    assert.equal(overlay(), null);
+
     session.clear();
+    store.reset();
     await playEntryFilm({ mount: spy.mount, skip: () => true });
     assert.equal(session.has('sp.entryFilm.played'), false, 'a film that did not play leaves the session free to play it');
+    assert.equal(overlay(), null);
+
+    session.set('sp.entryFilm.off', '1');
+    await playEntryFilm({ mount: spy.mount });
+    assert.equal(overlay(), null, 'the browser suites\' switch');
   } finally {
     delete globalThis.sessionStorage;
   }
+});
+
+test('(fork) every return to the login screen plays the film, with no tap once sound is unlocked', async () => {
+  const { ctx } = runningContext();
+  Object.assign(audio, { ctx, sfxGain: {}, _buffer: async () => ({ duration: 1 }), _fadeOutBgm() {} });
+  PROTO.playBgm = function () {};
+  const spy = sceneSpy();
+  const stop = watchTitleReturns({ mount: spy.mount });
+  try {
+    for (let visit = 1; visit <= 2; visit++) {
+      store.set((s) => ({ session: { ...s.session, entered: true } }));
+      assert.equal(overlay(), null, 'entering the lobby plays nothing');
+      store.set((s) => ({ session: { ...s.session, entered: false } })); // the lobby's way back
+      const el = overlay();
+      assert.ok(el, `return ${visit}: the cover is up`);
+      assert.equal(el.querySelector('.spa-entry__gate'), null, 'no tap card: sound is already unlocked');
+      for (let i = 0; i < 100 && spy.mounted < visit; i++) await sleep(20);
+      assert.equal(spy.mounted, visit, `return ${visit}: the film plays`);
+      pressKey();
+      await sleep(400);
+      assert.equal(overlay(), null, 'skipped: the login screen');
+    }
+    store.set((s) => ({ session: { ...s.session, entered: true }, room: { id: 'r1', players: [] } }));
+    assert.equal(overlay(), null, 'not on the way to a room');
+    assert.equal(spy.mounted, 2);
+  } finally { stop(); }
+});
+
+test('(fork) a prefetch of a sound already decoded requests nothing and leaves nothing behind', async () => {
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return { ok: true, status: 200, headers: { get: () => 'audio/mpeg' }, arrayBuffer: async () => new ArrayBuffer(4) }; };
+  try {
+    const a = new AudioManager({ win: null });
+    a.ctx = { decodeAudioData: (ab, ok) => ok({ duration: 1, length: 1, numberOfChannels: 1 }) };
+    const url = '/assets/audio/bgm/x.mp3';
+    await a._buffer(url);
+    assert.equal(calls, 1);
+    assert.equal(await a.prefetch(url), null);
+    assert.equal(calls, 1, 'no download');
+    assert.equal(a.prefetched.size, 0);
+  } finally { globalThis.fetch = realFetch; }
 });

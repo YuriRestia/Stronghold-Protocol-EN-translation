@@ -27,7 +27,7 @@ const HAS_INDEX = existsSync(INDEX);
 const LOOPING = new Set(['ymgtop_spin', 'enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'dsubrl_aura', 'cjhot_aura',
   'enemy_cjhot_debuff', 'horn_skill_01_hit_02_buff', 'skadi2_skill_03_buff', 'svrash_skill_02_buff', 'tinman_skill_01_range_01', 'sleach_skill_02_flag_01',
   'sleach_skill_02_ground_01', 'sleach_skill_03_flag_01', 'sleach_skill_03_range_loop_01', 'thumpy_skill_03_range_01']);
-const KEYS = [...LOOPING, 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
+const KEYS = [...LOOPING, 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
   'tank_shell_hit', 'sleach_skill_03_range_start_01', 'chen2_skill_02_range_01', 'enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range',
   'enemy_dslily_skill_01_start'];
 const GROUND = new Set(['enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'mousek_skill_02_range']);
@@ -82,6 +82,7 @@ function makeIndex({ installed = KEYS } = {}) {
           { role: 'start', keys: ['enemy_dslily_skill_01_start'], from: 'UberEffectEmitter._castEffects', node: 'RockfallG2', ability: 'MeleeAttack', startEvent: 'ON_CAST_START', oneshot: true, list: 'cast' },
         ] },
       } }),
+      char_4247_oxi: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_oxi_3: { rootClass: 'CastSkillWithSuspendable', mode: null, projectiles: [], uses: [] } } },
       char_4039_horn: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_horn_1: { rootClass: 'ReplacementSkillFixed', mode: null, projectiles: ['projectile_chr_horn_s1_light'], uses: [] } } },
       char_1012_skadi2: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_skadi2_3: { rootClass: 'CastSkill', mode: null, projectiles: [], uses: [aura('skadi2_skill_03_buff')] } } },
       char_172_svrash: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_svrash_2: { rootClass: 'ToggleSkill', mode: null, projectiles: [], uses: [
@@ -116,6 +117,7 @@ const RECS = {
   enemy_1521_dslily: { skills: [{ prefabKey: 'TidewaterG2', bb: {} }, { prefabKey: 'RockfallG2', bb: {} }] },
   enemy_10116_ymgtop: { talents: { bb: { 'EndRotate.rotate_duration': 5 } }, skills: [{ prefabKey: 'SwitchModeTrigger', bb: {} }] },
   char_4039_horn: opRec('skchr_horn_1'),
+  char_4247_oxi: opRec('skchr_oxi_3'),
   char_1012_skadi2: opRec('skchr_skadi2_3', { duration: 20 }),
   char_172_svrash: opRec('skchr_svrash_2'),
   char_4151_tinman: opRec('skchr_tinman_1'),
@@ -427,6 +429,96 @@ describe("an enemy aura's tick", () => {
   });
 });
 
+describe('塔露拉 S3: the 簇火 fly their lanes', () => {
+  const volley = (o = {}) => ({ id: 1, skill: 'oxi:heatwave', n: 2, lanes: [[2, 9, 0, 1], [2, 10, 0.3, 2]], dx: 1, dy: 0, len: 10, speed: 2.5, ...o });
+  const fake = (time) => ({ time, anchor: [0, 0, 0], def: {}, stopped: null, stop(o) { this.stopped = o; } });
+
+  test('each lane flies the main effect from its birth delay on, at the fx\'s speed; nothing procedural is drawn', async () => {
+    const { w, view, frame, spawned, handles, ofx } = await setup();
+    view(1, 'char_4247_oxi', 5);
+    frame();
+    assert.equal(w.simFx('heatwave', 5, 9, volley()), true);
+    frame();
+    assert.deepEqual(spawned, ['oxi_skill_03_trail_01'], 'the second lane waits for its birth delay');
+    ofx.time += 0.3;
+    frame();
+    assert.equal(spawned.length, 2);
+    assert.deepEqual(handles[1].place.pos.slice(0, 2), [2 - 10, 10 - 9], 'starts on its own tile, in the effects\' frame');
+    const fx = fake(2);
+    handles[0].opts.track(fx);
+    assert.deepEqual(fx.anchor, [2 + 2.5 * 2 - 10, 0, 0], 'along +x at speed × time');
+    assert.equal(fx.yaw, 0);
+    assert.equal(fx.stopped, null);
+  });
+
+  test('its way runs out: the flight stops at len / speed and is forgotten', async () => {
+    const { w, view, frame, handles, ofx } = await setup();
+    view(1, 'char_4247_oxi', 5);
+    frame();
+    w.simFx('heatwave', 5, 9, volley({ lanes: [[2, 9, 0, 1]] }));
+    frame();
+    const fx = fake(4);
+    handles[0].opts.track(fx);
+    assert.deepEqual(fx.stopped, { hit: true });
+    assert.equal(w.skills.shots.size, 0);
+    assert.ok(ofx.time < 1);
+  });
+
+  test('facing left the art turns, and the tile\'s height carries it', async () => {
+    const { w, view, frame, handles } = await setup({ heightAt: (r, c) => (c < 2 ? 1 : 0) });
+    view(1, 'char_4247_oxi', 5);
+    frame();
+    w.simFx('heatwave', 5, 9, volley({ lanes: [[3, 9, 0, 1]], dx: -1 }));
+    frame();
+    const fx = fake(1);
+    handles[0].opts.track(fx);
+    assert.equal(fx.anchor[0], 3 - 2.5 - 10);
+    assert.equal(fx.anchor[2], -1, 'over the high ground');
+    assert.ok(Math.abs(Math.abs(fx.yaw) - Math.PI) < 1e-9, 'heads for -x');
+  });
+
+  test('the blast that names a shot ends its flight, plays the official explosion on the enemy; a shot not yet born never flies', async () => {
+    const { w, view, frame, spawned, handles, ofx } = await setup();
+    view(1, 'char_4247_oxi', 5);
+    const e = view(2, 'enemy_1040_bombd', 7);
+    frame();
+    w.simFx('heatwave', 5, 9, volley());
+    frame();
+    assert.equal(w.simFx('blast', 7, 9, { id: 1, r: 1.5, skill: 'oxi:heatwave', target: e.info.id, shot: 1 }), true);
+    assert.equal(handles[0].stopped, true, 'the flying effect stops');
+    assert.ok(spawned.includes('oxi_skill_03_hit_01'));
+    assert.equal(w.simFx('blast', 7, 10, { id: 1, r: 1.5, skill: 'oxi:heatwave', target: e.info.id, shot: 2 }), true);
+    ofx.time += 0.4;
+    frame();
+    assert.equal(spawned.filter((k) => k === 'oxi_skill_03_trail_01').length, 1, 'shot 2 was gone before its birth');
+  });
+
+  test('without the extracted prefabs the procedural cue stays; a cleared field stops the flights', async () => {
+    const none = await setup({ installed: KEYS.filter((k) => !k.startsWith('oxi_')) });
+    none.view(1, 'char_4247_oxi', 5);
+    none.frame();
+    assert.equal(none.w.simFx('heatwave', 5, 9, volley()), false);
+    assert.equal(none.w.simFx('blast', 7, 9, { id: 1, r: 1.5, skill: 'oxi:heatwave', shot: 1 }), false);
+    const { w, view, frame, spawned, handles, ofx } = await setup();
+    view(1, 'char_4247_oxi', 5);
+    frame();
+    w.simFx('heatwave', 5, 9, volley());
+    frame();
+    w.skills.clear();
+    assert.equal(handles[0].stopped, true);
+    ofx.time += 0.4;
+    frame();
+    assert.equal(spawned.length, 1, 'the unborn one stays unborn');
+  });
+
+  test('preloading: the unit\'s keys hold both prefabs', async () => {
+    const { w, view } = await setup();
+    const v = view(1, 'char_4247_oxi', 5);
+    const keys = w.keysFor([v], false);
+    for (const k of ['oxi_skill_03_trail_01', 'oxi_skill_03_hit_01']) assert.ok(keys.includes(k), k);
+  });
+});
+
 describe('operators\' areas', () => {
   test('号角 S1: the flare is the light projectile\'s reached effects at the shot\'s landing point for its time', async () => {
     const { w, view, frame, spawned } = await setup();
@@ -528,7 +620,7 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
         if (b.owner === 'cast') assert.ok(idx.units[key].skills[b.skill], `${key}: skill ${b.skill}`);
       }
     }
-    for (const sid of ['skchr_horn_1', 'skchr_sleach_2', 'skchr_sleach_3']) {
+    for (const sid of ['skchr_horn_1', 'skchr_sleach_2', 'skchr_sleach_3', 'skchr_oxi_3']) {
       for (const [kind, b] of Object.entries(FX_BINDINGS[sid])) {
         const keys = bindingEffects(idx, b);
         assert.ok(keys.length && keys.every((k) => idx.prefabs[k]), `${sid} ${kind}: ${keys.join(' ')}`);
