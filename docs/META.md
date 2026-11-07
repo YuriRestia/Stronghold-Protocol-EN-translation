@@ -439,13 +439,16 @@ the same inputs when its turn comes, inside the slice budget. A single build can
 first drops the job (the default layout stays). Virtual time runs it in one go (same decisions). Tests default
 rehearsal to 0 (`test/match/harness.js`); `tools/matchrun.mjs --rehearsal N` sets it.
 
-**Host rehearsal (optional, `Match.botRehearsalDelegate` / `SP_BOT_REHEARSAL=host`, off unless that exact value):**
-the room host's browser can test AI teammates' layouts. The server still handles the shop, builds the candidate list
-from the preview inputs above (same seed, same scoring) and applies the chosen layout. Both sides use
-`server/sim/rehearsal.js`. The host returns only a candidate index; an accepted choice is applied once, without
-another simulation. Actual battles and human seats under AI 托管 are unchanged. A gameplay-plugin room
-(`requireCs`) never delegates: the match runs on that content set, and the browser must not load its scripts or
-spend a different budget. The server rehearses those rooms itself.
+**Host rehearsal ((fork) on by default; `Match.botRehearsalDelegate`, `SP_BOT_REHEARSAL_HOST=0` turns it off; upstream's
+`SP_BOT_REHEARSAL=host` still turns it on):** the room host's browser simulates the candidate layouts of AI teammates
+during prep, and only that. The server still plays the bot's economy, its picks and the building and scoring of the
+candidate list (from the preview inputs above, same seed), and applies the chosen layout. It offers the host
+`botRehearsalHost` candidates (default 6, 2–8); the server's own count (`SP_BOT_REHEARSAL`, default 6, 0 = heuristic
+only) applies when the work is not delegated or falls back (no connected host, no answer within 3 s, a bad answer).
+Both sides use `server/sim/rehearsal.js`. The host returns only a candidate index; an accepted choice is applied once,
+without another simulation. Actual battles and human seats under AI 托管 (rehearsed by the server) are unchanged. A
+gameplay-plugin room (`requireCs`) never delegates: the match runs on that content set, and the browser must not load
+its scripts or spend a different budget. The server rehearses those rooms itself.
 
 The interface a later local or external compute can plug into — this version makes no external network call — is:
 the server offers one task (`b.rehearsal`: task id, the AI seat, the tick cap, the candidate specs); the executor

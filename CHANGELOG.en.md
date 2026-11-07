@@ -504,6 +504,31 @@
 - If Victoria reached 25 stacks while not active, the Victorian Hammer is granted the moment the bond activates (e.g. placing a third Victoria Operator during the Rest Phase) instead of waiting for the end of the Rest Phase; each tier is granted only once, and removing and putting back doesn't grant it again (community feedback). Stack-based funds saved up by "Foresight" and "Marvel" while not active are likewise paid on activation (the same rule as the Victorian Hammer).
 - "OpFor: Pipe" and "OpFor: Armor" (Final Assault and Hidden Core) face right as in the official game; Hidden Core's "Pipe" therefore stands in the middle area of the field, its lower body no longer reaches into the Operator tiles of the left half, and its HP bar is drawn in the middle like the official one (#648, thanks to @CurlyZhu).
 
+## 0.2.6 — 2026-10-13
+
+### Server traffic
+- Background music is no longer downloaded while muted or with the music volume at 0; the piece that should be playing is downloaded once sound is turned back on (players who play without music download about 7–14 MB less per match).
+- WebSocket messages over 1 KB are compressed with permessage-deflate; the server messages of a solo match measured down from 173 KB to 60 KB.
+- Asset URLs carry a content hash: browsers cache images, models and audio for a year, and after a server update, a re-extract or a Docker rebuild only the files whose content changed are downloaded again; the hashes are kept in `.cache/asset-hashes.json`, and `SP_ASSET_INDEX=0` turns this off.
+- brotli compression is supported (browsers only use it on HTTPS pages and localhost); `.skel` and data files come out about a quarter smaller than with gzip.
+- The locally extracted "How to Play" tutorial pictures are also saved as WebP (quality 90, 25.6 MB → 4.2 MB), and only the next page is preloaded while reading the guide.
+- Traffic statistics: `/healthz?traffic=1` shows the traffic the server sends by kind (shown only to requests from the machine itself and the local network); the diagnostics in "Report a problem" gain this page's download size.
+- Deployment guide: a fixed access address, enabling HTTP/2 on the reverse proxy, and Cloudflare cache rules.
+
+### Rules (as in the official game)
+- Wiš'adel's Revenant's Shadow is only summoned onto deployable tiles on the field (including a teammate's half): in a Leader fight it no longer lands in the Bench, and in a solo Leader fight it no longer lands on the empty other half; when there is no free tile in range it is not summoned (#557, PR #558, thanks to @IceCodeNew).
+
+### Interface
+- The lighting of the official battlefield scenes is back to the extracted official values: direct light and baked light are no longer dimmed, and the scenes are no longer noticeably dark (#549, PR #554, thanks to @xcdoge).
+- When an official scene is shown, Ranged Tiles, Custom Floating Platforms and Sealed Floors are drawn again: before, they were only drawn in the board layer that the scene replaces, so the raised tiles by the blue gate of Battlefield #03 were flat and the water platforms of Battlefield #05 (First Half) looked like open water, while the Operators stood at a raised height (#569, thanks to @A1muE4aY).
+- The last player who has not yet picked a Strategy no longer sees a clickable "Skip" button: players who have already picked still show in the order, but do not count as someone who can be passed to (PR #546, thanks to @Xinglan233).
+- At the start of each round, the Operators on your own board replay their entrance animation one after another in deployment order, with the landing sound effect (confirmed by the maintainer against the official game); it also plays once when an Operator is bought, deployed or moved to another tile, with one sound per landing, at the volume of "Sound Effects" (PR #416, thanks to @Cromemadnd).
+- New optional "Ammo Count" setting, off by default (the official interface has no such number): when on, the remaining / total ammo (e.g. 13/14) shows below the yellow ammo bar of ammo-type skills, and stays readable even when the cells are too dense to draw dividers (PR #552, thanks to @IceCodeNew).
+- With many units on the field (usually after round 7 at graphics quality "High"), models are drawn from a cached image; before, Wild Mane's flag while idle and the head of Skadi the Corrupting Heart when she flies up in her third skill were clipped, and the overflow was also drawn into the neighbouring unit's cache, leaving misplaced afterimages at things such as a muzzle that appears and disappears. Now each model reserves cache space for all the animations it can play and each unit is drawn only within its own area; a few especially large animations (mostly dropping from the sky on deployment) are drawn directly while they play; and a unit whose model finished loading while it was stunned no longer shows the initial pose (#542, thanks to @ImPQlc).
+
+### Tools and development
+- The scene asset test on Windows no longer repeats the drive letter in the repository path (PR #547, thanks to @Xinglan233).
+
 ## 0.2.5 — 2026-10-12
 
 ### New features
