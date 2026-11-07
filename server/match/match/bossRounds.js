@@ -157,7 +157,8 @@ export class MatchBoss {
     this._finalEnding = null;
     this._bossStartAt = this.sched.now();
     this.watchers.clear();
-    if (!recs.some((f) => this._authorityFor(f))) {
+    // (fork) with bot battles on a browser the server never runs these fields (match/botBattles.js)
+    if (!recs.some((f) => this._authorityFor(f) || this._botBattleOnHost(f))) {
       // nobody to simulate on a client: the server runs every boss field (FieldRunner, no streaming)
       this.fields = recs;
       for (const f of recs) {
@@ -315,6 +316,7 @@ export class MatchBoss {
    */
   _bossHandover(f, why, { demote = false } = {}) {
     if (f.done || f.mode !== 'client' || f.heldResult) return; // a held 'cleared' result is in: nothing left to run
+    if (f.botHost) { this._botBossHandover(f, why); return; } // (fork) match/botBattles.js
     const prev = f.authority;
     if (demote && prev) f.demoted.add(prev);
     const next = this._authorityFor(f, prev);
@@ -374,6 +376,8 @@ export class MatchBoss {
         continue; // _fieldDone below (after every field was told)
       }
       for (const pid of this._humansShowing(f)) this.sendTo(pid, { t: 'b.end', battleId: f.battleId, fieldId: f.fieldId, reason });
+      // (fork) a bot field's executor is not one of its players, unless it is also watching
+      if (f.botHost && f.authority && !this._humansShowing(f).includes(f.authority)) this.sendTo(f.authority, { t: 'b.end', battleId: f.battleId, fieldId: f.fieldId, reason });
       if (f.heldResult) {
         // its authority already reported 'cleared' (_onResult): that result completes the field
         f.result = f.heldResult;

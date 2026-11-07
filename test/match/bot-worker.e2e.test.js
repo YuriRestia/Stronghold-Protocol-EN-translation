@@ -7,7 +7,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { buildWorld } from '../../server/match/botWorld.js';
-import { createBotBattleRun, createBotRun, createBotWorkerEnv } from '../../server/match/botWorkerEnv.js';
+import { createBotBattleRun, createBotBossRun, createBotRun, createBotWorkerEnv } from '../../server/match/botWorkerEnv.js';
 import { wire } from './fakeBotHost.js';
 import { DATA, makeMatch } from './harness.js';
 
@@ -143,6 +143,38 @@ describe('the bot Worker in a real browser', { skip: !enabled && 'set SP_E2E=1 a
     }, battleId, spec);
     assert.equal(again.gone, false);
     assert.deepEqual(again.out.result, nodeBattle(spec).result);
+  });
+
+  test('a bot-only boss field runs live in the Worker: reports, then the result Node gives', async () => {
+    const h = makeMatch({ mode: 'coop', difficulty: 'FUNNY', seats: SEATS, seed: 9108, fake: true, clientCombat: true, instant: false, hostId: 'p_0',
+      script: (b) => (b.kind === 'boss' ? { bossDps: 200 } : { duration: 2 }) });
+    h.autoHumans().start();
+    assert.ok(h.drive(() => h.m.phase === 'FINAL_ASSAULT'));
+    const f = h.m.fields.find((x) => x.players.every((pid) => h.m.players.get(pid).isBot));
+    const { cs: _cs, ...spec } = wire(f.spec);
+    const battleId = f.battleId;
+    h.m.dispose();
+    const out = await page.evaluate(async (id, s) => {
+      const b = window.botTest;
+      const start = b.sent.length;
+      b.handlers.get('b.botBattle')({ battleId: id, spec: s, live: { elapsed: 0, speed: 2 } });
+      await new Promise((r) => setTimeout(r, 1500));
+      b.handlers.get('b.end')({ battleId: id, fieldId: s.fieldId, reason: 'forced' });
+      const t0 = Date.now();
+      while (!b.sent.slice(start).some((m) => m.t === 'b.result') && Date.now() - t0 < 20000) await new Promise((r) => setTimeout(r, 50));
+      return b.sent.slice(start);
+    }, battleId, spec);
+    const progress = out.filter((m) => m.t === 'b.progress');
+    const result = out.find((m) => m.t === 'b.result');
+    assert.ok(progress.length >= 3, `${progress.length} reports in 1.5 s`);
+    assert.ok(result, 'a result after the end');
+    assert.ok(progress.at(-1).gt > 0);
+    assert.equal(result.battleId, battleId);
+    // the Worker stopped at its own time, so the same battle stepped to that time gives its result
+    const run = createBotBossRun(spec, { ds: NODE.ds, battleId });
+    run.stepTo(progress.at(-1).gt);
+    run.forceEnd('forced');
+    assert.deepEqual(result.result, wire(run.result()));
   });
 
   test('/match/ serves the Worker\'s modules and nothing else', async () => {

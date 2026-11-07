@@ -5,7 +5,7 @@ import { GameData } from '../../server/match/gamedata.js';
 import { getDefaultRegistry } from '../../server/match/effectsMeta.js';
 import { getBotStrategy } from '../../server/match/botStrategies.js';
 import { createBotRun } from '../../server/match/botRunner.js';
-import { createBotBattleRun } from '../../server/match/botBattleRun.js';
+import { createBotBattleRun, createBotBossRun } from '../../server/match/botBattleRun.js';
 import { DataSource } from '../../server/sim/simdata.js';
 import { Battle } from '../../server/sim/Battle.js';
 
@@ -58,11 +58,44 @@ export function createFakeBotHost(match, env, { tamper = null } = {}) {
  * @returns {{ frames: number }}
  */
 export function attachFakeBattleHost(h, { ds, BattleClass, around = (fn) => fn() }) {
-  const host = { frames: 0 };
+  const host = { frames: 0, live: new Map(), reports: 0, mute: null };
+  /** A boss field on the field's clock, reporting at 4 Hz, as botWorker.js does. */
+  const startLive = (pid, msg, spec) => {
+    const run = around(() => createBotBossRun(spec, { ds, BattleClass, battleId: msg.battleId, now: () => 0 }));
+    const job = { run, pid, t0: h.m.sched.now(), elapsed: msg.live.elapsed, speed: msg.live.speed, fieldId: spec.fieldId };
+    host.live.set(msg.battleId, job);
+    const finish = () => {
+      host.live.delete(msg.battleId);
+      h.m.handle(pid, wire({ t: 'b.progress', ...run.progress() }));
+      h.m.handle(pid, wire({ t: 'b.result', battleId: msg.battleId, result: run.result() }));
+    };
+    job.finish = finish;
+    const tick = () => {
+      if (host.live.get(msg.battleId) !== job || h.m.disposed) return;
+      if (host.mute?.(pid, msg.battleId)) return;
+      around(() => run.stepTo((job.elapsed + (h.m.sched.now() - job.t0) / 1000) * job.speed));
+      if (run.finished) { finish(); return; }
+      host.reports++;
+      h.m.handle(pid, wire({ t: 'b.progress', ...run.progress() }));
+      h.m.later(250, tick);
+    };
+    h.m.later(1, tick);
+  };
+  host.onLive = (msg) => {
+    if (msg.t === 'b.pool') { for (const job of host.live.values()) job.run.syncPool(msg.hp, msg.acked ? msg.acked[job.fieldId] : undefined); return; }
+    const job = host.live.get(msg.battleId);
+    if (!job) return;
+    if (msg.t === 'b.botBattleCancel' || msg.reason === 'takeover') { host.live.delete(msg.battleId); return; }
+    around(() => job.run.forceEnd(msg.reason));
+    h.m.later(0, () => { if (host.live.get(msg.battleId) === job) job.finish(); });
+  };
+  h.onBroadcast.push((msg) => { if (msg.t === 'b.pool') host.onLive(msg); });
   h.onSend.push((pid, msg) => {
+    if (msg.t === 'b.pool' || msg.t === 'b.end' || msg.t === 'b.botBattleCancel') { host.onLive?.(msg); return; }
     if (msg.t !== 'b.botBattle') return;
     host.frames++;
     const spec = wire(msg.spec);
+    if (msg.live) { startLive(pid, msg, spec); return; }
     h.m.later(1, () => {
       const body = around(() => {
         const run = createBotBattleRun(spec, { ds, BattleClass });

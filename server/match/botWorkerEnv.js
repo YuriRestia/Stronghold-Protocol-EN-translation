@@ -5,14 +5,14 @@
 // Runs in Node and in a browser Worker: no Node APIs.
 
 import { createBotRun } from './botRunner.js';
-import { createBotBattleRun } from './botBattleRun.js';
+import { createBotBattleRun, createBotBossRun } from './botBattleRun.js';
 import { builtinBotStrategy } from './botStrategyList.js';
 import { getDefaultRegistry } from './effectsMeta.js';
 import { GameData } from './gamedata.js';
 import { Battle } from '../sim/Battle.js';
 import { DataSource } from '../sim/simdata.js';
 
-export { createBotBattleRun, createBotRun };
+export { createBotBattleRun, createBotBossRun, createBotRun };
 
 /**
  * @param {any} data the game data (the Worker: the page's /data/*.json as it loaded them)

@@ -110,12 +110,29 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
     inst.loaded.then(() => { if (w === inst && jobs.has(id)) inst.port.postMessage(msg); }, () => { /* failAll answered it */ });
   };
 
+  /** A bot-only boss field: it reports through the frames a human's battle uses. A failure stays silent: the server's watchdog moves it on. */
+  const startLive = (battleId, spec, { elapsed, speed }) => {
+    jobs.set(battleId, {
+      live: true,
+      fail: () => {},
+      onMessage(m) {
+        if (m.t === 'live-progress') { net.send('b.progress', m.msg); return; }
+        if (m.t !== 'live-done') return;
+        jobs.delete(battleId);
+        net.send('b.progress', m.msg);
+        net.send('b.result', { battleId, result: m.result });
+      },
+    });
+    post(battleId, { t: 'live', id: battleId, spec, elapsed, speed });
+  };
+
   const onBattle = (msg) => {
     if (!msg || typeof msg.battleId !== 'string' || !msg.spec || typeof msg.spec !== 'object') return;
     const { battleId, spec } = msg;
     asked = true;
     if (isHidden()) { reportTab(); return; }
     if (broken || (typeof spec.cs === 'string' && spec.cs !== '')) { answerBattle(battleId, { error: true }); return; }
+    if (msg.live) { startLive(battleId, spec, msg.live); return; }
     jobs.set(battleId, {
       fail: () => answerBattle(battleId, { error: true }),
       onMessage(m) {
@@ -173,6 +190,13 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
   const offBattle = net.on('b.botBattle', onBattle);
   const offCancel = net.on('b.botBattleCancel', (msg) => { if (msg && typeof msg.battleId === 'string') drop(msg.battleId); });
   const offStatus = net.on('status', (snap) => { if (!snap || snap.status !== 'online') clear(); });
+  const hasLive = () => [...jobs.values()].some((job) => job.live);
+  const offPool = net.on('b.pool', (msg) => { if (msg && w && hasLive()) w.port.postMessage({ t: 'pool', hp: msg.hp, acked: msg.acked }); });
+  const offEnd = net.on('b.end', (msg) => {
+    if (!msg || !jobs.get(msg.battleId)?.live) return;
+    if (msg.reason === 'takeover') { drop(msg.battleId); return; }
+    w?.port.postMessage({ t: 'end', id: msg.battleId, reason: msg.reason });
+  });
   const offTask = net.on('b.botTask', onTask);
   // Started when the page has time, so the briefing's own loading goes first; the first job builds it anyway if it comes sooner.
   const offWarm = net.on('b.botWarm', () => {
@@ -206,6 +230,8 @@ export function installBotHost({ net, runner = battleRunner, createWorker = () =
       offBattle();
       offCancel();
       offStatus();
+      offPool();
+      offEnd();
       offTask();
       offWarm();
       offAck();

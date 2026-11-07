@@ -29,6 +29,7 @@ export class MatchClientCombat {
     if (!f || !f.cc) return;
     for (const k of ['deadlineTimer', 'doneTimer', 'waitTimer', 'sliceTimer', 'verifyTimer']) if (f[k]) { this.cancel(f[k]); f[k] = null; }
     if (f.mode === 'host') this._botBattleRelease(f); // (fork) a battle still running in a browser
+    if (f.botHost && f.authority && !f.result) this.sendTo(f.authority, { t: 'b.botBattleCancel', battleId: f.battleId });
     f.job = null;
     f.verifyJob = null;
   }

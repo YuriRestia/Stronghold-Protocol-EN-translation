@@ -159,16 +159,6 @@ test('rooms the Worker has no data for stay on the server until piece 11', () =>
   vanilla.m.dispose();
 });
 
-test('boss fields keep today\'s rule (layer traits: test/plugins/operator-traits.test.js)', () => {
-  const h = atCombat();
-  const { m } = h;
-  const f = botFields(h)[0];
-  assert.equal(m._botBattleOnHost(f), true);
-  assert.equal(m._botBattleOnHost({ ...f, kind: 'boss' }), false);
-  assert.equal(m._botBattleOnHost({ ...f, kind: 'hidden' }), false);
-  h.m.dispose();
-});
-
 test('the wire: a timeline of real samples passes, a malformed or oversized one does not', () => {
   const base = { t: 'b.botBattleResult', battleId: 'b.1.1' };
   assert.equal(validateC2S({ ...base, error: true }), null);

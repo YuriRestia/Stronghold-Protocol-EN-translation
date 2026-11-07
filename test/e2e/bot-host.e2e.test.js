@@ -112,3 +112,65 @@ test('two browsers: bots play in the host\'s Worker, and the other browser takes
   const serverErrors = srv.logs.filter((l) => /\berror\b/i.test(l) && /bot|match/i.test(l));
   assert.deepEqual(serverErrors.slice(0, 5), []);
 });
+
+test('two browsers at a boss round: the AI pair\'s boss field runs live in the host\'s Worker', { skip: !enabled && 'set SP_E2E=1 and CHROME_PATH', timeout: 300000 }, async (t) => {
+  // seat pairs: the two humans fight together and the two AI seats together, so one boss field has no human on it
+  const srv = await startRealServer({ fast: { timerScale: 0.25, combatSpeed: 4, startRound: 'boss', seatPairs: true }, env: { SP_BOT_EXECUTION: 'host' } });
+  t.after(() => srv.stop());
+  const P = (await import('puppeteer-core')).default;
+  const host = new Client(P, srv.base, 'host', { prefix: 'bothost' });
+  const guest = new Client(P, srv.base, 'guest', { w: 1280, h: 720, prefix: 'bothost' });
+  t.after(async () => { await guest.close().catch(() => {}); await host.close().catch(() => {}); });
+  await host.open();
+  await host.enter('凯尔希');
+  const room = await host.createCoop();
+  await guest.open(`?room=${room.code}`);
+  await guest.enter('阿米娅');
+  await guest.waitFor((s) => s.room?.code === room.code, 'guest joined');
+  await sleep(300);
+  await host.click('button', '添加 AI 队友');
+  await sleep(300);
+  await host.click('button', '添加 AI 队友');
+  await host.page.evaluate(() => {
+    const n = globalThis.__SP__.net;
+    const orig = n.send.bind(n);
+    const rec = globalThis.__boss = { live: [], reports: {}, results: [], ended: [] };
+    n.on('b.botBattle', (m) => { if (m.live) rec.live.push(m.battleId); });
+    n.on('b.end', (m) => rec.ended.push(m.reason));
+    n.send = (t, f) => {
+      if (t === 'b.progress' && rec.live.includes(f.battleId)) rec.reports[f.battleId] = (rec.reports[f.battleId] || 0) + 1;
+      if (t === 'b.result' && rec.live.includes(f.battleId)) rec.results.push(f.battleId);
+      return orig(t, f);
+    };
+  });
+  await guest.click('.room-bar__right button', '准备就绪');
+  await sleep(400);
+  await host.click('.room-bar__right button', '开始模拟', { timeout: 20000 });
+  for (const c of [host, guest]) await c.waitFor((s) => s.phase === 'INFO_CHECK', 'briefing', 30000);
+  for (const c of [host, guest]) await c.click('.brief__foot .btn--primary', '准备就绪');
+  await toPrep(host, 1);
+  const prepRound = (await host.st()).round;
+  const t0 = Date.now();
+  while (Date.now() - t0 < 120000) {
+    const st = await host.st();
+    if (st.phase === 'FINAL_ASSAULT' || st.phase === 'HIDDEN_CORE') break;
+    if (st.phase === 'PREP') for (const c of [host, guest]) await requestReady(c);
+    await sleep(250);
+  }
+  const st = await host.st();
+  console.log(`boss round: reached ${st.phase} from the prep of round ${prepRound}, fields ${st.fields.join(' ')}`);
+  assert.ok(st.phase === 'FINAL_ASSAULT' || st.phase === 'HIDDEN_CORE', st.phase);
+  await sleep(4000);
+  const mid = await host.page.evaluate(() => globalThis.__boss);
+  console.log(`boss field after 4 s: ${JSON.stringify(mid)}`);
+  assert.equal(mid.live.length, 1, 'one field of bots only');
+  assert.ok(mid.reports[mid.live[0]] >= 4, 'it reports live');
+  await host.waitFor((s) => s.phase !== 'FINAL_ASSAULT' && s.phase !== 'HIDDEN_CORE', 'the Final Assault ends', 150000);
+  const end = await host.page.evaluate(() => globalThis.__boss);
+  console.log(`boss field at the end: ${JSON.stringify(end)}`);
+  assert.deepEqual(end.results, end.live, 'and its result was sent');
+  const serverErrors = srv.logs.filter((l) => /\berror\b/i.test(l) && /bot|match/i.test(l));
+  assert.deepEqual(serverErrors.slice(0, 5), []);
+  const noted = srv.logs.filter((l) => /server takeover|handing the field over|nobody can run/.test(l));
+  assert.deepEqual(noted.slice(0, 5), [], 'no server takeover and no handover');
+});

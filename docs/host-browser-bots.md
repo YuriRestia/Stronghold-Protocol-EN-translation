@@ -1,6 +1,6 @@
 # Host-browser bots: design and work split
 
-Status: **pieces 1–4 and 6–8 built (off by default, not live); pieces 5 and 9–11 not started.** Written 2026-11-07 against
+Status: **pieces 1–4 and 6–9 built (off by default, not live); pieces 5, 10 and 11 not started.** Written 2026-11-07 against
 `dev-0.2` at `580c2708`. Each later piece waits for approval.
 
 The rule this serves: the server has to carry hundreds of players with 3 bots each, so the host's browser does **all**
@@ -406,7 +406,7 @@ teammates' progress UI do not change.
 | Result arrives | `validateClientResult` as for a human, then release at the natural end |
 | Timeout, or host gone | Next human, then a synthetic result (`syntheticResult`: no kills, no leaks). Never `_runOnServer`. |
 | Layer traits (`requiresTraitLayerAuthority`, `fields.js:793`) | Bot-only fields are exempt, and gains stay capped by the existing allowance. Human fields keep today's rule. |
-| Bot-only boss field | Needs live shared-pool reporting at 4 Hz in a Worker, not a burst run, so it is a separate piece |
+| Bot-only boss field | Runs live in the Worker on the field's clock and reports at 4 Hz through `b.progress` and `b.result`, so the existing boss rules apply. A silent or lost executor hands it to the next human; with nobody left, a synthetic result stands (piece 9) |
 | Bot-only joint field (seen in the run: `ai_2+ai_1:server`) | Same burst path as a normal field |
 
 Battle work and prep work never overlap, because they belong to different phases.
@@ -448,6 +448,20 @@ through a local link and reads the table. Chrome CPU throttling at 4× and 6× g
 | Budget obeyed | within 500 ms |
 | 3 bots, round 14 | done inside the prep budget, with at least the default + 2 candidates each |
 | Page stays responsive | no long main-thread task from bot work |
+
+**Server load, measured for piece 9 (`test/match/bot-load.test.js`, 2026-11-08):** 10 rooms of 1 human and 3 bots, 12 rounds, CPU time,
+no rehearsals, fake battles, one desktop. The 5 ms target is missed, and most of the bot-specific part is applying moves.
+
+| Per bot seat, per prep | CPU |
+|---|---|
+| Server, whole match, bots in the browser | 14–17 ms |
+| of which snapshot and send (58.7 KB of JSON) | 2.3 ms |
+| of which applying the moves | 6.6 ms |
+| Server, whole match, bots on the server, the baseline | 86–95 ms |
+
+Both whole-match figures include the harness's own frame checks. The baseline leaves out rehearsals and real battles, which cost a
+server more, so the real saving is larger than this table shows. The design's 50 rooms took too long while other work ran on the
+machine, so this uses 10 rooms; the number wanted is per seat, and two runs agreed within about 15 %.
 
 ## Part E: work split
 

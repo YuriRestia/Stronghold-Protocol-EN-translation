@@ -3,7 +3,9 @@
 // says 'host'. A b.botBattle frame carries the field's spec, a Worker runs it at once and answers b.botBattleResult, and the
 // server holds that result until the battle's natural end (_armRelease), so pacing and the teammates' progress UI look as
 // they do for a server-run field. Timeout, a refused result or a lost executor: the next human, then a synthetic result.
-// The server never simulates such a field. Not covered yet: boss fields (piece 9), plugin and old-version rooms (piece 11).
+// The server never simulates such a field. A boss field shares its pool with the other fields, so it runs live in the Worker on
+// the field's clock and reports as a human's browser does (b.progress, b.result): the existing boss rules apply to it, and a lost
+// or silent executor hands it to the next human. Not covered yet: plugin and old-version rooms (piece 11).
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { DEFAULT_VERSION } from '../../../shared/versions.js';
@@ -18,7 +20,7 @@ export const BOT_HOST_STRIKES = 2;
 export class MatchBotBattles {
   /** Whether a field `_authorityFor` found no human for goes to a browser instead of the server. */
   _botBattleOnHost(f) {
-    if (this.botBattles !== 'host' || f.kind === 'boss' || f.kind === 'hidden') return false;
+    if (this.botBattles !== 'host') return false;
     // the Worker has the page's official data only, until piece 11. A vanilla room has a `cs` too, the official content's hash.
     if (this.requireCs || (this.version && this.version !== DEFAULT_VERSION)) return false;
     // layer traits keep today's rule on a human's field; a field of bots only is exempt, capped by the same allowance
@@ -50,6 +52,7 @@ export class MatchBotBattles {
   _assignBotHost(f) {
     const pid = this._botExecutorFor(f.botTried);
     if (!pid) { this._botBattleGiveUp(f); return; }
+    if (f.kind === 'boss' || f.kind === 'hidden') { this._assignBotBoss(f, pid); return; }
     f.mode = 'host';
     f.authority = null;
     f.executor = pid;
@@ -73,6 +76,26 @@ export class MatchBotBattles {
     }
   }
 
+  /** A boss field on a human's browser: the field's authority in all but the seat, and it reports what any authority reports. */
+  _assignBotBoss(f, pid) {
+    (f.botTried ||= new Set()).add(pid);
+    f.botHost = true;
+    this.botBattleStats.sent++;
+    this._assignClient(f, pid);
+    const { cs: _cs, ...spec } = f.spec;
+    if (!this.sendTo(pid, { t: 'b.botBattle', battleId: f.battleId, spec, live: { elapsed: this._fieldElapsed(f), speed: this.gameSpeed } })) this._assignBotHost(f);
+  }
+
+  /** A boss field's executor left, went silent or sent an implausible result: the next human, else what the field has so far. */
+  _botBossHandover(f, why) {
+    const prev = f.authority;
+    if (why === 'silent' && prev) { this.botBattleStats.timeouts++; this._botHostStrike(prev); }
+    if (why === 'invalid') this.botBattleStats.rejected++;
+    if (prev) this.sendTo(prev, { t: 'b.end', battleId: f.battleId, fieldId: f.fieldId, reason: 'takeover' });
+    f.authority = null;
+    this._assignBotHost(f);
+  }
+
   /** Forget the running executor without telling it. */
   _botBattleDrop(f) {
     if (f.botTimer) { this.cancel(f.botTimer); f.botTimer = null; }
@@ -89,12 +112,13 @@ export class MatchBotBattles {
   _botBattleGiveUp(f) {
     this.botBattleStats.synthetic++;
     this.log.warn?.(`[match ${this.roomCode}] ${f.fieldId}: nobody can run this bot battle`);
+    const bossLike = f.kind === 'boss' || f.kind === 'hidden';
     f.mode = 'server';
     f.executor = null;
-    f.result = syntheticResult(f.players, { time: this._fieldElapsed(f) });
+    f.result = syntheticResult(f.players, { ...(bossLike ? { bossBy: f.bossBy } : {}), time: this._fieldElapsed(f) });
     f.resultSource = 'none';
     // in a callback of its own: this can run inside _launch, with the fields after this one still to start
-    this.later(0, () => this._fieldDone(f));
+    this.later(0, () => { this._fieldDone(f); if (bossLike) this._checkFinalEnd(); });
   }
 
   /** b.botBattleResult: a report, never an error. A stale battle or another sender is ignored. */
@@ -123,7 +147,9 @@ export class MatchBotBattles {
   /** An executor disconnected or left: its fields go to the next human at once. */
   _botBattleHostLost(ps) {
     for (const f of this.fields) {
-      if (!f.cc || f.done || f.mode !== 'host' || f.executor !== ps.playerId) continue;
+      if (!f.cc || f.done) continue;
+      if (f.botHost && f.mode === 'client' && f.authority === ps.playerId) { this._botBossHandover(f, 'lost'); continue; }
+      if (f.mode !== 'host' || f.executor !== ps.playerId) continue;
       this._botBattleDrop(f);
       this._assignBotHost(f);
     }
