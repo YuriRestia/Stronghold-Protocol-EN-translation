@@ -672,6 +672,19 @@ describe('AudioManager', () => {
     }
   });
 
+  test('塔露拉 (committed manifest): S3 has its cast sound by index only, and its kit fx their official banks and pools', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const u = m.units.char_4247_oxi;
+    assert.equal(u.skill, undefined, 'no cast sound on S1 / S2');
+    assert.deepEqual(Object.keys(u.skills), ['2']);
+    assert.match(u.skills[2], /p_skill_xtlfgbw_s\.mp3$/);
+    assert.match(u.fxSounds['heatwave|oxi:heatwave'].url, /p_atk_xtlfgbwfb_s\.mp3$/);
+    assert.match(u.fxSounds['blast|oxi:heatwave'].url, /p_imp_xtlfgbwfb_s\.mp3$/);
+    assert.match(u.fxSounds['overload|'].url, /p_skill_xtlfgbwvl_s\.mp3$/);
+    for (const e of Object.values(u.fxSounds)) assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    assert.equal(u.fxSounds['blast|oxi:retaliate'], undefined, 'S2\'s blast is another sound');
+  });
+
   test('丰川祥子 (committed manifest): the skill stings — S1 d1/d2/d3 40/30/30, S2 h1 only (into organ), S3 s1/s2 50/50 + its loop, each on its official pool', () => {
     const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
     const st = m.units.char_4182_oblvns.stings;
@@ -682,6 +695,46 @@ describe('AudioManager', () => {
     assert.equal(st[2].loop.split('/').pop(), 'p_atk_mjckyrdslnt_lp.mp3');
     assert.deepEqual([m.pools[st[0].pool].maxSoundAllowed, m.pools[st[0].pool].popOldest], [2, true], 'S1: max 2, the oldest gives way');
     assert.equal(m.pools[st[2].pool].maxSoundAllowed, 0);
+  });
+
+  test('塔露拉 S3: each kit fx plays its own sound on its pool; another skill\'s fx of that kind and another unit\'s stay silent; the cast rings on S3 only', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const fxSounds = { 'heatwave|oxi:heatwave': { url: '/s/born.mp3', pool: 'b' }, 'blast|oxi:heatwave': { url: '/s/hit.mp3', pool: 'h' }, 'overload|': { url: '/s/over.mp3', pool: 'o' } };
+      const pools = { b: { maxSoundAllowed: 1, popOldest: true, sounds: {} }, h: { maxSoundAllowed: 2, popOldest: true, sounds: {} }, o: { maxSoundAllowed: 2, popOldest: true, sounds: {} } };
+      const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools, units: { char_4247_oxi: { fxSounds, skills: { 2: '/s/cast.mp3' } } } } } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      const oxi = (id, skillIndex) => ({ id, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4247_oxi', skillIndex });
+      a.setFieldUnits([oxi(3, 2), oxi(4, 0), { id: 5, kind: 'op', side: 'ally', defId: 'char_x', spine: 'char_x', skillIndex: 0 }]);
+      const plays = [];
+      const play = a._playBank.bind(a);
+      a._playBank = (url, pool, vol) => { plays.push([url, pool]); return play(url, pool, vol); };
+      const units = [];
+      const unit = a.unit.bind(a);
+      a.unit = (def, role, key, skillIndex, active) => { if (role === 'skill') units.push([def, skillIndex]); return unit(def, role, key, skillIndex, active); };
+      const fx = (kind, ex) => a.handleBattleEvents([['fx', kind, 5, 9, ex]]);
+      fx('heatwave', { id: 3, skill: 'oxi:heatwave', lanes: [] });
+      fx('blast', { id: 3, skill: 'oxi:heatwave', shot: 1 });
+      fx('overload', { id: 3 });
+      assert.deepEqual(plays, [['/s/born.mp3', 'b'], ['/s/hit.mp3', 'h'], ['/s/over.mp3', 'o']]);
+      plays.length = 0;
+      fx('blast', { id: 3, skill: 'oxi:retaliate' });
+      fx('shield', { id: 3 });
+      fx('overload', { id: 5 });
+      fx('blast', { skill: 'oxi:heatwave' });
+      assert.deepEqual(plays, [], 'nothing else rings');
+      a.handleBattleEvents([['skill', 3, 1]]);
+      a.handleBattleEvents([['skill', 4, 1]]);
+      assert.deepEqual(units.map((u) => u[1]), [2, 0], 'the cast asks for its own skill index');
+      assert.equal(vm.audio.sfx.units.char_4247_oxi.skill, undefined);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 
   test('丰川祥子: a cast cue plays one weighted sting on its pool; no cue, no sting; S3 holds its loop until the skill ends / she dies / the field changes', async () => {

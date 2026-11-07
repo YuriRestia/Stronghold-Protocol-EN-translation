@@ -31,15 +31,18 @@ export function UpdateNews() {
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
   return html`<aside class="search-news brackets" role="note" aria-label=${t('0.3.0 更新')}>
-    <span class="search-news__icon" aria-hidden="true"><${Icon} name="info" /></span>
-    <div class="search-news__text">
-      <span class="search-news__head"><span class="search-news__tag">NEW</span>${t('0.3.0 更新')}</span>
+    <div class="search-news__head">
+      <${Icon} name="info" />
+      <span class="search-news__tag">NEW</span>
+      <span class="search-news__title">${t('0.3.0 更新')}</span>
+      <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
+    </div>
+    <div class="search-news__body" tabindex="0">
+      <p class="search-news__highlight">${t(UPDATE_HIGHLIGHT)}</p>
       <ul class="search-news__list">
-        <li class="search-news__highlight"><strong>${t(UPDATE_HIGHLIGHT)}</strong></li>
         ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}
       </ul>
     </div>
-    <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
   </aside>`;
 }
 

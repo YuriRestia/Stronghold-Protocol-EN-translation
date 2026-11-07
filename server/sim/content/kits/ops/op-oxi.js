@@ -193,17 +193,23 @@ export default {
       const wave = { atk: unit.s.atk, hit: new Set() };
       const delay = num(b3.random_birth_delay);
       const shots = unit.mem.oxiShots ?? (unit.mem.oxiShots = []);
+      const lanes = [];
       for (let lane = a; lane <= b; lane++) {
-        shots.push({ x: across ? from : lane, y: across ? lane : from, dx: across ? sign : 0, dy: across ? 0 : sign,
-          left: Math.abs(to - from), age: 0, wait: delay > 0 ? battle.rng.range(0, delay) : 0, wave });
+        const s = { x: across ? from : lane, y: across ? lane : from, dx: across ? sign : 0, dy: across ? 0 : sign,
+          left: Math.abs(to - from), age: 0, wait: delay > 0 ? battle.rng.range(0, delay) : 0, wave,
+          id: unit.mem.oxiShotN = (unit.mem.oxiShotN ?? 0) + 1 };
+        shots.push(s);
+        lanes.push([s.x, s.y, Math.round(s.wait * 1000) / 1000, s.id]);
       }
-      battle.fx('heatwave', { x: unit.x, y: unit.y, dir: unit.dir, n: b - a + 1, id: unit.id, skill: 'oxi:heatwave' });
+      // the client flies each 簇火's main effect down its lane (render/vfx/skills.js FX_BINDINGS skchr_oxi_3)
+      battle.fx('heatwave', { x: unit.x, y: unit.y, dir: unit.dir, n: b - a + 1, id: unit.id, skill: 'oxi:heatwave',
+        lanes, dx: across ? sign : 0, dy: across ? 0 : sign, len: Math.abs(to - from), speed: num(b3.wave_speed) });
     };
     /** A 簇火 meets `target`: the explosion around it (cached ATK; 元素伤害 in a 灼燃 爆发冷却; ×same_wave_repeat on a repeat). */
     const explode = (battle, unit, s, target) => {
       const r = num(b3.range_radius), base = num(b3.heatwave_atk_scale), again = num(b3.same_wave_repeat_damage_scale, 1);
       const foes = [target, ...battle.foesInRadius(target.x, target.y, r).filter((e) => e !== target && canTargetEnemy(unit, e, AIR))];
-      battle.fx('blast', { x: target.x, y: target.y, r, id: unit.id, element: 'burn', skill: 'oxi:heatwave' });
+      battle.fx('blast', { x: target.x, y: target.y, r, id: unit.id, element: 'burn', skill: 'oxi:heatwave', target: target.id, shot: s.id });
       for (const e of foes) {
         if (!e.alive) continue;
         const burst = !!e.findBuff('burnBurst');

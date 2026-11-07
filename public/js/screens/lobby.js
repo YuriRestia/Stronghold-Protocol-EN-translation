@@ -373,13 +373,16 @@ function ProtoFit() {
  * keeps points[0] (「1 名博士」).
  */
 export function HubEntry({ card, onOpen, timePoint = null, timeShort = null }) {
-  const line = timePoint
-    ? html`<span class="hub-entry__long">${t(card.points[0], card.pointParams)} · ${t(timePoint)}</span><span class="hub-entry__short">${timeShort ? t(timeShort) : t(card.points[0], card.pointParams)}</span>`
-    : card.pointShort
-      ? html`<span class="hub-entry__long">${t(card.points[0], card.pointParams)}</span><span class="hub-entry__short">${t(card.pointShort, card.pointParams)}</span>`
-      : t(card.points[0], card.pointParams);
+  // (fork) the description above the card, as wide as the card: who plays on its first line, the rest on its own lines
+  // under it (each pack writes the point as 「who · rest」). A short screen shows only the first line
+  const point = t(card.points[0], card.pointParams);
+  const [who, ...rest] = (timePoint ? `${point} · ${t(timePoint)}` : point).split(' · ');
+  const short = timeShort ? t(timeShort) : card.pointShort ? t(card.pointShort, card.pointParams) : who;
   return html`<div class="hub-entry-wrap">
-    <span class="hub-entry__group"><${Icon} name=${card.icon} />${line}</span>
+    <div class="hub-entry__group">
+      <span class="hub-entry__who"><${Icon} name=${card.icon} /><span class="hub-entry__long">${who}</span><span class="hub-entry__short">${short}</span></span>
+      ${rest.length ? html`<span class="hub-entry__more">${rest.join(' · ')}</span>` : null}
+    </div>
     <button type="button" class=${`mode-card hub-entry hub-entry--${card.id}`} data-mode=${card.id} onClick=${() => onOpen(card.id)}
         title=${t(card.desc, card.params)}>
       <span class="hub-entry__icon" aria-hidden="true"><${Icon} name=${card.icon} /></span>
@@ -821,7 +824,7 @@ export function LobbyScreen() {
         <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout lobby-loadout" label=${t('干员调配')} />
         <${AchievementPlate} onOpen=${() => setAchOpen(true)} />
       </aside>
-      <section class="hub-entries" aria-label=${t('模拟方式')}>
+      <section class=${`hub-entries${queue.queued ? ' is-queued' : ''}`} aria-label=${t('模拟方式')}>
         ${queue.queued ? html`<div class="create-box hub-queue"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
           : MODE_CARDS.filter((c) => c.id !== 'match' || version === DEFAULT_VERSION).map((c) => {
           const timedCard = c.id === 'solo';
