@@ -114,6 +114,49 @@ test('data/i18n/en.json: the 维多利亚 6-member ATK bonus reads per item, as 
   }
 });
 
+test('data/i18n/en.json: 瑕光 / 锏 deploy traits fire on deployment with a per-battle stack cap, as the Chinese and act2autochess_gar_event_onstart say (corrections-en.json)', () => {
+  // The official EN adds "on skill activation" (the Chinese is 部署时 only) and reads 至多N层 as "Can stack up to Nx".
+  const g = OVERLAY.files.garrisons;
+  const v = (n) => `<@ba.vup>+${n}</>`;
+  const want = {
+    garrison_106_a: `<On deployment> ${v(4)} stacks to own active Alliance(s) (up to 12 stacks per battle)`,
+    garrison_106_b: `<On deployment> ${v(8)} stacks to own active Alliance(s) (up to 24 stacks per battle)`,
+    garrison_155_a: `<When obtained> ${v(8)} stacks to own Alliance(s)\n<On deployment> ${v(8)} stacks to own active Alliance(s) (up to 24 stacks per battle)`,
+    garrison_155_b: `<When obtained> ${v(16)} stacks to own Alliance(s)\n<On deployment> ${v(16)} stacks to own active Alliance(s) (up to 48 stacks per battle)`,
+  };
+  for (const [id, raw] of Object.entries(want)) {
+    assert.equal(g[id].descRaw, raw, `${id} descRaw`);
+    assert.equal(g[id].desc, stripRich(raw), `${id} desc`);
+    assert.doesNotMatch(g[id].desc, /skill activation|Can stack up to/i, id);
+  }
+});
+
+test('data/i18n/en.json: garrison caps read as stacks (至多N层) or triggers (至多触发N次), never "Can stack up to Nx" (corrections-en.json)', () => {
+  const g = OVERLAY.files.garrisons;
+  const zh = readJson('data/garrisons.json');
+  const want = {
+    garrison_23_b: '(up to 7 times per battle)',
+    garrison_55_a: '([Foresight] up to 21 stacks per battle)', garrison_55_b: '([Foresight] up to 42 stacks per battle)',
+    garrison_72_a: '(up to 7 stacks per battle)', garrison_72_b: '(up to 14 stacks per battle)',
+    garrison_73_a: '(up to 10 stacks per battle)', garrison_73_b: '(up to 20 stacks per battle)',
+    garrison_90_a: '(up to 10 stacks per battle)', garrison_90_b: '(up to 20 stacks per battle)',
+    garrison_95_a: '(up to 7 stacks per battle)', garrison_96_a: '(up to 10 stacks per battle)',
+    garrison_107_a: '(up to 50 stacks per battle)', garrison_107_b: '(up to 100 stacks per battle)',
+    garrison_108_a: '(up to 24 stacks each per battle)', garrison_108_b: '(up to 48 stacks each per battle)',
+    garrison_122_a: '(up to 6 stacks each per round)', garrison_122_b: '(up to 12 stacks each per round)',
+    garrison_125_a: '(up to 24 stacks each per battle)', garrison_125_b: '(up to 48 stacks each per battle)',
+    garrison_147_a: '(up to 12 stacks per round)', garrison_147_b: '(up to 24 stacks per round)',
+    garrison_148_a: '(up to 24 stacks each per battle)', garrison_148_b: '(up to 48 stacks each per battle)',
+  };
+  for (const [id, cap] of Object.entries(want)) assert.ok(g[id].descRaw.includes(cap) && g[id].desc.includes(cap), `${id}: ${g[id].desc}`);
+  // Executor the Ex Foedere (garrison_55): the Chinese adds 层数 (stacks), not Alliances
+  for (const id of ['garrison_55_a', 'garrison_55_b']) assert.match(g[id].desc, /\[Foresight\] stacks if the Alliances are active/, id);
+  for (const [id, t] of Object.entries(g)) {
+    assert.doesNotMatch(t.desc ?? '', /can stack up to/i, id);
+    if (/skill activation/i.test(t.desc ?? '')) assert.match(zh[id].desc, /技能/, `${id}: a skill trigger the Chinese does not have`);
+  }
+});
+
 test('data/i18n/en.json: shape, the 盟约 season of the EN build, coverage and the names map', () => {
   assert.equal(OVERLAY.version, 1);
   assert.equal(OVERLAY.lang, 'en');
