@@ -64,13 +64,13 @@ export function meshRef(v) {
  * Euler angles negated, as a billboard's roll turns clockwise — geom.js ROLL_SIGN) [ASSUMED, same source]: the video's
  * newest steps rise on her left and the helix fades going round behind her; ours turned to her right. Its steps point
  * out from the helix's axis (`meshRotX`: Box001, long along its Y, turned −90° about X so that Y lies along the pivot's
- * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle — and as long as its Y size
- * says (0.23, not its Z size's 0.38: the mesh is sized before that turn). Its prewarm fills the whole staircase
+ * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle — and as long as its Z size makes
+ * them (0.38; measured against the video's deer at the same scale). Its prewarm fills the whole staircase
  * (`prewarmS`: whole loops covering the steps' 20 s life, Unity's prewarmed steady state; one 0.7 s loop left it empty,
- * each step clear only from 4 s of its life) [ASSUMED, same source: the staircase stands complete as S2 starts]. Its
- * steps come one a second, not the data's 1.5 (`rateMul` 2/3) [ASSUMED: matched to the video by eye, no rule found —
- * the video's steps stand 1.5× further apart at the same size, fewer at once (6–7) and turned ~30° from the one below;
- * one a second gives 0.05 apart and 30° per step at the data's drift (0.05 /s) and spin (30°/s)].
+ * each step clear only from 4 s of its life) [ASSUMED, same source: the staircase stands complete as S2 starts].
+ * Fitted, no rule found (`fit`) [ASSUMED: the video's 1:12 frame at 1080p, scaled to her height]: there the stack covers
+ * twice the height ours did and each step is twice as thick, its top at her face — the steps drift up twice the data's
+ * 0.05 /s, spawn 2.0 out instead of 1.5 (the same top), and stand as thick as their Y size.
  */
 export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
@@ -148,7 +148,9 @@ export function compileEffect(desc, lib = {}) {
         const ps = def.ps[i], L = nd.particleSystem?.InitialModule?.startLifetime;
         const life = typeof L === 'number' ? L : Math.max(num(L?.max, 0), num(L?.min, 0), num(L?.value, 0));
         if (ps && ps.prewarm && life > ps.duration) ps.prewarmS = Math.min(30, Math.ceil(life / ps.duration) * ps.duration);
-        if (ps) ps.rateMul = 2 / 3;
+        def.psr[i].fit = true;
+        if (ps?.velocity) ps.velocity = { ...ps.velocity, speed: Object.freeze({ at: () => 2 }) };
+        if (ps?.shape?.radius) ps.shape.radius.value = 2.0;
       }
     }
     if (nd.meshRenderer && nd.meshFilter !== undefined) {
