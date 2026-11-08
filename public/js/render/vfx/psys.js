@@ -485,7 +485,7 @@ export class PSys {
     const span = lb - la;
     // rate over time
     let n = 0;
-    const rate = this.rate.at(tau, this.rng.next()) * this.emissionScale;
+    const rate = this.rate.at(tau, this.rng.next()) * this.emissionScale * (this.def.rateMul || 1);   // (fork) effect.js PIVOT_BY_X `rateMul`
     if (rate > 0) {
       this.acc += rate * span;
       n = Math.floor(this.acc);
