@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Two outdated browser tests updated
+
+- The teammate-loadout test now expects a teammate's operator card to show ATK with the default Elite 2 Lv.60 bonus (×1.1), as the game has shown it since 0.2.2 and the other loadout tests already expect. The plugins test now accepts that the room loads the asset store together with the battlefield code it prepares for the match. No game change.
+
 ### Update news
 
 - The Update 0.3.4 banner in the lobby adds "New Operator Loadout" to its highlight lines. Its points now start with "Profile Icon added" and include "Fixed Viviana VFX". The damage meter and four new Modules lines are gone from the banner and from the en, ja, ko and zh-TW packs. The dismiss key stays `news.0.3.4`: the live server still shows 0.3.0's banner, so no player has closed this one yet.

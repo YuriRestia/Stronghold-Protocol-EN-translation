@@ -14,7 +14,8 @@
 // pieceArt introspection), and switched off brings the installation's back (DESIGN §32 P1a review round 2).
 // A server without plugins: its page never asks for the catalogue, a visual set or a plugin file — the title shows no
 // count, the room's 插件 panel says there is none, 设置 has no 外观插件 (/healthz and welcome send no count) — and its title
-// page loads none of the plugin panel, the asset store or what composes a set (the panel's code only once it opens).
+// page loads none of the plugin panel, the asset store or what composes a set (the panel's code only once it opens; the
+// asset store in the room only with the field's code the room warms for the match).
 //
 // Screenshots: test/e2e/out/plugins-*.png, plugins-board-*.png.
 import { test, describe } from 'node:test';
@@ -185,7 +186,9 @@ describe('cosmetic plugins in the browser (P1a)', { skip: !ENABLED && 'set SP_E2
       assert.deepEqual(seen.filter((u) => /^\/(plugins|vs|p)\//.test(u)), [], 'no catalogue, no visual set, no plugin file');
       assert.equal(loaded('/js/ui/pluginPanel.js'), true, 'the panel\'s code once it opened');
       assert.equal(loaded('/shared/plugins/visual.js'), false, 'never what composes a set');
-      assert.equal(loaded('/js/assets.js'), false, 'nor the asset store before a match');
+      // (fork) the room warms the field's code for the match ahead (main.js warmGameData, first-visit load order): the
+      // asset store comes with it (render/app.js → render/app/host.js imports it), never on its own
+      if (loaded('/js/assets.js')) assert.equal(loaded('/js/render/app.js'), true, 'the asset store only with the code of the field');
       const art = fs.existsSync(path.join(ROOT, 'public/assets'));
       assert.deepEqual(problemsOf([c]).filter((p) => art || !/\/assets\//.test(p)), []);
     } finally {

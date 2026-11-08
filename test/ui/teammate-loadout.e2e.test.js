@@ -1,7 +1,7 @@
 // Real-server browser E2E (DESIGN §16): scouting a teammate's board in prep (前往查看) shows THAT player's operator
 // loadout in the detail card — not the viewer's, not the defaults. The guest picks S1 骑枪刺击 + 不装备 for 野鬃 in the
 // room's 干员调配 and places the elite; the host (no loadout: default S2 + the default module) opens the guest's board
-// and right-clicks the unit: the card must read S1 (已调配) and 未装备模组, with the no-module ATK.
+// and right-clicks the unit: the card must read S1 (已调配) and 未装备模组, with the no-module ATK at the default 练度.
 // Unit/integration counterpart: test/match/teammate-loadout.test.js.
 //
 //   SP_E2E=1 node --test test/ui/teammate-loadout.e2e.test.js
@@ -147,7 +147,10 @@ describe('DESIGN §16 — a teammate\'s unit shows its owner\'s loadout (real se
       assert.ok(card.skill.includes(s1.name) && card.tag, `teammate card: ${s1.name} 已调配 (${JSON.stringify(card)})`);
       assert.ok(!card.skill.includes(sDef.name), 'not the default skill');
       assert.ok(card.none && card.module.includes('未装备模组'), `teammate card: 未装备模组 (${JSON.stringify(card)})`);
-      assert.equal(card.stats['攻击'], String(rec.statsBase.atk), `teammate card ATK without the module (${JSON.stringify(card.stats)})`);
+      // the card's base reads the operator's own numbers with its 练度 (the guest's default 精英2 Lv.60, aceffect_char_4 ×1.1;
+      // shared/protocol.js unitStatsEntry, DESIGN §27.60), as loadout-battle's detail card
+      const t4 = JSON.parse(readFileSync(path.join(ROOT, 'data/effects.json'), 'utf8')).aceffect_char_4.buffs.find((b) => b.key === 'char_attribute_mul').bb;
+      assert.equal(card.stats['攻击'], String(Math.round(rec.statsBase.atk * t4.atk)), `teammate card ATK without the module, at the default 练度 (${JSON.stringify(card.stats)})`);
       assert.deepEqual(problemsOf([host, guest]), []);
     } finally {
       for (const c of [host, guest]) if (c.problems.length) console.log(c.label, c.problems.slice(0, 20).join('\n'));
