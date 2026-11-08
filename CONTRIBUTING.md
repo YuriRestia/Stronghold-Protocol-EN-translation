@@ -56,6 +56,8 @@ RENDER_E2E=1 node --test 'test/render/*.browser.test.js'         # 渲染
 SIM_E2E=1 node --test 'test/sim/*.browser.test.js'               # 浏览器里的战斗模拟
 ```
 
+无头 Chrome 默认就用真实 GPU，不要在测试里写死某个平台的图形参数（Windows 上的 `--use-angle=metal` 会退回软件渲染）。需要指定时用 `tools/perfbench.mjs` 的 `gpuArgs()`，它在没有可用 GPU 的机器上也能拿到 WebGL；对用它启动的测试，设置 `SP_E2E_SOFTWARE_GL=1` 可强制软件渲染。`RENDER_E2E=1 node --test test/render/gpu-renderer.browser.test.js` 会打印实际使用的渲染器。
+
 改了模拟（`server/sim/`）之后，可以检查各浏览器算出的战斗和服务器是否仍然逐位一致：`node tools/sim-check.mjs`
 在 Node 里记录黄金结果的整套战斗，然后在任意设备（包括手机）的浏览器里打开服务器的 `/dev/sim-check.html` 重放比较；
 加 `--engines chromium,firefox,webkit` 直接在无界面的浏览器里跑（Firefox 和 WebKit 需要先装 playwright）。不一致时
