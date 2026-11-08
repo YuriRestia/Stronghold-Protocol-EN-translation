@@ -154,7 +154,7 @@
 .ewheel__tab.is-on { color: var(--mint-400); border-color: var(--mint-700); }
 /* Text tab: a slim bar instead of the emote plate, one row: box, letters left, send */
 .ewheel__panel.is-text {
-  left: 0; width: min(max(4.6rem, 320px), 80vw); height: auto; padding: .1rem; scale: 1; transform-origin: 0 100%;
+  left: 0; width: min(max(4.6rem, 32px, calc(320px * var(--sp-ui, 1))), 80vw); height: auto; padding: .1rem; scale: 1; transform-origin: 0 100%;
   background: rgba(8, 11, 10, .94); border: 1px solid var(--line-2); user-select: text; -webkit-user-select: text;
 }
 .ewheel__panel.is-text::before { content: none; }
@@ -164,7 +164,7 @@
 .ewheel__lock { margin: 0; color: var(--text-lo); font-size: max(.18rem, 12px); line-height: 1.3; }
 .ewheel__field { position: relative; flex: 1 1 auto; min-width: 0; }
 .ewheel__input {
-  display: block; width: 100%; height: max(.42rem, 28px); padding: 0 max(.42rem, 30px) 0 .08rem; box-sizing: border-box; background: rgba(255, 255, 255, .06);
+  display: block; width: 100%; height: max(.42rem, 28px); padding: 0 max(.42rem, calc(30px * var(--sp-ui, 1))) 0 .08rem; box-sizing: border-box; background: rgba(255, 255, 255, .06);
   border: 1px solid var(--line-2); color: var(--text-hi); font-size: max(.2rem, 16px);
 }
 .ewheel__input::placeholder { font-size: .8em; }
