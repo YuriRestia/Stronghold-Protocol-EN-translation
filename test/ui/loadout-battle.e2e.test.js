@@ -48,20 +48,18 @@ describe('user playtest #2 item 1 — loadout chosen in the UI fights in the loc
       await c.enter('调配');
       // 1) the 干员调配 overlay: search 野鬃 → S1 + 不装备 (real clicks), synced with the server
       await c.click('.lobby-screen [data-testid="loadout-open"]');
-      await c.page.waitForSelector('.lo .lo-card', { visible: true, timeout: 15000 });
-      await c.click('.lo-search input');
-      await c.page.keyboard.type('野鬃');
-      await c.page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-      await c.click('.lo-card__pick');
-      // the row's quick choices (0.2.2: the roster is one list, a row per operator with its skills and the elite's
-      // modules; the detail's own module cards sit below the fold) — the row and the detail agree on S1 + 不装备
-      await c.click('.lo-card .lo-q--skill[data-skill="0"]');
-      await c.click('.lo-card .lo-q--mod[data-module="none"]');
-      await c.page.waitForFunction(() => document.querySelector('.lo-card .lo-q--skill[data-skill="0"]')?.getAttribute('aria-pressed') === 'true'
-        && document.querySelector('.lo-card .lo-q--mod[data-module="none"]')?.getAttribute('aria-pressed') === 'true'
-        && document.querySelector('.lo-detail .lo-skill.is-on[data-skill="0"]') && document.querySelector('.lo-detail .lo-mod.is-on[data-module="none"]'), { timeout: 3000 });
+      // (fork) the card view (the only view since 2026-11-08): 筛选 → the one card → its own column's S1 + 不装备; the
+      // card and the drawer's detail agree
+      const card = await c.loadoutFind('野鬃');
+      await c.click(`${card} .lo-op__skills .lo-q--skill[data-skill="0"]`);
+      await c.click(`${card} .lo-op__mlist .lo-q--mod[data-module="none"]`);
+      await c.page.waitForFunction((sel) => document.querySelector(`${sel} .lo-q--skill[data-skill="0"]`)?.getAttribute('aria-pressed') === 'true'
+        && document.querySelector(`${sel} .lo-op__mlist .lo-q--mod[data-module="none"]`)?.getAttribute('aria-pressed') === 'true'
+        && document.querySelector('.lo-detail .lo-skill.is-on[data-skill="0"]') && document.querySelector('.lo-detail .lo-mod.is-on[data-module="none"]'), { timeout: 3000 }, card);
       await c.page.waitForFunction(() => /已同步/.test(document.querySelector('.lo-sync')?.textContent || ''), { timeout: 8000 });
       await c.shot('overlay');
+      await c.page.keyboard.press('Escape'); // the drawer
+      await c.page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true, timeout: 3000 });
       await c.page.keyboard.press('Escape');
       await c.page.waitForFunction(() => !document.querySelector('.lo'), { timeout: 3000 });
 

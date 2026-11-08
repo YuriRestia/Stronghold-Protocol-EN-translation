@@ -1,9 +1,8 @@
-// test/ui/loadout-rows.test.js — the 干员调配 roster as one list (0.2.2): the quick choices of PR #301 (by @farridge) laid
-// out as one row per operator with aligned columns instead of three columns of cards (the owner's decision of 2026-10-08:
-// 「三个竖排有点乱影响观感」), and the per-operator 潜能 / 练度 controls (「调配干员里自己设置吧，默认满潜满加成」): the row's skill
-// / module buttons and selects (state, labels, what a tap sets), the detail's section, a 自选 slot's selects, the 局内数值 at
-// the settings, and the css that keeps the columns aligned and the detail sliding over the list below 1000 px. Hook-free
-// views drawn as vnode trees. (The browser side: test/ui/loadout.e2e.test.js.)
+// test/ui/loadout-rows.test.js — the 干员调配 detail's per-operator 潜能 / 练度 (0.2.2, the owner's decision of 2026-10-08:
+// 「调配干员里自己设置吧，默认满潜满加成」): the detail's section, the 局内数值 at the settings, the module card's talents at
+// 潜能, and the css the detail and the 自选编队 picker share. (The list view these tests were named after — one row per
+// operator, PR #301's quick choices — was removed by the fork's 2026-11-08 change; the cards' column is
+// test/ui/loadout-cards.test.js.) Hook-free views drawn as vnode trees.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -16,10 +15,8 @@ globalThis.fetch = async (url) => {
   const name = String(url).split('/').pop();
   try { const body = readFileSync(path.join(ROOT, 'data', name), 'utf8'); return { ok: true, status: 200, json: async () => JSON.parse(body) }; } catch { return { ok: false, status: 404, json: async () => ({}) }; }
 };
-const { RosterRow, RosterHead, statsPreview, LoadoutStats, ModuleInfo } = await import('../../public/js/screens/loadout.js');
-const { ROW_CONTROL_SELECTOR } = await import('../../public/js/screens/loadoutSections.js');
-const { CultivationSelects, CultivationSection, cultivateName } = await import('../../public/js/screens/cultivation.js');
-const { DiyPanelView } = await import('../../public/js/screens/diy.js');
+const { statsPreview, LoadoutStats, ModuleInfo } = await import('../../public/js/screens/loadout.js');
+const { CultivationSection, cultivateName } = await import('../../public/js/screens/cultivation.js');
 const { data } = await import('../../public/js/data.js');
 await data.loadAll('chess', 'garrisons', 'assets', 'bonds', 'effects', 'backups');
 
@@ -32,7 +29,7 @@ function* walk(v) {
   if (Array.isArray(v)) { for (const x of v) yield* walk(x); return; }
   if (!v || typeof v !== 'object') return;
   yield v;
-  if (typeof v.type === 'function' && ['QuickSkill', 'QuickModule', 'CultivationSelects', 'SlotCard', 'KindTag', 'Bonds'].includes(v.type.name)) { yield* walk(v.type(v.props)); return; }
+  if (typeof v.type === 'function' && ['KindTag'].includes(v.type.name)) { yield* walk(v.type(v.props)); return; }
   yield* walk(v.props?.children);
 }
 const hasClass = (v, c) => typeof v?.props?.class === 'string' && v.props.class.split(/\s+/).includes(c);
@@ -40,102 +37,6 @@ const find = (tree, pred) => [...walk(tree)].filter(pred);
 const textOf = (v) => (v == null || typeof v === 'boolean' ? '' : typeof v !== 'object' ? String(v) : Array.isArray(v) ? v.map(textOf).join('') : textOf(v.props?.children));
 
 const row = (props) => RosterRow({ m: null, chess: get(INSIDE), golden: get(get(INSIDE).goldenId), entries: {}, ops: {}, selected: false, onPick: () => {}, onChange: () => {}, onOps: () => {}, ...props });
-
-test('a row: portrait / name pick, three skill slots (an empty one for a two-skill chess), 不装备 first, the equipped ones pressed', () => {
-  const picks = [];
-  const changes = [];
-  const r = row({ onPick: (id) => picks.push(id), onChange: (id, p) => changes.push([id, p]) });
-  assert.ok(hasClass(r, 'lo-card') && hasClass(r, 'lo-card--t1'));
-  assert.equal(r.props['data-chess'], INSIDE);
-  const pick = find(r, (v) => hasClass(v, 'lo-card__pick'))[0];
-  pick.props.onClick();
-  assert.deepEqual(picks, [INSIDE]);
-  // the row itself picks too (a click that does not land on one of its controls): the gaps between its columns, the
-  // module column's spare slots (a normal chess has none) and the padding used to do nothing. The guard is the shared
-  // `rowControlHit` (screens/loadoutSections.js): its selector is pinned token by token — a dropped token would let that
-  // control reach the row handler — and it is anchored to the row, so a wrapping button / link cannot swallow its clicks.
-  assert.deepEqual(ROW_CONTROL_SELECTOR.split(',').map((s) => s.trim()), ['button', 'select', '.lo-select', 'input', 'textarea', 'a'],
-    'the guard names every control a row holds');
-  // …and every control the row actually renders is one of them
-  const rendered = find(r, (v) => ['button', 'select', 'input', 'textarea', 'a'].includes(v.type));
-  assert.ok(rendered.length >= 5, `${rendered.length} controls in the row`);
-  for (const c of rendered) assert.ok(ROW_CONTROL_SELECTOR.includes(c.type), `${c.type} is covered by the guard`);
-  assert.ok(find(r, (v) => hasClass(v, 'lo-select')).length >= 2, 'the 潜能 / 练度 selects sit in .lo-select wrappers (that token covers them)');
-  // a minimal DOM double: closest() walks up to the first match, contains() up from a node. It refuses any other selector,
-  // so the guard must hand it ROW_CONTROL_SELECTOR (and the row's own `.lo-card`).
-  const node = (kind = null, parent = null) => {
-    const it = { kind, parent, contains: (n) => { for (let p = n; p; p = p.parent) if (p === it) return true; return false; } };
-    it.closest = (sel) => {
-      const wanted = sel === ROW_CONTROL_SELECTOR ? 'control' : sel === '.lo-card' ? 'row' : null;
-      assert.ok(wanted, `rowControlHit asked for a selector that is not the shared guard: ${sel}`);
-      for (let p = it; p; p = p.parent) if (p.kind === wanted) return p;
-      return null;
-    };
-    return it;
-  };
-  const rowEl = node('row');
-  const wrapper = node('control');        // a button / link that contains the whole list
-  const nested = node('row', wrapper);    // …and this row
-  const picksBefore = picks.length;
-  r.props.onClick({ target: node(null, rowEl) });
-  assert.equal(picks.length, picksBefore + 1, 'a click on the row\'s own area picks its operator');
-  r.props.onClick({ target: node('control', rowEl) });
-  assert.equal(picks.length, picksBefore + 1, 'a click inside one of its controls keeps that control\'s action (and stays off the detail)');
-  r.props.onClick({ target: node(null, nested) });
-  assert.equal(picks.length, picksBefore + 2, 'a selector match outside the row (a wrapping button / link) does not swallow the row click');
-  // both screens use the one shared guard, and nobody keeps a second copy of the selector
-  for (const file of ['loadout.js', 'diy.js']) {
-    const src = readFileSync(path.join(ROOT, 'public/js/screens', file), 'utf8');
-    assert.match(src, /rowControlHit\(e\)/, `${file} uses the shared guard`);
-    assert.doesNotMatch(src, /'button, select, \.lo-select/, `${file} keeps no copy of the selector`);
-  }
-  const sections = readFileSync(path.join(ROOT, 'public/js/screens/loadoutSections.js'), 'utf8');
-  assert.equal(sections.match(/ROW_CONTROL_SELECTOR = '[^']*'/g).length, 1, 'one definition of the guard selector');
-  const skills = find(r, (v) => hasClass(v, 'lo-q--skill'));
-  assert.deepEqual(skills.map((b) => [b.props['data-skill'], b.props['aria-pressed']]), [[0, 'false'], [1, 'true']], 'S2 is the default');
-  assert.equal(find(r, (v) => hasClass(v, 'lo-q--empty')).length, 1, 'the third slot stays empty');
-  assert.match(skills[0].props['aria-label'], /^S1 · “不惹麻烦” · /);
-  const mods = find(r, (v) => hasClass(v, 'lo-q--mod'));
-  assert.deepEqual(mods.map((b) => [b.props['data-module'], b.props['aria-pressed']]), [['none', 'false'], ['uniequip_002_inside', 'true']]);
-  skills[0].props.onClick();
-  mods[0].props.onClick();
-  assert.deepEqual(changes, [[INSIDE, { skill: 0 }], [INSIDE, { module: 'none' }]]);
-  assert.equal(find(r, (v) => hasClass(v, 'lo-card__flag')).length, 0, 'nothing changed: no flag');
-  // the shared preview: 精锐 shows the Lv.7 SP numbers of the same skill
-  const elite = get(get(INSIDE).goldenId).skills.find((s) => s.index === 0);
-  const e = find(row({ level: 'elite' }), (v) => hasClass(v, 'lo-q--skill'))[0];
-  assert.match(e.props['aria-label'], new RegExp(`消耗 ${elite.spCost}`));
-  assert.equal(row({ level: 'elite' }).props['data-variant'], 'elite');
-});
-
-test('a row\'s 潜能 / 练度 selects: the defaults quiet, a changed one marked; a change sets the operator\'s settings', () => {
-  const sets = [];
-  const r = row({ onOps: (id, p) => sets.push([id, p]) });
-  const sel = find(r, (v) => v.type === 'select');
-  assert.deepEqual(sel.map((s) => [s.props['data-cult'], s.props.value]), [['potential', '6'], ['cultivate', '3']]);
-  assert.equal(find(r, (v) => hasClass(v, 'is-off')).length, 0, 'the defaults are not marked');
-  sel[0].props.onChange({ currentTarget: { value: '2' } });
-  sel[1].props.onChange({ currentTarget: { value: '0' } });
-  assert.deepEqual(sets, [[CHAR(INSIDE), { potential: 2 }], [CHAR(INSIDE), { cultivate: 0 }]]);
-  const options = find(sel[0], (v) => v.type === 'option').map((o) => textOf(o));
-  assert.deepEqual(options, ['潜能 1', '潜能 2', '潜能 3', '潜能 4', '潜能 5', '潜能 6']);
-  assert.deepEqual(find(sel[1], (v) => v.type === 'option').map((o) => textOf(o)), ['未精英化', '精英1', '精英2', '精英2 Lv.60']);
-  // changed: the select is marked, the row flagged and counted as changed
-  const c = row({ ops: { [CHAR(INSIDE)]: { potential: 2 } } });
-  assert.ok(hasClass(c, 'is-changed'));
-  assert.equal(find(c, (v) => hasClass(v, 'lo-card__flag')).length, 1);
-  assert.deepEqual(find(c, (v) => hasClass(v, 'is-off')).map((v) => v.props.class.includes('lo-cult__pot')), [true]);
-  // a chess marked not owned: the 替补 tag, the settings say they do not apply now
-  const s = row({ notOwned: true });
-  assert.ok(hasClass(s, 'is-standin'));
-  assert.equal(textOf(find(s, (v) => hasClass(v, 'lo-card__sub'))[0]), '替补');
-  assert.match(find(s, (v) => hasClass(v, 'lo-cult'))[0].props.title, /替补干员没有潜能与练度/);
-});
-
-test('the head names the four columns; CultivationSelects without an operator draws nothing', () => {
-  assert.deepEqual(find(RosterHead(), (v) => hasClass(v, 'lo-list__h')).map((v) => textOf(v)), ['干员', '技能', '模组精锐', '潜能 · 练度']);
-  assert.equal(CultivationSelects({ charId: null, ops: {}, onSet: () => {} }), null);
-});
 
 test('the detail\'s section: 潜能 1–6 and the four official 练度 tiers, the tier\'s effect, the stand-in note', () => {
   const sets = [];
@@ -159,19 +60,6 @@ test('the detail\'s section: 潜能 1–6 and the four official 练度 tiers, th
   const st = CultivationSection({ charId: id, ops: {}, onSet: () => {}, standIn: true });
   assert.ok(hasClass(st, 'is-moot'));
   assert.match(textOf(find(st, (v) => hasClass(v, 'lo-cult__note'))[0]), /替补干员没有潜能与练度/);
-});
-
-test('自选编队: an owned pick\'s card carries its operator\'s selects, a prototype says it has neither', () => {
-  const sets = [];
-  const picks = { chess_char_6_diy1_a: { charId: 'char_003_kalts', skillIndex: 0 }, chess_char_5_diy1_a: { charId: 'char_609_acguad' } };
-  const tree = DiyPanelView({ m: null, picks, legal: picks, kitted: null, onSet: () => {}, picking: null, onPicking: () => {}, ops: { char_003_kalts: { cultivate: 1 } }, onOps: (c, p) => sets.push([c, p]) });
-  const cult = find(tree, (v) => hasClass(v, 'diy-slot__cult'));
-  assert.equal(cult.length, 2);
-  const sel = find(tree, (v) => v.type === 'select');
-  assert.deepEqual(sel.map((s) => s.props.value), ['6', '1'], '凯尔希: 潜能 6, 精英1');
-  sel[0].props.onChange({ currentTarget: { value: '4' } });
-  assert.deepEqual(sets, [['char_003_kalts', { potential: 4 }]]);
-  assert.ok(cult.some((v) => textOf(v) === '原型干员没有潜能与练度'));
 });
 
 test('局内数值 at the operator\'s settings: 刺玫 at 潜能1 / 未精英化 and at the defaults (×1.1)', () => {
@@ -213,7 +101,13 @@ test('the module card reads its talent changes at the operator\'s 潜能, as 局
   const src = readFileSync(path.join(ROOT, 'public/js/screens/loadout.js'), 'utf8');
   const sections = readFileSync(path.join(ROOT, 'public/js/screens/loadoutSections.js'), 'utf8');
   assert.match(src, /<\$\{ModuleSection\}[\s\S]*?potential=\$\{cv\.potentialOn \? cv\.potential : null\} \/>/, 'the detail passes the operator\'s 潜能');
-  assert.match(sections, /<\$\{ModuleInfo\} m=\$\{m\} golden=\$\{golden\} opt=\$\{modOpt\} potential=\$\{potential\} \/>/, 'the module card reads it at that 潜能');
+  assert.match(sections, /<\$\{ModuleInfo\} m=\$\{m\} golden=\$\{golden\} opt=\$\{modOpt\} potential=\$\{potential\} brief=\$\{brief\} \/>/, 'the module card reads it at that 潜能');
+  // (fork) the card view's 「展开」 panel draws it brief: the stat bonus and the 特性 lines, no title, no talents
+  const brief = ModuleInfo({ m: null, golden: ex, opt: { id: rea.uniEquipId, rec: rea }, potential: 6, brief: true });
+  assert.equal(find(brief, (v) => hasClass(v, 'lo-minfo__title')).length, 0, 'brief: no title');
+  assert.ok(hasClass(brief, 'lo-minfo--brief'));
+  assert.ok(texts(brief).some((x) => x === '攻击范围内存在2名及以上敌人时攻击速度<@ba.kw>+12</>'), 'brief: the 特性追加 line stays');
+  assert.ok(find(brief, (v) => hasClass(v, 'lo-attrs')).length === 1, 'brief: the stat bonus stays');
   const cult = readFileSync(path.join(ROOT, 'public/js/screens/cultivation.js'), 'utf8');
   assert.match(cult, /const cur = opsOf\(ops, charId\);\n  const potentialOn = potentialEditable\(charId, tables\);\n  return \{\n    potential: cur\.potential,/);
 });
@@ -232,14 +126,9 @@ test('css: the selected skill\'s frame is square around its icon (GitHub #398 / 
   assert.match(readFileSync(path.join(ROOT, 'public/css/theme.css'), 'utf8'), /\bimg \{ max-width: 100%; \}/, 'the global clamp the frame opts out of');
 });
 
-test('css: the head and the rows share one grid (columns aligned), quick targets grow on a coarse pointer, the detail slides over below 1000 px', () => {
-  const css = unscaled(readFileSync(path.join(ROOT, 'public/css/screens/loadout.css'), 'utf8'));
-  assert.match(css, /\.lo-list__head, \.lo \.lo-card \{ display: grid; grid-template-columns: var\(--cols\);/);
-  assert.match(css, /\.lo \.lo-card \{[^}]*cursor: pointer;/, 'the whole row shows itself as a click target (RosterRow onRowClick)');
-  assert.match(css, /\.sp-coarse \.lo-list \{ --q: max\(\.44rem, 40px\); \}/);
-  const block = css.slice(css.indexOf('@media (max-width: 1000px) {\n  .lo-body'));
-  assert.match(block, /\.lo-body \{ grid-template-columns: minmax\(0, 1fr\); \}/);
-  assert.match(block, /\.lo-detail-wrap \{ display: none; \}/);
+test('css: the list view is gone — no rows, no list grid, no slide-over list layout', () => {
+  const css = readFileSync(path.join(ROOT, 'public/css/screens/loadout.css'), 'utf8');
+  for (const gone of ['.lo-list', '.lo-card', '.lo-body', '.lo-roster', '.lo-detail-wrap', '.lo-cult {', '.diy-slot', '.lo-tabs']) assert.ok(!css.includes(gone), gone);
   assert.ok(!/\.lo-grid\b/.test(css), 'the old card grid is gone');
 });
 
@@ -249,8 +138,12 @@ test('css: the head and the rows share one grid (columns aligned), quick targets
 test('css: the picker body reads the roster\'s detail geometry instead of repeating it', () => {
   const css = readFileSync(path.join(ROOT, 'public/css/screens/loadout.css'), 'utf8');
   assert.match(css, /--lo-detail-w: 7rem;[\s\S]*--lo-gap-x: \.22rem;[\s\S]*--lo-pad-x: \.3rem;/, 'one source of truth on `.lo`');
-  assert.match(css, /\.lo-body \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, var\(--lo-detail-w\)\);[^}]*gap: var\(--lo-gap-x\);/);
-  assert.match(css, /\.diy-pick__main \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, var\(--lo-detail-w\)\);[^}]*gap: var\(--lo-gap-x\);/);
+  // (fork, 2026-11-08) the picker is the card view for 自选 operators: the deck takes the whole width (no detail column)
+  // and the detail is the card view's drawer, at its width
+  assert.match(css, /\.diy-pick__main \{ position: relative; flex: 1 1 auto; min-height: 0; display: flex; \}/);
+  assert.doesNotMatch(css, /\.diy-pick__main \{[^}]*grid-template-columns/);
+  assert.match(css, /\.diy-pick \{\n {2}--drawer-w: min\(6\.4rem, 92vw\);/);
+  assert.match(css, /\.lo--deck \{\n {2}--drawer-w: min\(6\.4rem, 92vw\);/, 'the same drawer width as the card view');
   assert.match(css, /\.diy-pick \{[^}]*padding: \.12rem var\(--lo-pad-x\) \.14rem;/);
   assert.match(css, /\.diy-pick \{ padding: \.08rem var\(--lo-pad-x\) \.1rem; \}/);
   const narrow = css.slice(css.indexOf('@media (max-width: 1100px) {'));

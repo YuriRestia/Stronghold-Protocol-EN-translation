@@ -56,9 +56,7 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     await shot(c, `${name}-sweep`);
     await close(c, '.sw-tabs');
     await c.click('.lobby-loadout');
-    await images(c, '.lo-card img');
-    await shot(c, `${name}-loadout-list`);
-    await c.click('[data-testid="loadout-view-deck"]');
+    // (fork) the card view is 干员调配's only view since 2026-11-08 (the list's own art step went with the list)
     await images(c, '.lo-op img');
     await shot(c, `${name}-loadout-cards`);
     await c.click('[data-testid="loadout-ownership"]');
@@ -69,6 +67,7 @@ for (const version of VERSIONS.filter((v) => v.dir)) test(`${version.label}: lob
     await c.click('.lo-op--diy[data-diy-tier="6"]');
     await images(c, '.lo img');
     await shot(c, `${name}-diy`);
+    await close(c, '[data-testid="diy-picker"]'); // (fork) the picker is a page of the overlay: Esc closes it first
     await close(c, '.lo');
     await c.createCoop();
     await c.click('[data-testid="seat-card-pick"]');

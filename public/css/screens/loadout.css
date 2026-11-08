@@ -11,7 +11,7 @@
                                              banner (60), modals / confirm dialogs (80), toasts and tooltips */
   display: flex; flex-direction: column;
   padding: var(--sa-t, 0px) var(--sa-r, 0px) var(--sa-b, 0px) var(--sa-l, 0px);
-  background: var(--bg-0);
+  background: #050606; /* (fork) a step darker than the app's slate (the user's call of 2026-11-09: black was too dark) */
   color: var(--text-hi);
   animation: lo-in 200ms var(--ease-out) backwards;
   overscroll-behavior: contain;
@@ -31,7 +31,7 @@
     radial-gradient(60% 70% at 100% 100%, rgba(52, 184, 216, .06), transparent 60%),
     linear-gradient(rgba(78, 216, 175, .035) 1px, transparent 1px) 0 0 / .6rem .6rem,
     linear-gradient(90deg, rgba(78, 216, 175, .035) 1px, transparent 1px) 0 0 / .6rem .6rem,
-    linear-gradient(180deg, #0f1312, #090b0a);
+    linear-gradient(180deg, #0a0d0c, #050606);
 }
 /* every layer but the background stacks above it. :where() keeps this at the specificity of the old `.lo > *` (one
    class), so the rules after it still win where they did, and it never matches .lo__bg: as `.lo > *` (same specificity,
@@ -39,9 +39,9 @@
 .lo > :where(:not(.lo__bg)) { position: relative; }
 
 /* ---- top bar ---------------------------------------------------------------------------------------------------- */
-/* The tabs stay centred while both sides fit in equal halves beside them; a wider side keeps its own width and shifts
-   the tabs instead (0.2.0: three tabs and the co-op countdown ran the right column into the tabs on phones and in
-   English), and only when nothing else is left does the tab strip scroll (.lo-tabs). */
+/* The centre (the title, the note) stays centred while both sides fit in equal halves beside it; a wider side keeps its
+   own width and shifts the centre instead (0.2.0: the co-op countdown ran the right column into the centre on phones
+   and in English). */
 .lo-top {
   flex: none; display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); align-items: center; gap: .2rem;
   height: max(1rem, 32px, calc(48px * var(--sp-ui, 1))); padding: 0 .36rem;
@@ -55,7 +55,7 @@
 .lo-top__left { justify-self: start; display: flex; align-items: center; gap: .14rem; }
 .lo-top__center { display: flex; flex-direction: column; align-items: center; gap: .02rem; min-width: 0; }
 .lo-top__title { display: flex; align-items: center; gap: .12rem; margin: 0; font-size: max(.32rem, 16px); font-weight: 900; letter-spacing: .14em; line-height: 1.15; }
-.lo-top__icon { width: max(.3rem, 16px); height: max(.3rem, 16px); object-fit: contain; color: var(--mint-500); }
+
 .lo-top__right { justify-self: end; display: flex; align-items: center; gap: .16rem; min-width: 0; }
 .lo-count { font-size: max(.16rem, 11px); color: var(--text-lo); white-space: nowrap; }
 .lo-count b { color: var(--mint-400); font-size: max(.22rem, 13px); margin: 0 .02rem 0 .06rem; }
@@ -63,11 +63,13 @@
 .lo-deadline { --cd-h: max(.44rem, 20px); flex: none; }
 /* its caption breaks at its spaces (Loadout / Deadline) rather than widening the column; 调配截止 stays one line */
 .lo-deadline .countdown__label { font-size: max(.11rem, 8px); width: min-content; word-break: keep-all; text-align: right; }
-.lo-sync { font-size: max(.14rem, 10px); padding: .03rem .1rem; border: 1px solid var(--line-2); color: var(--text-lo); white-space: nowrap; letter-spacing: .04em; }
-.lo-sync.is-ok { color: var(--mint-400); border-color: var(--mint-800); }
+/* the save status (保存中… / 同步中… / 已同步 = saved on the server): quiet words, no box — loud only when it failed or
+   is locked (the user's call of 2026-11-09) */
+.lo-sync { font-size: max(.14rem, 10px); color: var(--text-lo); white-space: nowrap; letter-spacing: .04em; }
+.lo-sync.is-ok { color: var(--text-lo); }
 .lo-sync.is-busy { color: var(--text-md); }
-.lo-sync.is-warn { color: var(--amber); border-color: rgba(246, 163, 41, .45); }
-.lo-sync.is-bad { color: var(--red-premium); border-color: rgba(255, 84, 84, .45); }
+.lo-sync.is-warn { color: var(--amber); }
+.lo-sync.is-bad { color: var(--red-premium); }
 
 .lo-note {
   flex: none; display: flex; align-items: center; gap: .08rem; margin: 0; padding: .07rem .36rem;
@@ -84,15 +86,6 @@
 .lo-missing { flex-direction: column; gap: .1rem; padding: .3rem; text-align: center; color: var(--amber); }
 .lo-missing .icon { width: max(.32rem, 22px); height: max(.32rem, 22px); }
 .lo-missing p { margin: 0; max-width: 9rem; color: var(--text-lo); font-size: max(.16rem, 11px); line-height: 1.6; text-wrap: balance; }
-
-/* ---- body layout -------------------------------------------------------------------------------------------------- */
-.lo-body {
-  flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, var(--lo-detail-w));
-  gap: var(--lo-gap-x); padding: .18rem var(--lo-pad-x) .22rem;
-}
-.lo-roster { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .12rem; }
-.lo-detail-wrap { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.lo-detail-back { display: none; }
 
 /* ---- filters ----------------------------------------------------------------------------------------------------------- */
 .lo-filters { flex: none; display: flex; flex-direction: column; gap: .08rem; }
@@ -145,87 +138,30 @@
 .lo-toggle.is-on .lo-toggle__box { background: var(--mint-500); border-color: var(--mint-400); }
 .lo-toggle.is-on .lo-toggle__box .icon { opacity: 1; }
 
-/* ---- roster: one list, one row per operator (0.2.2) ------------------------------------------------------------------------ */
-/* The quick choices of PR #301 (by @farridge) as ONE list instead of three columns of cards (the owner's decision of
-   2026-10-08: 「三个竖排有点乱影响观感」): every row has the same four columns — the operator (portrait, name, bonds), the
-   skills, the elite's modules, 潜能 / 练度 — aligned under a sticky head row, so the eye runs down a column. Sizes: --q a
-   quick button (a skill / module), --art the portrait; a coarse pointer gets 40 px targets. */
-.lo-list {
-  --q: max(.4rem, 32px); --qg: max(.05rem, 4px); --art: max(.52rem, 32px, calc(40px * var(--sp-ui, 1)));
-  --cols: minmax(max(2.2rem, 32px, calc(110px * var(--sp-ui, 1))), max(3.2rem, 32px, calc(260px * var(--sp-ui, 1)))) calc(3 * var(--q) + 2 * var(--qg)) calc(4 * var(--q) + 3 * var(--qg)) max(2.2rem, 32px, calc(160px * var(--sp-ui, 1)));
-  flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
-  padding: 0 .06rem .2rem 0; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent;
-}
-.sp-coarse .lo-list { --q: max(.44rem, 32px, calc(40px * var(--sp-ui, 1))); }
-.lo-list__head, .lo .lo-card { display: grid; grid-template-columns: var(--cols); justify-content: start; align-items: center; column-gap: max(.12rem, calc(8px * var(--sp-ui, 1))); }
-/* (the head has the rows' box — the same borders, transparent, and padding — so its columns are the rows' to the pixel) */
-.lo-list__head {
-  position: sticky; top: 0; z-index: 2; padding: .05rem .1rem .05rem .07rem; border: 1px solid transparent; border-left-width: 3px;
-  font-size: max(.12rem, 9px); font-weight: 700; letter-spacing: .12em; color: var(--text-dim);
-  background: linear-gradient(180deg, #0d1110 70%, rgba(13, 17, 16, .85)); box-shadow: inset 0 -1px 0 var(--line);
-}
-.lo-list__h small { margin-left: .05rem; font-weight: 400; letter-spacing: .04em; color: var(--gold-2); opacity: .8; }
-.lo-list__rows { display: flex; flex-direction: column; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); padding-top: max(.05rem, calc(4px * var(--sp-ui, 1))); }
 .lo-empty { padding: .4rem; text-align: center; font-size: max(.16rem, 11px); }
 
-.lo .lo-card {
-  --tc: var(--tier-1);
-  position: relative; min-width: 0; padding: max(.05rem, calc(4px * var(--sp-ui, 1))) .1rem max(.05rem, calc(4px * var(--sp-ui, 1))) .07rem;
-  background: rgba(255, 255, 255, .025); border: 1px solid var(--line); border-left: 3px solid var(--tc);
-  /* the whole row picks its operator (RosterRow onRowClick) — the pointer says so, and `touch-action` keeps a tap from
-     waiting on the double-tap delay; the row's own controls keep their cursor (`.lo-select select`, `.lo-q`) */
-  cursor: pointer; touch-action: manipulation;
-  transition: background var(--t-fast), border-color var(--t-fast);
-}
-.lo-card--t1 { --tc: var(--tier-1); } .lo-card--t2 { --tc: var(--tier-2); } .lo-card--t3 { --tc: var(--tier-3); }
-.lo-card--t4 { --tc: var(--tier-4); } .lo-card--t5 { --tc: var(--tier-5); } .lo-card--t6 { --tc: var(--tier-6); }
-.lo .lo-card:hover { background: rgba(255, 255, 255, .045); border-color: var(--line-3); border-left-color: var(--tc); }
-.lo .lo-card.is-sel { background: linear-gradient(90deg, rgba(78, 216, 175, .1), rgba(78, 216, 175, .02) 60%); border-color: var(--mint-700); border-left-color: var(--tc); box-shadow: 0 0 0 1px var(--mint-500) inset; }
-.lo-card button:focus-visible, .lo-card select:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 1px; }
-.lo-card__pick { display: flex; align-items: center; gap: max(.1rem, calc(6px * var(--sp-ui, 1))); min-width: 0; padding: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
-.lo-card__art { position: relative; flex: none; width: var(--art); height: var(--art); overflow: hidden; background: #1b201e; border: 1px solid var(--line-2); }
-.lo-card__art > img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.lo-card__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: max(.24rem, 16px); font-weight: 900; color: var(--text-dim); }
-.lo-card__tier { position: absolute; left: 1px; top: 1px; z-index: 1; transform-origin: 0 0; transform: scale(.8); }
-.lo-card__id { display: flex; flex-direction: column; gap: max(.03rem, calc(2px * var(--sp-ui, 1))); min-width: 0; }
-.lo-card__name { font-size: max(.17rem, 12px); font-weight: 700; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lo-card__bonds { display: flex; flex-wrap: wrap; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); min-height: max(.16rem, 12px); }
-.lo-card__bond, .lo-card__bonds .lo-bond__dot { width: max(.18rem, 13px); height: max(.18rem, 13px); object-fit: contain; }
-.lo-card__flag { position: absolute; right: 0; top: 0; z-index: 1; width: max(.16rem, 10px); height: max(.16rem, 10px); background: linear-gradient(225deg, var(--mint-400) 50%, transparent 50%); pointer-events: none; }
-/* 0.2.0 补位: a chess marked 未持有 on the 干员持有 tab — its stand-in fights with a fixed skill and no 潜能 / 练度; the choices
-   here apply once it is owned again */
-.lo-card__sub { align-self: flex-start; padding: 0 .04rem; font-size: max(.11rem, 8px); font-weight: 700; line-height: 1.4; color: var(--ice-900); background: var(--ice); }
-.lo .lo-card.is-standin .lo-card__skills, .lo .lo-card.is-standin .lo-card__mods, .lo .lo-card.is-standin .lo-cult { opacity: .55; }
 .lo-locknote--standin { color: var(--ice); }
 
-.lo-card__skills, .lo-card__mods { display: flex; align-items: center; gap: var(--qg); min-width: 0; }
-.lo-card__mods { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; }
+/* a quick choice (PR #301's, by @farridge): a skill / module button of a card's column (screens/loadoutDeck.js QuickSkill /
+   QuickModule); the column (.lo-op__side .lo-q) sizes and dims it */
 .lo-q {
-  position: relative; flex: none; display: grid; place-items: center; width: var(--q); height: var(--q); padding: 0;
+  position: relative; flex: none; display: grid; place-items: center; padding: 0;
   font: inherit; color: var(--text-lo); background: none; border: 0; cursor: pointer; touch-action: manipulation;
 }
-.lo-q--empty { border: 1px dashed rgba(255, 255, 255, .07); }
-.lo-q:not(.is-on):not(.lo-q--empty) { opacity: .62; }
-.lo-q:not(.is-on):not(.lo-q--empty):hover { opacity: 1; }
+
 .lo-q__type { position: absolute; left: 0; bottom: 0; padding: 0 2px; font-size: max(.11rem, 8px); line-height: 1.3; color: var(--text-hi); background: rgba(0, 0, 0, .7); pointer-events: none; }
 .lo-q--mod.is-on .lo-mglyph { border-color: var(--gold-2); box-shadow: 0 0 .08rem rgba(255, 198, 0, .35); }
-
-/* 潜能 / 练度 (screens/cultivation.js): two compact selects side by side in the row's last column; at the defaults (潜能 6,
-   精英2 Lv.60 — the same on every row) they stay quiet, a changed one is mint */
-.lo-cult { display: flex; align-items: center; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); min-width: 0; }
-.lo .lo-cult .lo-select { min-height: 0; height: max(.32rem, 22px); padding-left: 0; border-color: transparent; background: rgba(255, 255, 255, .03); }
-.lo .lo-cult .lo-select:hover, .lo .lo-cult .lo-select:focus-within { border-color: var(--line-3); }
-.lo .lo-cult .lo-select select { width: 100%; min-width: 0; padding: 0 max(.2rem, calc(14px * var(--sp-ui, 1))) 0 max(.06rem, calc(4px * var(--sp-ui, 1))); font-size: max(.14rem, 10px); color: var(--text-lo); }
-.lo-cult__pot { flex: 0 0 auto; }
-.lo-cult__tier { flex: 1 1 auto; min-width: 0; }
-.lo .lo-cult .lo-select.is-off { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
-.lo .lo-cult .lo-select.is-off select { color: var(--mint-400); font-weight: 700; }
-.sp-coarse .lo .lo-cult .lo-select { height: max(.32rem, 28px); }
 
 /* the detail's 潜能 / 练度 section */
 .lo-sec--cult { padding: .08rem .1rem .1rem; margin-bottom: .14rem; background: rgba(0, 0, 0, .22); border: 1px solid var(--line); border-left: 3px solid var(--mint-500); }
 .lo-sec--cult .lo-sec__head .lo-badge { margin-left: auto; }
-.lo-cult__row { display: grid; grid-template-columns: max(.5rem, 30px) minmax(0, 1fr); align-items: center; gap: .08rem; }
+/* (fork) one label column for both rows, as wide as the longer label: English 「Development」 overran a fixed one into
+   its buttons; the rows are subgrids of the section, the head and the notes span it */
+.lo-sec.lo-sec--cult { display: grid; grid-template-columns: minmax(max(.5rem, 30px), max-content) minmax(0, 1fr); gap: .08rem; }
+.lo-sec--cult > * { grid-column: 1 / -1; }
+.lo-cult__row { display: grid; grid-template-columns: subgrid; align-items: center; }
+/* a short screen's narrow drawer: each label above its buttons, which keep the full width */
+@media (max-height: 560px) { .lo-sec.lo-sec--cult { grid-template-columns: minmax(0, 1fr); } .lo-cult__row { grid-template-columns: minmax(0, 1fr); row-gap: .04rem; } }
 .lo-cult__k { font-size: max(.13rem, 10px); color: var(--text-dim); letter-spacing: .08em; }
 .lo .lo-cult__row .lo-seg { margin-left: 0; flex-wrap: wrap; justify-self: start; }
 .lo-seg--pot button { min-width: max(.36rem, 26px); font-family: var(--font-num); }
@@ -299,9 +235,9 @@
 .vl-pick__sq--missing:hover { color: var(--text-lo); border-color: var(--line-2); }
 /* (fork) the 自选 overview's slot rows: smaller squares under the class line */
 .vl-pick--compact .vl-pick__sq { min-width: max(.28rem, 22px); height: max(.28rem, 22px); }
-.diy-slot__voice { margin: .02rem 0; }
+
 .lo-dhead__voice { align-self: flex-end; margin-top: .04rem; }
-.diy-pick__voice { flex: none; }
+
 .sp-coarse .vl-pick__sq { min-width: 30px; height: 30px; }
 
 .lo-detail__body { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: .12rem .18rem .2rem; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
@@ -342,10 +278,12 @@
 .lo-skill__deco img, .lo-skill__deco i { display: block; width: 100%; height: 100%; }
 .lo-skill__deco i { background: #1ea0ff; clip-path: polygon(0 0, 100% 50%, 0 100%); }
 .lo-skill__body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .05rem; }
-.lo-skill__head { display: flex; align-items: center; gap: .08rem; flex-wrap: wrap; }
+/* (fork) the slot, the name and its badge stay on one line: a long name wraps within itself (the user's call of 2026-11-08) */
+.lo-skill__head { display: flex; align-items: center; gap: .08rem; }
+.lo-skill__head > .lo-skill__slot, .lo-skill__head > .lo-badge { flex: none; }
 .lo-skill__slot { font-family: var(--font-num); font-size: max(.13rem, 9px); font-weight: 700; color: var(--text-dim); padding: 0 .05rem; border: 1px solid var(--line-2); letter-spacing: .06em; }
 .lo-skill.is-on .lo-skill__slot { color: #7cc8ff; border-color: rgba(30, 160, 255, .55); }
-.lo-skill__name { font-size: max(.19rem, 12px); font-weight: 700; color: var(--text-hi); }
+.lo-skill__name { min-width: 0; font-size: max(.19rem, 12px); font-weight: 700; color: var(--text-hi); overflow-wrap: break-word; }
 .lo-skill__tags { display: flex; flex-wrap: wrap; align-items: center; gap: .06rem; }
 .lo-skill__desc { display: block; font-size: max(.15rem, 10px); line-height: 1.55; color: var(--text-md); }
 .lo-sp { padding: .01rem .07rem; font-size: max(.12rem, 9px); font-weight: 700; color: #0b0d0c; background: #9bd26b; }
@@ -373,10 +311,18 @@
 .lo-mod:hover { border-color: var(--line-3); }
 .lo-mod.is-on { color: var(--text-hi); background: linear-gradient(90deg, rgba(242, 189, 62, .14), rgba(242, 189, 62, .02) 75%); border-color: rgba(242, 189, 62, .7); }
 .lo-mod.is-on .lo-mglyph { border-color: var(--gold-2); box-shadow: 0 0 .1rem rgba(255, 198, 0, .35); }
-.lo-mod__text { min-width: 0; display: flex; flex-direction: column; gap: .01rem; }
+.lo-mod__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .01rem; }
+/* (fork) 默认: a small tag on the icon's top edge, so the name has the tile's whole width (the user's call of 2026-11-09:
+   beside the name it squeezed "The Decrescendo" into a letter-wrapped column) */
+.lo-mod__icon { position: relative; flex: none; display: flex; }
+/* a card's 「展开」 panel: 默认 beside the type (RIT-X), small, the name its own line below */
+.lo-mod__head { display: flex; align-items: center; gap: .08rem; }
+.lo-mod__head > .lo-badge { flex: none; font-size: max(.1rem, 8px); line-height: 1.3; }
+.lo-mod__def { position: absolute; left: 50%; top: 0; z-index: 1; transform: translate(-50%, -55%); padding: 0 .04rem;
+  font-size: max(.09rem, 8px); line-height: 1.3; letter-spacing: .02em; background: #1a1f1d; }
 .lo-mod__type { font-family: var(--font-num); font-size: max(.12rem, 9px); letter-spacing: .1em; color: var(--text-dim); }
-.lo-mod__name { font-size: max(.16rem, 11px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lo-mod__def { position: absolute; right: .04rem; top: .04rem; }
+/* (fork) a long module name wraps as a skill's does, never cut with "…" (the user's call of 2026-11-08) */
+.lo-mod__name { min-width: 0; font-size: max(.16rem, 11px); font-weight: 700; overflow-wrap: break-word; text-wrap: pretty; }
 
 .lo-minfo { margin-top: .04rem; padding: .1rem .12rem; display: flex; flex-direction: column; gap: .07rem; background: rgba(0, 0, 0, .28); border: 1px solid var(--line); border-left: 3px solid var(--gold-2); }
 .lo-minfo--none { border-left-color: var(--line-3); }
@@ -410,18 +356,6 @@
 .lo-stats__cap { margin: 0; font-size: max(.13rem, 9px); line-height: 1.5; color: var(--text-dim); }
 .lo-locknote { display: flex; align-items: center; gap: .06rem; margin: .16rem 0 0; font-size: max(.14rem, 10px); color: var(--amber); }
 .lo-locknote .icon { width: .16rem; height: .16rem; }
-
-/* ---- tabs: 干员调配 / 干员持有 (0.2.0 补位) ---------------------------------------------------------------------------- */
-.lo-tabs { display: flex; align-items: stretch; gap: .04rem; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
-.lo-tab {
-  display: inline-flex; align-items: center; gap: .08rem; padding: .02rem .16rem; font: inherit; font-size: max(.24rem, 13px); font-weight: 900;
-  letter-spacing: .12em; line-height: 1.2; color: var(--text-lo); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
-  touch-action: manipulation; white-space: nowrap;
-}
-.lo-tab .lo-top__icon { width: max(.24rem, 14px); height: max(.24rem, 14px); }
-.lo-tab:hover { color: var(--text-hi); }
-.lo-tab.is-on { color: var(--text-hi); border-bottom-color: var(--mint-500); }
-.lo-tab__n { display: inline-grid; place-items: center; min-width: 1.5em; height: 1.5em; padding: 0 .3em; font-size: .62em; font-weight: 700; letter-spacing: 0; color: var(--ice-900); background: var(--ice); border-radius: 1em; }
 
 /* ---- 干员持有 (screens/ownership.js): the NORMAL chess by tier, each operator → its stand-in, a 持有 switch -------------- */
 .own { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: .12rem; padding: .16rem .3rem .2rem; }
@@ -466,95 +400,94 @@
   .own__lead { display: none; }
 }
 
-/* ---- 自选编队 (screens/diy.js): four DIY slots by tier, the slot picker (operator list + skill / module) --------------- */
-.diy { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: .12rem; padding: .16rem .3rem .2rem; }
-.diy__body { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: flex; flex-direction: column; gap: .18rem; padding: 0 .06rem .2rem 0;
-  scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
-.diy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(max(5.2rem, 32px, calc(300px * var(--sp-ui, 1))), 1fr)); gap: .1rem; }
-.diy-slot {
-  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .1rem; align-items: start; min-width: 0;
-  padding: .08rem; background: rgba(255, 255, 255, .03); border: 1px solid var(--line); border-left: 3px solid var(--tc, var(--line-3));
-}
-.diy-slot--t5 { --tc: var(--tier-5); } .diy-slot--t6 { --tc: var(--tier-6); }
-.diy-slot.is-empty { display: flex; flex-direction: column; padding: 0; border-style: dashed; border-left-style: solid; }
-.diy-slot__fill {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .05rem; width: 100%; min-height: max(1.3rem, 32px, calc(84px * var(--sp-ui, 1)));
-  padding: .1rem; font: inherit; color: var(--text-md); background: none; border: 0; cursor: pointer; touch-action: manipulation;
-}
-.diy-slot__fill:hover { background: rgba(255, 255, 255, .05); color: var(--text-hi); }
-.diy-slot__fill b { font-size: max(calc(.16 * var(--t)), 11px); }
-.diy-slot__fill small { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); }
-.diy-slot__plus { display: grid; place-items: center; width: max(.4rem, 26px); height: max(.4rem, 26px); border: 1px solid var(--line-3); border-radius: 50%; }
-.diy-slot__plus .icon { width: 60%; height: 60%; }
-.diy-slot__art { display: grid; place-items: center; width: max(.9rem, 32px, calc(56px * var(--sp-ui, 1))); height: max(1.3rem, 32px, calc(84px * var(--sp-ui, 1))); overflow: hidden; background: #0a0d0c; border: 1px solid var(--line-2); }
-.diy-slot__art img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
-.diy-slot__art b { font-size: max(calc(.3 * var(--t)), 18px); color: var(--text-lo); }
-.diy-slot__body { display: flex; flex-direction: column; gap: .03rem; min-width: 0; }
-.diy-slot__head { display: flex; align-items: center; gap: .05rem; }
-.diy-slot__label { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); letter-spacing: .06em; }
-.diy-slot__name { font-size: max(calc(.17 * var(--t)), 12px); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.diy-slot__class { font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); }
-.diy-slot__kit { display: flex; align-items: center; gap: .05rem; min-width: 0; font-size: max(calc(.13 * var(--t)), 9px); color: var(--text-md); }
-.diy-slot__kit > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.diy-slot__sicon, .diy-slot__micon { flex: none; display: inline-grid; place-items: center; width: max(.24rem, 16px); height: max(.24rem, 16px); object-fit: contain; font-size: .8em; color: var(--text-lo); }
-.diy-slot__micon--none { border: 1px solid var(--line-2); }
-.diy-slot__acts { display: flex; flex-direction: column; gap: .04rem; }
-/* 0.2.2: an owned pick's 潜能 / 练度 (screens/cultivation.js) — a prototype has neither (a dim line instead) */
-.diy-slot__cult { display: block; margin-top: .03rem; font-size: max(calc(.12 * var(--t)), 9px); }
-.diy-slot__cult .lo-cult { max-width: max(2.6rem, calc(200px * var(--sp-ui, 1))); }
-.diy-slot__bad { display: flex; align-items: center; gap: .04rem; margin: .02rem 0 0; font-size: max(calc(.12 * var(--t)), 9px); color: var(--amber); }
-.diy-slot.is-bad { border-color: rgba(255, 196, 0, .45); }
 .diy-tag { display: inline-flex; align-items: center; height: 1.5em; padding: 0 .4em; font-size: max(calc(.11 * var(--t)), 8px); font-weight: 700; border-radius: 1em; white-space: nowrap; }
 .diy-tag--proto { color: var(--ice-900); background: var(--ice); }
 .diy-tag--own { color: var(--text-on-mint); background: var(--mint-500); }
-.diy-bonds { display: flex; flex-wrap: wrap; gap: .03rem .06rem; }
-.diy-bond { display: inline-flex; align-items: center; gap: .03rem; font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-md); }
-.diy-bond .bglyph, .diy-bond img { width: max(.16rem, 11px); height: max(.16rem, 11px); }
+
 /* the picker covers the tab: the roster's own list on the left and its detail on the right (screens/loadoutSections.js
    draws the sections; below 1000 px the detail slides over the list like the roster's) */
-.diy-pick { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: .08rem; padding: .12rem var(--lo-pad-x) .14rem; background: var(--bg-1, #0d1110); }
-/* the picker's header: one row of controls — the filters, the tier, the hint (it shrinks and ellipsises), the search box
-   (the roster's own `.lo-search`) and the close button — with the class filter on a second row. Every width draws it this
-   way: the hint used to take a row of its own, which cost the list a whole row on a phone. */
-.diy-pick__head { flex: none; display: flex; flex-direction: column; gap: .08rem; font-size: max(calc(.16 * var(--t)), 11px); }
-.diy-pick__label { white-space: nowrap; }
-/* the picker's own 干员列表 back button: on a phone it takes the header row once the detail covers the list, so the pane
-   loses no row of its own above it (the roster keeps its own `.lo-detail-back` inside `.lo-detail-wrap`) */
-.diy-pick__back { align-self: center; margin-bottom: 0; }
-.diy-pick:not(.is-detail) .diy-pick__back { display: none; }
-/* the picker's own top row on a phone: the 干员列表 back button beside the close button, shown once the detail covers the
-   list (the list's filter row goes with `.diy-pick__col`), so the pane starts at this row instead of losing one above it */
-.diy-pick__backrow { display: flex; align-items: center; gap: .06rem; }
-.diy-pick__note { flex: 1; min-width: 0; font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-lo); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* the picker's one close button: it rides the filter row, just right of the search box (the detail pane carries none) */
-.diy-pick__x { display: grid; place-items: center; width: max(.4rem, 28px); height: max(.4rem, 28px); color: var(--text-md); background: none; border: 1px solid var(--line-2); cursor: pointer; }
-/* The picker's two columns mirror the roster's `.lo-body` through the same shared variables: the list takes whatever is
-   left, the detail is `--lo-detail-w`. A `1.2fr / 1fr` split made the detail a SHARE of the window instead — wider than
-   干员调配's on a large screen, narrower on a small one — so the shared `.lo-dhead` wrapped differently here. */
-.diy-pick__main { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, var(--lo-detail-w)); gap: var(--lo-gap-x); }
-.diy-pick__col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: .12rem; }
-/* the element also carries .lo-list (screens/diy.js): --q / --qg / --art / --cols and the scrolling come from there */
-.diy-pick__list { display: grid; grid-template-columns: 1fr; align-content: start; gap: .06rem; }
+.diy-pick { position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; gap: .08rem; padding: .12rem var(--lo-pad-x) .14rem; background: none; }
+/* (fork) no fill of its own: the picker shows the 干员调配 screen's background (.lo--deck .lo__bg), the card deck's
+   (the user's call of 2026-11-09: it looked nothing like it) */
+
+/* (fork) the picker is the card view for 自选 operators: its deck takes the whole width, and a card opens the detail in
+   the card view's drawer over the deck's left (.lo-drawer below), the deck making room as in 干员调配 */
+.diy-pick__main { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+/* (fork) the picker's operators as the card view's cards (screens/diy.js DiyCard: the .lo-op css below), one sideways deck
+   of two rows without tier groups; the card sizes are the card view's own (they live on .lo--deck, and the picker opens
+   from the list view too) */
+.diy-pick {
+  --drawer-w: min(6.4rem, 92vw);
+  --opw: max(2.1rem, 32px, calc(100px * var(--sp-ui, 1)));
+  --rail: max(.44rem, 22px);
+  --side: max(.46rem, 28px);
+  --morew: max(4.45rem, 32px, calc(314px * var(--sp-ui, 1)));
+}
+.diy-deck { flex: 1 1 auto; min-height: 0; padding: .06rem .02rem .04rem; }
+/* (fork) a class group's marker: the tier marker's frame with the class glyph and its name down it */
+.diy-cmark .diy-cmark__css { --tc: var(--mint-500); gap: .08rem; }
+.diy-cmark__glyph { display: grid; place-items: center; width: 76%; aspect-ratio: 1; background: rgba(0, 0, 0, .35); border: 1px solid rgba(255, 255, 255, .22); }
+.diy-cmark__glyph img { width: 78%; height: 78%; object-fit: contain; }
+.diy-cmark__glyph b { font-size: max(calc(.26 * var(--t)), 16px); color: var(--mint-400); }
+.diy-cmark__name { min-height: 0; overflow: hidden; writing-mode: vertical-rl; font-size: max(calc(.16 * var(--t)), 11px); font-weight: 800; letter-spacing: .12em; color: var(--text-md); }
+/* its bottom bar: the classes to jump to, then 清空 / 取消 / 确认 */
+.diy-pick__foot.lo-bbar { height: auto; min-height: max(.8rem, 32px, calc(46px * var(--sp-ui, 1))); padding: 0; gap: .12rem; background: none; border: 0; }
+.diy-cbar { flex: 1 1 auto; min-width: 0; padding-top: 0; }
+/* (fork) 「简洁 / 展开」: both ways of showing the cards in view, the current one lit, a little card drawing on each — the
+   header's look (the user's calls of 2026-11-08), at the right of the bottom bar of both pages, a little lower there */
+.lo-bbar__tools { flex: none; display: flex; align-items: center; margin-left: auto; }
+.lo-dswitch { display: inline-flex; align-items: stretch; height: max(.7rem, 32px, calc(40px * var(--sp-ui, 1))); padding: max(.04rem, calc(3px * var(--sp-ui, 1)));
+  gap: max(.04rem, calc(3px * var(--sp-ui, 1))); background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px var(--line-2); }
+.lo-dswitch__opt { display: inline-flex; align-items: center; gap: .08rem; padding: 0 max(.12rem, calc(8px * var(--sp-ui, 1))); font: inherit; color: var(--text-md);
+  background: none; border: 0; cursor: pointer; text-align: left; transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+.lo-dswitch__opt .icon { width: max(.26rem, 16px); height: max(.26rem, 16px); flex: none; }
+.lo-dswitch__txt { display: flex; flex-direction: column; justify-content: center; line-height: 1.1; }
+.lo-dswitch__txt > span { font-size: max(calc(.18 * var(--t)), 12px); font-weight: 900; letter-spacing: .04em; }
+.lo-dswitch__txt small { font-family: var(--font-display); font-size: max(calc(.09 * var(--t)), 7px); letter-spacing: .14em; color: var(--text-dim); }
+.lo-dswitch__opt:hover:not(:disabled):not(.is-on) { color: var(--text-hi); background: rgba(255, 255, 255, .06); }
+.lo-dswitch__opt.is-on { color: #052119; background: var(--mint-400); cursor: default; }
+.lo-dswitch__opt.is-on .lo-dswitch__txt small { color: #0b3a2c; }
+.lo-dswitch__opt:disabled { opacity: .45; cursor: default; }
+
+.lo-bbar .lo-dswitch { height: max(.6rem, 32px, calc(36px * var(--sp-ui, 1))); }
+/* (fork) 干员持有 in the bottom bar, left of 简洁 / 展开: quiet, the bar's own look (the user's call of 2026-11-09) */
+.lo-ownbtn { display: inline-flex; align-items: center; gap: max(.06rem, 6px); height: max(.6rem, 32px, calc(36px * var(--sp-ui, 1)));
+  margin-right: max(.1rem, 8px); padding: 0 max(.12rem, 10px); font: inherit; font-size: max(calc(.14 * var(--t)), 11px); color: var(--text-md); cursor: pointer;
+  background: rgba(255, 255, 255, .03); border: 1px solid var(--line-2); transition: color var(--t-fast), border-color var(--t-fast); }
+.lo-ownbtn:hover { color: var(--text-hi); border-color: var(--line-3); }
+.lo-ownbtn .icon { width: max(.18rem, 13px); height: max(.18rem, 13px); color: var(--text-lo); }
+.lo-ownbtn__v { font-weight: 700; color: var(--text-hi); }
+.diy-cbar__btn { gap: .06rem; }
+.diy-cbar__glyph { width: max(.24rem, 15px); height: max(.24rem, 15px); object-fit: contain; }
+/* its ~90 cards are drawn whole (no content-visibility skip): skipped cards came back half painted after the 「详情」 slide
+   here, a stale copy left where a card had been (measured 2026-11-08); the deck is small enough to draw at once */
+.diy-deck .lo-op.has-side, .diy-deck .lo-op__morein { content-visibility: visible; }
+/* a panel scrolls (a scroll area: a layer of its own) only under the pointer or with the focus inside it, where a pointer
+   can hover; a touch screen keeps every panel scrollable */
+@media (hover: hover) {
+  .lo-op__morein { overflow: hidden; }
+  .lo-op__morein:hover, .lo-op__morein:focus-within { overflow-y: auto; }
+}
+.diy-card__rail { gap: max(.06rem, calc(4px * var(--sp-ui, 1))); padding-top: max(.04rem, calc(3px * var(--sp-ui, 1))); }
+.diy-card__prof { width: 82%; height: auto; aspect-ratio: 1; object-fit: contain; }
+.diy-card__kind .diy-tag { writing-mode: vertical-rl; height: auto; padding: .4em 0; width: 1.5em; justify-content: center; letter-spacing: .1em; }
+/* taken by another slot: said in a band over the portrait's foot (the ribbon would run the long note down the art) */
+.lo-op__ribbon.diy-card__taken { left: 0; right: 0; top: auto; bottom: 0; padding: 2px 4px; writing-mode: horizontal-tb; text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #1b1203; background: var(--amber); clip-path: none; }
 .diy-pick__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: max(calc(.3 * var(--t)), 18px); color: var(--text-lo); }
-/* a row is a .lo-card (screens/loadout.js RosterRow); only is-sel / is-taken and the 原型 / 已持有 tag are the picker's */
-.diy-opt.is-sel { border-color: var(--mint-500); background: rgba(52, 211, 153, .08); }
+/* a card is a .lo-op (screens/diy.js DiyCard); its selection is the card view's (.lo-op.is-sel), only is-taken is the
+   picker's own */
 .diy-opt.is-taken { opacity: .45; cursor: not-allowed; }
-.diy-opt.is-taken .lo-q, .diy-opt.is-taken .lo-cult { opacity: .6; }
-.diy-opt__sub { display: flex; align-items: center; flex-wrap: wrap; gap: .04rem; min-width: 0; }
-.diy-opt__class { display: inline-flex; align-items: center; gap: .03rem; font-size: max(calc(.11 * var(--t)), 8px); color: var(--text-lo); }
-.diy-opt__prof { width: max(.14rem, 10px); height: max(.14rem, 10px); }
-.diy-opt__taken { font-size: max(calc(.1 * var(--t)), 8px); color: var(--amber); }
-.diy-opt__nocult { justify-content: center; color: var(--text-dim); }
+.diy-opt.is-taken .lo-op__card, .diy-opt.is-taken .lo-op__pick { cursor: not-allowed; }
 .diy-pick__detail { flex: 1 1 auto; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   padding: .12rem .18rem .2rem; scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
 .diy-pick__foot { flex: none; display: flex; justify-content: flex-end; gap: .08rem; }
 /* 0.2.0 自选编队: the slots the player filled (the entry button's chip) */
 .lo-entry__diy { color: var(--text-on-mint); background: var(--mint-500); }
 @media (max-width: 760px) {
-  .diy { padding: .1rem .16rem .16rem; }
+
   .diy-pick { padding: .08rem var(--lo-pad-x) .1rem; }
-  .diy-slot { grid-template-columns: auto minmax(0, 1fr); }
-  .diy-slot__acts { grid-column: 1 / -1; flex-direction: row; justify-content: flex-end; }
+
 }
 
 /* ---- entry button (lobby / room / briefing) --------------------------------------------------------------------------- */
@@ -574,15 +507,12 @@
 
 /* the app screens behind the overlay do not need to animate */
 .sp-loadout-open .app-root > .screen { visibility: hidden; }
-
-/* ---- narrow / short viewports ------------------------------------------------------------------------------------------- */
-/* tighter tabs below 1200 px: the co-op briefing's countdown, chips and buttons beside three English tabs */
-@media (max-width: 1200px) {
-  .lo-tab { padding: .02rem .08rem; letter-spacing: .04em; }
-}
+/* (fork) and still: the lobby's radar sweep (and any other endless animation under the overlay) kept a new frame coming —
+   layering and visibility checks over the deck's images and cards — every frame, idle or scrolling (measured 2026-11-08) */
+.sp-loadout-open .app-root > .screen * { animation-play-state: paused; }
 @media (max-width: 1100px) {
   .lo { --lo-detail-w: 6.4rem; --lo-gap-x: .16rem; --lo-pad-x: .2rem; }
-  .lo-body { padding: .12rem var(--lo-pad-x) .16rem; }
+
   .lo-chip__lbl { display: none; }
   /* the co-op briefing's countdown takes the place of the 已调整 / 同步 chips */
   .lo-deadline ~ .lo-sync, .lo-deadline ~ .lo-count { display: none; }
@@ -601,25 +531,6 @@
 @media (max-width: 760px) {
   .lo-top { padding: 0 .16rem; }
 }
-@media (max-width: 1000px) {
-  .lo-body { grid-template-columns: minmax(0, 1fr); }
-  .lo-detail-wrap { display: none; }
-  .lo-body.is-detail .lo-roster { display: none; }
-  .lo-body.is-detail .lo-detail-wrap { display: flex; }
-  .lo-detail-back {
-    display: inline-flex; align-self: flex-start; align-items: center; gap: .04rem; margin-bottom: .08rem; padding: .04rem .12rem .04rem .04rem;
-    font: inherit; font-size: max(calc(.15 * var(--t)), 11px); color: var(--mint-400); background: transparent; border: 1px solid var(--mint-800); cursor: pointer;
-  }
-  .lo-detail-back .icon { width: .2rem; height: .2rem; }
-  /* the 自选编队 picker's own body (screens/diy.js): the same pattern over `.diy-pick__col` / its `.lo-detail-wrap` */
-  .diy-pick__main { grid-template-columns: minmax(0, 1fr); }
-  .diy-pick__main.is-detail .diy-pick__col { display: none; }
-  .diy-pick__main.is-detail > .lo-detail-wrap { display: flex; }
-}
-/* narrow phones: the row's bonds give their line to the name, the columns keep their place */
-@media (max-width: 700px) {
-  .lo-card__bonds { display: none; }
-}
 @media (max-height: 520px) {
   .lo-note { display: none; }
   .lo-dhead { grid-template-columns: max(1rem, 32px, calc(48px * var(--sp-ui, 1))) minmax(0, 1fr); padding: .1rem .14rem; }
@@ -634,7 +545,7 @@
 .lo .lo-search .field__icon { width: max(.22rem, 14px); height: max(.22rem, 14px); }
 .sp-coarse .lo-chip, .sp-coarse .lo-toggle, .sp-coarse .lo-select { min-height: 30px; }
 .sp-coarse .lo-seg button { min-height: 28px; }
-@media (prefers-reduced-motion: reduce) { .lo, .lo .lo-card { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .lo { animation: none; transition: none; } }
 
 /* 导出 / 导入 (干员调配 presets): the dialog is the shared Modal, rendered NEXT TO `.lo` (a sibling) rather than inside
    it — so components.css `.modal { position: fixed }` and its z-index above the overlay apply as they do everywhere
@@ -656,6 +567,20 @@
 .lo-io__text:focus { border-color: var(--mint-700); }
 .lo-io__text::placeholder { color: var(--text-lo); }
 .lo-io__file { display: none; }
+/* (fork) the one 导出 / 导入 dialog (screens/loadout.js, ui/backupModel.js): the parts as ticks, each with its count (导出)
+   or, read from the text, what it holds (导入; a part its own parser refused says why) */
+.lo-io__parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(2.4rem, 150px), 1fr)); gap: max(.06rem, 6px); margin: 0 0 max(.1rem, 8px); }
+.lo-io__part { display: flex; flex-wrap: wrap; align-items: center; gap: max(.06rem, 6px); padding: max(.06rem, 6px) max(.1rem, 8px); cursor: pointer;
+  font-size: max(calc(.16 * var(--t)), 12px); color: var(--text-hi); background: rgba(255, 255, 255, .03); border: 1px solid var(--line-2); }
+.lo-io__part:has(input:checked) { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
+.lo-io__part input { margin: 0; accent-color: var(--mint-500); }
+.lo-io__part b { margin-left: auto; color: var(--mint-400); }
+.lo-io__part.is-empty b { color: var(--text-lo); }
+.lo-io__part small { flex-basis: 100%; font-size: max(calc(.13 * var(--t)), 10px); color: var(--text-lo); }
+.lo-io__part.is-bad { cursor: default; border-style: dashed; }
+.lo-io__part.is-bad small { color: var(--red-premium); }
+.lo-io__found { margin-top: max(.1rem, 8px); }
+.lo-io__bad { margin: max(.08rem, 6px) 0 0; font-size: max(calc(.15 * var(--t)), 11px); color: var(--red-premium); }
 
 /* ---- 时装 / Outfits (fork, docs/OUTFITS.md; screens/outfits.js) ---------------------------------------------------- */
 /* the switch above the detail header: 调配 ⇄ 时装 (top right) */
@@ -725,7 +650,7 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
    device with 「请将设备横屏」 — has a detail panel of 193–263 px (measured 740×360 … 932×430), and the 1:2 tile is
    264–379 px tall there, which made 皮肤 the ONE section of that panel no phone could see whole (the 潜能与练度 / 技能 /
    局内数值 / 模组 sections are 135–163 px in the same panel). On that short, narrow panel the tile draws the 1:1 avatar
-   — the shape of the roster's own `.lo-card__art` — five to the row, and the section is 216 px at 844×390: it fits. */
+   — the shape of the old list rows' portraits — five to the row, and the section is 216 px at 844×390: it fits. */
 .lo-skins { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .1rem; align-items: start; }
 .lo-skin {
   position: relative; min-width: 0; display: flex; flex-direction: column; gap: .04rem; padding: .06rem;
@@ -767,35 +692,34 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 
 /* ==========================================================================================
    卡片视图 (optional; js/screens/loadout.js DeckView / DeckCard / TierMark / DeckBar): the 干员调配 tab laid out after
-   the event's 物资调配处 — tier groups of cards scrolling sideways, a bottom bar of tier jumps, 快速配置 columns beside
-   the cards, and the detail in a drawer over the left of the deck. The list (.lo-body above) stays the default.
+   the event's 物资调配处 — tier groups of cards scrolling sideways, a bottom bar of tier jumps, each card's own skill /
+   module column (fork), 「详情」 panels beside the cards, and the detail in a drawer over the left of the deck. The
+   only view since the fork's 2026-11-08 change (the list view was removed).
    The tier marker is the official shopLevelSprite/shop_level_tag_N; the rest is drawn here [ASSUMED]: the card frame
-   and its colours, the CSS tier marker (the sprite's fallback), the bottom bar, the 快速配置 columns (see the
+   and its colours, the CSS tier marker (the sprite's fallback), the bottom bar, the skill / module column and the 「详情」 panel (see the
    loadout.js header for the sources).
    ========================================================================================== */
 .lo--deck {
   --drawer-w: min(6.4rem, 92vw);
   --opw: max(2.1rem, 32px, calc(100px * var(--sp-ui, 1)));          /* a card */
   --rail: max(.44rem, 22px);          /* its left rail: tier, levels */
-  --qw: max(.9rem, 32px, calc(48px * var(--sp-ui, 1)));             /* the 快速配置 column (skills / modules) */
-  --qcw: max(1.56rem, 32px, calc(104px * var(--sp-ui, 1)));         /* the 快速配置 column (潜能 · 练度) */
+  --side: max(.46rem, 28px);                                        /* (fork) a card's skill / module column */
+  --morew: max(4.45rem, 32px, calc(314px * var(--sp-ui, 1)));      /* (fork) a card's 「详情」 panel: wide enough for a skill's SP type, 初始, 消耗, 持续 and 充能 on one line (429 px of 4.45rem at the user's 2319×1358, 2026-11-08) */
 }
+/* (fork) a step darker than before, the mint glow at the top left kept (the user's call of 2026-11-09: option 2 — black
+   was too dark) */
 .lo--deck .lo__bg {
   background:
     radial-gradient(60% 80% at 12% 0%, rgba(78, 216, 175, .05), transparent 60%),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 1.2rem),
     repeating-linear-gradient(0deg, rgba(255, 255, 255, .02) 0 1px, transparent 1px 1.2rem),
-    linear-gradient(180deg, #161918, #0c0e0d 70%, #090b0a);
+    linear-gradient(180deg, #0e1110, #080a09 70%, #050606);
 }
 
 /* ---- top bar ---- */
 /* above the deck: while a 转场 runs (a transform), the top-right block is its own stacking context, and its 筛选 / ⋯
    popovers fell behind the tier groups drawn after it (a quick 筛选 right after coming back from 干员持有) */
 .lo-top--deck { z-index: 6; }
-.lo-info { display: grid; place-items: center; width: max(.5rem, 32px); height: max(.5rem, 32px); padding: 0; color: var(--text-hi);
-  background: rgba(255, 255, 255, .06); border: 1px solid var(--line-2); cursor: pointer; }
-.lo-info:hover { border-color: var(--mint-500); color: var(--mint-400); }
-.lo-info .icon { width: 56%; height: 56%; }
 /* never wider than the centre column (§35.51: centred in it at its own width, it ran under ⓘ and 已同步 at 1280–1440 px in
    English and Japanese) */
 .lo-top__note { margin: 0; max-width: min(8.4rem, 100%); font-size: max(calc(.15 * var(--t)), 10px); color: var(--text-lo); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -804,54 +728,76 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   border: 1px solid var(--line-2); cursor: pointer; white-space: nowrap; }
 .lo-tbtn:hover, .lo-tbtn.is-on { color: var(--text-hi); border-color: var(--mint-700); }
 .lo-tbtn .icon { width: max(.18rem, 12px); height: max(.18rem, 12px); }
-/* the list view's way in: the end of its filter row (the top bar has no room left on a narrow phone in English) */
-.lo-viewbtn { margin-left: auto; }
-.lo-tbtn__n { min-width: max(.2rem, 14px); padding: 0 3px; font-size: max(calc(.12 * var(--t)), 9px); text-align: center; color: #04140f; background: var(--mint-500); }
+
 .lo-popwrap { position: relative; }
 .lo-pop { position: absolute; top: calc(100% + .08rem); right: 0; z-index: 20; padding: .14rem; background: linear-gradient(180deg, #1d2321, #121615);
   border: 1px solid var(--line-2); box-shadow: 0 .14rem .4rem rgba(0, 0, 0, .6); animation: lo-in 140ms var(--ease-out) backwards; }
 .lo-pop--filter { width: min(9.4rem, calc(100vw - 24px)); display: flex; flex-direction: column; gap: .12rem; }
+/* (fork) the 自选编队 picker's 筛选 has no tier row: its search takes the whole first row */
+.lo-frow--search .lo-search { flex: 1 1 auto; max-width: none; margin-left: 0; }
 .lo-pop__row { display: flex; align-items: center; gap: .12rem; padding-top: .1rem; border-top: 1px solid var(--line); }
 .lo-pop__k { font-size: max(calc(.14 * var(--t)), 10px); color: var(--text-dim); }
 .lo-pop__row .lo-seg { margin: 0; }
 .lo-pop__row .lo-tbtn { margin-left: auto; }
-.lo-pop--menu { display: flex; flex-direction: column; min-width: max(2.4rem, 32px, calc(150px * var(--sp-ui, 1))); padding: .06rem; }
-.lo-pop--menu button { display: flex; align-items: center; gap: .1rem; height: max(.44rem, 32px); padding: 0 .14rem; font: inherit; font-size: max(calc(.16 * var(--t)), 12px);
-  color: var(--text-md); background: none; border: 0; text-align: left; cursor: pointer; }
-.lo-pop--menu button:hover:not(:disabled) { color: var(--text-hi); background: rgba(78, 216, 175, .1); }
-.lo-pop--menu button:disabled { opacity: .4; cursor: default; }
-.lo-pop--menu button.is-danger:hover:not(:disabled) { color: var(--red-premium); background: rgba(255, 84, 84, .1); }
-.lo-pop--menu .icon { width: max(.18rem, 12px); height: max(.18rem, 12px); }
-/* 干员持有 and 快速配置: two big blocks at the right */
-.lo-assist, .lo-quickbtn { display: inline-flex; align-items: stretch; height: max(.7rem, 32px, calc(40px * var(--sp-ui, 1))); padding: 0; font: inherit; border: 0; cursor: pointer; text-align: left; }
-.lo-assist__txt, .lo-quickbtn__txt { display: flex; flex-direction: column; justify-content: center; padding: 0 max(.14rem, calc(8px * var(--sp-ui, 1))); line-height: 1.1; }
-.lo-assist__icon, .lo-quickbtn__icon { display: grid; place-items: center; width: max(.62rem, 32px, calc(34px * var(--sp-ui, 1))); }
-.lo-assist__icon .icon, .lo-quickbtn__icon .icon { width: 58%; height: 58%; }
-.lo-assist { color: #052119; background: var(--mint-500); }
-.lo-assist:hover { background: var(--mint-400); }
-.lo-assist__k { font-size: max(calc(.15 * var(--t)), 11px); font-weight: 700; }
-.lo-assist__v { font-size: max(calc(.22 * var(--t)), 13px); font-weight: 800; }
-.lo-assist__icon { margin: .06rem .06rem .06rem 0; color: var(--mint-400); background: #0b1d18; }
-.lo-quickbtn { color: #111614; background: #eef1ef; }
-.lo-quickbtn:hover:not(:disabled) { background: #fff; }
-.lo-quickbtn:disabled { opacity: .45; cursor: default; }
-.lo-quickbtn__txt > span { font-size: max(calc(.2 * var(--t)), 13px); font-weight: 900; letter-spacing: .04em; }
-.lo-quickbtn__txt small { font-family: var(--font-display); font-size: max(calc(.09 * var(--t)), 7px); letter-spacing: .14em; color: #8b938f; }
-.lo-quickbtn__icon { margin: .06rem .06rem .06rem 0; color: #eef1ef; background: #1a1f1d; }
-.lo-qbar__k { font-size: max(calc(.15 * var(--t)), 11px); color: var(--text-lo); white-space: nowrap; }
-.lo-qseg { display: inline-flex; padding: 3px; background: rgba(0, 0, 0, .45); border: 1px solid var(--line-2); border-radius: 999px; }
-.lo-qseg button { height: max(.4rem, 28px); padding: 0 max(.2rem, calc(12px * var(--sp-ui, 1))); font: inherit; font-size: max(calc(.16 * var(--t)), 12px); font-weight: 800; color: var(--text-md);
-  background: none; border: 0; border-radius: 999px; cursor: pointer; white-space: nowrap; }
-.lo-qseg button.is-on { color: #111614; background: #eef1ef; }
+/* (fork) the top bar's right: 导出 / 导入 (one above the other), 搜索 and 恢复默认 (干员持有: 全部持有) in one tray — the skin
+   of the bottom bar's 简洁 / 展开 / 时装 switch: a dark well, its buttons tiles inside it, the labels its bold type (the
+   user's calls of 2026-11-09: one clean family, nothing tiny) */
+.lo-tray { flex: none; display: inline-flex; align-items: stretch; height: max(.7rem, 36px, calc(44px * var(--sp-ui, 1))); padding: max(.04rem, calc(3px * var(--sp-ui, 1)));
+  gap: max(.04rem, calc(3px * var(--sp-ui, 1))); background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px var(--line-2); }
+.lo-tray__stack { display: flex; flex-direction: column; gap: max(.03rem, calc(2px * var(--sp-ui, 1))); }
+.lo-tray .lo-popwrap { display: flex; }
+.lo-tray__btn, .lo-tray .lo-filterbtn { display: inline-flex; align-items: center; gap: .08rem; height: auto; padding: 0 max(.16rem, calc(10px * var(--sp-ui, 1))); font: inherit;
+  font-size: max(calc(.18 * var(--t)), 12px); font-weight: 900; letter-spacing: .04em; line-height: 1.1; color: var(--text-md); white-space: nowrap;
+  background: rgba(255, 255, 255, .045); border: 0; box-shadow: none; cursor: pointer; transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out); }
+.lo-tray__btn .icon, .lo-tray .lo-filterbtn__icon .icon { width: max(.26rem, 16px); height: max(.26rem, 16px); flex: none; color: var(--mint-400); }
+.lo-tray__stack .lo-tray__btn { flex: 1 1 0; font-size: max(calc(.15 * var(--t)), 11px); }
+.lo-tray__stack .lo-tray__btn .icon { width: max(.2rem, 13px); height: max(.2rem, 13px); }
+.lo-tray__btn:hover:not(:disabled), .lo-tray .lo-filterbtn:hover { color: var(--text-hi); background: rgba(255, 255, 255, .1); }
+.lo-tray__btn:disabled { opacity: .45; cursor: default; }
+/* 搜索: the tray's main tile, white type; mint-edged while a filter is on */
+.lo-tray .lo-filterbtn { color: var(--text-hi); }
+.lo-tray .lo-filterbtn.is-on { background: rgba(78, 216, 175, .14); box-shadow: inset 0 0 0 1px var(--mint-500); }
+.lo-tray .lo-filterbtn__icon { display: contents; }
+.lo-tray .lo-filterbtn__txt { padding: 0; }
+.lo-tray .lo-filterbtn__txt > span { font-size: inherit; }
+/* 恢复默认 warns red on hover: it resets every operator (after a confirm) */
+.lo-tray .lo-resetbtn .icon { color: inherit; }
+.lo-tray .lo-resetbtn:hover:not(:disabled) { color: var(--red-premium); background: rgba(255, 84, 84, .1); }
+/* 干员持有 (and the fork's 筛选): big blocks at the right */
+.lo-filterbtn { display: inline-flex; align-items: stretch; height: max(.7rem, 32px, calc(40px * var(--sp-ui, 1))); padding: 0; font: inherit; border: 0; cursor: pointer; text-align: left; }
+.lo-filterbtn__txt { display: flex; flex-direction: column; justify-content: center; padding: 0 max(.14rem, calc(8px * var(--sp-ui, 1))); line-height: 1.1; }
+.lo-filterbtn__icon { display: grid; place-items: center; width: max(.62rem, 32px, calc(34px * var(--sp-ui, 1))); }
+.lo-filterbtn__icon .icon { width: 58%; height: 58%; }
+/* (fork) 筛选: a block as tall as 干员持有 (the user's call of 2026-11-08: the small chip was easy to miss), its icon on
+   the left; mint-edged while a filter is on, the count in a badge */
+/* (fork) 搜索: the bar's main control, in its own look (a solid mint block was too loud: the user's call of 2026-11-09) */
+.lo-filterbtn { position: relative; color: var(--text-hi); background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px var(--line-3); }
+.lo-filterbtn:hover { background: rgba(255, 255, 255, .1); }
+.lo-filterbtn.is-on { box-shadow: inset 0 0 0 1px var(--mint-500); }
+.lo-filterbtn__icon { margin: .06rem 0 .06rem .06rem; color: var(--mint-400); background: #0b1d18; }
+.lo-filterbtn__txt { padding-right: max(.2rem, calc(12px * var(--sp-ui, 1))); }
+.lo-filterbtn__txt > span { font-size: max(calc(.2 * var(--t)), 13px); font-weight: 900; letter-spacing: .04em; }
+.lo-filterbtn__n { position: absolute; right: -4px; top: -4px; min-width: max(.24rem, 16px); padding: 0 3px; font-size: max(calc(.12 * var(--t)), 9px); line-height: 1.5;
+  text-align: center; color: #04140f; background: var(--mint-500); }
 
 /* ---- the deck ---- */
-.lo-deckwrap { flex: 1 1 auto; min-height: 0; display: flex; }
+.lo-deckwrap { position: relative; flex: 1 1 auto; min-height: 0; display: flex; } /* (fork) relative: a 自选编队 slot's picker covers it */
 .lo-deck { position: relative; flex: 1 1 auto; min-width: 0; display: flex; align-items: stretch; gap: .34rem; padding: .24rem .36rem .2rem;
   overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
   scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; }
-.lo-deck.is-dragging, .lo-deck.is-dragging .lo-op__card, .lo-deck.is-dragging .lo-op__pick { cursor: grabbing; user-select: none; }
+/* (fork) the deck scrolls on the compositor: Chrome did not promote it on its own (its translucent background), so every
+   step of a drag repainted and regrouped the whole page's layers — Layerize 2.3–4.0 s over a drag in 「展开」 against
+   0.4 s promoted, its slow frames 12–21 ms against 4 ms at full speed (measured 2026-11-08) */
+.lo-deck { will-change: scroll-position; }
+/* a mouse drag scrolls it (screens/loadoutDeck.js useDragScroll), so a press on a card never starts a text selection.
+   Nothing on the deck changes while it moves: a class there restyles every card under it, 15 600 elements in 「展开」,
+   165–187 ms each switch in the user's Vivaldi at 2319×1358 ×1.5 (measured 2026-11-08), where a hover over a card costs
+   under a millisecond */
+.lo-deck { user-select: none; }
+/* the grabbing hand during a drag: a clear sheet over the page (one element, 0.3 ms) */
+.lo-grabsheet { position: fixed; inset: 0; z-index: 2147483000; cursor: grabbing; contain: strict; }
 .lo-deck--empty { align-items: center; justify-content: center; }
-.lo-deck.has-drawer { padding-left: calc(var(--drawer-w) + .3rem); scroll-padding-left: calc(var(--drawer-w) + .2rem); }
+/* (fork) the drawer is a pure overlay over the deck's left: no room made, no scroll (the user's call of 2026-11-09) */
 .lo-tgroup { flex: none; display: flex; align-items: stretch; gap: .18rem; }
 /* the group's marker: the official sprite (150 × 595 design px: 'NO.', the numeral, the event's vertical line; at its
    design size [ASSUMED], shrunk to fit a short deck, the count below it) or the CSS marker when that art is missing */
@@ -871,69 +817,184 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-op--t2 { --tc: var(--tier-2); } .lo-op--t3 { --tc: var(--tier-3); } .lo-op--t4 { --tc: var(--tier-4); }
 .lo-op--t5 { --tc: var(--tier-5); } .lo-op--t6 { --tc: var(--tier-6); }
 .lo-op__card { position: relative; width: var(--opw); min-height: 0; display: grid; grid-template-columns: var(--rail) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto auto; column-gap: max(.05rem, calc(3px * var(--sp-ui, 1))); padding: max(.06rem, calc(3px * var(--sp-ui, 1))) max(.06rem, calc(3px * var(--sp-ui, 1))) max(.07rem, calc(4px * var(--sp-ui, 1)));
-  background: linear-gradient(180deg, rgba(44, 50, 48, .94), rgba(24, 28, 27, .96)); border: 1px solid rgba(255, 255, 255, .08);
+  grid-template-rows: minmax(0, 1fr) auto; column-gap: max(.05rem, calc(3px * var(--sp-ui, 1))); padding: max(.06rem, calc(3px * var(--sp-ui, 1))) max(.06rem, calc(3px * var(--sp-ui, 1))) max(.07rem, calc(4px * var(--sp-ui, 1)));
+  background: linear-gradient(180deg, rgba(44, 50, 48, .94), rgba(24, 28, 27, .96)); border: 1px solid transparent;
   box-shadow: 0 .05rem .16rem rgba(0, 0, 0, .45); transition: border-color var(--t-fast), box-shadow var(--t-fast); cursor: pointer; }
-.lo-op:hover .lo-op__card { border-color: rgba(255, 255, 255, .22); }
+/* (fork) no frame around a card (the user's call of 2026-11-09): the border is clear, kept for the selection's mint ring
+   and the 自选 slot's amber warning */
 .lo-op.is-sel .lo-op__card { border-color: var(--mint-400); box-shadow: 0 0 0 1px var(--mint-400), 0 0 .18rem rgba(89, 244, 202, .3); }
-.lo-op__rail { grid-row: 1 / 3; grid-column: 1; display: flex; flex-direction: column; align-items: center; gap: max(.08rem, calc(4px * var(--sp-ui, 1))); padding-top: 2px; }
+.lo-op__rail { position: relative; z-index: 2; grid-row: 1 / -1; grid-column: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: max(.08rem, calc(4px * var(--sp-ui, 1))); padding-top: 2px; }
 /* The square sprite needs the rail's full height too: width alone leaves an overflowing grid image (#811). */
 .lo-op__tier.tier { --tier-h: var(--rail); width: var(--tier-h); height: var(--tier-h); }
 .lo-op__tier img { min-width: 0; min-height: 0; }
 .lo-op__lv { display: flex; flex-direction: column; align-items: center; gap: max(.05rem, calc(3px * var(--sp-ui, 1))); width: 86%; padding: max(.06rem, calc(3px * var(--sp-ui, 1))) 0;
   background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px; }
-.lo-op__lvrow { display: flex; flex-direction: column; align-items: center; gap: max(.02rem, calc(1px * var(--sp-ui, 1))); line-height: 1; }
-.lo-op__lvrow b { font-size: max(calc(.15 * var(--t)), 10px); color: var(--text-md); }
+.lo-op__lvrow, .lo-op__pot { display: flex; flex-direction: column; align-items: center; gap: max(.02rem, calc(1px * var(--sp-ui, 1))); line-height: 1; }
+.lo-op__lvrow b, .lo-op__pot b { font-size: max(calc(.15 * var(--t)), 10px); color: var(--text-md); }
 .lo-op__lvrow.is-elite b { color: var(--gold-2); }
 .lo-op__phase { display: block; flex: none; width: max(.24rem, 14px); height: max(.2rem, 12px); object-fit: contain; opacity: .65;
   font-size: max(calc(.12 * var(--t)), 9px); text-align: center; color: var(--text-md); }
 .lo-op__lvrow.is-elite .lo-op__phase { opacity: 1; color: var(--gold-2); }
 .lo-op__lvrow.is-elite img.lo-op__phase { filter: brightness(0) saturate(100%) invert(85%) sepia(70%) saturate(655%) hue-rotate(350deg); }
 .lo-op__mark { width: max(.12rem, 8px); height: max(.12rem, 8px); margin-top: auto; background: var(--mint-400); transform: rotate(45deg); box-shadow: 0 0 6px rgba(89, 244, 202, .6); }
-.lo-op__pick { grid-row: 1; grid-column: 2; position: relative; display: block; min-height: 0; padding: 0; overflow: hidden; cursor: pointer;
-  background: linear-gradient(180deg, #d7dbd9, #aeb4b1 70%, #8d9390); border: 1px solid rgba(240, 244, 242, .55); }
-.lo-op__art { position: absolute; inset: 0 0 max(.42rem, calc(22px * var(--sp-ui, 1))) 0; display: block; overflow: hidden; }
-.lo-op__art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 6%; display: block; }
-.lo-op__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: max(calc(.5 * var(--t)), 22px); font-weight: 900; color: rgba(17, 22, 20, .45); }
-.lo-op__sub { position: absolute; left: 2px; top: 2px; width: max(.2rem, 12px); height: max(.2rem, 12px); padding: 2px; object-fit: contain; background: rgba(20, 24, 23, .85); }
-.lo-op__ribbon { position: absolute; right: 3px; top: 0; padding: 3px 3px 7px; font-size: max(calc(.11 * var(--t)), 8px); font-weight: 800; line-height: 1.1; writing-mode: vertical-rl;
+/* (fork) the portrait is the whole card's background, no frame: the rail, the skill / module column, the name and the
+   bonds sit on it over shades from the left, the right and the bottom (the user's calls of 2026-11-08) */
+.lo-op__pick { position: absolute; inset: 0; z-index: 0; display: block; padding: 0; overflow: hidden; cursor: pointer; border: 0; }
+.lo-op__pick::before { content: ''; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, rgba(12, 16, 15, .9), rgba(12, 16, 15, .5) 16%, transparent 34%, transparent 64%, rgba(12, 16, 15, .55) 80%, rgba(12, 16, 15, .9)),
+    linear-gradient(0deg, rgba(12, 16, 15, .95), rgba(12, 16, 15, .6) 16%, transparent 34%); }
+.lo-op__side, .lo-op__meta, .lo-op__bonds { position: relative; z-index: 2; }
+/* a portrait (an operator's, the 自选干员 slot's: a cut-out) stands on near-black with a faint glow behind the head, so
+   dark hair still parts from it (the user's calls: no pale card 2026-11-08, darker — option C — 2026-11-09) */
+.lo-op__pick { background: radial-gradient(ellipse 75% 55% at 50% 30%, #1c2422, #070908 75%, #030404); }
+.lo-op__art { position: absolute; inset: 0; display: block; overflow: hidden; }
+.lo-op__art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; display: block; }
+.lo-op__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: max(calc(.5 * var(--t)), 22px); font-weight: 900; color: rgba(255, 255, 255, .22); }
+/* (fork) the branch icon sits on the rail under the tier (the picker: under the class), above the levels */
+.lo-op__sub { flex: none; display: block; width: 70%; height: auto; aspect-ratio: 1; object-fit: contain; opacity: .85; }
+/* (fork) 潜能: the level pill's third row (screens/loadoutDeck.js PotBadge) — the mode's potential mark (ui/outer
+   potential_bg's shape), muted as the promotion icons: the ranks below in white, the current one's blade in the elite's
+   gold, the rest dim; solid fills, so crossing strips do not stack lighter */
+.lo-op__potstar { display: block; flex: none; width: max(.24rem, 14px); height: max(.2rem, 12px); } /* the promotion icon's box (.lo-op__phase) */
+.lo-op__potstar polygon { fill: #4a5351; }
+.lo-op__potstar polygon.is-past { fill: #c3cac7; }
+/* the elite promotion icon's own yellow (its filter above turns white into rgb(255, 240, 7), measured 2026-11-09) */
+.lo-op__potstar polygon.is-on { fill: rgb(255, 240, 7); }
+.lo-op__ribbon { position: absolute; z-index: 2; right: 3px; top: 0; padding: 3px 3px 7px; font-size: max(calc(.11 * var(--t)), 8px); font-weight: 800; line-height: 1.1; writing-mode: vertical-rl;
   color: var(--ice-900); background: var(--ice); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 5px), 0 100%); }
-.lo-op__kit { position: absolute; left: 0; right: 0; bottom: 0; height: max(.42rem, 22px); display: flex; align-items: center; gap: 3px; padding: 0 3px;
-  background: linear-gradient(180deg, rgba(20, 24, 23, .7), rgba(20, 24, 23, .95)); }
-.lo-op__slot { display: grid; place-items: center; width: max(.34rem, 18px); height: max(.34rem, 18px); background: rgba(0, 0, 0, .5); border: 1px solid rgba(255, 255, 255, .2); }
-.lo-op__slot .lo-sicon, .lo-op__slot .lo-mglyph { width: 100%; height: 100%; border: 0; }
-.lo-op__slot .lo-sicon__outline, .lo-op__slot .lo-sicon__ring { display: none; }
-.lo-op__slot .lo-mglyph__t { font-size: max(calc(.16 * var(--t)), 10px); }
-.lo-op__meta { grid-row: 2; grid-column: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 0; padding-top: max(.04rem, calc(2px * var(--sp-ui, 1))); }
-.lo-op__pot { display: flex; gap: 2px; }
-.lo-op__pot i { width: max(.06rem, 4px); height: max(.06rem, 4px); background: rgba(255, 255, 255, .18); transform: rotate(45deg); }
-.lo-op__pot i.is-on { background: #c9cfcc; }
-.lo-op__name { max-width: 100%; font-size: max(calc(.17 * var(--t)), 11px); font-weight: 800; color: var(--text-hi); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lo-op__bonds { grid-row: 3; grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 3px; min-height: max(.26rem, 16px); padding-top: 2px; }
-.lo-op__bond { display: grid; place-items: center; width: max(.26rem, 16px); height: max(.26rem, 16px); border-radius: 50%; background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .22); }
+/* (fork) the name at the card's foot, a size up, the card's full width under the portrait and the column (the
+   user's call of 2026-11-08: no gap under them, and a long name breaks between words, not in one) */
+.lo-op__meta { grid-row: 2; grid-column: 2 / -1; display: flex; flex-direction: column; align-items: flex-end; gap: max(.03rem, 2px); min-width: 0; }
+/* (fork) a long name wraps onto a second line, never cut with … (the user's call of 2026-11-08); the portrait gives way */
+.lo-op__name { max-width: 100%; font-size: max(calc(.21 * var(--t)), 13px); font-weight: 800; line-height: 1.15; color: var(--text-hi); text-align: right; overflow-wrap: break-word; text-wrap: balance; }
+/* (fork) the bonds stand down the rail's foot, one under another (the user's call of 2026-11-08) */
+.lo-op__bonds { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: max(.04rem, 3px); }
+.lo-op__bond { flex: none; display: grid; place-items: center; width: max(.3rem, 18px); height: max(.3rem, 18px); border-radius: 50%; background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .22); }
 .lo-op__bond img { width: 70%; height: 70%; object-fit: contain; }
 .lo-op.is-standin .lo-op__art img { filter: saturate(.5); }
-/* 快速配置: a column of choices beside the card */
-.lo-op__quick { flex: none; width: var(--qw); --q: calc(var(--qw) - max(.12rem, 8px)); --qg: max(.06rem, 4px);
-  display: flex; flex-direction: column; align-items: center; gap: var(--qg); padding: max(.06rem, calc(4px * var(--sp-ui, 1))) 0; overflow-y: auto; scrollbar-width: none;
-  background: rgba(16, 20, 19, .92); border: 1px solid rgba(255, 255, 255, .08); border-left: 0; animation: lo-q-in 160ms var(--ease-out) backwards; }
-@keyframes lo-q-in { from { opacity: 0; transform: translateX(-6px); } }
-.lo-op__quick .lo-q:not(.is-on):not(.lo-q--empty) { opacity: .55; }
-.lo-op__quick .lo-q.is-on { opacity: 1; }
-.lo-op__quick--cult { width: var(--qcw); padding: max(.08rem, calc(5px * var(--sp-ui, 1))); justify-content: center; }
-.lo-op__quick--cult .lo-cult { flex-direction: column; align-items: stretch; width: 100%; }
-.lo-op__quick--cult .lo-select { width: 100%; }
-.lo-op__none { margin: auto 0; font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-dim); writing-mode: vertical-rl; letter-spacing: .2em; }
+/* (fork) the card's own column at its right: the skills it has at its top, the elite's modules at its bottom — every
+   module as its own button where the card is tall enough (a PC, a tablet), one button stepping through them (pips: how
+   many, which one is on) on a short screen (a phone in landscape; the media query below). The card grows by the
+   column, so the portrait keeps its width. The buttons shrink with a short card (a phone at 特大) rather than overflow
+   it, their icons kept square. */
+.lo-op.has-side .lo-op__card { flex: none; width: var(--cw); grid-template-columns: var(--rail) minmax(0, 1fr) var(--side); }
+/* (fork) an operator card at its own, explicit width (the card, and its 「详情」 panel while unfolded): a card off screen
+   is skipped (content-visibility) — 112 cards and their panels are ~19 000 elements, one layout of all of them ~150 ms
+   on a PC — so a resize or a tap's redraw lays out only the cards in view. 「详情」 unfolds by this width (the panel
+   inside keeps its own, clipped), the slide itself is transforms (screens/loadout.js slideDetails). The clip margin
+   keeps the selected card's glow. */
+.lo-op.has-side { --cw: calc(var(--opw) + var(--side) + max(.05rem, 3px)); flex: none; width: var(--cw); content-visibility: auto;
+  contain-intrinsic-height: auto 100px; }
+/* clipped only while it slides (its panel goes back under the card): a clip on every card made the browser regroup the
+   page's compositing layers on every frame of a scroll — the slow frames of a drag at a 4× slowed CPU 133–213 ms with it,
+   46–67 ms without (measured 2026-11-08, three runs each) */
+.lo-op.has-side.is-sliding { overflow: clip; overflow-clip-margin: max(.2rem, calc(6px * var(--sp-ui, 1))); }
+/* (fork) 「展开」's width for every card at once (the deck's mode: the scrollbar settles with the press); the panel inside
+   is drawn per card (data-open: screens/loadoutDeck.js slideDetails — near the view at once, the rest when idle) */
+.lo-deck.is-details .lo-op.has-side { width: calc(var(--cw) + var(--morew)); }
+.lo-op__side { grid-row: 1; grid-column: 3; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  gap: max(.08rem, calc(5px * var(--sp-ui, 1))); min-height: 0; cursor: default; }
+.lo-op__skills, .lo-op__mlist, .lo-op__mstep { display: flex; flex-direction: column; align-items: center; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); width: 100%; min-height: 0; flex: 0 1 auto; }
+.lo-op__mods { position: relative; display: flex; flex-direction: column; align-items: center; width: 100%; min-height: 0; flex: 0 1 auto;
+  padding-top: max(.06rem, calc(4px * var(--sp-ui, 1))); }
+.lo-op__mods::before { content: ""; position: absolute; left: 15%; right: 15%; top: 0; height: 1px; background: var(--line-2); }
+.lo-op__mstep { display: none; gap: 2px; }
+.lo-op__mstep.is-always { display: flex; }
+@media (max-height: 560px) {
+  .lo-op__mlist { display: none; }
+  .lo-op__mstep { display: flex; }
+}
+.lo-op__side .lo-q { flex: 0 1 auto; width: 100%; height: auto; aspect-ratio: 1; min-height: 0; max-height: var(--side); }
+.lo-op__side .lo-q:not(.is-on) { opacity: .5; }
+.lo-op__side .lo-q:not(.is-on):hover:not(:disabled) { opacity: .9; }
+.lo-op__side .lo-q:disabled { cursor: default; opacity: .35; }
+/* (fork) the 时装 view's column (screens/loadoutDeck.js OutfitSide): the operator's own look, then its outfits, as portrait
+   icons from the top; the worn one ringed in mint; more than fit scroll within the column */
+.lo-op__side--ofit { justify-content: flex-start; gap: max(.05rem, calc(4px * var(--sp-ui, 1))); overflow-y: auto; scrollbar-width: none; }
+.lo-op__side--ofit::-webkit-scrollbar { display: none; }
+.lo-op__side .lo-q.lo-q--ofit { flex: none; width: 100%; max-height: none; overflow: hidden; background: rgba(0, 0, 0, .5); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18); }
+.lo-q--ofit .lo-q__ofit, .lo-q--ofit img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.lo-q--ofit b { font-size: max(calc(.14 * var(--t)), 10px); color: var(--text-md); }
+.lo-q--ofit.is-on { box-shadow: inset 0 0 0 2px var(--mint-400), 0 0 .08rem rgba(89, 244, 202, .45); }
+.lo-op__side .lo-sicon--q, .lo-op__side .lo-mglyph--q { width: auto; height: 88%; max-width: 88%; aspect-ratio: 1; }
+.lo-op__nomod { font-size: max(calc(.14 * var(--t)), 10px); color: var(--text-dim); }
+.lo-op__mpips { display: flex; justify-content: center; gap: 2px; }
+.lo-op__mpips i { width: max(.05rem, 3px); height: max(.05rem, 3px); background: rgba(255, 255, 255, .2); }
+.lo-op__mpips i.is-on { background: var(--gold-2); }
+.lo-op.is-standin .lo-op__side { opacity: .55; }
+/* (fork) 「详情」: the skills (descriptions at the elite's level) and every module beside the card, the Detail's own
+   blocks drawn smaller. Always drawn (no element added on the toggle), but out of layout while folded (display: none):
+   laid out with its card, every card scrolling into view laid out its panel's ~350 elements too, and scrolling stuttered
+   (measured 2026-11-08 at a 2–4× slowed CPU). Unfolded (each card's data-open, switched by screens/loadoutDeck.js
+   slideDetails: near the view at once, the rest when idle), only the panels near the view are laid out (content-visibility on .lo-op__morein). The
+   slide glides the cards in view from their old places, each panel out from under its card (transforms: no layout per
+   frame); its content keeps its width (no text reflow) and scrolls on its own. */
+.lo-op__more { flex: none; display: block; width: var(--morew); min-height: 0; }
+/* (fork) the panel under its card, and the card above it, only while they slide: a positioned, stacked panel and card are
+   a layer of their own each, and every frame of a scroll walked all of them (a hit test after each scroll step) —
+   with them, a drag's frames in 「展开」 were a third slower (measured 2026-11-08) */
+.lo-op.is-sliding > .lo-op__more { position: relative; z-index: 0; }
+.lo-op:not([data-open]) > .lo-op__more { display: none; }
+.lo-op.has-side.is-sliding .lo-op__card { z-index: 1; } /* above its own panel, which slides out from under it (slideDetails) */
+/* the cards sliding (slideDetails) are rendered whole while they move, not as each enters the view */
+.lo-op.has-side.is-sliding, .lo-op.is-sliding .lo-op__morein { content-visibility: visible; }
+/* (fork) and every card once the page has drawn it whole while idle (screens/loadoutDeck.js warmLater): a scroll then
+   only shows what is painted, the compositor's work alone */
+.lo-op.has-side[data-warm], .lo-op[data-warm] .lo-op__morein { content-visibility: visible; }
+/* (fork) only its own up / down stays in it: a sideways swipe on a panel moves the deck (touch) */
+.lo-op__morein { box-sizing: border-box; width: var(--morew); height: 100%; content-visibility: auto; padding: max(.06rem, calc(4px * var(--sp-ui, 1))); overflow-y: auto; overscroll-behavior-y: contain;
+  scrollbar-width: thin; scrollbar-color: var(--line-3) transparent; cursor: default;
+  background: rgba(16, 20, 19, .94); border: 1px solid rgba(255, 255, 255, .08); border-left: 0; }
+/* (fork) sized from outside (the width above, the card's height), so its text is laid out on its own: a change
+   anywhere in the deck laid out every panel again, 61–88 ms in 「展开」 against 15 ms contained, and each idle batch of
+   panels 70–76 ms against 16–22 ms (the user's Vivaldi, 2319×1358 ×1.5, measured 2026-11-08) */
+.lo-op__morein { contain: strict; }
+.lo-op__more .lo-skills { gap: max(.04rem, calc(3px * var(--sp-ui, 1))); }
+/* (fork) 「展开」's modules are brief (the chosen one's stat bonus and 特性 lines, no title or talents: the detail has
+   them — the user's call of 2026-11-08), each line whole (never cut with "…"). The skills keep their descriptions */
+.lo-op__more .lo-skill { padding: max(.05rem, calc(3px * var(--sp-ui, 1))) max(.06rem, calc(4px * var(--sp-ui, 1))); gap: max(.06rem, calc(4px * var(--sp-ui, 1))); }
+.lo-op__more .lo-sicon--md { width: max(.44rem, 28px); height: max(.44rem, 28px); }
+.lo-op__more .lo-skill__name { font-size: max(calc(.15 * var(--t)), 11px); }
+.lo-op__more .lo-skill__desc { font-size: max(calc(.13 * var(--t)), 10px); line-height: 1.45; }
+.lo-op__more .lo-sec { margin-top: max(.08rem, calc(5px * var(--sp-ui, 1))); }
+.lo-op__more .lo-sec__head h3 { font-size: max(calc(.15 * var(--t)), 11px); }
+/* (fork) 「展开」's modules are a list, one full-width row each like the skills above (two to a row left a third alone
+   on a half row: the user's call of 2026-11-08) */
+.lo-op__more .lo-mods { flex-direction: column; flex-wrap: nowrap; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); }
+.lo-op__more .lo-mod { flex: none; min-width: 0; max-width: none;
+  padding: max(.05rem, calc(3px * var(--sp-ui, 1))) max(.06rem, calc(4px * var(--sp-ui, 1))); gap: max(.06rem, calc(4px * var(--sp-ui, 1))); }
+.lo-op__more .lo-mglyph { width: max(.44rem, 28px); height: max(.44rem, 28px); }
+.lo-op__more .lo-mod__name { font-size: max(calc(.15 * var(--t)), 11px); }
+.lo-op__more .lo-minfo { font-size: max(calc(.13 * var(--t)), 10px); }
+.lo-op__none { margin: auto 0; font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-dim); letter-spacing: .2em; }
 /* 甄选干员 (自选编队) closing tiers 5 / 6 */
-.lo-op--diy { flex-direction: column; align-items: center; justify-content: center; gap: max(.08rem, calc(4px * var(--sp-ui, 1))); width: var(--opw); padding: .1rem; font: inherit; color: var(--text-hi);
+/* an empty slot to fill; a filled one is an operator card (screens/diy.js DiyDeckSlot: DeckOpCard) */
+.lo-op--diy.is-empty { flex-direction: column; align-items: center; justify-content: center; gap: max(.08rem, calc(4px * var(--sp-ui, 1))); width: var(--opw); padding: .1rem; font: inherit; color: var(--text-hi);
   cursor: pointer; background: linear-gradient(180deg, rgba(150, 160, 156, .2), rgba(80, 88, 85, .14)); border: 1px solid rgba(255, 255, 255, .16); }
-.lo-op--diy:hover { border-color: var(--tc); background: linear-gradient(180deg, rgba(170, 180, 176, .26), rgba(90, 98, 95, .18)); }
+.lo-op--diy.is-empty:hover { border-color: var(--tc); background: linear-gradient(180deg, rgba(170, 180, 176, .26), rgba(90, 98, 95, .18)); }
 .lo-diy__frame { position: relative; display: grid; place-items: center; width: 74%; aspect-ratio: 1 / 1.25; color: rgba(255, 255, 255, .78);
   border-left: 2px solid rgba(255, 255, 255, .5); border-right: 2px solid rgba(255, 255, 255, .5); }
 .lo-diy__glyph { width: 52%; height: 52%; }
 .lo-diy__faces { display: flex; flex-direction: column; gap: 4px; width: 70%; }
 .lo-diy__face { display: grid; place-items: center; width: 100%; aspect-ratio: 1; object-fit: cover; background: #1a1f1d; border: 1px solid var(--tc); font-weight: 900; }
 .lo-diy__label { font-size: max(calc(.16 * var(--t)), 11px); font-weight: 800; letter-spacing: .1em; }
+/* (fork) one card per 自选编队 slot (screens/diy.js DiyDeckSlot): an empty slot to fill, or the pick as a card */
+.lo-diy__note { max-width: 100%; font-size: max(calc(.11 * var(--t)), 8px); color: var(--text-lo); text-align: center; }
+.lo-diy__bad { width: max(.2rem, 14px); height: max(.2rem, 14px); color: var(--amber); }
+.lo-op--diy.is-empty { border-style: dashed; }
+.lo-op--diy.is-empty[data-slot] { flex: none; width: calc(var(--opw) + var(--side) + max(.05rem, 3px)); } /* as wide as an operator card */
+.lo-op--diy.is-empty.is-bad, .lo-op--diy.is-bad .lo-op__card { border-color: var(--amber); }
+/* (fork) a filled slot's 更换 (screens/diy.js DiyDeckSlot): above its name, opens the slot's picker */
+/* at the rail's foot under the bonds, drawn as the rail's own chips (the levels' pill, the bond discs) */
+.lo-diy__change { flex: none; display: grid; place-items: center; width: 86%; aspect-ratio: 1; margin-top: max(.04rem, 3px); padding: 0; font: inherit;
+  color: var(--text-md); cursor: pointer; background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px;
+  transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
+.lo-diy__change:hover, .lo-diy__change:focus-visible { color: var(--mint-400); border-color: var(--mint-700); background: rgba(0, 0, 0, .6); }
+.lo-diy__change .icon { width: 56%; height: 56%; }
+/* its 原型 / 已持有 tag, flat, beside the slot's name ("6阶 自选") above the operator's */
+.lo-diy__meta { display: flex; align-items: center; gap: max(.04rem, 4px); }
+.lo-op__rail .lo-diy__bad { width: 70%; height: auto; }
+.lo-diy--filled .lo-diy__label { font-size: max(calc(.11 * var(--t)), 8px); font-weight: 700; color: var(--text-lo); letter-spacing: .04em; }
 .lo-diy__n { font-size: max(calc(.3 * var(--t)), 16px); color: var(--text-lo); }
 .lo-diy__n b { color: var(--text-hi); font-size: max(calc(.4 * var(--t)), 20px); }
 
@@ -965,10 +1026,6 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-bbar__diy { position: absolute; left: 50%; top: max(-.2rem, calc(-14px * var(--sp-ui, 1))); transform: translateX(-50%); display: inline-flex; align-items: center; gap: 1px; padding: 0 4px;
   font-size: max(calc(.12 * var(--t)), 9px); color: var(--text-md); background: rgba(255, 255, 255, .1); border-radius: 999px; }
 .lo-bbar__diy .icon { width: max(.13rem, 9px); height: max(.13rem, 9px); }
-.lo-confirm { flex: none; display: inline-flex; align-items: center; gap: .1rem; height: max(.6rem, 32px, calc(38px * var(--sp-ui, 1))); padding: 0 max(.24rem, calc(14px * var(--sp-ui, 1))); font: inherit;
-  font-size: max(calc(.2 * var(--t)), 13px); font-weight: 900; color: #111614; background: #eef1ef; border: 0; cursor: pointer; }
-.lo-confirm .icon { width: max(.26rem, 16px); height: max(.26rem, 16px); padding: 2px; color: #eef1ef; background: #1a1f1d; }
-.lo-confirm:hover { background: #fff; }
 /* the match's loadout is locked: said in the bar, which every width and 快速配置 keep on screen */
 .lo-bbar__lock { flex: 0 1 auto; min-width: 0; display: inline-flex; align-items: center; gap: .06rem; padding: 0 max(.12rem, calc(6px * var(--sp-ui, 1))); height: max(.4rem, 26px);
   font-size: max(calc(.14 * var(--t)), 10px); font-weight: 700; color: var(--amber); background: rgba(246, 163, 41, .12); border: 1px solid rgba(246, 163, 41, .4); white-space: nowrap; }
@@ -976,16 +1033,14 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-bbar__lock .icon { flex: none; width: max(.16rem, 11px); height: max(.16rem, 11px); }
 
 /* ---- ⓘ 卡片视图说明 (the remake's own tips: not the official 调度手册 chapter) ---- */
-.lo-help { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .1rem .2rem; margin: 0; font-size: max(calc(.16 * var(--t)), 12px); line-height: 1.6; }
-.lo-help dt { font-weight: 800; color: var(--mint-400); white-space: nowrap; }
-.lo-help dd { margin: 0; color: var(--text-md); }
 
 @media (max-width: 1100px) {
   .lo-top--deck .lo-count, .lo-top--deck .lo-sync { display: none; }
   .lo-top__note { max-width: min(4.6rem, 100%); }
 }
 @media (max-width: 900px) {
-  .lo-top--deck .lo-tbtn__l, .lo-quickbtn__txt small, .lo-assist__k { display: none; }
+  .lo-ownbtn__k, .lo-dswitch__txt small { display: none; }
+  .lo-tray__btn > span { display: none; }
   .lo-top--deck .lo-top__center { display: none; }
   .lo-top--deck { grid-template-columns: max-content minmax(0, 1fr); }
   .lo-bbar__tier > span:not(.lo-bbar__roman):not(.lo-bbar__diy) { display: none; }
@@ -996,10 +1051,11 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   /* 甄选干员's frame smaller and its count capped (its size at 中, a pixel more a step above), so its 0/2 stays on the card
      (§35.51: cut 8–16 px on a 640×360 phone, at 特大 also on a 667×375 one) [ASSUMED] the sizes */
   .lo-diy__frame { width: 46%; }
+  .lo-diy--filled .lo-diy__label { display: none; } /* (fork) the name keeps the room */
   .lo-diy__n { font-size: min(max(calc(.3 * var(--t)), 16px), max(16px, calc(16px + var(--t-step)))); }
   .lo-diy__n b { font-size: min(max(calc(.4 * var(--t)), 20px), max(20px, calc(20px + var(--t-step)))); }
 }
-@media (prefers-reduced-motion: reduce) { .lo-drawer, .lo-op__quick, .lo-pop { animation: none; } .lo-op__card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .lo-drawer, .lo-pop { animation: none; } .lo-op__card { transition: none; } }
 
 /* ---- 转场 (PR #643 / PR #811, like the hub's screens) — the card view only (maintainer's decision, 2026-10-21): the
    default list keeps its 200 ms lo-in above, and its ≤1000 px roster / detail toggle (display: none) replays nothing.
@@ -1023,8 +1079,9 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo--deck .lo-tgroup:nth-child(6) { --g: 5; }
 .lo--deck .lo-tgroup:nth-child(n+7) { --g: 6; }
 .lo--deck .lo-bbar { animation: lo-tr-rise 420ms var(--tr-ease) 380ms backwards; }
-.lo--deck .own, .lo--deck .diy { animation: lo-tr-fade 300ms ease-out 150ms backwards; }
+/* (fork) back from a 自选编队 slot's picker page: the deck returns where it was, without its opening again */
+.lo--deck.lo--back .lo-tgroup, .lo--deck.lo--back .lo-bbar { animation: none; }
+.lo--deck .own { animation: lo-tr-fade 300ms ease-out 150ms backwards; }
 @media (prefers-reduced-motion: reduce) {
-  .lo--deck .lo__bg, .lo--deck .lo-top, .lo--deck .lo-top__center, .lo--deck .lo-top__right, .lo--deck .lo-note, .lo--deck .lo-tgroup,
-  .lo--deck .lo-bbar, .lo--deck .own, .lo--deck .diy { animation: none; }
+  .lo--deck .lo__bg, .lo--deck .lo-top, .lo--deck .lo-top__center, .lo--deck .lo-top__right, .lo--deck .lo-note, .lo--deck .lo-tgroup, .lo--deck .lo-bbar, .lo--deck .own { animation: none; }
 }

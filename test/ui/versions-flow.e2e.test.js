@@ -173,15 +173,15 @@ describe('official versions: the vote rules and a version match (in-process serv
       // the vote for 第一期下半 is open while the host edits 角峰 (S1, not his default S2) in the room's 干员调配 (checked against 第二期下半)
       await propose(host, 'act1autochess');
       await guest.page.waitForSelector('[data-testid="version-agree"]', { visible: true, timeout: 10000 });
-      await openWith(host, '.room-screen [data-testid="loadout-open"]', null, '.lo .lo-search input');
-      await host.page.type('.lo-search input', '角峰');
-      await host.page.waitForFunction(() => document.querySelectorAll('.lo-card').length === 1, { timeout: 5000 });
-      await host.click('.lo-card__pick');
+      await openWith(host, '.room-screen [data-testid="loadout-open"]', null, '.lo .lo-op[data-chess]');
+      await host.loadoutFind('角峰'); // (fork) the card view: 筛选 → the one card → its detail in the drawer
       await host.page.waitForSelector('.lo-detail .lo-skill[data-skill="0"]', { visible: true });
       await host.click('.lo-detail .lo-skill[data-skill="0"]');
       await host.page.waitForFunction(() => /已同步/.test(document.querySelector('.lo-sync')?.textContent || ''), { timeout: 10000 });
       const during = sent.filter((f) => f.t === 'room.loadout').at(-1);
       assert.deepEqual(during?.entries?.[YAK_V2], { skill: 0 }, 'sent for 第二期下半 while the vote is open');
+      await host.page.keyboard.press('Escape'); // the drawer, then the overlay
+      await host.page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true, timeout: 3000 });
       await host.page.keyboard.press('Escape');
       await host.page.waitForFunction(() => !document.querySelector('.lo'), { timeout: 10000 });
       assert.ok((await stateOf(host)).vote, 'still open');

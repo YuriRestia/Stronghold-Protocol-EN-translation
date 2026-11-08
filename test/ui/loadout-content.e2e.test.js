@@ -54,12 +54,20 @@ test('mounted rosters follow the room content without a language switch', { skip
         return width > 0 && height > 0 && el.contains(document.elementFromPoint(x + width / 2, y + height / 2));
       }, { timeout: WAIT });
       await guest.click('[data-testid="loadout-open"]', null, { timeout: WAIT });
-      await guest.click('[data-tab="loadout"]', null, { timeout: WAIT });
-      await guest.page.waitForSelector('.lo-card');
-      await guest.click('.lo-chip--t3[aria-pressed="false"]', null, { optional: true, timeout: 500 });
+      await showTab('loadout');
       return guest.page.$('.lo');
     };
+    // (fork) the card view (the only view since 2026-11-08): 干员持有 is reached by the top bar's 干员持有 block, and its
+    // 返回 leads back to the deck; every card is drawn (off-screen ones are only skipped by layout), so no tier filter
+    const showTab = async (tab) => {
+      await guest.page.waitForSelector('.lo .lo-top', { timeout: WAIT });
+      const onOwn = async () => /干员持有/.test(await guest.page.$eval('.lo-top', (e) => e.querySelector('.lo-top__title')?.textContent || ''));
+      if (tab === 'ownership' && !await onOwn()) await guest.click('[data-testid="loadout-ownership"]', null, { timeout: WAIT });
+      if (tab === 'loadout' && await onOwn()) await guest.click('.lo-back', null, { timeout: WAIT });
+      await guest.page.waitForSelector(tab === 'loadout' ? '.lo .lo-op[data-chess]' : '.lo .own-card', { timeout: WAIT });
+    };
     const close = async (overlay) => {
+      await showTab('loadout');
       await guest.click('.lo-back', null, { timeout: WAIT });
       await guest.page.waitForSelector('.lo', { hidden: true });
       await overlay.dispose();
@@ -84,9 +92,9 @@ test('mounted rosters follow the room content without a language switch', { skip
       // Capture both tabs before asserting, so one failure cannot hide the other stale roster.
       const shown = {};
       for (const tab of ['loadout', 'ownership']) {
-        await guest.click(`[data-tab="${tab}"]`, null, { timeout: WAIT });
-        const card = tab === 'loadout' ? '.lo-card' : '.own-card';
-        const name = tab === 'loadout' ? '.lo-card__name' : '.own-card__name';
+        await showTab(tab);
+        const card = tab === 'loadout' ? '.lo-op' : '.own-card';
+        const name = tab === 'loadout' ? '.lo-op__name' : '.own-card__name';
         shown[tab] = await guest.page.evaluate((ids, card, name) => ids.map(id => ({ id,
           name: document.querySelector(`${card}[data-chess="${id}"] ${name}`)?.textContent,
         })), IDS, card, name);

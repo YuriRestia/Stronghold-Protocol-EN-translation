@@ -100,13 +100,14 @@ describe('community UI: lobby header and shared DIY details', { skip: !enabled }
   for (const width of [1600, 844]) test(`DIY ${width}px XL: shared stats and normal/elite skill details stay usable`, async () => {
     const { context, page } = await open(width);
     try {
-      await page.click('[data-testid="loadout-open"]'); await page.click('[data-tab="diy"]');
-      await page.click('.diy-slot[data-slot="chess_char_6_diy1_a"] .diy-slot__fill');
+      // (fork) the card view's 自选编队 slot card opens the slot's picker page (the 自选编队 tab went with the list view)
+      await page.click('[data-testid="loadout-open"]');
+      await page.waitForSelector('.lo-op--diy[data-slot="chess_char_6_diy1_a"]');
+      await page.$eval('.lo-op--diy[data-slot="chess_char_6_diy1_a"]', (e) => (e.querySelector('[data-testid="diy-slot-change"]') || e).click()); // (a filled slot: its change button)
       const picker = '[data-testid="diy-picker"]';
       await page.waitForSelector(`${picker} [data-char="char_112_siege"]`);
       await page.click(`${picker} .diy-opt[data-char="char_112_siege"] .diy-opt__pick`);
-    // 窄屏是两步（screens/diy.js sel）：第一下只选中该干员，第二下才让详情滑出
-    if (width < 1000) await page.click(`${picker} .diy-opt[data-char="char_112_siege"] .diy-opt__pick`);
+    // (fork) one tap selects the operator and opens its detail in the drawer, on every width (screens/diy.js sel)
       await page.waitForSelector(`${picker} .lo-sec--stats[data-variant="elite"]`);
       const detail = () => page.$eval(`${picker} .diy-pick__detail`, e => ({ stats: [...e.querySelectorAll('.dstat__v')].map(n => n.textContent),
         skill: [...e.querySelectorAll('.lo-skill__desc')].map(n => n.textContent), talents: e.querySelectorAll('.lo-minfo__row').length,

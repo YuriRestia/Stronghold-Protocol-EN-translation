@@ -93,56 +93,43 @@ for (const [label, w, h] of [['desktop', 1600, 900], ['phone', 844, 390]]) {
       assert.equal(await c.page.$eval(sel, (e) => getComputedStyle(e).cursor), 'pointer');
       await shot(c, `${label}-1-report-hover`);
       await clickOp(c, target);
-      await c.page.waitForFunction((id) => document.querySelector(`.lo-card.is-sel [data-chess="${id}"], .lo-card.is-sel[data-chess="${id}"]`)
-        || document.querySelector(`[data-chess="${id}"]`)?.closest('.lo-card.is-sel'), { timeout: 30000 }, slot);
+      // (fork) the card view (the only view since 2026-11-08): its card selected and in view beside the drawer, which
+      // holds its detail, on every width
+      await c.page.waitForFunction((id) => document.querySelector(`.lo-op.is-sel[data-chess="${id}"]`), { timeout: 30000 }, slot);
+      await c.page.waitForSelector('[data-testid="loadout-drawer"]', { visible: true, timeout: 30000 });
       const st = await loState(c.page);
       assert.deepEqual(st, { sel: slot, query: '', reveal: null });
-      if (label === 'phone') {
-        assert.ok(await c.page.$('.lo-body.is-detail'), 'phone: the detail is open');
-      } else {
-        const inView = await c.page.$eval('.lo-card.is-sel', (e) => {
-          const r = e.getBoundingClientRect(); const box = e.closest('.lo-list').getBoundingClientRect();
-          return r.top >= box.top - 1 && r.bottom <= box.bottom + 1;
-        });
-        assert.ok(inView, 'the row is scrolled into view');
-      }
+      const cardInView = () => c.page.$eval('.lo-op.is-sel', (e) => {
+        const r = e.getBoundingClientRect(); const deck = e.closest('.lo-deck'); const box = deck.getBoundingClientRect();
+        const drawer = deck.parentElement.querySelector('.lo-drawer');
+        const left = drawer ? drawer.getBoundingClientRect().right : box.left;
+        return r.left >= left - 1 && r.right <= box.right + 1;
+      });
       await sleep(300);
+      assert.ok(await cardInView(), 'the card is scrolled into view beside the drawer');
       await shot(c, `${label}-2-loadout`);
       if (label === 'phone') {
-        // the list behind the detail: the operator is in view there too
-        await c.click('.lo-detail-back');
+        // the deck behind the drawer: the operator is in view there too once it folds
+        await c.click('.lo-drawer__close');
+        await c.page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true });
         await sleep(300);
-        const inView = await c.page.$eval('.lo-card.is-sel', (e) => {
-          const r = e.getBoundingClientRect(); const box = e.closest('.lo-list').getBoundingClientRect();
-          return r.top >= box.top - 1 && r.bottom <= box.bottom + 1;
-        });
-        assert.ok(inView, 'phone list: the row is in view');
-        await shot(c, `${label}-3-loadout-list`);
+        assert.ok(await cardInView(), 'phone deck: the card is in view');
+        await shot(c, `${label}-3-loadout-deck`);
       }
       assert.match(await c.page.$eval('.lo-back', (e) => e.getAttribute('title')), /S\.W\.E\.E\.P\./);
       await c.click('.lo-back');
       await assertBack(c, before, target, '返回');
       await shot(c, `${label}-4-back`);
 
-      // 2. Esc goes back too
+      // 2. Esc peels the drawer first, then goes back (the card view; its old desktop-only step 3 is this one now)
       await clickOp(c, before.ops[0]);
+      await c.page.waitForSelector('[data-testid="loadout-drawer"]', { visible: true, timeout: 30000 });
+      await sleep(300);
+      await shot(c, `${label}-5-deck`);
+      await c.page.keyboard.press('Escape');
+      await c.page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true });
       await c.page.keyboard.press('Escape');
       await assertBack(c, before, before.ops[0], 'Esc');
-
-      // 3. the card view: the operator's drawer opens
-      if (label === 'desktop') {
-        await c.page.evaluate(async () => (await import('/js/store.js')).savePref('loadout.view', 'deck'));
-        await clickOp(c, before.ops[1]);
-        await c.page.waitForSelector('[data-testid="loadout-drawer"]', { visible: true, timeout: 30000 });
-        await sleep(300);
-        await shot(c, `${label}-5-deck`);
-        // Esc peels the drawer first, then goes back
-        await c.page.keyboard.press('Escape');
-        await c.page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true });
-        await c.page.keyboard.press('Escape');
-        await assertBack(c, before, before.ops[1], 'deck Esc');
-        await c.page.evaluate(async () => (await import('/js/store.js')).savePref('loadout.view', 'list'));
-      }
 
       // 4. the normal way: the loadout's 返回 leaves the report closed
       await c.page.keyboard.press('Escape');

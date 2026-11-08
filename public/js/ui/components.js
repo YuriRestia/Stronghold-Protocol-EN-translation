@@ -73,6 +73,9 @@ export const ICONS = {
   dots: { d: 'M5 10.3a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zm7 0a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zm7 0a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4z' },
   key: { d: 'M14.5 3a6.5 6.5 0 1 1-2.6 12.5l-1.1 1.1H9v2H7v2H3v-3.6l5.5-5.5A6.5 6.5 0 0 1 14.5 3zm1.5 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4z', eo: true },
   search: { d: 'M10 3a7 7 0 0 1 5.6 11.2l5.6 5.6-1.4 1.4-5.6-5.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z', eo: true },
+  cardCompact: { d: 'M4 3h10v18H4zm2 2v14h6V5zm10 0h4v4h-4zm0 6h4v4h-4z', eo: true },   // (fork) 干员调配's 简洁: a card and its column
+  cardDetail: { d: 'M2 3h9v18H2zm2 2v14h5V5zm9-1h9v2h-9zm0 4h9v2h-9zm0 4h7v2h-7zm0 4h9v2h-9zm0 4h6v2h-6z', eo: true }, // (fork) 干员调配's 展开: a card and its panel
+  zoomIn: { d: 'M10 3a7 7 0 0 1 5.6 11.2l5.6 5.6-1.4 1.4-5.6-5.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM9 7h2v2h2v2h-2v2H9v-2H7V9h2z', eo: true }, // (fork) 干员调配's 「详情」 (筛选 keeps search)
   info: { d: 'M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20zm-1 8v7h2v-7zm0-3v2h2V7z', eo: true },
   warn: { d: 'M12 2 1 21h22zm-1 7v6h2V9zm0 7.5v2h2v-2z', eo: true },
   play: { d: 'M7 4v16l13-8z' },
@@ -92,6 +95,9 @@ export const ICONS = {
   eye: { d: 'M12 5c5 0 9 4.5 10 7-1 2.5-5 7-10 7S3 14.5 2 12c1-2.5 5-7 10-7zm0 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8zm0 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4z', eo: true },
   // 大厅背景与音乐 (ui/lobbyMedia.js): a framed picture (ridges and a sun) and a beamed pair of notes
   image: { d: 'M3 4h18v16H3zM5 6v9.6l4-4.6 3.5 4 2.5-3 4 4.4V6zM16 7.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z', eo: true },
+  shirt: { d: 'M8.5 3 2 6.3 3.6 11 6 10.2V21h12V10.2l2.4.8L22 6.3 15.5 3c-.5 1.7-1.8 2.6-3.5 2.6S9 4.7 8.5 3zm1.1 2.1-5.2 2.4.5 1.4L8 7.9V19h8V7.9l3.1 1 .5-1.4-5.2-2.4c-.7 1.5-1.5 2.3-2.4 2.3s-1.7-.8-2.4-2.3z', eo: true }, // (fork) 时装
+  download: { d: 'M11 3h2v9.2l3.3-3.3 1.4 1.4L12 16l-5.7-5.7 1.4-1.4 3.3 3.3zM4 15h2v4h12v-4h2v6H4z' }, // (fork) 导出: save a file
+  upload: { d: 'M12 3l5.7 5.7-1.4 1.4L13 6.8V16h-2V6.8l-3.3 3.3-1.4-1.4zM4 15h2v4h12v-4h2v6H4z' },              // (fork) 导入: load a file
   music: { d: 'M18 3h2v13h-2zM8 5.4h2V18H8zM8 5.4 20 3v3L8 8.4zM14 16a3 3 0 1 1 6 0 3 3 0 1 1-6 0zM4 18a3 3 0 1 1 6 0 3 3 0 1 1-6 0z' },
 };
 

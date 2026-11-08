@@ -30,7 +30,7 @@ const { ChessDetail, resolveDetail } = await import('../../public/js/ui/detailPa
 const { BondPopup } = await import('../../public/js/ui/bondStrip.js');
 const { ownerBoard } = await import('../../public/js/ui/watchBonds.js');
 const { diyPieces } = await import('../../public/js/screens/game/standInTags.js');
-const { DiyPanelView, DiyPickerView } = await import('../../public/js/screens/diy.js');
+const { DiyPickerView, DiyDeckSlot } = await import('../../public/js/screens/diy.js');
 const { data } = await import('../../public/js/data.js');
 const { DATA } = await import('../match/harness.js');
 const { KITTED_CHARS } = await import('../../server/sim/content/kits/index.js');
@@ -66,6 +66,12 @@ function expand(v, depth = 6) {
   const children = v.props?.children;
   return children === undefined ? v : { ...v, props: { ...v.props, children: expand(children, depth) } };
 }
+/** (fork) A picker card is the shared DeckOpCard: a pick is a press on its portrait button (the card's root has no handler). */
+const pickCard = (tree, charId) => {
+  const card = [...walk(tree)].find((v) => hasClass(v, 'diy-opt') && v.props['data-char'] === charId);
+  assert.ok(card, `the card of ${charId}`);
+  return [...walk(card)].find((v) => hasClass(v, 'diy-opt__pick'));
+};
 const textOf = (v) => [...walk(v)].flatMap((n) => (Array.isArray(n.props?.children) ? n.props.children : [n.props?.children])).filter((x) => typeof x === 'string' || typeof x === 'number').join('');
 
 describe('自选编队 model (ui/diyModel.js)', () => {
@@ -196,19 +202,18 @@ test('diy sync: welcome brings the kit list and sends room.diy; edits are deboun
 
 // ---- the tab --------------------------------------------------------------------------------------------------------------
 
-describe('自选编队 tab (screens/diy.js)', () => {
+describe('自选编队 picker (screens/diy.js)', () => {
   for (const slotId of [T5A, T6A]) {
     for (const saved of [null, SIEGE_PICK]) {
       test(`the picker: ${slotId}, ${saved ? 'saved' : 'empty'} slot retains edits when reselecting its operator`, () => {
         const picks = saved ? { [slotId]: saved } : {};
         const done = [];
         let draft = saved ? { ...saved } : null;
-        let filter = 'all';
-        let query = '';
-        const view = () => expand(DiyPickerView({ m: null, slot: { slotId }, picks, kitted: KIT,
-          onDone: (p) => done.push(p), onClose() {}, filter, query, draft,
-          onFilter: (f) => { filter = f; }, onQuery: (q) => { query = q; }, onDraft: (d) => { draft = d; } }));
+        let filters = {};
+        const view = () => expand(DiyPickerView({ narrowDetail: true, m: null, slot: { slotId }, picks, kitted: KIT,
+          onDone: (p) => done.push(p), onClose() {}, filters, draft, onDraft: (d) => { draft = d; } }));
         const click = (key, value, cls = null) => {
+          if (key === 'data-char') { pickCard(view(), value).props.onClick(); return; }
           const node = [...walk(view())].find((v) => v.props?.[key] === value && typeof v.props.onClick === 'function' && (!cls || hasClass(v, cls)));
           assert.ok(node, `${key}=${value}${cls ? ` (.${cls})` : ''} is clickable`);
           node.props.onClick();
@@ -238,18 +243,16 @@ describe('自选编队 tab (screens/diy.js)', () => {
         click('data-char', SIEGE);
         assert.deepEqual(draft, edited, 'reselecting keeps both the skill and explicit no-module choice');
         // Filtering/searching the operator out and back in must not change the draft either.
-        filter = 'owned';
-        query = 'no matching operator';
+        filters = { query: 'no matching operator' };
         assert.ok(![...walk(view())].some((v) => hasClass(v, 'diy-opt')));
-        query = '推进';
+        filters = { query: '推进' };
         click('data-char', SIEGE);
         assert.deepEqual(draft, edited);
         click('data-testid', 'diy-confirm');
         assert.deepEqual(done, [edited]);
         assert.deepEqual(picks, saved ? { [slotId]: saved } : {}, 'the saved picks stay unchanged until the parent saves');
         // Switching operators still initializes the new pick, and returning restores the saved/default pick.
-        filter = 'all';
-        query = '';
+        filters = {};
         click('data-char', SHARP);
         assert.deepEqual(draft, M.defaultPick(SHARP, slotId, D));
         click('data-char', SIEGE);
@@ -258,62 +261,31 @@ describe('自选编队 tab (screens/diy.js)', () => {
     }
   }
 
-  test('four slots by tier: an empty slot to fill, a filled one shows the operator, its tag, skill and module', () => {
-    const tree = expand(DiyPanelView({ m: data.get('assets'), picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } }, legal: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } }, kitted: KIT, onSet() {}, picking: null, onPicking() {} }));
-    const slots = [...walk(tree)].filter((v) => hasClass(v, 'diy-slot'));
-    assert.deepEqual(slots.map((v) => v.props['data-slot']), [T5A, T5B, T6A, T6B]);
-    const siege = slots[0];
-    assert.equal(siege.props['data-char'], SIEGE);
-    const txt = textOf(siege);
-    assert.ok(txt.includes(DATA.backups.units[SIEGE].name) && txt.includes('已持有') && txt.includes('S3') && txt.includes('SOL-X'), txt);
-    assert.ok(textOf(slots[2]).includes('原型'));
-    assert.ok(hasClass(slots[1], 'is-empty') && textOf(slots[1]).includes('选择干员'));
-  });
-
-  test('(fork, docs/OUTFITS.md) a filled slot whose operator has outfits gets a 时装 button: it opens that operator\'s outfit dialog', async () => {
+  test("(fork, docs/OUTFITS.md) the picker's detail is 干员调配's: its 调配 / 时装 switch, 时装 the outfit panel of the operator being picked", async () => {
     await data.loadAll('outfits');
-    const dressed = [];
-    const props = { m: data.get('assets'), picks: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } }, legal: { [T5A]: SIEGE_PICK, [T6A]: { charId: SHARP } },
-      kitted: KIT, onSet() {}, picking: null, onPicking() {}, onDressing: (u) => dressed.push(u) };
-    const slots = [...walk(expand(DiyPanelView(props)))].filter((v) => hasClass(v, 'diy-slot'));
-    const btn = (slot) => [...walk(slot)].find((v) => v.props?.['data-testid'] === 'diy-outfit');
-    assert.ok(btn(slots[0]), 'Siege (2 outfits) has the button');
-    assert.equal(btn(slots[2]), undefined, 'a prototype without outfits has none');
-    btn(slots[0]).props.onClick();
-    assert.deepEqual(dressed, [{ charId: SIEGE, name: DATA.backups.units[SIEGE].name }]);
-    // the open dialog draws the outfit panel of that operator (OutfitDialog → Modal → OutfitPanel)
-    const open = [...walk(expand(DiyPanelView({ ...props, dressing: dressed[0] })))];
-    assert.ok(open.some((v) => v.props?.unit?.charId === SIEGE || v.props?.chess?.charId === SIEGE), 'the outfit dialog for Siege');
-    // (the slot card's own OperatorImage carries `chess` too: the dialog is the one handed the `unit`)
-    assert.ok(![...walk(expand(DiyPanelView(props)))].some((v) => v.props?.unit?.charId === SIEGE), 'closed: no dialog');
-  });
-
-  test('(fork, docs/OUTFITS.md) the picker\'s detail carries the 时装 section of the operator being picked', async () => {
-    await data.loadAll('outfits');
-    const view = (draft) => DiyPickerView({ m: data.get('assets'), slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks: {}, kitted: KIT, onDone() {}, onClose() {},
-      filter: 'all', query: '', draft, onFilter() {}, onQuery() {}, onDraft() {} });
-    const sec = (tree) => [...walk(tree)].find((v) => v.props?.charId && typeof v.type === 'function' && v.type.name === 'OutfitPickSection');
-    const s = sec(view({ ...SIEGE_PICK }));
-    assert.ok(s, 'Siege: the section');
-    assert.equal(s.props.charId, SIEGE);
-    assert.equal(s.props.name, DATA.backups.units[SIEGE].name);
-    assert.equal(sec(view(null)), undefined, 'nothing picked yet: no section');
-    // the section's cards: 默认 + Siege's outfits; a click wears one at once (not part of the pick)
-    const { OutfitCards } = await import('../../public/js/screens/outfits.js');
-    const { outfitStore, setOutfit, outfitsOf } = await import('../../public/js/ui/outfits.js');
-    const list = outfitsOf(SIEGE);
-    const cards = [...walk(OutfitCards({ m: data.get('assets'), charId: SIEGE, name: 'Siege', list, worn: null, compact: true }))].filter((v) => hasClass(v, 'ofit-card'));
-    assert.deepEqual(cards.map((c) => c.props['data-outfit']), ['default', ...list.map((r) => r.id)]);
-    cards[1].props.onClick();
-    assert.equal(outfitStore.get().outfits[SIEGE], list[0].id);
-    setOutfit(SIEGE, null);
+    const views = [];
+    const view = (draft, detailView = 'loadout') => expand(DiyPickerView({ narrowDetail: true, m: data.get('assets'), slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks: {}, kitted: KIT, onDone() {}, onClose() {},
+      draft, onDraft() {}, detailView, onDetailView: (v) => views.push(v) }), 2);
+    const find = (tree, name) => [...walk(tree)].find((v) => typeof v.type === 'function' && v.type.name === name);
+    const sw = find(view({ ...SIEGE_PICK }), 'OutfitSwitch');
+    assert.ok(sw, 'Siege: the 调配 / 时装 switch');
+    assert.equal(sw.props.view, 'loadout');
+    sw.props.onView('outfit');
+    assert.deepEqual(views, ['outfit']);
+    assert.equal(find(view({ ...SIEGE_PICK }), 'OutfitPanel'), undefined, '调配: the loadout sections');
+    assert.ok(find(view({ ...SIEGE_PICK }), 'SkillSection'));
+    const panel = find(view({ ...SIEGE_PICK }, 'outfit'), 'OutfitPanel');
+    assert.ok(panel, '时装: the outfit panel');
+    assert.equal(panel.props.chess.charId, SIEGE);
+    assert.equal(find(view({ ...SIEGE_PICK }, 'outfit'), 'SkillSection'), undefined);
+    assert.equal(find(view(null), 'OutfitSwitch'), undefined, 'nothing picked yet: no detail');
   });
 
   test('the picker: the slot\'s operators; choosing one and its skill / module confirms the pick', () => {
     const done = [];
     let draft = { ...SIEGE_PICK };
-    const view = () => expand(DiyPickerView({ m: null, slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks: { [T5A]: SIEGE_PICK }, kitted: KIT, onDone: (p) => done.push(p), onClose() {},
-      filter: 'all', query: '', draft, onFilter() {}, onQuery() {}, onDraft: (d) => { draft = d; } }));
+    const view = () => expand(DiyPickerView({ narrowDetail: true, m: null, slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks: { [T5A]: SIEGE_PICK }, kitted: KIT, onDone: (p) => done.push(p), onClose() {},
+      draft, onDraft: (d) => { draft = d; } }));
     let tree = view();
     const opts = [...walk(tree)].filter((v) => hasClass(v, 'diy-opt'));
     assert.ok(opts.some((v) => v.props['data-char'] === SIEGE) && opts.some((v) => v.props['data-char'] === SHARP));
@@ -332,10 +304,10 @@ describe('自选编队 tab (screens/diy.js)', () => {
     assert.deepEqual(done, [{ charId: SIEGE, skillIndex: 0, uniEquipId: null }]);
     // a prototype: its skill and module are the locked selection of its 补位 rows — the pane offers that one card each
     // (read-only: the shared cards have no disabled, the picker's own handler is a no-op) and the row's cells are static
-    [...walk(tree)].find((v) => hasClass(v, 'diy-opt') && v.props['data-char'] === SHARP).props.onClick();
+    pickCard(tree, SHARP).props.onClick();
     tree = view();
     const protoRow = [...walk(tree)].find((v) => hasClass(v, 'diy-opt') && v.props['data-char'] === SHARP);
-    assert.equal([...walk(protoRow)].filter((v) => v.props['data-skill'] != null || v.props['data-module'] != null).length, 0, 'the prototype row has no quick choice to tap');
+    assert.equal([...walk(protoRow)].filter((v) => (v.props['data-skill'] != null || v.props['data-module'] != null) && v.props.onClick).length, 0, 'the prototype card has no quick choice to tap');
     const locked = [...walk(tree)].filter((v) => v.props?.role === 'radio');
     assert.deepEqual(locked.map((v) => v.props['data-skill'] ?? v.props['data-module']), [2, 'uniequip_002_acguad'], 'only the locked skill and module');
     locked[0].props.onClick();
@@ -345,27 +317,127 @@ describe('自选编队 tab (screens/diy.js)', () => {
     assert.deepEqual(done.at(-1), { charId: SHARP });
   });
 
-  test('the picker: the roster\'s 职业 chips filter the list by profession', () => {
-    let prof = null;
+  test('(fork) the page\'s 筛选 (class, bond, search) narrows the deck; the deck groups by class, a marker each, the bar jumps to one', () => {
+    let filters = {};
+    const jumps = [];
     const view = () => expand(DiyPickerView({ m: null, slot: { slotId: T6A, tier: 6, shopLevel: 6 }, picks: {}, kitted: KIT, onDone() {}, onClose() {},
-      filter: 'all', prof, query: '', draft: null, onFilter() {}, onProf: (p) => { prof = p; }, onQuery() {}, onDraft() {} }));
+      filters, draft: null, onDraft() {}, onJumpProf: (p) => jumps.push(p) }));
     const rows = (tree) => [...walk(tree)].filter((v) => hasClass(v, 'diy-opt')).map((v) => v.props['data-char']);
-    const chips = (tree) => [...walk(tree)].filter((v) => hasClass(v, 'lo-chip--prof'));
-    const all = rows(view());
+    const tree = view();
+    const all = rows(tree);
     assert.ok(all.length > 2, 'the tier-6 slot lists several operators');
-    assert.equal(chips(view()).length, 8, 'one chip per profession, the roster\'s own row');
-    assert.deepEqual(chips(view()).filter((v) => v.props['aria-pressed'] === 'true'), [], 'nothing pressed while the filter is off');
-    // pressing a chip asks for that profession; the row is the shared ProfFilter, so pressing it again clears it
-    chips(view())[0].props.onClick();
-    assert.equal(prof, 'PIONEER');
+    // one group per class present, in the roster's class order, each its class marker and count
+    const PROF_ORDER = ['PIONEER', 'WARRIOR', 'TANK', 'SNIPER', 'CASTER', 'MEDIC', 'SUPPORT', 'SPECIAL'];
+    const groups = [...walk(tree)].filter((v) => hasClass(v, 'lo-tgroup'));
+    const profs = groups.map((g) => g.props['data-group']);
+    assert.deepEqual(profs, PROF_ORDER.filter((p) => all.some((id) => DATA.backups.units[id].profession === p)));
+    for (const g of groups) {
+      const ids = [...walk(g)].filter((v) => hasClass(v, 'diy-opt')).map((v) => v.props['data-char']);
+      assert.ok(ids.every((id) => DATA.backups.units[id].profession === g.props['data-group']), g.props['data-group']);
+      const mark = [...walk(g)].find((v) => hasClass(v, 'diy-cmark'));
+      assert.ok(mark && hasClass(mark, 'lo-tmark'), 'the class marker (the tier marker\'s frame)');
+      assert.equal(textOf([...walk(mark)].find((v) => hasClass(v, 'lo-tmark__cnt'))), String(ids.length));
+    }
+    assert.deepEqual(all, groups.flatMap((g) => [...walk(g)].filter((v) => hasClass(v, 'diy-opt')).map((v) => v.props['data-char'])), 'every card in its group');
+    // the bar: a button per class present (the shared GroupBarLive), a jump names the class
+    const bar = [...walk(tree)].find((v) => typeof v.type === 'function' && v.type.name === 'GroupBarLive');
+    assert.deepEqual(bar.props.items.map((it) => it.key), profs);
+    bar.props.onJump(profs[1]);
+    assert.deepEqual(jumps, [profs[1]]);
+    // the class filter: one group left
+    filters = { prof: 'PIONEER' };
     const pioneers = rows(view());
     assert.ok(pioneers.length && pioneers.length < all.length, `${pioneers.length} of ${all.length} are 先锋`);
     for (const id of pioneers) assert.equal(DATA.backups.units[id].profession, 'PIONEER', `${id} is a 先锋`);
-    const on = chips(view()).find((v) => v.props['aria-pressed'] === 'true');
-    assert.ok(on && on.props.title === '先锋' && hasClass(on, 'is-on'), 'the pressed chip is the one that filters');
-    on.props.onClick();
-    assert.equal(prof, null, 'a second press clears the filter');
-    assert.deepEqual(rows(view()).length, all.length);
+    assert.deepEqual([...walk(view())].filter((v) => hasClass(v, 'lo-tgroup')).map((g) => g.props['data-group']), ['PIONEER']);
+    // a bond and the search narrow it too
+    const bond = DATA.backups.units[all[0]] && M.pickOptions(T6A, {}, D, KIT).find((o) => o.charId === all[0]).bonds[0];
+    filters = { bond };
+    const bonded = rows(view());
+    assert.ok(bonded.length && bonded.includes(all[0]) && bonded.length <= all.length);
+    for (const id of bonded) assert.ok(M.pickOptions(T6A, {}, D, KIT).find((o) => o.charId === id).bonds.includes(bond), `${id} has ${bond}`);
+    filters = { query: DATA.backups.units[all[0]].name };
+    assert.ok(rows(view()).includes(all[0]));
+    filters = { query: 'no matching operator' };
+    assert.deepEqual(rows(view()), []);
+    assert.equal([...walk(view())].find((v) => typeof v.type === 'function' && v.type.name === 'GroupBarLive'), undefined, 'nothing listed: no bar');
+  });
+
+  test('(fork) the picker\'s operators are the card view\'s cards: one deck without tiers, skills on top and modules below in each card\'s column', () => {
+    const quick = [];
+    let draft = null;
+    const view = (picks = {}) => expand(DiyPickerView({ m: null, slot: { slotId: T6A, tier: 6, shopLevel: 6 }, picks, kitted: KIT, onDone() {}, onClose() {},
+      draft, onDraft: (d) => { draft = d; quick.push(d); } }));
+    const tree = view();
+    const deck = [...walk(tree)].find((v) => hasClass(v, 'diy-deck'));
+    assert.ok(deck && hasClass(deck, 'lo-deck'), 'a sideways deck');
+    assert.ok([...walk(tree)].filter((v) => hasClass(v, 'lo-tgroup')).every((g) => g.props['data-prof']), 'class groups, no tier groups');
+    assert.equal([...walk(tree)].filter((v) => hasClass(v, 'lo-list__head') || hasClass(v, 'lo-cult')).length, 0, 'no list head, no 潜能 / 练度 on the cards');
+    const card = (charId, t = tree) => [...walk(t)].find((v) => hasClass(v, 'diy-opt') && v.props['data-char'] === charId);
+    // an owned 6★: the card view's card, its three skills, then every module (不装备 first) and the stepping button
+    const siege = card(SIEGE);
+    assert.ok(['lo-op', 'has-side', 'lo-op--t6'].every((c) => hasClass(siege, c)));
+    const side = [...walk(siege)].find((v) => hasClass(v, 'lo-op__side'));
+    const parts = [...walk(side)].filter((v) => hasClass(v, 'lo-op__skills') || hasClass(v, 'lo-op__mods')).map((v) => v.props.class);
+    assert.deepEqual(parts, ['lo-op__skills', 'lo-op__mods'], 'skills at the top, modules below');
+    assert.deepEqual([...walk(side)].filter((v) => hasClass(v, 'lo-q--skill')).map((v) => v.props['data-skill']), [0, 1, 2]);
+    const list = [...walk([...walk(side)].find((v) => hasClass(v, 'lo-op__mlist')))].filter((v) => hasClass(v, 'lo-q--mod'));
+    assert.deepEqual(list.map((v) => v.props['data-module']), ['none', 'uniequip_002_siege', 'uniequip_003_siege']);
+    const step = [...walk(side)].find((v) => hasClass(v, 'lo-op__mod'));
+    assert.equal(step.props['data-module'], 'uniequip_002_siege', 'the default pick\'s module');
+    step.props.onClick();
+    assert.deepEqual(quick.at(-1), { ...M.defaultPick(SIEGE, T6A, D), uniEquipId: 'uniequip_003_siege' }, 'the stepping button writes the next module into the draft');
+    let stopped = 0;
+    side.props.onClick({ stopPropagation: () => { stopped += 1; } });
+    assert.equal(stopped, 1, 'a press on the column never reaches the card');
+    // a prototype: its locked skill and module only, no quick choice to tap
+    const proto = card(SHARP);
+    assert.ok(hasClass(proto, 'is-proto'));
+    assert.equal([...walk(proto)].filter((v) => (v.props?.['data-skill'] != null || v.props?.['data-module'] != null) && v.props.onClick).length, 0);
+    assert.equal([...walk(proto)].filter((v) => hasClass(v, 'lo-q') && hasClass(v, 'is-on')).length, 2, 'the locked skill and module, marked');
+    // taken by the other tier-6 slot: dimmed, says where, its controls off, and a press does nothing
+    const taken = card(SIEGE, view({ chess_char_6_diy2_a: SIEGE_PICK }));
+    assert.ok(hasClass(taken, 'is-taken'));
+    assert.match(textOf(taken), /已在6阶自选中/);
+    assert.ok([...walk(taken)].filter((v) => hasClass(v, 'lo-q--skill')).every((v) => v.props.disabled === true));
+    const before = quick.length;
+    [...walk(taken)].find((v) => hasClass(v, 'lo-op__card')).props.onClick({ target: { closest: () => null } });
+    assert.equal([...walk(taken)].find((v) => hasClass(v, 'diy-opt__pick')).props.disabled, true);
+    assert.equal(quick.length, before, 'a taken card does not select');
+  });
+
+  test("(fork) the card view's 自选编队 slot cards: an empty slot opens its picker; a pick is an operator card — a press selects it, its 更换 opens the picker", () => {
+    const opened = [], selected = [];
+    const slot = { slotId: T5A, tier: 5, shopLevel: 5 };
+    const empty = expand(DiyDeckSlot({ m: null, slot, pick: null, illegal: false, onOpen: (id) => opened.push(id) }));
+    assert.ok(hasClass(empty, 'lo-op--diy') && hasClass(empty, 'is-empty'));
+    assert.equal(empty.props['data-slot'], T5A);
+    assert.equal(empty.props['data-diy-tier'], 5);
+    assert.ok(textOf(empty).includes('选择干员'));
+    empty.props.onClick();
+    const filled = expand(DiyDeckSlot({ m: null, slot, pick: SIEGE_PICK, illegal: false, onOpen: (id) => opened.push(id), onSel: (id) => selected.push(id) }));
+    assert.ok(hasClass(filled, 'lo-diy--filled') && hasClass(filled, 'lo-op') && hasClass(filled, 'has-side'), 'the deck\'s own operator card (DeckOpCard)');
+    assert.equal(filled.props['data-char'], SIEGE);
+    assert.equal(filled.props['data-slot'], T5A);
+    assert.ok(textOf(filled).includes(DATA.backups.units[SIEGE].name) && textOf(filled).includes('已持有'), textOf(filled));
+    [...walk(filled)].find((v) => hasClass(v, 'lo-op__card')).props.onClick({ target: { closest: () => null } });
+    assert.deepEqual(selected, [T5A], 'a press on the card selects it, as any card');
+    assert.deepEqual(opened, [T5A], '…and does not open the picker');
+    [...walk(filled)].find((v) => v.props?.['data-testid'] === 'diy-slot-change').props.onClick({ stopPropagation() {} });
+    assert.deepEqual(opened, [T5A, T5A], 'its 更换 opens the slot\'s picker');
+    assert.ok([...walk(filled)].some((v) => hasClass(v, 'lo-op__side')), 'its skill / module column');
+    const bad = expand(DiyDeckSlot({ m: null, slot, pick: SIEGE_PICK, illegal: true, onOpen() {} }));
+    assert.ok(hasClass(bad, 'is-bad') && /不可用/.test([...walk(bad)].find((v) => hasClass(v, 'lo-op__pick')).props.title));
+  });
+
+  test("(fork) the picker's 清空 (a filled slot only): the card view has no 自选编队 overview to clear it from", () => {
+    const cleared = [];
+    const view = (picks) => expand(DiyPickerView({ m: null, slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks, kitted: KIT, onDone() {}, onClose() {},
+      onClear: () => cleared.push(1), draft: picks[T5A] ? { ...picks[T5A] } : null, onDraft() {} }));
+    const clear = (tree) => [...walk(tree)].find((v) => v.props?.['data-testid'] === 'diy-pick-clear');
+    assert.equal(clear(view({})), undefined, 'an empty slot: nothing to clear');
+    clear(view({ [T5A]: SIEGE_PICK })).props.onClick();
+    assert.deepEqual(cleared, [1]);
   });
 });
 

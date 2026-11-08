@@ -41,17 +41,18 @@ describe('时装 / Outfits view (real server, headless browser)', { skip: !ENABL
       localStorage.setItem('sp.name', 'Outfits');
       localStorage.setItem('sp.pref.lang', '"en"');
       sessionStorage.setItem('sp.entered', '1');
+      sessionStorage.setItem('sp.entryFilm.off', '1'); // the entry film would hold the lobby (the other runs skip it too)
     });
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen'), { timeout: 30000 });
     await page.click('.lobby-screen [data-testid="loadout-open"]');
-    // the row of Młynar (its id is the chess id), then the switch
-    const row = `[data-chess="${MLYNAR_CHESS}"]`;
+    // (fork) the card of Młynar (the card view, the only view since 2026-11-08): it opens the drawer, then the switch
+    const row = `.lo-op[data-chess="${MLYNAR_CHESS}"]`;
     await page.waitForSelector(row, { timeout: 20000 });
-    await page.click(`${row} .lo-card__name, ${row}`);
+    await page.click(`${row} .lo-op__pick`);
     await page.waitForSelector('[data-testid="outfit-switch-outfit"]', { visible: true });
     const headBefore = await page.$eval('.lo-dhead__art img', (i) => i.getAttribute('src'));
-    const rowBefore = await page.$eval(`${row} img`, (i) => i.getAttribute('src'));
+    const rowBefore = await page.$eval(`${row} .lo-op__art img[src*="mlynar"]`, (i) => i.getAttribute('src'));
     await page.click('[data-testid="outfit-switch-outfit"]');
     await page.waitForSelector('[data-testid="outfit-panel"] .ofit-card[data-outfit="default"]', { timeout: 10000 });
     await page.waitForSelector(`[data-outfit="${MLYNAR}"]`, { timeout: 10000 });
@@ -87,11 +88,11 @@ describe('时装 / Outfits view (real server, headless browser)', { skip: !ENABL
     await page.keyboard.press('Escape');
     await page.waitForFunction(() => !document.querySelector('[data-testid="outfit-art-viewer"]'), { timeout: 5000 });
     const headAfter = await page.$eval('.lo-dhead__art img', (i) => i.getAttribute('src'));
-    const rowAfter = await page.$eval(`${row} img`, (i) => i.getAttribute('src'));
+    const rowAfter = await page.$eval(`${row} .lo-op__art img[src*="mlynar"]`, (i) => i.getAttribute('src'));
     assert.notEqual(headAfter, headBefore);
     assert.match(headAfter, /\/assets\/outfit\/portrait\/char_4064_mlynar_epoque_28\.png$/, 'the header portrait');
     assert.notEqual(rowAfter, rowBefore);
-    assert.match(rowAfter, /\/assets\/outfit\/avatar\/char_4064_mlynar_epoque_28\.png$/, 'the row avatar');
+    assert.match(rowAfter, /\/assets\/outfit\/(?:portrait|avatar)\/char_4064_mlynar_epoque_28\.png$/, 'the card picture');
     await page.screenshot({ path: path.join(OUT, 'outfits-worn.png') });
     // persisted, and the server took it (the next room.state of a room carries it)
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.outfits')));
@@ -116,34 +117,33 @@ describe('时装 / Outfits view (real server, headless browser)', { skip: !ENABL
       localStorage.setItem('sp.name', 'Outfits');
       localStorage.setItem('sp.pref.lang', '"en"');
       sessionStorage.setItem('sp.entered', '1');
+      sessionStorage.setItem('sp.entryFilm.off', '1'); // the entry film would hold the lobby (the other runs skip it too)
     });
     await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => globalThis.__SP__?.store.get().connection.status === 'online' && !!document.querySelector('.lobby-screen'), { timeout: 30000 });
     await page.click('.lobby-screen [data-testid="loadout-open"]');
-    await page.waitForSelector('.lo .lo-tab[data-tab="diy"]', { visible: true, timeout: 20000 });
-    await page.click('.lo .lo-tab[data-tab="diy"]');
-    await page.click('.diy-slot[data-slot="chess_char_5_diy1_a"] .diy-slot__fill');
+    // (fork) the slot is a card in the deck; it opens the slot's picker page
+    await page.waitForSelector('.lo-op--diy[data-slot="chess_char_5_diy1_a"]', { timeout: 20000 });
+    await page.$eval('.lo-op--diy[data-slot="chess_char_5_diy1_a"]', (e) => e.click());
     await page.waitForSelector('[data-testid="diy-picker"]', { visible: true, timeout: 8000 });
-    await page.click(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"]`);
-    await page.waitForSelector('[data-testid="diy-pick-outfits"] .ofit-card[data-outfit="default"]', { visible: true, timeout: 10000 });
-    const ids = await page.$$eval('[data-testid="diy-pick-outfits"] .ofit-card', (els) => els.map((e) => e.dataset.outfit));
+    // (fork) the picker's detail is 干员调配's: the card opens it in the drawer, its 时装 tab the full outfit panel
+    await page.click(`[data-testid="diy-picker"] .diy-opt[data-char="${SIEGE}"] .diy-opt__pick`);
+    await page.waitForSelector('[data-testid="diy-drawer"] [data-testid="outfit-switch-outfit"]', { visible: true, timeout: 10000 });
+    await page.click('[data-testid="diy-drawer"] [data-testid="outfit-switch-outfit"]');
+    const P = '[data-testid="diy-drawer"] [data-testid="outfit-panel"]';
+    await page.waitForSelector(`${P} .ofit-card[data-outfit="default"]`, { visible: true, timeout: 10000 });
+    const ids = await page.$$eval(`${P} .ofit-card`, (els) => els.map((e) => e.dataset.outfit));
     assert.ok(ids.length >= 3 && ids[0] === 'default', `Siege's cards: ${ids}`);
     // wear one in the picker: at once, before the pick is confirmed
-    await page.click(`[data-testid="diy-pick-outfits"] .ofit-card[data-outfit="${ids[1]}"]`);
-    await page.waitForFunction((id) => document.querySelector(`[data-testid="diy-pick-outfits"] [data-outfit="${id}"]`)?.classList.contains('is-on'), {}, ids[1]);
+    await page.click(`${P} .ofit-card[data-outfit="${ids[1]}"]`);
+    await page.waitForFunction((sel, id) => document.querySelector(`${sel} [data-outfit="${id}"]`)?.classList.contains('is-on'), {}, P, ids[1]);
     const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.outfits')));
     assert.equal(stored.outfits[SIEGE], ids[1]);
     await page.screenshot({ path: path.join(OUT, 'outfits-diy-picker.png') });
-    // 预览 opens the full panel over the picker; Esc closes only it
-    await page.click('[data-testid="diy-pick-outfit-preview"]');
-    await page.waitForSelector('.ofit-dialog [data-testid="outfit-panel"]', { visible: true, timeout: 5000 });
-    await page.keyboard.press('Escape');
-    await page.waitForFunction(() => !document.querySelector('.ofit-dialog'), { timeout: 5000 });
-    assert.ok(await page.$('[data-testid="diy-picker"]'), 'the picker stays open');
     // confirm: the slot shows the outfit's portrait
     await page.click('[data-testid="diy-confirm"]');
     await page.waitForSelector('[data-testid="diy-picker"]', { hidden: true, timeout: 3000 });
-    const art = await page.$eval(`.diy-slot[data-char="${SIEGE}"] .diy-slot__art img`, (i) => i.getAttribute('src'));
+    const art = await page.$eval(`.lo-op--diy[data-char="${SIEGE}"] .lo-op__art img`, (i) => i.getAttribute('src'));
     assert.match(art, /\/assets\/(?:~[0-9a-f]+\/)?outfit\/portrait\//, `the slot's portrait: ${art}`); // ~hash: the asset generation
     assert.deepEqual(problems, [], 'no page errors');
     await ctx.close();

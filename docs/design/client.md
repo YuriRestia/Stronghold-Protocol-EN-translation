@@ -519,25 +519,71 @@ reading; the size applies on release (`pointerup` or `change`). The reading is d
 their unscaled size, since the text floors and px paddings inside do not shrink (§35.47). `test/ui/ui-size.test.js`
 guards every floor. At 100 % no property is set: the page is the design itself.
 
-干员调配's 卡片视图 (`screens/loadout.js` DeckView / DeckCard / TierMark / DeckBar, optional; PR #811, §35.18) persists
-`sp.pref.loadout.view` — `'list'` (the default, the aligned rows) or `'deck'` — in this browser only. The deck lays the
-干员调配 tab out after the event's 物资调配处: a group per tier scrolling sideways (two rows behind a tall tier marker),
-the 甄选干员 cards of the 自选编队 slots closing tiers 5 and 6 (they open that tab), a bottom bar jumping to a tier, and
-快速配置 — a column of the skills, the elite's modules or the 潜能 / 练度 selects beside every card, with the list rows'
-own handlers. A card's picture is an `OperatorImage` portrait (the owner's picture-only outfit, B6). A card opens the
-list's Detail in a drawer over the deck's left; on that tab Esc closes a popover, 快速配置, the drawer, then the
-overlay, and leaving the tab (干员持有, the 甄选干员 card, `openLoadout(…, tab)`) closes all three, so one Esc there
-closes the overlay. The tier marker is the official `shopLevelSprite/shop_level_tag_N` (data/assets.json) at its
+干员调配's 卡片视图 (`screens/loadout.js` DeckView / DeckCard / TierMark / DeckBar; PR #811, §35.18) is the 干员调配
+tab's only view since the fork's 2026-11-08 change: the list view (aligned rows, PR #301's quick choices), its 自选编队
+tab and that tab's slot overview were removed. The card view's blocks are ONE copy shared with the 自选编队 picker
+(`screens/loadoutDeck.js`: the card DeckOpCard with its column DeckOpSide and 「详情」 panel DeckOpMore, the quick
+choices, the grouped deck's drag / wheel / left-edge group / jump — useGroupDeck, GroupMark, GroupBar(Live) —, the
+drawer DeckDrawer — a pure overlay over the deck's left, the deck never moving for it — and the detail DeckDetail); each screen passes only its own data. The deck lays
+the tab out after the event's 物资调配处: a group per tier scrolling sideways (two rows behind a tall tier marker), one
+card per 自选编队 slot closing tiers 5 and 6 (fork: the pick, or an empty slot to fill — a press opens that slot's
+picker as a page of its own in place of the deck (the deck is not drawn meanwhile), with 清空 for a filled slot; the top
+bar's 干员调配, Esc, 确认 or 取消 bring the deck back where it was, without its opening 转场; 自选编队's 导出 / 导入 / 清空
+are in 更多), and a bottom bar jumping to a tier. The picker is the card view for 自选 operators: its legal operators as
+the same cards grouped by class (a class marker each, the classes in the roster's order) with a bottom bar jumping to a
+class and mouse drag (no header rows of its own: the top bar names the slot's tier, its 筛选 holds the roster's search,
+class and bond filters without the tier row or 仅看已调整, and 「简洁 / 展开」 sits in its bottom bar as in the deck), the 干员调配 detail
+(调配 / 时装 on top — 时装 the full outfit panel —, the head with the dub picker, then 外观, 潜能 / 练度, skills,
+局内数值, modules; no 特质 for a 自选 operator) in the same drawer over the deck's left with 收起, Esc folding the
+drawer, then cancelling; 确认 / 取消 below. Each card (fork) carries its own column at its right: the skills the
+operator has (S1–S3) at its top and the elite's modules (不装备 first) at its bottom — every module a button where the
+screen is taller than 560 px, else one button that steps to the next, pips saying how many and which (a card is about
+140 px tall on a 844 × 390 phone, too short for up to 3 skills and 4 modules at a tappable size). A choice there
+neither opens the drawer nor moves the selection, and a press on the column never reaches the card. A long name wraps
+onto a second line (never cut with …). 「简洁 / 展开」 (`sp.pref.loadout.details`; at the right of the bottom bar of both
+pages, both choices in view, a little card drawing on each — the user's calls of 2026-11-08) unfolds a brief panel beside every
+card — each skill whole with its description (the elite's Lv.7, the Detail's SkillOption), the modules with the chosen
+one's stat bonus and 特性 / 特性追加 lines (whole, never cut with …), no module title or talents: those are one press away, in the
+detail (the user's calls of 2026-11-08). Each panel is laid out on its own (`contain: strict`, sized from outside): a
+change anywhere in the deck laid out every panel again, 61–88 ms in 「展开」 against 15 ms contained, in the user's Vivaldi
+at 2319×1358 ×1.5; 筛选 is a block of its own beside 干员持有. The panels are always drawn but out of layout while folded (display: none — laid out with their
+card, each card scrolling into view laid out its panel's text and scrolling stuttered), and unfolded only those near
+the view are laid out (content-visibility); the toggle adds no element and redraws none: it lives in its own store
+(detailsStore: only the switch redraws). The deck's `is-details` gives every card its unfolded width at once (the
+scrollbar settles with the press), while each card's panel is drawn by its own `data-open` (a card redrawn by Preact
+keeps it): a press draws only the panels near the view — on screen or within half the deck's width beyond either edge
+— and the rest eight at a time while the page is idle, nearest first (the user's call of 2026-11-08: 1–1.8 s from a
+press to its first frame at a 4× slowed CPU, 0.17–0.55 s after, and every read made before the first animation — a
+read after one laid the deck out again per card); folding hides every panel at once. Cards drawn later (a filter, a
+version switch) catch up the same way (useDetailsSync). A panel fades in as it slides out from under its card and
+fades out within the first half of the slide back, clipped to its card only while it slides: a clip on every card made
+the browser regroup the page's compositing layers on every frame of a scroll (a drag's slow frames at a 4× slowed CPU
+133–213 ms with it, 46–67 ms without), and the deck itself scrolls on the compositor (`will-change: scroll-position`:
+Chrome did not promote it on its own, so every step of a drag regrouped the whole page's layers — a drag's slow frames
+in 「展开」 at full speed 12–21 ms before, 4 ms after; at a 4× slowed CPU 8–21 ms, smoother than 「简洁」 was). A mouse drag moves the deck once a frame and, let go, glides on at the pointer's
+speed, slowing like a phone browser's scroll, until a press, a wheel or a touch (useDragScroll; none with reduced
+motion). Nothing on the deck changes while it moves: a class there restyled all ~15 600 elements of 「展开」, 165–187 ms
+each switch, 2–3 a drag (the user's Vivaldi, 2026-11-08); the grabbing hand is a clear sheet over the page instead. A
+press while the deck still moves (it scrolled in the last 120 ms: a glide, a wheel, a jump, a fling) only stops it and
+its click picks nothing, as on a phone (the user's call of 2026-11-08). Picking a card says the operator's select line (选中干员, audio.voice 'select', as a tap in the match does). While the overlay is open the screen
+under it pauses its animations (the lobby's radar kept a fresh frame coming over the whole deck). The slide is FLIP (slideDetails): the deck takes its final
+layout at once, scrolled so that one card holds its place on screen — the selected card, or when it is off screen the
+card nearest the view's centre (deckAnchor) —, and the cards in view glide from their old places while each panel
+slides out from under its card (transforms only, 240 ms: no layout per frame). Each card has an explicit width and
+`content-visibility: auto`, so a card off screen is skipped: one layout of all 112 cards (~19 000 elements with their
+panels) is ~150 ms on a PC, and a resize or a tap's redraw lays out only the cards in view. A panel redraws only when its own card's inputs change (DeckOpMore, a class component). 潜能 and 练度 are set in the Detail. The fork removed 快速配置 (its skill / module / 潜能 · 练度
+columns). A card's picture is an `OperatorImage` portrait (the owner's picture-only outfit, B6). A card opens
+the Detail in a drawer over the deck's left; on that tab Esc closes a popover, the drawer, then the overlay, and
+leaving the tab (干员持有, `openLoadout(…, tab)`; an old 'diy' tab opens the deck) closes both, so one Esc there closes the overlay. The tier marker is the official `shopLevelSprite/shop_level_tag_N` (data/assets.json) at its
 design size, a CSS marker (NO. and the numeral, no slogan of our own) its fallback; [ASSUMED] that the event screen
 draws this sprite (its name and look; activity_table `shopLevelDisplayDataDict` confirms one group per shop level).
 While the match's loadout is locked the bottom bar carries a 「本局已锁定 · 下一局生效」 chip — the top bar's note is cut
-short or hidden on narrow screens and gives way to the hints in 快速配置. The bar holds the tier at the deck's left edge
-as its own state (DeckBarLive), so a scroll across tiers redraws the bar, not the 112 cards. ⓘ opens 「卡片视图说明」,
-the remake's own tips (the official tutorial chapter keeps the name 调度手册). The opening 转场 is the card view's only
-(maintainer's decision, 2026-10-21): the list keeps its 200 ms `lo-in`, and its ≤1000 px roster / detail toggle replays
-nothing. [ASSUMED], with no screenshot or video of the event screen offline: the card frame and colours, the two-row
-flow, the bottom bar, the 快速配置 columns, the 转场 timings, and ONE combined 甄选干员 card per tier where the official
-data lists two DIY slots (`charChessDiySlotIdList`). Both views read and write the same loadout store, so the room and
+short or hidden on narrow screens. The bar holds the group at the deck's left edge
+as its own state (GroupBarLive), so a scroll across tiers redraws the bar, not the 112 cards. The card view has no guide
+sheet of its own (its ⓘ 「卡片视图说明」 was removed by the user's call of 2026-11-08). The opening 转场 is the card view's
+(maintainer's decision, 2026-10-21). [ASSUMED], with no screenshot or video of the event screen offline: the card frame and colours, the two-row
+flow, the bottom bar, the cards' skill / module column and 「详情」 panel (the remake's own), the picker's class groups, and the 转场 timings; the official data lists two DIY slots
+per tier (`charChessDiySlotIdList`), one card each here. The cards read and write the same loadout store the list did, so the room and
 the server see nothing new. Normal / elite level indicators read each form's `status.phase` and `status.level`:
 `PromotionIcon` uses the official `elite/elite_0..2` sprites (missing art: `E0` / `E1` / `E2`), never a fixed two-bar
 glyph or a phase inferred from shop tier. The tier badge reserves the full square image height above these indicators,

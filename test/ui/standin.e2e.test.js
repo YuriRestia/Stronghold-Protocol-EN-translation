@@ -33,8 +33,8 @@ describe('0.2.0 补位 — a not-owned operator fights as its stand-in (real ser
       await c.enter('替补');
       // 1) 干员调配 → 干员持有: mark 银灰 未持有 (real clicks), synced with the server, persisted in the browser
       await c.click('.lobby-screen [data-testid="loadout-open"]');
-      await c.page.waitForSelector('.lo .lo-tab[data-tab="ownership"]', { visible: true, timeout: 15000 });
-      await c.click('.lo .lo-tab[data-tab="ownership"]');
+      await c.page.waitForSelector('.lo [data-testid="loadout-ownership"]', { visible: true, timeout: 15000 }); // (fork) the card view's 干员持有 block
+      await c.click('.lo [data-testid="loadout-ownership"]');
       await c.page.waitForSelector(`.own-card[data-chess="${SILVER}"]`, { visible: true, timeout: 15000 });
       const cards = await c.page.evaluate(() => [...document.querySelectorAll('.own-card')].length);
       assert.equal(cards, 53, 'the 53 NORMAL chess of the shop');

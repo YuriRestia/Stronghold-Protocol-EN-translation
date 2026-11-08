@@ -161,7 +161,7 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
     try {
       const page = await pageIn(ctx, true);
       // this fork: the square picker (ui/voiceLang.js) on upstream's settings.voiceOverrides
-      const open = async () => { await page.evaluate(async () => (await import('/js/ui/loadoutSync.js')).openLoadout()); await page.waitForSelector('.lo-card__pick'); await page.click('.lo-card__pick'); await page.waitForSelector('[data-voice-char] [data-lang]', { visible: true }); };
+      const open = async () => { await page.evaluate(async () => (await import('/js/ui/loadoutSync.js')).openLoadout()); await page.waitForSelector('.lo-op[data-chess] .lo-op__pick'); await page.click('.lo-op[data-chess] .lo-op__pick'); await page.waitForSelector('[data-voice-char] [data-lang]', { visible: true }); };
       await open();
       const id = await page.$eval('[data-voice-char]', (e) => e.dataset.voiceChar);
       const def = await page.$eval('[data-voice-char] [aria-checked="true"]', (e) => e.dataset.lang);

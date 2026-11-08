@@ -24,10 +24,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { Client, ROOT, hasChrome, sleep, problemsOf, startRealServer } from '../e2e/client.mjs';
 import { png, writePlugin, cosmetic } from '../helpers/pluginFixtures.js';
+import { isDroppableChess } from '../../shared/standIn.js';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome();
 
-/** Two operators of the 干员调配 roster with an avatar in data/assets.json: [chess record, its avatar asset id]. */
+/**
+ * Two operators of the 干员调配 roster with an avatar in data/assets.json: [chess record, its avatar asset id]. (fork) The
+ * first is one 干员持有 lists (a chess with an official stand-in, shared/standIn.js isDroppableChess — tiers III–VI): its
+ * cards are where the overlay shows an avatar since the card view (2026-11-08).
+ */
 function twoOperators() {
   const chess = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/chess.json'), 'utf8'));
   const assets = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'));
@@ -35,7 +40,8 @@ function twoOperators() {
     .filter((c) => c && !c.isGolden && !c.isDiy && c.visible !== false && !c.isHidden && (!c.baseId || c.baseId === c.chessId))
     .map((c) => [c, c.assets?.avatar || c.charId])
     .filter(([, id]) => typeof id === 'string' && !id.endsWith('_2') && assets.chars?.[id]?.avatar);
-  return [list[0], list[1]];
+  const room = list.find(([c]) => isDroppableChess(c));
+  return [room, list.find((x) => x !== room)];
 }
 
 /** The avatar a page draws for an asset id now (data.get('assets'): the art every screen reads). */
@@ -92,16 +98,19 @@ describe('cosmetic plugins in the browser (P1a)', { skip: !ENABLED && 'set SP_E2
       await host.shot('panel-host');
       await host.click('.modal__actions button', '完成');
 
-      // the other player: the room's art, its avatar loaded in the 干员调配 card; 插件 ×1; the vanilla cs
+      // the other player: the room's art, its avatar loaded in the 干员调配 overlay (its 干员持有 card); 插件 ×1; the vanilla cs
       await guest.page.waitForFunction((k) => /^\/p\/room-skin\/[0-9a-f]{8}\/art\/red\.png$/.test(globalThis.__SP__.data.get('assets')?.chars?.[k]?.avatar || ''), { timeout: 20000 }, roomId);
       assert.match(await guest.page.$eval('[data-testid="plugin-tag"]', (e) => e.textContent), /插件 ×1/);
       const content = await guest.page.evaluate(() => globalThis.__SP__.store.get().room.content);
       assert.equal(content.cs, vanillaCs, 'art never changes a battle: the vanilla cs');
       assert.deepEqual(content.plugins.map((p) => p.id), ['room-skin']);
       await guest.click('.room-loadout');
-      const card = `[data-chess="${roomChess.chessId}"] .lo-card__art img`;
-      await guest.page.waitForSelector(`[data-chess="${roomChess.chessId}"]`, { timeout: 20000 });
-      await guest.page.$eval(`[data-chess="${roomChess.chessId}"]`, (e) => e.scrollIntoView({ block: 'center' }));
+      // (fork) the card view's cards show the official half-body portraits (the plugin ships an avatar only); the
+      // overlay's 干员持有 cards show the avatar
+      await guest.click('[data-testid="loadout-ownership"]');
+      const card = `.own-card[data-chess="${roomChess.chessId}"] .own-card__ava img`;
+      await guest.page.waitForSelector(`.own-card[data-chess="${roomChess.chessId}"]`, { timeout: 20000 });
+      await guest.page.$eval(`.own-card[data-chess="${roomChess.chessId}"]`, (e) => e.scrollIntoView({ block: 'center' }));
       await guest.page.waitForFunction((sel) => { const img = document.querySelector(sel); return !!img && /\/p\/room-skin\//.test(img.src) && img.complete && img.naturalWidth === 8; }, { timeout: 20000 }, card);
       await sleep(300);
       await guest.shot('loadout-room-avatar');

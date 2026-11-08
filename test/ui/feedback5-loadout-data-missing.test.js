@@ -70,15 +70,14 @@ test('the screen: the import asks importRefusal before parsing or applying anyth
   const at = src.indexOf('const ioApply = () => {');
   assert.ok(at > 0, 'ioApply');
   const body = src.slice(at, src.indexOf('\n  };\n', at));
-  const guard = body.indexOf('const refused = importRefusal(io.kind, ready);');
+  // (fork) one import for every page: each chosen part is refused before ANY part is applied (applyPart)
+  const guard = body.indexOf('const refused = importRefusal(p, ready);');
   assert.ok(guard > 0, 'the guard');
-  assert.match(body.slice(guard), /^const refused = importRefusal\(io\.kind, ready\);\s*if \(refused\) \{ toast\(refused\.text, refused\.tone\); return; \}/);
-  for (const call of ['parseDiyImport(', 'applyDiyImport(', 'parseOwnershipImport(', 'applyOwnershipImport(', 'parseImport(', 'applyLoadoutEntries(']) {
-    assert.ok(body.indexOf(call) > guard, `${call} only after the guard`);
-  }
+  assert.match(body.slice(guard), /^const refused = importRefusal\(p, ready\);\s*if \(refused\) \{ toast\(refused\.text, refused\.tone\); return; \}/);
+  assert.ok(body.indexOf('applyPart[p](') > guard, 'the parts apply only after every guard');
   assert.ok(!/if \(!ready\)/.test(body), 'one guard for both cases');
   assert.match(src, /const lost = ready \? missingGameData\(tab\) : \[\];/);
-  assert.match(src, /: lost\.length \? html`<\$\{DataMissing\} files=\$\{lost\} \/>` : tab === 'diy'/);
+  assert.match(src, /: lost\.length \? html`<\$\{DataMissing\} files=\$\{lost\} \/>`\s*: tab === 'ownership'/); // (fork) 自选编队 lives on the card view now
 });
 
 test('the message names the files and what to try, in Chinese and in English', () => {

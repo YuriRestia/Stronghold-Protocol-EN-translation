@@ -4,8 +4,8 @@
 // texts, localized by the data overlay), default 潜能 6 / 精英阶段2-60级. Official: 调度手册 「卫戍协议中干员潜能由自身已
 // 持有干员潜能决定」 and 「提升已持有的干员，将为卫戍协议中同名的干员提供加成」 (an operator the player does not own fights
 // at 潜能 1 with no bonus: set by hand for a 特许 one; a NORMAL one not owned is its stand-in, which has neither).
-// CultivationSelects: two compact selects (a roster row, a 自选 slot card); CultivationSection: the detail's segmented
-// controls with the tier's effect. Hook-free views (the tests draw them). The settings live in ui/loadoutSync.js
+// CultivationSection: the detail's segmented controls with the tier's effect (the roster's drawer and the 自选编队
+// picker's; the list rows' and slot cards' compact selects went with the list view, the fork's 2026-11-08 change). Hook-free views (the tests draw them). The settings live in ui/loadoutSync.js
 // (`ops`, synced with room.loadout); the model is ui/loadoutModel.js opsOf / setOps.
 
 import { html, MicroLabel } from '../ui/components.js';
@@ -20,8 +20,6 @@ const POTENTIALS = Array.from({ length: POTENTIAL_MAX - POTENTIAL_MIN + 1 }, (_,
 const TIERS = CULTIVATE_EFFECTS.map((_, i) => i);
 /** Names while effects.json is not loaded (msgids; the data's own names win). */
 const FALLBACK_NAMES = Object.freeze([N_('未精英化'), N_('精英阶段1'), N_('精英阶段2'), N_('精英阶段2-60级')]);
-/** The short names a row's select shows (the full official name is its title and the detail's). */
-const SHORT_NAMES = Object.freeze([N_('未精英化'), N_('精英1'), N_('精英2'), N_('精英2 Lv.60')]);
 
 /** The official name of 练度 tier `n` (effects.json `name`, localized), else its fallback. */
 export function cultivateName(n) {
@@ -59,33 +57,6 @@ export function cultivationView(charId, ops, tables = null) {
     potentialOn,
     changed: cur.cultivate !== CULTIVATE_DEFAULT || (potentialOn && cur.potential !== POTENTIAL_DEFAULT),
   };
-}
-
-/**
- * Two compact selects — 潜能 and 练度 — of operator `charId` under the stored settings `ops` (a roster row, a 自选 slot).
- * @param {{ charId: string, ops: Record<string, any>, onSet: (charId: string, patch: { potential?: number, cultivate?: number }) => void,
- *   note?: string|null, disabled?: boolean }} props `note`: why the settings do not apply now (a 补位 stand-in), shown as
- *   the tooltip; `disabled`: the controls are not the player's to change here (a 自选 pick another slot already holds)
- */
-export function CultivationSelects({ charId, ops, onSet, note = null, disabled = false }) {
-  if (!charId) return null;
-  const cur = cultivationView(charId, ops);
-  const set = (patch) => onSet(charId, patch);
-  // a setting off the default stands out (mint); the default stays quiet — it is the same on every row
-  return html`<span class=${cx('lo-cult', cur.changed && 'is-changed', note && 'is-moot')} data-char=${charId} title=${note || undefined}>
-    ${cur.potentialOn ? html`<span class=${cx('lo-select', 'lo-cult__sel', 'lo-cult__pot', cur.potential !== POTENTIAL_DEFAULT && 'is-off')}>
-      <select value=${String(cur.potential)} aria-label=${t('潜能')} data-cult="potential" disabled=${disabled}
-        onChange=${(e) => set({ potential: Number(e.currentTarget.value) })}>
-        ${POTENTIALS.map((n) => html`<option key=${n} value=${String(n)}>${t('潜能 {n}', { n })}</option>`)}
-      </select>
-    </span>` : null}
-    <span class=${cx('lo-select', 'lo-cult__sel', 'lo-cult__tier', cur.cultivate !== TIERS.length - 1 && 'is-off')} title=${note ? undefined : cultivateName(cur.cultivate)}>
-      <select value=${String(cur.cultivate)} aria-label=${t('练度')} data-cult="cultivate" disabled=${disabled}
-        onChange=${(e) => set({ cultivate: Number(e.currentTarget.value) })}>
-        ${TIERS.map((n) => html`<option key=${n} value=${String(n)}>${t(SHORT_NAMES[n])}</option>`)}
-      </select>
-    </span>
-  </span>`;
 }
 
 /**

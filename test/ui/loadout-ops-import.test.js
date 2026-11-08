@@ -33,16 +33,20 @@ test('a loadout ops payload is refused with the DIY data check; entries-only is 
   assert.equal(loadoutOpsImportRefusal(null, false, noBackups), null, 'entries-only does not wait on backups');
 });
 
-test('ioApply asks loadoutOpsImportRefusal after parseImport and before cultivationCharIds or applyLoadoutEntries', () => {
+// (fork) one import for every page (ui/backupModel.js readBackup parses first: ioApply runs only on `ioRead.ok`); the
+// 调配 part's apply asks the refusal before its DIY id list or any write
+test('the 调配 part asks loadoutOpsImportRefusal on a parsed file, before cultivationCharIds or applyLoadoutEntries', () => {
   const src = readFileSync(path.join(ROOT, 'public/js/screens/loadout.js'), 'utf8');
-  const at = src.indexOf('const ioApply = () => {');
-  assert.ok(at > 0, 'ioApply');
-  const body = src.slice(at, src.indexOf('\n  };\n', at));
-  const parsed = body.indexOf('if (!res.ok)');
+  const io = src.indexOf('const ioApply = () => {');
+  assert.ok(io > 0, 'ioApply');
+  assert.match(src.slice(io, src.indexOf('\n  };\n', io)), /^const ioApply = \(\) => \{\s*if \(!ioRead\?\.ok \|\| !ioChosen\.length\) return;/, 'only a file that parsed');
+  const at = src.indexOf('    loadout: (res) => {', src.indexOf('const applyPart = {'));
+  assert.ok(at > 0, 'applyPart.loadout');
+  const body = src.slice(at, src.indexOf('\n    },\n', at));
   const guard = body.indexOf('loadoutOpsImportRefusal(res.ops, ready)');
   const ids = body.indexOf('cultivationCharIds(');
   const apply = body.indexOf('applyLoadoutEntries(');
-  assert.ok(parsed > 0 && guard > parsed, 'refuse only a payload that parsed');
+  assert.ok(guard > 0, 'the guard');
   assert.ok(ids > guard && apply > guard, 'no write and no DIY id list until the refusal returns null');
-  assert.match(body.slice(guard), /^loadoutOpsImportRefusal\(res\.ops, ready\);\s*if \(opsRefused\) \{ toast\(opsRefused\.text, opsRefused\.tone\); return; \}/);
+  assert.match(body.slice(guard), /^loadoutOpsImportRefusal\(res\.ops, ready\);\s*if \(opsRefused\) return opsRefused;/);
 });

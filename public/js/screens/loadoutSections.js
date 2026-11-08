@@ -2,10 +2,10 @@
 // the 自选编队 picker (screens/diy.js). A 自选 pick is a normal chess record — shared/standIn.js composeUnitRecord composes
 // the slot's identity with the operator's form, its statsBase / traitBase / modules[] / skills[] — so `chessOptions()`,
 // `ModuleInfo` and these sections take it as they take a chess. They live here rather than in a screen because
-// screens/loadout.js already imports screens/diy.js for its third tab: neither may import the other. Hook-free views (the
-// tests draw them); the caller passes the current choice and its own onChange (the roster writes the stored loadout, the
-// picker writes its draft). Both rows also share the click guard `rowControlHit`: a click on the row's own area picks its
-// operator, a click inside one of its controls keeps that control's action.
+// screens/loadout.js already imports screens/diy.js for its 自选编队 cards and picker: neither may import the other.
+// Hook-free views (the tests draw them); the caller passes the current choice and its own onChange (the roster writes the
+// stored loadout, the picker writes its draft). The card view's own blocks — the card, the deck, the drawer — are in
+// screens/loadoutDeck.js.
 
 import { html, Icon, MicroLabel } from '../ui/components.js';
 import { Img, RichText } from '../ui/gameComponents.js';
@@ -16,29 +16,6 @@ import { MODULE_NONE, PROF_ORDER, PROF_NAME, skillLabel, moduleBadge, attrRows, 
 import { atPotential } from '../../../shared/potential.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
-
-/**
- * The controls a roster row holds: a 技能 / 模组 quick choice (a button) and a 潜能 / 练度 select (inside a `.lo-select`
- * wrapper). A click that lands inside one of them keeps that control's own action — the row's skill / module button
- * selects the row through its own handler and a phone stays on the list (PR #301), a select opens its own list
- * (`screens/loadout.js RosterRow` and `screens/diy.js DiyRow`, which share `rowControlHit`).
- */
-export const ROW_CONTROL_SELECTOR = 'button, select, .lo-select, input, textarea, a';
-
-/**
- * Whether a click on a row hit one of the row's own controls rather than the row itself. Anchored to the row: the match
- * must be inside the click's own `.lo-card`, so an ancestor that merely matches the selector (the list wrapped in a
- * button or a link) does not swallow the row's clicks. No usable target (a synthetic call) counts as a row click.
- * @param {any} e the click event
- * @returns {boolean}
- */
-export function rowControlHit(e) {
-  const target = e?.target;
-  const hit = target?.closest?.(ROW_CONTROL_SELECTOR) ?? null;
-  if (!hit) return false;
-  const row = target.closest('.lo-card') ?? null;
-  return !!row && row.contains(hit);
-}
 
 /**
  * The 职业 filter chips of the 干员调配 roster (screens/loadout.js `Filters`), drawn from here because the 自选编队 picker
@@ -92,6 +69,22 @@ function moduleIconOf(m, rec) {
   return null;
 }
 
+/**
+ * (fork) A module type icon at one scale for all: the icons are cut tight (Virtuosa's X 28×45, her Y 74×42), and fitted
+ * each to the tile a narrow one came out thin and a wide one squat, the two of an operator unlike each other (the
+ * user's report of 2026-11-09). Sized from its own pixels against the tallest (MOD_ICON_REF px = MOD_ICON_FILL of the
+ * tile), as the game draws them; one too big for the tile is fitted to MOD_ICON_MAX of it.
+ */
+const MOD_ICON_REF = 56, MOD_ICON_FILL = 80, MOD_ICON_MAX = 94;
+const sizeModuleIcon = (e) => {
+  const img = e.currentTarget;
+  const w = img.naturalWidth, h = img.naturalHeight;
+  if (!w || !h) return;
+  const k = Math.min(MOD_ICON_FILL / MOD_ICON_REF, MOD_ICON_MAX / w, MOD_ICON_MAX / h);
+  img.style.width = `${(w * k).toFixed(1)}%`;
+  img.style.height = `${(h * k).toFixed(1)}%`;
+};
+
 /** Module badge tile: the official type icon when the local-client art has it, else the type letter; ⊘ for 不装备. */
 export function ModuleGlyph({ m, rec, id, size = 'md' }) {
   const src = rec ? moduleIconOf(m, rec) : null;
@@ -101,11 +94,14 @@ export function ModuleGlyph({ m, rec, id, size = 'md' }) {
     </span>`;
   }
   return html`<span class=${cx('lo-mglyph', `lo-mglyph--${size}`)} data-type=${moduleBadge(rec)}>
-    <${Img} src=${src} fallback=${html`<b class="lo-mglyph__t num">${moduleBadge(rec)}</b>`} />
+    <${Img} src=${src} onLoad=${sizeModuleIcon} fallback=${html`<b class="lo-mglyph__t num">${moduleBadge(rec)}</b>`} />
   </span>`;
 }
 
-/** One skill of the 技能 section: icon, slot, name, the 默认 / 已装备 badges, the SP tags and the description. */
+/**
+ * One skill of the 技能 section: icon, slot, name and its badge on one line, the SP tags and the description. (fork) The
+ * badge is 已装备 on the equipped skill, else 默认 on the default one (the user's call of 2026-11-08: one badge, by the name).
+ */
 export function SkillOption({ m, opt, on, level, onPick, locked = false }) {
   const rec = level === 'elite' ? opt.elite || opt.normal : opt.normal || opt.elite;
   const tags = skillTags(rec);
@@ -117,8 +113,8 @@ export function SkillOption({ m, opt, on, level, onPick, locked = false }) {
       <span class="lo-skill__head">
         <span class="lo-skill__slot num">${skillLabel(opt.index)}</span>
         <b class="lo-skill__name">${rec?.name || t('未知技能')}</b>
-        ${opt.isDefault ? html`<span class="lo-badge lo-badge--def">${t('默认')}</span>` : null}
-        ${on ? html`<span class="lo-badge lo-badge--on"><${Icon} name="check" />${t('已装备')}</span>` : null}
+        ${on ? html`<span class="lo-badge lo-badge--on"><${Icon} name="check" />${t('已装备')}</span>`
+          : opt.isDefault ? html`<span class="lo-badge lo-badge--def">${t('默认')}</span>` : null}
       </span>
       <span class="lo-skill__tags">
         <span class=${cx('lo-sp', `lo-sp--${tags.spKind}`)}>${tags.sp}</span>
@@ -136,16 +132,18 @@ export function SkillOption({ m, opt, on, level, onPick, locked = false }) {
  * The chosen module's card: its stat bonus, the 特性 it fights with, its talent changes — read at the operator's 潜能
  * (`potential`, 0.2.2: the elite composed at it first, shared/potential.js atPotential, as 局内数值 and the battle do; the
  * data record is the full-potential one — 余's 闲云隐市 「生命上限2%（+0.5%）」 is 「1.5%」 at 潜能1). null = full potential.
- * @param {{ m: any, golden: any, opt: { id: string, rec: any, isDefault?: boolean }, potential?: number|null }} props
+ * (fork) `brief`: the stat bonus and the 特性 lines only — no title (the module card above names it), no lead, no
+ * talents — the card view's 「展开」 panel (screens/loadoutDeck.js DeckOpMore).
+ * @param {{ m: any, golden: any, opt: { id: string, rec: any, isDefault?: boolean }, potential?: number|null, brief?: boolean }} props
  */
-export function ModuleInfo({ m, golden, opt, potential = null }) {
+export function ModuleInfo({ m, golden, opt, potential = null, brief = false }) {
   if (!golden) return null;
   const at = atPotential(golden, potential);
   const rec = opt.id === MODULE_NONE ? null : at === golden ? opt.rec : moduleRecord(at, opt.id) || opt.rec;
   if (!rec) {
     const traitBase = golden.traitBase || null;
     return html`<div class="lo-minfo lo-minfo--none">
-      <p class="lo-minfo__lead">${t('不装备模组：精锐干员以基础属性、特性与天赋作战。')}</p>
+      ${brief ? null : html`<p class="lo-minfo__lead">${t('不装备模组：精锐干员以基础属性、特性与天赋作战。')}</p>`}
       ${traitBase?.desc ? html`<div class="lo-minfo__row"><span class="lo-minfo__k">${t('特性')}</span><${RichText} class="lo-minfo__v" text=${traitBase.descRaw || traitBase.desc} /></div>` : null}
     </div>`;
   }
@@ -153,10 +151,10 @@ export function ModuleInfo({ m, golden, opt, potential = null }) {
   // 特性: the trait the elite fights with under this module (the class trait, or the module's rewrite of it), then the
   // module's extra line under PRTS's own label 特性追加 — the line adds to the class trait (item 16.2)
   const lines = traitLines(rec.traitOverride);
-  const talents = (Array.isArray(rec.talentChanges) ? rec.talentChanges : []).filter((t) => t && (t.name || t.desc) && !t.hidden);
-  return html`<div class="lo-minfo">
-    <div class="lo-minfo__title"><${Img} src=${moduleIconOf(m, rec)} class="lo-minfo__icon" /><span class="lo-minfo__type num">${rec.typeName || ''}</span><b>${rec.name || rec.uniEquipId}</b>
-      ${opt.isDefault ? html`<span class="lo-badge lo-badge--def">${t('默认')}</span>` : null}</div>
+  const talents = brief ? [] : (Array.isArray(rec.talentChanges) ? rec.talentChanges : []).filter((t) => t && (t.name || t.desc) && !t.hidden);
+  return html`<div class=${cx('lo-minfo', brief && 'lo-minfo--brief')}>
+    ${brief ? null : html`<div class="lo-minfo__title"><${Img} src=${moduleIconOf(m, rec)} class="lo-minfo__icon" /><span class="lo-minfo__type num">${rec.typeName || ''}</span><b>${rec.name || rec.uniEquipId}</b>
+      ${opt.isDefault ? html`<span class="lo-badge lo-badge--def">${t('默认')}</span>` : null}</div>`}
     <div class="lo-minfo__row">
       <span class="lo-minfo__k">${t('属性')}</span>
       <span class="lo-minfo__v lo-attrs">${rows.length ? rows.map((r) => html`<span key=${r.key} class=${cx('lo-attr', r.positive ? 'is-up' : 'is-down')}>${r.label}<b class="num">${r.text}</b></span>`) : html`<span class="t-dim">${t('无属性加成')}</span>`}</span>
@@ -195,29 +193,34 @@ export function SkillSection({ m, chess, golden, skillOptions, skill, level, onL
  * 模组 section: the module cards the caller offers (the roster: 不装备 + every module of the elite; the picker: its own
  * filtered list, 不装备 first) and the chosen one's `ModuleInfo`. Null without an elite form. `locked` (a 自选 prototype's
  * fixed module) draws the cards read-only.
+ * (fork) `brief`: no section head, the chosen module's ModuleInfo brief — the card view's 「展开」 panel.
  * @param {{ m: any, golden: any, moduleOptions: Array<{ id: string, rec: any, isDefault?: boolean }>,
- *   module: string|null, onPick: (id: string) => void, potential?: number|null, locked?: boolean }} props
+ *   module: string|null, onPick: (id: string) => void, potential?: number|null, locked?: boolean, brief?: boolean }} props
  */
-export function ModuleSection({ m, golden, moduleOptions, module, onPick, potential = null, locked = false }) {
+export function ModuleSection({ m, golden, moduleOptions, module, onPick, potential = null, locked = false, brief = false }) {
   if (!golden) return null;
   const modOpt = moduleOptions.find((x) => x.id === module) || null;
   return html`<section class="lo-sec lo-sec--mod">
-    <header class="lo-sec__head">
+    ${brief ? null : html`<header class="lo-sec__head">
       <h3>${t('模组')}<${MicroLabel}>MODULE<//></h3>
       <span class="lo-sec__note">${t('仅精锐干员装备 · 模组等级')} <b class="num">${golden.status?.equipLevel ?? 1}</b></span>
-    </header>
+    </header>`}
     <div class="lo-mods" role="radiogroup" aria-label=${t('选择模组')}>
       ${moduleOptions.map((mo) => html`<button key=${mo.id} type="button" role="radio" aria-checked=${mo.id === module ? 'true' : 'false'}
           data-module=${mo.id} disabled=${locked} class=${cx('lo-mod', mo.id === module && 'is-on', mo.id === MODULE_NONE && 'lo-mod--none')}
           onClick=${() => onPick(mo.id)}>
-        <${ModuleGlyph} m=${m} rec=${mo.rec} id=${mo.id} />
+        ${/* (fork) the Detail: 默认 small on the icon's top edge, the name the whole width beside it (it wrapped a letter
+             at a time beside the badge: the user's call of 2026-11-09); a card's 「展开」 panel (`brief`, one full-width row
+             each) has it beside the type (RIT-X), so a long name never shares its line (the user's calls of the same day) */ null}
+        <span class="lo-mod__icon"><${ModuleGlyph} m=${m} rec=${mo.rec} id=${mo.id} />
+          ${mo.isDefault && !brief ? html`<span class="lo-badge lo-badge--def lo-mod__def">${t('默认')}</span>` : null}</span>
         <span class="lo-mod__text">
-          <span class="lo-mod__type num">${mo.id === MODULE_NONE ? 'NONE' : mo.rec?.typeName || ''}</span>
+          <span class="lo-mod__head"><span class="lo-mod__type num">${mo.id === MODULE_NONE ? 'NONE' : mo.rec?.typeName || ''}</span>
+            ${mo.isDefault && brief ? html`<span class="lo-badge lo-badge--def">${t('默认')}</span>` : null}</span>
           <b class="lo-mod__name">${mo.id === MODULE_NONE ? t('不装备') : mo.rec?.name || mo.id}</b>
         </span>
-        ${mo.isDefault ? html`<span class="lo-badge lo-badge--def lo-mod__def">${t('默认')}</span>` : null}
       </button>`)}
     </div>
-    ${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} potential=${potential} />` : null}
+    ${modOpt ? html`<${ModuleInfo} m=${m} golden=${golden} opt=${modOpt} potential=${potential} brief=${brief} />` : null}
   </section>`;
 }

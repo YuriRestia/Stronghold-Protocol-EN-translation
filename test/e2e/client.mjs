@@ -221,6 +221,44 @@ export async function startRealServer(opts = {}) {
  * One player: its own Chrome process with a single, always visible tab (two tabs of one browser would leave one
  * hidden — no animation frames, so the Pixi view and visibility checks stall).
  */
+/**
+ * (fork) 干员调配's card view (the only view since 2026-11-08), for any run that drives a page: search the deck for
+ * `name` through the top bar's 筛选, wait until exactly one operator card is left, fold the popover and return that
+ * card's selector; `pick` (default): also press the card, so the drawer opens with its Detail. The overlay must be open.
+ * @param {import('puppeteer-core').Page} page
+ */
+export async function loadoutFind(page, name, { pick = true } = {}) {
+  await page.waitForSelector('.lo .lo-op[data-chess]', { visible: true, timeout: 15000 });
+  if (!await page.$('.lo-pop--filter')) {
+    await page.waitForSelector('[data-testid="loadout-filter"]', { visible: true, timeout: 10000 });
+    await page.click('[data-testid="loadout-filter"]');
+  }
+  await page.waitForSelector('.lo-pop--filter .lo-search input', { visible: true, timeout: 5000 });
+  // a search already there goes first (a second find in the same overlay)
+  await page.$eval('.lo-pop--filter .lo-search input', (el) => { el.focus(); el.select(); });
+  await page.keyboard.press('Backspace');
+  await page.keyboard.type(name);
+  await page.waitForFunction(() => document.querySelectorAll('.lo .lo-op[data-chess]').length === 1, { timeout: 5000 });
+  const card = `.lo .lo-op[data-chess="${await page.$eval('.lo .lo-op[data-chess]', (e) => e.dataset.chess)}"]`;
+  // a press outside folds the popover (the overlay's listener: a pointerdown outside .lo-pop and its button)
+  await page.evaluate(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true })));
+  await page.waitForSelector('.lo-pop--filter', { hidden: true, timeout: 3000 });
+  if (pick) {
+    if (!await page.$(`${card}.is-sel`) || !await page.$('[data-testid="loadout-drawer"]')) await page.click(`${card} .lo-op__pick`);
+    await page.waitForSelector('[data-testid="loadout-drawer"]', { visible: true, timeout: 5000 });
+  }
+  return card;
+}
+
+/**
+ * (fork) 干员调配's top-bar control `testid` (loadout-export / loadout-import / loadout-reset): buttons of their own in the
+ * bar's tray since 2026-11-09 (no 更多 menu), so this waits for it and presses it.
+ */
+export async function loadoutMenu(page, testid) {
+  await page.waitForSelector(`.lo-top [data-testid="${testid}"]`, { visible: true, timeout: 10000 });
+  await page.click(`.lo-top [data-testid="${testid}"]`);
+}
+
 export class Client {
   constructor(puppeteer, base, label, { w = 1920, h = 1080, prefix = 'coop' } = {}) {
     Object.assign(this, { puppeteer, base, label, w, h, prefix, problems: [], log: [], shots: [] });
@@ -357,6 +395,9 @@ export class Client {
       return null;
     }, sel, text, nth, any);
   }
+
+  /** (fork) 干员调配's card view: see loadoutFind below (the page-level helper the raw-page runs share). */
+  async loadoutFind(name, opts = {}) { return loadoutFind(this.page, name, opts); }
 
   async exists(sel) { return !!(await this.page.$(sel)); }
 

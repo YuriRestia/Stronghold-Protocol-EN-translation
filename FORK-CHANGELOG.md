@@ -49,7 +49,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -83,6 +83,39 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Design: DESIGN §91 (`docs/design/large-rooms.md`). Squad, draft and relay ideas follow the GPL-3.0 forks
   [LongQianChen/Stronghold-Protocol](https://github.com/LongQianChen/Stronghold-Protocol) and
   [zhewang448/Stronghold-Protocol](https://github.com/zhewang448/Stronghold-Protocol), adapted to this code.
+
+### Operator Loadout cards
+
+- Operator Loadout is cards only: the list view is gone, along with its Custom Squad tab and slot overview.
+- Every card has its skills (S1–S3, only the ones the operator has) at the top of a column on its right and its modules at the bottom, "No Module" first. On a PC or tablet every module is its own button, like the skills. On a short screen (a phone in landscape) one module button steps to the next module, with small dots showing how many there are. A tap changes only that choice: it doesn't open the operator's details or select the card.
+- A long operator name wraps onto a second line instead of being cut off with "…".
+- The name sits at the bottom of the card, a size bigger, and the Alliance icons stand down the left edge. Potential is a third row of the level badge: the mode's pentagram, its strokes lit in the game's order (earlier ranks white, the current rank in the elite icon's yellow, all five yellow at Potential 6), instead of six diamonds.
+- A Custom Squad operator is a card like any other: levels, potential and Alliances on the left, its skill and module buttons on the right, Owned or Prototype beside "Tier 6 Custom" above its name, and Expanded's panel. Tapping it opens the same details as any operator, and its choices save straight to the slot; the swap icon under its Alliances opens the picker to choose another operator.
+- The portrait is the whole card's background, shaded at the left, the right and the bottom so the tier and levels, the skill and module buttons and the name stay readable, with no frame and no pale grey card behind it: behind the operator is near-black with a faint glow at the head, so dark hair still stands out. The class branch icon moved from the portrait to the rail, under the tier.
+- In Expanded, the modules are a list, one full-width row each like the skills, with Default beside the name.
+- A Compact / Expanded switch at the right of the bottom bar, both choices always in view, slides out each card's skill descriptions and every module, with its bonuses, beside the card. Nothing reloads: the panels are already there, folded away. The selected card stays where it is on screen while they slide, or the card nearest the middle of the screen when the selected one is off screen.
+- Expanded's panels show each skill whole (icon, name, badges, SP tags and description) and only the chosen module's stat bonus and trait lines, in full. The chosen skill shows Equipped beside its name instead of Default, and its Initial, Cost and Duration share one line: the panel is a little wider for it. The module's title and talents are in the operator's details, one tap away. A long module name wraps instead of being cut off with "…".
+- Folding back to Compact fades each panel out as it slides back, instead of showing it under the card. The scrollbar no longer jumps around while the panels open.
+- The details drawer lies over the left of the cards and no longer moves or scrolls them when it opens or closes (picking a card and closing its details used to leave the cards shifted by up to a card width).
+- Scrolling the cards is much smoother, in Expanded as in Compact: the deck now scrolls on the GPU, and starting or ending a drag no longer stalls the page (up to half a second in Expanded on a large screen before). Letting go of a mouse drag glides on and slows down like scrolling on a phone. A drag can start anywhere on a card, its Expanded panel included.
+- A click on the cards while they are still moving (a glide, the mouse wheel, a jump to a tier) only stops them, as on a phone: no card or skill is picked until the deck is still.
+- Picking an operator's card plays its selection voice line, as tapping it in a match does.
+- Expanded answers much faster: only the cards on screen and just beside it open at once, and the rest follow in the background while the page is idle. From the press to the first frame it now takes 0.2–0.55 s on a slow (phone-like) CPU instead of 1–1.8 s, and 40–100 ms on a PC.
+- The top bar's right is one tray in the look of the Compact / Expanded / Outfits switch: Export and Import (one above the other), Search (which also filters by class and Alliance) and a small Reset (it asks first). Operator Roster's page has the same tray (Export, Import, Own All), and the Custom Squad picker's Search sits in one too. The ⋯ menu and Clear Custom Squad are gone (a slot's picker clears its own slot). "Synced" now reads "Saved". Operator Roster moved to the bottom bar, left of the switch.
+- Outfits is the third choice of the Compact / Expanded switch (a shirt icon), in Operator Loadout and in the Custom Squad picker: each card's skill and module buttons become its outfits, as portrait icons; tap one to wear it. Going from Expanded to Outfits folds the panels first and then shows the outfits (before, the cards flew a screen across and snapped back). Leaving Outfits no longer freezes the page for a quarter of a second: the cards on screen switch at once and the rest follow while the page is idle.
+- Module icons are drawn at one scale, as in the game: a narrow icon (Virtuosa's X) no longer looks thin beside a wide one, and every operator's pair matches. In the details drawer the Default tag sits small on the icon's top edge, so a long module name such as "The Decrescendo" keeps whole words on a line (the Expanded panel has it small beside the module type, RIT-X).
+- With an operator's details open, a press on the deck's empty space, on another card's skill or module button (the choice still applies), a drag of the deck or opening Search closes them (a search's results start at the left, under the drawer); another operator's portrait opens that operator's details at once.
+- A click right after a search (or after the details drawer opens) picks the card again; only a deck that is really still moving (a glide, the wheel, a jump) ignores a click.
+- Export lets you tick what to include (Loadout, Operator Roster, Custom Squad, Outfits): one item gives that page's own file, several give one file with all of them. Import reads any of those files, older versions included, shows what it found, and imports the items you keep ticked.
+- Quick Setup is gone. Potential and Development are set in the operator's details.
+- The card view's ⓘ guide is gone.
+- The Custom Squad's four slots are cards at the end of tier V and VI, showing the pick or "Choose an Operator". Tapping one opens the picker as its own page, and Back (top left), Confirm or Clear brings you back to the cards exactly where you were. Custom Squad export and import are part of the top bar's Export / Import.
+- The picker is the loadout's card page for custom operators: the same cards, grouped by class with a marker for each class, and a bottom bar that jumps to a class. Drag with the mouse to scroll. Its Filter has the loadout's search, class and alliance filters, and the Compact / Expanded switch sits in its bottom bar too. Tapping an operator picks it and opens its details in the drawer on the left, with Collapse; Esc folds the drawer, then closes the picker. Prototypes show their fixed skill and module, and an operator already in another slot is dimmed and says where.
+- The picker's drawer is Operator Loadout's own detail: the Loadout / Outfits switch (Outfits has the full outfit panel), the voice language picker, Appearance, Potential and Development, skills, battle stats and modules.
+- In an operator's details, the English "Development" label no longer runs into its buttons: Potential and Development share a label column as wide as the longer word, and on a short screen each label sits above its buttons.
+- Scrolling the cards is smooth again: the lobby's radar no longer animates behind the loadout, and folded Details panels stay out of the page's layout until Details is on.
+- Opening the cards and tapping a skill is faster: cards off screen are skipped until they scroll into view.
+- Under the hood, both screens draw the same card, deck, bottom bar, drawer and detail (`public/js/screens/loadoutDeck.js`) instead of keeping two copies.
 
 ### S.W.E.E.P. Report
 
@@ -119,10 +152,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -240,7 +273,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -565,7 +598,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

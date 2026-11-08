@@ -17,7 +17,8 @@ import { useStore } from '../store.js';
 const obj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const text = (v) => (typeof v === 'string' && v ? v : null);
 const outfitOf = (m, id) => (text(id)?.includes('#') ? (m?.outfits?.chars?.[id] || m?.outfits?.tokens?.[id] || null) : null);
-const outfitArtUrl = (m, id, kind) => text(outfitOf(m, id)?.[kind]);
+/** An outfit's art of `kind` ('avatar' / 'art' / …) in the manifest, or null. (fork) Also the card view's outfit column. */
+export const outfitArtUrl = (m, id, kind) => text(outfitOf(m, id)?.[kind]);
 const defaultArtUrl = (m, charId) => text(m?.outfits?.defaults?.[charId]?.art);
 const hasModel = (sp) => obj(sp) && typeof sp.skel === 'string' && typeof sp.atlas === 'string';
 const hasSpine = (m, id) => {
