@@ -1,0 +1,118 @@
+// ui/largeRooms.js — (fork) Grand Alliance (大同盟, shared/largeRoom.js, DESIGN §91): the full-screen room browser of this
+// server's open 8-seat rooms, reached from Team Simulation (同盟模拟), and the password prompt of a locked room.
+// While the browser is open the page watches the list (rooms.watch on); the server sends rooms.list on every change.
+// Matchmaking never fills these rooms.
+
+import { useEffect, useState } from '../../vendor/hooks.module.js';
+import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
+import { ROOM_PASSWORD_RE, SQUAD_SEATS } from '../../../shared/largeRoom.js';
+import { html, Button, Icon, Spinner, DifficultyIcon, promptDialog } from './components.js';
+import { net } from '../net.js';
+import { t } from '../../../shared/i18n.js';
+
+/** Keep only well-formed rows of a rooms.list frame. @param {any} msg */
+export function roomRows(msg) {
+  const rows = Array.isArray(msg?.rooms) ? msg.rooms : [];
+  return rows.filter((r) => r && typeof r.code === 'string' && Number.isInteger(r.seats) && Number.isInteger(r.capacity))
+    .map((r) => ({
+      code: r.code, host: typeof r.host === 'string' ? r.host : '', seats: r.seats, capacity: r.capacity, difficulty: r.difficulty,
+      squads: Array.isArray(r.squads) && r.squads.length === 2 ? r.squads.map((n) => (Number.isInteger(n) ? n : 0)) : [r.seats, 0],
+      locked: r.locked === true,
+    }));
+}
+
+/** The rows a filter keeps: 'all', 'open' (not locked) or 'locked'. */
+export function filterRows(rows, filter) {
+  return filter === 'open' ? rows.filter((r) => !r.locked) : filter === 'locked' ? rows.filter((r) => r.locked) : rows;
+}
+
+/**
+ * Ask for a locked room's password: its 4 letters in upper case, or null when the player cancels.
+ * @param {string} code @param {boolean} [retry] the last one was wrong
+ */
+export function askRoomPassword(code, retry = false) {
+  return promptDialog({
+    title: t('房间已上锁'), // en: "Room Locked"
+    micro: 'LOCKED',
+    text: t('房间 {code} 已上锁。请向房主索取 4 个字母的密码。', { code }), // en: "Room {code} is locked. Ask the host for its 4-letter password."
+    error: retry ? t('密码不正确，请重试') : '', // en: "Wrong password, try again"
+    placeholder: 'ABCD', maxLength: 4, pattern: ROOM_PASSWORD_RE, transform: (v) => v.replace(/[^A-Za-z]/g, '').toUpperCase(),
+    okText: t('加入'),
+  });
+}
+
+/** A squad's 4 seats as pips: filled ones lit. */
+function SquadPips({ name, filled, tone }) {
+  // msgid {n}/{max} 人 — en: "{n}/{max} Doctors"
+  return html`<div class=${`rbr-squad rbr-squad--${tone}`}>
+    <span class="rbr-squad__k">${name}</span>
+    <span class="rbr-squad__pips" aria-label=${t('{n}/{max} 人', { n: filled, max: SQUAD_SEATS })}>
+      ${Array.from({ length: SQUAD_SEATS }, (_, i) => html`<i key=${i} class=${i < filled ? 'is-on' : ''}></i>`)}
+    </span>
+  </div>`;
+}
+
+/**
+ * The room browser, full screen.
+ * msgids — 大同盟 en: "Grand Alliance"; 创建大同盟 en: "Create Grand Alliance"; 全部 en: "All"; 开放 en: "Open";
+ * 已上锁 en: "Locked"; 加入 en: "Join"; 房间列表 en: "Room Browser"; 筛选 en: "Filter";
+ * 最多 8 名真人博士… en: "Up to 8 human Doctors in two squads: seats 1–4 are Squad A, 5–8 Squad B. Each squad drafts on its own,
+ * everyone fights over one operator pool, and the whole room faces one shared Enemy Leader at the end.";
+ * 暂时没有开放的大同盟房间… en: "No open Grand Alliance rooms right now. Create one and send the key to your friends.";
+ * 没有符合条件的房间 en: "No rooms match this filter"
+ * @param {{ onClose: () => void, onCreate: () => void, onJoin: (code: string) => void, busy: string | null, online: boolean }} p
+ */
+export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
+  const [rows, setRows] = useState(null);
+  const [filter, setFilter] = useState('all');
+  useEffect(() => {
+    const off = net.on('rooms.list', (msg) => setRows(roomRows(msg)));
+    net.request('rooms.watch', { on: true }).catch(() => setRows([]));
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    addEventListener('keydown', onKey);
+    return () => { off?.(); removeEventListener('keydown', onKey); net.request('rooms.watch', { on: false }).catch(() => {}); };
+  }, []);
+  const shown = rows ? filterRows(rows, filter) : null;
+  const count = (f) => (rows ? filterRows(rows, f).length : 0);
+  return html`<div class="rbr" role="dialog" aria-modal="true" aria-label=${t('大同盟')} data-testid="room-browser">
+    <div class="rbr__bg" aria-hidden="true"></div>
+    <header class="rbr__top">
+      <button type="button" class="rbr__back" onClick=${onClose} title=${t('返回')} aria-label=${t('返回')}><${Icon} name="chevronLeft" /></button>
+      <div class="rbr__title">
+        <h2>${t('大同盟')}</h2>
+        <span class="rbr__micro">GRAND ALLIANCE · ${t('房间列表')}</span>
+      </div>
+      <${Button} icon="plus" class="rbr__create" data-testid="grand-create" loading=${busy === 'create'} disabled=${!online} onClick=${onCreate}>${t('创建大同盟')}<//>
+    </header>
+    <p class="rbr__intro">${t('最多 8 名真人博士，分为两个小队：1–4 号座位为小队 A，5–8 号为小队 B。每个小队各自轮选，全房间争夺同一个干员池，最终一起对抗同一个敌方领袖。')}</p>
+    <nav class="rbr__filters" aria-label=${t('筛选')}>
+      ${[['all', t('全部')], ['open', t('开放')], ['locked', t('已上锁')]].map(([id, label]) => html`<button type="button" key=${id}
+        class=${`rbr__chip${filter === id ? ' is-on' : ''}`} aria-pressed=${filter === id ? 'true' : 'false'} onClick=${() => setFilter(id)}>
+        ${id === 'locked' ? html`<${Icon} name="lock" />` : null}${label}<span class="num">${count(id)}</span></button>`)}
+    </nav>
+    <main class="rbr__body">
+      ${shown == null ? html`<div class="rbr__empty"><${Spinner} /></div>`
+        : !rows.length ? html`<div class="rbr__empty" data-testid="grand-empty"><p>${t('暂时没有开放的大同盟房间。创建一个，并把密钥发给你的朋友吧。')}</p>
+            <${Button} icon="plus" loading=${busy === 'create'} disabled=${!online} onClick=${onCreate}>${t('创建大同盟')}<//></div>`
+        : !shown.length ? html`<div class="rbr__empty"><p>${t('没有符合条件的房间')}</p></div>`
+        : html`<ul class="rbr__grid" data-testid="grand-list">
+          ${shown.map((r) => html`<li key=${r.code} class=${`rbr-card${r.locked ? ' is-locked' : ''}`}>
+            <div class="rbr-card__head">
+              <span class="rbr-card__host"><${Icon} name="crown" /><b>${r.host || t('博士')}</b></span>
+              ${r.locked ? html`<span class="rbr-card__lock" title=${t('已上锁')}><${Icon} name="lock" />${t('已上锁')}</span>` : null}
+            </div>
+            <div class="rbr-card__diff"><${DifficultyIcon} difficulty=${r.difficulty} />${DIFFICULTY_NAMES[r.difficulty] ? t(DIFFICULTY_NAMES[r.difficulty]) : ''}</div>
+            <div class="rbr-card__squads">
+              <${SquadPips} name="A" filled=${r.squads[0]} tone="a" />
+              <${SquadPips} name="B" filled=${r.squads[1]} tone="b" />
+            </div>
+            <div class="rbr-card__foot">
+              <span class="rbr-card__seats num">${r.seats}<small>/${r.capacity}</small></span>
+              <span class="rbr-card__code num">${r.code}</span>
+              <${Button} size="sm" icon=${r.locked ? 'lock' : null} loading=${busy === 'join'} disabled=${!online} onClick=${() => onJoin(r.code)}>${t('加入')}<//>
+            </div>
+          </li>`)}
+        </ul>`}
+    </main>
+  </div>`;
+}

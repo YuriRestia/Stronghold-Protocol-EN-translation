@@ -92,6 +92,8 @@ export const initialState = Object.freeze({
   room: null,
   // welcome.testMode (DESIGN §34.8). The server omits the key when the switch is off; the client cannot set it.
   testMode: false,
+  // (fork) welcome.largeRooms (shared/largeRoom.js): the server allows 8-seat rooms
+  largeRooms: false,
   match: emptyMatch(),
   ticker: [],
   emotes: [],

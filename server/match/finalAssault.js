@@ -39,6 +39,7 @@
 import { BOSS_ROW_OFFSET, COLS, BOSS_POOL_MIN_HP } from '../sim/constants.js';
 import { mirrorDir, normDir } from '../sim/dir.js';
 import { bossPoolShareOf } from './gamedata.js';
+import { scaleCount } from '../../shared/largeRoom.js';
 
 /**
  * BOSS_HIT ticker thresholds (activity_table autoChessData.broadcastList comment_boss_hit_1..3, paramList 0.2 / 0.5 /
@@ -127,12 +128,12 @@ export class SharedBossPool {
 /**
  * Hidden-core eligibility.
  * @param {import('./gamedata.js').GameData} gd
- * @param {{ layerSum: number, teamLp: number }} s
+ * @param {{ layerSum: number, teamLp: number, scale?: number }} s scale: (fork) a large room's threshold multiplier
  */
-export function hiddenEligible(gd, { layerSum, teamLp }) {
+export function hiddenEligible(gd, { layerSum, teamLp, scale = 1 }) {
   const hc = gd.hiddenCore;
   if (!gd.hiddenRound || !hc.difficulties.includes(gd.difficulty)) return false;
-  const threshold = gd.isSolo ? hc.single : hc.multi;
+  const threshold = scaleCount(gd.isSolo ? hc.single : hc.multi, scale);
   return layerSum > threshold && teamLp > hc.minTeamLpExclusive;
 }
 

@@ -9,7 +9,8 @@
 //   * `sys.retire { gen }` to every session now and after every later hello. The client goes to `/` (the router sends it
 //     to the new generation) once no match is on screen; a waiting room is lost on purpose (the operator's decision).
 // A missing or unreadable file never retires: only a file that names another generation does.
-// scripts/generations.mjs reap stops the process at 0 human matches (/healthz `humanMatches`) or after an hour.
+// scripts/generations.mjs reap stops the process at 0 human matches (/healthz `humanMatches`) or after an hour (105 min while
+// it runs a large-room match, /healthz `largeMatches`).
 
 import fsp from 'node:fs/promises';
 import { sendSession } from './net.js';

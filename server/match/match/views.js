@@ -51,10 +51,10 @@ export class MatchViews {
       case PHASE.INFO_CHECK: return ps.infoReady ? 'ready' : 'deciding';
       case PHASE.BAND_DRAFT:
         if (this.draft && this.draft.picks[ps.playerId]) return 'ready';
-        return this.draft && this.draftTurn() === ps.playerId ? 'deciding' : 'acting';
+        return this.draft && this.draftTurn(ps.playerId) === ps.playerId ? 'deciding' : 'acting';
       case PHASE.SP_DRAFT:
         if (this.sp && this.sp.picks[ps.playerId] != null) return 'ready';
-        return this.sp && this.spTurn() === ps.playerId ? 'deciding' : 'acting';
+        return this.sp && this.spTurn(ps.playerId) === ps.playerId ? 'deciding' : 'acting';
       case PHASE.PREP: return ps.ready ? 'ready' : 'acting';
       case PHASE.COMBAT: case PHASE.FINAL_ASSAULT: case PHASE.HIDDEN_CORE: {
         const f = this.fields.find((x) => x.players.includes(ps.playerId));
@@ -110,6 +110,8 @@ export class MatchViews {
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
         seat: ps.seat,
+        // (fork) a large room's squad (0 = A, 1 = B; shared/largeRoom.js), only while both squads have players
+        ...(this.squads ? { squad: ps.squad } : {}),
         name: ps.name,
         isBot: ps.isBot,
         ...(Number.isInteger(ps.aiTakeoverRound) ? { aiTakeoverRound: ps.aiTakeoverRound } : {}),
@@ -158,6 +160,8 @@ export class MatchViews {
       v.draft = {
         order: d.order.slice(), turn: this.draftTurn(), picks: { ...d.picks }, skipsLeft: { ...d.skipsLeft }, turnDeadline: d.turnDeadline || 0,
         turnSeconds: d.untimed ? 0 : this.bandTurnMs() / 1000, untimed: !!d.untimed,
+        // (fork) one draft per squad (match/largeRoom.js): the page shows its own squad's (main.js squadView)
+        ...(d.lanes ? { lanes: this._bandLaneViews(d) } : {}),
       };
     }
     if (this.phase === PHASE.SP_DRAFT && this.sp) {
@@ -166,6 +170,7 @@ export class MatchViews {
         family: s.family, name: s.name, desc: s.desc, eventId: s.eventId,
         cards: s.cards.map(c => ({ ...cardView(c), soldOut: c.kind === 'item' && !this.itemPool.canGain(c.id) })), order: s.order.slice(),
         turn: this.spTurn(), picks: { ...s.picks }, taken: { ...s.taken }, untimed: !!s.untimed,
+        ...(s.lanes ? { lanes: this._spLaneViews(s, cardView) } : {}),
       };
     }
     if (this.phase === PHASE.UNITE && this.unitePlan) v.unite = { helpers: this.unitePlan.helpers.map((p) => p.playerId), leakers: this.unitePlan.leakers.map((p) => p.playerId) };

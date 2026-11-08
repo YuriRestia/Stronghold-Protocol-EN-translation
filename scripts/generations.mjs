@@ -30,6 +30,12 @@ import { GEN_ID_RE } from '../shared/gen.js';
 
 export const PORT_RANGE = Object.freeze([3101, 3109]);
 export const MAX_AGE_MS = 60 * 60 * 1000;
+/**
+ * (fork) A retiring generation that still runs a large-room match (its /healthz `largeMatches` > 0; rooms that exist only
+ * with SP_LARGE_ROOMS=1) is stopped after 105 min instead: an 8-seat match with a relay 联防 can run about 91 min
+ * (shared/largeRoom.js; the owner's decision of 2026-11-08). Every other generation keeps MAX_AGE_MS.
+ */
+export const LARGE_MAX_AGE_MS = 105 * 60 * 1000;
 export const IDLE_GRACE_MS = 10 * 60 * 1000;
 export const KEEP_RELEASES = 2;
 export const HEALTH_WAIT_MS = 180_000;
@@ -93,7 +99,7 @@ export function withRemoteMatches(health, remote) {
  * @param {Record<string, { humanMatches?: number, sockets?: number } | null>} health each generation's /healthz (null: no answer)
  * @returns {{ stop: string[], table: { current: string, gens: Record<string, any> } }}
  */
-export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceMs = IDLE_GRACE_MS } = {}) {
+export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceMs = IDLE_GRACE_MS, largeMaxAgeMs = LARGE_MAX_AGE_MS } = {}) {
   const stop = [];
   const gens = {};
   for (const [id, g0] of Object.entries(table.gens)) {
@@ -105,7 +111,8 @@ export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceM
     const since = g.retiringSince ?? now;
     const humans = Number(h?.humanMatches) || 0;
     if (humans === 0) g.idleSince = g.idleSince ?? now; else delete g.idleSince;
-    const done = !h || now - since >= maxAgeMs || (humans === 0 && (Number(h.sockets) || 0) === 0)
+    const age = Number(h?.largeMatches) > 0 ? Math.max(maxAgeMs, largeMaxAgeMs) : maxAgeMs; // (fork) LARGE_MAX_AGE_MS
+    const done = !h || now - since >= age || (humans === 0 && (Number(h.sockets) || 0) === 0)
       || (humans === 0 && now - g.idleSince >= idleGraceMs);
     if (done) stop.push(id); else gens[id] = g;
   }

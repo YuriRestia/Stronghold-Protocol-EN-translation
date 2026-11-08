@@ -38,11 +38,19 @@ export class MatchBotBattles {
 
   /**
    * Who does bot work now (design B9): the room's host, else the lowest seat. Connected, tab visible, not demoted, not tried yet.
-   * @param {Set<string>} [tried]
+   * (fork) A large room with squads (match/largeRoom.js): for the work of `forPlayerIds` a browser of their squad first — its
+   * leader (the host when the host is in it, else the lowest seat), then the other squadmates —, then anyone as above.
+   * @param {Set<string>} [tried] @param {string[]} [forPlayerIds]
    */
-  _botExecutorFor(tried) {
+  _botExecutorFor(tried, forPlayerIds = null) {
     const usable = (ps) => ps && !ps.isBot && !ps.left && ps.connected && !this._botHostDemoted.has(ps.playerId) && !this._botHostHidden.has(ps.playerId) && !tried?.has(ps.playerId);
     const host = this.hostId ? this.players.get(this.hostId) : null;
+    const squad = this.squads && forPlayerIds?.length ? this.squadOf(forPlayerIds[0]) : null;
+    if (squad != null) {
+      if (usable(host) && host.squad === squad) return host.playerId;
+      const mate = this.order.find((ps) => ps.squad === squad && usable(ps));
+      if (mate) return mate.playerId;
+    }
     if (usable(host)) return host.playerId;
     let best = null;
     for (const ps of this.players.values()) if (usable(ps) && (!best || ps.seat < best.seat)) best = ps;
@@ -59,7 +67,7 @@ export class MatchBotBattles {
 
   /** Send the field to the next executor; with nobody left it gets a synthetic result (no kills, no leaks). */
   _assignBotHost(f) {
-    const pid = this._botExecutorFor(f.botTried);
+    const pid = this._botExecutorFor(f.botTried, f.players);
     if (!pid) { this._botBattleGiveUp(f); return; }
     if (f.kind === 'boss' || f.kind === 'hidden') { this._assignBotBoss(f, pid); return; }
     f.mode = 'host';

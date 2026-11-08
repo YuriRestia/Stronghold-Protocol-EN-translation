@@ -12,6 +12,30 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Team Simulation for up to 8 Doctors and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
+### Grand Alliance: 8-player rooms
+
+- New Grand Alliance: a co-op room with 8 seats, for humans only. It's off unless the server sets `SP_LARGE_ROOMS=1`.
+  The lobby then has a Grand Alliance mode, and Team Simulation a Grand Alliance card; both open a full-screen room browser of the open rooms, with Open and
+  Locked filters, and a button that creates one. Matchmaking never fills them, and they take no AI teammates.
+- The host can lock the room with a 4-letter password from the lock button beside the alliance key. Only the host sees
+  that button and the password. Locked rooms still show in the browser with a lock, and joining from the browser, by key
+  or by invite link asks for the password. Wrong guesses are limited to 6 a minute.
+- Seats 1–4 are squad A and 5–8 squad B. Players pick their seat or move to an empty one, and the host can swap two seats;
+  nobody balances them. Everyone in one squad plays the normal rules.
+- With players in both squads: each squad drafts strategies and 机变 cards on its own, both at once, with its own 6 cards.
+  The whole room fights over one operator and equipment pool, which grows with the room (×2 at 8). Defence relays across
+  the room: what still gets through goes to the next 2 perfect players, for at most 2 rounds. Everyone fights one shared
+  Enemy Leader in random pairs, as before. The Hidden Core threshold and the leader fight's overtime drain scale with the
+  room too.
+- A dropped player's board goes to the AI at once and back when they return, and a player who leaves keeps their board in
+  the match under the AI. That AI always runs in a browser, a squadmate's first, never on the server. A player idle for
+  3 prep rounds in a row is removed, with a warning after the 2nd.
+- An old server version that is still running an 8-player match now keeps running for 105 minutes after a deploy instead
+  of 60, so a long match isn't cut off. Every other old version still stops after 60.
+- Design: DESIGN §91 (`docs/design/large-rooms.md`). Squad, draft and relay ideas follow the GPL-3.0 forks
+  [LongQianChen/Stronghold-Protocol](https://github.com/LongQianChen/Stronghold-Protocol) and
+  [zhewang448/Stronghold-Protocol](https://github.com/zhewang448/Stronghold-Protocol), adapted to this code.
+
 ### S.W.E.E.P. Report
 
 - An operator in an alliance's Operators list now opens Operator Loadout at that operator, selected and scrolled into view, with its detail open. A filter that would hide it is cleared. Back (or Esc) there returns to the report as it was left: same tab, alliance, scroll position, and focus on that operator. Opened the usual way, Back works as before. The report and the loadout always show the same season version, so every operator listed has a row.

@@ -890,3 +890,96 @@
   .rs .vervote .vervote__text { flex: 0 1 auto; min-height: 0; overflow-y: auto; }
   .rs .vervote .vervote__actions { flex: none; }
 }
+
+/* ---- (fork) large rooms (shared/largeRoom.js): one row per squad, a squad tab on the left and 4 even cards ----------
+   8 cards in one row made thin, stretched strips on a desktop; two rows of 4 keep each card close to the shape of a
+   normal room's card and leave room for the art. */
+.rs-seats--large {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: max(.12rem, 1.2vh);
+  padding: .3rem max(.4rem, 2vw) .1rem;
+  overflow: hidden;
+}
+.rs-squad {
+  flex: 1 1 0;
+  min-height: 0;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: max(.42rem, 26px) minmax(0, 1fr);
+  gap: max(.1rem, .8vw);
+}
+.rs-squad__k {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: calc(.15 * var(--t));
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: #cfd8d4;
+  background: linear-gradient(0deg, rgba(207, 216, 212, .02), rgba(207, 216, 212, .1));
+  border-right: 3px solid #cfd8d4;
+}
+.rs-squad[data-squad="B"] .rs-squad__k { color: #9fd3ff; border-right-color: #9fd3ff; background: linear-gradient(0deg, rgba(159, 211, 255, .02), rgba(159, 211, 255, .1)); }
+.rs-squad__cards { min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: max(.1rem, 1vw); }
+/* the cards fill their grid cell instead of the one-row width (--w), keep their usual parts, a little tighter */
+.rs-seats--large .rseat { width: auto; min-width: 0; min-height: 0; animation-delay: calc(120ms + var(--i) * 45ms); }
+.rs-seats--large .rseat__art img { object-position: 50% 18%; }
+.rs-seats--large .rseat__plate { min-height: max(.56rem, 28px); margin-top: .05rem; padding: .04rem .08rem; }
+.rs-seats--large .rseat__doc, .rs-seats--large .rseat__noinfo, .rs-seats--large .rseat__invite small { display: none; }
+.rs-seats--large .rseat--empty .rseat__art { padding-bottom: .12rem; }
+.rs-seats--large .rseat__invite { gap: .04rem; padding: .08rem; }
+.rs-seats--large .rseat__plus { width: max(.5rem, 24px); height: max(.5rem, 24px); }
+.rs-seats--large .rseat__plus::before { width: 5px; }
+.rs-seats--large .rseat__plus::after { height: 5px; }
+.rs-seats--large .rseat__invite b { font-size: calc(.18 * var(--t)); }
+.rs-seats--large .rseat:not(.is-lit) .rseat__state, .rs-seats--large .rseat__state { font-size: calc(.16 * var(--t)); }
+.rseat__swap { position: absolute; top: .36rem; left: .06rem; z-index: 5; width: .34rem; height: .34rem; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .25); border-radius: 50%; background: rgba(0, 0, 0, .5); color: #fff; }
+.rseat__swap.is-on { border-color: var(--mint-400, #5fe0b5); }
+.rseat__swap .icon { width: 70%; height: 70%; }
+.rseat__swapbox { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: rgba(0, 0, 0, .45); }
+.rseat__swapto { display: inline-flex; align-items: center; gap: .2em; padding: .2em .5em; border: 1px solid var(--mint-400, #5fe0b5);
+  border-radius: .3em; background: rgba(0, 0, 0, .7); color: #fff; font-size: calc(.15 * var(--t)); }
+.rseat__swapto .icon { width: 1em; height: 1em; }
+/* a short landscape phone: the empty seats drop their plate, so the art gets the height; the face stays in view */
+@media (max-height: 520px) {
+  .rs-seats--large .rseat__plate--empty { display: none; }
+  .rs-seats--large .rseat__art img { object-position: 50% 24%; }
+}
+/* a portrait screen: 2 cards a row, the rows scroll */
+@media (max-aspect-ratio: 1/1) {
+  .rs-seats--large { justify-content: flex-start; overflow-y: auto; }
+  .rs-squad { flex: none; }
+  .rs-squad__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rs-seats--large .rseat { --w: auto; height: max(3.4rem, 52vw); }
+}
+/* (fork) a Grand Alliance room's lock beside the alliance key — the host's only (room.js RoomLock) */
+.rs-lockwrap { position: relative; display: inline-flex; }
+.rs-lockbtn { display: inline-flex; align-items: center; gap: .05rem; height: 100%; padding: 0 .1rem; font: inherit; font-size: calc(.16 * var(--t));
+  letter-spacing: .06em; color: #c9d1ce; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .35); cursor: pointer; white-space: nowrap; }
+.rs-lockbtn .icon { width: 1em; height: 1em; }
+.rs-lockbtn:hover, .rs-lockbtn:focus-visible { border-color: rgba(255, 255, 255, .5); }
+.rs-lockbtn.is-on { color: #ffc45c; border-color: rgba(255, 196, 92, .6); }
+.rs-lockbox { position: absolute; right: 0; top: calc(100% + .08rem); z-index: 30; display: flex; flex-direction: column; gap: .08rem;
+  width: max-content; max-width: min(4.6rem, 80vw); padding: .12rem .14rem; color: #e9eeec;
+  border: 1px solid rgba(255, 255, 255, .18); background: #161a19; box-shadow: 0 .1rem .3rem rgba(0, 0, 0, .55); }
+.rs-lockbox__pw { display: flex; align-items: center; gap: .08rem; font-size: calc(.15 * var(--t)); color: #aab3b0; }
+.rs-lockbox__pw input { width: 5em; padding: .03rem .08rem; font: inherit; font-size: calc(.22 * var(--t)); letter-spacing: .2em; text-transform: uppercase;
+  color: #f2f4f3; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .45); }
+.rs-lockbox__pw input:focus { outline: none; border-color: #4fe8c0; }
+.rs-lockbox__hint { font-size: calc(.13 * var(--t)); line-height: 1.35; color: #8d9391; }
+.rs-lockbox__actions { display: flex; justify-content: flex-end; gap: .08rem; }
+.rs-lockbox__on, .rs-lockbox__off { display: inline-flex; align-items: center; gap: .04rem; padding: .03rem .12rem; font: inherit; font-size: calc(.15 * var(--t));
+  border: 1px solid transparent; cursor: pointer; }
+.rs-lockbox__on { color: #08221b; background: #4fe8c0; }
+.rs-lockbox__on .icon { width: 1em; height: 1em; }
+.rs-lockbox__off { color: #e9eeec; border-color: rgba(255, 255, 255, .25); background: none; }
+.rs-lockbox__on:disabled, .rs-lockbox__off:disabled { opacity: .45; cursor: default; }

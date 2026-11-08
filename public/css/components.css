@@ -1350,3 +1350,10 @@
 .release-notes-body h3, .release-notes-body h4 { margin: .18rem 0 .08rem; }
 .release-notes-body code { white-space: pre-wrap; }
 .release-notes-body a { color: var(--mint); text-decoration: underline; }
+
+/* (fork) promptDialog (ui/components.js): one big text field, e.g. a locked room's 4-letter password */
+.prompt__input { display: block; width: 100%; box-sizing: border-box; margin-top: .1rem; padding: .08rem .14rem; font: inherit;
+  font-size: calc(.32 * var(--t)); letter-spacing: .5em; text-align: center; text-transform: uppercase; color: #f2f4f3;
+  border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .45); }
+.prompt__input:focus { outline: none; border-color: #4fe8c0; }
+.prompt__error { color: #ff8a8a; }
