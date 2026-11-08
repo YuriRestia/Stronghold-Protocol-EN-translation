@@ -67,8 +67,9 @@ export function useFindMates() {
  */
 function searchableRoom(room, facts) {
   // the matchmaker merges default-version rooms only (server/lobby.js room.search: another version is BAD_TARGET)
+  // (fork) never a large room (shared/largeRoom.js): the lobby's room list fills it
   return room.mode !== 'solo' && !facts.spectating && room.content?.vanilla !== false
-    && (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION;
+    && (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION && !(room.capacity > MAX_SEATS);
 }
 
 /** The switch applies: a room that can search, with a free seat. */

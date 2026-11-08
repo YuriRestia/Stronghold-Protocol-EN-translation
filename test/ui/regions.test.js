@@ -361,6 +361,31 @@ describe('the ping test', () => {
     assert.ok(local.getItem('sp.regionBest'));
   });
 
+  test('the lobby\'s picker measures every server whatever the setting, and the snapshot carries the times', async () => {
+    const local = memory({ 'sp.regions': JSON.stringify(CONFIG), [K_PREF]: 'us' });
+    const regions = createRegions({
+      net: new FakeNet(), identity: { getToken: () => null, clearToken() {} }, local, session: memory(), search: '',
+      socketPath: () => '/ws', secure: () => true, makeNet: () => new FakeNet(), makeError: err,
+      WebSocket: PingSocket, setTimeout: (fn) => globalThis.setTimeout(fn, 1000), clearTimeout: (id) => globalThis.clearTimeout(id),
+    });
+    const seen = [];
+    regions.subscribe((info) => seen.push(info));
+    regions.getUrl();
+    assert.deepEqual(regions.snapshot().rtts, {});
+    assert.equal(await regions.probe(), null); // a fixed choice: the background test has nothing to change
+    const pending = regions.measure();
+    assert.equal(regions.snapshot().measuring, true);
+    const rtts = await pending;
+    assert.deepEqual(Object.keys(rtts).sort(), ['sg', 'us']);
+    const snap = regions.snapshot();
+    assert.equal(snap.measuring, false);
+    assert.ok(Number.isFinite(snap.rtts.sg) && Number.isFinite(snap.rtts.us));
+    assert.ok(['sg', 'us'].includes(snap.best));
+    assert.equal(snap.preference, 'us'); // measuring never changes the setting
+    assert.ok(seen.some((s) => s.measuring) && seen.at(-1).measuring === false);
+    assert.equal(await withConfig({ config: { ...CONFIG, auto: false } }).regions.measure(), null);
+  });
+
   test('it stays quiet when it could change nothing', async () => {
     assert.equal(await withConfig({ config: { ...CONFIG, auto: false } }).regions.probe(), null);
     assert.equal(await withConfig({ local: { [K_PREF]: 'us' } }).regions.probe(), null);

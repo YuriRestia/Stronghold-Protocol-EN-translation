@@ -169,7 +169,8 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
     noteAsked(p);
     onWatch(p);
   };
-  return html`<aside class=${cx('team', compact && 'team--compact')} aria-label=${t('同盟成员')}>
+  // (fork) a large room (shared/largeRoom.js): up to 8 rows, packed tighter, each with its squad badge
+  return html`<aside class=${cx('team', compact && 'team--compact', players.length > 4 && 'team--large')} aria-label=${t('同盟成员')}>
     ${players.map((p) => {
       const self = p.playerId === myId;
       const status = p.alive === false ? 'dead' : p.status;
@@ -187,6 +188,7 @@ export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = fal
           <${PlayerAvatar} player=${p} self=${self} />
           ${inTeam ? html`<span class=${cx('team__frame', !frameArt && 'team__frame--plain')} style=${frameArt ? `--frame:url("${frameArt}")` : undefined} aria-hidden="true"></span>` : null}
           <span class="team__seat num">P${(p.seat ?? 0) + 1}</span>
+          ${Number.isInteger(p.squad) ? html`<span class=${cx('team__squad', p.squad === 1 && 'is-b')} title=${t('小队 {name}', { name: p.squad ? 'B' : 'A' })}>${p.squad ? 'B' : 'A'}</span>` : null}
           ${p.isBot ? html`<span class="team__ai">AI</span>` : null}
           ${self ? html`<span class="team__you"><${Icon} name="user" /></span>` : null}
           ${spMarks?.get(p.playerId) === 'done' ? html`<span class="team__spmark is-done" title=${t('已完成选择')}><${Icon} name="check" /></span>`

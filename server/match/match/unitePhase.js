@@ -37,7 +37,7 @@ export class MatchUnite {
         this.fields[0].live = false;
         this.deadline = 0;
         this.markPublic();
-        this.later(this.scaled(DELAYS.COMBAT_END), () => this.settle(plan, res));
+        this.later(this.scaled(DELAYS.COMBAT_END), () => this._afterUnite(plan, res)); // (fork) relay: match/largeRoom.js
       },
     });
     this.runner.start();
@@ -52,7 +52,8 @@ export class MatchUnite {
   _uniteOpts(plan, limit) {
     const { wave, players } = uniteBattleOpts(this, plan, limit);
     return {
-      seed: deriveSeed(this.seed, `u:${this.round}`),
+      // (fork) a relay's second round (match/largeRoom.js) draws its own seed
+      seed: deriveSeed(this.seed, plan.relayRound > 1 ? `u${plan.relayRound}:${this.round}` : `u:${this.round}`),
       kind: 'unite',
       modeId: this.modeId,
       round: this.round,
@@ -99,7 +100,7 @@ export class MatchUnite {
     this.deadline = 0;
     this.markPublic();
     const plan = this.unitePlan;
-    this.later(this.scaled(DELAYS.COMBAT_END), () => this.settle(plan, res));
+    this.later(this.scaled(DELAYS.COMBAT_END), () => this._afterUnite(plan, res)); // (fork) relay: match/largeRoom.js
   }
 
   /**

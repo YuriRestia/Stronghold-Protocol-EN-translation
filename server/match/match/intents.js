@@ -12,8 +12,18 @@ import { setBondCall } from '../bondCall.js';
 import { onHumanEmote } from '../botEmotes.js';
 import { sendChat } from '../chatWallet.js';
 
+/**
+ * (fork) The intents that show a player is at the keyboard and reset a large room's idle count (match/largeRoom.js): the
+ * prep and draft actions, emotes, chat, pause and AI 托管. Never what a page sends by itself — battle reports, bot work for others
+ * (b.*), unit stats or a watch change — so a player away from the keyboard is still counted idle while the page runs.
+ */
+const IDLE_RESET = new Set(['g.infoReady', 'g.bondCall', 'g.rerollVote', 'g.band', 'g.bandSkip', 'g.bandFocus', 'g.buy', 'g.refresh', 'g.freeze',
+  'g.levelUp', 'g.sell', 'g.move', 'g.equip', 'g.art', 'g.destroy', 'g.unequip', 'g.reward', 'g.choice', 'g.offer', 'g.offerRefresh', 'g.ready',
+  'g.emote', 'g.chat', 'g.pause', 'g.autoplay']);
+
 export class MatchIntents {
   _handle(ps, msg) {
+    if (ps.idlePreps && IDLE_RESET.has(msg.t)) ps.idlePreps = 0; // (fork) a large room's idle count (match/largeRoom.js)
     switch (msg.t) {
       case 'g.infoReady':
         if (this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE);
@@ -98,8 +108,8 @@ export class MatchIntents {
     if (!ps.botControlled || this.ended) return;
     this.offersChanged();
     if (this.phase === PHASE.INFO_CHECK && !ps.infoReady) { ps.infoReady = true; this.markPublic(); this.maybeEndInfo(); }
-    else if (this.phase === PHASE.BAND_DRAFT && this.draftTurn() === ps.playerId) this.scheduleBandBot();
-    else if (this.phase === PHASE.SP_DRAFT && this.spTurn() === ps.playerId) this.scheduleSpBot();
+    else if (this.phase === PHASE.BAND_DRAFT && this.draftTurn(ps.playerId) === ps.playerId) this.scheduleBandBot(ps.playerId);
+    else if (this.phase === PHASE.SP_DRAFT && this.spTurn(ps.playerId) === ps.playerId) this.scheduleSpBot(ps.playerId);
     else if (this.phase === PHASE.PREP && ps.alive && !ps.ready) this.scheduleBotPrep(ps, 0);
   }
 

@@ -15,7 +15,7 @@ describe('renderer recovery after transient resource failures', { skip: !enabled
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, MatchClass: RecoveryMatch, seedFn: () => 123 });
     const P = (await import('puppeteer-core')).default;
     browser = await P.launch({ executablePath: CHROME, headless: true,
-      args: ['--no-first-run', '--no-proxy-server', ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--enable-gpu', '--ignore-gpu-blocklist'] });
+      args: ['--no-first-run', '--mute-audio', '--no-proxy-server', ...(process.platform === 'darwin' ? ['--use-angle=metal'] : []), '--enable-gpu', '--ignore-gpu-blocklist'] });
     mkdirSync(new URL('../e2e/out/', import.meta.url), { recursive: true });
   });
   after(async () => { await browser?.close(); await srv?.close(); });

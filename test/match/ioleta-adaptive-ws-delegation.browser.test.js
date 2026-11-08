@@ -33,7 +33,7 @@ before(async () => {
     error: (...a) => logs.error.push(a.map(String).join(' ')) };
   srv = await startServer({ port: 0, host: '127.0.0.1', log, MatchClass: FastMatch, seedFn: () => 2026101881 });
   const puppeteer = (await import('puppeteer-core')).default;
-  browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-first-run'] });
+  browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--mute-audio', '--no-first-run'] });
   page = await browser.newPage();
   page.on('pageerror', (e) => problems.push(e.message));
   page.on('response', (r) => { if (r.status() >= 400 && !/favicon/.test(r.url())) problems.push(`HTTP ${r.status()} ${r.url()}`); });

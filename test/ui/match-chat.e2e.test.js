@@ -14,7 +14,7 @@ test('typing, the counter, bubbles, escaping, hotkeys and mute', { skip: process
   const puppeteer = (await import('puppeteer-core')).default;
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, botRehearsal: 0 });
   const clients = [];
-  const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox', '--no-proxy-server', `--explicitly-allowed-ports=${srv.port}`, ...(process.env.E2E_CHROME_ARGS ? process.env.E2E_CHROME_ARGS.split(' ') : [])] });
+  const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-proxy-server', `--explicitly-allowed-ports=${srv.port}`, ...(process.env.E2E_CHROME_ARGS ? process.env.E2E_CHROME_ARGS.split(' ') : [])] });
   const shot = async (page, name) => { if (process.env.CHAT_SHOT) await page.screenshot({ path: `${process.env.CHAT_SHOT}/${name}.png` }); };
   try {
     const client = async (name) => { const c = await TestClient.connect(srv.url.replace('http', 'ws') + '/ws'); clients.push(c); c.id = (await c.hello(name)).playerId; return c; };

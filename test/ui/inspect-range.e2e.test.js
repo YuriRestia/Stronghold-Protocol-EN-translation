@@ -12,7 +12,7 @@ test('user Given a real battle with strategy medics When clicking units and clos
   { skip: !enabled && 'Set SP_E2E=1 and CHROME_PATH', timeout: 60000 }, async () => {
     const server = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     const puppeteer = (await import('puppeteer-core')).default;
-    const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox'] });
+    const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--mute-audio', '--no-sandbox'] });
     try {
       for (const medicId of ['char_613_acmedc', 'char_605_cmedic']) {
         const h = makeBattle({ stageId: 'act2autochess_m01', units: [{ chessId: 'chess_char_1_01_a', row: 10, col: 4 }], autoFinish: false });

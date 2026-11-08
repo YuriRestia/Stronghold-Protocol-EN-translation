@@ -1,7 +1,8 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, MAX_SEATS, EMOTES, GEO, REHEARSAL_MAX_CANDIDATES } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, REHEARSAL_MAX_CANDIDATES } from './constants.js';
+import { LARGE_ROOM_SEATS, ROOM_CAPACITIES, ROOM_PASSWORD_RE } from './largeRoom.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
@@ -527,8 +528,11 @@ export const C2S = {
   // soloUnlimited: the timed-solo opt-out 「不限时」 (DESIGN §35.23.10). Optional, and only the literal boolean —
   // the server applies `true` solely to a solo room of a version whose solo is timed, and ignores it otherwise, so a
   // default create stays the message it was.
-  'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited'] },
-  'room.join': { $optional: ['testAck', 'ticket'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool,
+    // (fork) capacity: 8 makes a large room (shared/largeRoom.js; refused unless the server allows them)
+    capacity: (v) => ROOM_CAPACITIES.includes(v), $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity'] },
+  // password: (fork) a locked Grand Alliance room's 4 letters (shared/largeRoom.js)
+  'room.join': { $optional: ['testAck', 'ticket', 'password'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'p2p.enable': { enabled: isBool },
   'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
   'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
@@ -547,10 +551,17 @@ export const C2S = {
   'room.aiRequest': { botId: isId },
   'room.aiVote': { voteId: (v) => typeof v === 'string' && v.length <= 16, approve: isBool },
   'room.addBot': {},
-  'room.removeBot': { seat: (v) => isInt(v, 0, MAX_SEATS - 1) },
+  'room.removeBot': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the
   // host confirmed — a seat that changed hands meanwhile is refused
-  'room.kick': { seat: (v) => isInt(v, 0, MAX_SEATS - 1), playerId: isId },
+  'room.kick': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), playerId: isId },
+  // (fork) Grand Alliance rooms (shared/largeRoom.js): move to an empty seat (any member), swap two seats (the host), lock
+  // the room with a 4-letter password or unlock it (the host)
+  'room.moveSeat': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
+  'room.swapSeats': { a: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), b: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
+  'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['password'] },
+  // (fork) the room browser of Grand Alliance rooms: rooms.watch { on } — while on, the server sends rooms.list on every change
+  'rooms.watch': { on: isBool },
   'room.start': {},
   'room.rerollSetup': { setupRevision: (v) => isInt(v, 0, 2 ** 31) },
   'room.cancelReroll': { voteId: (v) => isInt(v, 1, 2 ** 31) },
@@ -580,7 +591,7 @@ export const C2S = {
   // spectator seats (remake feature, community report #26; MAX_SPECTATORS): take one of a co-op room's spectator seats —
   // in its lobby or while its match runs — never a player seat; the host frees one by playerId (the spectator gets
   // room.closed { reason: 'kicked' }). room.leave / g.leave leave a spectator seat like a player seat.
-  'room.spectate': { $optional: ['testAck'], testAck: (v) => v === true, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  'room.spectate': { $optional: ['testAck', 'password'], testAck: (v) => v === true, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'room.removeSpectator': { playerId: isId },
   // 搜寻队友 (DESIGN §90): the host of a co-op room turns the search on or off
   'room.search': { on: isBool },
@@ -755,10 +766,14 @@ export const S2C = [
   // sys.maintenance { at, closed, serverNow } — planned maintenance (server/maintenance.js): the countdown target (ms,
   // server clock) or null, and whether new matches are refused; at null + closed false = cleared
   'sys.maintenance',
-  // sys.online { online, searching: { [difficulty]: humans } } — server/presence.js
+  // sys.online { online, searching: { [difficulty]: humans }, regions?: { [region id]: online } } — server/presence.js;
+  // regions only with several servers linked (server/peerLink.js): online is their sum
   'sys.online',
   // queue.state { queued, difficulty?, since?, aiAt?, placed? } — 单人匹配 (server/lobby.js sendQueue)
   'queue.state',
+  // (fork) rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads: [a, b], locked? }] } — the open Grand
+  // Alliance rooms (server/lobby.js roomList), while the page watches them (rooms.watch)
+  'rooms.list',
 ];
 
 /**

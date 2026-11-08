@@ -23,7 +23,7 @@ describe('协议已失效 (headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 
     const puppeteer = (await import('puppeteer-core')).default;
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     base = `http://127.0.0.1:${srv.port}`;
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--force-device-scale-factor=1'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--force-device-scale-factor=1'] });
   });
 
   after(async () => {

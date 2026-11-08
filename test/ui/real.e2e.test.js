@@ -32,7 +32,7 @@ const ROUNDS = Math.max(2, Number(process.env.SP_REAL_ROUNDS) || 4);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const CHROME_ARGS = ['--no-sandbox', '--no-first-run', '--autoplay-policy=no-user-gesture-required', '--disable-background-timer-throttling',
-  '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows'];
+  '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', '--mute-audio'];
 
 /**
  * One player: its own Chrome process with a single (always visible) tab. Two tabs of one browser would leave one
