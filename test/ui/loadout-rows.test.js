@@ -21,7 +21,6 @@ const { data } = await import('../../public/js/data.js');
 await data.loadAll('chess', 'garrisons', 'assets', 'bonds', 'effects', 'backups');
 
 const get = (id) => data.lookup('chess', id);
-const INSIDE = 'chess_char_1_01_a';   // 隐现: S1 / S2 (default S2), MAR-X
 const VENDLA = 'chess_char_1_06_a';   // 刺玫
 const CHAR = (id) => get(id).charId;
 
@@ -36,7 +35,6 @@ const hasClass = (v, c) => typeof v?.props?.class === 'string' && v.props.class.
 const find = (tree, pred) => [...walk(tree)].filter(pred);
 const textOf = (v) => (v == null || typeof v === 'boolean' ? '' : typeof v !== 'object' ? String(v) : Array.isArray(v) ? v.map(textOf).join('') : textOf(v.props?.children));
 
-const row = (props) => RosterRow({ m: null, chess: get(INSIDE), golden: get(get(INSIDE).goldenId), entries: {}, ops: {}, selected: false, onPick: () => {}, onChange: () => {}, onOps: () => {}, ...props });
 
 test('the detail\'s section: 潜能 1–6 and the four official 练度 tiers, the tier\'s effect, the stand-in note', () => {
   const sets = [];
