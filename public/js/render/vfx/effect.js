@@ -62,7 +62,9 @@ export function meshRef(v) {
  * pivot × 0.15 = 0.83 —, where the Z size made a ring 2.76 out, 5.5 tiles across. The renderer-wide rule (74 nodes shift
  * by more than 0.1) waits for a check of those operators. Its rotation runs the other way too (`negRot`: the particle's
  * Euler angles negated, as a billboard's roll turns clockwise — geom.js ROLL_SIGN) [ASSUMED, same source]: the video's
- * newest steps rise on her left and the helix fades going round behind her; ours turned to her right.
+ * newest steps rise on her left and the helix fades going round behind her; ours turned to her right. Its steps point
+ * out from the helix's axis (`meshRotX`: Box001, long along its Y, turned −90° about X so that Y lies along the pivot's
+ * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle.
  */
 export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
@@ -126,7 +128,7 @@ export function compileEffect(desc, lib = {}) {
     }
     if (nd.particleSystemRenderer) {
       def.psr[i] = psrInfo(nd.particleSystemRenderer);
-      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) { def.psr[i].pivotByX = true; def.psr[i].negRot = true; }
+      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) { def.psr[i].pivotByX = true; def.psr[i].negRot = true; def.psr[i].meshRotX = true; }
     }
     if (nd.meshRenderer && nd.meshFilter !== undefined) {
       const r = nd.meshRenderer;
