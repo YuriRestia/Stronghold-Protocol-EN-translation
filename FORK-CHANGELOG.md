@@ -7,9 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
-### Operators over enemies in their row
+### Units draw in the official order
 
-- An operator now draws over the enemies standing in her own row, as in the official game. Before, an enemy to her right always covered her, so attacks that reach into the enemy's tile went under it: Viviana's S2 reindeer, Degenbrecher's sword and the dashing skills of Eunectes, Mudrock, Ch'en and others. Facing up was already right; an enemy a row nearer still draws in front. Checked against official footage of Viviana's S2 and Degenbrecher's S2 (`units.js` `ALLY_DEPTH_TIE`, [ASSUMED]: the official sort isn't in the client dump).
+- Units now draw in the order the official game uses: farthest first by the depth of each model's flat plane along the camera's view (the client's battle camera sorts see-through renderers orthographically, and no battle code sets a sorting order). Every model faces the camera head-on, so its height, size and leaps don't change the order. An operator's model sits 0.100 in front of her feet and most enemies' 0.152, read from each unit's official skin. So an enemy in an operator's row now draws over her, as in the official close-ups of Viviana's normal attack (the robot covers her reindeer's antlers). Raised blocks still hide the units behind them (`units.js` `skinPlaneDepth`, `PLANE_DEPTH`).
+- This replaces the earlier same-day rule that put operators over every enemy in their row. In the official footage of Viviana's S2, she turns see-through and vanishes into the dash, and the slash effects (which have their own sorting order) cover the enemies; her body is never lifted over them.
 - The `vfx-talents` "group choice (select)" test asked for successive picks with one attack count; it now uses one count per attack, as the attack clip picks have since the clip change earlier today.
 
 ### Profile icons
