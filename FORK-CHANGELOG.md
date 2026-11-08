@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Effects no longer stall on their first frame
+
+- The first time an effect drew, the browser stopped for every new shader it needed until the graphics driver had compiled it: 10–60 ms per shader on Windows (ANGLE on Direct3D 11). Civilight Eterna's Condolence trails drew a 115 ms and a 108 ms frame when they first appeared (259–387 ms when they were the first effect of the page), and a battle opened with 10–16 frames of 12–57 ms while the warm-up compiled one shader per frame. Shaders now compile in the background where the browser offers parallel shader compiling (measured in Chrome): the trails' first frames take 4–22 ms, a battle's opening frames stay under 24 ms, and the warm-up starts every shader of the battle at once. Until a shader is ready, the parts of the effect that use it wait, as they already did for a texture still loading; that's only ever 2–3 frames, and only the first time an effect plays before the warm-up has reached it. Browsers without parallel compiling build shaders as before.
+- Small tidy-up: the particle system's "is it full" check no longer sits between the spawn function and its description.
+
 ### Every effect follows the game engine's particle rules
 
 - The two particle rules read from the game's own engine for Viviana's S2 staircase now apply to every operator's effects. Mesh particles place their pivot as the engine does: scaled by the particle's size and turned with it. Looping effects that start already running are filled to their longest particle lifetime, not just one loop. For example, Phantom's Focus attack now shows the red swipes seen in the official game, Lappland the Decadenza's deploy pillars rise on her own tile instead of the enemy's, and Nymph's S2 dots stay at her feet. Viviana's special case is gone.

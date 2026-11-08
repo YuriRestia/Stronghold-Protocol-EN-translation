@@ -576,16 +576,16 @@ export class PSys {
     }
   }
 
-  /**
-   * Birth one particle. tau: system normalised time; age: initial age (s into the step); f: 0…1 along this step's emitter
-   * motion; (bi, bc): place in a burst; inherit: sub-emitter parent; (ex, ey, ez): a world emission point (sub-emitters).
-   */
   /** (fork) A check of whether the system is full (the limit _spawn refuses at), for the spawn loops. */
   full() {
     const lim = Math.min(this.def.maxParticles, SYSTEM_CAP);
     return () => this.count >= lim;
   }
 
+  /**
+   * Birth one particle. tau: system normalised time; age: initial age (s into the step); f: 0…1 along this step's emitter
+   * motion; (bi, bc): place in a burst; inherit: sub-emitter parent; (ex, ey, ez): a world emission point (sub-emitters).
+   */
   _spawn(tau, age, f, bi, bc, inherit, ex, ey, ez) {
     const def = this.def;
     if (this.count >= def.maxParticles || this.count >= SYSTEM_CAP) return -1;
