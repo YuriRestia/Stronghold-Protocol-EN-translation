@@ -10,35 +10,44 @@ import { net } from '../net.js';
 import { serverNow, loadPref, savePref } from '../store.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
 
-// A new key per announcement, so everyone who closed the earlier one ('news.0.2.6') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.3.0';
+// A new key per announcement, so everyone who closed the earlier one ('news.0.3.0') sees it again.
+export const UPDATE_NEWS_PREF = 'news.0.3.4';
 
-/** The 0.3.0 announcement's emphasized line, shown above the points (msgid). */
-const UPDATE_HIGHLIGHT = N_('丰川祥子加入自选编队，技能与特效尽可能忠实还原原作'); // en: "Sakiko Togawa joins the Custom Squad, with her kit and effects recreated as faithfully to the original game as we could"
-
-/** The 0.3.0 announcement's points (msgids). */
-const UPDATE_POINTS = [
-  N_('官方战斗特效（早期预览）：命中、弹道与技能可使用游戏原版特效，可在「设置 → 官方特效」中开启'), // en: "Official battle effects (early preview): hits, projectiles and skills can use the game's own effects. Turn them on in Settings → Official Effects"
-  N_('高台、召唤物与装置改用官方模型'), // en: "High Ground, summons and devices use the official models"
-  N_('统计页向官方靠拢：奖杯、独立 / 联合模拟两行、六称号图'), // en: "Stats page redesigned closer to the game's: trophies, Solo / Co-op rows, the six-title chart"
-  N_('手动刷新商店会取消冻结（按官方）'), // en: "Refreshing the shop by hand now cancels the freeze, as in the game"
-  N_('攻击出手后，目标走出射程也会打完这一下（按官方）'), // en: "Operators keep attacking a target that leaves range during the attack, as in the game"
+/** The 0.3.4 announcement's emphasized lines, shown above the points in the highlight style (msgids). */
+const UPDATE_HIGHLIGHTS = [
+  N_('冻河、国度与塔露拉加入自选编队，特效还原原作'), // en: "Toska, Territoriya and Talulah join the Custom Squad, with original effects"
+  N_('对局聊天'), // en: "Match chat"
+  N_('最多 8 名博士的联合模拟'), // en: "Team Simulation for up to 8 Doctors"
+  N_('新增美国东部服务器'), // en: "New US East server"
 ];
 
-// '0.3.0 更新' — en: "Update 0.3.0"
+/** The 0.3.4 announcement's points (msgids). */
+const UPDATE_POINTS = [
+  N_('凛御银灰 S3 使用官方特效，20 多名干员的攻击动作与特效对齐'), // en: "Official effects for SilverAsh the Reignfrost's S3, and attack animations that match their effects for over 20 operators"
+  N_('替换普通攻击的技能（如维娜·维多利亚 S1）现在会播放完整动作'), // en: "Skills that replace an attack, such as Vina Victoria's S1, now play their full animation"
+  N_('新增 7 套时装，包括凛御银灰「雪覆伦城」与薇薇安娜「还愿礼」'), // en: "7 new outfits, including SilverAsh the Reignfrost's Snowfall Over Londinium and Viviana's Votive Offering"
+  N_('技能施放音效现在跟随所装备的技能'), // en: "Skill cast sounds now follow the skill you equip"
+  N_('伤害统计可显示伤害、DPS、治疗或 HPS'), // en: "The damage meter can show Damage, DPS, Healing or HPS"
+  N_('新增四个模组，战斗规则更贴近原作'), // en: "Four new Modules, and battle rules closer to the original game"
+  N_('人机更聪明：围绕一个主盟约构筑，针对最终攻势的领袖布阵，并选择对全队有利的策略'), // en: "Smarter bots: they build around one main Alliance, plan the Final Assault around its Leader and pick Strategies that help the whole team"
+];
+
+// '0.3.4 更新' — en: "Update 0.3.4"
 export function UpdateNews() {
   const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
   if (hidden) return null;
   const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.3.0 更新')}>
+  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.3.4 更新')}>
     <div class="search-news__head">
       <${Icon} name="info" />
       <span class="search-news__tag">NEW</span>
-      <span class="search-news__title">${t('0.3.0 更新')}</span>
+      <span class="search-news__title">${t('0.3.4 更新')}</span>
       <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
     </div>
     <div class="search-news__body" tabindex="0">
-      <p class="search-news__highlight">${t(UPDATE_HIGHLIGHT)}</p>
+      <div class="search-news__highlight">
+        ${UPDATE_HIGHLIGHTS.map((h) => html`<p key=${h}>${t(h)}</p>`)}
+      </div>
       <ul class="search-news__list">
         ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}
       </ul>

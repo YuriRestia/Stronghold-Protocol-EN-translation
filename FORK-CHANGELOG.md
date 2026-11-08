@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
+### Update news
+
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Team Simulation for up to 8 Doctors and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+
 ### Trait text
 
 - Blemishine's and Degenbrecher's deploy traits (`garrison_106_a/b`, `garrison_155_a/b`) now read "On deployment … (up to N stacks per battle)", as the Chinese and the game code have it. The official English added an "on skill activation" trigger that doesn't exist and gave the cap as "Can stack up to Nx". The fix is in `tools/i18n/corrections-en.json`.
@@ -47,7 +51,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Outfits
 
-- Added the seven outfits CN released since our last outfit refresh: SilverAsh the Reignfrost's Snowfall Over Londinium, Swire the Elegant Wit's A Prosperous Visage, Blaze the Igniting Spark's Nocturnal Firelight, Shu's Everflowing Waters, Horn's The First Gleam, Vina Victoria's Votive Offering and Catherine's Cozy Bakery. Their skill effects come along through the outfit effect twins. The server and the preload zip need the new art.
+- Added the seven outfits CN released since our last outfit refresh: SilverAsh the Reignfrost's Snowfall Over Londinium, Swire the Elegant Wit's A Prosperous Visage, Blaze the Igniting Spark's Nocturnal Firelight, Shu's Everflowing Waters, Horn's The First Gleam, Viviana's Votive Offering and Catherine's Cozy Bakery. Their skill effects come along through the outfit effect twins. The server and the preload zip need the new art.
 
 ### Upstream merge
 

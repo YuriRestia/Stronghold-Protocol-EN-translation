@@ -1244,6 +1244,8 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 }
 .search-news__body:focus-visible { outline: 1px solid var(--mint-500); outline-offset: 2px; }
 .search-news__highlight { margin: 0 0 .07rem; padding-bottom: .07rem; font-size: calc(.16 * var(--t)); font-weight: 800; color: var(--mint-400); border-bottom: 1px solid var(--line); }
+.search-news__highlight > p { margin: 0; }
+.search-news__highlight > p + p { margin-top: .04rem; }
 .search-news__list { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: .04rem; }
 .search-news__list li::marker { color: var(--mint-500); }
 
