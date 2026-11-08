@@ -43,10 +43,25 @@ const DIRS = ['UP', 'RIGHT', 'DOWN', 'LEFT'];
 /** Buff events at which a template creates a per-layer buff (talentfx _layerOrder). */
 const LAYER_EVENTS = new Set(['ON_BUFF_START', 'ON_BUFF_TRIGGER']);
 
+/** (fork) A FX_SHIELDS loop as a held entry on the owner. */
+const SHIELD_ENTRIES = new Map();
+const shieldEntry = (key) => {
+  if (!SHIELD_ENTRIES.has(key)) SHIELD_ENTRIES.set(key, Object.freeze({ key, role: 'loop', at: 'owner', hold: 'skill', loop: true }));
+  return SHIELD_ENTRIES.get(key);
+};
 const idOf = (v) => v?.info?.id ?? v?.id;
 const uniq = (list) => { const seen = new Set(); return list.filter((e) => { const k = `${e.key}|${e.at}|${e.hold}`; if (seen.has(k)) return false; seen.add(k); return true; }); };
 /** A use carried by a reborn talent's own buffs (`RebornTalent._buffs`): it plays after the stand-up. */
 const isPost = (e) => /^\w*RebornTalent\._buffs\b/.test(e.from || '');
+
+/**
+ * (fork) Talent shields the sim keeps in a kit buff of its own — no b.snap `layers` (snapshot.js layerView sums the
+ * engine's shieldHits) —, by unit: the official loop that holds while the unit has a layer, counted from the kit's fx
+ * ('shield' a layer gained, 'shieldBreak' one spent; the kit sends 'shield' only below its cap). 薇薇安娜's 散华
+ * (op-vvana.js 'talent:vvana:shield'; the client's vvana_t_2 CreateBuff vvana_t_2[block_melee] at ON_OUTPUT_DAMAGE, its
+ * effect vvana_buff_01 — no client signal reaches that event, so the binding never played).
+ */
+export const FX_SHIELDS = Object.freeze({ char_4098_vvana: 'vvana_buff_01' });
 
 export class TalentFx {
   constructor(w) {
@@ -208,6 +223,7 @@ export class TalentFx {
     this._stopAll(U);
     U.standing = false;
     U.born = false;
+    U.fxShield = 0;
   }
 
   /** A triggered node casts: its rows once (held rows for a cast, loops for TRIGGER_HOLD_S). */
@@ -230,6 +246,12 @@ export class TalentFx {
     if (!this.active() || !extra || typeof extra !== 'object' || extra.id == null) return false;
     const U = this.units.get(extra.id) ?? (this.w.view(extra.id) ? this.of(this.w.view(extra.id)) : null);
     if (!U || !U.v) return false;
+    // (fork) a talent shield counted from its fx (FX_SHIELDS): its loop holds while a layer is left (sync)
+    const sk = FX_SHIELDS[U.key];
+    if (sk && (kind === 'shield' || kind === 'shieldBreak')) {
+      U.fxShield = Math.max(0, (U.fxShield | 0) + (kind === 'shield' ? 1 : -1));
+      return kind === 'shield' && this.w.ofx.lib.has(this.w.skinKey(sk, U.v));
+    }
     // an arts barrier (the sim's artsBarrier: 'phase' kind 'artsBarrier' as it is raised, 'shieldBreak' as it breaks):
     // the loops of a barrier talent (its key names a shield) last while it holds [ASSUMED: the client's buff ends there]
     if (kind === 'shieldBreak') { U.broken = true; return false; }
@@ -387,6 +409,7 @@ export class TalentFx {
         for (const e of this._layerLoops(U, b, v, this._loopsOf(b))) want.set(`${e.key}|${e.at}`, e);
       }
       for (const e of U.post) want.set(`${e.key}|${e.at}`, e);
+      if (U.fxShield > 0 && FX_SHIELDS[U.key]) { const e = shieldEntry(FX_SHIELDS[U.key]); want.set(`${e.key}|${e.at}`, e); }
       if (U.inv && now < U.inv.until) for (const e of U.inv.entries) want.set(`${e.key}|${e.at}`, e);
       else if (U.inv) U.inv = null;
       // (a prefab that does not loop plays once while it is wanted — its record stays, so it is not started again)
@@ -406,6 +429,7 @@ export class TalentFx {
       const U = this.of(v);
       if (!U) continue;
       for (const b of U.binds) for (const k of bindingKeys(b)) out.add(k);
+      if (FX_SHIELDS[U.key]) out.add(FX_SHIELDS[U.key]);
     }
     return [...out];
   }

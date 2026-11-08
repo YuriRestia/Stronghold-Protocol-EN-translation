@@ -7,6 +7,15 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
+### Viviana's skills
+
+- S3 now looks like the official game in every outfit. Her first cast of a battle plays the "A" clip set (Begin, Idle, a 2-hit attack, End) with its own effects and aura; every later cast plays the "B" set with the 3-hit attack and its two auras. Before, none of S3's effects played and only one of its clips did.
+- S1: a plain cast is her normal attack swing with the 2-hit effects. It no longer flashes the charged-stance clips and aura for a moment. With both charges stored she takes the charged stance (its Begin, idle and aura), and the cast that spends them swings `Skill_1_Attack` with the 3-hit effects.
+- S2 shows the second hit's effect whenever the battle rolls her double hit, instead of guessing single or double on its own.
+- Votive Offering's S2 staircase of glowing planks now spirals right beside her, as in the official game. It had been drawn as a ring over five tiles wide spinning across the board.
+- Her talent shield (the melee-blocking layer she gets from hitting elites and leaders) now shows its official effect, in each outfit's own version, while she has a layer. Before, nothing official ever played for it: the battle keeps that shield in the talent's own data, which the client never saw.
+- Outfit effect swaps are kept per outfit. Operators can share an outfit tag, so Horn's The First Gleam and Bagpipe's Echo of Bagpipes played Viviana's deploy effect, and every `epoque#40` wearer swapped a heal hit and a burning effect for other operators' versions. The fx index gained a `skinPairs` map (`tools/local-extract/fx.py`); older clients still read `skinFx`.
+
 ### Trait text
 
 - Blemishine's and Degenbrecher's deploy traits (`garrison_106_a/b`, `garrison_155_a/b`) now read "On deployment … (up to N stacks per battle)", as the Chinese and the game code have it. The official English added an "on skill activation" trigger that doesn't exist and gave the cap as "Can stack up to Nx". The fix is in `tools/i18n/corrections-en.json`.

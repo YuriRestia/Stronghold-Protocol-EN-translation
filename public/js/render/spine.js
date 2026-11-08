@@ -575,6 +575,7 @@ export class SpineActor {
     this.attackVariant = null;    // (fork) the clip the next / current attack plays by the official pick (FxWiring.attackClip)
     this.skillVariant = null;     // (fork) that clip when it stands in for the skill role's loop (_attackClip, _isSkillLoop)
     this.runMode = false;         // move on the model's own Run cycle (setRunMode)
+    this.castRole ??= null;       // (fork) the skill role of the cast to come (setCastRole), over the skill slot's
     this.formRoles = null;        // the clip set of the form in force (setForm), over the unit's own roles
     this.skillOn = false;
     this.skillClipOnce = false;    // skillBegin: the skill's own clip plays once (a clip with no Begin / own Idle)
@@ -647,6 +648,16 @@ export class SpineActor {
    * A fast mover walks on its model's own Run cycle (`anims.run`; PR #275 by @xcdoge): 猎狗pro (moveSpeed 1.9, 行动速度很快)
    * ships Move_Loop 0.80 s next to Run_Loop 0.53 s. Composes with setSkillIndex; a model without a Run cycle is unchanged.
    */
+  /**
+   * (fork) The skill role of the cast to come in place of the skill slot's (render/units.js vvanaSkillRole: 薇薇安娜's S3
+   * _A / _B clip sets, her S1 cast that is an attack); null = the slot's again. `keepAttack`: the cast is an attack — the
+   * skill's end lets its swing play out (setSkill).
+   */
+  setCastRole(role) {
+    this.castRole = role || null;
+    this._applyRoles();
+  }
+
   setRunMode(on) {
     this.runMode = !!on;
     this._applyRoles();
@@ -657,8 +668,9 @@ export class SpineActor {
     const anims = this.entry?.anims || {};
     const clip = Number.isInteger(this.skillIndex) && anims.skills ? anims.skills[String(this.skillIndex)] : null;
     const run = this.runMode && anims.run ? anims.run : null;
-    const base = clip || run ? { ...anims } : anims;
+    const base = clip || run || this.castRole ? { ...anims } : anims;
     if (clip) base.skill = clip;
+    if (this.castRole) base.skill = this.castRole;
     if (run) base.move = run;
     this.baseRoles = base;
     this.roles = this.formRoles ? { ...base, ...this.formRoles } : base;
@@ -1237,6 +1249,9 @@ export class SpineActor {
         this.skillEndAfterAttack = true;
         return;
       }
+      // (fork) a cast that is an attack (setCastRole `keepAttack`: 薇薇安娜 S1, the sim's 'skill' 1 / 'atk' / 0 in one
+      // tick): its swing plays out, then the resting state (update) — the base clip now would cut it at its strike
+      if (sk.keepAttack && this.mode === 'attack' && this.clock < this.attackUntil) return;
       if (this.has(sk.end)) {
         this.mode = 'skillEnd';
         this._play(sk.end, false, { mix: 0.08 });

@@ -364,9 +364,11 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
       }
       let cx = _p[0], cy = _p[1], cz = _p[2];
       if (pv && (pv[0] || pv[1] || pv[2])) {
-        cx += _ax[0] * pv[0] + _ay[0] * pv[1] + _az[0] * pv[2];
-        cy += _ax[1] * pv[0] + _ay[1] * pv[1] + _az[1] * pv[2];
-        cz += _ax[2] * pv[0] + _ay[2] * pv[1] + _az[2] * pv[2];
+        // (fork) effect.js PIVOT_BY_X: every axis's share by the X size
+        const ky = r.pivotByX && sy ? sx / sy : 1, kz = r.pivotByX && sz ? sx / sz : 1;
+        cx += _ax[0] * pv[0] + _ay[0] * pv[1] * ky + _az[0] * pv[2] * kz;
+        cy += _ax[1] * pv[0] + _ay[1] * pv[1] * ky + _az[1] * pv[2] * kz;
+        cz += _ax[2] * pv[0] + _ay[2] * pv[1] * ky + _az[2] * pv[2] * kz;
       }
       buf[o] = cx; buf[o + 1] = cy; buf[o + 2] = cz;
       buf[o + 3] = _ax[0]; buf[o + 4] = _ax[1]; buf[o + 5] = _ax[2];

@@ -531,6 +531,29 @@ export const COND_BUFFS = Object.freeze({
     on: ['billro_skill_03_buff_02_01', 'billro_skill_03_buff_01_01_02'],
     full: ['billro_skill_03_buff_01_02', 'billro_skill_03_buff_01_01_02'], ready: ['billro_skill_03_buff_01_01'],
   }),
+  // (fork) 薇薇安娜 S1's 蓄力 (char_4098_vvana, client 26-10-29): ToggleablePassiveBuffAbility toggles vvana_s_1[mode] on at
+  // SP ratio 1 of the second charge (`event`: its ON_BUFF_START use is the toggle's, not the skill's start) and the next
+  // cast — which spends every charge — ends it: its loop is the `full` state only (the sim's 蓄力, op-vvana.js)
+  'vvana_s_1[mode]': Object.freeze({ event: 'ON_BUFF_START', full: ['vvana_skill_01_s_buff'] }),
+});
+
+/**
+ * (fork) The ability a charge skill's cast uses (skills.js attackFx `node`), by the stored charges it was cast with: `charged`
+ * every one (the sim's 蓄力 cast), else `plain`. 薇薇安娜 S1 ([uc]skills skchr_vvana_1, an AbilitySelectableGroup the client's
+ * trigger picks): S1_Attack — Skill_1_Attack, 3 hits, the _s_ effects — after 蓄力, else S1_Attack2 — Attack, 2 hits, _l_.
+ */
+export const CHARGED_CASTS = Object.freeze({
+  skchr_vvana_1: Object.freeze({ charged: 'S1_Attack', plain: 'S1_Attack2' }),
+});
+
+/**
+ * (fork) The attack mode each cast of a skill runs in where the skill data names none (skills[id].mode null), by the
+ * cast's number in the deployment: the first, then every later one. 薇薇安娜 S3 (charpack Modes S3_1 / S3_2, skchr_vvana_3's
+ * vvana_s_3[check]: mode 3, from her second cast of a deployment mode 4 — PRTS "第二次及以后使用时…攻击变为三连击"; sim
+ * op-vvana.js S3_LATER_HITS): S3_1's 2-hit attack and its l_buff loop, then S3_2's 3-hit attack and its s_buff loops.
+ */
+export const CAST_MODES = Object.freeze({
+  skchr_vvana_3: Object.freeze(['S3_1', 'S3_2']),
 });
 
 /**
@@ -670,6 +693,26 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
   attackLinePlan(idx, plan, FX_ATTACK_LINES[id]);
   if (isObj(opts.rec)) tagCasts(plan, skill);
   return plan;
+}
+
+/**
+ * (fork) A skill's plan as one cast runs it in mode `modeName` (CAST_MODES): the mode's attacks (plan.mode / modeName —
+ * FxWiring.mode) and its attach rows, held for the skill (attachUses, as skillPlan's own mode). The loops of that mode's
+ * passive general abilities (薇薇安娜 S3_1's vvana_skill_03_l_buff_01, S3_2's s_buff_01 / 02) are TalentFx's: it plays them
+ * while FxWiring.mode names the mode. Null when the unit has no such mode.
+ * @param {any} idx
+ * @param {ReturnType<typeof skillPlan>} plan  the skill's own plan
+ * @param {string} modeName
+ */
+export function castModePlan(idx, plan, modeName) {
+  const unit = plan?.unitKey && isObj(idx?.units) ? idx.units[plan.unitKey] : null;
+  const modes = Array.isArray(unit?.modes) ? unit.modes : [];
+  const at = modes.findIndex((m) => m?.name === modeName);
+  if (at < 0) return null;
+  const extra = emptyPlan(plan.unitKey, plan.skillId);
+  extra.kind = plan.kind;
+  planUses(idx, extra, attachUses(modes[at]), { mode: null });
+  return { ...plan, mode: at, modeName, loop: [...plan.loop, ...extra.loop], range: [...plan.range, ...extra.range] };
 }
 
 /** (fork) The rows and the flight of an FX_ATTACK_LINES entry; each only with its prefab in the index. */
@@ -899,6 +942,8 @@ function place(plan, e, u, { attackOf, eachHit }) {
   if (e.action === 'CreateBuffToToken' || u.on === 'token' || /_buffsToToken/.test(u.from)) return 'token';
   const onTargets = u.on === 'targets';
   const ev = u.event;
+  // (fork) a mode buff whose loops the stored charges hold, not the skill's start (COND_BUFFS `event`: 薇薇安娜's 蓄力)
+  if (role === 'loop' && ev && COND_BUFFS[u.buff]?.event === ev) { e.hold = 'cond'; plan.cond.push(e); return null; }
   if (ev && !START_EVENTS.has(ev)) {
     if (END_EVENTS.has(ev)) {
       if (role === 'loop') return 'after-end';
@@ -944,13 +989,15 @@ function place(plan, e, u, { attackOf, eachHit }) {
  * The effects of one attack of the owner while the skill is on: the skill prefab's attack ability that fits the attack
  * (a heal → a /Heal/ ability, a ranged shot → /Ranged/, a melee blow → /Melee/; else the first), plus `each`.
  * @param {ReturnType<typeof skillPlan>} plan
- * @param {{ heal?: boolean, ranged?: boolean }} [what]
+ * @param {{ heal?: boolean, ranged?: boolean, node?: string|null }} [what]  node: (fork) the ability of that node when the
+ *   plan has it (CHARGED_CASTS)
  * @returns {{ node: string|null, ability: string|null, cast: any[], range: any[], aim: any[], hit: any[][], hitOpts: any, projectile: string|null, shot: any }}
  */
-export function attackFx(plan, { heal = false, ranged = false } = {}) {
+export function attackFx(plan, { heal = false, ranged = false, node = null } = {}) {
   const list = plan?.attacks || [];
   const want = heal ? /Heal/ : ranged ? /Ranged/ : /Melee/;
-  const a = list.find((x) => want.test(x.ability)) || (heal ? null : list.find((x) => !/Heal/.test(x.ability))) || list[0] || null;
+  const a = (node && list.find((x) => x.node === node)) || list.find((x) => want.test(x.ability))
+    || (heal ? null : list.find((x) => !/Heal/.test(x.ability))) || list[0] || null;
   const each = plan?.each || { cast: [], hit: [[]] };
   const extra = each.hit?.[0] || [];
   const groups = a && a.hit.length ? a.hit.map((g) => [...g, ...extra]) : [extra];

@@ -91,7 +91,7 @@
 import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
-  ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys,
+  ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
@@ -133,6 +133,11 @@ const LOCK_T = 5, LOCK_SHELL_NEAR = 3, MAX_LOCKS = 48;
  * enemy_cjhot_debuff: the client keeps it while the unit is in the aura — its ticks come every second) [ASSUMED].
  */
 export const AURA_HOLD_S = 1.25;
+/**
+ * (fork) Battle seconds after the stored charges were last seen full within which a cast still counts as made with every
+ * charge (CHARGED_CASTS): the snapshot that shows the cast's spent charges may come before its 'skill' event.
+ */
+export const CHARGED_GRACE_S = 0.35;
 
 /**
  * The index mode a unit's form (a sim setForm / a 傀儡师's 替身 — shared/protocol.js fxForm) fights in: the mode the data
@@ -151,6 +156,8 @@ export function formMode(unit, form, map = null) {
 }
 
 const idOf = (v) => v?.info?.id ?? v?.id;
+/** (fork) b.snap `charges` [stored, maximum] of a skill with several, every one stored. */
+const full = (c) => Array.isArray(c) && Number(c[1]) > 1 && Number(c[0]) >= Number(c[1]);
 /** A held entry that loops for its hold: hold 'skill' and a looping prefab (a one-shot prefab plays once at the start). */
 const isLoop = (e) => e.hold === 'skill' && e.loop !== false;
 /** The plan's attacks a normal attack can use: not the skill's own casts at its start / end (`when`, skills.js tagCasts). */
@@ -412,6 +419,10 @@ export class SkillFx {
       U.startFrame = this.frame;
       U.atkN = 0;
       U.attacked = false;
+      // (fork) the mode this cast runs in (CAST_MODES: 薇薇安娜 S3's first / later casts) and whether every charge went
+      // into it (CHARGED_CASTS: her S1 after 蓄力)
+      if (CAST_MODES[U.skillId]) U.plan = this._castPlan(U, v);
+      if (CHARGED_CASTS[U.skillId]) U.charged = this._wasFull(U, v);
       if (!live) return false;
       this._stopReady(U);
       this._stopLoops(U);          // a cast while on (onEnd re-cast) starts afresh
@@ -745,7 +756,10 @@ export class SkillFx {
     const ranged = !!kind && kind !== 'none';
     const heal = !!tgt && !tgt.isEnemy && !src.isEnemy;
     // the skill's own casts at its start / end are no normal attack (tagCasts): the mode attacks while it is on
-    const fx = planAttack(perAttack(st.plan), { heal, ranged });
+    // (fork) the cast's ability by the charges it takes (CHARGED_CASTS) — asked by the wind-up before the cast's event too
+    const cc = CHARGED_CASTS[st.U?.skillId];
+    const charged = !!cc && (st.U.charged || this._wasFull(st.U, src));
+    const fx = planAttack(perAttack(st.plan), { heal, ranged, node: cc ? (charged ? cc.charged : cc.plain) : null });
     // the skill's own ability replaces the mode's rows when it is this kind of attack: a melee blow is no shield throw
     // (斩业星熊 S2: her MultiMelee mode attacks while the skill's AroundTargetRangedAttack throws on its own); in the frame
     // of an instant skill's activation its attack is the skill's whatever kind the sim made it (阿罗玛 S1's 'beam' is her
@@ -984,6 +998,26 @@ export class SkillFx {
   }
 
   /**
+   * (fork) The plan of the cast starting now in its mode (CAST_MODES; castModePlan, cached per mode): the mode of the
+   * cast's number in the deployment — the view's count of its skill starts (render/units.js UnitView.skillCasts, this one
+   * included). A view built mid-battle has seen no earlier cast: its first [ASSUMED].
+   */
+  _castPlan(U, v) {
+    const names = CAST_MODES[U.skillId];
+    U.basePlan ??= U.plan;
+    const n = Math.max(1, Number(v?.skillCasts) || 1);
+    const name = names[Math.min(names.length - 1, n - 1)];
+    const k = `cast:${name}`;
+    if (!U.modePlans.has(k)) U.modePlans.set(k, castModePlan(this.w.idx, U.basePlan, name));
+    return U.modePlans.get(k) || U.basePlan;
+  }
+
+  /** (fork) Whether a cast starting now took every stored charge: full now, or a moment ago (CHARGED_GRACE_S). */
+  _wasFull(U, v) {
+    return full(v?.charges) || this.w.ofx.time - (U.fullAt ?? -Infinity) <= CHARGED_GRACE_S;
+  }
+
+  /**
    * The `[eff_cond]` loops of the skill (skills.js COND_BUFFS, plan.cond — 卡涅利安's sand armour), reconciled each frame
    * with the client graph's state now (condState): the skill on (and `charged` — its start fx said so, simFx), else the
    * charges it stores (b.snap `charges`): 1 → the half armour, 2 → the full one, none below.
@@ -991,6 +1025,7 @@ export class SkillFx {
   _cond(U, v) {
     const on = this._on(U);
     if (!on) U.charged = false;
+    if (!on && full(v.charges)) U.fullAt = this.w.ofx.time;
     const st = condState({ on, charged: !!U.charged, charges: v.charges });
     const want = new Map();
     if (st) for (const e of U.plan.cond) if (COND_BUFFS[e.buff]?.[st]?.includes(e.key)) want.set(e.key, e);

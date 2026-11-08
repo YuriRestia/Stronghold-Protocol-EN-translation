@@ -208,6 +208,26 @@ function abilityFits(a, kind, depth = 0) {
 }
 
 /**
+ * (fork) Of a random group's sub-abilities that differ only in how many hits they deal — the same cast rows, each one's
+ * hit rows (by group) the start of the widest one's —, that widest one, else null. 薇薇安娜 S2 (charpack Modes/S2:
+ * Attack_Once's hit vvana_skill_02_hit_01, Attack_Twice's groups hit_01 / hit_02; the sim rolls attack@prob_twice): the
+ * client cannot see the roll, only the hits that land, and the widest one's group k on the k-th hit IS the narrower
+ * one's look for fewer hits. The only such group of the client 26-10-29 index (24 random groups).
+ * @param {any[]} pool
+ */
+export function hitSuperset(pool) {
+  if (!Array.isArray(pool) || pool.length < 2) return null;
+  const cast = (x) => JSON.stringify((x.cast || []).map((c) => c.effects || []));
+  const hits = (x) => (x.hit || []).map((h) => (h.effects || []).join('+'));
+  const c0 = cast(pool[0]);
+  if (!pool.every((x) => cast(x) === c0)) return null;
+  const wide = pool.reduce((w, x) => (hits(x).length > hits(w).length ? x : w), pool[0]);
+  const wh = hits(wide);
+  if (!pool.some((x) => hits(x).length < wh.length)) return null;
+  return pool.every((x) => hits(x).every((h, k) => h === wh[k])) ? wide : null;
+}
+
+/**
  * The attacks one 'atk' plays of an ability (index v2 / v3, DESIGN §33.12, §33.17): the ability itself and, of a group,
  * the sub-abilities that fire. Index v3's `select` says how: `parallel` (and a `sequence`'s steps) — every one, its
  * `main` first (its projectile is the attack's); `random` — a seeded pick (unit id × attack count: the same in a
@@ -245,6 +265,9 @@ export function pickAttacks(a, kind, seed = 0, depth = 0, nth = 0, mem = null) {
   const pool = pick.length ? pick : cand;
   let i = 0;
   if (method === 'random') {
+    // (fork) a roll the sim's damage count shows (hitSuperset: 薇薇安娜 S2's Attack_Once / Attack_Twice): the widest
+    const wide = hitSuperset(pool);
+    if (wide) return [a, ...next(wide)];
     i = seed % pool.length;
     if (sel?.diffFromLast && mem && pool.length > 1) {
       // (fork) one attack is one pick: its wind-up and its strike both ask, with the same count
@@ -401,11 +424,28 @@ export class FxWiring {
 
   /** (fork) Effect key k as the outfit of view `by` plays it: its `<k>_<outfit>#N` twin when extracted, else k. */
   skinKey(k, by) {
-    const map = this.idx?.skinFx;
-    if (!k || !map || !by) return k;
-    const suf = this.outfitOf(by);
-    const alt = suf ? map[suf]?.[k] : null;
+    if (!k || !by || !this.idx?.skinFx) return k;
+    const alt = this._twin(k, by);
     return alt && this.ofx.lib.has(lc(alt)) ? lc(alt) : k;
+  }
+
+  /**
+   * (fork) The outfit twin of effect key k for view v, or null: its outfit's own skinpack replacement (index.json
+   * `skinPairs`, by outfit id — 薇薇安娜's 还愿礼 replaces common_char_birth_01, 号角's 初晓 of the same suffix does not),
+   * else the name rule's twin (`skinFx` by suffix). An index without `skinPairs` keeps `skinFx` whole (pairs included).
+   */
+  _twin(k, v) {
+    const suf = this.outfitOf(v);
+    if (!suf) return null;
+    const pairs = this.idx.skinPairs;
+    if (pairs) {
+      const m = v?.info?.model;
+      const own = typeof m === 'string' && m.includes('@') ? pairs[m.toLowerCase()]?.[k] : null;
+      if (own) return own;
+    }
+    const alt = this.idx.skinFx[suf]?.[k];
+    // with skinPairs, the by-suffix map gives the name rule's twins only (`<k>` with `_<suffix>` in it)
+    return alt && (!pairs || alt.replace(`_${suf}`, '') === k) ? alt : null;
   }
 
   /**
@@ -466,11 +506,10 @@ export class FxWiring {
     for (const k of this.talents.keys(views)) keys.add(k);
     for (const k of this.funnels.keys(views)) keys.add(k);   // the 驭械术士's floating units (render/vfx/funnelfx.js)
     // (fork) the worn outfits' twins of those keys (skinKey)
-    const map = this.idx?.skinFx;
-    if (map) {
-      const sufs = new Set();
-      for (const v of views) { const s = this.outfitOf(v); if (s && map[s]) sufs.add(s); }
-      for (const s of sufs) for (const k of [...keys]) { const alt = map[s][lc(k)]; if (alt) keys.add(alt); }
+    if (this.idx?.skinFx) {
+      const worn = new Map();   // one view per outfit (_twin reads its model)
+      for (const v of views) { const m = this.outfitOf(v) ? v.info.model : null; if (m && !worn.has(m)) worn.set(m, v); }
+      for (const v of worn.values()) for (const k of [...keys]) { const alt = this._twin(lc(k), v); if (alt) keys.add(alt); }
     }
     return [...keys].map(lc).filter((k) => k && this.ofx.lib.has(k));
   }
