@@ -11,6 +11,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - At the Extra Large text size on a 640×360 phone, each card's level pill ended 4 px below the card. The branch icon above it now shrinks to make room when the rail is too short; every other size looks as before.
 - The card view's own spacing (the Owned button, the Export / Import parts list, the card's meta and alliance column, the Custom Squad card) now follows the UI size setting like the rest of the interface. The top-bar tray keeps the 32 px touch minimum every other control uses (it had 36 px, which only showed at UI sizes 75–80 % on small screens).
+- The Export / Import dialog highlights a ticked part without the CSS `:has()` selector, so it also works on Firefox ESR 115 and Safari before 15.4. It looks the same.
 - Tests brought up to date with the card view: the bottom switch has three buttons (Compact / Expanded / Outfits), the drawer lies over the deck without moving it, module tiles accept the downloaded type icons when the local game art is missing, and a leftover list-view helper is gone from the loadout rows test.
 
 ### Update news

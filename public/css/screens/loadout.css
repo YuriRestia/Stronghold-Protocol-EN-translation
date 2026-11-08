@@ -572,7 +572,8 @@
 .lo-io__parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(2.4rem, 32px, calc(150px * var(--sp-ui, 1))), 1fr)); gap: max(.06rem, calc(6px * var(--sp-ui, 1))); margin: 0 0 max(.1rem, calc(8px * var(--sp-ui, 1))); }
 .lo-io__part { display: flex; flex-wrap: wrap; align-items: center; gap: max(.06rem, calc(6px * var(--sp-ui, 1))); padding: max(.06rem, calc(6px * var(--sp-ui, 1))) max(.1rem, calc(8px * var(--sp-ui, 1))); cursor: pointer;
   font-size: max(calc(.16 * var(--t)), 12px); color: var(--text-hi); background: rgba(255, 255, 255, .03); border: 1px solid var(--line-2); }
-.lo-io__part:has(input:checked) { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
+/* a ticked part: .is-on mirrors its checkbox (no :has(): Firefox ESR 115, Safari < 15.4) */
+.lo-io__part.is-on { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
 .lo-io__part input { margin: 0; accent-color: var(--mint-500); }
 .lo-io__part b { margin-left: auto; color: var(--mint-400); }
 .lo-io__part.is-empty b { color: var(--text-lo); }
