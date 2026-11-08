@@ -44,7 +44,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Viviana's skills
 
-- S3 now looks like the official game in every outfit. Her first cast of a battle plays the "A" clip set (Begin, Idle, a 2-hit attack, End) with its own effects and aura; every later cast plays the "B" set with the 3-hit attack and its two auras. Before, none of S3's effects played and only one of its clips did.
+- S3 now looks like the official game in every outfit. Her first cast of a battle plays the "A" clip set (Idle and a 2-hit attack) with its own effects and aura; every later cast plays the "B" set with the 3-hit attack and its two auras. Every cast starts with the same Begin clip and ends with no End clip, as the official game code has it. Before, none of S3's effects played and only one of its clips did.
 - S1: a plain cast is her normal attack swing with the 2-hit effects. It no longer flashes the charged-stance clips and aura for a moment. With both charges stored she takes the charged stance (its Begin, idle and aura), and the cast that spends them swings `Skill_1_Attack` with the 3-hit effects.
 - S2 shows the second hit's effect whenever the battle rolls her double hit, instead of guessing single or double on its own.
 - Votive Offering's S2 staircase of glowing planks now spirals right beside her, rising on her left and fading as it turns behind her, as in the official game. It had been drawn as a ring over five tiles wide, spinning across the board the other way.

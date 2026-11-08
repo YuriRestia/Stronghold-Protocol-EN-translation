@@ -431,8 +431,13 @@ export const oblvnsStartForm = (info, skillIndex) =>
  * - S1: a cast is the attack it replaces (`keepAttack`: its swing plays out; no Begin). 蓄力 — every charge stored (b.snap
  *   `charges`, the sim's rule) — is the S1 mode: Skill_1_Begin once, then Skill_1_Idle as her idle (VVANA_STANCE), and her
  *   next attack — the cast that spends them all — swings Skill_1_Attack (VVANA_STRIKE).
- * - S3: her first cast of a deployment runs mode S3_1 (the _A clips), every later one S3_2 (_B: Skill_3_Begin_B /
- *   End_B by their names [ASSUMED: the data names Begin_A only; the B mode's Idle_B would follow Begin_A's last pose]).
+ * - S3: her first cast of a deployment runs mode S3_1 (the _A clips), every later one S3_2 (Idle / Attack _B). Every
+ *   cast begins with Skill_3_Begin_A and plays no End clip — the client code (dump 2026-11-08) names no clip but the
+ *   data's: skchr_vvana_3 is a CastSkill whose `_beginAnim` is Skill_3_Begin_A and that has no `_endAnim` (only
+ *   ToggleSkillWithEndAnimation has one), S3_2's SimpleUnitAnimatorHooker swaps Idle and Attack only, and no code builds
+ *   `Skill_N_…` / `…_End` names (Skill_3_Begin_B and the End clips sit unused in the skeleton).
+ * - [ASSUMED] Skill_1_Begin as 蓄力 starts: S1's prefab plays no begin clip (no `_playSkillBeginAnim`), its toggle
+ *   ability has no clip field; the mode buff's template (data, not read) may play it.
  */
 const VVANA = 'char_4098_vvana';
 const VVANA_S1 = Object.freeze({ begin: null, loop: 'Attack', end: null, idle: null, via: 'attack', keepAttack: true });
@@ -441,8 +446,8 @@ const VVANA_STRIKE = Object.freeze({ begin: null, loop: 'Skill_1_Attack', end: n
 /** Real ms after 蓄力 ended within which an attack is still its cast (the snapshot of the spent charges may come first). */
 const VVANA_STRIKE_GRACE_MS = 400;
 /** The clips those roles play beside the manifest's (the impostor box: _clipNames). */
-const VVANA_CLIPS = Object.freeze(['Skill_1_Begin', 'Skill_1_Idle', 'Skill_1_Attack', ...['A', 'B'].flatMap((x) =>
-  [`Skill_3_Begin_${x}`, `Skill_3_Idle_${x}`, `Skill_3_Attack_${x}`, `Skill_3_End_${x}`]), 'Skill_Down_3_Attack_A']);
+const VVANA_CLIPS = Object.freeze(['Skill_1_Begin', 'Skill_1_Idle', 'Skill_1_Attack', 'Skill_3_Begin_A', ...['A', 'B'].flatMap((x) =>
+  [`Skill_3_Idle_${x}`, `Skill_3_Attack_${x}`]), 'Skill_Down_3_Attack_A']);
 const isVvana = (info) => info?.side !== 'enemy' && (info?.spine === VVANA || info?.diy?.charId === VVANA);
 /** Every charge of a skill with several stored (b.snap `charges` [stored, maximum]). */
 const chargesFull = (c) => Array.isArray(c) && Number(c[1]) > 1 && Number(c[0]) >= Number(c[1]);
@@ -458,7 +463,7 @@ export function vvanaSkillRole(index, casts, down) {
   if (index === 0) return VVANA_S1;
   if (index !== 2) return null;
   const x = casts > 1 ? 'B' : 'A';
-  return { begin: `Skill_3_Begin_${x}`, loop: down && x === 'A' ? 'Skill_Down_3_Attack_A' : `Skill_3_Attack_${x}`, end: `Skill_3_End_${x}`, idle: `Skill_3_Idle_${x}` };
+  return { begin: 'Skill_3_Begin_A', loop: down && x === 'A' ? 'Skill_Down_3_Attack_A' : `Skill_3_Attack_${x}`, end: null, idle: `Skill_3_Idle_${x}` };
 }
 
 export const FORMS = Object.freeze({
