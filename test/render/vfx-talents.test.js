@@ -405,8 +405,11 @@ describe("skills' projectiles and buff lives, attacks' shots and group choice (i
     assert.deepEqual([0, 1, 2, 3].map((nth) => pickAttacks(g('loop'), { ranged: false }, 7, 0, nth)[1].n), [0, 1, 2, 0]);
     assert.deepEqual([0, 1, 2].map((nth) => pickAttacks(g('sequential'), { ranged: false }, 7, 0, nth)[1].n), [0, 1, 2]);
     const mem = new Map(), rnd = g('random', { diffFromLast: 1 });
-    const picks = [5, 5, 5, 5].map((seed) => pickAttacks(rnd, { ranged: false }, seed, 0, 0, mem)[1].n);
+    // the same seed on attacks 0..3 (a pick that would repeat); one attack's second ask (its strike after its wind-up,
+    // the same count) keeps its pick
+    const picks = [0, 1, 2, 3].map((nth) => pickAttacks(rnd, { ranged: false }, 5, 0, nth, mem)[1].n);
     for (let i = 1; i < picks.length; i++) assert.notEqual(picks[i], picks[i - 1], `never the previous one: ${picks}`);
+    assert.equal(pickAttacks(rnd, { ranged: false }, 9, 0, 3, mem)[1].n, picks[3], 'the same attack asks again: the same pick');
     const fs = { class: 'AbilityFirstSucceedGroup', select: { method: 'firstSucceed' }, abilities: [{ class: 'RangedAttack', k: 'r' }, { class: 'MeleeAttack', k: 'm' }] };
     assert.equal(pickAttacks(fs, { ranged: false }, 0)[1].k, 'm');
     assert.equal(pickAttacks(fs, { ranged: true }, 0)[1].k, 'r');
