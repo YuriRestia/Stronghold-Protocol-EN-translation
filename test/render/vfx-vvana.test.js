@@ -34,10 +34,10 @@ describe('the actor roles per cast (vvanaSkillRole)', () => {
     const r = vvanaSkillRole(0, 1, false);
     assert.deepEqual([r.begin, r.loop, r.via, r.keepAttack], [null, 'Attack', 'attack', true]);
   });
-  test('S3: the _A set on the first cast of a deployment (down: its own attack), _B on every later one; Begin_A, no End', () => {
+  test('S3: the _A set on the first cast of a deployment (down: its own attack), _B on every later one (its Begin_B too); no End', () => {
     assert.deepEqual(vvanaSkillRole(2, 1, false), { begin: 'Skill_3_Begin_A', loop: 'Skill_3_Attack_A', end: null, idle: 'Skill_3_Idle_A' });
     assert.equal(vvanaSkillRole(2, 1, true).loop, 'Skill_Down_3_Attack_A');
-    assert.deepEqual(vvanaSkillRole(2, 2, true), { begin: 'Skill_3_Begin_A', loop: 'Skill_3_Attack_B', end: null, idle: 'Skill_3_Idle_B' });
+    assert.deepEqual(vvanaSkillRole(2, 2, true), { begin: 'Skill_3_Begin_B', loop: 'Skill_3_Attack_B', end: null, idle: 'Skill_3_Idle_B' });
     assert.equal(vvanaSkillRole(2, 5, false).loop, 'Skill_3_Attack_B');
   });
   test('S2 keeps the manifest\'s roles', () => assert.equal(vvanaSkillRole(1, 1, false), null));
