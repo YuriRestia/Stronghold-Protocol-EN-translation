@@ -64,7 +64,10 @@ export function meshRef(v) {
  * Euler angles negated, as a billboard's roll turns clockwise — geom.js ROLL_SIGN) [ASSUMED, same source]: the video's
  * newest steps rise on her left and the helix fades going round behind her; ours turned to her right. Its steps point
  * out from the helix's axis (`meshRotX`: Box001, long along its Y, turned −90° about X so that Y lies along the pivot's
- * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle.
+ * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle — and as long as its Y size
+ * says (0.23, not its Z size's 0.38: the mesh is sized before that turn). Its prewarm fills the whole staircase
+ * (`prewarmS`: whole loops covering the steps' 20 s life, Unity's prewarmed steady state; one 0.7 s loop left it empty,
+ * each step clear only from 4 s of its life) [ASSUMED, same source: the staircase stands complete as S2 starts].
  */
 export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
@@ -128,7 +131,12 @@ export function compileEffect(desc, lib = {}) {
     }
     if (nd.particleSystemRenderer) {
       def.psr[i] = psrInfo(nd.particleSystemRenderer);
-      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) { def.psr[i].pivotByX = true; def.psr[i].negRot = true; def.psr[i].meshRotX = true; }
+      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) {
+        def.psr[i].pivotByX = true; def.psr[i].negRot = true; def.psr[i].meshRotX = true;
+        const ps = def.ps[i], L = nd.particleSystem?.InitialModule?.startLifetime;
+        const life = typeof L === 'number' ? L : Math.max(num(L?.max, 0), num(L?.min, 0), num(L?.value, 0));
+        if (ps && ps.prewarm && life > ps.duration) ps.prewarmS = Math.min(30, Math.ceil(life / ps.duration) * ps.duration);
+      }
     }
     if (nd.meshRenderer && nd.meshFilter !== undefined) {
       const r = nd.meshRenderer;
