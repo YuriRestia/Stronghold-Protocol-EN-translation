@@ -927,9 +927,10 @@ export function doctorNo(id) {
 
 /**
  * Latency pill ("58ms"), coloured by research 06 §3.4 tiers (<60 mint, <200 amber, else red).
- * @param {{ ms?: number|null, online?: boolean, class?: string }} props
+ * @param {{ ms?: number|null, online?: boolean, class?: string, children?: any }} props children: after the unit (the
+ *   lobby's server picker adds its caret, ui/regionPicker.js)
  */
-export function PingPill({ ms, online = true, class: cls }) {
+export function PingPill({ ms, online = true, class: cls, children }) {
   // (fork) with several servers: which one this number is about (public/js/regions.js)
   const region = useStore((s) => s.region);
   const regionName = region?.enabled && region.current ? regionLabel(region.current) : null;
@@ -938,7 +939,7 @@ export function PingPill({ ms, online = true, class: cls }) {
   return html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? t('当前延迟 {ms}ms', { ms }) : t('未连接')}>
     <${Icon} name=${ok ? 'signal' : 'wifiOff'} class="ping__icon" />
     ${regionName ? html`<span class="ping__region" data-testid="ping-region">${regionName}</span>` : null}
-    <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
+    <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>${children}
   </span>`;
 }
 

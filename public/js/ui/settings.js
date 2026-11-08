@@ -33,8 +33,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks
 import { html, Modal, Button, Icon, MicroLabel, Tooltip, confirmDialog } from './components.js';
 import { GIcon } from './gameComponents.js';
 import { useStore, savePref, store } from '../store.js';
-import { regions } from '../net.js';
-import { regionLabel } from './regionNames.js';
 import { settingsStore } from './settingsStore.js';
 export { settingsStore } from './settingsStore.js';
 import { sanitizeSettings, HOTKEY_ACTIONS, DEFAULT_HOTKEYS, hotkeyLabel, rebindHotkey, isDefaultHotkeys, captureHotkey, VOICE_LANGS, TEXT_SIZES } from './gameLogic.js';
@@ -121,22 +119,6 @@ function Slider({ label, micro, value, onInput, icon }) {
       onInput=${(e) => onInput(Number(e.currentTarget.value) / 100)} />
     <span class="set-row__val num">${pct}</span>
   </label>`;
-}
-
-/** (fork) Which server this browser uses (public/js/regions.js): shown only when the operator offers the choice. */
-function RegionSetting() {
-  const region = useStore((st) => st.region);
-  if (!region?.enabled || !region.auto) return null;
-  const pick = region.preference;
-  const choices = [['auto', t('自动')], ...region.list.map((id) => [id, regionLabel(id)])]; // en: "Auto"
-  return html`<div class="set-row">
-    <span class="set-row__label">${t('服务器')}<${MicroLabel}>SERVER<//></span>
-    <div class="set-seg" role="radiogroup" aria-label=${t('服务器')} data-testid="region-pref">
-      ${choices.map(([id, label]) => html`<button type="button" key=${id} role="radio" aria-checked=${pick === id ? 'true' : 'false'}
-        class=${pick === id ? 'is-on' : ''} onClick=${() => regions.setPreference(id)}>${label}</button>`)}
-    </div>
-  </div>
-  <p class="set-hint">${t('自动选择延迟最低的服务器。更改会在你离开同盟后生效。')}</p>`; // en: "Auto picks the server with the lowest ping. A change applies after you leave your alliance."
 }
 
 function Toggle({ label, micro, value, onChange }) {
@@ -513,7 +495,6 @@ export function SettingsModal({ open, onClose }) {
         <${LangToggle} class="set-lang" />
       </div>
       ${mtNote ? html`<p class="set-hint set-lang-note" data-testid="lang-mt-note">${mtNote}</p>` : null}
-      <${RegionSetting} />
       <${Slider} label=${t('背景音乐')} micro="BGM" icon="play" value=${s.bgm} onInput=${(v) => updateSettings({ bgm: v })} />
       <${Slider} label=${t('干员语音')} micro="VOICE" icon="mic" value=${s.voice} onInput=${(v) => updateSettings({ voice: v })} />
       <div class="set-row">

@@ -311,7 +311,7 @@ One game can run on several servers, so players connect to the nearest one and c
 |---|---|---|
 | `SP_REGIONS` | `sg=example.com,us=us.example.com` | Every server, the same text on each. The first is the page's server, and it also runs cross-server matchmaking. |
 | `SP_REGION` | `us` | Which one this server is |
-| `SP_REGION_AUTO` | `1` | Browsers pick a server by ping, and the choice appears in Settings. While off, only a tab opened with `?region=us` uses another server (for a private test). |
+| `SP_REGION_AUTO` | `1` | Browsers pick a server by ping, and players can change the choice by tapping the server name and ping at the lobby's top left (Auto or a server, each with its ping). While off, only a tab opened with `?region=us` uses another server (for a private test). |
 | `SP_CROSS_MATCH` | `1` | Matchmaking across servers (needs `SP_PEER_SECRET`) |
 | `SP_PEER_SECRET` | 32 characters or more | Signs the calls between servers and a moved group's tickets. The same on every server; keep it out of git and out of world-readable files. |
 | `SP_CROSS_AFTER_MS` | `15000` | How long a search stays on its own server before it may cross |
