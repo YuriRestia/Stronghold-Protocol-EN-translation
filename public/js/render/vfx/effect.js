@@ -64,8 +64,8 @@ export function meshRef(v) {
  * Euler angles negated, as a billboard's roll turns clockwise — geom.js ROLL_SIGN) [ASSUMED, same source]: the video's
  * newest steps rise on her left and the helix fades going round behind her; ours turned to her right. Its steps point
  * out from the helix's axis (`meshRotX`: Box001, long along its Y, turned −90° about X so that Y lies along the pivot's
- * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle — and as long as its Y size
- * says (0.23, not its Z size's 0.38: the mesh is sized before that turn). Its prewarm fills the whole staircase
+ * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle — and as long as its Z size makes
+ * them (0.38; measured against the video's deer at the same scale). Its prewarm fills the whole staircase
  * (`prewarmS`: whole loops covering the steps' 20 s life, Unity's prewarmed steady state; one 0.7 s loop left it empty,
  * each step clear only from 4 s of its life) [ASSUMED, same source: the staircase stands complete as S2 starts]. Its
  * steps come one a second, not the data's 1.5 (`rateMul` 2/3) [ASSUMED: matched to the video by eye, no rule found —
