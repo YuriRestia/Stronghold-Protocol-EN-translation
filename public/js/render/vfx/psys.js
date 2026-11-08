@@ -522,7 +522,11 @@ export class PSys {
       this.accDist -= nd;
     }
     const total = n + nd;
-    for (let i = 0; i < total; i++) {
+    // (fork) a full system stops trying: _spawn turns every further one down before it draws a random number, so the
+    // particles are the same — 10,000,000/s emitters capped at 1 (Civilight Eterna's Condolence flowers) had looped
+    // ~333,000 rejected spawns a step, seconds of prewarm and 150 ms frames
+    const full = this.full();
+    for (let i = 0; i < total && !full(); i++) {
       // spread over the step: the i-th of n is (n − i) / n of the step old, placed along the emitter's motion
       const f = (i + 1) / total;
       this._spawn(tau, (1 - f) * span, f, 0, 0, null);
@@ -540,7 +544,7 @@ export class PSys {
         if (tf < la - 1e-9 && !(la === 0 && tf <= 1e-9)) continue; // passed while not emitting (a late start)
         if (B.prob < 1 && this.rng.next() >= B.prob) continue;
         const c = Math.round(B.count.at(Math.min(1, tf / D), this.rng.next()) * this.emissionScale);
-        for (let i = 0; i < c; i++) this._spawn(tau, Math.max(0, lb - tf), 1, i, c, null);
+        for (let i = 0; i < c && !full(); i++) this._spawn(tau, Math.max(0, lb - tf), 1, i, c, null);
       }
     }
   }
@@ -550,7 +554,8 @@ export class PSys {
    * rot, life } of the parent.
    */
   _emitAt(count, x, y, z, inherit) {
-    for (let i = 0; i < count; i++) this._spawn(Math.min(1, this.time / this.def.duration), 0, 1, i, count, inherit, x, y, z);
+    const full = this.full();
+    for (let i = 0; i < count && !full(); i++) this._spawn(Math.min(1, this.time / this.def.duration), 0, 1, i, count, inherit, x, y, z);
   }
 
   /** Sub-emitter trigger from a parent particle (death / birth): bursts of this system at the point. */
@@ -575,6 +580,12 @@ export class PSys {
    * Birth one particle. tau: system normalised time; age: initial age (s into the step); f: 0…1 along this step's emitter
    * motion; (bi, bc): place in a burst; inherit: sub-emitter parent; (ex, ey, ez): a world emission point (sub-emitters).
    */
+  /** (fork) A check of whether the system is full (the limit _spawn refuses at), for the spawn loops. */
+  full() {
+    const lim = Math.min(this.def.maxParticles, SYSTEM_CAP);
+    return () => this.count >= lim;
+  }
+
   _spawn(tau, age, f, bi, bc, inherit, ex, ey, ez) {
     const def = this.def;
     if (this.count >= def.maxParticles || this.count >= SYSTEM_CAP) return -1;

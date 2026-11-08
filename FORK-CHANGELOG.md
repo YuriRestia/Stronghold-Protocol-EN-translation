@@ -11,6 +11,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - The two particle rules read from the game's own engine for Viviana's S2 staircase now apply to every operator's effects. Mesh particles place their pivot as the engine does: scaled by the particle's size and turned with it. Looping effects that start already running are filled to their longest particle lifetime, not just one loop. For example, Phantom's Focus attack now shows the red swipes seen in the official game, Lappland the Decadenza's deploy pillars rise on her own tile instead of the enemy's, and Nymph's S2 dots stay at her feet. Viviana's special case is gone.
 - Lifetimes far longer than a loop (Exusiai the New Covenant's 999-second halo) stop prewarming once the effect has had time to fill: at least 30 seconds, never more than 120.
+- Civilight Eterna's Condolence effects no longer freeze the game for 1.3–6 seconds when they appear, or drop frames to 150 ms while they last. Their flower particles ask to emit 10,000,000 per second with room for one, and the emitter tried every one of them each frame. A full particle system now stops trying, which leaves the particles exactly as before. Those spawns now take 1–6 ms.
 
 ## 2026-11-08
 
