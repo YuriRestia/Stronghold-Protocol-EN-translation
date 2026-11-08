@@ -11,7 +11,7 @@ import { hitSuperset, FxWiring } from '../../public/js/render/vfx/wiring.js';
 import { skillPlan, attackFx, castModePlan, CAST_MODES, CHARGED_CASTS, COND_BUFFS } from '../../public/js/render/vfx/skills.js';
 import { vvanaSkillRole } from '../../public/js/render/units.js';
 import { enginePivotLocal } from '../../public/js/render/vfx/geom.js';
-import { ENGINE_MESH_RULES } from '../../public/js/render/vfx/effect.js';
+import { compileSystem, prewarmSeconds, PREWARM_CAP } from '../../public/js/render/vfx/psys.js';
 
 const cast = (k) => ({ effects: [k], directionType: 0, oneshot: 0, startEvent: 2, endEvent: 3 });
 const hit = (k, group = null) => ({ effects: [k], directionType: 0, oneshot: 1, endEvent: 3, group });
@@ -128,12 +128,26 @@ describe('outfit pairs per outfit id (index.json skinPairs)', () => {
   });
 });
 
-describe('the client engine\'s mesh particle rules (effect.js ENGINE_MESH_RULES, geom.js enginePivotLocal)', () => {
+describe('the client engine\'s particle rules, for every effect (geom.js enginePivotLocal, psys.js prewarmSeconds)', () => {
   test('the pivot packed as (x, −z, y) and scaled by the particle\'s size (UnityPlayer.dll DrawMeshParticles)', () => {
     assert.deepEqual(enginePivotLocal([0, 0, 5.52], 0.15, 0.3, 0.5).map((v) => +v.toFixed(4)), [0, -1.656, 0]);
     assert.deepEqual(enginePivotLocal([1, 2, 0], 2, 3, 4), [2, -0, 8]);
   });
-  test('还愿礼 S2\'s staircase is drawn by them', () => {
-    assert.deepEqual(ENGINE_MESH_RULES['vvana_skill_02_buff_01_epoque#59'], ['stairs ab']);
+  const sys = (life, dur, rate = 10, max = 1000) => compileSystem({ lengthInSec: dur, looping: 1, prewarm: 1,
+    InitialModule: { startLifetime: life, maxNumParticles: max }, EmissionModule: { rateOverTime: rate } }, null);
+  test('prewarm runs the longest start lifetime in whole loops (ComputePrewarmStartParameters)', () => {
+    assert.equal(sys(0.5, 1).prewarmS, 1);
+    assert.equal(sys(2.5, 1).prewarmS, 3);
+    assert.equal(sys(25, 1).prewarmS, 25);
+  });
+  test('a 999 s halo stops once filled (max ÷ rate, at least 30 s), never past the cap', () => {
+    assert.equal(sys(999, 2, 10, 50).prewarmS, 30);
+    assert.equal(sys(999, 2, 1, 80).prewarmS, 80);
+    assert.equal(sys(999, 2, 1, 1000).prewarmS, PREWARM_CAP);
+    assert.equal(sys(999, 2, 0).prewarmS, 30);
+    assert.equal(prewarmSeconds({ duration: 2, startLifetime: { peak: 1 }, maxParticles: 10, emission: null }), 2);
+  });
+  test('systems without prewarm keep none', () => {
+    assert.equal(compileSystem({ lengthInSec: 1, looping: 1, InitialModule: { startLifetime: 9 } }, null).prewarmS, undefined);
   });
 });
