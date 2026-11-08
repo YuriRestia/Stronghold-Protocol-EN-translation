@@ -255,7 +255,8 @@ export class OfficialFx {
 
   /**
    * Programs and textures of these prefabs go to the GPU ahead of their first draw, a few per frame (WARM_MS of each
-   * frame's pass): a battle's effects compile at its start instead of hitching when each first plays.
+   * frame's pass): a battle's effects compile at its start instead of hitching when each first plays. (fork) Where the
+   * GL compiles in parallel (FxGL.parallel) every queued program starts at once and stays queued until it is built.
    */
   warm(keys) {
     const seenP = new Set(this.warmQueue.map((w) => w.id));
@@ -279,14 +280,27 @@ export class OfficialFx {
     }
   }
 
+  /**
+   * (fork) One pass over the queue per frame: a program whose build runs in parallel starts (or is asked whether it is
+   * done) whatever the budget, as that costs well under a millisecond; a blocking build and a texture upload only while
+   * the frame's WARM_MS lasts. What isn't done stays queued in order (in place: app.js empties it with length = 0).
+   */
   _warmStep() {
-    if (!this.warmQueue.length || !this.glr) return;
+    const q = this.warmQueue, glr = this.glr;
+    if (!q.length || !glr) return;
     const t0 = performance.now();
-    while (this.warmQueue.length && performance.now() - t0 < WARM_MS) {
-      const w = this.warmQueue.shift();
-      if (w.kind) this.glr.program(w.kind, w.mat);
-      else if (!this.glr.texture(w.tex, this.lite) && ++w.tries < 120) this.warmQueue.push(w); // its image still loads
+    let budget = true, w2 = 0;
+    for (let i = 0; i < q.length; i++) {
+      const w = q[i];
+      let keep;
+      if (w.kind && glr.parallel) { glr.program(w.kind, w.mat); keep = glr.building(w.kind, w.mat); }
+      else if (!budget) keep = true;
+      else if (w.kind) { glr.program(w.kind, w.mat); keep = false; }
+      else keep = !glr.texture(w.tex, this.lite) && ++w.tries < 120; // its image still loads
+      if (keep) q[w2++] = w;
+      if (budget && performance.now() - t0 >= WARM_MS) budget = false;
     }
+    q.length = w2;
   }
 
   /** Keep a finished instance for the next play of its prefab (up to its `_preloadCnt`, POOL_MAX). */

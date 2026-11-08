@@ -91,10 +91,19 @@ describe('emission', () => {
     assert.equal(run(half, 0.1), 5);
   });
 
-  test('prewarm starts a looping system as if one loop had run', () => {
+  test('a full system stops trying to spawn: 10,000,000/s capped at 1 (Civilight Eterna\'s Condolence flowers) stays cheap', () => {
+    const ps = new PSys(compileSystem(sys({ top: { lengthInSec: 5, looping: true, prewarm: true }, I: { maxNumParticles: 1, startLifetime: 5 }, E: { rateOverTime: 10000000 } })), {});
+    const t = performance.now();
+    ps.play(ID);
+    run(ps, 1);
+    assert.equal(ps.count, 1);
+    assert.ok(performance.now() - t < 100, `took ${(performance.now() - t).toFixed(0)} ms`);
+  });
+
+  test('prewarm starts a looping system full: its longest lifetime in whole loops (the client engine\'s rule)', () => {
     const ps = new PSys(compileSystem(sys({ top: { looping: true, prewarm: true, startDelay: 5 }, I: { startLifetime: 2 }, E: { rateOverTime: 10 } })), {});
     ps.play(ID);
-    assert.ok(ps.count >= 9 && ps.count <= 11, `prewarmed ${ps.count}`);
+    assert.ok(ps.count >= 19 && ps.count <= 21, `prewarmed ${ps.count}`);
     assert.equal(ps.delay, 0, 'no start delay with prewarm');
   });
 

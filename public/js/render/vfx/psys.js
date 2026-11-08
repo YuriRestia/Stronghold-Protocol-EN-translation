@@ -44,6 +44,25 @@ const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 const bool = (v) => v === true || v === 1;
 const mm = (v, d = 0) => new MinMax(v, d);
 
+/** (fork) The longest prewarm simulated, seconds (see prewarmSeconds). */
+export const PREWARM_CAP = 120;
+
+/**
+ * (fork) How long a prewarmed system is simulated before its first frame — the client engine's rule (UnityPlayer.dll
+ * ParticleSystem::ComputePrewarmStartParameters): the longest start lifetime, rounded up to whole loops, so the system
+ * stands complete as it starts (one loop when the lifetime is shorter). Lifetimes far past the loop (999 s halos) stop
+ * once the system has had time to fill (max particles ÷ rate, at least 30 s), and never past PREWARM_CAP.
+ * @param {{ duration: number, startLifetime: { peak: number }, maxParticles: number, emission: any }} def
+ */
+export function prewarmSeconds(def) {
+  const d = def.duration, life = def.startLifetime.peak;
+  if (!(life > d)) return d;
+  const loops = (s) => Math.ceil(s / d - 1e-6) * d;
+  const rate = def.emission?.rate?.peak || 0;
+  const fill = rate > 0 ? def.maxParticles / rate : 0;
+  return Math.max(d, Math.min(loops(life), Math.max(30, loops(fill)), PREWARM_CAP));
+}
+
 /** A compiled burst. */
 function burst(b) {
   return {
@@ -101,6 +120,7 @@ export function compileSystem(ps, psr, res = {}) {
       bursts: Array.isArray(E.m_Bursts) ? E.m_Bursts.map(burst) : [],
     };
   }
+  if (def.prewarm) def.prewarmS = prewarmSeconds(def);
   const S = ps.SizeModule;
   if (S) def.size = { sep: bool(S.separateAxes), x: mm(S.curve, 1), y: mm(S.y, 1), z: mm(S.z, 1) };
   const R = ps.RotationModule;
@@ -367,9 +387,8 @@ export class PSys {
     if (frame) this.setFrame(frame);
     this.prevPos = null;
     if (this.def.prewarm && this.emitting) {
-      // as if one full loop had already run (Unity: the start delay does not apply with prewarm)
-      // (fork) effect.js ENGINE_MESH_RULES `prewarmS`: whole loops up to the longest start lifetime (the engine's
-      // ComputePrewarmStartParameters)
+      // as if it had already run (Unity: the start delay does not apply with prewarm)
+      // (fork) prewarmS: whole loops up to the longest start lifetime, the client engine's rule (prewarmSeconds)
       const d = this.def.prewarmS || this.def.duration;
       let t = 0;
       while (t < d - 1e-6) { const s = Math.min(MAX_STEP, d - t); this._step(s, true); t += s; }
@@ -503,7 +522,11 @@ export class PSys {
       this.accDist -= nd;
     }
     const total = n + nd;
-    for (let i = 0; i < total; i++) {
+    // (fork) a full system stops trying: _spawn turns every further one down before it draws a random number, so the
+    // particles are the same — 10,000,000/s emitters capped at 1 (Civilight Eterna's Condolence flowers) had looped
+    // ~333,000 rejected spawns a step, seconds of prewarm and 150 ms frames
+    const full = this.full();
+    for (let i = 0; i < total && !full(); i++) {
       // spread over the step: the i-th of n is (n − i) / n of the step old, placed along the emitter's motion
       const f = (i + 1) / total;
       this._spawn(tau, (1 - f) * span, f, 0, 0, null);
@@ -521,7 +544,7 @@ export class PSys {
         if (tf < la - 1e-9 && !(la === 0 && tf <= 1e-9)) continue; // passed while not emitting (a late start)
         if (B.prob < 1 && this.rng.next() >= B.prob) continue;
         const c = Math.round(B.count.at(Math.min(1, tf / D), this.rng.next()) * this.emissionScale);
-        for (let i = 0; i < c; i++) this._spawn(tau, Math.max(0, lb - tf), 1, i, c, null);
+        for (let i = 0; i < c && !full(); i++) this._spawn(tau, Math.max(0, lb - tf), 1, i, c, null);
       }
     }
   }
@@ -531,7 +554,8 @@ export class PSys {
    * rot, life } of the parent.
    */
   _emitAt(count, x, y, z, inherit) {
-    for (let i = 0; i < count; i++) this._spawn(Math.min(1, this.time / this.def.duration), 0, 1, i, count, inherit, x, y, z);
+    const full = this.full();
+    for (let i = 0; i < count && !full(); i++) this._spawn(Math.min(1, this.time / this.def.duration), 0, 1, i, count, inherit, x, y, z);
   }
 
   /** Sub-emitter trigger from a parent particle (death / birth): bursts of this system at the point. */
@@ -550,6 +574,12 @@ export class PSys {
         else this.pending.push({ t, count: c, x, y, z, inherit });
       }
     }
+  }
+
+  /** (fork) A check of whether the system is full (the limit _spawn refuses at), for the spawn loops. */
+  full() {
+    const lim = Math.min(this.def.maxParticles, SYSTEM_CAP);
+    return () => this.count >= lim;
   }
 
   /**

@@ -3,6 +3,8 @@
 // meshes on the GPU, the material render states, and the board's depth heightfield for the ZTest materials.
 // It draws into the Pixi canvas's own context (render/vfx/system.js calls it from inside the Pixi render and resets
 // Pixi's GL state afterwards).
+// (fork) Programs build in parallel where the GL offers KHR_parallel_shader_compile: a draw whose program is still
+// building is skipped like one whose texture still loads, so no frame waits on a shader compile.
 //
 // Blending onto the effect canvas: the Pixi canvas is transparent over the three.js board and composited with
 // premultiplied alpha (displayed = C + board × (1 − A)). A material's colour factors are used as they are; its alpha
@@ -32,6 +34,8 @@ export class FxGL {
     this.defaults = {};
     this.stats = { draws: 0, programs: 0, textures: 0, texBytes: 0, quads: 0, meshes: 0, tris: 0 };
     this.hasDepth = !!(gl.getContextAttributes && gl.getContextAttributes()?.depth);
+    // (fork) KHR_parallel_shader_compile: programs build off the main thread (see program())
+    this.parallel = gl.getExtension?.('KHR_parallel_shader_compile') || null;
     this._init();
   }
 
@@ -84,31 +88,77 @@ export class FxGL {
   }
 
   _link(vs, fs) {
+    return this._linked(this._startLink(vs, fs));
+  }
+
+  /**
+   * (fork) Compile and link without asking how it went: no status query, so nothing waits for the driver's compile
+   * (with ANGLE on D3D11 one fx program takes 10–60 ms). _linked asks afterwards.
+   */
+  _startLink(vs, fs) {
     const gl = this.gl;
-    const sh = (type, src) => {
-      const s = gl.createShader(type);
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { const log = gl.getShaderInfoLog(s); gl.deleteShader(s); throw new Error(`fx shader: ${log}`); }
-      return s;
-    };
+    const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); return s; };
     const v = sh(gl.VERTEX_SHADER, vs), f = sh(gl.FRAGMENT_SHADER, fs);
     const p = gl.createProgram();
     gl.attachShader(p, v); gl.attachShader(p, f);
     gl.linkProgram(p);
-    gl.deleteShader(v); gl.deleteShader(f);
-    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { const log = gl.getProgramInfoLog(p); gl.deleteProgram(p); throw new Error(`fx program: ${log}`); }
+    return { prog: p, v, f };
+  }
+
+  /** (fork) The program of a started link once it checks out (blocks until the compile is done), else an error. */
+  _linked({ prog: p, v, f }) {
+    const gl = this.gl;
+    try {
+      for (const s of [v, f]) if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { const log = gl.getShaderInfoLog(s); gl.deleteProgram(p); throw new Error(`fx shader: ${log}`); }
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { const log = gl.getProgramInfoLog(p); gl.deleteProgram(p); throw new Error(`fx program: ${log}`); }
+    } finally {
+      gl.deleteShader(v); gl.deleteShader(f);
+    }
     return p;
   }
 
-  /** The program of a geometry kind and compiled material (built on first use). */
+  /**
+   * The program of a geometry kind and compiled material (built on first use). (fork) With KHR_parallel_shader_compile
+   * the first call only starts the build and returns null, like a texture still loading (the draw skips the item);
+   * later calls return the program once the driver reports it done (COMPLETION_STATUS_KHR, which never waits), so no
+   * frame stalls on a compile. Without the extension the build blocks as before.
+   */
   program(kind, mat) {
     const key = `${kind}|${mat.key}`;
     let rec = this.programs.get(key);
-    if (rec !== undefined) return rec;
+    if (rec !== undefined) return rec && rec.building ? this._settle(key, kind, rec, mat) : rec;
+    if (this.parallel) {
+      try {
+        const b = this._startLink(vertexSource(kind), fragmentSource(mat.family, mat.defs));
+        this.programs.set(key, { building: b });
+        return null;
+      } catch (err) {
+        console.warn('[fx] program failed', mat.family, err?.message || err);
+        this.programs.set(key, null);
+        return null;
+      }
+    }
+    return this._build(key, kind, null, mat);
+  }
+
+  /** (fork) A program whose build is under way: its record once the driver is done, else null (asked again later). */
+  _settle(key, kind, rec, mat) {
+    if (!this.gl.getProgramParameter(rec.building.prog, this.parallel.COMPLETION_STATUS_KHR)) return null;
+    return this._build(key, kind, rec.building, mat);
+  }
+
+  /** (fork) Is this program's build still under way (KHR_parallel_shader_compile)? */
+  building(kind, mat) {
+    const rec = this.programs.get(`${kind}|${mat.key}`);
+    return !!(rec && rec.building);
+  }
+
+  /** The program record of a key: from a finished build (`started`), else built here (blocking). */
+  _build(key, kind, started, mat) {
     const gl = this.gl;
+    let rec;
     try {
-      const prog = this._link(vertexSource(kind), fragmentSource(mat.family, mat.defs));
+      const prog = started ? this._linked(started) : this._link(vertexSource(kind), fragmentSource(mat.family, mat.defs));
       const n = gl.getProgramParameter(prog, gl.ACTIVE_UNIFORMS);
       const uniforms = [];
       let unit = 0;
@@ -438,7 +488,9 @@ export class FxGL {
   destroy() {
     const gl = this.gl;
     this.dropTextures();
-    for (const r of this.programs.values()) if (r) gl.deleteProgram(r.prog);
+    for (const r of this.programs.values()) {
+      if (r?.building) { gl.deleteShader(r.building.v); gl.deleteShader(r.building.f); gl.deleteProgram(r.building.prog); } else if (r) gl.deleteProgram(r.prog);
+    }
     this.programs.clear();
     for (const m of this.meshes.values()) if (m) { gl.deleteVertexArray(m.vao); gl.deleteBuffer(m.vbo); gl.deleteBuffer(m.ibo); }
     this.meshes.clear();

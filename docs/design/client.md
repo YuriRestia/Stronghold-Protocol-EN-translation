@@ -136,7 +136,9 @@ history and the open points: DESIGN §32.14.25.
   `effect.js compileEffect`), meshes (`normalizeMesh`: colours written as bytes are read as 0…1) and the WebP textures
   (`tex/half/` on the light tier) as they are needed. At the prep → battle switch the battle's units' keys are loaded
   (`wiring.js begin`; a unit that joins later, at its spawn event: `more`) and their programs and textures go to the
-  GPU a few per frame (`system.js warm`, `WARM_MS` 2 ms); a texture on the GPU is not decoded again.
+  GPU a few per frame (`system.js warm`, `WARM_MS` 2 ms); a texture on the GPU is not decoded again. Where the GL
+  offers `KHR_parallel_shader_compile`, programs build off the main thread (`gl.js program`): the warm-up starts them
+  all at once, and a draw whose program is still building is skipped like one whose texture still loads.
 - **Simulation.** `psys.js` interprets Unity's ParticleSystem: the main module, emission (rate over time and distance,
   bursts with cycles and probability), the shapes, velocity / limit velocity / force / inherit velocity / noise /
   rotation / size / colour over lifetime and by speed, texture sheets, trails, sub-emitters, prewarm, start delay,
