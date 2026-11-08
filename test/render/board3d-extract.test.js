@@ -184,6 +184,10 @@ describe('extracted board files (when a local client was extracted)', { skip: !m
   const onDisk = (p) => path.join(ROOT, 'public', decodeURIComponent(p));
   const pngOf = (p) => p.replace(/\.webp$/, '.png');  // a WebP copy (extract.py WEBP) keeps its PNG beside it
   const hasFiles = existsSync(path.join(ROOT, 'public/assets/local/map/fx'));
+  // (fork) extract.py DIRECT_WEBP: folders written straight as WebP with no PNG (the profile icons, `avatar`), read from
+  // the extractor so the two cannot drift
+  const DIRECT_WEBP = new Set([...(readFileSync(path.join(TOOL, 'extract.py'), 'utf8').match(/^DIRECT_WEBP = \{([^}\n]*)\}/m)?.[1] ?? '')
+    .matchAll(/'([^']+)':/g)].map((m) => m[1]));
 
   test('every pack slot the renderer loads is in the manifest (and on disk)', () => {
     for (const [slot, [g, n]] of [...Object.entries(PACK_IMAGES), ...Object.entries(PACK_MESHES)]) {
@@ -214,12 +218,13 @@ describe('extracted board files (when a local client was extracted)', { skip: !m
     for (let i = 0; i < m.rgba.length; i += 4 * 131) assert.equal(r.rgba[i + 1], 255 - m.rgba[i + 3]);
   });
 
-  test('the WebP copies the manifest lists are on disk with their PNGs beside them', { skip: !hasFiles && 'files not extracted' }, () => {
+  test('the WebP copies the manifest lists are on disk with their PNGs beside them (DIRECT_WEBP folders: WebP only)', { skip: !hasFiles && 'files not extracted' }, () => {
+    assert.ok(DIRECT_WEBP.has('avatar'), `extract.py DIRECT_WEBP read: ${[...DIRECT_WEBP]}`);
     for (const [g, entries] of Object.entries(manifest.groups)) {
       for (const [n, e] of Object.entries(entries)) {
         if (!/\.webp$/.test(e?.path || '')) continue;
         assert.ok(existsSync(onDisk(e.path)), `${g}/${n}`);
-        assert.ok(existsSync(onDisk(pngOf(e.path))), `${g}/${n}: PNG`);
+        if (!DIRECT_WEBP.has(g)) assert.ok(existsSync(onDisk(pngOf(e.path))), `${g}/${n}: PNG`);
         assert.ok(e.webp === 'lossy' || e.webp === 'lossless', `${g}/${n}: mode ${e.webp}`);
       }
     }

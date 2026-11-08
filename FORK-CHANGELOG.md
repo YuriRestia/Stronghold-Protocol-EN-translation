@@ -12,6 +12,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - `test/ui/versions-flow.e2e.test.js`: a page spends the server's whole heavy-message burst (6) on the settings it syncs when it connects. The test's spectator asked for its seat right after entering and was refused (`RATE`). The test server now allows a larger burst, as the lobby suites do. A player's own click comes after the next token, so the game's limit is unchanged.
 - Its version-match test gave the vote 4 seconds, which ran out while the host edited Matterhorn's skill in the new card view. That test now uses the game's own 60-second vote. The vote-rules test keeps 4 seconds, since it waits for a vote to expire.
 
+### Suite fixes
+
+- UI plugins can't send the Grand Alliance room browser's `rooms.watch` request any more. The plugin bridge refuses every message the game itself sends to the server, but its list didn't include the new `rooms.*` messages.
+- The bots' prep runner and the bot task queue now name the limit of each of their loops, as every loop in the match code does.
+- `board3d-extract` test: the profile icons are saved as WebP only, by choice, so the test no longer looks for a PNG beside them. It reads that list of folders from the extractor.
+- `issue25-downback` test: Amiya and Dobermann have pictures for the AI teammates but no model, so the test now checks every operator that has a model and names those two as the only exceptions.
+
 ### Update news
 
 - The Update 0.3.4 banner in the lobby adds "New Operator Loadout" to its highlight lines. Its points now start with "Profile Icon added" and include "Fixed Viviana VFX". The damage meter and four new Modules lines are gone from the banner and from the en, ja, ko and zh-TW packs. The dismiss key stays `news.0.3.4`: the live server still shows 0.3.0's banner, so no player has closed this one yet.
