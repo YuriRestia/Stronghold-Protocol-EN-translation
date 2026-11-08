@@ -114,6 +114,23 @@ test('data/i18n/en.json: the 维多利亚 6-member ATK bonus reads per item, as 
   }
 });
 
+test('data/i18n/en.json: 瑕光 / 锏 deploy traits fire on deployment with a per-battle stack cap, as the Chinese and act2autochess_gar_event_onstart say (corrections-en.json)', () => {
+  // The official EN adds "on skill activation" (the Chinese is 部署时 only) and reads 至多N层 as "Can stack up to Nx".
+  const g = OVERLAY.files.garrisons;
+  const v = (n) => `<@ba.vup>+${n}</>`;
+  const want = {
+    garrison_106_a: `<On deployment> ${v(4)} stacks to own active Alliance(s) (up to 12 stacks per battle)`,
+    garrison_106_b: `<On deployment> ${v(8)} stacks to own active Alliance(s) (up to 24 stacks per battle)`,
+    garrison_155_a: `<When obtained> ${v(8)} stacks to own Alliance(s)\n<On deployment> ${v(8)} stacks to own active Alliance(s) (up to 24 stacks per battle)`,
+    garrison_155_b: `<When obtained> ${v(16)} stacks to own Alliance(s)\n<On deployment> ${v(16)} stacks to own active Alliance(s) (up to 48 stacks per battle)`,
+  };
+  for (const [id, raw] of Object.entries(want)) {
+    assert.equal(g[id].descRaw, raw, `${id} descRaw`);
+    assert.equal(g[id].desc, stripRich(raw), `${id} desc`);
+    assert.doesNotMatch(g[id].desc, /skill activation|Can stack up to/i, id);
+  }
+});
+
 test('data/i18n/en.json: shape, the 盟约 season of the EN build, coverage and the names map', () => {
   assert.equal(OVERLAY.version, 1);
   assert.equal(OVERLAY.lang, 'en');
