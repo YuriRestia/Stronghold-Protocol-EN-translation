@@ -1652,6 +1652,7 @@ export class UnitView {
       this.imp = null;
     }
     this._box = null;
+    this._plane = null;   // (fork) the next model's skin has its own plane depth (_planeDepth)
     this._tint = undefined;   // the next model gets the current tint on its first frame (a knocked-down one its grey)
     const old = this.actor;
     this.actor = null;
@@ -1659,6 +1660,19 @@ export class UnitView {
     if (old) { try { old.destroy(); } catch { /* ignore */ } }
     if (this._actorEntry) this._releaseEntry(this._actorEntry);
     this._actorEntry = null;
+  }
+
+  /**
+   * (fork) This unit's model-plane depth along the camera's view (unitDepthKey): its official skin's (render/vfx index)
+   * once the index is in, else PLANE_DEPTH by side.
+   */
+  _planeDepth() {
+    if (this._plane != null) return this._plane;
+    const skin = this.ctx.skinOfView ? this.ctx.skinOfView(this) : undefined;
+    if (skin === undefined) return this.isEnemy ? PLANE_DEPTH.enemy : PLANE_DEPTH.ally;   // index not loaded yet
+    const d = skinPlaneDepth(skin);
+    this._plane = d ?? (this.isEnemy ? PLANE_DEPTH.enemy : PLANE_DEPTH.ally);
+    return this._plane;
   }
 
   /** An attack was made (b.ev 'atk'). `target` = view or null. */
@@ -2131,7 +2145,7 @@ export class UnitView {
     if (lungeK) { const q = cam.project(this.x + lx, this.y + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
-    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift);
+    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift, this._planeDepth());
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
@@ -3033,13 +3047,50 @@ const HUD_P = { x: 0, y: 0, s: 0, depth: 0 };
 const ICON_TMP = [];
 
 /**
- * Unit-layer zIndex of a unit / piece whose feet are at (x, y): farther rows first (so raised block rows, keyed by
- * tiles.rowDepthKey, hide units behind them); lifted (dragged) pieces on top; ties broken by column.
+ * (fork) The official sort of units (Unity, client dump 2026-11-08): the battle camera's transparencySortMode is
+ * Orthographic (CameraController._UpdateTransparencySortMode), no battle code sets a sortingOrder, and every model
+ * renderer is sorting layer 0 / order 0 — so units draw by the depth of their model along the camera's view, farthest
+ * first. Each model is a flat Spine mesh on a plane tilted −30° about X (its Graphic node), facing the 30° camera
+ * head-on: every point of it has one depth, its plane's — height, bounds and leaps change nothing. That plane is
+ * offset from the feet by the prefab's Graphic and the skin's FaceSwitcher: along the view, −0.100 for every operator
+ * (233 skins) and most summons, about −0.152 for most enemies (249 skins). So an enemy in an operator's row draws over
+ * her (youtu.be/L1yV18aMIos 0:25: the robot covers her reindeer's antlers).
  */
-export function unitDepthKey(cam, x, y, lift = 0) {
+export const PLANE_DEPTH = Object.freeze({ ally: -0.1, enemy: -0.152 });
+/** The camera's view direction in the Unity battle frame (z = −height): the official 30° pitch. */
+const VIEW_F = [0, Math.sin(Math.PI / 6), Math.cos(Math.PI / 6)];
+
+/**
+ * A skin's model-plane depth from its feet along the camera's view (index.json skins: a point the skin's FaceSwitcher
+ * places on the plane — HitPoint / HeadPoint, whose own offset is in the plane), or null without one.
+ * @param {any} skin
+ */
+export function skinPlaneDepth(skin) {
+  const pts = skin && skin.points;
+  if (!pts) return null;
+  for (const name of ['HitPoint', 'HeadPoint', 'HeadAnchor']) {
+    const e = pts[name], q = e && (e.front || e.all);
+    const p = q && q.pos;
+    if (Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)) return p[0] * VIEW_F[0] + p[1] * VIEW_F[1] + p[2] * VIEW_F[2];
+  }
+  return null;
+}
+
+/**
+ * Unit-layer zIndex of a unit / piece whose feet are at (x, y): farther first by the depth of its model plane (`plane`:
+ * skinPlaneDepth, relative to an operator's −0.100 — an enemy's −0.152 puts it 0.052 nearer); lifted (dragged) pieces on
+ * top; ties broken by column. Raised block rows (tiles.rowDepthKey, keyed at a row's back edge) still hide the units
+ * behind them: the plane offset never carries a unit across the edge of its own row (a block is opaque 3D in the
+ * official game, the depth buffer decides there, not this sort).
+ */
+export function unitDepthKey(cam, x, y, lift = 0, plane = PLANE_DEPTH.ally) {
   // +40 (< one row of depth at the official 30° pitch, 100·sin 30° = 50): a lifted piece never ties with the unit one
   // row in front of it (a tie flickers with the column tie-break)
-  return -cam.depthOf(x, y, 0) * 100 + (lift > 0 ? 40 : 0) + x * 0.001;
+  const d = cam.depthOf(x, y, 0);
+  let k = -(d + (plane - PLANE_DEPTH.ally)) * 100;
+  const edge = Math.floor(y - 0.5) + 0.5;   // the back edge of the row in front of it
+  if (y - edge > 0.06) k = Math.min(k, -cam.depthOf(x, edge + 0.06, 0) * 100); else k = -d * 100;
+  return k + (lift > 0 ? 40 : 0) + x * 0.001;
 }
 
 function mixTint(a, b, k) {
