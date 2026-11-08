@@ -17,7 +17,7 @@ export const UPDATE_NEWS_PREF = 'news.0.3.4';
 const UPDATE_HIGHLIGHTS = [
   N_('冻河、国度与塔露拉加入自选编队，特效还原原作'), // en: "Toska, Territoriya and Talulah join the Custom Squad, with original effects"
   N_('对局聊天'), // en: "Match chat"
-  N_('最多 8 名博士的联合模拟'), // en: "Team Simulation for up to 8 Doctors"
+  N_('大同盟：最多 8 名博士，两个小队'), // en: "Grand Alliance: up to 8 Doctors in two squads"
   N_('新增美国东部服务器'), // en: "New US East server"
 ];
 
