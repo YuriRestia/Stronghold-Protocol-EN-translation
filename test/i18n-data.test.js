@@ -166,8 +166,17 @@ test('data/versions/*/i18n/en.json: the older seasons\' garrison caps read as st
       assert.doesNotMatch(t.desc ?? '', /can stack up to/i, `${slug} ${id}`);
       if (/skill activation/i.test(t.desc ?? '')) assert.match(zh[id].desc, /技能/, `${slug} ${id}: a skill trigger the Chinese does not have`);
       const cap = (t.desc ?? '').match(/\(up to (\d+) stacks/);
-      if (cap) assert.ok(zh[id].desc.includes(`至多${cap[1]}层`), `${slug} ${id}: ${t.desc} vs ${zh[id].desc}`);
+      if (cap) assert.ok(zh[id].desc.includes(`至多${cap[1]}层`) || zh[id].bb?.max_add_count_per_battle === Number(cap[1]), `${slug} ${id}: ${t.desc} vs ${zh[id].desc}`);
     }
+  }
+  // Warfarin's / Kroos the Keen Glint's granted traits: no cap in the Chinese, the data's own one in English, per
+  // season (tools/i18n/corrections-en.<slug>.json for the older seasons' numbers)
+  const sets = { 'data/i18n/en.json': [14, 20], 'data/versions/act2autochess-v2_1/i18n/en.json': [24, 20],
+    'data/versions/act1autochess/i18n/en.json': [20, 20], 'data/versions/act1autochess-v1_1/i18n/en.json': [20, 20] };
+  for (const [file, [c95, c96]] of Object.entries(sets)) {
+    const g = readJson(file).files.garrisons;
+    assert.equal(g.garrison_95_b.desc, `<In battle> +2 stacks to own active Alliance(s) on skill activation (up to ${c95} stacks per battle)`, file);
+    assert.equal(g.garrison_96_b.desc, `<In battle> +2 stacks to active [Precision] Alliance on skill activation (up to ${c96} stacks per battle)`, file);
   }
   // Season 1 has its own caps (garrison_72_b 20, Season 2 part 1 24, today 14), so its own corrections
   const s1 = readJson('data/versions/act1autochess/i18n/en.json').files.garrisons;
