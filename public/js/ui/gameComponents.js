@@ -20,7 +20,8 @@ const cx = (...p) => p.flat().filter(Boolean).join(' ');
 /** Data files the in-match screens use (`backups`: the 补位 stand-ins' bodies — cards, the board model, the detail card). */
 export const GAME_FILES = ['config', 'assets', 'chess', 'bonds', 'items', 'bands', 'enemies', 'bosses', 'stages', 'tokens',
   'choices', 'effects', 'garrisons', 'factions', 'local', 'backups', 'terms',
-  'outfits']; // (fork, docs/OUTFITS.md) the summons' looks and the outfits' voice sets (ui/outfits.js)
+  'outfits', // (fork, docs/OUTFITS.md) the summons' looks and the outfits' voice sets (ui/outfits.js)
+  'avatars']; // (fork) the profile icons on the team panel, the draft and the results (ui/avatars.js; the server's file in every version)
 
 /**
  * Load every in-match data file; returns lookups (sync, null until loaded).
