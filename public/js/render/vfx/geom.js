@@ -239,7 +239,8 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
   const mirror = (m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5])) < 0 ? -1 : 1;
   const pv = r.pivot;
   // a local-space system's sizes are drawn at its scaling mode's scale as it is now (psys.js sizeScale)
-  const k0 = ps.sizeScale(0), k1 = ps.sizeScale(1), k2 = ps.sizeScale(2);
+  // (fork) effect.js BILLBOARD_SCALE_X: the X scale on every axis
+  const k0 = ps.sizeScale(0), k1 = r.scaleByX ? k0 : ps.sizeScale(1), k2 = r.scaleByX ? k0 : ps.sizeScale(2);
   let w = 0;
   for (let k = 0; k < n; k++) {
     const i = _idx[k];
@@ -374,8 +375,16 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
       }
       buf[o] = cx; buf[o + 1] = cy; buf[o + 2] = cz;
       buf[o + 3] = _ax[0]; buf[o + 4] = _ax[1]; buf[o + 5] = _ax[2];
-      buf[o + 6] = _ay[0]; buf[o + 7] = _ay[1]; buf[o + 8] = _ay[2];
-      buf[o + 9] = _az[0]; buf[o + 10] = _az[1]; buf[o + 11] = _az[2];
+      if (r.meshRotX) {
+        // (fork) effect.js PIVOT_BY_X `meshRotX`: the mesh sized, then turned −90° about X — its Y (× the Y size) along
+        // the particle's −Z (the pivot's axis), its Z (× the Z size) along Y
+        const ky = sz ? sy / sz : 0, kz = sy ? sz / sy : 0;
+        buf[o + 6] = -_az[0] * ky; buf[o + 7] = -_az[1] * ky; buf[o + 8] = -_az[2] * ky;
+        buf[o + 9] = _ay[0] * kz; buf[o + 10] = _ay[1] * kz; buf[o + 11] = _ay[2] * kz;
+      } else {
+        buf[o + 6] = _ay[0]; buf[o + 7] = _ay[1]; buf[o + 8] = _ay[2];
+        buf[o + 9] = _az[0]; buf[o + 10] = _az[1]; buf[o + 11] = _az[2];
+      }
       buf[o + 12] = _c4[0]; buf[o + 13] = _c4[1]; buf[o + 14] = _c4[2]; buf[o + 15] = _c4[3];
       const uvr = sheetRect(def, ps, i, t, _uvr);
       buf[o + 16] = uvr[0]; buf[o + 17] = uvr[1]; buf[o + 18] = uvr[2]; buf[o + 19] = uvr[3];

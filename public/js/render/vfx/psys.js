@@ -368,7 +368,8 @@ export class PSys {
     this.prevPos = null;
     if (this.def.prewarm && this.emitting) {
       // as if one full loop had already run (Unity: the start delay does not apply with prewarm)
-      const d = this.def.duration;
+      // (fork) effect.js PIVOT_BY_X `prewarmS`: whole loops up to the particles' life (Unity's steady state)
+      const d = this.def.prewarmS || this.def.duration;
       let t = 0;
       while (t < d - 1e-6) { const s = Math.min(MAX_STEP, d - t); this._step(s, true); t += s; }
       this.prevPos = null;
@@ -484,7 +485,7 @@ export class PSys {
     const span = lb - la;
     // rate over time
     let n = 0;
-    const rate = this.rate.at(tau, this.rng.next()) * this.emissionScale;
+    const rate = this.rate.at(tau, this.rng.next()) * this.emissionScale * (this.def.rateMul || 1);   // (fork) effect.js PIVOT_BY_X `rateMul`
     if (rate > 0) {
       this.acc += rate * span;
       n = Math.floor(this.acc);
