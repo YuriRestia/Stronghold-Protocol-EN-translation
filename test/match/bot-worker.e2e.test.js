@@ -60,7 +60,7 @@ describe('the bot Worker in a real browser', { skip: !enabled && 'set SP_E2E=1 a
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
     server = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-    browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-first-run'] });
+    browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--mute-audio', '--no-first-run'] });
     page = await browser.newPage();
     page.on('pageerror', (e) => problems.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.push(m.text()); });

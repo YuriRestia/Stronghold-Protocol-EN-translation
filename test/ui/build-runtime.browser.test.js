@@ -109,7 +109,7 @@ test('an old simulator page reconnects safely, then reloads before the next matc
     const port = server.port;
     const puppeteer = (await import('puppeteer-core')).default;
     browser = await puppeteer.launch({ executablePath: CHROME, headless: true, protocolTimeout: 30000,
-      args: ['--no-first-run', '--no-sandbox'] });
+      args: ['--no-first-run', '--no-sandbox', '--mute-audio'] });
     const page = await browser.newPage();
     const problems = [];
     let navigations = 0, simRequests = 0, plannedOutage = false;

@@ -49,7 +49,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     const puppeteer = (await import('puppeteer-core')).default;
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     base = `http://127.0.0.1:${srv.port}`;
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
     mkdirSync(OUT, { recursive: true });
   });
 
@@ -352,7 +352,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     mk(path.join(prof, 'Default'), { recursive: true });
     // Chrome / Edge in Chinese locales clamp text to 12 px (webkit.webprefs.minimum_font_size)
     writeFileSync(path.join(prof, 'Default', 'Preferences'), JSON.stringify({ webkit: { webprefs: { minimum_font_size: 12, minimum_logical_font_size: 12 } } }));
-    const b12 = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'], userDataDir: prof });
+    const b12 = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'], userDataDir: prof });
     try {
       for (const b of [browser, b12]) {
         for (const [w, h, touch] of [[1280, 720], [1366, 657], [1920, 1080], [2560, 1440], [844, 390, true], [640, 360, true]]) {
@@ -407,7 +407,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
 
   test('graceful degradation: no WebGL → the DOM view (with a notice); no local-client art → CSS look-alikes', async () => {
     const puppeteer = (await import('puppeteer-core')).default;
-    const nogl = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--disable-webgl', '--disable-webgl2', '--disable-3d-apis'] });
+    const nogl = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--disable-webgl', '--disable-webgl2', '--disable-3d-apis'] });
     try {
       const { page, problems } = await open('ipad', 'phase=PREP', { b: nogl });
       await page.waitForFunction(() => globalThis.__SP_VIEW__?.kind === 'fallback', { timeout: 20000 });

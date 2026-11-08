@@ -41,7 +41,7 @@ describe('impostor boxes and slot clipping in headless Chrome (GitHub #542)', { 
     const { startServer } = await import('../../server/index.js');
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     await srv.assetIndex?.whenReady();
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-first-run'] });
     mkdirSync(OUT, { recursive: true });
     page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });

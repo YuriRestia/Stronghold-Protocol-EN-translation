@@ -23,7 +23,7 @@ for (const delayed of [false, true]) test(`closing and reopening a real match re
   const base = `http://127.0.0.1:${server.port}`;
   console.info(`[reconnect] Testing ${base}`);
   const browser = await puppeteer.launch({ executablePath: executable, headless: true,
-    args: ['--no-first-run', '--no-proxy-server', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+    args: ['--no-first-run', '--mute-audio', '--no-proxy-server', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
   const context = await browser.createBrowserContext();
   let page;
   const diagnostics = [];

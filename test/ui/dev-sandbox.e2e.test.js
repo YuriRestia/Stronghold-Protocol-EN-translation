@@ -18,7 +18,7 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   t.after(() => srv.close());
   const puppeteer = (await import('puppeteer-core')).default;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage();
   const errors = [];
@@ -163,7 +163,7 @@ test('dev sandbox: the card range buttons light the skill range on the field, è‡
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   t.after(() => srv.close());
   const puppeteer = (await import('puppeteer-core')).default;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage();
   const errors = [];
