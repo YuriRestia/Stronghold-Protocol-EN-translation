@@ -12,6 +12,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Blemishine's and Degenbrecher's deploy traits (`garrison_106_a/b`, `garrison_155_a/b`) now read "On deployment … (up to N stacks per battle)", as the Chinese and the game code have it. The official English added an "on skill activation" trigger that doesn't exist and gave the cap as "Can stack up to Nx". The fix is in `tools/i18n/corrections-en.json`.
 - 23 more traits gave their cap as "Can stack up to Nx", which reads like a number of triggers. They now say what the Chinese and the code cap: "up to N stacks per battle" ("per round" for Aroma and Angelina, "each" where two alliances each have their own cap). Executor's bullet trait now reads "up to 7 times per battle", and its Foresight part adds stacks, not "Alliances". The traits belong to Executor the Ex Foedere, Warfarin, Kroos the Keen Glint, Virtuosa, Surtr, Fartooth, Aroma, Titi and Angelina, plus the traits Warfarin, Kroos and Fartooth hand out.
 
+### Room screen
+
+- The AI teammates' avatars in the room now come from the small URL helpers (`ui/assetUrls.js`) instead of `assets.js`, so a vanilla page no longer loads the asset store at start, as `test/ui/plugins-client.test.js` requires. `test/ui/playtest6-unite.test.js` now expects the team panel's leak tag to name a teammate through `shownName()`, which is how AI teammates show their operator's name.
+
 ### Several servers, one game
 
 - The game can now run on more than one server, so players connect to the nearest one with better ping. It's off unless the operator sets `SP_REGIONS`, and a single server behaves as before (`docs/DEPLOY.en.md` §2.7).
