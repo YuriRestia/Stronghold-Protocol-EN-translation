@@ -18,7 +18,7 @@ test('cross-tab index updates preserve imports and prune results', {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
   const { default: puppeteer } = await import('puppeteer-core');
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   t.after(() => browser.close());
   const pages = await Promise.all([browser.newPage(), browser.newPage()]);
   for (const page of pages) {

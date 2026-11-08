@@ -30,7 +30,7 @@ test('#892 browser: hidden enemy-preview HUD leaves board clicks free, then the 
   const puppeteer = (await import('puppeteer-core')).default;
   const { cameraSettled } = await import('../e2e/client.mjs');
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-proxy-server'] });
   try {
     for (const renderer of ['engine', 'fallback']) {
       const page = await browser.newPage();

@@ -17,6 +17,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The AI teammates' avatars in the room now come from the small URL helpers (`ui/assetUrls.js`) instead of `assets.js`, so a vanilla page no longer loads the asset store at start, as `test/ui/plugins-client.test.js` requires. `test/ui/playtest6-unite.test.js` now expects the team panel's leak tag to name a teammate through `shownName()`, which is how AI teammates show their operator's name.
 - `test/ui/text-scale.test.js` now lists the match chat's bubble (`.cbubble`) as in-match HUD text that the Text Size setting leaves alone, like the emote bubble and the chat panel it sits with.
 
+### Browser tests are silent
+
+- Every headless Chrome the tests and tools start is muted (`--mute-audio`): in `gpuArgs()` (`tools/perfbench.mjs`, the software mode included) and in each test file that launches its own browser. Game audio no longer plays on the machine running a browser suite. `test/perfbench.test.js` checks both, and AGENTS.md says sounds are checked through requests or play-call logs, never by listening.
+
 ### Several servers, one game
 
 - The game can now run on more than one server, so players connect to the nearest one with better ping. It's off unless the operator sets `SP_REGIONS`, and a single server behaves as before (`docs/DEPLOY.en.md` §2.7).

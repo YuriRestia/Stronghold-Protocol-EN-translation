@@ -11,7 +11,7 @@ test('real Spine held death matches forced updates; revival and late font raster
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   let browser;
   try {
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-first-run'] });
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));

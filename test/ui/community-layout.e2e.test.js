@@ -14,7 +14,7 @@ describe('settlement return control under enlarged text (#458)', { skip: !ENABLE
     const { startServer } = await import('../../server/index.js');
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     const P = (await import('puppeteer-core')).default;
-    browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+    browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
     mkdirSync(new URL('../e2e/out/', import.meta.url), { recursive: true });
   });
   after(async () => { await browser?.close(); await srv?.close(); });

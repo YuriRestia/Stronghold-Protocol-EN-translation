@@ -19,7 +19,7 @@ describe('facing wheel keyboard (mock match, headless Chrome)', { skip: !ENABLED
     const { startServer } = await import('../../server/index.js');
     const puppeteer = (await import('puppeteer-core')).default;
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-proxy-server'] });
   });
   after(async () => { await browser?.close(); await srv?.close(); });
 

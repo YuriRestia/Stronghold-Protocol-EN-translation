@@ -12,7 +12,7 @@ describe('0.2.3 follow-up client features', { skip: !ENABLED }, () => {
     const puppeteer = (await import('puppeteer-core')).default;
     server = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     base = `http://127.0.0.1:${server.port}`;
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   });
   after(async () => { await browser?.close(); await server?.close(); });
   async function pageIn(ctx, phone = false, random = null) {

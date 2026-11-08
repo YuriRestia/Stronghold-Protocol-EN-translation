@@ -8,7 +8,7 @@ test('selected operator frame follows its tile through screen offsets, UI size a
 }, async () => {
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   const puppeteer = (await import('puppeteer-core')).default;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-proxy-server'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-proxy-server'] });
   try {
     for (const renderer of ['fallback', 'engine']) {
       const page = await browser.newPage();
