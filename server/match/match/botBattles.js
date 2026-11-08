@@ -17,16 +17,15 @@ export const BOT_HOST_STRIKES = 2;
 
 export class MatchBotBattles {
   /**
-   * Whether a field `_authorityFor` found no human for goes to a browser instead of the server: a field of bots, where every human
-   * seat it has, if any, has LEFT the match (`ps.left`: set by onLeave, never cleared, and a left player cannot reconnect, see
-   * onReconnect). A human who is only disconnected may come back, so a field with such a seat stays on the server as before: its
-   * result would come from another player's browser, checked on bounds only (botField). Layer traits are exempt on a field this
-   * accepts, capped by the same allowance.
+   * Whether a field `_authorityFor` found no human for goes to a browser instead of the server: any field with no connected human,
+   * whether its players are bots, humans who left the match or humans who are only disconnected (the user's rule: no player's board
+   * runs on the server). Its result comes from another player's browser, checked on bounds only (botField); the user accepted that
+   * risk. A human who reconnects mid-battle watches it: the executor's result stands, and their board is theirs again at the next
+   * prep. A field with a connected human whose layer traits keep it off clients (`_authorityFor`) stays the server's, as upstream.
    */
   _botBattleOnHost(f) {
-    if (this.botBattles !== 'host') return false;
-    const seats = f.players.map((pid) => this.players.get(pid));
-    return seats.some((ps) => ps?.isBot === true) && seats.every((ps) => ps && (ps.isBot === true || ps.left === true));
+    if (this.botBattles !== 'host' || !f.players.length) return false;
+    return f.players.every((pid) => { const ps = this.players.get(pid); return ps && (ps.isBot === true || ps.left === true || !ps.connected); });
   }
 
   /**

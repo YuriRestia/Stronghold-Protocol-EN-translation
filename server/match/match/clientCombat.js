@@ -248,8 +248,11 @@ export class MatchClientCombat {
     for (const f of this.fields) {
       if (!f.cc || f.done || f.verifyJob || f.mode !== 'client' || f.authority !== ps.playerId) continue;
       if (f.kind === 'boss' || f.kind === 'hidden') this._bossHandover(f, why);
-      // (fork) match/botBattles.js: a field its last human left for good, played on by bots, goes to a browser like a bot field
-      else if (why === 'left' && this._botBattleOnHost(f)) { f.authority = null; this._assignBotHost(f); }
+      // (fork) a leaver's own battle: _quit ends it at once with a synthetic result (中途退出), so no browser is asked for it
+      // en: 中途退出 = "quitting mid-match"
+      else if (this.botBattles === 'host' && why === 'left' && f.kind === 'normal' && f.players.length === 1) continue;
+      // (fork) match/botBattles.js: its last connected human is gone (left or disconnected): a browser runs it, like a bot field
+      else if (this._botBattleOnHost(f)) { f.authority = null; this._assignBotHost(f); }
       else this._runOnServer(f, why);
     }
     this._botBattleHostLost(ps); // (fork) match/botBattles.js

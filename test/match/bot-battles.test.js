@@ -137,50 +137,66 @@ test('a battle still running when its field stops is cancelled, and a late answe
   h.m.dispose();
 });
 
-test('nobody connected: the bot fields are not simulated on the server, the absent human\'s field is', () => {
+test('nobody connected: no thinking and no simulating on the server, the absent human\'s field included', () => {
   const h = atCombat({ seats: [human(0, false), bot(1), bot(2), bot(3)] });
   assert.ok(h.m.fields.length > 0);
-  const humanFields = h.m.fields.filter((f) => f.players.includes('p_0')).map((f) => f.fieldId).sort();
-  assert.deepEqual(h.serverRuns.map(([id]) => id).sort(), humanFields);
-  assert.ok(h.m.botBattleStats.synthetic >= 3);
+  assert.deepEqual(h.serverRuns, []);
+  assert.equal(h.m.botBattleStats.synthetic, h.m.fields.length, 'no browser to ask: the synthetic result');
   h.m.dispose();
 });
 
-/** A human's field with that human gone stays the server's (dev-0.2's rule): no browser runs it, so none can forge its result. */
-function assertHumanFieldOnServer(h, pid) {
-  const fields = h.m.fields.filter((f) => f.players.includes(pid));
-  assert.ok(fields.length > 0);
-  const sent = h.allTo('p_0', 'b.botBattle').map((x) => x.battleId);
-  for (const f of fields) {
-    assert.notEqual(f.mode, 'host');
-    assert.equal(f.executor ?? null, null);
-    assert.ok(!sent.includes(f.battleId), `${f.fieldId} went to a browser`);
-    assert.ok(h.serverRuns.some(([id]) => id === f.fieldId), `${f.fieldId} not run on the server`);
-  }
-  assert.equal(sent.length, botFields(h).length, 'only fields of bots alone go to a browser');
-  // an answer for that field, from the executor of the bot fields, changes nothing
-  const f = fields[0];
-  const before = f.result;
-  h.m.handle('p_0', fakeAnswer(f));
-  assert.equal(f.result, before);
-  assert.notEqual(f.resultSource, 'host');
+/** The user's rule: no player's board runs on the server. A field with no connected human goes to a browser like a bot field. */
+function assertFieldOnBrowser(h, f) {
+  assert.equal(f.mode, 'host');
+  assert.equal(f.executor, 'p_0');
+  assert.ok(h.allTo('p_0', 'b.botBattle').some((x) => x.battleId === f.battleId), `${f.fieldId} went to the host`);
+  assert.ok(!h.serverRuns.some(([id]) => id === f.fieldId), `${f.fieldId} ran on the server`);
 }
 
-test('a disconnected human\'s field stays on the server: it never goes to another human\'s browser', () => {
+test('a disconnected human\'s field goes to a browser; back mid-battle, they watch and the executor\'s result stands', () => {
   const h = atCombat({ seats: [human(0), human(1, false), bot(2), bot(3)] });
-  assertHumanFieldOnServer(h, 'p_1');
+  const f = h.m.fields.find((x) => x.players.includes('p_1'));
+  assertFieldOnBrowser(h, f);
+  assert.equal(h.allTo('p_0', 'b.botBattle').length, h.m.fields.filter((x) => !x.players.includes('p_0')).length);
+  // they come back while the browser runs it: a battle to watch, and their own report changes nothing
+  h.m.onReconnect('p_1');
+  assert.ok(h.allTo('p_1', 'b.start').some((x) => x.battleId === f.battleId));
+  const answer = fakeAnswer(f);
+  h.m.handle('p_1', { t: 'b.result', battleId: f.battleId, fieldId: f.fieldId, result: answer.result });
+  assert.equal(f.mode, 'host');
+  h.m.handle('p_0', answer);
+  assert.equal(f.resultSource, 'host');
+  h.run(() => f.done);
+  assert.equal(f.result.time, answer.result.time);
+  // the next prep: their board is theirs again
+  h.runToPhase('PREP', 2);
+  const back = h.m.players.get('p_1'); // (the harness autoplays every human, so botControlled says nothing here)
+  assert.ok(back.connected && !back.left && !back.isBot);
+  assert.equal(h.m._botBattleOnHost(h.m.fields.find((x) => x.players.includes('p_1')) ?? { players: ['p_1'] }), false);
   h.m.dispose();
 });
 
-test('a human who leaves is out of the match (中途退出 = elimination): no field of theirs ever reaches a browser', () => {
+test('a human who disconnects mid-battle: their field goes on in a browser, not on the server', () => {
+  const h = atCombat();
+  const f = h.m.fields.find((x) => x.players.length === 1 && x.players[0] === 'p_1');
+  assert.equal(f.authority, 'p_1');
+  h.m.onDisconnect('p_1');
+  assertFieldOnBrowser(h, f);
+  assert.equal(f.authority, null);
+  h.m.dispose();
+});
+
+test('a human who leaves is out of the match (中途退出 = elimination): their battle ends at once and no browser is asked for it', () => {
   // en: 中途退出 = "quitting mid-match"
-  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats: SEATS, seed: 3, fake: true, clientCombat: true, hostId: 'p_0', botBattles: 'host', botBattleAnswerMs: 1000 });
-  h.autoHumans().start();
-  h.runToPhase('PREP', 1);
+  const h = atCombat();
+  const own = h.m.fields.find((x) => x.players.length === 1 && x.players[0] === 'p_1');
+  const before = h.allTo('p_0', 'b.botBattle').length;
   h.m.onLeave('p_1');
-  h.runToPhase('COMBAT', 1);
-  assert.deepEqual(h.m.fields.filter((f) => f.players.includes('p_1')).map((f) => f.fieldId), []);
-  assert.equal(h.allTo('p_0', 'b.botBattle').length, botFields(h).length);
+  assert.ok(own.result && own.result.synthetic);
+  assert.equal(h.allTo('p_0', 'b.botBattle').length, before);
+  assert.ok(!h.serverRuns.some(([id]) => id === own.fieldId));
+  h.runToPhase('COMBAT', 2);
+  assert.deepEqual(h.m.fields.filter((x) => x.players.includes('p_1')).map((x) => x.fieldId), []);
   h.m.dispose();
 });
 

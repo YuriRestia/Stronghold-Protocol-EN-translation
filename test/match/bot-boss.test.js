@@ -132,7 +132,7 @@ test('the Final Assault ending tells the executor, even though it is not one of 
   h.m.dispose();
 });
 
-test('every field of bots, a human still connected: the host runs them all; nobody connected: only the fields of the absent human run on the server', () => {
+test('every field of bots, a human still connected: the host runs them all; nobody connected: no server run either', () => {
   const h = atFinal();
   assert.deepEqual(h.serverRuns, []);
   h.m.dispose();
@@ -142,12 +142,9 @@ test('every field of bots, a human still connected: the host runs them all; nobo
   const real = gone.m._runOnServer;
   gone.m._runOnServer = function count(f, why) { gone.serverRuns.push([f.fieldId, why]); return real.call(this, f, why); };
   gone.autoHumans().start();
-  const theirs = new Set();
-  gone.m._runOnServer = function count(f, why) { gone.serverRuns.push([f.fieldId, why]); if (f.players.includes('p_0')) theirs.add(f.fieldId); return real.call(this, f, why); };
   gone.drive(() => gone.m.phase === 'FINAL_ASSAULT' || gone.ended != null, { maxSteps: 3e6 });
-  // a disconnected human may come back: their fields stay the server's (dev-0.2's rule), the bots' never are
-  assert.ok(gone.serverRuns.length > 0);
-  assert.deepEqual(gone.serverRuns.filter(([id]) => !theirs.has(id)), []);
+  // the absent human's fields included: no player's board runs on the server
+  assert.deepEqual(gone.serverRuns, []);
   assert.equal(gone.m.runner ?? null, null);
   gone.m.dispose();
 });
@@ -195,12 +192,18 @@ test('a field whose human LEFT the match goes to a browser like a bot field, liv
   h.m.dispose();
 });
 
-test('a field whose human is only disconnected stays on the server: that human may come back', () => {
+test('a field whose human is only disconnected goes to a browser too, live from the field\'s clock', () => {
   const { h, f } = atFinalWithPartner();
   h.sched.advance(2000);
   h.m.onDisconnect('p_1');
-  assert.equal(f.botHost ?? false, false);
-  assert.ok(h.serverRuns.some(([id, why]) => id === f.fieldId && why === 'disconnect'));
-  assert.ok(!h.allTo('p_0', 'b.botBattle').some((m) => m.battleId === f.battleId), 'no browser runs it');
+  assert.equal(f.botHost, true);
+  assert.equal(f.authority, 'p_0');
+  const frame = h.allTo('p_0', 'b.botBattle').find((m) => m.battleId === f.battleId);
+  assert.ok(frame && frame.live && frame.live.elapsed > 0);
+  assert.ok(!h.serverRuns.some(([id]) => id === f.fieldId), 'not simulated on the server');
+  // back mid-battle: they watch, the browser keeps it
+  h.m.onReconnect('p_1');
+  assert.equal(f.authority, 'p_0');
+  assert.equal(f.botHost, true);
   h.m.dispose();
 });

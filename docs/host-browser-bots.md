@@ -408,11 +408,13 @@ calls `_authorityFor` and boss fields are piece 9. A browser has 30 s to answer 
 timeouts stop a human being asked for the rest of the match. Until piece 11, a gameplay-plugin room or an old version stays on
 the server, because the Worker only has the page's official data. Vanilla rooms carry a `cs` too, so the gates test `requireCs`.
 
-`_authorityFor` gets one branch: a field of bots goes to the current executor, and so does one whose human seats have all LEFT the
-match (`ps.left`, which never clears; a left player cannot reconnect). A field with a human who is only disconnected stays on the
-server as before, because that human may come back and its result would come from another player's browser on bounds-only checks.
-A human who leaves mid-battle hands a field shared with bots to a browser (`_authorityLost`, `_bossHandover`; a boss field goes on
-live from the field's clock). A Worker runs the spec headless and
+`_authorityFor` gets one branch: any field with no connected human goes to the current executor, whether its players are bots,
+humans who left the match or humans who are only disconnected. **The user's rule (2026-11-08): no player's board runs on the server**,
+with the 8-player mode in mind. The executor could fake such a field's result within the bounds check (`botField`); the user accepted
+that risk. A human who disconnects mid-battle hands their field to the same chain (`_authorityLost`, `_bossHandover`; a boss field
+goes on live from the field's clock). Back mid-battle, they watch: the executor's result stands, their own reports are ignored, and
+the board is theirs again at the next prep. A leaver's own battle ends at once with a synthetic result (中途退出, "quitting
+mid-match"), so no browser is asked for it. A Worker runs the spec headless and
 sends the result early, and the server holds it until the battle's natural end with the existing `_armRelease`, so pacing and
 teammates' progress UI do not change.
 
@@ -420,9 +422,9 @@ teammates' progress UI do not change.
 |------|----------|
 | Result arrives | `validateClientResult` as for a human, then release at the natural end |
 | Timeout, or host gone | Next human, then a synthetic result (`syntheticResult`: no kills, no leaks). Never `_runOnServer`. |
-| Layer traits (`requiresTraitLayerAuthority`, `fields.js:793`) | Bot-only fields are exempt, and gains stay capped by the existing allowance. Human fields keep today's rule. |
-| A human's field with that human disconnected | The server simulates it, as on dev-0.2; it never goes to a browser. |
-| A field whose humans all left | A browser runs it like a bot field. A human who leaves is eliminated, so this is a field shared with bots that was running when they left. |
+| Layer traits (`requiresTraitLayerAuthority`, `fields.js:793`) | A field with no connected human is exempt, and gains stay capped by the existing allowance. A field with a connected human keeps upstream's rule (the server runs it). |
+| A human's field with that human disconnected, at the start or mid-battle | A browser runs it like a bot field, never the server. With no browser at all, the synthetic result. |
+| A field whose humans all left | The same. A human who leaves is eliminated, so this is a field shared with bots that was running when they left. |
 | Bot-only boss field | Runs live in the Worker on the field's clock and reports at 4 Hz through `b.progress` and `b.result`, so the existing boss rules apply. A silent or lost executor hands it to the next human; with nobody left, a synthetic result stands (piece 9) |
 | Bot-only joint field (seen in the run: `ai_2+ai_1:server`) | Same burst path as a normal field |
 
