@@ -57,6 +57,8 @@ export class MatchPhases {
    */
   enterBandDraft() {
     if (this.phase !== PHASE.INFO_CHECK) return;
+    // (fork) a large room with two squads: one draft per squad, both at once (match/largeRoom.js)
+    if (this.squads) { this._enterBandDraftLanes(); return; }
     this.phase = PHASE.BAND_DRAFT;
     // The opening is settled, so no reroll cooldown outlives this phase.
     this._rerollStartAt.clear();
@@ -91,17 +93,21 @@ export class MatchPhases {
     return [...order.filter((pid) => !bot(pid)), ...order.filter(bot)];
   }
 
-  draftTurn() {
+  /** @param {string|null} [playerId] (fork) with squads: the turn of that player's squad draft (match/largeRoom.js) */
+  draftTurn(playerId = null) {
     const d = this.draft;
     if (!d) return null;
+    if (d.lanes) return this._laneTurn(playerId ? this._laneOf(d, playerId) : d.lanes[0]);
     return d.order[d.idx] ?? null;
   }
 
   /** Real ms of one strategy-draft turn (BAND_TURN_SECONDS × timerScale). */
   bandTurnMs() { return this.scaled(BAND_TURN_SECONDS * 1000); }
 
-  startDraftTurn() {
+  /** @param {string|null} [playerId] (fork) with squads: restart that player's squad draft (every one without) */
+  startDraftTurn(playerId = null) {
     const d = this.draft;
+    if (d?.lanes) { for (const l of d.lanes) if (!playerId || l.order.includes(playerId)) this._startBandLane(l); return; }
     this.cancel(this._turnTimer);
     this._turnTimer = null;
     if (this.test) this.setDeadline(0);
@@ -135,7 +141,8 @@ export class MatchPhases {
   }
 
   /** An AI seat's (or an AI 托管 seat's) turn: it picks at once (user playtest #4 item 4 — nobody waits on the AI). */
-  scheduleBandBot() {
+  scheduleBandBot(playerId = null) {
+    if (this.draft?.lanes) { this.startDraftTurn(playerId); return; } // (fork) a lane picks for the AI itself
     const token = this._turnToken;
     this.later(0, () => {
       if (this.phase !== PHASE.BAND_DRAFT || token !== this._turnToken) return;
@@ -162,7 +169,9 @@ export class MatchPhases {
    */
   bandTaken(bandId, playerId) {
     const picks = this.draft?.picks || {};
-    for (const [pid, id] of Object.entries(picks)) if (pid !== playerId && id === bandId) return true;
+    // (fork) with squads 队友已选 is the squad's: the other squad may hold the same strategy
+    const lane = this.draft?.lanes ? this._laneOf(this.draft, playerId) : null;
+    for (const [pid, id] of Object.entries(picks)) if (pid !== playerId && id === bandId && (!lane || lane.order.includes(pid))) return true;
     return false;
   }
 
@@ -210,7 +219,7 @@ export class MatchPhases {
   pickBand(ps, bandId) {
     if (this.phase !== PHASE.BAND_DRAFT || !this.draft) return fail(ERR.WRONG_PHASE);
     if (this.draft.picks[ps.playerId]) return fail(ERR.ALREADY);
-    if (this.draftTurn() !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
+    if (this.draftTurn(ps.playerId) !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
     if (typeof bandId !== 'string' || !this.gd.bandAllowed(bandId)) return fail(ERR.BAD_TARGET);
     if (this.bandTaken(bandId, ps.playerId)) return fail(ERR.BAD_TARGET, '队友已选'); // i18n-ignore: developer detail (players see ERR_TEXT)
     this._applyBand(ps, bandId);
@@ -229,7 +238,7 @@ export class MatchPhases {
     if (ps.alive) ps.lp = this.gd.startLp(id);
     this.markPrivate(ps);
     this.markPublic();
-    this.startDraftTurn();
+    this.startDraftTurn(ps.playerId);
   }
 
   skipBand(ps) {
@@ -237,7 +246,11 @@ export class MatchPhases {
     const d = this.draft;
     if (this.isSolo) return fail(ERR.WRONG_PHASE, 'no skip in solo');
     if (d.picks[ps.playerId]) return fail(ERR.ALREADY);
-    if (this.draftTurn() !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
+    if (this.draftTurn(ps.playerId) !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
+    if (d.lanes) {
+      const why = this._skipBandLane(ps, this._laneOf(d, ps.playerId));
+      return why === 'none' ? fail(ERR.ALREADY, 'no skip left') : why === 'alone' ? fail(ERR.BAD_TARGET, 'nobody to pass to') : OK;
+    }
     if (!(d.skipsLeft[ps.playerId] > 0)) return fail(ERR.ALREADY, 'no skip left');
     if (d.order.length - d.idx <= 1) return fail(ERR.BAD_TARGET, 'nobody to pass to');
     d.skipsLeft[ps.playerId]--;
@@ -260,6 +273,7 @@ export class MatchPhases {
     if (this.phase !== PHASE.BAND_DRAFT) return;
     this.cancel(this._turnTimer);
     this._turnTimer = null;
+    this._clearLaneTimers(this.draft);
     for (const ps of this.order) {
       if (!this.draft.picks[ps.playerId]) {
         // one after another in seat order, so each default sees the ones assigned before it (no duplicates)

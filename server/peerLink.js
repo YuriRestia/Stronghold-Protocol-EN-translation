@@ -135,16 +135,22 @@ export class PeerLink {
     return out;
   }
 
-  /** The other regions' numbers together: sys.online adds them (server/presence.js). */
+  /**
+   * The other regions' numbers together: sys.online adds them (server/presence.js). `byRegion`: each one's online count
+   * on its own, for the lobby's per-server breakdown (public/js/ui/presence.js).
+   */
   others() {
-    const sum = { online: 0, searching: {} };
-    for (const { state } of this.freshPeers()) {
-      sum.online += Number(state.online) || 0;
+    const sum = { online: 0, searching: {}, byRegion: {} };
+    for (const { id, state } of this.freshPeers()) {
+      const own = Number(state.online) || 0;
+      sum.online += own;
+      sum.byRegion[id] = own;
       for (const [d, n] of Object.entries(state.searching || {})) sum.searching[d] = (sum.searching[d] || 0) + (Number(n) || 0);
       // the arbiter's answer already holds the regions other than the asker
       if (state.others) {
         sum.online += Number(state.others.online) || 0;
         for (const [d, n] of Object.entries(state.others.searching || {})) sum.searching[d] = (sum.searching[d] || 0) + (Number(n) || 0);
+        for (const [r, n] of Object.entries(state.others.byRegion || {})) if (r !== this.config.self && !(r in sum.byRegion)) sum.byRegion[r] = Number(n) || 0;
       }
     }
     return sum;
@@ -212,10 +218,11 @@ export class PeerLink {
       if (gen === (msg.gen ?? null)) { cmds.push(cmd); continue; }
       try { this.onResult?.(msg.region, { id: cmd.id, kind: cmd.kind, ok: false, member: cmd.member }); } catch (e) { this.log.error?.('[peer] result failed', e); }
     }
-    const rest = { online: 0, searching: {} };
+    const rest = { online: 0, searching: {}, byRegion: {} };
     for (const { id, state } of this.freshPeers()) {
       if (id === msg.region) continue;
       rest.online += Number(state.online) || 0;
+      rest.byRegion[id] = Number(state.online) || 0;
       for (const [d, n] of Object.entries(state.searching || {})) rest.searching[d] = (rest.searching[d] || 0) + (Number(n) || 0);
     }
     return { ...this.state(), digest: null, others: rest, cmds };

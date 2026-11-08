@@ -1191,6 +1191,8 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .pcard.is-on .pcard__ring path + path { animation-delay: 260ms; }
 
 @media (prefers-reduced-motion: reduce) {
+  .rbr { animation: none; } /* (fork) the Grand Alliance room browser */
+  .rbr-card { transition: none; }
   .hub-bg__ship, .hub-center, .hub-entry-wrap, .hub-radar__sweep, .proto__pic, .modal__box.proto, .modal__box.ally, .pcard.is-on .pcard__stamp,
   .mf-radar__sweep, .mf-radar__blip, .mf-blk.is-lit, .hub-bg__own, .lobby-hub .hub-bg, .lobby-hub > .topbar, .lobby-hub .hub-center, .lobby-hub .hub-side,
   .lobby-hub .hub-right, .hub-entries .hub-entry-wrap, .proto__bg, .proto-top, .proto-title, .proto-stage, .ally-stage, .proto-list .pcard, .proto-foot,
@@ -1298,6 +1300,69 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .hub-queue { flex: 0 1 5.6rem; min-width: 0; }
 .hub-tile:disabled { cursor: default; opacity: .5; }
 .proto-side .diff-details-btn { margin: .06rem .1rem 0 auto; }
+
+/* == (fork) Grand Alliance (ui/largeRooms.js): its card in 选择同盟方式, and the full-screen room browser == */
+.ally-grand { flex: none; gap: .12rem; padding: .14rem .16rem; border: 1px solid rgba(159, 211, 255, .35);
+  background: linear-gradient(120deg, rgba(159, 211, 255, .12), rgba(8, 11, 10, .55)); }
+.ally-grand__head { display: flex; align-items: center; gap: .12rem; }
+.ally-grand__name { display: flex; flex-direction: column; min-width: 0; }
+.ally-grand__name b { font-size: calc(.22 * var(--t)); color: #e8f4ff; }
+.ally-grand__name small { font-size: calc(.15 * var(--t)); color: #9fb3c4; }
+.ally-grand__actions { display: flex; flex-wrap: wrap; gap: .1rem; }
+.ally-grand__actions > * { flex: 1 1 0; min-width: 0; }
+
+.rbr { position: fixed; inset: 0; z-index: calc(var(--z-modal, 100) - 1); display: flex; flex-direction: column; gap: .14rem;
+  padding: max(.24rem, env(safe-area-inset-top)) max(.4rem, env(safe-area-inset-right)) .2rem max(.4rem, env(safe-area-inset-left));
+  color: #e9eeec; background: #0b0f0e; animation: rbr-in 260ms cubic-bezier(.16, .84, .3, 1); }
+@keyframes rbr-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.rbr__bg { position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(ellipse at 15% 0%, rgba(159, 211, 255, .14), transparent 55%),
+    radial-gradient(ellipse at 100% 100%, rgba(79, 232, 192, .1), transparent 50%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .025) 0 1px, transparent 1px 48px); }
+.rbr__top { flex: none; display: flex; align-items: center; gap: .18rem; }
+.rbr__back { flex: none; display: grid; place-items: center; width: max(.6rem, 32px, calc(34px * var(--sp-ui, 1))); height: max(.6rem, 32px, calc(34px * var(--sp-ui, 1))); padding: 0;
+  border: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .35); color: #fff; cursor: pointer; }
+.rbr__back .icon { width: 55%; height: 55%; }
+.rbr__title { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.rbr__title h2 { margin: 0; font-size: calc(.34 * var(--t)); letter-spacing: .04em; }
+.rbr__micro { font-size: calc(.13 * var(--t)); letter-spacing: .2em; color: #9fd3ff; }
+.rbr__create { flex: none; }
+.rbr__intro { flex: none; margin: 0; max-width: 60em; font-size: calc(.16 * var(--t)); line-height: 1.45; color: #aab3b0; }
+.rbr__filters { flex: none; display: flex; flex-wrap: wrap; gap: .08rem; }
+.rbr__chip { display: inline-flex; align-items: center; gap: .06rem; padding: .04rem .14rem; font: inherit; font-size: calc(.15 * var(--t));
+  color: #c9d1ce; border: 1px solid rgba(255, 255, 255, .18); background: rgba(0, 0, 0, .3); cursor: pointer; }
+.rbr__chip .icon { width: 1em; height: 1em; }
+.rbr__chip .num { padding: 0 .05rem; color: #7f8a86; }
+.rbr__chip.is-on { color: #08221b; border-color: #4fe8c0; background: #4fe8c0; }
+.rbr__chip.is-on .num { color: #0d3a2d; }
+.rbr__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: .1rem; }
+.rbr__empty { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .16rem; text-align: center;
+  font-size: calc(.17 * var(--t)); color: #9aa4a0; }
+.rbr__grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(max(4.6rem, 32px, calc(230px * var(--sp-ui, 1))), 1fr)); gap: .14rem; }
+.rbr-card { display: flex; flex-direction: column; gap: .1rem; padding: .14rem .16rem; border: 1px solid rgba(255, 255, 255, .14);
+  background: linear-gradient(160deg, rgba(31, 36, 35, .95), rgba(14, 17, 16, .95)); transition: border-color 160ms, transform 160ms; }
+.rbr-card:hover { border-color: rgba(79, 232, 192, .6); transform: translateY(-2px); }
+.rbr-card.is-locked { border-color: rgba(255, 196, 92, .35); }
+.rbr-card__head { display: flex; align-items: center; justify-content: space-between; gap: .1rem; min-width: 0; }
+.rbr-card__host { display: inline-flex; align-items: center; gap: .06rem; min-width: 0; font-size: calc(.19 * var(--t)); }
+.rbr-card__host b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rbr-card__host .icon { flex: none; width: 1em; height: 1em; color: #ffd36a; }
+.rbr-card__lock { flex: none; display: inline-flex; align-items: center; gap: .04rem; padding: .01rem .08rem; font-size: calc(.13 * var(--t));
+  color: #ffc45c; border: 1px solid rgba(255, 196, 92, .5); }
+.rbr-card__lock .icon { width: 1em; height: 1em; }
+.rbr-card__diff { display: inline-flex; align-items: center; gap: .06rem; font-size: calc(.15 * var(--t)); color: #b9c2bf; }
+.rbr-card__squads { display: flex; flex-direction: column; gap: .05rem; }
+.rbr-squad { display: flex; align-items: center; gap: .08rem; }
+.rbr-squad__k { width: 1.6em; font-size: calc(.14 * var(--t)); font-weight: 700; text-align: center; color: #0b1520; background: #cfd8d4; }
+.rbr-squad--b .rbr-squad__k { background: #9fd3ff; }
+.rbr-squad__pips { display: flex; gap: .05rem; flex: 1 1 auto; }
+.rbr-squad__pips i { flex: 1 1 0; height: max(.12rem, 7px); background: rgba(255, 255, 255, .1); }
+.rbr-squad--a .rbr-squad__pips i.is-on { background: #cfd8d4; }
+.rbr-squad--b .rbr-squad__pips i.is-on { background: #9fd3ff; }
+.rbr-card__foot { display: flex; align-items: center; gap: .1rem; margin-top: auto; }
+.rbr-card__seats { font-size: calc(.26 * var(--t)); color: #f2f4f3; }
+.rbr-card__seats small { font-size: calc(.15 * var(--t)); color: #7f8a86; }
+.rbr-card__code { flex: 1 1 auto; font-size: calc(.14 * var(--t)); letter-spacing: .1em; color: #6f7a76; }
 
 /* (fork) the profile chip (screens/lobby.js ProfileChip): one's profile icon and Doctor name, opens the icon picker */
 .lobby-me {

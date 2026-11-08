@@ -14,6 +14,30 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The icon names are the official English ones. Eight icons the English data doesn't have yet use the English server's names from the wiki. 31 CN-only icons use our own translations, marked "Unofficial translation" in the picker.
 - New: `tools/build-avatars.mjs` (writes `data/avatars.json`) and `tools/i18n/fallback-avatars-en.json`. `tools/build-i18n.mjs` now reads the icon table, and the data texts of every language were rebuilt. The art is extracted from the CN client as WebP (1.8 MB, local art group `avatar`, `extract.py --only avatar`), so a server needs that folder and an updated `data/local-assets.json`, and the preload zip picks it up. Without the art the chip shows the name's first letter and the picker stays closed.
 
+### Grand Alliance: 8-player rooms
+
+- New Grand Alliance: a co-op room with 8 seats, for humans only. It's off unless the server sets `SP_LARGE_ROOMS=1`.
+  The lobby then has a Grand Alliance mode, and Team Simulation a Grand Alliance card; both open a full-screen room browser of the open rooms, with Open and
+  Locked filters, and a button that creates one. Matchmaking never fills them, and they take no AI teammates.
+- The host can lock the room with a 4-letter password from the lock button beside the alliance key. Only the host sees
+  that button and the password. Locked rooms still show in the browser with a lock, and joining from the browser, by key
+  or by invite link asks for the password. Wrong guesses are limited to 6 a minute.
+- Seats 1–4 are squad A and 5–8 squad B. Players pick their seat or move to an empty one, and the host can swap two seats;
+  nobody balances them. Everyone in one squad plays the normal rules.
+- With players in both squads: each squad drafts strategies and 机变 cards on its own, both at once, with its own 6 cards.
+  The whole room fights over one operator and equipment pool, which grows with the room (×2 at 8). Defence relays across
+  the room: what still gets through goes to the next 2 perfect players, for at most 2 rounds. Everyone fights one shared
+  Enemy Leader in random pairs, as before. The Hidden Core threshold and the leader fight's overtime drain scale with the
+  room too.
+- A dropped player's board goes to the AI at once and back when they return, and a player who leaves keeps their board in
+  the match under the AI. That AI always runs in a browser, a squadmate's first, never on the server. A player idle for
+  3 prep rounds in a row is removed, with a warning after the 2nd.
+- An old server version that is still running an 8-player match now keeps running for 105 minutes after a deploy instead
+  of 60, so a long match isn't cut off. Every other old version still stops after 60.
+- Design: DESIGN §91 (`docs/design/large-rooms.md`). Squad, draft and relay ideas follow the GPL-3.0 forks
+  [LongQianChen/Stronghold-Protocol](https://github.com/LongQianChen/Stronghold-Protocol) and
+  [zhewang448/Stronghold-Protocol](https://github.com/zhewang448/Stronghold-Protocol), adapted to this code.
+
 ### S.W.E.E.P. Report
 
 - An operator in an alliance's Operators list now opens Operator Loadout at that operator, selected and scrolled into view, with its detail open. A filter that would hide it is cleared. Back (or Esc) there returns to the report as it was left: same tab, alliance, scroll position, and focus on that operator. Opened the usual way, Back works as before. The report and the loadout always show the same season version, so every operator listed has a row.
@@ -40,7 +64,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -158,7 +185,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -483,7 +510,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

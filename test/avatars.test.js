@@ -13,6 +13,9 @@ import { StubMatch } from '../server/match/StubMatch.js';
 import { buildResult } from '../server/match/results.js';
 import { TestClient } from './helpers/wsClient.js';
 import { makeMatch } from './match/harness.js';
+import { Lobby } from '../server/lobby.js';
+import { SessionRegistry } from '../server/net.js';
+import { getData } from '../server/data.js';
 
 const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8'));
 const CATALOG = read('../data/avatars.json');
@@ -146,6 +149,42 @@ describe('room seats (lobby, stub match)', () => {
     await a.waitFor('room.state', (s) => seatOf(s, a.id)?.avatar === UNOFFICIAL);
     await a.hello('Delta');
     await a.waitFor('room.state', (s) => !!seatOf(s, a.id) && !('avatar' in seatOf(s, a.id)));
+  });
+});
+
+describe('Grand Alliance (8 seats)', () => {
+  test('every one of the 8 seats carries its icon, through a seat move and a host swap, into the match', () => {
+    class Rec { static last = null; constructor(opts) { Rec.last = opts; } start() {} dispose() {} onLeave() {} onDisconnect() {} }
+    const registry = new SessionRegistry();
+    const quiet = { info() {}, warn() {}, error() {}, debug() {} };
+    const lobby = new Lobby({ registry, log: quiet, MatchClass: Rec, content: { cs: 'a0'.repeat(32) }, getData, options: { largeRooms: true, roomListGapMs: 0 } });
+    const icons = [SPECIAL, UNOFFICIAL, OPERATOR, 'avatar_def_02', 'avatar_def_03', 'avatar_dyn_01', 'avatar_activity_mujica', 'char_9999_fake'];
+    const states = [];
+    const ps = icons.map((avatar, i) => {
+      const sess = registry.create(`P${i}`);
+      Object.assign(sess, { connected: true, disconnectedAt: null, avatar });
+      sess.ws = { readyState: 1, bufferedAmount: 0, send(d) { const m = JSON.parse(d); if (m.t === 'room.state') states.push(m); }, terminate() {} };
+      return sess;
+    });
+    assert.deepEqual(lobby.create(ps[0], { mode: 'coop', capacity: 8 }), { ok: true });
+    const code = states.at(-1).code;
+    for (const p of ps.slice(1)) assert.deepEqual(lobby.join(p, { code }), { ok: true });
+    const seatsOf = () => states.at(-1).seats.map((x) => x?.avatar ?? null);
+    assert.deepEqual(seatsOf(), [...icons.slice(0, 7), null], 'seat 8: an unknown operator id is dropped');
+    const room = lobby.rooms.get(code);
+    lobby.leave(ps[3]);
+    assert.equal(room.seats[3], null);
+    assert.deepEqual(lobby.moveSeat(ps[7], { seat: 3 }), { ok: true });
+    assert.equal('avatar' in states.at(-1).seats[3], false);
+    assert.deepEqual(lobby.swapSeats(ps[0], { a: 1, b: 3 }), { ok: true });
+    assert.equal(states.at(-1).seats[3].avatar, UNOFFICIAL, 'the swapped seat keeps its icon');
+    assert.equal(states.at(-1).seats[1].name, 'P7');
+    for (const s of room.seats) if (s) s.ready = true;
+    assert.deepEqual(lobby.start(ps[0]), { ok: true });
+    const bySeat = Object.fromEntries(Rec.last.seats.map((s) => [s.playerId, s.avatar]));
+    assert.equal(bySeat[ps[0].playerId], SPECIAL);
+    assert.equal(bySeat[ps[2].playerId], OPERATOR);
+    assert.equal(bySeat[ps[7].playerId], null);
   });
 });
 

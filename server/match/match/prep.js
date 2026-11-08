@@ -195,6 +195,7 @@ export class MatchPrep {
     if (this.phase !== PHASE.PREP) return;
     for (const ps of this.alivePlayers()) {
       if (ps.ready) continue;
+      this._noteIdlePrep(ps); // (fork) a large room's idle seats (match/largeRoom.js)
       this.autoPickPersonalChoice(ps, 'random');
       ps.resolveTemp();
       ps.ready = true;

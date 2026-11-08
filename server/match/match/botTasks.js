@@ -134,7 +134,7 @@ export class MatchBotTasks {
 
   /** Send one seat's snapshot to the executor. With no executor the seat keeps its board and readies up. */
   _startBotTask(entry) {
-    const executor = this.botExecutor ? null : this._botExecutorFor();
+    const executor = this.botExecutor ? null : this._botExecutorFor(undefined, entry.ps ? [entry.ps.playerId] : null);
     if (!this.botExecutor && !executor) {
       this.botTaskStats.noHost++;
       this._finishBotSeat(entry);
@@ -210,7 +210,7 @@ export class MatchBotTasks {
   _botFailover(active) {
     this._clearBotTimer(active);
     if (active.executor) this.sendTo(active.executor, { t: 'b.botCancel', taskId: active.task.id });
-    const next = this._botEntryLive(active.entry) ? this._botExecutorFor(active.tried) : null;
+    const next = this._botEntryLive(active.entry) ? this._botExecutorFor(active.tried, active.entry.ps ? [active.entry.ps.playerId] : null) : null;
     if (!next) { this._endBotTask(active); return; }
     this.botTaskStats.failovers++;
     active.executor = next;

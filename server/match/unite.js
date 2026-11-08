@@ -53,7 +53,9 @@ export function planUnite(m, results) {
     if (!r) continue;
     const counted = (r.leaked || []).filter((l) => l && l.counted !== false);
     if (counted.length > 0) leakers.push(ps);
-    else if (r.perfect !== false) perfects.push(ps);
+    // (fork) a departed player still alive in a large room (match/largeRoom.js) is never a helper; elsewhere a departure
+    // eliminates, so this changes nothing there
+    else if (r.perfect !== false && !ps.left) perfects.push(ps);
   }
   if (!leakers.length || !perfects.length) return null;
   const helpers = helperOrder(m, perfects, results);

@@ -104,6 +104,29 @@ let retirePending = false;
 
 const SCREENS = { title: TitleScreen, lobby: LobbyScreen, room: RoomScreen, game: GameScreen };
 
+/**
+ * (fork) A large room with squads (server/match/match/largeRoom.js): the strategy and 机变 drafts come as one lane per
+ * squad (`draft.lanes`, `sp.lanes`). The page shows its own squad's lane as THE draft (a spectator or an eliminated
+ * player: squad A's), and the step countdown is that lane's — so every draft screen reads it unchanged.
+ * @param {any} pub m.public @param {any} myId
+ */
+export function squadView(pub, myId) {
+  if (!pub || (!pub.draft?.lanes && !pub.sp?.lanes)) return pub;
+  const pick = (lanes) => lanes.find((l) => Array.isArray(l.order) && l.order.includes(myId)) || lanes[0];
+  const out = { ...pub };
+  if (pub.draft?.lanes) {
+    const lane = pick(pub.draft.lanes);
+    out.draft = { ...pub.draft, ...lane, lanes: pub.draft.lanes };
+    if (lane.turnDeadline) out.deadline = lane.turnDeadline;
+  }
+  if (pub.sp?.lanes) {
+    const lane = pick(pub.sp.lanes);
+    out.sp = { ...pub.sp, ...lane, lanes: pub.sp.lanes };
+    if (lane.turnDeadline) out.deadline = lane.turnDeadline;
+  }
+  return out;
+}
+
 /** Copy of a server message without transport fields. */
 function payload(msg) {
   const { t, rid, ...rest } = msg; // eslint-disable-line no-unused-vars
@@ -206,6 +229,8 @@ function onWelcome(msg) {
     installedPlugins: pluginCount(msg.content),
     installedNotices: msg.content?.notices === true,
     testMode: msg.testMode === true,
+    // (fork) 8-seat rooms (shared/largeRoom.js): the lobby shows its Large rooms entry only then
+    largeRooms: msg.largeRooms === true,
     // the official versions the server enables (protocol §2; absent: the switch is off — versions.js)
     versions: sanitizeVersions(msg.versions),
   });
@@ -262,7 +287,10 @@ function onRoomState(msg) {
 const CLOSE_REASON = {
   // 'timeout' = this player was removed after staying disconnected past the lobby grace (server/lobby.js)
   host_left: N_('创建者已离开，同盟已解散'), timeout: N_('由于长时间断开连接，你已离开同盟'), empty: N_('同盟已解散'),
-  kicked: N_('你已被移出同盟'), ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
+  kicked: N_('你已被移出同盟'),
+  // (fork) a large room removed an idle seat (shared/largeRoom.js); the AI plays its board
+  idle: N_('你已连续多个整备阶段没有操作，已被移出房间'), // en: "You did nothing for several prep rounds and were removed from the room"
+  ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
   // a spectator left behind by a 搜寻队友 merge (no spectator seat free in the target room)
   merged: N_('同盟已与其他同盟合并，观战席已满'),
   // (fork) a 搜寻队友 match on another server: room.move follows (public/js/regions.js)
@@ -310,7 +338,7 @@ function wireNet() {
     const known = Object.hasOwn(CLOSE_REASON, String(msg.reason)) ? CLOSE_REASON[msg.reason] : null;
     toast(known ? t(known) : typeof msg.reason === 'string' && msg.reason.length < 60 ? t('同盟已关闭：{reason}', { reason: msg.reason }) : t('同盟已关闭'), 'warn');
   });
-  net.on('m.public', (msg) => { matchAt = Date.now(); store.patch('match', { public: payload(msg) }); maybeFinishRestore(); });
+  net.on('m.public', (msg) => { matchAt = Date.now(); store.patch('match', { public: squadView(payload(msg), store.get().me.playerId) }); maybeFinishRestore(); });
   net.on('m.private', (msg) => { matchAt = Date.now(); store.patch('match', { private: payload(msg) }); });
   net.on('m.layer', (msg) => {
     const s = store.get();

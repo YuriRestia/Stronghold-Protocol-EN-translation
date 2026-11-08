@@ -260,6 +260,7 @@ import { MatchSettle } from './match/settle.js';
 import { installTestTrace } from './testTrace.js';
 import { MatchTestCommands } from './match/testCommands.js';
 import { MatchOffers } from './match/offers.js';
+import { MatchLargeRoom } from './match/largeRoom.js';
 import { createExternalAI } from './llmGate.js';
 
 export { FLOW_TICKER_PRIORITY, DELAYS, BAND_TURN_SECONDS } from './match/common.js';
@@ -520,6 +521,8 @@ export class Match {
      * (draft order and skip, 6 机变 cards, 联防 …) stay.
      */
     this.loneHuman = this.order.filter((p) => !p.isBot).length === 1;
+    // (fork) an 8-seat room (shared/largeRoom.js, match/largeRoom.js): squads and the room scale, before the pools
+    this._initLargeRoom(opts);
 
     // per-match setup (DESIGN §6.5)
     const setup = setupMatchWaves(this.gd, this.rngSetup);
@@ -532,8 +535,8 @@ export class Match {
     this.disabledBonds = bans.drawn;
     this.staticInactiveBonds = bans.staticOff;
     this.bannedChess = bans.banned;
-    this.pool = new SharedPool(this.gd, { banned: bans.banned });
-    this.itemPool = new SharedItemPool(this.gd, () => this.order);
+    this.pool = new SharedPool(this.gd, { banned: bans.banned, scale: this.roomScale });
+    this.itemPool = new SharedItemPool(this.gd, () => this.order, this.roomScale);
     // 自选编队 (0.2.0): each human's slotted DIY pieces get their own stock — none for one whose bonds are all off this
     // match (player/diy.js initDiyStock); no randomness is drawn here
     const off = new Set([...bans.drawn, ...bans.staticOff]);
@@ -610,7 +613,7 @@ export class Match {
 }
 
 // the method modules, in this order (a name defined twice is an error, never a silent override)
-for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchRehearsal, MatchBotTasks, MatchBotBattles, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchTestCommands, MatchOffers]) {
+for (const part of [MatchPlatform, MatchInfra, MatchMessaging, MatchViews, MatchWatch, MatchIntents, MatchPause, MatchPhases, MatchSetupVote, MatchSpDraft, MatchPrep, MatchCombat, MatchClientCombat, MatchRehearsal, MatchBotTasks, MatchBotBattles, MatchReports, MatchUnite, MatchBoss, MatchSettle, MatchTestCommands, MatchOffers, MatchLargeRoom]) {
   for (const key of Reflect.ownKeys(part.prototype)) {
     if (key === 'constructor') continue;
     if (Object.prototype.hasOwnProperty.call(Match.prototype, key)) throw new Error(`Match.${String(key)} is defined twice`);

@@ -319,7 +319,7 @@ export function PlayerAvatar({ player, size = 'md', self = false, class: cls }) 
   const glyph = [...(player?.name || '').trim()][0] || '?';
   const dead = player?.alive === false || player?.status === 'dead';
   const left = player?.status === 'left';
-  const hue = [162, 196, 38, 280][((player?.seat | 0) % 4 + 4) % 4];
+  const hue = [162, 196, 38, 280, 330, 100, 15, 230][((player?.seat | 0) % 8 + 8) % 8]; // (fork) 8 seats: shared/largeRoom.js
   return html`<span class=${cx('pavatar', `pavatar--${size}`, self && 'is-self', dead && 'is-dead', left && 'is-left', player?.isBot && 'is-bot',
       player?.connected === false && !player?.isBot && 'is-offline', cls)} style=${`--seat-hue:${hue}`}>
     <span class="pavatar__img">

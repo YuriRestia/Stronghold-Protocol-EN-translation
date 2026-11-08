@@ -55,6 +55,10 @@ export const ICONS = {
   plus: { d: 'M11 4h2v7h7v2h-7v7h-2v-7H4v-2h7z' },
   minus: { d: 'M4 11h16v2H4z' },
   user: { d: 'M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM4 21a8 7 0 0 1 16 0z' },
+  // (fork) a locked Grand Alliance room (shared/largeRoom.js): a padlock
+  lock: { d: 'M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v3h6V7a3 3 0 0 0-3-3zm0 9a2 2 0 0 0-1 3.7V19h2v-2.3A2 2 0 0 0 12 13z' },
+  // (fork) a large room's seat swap (shared/largeRoom.js): two opposed arrows
+  swap: { d: 'M7 4 2 9l5 5v-4h9V8H7zm10 6v4H8v2h9v4l5-5z' },
   users: { d: 'M9 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zM2 20a7 6.5 0 0 1 14 0zM16.5 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm.9 8.1A6.5 6 0 0 1 22.5 20H18a8.6 8 0 0 0-2.4-6.1 6 6 0 0 1 1.8-.8z' },
   rook: { d: 'M5 3h3v2h2V3h4v2h2V3h3v5l-2 2v7l2 2v2H5v-2l2-2v-7L5 8z' },
   signal: { d: 'M2 17h3v4H2zm6-4h3v8H8zm6-4h3v12h-3zm6-4h3v16h-3z' },
@@ -501,6 +505,14 @@ export const confirmDialog = (opts) => openDialog(opts, 'confirm');
  * @returns {Promise<true>}
  */
 export const alertDialog = (opts) => openDialog(opts, 'alert');
+/**
+ * (fork) Imperative one-line prompt: the text entered (after `transform`), or null when cancelled. OK stays off until the
+ * text matches `pattern`.
+ * @param {{ title?: string, text?: any, okText?: string, placeholder?: string, maxLength?: number, pattern?: RegExp,
+ *   transform?: (v: string) => string, error?: string, micro?: string }} opts
+ * @returns {Promise<string | null>}
+ */
+export const promptDialog = (opts) => openDialog(opts, 'prompt');
 
 /**
  * Dismiss every queued imperative dialog (confirm → false, alert → true) — e.g. the server session was reset and the
@@ -511,7 +523,7 @@ export function closeAllDialogs() {
   if (!all.length) return;
   dialogs = [];
   emitDialogs();
-  for (const d of all) { try { d.resolve(d.kind !== 'confirm'); } catch { /* ignore */ } }
+  for (const d of all) { try { d.resolve(d.kind === 'prompt' ? null : d.kind !== 'confirm'); } catch { /* ignore */ } }
 }
 
 /** Renders queued imperative dialogs (one at a time). */
@@ -523,6 +535,7 @@ export function DialogHost() {
   }, []);
   const d = dialogs[0];
   if (!d) return null;
+  if (d.kind === 'prompt') return html`<${PromptDialog} key=${d.id} d=${d} />`;
   const { title = t('确认'), text, okText = t('确认'), cancelText = t('取消'), tone, danger, micro = 'CONFIRMATION' } = d.opts;
   const isConfirm = d.kind === 'confirm';
   // Enter confirms unless a specific button has focus (then the native click decides).
@@ -538,6 +551,25 @@ export function DialogHost() {
       ${typeof text === 'string' ? html`<p class="modal__text">${text}</p>` : text}
     <//>
   </div>`;
+}
+
+/** (fork) promptDialog's body: one text field, OK while it matches the pattern; Enter submits, Esc cancels. */
+function PromptDialog({ d }) {
+  const { title = t('确认'), text, okText = t('确认'), cancelText = t('取消'), placeholder = '', maxLength = 32, pattern = null, transform = (v) => v,
+    error = '', micro = 'INPUT' } = d.opts;
+  const [value, setValue] = useState('');
+  const ok = pattern ? pattern.test(value) : value.length > 0;
+  const submit = () => { if (ok) closeDialog(d.id, value); };
+  return html`<${Modal} open=${true} title=${title} micro=${micro} onClose=${() => closeDialog(d.id, null)}
+    actions=${html`<${Button} variant="secondary" onClick=${() => closeDialog(d.id, null)}>${cancelText}<//>
+      <${Button} variant="primary" icon="check" disabled=${!ok} onClick=${submit}>${okText}<//>`}>
+    ${typeof text === 'string' ? html`<p class="modal__text">${text}</p>` : text}
+    ${error ? html`<p class="modal__text prompt__error" role="alert">${error}</p>` : null}
+    <input class="prompt__input num" data-testid="prompt-input" value=${value} placeholder=${placeholder} maxLength=${maxLength}
+      autoComplete="off" autoCapitalize="characters" spellCheck=${false} ref=${(el) => { if (el && !el.dataset.f) { el.dataset.f = '1'; setTimeout(() => el.focus(), 60); } }}
+      onInput=${(e) => setValue(transform(e.currentTarget.value).slice(0, maxLength))}
+      onKeyDown=${(e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }} />
+  <//>`;
 }
 
 // ---- Tooltip -----------------------------------------------------------------------------------
@@ -820,7 +852,8 @@ export function Spinner({ size = 'md', label, tone = 'mint', class: cls }) {
 
 // ---- Avatar frame ------------------------------------------------------------------------------
 
-const SEAT_HUES = [162, 196, 38, 280];
+// (fork) 8 for a large room (shared/largeRoom.js); seats 1–4 keep their colours
+const SEAT_HUES = [162, 196, 38, 280, 330, 100, 15, 230];
 /**
  * Square avatar frame with bracket corners. Falls back to a glyph (first letter / robot).
  * @param {{ name?: string, src?: string, size?: 'sm'|'md'|'lg'|'xl', seat?: number, host?: boolean, bot?: boolean,
@@ -829,7 +862,7 @@ const SEAT_HUES = [162, 196, 38, 280];
 export function AvatarFrame({ name = '', src, size = 'md', seat = 0, host, bot, self, ready, offline, dead, empty, class: cls }) {
   const [badSrc, setBadSrc] = useState(null);
   const imgOk = !!src && badSrc !== src;
-  const hue = SEAT_HUES[((seat | 0) % 4 + 4) % 4];
+  const hue = SEAT_HUES[((seat | 0) % 8 + 8) % 8];
   const glyph = [...(name || '').trim()][0] || '?';
   return html`<div class=${cx('avatar', `avatar--${size}`, 'brackets', host && 'is-host', bot && 'is-bot', self && 'is-self',
       ready && 'is-ready', offline && 'is-offline', dead && 'is-dead', empty && 'is-empty', cls)} style=${`--seat-hue:${hue}`}>
@@ -927,9 +960,10 @@ export function doctorNo(id) {
 
 /**
  * Latency pill ("58ms"), coloured by research 06 §3.4 tiers (<60 mint, <200 amber, else red).
- * @param {{ ms?: number|null, online?: boolean, class?: string }} props
+ * @param {{ ms?: number|null, online?: boolean, class?: string, children?: any }} props children: after the unit (the
+ *   lobby's server picker adds its caret, ui/regionPicker.js)
  */
-export function PingPill({ ms, online = true, class: cls }) {
+export function PingPill({ ms, online = true, class: cls, children }) {
   // (fork) with several servers: which one this number is about (public/js/regions.js)
   const region = useStore((s) => s.region);
   const regionName = region?.enabled && region.current ? regionLabel(region.current) : null;
@@ -938,7 +972,7 @@ export function PingPill({ ms, online = true, class: cls }) {
   return html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? t('当前延迟 {ms}ms', { ms }) : t('未连接')}>
     <${Icon} name=${ok ? 'signal' : 'wifiOff'} class="ping__icon" />
     ${regionName ? html`<span class="ping__region" data-testid="ping-region">${regionName}</span>` : null}
-    <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
+    <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>${children}
   </span>`;
 }
 
