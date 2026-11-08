@@ -178,7 +178,11 @@ describe('[eff_cond] state loops (skills.js COND_BUFFS, skillfx.js, b.snap `char
     assert.equal(condState({ charges: [1, 2] }), 'ready');
     assert.equal(condState({ charges: [0, 2] }), null);
     assert.equal(condState({}), null);
-    for (const t of Object.values(COND_BUFFS)) for (const st of ['charged', 'on', 'full', 'ready']) assert.ok(t[st].length >= 1);
+    // the `[eff_cond]` graphs keep a buff in every state; (fork) a toggle's mode buff only in its own (薇薇安娜's 蓄力: full)
+    for (const [k, t] of Object.entries(COND_BUFFS)) {
+      if (/\[eff_cond\]$/.test(k)) for (const st of ['charged', 'on', 'full', 'ready']) assert.ok(t[st].length >= 1, `${k} ${st}`);
+      else assert.ok(t.event && Object.keys(t).some((st) => st !== 'event' && t[st].length >= 1), k);
+    }
   });
 
   test('ready with 1 charge → the half armour, 2 → full + half, the skill on → its half, cast with every charge → full + half', async () => {

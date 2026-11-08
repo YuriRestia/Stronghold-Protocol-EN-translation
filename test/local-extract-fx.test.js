@@ -59,6 +59,17 @@ describe('fx.py encodings (no UnityPy needed)', { skip: !PY && 'no python3' }, (
     assert.deepEqual(out['boc#1'], { birth: 'x_birth_boc#1' }, 'a differently named twin counts; an unexported one does not');
   });
 
+  test('(fork) skin_pairs_map: the skinpack pairs per outfit id — operators sharing a suffix keep their own (薇薇安娜 / 号角 epoque#59)', () => {
+    const keys = ['common_char_birth_01', 'vvana_birth_01_epoque#59', 'horn_hit', 'horn_hit_epoque#59'];
+    const byOutfit = { 'char_4098_vvana@epoque#59': { common_char_birth_01: 'vvana_birth_01_epoque#59' }, 'char_4039_horn@epoque#59': { horn_hit: 'horn_hit_epoque#59', gone: 'gone_epoque#59' } };
+    const out = py(`print(json.dumps([fx.skin_pairs_map(${JSON.stringify(keys)}, ${JSON.stringify(byOutfit)}), fx.pairs_by_suffix(${JSON.stringify(byOutfit)})]))`);
+    assert.deepEqual(out[0], {
+      'char_4098_vvana@epoque#59': { common_char_birth_01: 'vvana_birth_01_epoque#59' },
+      'char_4039_horn@epoque#59': { horn_hit: 'horn_hit_epoque#59' },
+    }, 'each outfit its own pairs; an unexported one is dropped');
+    assert.deepEqual(out[1], { 'epoque#59': { common_char_birth_01: 'vvana_birth_01_epoque#59', horn_hit: 'horn_hit_epoque#59', gone: 'gone_epoque#59' } }, 'skinFx\'s old by-suffix view');
+  });
+
   test('f6: six significant digits, -0 → 0, integers stay, NaN / ±inf → null', () => {
     const out = py(`print(json.dumps([fx.f6(x) for x in [1.0000004, -0.0, 3, 0.258819049, 1e-13, float('nan'), float('inf'), True, 2.0, 1234567.8]]))`);
     assert.deepEqual(out, [1, 0, 3, 0.258819, 0, null, null, true, 2, 1234570]);

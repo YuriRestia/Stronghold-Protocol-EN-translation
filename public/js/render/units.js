@@ -421,6 +421,52 @@ const OBLVNS_S2 = Object.freeze({ piano: oblvnsTimbre('A', 'Skill_2_Start'), org
 /** The timbre an S2 丰川祥子 starts in, before any cast cue names one (view built at deployment). */
 export const oblvnsStartForm = (info, skillIndex) =>
   (info?.side !== 'enemy' && (info?.spine === 'char_4182_oblvns' || info?.diy?.charId === 'char_4182_oblvns') && skillIndex === 1 ? 'piano' : null);
+/**
+ * (fork) 薇薇安娜's (char_4098_vvana) skill clips per cast, which the manifest's roles (one clip set per skill slot) cannot
+ * say. Official, read from the CN client 2026-11-08: charpack/char_4098_vvana.ab Modes `_replaceAnimPairs` — S1 Idle →
+ * Skill_1_Idle; S3_1 Idle → Skill_3_Idle_A, Attack → Skill_3_Attack_A (down Skill_Down_3_Attack_A); S3_2 Idle →
+ * Skill_3_Idle_B, Attack → Skill_3_Attack_B —; [uc]skills.ab skchr_vvana_1: S1_Attack2 (the plain cast) `_animKey` Attack,
+ * S1_Attack (the cast after 蓄力) Skill_1_Attack; skchr_vvana_3 `_beginAnim` Skill_3_Begin_A. Every outfit's skeleton has the
+ * same clips (还愿礼 and 寄自奥格尼斯科 too).
+ * - S1: a cast is the attack it replaces (`keepAttack`: its swing plays out; no Begin). 蓄力 — every charge stored (b.snap
+ *   `charges`, the sim's rule) — is the S1 mode: Skill_1_Begin once, then Skill_1_Idle as her idle (VVANA_STANCE), and her
+ *   next attack — the cast that spends them all — swings Skill_1_Attack (VVANA_STRIKE).
+ * - S3: her first cast of a deployment runs mode S3_1 (the _A clips), every later one S3_2 (Idle / Attack _B). Its
+ *   begin clip is the prefab's `_beginAnim` Skill_3_Begin_A, swapped by the buff templates (config/buff_template_holder,
+ *   ModifyAnimatorHookerReplacePair on the current mode's hooker): vvana_s_3[start] Begin_A → Begin_A on the first cast,
+ *   vvana_s_3[check] Begin_A → Begin_B once the skill was triggered before. No End clip: skchr_vvana_3 is a CastSkill
+ *   without `_endAnim` (only ToggleSkillWithEndAnimation has one; dump 2026-11-08), no template plays one, no code builds
+ *   `…_End` names — the End clips sit unused in the skeleton.
+ * - 蓄力 plays no clip of its own: vvana_s_1[mode]'s graph only switches modes (SwitchMode, sub-buffs, SP), S1's prefab
+ *   has no begin clip, its toggle ability no clip field — the S1 mode's hooker turns her Idle into Skill_1_Idle.
+ */
+const VVANA = 'char_4098_vvana';
+const VVANA_S1 = Object.freeze({ begin: null, loop: 'Attack', end: null, idle: null, via: 'attack', keepAttack: true });
+const VVANA_STANCE = Object.freeze({ change: null, roles: Object.freeze({ idle: 'Skill_1_Idle' }) });
+const VVANA_STRIKE = Object.freeze({ begin: null, loop: 'Skill_1_Attack', end: null });
+/** Real ms after 蓄力 ended within which an attack is still its cast (the snapshot of the spent charges may come first). */
+const VVANA_STRIKE_GRACE_MS = 400;
+/** The clips those roles play beside the manifest's (the impostor box: _clipNames). */
+const VVANA_CLIPS = Object.freeze(['Skill_1_Idle', 'Skill_1_Attack', ...['A', 'B'].flatMap((x) =>
+  [`Skill_3_Begin_${x}`, `Skill_3_Idle_${x}`, `Skill_3_Attack_${x}`]), 'Skill_Down_3_Attack_A']);
+const isVvana = (info) => info?.side !== 'enemy' && (info?.spine === VVANA || info?.diy?.charId === VVANA);
+/** Every charge of a skill with several stored (b.snap `charges` [stored, maximum]). */
+const chargesFull = (c) => Array.isArray(c) && Number(c[1]) > 1 && Number(c[0]) >= Number(c[1]);
+
+/**
+ * (fork) The skill role 薇薇安娜's cast of skill slot `index` plays (VVANA): S1's, or S3's clip set of her `casts`-th cast of
+ * the deployment (`down`: facing down, the A set's down attack where the model has it), else null (the manifest's).
+ * @param {number|null} index
+ * @param {number} casts
+ * @param {boolean} down
+ */
+export function vvanaSkillRole(index, casts, down) {
+  if (index === 0) return VVANA_S1;
+  if (index !== 2) return null;
+  const x = casts > 1 ? 'B' : 'A';
+  return { begin: `Skill_3_Begin_${x}`, loop: down && x === 'A' ? 'Skill_Down_3_Attack_A' : `Skill_3_Attack_${x}`, end: null, idle: `Skill_3_Idle_${x}` };
+}
+
 export const FORMS = Object.freeze({
   [MANIFOLD]: Object.freeze({
     Default: Object.freeze({ roles: { ...clipSet('Idle_1', null, 'Stun', 'Attack'), deploy: 'Start', stun: loop('Stun') } }),
@@ -817,6 +863,9 @@ export class UnitView {
     this.moteRing = null;
     this.layers = 0;              // hit-negating 护盾 layers (sync; b.snap `layers`: the official layer effect, vfx/talentfx.js)
     this.charges = null;          // [stored, maximum] of a charge skill (sync; b.snap `charges`: vfx/skillfx.js)
+    this.skillCasts = 0;          // (fork) its skill's starts since its deployment (setSkill; VVANA, vfx/skillfx.js CAST_MODES)
+    this.stanceOn = false;        // (fork) 薇薇安娜's 蓄力 shown (VVANA_STANCE), and when it last ended (performance ms)
+    this.stanceOffAt = -Infinity;
     this.flags = 0; this.anim = ANIM.IDLE;
     this.statuses = new Set();
     this.alive = true;
@@ -1118,6 +1167,7 @@ export class UnitView {
       // down with facing UP, §22.1, is built a frame later; a model rebuilt while it is down)
       const f = this._formSpec() || (this.alive ? null : this._dieForm);
       if (f) this.actor.setForm(f.roles);
+      this._castRoles(true);
       // replay current state (a dead model resumes its Die clip where it would be — a knocked-down one holds its end)
       if (!this.alive) {
         const d = this.actor.die();
@@ -1338,6 +1388,7 @@ export class UnitView {
     this.barrier = s.sh > 0 ? s.sh : 0;
     this.energy = s.energy || null;
     this.layers = s.layers > 0 ? s.layers | 0 : 0; this.charges = s.charges || null;
+    if (this.skillIndex === 0 && isVvana(this.info)) this._stance(this.alive && chargesFull(this.charges));
     const prevFlags = this.flags;
     this.flags = s.flags | 0;
     this.anim = s.anim | 0;
@@ -1601,6 +1652,7 @@ export class UnitView {
       this.imp = null;
     }
     this._box = null;
+    this._plane = null;   // (fork) the next model's skin has its own plane depth (_planeDepth)
     this._tint = undefined;   // the next model gets the current tint on its first frame (a knocked-down one its grey)
     const old = this.actor;
     this.actor = null;
@@ -1608,6 +1660,19 @@ export class UnitView {
     if (old) { try { old.destroy(); } catch { /* ignore */ } }
     if (this._actorEntry) this._releaseEntry(this._actorEntry);
     this._actorEntry = null;
+  }
+
+  /**
+   * (fork) This unit's model-plane depth along the camera's view (unitDepthKey): its official skin's (render/vfx index)
+   * once the index is in, else PLANE_DEPTH by side.
+   */
+  _planeDepth() {
+    if (this._plane != null) return this._plane;
+    const skin = this.ctx.skinOfView ? this.ctx.skinOfView(this) : undefined;
+    if (skin === undefined) return this.isEnemy ? PLANE_DEPTH.enemy : PLANE_DEPTH.ally;   // index not loaded yet
+    const d = skinPlaneDepth(skin);
+    this._plane = d ?? (this.isEnemy ? PLANE_DEPTH.enemy : PLANE_DEPTH.ally);
+    return this._plane;
   }
 
   /** An attack was made (b.ev 'atk'). `target` = view or null. */
@@ -1637,7 +1702,7 @@ export class UnitView {
     this.lunge = 1;
     this._shotKind(kind, target);
     if (this.actor) {
-      this.actor.castStrike?.(this._takeStrike(now));
+      this.actor.castStrike?.(this._takeStrike(now) || this._stanceStrike());
       this.actor.attack(this.atkInterval, once); // game seconds: the actor's clock runs in game time
     }
     if (this.imp) this.imp.dirty = true;
@@ -1731,7 +1796,7 @@ export class UnitView {
     if (!this.alive || !this.actor || !this.spineReady) return false;
     this._attackForm(kind);
     this._shotKind(kind, target);
-    this.actor.castStrike?.(this._strikeClip(castSlot));
+    this.actor.castStrike?.(this._strikeClip(castSlot) || this._stanceStrike());
     const ok = this.actor.windUp(clampAtkInterval(interval), lead, !!PROJ[kind]?.once);
     if (!ok) this.actor.castStrike?.(null);
     else this._faceAttack(target);
@@ -1742,7 +1807,10 @@ export class UnitView {
   onHit() { this.flash = 1; }
 
   setSkill(on) {
+    // (fork) a start, once — the event and the snapshot flag both say it (skillCasts)
+    if (on && !this.statuses.has('skill')) this.skillCasts++;
     if (on) this.statuses.add('skill'); else this.statuses.delete('skill');
+    if (on) this._castRoles();
     if (this.actor) this.actor.setSkill(on);
     // a cast whose animation only the Front model has: turn that model round now, the Back one after the clip (or its
     // End) played out — _skillFacesFront / _faceHold
@@ -1830,8 +1898,36 @@ export class UnitView {
     return c && now - c.t >= 0 && now - c.t <= STRIKE_WINDOW ? this._strikeClip(c.index) : null;
   }
 
+  /**
+   * (fork) 薇薇安娜's skill roles on the actor (VVANA): S1's always, S3's for the cast starting now (`build`: a model built
+   * mid-skill takes the running cast's), and 蓄力's clip set while it holds.
+   */
+  _castRoles(build = false) {
+    const a = this.actor;
+    if (!a || typeof a.setCastRole !== 'function' || !isVvana(this.info)) return;
+    const down = this.dir === 'DOWN' && a.has('Skill_Down_3_Attack_A');
+    a.setCastRole(vvanaSkillRole(this.skillIndex, Math.max(1, this.skillCasts), down));
+    if (build && this.stanceOn) a.setForm(VVANA_STANCE.roles);
+  }
+
+  /** (fork) 薇薇安娜's 蓄力 on / off (VVANA_STANCE): its Begin clip and idle, then back to the manifest's idle. */
+  _stance(on) {
+    if (on === this.stanceOn) return;
+    this.stanceOn = on;
+    if (!on) this.stanceOffAt = nowMs();
+    if (this.actor && isVvana(this.info)) this.actor.setForm(on ? VVANA_STANCE.roles : null, on ? VVANA_STANCE.change : null);
+    if (this.imp) this.imp.dirty = true;
+  }
+
+  /** (fork) The clip 薇薇安娜's attack swings in 蓄力 (or just out of it: its cast spent the charges) — VVANA_STRIKE —, else null. */
+  _stanceStrike() {
+    return this.stanceOn || nowMs() - this.stanceOffAt <= VVANA_STRIKE_GRACE_MS ? VVANA_STRIKE : null;
+  }
+
   onDeploy() {
     this.fadeIn = 0;
+    this.skillCasts = 0;
+    this._stance(false);
     if (!this.alive) this.revive();
     this._pendingDeployElapsed = this.actor ? null : 0;
     if (this.actor) this.actor.deploy();
@@ -2049,7 +2145,7 @@ export class UnitView {
     if (lungeK) { const q = cam.project(this.x + lx, this.y + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
-    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift);
+    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift, this._planeDepth());
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
@@ -2671,6 +2767,8 @@ export class UnitView {
       for (const n of ATTACK_CLIPS[this.info.diy?.charId || this.info.spine || this.info.defId]?.clips || []) {
         if (a.has(n) && !out.has(n)) out.set(n, false);
       }
+      // (fork) 薇薇安娜's per-cast clips (VVANA)
+      if (isVvana(this.info)) for (const n of VVANA_CLIPS) if (a.has(n) && !out.has(n)) out.set(n, false);
     }
     this._clipsOf = a;
     this._clips = out;
@@ -2949,13 +3047,50 @@ const HUD_P = { x: 0, y: 0, s: 0, depth: 0 };
 const ICON_TMP = [];
 
 /**
- * Unit-layer zIndex of a unit / piece whose feet are at (x, y): farther rows first (so raised block rows, keyed by
- * tiles.rowDepthKey, hide units behind them); lifted (dragged) pieces on top; ties broken by column.
+ * (fork) The official sort of units (Unity, client dump 2026-11-08): the battle camera's transparencySortMode is
+ * Orthographic (CameraController._UpdateTransparencySortMode), no battle code sets a sortingOrder, and every model
+ * renderer is sorting layer 0 / order 0 — so units draw by the depth of their model along the camera's view, farthest
+ * first. Each model is a flat Spine mesh on a plane tilted −30° about X (its Graphic node), facing the 30° camera
+ * head-on: every point of it has one depth, its plane's — height, bounds and leaps change nothing. That plane is
+ * offset from the feet by the prefab's Graphic and the skin's FaceSwitcher: along the view, −0.100 for every operator
+ * (233 skins) and most summons, about −0.152 for most enemies (249 skins). So an enemy in an operator's row draws over
+ * her (youtu.be/L1yV18aMIos 0:25: the robot covers her reindeer's antlers).
  */
-export function unitDepthKey(cam, x, y, lift = 0) {
+export const PLANE_DEPTH = Object.freeze({ ally: -0.1, enemy: -0.152 });
+/** The camera's view direction in the Unity battle frame (z = −height): the official 30° pitch. */
+const VIEW_F = [0, Math.sin(Math.PI / 6), Math.cos(Math.PI / 6)];
+
+/**
+ * A skin's model-plane depth from its feet along the camera's view (index.json skins: a point the skin's FaceSwitcher
+ * places on the plane — HitPoint / HeadPoint, whose own offset is in the plane), or null without one.
+ * @param {any} skin
+ */
+export function skinPlaneDepth(skin) {
+  const pts = skin && skin.points;
+  if (!pts) return null;
+  for (const name of ['HitPoint', 'HeadPoint', 'HeadAnchor']) {
+    const e = pts[name], q = e && (e.front || e.all);
+    const p = q && q.pos;
+    if (Array.isArray(p) && p.length === 3 && p.every(Number.isFinite)) return p[0] * VIEW_F[0] + p[1] * VIEW_F[1] + p[2] * VIEW_F[2];
+  }
+  return null;
+}
+
+/**
+ * Unit-layer zIndex of a unit / piece whose feet are at (x, y): farther first by the depth of its model plane (`plane`:
+ * skinPlaneDepth, relative to an operator's −0.100 — an enemy's −0.152 puts it 0.052 nearer); lifted (dragged) pieces on
+ * top; ties broken by column. Raised block rows (tiles.rowDepthKey, keyed at a row's back edge) still hide the units
+ * behind them: the plane offset never carries a unit across the edge of its own row (a block is opaque 3D in the
+ * official game, the depth buffer decides there, not this sort).
+ */
+export function unitDepthKey(cam, x, y, lift = 0, plane = PLANE_DEPTH.ally) {
   // +40 (< one row of depth at the official 30° pitch, 100·sin 30° = 50): a lifted piece never ties with the unit one
   // row in front of it (a tie flickers with the column tie-break)
-  return -cam.depthOf(x, y, 0) * 100 + (lift > 0 ? 40 : 0) + x * 0.001;
+  const d = cam.depthOf(x, y, 0);
+  let k = -(d + (plane - PLANE_DEPTH.ally)) * 100;
+  const edge = Math.floor(y - 0.5) + 0.5;   // the back edge of the row in front of it
+  if (y - edge > 0.06) k = Math.min(k, -cam.depthOf(x, edge + 0.06, 0) * 100); else k = -d * 100;
+  return k + (lift > 0 ? 40 : 0) + x * 0.001;
 }
 
 function mixTint(a, b, k) {

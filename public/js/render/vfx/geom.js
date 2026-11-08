@@ -214,6 +214,18 @@ function sortOrder(ps, mode, cam) {
   return n;
 }
 
+const _pl = [0, 0, 0];
+/**
+ * (fork) A mesh particle's pivot offset in its own axes, before its rotation × size, as the client's engine builds it
+ * (UnityPlayer.dll 2021.3.39f1, Hypergryph's build: DrawMeshParticles packs the renderer's m_Pivot as (x, −z, y) and
+ * scales it by the particle's size; CalculateMeshParticleTransform then moves it by the particle's rotation × size).
+ * Unity's stock 2021.3.39f1 player scales the pivot by the mesh's bounds instead — the game's build does not.
+ */
+export function enginePivotLocal(pv, sx, sy, sz, out = [0, 0, 0]) {
+  out[0] = pv[0] * sx; out[1] = -pv[2] * sy; out[2] = pv[1] * sz;
+  return out;
+}
+
 /**
  * Write the particles of system `ps` (renderer `r` = the compiled renderer info of the effect) as quads or mesh
  * instances. Returns { kind: 'quad'|'mesh', first, count } or null.
@@ -239,6 +251,8 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
   const mirror = (m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5])) < 0 ? -1 : 1;
   const pv = r.pivot;
   // a local-space system's sizes are drawn at its scaling mode's scale as it is now (psys.js sizeScale)
+  // per axis, as the client engine draws a billboard (UnityPlayer.dll GenerateParticleGeometry: the alignment's axes ×
+  // m_RenderScale — under Hierarchy scaling the node's lossy scale, UpdateLocalToWorldMatrixAndScales)
   const k0 = ps.sizeScale(0), k1 = ps.sizeScale(1), k2 = ps.sizeScale(2);
   let w = 0;
   for (let k = 0; k < n; k++) {
@@ -363,7 +377,16 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
         col[2] = (F0[2] * a0 + F1[2] * a1 + F2[2] * a2) * sc;
       }
       let cx = _p[0], cy = _p[1], cz = _p[2];
-      if (pv && (pv[0] || pv[1] || pv[2])) {
+      if (pv && (pv[0] || pv[1] || pv[2]) && r.enginePivot) {
+        // (fork) effect.js ENGINE_MESH_RULES — the client's engine (UnityPlayer.dll, its DrawMeshParticles): the pivot is
+        // (pivot.x × size x, −pivot.z × size y, pivot.y × size z), then moved by the particle's rotation × size like the
+        // mesh's own vertices — size counted twice, Y and Z swapped (enginePivotLocal)
+        enginePivotLocal(pv, ps.sx[i] * _sm[0], ps.sy[i] * _sm[1], ps.sz[i] * _sm[2], _pl);
+        const lx = _pl[0], ly = _pl[1], lz = _pl[2];
+        cx += _ax[0] * lx + _ay[0] * ly + _az[0] * lz;
+        cy += _ax[1] * lx + _ay[1] * ly + _az[1] * lz;
+        cz += _ax[2] * lx + _ay[2] * ly + _az[2] * lz;
+      } else if (pv && (pv[0] || pv[1] || pv[2])) {
         cx += _ax[0] * pv[0] + _ay[0] * pv[1] + _az[0] * pv[2];
         cy += _ax[1] * pv[0] + _ay[1] * pv[1] + _az[1] * pv[2];
         cz += _ax[2] * pv[0] + _ay[2] * pv[1] + _az[2] * pv[2];

@@ -7,6 +7,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
+### Units draw in the official order
+
+- Units now draw in the order the official game uses: farthest first by the depth of each model's flat plane along the camera's view (the client's battle camera sorts see-through renderers orthographically, and no battle code sets a sorting order). Every model faces the camera head-on, so its height, size and leaps don't change the order. An operator's model sits 0.100 in front of her feet and most enemies' 0.152, read from each unit's official skin. So an enemy in an operator's row now draws over her, as in the official close-ups of Viviana's normal attack (the robot covers her reindeer's antlers). Raised blocks still hide the units behind them (`units.js` `skinPlaneDepth`, `PLANE_DEPTH`).
+- This replaces the earlier same-day rule that put operators over every enemy in their row. In the official footage of Viviana's S2, she turns see-through and vanishes into the dash, and the slash effects (which have their own sorting order) cover the enemies; her body is never lifted over them.
+- The `vfx-talents` "group choice (select)" test asked for successive picks with one attack count; it now uses one count per attack, as the attack clip picks have since the clip change earlier today.
+
 ### Dev sandbox: floating cards, unit card, modules and starting SP
 
 - The sandbox panel is a floating card over the field: the field always fills the window, and opening or hiding a card never moves the camera. Its top keeps adding an operator, Start combat, speed and the frame step; Core bond, Map and enemies, Edit wave, Bonds & stacks, View options and Help fold into sections. The list of placed units and the add box's skill and outfit selects are gone.
@@ -43,7 +49,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -82,6 +88,15 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - An operator in an alliance's Operators list now opens Operator Loadout at that operator, selected and scrolled into view, with its detail open. A filter that would hide it is cleared. Back (or Esc) there returns to the report as it was left: same tab, alliance, scroll position, and focus on that operator. Opened the usual way, Back works as before. The report and the loadout always show the same season version, so every operator listed has a row.
 
+### Viviana's skills
+
+- S3 now looks like the official game in every outfit. Her first cast of a battle plays the "A" clip set (Idle and a 2-hit attack) with its own effects and aura; every later cast plays the "B" set with the 3-hit attack and its two auras. Later casts start with the B Begin clip and no cast plays an End clip, as the official skill data has it. Before, none of S3's effects played and only one of its clips did.
+- S1: a plain cast is her normal attack swing with the 2-hit effects. It no longer flashes the charged-stance clips and aura for a moment. With both charges stored she takes the charged stance (its idle and aura), and the cast that spends them swings `Skill_1_Attack` with the 3-hit effects.
+- S2 shows the second hit's effect whenever the battle rolls her double hit, instead of guessing single or double on its own.
+- Votive Offering's S2 staircase of glowing planks now spirals right beside her, rising on her left and fading as it turns behind her, as in the official game. It had been drawn as a ring over five tiles wide, spinning across the board the other way. It now follows the game engine's own rules, read from the client's `UnityPlayer.dll`: the mesh pivot runs along each step's length and scales with its size, rotation is not mirrored, and prewarm fills the whole staircase before S2 starts. Its mountain is drawn at its node's scale on each axis, as the engine does for a locally aligned billboard. Hand-fitted values replaced.
+- Her talent shield (the melee-blocking layer she gets from hitting elites and leaders) now shows its official effect, in each outfit's own version, while she has a layer. Before, nothing official ever played for it: the battle keeps that shield in the talent's own data, which the client never saw.
+- Outfit effect swaps are kept per outfit. Operators can share an outfit tag, so Horn's The First Gleam and Bagpipe's Echo of Bagpipes played Viviana's deploy effect, and every `epoque#40` wearer swapped a heal hit and a burning effect for other operators' versions. The fx index gained a `skinPairs` map (`tools/local-extract/fx.py`); older clients still read `skinFx`.
+
 ### Trait text
 
 - Blemishine's and Degenbrecher's deploy traits (`garrison_106_a/b`, `garrison_155_a/b`) now read "On deployment … (up to N stacks per battle)", as the Chinese and the game code have it. The official English added an "on skill activation" trigger that doesn't exist and gave the cap as "Can stack up to Nx". The fix is in `tools/i18n/corrections-en.json`.
@@ -104,10 +119,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -225,7 +240,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -550,7 +565,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

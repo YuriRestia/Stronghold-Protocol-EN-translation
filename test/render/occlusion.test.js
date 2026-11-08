@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseStage, buildTileQuads, splitQuadGroups, sortQuadOrder, rowDepthKey, boxDepthKey, ROW_KEY } from '../../public/js/render/tiles.js';
-import { unitDepthKey, groundZ, placeOnGround } from '../../public/js/render/units.js';
+import { unitDepthKey, PLANE_DEPTH, skinPlaneDepth, groundZ, placeOnGround } from '../../public/js/render/units.js';
 import { windUpPlan, MAX_WIND_SPEEDUP } from '../../public/js/render/spine.js';
 import { presetCamera } from '../../public/js/render/projection.js';
 import { SnapshotBuffer } from '../../public/js/render/interp.js';
@@ -68,6 +68,32 @@ describe('depth keys', () => {
       assert.ok(box < unitDepthKey(cam, 4, r + 0.3), `box before unit in row ${r}`);
       assert.ok(box < rowDepthKey(cam, r - 1), `box before the next row in front`);
     }
+  });
+
+  test('official sort: by the model plane (enemies 0.052 nearer than operators), never across a row edge', () => {
+    const A = PLANE_DEPTH.ally, E = PLANE_DEPTH.enemy;
+    // an enemy in an operator's row draws over her, whichever side it stands on (the official close-up: the robot
+    // covers 薇薇安娜's antlers on a normal attack)
+    assert.ok(unitDepthKey(cam, 4.7, 9, 0, E) > unitDepthKey(cam, 4, 9, 0, A));
+    assert.ok(unitDepthKey(cam, 3.6, 9, 0, E) > unitDepthKey(cam, 4, 9, 0, A));
+    // up to its 0.052 of depth (0.104 rows at 30°) farther back, still over her; a row behind, not
+    assert.ok(unitDepthKey(cam, 4.7, 9.08, 0, E) > unitDepthKey(cam, 4, 9, 0, A));
+    assert.ok(unitDepthKey(cam, 4.7, 10, 0, E) < unitDepthKey(cam, 4, 9, 0, A));
+    // the raised blocks keep their margins for every plane depth
+    for (let r = 1; r <= 12; r++) {
+      const block = rowDepthKey(cam, r) + ROW_KEY.blocks;
+      for (const pl of [A, E, -0.277]) {
+        assert.ok(unitDepthKey(cam, 4, r + 0.55, 0, pl) < block, `unit just behind row ${r} (${pl})`);
+        assert.ok(unitDepthKey(cam, 4, r + 0.45, 0, pl) > block, `unit at back of row ${r} (${pl})`);
+      }
+    }
+  });
+
+  test('skinPlaneDepth: a plane point of the skin along the 30° view (薇薇安娜 −0.100, an enemy −0.152)', () => {
+    assert.ok(near(skinPlaneDepth({ points: { HitPoint: { front: { pos: [0, 0.232324, -0.249603] } } } }), -0.1, 1e-3));
+    assert.ok(near(skinPlaneDepth({ points: { HitPoint: { all: { pos: [0, 0.423538, -0.42] } } } }), -0.152, 1e-3));
+    assert.equal(skinPlaneDepth(null), null);
+    assert.equal(skinPlaneDepth({ points: {} }), null);
   });
 
   test('a lifted (dragged) piece sorts above its ground neighbours only within its own depth band', () => {

@@ -54,6 +54,22 @@ export function meshRef(v) {
   return null;
 }
 
+/**
+ * (fork) Mesh particle renderers drawn by the client engine's own rules, by prefab key and node name — read from the
+ * game's UnityPlayer.dll (2021.3.39f1, Hypergryph's build), named with Unity's stock 2021.3.39f1 player and its PDB:
+ * - the pivot (`enginePivot`, geom.js enginePivotLocal): DrawMeshParticles packs m_Pivot as (x, −z, y), scales it by the
+ *   particle's size and CalculateMeshParticleTransform moves it by the particle's rotation × size again — the stock
+ *   player scales it by the mesh's bounds instead, the game's build does not;
+ * - the rotation: Euler angles in Unity's Z-X-Y order (math::kRotationOrderLUT entry 4), not negated — geom.js quatEuler as
+ *   it is (negated only under the shape's alignToDirection);
+ * - the prewarm (`prewarmS`): ParticleSystem::ComputePrewarmStartParameters simulates the longest start lifetime, rounded
+ *   up to whole loops — the system stands complete as it starts, not after one loop.
+ * The renderer-wide switch (every mesh particle with a pivot, every prewarmed system) waits for the lead's renderer-wide
+ * check. 薇薇安娜's 还愿礼 S2 buff, `stairs ab` (Box001, long along Y; size3D 0.15 / 0.3 / 0.5, pivot z 5.52, turning
+ * 30°/s about X): the pivot runs out along each step's own length — the video's spokes (youtu.be/L1yV18aMIos, 1:06–1:20).
+ */
+export const ENGINE_MESH_RULES = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
+
 /** The renderer info of a ParticleSystemRenderer. */
 function psrInfo(r) {
   if (!r) return null;
@@ -112,7 +128,15 @@ export function compileEffect(desc, lib = {}) {
       const sub = nd.particleSystem.SubModule;
       if (sub && Array.isArray(sub.subEmitters)) for (const se of sub.subEmitters) if (se && se.emitter && se.emitter.node != null) def.subNodes.add(se.emitter.node);
     }
-    if (nd.particleSystemRenderer) def.psr[i] = psrInfo(nd.particleSystemRenderer);
+    if (nd.particleSystemRenderer) {
+      def.psr[i] = psrInfo(nd.particleSystemRenderer);
+      if (def.psr[i] && ENGINE_MESH_RULES[String(def.key).toLowerCase()]?.includes(nd.name)) {
+        def.psr[i].enginePivot = true;
+        const ps = def.ps[i];
+        const life = ps?.startLifetime?.peak || 0;
+        if (ps && ps.prewarm && life > ps.duration) ps.prewarmS = Math.min(30, Math.ceil(life / ps.duration) * ps.duration);
+      }
+    }
     if (nd.meshRenderer && nd.meshFilter !== undefined) {
       const r = nd.meshRenderer;
       def.mesh[i] = { enabled: r.m_Enabled !== false && r.m_Enabled !== 0, mesh: meshRef(nd.meshFilter),
