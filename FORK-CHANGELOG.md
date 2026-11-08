@@ -20,6 +20,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
 - Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
 - The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server. Each count update carries about 30 more bytes for it.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests

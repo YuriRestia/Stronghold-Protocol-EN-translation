@@ -320,6 +320,11 @@ describe('two servers', () => {
       const seen = await player(r.sg, 'D');
       const m = await seen.waitFor('sys.online', (x) => x.online === 4);
       assert.equal(m.online, 4);
+      // each server's own count too (the lobby's tooltip), from either side of the link
+      assert.deepEqual(m.regions, { sg: 2, us: 2 });
+      const fromUs = await player(r.us, 'E');
+      const byUs = await fromUs.waitFor('sys.online', (x) => x.online === 5);
+      assert.deepEqual(byUs.regions, { sg: 2, us: 3 });
       const h = await (await fetch(`http://127.0.0.1:${r.us.port}/healthz`)).json();
       assert.equal(h.peer.up, true);
     } finally { await r.close(); }

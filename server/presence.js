@@ -21,13 +21,18 @@ export function countPresence(network, lobby) {
   return { online: network.connectionCount, searching };
 }
 
-/** (fork) This server's counts plus the other regions' (server/peerLink.js; none: just this server). */
+/**
+ * (fork) This server's counts plus the other regions' (server/peerLink.js; none: just this server). `regions`: each
+ * region's own online count ({ [id]: n }), this one and every region the link still hears from.
+ */
 export function withPeers(counts, peer) {
   if (!peer) return counts;
   const rest = peer.others();
   const searching = { ...counts.searching };
   for (const [d, n] of Object.entries(rest.searching)) searching[d] = (searching[d] || 0) + n;
-  return { online: counts.online + rest.online, searching };
+  const self = peer.config?.self;
+  const total = { online: counts.online + rest.online, searching };
+  return self ? { ...total, regions: { ...(rest.byRegion || {}), [self]: counts.online } } : total;
 }
 
 export class Presence {

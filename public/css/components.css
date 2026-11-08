@@ -879,6 +879,17 @@
 .ping--high { --pc: var(--red-premium); }
 .ping--off { --pc: var(--text-dim); }
 .online-pill .ping__unit { margin-left: .04rem; }
+.online-pill-tt .online-pill { cursor: default; }
+.online-pill-tt .online-pill:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+/* (fork) the online pill's per-server tooltip (ui/presence.js): one row per server, the viewer's own marked */
+.online-tip { display: grid; gap: .03rem; min-width: 1.7rem; white-space: normal; }
+.online-tip__head { margin-bottom: .03rem; color: var(--text-lo); font-size: calc(.12 * var(--t)); letter-spacing: .04em; text-transform: uppercase; }
+.online-tip__row { display: flex; align-items: center; justify-content: space-between; gap: .2rem; }
+.online-tip__name { display: inline-flex; align-items: center; gap: .05rem; color: var(--text-md); white-space: nowrap; }
+.online-tip__name::before { content: ''; width: .06rem; height: .06rem; border-radius: 50%; background: transparent; }
+.online-tip__row.is-here .online-tip__name { color: var(--text-hi); font-weight: 700; }
+.online-tip__row.is-here .online-tip__name::before { background: var(--mint-400); box-shadow: 0 0 6px var(--mint-glow); }
+.online-tip__n { color: var(--mint-400); font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
 /* (fork) the lobby's server picker (ui/regionPicker.js): the ping pill as a button, a small list under it */
 .regpick { position: relative; display: inline-flex; flex: none; }
 .regpick__btn { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; border-radius: 99px; }
