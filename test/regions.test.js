@@ -230,7 +230,7 @@ describe('only the current generation speaks for a region', () => {
  */
 let shared = null;
 async function startPair() {
-  const opts = { MatchClass: StubMatch, port: 0, host: '127.0.0.1', log: quiet, quiet: true, noticeFile: null, assetIndex: false, peerPollMs: 40, matchTickMs: 20 };
+  const opts = { MatchClass: StubMatch, port: 0, host: '127.0.0.1', log: quiet, quiet: true, noticeFile: null, assetIndex: false, peerPollMs: 40, presencePollMs: 30, presenceRefreshMs: 0, matchTickMs: 20 };
   const config = (self, hosts) => ({ self, list: hosts, letters: regionLetters(hosts, self), arbiter: 'sg', auto: true, crossMatch: true, secret: SECRET, crossAfterMs: 0 });
   const sgConfig = config('sg', [{ id: 'sg', host: 'localhost:1' }, { id: 'us', host: 'localhost:2' }]);
   const sg = await startServer({ ...opts, regions: sgConfig });
