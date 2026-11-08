@@ -83,7 +83,7 @@ export class ShadowMatch {
     });
     self.pool = new SharedPool(env.gd, { banned: self.bannedChess ?? [] });
     self.pool.entries = new Map(world.pool.map(([id, cap, left, tier]) => [id, { cap, left, tier }]));
-    self.itemPool = new SharedItemPool(env.gd, () => self.order);
+    self.itemPool = new SharedItemPool(env.gd, () => self.order, self.roomScale ?? 1);
     self.itemPool.debt = new Map(world.itemDebt);
     return self;
   }

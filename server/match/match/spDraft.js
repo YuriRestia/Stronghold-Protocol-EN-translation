@@ -15,6 +15,8 @@ const PERSONAL_OFFER_SIZE = 3;
 
 export class MatchSpDraft {
   enterSpDraft() {
+    // (fork) a large room with two squads: one draft per squad with its own cards, both at once (match/largeRoom.js)
+    if (this.squads) { if (!this._enterSpDraftLanes()) this.beforePrepOffers(); return; }
     const draft = generateDraft(this.gd, this.rngDraft, this.round, { stageId: this.stageId, bondAvailable: (bondId) => this.bondLive(bondId), itemAvailable: id => this.itemPool.canGain(id) });
     const alive = this.alivePlayers();
     if (!draft || !alive.length) { this.beforePrepOffers(); return; }
@@ -31,16 +33,20 @@ export class MatchSpDraft {
     this.markPublic();
   }
 
-  spTurn() {
+  /** @param {string|null} [playerId] (fork) with squads: the turn of that player's squad draft */
+  spTurn(playerId = null) {
     const s = this.sp;
     if (!s) return null;
+    if (s.lanes) return this._laneTurn(playerId ? this._laneOf(s, playerId) : s.lanes[0]);
     return s.order[s.idx] ?? null;
   }
 
   spCardAvailable(card) { return !!card && this.sp?.taken[card.idx] == null && (card.kind !== 'item' || this.itemPool.canGain(card.id)); }
 
-  startSpTurn() {
+  /** @param {string|null} [playerId] (fork) with squads: restart that player's squad draft (every one without) */
+  startSpTurn(playerId = null) {
     const s = this.sp;
+    if (s?.lanes) { for (const l of s.lanes) if (!playerId || l.order.includes(playerId)) this._startSpLane(l); return; }
     this.cancel(this._turnTimer);
     this._turnTimer = null;
     while (s.idx < s.order.length) { // loop-cap: draft order
@@ -71,7 +77,8 @@ export class MatchSpDraft {
     this.markPublic();
   }
 
-  scheduleSpBot() {
+  scheduleSpBot(playerId = null) {
+    if (this.sp?.lanes) { this.startSpTurn(playerId); return; } // (fork) a lane picks for the AI itself
     const token = this._turnToken;
     this.later(this.scaled(DELAYS.BOT_ACTION), () => {
       if (this.phase !== PHASE.SP_DRAFT || token !== this._turnToken || !this.sp) return;
@@ -94,7 +101,11 @@ export class MatchSpDraft {
     if (this.phase !== PHASE.SP_DRAFT || !this.sp) return fail(ERR.WRONG_PHASE);
     if (!ps.alive) return fail(ERR.ELIMINATED);
     if (this.sp.picks[ps.playerId] != null) return fail(ERR.ALREADY);
-    if (this.spTurn() !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
+    if (this.spTurn(ps.playerId) !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
+    if (this.sp.lanes) {
+      const why = this._pickLaneCard(ps, this._laneOf(this.sp, ps.playerId), idx);
+      return why === 'bad' ? fail(ERR.BAD_TARGET) : why === 'sold' ? fail(ERR.SOLD_OUT) : OK;
+    }
     if (!Number.isInteger(idx) || idx < 0 || idx >= this.sp.cards.length) return fail(ERR.BAD_TARGET);
     if (!this.spCardAvailable(this.sp.cards[idx])) return fail(ERR.SOLD_OUT);
     this._applyCard(ps, idx);
@@ -119,6 +130,7 @@ export class MatchSpDraft {
     if (this.phase !== PHASE.SP_DRAFT) return;
     this.cancel(this._turnTimer);
     this._turnTimer = null;
+    this._clearLaneTimers(this.sp);
     this.beforePrepOffers();
   }
 

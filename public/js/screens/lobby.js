@@ -71,6 +71,7 @@ import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
 import { DifficultyDetailsButton } from '../ui/difficultyDetails.js';
 import { NoticesButton } from '../ui/notices.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
+import { RoomBrowser, askRoomPassword } from '../ui/largeRooms.js';
 import { contentSet, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, seasonOf, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
 
@@ -235,15 +236,30 @@ export function rememberRoom(code, test = false) {
   savePref('recentRooms', recent);
 }
 
+/**
+ * (fork) A join or watch that a locked Grand Alliance room refuses (ROOM_LOCKED, shared/largeRoom.js) asks for its password
+ * and tries again until it is right or the player cancels (then undefined).
+ */
+async function joinUnlocked(type, fields) {
+  try { return await regions.join(type, fields); } catch (err) {
+    if (err?.code !== ERR.ROOM_LOCKED) throw err;
+    for (let retry = fields.password != null; ; retry = true) { // loop-cap: the player cancels; the server rate-limits wrong passwords
+      const password = await askRoomPassword(fields.code, retry);
+      if (!password) return undefined;
+      try { return await regions.join(type, { ...fields, password }); } catch (e) { if (e?.code !== ERR.ROOM_LOCKED) throw e; }
+    }
+  }
+}
+
 export async function joinKnown(type, key) {
   // (fork) the key names its server (public/js/regions.js): one server without regions, exactly net.request
-  try { return await regions.join(type, { code: key }); } catch (err) {
+  try { return await joinUnlocked(type, { code: key }); } catch (err) {
     if (err?.code !== ERR.TEST_CONFIRM) throw err;
     const text = type === 'room.spectate'
       ? t('这是测试房间，不计入任何记录。确认观战？')
       : t('这是测试房间，不计入任何记录。确认加入？');
     if (await confirmDialog({ title: t('测试'), text })) {
-      return regions.join(type, { code: key, testAck: true });
+      return joinUnlocked(type, { code: key, testAck: true });
     }
   }
 }
@@ -630,7 +646,7 @@ export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, on
  * in a 1024 px window — it ended in an ellipsis there).
  */
 export function AllianceSelect({ onClose, onCreate, difficulty = 'FUNNY', code, onCode, codeOk, online, busy, onJoin, onSpectate, recent, marks, focusKey,
-  testMode = false, asTest = false, onTest = () => {}, short = false }) {
+  testMode = false, asTest = false, onTest = () => {}, short = false, grand = null }) {
   const diffName = DIFFICULTY_NAMES[difficulty] ? t(DIFFICULTY_NAMES[difficulty]) : '';
   return html`<${Modal} open=${true} onClose=${onClose} class="ally" veilClass="proto-veil">
     <div class="ally__body">
@@ -679,10 +695,27 @@ export function AllianceSelect({ onClose, onCreate, difficulty = 'FUNNY', code, 
               <span class="ally-card__icon"><${Icon} name="users" /></span>${t('加入同盟')}${busy === 'join' ? html`<${Spinner} size="sm" />` : null}
             </button>
           </div>
+          ${grand ? html`<${GrandAllianceCard} grand=${grand} online=${online} busy=${busy} />` : null}
         </section>
       </div>
     </div>
   <//>`;
+}
+
+/**
+ * (fork) 大同盟 (Grand Alliance, shared/largeRoom.js) inside 选择同盟方式: up to 8 Doctors in two squads — the room browser
+ * and a new 8-seat room. msgids — 大同盟 en: "Grand Alliance"; 最多 8 名博士 · 两个小队 en: "Up to 8 Doctors · two squads";
+ * 浏览房间 en: "Browse Rooms"; 创建大同盟 en: "Create Grand Alliance"
+ */
+function GrandAllianceCard({ grand, online, busy }) {
+  return html`<div class="ally-card ally-grand" data-testid="grand-card">
+    <div class="ally-grand__head"><span class="ally-card__icon"><${Icon} name="users" /></span>
+      <span class="ally-grand__name"><b>${t('大同盟')}</b><small>${t('最多 8 名博士 · 两个小队')}</small></span></div>
+    <div class="ally-grand__actions">
+      <${Button} variant="secondary" icon="search" data-testid="grand-browse" disabled=${!online} onClick=${grand.onBrowse}>${t('浏览房间')}<//>
+      <${Button} icon="plus" data-testid="grand-create-ally" loading=${busy === 'create'} disabled=${!online} onClick=${grand.onCreate}>${t('创建大同盟')}<//>
+    </div>
+  </div>`;
 }
 
 /** Lobby screen component. */
@@ -700,6 +733,8 @@ export function LobbyScreen() {
   const [allyOpen, setAllyOpen] = useState(false);
   const [soloOpen, setSoloOpen] = useState(false);
   const [matchOpen, setMatchOpen] = useState(false);   // (fork) 选择模拟协议 for 单人匹配
+  const [largeOpen, setLargeOpen] = useState(false);   // (fork) the Grand Alliance room browser (ui/largeRooms.js)
+  const largeRooms = useStore((s) => s.largeRooms === true);
   const queue = useSoloQueue();
   const [code, setCode] = useState('');
   const [asTest, setAsTest] = useState(false);
@@ -752,6 +787,8 @@ export function LobbyScreen() {
     mode, difficulty: mode === 'solo' ? shownSolo : shownCoop, ...(testMode && asTest ? { test: true } : {}), ...(versions ? { version } : {}),
     ...(mode === 'solo' && soloFree && soloTimed === true ? { soloUnlimited: true } : {}),
   }));
+  // (fork) a Grand Alliance room (shared/largeRoom.js): co-op, 8 seats, the default version, at the co-op difficulty shown
+  const createLarge = () => run('create', () => net.request('room.create', { mode: 'coop', capacity: 8, difficulty: shownCoop, ...(testMode && asTest ? { test: true } : {}) }));
   // (fork) 单人匹配: the queue at the co-op difficulty shown; the lobby stays on screen while queued
   const joinQueue = () => run('create', async () => {
     await net.request('queue.join', { difficulty: shownCoop });
@@ -839,6 +876,7 @@ export function LobbyScreen() {
     ${allyOpen ? html`<${AllianceSelect} onClose=${() => setAllyOpen(false)} onCreate=${() => create('coop')} difficulty=${shownCoop}
       code=${code} onCode=${(v) => setCode(normalizeCode(v))} codeOk=${codeOk} online=${online} busy=${busy}
       onJoin=${join} onSpectate=${spectate} recent=${recent} marks=${marks} focusKey=${!coarse}
+      grand=${largeRooms && version === DEFAULT_VERSION ? { onBrowse: () => { setAllyOpen(false); setLargeOpen(true); }, onCreate: createLarge } : null}
       testMode=${testMode} asTest=${asTest} onTest=${setAsTest} short=${shortScreen} />` : null}
     ${soloOpen ? html`<${ProtocolSelect} roomMode="solo" difficulty=${shownSolo} onDifficulty=${pickDifficulty}
       onClose=${() => setSoloOpen(false)} onCreate=${() => create('solo')} busy=${busy} online=${online}
@@ -848,6 +886,7 @@ export function LobbyScreen() {
       onClose=${() => setMatchOpen(false)} onCreate=${joinQueue} busy=${busy} online=${online} difficulties=${coop}
       loading=${versionLoading} failed=${versionFailed} action=${/* en: "Start Matchmaking" */ t('开始匹配')}
       hint=${/* en: "The simulation starts as soon as 4 Doctors are found" */ t('凑齐 4 名博士后立即开始模拟')} />` : null}
+    ${largeOpen ? html`<${RoomBrowser} onClose=${() => setLargeOpen(false)} onCreate=${createLarge} onJoin=${(k) => join(k)} busy=${busy} online=${online} />` : null}
     ${sweepOpen ? html`<${SweepReport} onClose=${() => setSweepOpen(false)} />` : null}
     ${achOpen ? html`<${AchievementDialog} onClose=${() => setAchOpen(false)} />` : null}
   </div>`;

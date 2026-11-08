@@ -150,6 +150,7 @@ export class MatchPlatform {
       // (fork) match/botTasks.js: a page that reconnects reports its tab again
       this._botHostHidden.delete(ps.playerId);
       this._botTaskHostLost(ps);
+      this._largeDisconnect(ps); // (fork) a large room: the AI plays the board until the player is back (match/largeRoom.js)
       this.markPublic();
     });
   }
@@ -160,6 +161,7 @@ export class MatchPlatform {
     this.guard(() => {
       const was = ps.connected;
       ps.connected = true;
+      this._largeReconnect(ps); // (fork) match/largeRoom.js: the board back from the AI
       this._resync(ps);
       if (!was) this.markPublic();
     });
@@ -212,6 +214,8 @@ export class MatchPlatform {
         this.finish({ victory: false, reason: 'abandoned' });
         return;
       }
+      // (fork) a large room: a departed player's board stays in the match under the AI (match/largeRoom.js) [ASSUMED]
+      if (this.largeRoom && ps.alive) { this.kickBot(ps); return; }
       this._quit(ps);
     });
   }
@@ -257,11 +261,11 @@ export class MatchPlatform {
       this.finish({ victory: false, reason: 'eliminated' });
       return;
     }
-    if (phase === PHASE.SP_DRAFT && this.sp && this.spTurn() === ps.playerId) this.startSpTurn();
+    if (phase === PHASE.SP_DRAFT && this.sp && this.spTurn(ps.playerId) === ps.playerId) this.startSpTurn(ps.playerId);
     // a seat leaving during the strategy draft keeps its place in the order, like one gone before it: at its turn the AI
     // drafts for it (botControlled → scheduleBandBot; botPickBand's departedWeight: Touch while nobody else holds it,
     // never 歌利亚) and it keeps the 0 LP it left with (_applyBand; §37.65)
-    else if (phase === PHASE.BAND_DRAFT && this.draft && this.draftTurn() === ps.playerId) this.startDraftTurn();
+    else if (phase === PHASE.BAND_DRAFT && this.draft && this.draftTurn(ps.playerId) === ps.playerId) this.startDraftTurn(ps.playerId);
     else if (phase === PHASE.PREP) this.maybeEndPrep();
   }
 

@@ -506,7 +506,9 @@ export class MatchBoss {
    * (bossTurnHpReduceTime, gamedata.js bossOvertimeDue).
    */
   _applyOvertime(gt) {
-    const due = this.gd.bossOvertimeDue(gt, this.bossOvertimeStartReal);
+    // (fork) a large room drains × players ÷ 4 (shared/largeRoom.js: 2 LP a second at 8) [ASSUMED]
+    const raw = this.gd.bossOvertimeDue(gt, this.bossOvertimeStartReal);
+    const due = this.roomScale > 1 ? Math.floor(raw * this.roomScale) : raw;
     if (due > this.overtimeApplied) {
       const loss = due - this.overtimeApplied;
       this.overtimeApplied = due;
@@ -567,7 +569,7 @@ export class MatchBoss {
     this.markPublic();
     this.runner = null;
     if (!hidden) {
-      const eligible = victory && !!this.hiddenBossId && hiddenEligible(this.gd, { layerSum: this.hiddenLayerSum, teamLp: this.teamLp });
+      const eligible = victory && !!this.hiddenBossId && hiddenEligible(this.gd, { layerSum: this.hiddenLayerSum, teamLp: this.teamLp, scale: this.roomScale });
       this.later(this.scaled(DELAYS.SETTLE), () => {
         if (eligible) {
           this.hiddenReached = true;
