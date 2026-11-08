@@ -16,7 +16,8 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
   `welcome.largeRooms`, `room.closed { reason: 'idle' }`, `m.public.players[].squad`, `m.public.draft.lanes` /
   `sp.lanes`.
 - **Humans only, no matchmaking**: `room.addBot`, `room.search` and 「允许观战者接替 AI」 are refused; matchmaking and the solo
-  queue never place anyone in one. Team Simulation (选择同盟方式) has a Grand Alliance card: a full-screen room browser of
+  queue never place anyone in one. The lobby has a Grand Alliance mode (大同盟), and Team Simulation (选择同盟方式) a Grand
+  Alliance card; both open a full-screen room browser of
   the open (not started, not full) rooms of this server, oldest first, at most 50, with filters for open and locked
   rooms, and a button that creates one; a key joins from anywhere. The host may lock the room with a 4-letter password
   from the lock button beside the alliance key — not in 同盟设置, which keeps only the difficulty. Only the host gets that

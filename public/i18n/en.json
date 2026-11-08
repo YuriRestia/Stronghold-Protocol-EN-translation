@@ -2635,5 +2635,8 @@
   "该房间已上锁，请输入正确的密码": "This room is locked. Enter its password.",
   "上锁": "Lock",
   "4 个字母。锁定后，加入房间（包括邀请链接）需要输入密码。": "4 letters. Once locked, joining the room (invite links too) needs the password.",
-  "解锁": "Unlock"
+  "解锁": "Unlock",
+  "最多 8 名博士分为两个小队，争夺同一个干员池，最终一起对抗同一个敌方领袖。": "Up to 8 Doctors in two squads, fighting over one shared operator pool, then one shared Enemy Leader together.",
+  "仅限真人 · 房间可上锁": "Humans only · rooms can be locked",
+  "最多 8 名博士": "Up to 8 Doctors"
 }

@@ -149,6 +149,16 @@ const MODE_CARDS = [
     ],
     pointParams: { n: MAX_SEATS },
   },
+  // (fork) 大同盟 (Grand Alliance, ui/largeRooms.js, shared/largeRoom.js): opens the room browser; only when the server allows
+  // these rooms. Team Simulation (选择同盟方式) keeps its Grand Alliance card too.
+  {
+    // en: "Grand Alliance"
+    id: 'grand', name: N_('大同盟'), en: 'GRAND ALLIANCE', icon: 'users',
+    // en: "Up to 8 Doctors in two squads, fighting over one shared operator pool, then one shared Enemy Leader together."
+    desc: N_('最多 8 名博士分为两个小队，争夺同一个干员池，最终一起对抗同一个敌方领袖。'),
+    points: [N_('最多 8 名博士 · 两个小队'), N_('仅限真人 · 房间可上锁')], // en: "Up to 8 Doctors · two squads", "Humans only · rooms can be locked"
+    pointShort: N_('最多 8 名博士'), // en: "Up to 8 Doctors"
+  },
 ];
 
 /**
@@ -767,7 +777,7 @@ export function LobbyScreen() {
   const shownSolo = fallbackDifficulty(solo, difficulty);
   const shownCoop = fallbackDifficulty(coop, difficulty);
 
-  const openMode = (m) => { if (m === 'solo') setSoloOpen(true); else if (m === 'match') setMatchOpen(true); else setAllyOpen(true); };
+  const openMode = (m) => { if (m === 'solo') setSoloOpen(true); else if (m === 'match') setMatchOpen(true); else if (m === 'grand') setLargeOpen(true); else setAllyOpen(true); };
   const pickDifficulty = (d) => { setDifficulty(d); savePref('lobby.difficulty', d); };
   const setSoloFreePref = (on) => { const next = on === true; setSoloFree(next); savePref('lobby.soloUnlimited', next); };
 
@@ -864,7 +874,7 @@ export function LobbyScreen() {
       </aside>
       <section class=${`hub-entries${queue.queued ? ' is-queued' : ''}`} aria-label=${t('模拟方式')}>
         ${queue.queued ? html`<div class="create-box hub-queue"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
-          : MODE_CARDS.filter((c) => c.id !== 'match' || version === DEFAULT_VERSION).map((c) => {
+          : MODE_CARDS.filter((c) => (c.id !== 'match' || version === DEFAULT_VERSION) && (c.id !== 'grand' || (largeRooms && version === DEFAULT_VERSION))).map((c) => {
           const timedCard = c.id === 'solo';
           const timePoint = timedCard ? soloTimeMsgid('card', { timed: soloTimed, unlimited: soloFree }) : '';
           const timeShort = timedCard ? soloTimeMsgid('short', { timed: soloTimed, unlimited: soloFree }) : '';
