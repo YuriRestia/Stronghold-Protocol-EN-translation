@@ -251,8 +251,9 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
   const mirror = (m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5])) < 0 ? -1 : 1;
   const pv = r.pivot;
   // a local-space system's sizes are drawn at its scaling mode's scale as it is now (psys.js sizeScale)
-  // (fork) effect.js BILLBOARD_SCALE_X: the X scale on every axis
-  const k0 = ps.sizeScale(0), k1 = r.scaleByX ? k0 : ps.sizeScale(1), k2 = r.scaleByX ? k0 : ps.sizeScale(2);
+  // per axis, as the client engine draws a billboard (UnityPlayer.dll GenerateParticleGeometry: the alignment's axes ×
+  // m_RenderScale — under Hierarchy scaling the node's lossy scale, UpdateLocalToWorldMatrixAndScales)
+  const k0 = ps.sizeScale(0), k1 = ps.sizeScale(1), k2 = ps.sizeScale(2);
   let w = 0;
   for (let k = 0; k < n; k++) {
     const i = _idx[k];
@@ -324,10 +325,7 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
         const ca = Math.cos(a), sa = Math.sin(a);
         const rx0 = ca * X0 + sa * Y0, rx1 = ca * X1 + sa * Y1, rx2 = ca * X2 + sa * Y2;
         const ry0 = -sa * X0 + ca * Y0, ry1 = -sa * X1 + ca * Y1, ry2 = -sa * X2 + ca * Y2;
-        // (fork) effect.js BILLBOARD_SCALE_X `fitSize` / `fitOffset`: a fitted size and an offset along the local axes
-        const fsz = r.fitSize, fof = r.fitOffset;
-        const kx = sx * fx * mirror * (fsz ? fsz[0] : 1), ky = sy * fy * (fsz ? fsz[1] : 1);
-        if (fof) { cx += X0 * fof[0] + Y0 * fof[1]; cy += X1 * fof[0] + Y1 * fof[1]; cz += X2 * fof[0] + Y2 * fof[1]; }
+        const kx = sx * fx * mirror, ky = sy * fy;
         ax0 = rx0 * kx; ax1 = rx1 * kx; ax2 = rx2 * kx;
         ay0 = ry0 * ky; ay1 = ry1 * ky; ay2 = ry2 * ky;
         // the pivot moves the quad off the particle by pivot × size along its (rolled) axes (header)

@@ -70,17 +70,6 @@ export function meshRef(v) {
  */
 export const ENGINE_MESH_RULES = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
-/**
- * (fork) Billboards drawn at their node's X scale on both axes, ignoring a non-uniform Y scale, by prefab key and node
- * name [ASSUMED: Unity's billboard sizing is not in the client dump]. 还愿礼 S2's mountain, `BGDark (7)` (size3D 2.2 × 0.5,
- * node scale (1.03, 2.49), its frame of vvana_object_059_008 a 4 : 1 band): the 2.2 : 0.5 size is that band's shape, and the
- * official video shows the mountain low and wide; × 2.49 our quad stood 1.8 : 1 and the mountain a tall narrow peak.
- * Fitted, no rule found (`fitSize`, `fitOffset`) [ASSUMED: measured on the video's S2 dash frame, the staircase as the
- * ruler]: the official mountain stands 0.67 wide and 0.46 tall at its base, its peak level with the top step just inside
- * the steps' inner ends; ours stood 1.16 wide, its peak 0.5 further right and lower.
- */
-export const BILLBOARD_SCALE_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['BGDark (7)']) });
-
 /** The renderer info of a ParticleSystemRenderer. */
 function psrInfo(r) {
   if (!r) return null;
@@ -141,12 +130,6 @@ export function compileEffect(desc, lib = {}) {
     }
     if (nd.particleSystemRenderer) {
       def.psr[i] = psrInfo(nd.particleSystemRenderer);
-      if (def.psr[i] && BILLBOARD_SCALE_X[String(def.key).toLowerCase()]?.includes(nd.name)) {
-        def.psr[i].scaleByX = true;
-        // fitted (BILLBOARD_SCALE_X): 0.84 as wide and 1.25 as tall, its centre 0.24 left and 0.30 up (local axes, units)
-        def.psr[i].fitSize = [0.84, 1.25];
-        def.psr[i].fitOffset = [-0.24, 0.30];
-      }
       if (def.psr[i] && ENGINE_MESH_RULES[String(def.key).toLowerCase()]?.includes(nd.name)) {
         def.psr[i].enginePivot = true;
         const ps = def.ps[i];
