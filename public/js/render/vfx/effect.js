@@ -60,7 +60,9 @@ export function meshRef(v) {
  * picture says so]. 薇薇安娜's 还愿礼 S2 buff, `stairs ab` (size3D 0.15 / 0.3 / 0.5, pivot z 5.52, rotating 30°/s about X):
  * the official video (youtu.be/L1yV18aMIos, 1:12–1:20) shows the steps of its helix about 0.5–0.8 tiles beside her —
  * pivot × 0.15 = 0.83 —, where the Z size made a ring 2.76 out, 5.5 tiles across. The renderer-wide rule (74 nodes shift
- * by more than 0.1) waits for a check of those operators.
+ * by more than 0.1) waits for a check of those operators. Its rotation runs the other way too (`negRot`: the particle's
+ * Euler angles negated, as a billboard's roll turns clockwise — geom.js ROLL_SIGN) [ASSUMED, same source]: the video's
+ * newest steps rise on her left and the helix fades going round behind her; ours turned to her right.
  */
 export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
@@ -124,7 +126,7 @@ export function compileEffect(desc, lib = {}) {
     }
     if (nd.particleSystemRenderer) {
       def.psr[i] = psrInfo(nd.particleSystemRenderer);
-      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) def.psr[i].pivotByX = true;
+      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) { def.psr[i].pivotByX = true; def.psr[i].negRot = true; }
     }
     if (nd.meshRenderer && nd.meshFilter !== undefined) {
       const r = nd.meshRenderer;

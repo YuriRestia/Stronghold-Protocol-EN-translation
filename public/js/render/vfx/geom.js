@@ -348,7 +348,9 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
         F0 = [xx, xy, xz]; F2 = [zx, zy, zz]; F1 = [zy * xz - zz * xy, zz * xx - zx * xz, zx * xy - zy * xx];
       } else { F0 = R; F1 = U; F2 = F; }
       const DEGR = 180 / Math.PI;
-      quatEuler(ps.rx[i] * DEGR, ps.ry[i] * DEGR, ps.rz[i] * DEGR, _q);
+      // (fork) effect.js PIVOT_BY_X `negRot`: the angles the other way
+      const rs = r.negRot ? -DEGR : DEGR;
+      quatEuler(ps.rx[i] * rs, ps.ry[i] * rs, ps.rz[i] * rs, _q);
       // particle rotation columns
       const qx = _q[0], qy = _q[1], qz = _q[2], qw = _q[3];
       const r00 = 1 - 2 * (qy * qy + qz * qz), r10 = 2 * (qx * qy + qw * qz), r20 = 2 * (qx * qz - qw * qy);
