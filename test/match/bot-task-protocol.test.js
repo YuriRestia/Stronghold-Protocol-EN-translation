@@ -165,6 +165,35 @@ test('a receipt gives the plan its own window; a silent plan fails over, and so 
   h.m.dispose();
 });
 
+test('an executor looping frames cannot stall the prep: a repeated receipt or plan batch re-opens no window and applies nothing', () => {
+  const h = atPrep();
+  const active = toFirstTask(h);
+  const first = active.task.id;
+  send(h, 'p_0', { t: 'b.botReceived', taskId: first });
+  h.sched.advance(BOT_PLAN_MS - 1000);
+  send(h, 'p_0', { t: 'b.botReceived', taskId: first });
+  h.sched.advance(1001);
+  assert.equal(active.executor, 'p_1', 'the second receipt did not re-arm the plan window');
+  // the next executor's plan, then the same plan again, and receipts after it
+  const frame = h.lastTo('p_1', 'b.botTask');
+  const plan = playTask(frame).plan.moves;
+  send(h, 'p_1', { t: 'b.botReceived', taskId: frame.taskId });
+  send(h, 'p_1', { t: 'b.botMoves', taskId: frame.taskId, batch: 'plan', moves: plan });
+  assert.equal(h.allTo('p_1', 'b.botAck').length, 1);
+  const after = seatHash(active.entry.ps);
+  h.sched.advance(frame.budgetMs / 2);
+  for (let i = 0; i < 3; i++) {
+    send(h, 'p_1', { t: 'b.botMoves', taskId: frame.taskId, batch: 'plan', moves: plan });
+    send(h, 'p_1', { t: 'b.botReceived', taskId: frame.taskId });
+  }
+  assert.equal(h.allTo('p_1', 'b.botAck').length, 1, 'no second ack');
+  assert.equal(seatHash(active.entry.ps), after, 'nothing applied twice');
+  assert.equal(h.m.botTaskStats.stale, 0);
+  h.sched.advance(frame.budgetMs / 2 + BOT_GRACE_MS + 1);
+  assert.ok(active.entry.ps.ready, 'the window closed when the first plan said: the seat readies up');
+  h.m.dispose();
+});
+
 test('every human gone silent: the seat readies up and the server decides nothing', () => {
   const h = atPrep();
   const active = toFirstTask(h);

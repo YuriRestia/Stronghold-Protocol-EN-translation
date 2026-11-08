@@ -228,7 +228,11 @@ export class MatchBotTasks {
   /** b.botReceived: the page has the task. Its Worker may still be starting, so the plan batch gets a longer window. */
   _onBotReceived(ps, msg) {
     const active = this._botTaskOf(ps, msg.taskId);
-    if (active) this._armBotTimer(active, BOT_PLAN_MS);
+    // once per task, and never after its plan: a repeated receipt must not re-open the window (an executor looping frames
+    // would stall an untimed prep)
+    if (!active || active.receivedId === msg.taskId || active.plannedId === msg.taskId) return OK;
+    active.receivedId = msg.taskId;
+    this._armBotTimer(active, BOT_PLAN_MS);
     return OK;
   }
 
@@ -236,6 +240,11 @@ export class MatchBotTasks {
   _onBotMoves(ps, msg) {
     const active = this._botTaskOf(ps, msg.taskId);
     if (!active) return OK;
+    // one plan batch per task: a repeat applies nothing and does not re-arm the budget window
+    if (msg.batch === 'plan' && !msg.error) {
+      if (active.plannedId === msg.taskId) return OK;
+      active.plannedId = msg.taskId;
+    }
     if (msg.error) {
       this.botTaskStats.errors++;
       this._botHostStrike(ps.playerId);

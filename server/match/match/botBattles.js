@@ -9,7 +9,6 @@
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
 
 import { syntheticResult, validateClientResult } from '../fields.js';
-import { requiresTraitLayerAuthority } from '../operatorTraits.js';
 
 /** Wall-clock ms an executor has to answer one field. Its browser may be working through 3 bot fields, on a phone. */
 export const BOT_BATTLE_ANSWER_MS = 30000;
@@ -17,11 +16,15 @@ export const BOT_BATTLE_ANSWER_MS = 30000;
 export const BOT_HOST_STRIKES = 2;
 
 export class MatchBotBattles {
-  /** Whether a field `_authorityFor` found no human for goes to a browser instead of the server. */
+  /**
+   * Whether a field `_authorityFor` found no human for goes to a browser instead of the server: only a field every player of which
+   * is a bot. A field with any human seat, connected or not (gone, left, AI-controlled after leaving), stays on the server as before,
+   * because the browser that would run it is not that player's and its result is checked on bounds only (botField). Layer traits
+   * are exempt on such a field, capped by the same allowance.
+   */
   _botBattleOnHost(f) {
     if (this.botBattles !== 'host') return false;
-    // layer traits keep today's rule on a human's field; a field of bots only is exempt, capped by the same allowance
-    return !requiresTraitLayerAuthority(f.spec, this.gd) || f.players.every((pid) => this.players.get(pid)?.isBot);
+    return f.players.length > 0 && f.players.every((pid) => this.players.get(pid)?.isBot === true);
   }
 
   /**

@@ -137,11 +137,50 @@ test('a battle still running when its field stops is cancelled, and a late answe
   h.m.dispose();
 });
 
-test('nobody connected: no thinking and no simulating on the server', () => {
+test('nobody connected: the bot fields are not simulated on the server, the absent human\'s field is', () => {
   const h = atCombat({ seats: [human(0, false), bot(1), bot(2), bot(3)] });
   assert.ok(h.m.fields.length > 0);
-  assert.equal(h.serverRuns.length, 0);
+  const humanFields = h.m.fields.filter((f) => f.players.includes('p_0')).map((f) => f.fieldId).sort();
+  assert.deepEqual(h.serverRuns.map(([id]) => id).sort(), humanFields);
   assert.ok(h.m.botBattleStats.synthetic >= 3);
+  h.m.dispose();
+});
+
+/** A human's field with that human gone stays the server's (dev-0.2's rule): no browser runs it, so none can forge its result. */
+function assertHumanFieldOnServer(h, pid) {
+  const fields = h.m.fields.filter((f) => f.players.includes(pid));
+  assert.ok(fields.length > 0);
+  const sent = h.allTo('p_0', 'b.botBattle').map((x) => x.battleId);
+  for (const f of fields) {
+    assert.notEqual(f.mode, 'host');
+    assert.equal(f.executor ?? null, null);
+    assert.ok(!sent.includes(f.battleId), `${f.fieldId} went to a browser`);
+    assert.ok(h.serverRuns.some(([id]) => id === f.fieldId), `${f.fieldId} not run on the server`);
+  }
+  assert.equal(sent.length, botFields(h).length, 'only fields of bots alone go to a browser');
+  // an answer for that field, from the executor of the bot fields, changes nothing
+  const f = fields[0];
+  const before = f.result;
+  h.m.handle('p_0', fakeAnswer(f));
+  assert.equal(f.result, before);
+  assert.notEqual(f.resultSource, 'host');
+}
+
+test('a disconnected human\'s field stays on the server: it never goes to another human\'s browser', () => {
+  const h = atCombat({ seats: [human(0), human(1, false), bot(2), bot(3)] });
+  assertHumanFieldOnServer(h, 'p_1');
+  h.m.dispose();
+});
+
+test('a human who leaves is out of the match (中途退出 = elimination): no field of theirs ever reaches a browser', () => {
+  // en: 中途退出 = "quitting mid-match"
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats: SEATS, seed: 3, fake: true, clientCombat: true, hostId: 'p_0', botBattles: 'host', botBattleAnswerMs: 1000 });
+  h.autoHumans().start();
+  h.runToPhase('PREP', 1);
+  h.m.onLeave('p_1');
+  h.runToPhase('COMBAT', 1);
+  assert.deepEqual(h.m.fields.filter((f) => f.players.includes('p_1')).map((f) => f.fieldId), []);
+  assert.equal(h.allTo('p_0', 'b.botBattle').length, botFields(h).length);
   h.m.dispose();
 });
 

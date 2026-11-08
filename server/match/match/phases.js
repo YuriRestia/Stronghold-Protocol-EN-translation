@@ -146,7 +146,8 @@ export class MatchPhases {
       const fallback = this.botExecution === 'host'
         ? () => this._startBotPick(ps, 'band', () => valid() && !this.draft?.picks[ps.playerId], () => this._applyBand(ps, this.timeoutBand(ps.playerId)))
         : () => this._onBotSeat(ps, () => this._applyBand(ps, chooseBotBand(this, ps), { dedupe: true }));
-      const bot = this.botFor(ps);
+      // a departed co-op seat drafts by the team's rule (chooseBotBand): never asked of the seat's strategy, as on dev-0.2
+      const bot = !this.isSolo && ps.alive === false ? LEGACY_BOT : this.botFor(ps);
       if (bot.decide?.(this, ps, { kind: 'band', valid,
         complete: () => token !== this._turnToken || !!this.draft?.picks[ps.playerId], fallback })) return;
       fallback();
