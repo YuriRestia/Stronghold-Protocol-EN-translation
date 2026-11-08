@@ -87,6 +87,7 @@ import { MoteRing } from './motes.js';
 import { UF, ANIM } from '../../../shared/constants.js';
 import { SpineActor } from './spine.js';
 import { skillAttackMode } from './skillAttack.js';
+import { ATTACK_CLIPS } from './vfx/wiring.js';
 import { MANIFOLD, isManifold, manifoldCopyForm, manifoldAttackForm } from './manifold.js';
 import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, HUD_DISC, ELEMENT_RING } from './textures.js';
 import { COLORS, TIER_COLORS, ENEMY_FRAME, UNIT, PROJ, statusIconKey, statusIconSuppressed, statusValueLabel } from './style.js';
@@ -2666,7 +2667,10 @@ export class UnitView {
         }
       }
       if (!anims.die && a.has('Die')) out.set('Die', false);
-      if (typeof a.attackVariants === 'function') for (const n of a.attackVariants()) if (!out.has(n)) out.set(n, false);
+      // (fork) the clips the official pick plays beside the roles' (vfx/wiring.js ATTACK_CLIPS)
+      for (const n of ATTACK_CLIPS[this.info.diy?.charId || this.info.spine || this.info.defId]?.clips || []) {
+        if (a.has(n) && !out.has(n)) out.set(n, false);
+      }
     }
     this._clipsOf = a;
     this._clips = out;

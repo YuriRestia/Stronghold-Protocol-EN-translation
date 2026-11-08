@@ -16,6 +16,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - SilverAsh the Reignfrost's S3 now shows its official effects: the skill range around him, the bird landing when it starts, a curved bird slash leaving him toward his target with each attack, and the official hit as it reaches each enemy. The bird art was never extracted because the skill names its projectiles only as a buff template's default value; `tools/local-extract/fx.py` now follows those too. The server and the preload zip need the new art.
 - SilverAsh the Reignfrost's normal attacks now play the animation that matches their effect: Attack_A, B or C with the same stab or slash, instead of always Attack_A.
+- 20 more operators whose attacks pick between animations now play the one that matches their effect instead of always the first: Rosmontis, Wiš'adel (with her down-facing animations), Chongyue, Ascalon, Crownslayer, Bellone, Mountain, Vigil, Entelechia, Qiubai, Pramanix the Prerita, Vina Victoria, Tragodia, Wang, Ebenholz, Lin, Hoederer, Logos, Haruka and Aphrissa. The official sources are listed at `ATTACK_CLIPS` in `public/js/render/vfx/wiring.js`. Random attacks that never repeat also picked their wind-up and strike effects separately, so the two could differ; they are now one pick. A pick between two also repeated for about 7 attacks on average, now about 2; that fix (`seedOf`) changes the random effect picks of every operator, not only these 20.
+- A skill that replaces the next attack (Vina Victoria's S1 and 25 more) now plays its whole animation once in place of that attack: once its SP is full the clip starts from the first frame a full wind-up before the predicted strike (the end of its attack cooldown, or when an enemy it can hit reaches its range, first attack of a fight included), with its cast effects, so the leap plays out and the blow lands on the hit; a strike that comes later than predicted is waited for just before the blow. Before, only the clip's last part showed, sometimes looped into a second swing, and from the second cast on the previous attack's clip often replaced it.
 - Talulah's S3 now plays its official sounds: the cast, each volley's launch, each fireball's impact and the overload.
 - Talulah's S3 now shows its official fireballs flying down every lane and exploding on the enemy they hit. The art was never extracted because the skill fires them from a buff template, and nothing drew them. `tools/local-extract/fx.py` now follows projectiles that an operator's buff templates fire, so local copies need `extract.py --only fx --fx-set used --fx-add-only`; until then the game keeps the procedural ring.
 
@@ -102,7 +104,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -427,7 +429,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

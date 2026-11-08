@@ -83,6 +83,58 @@ const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
 const DIRS = ['UP', 'RIGHT', 'DOWN', 'LEFT'];
 /** Cast rows starting at these ability events start with the cast (0 ON_ATTACHED, 2 ON_CAST_START); 4 ON_SPELL_ON … at the strike. */
 const CAST_START_EVENTS = new Set([0, 2]);
+/**
+ * (fork) The operators whose attacks pick between clips (FxWiring.attackClip), read from the CN client because the index
+ * exports neither remap: `clips` every clip a pick can play (the impostor box: UnitView._clipNames); `map` per mode name,
+ * or '*', an ability's clip key → the skeleton's clip (key: its `animKey`, or its node's name when that is empty); `down`
+ * the same when it faces down; `modes` the mode a skill runs in where the index gives it none, by skill index; `skillRole`
+ * no pick while the skill is on.
+ * Sources: chararts/<id>.ab DefaultSkin `_animations` (skin), charpack/<id>.ab mode `_replaceAnimPairs` (hook) and an
+ * ability's animator `_oneshotAnim` (oneshot).
+ */
+export const ATTACK_CLIPS = Object.freeze({
+  char_391_rosmon: { clips: ['Attack_A', 'Attack_B'] },
+  char_1035_wisdel: {
+    clips: ['Attack_A', 'Attack_B', 'Attack_C', 'Attack_Down_A', 'Attack_Down_B', 'Attack_Down_C'],
+    down: { Attack_A: 'Attack_Down_A', Attack_B: 'Attack_Down_B', Attack_C: 'Attack_Down_C' },   // her effect rows' down slots
+  },
+  // skillRole: his S3's window is its one strike, on its role's clip. Its stance after the fifth cast (hook: Changed plays
+  // Skill_3_Loop_A / B) is no skill window in the sim (mem.chyueAwake) and reaches the view by no event, so it is not here.
+  char_2024_chyue: { clips: ['Attack_A', 'Attack_B'], skillRole: true },
+  char_4132_ascln: { clips: ['Attack_A', 'Attack_B'] },
+  char_1502_crosly: { clips: ['Attack_A', 'Attack_B', 'Skill_1_A', 'Skill_1_B'] },
+  char_4037_demetr: { clips: ['Attack_A', 'Attack_B', 'Skill_3_Loop_A', 'Skill_3_Loop_B'] },
+  char_264_f12yin: { clips: ['Attack_A', 'Attack_B'], map: { '*': { Attack_1: 'Attack_A', Attack_2: 'Attack_B' } } },   // skin
+  char_1045_svash2: {
+    clips: ['Attack_A', 'Attack_B', 'Attack_C'],
+    map: { '*': { AttackA: 'Attack_A', AttackB: 'Attack_B', AttackC: 'Attack_C' } },   // oneshot
+  },
+  char_427_vigil: {
+    clips: ['Skill3_Attack_A', 'Skill3_Attack_B', 'Skill3_Attack_C'],
+    map: { S3: { Attack_A: 'Skill3_Attack_A', Attack_B: 'Skill3_Attack_B', Attack_C: 'Skill3_Attack_C' } },   // oneshot
+  },
+  char_4010_etlchi: { clips: ['Skill_3_Loop_A', 'Skill_3_Loop_B'] },
+  char_4082_qiubai: { clips: ['Combat_A', 'Combat_B'] },
+  char_1019_siege2: { clips: ['Attack_1', 'Attack_2'] },
+  char_1042_phatm2: { clips: ['Attack_1', 'Attack_2', 'Skill_2_Loop_1', 'Skill_2_Loop_2'] },
+  char_4133_logos: { clips: ['Attack_1', 'Attack_2'], map: { '*': { Attack: 'Attack_1' } } },   // skin
+  char_2027_wang: {
+    clips: ['Attack_1_A', 'Attack_1_B', 'Attack_2_A', 'Attack_2_B'],
+    map: {
+      S2: { Attack_A: 'Attack_2_A', Attack_B: 'Attack_2_B' },   // hook
+      '*': { Attack_A: 'Attack_1_A', Attack_B: 'Attack_1_B' },   // skin
+    },
+  },
+  char_1046_sbell2: { clips: ['Skill_3_Attack_A', 'Skill_3_Attack_B', 'Skill_3_Attack_C'] },
+  char_4046_ebnhlz: { clips: ['Skill_3_A', 'Skill_3_B', 'Skill_3_C'] },
+  char_4080_lin: { clips: ['Skill_3_Attack_A', 'Skill_3_Attack_B', 'Skill_3_Attack_C'] },
+  char_4088_hodrer: { clips: ['Skill_2_Loop_A', 'Skill_2_Loop_B'] },
+  char_4202_haruka: { clips: ['Skill_3_Loop_A', 'Skill_3_Loop_B'] },
+  char_4229_aphris: { clips: ['Skill_1_Loop_A', 'Skill_1_Loop_B', 'Skill_Down_1_Loop_A', 'Skill_Down_1_Loop_B'], modes: { 0: 'Sk1' } },
+});
+/** A group's pick that varies from attack to attack (pickAttacks), against one the unit's state decides. */
+const CLIP_PICK = /^(?:random|loop|sequential)$/;
+
 /** Bounces of a chain: no attack of the unit's own. */
 const CHAIN = new Set(['chain', 'chainHeal']);
 /** A point past `b` on the line from `a` (an effect on the target turned along the blow). */
@@ -131,7 +183,21 @@ export function seedOf(id, n) {
   let h = 2166136261;
   for (const c of String(id ?? '')) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
   h = Math.imul(h ^ (n | 0), 2654435761);
-  return (h ^ (h >>> 15)) >>> 0;
+  // (fork) a full finalizer (murmur3): this multiplier leaves bit 15 tracking the count's parity, so the low bit, a pick of
+  // two, repeated for 7 attacks on average (维娜·维多利亚's Attack_2 for her first 10 in the sandbox)
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/**
+ * The animation an UberAnimationEffectEmitter replaces its source with on the unit's `nth` attack: in turn for LOOP, a
+ * seeded pick for RANDOM (index v3's `loopTypeName`; the same in a replay). Its rows and the attack's clip both follow it.
+ */
+function replacedAnim(em, id, nth) {
+  const anims = em.replaceAnims;
+  const random = typeof em.loopTypeName === 'string' ? em.loopTypeName === 'RANDOM' : em.loopType === 1;
+  return anims[(random ? seedOf(id, nth) : nth) % anims.length];
 }
 
 /** Whether an ability — or a group holding one — is the kind of attack the sim made. */
@@ -157,7 +223,7 @@ function abilityFits(a, kind, depth = 0) {
  * @param {number} seed seedOf(unit, attack count)
  * @param {number} depth
  * @param {number} nth the unit's attack count
- * @param {Map<any, number>|null} mem the unit's last random picks by group
+ * @param {Map<any, { i: number, nth: number }>|null} mem the unit's last random picks by group, with their attack count
  */
 export function pickAttacks(a, kind, seed = 0, depth = 0, nth = 0, mem = null) {
   if (!a) return [];
@@ -181,9 +247,13 @@ export function pickAttacks(a, kind, seed = 0, depth = 0, nth = 0, mem = null) {
   if (method === 'random') {
     i = seed % pool.length;
     if (sel?.diffFromLast && mem && pool.length > 1) {
+      // (fork) one attack is one pick: its wind-up and its strike both ask, with the same count
       const last = mem.get(a);
-      if (last === i) i = (i + 1 + ((seed >>> 7) % (pool.length - 1))) % pool.length;
-      mem.set(a, i);
+      if (last?.nth === nth) i = last.i % pool.length;
+      else {
+        if (last?.i === i) i = (i + 1 + ((seed >>> 7) % (pool.length - 1))) % pool.length;
+        mem.set(a, { i, nth });
+      }
     }
   } else if (method === 'loop' || method === 'sequential') i = nth % pool.length;
   return [a, ...next(pool[i])];
@@ -834,8 +904,7 @@ export class FxWiring {
     if (r.anim && em?.class === 'UberAnimationEffectEmitter') {
       const anims = Array.isArray(em.replaceAnims) ? em.replaceAnims : [];
       if (!anims.length) return true;
-      const random = typeof em.loopTypeName === 'string' ? em.loopTypeName === 'RANDOM' : em.loopType === 1;
-      return r.anim === anims[(random ? seedOf(src.id ?? src.info?.id, nth) : nth) % anims.length];
+      return r.anim === replacedAnim(em, src.id ?? src.info?.id, nth);
     }
     return true;
   }
@@ -863,23 +932,45 @@ export class FxWiring {
   }
 
   /**
-   * (fork) The attack clip of the ability this attack's effects come from: an AbilityRandomGroup whose abilities name no
-   * clip (`animKey` empty: 凛御银灰's AttackA / AttackB / AttackC) plays the numbered clip of the same letter, so a stab's
-   * effects come with the stab. The same pick as _attackSet (the unit's seed and attack count). Null for anything else,
-   * a skill's attack included: the actor's own clip. [ASSUMED: by name, the index holds no ability → clip link for them]
+   * (fork) The clip of the attack whose effects are about to play, for an operator in ATTACK_CLIPS: the pick _attackSet
+   * and _rowOk make (the unit's seed and attack count), so a stab's effects come with the stab. Null when no such pick
+   * decides it (a mode with one attack, a pick by the unit's state) or the skill's own rows replace the mode's: the
+   * actor's roles decide, as for every other unit. `strike`: asked at the 'atk' itself, where the next target of one attack
+   * is the same attack (`attack`: the same frame), not the count's next.
    */
-  attackClip(src, tgt, kind, skillOn) {
-    if (!src || src.isEnemy || !this.idx || CHAIN.has(kind) || this.skills.state(src, skillOn).on) return null;
-    const a = this.mode(this.unitOf(src), src, skillOn)?.attack;
-    if (!a || !/RandomGroup/.test(a.class || '')) return null;
-    const id = src.id ?? src.info?.id;
-    const nth = this.attackN.get(id) || 0;
+  attackClip(src, tgt, kind, skillOn, strike = false) {
+    if (!src || src.isEnemy || !this.idx || CHAIN.has(kind)) return null;
+    const key = this.unitKeyOf(src);
+    const row = key ? ATTACK_CLIPS[key] : null;
+    if (!row) return null;
+    const u = this.idx.units[key];
+    const combat = this._combatKind(src, tgt, kind, skillOn);
+    if (this.skills.attackFx(src, tgt, combat, skillOn)?.replace) return null;
+    const on = this.skills.state(src, skillOn).on;
+    if (on && row.skillRole) return null;
+    const named = on ? row.modes?.[src.info?.skillIndex] : null;
+    const m = (named && u.modes?.find((x) => x.name === named)) || this.mode(u, src, skillOn);
+    // a skill with no mode of its own plays its role's clip (凛御银灰 S1's Skill_1_A), unless that role is the attack's (迷迭香 S1)
+    if (!named && m?.name === 'Default' && on && src.actor?.roles?.skill?.via !== 'attack') return null;
     const blocked = !!((src.flags | 0) & UF.BLOCKED);
+    const a = m?.combat && (!m.attack || (combat === 'none' && blocked)) ? m.combat : m?.attack;
+    if (!a) return null;
+    const id = src.id ?? src.info?.id;
+    const again = strike && this.castFrame.get(id) === this.skills.frame;
+    const nth = Math.max(0, (this.attackN.get(id) || 0) - (again ? 1 : 0));
     const heal = !!tgt && !tgt.isEnemy;
-    const list = pickAttacks(a, { heal, ranged: !!kind && kind !== 'none', blocked }, seedOf(id, nth), 0, nth, new Map(this.picks.get(id) || []));
-    const x = list[list.length - 1];
-    const m = !x?.animKey && /Attack_?([A-Z])$/.exec(x?.node || '');
-    return m ? `Attack_${m[1]}` : null;
+    const list = pickAttacks(a, { heal, ranged: !!combat && combat !== 'none', blocked }, seedOf(id, nth), 0, nth, new Map(this.picks.get(id) || []));
+    // the attack that names its clip: among parallel sub-abilities the one with the emitter (Haruka S3's FirstAttack)
+    const swaps = (g) => (Array.isArray(g?.emitters) ? g.emitters : []).filter((e) => e?.replaceAnims?.length);
+    const x = list.findLast((g) => swaps(g).length) || list[list.length - 1];
+    const ems = swaps(x);
+    if (!ems.length && !list.some((g) => g !== x && CLIP_PICK.test(g.select?.method || ''))) return null;
+    const down = this._facing(src) === 'DOWN';
+    const own = x.animKey || '';
+    const em = (down && ems.find((e) => e.sourceAnimKey === `${own}_Down`)) || ems.find((e) => e.sourceAnimKey === own) || ems[0];
+    const clip = em ? replacedAnim(em, id, nth) : own || String(x.node || '').split('/').pop();
+    const official = row.map?.[m.name]?.[clip] ?? row.map?.['*']?.[clip] ?? clip;
+    return (down && row.down?.[official]) || official;
   }
 
   /**

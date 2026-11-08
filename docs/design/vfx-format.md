@@ -886,7 +886,7 @@ into `emitters`). The rows a subclass keeps in groups join the lists with the gr
   UberAnimationEffectEmitter.LoopType, written as `loopTypeName`): 0 LOOP — the attack plays the group animations in
   turn instead of `sourceAnimKey` —, 1 RANDOM — a random one per attack (version 2 of this text assumed 1 meant in
   turn); **assumed**: a row with `anim` plays when the attack plays that animation, the rows without `anim` on every
-  attack.
+  attack. The attack's clip follows the same pick (`FxWiring.attackClip`, for the operators in `ATTACK_CLIPS`).
 * another list of rows keeps its field name (`field`, e.g. `VigilWolfEffectEmitter._vigilWolfCastEffects`, whose rows
   carry the `buffKey` the owner must have).
 

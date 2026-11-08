@@ -61,6 +61,10 @@ export const MAX_WIND_SPEEDUP = 2.5;
 const SKILL_CLIP_MIN = 0.2;
 /** (fork) Game seconds before the next strike frame at which an operator's unconfirmed rhythm loop drops to rest. */
 const RHYTHM_DROP_MARGIN = 0.08;
+// (fork) a predicted skill swing (skillSwingLead) whose attack has not shown up yet holds this far (clip s) before its
+// strike frame, for at most SKILL_HOLD_MAX game s, then gives up (back to rest, no new prediction until a strike)
+const SKILL_HOLD_BEFORE = 0.05;
+const SKILL_HOLD_MAX = 1;
 
 /**
  * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
@@ -568,7 +572,8 @@ export class SpineActor {
     this.endRoles = null;
     this.skillIndex = null;       // the skill slot whose clip `skill` plays (setSkillIndex), null = the manifest's primary
     this.strike = null;           // the attack-class skill clip the next / current attack plays (castStrike)
-    this.attackVariant = null;    // (fork) the numbered clip the next attack plays instead of the attack role's (FxWiring.attackClip)
+    this.attackVariant = null;    // (fork) the clip the next / current attack plays by the official pick (FxWiring.attackClip)
+    this.skillVariant = null;     // (fork) that clip when it stands in for the skill role's loop (_attackClip, _isSkillLoop)
     this.runMode = false;         // move on the model's own Run cycle (setRunMode)
     this.formRoles = null;        // the clip set of the form in force (setForm), over the unit's own roles
     this.skillOn = false;
@@ -590,6 +595,18 @@ export class SpineActor {
      */
     this.clipPerAttack = false;
     this.wound = false;           // wound up for the coming attack (windUp → attack)
+    // (fork) the look-ahead saw this unit's instant skill turn on with the coming attack (render/app/windup.js): the
+    // wind-up swings the skill's one clip (_skillOnceClip), so its strike frame lands with the strike
+    this.skillAhead = false;
+    this.windSingle = null;       // (fork) the clip windUp started to play once (that skill clip), not as the rhythm loop
+    // (fork) the view's word that the coming attack is that skill's (its SP full: render/app/windup.js), the last strike's
+    // time, and whether the predicted swing (skillSwingLead) has started
+    this.skillNext = false;
+    this.lastStrikeAt = null;
+    this.skillSwung = false;
+    this.skillConfirmed = false;  // its real 'atk' has been seen (windup.js): no hold
+    this.skillGaveUp = false;     // a predicted swing gave up: no new one until the next strike
+    this.skillHoldAt = null;
     /**
      * (fork) A model with a melee clip set next to its ranged one, the manifest's roles naming one of them: a 重炮手
      * (fortress) melees while blocking, a 领主 (lord) at its own / front tile. 'ranged' | 'melee' = the coming attack's
@@ -819,19 +836,37 @@ export class SpineActor {
     const clip = this._attackClip();
     if (!clip) return false;
     const loop = this._shot(clip.loop);
+    // (fork) the predicted skill swing (skillSwingLead) meets its real attack: its strike frame lands with it
+    if (clip.single && this.mode === 'attack' && this.current === loop && this.wound) {
+      const e = this.spine.state.tracks[0];
+      const d = this.dur(loop);
+      const h = this._hitTime(loop, d);
+      const toHit = e ? h - e.trackTime : 0;
+      if (e && toHit > 0 && lead > 0) {
+        e.timeScale = clampN(toHit / lead, 0.25, 4);
+        this.windUntil = this.clock + lead;
+        this.attackUntil = this.windUntil + Math.max(0, d - h) / (this.windTs || 1);
+      }
+      return false;
+    }
     // One queued attack owns one wind-up. A later attack may begin while the previous recovery is still playing.
     if (this.mode === 'attack' && this.current === loop && (once || this.wound)) return false;
     const loopDur = this.dur(loop);
     // a one-off cast plays at the clip's own speed (one loop per clip length), whatever the attack rhythm
     const iv = once ? loopDur : clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     const hit = this._hitTime(loop, loopDur);
-    const rhythm = !once && !this.clipPerAttack;
+    // (fork) a skill clip that replaces this one attack (skillAhead) plays once: as the rhythm loop it wrapped back to
+    // its frame 0 after the strike and swung a second time, half a second late (维娜·维多利亚 S1)
+    const single = !!clip.single;
+    const per = this.clipPerAttack || single;
+    const rhythm = !once && !per;
     // (fork) an operator's rhythm loop already swinging: this attack takes the coming swing, no restart
     if (rhythm && this.mode === 'attack' && this.current === loop && this._confirmSwing(loopDur, hit, iv, lead)) return true;
     // clip per attack: its own speed, sped up only when the attacks come quicker than the clip
-    const plan = windUpPlan(loopDur, hit, this.clipPerAttack && !once ? Math.min(iv, loopDur) : iv, lead);
+    const plan = windUpPlan(loopDur, hit, per && !once ? Math.min(iv, loopDur) : iv, lead);
     if (!(hit > 0) || lead * plan.ts > hit + 1e-6) return false;
     if (!once) this.interval = iv;
+    this.windSingle = single ? loop : null;
     this.mode = 'attack';
     this.attackUntil = rhythm ? this._rhythmUntil(this.clock + lead, plan.ts, loopDur)
       : this.clock + lead + Math.max(0, loopDur - hit) / plan.ts;
@@ -859,7 +894,7 @@ export class SpineActor {
     if (!clip) return;
     const loop = this._shot(clip.loop);
     const loopDur = this.dur(loop);
-    const per = this.clipPerAttack && !once;
+    const per = (this.clipPerAttack || (this.wound && this.windSingle === loop)) && !once;
     // clip per attack: its own speed (ts 1), faster only when the attacks come quicker than the clip
     const ts = once ? 1 : per ? clampN(loopDur / Math.min(this.interval, loopDur), 1, 4) : clampN(loopDur / this.interval, 0.35, 4);
     const hit = this._hitTime(loop, loopDur);
@@ -872,6 +907,13 @@ export class SpineActor {
     this.attackUntil = rhythm ? this._rhythmUntil(this.clock, ts, loopDur) : this.clock + Math.max(0, loopDur - hit) / ts;
     this.windUntil = null;
     this.wound = false;
+    this.skillAhead = false;
+    this.windSingle = null;
+    this.lastStrikeAt = this.clock;
+    this.skillSwung = false;
+    this.skillConfirmed = false;
+    this.skillGaveUp = false;
+    this.skillHoldAt = null;
     if (!wasAttacking) {
       // not wound up (no look-ahead, e.g. a batch that arrived late): the sim already resolved the hit, so show the
       // strike frame now — unless a clip-per-attack actor's rhythm leaves room for the whole clip (interval ≥ clip):
@@ -936,6 +978,8 @@ export class SpineActor {
   _shot(name) {
     // (fork) a form whose clips are the official mode's own (render/units.js FORMS `noShotTwin`: 丰川祥子's S2 timbres)
     if (!this.shot || typeof name !== 'string' || this.roles?.noShotTwin) return name;
+    // (fork) the official pick already names the clip (FxWiring.attackClip): 仇白's Combat_A stays Combat_A
+    if (name === this.attackVariant) return name;
     if (this.shot === 'ranged') {
       for (const t of RANGED_TWIN[name] || []) if (this.has(t)) return t;
       const t = name.replace(/_A(?=_|$)/, '_B');
@@ -1017,7 +1061,20 @@ export class SpineActor {
     this.strike = clip && this.has(clip.loop) ? clip : null;
   }
 
+  /** The clip this attack plays: `_attackBase`, with the loop FxWiring.attackClip picked in place of its loop. */
   _attackClip() {
+    this.skillVariant = null;
+    const ahead = this.skillAhead && !this.skillOn && !this.strike ? this._skillOnceClip() : null;
+    if (ahead) return { begin: null, loop: ahead, end: null, single: true };
+    const base = this._attackBase();
+    const v = this.attackVariant;
+    if (!base || !v || base === this.strike || v === base.loop || !this.has(v)) return base;
+    this.skillVariant = base === this.roles.skill ? v : null;
+    return { ...base, loop: v };
+  }
+
+  /** The clip the roles name for this attack, before any pick; the skill role itself when that is the clip (_skillIdle). */
+  _attackBase() {
     if (this.strike) return this.strike;
     const sk = this.roles.skill;
     const mode = this.skillOn ? this.skillAttackMode?.() : null;
@@ -1048,21 +1105,45 @@ export class SpineActor {
       return sk;
     }
     const a = this.roles.attack;
-    if (!a || !this.has(a.loop)) return null;
-    // (fork) the clip of the ability this attack's effects come from (FxWiring.attackClip)
-    const v = this.attackVariant;
-    return v && v !== a.loop && this.has(v) ? { ...a, loop: v } : a;
+    if (a && this.has(a.loop)) return a;
+    return null;
   }
 
-  /** (fork) The numbered clips besides the attack role's that FxWiring.attackClip can pick (Attack_Begin + Attack_A/B/C). */
-  attackVariants() {
-    const a = this.roles.attack;
-    if (!a?.begin || !/^Attack_A$/.test(a.loop || '')) return [];
-    return ['Attack_B', 'Attack_C'].filter((n) => this.has(n));
+  /** The clip `name` is the skill role's loop: under its shot, or the pick standing in for it (`_attackClip`). */
+  _isSkillLoop(name) {
+    return name === this._shot(this.roles.skill?.loop) || (!!name && name === this.skillVariant);
   }
 
   // Skill loops that are pure stances (no OnAttack in the loop) are still valid attack visuals during a skill;
   // only an idle-typed skill loop is treated as buff-only (a verified mode mapping wins first, §34.31).
+  /**
+   * (fork) The skill clip that is the skill's whole animation (no Begin, no own Idle: setSkill plays it once) and swings
+   * a strike (OnAttack): 维娜·维多利亚 S1's Skill_1, the attack it replaces. Null otherwise.
+   */
+  _skillOnceClip() {
+    const sk = this.roles.skill;
+    if (!sk || this.has(sk.begin) || this.has(sk.idle) || !this.has(sk.loop) || sk.via === 'attack') return null;
+    if (sk.loop === this.roles.attack?.loop || this._skillIsBuffOnly() || !this.entry?.hits?.[sk.loop]?.length) return null;
+    return sk.loop;
+  }
+
+  /**
+   * (fork) Seconds to the predicted strike of the coming attack when the view knows it is the skill's (skillNext): the
+   * last strike plus the attack interval. The look-ahead sees an 'atk' only ~0.1 s ahead, too late for a skill clip
+   * whose strike frame comes after a leap (维娜·维多利亚 S1, 0.63 s in); this starts it from frame 0. Null when there is
+   * no such swing to start.
+   */
+  skillSwingLead(entry) {
+    if (!this.skillNext || this.skillSwung || this.skillGaveUp || this.skillOn || this.wound || this.dead) return null;
+    if (this.mode === 'stun' || this.mode === 'die' || this.mode === 'change' || !this._skillOnceClip()) return null;
+    // the attack comes when its cooldown is over (the last strike plus the interval; ready from the start) and an enemy
+    // is in range: `entry` (render/app/windup.js entryLead) — 0 one is there, null none is coming, undefined unknown
+    const cd = this.lastStrikeAt == null ? 0 : Math.max(0, this.lastStrikeAt + this.interval - this.clock);
+    if (entry === undefined) return this.lastStrikeAt == null ? null : cd;
+    if (entry === null || !(entry >= 0)) return null;
+    return Math.max(cd, entry);
+  }
+
   _skillIsBuffOnly() {
     const sk = this.roles.skill;
     return !!sk && sk.loop === this.roles.idle;
@@ -1076,7 +1157,7 @@ export class SpineActor {
   _skillIdle() {
     const sk = this.roles.skill;
     if (!this.skillOn || !sk || sk.idle === sk.loop || !this.has(sk.idle)) return null;
-    return this._attackClip() === sk ? sk.idle : null;
+    return this._attackBase() === sk ? sk.idle : null;
   }
 
   /**
@@ -1130,11 +1211,16 @@ export class SpineActor {
         // instant skill turns the flag off inside the same tick (sim skills.js fires 'skill' 1 and 0 together and only
         // holds the anim code SKILL for 0.5 s), so this window is what keeps it on screen: the actor used to fall
         // through to the base clip and show no skill animation at all (player report).
-        this.mode = 'skillBegin';
         this.skillClipOnce = true;
         const once = this._shot(sk.loop);
-        this._play(once, false, { mix: 0.08 });
-        this.skillBeginUntil = this.clock + Math.max(SKILL_CLIP_MIN, this.dur(once));
+        if (this.mode === 'attack' && this.wound && this.current === once) {
+          // (fork) its wind-up already swings this clip (skillAhead): the attack plays it out, no restart from frame 0
+          this.skillBeginUntil = this.attackUntil;
+        } else {
+          this.mode = 'skillBegin';
+          this._play(once, false, { mix: 0.08 });
+          this.skillBeginUntil = this.clock + Math.max(SKILL_CLIP_MIN, this.dur(once));
+        }
       } else if (this.mode === 'base') this._play(this._baseName(), true);
     } else if (!on && sk) {
       // an instant skill switches off while its own one-shot clip runs: let the clip finish — the state machine plays
@@ -1147,7 +1233,7 @@ export class SpineActor {
       // (fork) a charge / instant skill whose attack is its loop clip switches off right after that attack (sim
       // skills.js: 'skill' 1, the attack, 'skill' 0 in one tick — 风笛 Bagpipe's S2 double shot): the attack plays out,
       // then its End clip (update, mode 'attack')
-      if (this.has(sk.end) && this.mode === 'attack' && this.current === this._shot(sk.loop) && this.clock < this.attackUntil) {
+      if (this.has(sk.end) && this.mode === 'attack' && this._isSkillLoop(this.current) && this.clock < this.attackUntil) {
         this.skillEndAfterAttack = true;
         return;
       }
@@ -1277,6 +1363,29 @@ export class SpineActor {
     }
     switch (this.mode) {
       case 'attack':
+        if (this.skillSwung && !this.skillConfirmed && this.windSingle && this.current === this.windSingle) {
+          const e = this.spine.state.tracks[0];
+          const h = this._hitTime(this.current, this.dur(this.current));
+          if (e && h > SKILL_HOLD_BEFORE && e.trackTime >= h - SKILL_HOLD_BEFORE) {
+            // (fork) the predicted strike has not come yet: hold just before the blow; its 'atk' retimes it (windUp)
+            if (this.skillHoldAt == null) this.skillHoldAt = this.clock;
+            e.timeScale = 0;
+            e.trackTime = h - SKILL_HOLD_BEFORE;
+            this.windUntil = null;
+            if (this.clock - this.skillHoldAt > SKILL_HOLD_MAX) {
+              // no attack came (the enemy turned away, died, or cannot be hit): rest, and no new prediction until a strike
+              this.skillSwung = false;
+              this.skillGaveUp = true;
+              this.skillHoldAt = null;
+              this.wound = false;
+              this.windSingle = null;
+              this.skillAhead = false;
+              this.mode = 'base';
+              this._play(this._baseName(), true, { mix: 0.15 });
+            }
+            break;
+          }
+        }
         if (this.clock > this.attackUntil) {
           this.mode = 'base';
           this.wound = false;
@@ -1290,14 +1399,15 @@ export class SpineActor {
           // (fork) an unconfirmed rhythm loop stops short of its next strike: hold its pose through the crossfade
           const out = this.spine.state.tracks[0];
           if (out && out.loop) out.timeScale = 0;
-          const clip = this._attackClip() || this.roles.attack;
+          const clip = this._attackBase() || this.roles.attack;
           this.strike = null;   // a strike attack is over (castStrike)
           // a skill with its own idle: back to that idle (its end clip is for the end of the skill, setSkill(false))
           const toSkillIdle = clip === this.roles.skill && !!this._skillIdle();
           const sk = this.roles.skill;
-          const endSkill = this.skillEndAfterAttack;
+          const endSkill = this.skillEndAfterAttack || this.skillEndPending;
           this.skillEndAfterAttack = false;
-          if (endSkill && sk && this.has(sk.end) && this.current === this._shot(sk.loop)) {
+          if (this.skillEndPending) { this.skillEndPending = false; this.skillClipOnce = false; }
+          if (endSkill && sk && this.has(sk.end) && this._isSkillLoop(this.current)) {
             // (fork) the skill switched off during its own attack: its End clip closes it now
             this.mode = 'skillEnd';
             this._play(sk.end, false, { mix: 0.08 });

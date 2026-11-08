@@ -411,7 +411,9 @@ version; base/E2 avatars and half-body portraits are mandatory where the data se
     index. Held loops, own strikes and skill idles retain their existing logic. The alleged Tulip S2 is not an
     official skill in the local tables (§35.21); no mapping is added for it.
     Raw effects-index animKey values are not generally skeleton clip names: mode `_replaceAnimPairs` and skin
-    `_animations` are not exported by the current index. Other indexed skills retain their existing roles until
+    `_animations` are not exported by the current index. Operators whose attacks pick between clips use the table
+    `ATTACK_CLIPS` (`public/js/render/vfx/wiring.js`), read from those fields in the client, with `FxWiring.attackClip`
+    making the same pick as their effects. Other indexed skills retain their existing roles until
     those mappings are available [ASSUMED]. No manifest or skeleton metadata is rewritten.
   - A web enemy model whose clip names mislead the resolver gets the roles of its official battle prefab
     (`tools/assets/spine.mjs PREFAB_SPINE_ROLES`, read from the local client's `battle/enm_pfb_*.ab`: the prefab's anim

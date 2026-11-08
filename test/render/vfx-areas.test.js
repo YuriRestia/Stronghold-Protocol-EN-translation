@@ -13,6 +13,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FxWiring, seedOf } from '../../public/js/render/vfx/wiring.js';
+import { UF } from '../../shared/constants.js';
 import { AURA_HOLD_S } from '../../public/js/render/vfx/skillfx.js';
 import {
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, auraTargets, enemyBindingKeys, modeLoopKeys, bindingEffects, FX_BINDINGS, FX_COVER, coverOf,
@@ -541,6 +542,145 @@ describe('凛御银灰: the attack clip follows the ability that fired', () => {
     const h = t.view(1, 'char_4039_horn', 5);
     t.frame();
     assert.equal(t.w.attackClip(h, null, 'none'), null);
+  });
+
+  test('a skill with no mode of its own: the pick only when its role is the attack\'s', async () => {
+    const { w, index, view, frame } = await setup();
+    index.units.char_1045_svash2.modes = [group];
+    const s = view(1, 'char_1045_svash2', 5);
+    const e = view(2, 'enemy_1040_bombd', 6);
+    frame();
+    w.skill(s, true);
+    s.actor = { roles: { skill: { via: 'attack' } } };
+    assert.equal(w.attackClip(s, e, 'none'), expected(1, 0));
+    s.actor = { roles: { skill: { loop: 'Skill_1_A' } } };
+    assert.equal(w.attackClip(s, e, 'none'), null);
+  });
+});
+
+describe('attack clips by the official pick (ATTACK_CLIPS)', () => {
+  const melee = (animKey, name = animKey, cast = []) => ({ class: 'MeleeAttack', animKey, node: `Modes/Default/Body/Attack/${name}`, cast, hit: [] });
+  const group = (method, abilities, extra = {}) => ({ class: 'AbilityRandomGroup', select: { method, ...extra }, abilities });
+  const emitter = (loopTypeName, replaceAnims, sourceAnimKey) => ({ class: 'UberAnimationEffectEmitter', sourceAnimKey, loopTypeName, replaceAnims });
+  const row = (effect) => [{ startEvent: 3, effects: [effect] }];
+  async function unit(key, modes, o = {}) {
+    const t = await setup();
+    t.index.units[key] = { kind: 'char', modes };
+    const s = t.view(1, key, 5, 9, o);
+    if (o.dir) s.dir = o.dir;
+    const e = t.view(2, 'enemy_1040_bombd', 6);
+    t.frame();
+    return { ...t, s, e };
+  }
+  const walk = (t, kind, n, f) => {
+    for (let i = 0; i < n; i++) {
+      f(i, t.w.attackClip(t.s, t.e, kind));
+      t.w.attackN.set(1, i + 1);
+    }
+  };
+
+  test('random, never twice: the clip, the wind-up\'s effects and the strike\'s effects are one pick', async () => {
+    const t = await unit('char_391_rosmon', [{ name: 'Default', attack: group('random', [
+      melee('Attack_A', 'Attack_A', row('fx_a')), melee('Attack_B', 'Attack_B', row('fx_b')),
+    ], { diffFromLast: true }) }]);
+    const m = t.index.units.char_391_rosmon.modes[0];
+    let prev = null;
+    walk(t, 'none', 12, (n, clip) => {
+      const wind = t.w._attackSet(t.index.units.char_391_rosmon, m, t.s, t.e, 'none', n);
+      const strike = t.w._attackSet(t.index.units.char_391_rosmon, m, t.s, t.e, 'none', n);
+      const fx = clip === 'Attack_A' ? 'fx_a' : 'fx_b';
+      assert.equal(wind.cast[0].effects[0], fx, `wind-up ${n}`);
+      assert.equal(strike.cast[0].effects[0], fx, `strike ${n}`);
+      assert.equal(t.w.attackClip(t.s, t.e, 'none'), clip, 'asking again changes nothing');
+      assert.notEqual(clip, prev, `attack ${n} differs from the last`);
+      prev = clip;
+    });
+  });
+
+  test('a loop group goes in turn; Chongyue\'s skill window keeps its role\'s clip', async () => {
+    const pair = () => group('loop', [melee('Attack_A'), melee('Attack_B')]);
+    const t = await unit('char_2024_chyue', [{ name: 'Default', attack: pair() }, { name: 'Changed', attack: pair() }]);
+    walk(t, 'none', 4, (n, clip) => assert.equal(clip, ['Attack_A', 'Attack_B'][n % 2]));
+    t.s.flags = UF.SKILL;
+    assert.equal(t.w.attackClip(t.s, t.e, 'none'), null);
+  });
+
+  test('parallel sub-abilities: the one with the emitter names the clip (Haruka S3)', async () => {
+    const first = { ...melee('Skill_3_Loop_A', 'FirstAttack'), emitters: [emitter('RANDOM', ['Skill_3_Loop_A', 'Skill_3_Loop_B'], 'Skill_3_Loop_A')] };
+    const t = await unit('char_4202_haruka', [{ name: 'Default', attack: group('parallel', [first, melee('', 'Shield')]) }]);
+    walk(t, 'none', 4, (n, clip) => assert.equal(clip, ['Skill_3_Loop_A', 'Skill_3_Loop_B'][seedOf(1, n) % 2]));
+  });
+
+  test('an empty animKey goes by its node (伺夜 S3), the skin\'s and the mode\'s tables by mode (f12yin, wang)', async () => {
+    const vigil = await unit('char_427_vigil', [{ name: 'Default', attack: melee('') }, { name: 'S3', attack: group('sequential', [melee('', 'Attack_A'), melee('', 'Attack_B'), melee('', 'Attack_C')]) }], { skillIndex: 2 });
+    assert.equal(vigil.w.attackClip(vigil.s, vigil.e, 'none'), null, 'its Default has one attack');
+    vigil.w.skills.state = () => ({ on: true, plan: { modeName: 'S3' }, U: null });
+    vigil.w.skills.attackFx = () => null;
+    walk(vigil, 'none', 3, (n, clip) => assert.equal(clip, `Skill3_Attack_${'ABC'[n]}`));
+    const shan = await unit('char_264_f12yin', [{ name: 'Default', attack: group('loop', [melee('Attack_1'), melee('Attack_2')]) }]);
+    walk(shan, 'none', 2, (n, clip) => assert.equal(clip, ['Attack_A', 'Attack_B'][n]));
+    const em = () => ({ ...melee('Attack_A'), emitters: [emitter('LOOP', ['Attack_A', 'Attack_B'], 'Attack_A')] });
+    const wang = await unit('char_2027_wang', [{ name: 'Default', attack: em() }, { name: 'S2', attack: em() }], { skillIndex: 1 });
+    walk(wang, 'none', 2, (n, clip) => assert.equal(clip, ['Attack_1_A', 'Attack_1_B'][n]));
+    wang.w.skills.state = () => ({ on: true, plan: { modeName: 'S2' }, U: null });
+    wang.w.skills.attackFx = () => null;
+    wang.w.attackN.set(1, 0);
+    walk(wang, 'none', 2, (n, clip) => assert.equal(clip, ['Attack_2_A', 'Attack_2_B'][n]));
+  });
+
+  test('an emitter\'s list: in turn or seeded, as its rows are', async () => {
+    const lin = await unit('char_4046_ebnhlz', [{ name: 'Default', attack: { ...melee('Skill_3_A'), emitters: [emitter('LOOP', ['Skill_3_A', 'Skill_3_B', 'Skill_3_C'], 'Skill_3_A')] } }]);
+    walk(lin, 'none', 4, (n, clip) => assert.equal(clip, ['Skill_3_A', 'Skill_3_B', 'Skill_3_C', 'Skill_3_A'][n]));
+    const em = emitter('RANDOM', ['Attack_1', 'Attack_2'], 'Attack_1');
+    const a = { ...melee('Attack_1'), emitters: [em] };
+    const v = await unit('char_1019_siege2', [{ name: 'Default', attack: a }]);
+    walk(v, 'none', 6, (n, clip) => {
+      assert.equal(clip, ['Attack_1', 'Attack_2'][seedOf(1, n) % 2]);
+      assert.ok(v.w._rowOk({ anim: clip }, em, v.s, n, 0), 'its row plays');
+      assert.ok(!v.w._rowOk({ anim: clip === 'Attack_1' ? 'Attack_2' : 'Attack_1' }, em, v.s, n, 0), 'the other does not');
+    });
+  });
+
+  test('one attack on several targets is one clip: asked again in its frame, at the strike only', async () => {
+    const t = await unit('char_4010_etlchi', [{ name: 'Default', attack: group('loop', [melee('Skill_3_Loop_A'), melee('Skill_3_Loop_B')]) }]);
+    t.w.attack(t.s, t.e, 'none', 1);
+    assert.equal(t.w.attackN.get(1), 1);
+    assert.equal(t.w.attackClip(t.s, t.e, 'none', undefined, true), 'Skill_3_Loop_A', 'the next target of this attack');
+    assert.equal(t.w.attackClip(t.s, t.e, 'none'), 'Skill_3_Loop_B', 'the look-ahead: the coming attack');
+  });
+
+  test('facing down: Wisadel\'s down clips, the down list of char_4229_aphris\'s mode only the table names', async () => {
+    const three = () => group('loop', [melee('Attack_A'), melee('Attack_B'), melee('Attack_C')]);
+    const w1 = await unit('char_1035_wisdel', [{ name: 'Default', attack: three() }], { dir: 'DOWN' });
+    walk(w1, 'none', 3, (n, clip) => assert.equal(clip, `Attack_Down_${'ABC'[n]}`));
+    const w2 = await unit('char_1035_wisdel', [{ name: 'Default', attack: three() }]);
+    walk(w2, 'none', 3, (n, clip) => assert.equal(clip, `Attack_${'ABC'[n]}`));
+    const sk1 = { ...melee('Attack'), emitters: [emitter('LOOP', ['Skill_1_Loop_A', 'Skill_1_Loop_B'], 'Attack'), emitter('LOOP', ['Skill_Down_1_Loop_A', 'Skill_Down_1_Loop_B'], 'Attack_Down')] };
+    const modes = () => [{ name: 'Default', attack: melee('Attack') }, { name: 'Sk1', attack: sk1 }];
+    const a1 = await unit('char_4229_aphris', modes());
+    assert.equal(a1.w.attackClip(a1.s, a1.e, 'none'), null, 'skill off: its Default has one attack');
+    a1.s.flags = UF.SKILL;
+    walk(a1, 'none', 2, (n, clip) => assert.equal(clip, ['Skill_1_Loop_A', 'Skill_1_Loop_B'][n]));
+    const a2 = await unit('char_4229_aphris', modes(), { dir: 'DOWN' });
+    a2.s.flags = UF.SKILL;
+    walk(a2, 'none', 2, (n, clip) => assert.equal(clip, ['Skill_Down_1_Loop_A', 'Skill_Down_1_Loop_B'][n]));
+  });
+
+  test('仇白: her random pick is her Combat, only on the enemy she blocks', async () => {
+    const t = await unit('char_4082_qiubai', [{ name: 'Default', attack: { class: 'RangedAttack', animKey: 'Attack', node: 'Attack', cast: [], hit: [] }, combat: group('loop', [melee('Combat_A'), melee('Combat_B')]) }]);
+    assert.equal(t.w.attackClip(t.s, t.e, 'arrow'), null, 'not blocking: her one shot');
+    t.s.flags = UF.BLOCKED;
+    walk(t, 'none', 2, (n, clip) => assert.equal(clip, ['Combat_A', 'Combat_B'][n]));
+  });
+
+  test('no pick decides it: a state-driven group, an operator off the table, the skill\'s own rows', async () => {
+    const trig = await unit('char_4202_haruka', [{ name: 'Default', attack: group('trigger', [melee('Attack', 'AttackAndShield'), melee('Attack', 'ShieldOnly')]) }]);
+    assert.equal(trig.w.attackClip(trig.s, trig.e, 'none'), null);
+    const off = await unit('char_009_off_table', [{ name: 'Default', attack: group('random', [melee('Attack_A'), melee('Attack_B')]) }]);
+    assert.equal(off.w.attackClip(off.s, off.e, 'none'), null);
+    const rep = await unit('char_391_rosmon', [{ name: 'Default', attack: group('random', [melee('Attack_A'), melee('Attack_B')]) }]);
+    rep.w.skills.attackFx = () => ({ replace: true });
+    assert.equal(rep.w.attackClip(rep.s, rep.e, 'none'), null);
   });
 });
 
