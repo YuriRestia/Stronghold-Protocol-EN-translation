@@ -230,7 +230,7 @@ describe('only the current generation speaks for a region', () => {
  */
 let shared = null;
 async function startPair() {
-  const opts = { MatchClass: StubMatch, port: 0, host: '127.0.0.1', log: quiet, quiet: true, noticeFile: null, assetIndex: false, peerPollMs: 40, matchTickMs: 20 };
+  const opts = { MatchClass: StubMatch, port: 0, host: '127.0.0.1', log: quiet, quiet: true, noticeFile: null, assetIndex: false, peerPollMs: 40, presencePollMs: 30, presenceRefreshMs: 0, matchTickMs: 20 };
   const config = (self, hosts) => ({ self, list: hosts, letters: regionLetters(hosts, self), arbiter: 'sg', auto: true, crossMatch: true, secret: SECRET, crossAfterMs: 0 });
   const sgConfig = config('sg', [{ id: 'sg', host: 'localhost:1' }, { id: 'us', host: 'localhost:2' }]);
   const sg = await startServer({ ...opts, regions: sgConfig });
@@ -320,6 +320,11 @@ describe('two servers', () => {
       const seen = await player(r.sg, 'D');
       const m = await seen.waitFor('sys.online', (x) => x.online === 4);
       assert.equal(m.online, 4);
+      // each server's own count too (the lobby's tooltip), from either side of the link
+      assert.deepEqual(m.regions, { sg: 2, us: 2 });
+      const fromUs = await player(r.us, 'E');
+      const byUs = await fromUs.waitFor('sys.online', (x) => x.online === 5);
+      assert.deepEqual(byUs.regions, { sg: 2, us: 3 });
       const h = await (await fetch(`http://127.0.0.1:${r.us.port}/healthz`)).json();
       assert.equal(h.peer.up, true);
     } finally { await r.close(); }

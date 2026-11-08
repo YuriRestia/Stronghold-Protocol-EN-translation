@@ -2614,5 +2614,7 @@
   "新加坡": "Singapore",
   "美国东部": "US East",
   "服务器": "Server",
+  "各服务器在线": "Online per server",
+  "切换服务器": "Switch server",
   "自动选择延迟最低的服务器。更改会在你离开同盟后生效。": "Auto picks the server with the lowest ping. A change applies after you leave your alliance."
 }

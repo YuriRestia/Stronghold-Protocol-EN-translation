@@ -42,7 +42,7 @@ import { TestMark } from '../ui/testConsole.js';
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR } from '../../../shared/constants.js';
-import { html, confirmDialog, Button, Icon, MicroLabel, Modal, PingPill, Spinner, DifficultyIcon, TextField } from '../ui/components.js';
+import { html, confirmDialog, Button, Icon, MicroLabel, Modal, Spinner, DifficultyIcon, TextField } from '../ui/components.js';
 import { Sprite, Img } from '../ui/gameComponents.js';
 import { uiUrl } from '../ui/assetUrls.js';
 import { peekStatsRecords, trophyMedalOf, aggregateStats, recordsOfSeason } from '../ui/stats.js';
@@ -71,6 +71,7 @@ import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
 import { DifficultyDetailsButton } from '../ui/difficultyDetails.js';
 import { NoticesButton } from '../ui/notices.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
+import { RegionPing } from '../ui/regionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, seasonOf, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
 
@@ -799,7 +800,7 @@ export function LobbyScreen() {
     <header class="topbar">
       <div class="topbar__left">
         <${Button} variant="ghost" size="sm" icon="chevronLeft" onClick=${backToTitle} title=${t('返回标题')}>${t('返回')}<//>
-        <${PingPill} ms=${conn.ping} online=${online} />
+        <${RegionPing} ms=${conn.ping} online=${online} />
         <${OnlinePill} />
         <span class="topbar__sep" aria-hidden="true"></span>
         <div class="topbar__tools">
