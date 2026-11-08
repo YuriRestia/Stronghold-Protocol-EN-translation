@@ -191,7 +191,8 @@ test('tools/i18n.mjs: a computed msgid is not extracted; its Chinese literals ar
     assert.ok(line > 0, `${f}: ${marker}`);
     return (await scanSource(src, f)).msgids.filter((m) => m.line === line).map((m) => m.msgid);
   };
-  assert.deepEqual(await onLine('public/js/screens/loadout.js', 'title=${ioDiy ?'), ['导出自选编队', '导入自选编队']);
+  // (fork) the card view's one Export / Import dialog for every page (2026-11-09) in place of the per-page titles
+  assert.deepEqual(await onLine('public/js/screens/loadout.js', "title=${io.mode === 'export' ? t('导出数据')"), ['导出数据', '导入数据']);
   assert.deepEqual(await onLine('public/js/ui/pluginPanel.js', 't(CLASS_NAMES[p.class])'), ['脚本（沙箱）', '插件', '非官方']);
 });
 

@@ -451,8 +451,8 @@
 
 .lo-bbar .lo-dswitch { height: max(.6rem, 32px, calc(36px * var(--sp-ui, 1))); }
 /* (fork) 干员持有 in the bottom bar, left of 简洁 / 展开: quiet, the bar's own look (the user's call of 2026-11-09) */
-.lo-ownbtn { display: inline-flex; align-items: center; gap: max(.06rem, 6px); height: max(.6rem, 32px, calc(36px * var(--sp-ui, 1)));
-  margin-right: max(.1rem, 8px); padding: 0 max(.12rem, 10px); font: inherit; font-size: max(calc(.14 * var(--t)), 11px); color: var(--text-md); cursor: pointer;
+.lo-ownbtn { display: inline-flex; align-items: center; gap: max(.06rem, calc(6px * var(--sp-ui, 1))); height: max(.6rem, 32px, calc(36px * var(--sp-ui, 1)));
+  margin-right: max(.1rem, calc(8px * var(--sp-ui, 1))); padding: 0 max(.12rem, calc(10px * var(--sp-ui, 1))); font: inherit; font-size: max(calc(.14 * var(--t)), 11px); color: var(--text-md); cursor: pointer;
   background: rgba(255, 255, 255, .03); border: 1px solid var(--line-2); transition: color var(--t-fast), border-color var(--t-fast); }
 .lo-ownbtn:hover { color: var(--text-hi); border-color: var(--line-3); }
 .lo-ownbtn .icon { width: max(.18rem, 13px); height: max(.18rem, 13px); color: var(--text-lo); }
@@ -569,18 +569,19 @@
 .lo-io__file { display: none; }
 /* (fork) the one 导出 / 导入 dialog (screens/loadout.js, ui/backupModel.js): the parts as ticks, each with its count (导出)
    or, read from the text, what it holds (导入; a part its own parser refused says why) */
-.lo-io__parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(2.4rem, 150px), 1fr)); gap: max(.06rem, 6px); margin: 0 0 max(.1rem, 8px); }
-.lo-io__part { display: flex; flex-wrap: wrap; align-items: center; gap: max(.06rem, 6px); padding: max(.06rem, 6px) max(.1rem, 8px); cursor: pointer;
+.lo-io__parts { display: grid; grid-template-columns: repeat(auto-fit, minmax(max(2.4rem, 32px, calc(150px * var(--sp-ui, 1))), 1fr)); gap: max(.06rem, calc(6px * var(--sp-ui, 1))); margin: 0 0 max(.1rem, calc(8px * var(--sp-ui, 1))); }
+.lo-io__part { display: flex; flex-wrap: wrap; align-items: center; gap: max(.06rem, calc(6px * var(--sp-ui, 1))); padding: max(.06rem, calc(6px * var(--sp-ui, 1))) max(.1rem, calc(8px * var(--sp-ui, 1))); cursor: pointer;
   font-size: max(calc(.16 * var(--t)), 12px); color: var(--text-hi); background: rgba(255, 255, 255, .03); border: 1px solid var(--line-2); }
-.lo-io__part:has(input:checked) { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
+/* a ticked part: .is-on mirrors its checkbox (no :has(): Firefox ESR 115, Safari < 15.4) */
+.lo-io__part.is-on { border-color: var(--mint-700); background: rgba(78, 216, 175, .08); }
 .lo-io__part input { margin: 0; accent-color: var(--mint-500); }
 .lo-io__part b { margin-left: auto; color: var(--mint-400); }
 .lo-io__part.is-empty b { color: var(--text-lo); }
 .lo-io__part small { flex-basis: 100%; font-size: max(calc(.13 * var(--t)), 10px); color: var(--text-lo); }
 .lo-io__part.is-bad { cursor: default; border-style: dashed; }
 .lo-io__part.is-bad small { color: var(--red-premium); }
-.lo-io__found { margin-top: max(.1rem, 8px); }
-.lo-io__bad { margin: max(.08rem, 6px) 0 0; font-size: max(calc(.15 * var(--t)), 11px); color: var(--red-premium); }
+.lo-io__found { margin-top: max(.1rem, calc(8px * var(--sp-ui, 1))); }
+.lo-io__bad { margin: max(.08rem, calc(6px * var(--sp-ui, 1))) 0 0; font-size: max(calc(.15 * var(--t)), 11px); color: var(--red-premium); }
 
 /* ---- 时装 / Outfits (fork, docs/OUTFITS.md; screens/outfits.js) ---------------------------------------------------- */
 /* the switch above the detail header: 调配 ⇄ 时装 (top right) */
@@ -742,7 +743,7 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 /* (fork) the top bar's right: 导出 / 导入 (one above the other), 搜索 and 恢复默认 (干员持有: 全部持有) in one tray — the skin
    of the bottom bar's 简洁 / 展开 / 时装 switch: a dark well, its buttons tiles inside it, the labels its bold type (the
    user's calls of 2026-11-09: one clean family, nothing tiny) */
-.lo-tray { flex: none; display: inline-flex; align-items: stretch; height: max(.7rem, 36px, calc(44px * var(--sp-ui, 1))); padding: max(.04rem, calc(3px * var(--sp-ui, 1)));
+.lo-tray { flex: none; display: inline-flex; align-items: stretch; height: max(.7rem, 32px, calc(44px * var(--sp-ui, 1))); padding: max(.04rem, calc(3px * var(--sp-ui, 1)));
   gap: max(.04rem, calc(3px * var(--sp-ui, 1))); background: rgba(0, 0, 0, .35); box-shadow: inset 0 0 0 1px var(--line-2); }
 .lo-tray__stack { display: flex; flex-direction: column; gap: max(.03rem, calc(2px * var(--sp-ui, 1))); }
 .lo-tray .lo-popwrap { display: flex; }
@@ -850,8 +851,9 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-op__art { position: absolute; inset: 0; display: block; overflow: hidden; }
 .lo-op__art img { width: 100%; height: 100%; object-fit: cover; object-position: 50% 8%; display: block; }
 .lo-op__glyph { display: grid; place-items: center; width: 100%; height: 100%; font-size: max(calc(.5 * var(--t)), 22px); font-weight: 900; color: rgba(255, 255, 255, .22); }
-/* (fork) the branch icon sits on the rail under the tier (the picker: under the class), above the levels */
-.lo-op__sub { flex: none; display: block; width: 70%; height: auto; aspect-ratio: 1; object-fit: contain; opacity: .85; }
+/* (fork) the branch icon sits on the rail under the tier (the picker: under the class), above the levels; on a rail too
+   short for all three (特大 on a 640×360 phone: the level pill ended 4 px past the card, #811) it is the one that shrinks */
+.lo-op__sub { flex: 0 1 auto; min-height: 0; display: block; width: 70%; height: auto; aspect-ratio: 1; object-fit: contain; opacity: .85; }
 /* (fork) 潜能: the level pill's third row (screens/loadoutDeck.js PotBadge) — the mode's potential mark (ui/outer
    potential_bg's shape), muted as the promotion icons: the ranks below in white, the current one's blade in the elite's
    gold, the rest dim; solid fills, so crossing strips do not stack lighter */
@@ -864,11 +866,11 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   color: var(--ice-900); background: var(--ice); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% calc(100% - 5px), 0 100%); }
 /* (fork) the name at the card's foot, a size up, the card's full width under the portrait and the column (the
    user's call of 2026-11-08: no gap under them, and a long name breaks between words, not in one) */
-.lo-op__meta { grid-row: 2; grid-column: 2 / -1; display: flex; flex-direction: column; align-items: flex-end; gap: max(.03rem, 2px); min-width: 0; }
+.lo-op__meta { grid-row: 2; grid-column: 2 / -1; display: flex; flex-direction: column; align-items: flex-end; gap: max(.03rem, calc(2px * var(--sp-ui, 1))); min-width: 0; }
 /* (fork) a long name wraps onto a second line, never cut with … (the user's call of 2026-11-08); the portrait gives way */
 .lo-op__name { max-width: 100%; font-size: max(calc(.21 * var(--t)), 13px); font-weight: 800; line-height: 1.15; color: var(--text-hi); text-align: right; overflow-wrap: break-word; text-wrap: balance; }
 /* (fork) the bonds stand down the rail's foot, one under another (the user's call of 2026-11-08) */
-.lo-op__bonds { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: max(.04rem, 3px); }
+.lo-op__bonds { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); }
 .lo-op__bond { flex: none; display: grid; place-items: center; width: max(.3rem, 18px); height: max(.3rem, 18px); border-radius: 50%; background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .22); }
 .lo-op__bond img { width: 70%; height: 70%; object-fit: contain; }
 .lo-op.is-standin .lo-op__art img { filter: saturate(.5); }
@@ -986,13 +988,13 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-op--diy.is-empty.is-bad, .lo-op--diy.is-bad .lo-op__card { border-color: var(--amber); }
 /* (fork) a filled slot's 更换 (screens/diy.js DiyDeckSlot): above its name, opens the slot's picker */
 /* at the rail's foot under the bonds, drawn as the rail's own chips (the levels' pill, the bond discs) */
-.lo-diy__change { flex: none; display: grid; place-items: center; width: 86%; aspect-ratio: 1; margin-top: max(.04rem, 3px); padding: 0; font: inherit;
+.lo-diy__change { flex: none; display: grid; place-items: center; width: 86%; aspect-ratio: 1; margin-top: max(.04rem, calc(3px * var(--sp-ui, 1))); padding: 0; font: inherit;
   color: var(--text-md); cursor: pointer; background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px;
   transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
 .lo-diy__change:hover, .lo-diy__change:focus-visible { color: var(--mint-400); border-color: var(--mint-700); background: rgba(0, 0, 0, .6); }
 .lo-diy__change .icon { width: 56%; height: 56%; }
 /* its 原型 / 已持有 tag, flat, beside the slot's name ("6阶 自选") above the operator's */
-.lo-diy__meta { display: flex; align-items: center; gap: max(.04rem, 4px); }
+.lo-diy__meta { display: flex; align-items: center; gap: max(.04rem, calc(4px * var(--sp-ui, 1))); }
 .lo-op__rail .lo-diy__bad { width: 70%; height: auto; }
 .lo-diy--filled .lo-diy__label { font-size: max(calc(.11 * var(--t)), 8px); font-weight: 700; color: var(--text-lo); letter-spacing: .04em; }
 .lo-diy__n { font-size: max(calc(.3 * var(--t)), 16px); color: var(--text-lo); }

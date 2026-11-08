@@ -891,7 +891,7 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
       ${io.mode === 'export' ? html`
         <p class="lo-io__hint">${t('勾选要导出的内容。只勾选一项时，文件与该页面自己导出的格式相同。')}</p>
         <div class="lo-io__parts" role="group" aria-label=${t('导出数据')}>
-          ${BACKUP_PARTS.map((p) => html`<label key=${p} class=${cx('lo-io__part', !backupCounts[p] && p !== 'loadout' && 'is-empty')} data-part=${p}>
+          ${BACKUP_PARTS.map((p) => html`<label key=${p} class=${cx('lo-io__part', !backupCounts[p] && p !== 'loadout' && 'is-empty', io.parts.includes(p) && 'is-on')} data-part=${p}>
             <input type="checkbox" checked=${io.parts.includes(p)} data-testid=${`loadout-io-part-${p}`}
               onChange=${(e) => setIo({ ...io, parts: e.currentTarget.checked ? [...io.parts, p] : io.parts.filter((x) => x !== p) })} />
             <span>${t(PART_LABEL[p])}</span><b class="num">${backupCounts[p]}</b></label>`)}
@@ -904,7 +904,7 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
       ${io.mode === 'import' && ioRead ? (ioRead.ok ? html`<div class="lo-io__found" data-testid="loadout-io-found">
           <p class="lo-io__hint">${t('这份文件包含以下内容，导入会覆盖勾选项当前的设置：')}</p>
           <div class="lo-io__parts" role="group" aria-label=${t('导入数据')}>
-            ${BACKUP_PARTS.filter((p) => ioRead.parts[p] || ioRead.failed[p]).map((p) => html`<label key=${p} class=${cx('lo-io__part', ioRead.failed[p] && 'is-bad')} data-part=${p}>
+            ${BACKUP_PARTS.filter((p) => ioRead.parts[p] || ioRead.failed[p]).map((p) => html`<label key=${p} class=${cx('lo-io__part', ioRead.failed[p] && 'is-bad', !!ioRead.parts[p] && !io.skip.includes(p) && 'is-on')} data-part=${p}>
               <input type="checkbox" disabled=${!ioRead.parts[p]} checked=${!!ioRead.parts[p] && !io.skip.includes(p)} data-testid=${`loadout-io-part-${p}`}
                 onChange=${(e) => setIo({ ...io, skip: e.currentTarget.checked ? io.skip.filter((x) => x !== p) : [...io.skip, p] })} />
               <span>${t(PART_LABEL[p])}</span>

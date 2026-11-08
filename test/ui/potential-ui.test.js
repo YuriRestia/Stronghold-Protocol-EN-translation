@@ -18,7 +18,7 @@ import {
 import { installLoadoutSync, SYNC_DEBOUNCE_MS, applyLoadoutEntries, loadoutStore, setEntries, setOpsMap } from '../../public/js/ui/loadoutSync.js';
 import { createStore } from '../../public/js/store.js';
 import { chessLoadout, unitCultivation, standInLoadout, standInOf, ownDiyPick, ownDiyRecord, cardDiy } from '../../public/js/ui/gameLogic.js';
-import { CultivationSelects, CultivationSection, cultivationView, potentialEditable } from '../../public/js/screens/cultivation.js';
+import { CultivationSection, cultivationView, potentialEditable } from '../../public/js/screens/cultivation.js';
 import { data } from '../../public/js/data.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -125,18 +125,15 @@ test('a plugin operator with no potential curve hides the potential control and 
   const orig = data.get;
   data.get = (name) => (name === 'chess' ? tables.chess : name === 'backups' ? tables.backups : null);
   try {
-    const flatOps = { char_x_flat: { potential: 1, cultivate: 0 } };
-    const selects = expand(CultivationSelects({ charId: 'char_x_flat', ops: flatOps, onSet() {} }));
-    assert.equal(propIs(selects, 'data-cult', 'potential'), false);
-    assert.equal(propIs(selects, 'data-cult', 'cultivate'), true);
+    // (fork) the detail's section is the one 潜能 / 练度 control since the list view (and its row selects) went, 2026-11-09
     const section = expand(CultivationSection({ charId: 'char_x_flat', ops: { char_x_flat: { potential: 1 } }, onSet() {} }));
     assert.equal(propIs(section, 'data-potential', 1), false);
     assert.equal([...walk(section)].some((n) => n.props && Object.hasOwn(n.props, 'data-cultivate')), true);
     assert.equal([...walk(section)].some((n) => typeof n.props?.class === 'string' && n.props.class.includes('lo-badge--changed')), false);
-    const curved = expand(CultivationSelects({ charId: 'char_x_curved', ops: {}, onSet() {} }));
-    assert.equal(propIs(curved, 'data-cult', 'potential'), true);
-    const official = expand(CultivationSelects({ charId: 'char_102_texas', ops: {}, onSet() {} }));
-    assert.equal(propIs(official, 'data-cult', 'potential'), true);
+    const curved = expand(CultivationSection({ charId: 'char_x_curved', ops: {}, onSet() {} }));
+    assert.equal(propIs(curved, 'data-potential', 1), true);
+    const official = expand(CultivationSection({ charId: 'char_102_texas', ops: {}, onSet() {} }));
+    assert.equal(propIs(official, 'data-potential', 1), true);
   } finally {
     data.get = orig;
   }
