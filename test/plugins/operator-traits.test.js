@@ -293,6 +293,28 @@ test('custom layer declarations never enlarge client-result allowances', async t
   assert.equal(validateClientResult(spec, result, { gd }).reason, 'trait layers require server authority');
 });
 
+test('(fork) layer traits: a field of bots only may run in a browser, under the same allowance; a human\'s field may not', async t => {
+  const { validateClientResult, runHeadless } = await import('../../server/match/fields.js');
+  const { createBattleFromSpec, compactResult } = await import('../../server/sim/spec.js');
+  const { fixtureSpec } = await import('../helpers/simHostFixture.js');
+  const { set } = put(t, custom());
+  await installOperatorTraits(set.data); setGameData(set.data);
+  t.after(async () => { await installOperatorTraits(DATA); setGameData(null); });
+  const spec = fixtureSpec(); spec.round = 1;
+  spec.players[0].units[0].chessId = Object.values(set.data.chess).find(c => c.charId === custom().charId && !c.isGolden).chessId;
+  const seats = [{ seat: 0, playerId: 'p_0', name: 'P', isBot: false, connected: true }, { seat: 1, playerId: 'ai_1', name: 'A', isBot: true, connected: true }];
+  const h = makeMatch({ data: set.data, fake: true, verify: 'off', clientCombat: true, botBattles: 'host', mode: 'coop', seats }); t.after(() => h.m.dispose());
+  const field = (players) => ({ kind: 'normal', spec, players });
+  assert.equal(h.m._botBattleOnHost(field(['ai_1'])), true);
+  assert.equal(h.m._botBattleOnHost(field(['p_0'])), false);
+  assert.equal(h.m._botBattleOnHost(field(['p_0', 'ai_1'])), false);
+  const result = compactResult(runHeadless(createBattleFromSpec(spec, new DataSource(set.data)), { players: ['p1'] }).result);
+  assert.equal(validateClientResult(spec, result, { gd: h.m.gd }).ok, false);
+  assert.equal(validateClientResult(spec, result, { gd: h.m.gd, botField: true }).ok, true);
+  result.perPlayer.p1.layerGains = { egirShip: 9999 };
+  assert.equal(validateClientResult(spec, result, { gd: h.m.gd, botField: true }).reason, 'layer bound');
+});
+
 test('detail card displays translated custom traits and returns to the official trait on removal', async t => {
   const { data } = await import('../../public/js/data.js');
   const { ChessDetail } = await import('../../public/js/ui/detailPanel.js');

@@ -31,8 +31,8 @@ export const WORKER_URL = genUrl('/js/battle/rehearsalWorker.js'); // (fork) in 
 export const MAX_PENDING_TASKS = 3;
 
 /**
- * A spec that names a content set is not this worker's job. The worker only has the page's official `/data/`
- * (no plugin pack, no plugin scripts). A missing `cs` is the official data. Gameplay-plugin rooms are not offered
+ * A spec that names a content set is not this worker's job. THIS worker is handed only the page's official `/data/` (the page
+ * itself can hold a room's set, and host mode's battle/botWorker.js loads one). A missing `cs` is the official data. Gameplay-plugin rooms are not offered
  * the task at all (server/match/match/rehearsal.js); this refuses one that arrived anyway.
  * @param {unknown[]} specs
  */

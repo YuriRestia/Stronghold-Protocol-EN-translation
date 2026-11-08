@@ -59,7 +59,7 @@ import { AllianceBackdrop, useLobbyArt } from '../ui/allianceScene.js';
 import { SettingsButton } from '../ui/settings.js';
 import { PwaInstallButton, detectFeatures, useMediaQuery, SHORT_SCREEN_QUERY } from '../ui/device.js';
 import { LoadoutButton } from './loadout.js';
-import { net, identity } from '../net.js';
+import { net, identity, regions } from '../net.js';
 import { store, useStore, shallowEqual, loadPref, savePref } from '../store.js';
 import { data, getConfig, getMode, getStage, useData } from '../data.js';
 import { t, tc, N_ } from '../../../shared/i18n.js';
@@ -236,13 +236,14 @@ export function rememberRoom(code, test = false) {
 }
 
 export async function joinKnown(type, key) {
-  try { return await net.request(type, { code: key }); } catch (err) {
+  // (fork) the key names its server (public/js/regions.js): one server without regions, exactly net.request
+  try { return await regions.join(type, { code: key }); } catch (err) {
     if (err?.code !== ERR.TEST_CONFIRM) throw err;
     const text = type === 'room.spectate'
       ? t('这是测试房间，不计入任何记录。确认观战？')
       : t('这是测试房间，不计入任何记录。确认加入？');
     if (await confirmDialog({ title: t('测试'), text })) {
-      return net.request(type, { code: key, testAck: true });
+      return regions.join(type, { code: key, testAck: true });
     }
   }
 }

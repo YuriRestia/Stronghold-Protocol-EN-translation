@@ -28,6 +28,8 @@ export class MatchClientCombat {
   _clearFieldTimers(f) {
     if (!f || !f.cc) return;
     for (const k of ['deadlineTimer', 'doneTimer', 'waitTimer', 'sliceTimer', 'verifyTimer']) if (f[k]) { this.cancel(f[k]); f[k] = null; }
+    if (f.mode === 'host') this._botBattleRelease(f); // (fork) a battle still running in a browser
+    if (f.botHost && f.authority && !f.result) this.sendTo(f.authority, { t: 'b.botBattleCancel', battleId: f.battleId });
     f.job = null;
     f.verifyJob = null;
   }
@@ -120,6 +122,7 @@ export class MatchClientCombat {
     for (const f of fields) {
       const auth = this._authorityFor(f);
       if (auth) this._assignClient(f, auth);
+      else if (this._botBattleOnHost(f)) this._assignBotHost(f); // (fork) match/botBattles.js
       else this._runOnServer(f, 'no-human');
     }
   }
@@ -245,7 +248,13 @@ export class MatchClientCombat {
     for (const f of this.fields) {
       if (!f.cc || f.done || f.verifyJob || f.mode !== 'client' || f.authority !== ps.playerId) continue;
       if (f.kind === 'boss' || f.kind === 'hidden') this._bossHandover(f, why);
+      // (fork) a leaver's own battle: _quit ends it at once with a synthetic result (中途退出), so no browser is asked for it
+      // en: 中途退出 = "quitting mid-match"
+      else if (this.botBattles === 'host' && why === 'left' && f.kind === 'normal' && f.players.length === 1) continue;
+      // (fork) match/botBattles.js: its last connected human is gone (left or disconnected): a browser runs it, like a bot field
+      else if (this._botBattleOnHost(f)) { f.authority = null; this._assignBotHost(f); }
       else this._runOnServer(f, why);
     }
+    this._botBattleHostLost(ps); // (fork) match/botBattles.js
   }
 }

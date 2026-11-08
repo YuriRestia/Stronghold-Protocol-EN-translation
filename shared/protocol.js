@@ -71,6 +71,16 @@ const isUnspawned = (u) => isPlain(u) && isId(u.enemyKey) && nullable(isId)(u.so
  * Structural check of a client BattleResult (DESIGN §5.1 / §14 `b.result`): types, ranges and size limits only —
  * the semantic checks against the battle's spec are the server's (server/match/fields.js validateClientResult).
  */
+/** Most moves in one b.botMoves batch (server/match/match/botTasks.js MAX_BATCH_MOVES is the same limit where they apply). */
+export const BOT_MOVES_MAX = 200;
+/** Most samples of a bot battle's progress timeline in one b.botBattleResult. */
+export const BOT_TIMELINE_MAX = 400;
+/** [gt, killed, total, resolved | null(, left)], as server/match/fields.js timelineSample writes it. */
+const isBotTimelineSample = (s) => Array.isArray(s) && (s.length === 4 || s.length === 5)
+  && isNum(s[0], 0, 1e5) && isNum(s[1], 0, 1e5) && isNum(s[2], 0, 1e5) && (s[3] === null || isNum(s[3], 0, 1e5))
+  && (s.length === 4 || isMap(s[4], RESULT_LIMITS.players, isId, (x) => isNum(x, 0, 1e5)));
+const isBotTimeline = (v) => isList(v, BOT_TIMELINE_MAX, isBotTimelineSample);
+
 export function isBattleResult(v) {
   return isPlain(v) && ['cleared', 'timeout', 'forced'].includes(v.reason) && isNum(v.time, 0, 1e5)
     && optional((x) => isInt(x, 0, 1e5))(v.killed) && optional((x) => isInt(x, 0, 1e5))(v.total)
@@ -518,7 +528,7 @@ export const C2S = {
   // the server applies `true` solely to a solo room of a version whose solo is timed, and ignores it otherwise, so a
   // default create stays the message it was.
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited'] },
-  'room.join': { $optional: ['testAck'], testAck: (v) => v === true, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  'room.join': { $optional: ['testAck', 'ticket'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'p2p.enable': { enabled: isBool },
   'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
   'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
@@ -629,6 +639,9 @@ export const C2S = {
   'g.offerRefresh': { offerId: isId, pluginId: isId, seq: (v) => isInt(v, 0, 1000000), cardId: optional(isId), idx: (v) => isInt(v, 0, PLUGIN_OFFER_SLOTS - 1) },
   'g.ready': { ready: isBool },
   'g.emote': { id: (v) => EMOTES.includes(v) },
+  // (fork) match chat: `x` is what the player typed. Any string passes here: the match cleans it and chops it to the
+  // player's kill wallet instead of refusing it (server/match/chatWallet.js). The page sends it without a rid.
+  'g.chat': { x: (v) => typeof v === 'string' },
   // playerId: the player tapped in the team panel (a 联防 / boss pair field shows two) — what an eliminated viewer or a
   // spectator seat follows from then on (Match.watchPref; community report of 2026-10-06, item 56)
   'g.watch': { fieldId: (v) => isStr(v, 32), playerId: isId, $optional: ['playerId'] },
@@ -675,6 +688,24 @@ export const C2S = {
     taskId: isId, choice: (v) => v === undefined || isInt(v, 0, REHEARSAL_MAX_CANDIDATES - 1), error: (v) => v === undefined || v === true,
     $optional: ['choice', 'error'],
   },
+  // (fork) A bot field's real battle run in this browser (docs/host-browser-bots.md B13): the answer to the S2C 'b.botBattle'
+  // frame. `timeline` is the battle's progress for the teammates' waiting UI; `error: true` says this browser cannot run it,
+  // so the server asks the next human at once. A stale battle or another sender is ignored.
+  'b.botBattleResult': {
+    battleId: isId, result: isBattleResult, timeline: isBotTimeline, error: (v) => v === undefined || v === true,
+    $optional: ['result', 'timeline', 'error'],
+  },
+  // (fork) A bot seat's prep played in this browser (docs/host-browser-bots.md B2): b.botReceived says the page has the
+  // S2C 'b.botTask' frame; b.botMoves carries a batch of the seat's moves, `plan` (answered by b.botAck) and then `final`
+  // with the bot's own memo, or `error: true` when this browser could not play it. Each move is checked again where it is
+  // applied (server/match/match/botTasks.js). b.botHidden reports a hidden tab, which phones freeze. A stale task or another
+  // sender is ignored.
+  'b.botReceived': { taskId: isId },
+  'b.botMoves': {
+    taskId: isId, batch: (v) => v === 'plan' || v === 'final', moves: (v) => isList(v, BOT_MOVES_MAX, isPlain), memo: isPlain,
+    error: (v) => v === undefined || v === true, $optional: ['batch', 'moves', 'memo', 'error'],
+  },
+  'b.botHidden': { hidden: isBool },
   // State-delta transport (shared/stateDelta.js): the client asks for one full frame after it missed one. The server
   // answers with a full frame on each state channel it speaks (m.public / m.private), which is what restores the
   // baseline; it is rate-limited like the other resend-heavy intents (server/net.js HEAVY_TYPES, and the lobby's
@@ -687,7 +718,12 @@ export const S2C = [
   'welcome', 'ok', 'error', 'pong',
   'p2p.config', 'p2p.signal', 'p2p.frame',
   'room.state', 'room.closed',
+  // (fork) room.move { region, code, ticket } — matchmaking placed this group on another server: join there (DESIGN §90.2)
+  'room.move',
   'm.public', 'm.private', 'm.field', 'm.toast', 'm.ticker', 'm.emote', 'm.result',
+  // (fork) m.chat { p, x } — a player's chat line: `p` the sender's seat, `x` the cleaned text. To everyone in the room
+  // but the sender (the page shows its own line itself); ephemeral, never replayed on resync.
+  'm.chat',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.
   'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)
@@ -701,6 +737,15 @@ export const S2C = [
   // b.rehearsalCancel { taskId } — the server dropped that task (it timed out, the host changed, the prep ended):
   // the executor drops it too, and only a running simulation (the Worker) is really stopped
   'b.rehearsal', 'b.rehearsalCancel',
+  // (fork) a bot field's real battle (docs/host-browser-bots.md B13): b.botBattle { battleId, spec } — run it in a Worker and
+  // answer with a C2S b.botBattleResult · b.botBattleCancel { battleId } — the server no longer waits for it
+  'b.botBattle', 'b.botBattleCancel',
+  // (fork) a bot seat's prep (docs/host-browser-bots.md B2): b.botTask { taskId, world, budgetMs } · b.botAck { taskId, stale? }
+  // the plan batch was applied (`stale`: stop, a fresh task follows) · b.botHurry { taskId } stop rehearsing at the best layout
+  // so far · b.botCancel { taskId } the server no longer waits for it
+  'b.botTask', 'b.botAck', 'b.botHurry', 'b.botCancel',
+  // b.botWarm {} — this browser will be asked first: start the Worker when the page has time
+  'b.botWarm',
   // server-run combat streaming (legacy / SP_COMBAT=server only)
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)

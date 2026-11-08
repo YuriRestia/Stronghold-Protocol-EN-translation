@@ -9,6 +9,7 @@ import { boardOrder, pieceDir } from '../board.js';
 import { bondList, offBondCounts } from '../bondsMeta.js';
 import { bountyText, bountyCard } from '../choices.js';
 import { bandProgressView } from '../bandProgress.js';
+import { CHAT_ON } from '../chatWallet.js';
 
 export class PlayerViews {
   /**
@@ -145,6 +146,9 @@ export class PlayerViews {
       // board pieces as UnitInfo on its half of the boss field (mirrored on the right half, as the battle places them);
       // the own prep view draws them beside the own half, read-only. Absent otherwise.
       ...(bossMate ? { bossMate } : {}),
+      // (fork) the kill wallet (chatWallet.js). Spending marks nothing dirty: the next m.private carries the new count, so
+      // a chat line costs no frame of its own. Absent while the operator has chat off (SP_CHAT=0): the page hides the box.
+      ...(CHAT_ON ? { chatLeft: this.chatLeft, chatRound: this.chatRound } : {}),
       stats: {
         dmgDealt: Math.round(this.stats.dmgDealt), kills: this.stats.kills, leaks: this.stats.leaks, gold: this.stats.gold,
         refreshes: this.stats.refreshes, merges: this.stats.merges,

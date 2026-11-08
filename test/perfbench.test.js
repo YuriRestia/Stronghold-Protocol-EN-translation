@@ -83,9 +83,18 @@ describe("the perf page's frame figures (public/dev/frame-stats.js)", () => {
 
 describe('tools/perfbench.mjs', () => {
   test('Chrome GPU flags per platform: D3D11 on Windows, Metal on macOS, the default elsewhere', () => {
-    assert.ok(gpuArgs('win32').includes('--use-angle=d3d11'));
-    assert.ok(gpuArgs('darwin').includes('--use-angle=metal'));
-    assert.ok(!gpuArgs('linux').some((a) => a.startsWith('--use-angle')));
+    assert.ok(gpuArgs('win32', {}).includes('--use-angle=d3d11'));
+    assert.ok(gpuArgs('darwin', {}).includes('--use-angle=metal'));
+    assert.ok(!gpuArgs('linux', {}).some((a) => a.startsWith('--use-angle')));
+  });
+
+  test('Chrome GPU flags: a machine without a GPU keeps WebGL, and SP_E2E_SOFTWARE_GL=1 forces software on every platform', () => {
+    assert.ok(gpuArgs('linux', {}).includes('--enable-unsafe-swiftshader'), 'Linux / CI: SwiftShader stays allowed as the fallback');
+    assert.ok(!gpuArgs('win32', {}).some((a) => /swiftshader/.test(a)), 'Windows falls back to its own software driver');
+    for (const platform of ['win32', 'darwin', 'linux']) {
+      assert.ok(gpuArgs(platform, { SP_E2E_SOFTWARE_GL: '1' }).includes('--use-angle=swiftshader'), platform);
+      assert.ok(!gpuArgs(platform, { SP_E2E_SOFTWARE_GL: '0' }).includes('--use-angle=swiftshader'), platform);
+    }
   });
 
   test('areaOf sorts call frames by source', () => {

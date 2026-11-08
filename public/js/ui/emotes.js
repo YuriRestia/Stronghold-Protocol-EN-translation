@@ -208,12 +208,25 @@ export function EmoteBubble({ id, class: cls, ttl = EMOTE_BUBBLE_MS, at }) {
  * @param {{ onSend: (id:string)=>void, open: boolean, onToggle: (open:boolean)=>void, disabled?: boolean,
  *   cooldownMs?: number }} props
  */
-export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS }) {
+/**
+ * (fork) A player's chat line, in the emote bubble's place beside the avatar (server/match/chatWallet.js). A plain text
+ * child: never markup, whatever the sender typed.
+ * @param {{ text: string, at?: number, ttl?: number, class?: string }} props
+ */
+export function ChatBubble({ text, at, ttl = EMOTE_BUBBLE_MS, class: cls }) {
+  useEffect(() => { ensureEmoteCss(); }, []);
+  const [age] = useState(() => bubbleAge(at, Date.now(), ttl));
+  const style = [`--ebubble-ttl:${ttl}ms`, age && `--ebubble-age:${Math.round(age)}ms`].filter(Boolean).join(';');
+  return html`<div class=${cx('cbubble', cls)} style=${style} dir="auto">${text}</div>`;
+}
+
+export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS, textPane = null, textLeft = null }) {
   useData('local');
   useEffect(() => { ensureEmoteCss(); }, []);
   const [page, setPage] = useState(lastThemeIndex);
   const [dir, setDir] = useState(0);          // direction of the last page change (slide-in animation)
   const [dx, setDx] = useState(0);            // live drag offset (px)
+  const [textMode, setTextMode] = useState(false); // (fork) the switch: emotes or text chat (textPane, ui/chat.js)
   const [cooling, setCooling] = useState(() => cooldownLeft(lastSentAt, Date.now(), cooldownMs) > 0);
   const drag = useRef(null);                  // { id, x0, moved }
   const swallowClick = useRef(false);
@@ -303,6 +316,9 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
     if (step) go(live.current.page + step);
   };
 
+  const showText = !!textPane && textMode;
+  const emotesTab = t('表情'); // en: "Emote"
+  const textTab = t('文字'); // en: "Text"
   const theme = EMOTE_THEMES[clampPage(page)];
   const btnSprite = emoteUiSprite(disabled || cooling ? 'emoji_btn_disable' : 'emoji_btn');
   const panelBg = emoteUiSprite('emoji_bkg');
@@ -314,8 +330,12 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
       aria-expanded=${open ? 'true' : 'false'} aria-haspopup="dialog" disabled=${disabled || cooling}>
       ${btnSprite ? null : html`<${GIcon} name="emote" />`}<span class="ewheel__label">${t('交流')}</span>
     </button>
-    ${open ? html`<div class=${cx('ewheel__panel', panelBg && 'has-sprite', cellBg && 'has-cell')} style=${panelStyle} role="dialog" aria-label=${t('交流')}>
-      <div class="ewheel__viewport" onPointerDown=${onPointerDown} onPointerMove=${onPointerMove}
+    ${open ? html`<div class=${cx('ewheel__panel', panelBg && !showText && 'has-sprite', cellBg && 'has-cell', showText && 'is-text')} style=${panelStyle} role="dialog" aria-label=${t('交流')}>
+      ${textPane ? html`<div class="ewheel__tabs" role="tablist">
+        <button type="button" role="tab" class=${cx('ewheel__tab', !textMode && 'is-on')} aria-selected=${textMode ? 'false' : 'true'} onClick=${() => setTextMode(false)}>${emotesTab}</button>
+        <button type="button" role="tab" class=${cx('ewheel__tab', 'is-text', textMode && 'is-on')} aria-selected=${textMode ? 'true' : 'false'} onClick=${() => setTextMode(true)}>${textTab} <span class="num">${textLeft}</span></button>
+      </div>` : null}
+      ${showText ? textPane : html`<div class="ewheel__viewport" onPointerDown=${onPointerDown} onPointerMove=${onPointerMove}
         onPointerUp=${(e) => endDrag(e, false)} onPointerCancel=${(e) => endDrag(e, true)} onWheel=${onWheel}>
         <div key=${theme.themeId} class=${cx('ewheel__page', dir > 0 && 'is-from-right', dir < 0 && 'is-from-left', dx !== 0 && 'is-dragging')}
           style=${dx ? `transform:translateX(${dx}px)` : ''} role="group" aria-label=${t(theme.name)} data-theme=${theme.themeId}>
@@ -330,7 +350,7 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
       <div class="ewheel__dots" role="tablist" aria-label=${t('表情主题')}>
         ${EMOTE_THEMES.map((th, i) => html`<button key=${th.themeId} type="button" role="tab" class=${cx('ewheel__dot', i === page && 'is-on')}
           aria-selected=${i === page ? 'true' : 'false'} aria-label=${`${t(th.name)} ${i + 1}/${EMOTE_THEMES.length}`} onClick=${() => go(i)}></button>`)}
-      </div>
+      </div>`}
     </div>` : null}
   </div>`;
 }

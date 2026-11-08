@@ -23,3 +23,16 @@ A lone Doctor queues from the lobby without a room, so a room never takes solos 
 - **AI fallback**: after `soloAiAfterMs` (2 min) `queue.ai` makes a co-op room of the Doctor and 3 AI and starts it (`NOT_READY` before then).
 - **Client**: the 单人匹配 card is the third mode card, after 同盟模拟, and is the default on a first visit (pref `lobby.mode`). While queued the create box becomes the wait panel (time, 取消匹配, and 改为与 AI 队友模拟 once `aiAt` passes); the mode and difficulty cards and joining by key are locked, 返回 leaves the queue, a lost connection drops it with a toast. No queue size is shown.
 - Tests: `test/lobby-soloqueue.test.js`.
+
+### 90.2 Across regions — `server/crossMatch.js`, `Lobby.cross*`, `public/js/regions.js`
+
+With several servers (§8.7) under `SP_CROSS_MATCH=1` and the same `SP_PEER_SECRET`, matchmaking still fills rooms locally first. A search or a queued Doctor that has waited `crossAfterMs` (`SP_CROSS_AFTER_MS`, default 15 s) also enters a pass on the arbiter, the first region, which sees every region's waiters over the link.
+
+- **Exact fills only** (`planCross`: `planSolos`, then `planMerges` with partial merges off, over both servers' waiters). Nobody moves into a room that does not start at once, and nobody moves twice. A plan inside one region is left to that region's matchmaker. Only default-version rooms without gameplay plugins take part, and only between servers on the same generation, protocol and game data, so a rolling deploy makes each server local until both match.
+- **Where it plays.** The region with the most humans; a tie goes to the longest wait.
+- **Reserve.** The target server checks its members are still waiting, merges them into one room (a new room hosted by its longest-waiting Doctor when it has only solos) and holds seats for the rest: `room.reservations`, with the group's AI seats added at once. A room holding seats pauses (`groupReady` false), and its held seats are free only to a signed ticket. Any member that stopped waiting refuses the plan before anything moves.
+- **Move.** Each other server checks its members the same way, and refuses if their human or AI counts differ from the plan, since a Doctor who joined since would find no held seat. It then sends every Doctor `room.move { region, code, ticket }` and closes the room (`room.closed { reason: 'moved' }`). A spectator stays behind, as one that does not fit a local merge does. A source that refuses is released, and its seats reopen.
+- **Arrive.** The browser joins on the target with `room.join { code, ticket }` and sits down ready and `matched`. The client resends its loadout as after any welcome. The match starts when the last one sits down.
+- **Never arrives.** Held seats and tickets last `RESERVE_TTL_MS` (15 s). Then the seats reopen, the AI seats leave if none of that group's Doctors came, and the room goes on searching. A browser that cannot reach the target is told so and stays in the lobby on its own server.
+- ▸ [ASSUMED] A local solo in a new cross-region room sees the room screen until the others arrive, about 1–3 s, instead of going straight to the match.
+- Tests: `test/regions.test.js`, `test/ui/regions.test.js`, `test/ui/regions.e2e.test.js`.

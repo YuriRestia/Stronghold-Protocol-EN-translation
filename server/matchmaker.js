@@ -16,6 +16,8 @@ export function roomSize(room) {
 
 /** Every human connected, every one but the host ready. */
 export function groupReady(room) {
+  // (fork) seats held for a group on its way from another server (DESIGN §90.2): the room pauses until they sit down
+  if (room.reservations?.length) return false;
   for (const s of room.seats) {
     if (!s || s.isBot || s.left) continue;
     if (!s.connected) return false;
@@ -110,6 +112,7 @@ export class Matchmaker {
     this.running = true;
     try {
       const lobby = this.lobby;
+      lobby.expireReservations?.();
       for (const room of [...lobby.rooms.values()]) {
         if (room.searching && !room.disposed && !room.match && roomSize(room) >= MAX_SEATS && groupReady(room)) lobby.autoStart(room);
       }

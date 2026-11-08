@@ -10,6 +10,7 @@ import { deriveSeed } from '../../sim/rng.js';
 import { OK, fail } from './common.js';
 import { setBondCall } from '../bondCall.js';
 import { onHumanEmote } from '../botEmotes.js';
+import { sendChat } from '../chatWallet.js';
 
 export class MatchIntents {
   _handle(ps, msg) {
@@ -48,6 +49,7 @@ export class MatchIntents {
       case 'g.offerRefresh': return this.requestOfferRefresh(ps, msg.offerId, msg.idx, msg);
       case 'g.ready': return ps.setReady(!!msg.ready);
       case 'g.emote': return this.emote(ps, msg.id);
+      case 'g.chat': return sendChat(this, ps, msg.x);
       // playerId: the player tapped (a shared field names two) — the watch preference (item 56)
       case 'g.watch': return this.watch(ps, msg.fieldId, msg.playerId ?? null);
       case 'g.autoplay': return this.setAutoplay(ps, !!msg.on);
@@ -61,6 +63,12 @@ export class MatchIntents {
       // the host's answer to a delegated bot layout rehearsal (DESIGN §14): a report, never an error — an unknown,
       // expired or foreign task is ignored (MatchRehearsal._onRehearsalResult)
       case 'b.rehearsalResult': this._onRehearsalResult(ps, msg); return OK;
+      // (fork) a bot field's battle run in this browser: a report too (match/botBattles.js)
+      case 'b.botBattleResult': this._onBotBattleResult(ps, msg); return OK;
+      // (fork) a bot seat's prep played in this browser (match/botTasks.js): reports too
+      case 'b.botReceived': return this._onBotReceived(ps, msg);
+      case 'b.botMoves': return this._onBotMoves(ps, msg);
+      case 'b.botHidden': return this._onBotHidden(ps, msg);
       default: return fail(ERR.BAD_MSG);
     }
   }
@@ -81,6 +89,7 @@ export class MatchIntents {
     ps.autoplay = on;
     this.markPublic();
     if (on) this.kickBot(ps);
+    else this.cancelBotTasks(ps.playerId); // (fork) the human took the seat back: a bot task for it must not hold the queue
     return OK;
   }
 

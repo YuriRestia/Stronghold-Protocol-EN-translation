@@ -5,7 +5,26 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-08
+
+### Several servers, one game
+
+- The game can now run on more than one server, so players connect to the nearest one with better ping. It's off unless the operator sets `SP_REGIONS`, and a single server behaves as before (`docs/DEPLOY.en.md` §2.7).
+- The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
+- The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
+- Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
+- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
+
+### Browser tests
+
+- `board3d` and `fieldview` browser tests asked for Metal on every platform, which on Windows dropped them to a software driver: Chrome used about 7.5 cores and most of their checks failed. They now start through `gpuArgs()` in `tools/perfbench.mjs`, which uses the real GPU, keeps WebGL on a machine with no GPU and can be forced to software with `SP_E2E_SOFTWARE_GL=1`. `test/render/gpu-renderer.browser.test.js` logs the renderer in use.
+
 ## 2026-11-07
+
+### Match chat
+
+- Text chat in a match, deliberately cruel: last round's kills are the letters you can type until the next round's result. Round 1 and zero kills leave you with emotes. The server enforces it all and chops anything over the limit; a faked kill count buys no more than the enemies it sent. Lines show as avatar bubbles and are never stored or replayed, and spectators can read but not write. Each line costs about 143 B per recipient, around 1% of a match's traffic in normal use. Mute is per page; `SP_CHAT=0` turns chat off.
 
 ### First-visit loading
 
@@ -61,6 +80,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Changes
 
+- Host-browser bots, first three pieces ([design](docs/host-browser-bots.md)), off by default and not live yet: bot seats can draw from their own random streams and a reserved uid block (`seatStreams`); a snapshot restores the match outside the server (`botWorld.js`, `shadowMatch.js`); the real bot code plays on that copy and its actions come back as validated `g.*` moves (`botRunner.js`, `match/botTasks.js`). A same-seed test proves the copy plays the same game as the bot in the match.
+- Host-browser bots, pieces 4 and 8, off by default and not live yet: with `SP_BOT_BATTLES=host`, a field of bots runs in a human's browser instead of on the server, and falls back to the next human, then to a synthetic result. `public/js/battle/botWorker.js` and `botHost.js` run bot work in a Worker, and `/match/` now serves exactly the modules that Worker imports, computed from its imports (`server/http/botModules.js`).
+- Host-browser bots, piece 6, off by default and not live yet: with `SP_BOT_EXECUTION=host`, a bot seat's whole prep runs in a human's browser over live frames. The server only applies its moves. A silent, failed, hidden or lost browser hands the seat to the next human, and with nobody left the seat keeps its board and readies up. Fixed piece 8's check, which treated every normal room as a plugin room because normal rooms carry a content hash too.
+- Host-browser bots, piece 7, off by default and not live yet: bots' band and card picks also run in a human's browser, and in host mode a bot strategy's decision hooks throw on the server. A human taking an AI seat or turning autoplay off cancels that seat's task.
+- Host-browser bots, piece 9, off by default and not live yet: a boss field of bots only runs live in a human's browser and reports like a human's battle, and a load test measures the server's own CPU per bot seat (`test/match/bot-load.test.js`).
+- Host-browser bots, piece 11, off by default and not live yet: plugin and old-version rooms also run their bots in a human's browser, whose Worker loads that room's content and scripts, and the match host's child process now gets the host's id and the bot options. Every room's Worker now gets the whole data set, not only the simulation's files.
+- Host-browser bots, piece 10: removed the fork's host rehearsal additions (`SP_BOT_REHEARSAL_HOST`, `botRehearsalHost`, its default-on). Upstream's delegation stays, off by default, so `server/match/bot.js` is back to upstream's lines but for its CPU meter. Without `SP_BOT_EXECUTION=host`, no browser rehearses layouts for bots any more.
+- Host-browser bots, review fixes: any field with no connected human goes to a browser, a disconnected or departed human's field included, at the start or mid-battle; no player's board runs on the server, and with no browser at all the synthetic result stands. A bot task takes one receipt and one plan batch, so repeated frames cannot stall a prep. A departed co-op seat's strategy pick is never asked of the seat's AI strategy, as before.
 - AI teammates show their operator's name in the page's language, everywhere a name appears (`AI · Warfarin` instead of `AI · 华法琳`). It's decided by the seat being an AI: a human player named after an operator keeps their name exactly as typed.
 - In the room, AI teammates show their operator's icon instead of the robot. The art pack gains Amiya's and Dobermann's avatar and portrait for this, since they aren't in this mode's roster. A full room keeps the Find Teammates switch's place empty, so the seat cards don't resize when the last seat fills.
 - English text: the Rampage damage name and the Elemental Injury description now show five elements, several operators' potential-locked texts are translated, the 0.2.6 changelog and missing Playing Guide sections are in English, and the host rehearsal docs match the code.
@@ -104,7 +131,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -429,7 +456,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

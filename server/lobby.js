@@ -234,7 +234,7 @@
 
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
-import { DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
 import { cleanOutfits } from '../shared/outfits.js';
 import { encode, isErrCode, sendRaw, sendSession } from './net.js';
@@ -242,7 +242,8 @@ import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
 import { altArtChance } from './match/results.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
-import { Matchmaker, groupReady, roomSize } from './matchmaker.js';
+import { Matchmaker, groupReady, isMatchable, roomSize } from './matchmaker.js';
+import { countPresence } from './presence.js';
 import { SoloQueue, planSolos } from './soloQueue.js';
 import { PeerRelay } from './peerRelay.js';
 
@@ -253,8 +254,7 @@ import { msg, wireMessage } from '../shared/i18n.js';
 import { DEFAULT_VERSION } from '../shared/versions.js';
 import { parseTestModeEnv, testModeGate, unrecognizedTestMode } from './testMode.js';
 
-/** Room code alphabet: uppercase letters without I and O (and no digits, so no 0/1). */
-export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+export { CODE_ALPHABET };
 
 /** Tunables. */
 export const LOBBY_DEFAULTS = Object.freeze({
@@ -480,7 +480,16 @@ export class Room {
   spectatorOf(playerId) { return this.spectators.find((s) => s.playerId === playerId) || null; }
 
   /** Lowest free seat index, or -1. */
-  freeSeat() { return this.seats.indexOf(null); }
+  /**
+   * The first free seat, or -1. (fork) Seats held for a group on its way from another server (DESIGN §90.2) are free only
+   * to that group's ticket. @param {boolean} [ticket]
+   */
+  freeSeat(ticket = false) {
+    const idx = this.seats.indexOf(null);
+    if (idx < 0 || ticket || !this.reservations?.length) return idx;
+    const open = this.seats.filter((s) => s === null).length;
+    return open > this.reservations.reduce((n, r) => n + r.seats, 0) ? idx : -1;
+  }
 
   /** Humans that have not departed, in seat order. @returns {Seat[]} */
   activeHumans() { return this.seats.filter((s) => s && !s.isBot && !s.left); }
@@ -1076,10 +1085,13 @@ export class Lobby {
     return OK;
   }
 
-  join(session, { code, testAck }) {
+  join(session, { code, testAck, ticket }) {
     const norm = String(code).trim().toUpperCase();
     const room = norm.length === ROOM_CODE_LEN ? this.rooms.get(norm) : undefined;
     if (!room) return fail(ERR.ROOM_NOT_FOUND);
+    // (fork) a group matchmaking moved here from another server (DESIGN §90.2)
+    const held = ticket ? this.heldFor(room, ticket) : null;
+    if (ticket && !held) return fail(ERR.ROOM_FULL, 'ticket not valid');
     if (room.test && testAck !== true) return fail(ERR.TEST_CONFIRM);
     const cur = this.roomOf(session);
     // idempotent for members; a spectator of this room goes on below: it may take a free player seat (header)
@@ -1087,7 +1099,7 @@ export class Lobby {
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (room.match) return fail(ERR.ROOM_STARTED);
     if (room.mode === 'solo') return fail(ERR.ROOM_FULL, 'solo room');
-    const idx = room.freeSeat();
+    const idx = room.freeSeat(!!held);
     if (idx < 0) return fail(ERR.ROOM_FULL);
     // a human takes a player seat: the version vote is void (header "Official versions") — before the seat is taken, so
     // its toast reaches the members who saw the vote (a spectator sitting down too), never a joiner who did not
@@ -1099,7 +1111,9 @@ export class Lobby {
     session.notice = null;
     session.pendingResult = null;
     if (!room.hostId) room.hostId = session.playerId;
+    if (held) this.seatHeld(room, room.seats[idx], held);
     this.broadcastState(room);
+    if (held) this.afterReservation(room);
     return OK;
   }
 
@@ -2115,6 +2129,9 @@ export class Lobby {
         // the room's host: the current executor of a delegated bot layout rehearsal (DESIGN §14; setHost follows a
         // migration while the match runs)
         hostId: room.hostId,
+        // (fork) bots run in a human's browser (docs/host-browser-bots.md); `SP_BOT_BATTLES=server` keeps their battles here
+        ...(String(process.env.SP_BOT_EXECUTION ?? '').trim().toLowerCase() === 'host'
+          ? { botExecution: 'host', botBattles: String(process.env.SP_BOT_BATTLES ?? '').trim().toLowerCase() === 'server' ? 'server' : 'host' } : {}),
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
         seed,
@@ -2142,7 +2159,7 @@ export class Lobby {
         // one: null keeps every rehearsal on this thread, exactly as before (Match.simPool / MatchRehearsal.poolRehearsal)
         ...(!modded && !versioned && this.simPool ? { simPool: this.simPool } : {}),
         send: (playerId, msg, encoded) => (ctx.live ? this.matchSend(room, ctx, playerId, msg, encoded) : false),
-        broadcast: (msg, encoded) => { if (ctx.live) this.matchBroadcast(room, ctx, msg, encoded); },
+        broadcast: (msg, encoded, except) => { if (ctx.live) this.matchBroadcast(room, ctx, msg, encoded, except); },
         onEnd: (summary) => this.onMatchEnd(room, ctx, summary),
       };
       // a room with gameplay plugins plays in its content set's match host, a room of another official version in that
@@ -2226,9 +2243,9 @@ export class Lobby {
   }
 
   /** Match broadcast; the latest m.public and a broadcast m.result are also kept for the replay. */
-  matchBroadcast(room, ctx, msg, encoded = null) {
+  matchBroadcast(room, ctx, msg, encoded = null, except = null) {
     if (msg.t === 'm.public' && reconcileAiTakeover(this, room)) this.broadcastState(room);
-    const data = this.broadcastRoom(room, msg, encoded);
+    const data = this.broadcastRoom(room, msg, encoded, except);
     if (data == null) return;
     if (msg.t === 'm.public') ctx.lastPublic = data;
     else if (msg.t === 'm.result') ctx.sharedResult = data;
@@ -2520,6 +2537,176 @@ export class Lobby {
     }
     this.log.info(`[lobby] ${room.code} full: starting`);
     return !this.startMatch(room, this.registry.byId(room.hostId)?.limitKey || null).error;
+  }
+
+  // ---- (fork) matchmaking across regions (DESIGN §90.2; server/crossMatch.js decides, these carry it out) ----------------
+
+  /** Who waits here, for the arbiter: searches and queued Doctors of the default official version, without their names. */
+  crossDigest() {
+    if (this.retiring) return null;
+    const now = this.now();
+    const rooms = [];
+    for (const r of this.rooms.values()) {
+      if (!isMatchable(r) || r.test || r.version !== DEFAULT_VERSION || !this.matchAllowed(r)) continue;
+      const humans = r.seats.filter((s) => s && !s.left && !s.isBot).length;
+      rooms.push({ code: r.code, humans, bots: roomSize(r) - humans, difficulty: r.difficulty, wait: now - (r.searchSince ?? now) });
+    }
+    const solos = [];
+    for (const e of this.soloQueue.list()) {
+      const s = this.registry.byId(e.playerId);
+      if (s?.connected && !this.roomOf(s)) solos.push({ id: e.playerId, difficulty: e.difficulty, wait: now - e.since });
+    }
+    return { rooms, solos };
+  }
+
+  /** The searching counts of sys.online, this server's own. */
+  presenceCounts() { return countPresence({ connectionCount: 0 }, this); }
+
+  /** Queued sessions still placeable, or null if any is not. @param {string[]} ids @param {string} difficulty */
+  crossSolos(ids, difficulty) {
+    const out = [];
+    for (const id of ids || []) {
+      const e = this.soloQueue.get(id);
+      const s = e && e.difficulty === difficulty ? this.registry.byId(id) : null;
+      if (!s?.connected || this.roomOf(s)) return null;
+      out.push(s);
+    }
+    return out;
+  }
+
+  /**
+   * The target of a cross-region match: gather this server's members in one room and hold seats for the rest. All or
+   * nothing: a member that stopped waiting refuses the whole plan before anything moves.
+   * @param {{ difficulty: string, rooms: string[], solos: string[], humans: number, bots: number, ttlMs: number }} cmd
+   */
+  crossReserve({ difficulty, rooms: codes = [], solos: ids = [], humans, bots, ttlMs }) {
+    if (this.retiring || this.closedForMaintenance() || !this.crossTicket) return { ok: false };
+    const rooms = codes.map((c) => this.rooms.get(c));
+    if (!rooms.every((r) => isMatchable(r) && r.difficulty === difficulty && !r.test && this.matchAllowed(r))) return { ok: false };
+    const sessions = this.crossSolos(ids, difficulty);
+    if (!sessions) return { ok: false };
+    const here = rooms.reduce((n, r) => n + roomSize(r), 0) + sessions.length;
+    if (here + humans + bots !== MAX_SEATS || humans < 1) return { ok: false };
+    let target = rooms[0] || null;
+    if (target) {
+      if (rooms.length > 1 && !this.mergeRooms(target, rooms.slice(1))) return { ok: false };
+      if (sessions.length) this.seatSolos(target, sessions);
+    } else {
+      if (!sessions.length || this.matchLimited(sessions[0].limitKey || null)) return { ok: false };
+      target = this.soloRoom(difficulty, sessions);
+      if (!target) return { ok: false };
+      target.searching = true;
+      target.searchSince = this.now();
+    }
+    for (const s of sessions) this.sendQueue(s, { placed: true });
+    const rid = randomBytes(6).toString('hex');
+    const exp = this.now() + ttlMs;
+    const addedBots = [];
+    for (let i = 0; i < bots; i++) {
+      const idx = target.freeSeat(true);
+      const used = new Set(target.seats.filter((s) => s && s.isBot).map((s) => s.name));
+      const playerId = `ai_${randomBytes(4).toString('hex')}`;
+      target.seats[idx] = { seat: idx, playerId, name: BOT_NAMES.find((n) => !used.has(n)) || `AI·${idx + 1}`, isBot: true, ready: true, connected: true, left: false };
+      addedBots.push(playerId);
+    }
+    (target.reservations ||= []).push({ id: rid, seats: humans, total: humans, bots: addedBots, exp });
+    this.broadcastState(target);
+    this.log.info(`[cross] ${target.code} holds ${humans} seat(s) for a group from another server`);
+    return { ok: true, code: target.code, rid, ticket: this.crossTicket({ rid, code: target.code, exp }) };
+  }
+
+  /**
+   * A source of a cross-region match: everyone in these rooms and this queue goes to the target. A spectator stays behind,
+   * as one that does not fit a local merge does. All or nothing.
+   * @param {{ member?: string, region: string, code: string, ticket: string, rooms: string[], solos: string[], humans?: number, bots?: number }} cmd
+   */
+  crossMove({ member, region, code, ticket, rooms: codes = [], solos: ids = [], humans = null, bots = null }) {
+    const rooms = codes.map((c) => this.rooms.get(c));
+    if (this.retiring || !rooms.every((r) => isMatchable(r))) return { ok: false, member };
+    const difficulty = rooms[0]?.difficulty ?? this.soloQueue.get(ids[0])?.difficulty;
+    const sessions = this.crossSolos(ids, difficulty);
+    if (!sessions) return { ok: false, member };
+    // the target holds exactly the seats this plan counted: a Doctor who joined since would find no seat and no room
+    const humansHere = rooms.reduce((n, r) => n + r.seats.filter((s) => s && !s.left && !s.isBot).length, 0) + sessions.length;
+    const botsHere = rooms.reduce((n, r) => n + r.seats.filter((s) => s && !s.left && s.isBot).length, 0);
+    if ((humans != null && humans !== humansHere) || (bots != null && bots !== botsHere)) return { ok: false, member };
+    const frame = { t: 'room.move', region, code, ticket };
+    for (const r of rooms) {
+      for (const s of r.seats) {
+        if (!s || s.isBot || s.left) continue;
+        const session = this.registry.byId(s.playerId);
+        if (session) sendSession(session, frame);
+      }
+      this.log.info(`[cross] ${r.code} moves to ${code} on ${region}`);
+      this.disposeRoom(r, 'moved');
+    }
+    for (const s of sessions) {
+      this.soloQueue.remove(s.playerId);
+      this.sendQueue(s, { placed: true });
+      sendSession(s, frame);
+    }
+    return { ok: true, member };
+  }
+
+  /** A source's group is not coming after all: reopen its seats. @param {{ code: string, rid: string, humans: number }} cmd */
+  crossRelease({ code, rid, humans }) {
+    const room = this.rooms.get(code);
+    const held = room?.reservations?.find((r) => r.id === rid);
+    if (!held) return { ok: true };
+    held.seats = Math.max(0, held.seats - humans);
+    held.total = Math.max(0, held.total - humans);
+    if (held.seats === 0) this.endReservation(room, held);
+    return { ok: true };
+  }
+
+  /** The room's reservation a ticket names, with seats left. */
+  heldFor(room, ticket) {
+    const p = this.crossVerify?.(ticket);
+    if (!p || p.code !== room.code) return null;
+    return room.reservations?.find((r) => r.id === p.rid && r.seats > 0) ?? null;
+  }
+
+  /** A moved Doctor sits down, ready, as one a local merge moved. */
+  seatHeld(room, seat, held) {
+    seat.ready = true;
+    seat.matched = true;
+    held.seats--;
+    if (held.seats === 0) room.reservations = room.reservations.filter((r) => r !== held);
+    if (!room.reservations.length) room.reservations = null;
+  }
+
+  /** Everyone expected is here, or will not come: start when full, else the room searches on. */
+  afterReservation(room) {
+    if (room.reservations?.length || room.disposed || room.match) return;
+    if (roomSize(room) >= MAX_SEATS && groupReady(room)) this.autoStart(room);
+    else this.matchmaker.poke();
+  }
+
+  /** Close a reservation; its AI seats leave with it when none of its Doctors came. */
+  endReservation(room, held) {
+    room.reservations = room.reservations.filter((r) => r !== held);
+    if (!room.reservations.length) room.reservations = null;
+    if (held.seats === held.total || held.total === 0) {
+      for (const id of held.bots) {
+        const i = room.seats.findIndex((s) => s?.playerId === id);
+        if (i >= 0) room.seats[i] = null;
+      }
+    }
+    this.broadcastState(room);
+    this.afterReservation(room);
+  }
+
+  /** Matchmaker pass: seats nobody claimed in time reopen. */
+  expireReservations() {
+    const now = this.now();
+    for (const room of this.rooms.values()) {
+      for (const held of room.reservations || []) {
+        if (now < held.exp) continue;
+        this.log.info(`[cross] ${room.code}: ${held.seats} held seat(s) expired`);
+        held.seats = held.seats === held.total ? held.seats : 0;
+        this.endReservation(room, held);
+      }
+    }
   }
 
   /** maxMatchesPerAddr for the host's network. */
@@ -2827,8 +3014,10 @@ export class Lobby {
     const fixed = this.opts.roomCode || null;
     if (fixed) return this.rooms.has(fixed) && this.rooms.get(fixed) !== yieldingRoom ? null : fixed;
     for (let attempt = 0; attempt < 1000; attempt++) {
-      let code = '';
-      for (let i = 0; i < ROOM_CODE_LEN; i++) code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
+      // (fork) a region's keys start with its own letters (shared/regions.js): the key names the server
+      const first = this.opts.codeLetters || CODE_ALPHABET;
+      let code = first[randomInt(first.length)];
+      for (let i = 1; i < ROOM_CODE_LEN; i++) code += CODE_ALPHABET[randomInt(CODE_ALPHABET.length)];
       if (!this.rooms.has(code)) return code;
     }
     return null;
@@ -2913,8 +3102,11 @@ export class Lobby {
     return { msg: { ...msg, deliveryEpoch: stream.epoch, deliverySeq }, bytes };
   }
 
-  /** Match broadcast: encode once, send to every connected member. @returns {string | null} the encoded frame */
-  broadcastRoom(room, msg, encoded = null) {
+  /**
+   * Match broadcast: encode once, send to every connected member but `except` (a playerId, or null).
+   * @returns {string | null} the encoded frame
+   */
+  broadcastRoom(room, msg, encoded = null, except = null) {
     if (room.disposed) return null;
     let data = encoded ?? encode(msg);
     if (data == null) { this.log.error(`[lobby] ${room.code} unserializable broadcast ${msg && msg.t}`); return null; }
@@ -2929,7 +3121,7 @@ export class Lobby {
     // per connection: sendSession runs the state transport, which owns each socket's delta baseline (and the
     // droppable/backpressure rules) - one shared byte string in, one frame per member out
     for (const session of members) {
-      if (routed?.has(session)) continue;
+      if (routed?.has(session) || session.playerId === except) continue;
       sendSession(session, msg, data);
     }
     return data;

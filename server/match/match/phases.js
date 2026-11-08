@@ -11,6 +11,20 @@ import { createRng, deriveSeed } from '../../sim/rng.js';
 import { OK, fail, DELAYS, BAND_TURN_SECONDS } from './common.js';
 import { LEGACY_BOT } from '../botStrategyContract.js';
 
+/**
+ * What a bot seat drafts. A co-op seat gone before its pick has no game of its own to play: whatever strategy plays the AI seats,
+ * it drafts by the team's rule (botPickBand's departedWeight: Touch while nobody else holds it, never 歌利亚; §37.65). A strategy a
+ * teammate already took is not selectable (队友已选): the bot re-draws, else the first free one.
+ * Runs on the match, or on the copy in the host's Worker (docs/host-browser-bots.md B10).
+ */
+export function chooseBotBand(m, ps) {
+  const bot = !m.isSolo && ps.alive === false ? LEGACY_BOT : m.botFor(ps);
+  let id = bot.pickBand(m, ps);
+  for (let k = 0; k < 8 && m.bandTaken(id, ps.playerId); k++) id = bot.pickBand(m, ps);
+  if (m.bandTaken(id, ps.playerId)) id = m.gd.bandIds().find((b) => !m.bandTaken(b, ps.playerId)) || id;
+  return id;
+}
+
 export class MatchPhases {
   enterInfoCheck() {
     this.phase = PHASE.INFO_CHECK;
@@ -127,18 +141,14 @@ export class MatchPhases {
       if (this.phase !== PHASE.BAND_DRAFT || token !== this._turnToken) return;
       const ps = this.players.get(this.draftTurn());
       if (!ps || !ps.botControlled) return;
-      // a co-op seat gone before its pick has no game of its own to play: whatever strategy plays the AI seats, it drafts
-      // by the team's rule (botPickBand's departedWeight: Touch while nobody else holds it, never 歌利亚; §37.65)
+      const valid = () => this.phase === PHASE.BAND_DRAFT && token === this._turnToken;
+      // (fork) host mode: the pick is the Worker's (match/botTasks.js); with nobody to ask it is the rule's, as when a turn runs out
+      const fallback = this.botExecution === 'host'
+        ? () => this._startBotPick(ps, 'band', () => valid() && !this.draft?.picks[ps.playerId], () => this._applyBand(ps, this.timeoutBand(ps.playerId)))
+        : () => this._onBotSeat(ps, () => this._applyBand(ps, chooseBotBand(this, ps), { dedupe: true }));
+      // a departed co-op seat drafts by the team's rule (chooseBotBand): never asked of the seat's strategy, as on dev-0.2
       const bot = !this.isSolo && ps.alive === false ? LEGACY_BOT : this.botFor(ps);
-      const fallback = () => {
-        // a strategy a teammate already took is not selectable (队友已选): the bot re-draws, else the first free one
-        let id = bot.pickBand(this, ps);
-        for (let k = 0; k < 8 && this.bandTaken(id, ps.playerId); k++) id = bot.pickBand(this, ps);
-        if (this.bandTaken(id, ps.playerId)) id = this.gd.bandIds().find((b) => !this.bandTaken(b, ps.playerId)) || id;
-        this._applyBand(ps, id, { dedupe: true });
-      };
-      if (bot.decide?.(this, ps, { kind: 'band',
-        valid: () => this.phase === PHASE.BAND_DRAFT && token === this._turnToken,
+      if (bot.decide?.(this, ps, { kind: 'band', valid,
         complete: () => token !== this._turnToken || !!this.draft?.picks[ps.playerId], fallback })) return;
       fallback();
     });

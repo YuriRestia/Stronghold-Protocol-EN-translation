@@ -209,6 +209,7 @@ function diag(match) {
     verifyStats: match.verifyStats ? { ...match.verifyStats } : null, simErrors: match.simErrors ?? 0,
     fields: Array.isArray(match.fields) ? match.fields.map((f) => ({ fieldId: f.fieldId, kind: f.kind, players: Array.isArray(f.players) ? [...f.players] : [], mode: f.mode ?? null,
       authority: f.authority ?? null, done: !!f.done, resultSource: f.resultSource ?? null, battleId: f.battleId ?? null })) : [],
+    botTaskStats: match.botTaskStats, botBattleStats: match.botBattleStats, botExecution: match.botExecution,
   };
 }
 
@@ -232,7 +233,7 @@ function create(matchId, opts) {
       log,
       now: Date.now,
       send: (playerId, msg) => { post({ type: 'send', matchId, playerId, msg }); return true; },
-      broadcast: (msg) => post({ type: 'broadcast', matchId, msg }),
+      broadcast: (msg, _encoded, except) => post({ type: 'broadcast', matchId, msg, ...(except ? { except } : {}) }),
       onEnd: (summary) => post({ type: 'end', matchId, summary: plain(summary) }),
       ...(sched ? { scheduler: sched } : {}),
     });

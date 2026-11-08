@@ -300,6 +300,31 @@ This is an **optional relay path** and is off by default: when `SP_P2P` is not s
 - **Fallback gap of about 2.5 seconds**: when the relay channel still shows as connected but no longer forwards state (or a forwarded snapshot is lost or fails signature verification), the server's watchdog re-sends the latest signed snapshot to that member from its own WebSocket after about 2.5 seconds (`P2P_ACK_MS`); the channel is disabled only if the acknowledged sequence number did not advance at all during the timer. That is, the recovery time for a single failure on this path is bounded at about 2.5 seconds, during which that member sees the previous frame's state; a sequence number self-reported by the client is not taken as evidence that it was "applied", so the re-send happens even when a wrong acknowledgement arrives.
 - Switches: off by default for the whole server, turned on by an explicit `SP_P2P=1`; a single browser turns it off by adding `?p2p=off` after the address (`&p2p=off` when there are already parameters). A wrong ICE JSON configuration turns P2P off and logs a hint, and the game keeps running over WebSocket.
 
+### 2.7 Several servers (optional, off by default)
+
+One game can run on several servers, so players connect to the nearest one and can still join alliances and matchmake across them. Without these environment variables a server behaves exactly as a single server. The rules are in [DESIGN §8.7, §90.2](design/network.md).
+
+- The page always comes from the first server's domain, and only the game connection (WebSocket) goes to another server. The other servers therefore need no art, and origin traffic doesn't double.
+- The first letter of an alliance key names the server the alliance is on, so keys and invite links need no directory.
+
+| Variable | Example | Meaning |
+|---|---|---|
+| `SP_REGIONS` | `sg=example.com,us=us.example.com` | Every server, the same text on each. The first is the page's server, and it also runs cross-server matchmaking. |
+| `SP_REGION` | `us` | Which one this server is |
+| `SP_REGION_AUTO` | `1` | Browsers pick a server by ping, and the choice appears in Settings. While off, only a tab opened with `?region=us` uses another server (for a private test). |
+| `SP_CROSS_MATCH` | `1` | Matchmaking across servers (needs `SP_PEER_SECRET`) |
+| `SP_PEER_SECRET` | 32 characters or more | Signs the calls between servers and a moved group's tickets. The same on every server; keep it out of git and out of world-readable files. |
+| `SP_CROSS_AFTER_MS` | `15000` | How long a search stays on its own server before it may cross |
+
+Deployment notes:
+
+- Another server's reverse proxy only needs to forward `/ws`, `/_build/<gen>/_/ws`, `/healthz`, `/_build/<gen>/_/healthz` and `/_peer/`, and can redirect everything else to the main domain.
+- A page and its server must be the same build, so every server deploys the same generation id and commit. On your own PC, run `node scripts/deploy-regions.mjs deploy --hosts main-server,other-server:no-art`. It prepares the new generation on every server and only switches once all have succeeded. If any server fails, players aren't affected. `:no-art` marks a server that doesn't download art.
+- Don't run `generations.mjs deploy` or `rollback` on one server alone: the new generation would exist only there, and pages from it couldn't reach the other server. `generations.mjs status` and `deploy` warn when this happens; another `deploy-regions.mjs` deploy fixes it.
+- Notices must reach every server too: `node scripts/deploy-regions.mjs announce --hosts … --minutes 5 "…"`.
+- The servers talk over signed HTTPS, so no firewall change is needed. While that link is down each server matches locally, and joining by key still works.
+- If the first server goes down, new visitors can't load the page. Pages already open and matches on other servers keep running.
+
 ## 3. Docker
 
 ```bash

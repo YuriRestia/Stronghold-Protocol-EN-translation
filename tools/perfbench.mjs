@@ -24,10 +24,16 @@ const DEFAULT_CHROME = {
   linux: '/usr/bin/google-chrome',
 };
 
-/** GPU flags for headless Chrome per platform (ANGLE backend; Metal exists on macOS only, D3D11 on Windows only). */
-export function gpuArgs(platform = process.platform) {
-  const angle = platform === 'win32' ? ['--use-angle=d3d11'] : platform === 'darwin' ? ['--use-angle=metal'] : [];
-  return ['--no-first-run', '--enable-gpu', '--ignore-gpu-blocklist', ...angle];
+/**
+ * Flags of every headless Chrome the bench and the browser tests start: the real GPU through ANGLE (D3D11 exists on
+ * Windows only, Metal on macOS only). Without a usable GPU a page must still get WebGL: Windows falls back to Microsoft's
+ * software driver by itself; elsewhere (Linux, CI) `--enable-unsafe-swiftshader` allows SwiftShader, and only when there
+ * is no GPU. `SP_E2E_SOFTWARE_GL=1` forces software rendering.
+ */
+export function gpuArgs(platform = process.platform, env = process.env) {
+  if (env.SP_E2E_SOFTWARE_GL === '1') return ['--no-first-run', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'];
+  const backend = platform === 'win32' ? ['--use-angle=d3d11'] : platform === 'darwin' ? ['--use-angle=metal'] : ['--enable-unsafe-swiftshader'];
+  return ['--no-first-run', '--enable-gpu', '--ignore-gpu-blocklist', ...backend];
 }
 
 /** Source area of a profile call frame (vendor libraries, the game's own modules, the browser's own work). */

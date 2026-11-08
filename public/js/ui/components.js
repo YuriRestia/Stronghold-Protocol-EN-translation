@@ -16,7 +16,8 @@ import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } fro
 import htm from '../../vendor/htm.module.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t } from '../../../shared/i18n.js';
-import { serverNow } from '../store.js';
+import { serverNow, useStore } from '../store.js';
+import { regionLabel } from './regionNames.js';
 import { data, useData, localAsset } from '../data.js';
 import { uiUrl } from './assetUrls.js';
 
@@ -42,6 +43,8 @@ const cx = (...parts) => parts.flat().filter(Boolean).join(' ');
 
 /** 24×24 glyph paths (original, simple geometric shapes). `eo` = even-odd fill rule. */
 export const ICONS = {
+  chat: { d: 'M4 4h16v12H8l-4 4z' },
+  chatOff: { d: 'M4 4h16v12H8l-4 4zM9.4 6.1 8 7.5 10.5 10 8 12.5l1.4 1.4 2.6-2.5 2.6 2.5 1.4-1.4-2.5-2.5L16 7.5l-1.4-1.4L12 8.6z', eo: true },
   check: { d: 'M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z' },
   close: { d: 'M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6z' },
   exit: { d: 'M20 3H10v2h8v14h-8v2h10zM8.4 7.4 7 6l-6 6 6 6 1.4-1.4L4.8 13H15v-2H4.8z' },
@@ -927,10 +930,14 @@ export function doctorNo(id) {
  * @param {{ ms?: number|null, online?: boolean, class?: string }} props
  */
 export function PingPill({ ms, online = true, class: cls }) {
+  // (fork) with several servers: which one this number is about (public/js/regions.js)
+  const region = useStore((s) => s.region);
+  const regionName = region?.enabled && region.current ? regionLabel(region.current) : null;
   const ok = online && Number.isFinite(ms);
   const tier = !ok ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high';
   return html`<span class=${cx('ping', `ping--${tier}`, cls)} title=${ok ? t('当前延迟 {ms}ms', { ms }) : t('未连接')}>
     <${Icon} name=${ok ? 'signal' : 'wifiOff'} class="ping__icon" />
+    ${regionName ? html`<span class="ping__region" data-testid="ping-region">${regionName}</span>` : null}
     <span class="ping__value">${ok ? Math.min(9999, Math.round(ms)) : '--'}</span><span class="ping__unit">ms</span>
   </span>`;
 }

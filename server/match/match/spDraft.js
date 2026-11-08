@@ -79,9 +79,12 @@ export class MatchSpDraft {
       if (!ps || !ps.botControlled) return;
       const avail = this.sp.cards.filter(c => this.spCardAvailable(c)).map(c => c.idx);
       if (!avail.length) return;
-      const fallback = () => this._applyCard(ps, this.botFor(ps).pickCard(this, ps, this.sp.cards, avail));
-      if (this.botFor(ps).decide?.(this, ps, { kind: 'card',
-        valid: () => this.phase === PHASE.SP_DRAFT && token === this._turnToken,
+      const valid = () => this.phase === PHASE.SP_DRAFT && token === this._turnToken;
+      // (fork) host mode: the pick is the Worker's (match/botTasks.js); with nobody to ask it is the rule's, as when a turn runs out
+      const fallback = this.botExecution === 'host'
+        ? () => this._startBotPick(ps, 'card', () => valid() && this.sp?.picks[ps.playerId] == null, () => this._applyCard(ps, avail[Math.floor(this.rngDraft() * avail.length)]))
+        : () => this._onBotSeat(ps, () => this._applyCard(ps, this.botFor(ps).pickCard(this, ps, this.sp.cards, avail)));
+      if (this.botFor(ps).decide?.(this, ps, { kind: 'card', valid,
         complete: () => this.sp?.picks[ps.playerId] != null, fallback })) return;
       fallback();
     });

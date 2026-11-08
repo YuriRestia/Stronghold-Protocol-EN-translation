@@ -66,7 +66,17 @@ export class MatchPrep {
    * the delegation — which is why the continuation is installed here and not with the frame.
    */
   scheduleBotPrep(ps, i = 0) {
+    // (fork) match/botTasks.js. The dev-only external host still decides from here; its fallback goes through the queue.
+    if (this.botExecution === 'host') {
+      const round = this.round;
+      const live = () => this.phase === PHASE.PREP && this.round === round && ps.alive && !ps.ready && ps.botControlled;
+      if (!this.botFor(ps).decide?.(this, ps, { kind: 'prep', valid: live, complete: () => ps.ready, fallback: () => this.queueBotPrep(ps) })) this.queueBotPrep(ps);
+      return;
+    }
     const round = this.round;
+    /** (fork) seat streams (match/botTasks.js): the seat's own random streams and uid block while its steps run */
+    let task = null;
+    const onSeat = (fn) => (task ? this.withSeatStreams(task, fn) : fn());
     const token = (ps._botPrepToken = (ps._botPrepToken || 0) + 1);
     const valid = () => this.phase === PHASE.PREP && this.round === round && ps.alive && !ps.ready && ps.botControlled && ps._botPrepToken === token;
     const bounded = Number.isFinite(this.botSliceMs);
@@ -79,7 +89,7 @@ export class MatchPrep {
       let r = null;
       try {
         do {
-          r = gen.next();
+          r = onSeat(() => gen.next());
           if (!r || typeof r.done !== 'boolean') throw new TypeError('Bot prep hooks must return a synchronous iterator');
           if (sliceCtl) sliceCtl.note(1);
         } while (!r.done && !(sliceCtl ? sliceCtl.wall(now() - t0, this.botSliceMs) : (bounded && now() - t0 >= this.botSliceMs))); // loop-cap: generator and the bot time slice
@@ -116,7 +126,7 @@ export class MatchPrep {
       const slice = () => {
         if (!valid()) return;
         let done = true;
-        try { done = job.run(this.botSliceMs, sliceCtl); } catch (e) { this.reportError(`bot ${ps.playerId} rehearsal`, e); }
+        try { done = onSeat(() => job.run(this.botSliceMs, sliceCtl)); } catch (e) { this.reportError(`bot ${ps.playerId} rehearsal`, e); }
         if (done) finish(job);
         else this.later(0, slice);
       };
@@ -126,6 +136,7 @@ export class MatchPrep {
     };
     const begin = () => {
       if (!valid()) return;
+      if (this.seatStreams) task = this.newBotTask(ps);
       let gen;
       try { gen = this.botFor(ps).prepBegin(this, ps, { delegate: this.botRehearsalDelegate, pooled: !!this.simPool }); }
       catch (e) { this.reportError(`bot ${ps.playerId}`, e); end(null); return; }
@@ -167,6 +178,7 @@ export class MatchPrep {
   }
 
   maybeEndPrep() {
+    this._botMaybeHurry(); // (fork) match/botTasks.js
     if (this.phase !== PHASE.PREP || this._prepEndQueued) return;
     const allReady = () => { const alive = this.alivePlayers(); return alive.length > 0 && alive.every((p) => p.ready); };
     if (!allReady()) return;
@@ -196,6 +208,7 @@ export class MatchPrep {
     // rehearsals still waiting for a host's answer die with the prep: their bots place the default layout, a late answer
     // is ignored (Match._takeOverRehearsal / MatchRehearsal) and nothing of them runs after the phase ended
     this._cancelRehearsal();
+    this.cancelBotTasks(); // (fork) match/botTasks.js
     this.setDeadline(0);
     const alive = this.alivePlayers();
     for (const ps of alive) this.dispatch(ps, 'onPrepEnd', { round: this.round });

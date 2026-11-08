@@ -47,9 +47,10 @@ import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { TermTipHost } from './ui/termTip.js';
 import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
-import { net, identity, NetError } from './net.js';
+import { net, identity, NetError, regions } from './net.js';
 import { PHASE } from '../../shared/constants.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
+import { nextBubbleSeq, chatEntry, chatMuted } from './chatState.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
@@ -70,12 +71,13 @@ import { LoadoutHost } from './screens/loadout.js';
 import { StatsHost, useStatsOpen } from './screens/stats.js';
 import { CoveredVersionVote } from './ui/versionVote.js';
 import { installRehearsal } from './battle/rehearsal.js';
+import { installBotHost } from './battle/botHost.js';
 import { recordResult, installStatsRecorder } from './ui/stats.js';
 import { installLoadoutSync, installOwnershipSync, installDiySync, installSkinsSync, installCardSync, installSettingsViews, loadoutStore } from './ui/loadoutSync.js';
 import { installOutfitSync } from './ui/outfits.js';
 import { startBuildGuard } from './ui/buildGuard.js';
 import { installPresence } from './ui/presence.js';
-import { installSoloQueue } from './ui/soloQueue.js';
+import { installSoloQueue, soloQueue } from './ui/soloQueue.js';
 import { PreloadHost } from './ui/preload.js';
 import { installPreload } from './resources/index.js';
 import { initLang, useLang, tickerText } from './ui/lang.js';
@@ -126,6 +128,8 @@ let joinTimer = null;
 let joinInFlight = false;
 /** The rehearsal installer (battle/rehearsal.js): its tasks follow the match on screen (see wireNet's store hook). */
 let rehearsal = null;
+/** (fork) The bot work this browser does for the match (battle/botHost.js); it follows the match on screen the same way. */
+let botHost = null;
 
 function clearPendingJoin() {
   store.patch('ui', { pendingJoin: null });
@@ -259,6 +263,8 @@ const CLOSE_REASON = {
   kicked: N_('你已被移出同盟'), ended: N_('模拟已结束'), expired: N_('同盟已过期'), shutdown: N_('服务器维护中，同盟已关闭'),
   // a spectator left behind by a 搜寻队友 merge (no spectator seat free in the target room)
   merged: N_('同盟已与其他同盟合并，观战席已满'),
+  // (fork) a 搜寻队友 match on another server: room.move follows (public/js/regions.js)
+  moved: N_('已找到队友，正在连接…'), // en: "Teammates found. Connecting…"
 };
 
 function wireNet() {
@@ -273,6 +279,9 @@ function wireNet() {
   });
   net.on('clock', (c) => store.set({ clock: { offset: c.offset, rtt: c.rtt, synced: c.synced } }));
   net.on('welcome', onWelcome);
+  net.on('welcome', regions.onWelcome); // (fork) a token belongs to the server that issued it
+  net.on('status', regions.onStatus); // (fork) another region that stays away: back to the page's own server
+  net.on('room.move', regions.follow); // (fork) matched with a group on another server (server/crossMatch.js)
   net.on('welcome', clearMaintenance); // the server that says hello resends its maintenance, if any
   net.on('helloError', (err) => {
     if (err.code === 'SESSION_IN_USE') identity.rejectToken();
@@ -336,7 +345,13 @@ function wireNet() {
     store.set((s) => ({ ticker: [...s.ticker.slice(-(TICKER_KEEP - 1)), { id: ++seq, text, at: Date.now(), type, playerId, round: s.match?.public?.round ?? null, priority }] }));
   });
   net.on('m.emote', (msg) => {
-    store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), { seq: ++seq, playerId: msg.playerId, id: msg.id, at: Date.now() }] }));
+    store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), { seq: nextBubbleSeq(), playerId: msg.playerId, id: msg.id, at: Date.now() }] }));
+  });
+  // (fork) match chat: `p` is the sender's seat; a muted player's line stops here
+  net.on('m.chat', (msg) => {
+    const sender = store.get().match?.public?.players?.find((p) => p.seat === msg.p);
+    if (!sender || typeof msg.x !== 'string' || chatMuted(store.get().chatMute, sender.playerId)) return;
+    store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), chatEntry(sender.playerId, msg.x, Date.now())] }));
   });
 
   // Entering (title → lobby) while already online also needs the deep-link join.
@@ -346,7 +361,7 @@ function wireNet() {
     if (s.room && !prev.room) warmGameData();
     // the match on screen is over (left, closed, kicked, a new session): a rehearsal task of it is dead, and the frame
     // that cancels it may never arrive (a disposed match sends nothing) — the page stops what it is running itself
-    if (selectRoute(prev) === 'game' && selectRoute(s) !== 'game') rehearsal?.clear();
+    if (selectRoute(prev) === 'game' && selectRoute(s) !== 'game') { rehearsal?.clear(); botHost?.clear(); }
   });
 }
 
@@ -495,6 +510,22 @@ async function boot() {
   }));
 
   wireNet();
+  // (fork) which server the socket uses (public/js/regions.js): a socket stays where a room, a queue or a match is
+  regions.configure({
+    busy: () => { const s = store.get(); return !!s.room || !!s.match.public || soloQueue.get().queued; },
+    inMatch: () => selectRoute(store.get()) === 'game',
+    notify: (what) => {
+      if (what === 'down') toast(t('这台服务器暂时无法连接，已切换到其他服务器'), 'warn'); // en: "This server can't be reached, so you were moved to another one."
+      else toast(t('无法连接到队友所在的服务器，请重新搜寻'), 'warn'); // en: "Couldn't reach your teammates' server. Please search again."
+    },
+  });
+  store.set({ region: regions.snapshot() });
+  regions.subscribe((info) => store.set({ region: info }));
+  store.subscribe((s, prev) => {
+    // out of the room or the match: back to this browser's own server, soon, so a new room is made there
+    if (prev && (prev.room || prev.match?.public) && !s.room && !s.match?.public) setTimeout(() => regions.settle(), 500);
+  });
+  soloQueue.subscribe((q, old) => { if (old?.queued && !q.queued) setTimeout(() => regions.settle(), 500); });
   installStatsRecorder(store); // follows the match on screen, so a 放弃模拟 can be recorded (ui/stats.js)
   installPresence();
   installSoloQueue();
@@ -519,6 +550,8 @@ async function boot() {
   // browser that cannot run one answers `error` and the server rehearses itself. Nothing happens while the server
   // does not delegate. A gameplay-plugin room is never offered (the server keeps that rehearsal).
   rehearsal = installRehearsal({ net });
+  // (fork) Bot fields' battles the server hands this browser (SP_BOT_BATTLES=host); no frame, no Worker.
+  botHost = installBotHost({ net });
   net.attachBrowserHooks();
   // Audio: unlock on first gesture, BGM follows the route / match phase (js/audio.js).
   // a cosmetic plugin's sound that will not load falls back like its art (content.js, DESIGN §32 P1a)
@@ -563,7 +596,7 @@ async function boot() {
     .catch((err) => console.warn('[app] entry film unavailable', err));
   watchTitleReturns(filmOptions); // (fork) again on every return to the login screen
   openingLoaded.then(warmBattleScripts);
-  globalThis.__SP__ = { store, net, data, version: 1 };
+  globalThis.__SP__ = { store, net, regions, data, version: 1 };
   // Settings ▸ Preload assets: a preload that is on resumes a few seconds after the opening's files (resources/index.js)
   installPreload(openingLoaded);
   // A page keeps the modules it imported at load time for its whole lifetime, so a deploy cannot reach an open tab
@@ -578,6 +611,7 @@ async function boot() {
       onStale: ({ waiting }) => { if (waiting) store.patch('ui', { buildStale: true }); },
       // the same /healthz names how many plugins the server has: the title screen shows it before any hello
       onHealth: (h) => {
+        regions.onHealth(h); // (fork) which servers there are
         const n = pluginCount(h.content), notices = h.content?.notices === true;
         if (n !== store.get().installedPlugins || notices !== store.get().installedNotices) store.set({ installedPlugins: n, installedNotices: notices });
       },
