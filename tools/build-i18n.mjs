@@ -151,6 +151,8 @@ const TABLES = [
   { rel: 'excel/skin_table.json', pick: (j) => ({ charSkins: j?.charSkins, brandList: j?.brandList }) },
   // the status keyword glossary (data/terms.json)
   { rel: 'excel/gamedata_const.json', pick: (j) => j?.termDescriptionDict },
+  // fork: the player profile icons' names and groups of data/avatars.json (tools/build-avatars.mjs)
+  { rel: 'excel/display_meta_table.json', pick: (j) => ({ avatars: j?.playerAvatarData }) },
 ];
 
 /** A Unity-style list of { Key, Value } entries as a plain map (the two dumps serialize some tables either way). */
@@ -166,9 +168,9 @@ const SEASON_SCOPE = 'act2';
 
 /** data/*.json files localized, in output order. */
 export const DATA_FILES = Object.freeze(['chess', 'backups', 'tokens', 'bonds', 'garrisons', 'items', 'bands', 'effects',
-  'choices', 'enemies', 'factions', 'stages', 'bosses', 'config', 'emotes', 'outfits', 'terms']);
-/** Files whose names never feed the `names` map (no server message names an outfit). */
-const NO_NAMES = new Set(['outfits']);
+  'choices', 'enemies', 'factions', 'stages', 'bosses', 'config', 'emotes', 'outfits', 'terms', 'avatars']);
+/** Files whose names never feed the `names` map (no server message names an outfit or a profile icon). */
+const NO_NAMES = new Set(['outfits', 'avatars']);
 
 /**
  * Research / developer notes of the data files (English with Chinese terms; no screen shows them): never translated,
@@ -296,7 +298,7 @@ async function loadTable(dir, base, rel, { refresh, offline, log }) {
 
 // ===== the parallel walk: Chinese source → English source pairs ======================================================
 
-const KEY_FIELDS = ['Key', 'key', 'id', 'charId', 'skillId', 'uniEquipId', 'enemyId', 'itemId', 'effectId', 'bondId', 'bandId', 'stageId', 'modeId', 'bossId', 'talentIndex'];
+const KEY_FIELDS = ['Key', 'key', 'id', 'charId', 'skillId', 'uniEquipId', 'enemyId', 'itemId', 'effectId', 'bondId', 'bandId', 'stageId', 'modeId', 'bossId', 'talentIndex', 'avatarId'];
 
 /** The field an array of records is keyed by (every element an object with a distinct string/number value), or null. */
 function arrayKeyField(arr) {
@@ -784,9 +786,10 @@ async function main() {
   // the remake's own strings and PR #70's are English; another language falls back to its own optional
   // tools/i18n/fallback-remake.<code>.json (texts its client lacks, e.g. newer status keywords), then its pack's UI strings
   const fallback = opts.lang === 'en' ? {
-    // fork: + the English names of the CN-only outfits (arknights.wiki.gg; docs/OUTFITS.md) and the texts of the CN-only
-    // operators (fallback-new-ops-en.json), counted as 'remake'
-    remake: { ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-outfits-en.json')), ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-new-ops-en.json')), ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-remake.json')) },
+    // fork: + the English names of the CN-only outfits (arknights.wiki.gg; docs/OUTFITS.md), the texts of the CN-only
+    // operators (fallback-new-ops-en.json) and the names of the CN-only profile icons (fallback-avatars-en.json), counted
+    // as 'remake'
+    remake: { ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-outfits-en.json')), ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-new-ops-en.json')), ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-avatars-en.json')), ...await readDict(join(ROOT, 'tools', 'i18n', 'fallback-remake.json')) },
     pr70: await readDict(join(ROOT, 'tools', 'i18n', 'fallback-pr70.json')),
     ui: await readDict(join(ROOT, 'public', 'i18n', 'en.json')),
   } : {

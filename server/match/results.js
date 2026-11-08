@@ -148,6 +148,8 @@ export function buildResult(m, outcome) {
       seat: ps.seat,
       name: ps.name,
       isBot: ps.isBot,
+      // (fork) the profile icon (shared/avatars.js), only when set: every other result keeps its shape
+      ...(ps.avatar ? { avatar: ps.avatar } : {}),
       ...(Number.isInteger(ps.aiTakeoverRound) ? { aiTakeoverRound: ps.aiTakeoverRound } : {}),
       left: ps.left,
       alive: ps.alive,

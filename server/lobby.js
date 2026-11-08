@@ -237,6 +237,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
 import { cleanOutfits } from '../shared/outfits.js';
+import { knownAvatar } from '../shared/avatars.js';
 import { encode, isErrCode, sendRaw, sendSession } from './net.js';
 import { getData as defaultGetData, lookup } from './data.js';
 import { Match as DefaultMatch } from './match/Match.js';
@@ -518,6 +519,8 @@ export class Room {
           ...(s.matched ? { matched: true } : {}),
           // 名片干员 (room.card): only a human seat with a card carries the key
           ...(!s.isBot && s.card ? { card: s.card } : {}),
+          // (fork) the profile icon (hello.avatar, shared/avatars.js): only a human seat with a known pick carries the key
+          ...(!s.isBot && s.avatar ? { avatar: s.avatar } : {}),
           // 干员皮肤 (room.skins, PUBLIC like Match.publicView().players[].skins): the seat card's outfit (header);
           // only a human seat with a non-empty map carries the key
           ...(!s.isBot && s.skins && Object.keys(s.skins).length ? { skins: s.skins } : {}) }
@@ -795,6 +798,9 @@ export class Lobby {
     let changed = !seat.connected;
     seat.connected = true;
     if (!room.match && seat.name !== session.name) { seat.name = session.name; changed = true; }
+    // (fork) a new profile icon (a repeated hello from the picker) shows on the seat card at once
+    const avatar = this.avatarOf(session, room);
+    if (!room.match && (seat.avatar ?? null) !== avatar) { seat.avatar = avatar; changed = true; }
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
@@ -1892,6 +1898,18 @@ export class Lobby {
    * chess.json (the server's outside a room), '' for none. Kept on the session and the seat; a change is broadcast to the room.
    * Cosmetic: accepted in any phase, never touches a match.
    */
+  /**
+   * (fork) The session's profile icon when it is known (shared/avatars.js), else null — drawn as the default icon: an
+   * icon of the server's own data/avatars.json, whatever the room's content (the icons are not game content), or an
+   * operator a seat card of the room may show (cardCharIds, room.card's whitelist).
+   * @param {{ avatar?: unknown }} session
+   * @param {Room | null} [room]
+   * @returns {string | null}
+   */
+  avatarOf(session, room = null) {
+    return knownAvatar(session?.avatar, this.safeData()?.avatars, cardCharIds(this.dataFor(room)));
+  }
+
   card(session, { charId }) {
     const room = this.roomOf(session);
     if (charId && !cardCharIds(this.dataFor(room)).has(charId)) return fail(ERR.BAD_MSG, 'unknown operator');
@@ -2096,6 +2114,8 @@ export class Lobby {
       const own = s.isBot ? null : this.seatSettings(room, s, data);
       return {
         seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, connected: s.connected,
+        // (fork) the profile icon (PUBLIC: m.public players[].avatar)
+        avatar: s.isBot ? null : s.avatar || null,
         // DESIGN §16: the human's checked operator loadout and (0.2.2) per-operator 潜能 / 练度 (bots fight with the defaults)
         loadout: own ? own.loadout : null,
         ops: own ? own.ops : null,
@@ -2878,6 +2898,8 @@ export class Lobby {
       skins: session.skins || null,
       // 名片干员 (room.card): the operator on this player's seat card (PUBLIC: room.state seats[].card)
       card,
+      // (fork) the profile icon (PUBLIC: room.state seats[].avatar)
+      avatar: this.avatarOf(session, room),
       // the content each was checked for (header "Gameplay plugins": filtered at the match start when it is another)
       loadoutCs: session.loadoutCs ?? null,
       notOwnedCs: session.notOwnedCs ?? null,

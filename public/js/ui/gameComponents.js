@@ -10,6 +10,7 @@ import { outfitOptsOf } from './outfits.js';
 import { useStore, store } from '../store.js';
 import { skinsStore, ownerSkin, tokenSkinShown } from './skins.js';
 import { settingsStore } from './settingsStore.js';
+import { useAvatarArt } from './avatars.js';
 import {
   uiUrl, chessAvatarUrl, chessPortraitUrl, itemIconUrl, tokenAvatarUrl, enemyIconUrl, bondIconUrl, bandIconUrl,
 } from './assetUrls.js';
@@ -311,7 +312,10 @@ export function RichTip({ text, children, placement = 'top' }) {
  * @param {{ player: any, size?: 'sm'|'md', self?: boolean, class?: string }} props
  */
 export function PlayerAvatar({ player, size = 'md', self = false, class: cls }) {
-  const src = player?.bandId ? bandIconUrl(data.get('assets'), player.bandId) : null;
+  const band = player?.bandId ? bandIconUrl(data.get('assets'), player.bandId) : null;
+  // (fork) the profile icon (ui/avatars.js), the band icon then a corner badge; without the icon art, the band icon
+  const icon = useAvatarArt(player, self);
+  const src = icon || band;
   const glyph = [...(player?.name || '').trim()][0] || '?';
   const dead = player?.alive === false || player?.status === 'dead';
   const left = player?.status === 'left';
@@ -321,6 +325,7 @@ export function PlayerAvatar({ player, size = 'md', self = false, class: cls }) 
     <span class="pavatar__img">
       <${Img} src=${src} fallback=${player?.isBot ? html`<${Icon} name="robot" class="pavatar__bot" />` : html`<span class="pavatar__glyph">${glyph}</span>`} />
     </span>
+    ${icon && band ? html`<span class="pavatar__band" aria-hidden="true"><${Img} src=${band} /></span>` : null}
     ${dead ? html`<span class="pavatar__x" aria-label=${tr('已淘汰')}><${Icon} name="close" /></span>` : null}
     ${left ? html`<span class="pavatar__door" aria-label=${tr('已离开')}><${Icon} name="exit" /></span>` : null}
   </span>`;

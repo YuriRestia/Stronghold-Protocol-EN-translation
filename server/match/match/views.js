@@ -112,6 +112,8 @@ export class MatchViews {
         seat: ps.seat,
         name: ps.name,
         isBot: ps.isBot,
+        // (fork) the profile icon (shared/avatars.js), omitted while none (an older client: the default icon)
+        ...(ps.avatar ? { avatar: ps.avatar } : {}),
         ...(Number.isInteger(ps.aiTakeoverRound) ? { aiTakeoverRound: ps.aiTakeoverRound } : {}),
         connected: ps.isBot || (ps.connected && !ps.left),
         alive: ps.alive,

@@ -742,6 +742,9 @@ export class Network {
       session.disconnectedAt = null;
     }
     session.name = name;
+    // (fork) the profile icon as sent (shared/avatars.js; server/lobby.js avatarOf keeps a known id only); a hello without
+    // one (an older client, no pick) clears it
+    session.avatar = typeof msg.avatar === 'string' ? msg.avatar : null;
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;

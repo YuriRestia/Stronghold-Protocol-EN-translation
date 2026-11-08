@@ -273,6 +273,9 @@ JOBS = [
     ('refs/fx/texture/pattern.ab', 'notes/oblvns', {'Texture2D'}, r'^pattern_07$'),
     # official module (uniequip) type icons, keyed by lower-case type name (e.g. 'mar-x')
     ('spritepack/ui_equip_type_hub_h2_0.ab', 'module', {'Sprite'}),
+    # (fork) the official player profile icons (头像, data/avatars.json, tools/build-avatars.mjs): 150×150, written as
+    # WebP only (AVATAR_WEBP) — the lobby's and the seat card's icon picker (public/js/ui/avatars.js)
+    ('spritepack/ui_player_avatar_list_h2_0.ab', 'avatar', {'Sprite'}, r'^avatar_'),
     *[(rel, f'mesh/{sub}', {'Mesh', 'GameObject', 'Material', 'Texture2D'}) for rel, sub in MESH_BUNDLES],
     # the official 射击台 model (GitHub round 40: 战场#03's raised tiles by the blue gate were our flat grey slab): the
     # bundle holds every 卫戍协议 device model; keep 射击台 and 阻隔工事 (trap_1105_accrate, #663)
@@ -375,6 +378,11 @@ GUIDE_WEBP_OPTIONS = {
     'lossless': {'lossless': True, 'quality': 100, 'method': 4, 'exact': True},
     'lossy': {'quality': 90, 'method': 4, 'alpha_quality': 100},
 }
+
+# (fork) Output subdirs whose sprites are written straight as WebP, with no PNG beside them (every file under
+# public/assets is in the preload manifest and zip): the 200 profile icons, 7.7 MB of PNG → 1.8 MB at lossy quality 90,
+# the user's choice of 2026-11-08 after a side-by-side comparison at 2×.
+DIRECT_WEBP = {'avatar': GUIDE_WEBP_OPTIONS['lossy']}
 
 # Shader bundles loaded beside every job that exports Materials, only so that the materials' shader references
 # (external CABs) resolve to a name in materials.json (e.g. Torappu/Scene/StandardDirectional); nothing is exported
@@ -751,14 +759,19 @@ def export_bundle(ab_root, job, out_root, manifest, log):
                 img = data.image
                 if img is None or img.width < 2 or img.height < 2:
                     continue
-                fname = name + '.png'
+                direct = DIRECT_WEBP.get(sub)
+                fname = name + ('.webp' if direct else '.png')
                 if fname in seen:  # same name twice: a Sprite (true aspect) beats its padded Texture2D
                     if t == 'Texture2D' or manifest.get(sub, {}).get(name, {}).get('kind') == 'Sprite':
                         continue
-                img.save(out_dir / fname)
+                if direct:
+                    img.save(out_dir / fname, 'WEBP', **direct)
+                else:
+                    img.save(out_dir / fname)
                 seen.add(fname)
                 manifest.setdefault(sub, {})[name] = {
-                    'path': f'/assets/local/{sub}/{fname}', 'w': img.width, 'h': img.height, 'kind': t}
+                    'path': f'/assets/local/{sub}/{fname}', 'w': img.width, 'h': img.height, 'kind': t,
+                    **({'webp': 'lossy'} if direct else {})}
                 n += 1
             elif t == 'TextAsset':
                 raw = data.m_Script
