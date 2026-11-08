@@ -17,14 +17,16 @@ export const BOT_HOST_STRIKES = 2;
 
 export class MatchBotBattles {
   /**
-   * Whether a field `_authorityFor` found no human for goes to a browser instead of the server: only a field every player of which
-   * is a bot. A field with any human seat, connected or not (gone, left, AI-controlled after leaving), stays on the server as before,
-   * because the browser that would run it is not that player's and its result is checked on bounds only (botField). Layer traits
-   * are exempt on such a field, capped by the same allowance.
+   * Whether a field `_authorityFor` found no human for goes to a browser instead of the server: a field of bots, where every human
+   * seat it has, if any, has LEFT the match (`ps.left`: set by onLeave, never cleared, and a left player cannot reconnect, see
+   * onReconnect). A human who is only disconnected may come back, so a field with such a seat stays on the server as before: its
+   * result would come from another player's browser, checked on bounds only (botField). Layer traits are exempt on a field this
+   * accepts, capped by the same allowance.
    */
   _botBattleOnHost(f) {
     if (this.botBattles !== 'host') return false;
-    return f.players.length > 0 && f.players.every((pid) => this.players.get(pid)?.isBot === true);
+    const seats = f.players.map((pid) => this.players.get(pid));
+    return seats.some((ps) => ps?.isBot === true) && seats.every((ps) => ps && (ps.isBot === true || ps.left === true));
   }
 
   /**

@@ -248,6 +248,8 @@ export class MatchClientCombat {
     for (const f of this.fields) {
       if (!f.cc || f.done || f.verifyJob || f.mode !== 'client' || f.authority !== ps.playerId) continue;
       if (f.kind === 'boss' || f.kind === 'hidden') this._bossHandover(f, why);
+      // (fork) match/botBattles.js: a field its last human left for good, played on by bots, goes to a browser like a bot field
+      else if (why === 'left' && this._botBattleOnHost(f)) { f.authority = null; this._assignBotHost(f); }
       else this._runOnServer(f, why);
     }
     this._botBattleHostLost(ps); // (fork) match/botBattles.js

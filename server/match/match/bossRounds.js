@@ -328,6 +328,8 @@ export class MatchBoss {
       this._sendStart(next, f);
       return;
     }
+    // (fork) match/botBattles.js: its last human left for good and bots play on: a browser runs it live from the field's clock
+    if (why === 'left' && this._botBattleOnHost(f)) { this._botBossHandover(f, why); return; }
     this._runOnServer(f, why);
   }
 
