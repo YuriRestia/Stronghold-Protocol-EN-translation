@@ -274,14 +274,18 @@ function TipsPanel() {
     <div class="tips__head">
       <${Icon} name="info" />
       <span>${t('作战提示')}</span>
-      <${MicroLabel}>TACTICAL TIPS<//>
+      <span class="tips__sub"><${MicroLabel}>TACTICAL TIPS<//></span>
       <span class="tips__pager">
         <span class="tips__idx num">${String(i + 1).padStart(2, '0')}<span class="t-dim">/${String(list.length).padStart(2, '0')}</span></span>
         <button type="button" class="tips__nav" onClick=${() => setIdx(i - 1 + list.length)} aria-label=${t('上一条')}><${Icon} name="chevronLeft" /></button>
         <button type="button" class="tips__nav" onClick=${() => setIdx(i + 1)} aria-label=${t('下一条')}><${Icon} name="chevronRight" /></button>
       </span>
     </div>
-    <p key=${i} class="tips__text">${list[i]}</p>
+    <div class="tips__stack">
+      ${list.map((tip, j) => (j === i
+        ? html`<p key=${`on-${i}`} class="tips__text">${tip}</p>`
+        : html`<p key=${String(j)} class="tips__text is-ghost" aria-hidden="true">${tip}</p>`))}
+    </div>
   </div>`;
 }
 
