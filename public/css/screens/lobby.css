@@ -495,6 +495,11 @@
 .tips__head > .icon { width: .2rem; height: .2rem; color: var(--mint-500); }
 /* the count and its arrows move to a line of their own, together, when the head is too narrow for them (§35.18 review) */
 .tips__pager { display: inline-flex; align-items: center; gap: .1rem; margin-left: auto; }
+/* (fork) the TACTICAL TIPS label gives way first: when it doesn't fit beside the title and the pager, it wraps onto a
+   hidden second line of its own box, so the pager keeps the title's row (no empty row for the count and its arrows) */
+.tips__sub { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; height: .3rem; overflow: hidden; }
+.tips__sub::before { content: ''; height: 100%; }
+.tips__sub > .micro { white-space: nowrap; }
 .tips__idx { font-size: calc(.16 * var(--t)); color: var(--text-md); }
 .tips__nav {
   display: grid;
@@ -511,6 +516,12 @@
 .tips__nav .icon { width: .18rem; height: .18rem; }
 .tips__text { margin-top: .1rem; font-size: calc(.17 * var(--t)); color: var(--text-lo); line-height: 1.6; animation: tip-in var(--t-slow) var(--ease-out); }
 @keyframes tip-in { from { opacity: 0; transform: translateX(.1rem); } }
+/* (fork) every tip sits in the same cell, the others hidden, so the box is always as tall as the longest tip: a rotating
+   tip never changes the height of the column, and the update announcement above it stays put */
+/* (and the tip shown sits in the middle of that height, so a short tip leaves even space above and below) */
+.tips__stack { display: grid; margin-top: .1rem; }
+.tips__stack > .tips__text { grid-area: 1 / 1; align-self: center; margin-top: 0; }
+.tips__text.is-ghost { visibility: hidden; animation: none; }
 
 /* ---- the two full-screen dialogs (Modal .proto / .ally) --------------------------------------------- */
 .modal.proto-veil { padding: 0; background: #0b0c0c; -webkit-backdrop-filter: none; backdrop-filter: none; }
@@ -1250,6 +1261,8 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 }
 .search-news__body:focus-visible { outline: 1px solid var(--mint-500); outline-offset: 2px; }
 .search-news__highlight { margin: 0 0 .07rem; padding-bottom: .07rem; font-size: calc(.16 * var(--t)); font-weight: 800; color: var(--mint-400); border-bottom: 1px solid var(--line); }
+.search-news__highlight > p { margin: 0; }
+.search-news__highlight > p + p { margin-top: .04rem; }
 .search-news__list { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: .04rem; }
 .search-news__list li::marker { color: var(--mint-500); }
 

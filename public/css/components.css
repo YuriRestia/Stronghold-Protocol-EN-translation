@@ -1415,7 +1415,7 @@
   .avpick__scroll { max-height: none; }
   .avpick__now { min-height: .5rem; }
   .avpick__big { width: .5rem; height: .5rem; }
-  .avpick__grid { grid-template-columns: repeat(auto-fill, minmax(max(.5rem, 40px), 1fr)); }
+  .avpick__grid { grid-template-columns: repeat(auto-fill, minmax(max(.5rem, 32px, calc(40px * var(--sp-ui, 1))), 1fr)); }
   .avpick__grid--ops, .avpick__label { font-size: min(calc(.12 * var(--t)), 10px); }
   .avpick__grid--ops { grid-template-columns: repeat(auto-fill, minmax(max(.62rem, 6.4em), 1fr)); }
 }
