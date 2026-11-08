@@ -11,9 +11,13 @@
 //              enemy_handbook_table levelInfoList: E … SS — with the enemy's own number beside it).
 // ⓘ opens 玩法说明 at its 进阶图鉴 chapter. The report and the codex are full-screen Modals (focus trap; Esc closes the
 // codex first, then the report; the focus returns to the lobby's button). The tab is remembered (sp.pref).
+// (fork) An operator of 对应干员 opens 干员调配 at it (selected, in view, its detail open); 返回 / Esc there brings the
+// report back as it was left (tab, selections, scroll, focus on that operator). A member the loadout does not list (no
+// loadout slot of its operator) stays a plain picture. The report and the loadout show one data set — the page's version
+// (content.js) — so the report never names an operator of another version.
 // Styles: css/screens/sweep.css (sw-*).
 
-import { useMemo, useState } from '../../vendor/hooks.module.js';
+import { useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, Modal, roman } from '../ui/components.js';
 import { Img, RichText, GIcon } from '../ui/gameComponents.js';
 import { bondIconUrl, bandIconUrl, enemyIconUrl, factionIconUrl, chessAvatarUrl } from '../ui/assetUrls.js';
@@ -23,7 +27,8 @@ import { data, useData } from '../data.js';
 import { contentSet, pageVersion, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, shownVersion } from '../versions.js';
 import { useStore, loadPref, savePref } from '../store.js';
-import { loadoutStore } from '../ui/loadoutSync.js';
+import { loadoutStore, openLoadout } from '../ui/loadoutSync.js';
+import { isLoadoutSlot } from '../ui/loadoutModel.js';
 import { openGuide, guidePages } from '../ui/guide.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
@@ -88,6 +93,22 @@ export function bossEnemyKeys(boss) {
   return [...new Set(keys.filter((k) => typeof k === 'string' && k))];
 }
 
+/**
+ * The 干员调配 row of a bond member: the chess itself when it is a loadout slot, else the slot of the same operator
+ * (charId); null when the loadout lists no such operator.
+ * @param {any} chess chess.json record @param {any[]} list chess.json records
+ * @returns {string|null}
+ */
+export function loadoutSlotOf(chess, list) {
+  if (!chess) return null;
+  if (isLoadoutSlot(chess)) return chess.chessId;
+  const slot = chess.charId ? (Array.isArray(list) ? list : []).find((c) => c?.charId === chess.charId && isLoadoutSlot(c)) : null;
+  return slot ? slot.chessId : null;
+}
+
+// the report's scrolling boxes, kept across a visit to 干员调配 (by order; the short-screen layout scrolls .sw-left)
+const SCROLLERS = ['.sw-right', '.sw-left', '.sw-text'];
+
 // ---- small pieces ------------------------------------------------------------------------------------------------------
 
 /** The big square at the top of the left panel (bracket corners, a ring behind a glyph or the art). */
@@ -132,7 +153,7 @@ function EnemyThumb({ e, m, on = false, onClick = null, size = 'sm' }) {
 
 // ---- 盟约报告 ----------------------------------------------------------------------------------------------------------
 
-function BondPanel({ bond, m, notOwned }) {
+function BondPanel({ bond, m, notOwned, onOperator }) {
   const off = new Set(Array.isArray(notOwned) ? notOwned : []);
   const ids = Array.isArray(bond.visibleMembers) && bond.visibleMembers.length ? bond.visibleMembers : (bond.members || []);
   const members = ids.map((id) => data.lookup('chess', id)).filter(Boolean)
@@ -153,12 +174,18 @@ function BondPanel({ bond, m, notOwned }) {
         <span class="sw-box__k"><${Icon} name="user" />${t('对应干员')}<small class="num">${members.length}</small></span>
         ${anyOff ? html`<span class="sw-box__note"><span class="sw-box__swap" aria-hidden="true">⇄</span>${t('未持有的干员由替补干员上场')}</span>` : null}
       </div>
-      <div class="sw-ops">${members.map((c) => html`<span key=${c.chessId} class=${cx('sw-op', `sw-op--t${c.tier}`, off.has(c.chessId) && 'is-standin')}
-          title=${c.name}>
-        <${Img} src=${chessAvatarUrl(m, c)} fallback=${html`<span class="sw-op__txt">${[...(c.name || '?')][0]}</span>`} />
-        <span class="sw-op__tier">${roman(c.tier)}</span>
-        ${off.has(c.chessId) ? html`<span class="sw-op__sub">${t('替补')}</span>` : null}
-      </span>`)}</div>
+      <div class="sw-ops">${members.map((c) => {
+        const slot = onOperator ? loadoutSlotOf(c, data.list('chess')) : null;
+        const Tag = slot ? 'button' : 'span';
+        return html`<${Tag} key=${c.chessId} type=${slot ? 'button' : undefined} data-chess=${c.chessId}
+            class=${cx('sw-op', `sw-op--t${c.tier}`, off.has(c.chessId) && 'is-standin', slot && 'is-link')}
+            title=${slot ? t('在干员调配中查看{name}', { name: c.name }) /* en: "View {name} in Operator Loadout" */ : c.name} onClick=${slot ? () => onOperator(slot, c.chessId) : undefined}>
+          <${Img} src=${chessAvatarUrl(m, c)} fallback=${html`<span class="sw-op__txt">${[...(c.name || '?')][0]}</span>`} />
+          <span class="sw-op__tier">${roman(c.tier)}</span>
+          ${off.has(c.chessId) ? html`<span class="sw-op__sub">${t('替补')}</span>` : null}
+          ${slot ? html`<span class="sw-op__go" aria-hidden="true"><${Icon} name="chevronRight" /></span>` : null}
+        <//>`;
+      })}</div>
     </div>` : null}
   </div>`;
 }
@@ -392,9 +419,11 @@ function handbookPage() {
 }
 
 /**
- * The report overlay. @param {{ onClose: () => void }} props
+ * The report overlay. @param {{ onClose: () => void, onReopen?: (restore: any) => void, restore?: any }} props
+ * `onReopen`: reopen the report with `restore` (what openOperator kept) — given, an operator of 对应干员 opens 干员调配
+ * and its 返回 comes back here.
  */
-export function SweepReport({ onClose }) {
+export function SweepReport({ onClose, onReopen = null, restore = null }) {
   const filesReady = useData('bonds', 'bands', 'bosses', 'factions', 'enemies', 'chess', 'assets');
   useData('local');
   const version = useStore(shownVersion);
@@ -406,11 +435,11 @@ export function SweepReport({ onClose }) {
     && (version === DEFAULT_VERSION || (content.version === version && content.status === 'ready'));
   const m = data.get('assets');
   const notOwned = useStore((s) => s.notOwned, Object.is, loadoutStore);
-  const [tab, setTabState] = useState(() => { const v = loadPref(TAB_PREF, 'bonds'); return TABS.some((x) => x.id === v) ? v : 'bonds'; });
+  const [tab, setTabState] = useState(() => { const v = restore?.tab || loadPref(TAB_PREF, 'bonds'); return TABS.some((x) => x.id === v) ? v : 'bonds'; });
   const setTab = (v) => { setTabState(v); savePref(TAB_PREF, v); };
-  const [bondSel, setBondSel] = useState(null);
-  const [bandSel, setBandSel] = useState(null);
-  const [enemySel, setEnemySel] = useState(null);
+  const [bondSel, setBondSel] = useState(restore?.bondSel ?? null);
+  const [bandSel, setBandSel] = useState(restore?.bandSel ?? null);
+  const [enemySel, setEnemySel] = useState(restore?.enemySel ?? null);
   const [codex, setCodex] = useState(null);
 
   // defaults once the data is there: the first tile of each tab
@@ -421,6 +450,34 @@ export function SweepReport({ onClose }) {
   const firstBoss = ready ? bossList()[0] : null;
   const eSel = enemySel || (firstBoss ? { kind: 'boss', id: firstBoss.bossId } : null);
 
+  // an operator of 对应干员 → 干员调配 at its row; 返回 there reopens this report as it is now
+  const openOperator = onReopen ? (slotId, chessId) => {
+    const box = document.querySelector('.modal__box.sw');
+    const snap = { tab, bondSel: bond?.bondId ?? bondSel, bandSel, enemySel, focus: chessId,
+      scroll: SCROLLERS.map((sel) => box?.querySelector(sel)?.scrollTop || 0) };
+    onClose();
+    openLoadout('lobby', slotId, 'loadout', { reveal: true, backLabel: N_('S.W.E.E.P.报告'), onBack: () => onReopen(snap) });
+  } : null;
+  // back from 干员调配: the scroll and the focus once the report is drawn again (once)
+  const restored = useRef(!restore);
+  useLayoutEffect(() => {
+    if (restored.current || !ready) return;
+    restored.current = true;
+    const box = document.querySelector('.modal__box.sw');
+    if (!box) return;
+    SCROLLERS.forEach((sel, i) => { const el = box.querySelector(sel); if (el) el.scrollTop = restore.scroll?.[i] || 0; });
+    // the lobby stays visibility: hidden until 干员调配's host drops .sp-loadout-open (an effect after this one), and a
+    // hidden button takes no focus: try again on the next frames
+    let tries = 0;
+    const focusOp = () => {
+      const op = box.querySelector(`.sw-op[data-chess="${restore.focus}"]`);
+      if (!op || !box.isConnected) return;
+      op.focus({ preventScroll: true });
+      if (document.activeElement !== op && ++tries < 30) requestAnimationFrame(focusOp);
+    };
+    focusOp();
+  });
+
   let left = null;
   let right;
   if (failed) {
@@ -429,7 +486,7 @@ export function SweepReport({ onClose }) {
   } else if (!ready) {
     right = html`<p class="sw-loading">${t('正在读取报告…')}</p>`;
   } else if (tab === 'bonds') {
-    left = bond ? html`<${BondPanel} key=${bond.bondId} bond=${bond} m=${m} notOwned=${notOwned} />` : null;
+    left = bond ? html`<${BondPanel} key=${bond.bondId} bond=${bond} m=${m} notOwned=${notOwned} onOperator=${openOperator} />` : null;
     right = html`<${BondsTab} m=${m} sel=${bond?.bondId} onSel=${setBondSel} />`;
   } else if (tab === 'bands') {
     left = band ? html`<${BandPanel} key=${band.bandId} band=${band} m=${m} />` : null;

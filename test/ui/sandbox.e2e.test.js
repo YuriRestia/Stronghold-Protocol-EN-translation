@@ -42,7 +42,7 @@ test('Chrome: CSP, escape corpus, real Worker data/script determinism, 2 s takeo
   t.after(() => new Promise(resolve => server.close(resolve)));
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const puppeteer = (await import('puppeteer-core')).default;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
   const errors = []; page.on('pageerror', e => errors.push(e.message));

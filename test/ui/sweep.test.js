@@ -86,10 +86,11 @@ test('the report is read-only and a full-screen Modal; the lobby opens it (sourc
   const src = read('public/js/screens/sweep.js');
   assert.match(src, /<\$\{Modal\} open=\$\{true\} onClose=\$\{onClose\} class="sw"/);
   assert.match(src, /<\$\{Modal\} open=\$\{true\} onClose=\$\{onClose\} class="sw-codex"/);
-  assert.doesNotMatch(src, /openLoadout|savePref\((?!TAB_PREF)|net\.|room\./, 'nothing but the remembered tab is written');
+  // (fork) an operator opens 干员调配 (navigation only: test/ui/sweep-roster-link.test.js); nothing is written but the tab
+  assert.doesNotMatch(src, /savePref\((?!TAB_PREF)|net\.|room\.|setEntries|setNotOwned|setOpsMap|setDiyPicks/, 'nothing but the remembered tab is written');
   assert.doesNotMatch(src, /name="box"|name="dice"/, 'only icons of the project\'s set');
   const lobby = read('public/js/screens/lobby.js');
   assert.match(lobby, /import \{ SweepReport \} from '\.\/sweep\.js';/);
-  assert.match(lobby, /\$\{sweepOpen \? html`<\$\{SweepReport\} onClose=\$\{\(\) => setSweepOpen\(false\)\} \/>` : null\}/);
+  assert.match(lobby, /\$\{sweep \? html`<\$\{SweepReport\} restore=\$\{sweep\.restore\} onClose=\$\{\(\) => setSweep\(null\)\}/);
   assert.match(read('public/index.html'), /<link rel="stylesheet" href="\/css\/screens\/sweep\.css" \/>/);
 });

@@ -795,7 +795,13 @@ async function main() {
   };
   if (opts.dict) fallback.dict = JSON.parse(await readFile(opts.dict, 'utf8'));
   // corrections of the language's own official texts (none for a language without a file)
-  const corrections = await readDict(join(ROOT, 'tools', 'i18n', `corrections-${opts.lang}.json`));
+  // (fork) + a version's own tools/i18n/corrections-<lang>.<slug>.json (--data data/versions/<slug>), which wins: the
+  // same Chinese text can carry another number in another season (华法琳's granted garrison_95_b: 14 / 24 / 20 stacks)
+  const slug = dirname(opts.data) === join(ROOT, 'data', 'versions') ? basename(opts.data) : null;
+  const corrections = {
+    ...await readDict(join(ROOT, 'tools', 'i18n', `corrections-${opts.lang}.json`)),
+    ...(slug ? await readDict(join(ROOT, 'tools', 'i18n', `corrections-${opts.lang}.${slug}.json`)) : {}),
+  };
   const { overlay, report } = buildOverlay({ zh, en, data, fallback, corrections, lang: opts.lang, source: client ? { id: opts.source, label: src.label, home: src.home, season: seasonEn } : { id: 'dict', label: src.label } });
 
   // self-check: applying the overlay keeps every record's shape (strings replace strings only)

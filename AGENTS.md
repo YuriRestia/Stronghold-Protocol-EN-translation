@@ -57,5 +57,6 @@ npm run golden                              # golden results
 
 Browser suites are off by default and need Chrome: `SP_E2E=1` (UI), `SP_REAL_E2E=1` (real match, needs assets),
 `RENDER_E2E=1`, `SIM_E2E=1` — see CONTRIBUTING.md §2. Never hard-code a platform's GL flag in a test: use `gpuArgs()` from
-`tools/perfbench.mjs`. Battle tests are easiest with the helpers described in
+`tools/perfbench.mjs`. Test browsers are always muted (`--mute-audio`, in `gpuArgs()` and every launch): check a
+sound through its requests or a log of play calls, never by listening. Battle tests are easiest with the helpers described in
 docs/SIM.md (the test harness section) and the patterns in `test/content/op_siege.test.js`.

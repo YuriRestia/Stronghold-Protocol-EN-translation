@@ -122,6 +122,19 @@
   line-height: max(.24rem, 15px); text-align: center; color: var(--tc); background: rgba(10, 12, 12, .85); border: 1px solid var(--tc); }
 .sw-op__sub { position: absolute; right: 0; top: 0; padding: 0 .04rem; font-size: max(calc(.12 * var(--t)), 9px); font-weight: 800; color: #1a1a1a; background: var(--amber, #f2b544); }
 .sw-op.is-standin img { filter: saturate(.55); }
+/* (fork) a member that opens 干员调配 at its row: a button with the tiles' lift, a mint edge and an arrow on hover / focus */
+button.sw-op { display: block; width: 100%; font: inherit; color: inherit; cursor: pointer; transition: transform var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast); }
+.sw-op__go { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: max(.26rem, 16px); height: max(.26rem, 16px); color: #0f1413;
+  background: var(--mint-400, #5fe0b9); opacity: 0; transition: opacity var(--t-fast); }
+.sw-op__go .icon { width: 80%; height: 80%; }
+@media (hover: hover) {
+  .sw-op.is-link:hover { transform: translateY(-2px); border-color: var(--mint-400, #5fe0b9); box-shadow: 0 0 0 1px var(--mint-400, #5fe0b9), 0 .06rem .16rem rgba(0, 0, 0, .45); }
+  .sw-op.is-link:hover .sw-op__go { opacity: 1; }
+}
+.sw-op.is-link:focus-visible { outline: 2px solid var(--mint-400, #5fe0b9); outline-offset: 1px; }
+.sw-op.is-link:focus-visible .sw-op__go { opacity: 1; }
+@media (hover: none) { .sw-op.is-link .sw-op__go { opacity: .85; } } /* touch: no hover to reveal it, so the arrow says "tap" */
+.sw-op.is-link:active { transform: scale(.96); border-color: var(--mint-400, #5fe0b9); }
 /* enemy thumbnails */
 .sw-ethumbs { display: flex; flex-wrap: wrap; align-items: center; gap: .08rem; }
 .sw-ethumbs--grid { max-height: max(1.9rem, calc(96px * var(--sp-ui, 1))); overflow-y: auto; scrollbar-width: thin; }

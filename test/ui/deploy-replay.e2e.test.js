@@ -33,7 +33,7 @@ describe('the round start replays the own board\'s Start clips in deployment ord
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
     await srv.assetIndex?.whenReady();
     base = `http://127.0.0.1:${srv.port}`;
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   });
   after(async () => {
     await browser?.close();

@@ -58,7 +58,7 @@ const NOT_SCALED = [
   /\.sitag/, /\.tempnote/, /\.uframe/, /\.ff-/,
   // in-match HUD chrome whose box the design fixed (a later pass: shop cards, top bar, bond strip, corner buttons)
   /\.gm__/, /\.roundbox/, /\.capsule/, /\.capfx/, /\.lp\b/, /\.lp--/, /\.misstag/, /\.bossbar/, /\.readywrap/,
-  /\.bstrip/, /\.bslot/, /\.effect/, /\.efftip/, /\.ebubble/, /\.ticker/, /\.dpbox/, /\.vswitch/,
+  /\.bstrip/, /\.bslot/, /\.effect/, /\.efftip/, /\.ebubble/, /\.cbubble/, /\.ticker/, /\.dpbox/, /\.vswitch/,
   /\.specpill/, /\.otwarn/, /\.team/, /\.enemybtn/, /\.readybtn/, /\.ewheel/, /\.fwheel/, /\.chud/, /\.toolbtn/,
   /\.shopbar/, /\.scard/, /\.scr\b/,
   // text inside a fixed-height bar (the HP bar of the detail card, the boss bar's fill)

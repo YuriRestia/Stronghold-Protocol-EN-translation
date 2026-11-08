@@ -70,6 +70,7 @@ const skip = process.env.SP_P2P_E2E !== '1' ? 'set SP_P2P_E2E=1 to run real WebR
 // - /dev/shm is tiny in containers and makes headless Chromium stall or crash.
 const LAUNCH_ARGS = [
   '--no-sandbox',
+  '--mute-audio',
   '--disable-dev-shm-usage',
   '--disable-features=WebRtcHideLocalIpsWithMdns',
   '--allow-loopback-in-peer-connection',
