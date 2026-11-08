@@ -21,7 +21,7 @@ describe('Forge import in the studio page', { skip: !ENABLED && 'set SP_E2E=1 (a
     const { startServer } = await import('../../server/index.js');
     const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, pluginsDir: plugins, assetIndex: false });
     const P = (await import('puppeteer-core')).default;
-    const browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-first-run'] });
+    const browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-first-run'] });
     try {
       const files = [];
       const walk = (abs, rel) => {
@@ -66,7 +66,7 @@ describe('Forge import in the studio page', { skip: !ENABLED && 'set SP_E2E=1 (a
     const { startServer } = await import('../../server/index.js');
     const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, pluginsDir: plugins, assetIndex: false });
     const P = (await import('puppeteer-core')).default;
-    const browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-first-run'] });
+    const browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-first-run'] });
     try {
       // built in memory: node --test runs every .js under test/, so the kit is not a fixture file
       const pair = (id, golden) => ({ chessId: id, baseId: 'chess_rose_kit_a', goldenId: 'chess_rose_kit_b', isGolden: golden, tier: 3, rarity: 4,
@@ -117,7 +117,7 @@ describe('Forge import in the studio page', { skip: !ENABLED && 'set SP_E2E=1 (a
     const { startServer } = await import('../../server/index.js');
     const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, pluginsDir: plugins, assetIndex: false });
     const P = (await import('puppeteer-core')).default;
-    const browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--no-first-run'] });
+    const browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--no-first-run'] });
     try {
       const files = [];
       const walk = (abs, rel) => {

@@ -1,0 +1,5 @@
+{
+  "_about": "Fork: corrections for Season 1 (act1autochess) only (data/versions/<slug>), tried before tools/i18n/corrections-en.json when tools/build-i18n.mjs builds that version (--data data/versions/<slug>). For a Chinese text whose number differs by season. Same rules as corrections-en.json: exact match on the raw Chinese, a _why: note per entry.",
+  "_why:<战斗中>开启技能时，使自身已激活的盟约层数<@ba.vup>+2</>": "Warfarin's granted trait garrison_95_b (handed out by garrison_72_b): the Chinese states no cap, but the data caps it at 20 stacks per battle (max_add_count_per_battle), the number garrison_72_b's own text gives (至多20层); its garrison_95_a twin states its cap. gainLayers (server/sim/content/support/index.js) caps the stacks a trait adds per battle at its max_add_count_per_battle, per (trait instance, bond); a granted trait keeps its own (content/garrisons/battle.js install). Season 1 (act1autochess).",
+  "<战斗中>开启技能时，使自身已激活的盟约层数<@ba.vup>+2</>": "<In battle> <@ba.vup>+2</> stacks to own active Alliance(s) on skill activation (up to 20 stacks per battle)"
+}

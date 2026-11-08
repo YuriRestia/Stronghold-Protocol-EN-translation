@@ -39,7 +39,7 @@ describe('enemy model sizes and the 萨科塔 flutter (headless Chrome, real sim
     const puppeteer = (await import('puppeteer-core')).default;
     const { startServer } = await import('../../server/index.js');
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-first-run'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-first-run'] });
     mkdirSync(OUT, { recursive: true });
   });
   after(async () => {

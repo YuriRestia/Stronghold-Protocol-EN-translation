@@ -51,7 +51,7 @@ import {
   changedCount, skillLabel, moduleBadge, quickSkillTags, serializeExport, parseImport, LOADOUT_IMPORT_MAX_BYTES,
   setOps, resetOps,
 } from '../ui/loadoutModel.js';
-import { loadoutStore, openLoadout, closeLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport, importedEntries, importedNotOwned } from '../ui/loadoutSync.js';
+import { loadoutStore, openLoadout, closeLoadout, backFromLoadout, setEntries, setOpsMap, applyLoadoutEntries, setNotOwned, applyOwnershipImport, setDiyPicks, applyDiyImport, importedEntries, importedNotOwned } from '../ui/loadoutSync.js';
 // 皮肤 (docs/SKINS.md): a self-contained section — everything it does lives in ui/skinPicker.js, so this screen keeps
 // one import and one line in its detail body
 import { SkinSection } from '../ui/skinPicker.js';
@@ -76,7 +76,7 @@ import { VoiceLangPicker } from '../ui/voiceLang.js';
 import { toast } from '../ui/toasts.js';
 import { reducedMotion } from '../ui/device.js';
 
-export { openLoadout, closeLoadout };
+export { openLoadout, closeLoadout, backFromLoadout };
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
@@ -793,7 +793,7 @@ function LoadoutScreen({ st }) {
         if (onDeckTab && u.menu) { u.setMenu(null); return; }
         if (onDeckTab && u.quick) { u.setQuick(null); return; }
         if (onDeckTab && u.drawer) { u.setDrawer(false); return; }
-        closeLoadout(); return;
+        backFromLoadout(); return;
       }
       if (typing) return;
       // (a row's quick choices: ←/→ stay with the focused group, PR #301)
@@ -813,11 +813,27 @@ function LoadoutScreen({ st }) {
     return () => window.removeEventListener('keydown', onKey, true);
   }, []);
 
-  // keep the selected card in view (the list scrolls down, the deck sideways)
+  // openLoadout's `reveal` (an operator of the S.W.E.E.P.报告): once the roster is there, clear the filters that hide it
+  // and open its detail as a pick would (the card view's drawer; the phone's detail over the list)
+  const [revealed, setRevealed] = useState(0);
+  const centerNext = useRef(false);                        // the revealed row comes to the middle, later picks to the nearest edge
+  useEffect(() => {
+    const id = st.reveal;
+    if (!id || !ready || !roster.length) return;
+    loadoutStore.set({ reveal: null });
+    if (!roster.some((c) => c.chessId === id)) return;
+    if (!list.some((c) => c.chessId === id)) clearFilters();
+    if (view === 'deck') setDrawer(true); else setNarrowDetail(true);
+    centerNext.current = true;
+    setRevealed((n) => n + 1);
+  }, [st.reveal, ready, roster]);
+  // keep the selected card in view (the list scrolls down, the deck sideways; the phone's list again on 干员列表)
   useEffect(() => {
     const el = (view === 'deck' ? deckRef : gridRef).current?.querySelector(`[data-chess="${selId}"]`);
-    if (el && typeof el.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-  }, [selId]);
+    if (!el || typeof el.scrollIntoView !== 'function' || !el.getClientRects().length) return;
+    el.scrollIntoView({ block: centerNext.current ? 'center' : 'nearest', inline: 'nearest' });
+    centerNext.current = false;
+  }, [selId, narrowDetail, revealed]);
   // the drawer: the deck makes room on its left (.has-drawer) and scrolls by the same width, so nothing jumps; the
   // selected card then comes into view beside the drawer (scroll-padding-left)
   const drawerW = useRef(0);
@@ -872,6 +888,8 @@ function LoadoutScreen({ st }) {
     level=${golden ? previewLevel : 'normal'} onLevel=${setPreviewLevel}
     notOwned=${!!base && (st.notOwned || []).includes(base.chessId)} view=${detailView} onView=${setDetailView} />`;
 
+  // 返回 when openLoadout came with onBack (the S.W.E.E.P.报告): '返回{name}' — en: "Back to {name}";
+  // '返回{name} (Esc)' — en: "Back to {name} (Esc)"
   return html`<${Fragment}>
   <div class=${cx('lo', deck && 'lo--deck')} role="dialog" aria-modal="true" aria-label=${t('干员调配')}>
     <div class="lo__bg" aria-hidden="true"></div>
@@ -879,7 +897,9 @@ function LoadoutScreen({ st }) {
       <div class="lo-top__left">
         ${deck && tab !== 'loadout'
           ? html`<${Button} variant="ghost" size="md" icon="chevronLeft" class="lo-back" onClick=${() => setTab('loadout')} title=${t('返回干员调配')}>${t('干员调配')}<//>`
-          : html`<${Button} variant="ghost" size="md" icon="chevronLeft" class="lo-back" onClick=${closeLoadout} aria-label=${t('返回')} title=${t('返回 (Esc)')}>${t('返回')}<//>`}
+          : html`<${Button} variant="ghost" size="md" icon="chevronLeft" class="lo-back" onClick=${backFromLoadout} data-return=${st.backLabel ? 'true' : null}
+              aria-label=${st.backLabel ? t('返回{name}', { name: t(st.backLabel) }) : t('返回')}
+              title=${st.backLabel ? t('返回{name} (Esc)', { name: t(st.backLabel) }) : t('返回 (Esc)')}>${t('返回')}<//>`}
         ${deck ? html`<button type="button" class="lo-info" data-testid="loadout-help" onClick=${() => setHelp(true)} aria-label=${t('卡片视图说明')} title=${t('卡片视图说明')}><${Icon} name="info" /></button>` : null}
       </div>
       ${deck ? html`<div class="lo-top__center">

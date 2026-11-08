@@ -40,7 +40,7 @@ test('deleting lobby media changes its selection only after storage commits', {
   let srv, browser;
   try {
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, studio: false, pluginsDir: path.join(temp, 'plugins') });
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio'] });
     log.browser = await browser.version();
     const cdp = await browser.target().createCDPSession();
     log.arguments = (await cdp.send('Browser.getBrowserCommandLine')).arguments;

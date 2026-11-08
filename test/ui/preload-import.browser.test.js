@@ -59,7 +59,7 @@ test('the preload manager imports a preload zip: matching files are saved and se
     ...(bad ? [{ name: `${top}/public${bad.site}`, data: Buffer.from('not the picture') }] : []),
   ]);
   const { default: puppeteer } = await import('puppeteer-core');
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage();
   await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } });
