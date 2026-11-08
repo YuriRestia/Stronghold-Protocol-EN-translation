@@ -239,7 +239,8 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
   const mirror = (m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5])) < 0 ? -1 : 1;
   const pv = r.pivot;
   // a local-space system's sizes are drawn at its scaling mode's scale as it is now (psys.js sizeScale)
-  const k0 = ps.sizeScale(0), k1 = ps.sizeScale(1), k2 = ps.sizeScale(2);
+  // (fork) effect.js BILLBOARD_SCALE_X: the X scale on every axis
+  const k0 = ps.sizeScale(0), k1 = r.scaleByX ? k0 : ps.sizeScale(1), k2 = r.scaleByX ? k0 : ps.sizeScale(2);
   let w = 0;
   for (let k = 0; k < n; k++) {
     const i = _idx[k];

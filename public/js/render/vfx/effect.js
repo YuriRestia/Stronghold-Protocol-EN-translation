@@ -74,6 +74,14 @@ export function meshRef(v) {
  */
 export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
+/**
+ * (fork) Billboards drawn at their node's X scale on both axes, ignoring a non-uniform Y scale, by prefab key and node
+ * name [ASSUMED: Unity's billboard sizing is not in the client dump]. 还愿礼 S2's mountain, `BGDark (7)` (size3D 2.2 × 0.5,
+ * node scale (1.03, 2.49), its frame of vvana_object_059_008 a 4 : 1 band): the 2.2 : 0.5 size is that band's shape, and the
+ * official video shows the mountain low and wide; × 2.49 our quad stood 1.8 : 1 and the mountain a tall narrow peak.
+ */
+export const BILLBOARD_SCALE_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['BGDark (7)']) });
+
 /** The renderer info of a ParticleSystemRenderer. */
 function psrInfo(r) {
   if (!r) return null;
@@ -134,6 +142,7 @@ export function compileEffect(desc, lib = {}) {
     }
     if (nd.particleSystemRenderer) {
       def.psr[i] = psrInfo(nd.particleSystemRenderer);
+      if (def.psr[i] && BILLBOARD_SCALE_X[String(def.key).toLowerCase()]?.includes(nd.name)) def.psr[i].scaleByX = true;
       if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) {
         def.psr[i].pivotByX = true; def.psr[i].negRot = true; def.psr[i].meshRotX = true;
         const ps = def.ps[i], L = nd.particleSystem?.InitialModule?.startLifetime;
