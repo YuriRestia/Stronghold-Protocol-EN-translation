@@ -15,6 +15,7 @@ export const UPDATE_NEWS_PREF = 'news.0.3.4';
 /** The 0.3.4 announcement's emphasized lines, shown above the points in the highlight style (msgids). */
 const UPDATE_HIGHLIGHTS = [
   N_('冻河、国度与塔露拉加入自选编队，特效还原原作'), // en: "Toska, Territoriya and Talulah join the Custom Squad, with original effects"
+  N_('全新干员调配'), // en: "New Operator Loadout"
   N_('对局聊天'), // en: "Match chat"
   N_('大同盟：最多 8 名博士，两个小队'), // en: "Grand Alliance: up to 8 Doctors in two squads"
   N_('新增美国东部服务器'), // en: "New US East server"
@@ -22,12 +23,12 @@ const UPDATE_HIGHLIGHTS = [
 
 /** The 0.3.4 announcement's points (msgids). */
 const UPDATE_POINTS = [
+  N_('新增个人头像'), // en: "Profile Icon added"
   N_('凛御银灰 S3 使用官方特效，20 多名干员的攻击动作与特效对齐'), // en: "Official effects for SilverAsh the Reignfrost's S3, and attack animations that match their effects for over 20 operators"
   N_('替换普通攻击的技能（如维娜·维多利亚 S1）现在会播放完整动作'), // en: "Skills that replace an attack, such as Vina Victoria's S1, now play their full animation"
   N_('新增 7 套时装，包括凛御银灰「雪覆伦城」与薇薇安娜「还愿礼」'), // en: "7 new outfits, including SilverAsh the Reignfrost's Snowfall Over Londinium and Viviana's Votive Offering"
+  N_('修复薇薇安娜的特效'), // en: "Fixed Viviana VFX"
   N_('技能施放音效现在跟随所装备的技能'), // en: "Skill cast sounds now follow the skill you equip"
-  N_('伤害统计可显示伤害、DPS、治疗或 HPS'), // en: "The damage meter can show Damage, DPS, Healing or HPS"
-  N_('新增四个模组，战斗规则更贴近原作'), // en: "Four new Modules, and battle rules closer to the original game"
   N_('人机更聪明：围绕一个主盟约构筑，针对最终攻势的领袖布阵，并选择对全队有利的策略'), // en: "Smarter bots: they build around one main Alliance, plan the Final Assault around its Leader and pick Strategies that help the whole team"
 ];
 
