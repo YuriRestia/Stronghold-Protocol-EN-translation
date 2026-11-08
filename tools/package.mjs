@@ -668,8 +668,18 @@ export function packageOutIsUnsafe(out, root = REPO) {
 const errLine = (text) => String(text || '').trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean)[0] || '';
 
 /**
+ * Windows' own bsdtar (`%SystemRoot%\System32\tar.exe`, Windows 10+) when this is Windows and it exists, else null.
+ * @param {NodeJS.Platform} [platform] @param {Record<string, string | undefined>} [env]
+ */
+export function systemTar(platform = process.platform, env = process.env) {
+  if (platform !== 'win32' || !env.SystemRoot) return null;
+  const exe = path.win32.join(env.SystemRoot, 'System32', 'tar.exe');
+  return isFile(exe) ? exe : null;
+}
+
+/**
  * Zip `cwd`/`folder` (FOLDER unless named: the asset pack's folder) into `zipPath`: Info-ZIP `zip`, else a bsdtar
- * `tar --format zip` (Windows 10+, macOS). bsdtar writes
+ * `tar --format zip` (Windows 10+, macOS; on Windows also the system's tar.exe by its full path, systemTar). bsdtar writes
  * the names in UTF-8 (flag bit 11) only when told: its default is the system code page, which loses a name it cannot
  * spell (卫戍 becomes ?? on Windows code page 1252) and leaves no UTF-8 copy for a reader. No third attempt without
  * `--options`: that tar may write the zip with the names it could not spell, which no reader can undo.
@@ -680,10 +690,15 @@ const errLine = (text) => String(text || '').trim().split(/\r?\n/).map((l) => l.
  */
 export function zipFolder(cwd, zipPath, folder = FOLDER) {
   // deflate everything: storing PNG / MP3 as they are made the full zip 8.5 MB larger and saved no real time
+  const tarArgs = ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder];
   const attempts = [
     ['zip', ['-q', '-r', '-X', zipPath, folder]],
-    ['tar', ['-c', '--format', 'zip', '--options', 'zip:hdrcharset=UTF-8', '-f', zipPath, folder]],
+    ['tar', tarArgs],
   ];
+  // (fork) Windows: Git Bash puts its GNU tar (which writes no zip) ahead of the system's own bsdtar on PATH, so the
+  // bsdtar every Windows 10+ has is asked by its full path when the PATH's tar refused
+  const sysTar = systemTar();
+  if (sysTar) attempts.push([sysTar, tarArgs]);
   const failed = [];
   for (const [cmd, args] of attempts) {
     // a half-written zip from the attempt before must not pass for one this attempt made

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import zlib from 'node:zlib';
 import { APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, applyPendingUpdate, checkInstall, parseUpdate, removalProblem } from '../server/update.js';
 import { compareVersions, diffBases, readBase, readZip } from '../tools/package-update.mjs';
-import { FOLDER, readBases, scanFiles, stageProblems, zipFolder } from '../tools/package.mjs';
+import { FOLDER, readBases, scanFiles, stageProblems, systemTar, zipFolder } from '../tools/package.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TOOL = path.join(ROOT, 'tools', 'package.mjs');
@@ -375,11 +375,46 @@ test('zipFolder writes a UTF-8 name on this machine (or says why it cannot)', {
 test('zipFolder\'s error names every attempt and keeps the install hint only when no tool exists', () => {
   const dir = tmp('zip-hint');
   const PATH = process.env.PATH;
+  const SystemRoot = process.env.SystemRoot;
   try {
     put(dir, `${FOLDER}/package.json`, '{"version":"0.2.0"}');
     process.env.PATH = path.join(dir, 'no-such-bin');
+    // (fork) no Windows folder either: else Windows' own tar.exe (systemTar) is the third attempt and writes the zip
+    delete process.env.SystemRoot;
     assert.throws(() => zipFolder(dir, path.join(dir, 'out.zip')),
       /^Error: zipping failed: zip: ENOENT; tar: ENOENT — install `zip` \(or a bsdtar `tar`\)$/);
+  } finally {
+    process.env.PATH = PATH;
+    if (SystemRoot !== undefined) process.env.SystemRoot = SystemRoot;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('(fork) systemTar: Windows\' own tar.exe by its full path, only on Windows and only when it exists', () => {
+  const dir = tmp('sys-tar');
+  try {
+    assert.equal(systemTar('linux', { SystemRoot: dir }), null, 'not Windows');
+    assert.equal(systemTar('win32', {}), null, 'no SystemRoot');
+    assert.equal(systemTar('win32', { SystemRoot: dir }), null, 'no tar.exe there');
+    put(dir, 'System32/tar.exe', '');
+    assert.equal(systemTar('win32', { SystemRoot: dir }), path.win32.join(dir, 'System32', 'tar.exe'));
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// the PATH's tar refusing (Git Bash's GNU tar: test/package-smoke.test.js run from Git Bash) or missing: the same fallback.
+// Windows' tar.exe writes ASCII names only: it crashes (0xC0000005) on 卫戍 with hdrcharset=UTF-8, which the UTF-8 test above
+// reports as its skip reason — a loud failure, never a zip with lost names (#311).
+test('(fork) zipFolder writes the zip on Windows without a zip-writing tool on the PATH', { skip: !systemTar() && 'not Windows with a System32 tar.exe' }, () => {
+  const dir = tmp('zip-systar');
+  const PATH = process.env.PATH;
+  try {
+    put(dir, `${FOLDER}/package.json`, '{"version":"0.2.0"}');
+    process.env.PATH = path.join(dir, 'no-such-bin');
+    const zip = path.join(dir, 'out.zip');
+    zipFolder(dir, zip);
+    assert.ok(fs.statSync(zip).size > 0, 'the system tar wrote it');
   } finally {
     process.env.PATH = PATH;
     fs.rmSync(dir, { recursive: true, force: true });

@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Packaging works from Git Bash on Windows
+
+- Building a release zip on Windows failed when Git Bash's own `tar` came first on the PATH, because that tar cannot write zip files. The packager now falls back to the `tar.exe` built into Windows 10 and later. Windows' tar still can't write non-ASCII file names (it crashes), but no file in the game has one.
+
 ### Two outdated browser tests updated
 
 - The teammate-loadout test now expects a teammate's operator card to show ATK with the default Elite 2 Lv.60 bonus (×1.1), as the game has shown it since 0.2.2 and the other loadout tests already expect. The plugins test now accepts that the room loads the asset store together with the battlefield code it prepares for the match. No game change.
