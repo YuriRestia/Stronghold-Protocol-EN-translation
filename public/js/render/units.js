@@ -2125,7 +2125,7 @@ export class UnitView {
     if (lungeK) { const q = cam.project(this.x + lx, this.y + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
-    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift);
+    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift, this.isEnemy ? 0 : ALLY_DEPTH_TIE);
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
@@ -3027,13 +3027,23 @@ const HUD_P = { x: 0, y: 0, s: 0, depth: 0 };
 const ICON_TMP = [];
 
 /**
- * Unit-layer zIndex of a unit / piece whose feet are at (x, y): farther rows first (so raised block rows, keyed by
- * tiles.rowDepthKey, hide units behind them); lifted (dragged) pieces on top; ties broken by column.
+ * (fork) The same-row tie of an operator (or her summon) and an enemy: she draws over it. The official game draws an
+ * operator and her whole attack over the enemy she strikes in her row (薇薇安娜 S2 facing right, her reindeer over the
+ * robots: youtu.be/L1yV18aMIos 1:09), where the column tie-break hid her under any enemy to her right. 1 is above the
+ * column tie-break (x · 0.001) and far under a row's depth (50) and the raised blocks' margin (occlusion.test.js:
+ * 0.05 row = 2.5). [ASSUMED] the official sort is not in the client dump; footage only.
  */
-export function unitDepthKey(cam, x, y, lift = 0) {
+export const ALLY_DEPTH_TIE = 1;
+
+/**
+ * Unit-layer zIndex of a unit / piece whose feet are at (x, y): farther rows first (so raised block rows, keyed by
+ * tiles.rowDepthKey, hide units behind them); lifted (dragged) pieces on top; ties broken by side (`front`: an
+ * operator's ALLY_DEPTH_TIE), then by column.
+ */
+export function unitDepthKey(cam, x, y, lift = 0, front = 0) {
   // +40 (< one row of depth at the official 30° pitch, 100·sin 30° = 50): a lifted piece never ties with the unit one
   // row in front of it (a tie flickers with the column tie-break)
-  return -cam.depthOf(x, y, 0) * 100 + (lift > 0 ? 40 : 0) + x * 0.001;
+  return -cam.depthOf(x, y, 0) * 100 + (lift > 0 ? 40 : 0) + front + x * 0.001;
 }
 
 function mixTint(a, b, k) {

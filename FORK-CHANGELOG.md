@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
+### Operators over enemies in their row
+
+- An operator now draws over the enemies standing in her own row, as in the official game. Before, an enemy to her right always covered her, so attacks that reach into the enemy's tile went under it: Viviana's S2 reindeer, Degenbrecher's sword and the dashing skills of Eunectes, Mudrock, Ch'en and others. Facing up was already right; an enemy a row nearer still draws in front. Checked against official footage of Viviana's S2 and Degenbrecher's S2 (`units.js` `ALLY_DEPTH_TIE`, [ASSUMED]: the official sort isn't in the client dump).
+- The `vfx-talents` "group choice (select)" test asked for successive picks with one attack count; it now uses one count per attack, as the attack clip picks have since the clip change earlier today.
+
 ### Profile icons
 
 - Doctors can pick a profile icon from a new profile chip in the lobby's top bar or from the icon on their own seat card in a room. The picker has two tabs. Operators lists every operator a seat card can show, with search and rarity tabs, worn in the player's outfit; its first tile, Assistant Operator, follows the room card's operator. Icons holds the game's 200 official profile icons, grouped as the game groups them (Dynamic Icon, Unique unlock, Event Icon, Default Icon). The pick is saved in the browser (`sp.pref.profile.avatar`) and comes back on the next visit, like the room's portrait operator (`sp.pref.room.card`, already saved).

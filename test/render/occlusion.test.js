@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseStage, buildTileQuads, splitQuadGroups, sortQuadOrder, rowDepthKey, boxDepthKey, ROW_KEY } from '../../public/js/render/tiles.js';
-import { unitDepthKey, groundZ, placeOnGround } from '../../public/js/render/units.js';
+import { unitDepthKey, ALLY_DEPTH_TIE, groundZ, placeOnGround } from '../../public/js/render/units.js';
 import { windUpPlan, MAX_WIND_SPEEDUP } from '../../public/js/render/spine.js';
 import { presetCamera } from '../../public/js/render/projection.js';
 import { SnapshotBuffer } from '../../public/js/render/interp.js';
@@ -67,6 +67,19 @@ describe('depth keys', () => {
       assert.ok(box > k + ROW_KEY.surface, `box after row ${r}`);
       assert.ok(box < unitDepthKey(cam, 4, r + 0.3), `box before unit in row ${r}`);
       assert.ok(box < rowDepthKey(cam, r - 1), `box before the next row in front`);
+    }
+  });
+
+  test('an operator draws over the enemies of her own row only: not over one a tile nearer, nor past a raised block', () => {
+    const A = ALLY_DEPTH_TIE;
+    // the column tie-break alone put an enemy on her right over her (薇薇安娜 S2 facing right, her reindeer hidden)
+    assert.ok(unitDepthKey(cam, 4, 9, 0, A) > unitDepthKey(cam, 4.7, 9, 0, 0));
+    assert.ok(unitDepthKey(cam, 4, 9, 0, A) > unitDepthKey(cam, 3.6, 9, 0, 0));
+    assert.ok(unitDepthKey(cam, 4, 9, 0, A) < unitDepthKey(cam, 5, 8.9, 0, 0), 'an enemy a tenth of a row nearer stays in front');
+    for (let r = 1; r <= 12; r++) {
+      const block = rowDepthKey(cam, r) + ROW_KEY.blocks;
+      assert.ok(unitDepthKey(cam, 4, r + 0.55, 0, A) < block, `operator just behind row ${r}`);
+      assert.ok(unitDepthKey(cam, 4, r + 0.45, 0, 0) > block, `enemy at back of row ${r}`);
     }
   });
 
