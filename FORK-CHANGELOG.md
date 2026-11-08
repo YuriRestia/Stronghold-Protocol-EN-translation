@@ -11,6 +11,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - Blemishine's and Degenbrecher's deploy traits (`garrison_106_a/b`, `garrison_155_a/b`) now read "On deployment … (up to N stacks per battle)", as the Chinese and the game code have it. The official English added an "on skill activation" trigger that doesn't exist and gave the cap as "Can stack up to Nx". The fix is in `tools/i18n/corrections-en.json`.
 - 23 more traits gave their cap as "Can stack up to Nx", which reads like a number of triggers. They now say what the Chinese and the code cap: "up to N stacks per battle" ("per round" for Aroma and Angelina, "each" where two alliances each have their own cap). Executor's bullet trait now reads "up to 7 times per battle", and its Foresight part adds stacks, not "Alliances". The traits belong to Executor the Ex Foedere, Warfarin, Kroos the Keen Glint, Virtuosa, Surtr, Fartooth, Aroma, Titi and Angelina, plus the traits Warfarin, Kroos and Fartooth hand out.
+- Season 1 and Season 2 part 1 rooms get the same trait fixes. Their English texts (`data/versions/<slug>/i18n/en.json`) were rebuilt, and 7 Season 1 traits with Season 1's own caps (10 / 20 stacks) got their own corrections. The rebuild also brings in what the older-season texts were missing since the last build: 7 outfit names, the Rampage, Arcane Surge and Trigger effect keywords, and Rampage in the Elemental Injury list.
 
 ### Several servers, one game
 

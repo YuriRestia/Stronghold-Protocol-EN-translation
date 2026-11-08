@@ -157,6 +157,25 @@ test('data/i18n/en.json: garrison caps read as stacks (至多N层) or triggers (
   }
 });
 
+test('data/versions/*/i18n/en.json: the older seasons\' garrison caps read as stacks too, with the number of their own Chinese text (corrections-en.json)', () => {
+  const slugs = ['act1autochess', 'act1autochess-v1_1', 'act2autochess-v2_1'];
+  for (const slug of slugs) {
+    const g = readJson(`data/versions/${slug}/i18n/en.json`).files.garrisons;
+    const zh = readJson(`data/versions/${slug}/garrisons.json`);
+    for (const [id, t] of Object.entries(g)) {
+      assert.doesNotMatch(t.desc ?? '', /can stack up to/i, `${slug} ${id}`);
+      if (/skill activation/i.test(t.desc ?? '')) assert.match(zh[id].desc, /技能/, `${slug} ${id}: a skill trigger the Chinese does not have`);
+      const cap = (t.desc ?? '').match(/\(up to (\d+) stacks/);
+      if (cap) assert.ok(zh[id].desc.includes(`至多${cap[1]}层`), `${slug} ${id}: ${t.desc} vs ${zh[id].desc}`);
+    }
+  }
+  // Season 1 has its own caps (garrison_72_b 20, Season 2 part 1 24, today 14), so its own corrections
+  const s1 = readJson('data/versions/act1autochess/i18n/en.json').files.garrisons;
+  assert.match(s1.garrison_72_b.desc, /\(up to 20 stacks per battle\)$/);
+  assert.match(s1.garrison_97_b.desc, /\(up to 20 stacks per battle\)$/);
+  assert.match(readJson('data/versions/act2autochess-v2_1/i18n/en.json').files.garrisons.garrison_106_b.desc, /^<On deployment> \+8 stacks to own active Alliance\(s\) \(up to 24 stacks per battle\)$/);
+});
+
 test('data/i18n/en.json: shape, the 盟约 season of the EN build, coverage and the names map', () => {
   assert.equal(OVERLAY.version, 1);
   assert.equal(OVERLAY.lang, 'en');
