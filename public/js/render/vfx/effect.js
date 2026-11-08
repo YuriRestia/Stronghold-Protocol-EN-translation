@@ -70,7 +70,8 @@ export function meshRef(v) {
  * each step clear only from 4 s of its life) [ASSUMED, same source: the staircase stands complete as S2 starts].
  * Fitted, no rule found (`fit`) [ASSUMED: the video's 1:12 frame at 1080p, scaled to her height]: there the stack covers
  * twice the height ours did and each step is twice as thick, its top at her face — the steps drift up twice the data's
- * 0.05 /s, spawn 2.0 out instead of 1.5 (the same top), and stand as thick as their Y size.
+ * 0.05 /s, spawn 2.0 out instead of 1.5 (the same top), stand as thick as their Y size and live 14 s, not 20 (at
+ * twice the drift the older steps sank under her feet; the video shows none there).
  */
 export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
@@ -79,6 +80,9 @@ export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Ob
  * name [ASSUMED: Unity's billboard sizing is not in the client dump]. 还愿礼 S2's mountain, `BGDark (7)` (size3D 2.2 × 0.5,
  * node scale (1.03, 2.49), its frame of vvana_object_059_008 a 4 : 1 band): the 2.2 : 0.5 size is that band's shape, and the
  * official video shows the mountain low and wide; × 2.49 our quad stood 1.8 : 1 and the mountain a tall narrow peak.
+ * Fitted, no rule found (`fitSize`, `fitOffset`) [ASSUMED: measured on the video's S2 dash frame, the staircase as the
+ * ruler]: the official mountain stands 0.67 wide and 0.46 tall at its base, its peak level with the top step just inside
+ * the steps' inner ends; ours stood 1.16 wide, its peak 0.5 further right and lower.
  */
 export const BILLBOARD_SCALE_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['BGDark (7)']) });
 
@@ -142,11 +146,18 @@ export function compileEffect(desc, lib = {}) {
     }
     if (nd.particleSystemRenderer) {
       def.psr[i] = psrInfo(nd.particleSystemRenderer);
-      if (def.psr[i] && BILLBOARD_SCALE_X[String(def.key).toLowerCase()]?.includes(nd.name)) def.psr[i].scaleByX = true;
+      if (def.psr[i] && BILLBOARD_SCALE_X[String(def.key).toLowerCase()]?.includes(nd.name)) {
+        def.psr[i].scaleByX = true;
+        // fitted (BILLBOARD_SCALE_X): 0.84 as wide and 1.25 as tall, its centre 0.24 left and 0.30 up (local axes, units)
+        def.psr[i].fitSize = [0.84, 1.25];
+        def.psr[i].fitOffset = [-0.24, 0.30];
+      }
       if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) {
         def.psr[i].pivotByX = true; def.psr[i].negRot = true; def.psr[i].meshRotX = true;
-        const ps = def.ps[i], L = nd.particleSystem?.InitialModule?.startLifetime;
-        const life = typeof L === 'number' ? L : Math.max(num(L?.max, 0), num(L?.min, 0), num(L?.value, 0));
+        const ps = def.ps[i];
+        // fitted (below): a 14 s life, not the data's 20 — the older steps drift under her, where the video shows none
+        const life = 14;
+        if (ps) ps.startLifetime = Object.freeze({ at: () => life });
         if (ps && ps.prewarm && life > ps.duration) ps.prewarmS = Math.min(30, Math.ceil(life / ps.duration) * ps.duration);
         def.psr[i].fit = true;
         if (ps?.velocity) ps.velocity = { ...ps.velocity, speed: Object.freeze({ at: () => 2 }) };
