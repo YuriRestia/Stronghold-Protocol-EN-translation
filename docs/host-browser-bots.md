@@ -370,6 +370,9 @@ round.
 `g.choice`). With no executor they use the existing rule-level fallback: the deadline's random pick (`spDraft.js:63`) and
 `timeoutBand`.
 
+**One window each:** the receipt window is armed once per task and the plan window once, at the first `b.botReceived`. A repeated
+receipt, or a second `plan` batch for the same task, is ignored, so an executor looping frames cannot hold an untimed prep open.
+
 **As built (piece 7):** a pick is one `final` batch with one move. It has no budget of its own: the 5 s receipt and 10 s plan windows
 apply, and a timed draft turn still ends at its deadline. So the first pick of a match does not wait for a Worker to start, `b.botWarm`
 tells the first executor at the briefing, and the page starts the Worker when it is idle. The local path runs its picks on seat streams
@@ -405,7 +408,8 @@ calls `_authorityFor` and boss fields are piece 9. A browser has 30 s to answer 
 timeouts stop a human being asked for the rest of the match. Until piece 11, a gameplay-plugin room or an old version stays on
 the server, because the Worker only has the page's official data. Vanilla rooms carry a `cs` too, so the gates test `requireCs`.
 
-`_authorityFor` gets one branch: a field with no human goes to the current executor. A Worker runs the spec headless and
+`_authorityFor` gets one branch: a field every player of which is a bot goes to the current executor. A field with any human seat,
+connected or not, stays on the server as before: its result would come from another player's browser on bounds-only checks. A Worker runs the spec headless and
 sends the result early, and the server holds it until the battle's natural end with the existing `_armRelease`, so pacing and
 teammates' progress UI do not change.
 
@@ -414,6 +418,7 @@ teammates' progress UI do not change.
 | Result arrives | `validateClientResult` as for a human, then release at the natural end |
 | Timeout, or host gone | Next human, then a synthetic result (`syntheticResult`: no kills, no leaks). Never `_runOnServer`. |
 | Layer traits (`requiresTraitLayerAuthority`, `fields.js:793`) | Bot-only fields are exempt, and gains stay capped by the existing allowance. Human fields keep today's rule. |
+| A human's field with that human disconnected | The server simulates it, as on dev-0.2; it never goes to a browser. A human who leaves is eliminated and has no later fields. |
 | Bot-only boss field | Runs live in the Worker on the field's clock and reports at 4 Hz through `b.progress` and `b.result`, so the existing boss rules apply. A silent or lost executor hands it to the next human; with nobody left, a synthetic result stands (piece 9) |
 | Bot-only joint field (seen in the run: `ai_2+ai_1:server`) | Same burst path as a normal field |
 
