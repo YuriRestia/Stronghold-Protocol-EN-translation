@@ -751,6 +751,15 @@ loadout. No id is also a tokens.json record.
 (Fork) `outfits.json`: the roster's official outfits (时装), built by `tools/build-outfits.mjs`, not by build-data. It is
 cosmetic only (the sim never reads it); see docs/OUTFITS.md.
 
+(Fork) `avatars.json`: the official player profile icons (头像, display_meta_table `playerAvatarData`), built by
+`tools/build-avatars.mjs` from the CN and EN tables pinned to a commit, not by build-data: `defaultId`, `groups` (the
+official groups in sortId order, without ASSISTANT, which has no picture) and `avatars` (`{ type, name, unofficial? }`).
+`name` is the Chinese name; `data/i18n/<lang>.json files.avatars` translates it (tools/build-i18n.mjs: the official
+tables, then `tools/i18n/fallback-avatars-en.json` for the icons the EN client lacks — the wiki's names, and our own
+ones listed in its `_unofficial`, which the record marks `unofficial: true` and the picker tags). The art is the CN
+client's sprite pack, extracted as WebP into the local art group `avatar` (tools/local-extract/extract.py). Presentation
+only (server/plugins/identity.js `PRESENTATION_DATA`): the lobby checks `hello.avatar` against it (shared/avatars.js).
+
 Not in this data: a player's ownership roster and 自选 picks (browser settings sent with `room.ownership` / `room.diy`),
 the DIY stock (per player in the match, `PlayerState.diyStock`: `config.economy.poolCopies` of the slot's tier, doubled in
 co-op — no excel field), 助战 borrows (`borrowCount` 20), and a player's potential / 练度 per operator (the 干员调配 settings sent with

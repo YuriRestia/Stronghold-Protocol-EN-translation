@@ -48,6 +48,8 @@ import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { TermTipHost } from './ui/termTip.js';
 import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
 import { net, identity, NetError, regions } from './net.js';
+// (fork) the restored profile icon rides on the first hello (ui/avatars.js sets net.avatar when it loads)
+import './ui/avatars.js';
 import { PHASE } from '../../shared/constants.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { nextBubbleSeq, chatEntry, chatMuted } from './chatState.js';

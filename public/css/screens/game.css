@@ -609,6 +609,13 @@
 .pavatar__glyph { font-weight: 900; font-size: calc(var(--pa) * .5); color: hsl(var(--seat-hue) 70% 72%); }
 .pavatar__bot { width: 56%; height: 56%; color: #a9c3d8; }
 .pavatar.is-dead .pavatar__img, .pavatar.is-left .pavatar__img, .pavatar.is-offline .pavatar__img { filter: grayscale(1) brightness(.4); }
+/* (fork) the band icon as a corner badge over the profile icon (ui/avatars.js) */
+.pavatar__band {
+  position: absolute; right: -.04rem; bottom: -.04rem; width: 46%; height: 46%; overflow: hidden;
+  background: #101418; border: 1px solid var(--line-2); box-shadow: 0 0 .04rem #000;
+}
+.pavatar__band img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pavatar--sm .pavatar__band { display: none; }
 .pavatar__x, .pavatar__door { position: absolute; inset: 0; display: grid; place-items: center; color: var(--red-premium); }
 .pavatar__x .icon, .pavatar__door .icon { width: 60%; height: 60%; filter: drop-shadow(0 0 4px #000); }
 

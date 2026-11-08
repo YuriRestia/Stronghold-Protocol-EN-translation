@@ -74,6 +74,8 @@ import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } fro
 import { data, useData, getConfig } from '../data.js';
 import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
+import { useAvatarArt } from '../ui/avatars.js';
+import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { difficultyInfo, ProtocolSelect } from './lobby.js';
@@ -279,9 +281,11 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * host of a co-op room, 添加 AI 队友. `portrait` is the outfit's picture, `portraitDefault` the operator's default one
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
-function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, fresh = false,
+function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
   onMoveSeat = null, swapFrom = null, onSwap = null }) {
   const [badArt, setBadArt] = useState([]);
+  // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
+  const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
   const coop = room.mode !== 'solo';
   // the 转场 flash: a seat that turns ready (or becomes the host's), and an AI teammate added while the room is open
   // (`fresh`: this card mounted after the room was already on screen)
@@ -331,7 +335,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
     <div class="seat__art rseat__art">
       ${art
         ? html`<img key=${art} class="seat__portrait" src=${art} alt="" draggable=${false} onError=${() => setBadArt((b) => (b.includes(art) ? b : [...b, art]))} />`
-        : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
+        : html`<${AvatarFrame} size="xl" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} ready=${state === 'ready'} offline=${offline} />`}
       <div class="rseat__top">
         ${isHostSeat ? html`<span class="rseat__host"><${Icon} name="crown" />${t('创建者')}</span>` : null}
         ${seat.isBot ? html`<span class="rseat__bot"><${Icon} name="robot" />${t('AI 队友')}</span>` : null}
@@ -364,7 +368,12 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
       onClick=${() => onKick(index, seat.name, seat.playerId)} title=${t('将该博士移出同盟')} aria-label=${t('移出该博士')}><${Icon} name="user" /><${Icon} name="close" /></button>` : null}
     <div class="rseat__plate">
       ${isMe ? html`<span class="rseat__me" role="img" aria-label=${t('你')} title=${t('你')}><${Icon} name="info" /></span>` : null}
-      <${AvatarFrame} size="sm" name=${seat.name} src=${botAvatar} seat=${index} bot=${seat.isBot} self=${isMe} />
+      ${isMe && !seat.isBot && onPickAvatar
+        ? html`<button type="button" class="avedit rseat__face" data-testid="seat-avatar-pick" onClick=${onPickAvatar}
+            title=${/* en: "Change profile icon" */ t('更换头像')} aria-label=${t('更换头像')}>
+            <${AvatarFrame} size="sm" name=${seat.name} src=${iconSrc} seat=${index} self=${isMe} />
+            <span class="avedit__pen" aria-hidden="true"><${Icon} name="edit" /></span></button>`
+        : html`<${AvatarFrame} size="sm" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} />`}
       <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
       <small class="rseat__doc">${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}</small>
     </div>
@@ -565,6 +574,9 @@ export function RoomScreen() {
   const localSkins = useStore((s) => s[SKINS_KEY], Object.is, skinsStore);
   const otherSkins = useStore((s) => s.otherSkins !== false, Object.is, settingsStore);
   const [picking, setPicking] = useState(false);
+  // (fork) the profile icon picker (ui/avatarPicker.js), offered once this server has the icon art
+  const [pickingAvatar, setPickingAvatar] = useState(false);
+  const avatarReady = useAvatarPickerReady();
   // the room whose seats are on screen: a seat card that mounts after its first render is new (an AI teammate added)
   const shownRoom = useRef('');
   useEffect(() => { shownRoom.current = room?.code || ''; });
@@ -809,7 +821,7 @@ export function RoomScreen() {
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
           portrait=${op ? chessPortraitUrl(data.get('assets'), op.chess, { skin }) : null} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
-          portraitDefault=${op && skin ? chessPortraitUrl(data.get('assets'), op.chess) : null} operator=${op?.chess} onPickCard=${() => setPicking(true)}
+          portraitDefault=${op && skin ? chessPortraitUrl(data.get('assets'), op.chess) : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
           fresh=${shownRoom.current === room.code} onMoveSeat=${moveSeat} swapFrom=${swapFrom} onSwap=${swap} />`;
       }))}
       ${coop ? null : html`<aside class="solo-brief rs-brief brackets">
@@ -859,6 +871,7 @@ export function RoomScreen() {
       </div>
     </footer>
     ${picking ? html`<${CardPicker} current=${myCard} list=${cardList} m=${data.get('assets')} localSkins=${localSkins} onPick=${pickCard} onClose=${() => setPicking(false)} />` : null}
+    ${pickingAvatar ? html`<${AvatarPicker} onClose=${() => setPickingAvatar(false)} />` : null}
     ${protoOpen ? facts.isHost
       ? html`<${ProtocolSelect} roomMode=${room.mode} difficulty=${protoPick || room.difficulty} onDifficulty=${setProtoPick} onClose=${closeProto}
           onCreate=${confirmDifficulty} busy=${busy === 'diff' ? 'create' : null} online=${online} action=${t('确认')} hint=${protoHint} difficulties=${protoDifficulties} />`

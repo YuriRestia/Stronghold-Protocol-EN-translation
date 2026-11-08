@@ -7,6 +7,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
+### Profile icons
+
+- Doctors can pick a profile icon from a new profile chip in the lobby's top bar or from the icon on their own seat card in a room. The picker has two tabs. Operators lists every operator a seat card can show, with search and rarity tabs, worn in the player's outfit; its first tile, Assistant Operator, follows the room card's operator. Icons holds the game's 200 official profile icons, grouped as the game groups them (Dynamic Icon, Unique unlock, Event Icon, Default Icon). The pick is saved in the browser (`sp.pref.profile.avatar`) and comes back on the next visit, like the room's portrait operator (`sp.pref.room.card`, already saved).
+- Everyone sees the icon on the room's seat cards, the team panel, the strategy draft and the results. It travels in `hello.avatar`, and the server keeps only an id of `data/avatars.json`. A player without one (or on an older client) shows the official default icon. An operator icon is checked against the room's seat-card operators, like the room card. AI teammates now show their operator's avatar everywhere (the strategy screen, the team panel, the results), as their room seat card already did, instead of the robot icon. The band icon becomes a corner badge on a player's icon once a band is picked.
+- The icon names are the official English ones. Eight icons the English data doesn't have yet use the English server's names from the wiki. 31 CN-only icons use our own translations, marked "Unofficial translation" in the picker.
+- New: `tools/build-avatars.mjs` (writes `data/avatars.json`) and `tools/i18n/fallback-avatars-en.json`. `tools/build-i18n.mjs` now reads the icon table, and the data texts of every language were rebuilt. The art is extracted from the CN client as WebP (1.8 MB, local art group `avatar`, `extract.py --only avatar`), so a server needs that folder and an updated `data/local-assets.json`, and the preload zip picks it up. Without the art the chip shows the name's first letter and the picker stays closed.
+
 ### Grand Alliance: 8-player rooms
 
 - New Grand Alliance: a co-op room with 8 seats, for humans only. It's off unless the server sets `SP_LARGE_ROOMS=1`.
