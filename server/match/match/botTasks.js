@@ -121,7 +121,7 @@ export class MatchBotTasks {
 
   /** Start the next seat that still wants its prep. */
   _pumpBotQueue() {
-    while (!this._botActive && this._botQueue.length) {
+    while (!this._botActive && this._botQueue.length) { // loop-cap: the queue (one shift a pass)
       const entry = this._botQueue.shift();
       if (this._botEntryLive(entry)) this._startBotTask(entry);
     }

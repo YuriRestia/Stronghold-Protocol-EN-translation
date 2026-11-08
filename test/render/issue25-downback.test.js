@@ -69,7 +69,10 @@ describe('the manifest (data/assets.json)', () => {
     const withFall = backs.filter(([, c]) => dieClipDur(c.spine.back) > 0).map(([id]) => id).sort();
     assert.ok(backs.length >= 130, `${backs.length} Back skeletons`);
     assert.deepEqual(withFall, ['char_271_spikes', 'char_322_lmlee', 'char_388_mint', 'char_4064_mlynar', 'char_4182_oblvns', 'char_440_pinecn', 'char_602_cdfend'], 'including 芳汀 from the earlier-version union; (fork) 丰川祥子 (2026-10-15)');
-    for (const [id, c] of Object.entries(M.chars)) assert.ok(dieClipDur(c.spine.front) > 0, `${id} Front has a Die clip`);
+    // (fork, 83a708fb) the AI teammates' pictures: Amiya and Dobermann have an avatar and a portrait, no model
+    const pictureOnly = Object.entries(M.chars).filter(([, c]) => !c.spine).map(([id]) => id).sort();
+    assert.deepEqual(pictureOnly, ['char_002_amiya', 'char_130_doberm'], 'the only chars entries without a skeleton');
+    for (const [id, c] of Object.entries(M.chars)) if (c.spine) assert.ok(dieClipDur(c.spine.front) > 0, `${id} Front has a Die clip`);
     assert.equal(dieClipDur(back(CAPER)), 0);
     assert.equal(dieClipDur(front(CAPER)), front(CAPER).animations.Die);
     assert.equal(dieClipDur(null), 0);
