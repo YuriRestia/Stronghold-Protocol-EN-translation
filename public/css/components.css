@@ -1357,3 +1357,73 @@
   border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .45); }
 .prompt__input:focus { outline: none; border-color: #4fe8c0; }
 .prompt__error { color: #ff8a8a; }
+
+/* ---- (fork) profile icon picker (ui/avatarPicker.js) and the lobby's profile chip (screens/lobby.js) ------------- */
+.avpick .modal__body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: .1rem; overflow: hidden; }
+.avpick__now { flex: none; display: flex; align-items: center; gap: .12rem; min-height: .7rem; }
+.avpick__big {
+  flex: none; width: .7rem; height: .7rem; object-fit: cover;
+  border: 1px solid var(--line-2); background: linear-gradient(180deg, #2a302d, #151917);
+}
+.avpick__what { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: .02rem; }
+.avpick__name { font-size: calc(.17 * var(--t)); color: var(--text-hi); overflow-wrap: anywhere; }
+.avpick__group { display: inline-flex; align-items: center; gap: .06rem; font-size: calc(.13 * var(--t)); color: var(--text-lo); }
+.avpick__cur { padding: 0 .04rem; background: var(--mint-500); color: var(--text-on-mint); font-weight: 800; }
+.avpick__unofficial {
+  padding: 0 .05rem; border: 1px dashed var(--orange-400, #f0a636); color: var(--orange-400, #f0a636);
+  font-size: calc(.12 * var(--t)); letter-spacing: .02em;
+}
+.avpick__scroll { flex: 1 1 auto; min-height: 0; max-height: 5.2rem; overflow-y: auto; scrollbar-width: thin; padding: 2px; }
+.avpick__head {
+  display: flex; align-items: baseline; gap: .06rem; margin: .06rem 0 .05rem; font-size: calc(.14 * var(--t));
+  color: var(--mint-300, #8fe3c7); letter-spacing: .04em;
+}
+.avpick__head .num { color: var(--text-lo); font-size: .9em; }
+.avpick__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(.62rem, 1fr)); gap: .06rem; }
+.avpick__icon {
+  position: relative; display: flex; flex-direction: column; padding: 0; overflow: hidden;
+  border: 1px solid var(--line); background: linear-gradient(180deg, #2a302d, #151917); color: var(--text-md);
+  transition: border-color var(--t-fast), transform var(--t-fast);
+}
+.avpick__pic { display: grid; place-items: center; aspect-ratio: 1; overflow: hidden; }
+.avpick__pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avpick__pic .icon { width: 45%; height: 45%; color: var(--mint-400); }
+.avpick__label { padding: .02rem .03rem .03rem; text-align: center; font-size: calc(.12 * var(--t)); line-height: 1.15; text-wrap: balance; overflow-wrap: anywhere; }
+.avpick__grid--ops { grid-template-columns: repeat(auto-fill, minmax(max(.8rem, 6.4em), 1fr)); font-size: calc(.12 * var(--t)); }
+.avpick__tabs { margin-left: auto; align-self: flex-start; display: inline-flex; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3); }
+.avpick__tabs button { padding: .04rem .14rem; border: 0; border-right: 1px solid var(--line-2); background: none; color: var(--text-md); font: inherit; font-size: calc(.14 * var(--t)); font-weight: 700; }
+.avpick__tabs button:last-child { border-right: 0; }
+.avpick__tabs button.is-on { background: var(--mint-500); color: var(--text-on-mint); }
+.avpick__bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: .1rem; }
+.avpick__search { flex: 1 1 2.4rem; min-width: 0; }
+.avpick__stars { display: inline-flex; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .3); }
+.avpick__stars button { padding: .03rem .1rem; border: 0; border-right: 1px solid var(--line-2); background: none; color: var(--text-md); font: inherit; font-size: calc(.13 * var(--t)); }
+.avpick__stars button:last-child { border-right: 0; }
+.avpick__stars button.is-on { background: var(--mint-500); color: var(--text-on-mint); }
+.avpick__empty { margin: .1rem 0; font-size: calc(.15 * var(--t)); color: var(--text-lo); }
+.avpick__icon:hover, .avpick__icon:focus-visible { border-color: var(--line-3); }
+.avpick__icon.is-on { border-color: var(--mint-400); box-shadow: 0 0 0 2px var(--mint-400); }
+.avpick__tick {
+  position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 34%; height: 34%;
+  background: var(--mint-500); color: var(--text-on-mint);
+}
+.avpick__tick .icon { width: 80%; height: 80%; }
+.avpick__note { flex: none; display: flex; align-items: center; gap: .06rem; margin: 0; font-size: calc(.15 * var(--t)); color: var(--text-lo); }
+.avpick__note .icon { flex: none; width: .18rem; height: .18rem; }
+/* a phone in landscape: a shorter list, the preview beside the names */
+@media (max-height: 520px) {
+  .avpick__scroll { max-height: none; }
+  .avpick__now { min-height: .5rem; }
+  .avpick__big { width: .5rem; height: .5rem; }
+  .avpick__grid { grid-template-columns: repeat(auto-fill, minmax(max(.5rem, 40px), 1fr)); }
+  .avpick__grid--ops, .avpick__label { font-size: min(calc(.12 * var(--t)), 10px); }
+  .avpick__grid--ops { grid-template-columns: repeat(auto-fill, minmax(max(.62rem, 6.4em), 1fr)); }
+}
+/* an icon that opens the picker (the lobby's profile chip, one's own seat plate) */
+.avedit { position: relative; padding: 0; border: 0; background: none; color: inherit; cursor: pointer; }
+.avedit__pen {
+  position: absolute; right: -2px; bottom: -2px; display: grid; place-items: center; width: 40%; height: 40%; min-width: 10px; min-height: 10px;
+  background: var(--mint-500); color: var(--text-on-mint); border-radius: 2px; pointer-events: none;
+}
+.avedit__pen .icon { width: 80%; height: 80%; }
+.avedit:hover .avatar, .avedit:focus-visible .avatar { filter: brightness(1.15); }

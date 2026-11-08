@@ -7,6 +7,7 @@ import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
 import { cultivatedStats, isPotential, isCultivate, POTENTIAL_DEFAULT, CULTIVATE_DEFAULT, hasPotentialData } from './potential.js';
 import { isOutfitMap } from './outfits.js';
+import { AVATAR_ID_MAX } from './avatars.js';
 import { isContentHash } from './plugins/identity.js';
 import { isPluginId } from './plugins/manifest.js';
 import { isTestCommand } from './testMode.js';
@@ -519,7 +520,9 @@ export const C2S = {
   // server that does not know the field ignores it (it is only read after a full validateC2S pass).
   hello: { name: (v) => isStr(v, NAME_MAX_LEN) && v.trim().length > 0, token: (v) => v == null || isStr(v, 64), version: (v) => v == null || isInt(v, 0, 1e6),
     noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), delta: (v) => v == null || isInt(v, 0, 1e6),
-    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta'] },
+    // (fork) the player's profile icon (shared/avatars.js): any short string here; the lobby keeps only a known id
+    avatar: (v) => v == null || isStr(v, AVATAR_ID_MAX),
+    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   // test: only the literal true (DESIGN §34.8). Omit it for a normal room — `false` is a bad field, so a
   // string cannot sneak in as "not a test". The server still refuses it unless SP_TEST_MODE is on.

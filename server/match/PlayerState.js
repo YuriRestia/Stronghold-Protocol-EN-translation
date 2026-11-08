@@ -147,6 +147,8 @@ export class PlayerState {
     this.seat = seat.seat;
     this.name = seat.name;
     this.isBot = !!seat.isBot;
+    // (fork) the profile icon (a known id, server/lobby.js avatarOf; m.public players[].avatar)
+    this.avatar = !this.isBot && typeof seat.avatar === 'string' ? seat.avatar : null;
     this.connected = this.isBot ? true : !!seat.connected;
     this.left = false;
     this.autoplay = false;

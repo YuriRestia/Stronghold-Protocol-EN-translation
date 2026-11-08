@@ -983,3 +983,6 @@
 .rs-lockbox__on .icon { width: 1em; height: 1em; }
 .rs-lockbox__off { color: #e9eeec; border-color: rgba(255, 255, 255, .25); background: none; }
 .rs-lockbox__on:disabled, .rs-lockbox__off:disabled { opacity: .45; cursor: default; }
+
+/* (fork) one's own plate icon as the profile icon picker's button (screens/room.js, ui/avatarPicker.js): placed as .avatar is */
+.rseat__face { grid-row: 1 / 3; grid-column: 1; position: relative; display: block; line-height: 0; }

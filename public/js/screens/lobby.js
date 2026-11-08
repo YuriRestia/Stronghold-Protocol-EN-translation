@@ -42,7 +42,9 @@ import { TestMark } from '../ui/testConsole.js';
 import { ResumeMatchButton } from '../ui/resumeMatch.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTIES, DIFFICULTY_NAMES, DIFFICULTY_COLORS, ROOM_CODE_LEN, MAX_SEATS, MAX_SPECTATORS, modeIdFor, ERR } from '../../../shared/constants.js';
-import { html, confirmDialog, Button, Icon, MicroLabel, Modal, Spinner, DifficultyIcon, TextField } from '../ui/components.js';
+import { html, confirmDialog, AvatarFrame, Button, Icon, MicroLabel, Modal, Spinner, DifficultyIcon, TextField } from '../ui/components.js';
+import { useAvatarArt } from '../ui/avatars.js';
+import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { Sprite, Img } from '../ui/gameComponents.js';
 import { uiUrl } from '../ui/assetUrls.js';
 import { peekStatsRecords, trophyMedalOf, aggregateStats, recordsOfSeason } from '../ui/stats.js';
@@ -541,6 +543,25 @@ function HubRadar() {
 }
 
 /** The emblem (official `entry/season_logo`, the title's dot emblem without the art pack) in its radar, and the title. */
+/**
+ * (fork) The lobby's profile chip (topbar): one's own profile icon (ui/avatars.js) and Doctor name; a tap opens the icon
+ * picker (ui/avatarPicker.js). Without the icon art on this server it shows the letter and opens nothing.
+ */
+function ProfileChip() {
+  const me = useStore((s) => s.me, shallowEqual);
+  const src = useAvatarArt({ playerId: me?.playerId, avatar: null }, true);
+  const ready = useAvatarPickerReady();
+  const [open, setOpen] = useState(false);
+  const label = t('更换头像'); // en: "Change profile icon"
+  return html`<button type="button" class="avedit lobby-me" data-testid="lobby-profile" disabled=${!ready}
+      title=${ready ? label : me?.name || ''} aria-label=${label} onClick=${() => setOpen(true)}>
+    <span class="lobby-me__face"><${AvatarFrame} size="sm" name=${me?.name || ''} src=${src} self=${false} />
+      ${ready ? html`<span class="avedit__pen" aria-hidden="true"><${Icon} name="edit" /></span>` : null}</span>
+    <span class="lobby-me__name">${me?.name || t('博士')}</span>
+  </button>
+  ${open ? html`<${AvatarPicker} onClose=${() => setOpen(false)} />` : null}`;
+}
+
 function HubTitle() {
   // a title in an alphabetic script (English …) is set like the title screen's: no wordmark above it, ": " between
   const alphabetic = scriptOf(t('卫戍协议')) === 'alphabetic';
@@ -860,6 +881,7 @@ export function LobbyScreen() {
         </div>
       </div>
       <div class="topbar__right">
+        <${ProfileChip} />
         <${VersionSwitch} />
         <${ResumeMatchButton} />
       </div>

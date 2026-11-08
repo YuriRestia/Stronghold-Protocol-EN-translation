@@ -1376,3 +1376,15 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .rbr-card__seats { font-size: calc(.26 * var(--t)); color: #f2f4f3; }
 .rbr-card__seats small { font-size: calc(.15 * var(--t)); color: #7f8a86; }
 .rbr-card__code { flex: 1 1 auto; font-size: calc(.14 * var(--t)); letter-spacing: .1em; color: #6f7a76; }
+
+/* (fork) the profile chip (screens/lobby.js ProfileChip): one's profile icon and Doctor name, opens the icon picker */
+.lobby-me {
+  display: inline-flex; align-items: center; gap: .08rem; min-width: 0; max-width: 2.6rem; height: .4rem;
+  padding: 0 .1rem 0 .04rem; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .35);
+}
+.lobby-me:hover:not(:disabled), .lobby-me:focus-visible { border-color: var(--mint-500); }
+.lobby-me:disabled { cursor: default; }
+.lobby-me__face { position: relative; flex: none; display: block; }
+.lobby-me__face .avatar { --av: .32rem; }
+.lobby-me__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(.15 * var(--t)); font-weight: 700; color: var(--text-hi); }
+@media (max-width: 900px) { .lobby-me__name { display: none; } .lobby-me { padding-right: .04rem; } }

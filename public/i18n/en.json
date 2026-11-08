@@ -2648,5 +2648,13 @@
   "解锁": "Unlock",
   "最多 8 名博士分为两个小队，争夺同一个干员池，最终一起对抗同一个敌方领袖。": "Up to 8 Doctors in two squads, fighting over one shared operator pool, then one shared Enemy Leader together.",
   "仅限真人 · 房间可上锁": "Humans only · rooms can be locked",
-  "最多 8 名博士": "Up to 8 Doctors"
+  "最多 8 名博士": "Up to 8 Doctors",
+  "个人头像": "Profile Icon",
+  "更换头像": "Change profile icon",
+  "非官方译名": "Unofficial translation",
+  "该头像尚未在国际服推出，名称为非官方翻译": "This icon is not on the Global server yet: the name is an unofficial translation",
+  "选择后，同盟里的博士都会看到这个头像": "Once chosen, every Doctor in your Alliance sees this icon",
+  "助理干员": "Assistant Operator",
+  "头像图标": "Icons",
+  "干员头像": "Operators"
 }

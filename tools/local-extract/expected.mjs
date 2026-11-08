@@ -9,6 +9,7 @@
 // keys left by an earlier --only merge are not stale. There is no canonical file count: it
 // depends on the client. fx is opt-in (--only fx) and is not one of these keys.
 export const EXPECTED_LOCAL_GROUPS = Object.freeze([
+  "avatar",
   "emoticon/basic",
   "emoticon/basic_2",
   "emoticon/foolamiya",

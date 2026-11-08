@@ -148,6 +148,7 @@ export class Net {
     this.status = 'idle';
     this.ws = null;
     this.name = null;          // desired player name (hello is sent when set)
+    this.avatar = null;        // (fork) the profile icon id sent in hello (ui/avatars.js; null = none, the default icon)
     this.helloName = null;     // name we sent in the hello that got the last welcome
     this.serverName = null;    // name as normalised by the server
     this.playerId = null;
@@ -299,6 +300,18 @@ export class Net {
   }
 
   /**
+   * (fork) Set the profile icon sent in `hello` (ui/avatars.js; '' / null = none). A change while online sends a hello
+   * again (the server updates the room seat and resyncs, as for a rename); otherwise the next hello carries it.
+   * @param {string | null} id
+   */
+  setAvatar(id) {
+    const next = typeof id === 'string' && id ? id : null;
+    if (next === this.avatar) return;
+    this.avatar = next;
+    if (this.status === 'online' && this.ws && this.ws.readyState === WS_OPEN && this.name) this._sendHello();
+  }
+
+  /**
    * Set the player name used in `hello`. Sends hello right away when the socket is open (the server
    * accepts a repeated hello on a live socket: it renames the session and resyncs room/match
    * state), otherwise as soon as it opens. No-op when that name is already accepted.
@@ -404,6 +417,8 @@ export class Net {
     // `delta` says this build decodes `m.state` frames (shared/stateDelta.js). A server that does not speak it ignores
     // the field, and the client then keeps receiving the plain m.public / m.private frames it always got.
     const msg = { t: 'hello', rid, name: this.name, version: PROTOCOL_VERSION, delta: STATE_DELTA_VERSION };
+    // (fork) the profile icon (shared/avatars.js): an older server validates hello field by field and ignores it
+    if (typeof this.avatar === 'string' && this.avatar) msg.avatar = this.avatar;
     let token = null;
     try { token = this.getToken(); } catch { token = null; }
     if (typeof token === 'string' && token.length > 0 && token.length <= 64) {
