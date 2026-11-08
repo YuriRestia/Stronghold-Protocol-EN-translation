@@ -42,6 +42,7 @@
 
 import { prepareStateFrame, negotiateStateDelta, resetStateDelta, setStateDeltaRoom } from './stateTransport.js';
 import { randomBytes } from 'node:crypto';
+import { cleanText } from '../shared/text.js';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
@@ -374,12 +375,6 @@ export function errorMsg(code, rid, detail) {
 // Names
 // ---------------------------------------------------------------------------------------------------
 
-// Control chars, zero-width & bidi controls, BOM.
-const STRIP_RANGES = [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x2028, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]];
-const hexEscape = (n) => '\\u' + n.toString(16).padStart(4, '0');
-const STRIP_RE = new RegExp('[' + STRIP_RANGES.map(([a, b]) => (a === b ? hexEscape(a) : `${hexEscape(a)}-${hexEscape(b)}`)).join('') + ']', 'g');
-const LONE_SURROGATE_RE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
-
 /**
  * Normalize a nickname: strip control/invisible characters and lone surrogates, collapse whitespace,
  * trim, cap at NAME_MAX_LEN code points. Returns null when nothing printable remains.
@@ -388,8 +383,7 @@ const LONE_SURROGATE_RE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff
  */
 export function sanitizeName(raw) {
   if (typeof raw !== 'string') return null;
-  let s = raw.normalize('NFC').replace(LONE_SURROGATE_RE, '').replace(/\s+/g, ' ').replace(STRIP_RE, '').replace(/ {2,}/g, ' ').trim();
-  s = [...s].slice(0, NAME_MAX_LEN).join('').trim();
+  const s = [...cleanText(raw)].slice(0, NAME_MAX_LEN).join('').trim();
   return s.length > 0 ? s : null;
 }
 

@@ -8,6 +8,7 @@
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
 import { creditedKillsOf } from '../../sim/spec.js';
+import { noteChatKills, settleChatWallet } from '../chatWallet.js';
 import { buildBossWave, bountySpawns } from '../waves.js';
 import { pairPlayers, bossPairSalt, bossPoolHp, SharedBossPool, CreditPool, hiddenEligible, BOSS_HIT_STEPS } from '../finalAssault.js';
 import { FieldRunner, HeadlessPacer, syntheticResult, BOSS_SILENCE_MS, CATCHUP_TICKS_PER_INTERVAL } from '../fields.js';
@@ -530,9 +531,11 @@ export class MatchBoss {
       const res = resultOf(f);
       this._collectSimErrors(f, res);
       f.live = false;
+      noteChatKills(this, f, res);
       for (const pid of f.players) {
         const pp = res.perPlayer && res.perPlayer[pid];
         const ps = this.players.get(pid);
+        if (ps) settleChatWallet(ps, this.round);
         if (pp) this.lastResults.set(pid, pp);
         if (pp && ps) {
           ps.stats.dmgDealt += Number(pp.damageDealt) || 0;

@@ -194,6 +194,8 @@ function buildState() {
       { id: 'enemyeffect_3', name: '悬赏·飞行I', desc: '为自身<@ba.vup>下场作战</>添加1只悬赏敌人，将其击倒者获得<@ba.vup>1</>资金', iconKind: 'choice', iconId: 'icon_player_buff', counter: 1 },
     ],
     nextEnemies,
+    chatLeft: 22,
+    chatRound: 3,
     stats: { dmgDealt: 184230, kills: 96, leaks: 3, gold: 58, refreshes: 11, merges: 3 },
   };
   if (VARIANTS.has('loadout')) priv.loadout = mockLoadout(board, slots);
@@ -752,6 +754,7 @@ async function mockRequest(t, f = {}) {
       if (f.ready && !p.canReady) fail('TEMP_NOT_EMPTY');
       p.ready = !!f.ready; refreshPrivate(); return {};
     }
+    case 'g.chat': return {}; // the page shows its own line and counts down itself (ui/chat.js)
     case 'g.emote': {
       store.set((s) => ({ emotes: [...s.emotes.slice(-19), { seq: Date.now(), playerId: ME, id: f.id, at: Date.now() }] }));
       return {};

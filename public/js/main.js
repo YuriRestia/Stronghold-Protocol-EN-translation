@@ -50,6 +50,7 @@ import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/mainten
 import { net, identity, NetError, regions } from './net.js';
 import { PHASE } from '../../shared/constants.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
+import { nextBubbleSeq, chatEntry, chatMuted } from './chatState.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
@@ -341,7 +342,13 @@ function wireNet() {
     store.set((s) => ({ ticker: [...s.ticker.slice(-(TICKER_KEEP - 1)), { id: ++seq, text, at: Date.now(), type, playerId, round: s.match?.public?.round ?? null, priority }] }));
   });
   net.on('m.emote', (msg) => {
-    store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), { seq: ++seq, playerId: msg.playerId, id: msg.id, at: Date.now() }] }));
+    store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), { seq: nextBubbleSeq(), playerId: msg.playerId, id: msg.id, at: Date.now() }] }));
+  });
+  // (fork) match chat: `p` is the sender's seat; a muted player's line stops here
+  net.on('m.chat', (msg) => {
+    const sender = store.get().match?.public?.players?.find((p) => p.seat === msg.p);
+    if (!sender || typeof msg.x !== 'string' || chatMuted(store.get().chatMute, sender.playerId)) return;
+    store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), chatEntry(sender.playerId, msg.x, Date.now())] }));
   });
 
   // Entering (title → lobby) while already online also needs the deep-link join.

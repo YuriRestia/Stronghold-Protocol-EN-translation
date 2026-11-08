@@ -102,6 +102,7 @@ import { ChoiceOverlay, spMarks } from '../ui/choiceOverlay.js';
 import { EnemyDrawer } from '../ui/enemyDrawer.js';
 import { Ticker } from '../ui/ticker.js';
 import { EmoteWheel } from '../ui/emotes.js';
+import { ChatPane, useChatBox } from '../ui/chat.js';
 import { CombatMetricsPanel } from '../ui/combatMetrics.js';
 import { EffectsList } from '../ui/effectsList.js';
 import { CombatHud } from '../ui/combatHud.js';
@@ -241,6 +242,7 @@ function MatchScreen() {
   const emotes = useStore((s) => s.emotes);
   const roomSolo = useStore((s) => s.room?.mode === 'solo');
   const spectator = useStore((s) => isSpectating(s.room, s.me.playerId));
+  const chat = useChatBox({ pub, priv: spectator ? null : priv, myId, online: conn.status === 'online' });
   const playerSettings = useSettings();
   // gameplay plugins (DESIGN §32.6): the HUD corner's MOD mark — re-rendered only when the room's content changes
   const modRoom = useStore((s) => (s.room?.content?.vanilla === false ? s.room : null), (a, b) => (a?.content ?? null) === (b?.content ?? null));
@@ -1868,7 +1870,7 @@ function MatchScreen() {
         </div>
       </div>
 
-      <${TeamPanel} pub=${pub} myId=${myId} watching=${watchingNow} bubbles=${bubbles} onWatch=${watchPlayer} cap=${gd.config?.lpCapPerRound ?? 10} uniteLocal=${uniteLocal}
+      <${TeamPanel} pub=${pub} myId=${myId} watching=${watchingNow} bubbles=${bubbles} onWatch=${watchPlayer} cap=${gd.config?.lpCapPerRound ?? 10} uniteLocal=${uniteLocal} chatOn=${spectator || Number.isInteger(priv?.chatLeft)}
         spMarks=${sp ? spMarks(sp, { solo }) : null}
         self=${Number.isFinite(priv?.lp) ? { lp: priv.lp, pending: liveLpNow.pending, unite: liveLpNow.unite, left: liveLpNow.left } : null}
         observe=${cc ? { canObserve: (p) => observeTarget(p, pub, myId, { observing: watchingOther, ownDone: localDone }), observing: watchingOther, onBack: backHome } : null} />
@@ -1907,7 +1909,8 @@ function MatchScreen() {
       <div class="gm__corner">
         <${AiTakeoverPanel} />
         ${showMetrics && metricsOpen ? html`<${CombatMetricsPanel} myId=${myId} onClose=${() => setMetricsOpen(false)} />` : null}
-        ${spectator ? null : html`<${EmoteWheel} open=${emoteOpen} onToggle=${(o) => { setEmoteOpen(o); if (o) setMetricsOpen(false); }} onSend=${(id) => actions.emote(id)} disabled=${conn.status !== 'online'} />`}
+        ${spectator ? null : html`<${EmoteWheel} open=${emoteOpen} onToggle=${(o) => { setEmoteOpen(o); if (o) setMetricsOpen(false); }} onSend=${(id) => actions.emote(id)} disabled=${conn.status !== 'online'}
+          textPane=${chat.available ? html`<${ChatPane} chat=${chat} onClose=${() => setEmoteOpen(false)} />` : null} textLeft=${chat.left} />`}
         ${showMetrics ? html`<button type="button" class="gm__gear gm__metrics" aria-label=${t('作战统计')} title=${t('作战统计')} aria-expanded=${metricsOpen}
           aria-controls="combat-metrics-panel" onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }} onClick=${() => {
             setMetricsOpen(!metricsOpen);
