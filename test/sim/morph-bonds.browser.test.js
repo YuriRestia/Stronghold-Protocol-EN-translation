@@ -41,7 +41,7 @@ describe('converted bonds in the actual browser battle', { skip: !enabled }, () 
     const { startServer } = await import('../../server/index.js');
     const P = (await import('puppeteer-core')).default;
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-    browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox'] });
+    browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
     page = await browser.newPage(); await page.goto(`http://127.0.0.1:${srv.port}/sim/spec.js`);
   });
   after(async () => { await browser?.close(); await srv?.close(); });

@@ -15,7 +15,7 @@ test('finished field idles living Spine models and drains effects; paused feed d
   const profile = mkdtempSync('test/e2e/out/battle-finish-profile-');
   try {
     await srv.assetIndex?.whenReady();
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, userDataDir: profile, args: ['--no-first-run', '--no-sandbox'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, userDataDir: profile, args: ['--mute-audio', '--no-first-run', '--no-sandbox'] });
     const page = await browser.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));

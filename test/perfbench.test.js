@@ -5,7 +5,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getData } from '../server/data.js';
@@ -95,6 +95,23 @@ describe('tools/perfbench.mjs', () => {
       assert.ok(gpuArgs(platform, { SP_E2E_SOFTWARE_GL: '1' }).includes('--use-angle=swiftshader'), platform);
       assert.ok(!gpuArgs(platform, { SP_E2E_SOFTWARE_GL: '0' }).includes('--use-angle=swiftshader'), platform);
     }
+  });
+
+  test('test browsers are muted: gpuArgs() on every platform and in software mode, and every Chrome launch in test/ and tools/', () => {
+    for (const platform of ['win32', 'darwin', 'linux']) {
+      assert.ok(gpuArgs(platform, {}).includes('--mute-audio'), platform);
+      assert.ok(gpuArgs(platform, { SP_E2E_SOFTWARE_GL: '1' }).includes('--mute-audio'), `${platform}, software`);
+    }
+    // a file that starts a browser names --mute-audio itself or takes its flags from gpuArgs()
+    const root = fileURLToPath(new URL('..', import.meta.url));
+    const files = ['test', 'tools'].flatMap((d) => readdirSync(path.join(root, d), { recursive: true }).map((f) => path.join(d, String(f))))
+      .filter((f) => /\.(m?js)$/.test(f) && f !== path.join('test', 'perfbench.test.js'));
+    const launching = files.filter((f) => /\.launch\(\s*\{/.test(readFileSync(path.join(root, f), 'utf8')));
+    assert.ok(launching.length >= 100, `${launching.length} files start a browser`);
+    // the shared launcher (Client): the files that start Chrome through it (sweep-roster-link.e2e and others) inherit its flags
+    assert.ok(launching.includes(path.join('test', 'e2e', 'client.mjs')), 'test/e2e/client.mjs is scanned');
+    const loud = launching.filter((f) => !/--mute-audio|gpuArgs\(\)/.test(readFileSync(path.join(root, f), 'utf8')));
+    assert.deepEqual(loud, [], 'a browser launch without --mute-audio');
   });
 
   test('areaOf sorts call frames by source', () => {

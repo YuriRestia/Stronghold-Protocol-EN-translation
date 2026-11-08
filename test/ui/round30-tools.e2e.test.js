@@ -10,7 +10,7 @@ describe('round30 tool and compound-tooltip browser boundaries', { skip: !(proce
     const { startServer } = await import('../../server/index.js');
     srv = await startServer({ host: '127.0.0.1', port: 0, quiet: true });
     const P = (await import('puppeteer-core')).default;
-    browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--no-sandbox', '--disable-background-timer-throttling'] });
+    browser = await P.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox', '--disable-background-timer-throttling'] });
     page = await browser.newPage();
     page.on('pageerror', e => console.error('fixture page error:', e.message));
   });

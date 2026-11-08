@@ -89,6 +89,8 @@ export const loadoutStore = createStore({
   from: null,          // 'lobby' | 'room' | 'briefing' | 'prep'
   tab: 'loadout',      // 'loadout' (干员调配) | 'ownership' (干员持有) | 'diy' (自选编队)
   sel: null,           // selected base chess id
+  reveal: null,        // a chess id to show once the screen draws (openLoadout's `reveal`: filters that hide it are cleared, its detail opened)
+  backLabel: null,     // what 返回 goes back to when it is not the screen below (openLoadout's `onBack`: 'S.W.E.E.P.报告'), else null
   filters: { tier: null, prof: null, bond: null, query: '', changedOnly: false },
   sync: 'idle',
   ownSync: 'idle',
@@ -382,11 +384,18 @@ export function applyDiyImport(picks, data, kitted) {
   return { applied, dropped: Math.max(0, asked - applied) };
 }
 
+// openLoadout's `onBack`: called once by backFromLoadout (返回 / Esc), dropped by any other close (a match starting) or
+// by the next plain open — the S.W.E.E.P.报告 reopens itself through it, where it was left
+let backHook = null;
+
 /**
  * Open the 干员调配 overlay. @param {'lobby'|'room'|'briefing'|'prep'} from @param {string|null} [sel]
  * @param {'loadout'|'ownership'|'diy'|null} [tab] the tab to show (default: the last one)
+ * @param {{ onBack?: (() => void)|null, backLabel?: string|null, reveal?: boolean }} [opts] `onBack`: what 返回 / Esc
+ *   returns to (named by `backLabel`, a msgid) instead of the screen below; `reveal`: bring `sel` into view (clear the
+ *   filters that hide it, open its detail)
  */
-export function openLoadout(from = 'lobby', sel = null, tab = null) {
+export function openLoadout(from = 'lobby', sel = null, tab = null, { onBack = null, backLabel = null, reveal = false } = {}) {
   data.load('chess');
   data.load('bonds');
   data.load('assets');
@@ -395,9 +404,17 @@ export function openLoadout(from = 'lobby', sel = null, tab = null) {
   data.load('effects'); // 0.2.2: the 练度 multipliers of the 局内数值 (effects.json CHAR_MAP)
   data.load('garrisons'); // the 特质 at the top of the detail (PR #301)
   void loadDefaultCharMap(); // a v1 导入 (第二期下半's chess ids) maps through it (DESIGN §35.23)
-  loadoutStore.set({ open: true, from, ...(sel ? { sel } : {}), ...(from === 'prep' ? { tab: 'loadout', sync: 'idle' } : {}), ...(tab === 'loadout' || tab === 'ownership' || tab === 'diy' ? { tab } : {}) });
+  backHook = typeof onBack === 'function' ? onBack : null;
+  loadoutStore.set({ open: true, from, ...(sel ? { sel } : {}), ...(from === 'prep' ? { tab: 'loadout', sync: 'idle' } : {}), ...(tab === 'loadout' || tab === 'ownership' || tab === 'diy' ? { tab } : {}),
+    backLabel: backHook ? backLabel || null : null, reveal: reveal && sel ? sel : null });
 }
-export const closeLoadout = () => loadoutStore.set({ open: false });
+export const closeLoadout = () => { backHook = null; loadoutStore.set({ open: false, backLabel: null, reveal: null }); };
+/** 返回 / Esc: close, then go back to where openLoadout's `onBack` came from (nothing more without one). */
+export function backFromLoadout() {
+  const hook = backHook;
+  closeLoadout();
+  if (hook) hook();
+}
 
 /**
  * Whether the page may send its settings now (DESIGN §35.23; the server checks them against the data of the room, or
