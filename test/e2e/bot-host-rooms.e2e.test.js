@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { Client, hasChrome, sleep } from './client.mjs';
+import { Client, hasChrome, sleep, waitForFunctionLong } from './client.mjs';
 import { scriptFixture } from '../helpers/scriptFixtures.js';
 import { writePlugin } from '../helpers/pluginFixtures.js';
 
@@ -52,7 +52,7 @@ async function roomOf(t, srv, choose) {
   await guest.enter('阿米娅');
   await guest.waitFor((s) => s.room?.code === code, 'guest joined');
   await choose(host, guest);
-  for (const c of [host, guest]) await c.page.waitForFunction(() => globalThis.__SP__.store.get().room?.seats?.filter((s) => s && !s.isBot).every((s) => s.content === 'ready' || s.content == null), { timeout: 90000 });
+  for (const c of [host, guest]) await waitForFunctionLong(c.page, () => globalThis.__SP__.store.get().room?.seats?.filter((s) => s && !s.isBot).every((s) => s.content === 'ready' || s.content == null), { timeout: 90000 });
   for (let i = 0; i < 2; i++) { await request(host, 'room.addBot', {}); await sleep(200); }
   await hookBotFrames(host);
   await hookBotFrames(guest);

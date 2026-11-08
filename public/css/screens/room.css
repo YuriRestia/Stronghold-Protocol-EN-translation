@@ -982,12 +982,14 @@
 .rs-access__pw:focus-within { border-style: solid; border-color: #ffc45c; background: rgba(0, 0, 0, .35); }
 .rs-access__pw.is-short:focus-within { border-color: #ff7a6b; }
 .rs-access__pwk { color: #9aa3a0; }
-.rs-access__pw input { width: 3.6em; padding: 0; font: inherit; font-size: 1.25em; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+.rs-access__pw input { width: 3.6em; padding: 0; font: inherit; font-size: calc(.2 * var(--t)); font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
   color: #ffc45c; background: none; border: 0; outline: none; caret-color: #ffc45c; }
 .rs-access__pw .icon { color: #9aa3a0; }
 .rs-access__pw:focus-within .icon { color: #ffc45c; }
+/* a phone: 14 px (the password 17 px) at 中, a pixel more a step above (theme.css --t-step), as the short screen's caps */
 @media (max-width: 720px) {
-  .rs-access { font-size: 14px; }
+  .rs-access { font-size: min(calc(.35 * var(--t)), calc(14px + var(--t-step))); }
+  .rs-access__pw input { font-size: min(calc(.44 * var(--t)), calc(17px + var(--t-step))); }
   .rs-access__pwk { display: none; }
 }
 

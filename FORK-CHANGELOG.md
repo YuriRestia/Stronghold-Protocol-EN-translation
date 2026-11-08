@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Room privacy bar follows the text size
+
+- The Public / Private bar in the room and its password box now grow with the Text Size setting like the rest of the room. On phones they used a fixed size. Desktop sizes are unchanged; on a phone they stay the same at Medium and are 2 px smaller at Small.
+
 ### Packaging works from Git Bash on Windows
 
 - Building a release zip on Windows failed when Git Bash's own `tar` came first on the PATH, because that tar cannot write zip files. The packager now falls back to the `tar.exe` built into Windows 10 and later. Windows' tar still can't write non-ASCII file names (it crashes), but no file in the game has one.

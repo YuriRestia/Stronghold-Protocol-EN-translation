@@ -154,10 +154,12 @@ test('onHealth: told every /healthz body a check reads — what else the page re
   assert.ok(callback, 'main wires the health callback');
   let state = { installedPlugins: 0, installedNotices: false };
   let writes = 0;
+  const seenByRegions = []; // (fork) the lobby's server picker (public/js/regions.js) reads every body too
   // Execute the actual callback with a small store; changes in formatting do not change this contract.
-  const onHealth = new Function('pluginCount', 'store', `return (${callback});`)(
+  const onHealth = new Function('pluginCount', 'store', 'regions', `return (${callback});`)(
     (content) => Number.isInteger(content?.plugins) && content.plugins > 0 ? content.plugins : 0,
     { get: () => state, set: (patch) => { state = { ...state, ...patch }; writes++; } },
+    { onHealth: (h) => seenByRegions.push(h) },
   );
   onHealth({ content: { plugins: 2, notices: true } });
   assert.deepEqual(state, { installedPlugins: 2, installedNotices: true });
@@ -167,4 +169,5 @@ test('onHealth: told every /healthz body a check reads — what else the page re
   assert.deepEqual(state, { installedPlugins: 0, installedNotices: true }, 'language-only notices reach the title');
   onHealth({});
   assert.deepEqual(state, { installedPlugins: 0, installedNotices: false }, 'a notice-free server clears the hint');
+  assert.equal(seenByRegions.length, 4, 'the server picker is told every body');
 });
