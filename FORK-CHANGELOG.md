@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Versions-flow browser test
+
+- `test/ui/versions-flow.e2e.test.js`: a page spends the server's whole heavy-message burst (6) on the settings it syncs when it connects. The test's spectator asked for its seat right after entering and was refused (`RATE`). The test server now allows a larger burst, as the lobby suites do. A player's own click comes after the next token, so the game's limit is unchanged.
+- Its version-match test gave the vote 4 seconds, which ran out while the host edited Matterhorn's skill in the new card view. That test now uses the game's own 60-second vote. The vote-rules test keeps 4 seconds, since it waits for a vote to expire.
+
 ### Update news
 
 - The Update 0.3.4 banner in the lobby adds "New Operator Loadout" to its highlight lines. Its points now start with "Profile Icon added" and include "Fixed Viviana VFX". The damage meter and four new Modules lines are gone from the banner and from the en, ja, ko and zh-TW packs. The dismiss key stays `news.0.3.4`: the live server still shows 0.3.0's banner, so no player has closed this one yet.

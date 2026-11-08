@@ -23,10 +23,17 @@ const ENABLED = process.env.SP_E2E === '1' && hasChrome();
 const YAK_V2 = 'chess_char_1_02_a';
 const YAK_V1 = 'chess_char_2_03_a';
 
-async function startVersionServer() {
+/**
+ * The in-process server. heavyBurst / heavyPerSec are raised like the lobby suites' (lobby-card, outfits-sync, …): a page
+ * spends the whole default burst (6) on its welcome's pref syncs (room.ownership / diy / outfits / skins / card /
+ * loadout), so a room.spectate scripted right after enter() met an empty bucket (RATE); a player's click comes after
+ * the 500 ms refill. `over` overrides per test (versionVoteMs).
+ */
+async function startVersionServer(over = {}) {
   const { startServer } = await import('../../server/index.js');
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: process.env.SP_E2E_VERBOSE !== '1', versions: { enabled: 'all' },
-    versionVoteMs: 4000, versionRetryMs: 500, matchHost: { matchOptions: { timerScale: 0.1, combatSpeed: 16, botRehearsal: 0 } } });
+    versionVoteMs: 4000, versionRetryMs: 500, heavyBurst: 12, heavyPerSec: 4,
+    matchHost: { matchOptions: { timerScale: 0.1, combatSpeed: 16, botRehearsal: 0 } }, ...over });
   for (const t0 = Date.now(); Date.now() - t0 < 20000;) {
     const h = await fetch(`${srv.url}/healthz?traffic=1`).then((r) => r.json(), () => null);
     if (!h?.assetHashes || h.assetHashes.ready) break;
@@ -157,7 +164,9 @@ describe('official versions: the vote rules and a version match (in-process serv
   });
 
   test('an edit during an open vote reaches the new version\'s match on its own operator; the match runs in a version host to its settlement', { timeout: 12 * 60 * 1000 }, async () => {
-    const srv = await startVersionServer();
+    // the vote must outlast the host's 干员调配 edit (the card view: open, 筛选, the drawer, 已同步, close — over 4 s);
+    // this test never waits for an expiry
+    const srv = await startVersionServer({ versionVoteMs: 60000 });
     const P = (await import('puppeteer-core')).default;
     const host = new Client(P, srv.url, 'host', { prefix: 'versions-flow-match', w: 1280, h: 720 });
     const guest = new Client(P, srv.url, 'guest', { prefix: 'versions-flow-match-guest', w: 1280, h: 720 });
