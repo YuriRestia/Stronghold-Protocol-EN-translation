@@ -110,7 +110,7 @@ export {
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  *   noticeFile?: string | null, noticePollMs?: number, maintenanceFile?: string | null, maintenancePollMs?: number,
- *   presencePollMs?: number,
+ *   presencePollMs?: number, presenceRefreshMs?: number,
  *   warmResources?: boolean, resourceHashCache?: string | null,
  *   gen?: string | null, genFile?: string | null, genPollMs?: number, altArtDir?: string | null,
  *   versionVoteMs?: number, versionRetryMs?: number,
@@ -242,7 +242,7 @@ export async function startServer(opts = {}) {
       try { lobbyHello(session, info); } finally { notices?.onHello(session); maintenance?.onHello(session); }
     };
   }
-  const presence = new Presence({ network, lobby, pollMs: opts.presencePollMs });
+  const presence = new Presence({ network, lobby, pollMs: opts.presencePollMs, refreshMs: opts.presenceRefreshMs });
   // behind scripts/router.mjs: this process is one generation (server/generation.js); both set, or neither
   const gen = opts.gen === undefined ? process.env.SP_GEN || null : opts.gen;
   const genFile = opts.genFile === undefined ? process.env.SP_GEN_FILE || null : opts.genFile;

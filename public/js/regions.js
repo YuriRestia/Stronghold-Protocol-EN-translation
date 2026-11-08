@@ -92,6 +92,8 @@ export function createRegions(deps) {
   let confirmed = false;
   let probing = null;
   let probedOnce = false;
+  /** @type {Record<string, number>} the last ping test's round trips by region (Infinity: no answer) */
+  let lastRtts = {};
   let everOnline = false;
   /** a join or a move on another region is under way: the socket is about to change, leave it alone */
   let crossing = 0;
@@ -219,16 +221,28 @@ export function createRegions(deps) {
   function probe() {
     if (probing) return probing;
     if (!config?.auto || force() || pref() !== 'auto') return Promise.resolve(null);
+    return measure();
+  }
+
+  /**
+   * Ping every region now, whatever the preference (the lobby's server picker shows each one's time). The fastest becomes
+   * what 自动 picks; the socket moves only as settle() allows.
+   */
+  function measure() {
+    if (probing) return probing;
+    if (!config?.auto) return Promise.resolve(null);
     probing = (async () => {
       const ids = config.list.map((r) => r.id); // a region given up too: an answer brings it back
       const times = await Promise.all(ids.map(pingOnce));
       const rtts = Object.fromEntries(ids.map((id, i) => [id, times[i]]));
       ids.forEach((id, i) => { if (Number.isFinite(times[i])) down.delete(id); });
+      lastRtts = rtts;
       const chosen = pickRegion(rtts, read(local, K_BEST));
       if (chosen) write(local, K_BEST, chosen);
       settle();
       return rtts;
-    })().finally(() => { probing = null; });
+    })().finally(() => { probing = null; emit(); });
+    emit(); // measuring
     return probing;
   }
 
@@ -379,6 +393,11 @@ export function createRegions(deps) {
       home: home(),
       preference: pref(),
       forced: force(),
+      /** what 自动 picks now (the last ping test's choice while it is usable, else the page's own server) */
+      best: config ? (() => { const b = read(local, K_BEST); return b && usable(b) ? b : config.self; })() : null,
+      /** the last ping test's round trips (ms) by region; Infinity: no answer; {} before the first */
+      rtts: { ...lastRtts },
+      measuring: !!probing,
     };
   }
 
@@ -390,7 +409,7 @@ export function createRegions(deps) {
   } catch { /* no URL parser */ }
 
   return {
-    getUrl, home, join, follow, probe, settle, onHealth, onWelcome, onStatus, setPreference, snapshot,
+    getUrl, home, join, follow, probe, measure, settle, onHealth, onWelcome, onStatus, setPreference, snapshot,
     /** main.js: what the store knows (busy, inMatch) and how to tell the player (notify). */
     configure(more) { Object.assign(deps, more); },
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },

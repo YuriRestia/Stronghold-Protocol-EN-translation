@@ -879,6 +879,52 @@
 .ping--high { --pc: var(--red-premium); }
 .ping--off { --pc: var(--text-dim); }
 .online-pill .ping__unit { margin-left: .04rem; }
+.online-pill-tt .online-pill { cursor: default; }
+.online-pill-tt .online-pill:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+/* (fork) the online pill's per-server tooltip (ui/presence.js): one row per server, the viewer's own marked */
+.online-tip { display: grid; gap: .03rem; min-width: 1.7rem; white-space: normal; }
+.online-tip__head { margin-bottom: .03rem; color: var(--text-lo); font-size: calc(.12 * var(--t)); letter-spacing: .04em; text-transform: uppercase; }
+.online-tip__row { display: flex; align-items: center; justify-content: space-between; gap: .2rem; }
+.online-tip__name { display: inline-flex; align-items: center; gap: .05rem; color: var(--text-md); white-space: nowrap; }
+.online-tip__name::before { content: ''; width: .06rem; height: .06rem; border-radius: 50%; background: transparent; }
+.online-tip__row.is-here .online-tip__name { color: var(--text-hi); font-weight: 700; }
+.online-tip__row.is-here .online-tip__name::before { background: var(--mint-400); box-shadow: 0 0 6px var(--mint-glow); }
+.online-tip__n { color: var(--mint-400); font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* (fork) the lobby's server picker (ui/regionPicker.js): the ping pill as a button, a small list under it */
+.regpick { position: relative; display: inline-flex; flex: none; }
+.regpick__btn { display: inline-flex; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; border-radius: 99px; }
+.regpick__btn .ping { transition: border-color var(--t-fast, .12s), filter var(--t-fast, .12s); }
+.regpick__btn:hover .ping, .regpick__btn:focus-visible .ping, .regpick.is-open .ping { border-color: var(--pc); filter: brightness(1.15); }
+.regpick__btn:focus-visible { outline: 2px solid var(--mint-400); outline-offset: 2px; }
+.regpick__caret { width: .12rem; height: .12rem; margin-left: .04rem; color: var(--text-lo); transform: rotate(90deg); transition: transform var(--t-fast, .12s); }
+.regpick.is-open .regpick__caret { transform: rotate(-90deg); }
+.sp-coarse .regpick__btn .ping { min-height: max(32px, calc(36px * var(--sp-ui, 1))); }
+.regpick__pop {
+  position: absolute; top: calc(100% + .06rem); left: 0; z-index: var(--z-modal);
+  display: flex; flex-direction: column; gap: .04rem; width: max-content; min-width: 2.8rem; max-width: min(4.2rem, calc(100vw - 16px));
+  padding: .08rem;
+  background: linear-gradient(180deg, #1c2320, #111513); border: 1px solid var(--line-2);
+  box-shadow: 0 .08rem .3rem rgba(0, 0, 0, .6);
+  animation: modal-fade var(--t-med) var(--ease-out);
+}
+.regpick__opt {
+  display: grid; grid-template-columns: .18rem minmax(0, 1fr) auto auto; align-items: center; gap: .08rem;
+  min-height: max(.42rem, 30px); padding: .04rem .12rem .04rem .06rem;
+  border: 1px solid transparent; background: rgba(0, 0, 0, .25); color: var(--text-hi);
+  font: inherit; font-size: calc(.15 * var(--t)); text-align: left; cursor: pointer;
+}
+.sp-coarse .regpick__opt { min-height: max(36px, calc(42px * var(--sp-ui, 1))); }
+.regpick__opt:hover, .regpick__opt:focus-visible { background: rgba(255, 255, 255, .06); outline: none; border-color: var(--line-2); }
+.regpick__opt.is-on { border-color: rgba(120, 196, 255, .7); background: rgba(120, 196, 255, .1); }
+.regpick__mark { display: inline-flex; color: #9fd3ff; }
+.regpick__mark .icon { width: .16rem; height: .16rem; }
+.regpick__name { display: flex; align-items: baseline; gap: .06rem; min-width: 0; white-space: nowrap; font-weight: 700; }
+.regpick__sub { color: var(--text-lo); font-size: calc(.12 * var(--t)); font-weight: 400; }
+.regpick__sub::before { content: '· '; }
+.regpick__here { padding: .01rem .06rem; border: 1px solid var(--line-2); color: var(--text-md); font-size: calc(.11 * var(--t)); white-space: nowrap; }
+.regpick__ms { min-width: .5rem; color: var(--pc); font-family: var(--font-num); font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; }
+.regpick__ms small { margin-left: .02rem; color: var(--text-lo); font-size: .8em; font-weight: 500; }
+.regpick__hint { margin: .04rem .04rem 0; max-width: 3.6rem; color: var(--text-lo); font-size: calc(.12 * var(--t)); line-height: 1.5; white-space: normal; }
 
 /* ---- difficulty tag ---------------------------------------------------------------------------------- */
 .dtag { --d-color: var(--amber); display: inline-flex; align-items: center; gap: .06rem; color: var(--d-color); font-weight: 700; font-size: calc(.18 * var(--t)); letter-spacing: .04em; white-space: nowrap; }

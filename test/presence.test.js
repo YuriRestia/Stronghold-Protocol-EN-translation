@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { startServer } from '../server/index.js';
+import { Presence, PRESENCE_REFRESH_MS } from '../server/presence.js';
 import { StubMatch } from '../server/match/StubMatch.js';
 import { S2C } from '../shared/protocol.js';
 import { TestClient } from './helpers/wsClient.js';
@@ -23,7 +24,7 @@ describe('sys.online', () => {
   // partialMergeAfterMs 0: two lone searchers never merge, so they stay in the queue
   before(async () => {
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, noticeFile: null, MatchClass: StubMatch,
-      presencePollMs: 30, matchTickMs: 30, partialMergeAfterMs: 0 });
+      presencePollMs: 30, presenceRefreshMs: 0, matchTickMs: 30, partialMergeAfterMs: 0 });
   });
   afterEach(async () => {
     await Promise.all([...open].map((c) => c.terminate().catch(() => {})));
@@ -79,5 +80,34 @@ describe('sys.online', () => {
   test('ui/presence.js passes t() params as an object', () => {
     const src = readFileSync(new URL('../public/js/ui/presence.js', import.meta.url), 'utf8');
     assert.deepEqual([...src.matchAll(/\bt\('[^']*\{[^}]+\}[^']*',\s*([^{\s][^)]*)\)/g)].map((m) => m[0]), []);
+  });
+});
+
+describe('sys.online rate (fork)', () => {
+  test('a new socket gets the counts at once; one that has them gets changes at most once per refresh', () => {
+    let clock = 0;
+    const sock = () => ({ readyState: 1, bufferedAmount: 0, got: [], send(d) { this.got.push(JSON.parse(d).online); } });
+    const a = sock();
+    const conns = new Map([[a, {}]]);
+    const network = { conns, connectionCount: 1 };
+    const pre = new Presence({ network, lobby: { rooms: new Map() }, refreshMs: PRESENCE_REFRESH_MS, now: () => clock });
+    assert.equal(pre.tick(), 1);
+    assert.deepEqual(a.got, [1]);
+    // the count changes: a new socket hears the new number, the old one waits for the refresh
+    clock = 2000;
+    const b = sock();
+    conns.set(b, {});
+    network.connectionCount = 2;
+    assert.equal(pre.tick(), 1);
+    assert.deepEqual([a.got, b.got], [[1], [2]]);
+    clock = PRESENCE_REFRESH_MS - 1;
+    network.connectionCount = 3;
+    assert.equal(pre.tick(), 0);
+    clock = PRESENCE_REFRESH_MS;
+    assert.equal(pre.tick(), 2);
+    assert.deepEqual([a.got, b.got], [[1, 3], [2, 3]]);
+    // no change, no frame, however long it has been
+    clock += 10 * PRESENCE_REFRESH_MS;
+    assert.equal(pre.tick(), 0);
   });
 });

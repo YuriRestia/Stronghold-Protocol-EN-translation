@@ -2609,6 +2609,8 @@
   "新加坡": "Singapore",
   "美国东部": "US East",
   "服务器": "Server",
+  "各服务器在线": "Online per server",
+  "切换服务器": "Switch server",
   "自动选择延迟最低的服务器。更改会在你离开同盟后生效。": "Auto picks the server with the lowest ping. A change applies after you leave your alliance.",
   "你已连续多个整备阶段没有操作，已被移出房间": "You did nothing for several prep rounds and were removed from the room",
   "小队 {name}": "Squad {name}",
