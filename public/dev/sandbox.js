@@ -5,14 +5,19 @@
 // built here. Made to check how a model draws and fights (attacks, skills, the impostor box: docs/ASSETS.md `extents`)
 // without playing a match up to the round that has it.
 //
-// Query: &units=<chessId>[~<charId>]:<row>,<col>[:<skillIndex>[:<dir>[:<outfitId>]]][!<itemId>[,<itemId>]];…  the board
+// Query: &season=<versionId> (shared/versions.js: act2autochess = Season 2 · Part 2, the default; act2autochess@V2_1,
+//        act1autochess, act1autochess@V1_1) — the game version the whole page runs: its data/versions/<slug>/ files become the
+//        page's data (data.setContent, as a room of that version loads them) and the battles' (loadBrowserSim with that data
+//        and its own official bounds), so its operators, Custom Squad pool, bonds, items, maps and waves are the version's
+//        &units=<chessId>[~<charId>]:<row>,<col>[:<skillIndex>[:<dir>[:<outfitId>]]][!<itemId>[,<itemId>]][|m=<module>][|sp=<n|full>];…  the board
 //        (prep), e.g. chess_char_2_18_a:12,5:1:RIGHT:char_431_ashlok@epoque#28 (an outfit of data/outfits.json;
 //        URL-encoded); `~<charId>` = the operator a 自选 slot (chess_char_5/6_diy*_a/_b) fields (shared/diy.js);
-//        `!…` = its equipped items (data/items.json EQUIP, at most EQUIP_SLOTS)
+//        `!…` = its equipped items (data/items.json EQUIP, at most EQUIP_SLOTS); `|m=` its module (none | a uniEquipId),
+//        `|sp=` its starting SP (a number or full; sandbox-only) — sandbox-units.js parseUnits / unitsParam
 //        &layers=<bondId>:<n>,… (the bonds' stacks) &bonus=<bondId>:<n>,… (extra members: the match's bondCountBonus)
 //        &map=<stageId> (one of the 7 HARD maps, default act2autochess_m01; a preset belongs to the map it was saved on)
 //        &enemies=hard-normal-rN | hard-boss-r14 (Final Assault) | hard-hidden-r15 (Hidden Core: both on the boss field,
-//        the own pieces on its left half, the partner's captured board on the right) | empty | preset:<name> (default hard-normal-r13) &speed=1|2|4 &imp=0 (normal
+//        the own pieces on its left half, the partner's captured board on the right) | empty | preset:<name> (default hard-normal-r13) &speed=1|2|4 (also changed mid-battle: runner.setSpeed) &imp=0 (normal
 //        rendering) &legacy=1 (old box) &fight=1 (start the battle on load) &notes=ours (Sakiko's notes drawn by our
 //        fallback renderer instead of her official effects, to compare)
 // Operators: the pool's (data/chess.json, normal and elite forms) and the Custom Squad picks (自选: the DIY slots of
@@ -22,7 +27,11 @@
 // classes, server/match/board.js) and the match's direction wheel (ui/facingWheel.js) picks its facing; a drop on its
 // own tile turns it, on an occupied tile swaps, off the field sends a board unit back to the bench (a bench one is
 // removed). The skill last picked for an operator is remembered (localStorage SKILL_KEY). The bench is not kept in the
-// URL. A placed unit's skill and outfit can be changed from its entry in the list. Bonds are the match's: server/match/bondsMeta.js itself (served as /match/bondsMeta.js) counts the board and the
+// URL. A click on an own unit in prep opens its drawer (sandbox-ui.js UnitDrawer: form, starting SP, and the Skill / Module /
+// Outfit / Items tabs built from the game's loadout components, sandbox-loadout.js) and puts the match's 撤退 (to the
+// bench) / 销毁 (remove) plates on its piece. Module = the match's loadout choice (an elite chess fights with it, a 自选
+// pick carries it as its uniEquipId, a prototype's is locked); starting SP = the battle input's carryState.sp, the sim's
+// own start-at-this-SP input (sandbox-units.js) — no rule or default changes. Bonds are the match's: server/match/bondsMeta.js itself (served as /match/bondsMeta.js) counts the board and the
 // bench, with the page's stacks (layers) and +count; the battle gets its bondSnapshot, so kits that stack bonds in battle
 // (Battle.addLayers) do it here too. After a battle "Bank stacks" adds the result's layerGains the way the settlement
 // does (bondsWithGains: capped at BOND_LAYER_CAP) and "Bank + next round" also loads the next round's waves — the board
@@ -34,7 +43,7 @@
 // the game's audio manager (js/audio.js) with the player's volume settings — prep / combat BGM, battle SFX and voices.
 // Puppeteer hook: window.__sandbox = { ready, error, view, runner, units(), bench(), wave(), fight(), prep(), facing,
 // bonds(), layers(), gains(), bank(next), setWave(id), pause(on), step(n), tick(), lastResult, addBond(bondId, elite),
-// ui, click(pieceClick event), camLayer('L' | 'ALL' | 'R'), boardUids() }
+// ui, click(pieceClick event), camLayer('L' | 'ALL' | 'R'), boardUids(), open(uid) (a unit's drawer), speed() }
 // The game's widgets ride on top (sandbox-ui.js): the bond strip (stacks, active state) and its popup, the detail card of
 // a clicked piece / unit / enemy / boss with live HP and stats in battle, and icon pickers for operators (by bond) and
 // items (by name). On a boss field in battle, "My side" / "Whole field" / "Partner's side" move the camera like the
@@ -60,42 +69,34 @@ import { settingsStore } from '../js/ui/settings.js';
 import { loadLangIndex, loadLangChain } from '../js/ui/lang.js';
 import { audio, installAudio, setOutfitVoiceResolver, combatTrackFor } from '../js/audio.js';
 import { setOutfitPicker } from '../js/ui/assetUrls.js';
-import { setLang } from '../../shared/i18n.js';
+import { setLang, t } from '../../shared/i18n.js';
+import { VERSIONS, DEFAULT_VERSION, versionById } from '../../shared/versions.js';
+import { officialBoundsOf } from '../../shared/plugins/officialBounds.js';
+import { loadBrowserSim } from '../js/battle/simLoader.js';
 import { meleeOnHighGround } from '../../shared/highGround.js';
-import { BOND_LAYER_CAP } from '../../shared/constants.js';
+import { BOND_LAYER_CAP, GEO } from '../../shared/constants.js';
 import { isOutfitOf } from '../../shared/outfits.js';
 import { diySlotIds, diySlot, diyPool, diyRecord, isPrototypePick, lockedSelection } from '../../shared/diy.js';
 import * as W from './sandbox-waves.js';
-import { renderOverlay, operatorGroups, itemGroups } from './sandbox-ui.js';
+import { renderOverlay, operatorGroups, itemGroups, HoldControls } from './sandbox-ui.js';
+import { DIRS, EQUIP_SLOTS, parseUnits, unitsParam, battleUnit, skillSpOf, sandboxZoom, leftOutReason, matchUnitsByOperator, holdSkill } from './sandbox-units.js';
+import { MODULE_NONE, chessOptions, pickChoices, defaultPick } from './sandbox-loadout.js';
+import { bondIconUrl } from '../js/ui/assetUrls.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
 const sb = { ready: false, error: null, facing: null };
 globalThis.__sandbox = sb;
 
-const DIRS = ['RIGHT', 'LEFT', 'UP', 'DOWN'];
 /** The skill last picked per operator: { [charId]: skillIndex }. */
 const SKILL_KEY = 'sp.dev.sandbox.skills';
-/** Items a unit carries (the match's equipPerChess); a third replaces the oldest, like g.equip without a pick. */
-const EQUIP_SLOTS = 2;
+/** The operators the last season switch left behind (named after the reload). */
+const SWITCH_KEY = 'sp.dev.sandbox.seasonSwitch';
 
 const status = (text, error = false) => { $('status').textContent = text; $('status').classList.toggle('is-error', error); };
 const loadJson = (key, d) => { try { return JSON.parse(localStorage.getItem(key) || 'null') ?? d; } catch { return d; } };
 const num = (id, lo, hi, d) => { const v = Number($(id).value); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d; };
 
-/** The board from the URL: [{ chessId, diy?, row, col, skillIndex, dir, skin }] (junk dropped; picks / `skin` checked later). */
-function parseUnits(raw) {
-  const out = [];
-  for (const part of String(raw || '').split(';')) {
-    const m = /^([a-z0-9_]+)(?:~([a-z0-9_]+))?:(\d+),(\d+)(?::(\d))?(?::([A-Z]+))?(?::([^:;!]+))?(?:!([a-z0-9_,]+))?$/.exec(part.trim());
-    if (!m) continue;
-    const skillIndex = m[5] != null ? +m[5] : 0;
-    out.push({ chessId: m[1], ...(m[2] ? { diy: { charId: m[2], skillIndex, uniEquipId: null } } : null), row: +m[3], col: +m[4],
-      skillIndex, dir: DIRS.includes(m[6]) ? m[6] : 'RIGHT', skin: m[7] || null, items: m[8] ? m[8].split(',').filter(Boolean).slice(0, EQUIP_SLOTS) : [] });
-  }
-  return out;
-}
-const unitsParam = (list) => list.map((u) => `${u.chessId}${u.diy ? `~${u.diy.charId}` : ''}:${u.row},${u.col}:${u.skillIndex}:${u.dir}${u.skin ? `:${u.skin}` : ''}${u.items?.length ? `!${u.items.join(',')}` : ''}`).join(';');
 /** `<bondId>:<n>,…` → { [bondId]: n } (integers; junk and zeros dropped). */
 function parseCounts(raw) {
   const out = {};
@@ -109,28 +110,96 @@ const countsParam = (o) => Object.entries(o).filter(([, n]) => n).map(([id, n]) 
 
 /** The outfits of operator `charId` (data/outfits.json; every outfit is owned, docs/OUTFITS.md). */
 const outfitsOf = (charId) => (data.list('outfits') || []).filter((r) => r && r.charId === charId);
-const outfitLabel = (r) => (r.series ? `${r.name} · ${r.series}` : r.name || r.id);
 
 /** English name of a record (its official appellation), else its Chinese one. */
 const nameOf = (c) => c?.appellation || c?.name || '?';
-const skillName = (s, i) => `S${i + 1} ${s?.name || s?.skillId || ''}`.trim();
 const diyData = () => ({ chess: data.get('chess'), backups: data.get('backups') });
 /** The record an entry fights as: the chess, or its 自选 slot filled with the pick. */
 const recordOf = (u) => (u?.diy ? diyRecord(u.chessId, u.diy, { data: diyData() }) : data.lookup('chess', u?.chessId));
-const unitLabel = (u) => {
-  const c = data.lookup('chess', u.chessId);
-  const r = recordOf(u);
-  return `${nameOf(r)}${c?.isGolden ? ' (elite)' : ''} · T${c?.tier ?? '?'}${u.diy ? ' · custom' : ''}`;
-};
+
+const fitZoom = () => document.documentElement.style.setProperty('--sb-zoom', String(sandboxZoom(window.innerWidth)));
+
+/** Where the floating panels were put / how big (per browser): { [key]: { x, y, w, h } }. */
+const PANELS_KEY = 'sp.dev.sandbox.panels';
+/**
+ * A floating panel the user moves (drag its grip) and resizes (the CSS corner, .sb `resize`); both are remembered in
+ * this browser. A double-click on the grip puts it back where it starts. Kept inside the window.
+ */
+function floatPanel(el, grip, key) {
+  const all = () => loadJson(PANELS_KEY, {});
+  const keep = (v) => { const a = all(); if (v) a[key] = v; else delete a[key]; try { localStorage.setItem(PANELS_KEY, JSON.stringify(a)); } catch { /* private mode */ } };
+  const place = (x, y) => {
+    const r = el.getBoundingClientRect();
+    el.style.left = `${Math.round(Math.max(0, Math.min(window.innerWidth - Math.min(r.width, window.innerWidth), x)))}px`;
+    el.style.top = `${Math.round(Math.max(0, Math.min(window.innerHeight - 40, y)))}px`;
+    el.style.right = 'auto';
+    el.style.bottom = 'auto';
+    el.classList.add('is-placed');
+  };
+  const save = () => {
+    const r = el.getBoundingClientRect();
+    keep({ x: el.classList.contains('is-placed') ? r.left : null, y: el.classList.contains('is-placed') ? r.top : null,
+      w: el.style.width ? r.width : null, h: el.style.height ? r.height : null });
+  };
+  const saved = all()[key];
+  if (saved) {
+    if (saved.w) el.style.width = `${saved.w}px`;
+    if (saved.h) el.style.height = `${saved.h}px`;
+    if (Number.isFinite(saved.x) && Number.isFinite(saved.y)) place(saved.x, saved.y);
+  }
+  grip.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('button, input, select, a')) return;
+    const r = el.getBoundingClientRect();
+    const dx = e.clientX - r.left;
+    const dy = e.clientY - r.top;
+    try { grip.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    const move = (ev) => place(ev.clientX - dx, ev.clientY - dy);
+    const up = () => { grip.removeEventListener('pointermove', move); grip.removeEventListener('pointerup', up); grip.removeEventListener('pointercancel', up); save(); };
+    grip.addEventListener('pointermove', move);
+    grip.addEventListener('pointerup', up);
+    grip.addEventListener('pointercancel', up);
+    e.preventDefault();
+  });
+  grip.addEventListener('dblclick', (e) => {
+    if (e.target.closest('button, input, select, a')) return;
+    for (const k of ['left', 'top', 'right', 'bottom', 'width', 'height']) el.style[k] = '';
+    el.classList.remove('is-placed');
+    keep(null);
+  });
+  // a resize with the corner: remembered when it ends (the corner writes width / height)
+  let t = 0;
+  new ResizeObserver(() => { if (el.style.width || el.style.height) { clearTimeout(t); t = setTimeout(save, 300); } }).observe(el);
+  window.addEventListener('resize', () => { if (el.classList.contains('is-placed')) { const r = el.getBoundingClientRect(); place(r.left, r.top); } });
+}
 
 async function main() {
+  floatPanel($('panel'), $('panel').querySelector('.sb-grip'), 'setup');
+  floatPanel($('bar'), $('bar').querySelector('.sb-grip'), 'bar');
+  fitZoom();
+  window.addEventListener('resize', fitZoom);
   $('collapse').onclick = () => {
     const c = $('panel').classList.toggle('is-collapsed');
+    if (c) $('panel').style.height = '';   // (a resized height would keep the hidden panel's size)
     $('collapse').textContent = c ? 'Show' : 'Hide';
     $('collapse').setAttribute('aria-expanded', String(!c));
   };
 
-  await data.loadAll('chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config', 'backups', 'outfits', 'assets');
+  // ---- the game version (&season=): another version's files replace the default data on this page --------------
+  const season = q.get('season') && q.get('season') !== DEFAULT_VERSION ? versionById(q.get('season')) : null;
+  let seasonSim = null;   // { data, bounds } for the battles (loadBrowserSim), null: the default data
+  if (season) {
+    const files = ['chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config', 'backups', 'garrisons', 'effects', 'bands', 'waves', 'bosses', 'choices', 'factions'];
+    const values = {};
+    await Promise.all(files.map(async (n) => {
+      const r = await fetch(genUrl(`/data/${season.dir}${n}.json`));
+      if (!r.ok) throw new Error(`${t(season.label)}: /data/${season.dir}${n}.json is not served (${r.status}). Is that version enabled on this server (SP_VERSIONS)?`);
+      values[n] = await r.json();
+    }));
+    data.setContent({ id: `sandbox:${season.id}`, values, langs: ['en'],
+      overlay: async (lang) => { const r = await fetch(genUrl(`/data/${season.dir}i18n/${lang}.json`)).catch(() => null); return r?.ok ? r.json() : null; } });
+    seasonSim = { data: values, bounds: officialBoundsOf(values) };
+  }
+  await data.loadAll('chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config', 'backups', 'outfits', 'assets', 'garrisons', 'effects', 'terms');
   // English game texts and interface strings (the direction wheel's)
   try { await loadLangIndex(); if (await loadLangChain('en')) setLang('en'); } catch { /* Chinese strings */ }
   try { await data.setLocale('en'); } catch { /* Chinese skill names */ }
@@ -151,7 +220,8 @@ async function main() {
   if (!allRounds.length) throw new Error('No enemy waves found: public/dev/sandbox/index.json lists no normal battle (node tools/capture-specs.mjs --stages --out public/dev/sandbox).');
   // the map: &map=, else the one of a preset named by &enemies=, else the default wave's
   let presets = W.loadPresets();
-  const maps = W.mapsOf(allRounds, (data.list('stages') || []).map((s) => s.id));
+  // (the maps of the game version in effect: a capture of a map it does not have is not offered)
+  const maps = W.mapsOf(allRounds, (data.list('stages') || []).map((s) => s.id)).filter((id) => data.lookup('stages', id));
   const presetOf = (id) => (String(id || '').startsWith(W.PRESET_PREFIX) ? presets.find((p) => W.PRESET_PREFIX + p.name === id) : null);
   const want = q.get('enemies') || W.DEFAULT_WAVE;
   const mapId = [q.get('map'), presetOf(want)?.stageId ?? (presetOf(want) ? W.LEGACY_STAGE : null), W.DEFAULT_MAP].find((m) => m && maps.includes(m)) || maps[0];
@@ -183,7 +253,10 @@ async function main() {
   $('enemies').value = waveId;
   if (preset) $('preset-name').value = preset.name;
   if (waveId === W.EMPTY) $('wave-edit').open = true;
-  if (['1', '2', '4'].includes(q.get('speed'))) $('speed').value = q.get('speed');
+  // the battle speed: 1× / 2× / 4×, also while a battle runs (runner.setSpeed: the pace changes, the battle does not)
+  let speed = ['1', '2', '4'].includes(q.get('speed')) ? Number(q.get('speed')) : 2;
+  const renderSpeed = () => { for (const b of $('speed').querySelectorAll('button[data-speed]')) b.setAttribute('aria-pressed', String(Number(b.dataset.speed) === speed)); };
+  renderSpeed();
   $('impostors').checked = q.get('imp') !== '0';
   $('legacy').checked = q.get('legacy') === '1';
   $('note-ours').checked = q.get('notes') === 'ours';
@@ -326,31 +399,15 @@ async function main() {
     $('op-elite').replaceChildren(...opts.map(([v, l]) => new Option(l, v)));
     $('op-elite').value = (opts.find(([v]) => /(^1$|:1$)/.test(v) === keepElite) || opts[0])[0];
   };
-  let lastChar = null;
   const refreshPicker = () => {
     const p = pick();
-    const skins = p ? outfitsOf(p.charId) : [];
-    const keepSkin = $('op-skin').value;
-    $('op-skin').replaceChildren(new Option(skins.length ? 'Default' : 'Default (no outfits)', ''), ...skins.map((r) => new Option(outfitLabel(r), r.id)));
-    if (skins.some((r) => r.id === keepSkin)) $('op-skin').value = keepSkin;   // the form switch keeps the outfit
-    $('op-skin').disabled = !skins.length;
-    // the skill: the one last picked for this operator, else the one shown (same operator, other form), else S1
-    const keepSkill = p && p.charId === lastChar ? $('op-skill').value : null;
-    $('op-skill').replaceChildren(...(p?.skills || []).map((s, i) => new Option(skillName(s, s.index ?? i), String(s.index ?? i))));
-    const has = (v) => v != null && [...$('op-skill').options].some((o) => o.value === String(v));
-    const remembered = p ? skillMemory[p.charId] : null;
-    if (has(remembered)) $('op-skill').value = String(remembered);
-    else if (has(keepSkill)) $('op-skill').value = keepSkill;
-    $('op-skill').disabled = !!p?.locked;
-    lastChar = p?.charId ?? null;
     const full = !bench.includes(null);
     $('op-add').disabled = !p || full;
     if (p && full) status('The bench is full: drag someone onto the board first.');
   };
-  const rememberSkill = () => {
-    const p = pick();
-    if (!p || p.locked || $('op-skill').value === '') return;
-    skillMemory[p.charId] = Number($('op-skill').value);
+  const rememberSkill = (charId, i) => {
+    if (!charId || !Number.isInteger(i)) return;
+    skillMemory[charId] = i;
     try { localStorage.setItem(SKILL_KEY, JSON.stringify(skillMemory)); } catch { /* private mode */ }
   };
   $('op-search').oninput = () => {
@@ -362,23 +419,68 @@ async function main() {
     refreshPicker();
   };
   $('op-elite').onchange = refreshPicker;
-  $('op-skill').onchange = rememberSkill;
+
+  // ---- modules: the match's loadout choice (screens/loadout.js) / the Custom Squad pick's (screens/diy.js) ------------
+  /** A pool chess entry's two forms: the normal record and its elite (null when it has none). */
+  const formsOf = (u) => {
+    const c = data.lookup('chess', u.chessId);
+    const base = c?.isGolden ? data.lookup('chess', c.baseId) || c : c;
+    return { c, base, golden: base?.goldenId ? data.lookup('chess', base.goldenId) || null : null };
+  };
+  /** A 自选 entry's choices (ui/diyModel.js pickChoices: skills, the modules it may carry, a prototype's locked pick). */
+  const diyChoices = (u) => (u.diy ? pickChoices(u.diy.charId, u.chessId, dd) : null);
+  /**
+   * Make an entry's module legal (an unknown one → the default). A 自选 pick carries it as diy.uniEquipId: the default is
+   * its first module (ui/diyModel.js defaultPick), a prototype fights with its locked skill and module.
+   */
+  const fixModule = (u) => {
+    if (!u.diy) {
+      const { base, golden } = formsOf(u);
+      if (u.module && !(golden && chessOptions(base, golden).modules.includes(u.module))) u.module = null;
+      return;
+    }
+    const ch = diyChoices(u);
+    if (ch?.proto) {
+      u.module = null;
+      u.skillIndex = ch.locked?.skillIndex ?? u.skillIndex;
+      u.diy = { ...u.diy, skillIndex: u.skillIndex, uniEquipId: ch.locked?.uniEquipId ?? null };
+      return;
+    }
+    const ids = (ch?.modules || []).map((x) => x.uniEquipId);
+    if (u.module && u.module !== MODULE_NONE && !ids.includes(u.module)) u.module = null;
+    u.diy = { ...u.diy, uniEquipId: u.module === MODULE_NONE ? null : u.module || ids[0] || null };
+  };
 
   // ---- the board and the bench (the game's prep: drag a bench piece onto a highlighted tile) ----------------------
+  // (a unit the link names that cannot be placed is not dropped silently: the status line says why — leftOut)
+  const leftOut = [];
   let board = parseUnits(q.get('units')).filter((u) => {
     const rec = recordOf(u);
     if (u.skin && !(rec && isOutfitOf(rec.charId, u.skin) && outfitsOf(rec.charId).some((r) => r.id === u.skin))) u.skin = null;
-    return rec && allows(rec, `${u.row},${u.col}`);
+    if (rec) fixModule(u);
+    const chess = data.lookup('chess', u.chessId);
+    const why = leftOutReason(u, { chess, rec, tier: chess?.tier ?? null, allowed: !!rec && allows(rec, `${u.row},${u.col}`), name: rec ? nameOf(rec) : '' });
+    if (why) leftOut.push(why);
+    return !why;
   });
+  // the operators a season switch could not bring along (the button below)
+  try {
+    const g = JSON.parse(sessionStorage.getItem(SWITCH_KEY) || 'null');
+    sessionStorage.removeItem(SWITCH_KEY);
+    const here = season || versionById(DEFAULT_VERSION);
+    if (g && g.season === here.id) for (const n of g.names || []) leftOut.push(`${n}: not in ${t(here.label)}`);
+  } catch { /* private mode */ }
   // waiting on the bench (the hand row, HAND_SIZE slots): { chessId, diy?, skillIndex, dir, skin } or null; not in the URL
   const BENCH = 10;
   const bench = Array(BENCH).fill(null);
   const sync = () => {
     const p = new URLSearchParams(location.search);
     if (board.length) p.set('units', unitsParam(board)); else p.delete('units');
+    if (season) p.set('season', season.id); else p.delete('season');
     p.set('map', $('map').value);
     p.set('enemies', $('enemies').value);
-    p.set('speed', $('speed').value);
+    $('map-sum').textContent = `${t((season || versionById(DEFAULT_VERSION)).label)} · ${$('map').selectedOptions[0]?.text || ''} · ${$('enemies').selectedOptions[0]?.text || ''}`;
+    p.set('speed', String(speed));
     if ($('impostors').checked) p.delete('imp'); else p.set('imp', '0');
     if ($('legacy').checked) p.set('legacy', '1'); else p.delete('legacy');
     if ($('note-ours').checked) p.set('notes', 'ours'); else p.delete('notes');
@@ -386,39 +488,7 @@ async function main() {
     p.delete('fight');
     history.replaceState(null, '', `${location.pathname}?${p}`);
   };
-  const renderList = () => {
-    const entries = [...board.map((u) => ({ u, where: `row ${u.row}, col ${u.col} · ${u.dir}` })),
-      ...bench.filter(Boolean).map((u) => ({ u, where: 'bench' }))];
-    $('squad').replaceChildren(...entries.map(({ u, where }) => {
-      const rec = recordOf(u);
-      const li = document.createElement('li');
-      const sk = (rec?.skills || []).find((s, i) => (s.index ?? i) === u.skillIndex) || rec?.skill;
-      li.innerHTML = '<span><b></b><small></small></span>';
-      li.querySelector('b').textContent = unitLabel(u);
-      const skin = u.skin ? outfitsOf(rec?.charId).find((r) => r.id === u.skin) : null;
-      li.querySelector('small').textContent = `${skillName(sk, u.skillIndex)}${skin ? ` · ${skin.name}` : ''} · ${where}`;
-      const rm = document.createElement('button');
-      rm.type = 'button';
-      rm.textContent = 'Remove';
-      rm.setAttribute('aria-label', `Remove ${nameOf(rec)}`);
-      rm.onclick = () => {
-        board = board.filter((x) => x !== u);
-        const idx = bench.indexOf(u);
-        if (idx >= 0) bench[idx] = null;
-        changed();
-      };
-      li.append(rm, editRow(u, rec), itemRow(u, rec));
-      return li;
-    }));
-    if (!entries.length) {
-      const li = document.createElement('li');
-      li.className = 'sb-empty';
-      li.textContent = 'Nobody yet: pick an operator above and add it to the bench.';
-      $('squad').append(li);
-    }
-  };
-  // a placed unit's skill and outfit, changed in place (a new outfit gets a new uid: the field view dresses a piece when it
-  // builds it, so the piece is built again in the new look)
+  // a 自选 prototype's skill is locked (shared/diy.js lockedSelection)
   const skillsOf = (u, rec) => {
     const all = rec?.skills?.length ? rec.skills : [rec?.skill].filter(Boolean);
     if (!u.diy) return { list: all, locked: false };
@@ -426,63 +496,9 @@ async function main() {
     const lk = isPrototypePick(dd, tier, u.diy.charId) ? lockedSelection(dd, tier, u.diy.charId) : null;
     return { list: all.filter((x) => !lk || x.index === lk.skillIndex), locked: !!lk };
   };
-  const editRow = (u, rec) => {
-    const box = document.createElement('div');
-    box.className = 'sb-items';
-    const { list, locked } = skillsOf(u, rec);
-    const sk = document.createElement('select');
-    sk.setAttribute('aria-label', `Skill of ${nameOf(rec)}`);
-    sk.append(...list.map((x, i) => new Option(skillName(x, x.index ?? i), String(x.index ?? i))));
-    sk.value = String(u.skillIndex);
-    sk.disabled = locked || list.length < 2;
-    sk.onchange = () => {
-      const v = Number(sk.value);
-      u.skillIndex = v;
-      if (u.diy) u.diy = { ...u.diy, skillIndex: v };
-      if (rec?.charId) { skillMemory[rec.charId] = v; try { localStorage.setItem(SKILL_KEY, JSON.stringify(skillMemory)); } catch { /* private mode */ } }
-      changed();
-      status(`${nameOf(rec)} now uses ${sk.selectedOptions[0]?.textContent || `S${v + 1}`}.`);
-    };
-    const skins = outfitsOf(rec?.charId);
-    const of = document.createElement('select');
-    of.setAttribute('aria-label', `Outfit of ${nameOf(rec)}`);
-    of.append(new Option(skins.length ? 'Default outfit' : 'Default (no outfits)', ''), ...skins.map((r) => new Option(outfitLabel(r), r.id)));
-    of.value = u.skin || '';
-    of.disabled = !skins.length;
-    of.onchange = () => {
-      u.skin = of.value || null;
-      delete u.uid;   // rebuilt in the new look
-      changed();
-      status(`${nameOf(rec)} now wears ${of.value ? of.selectedOptions[0]?.textContent : 'the default outfit'}.`);
-    };
-    box.append(sk, of);
-    return box;
-  };
-  // the items a unit carries: a button per item (unequips it) and a picker (a third replaces the oldest)
+  // every equipment, for the drawer's Items tab (a third item replaces the oldest)
   const equipList = (data.list('items') || []).filter((r) => r && r.itemType === 'EQUIP')
     .sort((a, b) => (a.tier - b.tier) || nameOf(a).localeCompare(nameOf(b)) || Number(!!a.isGolden) - Number(!!b.isGolden));
-  const itemLabel = (r) => `${nameOf(r)}${r.isGolden ? ' (elite)' : ''} · T${r.tier ?? '?'}`;
-  const itemRow = (u, rec) => {
-    const box = document.createElement('div');
-    box.className = 'sb-items';
-    u.items ||= [];
-    for (const [k, id] of u.items.entries()) {
-      const r = data.lookup('items', id);
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = `${r ? itemLabel(r) : id} ✕`;
-      b.setAttribute('aria-label', `Unequip ${r ? nameOf(r) : id} from ${nameOf(rec)}`);
-      b.onclick = () => { u.items.splice(k, 1); changed(); };
-      box.append(b);
-    }
-    const add = document.createElement('button');
-    add.type = 'button';
-    add.textContent = u.items.length >= EQUIP_SLOTS ? '+ Item (replaces the oldest)' : '+ Item…';
-    add.setAttribute('aria-label', `Equip an item on ${nameOf(rec)}`);
-    add.onclick = () => openPicker({ kind: 'item', groups: itemGroupList, unitName: nameOf(rec), onPick: (r) => equip(u, rec, r.id) });
-    box.append(add);
-    return box;
-  };
   /** Equip item `id` on unit `u` (a third item replaces the oldest). */
   const equip = (u, rec, id) => {
     const r = data.lookup('items', id);
@@ -578,7 +594,7 @@ async function main() {
   const waveTitle = () => (preset ? `Preset ${preset.name}` : waveId === W.EMPTY ? 'Custom wave' : onBoss(template) ? W.waveTitle({ kind: template.kind, round: template.spec.round }) : `Round ${template.spec.round}`);
   /** The next round's waves on this map, if the current wave is a round and there is one. */
   const nextRound = () => (templates.get(waveId) ? rounds.find((s) => s.round === template.spec.round + 1 && templates.get(s.name))?.name ?? null : null);
-  const setBankable = (on) => { $('bank').disabled = !on; $('bank-next').disabled = !on || !nextRound(); };
+  const setBankable = (on) => { $('bank').disabled = !on; $('bank-next').disabled = !on || !nextRound(); $('bank-row').hidden = !on; };
   $('bond-all').onchange = renderBonds;
   $('bond-reset').onclick = () => { layers = {}; bonus = {}; roundLog.length = 0; gains = null; setBankable(false); sync(); renderBonds(); renderLog(); status('Stacks and +count reset.'); };
 
@@ -601,10 +617,14 @@ async function main() {
   // calls by uid, so a moved piece glides instead of being rebuilt
   let nextUid = 1;
   const uidOf = (u) => u.uid ?? (u.uid = nextUid++);
+  // the entry itself, for the unit card (a new outfit or form gives the piece a new uid, not a new entry)
+  const entryKeys = new WeakMap();
+  let nextEntryKey = 1;
+  const entryKey = (u) => { if (!entryKeys.has(u)) entryKeys.set(u, nextEntryKey++); return entryKeys.get(u); };
   const piece = (u, extra) => {
     const c = data.lookup('chess', u.chessId);
     if (u.skin) skinByUid.set(uidOf(u), u.skin);
-    return { uid: uidOf(u), kind: 'chess', id: u.chessId, golden: !!c?.isGolden, tier: c?.tier ?? 1, items: (u.items || []).map((id) => ({ id })), ...(u.diy ? { diy: u.diy } : null), ...extra };
+    return { uid: uidOf(u), kind: 'chess', id: u.chessId, golden: !!c?.isGolden, tier: c?.tier ?? 1, items: (u.items || []).map((id, k) => ({ id, uid: k })), ...(u.diy ? { diy: u.diy } : null), ...extra };
   };
   const prepState = () => {
     skinByUid.clear();
@@ -615,7 +635,7 @@ async function main() {
   };
 
   // ---- the overlay (sandbox-ui.js): the game's bond strip / popup and detail card, the icon pickers ------------------
-  const ui = { bondOpen: null, target: null, picker: null };
+  const ui = { bondOpen: null, target: null, picker: null, unit: null, tab: 'skill' };
   const uiHost = document.body.appendChild(document.createElement('div'));
   uiHost.id = 'sb-ui';
   /** The player's side as m.private shows it (the bond popup's member list, the detail card's own pieces). */
@@ -626,24 +646,24 @@ async function main() {
    * The card's loadout (the match's room.loadout shape, { [baseId]: { skill } }): the clicked unit's picked skill, so the
    * card — its skill, its 攻击范围 and the 技能 toggle — reads the skill it fights with. A 自选 card reads its pick.
    */
-  const cardLoadout = (detail) => {
+  const cardLoadout = (detail, shown = ui.target) => {
     if (detail?.type !== 'chess' || detail.diy || !detail.chess) return null;
-    const uid = detail.piece?.uid ?? ui.target?.uid ?? detail.unit?.uid;
+    const uid = detail.piece?.uid ?? shown?.uid ?? detail.unit?.uid;
     const u = Number.isInteger(uid) ? locate(uid)?.u : null;
     if (!u || !Number.isInteger(u.skillIndex)) return null;
-    return { [detail.chess.baseId || detail.chess.chessId]: { skill: u.skillIndex } };
+    return { [detail.chess.baseId || detail.chess.chessId]: { skill: u.skillIndex, ...(u.module && !u.diy ? { module: u.module } : null) } };
   };
   /**
    * The open card's range on the field, as the match draws it (screens/game/range.js inspectRange, SEL_RANGE): an own
    * board piece in prep, an ally on the field in battle — with the card's 技能 toggle (ui/rangePreview.js) the range
    * while its skill runs. Nothing while the direction wheel draws its own.
    */
-  const drawCardRange = (detail, priv, tuple, liveOf, loadout) => {
+  const drawCardRange = (detail, priv, tuple, liveOf, loadout, shown = ui.target) => {
     let r = null;
     if (detail && !facing) {
       try {
         // a 自选 piece's card is a `chess` target (the card shows the pick): its range is the piece's
-        const target = ui.target?.kind === 'chess' && Number.isInteger(ui.target.uid) ? { kind: 'piece', uid: ui.target.uid } : ui.target;
+        const target = shown?.kind === 'chess' && Number.isInteger(shown.uid) ? { kind: 'piece', uid: shown.uid } : shown;
         r = inspectRange({
           target, detail, pieces: indexPieces(priv), showPrep: !runner, field: battleField, snapshot: tuple,
           live: liveOf ? liveOf() : null, loadout, getChess: (id) => data.lookup('chess', id), backups: data.get('backups'),
@@ -659,20 +679,33 @@ async function main() {
     // in battle the strip shows the stacks as they grow (runner state().bondLayers), like the match's strip
     const list = (st?.list || []).map((b) => (live?.[b.bondId] != null ? { ...b, layers: live[b.bondId] } : b));
     const priv = privOf();
+    if (ui.unit != null && !facing && (runner || !locate(ui.unit))) ui.unit = null;
+    const at = ui.unit != null ? locate(ui.unit) : null;
+    // the drawer's unit: its range on the field like the card's (a 自选 piece as its pick, with the piece's uid)
+    const shownTarget = ui.target || (at ? (at.u.diy ? { kind: 'chess', id: at.u.chessId, diy: at.u.diy, foreign: true, items: at.u.items || null, uid: ui.unit } : { kind: 'piece', uid: ui.unit }) : null);
     let detail = null;
-    try { detail = ui.target ? resolveDetail(ui.target, indexPieces(priv), { priv }) : null; } catch (e) { console.warn('[sandbox] detail', e); }
+    try { detail = shownTarget ? resolveDetail(shownTarget, indexPieces(priv), { priv }) : null; } catch (e) { console.warn('[sandbox] detail', e); }
     const unitId = detail?.unitId;
     const tuple = unitId != null ? snapUnits.get(unitId) : null;
-    const loadout = cardLoadout(detail);
+    const loadout = cardLoadout(detail, shownTarget);
     const liveOf = unitId != null && runner ? () => { const e = runner?.unitStats?.(unitId); return e ? { ...e, src: 'battle' } : null; } : null;
-    drawCardRange(detail, priv, tuple, liveOf, loadout);
+    drawCardRange(detail, priv, tuple, liveOf, loadout, shownTarget);
+    // the battle bar's hold controls: the own operator clicked in battle (its board entry), changed live
+    const barEntry = runner && ui.target?.kind === 'unit' && Number.isInteger(ui.target.uid) ? board.find((b) => b.uid === ui.target.uid) : null;
+    render(barEntry ? html`<${HoldControls} name=${nameOf(recordOf(barEntry))} hold=${{ cast: barEntry.cast || null, infSp: !!barEntry.infSp, infDur: !!barEntry.infDur, infHp: !!barEntry.infHp }}
+      onHold=${(patch) => { Object.assign(barEntry, patch); sync(); renderUi(); }} />` : null, $('bar-unit'));
     renderOverlay(uiHost, {
-      bonds: list, layersDisabled: onBoss(template), bondOpen: ui.bondOpen, priv, offBonds: st?.offIds || new Set(), detail,
+      bonds: list, layersDisabled: onBoss(template), bondOpen: ui.bondOpen, priv, offBonds: st?.offIds || new Set(), detail: ui.target ? detail : null,
+      // (the card hides while a piece is dragged and while the direction wheel is open: it comes back at the new tile)
+      drawer: at && !facing && !dragging ? drawerModel(at) : null, drawerOn: at ? drawerOn(at.u) : null, unitDetail: at && !facing && !dragging ? detail : null,
+      plates: at && !facing && !dragging ? { view, uid: ui.unit, ...(at.area === 'board' ? { row: at.u.row, col: at.u.col } : { row: GEO.HAND_ROW, col: at.idx }),
+        retreat: at.area === 'board', name: nameOf(recordOf(at.u)) } : null,
       snapHp: tuple ? { hp: tuple[3], max: tuple[4] } : null,
       live: liveOf, loadout,
       picker: ui.picker,
       settings: ui.settings,
-      meter: meterShown() ? meter || { title: 'no battle yet', rows: [], other: [], byBond: [], totals: { dmg: 0, heal: 0, taken: 0, stacks: 0 } } : null,
+      // (hidden while a unit's card is open — also while it is only hidden for a drag or the wheel: no flicker)
+      meter: meterShown() && ui.unit == null ? meter || { title: 'no battle yet', rows: [], other: [], byBond: [], totals: { dmg: 0, heal: 0, taken: 0, stacks: 0 } } : null,
       meterTab: ui.meterTab,
       on: {
         meterTab: (k) => { ui.meterTab = k; renderUi(); },
@@ -684,10 +717,147 @@ async function main() {
         pick: (e) => { const p = ui.picker; ui.picker = null; renderUi(); p?.onPick?.(e.pick); },
         closePicker: () => { ui.picker = null; renderUi(); },
         closeSettings: () => { ui.settings = false; renderUi(); },
+        retreat: () => retreatUnit(ui.unit),
+        remove: () => removeUnit(ui.unit),
       },
     });
   };
   const openPicker = (p) => { ui.picker = p; renderUi(); };
+
+  // ---- the unit drawer (sandbox-ui.js UnitDrawer) and the plates on its piece ------------------------------------
+  let dragging = false;
+  const m = data.get('assets');
+  const formLabel = (c) => (c?.isGolden ? 'Elite' : 'Normal');
+  /** What the drawer shows of entry `u` (at `area`): sandbox-ui.js UnitDrawer's `d`. */
+  const drawerModel = ({ area, u }) => {
+    const rec = recordOf(u);
+    const c = data.lookup('chess', u.chessId);
+    let skill, module, forms;
+    if (u.diy) {
+      // a 自选 pick: the slot records composed with it (screens/diy.js DiyPickerView: no 默认 badges, 不装备 first)
+      const ch = diyChoices(u);
+      const slot = diySlot(u.chessId, dd);
+      const pk = { charId: u.diy.charId, skillIndex: u.diy.skillIndex, uniEquipId: u.diy.uniEquipId };
+      const base = slot ? diyRecord(slot.baseId, pk, { data: dd }) : null;
+      const golden = slot ? diyRecord(slot.baseId, pk, { elite: true, data: dd }) : null;
+      const opts = (base ? chessOptions(base, golden).skillOptions : []).map((x) => ({ ...x, isDefault: false }));
+      skill = { chess: base, golden, options: ch?.proto ? opts.filter((x) => x.index === u.skillIndex) : opts, on: u.skillIndex, locked: !!ch?.proto };
+      const lockedMod = ch?.locked?.uniEquipId ?? null;
+      module = {
+        golden, locked: !!ch?.proto, on: u.diy.uniEquipId ?? MODULE_NONE, empty: 'This pick carries no module.',
+        options: ch?.proto ? [{ id: lockedMod ?? MODULE_NONE, rec: ch.modules.find((x) => x.uniEquipId === lockedMod)?.rec ?? null }]
+          : [{ id: MODULE_NONE, rec: null }, ...(ch?.modules || []).map((x) => ({ id: x.uniEquipId, rec: x.rec }))],
+        note: ch?.proto ? 'A prototype pick fights with its fixed skill and module (the Custom Squad rule).' : 'Custom Squad picks offer the elite form\'s modules, Integrated Strategies ones left out (the Custom Squad rule).',
+      };
+      forms = (diyTiers.get(u.diy.charId) || [c?.tier]).flatMap((t) => [0, 1].map((e) => ({ key: `${t}:${e}`, label: `T${t} ${e ? 'Elite' : 'Normal'}`,
+        level: e ? 'elite' : 'normal', on: c?.tier === t && !!c?.isGolden === !!e, disabled: false })));
+    } else {
+      const { base, golden } = formsOf(u);
+      const o = chessOptions(base, golden);
+      skill = { chess: base, golden, options: o.skillOptions, on: u.skillIndex, locked: false };
+      module = { golden, options: o.moduleOptions, on: u.module ?? o.defaultModule, locked: false, empty: 'This operator has no modules.',
+        note: golden && !c?.isGolden ? 'Only the elite form wears a module: switch the form to Elite to fight with it.' : null };
+      forms = [{ key: '0', label: 'Normal', level: 'normal', on: !c?.isGolden, disabled: false }, { key: '1', label: 'Elite', level: 'elite', on: !!c?.isGolden, disabled: !golden }];
+    }
+    const sk = skillsOf(u, rec).list.find((x) => x.index === u.skillIndex) || rec?.skill || null;
+    return {
+      m, uid: ui.unit, key: entryKey(u), rec, charId: rec?.charId, outfit: u.skin || null, name: nameOf(rec), tab: ui.tab, form: c?.isGolden ? 'elite' : 'normal',
+      sub: `T${c?.tier ?? '?'} · ${formLabel(c)}${u.diy ? ' · Custom Squad pick' : ''}`,
+      where: area === 'board' ? `Board · row ${u.row}, col ${u.col}` : 'On the bench',
+      bonds: (rec?.bonds || []).map((id) => ({ id, name: bondName(id), icon: bondIconUrl(m, id) })),
+      forms, skill, module, outfits: outfitsOf(rec?.charId),
+      items: (u.items || []).map((id) => { const r = data.lookup('items', id); return { id, name: r ? nameOf(r) : id, form: formLabel(r) }; }),
+      slots: EQUIP_SLOTS, itemGroups: itemGroupList,
+      sp: { value: u.sp, ...skillSpOf(sk) },
+      hold: { cast: u.cast || null, infSp: !!u.infSp, infDur: !!u.infDur, infHp: !!u.infHp },
+      anchor: { view, ...(area === 'board' ? { row: u.row, col: u.col } : { row: GEO.HAND_ROW, col: bench.indexOf(u) }) },
+    };
+  };
+  /** A form switch: the other record of the same operator (a 自选 pick: another tier's slot), on the same tile when it may stand there. */
+  const setForm = (u, key) => {
+    let id = null;
+    if (u.diy) {
+      const [t, e] = String(key).split(':').map(Number);
+      const slot = diySlot(slotOfTier[t], dd);
+      id = slot ? (e ? slot.goldenId : slot.baseId) : null;
+    } else {
+      const { base, golden } = formsOf(u);
+      id = key === '1' ? golden?.chessId : base?.chessId;
+    }
+    if (!id || id === u.chessId) return;
+    const next = { ...u, chessId: id };
+    if (u.diy) fixModule(next);
+    const rec = recordOf(next);
+    if (!rec) return;
+    const at = locate(u.uid);
+    if (at?.area === 'board' && !allows(rec, `${u.row},${u.col}`)) { status(`${nameOf(rec)} cannot stand on this tile.`, true); return; }
+    Object.assign(u, next);
+    if (!skillsOf(u, rec).list.some((x) => x.index === u.skillIndex)) u.skillIndex = rec.skill?.index ?? 0;
+    delete u.uid;   // rebuilt as the other form
+    ui.unit = uidOf(u);
+    changed();
+    status(`${nameOf(rec)}: ${formLabel(data.lookup('chess', id))} form.`);
+  };
+  /** The drawer's handlers for entry `u`. */
+  const drawerOn = (u) => ({
+    tab: (k) => { ui.tab = k; renderUi(); },
+    close: () => { ui.unit = null; renderUi(); },
+    form: (key) => setForm(u, key),
+    skill: (i) => {
+      if (!Number.isInteger(i) || i === u.skillIndex) return;
+      u.skillIndex = i;
+      if (u.diy) u.diy = { ...u.diy, skillIndex: i };
+      rememberSkill(recordOf(u)?.charId, i);
+      changed();
+      status(`${nameOf(recordOf(u))} now uses S${i + 1}.`);
+    },
+    module: (id) => {
+      if (u.diy) {
+        const first = diyChoices(u)?.modules?.[0]?.uniEquipId ?? null;
+        u.module = id === (first ?? MODULE_NONE) ? null : id;
+      } else {
+        const { base, golden } = formsOf(u);
+        u.module = id === chessOptions(base, golden).defaultModule ? null : id;
+      }
+      fixModule(u);
+      sync();
+      renderUi();
+      status(`${nameOf(recordOf(u))}: ${id === MODULE_NONE ? 'no module' : 'module set'}.`);
+    },
+    outfit: (id) => {
+      if ((id || null) === (u.skin || null)) return;
+      u.skin = id || null;
+      delete u.uid;   // the field view dresses a piece when it builds it: built again in the new look
+      ui.unit = uidOf(u);
+      changed();
+    },
+    sp: (v) => { u.sp = v; sync(); renderUi(); },
+    hold: (patch) => { Object.assign(u, patch); sync(); renderUi(); },
+    addItem: () => openPicker({ kind: 'item', groups: itemGroupList, unitName: nameOf(recordOf(u)), onPick: (r) => equip(u, recordOf(u), r.id) }),
+    unequip: (k) => { if (Number.isInteger(k)) { u.items.splice(k, 1); changed(); } },
+  });
+  /** 撤退: a board unit back to the first free bench slot. */
+  const retreatUnit = (uid) => {
+    const at = locate(uid);
+    if (at?.area !== 'board') return;
+    const idx = bench.indexOf(null);
+    if (idx < 0) { status('The bench is full: remove someone first.', true); return; }
+    board = board.filter((u) => u !== at.u);
+    delete at.u.row; delete at.u.col; at.u.dir = 'RIGHT';
+    bench[idx] = at.u;
+    ui.unit = null;   // the card closes (the user, 2026-11-08)
+    try { audio.sfx('back', { volume: 0.5 }); } catch { /* ignore */ }
+    changed();
+  };
+  /** 销毁: the unit leaves the sandbox. */
+  const removeUnit = (uid) => {
+    const at = locate(uid);
+    if (!at) return;
+    if (at.area === 'board') board = board.filter((u) => u !== at.u); else bench[at.idx] = null;
+    ui.unit = null;
+    changed();
+    status(`${nameOf(recordOf(at.u))} removed.`);
+  };
   // the game's own settings dialog (ui/settings.js): volumes reach the audio manager through settingsStore (above)
   $('settings').onclick = () => { ui.settings = true; renderUi(); };
 
@@ -705,6 +875,35 @@ async function main() {
     };
     wrapped.sandboxMeter = true;
     SimBattle.prototype.addLayers = wrapped;
+  }
+  // the skill hold (sandbox-units.js holdSkill): after every step of a battle on this page, each own operator whose board
+  // entry asks for it — forced on / off, infinite SP, infinite duration. Page-only: the sim is not changed.
+  if (SimBattle?.prototype?.step && !SimBattle.prototype.step.sandboxHold) {
+    const baseStep = SimBattle.prototype.step;
+    const held = function (...a) {
+      const r = baseStep.apply(this, a);
+      try {
+        for (const u of Array.isArray(this.allyUnits) ? this.allyUnits : []) {
+          if (u?.kind !== 'op' || u.ownerId !== myId) continue;
+          const e = board.find((b) => b.uid === u.uid);
+          if (e && (e.cast || e.infSp || e.infDur)) holdSkill(u.skill, e);
+          if (e?.infHp && u.alive && u.s && u.hp < u.s.maxHp) u.hp = u.s.maxHp;
+        }
+      } catch (err) { console.warn('[sandbox] skill hold', err); }
+      return r;
+    };
+    held.sandboxHold = true;
+    SimBattle.prototype.step = held;
+  }
+  // infinite HP: an own operator whose entry asks for it does not die — its kill is skipped and its HP refilled
+  if (SimBattle?.prototype?.kill && !SimBattle.prototype.kill.sandboxHold) {
+    const baseKill = SimBattle.prototype.kill;
+    const kill = function (unit, killer) {
+      if (unit?.kind === 'op' && unit.ownerId === myId && board.find((b) => b.uid === unit.uid)?.infHp && unit.s) { unit.hp = unit.s.maxHp; return; }
+      return baseKill.call(this, unit, killer);
+    };
+    kill.sandboxHold = true;
+    SimBattle.prototype.kill = kill;
   }
   const REASON_LABEL = { bond: 'Bond effects', item: 'Items', band: 'Strategy', choice: 'Choices', garrison: 'Traits' };
   ui.meterTab = 'dmg';
@@ -762,17 +961,14 @@ async function main() {
   $('op-browse').onclick = () => openPicker({ kind: 'op', groups: opGroups, onPick: (p) => {
     $('op-search').value = p.label;
     $('op-search').oninput();
-    status(`${p.name} picked: choose its form, skill and outfit, then "Add to bench".`);
+    status(`${p.name} picked: choose its form, then "Add to bench".`);
   } });
   // a click on a piece / unit opens its card (an own 自选 piece as its pick); on the ground closes it
   const onPieceClick = (e) => {
     if (!e) return;
     if (e.unitId != null || e.unit) ui.target = { kind: 'unit', unit: e.unit || null, unitId: e.unitId, uid: e.uid };
-    else if (Number.isInteger(e.uid)) {
-      const at = locate(e.uid);
-      // (a 自选 card keeps its piece's uid: its range on the field, drawCardRange)
-      ui.target = at?.u?.diy ? { kind: 'chess', id: at.u.chessId, diy: at.u.diy, foreign: true, items: at.u.items || null, uid: e.uid } : { kind: 'piece', uid: e.uid };
-    } else return;
+    else if (Number.isInteger(e.uid) && !runner && locate(e.uid)) { ui.unit = e.uid; ui.target = null; ui.bondOpen = null; }
+    else return;
     try { audio.sfx('click', { volume: 0.4 }); } catch { /* ignore */ }
     renderUi();
   };
@@ -834,6 +1030,7 @@ async function main() {
     view.setPrep(prepState(), { editable: true, canPlace });
     view.setCamera('prep', { rect: { ...template.spec.rect }, side: 'L', instant: true });
     $('fight').disabled = false;
+    setFightButton();
     bgm(false);
   };
   // ---- pause and frame step: the runner's clock stands still, the view holds its newest frame --------------------------
@@ -873,7 +1070,7 @@ async function main() {
     if (e.ctrlKey || e.metaKey || e.altKey || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target?.tagName || '') || !inBattle()) return;
     if (e.code === 'Space') { e.preventDefault(); setPause(!paused); } else if (e.key === '.') stepFrames(1); else if (e.key === '>') stepFrames(10);
   });
-  const changed = () => { sync(); renderList(); refreshPicker(); prep(); renderBonds(); status(summary()); };
+  const changed = () => { sync(); refreshPicker(); prep(); renderBonds(); status(summary()); };
 
   // ---- the direction step (the match's wheel, ui/facingWheel.js): after a legal drop on a board tile ---------------
   const wheelHost = document.body.appendChild(document.createElement('div'));
@@ -913,6 +1110,7 @@ async function main() {
     holdPiece(view, f.uid, null);
     audio.sfx('back', { volume: 0.5 });
     prep();
+    renderUi();
   }
 
   $('op-add').onclick = () => {
@@ -920,11 +1118,17 @@ async function main() {
     if (!p) return;
     const idx = bench.indexOf(null);
     if (idx < 0) return;
-    rememberSkill();
-    const skillIndex = Number($('op-skill').value) || 0;
-    bench[idx] = { chessId: p.chessId, ...(current.chess ? null : { diy: { charId: p.charId, skillIndex, uniEquipId: null } }), skillIndex, dir: 'RIGHT', skin: $('op-skin').value || null, items: [] };
+    const has = (i) => Number.isInteger(i) && p.skills.some((s, k) => (s.index ?? k) === i);
+    const remembered = skillMemory[p.charId];
+    const def = current.chess ? p.rec.skill?.index : defaultPick(p.charId, p.chessId, dd).skillIndex;
+    const skillIndex = p.locked ? p.locked.skillIndex : has(remembered) ? remembered : has(def) ? def : (p.skills[0]?.index ?? 0);
+    const u = { chessId: p.chessId, ...(current.chess ? null : { diy: { charId: p.charId, skillIndex, uniEquipId: null } }), skillIndex, dir: 'RIGHT',
+      skin: null, items: [], module: null, sp: null };
+    fixModule(u);
+    bench[idx] = u;
+    ui.unit = uidOf(u);
     changed();
-    status(`${nameOf(p.rec)} is on the bench: drag it onto a highlighted tile.`);
+    status(`${nameOf(p.rec)} is on the bench: drag it onto a highlighted tile. Its setup is open on the right.`);
   };
   // ---- core bond presets: every operator of a core bond at once (the pool's chess carrying it; Custom Squad picks are
   // not added) — free board tiles first, melee operators before ranged ones so they keep the melee tiles, ranged ones on
@@ -946,7 +1150,7 @@ async function main() {
       const skills = rec.skills?.length ? rec.skills : [rec.skill].filter(Boolean);
       const remembered = skillMemory[rec.charId];
       const skillIndex = skills.some((s, i) => (s.index ?? i) === remembered) ? remembered : (skills[0]?.index ?? 0);
-      const u = { chessId: rec.chessId, skillIndex, dir: 'RIGHT', skin: null, items: [] };
+      const u = { chessId: rec.chessId, skillIndex, dir: 'RIGHT', skin: null, items: [], module: null, sp: null };
       const fits = tileOrder.filter((k) => !taken.has(k) && allows(rec, k));
       const key = (rec.position !== 'MELEE' && fits.find((k) => tiles.get(k) === 'ranged')) || fits[0];
       if (key) { [u.row, u.col] = key.split(',').map(Number); taken.add(key); board.push(u); onBoard++; continue; }
@@ -963,6 +1167,8 @@ async function main() {
   sb.addBond = addBond;
   sb.ui = ui;
   sb.click = onPieceClick;
+  sb.open = (uid) => onPieceClick({ uid });
+  sb.speed = () => speed;
   sb.camLayer = (k) => setCamLayer(k);
   sb.boardUids = () => board.map((u) => uidOf(u));
   sb.meter = () => readMeter();
@@ -972,6 +1178,14 @@ async function main() {
   // field, a board piece returns to the bench and a bench piece is removed
   const onDrop = (e) => {
     if (runner || facing) return;
+    // the open card follows its unit: dropped on the board it comes back there (after the direction wheel), back on the
+    // bench or off the field it closes
+    if (ui.unit === e.uid && (e.target?.area === 'outside' || (e.target?.area === 'hand' && canPlace(e.uid, e.target)))) ui.unit = null;
+    // a drop on its own tile turns it in place: a new deployment (the user, 2026-11-08) — the card closes, the wheel opens
+    if (ui.unit === e.uid && e.target?.area === 'board') {
+      const src = locate(e.uid);
+      if (src?.area === 'board' && src.u.row === e.target.row && src.u.col === e.target.col) ui.unit = null;
+    }
     if (e.target?.area === 'outside') {
       const src = locate(e.uid);
       if (src?.area === 'board') {
@@ -989,10 +1203,13 @@ async function main() {
   };
   view.on('pieceDrop', onDrop);
   view.on('pieceClick', onPieceClick);
-  view.on('tileClick', () => { if (ui.target) { ui.target = null; renderUi(); } });
+  view.on('tileClick', () => { if (ui.target || ui.unit != null) { ui.target = null; ui.unit = null; renderUi(); } });
+  // the plates hide while a piece is dragged (the match's underframe does)
+  view.on('pieceDragStart', () => { dragging = true; renderUi(); });
+  view.on('pieceDragEnd', () => { dragging = false; renderUi(); });
   sb.drop = onDrop;   // (tests: the drop the view would emit)
+  sb.canPlace = canPlace;
   $('clear').onclick = () => { board = []; bench.fill(null); changed(); };
-  $('reset').onclick = () => { prep(); status('Back in prep.'); };
   /** Another wave of this map, in place (the board, the bench and the stacks stay; between the normal and the boss field,
    *  the units standing where the other field has no tile for them go back to the bench, or off it when it is full). */
   const setWave = (id) => {
@@ -1010,7 +1227,6 @@ async function main() {
         if (idx >= 0) { delete u.row; delete u.col; u.dir = 'RIGHT'; bench[idx] = u; }
         benched++;
       }
-      renderList();
     }
     sb.benched = benched;
     $('enemies').value = waveId;
@@ -1029,12 +1245,44 @@ async function main() {
   };
   // another map: the same round there (an empty wave stays empty; a preset of this map falls back to the round); units
   // standing on a tile the new map does not offer to them are dropped when it loads
+  // the game version: a reload in that version (the map and the waves are the version's own; units it has no record of
+  // are reported by the status line, leftOutReason)
+  const curSeason = season ? season.id : DEFAULT_VERSION;
+  $('season').replaceChildren(...VERSIONS.map((v) => Object.assign(document.createElement('button'), {
+    type: 'button', textContent: t(v.label), title: v.id, onclick: async () => {
+      if (v.id === curSeason) return;
+      sync();
+      const p = new URLSearchParams(location.search);
+      // the same operators in the other version: piece ids are per version (chess_char_2_15_b is Arene in Season 1,
+      // Akkord in Season 2), so each board unit is matched by its operator (charId) and form; one the version does not
+      // have is left out and named by the status line after the reload. A Custom Squad pick keeps its slot (checked there).
+      const raw = await fetch(genUrl(`/data/${v.dir}chess.json`)).then((r) => (r.ok ? r.json() : null), () => null);
+      const list = raw ? (Array.isArray(raw) ? raw : Object.values(raw.chess || raw)) : null;
+      if (list) {
+        const { kept, gone } = matchUnitsByOperator(board, list, (u) => (u.diy ? null : recordOf(u)));
+        if (kept.length) p.set('units', unitsParam(kept)); else p.delete('units');
+        try { sessionStorage.setItem(SWITCH_KEY, JSON.stringify({ season: v.id, names: gone.map((u) => nameOf(recordOf(u))) })); } catch { /* private mode */ }
+      }
+      if (v.id === DEFAULT_VERSION) p.delete('season'); else p.set('season', v.id);
+      p.delete('map');
+      p.delete('enemies');
+      location.search = p.toString();
+    },
+  })));
+  for (const b of $('season').children) b.setAttribute('aria-pressed', String(b.title === curSeason));
   $('map').onchange = () => {
     if ($('enemies').value.startsWith(W.PRESET_PREFIX)) $('enemies').replaceChildren(new Option('', W.DEFAULT_WAVE));
     sync();
     location.reload();
   };
-  $('speed').onchange = sync;
+  $('speed').onclick = (e) => {
+    const b = e.target.closest?.('button[data-speed]');
+    if (!b) return;
+    speed = Number(b.dataset.speed) || 2;
+    renderSpeed();
+    sync();
+    if (runner?.setSpeed?.(speed)) view.setLocalFeed({ on: true, speed });
+  };
   $('impostors').onchange = () => { sync(); view.setSettings(settings()); };
   $('legacy').onchange = () => { sync(); view.setSettings(settings()); };
   // Sakiko's notes: her official projectile prefabs or our fallback (render/fx/notes.js) — from the next note launched
@@ -1056,8 +1304,9 @@ async function main() {
     const me = spec.players[0];
     skinByUid.clear();
     for (const u of board) if (u.skin) skinByUid.set(uidOf(u), u.skin);
-    me.units = board.map((u) => ({ uid: uidOf(u), kind: 'chess', chessId: u.chessId, row: u.row, col: u.col, dir: u.dir, items: [...(u.items || [])],
-      ...(u.diy ? { diy: { ...u.diy } } : { skillIndex: u.skillIndex }) }));
+    // (sandbox-units.js: the module as the match sends it, the starting SP as the sim's carryState)
+    me.units = board.map((u) => battleUnit(u, uidOf(u), { golden: !!data.lookup('chess', u.chessId)?.isGolden }));
+    ui.unit = null;
     // the match's PlayerBattleInput.bonds (bondSnapshot); without the rules every bond is inactive
     const st = bondState();
     if (st) me.bonds = BM.bondSnapshot(st.bonds);
@@ -1069,7 +1318,8 @@ async function main() {
     stackLog = [];
     meter = null;
     me.playerEffects = [];
-    runner = createBattleRunner({ net, store: null });
+    // (another version: the battles run on its data and bounds, like a room of that version — runner.js loadSim)
+    runner = createBattleRunner({ net, store: null, ...(seasonSim ? { loadSim: () => loadBrowserSim(seasonSim) } : null) });
     runner.on('field', (field) => {
       view.setLocalFeed({ on: true, speed: field.speed });   // client-side combat, as the match screen runs it
       view.enterBattle(field);
@@ -1095,15 +1345,24 @@ async function main() {
     sb.runner = runner;
     paused = false;
     view.setFrozen?.(false);
-    $('fight').disabled = true;
+    battleOver = false;
+    setFightButton();
+    $('fight').disabled = true;   // (until the battle has started)
     status('Fighting…');
     audio.sfx('battleStart');
     bgm(true);
     try {
-      await runner.onStart({ ...template, spec, battleId: spec.battleId, elapsed: 0, authoritative: true, watch: false, done: false, speed: Number($('speed').value) || 2 });
-    } catch (e) { status(`The battle did not start: ${e?.message || e}`, true); $('fight').disabled = false; }
+      await runner.onStart({ ...template, spec, battleId: spec.battleId, elapsed: 0, authoritative: true, watch: false, done: false, speed });
+    } catch (e) { status(`The battle did not start: ${e?.message || e}`, true); }
+    $('fight').disabled = false;
   };
-  $('fight').onclick = fight;
+  // one button: Start combat in prep, Back to prep once a battle runs (or is over)
+  let battleOver = false;
+  function setFightButton() {
+    $('fight').textContent = runner ? 'Back to prep' : 'Start combat';
+    $('fight').classList.toggle('is-back', !!runner);
+  }
+  $('fight').onclick = () => { if (runner) { prep(); status('Back in prep.'); } else fight(); };
   setInterval(() => {
     if (!runner) return;
     const st = runner.state?.();
@@ -1112,10 +1371,10 @@ async function main() {
     if (meterShown() && runner) { readMeter(); renderUi(); }
     const now = st?.bondLayers?.[myId] || null;
     if (JSON.stringify(now) !== JSON.stringify(live)) { live = now; renderBonds(); }
-    if (st?.done && $('fight').disabled) {
+    if (st?.done && !battleOver) {
+      battleOver = true;
       const got = Object.entries(gains || {}).map(([id, n]) => `${bondName(id)} +${n}`).join(', ');
-      status(`Battle over.${got ? ` Stacks gained: ${got} — "Bank stacks" keeps them.` : ' No stacks gained.'} "Back to prep" to change the board, or start again.`);
-      $('fight').disabled = false;
+      status(`Battle over.${got ? ` Stacks gained: ${got} — "Bank stacks" keeps them.` : ' No stacks gained.'} "Back to prep" to change the board or fight again.`);
     }
   }, 500);
 
@@ -1161,11 +1420,14 @@ async function main() {
   sb.pause = setPause;
   sb.step = stepFrames;
   sb.tick = battleTick;
-  renderList();
+  sync();
   renderBonds();
   refreshPicker();
   prep();
-  status(summary());
+  status(leftOut.length ? `Left out of the link: ${leftOut.join('; ')}.` : summary(), leftOut.length > 0);
+  if (leftOut.length) console.warn('[sandbox] units left out of the link', leftOut);
+  sb.leftOut = leftOut;
+  sb.season = () => (season ? season.id : DEFAULT_VERSION);
   sb.ready = true;
   if (q.get('fight') === '1') await fight();
 }

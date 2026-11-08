@@ -1,11 +1,13 @@
 // (fork) SP_E2E=1 node --test test/ui/dev-sandbox.e2e.test.js — the dev battle sandbox (public/dev/sandbox.html): bonds
 // counted by the match's own rules (/match/bondsMeta.js) from the board, item-granted bonds, stacks and +count from the
 // URL, items kept in the URL, another round's waves loaded in place (board and bench kept) and "Bank + next round", a
-// placed unit's skill / outfit, the boss picker (Final Assault on the boss field), pause and frame step.
+// placed unit's drawer (skill / outfit / starting SP / items, the retreat / remove plates, the range switch), the boss
+// picker (Final Assault on the boss field), pause and frame step, another game version (&season=).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CHROME, hasChrome, waitForFunctionLong } from '../e2e/client.mjs';
 import { startServer } from '../../server/index.js';
+import { gpuArgs } from '../../tools/perfbench.mjs';
 
 const enabled = process.env.SP_E2E === '1' && hasChrome();
 
@@ -18,7 +20,7 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   t.after(() => srv.close());
   const puppeteer = (await import('puppeteer-core')).default;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: [...gpuArgs(), '--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage();
   const errors = [];
@@ -41,33 +43,38 @@ test('dev sandbox: real bonds, item bonds, stacks, items in the URL, rounds in p
   assert.equal(url.searchParams.get('layers'), 'kjeragShip:7');
 
   // a placed unit's skill and outfit, changed from its list entry (the outfit rebuilds its piece: a new uid)
-  const pick = async (label, value) => page.evaluate(({ label, value }) => {
-    const sel = document.querySelector(`select[aria-label="${label}"]`);
-    sel.value = value;
-    sel.dispatchEvent(new Event('change'));
-  }, { label, value });
-  await pick('Skill of Matterhorn', '1');
-  await pick('Outfit of Matterhorn', 'char_199_yak@summer#1');
+  // a placed unit's skill, outfit and starting SP from its drawer (a click on the piece; the outfit rebuilds the piece: a
+  // new uid, the drawer stays on it), with the match's 撤退 / 销毁 plates on the piece
+  const uidOfChess = (id) => page.evaluate((id) => window.__sandbox.boardUids()[window.__sandbox.units().findIndex((u) => u.chessId === id)], id);
+  await page.evaluate((uid) => window.__sandbox.click({ uid }), await uidOfChess('chess_char_1_02_a'));
+  assert.ok(await page.evaluate(() => !!document.querySelector('[data-testid="sb-drawer"]')), 'the drawer of a clicked piece');
+  assert.ok(await page.evaluate(() => !!document.querySelector('#sb-ui .uframe__btn--retreat') && !!document.querySelector('#sb-ui .uframe__btn--destroy')), 'retreat / remove plates');
+  await page.evaluate(() => document.querySelector('.sbc__pick[data-skill="1"]').click());
+  // (the starting SP sits in the Skill tab, under the chosen skill)
+  await page.evaluate(() => { const i = document.querySelector('[data-testid="sb-sp"] input'); i.value = '5'; i.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.evaluate(() => document.querySelector('.ofit-card[data-outfit="char_199_yak@summer#1"]').click());
   const yak = (await page.evaluate(() => window.__sandbox.units())).find((u) => u.chessId === 'chess_char_1_02_a');
   assert.equal(yak.skillIndex, 1);
   assert.equal(yak.skin, 'char_199_yak@summer#1');
-  assert.ok(new URL(page.url()).searchParams.get('units').includes('chess_char_1_02_a:9,3:1:RIGHT:char_199_yak@summer#1'));
+  assert.equal(yak.sp, 5);
+  assert.ok(new URL(page.url()).searchParams.get('units').includes('chess_char_1_02_a:9,3:1:RIGHT:char_199_yak@summer#1|sp=5'));
+  await page.evaluate(() => document.querySelector('.sb-ucard .dpanel__close').click());
 
-  // the game's widgets: the bond strip (a disc per bond with members), its popup, a piece's detail card
+  // the game's widgets: the bond strip (a disc per bond with members), its popup
   assert.ok(await page.evaluate(() => document.querySelectorAll('.sb-strip .bslot').length) >= 3, 'bond strip discs');
   await page.evaluate(() => document.querySelector('.sb-strip [data-bond="kjeragShip"] button.bond').click());
   assert.ok(await page.evaluate(() => !!document.querySelector('.bpop')), 'bond popup');
-  await page.evaluate(() => window.__sandbox.click({ uid: window.__sandbox.boardUids()[1] }));
-  assert.ok(await page.evaluate(() => !!document.querySelector('.dpanel--chess')), 'detail card of a clicked piece');
-  await page.evaluate(() => { document.querySelector('.bpop__close')?.click(); document.querySelector('.dpanel__close')?.click(); });
-  // icon pickers: operators by bond (the pick fills the operator picker), items by name (the pick equips)
+  await page.evaluate(() => { document.querySelector('.bpop__close')?.click(); });
+  // icon pickers: operators by bond (the pick fills the operator picker); items by name in the drawer (a click equips)
   await page.evaluate(() => document.getElementById('op-browse').click());
   assert.match(await page.evaluate(() => document.querySelector('.sbp__group h3 span').textContent), /\S/);
   await page.evaluate(() => document.querySelector('.sbp__cell').click());
   assert.ok(await page.evaluate(() => document.getElementById('op-search').value.length > 0) && !(await page.evaluate(() => !!document.querySelector('.sbp'))));
-  await page.evaluate(() => document.querySelector('button[aria-label="Equip an item on Snow Hunter"]').click());
+  await page.evaluate((uid) => window.__sandbox.click({ uid }), await uidOfChess('chess_char_3_11_a'));
+  await page.evaluate(() => document.querySelector('[data-testid="sb-add-item"]').click());
   await page.evaluate(() => document.querySelector('.sbp__cell').click());
   assert.equal((await page.evaluate(() => window.__sandbox.units())).find((u) => u.chessId === 'chess_char_3_11_a').items.length, 1);
+  await page.evaluate(() => document.querySelector('.sb-ucard .dpanel__close').click());
 
   // another round in place: the board stays, the URL follows
   await page.evaluate(() => window.__sandbox.setWave('hard-normal-r2'));
@@ -163,7 +170,7 @@ test('dev sandbox: the card range buttons light the skill range on the field, �
   const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
   t.after(() => srv.close());
   const puppeteer = (await import('puppeteer-core')).default;
-  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-sandbox'] });
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: [...gpuArgs(), '--no-sandbox'] });
   t.after(() => browser.close());
   const page = await browser.newPage();
   const errors = [];
@@ -201,5 +208,38 @@ test('dev sandbox: the card range buttons light the skill range on the field, �
   await page.evaluate((u) => window.__sandbox.click({ unitId: u.id, uid: u.uid, unit: { ...u, side: 'ally', kind: 'op', area: 'board' } }), op);
   await page.waitForFunction(() => (window.__sandbox.cardRange?.grid?.length ?? 0) > 0, { timeout: 5000 });
   assert.deepEqual(await both(), [s0, s1], 'the battle unit: the same ranges');
+  assert.deepEqual(errors, []);
+});
+
+test('dev sandbox: &season= runs another game version — Season 1\'s Arene on a Season 1 map, fighting on its data', { skip: !enabled, timeout: 120000 }, async (t) => {
+  const srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+  t.after(() => srv.close());
+  const puppeteer = (await import('puppeteer-core')).default;
+  const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: [...gpuArgs(), '--no-sandbox'] });
+  t.after(() => browser.close());
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  // Arene (char_271_spikes) is only in Season 1: chess_char_2_15_b there; in Season 2 the same link reports him left out
+  const units = 'chess_char_2_15_b:9,3:0:RIGHT';
+  await page.goto(`${srv.url}/dev/sandbox.html?${new URLSearchParams({ season: 'act1autochess', units })}`);
+  await page.waitForFunction(() => window.__sandbox?.ready || window.__sandbox?.error, { timeout: 60000 });
+  assert.equal(await page.evaluate(() => window.__sandbox.error), null);
+  assert.equal(await page.evaluate(() => window.__sandbox.season()), 'act1autochess');
+  assert.match(await page.evaluate(() => document.getElementById('map').value), /^act1autochess_/, 'a map of that version');
+  assert.deepEqual(await page.evaluate(() => window.__sandbox.units().map((u) => u.chessId)), ['chess_char_2_15_b']);
+  assert.equal(new URL(page.url()).searchParams.get('season'), 'act1autochess', 'the version stays in the link');
+  assert.equal(await page.evaluate(() => document.querySelector('#season button[aria-pressed="true"]')?.title), 'act1autochess');
+  await page.evaluate((uid) => window.__sandbox.click({ uid }), (await page.evaluate(() => window.__sandbox.boardUids()))[0]);
+  assert.equal(await page.evaluate(() => document.querySelector('.sb-ucard .dhead__name')?.textContent), 'Arene');
+  await page.evaluate(() => window.__sandbox.fight());
+  await page.waitForFunction(() => { const r = window.__sandbox.runner; try { return (r?._entries.get(r.state().battleId)?.battle?.tickCount || 0) > 60; } catch { return false; } }, { timeout: 30000 });
+  const op = await page.evaluate(() => { const r = window.__sandbox.runner; return r._entries.get(r.state().battleId).battle.allyUnits.find((u) => u.kind === 'op')?.defId; });
+  assert.equal(op, 'chess_char_2_15_b', 'the battle fields the Season 1 record');
+  // the default version: the same unit is reported, not placed
+  await page.goto(`${srv.url}/dev/sandbox.html?${new URLSearchParams({ units: 'chess_char_5_diy1_a~char_271_spikes:9,3:0:RIGHT' })}`);
+  await page.waitForFunction(() => window.__sandbox?.ready || window.__sandbox?.error, { timeout: 60000 });
+  assert.equal(await page.evaluate(() => window.__sandbox.units().length), 0);
+  assert.match(await page.evaluate(() => document.getElementById('status').textContent), /char_271_spikes in a Custom Squad slot: not in this game version's tier 5 Custom Squad pool/);
   assert.deepEqual(errors, []);
 });

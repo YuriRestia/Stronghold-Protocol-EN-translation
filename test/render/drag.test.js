@@ -102,6 +102,27 @@ describe('drag controller', () => {
     assert.equal(h.events[0][1].detail, false);
   });
 
+  test('(fork) a press whose release was lost (another window took it) does not swallow the next click', () => {
+    const h = harness();
+    h.c.setEditable(true);
+    h.ev('pointerDown', 50, 550);          // unit 1 pressed; its pointerUp never comes
+    h.ev('pointerDown', 450, 250);         // the next click, on unit 2
+    h.ev('pointerUp', 450, 250);
+    assert.deepEqual(h.names(), ['pieceClick']);
+    assert.equal(h.events.find((e) => e[0] === 'pieceClick')[1].uid, 2);
+    // a lost release mid-drag: the drag is cancelled, then the click goes through
+    const d = harness();
+    d.c.setEditable(true);
+    d.ev('pointerDown', 50, 550);
+    d.ev('pointerMove', 70, 540);
+    assert.ok(d.c.dragging);
+    d.ev('pointerDown', 450, 250);
+    d.ev('pointerUp', 450, 250);
+    assert.equal(d.c.dragging, false);
+    assert.deepEqual(d.names(), ['pieceDragStart', 'pieceDragEnd', 'pieceClick']);
+    assert.equal(d.events.find((e) => e[0] === 'pieceDragEnd')[1].cancelled, true);
+  });
+
   test('drag hand → board emits start, moves, drop with board target, end', () => {
     const h = harness();
     h.c.setEditable(true);

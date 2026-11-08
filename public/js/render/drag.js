@@ -201,6 +201,13 @@ export function createDragController(hooks) {
 
     /** e: { pointerId, pointerType, button, x, y (canvas CSS px), clientX, clientY } */
     pointerDown(e) {
+      // (fork) a new press of the same mouse while one is still open: that press's release never reached the page (it
+      // went to another window, e.g. while the browser lost focus) — drop it (a drag is cancelled) instead of ignoring this
+      // click, which swallowed the first click on a unit after coming back to the window
+      if (st && st.pointerType === 'mouse' && (e.pointerType || 'mouse') === 'mouse' && e.pointerId === st.pointerId) {
+        if (st.mode === 'dragging') endDrag(e, true);
+        else { clearTimer(); st = null; }
+      }
       if (st) return false; // one pointer at a time
       const piece = pieceAt(e.x, e.y);
       if (!piece) { setHoverTile(tileAt(e.x, e.y)); return false; }

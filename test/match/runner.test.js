@@ -461,6 +461,33 @@ test('solo pause: m.public.paused freezes every local battle clock (no ticks, no
   r.runner.dispose();
 });
 
+test('(fork) setSpeed (the dev sandbox): the battle on screen goes on at the new pace from the tick it reached, also while paused', async () => {
+  const start = realStart(7306);
+  const r = rig();
+  r.store.patch('match', { public: { phase: 'COMBAT', paused: false } });
+  r.net.emit('b.start', { ...start, speed: 2 });
+  await r.settle();
+  const e = r.runner._entries.get(start.battleId);
+  r.advance(1000);
+  const t1 = e.battle.tickCount;
+  assert.ok(Math.abs(t1 - 60) <= 2, `2× (${t1})`);
+  assert.equal(r.runner.setSpeed(4), true);
+  assert.equal(r.runner.setSpeed(4), false, 'the current speed: nothing to change');
+  assert.equal(r.runner.setSpeed(0), false);
+  assert.equal(r.runner.state().speed, 4);
+  r.advance(1000);
+  const t2 = e.battle.tickCount;
+  assert.ok(Math.abs(t2 - (t1 + 120)) <= 3, `4× from where 2× stopped, no jump (${t1} → ${t2})`);
+  r.store.patch('match', { public: { phase: 'COMBAT', paused: true } });
+  assert.equal(r.runner.setSpeed(1), true);
+  r.advance(2000);
+  assert.equal(e.battle.tickCount, t2, 'still paused');
+  r.store.patch('match', { public: { phase: 'COMBAT', paused: false } });
+  r.advance(1000);
+  assert.ok(Math.abs(e.battle.tickCount - (t2 + 30)) <= 2, `1× after the resume (${e.battle.tickCount})`);
+  r.runner.dispose();
+});
+
 /** realStart() with an empty board: every enemy of the wave walks into the blue gate. */
 function leakingStart(seed = 7307) {
   const start = realStart(seed);

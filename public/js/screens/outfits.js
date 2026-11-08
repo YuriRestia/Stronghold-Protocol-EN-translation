@@ -204,14 +204,15 @@ function ArtViewer({ src, name, onClose }) {
 /**
  * The cards of one operator: 默认, then its outfits; a click wears one (ui/outfits.js setOutfit). No hooks: the panel
  * and the 自选编队 picker (OutfitPickSection) draw it, and the tests can too.
- * @param {{ m: any, charId: string, name?: string, list: any[], worn: string|null, compact?: boolean }} p
+ * `onPick` (the dev sandbox: a per-unit outfit) replaces the wear-it-now default.
+ * @param {{ m: any, charId: string, name?: string, list: any[], worn: string|null, compact?: boolean, onPick?: ((id: string|null) => void)|null }} p
  */
-export function OutfitCards({ m, charId, name = '', list, worn, compact = false }) {
+export function OutfitCards({ m, charId, name = '', list, worn, compact = false, onPick = null }) {
   const card = (id, rec) => {
     const on = (id || null) === worn;
     const avatar = id ? outfitArtUrl(m, id, 'avatar') : null;
     return html`<button key=${id || 'default'} type="button" role="radio" aria-checked=${on ? 'true' : 'false'} data-outfit=${id || 'default'}
-        class=${cx('ofit-card', on && 'is-on')} onClick=${() => setOutfit(charId, id)}>
+        class=${cx('ofit-card', on && 'is-on')} onClick=${() => (onPick ? onPick(id || null) : setOutfit(charId, id))}>
       <span class="ofit-card__ava">${id ? html`<${Img} src=${avatar} fallback=${html`<b>${[...(rec?.name || '?')][0]}</b>`} />`
         : html`<${Img} src=${m?.chars?.[charId]?.avatarE2 || m?.chars?.[charId]?.avatar} fallback=${html`<b>${[...(name || '?')][0]}</b>`} />`}</span>
       <span class="ofit-card__text">

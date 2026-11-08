@@ -55,6 +55,7 @@
 //                              uniteLeft, bondLayers } | null
 //   battleRunner.stats()  → { ticks, stepMs, avgTickMs, maxFrameMs, catchups, errors, battles }
 //   battleRunner.stepPaused(n) → (fork) paused: step the battle on screen n ticks (the dev sandbox's frame step)
+//   battleRunner.setSpeed(s) → (fork) the battle on screen goes on at speed s from the tick it reached (the dev sandbox)
 //   battleRunner.unitStats(unitId, fieldId?) → the live stats of a unit of the battle on screen (shared/protocol.js
 //                           unitStatsEntry: current HP, effective max HP / ATK / DEF / RES / interval / block / move
 //                           speed next to its base; an ally also its live attack range `range` — unit.liveRangeGrid,
@@ -639,6 +640,23 @@ export function createBattleRunner(deps) {
     return true;
   }
 
+  /**
+   * (fork) Change the speed of the battle on screen while it runs (the dev sandbox's 1× / 2× / 4×): its clock keeps the
+   * tick it has reached, only the pace from there on changes — the sim and its result are the same at any speed.
+   * False when there is no battle or the speed is not a positive number / the current one.
+   */
+  function setSpeed(speed) {
+    const e = cur;
+    const s = Number(speed);
+    if (!e || !(s > 0) || s === e.speed || e.t0 == null) return false;
+    const at = clock();
+    e.t0 = at - ((at - e.t0) * e.speed) / s;
+    e.speed = s;
+    publishState();
+    schedule();
+    return true;
+  }
+
   /** Advance one entry to its clock (bounded); render it when it is on screen. */
   function advance(e, t, render) {
     if (e.battle.finished) { if (!e.done) finished(e); return; }
@@ -1156,7 +1174,7 @@ export function createBattleRunner(deps) {
     _entries: entries,
     _frame: frame,
     _pump: pump,
-    onStart, onPool, onEnd, clear, ensureSim, redeliver, setPaused, stepPaused,
+    onStart, onPool, onEnd, clear, ensureSim, redeliver, setPaused, stepPaused, setSpeed,
     dispose() {
       clear();
       releaseParked();
