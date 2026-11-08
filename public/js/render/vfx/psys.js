@@ -368,7 +368,8 @@ export class PSys {
     this.prevPos = null;
     if (this.def.prewarm && this.emitting) {
       // as if one full loop had already run (Unity: the start delay does not apply with prewarm)
-      // (fork) effect.js PIVOT_BY_X `prewarmS`: whole loops up to the particles' life (Unity's steady state)
+      // (fork) effect.js ENGINE_MESH_RULES `prewarmS`: whole loops up to the longest start lifetime (the engine's
+      // ComputePrewarmStartParameters)
       const d = this.def.prewarmS || this.def.duration;
       let t = 0;
       while (t < d - 1e-6) { const s = Math.min(MAX_STEP, d - t); this._step(s, true); t += s; }

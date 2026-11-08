@@ -55,25 +55,20 @@ export function meshRef(v) {
 }
 
 /**
- * (fork) Mesh particle renderers whose pivot (m_Pivot) is offset by the particle's X size on every axis instead of each
- * axis's own size, by prefab key and node name [ASSUMED: Unity's native renderer is not in the client dump; the official
- * picture says so]. 薇薇安娜's 还愿礼 S2 buff, `stairs ab` (size3D 0.15 / 0.3 / 0.5, pivot z 5.52, rotating 30°/s about X):
- * the official video (youtu.be/L1yV18aMIos, 1:12–1:20) shows the steps of its helix about 0.5–0.8 tiles beside her —
- * pivot × 0.15 = 0.83 —, where the Z size made a ring 2.76 out, 5.5 tiles across. The renderer-wide rule (74 nodes shift
- * by more than 0.1) waits for a check of those operators. Its rotation runs the other way too (`negRot`: the particle's
- * Euler angles negated, as a billboard's roll turns clockwise — geom.js ROLL_SIGN) [ASSUMED, same source]: the video's
- * newest steps rise on her left and the helix fades going round behind her; ours turned to her right. Its steps point
- * out from the helix's axis (`meshRotX`: Box001, long along its Y, turned −90° about X so that Y lies along the pivot's
- * Z) [ASSUMED, same source]: the video's steps are spokes; ours ran along the circle — and as long as its Z size makes
- * them (0.38; measured against the video's deer at the same scale). Its prewarm fills the whole staircase
- * (`prewarmS`: whole loops covering the steps' 20 s life, Unity's prewarmed steady state; one 0.7 s loop left it empty,
- * each step clear only from 4 s of its life) [ASSUMED, same source: the staircase stands complete as S2 starts].
- * Fitted, no rule found (`fit`) [ASSUMED: the video's 1:12 frame at 1080p, scaled to her height]: there the stack covers
- * twice the height ours did and each step is twice as thick, its top at her face — the steps drift up twice the data's
- * 0.05 /s, spawn 2.0 out instead of 1.5 (the same top), stand as thick as their Y size and live 14 s, not 20 (at
- * twice the drift the older steps sank under her feet; the video shows none there).
+ * (fork) Mesh particle renderers drawn by the client engine's own rules, by prefab key and node name — read from the
+ * game's UnityPlayer.dll (2021.3.39f1, Hypergryph's build), named with Unity's stock 2021.3.39f1 player and its PDB:
+ * - the pivot (`enginePivot`, geom.js enginePivotLocal): DrawMeshParticles packs m_Pivot as (x, −z, y), scales it by the
+ *   particle's size and CalculateMeshParticleTransform moves it by the particle's rotation × size again — the stock
+ *   player scales it by the mesh's bounds instead, the game's build does not;
+ * - the rotation: Euler angles in Unity's Z-X-Y order (math::kRotationOrderLUT entry 4), not negated — geom.js quatEuler as
+ *   it is (negated only under the shape's alignToDirection);
+ * - the prewarm (`prewarmS`): ParticleSystem::ComputePrewarmStartParameters simulates the longest start lifetime, rounded
+ *   up to whole loops — the system stands complete as it starts, not after one loop.
+ * The renderer-wide switch (every mesh particle with a pivot, every prewarmed system) waits for the lead's renderer-wide
+ * check. 薇薇安娜's 还愿礼 S2 buff, `stairs ab` (Box001, long along Y; size3D 0.15 / 0.3 / 0.5, pivot z 5.52, turning
+ * 30°/s about X): the pivot runs out along each step's own length — the video's spokes (youtu.be/L1yV18aMIos, 1:06–1:20).
  */
-export const PIVOT_BY_X = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
+export const ENGINE_MESH_RULES = Object.freeze({ 'vvana_skill_02_buff_01_epoque#59': Object.freeze(['stairs ab']) });
 
 /**
  * (fork) Billboards drawn at their node's X scale on both axes, ignoring a non-uniform Y scale, by prefab key and node
@@ -152,16 +147,11 @@ export function compileEffect(desc, lib = {}) {
         def.psr[i].fitSize = [0.84, 1.25];
         def.psr[i].fitOffset = [-0.24, 0.30];
       }
-      if (def.psr[i] && PIVOT_BY_X[String(def.key).toLowerCase()]?.includes(nd.name)) {
-        def.psr[i].pivotByX = true; def.psr[i].negRot = true; def.psr[i].meshRotX = true;
+      if (def.psr[i] && ENGINE_MESH_RULES[String(def.key).toLowerCase()]?.includes(nd.name)) {
+        def.psr[i].enginePivot = true;
         const ps = def.ps[i];
-        // fitted (below): a 14 s life, not the data's 20 — the older steps drift under her, where the video shows none
-        const life = 14;
-        if (ps) ps.startLifetime = Object.freeze({ at: () => life });
+        const life = ps?.startLifetime?.peak || 0;
         if (ps && ps.prewarm && life > ps.duration) ps.prewarmS = Math.min(30, Math.ceil(life / ps.duration) * ps.duration);
-        def.psr[i].fit = true;
-        if (ps?.velocity) ps.velocity = { ...ps.velocity, speed: Object.freeze({ at: () => 2 }) };
-        if (ps?.shape?.radius) ps.shape.radius.value = 2.0;
       }
     }
     if (nd.meshRenderer && nd.meshFilter !== undefined) {

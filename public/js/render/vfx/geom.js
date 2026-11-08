@@ -214,6 +214,18 @@ function sortOrder(ps, mode, cam) {
   return n;
 }
 
+const _pl = [0, 0, 0];
+/**
+ * (fork) A mesh particle's pivot offset in its own axes, before its rotation × size, as the client's engine builds it
+ * (UnityPlayer.dll 2021.3.39f1, Hypergryph's build: DrawMeshParticles packs the renderer's m_Pivot as (x, −z, y) and
+ * scales it by the particle's size; CalculateMeshParticleTransform then moves it by the particle's rotation × size).
+ * Unity's stock 2021.3.39f1 player scales the pivot by the mesh's bounds instead — the game's build does not.
+ */
+export function enginePivotLocal(pv, sx, sy, sz, out = [0, 0, 0]) {
+  out[0] = pv[0] * sx; out[1] = -pv[2] * sy; out[2] = pv[1] * sz;
+  return out;
+}
+
 /**
  * Write the particles of system `ps` (renderer `r` = the compiled renderer info of the effect) as quads or mesh
  * instances. Returns { kind: 'quad'|'mesh', first, count } or null.
@@ -352,9 +364,7 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
         F0 = [xx, xy, xz]; F2 = [zx, zy, zz]; F1 = [zy * xz - zz * xy, zz * xx - zx * xz, zx * xy - zy * xx];
       } else { F0 = R; F1 = U; F2 = F; }
       const DEGR = 180 / Math.PI;
-      // (fork) effect.js PIVOT_BY_X `negRot`: the angles the other way
-      const rs = r.negRot ? -DEGR : DEGR;
-      quatEuler(ps.rx[i] * rs, ps.ry[i] * rs, ps.rz[i] * rs, _q);
+      quatEuler(ps.rx[i] * DEGR, ps.ry[i] * DEGR, ps.rz[i] * DEGR, _q);
       // particle rotation columns
       const qx = _q[0], qy = _q[1], qz = _q[2], qw = _q[3];
       const r00 = 1 - 2 * (qy * qy + qz * qz), r10 = 2 * (qx * qy + qw * qz), r20 = 2 * (qx * qz - qw * qy);
@@ -369,26 +379,24 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
         col[2] = (F0[2] * a0 + F1[2] * a1 + F2[2] * a2) * sc;
       }
       let cx = _p[0], cy = _p[1], cz = _p[2];
-      if (pv && (pv[0] || pv[1] || pv[2])) {
-        // (fork) effect.js PIVOT_BY_X: every axis's share by the X size
-        const ky = r.pivotByX && sy ? sx / sy : 1, kz = r.pivotByX && sz ? sx / sz : 1;
-        cx += _ax[0] * pv[0] + _ay[0] * pv[1] * ky + _az[0] * pv[2] * kz;
-        cy += _ax[1] * pv[0] + _ay[1] * pv[1] * ky + _az[1] * pv[2] * kz;
-        cz += _ax[2] * pv[0] + _ay[2] * pv[1] * ky + _az[2] * pv[2] * kz;
+      if (pv && (pv[0] || pv[1] || pv[2]) && r.enginePivot) {
+        // (fork) effect.js ENGINE_MESH_RULES — the client's engine (UnityPlayer.dll, its DrawMeshParticles): the pivot is
+        // (pivot.x × size x, −pivot.z × size y, pivot.y × size z), then moved by the particle's rotation × size like the
+        // mesh's own vertices — size counted twice, Y and Z swapped (enginePivotLocal)
+        enginePivotLocal(pv, ps.sx[i] * _sm[0], ps.sy[i] * _sm[1], ps.sz[i] * _sm[2], _pl);
+        const lx = _pl[0], ly = _pl[1], lz = _pl[2];
+        cx += _ax[0] * lx + _ay[0] * ly + _az[0] * lz;
+        cy += _ax[1] * lx + _ay[1] * ly + _az[1] * lz;
+        cz += _ax[2] * lx + _ay[2] * ly + _az[2] * lz;
+      } else if (pv && (pv[0] || pv[1] || pv[2])) {
+        cx += _ax[0] * pv[0] + _ay[0] * pv[1] + _az[0] * pv[2];
+        cy += _ax[1] * pv[0] + _ay[1] * pv[1] + _az[1] * pv[2];
+        cz += _ax[2] * pv[0] + _ay[2] * pv[1] + _az[2] * pv[2];
       }
       buf[o] = cx; buf[o + 1] = cy; buf[o + 2] = cz;
       buf[o + 3] = _ax[0]; buf[o + 4] = _ax[1]; buf[o + 5] = _ax[2];
-      if (r.meshRotX) {
-        // (fork) effect.js PIVOT_BY_X `meshRotX`: the mesh turned −90° about X, then sized — its Y along the particle's −Z
-        // (the pivot's axis, × the Z size), its Z along Y (× the Y size)
-        buf[o + 6] = -_az[0]; buf[o + 7] = -_az[1]; buf[o + 8] = -_az[2];
-        buf[o + 9] = _ay[0]; buf[o + 10] = _ay[1]; buf[o + 11] = _ay[2];
-        // (fork) effect.js PIVOT_BY_X `fit`: the mesh's X (along the helix axis: the step's thickness) × the Y size
-        if (r.fit && sx) { const k = sy / sx; buf[o + 3] = _ax[0] * k; buf[o + 4] = _ax[1] * k; buf[o + 5] = _ax[2] * k; }
-      } else {
-        buf[o + 6] = _ay[0]; buf[o + 7] = _ay[1]; buf[o + 8] = _ay[2];
-        buf[o + 9] = _az[0]; buf[o + 10] = _az[1]; buf[o + 11] = _az[2];
-      }
+      buf[o + 6] = _ay[0]; buf[o + 7] = _ay[1]; buf[o + 8] = _ay[2];
+      buf[o + 9] = _az[0]; buf[o + 10] = _az[1]; buf[o + 11] = _az[2];
       buf[o + 12] = _c4[0]; buf[o + 13] = _c4[1]; buf[o + 14] = _c4[2]; buf[o + 15] = _c4[3];
       const uvr = sheetRect(def, ps, i, t, _uvr);
       buf[o + 16] = uvr[0]; buf[o + 17] = uvr[1]; buf[o + 18] = uvr[2]; buf[o + 19] = uvr[3];
