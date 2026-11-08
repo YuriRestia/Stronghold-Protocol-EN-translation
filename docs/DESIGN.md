@@ -146,7 +146,7 @@ Offline checks and game runtime never fetch them; derived records and the plugin
 | §29 | [history/0.2.4.md](history/0.2.4.md) | 0.2.4 — after the 0.2.3 release (2026-10-11) |
 | §30 | [history/0.2.5.md](history/0.2.5.md) | 0.2.5 — after the 0.2.4 release (2026-10-12) |
 | §31 | [history/0.2.6.md](history/0.2.6.md) | 0.2.6 — after the 0.2.5 release (2026-10-13) |
-| §90 | [design/matchmaking.md](design/matchmaking.md) | Matchmaking by room merge (搜寻队友) — fork-only, numbered apart from upstream's sections |
+| §90 | [design/matchmaking.md](design/matchmaking.md) | Matchmaking by room merge (搜寻队友), solo queue, regions, versions, Grand Alliances — fork-only, numbered apart from upstream's sections |
 | §91 | [design/large-rooms.md](design/large-rooms.md) | Grand Alliance (大同盟): 8 seats in two squads, humans only — fork-only |
 | §32 | [history/0.3.0.md](history/0.3.0.md) | 0.3.0 — the plugin system (插件) and the fixes after 0.2.6 (2026-10-14) |
 | §33 | [design/vfx-format.md](design/vfx-format.md) | Official battle effects (特效): the extracted format the runtime reads |

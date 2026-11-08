@@ -295,6 +295,8 @@ const CLOSE_REASON = {
   merged: N_('同盟已与其他同盟合并，观战席已满'),
   // (fork) a 搜寻队友 match on another server: room.move follows (public/js/regions.js)
   moved: N_('已找到队友，正在连接…'), // en: "Teammates found. Connecting…"
+  // (fork) a matchmade room of another version: this page could not load its data in time (server/lobby.js waitContent)
+  content: N_('未能载入该版本的数据，你已离开同盟'), // en: "This game version's data did not load, so you left the Alliance"
 };
 
 function wireNet() {

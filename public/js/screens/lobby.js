@@ -73,7 +73,8 @@ import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
 import { DifficultyDetailsButton } from '../ui/difficultyDetails.js';
 import { NoticesButton } from '../ui/notices.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
-import { RoomBrowser, askRoomPassword } from '../ui/largeRooms.js';
+import { RoomBrowser, askRoomPassword, PrivacyFields } from '../ui/largeRooms.js';
+import { ROOM_PASSWORD_RE } from '../../../shared/largeRoom.js';
 import { RegionPing } from '../ui/regionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
 import { DEFAULT_VERSION, lobbyVersion, offeredDifficulties, fallbackDifficulty, seasonOf, soloTimedOf, soloTimeMsgid, versionLabel } from '../versions.js';
@@ -144,8 +145,8 @@ const MODE_CARDS = [
   {
     // en: "Solo Matchmaking"
     id: 'match', name: N_('单人匹配'), en: 'SOLO MATCHMAKING', icon: 'search',
-    // en: "Queue up and get matched into a full Alliance with other Doctors. The simulation starts as soon as it fills."
-    desc: N_('进入匹配，与其他博士组成满员同盟，凑齐后立即开始模拟。'),
+    // en: "Join automatically when a room is found."
+    desc: N_('自动加入找到的房间。'),
     points: [
       N_('{n} 名博士 · 自动组队'), // en: "{n} Doctors · matched automatically"
       N_('2 分钟内未能找到博士时，可选择改为与 AI 队友模拟'), // en: "If no Doctors can be found within 2 minutes, you can choose to play with AI Teammates instead"
@@ -159,7 +160,7 @@ const MODE_CARDS = [
     id: 'grand', name: N_('大同盟'), en: 'GRAND ALLIANCE', icon: 'users',
     // en: "Up to 8 Doctors in two squads, fighting over one shared operator pool, then one shared Enemy Leader together."
     desc: N_('最多 8 名博士分为两个小队，争夺同一个干员池，最终一起对抗同一个敌方领袖。'),
-    points: [N_('最多 8 名博士 · 两个小队'), N_('仅限真人 · 房间可上锁')], // en: "Up to 8 Doctors · two squads", "Humans only · rooms can be locked"
+    points: [N_('最多 8 名博士 · 两个小队'), N_('仅限真人 · 房间可设为私密')], // en: "Up to 8 Doctors · two squads", "Humans only · rooms can be private"
     pointShort: N_('最多 8 名博士'), // en: "Up to 8 Doctors"
   },
 ];
@@ -303,14 +304,18 @@ function TipsPanel() {
     <div class="tips__head">
       <${Icon} name="info" />
       <span>${t('作战提示')}</span>
-      <${MicroLabel}>TACTICAL TIPS<//>
+      <span class="tips__sub"><${MicroLabel}>TACTICAL TIPS<//></span>
       <span class="tips__pager">
         <span class="tips__idx num">${String(i + 1).padStart(2, '0')}<span class="t-dim">/${String(list.length).padStart(2, '0')}</span></span>
         <button type="button" class="tips__nav" onClick=${() => setIdx(i - 1 + list.length)} aria-label=${t('上一条')}><${Icon} name="chevronLeft" /></button>
         <button type="button" class="tips__nav" onClick=${() => setIdx(i + 1)} aria-label=${t('下一条')}><${Icon} name="chevronRight" /></button>
       </span>
     </div>
-    <p key=${i} class="tips__text">${list[i]}</p>
+    <div class="tips__stack">
+      ${list.map((tip, j) => (j === i
+        ? html`<p key=${`on-${i}`} class="tips__text">${tip}</p>`
+        : html`<p key=${String(j)} class="tips__text is-ghost" aria-hidden="true">${tip}</p>`))}
+    </div>
   </div>`;
 }
 
@@ -597,7 +602,11 @@ function BackPlate({ onClick, class: cls = '' }) {
  * button (the other doctors: the host chooses).
  */
 export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, onCreate, busy, online, testMode, asTest, onTest, action = null, hint = null, readOnly = false,
-  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, modeId = roomMode }) {
+  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, modeId = roomMode, queueOpts = null, privacy = null }) {
+  // (fork) `hint` false: no hint line; `privacy`: a Grand Alliance's 公开 / 私密 (ui/largeRooms.js PrivacyFields), whose
+  // 私密 needs a valid password before the button creates
+  const hintText = hint === false ? null : hint ?? (roomMode === 'solo' ? t('创建后即可开始模拟') : t('创建后可邀请好友、添加 AI 队友或搜寻队友'));
+  const blocked = !!privacy && privacy.priv && !ROOM_PASSWORD_RE.test(privacy.pw);
   // (fork) `modeId`: the entry named in the title — 'match' (单人匹配) shows the co-op difficulties under its own name
   const card = MODE_CARDS.find((c) => c.id === modeId) || MODE_CARDS[0];
   const info = difficultyInfo(roomMode, difficulty);
@@ -642,17 +651,17 @@ export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, on
               <span>${t('不限时')}</span>
               <em class="t-dim">${t('关闭本局休整与机变的计时。官方为休整期每轮 300 秒、机变 150 秒。')}</em>
             </label>` : null}
+            ${queueOpts ? html`<${QueueOptions} opts=${queueOpts} />` : null}
+            ${privacy ? html`<${PrivacyFields} priv=${privacy.priv} pw=${privacy.pw} onPriv=${privacy.onPriv} onPw=${privacy.onPw} onEnter=${blocked ? null : onCreate} />` : null}
             ${testMode ? html`<label class="create-box__test" data-testid="create-test">
               <input type="checkbox" checked=${asTest} onChange=${(e) => onTest(e.target.checked)} />
               <span>${t('测试房间')}</span>
               <em class="t-dim">${t('不计入战绩。房间会标明「测试」，只有房主能使用测试指令。')}</em>
             </label>` : null}
-            <p class="proto-hint">
-              ${online
-                ? hint ?? (roomMode === 'solo' ? t('创建后即可开始模拟') : t('创建后可邀请好友、添加 AI 队友或搜寻队友'))
-                : html`<${Spinner} size="sm" label="CONNECTING" /> ${t('正在连接服务器…')}`}
-            </p>
-            <button type="button" class="proto-start" disabled=${!online || busy === 'create' || loading} aria-busy=${busy === 'create' ? 'true' : 'false'} onClick=${onCreate}>
+            ${online && !hintText ? null : html`<p class="proto-hint">
+              ${online ? hintText : html`<${Spinner} size="sm" label="CONNECTING" /> ${t('正在连接服务器…')}`}
+            </p>`}
+            <button type="button" class="proto-start" disabled=${!online || busy === 'create' || loading || blocked} aria-busy=${busy === 'create' ? 'true' : 'false'} onClick=${onCreate}>
               <span class="proto-start__mark" aria-hidden="true"><span class="proto-start__rook"><i>[</i><${Icon} name="rook" /><i>]</i></span><small>STRONGHOLD<br />PROTOCOL</small></span>
               <span class="proto-start__label">${busy === 'create' ? html`<${Spinner} size="sm" />` : null}${label}</span>
               <span class="proto-start__deco" aria-hidden="true"></span>
@@ -662,6 +671,30 @@ export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, on
       </div>
     </div>
   <//>`;
+}
+
+/**
+ * (fork) 单人匹配's choices on 选择模拟协议: the official versions to be matched for (shown when the server offers more
+ * than one; at least one stays ticked) and the Grand Alliance opt-in (when the server has them; they play 第二期下半 only).
+ * @param {{ opts: { versions: { id: string, on: boolean }[] | null, onVersion: (id: string, on: boolean) => void,
+ *   large: { on: boolean, disabled: boolean, onToggle: (on: boolean) => void } | null } }} props
+ */
+function QueueOptions({ opts }) {
+  const ticked = (opts.versions || []).filter((v) => v.on).length;
+  return html`<div class="create-box__queue">
+    ${opts.versions && opts.versions.length > 1 ? html`<div class="create-box__versions" role="group" aria-label=${t('匹配版本')} data-testid="queue-versions">
+      <span class="create-box__legend">${/* en: "Game versions to match for" */ t('匹配版本')}</span>
+      ${opts.versions.map((v) => html`<label key=${v.id} class="create-box__test">
+        <input type="checkbox" checked=${v.on} disabled=${v.on && ticked === 1} onChange=${(e) => opts.onVersion(v.id, e.target.checked)} />
+        <span>${versionLabel(v.id)}</span>
+      </label>`)}
+    </div>` : null}
+    ${opts.large ? html`<label class="create-box__test" data-testid="queue-large">
+      <input type="checkbox" checked=${opts.large.on && !opts.large.disabled} disabled=${opts.large.disabled} onChange=${(e) => opts.large.onToggle(e.target.checked)} />
+      <span>${/* en: "Also join Grand Alliances" */ t('也可加入大同盟')}</span>
+      <em class="t-dim">${/* en: "Rooms of 8 in two squads. If one is not full yet, you wait in its room." */ t('8 人房间，分为两支小队。房间未满时，你会先在房间中等待。')}</em>
+    </label>` : null}
+  </div>`;
 }
 
 /**
@@ -803,6 +836,24 @@ export function LobbyScreen() {
   const openMode = (m) => { if (m === 'solo') setSoloOpen(true); else if (m === 'match') setMatchOpen(true); else if (m === 'grand') setLargeOpen(true); else setAllyOpen(true); };
   const pickDifficulty = (d) => { setDifficulty(d); savePref('lobby.difficulty', d); };
   const setSoloFreePref = (on) => { const next = on === true; setSoloFree(next); savePref('lobby.soloUnlimited', next); };
+  // (fork) 单人匹配: the versions ticked (remembered; none of them offered here: the lobby's) and the Grand Alliance opt-in
+  const [queueVersionsPref, setQueueVersionsPref] = useState(() => { const v = loadPref('lobby.queueVersions', null); return Array.isArray(v) ? v : null; });
+  const [queueLarge, setQueueLarge] = useState(() => loadPref('lobby.queueLarge', false) === true);
+  const offeredIds = Array.isArray(versions) ? versions.map((v) => v.id) : [DEFAULT_VERSION];
+  const keptIds = (queueVersionsPref || []).filter((id) => offeredIds.includes(id));
+  const queueVersions = keptIds.length ? keptIds : [offeredIds.includes(version) ? version : offeredIds[0]];
+  const tickVersion = (id, on) => {
+    const next = on ? [...new Set([...queueVersions, id])] : queueVersions.filter((v) => v !== id);
+    if (!next.length) return;
+    setQueueVersionsPref(next);
+    savePref('lobby.queueVersions', next);
+  };
+  const queueLargeOk = largeRooms && queueVersions.includes(DEFAULT_VERSION);
+  const queueOpts = {
+    versions: offeredIds.length > 1 ? offeredIds.map((id) => ({ id, on: queueVersions.includes(id) })) : null,
+    onVersion: tickVersion,
+    large: largeRooms ? { on: queueLarge, disabled: !queueLargeOk, onToggle: (on) => { setQueueLarge(on === true); savePref('lobby.queueLarge', on === true); } } : null,
+  };
 
   const run = async (kind, fn) => {
     if (inFlight.current) return;
@@ -821,10 +872,19 @@ export function LobbyScreen() {
     ...(mode === 'solo' && soloFree && soloTimed === true ? { soloUnlimited: true } : {}),
   }));
   // (fork) a Grand Alliance room (shared/largeRoom.js): co-op, 8 seats, the default version, at the co-op difficulty shown
-  const createLarge = () => run('create', () => net.request('room.create', { mode: 'coop', capacity: 8, difficulty: shownCoop, ...(testMode && asTest ? { test: true } : {}) }));
+  // (fork) 创建大同盟 opens 选择模拟协议 first: the difficulty and 公开 / 私密 (with its password) are chosen before the room exists
+  const [grandOpen, setGrandOpen] = useState(false);
+  const [grandPriv, setGrandPriv] = useState(false);
+  const [grandPw, setGrandPw] = useState('');
+  const createLarge = () => setGrandOpen(true);
+  const createGrand = () => {
+    if (grandPriv && !ROOM_PASSWORD_RE.test(grandPw)) return;
+    run('create', () => net.request('room.create', { mode: 'coop', capacity: 8, difficulty: shownCoop, ...(grandPriv ? { password: grandPw } : {}),
+      ...(testMode && asTest ? { test: true } : {}) }));
+  };
   // (fork) 单人匹配: the queue at the co-op difficulty shown; the lobby stays on screen while queued
   const joinQueue = () => run('create', async () => {
-    await net.request('queue.join', { difficulty: shownCoop });
+    await net.request('queue.join', { difficulty: shownCoop, ...(Array.isArray(versions) ? { versions: queueVersions } : {}), ...(queueLargeOk && queueLarge ? { large: true } : {}) });
     if (alive.current) setMatchOpen(false);
   });
   const join = (c = code) => {
@@ -898,7 +958,7 @@ export function LobbyScreen() {
       </aside>
       <section class=${`hub-entries${queue.queued ? ' is-queued' : ''}`} aria-label=${t('模拟方式')}>
         ${queue.queued ? html`<div class="create-box hub-queue"><${QueuePanel} busy=${busy} online=${online} run=${run} /></div>`
-          : MODE_CARDS.filter((c) => (c.id !== 'match' || version === DEFAULT_VERSION) && (c.id !== 'grand' || (largeRooms && version === DEFAULT_VERSION))).map((c) => {
+          : MODE_CARDS.filter((c) => c.id !== 'grand' || (largeRooms && version === DEFAULT_VERSION)).map((c) => {
           const timedCard = c.id === 'solo';
           const timePoint = timedCard ? soloTimeMsgid('card', { timed: soloTimed, unlimited: soloFree }) : '';
           const timeShort = timedCard ? soloTimeMsgid('short', { timed: soloTimed, unlimited: soloFree }) : '';
@@ -918,9 +978,12 @@ export function LobbyScreen() {
       soloTime=${soloTimed === true ? { on: soloFree, onToggle: setSoloFreePref } : null} />` : null}
     ${matchOpen && !queue.queued ? html`<${ProtocolSelect} roomMode="coop" modeId="match" difficulty=${shownCoop} onDifficulty=${pickDifficulty}
       onClose=${() => setMatchOpen(false)} onCreate=${joinQueue} busy=${busy} online=${online} difficulties=${coop}
-      loading=${versionLoading} failed=${versionFailed} action=${/* en: "Start Matchmaking" */ t('开始匹配')}
-      hint=${/* en: "The simulation starts as soon as 4 Doctors are found" */ t('凑齐 4 名博士后立即开始模拟')} />` : null}
+      loading=${versionLoading} failed=${versionFailed} queueOpts=${queueOpts} action=${/* en: "Start Matchmaking" */ t('开始匹配')} hint=${false} />` : null}
     ${largeOpen ? html`<${RoomBrowser} onClose=${() => setLargeOpen(false)} onCreate=${createLarge} onJoin=${(k) => join(k)} busy=${busy} online=${online} />` : null}
+    ${grandOpen ? html`<${ProtocolSelect} roomMode="coop" modeId="grand" difficulty=${shownCoop} onDifficulty=${pickDifficulty}
+      onClose=${() => setGrandOpen(false)} onCreate=${createGrand} busy=${busy} online=${online} difficulties=${coop}
+      testMode=${testMode} asTest=${asTest} onTest=${setAsTest} action=${t('创建大同盟')} hint=${false}
+      privacy=${{ priv: grandPriv, pw: grandPw, onPriv: setGrandPriv, onPw: setGrandPw }} />` : null}
     ${sweep ? html`<${SweepReport} restore=${sweep.restore} onClose=${() => setSweep(null)} onReopen=${(restore) => setSweep({ restore })} />` : null}
     ${achOpen ? html`<${AchievementDialog} onClose=${() => setAchOpen(false)} />` : null}
   </div>`;

@@ -1415,7 +1415,7 @@
   .avpick__scroll { max-height: none; }
   .avpick__now { min-height: .5rem; }
   .avpick__big { width: .5rem; height: .5rem; }
-  .avpick__grid { grid-template-columns: repeat(auto-fill, minmax(max(.5rem, 40px), 1fr)); }
+  .avpick__grid { grid-template-columns: repeat(auto-fill, minmax(max(.5rem, 32px, calc(40px * var(--sp-ui, 1))), 1fr)); }
   .avpick__grid--ops, .avpick__label { font-size: min(calc(.12 * var(--t)), 10px); }
   .avpick__grid--ops { grid-template-columns: repeat(auto-fill, minmax(max(.62rem, 6.4em), 1fr)); }
 }
@@ -1427,3 +1427,23 @@
 }
 .avedit__pen .icon { width: 80%; height: 80%; }
 .avedit:hover .avatar, .avedit:focus-visible .avatar { filter: brightness(1.15); }
+
+/* (fork) A Grand Alliance's access: 公开 / 私密 and a private room's password (ui/largeRooms.js PrivacyFields), on the
+   create screen's foot and in the room's access panel */
+.privacy { display: flex; flex-direction: column; gap: .06rem; font-size: calc(.15 * var(--t, 100px)); }
+.privacy__seg { display: inline-flex; align-self: flex-start; border: 1px solid rgba(79, 232, 192, .55); border-radius: 3px; overflow: hidden; }
+.privacy__opt { display: inline-flex; align-items: center; gap: .05rem; padding: .03rem .14rem; font: inherit; color: #c4cbc9;
+  background: transparent; border: 0; cursor: pointer; }
+.privacy__opt + .privacy__opt { border-left: 1px solid rgba(79, 232, 192, .55); }
+.privacy__opt .icon { width: 1em; height: 1em; }
+.privacy__opt:hover, .privacy__opt:focus-visible { color: #fff; }
+.privacy__opt.is-on { color: #08221b; background: #4fe8c0; font-weight: 700; }
+.privacy__pw { display: flex; align-items: center; gap: .08rem; color: #aab3b0; }
+.privacy__pw input { width: 5em; padding: .03rem .08rem; font: inherit; font-size: 1.4em; letter-spacing: .2em; text-transform: uppercase;
+  color: #fff; background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .3); border-radius: 3px; }
+.privacy__pw input:focus { outline: none; border-color: #4fe8c0; }
+.privacy__hint { font-size: .87em; line-height: 1.35; color: #8d9391; }
+@media (max-width: 720px) {
+  .privacy { font-size: 15px; }
+  .privacy__opt { padding: 6px 14px; min-height: 40px; }
+}

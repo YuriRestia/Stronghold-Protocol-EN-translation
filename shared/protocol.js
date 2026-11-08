@@ -533,9 +533,12 @@ export const C2S = {
   // default create stays the message it was.
   'room.create': { mode: (v) => v === 'solo' || v === 'coop', difficulty: (v) => DIFFICULTIES.includes(v), test: (v) => v === true, version: isVersionId, soloUnlimited: isBool,
     // (fork) capacity: 8 makes a large room (shared/largeRoom.js; refused unless the server allows them)
-    capacity: (v) => ROOM_CAPACITIES.includes(v), $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity'] },
+    capacity: (v) => ROOM_CAPACITIES.includes(v),
+    // (fork) password: a Grand Alliance created private (私密), its 4 letters
+    password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity', 'password'] },
   // password: (fork) a locked Grand Alliance room's 4 letters (shared/largeRoom.js)
-  'room.join': { $optional: ['testAck', 'ticket', 'password'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
+  // squad: (fork) with a ticket, the Grand Alliance squad room.move named (0 = seats 1–4, 1 = seats 5–8)
+  'room.join': { $optional: ['testAck', 'ticket', 'password', 'squad'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), squad: (v) => v === 0 || v === 1, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
   'p2p.enable': { enabled: isBool },
   'p2p.signal': { epoch: isId, to: isId, description: isPeerDescription, candidate: isPeerCandidate, $optional: ['description', 'candidate'] },
   'p2p.ready': { epoch: isId, ready: isBool, seq: (v) => Number.isSafeInteger(v) && v >= 0 },
@@ -599,7 +602,8 @@ export const C2S = {
   // 搜寻队友 (DESIGN §90): the host of a co-op room turns the search on or off
   'room.search': { on: isBool },
   // 单人匹配 (DESIGN §90): queue from the lobby without a room; queue.ai once queue.state's aiAt has passed
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v) },
+  // (fork) versions: the official versions to be matched for (left out: 第二期下半); large: may also sit in a Grand Alliance
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, $optional: ['versions', 'large'] },
   'queue.leave': {},
   'queue.ai': {},
   // the room's plugins (DESIGN §32, P1a; host, before the match — like a difficulty change it un-readies the others):
