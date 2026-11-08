@@ -185,7 +185,7 @@ export const ERR = Object.freeze({
   NOT_IN_ROOM: 'NOT_IN_ROOM',
   ROOM_NOT_FOUND: 'ROOM_NOT_FOUND',
   ROOM_FULL: 'ROOM_FULL',
-  // (fork) a locked Grand Alliance room (shared/largeRoom.js): a join without its password, or a wrong one
+  // (fork) a private (locked) Grand Alliance room (shared/largeRoom.js): a join without its password, or a wrong one
   ROOM_LOCKED: 'ROOM_LOCKED',
   SERVER_FULL: 'SERVER_FULL',     // the online cap (SP_MAX_ONLINE) has no seat for a new player
   ROOM_STARTED: 'ROOM_STARTED',
@@ -249,7 +249,7 @@ export const ERR_TEXT = {
   SESSION_IN_USE: N_('此对局仍在其他窗口中，或当前浏览器无法安全恢复。请关闭原窗口后重试。'),
   BAD_MSG: N_('无效的请求'), RATE: N_('操作过于频繁'), NOT_IN_ROOM: N_('你不在房间中'), ROOM_NOT_FOUND: N_('未找到该同盟密钥对应的房间'),
   ROOM_FULL: N_('房间已满'),
-  ROOM_LOCKED: N_('该房间已上锁，请输入正确的密码'), // en: "This room is locked. Enter its password."
+  ROOM_LOCKED: N_('该房间为私密房间，请输入正确的密码'), // en: "This room is private. Enter its password."
   SERVER_FULL: N_('服务器已满'), ROOM_STARTED: N_('模拟已开始'), NOT_HOST: N_('只有房主可以操作'), NOT_READY: N_('仍有玩家未就绪'),
   ROOM_CODE_TAKEN: N_('固定同盟密钥已被另一个房间占用，请先关闭那个房间'),
   WRONG_PHASE: N_('当前阶段无法进行该操作'), NO_FUNDS: N_('资金不足'), HAND_FULL: N_('整备区已满'), BOARD_FULL: N_('已达到部署上限'),

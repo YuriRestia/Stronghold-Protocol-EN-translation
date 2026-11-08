@@ -1,7 +1,8 @@
 // ui/largeRooms.js — (fork) Grand Alliance (大同盟, shared/largeRoom.js, DESIGN §91): the full-screen room browser of this
-// server's open 8-seat rooms, reached from Team Simulation (同盟模拟), and the password prompt of a locked room.
-// While the browser is open the page watches the list (rooms.watch on); the server sends rooms.list on every change.
-// Matchmaking never fills these rooms.
+// server's open 8-seat rooms, reached from Team Simulation (同盟模拟), the password prompt of a private room (公开 / 私密:
+// the server's `locked`), and PrivacyFields, the 公开 / 私密 choice with the password field (the create screen and the
+// room's access button). While the browser is open the page watches the list (rooms.watch on); the server sends
+// rooms.list on every change. Matchmaking fills these rooms too when their host searches (DESIGN §90.4).
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
@@ -21,7 +22,31 @@ export function roomRows(msg) {
     }));
 }
 
-/** The rows a filter keeps: 'all', 'open' (not locked) or 'locked'. */
+/**
+ * (fork) A Grand Alliance's access: 公开 (en "Public") or 私密 (en "Private", the server's `locked`), and a private room's
+ * 4-letter password. Controlled: `onPw` gets the letters in upper case. msgids — 房间权限 en: "Room access"; 密码 en:
+ * "Password"; 4 个字母。设为私密后，加入房间（包括邀请链接）需要输入密码。 en: "4 letters. Once private, joining the room
+ * (invite links too) needs the password."
+ * @param {{ priv: boolean, pw: string, onPriv: (on: boolean) => void, onPw: (pw: string) => void, onEnter?: (() => void) | null,
+ *   focus?: boolean }} p
+ */
+export function PrivacyFields({ priv, pw, onPriv, onPw, onEnter = null, focus = false }) {
+  const clean = (v) => v.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4);
+  const opt = (on, icon, label, id) => html`<button type="button" role="radio" aria-checked=${priv === on ? 'true' : 'false'}
+      class=${`privacy__opt${priv === on ? ' is-on' : ''}`} data-testid=${id} onClick=${() => onPriv(on)}><${Icon} name=${icon} />${label}</button>`;
+  return html`<div class="privacy">
+    <div class="privacy__seg" role="radiogroup" aria-label=${t('房间权限')}>
+      ${opt(false, 'users', t('公开'), 'privacy-public')}${opt(true, 'lock', t('私密'), 'privacy-private')}
+    </div>
+    ${priv ? html`<label class="privacy__pw"><span>${t('密码')}</span>
+        <input class="num" data-testid="privacy-password" value=${pw} maxLength=${4} placeholder="ABCD" autoComplete="off" spellCheck=${false}
+          ref=${(el) => { if (focus && el && !el.dataset.f) { el.dataset.f = '1'; setTimeout(() => el.focus(), 40); } }}
+          onInput=${(e) => onPw(clean(e.currentTarget.value))} onKeyDown=${(e) => { if (e.key === 'Enter' && onEnter) { e.preventDefault(); onEnter(); } }} /></label>
+      <small class="privacy__hint">${t('4 个字母。设为私密后，加入房间（包括邀请链接）需要输入密码。')}</small>` : null}
+  </div>`;
+}
+
+/** The rows a filter keeps: 'all', 'open' (公开) or 'locked' (私密). */
 export function filterRows(rows, filter) {
   return filter === 'open' ? rows.filter((r) => !r.locked) : filter === 'locked' ? rows.filter((r) => r.locked) : rows;
 }
@@ -32,9 +57,9 @@ export function filterRows(rows, filter) {
  */
 export function askRoomPassword(code, retry = false) {
   return promptDialog({
-    title: t('房间已上锁'), // en: "Room Locked"
+    title: t('私密房间'), // en: "Private Room"
     micro: 'LOCKED',
-    text: t('房间 {code} 已上锁。请向房主索取 4 个字母的密码。', { code }), // en: "Room {code} is locked. Ask the host for its 4-letter password."
+    text: t('房间 {code} 为私密房间。请向房主索取 4 个字母的密码。', { code }), // en: "Room {code} is private. Ask the host for its 4-letter password."
     error: retry ? t('密码不正确，请重试') : '', // en: "Wrong password, try again"
     placeholder: 'ABCD', maxLength: 4, pattern: ROOM_PASSWORD_RE, transform: (v) => v.replace(/[^A-Za-z]/g, '').toUpperCase(),
     okText: t('加入'),
@@ -55,7 +80,7 @@ function SquadPips({ name, filled, tone }) {
 /**
  * The room browser, full screen.
  * msgids — 大同盟 en: "Grand Alliance"; 创建大同盟 en: "Create Grand Alliance"; 全部 en: "All"; 开放 en: "Open";
- * 已上锁 en: "Locked"; 加入 en: "Join"; 房间列表 en: "Room Browser"; 筛选 en: "Filter";
+ * 公开 en: "Public"; 私密 en: "Private"; 加入 en: "Join"; 房间列表 en: "Room Browser"; 筛选 en: "Filter";
  * 最多 8 名真人博士… en: "Up to 8 human Doctors in two squads: seats 1–4 are Squad A, 5–8 Squad B. Each squad drafts on its own,
  * everyone fights over one operator pool, and the whole room faces one shared Enemy Leader at the end.";
  * 暂时没有开放的大同盟房间… en: "No open Grand Alliance rooms right now. Create one and send the key to your friends.";
@@ -86,7 +111,7 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
     </header>
     <p class="rbr__intro">${t('最多 8 名真人博士，分为两个小队：1–4 号座位为小队 A，5–8 号为小队 B。每个小队各自轮选，全房间争夺同一个干员池，最终一起对抗同一个敌方领袖。')}</p>
     <nav class="rbr__filters" aria-label=${t('筛选')}>
-      ${[['all', t('全部')], ['open', t('开放')], ['locked', t('已上锁')]].map(([id, label]) => html`<button type="button" key=${id}
+      ${[['all', t('全部')], ['open', t('公开')], ['locked', t('私密')]].map(([id, label]) => html`<button type="button" key=${id}
         class=${`rbr__chip${filter === id ? ' is-on' : ''}`} aria-pressed=${filter === id ? 'true' : 'false'} onClick=${() => setFilter(id)}>
         ${id === 'locked' ? html`<${Icon} name="lock" />` : null}${label}<span class="num">${count(id)}</span></button>`)}
     </nav>
@@ -99,7 +124,7 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
           ${shown.map((r) => html`<li key=${r.code} class=${`rbr-card${r.locked ? ' is-locked' : ''}`}>
             <div class="rbr-card__head">
               <span class="rbr-card__host"><${Icon} name="crown" /><b>${r.host || t('博士')}</b></span>
-              ${r.locked ? html`<span class="rbr-card__lock" title=${t('已上锁')}><${Icon} name="lock" />${t('已上锁')}</span>` : null}
+              ${r.locked ? html`<span class="rbr-card__lock" title=${t('私密')}><${Icon} name="lock" />${t('私密')}</span>` : null}
             </div>
             <div class="rbr-card__diff"><${DifficultyIcon} difficulty=${r.difficulty} />${DIFFICULTY_NAMES[r.difficulty] ? t(DIFFICULTY_NAMES[r.difficulty]) : ''}</div>
             <div class="rbr-card__squads">

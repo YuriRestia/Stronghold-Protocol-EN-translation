@@ -745,6 +745,10 @@
 }
 .create-box__test input { width: .2rem; height: .2rem; margin: 0; flex: none; accent-color: #e8b84a; }
 .create-box__test em { flex-basis: 100%; font-style: normal; }
+/* (fork) 单人匹配: the versions to be matched for and the Grand Alliance opt-in */
+.create-box__queue { display: flex; flex-direction: column; gap: .06rem; }
+.create-box__versions { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .04rem .16rem; }
+.create-box__legend { flex-basis: 100%; color: rgba(255, 255, 255, .72); font-size: calc(.14 * var(--t)); }
 @media (max-width: 720px) {
   .create-box__test { font-size: 16px; }
   .create-box__test input { width: 32px; height: 32px; }

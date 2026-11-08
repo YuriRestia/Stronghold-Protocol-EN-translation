@@ -82,7 +82,38 @@ test('a large room is refused while the server keeps them off, and only as a def
   refused(h.lobby.create(h.player('B'), { mode: 'solo', capacity: 8 }), ERR.BAD_MSG);
 });
 
-test('large room: 8 seats, humans only, no matchmaking, unlocked at first', () => {
+test('a Grand Alliance can be created private, with its password; a normal room cannot take one', () => {
+  const h = harness();
+  const host = h.player('Host');
+  assert.equal(validateC2S({ t: 'room.create', mode: 'coop', capacity: 8, password: 'abcd' }), null);
+  assert.notEqual(validateC2S({ t: 'room.create', mode: 'coop', capacity: 8, password: 'ab1' }), null);
+  refused(h.lobby.create(host, { mode: 'coop', password: 'ABCD' }), ERR.BAD_MSG);
+  ok(h.lobby.create(host, { mode: 'coop', capacity: LARGE_ROOM_SEATS, password: 'abcd' }));
+  const st = h.last(host, 'room.state');
+  assert.equal(st.locked, true);
+  assert.equal(st.password, 'ABCD');
+  const guest = h.player('Guest');
+  refused(h.lobby.join(guest, { code: st.code }), ERR.ROOM_LOCKED);
+  ok(h.lobby.join(guest, { code: st.code, password: 'ABCD' }));
+});
+
+test('public and private again keeps the password; private the first time without one gets 4 random letters', () => {
+  const h = harness();
+  const host = h.player('Host');
+  ok(h.lobby.create(host, { mode: 'coop', capacity: LARGE_ROOM_SEATS }));
+  ok(h.lobby.setLock(host, { on: true }));
+  const first = h.last(host, 'room.state').password;
+  assert.match(first, /^[A-Z]{4}$/);
+  ok(h.lobby.setLock(host, { on: true, password: 'wxyz' }));
+  ok(h.lobby.setLock(host, { on: false }));
+  const pub = h.last(host, 'room.state');
+  assert.equal(pub.locked, false);
+  assert.equal(pub.password, undefined, 'not sent while public');
+  ok(h.lobby.setLock(host, { on: true }));
+  assert.equal(h.last(host, 'room.state').password, 'WXYZ', 'the same password back');
+});
+
+test('large room: 8 seats, humans only, searches like any room (DESIGN §90.4), unlocked at first', () => {
   const h = harness();
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: LARGE_ROOM_SEATS }));
@@ -92,7 +123,7 @@ test('large room: 8 seats, humans only, no matchmaking, unlocked at first', () =
   assert.equal(st.locked, false);
   assert.equal(st.password, undefined);
   refused(h.lobby.addBot(host), ERR.BAD_TARGET);
-  refused(h.lobby.search(host, { on: true }), ERR.BAD_TARGET);
+  ok(h.lobby.search(host, { on: true })); // (2026-11-08) matchmaking fills it too
   refused(h.lobby.setAiTakeover(host, { on: true }), ERR.BAD_TARGET);
   // a normal room.state stays without the keys
   const other = h.player('Other');
@@ -392,7 +423,7 @@ test('lock: the host locks with 4 letters and alone sees them; joining by key or
   const mate = h.player('Mate');
   ok(h.lobby.join(mate, { code }));
   refused(h.lobby.setLock(mate, { on: true, password: 'ABCD' }), ERR.NOT_HOST);
-  refused(h.lobby.setLock(host, { on: true }), ERR.BAD_MSG);
+  refused(h.lobby.setLock(host, { on: true, password: 'AB1D' }), ERR.BAD_MSG); // (2026-11-08) { on: true } alone is allowed: the last password or 4 random letters
   ok(h.lobby.setLock(host, { on: true, password: 'wxyz' }));
   assert.equal(h.last(mate, 'room.state').locked, true);
   assert.equal(h.last(host, 'room.state').password, 'WXYZ', 'the host sees it, upper case');

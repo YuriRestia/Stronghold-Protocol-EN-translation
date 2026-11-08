@@ -1,7 +1,7 @@
 // shared/largeRoom.js — (fork) 8-player rooms ("Large rooms", DESIGN §91), shared by the server and the page.
 //
 // [ASSUMED] A remake-only mode, the maintainer's decision of 2026-11-08: an 8-seat co-op room for humans only, found in
-// the lobby's room list or joined by key, never filled by matchmaking or AI. Seats 1–4 are squad A and seats 5–8 squad B;
+// the lobby's room list, joined by key or filled by matchmaking (DESIGN §90.4, 2026-11-08), never by AI. Seats 1–4 are squad A and seats 5–8 squad B;
 // the players choose where they sit (no automatic balancing). When both squads have players, each squad drafts on its
 // own in parallel, the whole room shares one operator / equipment pool that grows with the room, the 联防 relays across
 // the room (at most 2 rounds) and everyone fights one shared leader. Everyone in one squad plays today's rules.

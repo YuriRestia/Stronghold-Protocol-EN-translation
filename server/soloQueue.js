@@ -1,12 +1,22 @@
 // server/soloQueue.js — 单人匹配 (DESIGN §90): a Doctor queues from the lobby without a room. The server only places
-// queued Doctors when it can fill a room to MAX_SEATS, and starts that match at once: no room screen, no drip-feed.
+// queued Doctors when it can fill a room to its size, and starts that match at once: no room screen, no drip-feed.
 // This file holds the queue and decides who goes where; the seating and the start are Lobby methods (placeSolos).
 // The queue size is never sent to anyone.
+// (fork) A Doctor queues for one or more official versions (`versions`) and may opt in to Grand Alliances (`large`):
+// a room only takes Doctors who queued for its version, a Grand Alliance only those who opted in. A Grand Alliance
+// that has searched longer than partialMergeAfterMs also takes opted-in Doctors who waited that long without filling
+// it, as a partial merge would: they sit in its room until it fills [ASSUMED: else 8 seats would almost never fill].
 
 import { MAX_SEATS } from '../shared/constants.js';
-import { roomSize, isMatchable } from './matchmaker.js';
+import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
+import { roomSize, roomCap, roomVersion, isLarge, isMatchable } from './matchmaker.js';
 
-/** @typedef {{ playerId: string, difficulty: string, since: number }} SoloEntry */
+/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], large: boolean }} SoloEntry */
+
+/** The versions an entry queued for (an entry without the key: the default version). @param {any} e */
+export function entryVersions(e) {
+  return Array.isArray(e.versions) && e.versions.length ? e.versions : [DEFAULT_VERSION];
+}
 
 export class SoloQueue {
   constructor() {
@@ -14,9 +24,12 @@ export class SoloQueue {
     this.entries = new Map();
   }
 
-  /** @param {string} playerId @param {string} difficulty @param {number} since @returns {SoloEntry} */
-  add(playerId, difficulty, since) {
-    const e = { playerId, difficulty, since };
+  /**
+   * @param {string} playerId @param {string} difficulty @param {number} since
+   * @param {{ versions?: string[], large?: boolean }} [opts] @returns {SoloEntry}
+   */
+  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], large = false } = {}) {
+    const e = { playerId, difficulty, since, versions: [...versions], large: large === true };
     this.entries.set(playerId, e);
     return e;
   }
@@ -36,33 +49,68 @@ export class SoloQueue {
   clear() { this.entries.clear(); }
 }
 
+/** The versions entries queued for, the official order first (第二期下半 leads: it wins a Doctor who queued for several). */
+function versionOrder(entries) {
+  const seen = new Set(entries.flatMap(entryVersions));
+  const known = VERSIONS.map((v) => v.id).filter((id) => seen.has(id));
+  return [...known, ...[...seen].filter((id) => !known.includes(id)).sort()];
+}
+
 /**
- * This pass's placements, per difficulty. Pure.
- *   1. Searching rooms (longest search first) take the longest-waiting solos, only when that fills them to MAX_SEATS.
- *      A room needing more solos than are left is skipped, so a smaller one behind it can still fill.
- *   2. The solos left over form new rooms of exactly MAX_SEATS.
- * Fewer than that wait: nobody is ever placed into a room that does not start.
+ * This pass's placements. Pure.
+ *   1. Searching rooms (longest search first) take the longest-waiting Doctors who queued for their version and difficulty
+ *      (a Grand Alliance: who also opted in), only when that fills them. A room needing more than are left is skipped,
+ *      so a smaller one behind it can still fill.
+ *   2. The Doctors left over form new rooms of exactly MAX_SEATS, version by version (versionOrder).
+ *   3. (fork) A Grand Alliance that has searched `partialMergeAfterMs` takes the opted-in Doctors left over who have
+ *      waited as long, as many as it has seats (0 = off; cross-region plans are exact fills only).
+ * Fewer than that wait: nobody is ever placed into a normal room that does not start.
  * @param {Iterable<any>} rooms
  * @param {SoloEntry[]} entries placeable entries, longest wait first
- * @returns {{ room: any | null, entries: SoloEntry[] }[]} room null = a new room
+ * @param {{ now?: number, partialMergeAfterMs?: number }} [opts]
+ * @returns {{ room: any | null, entries: SoloEntry[], version: string, difficulty: string }[]} room null = a new room
  */
-export function planSolos(rooms, entries) {
-  const byDiff = new Map();
-  for (const e of entries) {
-    if (!byDiff.has(e.difficulty)) byDiff.set(e.difficulty, []);
-    byDiff.get(e.difficulty).push(e);
-  }
-  if (!byDiff.size) return [];
-  const waiting = [...rooms].filter((r) => isMatchable(r) && byDiff.has(r.difficulty))
+export function planSolos(rooms, entries, { now = 0, partialMergeAfterMs = 0 } = {}) {
+  if (!entries.length) return [];
+  const left = new Set(entries);
+  const takes = (e, r) => e.difficulty === r.difficulty && entryVersions(e).includes(roomVersion(r)) && (!isLarge(r) || e.large === true);
+  const waiting = [...rooms].filter((r) => isMatchable(r))
     .sort((a, b) => (a.searchSince ?? 0) - (b.searchSince ?? 0) || (a.code < b.code ? -1 : 1));
   const plans = [];
   for (const r of waiting) {
-    const pool = byDiff.get(r.difficulty);
-    const need = MAX_SEATS - roomSize(r);
-    if (need > 0 && need <= pool.length) plans.push({ room: r, entries: pool.splice(0, need) });
+    const pool = entries.filter((e) => left.has(e) && takes(e, r));
+    const need = roomCap(r) - roomSize(r);
+    if (need > 0 && need <= pool.length) {
+      const take = pool.slice(0, need);
+      for (const e of take) left.delete(e);
+      plans.push({ room: r, entries: take, version: roomVersion(r), difficulty: r.difficulty });
+    }
   }
-  for (const pool of byDiff.values()) {
-    while (pool.length >= MAX_SEATS) plans.push({ room: null, entries: pool.splice(0, MAX_SEATS) });
+  for (const v of versionOrder(entries)) {
+    const byDiff = new Map();
+    for (const e of entries) {
+      if (!left.has(e) || !entryVersions(e).includes(v)) continue;
+      if (!byDiff.has(e.difficulty)) byDiff.set(e.difficulty, []);
+      byDiff.get(e.difficulty).push(e);
+    }
+    for (const [difficulty, pool] of byDiff) {
+      while (pool.length >= MAX_SEATS) {
+        const take = pool.splice(0, MAX_SEATS);
+        for (const e of take) left.delete(e);
+        plans.push({ room: null, entries: take, version: v, difficulty });
+      }
+    }
+  }
+  if (partialMergeAfterMs > 0) {
+    const placed = new Set(plans.map((p) => p.room).filter(Boolean));
+    for (const r of waiting) {
+      if (!isLarge(r) || placed.has(r) || now - (r.searchSince ?? now) < partialMergeAfterMs) continue;
+      const pool = entries.filter((e) => left.has(e) && takes(e, r) && now - e.since >= partialMergeAfterMs);
+      const take = pool.slice(0, roomCap(r) - roomSize(r));
+      if (!take.length) continue;
+      for (const e of take) left.delete(e);
+      plans.push({ room: r, entries: take, version: roomVersion(r), difficulty: r.difficulty });
+    }
   }
   return plans;
 }

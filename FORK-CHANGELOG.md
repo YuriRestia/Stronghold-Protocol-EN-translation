@@ -7,6 +7,22 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-08
 
+### Grand Alliance: Public and Private
+
+- The lock is now called Private. Beside the alliance key, the host has a Public | Private switch that applies at once: Private gives the room a random 4-letter password, shown next to the switch; the host changes it by typing into it there. Everyone else sees whether the room is Public or Private. The room browser's filters and badges say Public and Private, and joining a Private room asks for its password as before.
+- Create Grand Alliance first opens the protocol screen: pick the difficulty and Public or Private (with the password) before the room exists, instead of creating a room and changing it afterwards (`room.create { capacity: 8, password }`).
+- A Grand Alliance's Find Teammates switch is remembered apart from a normal room's and starts on.
+- Solo Matchmaking's card now reads "Join automatically when a room is found.", and its protocol screen no longer shows the "starts as soon as 4 Doctors are found" line.
+
+### Matchmaking: game versions and Grand Alliances
+
+- Matchmaking now matches by game version. Rooms of any game version can use Find Teammates, and they only merge with rooms of the same version and difficulty. Before, rooms of different versions could merge, and a host who switched version while searching could pull strangers into another version.
+- Solo Matchmaking shows on every lobby version. Its protocol screen has a tick for each game version the server offers (the lobby's ticked by default), so a Doctor can queue for several. A new room plays the first version, in the official order, that 4 of them share.
+- A matchmade room of another version now waits until every player's page has loaded that version's data before it starts. Before, an automatic start skipped that check. A page that can't load it, or is still not ready after 60 s, leaves the room, and the room searches on.
+- Grand Alliances, locked ones included, get the Find Teammates switch. They're filled only by Doctors who tick "Also join Grand Alliances" in Solo Matchmaking and by other searching Grand Alliances whose squads fit whole into one of theirs; a 4-player room never merges in. Matchmade Doctors skip the password. A Grand Alliance that has searched 10 s also takes opted-in Doctors who waited 10 s, who then wait in its room until it fills. It starts by itself at 8. No AI seats are added.
+- Across regions, all of this works as before: own server first, the other after 15 s (`SP_CROSS_AFTER_MS`). Only game versions both servers enable are matched across, and a moved Grand Alliance player arrives in the squad the server held for them.
+- Test rooms no longer search (they're joined by key only).
+
 ### Profile icons
 
 - Doctors can pick a profile icon from a new profile chip in the lobby's top bar or from the icon on their own seat card in a room. The picker has two tabs. Operators lists every operator a seat card can show, with search and rarity tabs, worn in the player's outfit; its first tile, Assistant Operator, follows the room card's operator. Icons holds the game's 200 official profile icons, grouped as the game groups them (Dynamic Icon, Unique unlock, Event Icon, Default Icon). The pick is saved in the browser (`sp.pref.profile.avatar`) and comes back on the next visit, like the room's portrait operator (`sp.pref.room.card`, already saved).
@@ -64,10 +80,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -185,7 +201,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -510,7 +526,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

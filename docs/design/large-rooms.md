@@ -7,21 +7,25 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 `[ASSUMED]` A remake-only mode with no official source: the maintainer's decisions of 2026-11-08. A co-op room may have 8
 seats instead of 4. It is for humans only and is off unless the server sets `SP_LARGE_ROOMS=1` (lobby option `largeRooms`).
 
-- **Protocol**: `room.create { capacity: 8 }` (co-op on the default version only; `BAD_MSG` while the server keeps them
-  off), `room.state.capacity` / `locked` / `password` (the password in the host's copy only; omitted for a normal room), `room.moveSeat { seat }`
+- **Protocol**: `room.create { capacity: 8, password? }` (co-op on the default version only; `BAD_MSG` while the server keeps them
+  off; `password`, 4 letters, creates it private, and `BAD_MSG` on any other room), `room.state.capacity` / `locked` / `password` (the password in the host's copy only; omitted for a normal room), `room.moveSeat { seat }`
   (any member, before the match, to an empty seat), `room.swapSeats { a, b }` (the host, either seat may be empty),
   `room.setLock { on, password? }` (the host; 4 letters A–Z), `room.join` / `room.spectate { password? }` (`ROOM_LOCKED`
   without it or with a wrong one, `RATE` after 6 wrong ones in a minute from a session), `rooms.watch { on }` →
   `rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads, locked? }] }` while watched,
   `welcome.largeRooms`, `room.closed { reason: 'idle' }`, `m.public.players[].squad`, `m.public.draft.lanes` /
   `sp.lanes`.
-- **Humans only, no matchmaking**: `room.addBot`, `room.search` and 「允许观战者接替 AI」 are refused; matchmaking and the solo
-  queue never place anyone in one. The lobby has a Grand Alliance mode (大同盟), and Team Simulation (选择同盟方式) a Grand
+- **Humans only**: `room.addBot` and 「允许观战者接替 AI」 are refused. (2026-11-08) `room.search` is allowed, locked rooms
+  too: matchmaking fills the empty seats with other Grand Alliances whose squads fit whole and with opted-in Doctors from
+  the solo queue, never with a 4-seat room ([§90.4](matchmaking.md)). The lobby has a Grand Alliance mode (大同盟), and Team Simulation (选择同盟方式) a Grand
   Alliance card; both open a full-screen room browser of
-  the open (not started, not full) rooms of this server, oldest first, at most 50, with filters for open and locked
-  rooms, and a button that creates one; a key joins from anywhere. The host may lock the room with a 4-letter password
-  from the lock button beside the alliance key — not in 同盟设置, which keeps only the difficulty. Only the host gets that
-  control and the password (the server puts it in the host's room.state alone; a new host gets it on migration). A locked
+  the open (not started, not full) rooms of this server, oldest first, at most 50, with filters for public (公开) and
+  private (私密) rooms, and a button that creates one; a key joins from anywhere. (2026-11-08) 创建大同盟 first opens
+  选择模拟协议, where the host picks the difficulty and 公开 / 私密 (with the 4-letter password), so no room is made only
+  to change its settings. In the room, a box beside the alliance key holds the host's 公开 | 私密 switch, which applies at
+  once: 私密 gives the room 4 random letters as its password, shown beside the switch in a field the host types into (4 letters save on Enter or leaving the field; Esc puts the old ones back).
+  Everyone else sees a read-only 公开 / 私密 label. It is not in 同盟设置, which keeps only the difficulty. The UI says private; the protocol keeps its `locked` / `room.setLock` names. Only the host gets that
+  control and the password (the server puts it in the host's room.state alone; a new host gets it on migration). A private
   room still shows in the browser, marked, and joining or watching it — from the browser, by key or by invite link —
   asks for the password. The lock is a casual one: the 6-wrong-tries-a-minute limit
   counts per session, so a reconnect resets it, and 4 letters are about 457,000 combinations — enough to keep strangers

@@ -313,7 +313,8 @@ export function createRegions(deps) {
 
   /** room.move: matchmaking placed this group on another server (server/crossMatch.js). */
   async function follow(msg) {
-    const fields = { code: msg.code, ticket: msg.ticket };
+    // (fork) a Grand Alliance: the squad the server held this seat in
+    const fields = { code: msg.code, ticket: msg.ticket, ...(msg.squad === 0 || msg.squad === 1 ? { squad: msg.squad } : {}) };
     try {
       if (msg.region === current) await net.request('room.join', fields);
       else await requestAcross(msg.region, 'room.join', fields);

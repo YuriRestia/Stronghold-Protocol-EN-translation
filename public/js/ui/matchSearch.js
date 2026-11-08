@@ -3,7 +3,6 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
-import { DEFAULT_VERSION } from '../../../shared/versions.js';
 import { html, Button, Icon, Tooltip } from './components.js';
 import { toast } from './toasts.js';
 import { net } from '../net.js';
@@ -55,26 +54,32 @@ export function searchClock(since, now = serverNow()) {
 /** The host's 搜寻队友 switch, on by default (people should play with people): on, the big button searches. */
 export const FIND_MATES_PREF = 'room.findMates';
 
-/** @returns {[boolean, (on: boolean) => void]} */
-export function useFindMates() {
-  const [on, setOn] = useState(() => loadPref(FIND_MATES_PREF, true) !== false);
-  return [on, (v) => { savePref(FIND_MATES_PREF, !!v); setOn(!!v); }];
+/** (fork) A Grand Alliance's switch, remembered apart: on by default whatever a normal room's says (DESIGN §90.4). */
+export const FIND_MATES_LARGE_PREF = 'room.findMatesLarge';
+
+/** @param {boolean} [large] a Grand Alliance @returns {[boolean, (on: boolean) => void]} */
+export function useFindMates(large = false) {
+  const key = large ? FIND_MATES_LARGE_PREF : FIND_MATES_PREF;
+  const [state, setState] = useState(() => ({ key, on: loadPref(key, true) !== false }));
+  // the room became (or stopped being) a Grand Alliance: that one's pref
+  const cur = state.key === key ? state : { key, on: loadPref(key, true) !== false };
+  if (cur !== state) setState(cur);
+  return [cur.on, (v) => { savePref(key, !!v); setState({ key, on: !!v }); }];
 }
 
 /**
- * A room that can search at all: co-op, seen from a player seat — and (fork) no gameplay plugins: such a room is joined by
- * its code only (room.state.content.vanilla false; the server refuses room.search for it too).
+ * A room that can search at all: co-op, seen from a player seat — and (fork) no gameplay plugins and no test room: such a
+ * room is joined by its code only (room.state.content.vanilla false / test; the server refuses room.search for them too).
+ * (fork) A room of any version searches among rooms of its version, and a Grand Alliance (locked or not) among Grand
+ * Alliances and queued Doctors who opted in (server/matchmaker.js).
  */
 function searchableRoom(room, facts) {
-  // the matchmaker merges default-version rooms only (server/lobby.js room.search: another version is BAD_TARGET)
-  // (fork) never a large room (shared/largeRoom.js): the lobby's room list fills it
-  return room.mode !== 'solo' && !facts.spectating && room.content?.vanilla !== false
-    && (room.version ?? DEFAULT_VERSION) === DEFAULT_VERSION && !(room.capacity > MAX_SEATS);
+  return room.mode !== 'solo' && !facts.spectating && room.content?.vanilla !== false && room.test !== true;
 }
 
-/** The switch applies: a room that can search, with a free seat. */
+/** The switch applies: a room that can search, with a free seat (a Grand Alliance has 8). */
 export function canFindMates(room, facts) {
-  return searchableRoom(room, facts) && facts.occupied.length < MAX_SEATS;
+  return searchableRoom(room, facts) && facts.occupied.length < (room.capacity > MAX_SEATS ? room.capacity : MAX_SEATS);
 }
 
 /**

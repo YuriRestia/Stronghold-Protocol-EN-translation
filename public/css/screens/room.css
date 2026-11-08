@@ -961,28 +961,35 @@
   .rs-squad__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rs-seats--large .rseat { --w: auto; height: max(3.4rem, 52vw); }
 }
-/* (fork) a Grand Alliance room's lock beside the alliance key — the host's only (room.js RoomLock) */
-.rs-lockwrap { position: relative; display: inline-flex; }
-.rs-lockbtn { display: inline-flex; align-items: center; gap: .05rem; height: 100%; padding: 0 .1rem; font: inherit; font-size: calc(.16 * var(--t));
-  letter-spacing: .06em; color: #c9d1ce; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .35); cursor: pointer; white-space: nowrap; }
-.rs-lockbtn .icon { width: 1em; height: 1em; }
-.rs-lockbtn:hover, .rs-lockbtn:focus-visible { border-color: rgba(255, 255, 255, .5); }
-.rs-lockbtn.is-on { color: #ffc45c; border-color: rgba(255, 196, 92, .6); }
-.rs-lockbox { position: absolute; right: 0; top: calc(100% + .08rem); z-index: 30; display: flex; flex-direction: column; gap: .08rem;
-  width: max-content; max-width: min(4.6rem, 80vw); padding: .12rem .14rem; color: #e9eeec;
-  border: 1px solid rgba(255, 255, 255, .18); background: #161a19; box-shadow: 0 .1rem .3rem rgba(0, 0, 0, .55); }
-.rs-lockbox__pw { display: flex; align-items: center; gap: .08rem; font-size: calc(.15 * var(--t)); color: #aab3b0; }
-.rs-lockbox__pw input { width: 5em; padding: .03rem .08rem; font: inherit; font-size: calc(.22 * var(--t)); letter-spacing: .2em; text-transform: uppercase;
-  color: #f2f4f3; border: 1px solid rgba(255, 255, 255, .25); background: rgba(0, 0, 0, .45); }
-.rs-lockbox__pw input:focus { outline: none; border-color: #4fe8c0; }
-.rs-lockbox__hint { font-size: calc(.13 * var(--t)); line-height: 1.35; color: #8d9391; }
-.rs-lockbox__actions { display: flex; justify-content: flex-end; gap: .08rem; }
-.rs-lockbox__on, .rs-lockbox__off { display: inline-flex; align-items: center; gap: .04rem; padding: .03rem .12rem; font: inherit; font-size: calc(.15 * var(--t));
-  border: 1px solid transparent; cursor: pointer; }
-.rs-lockbox__on { color: #08221b; background: #4fe8c0; }
-.rs-lockbox__on .icon { width: 1em; height: 1em; }
-.rs-lockbox__off { color: #e9eeec; border-color: rgba(255, 255, 255, .25); background: none; }
-.rs-lockbox__on:disabled, .rs-lockbox__off:disabled { opacity: .45; cursor: default; }
+/* (fork) a Grand Alliance room's access, its own box beside the alliance key (room.js RoomAccess): the host's 公开 | 私密
+   switch and a private room's password with its pencil; everyone else a read-only label */
+.rs-access { position: relative; display: flex; align-items: center; gap: .1rem; height: max(.56rem, 32px, calc(34px * var(--sp-ui, 1)));
+  padding: 0 .08rem; background: rgba(28, 30, 30, .9); border: 1px solid rgba(255, 255, 255, .1); border-radius: .06rem;
+  font-size: calc(.16 * var(--t)); color: #c9d1ce; white-space: nowrap; }
+.rs-access .icon { width: 1em; height: 1em; }
+.rs-access--ro { gap: .06rem; padding: 0 .14rem; }
+.rs-access--ro.is-private { color: #ffc45c; }
+.rs-access__seg { display: inline-flex; height: calc(100% - .12rem); min-height: 26px; border: 1px solid rgba(255, 255, 255, .22); border-radius: .04rem; overflow: hidden; }
+.rs-access__opt { display: inline-flex; align-items: center; gap: .05rem; padding: 0 .12rem; font: inherit; color: #9aa3a0; background: none; border: 0; cursor: pointer; }
+.rs-access__opt + .rs-access__opt { border-left: 1px solid rgba(255, 255, 255, .22); }
+.rs-access__opt:hover:not(.is-on):not(:disabled) { color: #fff; background: rgba(255, 255, 255, .06); }
+.rs-access__opt.is-on { color: #08221b; background: #4fe8c0; font-weight: 700; cursor: default; }
+.rs-access.is-private .rs-access__opt.is-on { background: #ffc45c; color: #2a1d02; }
+.rs-access__opt:disabled:not(.is-on) { opacity: .5; cursor: default; }
+.rs-access__pw { display: inline-flex; align-items: center; gap: .06rem; height: calc(100% - .12rem); min-height: 26px; padding: 0 .08rem;
+  border: 1px dashed rgba(255, 196, 92, .5); border-radius: .04rem; cursor: text; }
+.rs-access__pw:hover { border-color: #ffc45c; }
+.rs-access__pw:focus-within { border-style: solid; border-color: #ffc45c; background: rgba(0, 0, 0, .35); }
+.rs-access__pw.is-short:focus-within { border-color: #ff7a6b; }
+.rs-access__pwk { color: #9aa3a0; }
+.rs-access__pw input { width: 3.6em; padding: 0; font: inherit; font-size: 1.25em; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+  color: #ffc45c; background: none; border: 0; outline: none; caret-color: #ffc45c; }
+.rs-access__pw .icon { color: #9aa3a0; }
+.rs-access__pw:focus-within .icon { color: #ffc45c; }
+@media (max-width: 720px) {
+  .rs-access { font-size: 14px; }
+  .rs-access__pwk { display: none; }
+}
 
 /* (fork) one's own plate icon as the profile icon picker's button (screens/room.js, ui/avatarPicker.js): placed as .avatar is */
 .rseat__face { grid-row: 1 / 3; grid-column: 1; position: relative; display: block; line-height: 0; }

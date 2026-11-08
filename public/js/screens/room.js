@@ -425,48 +425,51 @@ function AiLastToggle({ option, busy, onToggle }) {
 }
 
 /**
- * (fork) A Grand Alliance room's lock (room.setLock, shared/largeRoom.js), beside the alliance key — the HOST's only: nobody
- * else gets the control or the password (the server sends the password in the host's room.state alone). The button shows
- * 上锁 or the password; it opens a small panel with the 4-letter field, 锁定 / 更新密码 and 解锁. A locked room still shows in
- * the room browser; joining it — from the browser, by key or by invite link — asks for the password.
- * msgids — 上锁 en: "Lock"; 锁定房间 en: "Lock Room"; 解锁 en: "Unlock"; 更新密码 en: "Update Password"; 密码 en: "Password";
- * 4 个字母。锁定后，加入房间（包括邀请链接）需要输入密码。 en: "4 letters. Once locked, joining the room (invite links too) needs
- * the password."
+ * (fork) A Grand Alliance room's access (room.setLock, shared/largeRoom.js), its own box beside the alliance key. The host
+ * gets a 公开 | 私密 switch that applies at once: 私密 brings back the room's last password, or gives it 4 random letters
+ * the first time (the server keeps it while public and sends it in the host's room.state alone, only while private), shown beside the switch in a field the host types into directly: 4 letters
+ * save on Enter or when the field loses focus, Esc or fewer letters put the old ones back. Everyone else sees which one it
+ * is. A private room still shows in the room browser; joining it — from the browser, by key or by invite link — asks for
+ * the password. msgids — 公开 en: "Public"; 私密 en: "Private"; 房间权限 en: "Room access"; 密码 en: "Password";
+ * 修改密码 en: "Change password".
  */
-function RoomLock({ room, busy, onLock }) {
+function RoomAccess({ room, isHost, busy, onLock }) {
   const on = room.locked === true;
-  const [open, setOpen] = useState(false);
   const [pw, setPw] = useState(room.password || '');
   useEffect(() => { setPw(room.password || ''); }, [room.password]);
-  useEffect(() => {
-    if (!open) return undefined;
-    const away = (e) => { if (!e.target.closest?.('.rs-lockbox, .rs-lockbtn')) setOpen(false); };
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } };
-    addEventListener('pointerdown', away);
-    addEventListener('keydown', onKey);
-    return () => { removeEventListener('pointerdown', away); removeEventListener('keydown', onKey); };
-  }, [open]);
-  const valid = ROOM_PASSWORD_RE.test(pw);
+  if (!isHost) {
+    return html`<div class=${`rs-access rs-access--ro${on ? ' is-private' : ''}`} data-testid="room-access" title=${t('房间权限')}>
+      <${Icon} name=${on ? 'lock' : 'users'} /><span>${on ? t('私密') : t('公开')}</span>
+    </div>`;
+  }
   const clean = (v) => v.replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 4);
-  const lock = () => { if (valid) { onLock?.(true, pw); setOpen(false); } };
-  return html`<span class="rs-lockwrap">
-    <button type="button" class=${`rs-lockbtn${on ? ' is-on' : ''}`} data-testid="room-lock" aria-expanded=${open ? 'true' : 'false'}
-        onClick=${() => setOpen((v) => !v)} title=${on ? t('密码') : t('锁定房间')}>
-      <${Icon} name="lock" /><span class="num">${on ? room.password : t('上锁')}</span>
-    </button>
-    ${open ? html`<div class="rs-lockbox" role="dialog" aria-label=${t('锁定房间')}>
-      <label class="rs-lockbox__pw"><span>${t('密码')}</span>
-        <input class="num" data-testid="room-lock-password" value=${pw} maxLength=${4} placeholder="ABCD" autoComplete="off" spellCheck=${false}
-          ref=${(el) => { if (el && !el.dataset.f) { el.dataset.f = '1'; setTimeout(() => el.focus(), 40); } }}
-          onInput=${(e) => setPw(clean(e.currentTarget.value))} onKeyDown=${(e) => { if (e.key === 'Enter') { e.preventDefault(); lock(); } }} /></label>
-      <small class="rs-lockbox__hint">${t('4 个字母。锁定后，加入房间（包括邀请链接）需要输入密码。')}</small>
-      <div class="rs-lockbox__actions">
-        ${on ? html`<button type="button" class="rs-lockbox__off" data-testid="room-unlock" disabled=${!!busy} onClick=${() => { onLock?.(false); setOpen(false); }}>${t('解锁')}</button>` : null}
-        <button type="button" class="rs-lockbox__on" data-testid="room-lock-apply" disabled=${!!busy || !valid || (on && pw === room.password)} onClick=${lock}>
-          <${Icon} name="lock" />${on ? t('更新密码') : t('锁定房间')}</button>
-      </div>
-    </div>` : null}
-  </span>`;
+  // private again: the server brings back the room's last password (room.setLock { on: true } without one)
+  const pick = (priv) => { if (busy || priv === on) return; onLock?.(priv); };
+  // 4 letters that differ: saved; anything else: the room's own back in the field
+  const commit = () => {
+    if (ROOM_PASSWORD_RE.test(pw) && pw !== room.password) onLock?.(true, pw);
+    else setPw(room.password || '');
+  };
+  const opt = (priv, icon, label, id) => html`<button type="button" role="radio" aria-checked=${on === priv ? 'true' : 'false'} data-testid=${id}
+      class=${`rs-access__opt${on === priv ? ' is-on' : ''}`} disabled=${!!busy} onClick=${() => pick(priv)}><${Icon} name=${icon} />${label}</button>`;
+  const short = pw.length < 4;
+  return html`<div class=${`rs-access${on ? ' is-private' : ''}`} data-testid="room-access">
+    <div class="rs-access__seg" role="radiogroup" aria-label=${t('房间权限')}>
+      ${opt(false, 'users', t('公开'), 'room-public')}${opt(true, 'lock', t('私密'), 'room-private')}
+    </div>
+    ${on ? html`<label class=${`rs-access__pw${short ? ' is-short' : ''}`} title=${t('修改密码')}>
+      <span class="rs-access__pwk">${t('密码')}</span>
+      <input class="num" data-testid="room-password" value=${pw} maxLength=${4} autoComplete="off" spellCheck=${false} aria-label=${t('修改密码')}
+        onFocus=${(e) => e.currentTarget.select()}
+        onInput=${(e) => setPw(clean(e.currentTarget.value))}
+        onBlur=${commit}
+        onKeyDown=${(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+          else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setPw(room.password || ''); setTimeout(() => e.target.blur(), 0); }
+        }} />
+      <${Icon} name="edit" />
+    </label>` : null}
+  </div>`;
 }
 
 function AiTakeoverToggle({ option, busy, onToggle }) {
@@ -586,7 +589,8 @@ export function RoomScreen() {
   const [protoPick, setProtoPick] = useState(null);
   const [opts, setOpts] = useState(false);
   useSearchNotice(room, me.playerId);
-  const [findMates, setFindMates] = useFindMates();
+  // (fork) a Grand Alliance's switch is remembered apart from a normal room's, on by default (DESIGN §90.4)
+  const [findMates, setFindMates] = useFindMates(isLargeRoom(room));
   // the host's change of difficulty, told to the others (see the header); never on entering a room or switching rooms
   const seenDiff = useRef(room ? `${room.code}|${room.difficulty}` : '');
   useEffect(() => {
@@ -653,7 +657,7 @@ export function RoomScreen() {
   const setAiTakeover = (on) => run('aihandover', () => net.request('room.setAiTakeover', { on }));
   const setAiLast = (on) => run('ailast', () => net.request('room.setAiPicksLast', { on }));
   // (fork) a large room (shared/largeRoom.js): the list switch, sitting elsewhere, the host's seat swap (two taps)
-  const setLock = (on, password) => run('lock', () => net.request('room.setLock', on ? { on, password } : { on }));
+  const setLock = (on, password) => run('lock', () => net.request('room.setLock', on && password ? { on, password } : { on }));
   const [swapFrom, setSwapFrom] = useState(null);
   const moveSeat = (seat) => run(`sit${seat}`, () => net.request('room.moveSeat', { seat }));
   const swap = (a, b) => {
@@ -803,10 +807,10 @@ export function RoomScreen() {
       </div>
       <div class="rs-top__right">
         <${LoadoutButton} from="room" size="md" class="hub-plate hub-plate--loadout rs-loadout room-loadout" label=${t('干员调配')} />
+        ${isLargeRoom(room) ? html`<${RoomAccess} room=${room} isHost=${facts.isHost && !facts.spectating} busy=${busy} onLock=${setLock} />` : null}
         ${coop ? html`<div class="rs-key">
           <span class="rs-key__k">${t('同盟密钥')}</span>
           <b class="rs-key__code num selectable" aria-label=${t('同盟密钥 {code}', { code: room.code })}>${room.code}</b>
-          ${isLargeRoom(room) && facts.isHost ? html`<${RoomLock} room=${room} busy=${busy} onLock=${setLock} />` : null}
           <button type="button" class="rs-key__copy" onClick=${() => copy('code')} title=${t('复制密钥')}>${t('复制')}</button>
           <button type="button" class="rs-key__link" onClick=${() => copy('link')} title=${t('复制链接')} aria-label=${t('复制链接')}><${Icon} name="link" /></button>
         </div>` : html`<div class="rs-key rs-key--solo"><${MicroLabel}>SINGLE OPERATOR<//><span>${t('仅限 1 名博士')}</span></div>`}
