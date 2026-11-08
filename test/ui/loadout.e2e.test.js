@@ -7,8 +7,9 @@
 // (auto-close when INFO_CHECK ends). Phone 844×390 (touch): the cards → tap a card → the drawer over the deck → 收起.
 // (fork) 干员调配's card view is the only view since 2026-11-08: these runs drive the cards (search through 筛选, the
 // drawer's detail, 更多's 导出 / 导入) where they drove the list's rows.
-// Module cards: the official module type icons from the local-client art (data/local-assets.json groups.module, optional)
-// or the lettered tiles without it → test/e2e/out/module-icons.png.
+// Module cards: the official module type icons from the local-client art (data/local-assets.json groups.module, optional),
+// else the asset pipeline's (data/assets.json modules, fetched into public/assets/module/), else the lettered tiles
+// → test/e2e/out/module-icons.png.
 // Every page must finish with zero console errors / page errors / failed requests. Screenshots: test/e2e/out/loadout-*.png
 
 import { seedReleaseRead } from '../helpers/releaseNotes.js';
@@ -31,6 +32,15 @@ const INSIDE_CHAR = 'char_498_inside';
 /** Whether this machine has the extracted module type icons (local-client art is optional, DESIGN §13). */
 function localModuleIcons() {
   try { return !!JSON.parse(readFileSync(path.join(ROOT, 'data/local-assets.json'), 'utf8'))?.groups?.module; } catch { return false; }
+}
+/** The asset pipeline's module type icon of a type ('PRI-X' → '/assets/module/pri-x.png') when the manifest lists it and
+ * the file was fetched; null otherwise (the tile then falls back to its letter). */
+function pipelineModuleIcon(type) {
+  try {
+    const mods = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8'))?.modules || {};
+    const url = mods[type] || mods[type.toLowerCase()];
+    return typeof url === 'string' && existsSync(path.join(ROOT, 'public', url)) ? url : null;
+  } catch { return null; }
 }
 
 describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
@@ -381,7 +391,7 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
     await ctx.close();
   });
 
-  test('module cards: official type icons (PRI-X.png / pri-y.png, matched case-insensitively) or lettered tiles', async () => {
+  test('module cards: official type icons (local PRI-X.png / pri-y.png, matched case-insensitively; else the pipeline icons) or lettered tiles', async () => {
     const { ctx, page, problems } = await open();
     await clickSel(page, '.lobby-screen [data-testid="loadout-open"]');
     await loadoutFind(page, '烛煌');
@@ -400,7 +410,13 @@ describe('干员调配 overlay (real server, headless Chrome)', { skip: !ENABLED
       for (const t of tiles) assert.match(t.src || '', new RegExp(`^/assets/(?:~[0-9a-f]{16}/)?local/module/${t.type}\\.png$`, 'i'), JSON.stringify(t));
       assert.ok(await page.$('.lo-minfo__title .lo-minfo__icon'), 'the selected module\'s info shows its icon too');
     } else {
-      for (const t of tiles) assert.equal(t.letter, t.type.slice(-1), JSON.stringify(t));
+      // no local-client art: the pipeline's icon where it was fetched (the same file name, hashed like every served URL),
+      // the type letter where it was not
+      for (const t of tiles) {
+        const url = pipelineModuleIcon(t.type);
+        if (url) assert.match(t.src || '', new RegExp(`^/assets/(?:~[0-9a-f]{16}/)?${url.slice('/assets/'.length).replace(/[.]/g, '\\.')}$`), JSON.stringify(t));
+        else assert.equal(t.letter, t.type.slice(-1), JSON.stringify(t));
+      }
     }
     await page.hover('.lo-detail .lo-mod[data-module]:not(.is-on):not(.lo-mod--none)');
     await page.screenshot({ path: path.join(OUT, 'module-icons.png') });

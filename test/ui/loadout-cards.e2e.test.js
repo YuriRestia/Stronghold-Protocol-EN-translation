@@ -185,7 +185,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       assert.equal(deck.cards, 112, 'every visible chess as a card');
       assert.equal(deck.sides, 112, 'every card has its skill / module column');
       assert.deepEqual(deck.modsShown, ['flex/none'], 'a tall screen lists every module, the stepping button hidden');
-      assert.deepEqual(deck.switch, [['loadout-compact', 'true'], ['loadout-details', 'false']], '简洁 / 展开 in the bottom bar, 简洁 on');
+      assert.deepEqual(deck.switch, [['loadout-compact', 'true'], ['loadout-details', 'false'], ['loadout-outfitview', 'false']], '简洁 / 展开 / 时装 in the bottom bar, 简洁 on');
       assert.equal(deck.quick, false, '快速配置 is gone');
       assert.deepEqual(deck.groups, [1, 2, 3, 4, 5, 6]);
       assert.deepEqual(deck.diy, [5, 5, 6, 6], 'one card per 自选编队 slot closes tiers 5 and 6');
@@ -206,38 +206,46 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       }
       await page.waitForFunction(() => !document.querySelector('.lo')?.getAnimations({ subtree: true })
         .some((a) => /^lo-tr-/.test(String(a.animationName)) && a.playState === 'running'));
-      // the column stays inside its card: no button past the card's edge, the portrait not covered
+      // the column stays inside its card: no button past the card's edge, the column itself within the card (the portrait
+      // is the whole card's background since the card view of 2026-11-09, so the column sits over its shaded side)
       await layoutAll(page, true);
       const col = await page.evaluate(() => [...document.querySelectorAll('.lo-op[data-chess]')].map((op) => {
         const card = op.querySelector('.lo-op__card').getBoundingClientRect();
-        const art = op.querySelector('.lo-op__art').getBoundingClientRect();
         const side = op.querySelector('.lo-op__side').getBoundingClientRect();
         const btns = [...op.querySelectorAll('.lo-op__side .lo-q')].filter((b) => b.getClientRects().length).map((b) => b.getBoundingClientRect());
-        return { id: op.dataset.chess, at: [Math.round(card.left), Math.round(card.right), Math.round(card.bottom), Math.round(art.right), Math.round(side.left), ...btns.map((b) => Math.round(b.bottom))].join(' '), out: btns.some((b) => b.bottom > card.bottom + 0.5 || b.right > card.right + 0.5), over: side.left < art.right - 0.5, small: Math.min(...btns.map((b) => b.height)) };
+        return { id: op.dataset.chess, at: [Math.round(card.left), Math.round(card.right), Math.round(card.bottom), Math.round(side.left), Math.round(side.right), ...btns.map((b) => Math.round(b.bottom))].join(' '), out: btns.some((b) => b.bottom > card.bottom + 0.5 || b.right > card.right + 0.5), over: side.left < card.left - 0.5 || side.right > card.right + 0.5, small: Math.min(...btns.map((b) => b.height)) };
       }));
-      assert.deepEqual(col.filter((c) => c.out || c.over).map((c) => `${c.id} ${c.at}`), [], 'every column inside its card, beside the portrait');
+      assert.deepEqual(col.filter((c) => c.out || c.over).map((c) => `${c.id} ${c.at}`), [], 'every column inside its card');
       assert.ok(col.every((c) => c.small >= 30), `desktop buttons ≥ 30 px (${Math.min(...col.map((c) => c.small))})`);
       await layoutAll(page, false);
       await page.screenshot({ path: path.join(OUT, 'loadout-cards-desktop.png') });
 
-      // a card opens the drawer with the list's own detail; the same card again closes it
+      // a card opens the drawer with the list's own detail; the same card again closes it. The drawer is a pure overlay
+      // over the deck's left (screens/loadoutDeck.js DeckDrawer, the user's call of 2026-11-09): the deck neither makes
+      // room nor scrolls, so the picked card keeps its place — under the drawer, if it lay there
+      const where = (id) => page.evaluate((id) => ({ scroll: Math.round(document.querySelector('[data-testid="loadout-deck"]').scrollLeft),
+        left: Math.round(document.querySelector(`.lo-op[data-chess="${id}"]`).getBoundingClientRect().left) }), id);
+      const before = await where(INSIDE);
       await page.click(`.lo-op[data-chess="${INSIDE}"] .lo-op__pick`);
       await page.waitForSelector('[data-testid="loadout-drawer"] .lo-detail .lo-skill', { visible: true });
       assert.equal(await page.$eval('[data-testid="loadout-drawer"] .lo-dhead__name', (el) => el.textContent.trim()), '隐现');
-      const covered = await page.evaluate((id) => {
-        const card = document.querySelector(`.lo-op[data-chess="${id}"]`).getBoundingClientRect();
-        const drawer = document.querySelector('.lo-drawer').getBoundingClientRect();
-        return card.left >= drawer.right - 1;
-      }, INSIDE);
-      assert.ok(covered, 'the picked card stays visible beside the drawer');
+      await new Promise((r) => setTimeout(r, 300));
+      assert.deepEqual(await where(INSIDE), before, 'the drawer opens over the deck: no room made, no scroll');
+      assert.equal(await page.evaluate(() => Math.round(document.querySelector('.lo-drawer').getBoundingClientRect().left)
+        - Math.round(document.querySelector('[data-testid="loadout-deck"]').getBoundingClientRect().left) <= 1), true, 'the drawer lies over the deck\'s left');
       await page.screenshot({ path: path.join(OUT, 'loadout-cards-drawer.png') });
-      await page.click(`.lo-op[data-chess="${INSIDE}"] .lo-op__pick`);
+      // a tier-1 card clear of the drawer (隐现's lies under it) for the same-card toggle below
+      const OTHER = await page.evaluate(() => {
+        const right = document.querySelector('.lo-drawer').getBoundingClientRect().right;
+        return [...document.querySelectorAll('.lo-tgroup[data-tier="1"] .lo-op[data-chess]')].find((el) => el.getBoundingClientRect().left >= right + 1)?.dataset.chess;
+      });
+      assert.ok(OTHER, 'a tier-1 card beside the drawer');
+      await page.click('.lo-drawer__close');
       await page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true });
 
       // the card's column: S1 is stored like the list's quick buttons; the modules (every one a button on this tall screen)
       // 不装备, then the module again; none of it opens the drawer or moves the selection (stored by operator: sp.pref.loadout
       // v2, DESIGN §35.23 — 隐现 is char_498_inside)
-      const OTHER = await page.$eval('.lo-tgroup[data-tier="1"] .lo-op[data-chess]:nth-child(2)', (el) => el.dataset.chess);
       await page.click(`.lo-op[data-chess="${OTHER}"] .lo-op__pick`);
       await page.waitForSelector('[data-testid="loadout-drawer"]', { visible: true });
       await page.click(`.lo-op[data-chess="${OTHER}"] .lo-op__pick`);
@@ -340,6 +348,13 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
 
       // a 自选编队 slot card opens that slot's picker as a page of its own in place of the deck (no 自选编队 overview, no
       // layer over a live deck); Esc (and the top bar's 干员调配) returns to the deck where it was, without its opening 转场
+      // the tier jump glides (scrollTo smooth): read the deck once it has stopped, not mid-glide
+      await page.evaluate(() => new Promise((done) => {
+        const d = document.querySelector('.lo-deck');
+        let last = -1, still = 0;
+        const tick = () => { if (d.scrollLeft === last) still++; else { still = 0; last = d.scrollLeft; } if (still >= 6) done(); else requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+      }));
       const slotScroll = await page.$eval('.lo-deck', (d) => d.scrollLeft);
       await page.$eval('.lo-op--diy[data-diy-tier="6"]', (e) => (e.querySelector('[data-testid="diy-slot-change"]') || e).click()); // (a DOM click: puppeteer's would scroll it into view first; a filled slot: its change button)
       await page.waitForSelector('[data-testid="diy-picker"] .diy-opt', { visible: true });
@@ -399,7 +414,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       await page.waitForFunction(() => !document.querySelector('.lo')?.getAnimations({ subtree: true })
         .some((an) => an.playState === 'running' && an.effect?.getTiming().iterations !== Infinity), { timeout: 5000 });
       await page.screenshot({ path: path.join(OUT, 'loadout-cards-locked.png') });
-      await page.click(`.lo-op[data-chess="${INSIDE}"] .lo-op__pick`);
+      await page.click('.lo-drawer__close'); // 隐现's card lies under the drawer (a pure overlay)
       await page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true });
       await clickSel(page, '[data-testid="loadout-details"]');
       await page.waitForSelector('.lo-deck.is-details .lo-op__more', { visible: true });
