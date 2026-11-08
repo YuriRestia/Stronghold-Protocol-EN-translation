@@ -707,7 +707,8 @@ export function LobbyScreen() {
   const [busy, setBusy] = useState(null);
   const [recent] = useState(recentRooms);
   const marks = loadPref('recentTestRooms', []);
-  const [sweepOpen, setSweepOpen] = useState(false);
+  // the report: null (closed) | { restore } — restore: how 干员调配's 返回 brings it back (screens/sweep.js)
+  const [sweep, setSweep] = useState(null);
   const [achOpen, setAchOpen] = useState(false);
   const [coarse] = useState(() => detectFeatures().coarse);
   const shortScreen = useMediaQuery(SHORT_SCREEN_QUERY);
@@ -821,7 +822,7 @@ export function LobbyScreen() {
         <${TipsPanel} />
       </aside>
       <aside class="hub-right">
-        <${SweepPlate} onClick=${() => setSweepOpen(true)} />
+        <${SweepPlate} onClick=${() => setSweep({ restore: null })} />
         <${LoadoutButton} from="lobby" size="lg" class="hub-plate hub-plate--loadout lobby-loadout" label=${t('干员调配')} />
         <${AchievementPlate} onOpen=${() => setAchOpen(true)} />
       </aside>
@@ -848,7 +849,7 @@ export function LobbyScreen() {
       onClose=${() => setMatchOpen(false)} onCreate=${joinQueue} busy=${busy} online=${online} difficulties=${coop}
       loading=${versionLoading} failed=${versionFailed} action=${/* en: "Start Matchmaking" */ t('开始匹配')}
       hint=${/* en: "The simulation starts as soon as 4 Doctors are found" */ t('凑齐 4 名博士后立即开始模拟')} />` : null}
-    ${sweepOpen ? html`<${SweepReport} onClose=${() => setSweepOpen(false)} />` : null}
+    ${sweep ? html`<${SweepReport} restore=${sweep.restore} onClose=${() => setSweep(null)} onReopen=${(restore) => setSweep({ restore })} />` : null}
     ${achOpen ? html`<${AchievementDialog} onClose=${() => setAchOpen(false)} />` : null}
   </div>`;
 }
