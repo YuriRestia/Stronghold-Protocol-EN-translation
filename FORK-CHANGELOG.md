@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Chat button on small touch screens without the client art
+
+- When the game runs without the local client art (for example a lite install), the Chat button falls back to a plain text button. On a 640×360 phone that button was only 22 px tall, squeezed between the settings gear just above and the screen edge, so its tap area was 31 px, below the 34 px minimum. On touch screens the text button is now as tall as the art button (35 px), so the corner keeps the same layout with or without the art. The art button is unchanged.
+
 ### Bot helper review fixes
 
 - A host's page could claim "my bot helper is still starting" on every bot turn and hold each bot for up to 40 s. The server now allows that start time only until the helper has been up once on the connection, and again after a reconnect.
@@ -163,7 +167,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -266,10 +270,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -387,7 +391,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -712,7 +716,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

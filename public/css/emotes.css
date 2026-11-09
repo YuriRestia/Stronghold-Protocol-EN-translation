@@ -181,6 +181,9 @@
 
 @media (pointer: coarse) {
   .ewheel__btn.has-sprite { --ewb-w: max(1.51rem, 32px, calc(96px * var(--sp-ui, 1))); }
+  /* no local client art (data/local-assets.json absent, e.g. a lite install): the text button keeps the sprite's height,
+     so on a 640×360 phone its tap area is not squeezed to 31 px between ⚙ just above and the screen edge below */
+  .ewheel__btn:not(.has-sprite) { min-height: calc(max(1.51rem, 32px, calc(96px * var(--sp-ui, 1))) * 55 / 151); }
 }
 
 @media (prefers-reduced-motion: reduce) {
