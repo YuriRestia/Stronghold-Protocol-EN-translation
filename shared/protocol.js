@@ -758,6 +758,8 @@ export const S2C = [
   // b.rehearsalCancel { taskId } — the server dropped that task (it timed out, the host changed, the prep ended):
   // the executor drops it too, and only a running simulation (the Worker) is really stopped
   'b.rehearsal', 'b.rehearsalCancel',
+  // (fork) b.rehearsalWarm {} — delegated rehearsals will come this match: start the rehearsal Worker once the screen has settled
+  'b.rehearsalWarm',
   // (fork) a bot field's real battle (docs/host-browser-bots.md B13): b.botBattle { battleId, spec } — run it in a Worker and
   // answer with a C2S b.botBattleResult · b.botBattleCancel { battleId } — the server no longer waits for it
   'b.botBattle', 'b.botBattleCancel',

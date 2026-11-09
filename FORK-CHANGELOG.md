@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Bot rehearsals in the host's browser answer from round 1
+
+- With the optional host rehearsal setting on, the host's browser now starts its rehearsal helper during the briefing, once the screen has loaded, instead of on round 1's first task. Round 1's AI layouts used to miss their short answer window while the helper started, so the server always worked them out itself. Nothing changes with the setting off (the default).
+
 ### Spectate, filter popover, Final Assault watch, protocol list
 
 - Pressing Spectate right after entering the lobby could fail with "too many requests", because entering the lobby spends the server's budget for heavy messages (loadout, ownership, outfits and more). Spectate now tries again after 1.2 s, at most twice. Proposing a version already did this.

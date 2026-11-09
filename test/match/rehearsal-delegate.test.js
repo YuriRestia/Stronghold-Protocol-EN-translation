@@ -109,6 +109,7 @@ test('delegation off (the default): no rehearsal is ever offered to a browser', 
   const { h, host } = playTo(3, { hostId: 'p_0' });
   assert.equal(h.m.botRehearsalDelegate, false);
   assert.equal(host.tasks.length, 0);
+  assert.equal(h.allTo('p_0', 'b.rehearsalWarm').length, 0, 'and no warm-up');
   assert.deepEqual(h.m.rehearsalStats, { delegated: 0, answered: 0, takeovers: 0 });
   h.m.dispose();
 });
@@ -274,6 +275,24 @@ test('an invalid or malformed answer is refused: the server rehearses the candid
     local.h.m.dispose();
     wrong.h.m.dispose();
   }
+});
+
+test('the host is told at the briefing that rehearsals will come (b.rehearsalWarm), and so is a new host', () => {
+  const h = coopMatch({ botRehearsalDelegate: true, hostId: 'p_0' });
+  h.run(() => h.m.phase !== PHASE.LOBBY || h.ended != null, { maxSteps: 1e5 });
+  assert.equal(h.allTo('p_0', 'b.rehearsalWarm').length, 1, 'once, before any task');
+  assert.equal(h.allTo('p_1', 'b.rehearsalWarm').length, 0, 'only the host');
+  assert.equal(h.m.rehearsalStats.delegated, 0);
+  h.m.setHost('p_1');
+  assert.equal(h.allTo('p_1', 'b.rehearsalWarm').length, 1);
+  h.m.setHost('ai_0');
+  assert.equal(h.allTo('ai_0', 'b.rehearsalWarm').length, 0, 'never an AI seat');
+  h.m.dispose();
+  // a gameplay-plugin room is rehearsed on the server: nothing to warm
+  const plugin = coopMatch({ botRehearsalDelegate: true, hostId: 'p_0', cs: 'a'.repeat(64), requireCs: true });
+  plugin.run(() => plugin.m.phase !== PHASE.LOBBY || plugin.ended != null, { maxSteps: 1e5 });
+  assert.equal(plugin.allTo('p_0', 'b.rehearsalWarm').length, 0);
+  plugin.m.dispose();
 });
 
 test('without a host (no room host, or a bot / disconnected one) the server rehearses locally', () => {
