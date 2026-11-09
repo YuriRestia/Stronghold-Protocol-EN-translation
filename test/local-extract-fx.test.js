@@ -415,6 +415,18 @@ print(json.dumps([fx.graph_projectiles(state), fx.graph_projectiles('not json'),
     assert.deepEqual(out[2], ['oxi', 'tocka', 'aglna2', null, null, null]);
   });
 
+  test('(fork) unit_owner_codes / template_owned: our operators\', enemies\' and seasons\' templates (冻河 S3, a bond\'s sub-templates, an item by its code)', () => {
+    const out = py(`
+owners = fx.unit_owner_codes(['char_4244_tocka', 'char_249_mlyss', 'odd'], ['enemy_1539_reid', 'enemy_1005_yokai_2', 'nope'])
+refs = {'act2autochess_bond_eff_kazimierz', 'act1autochess_acarm045_buff'}
+print(json.dumps([sorted(owners), [fx.template_owned(k, owners, refs) for k in (
+  'tocka_s3[trigger]', 'mlyss_wtrman_s_1[effect_trigger]', 'enemy_reid_cast_effect', 'enemy_yokai[x]', 'enemy_mcnist_shield',
+  'act2autochess_bond_eff_kazimierz[ex][damage]', 'act1autochess_acarm045_buff', 'act2autochess_bond_eff_siracusa[ex][buff]',
+  'trap_ads_t_1', 'tockafoo_s1', '', None)]]))`);
+    assert.deepEqual(out[0], ['enemy_reid', 'enemy_yokai', 'mlyss', 'tocka']);
+    assert.deepEqual(out[1], [true, true, true, true, false, true, true, false, false, false, false, false]);
+  });
+
   test('(fork) graph_projectiles: a blackboard default its emitter reads (凛御银灰 S3: the birds); other defaults are no shots', () => {
     const out = py(`
 state = json.dumps([

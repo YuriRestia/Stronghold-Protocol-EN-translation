@@ -950,11 +950,13 @@ def string_values(v, out):
 class Exporter:
     """Writes the descriptors, textures and meshes of the effect prefabs of one AssetEnv into <out>/fx."""
 
-    def __init__(self, env, out_root, log=print, texture_format='webp'):
+    def __init__(self, env, out_root, log=print, texture_format='webp', keep_existing=False):
         self.env = env
         self.out = Path(out_root) / FX_SUB
         self.log = log
         self.texture_format = texture_format
+        # (fork) an add-only run never rewrites a file already there (the texture and mesh names hash their content)
+        self.keep_existing = keep_existing
         self.textures = {}      # key → meta
         self.meshes = {}        # key → meta
         self._tex_keys = {}     # (file id, path id) → key
@@ -1001,11 +1003,13 @@ class Exporter:
         meta.update({'wrapU': ['repeat', 'clamp', 'mirror', 'mirrorOnce'][min(3, ts.get('m_WrapU', 0))],
                      'wrapV': ['repeat', 'clamp', 'mirror', 'mirrorOnce'][min(3, ts.get('m_WrapV', 0))],
                      'filter': ['point', 'bilinear', 'trilinear'][min(2, ts.get('m_FilterMode', 1))], 'aniso': ts.get('m_Aniso', 0)})
-        save_texture(img, full, suffix)
+        if not (self.keep_existing and full.exists()):
+            save_texture(img, full, suffix)
         if t.m_Width >= HALF_MIN and t.m_Height >= HALF_MIN:
             size = (max(1, t.m_Width // 2), max(1, t.m_Height // 2))
             small = img.convert('RGBa').resize(size, Image.LANCZOS).convert('RGBA') if has_alpha else img.resize(size, Image.LANCZOS)
-            save_texture(small, half, suffix)
+            if not (self.keep_existing and half.exists()):
+                save_texture(small, half, suffix)
             meta['half'] = f'tex/half/{key}.{suffix}'
         self.textures[key] = meta
         return key
@@ -1050,7 +1054,8 @@ class Exporter:
         key = f'{FX_SAFE.sub("_", m.m_Name or "mesh").strip("._") or "mesh"}-{hashlib.sha1(body.encode()).hexdigest()[:8]}'
         if key not in self.meshes:
             path = self.out / 'mesh' / f'{key}.json'
-            write_atomic(path, body.encode('utf-8'))
+            if not (self.keep_existing and path.exists()):
+                write_atomic(path, body.encode('utf-8'))
             self.meshes[key] = {'name': m.m_Name, 'verts': h.m_VertexCount, 'file': f'mesh/{key}.json'}
         return key
 
@@ -1172,7 +1177,8 @@ class Exporter:
                'nodes': nodes, 'materials': ctx.materials, 'clips': ctx.clips, 'textures': sorted(ctx.tex_used),
                'meshes': sorted(ctx.mesh_used), 'refs': sorted(refs), 'stats': stats}
         body = json.dumps(doc, ensure_ascii=False, separators=(',', ':'))
-        write_atomic(self.out / 'prefabs' / f'{fx_file(key)}.json', body.encode('utf-8'))
+        if not (self.keep_existing and (self.out / 'prefabs' / f'{fx_file(key)}.json').exists()):
+            write_atomic(self.out / 'prefabs' / f'{fx_file(key)}.json', body.encode('utf-8'))
         spawn, follow = prefab_anchor(nodes)
         return {'file': f'prefabs/{fx_file(key)}.json', 'bundle': bundle, 'bytes': len(body),
                 'textures': sorted(ctx.tex_used), 'meshes': sorted(ctx.mesh_used), 'refs': sorted(refs), **stats,
@@ -2043,6 +2049,29 @@ def template_owner(tkey):
     return m.group(0) if m else None
 
 
+def unit_owner_codes(chars, enemies):
+    """(fork) The template owners of our units (template_owned): the operators' codes (`tocka` of char_4244_tocka; their
+    tokens' templates carry them too, mlyss_wtrman_s_1) and the enemies' as `enemy_<code>` (enemy_reid of
+    enemy_1539_reid: enemy_reid_cast_effect)."""
+    owners = {u.split('_', 2)[2] for u in chars if u.count('_') >= 2}
+    for e in enemies:
+        m = re.match(r'enemy_\d+_([a-z0-9]+)', e or '')
+        if m:
+            owners.add('enemy_' + m.group(1))
+    return owners
+
+
+def template_owned(tkey, owners, refs=()):
+    """(fork) Whether a buff template is one of our units' or our seasons': named after an owner code (unit_owner_codes;
+    an enemy's by its second word) or, without its `[…]` parts, a buff key our data names (`refs`: the seasons' bonds,
+    bands and items — act2autochess_bond_eff_kazimierz[ex][damage] of the Kazimierz bond)."""
+    own = template_owner(tkey)
+    if own == 'enemy':
+        m = re.match(r'enemy_([a-z0-9]+)(?=[_\[]|$)', tkey)
+        own = 'enemy_' + m.group(1) if m else None
+    return (own is not None and own in owners) or tkey in refs or str(tkey or '').split('[', 1)[0] in refs
+
+
 def graph_links(state):
     """What an action graph does to abilities, modes and buffs (v3): (abilities: [[action type, ability name | None (the
     buff's blackboard `ability_name`), 'cast' | 'stop']…] — TRIGGER_ACTION / STOP_ACTION nodes, switches: [[mode index |
@@ -2697,10 +2726,12 @@ def skill_entry(env, root, ek, pk, effect_refs, templates):
     return e
 
 
-def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, template_owners=None):
+def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, template_owners=None, template_refs=None):
     """index.json's units / projectiles / skills / skins for `unit_ids`, and every effect key they reference.
-    `template_owners` (fork; operator codes): the projectiles that only a buff template of theirs fires (塔露拉 S3's
-    簇火: oxi_s_3_wave's graph, no prefab names it) get their records too, whichever units this run crawls."""
+    `template_owners` (fork; unit_owner_codes) and `template_refs` (fork; the seasons' buff keys, template_owned): the
+    projectiles that only a buff template of theirs fires (塔露拉 S3's 簇火: oxi_s_3_wave's graph, no prefab names it) get
+    their records too, and the effects only such a template names join the referenced keys, whichever units this run
+    crawls."""
     units, projectiles, skills, skins, referenced = {}, {}, {}, {}, set()
     shared = AssetEnv(ab_root, cabs)                           # [uc]projectiles.ab and [uc]skills.ab, loaded once
     proj_roots = shared.prefabs(PROJECTILES)
@@ -3133,10 +3164,21 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, tem
             f'({", ".join("{} {}".format(k, sum(1 for a in ab if a["kind"] == k)) for k in ("common", "general", "trait"))}); '
             f'when: {", ".join(f"{k} {v}" for k, v in sorted(whens.items(), key=lambda kv: str(kv[0])))}; '
             f'{sum(1 for n in [n for t in tk for n in t["nodes"]] + ab if n.get("triggers"))} with template triggers')
-    for tkey, t in sorted(templates.items()):
-        if template_owners and template_owner(tkey) in template_owners:
-            for p in t.get('projectiles') or []:
-                projectile(p)
+    # (fork) our units' and seasons' templates (template_owned) and the templates they create: their shots, and the
+    # effects only their graphs name (冻河 S2 / S3's buffs: CreateEffect / overrideEffectKey of a template no prefab reaches)
+    todo = sorted((k for k in templates if template_owners and template_owned(k, template_owners, template_refs or ())),
+                  reverse=True)
+    seen = set()
+    while todo:
+        tkey = todo.pop()
+        if tkey in seen or tkey not in templates:
+            continue
+        seen.add(tkey)
+        t = templates[tkey]
+        for p in t.get('projectiles') or []:
+            projectile(p)
+        referenced.update(k for k in [t.get('effect')] + [g[3] for g in t.get('graph') or []] if k)
+        todo.extend(k for k in reversed(t.get('creates') or []) if k not in seen)
     for p in projectiles.values():
         referenced.update(p['effects'])
     return units, projectiles, skills, skins, referenced
@@ -3149,10 +3191,10 @@ def _export_worker(args, keys_all=None):
     (entries, textures meta, meshes meta, log lines)."""
     if keys_all is not None:
         _init_worker(keys_all)
-    ab_root, out_root, cabs, rel, keys, texture_format = args
+    ab_root, out_root, cabs, rel, keys, texture_format, *rest = args
     lines = []
     env = AssetEnv(ab_root, cabs)
-    ex = Exporter(env, out_root, lines.append, texture_format=texture_format)
+    ex = Exporter(env, out_root, lines.append, texture_format=texture_format, keep_existing=bool(rest and rest[0]))
     entries = {}
     try:
         roots = env.prefabs(rel)
@@ -3194,6 +3236,19 @@ def game_data(root):
                     combined.setdefault(uid, rec)
         return combined
     chess, backups, enemies, tokens = load('chess.json'), load('backups.json'), load('enemies.json'), load('tokens.json')
+    # (fork) the seasons' own buff keys (bonds, bands, items: act2autochess_bond_eff_kazimierz…): template_owned
+    season_buffs = set()
+    for folder in [data] + sorted((data / 'versions').glob('*')):
+        for n in ('bonds.json', 'bands.json', 'items.json', 'effects.json'):
+            try:
+                text = (folder / n).read_text(encoding='utf-8')
+            except OSError:
+                continue
+            season_buffs.update(re.findall(r'"([a-z0-9]+autochess_[A-Za-z0-9_]+)"', text))
+    # an item's own template is named after its code (act1autochess_acarm045_buff), its data's global buff not
+    # (act1autochess_equip_acarm045_global_buff) [ASSUMED: by the names]
+    season_buffs |= {f'{m.group(1)}_{m.group(2)}_buff' for k in list(season_buffs)
+                     for m in [re.match(r'([a-z0-9]+autochess)_equip_(acarm\d+)_', k)] if m}
     chars, skills = [], {}
     for v in chess.values():
         cid = v.get('charId')
@@ -3241,7 +3296,7 @@ def game_data(root):
                 skills.setdefault(cid, set()).add(sid)
     return {'chars': chars, 'skills': {k: sorted(v) for k, v in skills.items()}, 'enemies': sorted(enemies), 'tokens': toks,
             'skillOverrides': skill_overrides(chars, char_table),
-            'tokenSkills': token_skills,
+            'tokenSkills': token_skills, 'seasonBuffs': sorted(season_buffs),
             'talentKeys': talent_keys(chars + toks, char_table,
                                       load_excel('battle_equip_table.json'), load_excel('uniequip_table.json')),
             'enemyTalentKeys': {k: enemy_talent_prefixes(v) for k, v in enemies.items() if isinstance(v, dict)}}
@@ -3367,10 +3422,11 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         if any(u.startswith('enemy_') for u in unit_ids) else {}
     token_idx = container_index(ab_root, (TOKEN_GLOB,), root / '.cache/fx/tokens.json', jobs, log) \
         if any(not u.startswith(('char_', 'enemy_')) for u in unit_ids) else {}
-    # (fork) a full or add-only `used` run: the operators' template-only projectiles (their effects join `referenced`)
-    owners = {u.split('_', 2)[2] for u in gd['chars'] if u.count('_') >= 2} if selection == 'used' and not keys else None
+    # (fork) a full or add-only `used` run: our units' and seasons' template-only projectiles and effects (template_owned)
+    owners = unit_owner_codes(gd['chars'], gd['enemies']) if selection == 'used' and not keys else None
     units, projectiles, skills, skins, referenced = crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log,
-                                                                template_owners=owners)
+                                                                template_owners=owners,
+                                                                template_refs=set(gd.get('seasonBuffs') or ()))
     timings['units'] = time.time() - t0
 
     generic = {v for group in FX_GENERIC.values() for v in group.values()}
@@ -3408,7 +3464,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
             for k in sorted(todo):
                 by_bundle.setdefault(eff[k], []).append(k)
             log(f'fx: pass {rounds}: exporting {len(todo)} prefabs from {len(by_bundle)} bundles ({jobs} processes)')
-            work = [(str(ab_root), str(out_root), cabs, rel, ks, texture_format)
+            work = [(str(ab_root), str(out_root), cabs, rel, ks, texture_format, add_only)
                     for rel, ks in sorted(by_bundle.items(), key=lambda kv: -len(kv[1]))]
             results = list(pool.map(_export_worker, work)) if jobs > 1 and len(work) > 1 else [_export_worker(w, tuple(eff)) for w in work]
             done |= todo
