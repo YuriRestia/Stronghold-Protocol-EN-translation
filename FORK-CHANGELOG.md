@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Test a two-server release before players get it
+
+- `scripts/deploy-regions.mjs` now has `prepare` and `activate` as separate commands (`deploy` still does both). `prepare` starts the new version on every server without sending anyone there and prints its id and private test addresses; `activate <id>` switches every server, and refuses without switching any unless the version is ready on all of them with the same build (new `generations.mjs check <id>`). A prepared version now waits 4 hours for its activate instead of 1, so a private test fits.
+
 ### Returning players load the game's code from their own browser
 
 - Behind the zero-downtime generations (a hosted server), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when a CDN holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by a CDN. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. A CDN cache rule for scripts is no longer needed.

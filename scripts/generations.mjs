@@ -16,12 +16,16 @@
 //     server, so the same id and commit go to all of them in two steps. --gen <id> names it; --prepare starts it and lists
 //     it without making it current; --no-art skips the art download on a server that serves none (the US one).
 //   node scripts/generations.mjs activate <gen>             make a prepared generation current
+//   node scripts/generations.mjs check <gen>                (fork) can <gen> be activated here? one [check] {json} line,
+//                                                          exit 1 if not (no root needed; deploy-regions.mjs reads it)
 //   node scripts/generations.mjs reap                       stop retired generations that are done (the 1-minute timer)
 //   node scripts/generations.mjs rollback                   a NEW generation of the newest older release's commit
 //   node scripts/generations.mjs status                     the table and each generation's /healthz
 //
 // A retiring generation stops when no human match is left and no socket is open, after IDLE_GRACE_MS without a human
 // match (settlement screens), when it no longer answers, or MAX_AGE_MS after it retired — whichever comes first.
+// (fork) A prepared generation is left alone for PREPARED_MAX_AGE_MS after it started (time for a private test), then
+// stopped as an abandoned deploy.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -38,6 +42,12 @@ export const MAX_AGE_MS = 60 * 60 * 1000;
  */
 export const LARGE_MAX_AGE_MS = 105 * 60 * 1000;
 export const IDLE_GRACE_MS = 10 * 60 * 1000;
+/**
+ * (fork) How long a prepared generation waits for its activate (scripts/deploy-regions.mjs prepare, then a private test on
+ * /_build/<gen>/, then activate) before reap treats the deploy as abandoned. Longer than MAX_AGE_MS so a 30-60 min test on
+ * the real servers fits after the slowest server's prepare; an idle prepared generation costs one port and ~100 MB.
+ */
+export const PREPARED_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 export const KEEP_RELEASES = 2;
 export const HEALTH_WAIT_MS = 180_000;
 /** gitignored parts of app/ every release links to (absent ones are skipped) */
@@ -82,6 +92,22 @@ export function activateGen(table, gen, now) {
 }
 
 /**
+ * (fork) Can `gen` be activated here? It must be listed (prepared, or already current after an activate that stopped
+ * half way) and its own /healthz must answer as that generation and not be retiring.
+ * @param {{ current?: string, gens?: Record<string, any> } | null} table @param {string} gen @param {any} h the gen's /healthz (null: no answer)
+ * @returns {{ ok: boolean, state: 'prepared' | 'current' | 'retiring' | 'missing', reason?: string }}
+ */
+export function prepareCheck(table, gen, h) {
+  const g = table?.gens?.[gen];
+  if (!g) return { ok: false, state: 'missing', reason: `generation ${gen} is not on this server (prepare it first)` };
+  const state = table.current === gen && !g.prepared ? 'current' : g.prepared ? 'prepared' : 'retiring';
+  if (state === 'retiring') return { ok: false, state, reason: `generation ${gen} is retiring here: deploy a new one instead` };
+  if (!h || h.gen !== gen) return { ok: false, state, reason: `generation ${gen} does not answer /healthz on port ${g.port}` };
+  if (h.retiring) return { ok: false, state, reason: `generation ${gen} reports itself retiring` };
+  return { ok: true, state };
+}
+
+/**
  * (fork) A generation's matches on the other regions keep it alive here: the pages of a match on another server come from
  * this one, so stopping "our idle copy" would break a reload in the middle of that match. MAX_AGE_MS still ends it.
  * @param {Record<string, any>} health @param {Record<string, number>} remote human matches per generation elsewhere
@@ -100,14 +126,14 @@ export function withRemoteMatches(health, remote) {
  * @param {Record<string, { humanMatches?: number, sockets?: number } | null>} health each generation's /healthz (null: no answer)
  * @returns {{ stop: string[], table: { current: string, gens: Record<string, any> } }}
  */
-export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceMs = IDLE_GRACE_MS, largeMaxAgeMs = LARGE_MAX_AGE_MS } = {}) {
+export function reapPlan(table, health, now, { maxAgeMs = MAX_AGE_MS, idleGraceMs = IDLE_GRACE_MS, largeMaxAgeMs = LARGE_MAX_AGE_MS, preparedMaxAgeMs = PREPARED_MAX_AGE_MS } = {}) {
   const stop = [];
   const gens = {};
   for (const [id, g0] of Object.entries(table.gens)) {
     const g = { ...g0 };
     if (id === table.current) { gens[id] = g; continue; }
     // (fork) prepared and waiting for its activate; a deploy abandoned that long ago is stopped
-    if (g.prepared && now - (g.startedAt ?? now) < maxAgeMs) { gens[id] = g; continue; }
+    if (g.prepared && now - (g.startedAt ?? now) < preparedMaxAgeMs) { gens[id] = g; continue; }
     const h = health[id];
     const since = g.retiringSince ?? now;
     const humans = Number(h?.humanMatches) || 0;
@@ -370,6 +396,20 @@ async function rollback() {
   await deploy(target);
 }
 
+/**
+ * `check <gen>`: one `[check] {json}` line, exit 1 unless `gen` can be activated here (scripts/deploy-regions.mjs reads
+ * the line over ssh). Needs no root: it only reads generations.json and the generation's /healthz.
+ */
+async function check(gen) {
+  if (!GEN_ID_RE.test(String(gen || ''))) throw new Error('usage: node scripts/generations.mjs check <gen>');
+  const table = readTable();
+  const g = table?.gens?.[gen];
+  const h = g ? await health(g.port) : null;
+  const r = prepareCheck(table, gen, h);
+  console.log(`[check] ${JSON.stringify({ gen, ...r, port: g?.port ?? null, build: h?.build ?? null, regions: h?.regions ?? null })}`);
+  if (!r.ok) process.exitCode = 1;
+}
+
 async function status() {
   const table = readTable();
   if (!table) { console.log(`no ${TABLE} yet`); return; }
@@ -386,9 +426,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const refAt = rest.indexOf('--ref');
   const genAt = rest.indexOf('--gen');
   const deployOptions = { ...(genAt >= 0 ? { gen: rest[genAt + 1] } : {}), prepare: rest.includes('--prepare'), noArt: rest.includes('--no-art') };
-  const jobs = { deploy: () => deploy(refAt >= 0 ? rest[refAt + 1] : 'HEAD', deployOptions), activate: () => activate(rest[0]), reap, rollback, status };
+  const jobs = { deploy: () => deploy(refAt >= 0 ? rest[refAt + 1] : 'HEAD', deployOptions), activate: () => activate(rest[0]), check: () => check(rest[0]), reap, rollback, status };
   if (!jobs[cmd]) {
-    console.log('usage: node scripts/generations.mjs deploy [--ref <git ref>] [--gen <id>] [--prepare] [--no-art] | activate <gen> | reap | rollback | status');
+    console.log('usage: node scripts/generations.mjs deploy [--ref <git ref>] [--gen <id>] [--prepare] [--no-art] | activate <gen> | check <gen> | reap | rollback | status');
     process.exit(cmd ? 1 : 0);
   }
   jobs[cmd]().catch((e) => { console.error(`[${cmd}] ${e.message || e}`); process.exit(1); });

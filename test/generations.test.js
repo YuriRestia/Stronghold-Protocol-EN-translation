@@ -9,8 +9,8 @@ import path from 'node:path';
 import { splitGenPath, genPath, rewriteIndexHtml, isGenSharedPath } from '../shared/gen.js';
 import { genOf, publicPath, goHome, RETIRED_FLAG } from '../public/js/gen.js';
 import { parseGenerations, route, createRouter } from '../scripts/router.mjs';
-import { newGenId, allocPort, withNewGen, withPreparedGen, activateGen, withRemoteMatches, regionsWithout, reapPlan, releasesToPrune, missingAssets, MAX_AGE_MS } from '../scripts/generations.mjs';
-import { parseHosts, prepareCommand, activateCommand, announceCommand, shQuote } from '../scripts/deploy-regions.mjs';
+import { newGenId, allocPort, withNewGen, withPreparedGen, activateGen, withRemoteMatches, regionsWithout, reapPlan, releasesToPrune, missingAssets, MAX_AGE_MS, PREPARED_MAX_AGE_MS, prepareCheck } from '../scripts/generations.mjs';
+import { parseHosts, formatHosts, prepareCommand, activateCommand, checkCommand, announceCommand, shQuote, parseArgs, parseCheck, checkProblems, testUrls } from '../scripts/deploy-regions.mjs';
 import { startBuildGuard } from '../public/js/ui/buildGuard.js';
 import { startServer } from '../server/index.js';
 import { S2C } from '../shared/protocol.js';
@@ -365,7 +365,25 @@ describe('deploying to several regions', () => {
   test('reap leaves a prepared generation alone, until a deploy has clearly been abandoned', () => {
     const t = withPreparedGen(table(), 'b', 3102, 100, '/rel/b');
     assert.deepEqual(reapPlan(t, { b: { humanMatches: 0, sockets: 0 } }, 200).stop, []);
-    assert.deepEqual(reapPlan(t, { b: { humanMatches: 0, sockets: 0 } }, 100 + MAX_AGE_MS + 1).stop, ['b']);
+    assert.deepEqual(reapPlan(t, { b: { humanMatches: 0, sockets: 0 } }, 100 + MAX_AGE_MS + 1).stop, [], 'an hour of private testing fits');
+    assert.ok(PREPARED_MAX_AGE_MS >= 2 * MAX_AGE_MS);
+    assert.deepEqual(reapPlan(t, { b: { humanMatches: 0, sockets: 0 } }, 100 + PREPARED_MAX_AGE_MS + 1).stop, ['b']);
+  });
+
+  test('a generation can be activated only while it is prepared (or already current) and answers as itself', () => {
+    const t = withPreparedGen(table(), 'b', 3102, 100, '/rel/b');
+    const ok = { gen: 'b', build: 'x' };
+    assert.deepEqual(prepareCheck(t, 'b', ok), { ok: true, state: 'prepared' });
+    assert.equal(prepareCheck(t, 'zz', ok).state, 'missing');
+    assert.equal(prepareCheck(t, 'b', null).ok, false, 'no /healthz answer');
+    assert.equal(prepareCheck(t, 'b', { gen: 'a' }).ok, false, 'another generation on that port');
+    assert.equal(prepareCheck(t, 'b', { gen: 'b', retiring: true }).ok, false);
+    const after = activateGen(t, 'b', 300);
+    assert.deepEqual(prepareCheck(after, 'b', ok), { ok: true, state: 'current' }, 'an activate that stopped half way can be run again');
+    assert.equal(prepareCheck(after, 'a', { gen: 'a' }).state, 'retiring');
+    assert.equal(prepareCheck(after, 'a', { gen: 'a' }).ok, false);
+    const first = withPreparedGen(null, 'b', 3101, 100, '/rel/b');
+    assert.deepEqual(prepareCheck(first, 'b', ok), { ok: true, state: 'prepared' }, 'the first generation of a new server is prepared, not current');
   });
 
   test('a match on the other region keeps this region\'s copy of its generation alive', () => {
@@ -391,6 +409,59 @@ describe('scripts/deploy-regions.mjs', () => {
     assert.doesNotMatch(plain, /--no-art/);
     assert.match(prepareCommand({ gen: 'g1', commit: 'abc', noArt: true }), /--no-art/);
     assert.match(activateCommand('g1'), /generations\.mjs activate g1/);
+  });
+
+  test('commands and their argument checks', () => {
+    const env = {};
+    assert.deepEqual(parseArgs(['prepare', '--hosts', 'spa,usspa:no-art'], env), { cmd: 'prepare', hosts: parseHosts('spa,usspa:no-art'), ref: 'origin/dev-0.2' });
+    assert.equal(parseArgs(['deploy', '--hosts', 'spa', '--ref', 'abc123'], env).ref, 'abc123');
+    assert.deepEqual(parseArgs(['activate', '261109-120000', '--hosts', 'spa,usspa:no-art'], env).gen, '261109-120000');
+    assert.equal(parseArgs(['status'], { SP_DEPLOY_HOSTS: 'spa,usspa' }).hosts.length, 2, 'SP_DEPLOY_HOSTS stands in for --hosts');
+    assert.deepEqual(parseArgs([], env), { error: null }, 'a bare call prints the usage');
+    for (const [argv, why] of [
+      [['rollback', '--hosts', 'spa'], /unknown command/],
+      [['prepare'], /no servers/],
+      [['prepare', '--hosts'], /--hosts needs a list/],
+      [['prepare', '--hosts', 'spa', '--ref'], /--ref needs/],
+      [['prepare', '--hosts', 'spa', '--ref', '--hosts'], /--ref needs/],
+      [['activate', '--hosts', 'spa'], /activate needs the generation id/],
+      [['activate', '../x', '--hosts', 'spa'], /not a generation id/],
+      [['activate', '261109-120000', '--hosts', 'spa;rm -rf /'], /not an ssh host name/],
+      [['announce', '--hosts', 'spa'], /text last/],
+      [['announce', '--hosts', 'spa', '--minutes', '5'], /text last/],
+      [['announce', '--hosts', 'spa', '--minutes', 'soon', 'hi'], /--minutes needs a number/],
+    ]) assert.match(String(parseArgs(argv, env).error), why, argv.join(' '));
+    const a = parseArgs(['announce', '--hosts', 'spa', '--minutes', '3', 'Restart soon'], env);
+    assert.deepEqual([a.minutes, a.text], [3, 'Restart soon']);
+    assert.equal(formatHosts(parseHosts('spa, usspa:no-art')), 'spa,usspa:no-art');
+  });
+
+  test('activate refuses unless the generation is ready on every server, with one build', () => {
+    const ok = (build = 'b1') => ({ gen: 'g', ok: true, state: 'prepared', build });
+    assert.deepEqual(checkProblems('g', [{ host: 'spa', check: ok() }, { host: 'usspa', check: { ...ok(), state: 'current' } }]), []);
+    const p = checkProblems('g', [{ host: 'spa', check: ok() }, { host: 'usspa', check: null }]);
+    assert.equal(p.length, 1);
+    assert.match(p[0], /^usspa: no answer/);
+    assert.match(checkProblems('g', [{ host: 'spa', check: { gen: 'g', ok: false, state: 'missing', reason: 'generation g is not on this server' } }])[0], /^spa: generation g is not on this server/);
+    assert.match(checkProblems('g', [{ host: 'spa', check: ok('b1') }, { host: 'usspa', check: ok('b2') }]).join(), /different builds/);
+  });
+
+  test('the check line is read back from ssh output, and its command needs no sudo', () => {
+    assert.deepEqual(parseCheck('Welcome' + String.fromCharCode(13, 10) + '[check] {"gen":"g","ok":true}' + String.fromCharCode(10)), { gen: 'g', ok: true });
+    assert.equal(parseCheck('[check] {broken'), null);
+    assert.equal(parseCheck('usage: …'), null);
+    assert.equal(parseCheck(undefined), null);
+    assert.match(checkCommand('g1'), /^cd \/opt\/stronghold\/app && node scripts\/generations\.mjs check 'g1'$/);
+  });
+
+  test('the private test URLs: the page from the first region, then each other server by ?region=', () => {
+    const regions = { self: 'sg', list: [{ id: 'sg', host: 'stronghold-en.dev' }, { id: 'us', host: 'us.stronghold-en.dev' }] };
+    assert.deepEqual(testUrls('261109-120000', regions), [
+      'https://stronghold-en.dev/_build/261109-120000/',
+      'https://stronghold-en.dev/_build/261109-120000/?region=us',
+    ]);
+    assert.deepEqual(testUrls('g', null), []);
+    assert.deepEqual(testUrls('g', { list: [] }), []);
   });
 
   test('announcement text cannot break out of its quotes', () => {

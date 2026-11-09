@@ -332,7 +332,7 @@ https / wss 说明：页面通过 https 打开时客户端自动连接 `wss://�
 部署要点：
 
 - 其他服务器的反向代理只需要转发 `/ws`、`/_build/<代>/_/ws`、`/healthz`、`/_build/<代>/_/healthz` 和 `/_peer/`，其余请求跳转到主域名。
-- 页面和服务器必须是同一版本，所以每台服务器要用相同的代号和提交部署。在自己的电脑上运行 `node scripts/deploy-regions.mjs deploy --hosts 主服务器,其他服务器:no-art`：先在所有服务器上准备新的一代，全部成功后再切换。任何一台准备失败，玩家都不受影响。`:no-art` 表示这台服务器不下载美术素材。
+- 页面和服务器必须是同一版本，所以每台服务器要用相同的代号和提交部署。在自己的电脑上运行 `node scripts/deploy-regions.mjs deploy --hosts 主服务器,其他服务器:no-art`：先在所有服务器上准备新的一代，全部成功后再切换。任何一台准备失败，玩家都不受影响。`:no-art` 表示这台服务器不下载美术素材。想先在真实服务器上私下测试，可以分两步：`prepare --hosts …` 在所有服务器上启动新的一代但不把任何人送过去，并打印它的代号和测试地址（`https://主域名/_build/<代号>/`，以及每台其他服务器的 `?region=<编号>`）；`activate <代号> --hosts …` 再切换所有服务器，只要有一台没准备好就拒绝，一台也不切换。准备好却 4 小时内没有激活的一代会被停掉。服务器之间的连接（合计在线人数、跨服务器匹配）在激活之后才开始。
 - 不要在其中一台上单独运行 `generations.mjs deploy` 或 `rollback`：新的一代只存在于这台服务器，来自它的页面就连不上另一台。`generations.mjs status` 和 `deploy` 发现这种情况时会给出警告；再用 `deploy-regions.mjs` 部署一次即可恢复。
 - 公告也要发到每台服务器：`node scripts/deploy-regions.mjs announce --hosts … --minutes 5 "…"`。
 - 服务器之间走带签名的 HTTPS，不需要改防火墙。连接断开时，各服务器只在本地匹配，用密钥加入同盟不受影响。
