@@ -241,16 +241,94 @@ export function useFullscreen() {
   return on;
 }
 
-/** Fullscreen toggle (hidden where the browser has no element fullscreen, e.g. iPhone Safari). */
+/** Fullscreen toggle (hidden where the browser has no element fullscreen, e.g. iPhone Safari). Leaving fullscreen with
+ * it also turns off the phone's first-tap fullscreen (FS_AUTO_KEY) until it is used to enter again. */
 export function FullscreenButton({ class: cls = '' }) {
   const on = useFullscreen();
   const [ok] = useState(() => fullscreen.supported());
   if (!ok) return null;
   const label = on ? t('退出全屏') : t('全屏');
+  const press = () => { setAutoFullscreenOff(on); return fullscreen.toggle(); };
   return html`<button type="button" class=${`fsbtn tapx ${cls}`} aria-label=${label} title=${label} aria-pressed=${on ? 'true' : 'false'}
-      onClick=${() => fullscreen.toggle()}>
+      onClick=${press}>
     <${Icon} name=${on ? 'collapse' : 'expand'} />
   </button>`;
+}
+
+// ---- (fork) a phone goes fullscreen and turns to landscape on its first tap -------------------------------------------
+// Browsers allow fullscreen only from a user gesture, so it cannot happen as the page loads: the first tap a touch phone
+// makes on the page (the entry film's 点击进入 card, usually) enters it, and in the same gesture Android Chrome locks the
+// screen in landscape (fullscreen.enter; the lock works only while fullscreen, and a refusal is ignored). That tap still
+// does what it does (it is not stopped, and the film never waits for it). On a touch phone only: a coarse pointer with
+// no mouse and no hover, whose shorter screen side is under PHONE_MAX_SIDE CSS px (tablets and desktops keep their
+// window), with element fullscreen (iPhone Safari has none: the rotate hint and Add to Home Screen are what it gets),
+// and not already running as an installed app (the manifest gives that fullscreen landscape by itself).
+// Once per page: a player who leaves fullscreen (the back gesture, the ⛶ button) is not put back on the next tap; a reload
+// tries again — except after leaving with the ⛶ button, which is remembered (FS_AUTO_KEY) until the button enters again.
+
+/** Shorter screen side (CSS px) below which a touch device counts as a phone. */
+export const PHONE_MAX_SIDE = 600;
+/** localStorage: 'off' after the player left fullscreen with the ⛶ button. */
+export const FS_AUTO_KEY = 'sp.fsAuto';
+
+/** Shorter side of the screen in CSS px (0: unknown). */
+export function screenShortSide(win = globalThis) {
+  const w = Number(win.screen?.width) || 0, h = Number(win.screen?.height) || 0;
+  return w > 0 && h > 0 ? Math.min(w, h) : 0;
+}
+
+/**
+ * Whether the first tap should enter fullscreen (pure; tested).
+ * @param {ReturnType<typeof detectFeatures>} f
+ * @param {{ shortSide: number, off?: boolean, active?: boolean }} s
+ */
+export function autoFullscreenWanted(f, { shortSide, off = false, active = false }) {
+  return !!f.fullscreen && !f.standalone && !!f.coarse && !f.fine && !f.hover
+    && shortSide > 0 && shortSide < PHONE_MAX_SIDE && !off && !active;
+}
+
+function autoFullscreenOff(win = globalThis) {
+  try { return win.localStorage?.getItem(FS_AUTO_KEY) === 'off'; } catch { return false; }
+}
+
+/** The ⛶ button: leaving fullscreen with it turns the first-tap fullscreen off, entering with it turns it back on. */
+export function setAutoFullscreenOff(off, win = globalThis) {
+  try { if (off) win.localStorage?.setItem(FS_AUTO_KEY, 'off'); else win.localStorage?.removeItem(FS_AUTO_KEY); } catch { /* private mode */ }
+}
+
+/**
+ * Enter fullscreen (and lock landscape) on this page's first tap, on a touch phone. Returns a disposer.
+ * Activation: for a touch, `pointerup` / `touchend` carry the user activation (`pointerdown` only for a mouse), so the
+ * request is made there — the entry film's gate listens on pointerdown and is not touched. A tap on the ⛶ button (it
+ * toggles by itself) or on a text field (the keyboard opens) waits for the next tap.
+ * @param {any} [win]
+ * @param {{ enter?: (win: any) => Promise<boolean> }} [deps] (tests)
+ */
+export function installFirstTapFullscreen(win = globalThis, { enter = (w) => fullscreen.enter(w) } = {}) {
+  const doc = win.document;
+  if (!doc?.addEventListener) return () => {};
+  const wanted = () => autoFullscreenWanted(detectFeatures(win),
+    { shortSide: screenShortSide(win), off: autoFullscreenOff(win), active: fullscreen.active(win) });
+  if (!wanted()) return () => {};
+  let busy = false, done = false;
+  const off = () => {
+    done = true;
+    doc.removeEventListener('pointerup', onTap, true);
+    doc.removeEventListener('touchend', onTap, true);
+  };
+  const onTap = (e) => {
+    if (done || busy || !e?.isTrusted) return;
+    if (e.type === 'pointerup' && e.pointerType === 'mouse') return;
+    const el = e.target;
+    if (el?.closest?.('.fsbtn, input, textarea, select, [contenteditable="true"]')) return;
+    if (!wanted()) { off(); return; }
+    busy = true;
+    // one gesture sends both pointerup and touchend: the first starts the request, the second finds it busy
+    Promise.resolve(enter(win)).then((ok) => { busy = false; if (ok || fullscreen.active(win)) off(); }, () => { busy = false; });
+  };
+  doc.addEventListener('pointerup', onTap, true);
+  doc.addEventListener('touchend', onTap, { capture: true, passive: true });
+  return off;
 }
 
 /**
@@ -272,6 +350,7 @@ export function updateRotateHintI18n(doc = globalThis.document) {
   set('rotate-hint-title', t('请将设备横屏')); // en: "Rotate your device to landscape"
   set('rotate-hint-text', t('卫戍协议：盟约 需要横屏显示以获得完整体验')); // en: "Stronghold Protocol: Alliance needs landscape for the full experience"
   set('rotate-hint-pwa', t('添加到桌面'));
+  set('rotate-hint-ios', t('想要全屏：点 Safari 的“分享”，再选“添加到主屏幕”，从桌面图标打开')); // en: "For full screen: tap Share in Safari, choose Add to Home Screen, and open the game from its icon"
 }
 
 // ---- boot-time installation ----------------------------------------------------------------------------------------
@@ -371,6 +450,14 @@ export function installDeviceSupport(win = globalThis) {
     offs.push(pwaInstall.subscribe((available) => { pwaBtn.hidden = !available; }));
     on(pwaBtn, 'click', () => { pwaInstall.request(); });
   }
+  // (fork) iPhone / iPod Safari: no element fullscreen and no install prompt, so the hint says how to get an app window
+  const iosLine = doc?.getElementById?.('rotate-hint-ios');
+  if (iosLine) {
+    const show = () => { const f = detectFeatures(win); iosLine.hidden = !(isIOS(win) && !f.fullscreen && !f.standalone); };
+    show();
+    on(win, 'resize', show, { passive: true });
+  }
+  offs.push(installFirstTapFullscreen(win));
 
   installed = () => { for (const off of offs.splice(0)) { try { off(); } catch { /* ignore */ } } clearTimeout(rotTimer); installed = null; };
   return installed;

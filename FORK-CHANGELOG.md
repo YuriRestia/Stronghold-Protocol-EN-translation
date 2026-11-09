@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Phones go fullscreen and turn to landscape on the first tap
+
+- On an Android phone (and other phone browsers with fullscreen), the first tap on the page now makes the game fullscreen and locks the screen in landscape. Browsers only allow fullscreen from a tap, so it can't happen as the page loads. That same tap still starts the opening film as before. It happens once per page: if the player leaves fullscreen, the next tap doesn't force it back, and leaving with the ⛶ button turns it off on that phone until the button is used to enter again. Tablets, desktops and touch laptops are not affected.
+- iPhone Safari has no fullscreen for web pages and can't lock the screen's turn, so the "Rotate your device to landscape" screen now tells iPhone players how to add the game to the Home Screen, which opens it without Safari's bars.
+
 ### Outfit summons for Swire the Elegant Wit and Catherine
 
 - Swire the Elegant Wit's outfit A Prosperous Visage and Catherine's outfit Cozy Bakery now give their summons the outfit's own look in battle (8 files, 138 KB) instead of the default one. The dev sandbox also draws a summon in its owner's outfit, as a match does.
@@ -49,7 +54,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Returning players load the game's code from their own browser
 
-- Behind the zero-downtime generations (the live servers), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when Cloudflare holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by Cloudflare. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. The optional Cloudflare cache rule for scripts is no longer needed.
+- Behind the zero-downtime generations (a hosted server), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when a CDN holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by a CDN. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. A CDN cache rule for scripts is no longer needed.
 
 ### Ping shows the connection, not the frame rate
 
@@ -262,7 +267,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -365,10 +370,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -486,7 +491,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
+  (its script host in `script-src` and its reporting host in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -811,7 +816,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

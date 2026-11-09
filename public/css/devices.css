@@ -162,6 +162,8 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 
 .rotate-hint__pwa { pointer-events: auto; margin-top: 6px; }
 .rotate-hint__pwa[hidden] { display: none; }
+.rotate-hint__ios { max-width: 30em; font-size: 13px; color: var(--text-lo); }
+.rotate-hint__ios[hidden] { display: none; }
 
 /* ---- 5. 异形屏适配 (设置, ui/screenFit.js) ------------------------------------------------------------------------
    The player's own insets for a screen whose cutout / curved edge the browser does not report (or reports wrongly in
