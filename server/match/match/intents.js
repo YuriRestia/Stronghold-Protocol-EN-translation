@@ -77,6 +77,7 @@ export class MatchIntents {
       case 'b.botBattleResult': this._onBotBattleResult(ps, msg); return OK;
       // (fork) a bot seat's prep played in this browser (match/botTasks.js): reports too
       case 'b.botReceived': return this._onBotReceived(ps, msg);
+      case 'b.botLoaded': return this._onBotLoaded(ps, msg);
       case 'b.botMoves': return this._onBotMoves(ps, msg);
       case 'b.botHidden': return this._onBotHidden(ps, msg);
       default: return fail(ERR.BAD_MSG);

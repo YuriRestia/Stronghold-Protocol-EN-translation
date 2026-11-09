@@ -10,6 +10,8 @@
 // A bot's band or card pick is a small task on the same frames: one `final` batch with one move (design B10).
 //
 // Live frames: b.botTask → b.botReceived (at once) → b.botMoves { batch: 'plan' } → b.botAck → b.botMoves { batch: 'final' }.
+// A receipt with `starting: true` says the page's Worker is still starting: b.botLoaded then opens the plan window, and
+// BOT_START_MS bounds the wait for it, so a Worker that never comes up still fails over.
 // b.botHurry stops the rehearsal at the best layout so far, b.botCancel drops the task. No receipt, a silent executor, a
 // failed task, a hidden tab or a lost connection moves the seat to the next human with a fresh snapshot; moves already
 // applied stay. With nobody left, the seat keeps its board and readies up: the server makes no bot decision.
@@ -30,8 +32,14 @@ export const MAX_BATCH_MOVES = 200;
 export const MAX_BOT_ATTEMPTS = 3;
 /** Wall-clock ms for b.botReceived. 2 s lost tasks in a real game: a page's main thread can be that busy at the start of a prep. */
 export const BOT_RECEIPT_MS = 5000;
-/** Wall-clock ms for the plan batch after the receipt: a first Worker start in the match, then the plan on a slow device. */
+/** Wall-clock ms for the plan batch after the receipt (or after b.botLoaded, when the Worker was starting): the plan on a slow device. */
 export const BOT_PLAN_MS = 10000;
+/**
+ * Wall-clock ms for b.botLoaded after a `starting` receipt: the page waits for its screen to settle (botHost.js
+ * BOT_SCREEN_WAIT_MS, 10 s) and then loads the Worker, about 16 s on 5 Mbps / 100 ms. [ASSUMED] With BOT_PLAN_MS after it, a
+ * first task ends within 40 s of its receipt even when the Worker never comes up.
+ */
+export const BOT_START_MS = 30000;
 /** Wall-clock ms on top of a seat's rehearsal budget for the final batch to arrive. */
 export const BOT_GRACE_MS = 3000;
 
@@ -225,13 +233,30 @@ export class MatchBotTasks {
     return active && active.executor === ps.playerId && active.task.id === taskId ? active : null;
   }
 
-  /** b.botReceived: the page has the task. Its Worker may still be starting, so the plan batch gets a longer window. */
+  /**
+   * b.botReceived: the page has the task. With `starting` its Worker is still coming up: the plan window waits for b.botLoaded,
+   * BOT_START_MS at most.
+   */
   _onBotReceived(ps, msg) {
     const active = this._botTaskOf(ps, msg.taskId);
     // once per task, and never after its plan: a repeated receipt must not re-open the window (an executor looping frames
     // would stall an untimed prep)
     if (!active || active.receivedId === msg.taskId || active.plannedId === msg.taskId) return OK;
     active.receivedId = msg.taskId;
+    if (msg.starting === true) {
+      active.startingId = msg.taskId;
+      this._armBotTimer(active, BOT_START_MS);
+      return OK;
+    }
+    this._armBotTimer(active, BOT_PLAN_MS);
+    return OK;
+  }
+
+  /** b.botLoaded: the Worker of a `starting` receipt can take the task now, so the plan window starts. Once per task. */
+  _onBotLoaded(ps, msg) {
+    const active = this._botTaskOf(ps, msg.taskId);
+    if (!active || active.startingId !== msg.taskId || active.loadedId === msg.taskId || active.plannedId === msg.taskId) return OK;
+    active.loadedId = msg.taskId;
     this._armBotTimer(active, BOT_PLAN_MS);
     return OK;
   }

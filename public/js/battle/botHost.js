@@ -7,6 +7,11 @@
 // next human at once. b.botTask → b.botReceived → the Worker → b.botMoves (plan) → b.botAck → b.botMoves (final). A hidden tab
 // may be frozen, so it says so (b.botHidden) instead of taking work, and the server moves the work on at once.
 //
+// What the screen needs now loads first (loadLater.js): the Worker's 400-odd modules would share the link with the briefing
+// and the band draft's art, so b.botWarm and a bot seat's task build it only once the screen has settled, or after
+// BOT_SCREEN_WAIT_MS. A battle never waits. While the Worker is still starting, the receipt says `starting: true` and
+// b.botLoaded follows when it can take the task: the server counts the plan window from then, under a cap of its own.
+//
 // The socket going down or the match ending drops everything: an answer could not be delivered, and the Worker is terminated.
 // It is built on the first job, so a match that never asks costs nothing.
 //
@@ -15,8 +20,16 @@
 import { contentFor as appContentFor } from '../content.js';
 import { genUrl } from '../gen.js';
 import { checkOperatorTraitRuntime } from './simLoader.js';
+import { whenScreenSettled } from '../loadLater.js';
 
 export const BOT_WORKER_URL = genUrl('/js/battle/botWorker.js'); // (fork) in this page's server generation
+
+/**
+ * The longest the Worker's start waits for the screen to settle. [ASSUMED] The briefing and the band draft's art took 5.6 s on
+ * 10 Mbps / 40 ms without the Worker; a screen that never settles (a hung image) still gets its bots. The server's start
+ * window (botTasks.js BOT_START_MS) covers this wait plus the Worker's own load.
+ */
+export const BOT_SCREEN_WAIT_MS = 10000;
 
 /** What the match code reads: server/data.js DATA_FILES but the art manifest, which is the page's business. */
 export const BOT_DATA_FILES = Object.freeze(['config', 'chess', 'bonds', 'garrisons', 'items', 'bands', 'effects', 'choices',
@@ -45,11 +58,14 @@ async function officialOrRoomContent(cs, contentFor = appContentFor) {
 }
 
 /**
- * @param {{ net?: any, loadContent?: typeof officialOrRoomContent, createWorker?: () => Worker, log?: any, doc?: any }} [deps]
- *   `loadContent`, `doc`: the room's content and the page's document (tests)
+ * @param {{ net?: any, loadContent?: typeof officialOrRoomContent, createWorker?: () => Worker, log?: any, doc?: any,
+ *   screenSettled?: (maxMs: number) => Promise<void> | true }} [deps]
+ *   `loadContent`, `doc`: the room's content and the page's document (tests); `screenSettled`: when the screen has what it
+ *   needs (loadLater.js), `true` for a screen that never waits
  * @returns {null | { busy: () => number, task: Function, ack: Function, hurry: Function, cancel: Function, clear: () => void, dispose: () => void }}
  */
-export function installBotHost({ net, loadContent = officialOrRoomContent, createWorker = () => new Worker(BOT_WORKER_URL, { type: 'module' }), log = console, doc = globalThis.document } = {}) {
+export function installBotHost({ net, loadContent = officialOrRoomContent, createWorker = () => new Worker(BOT_WORKER_URL, { type: 'module' }), log = console, doc = globalThis.document,
+  screenSettled = whenScreenSettled } = {}) {
   if (!net || typeof net.on !== 'function') return null;
   /** @type {any} the live Worker; replaced as a whole, so a late callback of the old one finds itself unknown */
   let w = null;
@@ -60,6 +76,24 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   /** This match has asked for bot work, so the server wants to hear about the tab. */
   let asked = false;
   let reportedHidden = false;
+  /** @type {null | true | Promise<void>} this match's wait for the screen: true once it has settled (or the wait gave up) */
+  let screen = null;
+
+  /** Run `fn` once the screen has what it needs (BOT_SCREEN_WAIT_MS at most); at once when it has, or the Worker is up. */
+  const afterScreen = (fn) => {
+    if (w || screen === true) { fn(); return; }
+    if (!screen) {
+      let wait;
+      try { wait = screenSettled(BOT_SCREEN_WAIT_MS); } catch { wait = true; }
+      if (typeof wait?.then !== 'function') screen = true;
+      else {
+        const p = wait.then(() => {}, () => {}).then(() => { if (screen === p) screen = true; });
+        screen = p;
+      }
+    }
+    if (screen === true) fn();
+    else screen.then(fn);
+  };
 
   const isHidden = () => doc?.hidden === true;
   const reportTab = () => {
@@ -106,7 +140,7 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   const worker = (cs = null) => {
     if (w && w.cs !== cs) { kill(); failAll('another content set'); }
     if (w || broken) return w;
-    const inst = { port: null, cs, ready: () => {}, onLoaded: () => {}, loaded: null };
+    const inst = { port: null, cs, ready: () => {}, onLoaded: () => {}, loaded: null, isLoaded: false };
     const scriptRan = new Promise((resolve) => { inst.ready = resolve; });
     const engineIn = new Promise((resolve, reject) => { inst.onLoaded = (err) => (err ? reject(err) : resolve()); });
     try {
@@ -128,7 +162,7 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
     inst.loaded = scriptRan.then(() => loadContent(cs)).then(({ content, transfer }) => {
       if (w === inst) inst.port.postMessage({ t: 'content', content }, transfer);
       return engineIn;
-    });
+    }).then(() => { inst.isLoaded = true; });
     inst.loaded.catch((err) => {
       if (w !== inst) return;
       log.warn?.('[botHost] content unavailable', err);
@@ -138,11 +172,15 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
     return inst;
   };
 
-  /** Hand a job over once the Worker can read it; a job dropped meanwhile never goes. */
+  /** Hand a job over once the Worker can read it; a job dropped meanwhile never goes. Its `onReady` hears of that moment first. */
   const post = (id, msg, cs = null) => {
     const inst = worker(cs);
     if (!inst) { const job = jobs.get(id); jobs.delete(id); job?.fail('no module Worker'); return; }
-    inst.loaded.then(() => { if (w === inst && jobs.has(id)) inst.port.postMessage(msg); }, () => { /* failAll answered it */ });
+    inst.loaded.then(() => {
+      if (w !== inst || !jobs.has(id)) return;
+      jobs.get(id).onReady?.();
+      inst.port.postMessage(msg);
+    }, () => { /* failAll answered it */ });
   };
 
   /** A bot-only boss field: it reports through the frames a human's battle uses. A failure stays silent: the server's watchdog moves it on. */
@@ -188,32 +226,38 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
     jobs.clear();
     asked = false;
     reportedHidden = false;
+    screen = null;
   };
 
-  const startTask = (id, world, { budgetMs, onBatch, onFail, cs = null }) => {
+  const startTask = (id, world, { budgetMs, onBatch, onFail, onReady, cs = null }) => {
     jobs.set(id, {
       fail: onFail,
+      onReady,
       onMessage(m) {
         if (m.t !== 'batch') return;
         if (m.batch === 'final') jobs.delete(id);
         onBatch(m);
       },
     });
-    post(id, { t: 'task', id, world, budgetMs }, cs);
+    afterScreen(() => { if (jobs.has(id)) post(id, { t: 'task', id, world, budgetMs }, cs); });
   };
 
   const onTask = (msg) => {
     if (!msg || typeof msg.taskId !== 'string' || !msg.world || typeof msg.world !== 'object') return;
     const { taskId } = msg;
+    const cs = msg.cs ?? null;
     asked = true;
-    net.send('b.botReceived', { taskId });
+    // the Worker this task runs on is not up yet (or holds another content set): the server waits for b.botLoaded
+    const starting = !isHidden() && !broken && !(w && w.isLoaded && w.cs === cs);
+    net.send('b.botReceived', { taskId, ...(starting ? { starting: true } : {}) });
     if (isHidden()) { reportTab(); return; }
     if (broken) { net.send('b.botMoves', { taskId, error: true }); return; }
     startTask(taskId, msg.world, {
       budgetMs: msg.budgetMs,
-      cs: msg.cs ?? null,
+      cs,
       onBatch: (b) => net.send('b.botMoves', { taskId, batch: b.batch, moves: b.moves, ...(b.memo ? { memo: b.memo } : {}) }),
       onFail: () => net.send('b.botMoves', { taskId, error: true }),
+      onReady: starting ? () => net.send('b.botLoaded', { taskId }) : undefined,
     });
   };
 
@@ -236,13 +280,16 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
     inst?.loaded.then(() => { if (w === inst) inst.port.postMessage({ t: 'end', id: msg.battleId, reason: msg.reason }); }, () => {});
   });
   const offTask = net.on('b.botTask', onTask);
-  // Started when the page has time, so the briefing's own loading goes first; the first job builds it anyway if it comes sooner.
+  // Started once the screen has what it needs and the page has time, so the briefing's own loading goes first. A bot seat's
+  // task waits for the screen the same way; a battle builds it at once.
   const offWarm = net.on('b.botWarm', (msg) => {
     asked = true;
     if (isHidden()) { reportTab(); return; }
     const start = () => { if (asked) worker(msg?.cs ?? null)?.loaded?.catch(() => {}); };
-    if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(start, { timeout: 5000 });
-    else setTimeout(start, 1000);
+    afterScreen(() => {
+      if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(start, { timeout: 5000 });
+      else setTimeout(start, 1000);
+    });
   });
   const offAck = net.on('b.botAck', (msg) => { if (msg && typeof msg.taskId === 'string') ack(msg.taskId, { stale: !!msg.stale }); });
   const offHurry = net.on('b.botHurry', (msg) => { if (msg && typeof msg.taskId === 'string') hurry(msg.taskId); });

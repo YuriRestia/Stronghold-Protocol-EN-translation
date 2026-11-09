@@ -18,7 +18,7 @@ const img = (complete, top = 10, height = 50) => ({
   complete, getBoundingClientRect: () => ({ width: 50, height, top, left: 10, bottom: top + height, right: 60 }),
 });
 
-const { loadLater, needNow, screenSettled } = await import('../../public/js/loadLater.js');
+const { loadLater, needNow, screenSettled, whenScreenSettled } = await import('../../public/js/loadLater.js');
 
 /** A later load that has not been reached yet would hold the next test's up: wait for this one's turn to pass. */
 const settled = async (flag) => { for (let i = 0; i < 80 && !flag(); i++) await sleep(50); };
@@ -87,6 +87,24 @@ test('later loads run one at a time, in order, and a failing one does not stop t
   } finally { console.warn = warn; }
 });
 
+test('whenScreenSettled: the same moment as a later load, capped by its caller', async () => {
+  let finish;
+  const model = needNow(new Promise((r) => { finish = r; }));
+  let t = Date.now();
+  await whenScreenSettled(600);
+  assert.ok(Date.now() - t >= 550, 'a screen that never settles: the cap');
+  assert.equal(screenSettled(), false, 'it gave up, the model is still loading');
+  let done = false;
+  const wait = whenScreenSettled(20000).then(() => { done = true; });
+  await sleep(700);
+  assert.equal(done, false);
+  t = Date.now();
+  finish();
+  await model;
+  await wait;
+  assert.ok(Date.now() - t < 2000, 'settled: a quiet half second, not the cap');
+});
+
 test('the callers: art for a later round waits and asks for low priority; the battle waits for its effects itself', () => {
   const game = read('public/js/screens/game.js');
   assert.match(game, /loadLater\(preloadBossPlateArt\)/);
@@ -105,4 +123,8 @@ test('the callers: art for a later round waits and asks for low priority; the ba
   const runner = read('public/js/battle/runner.js');
   assert.match(runner, /\['LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'\]\.includes\(phase\) && \(!simP \|\| simCs !== wantSim\) && simWarmQueued !== wantSim/);
   assert.match(runner, /sim = await ensureSim\(e\.spec\.cs\)/, 'a battle that starts first loads the simulation itself');
+  // the bot Worker's 400-odd modules start once the briefing and the band draft are in (battle/botHost.js)
+  const bots = read('public/js/battle/botHost.js');
+  assert.match(bots, /screenSettled = whenScreenSettled/);
+  assert.match(bots, /afterScreen\(\(\) => \{ if \(jobs\.has\(id\)\) post\(id, \{ t: 'task'/);
 });

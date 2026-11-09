@@ -714,11 +714,14 @@ export const C2S = {
     $optional: ['result', 'timeline', 'error'],
   },
   // (fork) A bot seat's prep played in this browser (docs/host-browser-bots.md B2): b.botReceived says the page has the
-  // S2C 'b.botTask' frame; b.botMoves carries a batch of the seat's moves, `plan` (answered by b.botAck) and then `final`
+  // S2C 'b.botTask' frame, with `starting: true` when its Worker is still coming up, and b.botLoaded then says the Worker can
+  // take it (the plan window starts there, under its own cap); b.botMoves carries a batch of the seat's moves, `plan`
+  // (answered by b.botAck) and then `final`
   // with the bot's own memo, or `error: true` when this browser could not play it. Each move is checked again where it is
   // applied (server/match/match/botTasks.js). b.botHidden reports a hidden tab, which phones freeze. A stale task or another
   // sender is ignored.
-  'b.botReceived': { taskId: isId },
+  'b.botReceived': { taskId: isId, starting: (v) => v === undefined || v === true, $optional: ['starting'] },
+  'b.botLoaded': { taskId: isId },
   'b.botMoves': {
     taskId: isId, batch: (v) => v === 'plan' || v === 'final', moves: (v) => isList(v, BOT_MOVES_MAX, isPlain), memo: isPlain,
     error: (v) => v === undefined || v === true, $optional: ['batch', 'moves', 'memo', 'error'],
