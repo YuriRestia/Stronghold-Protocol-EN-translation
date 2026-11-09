@@ -293,6 +293,28 @@ containing the plugin JSON and roster; `--only plugin-art/<charId>` narrows the 
 
 `--game <install dir or AB root>` selects a local game explicitly; otherwise the existing local-install detection applies.
 
+### English and Korean voice lines the mirror lacks (fork)
+
+`audio.voiceEn` / `audio.voiceKr` are downloaded from ArknightsAssets2 `voice_en/` / `voice_kr/`, a dump of the CN
+client, which gets an English or Korean dub some time after the EN server ships it. A voice set the EN server already
+plays can therefore be missing from the mirror: the run drops those leaves (`.cache/assets-report.json`
+`droppedLeaves`) and the client plays the line in Chinese or Japanese instead. On 2026-11-09 寻翼之歌
+(`char_1041_angel2_iteration#6`) was such a set. Fill them from a local **EN** client, which carries both dubs:
+
+```sh
+.venv-extract/Scripts/python.exe -I -B tools/local-extract/voice.py --game <EN install dir> --dry-run
+.venv-extract/Scripts/python.exe -I -B tools/local-extract/voice.py --game <EN install dir>
+node tools/fetch-assets.mjs --add-only
+```
+
+`voice.py` writes only the lines of a set the tree lacks and never touches a file on disk. It reads the hot-update
+bundles (`Arknights_Data/PersistentData/Bundles/audio/sound_beta_2/voice_en|voice_kr/<set>.ab`) before the shipped
+ones, and encodes mp3 like the mirror's (mono, 44.1 kHz, 64 kbit/s; ffmpeg on PATH). A set that is not in the client
+either (an operator or outfit not out on EN yet) is listed and skipped. The written files exist only on this disk, so
+they go to the server with the art upload like any other file under `public/assets/`. A fetch-assets run keeps a leaf
+whose file is on disk whether or not the mirror has it. Review the `data/assets.json` diff before committing: a run
+also adds anything else the plan wants but has never been fetched.
+
 ### Re-extracting scenes after an update
 
 Scene extraction version **4** removes complete, exact redundant renderers (GitHub #684, DESIGN §34.24).
