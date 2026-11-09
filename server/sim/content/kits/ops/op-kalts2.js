@@ -162,7 +162,8 @@ function s2Burst(battle, unit, target, attackId, b2) {
     for (const a of battle.alliesInRadius(x, y, S2_RADIUS)) if (battle.allySelectable(a, unit)) battle.heal(unit, a, healAmt, { ignoreHealFree: true });
   };
   battle.fx('aoe', { x, y, radius: S2_RADIUS, id: unit.id, skill: TAG_S2 });
-  battle.fx('healAoe', { x, y, radius: S2_RADIUS, id: unit.id });
+  // (fork) onEnemy: the client's follow-up splash is the struck unit's side's (render/vfx/skills.js FX_BINDINGS)
+  battle.fx('healAoe', { x, y, radius: S2_RADIUS, id: unit.id, onEnemy });
   if (onEnemy) { hurt(); mend(); } else { mend(); hurt(); }
 }
 

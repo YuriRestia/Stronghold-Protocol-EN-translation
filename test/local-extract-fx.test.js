@@ -310,6 +310,44 @@ print(json.dumps([fx.emit_role('hit', {}, 'x_hit'), fx.emit_role('attach', {}, '
       'ON_SPELL_ON', 'ON_OUTPUT_DAMAGE', null, 109]);
   });
 
+  test('(fork) merge_added: a relink adds links (uses, records, list entries) and keeps every earlier value', () => {
+    const out = py(`
+old = {'s1': {'effects': ['a'], 'uses': [{'role': 'loop', 'keys': ['a'], 'from': 'X._buffs'}], 'roles': {'loop': ['a']}, 'mode': 1,
+              'abilities': [{'node': 'n1', 'effects': ['a']}]}, 'gone_from_new': {'uses': []}}
+new = {'s1': {'effects': ['a2'], 'uses': [{'role': 'loop', 'keys': ['a'], 'from': 'X._buffs'}, {'role': 'start', 'keys': ['b'], 'from': 'X._buffs → template t'}],
+              'roles': {}, 'mode': 2, 'extra': True, 'abilities': [{'node': 'n1', 'effects': ['a', 'c']}, {'node': 'n2', 'effects': []}]},
+       's2': {'uses': []}}
+print(json.dumps(fx.merge_added(old, new)))`);
+    assert.deepEqual(out.s1.uses.map((u) => u.keys[0]), ['a', 'b'], 'the new use joins, the same one does not repeat');
+    assert.deepEqual(out.s1.roles, { start: ['b'], loop: ['a'] });
+    assert.deepEqual(out.s1.effects, ['a', 'a2', 'b'], 'effects: the earlier list, the new one\'s additions and the added uses\' keys');
+    assert.equal(out.s1.mode, 1, 'a value both have keeps the earlier one');
+    assert.equal(out.s1.extra, true);
+    assert.deepEqual(out.s1.abilities, [{ node: 'n1', effects: ['a', 'c'] }, { node: 'n2', effects: [] }]);
+    assert.ok(out.gone_from_new && out.s2, 'records only in one of them stay');
+  });
+
+  test('(fork) behaviour_uses: buffs named by key, buffs of a serialized action graph, and the templates a template creates', () => {
+    const out = py(`${EK}
+tpl = {'x_s2[trigger]': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'x_tpl_start']], 'creates': ['x_s2[child]'],
+                         'createdAt': {'x_s2[child]': 'ON_OUTPUT_DAMAGE'}},
+       'x_s2[child]': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'x_hit'],
+                                                ['ON_BUFF_FINISH', 'CreateEffect', '_effectKey', 'x_tpl_finish']], 'creates': ['x_s2[trigger]'],
+                       'createdAt': {'x_s2[trigger]': 'ON_BUFF_START'}},
+       'x_mark': {'effect': 'x_skill_buff', 'graph': []}}
+named = fx.behaviour_uses('ActiveBuffAbility', {'_buffs': ['x_s2[trigger]', 'not_a_template'], '_buffKey': 'x_mark'}, ek, tpl)
+graph = fx.behaviour_uses('AnimatedActionToTargetAbility', {'_actions': {'SerializedState': json.dumps([{'$type': 'X+CreateBuff',
+  '_buff': {'buffKey': 'b', 'templateKey': 'x_mark', 'overrideEffectKey': None}}])}}, ek, tpl)
+print(json.dumps([[(u['role'], u['keys'], u.get('event'), u['from']) for u in named], [(u['role'], u['keys'], u.get('template')) for u in graph]]))`);
+    assert.deepEqual(out[0], [
+      ['start', ['x_tpl_start'], 'ON_BUFF_START', 'ActiveBuffAbility._buffs → template x_s2[trigger]'],
+      ['hit', ['x_hit'], 'ON_OUTPUT_DAMAGE', 'ActiveBuffAbility._buffs → template x_s2[trigger] → template x_s2[child]'],   // made at the parent's event
+      ['end', ['x_tpl_finish'], 'ON_BUFF_FINISH', 'ActiveBuffAbility._buffs → template x_s2[trigger] → template x_s2[child]'],  // no loop back
+      ['loop', ['x_skill_buff'], null, 'ActiveBuffAbility._buffKey'],                                                     // a plain key field
+    ]);
+    assert.deepEqual(out[1], [['loop', ['x_skill_buff'], 'x_mark']]);
+  });
+
   test('behaviour_uses: emitter rows (directional slots, hooks), buffs with their carrier and template, mode switches', () => {
     const out = py(`${EK}
 tpl = {'burn': {'effect': None, 'graph': []}, 'empty': {'effect': 'x_skill_buff', 'graph': []},

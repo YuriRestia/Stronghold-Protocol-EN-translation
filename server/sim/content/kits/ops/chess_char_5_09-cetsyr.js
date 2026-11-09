@@ -93,7 +93,7 @@ export default {
               if (!hit) continue;
               battle.addBuff(hit, { key: 'cetsyr:mote', duration: dur, visible: true, data: { src: unit, mul } });
               if (!keep) motes[k] = battle.time + cd;
-              battle.fx('mote', { x: hit.x, y: hit.y, id: hit.id });
+              battle.fx('mote', { x: hit.x, y: hit.y, id: hit.id, src: unit.id });   // (fork) src: render/vfx FX_BINDINGS
             }
           });
           // "受到魔王特性效果提升至1.5倍": his trait's 生命回复速度 on that operator (professions.js bardRegen hook)

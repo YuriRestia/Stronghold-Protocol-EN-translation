@@ -2096,9 +2096,12 @@ def graph_links(state):
     return abilities, switches, creates
 
 
-def template_uses(tkey, template, on, buff):
+def template_uses(tkey, template, on, buff, templates=None, seen=()):
     """The uses of a buff template's action graph (a buff_templates() entry): its CreateEffect nodes play at their buff
-    event (BUFF_EVENT_ROLES; a target's buff starts when the target is hit), the buffs it creates loop."""
+    event (BUFF_EVENT_ROLES; a target's buff starts when the target is hit), the buffs it creates loop. (fork) With
+    `templates`: the templates its graph creates too (`creates`, three levels), their start actions at the event the
+    parent creates them (`createdAt`: a buff's ON_BUFF_START is its creation), on the parent's carrier [ASSUMED: the
+    graph tuple does not say whom a CreateBuff targets]."""
     uses = []
     for event, typ, field, key in template.get('graph', []):
         role = BUFF_EVENT_ROLES.get(event, 'trigger')
@@ -2110,6 +2113,19 @@ def template_uses(tkey, template, on, buff):
             role = 'hit'
         uses.append({'role': role, 'keys': [key], 'from': f'template {tkey}', 'event': event, 'action': typ,
                      **({'on': on} if on else {}), 'buff': buff})
+    if templates and len(seen) < 3:
+        for c in template.get('creates') or []:
+            if c in seen or c == tkey or c not in templates:
+                continue
+            at = (template.get('createdAt') or {}).get(c)
+            for u in template_uses(c, templates[c], on, buff, templates, seen + (tkey,)):
+                if at and BUFF_EVENT_ROLES.get(u['event']) == 'start' and u['action'].startswith('CreateEffect'):
+                    u['event'] = at
+                    u['role'] = BUFF_EVENT_ROLES.get(at, 'trigger')
+                    if on == 'targets' and u['role'] == 'start':
+                        u['role'] = 'hit'
+                u['from'] = f'template {tkey} → {u["from"]}'
+                uses.append(u)
     return uses
 
 
@@ -2187,14 +2203,27 @@ def behaviour_uses(cls, fields, ek, templates=None, node=None, ability=None):
                 if isinstance(g, dict) and isinstance(g.get('effect'), str) and ek(g['effect']):
                     ev = event_name(ABILITY_EVENTS, g.get('playOnEvent', g.get('_playOnEvent', g.get('event'))))
                     add([g['effect']], name_role(ek(g['effect']), ev), f, startEvent=ev, by='name')
-        if isinstance(v, (dict, list)):
-            for b in buffs_in(v):
+        if isinstance(v, (dict, list)) or (isinstance(v, str) and 'buff' in f.lower() and v in templates):
+            found = buffs_in(v) if not isinstance(v, str) else []
+            # (fork) a buff list that names its buffs by key (冻河 S2 / S3 `_buffs`: ['tocka_s2[trigger]', …]: the
+            # client builds them from the template of that key [ASSUMED: buffKey = templateKey]), and the buffs of an
+            # action graph (its SerializedState: CreateBuff nodes' `_buff`)
+            if 'buff' in f.lower():
+                strs = [v] if isinstance(v, str) else v if isinstance(v, list) else []
+                found += [{'buffKey': x, 'templateKey': x, 'overrideEffectKey': None} for x in strs
+                          if isinstance(x, str) and x in templates]
+            if isinstance(v, dict) and isinstance(v.get('SerializedState'), str) and v['SerializedState'][:1] in '[{':
+                try:
+                    found += buffs_in(json.loads(v['SerializedState']))
+                except ValueError:
+                    pass
+            for b in found:
                 on, tkey = buff_target(cls, f, fields), b.get('templateKey') or None
                 t = templates.get(tkey) or {}
                 effect = b.get('overrideEffectKey') or t.get('effect')
                 life = buff_life(b)                             # the buff's life: every use it carries has it (v3)
                 add([effect], 'loop', f, on=on, buff=b.get('buffKey') or None, template=tkey, life=life)
-                for u in template_uses(tkey, t, on, b.get('buffKey') or None) if t else []:
+                for u in template_uses(tkey, t, on, b.get('buffKey') or None, templates) if t else []:
                     u['from'] = f'{cls}.{f} → {u["from"]}'
                     if node:
                         u['node'] = node
@@ -2222,6 +2251,42 @@ def skill_mode(fields):
                     return int(bb['value'])
     m = fields.get('_switchToMode')
     return m if isinstance(m, int) and not isinstance(m, bool) and m >= 0 else None
+
+
+def use_sig(u):
+    """(fork) What makes two uses the same for merge_added: role, keys, event, action, template, carrier, source."""
+    return json.dumps([u.get('role'), u.get('keys'), u.get('event'), u.get('action'), u.get('template'), u.get('on'), u.get('from')],
+                      ensure_ascii=False)
+
+
+def merge_added(old, new):
+    """(fork) A relink's records (--fx-relink): the earlier `old` as it was, plus what the new crawl adds — records and
+    fields it lacks, uses it does not have (use_sig; a record's `roles` / `effects` then follow its uses), new list
+    entries (abilities matched by `node`); a value both have keeps the earlier one. So a relink only adds links: what an
+    extractor change since the earlier run would alter in an existing record stays for a full run to decide."""
+    if isinstance(old, dict) and isinstance(new, dict):
+        out = dict(old)
+        for k, v in new.items():
+            out[k] = v if k not in old else merge_added(old[k], v)
+        if isinstance(out.get('uses'), list) and isinstance(old.get('uses'), list):
+            have = {use_sig(u) for u in old['uses']}
+            added = [u for u in new.get('uses') or [] if isinstance(u, dict) and use_sig(u) not in have]
+            out['uses'] = old['uses'] + added
+            if added and 'roles' in out:
+                out['roles'] = roles_of(out['uses'])
+            if added and isinstance(out.get('effects'), list):
+                ks = [k for u in added for k in list(u.get('keys') or []) + [x for x in u.get('slots') or [] if x]]
+                out['effects'] = sorted(set(out['effects']) | set(ks))
+        return out
+    if isinstance(old, list) and isinstance(new, list):
+        if all(isinstance(x, str) for x in old + new):
+            return old + [x for x in new if x not in old]
+        if all(isinstance(x, dict) and 'node' in x for x in old + new):
+            by = {x['node']: x for x in old}
+            merged = [merge_added(x, next((y for y in new if y['node'] == x['node']), x)) for x in old]
+            return merged + [y for y in new if y['node'] not in by]
+        return old
+    return old
 
 
 def roles_of(uses):
@@ -2598,7 +2663,7 @@ def buff_templates(env, ek):
             for t in (env.tt(o).get('_templates') or []):
                 if not isinstance(t, dict) or not t.get('templateKey'):
                     continue
-                graph, abilities, switches, creates, shots = [], [], [], [], []
+                graph, abilities, switches, creates, shots, made_at = [], [], [], [], [], {}
                 for it in ((t.get('eventToActions') or {}).get('_items') or []):
                     ev = event_name(BUFF_EVENTS, it.get('key')) or it.get('key')
                     state = (it.get('value') or {}).get('SerializedState')
@@ -2608,12 +2673,14 @@ def buff_templates(env, ek):
                     abilities += [[ev] + x for x in ab]
                     switches += [[ev] + x for x in sw]
                     creates += [x for x in cr if x not in creates]
+                    for x in cr:
+                        made_at.setdefault(x, ev)
                     shots += [x for x in graph_projectiles(state) if x not in shots]
                 effect = ek(t.get('effectKey')) if t.get('effectKey') else None
                 if effect or graph or abilities or switches or creates or shots:
                     out[t['templateKey']] = {'effect': effect, 'graph': graph, **({'abilities': abilities} if abilities else {}),
                                              **({'switches': switches} if switches else {}),
-                                             **({'creates': creates} if creates else {}),
+                                             **({'creates': creates, 'createdAt': made_at} if creates else {}),
                                              **({'projectiles': shots} if shots else {})}
     return out
 
@@ -3380,12 +3447,15 @@ def _read_json(path):
 
 
 def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, jobs=None, root=None, fx_manifest=None,
-              texture_format='webp', add_only=False, skins_only=False):
+              texture_format='webp', add_only=False, skins_only=False, relink=False):
     """The fx run (extract.py --only fx): writes <out_root>/fx/** and `fx_manifest` (default <root>/data/local-fx.json:
     the groups FX_GROUPS, every file); returns the number of files written. `manifest` (the groups of
     data/local-assets.json) gets nothing: extract.py drops the fx groups an earlier run left there (ran_groups). A
     --fx-keys run (`keys`) updates those prefabs in the earlier set's index and file list."""
     check_texture_format(texture_format)
+    # (fork) a relink run (--fx-relink): every unit is crawled again and what its records add joins the index's
+    # (merge_added: links only, the earlier values stay); files are added only, as in an add-only run
+    add_only = add_only or relink
     t_start = time.time()
     ab_root = Path(ab_root)
     root = Path(root) if root else Path(__file__).resolve().parents[2]
@@ -3416,7 +3486,7 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
         unit_ids = list(FX_SAMPLE_UNITS)
     else:
         unit_ids = gd['chars'] + gd['enemies'] + gd['tokens']
-    if add_only:
+    if add_only and not relink:
         unit_ids = [uid for uid in unit_ids if uid not in ((previous or {}).get('units') or {})]
     enemy_idx = container_index(ab_root, (ENEMY_GLOB,), root / '.cache/fx/enemies.json', jobs, log) \
         if any(u.startswith('enemy_') for u in unit_ids) else {}
@@ -3494,7 +3564,10 @@ def export_fx(ab_root, out_root, manifest, log, selection='sample', keys=None, j
     prev = previous if add_only else _read_json(out / 'index.json') if keys else None
     if isinstance(prev, dict) and prev.get('format') == 'fx-index' and prev.get('version') == INDEX_VERSION:
         # a --fx-keys run: these prefabs replace their earlier copies; the earlier set's units, skills, prefabs stay
-        if add_only:
+        if relink:
+            units, projectiles, skills, skins = (merge_added(prev.get(k) or {}, v) for k, v in
+                                               zip(('units', 'projectiles', 'skills', 'skins'), (units, projectiles, skills, skins)))
+        elif add_only:
             units, projectiles, skills, skins = ({**v, **(prev.get(k) or {})} for k, v in
                                                zip(('units', 'projectiles', 'skills', 'skins'), (units, projectiles, skills, skins)))
         else:

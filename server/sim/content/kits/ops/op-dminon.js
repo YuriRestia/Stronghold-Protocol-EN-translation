@@ -165,7 +165,8 @@ function cacheLeave(unit) {
 /** 此身为界 lands: `atk` × atk_scale arts and the stun on every ground enemy standing on `tiles`. */
 function boundary(battle, unit, atk, tiles, tb) {
   const scale = num(tb.atk_scale), stun = num(tb.stun);
-  battle.fx('aoe', { x: unit.x, y: unit.y, id: unit.id, skill: BOUNDARY_TAG });
+  // (fork) tiles [row, col]: the client's projectile_chr_dminon_dead / _withdraw play their tile effect on each (FX_BINDINGS)
+  battle.fx('aoe', { x: unit.x, y: unit.y, id: unit.id, skill: BOUNDARY_TAG, tiles: tiles.map((k) => [Math.floor(k / COLS), k % COLS]) });
   for (const e of foesNow(battle, unit, tiles, GROUND)) {
     if (scale > 0) battle.dealDamage({ source: unit, target: e, amount: atk * scale, type: 'arts', tags: ['talent', BOUNDARY_TAG] });
     if (stun > 0 && e.alive) battle.applyStatus(e, 'stun', { duration: stun, source: unit });
