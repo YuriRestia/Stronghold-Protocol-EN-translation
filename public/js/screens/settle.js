@@ -29,6 +29,7 @@ import { recordId, selfRowOf, loadStats, isModdedRecord, recordsOfSeason } from 
 import { UnofficialMark, VersionTag, isModdedRoom } from '../ui/pluginTag.js';
 import { shownVersion, seasonOf } from '../versions.js';
 import { TestMark } from '../ui/testConsole.js';
+import { HScroll } from '../ui/hScroll.js';
 import { ResultView, resultBonds } from './result.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS } from '../../../shared/constants.js';
 import { t, shownName } from '../../../shared/i18n.js';
@@ -559,7 +560,7 @@ function TeamCard({ p, i, gd, self, victory, raw }) {
   </article>`;
 }
 
-function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDetail, version = null }) {
+function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDetail, version = null, detailOpen = false }) {
   const rounds = useCountUp(r.roundsPassed, { ms: 900, delay: 450 });
   const backRef = useRef(null);
   const rawOf = (pid) => (Array.isArray(res?.players) ? res.players.find((x) => x && x.playerId === pid) : null) || null;
@@ -574,10 +575,17 @@ function TeamPage({ r, res, gd, myId, at: when, content, backLabel, onBack, onDe
     <div class="steam__bg" aria-hidden="true"><${Sprite} k=${`settle/settlemen_teamshow_${bg}`} /></div>
     <div class="settle__stage">
       <${Logo} />
-      <div class="steam__cards" style=${`--n:${r.players.length}`}>
-        ${r.players.length ? r.players.map((p, i) => html`<${TeamCard} key=${p.playerId} p=${p} i=${i} gd=${gd} self=${p.playerId === myId} victory=${r.victory} raw=${rawOf(p.playerId)} />`)
-          : html`<p class="steam__none">${t('暂无结算数据')}</p>`}
-      </div>
+      ${r.players.length
+        // (fork) more cards than the stage holds (Grand Alliance: up to 8) scroll sideways — wheel, drag, swipe, ← / →,
+        // the ‹ › buttons — and open on one's own card (ui/hScroll.js); a row that fits (4 players) looks as before
+        // en: "Scroll players left" / "Scroll players right" (向左滚动玩家 / 向右滚动玩家)
+        ? html`<${HScroll} class="steam__cards" viewClass="steam__view" label=${t('同盟成员')} prevLabel=${t('向左滚动玩家')} nextLabel=${t('向右滚动玩家')}
+            reveal=".tcard.is-self" pageKeys=${!detailOpen} deps=${[r.players.length]}>
+            <div class="steam__track" style=${`--n:${r.players.length}`}>
+              ${r.players.map((p, i) => html`<${TeamCard} key=${p.playerId} p=${p} i=${i} gd=${gd} self=${p.playerId === myId} victory=${r.victory} raw=${rawOf(p.playerId)} />`)}
+            </div>
+          </${HScroll}>`
+        : html`<div class="steam__cards steam__cards--none"><p class="steam__none">${t('暂无结算数据')}</p></div>`}
       <div class="settle__barbg steam__barbg" aria-hidden="true"><${Sprite} k="settle/bottom_bg" /></div>
       <div class="steam__outcome">
         <span class="steam__tags"><${ModePill} r=${r} /><${UnofficialMark} room=${content ? { content } : null} /><${VersionTag} version=${version} /><${SettleTestMark} res=${res} /></span>
@@ -631,7 +639,7 @@ export function SettleFlow({ res, pub = null, myId = null, content = null, backL
   return html`<div ref=${rootRef} class=${cx('screen', 'result', 'settle', `settle--${page}`)} data-testid="settle">
     ${page === 'intro' ? html`<${SettleIntro} players=${r.players} myId=${myId} lose=${lose} onDone=${() => setPage('self')} />` : null}
     ${page === 'self' ? html`<${SelfPage} r=${r} res=${res} raw=${rawSelf} self=${self} gd=${gd} prog=${prog} content=${content} version=${version} onNext=${() => setPage('team')} />` : null}
-    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} content=${content} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} />` : null}
+    ${page === 'team' ? html`<${TeamPage} r=${r} res=${res} gd=${gd} myId=${myId} at=${ctx.at} content=${content} version=${version} backLabel=${backLabel} onBack=${onBack} onDetail=${() => setDetail(true)} detailOpen=${detail} />` : null}
     ${detail ? html`<div class="settle__detail" data-testid="settle-detail">
       <${ResultView} res=${res} pub=${pub} myId=${myId} quiet=${true} slot=${false} damage=${true} content=${content} version=${version} backLabel=${t('返回')} onBack=${() => setDetail(false)} /></div>` : null}
   </div>`;

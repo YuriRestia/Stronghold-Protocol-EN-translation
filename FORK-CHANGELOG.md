@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### The result screen scrolls through every player in Grand Alliance
+
+- With more players than fit on the screen (Grand Alliance, up to 8), the player cards on the "Simulation Complete" screen now scroll sideways: with the mouse wheel, by dragging, by swiping on a phone, with the ← / → keys, or with the round ‹ › buttons at the sides. The screen opens on your own card, and the edges fade where more cards are hidden. Before, the cards past the screen edges couldn't be reached. A 4-player result looks exactly as before. The scrolling is a shared piece, so other rows that outgrow the screen can use it too.
+
 ### Grand Alliance rooms from every server
 
 - The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.

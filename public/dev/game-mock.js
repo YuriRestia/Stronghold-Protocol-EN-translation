@@ -387,7 +387,7 @@ function mockCombatRecords(lineup, rounds) {
 function buildResult(victory) {
   const titles = (data.get('config')?.titles || []).filter((t) => victory || !t.onlyOnWin);
   const pickTitle = (i) => { const t = titles[[0, 3, 5, 2][i] % Math.max(1, titles.length)]; return t ? { id: t.id, name: t.name, picId: t.picId, text: t.text } : null; };
-  return {
+  const res = {
     victory, roundsPassed: victory ? 14 : 11, hiddenReached: false, hiddenCleared: false, reason: victory ? 'victory' : 'defeat',
     bossId: 'boss_5', hiddenBossId: 'boss_8', difficulty: 'HARD', modeId: 'mode_multi_hard', stageId: S.pub.stageId, durationMs: 52 * 60000,
     players: S.pub.players.map((p, i) => ({
@@ -403,6 +403,15 @@ function buildResult(victory) {
       trophies: i === 3 ? 1 : 5, reward: i === 3 ? 170 : 425,
     })),
   };
+  // (fork) ?variant=ga — a Grand Alliance result: 8 seats (the 4 above twice), I sit 6th, off the first screenful
+  if (VARIANTS.has('ga')) {
+    const more = res.players.map((p, i) => ({ ...p, playerId: `ga${i + 5}`, seat: i + 4, name: `Doctor·${i + 5}`, isBot: false }));
+    res.players.push(...more);
+    const me = res.players.find((p) => p.playerId === ME), sixth = res.players.find((p) => p.seat === 5);
+    [me.seat, sixth.seat] = [sixth.seat, me.seat];
+    res.players.sort((x, y) => x.seat - y.seat);
+  }
+  return res;
 }
 
 // ---- combat simulation ------------------------------------------------------------------------------------------------
