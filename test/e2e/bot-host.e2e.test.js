@@ -1,6 +1,6 @@
 // test/e2e/bot-host.e2e.test.js — (fork) piece 6 of docs/host-browser-bots.md: a real server with SP_BOT_EXECUTION=host and two
 // real browsers on the real app. The AI seats' preps and battles run in the host's Worker; when the host leaves mid-game the
-// other browser takes over. Humans ready up through the page's own socket: the UI is coop.e2e.mjs's job.
+// other browser takes over. Humans ready up through the page's own socket: the UI is test/e2e/coopFlows.mjs's job.
 //   SP_E2E=1 CHROME_PATH=… node --test test/e2e/bot-host.e2e.test.js
 
 import { test } from 'node:test';

@@ -1037,8 +1037,9 @@ export function createBattleRunner(deps) {
         || (pub?.phase !== lastPhase && ['LOBBY', 'INFO_CHECK', 'BAND_DRAFT', 'BATTLE_CHECK'].includes(pub?.phase));
       if (resetMetrics) forgetCombat();
       lastRound = round;
-      // solo pause (DESIGN §14): the local battle clocks follow m.public.paused
-      setPaused(!!(pub && pub.paused));
+      // solo pause (DESIGN §14): the local battle clocks follow m.public.paused; (fork) and the browser test harness's
+      // battle hold, m.public.hold (test/e2e/harnessControl.mjs: frozen the same way, without the 暂停中 plate)
+      setPaused(!!(pub && (pub.paused || pub.hold)));
       const phase = pub ? pub.phase : null;
       if (phase === lastPhase && !resetMetrics) return;
       lastPhase = phase;

@@ -53,6 +53,22 @@ export function slotsFor(source) {
   return /\bstartRealServer\(/.test(source) || (source.match(/\bnew Client\(/g) || []).length >= 2 ? 2 : 1;
 }
 
+/**
+ * The lane slots of one browser file by path: its own text plus the shared flow modules it imports from beside it
+ * (`./x.mjs`, one level), so a thin file that runs one flow of a shared module (test/e2e/coop-*.e2e.test.js over
+ * coopFlows.mjs) counts as heavy as the flow it runs.
+ * @param {string} file repository path @param {string} [root]
+ */
+export function slotsOfFile(file, root = ROOT) {
+  const abs = path.join(root, file);
+  let source = fs.readFileSync(abs, 'utf8');
+  for (const m of source.matchAll(/\bfrom\s+['"](\.\/[\w.-]+\.mjs)['"]/g)) {
+    const dep = path.join(path.dirname(abs), m[1]);
+    if (fs.existsSync(dep)) source += '\n' + fs.readFileSync(dep, 'utf8');
+  }
+  return slotsFor(source);
+}
+
 /** The browser test files, sorted. @param {string} [root] @returns {string[]} */
 export function browserFileList(root = ROOT) {
   const out = new Set();
@@ -155,7 +171,7 @@ function main(argv) {
   if (o.list) { for (const f of files) console.log(f); return 0; }
   if (o.slots) {
     if (!o.extra.length) { console.error(usage); return 2; }
-    console.log(files.reduce((s, f) => s + slotsFor(fs.readFileSync(path.join(ROOT, f), 'utf8')), 0));
+    console.log(files.reduce((s, f) => s + slotsOfFile(f), 0));
     return 0;
   }
   const concurrency = Number.isInteger(o.concurrency) && o.concurrency > 0 ? o.concurrency : table.concurrency;

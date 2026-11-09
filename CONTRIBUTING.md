@@ -60,6 +60,8 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
 
 多个浏览器测试同时在一台机器上跑时，按"车道"计算：每个同时运行的测试文件占一个车道，启动真实服务器或同时驱动两名玩家浏览器的文件占两个（`node tools/browser-suite.mjs --slots <文件>` 输出 1 或 2）。车道总数不要超过这台机器实测能承受的数量：在 8 核台式机上是 2（3 条车道时，渲染测试慢了约四分之一，脚本插件的 5 秒预检超时）。
 
+真实服务器的浏览器测试不必按游戏计时器的速度等待：`startRealServer({ fast })` 启动的测试服务器（`test/e2e/fastServer.mjs`）接受两种只供测试工具使用的控制（`test/e2e/harnessControl.mjs`，经测试进程的 IPC 通道，任何网络连接都够不到）：`srv.endPhase(房间码, 阶段)` 让当前有时限的阶段立刻到时（走的就是到时的那个回调），`srv.hold(房间码)` / `srv.release(房间码)` 冻结 / 恢复正在进行的战斗（服务器和页面的战斗时钟一起停，和单人暂停是同一条路径，但不显示「暂停中」）。在检查之间结束固定的过场阶段，在战斗中检查时先冻结，就可以把 `combatSpeed` 调高。正式服务器（`server/index.js`）不加载它们（`test/match/harness-control.test.js`）。同盟流程的四段真实服务器测试拆成 `test/e2e/coop-{facing,coop,solo,result}.e2e.test.js` 四个文件，可以并行跑。
+
 无头 Chrome 默认就用真实 GPU，不要在测试里写死某个平台的图形参数（Windows 上的 `--use-angle=metal` 会退回软件渲染）。需要指定时用 `tools/perfbench.mjs` 的 `gpuArgs()`，它在没有可用 GPU 的机器上也能拿到 WebGL；对用它启动的测试，设置 `SP_E2E_SOFTWARE_GL=1` 可强制软件渲染。`RENDER_E2E=1 node --test test/render/gpu-renderer.browser.test.js` 会打印实际使用的渲染器。
 
 布局适配测试（语言 × 文字大小 × 界面大小 × 窗口或设备的矩阵）平时只跑固定的抽样：每种语言、每档文字大小、每个窗口和设备至少一次，任意两项的取值至少同测一次（每种语言和文字大小都新开页面的测试：每个取值一次，另加每种语言的特大），再加上风险组合（最小的手机配特大、最长的语言配特大）。`test/helpers/matrix.js` 会打印 `# matrix <名字>: …`，列出跑了哪些组合，失败可按原样重现（`SP_MATRIX_SEED=<n>` 换一组抽样）。开发周期结束时的完整浏览器测试设置 `SP_FULL_MATRIX=1`，跑全部组合。
@@ -147,7 +149,14 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   several browser runs share a machine, count lanes: one per test file running at once, two for a file that starts a real
   server or drives two players' browsers (`node tools/browser-suite.mjs --slots <file>` prints 1 or 2), and keep the total
   at what the machine was measured to take: 2 on an 8-core desktop (at 3, render tests ran about a quarter slower and a
-  script plugin's 5 s preflight timed out). A refactor never changes `test/golden/*.json`; an intended gameplay change runs
+  script plugin's 5 s preflight timed out).
+  Real-server browser tests need not wait at game-timer speed: the test server of `startRealServer({ fast })`
+  (`test/e2e/fastServer.mjs`) answers two harness-only controls (`test/e2e/harnessControl.mjs`, over the test process's
+  IPC channel; no socket reaches them): `srv.endPhase(room, phase)` expires the current timed phase through its own
+  deadline callback, and `srv.hold(room)` / `srv.release(room)` freeze and resume a running battle (server and page
+  clocks, the solo pause's path without its plate). End the fixed steps once their checks are done and hold a battle
+  around in-battle checks, so `combatSpeed` can go up. The production entry never loads them
+  (`test/match/harness-control.test.js`). The four co-op flows are four files, `test/e2e/coop-{facing,coop,solo,result}.e2e.test.js`. A refactor never changes `test/golden/*.json`; an intended gameplay change runs
   `npm run golden:update` and commits the digests with the change, naming the scenarios that moved.
   After a sim change, `node tools/sim-check.mjs` checks that browsers still give the server's bits: it traces the golden
   battle corpus in Node; `/dev/sim-check.html` replays it on any device (`--engines chromium,firefox,webkit` headless).

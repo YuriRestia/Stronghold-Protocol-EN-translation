@@ -473,6 +473,8 @@ export class Match {
     this._battleSeq = 0;
     /** solo pause (g.pause, DESIGN §14): the field clocks / deadlines are frozen while true (m.public.paused) */
     this.paused = false;
+    /** (fork) the test harness's battle hold (test/e2e/harnessControl.mjs): frozen like a pause, published as m.public.hold */
+    this.pauseQuiet = false;
     this._pausedAt = 0;
     /** real ms spent paused this match (diagnostics) */
     this.pausedMs = 0;

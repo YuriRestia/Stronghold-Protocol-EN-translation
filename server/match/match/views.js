@@ -106,7 +106,9 @@ export class MatchViews {
       // DESIGN §14: 'client' = battles are simulated by the browsers (b.start specs), 'server' = legacy streaming
       combatMode: this.clientCombat ? 'client' : 'server',
       // solo pause (g.pause, DESIGN §14): the battle, its field clock and every deadline are frozen while true
-      paused: !!this.paused,
+      paused: !!this.paused && !this.pauseQuiet,
+      // (fork) the test harness's battle hold (test/e2e/harnessControl.mjs): the clocks freeze, no 暂停中 plate
+      ...(this.paused && this.pauseQuiet ? { hold: true } : {}),
       players: this.order.map((ps) => ({
         playerId: ps.playerId,
         seat: ps.seat,

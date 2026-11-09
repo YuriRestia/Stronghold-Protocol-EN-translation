@@ -30,7 +30,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf, waitForFunctionLong } from '../e2e/client.mjs';
+import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf, waitForFunctionLong, waitEndingSteps } from '../e2e/client.mjs';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
 const HOST_KIT = ['chess_char_1_10_a', 'chess_char_1_12_a']; // 古米 (坚守), 艾丝黛尔 (萨尔贡)
@@ -402,8 +402,10 @@ describe('DESIGN §20.15 — the bond strip shows the watched teammate\'s bonds 
   });
 
   test('联防 observer: helper 1 on 全景, the picked helper\'s half + bonds, 返回战场 in the pill (phone leaker, desktop helper)', { timeout: 15 * 60 * 1000 }, async () => {
-    // the host fights with a 萨尔贡 kit, the AI with a 拉特兰 kit, the guest has no board (every enemy leaks)
-    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2, startRound: 3, idleBots: true, autoPlace: true,
+    // the host fights with a 萨尔贡 kit, the AI with a 拉特兰 kit, the guest has no board (every enemy leaks).
+    // (fork) The battles run at 6×; the harness holds the 联防 (test/e2e/harnessControl.mjs) from its start until the
+    // checks are done, and the fixed steps between rounds end at once (waitEndingSteps)
+    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 6, startRound: 3, idleBots: true, autoPlace: true,
       kits: [UNITE_HOST_KIT, []], botChess: BOT_KIT } });
     const P = (await import('puppeteer-core')).default;
     let host = null;
@@ -415,18 +417,24 @@ describe('DESIGN §20.15 — the bond strip shows the watched teammate\'s bonds 
       // guest must be the leaker, not a helper)
       let after = null;
       let found = false;
+      const code = (await host.st()).room.code;
+      let held = false;
       for (let round = 3; round <= 5 && !found; round++) {
-        for (const c of [host, guest]) await c.waitFor((s) => s.phase === 'PREP' && s.round === round, `round-${round} prep`, 120000);
+        for (const c of [host, guest]) await waitEndingSteps(srv, c, (s) => s.phase === 'PREP' && s.round === round, `round-${round} prep`, 120000);
         await sleep(1500);
         for (const c of [host, guest]) if (!(await c.st()).ready) await c.click('.readybtn');
         after = await guest.waitFor((s) => s.phase === 'UNITE' || s.phase === 'SETTLE' || (s.phase === 'PREP' && s.round > round), '联防', 300000);
+        // the 联防 stands still while it is looked at (released after the checks, or below when it is not the one)
+        if (after.phase === 'UNITE') held = (await srv.hold(code)).ok;
         const mv0 = after.phase === 'UNITE' ? await matchView(guest) : null;
         const u0 = mv0 ? mv0.fields.find((f) => f.fieldId === 'u') : null;
         if (u0 && u0.players.length === 2 && !u0.players.includes(mv0.me)) { found = true; break; }
         console.log(`round ${round}: no 2-helper 联防 without the guest (${after.phase} ${JSON.stringify(mv0 ? mv0.fields : after.fields)}), next round`);
+        if (held) { await srv.release(code); held = false; }
         await guest.waitFor((s) => s.phase !== 'UNITE', '联防 over', 300000);
       }
       assert.ok(found && after.phase === 'UNITE', `the guest leaked and two helpers were perfect (${JSON.stringify(after.fields)})`);
+      assert.ok(held, 'the 联防 is held while it is checked');
       await guest.page.waitForSelector('.chud__layers', { timeout: 15000 });
       const mv = await matchView(guest);
       const u = mv.fields.find((f) => f.fieldId === 'u');
@@ -461,6 +469,7 @@ describe('DESIGN §20.15 — the bond strip shows the watched teammate\'s bonds 
       assert.ok(st.owner === h1 || st.owner === h2, `back: still a helper's bonds (${st.owner})`);
       assert.equal(st.pillBack, false, 'back: the pill without 返回战场');
       assert.deepEqual(await guest.page.evaluate(() => globalThis.__toastErrors), [], 'no error toast');
+      assert.equal((await srv.release(code)).ok, true, 'the 联防 was still held at the end of the checks');
       assert.deepEqual(problemsOf([host, guest]), []);
     } finally {
       for (const c of [host, guest]) if (c?.problems.length) console.log(c.label, c.problems.slice(0, 20).join('\n'));
@@ -474,8 +483,11 @@ describe('DESIGN §20.15 — the bond strip shows the watched teammate\'s bonds 
     // the host's five 萨尔贡 operators end their battle first; the guest (no board) leaks, and its enemies spawn at twice
     // their times (fastServer SP_SLOW_SPAWNS), so its battle runs to the round's time limit — a window of 40 s and more
     // for watching it and a reload (at the scheduled times a leaker's walk outlasted the host's battle by 5–11 s in 0.2.1
-    // and 0.2.2 alike, and the 0.2.2 full pass lost 返回战场 to 联防); the host watches the guest, reloads, then goes back
-    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 1, startRound: 3, idleBots: true, autoPlace: true,
+    // and 0.2.2 alike, and the 0.2.2 full pass lost 返回战场 to 联防); the host watches the guest, reloads, then goes back.
+    // (fork) The battles run at 4× and the harness holds them (test/e2e/harnessControl.mjs: every clock frozen, the
+    // pages' too) from the moment the teammate's battle is found until 返回战场 is checked: the same window, guaranteed;
+    // the fixed steps between rounds end at once (waitEndingSteps)
+    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 4, startRound: 3, idleBots: true, autoPlace: true,
       kits: [AFTER_HOST_KIT, []], slowSpawns: '1:2' } });
     const P = (await import('puppeteer-core')).default;
     let host = null;
@@ -484,78 +496,87 @@ describe('DESIGN §20.15 — the bond strip shows the watched teammate\'s bonds 
       ({ host, guest } = await coopMatch(P, srv.base, { bots: 1, prefix: 'watch-bonds-after' }));
       let checked = false;
       for (let round = 3; round <= 5 && !checked; round++) {
-        for (const c of [host, guest]) await c.waitFor((s) => s.phase === 'PREP' && s.round === round, `round-${round} prep`, 180000);
+        for (const c of [host, guest]) await waitEndingSteps(srv, c, (s) => s.phase === 'PREP' && s.round === round, `round-${round} prep`, 180000);
         await sleep(1500);
         for (const c of [host, guest]) if (!(await c.st()).ready) await c.click('.readybtn');
         await host.waitFor((s) => s.phase === 'COMBAT', 'combat', 60000);
-        // the own battle over while a teammate's still runs (at 1× it may last longer than the browser's 90 s protocol
-        // timeout, which cut a plain page.waitForFunction off with a bare "Waiting failed")
-        const target = await waitForFunctionLong(host.page, () => {
-          const s = globalThis.__SP__.store.get();
-          const pub = s.match.public;
-          if (pub?.phase !== 'COMBAT') return { gone: true };
-          const me = s.me.playerId;
-          const b = s.match.battle;
-          const mine = pub.players.find((p) => p.playerId === me);
-          if (!(mine?.status === 'done' || (b && b.fieldId === `n:${me}` && b.done))) return false;
-          const live = pub.fields.filter((f) => f.kind === 'normal' && f.live && f.players[0] !== me);
-          if (!live.length) return { gone: true };
-          const pick = live.find((f) => !pub.players.find((p) => p.playerId === f.players[0])?.isBot) || live[0];
-          return { fieldId: pick.fieldId, playerId: pick.players[0], name: pub.players.find((p) => p.playerId === pick.players[0]).name };
-        }, { timeout: 240000, polling: 250 }).then((h) => h.jsonValue());
-        if (target.gone) { console.log(`round ${round}: no teammate battle left to watch, next round`); continue; }
-        const name = target.name;
-        await watchMate(host, name);
-        await ownerIs(host, name);
-        const pubBonds = async () => (await matchView(host)).bonds[name];
-        let st = await stripOf(host);
-        // every bond the teammate's view lists is on the strip (live in-battle gains may add more)
-        for (const id of await pubBonds()) assert.ok(st.bonds.includes(id), `${name}'s ${id} on the strip (${JSON.stringify(st.bonds)})`);
-        assert.ok((st.observe || '').includes(name), `the observing pill names ${name} (${st.observe})`);
-        assert.ok(await host.page.$('.chud__observe .chud__back'), '返回战场 in the observing pill');
-        // the replica on screen (the strip follows the watch at once; the field arrives with its b.start)
-        const onScreen = await host.page.waitForFunction((fid) => {
-          const s = globalThis.__SP__.store.get();
-          if (s.match.public?.phase !== 'COMBAT') return { gone: true };
-          return s.match.battle && !s.match.battle.loading && s.match.battle.fieldId === fid ? { ok: true } : false;
-        }, { timeout: 30000, polling: 250 }, target.fieldId).then((h) => h.jsonValue());
-        if (onScreen.gone) { console.log(`round ${round}: the battles ended while the replica loaded, next round`); continue; }
-        assert.equal((await stripOf(host)).owner, name, 'the replica on screen: still their bonds');
-        await sleep(600);
-        await host.shot('watching');
-        // a reload while watching (pre-existing gap, review): the resent field is adopted — strip, pill and 返回战场
-        const before = host.problems.length;
-        await host.page.reload({ waitUntil: 'domcontentloaded' });
-        await host.page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
-        const resumed = await host.page.waitForFunction((fid) => {
-          const s = globalThis.__SP__.store.get();
-          if (s.match.public && s.match.public.phase !== 'COMBAT') return { gone: true };
-          return s.match.battle && !s.match.battle.loading && s.match.battle.fieldId === fid && document.querySelector('.gm__bonds .bstrip') ? { ok: true } : false;
-        }, { timeout: 60000, polling: 250 }, target.fieldId).then((h) => h.jsonValue());
-        host.problems.splice(before, Infinity, ...host.problems.slice(before).filter((p) => !/ERR_ABORTED/.test(p)));
-        if (resumed.gone) { console.log(`round ${round}: the battles ended during the reload, next round`); continue; }
-        await ownerIs(host, name);
-        await host.page.waitForFunction((name) => (document.querySelector('.chud__observe .vswitch__label')?.textContent || '').includes(name), { timeout: 8000 }, name);
-        assert.ok(await host.page.$('.chud__observe .chud__back'), 'after the reload: 返回战场 again');
-        assert.equal(await host.page.$('.chud__wait'), null, 'after the reload: no "等待队友" message in place of the observing pill');
-        st = await stripOf(host);
-        for (const id of await pubBonds()) assert.ok(st.bonds.includes(id), `after the reload: ${name}'s ${id} on the strip (${JSON.stringify(st.bonds)})`);
-        await sleep(1500); // the phase banner of the fresh screen
-        await host.shot('reloaded');
-        // 返回战场 → the own bonds, untagged. The watched battle may end meanwhile — 联防 or the settlement takes the
-        // screen and the pill with it (the 0.2.2 full pass) — then the next round tries again
-        if (!(await host.click('.chud__observe .chud__back', '返回战场', { optional: true, timeout: 8000 }))) {
-          const phase = (await host.st()).phase;
-          if (phase !== 'COMBAT') { console.log(`round ${round}: the battles ended before 返回战场 (${phase}), next round`); continue; }
-          throw new Error('host: nothing clickable for .chud__observe .chud__back "返回战场" while the battle runs');
+        const code = (await host.st()).room.code;
+        let held = false;
+        try {
+          // the own battle over while a teammate's still runs (at 1× it may last longer than the browser's 90 s protocol
+          // timeout, which cut a plain page.waitForFunction off with a bare "Waiting failed")
+          const target = await waitForFunctionLong(host.page, () => {
+            const s = globalThis.__SP__.store.get();
+            const pub = s.match.public;
+            if (pub?.phase !== 'COMBAT') return { gone: true };
+            const me = s.me.playerId;
+            const b = s.match.battle;
+            const mine = pub.players.find((p) => p.playerId === me);
+            if (!(mine?.status === 'done' || (b && b.fieldId === `n:${me}` && b.done))) return false;
+            const live = pub.fields.filter((f) => f.kind === 'normal' && f.live && f.players[0] !== me);
+            if (!live.length) return { gone: true };
+            const pick = live.find((f) => !pub.players.find((p) => p.playerId === f.players[0])?.isBot) || live[0];
+            return { fieldId: pick.fieldId, playerId: pick.players[0], name: pub.players.find((p) => p.playerId === pick.players[0]).name };
+          }, { timeout: 240000, polling: 250 }).then((h) => h.jsonValue());
+          if (target.gone) { console.log(`round ${round}: no teammate battle left to watch, next round`); continue; }
+          // the window: the teammate's battle (and every other clock) stands still until 返回战场 is checked
+          held = (await srv.hold(code)).ok;
+          if (!held) { console.log(`round ${round}: the battles ended before the hold, next round`); continue; }
+          const name = target.name;
+          await watchMate(host, name);
+          await ownerIs(host, name);
+          const pubBonds = async () => (await matchView(host)).bonds[name];
+          let st = await stripOf(host);
+          // every bond the teammate's view lists is on the strip (live in-battle gains may add more)
+          for (const id of await pubBonds()) assert.ok(st.bonds.includes(id), `${name}'s ${id} on the strip (${JSON.stringify(st.bonds)})`);
+          assert.ok((st.observe || '').includes(name), `the observing pill names ${name} (${st.observe})`);
+          assert.ok(await host.page.$('.chud__observe .chud__back'), '返回战场 in the observing pill');
+          // the replica on screen (the strip follows the watch at once; the field arrives with its b.start)
+          const onScreen = await host.page.waitForFunction((fid) => {
+            const s = globalThis.__SP__.store.get();
+            if (s.match.public?.phase !== 'COMBAT') return { gone: true };
+            return s.match.battle && !s.match.battle.loading && s.match.battle.fieldId === fid ? { ok: true } : false;
+          }, { timeout: 30000, polling: 250 }, target.fieldId).then((h) => h.jsonValue());
+          if (onScreen.gone) { console.log(`round ${round}: the battles ended while the replica loaded, next round`); continue; }
+          assert.equal((await stripOf(host)).owner, name, 'the replica on screen: still their bonds');
+          await sleep(600);
+          await host.shot('watching');
+          // a reload while watching (pre-existing gap, review): the resent field is adopted — strip, pill and 返回战场
+          const before = host.problems.length;
+          await host.page.reload({ waitUntil: 'domcontentloaded' });
+          await host.page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.screen'), { timeout: 30000 });
+          const resumed = await host.page.waitForFunction((fid) => {
+            const s = globalThis.__SP__.store.get();
+            if (s.match.public && s.match.public.phase !== 'COMBAT') return { gone: true };
+            return s.match.battle && !s.match.battle.loading && s.match.battle.fieldId === fid && document.querySelector('.gm__bonds .bstrip') ? { ok: true } : false;
+          }, { timeout: 60000, polling: 250 }, target.fieldId).then((h) => h.jsonValue());
+          host.problems.splice(before, Infinity, ...host.problems.slice(before).filter((p) => !/ERR_ABORTED/.test(p)));
+          if (resumed.gone) { console.log(`round ${round}: the battles ended during the reload, next round`); continue; }
+          await ownerIs(host, name);
+          await host.page.waitForFunction((name) => (document.querySelector('.chud__observe .vswitch__label')?.textContent || '').includes(name), { timeout: 8000 }, name);
+          assert.ok(await host.page.$('.chud__observe .chud__back'), 'after the reload: 返回战场 again');
+          assert.equal(await host.page.$('.chud__wait'), null, 'after the reload: no "等待队友" message in place of the observing pill');
+          st = await stripOf(host);
+          for (const id of await pubBonds()) assert.ok(st.bonds.includes(id), `after the reload: ${name}'s ${id} on the strip (${JSON.stringify(st.bonds)})`);
+          await sleep(1500); // the phase banner of the fresh screen
+          await host.shot('reloaded');
+          // 返回战场 → the own bonds, untagged. The watched battle may end meanwhile — 联防 or the settlement takes the
+          // screen and the pill with it (the 0.2.2 full pass) — then the next round tries again
+          if (!(await host.click('.chud__observe .chud__back', '返回战场', { optional: true, timeout: 8000 }))) {
+            const phase = (await host.st()).phase;
+            if (phase !== 'COMBAT') { console.log(`round ${round}: the battles ended before 返回战场 (${phase}), next round`); continue; }
+            throw new Error('host: nothing clickable for .chud__observe .chud__back "返回战场" while the battle runs');
+          }
+          await host.page.waitForFunction(() => !document.querySelector('.gm__bonds .bstrip')?.getAttribute('data-owner'), { timeout: 8000 });
+          st = await stripOf(host);
+          assert.deepEqual([st.owner, st.observe], [null, null], 'back: own bonds, no observing pill');
+          const fid = await host.page.evaluate(() => globalThis.__SP__.store.get().match.battle?.fieldId ?? null);
+          const me = (await host.st()).me;
+          if ((await host.st()).phase === 'COMBAT') assert.equal(fid, `n:${me}`, 'back: the own battle on screen');
+          checked = true;
+        } finally {
+          if (held) await srv.release(code);
         }
-        await host.page.waitForFunction(() => !document.querySelector('.gm__bonds .bstrip')?.getAttribute('data-owner'), { timeout: 8000 });
-        st = await stripOf(host);
-        assert.deepEqual([st.owner, st.observe], [null, null], 'back: own bonds, no observing pill');
-        const fid = await host.page.evaluate(() => globalThis.__SP__.store.get().match.battle?.fieldId ?? null);
-        const me = (await host.st()).me;
-        if ((await host.st()).phase === 'COMBAT') assert.equal(fid, `n:${me}`, 'back: the own battle on screen');
-        checked = true;
       }
       assert.ok(checked, 'a teammate\'s battle was watched, reloaded and left');
       assert.deepEqual(problemsOf([host, guest]), []);

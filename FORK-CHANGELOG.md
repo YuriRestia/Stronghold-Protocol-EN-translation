@@ -40,6 +40,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The Equipment Supply header (title, description, turn line and countdown) is a size smaller on the same phones.
 - Larger text sizes (Large, Extra Large) still grow a little, by the same capped steps the draft screen uses. Desktop and taller windows are unchanged.
 
+### Faster real-server browser tests
+
+- The test server used by browser tests (`test/e2e/fastServer.mjs`) can end the current timed phase at once and hold a running battle while a test checks it, then let it go on. Only the test tools can use this: the game server never loads it, and a test proves that. The bond-strip watching tests now run their battles 4–6× faster with a hold around their checks, the co-op flows and the real-match test skip the waits between rounds once nothing is checked there, and the four co-op flows are separate files so they run side by side. The browser suite still counts each of them as a heavy file (two lanes), since it now reads the shared flow file they run.
+
 ### Spectate, filter popover, Final Assault watch, protocol list
 
 - Pressing Spectate right after entering the lobby could fail with "too many requests", because entering the lobby spends the server's budget for heavy messages (loadout, ownership, outfits and more). Spectate now tries again after 1.2 s, at most twice. Proposing a version already did this.

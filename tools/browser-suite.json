@@ -20,7 +20,10 @@
   "measured": {
     "test/e2e/bot-host-rooms.e2e.test.js": 343700,
     "test/e2e/bot-host.e2e.test.js": 486800,
-    "test/e2e/coop.e2e.mjs": 617800,
+    "test/e2e/coop-coop.e2e.test.js": 277000,
+    "test/e2e/coop-facing.e2e.test.js": 88000,
+    "test/e2e/coop-result.e2e.test.js": 106000,
+    "test/e2e/coop-solo.e2e.test.js": 107000,
     "test/match/bot-worker.e2e.test.js": 33400,
     "test/match/ioleta-adaptive-ws-delegation.browser.test.js": 216500,
     "test/p2p.browser.test.js": 11700,

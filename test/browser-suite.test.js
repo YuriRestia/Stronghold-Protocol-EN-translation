@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  ROOT, BROWSER_ENV, BROWSER_PERF_FILES, browserFileList, loadTable, runOrder, selectFiles, runArgs, reweigh, slotsFor,
+  ROOT, BROWSER_ENV, BROWSER_PERF_FILES, browserFileList, loadTable, runOrder, selectFiles, runArgs, reweigh, slotsFor, slotsOfFile,
 } from '../tools/browser-suite.mjs';
 
 const all = browserFileList();
@@ -15,7 +15,7 @@ const src = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 test('the list: every browser test file by the naming rule, and nothing that is not a test file', () => {
   assert.ok(all.length > 100, `${all.length} files`);
-  for (const f of ['test/e2e/coop.e2e.mjs', 'test/render/browser.test.js', 'test/p2p.browser.test.js', 'test/render/board3d.browser.test.js']) {
+  for (const f of ['test/e2e/coop-coop.e2e.test.js', 'test/render/browser.test.js', 'test/p2p.browser.test.js', 'test/render/board3d.browser.test.js']) {
     assert.ok(all.includes(f), f);
   }
   assert.ok(!all.some((f) => f.includes('node_modules') || f.includes('\\')), 'repository paths with forward slashes');
@@ -93,7 +93,9 @@ test('lane slots: a real server or two players\' browsers take two, any other br
   assert.equal(slotsFor("const a = new Client(P, b, 'host'); const g = new Client(P, b, 'guest');"), 2);
   assert.equal(slotsFor("const c = new Client(P, b, 'solo');"), 1);
   assert.equal(slotsFor("const { startServer } = await import('../../server/index.js');"), 1);
-  assert.equal(slotsFor(src('test/e2e/coop.e2e.mjs')), 2);
+  // a thin file over a shared flow module counts as the flow: the four co-op files run test/e2e/coopFlows.mjs
+  for (const f of ['coop-coop', 'coop-facing', 'coop-result', 'coop-solo']) assert.equal(slotsOfFile(`test/e2e/${f}.e2e.test.js`), 2, f);
+  assert.equal(slotsOfFile('test/ui/hotkeys.e2e.test.js'), 1);
   assert.equal(slotsFor(src('test/e2e/bot-host.e2e.test.js')), 2);
   assert.equal(slotsFor(src('test/ui/hotkeys.e2e.test.js')), 1);
 });

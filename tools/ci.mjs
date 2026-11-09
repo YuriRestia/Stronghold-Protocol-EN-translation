@@ -50,13 +50,13 @@ export const CI_SHARD_ENV = {
 export const SMOKE_PATHS = ['/healthz', '/', '/vendor/pixi.min.js'];
 
 /**
- * The test files `npm test` runs (package.json "test", which ci.yml runs): every *.test.js under test/, the browser E2E
- * test/e2e/coop.e2e.mjs (it skips itself without Chrome) and the plugin template's author test (it skips itself outside
+ * The test files `npm test` runs (package.json "test", which ci.yml runs): every *.test.js under test/ (the browser
+ * E2E files among them skip themselves without SP_E2E / Chrome) and the plugin template's author test (it skips itself outside
  * `node tools/plugin.mjs test`). A bare `node --test` uses Node's default patterns, which take every other .js under
  * test/ for a test file too: the helpers, the child-process entries and the Forge fixtures — untrusted bait that writes
  * files when it runs. test/ci.test.js checks this list against the tree.
  */
-export const TEST_FILES = ['test/**/*.test.js', 'test/e2e/coop.e2e.mjs', 'plugins/_template/**/*.test.js'];
+export const TEST_FILES = ['test/**/*.test.js', 'plugins/_template/**/*.test.js'];
 
 /** Runner setup / install steps, and the full Golden check run separately (scoped to its job and command). */
 export const SKIPPED_CI_STEPS = [
