@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Asset rebuilds skip voices for the AI teammates' pictures
+
+- Amiya and Dobermann are in the asset list only for the AI teammates' names and icons; they can't be fielded. The asset tool now plans voices only for operators the game can field and their outfits, so a rebuild no longer tries to add those two operators' 112 voice files in four languages. Nothing players hear changes.
+
 ### Exusiai the New Covenant's outfit speaks English, and the EN texts are current
 
 - Exusiai the New Covenant's outfit The Legend Seeker (`char_1041_angel2@iteration#6`) now has its English and Korean voice lines. Before, it spoke Japanese under the English setting. The download mirror is a copy of the Chinese client, which doesn't have those dubs yet, so a new tool (`tools/local-extract/voice.py`, docs/ASSETS.md) reads them from a local EN client: 28 lines, 0.9 MB.
