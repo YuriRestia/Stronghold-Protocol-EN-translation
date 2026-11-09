@@ -13,6 +13,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import { textProblems } from '../e2e/text-fit.mjs';
+import { matrix, picked, LONGEST_LANG } from '../helpers/matrix.js';
 
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
@@ -140,7 +141,12 @@ describe('the room\'s 搜寻队友 switch (real server, headless Chrome)', { ski
   }
 
   // the switch is on by default, and room-fit.e2e.test.js runs with it off: its fit on the phones, where it takes height from
-  // the seat cards, in every language at every 文字大小, for a host alone and with a doctor who is not ready
+  // the seat cards, in every language at every 文字大小, for a host alone and with a doctor who is not ready. (fork) A host
+  // alone: a pairwise sample of language × phone × 文字大小 plus the smallest phone at 特大 in every language and the longest
+  // language at 特大 on every phone (test/helpers/matrix.js; SP_FULL_MATRIX=1: all 60)
+  let alone;
+  const aloneRun = () => (alone ??= matrix('room-search-strip phones alone', { lang: ['zh', 'zh-TW', 'en', 'ja', 'ko'], size: [[640, 360], [667, 375], [844, 390]], ts: ['sm', 'md', 'lg', 'xl'] },
+    { corners: [{ size: [640, 360], ts: 'xl' }, { lang: LONGEST_LANG, ts: 'xl' }] }));
   for (const lang of ['zh', 'zh-TW', 'en', 'ja', 'ko']) {
     test(`phones, ${lang} at every 文字大小: the switch, the big button and the room around them keep their text inside their boxes`, async () => {
       const ctx = await browser.createBrowserContext();
@@ -150,6 +156,7 @@ describe('the room\'s 搜寻队友 switch (real server, headless Chrome)', { ski
       try {
         for (const size of [[640, 360], [667, 375], [844, 390]]) {
           for (const ts of ['sm', 'md', 'lg', 'xl']) {
+            if (!picked(aloneRun(), { lang, size, ts })) continue;
             await page.evaluate(async (v) => (await import('/js/ui/settings.js')).updateSettings({ textSize: v }), ts);
             await page.setViewport({ width: size[0], height: size[1], hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
             await page.waitForSelector('.room-screen .searchbar__switch', { visible: true, timeout: 15000 });

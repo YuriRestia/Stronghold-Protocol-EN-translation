@@ -17,6 +17,7 @@
 // texts are what this measures.
 //
 //   SP_E2E=1 node --test test/ui/versions-fit.e2e.test.js
+//   SP_E2E=1 SP_FULL_MATRIX=1 node --test test/ui/versions-fit.e2e.test.js   # (fork) every combination; else a sample
 //
 // The history row and briefing tags also keep their whole label throughout the same matrix.
 // Screenshots: test/e2e/out/versions-fit-*.png.
@@ -25,12 +26,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { Client, ROOT, hasChrome, startRealServer, problemsOf, sleep } from '../e2e/client.mjs';
+import { matrix, groupBy, LONGEST_LANG } from '../helpers/matrix.js';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome();
 const LANGS = ['zh', 'zh-TW', 'en', 'ja', 'ko'];
 const SIZES = ['sm', 'md', 'lg', 'xl'];
 const PHONES = [[640, 360], [667, 375], [740, 360], [844, 390]];
 const DESKTOPS = [[1920, 1080], [1280, 720]];
+/**
+ * (fork) language × 文字大小 × screen, grouped by language and 文字大小: a pairwise sample plus the smallest phone at 特大
+ * in every language and the longest language at 特大 on every screen (test/helpers/matrix.js; SP_FULL_MATRIX=1: all 120).
+ */
+const looks = (name) => groupBy(matrix(`versions-fit ${name}`, { lang: LANGS, size: SIZES, screen: [...PHONES, ...DESKTOPS] },
+  { corners: [{ size: 'xl', screen: PHONES[0] }, { lang: LONGEST_LANG, size: 'xl' }] }), 'lang', 'size');
 
 /** Switch the interface language and 文字大小 in place (ui/lang.js switchLang, settingsStore). */
 const setLook = (c, lang, size) => c.page.evaluate(async (lang, size) => {
@@ -85,35 +93,33 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       await c.enter('可露希尔');
       await c.page.evaluate(async () => { (await import('/js/versions.js')).setLobbyVersion('act1autochess@V1_1'); });
       await c.page.waitForFunction(() => globalThis.__SP_CONTENT__?.state().status === 'ready', { timeout: 30000 });
-      for (const lang of LANGS) {
-        for (const size of SIZES) {
-          await setLook(c, lang, size);
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
-            await viewport(c, w, h);
-            await sleep(120);
-            const chip = await misfits(c, [{ sel: '[data-testid="version-switch"]', within: '.topbar' }]);
-            assert.deepEqual(chip, [], `chip ${lang} ${size} ${w}×${h}`);
-          }
-          await viewport(c, 667, 375);
-          await c.click('[data-testid="version-switch"]');
-          await c.page.waitForSelector('[data-testid="version-picker"]', { visible: true });
-          await sleep(500); // the dialog's 转场
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
-            await viewport(c, w, h);
-            await sleep(150);
-            const bad = await misfits(c, [
-              { sel: '.modal__box.verpick' },
-              // (the list scrolls inside the dialog: its rows are checked sideways)
-              { sel: '.verpick__name', within: '.verpick__row', wrap: true, x: true },
-              { sel: '.verpick__period', within: '.verpick__row', wrap: true, x: true },
-              { sel: '.verpick__badge', within: '.verpick__row', x: true },
-            ]);
-            assert.deepEqual(bad, [], `picker ${lang} ${size} ${w}×${h}`);
-          }
-          if (size === 'xl' && (lang === 'en' || lang === 'ja')) { await viewport(c, 667, 375); await c.shot(`picker-${lang}-xl`); }
-          await c.page.keyboard.press('Escape');
-          await c.page.waitForSelector('[data-testid="version-picker"]', { hidden: true });
+      for (const { lang, size, rows } of looks('chip and picker')) {
+        await setLook(c, lang, size);
+        for (const { screen: [w, h] } of rows) {
+          await viewport(c, w, h);
+          await sleep(120);
+          const chip = await misfits(c, [{ sel: '[data-testid="version-switch"]', within: '.topbar' }]);
+          assert.deepEqual(chip, [], `chip ${lang} ${size} ${w}×${h}`);
         }
+        await viewport(c, 667, 375);
+        await c.click('[data-testid="version-switch"]');
+        await c.page.waitForSelector('[data-testid="version-picker"]', { visible: true });
+        await sleep(500); // the dialog's 转场
+        for (const { screen: [w, h] } of rows) {
+          await viewport(c, w, h);
+          await sleep(150);
+          const bad = await misfits(c, [
+            { sel: '.modal__box.verpick' },
+            // (the list scrolls inside the dialog: its rows are checked sideways)
+            { sel: '.verpick__name', within: '.verpick__row', wrap: true, x: true },
+            { sel: '.verpick__period', within: '.verpick__row', wrap: true, x: true },
+            { sel: '.verpick__badge', within: '.verpick__row', x: true },
+          ]);
+          assert.deepEqual(bad, [], `picker ${lang} ${size} ${w}×${h}`);
+        }
+        if (size === 'xl' && (lang === 'en' || lang === 'ja')) { await viewport(c, 667, 375); await c.shot(`picker-${lang}-xl`); }
+        await c.page.keyboard.press('Escape');
+        await c.page.waitForSelector('[data-testid="version-picker"]', { hidden: true });
       }
       // 选择模拟协议 of a version whose set failed its check: the look of content.js contentSet 'failed' (the data stays)
       const setStatus = (status) => c.page.evaluate(async (status) => { (await import('/js/content.js')).contentSet.set({ status }); }, status);
@@ -124,20 +130,18 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       await c.page.waitForSelector('[data-testid="proto-failed"]', { visible: true });
       await sleep(500); // the dialog's 转场
       const protoBad = [];
-      for (const lang of LANGS) {
-        for (const size of SIZES) {
-          await setLook(c, lang, size);
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
-            await viewport(c, w, h);
-            await sleep(120);
-            const bad = await misfits(c, [
-              { sel: '[data-testid="proto-failed"]', within: '.modal__box.proto', wrap: true, x: true },
-              { sel: '[data-testid="proto-retry"]', within: '.modal__box.proto', x: true },
-            ]);
-            if (bad.length) protoBad.push(`选择模拟协议 ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
-          }
-          if (size === 'xl' && lang === 'ja') { await viewport(c, 667, 375); await c.shot('proto-failed-ja-xl'); }
+      for (const { lang, size, rows } of looks('选择模拟协议 failed')) {
+        await setLook(c, lang, size);
+        for (const { screen: [w, h] } of rows) {
+          await viewport(c, w, h);
+          await sleep(120);
+          const bad = await misfits(c, [
+            { sel: '[data-testid="proto-failed"]', within: '.modal__box.proto', wrap: true, x: true },
+            { sel: '[data-testid="proto-retry"]', within: '.modal__box.proto', x: true },
+          ]);
+          if (bad.length) protoBad.push(`选择模拟协议 ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
         }
+        if (size === 'xl' && lang === 'ja') { await viewport(c, 667, 375); await c.shot('proto-failed-ja-xl'); }
       }
       assert.deepEqual(protoBad, []);
       await c.page.keyboard.press('Escape');
@@ -169,32 +173,30 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       });
       await guest.page.waitForSelector('[data-testid="version-vote"] [data-testid="version-agree"]', { visible: true });
       const roomBad = [];
-      for (const lang of LANGS) {
-        for (const size of SIZES) {
-          await setLook(guest, lang, size);
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
-            await viewport(guest, w, h);
-            await sleep(150);
-            const bad = await misfits(guest, [
-              { sel: '.rs-pill' },
-              { sel: '[data-testid="room-version"]', within: '.rs-pill' },
-              { sel: '[data-testid="version-vote"]' },
-              { sel: '.vervote__text strong', wrap: true },
-              { sel: '.vervote__hint', wrap: true },
-              { sel: '.vervote__actions .btn', within: '[data-testid="version-vote"]', inView: true },
-              // (a short screen gives the banner's line to the seats: then it is not shown at all)
-              { sel: '[data-testid="version-banner"]', wrap: true, optional: h <= 520 },
-              // §35.18's phone layout hides the redundant ready tag (02eebe5b); loading / failed tags remain visible.
-              { sel: '.seat__content.is-ready', within: '.rseat', optional: h <= 520 },
-              { sel: '.seat__content:not(.is-ready)', within: '.rseat', optional: true },
-              // the whole name (the part tells two halves apart): two lines on a short screen, never an ellipsis
-              { sel: '.rs-clock [data-testid="version-tag"]', wrap: true },
-              { sel: '.rs-clock [data-testid="version-tag"] .vertag__label', wrap: true },
-            ]);
-            if (bad.length) roomBad.push(`room ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
-          }
-          if (size === 'xl' && (lang === 'en' || lang === 'ko')) { await viewport(guest, 667, 375); await guest.shot(`room-${lang}-xl`); }
+      for (const { lang, size, rows } of looks('room')) {
+        await setLook(guest, lang, size);
+        for (const { screen: [w, h] } of rows) {
+          await viewport(guest, w, h);
+          await sleep(150);
+          const bad = await misfits(guest, [
+            { sel: '.rs-pill' },
+            { sel: '[data-testid="room-version"]', within: '.rs-pill' },
+            { sel: '[data-testid="version-vote"]' },
+            { sel: '.vervote__text strong', wrap: true },
+            { sel: '.vervote__hint', wrap: true },
+            { sel: '.vervote__actions .btn', within: '[data-testid="version-vote"]', inView: true },
+            // (a short screen gives the banner's line to the seats: then it is not shown at all)
+            { sel: '[data-testid="version-banner"]', wrap: true, optional: h <= 520 },
+            // §35.18's phone layout hides the redundant ready tag (02eebe5b); loading / failed tags remain visible.
+            { sel: '.seat__content.is-ready', within: '.rseat', optional: h <= 520 },
+            { sel: '.seat__content:not(.is-ready)', within: '.rseat', optional: true },
+            // the whole name (the part tells two halves apart): two lines on a short screen, never an ellipsis
+            { sel: '.rs-clock [data-testid="version-tag"]', wrap: true },
+            { sel: '.rs-clock [data-testid="version-tag"] .vertag__label', wrap: true },
+          ]);
+          if (bad.length) roomBad.push(`room ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
         }
+        if (size === 'xl' && (lang === 'en' || lang === 'ko')) { await viewport(guest, 667, 375); await guest.shot(`room-${lang}-xl`); }
       }
       assert.deepEqual(roomBad, []);
 
@@ -205,21 +207,19 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       await guest.page.waitForSelector('.lo-count', { visible: true });
       await guest.page.waitForSelector('.vervote--covered [data-testid="version-agree"]', { visible: true });
       const coverBad = [];
-      for (const lang of LANGS) {
-        for (const size of SIZES) {
-          await setLook(guest, lang, size);
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
-            await viewport(guest, w, h);
-            await sleep(150);
-            const bad = await misfits(guest, [
-              { sel: '.vervote--covered' },
-              { sel: '.vervote--covered .vervote__text strong', wrap: true },
-              { sel: '.vervote--covered .vervote__actions .btn', within: '.vervote--covered', inView: true },
-            ]);
-            if (bad.length) coverBad.push(`over 干员调配 ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
-          }
-          if (size === 'xl' && lang === 'en') { await viewport(guest, 640, 360); await guest.shot('covered-en-xl'); }
+      for (const { lang, size, rows } of looks('over 干员调配')) {
+        await setLook(guest, lang, size);
+        for (const { screen: [w, h] } of rows) {
+          await viewport(guest, w, h);
+          await sleep(150);
+          const bad = await misfits(guest, [
+            { sel: '.vervote--covered' },
+            { sel: '.vervote--covered .vervote__text strong', wrap: true },
+            { sel: '.vervote--covered .vervote__actions .btn', within: '.vervote--covered', inView: true },
+          ]);
+          if (bad.length) coverBad.push(`over 干员调配 ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
         }
+        if (size === 'xl' && lang === 'en') { await viewport(guest, 640, 360); await guest.shot('covered-en-xl'); }
       }
       assert.deepEqual(coverBad, []);
       await guest.page.keyboard.press('Escape');
@@ -240,9 +240,9 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       await host.page.waitForSelector('.st-table--history [data-testid="version-tag"]', { visible: true });
       const tagsFit = async (selector, sidewaysOnly = false) => {
         const bad = [];
-        for (const lang of LANGS) for (const size of SIZES) {
+        for (const { lang, size, rows } of looks(selector)) {
           await setLook(host, lang, size);
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
+          for (const { screen: [w, h] } of rows) {
             await viewport(host, w, h);
             await sleep(150);
             const found = await misfits(host, [
@@ -281,23 +281,21 @@ describe('official versions: text fit (real server, SP_VERSIONS=all)', { skip: !
       });
       await host.page.waitForSelector('.vervote--float [data-testid="version-cancel"]', { visible: true });
       const settleBad = [];
-      for (const lang of LANGS) {
-        for (const size of SIZES) {
-          await setLook(host, lang, size);
-          for (const [w, h] of [...PHONES, ...DESKTOPS]) {
-            await viewport(host, w, h);
-            await sleep(150);
-            const bad = await misfits(host, [
-              { sel: '[data-testid="settle"] [data-testid="version-tag"]', wrap: true },
-              { sel: '[data-testid="settle"] [data-testid="version-tag"] .vertag__label', wrap: true },
-              { sel: '.vervote--float' },
-              { sel: '.vervote--float .vervote__text strong', wrap: true },
-              { sel: '.vervote--float .vervote__actions .btn', within: '.vervote--float', inView: true },
-            ]);
-            if (bad.length) settleBad.push(`settlement ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
-          }
-          if (size === 'xl' && lang === 'en') { await viewport(host, 640, 360); await host.shot('settle-vote-en-xl'); }
+      for (const { lang, size, rows } of looks('settlement')) {
+        await setLook(host, lang, size);
+        for (const { screen: [w, h] } of rows) {
+          await viewport(host, w, h);
+          await sleep(150);
+          const bad = await misfits(host, [
+            { sel: '[data-testid="settle"] [data-testid="version-tag"]', wrap: true },
+            { sel: '[data-testid="settle"] [data-testid="version-tag"] .vertag__label', wrap: true },
+            { sel: '.vervote--float' },
+            { sel: '.vervote--float .vervote__text strong', wrap: true },
+            { sel: '.vervote--float .vervote__actions .btn', within: '.vervote--float', inView: true },
+          ]);
+          if (bad.length) settleBad.push(`settlement ${lang} ${size} ${w}×${h}: ${bad.join('; ')}`);
         }
+        if (size === 'xl' && lang === 'en') { await viewport(host, 640, 360); await host.shot('settle-vote-en-xl'); }
       }
       assert.deepEqual(settleBad, []);
       await viewport(host, 667, 375);

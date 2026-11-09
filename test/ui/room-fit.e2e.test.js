@@ -19,6 +19,8 @@
 // (without the art pack, as on CI, the cards show their avatar frames and the pack's 404s are let through).
 // The room's big button and its 选择模拟协议: test/ui/lobby-hub.e2e.test.js; the cards' outfits: room-cards.e2e.test.js.
 // Screenshots: test/e2e/out/room-fit-*.png.
+// (fork) A normal run checks a pairwise sample of 文字大小 × screen across the languages plus the risky corners
+// (test/helpers/matrix.js, printed as `# matrix room-fit …`); SP_FULL_MATRIX=1 checks every combination.
 
 import { seedReleaseRead } from '../helpers/releaseNotes.js';
 import { test, describe, before, after } from 'node:test';
@@ -27,6 +29,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { textProblems } from '../e2e/text-fit.mjs';
+import { matrix, groupBy, LONGEST_LANG } from '../helpers/matrix.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -39,6 +42,21 @@ const SIZES = ['sm', 'md', 'lg', 'xl'];
 const PHONES = [[640, 360], [667, 375], [740, 360], [844, 390]];
 const DESKS = [[1920, 1080], [1440, 900], [1280, 720], [1100, 530], [1024, 600], [960, 540], [800, 600]];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/**
+ * (fork) One part of the room (`part`) on `screens`: language × 文字大小 × screen, sampled once for all five language tests
+ * (pairwise, plus the smallest screen at 特大 in every language, the longest language at 特大 everywhere and the screenshots'
+ * combinations); this language's rows grouped by 文字大小.
+ */
+const SAMPLES = new Map();
+function looks(part, lang, screens, shotAt) {
+  const name = `room-fit ${screens === PHONES ? 'phones' : 'desktops'} ${part}`;
+  if (!SAMPLES.has(name)) {
+    const corners = [{ ts: 'xl', screen: screens.reduce((a, b) => (b[0] * b[1] < a[0] * a[1] ? b : a)) }, { lang: LONGEST_LANG, ts: 'xl' }];
+    for (const l of LANGS) for (const ts of SIZES) for (const screen of screens) if (shotAt(screen, ts, l)) corners.push({ lang: l, ts, screen });
+    SAMPLES.set(name, matrix(name, { lang: LANGS, ts: SIZES, screen: screens }, { corners }));
+  }
+  return groupBy(SAMPLES.get(name).filter((c) => c.lang === lang), 'ts');
+}
 
 describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
@@ -124,9 +142,9 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
     try {
       assert.equal(await request(host, 'room.create', { mode: 'coop', difficulty: 'NORMAL' }), 'ok');
       await host.page.waitForSelector('.room-screen .rs-go', { visible: true, timeout: 15000 });
-      for (const ts of SIZES) {
+      for (const { ts, rows } of looks('new room', lang, screens, shotAt)) {
         await textSize(host, ts);
-        for (const size of screens) {
+        for (const { screen: size } of rows) {
           await host.page.setViewport(viewport(size, touch));
           await sleep(120); await settled(host.page);
           for (const p of await check(host.page)) bad.push(`${lang} ${ts} ${size.join('×')} the new room: ${p}`);
@@ -139,9 +157,9 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
       assert.equal(await request(solo, 'room.create', { mode: 'solo', difficulty: 'NORMAL' }), 'ok');
       for (const c of [guest, spec, solo]) await c.page.waitForSelector('.room-screen .rs-go', { visible: true, timeout: 15000 });
       await host.page.waitForFunction(() => document.querySelectorAll('.room-screen .seat:not(.seat--empty)').length === 3 && !!document.querySelector('.specbar'));
-      for (const ts of SIZES) {
+      for (const { ts, rows } of looks('full room', lang, screens, shotAt)) {
         for (const c of clients) await textSize(c, ts);
-        for (const size of screens) {
+        for (const { screen: size } of rows) {
           for (const c of clients) await c.page.setViewport(viewport(size, touch));
           await sleep(150);
           for (const [who, c] of [['host', host], ['doctor', guest], ['spectator', spec], ['solo host', solo]]) {
@@ -172,7 +190,7 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
           await guest.page.waitForSelector('.modal__box.cardpick', { visible: true, timeout: 5000 });
           await sleep(300);
           for (const p of await check(guest.page, '.modal__box.cardpick')) bad.push(`${lang} ${ts} ${size.join('×')} the picker: ${p}`);
-          if (shotAt(size, ts)) {
+          if (shotAt(size, ts, lang)) {
             for (const [who, c] of [['host', host], ['spectator', spec], ['solo', solo]]) await c.page.screenshot({ path: path.join(OUT, `room-fit-${who}-${size.join('x')}-${lang}-${ts}.png`) });
             await guest.page.screenshot({ path: path.join(OUT, `room-fit-picker-${size.join('x')}-${lang}-${ts}.png`) });
           }
@@ -206,9 +224,9 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
             modeId: 'demo:siege', modes: [{ id: 'demo:siege', name: 'Endless Siege' }],
             trusted: { consent, plugins: [{ id: 'demo', version: '1.0.0', authors: [], permissions: [] }] } } } });
         }, offline);
-        for (const ts of SIZES) {
+        for (const { ts, rows } of looks('modded', lang, screens, shotAt)) {
           for (const c of [host, guest]) await textSize(c, ts);
-          for (const size of screens) {
+          for (const { screen: size } of rows) {
             for (const c of [host, guest]) await c.page.setViewport(viewport(size, touch));
             await sleep(150);
             for (const [who, c, offline] of [['host', host, false], ['doctor', guest, false], ['host', host, true]]) {
@@ -227,14 +245,14 @@ describe('the waiting room\'s text fit (real server, headless Chrome)', { skip: 
 
   for (const lang of LANGS) {
     test(`phones (640×360 – 844×390), ${lang} at every 文字大小: every label of the room, ⚙ and the picker inside its box`, { timeout: 300000 }, async () => {
-      const bad = await run(lang, PHONES, true, (size, ts) => size[0] === 667 && ts === 'xl' && ['zh', 'en', 'ja'].includes(lang));
+      const bad = await run(lang, PHONES, true, (size, ts, l) => size[0] === 667 && ts === 'xl' && ['zh', 'en', 'ja'].includes(l));
       assert.deepEqual(bad.slice(0, 40), [], `${bad.length} problems`);
     });
   }
 
   for (const lang of LANGS) {
     test(`desktops (800×600 – 1920×1080), ${lang} at every 文字大小: every label of the room, ⚙ and the picker inside its box`, { timeout: 300000 }, async () => {
-      const bad = await run(lang, DESKS, false, (size, ts) => size[0] === 1440 && ts === 'xl' && lang === 'en');
+      const bad = await run(lang, DESKS, false, (size, ts, l) => size[0] === 1440 && ts === 'xl' && l === 'en');
       assert.deepEqual(bad.slice(0, 40), [], `${bad.length} problems`);
     });
   }
