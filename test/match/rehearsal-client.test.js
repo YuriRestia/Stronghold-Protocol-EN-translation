@@ -314,6 +314,60 @@ test('without a socket (or in Node) the installer is a no-op', () => {
   assert.equal(installRehearsal({ net: {} }), null);
 });
 
+test('b.rehearsalWarm builds the worker once the screen has settled and hands it the data; the first task finds both', async () => {
+  const net = fakeNet();
+  const runner = fakeRunner();
+  const workers = [];
+  const later = [];
+  const r = installRehearsal({ net, runner, createWorker: () => { const w = fakeWorker(); workers.push(w); return w; }, log: QUIET,
+    later: (fn) => later.push(fn) });
+  net.push({ t: 'b.rehearsalWarm' });
+  net.push({ t: 'b.rehearsalWarm' });
+  assert.equal(workers.length, 0, 'what the screen needs now goes first');
+  for (const fn of later.splice(0)) fn();
+  assert.equal(workers.length, 1, 'one worker for two warm-ups');
+  await flush();
+  await flush();
+  assert.deepEqual(workers[0].messages, [{ t: 'data', raw: { chess: {}, enemies: {} } }], 'the data before any task');
+  net.push(task('t1'));
+  await flush();
+  assert.equal(workers[0].task().taskId, 't1', 'posted at once to the warm worker');
+  assert.equal(workers[0].messages.filter((m) => m.t === 'data').length, 1);
+  assert.equal(runner.calls, 1);
+  workers[0].reply({ t: 'done', taskId: 't1', choice: 1 });
+  assert.deepEqual(net.sent, [{ t: 'b.rehearsalResult', taskId: 't1', choice: 1 }]);
+  r.dispose();
+});
+
+test('a task that arrives while a warm-up loads the data gets the same copy, and a match that ended starts nothing', async () => {
+  const net = fakeNet();
+  let release;
+  const runner = { calls: 0, ensureSim() { this.calls++; return new Promise((r) => { release = () => r({ raw: { chess: {} } }); }); } };
+  const workers = [];
+  const later = [];
+  const r = installRehearsal({ net, runner, createWorker: () => { const w = fakeWorker(); workers.push(w); return w; }, log: QUIET,
+    later: (fn) => later.push(fn) });
+  net.push({ t: 'b.rehearsalWarm' });
+  later.shift()();
+  await flush();
+  net.push(task('t1'));
+  await flush();
+  release();
+  await flush();
+  await flush();
+  assert.equal(runner.calls, 1);
+  assert.equal(workers[0].messages.filter((m) => m.t === 'data').length, 1, 'one copy');
+  assert.equal(workers[0].task().taskId, 't1');
+  // the match is over before a queued warm-up ran: it builds nothing
+  r.clear();
+  net.push({ t: 'b.rehearsalWarm' });
+  r.clear();
+  later.shift()();
+  assert.equal(workers.length, 1);
+  r.dispose();
+  assert.equal(net.listeners(), 0);
+});
+
 test('a spec that names a content set is refused without starting the worker', async () => {
   const net = fakeNet();
   const worker = fakeWorker();
@@ -324,5 +378,39 @@ test('a spec that names a content set is refused without starting the worker', a
   assert.equal(built, 0, 'plugin content never reaches the worker');
   assert.equal(worker.messages.length, 0);
   assert.deepEqual(net.sent, [{ t: 'b.rehearsalResult', taskId: 'plugin', error: true }]);
+  r.dispose();
+});
+
+test('(review) a cancel that terminates the running Worker leaves a warm one for the next task; without a warm-up it does not', async () => {
+  const net = fakeNet();
+  const runner = fakeRunner();
+  const workers = [];
+  const later = [];
+  const r = installRehearsal({ net, runner, createWorker: () => { const w = fakeWorker(); workers.push(w); return w; }, log: QUIET,
+    later: (fn) => later.push(fn) });
+  net.push({ t: 'b.rehearsalWarm' });
+  later.shift()();
+  workers[0].reply({ t: 'ready' });
+  await flush();
+  await flush();
+  net.push(task('t1'));
+  await flush();
+  net.push({ t: 'b.rehearsalCancel', taskId: 't1' });
+  assert.equal(workers[0].terminated, true, 'the simulation under way is stopped');
+  assert.equal(workers.length, 2, 'a warm Worker in its place');
+  workers[1].reply({ t: 'ready' });
+  await flush();
+  await flush();
+  assert.deepEqual(workers[1].messages, [{ t: 'data', raw: { chess: {}, enemies: {} } }], 'given the data before any task');
+  net.push(task('t2'));
+  await flush();
+  assert.equal(workers[1].task().taskId, 't2', 'the next task finds it up');
+  // a match that never asked for a warm Worker: a cancel builds nothing until the next task
+  r.clear();
+  net.push(task('t3'));
+  await flush();
+  const n = workers.length;
+  net.push({ t: 'b.rehearsalCancel', taskId: 't3' });
+  assert.equal(workers.length, n);
   r.dispose();
 });

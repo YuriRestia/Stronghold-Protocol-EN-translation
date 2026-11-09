@@ -200,6 +200,7 @@ export class MatchBotTasks {
   /** `ms` is real time: a browser's work does not speed up with the match's timer scale. */
   _armBotTimer(active, ms) {
     this._clearBotTimer(active);
+    active.timerAt = this.sched.now() + ms;
     active.timer = this.later(ms, () => {
       active.timer = null;
       if (this._botActive !== active) return;
@@ -235,7 +236,10 @@ export class MatchBotTasks {
 
   /**
    * b.botReceived: the page has the task. With `starting` its Worker is still coming up: the plan window waits for b.botLoaded,
-   * BOT_START_MS at most.
+   * BOT_START_MS at most. (fork review) `starting` counts only until that executor's Worker has been up once on this
+   * connection (b.botLoaded, a plain receipt, a plan): after that a page that claims it on every task would hold each bot
+   * seat for BOT_START_MS + BOT_PLAN_MS with no strike. A reconnect, a hidden tab or a departure clears it
+   * (_botTaskHostLost): a reloaded page's Worker really is cold. Once every human is Ready the start window is BOT_PLAN_MS.
    */
   _onBotReceived(ps, msg) {
     const active = this._botTaskOf(ps, msg.taskId);
@@ -243,21 +247,26 @@ export class MatchBotTasks {
     // would stall an untimed prep)
     if (!active || active.receivedId === msg.taskId || active.plannedId === msg.taskId) return OK;
     active.receivedId = msg.taskId;
-    if (msg.starting === true) {
+    if (msg.starting === true && !this._botWorkerUp.has(ps.playerId)) {
       active.startingId = msg.taskId;
-      this._armBotTimer(active, BOT_START_MS);
+      this._armBotTimer(active, active.hurried ? BOT_PLAN_MS : BOT_START_MS);
       return OK;
     }
+    this._botWorkerUp.add(ps.playerId);
     this._armBotTimer(active, BOT_PLAN_MS);
     return OK;
   }
 
-  /** b.botLoaded: the Worker of a `starting` receipt can take the task now, so the plan window starts. Once per task. */
+  /**
+   * b.botLoaded: the Worker of a `starting` receipt can take the task now, so the plan window starts. Once per task. A
+   * hurried seat's window already counts from the hurry (or its receipt): it is not opened again.
+   */
   _onBotLoaded(ps, msg) {
     const active = this._botTaskOf(ps, msg.taskId);
     if (!active || active.startingId !== msg.taskId || active.loadedId === msg.taskId || active.plannedId === msg.taskId) return OK;
     active.loadedId = msg.taskId;
-    this._armBotTimer(active, BOT_PLAN_MS);
+    this._botWorkerUp.add(ps.playerId);
+    if (!active.hurried) this._armBotTimer(active, BOT_PLAN_MS);
     return OK;
   }
 
@@ -269,6 +278,7 @@ export class MatchBotTasks {
     if (msg.batch === 'plan' && !msg.error) {
       if (active.plannedId === msg.taskId) return OK;
       active.plannedId = msg.taskId;
+      this._botWorkerUp.add(ps.playerId); // a plan came from a running Worker
     }
     if (msg.error) {
       this.botTaskStats.errors++;
@@ -306,12 +316,17 @@ export class MatchBotTasks {
 
   /** An executor disconnected, left or went hidden. */
   _botTaskHostLost(ps) {
+    this._botWorkerUp.delete(ps.playerId); // (fork review) its next page starts a Worker of its own
     const active = this._botActive;
     if (active && active.executor === ps.playerId) this._botFailover(active);
   }
 
   _botSendHurry(active) {
     active.hurried = true;
+    // (fork review) a seat still in its start window: the humans wait for it now, so it gets the plan window from here,
+    // as before b.botLoaded existed (the page stops waiting for the screen too)
+    const starting = active.startingId === active.task.id && active.loadedId !== active.task.id && active.plannedId !== active.task.id;
+    if (starting && active.timer && active.timerAt - this.sched.now() > BOT_PLAN_MS) this._armBotTimer(active, BOT_PLAN_MS);
     this.sendTo(active.executor, { t: 'b.botHurry', taskId: active.task.id });
   }
 

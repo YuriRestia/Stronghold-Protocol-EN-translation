@@ -46,7 +46,18 @@ describe('facing wheel keyboard (mock match, headless Chrome)', { skip: !ENABLED
     const tile = [[9, 9], [9, 8], [12, 6], [11, 7], [10, 7], [9, 7]].find(([r, c]) => !ready.board.some((p) => p.row === r && p.col === c));
     assert.ok(piece && tile, 'an operator and a free legal tile exist');
     const center = (sel) => page.$eval(sel, (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    // the piece at rest: a cancel re-applies the prep state a frame or more after the wheel closes and the piece then
+    // slides home (160 ms transition), so a drag that reads its position too early presses the tile it is leaving
+    const still = () => page.waitForFunction((uid) => {
+      const el = document.querySelector(`.ff-piece[data-uid="${uid}"]`);
+      if (!el || el.getAnimations().length) { globalThis.__stillRun = 0; return false; }
+      const r = el.getBoundingClientRect(), at = `${r.left},${r.top}`;
+      globalThis.__stillRun = globalThis.__stillAt === at ? (globalThis.__stillRun || 0) + 1 : 0;
+      globalThis.__stillAt = at;
+      return globalThis.__stillRun >= 3;
+    }, { polling: 'raf' }, piece.uid);
     const open = async () => {
+      await still();
       const from = await center(`.ff-piece[data-uid="${piece.uid}"]`);
       const to = await center(`.ff-tile[data-row="${tile[0]}"][data-col="${tile[1]}"]`);
       await page.mouse.move(from.x, from.y); await page.mouse.down();
@@ -72,7 +83,7 @@ describe('facing wheel keyboard (mock match, headless Chrome)', { skip: !ENABLED
     };
     const isOpen = () => page.evaluate(() => !!document.querySelector('.fwheel'));
     const closed = async () => { await page.waitForFunction(() => !document.querySelector('.fwheel')); await sleep(150); };
-    return { page, state, moves, sent, errors, ready, piece, tile, open, preview, active, tabUntil, isOpen, closed };
+    return { page, state, moves, sent, errors, ready, piece, tile, center, still, open, preview, active, tabUntil, isOpen, closed };
   }
 
   test('the wheel takes the focus: arrows + Enter confirm once in all four directions', async (t) => {
@@ -97,6 +108,9 @@ describe('facing wheel keyboard (mock match, headless Chrome)', { skip: !ENABLED
 
   test('Tab reaches ✕ first and Enter on it cancels; Esc cancels; Space on ✕ stays swallowed', async (t) => {
     const h = await setup(t);
+    const piece = `.ff-piece[data-uid="${h.piece.uid}"]`;
+    await h.still();
+    const home = await h.center(piece);
     await h.open();
     await h.preview('ArrowRight');
     await h.page.keyboard.press('Tab');
@@ -108,6 +122,9 @@ describe('facing wheel keyboard (mock match, headless Chrome)', { skip: !ENABLED
     await h.closed();
     assert.deepEqual(await h.moves(), [], 'cancelling sends no deployment');
     assert.deepEqual(await h.state(), h.ready, 'the operator stays where it was');
+    await h.still();
+    const back = await h.center(piece);
+    assert.ok(Math.hypot(back.x - home.x, back.y - home.y) < 2, `the piece slides back to where it came from (${JSON.stringify({ home, back })})`);
     await h.open();
     await h.preview('ArrowLeft');
     await h.page.keyboard.press('Escape');

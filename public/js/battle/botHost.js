@@ -78,6 +78,8 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   let reportedHidden = false;
   /** @type {null | true | Promise<void>} this match's wait for the screen: true once it has settled (or the wait gave up) */
   let screen = null;
+  /** (fork review) Bumped by clear(): a warm-up queued for a match that is over starts nothing in the next one. */
+  let epoch = 0;
 
   /** Run `fn` once the screen has what it needs (BOT_SCREEN_WAIT_MS at most); at once when it has, or the Worker is up. */
   const afterScreen = (fn) => {
@@ -178,8 +180,11 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
     if (!inst) { const job = jobs.get(id); jobs.delete(id); job?.fail('no module Worker'); return; }
     inst.loaded.then(() => {
       if (w !== inst || !jobs.has(id)) return;
-      jobs.get(id).onReady?.();
+      const job = jobs.get(id);
+      job.onReady?.();
       inst.port.postMessage(msg);
+      // a hurry that came while the job waited for the Worker: the Worker only knows the job from here on
+      if (job.hurried) inst.port.postMessage({ t: 'hurry', id });
     }, () => { /* failAll answered it */ });
   };
 
@@ -222,6 +227,7 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   };
 
   const clear = () => {
+    epoch++;
     kill();
     jobs.clear();
     asked = false;
@@ -230,16 +236,25 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   };
 
   const startTask = (id, world, { budgetMs, onBatch, onFail, onReady, cs = null }) => {
-    jobs.set(id, {
+    const job = {
       fail: onFail,
       onReady,
+      posted: false,
+      hurried: false,
       onMessage(m) {
         if (m.t !== 'batch') return;
         if (m.batch === 'final') jobs.delete(id);
         onBatch(m);
       },
-    });
-    afterScreen(() => { if (jobs.has(id)) post(id, { t: 'task', id, world, budgetMs }, cs); });
+      /** Hand the task to the Worker: once the screen has settled, or at once on a hurry (every human is Ready). */
+      go() {
+        if (job.posted || jobs.get(id) !== job) return;
+        job.posted = true;
+        post(id, { t: 'task', id, world, budgetMs }, cs);
+      },
+    };
+    jobs.set(id, job);
+    afterScreen(() => job.go());
   };
 
   const onTask = (msg) => {
@@ -265,7 +280,14 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
     if (stale) jobs.delete(id);
     if (w) w.port.postMessage({ t: 'ack', id, stale });
   };
-  const hurry = (id) => { if (jobs.has(id) && w) w.port.postMessage({ t: 'hurry', id }); };
+  /** (fork review) A hurry also ends a task's wait for the screen: the humans are waiting for this seat now. */
+  const hurry = (id) => {
+    const job = jobs.get(id);
+    if (!job) return;
+    job.hurried = true;
+    if (job.go && !job.posted) { job.go(); return; } // post() sends the hurry right after the task
+    if (w) w.port.postMessage({ t: 'hurry', id });
+  };
 
   const offBattle = net.on('b.botBattle', onBattle);
   const offCancel = net.on('b.botBattleCancel', (msg) => { if (msg && typeof msg.battleId === 'string') drop(msg.battleId); });
@@ -285,7 +307,9 @@ export function installBotHost({ net, loadContent = officialOrRoomContent, creat
   const offWarm = net.on('b.botWarm', (msg) => {
     asked = true;
     if (isHidden()) { reportTab(); return; }
-    const start = () => { if (asked) worker(msg?.cs ?? null)?.loaded?.catch(() => {}); };
+    const at = epoch;
+    // (fork review) only for the match that asked: clear() in between means another match, maybe of another content set
+    const start = () => { if (asked && at === epoch) worker(msg?.cs ?? null)?.loaded?.catch(() => {}); };
     afterScreen(() => {
       if (typeof globalThis.requestIdleCallback === 'function') globalThis.requestIdleCallback(start, { timeout: 5000 });
       else setTimeout(start, 1000);

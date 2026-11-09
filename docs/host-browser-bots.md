@@ -335,7 +335,7 @@ hundreds of milliseconds, not seconds. Piece 6 measures how often this happens i
 | Rehearsal slice | 50 ms, so the Worker can hear cancel and hurry without being killed |
 | Receipt ack | 5 s, else fail over (2 s lost tasks in a real two-browser game: a page's main thread can be that busy) |
 | Plan batch after the receipt | 10 s, else fail over (a first Worker start took about 3.4 s on the desktop) |
-| Worker start, after a `starting` receipt | 30 s for `b.botLoaded`, else fail over; the 10 s plan window counts from `b.botLoaded` (the Worker's 424 modules took about 16 s on 5 Mbps / 100 ms) |
+| Worker start, after a `starting` receipt | 30 s for `b.botLoaded`, else fail over; the 10 s plan window counts from `b.botLoaded` (the Worker's 424 modules took about 16 s on 5 Mbps / 100 ms). Counted only until that human's Worker has been up once on this connection, and cut to 10 s once every human is Ready |
 | Grace on top of the budget | 3 s, else fail over |
 
 **On overrun, keep the best layout.** `RehearsalRun` keeps its best score so far, and the candidates are already ordered with
@@ -383,7 +383,11 @@ task only once the briefing and the band draft's art are in (`loadLater.js` `whe
 module graph shared the link with that art: on 10 Mbps / 40 ms the band icons came 4 s later. A battle never waits. While the
 Worker is still starting, the receipt says `starting: true`, the server allows 30 s (`BOT_START_MS`) for `b.botLoaded`, and the
 10 s plan window counts from there. A slow start is no strike; a Worker that never comes up still fails over within 40 s, and
-the band pick then falls back to the next human and `timeoutBand`. The local path runs its picks on seat streams
+the band pick then falls back to the next human and `timeoutBand`. (Review, 2026-11-09) `starting` counts only until that human's
+Worker has been up once on this connection (a `b.botLoaded`, a plain receipt or a plan): a page that claims it on every task gets
+the plain 10 s window, so it can't hold each seat for 40 s. A reconnect, a hidden tab or a departure clears it, since that page's
+Worker really is cold. Once every human is Ready, a seat still starting gets 10 s from the hurry, and the page stops waiting for
+the screen. A reconnecting first executor gets `b.botWarm` again. The local path runs its picks on seat streams
 too when `seatStreams` is on, which keeps the same-seed parity test meaningful.
 
 **The guard:** in host mode the match holds its strategies through `guardBotStrategy`, so `pickBand`, `pickCard`, `prepBegin` and
@@ -445,6 +449,14 @@ Battle work and prep work never overlap, because they belong to different phases
 `SP_BOT_REHEARSAL_HOST`, `botRehearsalHost`, `canDelegateRehearsal`, the delegation's default-on and the fork's edits to `bot.js`, which
 now differs from upstream only by its CPU meter. **So without `SP_BOT_EXECUTION=host` nothing offers a rehearsal to a browser any more:
 with the live `SP_BOT_REHEARSAL=0`, bots keep their heuristic layout until the flag is on.**
+
+**One fork addition to the dormant path (2026-11-09):** with `SP_BOT_REHEARSAL=host`, the server sends the host `b.rehearsalWarm` at
+the briefing (and a new host on a host change), and `rehearsal.js` builds its Worker and hands it the data once the screen has settled.
+A prep's tasks arrive together, each with its own answer window, and a cancel terminates a running Worker, so a cold start answered
+none of round 1's tasks (`ioleta-adaptive-ws-delegation`). The windows, the timeout fallback and the cancel rules are unchanged.
+(Review, 2026-11-09) A host that reconnects is warmed again (its page dropped the Worker with the socket), a Worker that a cancel
+terminated is replaced by a warm one when nothing is queued, and host execution (`SP_BOT_EXECUTION=host`), where the server never
+runs a bot prep and so never delegates a rehearsal, sends no warm at all.
 
 | Item | Action |
 |------|--------|

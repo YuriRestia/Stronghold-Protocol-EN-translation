@@ -92,7 +92,8 @@ test('ioleta-adaptive over real websockets: host-browser pick, timeout takeover 
   const frames = [];
   c.ws.on('message', (data) => {
     let msg; try { msg = JSON.parse(String(data)); } catch { return; }
-    if (msg.t !== 'b.rehearsal' && msg.t !== 'b.rehearsalCancel') return;
+    // the rehearsal frames the page's installRehearsal listens to (b.rehearsalWarm at the briefing starts its Worker)
+    if (msg.t !== 'b.rehearsal' && msg.t !== 'b.rehearsalCancel' && msg.t !== 'b.rehearsalWarm') return;
     frames.push(msg);
     page.evaluate((m) => window.wsBridge.receive(m), msg).catch((e) => problems.push(String(e)));
   });

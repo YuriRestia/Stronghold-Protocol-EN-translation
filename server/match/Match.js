@@ -436,6 +436,8 @@ export class Match {
     this._botHostDemoted = new Set();
     /** @type {Set<string>} humans whose tab is hidden (b.botHidden): not asked while it stays so */
     this._botHostHidden = new Set();
+    /** @type {Set<string>} (fork) humans whose bot Worker is up this connection: their `starting` receipts no longer count */
+    this._botWorkerUp = new Set();
     this.botTaskStats = { sent: 0, stale: 0, failovers: 0, timeouts: 0, errors: 0, hidden: 0, noHost: 0 };
     /** The round every human turned Ready in (b.botHurry), and that round's bot budget (_botSeatBudgetMs). */
     this._botHurryRound = -1;

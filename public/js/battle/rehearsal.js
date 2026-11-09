@@ -13,6 +13,11 @@
 // wait past it is answered `error` for the same reason — the server should not hold a bot prep for work this page
 // cannot do.
 //
+// (fork) `b.rehearsalWarm` at the briefing builds the Worker and hands it the data before round 1's tasks, once the screen
+// has what it needs (loadLater.js): a prep's tasks arrive together, each with its own answer window, so a cold start
+// answered none of them. The server sends it again when the host reconnects (its page dropped the Worker), and a Worker
+// a cancel terminated is replaced by a warm one at once, so the next task or prep does not start cold either.
+//
 // The server also drops tasks it no longer waits for (`b.rehearsalCancel`: a timeout, a host change, the prep ending)
 // and so does the page. A task still running is stopped by terminating its Worker — the only thing that interrupts a
 // simulation already under way, a message would only be read after it —, and the next task builds a fresh Worker (its
@@ -24,6 +29,7 @@
 
 import { battleRunner } from './runner.js';
 import { genUrl } from '../gen.js';
+import { loadLater } from '../loadLater.js';
 
 /** The module Worker that simulates the candidates (public/ is served at the root). */
 export const WORKER_URL = genUrl('/js/battle/rehearsalWorker.js'); // (fork) in this page's server generation
@@ -46,7 +52,8 @@ export function rehearsalSpecsAreOfficial(specs) {
  *   (default: the browser singleton; its `ensureSim()` warms and caches it), `createWorker` = the Worker factory (tests)
  * @returns {null | { pending: () => number, clear: () => void, dispose: () => void }} null without a socket, or in Node
  */
-export function installRehearsal({ net, runner = battleRunner, createWorker = () => new Worker(WORKER_URL, { type: 'module' }), log = console } = {}) {
+export function installRehearsal({ net, runner = battleRunner, createWorker = () => new Worker(WORKER_URL, { type: 'module' }), log = console,
+  later = loadLater } = {}) {
   if (!net || typeof net.on !== 'function' || !runner || typeof runner.ensureSim !== 'function') return null;
   /** The tasks waiting for the worker, oldest first. */
   const queue = [];
@@ -58,6 +65,10 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
   let w = null;
   /** The browser cannot run a module Worker at all: every task is answered `error` at once. */
   let broken = false;
+  /** (fork) Bumped by clear(): a warm-up queued for a match that is over starts nothing. */
+  let epoch = 0;
+  /** (fork review) This match asked for a warm Worker: one that a cancel terminates is replaced by a warm one. */
+  let warmed = false;
 
   const answer = (task, fields) => {
     if (task.settled) return;
@@ -73,6 +84,12 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
     inst.port.postMessage({ t: 'data', raw: sim.raw });
     inst.data = true;
   });
+
+  /** The data for one worker instance, loaded and posted once even when a warm-up and a task both ask for it. */
+  const ensureData = (inst) => (inst.dataP ||= sendData(inst).catch((err) => {
+    if (w === inst) inst.dataP = null; // the next task tries again
+    throw err;
+  }));
 
   /** Terminate the live worker (the only way to stop a simulation already running in it) and forget it. */
   const killWorker = () => {
@@ -98,7 +115,7 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
   /** The live worker, created on the first task (null once this browser was found unable to run one). */
   function startWorker() {
     if (w || broken) return w;
-    const inst = { port: null, ready: false, data: false, task: null };
+    const inst = { port: null, ready: false, data: false, task: null, warm: false, dataP: null };
     try {
       inst.port = createWorker();
     } catch (err) {
@@ -114,7 +131,7 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
 
   /** Hand one task to a worker whose script has run: the data first (once per instance), then the task itself. */
   function sendTask(inst, task) {
-    Promise.resolve(inst.data ? null : sendData(inst)).then(() => {
+    Promise.resolve(inst.data ? null : ensureData(inst)).then(() => {
       if (w !== inst || inst.task !== task) return;
       inst.port.postMessage({ t: 'rehearsal', taskId: task.id, playerId: task.playerId, cap: task.cap, specs: task.specs, ...(task.limits ? { limits: task.limits } : {}) });
     }, (err) => {
@@ -131,6 +148,7 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
     if (msg.t === 'ready') { // only now can the worker receive anything: the waiting task finally goes out
       inst.ready = true;
       if (inst.task) sendTask(inst, inst.task);
+      else if (inst.warm) ensureData(inst).catch(() => { /* the first task tries again, and answers error if it fails too */ });
       return;
     }
     const task = inst.task;
@@ -174,6 +192,8 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
       w.task.settled = true;
       killWorker();
       pump();
+      // (fork review) nothing queued: a warm Worker for the next task (a later task of this prep, or the next prep)
+      if (!w && warmed && !broken) { const inst = startWorker(); if (inst) inst.warm = true; }
       return;
     }
     const i = queue.findIndex((task) => task.id === msg.taskId);
@@ -183,6 +203,8 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
   /** Drop every task of the match that is over: the worker is terminated (a simulation still running really stops) and
    *  the queue emptied; the next task builds a new worker. */
   function clear() {
+    epoch++;
+    warmed = false;
     const dead = killWorker();
     if (dead && dead.task) dead.task.settled = true;
     for (const task of queue.splice(0)) task.settled = true;
@@ -198,7 +220,20 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
     if (!snap || snap.status !== 'online') clear();
   }
 
+  /** (fork) b.rehearsalWarm: once the screen has what it needs, build the Worker and give it the data, so round 1 finds it up. */
+  function onWarm() {
+    const at = epoch;
+    later(() => {
+      if (at !== epoch || broken) return;
+      warmed = true;
+      if (w) return;
+      const inst = startWorker();
+      if (inst) inst.warm = true;
+    });
+  }
+
   const offTask = net.on('b.rehearsal', onTask);
+  const offWarm = net.on('b.rehearsalWarm', onWarm);
   const offCancel = net.on('b.rehearsalCancel', onCancel);
   const offStatus = net.on('status', onStatus);
   return {
@@ -208,6 +243,7 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
     clear,
     dispose() {
       offTask();
+      offWarm();
       offCancel();
       offStatus();
       clear();

@@ -228,6 +228,22 @@ export class MatchRehearsal {
   }
 
   /**
+   * (fork) Tell the host at the briefing that rehearsals will come (`b.rehearsalWarm`), so its Worker is up before round 1's.
+   * A prep's tasks arrive together, each with its own REHEARSAL_ANSWER_MS, and a cancel terminates a running Worker: a cold
+   * start answered none of round 1's, and every later task of that prep started cold again. A new host is told too.
+   * Nothing else changes: a page that does not warm, or stays silent, still times out into the server's own rehearsal.
+   */
+  _rehearsalWarm() {
+    // (fork review) host execution never runs a bot prep on the server (scheduleBotPrep → queueBotPrep), so no rehearsal
+    // is ever delegated there: no Worker to warm (b.botWarm warms the bot Worker instead)
+    if (!this.botRehearsalDelegate || this.botExecution === 'host' || this.disposed || this.ended || this.requireCs) return;
+    if (!Array.isArray(this.order) || !this.order.some((p) => p.isBot)) return;
+    const host = this.hostId ? this.players.get(this.hostId) : null;
+    if (!host || host.isBot || host.left || !host.connected) return;
+    this.sendTo(host.playerId, { t: 'b.rehearsalWarm' });
+  }
+
+  /**
    * The match's current host (server/lobby.js room.hostId: host migration while a match runs). Delegated rehearsals
    * follow it: a task whose executor is no longer the host is run by the server, the next ones ask the new host.
    */
@@ -236,5 +252,6 @@ export class MatchRehearsal {
     if (next === this.hostId) return;
     this.hostId = next;
     this._rehearsalHostChanged();
+    this._rehearsalWarm(); // (fork) the new host's Worker
   }
 }
