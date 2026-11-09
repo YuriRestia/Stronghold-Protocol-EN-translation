@@ -13,16 +13,21 @@
 // A page that loses another region's server falls back to the page's own, sooner when it has never reached it, and never
 // while it holds a seat there: that seat outlives a short outage.
 //
+// (fork) A region may have its own socket host (`socket`, SP_REGION_SOCKETS), used for the socket and the ping test.
+// Until this page has reached it once, one not welcomed within DIRECT_CONNECT_MS (refused or silent) sends this browser
+// back to the region's host for DIRECT_RETRY_MS. A failure after a welcome there is an outage and changes nothing.
+//
 // Kept free of the store and the DOM (injected), so test/ui/regions.test.js can drive it.
 
 import { ERR } from '../../shared/constants.js';
-import { regionOfCode, regionSocketUrl } from '../../shared/regions.js';
+import { regionOfCode, regionSocketUrl, isRegionHost } from '../../shared/regions.js';
 
 const K_CONFIG = 'sp.regions';      // localStorage: the last /healthz regions, so a return visit connects to the right server at once
 const K_TOKENS = 'sp.regionTokens'; // localStorage: { [token]: region id }, newest last
 const K_BEST = 'sp.regionBest';     // localStorage: the region the last ping test chose
 export const K_PREF = 'sp.pref.region'; // localStorage: 'auto' (the default) or a region id
 const SS_FORCE = 'sp.regionForce';  // sessionStorage: ?region=<id>, this tab only
+const K_ROUTE = 'sp.regionRoute';   // (fork) localStorage: { [region id]: ms } the socket host is skipped until then
 
 const TOKENS_MAX = 8;
 /** A switch of home needs this much better ping, so a browser between two servers does not flip on every load. */
@@ -35,6 +40,10 @@ export const FALLBACK_ATTEMPTS_FIRST = 2;
 /** A region given up is tried again after this long, or as soon as a ping test reaches it. */
 export const DOWN_MS = 5 * 60_000;
 const WELCOME_WAIT_MS = 8000;
+/** (fork) A socket host not welcomed by then (and never reached on this page) gives way to the region's host. */
+export const DIRECT_CONNECT_MS = 6000;
+/** (fork) How long a browser that fell back keeps to the region's host before it tries the socket host again. */
+export const DIRECT_RETRY_MS = 6 * 60 * 60_000;
 /** After a welcome the server resends a resumed room at once: this long without one means there is no seat to keep. */
 export const SETTLE_GRACE_MS = 1500;
 
@@ -51,7 +60,9 @@ export function parseConfig(raw) {
   if (!raw || typeof raw.self !== 'string' || !Array.isArray(raw.list) || raw.list.length < 2) return null;
   if (!raw.list.every((r) => r && typeof r.id === 'string' && typeof r.host === 'string')) return null;
   if (!raw.list.some((r) => r.id === raw.self)) return null;
-  return { self: raw.self, list: raw.list.map((r) => ({ id: r.id, host: r.host })), auto: raw.auto === true };
+  // (fork) `socket`: the region's socket host, when it has a valid one of its own
+  const list = raw.list.map((r) => (isRegionHost(r.socket) && r.socket !== r.host ? { id: r.id, host: r.host, socket: r.socket } : { id: r.id, host: r.host }));
+  return { self: raw.self, list, auto: raw.auto === true };
 }
 
 /**
@@ -110,7 +121,48 @@ export function createRegions(deps) {
     down.delete(id);
     return true;
   };
-  const urlOf = (id) => regionSocketUrl(hostOf(id), deps.socketPath(), deps.secure());
+  // (fork) the socket host (SP_REGION_SOCKETS) unless this browser fell back from it; proxyUrlOf: always the region's host
+  const directOf = (id) => config?.list.find((r) => r.id === id)?.socket ?? null;
+  const routeUntil = () => { const v = readJson(local, K_ROUTE, {}); return v && typeof v === 'object' ? v : {}; };
+  const isDirect = (id) => {
+    if (!directOf(id)) return false;
+    const until = Number(routeUntil()[id]);
+    return !(Number.isFinite(until) && until > now());
+  };
+  const urlOf = (id) => regionSocketUrl(isDirect(id) ? directOf(id) : hostOf(id), deps.socketPath(), deps.secure());
+  const proxyUrlOf = (id) => regionSocketUrl(hostOf(id), deps.socketPath(), deps.secure());
+  /** @type {Set<string>} (fork) regions whose socket host this page has reached: a later failure there is an outage */
+  const reached = new Set();
+  /** (fork) the main socket's last connect: its region, and whether it went to the socket host */
+  let lastRoute = null;
+  /** (fork) the running wait for a first welcome on a socket host: { id, timer } */
+  let directWatch = null;
+  function useProxy(id) {
+    if (!directOf(id) || reached.has(id)) return false;
+    const map = routeUntil();
+    map[id] = now() + DIRECT_RETRY_MS;
+    write(local, K_ROUTE, map);
+    console.info(`[regions] the socket host of ${id} cannot be reached from here: using ${hostOf(id)}`);
+    return true;
+  }
+  function endDirectWatch() {
+    if (directWatch) clearTimer(directWatch.timer);
+    directWatch = null;
+  }
+  /** The main socket goes to `id`'s socket host: give it DIRECT_CONNECT_MS to be welcomed, unless it already was. */
+  function watchDirect(id) {
+    if (reached.has(id) || directWatch?.id === id) return;
+    endDirectWatch();
+    const watch = { id, timer: null };
+    directWatch = watch;
+    watch.timer = setTimer(() => {
+      if (directWatch !== watch) return;
+      directWatch = null;
+      if (reached.has(id) || current !== id || !useProxy(id)) return;
+      emit();
+      net.switchServer();
+    }, DIRECT_CONNECT_MS);
+  }
 
   const pref = () => read(local, K_PREF) || 'auto';
   const force = () => read(session, SS_FORCE);
@@ -150,6 +202,11 @@ export function createRegions(deps) {
     if (!confirmed && !owner && (net.attempt ?? 0) > 0) { current = config.self; return null; }
     current = owner && usable(owner) ? owner : home();
     if (owner && owner !== current) { try { identity.clearToken(); } catch { /* its server is gone */ } }
+    // (fork) a first connect to a socket host is watched (DIRECT_CONNECT_MS); any other needs no watch
+    const direct = isDirect(current);
+    lastRoute = { id: current, direct };
+    if (direct) watchDirect(current);
+    else if (directWatch) endDirectWatch();
     return urlOf(current);
   }
 
@@ -184,8 +241,23 @@ export function createRegions(deps) {
 
   // ---- ping test ---------------------------------------------------------------------------------------------------
 
+  /**
+   * Round trip of a `ping` to region `id`. (fork) On its socket host; when that gives no answer and this page has never
+   * reached it, once more on the region's host, and an answer there makes this browser use that one.
+   */
+  async function pingOnce(id) {
+    const direct = isDirect(id);
+    const ms = await pingUrl(urlOf(id));
+    if (!direct) return ms;
+    if (Number.isFinite(ms)) { reached.add(id); return ms; }
+    if (reached.has(id)) return ms;
+    const via = await pingUrl(proxyUrlOf(id));
+    if (Number.isFinite(via)) useProxy(id);
+    return via;
+  }
+
   /** Round trip of a `ping` on a short socket of its own (no hello: no session, no seat). Infinity: no answer. */
-  function pingOnce(id) {
+  function pingUrl(url) {
     return new Promise((resolve) => {
       const WS = deps.WebSocket || globalThis.WebSocket;
       let best = Infinity;
@@ -204,7 +276,7 @@ export function createRegions(deps) {
         try { ws.send(JSON.stringify({ t: 'ping', c: at })); } catch { finish(); }
       };
       timer = setTimer(finish, PROBE_TIMEOUT_MS);
-      try { ws = new WS(urlOf(id)); } catch { finish(); return; }
+      try { ws = new WS(url); } catch { finish(); return; }
       ws.onopen = next;
       ws.onerror = finish;
       ws.onmessage = (ev) => {
@@ -255,17 +327,28 @@ export function createRegions(deps) {
   async function requestAcross(id, type, fields) {
     if (!usable(id)) throw deps.makeError('REGION_DOWN');
     crossing++;
-    const probeNet = deps.makeNet(urlOf(id));
+    let probeNet = null;
     let token;
-    probeNet.on('welcome', (m) => { token = m?.token ?? token; });
     try {
-      try {
-        probeNet.setName(net.helloName || net.name || identity.loadName());
-        await probeNet.request(type, fields);
-      } catch (err) {
-        try { probeNet.close(); } catch { /* ignore */ }
-        if (err?.code === 'TIMEOUT' || err?.code === 'OFFLINE' || err?.code === 'DISCONNECTED' || err?.code === 'CLOSED') throw deps.makeError('REGION_DOWN');
-        throw err;
+      // (fork) the socket host first; a connection that fails there, never reached on this page, retries on the
+      // region's host once (and this browser keeps to it, as for the main socket)
+      for (let tries = 0; ; tries++) {
+        const direct = isDirect(id);
+        probeNet = deps.makeNet(urlOf(id));
+        probeNet.on('welcome', (m) => { token = m?.token ?? token; });
+        try {
+          probeNet.setName(net.helloName || net.name || identity.loadName());
+          await probeNet.request(type, fields);
+          if (direct) reached.add(id);
+          break;
+        } catch (err) {
+          try { probeNet.close(); } catch { /* ignore */ }
+          if (err?.code === 'TIMEOUT' || err?.code === 'OFFLINE' || err?.code === 'DISCONNECTED' || err?.code === 'CLOSED') {
+            if (tries === 0 && direct && useProxy(id)) { emit(); continue; }
+            throw deps.makeError('REGION_DOWN');
+          }
+          throw err;
+        }
       }
       // a socket that is away would only hold this up; its seat goes with its grace time
       if (net.status === 'online' && busy()) { try { await net.request('room.leave'); } catch { /* this server just went away */ } }
@@ -351,6 +434,8 @@ export function createRegions(deps) {
   /** @param {{ token?: string }} msg welcome */
   function onWelcome(msg) {
     everOnline = true;
+    // (fork) the socket host answered: from now on a failure there is an outage
+    if (lastRoute?.direct && lastRoute.id === current) { reached.add(current); if (directWatch?.id === current) endDirectWatch(); }
     welcomedAt = now();
     if (config && current) rememberToken(msg?.token, current);
     emit();
@@ -359,6 +444,15 @@ export function createRegions(deps) {
 
   /** The main socket's status (Net 'status'). */
   function onStatus(snap) {
+    // (fork) a socket host this page never reached refuses outright: the region's host, before the region itself is
+    // given up below. A silent one is the watch's (watchDirect).
+    if (config && current && snap?.status === 'reconnecting' && lastRoute?.direct && lastRoute.id === current
+      && !reached.has(current) && (snap.attempt ?? 0) >= FALLBACK_ATTEMPTS_FIRST && useProxy(current)) {
+      endDirectWatch();
+      emit();
+      net.switchServer();
+      return;
+    }
     if (!config || !current || current === config.self || snap?.status !== 'reconnecting') return;
     // a seat outlives a short outage (the server keeps it for 10 minutes): in a room or a match, keep trying, as on one server
     if (everOnline && busy()) return;
@@ -391,6 +485,8 @@ export function createRegions(deps) {
       auto: !!config?.auto,
       list: config ? config.list.map((r) => r.id) : [],
       current: config ? current ?? config.self : null,
+      /** (fork) which host the socket uses for `current`: 'direct' (its socket host) or 'host' (the region's host) */
+      route: config ? (isDirect(current ?? config.self) ? 'direct' : 'host') : null,
       home: home(),
       preference: pref(),
       forced: force(),

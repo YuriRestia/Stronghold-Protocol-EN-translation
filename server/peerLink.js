@@ -14,6 +14,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { isLocalHost } from '../shared/regions.js';
+import { peerHostOf } from './regions.js';
 import { PROTOCOL_VERSION } from '../shared/constants.js';
 import { sendJson, sendError } from './http/common.js';
 
@@ -222,7 +223,8 @@ export class PeerLink {
   async poll() {
     if (this.polling) { this.repoll = true; return; }
     this.polling = true;
-    const host = this.config.list.find((r) => r.id === this.config.arbiter).host;
+    // (fork) the arbiter's socket host when it has one (SP_REGION_SOCKETS)
+    const host = peerHostOf(this.config, this.config.arbiter);
     const results = this.results;
     this.results = [];
     try {

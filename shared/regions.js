@@ -33,6 +33,11 @@ export function parseRegions(raw) {
   return list.length >= 2 ? list : [];
 }
 
+/** (fork) A host name, with an optional port, as SP_REGIONS / SP_REGION_SOCKETS take it. @param {unknown} host */
+export function isRegionHost(host) {
+  return typeof host === 'string' && HOST_RE.test(host);
+}
+
 /**
  * The first letters of the keys of every region, one contiguous run each, in listed order. The one table both directions read.
  * @param {{ id: string }[]} list
