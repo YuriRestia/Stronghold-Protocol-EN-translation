@@ -23,7 +23,7 @@ import { PACKS_URL, PACK_INDEX_FILE, readPackIndex, langMetaOf } from '../../../
 import { DEV_BUILD } from '../../../shared/constants.js';
 import { loadPref, savePref } from '../store.js';
 import { data } from '../data.js';
-import { updateRotateHintPwaI18n } from './device.js';
+import { updateRotateHintI18n } from './device.js';
 import { html } from './components.js';
 import { genUrl } from '../gen.js';
 
@@ -179,7 +179,7 @@ function applyDocument(lang) {
   doc.documentElement.dataset.lang = lang;
   doc.documentElement.dataset.script = scriptOf(t('卫戍协议'));
   doc.title = t('卫戍协议：盟约 · STRONGHOLD PROTOCOL');
-  updateRotateHintPwaI18n(doc);
+  updateRotateHintI18n(doc);
 }
 
 // `{ dn }` params and tName(): Chinese game-data names → the current language (data/i18n/<lang>.json names)
@@ -218,7 +218,9 @@ function applyLang(lang) {
 export async function initLang() {
   const request = ++langRequest;
   wire();
-  applyDocument(getLang());
+  // <html lang> and the tab title stay as served (English; js/boot.js already set a stored or ?lang= choice) while the
+  // choice loads: writing the Chinese source's here would show a browser a Chinese page exactly when it decides
+  // whether to offer translation. They follow the language once the first render's language is known (below).
   const TIMEOUT = Symbol('timeout');
   const boot = (async () => {
     const listed = await loadLangIndex();
@@ -234,6 +236,7 @@ export async function initLang() {
     // still the language to be in (no other pick in the meantime; a first visit has no stored one — START_LANG)
     boot.then((lang) => { if (request === langRequest && lang && initialLang().lang === lang) applyLang(lang); });
   } else if (request === langRequest && got) applyLang(got);
+  if (request === langRequest) applyDocument(getLang());
   return getLang();
 }
 

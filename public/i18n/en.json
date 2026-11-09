@@ -1274,6 +1274,8 @@
   "有本土语言配音时使用": "Use native-language dub if available",
   "voice-lang::本土语言": "Native",
   "添加到桌面": "Add to Home Screen",
+  "请将设备横屏": "Rotate your device to landscape",
+  "卫戍协议：盟约 需要横屏显示以获得完整体验": "Stronghold Protocol: Alliance needs landscape for the full experience",
   "恢复本机对局": "Resume local match",
   "此对局仍在其他窗口中，或当前浏览器无法安全恢复。请关闭原窗口后重试。": "This match is still open in another window, or this browser cannot safely resume it. Close the original window and retry.",
   "选择已关闭窗口的对局。服务器重启或对局过期后无法恢复。": "Select a match from a closed window. Matches cannot be resumed after a server restart or expiry.",
