@@ -7,6 +7,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Exusiai the New Covenant's outfit speaks English, and the EN texts are current
+
+- Exusiai the New Covenant's outfit The Legend Seeker (`char_1041_angel2@iteration#6`) now has its English and Korean voice lines. Before, it spoke Japanese under the English setting. The download mirror is a copy of the Chinese client, which doesn't have those dubs yet, so a new tool (`tools/local-extract/voice.py`, docs/ASSETS.md) reads them from a local EN client: 28 lines, 0.9 MB.
+- The English game texts are rebuilt from the official EN data of 2026-11-05 (data 52.4.0, was 51.10.0), for the current season and the three older ones. Players see the official names: the band effect Knot's Secret (was Phylactery Secret), Mon3tr's outfit Sharpened Claws (was Sharpened Blades), and Kal'tsit Esperanta (was "Kal'tsit - Esperanta"), with her official Esperanto skill names. Viy's, Closure's and Kal'tsit Esperanta's skills, talents and modules in the Custom Squad now use the official wording, and six Alliance module texts plus one enemy description have small official fixes.
+- Eleven other voice sets still have no English or Korean dub to take: Sakiko Togawa's collab voice is Japanese only, and the rest aren't in the EN client yet. They keep falling back as before.
+
 ### Effect extraction follows every template of our units
 
 - The effect extractor (`tools/local-extract/fx.py`) now also exports the effects that only an action template names, for every operator, token and enemy in our data and for the seasons' bonds, bands and items. Before, it followed only the projectiles that templates fire, so effects such as the S2 and S3 buffs of Тоска (`char_4244_tocka`) were never extracted. An add-only run never rewrites a file that is already there. The new art isn't shown in battles yet; that needs separate client work.
