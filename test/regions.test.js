@@ -14,9 +14,9 @@ import { GenerationWatch } from '../server/generation.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { PeerLink, signBody, verifyBody, signTicket, verifyTicket, compatible, SYNC_PATH } from '../server/peerLink.js';
+import { PeerLink, signBody, verifyBody, signTicket, verifyTicket, compatible, SYNC_PATH, PEER_FRESH_MS, peerRoomRow } from '../server/peerLink.js';
 import { planCross } from '../server/crossMatch.js';
-import { CODE_ALPHABET, ERR, MAX_SEATS } from '../shared/constants.js';
+import { CODE_ALPHABET, ERR, MAX_SEATS, PROTOCOL_VERSION } from '../shared/constants.js';
 import { siteCsp } from '../server/http/csp.js';
 
 const SECRET = 'x'.repeat(40);
@@ -210,6 +210,35 @@ describe('only the current generation speaks for a region', () => {
     }
   });
 
+  test('the room browser: the rooms of another region only while it is heard from and on this build, only their known fields', () => {
+    let now = 1_000_000;
+    const changed = [];
+    const lobby = { largeRooms: true, ownRoomList: () => [], roomListChanged: () => changed.push(now) };
+    const l = link('sg', { lobby, now: () => now });
+    const row = { code: 'NPQR', host: 'Kal', seats: 2, capacity: 8, difficulty: 'HARD', squads: [1, 1], locked: true, at: 5, password: 'WXYZ', extra: 1 };
+    l.onSync({ region: 'us', gen: null, proto: PROTOCOL_VERSION, cs: null, rooms: [row, { code: 'bad key!', seats: 1, capacity: 8 }] });
+    assert.deepEqual(l.peerRooms(), [{ code: 'NPQR', host: 'Kal', seats: 2, capacity: 8, difficulty: 'HARD', squads: [1, 1], locked: true, at: 5, region: 'us' }]);
+    assert.equal(changed.length, 1, 'the watchers hear of it');
+    l.onSync({ region: 'us', gen: null, proto: PROTOCOL_VERSION, cs: null, rooms: [row] });
+    assert.equal(changed.length, 1, 'nothing new: no resend');
+    // another build: other rules, so its rooms are not offered here
+    l.onSync({ region: 'us', gen: 'other', proto: PROTOCOL_VERSION, cs: null, rooms: [row] });
+    assert.deepEqual(l.peerRooms(), []);
+    assert.equal(changed.length, 2);
+    // a link that went quiet: the list falls back to this server's rooms on the next tick
+    l.onSync({ region: 'us', gen: null, proto: PROTOCOL_VERSION, cs: null, rooms: [row] });
+    now += PEER_FRESH_MS + 1;
+    l.tick();
+    assert.deepEqual(l.peerRooms(), []);
+    assert.equal(changed.at(-1), now);
+    assert.equal(peerRoomRow({ code: 'NPQR', seats: 1.5, capacity: 8 }, 'us'), null);
+    // this server's own rooms ride along with its state, for the other regions
+    lobby.ownRoomList = () => [row];
+    assert.deepEqual(l.state().rooms, [row]);
+    lobby.largeRooms = false;
+    assert.equal(l.state().rooms, null, 'none while Grand Alliances are off here');
+  });
+
   test('a command planned for a generation that was replaced fails instead of reaching the new one', () => {
     const results = [];
     const l = link('sg');
@@ -238,11 +267,12 @@ async function startPair() {
   const us = await startServer({ ...opts, regions: usConfig });
   return { sg, us, sgConfig, usConfig };
 }
-async function twoRegions({ crossAfterMs = 0, cross = true, usGen = null } = {}) {
+async function twoRegions({ crossAfterMs = 0, cross = true, usGen = null, large = false } = {}) {
   shared ??= await startPair();
   const { sg, us, sgConfig } = shared;
   sgConfig.crossAfterMs = crossAfterMs;
   for (const s of [sg, us]) {
+    s.lobby.largeRooms = large;
     s.lobby.crossTicket = cross ? (payload) => signTicket(SECRET, payload) : null;
     s.lobby.crossVerify = cross ? (ticket) => verifyTicket(SECRET, ticket, Date.now()) : null;
   }
@@ -489,6 +519,59 @@ describe('two servers', () => {
       assert.equal(move.code, room.code);
       const q = await solo.waitFor('queue.state', (m) => m.queued === false);
       assert.equal(q.placed, true);
+    } finally { await r.close(); }
+  });
+
+  test('the Grand Alliance browser lists the rooms of both servers, each naming its server; a locked one on the other server takes its password', async () => {
+    const r = await twoRegions({ cross: false, large: true });
+    try {
+      const sgHost = await player(r.sg, 'SgHost');
+      await ok(sgHost, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL', capacity: 8 });
+      const sgCode = (await sgHost.waitFor('room.state')).code;
+      const usHost = await player(r.us, 'UsHost');
+      await ok(usHost, { t: 'room.create', mode: 'coop', difficulty: 'HARD', capacity: 8, password: 'WXYZ' });
+      const usCode = (await usHost.waitFor('room.state')).code;
+      for (const [server, name] of [[r.sg, 'SgWatch'], [r.us, 'UsWatch']]) {
+        const w = await player(server, name);
+        await ok(w, { t: 'rooms.watch', on: true });
+        const list = await w.waitFor('rooms.list', (m) => m.rooms.length === 2, 3000);
+        const by = Object.fromEntries(list.rooms.map((x) => [x.code, x]));
+        assert.equal(by[sgCode].region, 'sg', `${name}: the Singapore room`);
+        assert.equal(by[usCode].region, 'us', `${name}: the US room`);
+        assert.equal(by[usCode].locked, true);
+        assert.equal(by[usCode].host, 'UsHost');
+        assert.ok(!JSON.stringify(list).includes('WXYZ'), 'never the password');
+        assert.ok(list.rooms.every((x) => !('at' in x)), 'no server times for pages');
+      }
+      // Join from the list: the key names the US server (public/js/regions.js join), which asks for the password
+      assert.equal(regionOfCode(usCode, [{ id: 'sg' }, { id: 'us' }]), 'us');
+      const guest = await player(r.us, 'Guest');
+      const refused = await guest.request({ t: 'room.join', code: usCode });
+      assert.equal(refused.code, ERR.ROOM_LOCKED);
+      await ok(guest, { t: 'room.join', code: usCode, password: 'WXYZ' });
+      // a started or full room leaves both lists
+      await ok(usHost, { t: 'room.setLock', on: false });
+      const sgWatch = await player(r.sg, 'SgWatch2');
+      await ok(sgWatch, { t: 'rooms.watch', on: true });
+      await sgWatch.waitFor('rooms.list', (m) => m.rooms.some((x) => x.code === usCode && x.seats === 2 && !x.locked), 3000);
+    } finally { await r.close(); }
+  });
+
+  test('a peer on another build, or none, leaves the Grand Alliance browser with the rooms of this server', async () => {
+    const r = await twoRegions({ cross: false, large: true, usGen: 'other-gen' });
+    try {
+      const usHost = await player(r.us, 'UsHost');
+      await ok(usHost, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL', capacity: 8 });
+      const sgHost = await player(r.sg, 'SgHost');
+      await ok(sgHost, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL', capacity: 8 });
+      const sgCode = (await sgHost.waitFor('room.state')).code;
+      await new Promise((done) => setTimeout(done, 200)); // several posts of the link
+      const w = await player(r.sg, 'Watch');
+      await ok(w, { t: 'rooms.watch', on: true });
+      const list = await w.waitFor('rooms.list');
+      // (the shared pair may still hold an earlier test's Singapore rooms)
+      assert.ok(list.rooms.some((x) => x.code === sgCode));
+      assert.deepEqual(list.rooms.filter((x) => x.region !== 'sg'), [], 'no room of the US server on another build');
     } finally { await r.close(); }
   });
 

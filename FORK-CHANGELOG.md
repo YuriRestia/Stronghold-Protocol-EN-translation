@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Grand Alliance rooms from every server
+
+- The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
+
 ### Room cards show every player's outfit
 
 - In the room lobby, each player's big portrait card now shows that player's outfit for the operator they picked, on everyone's screen. Before, you saw your own outfit on your own card, but the other players' cards showed the default art, or your own outfit choice for that operator if you had one. The Strategy Draft's player cards follow the same rule. When the outfit has no portrait, or its picture fails to load, the card shows the default art.

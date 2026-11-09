@@ -6,6 +6,8 @@
 //
 // Everything is optional by design. A link that is down, or a peer on another build, only makes each server local again:
 // key joins never use it (the key names the server, shared/regions.js) and the counts shrink to this server's own.
+// The same goes for the Grand Alliance room browser: each server's open rooms ride along with its state (`rooms`) and
+// Lobby.roomList adds the other servers' (peerRooms); a link that is down lists this server's rooms only.
 //
 //   signature   HMAC-SHA256 of `<ms>.<body>` with SP_PEER_SECRET, in x-sp-peer-time / x-sp-peer-sig; 30 s of clock skew
 //   tickets     `<base64url json>.<hmac>`: a moved group's seats, checked by the room's own server (Lobby.join)
@@ -22,6 +24,22 @@ export const PEER_TIMEOUT_MS = 5000;
 export const SIGNATURE_WINDOW_MS = 30_000;
 export const MAX_BODY_BYTES = 256 * 1024;
 export const SYNC_PATH = '/_peer/sync';
+/** The rooms one region shows the others (Lobby.ownRoomList caps them too). */
+export const MAX_PEER_ROOMS = 50;
+
+/**
+ * A room browser row from another server, only its known fields (it is shown to players), or null.
+ * @param {any} r @param {string} region
+ */
+export function peerRoomRow(r, region) {
+  if (!r || typeof r.code !== 'string' || !/^[A-Za-z0-9]{1,12}$/.test(r.code) || !Number.isInteger(r.seats) || !Number.isInteger(r.capacity)) return null;
+  return {
+    code: r.code, host: typeof r.host === 'string' ? r.host.slice(0, 64) : '', seats: r.seats, capacity: r.capacity,
+    difficulty: typeof r.difficulty === 'string' ? r.difficulty : undefined,
+    squads: Array.isArray(r.squads) && r.squads.length === 2 ? r.squads.map((n) => (Number.isInteger(n) ? n : 0)) : [r.seats, 0],
+    ...(r.locked === true ? { locked: true } : {}), at: Number(r.at) || 0, region,
+  };
+}
 
 const hmac = (secret, text) => createHmac('sha256', secret).update(text).digest('hex');
 const same = (a, b) => {
@@ -96,6 +114,8 @@ export class PeerLink {
     this.polling = false;
     this.repoll = false;
     this.failing = false;
+    /** the other regions' rooms as the room browser last got them (noticeRooms) */
+    this.roomsKey = '[]';
   }
 
   start() {
@@ -112,8 +132,42 @@ export class PeerLink {
 
   tick() {
     if (this.isActive && !this.isActive()) return;
+    this.noticeRooms(); // a region that went quiet leaves the room browser
     if (!this.isArbiter) { void this.poll(); return; }
     try { this.onTick?.(); } catch (e) { this.log.error?.('[peer] planning failed', e); }
+  }
+
+  /**
+   * The other regions' open Grand Alliance rooms for the room browser (Lobby.roomList), each with its `region`: only
+   * regions still heard from and on this server's build (`compatible`: the same rules), so a link that is down or a
+   * peer mid-deploy lists nothing here. The arbiter's answer also carries the regions other than this one.
+   */
+  peerRooms() {
+    const me = { gen: this.gen, proto: PROTOCOL_VERSION, cs: this.cs };
+    const out = [];
+    const seen = new Set([this.config.self]);
+    const add = (id, rows) => {
+      if (seen.has(id) || !Array.isArray(rows) || !this.config.list.some((r) => r.id === id)) return;
+      seen.add(id);
+      for (const r of rows.slice(0, MAX_PEER_ROOMS)) { const row = peerRoomRow(r, id); if (row) out.push(row); }
+    };
+    for (const { id, state } of this.freshPeers()) {
+      if (!compatible(me, state)) continue;
+      add(id, state.rooms);
+      for (const [r, rows] of Object.entries(state.others?.rooms || {})) add(r, rows);
+    }
+    return out;
+  }
+
+  /** The other regions' rooms changed (or went away): the pages watching the room browser get the list again. */
+  noticeRooms() {
+    if (typeof this.lobby.roomListChanged !== 'function') return;
+    try {
+      const key = JSON.stringify(this.peerRooms());
+      if (key === this.roomsKey) return;
+      this.roomsKey = key;
+      this.lobby.roomListChanged();
+    } catch (e) { this.log.error?.('[peer] room list failed', e); }
   }
 
   /** This server, as the other regions read it. */
@@ -124,6 +178,8 @@ export class PeerLink {
       online: this.network.connectionCount, searching: counts.searching,
       // only a server with cross-region matchmaking on offers its waiters (SP_CROSS_MATCH)
       digest: this.lobby.crossTicket ? this.lobby.crossDigest() : null,
+      // the open Grand Alliance rooms, for the other regions' room browsers (only while large rooms are on here)
+      rooms: this.lobby.largeRooms === true && typeof this.lobby.ownRoomList === 'function' ? this.lobby.ownRoomList() : null,
     };
   }
 
@@ -182,6 +238,7 @@ export class PeerLink {
       const reply = await res.json();
       if (this.failing) { this.failing = false; this.log.info?.('[peer] link to the arbiter is back'); }
       this.peers.set(this.config.arbiter, { state: reply, at: this.now() });
+      this.noticeRooms();
       for (const cmd of Array.isArray(reply.cmds) ? reply.cmds : []) {
         this.results.push(this.runCommand(cmd));
         this.repoll = true;
@@ -218,13 +275,16 @@ export class PeerLink {
       if (gen === (msg.gen ?? null)) { cmds.push(cmd); continue; }
       try { this.onResult?.(msg.region, { id: cmd.id, kind: cmd.kind, ok: false, member: cmd.member }); } catch (e) { this.log.error?.('[peer] result failed', e); }
     }
-    const rest = { online: 0, searching: {}, byRegion: {} };
+    const rest = { online: 0, searching: {}, byRegion: {}, rooms: {} };
     for (const { id, state } of this.freshPeers()) {
       if (id === msg.region) continue;
       rest.online += Number(state.online) || 0;
       rest.byRegion[id] = Number(state.online) || 0;
       for (const [d, n] of Object.entries(state.searching || {})) rest.searching[d] = (rest.searching[d] || 0) + (Number(n) || 0);
+      // a third region's rooms, for the asker's room browser: only when they share a build
+      if (Array.isArray(state.rooms) && compatible(msg, state)) rest.rooms[id] = state.rooms;
     }
+    this.noticeRooms();
     return { ...this.state(), digest: null, others: rest, cmds };
   }
 

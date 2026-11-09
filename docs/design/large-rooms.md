@@ -12,14 +12,16 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
   (any member, before the match, to an empty seat), `room.swapSeats { a, b }` (the host, either seat may be empty),
   `room.setLock { on, password? }` (the host; 4 letters A–Z), `room.join` / `room.spectate { password? }` (`ROOM_LOCKED`
   without it or with a wrong one, `RATE` after 6 wrong ones in a minute from a session), `rooms.watch { on }` →
-  `rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads, locked? }] }` while watched,
+  `rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads, locked?, region? }] }` while watched,
   `welcome.largeRooms`, `room.closed { reason: 'idle' }`, `m.public.players[].squad`, `m.public.draft.lanes` /
   `sp.lanes`.
 - **Humans only**: `room.addBot` and 「允许观战者接替 AI」 are refused. (2026-11-08) `room.search` is allowed, locked rooms
   too: matchmaking fills the empty seats with other Grand Alliances whose squads fit whole and with opted-in Doctors from
   the solo queue, never with a 4-seat room ([§90.4](matchmaking.md)). The lobby has a Grand Alliance mode (大同盟), and Team Simulation (选择同盟方式) a Grand
   Alliance card; both open a full-screen room browser of
-  the open (not started, not full) rooms of this server, oldest first, at most 50, with filters for public (公开) and
+  the open (not started, not full) rooms of this server, oldest first, at most 50 (2026-11-10: with regions, the linked
+  servers' rooms too, each card naming its server and that server's ping — [§8.7](network.md); a key names its server,
+  so Join reaches a room on the other one, password and all), with filters for public (公开) and
   private (私密) rooms, and a button that creates one; a key joins from anywhere. (2026-11-08) 创建大同盟 first opens
   选择模拟协议, where the host picks the difficulty and 公开 / 私密 (with the 4-letter password), so no room is made only
   to change its settings. In the room, a box beside the alliance key holds the host's 公开 | 私密 switch, which applies at

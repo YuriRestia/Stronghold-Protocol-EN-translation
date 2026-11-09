@@ -695,6 +695,10 @@ export class Lobby {
     this.largeRooms = this.opts.largeRooms ?? (typeof process !== 'undefined' && process.env?.SP_LARGE_ROOMS === '1');
     /** @type {Set<any>} (fork) sessions watching the Large rooms list (rooms.watch) */
     this.roomWatchers = new Set();
+    /** (fork) this server's region id and the other regions' rooms (server/peerLink.js), set by startServer; null: one server */
+    this.region = null;
+    /** @type {(() => any[]) | null} */
+    this.peerRooms = null;
     this._roomListTimer = null;
     this._roomListAt = -Infinity;
   }
@@ -1879,10 +1883,11 @@ export class Lobby {
   }
 
   /**
-   * (fork) The room browser: the open (not started, not full) Grand Alliance rooms of this server, locked ones marked, the
-   * longest-waiting first, at most 50. No test rooms.
+   * (fork) The open (not started, not full) Grand Alliance rooms of THIS server, locked ones marked, the longest-waiting
+   * first, at most 50, each with its `at` (created, epoch ms) for ordering. No test rooms. What server/peerLink.js
+   * shows the other regions.
    */
-  roomList() {
+  ownRoomList() {
     const out = [];
     for (const room of this.rooms.values()) {
       if (!room.large || room.match || room.disposed || room.test) continue;
@@ -1890,11 +1895,28 @@ export class Lobby {
       if (seats >= room.capacity) continue;
       const host = room.seatOf(room.hostId);
       const squads = [0, 1].map((sq) => room.seats.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS).filter(Boolean).length);
-      out.push({ room, row: { code: room.code, host: host ? host.name : '', seats, capacity: room.capacity, difficulty: room.difficulty, squads,
-        ...(room.locked ? { locked: true } : {}) } });
+      out.push({ code: room.code, host: host ? host.name : '', seats, capacity: room.capacity, difficulty: room.difficulty, squads,
+        ...(room.locked ? { locked: true } : {}), at: room.createdAt });
     }
-    out.sort((x, y) => x.room.createdAt - y.room.createdAt);
-    return out.slice(0, 50).map((x) => x.row);
+    out.sort((x, y) => x.at - y.at);
+    return out.slice(0, 50);
+  }
+
+  /**
+   * (fork) The room browser: this server's Grand Alliance rooms (ownRoomList) and, with regions (server/regions.js), the
+   * other servers' from the peer link (`peerRooms`, set by startServer: nothing while the link is down), each row
+   * naming its server in `region`. The longest-waiting first, at most 50. A row's key already names its server
+   * (shared/regions.js), so a join from the list needs nothing more.
+   */
+  roomList() {
+    const own = this.ownRoomList().map((r) => (this.region ? { ...r, region: this.region } : r));
+    let rows = own;
+    if (this.peerRooms) {
+      let more;
+      try { more = this.peerRooms(); } catch { more = []; }
+      if (more.length) rows = own.concat(more).sort((x, y) => (Number(x.at) || 0) - (Number(y.at) || 0));
+    }
+    return rows.slice(0, 50).map(({ at, ...row }) => row);
   }
 
   /** (fork) rooms.watch { on }: a page opens or closes the Large rooms list. On: the list now and on every change. */

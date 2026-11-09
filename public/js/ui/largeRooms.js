@@ -1,5 +1,6 @@
-// ui/largeRooms.js — (fork) Grand Alliance (大同盟, shared/largeRoom.js, DESIGN §91): the full-screen room browser of this
-// server's open 8-seat rooms, reached from Team Simulation (同盟模拟), the password prompt of a private room (公开 / 私密:
+// ui/largeRooms.js — (fork) Grand Alliance (大同盟, shared/largeRoom.js, DESIGN §91): the full-screen room browser of the
+// open 8-seat rooms of this server and, with regions, of the servers it is linked to (server/peerLink.js; each card names
+// its server and that server's ping; a key names its server, so Join reaches it — public/js/regions.js join), reached from Team Simulation (同盟模拟), the password prompt of a private room (公开 / 私密:
 // the server's `locked`), and PrivacyFields, the 公开 / 私密 choice with the password field (the create screen and the
 // room's access button). While the browser is open the page watches the list (rooms.watch on); the server sends
 // rooms.list on every change. Matchmaking fills these rooms too when their host searches (DESIGN §90.4).
@@ -8,8 +9,14 @@ import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
 import { ROOM_PASSWORD_RE, SQUAD_SEATS } from '../../../shared/largeRoom.js';
 import { html, Button, Icon, Spinner, DifficultyIcon, promptDialog } from './components.js';
-import { net } from '../net.js';
+import { net, regions } from '../net.js';
+import { useStore } from '../store.js';
+import { regionLabel } from './regionNames.js';
 import { t } from '../../../shared/i18n.js';
+
+/** A ping test of every server while the browser is open, this often (the server picker's pace, ui/regionPicker.js). */
+const REMEASURE_MS = 10_000;
+const REGION_ID_RE = /^[a-z][a-z0-9-]{0,15}$/;
 
 /** Keep only well-formed rows of a rooms.list frame. @param {any} msg */
 export function roomRows(msg) {
@@ -19,7 +26,26 @@ export function roomRows(msg) {
       code: r.code, host: typeof r.host === 'string' ? r.host : '', seats: r.seats, capacity: r.capacity, difficulty: r.difficulty,
       squads: Array.isArray(r.squads) && r.squads.length === 2 ? r.squads.map((n) => (Number.isInteger(n) ? n : 0)) : [r.seats, 0],
       locked: r.locked === true,
+      // (fork) the server the room is on (server/regions.js id); null without regions
+      region: typeof r.region === 'string' && REGION_ID_RE.test(r.region) ? r.region : null,
     }));
+}
+
+/** The same tiers as PingPill. @param {number | undefined} ms */
+const tierOf = (ms) => (!Number.isFinite(ms) ? 'off' : ms < 60 ? 'low' : ms < 200 ? 'medium' : 'high');
+
+/**
+ * A card's server: its name and ping — the last ping test's, else the live socket's for the server this page is on; no
+ * ping shown while none is known (no ping test yet, or the operator has not turned on SP_REGION_AUTO).
+ * @param {{ id: string, here: boolean, ms: number | undefined }} p
+ */
+function RegionTag({ id, here, ms }) {
+  // msgid 当前 — en: "Current" (the server picker's word for the server this page is on)
+  return html`<span class=${`rbr-card__region${here ? ' is-here' : ''}`} data-testid="room-region" data-region=${id}
+      title=${here ? `${regionLabel(id)} · ${t('当前')}` : regionLabel(id)}>
+    <${Icon} name="signal" /><span class="rbr-card__region-name">${regionLabel(id)}</span>
+    ${Number.isFinite(ms) ? html`<span class=${`rbr-card__region-ms num ping--${tierOf(ms)}`}>${Math.min(9999, Math.round(ms))}<small>ms</small></span>` : null}
+  </span>`;
 }
 
 /**
@@ -90,6 +116,19 @@ function SquadPips({ name, filled, tone }) {
 export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
   const [rows, setRows] = useState(null);
   const [filter, setFilter] = useState('all');
+  const region = useStore((s) => s.region);
+  const livePing = useStore((s) => s.connection?.ping);
+  const multi = !!(region?.enabled && region.list?.length > 1);
+  // (fork) the servers' pings for the cards' server tags, measured while the browser is open
+  useEffect(() => {
+    if (!multi) return undefined;
+    void regions.measure();
+    const timer = setInterval(() => { void regions.measure(); }, REMEASURE_MS);
+    return () => clearInterval(timer);
+  }, [multi]);
+  const here = multi ? region.current : null;
+  const rtts = region?.rtts || {};
+  const msOf = (id) => (id in rtts && Number.isFinite(rtts[id]) ? rtts[id] : id === here && online && Number.isFinite(livePing) ? livePing : rtts[id]);
   useEffect(() => {
     const off = net.on('rooms.list', (msg) => setRows(roomRows(msg)));
     net.request('rooms.watch', { on: true }).catch(() => setRows([]));
@@ -126,7 +165,8 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
               <span class="rbr-card__host"><${Icon} name="crown" /><b>${r.host || t('博士')}</b></span>
               ${r.locked ? html`<span class="rbr-card__lock" title=${t('私密')}><${Icon} name="lock" />${t('私密')}</span>` : null}
             </div>
-            <div class="rbr-card__diff"><${DifficultyIcon} difficulty=${r.difficulty} />${DIFFICULTY_NAMES[r.difficulty] ? t(DIFFICULTY_NAMES[r.difficulty]) : ''}</div>
+            <div class="rbr-card__diff"><${DifficultyIcon} difficulty=${r.difficulty} />${DIFFICULTY_NAMES[r.difficulty] ? t(DIFFICULTY_NAMES[r.difficulty]) : ''}
+              ${multi && r.region ? html`<${RegionTag} id=${r.region} here=${r.region === here} ms=${msOf(r.region)} />` : null}</div>
             <div class="rbr-card__squads">
               <${SquadPips} name="A" filled=${r.squads[0]} tone="a" />
               <${SquadPips} name="B" filled=${r.squads[1]} tone="b" />

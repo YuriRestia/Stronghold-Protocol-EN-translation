@@ -1367,7 +1367,17 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .rbr-card__lock { flex: none; display: inline-flex; align-items: center; gap: .04rem; padding: .01rem .08rem; font-size: calc(.13 * var(--t));
   color: #ffc45c; border: 1px solid rgba(255, 196, 92, .5); }
 .rbr-card__lock .icon { width: 1em; height: 1em; }
-.rbr-card__diff { display: inline-flex; align-items: center; gap: .06rem; font-size: calc(.15 * var(--t)); color: #b9c2bf; }
+.rbr-card__diff { display: flex; align-items: center; gap: .06rem; min-width: 0; font-size: calc(.15 * var(--t)); color: #b9c2bf; }
+/* (fork) the server a room is on and its ping (ui/largeRooms.js RegionTag); the page's own server in the accent colour */
+.rbr-card__region { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: .05rem; padding: .01rem .07rem;
+  font-size: calc(.13 * var(--t)); color: #c9d2cf; border: 1px solid rgba(255, 255, 255, .18); white-space: nowrap; }
+.rbr-card__region.is-here { color: #4fe8c0; border-color: rgba(79, 232, 192, .45); }
+.rbr-card__region .icon { width: 1em; height: 1em; }
+.rbr-card__region-ms { color: #8b9692; }
+.rbr-card__region-ms small { font-size: .8em; margin-left: .01em; }
+.rbr-card__region-ms.ping--low { color: #4fe8c0; }
+.rbr-card__region-ms.ping--medium { color: #ffc45c; }
+.rbr-card__region-ms.ping--high { color: #ff7a6b; }
 .rbr-card__squads { display: flex; flex-direction: column; gap: .05rem; }
 .rbr-squad { display: flex; align-items: center; gap: .08rem; }
 .rbr-squad__k { width: 1.6em; font-size: calc(.14 * var(--t)); font-weight: 700; text-align: center; color: #0b1520; background: #cfd8d4; }
