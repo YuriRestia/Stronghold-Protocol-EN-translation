@@ -556,6 +556,36 @@ describe('net.js', () => {
     assert.equal(net.ping, 40);
   });
 
+  test('(fork) the shown ping leaves out the time a busy page took to handle the pong', async () => {
+    const { net, ws, timers } = await onlineNet();
+    const SKEW = 5000; // server clock ahead of ours
+    // a pong sent back 20 ms after the ping (way up 20 ms on the server clock), handled `late` ms after it arrived
+    const round = (wayUp, wayDown, late = 0) => {
+      net.probe();
+      const p = ws().last('ping');
+      timers.advance(wayUp + wayDown + late);
+      ws().recv({ t: 'pong', c: p.c, s: p.c + wayUp + SKEW });
+      return [net.ping, net.pingRaw];
+    };
+    assert.deepEqual(round(20, 20), [40, 40], 'an undelayed pong: the measured round trip');
+    assert.deepEqual(round(20, 20, 100), [40, 140], 'a pong held 100 ms by a slow frame still shows 40');
+    assert.deepEqual(round(20, 20, 250), [40, 290]);
+    assert.deepEqual(round(70, 70, 100), [140, 240], 'a slower connection shows (way up 50 ms slower: +100 ms)');
+    assert.deepEqual(round(10, 20, 100), [30, 130], 'a faster way up shows by its own amount only');
+    assert.deepEqual(round(20, 20, 30), [40, 70], 'the undelayed baseline is still in use');
+    // the server clock jumps back 10 s: the pong cannot be placed, so the measured round trip is shown and starts over
+    net.probe();
+    const p = ws().last('ping');
+    timers.advance(60);
+    ws().recv({ t: 'pong', c: p.c, s: p.c + 20 + SKEW - 10_000 });
+    assert.equal(net.ping, 60);
+    assert.deepEqual(round(20, 20, 0).map((v) => v != null), [true, true]);
+    // another server: no baseline from the old clock
+    net.switchServer();
+    assert.equal(net.ping, null);
+    assert.equal(net.pingRaw, null);
+  });
+
   test('silent socket is detected and replaced', async () => {
     const { net, sockets, timers } = await quiet(() => onlineNet());
     await quiet(async () => { timers.advance(20000); });

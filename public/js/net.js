@@ -41,6 +41,11 @@ export const REQUEST_TIMEOUT_MS = 8000;
 export const HELLO_TIMEOUT_MS = 8000;
 export const PING_INTERVAL_MS = 4000;
 export const DEAD_AFTER_MS = 15000;
+/** (fork) The shown ping's baseline (Net#_shownPing): an undelayed pong counts this long, at most this many, and its
+ * round trip is handicapped by PING_BASE_AGE ms per ms of age (the two clocks drift apart), so a newer pong replaces it. */
+export const PING_BASE_MS = 5 * 60_000;
+export const PING_BASE_MAX = 80;
+export const PING_BASE_AGE = 0.0001;
 /** Minimum gap between two `state.resync` requests: a gap in one channel is answered by the full frame of the next one. */
 export const RESYNC_GAP_MS = 1000;
 export const BACKOFF = Object.freeze({ base: 500, factor: 2, max: 10000, jitter: 0.2 });
@@ -136,6 +141,8 @@ export class Net {
     this.getToken = typeof opts.getToken === 'function' ? opts.getToken : () => null;
     this.getTokenClaim = typeof opts.getTokenClaim === 'function' ? opts.getTokenClaim : () => null;
     this.now = opts.now || (() => Date.now());
+    /** (fork) the ping's own clock: monotonic and sub-millisecond (a ping's `c` is only ever compared with it) */
+    this.mono = opts.mono || opts.now || (() => (globalThis.performance?.now ? globalThis.performance.now() : Date.now()));
     this.random = opts.random || Math.random;
     this.timers = opts.timers || {
       setTimeout: (fn, ms) => globalThis.setTimeout(fn, ms),
@@ -154,7 +161,8 @@ export class Net {
     this.playerId = null;
     this.attempt = 0;          // consecutive failed connection attempts
     this.retryAt = 0;          // epoch ms of the next reconnect attempt (0 = none)
-    this.ping = null;          // last RTT in ms
+    this.ping = null;          // last RTT in ms, without the time the page took to handle the pong (_shownPing)
+    this.pingRaw = null;       // (fork) last RTT as measured, that time included
     this.lastError = null;     // last NetError relevant to the connection (e.g. hello rejected)
     this.clockOffset = 0;
     this.clockSynced = false;
@@ -175,6 +183,7 @@ export class Net {
     this._lastRx = 0;
     this._unansweredSince = null; // time of the oldest ping sent since the last inbound frame
     this._clockSamples = [];   // [{ offset, rtt }]
+    this._pingBase = [];       // (fork) [{ up, rtt, at }] recent pongs, for the shown ping's baseline
     // State-delta decoding (shared/stateDelta.js): only ever fed frames a server chose to send this client after its
     // hello named STATE_DELTA_VERSION. A missed frame blocks that channel, and one resync request per RESYNC_GAP_MS
     // asks for a full one — the server answers it like a repeated hello (and throttles it the same way).
@@ -293,8 +302,10 @@ export class Net {
    */
   switchServer() {
     this._clockSamples = [];
+    this._pingBase = [];
     this.clockSynced = false;
     this.ping = null;
+    this.pingRaw = null;
     this._quietSwap = this.status === 'connected' && !this.name;
     this.reconnectNow(this.name);
   }
@@ -695,7 +706,7 @@ export class Net {
   _sendPing() {
     if (this.status !== 'online' && this.status !== 'connected') return;
     const now = this.now();
-    if (this._sendRaw({ t: 'ping', c: now }) && this._unansweredSince == null) this._unansweredSince = now;
+    if (this._sendRaw({ t: 'ping', c: this.mono() }) && this._unansweredSince == null) this._unansweredSince = now;
   }
 
   /** Force an immediate latency probe (e.g. when the tab regains focus). */
@@ -704,15 +715,45 @@ export class Net {
   }
 
   _onPong(msg) {
-    const now = this.now();
+    const at = this.mono();
     const c = Number(msg.c);
     if (!Number.isFinite(c)) return;
-    const rtt = now - c;
+    const rtt = at - c;
     if (!(rtt >= 0 && rtt < 60000)) return;
-    this.ping = Math.round(rtt);
-    if (Number.isFinite(msg.s)) this._addClockSample(msg.s + rtt / 2 - now, rtt);
+    this.pingRaw = Math.round(rtt);
+    this.ping = Math.round(Number.isFinite(msg.s) ? this._shownPing(msg.s - c, rtt, at) : rtt);
+    if (Number.isFinite(msg.s)) this._addClockSample(msg.s + rtt / 2 - this.now(), rtt);
     this._emit('ping', this.ping);
     this._emit('status', this.snapshot());
+  }
+
+  /**
+   * (fork) The ping to show: the connection's round trip, not the page's frame time. A pong is handled in a main-thread
+   * task, so while a frame is being drawn it waits, and on a slow battle render the measured `rtt` grew by up to a
+   * whole frame (localhost, real round trip ~1 ms: 101 ms at 10 fps, 251 ms at 4 fps). The way up is never held:
+   * `c` is read as the ping goes out and `s` is the server's receive time, so `up` = s - c is the way up plus the
+   * (steady, unknown) offset between the two clocks. The least delayed recent pong is the baseline; every pong shows
+   * the baseline's round trip plus how much its way up changed since — doubled when slower (a slower connection is
+   * slower both ways), once when faster (only the way up is known to be faster). Never more than the measured `rtt`.
+   * A result above `rtt` or below 0 (a clock moved, or the way up alone got slower) makes this pong the baseline.
+   * Not covered: a connection slower on the way down only, and a page slow from its first pong (no undelayed pong
+   * yet: the measured `rtt` is shown) — only a socket off the main thread (a Worker) would see those.
+   * @param {number} up server receive time minus `c`
+   * @param {number} rtt measured round trip, handling delay included
+   * @param {number} at receipt time (this.mono)
+   */
+  _shownPing(up, rtt, at) {
+    const base = this._pingBase;
+    base.push({ up, rtt, at });
+    while (base.length > PING_BASE_MAX || (base.length > 1 && at - base[0].at > PING_BASE_MS)) base.shift();
+    const score = (s) => s.rtt + (at - s.at) * PING_BASE_AGE;
+    let best = base[0];
+    for (const s of base) if (score(s) < score(best)) best = s;
+    const d = up - best.up;
+    const est = best.rtt + (d > 0 ? 2 * d : d);
+    if (est >= 0 && est <= rtt + 1) return Math.min(est, rtt);
+    this._pingBase = [base[base.length - 1]];
+    return rtt;
   }
 
   _addClockSample(offset, rtt) {

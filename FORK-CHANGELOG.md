@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Ping shows the connection, not the frame rate
+
+- The ping shown in the title screen, lobby, room and battle bar no longer grows when the game draws slowly. The browser handles the server's answer between frames, so on a slow battle render the shown ping included up to a whole frame: on a local server (real round trip about 1 ms) it read 31 ms at 33 fps, 101 ms at 10 fps and 251 ms at 4 fps. It is now worked out from the server's own receive time, which frames don't delay, and reads 1–3 ms at every one of those frame rates. A slower connection still shows. A page that is already slow when its first answer comes back still shows the old measured value until it has one quick answer to compare against.
+
 ### Enemy pen browser test waits for the camera to settle
 
 - The browser test that checks where the enemy preview pen shows (the prep board, the pen view, back on the board, the Final Assault prep and every battle camera) no longer waits fixed times after opening a page or switching the camera. It waits until the 3D view is on the expected camera with its board drawn, and the camera and the pen's state have stopped changing, before checking. Most of its checks are that the pen is not shown, which a page that has drawn nothing yet would also pass. It passes with Chrome's CPU slowed four times.
