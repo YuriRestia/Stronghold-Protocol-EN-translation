@@ -114,7 +114,10 @@ test('the other event screens at a big 文字大小: 成就统计\'s banner, the
   const lo = css('public/css/screens/loadout.css');
   assert.match(lo, /\.lo-top__note \{ margin: 0; max-width: min\(8\.4rem, 100%\);/);
   assert.match(lo, /\.lo-bbar__tiers \{[^}]*padding-top: max\(\.24rem, calc\(17px \* var\(--sp-ui, 1\)\)\); \}/);
-  assert.match(block(lo, '@media (max-height: 520px) {\n  .lo-deck'), /\.lo-diy__frame \{ width: 46%; \}/);
+  // (fork) §35.51's 0/2 on the 甄选干员 slot stays on the card through the one-row deck on a short phone (the user's call
+  // of 2026-11-09: the slot is the deck's full height, 257 px at 640×360), no longer through a smaller frame
+  assert.match(block(lo, '@media (max-height: 520px) {\n  .lo-tgrid'), /\.lo-tgrid \{ grid-template-rows: minmax\(0, 1fr\); \}/);
+  assert.doesNotMatch(lo, /\.lo-diy__frame \{ width: 46%; \}/);
   const lobby = css('public/css/screens/lobby.css');
   assert.match(lobby, /\.ally-card__bar small \{[^}]*min-width: min\(100%, 10em\); white-space: normal; text-align: right;/);
   assert.match(lobby, /\.ally-card--create \.ally-card__bar \{ flex-wrap: wrap;/);

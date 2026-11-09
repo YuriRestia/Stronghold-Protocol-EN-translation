@@ -906,6 +906,14 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   .lo-op__mlist { display: none; }
   .lo-op__mstep { display: flex; }
 }
+/* (fork) a short landscape phone (≤ 520 px: 640×360 … 844×390): the deck is one row of cards at the deck's full height
+   (the user's call of 2026-11-09), so a card keeps its whole design — every module as its own button, as on a taller
+   screen. Taller screens keep the two rows above. */
+@media (max-height: 520px) {
+  .lo-tgrid { grid-template-rows: minmax(0, 1fr); }
+  .lo-op__mlist { display: flex; }
+  .lo-op__mstep:not(.is-always) { display: none; }
+}
 .lo-op__side .lo-q { flex: 0 1 auto; width: 100%; height: auto; aspect-ratio: 1; min-height: 0; max-height: var(--side); }
 .lo-op__side .lo-q:not(.is-on) { opacity: .5; }
 .lo-op__side .lo-q:not(.is-on):hover:not(:disabled) { opacity: .9; }
@@ -1050,12 +1058,8 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 @media (max-height: 520px) {
   .lo-deck { padding-top: .12rem; padding-bottom: .1rem; gap: .2rem; }
   .lo-tgrid { gap: .1rem; }
-  /* 甄选干员's frame smaller and its count capped (its size at 中, a pixel more a step above), so its 0/2 stays on the card
-     (§35.51: cut 8–16 px on a 640×360 phone, at 特大 also on a 667×375 one) [ASSUMED] the sizes */
-  .lo-diy__frame { width: 46%; }
-  .lo-diy--filled .lo-diy__label { display: none; } /* (fork) the name keeps the room */
-  .lo-diy__n { font-size: min(max(calc(.3 * var(--t)), 16px), max(16px, calc(16px + var(--t-step)))); }
-  .lo-diy__n b { font-size: min(max(calc(.4 * var(--t)), 20px), max(20px, calc(20px + var(--t-step)))); }
+  /* (fork) 甄选干员's frame, its count and a filled slot's label keep their full size: the one-row deck (above) gives
+     the card the deck's height, where two rows had cut its 0/2 off (§35.51) */
 }
 @media (prefers-reduced-motion: reduce) { .lo-drawer, .lo-pop { animation: none; } .lo-op__card { transition: none; } }
 

@@ -123,10 +123,12 @@ export function PotBadge({ n }) {
 
 /**
  * The card's own column at its right: the skills (S1–S3, only those it has) at its top, the modules at its bottom
- * (不装备 first). A tall card (a PC, a tablet) shows every module as its own button, like the skills; a short one (a
+ * (不装备 first). A tall card (a PC, a tablet, a phone's one-row deck) shows every module as its own button, like the skills; a short one (a
  * phone in landscape: about 140 px at 844 × 390, too short for up to 3 skills and 4 modules at a tappable size) shows
  * ONE module button that steps to the next, its pips saying how many there are and which one is on — both drawn,
- * css/screens/loadout.css shows one by the screen's height. A press on the column never picks the card (DeckOpCard).
+ * css/screens/loadout.css shows one by the screen's height. A phone at most 520 px tall lays the deck out in one row
+ * at its full height (the user's call of 2026-11-09), tall enough for the list again. A press on the column never picks
+ * the card (DeckOpCard).
  * `modules` null: no elite form (no module). `locked`: static cells, the module one cell (a prototype); `disabled`: the
  * buttons do nothing (a taken operator). [ASSUMED] the event's 物资调配处 has no such column (the remake's own).
  */

@@ -9,8 +9,8 @@
 // card nearest the view's centre — holding still, both ways (kept in this browser) → Esc peels back the
 // drawer, then the overlay → a tier jump scrolls the deck → 甄选干员 and back; 干员持有 with the drawer open, one Esc closes
 // the overlay → a locked loadout said once, in the bottom bar (not in the top bar, its sync chip, the drawer or 「详情」) →
-// 筛选 narrows the deck, no list view to switch to, no guide sheet. Phone 844×390 (touch): the cards in two rows, their buttons
-// inside them and tappable, the stepping module button, a tap on the column opens nothing, the drawer over them, 「详情」, a locked loadout said in the
+// 筛选 narrows the deck, no list view to switch to, no guide sheet. Phone 844×390 (touch): the cards in one row, their buttons
+// inside them and tappable, every module as its own button, a tap on the column opens nothing, the drawer over them, 「详情」, a locked loadout said in the
 // bottom bar, 简洁 / 详情 on screen. (The list view and its own opening were removed with the list, 2026-11-08.)
 // Every page must finish with zero console errors / page errors / failed requests. Screenshots: test/e2e/out/loadout-cards-*.png
 
@@ -442,7 +442,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
     } finally { await ctx.close(); }
   });
 
-  test('phone 844×390 (touch): the cards (the default) fit two rows with their column, a tap there opens nothing, the drawer slides over them', async () => {
+  test('phone 844×390 (touch): the cards (the default) fit one row with their column, a tap there opens nothing, the drawer slides over them', async () => {
     const { ctx, page, problems } = await open({ w: 844, h: 390, touch: true });
     try {
       await openOverlay(page);
@@ -465,7 +465,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
           minBtn: Math.min(...btns.map((b) => b.h)), out: btns.filter((b) => b.out).length, switchIn: sw.right <= top.right + 0.5 && sw.bottom <= vh + 1 && sw.width > 40 };
       });
       assert.ok(fit.barBottom <= fit.vh + 1, `the bottom bar is on screen ${JSON.stringify(fit)}`);
-      assert.equal(fit.rows, 2);
+      assert.equal(fit.rows, 1, 'a short phone: one row of cards at the deck height (the user call of 2026-11-09)');
       assert.ok(fit.lowest <= fit.barTop + 1, `the cards end above the bar ${JSON.stringify(fit)}`);
       assert.equal(fit.out, 0, 'every skill / module button inside its card');
       assert.ok(fit.minBtn >= 22, `tappable buttons (${fit.minBtn} px)`);
@@ -473,7 +473,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       await layoutAll(page, false);
       await page.tap(`.lo-op[data-chess="${INSIDE}"] .lo-op__side .lo-q--skill[data-skill="0"]`);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.loadout') || '{}').byChar?.char_498_inside?.skill === 0);
-      await page.tap(`.lo-op[data-chess="${INSIDE}"] .lo-op__side .lo-op__mod`);
+      await page.tap(`.lo-op[data-chess="${INSIDE}"] .lo-op__side .lo-op__mlist .lo-q--mod[data-module="none"]`);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.loadout') || '{}').byChar?.char_498_inside?.module === 'none');
       await new Promise((r) => setTimeout(r, 300));
       assert.equal(await page.$('[data-testid="loadout-drawer"]'), null, 'a tap on the column opens nothing');
@@ -485,7 +485,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       await page.waitForSelector('[data-testid="loadout-drawer"]', { hidden: true });
       // 「详情」 at this width: the panels beside the cards, the column kept
       assert.deepEqual(await page.$eval(`.lo-op[data-chess="${INSIDE}"] .lo-op__mods`, (m) => [getComputedStyle(m.querySelector('.lo-op__mlist')).display, getComputedStyle(m.querySelector('.lo-op__mstep')).display]),
-        ['none', 'flex'], 'a short screen: the stepping module button');
+        ['flex', 'none'], 'one row on a short phone: every module as its own button, as on a tall screen');
       await page.tap('[data-testid="loadout-details"]');
       await page.waitForSelector(`.lo-deck.is-details .lo-op[data-chess="${INSIDE}"] .lo-op__more`, { visible: true });
       await new Promise((r) => setTimeout(r, 400));
