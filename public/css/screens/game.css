@@ -504,7 +504,34 @@
   .bstrip__eye { font-size: max(.15rem, 10px); }
 }
 .bstrip.is-other .bond__core { box-shadow: 0 0 0 1px rgba(246, 163, 41, .45); }
-.bstrip__more { align-self: center; font-size: .16rem; color: var(--text-lo); padding: .04rem .08rem; border: 1px solid var(--line-2); background: rgba(8, 11, 10, .7); }
+/* (fork) as many slots as fit, the rest behind 「+N」 and its compact grid (ui/bondStrip.js FitStrip; the user's pick of
+   2026-11-10): no scroller, no scrollbar. The button sits level with the discs, at least 32 px on a touch screen; the
+   grid's slots are a step smaller than the strip's, in rem like them (no px floor: on a phone it would outgrow the strip). */
+.bstrip-fit { position: relative; display: flex; align-items: flex-start; gap: .1rem; width: 100%; min-width: 0; }
+.bstrip-fit > .bstrip { flex: none; min-width: 0; }
+.bstrip__more { flex: none; display: inline-flex; align-items: center; justify-content: center; gap: .02rem;
+  min-width: .62rem; height: .44rem; margin-top: .04rem; padding: 0 .06rem; cursor: pointer;
+  font-size: .16rem; font-weight: 700; color: var(--mint-400); line-height: 1;
+  background: rgba(8, 11, 10, .78); border: 1px solid var(--mint-700); border-radius: .22rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .6); transition: background var(--t-fast) var(--ease-out), border-color var(--t-fast) var(--ease-out); }
+.bstrip__more-chev { width: max(.18rem, 14px); height: max(.18rem, 14px); transform: rotate(90deg); transition: transform var(--t-fast) var(--ease-out); }
+.bstrip__more.is-on .bstrip__more-chev { transform: rotate(-90deg); }
+.bstrip__more:hover, .bstrip__more:focus-visible, .bstrip__more.is-on { background: rgba(20, 84, 67, .85); border-color: var(--mint-500); }
+.bstrip__more:focus-visible { outline: 2px solid var(--mint-500); outline-offset: 1px; }
+.bstrip__more.is-open { box-shadow: 0 0 0 2px var(--mint-400), 0 0 .2rem rgba(23, 249, 183, .6); }
+.sp-coarse .bstrip__more { min-height: 32px; min-width: 40px; font-size: max(.16rem, 11px); }
+.bstrip-grid { --gslot: .66rem; --ggap: .04rem; position: absolute; top: calc(100% + .06rem); z-index: 6; pointer-events: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, var(--gslot)); gap: .06rem var(--ggap); box-sizing: border-box;
+  width: calc(var(--cols) * var(--gslot) + (var(--cols) - 1) * var(--ggap) + .2rem + 2px); max-width: 100%;
+  padding: .1rem .1rem .06rem; background: rgba(8, 11, 10, .93); border: 1px solid var(--line-2); border-top: 2px solid var(--mint-700);
+  box-shadow: 0 .06rem .24rem rgba(0, 0, 0, .65); animation: bgrid-in var(--t-fast) var(--ease-out); }
+.bstrip-grid .bslot { width: var(--gslot); }
+.bstrip-grid .bslot .bond { --disc: .44rem; }
+.bstrip-grid .bslot .bond__name { font-size: .13rem; }
+.bstrip-grid .bslot__count { top: -.05rem; right: -.02rem; font-size: .12rem; }
+.bstrip-grid .bslot__count small { font-size: .1rem; }
+@keyframes bgrid-in { from { opacity: 0; transform: translateY(-.06rem); } }
+@media (prefers-reduced-motion: reduce) { .bstrip-grid { animation: none; } }
 .bslot { position: relative; display: flex; flex-direction: column; align-items: center; width: .74rem; }
 .bslot .bond { --disc: .52rem; }
 .bslot .bond__name { font-size: .14rem; font-weight: 500; text-shadow: 0 1px 3px #000, 0 0 6px #000; }
@@ -1222,17 +1249,10 @@
   .gm__hud.is-enter .shopbar { animation: shop-up var(--t-slow) var(--ease-out); }
 }
 
-/* Keep every bond reachable without shrinking its disc or extending over the right HUD. */
+/* Keep every bond reachable without shrinking its disc or extending over the right HUD: what does not fit goes behind 「+N」. */
 .gm__bond-list { flex: 1; }
-.bstrip-scroll { display: flex; align-items: center; min-width: 0; gap: .04rem; }
-/* Let the padding protect rings/counts from clipping without lowering the discs and names into the board. */
-.gm__bonds .bstrip-scroll .bstrip { min-width: 0; overflow-x: auto; overflow-y: hidden; padding: .08rem 0; margin: -.08rem 0;
-  pointer-events: auto; touch-action: pan-x; scrollbar-width: thin; }
-.bstrip-scroll .bslot { flex: none; }
-.gm__bonds .bstrip-scroll__arrow { flex: none; width: 44px; height: 44px; padding: 0;
-  background: rgba(8, 11, 10, .7); color: var(--mint); border: 1px solid var(--line-2); cursor: pointer; pointer-events: auto; }
-.bstrip-scroll__arrow:disabled { opacity: .3; cursor: default; }
-.gm.is-pen .gm__bonds .bstrip-scroll *, .gm.has-sp .gm__bonds .bstrip-scroll * { pointer-events: none; }
+.bstrip-fit .bslot { flex: none; }
+.gm.is-pen .gm__bonds .bstrip-fit *, .gm.has-sp .gm__bonds .bstrip-fit * { pointer-events: none; }
 
 .gm__bond-list > .tt-anchor { display: block; max-width: 100%; }
 

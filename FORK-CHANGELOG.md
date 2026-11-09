@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Bond strip: no more scrolling line
+
+- The in-battle bond strip shows as many bonds as fit its width (fewer on phones) and no longer scrolls, so the thick grey scrollbar is gone.
+- When you have more, a "+N" button after the last bond opens the rest in a small grid under the strip. Tap a bond there for its details as usual; the button, Esc or a tap elsewhere closes it.
+
 ### Grand Alliance rooms from every server
 
 - The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
