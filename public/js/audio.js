@@ -407,26 +407,34 @@ export const VOICE_TAP_SLOTS = Object.freeze(['select']);
  * VOICE_TREES (`voiceJp` / `voiceEn` / `voiceKr` / `voiceNative`), the same slots and file names, and falls back
  * to the Chinese line twice over: per slot when that tree lacks it (a file the fetch could not get is left out of
  * the manifest), and per line at play time — `fallback` is the Chinese file of the same name, played when the host
- * does not have the chosen one. A slot with several lines draws one (`random` ∈ [0, 1)).
+ * does not have the chosen one. A slot with several lines draws one (`random` ∈ [0, 1)); (fork) a whole number as
+ * `random` takes that line instead (modulo the slot's count: the Operator Loadout's rotation, ui/loadoutVoice.js).
  * @param {any} audio the manifest's `audio`
  * @param {string} charId
  * @param {string} slot
  * @param {'cn'|'jp'|'en'|'kr'|'native'|string} [lang]
- * @param {() => number} [random]
+ * @param {(() => number)|number} [random]
  * @returns {{ url: string, fallback: string|null } | null}
  */
 export function voiceLine(audio, charId, slot, lang = 'cn', random = Math.random) {
-  const lines = (line) => (Array.isArray(line) ? line : [line]).filter((u) => typeof u === 'string' && u);
-  const draw = (list) => (list.length ? list[Math.min(list.length - 1, Math.floor(random() * list.length))] : null);
-  const cn = lines(audio?.voice?.[charId]?.[slot]);
-  const tree = VOICE_TREES[lang];
-  const dub = tree ? draw(lines(audio?.[tree]?.[charId]?.[slot])) : null;
+  const at = Number.isInteger(random) && random >= 0 ? random : null;
+  const draw = (list) => (!list.length ? null : at != null ? list[at % list.length]
+    : list[Math.min(list.length - 1, Math.floor(random() * list.length))]);
+  const { cn, dub: dubs } = slotLines(audio, charId, slot, lang);
+  const dub = draw(dubs);
   if (dub) {
     const file = (u) => u.slice(u.lastIndexOf('/') + 1);
     return { url: dub, fallback: cn.find((u) => file(u) === file(dub)) ?? draw(cn) };
   }
   const url = draw(cn);
   return url ? { url, fallback: null } : null;
+}
+
+/** A slot's lines: the Chinese ones and the chosen dub's ([] for 'cn' or a dub that lacks the slot). */
+function slotLines(audio, charId, slot, lang) {
+  const lines = (line) => (Array.isArray(line) ? line : [line]).filter((u) => typeof u === 'string' && u);
+  const tree = VOICE_TREES[lang];
+  return { cn: lines(audio?.voice?.[charId]?.[slot]), dub: tree ? lines(audio?.[tree]?.[charId]?.[slot]) : [] };
 }
 
 // ---- outfit voices (fork, docs/OUTFITS.md) -------------------------------------------------------------------
@@ -442,13 +450,18 @@ export function outfitVoiceKey(u) {
   try { return (voiceKeyResolver && voiceKeyResolver(u)) || null; } catch { return null; }
 }
 
-/** The line of `slot` in outfit voice set `key` (the operator's language pick, else the global dub), or null. */
-function outfitVoiceLine(am, charId, slot, key) {
+/** The language outfit voice set `key` of `charId` speaks: the operator's language pick, else the global dub. */
+function outfitLangOf(am, charId, key, a) {
+  const own = am.voiceOverrides?.[charId];
+  return voiceLangFor(key, VOICE_LANGS.includes(own) ? own : am.voiceLang, null, { native: false, audio: a });
+}
+
+/** The line of `slot` in outfit voice set `key` (outfitLangOf), or null. `random`: as voiceLine's. */
+function outfitVoiceLine(am, charId, slot, key, random = Math.random) {
   if (typeof key !== 'string' || !key) return null;
   const a = am.getManifest()?.audio;
   if (!a?.voice?.[key]?.[slot]) return null;
-  const own = am.voiceOverrides?.[charId];
-  return voiceLine(a, key, slot, voiceLangFor(key, VOICE_LANGS.includes(own) ? own : am.voiceLang, null, { native: false, audio: a }));
+  return voiceLine(a, key, slot, outfitLangOf(am, charId, key, a), random);
 }
 
 /**
@@ -1870,7 +1883,9 @@ export class AudioManager {
    * @param {string} charId e.g. 'char_263_skadi'
    * @param {'start'|'faceEnemy'|'select'|'place'|'skill1'|'skill2'|'skill3'|'skill4'|'squad'|'squadFirst'
    *   |'resultFour'|'resultThree'|'resultTwo'|'resultLose'|'gacha'} slot
-   * @param {{ unitKey?: string|number|null, volume?: number }} [o] `unitKey` = the cooldown key (a battle unit id)
+   * @param {{ unitKey?: string|number|null, volume?: number, voiceKey?: string|null, line?: number, takeover?: boolean }} [o]
+   *   `unitKey` = the cooldown key (a battle unit id); (fork) `line` = which of the slot's lines (voiceLine), `takeover`
+   *   = outside a battle (the Operator Loadout, ui/loadoutVoice.js): no VoiceGate, the newest line cuts the one on air off
    * @returns {boolean} whether such a line exists and started
    */
   voice(charId, slot, o = {}) {
@@ -1880,18 +1895,38 @@ export class AudioManager {
       // the chosen dub's line (settings 语音语言), with the Chinese file of the same name as its fallback (voiceLine);
       // (fork) the outfit's own voice set first: a battle unit's (o.voiceKey, null = none), else the player's own choice
       const voiceKey = o.voiceKey !== undefined ? o.voiceKey : outfitVoiceKey({ charId });
-      const pick = () => outfitVoiceLine(this, charId, slot, voiceKey) || voiceLine(this.getManifest()?.audio, charId, slot, this._voiceLangOf(charId));
+      const at = Number.isInteger(o.line) ? o.line : undefined;
+      const pick = () => outfitVoiceLine(this, charId, slot, voiceKey, at) || voiceLine(this.getManifest()?.audio, charId, slot, this._voiceLangOf(charId), at);
       const line = pick();
       if (!line) return false;
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      const verdict = this.voiceGate.request(slot, o.unitKey ?? null, now);
+      const verdict = o.takeover ? 'preempt' : this.voiceGate.request(slot, o.unitKey ?? null, now);
       if (verdict === 'drop') return false;
       if (verdict === 'preempt') this._stopVoice();
-      this.voiceGate.start(slot, o.unitKey ?? null, now);
+      this.voiceGate.start(slot, o.takeover ? null : o.unitKey ?? null, now);
       const token = ++this.voiceToken;
       this._playVoice(line.url, token, o.volume, line.fallback, pick);
       return true;
     } catch (err) { this._warn('voice', err); return false; }
+  }
+
+  /**
+   * (fork) How many lines `slot` has in the set `voice` would draw it from: outfit voice set `voiceKey` (a string; the
+   * slot must be in it), else the operator's own (null) — in the dub that set speaks (0 = none). ui/loadoutVoice.js
+   * rotates over these.
+   * @param {string} charId
+   * @param {string} slot
+   * @param {string|null} [voiceKey]
+   */
+  voiceCount(charId, slot, voiceKey = null) {
+    try {
+      const a = this.getManifest()?.audio;
+      if (typeof charId !== 'string' || typeof slot !== 'string' || !a) return 0;
+      const key = typeof voiceKey === 'string' && voiceKey ? voiceKey : null;
+      if (key && !a.voice?.[key]?.[slot]) return 0;
+      const { cn, dub } = slotLines(a, key || charId, slot, key ? outfitLangOf(this, charId, key, a) : this._voiceLangOf(charId));
+      return dub.length || cn.length;
+    } catch { return 0; }
   }
 
   /**

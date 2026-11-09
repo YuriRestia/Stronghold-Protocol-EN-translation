@@ -30,6 +30,7 @@ import { serializeOutfits, parseOutfitsImport, OUTFITS_IMPORT_MAX_BYTES } from '
 import { copyText } from '../ui/clipboard.js';
 import { seedAssets } from '../ui/fieldHost.js';
 import { toast } from '../ui/toasts.js';
+import { speakOutfit } from '../ui/loadoutVoice.js';
 import { t, N_ } from '../../../shared/i18n.js';
 
 const IO_TITLE = {
@@ -203,7 +204,8 @@ function ArtViewer({ src, name, onClose }) {
 }
 
 /**
- * The cards of one operator: 默认, then its outfits; a click wears one (ui/outfits.js setOutfit). No hooks: the panel
+ * The cards of one operator: 默认, then its outfits; a click wears one (ui/outfits.js setOutfit) and the new look speaks
+ * (ui/loadoutVoice.js speakOutfit). No hooks: the panel
  * and the 自选编队 picker (OutfitPickSection) draw it, and the tests can too.
  * `onPick` (the dev sandbox: a per-unit outfit) replaces the wear-it-now default.
  * @param {{ m: any, charId: string, name?: string, list: any[], worn: string|null, compact?: boolean, onPick?: ((id: string|null) => void)|null }} p
@@ -213,7 +215,7 @@ export function OutfitCards({ m, charId, name = '', list, worn, compact = false,
     const on = (id || null) === worn;
     const avatar = id ? outfitArtUrl(m, id, 'avatar') : null;
     return html`<button key=${id || 'default'} type="button" role="radio" aria-checked=${on ? 'true' : 'false'} data-outfit=${id || 'default'}
-        class=${cx('ofit-card', on && 'is-on')} onClick=${() => (onPick ? onPick(id || null) : setOutfit(charId, id))}>
+        class=${cx('ofit-card', on && 'is-on')} onClick=${() => { if (onPick) onPick(id || null); else if (!on) { setOutfit(charId, id); speakOutfit({ charId }); } }}>
       <span class="ofit-card__ava">${id ? html`<${Img} src=${avatar} fallback=${html`<b>${[...(rec?.name || '?')][0]}</b>`} />`
         : html`<${Img} src=${m?.chars?.[charId]?.avatarE2 || m?.chars?.[charId]?.avatar} fallback=${html`<b>${[...(name || '?')][0]}</b>`} />`}</span>
       <span class="ofit-card__text">

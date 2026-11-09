@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Operator Loadout voice lines once per visit
+
+- Opening an operator's card on the Operator Loadout, or picking one in the Custom Squad picker, plays a Selecting Operator line only on the first touch; a skill or module change counts as that first touch too. Further clicks on the same operator (its skill, module, a reopen) stay silent until you touch another operator. Each return then takes that operator's other line, never the one it said last. Changing an outfit always speaks: an outfit with its own voice says a Selecting or Deployment line of that voice (or any line it has), any other look one of the operator's own. The newest line cuts the previous one off, and the voice language and volume settings apply. No new downloads.
+
 ### Test a two-server release before players get it
 
 - `scripts/deploy-regions.mjs` now has `prepare` and `activate` as separate commands (`deploy` still does both). `prepare` starts the new version on every server without sending anyone there and prints its id and private test addresses; `activate <id>` switches every server, and refuses without switching any unless the version is ready on all of them with the same build (new `generations.mjs check <id>`). A prepared version now waits 4 hours for its activate instead of 1, so a private test fits.

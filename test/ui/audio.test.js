@@ -426,6 +426,51 @@ describe('operator battle voice', () => {
     }
   });
 
+  test('(fork) the Operator Loadout lines: a line by index, the line count, and the takeover past the gate', async () => {
+    const id = 'char_a', key = 'char_a_skin#1';
+    const audioM = {
+      voice: { [id]: { select: ['/v/cn/a/cn_021.mp3', '/v/cn/a/cn_022.mp3'], place: '/v/cn/a/cn_023.mp3' },
+        [key]: { select: ['/v/cn/s/cn_021.mp3', '/v/cn/s/cn_022.mp3'] } },
+      voiceEn: { [id]: { select: ['/v/en/a/cn_021.mp3', '/v/en/a/cn_022.mp3'] }, [key]: { select: ['/v/en/s/cn_022.mp3'] } },
+    };
+    assert.equal(voiceLine(audioM, id, 'select', 'en', 1).url, '/v/en/a/cn_022.mp3', 'a whole number picks that line');
+    assert.equal(voiceLine(audioM, id, 'select', 'en', 2).url, '/v/en/a/cn_021.mp3', 'modulo the count');
+    assert.equal(voiceLine(audioM, id, 'select', 'cn', 1).url, '/v/cn/a/cn_022.mp3');
+    assert.deepEqual(voiceLine(audioM, key, 'select', 'en', 0), { url: '/v/en/s/cn_022.mp3', fallback: '/v/cn/s/cn_022.mp3' });
+
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    const urls = [];
+    globalThis.fetch = async (u) => { urls.push(String(u)); return { ok: true, arrayBuffer: async () => new ArrayBuffer(8) }; };
+    const tick = () => new Promise((r) => setTimeout(r, 10));
+    try {
+      const a = new AudioManager({ win: fw.win, getManifest: () => ({ audio: { sfx: { ui: {}, battle: {}, units: {} }, ...audioM } }) });
+      a.install();
+      fw.fire('pointerdown');
+      await tick();
+      a.setVoiceLang('en', {});
+      assert.equal(a.voiceCount(id, 'select'), 2);
+      assert.equal(a.voiceCount(id, 'place'), 1, 'a slot the dub lacks: the Chinese lines');
+      assert.equal(a.voiceCount(id, 'skill1'), 0);
+      assert.equal(a.voiceCount(id, 'select', key), 1, 'the outfit set in its dub');
+      assert.equal(a.voiceCount(id, 'place', key), 0, 'a slot the outfit set lacks: none (the caller falls back)');
+      assert.equal(a.voice(id, 'place', { voiceKey: null, line: 0, takeover: true }), true);
+      await tick();
+      assert.equal(a.voiceNode?.url, '/v/cn/a/cn_023.mp3');
+      // a battle line on air would refuse a 选中 tap (priority); the Loadout's takeover cuts it off instead
+      assert.equal(a.voice(id, 'select', { voiceKey: null, line: 1, takeover: true }), true);
+      await tick();
+      assert.equal(a.voiceNode?.url, '/v/en/a/cn_022.mp3');
+      assert.equal(a.voice(id, 'select', { voiceKey: key, line: 0, takeover: true }), true);
+      await tick();
+      assert.equal(a.voiceNode?.url, '/v/en/s/cn_022.mp3', 'the outfit voice set');
+      a.volumes.muted = true;
+      assert.equal(a.voice(id, 'select', { line: 0, takeover: true }), false, 'muted stays silent');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   test('AudioManager.voice: manifest slots (a drawn array), the gate, and the battle events that drive them', async () => {
     const fw = fakeWindow();
     const origFetch = globalThis.fetch;
