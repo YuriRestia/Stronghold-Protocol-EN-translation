@@ -164,6 +164,12 @@ export class MatchPlatform {
       ps.connected = true;
       this._largeReconnect(ps); // (fork) match/largeRoom.js: the board back from the AI
       this._resync(ps);
+      // (fork review) a reloaded or reconnected page lost its Workers (the page drops them when the socket goes down): the
+      // host's rehearsal Worker and the first bot executor's Worker warm again, as at the briefing
+      if (!this.ended) {
+        if (playerId === this.hostId) this._rehearsalWarm();
+        if (this._botExecutorFor() === playerId) this._botWarm();
+      }
       if (!was) this.markPublic();
     });
   }

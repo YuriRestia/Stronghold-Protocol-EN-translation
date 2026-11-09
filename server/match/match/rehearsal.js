@@ -234,7 +234,9 @@ export class MatchRehearsal {
    * Nothing else changes: a page that does not warm, or stays silent, still times out into the server's own rehearsal.
    */
   _rehearsalWarm() {
-    if (!this.botRehearsalDelegate || this.disposed || this.ended || this.requireCs) return;
+    // (fork review) host execution never runs a bot prep on the server (scheduleBotPrep → queueBotPrep), so no rehearsal
+    // is ever delegated there: no Worker to warm (b.botWarm warms the bot Worker instead)
+    if (!this.botRehearsalDelegate || this.botExecution === 'host' || this.disposed || this.ended || this.requireCs) return;
     if (!Array.isArray(this.order) || !this.order.some((p) => p.isBot)) return;
     const host = this.hostId ? this.players.get(this.hostId) : null;
     if (!host || host.isBot || host.left || !host.connected) return;

@@ -460,3 +460,17 @@ test('protocol rejects a forged, out-of-range or non-boolean rehearsal answer', 
   assert.equal(typeof validateC2S({ t: 'b.rehearsalResult', taskId: '../x', choice: 0 }), 'string');
   assert.equal(typeof validateC2S({ t: 'b.rehearsalResult', taskId: '', choice: 0 }), 'string');
 });
+
+test('(review) a host that reconnects is told again (its page dropped the Worker); a teammate that reconnects is not', () => {
+  const h = coopMatch({ botRehearsalDelegate: true, hostId: 'p_0' });
+  h.run(() => h.m.phase !== PHASE.LOBBY || h.ended != null, { maxSteps: 1e5 });
+  assert.equal(h.allTo('p_0', 'b.rehearsalWarm').length, 1);
+  h.m.onDisconnect('p_0');
+  h.m.onReconnect('p_0');
+  assert.equal(h.allTo('p_0', 'b.rehearsalWarm').length, 2);
+  h.m.onDisconnect('p_1');
+  h.m.onReconnect('p_1');
+  assert.equal(h.allTo('p_1', 'b.rehearsalWarm').length, 0);
+  assert.equal(h.allTo('p_0', 'b.rehearsalWarm').length, 2, 'the host is not told again for a teammate');
+  h.m.dispose();
+});

@@ -353,3 +353,33 @@ test('no screen can draw these frames: only botHost.js in the page\'s code knows
   const later = fs.readFileSync(path.join(root, 'loadLater.js'), 'utf8');
   assert.equal(/^import /m.test(later), false, 'loadLater.js (the screen settle) imports nothing, so no store either');
 });
+
+test('(review) a hurry ends a task\'s wait for the screen: the Worker starts at once and hears the hurry right after the task', async () => {
+  const { sent, workers, recv } = setup({ screenSettled: () => new Promise(() => {}) });
+  recv('b.botTask', { taskId: 't.1', world: { seat: 1 }, budgetMs: 500 });
+  assert.equal(workers.length, 0, 'waiting for the screen');
+  recv('b.botHurry', { taskId: 't.1' });
+  assert.equal(workers.length, 1, 'every human is Ready: no more waiting');
+  await boot(workers[0]);
+  assert.deepEqual(sent.at(-1), { t: 'b.botLoaded', taskId: 't.1' });
+  assert.deepEqual(workers[0].posted.slice(-2), [{ t: 'task', id: 't.1', world: { seat: 1 }, budgetMs: 500 }, { t: 'hurry', id: 't.1' }]);
+  recv('b.botHurry', { taskId: 't.2' });
+  assert.equal(workers[0].posted.at(-1).id, 't.1', 'a hurry for no job of this page does nothing');
+});
+
+test('(review) a warm-up queued before the match ended builds nothing in the next match', async () => {
+  const waits = [];
+  const { workers, recv, host } = setup({ screenSettled: () => new Promise((r) => { waits.push(r); }) });
+  recv('b.botWarm', {});
+  host.clear();
+  // the next match (another room's content) asks for bot work too, so `asked` is set again
+  recv('b.botTask', { taskId: 't.1', world: {}, cs: 'c'.repeat(64) });
+  waits[0]();
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal(workers.length, 0, 'the old match\'s warm-up started nothing');
+  waits[1]();
+  await settle();
+  assert.equal(workers.length, 1, 'the new match\'s task, after its own screen wait');
+  await boot(workers[0]);
+  assert.equal(workers[0].posted.at(-1).id, 't.1');
+});

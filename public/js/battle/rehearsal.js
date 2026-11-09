@@ -15,7 +15,8 @@
 //
 // (fork) `b.rehearsalWarm` at the briefing builds the Worker and hands it the data before round 1's tasks, once the screen
 // has what it needs (loadLater.js): a prep's tasks arrive together, each with its own answer window, so a cold start
-// answered none of them.
+// answered none of them. The server sends it again when the host reconnects (its page dropped the Worker), and a Worker
+// a cancel terminated is replaced by a warm one at once, so the next task or prep does not start cold either.
 //
 // The server also drops tasks it no longer waits for (`b.rehearsalCancel`: a timeout, a host change, the prep ending)
 // and so does the page. A task still running is stopped by terminating its Worker — the only thing that interrupts a
@@ -66,6 +67,8 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
   let broken = false;
   /** (fork) Bumped by clear(): a warm-up queued for a match that is over starts nothing. */
   let epoch = 0;
+  /** (fork review) This match asked for a warm Worker: one that a cancel terminates is replaced by a warm one. */
+  let warmed = false;
 
   const answer = (task, fields) => {
     if (task.settled) return;
@@ -189,6 +192,8 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
       w.task.settled = true;
       killWorker();
       pump();
+      // (fork review) nothing queued: a warm Worker for the next task (a later task of this prep, or the next prep)
+      if (!w && warmed && !broken) { const inst = startWorker(); if (inst) inst.warm = true; }
       return;
     }
     const i = queue.findIndex((task) => task.id === msg.taskId);
@@ -199,6 +204,7 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
    *  the queue emptied; the next task builds a new worker. */
   function clear() {
     epoch++;
+    warmed = false;
     const dead = killWorker();
     if (dead && dead.task) dead.task.settled = true;
     for (const task of queue.splice(0)) task.settled = true;
@@ -218,7 +224,9 @@ export function installRehearsal({ net, runner = battleRunner, createWorker = ()
   function onWarm() {
     const at = epoch;
     later(() => {
-      if (at !== epoch || broken || w) return;
+      if (at !== epoch || broken) return;
+      warmed = true;
+      if (w) return;
       const inst = startWorker();
       if (inst) inst.warm = true;
     });

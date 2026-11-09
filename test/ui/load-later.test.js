@@ -126,5 +126,7 @@ test('the callers: art for a later round waits and asks for low priority; the ba
   // the bot Worker's 400-odd modules start once the briefing and the band draft are in (battle/botHost.js)
   const bots = read('public/js/battle/botHost.js');
   assert.match(bots, /screenSettled = whenScreenSettled/);
-  assert.match(bots, /afterScreen\(\(\) => \{ if \(jobs\.has\(id\)\) post\(id, \{ t: 'task'/);
+  // a task goes to the Worker from job.go(): after the screen has settled, or at once on a hurry (every human is Ready)
+  assert.match(bots, /afterScreen\(\(\) => job\.go\(\)\)/);
+  assert.match(bots, /go\(\) \{[\s\S]{0,200}post\(id, \{ t: 'task'/);
 });
