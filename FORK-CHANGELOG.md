@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Damage Stats keep every round of the match
+
+- The settlement's Full Report → Damage Stats could show only one round (a player saw just "Round 13" after a 15-round Grand Alliance match). The game threw away the match's earlier rounds whenever the match view went empty for a moment or showed an older round (a reconnect or a state resync can do that), and when the room went back to its lobby before the report was opened. Now the stats start over only when a new match begins, so By Round shows a segment for every round fought and the totals are the whole match's. This is a browser-side fix; nothing changes on the servers.
+
 ### Grand Alliance rooms from every server
 
 - The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.

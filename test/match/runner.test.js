@@ -138,8 +138,12 @@ test('authoritative battle: 2× pacing, ≤ max(8, 4·speed) ticks per frame, b.
   r.store.patch('match', { public: { phase: PHASE.PREP, round: 3 } });
   assert.deepEqual(r.runner.combatMetrics(), finalMetrics, 'match totals survive next-round prep');
   assert.equal(r.runner.combatMetrics({ scope: 'battle' }).rows.length, 0, 'current battle clears at prep');
+  // (fork) an empty m.public (a reconnect's restore, the room after the match) keeps them: the settlement's report reads
+  // them later; the next match's opening phases clear them
   r.store.patch('match', { public: null });
-  assert.equal(r.runner.combatMetrics().rows.length, 0, 'leaving the match clears totals');
+  assert.deepEqual(r.runner.combatMetrics(), finalMetrics, 'an empty public view keeps the match totals');
+  r.store.patch('match', { public: { phase: PHASE.INFO_CHECK, round: 0 } });
+  assert.equal(r.runner.combatMetrics().rows.length, 0, 'the next match clears totals');
   r.runner.dispose();
 });
 
@@ -273,8 +277,11 @@ test('上一场战斗: the most recent ended battle, never the running one; rese
   r.store.patch('match', { public: { phase: PHASE.PREP, round: 4 } });
   assert.deepEqual(r.runner.combatMetrics({ scope: 'last' }), secondLive, '上一场 survives the next round prep');
   assert.ok(r.runner.combatMetrics({ scope: 'match' }).damage >= r.runner.combatMetrics({ scope: 'last' }).damage);
+  // (fork) an empty m.public keeps it (a reconnect's restore); the next match clears it
   r.store.patch('match', { public: null });
-  assert.equal(r.runner.combatMetrics({ scope: 'last' }).rows.length, 0, 'leaving the match clears 上一场');
+  assert.ok(r.runner.combatMetrics({ scope: 'last' }).rows.length > 0, 'an empty public view keeps 上一场');
+  r.store.patch('match', { public: { phase: PHASE.INFO_CHECK, round: 0 } });
+  assert.equal(r.runner.combatMetrics({ scope: 'last' }).rows.length, 0, 'the next match clears 上一场');
   r.runner.dispose();
 });
 
@@ -580,6 +587,42 @@ test('(fork) results chart: combatRounds tags each battle with its spec round an
     for (const p of row.parts) assert.equal(p.round, round);
   }
   assert.equal(r.runner.combatRounds({ ownerId: 'someone_else' }).rows.length, 0);
+  r.runner.dispose();
+});
+
+test('(fork) results chart: every round of the match counts, each its own segment (user report: only round 13 showed)', async () => {
+  const start = realStart(7305);
+  const r = rig();
+  const rounds = [3, 4, 5];
+  for (const round of rounds) {
+    // a real match's public phases around a round: the prep, the round start, the fight, the settle
+    r.store.patch('match', { public: { phase: 'PREP', round } });
+    r.store.patch('match', { public: { phase: 'ROUND_START', round } });
+    r.store.patch('match', { public: { phase: 'COMBAT', round } });
+    const b = { ...start, battleId: `${start.battleId}.r${round}`, spec: { ...start.spec, battleId: `${start.battleId}.r${round}`, round } };
+    r.net.emit('b.start', b);
+    await r.settle();
+    const e = r.runner._entries.get(b.battleId);
+    for (let i = 0; i < 80 && !e.battle.allyUnits.some((u) => u.stats.dmg > 0); i++) r.advance(500, 50);
+    if (round === rounds.at(-1)) {
+      // mid-fight, the public view goes empty and comes back with a lower round (a reconnect's restore, a resync): the
+      // earlier rounds stay (before: only this live battle's round was left)
+      r.store.patch('match', { public: null });
+      r.store.patch('match', { public: { phase: 'COMBAT', round: round - 1 } });
+      r.store.patch('match', { public: { phase: 'COMBAT', round } });
+    }
+    r.store.patch('match', { public: { phase: 'SETTLE', round } });
+  }
+  r.store.patch('match', { public: { phase: 'RESULT', round: rounds.at(-1) } });
+  // the room goes back to its lobby before the settlement's report is opened: still the whole match
+  r.store.patch('match', { public: { phase: 'LOBBY', round: 0 } });
+  const roundsOf = (m) => [...new Set(m.rows.flatMap((row) => row.parts.map((p) => p.round)))].sort((a, b) => a - b);
+  const got = r.runner.combatRounds();
+  assert.deepEqual(roundsOf(got), rounds, 'a segment for every round fought');
+  for (const row of got.rows) assert.ok(Math.abs(row.parts.reduce((n, p) => n + p.damage, 0) - row.damage) < 1e-6, `${row.key}: its rounds add up`);
+  // the room's next match: its opening phases, or its first battle (another battleId prefix), start the totals over
+  r.store.patch('match', { public: { phase: 'INFO_CHECK', round: 0 } });
+  assert.equal(r.runner.combatRounds().rows.length, 0, 'a new match starts empty');
   r.runner.dispose();
 });
 
