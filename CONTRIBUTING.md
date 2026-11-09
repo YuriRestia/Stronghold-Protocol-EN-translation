@@ -62,6 +62,8 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
 
 某个浏览器测试失败时，先用 `node tools/test-repro.mjs <文件> --test "<测试名>"` 在一两分钟内复现，不要整个文件反复跑：它把这条测试单独跑 N 次（`--runs`，默认 5），再在文件里排在它前面的测试之后各跑 N 次（`--before "<测试名>"` 指定，`--orders` 取前面的全部），用的是同一个文件进程（文件自己的 before 钩子、服务器和浏览器，顺序和整文件运行时一样，只是跳过中间的测试）。单独通过不能证明是机器负载：前一条测试留下的状态（缓存、页面、全局变量）只有按同样顺序才会出现。`--cpu 4` 让 Chrome 的 CPU 慢四倍来模拟负载；Chrome 默认加上 `tools/perfbench.mjs` 的 GPU 参数（`--own-flags` 只用文件自己的参数，和 `npm run test:browser` 一样）。结果是一张表（情形 / 次数 / 通过 / 失败 / 第一次失败的信息），每次运行的 spec 输出、页面控制台和失败时的截图放在 `test/e2e/out/repro/`；有失败时退出码非 0。`--list` 列出文件里的测试。设置 `SP_LANE_DIR`（车道锁所在的文件夹）时它占 `fix-browser-3.lock`（两车道的文件再占 `fix-browser-2.lock`），`perf-quiet` 存在时等待。
 
+每次运行（`test-repro`、`npm run test:browser`，以及任何带 JUnit 文件的 `node --test` 运行：`node tools/test-repro.mjs --report <junit.xml>`）之后都有一张失败报告和 `failures.json`：每条失败的测试写明文件、完整测试名、第一行错误、它从文件开始算起第几秒开始（有钩子记录时是准确值，只有 JUnit 时是前面测试时间之和，标 ≈）、它自己跑了多久、整个文件的总时间、文件里在它之前跑过的测试，以及截图和控制台。`tools/browser-suite.json` 也保存每条测试的时间（`--weigh`），运行前按所选的测试算出预计时间，运行后打印实际时间。`--rerun-failed <failures.json>` 只重跑失败的测试：先单独跑；单独通过就说明“依赖前面的测试”，再只在它之前实际跑过的那些测试之后跑一次；开跑前先打印要花的时间。`--changed <git 范围>`（`HEAD` 表示工作区相对 HEAD）只跑改动可能影响的测试：测试文件里改的是哪个 `test()` 就跑哪个；改的是辅助函数或常量，就跑实际执行过改动那几行（或用到那个名字）的测试；改的是页面代码（`public/js`、CSS）或进程内服务器的代码，就跑覆盖率图里用到改动那几行（CSS 是匹配到改动的规则）的测试。覆盖率图在每次运行时由钩子更新（`test/e2e/out/coverage/`，测试进程按代码块、页面脚本按函数、样式按匹配的规则记录）。还没有覆盖记录的文件、改了 before / after 钩子等公共准备、或者启动独立服务器进程的文件，都会说明原因并整文件运行；改了 tools、data 等无法对应到测试的文件时什么也不启动，并说明原因。从不悄悄跳过。`--budget K` 给每条有测量时间的测试设超时 max(下限, K × 测量时间)（`--budget-floor`，默认 20 秒）；超时在报告里写成“stopped by budget after N s (expected M s)”，和真正的失败分开。
+
 真实服务器的浏览器测试不必按游戏计时器的速度等待：`startRealServer({ fast })` 启动的测试服务器（`test/e2e/fastServer.mjs`）接受两种只供测试工具使用的控制（`test/e2e/harnessControl.mjs`，经测试进程的 IPC 通道，任何网络连接都够不到）：`srv.endPhase(房间码, 阶段)` 让当前有时限的阶段立刻到时（走的就是到时的那个回调），`srv.hold(房间码)` / `srv.release(房间码)` 冻结 / 恢复正在进行的战斗（服务器和页面的战斗时钟一起停，和单人暂停是同一条路径，但不显示「暂停中」）。在检查之间结束固定的过场阶段，在战斗中检查时先冻结，就可以把 `combatSpeed` 调高。正式服务器（`server/index.js`）不加载它们（`test/match/harness-control.test.js`）。同盟流程的四段真实服务器测试拆成 `test/e2e/coop-{facing,coop,solo,result}.e2e.test.js` 四个文件，可以并行跑。
 
 无头 Chrome 默认就用真实 GPU，不要在测试里写死某个平台的图形参数（Windows 上的 `--use-angle=metal` 会退回软件渲染）。需要指定时用 `tools/perfbench.mjs` 的 `gpuArgs()`，它在没有可用 GPU 的机器上也能拿到 WebGL；对用它启动的测试，设置 `SP_E2E_SOFTWARE_GL=1` 可强制软件渲染。`RENDER_E2E=1 node --test test/render/gpu-renderer.browser.test.js` 会打印实际使用的渲染器。
@@ -163,6 +165,23 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   and failure screenshots go to `test/e2e/out/repro/`; `--list` prints the file's tests. With `SP_LANE_DIR` (the lane
   locks' folder) it takes `fix-browser-3.lock` (plus `fix-browser-2.lock` for a two-lane file) and waits while
   `perf-quiet` exists.
+  After every run (`test-repro`, `npm run test:browser`, and any `node --test` run's JUnit file through
+  `node tools/test-repro.mjs --report <junit.xml>`) there is a failure table plus `failures.json`: per failed test its
+  file, full name, first error line, when it started counted from the file's start (exact from the hook's records; from a
+  JUnit file alone the sum of the tests before it, marked ≈), how long it ran, the file's total, the tests that ran before
+  it in that file, and its screenshots and console. `tools/browser-suite.json` keeps per-test times too (`--weigh`): the
+  expected time of a run is printed from exactly the selected tests before it starts, the actual time after it.
+  `--rerun-failed <failures.json>` reruns only the failed tests: each alone first; one that passes alone is reported as
+  depending on earlier tests and runs again after exactly the tests that ran before it; the cost is printed first.
+  `--changed <git range>` (`HEAD`: the working tree against HEAD) runs only what a change can affect: a test file's
+  edited `test()` blocks; for a helper or a constant, the tests that ran the changed lines (or a line using the name);
+  for app code (`public/js`, CSS) and in-process server code, the tests whose recorded coverage used the changed lines
+  (for CSS, matched the changed rule). The hook refreshes that coverage map on every run (`test/e2e/out/coverage/`: the
+  test process by block, the pages' scripts by function, style sheets by matched rule). A file with no record yet, a
+  change to shared setup (a before / after hook) or a file that starts a separate server process runs whole, with the
+  reason printed; a change to files no test maps (tools, data) starts nothing and says why. Nothing is skipped
+  silently. `--budget K` gives each test with a measured time the timeout max(floor, K x that time) (`--budget-floor`,
+  default 20 s); the report says "stopped by budget after N s (expected M s)", apart from real failures.
   Real-server browser tests need not wait at game-timer speed: the test server of `startRealServer({ fast })`
   (`test/e2e/fastServer.mjs`) answers two harness-only controls (`test/e2e/harnessControl.mjs`, over the test process's
   IPC channel; no socket reaches them): `srv.endPhase(room, phase)` expires the current timed phase through its own

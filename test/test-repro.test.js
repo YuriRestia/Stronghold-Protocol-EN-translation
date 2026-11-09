@@ -145,7 +145,7 @@ test('the reporter: one line per test with its full path, suites left out, the e
   for await (const chunk of reproReporter(source())) out += chunk;
   assert.deepEqual(out.trim().split('\n').map((l) => JSON.parse(l)), [
     { path: ['S', 'a'], ok: true, skip: false, ms: 12 },
-    { path: ['S', 'b'], ok: false, skip: false, error: 'destroy plate reads red', ms: 3 },
+    { path: ['S', 'b'], ok: false, skip: false, error: 'destroy plate reads red', failureType: null, ms: 3 },
     { path: ['top'], ok: true, skip: true },
   ]);
   assert.equal(errorLine('plain'), 'plain');
