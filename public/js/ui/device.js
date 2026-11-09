@@ -221,7 +221,18 @@ const errText = (e) => `${e?.name || 'Error'}: ${String(e?.message || e).slice(0
 export const fullscreen = {
   supported(win = globalThis) { return detectFeatures(win).fullscreen; },
   active(win = globalThis) { const d = win.document; return !!(d && (d.fullscreenElement || d.webkitFullscreenElement)); },
-  async enter(win = globalThis) {
+  /** (fork) the last orientation.lock answer: 'ok', an error name, 'unavailable' or null (not tried yet) */
+  lastLock: null,
+  /** (fork) told each lock answer (installPortraitTap: a refused lock means the phone must be turned by hand) */
+  lockListeners: new Set(),
+  _entering: null,
+  enter(win = globalThis) {
+    // (fork) one tap sends pointerup, touchend and click, and two listeners may answer it: one request at a time
+    if (this._entering) return this._entering;
+    this._entering = this._enter(win).finally(() => { this._entering = null; });
+    return this._entering;
+  },
+  async _enter(win) {
     const el = win.document?.documentElement;
     if (!el) return false;
     try {
@@ -232,10 +243,12 @@ export const fullscreen = {
     } catch (e) { fsTrace.note(`requestFullscreen: ${errText(e)}`); return false; }
     // Android Chrome: a landscape game may lock the orientation while fullscreen (refused elsewhere — ignored)
     const lock = win.screen?.orientation?.lock;
-    if (typeof lock !== 'function') fsTrace.note('orientation.lock: not available');
+    if (typeof lock !== 'function') { this.lastLock = 'unavailable'; fsTrace.note('orientation.lock: not available'); }
     else {
-      try { await win.screen.orientation.lock('landscape'); fsTrace.note('orientation.lock: ok'); } catch (e) { fsTrace.note(`orientation.lock: ${errText(e)}`); }
+      try { await win.screen.orientation.lock('landscape'); this.lastLock = 'ok'; fsTrace.note('orientation.lock: ok'); }
+      catch (e) { this.lastLock = e?.name || 'Error'; fsTrace.note(`orientation.lock: ${errText(e)}`); }
     }
+    for (const fn of this.lockListeners) { try { fn(this.lastLock); } catch { /* a listener only */ } }
     return true;
   },
   async exit(win = globalThis) {
@@ -264,16 +277,15 @@ export function useFullscreen() {
   return on;
 }
 
-/** Fullscreen toggle (hidden where the browser has no element fullscreen, e.g. iPhone Safari). Leaving fullscreen with
- * it also turns off the phone's first-tap fullscreen (FS_AUTO_KEY) until it is used to enter again. */
+/** Fullscreen toggle (hidden where the browser has no element fullscreen, e.g. iPhone Safari). It only enters and leaves
+ * fullscreen: nothing is remembered (a phone held upright is asked for a tap by the rotate screen: installPortraitTap). */
 export function FullscreenButton({ class: cls = '' }) {
   const on = useFullscreen();
   const [ok] = useState(() => fullscreen.supported());
   if (!ok) return null;
   const label = on ? t('退出全屏') : t('全屏');
-  const press = () => { setAutoFullscreenOff(on); return fullscreen.toggle(); };
   return html`<button type="button" class=${`fsbtn tapx ${cls}`} aria-label=${label} title=${label} aria-pressed=${on ? 'true' : 'false'}
-      onClick=${press}>
+      onClick=${() => fullscreen.toggle()}>
     <${Icon} name=${on ? 'collapse' : 'expand'} />
   </button>`;
 }
@@ -287,14 +299,13 @@ export function FullscreenButton({ class: cls = '' }) {
 // whose shorter screen side is under PHONE_MAX_SIDE CSS px (tablets and desktops keep their window), with element
 // fullscreen (iPhone Safari has none: the rotate hint and Add to Home Screen are what it gets), and not already running
 // as an installed app (the manifest gives that fullscreen landscape by itself, with no tap at all).
-// Once per page: a player who leaves fullscreen (the back gesture, the ⛶ button) is not put back on the next tap; a reload
-// tries again — except after leaving with the ⛶ button, which is remembered (FS_AUTO_KEY) until the button enters again.
-// ?fsdebug=1 shows every gate and step on screen (ui/fsDebug.js).
+// Once per page: a player who leaves fullscreen in landscape (the back gesture, the ⛶ button) keeps the browser's bars;
+// nothing is remembered, and a reload asks again. The game is played in landscape only (owner 2026-11-09: the portrait
+// version is useless): whenever such a phone is held upright, the rotate screen asks for a tap that goes fullscreen and
+// turns it back (installPortraitTap). ?fsdebug=1 shows every gate and step on screen (ui/fsDebug.js).
 
 /** Shorter screen side (CSS px) below which a touch device counts as a phone. */
 export const PHONE_MAX_SIDE = 600;
-/** localStorage: 'off' after the player left fullscreen with the ⛶ button. */
-export const FS_AUTO_KEY = 'sp.fsAuto';
 
 /** Shorter side of the screen in CSS px (0: unknown). */
 export function screenShortSide(win = globalThis) {
@@ -305,16 +316,15 @@ export function screenShortSide(win = globalThis) {
 /**
  * Each condition of the first-tap fullscreen, with its value (pure; tested; the ?fsdebug=1 overlay lists them).
  * @param {ReturnType<typeof detectFeatures>} f
- * @param {{ shortSide: number, off?: boolean, active?: boolean }} s
+ * @param {{ shortSide: number, active?: boolean }} s
  * @returns {{ name: string, ok: boolean, value: any }[]}
  */
-export function autoFullscreenGates(f, { shortSide, off = false, active = false }) {
+export function autoFullscreenGates(f, { shortSide, active = false }) {
   return [
     { name: 'touch is the primary pointer', ok: !!f.primaryCoarse, value: !!f.primaryCoarse },
     { name: `short screen side < ${PHONE_MAX_SIDE}`, ok: shortSide > 0 && shortSide < PHONE_MAX_SIDE, value: shortSide },
     { name: 'element fullscreen available', ok: !!f.fullscreen, value: !!f.fullscreen },
     { name: 'not an installed app', ok: !f.standalone, value: !!f.standalone },
-    { name: 'not turned off with the ⛶ button', ok: !off, value: !!off },
     { name: 'not fullscreen already', ok: !active, value: !!active },
   ];
 }
@@ -322,18 +332,46 @@ export function autoFullscreenGates(f, { shortSide, off = false, active = false 
 /** Whether the first tap should enter fullscreen (pure; tested). */
 export function autoFullscreenWanted(f, s) { return autoFullscreenGates(f, s).every((g) => g.ok); }
 
-function autoFullscreenOff(win = globalThis) {
-  try { return win.localStorage?.getItem(FS_AUTO_KEY) === 'off'; } catch { return false; }
-}
-
 /** The gates on this page now. */
 export function autoFullscreenState(win = globalThis) {
-  return autoFullscreenGates(detectFeatures(win), { shortSide: screenShortSide(win), off: autoFullscreenOff(win), active: fullscreen.active(win) });
+  return autoFullscreenGates(detectFeatures(win), { shortSide: screenShortSide(win), active: fullscreen.active(win) });
 }
 
-/** The ⛶ button: leaving fullscreen with it turns the first-tap fullscreen off, entering with it turns it back on. */
-export function setAutoFullscreenOff(off, win = globalThis) {
-  try { if (off) win.localStorage?.setItem(FS_AUTO_KEY, 'off'); else win.localStorage?.removeItem(FS_AUTO_KEY); } catch { /* private mode */ }
+/** (fork) A phone that can turn the page landscape itself: the first-tap conditions, fullscreen already or not (pure). */
+export function phoneCanTurn(f, shortSide) {
+  return autoFullscreenGates(f, { shortSide }).every((g) => g.ok);
+}
+
+/**
+ * (fork) The portrait screen (the rotate hint in index.html, css/devices.css) on a phone that can turn the page itself asks
+ * for a tap (<html class="sp-tap-rotate">: its 点击切换到横屏 line shows), and that tap enters fullscreen and locks
+ * landscape — each time the phone is held upright, not only on the page's first tap. A browser that refuses the lock
+ * (fullscreen.lastLock) loses the line: its rotate screen says to turn the phone by hand, as before. Returns a disposer.
+ * @param {any} [win]
+ * @param {{ enter?: (win: any) => Promise<boolean> }} [deps] (tests)
+ */
+export function installPortraitTap(win = globalThis, { enter = (w) => fullscreen.enter(w) } = {}) {
+  const doc = win.document;
+  const root = doc?.documentElement;
+  const hint = doc?.querySelector?.('.rotate-hint');
+  if (!root?.classList || !hint?.addEventListener) return () => {};
+  if (!phoneCanTurn(detectFeatures(win), screenShortSide(win))) return () => {};
+  // any refused lock (the first tap's too): this browser cannot turn the page, the screen asks to turn it by hand again
+  const onLock = (lock) => {
+    if (!lock || lock === 'ok' || !root.classList.contains('sp-tap-rotate')) return;
+    root.classList.remove('sp-tap-rotate');
+    fsTrace.note(`rotate screen: the lock was refused (${lock}); it asks to turn the phone by hand again`);
+  };
+  if (fullscreen.lastLock && fullscreen.lastLock !== 'ok') return () => {};
+  root.classList.add('sp-tap-rotate');
+  fullscreen.lockListeners.add(onLock);
+  const onTap = (e) => {
+    if (!e?.isTrusted) return;
+    fsTrace.note('rotate screen tapped');
+    Promise.resolve(enter(win)).catch(() => {});
+  };
+  hint.addEventListener('click', onTap);
+  return () => { hint.removeEventListener('click', onTap); fullscreen.lockListeners.delete(onLock); root.classList.remove('sp-tap-rotate'); };
 }
 
 const TAP_EVENTS = ['pointerup', 'touchend', 'click'];
@@ -375,6 +413,7 @@ export function installFirstTapFullscreen(win = globalThis, { enter = (w) => ful
     if (e.type === 'pointerup' && e.pointerType === 'mouse') return;
     const el = e.target;
     if (el?.closest?.('.fsbtn, input, textarea, select, [contenteditable="true"]')) { fsTrace.note('skipped: the ⛶ button or a text field'); return; }
+    if (el?.closest?.('.rotate-hint')) { off(); return; } // the rotate screen's own tap (installPortraitTap) answers it
     const now = failed();
     if (now.length) { fsTrace.note(`stopped: ${now.join('; ')}`); off(); return; }
     busy = true;
@@ -404,6 +443,7 @@ export function updateRotateHintI18n(doc = globalThis.document) {
   set('rotate-hint-title', t('请将设备横屏')); // en: "Rotate your device to landscape"
   set('rotate-hint-text', t('卫戍协议：盟约 需要横屏显示以获得完整体验')); // en: "Stronghold Protocol: Alliance needs landscape for the full experience"
   set('rotate-hint-pwa', t('添加到桌面'));
+  set('rotate-hint-tap', t('点击切换到横屏')); // en: "Tap to switch to landscape"
   set('rotate-hint-ios', t('想要全屏：点 Safari 的“分享”，再选“添加到主屏幕”，从桌面图标打开')); // en: "For full screen: tap Share in Safari, choose Add to Home Screen, and open the game from its icon"
 }
 
@@ -512,6 +552,7 @@ export function installDeviceSupport(win = globalThis) {
     on(win, 'resize', show, { passive: true });
   }
   offs.push(installFirstTapFullscreen(win));
+  offs.push(installPortraitTap(win));
   // (fork) ?fsdebug=1: why a phone did or did not go fullscreen, on screen (ui/fsDebug.js; loaded only then)
   if (/[?&]fsdebug=1(?:&|$)/.test(String(win.location?.search || ''))) {
     import('./fsDebug.js').then((m) => offs.push(m.installFsDebug(win)), () => {});

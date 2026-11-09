@@ -6,7 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { installCompat } from '../../public/js/ui/compat.js';
-import { autoFullscreenGates, autoFullscreenWanted, fsTrace, detectFeatures, featureClasses, FS_AUTO_KEY, fullscreen, installDeviceSupport, installFirstTapFullscreen, installScreenWakeLock, isIOS, LONG_PRESS_MS, PHONE_MAX_SIDE, screenLandscape, screenShortSide, setAutoFullscreenOff } from '../../public/js/ui/device.js';
+import { autoFullscreenGates, autoFullscreenWanted, fsTrace, detectFeatures, featureClasses, fullscreen, installDeviceSupport, installFirstTapFullscreen, installPortraitTap, installScreenWakeLock, isIOS, LONG_PRESS_MS, PHONE_MAX_SIDE, screenLandscape, screenShortSide } from '../../public/js/ui/device.js';
 import { checkButtons } from '../../public/js/ui/hud.js';
 import { penPlacement, penZoneTiles, previewEnemyKey, PEN } from '../../public/js/ui/gameLogic.js';
 import { bannerVisible } from '../../public/js/ui/connBanner.js';
@@ -200,7 +200,6 @@ describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
     assert.equal(autoFullscreenWanted(phoneFeatures, { shortSide: 0 }), false, 'unknown screen');
     assert.equal(autoFullscreenWanted({ ...phoneFeatures, fullscreen: false }, { shortSide: 390 }), false, 'iPhone Safari');
     assert.equal(autoFullscreenWanted({ ...phoneFeatures, standalone: true }, s), false, 'installed app');
-    assert.equal(autoFullscreenWanted(phoneFeatures, { ...s, off: true }), false, 'left with the ⛶ button');
     assert.equal(autoFullscreenWanted(phoneFeatures, { ...s, active: true }), false, 'already fullscreen');
     const d = device();
     assert.equal(screenShortSide(d.win), 412);
@@ -244,12 +243,11 @@ describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
     } finally { off(); }
   });
 
-  test('desktop, tablet, iPhone and an opted-out phone never listen or request', async () => {
+  test('desktop, tablet and iPhone never listen or request', async () => {
     const cases = {
       desktop: device({ media: { '(any-pointer: fine)': true, '(any-hover: hover)': true }, screen: { width: 1920, height: 1080 } }),
       tablet: device({ screen: { width: 820, height: 1180 } }),
       iPhone: device({ fs: false, screen: { width: 390, height: 844 } }),
-      optedOut: device({ store: new Map([[FS_AUTO_KEY, 'off']]) }),
     };
     for (const [name, d] of Object.entries(cases)) {
       let entered = 0;
@@ -289,12 +287,62 @@ describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
     assert.equal(detectFeatures(d.win).standalone, false, 'element fullscreen in a tab');
   });
 
-  test('the ⛶ button: leaving fullscreen with it is remembered, entering with it forgets that', () => {
+  test('held upright: the rotate screen asks for a tap, and every tap on it goes fullscreen + landscape', async () => {
+    fullscreen.lastLock = null; // module state: a page has tried no lock yet
     const d = device();
-    setAutoFullscreenOff(true, d.win);
-    assert.equal(d.store.get(FS_AUTO_KEY), 'off');
-    setAutoFullscreenOff(false, d.win);
-    assert.equal(d.store.has(FS_AUTO_KEY), false);
+    const hint = emitter();
+    d.doc.querySelector = (sel) => (sel === '.rotate-hint' ? hint : null);
+    let entered = 0;
+    const off = installPortraitTap(d.win, { enter: async () => { entered++; fullscreen.lastLock = 'ok'; for (const fn of fullscreen.lockListeners) fn('ok'); return true; } });
+    try {
+      assert.ok(d.classes.has('sp-tap-rotate'), 'the screen shows its tap line');
+      hint.dispatch(new FakeEvent('click', { isTrusted: false }));
+      assert.equal(entered, 0, 'an untrusted click is not a gesture');
+      hint.dispatch(new FakeEvent('click')); await flush();
+      hint.dispatch(new FakeEvent('click')); await flush();
+      assert.equal(entered, 2, 'not only the first time: each time the phone is upright');
+      assert.ok(d.classes.has('sp-tap-rotate'));
+    } finally { off(); fullscreen.lastLock = null; }
+    assert.equal(d.classes.has('sp-tap-rotate'), false);
+  });
+
+  test('held upright, a browser that refuses the lock: the rotate screen asks to turn by hand again', async () => {
+    fullscreen.lastLock = null; // module state: a page has tried no lock yet
+    const d = device();
+    const hint = emitter();
+    d.doc.querySelector = (sel) => (sel === '.rotate-hint' ? hint : null);
+    const off = installPortraitTap(d.win, { enter: async () => { fullscreen.lastLock = 'NotSupportedError'; for (const fn of fullscreen.lockListeners) fn('NotSupportedError'); return true; } });
+    try {
+      hint.dispatch(new FakeEvent('click')); await flush();
+      assert.equal(d.classes.has('sp-tap-rotate'), false);
+    } finally { off(); fullscreen.lastLock = null; }
+  });
+
+  test('iPhone (no fullscreen), tablet and desktop keep the plain rotate screen', () => {
+    fullscreen.lastLock = null; // module state: a page has tried no lock yet
+    for (const d of [device({ fs: false, screen: { width: 390, height: 844 } }), device({ screen: { width: 820, height: 1180 } }),
+      device({ media: { '(any-pointer: fine)': true, '(any-hover: hover)': true }, screen: { width: 1920, height: 1080 } })]) {
+      const hint = emitter();
+      d.doc.querySelector = (sel) => (sel === '.rotate-hint' ? hint : null);
+      const off = installPortraitTap(d.win);
+      assert.equal(d.classes.has('sp-tap-rotate'), false);
+      assert.equal(hint.count('click'), 0);
+      off();
+    }
+  });
+
+  test('the ⛶ button only enters and leaves fullscreen: nothing is remembered', async () => {
+    const d = device();
+    await fullscreen.toggle(d.win);
+    assert.equal(fullscreen.active(d.win), true);
+    await fullscreen.toggle(d.win);
+    assert.equal(fullscreen.active(d.win), false);
+    assert.equal(d.store.size, 0, 'nothing stored');
+    let entered = 0;
+    const off = installFirstTapFullscreen(d.win, { enter: async () => { entered++; return true; } });
+    tap(d.doc); await flush();
+    assert.equal(entered, 1, 'the next page still goes fullscreen on its first tap');
+    off();
   });
 });
 

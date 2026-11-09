@@ -164,6 +164,19 @@ html:not(.sp-in-match) .toast-host { margin-top: var(--sa-t); }
 .rotate-hint__pwa[hidden] { display: none; }
 .rotate-hint__ios { max-width: 30em; font-size: 13px; color: var(--text-lo); }
 .rotate-hint__ios[hidden] { display: none; }
+/* (fork) a phone that can turn the page itself (js/ui/device.js installPortraitTap): the whole screen is the tap */
+.rotate-hint__tap { display: none; }
+.sp-tap-rotate .rotate-hint { cursor: pointer; }
+.sp-tap-rotate .rotate-hint__tap {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 4px;
+  font-size: 18px; font-weight: 700; letter-spacing: .14em; color: var(--mint-400);
+}
+.sp-tap-rotate .rotate-hint__tap::before {
+  content: ''; width: 40px; height: 40px; border: 2px solid var(--mint-400); border-radius: 50%;
+  box-shadow: 0 0 16px rgba(71, 201, 169, .55), inset 0 0 10px rgba(71, 201, 169, .35);
+  animation: rotate-tap-ring 1.6s ease-out infinite;
+}
+@keyframes rotate-tap-ring { 0% { transform: scale(.7); opacity: 1; } 100% { transform: scale(1.25); opacity: .15; } }
 
 /* ---- 5. 异形屏适配 (设置, ui/screenFit.js) ------------------------------------------------------------------------
    The player's own insets for a screen whose cutout / curved edge the browser does not report (or reports wrongly in
