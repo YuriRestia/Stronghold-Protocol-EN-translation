@@ -243,6 +243,62 @@
   :root:not(:lang(zh))[data-text="lg"] .brief-reroll__go .btn__label,
   :root:not(:lang(zh))[data-text="xl"] .brief-reroll__go .btn__label { display: none; }
 }
+/* (fork) … and the whole screen at a phone's scale (2026-11-09 short-phone pass: on 640×360 – 844×390 the section bars, the
+   leader's name, the bond discs and the footer's 准备就绪 took half the screen, so the list showed one section at a time).
+   1rem is 40–48 px there and --t 64 / 76 / 88 px, so every size below is capped: a heading or label at a phone size that
+   still grows a pixel a step above 中 (--t-step, as the band draft's header does in draft.css), the pictures and gaps
+   at about two thirds. Desktops and taller windows keep the event's sizes above. [ASSUMED] the caps */
+@media (max-height: 520px) {
+  /* the header: the step as on the band draft (draft.css), the mode tag and the step's name a size smaller */
+  .brief .stephead { min-height: 1.1rem; }
+  .brief .stephead__mode .dtag { font-size: min(calc(.26 * var(--t)), calc(13px + var(--t-step))); }
+  .brief .stephead__mode .dtag__icon { width: .28rem; height: .28rem; }
+  .brief .stephead__title { font-size: min(calc(.32 * var(--t)), calc(16px + var(--t-step))); }
+  .brief .stephead__title b { font-size: min(calc(.54 * var(--t)), calc(26px + 2 * var(--t-step))); }
+  .brief .stephead__of { font-size: min(calc(.34 * var(--t)), calc(17px + var(--t-step))); margin-right: .1rem; }
+  .brief .stephead__right .countdown { --cd-h: .62rem; }
+  /* the list: tighter sides and gaps; the grey bars at a heading's size, their decorative ENEMY LEADER // … plates give
+     way (as the header's BRIEFING // INFO CHECK does above) */
+  .brief .brief__main { gap: .12rem; padding: .04rem .3rem .2rem .34rem; }
+  .brief .brief-h { min-height: .54rem; padding: 0 .2rem 0 .16rem; gap: .1rem; font-size: min(calc(.32 * var(--t)), calc(15px + var(--t-step))); }
+  .brief .brief-h::before { width: .34rem; height: .34rem; }
+  .brief .brief-h .micro { display: none; }
+  .brief .brief-banned__n { font-size: min(calc(.3 * var(--t)), calc(15px + var(--t-step))); }
+  /* 本局遭遇敌方: a smaller portrait and enemy icons beside the leader's name and abilities */
+  .brief .brief-enemy { gap: .12rem .3rem; padding: .14rem .3rem .16rem .4rem; }
+  .brief .brief-boss__art { width: 1.5rem; height: 1.5rem; }
+  .brief .brief-boss__q { font-size: min(calc(1 * var(--t)), 40px); }
+  .brief .brief-boss__tag { width: 1.4rem; font-size: min(calc(.2 * var(--t)), calc(11px + var(--t-step) / 2)); letter-spacing: .08em; }
+  .brief .brief-boss__text { gap: .04rem; }
+  .brief .brief-boss__name { font-size: min(calc(.36 * var(--t)), calc(17px + var(--t-step))); line-height: 1.2; }
+  .brief .brief-boss__when { font-size: min(calc(.17 * var(--t)), calc(11px + var(--t-step) / 2)); }
+  .brief .brief-boss__abil { font-size: min(calc(.18 * var(--t)), calc(12px + var(--t-step) / 2)); line-height: 1.4; }
+  .brief .brief-stage { font-size: min(calc(.16 * var(--t)), calc(11px + var(--t-step) / 2)); }
+  .brief .brief-factions { gap: .1rem; padding-right: .1rem; }
+  .brief .brief-faction { width: 1.8rem; gap: .06rem; /* "Frequency" stays whole at 特大 */ }
+  .brief .brief-faction__icon { width: .8rem; height: .8rem; }
+  .brief .brief-faction__text b { font-size: min(calc(.22 * var(--t)), calc(12px + var(--t-step) / 2)); }
+  /* the bond rows and banned operators: smaller discs and thumbnails, more of them a row */
+  .brief .brief-bonds__row { gap: .12rem .16rem; padding: .16rem .3rem .14rem .4rem; }
+  .brief .brief-bond { min-width: 1rem; }
+  .brief .brief-bond .bond { --disc: .8rem; }
+  .brief .brief-bond .bond__name { font-size: min(calc(.22 * var(--t)), calc(11px + var(--t-step) / 2)); }
+  .brief .brief-bond__ban { font-size: min(calc(.14 * var(--t)), calc(9px + var(--t-step) / 2)); }
+  .brief .brief-legend { margin: -.04rem .3rem .12rem .4rem; font-size: min(calc(.16 * var(--t)), calc(10px + var(--t-step) / 2)); }
+  .brief .brief-banned__grid { grid-template-columns: repeat(auto-fill, minmax(.9rem, 1fr)); gap: .1rem; padding: .14rem .3rem .16rem .4rem; }
+  .brief .brief-banned__grid .uthumb { --ut: .9rem; }
+  .brief .brief-banned > .t-dim, .brief .brief-banned__diy { margin: .12rem .3rem .14rem .4rem; }
+  /* the footer: one slim row — 准备就绪 at a button's phone size, 已就绪 x/N beside its pips */
+  .brief .brief__foot { gap: .2rem; padding: .08rem .3rem .1rem; }
+  .brief .brief-loadout { font-size: min(calc(.22 * var(--t)), calc(13px + var(--t-step) / 2)); }
+  .brief .brief-ready { gap: .02rem; }
+  .brief .brief-ready__txt { font-size: min(calc(.24 * var(--t)), calc(13px + var(--t-step) / 2)); }
+  .brief .brief-ready__txt b { font-size: min(calc(.5 * var(--t)), calc(22px + var(--t-step))); }
+  .brief .brief-ready__txt span { font-size: min(calc(.34 * var(--t)), calc(15px + var(--t-step))); }
+  .brief .brief-ready__pips i { width: .26rem; height: .3rem; }
+  .brief .brief-go.btn--xl { height: .8rem; min-width: 2.8rem; padding: 0 .34rem 0 .22rem; letter-spacing: .06em; font-size: min(calc(.38 * var(--t)), calc(18px + var(--t-step))); }
+  .brief .brief-go .btn__icon { width: .34rem; height: .34rem; }
+}
 /* … and in a short desktop window (≤ 640 px tall: 1024×600) at 大 / 特大 (§35.51 review: the micro cut and over 玩法说明 there) */
 @media (max-height: 640px) {
   :root[data-text="lg"] .stephead__micro, :root[data-text="xl"] .stephead__micro { display: none; }

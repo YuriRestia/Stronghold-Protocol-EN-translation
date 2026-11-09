@@ -454,6 +454,23 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
   .spov__name { grid-row: 1; }
   .spov__desc { grid-row: 2; grid-column: 1 / -1; align-self: start; }
 }
+/* (fork) … and the header a size smaller there (2026-11-09 short-phone pass: the title, its two lines and 当前轮到你决策 over the
+   countdown took about 40 % of a 360 px screen, so the second row of cards lost its last lines): the title at a phone
+   heading's size, the lines and the turn block capped like the band draft's header (draft.css), the countdown shorter.
+   [ASSUMED] the caps */
+@media (max-height: 520px) {
+  .spov .spov__head { gap: .2rem; }
+  .spov .spov__titles { column-gap: .12rem; row-gap: 0; }
+  .spov .spov__title { font-size: min(calc(.56 * var(--t)), calc(21px + var(--t-step))); letter-spacing: .05em; }
+  .spov .spov__desc { font-size: min(calc(.26 * var(--t)), calc(13px + var(--t-step) / 2)); letter-spacing: .02em; }
+  .spov .spov__sub { margin-top: .02rem; }
+  .spov .spov__turn { gap: .16rem; }
+  .spov .spov__turntxt { font-size: min(calc(.24 * var(--t)), calc(13px + var(--t-step) / 2)); }
+  .spov .spov__turntxt .icon, .spov .spov__turntxt.is-other .icon { width: .22rem; height: .22rem; }
+  .spov .spov__tw b { font-size: min(calc(.22 * var(--t)), calc(12px + var(--t-step) / 2)); }
+  .spov .spov__tw small { font-size: min(calc(.17 * var(--t)), calc(10px + var(--t-step) / 2)); }
+  .spov .spov__turn .countdown { --cd-h: .56rem; padding-left: .16rem; }
+}
 .spov__turntxt { display: flex; align-items: center; gap: .08rem; font-size: calc(.24 * var(--t)); font-weight: 700; color: var(--text-md); }
 .spov__turntxt .icon { width: .26rem; height: .26rem; }
 .spov__turntxt.is-mine { color: var(--mint-400); text-shadow: 0 0 .16rem rgba(23, 249, 183, .45); animation: blink 1.2s ease-in-out infinite; }
