@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { startServer } from '../../server/index.js';
 import { makeMatch } from '../match/harness.js';
@@ -69,12 +70,12 @@ for (const [engine, executablePath] of [['chrome', process.env.CHROME_PATH || '/
       });
       const desktop = await geometry(); assert.ok(desktop.gap >= 2 && desktop.centerError < 1 && desktop.left >= 0);
       await settleTip('3 / 6');
-      await page.screenshot({ path: new URL(`${engine}-sidebar-tooltip.png`, out).pathname });
+      await page.screenshot({ path: fileURLToPath(new URL(`${engine}-sidebar-tooltip.png`, out)) });
       await page.mouse.move(5, 400); await page.click('[data-testid="check-player"]');
       await page.waitForSelector('.iband .strategy-progress');
       assert.match(await page.$eval('.iband', e => e.textContent), /贾维.*3 \/ 6.*2 \/ 2/s);
       await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('.edrawer')).opacity) > .99);
-      await page.screenshot({ path: new URL(`${engine}-strategy-text.png`, out).pathname });
+      await page.screenshot({ path: fileURLToPath(new URL(`${engine}-strategy-text.png`, out)) });
       await show(states[0]);
       await page.waitForFunction(() => document.querySelector('.iband .strategy-progress')?.textContent.includes('0 / 6'));
       await page.click('.edrawer__close');
@@ -84,7 +85,7 @@ for (const [engine, executablePath] of [['chrome', process.env.CHROME_PATH || '/
       await page.hover('.effect--band'); await page.waitForSelector('.efftip .strategy-progress');
       await settleTip('3 / 6');
       const mobile = await geometry(); assert.ok(mobile.gap >= 2 && mobile.centerError < 1 && mobile.left >= 0);
-      await page.screenshot({ path: new URL(`${engine}-compact-tooltip.png`, out).pathname });
+      await page.screenshot({ path: fileURLToPath(new URL(`${engine}-compact-tooltip.png`, out)) });
       const normalText = await page.$eval('.effect__progress', e => parseFloat(getComputedStyle(e).fontSize));
       await page.evaluate(() => { document.documentElement.dataset.text = 'xl'; });
       const enlargedText = await page.$eval('.effect__progress', e => parseFloat(getComputedStyle(e).fontSize));

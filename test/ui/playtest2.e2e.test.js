@@ -31,6 +31,8 @@ const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Conte
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
 const ONLY = process.env.SP_P2_ONLY || '';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// the settings gear (game.js): 作战统计 (.gm__metrics) and 玩法说明 (.gm__guide) share its .gm__gear look and come first / after
+const SETTINGS_GEAR = '.gm__gear:not(.gm__metrics):not(.gm__guide)';
 const skipUnless = (k) => (ONLY && ONLY !== k ? `SP_P2_ONLY=${ONLY}` : false);
 
 /** Viewports of item 8 (name, w, h). */
@@ -350,7 +352,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
       await page.click('.bpop__facts');
       assert.ok(await page.$('.bpop'), 'reading inside the popup keeps it open');
       assert.ok(await page.$(`.uframe[data-uid="${uid}"]`), 'reading the popup keeps its piece selected');
-      await page.click('.gm__gear'); await page.waitForSelector('.modal');
+      await page.click(SETTINGS_GEAR); await page.waitForSelector('.modal');
       assert.equal(await page.$('.bpop'), null, '#792: another HUD control still dismisses the popup');
       assert.equal(await page.$('.dpanel'), null, 'another HUD control dismisses the card');
       assert.equal(await page.$('.uframe'), null, 'another HUD control clears the selection');

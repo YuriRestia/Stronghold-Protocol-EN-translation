@@ -154,4 +154,6 @@ test('client: followedScout adopts the server\'s prep board for an eliminated pl
   assert.equal(followedScout({ field: { ...scout, prep: false }, alive: false, myId: 'p_0' }), null, 'a battle field');
   assert.equal(followedScout({ field: { ...scout, fieldId: 'n:p_0' }, alive: false, myId: 'p_0' }), null, 'its own board');
   assert.equal(followedScout({ field: null, alive: false, myId: 'p_0' }), null);
+  // (fork) a battle phase: the prep board still in the store as the Final Assault starts is not followed
+  assert.equal(followedScout({ field: scout, watching: null, alive: false, myId: 'p_0', combat: true }), null, 'a battle has started');
 });

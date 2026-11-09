@@ -69,6 +69,13 @@ test('the preload manager imports a preload zip: matching files are saved and se
   assert.equal(await page.$('[data-testid="asset-import"]'), null, 'no title-screen import button');
   assert.equal(await page.$('[data-testid="asset-download"]'), null, 'no title-screen download button');
   await page.waitForSelector('.title-preload__go');
+  // (fork) the entry film (first-visit load order) covers the title until it has played: the button takes the press once
+  // nothing lies over it
+  await page.waitForFunction(() => {
+    const b = document.querySelector('.title-preload__go');
+    const r = b?.getBoundingClientRect();
+    return !!r && b.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2));
+  }, { timeout: 30000 });
   await page.click('.title-preload__go');
   await page.waitForSelector('[data-testid="preload-import-input"]');
   const picker = await page.$('[data-testid="preload-import-input"]');

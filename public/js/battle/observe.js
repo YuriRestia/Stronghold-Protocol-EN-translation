@@ -89,12 +89,14 @@ export function resumedWatch(b, { pub = null, myId = '', alive = true, watching 
  * item 56, the idea of PR #189), to adopt as the watched board like a 前往查看 tap: `field` is such a scout (m.field
  * `prep`, an `n:<pid>` id other than the own) and the screen watches nothing (`watching` null — a 返回战场 this phase is
  * not overridden: the caller adopts a board once per phase). Null for a living player: its phase resets keep its own
- * board.
- * @param {{ field?: any, watching?: string|null, alive?: boolean, spectator?: boolean, myId?: string }} o
+ * board. (fork) Null in a battle phase (`combat`): the prep board still in the store for a moment after a battle starts
+ * (the Final Assault, say) is no board to follow — adopting it kept the screen watching that board instead of the battle
+ * field the server sends next (no ‹ › halves for an eliminated player's Final Assault).
+ * @param {{ field?: any, watching?: string|null, alive?: boolean, spectator?: boolean, myId?: string, combat?: boolean }} o
  * @returns {string|null} the fieldId to watch
  */
-export function followedScout({ field = null, watching = null, alive = true, spectator = false, myId = '' } = {}) {
-  if (watching || (alive && !spectator) || !isObj(field) || !field.prep) return null;
+export function followedScout({ field = null, watching = null, alive = true, spectator = false, myId = '', combat = false } = {}) {
+  if (combat || watching || (alive && !spectator) || !isObj(field) || !field.prep) return null;
   const fid = field.fieldId;
   if (typeof fid !== 'string' || !fid.startsWith('n:') || fid === `n:${myId}`) return null;
   return fid;

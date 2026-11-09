@@ -285,6 +285,9 @@ const FALLBACK_TIPS = [
   N_('只有达成完美作战的队友可以进行联防'),
 ];
 const TIP_ROTATE_MS = 5000; // matchingTipRotateInterval
+/** (fork) 观战 refused RATE (the heavy-message budget, server/net.js): tried again after this pause, at most this often. */
+const SPECTATE_RETRY_MS = 1200;
+const SPECTATE_RATE_TRIES = 2;
 
 /** Rotating tactical tips (config.json `tips`, weighted list of { tip, weight }). */
 function TipsPanel() {
@@ -391,12 +394,22 @@ function ProtoFit() {
     if (!list) return undefined;
     let live = true;
     const refit = () => { if (live) fit(); };
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(refit) : null;
+    // (fork) a level can still nudge the list's box (a scrollbar coming or going): the observer's refit waits for the next
+    // frame (as ui/bondStrip.js does), so that change is measured there, not reported as "ResizeObserver loop completed
+    // with undelivered notifications"
+    let frame = null;
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => {
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => { frame = null; refit(); });
+    }) : null;
     ro?.observe(list);
     const fonts = document.fonts;
     fonts?.ready?.then(refit);
     fonts?.addEventListener?.('loadingdone', refit);
-    return () => { live = false; ro?.disconnect(); fonts?.removeEventListener?.('loadingdone', refit); };
+    return () => {
+      live = false; ro?.disconnect(); if (frame !== null) cancelAnimationFrame(frame);
+      fonts?.removeEventListener?.('loadingdone', refit);
+    };
   }, []);
   return html`<i ref=${ref} class="proto__fit" hidden></i>`;
 }
@@ -899,7 +912,19 @@ export function LobbyScreen() {
     // same guard as join: `onClick=${spectate}` passes the click event, not a code
     const k = codeArg(c, code);
     if (!k) { toast(t('同盟密钥为 {ROOM_CODE_LEN} 位字母或数字', { ROOM_CODE_LEN }), 'warn'); return; }
-    run('spectate', () => joinKnown('room.spectate', k).catch((err) => {
+    // (fork) room.spectate shares the server's budget of heavy messages (server/net.js HEAVY_TYPES) with the settings a
+    // page sends as it enters the lobby (loadout, ownership, 自选, outfits, appearance, 名片): a 观战 pressed right after
+    // entering can find it spent — a RATE is tried again a moment later, twice at most (room.js proposeVersion does the same)
+    const once = () => joinKnown('room.spectate', k);
+    const tries = async () => {
+      for (let i = 0; ; i++) { // loop-cap: SPECTATE_RATE_TRIES
+        try { return await once(); } catch (err) {
+          if (err?.code !== 'RATE' || i >= SPECTATE_RATE_TRIES) throw err;
+          await new Promise((r) => setTimeout(r, SPECTATE_RETRY_MS));
+        }
+      }
+    };
+    run('spectate', () => tries().catch((err) => {
       // Clearer than the bare ERR_TEXT: the usual cause is a code that is not the host's (a remembered one from an
       // earlier room, or another machine's) — the server can only answer "no such room".
       if (err?.code === ERR.ROOM_NOT_FOUND) {

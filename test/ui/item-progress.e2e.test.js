@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
 import { startServer } from '../../server/index.js';
 import { png } from '../helpers/pluginFixtures.js';
@@ -67,7 +68,7 @@ for (const [engine, executablePath] of [['chrome', process.env.CHROME_PATH || '/
           assert.ok(point); await page.mouse.click(point.x, point.y, { button: 'right' });
           try { await page.waitForSelector('.dpanel', { timeout: 10000 }); }
           catch (e) {
-            await page.screenshot({ path: new URL(`${engine}-${render}-failure.png`, out).pathname });
+            await page.screenshot({ path: fileURLToPath(new URL(`${engine}-${render}-failure.png`, out)) });
             console.log(JSON.stringify({ engine, render, point, target: await page.evaluate(p => document.elementFromPoint(p.x, p.y)?.outerHTML.slice(0, 160), point) }));
             throw e;
           }
@@ -75,7 +76,7 @@ for (const [engine, executablePath] of [['chrome', process.env.CHROME_PATH || '/
         };
         await label('3 / 8'); await clickCarrier();
         assert.match(await page.$eval('.dsec--equip', e => e.textContent), /商业包装方案.*3 \/ 8/s);
-        await page.screenshot({ path: new URL(`${engine}-${render}-prep.png`, out).pathname });
+        await page.screenshot({ path: fileURLToPath(new URL(`${engine}-${render}-prep.png`, out)) });
         for (const n of [7, 0]) {
           await page.evaluate(n => window.__MOCK__.mutate(s => { s.priv.board[0].items[0].progress.current = n; }), n);
           await label(`${n} / 8`);
@@ -107,7 +108,7 @@ for (const [engine, executablePath] of [['chrome', process.env.CHROME_PATH || '/
         });
         await label('6 / 7'); await clickCarrier();
         assert.match(await page.$eval('.dsec--equip', e => e.textContent), /6 \/ 7/);
-        await page.screenshot({ path: new URL(`${engine}-${render}-combat.png`, out).pathname });
+        await page.screenshot({ path: fileURLToPath(new URL(`${engine}-${render}-combat.png`, out)) });
         await page.evaluate(async () => {
           const { store } = await import('/js/store.js');
           const field = store.get().match.field;

@@ -1191,7 +1191,7 @@ function MatchScreen() {
   // the first player itself).
   const followRef = useRef(null);
   useEffect(() => {
-    const fid = followedScout({ field, watching, alive, spectator, myId });
+    const fid = followedScout({ field, watching, alive, spectator, myId, combat });
     if (!fid || !pub) return;
     const key = `${phaseKey}:${fid}`;
     if (followRef.current === key) return;
@@ -1201,7 +1201,7 @@ function MatchScreen() {
     if (staleFieldRef.current === field) staleFieldRef.current = null;
     setWatching(fid);
     setWatchWho({ fieldId: fid, playerId: fid.slice(2) });
-  }, [field, pub, watching, alive, spectator, phaseKey, myId]);
+  }, [field, pub, watching, alive, spectator, phaseKey, myId, combat]);
 
   // ---- view events (drag & drop, clicks) ----------------------------------------------------------------------
   useEffect(() => {

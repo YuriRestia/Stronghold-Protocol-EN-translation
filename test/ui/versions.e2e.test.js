@@ -51,6 +51,17 @@ const openWith = async (c, sel, text, waitSel) => {
 const settle = (c) => c.page.waitForFunction(() => !document.getAnimations()
   .some((a) => /^(tr|ps|rs|rseat)-/.test(String(a.animationName)) && a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity), { timeout: 10000 });
 /** Pick a version in the open picker once it has settled. */
+/**
+ * Close 干员调配: since the card view (2026-11-08) Esc peels back one layer at a time — the 筛选 popover, the detail
+ * drawer, then the overlay (screens/loadout.js) — so it is pressed until the overlay is gone (at most those three).
+ */
+const closeLoadout = async (c) => {
+  for (let i = 0; i < 3 && await c.page.$('.lo-count'); i++) {
+    await c.page.keyboard.press('Escape');
+    await c.page.waitForFunction(() => !document.querySelector('.lo-count'), { timeout: 1500 }).catch(() => {});
+  }
+  await c.page.waitForFunction(() => !document.querySelector('.lo-count'), { timeout: 10000 });
+};
 const pickVersion = async (c, id) => { await settle(c); await c.click(`.verpick__pick[data-version="${id}"]`); };
 const noHScroll = (c) => c.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
 const toastText = (c) => c.page.evaluate(() => [...document.querySelectorAll('.toast__text')].map((e) => e.textContent).join(' | '));
@@ -89,8 +100,7 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       // 干员调配: 95 operators
       await openWith(host, '.lobby-loadout', null, '.lo-count');
       await host.page.waitForFunction(() => /\/95\b/.test(document.querySelector('.lo-count')?.textContent || ''), { timeout: 20000 });
-      await host.page.keyboard.press('Escape');
-      await host.page.waitForFunction(() => !document.querySelector('.lo-count'), { timeout: 10000 });
+      await closeLoadout(host);
       // 独立模拟 → three difficulty cards
       await openWith(host, '.mode-card', '独立模拟', '.modal__box.proto .diff-card');
       assert.equal(await host.page.$$eval('.modal__box.proto .diff-card', (b) => b.length), 3, 'no 终极');
@@ -212,7 +222,9 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
       await waitState(guest, (s) => s.room === 'act2autochess' && s.kind === null, 'the guest in the 第二期下半 room');
       // 干员调配 open (a guest edits the loadout before readying): a vote opened now floats above it
       await openWith(guest, '.rs-loadout', null, '.lo-count');
-      await guest.page.waitForSelector('.lo-search input', { visible: true });
+      // the search field lives in the top bar's 筛选 popover (the card view, 2026-11-08)
+      await guest.click('[data-testid="loadout-filter"]');
+      await guest.page.waitForSelector('.lo-pop--filter .lo-search input', { visible: true });
       await guest.page.focus('.lo-search input');
       await host.page.evaluate(() => globalThis.__SP__.net.request('room.proposeVersion', { version: 'act1autochess' }));
       await guest.page.waitForSelector('.vervote--covered [data-testid="version-decline"]', { visible: true, timeout: 10000 });
@@ -249,8 +261,7 @@ describe('official versions (real server, SP_VERSIONS=all)', { skip: !ENABLED &&
         await waitState(guest, (s) => s.room === id && !s.vote && s.config === id, `the room on ${id}`);
         await guest.page.waitForFunction((k) => new RegExp(`/${k}\\b`).test(document.querySelector('.lo-count')?.textContent || ''), { timeout: 20000 }, n);
       }
-      await guest.page.keyboard.press('Escape');
-      await guest.page.waitForFunction(() => !document.querySelector('.lo-count'), { timeout: 10000 });
+      await closeLoadout(guest);
 
       // 统计数据 in the room: the 第二期下半 record re-viewed (the room's version), then the host kicks the guest — the
       // replay keeps 第二期下半 shown (replayVersion) instead of spinning on the lobby's 第一期下半

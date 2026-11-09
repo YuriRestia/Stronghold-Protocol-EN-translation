@@ -762,10 +762,11 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
   const slotDetail = slotSel ? DiyDetail({ m, slot: slotSel, pick: st.diy[selSlot], ops: st.ops, onOps: setOpsOf, level: slotLevel,
     onLevel: setSlotLevel, view: detailView, onView: setDetailView, onPick: (patch) => quickSlot(selSlot, patch) }) : null;
   const drawerOn = drawer && !!(slotDetail || base);
-  // a popover closes on a press outside it
+  // a popover closes on a press outside it — not on the version vote floating over this screen (ui/versionVote.js
+  // CoveredVersionVote): it gives the focus back to where it was (the popover's search field, say) when it goes
   useEffect(() => {
     if (!menu) return undefined;
-    const onDown = (e) => { if (!e.target?.closest?.('.lo-pop, .lo-popbtn')) setMenu(null); };
+    const onDown = (e) => { if (!e.target?.closest?.('.lo-pop, .lo-popbtn, .vervote--covered')) setMenu(null); };
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [menu]);
