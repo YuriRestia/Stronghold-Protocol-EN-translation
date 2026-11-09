@@ -1,5 +1,5 @@
 // (fork) The Operator Loadout's voice rule (public/js/ui/loadoutVoice.js): 选中干员 once per visit, rotating when re-armed;
-// an outfit change always speaks (the outfit's own set first); silent edits re-arm. Driven with a fake audio manager —
+// an outfit change with its own voice set always speaks, any other is an interaction; silent edits re-arm. Driven with a fake audio manager —
 // the click tables of Dev 5's proposal (side-session notes, loadout-voice-proposal.md §4) and the outfit cases.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -119,30 +119,37 @@ describe('Operator Loadout voice: once per visit, rotating (B+A)', () => {
   });
 });
 
-describe('Operator Loadout voice: an outfit change always speaks', () => {
-  test('inside a visit too, rotating over the operator\'s 选中干员 + 部署 lines, never the last one', () => {
+describe('Operator Loadout voice: outfit changes', () => {
+  test('an outfit without its own voice, or the default look, is an ordinary interaction: Exusiai, 3 changes, 1 line', () => {
     const a = fakeAudio(OPS);
     const v = createLoadoutVoice(a, () => null);
     assert.deepEqual(run(v, a, [
-      ['open', 'exu'],     // select#0
-      ['outfit', 'exu'],   // the pool's first is the line just said: the next one
-      ['outfit', 'exu'],
-      ['outfit', 'exu'],
-      ['outfit', 'exu'],
-      ['skill', 'exu'],    // a skill change: silent (the same visit)
+      ['outfit', 'exu'],   // the first interaction of the visit: her select line
+      ['outfit', 'exu'],   // silent
+      ['outfit', 'exu'],   // silent (back to the default look)
       ['open', 'exu'],     // still the same visit: silent
-    ]), ['exu select#0', 'exu select#1', 'exu place#0', 'exu place#1', 'exu select#0', null, null]);
+      ['open', 'skadi'],   // another operator re-arms her
+      ['outfit', 'exu'],   // the first interaction again: her other line
+    ]), ['exu select#0', null, null, null, 'skadi select#0', 'exu select#1']);
   });
 
-  test('an outfit with its own voice set: that set\'s 选中干员 / 部署 lines', () => {
+  test('Mudrock: to an outfit with its own voice speaks in it, also inside a visit; back to the default look is silent', () => {
     let worn = null;
+    const a = fakeAudio({ ...OPS, mud: { select: 2, place: 2 }, 'mud#1': { select: 2, place: 2 } });
+    const v = createLoadoutVoice(a, (id) => (id === 'mud' ? worn : null));
+    const out = [];
+    out.push(...run(v, a, [['open', 'mud']]));
+    worn = 'mud#1'; out.push(...run(v, a, [['outfit', 'mud']]));   // Silent Night (own set)
+    out.push(...run(v, a, [['outfit', 'mud']]));                    // Rubble (the same own set)
+    worn = null; out.push(...run(v, a, [['outfit', 'mud']]));       // the default look: an interaction inside the visit
+    assert.deepEqual(out, ['mud select#0', 'mud#1 select#0', 'mud#1 select#1', null]);
+  });
+
+  test('an own-voice outfit as the first interaction arms the visit: opening the card next is silent', () => {
     const a = fakeAudio(OPS);
-    const v = createLoadoutVoice(a, (id) => (id === 'skadi' ? worn : null));
-    run(v, a, [['open', 'skadi']]);
-    worn = 'skadi#red';
-    assert.deepEqual(run(v, a, [['outfit', 'skadi'], ['outfit', 'skadi']]), ['skadi#red select#0', 'skadi#red select#1']);
-    worn = null; // back to the default look: the operator's own lines
-    assert.deepEqual(run(v, a, [['outfit', 'skadi']]), ['skadi place#0']);
+    const v = createLoadoutVoice(a, (id) => (id === 'skadi' ? 'skadi#red' : null));
+    assert.deepEqual(run(v, a, [['outfit', 'skadi'], ['open', 'skadi'], ['skill', 'skadi'], ['outfit', 'skadi']]),
+      ['skadi#red select#0', null, null, 'skadi#red select#1']);
   });
 
   test('an own set without 选中干员 / 部署 lines: at least a line of that set (the user\'s call of 2026-11-09)', () => {

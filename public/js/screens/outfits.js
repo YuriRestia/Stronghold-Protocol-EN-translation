@@ -204,7 +204,7 @@ function ArtViewer({ src, name, onClose }) {
 }
 
 /**
- * The cards of one operator: 默认, then its outfits; a click wears one (ui/outfits.js setOutfit) and the new look speaks
+ * The cards of one operator: 默认, then its outfits; a click wears one (ui/outfits.js setOutfit) and the voice rule of an outfit change applies
  * (ui/loadoutVoice.js speakOutfit). No hooks: the panel
  * and the 自选编队 picker (OutfitPickSection) draw it, and the tests can too.
  * `onPick` (the dev sandbox: a per-unit outfit) replaces the wear-it-now default.

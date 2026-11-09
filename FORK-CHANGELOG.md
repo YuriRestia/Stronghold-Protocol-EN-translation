@@ -9,7 +9,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Operator Loadout voice lines once per visit
 
-- Opening an operator's card on the Operator Loadout, or picking one in the Custom Squad picker, plays a Selecting Operator line only on the first touch; a skill or module change counts as that first touch too. Further clicks on the same operator (its skill, module, a reopen) stay silent until you touch another operator. Each return then takes that operator's other line, never the one it said last. Changing an outfit always speaks: an outfit with its own voice says a Selecting or Deployment line of that voice (or any line it has), any other look one of the operator's own. The newest line cuts the previous one off, and the voice language and volume settings apply. No new downloads.
+- Opening an operator's card on the Operator Loadout, or picking one in the Custom Squad picker, plays a Selecting Operator line only on the first touch; a skill or module change counts as that first touch too. Further clicks on the same operator (its skill, module, a reopen) stay silent until you touch another operator. Each return then takes that operator's other line, never the one it said last. Switching to an outfit with its own voice always speaks, in that voice: a Selecting or Deployment line (or any line it has). Any other outfit change counts as an ordinary click. The newest line cuts the previous one off, and the voice language and volume settings apply. No new downloads.
 
 ### Test a two-server release before players get it
 

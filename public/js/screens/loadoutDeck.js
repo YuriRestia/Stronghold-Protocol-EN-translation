@@ -155,7 +155,7 @@ export function DeckOpSide({ m, skills, skill, elite, modules, module, onSkill, 
 /**
  * (fork) The card's column in the 时装 view (the third choice of DetailsToggle): the operator's own look first, then each of its outfits
  * (data/outfits.json, `list`), as their portrait icons — the one worn ringed as an equipped skill is; a tap wears it at
- * once (ui/outfits.js setOutfit, as the 时装 page), and the card's portrait follows, and the new look speaks (ui/loadoutVoice.js
+ * once (ui/outfits.js setOutfit, as the 时装 page), and the card's portrait follows, and the voice rule of an outfit change applies (ui/loadoutVoice.js
  * speakOutfit). A press here never picks the card.
  * @param {{ m: any, charId: string, name: string, list: any[], worn: string|null }} p
  */

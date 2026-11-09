@@ -4,9 +4,10 @@
 //   interactions with the same operator stay silent until another operator is touched, which re-arms it. Each re-armed
 //   visit takes the next line, never the one that operator said last (the official home screen's rule: HomeIllustView
 //   → DataConvertUtil.LoadRandomCharData drops the last line before its pick).
-// - Changing the outfit always speaks, also inside a visit — to hear the new look's voice: an outfit with its own voice
-//   set says one of that set's 选中干员 / 部署 lines (a set without them: any line it has), any other look one of the
-//   operator's own 选中干员 / 部署 lines; rotating over that pool, never the last line.
+// - Switching to an outfit with its own voice set always speaks, also inside a visit — to hear that voice: one of the
+//   set's 选中干员 / 部署 lines (a set without them: any line it has), rotating, never the last line; it arms the visit.
+//   Any other outfit change (an outfit without its own voice, the default look) is an ordinary interaction, as an open
+//   (the user's call of 2026-11-09: "treat it as interaction, unless the outfit has a specific voice line").
 // - A skill or module change counts as opening the operator (the user's call of 2026-11-09: "the first skill
 //   change/module change should also be treated as selecting the operator"): as the first touch of a visit it says the
 //   选中干员 line and arms the visit; inside a visit it is silent. Any other edit (potential, level …) is silent and only
@@ -63,15 +64,18 @@ export function createLoadoutVoice(am, voiceKeyOf = (charId) => outfitVoiceKey({
       const own = key ? lines(voiceId, key, 'select') : [];
       return say(charId, voiceId, 'select', own.length ? own : lines(voiceId, null, 'select'));
     },
-    /** `rec`'s outfit just changed (call after the change, so the new look's voice set is in effect): always speaks. */
+    /**
+     * `rec`'s outfit just changed (call after the change, so the new look's voice set is in effect): a look with its own
+     * voice set always speaks in it; any other look is an interaction (open).
+     */
     outfit(rec) {
       const { charId, voiceId } = ids(rec);
       if (!charId) return false;
-      touch(charId);
       const key = voiceKeyOf(voiceId);
       let pool = key ? OUTFIT_SLOTS.flatMap((slot) => lines(voiceId, key, slot)) : [];
       if (key && !pool.length) pool = OTHER_SLOTS.flatMap((slot) => lines(voiceId, key, slot));
-      if (!pool.length) pool = OUTFIT_SLOTS.flatMap((slot) => lines(voiceId, null, slot));
+      if (!pool.length) return this.open(rec);
+      touch(charId);
       return say(charId, voiceId, 'outfit', pool);
     },
     /**
