@@ -312,6 +312,10 @@ async function main() {
   }
   try {
     const r = await run(o);
+    // (fork) the local models changed: their impostor clip bounds (tools/assets/clip-bounds.mjs; SP_NO_CLIP_BOUNDS=1 skips)
+    if (r.installed && process.env.SP_NO_CLIP_BOUNDS !== '1') {
+      try { await (await import('./assets/clip-bounds.mjs')).writeClipBounds({ log: o.quiet ? () => {} : (s) => console.log(s) }); } catch (e) { console.error(`[clip-bounds] not written: ${e?.message || e} (run npm run clip-bounds)`); }
+    }
     if (r.installed && !o.quiet) console.log('[local] check it with: node tools/doctor.mjs');
   } catch (e) {
     console.error(`[local] failed: ${e.message}`);

@@ -2,7 +2,8 @@
 // Linux + systemd, run as root on the server (git / npm / setup run as SP_USER). Layout under SP_HOME (/opt/stronghold):
 //
 //   app/                    the control checkout: `git pull` here, then `deploy`. The router runs from here. Its
-//                           gitignored heavy parts (public/assets, public/fonts, .cache, logs, data/local-assets.json)
+//                           gitignored heavy parts (public/assets, public/fonts, .cache, logs, data/local-assets.json,
+//                           (fork) data/clip-bounds.json)
 //                           are shared with every release by symlink.
 //   releases/<gen>/         one git worktree per generation (node_modules hard-linked from the previous one when the
 //                           lockfile did not change)
@@ -40,7 +41,7 @@ export const IDLE_GRACE_MS = 10 * 60 * 1000;
 export const KEEP_RELEASES = 2;
 export const HEALTH_WAIT_MS = 180_000;
 /** gitignored parts of app/ every release links to (absent ones are skipped) */
-export const SHARED_LINKS = Object.freeze(['public/assets', 'public/fonts', '.cache', 'logs', 'data/local-assets.json', 'data/local-fx.json']);
+export const SHARED_LINKS = Object.freeze(['public/assets', 'public/fonts', '.cache', 'logs', 'data/local-assets.json', 'data/local-fx.json', 'data/clip-bounds.json']);
 // ---- pure decisions (test/generations.test.js) ------------------------------------------------------------------
 
 /** UTC yymmdd-hhmmss. @param {Date} [d] */
@@ -205,7 +206,10 @@ function ensureAssets(rel) {
   let missing = releaseMissing(rel);
   if (!missing.length) return;
   console.log(`[deploy] ${missing.length} asset file(s) missing (e.g. ${missing[0]}) — fetch-assets --refresh-index`);
-  try { asUser('node', ['tools/fetch-assets.mjs', '--refresh-index'], { cwd: rel }); } catch { /* reported below */ }
+  try { asUser('node', ['tools/fetch-assets.mjs', '--refresh-index'], { cwd: rel, env: { ...process.env, SP_NO_CLIP_BOUNDS: '1' } }); } catch { /* reported below */ }
+  // (fork) the art changed: its impostor clip bounds go to app/'s data/clip-bounds.json, which every release links
+  // (SHARED_LINKS), not into this release alone
+  try { asUser('node', ['tools/assets/clip-bounds.mjs', '--out', path.join(APP, 'data', 'clip-bounds.json')], { cwd: rel }); } catch { console.warn(`[deploy] clip bounds not regenerated: cd ${APP} && sudo -u ${USER} npm run clip-bounds`); }
   missing = releaseMissing(rel);
   if (!missing.length) { console.log('[deploy] assets complete'); return; }
   console.warn(`[deploy] WARNING: still ${missing.length} asset file(s) missing; the deploy goes on. First ones:`);

@@ -43,8 +43,8 @@ test('the page builds hashed URLs only for the files its meta tag names', () => 
   assert.deepEqual(readDataHashes({ querySelector: () => null }), {});
 });
 
-function serve({ views, resources }) {
-  const handler = createStaticHandler({ publicDir: path.join(ROOT, 'public'), dataDir: fs.mkdtempSync(path.join(os.tmpdir(), 'sp-dh-')), sharedDir: path.join(ROOT, 'shared'), views, resources });
+function serve({ views, resources, dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-dh-')) }) {
+  const handler = createStaticHandler({ publicDir: path.join(ROOT, 'public'), dataDir, sharedDir: path.join(ROOT, 'shared'), views, resources });
   const srv = http.createServer((req, res) => {
     const [p, q] = req.url.split('?');
     const gen = p.startsWith('/_build/g1/') ? { gen: 'g1', base: '/_build/g1' } : null;
@@ -120,4 +120,41 @@ test('a generation\'s index.html names the ready hashes; without views only the 
   try {
     assert.match((await get(bare, '/_build/g1/')).body, new RegExp(`content="resource-manifest.json:${RES_HASH}"`));
   } finally { bare.close(); }
+});
+
+// (fork) data/clip-bounds.json (tools/assets/clip-bounds.mjs): a plain file of data/ with a content-hashed copy
+test('clip-bounds.json: its content hash in the page, immutable at /data/h/, a new hash once it is rewritten, none without the file', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-dh-cb-'));
+  const file = path.join(dataDir, 'clip-bounds.json');
+  fs.writeFileSync(file, '{"format":1,"v":"a"}');
+  const srv = await serve({ views: fakeViews(), resources: fakeResources(), dataDir });
+  try {
+    const hashOf = async () => /clip-bounds\.json:([0-9a-f]+)/.exec((await get(srv, '/_build/g1/')).body)?.[1];
+    const h1 = await hashOf();
+    assert.match(h1 || '', /^[0-9a-f]{8,64}$/, 'named in sp-data-hashes');
+    assert.match((await get(srv, '/_build/g1/')).body, new RegExp(`content="assets.json:${VIEW_HASH},resource-manifest.json:${RES_HASH},clip-bounds.json:${h1}"`), 'after the existing names');
+    const cur = await get(srv, `/data/h/${h1}/clip-bounds.json`);
+    assert.equal(cur.status, 200);
+    assert.match(cur.cc, /immutable/);
+    assert.equal(cur.body, '{"format":1,"v":"a"}');
+    const old = await get(srv, '/data/h/ffffffffffffffff/clip-bounds.json');
+    assert.equal(old.cc, 'no-cache');
+    assert.equal(old.body, '{"format":1,"v":"a"}', 'an old hash: the current bytes, not cached');
+    assert.equal((await get(srv, '/data/clip-bounds.json')).body, '{"format":1,"v":"a"}', 'the plain URL');
+    // regenerated after the art changed: another size, so another hash, and the old one is no longer immutable
+    fs.writeFileSync(file, '{"format":1,"v":"bb"}');
+    const h2 = await hashOf();
+    assert.ok(h2 && h2 !== h1, 'a new hash');
+    assert.equal((await get(srv, `/data/h/${h2}/clip-bounds.json`)).body, '{"format":1,"v":"bb"}');
+    assert.equal((await get(srv, `/data/h/${h1}/clip-bounds.json`)).cc, 'no-cache');
+    fs.rmSync(file);
+    assert.equal((await hashOf()) ?? null, null, 'no file: no hash, the page keeps the plain URL');
+    // no file: the plain URL and an old hashed one get a table the page ignores (format 0), never a 404 in the console
+    for (const url of ['/data/clip-bounds.json', `/data/h/${h2}/clip-bounds.json`]) {
+      const r = await get(srv, url);
+      assert.equal(r.status, 200, url);
+      assert.equal(r.cc, 'no-cache', url);
+      assert.equal(JSON.parse(r.body).format, 0, url);
+    }
+  } finally { srv.close(); }
 });

@@ -9,7 +9,10 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyAddresses, KIND_LABEL } from '../tools/doctor.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { classifyAddresses, KIND_LABEL, checkClipBounds } from '../tools/doctor.mjs';
 
 /** @param {string} name @param {string} address */
 const iface = (name, address) => [name, [{ family: 'IPv4', address, internal: false }]];
@@ -67,4 +70,29 @@ describe('启动器「发给朋友」的地址清单（tools/doctor.mjs）', () 
     assert.equal(kind('10.7.0.4'), 'vpn', 'utun4 含 "tun4" → VPN_IF 先命中');
     assert.equal(kind('10.7.0.9'), 'virtual', '名字里没有「tun＋数字」，才轮到 VIRTUAL_IF 的 utun');
   });
+});
+
+// (fork) data/clip-bounds.json (tools/assets/clip-bounds.mjs): none without models, a warning when missing or older
+// than a skeleton on disk, ok otherwise
+test('doctor: the impostor clip-bounds table — skip, missing, ok, stale', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-doctor-cb-'));
+  try {
+    assert.equal(checkClipBounds(root).state, 'skip', 'no models');
+    const dir = path.join(root, 'public', 'assets', 'spine', 'op', 'm');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'm.skel'), 'x');
+    fs.writeFileSync(path.join(dir, 'm.atlas'), 'x');
+    const old = new Date(Date.now() - 60_000);
+    fs.utimesSync(path.join(dir, 'm.skel'), old, old);
+    assert.equal(checkClipBounds(root).state, 'warn', 'models, no table');
+    assert.match(checkClipBounds(root).detail, /npm run clip-bounds/);
+    fs.mkdirSync(path.join(root, 'data'));
+    fs.writeFileSync(path.join(root, 'data', 'clip-bounds.json'), JSON.stringify({ format: 1, count: 1, clips: 3, generated: '2026-11-09T00:00:00Z' }));
+    assert.equal(checkClipBounds(root).state, 'ok');
+    const later = new Date(Date.now() + 60_000);
+    fs.utimesSync(path.join(dir, 'm.skel'), later, later);
+    assert.equal(checkClipBounds(root).state, 'warn', 'a model changed after the table');
+    fs.writeFileSync(path.join(root, 'data', 'clip-bounds.json'), '{"format":0}');
+    assert.equal(checkClipBounds(root).state, 'warn', 'unreadable / another format');
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

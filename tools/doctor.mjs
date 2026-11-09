@@ -24,6 +24,32 @@ import {
   LOCAL_ART_FALLBACK, LOCAL_ART_COPY_HINT,
 } from './setup.mjs';
 import { checkInstall, MANIFEST_FILE, UPDATE_FILE } from '../server/update.js';
+import { CLIP_BOUNDS_FILE, findSkeletons } from './assets/clip-bounds.mjs';
+
+/**
+ * (fork) The precomputed impostor clip bounds (tools/assets/clip-bounds.mjs → data/clip-bounds.json): there, missing
+ * while the art is there, or older than a skeleton on disk (the art changed since: regenerate).
+ * @returns {{ state: 'ok'|'warn'|'skip', detail: string }}
+ */
+export function checkClipBounds(root = ROOT) {
+  const file = root === ROOT ? CLIP_BOUNDS_FILE : path.join(root, 'data', 'clip-bounds.json');
+  const skels = findSkeletons(path.join(root, 'public', 'assets'));
+  let st = null;
+  try { st = fs.statSync(file); } catch { /* not generated */ }
+  if (!st) {
+    if (!skels.length) return { state: 'skip', detail: '磁盘上没有 Spine 模型' };   // en: "no Spine models on disk"
+    // en: "not generated → npm run clip-bounds (the game works without it: big battles stutter for their first seconds)"
+    return { state: 'warn', detail: '未生成 → npm run clip-bounds（不生成也能玩：大规模战斗开头几秒会卡）' };
+  }
+  let head = null;
+  try { head = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* unreadable */ }
+  if (!head || head.format !== 1) return { state: 'warn', detail: '无法读取 → npm run clip-bounds' };   // en: "unreadable → npm run clip-bounds"
+  const newer = skels.filter((f) => { try { return fs.statSync(f).mtimeMs > st.mtimeMs; } catch { return false; } });
+  const date = String(head.generated || '').slice(0, 10);
+  // en: "<n> skeletons, <date>; <k> models changed since → npm run clip-bounds"
+  if (newer.length) return { state: 'warn', detail: `${head.count} 个骨架，${date}；之后有 ${newer.length} 个模型变了 → npm run clip-bounds` };
+  return { state: 'ok', detail: `${head.count} 个骨架 · ${head.clips} 个动作 · ${date}` };   // en: "<n> skeletons · <c> clips · <date>"
+}
 
 // ---------------------------------------------------------------------------------------------------
 // LAN addresses (also used by scripts/launch.mjs)
@@ -256,6 +282,8 @@ async function main() {
     ? `${local.count} 项${local.board3d ? '，3D 棋盘可用' : '，无棋盘贴图（2D 棋盘）'}${doctorLocalDetail(local, usableClient)}${local.board3d && !local.tiles ? '；缺 tiles.json → node tools/setup.mjs' : ''}`
     : client ? `检测到 ${client.kind} 客户端 → node tools/setup.mjs --local` : `未提取：${LOCAL_ART_FALLBACK}（${LOCAL_ART_COPY_HINT}）`);
   row(local.fx.state, '官方特效清单（可选）', local.fx.detail);
+  const clipBounds = checkClipBounds();
+  row(clipBounds.state, '替身动作外框 data/clip-bounds.json', clipBounds.detail);   // en: "impostor clip bounds"
   if (client || local.manifest) {
     const py = findPython();
     row(py ? 'ok' : 'skip', 'Python（仅提取用）', py ? `${py.cmd} ${py.version}` : '未找到 Python 3.8+');

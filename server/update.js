@@ -40,7 +40,7 @@ const META = new Set([MANIFEST_FILE, UPDATE_FILE, APPLIED_FILE]);
 
 /** The art setup downloads or extracts (and the lite zip leaves out): never in MANIFEST.json, never fatal. */
 export const isSetupArt = (rel) => rel.startsWith('public/assets/') || rel.startsWith('public/fonts/')
-  || rel === 'data/assets.json' || rel === 'data/local-assets.json' || rel === 'data/local-fx.json';
+  || rel === 'data/assets.json' || rel === 'data/local-assets.json' || rel === 'data/local-fx.json' || rel === 'data/clip-bounds.json';
 /** Whether MANIFEST.json lists a shipped file. */
 export const inManifest = (rel) => !META.has(rel) && !isSetupArt(rel);
 

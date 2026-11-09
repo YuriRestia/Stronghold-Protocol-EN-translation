@@ -17,6 +17,8 @@ public/fonts/
 data/local-assets.json
 # tools/local-extract/fx.py → the official battle effects' file list (DESIGN §33; the files under public/assets/local/fx/)
 data/local-fx.json
+# (fork) tools/assets/clip-bounds.mjs → the impostor clip bounds of the models on disk (made from public/assets)
+data/clip-bounds.json
 # download caches, upstream tables, ledgers, reports, setup state
 .cache/
 # a worktree that links these folders instead of holding them: git sees a symlink as a file, which the patterns

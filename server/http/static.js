@@ -57,7 +57,8 @@
 //     /data/assets.json, /data/local-assets.json, /data/local-fx.json → the served manifests (assetViews.js: every
 //                art URL with its content-hash segment; no-cache, the ETag of the view) once the asset index is ready,
 //                the files as they are before that or without an index
-//     /data/h/<hash>/<name> → (fork) the same served manifest, or the preload manifest (shared/dataHash.js): `immutable`
+//     /data/h/<hash>/<name> → (fork) the same served manifest, the preload manifest, or data/clip-bounds.json (its content
+//                hash, DATA_FILES below) (shared/dataHash.js): `immutable`
 //                for a year when <hash> is its current hash (a CDN keeps it), else the current file with no-cache. A
 //                generation's index.html names the current hashes in a <meta name="sp-data-hashes"> tag
 //
@@ -76,7 +77,7 @@ import { splitHashedPath } from '../../shared/assetPaths.js';
 import { ROOT, noopLog } from './config.js';
 import { sendError, sendJson } from './common.js';
 import { MIME, CompressCache, IMMUTABLE_CACHE, isNotModified, serveFile, serveBuffer } from './files.js';
-import { ASSET_INDEX_ROOTS, hashedFileOpts } from './assetIndex.js';
+import { ASSET_INDEX_ROOTS, hashedFileOpts, hash16 } from './assetIndex.js';
 import { serveMedia } from './media.js';
 import { createPluginRegistry, sameIdentity, statIdentity } from '../plugins/registry.js';
 import { computeVanillaContent } from '../plugins/identity.js';
@@ -124,11 +125,16 @@ const BOT_MODULES_PREFIX = '/match/';
 
 /** Optional per-machine art manifests (tools/local-extract: the local art, the official effects' files — DESIGN §33)
  * and the empty stand-in served when one is absent. */
-const LOCAL_ART_MANIFESTS = new Set(['local-assets.json', 'local-fx.json']);
 const EMPTY_LOCAL_ART = Buffer.from(JSON.stringify({ version: 1, source: 'none', count: 0, groups: {} }));
+/** (fork) data/clip-bounds.json not generated yet (npm run clip-bounds): a table the page ignores (render/clipBoundsTable.js). */
+const EMPTY_CLIP_BOUNDS = Buffer.from(JSON.stringify({ format: 0, note: 'not generated: npm run clip-bounds' }));
+/** Optional data files answered with an empty body instead of a 404 when absent (no console error on every page load). */
+const EMPTY_DATA = new Map([['local-assets.json', EMPTY_LOCAL_ART], ['local-fx.json', EMPTY_LOCAL_ART], ['clip-bounds.json', EMPTY_CLIP_BOUNDS]]);
 
 /** The content-set manifest's cache policy: its URL names its content (the `cs`), so it never changes. */
 const IMMUTABLE_JSON = 'public, max-age=31536000, immutable';
+/** (fork) Plain data/ files with a content-hashed copy at /data/h/ (shared/dataHash.js DATA_HASHED_FILES). */
+const DATA_FILES = Object.freeze(['clip-bounds.json']);
 /** /vs/<vs16>/overlay.json */
 const VISUAL_DOC = new RegExp(`^${VISUAL_SETS_URL}([0-9a-f]{${VS_URL_DIGITS}})/${VISUAL_DOC_FILE.replace('.', '\\.')}$`);
 /** A plugin file URL's hash segment. */
@@ -203,6 +209,26 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
 
   const indexHtml = path.join(path.resolve(publicDir), 'index.html');
 
+  /**
+   * (fork) A plain file of data/ served at /data/h/ (DATA_FILES): its bytes and content hash, read again when its size or
+   * mtime changes (tools/assets/clip-bounds.mjs rewrites it after the art changes); null when it is not there.
+   */
+  const dataFileCache = new Map();
+  async function dataFile(name) {
+    const file = path.join(path.resolve(dataDir), name);
+    let st;
+    try { st = await fsp.stat(file); } catch { dataFileCache.delete(name); return null; }
+    if (!st.isFile()) return null;
+    const key = `${st.size}:${st.mtimeMs}`;
+    const hit = dataFileCache.get(name);
+    if (hit && hit.key === key) return hit;
+    let body;
+    try { body = await fsp.readFile(file); } catch { return null; }
+    const entry = { key, body, hash: hash16(body) };
+    dataFileCache.set(name, entry);
+    return entry;
+  }
+
   /** (fork) The current hashes of the files served at /data/h/ (shared/dataHash.js): only those that are ready. */
   async function dataHashes() {
     const out = {};
@@ -214,6 +240,10 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     }
     const version = typeof manifest.version === 'function' ? manifest.version() : null;
     if (version) out['resource-manifest.json'] = version;
+    for (const name of DATA_FILES) {
+      const f = await dataFile(name);
+      if (f) out[name] = f.hash;
+    }
     return out;
   }
 
@@ -373,6 +403,13 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
         }
         return;
       }
+      if (DATA_FILES.includes(dataHashed.name)) {
+        const f = await dataFile(dataHashed.name);
+        if (f) {
+          await serveBuffer(req, res, { body: f.body, hash: f.hash, type: MIME['.json'], cacheControl: f.hash === dataHashed.hash ? IMMUTABLE_JSON : 'no-cache', key: `file:/data/${dataHashed.name}`, cache: gzipCache });
+          return;
+        }
+      }
       const view = views ? await views.get(dataHashed.name) : null;
       if (view) {
         await serveBuffer(req, res, { body: view.body, hash: view.hash, type: MIME['.json'], cacheControl: view.hash === dataHashed.hash ? IMMUTABLE_JSON : 'no-cache', key: `view:/data/${dataHashed.name}`, cache: gzipCache });
@@ -435,11 +472,13 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
         throw Object.assign(new Error('version data'), { code: 'ENOENT' });
       }
     } catch (e) {
-      if (e && e.code === 'ENOENT' && mount.name === 'data' && segments.length === 1 && LOCAL_ART_MANIFESTS.has(segments[0])) {
+      if (e && e.code === 'ENOENT' && mount.name === 'data' && segments.length === 1 && EMPTY_DATA.has(segments[0])) {
         // Optional local-client art (DESIGN §13): an install without it gets an empty manifest instead of a 404,
         // so browsers don't log an error on every page load. Clients treat empty groups as "no local art".
-        res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache', 'Content-Length': EMPTY_LOCAL_ART.length });
-        res.end(req.method === 'HEAD' ? undefined : EMPTY_LOCAL_ART);
+        // (fork) The same for the precomputed clip bounds: format 0 is a table the page does not use.
+        const empty = EMPTY_DATA.get(segments[0]);
+        res.writeHead(200, { 'Content-Type': MIME['.json'], 'Cache-Control': 'no-cache', 'Content-Length': empty.length });
+        res.end(req.method === 'HEAD' ? undefined : empty);
       } else if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR' || e.code === 'EISDIR' || e.code === 'ENAMETOOLONG')) {
         sendError(req, res, 404, '页面不存在 · Not found', decoded.length <= 200 ? decoded : '');
       } else if (e && (e.code === 'EACCES' || e.code === 'EPERM')) {
