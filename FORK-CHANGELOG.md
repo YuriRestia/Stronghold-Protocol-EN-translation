@@ -7,6 +7,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Reproducing a failing browser test in minutes
+
+- New `node tools/test-repro.mjs <file> --test "<name>"`: runs one browser test alone N times, then N times right after each earlier test of the same file (`--before`, or `--orders` for all), in the file's own process with its own server and browser, and prints a pass / fail table with the first failure's message, console log and screenshot. A whole-file rerun took about 15 minutes; a case of a short test takes 15-30 s a run. It found that playtest2's fallback plate check fails when it runs first in a fresh browser and passes after the engine test, the opposite of what a lone rerun had suggested.
+- `--cpu 4` throttles Chrome's CPU to imitate a loaded machine, and `--own-flags` starts Chrome with the file's own flags instead of adding the GPU ones. It takes the third lane lock (two for a heavy file) when `SP_LANE_DIR` is set.
+
 ### Operator Loadout cards on short phones
 
 - On a phone in landscape (520 px tall or less, such as 640×360 or 844×390), the Operator Loadout deck is one row of cards instead of two, each card using the deck's full height. The cards keep their whole design there: every module as its own button under the skills, the promotion icons over the levels, the potential star, the branch icon and the alliance icons. Before, two rows squeezed the cards: the branch icon shrank to nothing at Extra Large and the alliance icons were cut off at the card's bottom. A Custom Squad slot keeps its full-size frame, count and label. Compact, Expanded and Outfits all use the one row, and so does the Custom Squad picker. Fewer cards fit on screen at once (4 at 640×360, 5 at 844×390); swipe to see more. Taller windows and desktops look the same as before.
