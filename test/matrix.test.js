@@ -51,7 +51,7 @@ test('strength 1 (two dimensions): every value at least once; the log names each
   for (const p of ['p', 'q', 'r', 's', 't', 'u']) assert.ok(got.some((c) => c.page === p), p);
   assert.ok(got.length < 30);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], new RegExp(`^# matrix devices: ${got.length} of 30 \\(each value sample \\+ 1 corner, seed 1; SP_FULL_MATRIX=1 runs all\\): a/p, `));
+  assert.match(lines[0], new RegExp(`^matrix devices: ${got.length} of 30 \\(each value sample \\+ 1 corner, seed 1; SP_FULL_MATRIX=1 runs all\\): a/p, `));
 });
 
 test('picked: a partial combination matched by label', () => {

@@ -15,7 +15,7 @@
 // - SP_FULL_MATRIX=1: every combination, as before the sampling (the end-of-cycle run, CONTRIBUTING.md).
 // - SP_MATRIX_SEED=<n> picks another sample (default 1). Each matrix's name is part of its seed, so two loops over the same
 //   dimensions check different combinations.
-// Each call prints which combinations it runs (`# matrix <name>: …`), so a failure can be replayed: the same seed and the
+// Each call prints which combinations it runs (`matrix <name>: …`, a `# matrix` line in TAP), so a failure can be replayed: the same seed and the
 // same lists give the same sample.
 
 export const FULL_MATRIX = process.env.SP_FULL_MATRIX === '1';
@@ -109,7 +109,7 @@ export function matrix(name, dims, { corners = [], strength = 2, seed = MATRIX_S
   }
   const list = [...chosen].sort((a, b) => a - b).map(combo);
   const how = full ? 'SP_FULL_MATRIX=1' : `${strength === 1 || keys.length < 2 ? 'each value' : 'pairwise'} sample + ${corners.length} corner${corners.length === 1 ? '' : 's'}, seed ${seed}; SP_FULL_MATRIX=1 runs all`;
-  log(`# matrix ${name}: ${list.length} of ${total} (${how}): ${list.map((c) => keys.map((k) => label(c[k])).join('/')).join(', ')}`);
+  log(`matrix ${name}: ${list.length} of ${total} (${how}): ${list.map((c) => keys.map((k) => label(c[k])).join('/')).join(', ')}`);
   return list;
 }
 
