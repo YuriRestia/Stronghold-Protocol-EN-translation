@@ -68,6 +68,12 @@
 // an empty manifest.
 // Files go out through files.js serveFile. Under a generation prefix (routes.js strips it, shared/gen.js) the 301 keeps
 // the prefix and index.html is rewritten to load its modules from the generation.
+// (fork) Under this server's own generation prefix (`releaseGen`, SP_GEN) the release's code is `immutable` for a year:
+// public/ (no html, nothing every generation shares), shared/, /sim/, the bot Worker's /match/ modules, bondsMeta.js and
+// /data.js. A generation is one git worktree at one commit (scripts/generations.mjs), and a deploy always starts a new
+// generation id, so these bytes never change under that URL. data/ keeps its rules (its local-art manifests are links to
+// files the control checkout rewrites), as do the plugin routes; without SP_GEN (npm start) or under another
+// generation's prefix nothing changes, so an edited file shows on reload.
 
 import fsp from 'node:fs/promises';
 import path from 'node:path';
@@ -85,7 +91,7 @@ import { createVisualSets } from '../plugins/visualSet.js';
 import { isStudioPath } from '../studio/paths.js';
 import { PACKS_URL, PACK_INDEX_FILE } from '../../shared/packs.js';
 import { MANIFEST_URL, SUMMARY_URL } from '../../shared/resources.js';
-import { rewriteIndexHtml } from '../../shared/gen.js';
+import { isGenSharedPath, rewriteIndexHtml } from '../../shared/gen.js';
 import { DATA_HASH_META, formatDataHashes, splitDataHash } from '../../shared/dataHash.js';
 import { VIEW_MANIFESTS } from './assetViews.js';
 import { createResourceManifest } from '../resources.js';
@@ -159,13 +165,14 @@ const CS_FILE = /^\/cs\/([0-9a-f]{16})\/([A-Za-z0-9._\/-]{1,200})$/;
  *   URLs, size-mtime ETags); visual: the visual sets (default: one over the registry — a registry of 0.2.0's shape has
  *   none: /vs/ and /p/ answer 404); contents: the content sets with gameplay plugins (DESIGN §32.6; none: only the
  *   vanilla set's /cs/ manifest); versions: the official versions this server enables (server/versions.js; none:
- *   /data/versions/ is never served)
+ *   /data/versions/ is never served); releaseGen: (fork) this process's generation (SP_GEN), whose prefixed code is
+ *   immutable (see the header); none outside the router
  * @returns {(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse, rawPath: string, query: string,
  *   gen?: { gen: string|null, base: string } | null) => Promise<void>}
  */
 export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = path.join(ROOT, 'server', 'sim'), packsDir = path.join(ROOT, 'packs'),
   pluginsDir = path.join(path.dirname(path.resolve(packsDir)), 'plugins'), packs = null, resources = null, content = null, log = noopLog,
-  assetIndex = null, views = null, visual = null, contents = null, versions = null }) {
+  assetIndex = null, views = null, visual = null, contents = null, versions = null, releaseGen = null }) {
   const registry = packs || createPluginRegistry({ publicDir, dataDir, packsDir, pluginsDir }, { log: /** @type {any} */ (log) });
   const sets = visual || (typeof registry.pluginFile === 'function' ? createVisualSets({ registry, log }) : null);
   let vanilla = content;
@@ -247,6 +254,9 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     return out;
   }
 
+  /** (fork) The cache policy of the release's own code under this generation's prefix (see the header), else null. */
+  const releaseCache = (gen) => (releaseGen && gen?.gen === releaseGen ? IMMUTABLE_CACHE : null);
+
   /** @param {{ gen: string|null, base: string } | null} [gen] the request's generation prefix (routes.js), already stripped */
   return async function serveStatic(req, res, rawPath, query, gen = null) {
     let decoded;
@@ -273,7 +283,7 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
     const urlHash = hashed.hash;
     decoded = hashed.path;
     if (decoded === '/data.js') {
-      const headers = { 'Content-Type': MIME['.js'], 'Cache-Control': 'no-cache', ETag: shimTag, 'Content-Length': shimBody.length };
+      const headers = { 'Content-Type': MIME['.js'], 'Cache-Control': releaseCache(gen) || 'no-cache', ETag: shimTag, 'Content-Length': shimBody.length };
       if (isNotModified(req, shimTag, new Date(0))) { delete headers['Content-Length']; res.writeHead(304, headers); res.end(); return; }
       res.writeHead(200, headers);
       res.end(req.method === 'HEAD' ? undefined : shimBody);
@@ -285,7 +295,7 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       try {
         const st = await fsp.stat(BONDS_META_FILE);
         const body = await fsp.readFile(BONDS_META_FILE);
-        await serveBuffer(req, res, { body, hash: `bm-${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}`, type: MIME['.js'], cacheControl: 'no-cache', key: 'bondsMeta', cache: gzipCache });
+        await serveBuffer(req, res, { body, hash: `bm-${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}`, type: MIME['.js'], cacheControl: releaseCache(gen) || 'no-cache', key: 'bondsMeta', cache: gzipCache });
       } catch { sendError(req, res, 404, '页面不存在 · Not found'); }
       return;
     }
@@ -296,7 +306,7 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       try {
         const st = await fsp.stat(file);
         const body = await fsp.readFile(file);
-        await serveBuffer(req, res, { body, hash: `bw-${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}`, type: MIME['.js'], cacheControl: 'no-cache', key: `botModule:${decoded}`, cache: gzipCache });
+        await serveBuffer(req, res, { body, hash: `bw-${st.size.toString(16)}-${Math.trunc(st.mtimeMs).toString(16)}`, type: MIME['.js'], cacheControl: releaseCache(gen) || 'no-cache', key: `botModule:${decoded}`, cache: gzipCache });
       } catch { sendError(req, res, 404, '页面不存在 · Not found'); } // en: "Page not found"
       return;
     }
@@ -520,7 +530,10 @@ export function createStaticHandler({ publicDir, dataDir, sharedDir, simDir = pa
       return;
     }
     const indexed = mount.name === 'public' && segments.length > 1 && ASSET_INDEX_ROOTS.includes(segments[0]);
-    const opts = indexed ? hashedFileOpts(assetIndex, segments.join('/'), stat, urlHash) : (urlHash ? { cacheControl: 'no-cache' } : {});
+    // (fork) this generation's own code: immutable (see the header)
+    const release = !indexed && !urlHash && (mount.name === 'public' || mount.name === 'shared' || mount.name === 'sim')
+      && !/\.html?$/i.test(absPath) && !isGenSharedPath(decoded) ? releaseCache(gen) : null;
+    const opts = indexed ? hashedFileOpts(assetIndex, segments.join('/'), stat, urlHash) : release ? { cacheControl: release } : (urlHash ? { cacheControl: 'no-cache' } : {});
     await serveFile(req, res, absPath, stat, mount.name, segments, query, gzipCache, log, opts);
   };
 }

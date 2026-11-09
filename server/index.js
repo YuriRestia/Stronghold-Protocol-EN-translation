@@ -219,7 +219,9 @@ export async function startServer(opts = {}) {
         phase: [...phases].sort().join('+') || 'idle', rehearsals };
     },
   });
-  const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, simDir, packsDir, pluginsDir, packs, resources, content, log, assetIndex, views, visual, contents, versions });
+  // (fork) this generation's prefixed code is immutable (static.js); the id is checked below with the rest of SP_GEN
+  const releaseGen = (opts.gen === undefined ? process.env.SP_GEN || null : opts.gen) || null;
+  const serveStatic = createStaticHandler({ publicDir, dataDir, sharedDir, simDir, packsDir, pluginsDir, packs, resources, content, log, assetIndex, views, visual, contents, versions, releaseGen });
   // the plugin studio (DESIGN §32.9): its page and API for this machine and the local network; it watches plugins/ only
   // once it is used (hot reload), and rooms whose host is the author or alone follow a plugin's changes by themselves
   const studio = opts.studio === false ? null : createStudio({ publicDir, pluginsDir, dataDir, registry: packs, lobby, sessions: registry, log, fetch: opts.fetch });

@@ -17,6 +17,7 @@ import { S2C } from '../shared/protocol.js';
 import { ERR, ERR_TEXT } from '../shared/constants.js';
 import { TestClient } from './helpers/wsClient.js';
 import { StubMatch } from '../server/match/StubMatch.js';
+import { botModuleFiles } from '../server/http/botModules.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -222,6 +223,45 @@ describe('two generations behind the router', () => {
     assert.equal(ended.status, 410);
     assert.match(await ended.text(), /has ended/);
     assert.equal((await get('/index.html')).status, 302, 'the page itself always runs inside a generation');
+  });
+
+  // (fork) a generation is one release at one commit: its own code is cached for good under its prefix, everything that
+  // can change (the page, sw.js, health, data/, the shared art, unprefixed dev paths) keeps asking
+  test('cache policy: the generation\'s own code is immutable under its prefix, the rest is not', async () => {
+    const IMMUTABLE = 'public, max-age=31536000, immutable';
+    const bot = [...botModuleFiles().keys()][0];
+    assert.ok(bot, 'a bot Worker module to ask for');
+    const cacheOf = async (p, at = base) => {
+      const r = await fetch(`${at}${p}`, { redirect: 'manual' });
+      await r.arrayBuffer();
+      return { status: r.status, cc: r.headers.get('cache-control') };
+    };
+    for (const p of ['/_build/g1/_/js/main.js', '/_build/g1/_/css/theme.css', '/_build/g1/_/vendor/htm.module.js',
+      '/_build/g1/shared/gen.js', '/_build/g1/_/sim/constants.js', '/_build/g1/_/data.js', '/_build/g1/_/match/bondsMeta.js',
+      `/_build/g1/_/match/${bot}`]) {
+      assert.deepEqual(await cacheOf(p), { status: 200, cc: IMMUTABLE }, p);
+    }
+    // a 304 keeps the policy
+    const first = await fetch(`${base}/_build/g1/_/js/main.js`);
+    await first.arrayBuffer();
+    const again = await fetch(`${base}/_build/g1/_/js/main.js`, { headers: { 'If-None-Match': first.headers.get('etag') } });
+    assert.equal(again.status, 304);
+    assert.equal(again.headers.get('cache-control'), IMMUTABLE);
+    // the page, health, the service worker, data/, a shared file and the plain (dev) paths keep asking
+    const notImmutable = ['/_build/g1/', '/_build/g1/_/index.html', '/_build/g1/_/healthz', '/_build/g1/_/sw.js', '/_build/g1/_/manifest.json',
+      '/_build/g1/_/data/bonds.json', '/sw.js', '/js/main.js'];
+    for (const p of notImmutable) {
+      const { status, cc } = await cacheOf(p);
+      assert.ok(status === 200 || status === 302, `${p}: ${status}`);
+      assert.ok(!/immutable|max-age=[1-9]/.test(cc || ''), `${p}: ${cc}`);
+    }
+    // another generation's prefix sent straight to g1's port, and a server outside the router (npm start), ask too
+    assert.equal((await cacheOf('/_build/g9/_/js/main.js', `http://127.0.0.1:${g1.port}`)).cc, 'no-cache');
+    const plain = await startServer({ port: 0, host: '127.0.0.1', quiet: true, noticeFile: null, MatchClass: StubMatch, gen: null, genFile: null });
+    try {
+      assert.equal((await cacheOf('/_build/g1/_/js/main.js', `http://127.0.0.1:${plain.port}`)).cc, 'no-cache');
+      assert.equal((await cacheOf('/js/main.js', `http://127.0.0.1:${plain.port}`)).cc, 'no-cache');
+    } finally { await plain.close(); }
   });
 
   test('a new generation takes over: matches play on in the old one, everything else moves', async () => {
