@@ -841,6 +841,9 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   // each case checked one random tip — a tip-specific overflow, such as a Japanese line starting with ー where only two
   // tips wrap there, made the test flaky rather than red): the pager steps through them, each checked with its entry
   // animation finished; a step the 5 s turn lands in is checked again. A problem the case already shows is not repeated
+  // (fork) TACTICAL TIPS gives way by wrapping onto a hidden second line of .tips__sub (97ac7530): past its box is that label
+  // hidden, so text-fit's report of it is dropped here; the hub test checks it never shows in part instead
+  const TIPS_SUB_HIDDEN = / past span\.tips__sub: span\.micro "TACTICAL TIPS"$/;
   const tipProblems = async (page, known, h) => {
     const now = () => page.evaluate(() => {
       const p = document.querySelector('.lobby-hub .tips__text');
@@ -860,7 +863,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       const probs = await page.evaluate(textProblems, '.lobby-screen');
       if ((await now())?.i === a.i && !seen.has(a.i)) {
         seen.add(a.i);
-        for (const p of probs) if (!known.has(p)) { known.add(p); out.push(`tip ${a.i}: ${p}`); }
+        for (const p of probs) if (!known.has(p) && !TIPS_SUB_HIDDEN.test(p)) { known.add(p); out.push(`tip ${a.i}: ${p}`); }
       }
       if (seen.size >= a.n) break;
       await page.$eval('.lobby-hub .tips__nav:last-child', (b) => b.click());
@@ -886,9 +889,19 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
             for (const [w, h] of screens) {
               await page.setViewport({ width: w, height: h, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
               await sleep(150); await settle(page); await page.evaluate(() => document.fonts.ready);
-              const plain = await page.evaluate(textProblems, '.lobby-screen');
+              // TACTICAL TIPS hidden past .tips__sub is its design (TIPS_SUB_HIDDEN); shown in part is a problem (below)
+              const plain = (await page.evaluate(textProblems, '.lobby-screen')).filter((p) => !TIPS_SUB_HIDDEN.test(p));
               const what = `${lang} ${textSize} UI ${ui}% ${w}×${h}`;
               for (const p of plain) bad.push(`${what}: ${p}`);
+              const sub = await page.evaluate(() => {
+                const box = document.querySelector('.lobby-screen .tips__sub')?.getBoundingClientRect();
+                const m = document.querySelector('.lobby-screen .tips__sub > .micro')?.getBoundingClientRect();
+                if (!box || !m) return null;
+                const inside = m.left >= box.left - 1 && m.right <= box.right + 1 && m.top >= box.top - 1 && m.bottom <= box.bottom + 1;
+                const outside = m.top >= box.bottom - 1 || m.bottom <= box.top + 1 || m.left >= box.right - 1 || m.right <= box.left + 1;
+                return inside || outside ? null : 'TACTICAL TIPS shown in part';
+              });
+              if (sub) bad.push(`${what}: ${sub}`);
               for (const p of await tipProblems(page, new Set(plain), h)) bad.push(`${what}: ${p}`);
               for (const p of await page.evaluate(hubShapes)) bad.push(`${what}: ${p}`);
               for (const p of await forcedShapes(page)) bad.push(`${what}: ${p}`);

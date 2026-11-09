@@ -62,7 +62,9 @@ async function runInPage(page, port, s, enemyKey, secs, actSrc) {
     v.enterBattle(meta);
     v.setCamera('normal', { rect: meta.rect, side: 'L', instant: true });
     v.setLocalFeed({ on: true, speed: 2 });
-    const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
+    let lastPush = 0;   // (fork) the sim at the feed's speed (2x: 0.1 game s a push, 50 ms apart), as the client runner feeds it: pushed
+    // once a frame, headless Chrome on the GPU (100+ Hz) left the view ~1 s behind, and catching up its clips ran slower than its clock
+    const raf = async () => { do await new Promise((r) => requestAnimationFrame(() => r())); while (performance.now() - lastPush < 100 / 2); lastPush = performance.now(); };
     const out = [];
     const state = {};
     let e = null;
@@ -109,7 +111,9 @@ async function lateViewInPage(page, port, s, atSecs, setupSrc) {
     v.enterBattle(meta);
     v.setCamera('normal', { rect: meta.rect, side: 'L', instant: true });
     v.setLocalFeed({ on: true, speed: 2 });
-    const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
+    let lastPush = 0;   // (fork) the sim at the feed's speed (2x: 0.1 game s a push, 50 ms apart), as the client runner feeds it: pushed
+    // once a frame, headless Chrome on the GPU (100+ Hz) left the view ~1 s behind, and catching up its clips ran slower than its clock
+    const raf = async () => { do await new Promise((r) => requestAnimationFrame(() => r())); while (performance.now() - lastPush < 100 / 2); lastPush = performance.now(); };
     const read = () => Object.fromEntries(Object.entries(named).map(([k, u]) => {
       const view = v.debug.views.get(u.id);
       return [k, { clip: view?.actor?.current ?? null, form: view?.form ?? null, spine: !!view?.spineReady, alive: u.alive, simForm: u.form }];
@@ -224,7 +228,8 @@ describe('player reports after 0.1.0: the models follow the knock-out forms (hea
       assert.ok(change.length > 0 && change.every((x) => x.clip === 'A_Die_B' && x.alive), `the change clip (${[...new Set(change.map((x) => x.clip))]})`);
       const form = out.filter((x) => x.t > state.hit + 2 + LAG && x.t < state.kill);
       assert.ok(form.length > 0 && form.every((x) => /^B_/.test(x.clip) && x.form === 'translator_fuchou'), `寻仇者 clips (${[...new Set(form.map((x) => x.clip))]})`);
-      const dead = out.filter((x) => x.t > state.kill + LAG);
+      // (fork) while its model is still there: once the fall has played and faded the view goes (clip null)
+      const dead = out.filter((x) => x.t > state.kill + LAG && x.spine);
       assert.ok(dead.length > 0 && dead.every((x) => !x.alive && x.clip === 'B_Die'), `dies on B_Die (${[...new Set(dead.map((x) => x.clip))]})`);
       assert.deepEqual(problems, []);
     } finally {
@@ -250,7 +255,8 @@ describe('player reports after 0.1.0: the models follow the knock-out forms (hea
       const ember = out.filter((x) => x.t > state.ko + 1 + LAG && x.t < state.dead);
       assert.ok(ember.length > 0 && ember.every((x) => x.clip === 'Idle_2' && x.stealth && x.max === 5), `the 隐匿 ember on Idle_2 (${[...new Set(ember.map((x) => x.clip))]})`);
       assert.ok(ember.some((x) => x.hp < 5), 'its hit counter runs down');
-      const dead = out.filter((x) => x.t > state.dead + LAG);
+      // (fork) while its model is still there: once the fall has played and faded the view goes (clip null)
+      const dead = out.filter((x) => x.t > state.dead + LAG && x.spine);
       assert.ok(dead.length > 0 && dead.every((x) => x.clip === 'Die_2'), `dies on Die_2 (${[...new Set(dead.map((x) => x.clip))]})`);
       assert.deepEqual(problems, []);
     } finally {

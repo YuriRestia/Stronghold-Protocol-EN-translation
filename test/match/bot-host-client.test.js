@@ -5,14 +5,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { BOT_DATA_FILES, installBotHost } from '../../public/js/battle/botHost.js';
+import { BOT_DATA_FILES, BOT_SCREEN_WAIT_MS, installBotHost } from '../../public/js/battle/botHost.js';
 import { DATA_FILES } from '../../server/data.js';
 
 const settle = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
 const content = (cs) => Promise.resolve({ content: { cs, files: { config: new ArrayBuffer(1) } }, transfer: [] });
 
-function setup({ loadContent = content, createWorker = null } = {}) {
+/** `screenSettled`: the page's screen (loadLater.js); by default it has everything, so nothing waits for it. */
+function setup({ loadContent = content, createWorker = null, screenSettled = () => true } = {}) {
   const handlers = new Map();
   const sent = [];
   const workers = [];
@@ -26,7 +27,7 @@ function setup({ loadContent = content, createWorker = null } = {}) {
     workers.push(w);
     return w;
   });
-  const host = installBotHost({ net, loadContent, createWorker: make, log: { warn() {} } });
+  const host = installBotHost({ net, loadContent, createWorker: make, log: { warn() {} }, screenSettled });
   return { host, net, sent, workers, recv: (t, m) => handlers.get(t)(m), handlers };
 }
 const battle = (id = 'b.1', spec = { fieldId: 'f' }) => ({ battleId: id, spec });
@@ -201,8 +202,9 @@ test('a bot seat\'s prep: plan, ack, final; stale stops it', async () => {
 test('the live frames of a bot seat\'s prep: receipt at once, plan, ack, hurry, final', async () => {
   const { sent, workers, recv, host } = setup();
   recv('b.botTask', { taskId: 't.1', world: { seat: 1 }, budgetMs: 500 });
-  assert.deepEqual(sent, [{ t: 'b.botReceived', taskId: 't.1' }], 'before the Worker has even started');
+  assert.deepEqual(sent, [{ t: 'b.botReceived', taskId: 't.1', starting: true }], 'before the Worker has even started');
   await boot(workers[0]);
+  assert.deepEqual(sent.at(-1), { t: 'b.botLoaded', taskId: 't.1' }, 'the server counts the plan window from here');
   assert.deepEqual(workers[0].posted.at(-1), { t: 'task', id: 't.1', world: { seat: 1 }, budgetMs: 500 });
   workers[0].say({ t: 'batch', id: 't.1', batch: 'plan', moves: [{ t: 'g.refresh' }], ms: 3 });
   assert.deepEqual(sent.at(-1), { t: 'b.botMoves', taskId: 't.1', batch: 'plan', moves: [{ t: 'g.refresh' }] });
@@ -276,6 +278,60 @@ test('b.botWarm starts the Worker when the page has time, and only once', async 
   assert.equal(workers.length, 1);
 });
 
+test('a Worker already up: the receipt is plain and no b.botLoaded follows', async () => {
+  const { sent, workers, recv } = setup();
+  recv('b.botTask', { taskId: 't.1', world: {} });
+  await boot(workers[0]);
+  recv('b.botTask', { taskId: 't.2', world: {} });
+  await settle();
+  assert.deepEqual(sent.filter((m) => m.taskId === 't.2'), [{ t: 'b.botReceived', taskId: 't.2' }]);
+  assert.equal(workers[0].posted.at(-1).id, 't.2', 'and the task goes at once');
+  // another content set means another Worker, so that one is starting again
+  recv('b.botTask', { taskId: 't.3', world: {}, cs: 'c'.repeat(64) });
+  assert.deepEqual(sent.find((m) => m.taskId === 't.3'), { t: 'b.botReceived', taskId: 't.3', starting: true });
+});
+
+test('what the screen needs now goes first: b.botWarm and a task build the Worker once the screen has settled', async () => {
+  let settled;
+  const asked = [];
+  const { sent, workers, recv } = setup({ screenSettled: (ms) => { asked.push(ms); return new Promise((r) => { settled = r; }); } });
+  recv('b.botWarm', {});
+  recv('b.botTask', { taskId: 't.1', world: {} });
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal(workers.length, 0, 'the briefing is still loading');
+  assert.deepEqual(asked, [BOT_SCREEN_WAIT_MS], 'one wait per match, capped');
+  assert.deepEqual(sent, [{ t: 'b.botReceived', taskId: 't.1', starting: true }], 'the receipt goes at once all the same');
+  settled();
+  await settle();
+  assert.equal(workers.length, 1);
+  await boot(workers[0]);
+  assert.deepEqual(sent.at(-1), { t: 'b.botLoaded', taskId: 't.1' });
+  assert.equal(workers[0].posted.at(-1).t, 'task');
+});
+
+test('a battle never waits for the screen, and a task cancelled while it waits never goes', async () => {
+  const { workers, recv } = setup({ screenSettled: () => new Promise(() => {}) });
+  recv('b.botTask', { taskId: 't.1', world: {} });
+  recv('b.botCancel', { taskId: 't.1' });
+  recv('b.botBattle', battle('b.1'));
+  assert.equal(workers.length, 1, 'built for the battle at once');
+  await boot(workers[0]);
+  assert.deepEqual(workers[0].posted.map((m) => m.t), ['content', 'battle']);
+});
+
+test('a screen wait that fails counts as settled, and the match ending starts a new wait', async () => {
+  let n = 0;
+  const { workers, recv, host } = setup({ screenSettled: () => { n++; return Promise.reject(new Error('gone')); } });
+  recv('b.botTask', { taskId: 't.1', world: {} });
+  await settle();
+  assert.equal(workers.length, 1);
+  host.clear();
+  recv('b.botTask', { taskId: 't.2', world: {} });
+  await settle();
+  assert.equal(n, 2);
+  assert.equal(workers.length, 2);
+});
+
 test('the data the Worker is given is what the match reads: server/data.js DATA_FILES but the art manifest', () => {
   assert.deepEqual([...BOT_DATA_FILES].sort(), DATA_FILES.filter((f) => f !== 'assets').sort());
 });
@@ -293,5 +349,7 @@ test('no screen can draw these frames: only botHost.js in the page\'s code knows
   walk(root);
   assert.deepEqual(knowing, ['battle/botHost.js']);
   const imports = [...fs.readFileSync(path.join(root, 'battle/botHost.js'), 'utf8').matchAll(/^import .* from '([^']+)';/gm)].map((m) => m[1]);
-  assert.deepEqual(imports, ['../content.js', '../gen.js', './simLoader.js']);
+  assert.deepEqual(imports, ['../content.js', '../gen.js', './simLoader.js', '../loadLater.js']);
+  const later = fs.readFileSync(path.join(root, 'loadLater.js'), 'utf8');
+  assert.equal(/^import /m.test(later), false, 'loadLater.js (the screen settle) imports nothing, so no store either');
 });

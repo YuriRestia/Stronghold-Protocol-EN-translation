@@ -2396,6 +2396,8 @@ export async function createFieldView(host, options = {}) {
       try { ro?.disconnect(); } catch { /* ignore */ }
       try { offAssets?.(); } catch { /* ignore */ }
       globalThis.document?.removeEventListener?.('visibilitychange', onVisible);
+      canvas.removeEventListener?.('webglcontextlost', onLost);
+      canvas.removeEventListener?.('webglcontextrestored', onRestored);
       removeInput();
       offShadow?.();
       signal?.removeEventListener('abort', onAbort);

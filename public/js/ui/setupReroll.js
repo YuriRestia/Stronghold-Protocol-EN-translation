@@ -35,7 +35,7 @@ export function SetupReroll({ pub }) {
     ${vote ? html`<span class="brief-reroll__count num" title=${`${t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时已暂停。')}\n${who}`}>
       ${t('重刷本局投票：{agreed}/{total}', { agreed: vote.agreed.length, total: vote.voters.length })}</span>` : null}
     <div class="brief-reroll__actions">
-      ${!vote ? html`<${Button} icon="refresh" loading=${busy} disabled=${!online || !allConnected}
+      ${!vote ? html`<${Button} icon="refresh" class="brief-reroll__go" aria-label=${t('重刷本局')} loading=${busy} disabled=${!online || !allConnected}
         title=${allConnected ? `${t('保留房间和个人配置，重新随机全部开局信息。')}\n${t('全体真人玩家一致同意后刷新，随机结果可能重复。')}` : t('请等待所有玩家连接后再发起投票')}
         onClick=${() => send(() => actions.rerollSetup(pub.setupRevision ?? 0))}>${t('重刷本局')}<//>` : null}
       ${vote && voter ? html`<${Button} variant="primary" loading=${busy} disabled=${!online || agreed}

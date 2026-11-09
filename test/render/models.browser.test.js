@@ -27,6 +27,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cameraSettled } from '../e2e/client.mjs';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -110,15 +111,25 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
     await srv?.close();
   });
 
+  /** (fork) the deploy fold on, as these upstream checks expect (GitHub #602): the fork's 「部署时收起商店」 defaults off. */
+  const seedDeployFold = (page) => page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.settings') == null) localStorage.setItem('sp.pref.settings', JSON.stringify({ prepDeployFold: true })); } catch { /* opaque origin */ } });
+  /** (fork) every operator's Spine model loaded: the mock keeps loading them for ~10 s after its screen mounts. */
+  const modelsLoaded = (page) => page.waitForFunction(async () => {
+    const views = globalThis.__SP_VIEW__.raw.debug.views, st = (await import('/js/assets.js')).assets.spine.stats();
+    return st.loading === 0 && st.queued === 0 && window.__t.pieces().every((p) => p.kind === 'item' || !!views.get('p:' + p.uid)?.spineReady);
+  }, { timeout: 30000, polling: 250 });
+
   async function open(query, w = 1920, h = 1080) {
     const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
+    await seedDeployFold(page);
     const problems = [];
     page.on('console', (m) => { if (m.type() === 'error') problems.push(`console: ${m.text()}`); });
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setViewport({ width: w, height: h });
-    await page.goto(`http://127.0.0.1:${srv.port}/dev/game-mock.html?shot=1&render=engine&${query}`, { waitUntil: 'networkidle0' });
+    await gotoMock(page, `http://127.0.0.1:${srv.port}/dev/game-mock.html?shot=1&render=engine&${query}`, { timeout: 30000, settle: true });
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__?.raw?.debug, { timeout: 30000 });
     await page.evaluate(installHelpers);
+    await modelsLoaded(page);
     await sleep(2000); // Spine models
     return { page, problems };
   }
@@ -468,11 +479,13 @@ describe('user playtest #3 items 1 and 7 (mock match, headless Chrome)', { skip 
   test('#4.1 touch (phone): stands on the finger\'s tile (under the finger over the shop bar), dropped on the tile under it; a release over the shop bar goes back', async () => {
     const page = await browser.newPage(); await page.evaluateOnNewDocument(() => { try { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); } catch { /* opaque origin */ } }); // (fork) the checks read Chinese msgids
     const problems = [];
+    await seedDeployFold(page);
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 2, isMobile: true, hasTouch: true, isLandscape: true });
-    await page.goto(`http://127.0.0.1:${srv.port}/dev/game-mock.html?shot=1&render=engine&phase=PREP`, { waitUntil: 'networkidle0' });
+    await gotoMock(page, `http://127.0.0.1:${srv.port}/dev/game-mock.html?shot=1&render=engine&phase=PREP`, { timeout: 30000, settle: true });
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__?.raw?.debug, { timeout: 30000 });
     await page.evaluate(installHelpers);
+    await modelsLoaded(page);
     await page.evaluate(() => globalThis.__MOCK__.mutate((S) => { S.priv.hand[5] = null; }));
     await sleep(2000);
     // `spot` is read after the pickup (the deploy fold zooms the board and folds the shop, GitHub #602); `hold` gets it

@@ -335,6 +335,7 @@ hundreds of milliseconds, not seconds. Piece 6 measures how often this happens i
 | Rehearsal slice | 50 ms, so the Worker can hear cancel and hurry without being killed |
 | Receipt ack | 5 s, else fail over (2 s lost tasks in a real two-browser game: a page's main thread can be that busy) |
 | Plan batch after the receipt | 10 s, else fail over (a first Worker start took about 3.4 s on the desktop) |
+| Worker start, after a `starting` receipt | 30 s for `b.botLoaded`, else fail over; the 10 s plan window counts from `b.botLoaded` (the Worker's 424 modules took about 16 s on 5 Mbps / 100 ms) |
 | Grace on top of the budget | 3 s, else fail over |
 
 **On overrun, keep the best layout.** `RehearsalRun` keeps its best score so far, and the candidates are already ordered with
@@ -375,7 +376,14 @@ receipt, or a second `plan` batch for the same task, is ignored, so an executor 
 
 **As built (piece 7):** a pick is one `final` batch with one move. It has no budget of its own: the 5 s receipt and 10 s plan windows
 apply, and a timed draft turn still ends at its deadline. So the first pick of a match does not wait for a Worker to start, `b.botWarm`
-tells the first executor at the briefing, and the page starts the Worker when it is idle. The local path runs its picks on seat streams
+tells the first executor at the briefing, and the page starts the Worker when it is idle.
+
+**As built (bot warm order, 2026-11-09):** what the screen needs now loads first. The page builds the Worker for `b.botWarm` or a
+task only once the briefing and the band draft's art are in (`loadLater.js` `whenScreenSettled`, 10 s at most), because its
+module graph shared the link with that art: on 10 Mbps / 40 ms the band icons came 4 s later. A battle never waits. While the
+Worker is still starting, the receipt says `starting: true`, the server allows 30 s (`BOT_START_MS`) for `b.botLoaded`, and the
+10 s plan window counts from there. A slow start is no strike; a Worker that never comes up still fails over within 40 s, and
+the band pick then falls back to the next human and `timeoutBand`. The local path runs its picks on seat streams
 too when `seatStreams` is on, which keeps the same-seed parity test meaningful.
 
 **The guard:** in host mode the match holds its strategies through `guardBotStrategy`, so `pickBand`, `pickCard`, `prepBegin` and

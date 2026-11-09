@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gotoMock } from '../e2e/mockPage.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -43,7 +44,7 @@ describe('user playtest #4 item 13: no screen-sized UI flash (mock battle, headl
       const problems = [];
       page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
       await page.setViewport({ width: w, height: h });
-      await page.goto(`http://127.0.0.1:${srv.port}/dev/game-mock.html?shot=1&render=engine&phase=COMBAT`, { waitUntil: 'networkidle0' });
+      await gotoMock(page, `http://127.0.0.1:${srv.port}/dev/game-mock.html?shot=1&render=engine&phase=COMBAT`, { timeout: 30000 });
       await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && globalThis.__SP_VIEW__?.raw?.mode === 'battle', { timeout: 30000 });
       await sleep(1500);
       const r = await page.evaluate(async () => {

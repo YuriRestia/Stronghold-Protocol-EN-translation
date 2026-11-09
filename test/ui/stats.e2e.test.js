@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client, sleep, startRealServer, hasChrome, OUT } from '../e2e/client.mjs';
+import { seedReleaseRead } from '../helpers/releaseNotes.js';
 import { buildRecord, buildQuitRecord, createLiveMatch, observeMatch, STATS_VERSION } from '../../public/js/ui/stats.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -84,6 +85,8 @@ describe('统计数据 page (real server, headless Chrome)', { skip: !ENABLED &&
       if (lang) localStorage.setItem('sp.pref.lang', JSON.stringify(lang));
       if (stored != null && !sessionStorage.getItem('sp.e2e.seeded')) { localStorage.setItem('sp.pref.stats', stored); sessionStorage.setItem('sp.e2e.seeded', '1'); }
     }, stored, entered, lang, nickname);
+    // (fork) a returning player: no release-notes prompt and no entry film, whose tap-to-enter gate covers the title and lobby
+    await seedReleaseRead(c.page);
     await c.page.goto(`${base}/`, { waitUntil: 'domcontentloaded' });
     await c.page.waitForFunction((needOnline) => (!needOnline || globalThis.__SP__?.store.get().connection.status === 'online') && !!document.querySelector('.screen'), { timeout: 30000 }, entered);
     return c;

@@ -6,6 +6,7 @@
 // unmoved one (no <html data-fit>). Static counterpart: test/ui/screen-fit.test.js.
 
 import { seedReleaseRead } from '../helpers/releaseNotes.js';
+import { gotoMock } from '../e2e/mockPage.mjs';
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
@@ -41,7 +42,7 @@ describe('异形屏适配 (headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     if (fit) await page.evaluateOnNewDocument((f) => { try { localStorage.setItem('sp.pref.screenFit', JSON.stringify(f)); } catch { /* ignore */ } }, fit);
     await seedReleaseRead(page);
-    await page.goto(`${base}/dev/game-mock.html?shot=1&${query}`, { waitUntil: 'networkidle0', timeout: 60000 });
+    await gotoMock(page, `${base}/dev/game-mock.html?shot=1&${query}`);
     return { page, problems };
   }
 

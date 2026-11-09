@@ -4,6 +4,7 @@
 //
 //   loadLater(task)     run `task` (it may return a promise) once the screen has what it needs. One at a time, in order.
 //   needNow(promise)    a load the screen is waiting for and the page cannot see for itself (models, the board, music).
+//   whenScreenSettled(maxMs)  a promise for the same moment, capped, for work that is not a load task of its own.
 //
 // The screen has what it needs when nothing registered with needNow is still loading and every <img> in view has finished,
 // for QUIET_MS in a row. An image out of view does not count: a lazy one never loads until it is scrolled to.
@@ -51,8 +52,8 @@ export function screenSettled() {
 
 const sleep = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
-async function waitForScreen() {
-  const giveUp = Date.now() + MAX_WAIT_MS;
+async function waitForScreen(maxMs = MAX_WAIT_MS) {
+  const giveUp = Date.now() + maxMs;
   let quietSince = null;
   while (Date.now() < giveUp) {
     if (!screenSettled()) quietSince = null;
@@ -78,6 +79,16 @@ async function drain() {
     clearTimeout(timer);
   }
   draining = false;
+}
+
+/**
+ * Resolves once the screen has what it needs, or after `maxMs` when it never settles. For work that is not a load of its own
+ * but competes with the screen's (battle/botHost.js: the bot Worker's 400-odd modules on the briefing's link).
+ * @param {number} [maxMs]
+ * @returns {Promise<void>}
+ */
+export function whenScreenSettled(maxMs = MAX_WAIT_MS) {
+  return waitForScreen(maxMs);
 }
 
 /**
