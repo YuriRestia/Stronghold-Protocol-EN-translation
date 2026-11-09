@@ -109,6 +109,8 @@ const ARRIVAL = new Set(['summonBurst', 'summonStun', 'radiantSword', 'paperDoll
 /** The 驭械术士's kit fx: render/vfx/funnelfx.js decides them (its floating units). */
 const FUNNEL_KINDS = new Set(['drone', 'drones', 'droneLock', 'overload']);
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
+/** (fork) Plan kinds whose skill lasts (its loops are held for it); another's buff loops with a life run their own time. */
+const SKILL_LASTS = new Set(['lasting', 'ammo', 'passive']);
 /** Battle seconds after a release in which a stale energy reading is ignored (the next store takes an attack interval). */
 const RELEASE_GUARD_S = 0.35;
 /** A fx on the unit: its (x, y) within this many tiles (render/fx/simfx.js ANCHOR_SNAP). */
@@ -429,6 +431,13 @@ export class SkillFx {
       let drew = false;
       for (const e of uniq([...U.plan.start, ...U.plan.range, ...U.plan.loop])) {
         if (e.birth) continue;     // the deploy's (birthOf: FxWiring.deploy plays it)
+        // (fork) a buff loop on the owner with a life of its own (index v3 `life`: LIMITED, a time or our record's
+        // blackboard key) outlives a skill that does not last — 塔露拉 S2's oxi_s_2_stack, stack_duration 10 s, of a skill
+        // that is on and off in one tick: it runs its own time, as a target's buff loop does (_targetLoop)
+        if (!SKILL_LASTS.has(U.plan.kind) && U.plan.loop.includes(e) && (e.on === 'owner' || e.at === 'owner') && lifeOf(e.life, U.srec?.bb)?.s > 0) {
+          if (this._targetLoop(U, e, v)) drew = true;
+          continue;
+        }
         const h = this._play(e, v);
         if (h) { drew = true; this._keep(U, e, h); }
       }

@@ -1448,7 +1448,13 @@ export const CHAIN_RELAYS = Object.freeze({
 const DMINON_BOUNDARY = Object.freeze({ aoe: binding({ owner: 'id', only: Object.freeze({ skill: 'dminon:boundary' }), at: 'tiles',
   oneshot: true, keys: ['dminon_talent_range_hit_01'] }) });
 
+// (fork) 塔露拉 T2 我即火焰 (op-oxi.js lease): her common ability oxi_fire_field_lease plays oxi_buff_01 (looping, on the
+// ground) on each tile it leases, for the lease's field_duration from its latest refresh. The kit's 'zone' tagged
+// oxi:footprint is a fresh lease (its tile, dur). A talent: bound under each of her skills.
+const OXI_FOOTPRINT = binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:footprint' }), at: 'point', hold: 'fx', keys: ['oxi_buff_01'] });
+
 export const FX_BINDINGS = Object.freeze({
+  skchr_oxi_1: Object.freeze({ zone: OXI_FOOTPRINT }),
   skchr_dminon_1: DMINON_BOUNDARY, skchr_dminon_2: DMINON_BOUNDARY, skchr_dminon_3: DMINON_BOUNDARY,
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
   skchr_yu_3: Object.freeze({ firewallBlock: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['yu_skill3_annex_01'] }) }),
@@ -1459,9 +1465,11 @@ export const FX_BINDINGS = Object.freeze({
   // the enemy her guard strikes back at. The kit's 'blast' tagged oxi:retaliate is that strike (target: the enemy); it
   // comes in the frame of the cast, which would otherwise count it as covered by the start and draw nothing there.
   skchr_oxi_2: Object.freeze({
+    zone: OXI_FOOTPRINT,
     blast: binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:retaliate' }), at: 'target', keys: ['oxi_skill_02_hit_01'] }),
   }),
   skchr_oxi_3: Object.freeze({
+    zone: OXI_FOOTPRINT,
     heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
     blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
   }),
