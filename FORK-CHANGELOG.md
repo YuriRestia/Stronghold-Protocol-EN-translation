@@ -9,7 +9,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Mostima's Ethereal Harmony S3 no longer covers her and her neighbours
 
-- In Mostima's Ethereal Harmony outfit (`char_213_mostma@ambienceSynesthesia#6`), the big castle of her S3 drew over her and over the operators around her. Its mesh sits behind her in the official effect, so it now draws behind the units, as in the official game. The moon, violin, trumpet and stars stay in front of her, as they are authored. The same rule now applies to any effect mesh placed behind its unit this way (183 effects, mostly outfit skill buffs).
+- In Mostima's Ethereal Harmony outfit (`char_213_mostma@ambienceSynesthesia#6`), the big castle of her S3 drew over her and over the operators around her. Its mesh sits behind her in the official effect, so it now draws behind the units, as in the official game. The moon, violin, trumpet and stars stay in front of her, as they are authored. The same rule now applies to any effect mesh placed behind its unit this way (183 effects, mostly outfit skill buffs). Operators whose skill aura hid them the same way now show in front of it too: Civilight Eterna S3, Młynar S3, Qiubai S3, Gavial the Invincible S2 and Texas the Omertosa S3 in Wingbreaker.
 
 ### Grand Alliance rooms from every server
 
