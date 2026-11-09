@@ -7,6 +7,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Rerun only the browser tests that need it
+
+- After every browser test run there is a failure table and a `failures.json`: for each failed test its file, full name and first error line, when it started counted from the start of its file, how long it ran, how long the whole file took, which tests ran before it in that file, and its screenshots and console log. Any `node --test` run's JUnit file can be read the same way (`node tools/test-repro.mjs --report`). Today's final check, for example, shows playtest2's fallback plate test starting about 15 s into its file, after the engine test, and failing after 5.4 s of a 495 s file.
+- The browser test table now keeps each test's own measured time, so a run prints how long it should take before it starts and how long it took after.
+- `--rerun-failed failures.json` reruns only the failed tests: each one alone, then, if it passes alone, after exactly the tests that ran before it, and says whether it depends on earlier tests.
+- `--changed <git range>` runs only the tests a change can affect. Every test run records which lines of the game's code, its style sheets and the test's own helpers each test actually used, and the change is matched against that: a change to the enemy-pen test's camera wait selects only that test, and a change to the sell / destroy plate styles selects only the tests whose pages showed those plates. A file that has no record yet, or a change to shared test setup, runs the whole file and says why; nothing is skipped silently.
+- `--budget K` gives each test a time limit of K times its usual time (at least 20 s); a test stopped by it is reported as "stopped by budget after N s (expected M s)", not as a failure.
+
 ### Enemy pen browser test waits for the camera to settle
 
 - The browser test that checks where the enemy preview pen shows (the prep board, the pen view, back on the board, the Final Assault prep and every battle camera) no longer waits fixed times after opening a page or switching the camera. It waits until the 3D view is on the expected camera with its board drawn, and the camera and the pen's state have stopped changing, before checking. Most of its checks are that the pen is not shown, which a page that has drawn nothing yet would also pass. It passes with Chrome's CPU slowed four times.

@@ -86,6 +86,91 @@ export function perFileMsOf(xmls, root = ROOT) {
   return out;
 }
 
+const ENTITY = /&(amp|lt|gt|quot|apos|#\d+|#x[0-9a-fA-F]+);/g;
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+/** XML text: entities decoded (twice when the reporter escaped an already escaped message, as node's does). */
+export function xmlText(s) {
+  let t = String(s ?? '');
+  for (let i = 0; i < 2 && ENTITY.test(t); i++) {
+    ENTITY.lastIndex = 0;
+    t = t.replace(ENTITY, (_, e) => ENTITIES[e] ?? String.fromCodePoint(e[1] === 'x' ? parseInt(e.slice(2), 16) : Number(e.slice(1))));
+  }
+  return t;
+}
+
+/**
+ * Every test case of a JUnit report, in report order (node's reporter writes a file's tests in the order they ran):
+ * its file, its full name (the names of its `<testsuite>` parents, then its own), its time, its outcome and the first
+ * line of its failure, and the start time and total time of its outermost suite (the suite's hooks included).
+ * @param {string} xml @param {string} [root]
+ * @returns {{ file: string, path: string[], ms: number, status: 'pass'|'fail'|'skip', error: string|null,
+ *   failureType: string|null, suiteStart: number|null, suiteMs: number|null }[]}
+ */
+export function parseJUnit(xml, root = ROOT) {
+  const out = [];
+  const stack = [];
+  let cur = null;
+  const tag = /<testsuite\b([^>]*)>|<\/testsuite>|<testcase\b([^>]*?)(\/?)>|<\/testcase>|<failure\b([^>]*)>|<skipped\b[^>]*>/g;
+  for (const m of xml.matchAll(tag)) {
+    const t = m[0];
+    if (t.startsWith('<testsuite')) {
+      stack.push({ name: xmlText(attr(m[1], 'name')), ms: Number(attr(m[1], 'time')) * 1000, start: Date.parse(attr(m[1], 'timestamp') ?? '') });
+    } else if (t === '</testsuite>') stack.pop();
+    else if (t.startsWith('<testcase')) {
+      const file = attr(m[2], 'file');
+      const top = stack[0];
+      cur = {
+        file: file ? relOf(xmlText(file), root) : '', path: [...stack.map((x) => x.name), xmlText(attr(m[2], 'name'))],
+        ms: Math.round(Number(attr(m[2], 'time')) * 1000) || 0, status: 'pass', error: null, failureType: null,
+        suiteStart: top && Number.isFinite(top.start) ? top.start : null, suiteMs: top && Number.isFinite(top.ms) ? Math.round(top.ms) : null,
+      };
+      out.push(cur);
+      if (m[3] === '/') cur = null;
+    } else if (t === '</testcase>') cur = null;
+    else if (t.startsWith('<failure') && cur) {
+      cur.status = 'fail';
+      cur.failureType = attr(m[4], 'type') ?? null;
+      cur.error = (xmlText(attr(m[4], 'message')).split('\n').find((l) => l.trim()) ?? '').trim().slice(0, 300);
+    } else if (t.startsWith('<skipped') && cur) cur.status = 'skip';
+  }
+  return out;
+}
+
+/**
+ * Per-test and per-file times of JUnit reports: each test's time, and each file's setup (its suites' total time
+ * minus its tests': the before / after hooks — a server, a browser), the median over the reports that ran it.
+ * @param {string[]} xmls @param {string} [root]
+ * @returns {{ tests: Record<string, Record<string, number>>, setupMs: Record<string, number> }}
+ */
+export function perTestMsOf(xmls, root = ROOT) {
+  const median = (a) => a.sort((x, y) => x - y)[(a.length - 1) >> 1];
+  const tests = {};
+  const setups = {};
+  for (const xml of xmls) {
+    const cases = parseJUnit(xml, root).filter((c) => c.file && !c.file.startsWith('..') && c.status !== 'skip');
+    const suites = new Map();
+    const caseSum = {};
+    for (const c of cases) {
+      ((tests[c.file] ??= {})[c.path.join(' > ')] ??= []).push(c.ms);
+      caseSum[c.file] = (caseSum[c.file] || 0) + c.ms;
+      // a file's total: its outermost suites (each once) plus its top-level tests
+      const key = c.path.length > 1 ? `${c.file}\u0000${c.path[0]}\u0000${c.suiteStart}` : `${c.file}\u0000${c.path[0]}\u0000case`;
+      if (!suites.has(key)) suites.set(key, { file: c.file, ms: c.path.length > 1 ? c.suiteMs ?? 0 : 0 });
+      if (c.path.length === 1) suites.get(key).ms += c.ms;
+    }
+    const total = {};
+    for (const s of suites.values()) total[s.file] = (total[s.file] || 0) + s.ms;
+    for (const f of Object.keys(total)) (setups[f] ??= []).push(Math.max(0, total[f] - (caseSum[f] || 0)));
+  }
+  const out = { tests: {}, setupMs: {} };
+  for (const f of Object.keys(tests).sort()) {
+    out.tests[f] = {};
+    for (const [n, v] of Object.entries(tests[f])) out.tests[f][n] = median(v);
+  }
+  for (const f of Object.keys(setups).sort()) out.setupMs[f] = median(setups[f]);
+  return out;
+}
+
 // The command line: a report, and where the JSON goes (stdout by default).
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);

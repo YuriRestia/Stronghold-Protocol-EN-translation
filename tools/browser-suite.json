@@ -177,5 +177,463 @@
     "test/ui/versions.e2e.test.js": 79700,
     "test/ui/wake-lock.e2e.test.js": 71700,
     "test/ui/watch-bonds.e2e.test.js": 318500
+  },
+  "tests": {
+    "test/e2e/bot-host-rooms.e2e.test.js": {
+      "an old official version: bots play in the Worker on that version's data": 121150,
+      "a data plugin: bots play in the Worker on the room's data": 112219,
+      "a sandbox script plugin with sim and meta entries: bots play in the Worker with the room's scripts": 117702
+    },
+    "test/e2e/bot-host.e2e.test.js": {
+      "two browsers: bots play in the host's Worker, and the other browser takes over when the host leaves": 169954,
+      "two browsers at a boss round: the AI pair's boss field runs live in the host's Worker": 172183,
+      "a host's socket replaced mid-match, as a region switch or a network change does: bot work carries on over the new socket": 126385
+    },
+    "test/match/bot-worker.e2e.test.js": {
+      "the bot Worker in a real browser > a bot seat's prep gives the moves and memo Node gives": 15428,
+      "the bot Worker in a real browser > a bot field's battle gives the result and timeline Node gives": 1609,
+      "the bot Worker in a real browser > one Worker did it all, with no page errors": 1,
+      "the bot Worker in a real browser > a cancelled battle stays unanswered; the Worker still takes the next job": 422,
+      "the bot Worker in a real browser > a bot-only boss field runs live in the Worker: reports, then the result Node gives": 3894,
+      "the bot Worker in a real browser > /match/ serves the Worker's modules and nothing else": 25
+    },
+    "test/match/ioleta-adaptive-ws-delegation.browser.test.js": {
+      "ioleta-adaptive over real websockets: host-browser pick, timeout takeover and cancellation of a running Worker task": 213323
+    },
+    "test/p2p.browser.test.js": {
+      "three real RTC clients receive signed public state with one WS copy and recover after channel loss": 8432
+    },
+    "test/render/battle-finish.browser.test.js": {
+      "finished field idles living Spine models and drains effects; paused feed does neither": 14090
+    },
+    "test/render/board3d.browser.test.js": {
+      "3D board in headless Chrome > act1autochess_m01 prep 1920×1080: 3D board on, clean console, few draw calls": 7306,
+      "3D board in headless Chrome > act1autochess_m01 combat 1920×1080: 3D board on, clean console, few draw calls": 5911,
+      "3D board in headless Chrome > act1autochess_m01 prep 1280×720: 3D board on, clean console, few draw calls": 5329,
+      "3D board in headless Chrome > act1autochess_m01 combat 1280×720: 3D board on, clean console, few draw calls": 5496,
+      "3D board in headless Chrome > act1autochess_m02 prep 1920×1080: 3D board on, clean console, few draw calls": 5741,
+      "3D board in headless Chrome > act1autochess_m02 combat 1920×1080: 3D board on, clean console, few draw calls": 5920,
+      "3D board in headless Chrome > act1autochess_m02 prep 1280×720: 3D board on, clean console, few draw calls": 5647,
+      "3D board in headless Chrome > act1autochess_m02 combat 1280×720: 3D board on, clean console, few draw calls": 5530,
+      "3D board in headless Chrome > act1autochess_m03 prep 1920×1080: 3D board on, clean console, few draw calls": 5850,
+      "3D board in headless Chrome > act1autochess_m03 combat 1920×1080: 3D board on, clean console, few draw calls": 6114,
+      "3D board in headless Chrome > act1autochess_m03 prep 1280×720: 3D board on, clean console, few draw calls": 5653,
+      "3D board in headless Chrome > act1autochess_m03 combat 1280×720: 3D board on, clean console, few draw calls": 5558,
+      "3D board in headless Chrome > act1autochess_m04 prep 1920×1080: 3D board on, clean console, few draw calls": 5884,
+      "3D board in headless Chrome > act1autochess_m04 combat 1920×1080: 3D board on, clean console, few draw calls": 5978,
+      "3D board in headless Chrome > act1autochess_m04 prep 1280×720: 3D board on, clean console, few draw calls": 5670,
+      "3D board in headless Chrome > act1autochess_m04 combat 1280×720: 3D board on, clean console, few draw calls": 5463,
+      "3D board in headless Chrome > act2autochess_m01 prep 1920×1080: 3D board on, clean console, few draw calls": 6109,
+      "3D board in headless Chrome > act2autochess_m01 combat 1920×1080: 3D board on, clean console, few draw calls": 6479,
+      "3D board in headless Chrome > act2autochess_m01 prep 1280×720: 3D board on, clean console, few draw calls": 5501,
+      "3D board in headless Chrome > act2autochess_m01 combat 1280×720: 3D board on, clean console, few draw calls": 5287,
+      "3D board in headless Chrome > act2autochess_m02 prep 1920×1080: 3D board on, clean console, few draw calls": 5913,
+      "3D board in headless Chrome > act2autochess_m02 combat 1920×1080: 3D board on, clean console, few draw calls": 5829,
+      "3D board in headless Chrome > act2autochess_m02 prep 1280×720: 3D board on, clean console, few draw calls": 5270,
+      "3D board in headless Chrome > act2autochess_m02 combat 1280×720: 3D board on, clean console, few draw calls": 5704,
+      "3D board in headless Chrome > act2autochess_m03 prep 1920×1080: 3D board on, clean console, few draw calls": 5662,
+      "3D board in headless Chrome > act2autochess_m03 combat 1920×1080: 3D board on, clean console, few draw calls": 6069,
+      "3D board in headless Chrome > act2autochess_m03 prep 1280×720: 3D board on, clean console, few draw calls": 5779,
+      "3D board in headless Chrome > act2autochess_m03 combat 1280×720: 3D board on, clean console, few draw calls": 5672,
+      "3D board in headless Chrome > act2autochess_m04 prep 1920×1080: 3D board on, clean console, few draw calls": 6017,
+      "3D board in headless Chrome > act2autochess_m04 combat 1920×1080: 3D board on, clean console, few draw calls": 5767,
+      "3D board in headless Chrome > act2autochess_m04 prep 1280×720: 3D board on, clean console, few draw calls": 5910,
+      "3D board in headless Chrome > act2autochess_m04 combat 1280×720: 3D board on, clean console, few draw calls": 6798,
+      "3D board in headless Chrome > both layers project every tile centre to the same pixel (units / drag / hit-testing stay aligned)": 5717,
+      "3D board in headless Chrome > camera transitions rebuild the built areas (normal field → Final Assault boss field → back)": 6181,
+      "3D board in headless Chrome > Final Assault prep builds the boss field; battle crates survive a camera flight and a lost context (→ 2D boxes)": 7529,
+      "3D board in headless Chrome > fallbacks: ?board=2d draws the atlas board; a lost WebGL context switches to 2D without errors": 12104,
+      "3D board in headless Chrome > no local-art manifest: 2D board, three.js is never downloaded; settings quality toggles the 3D shadows": 9125,
+      "3D board in headless Chrome > summary written": 4
+    },
+    "test/render/feedback1-forms.browser.test.js": {
+      "player reports after 0.1.0: the models follow the knock-out forms (headless Chrome, real sim) > #5 转译基底·α: A_* while 4 physical hits do nothing, A_Die_B, then 寻仇者 B_*; it dies on B_Die": 14818,
+      "player reports after 0.1.0: the models follow the knock-out forms (headless Chrome, real sim) > #8 深池逐火战士 knocked out in front of 百炼嘉维尔: Die (重生), the 隐匿 ember on Idle_2, beaten, Die_2": 14545,
+      "player reports after 0.1.0: the models follow the knock-out forms (headless Chrome, real sim) > a view built mid-battle (enterBattle(fieldMeta) after a silent catch-up) starts in the current forms: 特战术师 D_*, 幽灵 C_*, the ember Idle_2 / Move_2, 掠海漂移体 *_02": 9433,
+      "player reports after 0.1.0: the models follow the knock-out forms (headless Chrome, real sim) > the real client runner with blocking 1 s long tasks (every frame a catch-up, the render clock jumps 2 game s): 转译基底·α blocked by 百炼嘉维尔 turns 幽灵 in the view (C_*), never back to A_Move / B_Die": 18128
+    },
+    "test/render/feedback5-prisoners.browser.test.js": {
+      "the 孤岛风云 prisoners draw confined → warning → freed (headless Chrome, real sim) > 2d board: grey out of the gate, orange from the warning, red once freed — each model as its sim form": 18494,
+      "the 孤岛风云 prisoners draw confined → warning → freed (headless Chrome, real sim) > 3d board: grey out of the gate, orange from the warning, red once freed — each model as its sim form": 18523
+    },
+    "test/render/fieldview.browser.test.js": {
+      "field view features in headless Chrome > enemy preview pen (3d): R13 official preview idles in the pen, facing left, no bars; 0.25 s pan there and back": 13677,
+      "field view features in headless Chrome > enemy preview pen (2d): R13 official preview idles in the pen, facing left, no bars; 0.25 s pan there and back": 10952,
+      "field view features in headless Chrome > pen lifecycle: a real battle empties it; a scouted teammate board shows their preview; tapping an enemy emits its key": 5762,
+      "field view features in headless Chrome > the pen with the prep camera (3d): at the top right of the prep view, gone at once with a battle start, back with the next prep": 11204,
+      "field view features in headless Chrome > the pen with the prep camera (2d): at the top right of the prep view, gone at once with a battle start, back with the next prep": 10400,
+      "field view features in headless Chrome > Final Assault prep on the L half: pieces on the boss field, drops and directions in board space": 10045,
+      "field view features in headless Chrome > Final Assault prep on the R half: pieces on the boss field, drops and directions in board space, mirrored": 8425,
+      "field view features in headless Chrome > Final Assault prep (L): the leader stands on its spawn tile, out of the pen; a range preview lights its hit tiles in red (report #12)": 10041,
+      "field view features in headless Chrome > Final Assault prep (R): the leader stands on its spawn tile, out of the pen; a range preview lights its hit tiles in red (report #12)": 9964,
+      "field view features in headless Chrome > damage numbers: a boss and a knot of minions under rapid mixed hits never show touching numbers": 11904,
+      "field view features in headless Chrome > lost WebGL context: the 2D board takes over, then the 3D board rebuilds itself": 9681
+    },
+    "test/render/flash.browser.test.js": {
+      "user playtest #4 item 13: no screen-sized UI flash (mock battle, headless Chrome) > 1920×1080: a bond layer gained in battle pops its icon at ~46 px — also the first time (icon still loading)": 12271,
+      "user playtest #4 item 13: no screen-sized UI flash (mock battle, headless Chrome) > 1280×720: a bond layer gained in battle pops its icon at ~46 px — also the first time (icon still loading)": 8678
+    },
+    "test/render/held-pose.browser.test.js": {
+      "real Spine held death matches forced updates; revival and late font rasterisation remain live": 12753
+    },
+    "test/render/impostor-bounds.browser.test.js": {
+      "impostor boxes and slot clipping in headless Chrome (GitHub #542) > the three operators held in their widest poses: inside their slots; no atlas pixel outside a live slot": 3512,
+      "impostor boxes and slot clipping in headless Chrome (GitHub #542) > the scissor on a bare atlas page: a quad 9× its slot paints only the slot; a redraw clears it; a neighbour keeps its pixels": 174,
+      "impostor boxes and slot clipping in headless Chrome (GitHub #542) > a clip too large for the box (野鬃's deploy drop) is drawn directly while it plays, then the impostor is back": 1796
+    },
+    "test/render/initialization.browser.test.js": {
+      "field initialization in headless Chrome > fallback automatically restores the real renderer after a late Pixi download, without visibility events": 6589,
+      "field initialization in headless Chrome > a device without WebGL stays in fallback without automatic loading flashes": 11397,
+      "field initialization in headless Chrome > successful startup owns one running app and destroy releases its browser resources": 4043,
+      "field initialization in headless Chrome > a timed-out Pixi load cannot cover the clickable fallback (cancellable factory)": 1038,
+      "field initialization in headless Chrome > a timed-out Pixi load cannot cover the clickable fallback (legacy factory ignores cancellation)": 3527,
+      "field initialization in headless Chrome > timeout during board-art startup immediately releases the allocated app and permits a fresh engine": 3991,
+      "field initialization in headless Chrome > a setup exception releases partial resources without removing another host child": 2308,
+      "field initialization in headless Chrome > unmount during startup cannot erase a newer hook mount on the same host": 767
+    },
+    "test/render/models.browser.test.js": {
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > 1: the prep models come back alive after a battle that outlasts the Spine LRU grace": 19541,
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > 1: rapid drags, swaps, wheel previews (all four directions) with commit / Esc / ✕ and re-drags keep every model": 29934,
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > #4.1 prep: a press anywhere on a tile selects the unit on it — board, high ground, bench, temp; an empty tile nothing": 20770,
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > #4.1 battle: allies by the tile under the pointer, enemies by their ground position or drawn body": 18302,
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > #4.1 drag (mouse): the unit stands on the pointer's tile over a legal target, held under the pointer elsewhere; target, tileHover and the direction wheel are the pointer's tile": 11002,
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > #4.1 equipment dropped on a tile equips the unit on it (the one behind, a bench operator); an empty tile takes nothing": 13336,
+      "user playtest #3 items 1 and 7 (mock match, headless Chrome) > #4.1 touch (phone): stands on the finger's tile (under the finger over the shop bar), dropped on the tile under it; a release over the shop bar goes back": 20098
+    },
+    "test/render/reconnect.browser.test.js": {
+      "closing and reopening a real match restores its scene and operator models (delayed=false)": 19334,
+      "closing and reopening a real match restores its scene and operator models (delayed=true)": 32584
+    },
+    "test/render/vfx.browser.test.js": {
+      "official battle effects in headless Chrome > an additive hit spark brightens the board around its anchor and never darkens it much": 1444,
+      "official battle effects in headless Chrome > the generic physical hit (common_hit_01): spark, flash and its dark base composite onto the board": 1230,
+      "official battle effects in headless Chrome > an enemy's death: the alpha-blended debris darkens the board (the canvas alpha covers it)": 1926,
+      "official battle effects in headless Chrome > the 冻结 loop (buff_autochess_frozen) tints the unit blue": 1392,
+      "official battle effects in headless Chrome > an attack from index.json: 隐现's shot streaks from her muzzle towards the dummy 3 tiles away": 1372,
+      "official battle effects in headless Chrome > the light tier (精简) draws with half-size textures": 1337,
+      "official battle effects in headless Chrome > the console stays clean": 4
+    },
+    "test/sim/bossfield.browser.test.js": {
+      "Final Assault / Hidden Core fields in the browser sim > real boss specs at 999 layers: Chrome and Node give the same digest, pool and fx; 限伤, drones, 瘫痪 and 奥术 all occur": 31581
+    },
+    "test/ui/ai-takeover.e2e.test.js": {
+      "a spectator requests an AI in the browser, receives majority approval and reloads into the inherited seat": 11562,
+      "the host can enable the default-off takeover setting through the room UI": 4431
+    },
+    "test/ui/band-draft-skip.e2e.test.js": {
+      "strategy skip eligibility (real server, normal browser operations) > 2 humans: initial/middle turns enabled, last disabled with quota left": 11415,
+      "strategy skip eligibility (real server, normal browser operations) > 3 humans: initial/middle turns enabled, last disabled with quota left": 10851,
+      "strategy skip eligibility (real server, normal browser operations) > 4 humans: initial/middle turns enabled, last disabled with quota left": 13545,
+      "strategy skip eligibility (real server, normal browser operations) > spent quota stays disabled even with another unpicked player; waiting/selected players disabled": 9927,
+      "strategy skip eligibility (real server, normal browser operations) > solo draft has no skip button": 2929
+    },
+    "test/ui/bond-timers.e2e.test.js": {
+      "#746 bond timer settings and selected-unit card > off by default, toggled next to ammo/energy, saved across reload and hidden again when disabled": 17809,
+      "#746 bond timer settings and selected-unit card > snapshot updates, paused reads, reconnect, watched-field isolation, expiry/death, five languages and narrow layout": 21750
+    },
+    "test/ui/chiave-progress.e2e.test.js": {
+      "chrome: Chiave sidebar and strategy text show live refresh progress": 12469
+    },
+    "test/ui/deploy-replay.e2e.test.js": {
+      "the round start replays the own board's Start clips in deployment order > SETTLE → 回合开始: one landing per piece, in order and 50 ms apart; once per round; purchases and moves land once": 16350
+    },
+    "test/ui/device-tip.e2e.test.js": {
+      "stage device tip in the browser > the fallback (DOM) board: a tap on the crate opens its card, an ordinary tile opens nothing": 6029,
+      "stage device tip in the browser > the engine canvas: the same tap on a tile's own screen position opens the card": 8124,
+      "stage device tip in the browser > a battle on the fallback board: the crate unit's card shows its live HP and closes when it is destroyed": 10506,
+      "stage device tip in the browser > a battle on the engine canvas: a tap on the crate unit's tile opens its card with the HP bar": 8735
+    },
+    "test/ui/devices.e2e.test.js": {
+      "multi-device (Chrome device emulation) > ipad: title page — fits, touch classes, no zoom gestures, no errors": 12082,
+      "multi-device (Chrome device emulation) > ipad: match HUD (prep / combat / strategy draft) fits; ≥ 40 px touch targets": 11169,
+      "multi-device (Chrome device emulation) > iphone14: title page — fits, touch classes, no zoom gestures, no errors": 3423,
+      "multi-device (Chrome device emulation) > iphone14: match HUD (prep / combat / strategy draft) fits; ≥ 40 px touch targets": 12829,
+      "multi-device (Chrome device emulation) > pixel7: title page — fits, touch classes, no zoom gestures, no errors": 2954,
+      "multi-device (Chrome device emulation) > pixel7: match HUD (prep / combat / strategy draft) fits; ≥ 40 px touch targets": 8289,
+      "multi-device (Chrome device emulation) > laptop-touch: title page — fits, touch classes, no zoom gestures, no errors": 2610,
+      "multi-device (Chrome device emulation) > laptop-touch: match HUD (prep / combat / strategy draft) fits; ≥ 40 px touch targets": 9132,
+      "multi-device (Chrome device emulation) > phone-min: title page — fits, touch classes, no zoom gestures, no errors": 2707,
+      "multi-device (Chrome device emulation) > phone-min: match HUD (prep / combat / strategy draft) fits; ≥ 40 px touch targets": 23007,
+      "multi-device (Chrome device emulation) > iphone14: touch — tap the pen button and back, two-tap buy, long-press = detail": 11822,
+      "multi-device (Chrome device emulation) > ipad: touch — tap the pen button and back, two-tap buy, long-press = detail": 11935,
+      "multi-device (Chrome device emulation) > laptop-touch: touch — tap the pen button and back, two-tap buy, long-press = detail": 10905,
+      "multi-device (Chrome device emulation) > iphone14: 交流 pager — every emote cell, dot and ‹ › is hit at its centre; taps send / change the page": 16479,
+      "multi-device (Chrome device emulation) > phone-min: 交流 pager — every emote cell, dot and ‹ › is hit at its centre; taps send / change the page": 16632,
+      "multi-device (Chrome device emulation) > pixel7: 交流 pager — every emote cell, dot and ‹ › is hit at its centre; taps send / change the page": 16138,
+      "multi-device (Chrome device emulation) > ipad: 交流 pager — every emote cell, dot and ‹ › is hit at its centre; taps send / change the page": 15496,
+      "multi-device (Chrome device emulation) > phone-min: the left detail card leaves the corner buttons (⚙ 📖 ⛶) usable": 6221,
+      "multi-device (Chrome device emulation) > iphone14: the left detail card leaves the corner buttons (⚙ 📖 ⛶) usable": 7999,
+      "multi-device (Chrome device emulation) > iphone14: title → lobby → room with taps (the on-screen flow before a match fits and responds)": 7503,
+      "multi-device (Chrome device emulation) > phone-min: title → lobby → room with taps (the on-screen flow before a match fits and responds)": 5976,
+      "multi-device (Chrome device emulation) > ipad: title → lobby → room with taps (the on-screen flow before a match fits and responds)": 7929,
+      "multi-device (Chrome device emulation) > safe-area insets (notch on the left): the HUD moves in, the field stays full-bleed": 7042,
+      "multi-device (Chrome device emulation) > 交流 button: the label never runs into the robot icon (desktop sizes, phones, CJK 12 px minimum font size)": 18014,
+      "multi-device (Chrome device emulation) > portrait phone: the rotate hint covers the page": 4190,
+      "multi-device (Chrome device emulation) > graceful degradation: no WebGL → the DOM view (with a notice); no local-client art → CSS look-alikes": 10160
+    },
+    "test/ui/emotes.e2e.test.js": {
+      "official emotes in the browser > UI kit: pager per theme, picture-only, swipe / keys / dots, cooldown, remembered theme, 3 s bubble": 24490,
+      "official emotes in the browser > wheel: one trackpad swipe (momentum included) turns one page, a mouse-wheel notch turns one page": 9074,
+      "official emotes in the browser > the cooldown survives a remount of the wheel; a bubble mounted late resumes its timeline": 5845,
+      "official emotes in the browser > touch: a horizontal swipe on the pager turns the page, a tap sends": 8359,
+      "official emotes in the browser > missing art: neutral glyphs, never text": 7013,
+      "official emotes in the browser > in-match mock: bubbles beside the senders' avatars, wheel above 交流": 6122
+    },
+    "test/ui/facing.e2e.test.js": {
+      "facing wheel keyboard (mock match, headless Chrome) > the wheel takes the focus: arrows + Enter confirm once in all four directions": 9597,
+      "facing wheel keyboard (mock match, headless Chrome) > Tab reaches ✕ first and Enter on it cancels; Esc cancels; Space on ✕ stays swallowed": 3260,
+      "facing wheel keyboard (mock match, headless Chrome) > Enter on another focused button (准备, 设置 …) does nothing while the wheel is open": 3124,
+      "facing wheel keyboard (mock match, headless Chrome) > a HUD button focused before the drop does not swallow the confirming Enter": 2221
+    },
+    "test/ui/followup-023.e2e.test.js": {
+      "0.2.3 follow-up client features > closed second window resumes the same server player and match through the recovery UI": 4367,
+      "0.2.3 follow-up client features > a refreshing match window keeps its seat while its init is waiting and another window clicks recovery": 4556,
+      "0.2.3 follow-up client features > co-op opening reroll shows a unanimous vote, clears stale readiness, lets another seat start one and a rejection cancels it": 3288,
+      "0.2.3 follow-up client features > operator voice selection persists across reload and follows global after reset": 5076,
+      "0.2.3 follow-up client features > install manifest is eligible and a dismissed offer is consumed through the actual button": 1533,
+      "0.2.3 follow-up client features > extra-large settings stay within a landscape phone in every shipped interface language": 3080
+    },
+    "test/ui/hotkeys.e2e.test.js": {
+      "rebindable shortcuts (设置 → 快捷键) > 撤退 rebound to W in a mock match: keyboard only, swap, Esc, refusal, the HUD hint, a reload": 7749,
+      "rebindable shortcuts (设置 → 快捷键) > phone width (640×360, touch): the keys need a keyboard, the folded list opens and fits, no horizontal scroll": 1958,
+      "rebindable shortcuts (设置 → 快捷键) > W buys the hovered shop card without clicking, with purchase guards and no stale target": 5563,
+      "rebindable shortcuts (设置 → 快捷键) > a legacy W binding survives; buy can be rebound and persists across reload": 2700
+    },
+    "test/ui/i18n.e2e.test.js": {
+      "language switch on the title screen > 中文 by default; English in place, kept across a reload; ?lang=zh back to Chinese": 14162,
+      "language switch on the title screen > a pack dropped into the language folder or into packs/ shows in the menu and switches; English fills its gaps": 5491,
+      "language switch on the title screen > the shipped 日本語 / 한국어 / 繁體中文 packs: the official game texts, their UI strings, the 设置 note of a machine-translated pack": 3636,
+      "language switch on the title screen > a late English pack cannot overwrite a newer Traditional Chinese selection; its cache remains reusable": 1916,
+      "language switch on the title screen > selecting the displayed default language cancels a pending pack": 1650,
+      "language switch on the title screen > repeated selections reuse a pending pack and still supersede an intervening selection": 1781,
+      "language switch on the title screen > a failed latest selection keeps the last successful UI and menu; an older pack stays stale": 1625,
+      "language switch on the title screen > a stale failure leaves a newer pending dropdown selection intact": 1709
+    },
+    "test/ui/inspection-fit.e2e.test.js": {
+      "selected operator frame follows its tile through screen offsets, UI size and resize (#889)": 20463
+    },
+    "test/ui/item-progress.e2e.test.js": {
+      "chrome: equipment counter on the carrier and in live descriptions": 19176
+    },
+    "test/ui/loadout-battle.e2e.test.js": {
+      "user playtest #2 item 1 — loadout chosen in the UI fights in the local battle (real server) > 干员调配 S1 + 不装备 for 野鬃 → m.private.loadout → b.start spec → the local sim runs S1 with the no-module stats": 40121,
+      "user playtest #2 item 1 — loadout chosen in the UI fights in the local battle (real server) > 野鬃 S1 duration bar: full on deploy, half remaining, hidden after expiry (real renderer)": 17787
+    },
+    "test/ui/loadout-cards.e2e.test.js": {
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第二期下半 desktop — promotion icons, five languages, text sizes and UI scales": 49183,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第二期上半 desktop — promotion icons, five languages, text sizes and UI scales": 54459,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第一期下半 desktop — promotion icons, five languages, text sizes and UI scales": 46625,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第一期上半 desktop — promotion icons, five languages, text sizes and UI scales": 49259,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第二期下半 phones — promotion icons, five languages, text sizes and UI scales": 40152,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第二期上半 phones — promotion icons, five languages, text sizes and UI scales": 34963,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第一期下半 phones — promotion icons, five languages, text sizes and UI scales": 30770,
+      "干员调配 卡片视图 (real server, headless Chrome) > #811: 第一期上半 phones — promotion icons, five languages, text sizes and UI scales": 28982,
+      "干员调配 卡片视图 (real server, headless Chrome) > desktop: the cards (the only view) → drawer, the card's own skill / module column, 简洁 / 详情, Esc layers, tier jump, 筛选": 22605,
+      "干员调配 卡片视图 (real server, headless Chrome) > phone 844×390 (touch): the cards (the default) fit one row with their column, a tap there opens nothing, the drawer slides over them": 8231
+    },
+    "test/ui/loadout.e2e.test.js": {
+      "干员调配 overlay (real server, headless Chrome) > desktop: choose S1 + 不装备 for 隐现, persisted, synced into the solo match, briefing entry, auto-close": 9910,
+      "干员调配 overlay (real server, headless Chrome) > import: Tab stays in the dialog and Enter cannot edit a background module": 4310,
+      "干员调配 overlay (real server, headless Chrome) > desktop: 导出 hands out a versioned payload; 导入 restores it and refuses junk": 6997,
+      "干员调配 overlay (real server, headless Chrome) > solo briefing: an edit made right before 准备就绪 still applies to this match (closing the overlay sends it)": 5128,
+      "干员调配 overlay (real server, headless Chrome) > co-op briefing (review fix): the overlay shows the INFO_CHECK time left; an edit that misses the lock is told, not lost silently": 9153,
+      "干员调配 overlay (real server, headless Chrome) > module cards: official type icons (local PRI-X.png / pri-y.png, matched case-insensitively; else the pipeline icons) or lettered tiles": 3239,
+      "干员调配 overlay (real server, headless Chrome) > phone 844×390 (touch): the cards with their column, 筛选's tier / class filters, the drawer over the deck, tap to choose": 3680,
+      "干员调配 overlay (real server, headless Chrome) > small phone 667×375 (touch): the drawer slides over the deck and folds again": 2737,
+      "干员调配 overlay (real server, headless Chrome) > 局内数值 (desktop): 隐现's stats follow the module and the 普通 / 精锐 toggle, the range follows 信仰搅拌机's SPT-Y": 4632,
+      "干员调配 overlay (real server, headless Chrome) > 局内数值 (phone 844×390, touch): the numbers, the range box and the 特性 / 天赋 card stay inside the narrow detail, text keeps its floor": 2698,
+      "干员调配 overlay (real server, headless Chrome) > 潜能 / 练度 (0.2.2): the detail's buttons set the operator's settings — stored, synced, the card and the numbers follow": 3415
+    },
+    "test/ui/lobby-hub.e2e.test.js": {
+      "hub lobby (real server, headless Chrome) > desktop: hub → 选择模拟协议 (remembered, Esc) → 选择同盟方式 (the key field) → 创建同盟: the room at once → the host changes the difficulty in the room": 8841,
+      "hub lobby (real server, headless Chrome) > desktop: the 成就统计 card → its window (Esc closes) → 查看完整统计 → 统计数据": 2609,
+      "hub lobby (real server, headless Chrome) > phone 844×390 (touch): the hub and both dialogs fit, their buttons in view without scrolling": 5826,
+      "hub lobby (real server, headless Chrome) > phone 667×375 (touch): the hub and both dialogs fit, their buttons in view without scrolling": 5427,
+      "hub lobby (real server, headless Chrome) > phones 640×360 / 667×375, en at 文字大小 lg: 选择同盟方式 fits, 创建同盟 on two rows with its whole difficulty line": 4245,
+      "hub lobby (real server, headless Chrome) > phones 640×360 / 667×375, en at 文字大小 xl: 选择同盟方式 fits, 创建同盟 on two rows with its whole difficulty line": 4312,
+      "hub lobby (real server, headless Chrome) > phones 640×360 / 667×375, ja at 文字大小 xl: 选择同盟方式 fits, 创建同盟 on two rows with its whole difficulty line": 4338,
+      "hub lobby (real server, headless Chrome) > phones: 选择同盟方式's key field placeholder fits beside 观战 in every language at every 文字大小": 17747,
+      "hub lobby (real server, headless Chrome) > desktop: 选择同盟方式's key field shows the whole sentence where it fits, else the field's name — never cut": 21027,
+      "hub lobby (real server, headless Chrome) > phones: 选择模拟协议's four cards and 开始独立模拟 fit in every language at every 文字大小 (640×360 – 844×390)": 25842,
+      "hub lobby (real server, headless Chrome) > desktop: 选择模拟协议's four cards and 开始独立模拟 fit at 小 and 特大 in Chinese and English (1280×720 – 1920×1080)": 11754,
+      "hub lobby (real server, headless Chrome) > desktop: 选择模拟协议 in small windows (960×540, 1024×600, 1100×530, 800×600) keeps the unselected names whole in every language at every 文字大小": 129175,
+      "hub lobby (real server, headless Chrome) > phones: the room's 开始模拟 / 准备就绪 label sits inside its button in every language at every 文字大小 (640×360 – 844×390)": 32164,
+      "hub lobby (real server, headless Chrome) > desktop: the room's 开始模拟 label sits inside its button (800×600 – 1920×1080, English / Japanese / Korean at 小 / 特大); its 选择模拟协议 keeps the names whole at 960×540": 14566,
+      "hub lobby (real server, headless Chrome) > phones and desktops: every label of the hub inside its box in every language at every 文字大小": 65371
+    },
+    "test/ui/lobby-media-delete.e2e.test.js": {
+      "deleting lobby media changes its selection only after storage commits > a committed deletion remains deleted after reload": 7129,
+      "deleting lobby media changes its selection only after storage commits > an aborted deletion retains the file and reports failure; retry commits": 5035
+    },
+    "test/ui/lobby-media.e2e.test.js": {
+      "自定义大厅背景与音乐 (real server) > own picture / video / music: shown, refused, kept after a reload, switched off, deleted; a phone": 16741,
+      "自定义大厅背景与音乐 (real server) > the guards: a large picture scaled down; a moving one, a video past 1080p and long music refused; reduced motion stills": 16890
+    },
+    "test/ui/playtest2.e2e.test.js": {
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 7: 出售 / 销毁 are amber / red plates, not a white block (engine)": 15393,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 7: 出售 / 销毁 are amber / red plates, not a white block (fallback)": 5377,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 8: every bench / temp / board underframe stays clickable at 8 viewports (engine)": 199533,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 8: every bench / temp / board underframe stays clickable at 8 viewports (fallback)": 142519,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 8: a top-row unit under the bond strip is tappable; on a notched phone the underframe stays on its unit": 37721,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 9: the detail card shows the unit's bonds under the header, visible without scrolling; the bond popup leads with its facts": 20867,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > loadout (DESIGN §16): shop card skill badge, detail card skill + 已调配, elite module 未装备模组": 11876,
+      "user playtest #2 — UI fixes (mock harness, headless Chrome) > 6: the enemy pen shows with the prep board, in the pen view and after 返回战场 — never in a battle or the Final Assault prep": 58446
+    },
+    "test/ui/plugins.e2e.test.js": {
+      "cosmetic plugins in the browser (P1a) > the host switches a room plugin on → the other player sees the new avatar; a personal plugin changes its own page only": 20945,
+      "cosmetic plugins in the browser (P1a) > a server without plugins: its page never asks for the catalogue (title, the room's 插件 panel, 设置)": 5328,
+      "cosmetic plugins in the browser (P1a) > a match already drawn: a personal plugin switched on → the piece on the board draws its picture; off → the installation's again": 21570
+    },
+    "test/ui/preload-import.browser.test.js": {
+      "the preload manager imports a preload zip: matching files are saved and served by the worker, a changed one is refused": 12053
+    },
+    "test/ui/real.e2e.test.js": {
+      "real server + real browsers > co-op: 2 humans + AI from the lobby through combat of round 4": 273765,
+      "real server + real browsers > solo: 独立模拟 through two rounds, then 放弃模拟 back to the lobby": 47327
+    },
+    "test/ui/room-fit.e2e.test.js": {
+      "the waiting room's text fit (real server, headless Chrome) > phones (640×360 – 844×390), zh at every 文字大小: every label of the room, ⚙ and the picker inside its box": 18202,
+      "the waiting room's text fit (real server, headless Chrome) > phones (640×360 – 844×390), zh-TW at every 文字大小: every label of the room, ⚙ and the picker inside its box": 12812,
+      "the waiting room's text fit (real server, headless Chrome) > phones (640×360 – 844×390), en at every 文字大小: every label of the room, ⚙ and the picker inside its box": 15830,
+      "the waiting room's text fit (real server, headless Chrome) > phones (640×360 – 844×390), ja at every 文字大小: every label of the room, ⚙ and the picker inside its box": 16703,
+      "the waiting room's text fit (real server, headless Chrome) > phones (640×360 – 844×390), ko at every 文字大小: every label of the room, ⚙ and the picker inside its box": 13829,
+      "the waiting room's text fit (real server, headless Chrome) > desktops (800×600 – 1920×1080), zh at every 文字大小: every label of the room, ⚙ and the picker inside its box": 17028,
+      "the waiting room's text fit (real server, headless Chrome) > desktops (800×600 – 1920×1080), zh-TW at every 文字大小: every label of the room, ⚙ and the picker inside its box": 15873,
+      "the waiting room's text fit (real server, headless Chrome) > desktops (800×600 – 1920×1080), en at every 文字大小: every label of the room, ⚙ and the picker inside its box": 22862,
+      "the waiting room's text fit (real server, headless Chrome) > desktops (800×600 – 1920×1080), ja at every 文字大小: every label of the room, ⚙ and the picker inside its box": 17917,
+      "the waiting room's text fit (real server, headless Chrome) > desktops (800×600 – 1920×1080), ko at every 文字大小: every label of the room, ⚙ and the picker inside its box": 15294
+    },
+    "test/ui/room-search-strip.e2e.test.js": {
+      "the room's 搜寻队友 switch (real server, headless Chrome) > en, desktop: the switch shows its text above the background and works": 2981,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > en, phone: the switch shows its text above the background and works": 3001,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > zh, desktop: the switch shows its text above the background and works": 3466,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > zh, phone: the switch shows its text above the background and works": 2474,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > phones, zh at every 文字大小: the switch, the big button and the room around them keep their text inside their boxes": 4657,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > phones, zh-TW at every 文字大小: the switch, the big button and the room around them keep their text inside their boxes": 4406,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > phones, en at every 文字大小: the switch, the big button and the room around them keep their text inside their boxes": 5162,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > phones, ja at every 文字大小: the switch, the big button and the room around them keep their text inside their boxes": 4965,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > phones, ko at every 文字大小: the switch, the big button and the room around them keep their text inside their boxes": 4324,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > desktop: filling the last seat keeps the switch's space, so the seat cards do not stretch": 2283,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > phone: filling the last seat keeps the switch's space, so the seat cards do not stretch": 2483,
+      "the room's 搜寻队友 switch (real server, headless Chrome) > while searching the big button reads dark on amber, not mint on amber": 2508
+    },
+    "test/ui/screen-fit.e2e.test.js": {
+      "异形屏适配 (headless Chrome) > stored offsets: the screens, the board and the layout root inside the inset box (844×390 and 1920×1080)": 13188,
+      "异形屏适配 (headless Chrome) > the settings section: + moves an edge live, 重置 returns the unmoved page": 6845,
+      "异形屏适配 (headless Chrome) > 界面大小: a stored 75 % shrinks the layout root and 小's text with it and keeps the 32 px touch floor; 中 turns it off (100 %, its 64 px floor); the board fills its host": 6031,
+      "异形屏适配 (headless Chrome) > 界面大小 75 % on a 640×360 phone (en): 选择同盟方式 and 选择模拟协议 keep their columns; no difficulty name is cut": 2350,
+      "异形屏适配 (headless Chrome) > 界面大小 75 % on a 640×360 phone (ko): 选择同盟方式 and 选择模拟协议 keep their columns; no difficulty name is cut": 2300,
+      "异形屏适配 (headless Chrome) > 界面大小 at 文字大小 中: the row is disabled at 100 % with its note and a click on it saves nothing; a drag shows the reading and applies on release": 7062,
+      "异形屏适配 (headless Chrome) > 界面大小: a real drag that ends where it began leaves no stale reading (Chrome fires no change); − and 重置 show the new size": 6721,
+      "异形屏适配 (headless Chrome) > 界面大小: each way out of a drag — pointerup alone applies, pointercancel and blur drop the reading, a size changed elsewhere replaces it": 8129
+    },
+    "test/ui/settings-storage.e2e.test.js": {
+      "设置 → 素材存储 > granted: the line says the assets are kept and the button is off": 10125,
+      "设置 → 素材存储 > 清理旧版本素材: after a confirm, the copy no current manifest names goes and the current file stays": 2983,
+      "设置 → 素材存储 > denied: not kept until asked; asking shows the refusal and the button stays on": 3656
+    },
+    "test/ui/stats.e2e.test.js": {
+      "统计数据 page (real server, headless Chrome) > current nickname follows the active session rather than saved history": 1986,
+      "统计数据 page (real server, headless Chrome) > import restores and saves an unknown ID while preserving an already selected ID": 4466,
+      "统计数据 page (real server, headless Chrome) > desktop: tabs, the counting rule on screen, a settlement re-viewed, Esc, the title entry": 11038,
+      "统计数据 page (real server, headless Chrome) > phone in landscape (844×390): the page and the re-view fit; no console errors": 4620,
+      "统计数据 page (real server, headless Chrome) > the data actions: export → import (nothing new), a corrupt file, a newer file, 清空 with its confirm dialog": 2967,
+      "统计数据 page (real server, headless Chrome) > corrupt and newer storage: a notice, no crash; the newer build's data is never overwritten": 4829,
+      "统计数据: the real flows (a fast real server, headless Chrome) > given up in the briefing: history only; given up after round 1: it counts": 29292,
+      "统计数据: the real flows (a fast real server, headless Chrome) > played to its settlement: one record, and a reload (the lobby replays m.result) adds no second one": 27161
+    },
+    "test/ui/teammate-loadout.e2e.test.js": {
+      "DESIGN §16 — a teammate's unit shows its owner's loadout (real server) > 前往查看 in prep: the guest's 野鬃 (S1 + 不装备) reads S1 已调配 / 未装备模组 on the host's card": 36943
+    },
+    "test/ui/version-pills.e2e.test.js": {
+      "period controls: five languages, four text sizes, 75–100% UI, phones and desktops": 27501
+    },
+    "test/ui/versions-fit.e2e.test.js": {
+      "official versions: text fit (real server, SP_VERSIONS=all) > the lobby chip and the picker: four phones and two desktops, five languages, four 文字大小": 39618,
+      "official versions: text fit (real server, SP_VERSIONS=all) > a version room (pill, strip, banner, seat tags, the tag) and a version settlement: phones and desktops, five languages, four 文字大小": 79625
+    },
+    "test/ui/versions-flow.e2e.test.js": {
+      "official versions: the vote rules and a version match (in-process server, every version) > the vote: a spectator does not vote, expiry, a seat taken voids it, the host cancels, unanimous agreement switches": 21880,
+      "official versions: the vote rules and a version match (in-process server, every version) > an edit during an open vote reaches the new version's match on its own operator; the match runs in a version host to its settlement": 145723
+    },
+    "test/ui/versions.e2e.test.js": {
+      "official versions (real server, SP_VERSIONS=all) > the lobby switch, a version room, the vote, leaving, a tagged record — 1920×1080": 30497,
+      "official versions (real server, SP_VERSIONS=all) > the vote over 干员调配; a replay outlives a kick (1280×720)": 36028,
+      "official versions (real server, SP_VERSIONS=all) > a server limited to 第二期下半: a record of another version is not offered for re-viewing (1280×720)": 14375,
+      "official versions (real server, SP_VERSIONS=all) > phones (667×375): the chip, the picker, the room pill, the strip and the banner fit the width": 17673
+    },
+    "test/ui/wake-lock.e2e.test.js": {
+      "App screen wake lock > all eight states share one lock across combat/fullscreen handoffs and every App route": 12030,
+      "App screen wake lock > automatic combat requires an entered, active match; all four combat phases include spectators": 5084,
+      "App screen wake lock > default and legacy preferences stay off; the real settings UI persists the new key in five languages": 10045,
+      "App screen wake lock > only iOS and iPadOS show the Low Power Mode note in the real settings modal": 19718,
+      "App screen wake lock > iOS settings use a complete translated sentence and shared help in all five languages": 4932,
+      "App screen wake lock > requirements help supports hover, keyboard and click without changing the switch": 4818,
+      "App screen wake lock > a short touch tap opens requirements; another tap, outside and Escape close it": 4654,
+      "App screen wake lock > real tab visibility releases and restores combat; inactive foreground does not acquire": 3729,
+      "App screen wake lock > webkit-only fullscreen events reach the same global controller": 2344
+    },
+    "test/ui/watch-bonds.e2e.test.js": {
+      "DESIGN §20.15 — the bond strip shows the watched teammate's bonds (real server) > prep scouting and the Final Assault ‹ › halves (desktop host, phone guest)": 43468,
+      "DESIGN §20.15 — the bond strip shows the watched teammate's bonds (real server) > 联防 observer: helper 1 on 全景, the picked helper's half + bonds, 返回战场 in the pill (phone leaker, desktop helper)": 84869,
+      "DESIGN §20.15 — the bond strip shows the watched teammate's bonds (real server) > after the own battle: the watched teammate's bonds, kept through a reload with the observing pill + 返回战场 (desktop)": 89790,
+      "DESIGN §20.15 — the bond strip shows the watched teammate's bonds (real server) > Final Assault spectator (eliminated): the pair's first player, each picked player's half + bonds, the lone field": 32055
+    }
+  },
+  "setupMs": {
+    "test/e2e/bot-host-rooms.e2e.test.js": 0,
+    "test/e2e/bot-host.e2e.test.js": 0,
+    "test/match/bot-worker.e2e.test.js": 3372,
+    "test/match/ioleta-adaptive-ws-delegation.browser.test.js": 0,
+    "test/p2p.browser.test.js": 0,
+    "test/render/battle-finish.browser.test.js": 0,
+    "test/render/board3d.browser.test.js": 2549,
+    "test/render/feedback1-forms.browser.test.js": 2267,
+    "test/render/feedback5-prisoners.browser.test.js": 2132,
+    "test/render/fieldview.browser.test.js": 2666,
+    "test/render/flash.browser.test.js": 2941,
+    "test/render/held-pose.browser.test.js": 0,
+    "test/render/impostor-bounds.browser.test.js": 31921,
+    "test/render/initialization.browser.test.js": 4497,
+    "test/render/models.browser.test.js": 2741,
+    "test/render/reconnect.browser.test.js": 0,
+    "test/render/vfx.browser.test.js": 5645,
+    "test/sim/bossfield.browser.test.js": 1906,
+    "test/ui/ai-takeover.e2e.test.js": 0,
+    "test/ui/band-draft-skip.e2e.test.js": 4083,
+    "test/ui/bond-timers.e2e.test.js": 5718,
+    "test/ui/chiave-progress.e2e.test.js": 0,
+    "test/ui/deploy-replay.e2e.test.js": 9276,
+    "test/ui/device-tip.e2e.test.js": 3520,
+    "test/ui/devices.e2e.test.js": 3984,
+    "test/ui/emotes.e2e.test.js": 3493,
+    "test/ui/facing.e2e.test.js": 3971,
+    "test/ui/followup-023.e2e.test.js": 3359,
+    "test/ui/hotkeys.e2e.test.js": 3860,
+    "test/ui/i18n.e2e.test.js": 3980,
+    "test/ui/inspection-fit.e2e.test.js": 0,
+    "test/ui/item-progress.e2e.test.js": 0,
+    "test/ui/loadout-battle.e2e.test.js": 1,
+    "test/ui/loadout-cards.e2e.test.js": 4311,
+    "test/ui/loadout.e2e.test.js": 2979,
+    "test/ui/lobby-hub.e2e.test.js": 3301,
+    "test/ui/lobby-media-delete.e2e.test.js": 1294,
+    "test/ui/lobby-media.e2e.test.js": 2,
+    "test/ui/playtest2.e2e.test.js": 3745,
+    "test/ui/plugins.e2e.test.js": 2,
+    "test/ui/preload-import.browser.test.js": 0,
+    "test/ui/real.e2e.test.js": 8687,
+    "test/ui/room-fit.e2e.test.js": 4627,
+    "test/ui/room-search-strip.e2e.test.js": 3771,
+    "test/ui/screen-fit.e2e.test.js": 11064,
+    "test/ui/settings-storage.e2e.test.js": 3625,
+    "test/ui/stats.e2e.test.js": 9959,
+    "test/ui/teammate-loadout.e2e.test.js": 2,
+    "test/ui/version-pills.e2e.test.js": 0,
+    "test/ui/versions-fit.e2e.test.js": 8960,
+    "test/ui/versions-flow.e2e.test.js": 2,
+    "test/ui/versions.e2e.test.js": 2,
+    "test/ui/wake-lock.e2e.test.js": 7985,
+    "test/ui/watch-bonds.e2e.test.js": 2
   }
 }

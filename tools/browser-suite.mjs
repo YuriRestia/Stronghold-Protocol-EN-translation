@@ -3,8 +3,9 @@
 //
 //   node tools/browser-suite.mjs --list               the files, in run order (one per line), and run nothing
 //   node tools/browser-suite.mjs --list --gate        the same for the fixers' gate: a short smoke set
-//   node tools/browser-suite.mjs [--gate] [--concurrency N] [--out DIR] [file …]
-//                                                     run them: SP_E2E=1 … node --test, spec + TAP + JUnit into DIR
+//   node tools/browser-suite.mjs [--gate] [--concurrency N] [--out DIR] [--budget K [--budget-floor S]] [--no-coverage] [file …]
+//                                                     run them: SP_E2E=1 … node --test, spec + TAP + JUnit into DIR,
+//                                                     then the failure report (failures.json, tools/test-repro.mjs)
 //   node tools/browser-suite.mjs --weigh report.xml … re-weigh tools/browser-suite.json from JUnit reports of a run
 //   node tools/browser-suite.mjs --slots file …      the lane slots those files take on a shared machine (one each,
 //                                                     two for a heavy one: a real server, or two players' browsers)
@@ -19,12 +20,20 @@
 // frame rate follows the machine's load. `npm run test:perf` checks them alone (BROWSER_PERF_FILES).
 //
 // Locks and the perf-quiet flag belong to whoever starts the run (the crew's scripts); this tool only runs the files.
+//
+// Every run loads tools/test-repro-hook.mjs into each browser test file's process (Chrome keeps the file's own flags):
+// each test's start and end, a failed test's screenshots and console, and (unless --no-coverage) which code each test
+// ran, merged into the coverage map tools/test-repro.mjs --changed reads. After the run: the failure report (per failed
+// test its file, full name, first error line, when it started in its file, how long it ran, the file's total and the
+// tests before it) and the actual time next to the expected one. --budget K gives each test with a measured time the
+// timeout max(floor, K x that time); the report tells a test it stopped from a failure. --weigh also keeps each test's
+// time and each file's setup time (its before / after hooks), which the expected times and the budgets use.
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { perFileMsOf } from './test-timings.mjs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { perFileMsOf, perTestMsOf } from './test-timings.mjs';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -129,22 +138,28 @@ export function runArgs(files, { concurrency, out }) {
  * keep theirs, and files that no longer exist are dropped.
  * @param {{ measured: Record<string, number> }} table @param {Record<string, number>} timed @param {string[]} all
  */
-export function reweigh(table, timed, all) {
+export function reweigh(table, timed, all, perTest = null) {
   const known = new Set(all);
   const measured = {};
   for (const f of [...new Set([...Object.keys(table.measured), ...Object.keys(timed)])].sort()) {
     if (!known.has(f)) continue;
     measured[f] = timed[f] ?? table.measured[f];
   }
-  return { ...table, measured };
+  const out = { ...table, measured };
+  if (perTest) {
+    const keep = (prev, next) => Object.fromEntries([...new Set([...Object.keys(prev ?? {}), ...Object.keys(next)])].filter((f) => known.has(f)).sort().map((f) => [f, next[f] ?? prev[f]]));
+    out.tests = keep(table.tests, perTest.tests);
+    out.setupMs = keep(table.setupMs, perTest.setupMs);
+  }
+  return out;
 }
 
-const usage = `usage: node tools/browser-suite.mjs [--list] [--gate] [--concurrency N] [--out DIR] [file …]
+const usage = `usage: node tools/browser-suite.mjs [--list] [--gate] [--concurrency N] [--out DIR] [--budget K [--budget-floor S]] [--no-coverage] [file …]
        node tools/browser-suite.mjs --slots <file…>
        node tools/browser-suite.mjs --weigh <report.xml…>`;
 
-function main(argv) {
-  const o = { list: false, slots: false, gate: false, concurrency: 0, out: path.join(ROOT, 'test/e2e/out/browser-suite'), extra: [], weigh: null };
+async function main(argv) {
+  const o = { list: false, slots: false, gate: false, concurrency: 0, out: path.join(ROOT, 'test/e2e/out/browser-suite'), extra: [], weigh: null, budget: null, budgetFloor: 20, coverage: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--list') o.list = true;
@@ -153,6 +168,9 @@ function main(argv) {
     else if (a === '--concurrency') o.concurrency = Number(argv[++i]);
     else if (a === '--out') o.out = path.resolve(argv[++i] ?? '');
     else if (a === '--weigh') o.weigh = argv.slice(i + 1);
+    else if (a === '--budget') o.budget = Number(argv[++i]);
+    else if (a === '--budget-floor') o.budgetFloor = Number(argv[++i]);
+    else if (a === '--no-coverage') o.coverage = false;
     else if (a.startsWith('-')) { console.error(usage); return 2; }
     else o.extra.push(a);
     if (o.weigh) break;
@@ -161,9 +179,11 @@ function main(argv) {
   const all = browserFileList();
   if (o.weigh) {
     if (!o.weigh.length) { console.error(usage); return 2; }
-    const timed = perFileMsOf(o.weigh.map((f) => fs.readFileSync(f, 'utf8')));
-    fs.writeFileSync(path.join(ROOT, TABLE), `${JSON.stringify(reweigh(table, timed, all), null, 2)}\n`);
-    console.log(`${TABLE}: ${Object.keys(timed).length} files re-weighed`);
+    const xmls = o.weigh.map((f) => fs.readFileSync(f, 'utf8'));
+    const timed = perFileMsOf(xmls);
+    const perTest = perTestMsOf(xmls);
+    fs.writeFileSync(path.join(ROOT, TABLE), `${JSON.stringify(reweigh(table, timed, all, perTest), null, 2)}\n`);
+    console.log(`${TABLE}: ${Object.keys(timed).length} files re-weighed, ${Object.values(perTest.tests).reduce((s, t) => s + Object.keys(t).length, 0)} tests timed`);
     return 0;
   }
   let files;
@@ -179,10 +199,36 @@ function main(argv) {
   if (!files.length) { console.error('no browser test files: nothing started'); return 1; }
   const minutes = files.reduce((s, f) => s + (table.measured[f] ?? table.defaultMs), 0) / 60000 / concurrency;
   console.log(`${files.length} files, ${concurrency} at a time (about ${Math.ceil(minutes)} min by the table), first: ${files[0]}`);
+  if (o.budget != null && !(Number.isFinite(o.budget) && o.budget >= 1 && o.budgetFloor > 0)) { console.error('--budget: a factor of at least 1 (--budget-floor: seconds)'); return 2; }
   fs.mkdirSync(o.out, { recursive: true });
-  const r = spawnSync(process.execPath, runArgs(files, { concurrency, out: o.out }), { cwd: ROOT, stdio: 'inherit', env: { ...process.env, ...BROWSER_ENV } });
-  console.log(`reports: ${o.out} (browser-spec.txt, browser-tap.txt, browser-junit.xml)`);
+  const hookDir = path.join(o.out, 'hook');
+  fs.rmSync(hookDir, { recursive: true, force: true }); // this run's own records only (a folder of the run's out dir, never a link)
+  const hookEnv = {
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ''} --import=${pathToFileURL(path.join(ROOT, 'tools/test-repro-hook.mjs')).href}`.trim(),
+    SP_REPRO_MODE: 'run', SP_REPRO_SUITE: '1', SP_REPRO_DIR: hookDir, SP_REPRO_GPU: '0', SP_REPRO_COVERAGE: o.coverage ? '1' : '0',
+  };
+  if (o.budget != null) {
+    const per = {};
+    for (const f of files) {
+      per[f] = {};
+      for (const [n, ms] of Object.entries(table.tests?.[f] ?? {})) per[f][n] = Math.round(Math.max(o.budgetFloor * 1000, o.budget * ms));
+    }
+    const untimed = files.filter((f) => !Object.keys(per[f]).length);
+    if (untimed.length) console.log(`budget: ${untimed.length} file(s) have no per-test times (run --weigh on a JUnit report): no budget for their tests`);
+    fs.writeFileSync(path.join(o.out, 'budget.json'), JSON.stringify(per));
+    hookEnv.SP_REPRO_BUDGET = path.join(o.out, 'budget.json');
+  }
+  const t0 = Date.now();
+  const r = spawnSync(process.execPath, runArgs(files, { concurrency, out: o.out }), { cwd: ROOT, stdio: 'inherit', env: { ...process.env, ...BROWSER_ENV, ...hookEnv } });
+  console.log(`reports: ${o.out} (browser-spec.txt, browser-tap.txt, browser-junit.xml); took ${Math.round((Date.now() - t0) / 60000)} min (expected about ${Math.ceil(minutes)} min)`);
+  // the failure report and the coverage map (tools/test-repro.mjs: loaded here, not at the top, since it imports this file)
+  const junit = path.join(o.out, 'browser-junit.xml');
+  if (fs.existsSync(junit)) {
+    const repro = await import('./test-repro.mjs');
+    repro.reportFromSuite({ junit, hookDir, out: o.out, table, coverage: o.coverage });
+  }
   return r.status ?? 1;
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = main(process.argv.slice(2));
+// not a top-level await: main() imports tools/test-repro.mjs, which imports this module, which must have finished loading
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv.slice(2)).then((code) => { process.exitCode = code; });
