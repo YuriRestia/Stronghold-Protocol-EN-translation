@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Outfit summons for Swire the Elegant Wit and Catherine
+
+- Swire the Elegant Wit's outfit A Prosperous Visage and Catherine's outfit Cozy Bakery now give their summons the outfit's own look in battle (8 files, 138 KB) instead of the default one. The dev sandbox also draws a summon in its owner's outfit, as a match does.
+
 ### Asset rebuilds skip voices for the AI teammates' pictures
 
 - Amiya and Dobermann are in the asset list only for the AI teammates' names and icons; they can't be fielded. The asset tool now plans voices only for operators the game can field and their outfits, so a rebuild no longer tries to add those two operators' 112 voice files in four languages. Nothing players hear changes.
