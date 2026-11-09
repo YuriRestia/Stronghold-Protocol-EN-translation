@@ -73,8 +73,44 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     await gotoMock(page, `${base}/dev/game-mock.html?shot=1&render=${render}&${query}`);
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__, { timeout: 20000 });
     if (/(^|&)phase=PREP(&|$)/.test(query)) await piecesPlaced(page);
-    else await sleep(render === 'engine' ? 1600 : 700); // the battle cameras of item 6 (no own pieces to wait for)
+    else await viewSettled(page, { kinds: BATTLE_VIEWS, mode: 'battle' }); // the battle cameras of item 6: no own pieces
     return { page, problems };
+  }
+
+  /** The engine view kinds of a battle camera (render/app/view.js). */
+  const BATTLE_VIEWS = ['normal', 'unite', 'boss'];
+
+  /**
+   * (fork) Wait until the engine view has settled on a camera, from what it exposes: `.gm[data-camera]` (when given) and
+   * the view's own camera kind (raw.debug.camKind) at their targets, the view in the phase's mode, its board drawn (a
+   * drawn 2D tile, and the 3D area when the 3D board is on), then the camera and the pen readings of penState (3D area,
+   * pen hidden, pen figures shown, drawn rows, band) the same over 3 polls in a row: a flight moves the camera every
+   * frame and applies the resting view (area, pen, rows) when it lands. Item 6 asserts absences (no pen figure, no pen
+   * row), which a page that has drawn nothing yet passes: this is the positive signal they need first. A view that never
+   * settles fails with its last reading.
+   */
+  async function viewSettled(page, { camera = null, kinds, mode }) {
+    try {
+      await page.waitForFunction((camera, kinds, mode) => {
+        const g = globalThis;
+        const raw = g.__SP_VIEW__?.raw;
+        const d = raw?.debug;
+        const st = raw?.stats?.();
+        const area = d?.board3d ? d.board3d.area : null;
+        const rows = d ? d.tiles.grid.map((row) => row.map((t) => (t.drawn ? 1 : 0)).join('')).join('|') : '';
+        const pens = d ? [...d.penViews.values()] : [];
+        g.__settleLast = { camera: document.querySelector('.gm')?.dataset.camera, kind: d?.camKind, mode: raw?.mode, area, drawn: rows.includes('1') };
+        const ready = !!d && raw.mode === mode && kinds.includes(d.camKind) && (!camera || g.__settleLast.camera === camera)
+          && rows.includes('1') && (!d.board3d || (Array.isArray(area) && area.length > 0));
+        const key = ready ? JSON.stringify([st.camera, area, st.penHidden, pens.length, pens.filter((v) => v.root && v.root.visible !== false).length, rows, d.tiles.band]) : null;
+        g.__settleN = key && key === g.__settleKey ? g.__settleN + 1 : 1;
+        g.__settleKey = key;
+        return !!key && g.__settleN >= 3;
+      }, { polling: 100, timeout: 20000 }, camera, kinds, mode);
+    } catch (err) {
+      const last = await page.evaluate(() => globalThis.__settleLast).catch(() => null);
+      throw new Error(`the view never settled on ${camera ?? kinds.join('/')} (${mode}): ${JSON.stringify(last)} (${err.message})`, { cause: err });
+    }
   }
 
   /**
@@ -450,7 +486,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
 
   test('6: the enemy pen shows with the prep board, in the pen view and after 返回战场 — never in a battle or the Final Assault prep', { skip: skipUnless('pen'), timeout: 5 * 60 * 1000 }, async () => {
     const { page, problems } = await open('phase=PREP', { w: 1920, h: 1080 });
-    await sleep(900);
+    await viewSettled(page, { camera: 'prep', kinds: ['prep'], mode: 'prep' });
     let s = await penState(page);
     assert.equal(s.camera, 'prep');
     assert.ok(s.pen > 0, 'the pen holds the next round\'s enemies');
@@ -463,7 +499,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     await page.screenshot({ path: path.join(OUT, 'fix-pen-prep.png') });
     await page.click('.enemybtn');
     await page.waitForFunction(() => document.querySelector('.gm')?.dataset.camera === 'pen', { timeout: 3000 });
-    await sleep(700);
+    await viewSettled(page, { camera: 'pen', kinds: ['pen'], mode: 'prep' });
     s = await penState(page);
     assert.ok(s.penVisible > 0, 'pen view: figures shown');
     assert.ok(s.penRowsDrawn, 'pen view: pen rows drawn');
@@ -472,7 +508,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     // 🔍◀◀ (tooltip 返回战场) back to the board: the pen stays where it stands
     await page.click('.gtop__iconbtn');
     await page.waitForFunction(() => document.querySelector('.gm')?.dataset.camera === 'prep', { timeout: 3000 });
-    await sleep(900);
+    await viewSettled(page, { camera: 'prep', kinds: ['prep'], mode: 'prep' });
     s = await penState(page);
     assert.equal(s.penHidden, false, 'back on the board (返回战场): the camera shows the pen');
     assert.ok(s.penVisible > 0, 'back on the board (返回战场): the pen\'s figures still shown');
@@ -485,7 +521,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     // the Final Assault prep frames the boss field: no pen there
     {
       const o = await open('phase=PREP&variant=boss', { w: 1920, h: 1080 });
-      await sleep(1200);
+      await viewSettled(o.page, { kinds: ['bossPrep'], mode: 'prep' }); // .gm[data-camera] is asserted below
       const b = await penState(o.page);
       assert.equal(b.camera, 'bossPrep');
       assert.equal(b.penVisible, 0, 'Final Assault prep: no pen figure');
@@ -498,8 +534,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
 
     // every battle camera
     for (const phase of ['COMBAT', 'UNITE', 'FINAL_ASSAULT', 'HIDDEN_CORE']) {
-      const o = await open(`phase=${phase}`, { w: 1920, h: 1080 });
-      await sleep(1200);
+      const o = await open(`phase=${phase}`, { w: 1920, h: 1080 }); // open() waits for the battle view to settle
       const b = await penState(o.page);
       assert.equal(b.penVisible, 0, `${phase}: no pen figure`);
       assert.equal(b.penRowsDrawn, false, `${phase}: pen rows not drawn`);

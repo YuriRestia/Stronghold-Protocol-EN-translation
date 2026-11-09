@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Enemy pen browser test waits for the camera to settle
+
+- The browser test that checks where the enemy preview pen shows (the prep board, the pen view, back on the board, the Final Assault prep and every battle camera) no longer waits fixed times after opening a page or switching the camera. It waits until the 3D view is on the expected camera with its board drawn, and the camera and the pen's state have stopped changing, before checking. Most of its checks are that the pen is not shown, which a page that has drawn nothing yet would also pass. It passes with Chrome's CPU slowed four times.
+
 ### Sell / destroy plate colour test waits for what is on screen
 
 - The browser test that checks the Sell (amber) and Destroy (red) plates no longer waits fixed times. It waits until the mock board's own units are laid out before tapping one, and samples the plate until it shows a steady colour instead of its dark backing. In a fresh browser the plate was sampled before its picture was painted and read grey, and on a busy machine the bench was tapped before it was laid out. Both cases now pass 3 of 3 with Chrome's CPU slowed four times; a white or wrong-coloured plate still fails.
