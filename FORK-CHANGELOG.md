@@ -11,6 +11,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - With the optional host rehearsal setting on, the host's browser now starts its rehearsal helper during the briefing, once the screen has loaded, instead of on round 1's first task. Round 1's AI layouts used to miss their short answer window while the helper started, so the server always worked them out itself. Nothing changes with the setting off (the default).
 
+### Facing wheel and install offer browser tests
+
+- The facing wheel test could fail on a busy machine. After a cancel the piece slides back home over about 200 ms, and the test started its next drag before that, pressing the empty tile it was leaving. The test now waits for the piece to stop moving and checks that it went back to where it came from. The game itself was right.
+- The install offer test failed because Chrome now sends its own install offer a few milliseconds after the test's, and the game keeps the newest offer, which is correct. The test now holds Chrome's own offer back so its button press uses the test's offer.
+
 ### Spectate, filter popover, Final Assault watch, protocol list
 
 - Pressing Spectate right after entering the lobby could fail with "too many requests", because entering the lobby spends the server's budget for heavy messages (loadout, ownership, outfits and more). Spectate now tries again after 1.2 s, at most twice. Proposing a version already did this.
