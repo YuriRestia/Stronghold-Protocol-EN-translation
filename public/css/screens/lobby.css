@@ -1374,7 +1374,7 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .rbr-card__region.is-here { color: #4fe8c0; border-color: rgba(79, 232, 192, .45); }
 .rbr-card__region .icon { width: 1em; height: 1em; }
 .rbr-card__region-ms { color: #8b9692; }
-.rbr-card__region-ms small { font-size: .8em; margin-left: .01em; }
+.rbr-card__region-ms small { font-size: calc(.104 * var(--t)); margin-left: .01em; }
 .rbr-card__region-ms.ping--low { color: #4fe8c0; }
 .rbr-card__region-ms.ping--medium { color: #ffc45c; }
 .rbr-card__region-ms.ping--high { color: #ff7a6b; }
