@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { buildPlan, VOICE_JP_LANG } from '../tools/assets/plan.mjs';
 import { indexAudio, VOICE_DIRS } from '../tools/assets/audio.mjs';
 import { RAW } from '../tools/assets/sources.mjs';
+import { BOT_OPERATORS } from '../shared/constants.js';
 import { artPlan, FULL_ZIP_JP_VOICE, JP_VOICE_DIR, FULL_ZIP_OPTIONAL_VOICE, OPTIONAL_VOICE_DIRS } from '../tools/package.mjs';
 import { DEFAULT_SETTINGS, VOICE_LANGS, sanitizeSettings } from '../public/js/ui/gameLogic.js';
 
@@ -60,6 +61,24 @@ test('plan: audio.voiceJp is the JP dub (ArknightsAssets2 voice/) of the very sl
   assert.equal(plan({ voiceJp: false }).audio.voiceJp, undefined);
   // --voice-all widens both trees alike
   assert.ok(plan({ voiceSlots: null }).audio.voiceJp.char_263_skadi.gacha);
+});
+
+test('plan: the picture-only operators behind the AI seat names (BOT_OPERATORS: 阿米娅, 杜宾) get no voice in any tree; fielded, they would', () => {
+  const bots = [...new Set(Object.values(BOT_OPERATORS))];
+  assert.ok(bots.length, 'BOT_OPERATORS names at least one operator');
+  const words = { ...CHARWORD.charWords };
+  for (const id of bots) words[id] = { charId: id, wordKey: id, placeType: 'BATTLE_SELECT', voiceId: 'CN_021', voiceIndex: 21, voiceAsset: `${id}/CN_021` };
+  const charword = { charWords: words };
+  const trees = ['voice', 'voiceJp', 'voiceEn', 'voiceKr', 'voiceNative'];
+  const t = plan({ charword, optionalVoice: true });
+  for (const id of bots) {
+    assert.ok(t.chars[id]?.avatar, `${id}: still has its picture for the seat card`);
+    for (const tree of trees) assert.equal(t.audio[tree]?.[id], undefined, `${id}: no ${tree} (it never fights)`);
+  }
+  assert.ok(t.audio.voiceEn.char_263_skadi.select, 'a fielded operator keeps every tree');
+  // the rule is "fieldable", not "named in BOT_OPERATORS": the same operator in the roster is voiced
+  const fielded = plan({ charword, optionalVoice: true, extraOperators: { ...OPS, ...Object.fromEntries(bots.map((id) => [id, { name: id, skills: [] }])) } });
+  for (const id of bots) assert.ok(fielded.audio.voice[id]?.select, `${id}: voiced once the game can field it`);
 });
 
 test('data/assets.json: voiceJp gives every voiced operator the JP twin of each Chinese line (215 operators, 3009 files); stand-ins, 盟约·辅助干员 and summons have neither', () => {

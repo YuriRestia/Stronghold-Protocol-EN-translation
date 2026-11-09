@@ -986,7 +986,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   // `audio.voiceJp` (VOICE_JP_LANG): the same slots and lines in the Japanese dub, a second tree beside the Chinese one
   // (the owner's request of 2026-10-08) — same file names, `audio/voice/jp/`.
   // (fork, docs/OUTFITS.md) + each outfit's own voice set, under its word key (data/outfits.json `voice`)
-  const outfitVoices = new Set(Object.values(outfits || {}).filter((r) => typeof r?.voice === 'string' && chars[r.charId]).map((r) => r.voice));
+  const outfitVoices = new Set(Object.values(outfits || {}).filter((r) => typeof r?.voice === 'string' && operators[r.charId]).map((r) => r.voice));
   const voiceSlotsByChar = indexVoice(charword, VOICE_ID_LANG, voiceSlots, outfitVoices);
   // `dir` (VOICE_OPTIONAL_TREES native): the operator's own-language folder, or nothing when it has no such dub
   // A collab operator whose only dub is LINKAGE (丰川祥子 …, audio.mjs linkageOnlyVoice) has no `voice_cn/` lines: the
@@ -995,7 +995,9 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   const voiceTree = (lang, dirOf = null) => {
     const tree = {};
     for (const [charId, slots] of voiceSlotsByChar) {
-      if (!chars[charId] && !outfitVoices.has(charId)) continue; // only the operators this game can field (`chars`: the 138 pool charIds and the 自选 picks) and their outfits
+      // only the operators this game can field (the pool charIds and the 自选 picks) and their outfits. `chars` also holds the
+      // picture-only operators behind AI seats' names (BOT_OPERATORS, 阿米娅 / 杜宾): they never fight, so no voice
+      if (!operators[charId] && !outfitVoices.has(charId)) continue;
       const dir = dirOf ? dirOf(charId) : null;
       if (dirOf && !dir) continue;
       const lineLang = lang === 'cn' && linkageOnly.has(charId) ? VOICE_JP_LANG : lang;
