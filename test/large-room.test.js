@@ -379,6 +379,22 @@ test('match: the boss overtime drain is unchanged at scale 1 and multiplied abov
   }
 });
 
+test('match: the leader pool counts every player alive up to the room\'s seats, for both leaders; 4 seats keep the 4 cap', () => {
+  // docs/design/large-rooms.md "one HP pool of base × players alive" (the user's report of 2026-11-10: 6 players met a 4-player pool)
+  for (const [seatIdx, out, want] of [[[0, 1, 2], [], 3], [[0, 1, 2, 3, 4, 5], [], 6], [[0, 1, 2, 3, 4, 5, 6, 7], [], 8], [[0, 1, 2, 3, 4, 5, 6, 7], ['p_2', 'p_6'], 6]]) {
+    for (const hidden of [false, true]) {
+      const { m } = largeMatch(seatIdx, { difficulty: 'HARD' });
+      for (const id of out) { const ps = m.players.get(id); ps.alive = false; ps.lp = 0; }
+      m.startFinalAssault(hidden);
+      const bossId = hidden ? m.hiddenBossId : m.bossId;
+      const label = `${seatIdx.length} seats, ${want} alive, ${hidden ? 'Hidden Core' : 'Final Assault'}`;
+      assert.equal(m.bossPool.maxHp, m.gd.boss(bossId).bloodPoint.HARD * want, label);
+      assert.equal(m.publicView().bossHp.max, m.bossPool.maxHp, `${label}: the HP bar shows the same pool`);
+      m.dispose();
+    }
+  }
+});
+
 test('generations: 105 minutes only for a retiring generation that still runs a large-room match', () => {
   const table = { current: 'a', gens: { a: { port: 3101 }, b: { port: 3102, retiringSince: 0 } } };
   const busy = { humanMatches: 1, sockets: 3 };

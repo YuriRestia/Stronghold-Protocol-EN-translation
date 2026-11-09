@@ -104,7 +104,7 @@ import { itemKey } from './gamedata.js';
 import { computeBonds, pieceBonds } from './bondsMeta.js';
 import { isFlyKey, bountySpawns } from './waves.js';
 import { previewPlayer } from './preview.js';
-import { bossPoolHp, SharedBossPool } from './finalAssault.js';
+import { bossPoolHp, bossPoolSeats, SharedBossPool } from './finalAssault.js';
 import { GEO, REHEARSAL_MAX_CANDIDATES } from '../../shared/constants.js';
 import { mitigate } from '../sim/attack.js';
 import { HOVER_KEYS } from '../sim/content/enemies.js';
@@ -1935,7 +1935,7 @@ function bossCandidateOpts(m, ps, byUid, plan) {
     if (Array.isArray(ev.spawns)) spawns = ev.spawns;
     if (Array.isArray(ev.routes)) routes = ev.routes;
   }
-  const hp = bossPoolHp(m.gd, bossId, alive.length);
+  const hp = bossPoolHp(m.gd, bossId, alive.length, bossPoolSeats(m));
   return {
     seed: faRehearsalSeed(m, ps),
     kind,

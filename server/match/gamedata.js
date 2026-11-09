@@ -63,24 +63,28 @@ export const COMBAT_TIME_SCALE = 2;
  *   solo   `solo` (1: the table value — one player's share);
  *   co-op  `perPlayer` true (the owner's decision of 2026-10-06, adopting PR #209 by @qingjingshenghuo): `coop` (1) × the
  *          players alive when the fight starts — bots and AI 托管 seats count, eliminated and departed seats do not —
- *          at most `aliveFull` (4); a count left out means a full team;
+ *          at most `aliveFull` (4) — (fork) in a Grand Alliance room that started with more seats, at most that seat count
+ *          (docs/design/large-rooms.md: "one HP pool of base × players alive"); a count left out means a full team;
  *          `perPlayer` false: the fixed pool of 0.1.x (「保持固定血量」, restorable with `solo` 0.25): `coop` whatever the
- *          count, × min(alive, aliveFull) / aliveFull with `aliveScaling`.
+ *          count, × min(alive, cap) / aliveFull with `aliveScaling`.
  * @param {object|null|undefined} modeScale config.modes[modeId].bossHpScale
  * @param {object|null|undefined} cfgScale config.bossHpScale
  * @param {boolean} isSolo
  * @param {number} [aliveCount] alive players at the Final Assault / Hidden Core start (co-op)
+ * @param {number} [seats] (fork) seats the room started with (finalAssault.js bossPoolSeats); the cap is the larger of it and aliveFull
  * @returns {number}
  */
-export function bossPoolShareOf(modeScale, cfgScale, isSolo, aliveCount) {
+export function bossPoolShareOf(modeScale, cfgScale, isSolo, aliveCount, seats) {
   const ms = modeScale && typeof modeScale === 'object' ? modeScale : {};
   const cs = cfgScale && typeof cfgScale === 'object' ? cfgScale : {};
   const pick = (k, d) => (Number.isFinite(ms[k]) && ms[k] > 0 ? ms[k] : Number.isFinite(cs[k]) && cs[k] > 0 ? cs[k] : d);
   const flag = (k, d) => (typeof ms[k] === 'boolean' ? ms[k] : typeof cs[k] === 'boolean' ? cs[k] : d);
   if (isSolo) return pick('solo', 1);
   const full = Math.max(1, Math.floor(pick('aliveFull', 4)));
+  const s = Number(seats);
+  const cap = Number.isFinite(s) && s > full ? Math.floor(s) : full;
   const n = Number(aliveCount);
-  const alive = Number.isFinite(n) && n >= 1 ? Math.min(full, Math.floor(n)) : full;
+  const alive = Number.isFinite(n) && n >= 1 ? Math.min(cap, Math.floor(n)) : cap;
   if (flag('perPlayer', true)) return pick('coop', 1) * alive;
   return pick('coop', 1) * (flag('aliveScaling', false) ? alive / full : 1);
 }
@@ -156,23 +160,25 @@ export class GameData {
    * never scaled by enemyScale ("领袖单位于服务器的生命值加成不受上述加成影响").
    * @param {string} bossId
    * @param {number} [aliveCount] alive players at the Final Assault / Hidden Core start (co-op)
+   * @param {number} [seats] (fork) seats a Grand Alliance room started with (bossPoolShareOf)
    * @returns {number}
    */
-  bossPoolHp(bossId, aliveCount) {
+  bossPoolHp(bossId, aliveCount, seats) {
     const boss = this.boss(bossId);
     const diff = this.difficulty;
     let base = boss && boss.bloodPoint && Number.isFinite(boss.bloodPoint[diff]) ? boss.bloodPoint[diff] : null;
     if (base == null && boss && boss.bloodPoint) base = Object.values(boss.bloodPoint).find((v) => Number.isFinite(v)) ?? null;
     if (base == null) base = 500000;
-    return Math.max(1, Math.round(base * this.bossPoolShare(aliveCount)));
+    return Math.max(1, Math.round(base * this.bossPoolShare(aliveCount, seats)));
   }
 
   /**
    * Multiplier of bloodPoint for the leader pool (see bossPoolHp; the rule and the config keys: bossPoolShareOf).
    * @param {number} [aliveCount]
+   * @param {number} [seats]
    */
-  bossPoolShare(aliveCount) {
-    return bossPoolShareOf(this.mode.bossHpScale, this.config.bossHpScale, this.isSolo, aliveCount);
+  bossPoolShare(aliveCount, seats) {
+    return bossPoolShareOf(this.mode.bossHpScale, this.config.bossHpScale, this.isSolo, aliveCount, seats);
   }
 
   /** config.titles with the tuning overrides (stat / rule per title id) merged in. */

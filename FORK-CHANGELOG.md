@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Grand Alliance leader HP grows with every player
+
+- In a Grand Alliance room, the leader's HP in the Final Assault and the Hidden Core now grows with every player still alive when the fight starts: 6 players face 6 times the leader's HP for that difficulty, and 8 players face 8 times. Before, it stopped growing at 4 players, so a room of 6 or 8 fought the HP meant for 4 players. Rooms of 4 or fewer players are unchanged.
+
 ### Grand Alliance rooms from every server
 
 - The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
