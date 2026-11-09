@@ -69,7 +69,8 @@ import { diyData, DiyDeckSlot, DiyPicker, DiyDetail } from './diy.js';
 // ones); re-exported here, where the tests and the screen have always imported them from
 import { ModuleInfo, SkillSection, ModuleSection, ProfFilter } from './loadoutSections.js';
 // (fork) the card view's card, deck, bar and drawer: one copy, shared with the 自选编队 picker (screens/loadoutDeck.js)
-import { LevelPill, OutfitSide, DeckOpSide, DeckOpMore, DeckOpCard, GroupMark, GroupBar, GroupBarLive, useGroupDeck, DeckDrawer, DeckDetail, DetailsToggle, slideDetails, useDetailsSync, useOutfitView, setOutfitView, CardSide, speakSelect, bondsInOrder } from './loadoutDeck.js';
+import { LevelPill, OutfitSide, DeckOpSide, DeckOpMore, DeckOpCard, GroupMark, GroupBar, GroupBarLive, useGroupDeck, DeckDrawer, DeckDetail, DetailsToggle, slideDetails, useDetailsSync, useOutfitView, setOutfitView, CardSide, bondsInOrder } from './loadoutDeck.js';
+import { speakSelect, touchOperator, resetLoadoutVoice } from '../ui/loadoutVoice.js';
 export { ModuleInfo };
 export { ModuleGlyph, SkillOption } from './loadoutSections.js';
 import { LoadoutStats } from '../ui/loadoutStats.js';
@@ -441,6 +442,7 @@ function LoadoutScreen({ st }) {
   const ready = useData('chess', 'bonds', 'assets', 'local', 'backups', 'garrisons', 'effects');
   const phase = useStore((s) => s.match?.public?.phase || null);
   const inMatch = useStore((s) => !!s.room?.inMatch);
+  useEffect(() => { resetLoadoutVoice(); }, []); // (fork) a fresh visit: the first operator opened speaks (ui/loadoutVoice.js)
   // co-op briefing (INFO_CHECK, 25 s): the overlay covers the briefing's own countdown, so it shows the time left — the
   // match locks the loadout when it runs out (review fix: edits were silently only for the next match)
   const infoDeadline = useStore((s) => (s.match?.public?.phase === PHASE.INFO_CHECK ? s.match.public.deadline : 0));
@@ -561,7 +563,7 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
   };
   const quickSlot = (slotId, patch) => {
     const p = loadoutStore.get().diy?.[slotId];
-    if (p) setDiySlot(slotId, { ...p, ...patch });
+    if (p) { setDiySlot(slotId, { ...p, ...patch }); touchOperator(p, patch); }
     if (drawer && !isOpenOn(null, slotId)) setDrawer(false);
   };
   const setTab = (t) => loadoutStore.set({ tab: t });
@@ -577,7 +579,7 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
     setSelSlot(null);
     loadoutStore.set({ sel: id });
     setDrawer(true);
-    speakSelect(getChess(id)); // 选中干员 (the user's call of 2026-11-08)
+    speakSelect(getChess(id)); // 选中干员, once per visit (ui/loadoutVoice.js; the user's calls of 2026-11-08 / -09)
   };
   // a card's quick choice (PR #301's): the same setChoice / setEntries path
   // (the edit is made on the view this render drew, with this render's records: written back through that view's map —
@@ -586,15 +588,16 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
   const quickChange = (id, patch, select = true) => {
     const recs = recordsOf(id, getChess);
     setEntries(setChoice(st.entries, recs.base, recs.golden, patch), { base: st.entries });
+    touchOperator(recs.base, patch); // a skill / module pick speaks as an open, once per visit (ui/loadoutVoice.js)
     if (select) loadoutStore.set({ sel: id });
   };
   // (fork) a card's own skill / module choice changes only that choice: the selection and the drawer stay as they were
   const deckChange = (id, patch) => { quickChange(id, patch, false); if (drawer && !isOpenOn(id)) setDrawer(false); };
   // the deck's empty space (not a card, nor a slot)
   const deckBlank = (e) => { if (drawer && !e.target?.closest?.('.lo-op')) setDrawer(false); };
-  const change = (patch) => { if (base) setEntries(setChoice(st.entries, base, golden, patch), { base: st.entries }); };
+  const change = (patch) => { if (base) { setEntries(setChoice(st.entries, base, golden, patch), { base: st.entries }); touchOperator(base, patch); } };
   // 0.2.2: an operator's 潜能 / 练度 (by charId: its normal, elite and 自选 forms share them)
-  const setOpsOf = (charId, patch) => setOpsMap(setOps(loadoutStore.get().ops, charId, patch));
+  const setOpsOf = (charId, patch) => { setOpsMap(setOps(loadoutStore.get().ops, charId, patch)); touchOperator({ charId }); };
   const resetOne = () => {
     if (!base) return;
     setOpsMap(resetOps(loadoutStore.get().ops, base.charId));

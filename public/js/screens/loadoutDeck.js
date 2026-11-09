@@ -19,7 +19,7 @@ import { useStore, createStore } from '../store.js';
 import { detailsStore, outfitViewStore } from '../ui/loadoutDetails.js';
 import { setOutfit, outfitStore, outfitsOf } from '../ui/outfits.js';
 import { reducedMotion } from '../ui/device.js';
-import { audio } from '../audio.js';
+import { speakOutfit } from '../ui/loadoutVoice.js';
 import { VoiceLangPicker } from '../ui/voiceLang.js';
 import { MODULE_NONE, PROF_NAME, skillLabel, moduleBadge, quickSkillTags } from '../ui/loadoutModel.js';
 import { SkillIcon, ModuleGlyph, SkillOption, ModuleSection } from './loadoutSections.js';
@@ -28,16 +28,6 @@ import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 const bondName = (id) => data.lookup('bonds', id)?.name || id;
-
-/**
- * 选中干员: the operator's select line when its card is picked (the user's call of 2026-11-08), as a tap on a piece or a
- * shop card says it in the match (ui/detailPanel.js; audio.voice 'select', the player's own outfit voice and dub).
- * @param {{ charId?: string, assets?: { voice?: string } }|null} rec
- */
-export function speakSelect(rec) {
-  const id = rec?.assets?.voice || rec?.charId;
-  if (id) audio.voice(id, 'select');
-}
 
 /** Bond records of these ids in the roster's order: core first, then the bond order, then the name. */
 export function bondsInOrder(ids) {
@@ -165,7 +155,8 @@ export function DeckOpSide({ m, skills, skill, elite, modules, module, onSkill, 
 /**
  * (fork) The card's column in the 时装 view (the third choice of DetailsToggle): the operator's own look first, then each of its outfits
  * (data/outfits.json, `list`), as their portrait icons — the one worn ringed as an equipped skill is; a tap wears it at
- * once (ui/outfits.js setOutfit, as the 时装 page), and the card's portrait follows. A press here never picks the card.
+ * once (ui/outfits.js setOutfit, as the 时装 page), and the card's portrait follows, and the voice rule of an outfit change applies (ui/loadoutVoice.js
+ * speakOutfit). A press here never picks the card.
  * @param {{ m: any, charId: string, name: string, list: any[], worn: string|null }} p
  */
 export function OutfitSide({ m, charId, name, list, worn }) {
@@ -174,7 +165,7 @@ export function OutfitSide({ m, charId, name, list, worn }) {
     const label = id ? rec?.name || id : t('默认');
     const src = id ? outfitArtUrl(m, id, 'avatar') : m?.chars?.[charId]?.avatarE2 || m?.chars?.[charId]?.avatar;
     return html`<button key=${id || 'default'} type="button" role="radio" aria-checked=${on ? 'true' : 'false'} class=${cx('lo-q', 'lo-q--ofit', on && 'is-on')}
-        data-outfit=${id || 'default'} title=${label} aria-label=${label} onClick=${() => !on && setOutfit(charId, id || null)}>
+        data-outfit=${id || 'default'} title=${label} aria-label=${label} onClick=${() => { if (!on) { setOutfit(charId, id || null); speakOutfit({ charId }); } }}>
       <${Img} src=${src} class="lo-q__ofit" fallback=${html`<b>${[...((id ? rec?.name : name) || '?')][0]}</b>`} /></button>`;
   };
   return html`<div class="lo-op__side lo-quick lo-op__side--ofit" role="radiogroup" aria-label=${t('选择时装')} onClick=${(e) => e.stopPropagation()}>

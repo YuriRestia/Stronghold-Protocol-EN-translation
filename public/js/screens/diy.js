@@ -35,7 +35,8 @@ import { useSkillRangePreview } from '../ui/rangePreview.js';
 import { CultivationSection, cultivationView } from './cultivation.js';
 import { SkillSection, ModuleSection } from './loadoutSections.js';
 // (fork) the card view's card, deck, bar and drawer: the 干员调配 deck's own (one copy, screens/loadoutDeck.js)
-import { LevelPill, OutfitSide, DeckOpSide, DeckOpMore, DeckOpCard, GroupMark, GroupBarLive, useGroupDeck, DeckDrawer, DeckDetail, DetailsToggle, useDetailsSync, useOutfitView, CardSide, speakSelect } from './loadoutDeck.js';
+import { LevelPill, OutfitSide, DeckOpSide, DeckOpMore, DeckOpCard, GroupMark, GroupBarLive, useGroupDeck, DeckDrawer, DeckDetail, DetailsToggle, useDetailsSync, useOutfitView, CardSide } from './loadoutDeck.js';
+import { speakSelect, touchOperator } from '../ui/loadoutVoice.js';
 import { useNameFit } from '../ui/nameFit.js';
 import { t, getLang } from '../../../shared/i18n.js';
 import { detailsStore } from '../ui/loadoutDetails.js';
@@ -322,7 +323,7 @@ export function DiyPickerView({ m, slot, picks, kitted, onDone, onClose, onClear
     if (draft?.charId !== charId) {
       setDraft(cur && cur.charId === charId ? { ...cur } : defaultPick(charId, slot.slotId, D));
       onNarrowDetail(true);
-      speakSelect(D.backups?.units?.[charId] || { charId }); // 选中干员, as in 干员调配
+      speakSelect(D.backups?.units?.[charId] || { charId }); // 选中干员, once per visit, as in 干员调配 (ui/loadoutVoice.js)
       return;
     }
     onNarrowDetail(!narrowDetail);
@@ -333,13 +334,14 @@ export function DiyPickerView({ m, slot, picks, kitted, onDone, onClose, onClear
     const from = draft && draft.charId === charId ? draft
       : cur && cur.charId === charId ? { ...cur } : defaultPick(charId, slot.slotId, D);
     setDraft({ ...from, ...patch });
+    touchOperator({ charId }, patch);
   };
   const label = t('{tier}阶 自选', { tier: slot.tier });
   // (fork) one group per class, in the roster's class order; each keeps the picker's order (prototypes first)
   const groups = PROF_ORDER.map((prof) => ({ prof, items: list.filter((o) => o.unit?.profession === prof) })).filter((g) => g.items.length);
   // the drawer: the draft's detail (DiyDetail; a prototype's skill and module refuse a draft edit)
   const detail = narrowDetail && draft ? DiyDetail({ m, slot, pick: draft, ops, onOps, level: previewLevel, onLevel: onPreviewLevel,
-    view: detailView, onView: onDetailView, onPick: (patch) => setDraft({ ...draft, ...patch }) }) : null;
+    view: detailView, onView: onDetailView, onPick: (patch) => { setDraft({ ...draft, ...patch }); touchOperator(draft, patch); } }) : null;
   const drawer = !!detail;
   return html`<section class=${cx('diy-pick', drawer && 'is-detail')} role="dialog" aria-label=${t('{slot}：选择干员', { slot: label })} data-testid="diy-picker" data-slot=${slot.slotId}>
     <div class="diy-pick__main">

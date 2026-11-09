@@ -567,7 +567,7 @@ speed, slowing like a phone browser's scroll, until a press, a wheel or a touch 
 motion). Nothing on the deck changes while it moves: a class there restyled all ~15 600 elements of 「展开」, 165–187 ms
 each switch, 2–3 a drag (the user's Vivaldi, 2026-11-08); the grabbing hand is a clear sheet over the page instead. A
 press while the deck still moves (it scrolled in the last 120 ms: a glide, a wheel, a jump, a fling) only stops it and
-its click picks nothing, as on a phone (the user's call of 2026-11-08). Picking a card says the operator's select line (选中干员, audio.voice 'select', as a tap in the match does). While the overlay is open the screen
+its click picks nothing, as on a phone (the user's call of 2026-11-08). Picking a card says the operator's select line (选中干员, as a tap in the match does) once per visit (ui/loadoutVoice.js, the user's call of 2026-11-09): a skill or module change counts as opening it (as the first touch it speaks); more clicks on the same operator stay silent until another operator is touched, and each return takes its other line, never the last one; switching to an outfit with its own voice set always speaks in it (its 选中干员 / 部署 lines, else any line of it), any other outfit change is an ordinary interaction, and the newest line cuts the previous one off. The Custom Squad picker shares the rule. While the overlay is open the screen
 under it pauses its animations (the lobby's radar kept a fresh frame coming over the whole deck). The slide is FLIP (slideDetails): the deck takes its final
 layout at once, scrolled so that one card holds its place on screen — the selected card, or when it is off screen the
 card nearest the view's centre (deckAnchor) —, and the cards in view glide from their old places while each panel
