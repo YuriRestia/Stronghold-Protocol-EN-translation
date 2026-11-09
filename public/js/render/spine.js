@@ -311,7 +311,8 @@ export const CLIP_BOUNDS_BUDGET_MS = 2.5;
  * while frames come quickly; past CLIP_BOUNDS_SLOW_FRAME_MS a share of the frame (CLIP_BOUNDS_FRAME_SHARE), at most
  * CLIP_BOUNDS_BUDGET_MAX_MS. A crowd that arrives at once (a battle's start, 联防, a boss) queues ~60 skeletons' clips
  * (≈ 3 s of posing with the clips' key times); while they wait its units are drawn directly, not as impostors, and the
- * frames are slow — at 2.5 ms a frame and ~10-17 fps that took 50 s to over 2 minutes (render-demo stress: 120 units,
+ * frames are slow (`frameMs` here is the frame without the sampling itself: render/app.js subtracts clipBoundsSpentMs, so
+ * the budget never feeds on itself) — at 2.5 ms a frame and ~10-17 fps that took 50 s to over 2 minutes (render-demo stress: 120 units,
  * 59 skeletons, 359 clips, 34,859 poses, 0.08-0.3 ms each); a third of a slow frame (at most 33 ms) empties it in
  * 22-30 s. Same samples, same boxes; the queue only empties sooner (stepClipBounds also takes the skeletons that the most
  * waiting units need first). Nothing to sample: stepClipBounds returns at once. [ASSUMED] the share and the cap.
@@ -413,9 +414,95 @@ function boundsRecord(data, Skeleton) {
     rec.failed = true;
     rec.skel = null;
   }
+  if (!rec.failed) seedRecord(rec);
   boundsOf.set(data, rec);
   return rec;
 }
+
+// (fork) Precomputed clip bounds (tools/assets/clip-bounds.mjs → data/clip-bounds.json, loaded by
+// render/clipBoundsTable.js): the same sampling run at build time on every skeleton of public/assets with the same
+// Spine runtime, each rect rounded outward to `step` units (never smaller than the runtime's). A skeleton whose Spine
+// hash (its first CLIP_BOUNDS_KEY_CHARS) and signature (bones · slots · animations) match an entry starts with those
+// clips measured; a clip the entry
+// lacks, a skeleton it does not know (plugins, DIY, another server's local art) or a table made by another sampler
+// (CLIP_BOUNDS_SAMPLER) is measured at runtime as before.
+/** Bumped whenever the sampling (clipTimes, poseRect, the constants above) changes what a clip measures. */
+export const CLIP_BOUNDS_SAMPLER = 1;
+/** The key a precomputed table must carry to be used: the sampler version and its constants. */
+export function clipBoundsSamplerKey() {
+  return [CLIP_BOUNDS_SAMPLER, CLIP_SAMPLE_HZ, CLIP_SAMPLE_MAX, CLIP_SAMPLE_KEYS, CLIP_KEY_LEAD_S].join('|');
+}
+/** A skeleton data's shape, checked next to its Spine hash: bones · slots · animations. */
+export function skeletonSignature(data) {
+  const n = (a) => (Array.isArray(a) ? a.length : 0);
+  return `${n(data && data.bones)}.${n(data && data.slots)}.${n(data && data.animations)}`;
+}
+/** Characters of the Spine hash a table keys its skeletons by (tools/assets/clip-bounds.mjs CLIP_BOUNDS_KEY_CHARS). */
+export const CLIP_BOUNDS_KEY_CHARS = 8;
+let seedTable = null;   // the loaded table: { step, names, skeletons: { [hash key]: [signature, flat] } }
+/**
+ * The precomputed clips of skeleton data `data`: Map clip → rect (skeleton units) | null, or null without an entry.
+ * `flat`: per clip its index in `names` and its rect in steps, or -(index + 1) for a clip that draws nothing.
+ */
+function seedClips(data) {
+  const hash = data && typeof data.hash === 'string' ? data.hash : '';
+  const sk = seedTable && seedTable.skeletons;
+  if (!sk || hash.length < CLIP_BOUNDS_KEY_CHARS) return null;
+  const key = hash.slice(0, CLIP_BOUNDS_KEY_CHARS);
+  if (!Object.prototype.hasOwnProperty.call(sk, key)) return null;
+  const e = sk[key];
+  if (!Array.isArray(e) || e[0] !== skeletonSignature(data) || !Array.isArray(e[1])) return null;
+  const { names, step } = seedTable, flat = e[1], out = new Map();
+  for (let i = 0; i < flat.length;) {
+    const k = flat[i++];
+    if (!Number.isInteger(k)) return null;
+    if (k < 0) { const n = names[-k - 1]; if (typeof n !== 'string') return null; out.set(n, null); continue; }
+    const n = names[k];
+    if (typeof n !== 'string' || i + 4 > flat.length) return null;
+    const r = [flat[i] * step, flat[i + 1] * step, flat[i + 2] * step, flat[i + 3] * step];
+    i += 4;
+    if (!r.every(Number.isFinite) || r[0] > r[2] || r[1] > r[3]) return null;
+    out.set(n, r);
+  }
+  return out;
+}
+/** Fill record `rec` from the table: its measured clips, what it still has queued dropped. @returns {number} clips seeded */
+function seedRecord(rec) {
+  const clips = seedClips(rec.data);
+  if (!clips) return 0;
+  let n = 0;
+  for (const [name, r] of clips) {
+    if (rec.rects.has(name)) continue;
+    rec.rects.set(name, r);
+    n++;
+  }
+  if (n) {
+    rec.todo = rec.todo.filter((name) => !rec.rects.has(name));
+    if (rec.job && rec.rects.has(rec.job.name)) rec.job = null;
+    if (!rec.todo.length && !rec.job) {
+      const i = boundsQueue.indexOf(rec);
+      if (i >= 0) boundsQueue.splice(i, 1);
+      rec.skel = null;
+    }
+  }
+  return n;
+}
+/**
+ * Use a precomputed table (data/clip-bounds.json, format 1): records made from now on start from it, and records
+ * already queued take what it has. A table of another format or sampler, or no table, changes nothing.
+ * @param {any} table { format: 1, sampler, step, names, skeletons: { [hash key]: [signature, flat] } }
+ * @returns {number} clips seeded into the records already queued (-1: the table was not used)
+ */
+export function seedClipBounds(table) {
+  if (!table || table.format !== 1 || table.sampler !== clipBoundsSamplerKey() || !(table.step > 0) || !Array.isArray(table.names)
+    || !table.skeletons || typeof table.skeletons !== 'object') return -1;
+  seedTable = { step: table.step, names: table.names, skeletons: table.skeletons };
+  let n = 0;
+  for (const rec of [...boundsQueue]) n += seedRecord(rec);
+  return n;
+}
+/** (dev / tests) Forget the precomputed table. */
+export function clearClipBoundsSeed() { seedTable = null; }
 
 /**
  * Start sampling clip `name`: { name, anim, d, n, i, r } (posed at t = d·i/n for i = 0…n; `r` grows), or null when the
@@ -527,8 +614,18 @@ function promoteClipBounds() {
  * @returns {number} clips finished
  */
 export function stepClipBounds(budgetMs = CLIP_BOUNDS_BUDGET_MS) {
+  spentMs = 0;
   if (!boundsQueue.length) return 0;
-  const end = nowMs() + budgetMs;
+  const start = nowMs();
+  try { return sampleClipBounds(budgetMs, start); } finally { spentMs = nowMs() - start; }
+}
+
+/** (fork) ms the last stepClipBounds call spent (render/app.js leaves it out of the device's frame time). */
+export function clipBoundsSpentMs() { return spentMs; }
+let spentMs = 0;
+
+function sampleClipBounds(budgetMs, start) {
+  const end = start + budgetMs;
   let finished = 0, posed = 0;
   while (boundsQueue.length) {
     promoteClipBounds();

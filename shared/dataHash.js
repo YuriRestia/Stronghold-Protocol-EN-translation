@@ -1,6 +1,7 @@
 // shared/dataHash.js — (fork) content-hashed URLs of the big data files (host bandwidth).
 //
-// data/assets.json, data/local-assets.json, data/local-fx.json and the preload's resource-manifest.json are served
+// data/assets.json, data/local-assets.json, data/local-fx.json, (fork) data/clip-bounds.json and the preload's
+// resource-manifest.json are served
 // `no-cache` at their plain /data/ URLs, so a CDN in front of the server sends every request on to it. The same files
 // are also served at `/data/h/<hash>/<name>`: when <hash> is the one the server holds now (a served manifest's view
 // hash, server/http/assetViews.js; the preload manifest's version, server/resources.js) the answer is `immutable` for a
@@ -16,7 +17,9 @@ export const DATA_HASH_ROOT = '/data/h/';
 export const DATA_HASH_META = 'sp-data-hashes';
 
 /** The files served at a hashed URL, by their name under /data/. */
-export const DATA_HASHED_FILES = Object.freeze(['assets.json', 'local-assets.json', 'local-fx.json', 'resource-manifest.json']);
+/** (fork) clip-bounds.json: the precomputed impostor clip bounds (tools/assets/clip-bounds.mjs), a plain file whose content hash
+ *  the server takes (server/http/static.js dataFile). */
+export const DATA_HASHED_FILES = Object.freeze(['assets.json', 'local-assets.json', 'local-fx.json', 'resource-manifest.json', 'clip-bounds.json']);
 
 const HASH_RE = /^[0-9a-f]{8,64}$/;
 

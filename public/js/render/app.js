@@ -165,7 +165,8 @@ import { TILE_H, TIER_COLORS, COLORS } from './style.js';
 import { loadBoardArt } from './boardArt.js';
 import { recordError } from '../diag.js';
 import { ImpostorAtlas } from './impostor.js';
-import { stepClipBounds, clipBoundsBudget } from './spine.js';
+import { stepClipBounds, clipBoundsBudget, clipBoundsSpentMs } from './spine.js';
+import { loadClipBoundsTable } from './clipBoundsTable.js';
 import { loadThree, loadBoardPack, loadScenePack, webgl2Available, boardArtListed } from './board3d/load.js';
 import { BoardScene } from './board3d/scene.js';
 import { layoutPen, penSignature } from './pen.js';
@@ -208,6 +209,7 @@ export async function createFieldView(host, options = {}) {
   signal?.throwIfAborted();
   const P = await withTimeout(ensurePixi(), null, signal);
   signal?.throwIfAborted();
+  loadClipBoundsTable();   // (fork) the precomputed impostor clip bounds, once per page, as a later load
   const assets = resolveAssets(opts.assets);
   const data = makeData(opts.data);
   const settings = { damageNumbers: true, officialDamageNumbers: false, ammoEnergyCount: false, quality: 'high', officialFx: 'auto', ...(opts.settings || {}) };
@@ -358,6 +360,10 @@ export async function createFieldView(host, options = {}) {
   const held = new Map();     // uid → world { x, y, z }: prep pieces pinned to a tile by the direction step (holdPiece)
   let hoverUnit = null;
   let frameMs = 16, fps = 60, lastNow = performance.now();
+  // (fork) the frame time without the clip-bounds sampling of the frame before (spine.js stepClipBounds): what the device
+  // needs for the game itself. The sampling budget and adaptLoad read it, so a larger sampling share never counts as a
+  // slow device and never feeds its own budget (Dev 7 review #3); frameMs / fps stay the real frame time.
+  let workMs = 16, sampledMs = 0;
   const layerPops = new Map();
   // prep field (render/prepfield.js): identity on the own board, the boss-field half in the Final Assault prep
   let prepXf = IDENTITY;
@@ -2034,8 +2040,8 @@ export async function createFieldView(host, options = {}) {
   function adaptLoad(dtRaw) {
     if (!(dtRaw > 0) || dtRaw > 0.25 || globalThis.document?.hidden) return;
     const busy = views.size + penViews.size > 8;
-    if (frameMs > 19.5 && busy) { slowFor += dtRaw; fastFor = 0; }
-    else if (frameMs < 17.6) { fastFor += dtRaw; slowFor = 0; }
+    if (workMs > 19.5 && busy) { slowFor += dtRaw; fastFor = 0; }
+    else if (workMs < 17.6) { fastFor += dtRaw; slowFor = 0; }
     if (slowFor > 1 && loadLevel < 3) { loadLevel++; slowFor = 0; fastFor = 0; impInterval = pickImpostorInterval(); }
     else if (loadLevel > 0 && (fastFor > 6 * loadLevel || !busy && fastFor > 2)) { loadLevel--; fastFor = 0; impInterval = pickImpostorInterval(); }
   }
@@ -2083,7 +2089,9 @@ export async function createFieldView(host, options = {}) {
     const dt = Number.isFinite(playbackT) ? Math.max(0, playbackT - (frame.playbackT ?? playbackT)) : Math.min(0.1, Math.max(0, dtRaw));
     frame.playbackT = playbackT;
     let udt = dt;   // the units' / effects' frame time ((fork) frozen: the game time a step added, set below)
-    if (dtRaw < 0.25) frameMs = frameMs * 0.9 + dtRaw * 1000 * 0.1;
+    const workRaw = Math.max(0, dtRaw * 1000 - sampledMs);   // (fork) this frame without the last frame's sampling
+    sampledMs = 0;   // set again by this frame's stepClipBounds (a frame that skips it subtracts nothing next time)
+    if (dtRaw < 0.25) { frameMs = frameMs * 0.9 + dtRaw * 1000 * 0.1; workMs = workMs * 0.9 + workRaw * 0.1; }
     fps = 1000 / Math.max(1, frameMs);
     adaptLoad(dtRaw);
     vp.width = Math.max(1, host.clientWidth || 1); vp.height = Math.max(1, host.clientHeight || 1);
@@ -2148,7 +2156,8 @@ export async function createFieldView(host, options = {}) {
       if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
       fx.update(udt);
-      stepClipBounds(clipBoundsBudget(dtRaw * 1000));   // (fork) a larger share of a slow frame
+      stepClipBounds(clipBoundsBudget(workRaw));   // (fork) a larger share of a slow frame (its own sampling not counted)
+      sampledMs = clipBoundsSpentMs();
       impostors.flush();
     } catch (err) {
       if (!frame.warned) { frame.warned = true; console.error('[render] frame failed', err); }

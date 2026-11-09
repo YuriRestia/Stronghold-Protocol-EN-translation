@@ -18,6 +18,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { installFakePixi, fakeViewCtx } from './fakepixi.js';
 import { presetCamera } from '../../public/js/render/projection.js';
+import { syntheticSkeleton } from '../helpers/syntheticSkeleton.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const rt = createRequire(path.join(ROOT, 'package.json'))('@pixi-spine/runtime-3.8');
@@ -31,40 +32,8 @@ before(async () => {
 });
 after(() => fake.restore());
 
-/**
- * A synthetic skeleton: a 100 × 200 body on the root (setup x −50…50, y −200…0 in pixi-spine's y-down world), a 50 × 50
- * flag on the 'arm' bone at x 100 (75…125), a 'flash' slot that is empty in the setup pose, and a 'ghost' slot drawn at
- * alpha 0. Clips: 'Wave' (the arm out to x + 300 at 0.5 s and back), 'Flash' (the flash shown 0.50–0.55 s only, at
- * x 900), 'Ghost' (the ghost bone moved far out: never drawn), 'Still'.
- */
-function skeleton() {
-  const data = new rt.SkeletonData();
-  const bone = (i, name, parent) => { const b = new rt.BoneData(i, name, parent); data.bones.push(b); return b; };
-  const root = bone(0, 'root', null), arm = bone(1, 'arm', root), ghostBone = bone(2, 'ghost', root);
-  const slot = (i, name, b, att) => { const s = new rt.SlotData(i, name, b); s.attachmentName = att; data.slots.push(s); return s; };
-  slot(0, 'body', root, 'body'); slot(1, 'flag', arm, 'flag'); slot(2, 'flash', root, null);
-  slot(3, 'ghost', ghostBone, 'ghost').color.a = 0;
-  const skin = new rt.Skin('default');
-  const region = (name, w, h, x, y) => { const a = new rt.RegionAttachment(name); a.width = w; a.height = h; a.x = x; a.y = y; return a; };
-  skin.setAttachment(0, 'body', region('body', 100, 200, 0, 100));
-  skin.setAttachment(1, 'flag', region('flag', 50, 50, 100, 0));
-  skin.setAttachment(2, 'flash', region('flash', 20, 20, 900, 0));
-  skin.setAttachment(3, 'ghost', region('ghost', 10, 10, 0, 0));
-  data.skins.push(skin);
-  data.defaultSkin = skin;
-  const wave = new rt.TranslateTimeline(3);
-  wave.boneIndex = 1;
-  wave.setFrame(0, 0, 0, 0); wave.setFrame(1, 0.5, 300, 0); wave.setFrame(2, 1, 0, 0);
-  const flash = new rt.AttachmentTimeline(3);
-  flash.slotIndex = 2;
-  flash.setFrame(0, 0, null); flash.setFrame(1, 0.5, 'flash'); flash.setFrame(2, 0.55, null);
-  const ghost = new rt.TranslateTimeline(2);
-  ghost.boneIndex = 2;
-  ghost.setFrame(0, 0, 5000, 0); ghost.setFrame(1, 1, 5000, 0);
-  data.animations.push(new rt.Animation('Wave', [wave], 1), new rt.Animation('Flash', [flash], 1),
-    new rt.Animation('Ghost', [ghost], 1), new rt.Animation('Still', [], 0));
-  return data;
-}
+/** The synthetic skeleton of test/helpers/syntheticSkeleton.js (shared with clip-bounds-table.test.js). */
+const skeleton = () => syntheticSkeleton(rt);
 const near = (a, b, msg) => { for (let i = 0; i < 4; i++) assert.ok(Math.abs(a[i] - b[i]) < 1e-3, `${msg}: [${a}] vs [${b}]`); };
 /** Sample every queued clip now. */
 const drain = () => { while (spine.pendingClipBounds()) spine.stepClipBounds(Infinity); spine.stepClipBounds(Infinity); };
@@ -540,4 +509,16 @@ test('clip-bounds queue: the skeleton most units wait for is measured first; sam
   while (spine.pendingClipBounds()) spine.stepClipBounds(0);
   near(one.clipBounds(['Wave', 'Still']).get('Wave'), [-50, -200, 425, 25], 'measured as in request order');
   for (const a of [one, ...many]) a.destroy();
+});
+
+// (fork) the time a sampling call spent (render/app.js leaves it out of the device's frame time, Dev 7 review #3)
+test('clip-bounds sampling reports the time it spent; nothing queued costs nothing', () => {
+  while (spine.pendingClipBounds()) spine.stepClipBounds(Infinity);
+  spine.stepClipBounds(5);
+  assert.equal(spine.clipBoundsSpentMs(), 0, 'an empty queue: 0 ms');
+  spine.requestClipBounds(skeleton(), rt.Skeleton, ['Wave']);
+  spine.stepClipBounds(0);
+  const ms = spine.clipBoundsSpentMs();
+  assert.ok(ms > 0 && ms < 1000, `one pose took ${ms} ms`);
+  while (spine.pendingClipBounds()) spine.stepClipBounds(Infinity);
 });

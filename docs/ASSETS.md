@@ -394,6 +394,14 @@ version; base/E2 avatars and half-body portraits are mandatory where the data se
   - Ark-Models enemy atlases get `pma: true`, because their textures are premultiplied. pixi-spine reads this and sets `ALPHA_MODES.PMA`.
   - Page names are sanitized to safe file names.
   - All of this is idempotent.
+- **Impostor clip bounds** (fork, `tools/assets/clip-bounds.mjs` → `data/clip-bounds.json`, git-ignored): after the
+  art is on disk, every `*.skel` under `public/assets/` (with its `.atlas`) is read with `@pixi-spine/runtime-3.8` and each
+  of its clips measured by `public/js/render/spine.js` itself (requestClipBounds / stepClipBounds: the browser's own
+  sampling). Rects are rounded outward to 4 skeleton units and keyed by the first 8 characters of the skeleton's Spine
+  hash plus its bones · slots · animations count; the page (`render/clipBoundsTable.js`) seeds them and measures only
+  what the table does not match. `npm run assets` and `npm run assets:release-local` run it at their end; after a
+  local-client extraction run `npm run clip-bounds`. Format and guards: the header of `tools/assets/clip-bounds.mjs`,
+  `test/render/clip-bounds-table.test.js` (`CLIP_BOUNDS_FULL=1`: every skeleton on disk).
 - **Page art fixes** (fork, `tools/assets/texture-fixes.mjs RIM_FIXES`): after the atlas is normalized, a listed
   model's eyelid regions (found by name in its atlas) get their dark outer rim painted skin-coloured, keeping the
   pixels within `keep` px of the eye hole. 铃兰 Suzuran's default model (`F_Face_Default_h` / `_i`) drew those rims as

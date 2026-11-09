@@ -300,7 +300,7 @@ export const manifestFiles = listedArtFiles;
 
 /**
  * The art of a full package: every file data/assets.json lists, public/fonts, public/assets/local/ and
- * data/local-assets.json (when present); the official effects (public/assets/local/fx/ with data/local-fx.json) only
+ * data/local-assets.json and (fork) data/clip-bounds.json (when present); the official effects (public/assets/local/fx/ with data/local-fx.json) only
  * with `fx` (FULL_ZIP_FX), else they are `fxHeld`. `missing`: listed files not on disk; `orphans`: files under public/assets
  * that nothing lists (left out); `held`: listed files the zip holds back on purpose — the JP voice dub when `jpVoice`
  * (FULL_ZIP_JP_VOICE) is off, the English / Korean / own-language dubs when `optionalVoice` (FULL_ZIP_OPTIONAL_VOICE)
@@ -330,6 +330,8 @@ export function artPlan(root, { lite = false, jpVoice = FULL_ZIP_JP_VOICE, optio
   }
   if (local) files.add('data/local-assets.json');
   if (fx && fxList) files.add('data/local-fx.json');
+  // (fork) the impostor clip bounds of this art (tools/assets/clip-bounds.mjs), when made: a full-zip install has them at once
+  if (isFile(path.join(root, 'data', 'clip-bounds.json'))) files.add('data/clip-bounds.json');
   // without case: on Windows / macOS a file whose name differs only in case is the listed one (fetch-assets orphanFiles)
   const lower = new Set([...files, ...held, ...fxHeld].map((f) => f.toLowerCase()));
   const orphans = listTree(root, 'public/assets').filter((f) => !lower.has(f.toLowerCase()));
