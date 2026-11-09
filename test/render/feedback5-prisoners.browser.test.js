@@ -93,7 +93,9 @@ describe('the 孤岛风云 prisoners draw confined → warning → freed (headle
         /** Step the sim `ticks` ticks, feeding the view; log each prisoner's sim form and drawn clip. */
         const run = (ticks) => page.evaluate(async (ticks, keys) => {
           const { b, v, meta, log } = window.__pr;
-          const raf = () => new Promise((r) => requestAnimationFrame(() => r()));
+          let lastPush = 0;   // (fork) one push per 60 Hz frame at most: headless Chrome on the GPU fires rAF at 100+ Hz, where the
+          // view (setLocalFeed: at most 8x real time) fell ~1 s behind the 0.1 game s each push adds
+          const raf = async () => { do await new Promise((r) => requestAnimationFrame(() => r())); while (performance.now() - lastPush < 1000 / 60); lastPush = performance.now(); };
           for (let i = 0; i < ticks; i++) {
             b.step();
             if (i % 3 !== 2) continue;

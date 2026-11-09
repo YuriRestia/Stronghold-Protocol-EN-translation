@@ -33,6 +33,9 @@ test('real Spine held death matches forced updates; revival and late font raster
         for (let i = 0; i < pixels.length; i++) { value = Math.imul(value ^ pixels[i], 16777619); if (i % 4 === 3 && pixels[i]) ink++; }
         return { value: value >>> 0, bytes: pixels.length, ink };
       };
+      // (fork) one GPU readback of an unchanged object hashed differently now and then on the overnight machine (2026-11-09:
+      // 1-4 of 40 repeat reads of the same pose, so the pose comparison flaked): read until two reads in a row agree
+      const stableHash = obj => { let h = hash(obj); for (let k = 0; k < 6; k++) { const g = hash(obj); if (g.value === h.value && g.bytes === h.bytes) return g; h = g; } return h; };
       a.update(0.1);b.update(0.1);a.die();b.die();
       const firstHeld = a.poseHeld();
       // Exercise a real mix that outlasts the outgoing death clip, not merely the unposed first frame.
@@ -49,12 +52,12 @@ test('real Spine held death matches forced updates; revival and late font raster
         if (a.poseHeld()) { a.clock += 1 / 60;skipped++; } else a.update(1 / 60);
         b.update(1 / 60);
         if (i % 15 === 0) {
-          const x = hash(a.spine), y = hash(b.spine);
+          const x = stableHash(a.spine), y = stableHash(b.spine);
           equal &&= x.value === y.value && x.bytes === y.bytes;
           ink = Math.max(ink, x.ink);
         }
       }
-      const finalA = hash(a.spine), finalB = hash(b.spine);
+      const finalA = stableHash(a.spine), finalB = stableHash(b.spine);
       const finalVisibleEqual = a.poseHeld() && finalA.ink > 0 && finalA.value === finalB.value && finalA.bytes === finalB.bytes;
       const clocksEqual = Math.abs(a.clock - b.clock) < 1e-9;
       a.revive();a.deploy();a.update(1 / 60);
