@@ -231,6 +231,17 @@
   .brief .stephead__name { min-width: 0; white-space: normal; text-wrap: balance; line-height: 1.1; }
   .brief .stephead__name:lang(ko) { word-break: keep-all; overflow-wrap: break-word; }
   .brief .stephead__name:lang(ja) { line-break: strict; }
+  /* (fork) the reroll sits in the foot (d7f4e8d7) in place of upstream's banner above it, which kept the scrolling list clear
+     of the foot: here the foot is the column's last row, so no section text runs under its labels (§35.56: English and
+     Korean at 大 / 特大 on 640–667 px phones; the list ran under the see-through top of the foot) */
+  .brief__foot { position: relative; flex: none; }
+  .brief__main { padding-bottom: .2rem; }
+  .brief-ready__txt { white-space: nowrap; }
+  /* … and at 大 / 特大 重刷本局 keeps its icon outside Chinese (the English and Korean labels ran under 干员调配, the
+     Japanese 開始条件を再抽選 is as long; the name stays the accessible name, the tooltip says what it does; the four
+     Chinese characters fit) */
+  :root:not(:lang(zh))[data-text="lg"] .brief-reroll__go .btn__label,
+  :root:not(:lang(zh))[data-text="xl"] .brief-reroll__go .btn__label { display: none; }
 }
 /* … and in a short desktop window (≤ 640 px tall: 1024×600) at 大 / 特大 (§35.51 review: the micro cut and over 玩法说明 there) */
 @media (max-height: 640px) {

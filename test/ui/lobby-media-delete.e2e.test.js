@@ -8,6 +8,7 @@ import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { startServer } from '../../server/index.js';
 import { CHROME, OUT, hasChrome } from '../e2e/client.mjs';
+import { seedReleaseRead } from '../helpers/releaseNotes.js';
 
 const ENABLED = process.env.SP_E2E === '1' && hasChrome();
 
@@ -59,6 +60,10 @@ test('deleting lobby media changes its selection only after storage commits', {
         page.on('response', r => { if (r.status() >= 400) result.problems.push({ type: 'http', status: r.status(), url: r.url() }); });
         const shot = async name => { const f = `${abort ? 'abort' : 'normal'}-${name}.png`; await page.screenshot({ path: path.join(output, f) }); result.screenshots.push(f); };
         try {
+          // (fork) a returning player (no entry film: its modal tap-to-enter gate leaves the login inert) reading the
+          // Chinese msgids (the page starts in English, ui/lang.js START_LANG)
+          await seedReleaseRead(page);
+          await page.evaluateOnNewDocument(() => { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); });
           await page.goto(srv.url, { waitUntil: 'domcontentloaded' });
           await page.waitForSelector('.title-login input'); await page.waitForSelector('#boot', { hidden: true });
           await page.locator('.title-login input').fill('删除存储验证'); await page.locator('.title-login button').click();

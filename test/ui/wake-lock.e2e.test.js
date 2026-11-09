@@ -31,6 +31,8 @@ describe('App screen wake lock', { skip: !ENABLED && 'set SP_E2E=1 (and have Chr
     const page = await browser.newPage();
     try {
       await seedReleaseRead(page);
+      // (fork) the page starts in English (ui/lang.js START_LANG); these checks read the Chinese msgids unless they switch
+      await page.evaluateOnNewDocument(() => { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); });
       await page.goto(`${base}/dev/game-mock.html?shot=1&render=fallback&phase=PREP`, { waitUntil: 'networkidle0' });
       await page.waitForFunction(() => !!globalThis.__MOCK__);
       fixtures = await page.evaluate(() => {
@@ -67,6 +69,8 @@ describe('App screen wake lock', { skip: !ENABLED && 'set SP_E2E=1 (and have Chr
       } } });
     }, preference);
     await seedReleaseRead(page);
+    // (fork) the page starts in English (ui/lang.js START_LANG); these checks read the Chinese msgids unless they switch
+    await page.evaluateOnNewDocument(() => { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); });
     await page.goto(`${base}/?render=fallback`, { waitUntil: 'networkidle0', timeout: 60000 });
     await page.waitForFunction(() => !!globalThis.__SP__ && !!document.querySelector('.title-screen'));
     await page.evaluate(async () => {
@@ -96,7 +100,7 @@ describe('App screen wake lock', { skip: !ENABLED && 'set SP_E2E=1 (and have Chr
     return s;
   }
   async function settings(page) {
-    await page.click('.title-settings, .gm__gear');
+    await page.click('.title-settings, .gm__gear:not(.gm__metrics)'); // (fork) the first .gm__gear can be 作战统计
     await page.waitForSelector('.modal');
   }
   async function toggle(page, on) {
@@ -139,6 +143,9 @@ describe('App screen wake lock', { skip: !ENABLED && 'set SP_E2E=1 (and have Chr
     await page.keyboard.press('Escape');
     await page.waitForSelector('.tooltip', { hidden: true });
     assert.ok(await page.$('.modal'), 'closing the help keeps the settings open');
+    // (fork) the pointer leaves the help: in the next language the help can sit under the same spot (Japanese → Korean), and a
+    // hover that starts inside it fires no new pointerenter
+    await page.mouse.move(1, 1);
     return tr(LABEL);
   }
 

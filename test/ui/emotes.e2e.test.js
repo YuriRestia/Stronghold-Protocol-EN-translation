@@ -85,7 +85,9 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
       items: document.querySelectorAll(`${root} .ewheel__item`.trim()).length,
       imgs: [...document.querySelectorAll(`${root} .ewheel__item img`.trim())].filter((i) => i.complete && i.naturalWidth > 0).length,
       glyphs: document.querySelectorAll(`${root} .ewheel__item .eart--glyph`.trim()).length,
-      panelText: panel ? panel.textContent.trim() : '',
+      // (fork) the match-chat 表情 / 文字 tabs (03bf206c) are the panel's only words; the emote pages carry none
+      panelText: panel ? [...panel.childNodes].filter((n) => !n.classList?.contains('ewheel__tabs')).map((n) => n.textContent).join('').trim() : '',
+      tabs: [...document.querySelectorAll(`${root} .ewheel__tab`.trim())].map((b) => b.textContent.replace(/\s+/g, ' ').trim()),
       btnDisabled: q('.ewheel__btn')?.disabled ?? null,
       dotOn: [...document.querySelectorAll(`${root} .ewheel__dot`.trim())].findIndex((d) => d.classList.contains('is-on')),
     };
@@ -334,6 +336,7 @@ describe('official emotes in the browser', { skip: !ENABLED && 'set SP_E2E=1 (an
     assert.equal(s.items, 6);
     assert.equal(s.imgs, 6);
     assert.equal(s.panelText, '');
+    assert.deepEqual(s.tabs.map((x) => x.replace(/\d+$/, 'N')), ['表情', '文字 N'], 'the match-chat tabs over the wheel');
     const geo = await page.$$eval('.team__row', (rows) => rows.filter((r) => r.querySelector('.team__bubble')).map((r) => {
       const row = r.getBoundingClientRect();
       const a = r.querySelector('.pavatar, .team__btn').getBoundingClientRect();

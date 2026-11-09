@@ -33,15 +33,19 @@ function wav(seconds = 1, rate = 22050) {
   for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin((i / rate) * 2 * Math.PI * 440) * 8000), 44 + i * 2);
   return b;
 }
+// (fork) the codec named: a bare 'video/webm' recorded a 1952×208 canvas as an empty 110-byte file in the test Chrome; VP8
+// records it (2.4 kB) — but a page's first recording can still be a bare header, so canvasFile records again then
+const WEBM = 'video/webm;codecs=vp8';
+
 /** Bytes made in the page: a PNG from a canvas, or a WebM recorded from one. */
-const pageFile = (c, kind) => c.page.evaluate(async (kind) => {
+const pageFile = (c, kind) => c.page.evaluate(async (kind, WEBM) => {
   const cv = document.createElement('canvas');
   cv.width = 320; cv.height = 180;
   const g = cv.getContext('2d');
   const paint = (k) => { g.fillStyle = `hsl(${(k * 40) % 360} 60% 40%)`; g.fillRect(0, 0, 320, 180); g.fillStyle = '#fff'; g.fillRect(20 + k * 8, 60, 60, 60); };
   let blob;
   if (kind === 'png') { paint(3); blob = await new Promise((r) => cv.toBlob(r, 'image/png')); } else {
-    const rec = new MediaRecorder(cv.captureStream(15), { mimeType: 'video/webm' });
+    const rec = new MediaRecorder(cv.captureStream(15), { mimeType: WEBM });
     const parts = [];
     rec.ondataavailable = (e) => parts.push(e.data);
     const stopped = new Promise((r) => { rec.onstop = r; });
@@ -55,31 +59,34 @@ const pageFile = (c, kind) => c.page.evaluate(async (kind) => {
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
-}, kind).then((b64) => Buffer.from(b64, 'base64'));
+}, kind, WEBM).then((b64) => Buffer.from(b64, 'base64'));
 
 /** A PNG (or a WebM) of w×h drawn in the page; `clear`: the left quarter transparent. */
-const canvasFile = (c, { kind = 'png', w, h, clear = false }) => c.page.evaluate(async ({ kind, w, h, clear }) => {
+const canvasFile = (c, { kind = 'png', w, h, clear = false }) => c.page.evaluate(async ({ kind, w, h, clear, WEBM }) => {
   const cv = document.createElement('canvas');
   cv.width = w; cv.height = h;
   const g = cv.getContext('2d');
   const paint = (k) => { g.clearRect(0, 0, w, h); g.fillStyle = `hsl(${(k * 50) % 360} 60% 45%)`; g.fillRect(clear ? w / 4 : 0, 0, w, h); };
   let blob;
   if (kind === 'png') { paint(1); blob = await new Promise((r) => cv.toBlob(r, 'image/png')); } else {
-    const rec = new MediaRecorder(cv.captureStream(10), { mimeType: 'video/webm' });
-    const parts = [];
-    rec.ondataavailable = (e) => parts.push(e.data);
-    const stopped = new Promise((r) => { rec.onstop = r; });
-    rec.start();
-    for (let k = 0; k < 6; k++) { paint(k); await new Promise((r) => setTimeout(r, 100)); }
-    rec.stop();
-    await stopped;
-    blob = new Blob(parts, { type: 'video/webm' });
+    // the page's first recording can come out as a bare 110-byte header (no frames): record again then
+    for (let attempt = 0; attempt < 3 && !(blob?.size > 512); attempt++) {
+      const rec = new MediaRecorder(cv.captureStream(10), { mimeType: WEBM });
+      const parts = [];
+      rec.ondataavailable = (e) => parts.push(e.data);
+      const stopped = new Promise((r) => { rec.onstop = r; });
+      rec.start();
+      for (let k = 0; k < 6; k++) { paint(k); await new Promise((r) => setTimeout(r, 100)); }
+      rec.stop();
+      await stopped;
+      blob = new Blob(parts, { type: 'video/webm' });
+    }
   }
   const bytes = new Uint8Array(await blob.arrayBuffer());
   let s = '';
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(s);
-}, { kind, w, h, clear }).then((b64) => Buffer.from(b64, 'base64'));
+}, { kind, w, h, clear, WEBM }).then((b64) => Buffer.from(b64, 'base64'));
 
 const CRC = Array.from({ length: 256 }, (_, n) => { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; return c >>> 0; });
 const crc32 = (buf) => { let c = 0xffffffff; for (const b of buf) c = CRC[(c ^ b) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; };
@@ -243,6 +250,9 @@ describe('自定义大厅背景与音乐 (real server)', { skip: !ENABLED && 'se
 
       // 删除: back to the official backdrop and music
       await c.click('[data-testid="media-backdrop-remove"]');
+      // (fork) the picture's row settles (its 删除 gone) before the music's 删除 is pressed: a press while the dialog was still
+      // re-laying out could miss it
+      await c.page.waitForFunction(() => !document.querySelector('[data-testid="media-backdrop-remove"]'), { timeout: 15000 });
       await c.click('[data-testid="media-music-remove"]');
       // (each 删除 deletes the IndexedDB record first)
       await c.page.waitForFunction(() => !document.querySelector('[data-testid="media-backdrop-remove"], [data-testid="media-music-remove"]'));
