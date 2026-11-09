@@ -60,6 +60,8 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
 
 多个浏览器测试同时在一台机器上跑时，按"车道"计算：每个同时运行的测试文件占一个车道，启动真实服务器或同时驱动两名玩家浏览器的文件占两个（`node tools/browser-suite.mjs --slots <文件>` 输出 1 或 2）。车道总数不要超过这台机器实测能承受的数量：在 8 核台式机上是 2（3 条车道时，渲染测试慢了约四分之一，脚本插件的 5 秒预检超时）。
 
+某个浏览器测试失败时，先用 `node tools/test-repro.mjs <文件> --test "<测试名>"` 在一两分钟内复现，不要整个文件反复跑：它把这条测试单独跑 N 次（`--runs`，默认 5），再在文件里排在它前面的测试之后各跑 N 次（`--before "<测试名>"` 指定，`--orders` 取前面的全部），用的是同一个文件进程（文件自己的 before 钩子、服务器和浏览器，顺序和整文件运行时一样，只是跳过中间的测试）。单独通过不能证明是机器负载：前一条测试留下的状态（缓存、页面、全局变量）只有按同样顺序才会出现。`--cpu 4` 让 Chrome 的 CPU 慢四倍来模拟负载；Chrome 默认加上 `tools/perfbench.mjs` 的 GPU 参数（`--own-flags` 只用文件自己的参数，和 `npm run test:browser` 一样）。结果是一张表（情形 / 次数 / 通过 / 失败 / 第一次失败的信息），每次运行的 spec 输出、页面控制台和失败时的截图放在 `test/e2e/out/repro/`；有失败时退出码非 0。`--list` 列出文件里的测试。设置 `SP_LANE_DIR`（车道锁所在的文件夹）时它占 `fix-browser-3.lock`（两车道的文件再占 `fix-browser-2.lock`），`perf-quiet` 存在时等待。
+
 真实服务器的浏览器测试不必按游戏计时器的速度等待：`startRealServer({ fast })` 启动的测试服务器（`test/e2e/fastServer.mjs`）接受两种只供测试工具使用的控制（`test/e2e/harnessControl.mjs`，经测试进程的 IPC 通道，任何网络连接都够不到）：`srv.endPhase(房间码, 阶段)` 让当前有时限的阶段立刻到时（走的就是到时的那个回调），`srv.hold(房间码)` / `srv.release(房间码)` 冻结 / 恢复正在进行的战斗（服务器和页面的战斗时钟一起停，和单人暂停是同一条路径，但不显示「暂停中」）。在检查之间结束固定的过场阶段，在战斗中检查时先冻结，就可以把 `combatSpeed` 调高。正式服务器（`server/index.js`）不加载它们（`test/match/harness-control.test.js`）。同盟流程的四段真实服务器测试拆成 `test/e2e/coop-{facing,coop,solo,result}.e2e.test.js` 四个文件，可以并行跑。
 
 无头 Chrome 默认就用真实 GPU，不要在测试里写死某个平台的图形参数（Windows 上的 `--use-angle=metal` 会退回软件渲染）。需要指定时用 `tools/perfbench.mjs` 的 `gpuArgs()`，它在没有可用 GPU 的机器上也能拿到 WebGL；对用它启动的测试，设置 `SP_E2E_SOFTWARE_GL=1` 可强制软件渲染。`RENDER_E2E=1 node --test test/render/gpu-renderer.browser.test.js` 会打印实际使用的渲染器。
@@ -151,6 +153,16 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   server or drives two players' browsers (`node tools/browser-suite.mjs --slots <file>` prints 1 or 2), and keep the total
   at what the machine was measured to take: 2 on an 8-core desktop (at 3, render tests ran about a quarter slower and a
   script plugin's 5 s preflight timed out).
+  To reproduce a failing browser test, run `node tools/test-repro.mjs <file> --test "<name>"` instead of whole-file reruns:
+  it runs that test alone N times (`--runs`, default 5), then N times right after each earlier test of the file you name
+  (`--before "<name>"`, or `--orders` for all of them), in the file's own process (its before hooks, server and browser,
+  in file order, minus the tests in between), and prints case / runs / pass / fail / first failure. Passing alone does
+  not prove load: state an earlier test leaves behind (a warm cache, a page, a global) only shows in the same order.
+  `--cpu 4` throttles Chrome's CPU to imitate load; Chrome gets the GPU flags of `tools/perfbench.mjs` unless
+  `--own-flags` (the file's own flags only, as `npm run test:browser` starts it). Each run's spec output, page console
+  and failure screenshots go to `test/e2e/out/repro/`; `--list` prints the file's tests. With `SP_LANE_DIR` (the lane
+  locks' folder) it takes `fix-browser-3.lock` (plus `fix-browser-2.lock` for a two-lane file) and waits while
+  `perf-quiet` exists.
   Real-server browser tests need not wait at game-timer speed: the test server of `startRealServer({ fast })`
   (`test/e2e/fastServer.mjs`) answers two harness-only controls (`test/e2e/harnessControl.mjs`, over the test process's
   IPC channel; no socket reaches them): `srv.endPhase(room, phase)` expires the current timed phase through its own
