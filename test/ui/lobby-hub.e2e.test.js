@@ -94,7 +94,8 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   /** Waits out the 转场 (tr-* / ps-*: panels slide in from off their place), not the looping scene motion. */
   // (fork) after a resize or a new text size: two frames (the layout runs and asks for the fonts it needs), those fonts,
   // two more frames (laid out with them). The same wait as loadout-cards' matrix; it replaced fixed 150 ms sleeps around
-  // document.fonts.ready (several hundred checks in this file).
+  // document.fonts.ready (several hundred checks in this file). Not in the check that follows an in-page text-size or
+  // UI-scale change (below), where it failed.
   const fontsReady = (page) => page.evaluate(async () => {
     const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     await frames();
@@ -897,7 +898,9 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
             await page.evaluate(async (ui) => (await import('/js/ui/screenFit.js')).updateFit({ ui }), ui);
             for (const [w, h] of screens) {
               await page.setViewport({ width: w, height: h, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
-              await fontsReady(page); await settle(page); await page.evaluate(() => document.fonts.ready);
+              // a fixed 150 ms here, not fontsReady(): with two frames this check failed ("Solo Matchmakin|g" at every
+              // phone size in English, 3-lane run 2026-11-09), so the layout after a text-size change seems to land later
+              await sleep(150); await settle(page); await page.evaluate(() => document.fonts.ready);
               // TACTICAL TIPS hidden past .tips__sub is its design (TIPS_SUB_HIDDEN); shown in part is a problem (below)
               const plain = (await page.evaluate(textProblems, '.lobby-screen')).filter((p) => !TIPS_SUB_HIDDEN.test(p));
               const what = `${lang} ${textSize} UI ${ui}% ${w}×${h}`;

@@ -9,9 +9,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Faster, steadier browser test suite
 
-- The browser tests' speed limits (frames per second and time per frame) only run in `npm run test:perf`, alone on the machine (with `RENDER_E2E=1`). In the full browser run, other tests share the machine, so the frame rate measured the load, not the game: phase 8's run had 10 such false failures. Each of those tests still checks everything else, and that frames are drawn.
-- `npm run test:browser` runs every browser test file in one go, slowest first, so a 10-minute file no longer ends the run alone. `--gate` runs a 14-file quick set for checking a fix, and `--slots` tells how much of a shared machine a file needs. Per-file times come from the last run's report.
-- The lobby layout tests wait for the next frames and the fonts instead of fixed 150 ms pauses, several hundred times per run.
+- The browser tests' speed limits (frames per second and time per frame) only run in `npm run test:perf`, alone on the machine (with `RENDER_E2E=1`). In the full browser run, other tests share the machine, so the frame rate follows the load: 10 of the final check's 20 failures were such limits (for example 29.2 fps against a floor of 30). Each of those tests still checks everything else, and that frames are drawn.
+- `npm run test:browser` runs every browser test file in one go, slowest first, so a 10-minute file no longer ends the run alone. `--gate` runs a 14-file quick set (about 4 minutes) for checking a fix, and `--slots` tells how much of a shared machine a file needs. Per-file times come from the last full run.
+- Three test files at once instead of two was measured and not adopted: render tests ran 23–26% slower and a script plugin's 5 s check timed out. The suite stays at two.
+- The lobby layout tests wait for the next frames and the fonts instead of fixed 150 ms pauses in most of their checks: lobby-hub's shared tests took 8% less time even on a busier machine.
 
 ### Spectate, filter popover, Final Assault watch, protocol list
 
