@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gpuArgs } from '../../tools/perfbench.mjs';
+import { PERF, PERF_ON } from '../helpers/perf.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -71,7 +72,8 @@ describe('3D board in headless Chrome', { skip }, () => {
           assert.deepEqual(problems, []);
           assert.equal(st.board3d?.on, true, `3D board on (${st.board3d?.error || ''})`);
           assert.ok(st.board3d.calls > 3 && st.board3d.calls <= 20, `draw calls ${st.board3d.calls}`);
-          assert.ok(st.fps > 30, `fps ${st.fps}`);
+          // (fork) the fps floor in `npm run test:perf` (alone): side by side with other browser files it measures the load
+          if (PERF_ON) assert.ok(st.fps > 30, `fps ${st.fps}`); else assert.ok(st.fps > 0, `frames drawn (fps ${st.fps})`);
           assert.equal(st.mode, phase === 'prep' ? 'prep' : 'battle');
         });
       }
@@ -248,7 +250,8 @@ describe('3D board in headless Chrome', { skip }, () => {
     assert.deepEqual(sh, [false, true]);
   });
 
-  test('stress: 120 units over the 3D board keep 60 fps-class frame times', async () => {
+  // (fork) a speed bar as a whole: `npm run test:perf` runs it alone
+  test('stress: 120 units over the 3D board keep 60 fps-class frame times', PERF, async () => {
     const { page, problems } = await open('scene=stress', 1920, 1080);
     await wait(6000);
     const st = await page.evaluate(() => window.__demo.stats());

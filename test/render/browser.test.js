@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PERF, PERF_ON } from '../helpers/perf.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -67,7 +68,8 @@ describe('render engine in headless Chrome', { skip }, () => {
       assert.deepEqual(problems, []);
       assert.ok(st.units > 0, 'units on screen');
       assert.equal(st.spine.failed, 0, 'no Spine load failures');
-      assert.ok(st.fps > 20, `fps ${st.fps}`);
+      // (fork) the fps floor in `npm run test:perf` (alone): side by side with other browser files it measures the load
+      if (PERF_ON) assert.ok(st.fps > 20, `fps ${st.fps}`); else assert.ok(st.fps > 0, `frames drawn (fps ${st.fps})`);
       if (name.startsWith('combat') || name.startsWith('unite') || name.startsWith('boss')) {
         assert.equal(st.mode, 'battle');
         assert.ok(Math.abs(st.rate - 2) < 0.3, `2× clock (${st.rate})`);
@@ -301,7 +303,8 @@ describe('render engine in headless Chrome', { skip }, () => {
   }
   const costLine = (c) => `fps ${c.fps.toFixed(1)} · JS ${c.cpuMs.toFixed(2)} + render ${c.renderMs.toFixed(2)} ms/frame · particles ${c.particles.toFixed(0)} (max ${c.maxParticles}) · shots ${c.projectiles.toFixed(1)}`;
 
-  test('stress: 120 units + FX keep the per-frame JS cost bounded', async (t) => {
+  // (fork) speed bars as a whole: `npm run test:perf` runs these two alone
+  test('stress: 120 units + FX keep the per-frame JS cost bounded', PERF, async (t) => {
     const { page, problems } = await open('scene=stress&panel=0');
     await wait(3000);
     const cost = await frameCost(page, 3000);
@@ -315,7 +318,7 @@ describe('render engine in headless Chrome', { skip }, () => {
     assert.ok(cost.cpuMs + cost.renderMs < 16, `JS per frame ${cost.cpuMs} + ${cost.renderMs} ms`);
   });
 
-  test('crowded boss battle: the FX keep the per-frame JS cost bounded', async (t) => {
+  test('crowded boss battle: the FX keep the per-frame JS cost bounded', PERF, async (t) => {
     const { page, problems } = await open('scene=boss-m02&t=16&panel=0');
     await wait(2500);
     // t ≈ 21–29 (2×): 蕾缪安's S3 locks (21–24) and her shells one by one (24–26), skills, crowds of shots and hits

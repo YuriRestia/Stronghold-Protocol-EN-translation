@@ -28,6 +28,7 @@
     "test": "node tools/test-run.mjs",
     "test:guards": "node --test test/ci.test.js test/ci-shards.test.js test/test-run.test.js",
     "test:perf": "node tools/test-perf.mjs",
+    "test:browser": "node tools/browser-suite.mjs",
     "golden": "node tools/golden.mjs",
     "golden:update": "node tools/golden.mjs --update",
     "vendor": "node tools/vendor.mjs",

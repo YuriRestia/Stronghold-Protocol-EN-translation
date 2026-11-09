@@ -92,6 +92,15 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
     return i;
   }, name);
   /** Waits out the 转场 (tr-* / ps-*: panels slide in from off their place), not the looping scene motion. */
+  // (fork) after a resize or a new text size: two frames (the layout runs and asks for the fonts it needs), those fonts,
+  // two more frames (laid out with them). The same wait as loadout-cards' matrix; it replaced fixed 150 ms sleeps around
+  // document.fonts.ready (several hundred checks in this file).
+  const fontsReady = (page) => page.evaluate(async () => {
+    const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    await frames();
+    await document.fonts.ready;
+    await frames();
+  });
   const settle = (page) => page.waitForFunction(() => !document.getAnimations()
     .some((a) => /^(tr|ps)-/.test(String(a.animationName)) && a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity));
   /**
@@ -457,7 +466,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
           await page.waitForSelector('.modal__box.ally', { visible: true });
           for (const [w, h] of [[1920, 1080], [1440, 900], [1280, 720], [1024, 600]]) {
             await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
-            await sleep(150); await page.evaluate(() => document.fonts.ready); await sleep(150);
+            await fontsReady(page);
             const k = await keyField(page);
             const fullW = await page.$eval('.ally-key input', (input, text) => {
               const ph = getComputedStyle(input, '::placeholder');
@@ -596,7 +605,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
           await page.evaluate(() => document.fonts.ready);
           // (a web font that arrives late — a new size or a new difficulty's text asks for more of them — re-fits the cards:
           // measured once the fonts are in)
-          const fontsIn = async () => { await sleep(150); await page.evaluate(() => document.fonts.ready); await sleep(150); };
+          const fontsIn = () => fontsReady(page);
           for (const [w, h] of [[1920, 1080], [1440, 900], [1280, 720]]) {
             await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
             await fontsIn();
@@ -630,7 +639,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
           await press(page, '.mode-card[data-mode="solo"]');
           await page.waitForSelector('.modal__box.proto', { visible: true });
           await page.evaluate(() => document.fonts.ready);
-          const fontsIn = async () => { await sleep(150); await page.evaluate(() => document.fonts.ready); await sleep(150); };
+          const fontsIn = () => fontsReady(page);
           for (const [w, h] of [[960, 540], [1024, 600], [1100, 530], [800, 600]]) {
             await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
             await fontsIn();
@@ -748,7 +757,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
           await page.evaluate(async (ts) => (await import('/js/ui/settings.js')).updateSettings({ textSize: ts }), textSize);
           for (const [w, h] of [[1920, 1080], [1440, 900], [1280, 720], [1100, 530], [1024, 600], [960, 540], [800, 600]]) {
             await page.setViewport({ width: w, height: h, deviceScaleFactor: 1 });
-            await sleep(150); await page.evaluate(() => document.fonts.ready); await sleep(100);
+            await fontsReady(page);
             const d = await goFit(page);
             assert.ok(goOk(d), `${lang} ${textSize} ${w}×${h}: ${JSON.stringify(d)}`);
             if (lang === 'en' && textSize === 'xl' && w === 1440) await page.screenshot({ path: path.join(OUT, 'lobby-hub-desktop-1440-room-go-en-xl.png') });
@@ -764,7 +773,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
           await page.waitForFunction(() => document.querySelectorAll('.modal__box.proto .diff-card')[1]?.classList.contains('is-on'));
           for (const textSize of ['lg', 'xl']) {
             await page.evaluate(async (ts) => (await import('/js/ui/settings.js')).updateSettings({ textSize: ts }), textSize);
-            await sleep(150); await page.evaluate(() => document.fonts.ready); await sleep(150);
+            await fontsReady(page);
             assert.deepEqual(await fit(page), { out: [], scrolls: false }, `${textSize}: the room's 选择模拟协议 fits`);
             const d = await protoDesk(page);
             assert.ok(deskOk(d), `${textSize} the room's 选择模拟协议: ${JSON.stringify(d)}`);
@@ -888,7 +897,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
             await page.evaluate(async (ui) => (await import('/js/ui/screenFit.js')).updateFit({ ui }), ui);
             for (const [w, h] of screens) {
               await page.setViewport({ width: w, height: h, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
-              await sleep(150); await settle(page); await page.evaluate(() => document.fonts.ready);
+              await fontsReady(page); await settle(page); await page.evaluate(() => document.fonts.ready);
               // TACTICAL TIPS hidden past .tips__sub is its design (TIPS_SUB_HIDDEN); shown in part is a problem (below)
               const plain = (await page.evaluate(textProblems, '.lobby-screen')).filter((p) => !TIPS_SUB_HIDDEN.test(p));
               const what = `${lang} ${textSize} UI ${ui}% ${w}×${h}`;
