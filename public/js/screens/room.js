@@ -37,6 +37,9 @@
 // card this browser's choice at once, another doctor's the map that seat published (room.state seats[].skins) unless
 // 「显示其他玩家的皮肤」 is off; an outfit this page's appearance plugins do not have draws the default art (ui/seatArt.js
 // seatCardSkin). The picker is one's own picker, so its tiles wear one's own outfits too (like 干员调配's).
+// (fork, docs/OUTFITS.md) The fork's outfits ride on room.state seats[].outfits: another doctor's card wears that seat's
+// outfit for the operator (ui/outfits.js outfitOptsOf), one's own card this browser's choice; the default portrait stays
+// the fallback when the outfit has no portrait or it fails to load.
 // Without the art pack the card keeps its avatar frame; a bot keeps its robot frame.
 // Official versions (DESIGN §35.23, M1; versions.js): a room plays one version (room.state.version; absent = 第二期下半).
 // Another version's name shows beside the mode in the top bar (ui/pluginTag.js VersionTag) and every page loads and checks
@@ -74,6 +77,7 @@ import { store, useStore, shallowEqual, emptyMatch, isSpectating, savePref } fro
 import { data, useData, getConfig } from '../data.js';
 import { chessAvatarUrl, chessPortraitUrl } from '../ui/assetUrls.js';
 import { CARD_KEY, cardStore, setCard, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc, botCharId } from '../ui/seatArt.js';
+import { outfitOptsOf } from '../ui/outfits.js';
 import { useAvatarArt } from '../ui/avatars.js';
 import { AvatarPicker, useAvatarPickerReady } from '../ui/avatarPicker.js';
 import { skinsStore, SKINS_KEY, ownerSkin } from '../ui/skins.js';
@@ -822,10 +826,15 @@ export function RoomScreen() {
         const op = seatOperator(s, cards, { myId: me.playerId, myCard });
         // the player's outfit for that operator (header "Outfits"); null = the default art
         const skin = op ? seatCardSkin(s, op.chess.charId, { myId: me.playerId, localSkins, players: facts.occupied, otherSkins }) : null;
+        // (fork) that seat's outfit for the operator (undefined for one's own seat: the own choice applies by itself);
+        // `plain` is the default portrait, the fallback when the outfit's picture fails to load
+        const outfit = op ? outfitOptsOf(op.chess.charId, s.playerId) : undefined;
+        const art = op ? chessPortraitUrl(data.get('assets'), op.chess, { skin, ...outfit }) : null;
+        const plain = op ? chessPortraitUrl(data.get('assets'), op.chess, { outfit: null }) : null;
         return html`<${SeatCard} key=${s ? `p${s.playerId}` : `e${i}`} seat=${s} index=${i} room=${room} facts=${facts}
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
-          portrait=${op ? chessPortraitUrl(data.get('assets'), op.chess, { skin }) : null} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
-          portraitDefault=${op && skin ? chessPortraitUrl(data.get('assets'), op.chess) : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
+          portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
+          portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
           fresh=${shownRoom.current === room.code} onMoveSeat=${moveSeat} swapFrom=${swapFrom} onSwap=${swap} />`;
       }))}
       ${coop ? null : html`<aside class="solo-brief rs-brief brackets">

@@ -164,7 +164,12 @@ test('a picture that fails to load: the outfit gives way to the default portrait
   const room = readFileSync(path.join(ROOT, 'public/js/screens/room.js'), 'utf8');
   assert.match(room, /const art = seat\.isBot \? null : seatArtSrc\(\[portrait, portraitDefault\], badArt\);/);
   assert.match(room, /onError=\$\{\(\) => setBadArt\(\(b\) => \(b\.includes\(art\) \? b : \[\.\.\.b, art\]\)\)\}/);
-  assert.match(room, /portraitDefault=\$\{op && skin \? chessPortraitUrl\(data\.get\('assets'\), op\.chess\) : null\}/);
+  // (fork, docs/OUTFITS.md) the seat's own outfit (room.state seats[].outfits), not the viewer's; the default portrait
+  // (no outfit at all) is the fallback whenever the card wears something else
+  assert.match(room, /const outfit = op \? outfitOptsOf\(op\.chess\.charId, s\.playerId\) : undefined;/);
+  assert.match(room, /const art = op \? chessPortraitUrl\(data\.get\('assets'\), op\.chess, \{ skin, \.\.\.outfit \}\) : null;/);
+  assert.match(room, /const plain = op \? chessPortraitUrl\(data\.get\('assets'\), op\.chess, \{ outfit: null \}\) : null;/);
+  assert.match(room, /portraitDefault=\$\{art && plain !== art \? plain : null\}/);
 });
 
 test('the pick\'s store: a string pref, \'\' for 默认; setCard persists and tells the store', () => {

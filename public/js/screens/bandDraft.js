@@ -52,6 +52,7 @@ import { onBootArt, preloadBootArt } from '../ui/protocolBoot.js';
 import { reducedMotion } from '../ui/device.js';
 import { useRise } from '../ui/transitions.js';
 import { CARD_KEY, cardStore, cardOperators, cardContext, seatOperator, seatCardSkin, seatArtSrc } from '../ui/seatArt.js';
+import { outfitOptsOf } from '../ui/outfits.js';
 import { skinsStore, SKINS_KEY } from '../ui/skins.js';
 import { settingsStore } from '../ui/settingsStore.js';
 import { chessPortraitUrl, uiUrl } from '../ui/assetUrls.js';
@@ -378,7 +379,12 @@ export function BandDraftScreen({ held = null } = {}) {
     const seat = (Array.isArray(roomSeats) && roomSeats.find((x) => x && x.playerId === p.playerId)) || { playerId: p.playerId };
     const op = seatOperator(seat, cards, { myId, myCard });
     const skin = op ? seatCardSkin(p, op.chess.charId, { myId, localSkins, players, otherSkins }) : null;
-    return op ? [chessPortraitUrl(data.get('assets'), op.chess, { skin }), skin ? chessPortraitUrl(data.get('assets'), op.chess) : null] : null;
+    if (!op) return null;
+    // (fork, docs/OUTFITS.md) that doctor's outfit (room.state seats[].outfits), as on the room's seat cards; the default
+    // portrait is the fallback
+    const art = chessPortraitUrl(data.get('assets'), op.chess, { skin, ...outfitOptsOf(op.chess.charId, p.playerId) });
+    const plain = chessPortraitUrl(data.get('assets'), op.chess, { outfit: null });
+    return [art, art && plain !== art ? plain : null];
   };
   // this browser's records (up to the stats store's size): read once, after the screen and its entry are up, not while
   // it mounts
