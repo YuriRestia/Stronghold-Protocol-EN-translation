@@ -10,7 +10,7 @@ import { splitGenPath, genPath, rewriteIndexHtml, isGenSharedPath } from '../sha
 import { genOf, publicPath, goHome, RETIRED_FLAG } from '../public/js/gen.js';
 import { parseGenerations, route, createRouter } from '../scripts/router.mjs';
 import { newGenId, allocPort, withNewGen, withPreparedGen, activateGen, withRemoteMatches, regionsWithout, reapPlan, releasesToPrune, missingAssets, MAX_AGE_MS, PREPARED_MAX_AGE_MS, prepareCheck } from '../scripts/generations.mjs';
-import { parseHosts, formatHosts, prepareCommand, activateCommand, checkCommand, announceCommand, shQuote, parseArgs, parseCheck, checkProblems, testUrls } from '../scripts/deploy-regions.mjs';
+import { parseHosts, formatHosts, prepareCommand, activateCommand, checkCommand, sudoCheckCommand, checkOnHost, announceCommand, shQuote, parseArgs, parseCheck, checkProblems, testUrls } from '../scripts/deploy-regions.mjs';
 import { startBuildGuard } from '../public/js/ui/buildGuard.js';
 import { startServer } from '../server/index.js';
 import { S2C } from '../shared/protocol.js';
@@ -452,6 +452,33 @@ describe('scripts/deploy-regions.mjs', () => {
     assert.equal(parseCheck('usage: …'), null);
     assert.equal(parseCheck(undefined), null);
     assert.match(checkCommand('g1'), /^cd \/opt\/stronghold\/app && node scripts\/generations\.mjs check 'g1'$/);
+    assert.match(sudoCheckCommand('g1'), /^sudo -n bash -c 'cd \/opt\/stronghold\/app && node scripts\/generations\.mjs check '\\''g1'\\'''$/);
+  });
+
+  test('the check falls back to sudo -n when the login user cannot enter /opt/stronghold, and only then', () => {
+    const line = '[check] {"gen":"g","ok":true,"state":"prepared","build":"b1"}';
+    const calls = [];
+    const fake = (answers) => (host, cmd) => { calls.push(cmd); return answers[calls.length - 1]; };
+    // Singapore: /opt/stronghold is drwxr-x--- stronghold → the plain check gets no answer, sudo -n does
+    let r = checkOnHost('spa', 'g', fake([{ stdout: '', stderr: 'bash: line 1: cd: /opt/stronghold/app: Permission denied' }, { stdout: line }]));
+    assert.deepEqual(calls, [checkCommand('g'), sudoCheckCommand('g')]);
+    assert.equal(r.check.build, 'b1');
+    assert.equal(r.stderr, '', 'the permission error of the first try is not shown when sudo answered');
+    // the US: the plain check answers, sudo (which wants a password there) is never tried
+    calls.length = 0;
+    r = checkOnHost('usspa', 'g', fake([{ stdout: line }]));
+    assert.deepEqual(calls, [checkCommand('g')]);
+    assert.equal(r.check.ok, true);
+    // a not-ready answer is an answer: no fallback
+    calls.length = 0;
+    checkOnHost('usspa', 'g', fake([{ stdout: '[check] {"gen":"g","ok":false,"state":"missing"}' }]));
+    assert.equal(calls.length, 1);
+    // both fail → no check, and both errors for the operator
+    calls.length = 0;
+    r = checkOnHost('spa', 'g', fake([{ stdout: '', stderr: 'Permission denied' }, { stdout: '', stderr: 'sudo: a password is required' }]));
+    assert.equal(r.check, null);
+    assert.equal(r.stderr, 'Permission denied\nsudo: a password is required');
+    assert.match(checkProblems('g', [{ host: 'spa', check: r.check }])[0], /^spa: no answer/);
   });
 
   test('the private test URLs: the page from the first region, then each other server by ?region=', () => {

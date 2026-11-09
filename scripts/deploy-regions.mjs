@@ -65,6 +65,11 @@ export function prepareCommand({ gen, commit, noArt = false }) {
 export const activateCommand = (gen) => `sudo bash -c ${shQuote(`cd ${APP} && node scripts/generations.mjs activate ${gen}`)}`;
 /** No sudo: it only reads generations.json and the generation's /healthz, and its output is read back over ssh. */
 export const checkCommand = (gen) => `cd ${APP} && node scripts/generations.mjs check ${shQuote(gen)}`;
+/**
+ * The same check through `sudo -n` (never prompts: no password → fails at once), for a server whose /opt/stronghold
+ * the login user cannot enter (drwxr-x--- stronghold).
+ */
+export const sudoCheckCommand = (gen) => `sudo -n bash -c ${shQuote(checkCommand(gen))}`;
 export const statusCommand = () => `sudo bash -c ${shQuote(`cd ${APP} && node scripts/generations.mjs status`)}`;
 export const announceCommand = (minutes, text) => `sudo bash -c ${shQuote(`cd ${APP} && ${AS_APP} node scripts/announce.mjs --minutes ${Number(minutes)} ${shQuote(text)}`)}`;
 
@@ -147,10 +152,30 @@ function ssh(host, line) {
 }
 
 /** Run `check <gen>` on every server and read its line back. */
+/**
+ * `generations.mjs check` on one server: without sudo first, then through `sudo -n` when that gave no `[check]` line
+ * (e.g. Permission denied on /opt/stronghold). The first try's errors are shown only when the fallback fails too.
+ * @param {string} host @param {string} gen
+ * @param {(host: string, cmd: string) => { stdout?: string, stderr?: string }} run one ssh call, output captured
+ * @returns {{ check: any, stderr: string }}
+ */
+export function checkOnHost(host, gen, run) {
+  const first = run(host, checkCommand(gen));
+  const check = parseCheck(first.stdout);
+  if (check) return { check, stderr: '' };
+  const second = run(host, sudoCheckCommand(gen));
+  const viaSudo = parseCheck(second.stdout);
+  if (viaSudo) return { check: viaSudo, stderr: '' };
+  return { check: null, stderr: [first.stderr, second.stderr].map((e) => String(e || '').trim()).filter(Boolean).join('\n') };
+}
+
+const sshCapture = (host, cmd) => spawnSync('ssh', [host, cmd], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true });
+
 function checkAll(hosts, gen) {
   return hosts.map(({ host }) => {
-    const r = spawnSync('ssh', [host, checkCommand(gen)], { stdio: ['ignore', 'pipe', 'inherit'], encoding: 'utf8', windowsHide: true });
-    return { host, check: parseCheck(r.stdout) };
+    const { check, stderr } = checkOnHost(host, gen, sshCapture);
+    if (stderr) console.error(`[${host}] ${stderr.replace(/\n/g, `\n[${host}] `)}`);
+    return { host, check };
   });
 }
 
