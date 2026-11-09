@@ -10,6 +10,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 ### Bot turns are cheaper to work out
 
 - The bots' layout search no longer copies lists it only looks through: board tile names are read without temporary lists, the "do I already own this operator?" checks stop at the first match instead of listing and sorting every piece, and each move the search tries no longer copies the whole plan. The bots make exactly the same choices (same boards, hands and shops in 40 checked rounds), and a late-round bot turn takes about 20% less time (the busiest bot of the test match: 281 → about 220 ms on the same loaded machine; the whole 10-round match 2.5-3.0 → 2.0-2.2 s).
+- The test that checks a late-round bot turn stays under 300 ms of CPU now runs only in `npm run test:perf`, alone on the machine, like the other speed checks. Next to the browser tests the same code measured 390-530 ms (the machine's load, not the bots), and 110-170 ms on a quiet machine. The 300 ms limit is unchanged.
 
 ### Bot helper review fixes
 

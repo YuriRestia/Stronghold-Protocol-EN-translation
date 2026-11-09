@@ -55,7 +55,7 @@ SP_REAL_E2E=1 node --test test/ui/real.e2e.test.js               # 真实对局�
 RENDER_E2E=1 node --test 'test/render/*.browser.test.js'         # 渲染
 SIM_E2E=1 node --test 'test/sim/*.browser.test.js'               # 浏览器里的战斗模拟
 npm run test:browser                                             # 全部浏览器测试，最慢的先跑（--gate：修复用的快速子集；--list：只列文件）
-RENDER_E2E=1 npm run test:perf                                   # 帧率与每帧耗时门槛：单独运行（全部浏览器测试里不检查）
+RENDER_E2E=1 npm run test:perf                                   # 帧率与每帧耗时门槛：单独运行（全部浏览器测试里不检查）；不设 RENDER_E2E 时只跑模拟测速和人机备战的 CPU 上限
 ```
 
 多个浏览器测试同时在一台机器上跑时，按"车道"计算：每个同时运行的测试文件占一个车道，启动真实服务器或同时驱动两名玩家浏览器的文件占两个（`node tools/browser-suite.mjs --slots <文件>` 输出 1 或 2）。车道总数不要超过这台机器实测能承受的数量：在 8 核台式机上是 2（3 条车道时，渲染测试慢了约四分之一，脚本插件的 5 秒预检超时）。
@@ -145,7 +145,8 @@ RENDER_E2E=1 npm run test:perf                                   # 帧率与每�
   are opt-in: `SP_E2E=1`, `SP_REAL_E2E=1` (needs downloaded art), `RENDER_E2E=1`, `SIM_E2E=1` (a local Chrome,
   `CHROME_PATH`). `npm run test:browser` (tools/browser-suite.mjs) runs every browser file in one go, slowest first
   (`--gate` for a short smoke set, `--list` to print the order); the fps floors and per-frame budgets are checked only by
-  `RENDER_E2E=1 npm run test:perf`, alone, since side by side Chrome's frame rate follows the machine's load. When
+  `RENDER_E2E=1 npm run test:perf`, alone, since side by side Chrome's frame rate follows the machine's load (without
+  `RENDER_E2E` it runs the sim speed benchmarks and the bot prep CPU guard of `test/match/bot-smarter.test.js`). When
   several browser runs share a machine, count lanes: one per test file running at once, two for a file that starts a real
   server or drives two players' browsers (`node tools/browser-suite.mjs --slots <file>` prints 1 or 2), and keep the total
   at what the machine was measured to take: 2 on an 8-core desktop (at 3, render tests ran about a quarter slower and a

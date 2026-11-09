@@ -10,6 +10,7 @@ import { PHASE } from '../../shared/constants.js';
 import { botPickBand, botPickCard, bountyKillChance, itemTarget, arrange, botPrepBegin, botPrepEnd, bondPlan, rangeTiles, effDps, rangeRec, buyScoreOf, engineFor } from '../../server/match/bot.js';
 import { parseKey, tileKey } from '../../server/match/board.js';
 import { makeMatch, checkInvariants, give, giveItem, legalTileFor, DATA } from './harness.js';
+import { PERF } from '../helpers/perf.js';
 
 const soloBot = (o = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], ...o });
 
@@ -634,9 +635,12 @@ test('#31: 信仰搅拌机 S3 is planned on its two-side grid; S1 and S2 stay on
 // CPU of one bot prep at R10 of the guard's match, on a development machine: 15–30 ms, the 阿戈尔 seat 95 ms (about half of that
 // on the JIT and GC threads, which process.cpuUsage counts). GitHub's runners measured 316–390 ms for that seat, so the bar
 // is 600 ms when process.env.CI is set (test/sim/robustness.test.js does the same); a real regression still shows locally.
+// (fork) A speed bar like the sim benchmarks: run alone with `npm run test:perf` (SP_PERF=1), skipped in `npm test`. Under
+// parallel load (the browser suite beside it) the same code measured 390-530 ms (the JIT / GC threads grow most) and
+// 110-170 ms on the quiet machine.
 const PREP_CPU_MS = process.env.CI ? 600 : 300;
 
-test('cost guard: the prep heuristics of a late-round 4-bot match stay cheap (rehearsal off)', () => {
+test('performance: cost guard: the prep heuristics of a late-round 4-bot match stay cheap (rehearsal off)', PERF, () => {
   const seats = [0, 1, 2, 3].map((i) => ({ seat: i, playerId: `ai_${i}`, name: `AI${i}`, isBot: true, connected: true }));
   const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats, seed: 13, fake: true }).start();
   const m = h.m;
