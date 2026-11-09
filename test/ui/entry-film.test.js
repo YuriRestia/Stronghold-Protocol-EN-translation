@@ -495,6 +495,32 @@ test('(fork) no film this time, but a phone waiting for its tap: the 点击进�
   } finally { globalThis.matchMedia = prevMedia; disarm(); }
 });
 
+test('(fork) going fullscreen shows the film again, back above the fullscreen page (Android hid it: sound, no picture)', async () => {
+  const docListeners = new Map();
+  document.addEventListener = (type, fn) => { if (!docListeners.has(type)) docListeners.set(type, new Set()); docListeners.get(type).add(fn); };
+  document.removeEventListener = (type, fn) => { docListeners.get(type)?.delete(fn); };
+  const fire = (type) => { for (const fn of [...(docListeners.get(type) || [])]) fn({ type }); };
+  try {
+    const opening = playEntryFilm({ mount: sceneSpy().mount });
+    const el = overlay();
+    let shown = 0, closed = 0;
+    el.showModal = function () { shown++; this.open = true; };
+    el.close = function () { closed++; this.open = false; };
+    fire('fullscreenchange');
+    assert.equal(shown, 0, 'not fullscreen: nothing to do');
+    document.fullscreenElement = {};
+    fire('fullscreenchange');
+    assert.deepEqual([closed, shown, el.open], [1, 1, true], 'closed and shown again: on top of the top layer');
+    enterRoom();
+    await opening;
+    assert.equal(docListeners.get('fullscreenchange')?.size || 0, 0, 'the film gone: no longer watching');
+  } finally {
+    delete document.fullscreenElement;
+    delete document.addEventListener;
+    delete document.removeEventListener;
+  }
+});
+
 test('(fork) a page load landing in the lobby plays it once per tab session; the login screen plays it every time', async () => {
   const session = new Map();
   globalThis.sessionStorage = { getItem: (k) => (session.has(k) ? session.get(k) : null), setItem: (k, v) => session.set(k, String(v)) };

@@ -15,7 +15,7 @@
 import { store, selectRoute } from '../store.js';
 import { audio, resolveBgm } from '../audio.js';
 import { data } from '../data.js';
-import { reducedMotion, firstTapPending } from './device.js';
+import { reducedMotion, firstTapPending, fsTrace } from './device.js';
 import { mountAllianceIntro, preloadSprites, setCycleOrigin, INTRO_AUDIO, INTRO_SPAN } from './allianceScene.js';
 import { t } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
@@ -142,6 +142,33 @@ export function holdBgm(a = audio) {
 let playing = false;
 
 /**
+ * (fork) Keep a modal dialog of the film above the fullscreen page. Going fullscreen puts the page into the top layer
+ * after the dialog that is already there, and on an Android phone the page then covers it: the film ran unseen while
+ * its sound played (owner's phone, Brave / Chrome 149, 2026-11-09; desktop Chrome keeps the dialog on top, so no test
+ * browser shows it). A dialog shown again goes back on top: on each fullscreenchange into fullscreen it is closed and
+ * shown again (nothing listens to its close). The ?fsdebug=1 readout notes whether it is on top afterwards.
+ * @param {HTMLDialogElement} el
+ * @returns {() => void} stop
+ */
+function keepAboveFullscreen(el) {
+  const doc = globalThis.document;
+  const raise = () => {
+    if (!el.open || !(doc.fullscreenElement || doc.webkitFullscreenElement)) return;
+    try { el.close(); el.showModal(); } catch { return; }
+    requestAnimationFrame(() => {
+      const at = doc.elementFromPoint?.(innerWidth / 2, innerHeight / 2);
+      fsTrace.note(`film shown again over the fullscreen page: on top ${!!(at && el.contains(at))}`);
+    });
+  };
+  doc.addEventListener?.('fullscreenchange', raise);
+  doc.addEventListener?.('webkitfullscreenchange', raise);
+  return () => {
+    doc.removeEventListener?.('fullscreenchange', raise);
+    doc.removeEventListener?.('webkitfullscreenchange', raise);
+  };
+}
+
+/**
  * The 点击进入 card's content. `phone`: (fork) a phone waiting for its first tap — a mint tap ring above the prompt and
  * what the tap does under it (fullscreen, landscape); `loading`: the files are still coming, said at the bottom.
  */
@@ -183,7 +210,9 @@ function showTapCard() {
   card.className = 'spa-entry__gate';
   showTapPrompt(card, false);
   el.append(card);
+  let unraise = () => {};
   const close = () => {
+    unraise();
     removeEventListener('keydown', close, true);
     try { el.close(); } catch { /* ignore */ }
     el.remove();
@@ -194,6 +223,7 @@ function showTapCard() {
   addEventListener('keydown', close, true);
   document.body.append(el);
   try { el.showModal(); } catch { el.setAttribute('open', ''); }
+  unraise = keepAboveFullscreen(el);
 }
 
 /**
@@ -260,8 +290,10 @@ function run(allowed, mount, load) {
   } else release = holdBgm();
   document.body.append(el);
   try { el.showModal(); } catch { el.setAttribute('open', ''); }
+  const unraise = keepAboveFullscreen(el);
 
   const cleanup = () => {
+    unraise();
     cancelAnimationFrame(raf);
     try { scene?.destroy(); } catch { /* ignore */ }
     try { el.close(); } catch { /* ignore */ }

@@ -55,7 +55,7 @@ export function installFsDebug(win = globalThis) {
     if (!popover) return;
     let modal;
     try { modal = doc.querySelector('dialog:modal'); } catch { modal = doc.querySelector('dialog[open]'); }
-    if (modal === lastModal && box.matches(':popover-open')) return;
+    if (modal === lastModal && lastModal !== undefined && box.matches(':popover-open')) return;
     lastModal = modal;
     try { box.hidePopover(); } catch { /* not open yet */ }
     try { box.showPopover(); } catch { /* not supported */ }
@@ -71,7 +71,8 @@ export function installFsDebug(win = globalThis) {
   fsTrace.listeners.add(draw);
   offs.push(() => fsTrace.listeners.delete(draw));
   offs.push(pwaInstall.subscribe((available) => { if (available) fsTrace.note('the browser offers to install the game'); draw(); }));
-  on(doc, 'fullscreenchange', () => fsTrace.note(`fullscreenchange: ${doc.fullscreenElement ? 'entered' : 'left'}`));
+  // the fullscreen page joins the top layer above the readout too: shown again after each change (raise)
+  on(doc, 'fullscreenchange', () => { lastModal = undefined; fsTrace.note(`fullscreenchange: ${doc.fullscreenElement ? 'entered' : 'left'}`); });
   on(doc, 'visibilitychange', () => fsTrace.note(`visibilitychange: ${doc.visibilityState}`));
   on(win, 'resize', draw);
   on(win.screen?.orientation, 'change', draw);
