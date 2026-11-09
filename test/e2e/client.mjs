@@ -1,8 +1,9 @@
 // Browser E2E helpers (puppeteer-core + the system Chrome): a real game server in a child process and a `Client`
 // per player that drives the real UI with real mouse clicks, keys and canvas drags (no net.request shortcuts).
-// Used by test/e2e/coop.e2e.mjs. Not a test file itself (it only exports helpers).
+// Used by test/e2e/coopFlows.mjs (test/e2e/coop-*.e2e.test.js) and the other browser tests. Not a test file itself (it only exports helpers).
 
 import { seedReleaseRead } from '../helpers/releaseNotes.js';
+import { HARNESS_MSG } from './harnessControl.mjs';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import net from 'node:net';
@@ -144,13 +145,19 @@ export function freePort() {
  * `port`: e.g. the port of a server just stopped — a server restart the open clients reconnect to).
  * @param {{ port?: number, pluginsDir?: string, env?: Record<string, string|null>, fast?: { timerScale?: number, combatSpeed?: number, startRound?: 'boss'|'hidden'|number, kit?: number, chess?: string[],
  *   items?: string[], idleBots?: boolean, kits?: string[][], botChess?: string[], autoPlace?: boolean, eliminate?: number[], stage?: string,
- *   finishAfter?: number, slowSpawns?: string } }} [opts]
+ *   finishAfter?: number, slowSpawns?: string, log?: boolean } }} [opts]
  *   kits: per-human starter kits (seat order); botChess: the AI seats' kit; autoPlace: the kits go onto the board at the
  *   first prep; eliminate: humans (seat order) eliminated at the jump; stage: the stage of every match; finishAfter: the
  *   match ends (RESULT) once that round has settled; slowSpawns: '<humanIdx>:<factor>' — that human's normal battles
- *   spawn at factor × the scheduled times — fastServer.mjs hooks; pluginsDir (with `fast`): the server's plugin folders;
+ *   spawn at factor × the scheduled times; log: the server logs into `logs` — fastServer.mjs hooks; pluginsDir (with `fast`): the server's plugin folders;
  *   env: more of the server's environment (SP_VERSIONS …; null unsets a variable)
- * @returns {Promise<{ base: string, port: number, logs: string[], stop: (o?: { hard?: boolean }) => Promise<void> }>}
+ *   With `fast`, the server also answers the harness controls (test/e2e/harnessControl.mjs) over an IPC channel:
+ *   `endPhase(roomCode, phase?)` expires the current timed phase as its deadline would (only while the match is still in
+ *   `phase` when given), `hold(roomCode)` / `release(roomCode)`
+ *   freeze / resume a running battle (its clocks and the pages' battle clocks) — each resolves with
+ *   `{ ok, phase, round, code? }` (code: NO_DEADLINE, WRONG_PHASE, NO_BATTLE, HELD, NOT_HELD, NO_MATCH …).
+ * @returns {Promise<{ base: string, port: number, logs: string[], stop: (o?: { hard?: boolean }) => Promise<void>,
+ *   endPhase?: (room: string, phase?: string) => Promise<any>, hold?: (room: string) => Promise<any>, release?: (room: string) => Promise<any> }>}
  */
 export async function startRealServer(opts = {}) {
   const port = Number.isInteger(opts.port) && opts.port > 0 ? opts.port : await freePort();
@@ -177,12 +184,33 @@ export async function startRealServer(opts = {}) {
     if (opts.fast.level) env.SP_START_LEVEL = String(opts.fast.level);
     if (opts.fast.finishAfter) env.SP_FINISH_AFTER = String(opts.fast.finishAfter);
     if (opts.fast.slowSpawns) env.SP_SLOW_SPAWNS = String(opts.fast.slowSpawns);
+    // the server's log lines in srv.logs, as with the production entry (fastServer.mjs is quiet otherwise)
+    if (opts.fast.log) env.SP_FAST_LOG = '1';
     if (opts.pluginsDir) env.SP_PLUGINS_DIR = opts.pluginsDir;
   }
   // extra environment for the server. Unset enables every official version; { SP_VERSIONS: 'act2autochess' } hides the
   // switch (DESIGN §35.23). A null value unsets a variable.
   if (opts.env && typeof opts.env === 'object') for (const [k, v] of Object.entries(opts.env)) { if (v == null) delete env[k]; else env[k] = String(v); }
-  const child = spawn(process.execPath, [entry], { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [entry], { cwd: ROOT, env, stdio: opts.fast ? ['ignore', 'pipe', 'pipe', 'ipc'] : ['ignore', 'pipe', 'pipe'] });
+  // the harness controls (fast only): one IPC request per call, answered by fastServer.mjs
+  const pending = new Map();
+  let reqSeq = 0;
+  if (opts.fast) {
+    child.on('message', (msg) => {
+      if (msg?.tag !== HARNESS_MSG || !pending.has(msg.id)) return;
+      const { resolve } = pending.get(msg.id);
+      pending.delete(msg.id);
+      const { tag, id, ...rest } = msg; void tag; void id;
+      resolve(rest);
+    });
+    child.once('exit', () => { for (const { reject } of pending.values()) reject(new Error('server exited')); pending.clear(); });
+  }
+  const control = (cmd) => (room, phase = null) => new Promise((resolve, reject) => {
+    if (child.exitCode != null || child.signalCode != null) { reject(new Error('server exited')); return; }
+    const id = ++reqSeq;
+    pending.set(id, { resolve, reject });
+    child.send({ tag: HARNESS_MSG, id, cmd, room: String(room || ''), ...(phase ? { phase } : {}) });
+  });
   const logs = [];
   const onData = (buf) => { for (const line of String(buf).split('\n')) if (line.trim()) logs.push(line); if (logs.length > 400) logs.splice(0, logs.length - 400); };
   child.stdout.on('data', onData);
@@ -207,6 +235,7 @@ export async function startRealServer(opts = {}) {
   }
   return {
     base, port, logs,
+    ...(opts.fast ? { endPhase: control('endPhase'), hold: control('hold'), release: control('release'), harnessState: control('state') } : {}),
     // `{ hard: true }`: SIGKILL at once — a crash: no room.closed 'shutdown' reaches the clients
     stop: ({ hard = false } = {}) => new Promise((resolve) => {
       if (child.exitCode != null || child.signalCode != null) { resolve(); return; }
@@ -215,6 +244,26 @@ export async function startRealServer(opts = {}) {
       child.kill(hard ? 'SIGKILL' : 'SIGTERM');
     }),
   };
+}
+
+/** The fixed presentation steps between a round's checks: only their timer moves them on. */
+export const PRESENTATION_PHASES = Object.freeze(['ROUND_START', 'BATTLE_CHECK', 'SETTLE']);
+
+/**
+ * (fork) Wait until `pred(c.st())` holds, ending each fixed presentation step on the way with the harness
+ * (`srv.endPhase`, test/e2e/harnessControl.mjs: the step's own deadline callback, at once) instead of waiting out its
+ * timer. Only for a fast server (startRealServer({ fast })) and only where the test checks nothing in those steps.
+ */
+export async function waitEndingSteps(srv, c, pred, what, timeout = 120000, steps = PRESENTATION_PHASES) {
+  const t0 = Date.now();
+  let last = null;
+  while (Date.now() - t0 < timeout) {
+    last = await c.st();
+    if (pred(last)) return last;
+    if (steps.includes(last.phase) && last.room?.code) await srv.endPhase(last.room.code, last.phase).catch(() => null);
+    await sleep(200);
+  }
+  throw new Error(`${c.label}: timed out waiting for ${what} (last: ${JSON.stringify(last)})`);
 }
 
 /**

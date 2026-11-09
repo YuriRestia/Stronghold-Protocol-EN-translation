@@ -59,7 +59,9 @@ export function makeMatch(o = {}) {
     FakeBattle.reset();
     if (o.script) FakeBattle.script = o.script;
   }
-  h.m = new Match({
+  // o.MatchClass: a Match subclass (test/e2e/harnessControl.mjs harnessMatchClass, test/match/harness-control.test.js)
+  const MatchCtor = o.MatchClass ?? Match;
+  h.m = new MatchCtor({
     roomCode: 'TEST', mode, difficulty, seats, spectators: o.spectators, seed: o.seed ?? 1, matchNo: o.matchNo, data: o.data ?? DATA, log,
     send: (id, msg) => {
       for (const fn of h.onSend) fn(id, msg);

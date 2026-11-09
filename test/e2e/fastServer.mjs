@@ -34,12 +34,17 @@
 // SP_SLOW_SPAWNS=<humanIdx>:<factor>: that human's (seat order) normal battles spawn their enemies at <factor> × the
 // scheduled times (and intervals) — a leaker's battle then runs to the round's time limit, long after a teammate's quick
 // one (test/ui/watch-bonds.e2e.test.js, "after the own battle": a window for watching and a reload).
+// Harness controls (test/e2e/harnessControl.mjs, over the IPC channel of startRealServer: srv.endPhase / srv.hold /
+// srv.release with the room code): end the current timed phase now, as its deadline would; hold a running battle (its
+// clocks freeze, the pages' too) while the test checks, then release it.
+// SP_FAST_LOG=1: the server logs like the production entry (a test that reads srv.logs, e.g. a takeover line).
 // Not a test file (node --test runs it as a no-op module when NODE_TEST_CONTEXT is set).
 
 import { startServer } from '../../server/index.js';
 import { Match } from '../../server/match/Match.js';
 import { legalTiles, placeClass, tileKey } from '../../server/match/board.js';
 import { planLayout } from '../../server/match/bot.js';
+import { harnessMatchClass, handleHarnessMessage } from './harnessControl.mjs';
 
 if (!process.env.NODE_TEST_CONTEXT) {
   const timerScale = Number(process.env.SP_TIMER_SCALE) || 1;
@@ -64,7 +69,8 @@ if (!process.env.NODE_TEST_CONTEXT) {
   const [slowIdx, slowFactor] = String(process.env.SP_SLOW_SPAWNS || '').split(':').map(Number);
   const slowSpawns = Number.isInteger(slowIdx) && slowIdx >= 0 && slowFactor > 0 ? { idx: slowIdx, factor: slowFactor } : null;
 
-  class FastMatch extends Match {
+  // the harness controls (test/e2e/harnessControl.mjs): end the timed phase now, hold / release a battle — IPC only
+  class FastMatch extends harnessMatchClass(Match) {
     constructor(opts) {
       super({ ...opts, timerScale, combatSpeed });
       this._jumped = !startAt;
@@ -210,10 +216,17 @@ if (!process.env.NODE_TEST_CONTEXT) {
     }
   }
 
-  const srv = await startServer({ port: Number(process.env.PORT) || 0, host: process.env.HOST || '127.0.0.1', quiet: true, MatchClass: FastMatch,
+  const srv = await startServer({ port: Number(process.env.PORT) || 0, host: process.env.HOST || '127.0.0.1', quiet: process.env.SP_FAST_LOG !== '1', MatchClass: FastMatch,
     ...(process.env.SP_PLUGINS_DIR ? { pluginsDir: process.env.SP_PLUGINS_DIR } : {}) });
   console.log(`fast server on ${srv.url} (timers ×${timerScale}, combat ${combatSpeed}×${startAt ? `, first round ${startAt}` : ''})`);
   const stop = () => { srv.close().finally(() => process.exit(0)); };
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);
+  // the harness controls answer the test process over the IPC channel startRealServer opens (never over a socket)
+  if (typeof process.send === 'function') {
+    process.on('message', (msg) => {
+      const reply = handleHarnessMessage(srv.lobby, msg);
+      if (reply) process.send(reply);
+    });
+  }
 }

@@ -22,7 +22,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { aimedDrag } from '../e2e/client.mjs';
+import { aimedDrag, PRESENTATION_PHASES } from '../e2e/client.mjs';
+import { harnessMatchClass, endPhaseNow } from '../e2e/harnessControl.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -464,8 +465,11 @@ describe('real server + real browsers', { skip: !ENABLED && 'set SP_REAL_E2E=1 (
 
   before(async () => {
     const { startServer } = await import('../../server/index.js');
+    const { Match } = await import('../../server/match/Match.js');
     puppeteer = (await import('puppeteer-core')).default;
-    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
+    // (fork) the real server in this process with the harness's Match (test/e2e/harnessControl.mjs: it only remembers
+    // the phase deadline's callback), so the co-op run ends the fixed steps between rounds at once (endPhaseNow)
+    srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true, MatchClass: harnessMatchClass(Match) });
     // the content-hash index first, so the pages load the served manifests' /assets/~<hash>/… URLs like a player's
     await srv.assetIndex?.whenReady();
     base = `http://127.0.0.1:${srv.port}`;
@@ -551,6 +555,11 @@ describe('real server + real browsers', { skip: !ENABLED && 'set SP_REAL_E2E=1 (
         const hs = await host.st();
         if (hs.result || hs.phase === 'RESULT') break;
         seen.add(hs.phase);
+        // (fork) nothing is checked in the fixed steps between rounds: each ends at once (its own deadline callback)
+        if (PRESENTATION_PHASES.includes(hs.phase)) {
+          const m = srv.lobby.getRoom(room.code)?.match;
+          if (m) endPhaseNow(m, hs.phase);
+        }
         if (hs.phase === 'PREP') {
           for (const c of both) {
             if (!(await c.isEditable())) continue;

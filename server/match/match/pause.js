@@ -18,8 +18,18 @@ export class MatchPause {
     void ps;
     if (!this.isSolo) return fail(ERR.WRONG_PHASE, 'co-op battles never pause');
     if (!on) { this._resume(); return OK; }
+    return this._freezeBattle();
+  }
+
+  /**
+   * Freeze the running battle: the solo pause's body (setPause gates it to solo). (fork) The browser test harness's
+   * battle hold (test/e2e/harnessControl.mjs, only in test/e2e/fastServer.mjs) calls it too, with `pauseQuiet` set so
+   * the pages freeze their clocks without the 暂停中 plate (m.public.hold instead of m.public.paused).
+   */
+  _freezeBattle() {
     if (this.paused) return OK;
-    const battlePhase = this.phase === PHASE.COMBAT || this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE;
+    // (fork) UNITE too: a co-op 联防 runs the same client-combat fields (the harness hold); a solo match never has one
+    const battlePhase = this.phase === PHASE.COMBAT || this.phase === PHASE.UNITE || this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE;
     if (!battlePhase || this._finalEnding || !this.fields.some((f) => f.live && !f.done)) return fail(ERR.WRONG_PHASE, 'no battle running');
     this.paused = true;
     this._pausedAt = this.sched.now();
@@ -38,6 +48,7 @@ export class MatchPause {
     if (!this.paused) return;
     const d = Math.max(0, this.sched.now() - this._pausedAt);
     this.paused = false;
+    this.pauseQuiet = false;
     this._pausedAt = 0;
     this.pausedMs += d;
     if (this.deadline) this.deadline += d;
@@ -63,6 +74,7 @@ export class MatchPause {
     if (!this.paused) return;
     this.pausedMs += Math.max(0, this.sched.now() - this._pausedAt);
     this.paused = false;
+    this.pauseQuiet = false;
     this._pausedAt = 0;
     this.markPublic();
   }

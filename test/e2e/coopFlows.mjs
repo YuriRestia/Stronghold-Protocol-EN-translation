@@ -2,9 +2,11 @@
 // match engine) and headless Chrome clients (puppeteer-core + the system Chrome) driving the real UI with real
 // clicks, keys and canvas drags — never net.request shortcuts.
 //
-//   node test/e2e/coop.e2e.mjs                         # everything (facing, co-op, solo, result)
-//   SP_E2E=1 node --test test/e2e/coop.e2e.mjs         # same through the test runner (skipped in `npm test` otherwise)
-//   SP_E2E_ONLY=facing|coop|solo|result  SP_E2E_ROUNDS=5  CHROME_PATH=…
+// (fork) The four runs are four files, one per run, so a browser run gives them parallel lanes:
+//   SP_E2E=1 node --test test/e2e/coop-facing.e2e.test.js test/e2e/coop-coop.e2e.test.js test/e2e/coop-solo.e2e.test.js test/e2e/coop-result.e2e.test.js
+//   SP_E2E_ROUNDS=5  CHROME_PATH=…
+// This module holds their shared steps and registers one run with the test runner's describe / test it is handed
+// (registerCoopRun); it does not import node:test itself, so it is never a test file (test/ci.test.js).
 //
 // Co-op (host 1920×1080, guest 1280×720): title → 玩法说明 → lobby → create a 同盟模拟 room (险境) → add an AI → the
 // guest joins through the ?room= invite link → ready → start → briefing (both ready) → band draft (the guest skips
@@ -31,14 +33,12 @@
 // Every page must finish with zero console errors, page errors, failed requests or HTTP errors.
 // Screenshots: test/e2e/out/{coop,solo,result}-*.png (…-720.png = the 1280×720 client).
 
-import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf, groundAnchor, anchorPoint, cameraSettled } from './client.mjs';
+import { Client, ROOT, sleep, hasChrome, startRealServer, problemsOf, groundAnchor, anchorPoint, cameraSettled, waitEndingSteps } from './client.mjs';
 
 const ENABLED = (process.env.SP_E2E === '1' || !process.env.NODE_TEST_CONTEXT) && hasChrome() && existsSync(path.join(ROOT, 'public/assets'));
-const ONLY = process.env.SP_E2E_ONLY || '';
 const ROUNDS = Math.max(4, Number(process.env.SP_E2E_ROUNDS) || 4);
 const COMBAT = ['COMBAT', 'UNITE', 'FINAL_ASSAULT', 'HIDDEN_CORE'];
 
@@ -975,8 +975,14 @@ async function facingTour(c, did) {
 
 // ---- tests ---------------------------------------------------------------------------------------------------------
 
-describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrome + public/assets (run: node test/e2e/coop.e2e.mjs)' }, () => {
-  test('facing: the direction wheel and the official prep interactions (solo)', { skip: !!ONLY && ONLY !== 'facing', timeout: 15 * 60 * 1000 }, async () => {
+/**
+ * Register one of the four runs ('facing' | 'coop' | 'solo' | 'result') with the given node:test describe / test
+ * (test/e2e/coop-<run>.e2e.test.js).
+ */
+export function registerCoopRun(run, { describe, test }) {
+  if (!['facing', 'coop', 'solo', 'result'].includes(run)) throw new Error(`unknown co-op E2E run ${run}`);
+describe(`browser E2E against the real server: ${run}`, { skip: !ENABLED && 'needs Chrome + public/assets (SP_E2E=1)' }, () => {
+  if (run === 'facing') test('facing: the direction wheel and the official prep interactions (solo)', { timeout: 15 * 60 * 1000 }, async () => {
     const srv = await startRealServer();
     const c = new Client(await pptr(), srv.base, 'facing', { prefix: 'facing' });
     const did = { dragShot: true, rewardShot: true };
@@ -1025,8 +1031,10 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
     }
   });
 
-  test(`co-op: 2 humans + 1 AI, lobby → briefing → band draft → ${ROUNDS} rounds`, { skip: !!ONLY && ONLY !== 'coop', timeout: 40 * 60 * 1000 }, async () => {
-    const srv = await startRealServer();
+  if (run === 'coop') test(`co-op: 2 humans + 1 AI, lobby → briefing → band draft → ${ROUNDS} rounds`, { timeout: 40 * 60 * 1000 }, async () => {
+    // (fork) the fast server at the real game's timings (timers ×1, combat 2×): only for the harness controls
+    // (test/e2e/harnessControl.mjs) — a fixed step ends at once once it has been looked at
+    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2, log: true } });
     const P = await pptr();
     const host = new Client(P, srv.base, 'host', { prefix: 'coop' });
     const guest = new Client(P, srv.base, 'guest', { w: 1280, h: 720, prefix: 'coop' });
@@ -1137,6 +1145,10 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
         if (hs.result || hs.phase === 'RESULT') break;
         seen.add(hs.phase);
         if (hs.phase === 'BATTLE_CHECK' && !seen.has('bc-shot')) { seen.add('bc-shot'); await host.shot('battle-check'); }
+        // (fork) a fixed step whose screenshot is taken ends at once (its own deadline callback, the harness)
+        if ((hs.phase === 'BATTLE_CHECK' && seen.has('bc-shot')) || hs.phase === 'ROUND_START' || (hs.phase === 'SETTLE' && seen.has(`settle-${hs.round}`))) {
+          await srv.endPhase(room.code, hs.phase);
+        }
         if (hs.phase === 'PREP') {
           for (const c of both) {
             if (!(await c.isEditable())) continue;
@@ -1278,8 +1290,10 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
     }
   });
 
-  test('solo: 独立模拟 (绝境) through round 3 incl. the solo 机变', { skip: !!ONLY && ONLY !== 'solo', timeout: 20 * 60 * 1000 }, async () => {
-    const srv = await startRealServer();
+  if (run === 'solo') test('solo: 独立模拟 (绝境) through round 3 incl. the solo 机变', { timeout: 20 * 60 * 1000 }, async () => {
+    // (fork) the fast server at the real game's timings (timers ×1, combat 2×): only for the harness controls
+    // (test/e2e/harnessControl.mjs) — a fixed step ends at once once it has been looked at
+    const srv = await startRealServer({ fast: { timerScale: 1, combatSpeed: 2, log: true } });
     const solo = new Client(await pptr(), srv.base, 'solo', { prefix: 'solo' });
     const did = { dragShot: true, rewardShot: false };
     try {
@@ -1300,7 +1314,7 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
       await solo.click('.dband', null, { nth: 1 });
       await solo.click('.draft-detail__btns .btn--primary', '确认选择');
       for (let round = 1; round <= 3; round++) {
-        const s0 = await solo.waitFor((s) => (s.phase === 'PREP' && s.round === round && !s.ready) || (s.phase === 'SP_DRAFT' && s.round === round), `prep ${round}`, 90000);
+        const s0 = await waitEndingSteps(srv, solo, (s) => (s.phase === 'PREP' && s.round === round && !s.ready) || (s.phase === 'SP_DRAFT' && s.round === round), `prep ${round}`, 90000);
         if (s0.phase === 'SP_DRAFT') {
           await sleep(2000);
           await solo.shot(`sp-r${round}`);
@@ -1341,7 +1355,7 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
     }
   });
 
-  test('result: a fast-timer solo run to the RESULT screen and back to the room', { skip: !!ONLY && ONLY !== 'result', timeout: 20 * 60 * 1000 }, async () => {
+  if (run === 'result') test('result: a fast-timer solo run to the RESULT screen and back to the room', { timeout: 20 * 60 * 1000 }, async () => {
     const srv = await startRealServer({ fast: { timerScale: 0.3, combatSpeed: 24 } });
     const c = new Client(await pptr(), srv.base, 'result', { prefix: 'result' });
     try {
@@ -1423,3 +1437,4 @@ describe('browser E2E against the real server', { skip: !ENABLED && 'needs Chrom
     }
   });
 });
+}
