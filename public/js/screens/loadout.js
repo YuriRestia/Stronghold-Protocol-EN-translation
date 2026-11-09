@@ -155,7 +155,8 @@ function Detail({ m, chess, golden, entries, ops = {}, onChange, onOps, onReset,
   useSkillRangePreview(); // (fork) 局内数值's 攻击范围 技能 toggle (ui/rangePreview.js)
   const setLevel = onLevel;
   const bodyRef = useRef(null);
-  useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = 0; }, [chess?.chessId]);
+  // another operator starts at the top: the body, and (fork) the whole detail where it scrolls as one (a short phone's drawer)
+  useEffect(() => { const b = bodyRef.current; if (b) { b.scrollTop = 0; if (b.parentElement) b.parentElement.scrollTop = 0; } }, [chess?.chessId]);
   if (!chess) return html`<aside class="lo-detail lo-detail--empty"><p class="t-dim">${t('没有符合条件的干员')}</p></aside>`;
   const opt = chessOptions(chess, golden);
   const choice = effectiveChoice(entries, chess, golden);
