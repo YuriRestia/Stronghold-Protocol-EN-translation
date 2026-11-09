@@ -1,7 +1,8 @@
 // The newcomer docs name only paths that exist: every repository path in docs/ARCHITECTURE.md and CONTRIBUTING.md
 // (inline code, the diagrams and commands in fenced blocks) and every relative Markdown link. A path with a
 // placeholder (`<codename>`, `{a,b}`) or a glob (`*`) is checked up to its last fixed directory; a path ending in `/`
-// must be a directory. Outputs that a fresh checkout does not have (downloaded art, vendored libraries) are exempt.
+// must be a directory. Outputs that a fresh checkout does not have (downloaded art, vendored libraries, the browser
+// tests' run output) are exempt.
 // The design document (0.2.0 split): docs/DESIGN.md is the index, every `## N.` section sits exactly once in
 // docs/design/ (the current rules) or docs/history/ (the per-release revisions), the index names each file with its
 // sections, and every "DESIGN §N" / "DESIGN §N.M" cited anywhere in the repository is a heading of it.
@@ -21,8 +22,8 @@ const DOCS = [['docs/ARCHITECTURE.md', 100], ['CONTRIBUTING.md', 15]];
 const TOP = /^(?:server|shared|public|data|tools|test|docs|types|scripts|\.github)\//;
 /** … or is one of these root files (README.md is left out: a bare `README.md` often means a folder's own). */
 const ROOT_FILES = new Set(['package.json', 'eslint.config.js', 'jsconfig.json', 'CHANGELOG.md', 'CONTRIBUTING.md']);
-/** Git-ignored or made at install time. */
-const EXEMPT = ['public/assets/', 'public/fonts/', 'public/vendor/', 'data/local-assets.json'];
+/** Git-ignored or made at install time (test/e2e/out/: what browser test runs write — repro runs, the coverage map). */
+const EXEMPT = ['public/assets/', 'public/fonts/', 'public/vendor/', 'data/local-assets.json', 'test/e2e/out/'];
 
 /** Repository paths named in a Markdown text (inline code and fenced blocks), without duplicates. */
 function namedPaths(md) {
@@ -90,6 +91,7 @@ test('the path extraction: placeholders, globs, directories and the exemptions',
   for (const path of ['public/fonts', 'public/fonts/', 'public/fonts/fonts.css', 'public/fonts/*.woff2']) {
     assert.equal(missing(path), null, `${path} is downloaded, not required in a checkout`);
   }
+  for (const path of ['test/e2e/out/repro/', 'test/e2e/out/coverage/']) assert.equal(missing(path), null, `${path} is written by test runs`);
   assert.equal(missing('public/fonts-missing/'), 'public/fonts-missing/: not found');
   assert.equal(missing('server/no-such-file.js'), 'server/no-such-file.js: not found');
   assert.equal(missing('server/index.js/'), 'server/index.js/: not a directory');

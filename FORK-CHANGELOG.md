@@ -21,6 +21,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Rerun only the browser tests that need it
 
+- The documentation check passes on a fresh checkout again: CONTRIBUTING names the folder these runs write their output to (`test/e2e/out/`), which only exists after a run, and the check now treats it like the other generated folders.
 - After every browser test run there is a failure table and a `failures.json`: for each failed test its file, full name and first error line, when it started counted from the start of its file, how long it ran, how long the whole file took, which tests ran before it in that file, and its screenshots and console log. Any `node --test` run's JUnit file can be read the same way (`node tools/test-repro.mjs --report`). Today's final check, for example, shows playtest2's fallback plate test starting about 15 s into its file, after the engine test, and failing after 5.4 s of a 495 s file.
 - The browser test table now keeps each test's own measured time, so a run prints how long it should take before it starts and how long it took after.
 - `--rerun-failed failures.json` reruns only the failed tests: each one alone, then, if it passes alone, after exactly the tests that ran before it, and says whether it depends on earlier tests.
