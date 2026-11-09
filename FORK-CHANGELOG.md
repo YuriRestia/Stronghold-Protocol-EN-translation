@@ -27,6 +27,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - The outlines of every model's animations, which size the light-weight copies that keep big fights fast, are now measured once on the server after the art is downloaded or extracted (`npm run clip-bounds`, run by `npm run assets` and `npm run assets:release-local`) and sent with the game as one small file (about 94-98 KB compressed). Browsers no longer spend the first seconds of a crowded battle measuring them while drawing every unit in full. In the 120-unit stress scene no unit waits for its outline any more (before: up to 14 did) and the browser spends no time measuring them (before: 2.4-2.7 s in the first 20 s). The outlines are the browser's own measurement, rounded slightly outward, so no model is cut off; a model the file does not cover (plugins, DIY, art added later) is still measured in the browser as before. The time spent measuring a model the file does not cover no longer counts as a slow device (which used to lower the animation rate) and no longer enlarges its own budget. A server without the file answers with an empty table instead of an error. Server owners: run `npm run clip-bounds` after a local-client extraction (docs/DEPLOY.en.md).
 
+### Faster, steadier browser test suite
+
+- The browser tests' speed limits (frames per second and time per frame) only run in `npm run test:perf`, alone on the machine (with `RENDER_E2E=1`). In the full browser run, other tests share the machine, so the frame rate follows the load: 10 of the final check's 20 failures were such limits (for example 29.2 fps against a floor of 30). Each of those tests still checks everything else, and that frames are drawn.
+- `npm run test:browser` runs every browser test file in one go, slowest first, so a 10-minute file no longer ends the run alone. `--gate` runs a 14-file quick set (about 4 minutes) for checking a fix, and `--slots` tells how much of a shared machine a file needs. Per-file times come from the last full run.
+- Three test files at once instead of two was measured and not adopted: render tests ran 23–26% slower and a script plugin's 5 s check timed out. The suite stays at two.
+- The lobby layout tests wait for the next frames and the fonts instead of fixed 150 ms pauses in most of their checks: lobby-hub's shared tests took 8% less time even on a busier machine.
+
 ### Spectate, filter popover, Final Assault watch, protocol list
 
 - Pressing Spectate right after entering the lobby could fail with "too many requests", because entering the lobby spends the server's budget for heavy messages (loadout, ownership, outfits and more). Spectate now tries again after 1.2 s, at most twice. Proposing a version already did this.

@@ -7,3 +7,12 @@
 
 /** node:test options of a benchmark: skipped (with the way to run it) unless SP_PERF=1. */
 export const PERF = process.env.SP_PERF === '1' ? {} : { skip: 'benchmark: run with `npm run test:perf`' };
+
+/**
+ * (fork) SP_PERF=1: the run is `npm run test:perf`, alone on the machine. A browser test's speed bar (an fps floor, a
+ * per-frame JS budget) is checked only then; the browser suite runs its files side by side, where Chrome's frame rate
+ * follows the machine's load, not the code. Outside it the same test still checks that frames are drawn at all.
+ *
+ *   if (PERF_ON) assert.ok(st.fps > 30, `fps ${st.fps}`); else assert.ok(st.fps > 0, `frames drawn (fps ${st.fps})`);
+ */
+export const PERF_ON = process.env.SP_PERF === '1';

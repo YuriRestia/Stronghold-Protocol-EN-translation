@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gpuArgs } from '../../tools/perfbench.mjs';
+import { PERF as PERF_ONLY } from '../helpers/perf.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -445,7 +446,8 @@ describe('field view features in headless Chrome', { skip }, () => {
     ['late-r13', 'scene=late-m01-r13&t=50'], ['late-r12', 'scene=late-m03-r12&t=40'], ['unite', 'scene=unite-m01&t=25'], ['boss', 'scene=boss-m02&t=30'], ['prep-pen', 'scene=prep&pen=late-m01-r13'],
   ];
   for (const board of ['3d', '2d']) {
-    test(`4× throttled CPU at 1920×1080 (${board}): typical late-round / 联防 / boss / pen scenes hold ≥ 50 fps`, async () => {
+    // (fork) a speed bar as a whole: `npm run test:perf` runs it alone
+    test(`4× throttled CPU at 1920×1080 (${board}): typical late-round / 联防 / boss / pen scenes hold ≥ 50 fps`, PERF_ONLY, async () => {
       if (board === '3d' && !hasArt) return;
       const worst = [];
       for (const [name, q] of PERF) {
