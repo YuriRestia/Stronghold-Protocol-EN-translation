@@ -23,7 +23,11 @@ const KEYS = ['foo_atk_start', 'foo_atk_hit', 'foo_s2_mode_cast', 'foo_s3_mode_c
   'foo_s2_h2', 'foo_s2_burn', 'foo_s2_trail', 'foo_s2_phit', 'foo_s3_loop', 'foo_s3_tick', 'foo_each_hit', 'bar_buff', 'bar_birth',
   'indigo_attack_charge_01_start', 'indigo_attack_charge_02', 'indigo_attack_charge_03', 'indigo_attack_charge_04', 'indigo_attack_charge_05',
   'indigo_attack_01_trail', 'indigo_attack_01_hit', 'clemnt_skill_03_mark_all_01', 'buff_stun', 'buff_burn', 'g_hit', 'g_heal', 'g_enemy', 'g_die',
-  'qux_s1_cast', 'qux_s1_trail', 'qux_mode_cast', 'once_buff', 'once_loop', 'oncep_buff', 'oncep_loop'];
+  'qux_s1_cast', 'qux_s1_trail', 'qux_mode_cast', 'once_buff', 'once_loop', 'oncep_buff', 'oncep_loop',
+  // (fork) the template shots' bindings (FX_BINDINGS flight / keysIf / tiles)
+  'token_mcnist_mcgraf_skill_03_trail_01_right', 'token_mcnist_mcgraf_skill_03_trail_02_up_left', 'token_mcnist_mcgraf_skill_03_hit_01',
+  'kalts2_skill_02_indicator_damage_01', 'kalts2_skill_02_range_heal_01_delay', 'kalts2_skill_02_indicator_heal_01',
+  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01'];
 
 const melee = (k, ev = 2) => ({ effects: [k], oneshot: 1, startEvent: ev, endEvent: 3, directionType: 0 });
 
@@ -68,6 +72,9 @@ function makeIndex() {
       { role: 'start', keys: ['qux_s1_cast'], from: 'UberEffectEmitter._castEffects', node: 'sk', ability: 'RangedAttack', startEvent: 'ON_SPELL_ON', endEvent: 'ON_CAST_END', oneshot: true, list: 'cast' },
     ] },
     skchr_clemnt_3: { mode: 1, projectiles: ['projectile_chr_clemnt_s3'], uses: [] },
+    skchr_mcnist_3: { mode: null, projectiles: [], uses: [] },
+    skchr_kalts2_2: { mode: null, projectiles: [], uses: [] },
+    skchr_dminon_1: { mode: null, projectiles: [], uses: [] },
     // held loops of a skill and a passive: one prefab loops, the other is a one-shot (index.json looping false)
     skchr_once_1: { mode: null, projectiles: [], uses: [
       { role: 'loop', keys: ['once_buff'], from: 'BuffDuringSkill._buffs', node: 'sk', on: 'owner' },
@@ -92,6 +99,9 @@ function makeIndex() {
       ], ['skchr_indigo_1'], 'char_469_indigo'),
       char_4231_clemnt: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }, { name: 'S3', attack: { class: 'MeleeAttack', cast: [] } }], ['skchr_clemnt_3']),
       char_300_qux: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [melee('qux_mode_cast', 4)], hit: [] } }, { name: 'S2', attack: { class: 'MeleeAttack', cast: [] } }], ['skchr_qux_1']),
+      char_4230_mcnist: unit([{ name: 'Default', attack: { class: 'RangedAttack', cast: [], hit: [] } }], ['skchr_mcnist_3']),
+      char_1052_kalts2: unit([{ name: 'Default', attack: { class: 'HealAttack', cast: [], hit: [] } }], ['skchr_kalts2_2']),
+      char_4246_dminon: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_dminon_1']),
       char_500_once: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_once_1']),
       char_510_oncep: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_once_2']),
       enemy_1: { kind: 'enemy', modes: [{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], skills: {} },
@@ -105,6 +115,9 @@ function makeIndex() {
       projectile_chr_indigo_s2: { main: 'indigo_attack_01_trail', onHit: [], effects: ['indigo_attack_01_trail'] },
       projectile_chr_clemnt_s3: { main: null, onReached: ['clemnt_skill_03_mark_all_01'], effects: ['clemnt_skill_03_mark_all_01'] },
       proj_qux_s1: { main: 'qux_s1_trail', onHit: [], effects: ['qux_s1_trail'] },
+      projectile_chr_mcnist_s3_token: { main: 'token_mcnist_mcgraf_skill_03_trail_01_left', onReached: ['token_mcnist_mcgraf_skill_03_hit_01'] },
+      projectile_chr_mcnist_s3_token_right: { main: 'token_mcnist_mcgraf_skill_03_trail_01_right', onReached: ['token_mcnist_mcgraf_skill_03_hit_01'] },
+      projectile_chr_mcnist_s3_token_up: { main: 'token_mcnist_mcgraf_skill_03_trail_02_up_left', onReached: ['token_mcnist_mcgraf_skill_03_hit_01'] },
       proj_qux_s1_2: { main: 'qux_s1_trail', onHit: [], effects: ['qux_s1_trail'] },
     },
     skins: {
@@ -127,6 +140,9 @@ const RECS = {
   char_200_bar: { charId: 'char_200_bar', skill: { skillId: 'skchr_bar_1', index: 0, skillType: 'PASSIVE', durationType: 'NONE', duration: -1, bb: {} } },
   char_469_indigo: { charId: 'char_469_indigo', skill: { skillId: 'skchr_indigo_1', index: 0, skillType: 'MANUAL', duration: 20, bb: {} } },
   char_4231_clemnt: { charId: 'char_4231_clemnt', skill: { skillId: 'skchr_clemnt_3', index: 2, skillType: 'MANUAL', durationType: 'AMMO', duration: 0, bb: { projectile_life_time: 5 } } },
+  char_4230_mcnist: { charId: 'char_4230_mcnist', skill: { skillId: 'skchr_mcnist_3', index: 2, skillType: 'MANUAL', duration: 40, bb: {} } },
+  char_1052_kalts2: { charId: 'char_1052_kalts2', skill: { skillId: 'skchr_kalts2_2', index: 1, skillType: 'MANUAL', duration: 20, bb: {} } },
+  char_4246_dminon: { charId: 'char_4246_dminon', skill: { skillId: 'skchr_dminon_1', index: 0, skillType: 'AUTO', duration: 10, bb: {} } },
   char_300_qux: { charId: 'char_300_qux', skill: { skillId: 'skchr_qux_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 10, bb: {} } },
   char_500_once: { charId: 'char_500_once', skill: { skillId: 'skchr_once_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 20, bb: {} } },
   char_510_oncep: { charId: 'char_510_oncep', skill: { skillId: 'skchr_once_2', index: 0, skillType: 'PASSIVE', durationType: 'NONE', duration: -1, bb: {} } },
@@ -505,6 +521,45 @@ describe('kit fx the official effects stand for', () => {
     assert.equal(live(handles, 'clemnt_skill_03_mark_all_01').length, 0, 'cleared with the projectile');
     frame();
     assert.equal(w.simFx('blast', 8, 10, { id: 1, r: 1.5 }), false);
+  });
+});
+
+describe('(fork) FX_BINDINGS of the template shots (flight, keysIf, only + tiles)', () => {
+  test("机械师 S3: the token's charge flies the shot of its way and facing (right: _right; up, facing left: _up), after 0.2 s, its hit where it lands", async () => {
+    const { w, spawned, handles, view, frame, ofx } = await setup();
+    const m = view(1, 'char_4230_mcnist', 4, { skill: 2 });
+    const tok = view(9, 'token_10069_mcnist_mcgraf', 5);
+    frame();
+    w.skill(m, true);
+    assert.equal(w.simFx('charge', 5, 10, { x: 5, y: 10, id: 9, tx: 8, ty: 10 }), true);
+    assert.equal(spawned.includes('token_mcnist_mcgraf_skill_03_trail_01_right'), false, 'not before its delay');
+    for (let i = 0; i < 8; i++) { ofx.time += 0.05; w.tick(); }
+    assert.equal(spawned.at(-1), 'token_mcnist_mcgraf_skill_03_trail_01_right');
+    const h = handles.at(-1);
+    h.opts.track({ time: 0.15, anchor: [0, 0, 0], stop() {} });                       // 3 tiles at 20 / s: landed
+    assert.equal(spawned.at(-1), 'token_mcnist_mcgraf_skill_03_hit_01');
+    tok.visFacing = -1;
+    assert.equal(w.simFx('charge', 5, 10, { x: 5, y: 10, id: 9, tx: 5, ty: 12 }), true);
+    for (let i = 0; i < 8; i++) { ofx.time += 0.05; w.tick(); }
+    assert.equal(spawned.at(-1), 'token_mcnist_mcgraf_skill_03_trail_02_up_left', 'UP is +row; faceLeft takes the plain key');
+    w.skill(m, false); frame(); ofx.time += 2; frame();
+    assert.equal(w.simFx('charge', 5, 10, { x: 5, y: 10, id: 9, tx: 8, ty: 10 }), false, "outside S3: the kit's own fx");
+  });
+
+  test("凯尔希·思衡托 S2: the landing's follow-up splash by the struck unit's side; 国度 T2: its tile hits on each tile of his range", async () => {
+    const { w, spawned, view, frame } = await setup();
+    const k = view(1, 'char_1052_kalts2', 4, { skill: 1 });
+    const d = view(2, 'char_4246_dminon', 6, { skill: 0 });
+    frame();
+    assert.equal(w.simFx('healAoe', 7, 10, { id: 1, radius: 1.5, onEnemy: true }), true);
+    assert.deepEqual(spawned.slice(-2), ['kalts2_skill_02_indicator_damage_01', 'kalts2_skill_02_range_heal_01_delay']);
+    assert.equal(w.simFx('healAoe', 7, 10, { id: 1, radius: 1.5, onEnemy: false }), true);
+    assert.deepEqual(spawned.slice(-2), ['kalts2_skill_02_indicator_heal_01', 'kalts2_skill_02_range_damage_01_delay']);
+    const n = spawned.length;
+    assert.equal(w.simFx('aoe', 6, 10, { id: 2, skill: 'dminon:boundary', tiles: [[10, 6], [10, 7], [11, 6]] }), true);
+    assert.deepEqual(spawned.slice(n), ['dminon_talent_range_hit_01', 'dminon_talent_range_hit_01', 'dminon_talent_range_hit_01']);
+    assert.equal(w.simFx('aoe', 6, 10, { id: 2, skill: 'dminon:spread' }), false, "another of his aoe: the kit's own");
+    assert.ok(d);
   });
 });
 
