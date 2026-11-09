@@ -81,7 +81,7 @@ test('computeBuildTag: a served official version\'s data is part of the build; a
   }
 });
 
-test('computeBuildTag: stable for one tree, different when a runtime file changes (size or mtime)', () => {
+test('computeBuildTag: stable for one tree, different when a runtime file changes contents, not its mtime', () => {
   const root = fixture();
   try {
     const a = computeBuildTag(root);
@@ -91,13 +91,43 @@ test('computeBuildTag: stable for one tree, different when a runtime file change
     fs.writeFileSync(path.join(root, 'public/js/file.js'), 'yy');
     const b = computeBuildTag(root);
     assert.notEqual(b, a, 'a changed runtime file is a new build');
-    // …and so is a rewrite with the same size but a new mtime (a deploy of identical bytes keeps its timestamp)
+    // …and so is new contents of the same size
+    fs.writeFileSync(path.join(root, 'public/js/file.js'), 'zz');
+    const c = computeBuildTag(root);
+    assert.notEqual(c, b, 'same size, other bytes → a new build');
+    // a new timestamp on the same bytes is not (another checkout of the same commit)
     const target = path.join(root, 'public/css/file.css');
     const st = fs.statSync(target);
     fs.utimesSync(target, st.atime, new Date(st.mtimeMs + 5000));
-    assert.notEqual(computeBuildTag(root), b);
+    assert.equal(computeBuildTag(root), c);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('computeBuildTag: two servers of one commit agree — other mtimes, per-server art lists, a rewritten asset manifest', () => {
+  const sg = fixture();
+  const us = fixture();
+  try {
+    fs.writeFileSync(path.join(sg, 'data/assets.json'), '{"committed":true}');
+    fs.writeFileSync(path.join(us, 'data/assets.json'), '{"committed":true}');
+    const known = computeBuildTag(us);
+    // the art server: its own extraction lists and clip bounds, and fetch-assets rewrote the manifest
+    for (const [rel, body] of [['data/local-assets.json', '{"a":1}'], ['data/local-fx.json', '{"fx":1}'],
+      ['data/clip-bounds.json', '{"b":1}'], ['data/assets.json', '{"committed":true,"refreshed":true}']]) {
+      fs.writeFileSync(path.join(sg, rel), body);
+    }
+    // a checkout made at another time: every file has another mtime
+    const later = new Date(Date.now() + 3600e3);
+    for (const rel of ['public/index.html', 'public/js/file.js', 'public/css/file.css', 'server/sim/content/kits/skill.js',
+      'shared/protocol.js', 'data/chess.json']) fs.utimesSync(path.join(sg, rel), later, later);
+    assert.equal(computeBuildTag(sg), known, 'the same commit is the same build on both servers');
+    // a rules file that really differs still splits them
+    fs.writeFileSync(path.join(sg, 'data/chess.json'), 'other rules');
+    assert.notEqual(computeBuildTag(sg), known);
+  } finally {
+    fs.rmSync(sg, { recursive: true, force: true });
+    fs.rmSync(us, { recursive: true, force: true });
   }
 });
 
