@@ -16,6 +16,8 @@
 // (fork) A region may have its own socket host (`socket`, SP_REGION_SOCKETS), used for the socket and the ping test.
 // Until this page has reached it once, one not welcomed within DIRECT_CONNECT_MS (refused or silent) sends this browser
 // back to the region's host for DIRECT_RETRY_MS. A failure after a welcome there is an outage and changes nothing.
+// Meanwhile the socket host is pinged again in the background (at load, then every RECHECK_MS, never in a room or a
+// match); once it answers, the browser moves back to it at once.
 //
 // Kept free of the store and the DOM (injected), so test/ui/regions.test.js can drive it.
 
@@ -44,6 +46,8 @@ const WELCOME_WAIT_MS = 8000;
 export const DIRECT_CONNECT_MS = 6000;
 /** (fork) How long a browser that fell back keeps to the region's host before it tries the socket host again. */
 export const DIRECT_RETRY_MS = 6 * 60 * 60_000;
+/** (fork) While a browser keeps to the region's host, how often it pings the socket host again in the background. */
+export const RECHECK_MS = 10 * 60_000;
 /** After a welcome the server resends a resumed room at once: this long without one means there is no seat to keep. */
 export const SETTLE_GRACE_MS = 1500;
 
@@ -145,6 +149,37 @@ export function createRegions(deps) {
     console.info(`[regions] the socket host of ${id} cannot be reached from here: using ${hostOf(id)}`);
     return true;
   }
+  /** (fork) A ping test of the socket hosts this browser fell back from; one that answers is used again. */
+  let rechecking = false;
+  let recheckTimer = null;
+  async function recheck() {
+    if (rechecking || !config || busy() || inMatch() || crossing > 0) return;
+    const ids = config.list.filter((r) => r.socket && !isDirect(r.id)).map((r) => r.id);
+    if (!ids.length) return;
+    rechecking = true;
+    try {
+      for (const id of ids) {
+        const ms = await pingUrl(regionSocketUrl(directOf(id), deps.socketPath(), deps.secure()));
+        if (!Number.isFinite(ms) || !config || isDirect(id)) continue;
+        const map = routeUntil();
+        delete map[id];
+        write(local, K_ROUTE, Object.keys(map).length ? map : null);
+        reached.add(id);
+        console.info(`[regions] the socket host of ${id} answers again: using it`);
+        // the same server on its other host: the token and the seat stay valid
+        if (id === current && !busy() && !inMatch() && crossing === 0) net.switchServer();
+        emit();
+      }
+    } finally {
+      rechecking = false;
+    }
+  }
+  function scheduleRecheck() {
+    if (recheckTimer != null || !config?.list.some((r) => r.socket)) return;
+    recheckTimer = setTimer(() => { recheckTimer = null; void recheck().finally(scheduleRecheck); }, RECHECK_MS);
+    recheckTimer?.unref?.(); // (Node, in tests) nothing waits for it
+  }
+
   function endDirectWatch() {
     if (directWatch) clearTimer(directWatch.timer);
     directWatch = null;
@@ -429,6 +464,9 @@ export function createRegions(deps) {
     settle(); // a tab that asked for a region before the regions were known
     // once per page: a return visit re-measures in the background, the first visit measures at all
     if (!probedOnce) { probedOnce = true; void probe(); }
+    // (fork) a browser that fell back from a socket host tries it again now, and every RECHECK_MS
+    void recheck();
+    scheduleRecheck();
   }
 
   /** @param {{ token?: string }} msg welcome */

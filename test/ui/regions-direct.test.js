@@ -3,7 +3,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createRegions, parseConfig, DIRECT_CONNECT_MS, DIRECT_RETRY_MS, FALLBACK_ATTEMPTS_FIRST } from '../../public/js/regions.js';
+import { createRegions, parseConfig, DIRECT_CONNECT_MS, DIRECT_RETRY_MS, FALLBACK_ATTEMPTS_FIRST, RECHECK_MS } from '../../public/js/regions.js';
 
 const CONFIG = {
   self: 'sg', auto: true,
@@ -45,7 +45,22 @@ function clock() {
   };
 }
 
-function setup({ remoteAnswer = null, WebSocket = undefined } = {}) {
+/** A ping socket: answers pongs, unless its host is in `blocked` (then it errors at once). Counts what it was asked. */
+function pingSockets(blocked = new Set()) {
+  const asked = [];
+  class WS {
+    constructor(url) {
+      asked.push(url);
+      queueMicrotask(() => ([...blocked].some((b) => url.includes(b)) ? this.onerror?.() : this.onopen?.()));
+    }
+    send(text) { const { c } = JSON.parse(text); queueMicrotask(() => this.onmessage?.({ data: JSON.stringify({ t: 'pong', c }) })); }
+    close() {}
+  }
+  return { WS, asked, blocked };
+}
+const settle = () => new Promise((done) => setTimeout(done, 0));
+
+function setup({ remoteAnswer = null, WebSocket = pingSockets(new Set(['example.com'])).WS, busy = () => false } = {}) {
   const c = clock();
   const local = memory();
   const net = new FakeNet();
@@ -63,7 +78,7 @@ function setup({ remoteAnswer = null, WebSocket = undefined } = {}) {
     },
     makeError: (code) => err(code),
     now: c.now, setTimeout: c.setTimeout, clearTimeout: c.clearTimeout,
-    WebSocket,
+    WebSocket, busy,
   });
   net.onSwitch = () => regions.getUrl();
   regions.onHealth({ regions: CONFIG });
@@ -145,5 +160,66 @@ describe('the ping test and joins on another region', () => {
     await regions.join('room.join', { code: 'NXYZ' });
     assert.deepEqual(probes.map((p) => p.url), ['wss://us-socket.example.com/ws', 'wss://us.example.com/ws']);
     assert.equal(regions.getUrl(), 'wss://us.example.com/ws');
+  });
+});
+
+describe('a browser that fell back tries the socket host again', () => {
+  /** Fall back through the watch, with the socket host blocked for the ping too. */
+  async function fallen(opts = {}) {
+    const ping = pingSockets(new Set(['sg.example.com']));
+    const t = setup({ WebSocket: ping.WS, ...opts });
+    await t.regions.measure(); // the page's first ping test, done before anything is counted
+    t.regions.getUrl();
+    t.clock.advance(DIRECT_CONNECT_MS);
+    assert.equal(t.regions.getUrl(), VIA_HOST);
+    return { ...t, ping };
+  }
+
+  test('once the socket host answers again, the next background check moves the socket back', async () => {
+    const { regions, net, clock: c, ping, local } = await fallen();
+    const switched = net.switched;
+    ping.blocked.clear();
+    c.advance(RECHECK_MS);
+    await settle();
+    assert.equal(net.switched, switched + 1, 'moved back at once, outside a room');
+    assert.equal(regions.getUrl(), DIRECT);
+    assert.equal(local.getItem('sp.regionRoute'), null);
+  });
+
+  test('while it is still blocked, nothing changes and it is checked again later', async () => {
+    const { regions, net, clock: c, ping } = await fallen();
+    const switched = net.switched;
+    const before = ping.asked.length;
+    c.advance(RECHECK_MS);
+    await settle();
+    assert.equal(ping.asked.length, before + 1, 'one background ping');
+    assert.equal(net.switched, switched);
+    assert.equal(regions.getUrl(), VIA_HOST);
+    c.advance(RECHECK_MS);
+    await settle();
+    assert.equal(ping.asked.length, before + 2, 'and again ten minutes later');
+  });
+
+  test('never in a room or a match: no ping, no move', async () => {
+    let inRoom = false;
+    const { regions, net, clock: c, ping } = await fallen({ busy: () => inRoom });
+    inRoom = true;
+    ping.blocked.clear();
+    const before = ping.asked.length;
+    const switched = net.switched;
+    c.advance(RECHECK_MS);
+    await settle();
+    assert.equal(ping.asked.length, before);
+    assert.equal(net.switched, switched);
+    assert.equal(regions.getUrl(), VIA_HOST);
+  });
+
+  test('a page load of a browser that fell back checks at once', async () => {
+    const { regions, ping, local } = await fallen();
+    ping.blocked.clear();
+    regions.onHealth({ regions: CONFIG });
+    await settle();
+    assert.equal(local.getItem('sp.regionRoute'), null);
+    assert.equal(regions.getUrl(), DIRECT);
   });
 });
