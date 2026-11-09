@@ -23,6 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { VERSIONS } from '../../shared/versions.js';
 import { textProblems } from '../e2e/text-fit.mjs';
 import { gpuArgs } from '../../tools/perfbench.mjs';
+import { matrix, groupBy, LONGEST_LANG } from '../helpers/matrix.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -85,9 +86,16 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
     document.head.append(st);
   }, on);
 
+  // 界面大小 is enabled only at 小; also test a stored 75 % with each larger text size.
+  const LOOKS = ['sm', 'md', 'lg', 'xl'].flatMap((ts) => (ts === 'sm' ? [75, 80, 85, 90, 95, 100] : [75, 100]).map((ui) => ({ ts, ui, label: `${ts} ${ui}%` })));
   for (const touch of [false, true]) for (const version of VERSIONS) {
     test(`#811: ${version.label} ${touch ? 'phones' : 'desktop'} — promotion icons, five languages, text sizes and UI scales`, { timeout: 300000 }, async () => { // (fork) 300 s: the deck holds 112 「详情」 panels
       let checked = 0;
+      // (fork) language × (文字大小, 界面大小) × window: a pairwise sample plus the smallest window at 特大 100 % in every
+      // language and the longest language at 特大 100 % in every window (test/helpers/matrix.js; SP_FULL_MATRIX=1: all 180)
+      const screens = touch ? [[640, 360], [844, 390], [390, 844]] : [[1920, 1080], [1600, 900], [960, 540]];
+      const combos = matrix(`loadout-cards #811 ${version.id} ${touch ? 'phones' : 'desktop'}`, { lang: ['zh', 'en', 'ja', 'ko', 'zh-TW'], look: LOOKS, screen: screens },
+        { corners: [{ look: 'xl 100%', screen: touch ? screens[0] : screens[2] }, { lang: LONGEST_LANG, look: 'xl 100%' }] });
       const { ctx, page, problems } = await open(touch ? { w: 844, h: 390, touch } : {});
       try {
         if (await page.$eval('[data-testid="version-switch"]', (e) => e.dataset.version) !== version.id) {
@@ -117,44 +125,41 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
           return out;
         });
         assert.deepEqual(glyphs, [], `${version.id}: the glyph and level match every normal / elite record`);
-        for (const lang of ['zh', 'en', 'ja', 'ko', 'zh-TW']) {
+        for (const { lang, rows: langRows } of groupBy(combos, 'lang')) {
           await page.evaluate(async (l) => (await import('/js/ui/lang.js')).switchLang(l), lang);
-          for (const ts of ['sm', 'md', 'lg', 'xl']) {
-            // 界面大小 is enabled only at 小; also test a stored 75 % with each larger text size.
-            for (const ui of ts === 'sm' ? [75, 80, 85, 90, 95, 100] : [75, 100]) {
-              await page.evaluate(async (ts, ui) => {
-                (await import('/js/ui/settings.js')).updateSettings({ textSize: ts });
-                (await import('/js/ui/screenFit.js')).updateFit({ ui });
-              }, ts, ui);
-              for (const [w, h] of touch ? [[640, 360], [844, 390], [390, 844]] : [[1920, 1080], [1600, 900], [960, 540]]) {
-                await page.setViewport({ width: w, height: h, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 });
-                await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
-                const label = `${version.id} ${lang} ${ts} ${ui}% ${w}×${h}`;
-                const geometry = await page.evaluate(() => {
-                  const out = [];
-                  for (const card of document.querySelectorAll('.lo-op[data-chess]')) {
-                    const rail = card.querySelector('.lo-op__rail'), tier = rail.querySelector('.lo-op__tier');
-                    const badge = tier.getBoundingClientRect(), img = tier.querySelector('img')?.getBoundingClientRect();
-                    const lv = rail.querySelector('.lo-op__lv').getBoundingClientRect(), cr = card.getBoundingClientRect();
-                    const rows = [...rail.querySelectorAll('.lo-op__lvrow')].map((e) => e.getBoundingClientRect());
-                    if (Math.max(badge.bottom, img?.bottom ?? 0) > lv.top - 1) out.push(`${card.dataset.chess}: badge overlaps levels`);
-                    if (rows.some((r) => r.left < lv.left - 1 || r.right > lv.right + 1 || r.top < lv.top || r.bottom > lv.bottom)
-                      || rows.some((r, i) => i && rows[i - 1].bottom > r.top)) out.push(`${card.dataset.chess}: level rows overlap / escape`);
-                    if (lv.bottom > cr.bottom + 1) out.push(`${card.dataset.chess}: levels escape card`);
-                  }
-                  return out;
-                });
-                assert.deepEqual(geometry, [], label);
-                // The first card in each row of every tier covers all phase / level labels; geometry above checks every card.
-                assert.deepEqual(await page.evaluate(textProblems, '.lo-tgrid > .lo-op:nth-child(-n+2) .lo-op__rail'), [], label);
-                checked++;
-              }
+          for (const { look: { ts, ui }, rows } of groupBy(langRows, 'look')) {
+            await page.evaluate(async (ts, ui) => {
+              (await import('/js/ui/settings.js')).updateSettings({ textSize: ts });
+              (await import('/js/ui/screenFit.js')).updateFit({ ui });
+            }, ts, ui);
+            for (const { screen: [w, h] } of rows) {
+              await page.setViewport({ width: w, height: h, isMobile: touch, hasTouch: touch, deviceScaleFactor: 1 });
+              await page.evaluate(async () => { await document.fonts.ready; await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); });
+              const label = `${version.id} ${lang} ${ts} ${ui}% ${w}×${h}`;
+              const geometry = await page.evaluate(() => {
+                const out = [];
+                for (const card of document.querySelectorAll('.lo-op[data-chess]')) {
+                  const rail = card.querySelector('.lo-op__rail'), tier = rail.querySelector('.lo-op__tier');
+                  const badge = tier.getBoundingClientRect(), img = tier.querySelector('img')?.getBoundingClientRect();
+                  const lv = rail.querySelector('.lo-op__lv').getBoundingClientRect(), cr = card.getBoundingClientRect();
+                  const rows = [...rail.querySelectorAll('.lo-op__lvrow')].map((e) => e.getBoundingClientRect());
+                  if (Math.max(badge.bottom, img?.bottom ?? 0) > lv.top - 1) out.push(`${card.dataset.chess}: badge overlaps levels`);
+                  if (rows.some((r) => r.left < lv.left - 1 || r.right > lv.right + 1 || r.top < lv.top || r.bottom > lv.bottom)
+                    || rows.some((r, i) => i && rows[i - 1].bottom > r.top)) out.push(`${card.dataset.chess}: level rows overlap / escape`);
+                  if (lv.bottom > cr.bottom + 1) out.push(`${card.dataset.chess}: levels escape card`);
+                }
+                return out;
+              });
+              assert.deepEqual(geometry, [], label);
+              // The first card in each row of every tier covers all phase / level labels; geometry above checks every card.
+              assert.deepEqual(await page.evaluate(textProblems, '.lo-tgrid > .lo-op:nth-child(-n+2) .lo-op__rail'), [], label);
+              checked++;
             }
           }
         }
         assert.deepEqual(problems, []);
       } finally { await ctx.close(); }
-      assert.equal(checked, 180);
+      assert.equal(checked, combos.length);
     });
   }
 

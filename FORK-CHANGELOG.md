@@ -35,6 +35,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The Select Protocol list fits itself one frame after its size changes, instead of in the same frame. This stops "ResizeObserver loop" errors at some language and text-size combinations. It looks the same.
 - Browser tests brought up to date: screenshot paths on Windows, the settings gear that now sits after the Battle Stats button, the entry film that covers the title on a first visit, and the card view's Filter popover and layered Esc in the versions test.
 
+### Layout tests check a sample of their language and size combinations
+
+- The layout tests that loop over every language, text size, UI size and window or device now check a fixed sample by default. Every value still shows up, every pair of values is checked together at least once, and the risky corners are always in: the smallest phone at the largest text size, and English at the largest text size. Set `SP_FULL_MATRIX=1` to check every combination; the end-of-cycle browser run does that. Each test prints which combinations it checked, so a failure can be run again exactly. This covers loadout cards, lobby hub, waiting room, version text fit, devices, version pills and the room search strip.
+
 ### Bot helper loads after the band draft's art
 
 - With bots run in the host's browser, the page started the bots' background worker (424 small script files) right as the briefing opened, so it shared a slow connection with the briefing and the band draft's art. On 10 Mbps the band icons came about 4 s later, and on 5 Mbps the first AI pick ran out of time and fell back to a rule pick. The worker now starts once that art has loaded (10 s at most). The server also gives the first AI pick its 10 s from the moment the worker is ready rather than from when the task arrived, with a 30 s limit on the start, so a slow connection no longer counts against the player and a worker that never starts still falls back to the rule pick.

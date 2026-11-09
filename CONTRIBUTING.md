@@ -58,6 +58,8 @@ SIM_E2E=1 node --test 'test/sim/*.browser.test.js'               # 浏览器里�
 
 无头 Chrome 默认就用真实 GPU，不要在测试里写死某个平台的图形参数（Windows 上的 `--use-angle=metal` 会退回软件渲染）。需要指定时用 `tools/perfbench.mjs` 的 `gpuArgs()`，它在没有可用 GPU 的机器上也能拿到 WebGL；对用它启动的测试，设置 `SP_E2E_SOFTWARE_GL=1` 可强制软件渲染。`RENDER_E2E=1 node --test test/render/gpu-renderer.browser.test.js` 会打印实际使用的渲染器。
 
+布局适配测试（语言 × 文字大小 × 界面大小 × 窗口或设备的矩阵）平时只跑固定的抽样：每种语言、每档文字大小、每个窗口和设备至少一次，任意两项的取值至少同测一次（每种语言和文字大小都新开页面的测试：每个取值一次，另加每种语言的特大），再加上风险组合（最小的手机配特大、最长的语言配特大）。`test/helpers/matrix.js` 会打印 `# matrix <名字>: …`，列出跑了哪些组合，失败可按原样重现（`SP_MATRIX_SEED=<n>` 换一组抽样）。开发周期结束时的完整浏览器测试设置 `SP_FULL_MATRIX=1`，跑全部组合。
+
 改了模拟（`server/sim/`）之后，可以检查各浏览器算出的战斗和服务器是否仍然逐位一致：`node tools/sim-check.mjs`
 在 Node 里记录黄金结果的整套战斗，然后在任意设备（包括手机）的浏览器里打开服务器的 `/dev/sim-check.html` 重放比较；
 加 `--engines chromium,firefox,webkit` 直接在无界面的浏览器里跑（Firefox 和 WebKit 需要先装 playwright）。不一致时
@@ -139,6 +141,12 @@ SIM_E2E=1 node --test 'test/sim/*.browser.test.js'               # 浏览器里�
   `npm run golden:update` and commits the digests with the change, naming the scenarios that moved.
   After a sim change, `node tools/sim-check.mjs` checks that browsers still give the server's bits: it traces the golden
   battle corpus in Node; `/dev/sim-check.html` replays it on any device (`--engines chromium,firefox,webkit` headless).
+  The layout-fit browser tests (language × 文字大小 × 界面大小 × window or device matrices) check a fixed sample by
+  default: every language, text size, window and device at least once, every pair of values together at least once (a
+  test that opens a fresh page per language and text size: each value once, plus 特大 in every language), plus the risky
+  corners (the smallest phone at 特大, the longest language at 特大). `test/helpers/matrix.js` prints `# matrix <name>: …`
+  with the combinations it ran, so a failure replays as is (`SP_MATRIX_SEED=<n>` picks another sample). The end-of-cycle
+  browser run sets `SP_FULL_MATRIX=1` to check every combination.
 - **Fidelity**: the official tables (`.cache/gamedata/excel/`) and PRTS (including the 备注 notes) are the sources;
   numbers come from the blackboards. Anything no source settles is marked `[ASSUMED]` in the code and the pull
   request; owner decisions are cited with their date; deliberate deviations are the owner's call and go into the design

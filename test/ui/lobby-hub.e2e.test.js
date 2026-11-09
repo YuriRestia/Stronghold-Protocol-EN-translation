@@ -36,11 +36,21 @@ import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { textProblems } from '../e2e/text-fit.mjs';
+import { matrix, picked, LONGEST_LANG } from '../helpers/matrix.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
+// (fork) Which combinations a normal run checks (test/helpers/matrix.js, printed as `# matrix lobby-hub …`; SP_FULL_MATRIX=1:
+// all of them). A test that opens a fresh page per language and 文字大小 checks each language and each 文字大小 at least
+// once, plus 特大 in every language, each in all its windows; a test that changes the look in place checks a pairwise
+// sample of language × look × window plus the smallest window at 特大 in every language and the longest language at
+// 特大 in every window.
+const LANGS = ['zh', 'zh-TW', 'en', 'ja', 'ko'];
+const SIZES = ['sm', 'md', 'lg', 'xl'];
+const pages = (name, corners = []) => matrix(`lobby-hub ${name}`, { lang: LANGS, textSize: SIZES }, { strength: 1, corners: [{ textSize: 'xl' }, ...corners] });
+const looks = (name, dims, corners) => matrix(`lobby-hub ${name}`, dims, { corners });
 
 describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
@@ -410,8 +420,10 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   // where the screen is taller than 520 px
   test('phones: 选择同盟方式\'s key field placeholder fits beside 观战 in every language at every 文字大小', { timeout: 300000 }, async () => {
     const names = { zh: '同盟密钥', 'zh-TW': '同盟金鑰', en: 'Alliance Key', ja: '同盟コード', ko: '동맹 코드' };
+    const run = pages('phones key field');
     for (const lang of ['zh', 'zh-TW', 'en', 'ja', 'ko']) {
       for (const textSize of ['sm', 'md', 'lg', 'xl']) {
+        if (!picked(run, { lang, textSize })) continue;
         const { ctx, page, problems } = await open({ w: 640, h: 360, touch: true, lang: lang === 'zh' ? null : lang, textSize });
         try {
           await press(page, '.mode-card[data-mode="coop"]', true);
@@ -512,8 +524,10 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   const protoOk = (d) => d.cards === 4 && !d.listScrolls && d.cardsIn && d.aboveButton && d.button && d.label && d.lines <= 2 && d.names && d.chosenInBrief && d.desc && d.cardDescHidden;
 
   test('phones: 选择模拟协议\'s four cards and 开始独立模拟 fit in every language at every 文字大小 (640×360 – 844×390)', { timeout: 420000 }, async () => {
+    const run = pages('phones 选择模拟协议');
     for (const lang of ['zh', 'zh-TW', 'en', 'ja', 'ko']) {
       for (const textSize of ['sm', 'md', 'lg', 'xl']) {
+        if (!picked(run, { lang, textSize })) continue;
         const { ctx, page, problems } = await open({ w: 640, h: 360, touch: true, lang: lang === 'zh' ? null : lang, textSize });
         try {
           await press(page, '.mode-card[data-mode="solo"]', true);
@@ -623,8 +637,10 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   // has a 300 px floor. Every language and 文字大小, the first card, the second and the last chosen in turn.
   test('desktop: 选择模拟协议 in small windows (960×540, 1024×600, 1100×530, 800×600) keeps the unselected names whole in every language at every 文字大小', { timeout: 600000 }, async () => {
     const levels = {};
+    const run = pages('small windows 选择模拟协议', [{ lang: 'en', textSize: 'md' }]);
     for (const lang of ['zh', 'zh-TW', 'en', 'ja', 'ko']) {
       for (const textSize of ['sm', 'md', 'lg', 'xl']) {
+        if (!picked(run, { lang, textSize })) continue;
         const { ctx, page, problems } = await open({ w: 960, h: 540, lang: lang === 'zh' ? null : lang, textSize });
         try {
           await press(page, '.mode-card[data-mode="solo"]');
@@ -691,6 +707,9 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
   // does), four phones.
   test('phones: the room\'s 开始模拟 / 准备就绪 label sits inside its button in every language at every 文字大小 (640×360 – 844×390)', { timeout: 420000 }, async () => {
     const phone = (w, h) => ({ width: w, height: h, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
+    const PHONES = [[640, 360], [667, 375], [740, 360], [844, 390]];
+    const run = looks('phones room button', { lang: LANGS, textSize: SIZES, screen: PHONES }, [{ textSize: 'xl', screen: PHONES[0] },
+      { lang: LONGEST_LANG, textSize: 'xl' }, ...['zh', 'ja'].map((lang) => ({ lang, textSize: 'xl', screen: [667, 375] }))]);
     for (const lang of ['zh', 'zh-TW', 'en', 'ja', 'ko']) {
       const host = await open({ w: 640, h: 360, touch: true, lang: lang === 'zh' ? null : lang });
       let guest = null;
@@ -713,6 +732,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
         for (const textSize of ['sm', 'md', 'lg', 'xl']) {
           for (const c of [host, guest]) await c.page.evaluate(async (ts) => (await import('/js/ui/settings.js')).updateSettings({ textSize: ts }), textSize);
           for (const [w, h] of [[640, 360], [667, 375], [740, 360], [844, 390]]) {
+            if (!picked(run, { lang, textSize, screen: [w, h] })) continue;
             for (const c of [host, guest]) await c.page.setViewport(phone(w, h));
             await sleep(200);
             for (const [who, c] of [['host', host], ['guest', guest]]) {
@@ -879,6 +899,10 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
     const phones = [[640, 360], [667, 375], [740, 360], [844, 390]];
     const desks = [[1920, 1080], [1440, 900], [1280, 720], [1100, 530], [1024, 600], [960, 540], [800, 600]];
     const bad = [];
+    const LOOKS = ['sm 100', 'sm 75', 'md 100', 'lg 100', 'xl 100'];
+    const run = new Map([[phones, [640, 360]], [desks, [800, 600]]].map(([screens, smallest]) => [screens,
+      looks(`every label ${screens === phones ? 'phones' : 'desktops'}`, { lang: LANGS, look: LOOKS, screen: screens },
+        [{ look: 'xl 100', screen: smallest }, { lang: LONGEST_LANG, look: 'xl 100' }])]));
     for (const lang of ['zh', 'zh-TW', 'en', 'ja', 'ko']) {
       for (const [screens, touch] of [[phones, true], [desks, false]]) {
         const { ctx, page, problems } = await open({ w: screens[0][0], h: screens[0][1], touch, lang: lang === 'zh' ? null : lang });
@@ -887,6 +911,7 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
             await page.evaluate(async (ts) => (await import('/js/ui/settings.js')).updateSettings({ textSize: ts }), textSize);
             await page.evaluate(async (ui) => (await import('/js/ui/screenFit.js')).updateFit({ ui }), ui);
             for (const [w, h] of screens) {
+              if (!picked(run.get(screens), { lang, look: `${textSize} ${ui}`, screen: [w, h] })) continue;
               await page.setViewport({ width: w, height: h, hasTouch: touch, isMobile: touch, deviceScaleFactor: 1 });
               await sleep(150); await settle(page); await page.evaluate(() => document.fonts.ready);
               // TACTICAL TIPS hidden past .tips__sub is its design (TIPS_SUB_HIDDEN); shown in part is a problem (below)

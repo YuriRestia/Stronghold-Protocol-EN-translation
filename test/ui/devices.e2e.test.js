@@ -13,6 +13,9 @@
 //   * safe-area insets (a notch on the left) move the HUD, not the field;
 // plus graceful degradation: WebGL disabled → the DOM view with a notice, local-client art missing → CSS look-alikes,
 // portrait → the rotate hint.
+// (fork) The match HUD's pages are sampled across the devices (test/helpers/matrix.js, `# matrix devices match HUD`): 准备
+// on every device (its touch targets), every page on the smallest phone and every page on at least one other device;
+// SP_FULL_MATRIX=1 loads every page on every device.
 
 import { seedReleaseRead } from '../helpers/releaseNotes.js';
 import { test, describe, before, after, afterEach } from 'node:test';
@@ -20,6 +23,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { matrix } from '../helpers/matrix.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
@@ -37,6 +41,11 @@ const DEVICES = {
   'phone-min': { viewport: { width: 640, height: 360, deviceScaleFactor: 2, isMobile: true, hasTouch: true, isLandscape: true }, userAgent: ANDROID_UA, coarse: true },
 };
 /** Small HUD controls that must have a ≥ 40 px hit area on touch screens. */
+/** The match HUD's mock pages (prep first: it carries the touch-target check). */
+const HUD_PAGES = { prep: 'phase=PREP', combat: 'phase=COMBAT', draft: 'phase=BAND_DRAFT', briefing: 'phase=INFO_CHECK', sp: 'phase=SP_DRAFT&variant=bounty', result: 'phase=RESULT' };
+let hudSample;
+const hudPages = (dev) => (hudSample ??= matrix('devices match HUD', { dev: Object.keys(DEVICES), page: Object.keys(HUD_PAGES) },
+  { strength: 1, corners: [{ page: 'prep' }, { dev: 'phone-min' }] })).filter((c) => c.dev === dev).map((c) => [c.page, HUD_PAGES[c.page]]);
 const HUD_TARGETS = ['.gtop__exit', '.gtop__iconbtn', '.enemybtn', '.readybtn', '.toolbtn', '.ewheel__btn', '.gm__gear'];
 
 describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
@@ -156,7 +165,7 @@ describe('multi-device (Chrome device emulation)', { skip: !ENABLED && 'set SP_E
     });
 
     test(`${dev}: match HUD (prep / combat / strategy draft) fits; ≥ 40 px touch targets`, async () => {
-      for (const [name, q] of [['prep', 'phase=PREP'], ['combat', 'phase=COMBAT'], ['draft', 'phase=BAND_DRAFT'], ['briefing', 'phase=INFO_CHECK'], ['sp', 'phase=SP_DRAFT&variant=bounty'], ['result', 'phase=RESULT']]) {
+      for (const [name, q] of hudPages(dev)) {
         const { page, problems } = await open(dev, q);
         await page.screenshot({ path: path.join(OUT, `device-${dev}-${name}.png`) });
         assert.deepEqual(await layoutProblems(page), [], `${dev} ${name}`);
