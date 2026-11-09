@@ -15,6 +15,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - In a Grand Alliance room, the leader's HP in the Final Assault and the Hidden Core now grows with every player still alive when the fight starts: 6 players face 6 times the leader's HP for that difficulty, and 8 players face 8 times. Before, it stopped growing at 4 players, so a room of 6 or 8 fought the HP meant for 4 players. Rooms of 4 or fewer players are unchanged.
 
+### Mostima's Ethereal Harmony S3 no longer covers her and her neighbours
+
+- In Mostima's Ethereal Harmony outfit (`char_213_mostma@ambienceSynesthesia#6`), the big castle of her S3 drew over her and over the operators around her. Its mesh sits behind her in the official effect, so it now draws behind the units, as in the official game. The moon, violin, trumpet and stars stay in front of her, as they are authored. The same rule now applies to any effect mesh placed behind its unit this way (183 effects, mostly outfit skill buffs). Operators whose skill aura hid them the same way now show in front of it too: Civilight Eterna S3, Młynar S3, Qiubai S3, Gavial the Invincible S2 and Texas the Omertosa S3 in Wingbreaker.
+
 ### Grand Alliance rooms from both servers
 
 - The Grand Alliance room browser now lists the open rooms of both servers, Singapore and US East, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.

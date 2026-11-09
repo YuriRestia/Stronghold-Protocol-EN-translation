@@ -237,6 +237,13 @@ export function compileEffect(desc, lib = {}) {
   // authored behind its unit: the root's `static_offset` node pushed into the board (z > 0) — see behindUnits
   const so = nodes.find((nd) => nd && nd.name === 'static_offset' && nd.parent === (Number.isInteger(desc?.root) ? desc.root : 0));
   def.back = !!so && Array.isArray(so.pos) && num(so.pos[2], 0) > 0;
+  // (fork) a mesh under the root's static_offset authored behind its unit on its own: its node lies deeper in the board
+  // than the root (z > 0 in the root's frame) though the static_offset does not — Unity sorts each renderer by its own
+  // distance, so an order-0 mesh there is drawn before the unit too (Mostima's Ethereal Harmony S3 castle at z +0.075
+  // covered her and the units around her, hotfix 2026-11-10)
+  const soIdx = so ? nodes.indexOf(so) : -1;
+  const underSo = (i) => { for (let j = def.parent[i], g = 0; j >= 0 && g < 64; j = def.parent[j], g++) if (j === soIdx) return true; return false; };
+  for (let i = 0; i < n; i++) if (def.mesh[i]) def.mesh[i].back = soIdx >= 0 && underSo(i) && nodeDepth(def, i, rootIdx) > 1e-3;
   def.loops = def.isLoop || def.ps.some((p) => p && p.looping && p.playOnAwake !== false) || def.animators.some((a) => def.clips[a.clip]?.loop);
   def.material = (i, lite) => {
     const list = lite ? def.lite : def.materials;
@@ -738,7 +745,7 @@ export class Effect {
       if (mr && mr.enabled && mr.mesh && (this.rendOv.get(i)?.enabled ?? true)) {
         const md = this.lib ? this.lib.mesh(mr.mesh) : null;
         if (md && md.submeshes) {
-          const flat = behindUnits(mr.layer, mr.order, def.back) || (isFlatMesh(md, w) && nearGround);
+          const flat = behindUnits(mr.layer, mr.order, def.back || mr.back) || (isFlatMesh(md, w) && nearGround);
           for (let k = 0; k < mr.mats.length; k++) {
             if (mr.mats[k] == null || !md.submeshes[k]) continue;
             const mat = def.material(mr.mats[k], lite);
@@ -919,6 +926,26 @@ function entry(part, node, submesh, mat, ov, order, layer, dist, ground, effect,
  */
 export function behindUnits(layer, order, back = false) {
   return layer < 0 || (layer === 0 && (order < 0 || (back && order === 0)));
+}
+
+/**
+ * A node's depth in its effect: the z of its origin in the root's frame (the authored positions, rotations and scales
+ * of the nodes between them; the root's own transform is the place it plays at). z > 0 lies deeper in the board.
+ */
+export function nodeDepth(def, i, rootIdx) {
+  const B = def.base;
+  let x = 0, y = 0, z = 0;
+  for (let j = i, guard = 0; j >= 0 && j !== rootIdx && guard < 64; j = def.parent[j], guard++) {
+    const o = j * 10;
+    // p = pos_j + rot_j * (scale_j * p)
+    const sx = x * B[o + 7], sy = y * B[o + 8], sz = z * B[o + 9];
+    const qx = B[o + 3], qy = B[o + 4], qz = B[o + 5], qw = B[o + 6];
+    const tx = 2 * (qy * sz - qz * sy), ty = 2 * (qz * sx - qx * sz), tz = 2 * (qx * sy - qy * sx);
+    x = B[o] + sx + qw * tx + (qy * tz - qz * ty);
+    y = B[o + 1] + sy + qw * ty + (qz * tx - qx * tz);
+    z = B[o + 2] + sz + qw * tz + (qx * ty - qy * tx);
+  }
+  return z;
 }
 
 /** Particles drawn flat on the board: world / vertical billboards, local quads (or flat meshes) lying in XY. */
