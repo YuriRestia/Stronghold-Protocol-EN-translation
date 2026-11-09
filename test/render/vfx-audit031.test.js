@@ -342,15 +342,15 @@ describe('an effect authored behind its unit is drawn under the units at order 0
   };
   // a standing cone (no flat decal) at the given sorting order, under the root's static_offset at depth z
   const CONE = { positions: [0, 0, 0, 1, 0, 1, -1, 0, 1, 0, 1, 1], uv0: [0, 0, 1, 0, 0, 1, 1, 1], submeshes: [[0, 1, 2, 0, 2, 3]] };
-  const gathered = (z, orders, name = 'static_offset') => {
+  const gathered = (z, orders, name = 'static_offset', meshZ = 0, rot = [0, 0, 0, 1]) => {
     const nodes = [
       { id: 0, name: 'root', parent: null, children: [1], active: true, pos: [0, 0, 0], rot: [0, 0, 0, 1], scale: [1, 1, 1],
         behaviours: [{ class: 'ParticleEffect', enabled: true, fields: { _delayToPlay: 0, _delayToFinish: 0, _maxLifetime: -1, _isLoop: 1, _rotateType: 0, _spawnLocation: 1 } }] },
-      { id: 1, name, parent: 0, children: [], active: true, pos: [0, 0, z], rot: [0, 0, 0, 1], scale: [1, 1, 1] },
+      { id: 1, name, parent: 0, children: [], active: true, pos: [0, 0, z], rot, scale: [1, 1, 1] },
     ];
     orders.forEach((o, i) => {
       nodes[1].children.push(2 + i);
-      nodes.push({ id: 2 + i, name: `m${i}`, parent: 1, children: [], active: true, pos: [0, 0.6, 0], rot: [0, 0, 0, 1], scale: [1, 1, 1],
+      nodes.push({ id: 2 + i, name: `m${i}`, parent: 1, children: [], active: true, pos: [0, 0.6, meshZ], rot: [0, 0, 0, 1], scale: [1, 1, 1],
         meshFilter: 'cone', meshRenderer: { m_Enabled: true, materials: [0], m_SortingOrder: o, m_SortingLayer: 0 } });
     });
     const d = { format: 'fx-prefab', version: 1, key: 'aura', nodes, materials: [MAT], clips: [], textures: ['t'], meshes: [], refs: [], stats: {} };
@@ -373,6 +373,12 @@ describe('an effect authored behind its unit is drawn under the units at order 0
     assert.deepEqual(gathered(-0.2, [0, 10]), [false, false]);
     assert.deepEqual(gathered(0, [0]), [false]);
     assert.deepEqual(gathered(0.23, [0], 'other_helper'), [false], 'only the root\'s static_offset says so');
+  });
+
+  test('a mesh node deeper than the root on its own (mostma_skill_03_buff_02_ambienceSynesthesia#6 castle, z +0.075): order 0 under the units', () => {
+    assert.deepEqual(gathered(0, [0, 10], 'static_offset', 0.075), [true, false], 'order 0 behind, a positive order still over');
+    assert.deepEqual(gathered(0, [0], 'static_offset', -0.1), [false], 'pulled forward: over as before');
+    assert.deepEqual(gathered(0, [0], 'static_offset', 0.075, [0, 1, 0, 0]), [false], 'a parent turned round brings it forward');
   });
 });
 

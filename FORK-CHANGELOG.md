@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Mostima's Ethereal Harmony S3 no longer covers her and her neighbours
+
+- In Mostima's Ethereal Harmony outfit (`char_213_mostma@ambienceSynesthesia#6`), the big castle of her S3 drew over her and over the operators around her. Its mesh sits behind her in the official effect, so it now draws behind the units, as in the official game. The moon, violin, trumpet and stars stay in front of her, as they are authored. The same rule now applies to any effect mesh placed behind its unit this way (183 effects, mostly outfit skill buffs).
+
 ### Grand Alliance rooms from every server
 
 - The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
