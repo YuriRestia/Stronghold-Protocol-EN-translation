@@ -122,6 +122,9 @@ async function main() {
     const def = await ofx.lib.load(state.key);
     if (!def) { $('stats').textContent = `no prefab ${state.key}`; return null; }
     await ofx.lib.preload([state.key], { half: ofx.lite });
+    // (fork) its programs and textures go to the GPU ahead of the first draw, as a battle's do (render/vfx/wiring.js
+    // warm): where shaders build in parallel, a draw whose program is still building is skipped
+    ofx.warm([state.key]);
     const u = unitAt();
     const pos = spawnPoint(skinOf(), def.spawn, u);
     // the rotation its spawn location gives it on a unit (render/vfx/wiring.js _rotate): FOOT / HIT / HEAD the Graphic

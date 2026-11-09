@@ -51,8 +51,12 @@ describe('impostor boxes and slot clipping in headless Chrome (GitHub #542)', { 
     await page.goto(`http://127.0.0.1:${srv.port}/dev/render-demo.html?scene=stress&panel=0&ops=${OPS.map((o) => o[1]).join(',')}`);
     await page.waitForFunction('window.__demo && (window.__demo.ready || window.__demo.error)', { timeout: 30000 });
     assert.equal(await page.evaluate(() => window.__demo.error || null), null, 'demo boot');
-    // the crowd loads, its clips are measured, every unit becomes an impostor
-    await page.waitForFunction((ids) => {
+    // the crowd loads, its clips are measured, every unit becomes an impostor. (fork) The test samples the clip-bounds
+    // queue itself (spine.js stepClipBounds, the dev / test export) on top of the page's 2.5 ms a frame: 120 units of
+    // ~60 skeletons at ~17 fps measured only 22-30 of them in 40 s on the overnight machine (2026-11-09, also at 580c2708)
+    await page.waitForFunction(async (ids) => {
+      const { stepClipBounds } = await import('/js/render/spine.js');
+      stepClipBounds(100);
       const v = window.__demo.view;
       if (v.stats().impostor < 2) return false;
       for (const id of ids) { const u = v.debug.views.get(id); if (!u || !u.spineReady || !u.imp || u.imp.bypass) return false; }
