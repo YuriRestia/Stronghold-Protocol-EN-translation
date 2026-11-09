@@ -513,3 +513,31 @@ describe('UnitView impostor mode (render/units.js)', () => {
     assert.ok(v.imp && v._box.over.size === 0);
   });
 });
+
+// (fork) the per-frame sampling budget (render/app.js → spine.js clipBoundsBudget): the fixed 2.5 ms while frames come
+// quickly, a share of a slow frame up to the cap, so a crowd's queued clips are measured in seconds, not minutes
+test('clip-bounds budget: 2.5 ms on quick frames, a share of a slow frame, capped', () => {
+  const { clipBoundsBudget, CLIP_BOUNDS_BUDGET_MS, CLIP_BOUNDS_SLOW_FRAME_MS, CLIP_BOUNDS_FRAME_SHARE, CLIP_BOUNDS_BUDGET_MAX_MS } = spine;
+  for (const ms of [0, 8, 16.7, CLIP_BOUNDS_SLOW_FRAME_MS, NaN, undefined, -5]) assert.equal(clipBoundsBudget(ms), CLIP_BOUNDS_BUDGET_MS, String(ms));
+  assert.equal(clipBoundsBudget(40), Math.max(CLIP_BOUNDS_BUDGET_MS, 40 * CLIP_BOUNDS_FRAME_SHARE));
+  assert.ok(clipBoundsBudget(40) > CLIP_BOUNDS_BUDGET_MS && clipBoundsBudget(40) < 40, 'a slow frame gives more, never the whole frame');
+  assert.equal(clipBoundsBudget(100), Math.min(CLIP_BOUNDS_BUDGET_MAX_MS, 100 * CLIP_BOUNDS_FRAME_SHARE));
+  assert.equal(clipBoundsBudget(5000), CLIP_BOUNDS_BUDGET_MAX_MS, 'a resumed tab (one huge gap): the cap');
+});
+
+// (fork) the queue's order (spine.js promoteClipBounds): the skeleton the most waiting units need per clip left goes
+// first, a clip in progress is finished first, and the boxes are the same whatever the order
+test('clip-bounds queue: the skeleton most units wait for is measured first; same boxes', () => {
+  const lone = skeleton(), crowd = skeleton();
+  const actor = (data) => Object.assign(Object.create(spine.SpineActor.prototype), { spine: { spineData: data, skeleton: new rt.Skeleton(data), destroy() {} } });
+  const one = actor(lone);
+  assert.equal(one.clipBounds(['Wave', 'Still']), null, 'queued first, one unit');
+  const many = [actor(crowd), actor(crowd), actor(crowd)];
+  for (const a of many) assert.equal(a.clipBounds(['Still']), null, 'queued later, three units');
+  assert.equal(spine.stepClipBounds(0), 1, 'one pose: the crowd\'s Still first');
+  assert.ok(many[0].clipBounds(['Still']), 'the crowd is measured');
+  assert.equal(one.clipBounds(['Wave', 'Still']), null, 'the lone unit still waits');
+  while (spine.pendingClipBounds()) spine.stepClipBounds(0);
+  near(one.clipBounds(['Wave', 'Still']).get('Wave'), [-50, -200, 425, 25], 'measured as in request order');
+  for (const a of [one, ...many]) a.destroy();
+});
