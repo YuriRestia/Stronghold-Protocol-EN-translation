@@ -1381,14 +1381,28 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .rbr-card__seats small { font-size: calc(.15 * var(--t)); color: #7f8a86; }
 .rbr-card__code { flex: 1 1 auto; font-size: calc(.14 * var(--t)); letter-spacing: .1em; color: #6f7a76; }
 
-/* (fork) the profile chip (screens/lobby.js ProfileChip): one's profile icon and Doctor name, opens the icon picker */
+/* (fork) the profile chip (screens/lobby.js ProfileChip): one's profile icon and Doctor name, opens the icon picker.
+   As tall as the version chip beside it (components.css .verchip, its touch height on touch screens); the icon fills it
+   and the edit pen keeps a readable floor (it was 10 px on a phone, where 1rem is clamped at 40 px). */
 .lobby-me {
-  display: inline-flex; align-items: center; gap: .08rem; min-width: 0; max-width: 2.6rem; height: .4rem;
+  display: inline-flex; align-items: center; gap: .08rem; min-width: 0; max-width: 2.6rem; height: max(.42rem, 28px);
   padding: 0 .1rem 0 .04rem; border: 1px solid var(--line-2); background: rgba(0, 0, 0, .35);
 }
 .lobby-me:hover:not(:disabled), .lobby-me:focus-visible { border-color: var(--mint-500); }
 .lobby-me:disabled { cursor: default; }
 .lobby-me__face { position: relative; flex: none; display: block; }
-.lobby-me__face .avatar { --av: .32rem; }
+.lobby-me__face .avatar { --av: max(.34rem, 22px); }
+.lobby-me .avedit__pen { width: max(.17rem, 14px); height: max(.17rem, 14px); }
+.sp-coarse .lobby-me { height: max(32px, calc(40px * var(--sp-ui, 1))); padding-left: 3px; }
+.sp-coarse .lobby-me__face .avatar { --av: max(26px, calc(34px * var(--sp-ui, 1))); }
+.sp-coarse .lobby-me .avedit__pen { width: max(14px, calc(16px * var(--sp-ui, 1))); height: max(14px, calc(16px * var(--sp-ui, 1))); }
+/* English at 大 / 特大 on a 640–667 px phone: 返回's word, the version chip and the chip leave no room in the top bar (the chip
+   lay over the Discord square, more so while the ping reads three digits). 返回 keeps its chevron there and the online
+   pill its icon and number; their titles (返回标题, 在线博士 {n}) still name them. Every other language and size fits as it
+   is. */
+@media (max-width: 700px) {
+  :root:is([data-text="lg"], [data-text="xl"]):lang(en) .lobby-screen .topbar__left > .btn--ghost:first-child .btn__label,
+  :root:is([data-text="lg"], [data-text="xl"]):lang(en) .lobby-screen .topbar__left .online-pill .ping__unit { display: none; }
+}
 .lobby-me__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: calc(.15 * var(--t)); font-weight: 700; color: var(--text-hi); }
 @media (max-width: 900px) { .lobby-me__name { display: none; } .lobby-me { padding-right: .04rem; } }

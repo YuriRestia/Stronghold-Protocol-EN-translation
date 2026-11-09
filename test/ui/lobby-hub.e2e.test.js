@@ -826,6 +826,17 @@ describe('hub lobby (real server, headless Chrome)', { skip: !ENABLED && 'set SP
       }
       if (!chip.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))) out.push('version switch centre is covered');
     } else out.push('default server missing the version switch');
+    // (fork) the profile chip beside it (ProfileChip) the same way, and at least the 32 px touch floor on a touch screen:
+    // at 10 px its edit pen read as a speck, and at 特大 on a 640 px phone it lay over the Discord square
+    const me = document.querySelector('[data-testid="lobby-profile"]');
+    if (me) {
+      const r = R(me);
+      for (const tool of document.querySelectorAll('.topbar__left .btn, .topbar__left .ping')) {
+        if (area(r, R(tool)) > 4) out.push('profile chip over a top-bar control');
+      }
+      if (!me.contains(document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2))) out.push('profile chip centre is covered');
+      if (document.documentElement.classList.contains('sp-coarse') && (r.width < 32 || r.height < 32)) out.push(`profile chip ${Math.round(r.width)}×${Math.round(r.height)} under the 32 px touch floor`);
+    }
     const cards = [...document.querySelectorAll('.lobby-hub .hub-entry')];
     for (const c of cards) {
       const icon = R(c.querySelector('.hub-entry__icon .icon'));

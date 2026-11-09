@@ -7,6 +7,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Larger profile icon button in the lobby
+
+- The profile chip in the lobby's top bar (your icon, which opens the icon picker) is now as tall as the version chip beside it, and its edit pen is easier to see: 17 px on a 1920×1080 screen (was 13 px). On a phone the whole button grows from 18×16 px to 41×40 px, over the 32 px touch minimum, with a 16 px pen (was 10 px).
+- In English at Large and Extra Large text on a 640–667 px phone, the top bar had no room for it (the chip already covered part of the Discord button). There, Back shows only its arrow and the online count drops the word "online"; their tooltips still name them. Other languages and text sizes are unchanged.
+- The lobby layout test now also checks that the profile chip stays clear of the top-bar buttons and meets the touch minimum.
+
 ### Test a two-server release before players get it
 
 - `scripts/deploy-regions.mjs` now has `prepare` and `activate` as separate commands (`deploy` still does both). `prepare` starts the new version on every server without sending anyone there and prints its id and private test addresses; `activate <id>` switches every server, and refuses without switching any unless the version is ready on all of them with the same build (new `generations.mjs check <id>`). A prepared version now waits 4 hours for its activate instead of 1, so a private test fits.
