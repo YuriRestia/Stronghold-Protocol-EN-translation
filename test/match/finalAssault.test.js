@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { PHASE, GEO } from '../../shared/constants.js';
-import { pairPlayers, bossPoolHp, SharedBossPool, hiddenEligible } from '../../server/match/finalAssault.js';
+import { pairPlayers, bossPoolHp, bossPoolSeats, SharedBossPool, hiddenEligible } from '../../server/match/finalAssault.js';
 import { GameData } from '../../server/match/gamedata.js';
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch, checkInvariants } from './harness.js';
@@ -110,6 +110,18 @@ test('boss pool = bloodPoint[difficulty] × the players alive at the fight\'s st
   for (const n of [1, 2, 3, 4]) assert.equal(bossPoolHp(gd, 'boss_1', n), 1800000 * n, `${n} alive`);
   assert.equal(bossPoolHp(gd, 'boss_1'), 1800000 * 4, 'no count given: a full team');
   assert.equal(bossPoolHp(gd, 'boss_1', 9), 1800000 * 4, 'at most aliveFull (4) players');
+  // (fork) a Grand Alliance room counts up to the seats it started with (docs/design/large-rooms.md, bossPoolSeats)
+  assert.equal(bossPoolHp(gd, 'boss_1', 6, 8), 1800000 * 6, 'an 8-seat room with 6 alive: × 6');
+  assert.equal(bossPoolHp(gd, 'boss_1', 8, 8), 1800000 * 8, 'an 8-seat room with 8 alive: × 8');
+  assert.equal(bossPoolHp(gd, 'boss_1', 9, 6), 1800000 * 6, 'at most the seats the room started with');
+  assert.equal(bossPoolHp(gd, 'boss_1', undefined, 6), 1800000 * 6, 'no count given: the full room');
+  assert.equal(bossPoolHp(gd, 'boss_1', 6, 3), 1800000 * 4, 'fewer seats than aliveFull never lowers the cap');
+  assert.equal(gd.bossPoolHp('boss_8', 7, 8), bossPoolHp(gd, 'boss_8', 7, 8), 'GameData agrees for the Hidden Core form');
+  assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_abyss'), 'boss_5', 1, 8), 3000000, 'solo ignores seats');
+  assert.equal(bossPoolSeats({ roomScale: 1 }), undefined, 'a 4-seat room: no seats, the cap stays aliveFull');
+  assert.equal(bossPoolSeats({}), undefined);
+  assert.equal(bossPoolSeats({ roomScale: 1.5 }), 6);
+  assert.equal(bossPoolSeats({ roomScale: 2 }), 8);
   assert.equal(gd.bossPoolHp('boss_1', 2), bossPoolHp(gd, 'boss_1', 2), 'GameData agrees');
   assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_abyss'), 'boss_5', 1), 3000000, 'solo: the table value');
   assert.equal(bossPoolHp(new GameData(RAW, 'mode_single_funny'), 'boss_2', 1), 225000);

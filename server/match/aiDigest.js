@@ -5,7 +5,7 @@ import { operatorCaps } from '../ai/playbook.js';
 import { ruleOption } from '../../shared/plugins/rules.js';
 import { pieceBonds } from './bondsMeta.js';
 import { fieldModel, botIntent } from './bot.js';
-import { bossPoolHp } from './finalAssault.js';
+import { bossPoolHp, bossPoolSeats } from './finalAssault.js';
 
 /**
  * §37.71: the Final Assault's numbers as the HUD shows them — the shared leader pool (bloodPoint × the players alive now,
@@ -16,7 +16,7 @@ function faFacts(m, gd) {
   const alive = typeof m.alivePlayers === 'function' ? m.alivePlayers() : [];
   const team = (m.order || []).filter(p => !p.left);
   const level = gd.bossLevelTime(gd.bossRound);
-  return { pool: bossPoolHp(gd, m.bossId, alive.length), alive: alive.length,
+  return { pool: bossPoolHp(gd, m.bossId, alive.length, bossPoolSeats(m)), alive: alive.length,
     clockSec: team.length > 1 && team.some(p => p.isBot) ? gd.bossOvertimeAfterReal : (level || gd.bossOvertimeAfterReal),
     drainPerSec: gd.bossOvertimeDrainReal, teamLp: alive.reduce((s, p) => s + Math.max(0, p.lp), 0) };
 }
