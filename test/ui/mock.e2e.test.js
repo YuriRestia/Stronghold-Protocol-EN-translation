@@ -1232,7 +1232,9 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
   });
 
   test('result: a Grand Alliance team page scrolls its 8 cards and opens on my own card', async () => {
-    for (const size of [{ w: 1546, h: 905 }, { w: 844, h: 390, touch: true }]) {
+    // `then`: the screen resized after the page opened (a window resized; a phone going fullscreen or turning)
+    for (const size of [{ w: 1546, h: 905, then: { width: 1920, height: 1080 } },
+      { w: 844, h: 390, touch: true, then: { width: 780, height: 360, isMobile: true, hasTouch: true } }]) {
       const { page, problems } = await open('phase=RESULT&variant=ga', size);
       await page.waitForSelector('.settle__next', { visible: true, timeout: 10000 });
       await page.click('.settle__next');
@@ -1241,13 +1243,21 @@ describe('in-match UI (mock harness, headless Chrome)', { skip: !ENABLED && 'set
         const view = document.querySelector('.steam__view');
         const self = document.querySelector('.tcard.is-self').getBoundingClientRect(), box = view.getBoundingClientRect();
         return { cards: document.querySelectorAll('.tcard').length, left: view.scrollLeft, max: view.scrollWidth - view.clientWidth,
-          selfShown: self.left >= box.left && self.right <= box.right, arrows: document.querySelectorAll('.hscroll__arrow:not([disabled])').length,
+          selfShown: self.left >= box.left && self.right <= box.right, selfAt: (self.left + self.width / 2 - box.left) / box.width, arrows: document.querySelectorAll('.hscroll__arrow:not([disabled])').length,
           scrollbar: view.offsetHeight - view.clientHeight };
       });
       const open1 = await state();
       assert.equal(open1.cards, 8, `${size.w}: eight cards`);
       assert.ok(open1.max > 0 && open1.left > 0 && open1.left < open1.max, `${size.w}: opens mid-row: ${JSON.stringify(open1)}`);
       assert.ok(open1.selfShown, `${size.w}: my own (6th) card is in view on open`);
+      assert.ok(Math.abs(open1.selfAt - 0.5) < 0.02, `${size.w}: my own card in the middle: ${open1.selfAt}`);
+      // a resize before the player touches the row keeps my card in the middle
+      await page.setViewport(size.then);
+      await page.waitForFunction(() => {
+        const v = document.querySelector('.steam__view').getBoundingClientRect(), c = document.querySelector('.tcard.is-self').getBoundingClientRect();
+        return Math.abs((c.left + c.width / 2 - v.left) / v.width - 0.5) < 0.02;
+      }, { timeout: 3000 }).catch(async () => assert.fail(`${size.w} → ${size.then.width}: my card left the middle: ${JSON.stringify(await state())}`));
+      open1.left = (await state()).left;
       assert.equal(open1.arrows, 2, `${size.w}: both arrows while both ends hide cards`);
       assert.equal(open1.scrollbar, 0, `${size.w}: no native scrollbar`);
       await page.keyboard.press('ArrowRight');

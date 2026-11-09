@@ -4,7 +4,9 @@
 //   * useHScroll(ref): which ends are hidden (`edges`), whether the row overflows (`over`), and `step(±1)` (75% of the
 //     box, as BondScroller does). The mouse wheel scrolls the row sideways, a mouse drags it (a drag swallows the click it
 //     ends on), a touch swipes it natively, ← / → step it (on the box when focused, or anywhere on the page with
-//     `pageKeys`, outside text fields), and `reveal` (a selector) scrolls that child into the middle once, on open.
+//     `pageKeys`, outside text fields), and `reveal` (a selector) puts that child in the middle on open — and keeps it
+//     there through every resize (a phone going fullscreen or turning, a window resized) until the player scrolls the
+//     row themselves (wheel, drag, swipe, keys, ‹ ›).
 //   * HScroll: the box (`.hscroll`) with edge fades (`.has-left` / `.has-right`) and ‹ › buttons, shown only while the
 //     row overflows (a row that fits looks exactly as without the scroller); no native scrollbar. The screen's own CSS
 //     places and sizes it; components.css holds the shared look.
@@ -34,20 +36,31 @@ export function centreOf(el, child) {
  */
 export function useHScroll(ref, { deps = [], reveal = null, pageKeys = false } = {}) {
   const [edges, setEdges] = useState({ left: false, right: false, over: false });
-  const step = (dir) => {
+  // the player moved the row: `reveal` stops re-centring
+  const moved = useRef(false);
+  const centre = () => {
     const el = ref.current;
-    if (el) el.scrollBy({ left: dir * Math.max(80, el.clientWidth * 0.75), behavior: 'smooth' });
+    const child = !moved.current && reveal && el ? el.querySelector(reveal) : null;
+    if (child) el.scrollLeft = centreOf(el, child);
+  };
+  // where a ‹ › / key step is gliding to: a quick second step continues from there, not from mid-glide
+  const aim = useRef(null);
+  const step = (dir) => {
+    moved.current = true;
+    const el = ref.current;
+    if (!el) return;
+    const max = Math.max(0, el.scrollWidth - el.clientWidth);
+    const from = aim.current ?? el.scrollLeft;
+    aim.current = Math.max(0, Math.min(max, from + dir * Math.max(80, el.clientWidth * 0.75)));
+    el.scrollTo({ left: aim.current, behavior: 'smooth' });
   };
   // open on the `reveal` child (before the first paint, so the row does not jump)
-  useLayoutEffect(() => {
-    const el = ref.current;
-    const child = reveal && el ? el.querySelector(reveal) : null;
-    if (child) el.scrollLeft = centreOf(el, child);
-  }, [ref, reveal]);
+  useLayoutEffect(centre, [ref, reveal]);
   useEffect(() => {
     const el = ref.current;
     if (!el) return undefined;
     const update = () => {
+      if (aim.current !== null && Math.abs(el.scrollLeft - aim.current) < 1) aim.current = null;
       const next = scrollEdges(el);
       setEdges((old) => (old.left === next.left && old.right === next.right && old.over === next.over ? old : next));
     };
@@ -55,7 +68,7 @@ export function useHScroll(ref, { deps = [], reveal = null, pageKeys = false } =
     let frame = null;
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => {
       if (frame !== null) return;
-      frame = requestAnimationFrame(() => { frame = null; update(); });
+      frame = requestAnimationFrame(() => { frame = null; centre(); update(); });
     }) : null;
     ro?.observe(el);
     for (const child of el.children) ro?.observe(child);
@@ -66,6 +79,8 @@ export function useHScroll(ref, { deps = [], reveal = null, pageKeys = false } =
       const max = el.scrollWidth - el.clientWidth;
       if (!d || (d < 0 && el.scrollLeft <= 0) || (d > 0 && el.scrollLeft >= max)) return;
       e.preventDefault();
+      moved.current = true;
+      aim.current = null;
       el.scrollLeft += e.deltaMode === 1 ? d * 40 : d;
     };
     // a mouse drag (touch scrolls natively); the screen-to-box scale covers a scaled stage (settle.js --k)
@@ -79,7 +94,7 @@ export function useHScroll(ref, { deps = [], reveal = null, pageKeys = false } =
       if (!drag || e.pointerId !== drag.id) return;
       const dx = (e.clientX - drag.x) / drag.scale;
       if (!drag.moved && Math.abs(dx) < 5) return;
-      if (!drag.moved) { drag.moved = true; el.classList.add('is-dragging'); try { el.setPointerCapture(e.pointerId); } catch { /* gone */ } }
+      if (!drag.moved) { drag.moved = true; moved.current = true; aim.current = null; el.classList.add('is-dragging'); try { el.setPointerCapture(e.pointerId); } catch { /* gone */ } }
       el.scrollLeft = drag.left - dx;
     };
     const up = (e) => {
@@ -101,14 +116,18 @@ export function useHScroll(ref, { deps = [], reveal = null, pageKeys = false } =
       e.preventDefault();
       step(e.key === 'ArrowLeft' ? -1 : 1);
     };
+    // a finger on the row: the browser scrolls it natively from here
+    const touch = () => { moved.current = true; aim.current = null; };
     const keyHost = pageKeys ? globalThis : el;
     el.addEventListener('scroll', update, { passive: true });
     el.addEventListener('wheel', wheel, { passive: false });
     el.addEventListener('pointerdown', down);
+    el.addEventListener('touchstart', touch, { passive: true });
     el.addEventListener('pointermove', move);
     el.addEventListener('pointerup', up);
     el.addEventListener('pointercancel', up);
     keyHost.addEventListener('keydown', key);
+    centre();
     update();
     return () => {
       ro?.disconnect();
@@ -116,6 +135,7 @@ export function useHScroll(ref, { deps = [], reveal = null, pageKeys = false } =
       el.removeEventListener('scroll', update);
       el.removeEventListener('wheel', wheel);
       el.removeEventListener('pointerdown', down);
+      el.removeEventListener('touchstart', touch);
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', up);
       el.removeEventListener('pointercancel', up);
