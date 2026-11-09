@@ -446,6 +446,11 @@ Battle work and prep work never overlap, because they belong to different phases
 now differs from upstream only by its CPU meter. **So without `SP_BOT_EXECUTION=host` nothing offers a rehearsal to a browser any more:
 with the live `SP_BOT_REHEARSAL=0`, bots keep their heuristic layout until the flag is on.**
 
+**One fork addition to the dormant path (2026-11-09):** with `SP_BOT_REHEARSAL=host`, the server sends the host `b.rehearsalWarm` at
+the briefing (and a new host on a host change), and `rehearsal.js` builds its Worker and hands it the data once the screen has settled.
+A prep's tasks arrive together, each with its own answer window, and a cancel terminates a running Worker, so a cold start answered
+none of round 1's tasks (`ioleta-adaptive-ws-delegation`). The windows, the timeout fallback and the cancel rules are unchanged.
+
 | Item | Action |
 |------|--------|
 | `b.rehearsal`, `b.rehearsalResult`, `b.rehearsalCancel` | Remove from `shared/protocol.js` |
