@@ -603,7 +603,18 @@ async function main() {
     noteFx: $('note-ours').checked ? 'ours' : 'official' });
   // the outfit of each unit, by board uid: prep pieces and battle units both carry it (prepState / me.units below)
   const skinByUid = new Map();
-  const outfitOf = (info) => (info && info.side !== 'enemy' && info.kind !== 'token' ? skinByUid.get(info.uid) || null : null);
+  // a summon wears its owner's outfit look (data/outfits.json `tokens`), as in a match (ui/outfits.js outfitModelOf: the
+  // first outfit of the player that has one for this token; every piece here is the player's)
+  const outfitOf = (info) => {
+    if (!info || info.side === 'enemy') return null;
+    if (info.kind !== 'token') return skinByUid.get(info.uid) || null;
+    const tokenId = info.spine || info.defId;
+    for (const id of new Set(skinByUid.values())) {
+      const look = id && (data.list('outfits') || []).find((r) => r && r.id === id)?.tokens?.[tokenId];
+      if (look) return look;
+    }
+    return null;
+  };
   // …and its voice set (data/outfits.json `voice`), for the battle voices (js/audio.js)
   setOutfitVoiceResolver((info) => {
     const id = info && info.side !== 'enemy' && (!info.kind || info.kind === 'op') ? skinByUid.get(info.uid) : null;
