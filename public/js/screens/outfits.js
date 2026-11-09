@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, MicroLabel, Modal, Spinner } from '../ui/components.js';
-import { Img } from '../ui/gameComponents.js';
+import { Img, noImageMenu } from '../ui/gameComponents.js';
 import { data, useData } from '../data.js';
 import { useStore } from '../store.js';
 // (fork) Not imported from assets.js: main.js reaches this screen at boot, and the asset store loads only when it is
@@ -225,7 +225,7 @@ export function OutfitCards({ m, charId, name = '', list, worn, compact = false,
       ${on ? html`<span class="lo-badge lo-badge--def ofit-card__on">${t('穿着中')}</span>` : null}
     </button>`;
   };
-  return html`<div class=${cx('ofit-list', compact && 'ofit-list--compact')} role="radiogroup" aria-label=${t('选择时装')}>
+  return html`<div class=${cx('ofit-list', compact && 'ofit-list--compact')} role="radiogroup" aria-label=${t('选择时装')} onContextMenu=${noImageMenu}>
     ${card(null, null)}
     ${list.map((r) => card(r.id, r))}
   </div>`;
@@ -277,7 +277,7 @@ export function OutfitPanel({ m, chess }) {
   const artName = wornRec?.name || chess.name || charId;
   const model = worn && hasSpine(m, worn) ? worn : charId;
   // the artwork button: '点击查看大图' // en: "Click to view full size" · '查看大图：{name}' // en: "View full size: {name}"
-  return html`<div class="lo-detail__body ofit" data-testid="outfit-panel">
+  return html`<div class="lo-detail__body ofit" data-testid="outfit-panel" onContextMenu=${noImageMenu}>
     <section class="ofit-stage">
       ${art ? html`<button type="button" class="ofit-art" data-testid="outfit-art" onClick=${() => setViewing(true)}
           title=${t('点击查看大图')} aria-label=${t('查看大图：{name}', { name: artName })}>
