@@ -47,6 +47,14 @@ export class PlayerPieces {
     return out;
   }
 
+  /** (fork) allChess().some(pred) without building and sorting the list (the order cannot change the answer). */
+  someChess(pred) {
+    for (const p of this.board.values()) if (p.kind === 'chess' && pred(p)) return true;
+    for (const p of this.hand) if (p && p.kind === 'chess' && pred(p)) return true;
+    for (const p of this.temp) if (p && p.kind === 'chess' && pred(p)) return true;
+    return false;
+  }
+
   /** Locations of owned pieces, in merge-consumption preference order: temp, hand (left→right), board (reading order). */
   _chessLocations() {
     const out = [];

@@ -44,7 +44,14 @@ import { BOSS_ROW_OFFSET, COLS } from '../sim/constants.js';
 
 export const FIELD = GEO.FIELD; // { r0: 9, r1: 12, c0: 2, c1: 10 }
 export const tileKey = (r, c) => `${r},${c}`;
-export const parseKey = (k) => { const [r, c] = String(k).split(',').map(Number); return [r, c]; };
+// (fork) no split/map arrays: the bots' searches parse tile keys millions of times a match; same result as
+// String(k).split(',').map(Number) taken as [r, c] (no comma: c undefined; a third part ignored)
+export const parseKey = (k) => {
+  const s = String(k), i = s.indexOf(',');
+  if (i < 0) return [Number(s), undefined];
+  const j = s.indexOf(',', i + 1);
+  return [Number(s.slice(0, i)), Number(j < 0 ? s.slice(i + 1) : s.slice(i + 1, j))];
+};
 /** A board piece's direction (default RIGHT). */
 export const pieceDir = (piece) => (piece && isDir(piece.dir) ? piece.dir : DEFAULT_DIR);
 /** An intent's optional direction: undefined / null ⇒ RIGHT, a direction name ⇒ itself, anything else ⇒ null (invalid). */

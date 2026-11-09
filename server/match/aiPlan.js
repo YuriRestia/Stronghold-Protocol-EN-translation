@@ -70,7 +70,7 @@ export function planMain(m, ps) {
 
 export function ownsElite(m, ps, id) {
   const gd = ps.gd || m.gd, base = gd.baseIdOf(id);
-  return ps.allChess().some(p => gd.baseIdOf(p.id) === base && gd.isGolden(p.id));
+  return ps.someChess(p => gd.baseIdOf(p.id) === base && gd.isGolden(p.id));
 }
 
 // [ASSUMED] A first normal copy starts merge progress; an owned elite ends procurement for that base.
@@ -80,7 +80,7 @@ export function planCopyUseful(m, ps, id) {
   if (!gd.chess(id) || gd.isGolden(id) || ownsElite(m, ps, id)) return false;
   return gd.mergeCount(gd.baseIdOf(id)) > 1 || (!!advisorPlan(m, ps)?.bonds?.some(b =>
     !gd.modeInactiveBonds.has(b.id) && gd.chess(id).bonds?.includes(b.id))
-    && !ps.allChess().some(p => gd.baseIdOf(p.id) === gd.baseIdOf(id)));
+    && !ps.someChess(p => gd.baseIdOf(p.id) === gd.baseIdOf(id)));
 }
 
 export function planBuyTarget(m, ps, id) {
