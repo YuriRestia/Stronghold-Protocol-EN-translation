@@ -266,9 +266,12 @@ export function PwaInstallButton({ class: cls = '', size = 'sm', square = false 
     data-testid="pwa-install" onClick=${() => pwaInstall.request()}>${square ? null : t('添加到桌面')}<//>`;
 }
 
-export function updateRotateHintPwaI18n(doc = globalThis.document) {
-  const btn = doc?.getElementById?.('rotate-hint-pwa');
-  if (btn) btn.textContent = t('添加到桌面');
+/** The portrait screen's text (public/index.html ships it in English) in the current language. */
+export function updateRotateHintI18n(doc = globalThis.document) {
+  const set = (id, text) => { const el = doc?.getElementById?.(id); if (el) el.textContent = text; };
+  set('rotate-hint-title', t('请将设备横屏')); // en: "Rotate your device to landscape"
+  set('rotate-hint-text', t('卫戍协议：盟约 需要横屏显示以获得完整体验')); // en: "Stronghold Protocol: Alliance needs landscape for the full experience"
+  set('rotate-hint-pwa', t('添加到桌面'));
 }
 
 // ---- boot-time installation ----------------------------------------------------------------------------------------
@@ -362,9 +365,9 @@ export function installDeviceSupport(win = globalThis) {
     if (lp.swallowUntil && Date.now() < lp.swallowUntil) { lp.swallowUntil = 0; e.preventDefault(); e.stopPropagation(); }
   }, { capture: true });
 
+  updateRotateHintI18n(doc);
   const pwaBtn = doc?.getElementById?.('rotate-hint-pwa');
   if (pwaBtn) {
-    updateRotateHintPwaI18n(doc);
     offs.push(pwaInstall.subscribe((available) => { pwaBtn.hidden = !available; }));
     on(pwaBtn, 'click', () => { pwaInstall.request(); });
   }

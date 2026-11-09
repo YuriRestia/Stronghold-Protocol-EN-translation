@@ -13,6 +13,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The English game texts are rebuilt from the official EN data of 2026-11-05 (data 52.4.0, was 51.10.0), for the current season and the three older ones. Players see the official names: the band effect Knot's Secret (was Phylactery Secret), Mon3tr's outfit Sharpened Claws (was Sharpened Blades), and Kal'tsit Esperanta (was "Kal'tsit - Esperanta"), with her official Esperanto skill names. Viy's, Closure's and Kal'tsit Esperanta's skills, talents and modules in the Custom Squad now use the official wording, and six Alliance module texts plus one enemy description have small official fixes.
 - Eleven other voice sets still have no English or Korean dub to take: Sakiko Togawa's collab voice is Japanese only, and the rest aren't in the EN client yet. They keep falling back as before.
 
+### Browsers no longer offer to translate the English site
+
+- The page was still marked as Chinese (`<html lang="zh-CN">`) until the game had loaded, and the portrait "rotate your device" screen and the no-JavaScript notice were Chinese text, so Chrome and other browsers offered to translate a site that already shows English. The page is now marked as English from the first byte; a player who picked 中文 (or opened a `?lang=` link) has their language set before the game loads. The rotate screen and the loading-failure messages follow the chosen language.
+
 ### Effect extraction follows every template of our units
 
 - The effect extractor (`tools/local-extract/fx.py`) now also exports the effects that only an action template names, for every operator, token and enemy in our data and for the seasons' bonds, bands and items. Before, it followed only the projectiles that templates fire, so effects such as the S2 and S3 buffs of Тоска (`char_4244_tocka`) were never extracted. An add-only run never rewrites a file that is already there. The new art isn't shown in battles yet; that needs separate client work.

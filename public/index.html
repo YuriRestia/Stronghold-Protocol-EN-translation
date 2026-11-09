@@ -1,5 +1,7 @@
 <!doctype html>
-<html lang="zh-CN">
+<!-- lang: English, the language a first visit starts in (js/ui/lang.js START_LANG), so a browser does not offer to
+     translate it; js/boot.js sets a stored or ?lang= choice before the app loads, js/ui/lang.js keeps it current. -->
+<html lang="en">
 <head>
   <meta charset="utf-8" />
   <!-- A landscape game: no page zoom (iOS additionally needs the gesture handling of js/ui/device.js), full-bleed behind
@@ -84,13 +86,14 @@
 
   <div class="rotate-hint" role="alert">
     <div class="rotate-hint__phone"></div>
-    <div class="rotate-hint__title">请将设备横屏</div>
-    <div>卫戍协议：盟约 需要横屏显示以获得完整体验</div>
-    <button type="button" hidden class="btn btn--secondary btn--sm rotate-hint__pwa" id="rotate-hint-pwa">添加到桌面</button>
+    <!-- English until the app loads; js/ui/device.js updateRotateHintI18n then shows the chosen language -->
+    <div class="rotate-hint__title" id="rotate-hint-title">Rotate your device to landscape</div>
+    <div id="rotate-hint-text">Stronghold Protocol: Alliance needs landscape for the full experience</div>
+    <button type="button" hidden class="btn btn--secondary btn--sm rotate-hint__pwa" id="rotate-hint-pwa">Add to Home Screen</button>
     <div class="rotate-hint__micro">ROTATE DEVICE</div>
   </div>
 
-  <noscript><p style="color:#c3cbc7;text-align:center;padding:40px">需要启用 JavaScript 才能运行本游戏。</p></noscript>
+  <noscript><p style="color:#c3cbc7;text-align:center;padding:40px">This game needs JavaScript enabled.<br /><span lang="zh-CN">需要启用 JavaScript 才能运行本游戏。</span></p></noscript>
 
   <script src="/js/boot.js"></script>
   <script type="module" src="/js/main.js" id="sp-main"></script>
