@@ -274,8 +274,8 @@
   .brief .brief-boss__when { font-size: min(calc(.17 * var(--t)), calc(11px + var(--t-step) / 2)); }
   .brief .brief-boss__abil { font-size: min(calc(.18 * var(--t)), calc(12px + var(--t-step) / 2)); line-height: 1.4; }
   .brief .brief-stage { font-size: min(calc(.16 * var(--t)), calc(11px + var(--t-step) / 2)); }
-  .brief .brief-factions { gap: .16rem; padding-right: .1rem; }
-  .brief .brief-faction { width: 1.4rem; gap: .06rem; }
+  .brief .brief-factions { gap: .1rem; padding-right: .1rem; }
+  .brief .brief-faction { width: 1.8rem; gap: .06rem; /* "Frequency" stays whole at 特大 */ }
   .brief .brief-faction__icon { width: .8rem; height: .8rem; }
   .brief .brief-faction__text b { font-size: min(calc(.22 * var(--t)), calc(12px + var(--t-step) / 2)); }
   /* the bond rows and banned operators: smaller discs and thumbnails, more of them a row */
