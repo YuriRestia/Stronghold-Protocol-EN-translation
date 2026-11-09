@@ -72,29 +72,42 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     page.on('response', (r) => { if (r.status() >= 400) problems.push(`http ${r.status()}: ${r.url()}`); });
     await gotoMock(page, `${base}/dev/game-mock.html?shot=1&render=${render}&${query}`);
     await page.waitForFunction(() => !!document.querySelector('.screen:not(.gload)') && !!globalThis.__SP_VIEW__, { timeout: 20000 });
-    await sleep(render === 'engine' ? 1600 : 700);
+    if (/(^|&)phase=PREP(&|$)/.test(query)) await piecesPlaced(page);
+    else await sleep(render === 'engine' ? 1600 : 700); // the battle cameras of item 6 (no own pieces to wait for)
     return { page, problems };
   }
 
   /**
-   * (fork) Wait until a unit-frame plate is drawn for real, then sample it: its sprite mask (underframe.js PlateIcon,
-   * `--uf-mask`) has loaded, since until then the plate shows only its dark backing, and the plate has stayed the same
-   * element with no one-shot animation or transition running for 300 ms. Mid-way the frame's `uframe-in` fade shows the
-   * board through the plate and the detail panel's `panel-in-r` slide passes over it, and in the fallback render a
-   * second fade can start about 100 ms after the frame is up. A fixed 300 ms sleep sampled those on a loaded machine.
+   * (fork) Wait until every own piece of the mock state (整备区, temp row, board) is laid out on screen: a non-empty
+   * view.pieceScreenRect (the engine has none until a piece is first drawn), on two polls in a row. A fixed sleep after
+   * the mount tapped the bench before it was laid out on a loaded machine ("piece … on screen").
    */
-  async function plateDrawn(page, sel) {
-    await page.$eval(sel, async (el) => {
-      const m = /url\("?([^")]+)"?\)/.exec(el.style.getPropertyValue('--uf-mask'));
-      if (m) { const img = new Image(); img.src = m[1]; await img.decode(); }
-    });
-    await page.waitForFunction((q) => {
-      const el = document.querySelector(q);
-      const busy = document.getAnimations().some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity);
-      const now = performance.now();
-      if (!el || busy || el !== globalThis.__plateEl) { globalThis.__plateEl = el; globalThis.__plateQuiet = now; return false; }
-      return now - globalThis.__plateQuiet >= 300;
-    }, { polling: 'raf', timeout: 5000 }, sel);
+  const piecesPlaced = (page) => page.waitForFunction(() => {
+    const p = globalThis.__MOCK__?.S()?.priv;
+    const v = globalThis.__SP_VIEW__;
+    const uids = p && v ? [...(p.hand || []), ...(p.temp || []), ...(p.board || [])].filter((x) => x && Number.isInteger(x.uid)).map((x) => x.uid) : [];
+    const placed = uids.length > 0 && uids.every((u) => { const r = v.pieceScreenRect(u); return !!r && r.width > 0 && r.height > 0; });
+    globalThis.__piecesPolls = placed ? (globalThis.__piecesPolls || 0) + 1 : 0;
+    return globalThis.__piecesPolls >= 2;
+  }, { polling: 100, timeout: 30000 });
+
+  /**
+   * (fork) The mean colour of a unit-frame plate once it is painted. Until its sprite mask (underframe.js PlateIcon,
+   * `--uf-mask`) is painted the plate shows only its dark backing, and mid-way the frame's `uframe-in` fade or the detail
+   * panel's `panel-in-r` slide shows the board through it: every such sample is a neutral grey (channel spread 5-13
+   * measured). So: sample until two samples in a row agree and the colour is not a neutral grey. A wrong hue ends the
+   * wait (the caller's asserts fail on it); a plate still grey or white after 10 s is returned as it is, and fails there.
+   */
+  async function plateColor(page, sel, timeout = 10000) {
+    const end = Date.now() + timeout;
+    let prev = null;
+    for (;;) {
+      const r = await page.$eval(sel, (el) => { const b = el.getBoundingClientRect(); return { x: b.left + b.width * 0.2, y: b.top + b.height * 0.2, w: b.width * 0.6, h: b.height * 0.6 }; });
+      const c = await meanColor(page, r);
+      const same = !!prev && Math.abs(c.r - prev.r) < 4 && Math.abs(c.g - prev.g) < 4 && Math.abs(c.b - prev.b) < 4;
+      if ((same && Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) >= 30) || Date.now() > end) return c;
+      prev = c;
+    }
   }
 
   /** Mean RGB of a client rect of the page (screenshot decoded by the page itself). */
@@ -167,18 +180,14 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
       });
       await tapPiece(page, uids.chess);
       await page.waitForSelector('.uframe__btn--sell .uframe__plate', { timeout: 3000 });
-      await plateDrawn(page, '.uframe__btn--sell .uframe__plate');
-      const plate = await page.$eval('.uframe__btn--sell .uframe__plate', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height * 0.2, w: r.width * 0.6, h: r.height * 0.6 }; });
-      const c = await meanColor(page, plate);
+      const c = await plateColor(page, '.uframe__btn--sell .uframe__plate');
       assert.ok(!(c.r > 225 && c.g > 225 && c.b > 225), `sell plate is not white (${JSON.stringify(c)})`);
       assert.ok(c.r > c.b + 50 && c.g > c.b + 10, `sell plate reads amber (${JSON.stringify(c)})`);
       await page.screenshot({ path: path.join(OUT, `fix-sell-${render}.png`) });
       await page.keyboard.press('Escape');
       await tapPiece(page, uids.item);
       await page.waitForSelector('.uframe__btn--destroy .uframe__plate', { timeout: 3000 });
-      await plateDrawn(page, '.uframe__btn--destroy .uframe__plate');
-      const dp = await page.$eval('.uframe__btn--destroy .uframe__plate', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height * 0.2, w: r.width * 0.6, h: r.height * 0.6 }; });
-      const d = await meanColor(page, dp);
+      const d = await plateColor(page, '.uframe__btn--destroy .uframe__plate');
       assert.ok(!(d.r > 225 && d.g > 225 && d.b > 225), `destroy plate is not white (${JSON.stringify(d)})`);
       assert.ok(d.r > d.g + 60 && d.r > d.b + 60, `destroy plate reads red (${JSON.stringify(d)})`);
       await page.screenshot({ path: path.join(OUT, `fix-destroy-${render}.png`) });
