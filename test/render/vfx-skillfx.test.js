@@ -27,7 +27,7 @@ const KEYS = ['foo_atk_start', 'foo_atk_hit', 'foo_s2_mode_cast', 'foo_s3_mode_c
   // (fork) the template shots' bindings (FX_BINDINGS flight / keysIf / tiles)
   'token_mcnist_mcgraf_skill_03_trail_01_right', 'token_mcnist_mcgraf_skill_03_trail_02_up_left', 'token_mcnist_mcgraf_skill_03_hit_01',
   'kalts2_skill_02_indicator_damage_01', 'kalts2_skill_02_range_heal_01_delay', 'kalts2_skill_02_indicator_heal_01',
-  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01'];
+  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01', 'oxi_skill_02_hit_01'];
 
 const melee = (k, ev = 2) => ({ effects: [k], oneshot: 1, startEvent: ev, endEvent: 3, directionType: 0 });
 
@@ -75,6 +75,7 @@ function makeIndex() {
     skchr_mcnist_3: { mode: null, projectiles: [], uses: [] },
     skchr_kalts2_2: { mode: null, projectiles: [], uses: [] },
     skchr_dminon_1: { mode: null, projectiles: [], uses: [] },
+    skchr_oxi_2: { mode: null, projectiles: [], uses: [] },
     // held loops of a skill and a passive: one prefab loops, the other is a one-shot (index.json looping false)
     skchr_once_1: { mode: null, projectiles: [], uses: [
       { role: 'loop', keys: ['once_buff'], from: 'BuffDuringSkill._buffs', node: 'sk', on: 'owner' },
@@ -101,6 +102,7 @@ function makeIndex() {
       char_300_qux: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [melee('qux_mode_cast', 4)], hit: [] } }, { name: 'S2', attack: { class: 'MeleeAttack', cast: [] } }], ['skchr_qux_1']),
       char_4230_mcnist: unit([{ name: 'Default', attack: { class: 'RangedAttack', cast: [], hit: [] } }], ['skchr_mcnist_3']),
       char_1052_kalts2: unit([{ name: 'Default', attack: { class: 'HealAttack', cast: [], hit: [] } }], ['skchr_kalts2_2']),
+      char_4247_oxi: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_oxi_2']),
       char_4246_dminon: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_dminon_1']),
       char_500_once: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_once_1']),
       char_510_oncep: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_once_2']),
@@ -142,6 +144,7 @@ const RECS = {
   char_4231_clemnt: { charId: 'char_4231_clemnt', skill: { skillId: 'skchr_clemnt_3', index: 2, skillType: 'MANUAL', durationType: 'AMMO', duration: 0, bb: { projectile_life_time: 5 } } },
   char_4230_mcnist: { charId: 'char_4230_mcnist', skill: { skillId: 'skchr_mcnist_3', index: 2, skillType: 'MANUAL', duration: 40, bb: {} } },
   char_1052_kalts2: { charId: 'char_1052_kalts2', skill: { skillId: 'skchr_kalts2_2', index: 1, skillType: 'MANUAL', duration: 20, bb: {} } },
+  char_4247_oxi: { charId: 'char_4247_oxi', skill: { skillId: 'skchr_oxi_2', index: 1, skillType: 'AUTO', durationType: 'NONE', duration: 0, bb: {} } },
   char_4246_dminon: { charId: 'char_4246_dminon', skill: { skillId: 'skchr_dminon_1', index: 0, skillType: 'AUTO', duration: 10, bb: {} } },
   char_300_qux: { charId: 'char_300_qux', skill: { skillId: 'skchr_qux_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 10, bb: {} } },
   char_500_once: { charId: 'char_500_once', skill: { skillId: 'skchr_once_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 20, bb: {} } },
@@ -560,6 +563,22 @@ describe('(fork) FX_BINDINGS of the template shots (flight, keysIf, only + tiles
     assert.deepEqual(spawned.slice(n), ['dminon_talent_range_hit_01', 'dminon_talent_range_hit_01', 'dminon_talent_range_hit_01']);
     assert.equal(w.simFx('aoe', 6, 10, { id: 2, skill: 'dminon:spread' }), false, "another of his aoe: the kit's own");
     assert.ok(d);
+  });
+});
+
+describe('(fork) 塔露拉 S2', () => {
+  test("her guard's strike back plays the skill's hit on the enemy, in the frame of the cast too", async () => {
+    const { w, spawned, handles, view, frame } = await setup();
+    const o = view(1, 'char_4247_oxi', 5, { skill: 1 });
+    const e = view(2, 'enemy_1', 6);
+    frame();
+    w.skill(o, true);
+    assert.equal(w.simFx('blast', 6, 10, { id: 1, r: 1.1, element: 'burn', skill: 'oxi:retaliate', target: 2 }), true);
+    assert.equal(spawned.at(-1), 'oxi_skill_02_hit_01');
+    assert.equal(handles.at(-1).place.pos[0], e.x - 10, 'on the enemy');
+    const n = spawned.length;
+    w.simFx('blast', 6, 10, { id: 1, r: 1.1, skill: 'oxi:heatwave', target: 2 });
+    assert.equal(spawned.slice(n).includes('oxi_skill_02_hit_01'), false, 'another blast of hers is not this hit');
   });
 });
 

@@ -1455,6 +1455,12 @@ export const FX_BINDINGS = Object.freeze({
   // 塔露拉 S3 (op-oxi.js volley): the client's buff oxi_s_3_wave fires projectile_chr_oxi_s_3_heatwave down each lane; its
   // main effect oxi_skill_03_trail_01 is the 簇火, and its action graph's CreateEffectOnProjectile (_useCollisionTarget)
   // plays oxi_skill_03_hit_01 on the enemy it meets. The kit's 'heatwave' names the lanes, its 'blast' the shot and enemy.
+  // (fork) 塔露拉 S2 (op-oxi.js retaliate): the skill's UberEffectEmitter plays oxi_skill_02_hit_01 on its input target —
+  // the enemy her guard strikes back at. The kit's 'blast' tagged oxi:retaliate is that strike (target: the enemy); it
+  // comes in the frame of the cast, which would otherwise count it as covered by the start and draw nothing there.
+  skchr_oxi_2: Object.freeze({
+    blast: binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:retaliate' }), at: 'target', keys: ['oxi_skill_02_hit_01'] }),
+  }),
   skchr_oxi_3: Object.freeze({
     heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
     blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),

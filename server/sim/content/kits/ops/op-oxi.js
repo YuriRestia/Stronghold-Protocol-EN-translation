@@ -166,7 +166,8 @@ export default {
       if (!centre) return;
       const amount = unit.s.atk * num(b2.retaliate_atk_scale, 1), ratio = num(b2.heal_ratio);
       const foes = [centre, ...battle.enemiesInRadius(centre.x, centre.y, RETALIATE_RADIUS).filter((e) => e !== centre && retaliable(e))];
-      battle.fx('blast', { x: centre.x, y: centre.y, r: RETALIATE_RADIUS, id: unit.id, element: 'burn', skill: 'oxi:retaliate' });
+      // (fork) target: the enemy the client's hit plays on (render/vfx FX_BINDINGS skchr_oxi_2)
+      battle.fx('blast', { x: centre.x, y: centre.y, r: RETALIATE_RADIUS, id: unit.id, element: 'burn', skill: 'oxi:retaliate', target: centre.id });
       for (const e of foes) {
         if (!e.alive) continue;
         const removed = battle.dealDamage({ source: unit, target: e, amount, type: 'arts', isSkill: true, applyWay: 'MELEE', tags: ['skill', 'oxi:retaliate'] });
