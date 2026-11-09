@@ -36,6 +36,7 @@ import { CultivationSection, cultivationView } from './cultivation.js';
 import { SkillSection, ModuleSection } from './loadoutSections.js';
 // (fork) the card view's card, deck, bar and drawer: the 干员调配 deck's own (one copy, screens/loadoutDeck.js)
 import { LevelPill, OutfitSide, DeckOpSide, DeckOpMore, DeckOpCard, GroupMark, GroupBarLive, useGroupDeck, DeckDrawer, DeckDetail, DetailsToggle, useDetailsSync, useOutfitView, CardSide, speakSelect } from './loadoutDeck.js';
+import { useNameFit } from '../ui/nameFit.js';
 import { t, getLang } from '../../../shared/i18n.js';
 import { detailsStore } from '../ui/loadoutDetails.js';
 import { outfitsOf } from '../ui/outfits.js';
@@ -272,6 +273,7 @@ export function DiyPicker(props) {
   // (fork) the class groups: the 干员调配 deck's drag, wheel, left-edge group and jumps (screens/loadoutDeck.js)
   const deckNav = useGroupDeck(deckRef, { onDragStart: () => setNarrowDetail(false) }); // (fork) a drag closes the detail
   useDetailsSync(deckRef); // 「详情」's panels for the cards drawn now (a filter, the first draw with it on)
+  useNameFit(deckRef); // (fork) the names fitted to their cards (ui/nameFit.js)
   // Esc cancels only the picker, like the top bar's back (GitHub #284, idea from PR #286); the 干员调配 overlay's own Esc skips
   // while a picker is open, and a dialog over the picker (导入) still takes Esc first. A layout effect: the listener is
   // attached in the same commit as the picker (a plain effect waits for the next frame, and an Esc pressed in between

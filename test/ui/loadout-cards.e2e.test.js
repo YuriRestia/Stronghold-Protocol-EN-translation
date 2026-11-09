@@ -461,8 +461,14 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
         });
         const top = document.querySelector('.lo-top').getBoundingClientRect();
         const sw = document.querySelector('.lo-bbar .lo-dswitch').getBoundingClientRect();
+        // (fork) the bar's 干员持有 and switch drawn small on a short phone: every tier jump stays whole beside them
+        const tierBox = document.querySelector('.lo-bbar__tiers').getBoundingClientRect(), tools = document.querySelector('.lo-bbar__tools').getBoundingClientRect();
+        const tiersWhole = [...document.querySelectorAll('.lo-bbar__tier')].every((b) => { const r = b.getBoundingClientRect(); return r.left >= tierBox.left - 1 && r.right <= Math.min(tierBox.right, tools.left) + 1; });
+        // (fork) a name breaks only at its spaces (ui/nameFit.js): no word drawn over two lines, none past its card
+        const split = [...document.querySelectorAll('.lo-op[data-chess] .lo-op__w')].filter((w) => w.getClientRects().length > 1
+          || w.getBoundingClientRect().right > w.closest('.lo-op__card').getBoundingClientRect().right + 1).map((w) => w.textContent);
         return { barBottom: bar.bottom, vh, rows: new Set(cards.map((r) => Math.round(r.top))).size, lowest: Math.max(...cards.map((r) => r.bottom)), barTop: bar.top,
-          minBtn: Math.min(...btns.map((b) => b.h)), out: btns.filter((b) => b.out).length, switchIn: sw.right <= top.right + 0.5 && sw.bottom <= vh + 1 && sw.width > 40 };
+          minBtn: Math.min(...btns.map((b) => b.h)), out: btns.filter((b) => b.out).length, switchIn: sw.right <= top.right + 0.5 && sw.bottom <= vh + 1 && sw.width > 40, tiersWhole, split };
       });
       assert.ok(fit.barBottom <= fit.vh + 1, `the bottom bar is on screen ${JSON.stringify(fit)}`);
       assert.equal(fit.rows, 1, 'a short phone: one row of cards at the deck height (the user call of 2026-11-09)');
@@ -470,6 +476,8 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       assert.equal(fit.out, 0, 'every skill / module button inside its card');
       assert.ok(fit.minBtn >= 22, `tappable buttons (${fit.minBtn} px)`);
       assert.ok(fit.switchIn, '简洁 / 展开 on screen in the bottom bar');
+      assert.ok(fit.tiersWhole, 'every tier jump whole beside 干员持有 and the switch');
+      assert.deepEqual(fit.split, [], 'no name word split or past its card');
       await layoutAll(page, false);
       await page.tap(`.lo-op[data-chess="${INSIDE}"] .lo-op__side .lo-q--skill[data-skill="0"]`);
       await page.waitForFunction(() => JSON.parse(localStorage.getItem('sp.pref.loadout') || '{}').byChar?.char_498_inside?.skill === 0);

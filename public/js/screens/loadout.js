@@ -38,6 +38,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Icon, MicroLabel, Button, TierChip, TextField, Countdown, Spinner, confirmDialog, hasDeadline, Modal, Fragment } from '../ui/components.js';
+import { useNameFit } from '../ui/nameFit.js';
 import { Img, UnitThumb } from '../ui/gameComponents.js';
 import { uiUrl } from '../ui/assetUrls.js';
 import { GarrisonBlock } from '../ui/detailPanel.js';
@@ -332,6 +333,7 @@ export function TierMark({ m, tier, count }) {
 function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, diySlots, diyLegal, deckRef, drawer, deckProps, filtered,
   selSlot = null, onSelSlot = () => {}, onQuickSlot = () => {}, onBlank = null }) {
   useDetailsSync(deckRef); // 「详情」's panels for cards drawn now (a filter, the first draw with it on)
+  useNameFit(deckRef); // (fork) the names fitted to their cards (ui/nameFit.js)
   // (fork) the 时装 view: the columns show the outfits, the worn one ringed (each card's column switches on its own:
   // CardSide — the deck is not redrawn for it)
   const { wornOf } = useOutfitView();

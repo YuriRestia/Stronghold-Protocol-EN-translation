@@ -9,6 +9,7 @@
 // Styles: css/screens/loadout.css (.lo-op, .lo-tmark, .lo-bbar, .lo-drawer, .lo-detail).
 
 import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { nameWords } from '../ui/nameFit.js';
 import { Component } from '../../vendor/preact.module.js';
 import { html, Icon, TierChip } from '../ui/components.js';
 import { OperatorImage, Img, PromotionIcon } from '../ui/gameComponents.js';
@@ -216,7 +217,7 @@ export class DeckOpMore extends Component {
  * the tier, the picker the class), the branch icon (`sub`; under the head, not on the portrait: the user's call of
  * 2026-11-08) and the rest (`rail`: the levels, or 原型 / 已持有) —, the half-body portrait (`portrait`, an OperatorImage:
  * the owner's outfit shows here as everywhere) with a ribbon (`ribbon`), the column (`side`: DeckOpSide),
- * the name (wrapping, never cut) after `meta` at the card's foot, the bonds down the rail's foot and `railFoot` under
+ * the name (wrapping at its spaces only, its words unbroken, fitted to the card: ui/nameFit.js) after `meta` at the card's foot, the bonds down the rail's foot and `railFoot` under
  * them (the user's calls of 2026-11-08), and the 「详情」 panel (`more`: DeckOpMore). A press on the card
  * picks it (`onPick`) unless it lands on one of its controls or the card is `pickDisabled` (a taken operator).
  * `attrs`: its data-* (data-chess / data-char), `cls` its own classes.
@@ -236,7 +237,8 @@ export function DeckOpCard({ m, attrs = {}, cls = null, tier, selected = false, 
         ${ribbon}
       </button>
       ${side}
-      <span class="lo-op__meta">${meta}<span class="lo-op__name">${name}</span></span>
+      <span class="lo-op__meta">${meta}<span class="lo-op__name">${typeof name === 'string'
+        ? nameWords(name).map((w, i) => html`${i ? ' ' : null}<span key=${i} class="lo-op__w">${w}</span>`) : name}</span></span>
     </div>
     <div class="lo-op__more" data-testid=${moreTestid} onClick=${(e) => e.stopPropagation()}>${more}</div>
   </div>`;

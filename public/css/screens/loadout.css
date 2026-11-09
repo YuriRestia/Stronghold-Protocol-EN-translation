@@ -457,6 +457,18 @@
 .lo-ownbtn:hover { color: var(--text-hi); border-color: var(--line-3); }
 .lo-ownbtn .icon { width: max(.18rem, 13px); height: max(.18rem, 13px); color: var(--text-lo); }
 .lo-ownbtn__v { font-weight: 700; color: var(--text-hi); }
+/* (fork) a short landscape phone (≤ 520 px tall): the bottom bar's 干员持有 and 简洁 / 展开 / 时装 smaller, at one size
+   whatever the 文字大小 (干员持有 its icon alone, its words kept for screen readers and in its title), so every tier jump
+   stays whole beside them (the user's call of 2026-11-09: at 640×360 特大 two of the six were cut) */
+@media (max-height: 520px) {
+  .lo-bbar .lo-dswitch { height: 30px; padding: 2px; gap: 2px; }
+  .lo-bbar .lo-dswitch__opt { gap: 4px; padding: 0 6px; }
+  .lo-bbar .lo-dswitch__opt .icon { width: 14px; height: 14px; }
+  .lo-bbar .lo-dswitch__txt > span { font-size: 12px; }
+  .lo-bbar .lo-ownbtn { position: relative; gap: 0; height: 30px; margin-right: 6px; padding: 0 8px; }
+  .lo-bbar .lo-ownbtn .icon { width: 14px; height: 14px; }
+  .lo-bbar .lo-ownbtn__k, .lo-bbar .lo-ownbtn__v { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 .diy-cbar__btn { gap: .06rem; }
 .diy-cbar__glyph { width: max(.24rem, 15px); height: max(.24rem, 15px); object-fit: contain; }
 /* its ~90 cards are drawn whole (no content-visibility skip): skipped cards came back half painted after the 「详情」 slide
@@ -868,7 +880,11 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
    user's call of 2026-11-08: no gap under them, and a long name breaks between words, not in one) */
 .lo-op__meta { grid-row: 2; grid-column: 2 / -1; display: flex; flex-direction: column; align-items: flex-end; gap: max(.03rem, calc(2px * var(--sp-ui, 1))); min-width: 0; }
 /* (fork) a long name wraps onto a second line, never cut with … (the user's call of 2026-11-08); the portrait gives way */
-.lo-op__name { max-width: 100%; font-size: max(calc(.21 * var(--t)), 13px); font-weight: 800; line-height: 1.15; color: var(--text-hi); text-align: right; overflow-wrap: break-word; text-wrap: balance; }
+.lo-op__name { max-width: 100%; font-size: calc(max(calc(.21 * var(--t)), 13px) * var(--nfit, 1)); font-weight: 800; line-height: 1.15; color: var(--text-hi); text-align: right; text-wrap: balance; }
+/* (fork) a name breaks only at its spaces — never inside a word, nor at its hyphen, dot or "·" — in at most two lines, and
+   shrinks (--nfit, ui/nameFit.js: the official MultilineBestFit's way) until it fits the card's width (the user's call of
+   2026-11-09: "Matterhor/n" at 特大 on a 640×360 phone) */
+.lo-op__w { white-space: nowrap; }
 /* (fork) the bonds stand down the rail's foot, one under another (the user's call of 2026-11-08) */
 .lo-op__bonds { margin-top: auto; display: flex; flex-direction: column; align-items: center; gap: max(.04rem, calc(3px * var(--sp-ui, 1))); }
 .lo-op__bond { flex: none; display: grid; place-items: center; width: max(.3rem, 18px); height: max(.3rem, 18px); border-radius: 50%; background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .22); }
