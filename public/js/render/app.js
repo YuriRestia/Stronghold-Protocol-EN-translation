@@ -165,7 +165,7 @@ import { TILE_H, TIER_COLORS, COLORS } from './style.js';
 import { loadBoardArt } from './boardArt.js';
 import { recordError } from '../diag.js';
 import { ImpostorAtlas } from './impostor.js';
-import { stepClipBounds } from './spine.js';
+import { stepClipBounds, clipBoundsBudget } from './spine.js';
 import { loadThree, loadBoardPack, loadScenePack, webgl2Available, boardArtListed } from './board3d/load.js';
 import { BoardScene } from './board3d/scene.js';
 import { layoutPen, penSignature } from './pen.js';
@@ -2148,7 +2148,7 @@ export async function createFieldView(host, options = {}) {
       if (leader && !leaderHidden) leader.view.update(udt, cam, clock);
       tiles.update(dt);
       fx.update(udt);
-      stepClipBounds();
+      stepClipBounds(clipBoundsBudget(dtRaw * 1000));   // (fork) a larger share of a slow frame
       impostors.flush();
     } catch (err) {
       if (!frame.warned) { frame.warned = true; console.error('[render] frame failed', err); }

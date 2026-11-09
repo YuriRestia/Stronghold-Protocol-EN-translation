@@ -306,9 +306,26 @@ const unionBox = (a, b) => (a ? [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Mat
 export const CLIP_SAMPLE_HZ = 60;
 export const CLIP_SAMPLE_MAX = 48;
 export const CLIP_BOUNDS_BUDGET_MS = 2.5;
+/**
+ * (fork) The sampling budget of one frame (render/app.js), from the time since the last frame: CLIP_BOUNDS_BUDGET_MS
+ * while frames come quickly; past CLIP_BOUNDS_SLOW_FRAME_MS a share of the frame (CLIP_BOUNDS_FRAME_SHARE), at most
+ * CLIP_BOUNDS_BUDGET_MAX_MS. A crowd that arrives at once (a battle's start, 联防, a boss) queues ~60 skeletons' clips
+ * (≈ 3 s of posing with the clips' key times); while they wait its units are drawn directly, not as impostors, and the
+ * frames are slow — at 2.5 ms a frame and ~10-17 fps that took 50 s to over 2 minutes (render-demo stress: 120 units,
+ * 59 skeletons, 359 clips, 34,859 poses, 0.08-0.3 ms each); a third of a slow frame (at most 33 ms) empties it in
+ * 22-30 s. Same samples, same boxes; the queue only empties sooner (stepClipBounds also takes the skeletons that the most
+ * waiting units need first). Nothing to sample: stepClipBounds returns at once. [ASSUMED] the share and the cap.
+ */
+export const CLIP_BOUNDS_SLOW_FRAME_MS = 20;
+export const CLIP_BOUNDS_FRAME_SHARE = 1 / 3;
+export const CLIP_BOUNDS_BUDGET_MAX_MS = 33;
+export function clipBoundsBudget(frameMs) {
+  if (!(frameMs > CLIP_BOUNDS_SLOW_FRAME_MS)) return CLIP_BOUNDS_BUDGET_MS;
+  return Math.min(CLIP_BOUNDS_BUDGET_MAX_MS, Math.max(CLIP_BOUNDS_BUDGET_MS, frameMs * CLIP_BOUNDS_FRAME_SHARE));
+}
 const ATT_REGION = 0, ATT_MESH = 2;      // pixi-spine AttachmentType
 const boundsOf = new WeakMap();          // skeleton data → { data, Skeleton, skel, rects: Map<clip, rect|null|false>, todo, job, users, failed }
-const boundsQueue = [];                  // records with clips still to sample, oldest request first
+const boundsQueue = [];                  // records with clips still to sample, in request order (promoteClipBounds picks the next)
 const nowMs = () => (globalThis.performance ? globalThis.performance.now() : Date.now());
 const emptyRect = () => [Infinity, Infinity, -Infinity, -Infinity];
 const rectOk = (r) => !!r && Number.isFinite(r[0]) && Number.isFinite(r[1]) && Number.isFinite(r[2]) && Number.isFinite(r[3]) && r[0] <= r[2] && r[1] <= r[3];
@@ -491,6 +508,20 @@ function useBounds(rec, delta) {
 }
 
 /**
+ * (fork) Bring to the front of the queue the record whose clips the most waiting units need per clip left (`users` per
+ * pending clip): a unit becomes an impostor only once every clip of its skeleton is measured, so the crowd converts
+ * soonest — and its frames speed up, which gives the sampler more of them. A clip in progress is finished first; ties
+ * keep the order of the requests. Only the order changes: every queued clip is still sampled the same way.
+ */
+function promoteClipBounds() {
+  if (boundsQueue.length < 2 || boundsQueue[0].job) return;
+  const score = (r) => r.users / Math.max(1, r.todo.length + (r.job ? 1 : 0));
+  let best = 0, top = score(boundsQueue[0]);
+  for (let i = 1; i < boundsQueue.length; i++) { const v = score(boundsQueue[i]); if (v > top) { top = v; best = i; } }
+  if (best > 0) boundsQueue.unshift(boundsQueue.splice(best, 1)[0]);
+}
+
+/**
  * Sample queued clips for up to `budgetMs` (render/app.js calls it once per frame): pose after pose, a clip resumed on the
  * next call when the budget runs out inside it; at least one pose per call.
  * @returns {number} clips finished
@@ -500,6 +531,7 @@ export function stepClipBounds(budgetMs = CLIP_BOUNDS_BUDGET_MS) {
   const end = nowMs() + budgetMs;
   let finished = 0, posed = 0;
   while (boundsQueue.length) {
+    promoteClipBounds();
     const rec = boundsQueue[0];
     if (!rec.job) {
       const name = rec.todo.shift();
