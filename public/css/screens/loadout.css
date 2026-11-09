@@ -1034,6 +1034,36 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-drawer__close:hover { color: var(--mint-400); }
 .lo-drawer__close .icon { width: max(.18rem, 12px); height: max(.18rem, 12px); }
 .lo-drawer .lo-detail { flex: 1 1 auto; min-height: 0; border: 0; box-shadow: none; }
+/* (fork) the drawer on a touch screen: its own controls at least 32 px (the user's call of 2026-11-09: overlapped and hard
+   to use on a phone). The shared Button and the voice squares keep their look; only their height grows. */
+.sp-coarse .lo-drawer__close { height: max(.42rem, 32px); }
+.sp-coarse .lo-drawer .lo-oswitch button { min-height: 32px; }
+.sp-coarse .lo-drawer .lo-seg button { min-width: 32px; min-height: 32px; }
+.sp-coarse .lo-drawer .vl-pick__sq { min-width: 32px; height: 32px; }
+.sp-coarse .lo-drawer .ofit-io .btn { min-height: 32px; }
+.sp-coarse .lo .lo-drawer .lo-dhead__reset { height: max(.36rem, 32px); }
+/* (fork) a short landscape phone (≤ 520 px tall), same call: half the screen wide (320–400 px) instead of 256 px, and the
+   whole detail scrolls as one, head first, so a section gets the drawer's height instead of the ~75–120 px left under a
+   fixed head. 调配 / 时装 move up into the 收起 row (the row's fill is painted on the drawer, so 收起 itself can shrink to
+   its label), and 恢复默认 goes under the name instead of over it. Screens with room keep the fixed head. */
+@media (max-height: 520px) {
+  .lo--deck, .diy-pick { --drawer-w: min(400px, max(6.4rem, 50vw)); }
+  .lo-drawer { --lo-close-h: 36px;
+    background: linear-gradient(var(--line), var(--line)) 0 calc(var(--lo-close-h) - 1px) / 100% 1px no-repeat,
+      linear-gradient(#161b19, #161b19) 0 0 / 100% var(--lo-close-h) no-repeat, #0e1211; }
+  .lo-drawer__close, .sp-coarse .lo-drawer__close { align-self: flex-start; height: var(--lo-close-h); background: none; border-bottom: 0; }
+  .lo-drawer .lo-detail { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; scrollbar-width: thin;
+    scrollbar-color: var(--line-3) transparent; }
+  .lo-drawer .lo-detail__body { flex: none; min-height: auto; overflow: visible; }
+  .lo-drawer .lo-dtop { position: absolute; top: 0; right: 0; height: var(--lo-close-h); align-items: center; padding: 0 .1rem; }
+  .lo-drawer .lo-dhead__reset { position: static; grid-column: 1 / -1; justify-self: start; }
+  .lo-drawer .lo-sec__head { flex-wrap: wrap; row-gap: .04rem; }
+  /* 局内数值's labels wrap instead of ending in "…" (「Attack Interval」 at 320 px); an outfit card's 穿戴中 takes its own
+     place at the card's right instead of lying over the name, and its series line wraps */
+  .lo-drawer .dstat__k { white-space: normal; }
+  .lo-drawer .ofit-card__on { position: static; flex: none; align-self: flex-start; margin-left: auto; }
+  .lo-drawer .ofit-card__series { white-space: normal; }
+}
 
 /* ---- bottom bar ---- */
 .lo-bbar { flex: none; display: flex; align-items: center; gap: .3rem; height: max(.8rem, 32px, calc(46px * var(--sp-ui, 1))); padding: 0 .36rem;
