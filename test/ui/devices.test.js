@@ -6,7 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { installCompat } from '../../public/js/ui/compat.js';
-import { autoFullscreenWanted, detectFeatures, featureClasses, FS_AUTO_KEY, fullscreen, installDeviceSupport, installFirstTapFullscreen, installScreenWakeLock, isIOS, LONG_PRESS_MS, PHONE_MAX_SIDE, screenLandscape, screenShortSide, setAutoFullscreenOff } from '../../public/js/ui/device.js';
+import { autoFullscreenGates, autoFullscreenWanted, fsTrace, detectFeatures, featureClasses, FS_AUTO_KEY, fullscreen, installDeviceSupport, installFirstTapFullscreen, installScreenWakeLock, isIOS, LONG_PRESS_MS, PHONE_MAX_SIDE, screenLandscape, screenShortSide, setAutoFullscreenOff } from '../../public/js/ui/device.js';
 import { checkButtons } from '../../public/js/ui/hud.js';
 import { penPlacement, penZoneTiles, previewEnemyKey, PEN } from '../../public/js/ui/gameLogic.js';
 import { bannerVisible } from '../../public/js/ui/connBanner.js';
@@ -171,7 +171,7 @@ describe('ui/device.js feature detection', () => {
 
 describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
   const PHONE = { '(any-pointer: coarse)': true, '(pointer: coarse)': true };
-  const phoneFeatures = { fullscreen: true, standalone: false, coarse: true, fine: false, hover: false };
+  const phoneFeatures = { fullscreen: true, standalone: false, coarse: true, primaryCoarse: true, fine: false, hover: false };
   /** A fake phone (412×915 screen) with a store; `media` / `screen` / `fs` change it into another device. */
   const device = ({ media = PHONE, screen = { width: 412, height: 915 }, fs = true, store = new Map() } = {}) => {
     const f = fakeWindow({ media, touchPoints: 5, fs });
@@ -184,14 +184,17 @@ describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
     doc.dispatch(new FakeEvent('pointerdown', { pointerType: 'touch', target, ...init }));
     doc.dispatch(new FakeEvent('pointerup', { pointerType: 'touch', target, ...init }));
     doc.dispatch(new FakeEvent('touchend', { target, ...init }));
+    doc.dispatch(new FakeEvent('click', { target, ...init }));
   };
   const flush = () => new Promise((r) => setTimeout(r, 0));
 
   test('only a touch phone with element fullscreen, not installed, not opted out, not already fullscreen', () => {
     const s = { shortSide: 412 };
     assert.equal(autoFullscreenWanted(phoneFeatures, s), true, 'Android phone');
-    assert.equal(autoFullscreenWanted({ ...phoneFeatures, coarse: false, fine: true, hover: true }, { shortSide: 1080 }), false, 'desktop');
-    assert.equal(autoFullscreenWanted({ ...phoneFeatures, fine: true, hover: true }, s), false, 'touch laptop / phone with a mouse');
+    assert.equal(autoFullscreenWanted({ ...phoneFeatures, coarse: false, primaryCoarse: false, fine: true, hover: true }, { shortSide: 1080 }), false, 'desktop');
+    assert.equal(autoFullscreenWanted({ ...phoneFeatures, primaryCoarse: false, fine: true, hover: true }, s), false, 'touch laptop / phone with a mouse as its main input');
+    assert.equal(autoFullscreenWanted({ ...phoneFeatures, hover: true, fine: true }, s), true, 'a phone whose browser also reports hover / a fine pointer (Samsung Internet)');
+    assert.deepEqual(autoFullscreenGates({ ...phoneFeatures, fullscreen: false }, { shortSide: 390 }).filter((g) => !g.ok).map((g) => g.name), ['element fullscreen available']);
     assert.equal(autoFullscreenWanted(phoneFeatures, { shortSide: 768 }), false, 'tablet');
     assert.equal(autoFullscreenWanted(phoneFeatures, { shortSide: PHONE_MAX_SIDE }), false, 'tablet at the limit');
     assert.equal(autoFullscreenWanted(phoneFeatures, { shortSide: 0 }), false, 'unknown screen');
@@ -217,9 +220,9 @@ describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
       assert.equal(entered, 0, 'untrusted, mouse, the ⛶ button itself and text fields wait');
       tap(d.doc);
       await flush();
-      assert.equal(entered, 1, 'pointerup + touchend of one tap: one request');
+      assert.equal(entered, 1, 'pointerup + touchend + click of one tap: one request');
       assert.equal(fullscreen.active(d.win), true);
-      assert.equal(d.doc.count('pointerup') + d.doc.count('touchend'), 0, 'done for this page');
+      assert.equal(d.doc.count('pointerup') + d.doc.count('touchend') + d.doc.count('click'), 0, 'done for this page');
       await fullscreen.exit(d.win);           // the player leaves (back gesture)
       tap(d.doc);
       await flush();
@@ -256,6 +259,34 @@ describe('ui/device.js (fork) first-tap fullscreen on touch phones', () => {
       assert.equal(entered, 0, name);
       off();
     }
+  });
+
+  test('a click alone (the browser or the page swallowed pointerup / touchend) still enters', async () => {
+    const d = device();
+    let entered = 0;
+    const off = installFirstTapFullscreen(d.win, { enter: async () => { entered++; return true; } });
+    try {
+      d.doc.dispatch(new FakeEvent('click', { target: new FakeElement() }));
+      await flush();
+      assert.equal(entered, 1);
+    } finally { off(); }
+  });
+
+  test('?fsdebug=1 readout: every condition with its value, and the steps so far', async () => {
+    const { fsDebugText } = await import('../../public/js/ui/fsDebug.js');
+    const d = device({ fs: false, screen: { width: 390, height: 844 } });
+    fsTrace.note('probe step');
+    const text = fsDebugText(d.win);
+    assert.match(text, /NO {2}element fullscreen available \(false\)/);
+    assert.match(text, /OK {2}short screen side < 600 \(390\)/);
+    assert.match(text, /probe step/);
+  });
+
+  test('a browser tab in element fullscreen is not the installed app (Chrome matches display-mode: fullscreen then)', () => {
+    const d = device({ media: { ...PHONE, '(display-mode: fullscreen)': true } });
+    assert.equal(detectFeatures(d.win).standalone, true, 'no element in fullscreen: launched as the app');
+    d.doc.fullscreenElement = d.doc.documentElement;
+    assert.equal(detectFeatures(d.win).standalone, false, 'element fullscreen in a tab');
   });
 
   test('the ⛶ button: leaving fullscreen with it is remembered, entering with it forgets that', () => {

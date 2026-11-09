@@ -15,7 +15,7 @@
 import { store, selectRoute } from '../store.js';
 import { audio, resolveBgm } from '../audio.js';
 import { data } from '../data.js';
-import { reducedMotion } from './device.js';
+import { reducedMotion, firstTapPending } from './device.js';
 import { mountAllianceIntro, preloadSprites, setCycleOrigin, INTRO_AUDIO, INTRO_SPAN } from './allianceScene.js';
 import { t } from '../../../shared/i18n.js';
 import { scriptOf } from '../../../shared/i18nPacks.js';
@@ -44,6 +44,14 @@ const CSS = `
 .spa-entry__gate b,.spa-entry__wait b{font:700 22px/1 "Microsoft YaHei","Noto Sans SC",sans-serif;letter-spacing:.4em;padding-left:.4em}
 .spa-entry__gate i{font-style:normal;font-size:12px;letter-spacing:.5em;color:#47c9a9}
 @keyframes spa-pulse{0%,100%{opacity:.55}50%{opacity:1}}
+.spa-entry__gate small{font-size:12px;letter-spacing:.2em;color:rgba(220,240,236,.5)}
+.spa-entry__gate--phone{gap:14px;animation:none}
+.spa-entry__gate--phone::before{content:'';width:44px;height:44px;border:2px solid #47c9a9;border-radius:50%;
+  box-shadow:0 0 16px rgba(71,201,169,.55),inset 0 0 10px rgba(71,201,169,.35);animation:spa-ring 1.6s ease-out infinite}
+.spa-entry__gate--phone b{font-size:26px;color:#f2f7f6;animation:spa-pulse 1.8s ease-in-out infinite}
+.spa-entry__gate--phone em{font-style:normal;font-size:13px;letter-spacing:.25em;color:#47c9a9}
+@keyframes spa-ring{0%{transform:scale(.7);opacity:1}100%{transform:scale(1.25);opacity:.15}}
+.spa-entry--tap{background:rgba(0,0,0,.78)}
 .spa-entry__skip{position:absolute;right:3%;bottom:3.5%;z-index:2;font:12px/1 "Microsoft YaHei","Noto Sans SC",sans-serif;
   letter-spacing:.2em;color:rgba(220,240,236,.45);pointer-events:none;transition:opacity .3s}`;
 
@@ -134,6 +142,61 @@ export function holdBgm(a = audio) {
 let playing = false;
 
 /**
+ * The 点击进入 card's content. `phone`: (fork) a phone waiting for its first tap — a mint tap ring above the prompt and
+ * what the tap does under it (fullscreen, landscape); `loading`: the files are still coming, said at the bottom.
+ */
+function showTapPrompt(card, loading, phone = firstTapPending()) {
+  card.innerHTML = '<b></b><i>TAP TO START</i>';
+  card.firstChild.textContent = t('点击进入');
+  // the Latin line is a decoration under a CJK prompt; a Latin translation already says it
+  if (scriptOf(t('点击进入')) === 'alphabetic') card.lastChild.remove();
+  card.classList?.toggle?.('spa-entry__gate--phone', !!phone);
+  if (phone) {
+    const what = document.createElement('em');
+    what.textContent = t('全屏 · 横屏'); // en: "Full screen · landscape"
+    card.append(what);
+  }
+  if (loading) {
+    const note = document.createElement('small');
+    note.textContent = t('加载中');
+    card.append(note);
+  }
+}
+
+/**
+ * (fork) No film this time (seen in this tab session, reduced motion …), but a phone that waits for its first tap: the
+ * same 点击进入 card over the screen, so the player knows a tap is wanted. That tap enters fullscreen and turns the
+ * screen (ui/device.js, on the document); the card goes with its click.
+ */
+function showTapCard() {
+  if (!firstTapPending() || document.querySelector?.('.spa-entry')) return;
+  if (!document.getElementById('spa-entry-style')) {
+    const st = document.createElement('style');
+    st.id = 'spa-entry-style';
+    st.textContent = CSS;
+    document.head.append(st);
+  }
+  const el = document.createElement('dialog');
+  el.className = 'spa-entry spa-entry--tap';
+  el.setAttribute('aria-label', t('点击进入'));
+  const card = document.createElement('div');
+  card.className = 'spa-entry__gate';
+  showTapPrompt(card, false);
+  el.append(card);
+  const close = () => {
+    removeEventListener('keydown', close, true);
+    try { el.close(); } catch { /* ignore */ }
+    el.remove();
+  };
+  // its click, not its pointerdown: the tap's pointerup / touchend must still find the card in the page
+  el.addEventListener('click', (e) => { e.preventDefault(); close(); });
+  el.addEventListener('cancel', (e) => { e.preventDefault(); close(); });
+  addEventListener('keydown', close, true);
+  document.body.append(el);
+  try { el.showModal(); } catch { el.setAttribute('open', ''); }
+}
+
+/**
  * @param {() => boolean} allowed  false once the film must go (a room / a match, the caller's skip)
  * @param {(host: HTMLElement) => { render: (t: number) => void, grain: () => void, destroy: () => void }} mount
  * @param {Promise<boolean>} load  loadFilm's answer
@@ -153,7 +216,10 @@ function run(allowed, mount, load) {
   el.setAttribute('aria-label', t('卫戍协议') + ' · ' + t('盟约'));
   el.innerHTML = '<span class="spa-entry__skip"></span>';
   el.firstChild.textContent = t('点击跳过');
-  const locked = !(audio.ctx && audio.ctx.state === 'running');
+  // (fork) a phone that waits for its first tap (ui/device.js installFirstTapFullscreen: that tap enters fullscreen and
+  // turns the screen landscape) is asked for it even when its sound could already play
+  const needTap = firstTapPending();
+  const locked = !(audio.ctx && audio.ctx.state === 'running') || needTap;
   const skipLabel = el.querySelector('.spa-entry__skip');
   skipLabel.style.opacity = '0';
   // (fork) the card goes up at once: 加载中 until the art and sound are here (a tap is taken already), then 点击进入.
@@ -164,7 +230,9 @@ function run(allowed, mount, load) {
     card.firstChild.textContent = t('加载中'); // en: "Loading"
   };
   card.className = locked ? 'spa-entry__gate' : 'spa-entry__wait';
-  showLoading();
+  // (fork) a phone is asked to tap from the first frame, the files still loading underneath (the tap is taken already)
+  if (locked && needTap) showTapPrompt(card, true);
+  else showLoading();
   el.append(card);
   let gate = Promise.resolve(), gateKey = null, tapped = !locked, tappedAt = -Infinity;
   let scene = null, raf = 0, release = null, bgmTimer = 0, waitTimer = 0, done = false, src = null;
@@ -268,10 +336,7 @@ function run(allowed, mount, load) {
   load.then((ok) => {
     if (!ok) { finish('end'); return; }
     if (done || tapped) return;
-    card.innerHTML = '<b></b><i>TAP TO START</i>';
-    card.firstChild.textContent = t('点击进入');
-    // the Latin line is a decoration under a CJK prompt; a Latin translation already says it
-    if (scriptOf(t('点击进入')) === 'alphabetic') card.lastChild.remove();
+    showTapPrompt(card, false);
   });
   const fonts = document.fonts?.load
     ? Promise.race([Promise.all(['300 40px Bender', '400 40px Bender'].map((f) => document.fonts.load(f).catch(() => null))), new Promise((r) => setTimeout(r, 1200))])
@@ -361,7 +426,13 @@ export async function playEntryFilm(opts = {}) {
   if (!allowed()) return;
   const seen = filmPlayed() && selectRoute(store.get()) !== 'title';
   // no film on this path (decided as the screen is entered — a later rotation does not get a second look)
-  if (sessionFlag(FILM_OFF_KEY) || seen || reducedMotion() || (touchDevice() && !phoneReady())) { await loadTitleSound(); return; }
+  // (fork) a portrait phone that waits for its first tap still gets the film: that tap turns the screen landscape
+  const portraitSkip = touchDevice() && !phoneReady() && !firstTapPending();
+  if (sessionFlag(FILM_OFF_KEY) || seen || reducedMotion() || portraitSkip) {
+    if (!sessionFlag(FILM_OFF_KEY)) showTapCard();
+    await loadTitleSound();
+    return;
+  }
   const load = loadFilm();
   run(allowed, mount, load);
   await load;

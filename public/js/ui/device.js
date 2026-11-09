@@ -75,10 +75,13 @@ export function detectFeatures(win = globalThis) {
   return {
     touch: touchPoints > 0 || coarse || 'ontouchstart' in (win || {}),
     coarse,
+    primaryCoarse: mq(win, '(pointer: coarse)'), // (fork) the main input is a touch screen (first-tap fullscreen)
     fine,
     hover,
     fullscreen: fsEnabled,
-    standalone: mq(win, '(display-mode: standalone)') || mq(win, '(display-mode: fullscreen)') || nav.standalone === true,
+    // (fork) a browser tab in element fullscreen matches (display-mode: fullscreen) too (Chrome): that is not the installed app
+    standalone: mq(win, '(display-mode: standalone)') || nav.standalone === true
+      || (mq(win, '(display-mode: fullscreen)') && !(doc?.fullscreenElement || doc?.webkitFullscreenElement)),
     reducedMotion: mq(win, '(prefers-reduced-motion: reduce)'),
     screenLandscape: screenLandscape(win),
     importMaps,
@@ -200,6 +203,21 @@ export function useScreenWakeLock(active) {
 
 // ---- fullscreen ----------------------------------------------------------------------------------------------------
 
+/** (fork) What the first-tap fullscreen did, step by step: read by the ?fsdebug=1 overlay (ui/fsDebug.js), free otherwise. */
+export const fsTrace = {
+  listeners: new Set(),
+  /** the last few steps, so an overlay that loads later still shows what happened at boot */
+  lines: [],
+  note(line) {
+    const at = Math.round(globalThis.performance?.now?.() ?? 0);
+    const entry = `${String(at).padStart(6)} ${String(line)}`;
+    this.lines.push(entry);
+    if (this.lines.length > 40) this.lines.shift();
+    for (const fn of this.listeners) { try { fn(entry); } catch { /* the overlay only */ } }
+  },
+};
+const errText = (e) => `${e?.name || 'Error'}: ${String(e?.message || e).slice(0, 120)}`;
+
 export const fullscreen = {
   supported(win = globalThis) { return detectFeatures(win).fullscreen; },
   active(win = globalThis) { const d = win.document; return !!(d && (d.fullscreenElement || d.webkitFullscreenElement)); },
@@ -209,10 +227,15 @@ export const fullscreen = {
     try {
       if (typeof el.requestFullscreen === 'function') await el.requestFullscreen({ navigationUI: 'hide' });
       else if (typeof el.webkitRequestFullscreen === 'function') el.webkitRequestFullscreen();
-      else return false;
-    } catch { return false; }
+      else { fsTrace.note('requestFullscreen: not available'); return false; }
+      fsTrace.note('requestFullscreen: ok');
+    } catch (e) { fsTrace.note(`requestFullscreen: ${errText(e)}`); return false; }
     // Android Chrome: a landscape game may lock the orientation while fullscreen (refused elsewhere — ignored)
-    try { await win.screen?.orientation?.lock?.('landscape'); } catch { /* not allowed here */ }
+    const lock = win.screen?.orientation?.lock;
+    if (typeof lock !== 'function') fsTrace.note('orientation.lock: not available');
+    else {
+      try { await win.screen.orientation.lock('landscape'); fsTrace.note('orientation.lock: ok'); } catch (e) { fsTrace.note(`orientation.lock: ${errText(e)}`); }
+    }
     return true;
   },
   async exit(win = globalThis) {
@@ -259,12 +282,14 @@ export function FullscreenButton({ class: cls = '' }) {
 // Browsers allow fullscreen only from a user gesture, so it cannot happen as the page loads: the first tap a touch phone
 // makes on the page (the entry film's 点击进入 card, usually) enters it, and in the same gesture Android Chrome locks the
 // screen in landscape (fullscreen.enter; the lock works only while fullscreen, and a refusal is ignored). That tap still
-// does what it does (it is not stopped, and the film never waits for it). On a touch phone only: a coarse pointer with
-// no mouse and no hover, whose shorter screen side is under PHONE_MAX_SIDE CSS px (tablets and desktops keep their
-// window), with element fullscreen (iPhone Safari has none: the rotate hint and Add to Home Screen are what it gets),
-// and not already running as an installed app (the manifest gives that fullscreen landscape by itself).
+// does what it does (it is not stopped, and the film never waits for it). On a touch phone only: a touch screen as the
+// primary pointer (`(pointer: coarse)`; a phone that also reports hover, as some Android browsers do, still counts),
+// whose shorter screen side is under PHONE_MAX_SIDE CSS px (tablets and desktops keep their window), with element
+// fullscreen (iPhone Safari has none: the rotate hint and Add to Home Screen are what it gets), and not already running
+// as an installed app (the manifest gives that fullscreen landscape by itself, with no tap at all).
 // Once per page: a player who leaves fullscreen (the back gesture, the ⛶ button) is not put back on the next tap; a reload
 // tries again — except after leaving with the ⛶ button, which is remembered (FS_AUTO_KEY) until the button enters again.
+// ?fsdebug=1 shows every gate and step on screen (ui/fsDebug.js).
 
 /** Shorter screen side (CSS px) below which a touch device counts as a phone. */
 export const PHONE_MAX_SIDE = 600;
@@ -278,17 +303,32 @@ export function screenShortSide(win = globalThis) {
 }
 
 /**
- * Whether the first tap should enter fullscreen (pure; tested).
+ * Each condition of the first-tap fullscreen, with its value (pure; tested; the ?fsdebug=1 overlay lists them).
  * @param {ReturnType<typeof detectFeatures>} f
  * @param {{ shortSide: number, off?: boolean, active?: boolean }} s
+ * @returns {{ name: string, ok: boolean, value: any }[]}
  */
-export function autoFullscreenWanted(f, { shortSide, off = false, active = false }) {
-  return !!f.fullscreen && !f.standalone && !!f.coarse && !f.fine && !f.hover
-    && shortSide > 0 && shortSide < PHONE_MAX_SIDE && !off && !active;
+export function autoFullscreenGates(f, { shortSide, off = false, active = false }) {
+  return [
+    { name: 'touch is the primary pointer', ok: !!f.primaryCoarse, value: !!f.primaryCoarse },
+    { name: `short screen side < ${PHONE_MAX_SIDE}`, ok: shortSide > 0 && shortSide < PHONE_MAX_SIDE, value: shortSide },
+    { name: 'element fullscreen available', ok: !!f.fullscreen, value: !!f.fullscreen },
+    { name: 'not an installed app', ok: !f.standalone, value: !!f.standalone },
+    { name: 'not turned off with the ⛶ button', ok: !off, value: !!off },
+    { name: 'not fullscreen already', ok: !active, value: !!active },
+  ];
 }
+
+/** Whether the first tap should enter fullscreen (pure; tested). */
+export function autoFullscreenWanted(f, s) { return autoFullscreenGates(f, s).every((g) => g.ok); }
 
 function autoFullscreenOff(win = globalThis) {
   try { return win.localStorage?.getItem(FS_AUTO_KEY) === 'off'; } catch { return false; }
+}
+
+/** The gates on this page now. */
+export function autoFullscreenState(win = globalThis) {
+  return autoFullscreenGates(detectFeatures(win), { shortSide: screenShortSide(win), off: autoFullscreenOff(win), active: fullscreen.active(win) });
 }
 
 /** The ⛶ button: leaving fullscreen with it turns the first-tap fullscreen off, entering with it turns it back on. */
@@ -296,38 +336,52 @@ export function setAutoFullscreenOff(off, win = globalThis) {
   try { if (off) win.localStorage?.setItem(FS_AUTO_KEY, 'off'); else win.localStorage?.removeItem(FS_AUTO_KEY); } catch { /* private mode */ }
 }
 
+const TAP_EVENTS = ['pointerup', 'touchend', 'click'];
+
+// armed: this page waits for the tap that enters fullscreen; the entry film asks for that tap on screen (ui/entryFilm.js)
+const firstTap = { armed: false };
+
+/** (fork) Whether this phone page still waits for its first tap to enter fullscreen (the screen should say "tap"). */
+export function firstTapPending() { return firstTap.armed; }
+
 /**
  * Enter fullscreen (and lock landscape) on this page's first tap, on a touch phone. Returns a disposer.
  * Activation: for a touch, `pointerup` / `touchend` carry the user activation (`pointerdown` only for a mouse), so the
- * request is made there — the entry film's gate listens on pointerdown and is not touched. A tap on the ⛶ button (it
- * toggles by itself) or on a text field (the keyboard opens) waits for the next tap.
+ * request is made there — the entry film's gate listens on pointerdown and is not touched; `click` (still inside the
+ * gesture's activation) is the fallback for a browser or a page that swallowed those. A tap on the ⛶ button (it toggles
+ * by itself) or on a text field (the keyboard opens) waits for the next tap.
  * @param {any} [win]
  * @param {{ enter?: (win: any) => Promise<boolean> }} [deps] (tests)
  */
 export function installFirstTapFullscreen(win = globalThis, { enter = (w) => fullscreen.enter(w) } = {}) {
   const doc = win.document;
   if (!doc?.addEventListener) return () => {};
-  const wanted = () => autoFullscreenWanted(detectFeatures(win),
-    { shortSide: screenShortSide(win), off: autoFullscreenOff(win), active: fullscreen.active(win) });
-  if (!wanted()) return () => {};
+  const failed = () => autoFullscreenState(win).filter((g) => !g.ok).map((g) => g.name);
+  const atLoad = failed();
+  if (atLoad.length) { fsTrace.note(`not armed: ${atLoad.join('; ')}`); return () => {}; }
+  fsTrace.note('armed: waiting for the first tap');
+  firstTap.armed = true;
   let busy = false, done = false;
   const off = () => {
     done = true;
-    doc.removeEventListener('pointerup', onTap, true);
-    doc.removeEventListener('touchend', onTap, true);
+    firstTap.armed = false;
+    for (const t of TAP_EVENTS) doc.removeEventListener(t, onTap, true);
   };
   const onTap = (e) => {
-    if (done || busy || !e?.isTrusted) return;
+    if (done || busy) return;
+    const act = win.navigator?.userActivation?.isActive;
+    fsTrace.note(`${e?.type}${e?.pointerType ? `(${e.pointerType})` : ''} trusted=${!!e?.isTrusted} activation=${act ?? '?'}`);
+    if (!e?.isTrusted) return;
     if (e.type === 'pointerup' && e.pointerType === 'mouse') return;
     const el = e.target;
-    if (el?.closest?.('.fsbtn, input, textarea, select, [contenteditable="true"]')) return;
-    if (!wanted()) { off(); return; }
+    if (el?.closest?.('.fsbtn, input, textarea, select, [contenteditable="true"]')) { fsTrace.note('skipped: the ⛶ button or a text field'); return; }
+    const now = failed();
+    if (now.length) { fsTrace.note(`stopped: ${now.join('; ')}`); off(); return; }
     busy = true;
-    // one gesture sends both pointerup and touchend: the first starts the request, the second finds it busy
+    // one gesture sends pointerup, touchend and click: the first starts the request, the others find it busy or done
     Promise.resolve(enter(win)).then((ok) => { busy = false; if (ok || fullscreen.active(win)) off(); }, () => { busy = false; });
   };
-  doc.addEventListener('pointerup', onTap, true);
-  doc.addEventListener('touchend', onTap, { capture: true, passive: true });
+  for (const t of TAP_EVENTS) doc.addEventListener(t, onTap, t === 'touchend' ? { capture: true, passive: true } : true);
   return off;
 }
 
@@ -458,6 +512,10 @@ export function installDeviceSupport(win = globalThis) {
     on(win, 'resize', show, { passive: true });
   }
   offs.push(installFirstTapFullscreen(win));
+  // (fork) ?fsdebug=1: why a phone did or did not go fullscreen, on screen (ui/fsDebug.js; loaded only then)
+  if (/[?&]fsdebug=1(?:&|$)/.test(String(win.location?.search || ''))) {
+    import('./fsDebug.js').then((m) => offs.push(m.installFsDebug(win)), () => {});
+  }
 
   installed = () => { for (const off of offs.splice(0)) { try { off(); } catch { /* ignore */ } } clearTimeout(rotTimer); installed = null; };
   return installed;
