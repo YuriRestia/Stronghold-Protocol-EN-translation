@@ -44,6 +44,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - Holding a finger on an operator's card, the details drawer, the outfit pictures or a Custom Squad picker card no longer opens the phone browser's image menu (Open image in new tab, Download image). A mouse right-click and text fields keep their menus, and the deck still scrolls by dragging.
 
+### Official effects that only skill templates name now play in battle
+
+- The extractor links the effects that a skill's action templates create (buffs named by key, buffs inside serialized action graphs, and the templates those create) to their skills and talents. A new `--fx-relink` run adds those links to the shared effect index without changing any earlier record. 87 of the 175 template-only effects now have a place in a skill or talent plan, including the S2 and S3 buffs of Тоска (`char_4244_tocka`), the S3 control buffs of Kal'tsit Esperanta and the S2 shield ends of Mechanist (`char_4230_mcnist`).
+- 26 official projectile shots that were extracted but never shown are now bound to the battle events that stand for them: Clementia's (`char_4231_clemnt`) S2 cabin and vortex, Mechanist's S3 token throws (by direction and facing), Mon3tr's S2 second chain from her rebuilt body, Kal'tsit Esperanta's S2 follow-up splash, Территория's (`char_4246_dminon`) death and withdraw tile hits, and the hits of Mantra S3, Archetto S1, Civilight Eterna's talent motes, Lee S2, Qiubai S1, Ch'en the Dawnstreak S3, Fiammetta S2, Wang S3 and Тоска S2. Six battle events carry one more field the client needs (who fired, or which side was hit); the battle itself is unchanged.
+- Talulah (`char_4247_oxi`): her S2 buff now stays for its official 10 s instead of vanishing with the instant cast, her guard's strike back shows its official hit, and her talent footprints show the official fire field instead of a plain circle. Her S1 strike, S2 cast, S2 strike back and footprints now play their official sounds (5 new sound files).
+
 ### Effect extraction follows every template of our units
 
 - The effect extractor (`tools/local-extract/fx.py`) now also exports the effects that only an action template names, for every operator, token and enemy in our data and for the seasons' bonds, bands and items. Before, it followed only the projectiles that templates fire, so effects such as the S2 and S3 buffs of Тоска (`char_4244_tocka`) were never extracted. An add-only run never rewrites a file that is already there. The new art isn't shown in battles yet; that needs separate client work.

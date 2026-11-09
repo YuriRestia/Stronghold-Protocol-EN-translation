@@ -1108,6 +1108,8 @@ def main():
     ap.add_argument('--fx-skins', action='store_true',
                     help='with --only fx: (fork) add only the outfit twins (<key>_<outfit>#N) of the prefabs already exported')
     ap.add_argument('--fx-jobs', type=int, default=0, metavar='N', help='with --only fx: worker processes (default up to 8)')
+    ap.add_argument('--fx-relink', action='store_true',
+                    help='with --only fx: (fork) crawl every unit again and add the links its records gain (earlier values stay); add missing files only')
     ap.add_argument('--fx-add-only', action='store_true',
                     help='extract only units/prefabs missing from the current fx index; preserve the existing set')
     ap.add_argument('--fx-texture-format', choices=('webp', 'png'), default='webp',
@@ -1181,7 +1183,7 @@ def main():
         total += fx.export_fx(ab_root, out_root, manifest, print, selection=args.fx_set, keys=keys or None,
                               jobs=args.fx_jobs or None, root=ROOT, skins_only=args.fx_skins,
                               fx_manifest=Path(args.manifest).with_name(fx.FX_MANIFEST), texture_format=args.fx_texture_format,
-                              add_only=args.fx_add_only)
+                              add_only=args.fx_add_only, relink=args.fx_relink)
     if stage_ids:
         total += export_scenes(ab_root, out_root, manifest, print, stage_ids, scene_roots(ab_root, args.scenes))
     old, old_chars = {}, {}

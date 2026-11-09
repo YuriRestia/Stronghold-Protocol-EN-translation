@@ -299,7 +299,7 @@ export default {
         buff.onTick = ({ battle: b, unit, buff: held }) => { if (castable(unit) && targetMet(unit)) fire(b, unit, held, { reason: 'ready' }); };
       }
       battle.addBuff(holder, buff);
-      battle.fx('buff', { x: holder.x, y: holder.y, id: holder.id, kind: 'tocka' });
+      battle.fx('buff', { x: holder.x, y: holder.y, id: holder.id, kind: 'tocka', src: tocka.id });   // (fork) src: render/vfx FX_BINDINGS
       if (applied && up(tocka)) battle.addBuff(tocka, { key: SNOW_READY, tags: ['talent'] });
     }
 

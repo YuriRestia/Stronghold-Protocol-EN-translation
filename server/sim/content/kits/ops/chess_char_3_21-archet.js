@@ -58,7 +58,8 @@ export default {
                 if (!Number.isFinite(cx) || !Number.isFinite(cy) || !(more > 0)) return;
                 const others = enemiesAround(battle, unit, cx, cy, AROUND_R, new Set([target])).slice(0, more);
                 for (const e of others) physHit(battle, unit, e, sc2, 'archetScatter');
-                if (others.length) fx(battle, 'volley', unit, { targets: others.map((e) => e.id), skill: 'archet_1' });
+                // (fork) from: the arrow's own target, where the client's scatter arrows leave (render/vfx FX_BINDINGS)
+                if (others.length) fx(battle, 'volley', unit, { targets: others.map((e) => e.id), skill: 'archet_1', from: target ? target.id : null });
               },
             },
           };

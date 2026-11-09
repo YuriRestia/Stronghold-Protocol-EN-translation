@@ -47,14 +47,26 @@ export const VOICE_JP_LANG = 'jp';
 const NOTE_SFX_CHARS = new Set(['char_4182_oblvns']);
 /**
  * (fork) A kit 'fx' that stands for an official sound no attack event plays: charId → '<fx kind>|<its `skill` tag>' → bank.
- * 塔露拉 S3: ON_PROJECTILE_BORN (max 1) and _HIT (max 2) of its 簇火, and the overload's custom trigger.
+ * 塔露拉 S3: ON_PROJECTILE_BORN (max 1) and _HIT (max 2) of its 簇火, and the overload's custom trigger. (fork) S2: the
+ * guard's strike back is the skill's hit (ON_ABILITY_HIT, max 1); T2: a footprint is the fire field's custom trigger.
  */
 const FX_SOUND_BANKS = Object.freeze({
   char_4247_oxi: Object.freeze({
+    'blast|oxi:retaliate': 'battle.ON_ABILITY_HIT.skchr_oxi_2',
+    'zone|oxi:footprint': 'battle.ON_CUSTOM_TRIGGER.oxi_fire_field_create',
     'heatwave|oxi:heatwave': 'battle.ON_PROJECTILE_BORN.projectile_chr_oxi_s_3_heatwave',
     'blast|oxi:heatwave': 'battle.ON_PROJECTILE_HIT.projectile_chr_oxi_s_3_heatwave',
     'overload|': 'battle.ON_CUSTOM_TRIGGER.oxi_s_3_overload',
   }),
+});
+/**
+ * (fork) Skills whose sounds are their own ability's banks (ON_ABILITY_START / _HIT.<skill id>), not an ON_SKILL_START or
+ * a mode's attack: charId → skill index → which roles they fill — `attack` / `hit` (the skill's own strike: its swing
+ * and impact while it runs) or `skill` (its cast sting). 塔露拉 S1 is a MeleeAttack skill (its strike); S2 a
+ * BuffToOwnerDuringAbility cast by her guard (its start is the sting; its hit is the strike back, FX_SOUND_BANKS).
+ */
+const SKILL_ABILITY_SOUNDS = Object.freeze({
+  char_4247_oxi: Object.freeze({ 0: Object.freeze(['attack', 'hit']), 1: Object.freeze(['skill']) }),
 });
 /**
  * [look key (kits/ops/op-oblvns.js), projectile suffix, custom hit trigger or null]: an attack with a target
@@ -613,7 +625,13 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       const iconId = s.iconId || s.skillId;
       if (s.icon?.url && !skills[iconId]) skills[iconId] = leaf(alt(`skill/${safeName(iconId)}.png`, s.icon.url, s.icon.bytes));
       if (s.skillId) skillsById[s.skillId] = iconId;
-      const ss = audio.skillBanks.get(s.skillId)?.get('ON_SKILL_START');
+      const own = SKILL_ABILITY_SOUNDS[id]?.[i] || [];
+      const abStart = own.length && s.skillId ? audio.bank(`battle.ON_ABILITY_START.${s.skillId}`) : null;
+      const abHit = own.length && s.skillId ? audio.bank(`battle.ON_ABILITY_HIT.${s.skillId}`) : null;
+      let ss = audio.skillBanks.get(s.skillId)?.get('ON_SKILL_START');
+      if (!ss?.length && own.includes('skill') && abStart?.length) ss = abStart;
+      if (own.includes('attack') && !assigned.attacks[String(i)] && abStart?.length) assigned.attacks[String(i)] = abStart;
+      if (own.includes('hit') && !assigned.hits[String(i)] && abHit?.length) assigned.hits[String(i)] = abHit;
       if (ss?.length) {
         skillSfx[String(i)] = soundLeaf(ss);
         const g = audio.groupOf?.(ss);

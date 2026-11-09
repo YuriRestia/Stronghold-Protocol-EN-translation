@@ -1375,7 +1375,7 @@ export function chargeKeys(plan) {
  *   projectile  the skill projectile whose reached effects (onReached, else onHit) play where the fx happens
  *   keys        else these prefabs (an official effect our projectile records do not list as reached: a projectile's
  *               main effect, a skill row the kit's moment stands for; a one-shot of the skill's own: its `at` 'target')
- *   at          'point': the fx's (x, y) on the ground (the unit `extra.id` names stands there: its feet); 'target': once
+ *   at          (fork) 'tiles': once on each [row, col] of the fx's `tiles`; 'point': the fx's (x, y) on the ground (the unit `extra.id` names stands there: its feet); 'target': once
  *               on the unit the fx names in `extra[target]` (`target`, default 'target'; else at the fx's point), turned
  *               by the owner's side (FLIP_TWO_SIDE) — such a key is no row of the skill on its owner (targetBound: the
  *               client creates it on the ability's target, the index writes it as a start row); else on the view
@@ -1388,6 +1388,17 @@ export function chargeKeys(plan) {
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
+ *   only        (fork) { field: value }: the binding stands only for an fx whose extra has those values (another fx of
+ *               that kind stays the kit's own)
+ *   fan         (fork) { projectile, from, to }: that projectile flies from the unit the fx's extra[from] names to each
+ *               unit of extra[to] (a list of ids) — a child shot that leaves the first target (空弦 S1's scatter)
+ *   keysBy      (fork) { field, map }: `keys` by the value of a field of the fx's extra (no entry: the kit's own fx)
+ *   keysIf      (fork) { field, yes, no }: `keys` by a field of the fx's extra (truthy: yes, else no)
+ *   flight      (fork) a projectile's flight between two points of the fx (SkillFx._flight): { side, up, down } — the
+ *               projectile for a way along the row / up (+row) / down, each [facing left, facing right] or [one] (the
+ *               client's branches on the unit's direction and faceLeft) —, from: 'from' (the fx's fromX / fromY; its
+ *               point the end) or 'point' (its point; tx / ty the end), speed (tiles / s; else the fx's `dur` sets it),
+ *               delay (s before it leaves), reached (its onReached effects play where it lands): its main effect flies
  * or, instead of a projectile (history §32.14.43):
  *   attack      the node of the plan attack the fx stands for: its cast / range rows play on the owner at the fx, its hit
  *               groups and aims on the damage the fx's frame deals after it (SkillFx kit hits)
@@ -1419,13 +1430,46 @@ export const FX_ATTACK_LINES = Object.freeze({
   }),
 });
 
+/**
+ * (fork) Chain hops that leave one unit as another projectile's (wiring.js chain()): by skill id, `via` (the index unit
+ * key the hop leaves) → `projectile` (its ChainLightningEffectBehaviour line and hit draw the hop). Mon3tr S2
+ * (op-monstr.js chainFrom): a heal of hers on her 重构体 gives it monstr_s_2[proj], whose ON_BUFF_FINISH (lifeTime 0.6 s,
+ * the kit's second chain delay) fires projectile_chr_monstr_s2_extra from the 重构体 (FilterId token_10050_monstr_prosts):
+ * the hops from the 重构体 are that projectile's.
+ */
+export const CHAIN_RELAYS = Object.freeze({
+  skchr_monstr_2: Object.freeze({ via: 'token_10050_monstr_prosts', projectile: 'projectile_chr_monstr_s2_extra' }),
+});
+
+// (fork) 国度 T2 此身为界 (op-dminon.js boundary): the client's talent dminon_t_2 fires projectile_chr_dminon_dead when he is
+// knocked out (ON_OWNER_KILLED; life 0.7 s, the kit's KO_DELAY) and _withdraw when he leaves otherwise (ON_OWNER_FINISH,
+// 0.1 s); either plays dminon_talent_range_hit_01 on every tile of his range as it stops (_tileEffectKeyOnStop). The kit's
+// 'aoe' tagged dminon:boundary is that moment, `tiles` his range. A talent: bound under each of his skills.
+const DMINON_BOUNDARY = Object.freeze({ aoe: binding({ owner: 'id', only: Object.freeze({ skill: 'dminon:boundary' }), at: 'tiles',
+  oneshot: true, keys: ['dminon_talent_range_hit_01'] }) });
+
+// (fork) 塔露拉 T2 我即火焰 (op-oxi.js lease): her common ability oxi_fire_field_lease plays oxi_buff_01 (looping, on the
+// ground) on each tile it leases, for the lease's field_duration from its latest refresh. The kit's 'zone' tagged
+// oxi:footprint is a fresh lease (its tile, dur). A talent: bound under each of her skills.
+const OXI_FOOTPRINT = binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:footprint' }), at: 'point', hold: 'fx', keys: ['oxi_buff_01'] });
+
 export const FX_BINDINGS = Object.freeze({
+  skchr_oxi_1: Object.freeze({ zone: OXI_FOOTPRINT }),
+  skchr_dminon_1: DMINON_BOUNDARY, skchr_dminon_2: DMINON_BOUNDARY, skchr_dminon_3: DMINON_BOUNDARY,
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
   skchr_yu_3: Object.freeze({ firewallBlock: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['yu_skill3_annex_01'] }) }),
   // 塔露拉 S3 (op-oxi.js volley): the client's buff oxi_s_3_wave fires projectile_chr_oxi_s_3_heatwave down each lane; its
   // main effect oxi_skill_03_trail_01 is the 簇火, and its action graph's CreateEffectOnProjectile (_useCollisionTarget)
   // plays oxi_skill_03_hit_01 on the enemy it meets. The kit's 'heatwave' names the lanes, its 'blast' the shot and enemy.
+  // (fork) 塔露拉 S2 (op-oxi.js retaliate): the skill's UberEffectEmitter plays oxi_skill_02_hit_01 on its input target —
+  // the enemy her guard strikes back at. The kit's 'blast' tagged oxi:retaliate is that strike (target: the enemy); it
+  // comes in the frame of the cast, which would otherwise count it as covered by the start and draw nothing there.
+  skchr_oxi_2: Object.freeze({
+    zone: OXI_FOOTPRINT,
+    blast: binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:retaliate' }), at: 'target', keys: ['oxi_skill_02_hit_01'] }),
+  }),
   skchr_oxi_3: Object.freeze({
+    zone: OXI_FOOTPRINT,
     heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
     blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
   }),
@@ -1434,6 +1478,79 @@ export const FX_BINDINGS = Object.freeze({
   // enemy (AttachToTarget, _immediatelyReach), whose reached effect clemnt_skill_03_mark_all_01 is the mark and its three
   // strikes (clips Mark_01_start 4.13 s and three Mark_trail_01), cleared when the projectile stops
   // (_clearReachedEffectWhenStop; its life time from the blackboard: projectile_life_time — the kit's tile lock)
+  // (fork) 克莱门莎 S2 (op-clemnt.js startCabin / finishCabin): the client's buff clemnt_s2[emit_projectile] fires
+  // projectile_chr_clemnt_s2_lr (CheckCharacterDefaultDirection LEFT / RIGHT) else _ud from her tile, flying her way
+  // (AdvancedMovement useSourceDirection); at its ON_PROJECTILE_STOP it fires projectile_chr_clemnt_s2_range there
+  // (_useSourceProjectileAsStartPoint), whose main effect is the vortex, kept until the buff ends (ON_BUFF_FINISH:
+  // FinishManagedProjectiles). The kit's 'anchor' is the cabin's way (from, to, dur), its 'tide' the vortex (dur: the
+  // skill's time left).
+  skchr_clemnt_2: Object.freeze({
+    anchor: binding({ owner: 'id', flight: Object.freeze({ side: ['projectile_chr_clemnt_s2_lr'], up: ['projectile_chr_clemnt_s2_ud'],
+      down: ['projectile_chr_clemnt_s2_ud'], from: 'from' }) }),
+    tide: binding({ owner: 'id', at: 'point', hold: 'fx', keys: ['clemnt_skill_02_bullet_range_01'], cover: ['tide'] }),
+  }),
+  // (fork) 机械师 S3 (op-mcnist.js chargeGraf): the token's buff mcnist_s_3_projectile_real throws it as
+  // projectile_chr_mcnist_s3_token* to its stop tile — by its direction (UP → _up, DOWN → _down, else the row's way) and
+  // faceLeft (left: the plain key, right: `_right`) —, `_delayToStart` 0.2 s, 20 tiles / s (the kit's CHARGE_DELAY /
+  // CHARGE_SPEED); its onReached hit plays where it lands. The kit's 'charge' names the token (id) and its stop (tx, ty).
+  skchr_mcnist_3: Object.freeze({
+    charge: binding({ owner: 'skill', flight: Object.freeze({
+      side: ['projectile_chr_mcnist_s3_token', 'projectile_chr_mcnist_s3_token_right'],
+      up: ['projectile_chr_mcnist_s3_token_up', 'projectile_chr_mcnist_s3_token_up_right'],
+      down: ['projectile_chr_mcnist_s3_token_down', 'projectile_chr_mcnist_s3_token_down_right'],
+      from: 'point', speed: 20, delay: 0.2, reached: true }) }),
+  }),
+  // (fork) 凯尔希·思衡托 S2 (op-kalts2.js s2Burst): projectile_chr_kalts2_s2_dmg, reaching an enemy, fires
+  // projectile_chr_kalts2_s2_sub_heal there (its indicator and delayed heal splash: kalts2_skill_02_indicator_damage_01,
+  // _range_heal_01_delay); _heal, reaching an ally, fires _sub_dmg (indicator_heal_01, range_damage_01_delay). The kit's
+  // 'healAoe' is that landing, `onEnemy` its side.
+  skchr_kalts2_2: Object.freeze({
+    healAoe: binding({ owner: 'id', at: 'point', oneshot: true, keysIf: Object.freeze({ field: 'onEnemy',
+      yes: ['kalts2_skill_02_indicator_damage_01', 'kalts2_skill_02_range_heal_01_delay'],
+      no: ['kalts2_skill_02_indicator_heal_01', 'kalts2_skill_02_range_damage_01_delay'] }) }),
+  }),
+  // (fork) 真言 S3 (op-mantra.js bounce): a 溢出麻痹 makes the client fire projectile_chr_mantra_s3_2 (BounceProjectile,
+  // _useTargetAsStartPoint) at its holder; its hit mantra_bounce_hit_01 plays there. The kit's 'mantraArc' names the holder
+  // (target). Its bounces on to the next enemies are kit projectiles the client is not told of: their trail is not drawn.
+  skchr_mantra_3: Object.freeze({
+    mantraArc: binding({ owner: 'id', at: 'target', keys: ['mantra_bounce_hit_01'] }),
+  }),
+  // (fork) 空弦 S1 (chess_char_3_21-archet.js): the arrow projectile_chr_archet_s1, reaching its target, fires its child
+  // projectile_chr_archet_s1_2 at the other enemies around (max_target − 1); the kit's 'volley' names them (targets) and
+  // the arrow's target (from).
+  skchr_archet_1: Object.freeze({
+    volley: binding({ owner: 'id', fan: Object.freeze({ projectile: 'projectile_chr_archet_s1_2', from: 'from', to: 'targets' }) }),
+  }),
+  // (fork) 魔王 T1 (chess_char_4_25 / 5_09-cetsyr.js): her talent's motes are projectile_chr_cetsyr_talent, the one her
+  // skill's buff names in its blackboard (`projectile`: _talent_s1 / _s2 during S1 / S2, _s3 with S3, a passive); a mote
+  // reaching a unit plays its hit there. The kit's 'mote' names that unit (id) and her (src). The motes' orbit is not
+  // drawn (the client has no orbit for an official projectile yet).
+  skchr_cetsyr_1: Object.freeze({ mote: binding({ owner: 'src', at: 'target', target: 'id', keys: ['cetsyr_hit_01'] }) }),   // _talent and _s1 share it
+  skchr_cetsyr_2: Object.freeze({ mote: binding({ owner: 'src', at: 'target', target: 'id', during: true, keys: ['cetsyr_skill_02_hit_01'] }) }),
+  skchr_cetsyr_3: Object.freeze({ mote: binding({ owner: 'src', at: 'target', target: 'id', keys: ['cetsyr_hit_01'] }) }),
+  // (fork) 老鲤 S2 (op-lmlee.js): RunePaper's projectile_chr_lmlee_s2 reaches the enemy it marks; its reached effect is
+  // the rune there. The kit's 'mark' names the enemy (id) and him (src).
+  skchr_lmlee_2: Object.freeze({ mark: binding({ owner: 'src', at: 'target', target: 'id', keys: ['lmlee_skill_02_range'] }) }),
+  // (fork) 仇白 S1 (chess_char_6_15-qiubai.js): when the bind ends the client fires projectile_chr_qiubai_s1_effect on the
+  // target; its reached effect is the burst. The kit's 'aoe' (her id) is that moment, where the target stands.
+  skchr_qiubai_1: Object.freeze({ aoe: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['qiubai_skill_01_buff_boom'] }) }),
+  // (fork) 赤刃明霄陈 S3 (op-chen3.js): the wave is projectile_chr_chen3_s3 (EmitProjectile); its hit plays on each enemy
+  // it meets — the kit's 'slash' tagged chen3:wave. Its trail is not drawn: the kit tells the client the wave's way only
+  // in 0.12 s pieces ('chen3Wave'), not as one flight.
+  skchr_chen3_3: Object.freeze({ slash: binding({ owner: 'id', only: Object.freeze({ skill: 'chen3:wave' }), at: 'point', oneshot: true,
+    keys: ['chen3_skill_03_hit_04'] }) }),
+  // (fork) 菲亚梅塔 S2 (op-phenxi.js): the shell is projectile_chr_phenxi_s2 (ProjectileToTileAbility), its reached
+  // effect the blast where it lands (the kit's 'aoe' tagged phenxi:s2); its child projectile_chr_phenxi_s2_2 lands on
+  // each mark along the way (reached: phenxi_skill_02_hit_buff; the kit's 'aoe' tagged phenxi:mark).
+  skchr_phenxi_2: Object.freeze({ aoe: binding({ owner: 'id', at: 'point', oneshot: true, keysBy: Object.freeze({ field: 'skill',
+    map: Object.freeze({ 'phenxi:s2': ['phenxi_skill_02_hit'], 'phenxi:mark': ['phenxi_skill_02_hit_buff'] }) }) }) }),
+  // (fork) 望 S3 (op-wang.js fire): a stone that sets off is projectile_chr_wang_stone3 (WangVisualStoneMarkAbility); its
+  // hit token_wang_skill_03_hit_02 plays there. The kit's 'explode' tagged wang_3 names the stone (id) and him (src).
+  skchr_wang_3: Object.freeze({ explode: binding({ owner: 'src', only: Object.freeze({ skill: 'wang_3' }), at: 'point', oneshot: true,
+    keys: ['token_wang_skill_03_hit_02'] }) }),
+  // (fork) 冻河 S2 (op-tocka.js): AnimatedActionToTargetAbility throws projectile_chr_tocka_s2 at the ally it arms; its hit
+  // plays on that ally (the buff's start burst with it). The kit's 'buff' names the ally (id) and her (src).
+  skchr_tocka_2: Object.freeze({ buff: binding({ owner: 'src', at: 'target', target: 'id', keys: ['tocka_skill_02_hit_01'] }) }),
   skchr_clemnt_3: Object.freeze({
     lock: binding({ owner: 'src', projectile: 'projectile_chr_clemnt_s3', at: 'point', hold: 'projectile_life_time', holdS: 5, cover: ['blast'] }),
   }),
@@ -1519,8 +1636,20 @@ export const FX_BINDINGS = Object.freeze({
  * projectile field its `part` names (`toTargetOnStart`: a projectile that plays its area on its target as it starts,
  * 萨卡兹枯朽战士's) —, lower case; [] without them.
  */
+/** (fork) Every projectile key a `flight` binding may fly. */
+export function flightProjectiles(f) {
+  return [...new Set(['side', 'up', 'down'].flatMap((k) => (Array.isArray(f?.[k]) ? f[k] : [])).map(lc).filter(Boolean))];
+}
+
 export function bindingEffects(idx, bind) {
   if (Array.isArray(bind?.keys)) return bind.keys.map(lc).filter(Boolean);
+  if (bind?.fan) { const p = idx?.projectiles?.[lc(bind.fan.projectile)]; return p ? (p.effects || []).map(lc).filter(Boolean) : []; }
+  if (bind?.keysBy) return Object.values(bind.keysBy.map).flat().map(lc).filter(Boolean);
+  if (bind?.keysIf) return [...bind.keysIf.yes, ...bind.keysIf.no].map(lc).filter(Boolean);
+  if (bind?.flight) {
+    const ps = flightProjectiles(bind.flight).map((k) => idx?.projectiles?.[lc(k)]).filter(Boolean);
+    return [...new Set(ps.flatMap((p) => [p.main, ...(bind.flight.reached ? p.onReached || [] : [])]).map(lc).filter(Boolean))];
+  }
   const p = bind?.projectile ? idx?.projectiles?.[lc(bind.projectile)] : null;
   if (!p) return [];
   const list = bind.part ? (Array.isArray(p[bind.part]) ? p[bind.part] : [])

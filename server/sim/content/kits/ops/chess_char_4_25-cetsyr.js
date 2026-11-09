@@ -117,7 +117,7 @@ export default withDefaults({
                 hitAt.set(e.id, battle.time + MOTE_GAP);
                 battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.atk_scale, 2.2), type: 'true', isSkill: true, tags: ['skill', 'mote'] });
                 if (e.alive) battle.applyStatus(e, 'bind', { duration: num(bb.unmoveable_duration, 3), source: unit });
-                battle.fx('mote', { x: e.x, y: e.y, id: e.id });
+                battle.fx('mote', { x: e.x, y: e.y, id: e.id, src: unit.id });   // (fork) src: render/vfx FX_BINDINGS
               }
               return;
             }
@@ -126,7 +126,7 @@ export default withDefaults({
               if (a === unit || a.kind !== 'op' || a.findBuff(`cetsyr:mote:${unit.id}`)) continue;
               if (!keep && !takeMote()) break;
               battle.addBuff(a, { key: `cetsyr:mote:${unit.id}`, duration: num(t0.talent_duration, 6), visible: true, source: unit });
-              battle.fx('mote', { x: a.x, y: a.y, id: a.id });
+              battle.fx('mote', { x: a.x, y: a.y, id: a.id, src: unit.id });
             }
           });
           // "受到魔王特性效果提升至1.5倍": her trait's 生命回复速度 on that operator (professions.js bardRegen hook)

@@ -47,7 +47,7 @@ import { TalentFx } from './talentfx.js';
 import { FunnelFx } from './funnelfx.js';
 import { YuWall, YU_WALL_SOURCE } from './yuwall.js';
 import { formModes } from './talents.js';
-import { shotOf } from './skills.js';
+import { shotOf, CHAIN_RELAYS } from './skills.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a non-oneshot cast effect lasts without its end event. */
@@ -1626,8 +1626,15 @@ export class FxWiring {
    */
   chain(prev, next, kind, time) {
     if (!this.ofx.active || !prev || !next || prev === next || !this.idx || !CHAIN.has(kind)) return false;
-    const c = this.chains.get(prev.id ?? prev.info?.id);
+    let c = this.chains.get(prev.id ?? prev.info?.id);
     if (!c || this.ofx.time > c.until) return false;
+    // (fork) a hop that leaves a relay unit flies another projectile's line and hit (skills.js CHAIN_RELAYS)
+    const relay = CHAIN_RELAYS[this.skills.of(c.src)?.skillId];
+    if (relay && this.unitKeyOf(prev) === relay.via) {
+      const p = this.idx.projectiles?.[relay.projectile];
+      const line = p ? projectileParts(p).chain : null;
+      if (line) c = { ...c, proj: p, line, rows: [] };
+    }
     const nid = next.id ?? next.info?.id;
     if (nid != null) this.chains.set(nid, c);
     const delay = Math.max(0, c.at - this.ofx.time);

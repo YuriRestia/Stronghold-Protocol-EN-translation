@@ -90,7 +90,7 @@
 
 import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
-  eventNum, FX_BINDINGS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
+  eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
@@ -109,6 +109,8 @@ const ARRIVAL = new Set(['summonBurst', 'summonStun', 'radiantSword', 'paperDoll
 /** The 驭械术士's kit fx: render/vfx/funnelfx.js decides them (its floating units). */
 const FUNNEL_KINDS = new Set(['drone', 'drones', 'droneLock', 'overload']);
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
+/** (fork) Plan kinds whose skill lasts (its loops are held for it); another's buff loops with a life run their own time. */
+const SKILL_LASTS = new Set(['lasting', 'ammo', 'passive']);
 /** Battle seconds after a release in which a stale energy reading is ignored (the next store takes an attack interval). */
 const RELEASE_GUARD_S = 0.35;
 /** A fx on the unit: its (x, y) within this many tiles (render/fx/simfx.js ANCHOR_SNAP). */
@@ -429,6 +431,13 @@ export class SkillFx {
       let drew = false;
       for (const e of uniq([...U.plan.start, ...U.plan.range, ...U.plan.loop])) {
         if (e.birth) continue;     // the deploy's (birthOf: FxWiring.deploy plays it)
+        // (fork) a buff loop on the owner with a life of its own (index v3 `life`: LIMITED, a time or our record's
+        // blackboard key) outlives a skill that does not last — 塔露拉 S2's oxi_s_2_stack, stack_duration 10 s, of a skill
+        // that is on and off in one tick: it runs its own time, as a target's buff loop does (_targetLoop)
+        if (!SKILL_LASTS.has(U.plan.kind) && U.plan.loop.includes(e) && (e.on === 'owner' || e.at === 'owner') && lifeOf(e.life, U.srec?.bb)?.s > 0) {
+          if (this._targetLoop(U, e, v)) drew = true;
+          continue;
+        }
         const h = this._play(e, v);
         if (h) { drew = true; this._keep(U, e, h); }
       }
@@ -1063,16 +1072,23 @@ export class SkillFx {
     for (const field of ['src', 'id']) {
       const U = extra[field] != null ? this.units.get(extra[field]) : null;
       const bind = U ? FX_BINDINGS[U.skillId]?.[kind] : null;
+      if (bind && bind.only && Object.entries(bind.only).some(([k, val]) => extra[k] !== val)) continue;
       if (bind && bind.owner === field && (!bind.during || this._lasts(U))) {
         if (bind.attack) return this._boundAttack(U, bind);
         if (bind.shots) return this._lanes(U, bind, extra);
+        if (bind.flight) return this._flight(U, bind, x, y, extra);
+        if (bind.fan) return this._fan(U, bind, extra);
         if (bind.endsShot) this._endShot(U, extra);
         return this._bound(U, bind, x, y, extra);
       }
     }
     // a binding whose fx names no owner: the unit whose skill of that id lasts
     for (const sid of BOUND_BY_SKILL[kind] || []) {
-      for (const Uo of this.units.values()) if (Uo && Uo.skillId === sid && Uo.v && this._lasts(Uo)) return this._bound(Uo, FX_BINDINGS[sid][kind], x, y, extra);
+      for (const Uo of this.units.values()) {
+        if (!Uo || Uo.skillId !== sid || !Uo.v || !this._lasts(Uo)) continue;
+        const b = FX_BINDINGS[sid][kind];
+        return b.flight ? this._flight(Uo, b, x, y, extra) : this._bound(Uo, b, x, y, extra);
+      }
     }
     // (6) a summon's arrival on a unit whose official birth effect drew in this frame
     if (extra.id != null && !FUNNEL_KINDS.has(kind) && (ARRIVAL.has(kind) || fxSpec(kind, extra).a === 'summon')) {
@@ -1143,13 +1159,22 @@ export class SkillFx {
    * says; a binding's own `keys` at 'target' once on the unit the fx names.
    */
   _bound(U, bind, x, y, extra) {
-    const keys = bindingEffects(this.w.idx, bind).filter((k) => this.w.ofx.lib.has(k));
+    const pick = bind.keysIf ? (extra[bind.keysIf.field] ? bind.keysIf.yes : bind.keysIf.no)
+      : bind.keysBy ? bind.keysBy.map[extra[bind.keysBy.field]] || [] : null;
+    const keys = (pick ? pick.map(lc) : bindingEffects(this.w.idx, bind)).filter((k) => this.w.ofx.lib.has(k));
     if (!keys.length) return false;
     if (bind.at === 'target') {
       // once on the unit the fx names (泡泡's attacker, 归溟幽灵鲨 S1's ally), else where it happens; turned by the owner's side
       const tv = this.w.view(extra[bind.target || 'target']) || { id: 'fx:point', x, y, z: 0 };
       let drew = false;
       for (const k of keys) if (this.w.playOn(k, tv, { flipFrom: U.v || undefined })) drew = true;
+      return drew;
+    }
+    if (bind.at === 'tiles') {
+      let drew = false;
+      for (const t of Array.isArray(extra.tiles) ? extra.tiles : []) {
+        if (Array.isArray(t)) for (const k of keys) if (this.w.playOn(k, this._ground(t[1], t[0], null), { important: true })) drew = true;
+      }
       return drew;
     }
     const tv = this.w.view(extra.id);
@@ -1203,6 +1228,47 @@ export class SkillFx {
     const l = U?.plan?.line;
     if (!l || !src || !tgt) return false;
     return !!this.w.playOn(l.key, src, { toward: tgt, strike: true, important: true, artYaw: l.artYaw });
+  }
+
+  /**
+   * (fork) An FX_BINDINGS `flight` entry (skills.js FX_BINDINGS): the main effect of the projectile for the way's axis
+   * and its unit's facing flies between the fx's points — from its fromX / fromY to its point, or from its point to its
+   * tx / ty —, at the binding's speed (else in the fx's `dur`), after its delay; its onReached effects play where it
+   * lands (`reached`). False without the prefab, or for a way of no length.
+   */
+  _flight(U, bind, x, y, extra) {
+    const f = bind.flight;
+    const [x0, y0, x1, y1] = f.from === 'point' ? [x, y, Number(extra.tx), Number(extra.ty)] : [Number(extra.fromX), Number(extra.fromY), x, y];
+    const ddx = x1 - x0, ddy = y1 - y0, len = Math.hypot(ddx, ddy);
+    const speed = f.speed > 0 ? f.speed : len / Number(extra.dur);
+    if (!Number.isFinite(len) || !(len > 1e-6) || !(speed > 0) || !U.v) return false;
+    const list = Math.abs(ddy) > Math.abs(ddx) ? (ddy > 0 ? f.up : f.down) : f.side;   // UP is +row (server/sim/dir.js)
+    if (!Array.isArray(list) || !list.length) return false;
+    const fv = this.w.view(extra.id) || U.v;
+    const left = Math.abs(ddy) > Math.abs(ddx) ? (fv.visFacing ?? fv.facing ?? 1) < 0 : ddx < 0;
+    const p = this.w.idx?.projectiles?.[lc(list.length > 1 && !left ? list[1] : list[0])];
+    const key = lc(p?.main);
+    if (!key || !this.w.ofx.lib.has(key)) return false;
+    const go = () => this.w.flyLane(key, U.v, {
+      x: x0, y: y0, dx: ddx / len, dy: ddy / len, len, speed,
+      onEnd: () => { if (f.reached) for (const k of p.onReached || []) this.w.playOn(lc(k), this._ground(x1, y1, null), { important: true }); },
+    });
+    if (f.delay > 0) later(this.w.ofx, f.delay, go); else go();
+    return true;
+  }
+
+  /** (fork) An FX_BINDINGS `fan` entry: its projectile flies from one unit of the fx to each of its others. */
+  _fan(U, bind, extra) {
+    const p = this.w.idx?.projectiles?.[lc(bind.fan.projectile)];
+    const from = this.w.view(extra[bind.fan.from]);
+    const to = Array.isArray(extra[bind.fan.to]) ? extra[bind.fan.to] : [];
+    if (!p || !from || !to.length || !this.w.ofx.lib.has(lc(p.main))) return false;
+    let drew = false;
+    for (const id of to) {
+      const tv = this.w.view(id);
+      if (tv && this.w._fly(p, from, tv, 'arrow', this.w.ofx.time, {}) != null) drew = true;
+    }
+    return drew;
   }
 
   /** An `endsShot` fx: the flight of the shot it names stops (the projectile clears its main effect as it hits). */
@@ -1494,6 +1560,7 @@ export class SkillFx {
         for (const k of planKeys(U.plan)) out.add(k);
         for (const pk of U.plan.projectiles) proj(pk);
         for (const k of bindingKeys(idx, U.skillId)) out.add(k);
+        proj(CHAIN_RELAYS[U.skillId]?.projectile);
       }
       for (const en of U.enemy) {
         for (const k of planKeys(en.plan)) out.add(k);

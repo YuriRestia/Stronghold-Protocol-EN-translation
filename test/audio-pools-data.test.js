@@ -61,8 +61,10 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
   // operators their slots and files (the 5 pool-only attack sounds among them)
   // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)
-  assert.equal(refs, 1040);
-  assert.equal(Object.keys(pools).length, 1047);
+  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (plan.mjs SKILL_ABILITY_SOUNDS) and the pools of
+  // those two, her S2 strike back's impact and her T2 footprint (FX_SOUND_BANKS)
+  assert.equal(refs, 1042);
+  assert.equal(Object.keys(pools).length, 1051);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
