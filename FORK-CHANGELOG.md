@@ -15,6 +15,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - Opening an operator's card on the Operator Loadout, or picking one in the Custom Squad picker, plays a Selecting Operator line only on the first touch; a skill or module change counts as that first touch too. Further clicks on the same operator (its skill, module, a reopen) stay silent until you touch another operator. Each return then takes that operator's other line, never the one it said last. Switching to an outfit with its own voice always speaks, in that voice: a Selecting or Deployment line (or any line it has). Any other outfit change counts as an ordinary click. The newest line cuts the previous one off, and the voice language and volume settings apply. No new downloads.
 
+### Larger profile icon button in the lobby
+
+- The profile chip in the lobby's top bar (your icon, which opens the icon picker) is now as tall as the version chip beside it, and its edit pen is easier to see: 17 px on a 1920×1080 screen (was 13 px). On a phone the whole button grows from 18×16 px to 41×40 px, over the 32 px touch minimum, with a 16 px pen (was 10 px).
+- In English at Large and Extra Large text on a 640–667 px phone, the top bar had no room for it (the chip already covered part of the Discord button). There, Back shows only its arrow and the online count drops the word "online"; their tooltips still name them. Other languages and text sizes are unchanged.
+- The lobby layout test now also checks that the profile chip stays clear of the top-bar buttons and meets the touch minimum.
+
 ### Test a two-server release before players get it
 
 - `scripts/deploy-regions.mjs` now has `prepare` and `activate` as separate commands (`deploy` still does both). `prepare` starts the new version on every server without sending anyone there and prints its id and private test addresses; `activate <id>` switches every server, and refuses without switching any unless the version is ready on all of them with the same build (new `generations.mjs check <id>`). A prepared version now waits 4 hours for its activate instead of 1, so a private test fits.
