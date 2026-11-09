@@ -64,6 +64,8 @@ export default [
       'public/dev/**',
       '.cache/**',
       'coverage/**',
+      // other branches' working copies (git worktrees, git-ignored): each is linted in its own folder
+      '.claude/worktrees/**',
       // local clones for tools/i18n (git-ignored); they carry their own eslint configs
       'ArknightsGamedata/**',
       'stronghold-protocol-alliance-database-main/**',

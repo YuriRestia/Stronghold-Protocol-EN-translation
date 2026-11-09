@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-09
 
+### Lint skips other branches' working copies
+
+- `npm run lint` no longer checks the git worktrees under `.claude/worktrees/` (other branches' working copies, which git already ignores). From the main folder it went through every one of them, which made it take about 6 minutes and print 2,325 warnings, all but 155 of them from those other copies; it now takes about 40 seconds. Each worktree is still linted from its own folder.
+
 ### Operator Loadout cards on short phones
 
 - On a phone in landscape (520 px tall or less, such as 640×360 or 844×390), the Operator Loadout deck is one row of cards instead of two, each card using the deck's full height. The cards keep their whole design there: every module as its own button under the skills, the promotion icons over the levels, the potential star, the branch icon and the alliance icons. Before, two rows squeezed the cards: the branch icon shrank to nothing at Extra Large and the alliance icons were cut off at the card's bottom. A Custom Squad slot keeps its full-size frame, count and label. Compact, Expanded and Outfits all use the one row, and so does the Custom Squad picker. Fewer cards fit on screen at once (4 at 640×360, 5 at 844×390); swipe to see more. Taller windows and desktops look the same as before.
