@@ -12,7 +12,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks
 import { nameWords } from '../ui/nameFit.js';
 import { Component } from '../../vendor/preact.module.js';
 import { html, Icon, TierChip } from '../ui/components.js';
-import { OperatorImage, Img, PromotionIcon } from '../ui/gameComponents.js';
+import { OperatorImage, Img, PromotionIcon, noImageMenu } from '../ui/gameComponents.js';
 import { profGlyphUrl, subProfIconUrl, bondIconUrl } from '../ui/assetUrls.js';
 import { data } from '../data.js';
 import { useStore, createStore } from '../store.js';
@@ -210,12 +210,13 @@ export class DeckOpMore extends Component {
  * the owner's outfit shows here as everywhere) with a ribbon (`ribbon`), the column (`side`: DeckOpSide),
  * the name (wrapping at its spaces only, its words unbroken, fitted to the card: ui/nameFit.js) after `meta` at the card's foot, the bonds down the rail's foot and `railFoot` under
  * them (the user's calls of 2026-11-08), and the 「详情」 panel (`more`: DeckOpMore). A press on the card
- * picks it (`onPick`) unless it lands on one of its controls or the card is `pickDisabled` (a taken operator).
+ * picks it (`onPick`) unless it lands on one of its controls or the card is `pickDisabled` (a taken operator). A long press
+ * opens no browser image menu (noImageMenu).
  * `attrs`: its data-* (data-chess / data-char), `cls` its own classes.
  */
 export function DeckOpCard({ m, attrs = {}, cls = null, tier, selected = false, onPick, pickDisabled = false, pickTitle, pickCls = null, railCls = null,
   railTop = null, rail, railFoot = null, portrait, name, sub, ribbon = null, meta = null, bonds = [], side, more, moreTestid }) {
-  return html`<div role="listitem" ...${attrs} class=${cx('lo-op', `lo-op--t${tier}`, 'has-side', selected && 'is-sel', cls)}>
+  return html`<div role="listitem" ...${attrs} class=${cx('lo-op', `lo-op--t${tier}`, 'has-side', selected && 'is-sel', cls)} onContextMenu=${noImageMenu}>
     <div class="lo-op__card" onClick=${(e) => { if (!pickDisabled && !e.target.closest?.('button, select, input, .lo-op__side')) onPick(); }}>
       <div class=${cx('lo-op__rail', railCls)}>${railTop}<${Img} src=${subProfIconUrl(m, sub)} class="lo-op__sub" />${rail}
         <span class="lo-op__bonds">${bonds.map((b) => html`<span key=${b} class="lo-op__bond" title=${bondName(b)}>
@@ -756,7 +757,7 @@ export function useDragScroll({ onDragStart = null } = {}) {
  */
 /** The drawer itself: 收起 on top, then `children` (an DeckDetail). */
 export function DeckDrawer({ testid, onClose, children }) {
-  return html`<div class="lo-drawer" data-testid=${testid}>
+  return html`<div class="lo-drawer" data-testid=${testid} onContextMenu=${noImageMenu}>
     <button type="button" class="lo-drawer__close" onClick=${onClose} title=${t('收起 (Esc)')}><${Icon} name="chevronLeft" />${t('收起')}</button>
     ${children}
   </div>`;

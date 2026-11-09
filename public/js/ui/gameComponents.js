@@ -76,6 +76,21 @@ export function Img({ src, class: cls, alt = '', fallback = null, style, onLoad 
   return html`<img class=${cls} src=${src} alt=${alt} draggable=${false} loading="lazy" style=${style} onLoad=${onLoad} onError=${() => setBad(src)} />`;
 }
 
+/**
+ * (fork) `onContextMenu` for a container of operator pictures (the Operator Loadout's cards, its drawer, the outfit
+ * pickers): a long press on a phone opens no browser image menu (Open image in new tab / Download image — the user's
+ * report of 2026-11-09). Only the browser's own menu of a touch / pen press is refused: a mouse's right click keeps it,
+ * a synthetic long press (ui/device.js, iOS) is no browser menu and is left alone (refusing it would swallow the slow
+ * tap's click), and a text field keeps its own menu. Text selection and image drags are off already (css/theme.css
+ * user-select, Img's draggable=false, css/devices.css -webkit-user-drag / -webkit-touch-callout).
+ * @param {MouseEvent & { pointerType?: string }} e
+ */
+export function noImageMenu(e) {
+  if (!e?.isTrusted || e.pointerType === 'mouse' || e.defaultPrevented) return;
+  if (e.target?.closest?.('input, textarea, select, [contenteditable], .selectable')) return;
+  e.preventDefault();
+}
+
 /** Owner-aware operator pictures, with live selection / settings updates even on an already open card.
  * `ownerId` omitted = local picker; null = unowned catalogue art. Callers resolve stand-ins / DIY first.
  * B6, maintainer option A (2026-10-18); docs/SKINS.md and §35.4. Model outfits retain their models.
