@@ -3,6 +3,24 @@ import assert from 'node:assert/strict';
 import { startServer } from '../../server/index.js';
 import { CHROME, hasChrome, cameraSettled } from '../e2e/client.mjs';
 
+/**
+ * (fork) the DOM fallback has no camera (cameraSettled returns at once) and its board takes a moment to move to a new
+ * screen fit: wait until the piece's tile stands still for 5 frames, then 2 more for the frame's follow (one per frame).
+ */
+const tileStill = (page, piece) => page.evaluate((p) => new Promise((resolve) => {
+  const t0 = performance.now();
+  let last = '', still = 0, after = 0;
+  const tick = () => {
+    const t = globalThis.__SP_VIEW__.raw.tileScreen(p.row, p.col);
+    const key = t ? `${t.x.toFixed(1)},${t.y.toFixed(1)},${t.s.toFixed(2)}` : '';
+    still = key === last ? still + 1 : 0;
+    last = key;
+    if (still >= 5 ? ++after > 2 : performance.now() - t0 > 3000) resolve();
+    else requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}), piece);
+
 test('selected operator frame follows its tile through screen offsets, UI size and resize (#889)', {
   skip: process.env.SP_E2E !== '1' || !hasChrome(), timeout: 90000,
 }, async () => {
@@ -20,6 +38,9 @@ test('selected operator frame follows its tile through screen offsets, UI size a
       await cameraSettled(page);
       assert.equal(await page.evaluate(() => !!globalThis.__SP_VIEW__.raw.debug?.app?.view), renderer === 'engine');
       const piece = await page.evaluate(() => globalThis.__MOCK__.S().priv.board.find((p) => p.kind === 'chess'));
+      // the page is read at 'load': the view draws its pieces a moment later (the DOM fallback had none yet), so the click
+      // waits until this one is placed
+      await page.waitForFunction((uid) => !!globalThis.__SP_VIEW__.raw.pieceScreenRect?.(uid), { timeout: 30000 }, piece.uid);
       const point = await page.evaluate((p) => globalThis.__SP_VIEW__.raw.tileScreen(p.row, p.col), piece);
       await page.mouse.click(point.x, point.y);
       await page.waitForSelector('.uframe');
@@ -31,7 +52,7 @@ test('selected operator frame follows its tile through screen offsets, UI size a
       ]) {
         await page.evaluate(async (fit) => (await import('/js/ui/screenFit.js')).updateFit(fit), fit);
         await cameraSettled(page);
-        await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 350)));
+        await tileStill(page, piece);
         const delta = await page.evaluate((p) => {
           const tile = globalThis.__SP_VIEW__.raw.tileScreen(p.row, p.col);
           const frame = document.querySelector('.uframe').getBoundingClientRect();
@@ -42,7 +63,7 @@ test('selected operator frame follows its tile through screen offsets, UI size a
       // a notched phone / PWA: the HUD sits inside the safe area, the fixed frame must still sit on its tile (round-54 audit)
       await page.evaluate(() => { for (const [k, v] of [['--sa-l', '34px'], ['--sa-t', '22px'], ['--sa-r', '12px'], ['--sa-b', '16px']]) document.documentElement.style.setProperty(k, v); });
       await cameraSettled(page);
-      await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 350)));
+      await tileStill(page, piece);
       const notched = await page.evaluate((p) => {
         const tile = globalThis.__SP_VIEW__.raw.tileScreen(p.row, p.col);
         const frame = document.querySelector('.uframe').getBoundingClientRect();

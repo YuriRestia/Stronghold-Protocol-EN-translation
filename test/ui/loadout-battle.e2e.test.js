@@ -49,10 +49,13 @@ describe('user playtest #2 item 1 — loadout chosen in the UI fights in the loc
       // 1) the 干员调配 overlay: search 野鬃 → S1 + 不装备 (real clicks), synced with the server
       await c.click('.lobby-screen [data-testid="loadout-open"]');
       // (fork) the card view (the only view since 2026-11-08): 筛选 → the one card → its own column's S1 + 不装备; the
-      // card and the drawer's detail agree
-      const card = await c.loadoutFind('野鬃');
+      // card and the drawer's detail agree. The drawer opens over the deck's left (a pure overlay), where the one found
+      // card sits, so the column is pressed first and the drawer opened after
+      const card = await c.loadoutFind('野鬃', { pick: false });
       await c.click(`${card} .lo-op__skills .lo-q--skill[data-skill="0"]`);
       await c.click(`${card} .lo-op__mlist .lo-q--mod[data-module="none"]`);
+      await c.click(`${card} .lo-op__pick`);
+      await c.page.waitForSelector('[data-testid="loadout-drawer"]', { visible: true, timeout: 5000 });
       await c.page.waitForFunction((sel) => document.querySelector(`${sel} .lo-q--skill[data-skill="0"]`)?.getAttribute('aria-pressed') === 'true'
         && document.querySelector(`${sel} .lo-op__mlist .lo-q--mod[data-module="none"]`)?.getAttribute('aria-pressed') === 'true'
         && document.querySelector('.lo-detail .lo-skill.is-on[data-skill="0"]') && document.querySelector('.lo-detail .lo-mod.is-on[data-module="none"]'), { timeout: 3000 }, card);

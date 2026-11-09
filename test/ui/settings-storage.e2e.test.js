@@ -17,6 +17,8 @@ const ENABLED = process.env.SP_E2E === '1' && existsSync(CHROME);
 const KEPT = '已持久保存：存储空间不足时，浏览器不会自动清掉导入的素材。';
 const NOT_KEPT = '未持久保存：存储空间不足时，浏览器可能清掉导入的素材。';
 const REFUSED = /^浏览器没有同意。/;
+// (fork) the page starts in English (ui/lang.js START_LANG); this check reads the Chinese msgids
+const pinZh = (page) => page.evaluateOnNewDocument(() => { if (localStorage.getItem('sp.pref.lang') == null) localStorage.setItem('sp.pref.lang', JSON.stringify('zh')); });
 
 describe('设置 → 素材存储', { skip: !ENABLED && 'set SP_E2E=1 (and have Chrome) to run' }, () => {
   let srv;
@@ -45,6 +47,7 @@ describe('设置 → 素材存储', { skip: !ENABLED && 'set SP_E2E=1 (and have 
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setViewport({ width: 1600, height: 900 });
     await seedReleaseRead(page);
+    await pinZh(page);
     await page.goto(`${base}/`, { waitUntil: 'networkidle0', timeout: 60000 });
     await page.waitForSelector('.title-settings', { timeout: 15000 });
     await page.click('.title-settings');
@@ -79,6 +82,7 @@ describe('设置 → 素材存储', { skip: !ENABLED && 'set SP_E2E=1 (and have 
     page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
     await page.setViewport({ width: 1600, height: 900 });
     await seedReleaseRead(page);
+    await pinZh(page);
     await page.goto(`${base}/`, { waitUntil: 'networkidle0', timeout: 60000 });
     // a current hashed picture of the served manifest (hashed once the server's asset index is ready, about 1 s in)
     const current = await page.evaluate(async () => {
