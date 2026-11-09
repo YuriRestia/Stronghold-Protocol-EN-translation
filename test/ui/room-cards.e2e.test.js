@@ -206,6 +206,28 @@ describe('名片干员 seat cards (real server)', { skip: !ENABLED && 'set SP_E2
       assert.notEqual(plain, brokenUrl);
       await host.page.evaluate(async (id) => (await import('/js/ui/skins.js')).clearSkin(id), PICK);
 
+      // (fork, docs/OUTFITS.md) the fork's outfits (room.outfits → room.state seats[].outfits): the teammate's card wears
+      // THAT doctor's outfit, never the viewer's own choice for the same operator; taken off, the default again
+      const outfitPortrait = (id) => guest.page.evaluate(async (id) => (await import('/js/data.js')).data.get('assets')?.outfits?.chars?.[id]?.portrait || null, id);
+      const wearOutfit = (c, id) => c.page.evaluate(async (charId, id) => (await import('/js/ui/outfits.js')).setOutfit(charId, id), PICK, id);
+      const seatOutfit = (c, name) => c.page.waitForFunction((name, id) => (globalThis.__SP__.store.get().room.seats.find((s) => s?.name === name)?.outfits?.[id] ?? null),
+        { timeout: 10000 }, name, PICK).then((h) => h.jsonValue());
+      const [HOST_OUTFIT, GUEST_OUTFIT] = ['char_1012_skadi2@iteration#2', 'char_1012_skadi2@boc#4'];
+      const hostArt = await outfitPortrait(HOST_OUTFIT), guestArt = await outfitPortrait(GUEST_OUTFIT);
+      assert.ok(hostArt && guestArt && hostArt !== guestArt && hostArt !== plain, JSON.stringify({ hostArt, guestArt, plain }));
+      await wearOutfit(guest, GUEST_OUTFIT);
+      assert.equal(await seatOutfit(guest, '阿米娅'), GUEST_OUTFIT, "the guest's choice came back on its seat");
+      assert.equal((await seatNamed(guest, '凯尔希')).art, plain, "the viewer's own outfit does not dress the teammate's card");
+      await wearOutfit(host, HOST_OUTFIT);
+      await waitArt(host, '凯尔希', hostArt, "one's own card wears one's outfit");
+      assert.equal(await seatOutfit(guest, '凯尔希'), HOST_OUTFIT);
+      await waitArt(guest, '凯尔希', hostArt, "the teammate sees the host's outfit");
+      await waitOp(guest, '凯尔希', '浊心斯卡蒂', 'the outfit portrait loaded');
+      await guest.shot('room-fork-outfit');
+      await wearOutfit(host, null);
+      await waitArt(guest, '凯尔希', plain, 'the outfit taken off');
+      await wearOutfit(guest, null);
+
       // reopening: the pick is the choice; Esc closes the picker and gives the focus back to 更换立绘
       await host.click('[data-testid="seat-card-pick"]');
       await host.page.waitForSelector('.modal__box.cardpick');
