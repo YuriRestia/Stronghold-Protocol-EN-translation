@@ -76,6 +76,27 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
     return { page, problems };
   }
 
+  /**
+   * (fork) Wait until a unit-frame plate is drawn for real, then sample it: its sprite mask (underframe.js PlateIcon,
+   * `--uf-mask`) has loaded, since until then the plate shows only its dark backing, and the plate has stayed the same
+   * element with no one-shot animation or transition running for 300 ms. Mid-way the frame's `uframe-in` fade shows the
+   * board through the plate and the detail panel's `panel-in-r` slide passes over it, and in the fallback render a
+   * second fade can start about 100 ms after the frame is up. A fixed 300 ms sleep sampled those on a loaded machine.
+   */
+  async function plateDrawn(page, sel) {
+    await page.$eval(sel, async (el) => {
+      const m = /url\("?([^")]+)"?\)/.exec(el.style.getPropertyValue('--uf-mask'));
+      if (m) { const img = new Image(); img.src = m[1]; await img.decode(); }
+    });
+    await page.waitForFunction((q) => {
+      const el = document.querySelector(q);
+      const busy = document.getAnimations().some((a) => a.playState === 'running' && a.effect?.getComputedTiming().iterations !== Infinity);
+      const now = performance.now();
+      if (!el || busy || el !== globalThis.__plateEl) { globalThis.__plateEl = el; globalThis.__plateQuiet = now; return false; }
+      return now - globalThis.__plateQuiet >= 300;
+    }, { polling: 'raf', timeout: 5000 }, sel);
+  }
+
   /** Mean RGB of a client rect of the page (screenshot decoded by the page itself). */
   async function meanColor(page, r) {
     const clip = { x: Math.max(0, r.x), y: Math.max(0, r.y), width: Math.max(1, r.w), height: Math.max(1, r.h) };
@@ -146,7 +167,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
       });
       await tapPiece(page, uids.chess);
       await page.waitForSelector('.uframe__btn--sell .uframe__plate', { timeout: 3000 });
-      await sleep(300); // (fork) the frame's uframe-in fade (200 ms): sampled mid-fade it reads as the board behind
+      await plateDrawn(page, '.uframe__btn--sell .uframe__plate');
       const plate = await page.$eval('.uframe__btn--sell .uframe__plate', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height * 0.2, w: r.width * 0.6, h: r.height * 0.6 }; });
       const c = await meanColor(page, plate);
       assert.ok(!(c.r > 225 && c.g > 225 && c.b > 225), `sell plate is not white (${JSON.stringify(c)})`);
@@ -155,7 +176,7 @@ describe('user playtest #2 — UI fixes (mock harness, headless Chrome)', { skip
       await page.keyboard.press('Escape');
       await tapPiece(page, uids.item);
       await page.waitForSelector('.uframe__btn--destroy .uframe__plate', { timeout: 3000 });
-      await sleep(300); // (fork) the frame's uframe-in fade (200 ms): sampled mid-fade it reads as the board behind
+      await plateDrawn(page, '.uframe__btn--destroy .uframe__plate');
       const dp = await page.$eval('.uframe__btn--destroy .uframe__plate', (el) => { const r = el.getBoundingClientRect(); return { x: r.left + r.width * 0.2, y: r.top + r.height * 0.2, w: r.width * 0.6, h: r.height * 0.6 }; });
       const d = await meanColor(page, dp);
       assert.ok(!(d.r > 225 && d.g > 225 && d.b > 225), `destroy plate is not white (${JSON.stringify(d)})`);
