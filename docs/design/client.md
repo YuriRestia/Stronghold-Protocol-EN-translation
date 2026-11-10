@@ -1145,11 +1145,13 @@ The four-star Theresa mote ring follows the game clock (including pause and spee
 Spine display coordinates, and is recreated on model swaps. Its S2 radius of 2 tiles is [ASSUMED] from outside_radius;
 the hidden five-star orbit is unchanged (PR #576).
 
-The active-bond strip shows every entry in a horizontal scroller, with keyboard focus, touch panning and translated
-arrow controls. Watched owners, harmony counts, morph members and disabled bonds retain their existing behavior (PR #678).
-The strip's .08rem clip padding has matching negative margins to preserve the discs' and names' original height.
-Prep and Final Assault prep reserve the arrows' 44 px floor and any taller measured bounds (including native scrollbars),
-relative to the field host and safe-area insets. The minimum band remains while collapsed; desktop keeps the official
+(fork) The active-bond strip shows as many entries as fit its width, measured on every resize (fewer on phones), with
+no scrolling and no scrollbar; when more remain, a 「+N」 button after the last slot drops them in a compact grid under
+the strip — the same discs, counts and names a step smaller, each opening its popup as in the strip (the grid then
+closes and the button wears the open ring); the button, Esc or an outside press close it (`ui/bondStrip.js` FitStrip;
+the user's pick of 2026-11-10, replacing PR #678's scroller). Watched owners, harmony counts, morph members and disabled
+bonds keep their behavior. Prep and Final Assault prep reserve the collapse toggle's 44 px floor and any taller measured
+bounds, relative to the field host and safe-area insets; the grid floats over the field. The minimum band remains while collapsed; desktop keeps the official
 camera and original 2.16rem band when the strip already fits (§35.110).
 
 Outside presses dismiss match detail cards, bond popups and the selected-piece underframe (PR #792, §35.93).

@@ -101,6 +101,15 @@ function computeBonds(priv) {
     if (S) S.layers[bondId] = layers;
     out.push({ bondId, count, active: tier > 0, tier, layers, ...(plus ? { harmony: plus } : {}), thresholds, countsHand: !!b?.countsHand });
   }
+  // `manybonds` (fork): every other bond of the mode at 1 member too, so the bond strip overflows into its +N grid
+  if (VARIANTS.has('manybonds')) {
+    for (const b of data.list('bonds')) {
+      if (counts.has(b.bondId) || inactive.has(b.bondId)) continue;
+      const layers = S?.layers?.[b.bondId] ?? Math.floor(rnd() * 4);
+      if (S) S.layers[b.bondId] = layers;
+      out.push({ bondId: b.bondId, count: 1, active: false, tier: 0, layers, thresholds: b.thresholds || [2], countsHand: !!b.countsHand });
+    }
+  }
   return out.sort((a, b) => (b.active - a.active) || (b.layers - a.layers));
 }
 
