@@ -305,9 +305,13 @@ const STANDIN_TRIGGER_DEVIATIONS = Object.freeze({
  * Corrections for 自选 units whose skill text no longer matches the live client (keyed by charId and skill id): 菲亚梅塔
  * S1 — PRTS 备注 for the 2026-08-01 client: it no longer targets flyers and its "攻击距离+1" no longer grows the range
  * (the client's selector agrees), so the basic strategy (DEFAULT), not ACTIVE_RANGE on a +1 grid she cannot reach (O12).
+ * 塔露拉 S3 日冕重烈 — the CN season 3 table (V3_1 skillTriggerDataList: char_4247_oxi skillIndex 2 [ALWAYS]; our season 2
+ * table has no row, so the 近卫 default held it for an enemy in her 1-1): the client's ALWAYS casts it once it is ready,
+ * with no range or target test (AutoChessBattleTrigger._TryTriggerSkill) — SP_FULL.
  */
 const UNIT_TRIGGER_CORRECTIONS = Object.freeze({
   char_300_phenxi: { skchr_phenxi_1: 'DEFAULT' },
+  char_4247_oxi: { skchr_oxi_3: 'SP_FULL' },
 });
 
 /**
