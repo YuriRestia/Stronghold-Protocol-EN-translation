@@ -19,7 +19,8 @@
 //        &enemies=hard-normal-rN | hard-boss-r14 (Final Assault) | hard-hidden-r15 (Hidden Core: both on the boss field,
 //        the own pieces on its left half, the partner's captured board on the right) | empty | preset:<name> (default hard-normal-r13) &speed=1|2|4 (also changed mid-battle: runner.setSpeed) &imp=0 (normal
 //        rendering) &legacy=1 (old box) &fight=1 (start the battle on load) &notes=ours (Sakiko's notes drawn by our
-//        fallback renderer instead of her official effects, to compare)
+//        fallback renderer instead of her official effects, to compare) &attacks=once (operators play each attack clip
+//        once, the upstream #506 look, instead of looping it: render/spine.js attackLook; also switched mid-battle)
 // Operators: the pool's (data/chess.json, normal and elite forms) and the Custom Squad picks (自选: the DIY slots of
 // tier 5 / 6 filled with any operator a slot may field that has a kit — KITTED_CHARS; no module). 补位 stand-ins are not
 // offered. Deploying is the match's prep: "Add to bench" puts the pick in the first free bench slot, then it is dragged
@@ -53,6 +54,7 @@
 import { render } from '../vendor/preact.module.js';
 import { html } from '../js/ui/components.js';
 import { createFieldView } from '../js/render/app.js';
+import { attackLook } from '../js/render/spine.js';
 import { data } from '../js/data.js';
 import { assets } from '../js/assets.js';
 import { genUrl } from '../js/gen.js';
@@ -260,6 +262,10 @@ async function main() {
   $('impostors').checked = q.get('imp') !== '0';
   $('legacy').checked = q.get('legacy') === '1';
   $('note-ours').checked = q.get('notes') === 'ours';
+  // operators' attack clips: loop over the rhythm (the game) or play once per attack (upstream #506), live
+  attackLook.playOnce = q.get('attacks') === 'once';
+  const renderLook = () => { for (const b of $('attack-look').querySelectorAll('button[data-look]')) b.setAttribute('aria-pressed', String((b.dataset.look === 'once') === attackLook.playOnce)); };
+  renderLook();
 
   const stage = data.lookup('stages', template.spec.stageId);
   // the deploy field of a wave: the normal board, or the own (left) half of the boss field (Final Assault / Hidden Core)
@@ -484,6 +490,7 @@ async function main() {
     if ($('impostors').checked) p.delete('imp'); else p.set('imp', '0');
     if ($('legacy').checked) p.set('legacy', '1'); else p.delete('legacy');
     if ($('note-ours').checked) p.set('notes', 'ours'); else p.delete('notes');
+    if (attackLook.playOnce) p.set('attacks', 'once'); else p.delete('attacks');
     for (const [k, v] of [['layers', layers], ['bonus', bonus]]) { const s = countsParam(v); if (s) p.set(k, s); else p.delete(k); }
     p.delete('fight');
     history.replaceState(null, '', `${location.pathname}?${p}`);
@@ -1295,6 +1302,21 @@ async function main() {
     if (runner?.setSpeed?.(speed)) view.setLocalFeed({ on: true, speed });
   };
   $('impostors').onchange = () => { sync(); view.setSettings(settings()); };
+  $('attack-look').onclick = (e) => {
+    const b = e.target.closest?.('button[data-look]');
+    if (!b) return;
+    attackLook.playOnce = b.dataset.look === 'once';
+    renderLook();
+    sync();
+  };
+  // the frame rate and what the crowd rules do (render/crowd.js impostors, render/vfx/system.js crowd budget), each second
+  setInterval(() => {
+    const st = view.stats?.();
+    if (!st) return;
+    const fx = st.officialFx;
+    $('perf').textContent = `${Math.round(st.fps)} fps · ${st.units} units · impostors ${st.impostor ? `every ${st.impostor} frames` : 'off'}`
+      + (fx ? ` · effects ${fx.effects}, particles ${fx.particles}${fx.crowded ? `, crowd budget on (${fx.merged} merged)` : ''}` : '');
+  }, 1000);
   $('legacy').onchange = () => { sync(); view.setSettings(settings()); };
   // Sakiko's notes: her official projectile prefabs or our fallback (render/fx/notes.js) — from the next note launched
   $('note-ours').onchange = () => { sync(); view.setSettings(settings()); };

@@ -281,11 +281,12 @@
   <!-- the battle controls: a bar of their own at the bottom (sandbox.js floatPanel: drag the grip to move it, the corner to resize) -->
   <section class="sb sb-bar brackets" id="bar" aria-label="Battle controls">
     <div class="sb-body">
-      <div class="sb-head sb-grip" title="Drag to move"><span class="sb-grip__dots" aria-hidden="true">⠿</span><h1>Battle</h1><span class="sb-hint" id="tick" aria-live="off"></span></div>
+      <div class="sb-head sb-grip" title="Drag to move"><span class="sb-grip__dots" aria-hidden="true">⠿</span><h1>Battle</h1><span class="sb-hint" id="tick" aria-live="off"></span><span class="sb-hint" id="perf" aria-live="off"></span></div>
       <div class="sb-bar__unit" id="bar-unit"></div>
       <div class="sb-bar__row">
         <button class="sb-go" id="fight" type="button">Start combat</button>
         <div class="sb-ctl" id="speed" role="group" aria-label="Battle speed and frame step"><button type="button" data-speed="1" aria-pressed="false">1×</button><button type="button" data-speed="2" aria-pressed="true">2×</button><button type="button" data-speed="4" aria-pressed="false">4×</button><span class="sb-sep"></span><button id="pause" type="button" disabled>Pause</button><button id="step1" type="button" disabled title="One frame (1/30 s of battle)">+1</button><button id="step10" type="button" disabled title="Ten frames">+10</button></div>
+        <div class="sb-ctl" id="attack-look" role="group" aria-label="Operator attack clips" title="Operators' attack clips: loop over the attack rhythm (the game now) or play once per attack (upstream #506)"><button type="button" data-look="loop" aria-pressed="true">Loop attacks</button><button type="button" data-look="once" aria-pressed="false">Play once</button></div>
         <div class="sb-bar__grp"><button id="clear" type="button">Clear board</button></div>
         <div class="sb-bar__grp" id="bank-row" hidden><button id="bank" type="button" disabled>Bank stacks</button><button id="bank-next" type="button" disabled>Bank + next round</button></div>
       </div>

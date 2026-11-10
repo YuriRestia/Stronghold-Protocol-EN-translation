@@ -61,6 +61,9 @@ export const MAX_WIND_SPEEDUP = 2.5;
 const SKILL_CLIP_MIN = 0.2;
 /** (fork) Game seconds before the next strike frame at which an operator's unconfirmed rhythm loop drops to rest. */
 const RHYTHM_DROP_MARGIN = 0.08;
+/** (fork) Dev sandbox switch (public/dev/sandbox.js "Play once"): operators play each attack clip once at the rhythm's
+ *  speed, the upstream #506 look (221e6b8d), instead of looping it over the rhythm. Nothing in a match sets it. */
+export const attackLook = { playOnce: false };
 // (fork) a predicted skill swing (skillSwingLead) whose attack has not shown up yet holds this far (clip s) before its
 // strike frame, for at most SKILL_HOLD_MAX game s, then gives up (back to rest, no new prediction until a strike)
 const SKILL_HOLD_BEFORE = 0.05;
@@ -1000,7 +1003,7 @@ export class SpineActor {
     // its frame 0 after the strike and swung a second time, half a second late (维娜·维多利亚 S1)
     const single = !!clip.single;
     const per = this.clipPerAttack || single;
-    const rhythm = !once && !per;
+    const rhythm = !once && !per && !attackLook.playOnce;
     // (fork) an operator's rhythm loop already swinging: this attack takes the coming swing, no restart
     if (rhythm && this.mode === 'attack' && this.current === loop && this._confirmSwing(loopDur, hit, iv, lead)) return true;
     // clip per attack: its own speed, sped up only when the attacks come quicker than the clip
@@ -1039,7 +1042,7 @@ export class SpineActor {
     // clip per attack: its own speed (ts 1), faster only when the attacks come quicker than the clip
     const ts = once ? 1 : per ? clampN(loopDur / Math.min(this.interval, loopDur), 1, 4) : clampN(loopDur / this.interval, 0.35, 4);
     const hit = this._hitTime(loop, loopDur);
-    const rhythm = !once && !per;
+    const rhythm = !once && !per && !attackLook.playOnce;
     // (a clip-per-attack actor still playing the previous attack's clip was not wound up for this one; an operator's
     // rhythm loop still running goes on, re-phased below)
     const wasAttacking = this.mode === 'attack' && this.current === loop
