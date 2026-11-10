@@ -13,6 +13,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Each outfit (Curator, Summer Flowers FA075, Glowing Flame in the Night) shows its own version of the blast, as in the official game. All outfits use the same sound, as in the official data.
 - What the blast does is unchanged: arts damage to the enemies within 1.7 tiles and Cinder on each of them, so a blast can set off the next one. This already matched the official game. One official sound file was added.
 
+### Plugin rooms survive a busy server
+
+- A plugin room's match no longer ends with "the match host stopped" when the server is busy as the match starts. The hang watchdog (10 s without a heartbeat) counted from the moment the match process was created, so a slow start (Node itself, its modules, the room's 13 MB of data) on a loaded machine looked like a hung plugin. The watchdog now counts from the process's first heartbeat, sent as soon as the room's data arrives and before any plugin code runs; a process that sends nothing at all for 60 s still ends as a start failure. While it checks and reads the data, the match process now lets its heartbeats out between files.
+- Sandboxed plugin scripts work in a checkout whose `node_modules` is a link to another folder (a git worktree): the sandbox may now read that folder too, and nothing else. Before, every sandboxed plugin failed there with an access error.
+
 ### Skills cast when the official game casts them
 
 - Every skill the mode casts by itself now follows the live official client's rules for when to cast (the trigger table of the current CN season). Before, the game used the previous season's table plus several rules of its own. Skills that cast automatically in the official game anyway (they start by their own rule) are unchanged.
