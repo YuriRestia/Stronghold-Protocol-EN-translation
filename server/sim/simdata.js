@@ -210,6 +210,8 @@ export function normalizeChess(rec) {
     canHitFly: rec.canHitFly ?? null,
     targetPriority: rec.targetPriority ?? null,
     splashRadius: rec.splashRadius ?? null,
+    // (fork) its attack clip { dur, hit } (tools/build-data.mjs operatorAttackAnims): ai.js allyCastWindup; null = none known
+    attackAnim: normAttackAnim(rec.attackAnim),
     trait: typeof rec.trait === 'string' ? rec.trait : (rec.trait?.desc ?? rec.traitText ?? ''),
     traitBb: rec.traitBb ?? (rec.trait && typeof rec.trait === 'object' ? { ...(rec.trait.bb || {}) } : flattenBlackboard(rec.traitBlackboard)),
     immune: immuneSet(rec.immunities ?? rec.immune),
@@ -341,6 +343,7 @@ export function normalizeToken(id, t0, ownerChessId = null, variantOverride = nu
     projectile: t.projectile ?? null,
     canHitFly: t.canHitFly ?? null,
     targetPriority: t.targetPriority ?? null,
+    attackAnim: normAttackAnim(t.attackAnim),   // (fork) ai.js allyCastWindup
     untargetable: t.untargetable ?? /不会受到攻击|不会成为/.test(desc),
     // abnormal effects held from the start (tokens.json `abnormal`, PRTS summon pages): 'healFree' 禁疗, 'isolated' 孤立
     abnormal: Array.isArray(t0.abnormal) ? t0.abnormal.filter((x) => typeof x === 'string') : [],

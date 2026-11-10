@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { COLS } from '../../server/sim/constants.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { loadoutOptions } from '../../shared/protocol.js';
 import { kitCoverage } from '../../tools/kit-coverage.mjs';
 
@@ -1552,7 +1553,10 @@ test('号角 S1 / 塞雷娅 S1 (自动触发, elite: 2 charges): hits never arm 
     for (let i = 0; i < 3; i++) h.b.dealDamage(e, u, { amount: 10, type: 'phys' });
     assert.equal(starts().length, 0, 'hits do not arm it');
     assert.ok(h.runUntil(() => starts().length >= 2, 15), 'both charges are cast');
-    const shots = h.hooksOf('attack').filter((c) => c.attacker === u && c.isSkill);
+    // a charge arms at its attack's cast start; the skill attack hits one wind-up later (official cast → hit)
+    const shotsOf = () => h.hooksOf('attack').filter((c) => c.attacker === u && c.isSkill);
+    assert.ok(h.runUntil(() => shotsOf().length >= 2, 3), 'both skill attacks hit');
+    const shots = shotsOf();
     assert.equal(new Set(shots.slice(0, 2).map((c) => c.t)).size, 2, 'one charge per attack');
     done(h);
   }
@@ -1575,9 +1579,11 @@ test('号角 S1 / 塞雷娅 S1 (自动触发, elite: 2 charges): hits never arm 
     h.run(1);
     assert.equal(starts(), 0, 'hits do not arm it, nor does the injured ally alone: it waits for her attack');
     assert.ok(h.runUntil(() => starts() === 1, 2), 'her attack casts one charge');
+    h.run(allyCastWindup(u) + 2 / 30);   // the charge arms at the cast start; the heal lands one wind-up later (official cast → hit)
     assert.ok(!u.skill.pending, 'and is the heal');
     assert.equal(u.skill.charges, 1, 'the second charge stays stored');
     assert.ok(h.runUntil(() => starts() === 2, 5), 'her next attack heals the other one');
+    assert.ok(h.runUntil(() => heals(h, u).length >= 2, 2), 'the second heal lands one wind-up after its cast');
     assert.equal(heals(h, u).length, 2);
     assert.notEqual(heals(h, u)[0].target, heals(h, u)[1].target);
     assert.ok(!u.skill.pending);

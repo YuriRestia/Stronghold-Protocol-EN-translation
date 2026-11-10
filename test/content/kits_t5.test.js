@@ -145,7 +145,10 @@ test('烛煌 S3: its target and the enemies within the 1.7 splash, BAT −1.3 s,
   // official SEARCH casts between two attacks (the enemy is in range as it arrives): the attack in progress keeps its
   // 1.6 s cooldown, the first skill attack (BAT 0.3 s from then on) follows — wait for it
   assert.ok(h.runUntil(() => h.hooksOf('damaged').some((c) => c.source === u && c.dmg.isSkill && c.dmg.isAttack), 3), 'the first skill attack');
-  h.run(1); // a few more shots, so the burn burst below has spent ammo to refill (it cannot exceed the 18 she holds)
+  // the skill cast between two attacks: the attack in progress was cast under the 1.6 s cooldown and its hit (this skill attack) lands one
+  // wind-up later (official cast → hit), so the next shots come at the next cooldown end: wait for a few of them
+  assert.ok(h.runUntil(() => h.hooksOf('ammoUsed').length >= 4, 5), 'a few shots');
+  h.run(0.5); // a few more shots, so the burn burst below has spent ammo to refill (it cannot exceed the 18 she holds)
   const hitIds = new Set(h.hooksOf('damaged').filter((c) => c.source === u && c.dmg.isSkill && c.dmg.isAttack).map((c) => c.target.id));
   assert.equal(hitIds.size, 3, 'group attack: the three stand within 1.7 of each other (PRTS 备注 "攻击溅射半径1.7")');
   // a burn burst anywhere: +ammo, 熔点引爆 elemental damage and heal

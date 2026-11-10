@@ -232,6 +232,8 @@ test('S2 “你须愧悔” (MANUAL, attack SP 11 / 10, data SEARCH): the attack
     // attack SP: the next cast after spCost more attacks
     const n1 = u.stats.attacks;
     assert.ok(h.runUntil(() => u.skill.activations === 2, 60), `T${tier}: cast again`);
+    // the cast's own attack is counted when it hits, one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+    h.runUntil(() => u.stats.attacks - n1 >= sk.spCost, 3);
     assert.equal(u.stats.attacks - n1, sk.spCost, `T${tier}: after ${sk.spCost} attacks`);
     done(h);
   }

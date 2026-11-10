@@ -14,7 +14,7 @@ const DEFS = { chess: { t_plain: chessRec({ id: 't_plain', profession: 'TANK', s
 /** Provider on (10,4) facing right with 隐德来希 on (10,5) and 折桠 on (11,4) at half HP (both "无法被友方角色治疗"). */
 function field(provider, extra = []) {
   const h = makeBattle({
-    defs: DEFS, autoFinish: false, timeLimit: 120,
+    defs: DEFS, autoFinish: false, timeLimit: 120, hooks: ['heal'], captureNoisy: true,
     units: [{ row: 10, col: 4, ...provider }, { chessId: REAPER, row: 10, col: 5 }, { chessId: UNYIELD, row: 11, col: 4 }, ...extra],
   });
   h.step();
@@ -25,9 +25,12 @@ function field(provider, extra = []) {
 
 /** HP gained over `secs` s against the unit's own 生命回复速度 (at most ~1 HP pending in the regeneration tick). */
 function regenOver(h, u, secs) {
-  const hp0 = u.hp, rate = u.s.hpRegen;
+  const hp0 = u.hp, rate = u.s.hpRegen, n0 = h.hooksOf('heal').length;
   h.run(secs);
-  return { gained: u.hp - hp0, expected: rate * secs, rate };
+  // a direct heal of a provider's attack can land in this window (one wind-up after its cast: official cast → hit, ai.js
+  // allyCastWindup): only the regeneration is measured, so what the heals gave is taken off
+  const healed = h.hooksOf('heal').slice(n0).filter((c) => c.target === u && !c.opts?.regen).reduce((a, c) => a + c.amount, 0);
+  return { gained: u.hp - hp0 - healed, expected: rate * secs, rate };
 }
 
 const PROVIDERS = [

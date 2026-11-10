@@ -151,14 +151,18 @@ test('E3 real stage + real wave: 卡涅利安 targets AND damages every enemy on
     });
     const u = h.unit(id);
     const rows = [];
+    let castWant = null, lastCast = null;
     const hit = new Map(); // attackId → the enemies its damage reached
     // (beforeAttack, after every content hook: the targets of the attack and the enemies on her range at that moment;
     // the attack that follows takes the next attackId)
     h.b.on('beforeAttack', (c) => {
       if (c.attacker !== u) return;
       const p = effectiveProfile(u);
-      const want = new Set(h.b.enemiesInKeys(u.rangeKeys, u, p));
+      // official cast → hit: the targets were locked when the cast started, so the enemies on her range are those of the
+      // cast start (kept below), less the ones that died during the wind-up; with no cast (no clip), those of now
+      let want = new Set(h.b.enemiesInKeys(u.rangeKeys, u, p));
       for (const e of h.b.blockedTargets(u, p)) want.add(e);
+      if (castWant) want = new Set([...castWant].filter((e) => e.alive && e.deployed !== false));
       rows.push({ attackId: h.b._attackSeq + 1, got: c.targets.length, want, all: [...want].every((e) => c.targets.includes(e)) });
     }, { priority: -2000 });
     h.b.on('damaged', (c) => {
@@ -166,7 +170,15 @@ test('E3 real stage + real wave: 卡涅利安 targets AND damages every enemy on
       if (!hit.has(c.dmg.attackId)) hit.set(c.dmg.attackId, new Set());
       hit.get(c.dmg.attackId).add(c.target);
     }, { priority: -2000 });
-    h.runToEnd(rc.combatTimeLimit + 5);
+    for (let limit = h.b.time + rc.combatTimeLimit + 5; !h.b.finished && h.b.time < limit;) {
+      h.step();
+      if (u.cast && u.cast !== lastCast) {   // a cast just started: the enemies on her range now
+        const p = effectiveProfile(u);
+        castWant = new Set(h.b.enemiesInKeys(u.rangeKeys, u, p));
+        for (const e of h.b.blockedTargets(u, p)) castWant.add(e);
+      } else if (!u.cast) castWant = null;
+      lastCast = u.cast;
+    }
     assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
     const crowded = rows.filter((r) => r.want.size >= 3);
     assert.ok(crowded.length >= 1, `S${skillIndex + 1}: attacks into a crowd (${crowded.length}/${rows.length})`);

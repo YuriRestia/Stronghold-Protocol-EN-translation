@@ -9,6 +9,13 @@ import { UF } from '../../../../shared/constants.js';
 // (fork) the sim's regular enemy collider (server/sim/constants.js ENEMY_COLLIDER_RADIUS) and tick (30 per game s)
 const COLLIDER = 0.1;
 const TICK = 1 / 30;
+/** (fork) How long (game s) past its hit a cast is kept, for its 'atk' / 'atkCancel' to arrive (a local feed batches ticks). */
+export const CAST_GRACE = 0.5;
+/** (fork) A cast whose hit ('atk') has not shown up this long (game s) past its due time was cut: back to rest. */
+export const CAST_MISS = 0.15;
+/** (fork) Game s ahead a unit's next cast keeps its last attack clip looping (SpineActor.holdCast), and that hold (real s). */
+export const CAST_BRIDGE = 0.3;
+const CAST_BRIDGE_HOLD = 0.1;
 
 /** (fork) The board tiles ("row,col") a unit on (row, col) facing `dir` reaches with `grid` ([dr, dc] facing RIGHT). */
 export function rangeTiles(grid, row, col, dir) {
@@ -98,8 +105,23 @@ export function createWindUpLookahead({ views, woundUp, castStart, skip = null, 
   const rates = new Map();
   // (fork) each unit's last 'atk' (kind, target id): the predicted skill swing's (run)
   const lastAtk = new Map();
+  // (fork) the operators' attack casts (['atkCast', id, windUp, targetId], server/sim/ai.js startAllyCast — the official
+  // cast → hit order): id → { start, due (game s), target, wound, cancel }. The clip starts from its first frame when the
+  // cast is rendered, at the speed that brings its strike frame to the hit (windCasts); ['atkCancel', id] (a stun, its
+  // targets gone) drops it to rest when rendered
+  const casts = new Map();
   function onUpcoming(e, t) {
     if (e[0] === 'skill') { upSkill.set(e[1], !!e[2]); return; }
+    if (e[0] === 'atkCast') {
+      const p = casts.get(e[1]);
+      if (!p || Math.abs(p.start - t) > TICK / 2) casts.set(e[1], { start: t, due: t + (Number(e[2]) || 0), target: e[3] ?? 0, wound: false, cancel: null, seen: false });
+      return;
+    }
+    if (e[0] === 'atkCancel') {
+      const p = casts.get(e[1]);
+      if (p && t >= p.start - 1e-9) p.cancel = t;
+      return;
+    }
     if (e[0] === 'cast') {
       upCast.set(e[1], { slot: e[2] | 0, t });
       if (e.length > 4 && !woundUp.has(e)) {
@@ -108,7 +130,18 @@ export function createWindUpLookahead({ views, woundUp, castStart, skip = null, 
       }
       return;
     }
-    if (e[0] !== 'atk' || woundUp.has(e) || CHAIN_KINDS.has(e[3])) return;
+    if (e[0] !== 'atk' || CHAIN_KINDS.has(e[3])) return;
+    // (fork) the hit of a cast (windCasts): the cast plays its clip from the cast start, so nothing to wind up here — also
+    // while that start is not rendered yet (the client-side render clock trails the sim by LOCAL_LOOKAHEAD, so the hit
+    // can be in sight before its cast is); its kind and target for this cast and the next
+    const cast0 = casts.get(e[1]);
+    if (cast0 && Math.abs(cast0.due - t) <= TICK) {
+      cast0.seen = true;
+      cast0.kind = e[3];
+      if (cast0.wound) { lastAtk.set(e[1], { kind: e[3], target: e[2] }); woundUp.add(e); }
+      return;
+    }
+    if (woundUp.has(e)) return;
     if (skip && skip(e)) return;   // (fork) an attack the caller winds up no clip for (render/app.js)
     const v = views.get(e[1]);
     if (!v || !v.windUp) return;
@@ -140,6 +173,40 @@ export function createWindUpLookahead({ views, woundUp, castStart, skip = null, 
       castStart(v, target, e[3], a ? { skip: a.windSkip || 0, left: a.windCastLeft || 0, skillOn } : { skillOn });
     }
   }
+  /**
+   * (fork) Play each attack cast as the official client does: once the render time reaches its cast start, the attack clip
+   * from its first frame (UnitView.castAttack), at the speed that brings its strike frame to the hit, with the official
+   * cast effects (castStart); a cast cut by the sim (['atkCancel']) drops to rest when that is rendered. The kind of the
+   * attack is its hit's when that is in sight (the cast does not name it), else the unit's last one; its target, the cast's.
+   */
+  function windCasts(renderT) {
+    for (const [id, p] of casts) {
+      const v = views.get(id);
+      if (!v || v.alive === false) { casts.delete(id); continue; }
+      if (p.cancel != null && renderT >= p.cancel - 1e-9) {
+        if (p.wound) v.cancelWindUp?.();
+        casts.delete(id);
+        continue;
+      }
+      // a swing cut without an ['atkCancel'] (an enemy's: a stun, 恐惧, 缴械 …): no hit by its due time → back to rest
+      if (p.wound && !p.seen && renderT > p.due + CAST_MISS) { v.cancelWindUp?.(); casts.delete(id); continue; }
+      if (renderT > p.due + CAST_GRACE) { casts.delete(id); continue; }
+      // the next cast close ahead: the last swing loops on to it (no rest pose between two casts of a steady rhythm)
+      if (!p.wound && renderT < p.start - 1e-9 && p.start - renderT <= CAST_BRIDGE) v.actor?.holdCast?.(CAST_BRIDGE_HOLD);
+      if (p.wound || renderT < p.start - 1e-9 || !v.castAttack) continue;
+      const last = lastAtk.get(id);
+      const kind = p.kind ?? (last ? last.kind : 'none');
+      const target = views.get(p.target) || (last ? views.get(last.target) : null) || null;
+      if (skip && skip(['atk', id, p.target, kind])) { casts.delete(id); continue; }
+      const a = v.actor;
+      if (attackClip && a) a.attackVariant = attackClip(v, target, kind, undefined);
+      if (a) a.skillAhead = upSkill.get(id) === true;
+      if (v.castAttack(p.due - p.start, renderT - p.start, kind, target)) {
+        p.wound = true;
+        castStart(v, target, kind, a ? { skip: a.windSkip || 0, left: a.windCastLeft || 0 } : {});
+      } else casts.delete(id);   // no clip to cast with: the 'atk' plays as it comes (the look-ahead)
+    }
+  }
   return {
     run(interp, renderT) {
       const snaps = interp.snaps || [];
@@ -154,6 +221,7 @@ export function createWindUpLookahead({ views, woundUp, castStart, skip = null, 
         rates.get(e[1]).push({ t, value: e[2] });
       });
       interp.forEachUpcoming(renderT, renderT + 1.5, onUpcoming);
+      windCasts(renderT);
       // (fork) a skill that replaces the coming attack, its SP full (skillNext: 维娜·维多利亚 S1): its clip starts from frame
       // 0 a whole wind-up before the predicted strike, its cast effects with it (SpineActor.skillSwingLead)
       if (skillNext) for (const [id, v] of views) {

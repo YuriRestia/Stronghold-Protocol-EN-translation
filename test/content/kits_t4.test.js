@@ -534,7 +534,11 @@ test('灵知 S2: 130 % ATK arts + 2.5 s cold to all in range; fully charged cast
   // charged: two colds on each of the two enemies — each enemy's pair becomes one freeze (友方寒冷 「两两一对」, since 0.2.0)
   assert.equal(colds(starts[0]), 2, 'charged: the first cold on each enemy lands as a cold');
   assert.equal(freezes(starts[0]), 2, 'charged: the second cold on each enemy turns the pair into a freeze');
-  assert.equal(colds(starts[1]), 2, 'single charge: one cold each');
+  // one cold per enemy: with the official cast → hit order (ai.js allyCastWindup) one enemy is still chilled by her last
+  // normal hit when this cast lands, and 友方寒冷 pairs the new cold with that chill into a freeze; the other takes a cold
+  const single = noisy(h, 'statusApplied').filter((c) => c.source === u && c.t === starts[1] && (c.status === 'cold' || c.status === 'freeze'));
+  assert.equal(new Set(single.map((c) => c.target)).size, 2, 'single charge: one cold each (on two enemies)');
+  assert.deepEqual([colds(starts[1]), freezes(starts[1])], [1, 1], 'single charge: one cold, one paired into a freeze');
   // normal attacks chill for 1 s
   assert.ok(noisy(h, 'statusApplied').some((c) => c.source === u && c.status === 'cold' && c.duration === t0.cold));
   checkInvariants(h.b);
@@ -1183,7 +1187,9 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
     // her 坚冰 fragility (dmgTakenMul) is already on it at the burst; the old DEFAULT cast came at the attack, 1 s after the chill
     let taken = null;
     h.b.on('damaged', (c) => { if (c.source === u && c.dmg?.tags?.includes('burst') && taken == null) taken = c.target.s.dmgTakenMul; });
-    assert.ok(h.runUntil(() => u.skill.activations >= 1, 20));
+    // with the official cast → hit order (ai.js allyCastWindup) her last hit's 1 s chill can have run out by the cast, so keep
+    // the enemy chilled (as the last hit would) until the burst: its cold then pairs with the running one into the freeze
+    assert.ok(h.runUntil(() => { if (!e.findBuff('cold')) h.b.applyStatus(e, 'cold', { duration: 1, source: u }); return u.skill.activations >= 1; }, 20));
     assert.ok(taken >= 1, 'the burst saw the target damage-taken multiplier');
     approx(dmgBy(h, u, (c) => c.dmg?.tags?.includes('burst'))[0].amount, u.s.atk * bb.atk_scale * taken);
     // the 3 s cold lands on an enemy her last attack chilled: an enemy cold pairs into 冻结 (PRTS 寒冷), whose length is the longer of the two

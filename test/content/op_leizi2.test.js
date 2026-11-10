@@ -12,6 +12,7 @@ import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { COLS } from '../../server/sim/constants.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../../data/${f}.json`, import.meta.url), 'utf8'));
 const CHESS = load('chess');
@@ -131,7 +132,8 @@ test('T1 明断 起飞: while no skill runs ground enemies never target her (a g
     h.run(3);
     assert.ok(h.hooksOf('damaged').some((c) => c.target === u && c.source === g), `T${tier}: now the ground shooter hits her`);
     const first = h.hooksOf('attack').find((c) => c.attacker === u);
-    approx(first.t - cast, 0.5, `T${tier}: her first attack once the landing is over`, 0.05);
+    // the attack is cast once the landing is over and hits one wind-up later (official cast → hit, ai.js allyCastWindup)
+    approx(first.t - cast, 0.5 + allyCastWindup(u), `T${tier}: her first attack once the landing is over`, 0.05);
     h.runUntil(() => !u.skill.active, 40);
     approx(h.b.time - cast, skillOf(tier, elite, S2).duration, `T${tier}: the landing counts in the 36 s`, 0.05);
     h.step();

@@ -115,15 +115,18 @@ test('S1 化被草木 (AUTO, DEFAULT + an ally of x-4 at ≤ half HP): her attac
     assert.ok(h.hooksOf('damaged').some((x) => x.source === u && x.target === e), `T${tier}: she attacks meanwhile`);
     a.hp = a.s.maxHp * 0.3; b.hp = b.s.maxHp * 0.45;
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast with the enemy on the x-1`);
+    // the skill arms at the cast start, the heal lands one wind-up later (official cast → hit, ai.js allyCastWindup)
+    assert.ok(h.runUntil(() => healsBy(h, u).length >= 1, 1), `T${tier}: the heal lands`);
     const first = healsBy(h, u)[0];
     assert.equal(first.target, a, `T${tier}: the lowest`);
     approx(first.amount, u.s.atk * sk.bb.heal_scale * guax(u, 0.3), `T${tier}: ${sk.bb.heal_scale * 100} % ATK`, 1e-3);
     const t0 = h.hooksOf('skillStart').find((x) => x.unit === u).t;
-    assert.ok(!h.hooksOf('damaged').some((x) => x.source === u && x.target === e && Math.abs(x.t - t0) < 1e-9), `T${tier}: that attack was the heal`);
+    assert.ok(!h.hooksOf('damaged').some((x) => x.source === u && x.target === e && x.t >= t0 - 1e-9 && x.t <= first.t + 1e-9), `T${tier}: that attack was the heal`);
     assert.ok(sownOf(u).has(key(a.tileR, a.tileC)), `T${tier}: the heal sowed`);
     if (elite) {
       a.hp = a.s.maxHp;
       assert.ok(h.runUntil(() => u.skill.activations === 2, 5), 'the second charge on the next attack');
+      assert.ok(h.runUntil(() => healsBy(h, u).length >= 2, 1), 'its heal lands');
       assert.equal(healsBy(h, u)[1].target, b, 'the ally still at ≤ half');
     }
     done(h);

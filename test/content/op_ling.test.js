@@ -5,6 +5,7 @@
 // SUM-Y 诗短梦长 at stage 1 (tier 5) / 3 (tier 6). Numbers from data/backups.json; the fidelity checklist of kits/README.md.
 // Run: node --test test/content/op_ling.test.js
 
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -207,7 +208,7 @@ test('S2 笑鸣瑟 (2 charges): her cast-attack strikes 2 enemies for 310 % / 37
     const sp0 = u.skill.sp;
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3), 'cast on her attack');
     const castAt = h.b.time;
-    h.run(0.6);
+    h.run(allyCastWindup(u) + 0.3); // her cast-attack hits one wind-up after the cast (its bolts land a little later) (official cast → hit, ai.js allyCastWindup)
     const mine = from(h, u).filter((x) => x.dmg.isSkill);
     assert.equal(mine.length, 2, 'her two targets');
     for (const x of mine) approx(x.amount, u.s.atk * sk.bb.atk_scale, 'her scale');

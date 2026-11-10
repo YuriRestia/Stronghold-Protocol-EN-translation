@@ -19,6 +19,7 @@ for (const entry of GUARDIANS) {
     p.hp = p.s.maxHp * 0.5;u.atkCd = 1;
     h.run(0.5);assert.equal(u.skill.activations, 0, 'wait for the attack interval');
     assert.ok(h.runUntil(() => u.skill.activations > 0, 1));
+    assert.ok(h.runUntil(() => p.hp > p.s.maxHp * 0.5, 1)); // the heal lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     assert.ok(p.hp > p.s.maxHp * 0.5, 'exact half HP is eligible');
     p.hp = p.s.maxHp * 0.2;
     assert.ok(h.runUntil(() => u.skill.activations >= 2, 4));

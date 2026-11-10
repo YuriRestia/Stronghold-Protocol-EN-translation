@@ -161,10 +161,15 @@ test('S2 无始无明 (AUTO, attack SP 9 / 7): the cast\'s attack throws the shi
     // two enemies on her own tile, blocked: the shield (1.2 tiles out, radius 1.0) never reaches her centre
     const a = h.spawn('enemy_dummy', { pos: [10, 5] }), b = h.spawn('enemy_dummy', { pos: [10, 5] });
     assert.ok(h.runUntil(() => u.blocking.length === 2, 1), `T${tier}: both blocked`);
+    // SP only between two casts: a skill that starts inside a plain attack's wind-up (official cast → hit) does not replace that attack
+    assert.ok(h.runUntil(() => !u.cast, 2), `T${tier}: between casts`);
     u.skill.gainSp(999);
     const n0 = h.hooksOf('damaged').length;
     assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast`);
+    // the cast's attack throws the shield one wind-up after the cast (official cast → hit): the flight is timed from the throw
+    assert.ok(h.runUntil(() => mine(h, u, n0).some((c) => c.dmg.isAttack), 2), `T${tier}: the throw`);
     const t0 = h.b.time;
+    h.run(0.3); // the 3 hits of the throw follow each other
     const throwHits = mine(h, u, n0).filter((c) => c.dmg.isAttack);
     assert.equal(new Set(throwHits.map((c) => c.dmg.attackId)).size, 1, `T${tier}: one attack`);
     for (const e of [a, b]) {
@@ -197,6 +202,8 @@ test('S2 shield: within 1.0 of it a targetable ground enemy slows it to 18°/s; 
     h.b.addBuff(u, { key: 'test:healFree', flags: { healFree: true, noHeal: true } }); // her 禁疗 (as in 我执)
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast`);
+    // the shield is thrown by the cast's attack, one wind-up after the cast (official cast → hit): the turn is timed from the throw
+    assert.ok(h.runUntil(() => h.hooksOf('damaged').some((c) => c.source === u && c.dmg.isAttack), 2), `T${tier}: the throw`);
     const t0 = h.b.time;
     const atk = u.s.atk; // at full HP (no 坚忍): the hits and heals below use it
     h.runUntil(() => h.hooksOf('damaged').some((c) => c.source === u && c.dmg.tags?.includes('hsgma2:shield')), 1);

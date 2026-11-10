@@ -452,19 +452,32 @@ test('real product path: a BattleSpec (S3 by loadout) on act2 m01 with a real wa
   const b = createBattleFromSpec(spec, ds, { recordEvents: false, quiet: true });
   const u = b.allyUnits.find((x) => x.uid === 1);
   assert.equal(u.def.skill.id, 'skchr_blaze2_3');
-  let picks = 0, offGrid = 0, splashOut = 0, casts = 0;
+  let picks = 0, offGrid = 0, splashOut = 0, casts = 0, lastCast = null;
+  const castChecked = new Set();
   b.on('skillStart', (c) => { if (c.unit === u) casts++; });
   b.on('attack', (c) => {
     if (c.attacker !== u || !u.skill.active) return;
     const s3 = keysOf(s3Grid(), u);
     // in 4-11 by its 0.1 collider (the range test since 0.3.0), or blocked by her
-    for (const t of c.targets) { picks++; if (!bodyInRange(t, s3) && t.blockedBy !== u) offGrid++; }
+    // official cast → hit: the targets are locked at the cast start, so a target that walked out of 4-11 during the
+    // wind-up still takes the hit; it was checked on 4-11 at the cast start (below). Any other target is checked now.
+    for (const t of c.targets) { picks++; if (!castChecked.has(t) && !bodyInRange(t, s3) && t.blockedBy !== u) offGrid++; }
   });
   b.on('damaged', (c) => {
     if (c.source !== u || !u.skill.active || !c.dmg.isSplash) return;
     if (!keysOf(s3Grid(), u).has(tileKey(c.target))) splashOut++;
   });
-  for (let i = 0; i < 110 * 30 && !b.finished; i++) b.step();
+  for (let i = 0; i < 110 * 30 && !b.finished; i++) {
+    b.step();
+    if (u.cast && u.cast !== lastCast) {   // a cast just started: its locked targets stand on 4-11 now
+      castChecked.clear();
+      if (u.skill.active) {
+        const s3 = keysOf(s3Grid(), u);
+        for (const t of u.cast.targets) { if (bodyInRange(t, s3) || t.blockedBy === u) castChecked.add(t); else offGrid++; }
+      }
+    }
+    lastCast = u.cast;
+  }
   assert.equal(b.errors.length, 0);
   assert.ok(casts >= 1, `S3 cast (${casts})`);
   assert.ok(picks > 10, `S3 attacks (${picks})`);

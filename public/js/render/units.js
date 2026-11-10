@@ -1840,6 +1840,31 @@ export class UnitView {
     return ok;
   }
 
+  /**
+   * (fork) An attack cast starts (the sim's ['atkCast', id, windUp], render/app/windup.js windCasts): the attack clip from its
+   * first frame — `elapsed` game s into it when the cast is rendered late —, at the speed that lands its strike frame
+   * `windUp` after the cast start (SpineActor.castAttack), facing `target`. True once started.
+   */
+  castAttack(windUp, elapsed, kind, target = null) {
+    if (!this.alive || !this.actor || !this.spineReady || typeof this.actor.castAttack !== 'function') return false;
+    this._attackForm(kind);
+    this._shotKind(kind, target);
+    this.actor.castStrike?.(this._stanceStrike());
+    const ok = this.actor.castAttack(windUp, elapsed);
+    if (!ok) this.actor.castStrike?.(null);
+    else this._faceAttack(target);
+    if (ok && this.imp) this.imp.dirty = true;
+    return ok;
+  }
+
+  /**
+   * (fork) An attack cast the sim cut (['atkCancel'], render/app/windup.js windCasts): back to rest now, as the official
+   * client's interrupted cast. Nothing while no swing is wound up.
+   */
+  cancelWindUp() {
+    if (this.actor?.cancelWindUp?.() && this.imp) this.imp.dirty = true;
+  }
+
   onHit() { this.flash = 1; }
 
   setSkill(on) {

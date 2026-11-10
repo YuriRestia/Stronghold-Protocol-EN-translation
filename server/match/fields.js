@@ -276,7 +276,9 @@ const perfNow = () => (globalThis.performance ? globalThis.performance.now() : D
 export function timelineSample(b) {
   const total = Number(b && b.total) || 0;
   const resolved = Number.isFinite(b && b.resolved) ? Math.max(0, Math.min(total, b.resolved)) : null;
-  const s = [Number(b && b.time) || 0, Number(b && b.killed) || 0, total, resolved];
+  // gt to the ms, as Battle.result() rounds its `time` (battle/lifecycle.js): the last sample IS the result's moment, also
+  // when the battle ends on a tick whose time has more decimals (755 / 30 s)
+  const s = [Math.round((Number(b && b.time) || 0) * 1000) / 1000, Number(b && b.killed) || 0, total, resolved];
   if (b && b.kind === 'unite') {
     let left = null;
     try { left = uniteLeft(b); } catch { left = null; }

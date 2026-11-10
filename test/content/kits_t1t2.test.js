@@ -8,6 +8,7 @@ import { getDefaultSource } from '../../server/sim/simdata.js';
 import { ELEMENT_GAUGE_MAX, PROJECTILE_SPEEDS, BOOMERANG_RETURN_SPEED } from '../../server/sim/constants.js';
 import { sortEnemyTargets, canTargetEnemy } from '../../server/sim/targeting.js';
 import { DRONE_TAG as ROCKROCK_DRONE } from '../../server/sim/content/kits/ops/chess_char_2_10-rockr.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 
 const ds = getDefaultSource();
 const raw = (id) => ds.rawChess(id);
@@ -341,7 +342,9 @@ test('1_09 跃跃 回环射手: each attack is a boomerang (out 15, back 3.75 ti
   assert.ok(u.s.interval < flight(3) / 2);
   const at = h.hooksOf('attack').filter((c) => c.attacker === u).map((c) => c.t);
   assert.ok(at.length >= 4 && at.length <= 7, `${at.length} attacks in 6 s`);
-  for (let i = 1; i < at.length; i++) assert.ok(Math.abs(at[i] - at[i - 1] - flight(3)) <= 2 * h.TICK, `gap ${(at[i] - at[i - 1]).toFixed(3)} ≈ ${flight(3)}`);
+  // the next cast waits for the catch, and its hit lands one wind-up after that cast (official cast → hit, ai.js allyCastWindup)
+  const pace = flight(3) + allyCastWindup(u);
+  for (let i = 1; i < at.length; i++) assert.ok(Math.abs(at[i] - at[i - 1] - pace) <= 2 * h.TICK, `gap ${(at[i] - at[i - 1]).toFixed(3)} ≈ ${pace}`);
   assert.ok(h.eventsOf('atk').filter((e) => e[1] === u.id).every((e) => e[3] === 'boomerang'));
   done(h);
   // 乐趣加倍: cnt boomerangs on the same path — cnt hits at the same moment, then one catch
@@ -466,12 +469,16 @@ test('1_14 格雷伊: 静电场 停顿 on the attacked target, ×talent_scale du
   const id = 'chess_char_1_14_a', bb = bbOf(id), t = tal(id);
   const h1 = run({ defs: { enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 10, col: 4 }], enemies: [{ key: 'e', pos: [10, 6] }] });
   h1.run(1);
+  // the hit (and its 停顿) lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  assert.ok(h1.runUntil(() => statuses(h1, 'sluggish', (c) => c.source === h1.unit(id)).length > 0, 3));
   approx(statuses(h1, 'sluggish', (c) => c.source === h1.unit(id))[0].duration, t.sluggish);
   const h2 = run({ defs: { enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 10, col: 4, carryState: READY }], enemies: [{ key: 'e', pos: [10, 6] }] });
   h2.run(1);
   const u = h2.unit(id);
   assert.ok(u.skill.active);
   approx(u.s.aspd - u.base.aspd, bb.attack_speed);
+  // the hit (and its 停顿) lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  assert.ok(h2.runUntil(() => statuses(h2, 'sluggish', (c) => c.source === u).length > 0, 3));
   approx(statuses(h2, 'sluggish', (c) => c.source === u)[0].duration, t.sluggish * bb.talent_scale);
   done(h1); done(h2);
 });
@@ -562,9 +569,13 @@ test('1_17 深靛: 光影迷宫 interval ×0.7, bound enemies take 12 % ATK ever
   h.b.applyStatus(a, 'bind', { duration: 30 });
   h.b.applyStatus(b, 'bind', { duration: 0.01 }); // b is free again right away
   const t0 = h.b.time;
+  // the bind is checked when each dot lands: a talent bind from the hit (one wind-up after the cast, ai.js allyCastWindup)
+  // can run out again before the end of the run
+  const boundAtDot = [];
+  h.b.on('damaged', (c) => { if (c.source === u && (c.dmg.tags || []).includes('dot')) boundAtDot.push(c.target === a || !!c.target.s.flags.bind); });
   h.run(6);
   const dot = dealt(h, u, (c) => c.t > t0 && (c.dmg.tags || []).includes('dot'));
-  assert.ok(dot.length >= 10 && dot.every((c) => c.target === a || c.target.s.flags.bind));
+  assert.ok(dot.length >= 10 && boundAtDot.length === dot.length && boundAtDot.every(Boolean));
   for (const c of dot.filter((c) => c.target === a)) approx(c.amount, u.s.atk * bb['indigo_s_2[damage].atk_scale']);
   const atks = h.hooksOf('attack').filter((c) => c.attacker === u && c.t > t0);
   assert.ok(atks.length > 0 && atks.every((c) => !c.targets.includes(a)), 'bound enemy never targeted');
@@ -777,6 +788,8 @@ test('2_05 哈洛德: 重症优先 heals the heaviest element load first with ×
   low.hp = low.s.maxHp * 0.3;
   elem.elem.neural = 900;
   h.step();
+  // the heal lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 5));
   const first = h.hooksOf('attack').find((c) => c.attacker === u);
   assert.equal(first.targets[0], elem, 'element-damaged ally first');
   approx(elem.elem.neural, 900 - u.s.atk * tbOf(id).ep_heal_ratio * bb.trait_scale, 'recovery ×1.6');
@@ -802,6 +815,8 @@ test('2_05 哈洛德 (user playtest #5 #3): 侵蚀 counts as element damage for 
   low.hp = low.s.maxHp * 0.3;
   eroded.elem.erosion = 900;
   h.step();
+  // the heal lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 5));
   const first = h.hooksOf('attack').find((c) => c.attacker === u);
   assert.equal(first.targets[0], eroded, 'the eroded ally is the heaviest element load');
   const e0 = eroded.elem.erosion;
@@ -817,6 +832,8 @@ test('2_06 莎草: 巧思乍现 next heal heal_scale × ATK; 博览古卷 barrie
   h.step();
   yak.hp = yak.s.maxHp * 0.2;
   h.step();
+  // the heal lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  assert.ok(h.runUntil(() => heals(h, u).length > 0, 5));
   const hh = heals(h, u)[0];
   approx(hh.amount, u.s.atk * bb.heal_scale, 'skill heal');
   approx(yak.findBuff('papyrs:shield').shield, u.s.atk * t['attack@scale'] * bb.shield_scale_skill, 'skill barrier');
@@ -826,6 +843,8 @@ test('2_06 莎草: 巧思乍现 next heal heal_scale × ATK; 博览古卷 barrie
   h2.step();
   y2.hp = y2.s.maxHp * 0.2;
   h2.step();
+  // the heal lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  assert.ok(h2.runUntil(() => heals(h2, u2).length > 0, 5));
   approx(heals(h2, u2)[0].amount, u2.s.atk);
   approx(y2.findBuff('papyrs:shield').shield, u2.s.atk * t['attack@scale'], 'talent barrier');
   assert.equal(y2.findBuff('papyrs:shield').timeLeft <= t['attack@shield_duration'], true);
@@ -1377,7 +1396,9 @@ test('2_10 洛洛: 自负此轭 drones stay locked on their target while the ski
   assert.equal(normal[0], other, 'without the lock the newcomer would be the target');
   const t0 = h.b.time;
   h.run(4);
-  const atks = h.hooksOf('attack').filter((c) => c.attacker === u && c.t > t0);
+  // an attack cast before the newcomer existed has its targets locked already (official cast → hit, ai.js allyCastWindup): only
+  // the attacks whose cast started after it count
+  const atks = h.hooksOf('attack').filter((c) => c.attacker === u && c.t - allyCastWindup(u) > t0 + 1e-9);
   assert.ok(atks.length > 0 && atks.every((c) => c.targets.length === 1 && c.targets[0] === other), 'body keeps normal targeting');
   const drones = h.hooksOf('damaged').filter((c) => c.source === u && c.t > t0 && c.dmg.tags?.includes(ROCKROCK_DRONE));
   assert.ok(drones.length > 0 && drones.every((c) => c.target === first && c.dmg.isSkill && !c.dmg.isAttack), 'drone stays locked');

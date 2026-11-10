@@ -201,15 +201,18 @@ export default {
               battle.addBuff(target, { key: `logos:lockSlow:${unit.id}`, duration: lockIv + LOCK_IDLE + 0.2, source: unit, mods: { moveMul: mul } });
             },
           },
-          onStart({ battle, unit }) { unlock(battle, unit); unit.mem.logosLockAt = null; },
-          onAttack({ battle, unit }) { unit.mem.logosLockAt = battle.time; },
+          onStart({ battle, unit }) { unlock(battle, unit); unit.mem.logosLockAt = null; unit.mem.logosCastAt = null; },
+          // the hit (the lock's idle check) and its cast start (the cadence: an ability's cooldown runs from its cast,
+          // the hit lands one wind-up later — ai.js startAllyCast)
+          onAttack({ battle, unit }) { unit.mem.logosLockAt = battle.time; unit.mem.logosCastAt = unit.lastCastAt ?? battle.time; },
           onTick({ battle, unit }) {
             const L = unit.mem.logosLock;
             // a stun / freeze breaks the lock; so does no attack for LOCK_IDLE past the cadence
             if (L && (!unit.canAct || !L.target.alive || battle.time - unit.mem.logosLockAt > lockIv + LOCK_IDLE + 1e-9)) unlock(battle, unit);
             if (!unit.canAct) return;
-            // 攻击间隔固定为0.5s: the next attack exactly lockIv after the last one (the engine counts atkCd down right after)
-            const at = unit.mem.logosLockAt;
+            // 攻击间隔固定为0.5s: the next attack cast exactly lockIv after the last one (the engine counts atkCd down right
+            // after), so its hits are lockIv apart too
+            const at = unit.mem.logosCastAt;
             if (at == null) { unit.atkCd = Math.min(unit.atkCd, lockIv); return; }
             const left = at + lockIv - battle.time;
             unit.atkCd = left > 1e-6 ? left + battle.dt : 0;

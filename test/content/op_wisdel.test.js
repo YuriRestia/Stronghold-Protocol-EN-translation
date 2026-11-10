@@ -5,6 +5,7 @@
 // back from data/backups.json (the form of that slot status); the fidelity checklist of kits/README.md.
 // Run: node --test test/content/op_wisdel.test.js
 
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -268,7 +269,7 @@ test('S1 定点清算 (AUTO, attack SP 4 / 3, data DEFAULT): the next attack spl
     const sp = h.spawn('enemy_dummy', { pos: [10, 9.05] });   // 1.05: only the 1.1 splash
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 4), `${label(f)}: cast on her next attack`);
-    h.run(2);
+    h.run(2 + allyCastWindup(u)); // the hit (and its aftershocks) start one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     const atk = u.s.atk;
     const hits = from(h, u).filter((c) => !tag(c, 'wisdel:bomb') && c.dmg.isSkill);
     const n = (elite && mod ? 2 : 1) + 2;

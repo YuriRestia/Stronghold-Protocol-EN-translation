@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -261,9 +262,10 @@ test('S3 延异视阈 (MANUAL, data SEARCH + SKILL_RANGE on its 3-4): cast with 
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 3-4 while on`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
     const more = [h.spawn('enemy_dummy', { pos: [10, 6] }), h.spawn('enemy_fly', { pos: [9, 7] }), h.spawn('enemy_dummy', { pos: [11, 8] })];
-    const a0 = h.hooksOf('attack').filter((c) => c.attacker === u).length;
+    // an attack whose cast started before these enemies existed has locked its targets without them (official cast → hit)
+    const tMore = h.b.time + allyCastWindup(u) + 1e-6;
     h.run(5);
-    const atks = h.hooksOf('attack').filter((c) => c.attacker === u).slice(a0);
+    const atks = h.hooksOf('attack').filter((c) => c.attacker === u && c.t > tMore);
     assert.ok(atks.length >= 2 && atks.every((c) => c.targets.length === 3), `T${tier}: 3 targets per attack`);
     assert.ok(atks.every((c) => c.targets.every((e) => [far, ...more].includes(e))));
     h.runUntil(() => !u.skill.active, 40);

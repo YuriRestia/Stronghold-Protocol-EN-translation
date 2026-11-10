@@ -5,6 +5,7 @@
 // slot status); the fidelity checklist of kits/README.md item by item.
 // Run: node --test test/content/op_mantra.test.js
 
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -178,6 +179,8 @@ test('S3 无言为真 (MANUAL, data SEARCH + SKILL_RANGE on its 3-17 (CASTER row
     h.b.addBuff(sneak, { key: 'test:stealth', flags: { stealth: true } });
     h.step();
     assert.ok(sneak.s.flags.reveal, `T${tier}: revealed on her range`);
+    // the attack cast at the skill start locked its targets before the stealthy enemy was there (official cast → hit): count the attacks after it
+    h.run(allyCastWindup(u) + 0.05);
     const a0 = h.hooksOf('attack').filter((c) => c.attacker === u).length;
     h.run(4);
     const atks = h.hooksOf('attack').filter((c) => c.attacker === u).slice(a0);

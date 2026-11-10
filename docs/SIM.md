@@ -658,6 +658,26 @@ the 2019-12-24 update a non-integer frame count is rounded (四舍五入; before
 non-integer count still ends on the tick that crosses 0 — ⌈30 × interval⌉ ticks (1.2 s = 36, 1.25 s = 38; 能天使's
 0.678 s is 21 here, 20 frames officially): an older difference from the official rounding, not changed by this rule.
 
+**Operator attacks: cast → hit** (fork, the official order: `AbilityStandard._DoCast` pre-delay → `ExecuteSpell` → post-delay;
+`EasyToStartAbility` `_waitForAttackEvent` — the pre-delay waits for the clip's attack event). When the cooldown is 0
+and a target is found (`ai.js updateAlly`, after `skill.onAboutToAttack()`: a "next attack" skill arms at the cast), the
+attack **casts**: the cooldown restarts at once (`interval`), `lastCastAt` is stamped, the targets are locked
+(`u.cast`) and `['atkCast', id, windUp, targetId]` is sent; the hit (`performAttack`: damage / heal, SP, the attack
+count, hooks, `'atk'`) lands **one wind-up later** (`allyCastTick`). Wind-up = `allyCastWindup`: the strike frame of the
+unit's attack clip × the official clip scale `clamp(interval / clipDur, 0.1, 2.5)` (`AbstractAnimatedAbility.
+UpdatePlaybackSpeed`, disassembled: `MIN_ANIM_SCALE`, `_maxAnimScale` [ASSUMED on every basic attack];
+`ALLY_ANIM_SCALE_MIN` / `_MAX`), at most the interval, rounded up to whole ticks; the clip is the data's `attackAnim`
+(DATA.md; the default model's clip — outfits never change it). No `attackAnim` (summons the manifest lacks, the older
+versions' data, test stand-ins) = wind-up 0: the old rule, the hit as the cooldown ends. During the wind-up the cast is
+cut — no hit, `['atkCancel', id]`, the cooldown freed to 0 [ASSUMED: ResetCooldownStrategy not read] — by a stun /
+freeze / sleep (`canAct`), 缴械, death or retreat, or the attack switched off (`noAttack`). At the hit the locked
+targets still alive and selectable take it (a target that walked out of range is still hit — PRTS 作战机制, as an
+enemy's swing); none left ⇒ it picks again; nobody ⇒ cut (`_interuptIfTargetDead`). A skill that started or ended
+during the wind-up (`castMode`: skill on/off, heal or attack) picks again with the attack it has then. A kit's fixed
+cadence counts from the cast (`lastCastAt`: 逻各斯 S2's 0.5 s), as an ability's cooldown does. Bot and rehearsal battles
+run the same rule (it is gameplay); only the two events are display (`render/app/windup.js windCasts` plays the clip
+from frame 0 at the cast).
+
 **Which bucket (PRTS 游戏数据基础 属性基本公式 / 作战机制, DESIGN §20.10).** `Σpct` is the official **直接乘算** class — its
 values are summed (`A = (A₀ + D_p)(1 + D_t)`, D_t = t₁ + … + tₙ): a skill's or talent's "攻击力+X%" **and** every "+X%"
 ATK / DEF / max HP bonus of the 卫戍 systems — 盟约, 策略 (bands), 装备, 机变 cards, the per-layer 特质 (PRTS

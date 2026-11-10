@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 
 const ds = getDefaultSource();
 const ID = 'chess_char_1_17_a';      // 深靛 (normal: trait times 3)
@@ -57,7 +58,8 @@ test('a target in range while she holds energies: attacked at once, the energies
   const h = field({ enemies: [{ key: 'e', pos: [10, 6], time: 12 }] });
   const u = h.unit(ID);
   assert.ok(h.runUntil(() => attacksOf(h, u).length === 1, 15));
-  approx(h.b.time, 12, 'attacked in the tick the enemy appeared (the full store idled with the attack ready)', 2 * TICK);
+  // the cast starts in the tick the enemy appeared; its hit lands one wind-up later (official cast → hit, ai.js allyCastWindup)
+  approx(h.b.time, 12 + allyCastWindup(u), 'attacked in the tick the enemy appeared (the full store idled with the attack ready)', 2 * TICK);
   assert.equal(u.trait.stored, 0, 'released with the attack (before the bolt lands)');
   h.run(1);
   const hits = h.hooksOf('damaged').filter((c) => c.source === u && c.dmg.isAttack);
@@ -76,9 +78,10 @@ test('a bind on her only target is no valid target: her next attack check stores
   const [e] = h.enemies();
   h.b.applyStatus(e, 'bind', { duration: 4 });
   assert.ok(h.runUntil(() => u.trait.stored === 1, iv + 1));
-  approx(h.b.time - t0, iv, 'stored at her next attack check, during the bind');
+  // t0 is the first hit, one wind-up after its cast started; the interval counts from the cast (official cast → hit)
+  approx(h.b.time - t0, iv - allyCastWindup(u), 'stored at her next attack check, during the bind');
   assert.equal(attacksOf(h, u).length, 1, 'no attack at the bound enemy');
-  assert.ok(h.runUntil(() => attacksOf(h, u).length === 2, iv + 1));
+  assert.ok(h.runUntil(() => attacksOf(h, u).length === 2, iv + 1 + allyCastWindup(u)));   // the hit lands one wind-up after its cast
   approx(h.b.time - t0, 2 * iv, 'the bind ended at +4 s; her next check comes an interval after the store', 2 * TICK + 1e-6);
   assert.equal(u.trait.stored, 0, 'the energy left with that attack');
   h.run(1);

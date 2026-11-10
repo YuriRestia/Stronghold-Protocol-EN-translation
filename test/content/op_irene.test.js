@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -193,7 +194,7 @@ test('S1 起风 (AUTO, attack SP 6 / 5, data DEFAULT): the next attack hits its 
   u.skill.gainSp(999);
   const heavy = h.spawn('enemy_heavy', { pos: [10, 6] });
   assert.ok(h.runUntil(() => u.skill.activations === 1, 3));
-  h.step();
+  h.run(allyCastWindup(u) + 2 / 30);   // the skill arms at the cast start; the strike (and the levitate) lands one wind-up later (official cast → hit)
   const lev = h.hooksOf('statusApplied').find((c) => c.source === u && c.status === 'levitate');
   assert.ok(lev && lev.target === heavy && Math.abs(lev.duration - 0.5) < 1e-9, 'half on a heavy target');
   done(h);

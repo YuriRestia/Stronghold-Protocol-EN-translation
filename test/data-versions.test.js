@@ -290,7 +290,9 @@ test('data/versions/act2autochess-v2_1: the same-id records that differ from tod
   assert.deepEqual(changed('chess', (c) => [noRange(c.skill), (c.skills || []).map(noRange), c.talents, c.talentsBase]), ['chess_char_3_06_a', 'chess_char_3_06_b',
     'chess_char_3_18_a', 'chess_char_3_18_b', 'chess_char_4_10_a', 'chess_char_4_10_b', 'chess_char_5_05_a', 'chess_char_5_05_b',
     'chess_char_6_02_a', 'chess_char_6_02_b', 'chess_char_6_08_a', 'chess_char_6_08_b']);
-  assert.deepEqual(changed('tokens', (k) => ({ ...k, skill: noRange(k.skill) })), ['token_10017_skadi2_dedant', 'token_10030_mlyss_wtrman', 'token_10039_ulpia_block',
+  // (fork) today's summons with a model carry their attack clip (`attackAnim`, build-data operatorAttackAnims: the default
+  // version only — the official cast → hit timing); the stored set has none, so it is left out here like the triggers
+  assert.deepEqual(changed('tokens', (k) => ({ ...k, skill: noRange(k.skill), attackAnim: undefined })), ['token_10017_skadi2_dedant', 'token_10030_mlyss_wtrman', 'token_10039_ulpia_block',
     'token_10057_svash2_eagle1', 'token_10057_svash2_eagle2', 'token_10057_svash2_eagle3']);
   // backups.json: the 自选 operators' powers and bonds from the 03-14 character_table (鸿雪 and 真言 emptyShip, not
   // sargonShip; seven with one power fewer), and the 自选 forms without a module added after 03-14

@@ -725,7 +725,10 @@ function checkUnitFormParity(ctx, chess) {
       continue;
     }
     const form = buildUnitForm(ctx, c.charId, c.status, { chessId: c.baseId, skillIndex: c.skill.index });
-    const rec = composeUnitRecord(c, buildUnitHead(ctx, c.charId), form, { skillIndex: c.backup.skillIndex, moduleId: c.backup.uniEquipId });
+    // (fork) the unit's attack clip is set after the build (operatorAttackAnims, from the same manifest entry as the
+    // chess record's): composeUnitRecord must carry it through
+    const head = { ...buildUnitHead(ctx, c.charId), ...(c.attackAnim ? { attackAnim: c.attackAnim } : {}) };
+    const rec = composeUnitRecord(c, head, form, { skillIndex: c.backup.skillIndex, moduleId: c.backup.uniEquipId });
     if (!isDeepStrictEqual(rec, c)) {
       const keys = [...new Set([...Object.keys(rec || {}), ...Object.keys(c)])].filter((k) => !isDeepStrictEqual(rec?.[k], c[k]));
       errors.push(`unit parity ${c.chessId}: buildUnitForm + composeUnitRecord differ from buildChess in ${keys.join(', ')}`);
@@ -1699,7 +1702,11 @@ const MIRRORED_PREFABS = new Set(['enemy_1196_msfyin']);
  * never reads client files; an enemy whose model the manifest lacks gets none (the sim falls back to ATTACK_PAUSE).
  */
 function enemyAttackAnim(manifest, spineId) {
-  const sp = manifest?.enemies?.[spineId]?.spine;
+  return attackAnimOf(manifest?.enemies?.[spineId]?.spine);
+}
+
+/** A model's attack clip { clip, dur, hit } (the manifest's `anims.attack.loop`, its length and first strike frame). */
+function attackAnimOf(sp) {
   const a = sp?.anims?.attack;
   if (!a || typeof a.loop !== 'string' || a.via === 'idle') return null;
   const dur = sp.animations?.[a.loop];
@@ -1707,6 +1714,33 @@ function enemyAttackAnim(manifest, spineId) {
   const h = sp.hits?.[a.loop];
   const hit = Array.isArray(h) && Number.isFinite(h[0]) ? Math.min(dur, Math.max(0, h[0])) : null;
   return hit != null ? { clip: a.loop, dur, hit } : { clip: a.loop, dur };
+}
+
+/**
+ * (fork) An operator's or summon's attack clip → `attackAnim` { clip, dur, hit } on its chess records (data/chess.json),
+ * its backups.json unit (stand-ins and 自选 picks compose it in, shared/standIn.js) and its tokens.json record: the clip
+ * the client plays for its normal attacks (the manifest's front model `anims.attack.loop`), its length and its strike
+ * frame (`hits`: the clip's OnAttack event). The sim starts each attack as a cast and lands it at that frame
+ * (server/sim/ai.js allyCastWindup), as the official client does (AbilityStandard → EasyToStartAbility's pre-delay waits
+ * for the clip's attack event; AbstractAnimatedAbility.UpdatePlaybackSpeed scales the clip to the attack time). Read from
+ * the committed data/assets.json like the enemies' (enemyAttackAnim); a model the manifest lacks gets none (the sim keeps
+ * the strike at the end of the cooldown). Outfits never change it: the sim times by the default model.
+ */
+function operatorAttackAnims(manifest, chess, backups, tokens) {
+  if (!manifest) return;
+  const ofChar = (charId) => attackAnimOf(manifest.chars?.[charId]?.spine?.front ?? manifest.chars?.[charId]?.spine?.back);
+  for (const c of Object.values(chess)) {
+    const a = c.charId ? ofChar(c.charId) : null;
+    if (a) c.attackAnim = a;
+  }
+  for (const u of Object.values(backups?.units || {})) {
+    const a = ofChar(u.charId);
+    if (a) u.attackAnim = a;
+  }
+  for (const [id, t] of Object.entries(tokens || {})) {
+    const a = attackAnimOf(manifest.tokens?.[id]?.spine);
+    if (a) t.attackAnim = a;
+  }
 }
 
 /** The handbook's 「不停止移动」 attack (“十字路口”量产型's 四向攻击) → enemies.json `attackMoves`: it never stops to attack. */
@@ -3384,6 +3418,10 @@ async function main() {
   const enemies = buildEnemies(ctx);
   for (const p of passes) p.tokens = buildTokens(p.ctx, p.chess, p.tokenOwners, enemies);
   const tokens = passes[FULL_RANK].tokens;
+  // (fork) the operators' attack clips (the official cast → hit order, server/sim/ai.js allyCastWindup): the default
+  // version only, so the older versions' data stays as it was (their operators strike at the end of the cooldown)
+  // (every potential pass: shared/potential.js atRank rebuilds each rank from the full one)
+  if (IS_DEFAULT) for (const p of passes) operatorAttackAnims(ctx.manifest, p.chess, p.backups, p.tokens);
   const waves = buildWaves(ctx, enemies);
   const stages = buildStages(ctx, ctx.act.modeDataDict);
   const factions = buildFactions(ctx, enemies);

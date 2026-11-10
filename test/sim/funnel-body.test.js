@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { hitCount } from '../../server/sim/content/enemies/helpers.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { bodyInKeys } from '../../server/sim/body.js';
 import { DRONE_TAG } from '../../server/sim/content/kits/ops/chess_char_3_20-kjera.js';
 
@@ -36,7 +37,7 @@ function done(h) { checkInvariants(h.b); assert.deepEqual(h.b.errors, []); }
 test('all normal/elite funnel casters and eight Goldenglow forms: a body hit plus a separate ramped addition', () => {
   for (const unit of [...ordinary, ...glow]) {
     const { h, u, e } = field(unit);
-    h.run(2);
+    h.run(2 + allyCastWindup(u));   // each hit lands one wind-up after its cast (official cast → hit, ai.js allyCastWindup)
     const vs = volleys(h, u);
     assert.ok(vs.length >= 2, `${u.defId}: two attacks`);
     for (const [i, v] of vs.slice(0, 2).entries()) {
