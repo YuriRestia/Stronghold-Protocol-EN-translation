@@ -20,6 +20,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Mostima's S3 (Key of Chronology), in every outfit, now plays her attack swing on each attack and stands in her S3 stance between attacks, as in the official game. Before, she raised her staff when the skill began and then held a still pose for the whole skill: the game had given her S3 the animations of her S2 (Lock of Shattered Time), going by the animation names, and that pose has no swing. The official game data now decides which animations each of her skills uses.
 - Her S2 now plays the channelling pose it was missing, and her S1 no longer plays a skill pose: she keeps attacking normally, as in the official game.
 
+### Stored skill charges show over the operator's head
+
+- An operator whose skill holds more than one charge (Talulah's S2 holds 5, Warfarin's S1 2) now shows how many are stored, as in the official game: a yellow ring that turns slowly, with the count in the middle in the game's own font (Novecento Wide), above the bars and status icons. It shows while at least one charge is stored. Before, nothing showed the charges.
+- It uses the official ring and disc art from the battle UI. The servers need the two new images (`ui/battleUi/sprite_auto.png`, `ui/battleUi/sprite_circle.png`); without them a stand-in ring in the same yellow shows.
+
 ### Mostima's and Lemuen's skills look and sound as in the official game
 
 - Mostima in Ethereal Harmony (`char_213_mostma@ambienceSynesthesia#6`): every S3 attack now sends out its wave again. The outfit's wave waits 0.8 s before it appears, and the effects layer ended an attack's effects after 0.6 s, so it never showed: enemies were hit and pushed back with nothing on screen. An effect part that is still waiting when an attack's effects end now plays once, as authored. Her default outfit's wave already played.

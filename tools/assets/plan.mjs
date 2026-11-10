@@ -209,6 +209,8 @@ export const UI_EXTRAS = (() => {
   for (const k of ['btn_speed_1x', 'btn_speed_2x', 'btn_pause', 'slider_hp_back', 'slider_hp_fill', 'attack_range_attack', 'attack_range_stand']) L.push(['battleUi', k, `${bn}${k}.png`]);
   L.push(['battleUi', 'boss_avatar_bg', `${bn}enemybossinfo/sprite_enemy_boss_avatar_bg.png`]);
   L.push(['battleUi', 'skill_ready', 'arts/ui/[uc]battlecommon/ui_battle/sprite_skill_ready.png']);
+  // (fork) the auto-skill mark over the head: its ring and disc (render/units.js CHARGE_MARK, stored skill charges)
+  for (const k of ['sprite_auto', 'sprite_circle']) L.push(['battleUi', k, `${bn}${k}.png`]);
   L.push(['skillIcon', 'empty', 'arts/ui/[uc]charcommon/skills/empty_skill.png']);
   L.push(['skillIcon', 'empty_large', 'arts/ui/[uc]charcommon/skills/empty_skill_large.png']);
   L.push(['entry', 'season_logo_settle', 'activity/[uc]act2autochess/arts/seasonlogo/season_logo_settle_game.png']);
