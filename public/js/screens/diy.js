@@ -64,12 +64,14 @@ function KindTag({ proto }) {
  * beside the others, and a custom operator acts as any other) — or an empty slot to fill. A press on a filled slot selects
  * it as a press on any card does (`onSel`: 干员调配's drawer shows its DiyDetail), its quick choices write the saved pick
  * (`onQuick(slotId, patch)`; a prototype's are fixed), its bonds stand on the rail and its 原型 / 已持有 tag beside the
- * slot's name above its own, its levels and 潜能 on the rail as any card's, and its 更换 button (a mint-ringed icon at the rail's
+ * slot's name above its own, its levels and 潜能 on the rail as any card's, its 更换 button (a mint-ringed icon at the rail's
  * foot, under the bonds) opens the slot's picker (`onOpen`) — as a
- * press on an empty slot does (the card view has no 自选编队 overview: the deck stays where it was). A pick the current
- * version cannot field is marked as on the overview.
+ * press on an empty slot does (the card view has no 自选编队 overview: the deck stays where it was) — and its 清空 (an ✕ of
+ * the same look at the card's top-right corner; players asked for it, 2026-11-10) empties the slot as the picker's 清空 does
+ * (`onClear`), no confirm: only the pick and its skill / module choice go, 潜能 and levels stay the operator's. A pick the
+ * current version cannot field is marked as on the overview.
  */
-export function DiyDeckSlot({ m, slot, pick, illegal, onOpen, selected = false, onSel = () => {}, onQuick = () => {}, ops = {}, wornOf = () => null }) {
+export function DiyDeckSlot({ m, slot, pick, illegal, onOpen, onClear = null, selected = false, onSel = () => {}, onQuick = () => {}, ops = {}, wornOf = () => null }) {
   const D = diyData();
   const rec = pick ? slotRecord(slot.slotId, pick, D) : null;
   const elite = pick ? slotRecord(slot.slotId, pick, D, { elite: true }) : null;
@@ -90,6 +92,7 @@ export function DiyDeckSlot({ m, slot, pick, illegal, onOpen, selected = false, 
   const onSkill = (i) => onQuick(slot.slotId, { skillIndex: i });
   const onModule = (id) => onQuick(slot.slotId, { uniEquipId: id === MODULE_NONE ? null : id });
   const change = t('更换'); // en: "Change"
+  const clear = t('清空'); // en: "Clear"
   const cv = proto ? null : cultivationView(pick.charId, ops);
   return html`<${DeckOpCard} m=${m} attrs=${{ 'data-slot': slot.slotId, 'data-char': rec.charId, 'data-diy-tier': slot.tier }} tier=${slot.tier}
     selected=${selected} cls=${['lo-op--diy', 'lo-diy--filled', illegal && 'is-bad']} onPick=${() => onSel(slot.slotId)}
@@ -100,6 +103,8 @@ export function DiyDeckSlot({ m, slot, pick, illegal, onOpen, selected = false, 
       ${illegal ? html`<${Icon} name="warn" class="lo-diy__bad" />` : null}`}
     railFoot=${html`<button type="button" class="lo-diy__change" data-testid="diy-slot-change" title=${`${change} · ${label}`} aria-label=${`${change} · ${label}`}
         onClick=${(e) => { e.stopPropagation(); onOpen(slot.slotId); }}><${Icon} name="swap" /></button>`}
+    corner=${onClear ? html`<button type="button" class="lo-diy__clear" data-testid="diy-slot-clear" title=${`${clear} · ${label}`} aria-label=${`${clear} · ${label}`}
+        onClick=${(e) => { e.stopPropagation(); onClear(slot.slotId); }}><${Icon} name="close" /></button>` : null}
     meta=${html`<span class="lo-diy__meta"><${KindTag} proto=${proto} /><span class="lo-diy__label">${label}</span></span>`}
     side=${html`<${CardSide} k=${slot.slotId}
       outfit=${() => html`<${OutfitSide} m=${m} charId=${pick.charId} name=${rec.name} list=${outfitsOf(pick.charId)} worn=${wornOf(pick.charId)} />`}

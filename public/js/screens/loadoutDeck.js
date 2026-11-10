@@ -209,13 +209,13 @@ export class DeckOpMore extends Component {
  * 2026-11-08) and the rest (`rail`: the levels, or 原型 / 已持有) —, the half-body portrait (`portrait`, an OperatorImage:
  * the owner's outfit shows here as everywhere) with a ribbon (`ribbon`), the column (`side`: DeckOpSide),
  * the name (wrapping at its spaces only, its words unbroken, fitted to the card: ui/nameFit.js) after `meta` at the card's foot, the bonds down the rail's foot and `railFoot` under
- * them (the user's calls of 2026-11-08), and the 「详情」 panel (`more`: DeckOpMore). A press on the card
+ * them (the user's calls of 2026-11-08), `corner` at the card's top-right corner (a 自选 slot's 清空), and the 「详情」 panel (`more`: DeckOpMore). A press on the card
  * picks it (`onPick`) unless it lands on one of its controls or the card is `pickDisabled` (a taken operator). A long press
  * opens no browser image menu (noImageMenu).
  * `attrs`: its data-* (data-chess / data-char), `cls` its own classes.
  */
 export function DeckOpCard({ m, attrs = {}, cls = null, tier, selected = false, onPick, pickDisabled = false, pickTitle, pickCls = null, railCls = null,
-  railTop = null, rail, railFoot = null, portrait, name, sub, ribbon = null, meta = null, bonds = [], side, more, moreTestid }) {
+  railTop = null, rail, railFoot = null, portrait, name, sub, ribbon = null, meta = null, bonds = [], side, corner = null, more, moreTestid }) {
   return html`<div role="listitem" ...${attrs} class=${cx('lo-op', `lo-op--t${tier}`, 'has-side', selected && 'is-sel', cls)} onContextMenu=${noImageMenu}>
     <div class="lo-op__card" onClick=${(e) => { if (!pickDisabled && !e.target.closest?.('button, select, input, .lo-op__side')) onPick(); }}>
       <div class=${cx('lo-op__rail', railCls)}>${railTop}<${Img} src=${subProfIconUrl(m, sub)} class="lo-op__sub" />${rail}
@@ -228,7 +228,7 @@ export function DeckOpCard({ m, attrs = {}, cls = null, tier, selected = false, 
         </span>
         ${ribbon}
       </button>
-      ${side}
+      ${side}${corner}
       <span class="lo-op__meta">${meta}<span class="lo-op__name">${typeof name === 'string'
         ? nameWords(name).map((w, i) => html`${i ? ' ' : null}<span key=${i} class="lo-op__w">${w}</span>`) : name}</span></span>
     </div>

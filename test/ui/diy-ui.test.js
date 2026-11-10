@@ -430,6 +430,25 @@ describe('自选编队 picker (screens/diy.js)', () => {
     assert.ok(hasClass(bad, 'is-bad') && /不可用/.test([...walk(bad)].find((v) => hasClass(v, 'lo-op__pick')).props.title));
   });
 
+  test("(fork) a pick card's ✕ (top-right corner) empties its slot without opening the picker or selecting the card; an empty slot has none", () => {
+    const opened = [], selected = [], cleared = [];
+    const slot = { slotId: T5A, tier: 5, shopLevel: 5 };
+    const props = { m: null, slot, illegal: false, onOpen: (id) => opened.push(id), onSel: (id) => selected.push(id), onClear: (id) => cleared.push(id) };
+    const x = (v) => [...walk(v)].find((n) => n.props?.['data-testid'] === 'diy-slot-clear');
+    const filled = expand(DiyDeckSlot({ ...props, pick: SIEGE_PICK }));
+    const btn = x(filled);
+    assert.ok(btn && btn.type === 'button' && hasClass(btn, 'lo-diy__clear'), 'the ✕ on a pick');
+    assert.ok(/清空/.test(btn.props['aria-label']) && /清空/.test(btn.props.title), 'named 清空 for screen readers and on hover');
+    let stopped = false;
+    btn.props.onClick({ stopPropagation() { stopped = true; } });
+    assert.deepEqual(cleared, [T5A], 'empties its slot');
+    assert.ok(stopped, 'the press stays off the card');
+    assert.deepEqual(opened, [], 'no picker');
+    assert.deepEqual(selected, [], 'no selection');
+    assert.equal(x(expand(DiyDeckSlot({ ...props, pick: null }))), undefined, 'an empty slot has no ✕');
+    assert.equal(x(expand(DiyDeckSlot({ ...props, onClear: null, pick: SIEGE_PICK }))), undefined, 'no ✕ without a clear handler');
+  });
+
   test("(fork) the picker's 清空 (a filled slot only): the card view has no 自选编队 overview to clear it from", () => {
     const cleared = [];
     const view = (picks) => expand(DiyPickerView({ m: null, slot: { slotId: T5A, tier: 5, shopLevel: 5 }, picks, kitted: KIT, onDone() {}, onClose() {},
