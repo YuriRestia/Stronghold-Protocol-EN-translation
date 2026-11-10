@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Streak and spike particles point the right way
+
+- Stretched particles (streaks, spikes, speed lines) now draw their texture in the official direction: the pointed end trails behind the particle instead of leading. Blaze the Igniting Spark's S3 hit becomes a burst of thorns pointing outward, as in the official game, instead of a pale disc of blades pointing inward. Every effect that uses stretched particles changes the same way.
+
 ### Blaze the Igniting Spark sounds like the official game
 
 - Her S1 now plays its own cast and impact sounds, and the bolts of her S2 and S3 land with their own impact sounds instead of her normal attack's.
