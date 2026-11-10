@@ -527,7 +527,7 @@ export class SkillFx {
     if (k === 0) {
       for (const e of uniq(a.aim || [])) {
         const h = this._play(e, t, { toward: beyond(own, t), flipFrom: own });
-        if (h) { drew = true; if (e.hold === 'cast' || e.loop) later(this.w.ofx, SKILL_CAST_S, () => h.stop()); }
+        if (h) { drew = true; if (e.hold === 'cast' || e.loop) later(this.w.ofx, SKILL_CAST_S, () => h.stop({ cast: true })); }
       }
       for (const e of uniq(U.tHit.filter((x) => x.node == null || x.node === a.node))) if (this._targetLoop(U, e, t)) drew = true;
     }
@@ -799,7 +799,7 @@ export class SkillFx {
         if ((e.firstOnly && nth > 0) || (e.afterFirst && nth === 0)) continue;
         const skip = phase === 'start' ? info.skip : 0;
         const h = onTarget ? this._play(e, tgt, { toward: beyond(src, tgt), flipFrom: src, skip }) : this._play(e, src, { toward: tgt, skip, strike: phase !== 'start' });
-        if (h && (e.hold === 'cast' || e.loop)) later(this.w.ofx, phase === 'start' && info.left > 0 ? Math.min(3, info.left) : SKILL_CAST_S, () => h.stop());
+        if (h && (e.hold === 'cast' || e.loop)) later(this.w.ofx, phase === 'start' && info.left > 0 ? Math.min(3, info.left) : SKILL_CAST_S, () => h.stop({ cast: true }));
       }
     }
   }
@@ -837,7 +837,7 @@ export class SkillFx {
     const life = lifeOf(e.life, U.srec?.bb);
     if (life?.once) {
       const h1 = this._play({ ...e, hold: null }, v, { flipFrom: U.v || undefined });
-      if (h1 && e.loop) later(this.w.ofx, SKILL_CAST_S, () => h1.stop());
+      if (h1 && e.loop) later(this.w.ofx, SKILL_CAST_S, () => h1.stop({ cast: true }));
       return h1;
     }
     const lasting = U.plan.kind === 'lasting' || U.plan.kind === 'ammo';
@@ -1161,7 +1161,10 @@ export class SkillFx {
   _bound(U, bind, x, y, extra) {
     const pick = bind.keysIf ? (extra[bind.keysIf.field] ? bind.keysIf.yes : bind.keysIf.no)
       : bind.keysBy ? bind.keysBy.map[extra[bind.keysBy.field]] || [] : null;
-    const keys = (pick ? pick.map(lc) : bindingEffects(this.w.idx, bind)).filter((k) => this.w.ofx.lib.has(k));
+    // (fork) as the owner's outfit plays them (its skinpack twins, FxWiring.skinKey): 蕾缪安 S3's crosshairs and shell
+    // hits in her Ambience Synesthesia outfit (ambienceSynesthesia#7) played the default look
+    const keys = (pick ? pick.map(lc) : bindingEffects(this.w.idx, bind)).map((k) => this.w.skinKey(k, U?.v) || k)
+      .filter((k) => this.w.ofx.lib.has(k));
     if (!keys.length) return false;
     if (bind.at === 'target') {
       // once on the unit the fx names (泡泡's attacker, 归溟幽灵鲨 S1's ally), else where it happens; turned by the owner's side
@@ -1559,7 +1562,7 @@ export class SkillFx {
       if (U.plan) {
         for (const k of planKeys(U.plan)) out.add(k);
         for (const pk of U.plan.projectiles) proj(pk);
-        for (const k of bindingKeys(idx, U.skillId)) out.add(k);
+        for (const k of bindingKeys(idx, U.skillId)) { out.add(k); out.add(this.w.skinKey(k, v) || k); } // and its outfit twin (_bound)
         proj(CHAIN_RELAYS[U.skillId]?.projectile);
       }
       for (const en of U.enemy) {

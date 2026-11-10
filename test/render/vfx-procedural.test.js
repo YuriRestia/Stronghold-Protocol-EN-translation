@@ -264,6 +264,25 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     assert.equal(on(b).length, 0, 'a shell that never comes: gone 5 s after the last sign of her S3');
   });
 
+  test('(fork) 蕾缪安 S3 in an outfit: the lock plays the outfit\'s crosshairs (its skinpack twins), the default outfit the plain ones', async () => {
+    const SUF = 'ambiencesynesthesia#7';
+    const twins = CROSSHAIR.map((k) => `${k}_${SUF}`);
+    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, ...twins] });
+    index.skinFx = { [SUF]: Object.fromEntries(CROSSHAIR.map((k, i) => [k, twins[i]])) };
+    const lem = view(1, 'char_4193_lemuen', 3);
+    lem.info.model = 'char_4193_lemuen@ambienceSynesthesia#7';
+    const plain = view(4, 'char_4193_lemuen', 4);
+    view(2, 'enemy_1', 5);
+    view(3, 'enemy_1', 6);
+    frame();
+    w.skill(lem, true);
+    w.skill(plain, true);
+    assert.equal(w.simFx('lock', 5, 10, { id: 2, src: 1, hold: 1 }), true);
+    assert.equal(w.simFx('lock', 6, 10, { id: 3, src: 4, hold: 1 }), true);
+    const keys = handles.filter((h) => h.alive).map((h) => h.key).sort();
+    assert.deepEqual(keys, [...CROSSHAIR, ...twins].sort(), 'the outfit\'s twins for her, the plain crosshairs for the default outfit');
+  });
+
   test('蕾缪安 S3: her knock-out drops the locks no shell took; a shell in the air keeps its lock', async () => {
     const { w, view, frame, handles } = await setup();
     const lem = view(1, 'char_4193_lemuen', 3);

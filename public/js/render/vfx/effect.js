@@ -290,7 +290,7 @@ export class Effect {
     this.groundZ = 0;
     this.time = 0;                                     // s since spawn (battle clock)
     this.delay = def.delayToPlay + (def.randomDelay > 0 ? Math.random() * def.randomDelay : 0);
-    this.state = 'play';                               // 'play' | 'stopping' | 'linger' | 'done'
+    this.state = 'play'; this.lateWake = false;      // 'play' | 'stopping' | 'linger' | 'done'
     this.linger = 0;
     this.started = false;
     this.track = null;
@@ -337,7 +337,7 @@ export class Effect {
     this.delay = def.delayToPlay + (def.randomDelay > 0 ? Math.random() * def.randomDelay : 0);
     this.state = 'play'; this.linger = 0; this.started = false; this.track = null; this.hidden = false; this.pausedBy = false; this.owner = null;
     this.tint = def.colorMod || null; this.speed = 1; this.ttl = Infinity; this.onFinish = null; this.data = null;
-    this.handle = null; this.fade = 1; this.stopT = 0;
+    this.handle = null; this.fade = 1; this.stopT = 0; this.lateWake = false;
     const seed0 = (num(seed, 0) >>> 0) || ((Math.random() * 4294967296) >>> 0);
     for (let i = 0; i < n; i++) {
       const s = this.sys[i];
@@ -403,6 +403,12 @@ export class Effect {
    */
   stop(o = {}) {
     if (this.state === 'done') return;
+    // (fork) `cast`: the end of a cast row's hold (wiring CAST_LOOP_S, skillfx SKILL_CAST_S — our own timer, no client
+    // data). Nodes still waiting on their FxDelay then wake and play once as authored: Mostima's Ethereal Harmony S3
+    // wave (mostma_skill_03_range_…#6: root FxDelay 0.8 s, `_isLoop`) was stopped at 0.6 s and never showed.
+    if (o.cast && this.state === 'play') {
+      for (const [nd, d] of this.def.fxDelay) if (!this.forcedOff[nd] && this.ctime < d) { this.lateWake = true; break; }
+    }
     for (const nd of this.def.inactiveOnFinish) { this.forcedOff[nd] = 1; this.act[nd] = 0; }
     if (o.hit) for (const nd of this.def.inactiveOnHit) { this.forcedOff[nd] = 1; this.act[nd] = 0; }
     for (const s of this.sys) if (s) s.stopEmitting();
@@ -547,7 +553,10 @@ export class Effect {
       const frame = this._frame(i);
       if (!s.playing && !s.isSub) {
         const becameActive = !this.prevHier[i] || first;
-        if (becameActive && (s.def.playOnAwake || (first && def.hasPsAncestor[i])) && this.state === 'play') s.play(frame);
+        if (becameActive && (s.def.playOnAwake || (first && def.hasPsAncestor[i])) && (this.state === 'play' || this.lateWake)) {
+          s.play(frame);
+          if (this.state !== 'play' && s.def.looping) s.stopEmitting(); // a late wake plays once: its loops do not run on
+        }
       }
       if (s.playing) s.update(dt, frame);
       else if (s.isSub) s.setFrame(frame);

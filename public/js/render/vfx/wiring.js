@@ -875,7 +875,7 @@ export class FxWiring {
           // would otherwise never end (known once loaded: decided when the time comes)
           if (h) {
             const loopRow = !e.oneshot;
-            setTimeout0(this.ofx, { stop: () => { if (loopRow || this.ofx.lib.def(h.key)?.isLoop) h.stop(); } }, phase === 'start' && info.left > 0 ? Math.min(3, info.left) : CAST_LOOP_S, true);
+            setTimeout0(this.ofx, { stop: () => { if (loopRow || this.ofx.lib.def(h.key)?.isLoop) h.stop({ cast: true }); } }, phase === 'start' && info.left > 0 ? Math.min(3, info.left) : CAST_LOOP_S, true);
           }
         }
       }

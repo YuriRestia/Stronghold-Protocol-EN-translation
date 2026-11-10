@@ -70,6 +70,34 @@ describe('effect lifecycle', () => {
     assert.equal(fx.sys[1].count, 2);
   });
 
+  test('(fork) a cast hold that ends before an FxDelay still lets the delayed part play once; a plain stop does not', () => {
+    // Mostima's Ethereal Harmony S3 wave: root FxDelay 0.8 s and `_isLoop`, our cast hold ends at 0.6 s
+    const make = (loop) => compileEffect(desc([root([pe({ _isLoop: 1 })]), psNode(1, 0, { loop, behaviours: [{ class: 'FxDelay', enabled: true, fields: { _delayTime: 0.3 } }] })]));
+    const cast = new Effect(make(false), { seed: 1 });
+    runUntil(cast, 0.2);
+    cast.stop({ cast: true });
+    runUntil(cast, 0.15);
+    assert.equal(cast.sys[1].count, 2, 'the delayed burst plays after the hold ended');
+    runUntil(cast, 2);
+    assert.ok(cast.done, 'and then the effect ends on its own');
+    const plain = new Effect(make(false), { seed: 1 });
+    runUntil(plain, 0.2);
+    plain.stop();
+    runUntil(plain, 0.15);
+    assert.equal(plain.sys[1].count, 0, 'a status / skill end still cancels what has not started');
+    const looping = new Effect(make(true), { seed: 1 });
+    runUntil(looping, 0.2);
+    looping.stop({ cast: true });
+    runUntil(looping, 0.15);
+    assert.equal(looping.sys[1].emitting, false, 'a looping system that wakes late does not run on');
+    const after = new Effect(make(false), { seed: 1 });
+    runUntil(after, 0.4);
+    after.stop({ cast: true });
+    assert.equal(after.lateWake, false, 'no late wake once every FxDelay has passed');
+    after.reset(1);
+    assert.equal(after.lateWake, false);
+  });
+
   test('a clip on m_IsActive switches a node (and its system plays when it turns on)', () => {
     const d = desc([root([pe({})]), psNode(1, 0, { active: false })], {
       clips: [{ name: 'c', length: 1, loop: false, curves: [{ node: 1, type: 'GameObject', property: 'm_IsActive', keys: [[0, 0, null, null], [0.5, 1, null, null]] }] }],
