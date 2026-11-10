@@ -54,8 +54,9 @@ function yu(bb, chess, def) {
       },
       onEnd({ battle, unit }) { battle.removeBuff(unit, 'yu:hostCounter'); },
     },
-    // S2 厚礼上宾 (cast with an enemy on its x-1: the data's SKILL_RANGE, a deliberate deviation from the 重装 TAKE_DAMAGE
-    // row — tools/build-data.mjs TRIGGER_DEVIATIONS, DESIGN §22.10): atk_scale × ATK arts on every enemy of the skill range
+    // S2 厚礼上宾 (cast with an enemy on its x-1 alone: the data's SKILL_RANGE, a deliberate deviation from the official
+    // TANK row's "at a hit or with an enemy in range", kept on the official triggers — officialUnitBuilder
+    // OFFICIAL_TRIGGER_DEVIATIONS, GitHub sganggs/Stronghold-Protocol#32 item 1, DESIGN §22.10): atk_scale × ATK arts on every enemy of the skill range
     // + the ground-reachable ones teleported onto his tile (leaders too, unless 自缚: teleportEnemy); block +block_cnt, HP /
     // ATK +, normal attacks deal arts damage. The burst hits air units too [ASSUMED: no 对空 note on PRTS]; the teleport
     // takes ground units only ("地面可达目标"). The 'pull' fx only when someone was teleported (each one also gets its own
