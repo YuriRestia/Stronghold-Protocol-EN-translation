@@ -12,8 +12,11 @@
 //             where the version's trait text names others (omitted = the default's)
 //   config    hiddenCore thresholds; `rules` the rule switches a non-default build writes into config.version =
 //             { id, family, rules } ({} = the default's rules)
+//   skillTriggers  optional: a file of tools/versions/ holding an official skillTriggerDataList / skillRangeDict that
+//             replaces the activity table's (officialUnitBuilder officialTrigger: lists, no deviations)
 //   expect    the counts validateAll checks; triggerDeviations 'default' (every deliberate deviation meets its official
-//             TAKE_DAMAGE row), 'present' (those of the operators the version has) or 'none' (no TAKE_DAMAGE row at all)
+//             TAKE_DAMAGE row), 'present' (those of the operators the version has), 'none' (no TAKE_DAMAGE row at all)
+//             or 'official' (skillTriggers: every MANUAL skill carries its official trigger list, no deviation)
 
 import { VERSIONS, versionById, versionSlug } from '../../shared/versions.js';
 

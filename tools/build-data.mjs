@@ -277,8 +277,13 @@ async function loadContext() {
     assets: await loadResearch('07-assets.json'),
   };
 
+  // the official skill triggers that replace the table's (the profile's skillTriggers file; officialTrigger)
+  const officialTriggers = PROFILE.skillTriggers
+    ? JSON.parse(await readFile(new URL(`./versions/${PROFILE.skillTriggers}`, import.meta.url), 'utf8'))
+    : null;
+
   return {
-    act, ac, charTable, skillTable, rangeTable, uniequip, battleEquip, handbook, enemyDb,
+    act, ac, officialTriggers, charTable, skillTable, rangeTable, uniequip, battleEquip, handbook, enemyDb,
     levels, templateIds: [...templateIds].sort(naturalCmp), stageIds, enemyDataLevelId, research,
     manifest: await loadManifest(),
   };
@@ -3233,7 +3238,17 @@ function validateAll(f) {
   const deviationHolds = (rule, trig) => trig.rawRule === 'TAKE_DAMAGE' && (trig.rule === rule || (ACTIVE_RANGE_OVER.has(rule) && trig.rule === 'ACTIVE_RANGE'));
   const checkDeviations = want.triggerDeviations === 'default' || want.triggerDeviations === 'present';
   const onlyPresent = want.triggerDeviations === 'present';
-  if (!checkDeviations) {
+  // 'official' (the profile's skillTriggers): every MANUAL skill carries its official list and no deviation applies
+  const officialOnly = want.triggerDeviations === 'official';
+  if (officialOnly) {
+    const check = (label, s) => {
+      if (s.skillType !== 'MANUAL') return;
+      if (!Array.isArray(s.trigger?.official) || !s.trigger.official.length) err(`${label} ${s.skillId}: no official trigger list`);
+      if (s.trigger?.rule === 'ACTIVE_RANGE') err(`${label} ${s.skillId}: ACTIVE_RANGE in a version on the official triggers`);
+    };
+    for (const c of Object.values(chess)) for (const s of c.skills || []) check(`chess ${c.chessId}`, s);
+    for (const [id, u] of Object.entries(backups?.units || {})) for (const [key, form] of Object.entries(u.forms)) for (const s of form.skills) check(`unit ${id}@${key}`, s);
+  } else if (!checkDeviations) {
     for (const c of Object.values(chess)) for (const s of c.skills || []) if (s.trigger?.rawRule === 'TAKE_DAMAGE') err(`chess ${c.chessId} ${s.skillId}: a TAKE_DAMAGE row in a version whose profile expects none`);
     for (const [id, u] of Object.entries(backups?.units || {})) {
       for (const [key, form] of Object.entries(u.forms)) for (const s of form.skills) if (s.trigger?.rawRule === 'TAKE_DAMAGE') err(`unit ${id}@${key} ${s.skillId}: a TAKE_DAMAGE row in a version whose profile expects none`);

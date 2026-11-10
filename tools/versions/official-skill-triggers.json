@@ -1,0 +1,500 @@
+{
+  "_about": "Official skill trigger table of the auto-chess mode (卫戍协议 技能策略), copied from Kengxxiao/ArknightsGameData zh_CN/gamedata/excel/activity_table.json autoChessData at commit 6f63c14e27b847ef74b53b00fe51fc322b3cd7ff (2026-11-09, CN client 2.7.91, data 26-11-06): skillTriggerDataList and skillRangeDict, unchanged. Read by tools/build-data.mjs for the default version (tools/versions/act2autochess.mjs skillTriggers) through server/plugins/officialUnitBuilder.js officialTrigger. Client logic (AutoChessBattleTrigger, CN 2.7.91): only MANUAL skills; an operator row (charId + skillIndex, -1 = every skill) wins, else the subProfessionId row, else the profession row (any skillIndex), else [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]; a row's types are tried in turn and the first that passes casts (OR).",
+  "source": {
+    "repo": "Kengxxiao/ArknightsGameData",
+    "commit": "6f63c14e27b847ef74b53b00fe51fc322b3cd7ff",
+    "file": "zh_CN/gamedata/excel/activity_table.json"
+  },
+  "skillTriggerDataList": [
+    {
+      "profession": "TANK",
+      "subProfessionId": null,
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ON_TAKE_DAMAGE",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "bearer",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "tactician",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "bard",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "librator",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY",
+        "COMBAT_OR_ATTACK"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "phalanx",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_291_aglina",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_291_aglina",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_249_mlyss",
+      "skillIndex": -1,
+      "skillTriggerTypes": [
+        "MLYSS_S"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4141_marcil",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "MARCIL_S2"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_377_gdglow",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "GLOBAL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1038_whitw2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "GLOBAL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1016_agoat2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "GLOBAL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1035_wisdel",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4145_ulpia",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1019_siege2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_2026_yu",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_430_fartth",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4037_demetr",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4064_mlynar",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1043_leizi2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1046_sbell2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4080_lin",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1051_headb2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_2025_shu",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ALLY",
+        "ON_TAKE_DAMAGE"
+      ]
+    },
+    {
+      "profession": "SNIPER",
+      "subProfessionId": null,
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "MEDIC",
+      "subProfessionId": null,
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ALLY",
+        "SKILL_RANGE_ALLY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "incantationmedic",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "CASTER",
+      "subProfessionId": null,
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "mystic",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "alchemist",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "traper",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "geek",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "summoner",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": "supportiveranger",
+      "charId": null,
+      "skillIndex": 0,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4247_oxi",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4235_thumpy",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1052_kalts2",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY",
+        "SKILL_RANGE_ALLY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4229_aphris",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4217_makoto",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "INVALID_IN_SKILL",
+        "ATTACK_RANGE_ENEMY",
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_350_surtr",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "ON_TAKE_DAMAGE",
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_350_surtr",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ON_TAKE_DAMAGE",
+        "CUSTOM_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4009_irene",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4009_irene",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4116_blkkgt",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_4116_blkkgt",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1050_chen3",
+      "skillIndex": 1,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_010_chen",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_472_pasngr",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1039_thorn2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "SKILL_RANGE_ENEMY"
+      ]
+    },
+    {
+      "profession": "NONE",
+      "subProfessionId": null,
+      "charId": "char_1032_excu2",
+      "skillIndex": 2,
+      "skillTriggerTypes": [
+        "ALWAYS"
+      ]
+    }
+  ],
+  "skillRangeDict": {
+    "skchr_ulpia_3": "6-1",
+    "skchr_siege2_3": "x-4",
+    "skchr_yu_3": "3-15",
+    "skchr_fartth_3": "6-1",
+    "skchr_demetr_3": "x-2",
+    "skchr_mlynar_3": "3-18",
+    "skchr_leizi2_3": "2-1",
+    "skchr_sbell2_3": "x-2",
+    "skchr_lin_3": "x-2",
+    "skchr_headb2_3": "2-4",
+    "skchr_thumpy_3": "4-1",
+    "skchr_surtr_3": "3-2",
+    "skchr_surtr_2": "2-2"
+  }
+}

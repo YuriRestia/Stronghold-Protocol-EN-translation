@@ -151,10 +151,8 @@ function sbell2(bb, chess, def) {
     // (≤ trig_cnt tiles)
     skchr_sbell2_1: {
       kind: instantKind(def),
-      // data trigger SEARCH (the 阵法术师 row, every MANUAL skill of the class: "在初始攻击范围内存在敌人时释放技能") =
-      // an enemy inside her initial range, checked every tick — what the engine's DEFAULT does for a phalanx
-      // (noAttackUnlessSkill); an enemy anywhere on the field would dump both charges on an enemy spawning at the gate
-      trigger: 'DEFAULT',
+      // 技能策略: the data's official trigger list (officialUnitBuilder officialTrigger, the owner's decision of 2026-11-10) — the 阵法术师 row SKILL_RANGE_ENEMY, which for a skill
+      // without a range of its own is an enemy in her attack range (SEARCH, every tick)
       onStart({ battle, unit }) {
         const [fr, fc] = unit.fwd;
         const force = num(bb.force);
