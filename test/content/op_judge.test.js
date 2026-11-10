@@ -75,7 +75,11 @@ test('斥罪 in every 自选 form: her operator kit (all three skills authored),
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       const sk = form.skills[skill];
       if (skill === 0) assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.skillType, u.skill.maxCharges], ['DEFAULT', 'DEFAULT', 'AUTO', 2], `${label(f)}: S1 AUTO`);
-      else assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.skillType], ['DEFAULT', 'TAKE_DAMAGE', 'MANUAL'], `${label(f)}: S${skill + 1} trigger (the 重装 exception)`);
+      else {
+        // the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: a hit OR an enemy on the skill range (S2: its 3×3 grid; S3: no rangeGrid → SEARCH)
+        assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.skillType, sk.trigger.official], ['TAKE_DAMAGE', 'ON_TAKE_DAMAGE', 'MANUAL', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY']], `${label(f)}: S${skill + 1} trigger (official 重装 row)`);
+        assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', skill === 1 ? 'SKILL_RANGE' : 'SEARCH'], `${label(f)}: S${skill + 1} rule list`);
+      }
       assert.equal(u.skill.spType, skill === 2 ? 'hurt' : 'time', `${label(f)}: SP type`);
       // 无法被友方角色治疗: a heal from another unit does nothing
       u.hp = u.s.maxHp * 0.5;
@@ -216,7 +220,7 @@ test('S1 一锤定音 (AUTO, data DEFAULT): the next attack adds 160 % / 180 % A
   }
 });
 
-test('S2 坚心苦修 (data DEFAULT): 20 s without attacks, 40 % / 50 % 庇护, 90 % / 110 % ATK arts to every ground enemy on her x-4 at 0.9 s and every second after (20 pulses), barrier gains ×1.6 / ×1.8 meanwhile', () => {
+test('S2 坚心苦修 (data [TAKE_DAMAGE, SKILL_RANGE] = official 重装 row): 20 s without attacks, 40 % / 50 % 庇护, 90 % / 110 % ATK arts to every ground enemy on her x-4 at 0.9 s and every second after (20 pulses), barrier gains ×1.6 / ×1.8 meanwhile', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1 });
@@ -251,7 +255,7 @@ test('S2 坚心苦修 (data DEFAULT): 20 s without attacks, 40 % / 50 % 庇护, 
   }
 });
 
-test('S3 披荆斩棘 (data DEFAULT, 受击回复 27 / 24 SP — absorbed hits count): barrier +70 % / +100 % max HP (to the cap), 30 s ATK +260 % / +320 %, interval 1.6 + 0.9 s, taunt +1', () => {
+test('S3 披荆斩棘 (data [TAKE_DAMAGE, SEARCH] = official 重装 row, 受击回复 27 / 24 SP — absorbed hits count): barrier +70 % / +100 % max HP (to the cap), 30 s ATK +260 % / +320 %, interval 1.6 + 0.9 s, taunt +1', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
@@ -260,13 +264,13 @@ test('S3 披荆斩棘 (data DEFAULT, 受击回复 27 / 24 SP — absorbed hits c
     for (let i = 0; i < sk.spCost - 1; i++) h.b.dealDamage(src, u, { amount: 1, type: 'true' });
     assert.equal(u.skill.sp, sk.spCost - 1, `T${tier}: one SP per hit, the barrier absorbing`);
     assert.equal(u.hp, u.s.maxHp, `T${tier}: HP untouched`);
-    h.b.dealDamage(src, u, { amount: 1, type: 'true' });
-    assert.ok(u.skill.ready, `T${tier}: ready`);
-    h.run(1);
-    assert.equal(u.skill.activations, 0, `T${tier}: no enemy in range, no cast`);
+    assert.equal(u.skill.activations, 0, `T${tier}: not ready yet`);
     const b0 = barrier(u);
+    h.b.dealDamage(src, u, { amount: 1, type: 'true' });
+    // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: the hit that fills the SP casts it at once — no enemy in range needed
+    assert.ok(u.skill.active, `T${tier}: cast at the hit that filled the SP (TAKE_DAMAGE)`);
+    assert.equal(u.skill.activations, 1);
     h.spawn('enemy_dummy', { pos: [10, 6] });
-    assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast with an enemy in range`);
     approx(barrier(u), Math.min(u.s.maxHp * 3, b0 + u.s.maxHp * sk.bb.hp_ratio), `T${tier}: +${sk.bb.hp_ratio * 100} % max HP`, 1e-3);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
     approx(u.s.interval, 2.5, `T${tier}: 1.6 + 0.9 s`);

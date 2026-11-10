@@ -108,11 +108,11 @@ test('S1 冲锋号令·γ型 (AUTO): +12 DP as soon as its SP is full — no ene
   }
 });
 
-test('S2 除恶 (MANUAL, data SKILL_RANGE on x-6, 2 charges): +4 DP; the cross\'s ground enemies take 280 % / 320 % ATK physical — at most 6, flyers and other tiles untouched', () => {
+test('S2 除恶 (MANUAL, data DEFAULT + SKILL_RANGE on x-6, 2 charges): +4 DP; the cross\'s ground enemies take 280 % / 320 % ATK physical — at most 6, flyers and other tiles untouched', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, mod: elite ? SOLY : null, skill: 1 });
-    assert.deepEqual([u.skill.rule, u.skill.maxCharges, sk.rangeId, sk.bb.atk_scale, sk.bb.cost, sk.spCost, sk.initSp], ['SKILL_RANGE', 2, 'x-6', elite ? 3.2 : 2.8, 4, elite ? 16 : 18, elite ? 10 : 9], `T${tier}`);
+    assert.deepEqual([u.skill.rules, u.skill.maxCharges, sk.rangeId, sk.bb.atk_scale, sk.bb.cost, sk.spCost, sk.initSp], [['DEFAULT', 'SKILL_RANGE'], 2, 'x-6', elite ? 3.2 : 2.8, 4, elite ? 16 : 18, elite ? 10 : 9], `T${tier}`);
     assert.match(sk.desc, /最多6名地面敌人/);
     const cross = [[12, 5], [11, 5], [10, 3], [10, 4], [10, 6], [10, 7], [9, 5]];
     const ground = cross.map((pos) => h.spawn('enemy_dummy', { pos }));
@@ -169,13 +169,16 @@ test('S2 除恶: a 重伤 enemy is selected (可选择重伤单位) and every hi
   done(h);
 });
 
-test('S3 怒目 (MANUAL, data ACTIVE_RANGE on 1-1 + 1): 20 s, ATK +70 % / +100 %, interval 1.05 + 0.5 s, range +1, every blocked enemy at once, +20 DP over the skill; all back after', () => {
+test('S3 怒目 (MANUAL, data DEFAULT + SEARCH, plus the kept ACTIVE_RANGE deviation on 1-1 + 1): 20 s, ATK +70 % / +100 %, interval 1.05 + 0.5 s, range +1, every blocked enemy at once, +20 DP over the skill; all back after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2, row: 9, col: 5 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb.ability_range_forward_extend, sk.bb.cost, sk.bb.interval, sk.bb.value, sk.bb['attack@hp_ratio']],
-      ['ACTIVE_RANGE', 20, elite ? 1 : 0.7, 0.5, 1, 1, 1, 20, 0.5], `T${tier}`);
-    assert.deepEqual(sk.trigger.customRangeGrid, [[0, 0], [0, 1], [0, 2]], `T${tier}: her 1-1 + 1`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb.ability_range_forward_extend, sk.bb.cost, sk.bb.interval, sk.bb.value, sk.bb['attack@hp_ratio']],
+      [['DEFAULT', 'SEARCH', 'ACTIVE_RANGE'], 20, elite ? 1 : 0.7, 0.5, 1, 1, 1, 20, 0.5], `T${tier}`);
+    // the 7 kept deviations: ACTIVE_RANGE on the running range appended to the official COMBAT_OR_ATTACK + SKILL_RANGE_ENEMY list
+    assert.equal(sk.trigger.deviation, 'ACTIVE_RANGE', `T${tier}`);
+    assert.deepEqual(sk.trigger.official, ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], `T${tier}`);
+    assert.deepEqual(sk.trigger.also.map((e) => [e.rule, e.customRangeGrid]), [['SEARCH', null], ['ACTIVE_RANGE', [[0, 0], [0, 1], [0, 2]]]], `T${tier}: her 1-1 + 1`);
     u.skill.gainSp(999);
     const far = h.spawn('enemy_dummy', { pos: [9, 7] }); // two tiles ahead: the running range only
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: cast for an enemy 2 tiles ahead`);

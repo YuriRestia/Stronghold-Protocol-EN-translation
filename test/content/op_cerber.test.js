@@ -115,11 +115,11 @@ test('S1 “很冰的斧” (AUTO, 1 / 2 charges, data DEFAULT): the next attack
   }
 });
 
-test('S2 “很热的刀” (MANUAL, data DEFAULT): 33 / 36 s, attack interval × 0.6 / × 0.4 (PRTS "(*0.4)"), the highest-DEF enemy first; all back after', () => {
+test('S2 “很热的刀” (MANUAL, data SEARCH — official 近卫 row ATTACK_RANGE_ENEMY): 33 / 36 s, attack interval × 0.6 / × 0.4 (PRTS "(*0.4)"), the highest-DEF enemy first; all back after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.base_attack_time, sk.spCost, sk.initSp], ['DEFAULT', elite ? 36 : 33, elite ? 0.4 : 0.6, elite ? 44 : 47, elite ? 16 : 13], `T${tier}`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.base_attack_time, sk.spCost, sk.initSp], [['SEARCH'], elite ? 36 : 33, elite ? 0.4 : 0.6, elite ? 44 : 47, elite ? 16 : 13], `T${tier}`);
     h.run(0.6);
     const iv0 = u.s.interval;
     const d1 = h.spawn('enemy_d100', { pos: [10, 6] }), d3 = h.spawn('enemy_d300', { pos: [11, 7] }), d2 = h.spawn('enemy_d200', { pos: [9, 6] });
@@ -139,12 +139,12 @@ test('S2 “很热的刀” (MANUAL, data DEFAULT): 33 / 36 s, attack interval �
   }
 });
 
-test('S3 “很重的枪” (MANUAL, data ACTIVE_RANGE on 3-3): 56 / 57 s, range 3-3 while on, ATK +130 % / +160 %, physical, the lowest-DEF enemy first, each hit silences 2.5 / 3 s; arts and 3-1 again after', () => {
+test('S3 “很重的枪” (MANUAL, data SEARCH + SKILL_RANGE on 3-3): 56 / 57 s, range 3-3 while on, ATK +130 % / +160 %, physical, the lowest-DEF enemy first, each hit silences 2.5 / 3 s; arts and 3-1 again after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2, seed: 7 });
-    assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.rangeId, sk.duration, sk.bb.atk, sk.bb['attack@silence'], sk.initSp], ['ACTIVE_RANGE', 'DEFAULT', '3-3', elite ? 57 : 56, elite ? 1.6 : 1.3, elite ? 3 : 2.5, elite ? 47 : 41], `T${tier}`);
-    assert.deepEqual(u.skill.triggerGrid, sk.rangeGrid, `T${tier}: the trigger grid is 3-3`);
+    assert.deepEqual([u.skill.rules, sk.trigger.official, sk.rangeId, sk.duration, sk.bb.atk, sk.bb['attack@silence'], sk.initSp], [['SEARCH', 'SKILL_RANGE'], ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY'], '3-3', elite ? 57 : 56, elite ? 1.6 : 1.3, elite ? 3 : 2.5, elite ? 47 : 41], `T${tier}`);
+    assert.deepEqual(u.skill.alsoRules[0].grid, sk.rangeGrid, `T${tier}: the SKILL_RANGE grid is 3-3`);
     h.run(0.6);
     const atk0 = u.s.atk;
     u.skill.gainSp(999);

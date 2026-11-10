@@ -48,7 +48,7 @@ function done(h) {
 const mine = (h, u) => h.hooksOf('damaged').filter((c) => c.source === u);
 const droneHits = (h, u, e = null) => mine(h, u).filter((c) => c.dmg.tags?.includes(DRONE_TAG) && (!e || c.target === e));
 
-test('澄闪 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, 3-1, 驭械术师 (ranged arts, hits air, blocks 1; the trait ramp of the form — FUN-X init 0.35, FUN-Y cap 1.2), ground-targetable; S1 DEFAULT, S2 at full SP (AUTO on herself), S3 GDGLOW_SKILL_2; 精准导流 18 (FUN-Y stage 3 23)', () => {
+test('澄闪 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, 3-1, 驭械术师 (ranged arts, hits air, blocks 1; the trait ramp of the form — FUN-X init 0.35, FUN-Y cap 1.2), ground-targetable; S1 SEARCH, S2 at full SP (AUTO on herself), S3 GDGLOW_SKILL_2; 精准导流 18 (FUN-Y stage 3 23)', () => {
   assert.equal(OPERATOR_KITS[GD], KITS[GD]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -67,7 +67,8 @@ test('澄闪 in every 自选 form: her kit (all three skills authored), the form
       done(h);
     }
   }
-  assert.deepEqual([skillOf(5, false, S1).trigger.rule, skillOf(5, false, S2).trigger.rule, skillOf(5, false, S2).skillType], ['DEFAULT', 'DEFAULT', 'AUTO']);
+  assert.deepEqual([skillOf(5, false, S1).trigger.rule, skillOf(5, false, S2).trigger.rule, skillOf(5, false, S2).skillType], ['SEARCH', 'DEFAULT', 'AUTO']);
+  assert.deepEqual(skillOf(5, false, S1).trigger.official, ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY']);   // official CASTER row (no skill grid: SEARCH)
   assert.deepEqual([modOf(5, FX).attr, modOf(6, FX).attr, modOf(5, FY).attr, modOf(6, FY).attr], [{ maxHp: 90, atk: 22 }, { maxHp: 125, atk: 38 }, { atk: 30, aspd: 5 }, { atk: 45, aspd: 7 }]);
   assert.deepEqual([talentOf(6, true, FY, 1).bb.magic_resist_penetrate_fixed, talentOf(6, true, FX, 0).bb['attack@atk_scale_2'], talentOf(5, true, FX, 0).bb['attack@atk_scale_2']], [23, 3.75, 3.15]);
 });
@@ -102,7 +103,7 @@ test('her normal attack (no skill): a body hit and one drone addition — init, 
   }
 });
 
-test('S1 火花四溅 (DEFAULT: on her attack with an enemy in range): 25 s, ATK +atk, ASPD +aspd, no attack of her own; 2 drones lock her first target (in range or not afterwards) and hit it every attack interval — each its own ramp, arts 技能伤害 — and take her next first target once it falls; 缴械 stops nothing', () => {
+test('S1 火花四溅 (SEARCH: with an enemy in her range): 25 s, ATK +atk, ASPD +aspd, no attack of her own; 2 drones lock her first target (in range or not afterwards) and hit it every attack interval — each its own ramp, arts 技能伤害 — and take her next first target once it falls; 缴械 stops nothing', () => {
   for (const f of [[5, false, null], [6, true, FX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S1);

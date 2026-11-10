@@ -57,7 +57,7 @@ function done(h) {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
 
-test('令 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, 3-1, ranged arts, hits air, blocks 1, ground-targetable, the data triggers (DEFAULT), 炎, no 特质', () => {
+test('令 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, 3-1, ranged arts, hits air, blocks 1, ground-targetable, the data triggers (SEARCH), 炎, no 特质', () => {
   assert.equal(OPERATOR_KITS[LING], KITS[LING]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -68,7 +68,7 @@ test('令 in every 自选 form: her kit (all three skills authored), the form\'s
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def], [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0)], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.base.bat], [1, 'ranged', 'arts', true, 1.6], `${label(f)}: 召唤师`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-1`);
-      assert.deepEqual([u.skill.rule, form.skills[skill].trigger.rule], ['DEFAULT', 'DEFAULT'], `${label(f)}: the data's trigger`);
+      assert.deepEqual([u.skill.rule, form.skills[skill].trigger.rule], ['SEARCH', 'SEARCH'], `${label(f)}: the data's trigger (official CASTER row ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY)`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['yanShip'], []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       done(h);

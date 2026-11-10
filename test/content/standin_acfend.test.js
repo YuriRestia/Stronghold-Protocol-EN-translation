@@ -65,8 +65,9 @@ test('Mechanist fields on all 6 records she replaces: her body (+ PRO-X attribut
     assert.ok(!u.kit.generic && u.kit.skillSource === 'skills', `${id}: her kit's own spec`);
     assert.equal(!!u.def.raw.module?.active, !!mod, `${id}: module`);
     assert.deepEqual([u.base.def, u.base.maxHp, u.base.blockCnt], [form.stats.def + (mod?.attr.def ?? 0), form.stats.maxHp + (mod?.attr.maxHp ?? 0), 3], `${id}: stats`);
-    // STANDIN_TRIGGER_DEVIATIONS: DEFAULT (the official TAKE_DAMAGE kept as rawRule)
-    assert.deepEqual([u.skill.rule, sk.trigger.rawRule], ['DEFAULT', 'TAKE_DAMAGE'], `${id}: trigger`);
+    // the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] (no skill grid -> SEARCH): a hit or an enemy in her range
+    assert.deepEqual([u.skill.rule, sk.trigger.rawRule], ['TAKE_DAMAGE', 'ON_TAKE_DAMAGE'], `${id}: trigger`);
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH'], `${id}: trigger list`);
     assert.equal(u.profile.canHitFly, false, `${id}: ground-only`);
     assert.equal(h.b.errors.length, 0);
   }

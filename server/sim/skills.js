@@ -504,7 +504,8 @@ export class SkillRuntime {
     let keys;
     if (this.triggerGrid) { this._triggerKeys(); keys = this._trigSet; } else keys = u.baseRangeKeys || u.rangeKeys;
     const lim = this.triggerHpAtMost + 1e-9;
-    return b.injuredAlliesInKeys(keys, u).some((a) => a.hpRatio <= lim);
+    // an element healer's patient may be at full HP with only an element gauge to clear (as `_defaultCondition`)
+    return b.injuredAlliesInKeys(keys, u, !!u.profile?.heal?.elementHealRatio).some((a) => a.hpRatio <= lim);
   }
 
   _tickRuleSatisfied() {

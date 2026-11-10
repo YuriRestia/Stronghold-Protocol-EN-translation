@@ -58,7 +58,7 @@ const cagesOf = (h) => h.b.allyUnits.filter((a) => a.kind === 'token' && a.defId
 /** No attacks of hers (to isolate an effect). */
 const quiet = (h, u) => h.b.addBuff(u, { key: 'test:disarm', flags: { disarm: true } });
 
-test('酒神 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, y-2, 巫役 (ranged arts, hits air, blocks 1), S1 AUTO on attack SP (data DEFAULT), S2 at full SP (kit), S3 ACTIVE_RANGE on its y-8, ground-targetable, 维多利亚 bond, no 特质', () => {
+test('酒神 in every 自选 form: her kit (all three skills authored), the form\'s stats + module attributes, y-2, 巫役 (ranged arts, hits air, blocks 1), S1 AUTO on attack SP (data DEFAULT), S2 at full SP (kit), S3 [DEFAULT, SKILL_RANGE on its y-8] (official 巫役 row COMBAT_OR_ATTACK + SKILL_RANGE_ENEMY), ground-targetable, 维多利亚 bond, no 特质', () => {
   assert.equal(OPERATOR_KITS[ID], KITS[ID]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -69,8 +69,8 @@ test('酒神 in every 自选 form: her kit (all three skills authored), the form
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.res], [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def, form.stats.res], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.base.bat, u.profile.maxTargets], [1, 'ranged', 'arts', true, 1.6, 1], `${label(f)}: 巫役`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: y-2`);
-      assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.kind], [['DEFAULT', 'attack', 'instant'], ['SP_FULL', 'time', 'toggle'], ['ACTIVE_RANGE', 'time', 'duration']][skill], `${label(f)}: trigger / SP / kind`);
-      if (skill === 2) assert.deepEqual(u.skill.triggerGrid, form.skills[2].rangeGrid, `${label(f)}: the y-8 trigger grid`);
+      assert.deepEqual([u.skill.rules, u.skill.spType, u.skill.kind], [[['DEFAULT'], 'attack', 'instant'], [['SP_FULL'], 'time', 'toggle'], [['DEFAULT', 'SKILL_RANGE'], 'time', 'duration']][skill], `${label(f)}: trigger / SP / kind`);
+      if (skill === 2) assert.deepEqual(u.skill.alsoRules[0].grid, form.skills[2].rangeGrid, `${label(f)}: the y-8 trigger grid`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['victoriaShip'], []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       done(h);
@@ -309,7 +309,7 @@ test('本能的召唤: an ELITE in its x-1 is lured before normal enemies; only 
   done(h);
 });
 
-test('S3 空剧场 (ACTIVE_RANGE on y-8): range y-8 while on, ATK +75 % / +95 %, an enemy not in a burst first; her 神经损伤 starts 10 % ATK 神经损伤 a second (from 0.1 s) until a burst; the 爆发冷却 of enemies in her range runs 1.5×', () => {
+test('S3 空剧场 (DEFAULT + SKILL_RANGE on y-8): range y-8 while on, ATK +75 % / +95 %, an enemy not in a burst first; her 神经损伤 starts 10 % ATK 神经损伤 a second (from 0.1 s) until a burst; the 爆发冷却 of enemies in her range runs 1.5×', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const form = formOf(tier, elite);

@@ -125,18 +125,23 @@ test('1_01 隐现 S1 “不惹麻烦”: attack@trigger_time rounds of attack@at
   }
 });
 
-test('1_02 角峰 S1 体能强化: TAKE_DAMAGE (TANK S1) — HP +max_hp, +hp_recovery_per_sec HP per second', () => {
+test('1_02 角峰 S1 体能强化: [TAKE_DAMAGE, SEARCH] (official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]) — HP +max_hp, +hp_recovery_per_sec HP per second', () => {
   for (const id of pair('02')) {
     const s = rec(id, 'skchr_yak_1'), bb = s.bb;
+    // official TANK row: a hit OR an enemy on the skill range; S1 has no rangeGrid, so SKILL_RANGE_ENEMY = SEARCH (initial range)
+    assert.deepEqual(s.trigger.official, ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY']);
     assert.equal(s.trigger.rule, 'TAKE_DAMAGE');
+    assert.deepEqual(s.trigger.also.map((a) => a.rule), ['SEARCH']);
     const h = run({
       defs: { enemies: { e: dummy('e', { atk: 400, bat: 1.5 }) }, chess: noGarrison(id) },
       units: [entry(id, s.skillId, { row: 9, col: 5, carryState: READY })],
       enemies: [{ key: 'e', pos: [9, 5] }],
     });
     const u = sel(h, id, s.skillId);
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
     assert.ok(h.runUntil(() => u.skill.active, 10));
-    assert.equal(started(h, u)[0].reason, 'TAKE_DAMAGE');
+    // the enemy already stands in range: the SEARCH entry casts it before the first hit (400 ATK, 1.5 s interval)
+    assert.equal(started(h, u)[0].reason, 'SEARCH');
     approx(u.s.maxHp, u.base.maxHp * (1 + bb.max_hp), `${id} HP`);
     approx(u.s.def, u.base.def, 'DEF unchanged (抗寒体质 only)');
     approx(u.s.hpRegen, u.base.hpRecoveryPerSec + bb.hp_recovery_per_sec, 'regen');
@@ -173,10 +178,12 @@ test('1_03 惊蛰 S1 攻击力强化·γ型: ATK +atk and the chain keeps its fa
   }
 });
 
-test('1_04 深巡 S1 侵袭破坏应对: TAKE_DAMAGE — ATK/DEF +x, normal single-target attacks in the normal range', () => {
+test('1_04 深巡 S1 侵袭破坏应对: [TAKE_DAMAGE, SEARCH] (official TANK row) — ATK/DEF +x, normal single-target attacks in the normal range', () => {
   for (const id of pair('04')) {
     const s = rec(id, 'skchr_udflow_1');
+    assert.deepEqual(s.trigger.official, ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY']);
     assert.equal(s.trigger.rule, 'TAKE_DAMAGE');
+    assert.deepEqual(s.trigger.also.map((a) => a.rule), ['SEARCH']);
     const h = run({
       defs: { enemies: { e: dummy('e'), a: dummy('a', { atk: 300 }) }, chess: noGarrison(id) },
       units: [entry(id, s.skillId, { row: 9, col: 4, carryState: READY })],
@@ -184,7 +191,8 @@ test('1_04 深巡 S1 侵袭破坏应对: TAKE_DAMAGE — ATK/DEF +x, normal sing
     });
     const u = sel(h, id, s.skillId);
     assert.ok(h.runUntil(() => u.skill.active, 10));
-    assert.equal(started(h, u)[0].reason, 'TAKE_DAMAGE');
+    // an enemy stands on her tile from the start: the SEARCH entry casts it before it hits
+    assert.equal(started(h, u)[0].reason, 'SEARCH');
     approx(u.s.atk, u.base.atk * (1 + s.bb.atk), 'ATK');
     approx(u.s.def, u.base.def * (1 + s.bb.def), 'DEF');
     assert.deepEqual([...u.rangeKeys].sort(), [...u.baseRangeKeys].sort(), 'range unchanged');
@@ -309,7 +317,7 @@ test('1_10 古米 S2 食粮烹制: disarm s cooking (no attacks, DEF +def), then
     const s = rec(id, 'skchr_sunbr_2'), bb = s.bb, tb = raw(id).trait.bb;
     const ally = chessRec({ id: 't_ally', profession: 'WARRIOR', rangeGrid: [[0, 0]], skill: null, stats: { maxHp: 20000 } });
     const h = run({
-      // a MANUAL 重装 skill: the TAKE_DAMAGE strategy (PRTS 卫戍协议/帮助 "不受技能范围影响，受到伤害时释放技能")
+      // a MANUAL 重装 skill: the official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] — a hit OR an enemy on its 3×3 skill grid
       defs: { enemies: { e: dummy('e', { atk: 300, bat: 1 }) }, chess: { ...noGarrison(id), t_ally: ally } },
       units: [entry(id, s.skillId, { row: 9, col: 5, carryState: READY }), { chessId: 't_ally', row: 10, col: 6 }],
       enemies: [{ key: 'e', pos: [9, 5] }],
@@ -317,9 +325,12 @@ test('1_10 古米 S2 食粮烹制: disarm s cooking (no attacks, DEF +def), then
     const u = sel(h, id, s.skillId), a = h.unit('t_ally');
     h.step();
     a.hp = a.s.maxHp * 0.3;
+    assert.deepEqual(s.trigger.official, ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY']);
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SKILL_RANGE']);
     assert.ok(h.runUntil(() => u.skill.active, 5));
     const st = started(h, u)[0].t;
-    assert.equal(started(h, u)[0].reason, 'TAKE_DAMAGE');
+    // the enemy is on her own tile (inside the skill grid) from the start: SKILL_RANGE casts before its first hit
+    assert.equal(started(h, u)[0].reason, 'SKILL_RANGE');
     approx(u.s.def, u.base.def * (1 + bb.def), `${id} cooking DEF`);
     approx(u.s.atk, u.base.atk, 'no ATK while cooking');
     h.runUntil(() => h.b.time >= st + bb.disarm - 0.2, 20);
@@ -379,7 +390,9 @@ test('1_13 波登可 S1 花香疗法: a heal skill — ATK +atk, attacks heal th
     h2.step();
     h2.unit('t_ally').hp = 5000;
     assert.ok(h2.runUntil(() => heals(h2, u2).length > 0, 5), 'heals without an enemy');
-    assert.equal(started(h2, u2)[0].reason, 'DEFAULT');
+    // official row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] = rules [DEFAULT, SEARCH]; SEARCH is a tick rule (an injured ally counts for a heal skill)
+    assert.deepEqual(u2.skill.rules, ['DEFAULT', 'SEARCH']);
+    assert.equal(started(h2, u2)[0].reason, 'SEARCH');
     done(h2);
     // (c) an enemy but nobody injured: the heal skill waits
     const h3 = run({ defs, units: [entry(id, s.skillId, { row: 10, col: 4, carryState: READY }), { chessId: 't_ally', row: 10, col: 5 }], enemies: [{ key: 'e', pos: [10, 6] }] });
@@ -723,13 +736,15 @@ test('1_20 雷蛇 反击电弧: attack interval +70 % of the base (PRTS 增大(+
   for (const id of pair('20')) {
     const bb = raw(id).skill.bb;
     assert.equal(raw(id).skill.skillId, 'skchr_liskam_2');
-    // 重装 S2 反击电弧 is an OFFENSIVE skill: the basic strategy casts it with an enemy in the skill range (issue #4; the
-    // deliberate deviation from the official 重装 row, DESIGN §21.29) —
-    // the enemy here stands two tiles ahead and, being a speed-0 dummy, never touches her
+    // 重装 S2 反击电弧 is an OFFENSIVE skill: the official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] casts it with an enemy
+    // in range (no skill rangeGrid → SEARCH, the initial range) without waiting for a hit — the enemy here stands two tiles
+    // ahead and, being a speed-0 dummy, never touches her
+    assert.deepEqual(raw(id).skill.trigger.official, ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY']);
     const h = run({ defs: { enemies: { e: dummy('e', { atk: 300, bat: 1 }) }, chess: noGarrison(id) }, units: [{ chessId: id, row: 9, col: 4, carryState: READY }], enemies: [{ key: 'e', pos: [9, 6] }] });
     const u = h.unit(id);
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
     assert.ok(h.runUntil(() => u.skill.active, 5));
-    assert.equal(started(h, u)[0].reason, 'DEFAULT');
+    assert.equal(started(h, u)[0].reason, 'SEARCH');
     approx(u.s.interval, u.base.bat * (1 + bb.base_attack_time) * 100 / u.s.aspd, `${id} interval ×${1 + bb.base_attack_time}`);
     h.runUntil(() => !u.skill.active, 30);
     approx(u.s.interval, u.base.bat * 100 / u.s.aspd, 'restored');

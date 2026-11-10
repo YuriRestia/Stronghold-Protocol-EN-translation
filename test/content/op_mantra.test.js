@@ -118,13 +118,13 @@ test('S1 共鸣溃缩 (AUTO, attack SP 3, data DEFAULT): every 4th attack deals 
   }
 });
 
-test('S2 意识联协 (MANUAL, data DEFAULT): 25 s, attack interval 1.6 − 0.6 / 0.7 s; 170 % / 210 % ATK on the target, then 2 / 3 jumps at 3.2 tiles/s to the nearest new enemy within 2.0 tiles for 100 % / 110 %; 神经 riders on every hit', () => {
+test('S2 意识联协 (MANUAL, data SEARCH (CASTER row)): 25 s, attack interval 1.6 − 0.6 / 0.7 s; 170 % / 210 % ATK on the target, then 2 / 3 jumps at 3.2 tiles/s to the nearest new enemy within 2.0 tiles for 100 % / 110 %; 神经 riders on every hit', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const b = sk.bb;
     const { h, u } = field({ tier, elite, skill: 1 });
     assert.deepEqual([u.skill.rule, sk.duration, b.base_attack_time, b['attack@atk_scale'], b['attack@chain.atk_scale'], b.chain_times, b['attack@ep_damage_ratio'], b['attack@element_atk_scale']],
-      ['DEFAULT', 25, elite ? -0.7 : -0.6, elite ? 2.1 : 1.7, elite ? 1.1 : 1, elite ? 3 : 2, elite ? 0.15 : 0.13, elite ? 0.2 : 0.18], `T${tier}`);
+      ['SEARCH', 25, elite ? -0.7 : -0.6, elite ? 2.1 : 1.7, elite ? 1.1 : 1, elite ? 3 : 2, elite ? 0.15 : 0.13, elite ? 0.2 : 0.18], `T${tier}`);
     // a line of enemies 1.5 tiles apart (the 4th is 2.1 from the 3rd: out of the jump radius at tier 6)
     const main = h.spawn('enemy_dummy', { pos: [10, 7] });
     const j1 = h.spawn('enemy_dummy', { pos: [10, 8.5] });
@@ -160,12 +160,12 @@ test('S2 意识联协 (MANUAL, data DEFAULT): 25 s, attack interval 1.6 − 0.6 
   }
 });
 
-test('S3 无言为真 (MANUAL, data ACTIVE_RANGE on its 3-17): cast for an enemy outside her own range, 40 s, ATK +170 % / +210 %, 2 targets, the 3-17 while on; 隐匿 enemies on it are revealed', () => {
+test('S3 无言为真 (MANUAL, data SEARCH + SKILL_RANGE on its 3-17 (CASTER row)): cast for an enemy outside her own range, 40 s, ATK +170 % / +210 %, 2 targets, the 3-17 while on; 隐匿 enemies on it are revealed', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
     assert.deepEqual([u.skill.rule, sk.rangeId, sk.duration, sk.bb.atk, sk.bb['attack@max_target'], sk.bb.max_trigger_cnt, sk.bb.per_active, sk.bb.interval_projectile_trigger, sk.bb.atk_scale],
-      ['ACTIVE_RANGE', '3-17', 40, elite ? 2.1 : 1.7, 2, 3, 2, 1.5, elite ? 1.45 : 1.1], `T${tier}`);
+      ['SEARCH', '3-17', 40, elite ? 2.1 : 1.7, 2, 3, 2, 1.5, elite ? 1.45 : 1.1], `T${tier}`);
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0);

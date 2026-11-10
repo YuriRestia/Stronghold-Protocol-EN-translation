@@ -3,10 +3,14 @@ import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { rotateOffset } from '../../server/sim/dir.js';
 
+// [char, skill index, an offset (facing right) in the skill area but outside the normal range, whether the skill lists
+// SKILL_RANGE_ENEMY on a grid]. Official triggers: 司霆惊蛰 S2 is [SEARCH, DEFAULT] (no rangeGrid: an attackable target
+// only); 恒河 / 予愿安洁莉娜 S3 are [TAKE_DAMAGE | DEFAULT, SKILL_RANGE on the skill area] — SKILL_RANGE counts any living
+// enemy on the area, a stealthed, sleeping or untargetable one too.
 const CASES = [
-  ['char_1043_leizi2', 1, [0, 3]],
-  ['char_1044_hsgma2', 2, [0, 2]],
-  ['char_1015_aglna2', 2, [1, -1]],
+  ['char_1043_leizi2', 1, [0, 3], false],
+  ['char_1044_hsgma2', 2, [0, 2], true],
+  ['char_1015_aglna2', 2, [0, 4], true],
 ];
 function field(charId, skillIndex, { tier = 6, elite = true, dir = 'RIGHT', cooldown = 0 } = {}) {
   const h = makeBattle({ units: [{ uid: 1, diy: { slot: tier, charId, skillIndex }, elite, row: 10, col: 5, dir }],
@@ -17,12 +21,12 @@ function field(charId, skillIndex, { tier = 6, elite = true, dir = 'RIGHT', cool
   return { h, u: h.unit(1) };
 }
 
-for (const [charId, skillIndex, delta] of CASES) {
+for (const [charId, skillIndex, delta, skillRange] of CASES) {
   test(`${charId}: all DIY forms cast for a target in the actual skill area outside normal targeting`, () => {
     for (const tier of [5, 6]) for (const elite of [false, true]) for (const dir of ['UP', 'RIGHT', 'DOWN', 'LEFT']) {
       for (const key of ['dummy', 'flyer']) {
         const { h, u } = field(charId, skillIndex, { tier, elite, dir });
-        // Leizi's terrain flood and Hoshiguma's x-2 are symmetric; Angelina's rear diagonal follows her facing.
+        // Leizi's terrain flood and Hoshiguma's x-2 are symmetric; Angelina's y-4 follows her facing.
         const [dr, dc] = charId === 'char_1015_aglna2' ? rotateOffset(...delta, dir) : delta;
         h.spawn(key, { pos: [10 + dr, 5 + dc] });
         u.skill.addCharge(1); h.step();
@@ -31,12 +35,14 @@ for (const [charId, skillIndex, delta] of CASES) {
       }
     }
   });
-  test(`${charId}: expanded auto-cast keeps targetability and operation cooldown`, () => {
+  test(`${charId}: expanded auto-cast ${skillRange ? 'counts hidden enemies on the skill area (SKILL_RANGE_ENEMY)' : 'keeps targetability'} and operation cooldown`, () => {
     for (const flag of ['stealth', 'untargetable', 'sleep']) {
       const { h, u } = field(charId, skillIndex);
+      assert.equal(u.skill.rules.includes('SKILL_RANGE'), skillRange, 'the official list');
       const e = h.spawn('flyer', { pos: [10 + delta[0], 5 + delta[1]] });
       h.b.addBuff(e, { key: 'test:hidden', flags: { [flag]: true } });
       u.skill.addCharge(1); h.run(0.5);
+      if (skillRange) { assert.equal(u.skill.activations, 1, `${flag}: any living enemy on the skill area casts it`); continue; }
       assert.equal(u.skill.activations, 0, flag);
       h.b.removeBuff(e, 'test:hidden'); h.step();
       assert.equal(u.skill.activations, 1, `${flag} removed`);

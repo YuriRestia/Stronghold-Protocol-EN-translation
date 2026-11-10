@@ -109,11 +109,11 @@ test('trait 领主: a ranged attack on an enemy two tiles ahead deals 80 % ATK, 
   }
 });
 
-test('S1 攻击力强化·γ型 (MANUAL, data DEFAULT): ATK +45 % / +60 % for 30 s with an enemy in range', () => {
+test('S1 攻击力强化·γ型 (MANUAL, data [DEFAULT, SEARCH] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): ATK +45 % / +60 % for 30 s with an enemy in range', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk, u.skill.spCost, sk.initSp], ['DEFAULT', 30, elite ? 0.6 : 0.45, elite ? 35 : 37, elite ? 10 : 5], `T${tier}`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.atk, u.skill.spCost, sk.initSp], [['DEFAULT', 'SEARCH'], 30, elite ? 0.6 : 0.45, elite ? 35 : 37, elite ? 10 : 5], `T${tier}`);
     u.skill.gainSp(999);
     h.run(2);
     assert.equal(u.skill.activations, 0, `T${tier}: no enemy, no cast`);
@@ -127,12 +127,13 @@ test('S1 攻击力强化·γ型 (MANUAL, data DEFAULT): ATK +45 % / +60 % for 30
   }
 });
 
-test('S2 护身尖刺 (MANUAL, 技能范围 3-1, data SKILL_RANGE): no attack, ATK / DEF up; an enemy\'s 普通伤害 sets off up to 4 spikes 0.5 s later on the 3-1 (air too) for 80 % ATK physical, at most every 0.8 / 0.75 s; his range stays 3-12', () => {
+test('S2 护身尖刺 (MANUAL, 技能范围 3-1, data [DEFAULT, SKILL_RANGE on 3-1] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): no attack, ATK / DEF up; an enemy\'s 普通伤害 sets off up to 4 spikes 0.5 s later on the 3-1 (air too) for 80 % ATK physical, at most every 0.8 / 0.75 s; his range stays 3-12', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1 });
-    assert.deepEqual([u.skill.rule, sk.rangeId, sk.duration, sk.bb.atk, sk.bb.def, sk.bb.cooldown, sk.bb.max_target],
-      ['SKILL_RANGE', '3-1', elite ? 36 : 33, elite ? 0.4 : 0.3, elite ? 0.7 : 0.55, elite ? 0.75 : 0.8, 4], `T${tier}`);
+    assert.deepEqual(u.skill.alsoRules.map((e) => [e.rule, e.grid]), [['SKILL_RANGE', sk.rangeGrid]], `T${tier}: the list's SKILL_RANGE reads the 3-1`);
+    assert.deepEqual([u.skill.rules, sk.rangeId, sk.duration, sk.bb.atk, sk.bb.def, sk.bb.cooldown, sk.bb.max_target],
+      [['DEFAULT', 'SKILL_RANGE'], '3-1', elite ? 36 : 33, elite ? 0.4 : 0.3, elite ? 0.7 : 0.55, elite ? 0.75 : 0.8, 4], `T${tier}`);
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0, `T${tier}: nobody on the 3-1`);
@@ -194,12 +195,13 @@ test('S2: the cooldown (0.8 s) holds a second hit back; 持续 / 溅射 / elemen
   done(h);
 });
 
-test('S3 至高之术 (MANUAL, attack SP, data ACTIVE_RANGE on 3-3): 30 s of range 3-3, ATK +33 % / +40 %, ASPD +14 / +16, no 80 % on ranged attacks; the second use of a deployment doubles both and never ends; a redeploy starts the count again', () => {
+test('S3 至高之术 (MANUAL, attack SP, data [DEFAULT, SKILL_RANGE on 3-3] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): 30 s of range 3-3, ATK +33 % / +40 %, ASPD +14 / +16, no 80 % on ranged attacks; the second use of a deployment doubles both and never ends; a redeploy starts the count again', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.rule, sk.rangeId, sk.spType, sk.spCost, sk.duration, sk.bb.atk, sk.bb.attack_speed, sk.bb['thorns_s_3[b].atk'], sk.bb['thorns_s_3[b].attack_speed'], sk.bb['thorns_s_3[b].duration']],
-      ['ACTIVE_RANGE', '3-3', 'INCREASE_WHEN_ATTACK', 15, 30, elite ? 0.4 : 0.33, elite ? 16 : 14, elite ? 0.8 : 0.66, elite ? 32 : 28, -1], `T${tier}`);
+    assert.deepEqual(u.skill.alsoRules.map((e) => [e.rule, e.grid]), [['SKILL_RANGE', sk.rangeGrid]], `T${tier}: the list's SKILL_RANGE reads the 3-3`);
+    assert.deepEqual([u.skill.rules, sk.rangeId, sk.spType, sk.spCost, sk.duration, sk.bb.atk, sk.bb.attack_speed, sk.bb['thorns_s_3[b].atk'], sk.bb['thorns_s_3[b].attack_speed'], sk.bb['thorns_s_3[b].duration']],
+      [['DEFAULT', 'SKILL_RANGE'], '3-3', 'INCREASE_WHEN_ATTACK', 15, 30, elite ? 0.4 : 0.33, elite ? 16 : 14, elite ? 0.8 : 0.66, elite ? 32 : 28, -1], `T${tier}`);
     u.skill.gainSp(999);
     const e = h.spawn('enemy_dummy', { pos: [11, 8] });   // on the 3-3, off the 3-12
     assert.ok(h.runUntil(() => u.skill.active, 2), `T${tier}: an enemy on the 3-3 casts it`);

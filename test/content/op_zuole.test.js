@@ -123,10 +123,11 @@ test('S1 破虏 (AUTO, 2 charges, data DEFAULT): the next attack at 145 % / 160 
   }
 });
 
-test('S2 行险 (MANUAL, 12 s, data DEFAULT): −50 % current HP (never below 1), a barrier of 75 % / 90 % max HP stacking to 2× max HP, ATK +110 % / +140 %, block 2, every blocked enemy struck; once over the barrier loses 200 per second', () => {
+test('S2 行险 (MANUAL, 12 s, data [DEFAULT, SEARCH] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): −50 % current HP (never below 1), a barrier of 75 % / 90 % max HP stacking to 2× max HP, ATK +110 % / +140 %, block 2, every blocked enemy struck; once over the barrier loses 200 per second', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1, row: 9 });
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SEARCH'], `T${tier}`);
     assert.deepEqual([u.skill.rule, sk.duration, sk.spCost, sk.initSp, sk.bb.atk, sk.bb.hp_ratio, sk.bb.scale, sk.bb.block_cnt, sk.bb.max_scale, sk.bb.shield_decrease],
       ['DEFAULT', 12, elite ? 24 : 27, elite ? 10 : 5, elite ? 1.4 : 1.1, 0.5, elite ? 0.9 : 0.75, 1, 2, -200], `T${tier}`);
     noSp(h, u);
@@ -179,13 +180,13 @@ test('S2 行险 (MANUAL, 12 s, data DEFAULT): −50 % current HP (never below 1)
   done(h);
 });
 
-test('S3 佑序有炎 (MANUAL, data SKILL_RANGE on 3-2): 7 slashes on ≤ 3 enemies of the 3-2 (air too) at 205 % / 220 %, the last ×2 and 晕眩 3.5 / 4 s; meanwhile no trait heal — every hit adds 70 × 2.5 / 3 to a barrier (≤ 2× max HP, 15 s from the last gain)', () => {
+test('S3 佑序有炎 (MANUAL, data [DEFAULT, SKILL_RANGE on 3-2] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): 7 slashes on ≤ 3 enemies of the 3-2 (air too) at 205 % / 220 %, the last ×2 and 晕眩 3.5 / 4 s; meanwhile no trait heal — every hit adds 70 × 2.5 / 3 to a barrier (≤ 2× max HP, 15 s from the last gain)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.rule, sk.rangeId, sk.spCost, sk.initSp, sk.bb.atk_scale, sk.bb.times, sk.bb.stun, sk.bb.last_atk_bonus, sk.bb.shield_scale, sk.bb.shield_duration, sk.bb.max_scale],
-      ['SKILL_RANGE', '3-2', elite ? 28 : 29, elite ? 6 : 3, elite ? 2.2 : 2.05, 7, elite ? 4 : 3.5, 2, elite ? 3 : 2.5, 15, 2], `T${tier}`);
-    assert.deepEqual(u.skill.triggerGrid, [[0, 0], [0, 1], [0, 2], [0, 3]], `T${tier}: its 3-2`);
+    assert.deepEqual([u.skill.rules, sk.rangeId, sk.spCost, sk.initSp, sk.bb.atk_scale, sk.bb.times, sk.bb.stun, sk.bb.last_atk_bonus, sk.bb.shield_scale, sk.bb.shield_duration, sk.bb.max_scale],
+      [['DEFAULT', 'SKILL_RANGE'], '3-2', elite ? 28 : 29, elite ? 6 : 3, elite ? 2.2 : 2.05, 7, elite ? 4 : 3.5, 2, elite ? 3 : 2.5, 15, 2], `T${tier}`);
+    assert.deepEqual(u.skill.alsoRules.map((e) => [e.rule, e.grid]), [['SKILL_RANGE', [[0, 0], [0, 1], [0, 2], [0, 3]]]], `T${tier}: its 3-2`);
     noSp(h, u);
     u.hp = u.s.maxHp * 0.6;
     const hp0 = u.hp;

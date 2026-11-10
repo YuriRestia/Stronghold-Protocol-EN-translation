@@ -84,7 +84,8 @@ test('莱伊 in every 自选 form: her kit (all three skills authored), the form
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'ACTIVE_RANGE']);
+  // official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] on the MANUAL S1 / S3 -> SEARCH first (S2 is AUTO: DEFAULT)
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['SEARCH', 'DEFAULT', 'SEARCH']);
   assert.deepEqual([modOf(5, HX).attr, modOf(6, HX).attr, modOf(5, HY).attr, modOf(6, HY).attr],
     [{ maxHp: 150, atk: 50, def: 15 }, { maxHp: 200, atk: 70, def: 25 }, { maxHp: 100, atk: 60, aspd: 5 }, { maxHp: 200, atk: 75, aspd: 7 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -173,14 +174,14 @@ test('T2 入神: +9 % ATK per attack on the same target, ≤ 3 layers (HUN-Y sta
   }
 });
 
-test('S1 脱身矢 (MANUAL, 2 charges, data DEFAULT): a special bullet at once (no bullet of the magazine) for 290 % / 360 % × the trait scale, pushed 中力 along her facing; off her facing radial at 力度 −1; a kill loads one more bullet at the next reload; with an empty magazine it still fires', () => {
+test('S1 脱身矢 (MANUAL, 2 charges, data SEARCH): a special bullet at once (no bullet of the magazine) for 290 % / 360 % × the trait scale, pushed 中力 along her facing; off her facing radial at 力度 −1; a kill loads one more bullet at the next reload; with an empty magazine it still fires', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     assert.deepEqual([sk.spCost, sk.initSp, sk.maxChargeTime, sk.bb.atk_scale, sk.bb.force, sk.bb.cnt], elite ? [12, 10, 2, 3.6, 1, 1] : [14, 10, 2, 2.9, 1, 1], `T${tier}`);
     // straight ahead: pushed along +x
     {
       const { h, u } = field({ tier, elite, skill: 0, row: 11 });
-      assert.deepEqual([u.skill.kind, u.skill.rule, u.skill.maxCharges], ['charges', 'DEFAULT', 2]);
+      assert.deepEqual([u.skill.kind, u.skill.rule, u.skill.maxCharges], ['charges', 'SEARCH', 2]);
       const atkAt = [];
       h.b.on('damaged', (c) => { if (c.source === u) atkAt.push([c, u.s.atk]); }, { priority: -100 });
       const e = h.spawn('enemy_dummy', { pos: [11, 5] });
@@ -249,18 +250,20 @@ test('S2 广域警觉 (AUTO, attack SP 16): on at full SP — no enemy needed be
   }
 });
 
-test('S3 “得见光芒” (MANUAL, 16 s, data ACTIVE_RANGE on 3-8): an enemy only on 3-8 casts it; no attack until the magazine is full, reloading every 0.4 s (1.6 − 1.2); range 3-8; attacks 230 % / 270 % × 1.2 and 束缚 2 s; a kill during it ⇒ +10 SP at its end, through 阻回', () => {
+test('S3 “得见光芒” (MANUAL, 16 s, data SEARCH + SKILL_RANGE on 3-8): an enemy only on 3-8 casts it; no attack until the magazine is full, reloading every 0.4 s (1.6 − 1.2); range 3-8; attacks 230 % / 270 % × 1.2 and 束缚 2 s; a kill during it ⇒ +10 SP at its end, through 阻回', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb.reload_interval, sk.bb['attack@atk_scale'], sk.bb['attack@unmove_duration'], sk.bb.sp, sk.rangeId],
       [16, elite ? 33 : 37, elite ? 20 : 15, -1.2, elite ? 2.7 : 2.3, 2, 10, '3-8'], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'ACTIVE_RANGE']);
+    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'SEARCH']);
+    assert.deepEqual(u.skill.rules, ['SEARCH', 'SKILL_RANGE'], 'official SNIPER row: the 4-9 and the skill range 3-8');
     u.trait.ammo = 2;
     const log = ammoLog(h, u);
     u.skill.gainSp(999);
     const side = h.spawn('enemy_dummy', { pos: [11, 6] });   // [1,3]: in 3-8, not in 4-9
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: cast for [1,3]`);
+    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SKILL_RANGE', `T${tier}: by the skill range`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 3-8 while it runs`);
     const tCast = h.b.time;
     const attacksAfter = () => h.hooksOf('attack').filter((c) => c.attacker === u && c.t > tCast - 1e-9);

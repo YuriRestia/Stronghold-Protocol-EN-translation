@@ -40,19 +40,36 @@ for (const tier of [5, 6]) for (const elite of [false, true]) {
   });
 }
 
-test('赤刃陈 S3 still rejects an out-of-range, hidden or sleeping flyer, and cannot cast while stunned', () => {
+// official default row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] -> [DEFAULT, SKILL_RANGE on the 8-tile skill range]: SKILL_RANGE_ENEMY
+// counts any living enemy of the skill range "无视其不可选中" (a hidden or sleeping flyer too), so only an out-of-range flyer
+// is rejected, and a stunned operator cannot cast
+const chen3 = () => {
   const h = makeBattle({ autoFinish: false,
     defs: { enemies: { fly: enemyRec({ key: 'fly', hp: 1e9, atk: 0, speed: 0, motion: 'FLY' }) } },
     units: [{ uid: 1, diy: diy('char_1050_chen3', 2), row: 10, col: 4 }] });
   h.step(); const u = h.unit(1); u.skill.gainSp(999, 'init');
-  const far = h.spawn('fly', { pos: [12, 12] }); h.run(0.3); assert.equal(u.skill.activations, 0);
-  const e = h.spawn('fly', { pos: [10, 6] });
-  h.b.addBuff(e, { key: 'test:stealth', flags: { stealth: true } });
-  h.run(0.3); assert.equal(u.skill.activations, 0);
-  h.b.removeBuff(e, 'test:stealth'); h.b.applyStatus(e, 'sleep', { duration: 0.4 });
-  h.run(0.2); assert.equal(u.skill.activations, 0);
+  assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']);
+  return { h, u };
+};
+test('赤刃陈 S3 rejects an out-of-range flyer; a hidden or sleeping flyer on its skill range casts it (SKILL_RANGE ignores selectability)', () => {
+  { const { h, u } = chen3();
+    const far = h.spawn('fly', { pos: [12, 12] }); h.run(0.3); assert.equal(u.skill.activations, 0, 'out of the skill range');
+    assert.ok(far.alive); done(h); }
+  { const { h, u } = chen3();
+    const e = h.spawn('fly', { pos: [10, 6] });
+    h.b.addBuff(e, { key: 'test:stealth', flags: { stealth: true } });
+    h.run(0.3); assert.equal(u.skill.activations, 1, 'a hidden flyer on the skill range'); done(h); }
+  { const { h, u } = chen3();
+    const e = h.spawn('fly', { pos: [10, 6] });
+    h.b.applyStatus(e, 'sleep', { duration: 0.4 });
+    h.run(0.2); assert.equal(u.skill.activations, 1, 'a sleeping flyer on the skill range'); done(h); }
+});
+
+test('赤刃陈 S3 cannot cast while stunned', () => {
+  const { h, u } = chen3();
+  h.spawn('fly', { pos: [10, 6] });
   h.b.applyStatus(u, 'stun', { duration: 0.7 }); h.run(0.5); assert.equal(u.skill.activations, 0);
-  h.run(0.4); assert.equal(u.skill.activations, 1); assert.ok(far.alive); done(h);
+  h.run(0.4); assert.equal(u.skill.activations, 1); done(h);
 });
 
 test('琳琅诗怀雅 S2 receives the deployment coin and throws without waiting for the first merchant payment', () => {

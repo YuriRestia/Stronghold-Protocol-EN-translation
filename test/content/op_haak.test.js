@@ -73,7 +73,8 @@ test('阿 in every 自选 form: his operator kit (all three skills authored), th
       assert.equal(form.rangeId, '3-3');
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['yanShip'], []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target him`);
-      assert.deepEqual([u.skill.kind, u.skill.rule, form.skills[skill].trigger.rule], ['duration', 'DEFAULT', 'DEFAULT'], `${label(f)}: S${skill + 1} trigger (data)`);
+      assert.deepEqual([u.skill.kind, u.skill.rule, form.skills[skill].trigger.rule], ['duration', 'SEARCH', 'SEARCH'], `${label(f)}: S${skill + 1} trigger (data: official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY], no rangeGrid → SEARCH)`);
+      assert.deepEqual(form.skills[skill].trigger.official, ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY'], `${label(f)}: S${skill + 1} official types`);
       done(h);
     }
   }
@@ -196,7 +197,7 @@ test('T2 药剂扩散: healing he receives ×1.25 (GEE-Y stage 3: ×1.3); GEE-Y 
   }
 });
 
-test('S1 快速射击 (MANUAL, data DEFAULT): ASPD +50 / +70 for 23 / 26 s, then back', () => {
+test('S1 快速射击 (MANUAL, data SEARCH = official SNIPER row): ASPD +50 / +70 for 23 / 26 s, then back', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, GY]]) {
     const sk = skillOf(tier, elite, S1);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb.attack_speed], [elite ? 26 : 23, 30, elite ? 17 : 16, elite ? 70 : 50]);
@@ -215,7 +216,7 @@ test('S1 快速射击 (MANUAL, data DEFAULT): ASPD +50 / +70 for 23 / 26 s, then
   }
 });
 
-test('S2 爆发剂·γ型 (MANUAL, data DEFAULT, 30 s): 15 physical hits of 500 attack power on the ally of his range ahead (DEF applies, 5 % floor, 受击回复 SP), then max HP / DEF +40 % / +50 % on both for 30 s; the line ahead beats a nearer side ally', () => {
+test('S2 爆发剂·γ型 (MANUAL, data SEARCH = official SNIPER row, 30 s): 15 physical hits of 500 attack power on the ally of his range ahead (DEF applies, 5 % floor, 受击回复 SP), then max HP / DEF +40 % / +50 % on both for 30 s; the line ahead beats a nearer side ally', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, GX]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.duration, sk.spCost, sk.bb.damage, sk.bb.max_hp, sk.bb.def], [30, elite ? 34 : 37, 500, elite ? 0.5 : 0.4, elite ? 0.5 : 0.4]);
@@ -265,14 +266,14 @@ test('爆发剂 edge cases: a low-DEF ally can be knocked out by the volley (he 
     const { h, u } = field({ tier: 6, elite: true, skill: 2, others: [{ uid: 2, chessId: YAK, row: 10, col: 3 }] });   // behind him
     u.skill.gainSp(999);
     h.spawn('enemy_dummy', { pos: [10, 6] });
-    assert.ok(h.runUntil(() => u.skill.active, 3), 'cast: the DEFAULT rule needs an enemy only');
+    assert.ok(h.runUntil(() => u.skill.active, 3), 'cast: the SEARCH rule needs an enemy only');
     assert.equal(h.hooksOf('damaged').filter((c) => c.dmg?.tags?.includes('haak:stim')).length, 0, 'no volley');
     assert.equal(u.findBuff('haak:s3:self'), null, 'no buff');
     done(h);
   }
 });
 
-test('S3 爆发剂·榴莲味 (MANUAL, data DEFAULT, 20 s): the same volley, then ATK +30 % / +35 % and ASPD +30 / +35 on both for 20 s', () => {
+test('S3 爆发剂·榴莲味 (MANUAL, data SEARCH = official SNIPER row, 20 s): the same volley, then ATK +30 % / +35 % and ASPD +30 / +35 on both for 20 s', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, GY]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.spCost, sk.bb.damage, sk.bb.atk, sk.bb.attack_speed], [20, elite ? 41 : 44, 500, elite ? 0.35 : 0.3, elite ? 35 : 30]);

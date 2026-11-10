@@ -238,13 +238,14 @@ test('S2 余烬重荷 (MANUAL, DEFAULT, a 状态切换 toggle): ATK +16 % / 28 %
   }
 });
 
-test('S3 死境硝烟 (MANUAL, data ACTIVE_RANGE): cast with an enemy 2 tiles ahead; 70 s, max HP +30 / 45 %, ATK +60 / 90 %, range +1; heals 5 % per attack, 25 % stuns 3 / 4 s; −100 HP / s and 200 无来源 true / s on the enemies he attacked or that attacked him', () => {
+test('S3 死境硝烟 (MANUAL, data [DEFAULT, SEARCH] + the kept ACTIVE_RANGE deviation on the running range — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): cast with an enemy 2 tiles ahead; 70 s, max HP +30 / 45 %, ATK +60 / 90 %, range +1; heals 5 % per attack, 25 % stuns 3 / 4 s; −100 HP / s and 200 无来源 true / s on the enemies he attacked or that attacked him', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2, seed: 19 });
+    assert.deepEqual([u.skill.rules, sk.trigger.official, sk.trigger.deviation], [['DEFAULT', 'SEARCH', 'ACTIVE_RANGE'], ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], 'ACTIVE_RANGE'], `T${tier}`);
     assert.deepEqual([u.skill.rule, sk.duration, sk.bb.max_hp, sk.bb.atk, sk.bb['attack@hp_ratio'], sk.bb['attack@buff_prob'], sk.bb['attack@stun'], sk.bb.ability_range_forward_extend, sk.bb['attack@value'], sk.bb['attack@damage']],
-      ['ACTIVE_RANGE', 70, elite ? 0.45 : 0.3, elite ? 0.9 : 0.6, 0.05, 0.25, elite ? 4 : 3, 1, 100, 200], `T${tier}`);
-    assert.deepEqual(sk.trigger.customRangeGrid, [[0, 0], [0, 1], [0, 2]], `T${tier}: the running range`);
+      ['DEFAULT', 70, elite ? 0.45 : 0.3, elite ? 0.9 : 0.6, 0.05, 0.25, elite ? 4 : 3, 1, 100, 200], `T${tier}`);
+    assert.deepEqual(sk.trigger.also.map((e) => [e.rule, e.customRangeGrid]), [['SEARCH', null], ['ACTIVE_RANGE', [[0, 0], [0, 1], [0, 2]]]], `T${tier}: the further rules, the deviation on the running range`);
     u.skill.gainSp(999);
     const near = h.spawn('enemy_dummy', { pos: [9, 6] });        // beside his range: never attacked
     h.run(1);

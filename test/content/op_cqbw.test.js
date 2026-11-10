@@ -81,7 +81,9 @@ test('W in every 自选 form: her kit (all three skills authored), the form\'s s
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['MANUAL', 'DEFAULT'], ['AUTO', 'DEFAULT'], ['MANUAL', 'DEFAULT']]);
+  assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['MANUAL', 'SEARCH'], ['AUTO', 'DEFAULT'], ['MANUAL', 'SEARCH']]);
+  // official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY]: S1 / S3 have no rangeGrid, so one SEARCH rule; S2 is AUTO (own DEFAULT)
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.official), [['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY'], undefined, ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY']]);
   assert.deepEqual([FORMS['2/1/4/0'].stats.maxHp, FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.maxHp, FORMS['2/60/7/1'].stats.atk], [1284, 746, 1497, 879]);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr, modOf(5, Y).attr, modOf(6, Y).attr], [{ maxHp: 130, atk: 54 }, { maxHp: 210, atk: 78 }, { maxHp: 160, atk: 45 }, { maxHp: 200, atk: 85 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -107,12 +109,12 @@ test('trait 炮手: every enemy within 1.0 of the struck one takes the hit in fu
   done(h);
 });
 
-test('S1 红桃K (MANUAL, data DEFAULT, 22 / 19 SP): cast like an attack — that attack is the grenade: 270 % / 310 % ATK physical to every enemy within 1.2 (air too), each stunned 1.8 / 2.1 s; no extra hit; plain attacks after', () => {
+test('S1 红桃K (MANUAL, data SEARCH = official SNIPER row, 22 / 19 SP): cast like an attack — that attack is the grenade: 270 % / 310 % ATK physical to every enemy within 1.2 (air too), each stunned 1.8 / 2.1 s; no extra hit; plain attacks after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     assert.deepEqual([sk.spCost, sk.initSp, sk.spType, sk.bb.atk_scale, sk.bb.stun], elite ? [19, 0, 'INCREASE_WITH_TIME', 3.1, 2.1] : [22, 0, 'INCREASE_WITH_TIME', 2.7, 1.8], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 0 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['instant', 'DEFAULT'], `T${tier}`);
+    assert.deepEqual([u.skill.kind, u.skill.rule], ['instant', 'SEARCH'], `T${tier}`);
     const main = h.spawn('enemy_dummy', { pos: [10, 8] });
     const a = h.spawn('enemy_dummy', { pos: [10, 9.15] });   // 1.15: inside 1.2, outside her 1.0
     const b = h.spawn('enemy_dummy', { pos: [10, 9.3] });    // 1.3: outside 1.2
@@ -121,7 +123,9 @@ test('S1 红桃K (MANUAL, data DEFAULT, 22 / 19 SP): cast like an attack — tha
     assert.deepEqual(from(h, u).map((c) => c.target), [main], `T${tier}: her 1.0 splash reaches none of them`);
     u.skill.gainSp(999);
     const n0 = from(h, u).length;
-    assert.ok(h.runUntil(() => u.skill.activations === 1, 4), `T${tier}: cast on her next attack`);
+    // SEARCH is a tick rule (an enemy in her range): the cast comes at once, the grenade is her next attack
+    assert.ok(h.runUntil(() => u.skill.activations === 1, 4), `T${tier}: cast as soon as the SP is full`);
+    assert.ok(h.runUntil(() => from(h, u).length > n0, 4), `T${tier}: the grenade is her next attack`);
     h.run(0.6);
     const shot = from(h, u).slice(n0);
     const id = shot[0].dmg.attackId;
@@ -216,12 +220,12 @@ test('S2 惊吓盒子: no free deployable tile in her range ⇒ the skill does n
   done(h);
 });
 
-test('S3 D12 (MANUAL, data DEFAULT, 42 / 39 SP from 14 / 17): bombs on the 3 enemies of her range with the most HP (air too), cached ATK × 250 % / 280 % 无来源 physical within 1.2 of each 3 s after it lands + stun 3.5 / 4 s; early when its target falls; no hit of its own', () => {
+test('S3 D12 (MANUAL, data SEARCH = official SNIPER row, 42 / 39 SP from 14 / 17): bombs on the 3 enemies of her range with the most HP (air too), cached ATK × 250 % / 280 % 无来源 physical within 1.2 of each 3 s after it lands + stun 3.5 / 4 s; early when its target falls; no hit of its own', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.spCost, sk.initSp, sk.bb.max_target, sk.bb.atk_scale, sk.bb.stun], elite ? [39, 17, 3, 2.8, 4] : [42, 14, 3, 2.5, 3.5], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.kind, u.skill.rule, Math.floor(u.skill.sp)], ['instant', 'DEFAULT', sk.initSp], `T${tier}: from ${sk.initSp} SP`);
+    assert.deepEqual([u.skill.kind, u.skill.rule, Math.floor(u.skill.sp)], ['instant', 'SEARCH', sk.initSp], `T${tier}: from ${sk.initSp} SP`);
     const lo = h.spawn('enemy_hp2', { pos: [9, 5] });
     const e3 = h.spawn('enemy_hp3', { pos: [11, 5] });
     const e4 = h.spawn('enemy_hp4', { pos: [10, 8] });

@@ -340,20 +340,21 @@ function firstCast(chessId) {
   return { ...out, charId: u.def.charId, skill: u.skill.id, trigger: u.def.skill.trigger };
 }
 
-test('预备干员-重装 (for 泥岩 S2, 乌尔比安 S3): casts with an enemy in range before anything hits it — the owner\'s 重装 exception, rawRule TAKE_DAMAGE', () => {
+test('预备干员-重装 (for 泥岩 S2, 乌尔比安 S3): casts with an enemy in range before anything hits it — the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] (TAKE_DAMAGE + SEARCH), no deviation', () => {
   for (const id of ['chess_char_4_18_a', 'chess_char_4_18_b', 'chess_char_5_05_a', 'chess_char_5_05_b']) {
     const r = firstCast(id);
     const where = `${id}: ${JSON.stringify(r)}`;
     assert.equal(r.charId, 'char_602_cdfend', where);
-    assert.deepEqual(r.trigger, { rule: 'DEFAULT', grid: null }, where);
-    assert.equal(r.rule, 'DEFAULT', where);
+    assert.deepEqual(r.trigger, { rule: 'TAKE_DAMAGE', grid: null, also: [{ rule: 'SEARCH', grid: null }] }, where);
+    assert.equal(r.rule, 'TAKE_DAMAGE', where);
     assert.ok(r.cast != null && r.cast >= 3, `cast once the enemy is on the field — ${where}`);
-    assert.equal(r.reason, 'DEFAULT', where);
+    // the SEARCH entry (a tick rule: an enemy in the initial range, or one it blocks) casts it, not the TAKE_DAMAGE entry
+    assert.equal(r.reason, 'SEARCH', where);
     assert.ok(r.enemyInRange || r.blocking, `an enemy on its tile at the cast — ${where}`);
     assert.ok(r.hurt == null || r.hurt > r.cast, `cast before the first hit — ${where}`);
   }
-  // the data keeps the official row as rawRule, on every skill of both 重装 stand-ins (Mechanist's kit reads it as is)
+  // the data carries the official 重装 row on every skill of both 重装 stand-ins (rawRule = the first official type)
   for (const charId of ['char_602_cdfend', 'char_610_acfend']) {
-    for (const f of Object.values(BACKUPS.units[charId].forms)) for (const s of f.skills) assert.deepEqual([s.trigger.rule, s.trigger.rawRule], ['DEFAULT', 'TAKE_DAMAGE'], `${charId} ${s.skillId}`);
+    for (const f of Object.values(BACKUPS.units[charId].forms)) for (const s of f.skills) assert.deepEqual([s.trigger.rule, s.trigger.rawRule, s.trigger.official, s.trigger.also.map((a) => a.rule)], ['TAKE_DAMAGE', 'ON_TAKE_DAMAGE', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], ['SEARCH']], `${charId} ${s.skillId}`);
   }
 });

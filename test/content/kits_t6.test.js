@@ -86,6 +86,11 @@ test('蕾缪安: S3 locks 5 (+1 talent) targets every 0.5 s, then the shells lan
   });
   const u = h.unit('chess_char_6_01_a');
   const bb = u.def.skill.bb, t1 = u.def.talents[1].bb;
+  // official CASTER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] -> SEARCH: the S3 casts the tick its SP is full with an enemy in
+  // range (19 s), no longer on the next attack (after the 20 s of talent 2). Two seconds more SP cost keep the first cast after
+  // the talent, as this scenario needs.
+  assert.deepEqual(u.skill.rules, ['SEARCH']);
+  u.skill.baseSpCost += 2;
   assert.ok(h.runUntil(() => u.skill.active, 60));
   assert.ok(h.b.time >= t1.interval, 'talent 2 active (20 s on field) before the first cast');
   const start = h.b.time;

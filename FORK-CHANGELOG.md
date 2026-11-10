@@ -7,9 +7,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
-### Talulah casts her S3 as soon as it's ready
+### Skills cast when the official game casts them
 
-- Talulah's S3 (Corona Ablaze, `char_4247_oxi`) now starts as soon as her SP is full, about 7 s into the fight, as in the official Season 3 mode. Before, she waited until an enemy came within her own reach, even though the skill's fireballs fly down the lanes from behind her and hit enemies far ahead. Her S1 and S2 already matched the official game: they fire by their own rules.
+- Every skill the mode casts by itself now follows the live official client's rules for when to cast (the trigger table of the current CN season). Before, the game used the previous season's table plus several rules of its own. Skills that cast automatically in the official game anyway (they start by their own rule) are unchanged.
+- A skill can now have several conditions, and it casts as soon as any of them is met, as in the official game. Defenders, for example, cast when they're hit or as soon as an enemy is in range. Before, most defenders waited for a hit, and a few cast only with an enemy in range.
+- Some skills now cast as soon as their SP is full, wherever the enemies are: Talulah S3 (Corona Ablaze), Degenbrecher S2 and S3, Executor the Ex Foedere S3, Passenger S3, Irene S2 and S3, Ch'en S3, Ch'en the Dawnstreak S2, Aphrissa S3 and Toska S3. Before, they waited for an enemy near them.
+- Snipers and casters cast with an enemy in their attack range or in their skill's own range. Medics cast for an injured ally in their attack range or skill range. A skill with a range of its own (Blaze the Igniting Spark S2 and S3, for example) also casts once an enemy enters that range.
+- Two of the game's earlier choices stay, because they play better than the official behaviour: Yu's S2 casts only with an enemy within two tiles, never from a hit (officially a ranged hit casts it with nobody to pull). Seven skills that grow the attack range by a tile or more still cast once an enemy enters the larger range: Archetto S3, Passenger S2, Hellagur S3, Saga S3, Pallas S2, Hoederer S3 and Jessica the Liberated S3 (officially they wait for the normal range).
 
 ### Mostima's and Lemuen's skills look and sound as in the official game
 

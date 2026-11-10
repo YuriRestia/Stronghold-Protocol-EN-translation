@@ -74,7 +74,9 @@ test('鸿雪 in every 自选 form: her kit, the form\'s stats + module attribute
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'SKILL_RANGE', 'ACTIVE_RANGE']);
+  // official 重射手 row (ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY): S2 / S3 SEARCH + SKILL_RANGE on their own 3-1; S1 is AUTO
+  assert.deepEqual(formOf(6, true).skills.map((s) => [s.trigger.rule, ...(s.trigger.also || []).map((e) => e.rule)]), [['DEFAULT'], ['SEARCH', 'SKILL_RANGE'], ['SEARCH', 'SKILL_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills.slice(1).map((s) => s.trigger.official), [['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY'], ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY']]);
   assert.deepEqual([modOf(5, Y).attr, modOf(6, Y).attr, modOf(5, X).attr, modOf(6, X).attr],
     [{ maxHp: 130, atk: 55 }, { maxHp: 170, atk: 75 }, { atk: 80, def: 10, respawnTime: -25 }, { atk: 120, def: 16, respawnTime: -25 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -107,12 +109,12 @@ test('S1 抑扬格 (AUTO, attack SP 29 / 25, data DEFAULT): after that many atta
   }
 });
 
-test('S2 点题 (MANUAL, 2 charges, data SKILL_RANGE on 3-1): an enemy 3 tiles ahead (3-1, not 3-6) casts it and is struck at once: atk_scale × ATK as a 普通伤害 attack, then twice as 持续伤害 (not dodgeable); her card range stays 3-6', () => {
+test('S2 点题 (MANUAL, 2 charges, data SEARCH + SKILL_RANGE on 3-1): an enemy 3 tiles ahead (3-1, not 3-6) casts it and is struck at once: atk_scale × ATK as a 普通伤害 attack, then twice as 持续伤害 (not dodgeable); her card range stays 3-6', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.bb.atk_scale, sk.bb.respawn_time, sk.maxChargeTime, sk.spCost, sk.initSp], elite ? [2, 0.6, 2, 10, 6] : [1.8, 0.65, 2, 11, 3], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 1, seed: 3 });
-    assert.deepEqual([u.skill.kind, u.skill.rule, u.skill.maxCharges], ['charges', 'SKILL_RANGE', 2], `T${tier}`);
+    assert.deepEqual([u.skill.kind, u.skill.rules, u.skill.maxCharges], ['charges', ['SEARCH', 'SKILL_RANGE'], 2], `T${tier}`);
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0, `T${tier}: nobody in range`);
@@ -143,12 +145,12 @@ test('S2 点题 (MANUAL, 2 charges, data SKILL_RANGE on 3-1): an enemy 3 tiles a
   }
 });
 
-test('S3 锐笔速写 (MANUAL, data ACTIVE_RANGE on 3-1): an enemy only on [0,3] casts it; range 3-1 (and back), interval 1.6 − 0.6 s, ×155 % / 170 % off her line, ×185 % / 215 % on the 正前方3格', () => {
+test('S3 锐笔速写 (MANUAL, data SEARCH + SKILL_RANGE on 3-1): an enemy only on [0,3] casts it; range 3-1 (and back), interval 1.6 − 0.6 s, ×155 % / 170 % off her line, ×185 % / 215 % on the 正前方3格', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.bb.base_attack_time, sk.bb.atk_scale, sk.bb['bgsnow_s_3[atk_up].atk_scale'], sk.rangeId], elite ? [27, -0.6, 1.7, 2.15, '3-1'] : [26, -0.6, 1.55, 1.85, '3-1'], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2, seed: 7 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'ACTIVE_RANGE']);
+    assert.deepEqual([u.skill.kind, u.skill.rules], ['duration', ['SEARCH', 'SKILL_RANGE']]);
     u.skill.gainSp(999);
     const far = h.spawn('enemy_dummy', { pos: [10, 8] });
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: cast for [0,3] (outside 3-6)`);

@@ -185,22 +185,23 @@ test('T2 医者丰碑: an operator entering her range gets 1 护盾 layer (one d
   }
 });
 
-test('S1 应急肃正防线 (MANUAL, data DEFAULT — as she is about to heal): 35 s, ATK +60 % / +75 %, ASPD +25 / +35; every other 起飞 operator 阻挡半径倍率 +0.23 meanwhile (not a grounded one, not her twice)', () => {
+test('S1 应急肃正防线 (MANUAL, data SKILL_RANGE on her own range, allies: official MEDIC row [ATTACK_RANGE_ALLY, SKILL_RANGE_ALLY] — an injured ally in range): 35 s, ATK +60 % / +75 %, ASPD +25 / +35; every other 起飞 operator 阻挡半径倍率 +0.23 meanwhile (not a grounded one, not her twice)', () => {
   for (const f of [[5, false], [6, true]]) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, S1);
     assert.deepEqual([sk.duration, sk.bb.atk, sk.bb.attack_speed, sk.bb['attack@block_radius_scale'], sk.spCost, sk.initSp, sk.trigger.rule],
-      [35, elite ? 0.75 : 0.6, elite ? 35 : 25, 0.23, 35, elite ? 20 : 18, 'DEFAULT'], label(f));
+      [35, elite ? 0.75 : 0.6, elite ? 35 : 25, 0.23, 35, elite ? 20 : 18, 'SKILL_RANGE'], label(f));
+    assert.deepEqual(sk.trigger.official, ['ATTACK_RANGE_ALLY', 'SKILL_RANGE_ALLY'], label(f));
     const others = [{ uid: 3, chessId: YAK, row: 10, col: 5 }, { uid: 4, chessId: TEXAS, row: 12, col: 9 }];
     const { h, u } = field({ tier, elite, skill: 0, others });
     const yak = h.unit(3), tx = h.unit(4);
     h.b.addBuff(tx, { key: 'test:liftoff', flags: { liftoff: true } });
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.deepEqual(u.skill.rules, ['SKILL_RANGE'], label(f));
     u.skill.gainSp(999);
     h.run(2);
     assert.equal(u.skill.activations, 0, `${label(f)}: nobody injured: no cast`);
     yak.hp = yak.s.maxHp * 0.5;
-    assert.ok(h.runUntil(() => u.skill.active, 4), `${label(f)}: cast as she heals`);
+    assert.ok(h.runUntil(() => u.skill.active, 4), `${label(f)}: cast once an ally in her range is injured`);
     approx(u.skill.timeLeft, 35, `${label(f)}: 35 s`, 0.05);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `${label(f)}: ATK`);
     assert.equal(u.s.aspd, u.base.aspd + sk.bb.attack_speed, `${label(f)}: ASPD`);
@@ -215,17 +216,18 @@ test('S1 应急肃正防线 (MANUAL, data DEFAULT — as she is about to heal): 
   }
 });
 
-test('S2 保护性拒止 (MANUAL, data ACTIVE_RANGE on its y-11: an injured ally there): 10 shots, range y-11, ATK +; at an enemy (air too): true damage + 5 s 停顿 within 1.5, then the heal there; at an ally (no enemy): heal first, no 停顿', () => {
+test('S2 保护性拒止 (MANUAL, data [SKILL_RANGE on its y-11, SKILL_RANGE allies] — official [SKILL_RANGE_ENEMY, SKILL_RANGE_ALLY]: an enemy or an injured ally there): 10 shots, range y-11, ATK +; at an enemy (air too): true damage + 5 s 停顿 within 1.5, then the heal there; at an ally (no enemy): heal first, no 停顿', () => {
   for (const f of [[5, false], [6, true]]) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.bb.atk, sk.bb['attack@atk_scale'], sk.bb['attack@heal_scale'], sk.bb['attack@sluggish'], sk.bb['attack@trigger_time'], sk.rangeId, sk.trigger.rule],
-      [elite ? 1.25 : 1.1, elite ? 3.5 : 3.1, elite ? 1.7 : 1.35, 5, 10, 'y-11', 'ACTIVE_RANGE'], label(f));
+      [elite ? 1.25 : 1.1, elite ? 3.5 : 3.1, elite ? 1.7 : 1.35, 5, 10, 'y-11', 'SKILL_RANGE'], label(f));
+    assert.deepEqual([sk.trigger.official, sk.trigger.also.map((a) => [a.rule, !!a.allies])], [['SKILL_RANGE_ENEMY', 'SKILL_RANGE_ALLY'], [['SKILL_RANGE', true]]], label(f));
     const others = [{ uid: 3, chessId: YAK, row: 10, col: 7 }, { uid: 4, chessId: TEXAS, row: 11, col: 4 }];
     const { h, u, log } = field({ tier, elite, skill: 1, others });
     const yak = h.unit(3);
     const mine = (from) => log.slice(from).filter((c) => c.source === u);
-    assert.deepEqual([u.skill.rule, u.skill.kind], ['ACTIVE_RANGE', 'ammo'], label(f));
+    assert.deepEqual([u.skill.rules, u.skill.kind], [['SKILL_RANGE', 'SKILL_RANGE'], 'ammo'], label(f));
     assert.ok(!inRange(u, yak), `${label(f)}: (10,7) is outside her y-6`);
     u.skill.gainSp(999);
     h.run(1.5);
@@ -261,12 +263,12 @@ test('S2 保护性拒止 (MANUAL, data ACTIVE_RANGE on its y-11: an injured ally
   }
 });
 
-test('S3 破梏重生 (MANUAL, data DEFAULT): 35 s, ATK +, attack interval 1.30 s (−1.55 flat), 2 heal targets; with no anchor she stays', () => {
+test('S3 破梏重生 (MANUAL, data SKILL_RANGE allies — official MEDIC row [ATTACK_RANGE_ALLY, SKILL_RANGE_ALLY]): 35 s, ATK +, attack interval 1.30 s (−1.55 flat), 2 heal targets; with no anchor she stays', () => {
   for (const f of [[5, false], [6, true]]) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.spCost, sk.initSp, sk.trigger.rule, sk.overrideTokenKey],
-      [35, elite ? 1.25 : 1.1, -1.55, elite ? 60 : 65, elite ? 30 : 25, 'DEFAULT', ANCHOR], label(f));
+      [35, elite ? 1.25 : 1.1, -1.55, elite ? 60 : 65, elite ? 30 : 25, 'SKILL_RANGE', ANCHOR], label(f));
     const others = [{ uid: 3, chessId: YAK, row: 10, col: 5 }, { uid: 4, chessId: TEXAS, row: 11, col: 5 }];
     const { h, u } = field({ tier, elite, skill: 2, others });
     const yak = h.unit(3), tx = h.unit(4);

@@ -95,11 +95,11 @@ test('trait 轰击术师: one attack strikes every enemy of her 5-1 line at once
   }
 });
 
-test('S1 狂热 (MANUAL, data DEFAULT, 20 s): ATK +10 % / +20 %, ASPD +58 / +67; all back after', () => {
+test('S1 狂热 (MANUAL, data SEARCH — official 轰击术师 row ATTACK_RANGE_ENEMY, 20 s): ATK +10 % / +20 %, ASPD +58 / +67; all back after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk, sk.bb.attack_speed, u.skill.spCost], ['DEFAULT', 20, elite ? 0.2 : 0.1, elite ? 67 : 58, elite ? 44 : 47], `T${tier}`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.atk, sk.bb.attack_speed, u.skill.spCost], [['SEARCH'], 20, elite ? 0.2 : 0.1, elite ? 67 : 58, elite ? 44 : 47], `T${tier}`);
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0, `T${tier}: no enemy, no cast`);
@@ -147,11 +147,11 @@ test('S2 炎爆 (AUTO, 2 / 3 charges, data DEFAULT): the next attack hits her wh
   }
 });
 
-test('S3 灼地 (MANUAL, data DEFAULT, 20 s, 维持技能状态): no normal attack; from the Begin clip\'s event (0.4 s) every second each ground enemy of her line takes 90 % / 110 % ATK arts and RES −7 / −10 for 1 s; she loses 2 % max HP per s; 20 ticks; a stun ends it at once', () => {
+test('S3 灼地 (MANUAL, data SEARCH, 20 s, 维持技能状态): no normal attack; from the Begin clip\'s event (0.4 s) every second each ground enemy of her line takes 90 % / 110 % ATK arts and RES −7 / −10 for 1 s; she loses 2 % max HP per s; 20 ticks; a stun ends it at once', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk_scale, sk.bb.magic_resistance, sk.bb.hp_ratio], ['DEFAULT', 20, elite ? 1.1 : 0.9, elite ? -10 : -7, 0.02], `T${tier}`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.atk_scale, sk.bb.magic_resistance, sk.bb.hp_ratio], [['SEARCH'], 20, elite ? 1.1 : 0.9, elite ? -10 : -7, 0.02], `T${tier}`);
     const g = h.spawn('enemy_res', { pos: [10, 6] }), fly = h.spawn('enemy_fly', { pos: [10, 7] }), off = h.spawn('enemy_res', { pos: [11, 6] });
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast`);

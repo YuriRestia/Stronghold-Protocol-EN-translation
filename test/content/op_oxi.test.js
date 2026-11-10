@@ -71,10 +71,10 @@ test('塔露拉 in every 自选 form: her operator kit (all three skills authore
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.res], [form.stats.maxHp, form.stats.atk, form.stats.def, form.stats.res], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.canHitFly, u.profile.dmgType, u.base.bat], [2, 'melee', false, 'arts', form.stats.bat], `${label(f)}: 本源近卫, 绝不妥协`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 1-1`);
-      // S1: the data's DEFAULT; S2: never by the strategy (the prefab's NeverTrigger — its guard casts it); S3: SP_FULL,
-      // the CN season 3 row (char_4247_oxi skillIndex 2 ALWAYS — officialUnitBuilder UNIT_TRIGGER_CORRECTIONS)
+      // S1: the data's DEFAULT (AUTO); S2: never by the strategy (the prefab's NeverTrigger — its guard casts it); S3: SP_FULL,
+      // the official CN season 3 operator row (char_4247_oxi skillIndex 2 ALWAYS, tools/versions/official-skill-triggers.json)
       assert.equal(u.skill.rule, ['DEFAULT', 'NEVER', 'SP_FULL'][skill], `${label(f)}: trigger`);
-      assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule], [skill === 2 ? 'SP_FULL' : 'DEFAULT', 'DEFAULT'], 'the data rule');
+      assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule], [skill === 2 ? 'SP_FULL' : 'DEFAULT', skill === 2 ? 'ALWAYS' : 'DEFAULT'], 'the data rule');
       assert.deepEqual([u.skill.spCost, u.skill.maxCharges, u.skill.initSp], [sk.spCost, sk.maxChargeTime, sk.initSp], `${label(f)}: SP`);
       assert.equal(u.skill.kind, ['instant', 'charges', 'duration'][skill], `${label(f)}: kind`);
       done(h);

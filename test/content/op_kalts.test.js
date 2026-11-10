@@ -197,17 +197,17 @@ test('T2 不毁重构: Mon3tr knocked out ⇒ every enemy of its 3×3 (air units
   }
 });
 
-test('S1 指令：结构加固 (MANUAL, data DEFAULT — cast as she is about to heal): 33 / 36 s, her DEF +90 % / +120 % and Mon3tr\'s; 物理格挡 30 % / 40 %: a physical instance blocked whole (arts never)', () => {
+test('S1 指令：结构加固 (MANUAL, data SKILL_RANGE allies — official MEDIC row ATTACK_RANGE_ALLY: cast once an injured ally is in her range): 33 / 36 s, her DEF +90 % / +120 % and Mon3tr\'s; 物理格挡 30 % / 40 %: a physical instance blocked whole (arts never)', () => {
   for (const f of [[5, false, null], [6, true, PHYX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S1);
-    assert.deepEqual([sk.trigger.rule, sk.duration, sk.bb.def, sk.bb['attack@def'], sk.bb.prob], ['DEFAULT', elite ? 36 : 33, elite ? 1.2 : 0.9, elite ? 1.2 : 0.9, elite ? 0.4 : 0.3], label(f));
+    assert.deepEqual([sk.trigger.rule, sk.duration, sk.bb.def, sk.bb['attack@def'], sk.bb.prob], ['SKILL_RANGE', elite ? 36 : 33, elite ? 1.2 : 0.9, elite ? 1.2 : 0.9, elite ? 0.4 : 0.3], label(f));
     const { h, u, m } = field({ tier, elite, mod, skill: 0, seed: 23 });
     u.skill.gainSp(999);
     h.run(3);
     assert.equal(u.skill.activations, 0, `${label(f)}: nobody injured, no cast`);
     m.hp = m.s.maxHp * 0.5;
-    assert.ok(h.runUntil(() => u.skill.active, 4), `${label(f)}: cast on her heal`);
+    assert.ok(h.runUntil(() => u.skill.active, 4), `${label(f)}: cast once an injured ally is in her range`);
     approx(u.skill.timeLeft, sk.duration, label(f), 0.01);
     approx(u.s.def, u.base.def * (1 + sk.bb.def), `${label(f)}: her DEF`);
     h.step();
@@ -263,11 +263,11 @@ test('S1 physical block follows acquisition order, ignores dodge policy and expi
   }
 });
 
-test('S2 指令：战术协同 (MANUAL, data DEFAULT, 绑定 Mon3tr): her ASPD +45 / +60, Mon3tr ATK +35 % / +50 % and each attack strikes every enemy it blocks; no Mon3tr: no cast, SP emptied and frozen; it leaving ends the skill', () => {
+test('S2 指令：战术协同 (MANUAL, data SKILL_RANGE allies (MEDIC row), 绑定 Mon3tr): her ASPD +45 / +60, Mon3tr ATK +35 % / +50 % and each attack strikes every enemy it blocks; no Mon3tr: no cast, SP emptied and frozen; it leaving ends the skill', () => {
   for (const f of [[5, false, null], [6, true, PHYY]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S2);
-    assert.deepEqual([sk.trigger.rule, sk.duration, sk.bb.attack_speed, sk.bb['attack@atk']], ['DEFAULT', elite ? 17 : 16, elite ? 60 : 45, elite ? 0.5 : 0.35], label(f));
+    assert.deepEqual([sk.trigger.rule, sk.duration, sk.bb.attack_speed, sk.bb['attack@atk']], ['SKILL_RANGE', elite ? 17 : 16, elite ? 60 : 45, elite ? 0.5 : 0.35], label(f));
     const { h, u, m } = field({ tier, elite, mod, skill: 1, mon3tr: { row: 9, col: 5 } });
     const w1 = h.spawn('enemy_walk', { pos: [9, 6], routeIndex: 0 }), w2 = h.spawn('enemy_walk', { pos: [9, 7], routeIndex: 0 });
     assert.ok(h.runUntil(() => m.blocking.length === 2, 20), `${label(f)}: Mon3tr blocks both`);
@@ -304,11 +304,11 @@ test('S2 指令：战术协同 (MANUAL, data DEFAULT, 绑定 Mon3tr): her ASPD +
   done(h);
 });
 
-test('S3 指令：熔毁 (MANUAL, data DEFAULT, 绑定 Mon3tr, 18 s): Mon3tr DEF +120 % / +140 %, ATK +160 % / +190 % down by 1/18 every second, true damage; no kill ⇒ 50 % max HP 流失 at the end (it may knock it out: 不毁重构); a kill ⇒ none', () => {
+test('S3 指令：熔毁 (MANUAL, data SKILL_RANGE allies (MEDIC row), 绑定 Mon3tr, 18 s): Mon3tr DEF +120 % / +140 %, ATK +160 % / +190 % down by 1/18 every second, true damage; no kill ⇒ 50 % max HP 流失 at the end (it may knock it out: 不毁重构); a kill ⇒ none', () => {
   for (const f of [[5, false, null], [6, true, ISWA]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S3);
-    assert.deepEqual([sk.trigger.rule, sk.duration, sk.bb['attack@atk'], sk.bb['attack@def'], sk.bb['attack@hp_ratio']], ['DEFAULT', 18, elite ? 1.9 : 1.6, elite ? 1.4 : 1.2, 0.5], label(f));
+    assert.deepEqual([sk.trigger.rule, sk.duration, sk.bb['attack@atk'], sk.bb['attack@def'], sk.bb['attack@hp_ratio']], ['SKILL_RANGE', 18, elite ? 1.9 : 1.6, elite ? 1.4 : 1.2, 0.5], label(f));
     const { h, u, m } = field({ tier, elite, mod, skill: 2 });
     const e = h.spawn('enemy_biter', { pos: [10, 5] });
     u.skill.gainSp(999);

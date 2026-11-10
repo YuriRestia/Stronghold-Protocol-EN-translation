@@ -70,11 +70,13 @@ test('假日威龙陈 in every 自选 form: her kit (all three skills authored),
       assert.deepEqual(u.profile.frontGrid, [[1, 1], [0, 0], [0, 1], [-1, 1]], `${label(f)}: the trait's front grid`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 2-5`);
       assert.equal(u.skill.rule, form.skills[skill].trigger.rule, `${label(f)}: the data's trigger`);
+      assert.deepEqual(u.skill.rules, [form.skills[skill].trigger.rule, ...(form.skills[skill].trigger.also || []).map((e) => e.rule)], `${label(f)}: the data's trigger list`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth && !u.s.flags.untargetable, `${label(f)}: ground enemies target her`);
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'ACTIVE_RANGE']);
+  // official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] on the MANUAL S2 / S3 (no skill grid: SEARCH), S1 AUTO keeps DEFAULT
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'SEARCH', 'SEARCH']);
   assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk, FORMS['2/1/4/0'].stats.cost], [682, 764, 30]);
   assert.deepEqual([modOf(5, RX).attr, modOf(6, RX).attr, modOf(5, RY).attr, modOf(6, RY).attr],
     [{ atk: 30, def: 37 }, { atk: 60, def: 45 }, { cost: -8, maxHp: 135, atk: 55 }, { cost: -8, maxHp: 180, atk: 100 }]);
@@ -133,7 +135,7 @@ test('S1 高压冲击 (AUTO, attack SP 6 / 5, data DEFAULT): after that many att
   }
 });
 
-test('S2 “堇青之夜” (MANUAL, data DEFAULT, 蓄力 2): 27 / 24 SP from 5 / 10; cast with one charge 8 bullets, ATK +50 % / +65 %; with both stored (蓄力) 20 bullets; every cast empties the SP', () => {
+test('S2 “堇青之夜” (MANUAL, data SEARCH, 蓄力 2): 27 / 24 SP from 5 / 10; cast with one charge 8 bullets, ATK +50 % / +65 %; with both stored (蓄力) 20 bullets; every cast empties the SP', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.spCost, sk.initSp, sk.maxChargeTime, sk.bb.atk, sk.bb['attack@trigger_time'], sk.bb['attack@another_trigger_time']],
@@ -141,7 +143,7 @@ test('S2 “堇青之夜” (MANUAL, data DEFAULT, 蓄力 2): 27 / 24 SP from 5 
     const { h, u } = field({ tier, elite, skill: 1 });
     const atStart = [];
     h.b.on('skillStart', (c) => { if (c.unit === u) atStart.push([c.skill.ammoLeft, c.skill.ammoMax, c.skill.charges, c.skill.sp, u.mem.chen2Charged]); }, { priority: -1000 });
-    assert.deepEqual([u.skill.kind, u.skill.rule, u.skill.maxCharges], ['ammo', 'DEFAULT', 2]);
+    assert.deepEqual([u.skill.kind, u.skill.rule, u.skill.maxCharges], ['ammo', 'SEARCH', 2]);
     approx(u.skill.sp, sk.initSp, `T${tier}: initial SP`, 0.02);
     // one charge and some SP towards the second: 8 bullets, everything spent
     u.skill.gainSp(sk.spCost - u.skill.sp + 5);
@@ -215,19 +217,22 @@ test('slime (S2 / S3): each attack slimes the tiles of her attack range (2-5; S3
   done(h);
 });
 
-test('S3 “假日风暴” (MANUAL, data ACTIVE_RANGE on 2-6): an enemy only on 2-6 casts it; range 2-6 (and back); ATK +55 % / +70 %, every attack strikes twice with the trait multiplier on every enemy; 32 bullets, 2 per attack (16 attacks), one left still attacks', () => {
+test('S3 “假日风暴” (MANUAL, data SEARCH + SKILL_RANGE on 2-6): an enemy only on 2-6 casts it; range 2-6 (and back); ATK +55 % / +70 %, every attack strikes twice with the trait multiplier on every enemy; 32 bullets, 2 per attack (16 attacks), one left still attacks', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.spCost, sk.initSp, sk.bb.atk, sk.bb['attack@trigger_time'], sk.rangeId], [elite ? 60 : 65, elite ? 25 : 20, elite ? 0.7 : 0.55, 32, '2-6'], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['ammo', 'ACTIVE_RANGE']);
+    assert.deepEqual([u.skill.kind, u.skill.rule], ['ammo', 'SEARCH']);
     const SP = h.b.rng.chance;
     h.b.rng.chance = () => false;
     const n0 = h.hooksOf('ammoUsed').filter((c) => c.unit === u).length;
     const a0 = h.hooksOf('attack').filter((c) => c.attacker === u && c.isSkill).length;
     u.skill.gainSp(999);
     const corner = h.spawn('enemy_dummy', { pos: [12, 6] });
+    // official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY]: SEARCH on the initial 2-5, SKILL_RANGE on the skill's 2-6
+    assert.deepEqual(u.skill.rules, ['SEARCH', 'SKILL_RANGE']);
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: cast for [2,2] (outside 2-5)`);
+    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SKILL_RANGE', `T${tier}: by the skill range`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 2-6 while it runs`);
     const front = h.spawn('enemy_dummy', { pos: [10, 5] });
     h.runUntil(() => !u.skill.active, 60);

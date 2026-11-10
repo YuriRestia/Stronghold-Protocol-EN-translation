@@ -85,7 +85,9 @@ test('国度 in every 自选 form: his kit (all three skills authored), the form
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'ACTIVE_RANGE', 'ACTIVE_RANGE']);
+  // official 伏击客 row (COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY): DEFAULT + SEARCH, S2 / S3 DEFAULT + SKILL_RANGE on their own y-3 / y-10
+  assert.deepEqual(formOf(6, true).skills.map((s) => [s.trigger.rule, ...s.trigger.also.map((e) => e.rule)]), [['DEFAULT', 'SEARCH'], ['DEFAULT', 'SKILL_RANGE'], ['DEFAULT', 'SKILL_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.official), [['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY']]);
   assert.deepEqual([formOf(5, false).rangeId, formOf(6, true).skills[1].rangeId, formOf(6, true).skills[2].rangeId], ['y-1', 'y-3', 'y-10']);
   assert.deepEqual([modOf(5, AX).attr, modOf(6, AX).attr], [{ maxHp: 180, atk: 60 }, { maxHp: 230, atk: 80 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -267,12 +269,12 @@ test('T2 此身为界: a retreat triggers it at once; a 复活 inside the `death
   done(h);
 });
 
-test('S1 停步 (MANUAL, data DEFAULT, 20 s): ASPD +58 / +70; each enemy on the 国度 (air units too) is 停顿 3 / 4 s once — his mark holds until the skill ends —, a newcomer at once; marks gone at the end, a new cast again', () => {
+test('S1 停步 (MANUAL, data DEFAULT + SEARCH, 20 s): ASPD +58 / +70; each enemy on the 国度 (air units too) is 停顿 3 / 4 s once — his mark holds until the skill ends —, a newcomer at once; marks gone at the end, a new cast again', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb], [20, elite ? 35 : 40, elite ? 18 : 14, elite ? { attack_speed: 70, sluggish: 4 } : { attack_speed: 58, sluggish: 3 }]);
     const { h, u } = field({ tier, elite, skill: 0 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'DEFAULT']);
+    assert.deepEqual([u.skill.kind, u.skill.rules], ['duration', ['DEFAULT', 'SEARCH']]);
     const e = h.spawn('enemy_dummy', { pos: [10, 5] }), fly = h.spawn('enemy_fly', { pos: [9, 4] }), off = h.spawn('enemy_dummy', { pos: [10, 8] });
     for (const x of [e, off]) h.b.addBuff(x, { key: 'test:dodge', mods: { dodgePhys: 1 } });
     u.skill.gainSp(999);
@@ -307,12 +309,12 @@ test('S1 停步 (MANUAL, data DEFAULT, 20 s): ASPD +58 / +70; each enemy on the 
   }
 });
 
-test('S2 受戮 (MANUAL, data ACTIVE_RANGE on y-3): an enemy only on y-3 casts it; y-3, ATK +40 % / +55 %; no phys / arts hit an enemy on the 国度 takes is cancelled by its dodge (whoever deals it); the first cast 20 s, from the second of a deployment ASPD +30 and no end', () => {
+test('S2 受戮 (MANUAL, data DEFAULT + SKILL_RANGE on y-3): an enemy only on y-3 casts it; y-3, ATK +40 % / +55 %; no phys / arts hit an enemy on the 国度 takes is cancelled by its dodge (whoever deals it); the first cast 20 s, from the second of a deployment ASPD +30 and no end', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb], [20, 50, elite ? 29 : 23, { atk: elite ? 0.55 : 0.4, attack_speed: 30 }]);
     const { h, u } = field({ tier, elite, skill: 1, others: [{ uid: 3, chessId: 'chess_char_1_08_a', row: 12, col: 7 }] });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['toggle', 'ACTIVE_RANGE']);
+    assert.deepEqual([u.skill.kind, u.skill.rules], ['toggle', ['DEFAULT', 'SKILL_RANGE']]);
     const on = h.spawn('enemy_dummy', { pos: [10, 7] });      // [0,3] of y-3, outside y-1
     const off = h.spawn('enemy_dummy', { pos: [12, 8] });
     for (const e of [on, off]) h.b.addBuff(e, { key: 'test:dodge', mods: { dodgePhys: 1, dodgeArts: 1 } });
@@ -348,14 +350,14 @@ test('S2 受戮 (MANUAL, data ACTIVE_RANGE on y-3): an enemy only on y-3 casts i
   }
 });
 
-test('S3 无人的国度 (MANUAL, data ACTIVE_RANGE on y-10): y-10, ATK +55 % / +70 %, ASPD +20 / +30; a ground enemy damaging an ally on the 国度 spreads it to its tile and the four next to them (once per 0.5 s) for 50 % / 60 % ATK physical there, and he attacks there; flyer / hidden sources and allies off the 国度 spread nothing; reset at the end', () => {
+test('S3 无人的国度 (MANUAL, data DEFAULT + SKILL_RANGE on y-10): y-10, ATK +55 % / +70 %, ASPD +20 / +30; a ground enemy damaging an ally on the 国度 spreads it to its tile and the four next to them (once per 0.5 s) for 50 % / 60 % ATK physical there, and he attacks there; flyer / hidden sources and allies off the 国度 spread nothing; reset at the end', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb], [36, elite ? 51 : 57, elite ? 30 : 25,
       elite ? { atk: 0.7, 'attack@aoe_atk_scale': 0.6, attack_speed: 30, 'attack@cd': 0.5 } : { atk: 0.55, 'attack@aoe_atk_scale': 0.5, attack_speed: 20, 'attack@cd': 0.5 }]);
     const { h, u } = field({ tier, elite, skill: 2, col: 3, others: [{ uid: 3, chessId: 'chess_char_1_02_a', row: 11, col: 3 }, { uid: 4, chessId: 'chess_char_1_08_a', row: 12, col: 10 }] });
     const ally = h.unit(3), away = h.unit(4);
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'ACTIVE_RANGE']);
+    assert.deepEqual([u.skill.kind, u.skill.rules], ['duration', ['DEFAULT', 'SKILL_RANGE']]);
     u.skill.gainSp(999);
     const low = h.spawn('enemy_dummy', { pos: [12, 3] });   // [2,0]: y-10, not y-1
     h.b.addBuff(low, { key: 'test:dodge', mods: { dodgePhys: 1 } });

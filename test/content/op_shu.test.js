@@ -63,7 +63,7 @@ function done(h) {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
 
-test('黍 in every 自选 form: her operator kit (all three skills authored), the form\'s stats + module attributes, range 0-1, blocks 3, melee ground-only, 炎, no 特质; triggers (S3: TRY_SEARCH_ALLY_SKILL → SKILL_RANGE + allies on x-2)', () => {
+test('黍 in every 自选 form: her operator kit (all three skills authored), the form\'s stats + module attributes, range 0-1, blocks 3, melee ground-only, 炎, no 特质; triggers (S3: official [SKILL_RANGE_ALLY, ON_TAKE_DAMAGE] → SKILL_RANGE + allies on x-2, then TAKE_DAMAGE)', () => {
   assert.equal(OPERATOR_KITS[SHU], KITS[SHU]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -78,10 +78,11 @@ test('黍 in every 自选 form: her operator kit (all three skills authored), th
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       const sk = form.skills[skill];
       if (skill === 0) assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.skillType, u.skill.triggerAllies, u.skill.triggerHpAtMost], ['DEFAULT', 'DEFAULT', 'AUTO', true, 0.5], `${label(f)}: S1`);
-      if (skill === 1) assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.skillType, u.skill.triggerAllies], ['DEFAULT', 'TAKE_DAMAGE', 'MANUAL', false], `${label(f)}: S2 (the 重装 exception)`);
+      if (skill === 1) assert.deepEqual([u.skill.rules, sk.trigger.rawRule, sk.trigger.official, sk.skillType, u.skill.triggerAllies], [['TAKE_DAMAGE', 'SKILL_RANGE'], 'ON_TAKE_DAMAGE', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], 'MANUAL', false], `${label(f)}: S2 (official TANK row)`);
       if (skill === 2) {
-        assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule, sk.trigger.allies, sk.trigger.customRangeGrid, sk.skillType], ['SKILL_RANGE', 'TRY_SEARCH_ALLY_SKILL', true, sk.rangeGrid, 'MANUAL'], `${label(f)}: S3 data rule (build-data TRIGGER_ALLY_RULES)`);
-        assert.deepEqual([u.skill.rule, u.skill.triggerAllies, u.skill.triggerGrid], ['SKILL_RANGE', true, sk.rangeGrid], `${label(f)}: S3 engine rule`);
+        assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule, sk.trigger.allies, sk.trigger.customRangeGrid, sk.skillType], ['SKILL_RANGE', 'SKILL_RANGE_ALLY', true, sk.rangeGrid, 'MANUAL'], `${label(f)}: S3 data rule`);
+        assert.deepEqual([sk.trigger.official, sk.trigger.also.map((a) => a.rule)], [['SKILL_RANGE_ALLY', 'ON_TAKE_DAMAGE'], ['TAKE_DAMAGE']], `${label(f)}: S3 official list`);
+        assert.deepEqual([u.skill.rules, u.skill.triggerAllies, u.skill.triggerGrid], [['SKILL_RANGE', 'TAKE_DAMAGE'], true, sk.rangeGrid], `${label(f)}: S3 engine rules`);
       }
       done(h);
     }
@@ -113,7 +114,7 @@ test('S1 化被草木 (AUTO, DEFAULT + an ally of x-4 at ≤ half HP): her attac
     assert.equal(u.skill.activations, 0, `T${tier}: nobody of x-4 at ≤ half (the one at 10 % is outside)`);
     assert.ok(h.hooksOf('damaged').some((x) => x.source === u && x.target === e), `T${tier}: she attacks meanwhile`);
     a.hp = a.s.maxHp * 0.3; b.hp = b.s.maxHp * 0.45;
-    assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast at her attack`);
+    assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast with the enemy on the x-1`);
     const first = healsBy(h, u)[0];
     assert.equal(first.target, a, `T${tier}: the lowest`);
     approx(first.amount, u.s.atk * sk.bb.heal_scale * guax(u, 0.3), `T${tier}: ${sk.bb.heal_scale * 100} % ATK`, 1e-3);
@@ -129,7 +130,7 @@ test('S1 化被草木 (AUTO, DEFAULT + an ally of x-4 at ≤ half HP): her attac
   }
 });
 
-test('S2 嘉禾盈仓 (data DEFAULT: casts at her attack on an enemy): 25 s, her attacks heal up to 2 injured allies of x-1 for ATK (+60 % / +90 %), block 3 + 1, interval 1.2 + 1.3 s, range x-1 meanwhile; T1 ×1.3 / ×1.4', () => {
+test('S2 嘉禾盈仓 (data [TAKE_DAMAGE, SKILL_RANGE x-1], official TANK row: casts at a hit or with an enemy on the x-1): 25 s, her attacks heal up to 2 injured allies of x-1 for ATK (+60 % / +90 %), block 3 + 1, interval 1.2 + 1.3 s, range x-1 meanwhile; T1 ×1.3 / ×1.4', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, GUAX]]) {
     const sk = skillOf(tier, elite, S2);
     const others = [{ uid: 2, chessId: 't_a', row: 10, col: 7 }, { uid: 3, chessId: 't_b', row: 12, col: 5 }, { uid: 4, chessId: 't_c', row: 9, col: 4 }, { uid: 5, chessId: 't_d', row: 12, col: 7 }];
@@ -141,7 +142,7 @@ test('S2 嘉禾盈仓 (data DEFAULT: casts at her attack on an enemy): 25 s, her
     h.run(2);
     assert.equal(u.skill.activations, 0, `T${tier}: injured allies alone do not cast it`);
     const e = h.spawn('enemy_dummy', { pos: [u.tileR, u.tileC] });
-    assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast at her attack`);
+    assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast with the enemy on the x-1`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: x-1 while it runs`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
     assert.equal(u.s.blockCnt, 4, `T${tier}: block 3 + 1`);

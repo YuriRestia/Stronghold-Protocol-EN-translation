@@ -864,10 +864,11 @@ test('the deliberate trigger deviation (DESIGN §21.29): six 重装 skills DEFAU
   assert.match(r03, /上半 \(act1autochess, 2025-11\) shipped no TANK row/);
   assert.match(r03, /下半 \(act2autochess, 2026-03-14\) added `TANK \| \| \| 0 \| TAKE_DAMAGE` for every skill index/);
   assert.match(r03, /\*\*Deliberate deviation\*\* \(the owner, 2026-10-03/);
-  // PR #12's kit line stays (雷蛇 S2; 深巡 S2 dropped its own in 0.2.0 and reads its data's ACTIVE_RANGE, the owner's
-  // decision of 2026-10-05); the comments give this reason, not the community summary
+  // PR #12's kit line is gone (雷蛇 S2, 2026-11-10): the default version's data carries the live client's TANK row (at a
+  // hit or with an enemy in range — officialUnitBuilder officialTrigger), which no kit overrides; the table above still serves
+  // the older versions' pinned TANK row. The comments give this reason, not the community summary
   const t1 = tierSources(1).map(doc).join('\n');
-  assert.equal((t1.match(/trigger: 'DEFAULT',/g) || []).length, 1, "PR #12's kit line left (雷蛇 S2)");
+  assert.equal((t1.match(/trigger: 'DEFAULT',/g) || []).length, 0, 'no kit DEFAULT line over the official list (雷蛇 S2)');
   assert.ok(!/offensive skills activate when an enemy is in their skill range/.test(t1));
   assert.ok(!/documented for skillIndex 0/.test(t1));
   assert.match(DATA_MD, /a deliberate deviation, `tools\/build-data\.mjs TRIGGER_DEVIATIONS`, DESIGN §21\.29/);

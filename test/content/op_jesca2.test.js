@@ -226,12 +226,14 @@ test('S1 坚守阵线 (AUTO, SP_FULL): at full SP with no enemy, 持续时间无
   }
 });
 
-test('S2 掩蔽护卫 (MANUAL, data ACTIVE_RANGE — rawRule TAKE_DAMAGE): casts with an enemy on its 2-5 that her 2-2 does not reach; 15 s, range 2-5 (SPT-Y does not grow it), ATK +45 % / +60 %, interval 0.3 s, 75 % physical and arts dodge', () => {
+test('S2 掩蔽护卫 (MANUAL, data [TAKE_DAMAGE, SKILL_RANGE on 2-5] — official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]): casts with an enemy on its 2-5 that her 2-2 does not reach; 15 s, range 2-5 (SPT-Y does not grow it), ATK +45 % / +60 %, interval 0.3 s, 75 % physical and arts dodge', () => {
   for (const f of [[5, false, null], [6, true, SPTY], [5, true, SPTY]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, mod, skill: 1, shield: null });
-    assert.deepEqual([u.skill.rule, sk.trigger.rule, sk.trigger.rawRule, sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb.prob], ['ACTIVE_RANGE', 'ACTIVE_RANGE', 'TAKE_DAMAGE', 15, elite ? 0.6 : 0.45, -0.9, 0.75], label(f));
+    assert.deepEqual([u.skill.rules, sk.trigger.rule, sk.trigger.rawRule, sk.trigger.official, sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb.prob],
+      [['TAKE_DAMAGE', 'SKILL_RANGE'], 'TAKE_DAMAGE', 'ON_TAKE_DAMAGE', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], 15, elite ? 0.6 : 0.45, -0.9, 0.75], label(f));
+    assert.deepEqual(u.skill.alsoRules.map((e) => [e.rule, e.grid]), [['SKILL_RANGE', sk.rangeGrid]], `${label(f)}: the list's SKILL_RANGE reads the 2-5`);
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0, `${label(f)}: no enemy, no cast`);
@@ -251,12 +253,13 @@ test('S2 掩蔽护卫 (MANUAL, data ACTIVE_RANGE — rawRule TAKE_DAMAGE): casts
   }
 });
 
-test('S3 饱和迸射 (MANUAL, data ACTIVE_RANGE on 2-2 + 1): 20 bullets, range +1 (SPT-Y: +2), interval 1.8 s, ATK +240 % / +270 %, DEF +50 % / +65 %, shield DEF +100 % / +135 %; casts with an enemy only the larger range reaches', () => {
+test('S3 饱和迸射 (MANUAL, data [TAKE_DAMAGE, SEARCH] + the kept ACTIVE_RANGE deviation on 2-2 + 1 — official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]): 20 bullets, range +1 (SPT-Y: +2), interval 1.8 s, ATK +240 % / +270 %, DEF +50 % / +65 %, shield DEF +100 % / +135 %; casts with an enemy only the larger range reaches', () => {
   for (const f of [[5, false, null], [6, true, SPTY], [6, true, SPTX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S3);
     const { h, u, t } = field({ tier, elite, mod, skill: 2, shield: BEHIND });
-    assert.deepEqual([u.skill.rule, sk.trigger.rule, sk.trigger.rawRule, u.skill.kind, u.skill.ammo], ['ACTIVE_RANGE', 'ACTIVE_RANGE', 'TAKE_DAMAGE', 'ammo', 20], label(f));
+    assert.deepEqual([u.skill.rules, sk.trigger.rule, sk.trigger.rawRule, sk.trigger.official, sk.trigger.deviation, u.skill.kind, u.skill.ammo],
+      [['TAKE_DAMAGE', 'SEARCH', 'ACTIVE_RANGE'], 'TAKE_DAMAGE', 'ON_TAKE_DAMAGE', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], 'ACTIVE_RANGE', 'ammo', 20], label(f));
     assert.equal(u.dir, 'LEFT');
     const ext = mod === SPTY ? 1 : 0;
     u.skill.gainSp(999);

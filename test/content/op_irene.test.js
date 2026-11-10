@@ -199,13 +199,13 @@ test('S1 起风 (AUTO, attack SP 6 / 5, data DEFAULT): the next attack hits its 
   done(h);
 });
 
-test('S2 裂潮 (MANUAL, 2 charges, data SKILL_RANGE on 3-12): not opened with only a flyer in range; up to 5 / 6 ground enemies there take 310 % / 340 % ATK, those of 重量 ≤ 3 float 2 / 3 s; the second charge ≥ 3 s later', () => {
+test('S2 裂潮 (MANUAL, 2 charges, data SP_FULL — official ALWAYS — with the kit holding it while 3-12 has no ground enemy): not opened with only a flyer in range; up to 5 / 6 ground enemies there take 310 % / 340 % ATK, those of 重量 ≤ 3 float 2 / 3 s; the second charge ≥ 3 s later', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [6, true, SWOX]]) {
     const sk = skillOf(tier, elite, S2), mul = skillMulOf(elite, mod), lb = `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
     const { h, u } = field({ tier, elite, mod, skill: 1 });
     assert.deepEqual([u.skill.rule, u.skill.kind, u.skill.maxCharges, u.skill.spCost, sk.initSp, sk.bb.atk_scale, sk.bb.max_target, sk.bb.levitate, sk.bb.value, sk.rangeId],
-      ['SKILL_RANGE', 'charges', 2, elite ? 10 : 11, 0, elite ? 3.4 : 3.1, elite ? 6 : 5, elite ? 3 : 2, 3, '3-12'], lb);
-    assert.deepEqual(u.skill.triggerGrid, sk.rangeGrid, `${lb}: the trigger grid is the skill range`);
+      ['SP_FULL', 'charges', 2, elite ? 10 : 11, 0, elite ? 3.4 : 3.1, elite ? 6 : 5, elite ? 3 : 2, 3, '3-12'], lb);
+    assert.deepEqual(sk.trigger.official, ['ALWAYS'], `${lb}: the official ALWAYS row (no skill-range condition)`);
     u.skill.gainSp(999);
     assert.equal(u.skill.charges, 2, lb);
     const fly = h.spawn('enemy_fly', { pos: [10, 7] });
@@ -236,13 +236,13 @@ test('S2 裂潮 (MANUAL, 2 charges, data SKILL_RANGE on 3-12): not opened with o
   done(h);
 });
 
-test('S3 判决 (MANUAL, data SKILL_RANGE on x-1): every ground enemy of x-1 takes 250 % ATK and floats 2 / 3 s, then 10 bombardments every 0.3 s on a random enemy of x-1, radius 1.1 (air too) at 200 % / 230 %; 3.5 s, no normal attack', () => {
+test('S3 判决 (MANUAL, data SP_FULL — official ALWAYS — on x-1): every ground enemy of x-1 takes 250 % ATK and floats 2 / 3 s, then 10 bombardments every 0.3 s on a random enemy of x-1, radius 1.1 (air too) at 200 % / 230 %; 3.5 s, no normal attack', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [6, true, SWOX]]) {
     const sk = skillOf(tier, elite, S3), mul = skillMulOf(elite, mod), lb = `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     assert.deepEqual([u.skill.rule, u.skill.spCost, u.skill.sp, sk.bb.atk_scale, sk.bb.levitate, sk.bb.multi_atk_scale, sk.bb.multi_times, sk.bb.multi_hit_interval, sk.rangeId],
-      ['SKILL_RANGE', elite ? 30 : 32, elite ? 16 : 8, 2.5, elite ? 3 : 2, elite ? 2.3 : 2, 10, 0.3, 'x-1'], lb);
-    assert.deepEqual(u.skill.triggerGrid, sk.rangeGrid, `${lb}: the trigger grid is the skill range`);
+      ['SP_FULL', elite ? 30 : 32, elite ? 16 : 8, 2.5, elite ? 3 : 2, elite ? 2.3 : 2, 10, 0.3, 'x-1'], lb);
+    assert.deepEqual(sk.trigger.official, ['ALWAYS'], `${lb}: the official ALWAYS row (no skill-range condition)`);
     u.skill.gainSp(999);
     const a = h.spawn('enemy_dummy', { pos: [10, 7] }); // in x-1
     const b = h.spawn('enemy_dummy', { pos: [10, 8] }); // outside x-1, 1 tile from a

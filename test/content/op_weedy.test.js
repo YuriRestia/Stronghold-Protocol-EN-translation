@@ -66,7 +66,7 @@ function done(h) {
 }
 const label = ([tier, elite, mod]) => `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
 
-test('温蒂 in every 自选 form: her kit, stats + module attributes, 1-1, blocks 2, melee physical ground-only, hits every blocked enemy, the 高台 rule, 罗德岛 (协防), no 特质; S1 DEFAULT, S2 SP_FULL, S3 SKILL_RANGE', () => {
+test('温蒂 in every 自选 form: her kit, stats + module attributes, 1-1, blocks 2, melee physical ground-only, hits every blocked enemy, the 高台 rule, 罗德岛 (协防), no 特质; S1 DEFAULT, S2 SP_FULL, S3 [DEFAULT, SKILL_RANGE on 4-1] (official row COMBAT_OR_ATTACK + SKILL_RANGE_ENEMY)', () => {
   assert.equal(OPERATOR_KITS[WEEDY], KITS[WEEDY]);
   const data = { chess: CHESS, backups: BACKUPS };
   for (const f of FORMS_ALL) {
@@ -79,7 +79,7 @@ test('温蒂 in every 自选 form: her kit, stats + module attributes, 1-1, bloc
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.canHitFly, u.profile.dmgType, u.base.bat, u.profile.hitAllBlocked], [2, 'melee', false, 'phys', 1.2, true], `${label(f)}: 推击手`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 1-1`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['emptyShip'], []], `${label(f)}: bonds / 特质`);
-      assert.equal(u.skill.rule, ['DEFAULT', 'SP_FULL', 'SKILL_RANGE'][skill], `${label(f)}: trigger`);
+      assert.deepEqual(u.skill.rules, [['DEFAULT'], ['SP_FULL'], ['DEFAULT', 'SKILL_RANGE']][skill], `${label(f)}: trigger`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       done(h);
     }
@@ -90,7 +90,8 @@ test('温蒂 in every 自选 form: her kit, stats + module attributes, 1-1, bloc
     assert.equal(positionClass(rec), 'all', label(f));
     assert.equal(placeClass({ fieldRecord: () => rec }, CHESS[elite ? SLOT[tier].replace(/_a$/, '_b') : SLOT[tier]]), 'all', `${label(f)}: placeClass`);
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['AUTO', 'DEFAULT'], ['AUTO', 'DEFAULT'], ['MANUAL', 'SKILL_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['AUTO', 'DEFAULT'], ['AUTO', 'DEFAULT'], ['MANUAL', 'DEFAULT']]);
+  assert.deepEqual(formOf(6, true).skills[2].trigger.also.map((e) => e.rule), ['SKILL_RANGE']);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr, modOf(5, Y).attr, modOf(6, Y).attr], [{ maxHp: 140, atk: 50 }, { maxHp: 210, atk: 72 }, { atk: 46, def: 30 }, { atk: 68, def: 40 }]);
   for (const t of [5, 6]) assert.ok(diyPool(t, { data, kitted: KITTED_CHARS }).includes(WEEDY), `tier ${t}`);
   assert.equal(validateDiyPicks({ [SLOT[5]]: { charId: WEEDY, skillIndex: 2, uniEquipId: Y } }, { data, kitted: KITTED_CHARS }).ok, true);
@@ -148,7 +149,7 @@ test('S2 水炮模式 (AUTO, SP_FULL): ATK +140 % / +170 %, interval ×3.2, rang
   }
 });
 
-test('S3 液氮大炮 (MANUAL, SKILL_RANGE 4-1): 290 % / 320 % ATK arts on the target and within 1.2 (flyers too), pushed 中力 / 较大力, and the 移动创伤: 1200 true damage per tile moved for 5 / 6 s', () => {
+test('S3 液氮大炮 (MANUAL, DEFAULT + SKILL_RANGE 4-1): 290 % / 320 % ATK arts on the target and within 1.2 (flyers too), pushed 中力 / 较大力, and the 移动创伤: 1200 true damage per tile moved for 5 / 6 s', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.spCost, sk.initSp, sk.bb.atk_scale, sk.bb.force, sk.bb.duration, sk.bb.value, sk.bb.dist, sk.bb.interval, sk.rangeId],

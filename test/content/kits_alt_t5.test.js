@@ -218,7 +218,8 @@ test('缇缇 S1 缓蚀: ATK +, each attack sleeps the target attack@sleep s with
 test('缇缇 S2 封护: no attacks; she and the lowest-HP op in range sleep (invulnerable) until the end; enemies around them sleep; T1 ×talent_scale', () => {
   for (const id of pair('02')) {
     const h = run({
-      defs: { enemies: { enemy_dummy: dummy('enemy_dummy') }, chess: { t_hurt: ally('t_hurt'), t_fine: ally('t_fine') } },
+      // (30000 max HP: the injured stay injured through the last tick even with the heal of the attack she made before the cast)
+      defs: { enemies: { enemy_dummy: dummy('enemy_dummy') }, chess: { t_hurt: ally('t_hurt', { stats: { maxHp: 30000 } }), t_fine: ally('t_fine', { stats: { maxHp: 30000 } }) } },
       units: [entry(id, 'skchr_titi_2', { row: 10, col: 4 }), { chessId: 't_hurt', row: 10, col: 6 }, { chessId: 't_fine', row: 11, col: 5 }],
       enemies: [{ key: 'enemy_dummy', pos: [10, 7] }, { key: 'enemy_dummy', pos: [12, 8] }],
     });
@@ -249,7 +250,11 @@ test('缇缇 S2 封护: no attacks; she and the lowest-HP op in range sleep (inv
     // the heal follows ANY damage she deals. The sim ran the trait from the attack path only and she does not attack at
     // all while this skill runs, so those ticks healed nothing (the same hook gap that left 隐德来希 S2 without heals).
     const dreams = during(h, u, dealt(h, u, (c) => (c.dmg?.tags || []).includes('titiDream')));
-    const incHeals = during(h, u, heals(h, u, (c) => (c.opts?.tags || []).includes('incantation')));
+    // official SNIPER-class row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] = SEARCH, a tick rule: the cast comes within a tick of the SP, so the
+    // trait heal of the attack she made just before it (a projectile in flight) lands inside the skill window — not a tick heal
+    const s0 = h.hooksOf('skillStart').find((c) => c.unit === u).t;
+    const lastAtk = Math.max(-Infinity, ...attacks(h, u, (c) => c.t <= s0 + 1e-9).map((c) => c.t));
+    const incHeals = during(h, u, heals(h, u, (c) => (c.opts?.tags || []).includes('incantation'))).filter((c) => c.t > lastAtk + 0.5);
     assert.ok(dreams.length > 0, `${dreams.length} 凝固的时光 ticks`);
     assert.equal(incHeals.length, dreams.length, 'one trait heal per tick');
     for (const c of incHeals) {
@@ -641,18 +646,18 @@ test('号角 S1 照明榴弹 (自动触发 ⇒ DEFAULT): the next ranged shot de
   }
 });
 
-test('号角 S2 暴风号令: cast with an enemy in range (DEFAULT, DESIGN §21.29); 10 rounds of attack@s2.atk_scale × ATK splash; the second half adds magic_atk_scale × ATK arts (过载)', () => {
+test('号角 S2 暴风号令: cast with an enemy in range (official 重装 row [TAKE_DAMAGE, SEARCH]); 10 rounds of attack@s2.atk_scale × ATK splash; the second half adds magic_atk_scale × ATK arts (过载)', () => {
   for (const id of pair('08')) {
     const h = run({ defs: { enemies: { enemy_dummy: dummy('enemy_dummy') } }, units: [entry(id, 'skchr_horn_2', { row: 10, col: 2 })], enemies: [{ key: 'enemy_dummy', pos: [10, 6] }] });
     const u = sel(h, id, 'skchr_horn_2');
     const bb = bbOf(u);
     const e = h.b.enemies[0];
     h.step();
-    // the owner's deliberate deviation from the 重装 TAKE_DAMAGE row (DESIGN §21.29): cast with an enemy in range
-    assert.equal(u.skill.rule, 'DEFAULT');
+    // the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: a hit OR an enemy in range (no rangeGrid → SEARCH)
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
     u.skill.gainSp(1000);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3), 'cast with the enemy in range');
-    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'DEFAULT');
+    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SEARCH');
     assert.ok(!h.hooksOf('damaged').some((c) => c.target === u), 'no hit needed');
     assert.equal(u.skill.kind, 'ammo');
     assert.equal(u.skill.ammoLeft + h.hooksOf('ammoUsed').filter((c) => c.unit === u).length, bb['attack@s2.trigger_time']);
@@ -1067,7 +1072,8 @@ test('凛御银灰 S3 变革已至: a wave of flyers alone fires it — the skil
     });
     const u = sel(h, id, 'skchr_svash2_3');
     const e = h.b.enemies[0];
-    assert.equal(u.skill.rule, 'ACTIVE_RANGE');
+    // official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]: DEFAULT + SKILL_RANGE on the skill's own grid (any enemy there, a flyer too)
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']);
     assert.equal(u.profile.canHitFly, false, 'a melee PIONEER: his own attacks stay ground-only');
     assert.ok(e.isFlying, 'the only enemy on the field is a flyer');
     cast(h, u);   // full SP: the skill must open on its own, with no attack to trigger it
