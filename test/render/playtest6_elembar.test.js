@@ -121,7 +121,7 @@ test('the gauge belongs to its unit: centred under its own feet, below its HP / 
   const { rows, v } = renderRun(['enemy_1148_dssbr'], { seconds: 12 });
   assert.ok(rows.at(-1).el, 'a gauge shows');
   const r = v._elBar;
-  const u = (v.hpBg.width - 2) / 125;
+  const u = v.screen.s / EP_GAUGE.tilePx;
   assert.ok(Math.abs(r.root.position.x - (v.hpBg.position.x + v.hpBg.width / 2)) < 1e-6, 'centred on the unit');
   assert.ok(Math.abs(r.root.position.y - (v.screen.y + EP_GAUGE.charY * u)) < 1e-6, 'below its feet');
   assert.ok(r.root.position.y > v.spFill.position.y, 'under its bars');

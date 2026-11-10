@@ -209,7 +209,7 @@ describe('element gauge (the client\'s enemy_ep_slider / char_ep_slider, under t
       frames(v, 1);
       const r = v._elBar;
       assert.ok(r.root.visible);
-      const feet = v.screen.y, u = (v.hpBg.width - 2) / 125;   // one prefab unit: our bar over the official 125
+      const feet = v.screen.y, u = v.screen.s / E.EP_GAUGE.tilePx;   // one prefab unit: 1 / 157.2 tile
       const y = v.isEnemy ? E.EP_GAUGE.enemyY : E.EP_GAUGE.charY;
       assert.ok(Math.abs(r.root.position.y - (feet + y * u)) < 1e-6, `${y} units below the feet`);
       assert.ok(Math.abs(r.root.position.x - (v.hpBg.position.x + v.hpBg.width / 2)) < 1e-6, 'centred under the bars');
@@ -217,6 +217,18 @@ describe('element gauge (the client\'s enemy_ep_slider / char_ep_slider, under t
       assert.ok(Math.abs(r.root.scale.x - u * E.EP_GAUGE.scale) < 1e-9, 'ep_slider\'s scale 1.2');
       v.destroy();
     }
+  });
+
+  test('one prefab unit is 1 / tilePx of a tile: the official battle camera\'s middle row on the client\'s 1920-wide HUD canvas', () => {
+    for (const side of ['L', 'R']) {
+      const c = presetCamera('normal', { width: 1920, height: 1080 }, { side });
+      assert.ok(Math.abs(c.project(5, 10.5, 0).s - E.EP_GAUGE.tilePx) < 0.1, side);
+    }
+    const v = artView(enemyInfo);
+    v.sync(sample({ el: 'burn', elFill: 0.5 }), 5);
+    frames(v, 1);
+    assert.ok(Math.abs(v._elBar.root.scale.x - (v.screen.s / 157.2) * 1.2) < 1e-9, 'no pixel clamp: the ring grows with the tiles');
+    v.destroy();
   });
 
   test('enemies: the client\'s layers in its colours; the white arc is the remaining 元素值', () => {

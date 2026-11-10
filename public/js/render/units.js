@@ -274,8 +274,12 @@ export const CHARGE_MARK = Object.freeze({ color: 0xffd900, fill: '#ffd900', siz
  */
 export const ALIAS_TINT = Object.freeze({ enemy_1305_mhslim: 0xffc48a, enemy_1305_mhslim_2: 0xff9070 });
 /**
- * (fork) The official element gauge (see header), in the client prefab's own units (a sprite's pixels; the official HP
- * bar hp_slider is 125 wide, drawn here as wide as our bar, UNIT.barWidth tiles):
+ * (fork) The official element gauge (see header), in the client prefab's own units (a sprite's pixels):
+ *   - `tilePx`: prefab units per tile. The client's HUD (panel_hud under orthogonal_root, a Screen Space - Camera canvas
+ *     with CanvasScaler 1920 x 1080, match width) draws a unit as screen width / 1920 px; under the official battle
+ *     camera (projection.js presetCamera('normal'), left_/right_battle_camera_param) a tile at the field's middle row
+ *     (10.5) is 157.2 px of that 1920 px wide screen, so a unit is 1 / 157.2 tile, at any zoom and on any screen
+ *     (the client keeps it the same size on every row; here it follows the row's perspective, ±8 % over the field);
  *   - `scale`: ep_slider's localScale; `enemyY` / `charY`: its anchoredPosition, below the HUD root (the unit's feet);
  *   - layers (bottom up), each its sprite at its own size, centred: enemies slider_ep_back_enemy (51), the element's
  *     colour slider_ep_color_enemy (its 27 px disc in a 51 rect), the dark slider_ep_fill_back_enemy (17) and the fill
@@ -291,7 +295,7 @@ export const ALIAS_TINT = Object.freeze({ enemy_1305_mhslim: 0xffc48a, enemy_130
  * The tweens' eases are not read from the client [ASSUMED linear].
  */
 export const EP_GAUGE = Object.freeze({
-  scale: 1.2, enemyY: 26.5, charY: 25.9, enemyFill: 0xd5d5d5, backAlpha: 0.784, trailAlpha: 0.3, recoverAlpha: 0.5,
+  tilePx: 157.2, scale: 1.2, enemyY: 26.5, charY: 25.9, enemyFill: 0xd5d5d5, backAlpha: 0.784, trailAlpha: 0.3, recoverAlpha: 0.5,
   hitS: 0.3, hitTo: 1.3, breakS: 0.5, breakFrom: 0.5, breakTo: 1.5, trailSpeed: 5, trailMin: 0.02,
   el: Object.freeze({
     neural: Object.freeze({ enemy: 0x149882, burst: 0x149882, char: 0x00ffd8, icon: 'sprite_ep_icon' }),
@@ -2643,7 +2647,7 @@ export class UnitView {
 
   /**
    * (fork) The element gauge (see header, EP_GAUGE) centred on `x`, its HUD root at the feet `feetY`; one prefab unit is
-   * our bar width over the official bar's 125. The client's sprites once their art has loaded (manifest battleUi/…),
+   * 1 / EP_GAUGE.tilePx of a tile (`s` px). The client's sprites once their art has loaded (manifest battleUi/…),
    * else the hudRings element disc with a white arc in the same place (`r.official`). `r.left` is the white arc's share
    * (elementLeft), `r.trailK` the operator trail's; the hit pulse and the burst ring run on real time (`dt`). Built on the
    * first gauge, hidden while there is none.
@@ -2719,7 +2723,7 @@ export class UnitView {
     }
     if (r.hitT >= 0 && (r.hitT += dt) >= G.hitS) r.hitT = -1;
     if (r.breakT >= 0 && (r.breakT += dt) >= G.breakS) r.breakT = -1;
-    const u = clamp(s * UNIT.barWidth, 24, 96) / 125;
+    const u = s / G.tilePx;
     r.root.position.set(x, feetY + (enemy ? G.enemyY : G.charY) * u);
     r.root.scale.set(u * G.scale);
     r.root.visible = true;
