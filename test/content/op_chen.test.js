@@ -122,13 +122,14 @@ test('S1 鞘击 (AUTO, attack SP 6 / 5, data DEFAULT): the next attack is ONE st
   }
 });
 
-test('S2 赤霄·拔刀 (MANUAL, data SKILL_RANGE on 3-12): cast with an enemy in the skill range (no attack needed); up to 5 / 6 enemies there — flyers too — each take 370 % / 410 % ATK arts, then the same physical; nothing outside', () => {
+test('S2 赤霄·拔刀 (MANUAL, data [DEFAULT, SKILL_RANGE on 3-12] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): cast with an enemy in the skill range (no attack needed); up to 5 / 6 enemies there — flyers too — each take 370 % / 410 % ATK arts, then the same physical; nothing outside', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [6, true, SWOX]]) {
     const sk = skillOf(tier, elite, S2), mul = skillMulOf(elite, mod), lb = `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
     const { h, u } = field({ tier, elite, mod, skill: 1 });
-    assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.spCost, u.skill.sp, sk.bb.atk_scale, sk.bb.max_target, sk.rangeId],
-      ['SKILL_RANGE', 'attack', elite ? 25 : 26, elite ? 14 : 12, elite ? 4.1 : 3.7, elite ? 6 : 5, '3-12'], lb);
-    assert.deepEqual(u.skill.triggerGrid, sk.rangeGrid, `${lb}: the trigger grid is the skill range`);
+    assert.deepEqual([u.skill.rules, u.skill.spType, u.skill.spCost, u.skill.sp, sk.bb.atk_scale, sk.bb.max_target, sk.rangeId],
+      [['DEFAULT', 'SKILL_RANGE'], 'attack', elite ? 25 : 26, elite ? 14 : 12, elite ? 4.1 : 3.7, elite ? 6 : 5, '3-12'], lb);
+    assert.deepEqual(sk.trigger.official, ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], lb);
+    assert.deepEqual(u.skill.alsoRules.map((e) => [e.rule, e.grid]), [['SKILL_RANGE', sk.rangeGrid]], `${lb}: the list's SKILL_RANGE reads the skill range`);
     u.skill.gainSp(999);
     h.run(1);
     assert.equal(u.skill.activations, 0, `${lb}: nobody in range`);
@@ -160,21 +161,23 @@ test('S2 赤霄·拔刀 (MANUAL, data SKILL_RANGE on 3-12): cast with an enemy i
   done(h);
 });
 
-test('S3 赤霄·绝影 (MANUAL, data SKILL_RANGE on x-1): not opened with only a flyer in range; then 10 slashes of 230 % / 260 % ATK on the nearest ground enemy at the skeleton\'s times, the last stunning 2.5 / 3 s; 2.933 s, invulnerable, unable to block, stun immune', () => {
+test('S3 赤霄·绝影 (MANUAL, data SP_FULL — official [ALWAYS], the kit holds it until a ground enemy is in x-1): not opened with only a flyer in range; then 10 slashes of 230 % / 260 % ATK on the nearest ground enemy at the skeleton\'s times, the last stunning 2.5 / 3 s; 2.933 s, invulnerable, unable to block, stun immune', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [6, true, SWOX]]) {
     const sk = skillOf(tier, elite, S3), mul = skillMulOf(elite, mod), lb = `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
     const { h, u } = field({ tier, elite, mod, skill: 2, row: 10, col: 5 });
-    assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.spCost, u.skill.sp, sk.bb.atk_scale, sk.bb.times, sk.bb.stun, sk.rangeId],
-      ['SKILL_RANGE', 'attack', elite ? 36 : 38, 10, elite ? 2.6 : 2.3, 10, elite ? 3 : 2.5, 'x-1'], lb);
-    assert.deepEqual(u.skill.triggerGrid, sk.rangeGrid, `${lb}: the trigger grid is the skill range`);
+    assert.deepEqual([u.skill.rules, u.skill.spType, u.skill.spCost, u.skill.sp, sk.bb.atk_scale, sk.bb.times, sk.bb.stun, sk.rangeId],
+      [['SP_FULL'], 'attack', elite ? 36 : 38, 10, elite ? 2.6 : 2.3, 10, elite ? 3 : 2.5, 'x-1'], lb);
+    assert.deepEqual(sk.trigger.official, ['ALWAYS'], lb);
     u.skill.gainSp(999);
     const fly = h.spawn('enemy_fly', { pos: [10, 6] });
     h.run(1.5);
-    assert.equal(u.skill.activations, 0, `${lb}: a flyer alone in x-1 does not open it (不可对空), the skill stays ready`);
+    // official [ALWAYS] = SP_FULL would cast at full SP, but the kit refuses every activation while no ground enemy stands in
+    // the skill range (op-chen.js guardActivation): a flyer alone does not open it (不可对空), the skill stays ready
+    assert.equal(u.skill.activations, 0, `${lb}: a flyer alone in x-1 does not open it, the skill stays ready`);
     assert.equal(u.skill.charges, 1, lb);
     const near = h.spawn('enemy_dummy', { pos: [9, 6] }); // √2 away
     const farther = h.spawn('enemy_dummy', { pos: [10, 7] }); // 2 away
-    assert.ok(h.runUntil(() => u.skill.active, 1), `${lb}: opened with a ground enemy in range`);
+    assert.ok(h.runUntil(() => u.skill.active, 1), `${lb}: opened at full SP once a ground enemy stands in range`);
     const t0 = u.skill.lastStart;
     assert.deepEqual([!!u.s.flags.invulnerable, !!u.s.flags.noBlock], [true, true], `${lb}: 无敌, 无法阻挡`);
     assert.equal(h.b.applyStatus(u, 'stun', { duration: 2, source: near }), false, `${lb}: 眩晕免疫`);

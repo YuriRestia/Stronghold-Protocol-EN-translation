@@ -126,7 +126,7 @@ function warn(msg) {
   warnings.push(msg);
 }
 
-const { stripRich, richRaw, cleanNum, flattenBB, textPair, naturalCmp, phaseIdx, unlocked, bestCandidate, withPotential, rangeGrid, interpolateAttrs, statsFrom, immunitiesOf, TRIGGER_DEVIATIONS, STANDIN_TRIGGER_DEVIATIONS, strictlyContains, ACTIVE_RANGE_OVER, resolveTrigger, buildSkill, splitModuleParts, applyModuleTraitParts, traitRecord, moduleAttr, buildTalents, baseTalentList, moduleTalentChanges, mergeTalentChanges, classifyAttack, hasE2Art, rarityOf, statusCmp, buildUnitHead, buildUnitForm, placeOnRangedOf } = createOfficialUnitBuilders(warn);
+const { stripRich, richRaw, cleanNum, flattenBB, textPair, naturalCmp, phaseIdx, unlocked, bestCandidate, withPotential, rangeGrid, interpolateAttrs, statsFrom, immunitiesOf, TRIGGER_DEVIATIONS, STANDIN_TRIGGER_DEVIATIONS, OFFICIAL_TRIGGER_DEVIATIONS, strictlyContains, ACTIVE_RANGE_OVER, resolveTrigger, buildSkill, splitModuleParts, applyModuleTraitParts, traitRecord, moduleAttr, buildTalents, baseTalentList, moduleTalentChanges, mergeTalentChanges, classifyAttack, hasE2Art, rarityOf, statusCmp, buildUnitHead, buildUnitForm, placeOnRangedOf } = createOfficialUnitBuilders(warn);
 
 /**
  * Make sure an official gamedata file exists in the cache; download it when missing.
@@ -277,8 +277,13 @@ async function loadContext() {
     assets: await loadResearch('07-assets.json'),
   };
 
+  // the official skill triggers that replace the table's (the profile's skillTriggers file; officialTrigger)
+  const officialTriggers = PROFILE.skillTriggers
+    ? JSON.parse(await readFile(new URL(`./versions/${PROFILE.skillTriggers}`, import.meta.url), 'utf8'))
+    : null;
+
   return {
-    act, ac, charTable, skillTable, rangeTable, uniequip, battleEquip, handbook, enemyDb,
+    act, ac, officialTriggers, charTable, skillTable, rangeTable, uniequip, battleEquip, handbook, enemyDb,
     levels, templateIds: [...templateIds].sort(naturalCmp), stageIds, enemyDataLevelId, research,
     manifest: await loadManifest(),
   };
@@ -3233,7 +3238,33 @@ function validateAll(f) {
   const deviationHolds = (rule, trig) => trig.rawRule === 'TAKE_DAMAGE' && (trig.rule === rule || (ACTIVE_RANGE_OVER.has(rule) && trig.rule === 'ACTIVE_RANGE'));
   const checkDeviations = want.triggerDeviations === 'default' || want.triggerDeviations === 'present';
   const onlyPresent = want.triggerDeviations === 'present';
-  if (!checkDeviations) {
+  // 'official' (the profile's skillTriggers): every MANUAL skill carries its official list; the only deviations are
+  // officialUnitBuilder OFFICIAL_TRIGGER_DEVIATIONS (余 S2 on its x-1) and the larger running range, an ACTIVE_RANGE added
+  // to the list (never its first rule) of a skill with no range of its own
+  const officialOnly = want.triggerDeviations === 'official';
+  if (officialOnly) {
+    const check = (label, s) => {
+      if (s.skillType !== 'MANUAL') return;
+      const t = s.trigger || {};
+      if (!Array.isArray(t.official) || !t.official.length) err(`${label} ${s.skillId}: no official trigger list`);
+      if (t.rule === 'ACTIVE_RANGE') err(`${label} ${s.skillId}: ACTIVE_RANGE as the first rule of an official list`);
+      const larger = (t.also || []).some((e) => e.rule === 'ACTIVE_RANGE');
+      if (larger && (t.deviation !== 'ACTIVE_RANGE' || s.rangeGrid?.length)) err(`${label} ${s.skillId}: ACTIVE_RANGE without the larger-range deviation`);
+    };
+    for (const c of Object.values(chess)) for (const s of c.skills || []) check(`chess ${c.chessId}`, s);
+    for (const [id, u] of Object.entries(backups?.units || {})) for (const [key, form] of Object.entries(u.forms)) for (const s of form.skills) check(`unit ${id}@${key}`, s);
+    for (const [charId, skillsOf] of Object.entries(OFFICIAL_TRIGGER_DEVIATIONS)) {
+      const recs = Object.values(chess).filter((c) => c.charId === charId);
+      if (recs.length !== 2) err(`official trigger deviation ${charId}: expected the normal and the elite record, got ${recs.length}`);
+      for (const [skillId, rule] of Object.entries(skillsOf)) {
+        for (const c of recs) {
+          const s = (c.skills || []).find((x) => x.skillId === skillId);
+          if (!s) err(`official trigger deviation ${c.chessId}: no skill ${skillId}`);
+          else if (s.trigger?.rule !== rule || s.trigger?.deviation !== rule || s.trigger?.also || JSON.stringify(s.trigger.customRangeGrid) !== JSON.stringify(s.rangeGrid)) err(`official trigger deviation ${c.chessId} ${skillId}: expected ${rule} alone on the skill's range`);
+        }
+      }
+    }
+  } else if (!checkDeviations) {
     for (const c of Object.values(chess)) for (const s of c.skills || []) if (s.trigger?.rawRule === 'TAKE_DAMAGE') err(`chess ${c.chessId} ${s.skillId}: a TAKE_DAMAGE row in a version whose profile expects none`);
     for (const [id, u] of Object.entries(backups?.units || {})) {
       for (const [key, form] of Object.entries(u.forms)) for (const s of form.skills) if (s.trigger?.rawRule === 'TAKE_DAMAGE') err(`unit ${id}@${key} ${s.skillId}: a TAKE_DAMAGE row in a version whose profile expects none`);

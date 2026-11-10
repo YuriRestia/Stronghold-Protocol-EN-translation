@@ -192,20 +192,21 @@ test('S1 “自呼号生发” (AUTO): ASPD +60 / +75 for 18 s, cast as soon as 
   }
 });
 
-test('S2 “以鲜血洗去” (MANUAL, data DEFAULT): 28 s, attack interval 3.0 − 0.5 s; each released shot +9 % / +11 % ATK and +6 / +7 ASPD (a 转置能量 3 stacks), at most 8 / 9 — later shots of a volley carry the stacks of the earlier ones', () => {
+test('S2 “以鲜血洗去” (MANUAL, data SEARCH (SNIPER row)): 28 s, attack interval 3.0 − 0.5 s; each released shot +9 % / +11 % ATK and +6 / +7 ASPD (a 转置能量 3 stacks), at most 8 / 9 — later shots of a volley carry the stacks of the earlier ones', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const b = sk.bb;
     const per = b['attack@veen_s_2_buff[stack].atk'], perAs = b['attack@veen_s_2_buff[stack].attack_speed'], max = b['attack@veen_s_2_buff[stack].max_stack_cnt'];
     assert.deepEqual([sk.duration, b.base_attack_time, per, perAs, max], [28, -0.5, elite ? 0.11 : 0.09, elite ? 7 : 6, elite ? 9 : 8], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 1 });
-    assert.equal(u.skill.rule, 'DEFAULT');
+    // official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY]: no skill grid -> SEARCH only
+    assert.deepEqual(u.skill.rules, ['SEARCH']);
     u.skill.sp = 0;
     storeUp(h, u, 1, 1);
     const base = u.base.atk;
     u.skill.gainSp(999);
     const e = h.spawn('enemy_dummy', { pos: [10, 7] });
-    assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast as she attacks`);
+    assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast as soon as the enemy is in her range`);
     h.step(2);
     approx(u.s.interval, 2.5 * 100 / u.s.aspd, `T${tier}: base interval 2.5 s`);
     const hits = atkHits(h, u);
@@ -217,7 +218,7 @@ test('S2 “以鲜血洗去” (MANUAL, data DEFAULT): 28 s, attack interval 3.0
     approx(v[2].amount, base * (1 + 0.12 + 4 * per), `T${tier}: the stored one after 4`);
     assert.ok(hits.length <= 3);
     approx(u.s.aspd, 100 + 15 + 5 * perAs, `T${tier}: 5 stacks of ASPD (and T1's +15 again)`);
-    h.run(25);
+    h.run(u.skill.timeLeft - 1); // late in the skill (it was cast at once, not at her first attack)
     assert.equal(u.findBuff('veen:s2stack').mods.atkPct, per * max, `T${tier}: at most ${max}`);
     h.runUntil(() => !u.skill.active, 10);
     assert.equal(u.findBuff('veen:s2stack'), null, `T${tier}: gone with the skill`);
@@ -226,13 +227,13 @@ test('S2 “以鲜血洗去” (MANUAL, data DEFAULT): 28 s, attack interval 3.0
   }
 });
 
-test('S3 “用赤铁铭记” (MANUAL, data DEFAULT): 18 / 21 bullets, ASPD +110 / +140; an attack spends 1 bullet per stored energy and 3 per 转置能量 (none without), its stored shots deal nothing and its main hit bounces that many times — every 0.5 s within 1.7 tiles, a new enemy first — for 130 % / 140 % of the cached ATK, each with a 战争技艺 stack', () => {
+test('S3 “用赤铁铭记” (MANUAL, data SEARCH (SNIPER row)): 18 / 21 bullets, ASPD +110 / +140; an attack spends 1 bullet per stored energy and 3 per 转置能量 (none without), its stored shots deal nothing and its main hit bounces that many times — every 0.5 s within 1.7 tiles, a new enemy first — for 130 % / 140 % of the cached ATK, each with a 战争技艺 stack', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const b = sk.bb;
     assert.deepEqual([b['attack@trigger_time'], b.attack_speed, b['attack@bounce_atk_scale'], b['attack@base_atk_scale']], [elite ? 21 : 18, elite ? 140 : 110, elite ? 1.4 : 1.3, 1], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.deepEqual(u.skill.rules, ['SEARCH']); // official SNIPER row, no skill grid
     u.skill.sp = 0;
     storeUp(h, u, 1, 1);
     const atk = u.s.atk;
@@ -240,10 +241,14 @@ test('S3 “用赤铁铭记” (MANUAL, data DEFAULT): 18 / 21 bullets, ASPD +11
     const e = h.spawn('enemy_dummy', { pos: [10, 7] });
     const near = h.spawn('enemy_fly', { pos: [10, 8.2] });
     const far = h.spawn('enemy_dummy', { pos: [10, 12] });   // out of her range and 3.8 from the target
-    assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast as she attacks`);
+    assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast as soon as the enemy is in her range`);
     assert.deepEqual([u.skill.kind, u.skill.ammoMax], ['ammo', b['attack@trigger_time']], `T${tier}`);
-    approx(u.s.aspd, 100 + b.attack_speed + 15, `T${tier}: ASPD (+ T1's 15: the volley spent the 转置能量)`, 1e-9);
+    // SEARCH casts before her first attack, so the volley has not yet spent the 转置能量 (T1's +15 comes with that spend)
+    approx(u.s.aspd, 100 + b.attack_speed, `T${tier}: ASPD at the cast`, 1e-9);
+    // her first attack under the skill comes later (the cast did not wait for it): from there the volley plays out as before
+    assert.ok(h.runUntil(() => h.hooksOf('ammoUsed').some((c) => c.unit === u), 4), `T${tier}: the first attack`);
     h.run(2.2);
+    approx(u.s.aspd, 100 + b.attack_speed + 15, `T${tier}: ASPD (+ T1's 15: the volley spent the 转置能量)`, 1e-9);
     // the first attack: 1 + 3 = 4 bullets, the main hit then 4 bounces (e ↔ near: a new enemy first, then back)
     assert.equal(u.skill.ammoLeft, b['attack@trigger_time'] - 4, `T${tier}: 4 bullets`);
     assert.equal(h.hooksOf('ammoUsed').filter((c) => c.unit === u).length, 4);

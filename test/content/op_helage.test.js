@@ -151,13 +151,17 @@ test('S2 弦月 (MANUAL, time SP 32 / 29 from 5 / 10, data DEFAULT): 11 / 12 s o
   }
 });
 
-test('S3 满月 (MANUAL, time SP 43 / 41 from 15, data ACTIVE_RANGE): cast with an enemy 2 tiles ahead (outside 1-1); 13 / 14 s of ATK +55 % / +70 %, range 1-1 + 1 forward, up to 3 targets; back after', () => {
+test('S3 满月 (MANUAL, time SP 43 / 41 from 15, data DEFAULT + SEARCH + ACTIVE_RANGE, the kept deviation): cast with an enemy 2 tiles ahead (outside 1-1); 13 / 14 s of ATK +55 % / +70 %, range 1-1 + 1 forward, up to 3 targets; back after', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, null], [6, true, SBLX]]) {
     const sk = skillOf(tier, elite, S3), lb = `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.spCost, sk.initSp, sk.duration, sk.bb.atk, sk.bb.ability_range_forward_extend, sk.bb['attack@max_target']],
-      ['ACTIVE_RANGE', 'time', elite ? 41 : 43, 15, elite ? 14 : 13, elite ? 0.7 : 0.55, 1, 3], lb);
-    assert.deepEqual(u.skill.triggerGrid, [[0, 0], [0, 1], [0, 2]], `${lb}: the trigger grid = the running range`);
+      ['DEFAULT', 'time', elite ? 41 : 43, 15, elite ? 14 : 13, elite ? 0.7 : 0.55, 1, 3], lb);
+    // official default row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] (no skill grid -> SEARCH), plus the owner's kept deviation:
+    // ACTIVE_RANGE on the running range appended to the list
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SEARCH', 'ACTIVE_RANGE'], lb);
+    assert.equal(sk.trigger.deviation, 'ACTIVE_RANGE', lb);
+    assert.deepEqual(u.skill.alsoRules[1].grid, [[0, 0], [0, 1], [0, 2]], `${lb}: the ACTIVE_RANGE grid = the running range`);
     u.skill.gainSp(999);
     const far = h.spawn('enemy_dummy', { pos: [10, 7] });
     assert.ok(h.runUntil(() => u.skill.active, 1), `${lb}: cast with an enemy in the running range only`);

@@ -134,7 +134,7 @@ test('S1 但为求索 (AUTO, 1 / 2 charges, data DEFAULT): the next attack hits 
   }
 });
 
-test('S2 群星逶迤 (MANUAL, data DEFAULT): 16 s, each attack 9 shots of 27 % / 35 % ATK at random enemies of her range, each rolling 10 % / 12 % to lift 1 s; a lifted or flying target takes × 1.23', () => {
+test('S2 群星逶迤 (MANUAL, data SEARCH = official SNIPER row): 16 s, each attack 9 shots of 27 % / 35 % ATK at random enemies of her range, each rolling 10 % / 12 % to lift 1 s; a lifted or flying target takes × 1.23', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const sc = sk.bb['attack@atk_scale'], p = sk.bb['attack@prob'];
@@ -143,7 +143,7 @@ test('S2 群星逶迤 (MANUAL, data DEFAULT): 16 s, each attack 9 shots of 27 % 
     const flying = [];
     const setup = (b) => b.on('damaged', (c) => { if (c.source?.uid === 1) flying.push(c.target.isFlying); }, { priority: -100 });
     const { h, u } = field({ tier, elite, skill: 1, seed: 21, setup });
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.deepEqual(u.skill.rules, ['SEARCH']);
     let rolls = 0;
     const chance = h.b.rng.chance;
     h.b.rng.chance = (q) => { if (q === p) rolls++; return chance(q); };
@@ -176,13 +176,14 @@ test('S2 群星逶迤 (MANUAL, data DEFAULT): 16 s, each attack 9 shots of 27 % 
   }
 });
 
-test('S3 博览者的狂语 (MANUAL, data ACTIVE_RANGE on 3-10): 45 s, interval 1.6 + 1.4 = 3.0 s, range 3-10 while on; each attack three whirlwinds (her row and the rows beside), 1 tile/s, each lifting the first enemy it touches then dealing 2.33→3.5 / 2.53→3.8 × ATK over 1.77 s (× 1.23: lifted)', () => {
+test('S3 博览者的狂语 (MANUAL, data [SEARCH, SKILL_RANGE on 3-10] = official SNIPER row): 45 s, interval 1.6 + 1.4 = 3.0 s, range 3-10 while on; each attack three whirlwinds (her row and the rows beside), 1 tile/s, each lifting the first enemy it touches then dealing 2.33→3.5 / 2.53→3.8 × ATK over 1.77 s (× 1.23: lifted)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const lo = sk.bb['attack@min_atk_scale'], hi = sk.bb['attack@max_atk_scale'], lev = sk.bb['attack@levitate'];
     assert.deepEqual([sk.rangeId, sk.duration, sk.bb.base_attack_time, lo, hi, lev, sk.spCost, sk.initSp], ['3-10', 45, 1.4, elite ? 2.53 : 2.33, elite ? 3.8 : 3.5, elite ? 2 : 1.8, elite ? 64 : 67, elite ? 42 : 41], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.rule, u.skill.triggerGrid], ['ACTIVE_RANGE', sk.rangeGrid], `T${tier}: the trigger`);
+    assert.deepEqual(u.skill.rules, ['SEARCH', 'SKILL_RANGE'], `T${tier}: the trigger`);
+    assert.deepEqual(u.skill.alsoRules[0].grid, sk.rangeGrid, `T${tier}: the SKILL_RANGE entry reads the 3-10 grid`);
     h.run(0.6);
     u.skill.gainSp(999);
     // (10,9) is on 3-10 only: the cast comes with it; lanes: row 9 → (9,6) 1 tile ahead, row 10 → (10,8) before (10,9), row 11 → (11,9)

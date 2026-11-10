@@ -65,12 +65,17 @@ test('黑 in every 自选 form: her operator kit (all three skills authored), th
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-6`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       assert.equal(u.skill.rule, form.skills[skill].trigger.rule, `${label(f)}: the data's trigger`);
+      assert.deepEqual(u.skill.rules, [form.skills[skill].trigger.rule, ...(form.skills[skill].trigger.also ?? []).map((a) => a.rule)], `${label(f)}: the data's rule list`);
       done(h);
     }
   }
-  // the data: all three DEFAULT (S3's 「攻击范围改为」 is an attack-range change, not a 技能范围 — tools/build-data.mjs
-  // ATTACK_RANGE_CHANGE); E2 Lv1 1393 / 676 / 164, Lv60 1685 / 805 / 204
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'DEFAULT']);
+  // the data: S1 is AUTO (keeps its own DEFAULT); S2 / S3 are MANUAL with the official SNIPER row [ATTACK_RANGE_ENEMY,
+  // SKILL_RANGE_ENEMY] = SEARCH (an enemy in the initial 3-6), S3 + SKILL_RANGE on its own 3-2 line (its rangeGrid);
+  // E2 Lv1 1393 / 676 / 164, Lv60 1685 / 805 / 204
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'SEARCH', 'SEARCH']);
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.official), [undefined, ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY'], ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY']]);
+  assert.deepEqual(formOf(6, true).skills.map((s) => (s.trigger.also ?? []).map((a) => a.rule)), [[], [], ['SKILL_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills[2].trigger.also[0].customRangeGrid, [[0, 0], [0, 1], [0, 2], [0, 3]]);
   assert.deepEqual([FORMS['2/1/4/0'].stats.atk, FORMS['2/60/7/1'].stats.atk], [676, 805]);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr, modOf(5, Y).attr, modOf(6, Y).attr],
     [{ maxHp: 130, atk: 55, respawnTime: -25 }, { maxHp: 170, atk: 75, respawnTime: -25 }, { atk: 80, def: 10 }, { atk: 120, def: 16 }]);
@@ -107,11 +112,11 @@ test('S1 强弩 (AUTO, attack SP 4, data DEFAULT): every 5th attack ×175 % / 19
   }
 });
 
-test('S2 暮眼锐瞳 (MANUAL, data DEFAULT): ATK +85 % / +100 % for 33 / 36 s, 破甲箭头 at 40 % / 45 % meanwhile; no cast without an enemy', () => {
+test('S2 暮眼锐瞳 (MANUAL, data SEARCH = official SNIPER row): ATK +85 % / +100 % for 33 / 36 s, 破甲箭头 at 40 % / 45 % meanwhile; no cast without an enemy', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2), t0 = pierce(tier, elite, null);
     const { h, u } = field({ tier, elite, skill: 1, seed: 8 });
-    assert.deepEqual([u.skill.kind, u.skill.rule, sk.duration, sk.bb.atk, sk.bb['talent@prob']], ['duration', 'DEFAULT', elite ? 36 : 33, elite ? 1 : 0.85, elite ? 0.45 : 0.4], `T${tier}`);
+    assert.deepEqual([u.skill.kind, u.skill.rule, sk.duration, sk.bb.atk, sk.bb['talent@prob']], ['duration', 'SEARCH', elite ? 36 : 33, elite ? 1 : 0.85, elite ? 0.45 : 0.4], `T${tier}`);
     u.skill.gainSp(999);
     h.run(2);
     assert.equal(u.skill.activations, 0, `T${tier}: no enemy, no cast`);
@@ -133,16 +138,17 @@ test('S2 暮眼锐瞳 (MANUAL, data DEFAULT): ATK +85 % / +100 % for 33 / 36 s, 
   }
 });
 
-test('S3 战术的终结: range 3-2 while it runs (and back), interval 1.6 + 0.4 s, ATK +120 % / +140 %, 破甲箭头 on every attack; the basic strategy (DEFAULT): an enemy she is about to attack casts it, then only the 3-2 line is attacked', () => {
+test('S3 战术的终结: range 3-2 while it runs (and back), interval 1.6 + 0.4 s, ATK +120 % / +140 %, 破甲箭头 on every attack; official SNIPER row [SEARCH, SKILL_RANGE]: an enemy in her 3-6 casts it, then only the 3-2 line is attacked', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3), t0 = pierce(tier, elite, null);
     assert.deepEqual(sk.rangeGrid, [[0, 0], [0, 1], [0, 2], [0, 3]]);
     const { h, u } = field({ tier, elite, skill: 2, seed: 4 });
     assert.deepEqual([u.skill.kind, u.skill.rule, sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb['talent@prob']],
-      ['duration', 'DEFAULT', elite ? 21 : 18, elite ? 1.4 : 1.2, 0.4, 1], `T${tier}`);
+      ['duration', 'SEARCH', elite ? 21 : 18, elite ? 1.4 : 1.2, 0.4, 1], `T${tier}`);
+    assert.deepEqual(u.skill.rules, ['SEARCH', 'SKILL_RANGE'], `T${tier}`);
     u.skill.gainSp(999);
     const side = h.spawn('enemy_dummy', { pos: [11, 6] }); // in 3-6, not in 3-2
-    assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast as she is about to attack the 3-6 enemy (DEFAULT)`);
+    assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast at once by the enemy in her 3-6 (SEARCH)`);
     const far = h.spawn('enemy_dummy', { pos: [10, 8] }); // 3 tiles ahead: 3-2, outside 3-6
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: range 3-2 while it runs`);
     approx(u.s.interval, 2.0, `T${tier}: interval +0.4 s`);
@@ -166,6 +172,8 @@ test('T1 破甲箭头: a proc ×160 % (ARC-Y stage 3: 170 %) and, once it hit, D
     const t0 = pierce(tier, elite, mod);
     assert.deepEqual([t0.atk_scale, t0.def, t0.prob, t0.defdown_duration], tier === 6 && mod === Y ? [1.7, -0.25, 0.2, 5] : [1.6, -0.2, 0.2, 5], label(f));
     const { h, u } = field({ tier, elite, mod, skill: 2, seed: 13 });
+    // the talent alone: with the official SEARCH trigger S3 would cast within 20 s and prove every attack (talent@prob 1)
+    h.b.addBuff(u, { key: 'test:noSp', flags: { noSp: true } });
     const e = h.spawn('enemy_dummy', { pos: [11, 6] }); // off her front line: no ARC-Y bonus
     h.run(120);
     const hits = atkHits(h, u).filter((c) => c.target === e);

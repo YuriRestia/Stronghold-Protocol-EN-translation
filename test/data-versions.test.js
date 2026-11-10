@@ -92,7 +92,9 @@ test('profiles: the default is today\'s build; pins pick a commit per file group
   assert.equal(def.tables, 'default');
   assert.deepEqual(def.config.hiddenCore, { single: 350, multi: 1200 });
   assert.equal(def.config.rules, undefined, 'no rules: the default build emits no config.version');
-  assert.deepEqual(def.expect, { bonds: 23, bands: 40, visibleNonDiy: 112, triggerDeviations: 'default' });
+  assert.deepEqual(def.expect, { bonds: 23, bands: 40, visibleNonDiy: 112, triggerDeviations: 'official' });
+  // the official skill triggers of the live client replace the pinned table's (officialUnitBuilder officialTrigger)
+  assert.equal(def.skillTriggers, 'official-skill-triggers.json');
   assert.equal(pinnedShaOf(def, 'excel/activity_table.json'), '17759cc8cdf37388414145d16262a3a06f3ab25e');
 
   const { profile: v12 } = await loadProfile('act1autochess');
@@ -281,8 +283,10 @@ test('data/versions/act2autochess-v2_1: the same-id records that differ from tod
   assert.equal(pasngr.talentChanges[1].bb['pasngr_t_1[enhance].damage_scale'], 1.2);
   // the skill or talent texts of 菲莱, 忍冬, 阿罗玛, 乌尔比安, 圣聆初雪 and 焰影苇草 (term markup, 攻击力 30%, （+2） / （+2%）)
   // (fork) dev-0.2's build-data adds `activeRange` / `activeExtend` (the 攻击范围 技能 toggle) to today's skills; the stored
-  // set predates them
-  const noRange = (sk) => (sk && typeof sk === 'object' ? { ...sk, activeRange: undefined, activeExtend: undefined } : sk);
+  // set predates them. Since 2026-11-10 today's skills carry the live client's official triggers (the default profile's
+  // skillTriggers) while V2_1 keeps its own table's: the triggers are left out here (the V2_1 set itself is unchanged —
+  // the byte-for-byte rebuild test above)
+  const noRange = (sk) => (sk && typeof sk === 'object' ? { ...sk, activeRange: undefined, activeExtend: undefined, trigger: undefined } : sk);
   assert.deepEqual(changed('chess', (c) => [noRange(c.skill), (c.skills || []).map(noRange), c.talents, c.talentsBase]), ['chess_char_3_06_a', 'chess_char_3_06_b',
     'chess_char_3_18_a', 'chess_char_3_18_b', 'chess_char_4_10_a', 'chess_char_4_10_b', 'chess_char_5_05_a', 'chess_char_5_05_b',
     'chess_char_6_02_a', 'chess_char_6_02_b', 'chess_char_6_08_a', 'chess_char_6_08_b']);

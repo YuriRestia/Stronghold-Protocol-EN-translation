@@ -82,12 +82,12 @@ test('a 自选 pick: 艾雅法拉 is offered at tiers 5 and 6 (she has a kit) an
     { ok: true, picks: { [SLOT[6]]: { charId: ID, skillIndex: 2, uniEquipId: CCRY } } });
 });
 
-test('S1 二重咏唱 (MANUAL, data DEFAULT, 25 s): ASPD +38 / +45 on the first cast of a deployment; ASPD and ATK +38 % / +45 % from the second; the count restarts after a redeploy', () => {
+test('S1 二重咏唱 (MANUAL, data SEARCH (CASTER row), 25 s): ASPD +38 / +45 on the first cast of a deployment; ASPD and ATK +38 % / +45 % from the second; the count restarts after a redeploy', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
     const a = sk.bb['amgoat_s_1[a].attack_speed'], b = sk.bb['amgoat_s_1[b].attack_speed'], atk = sk.bb['amgoat_s_1[b].atk'];
-    assert.deepEqual([u.skill.rule, sk.duration, sk.spCost, sk.initSp, a, b, atk], ['DEFAULT', 25, elite ? 39 : 42, elite ? 20 : 15, elite ? 45 : 38, elite ? 45 : 38, elite ? 0.45 : 0.38], `T${tier}`);
+    assert.deepEqual([u.skill.rule, sk.duration, sk.spCost, sk.initSp, a, b, atk], ['SEARCH', 25, elite ? 39 : 42, elite ? 20 : 15, elite ? 45 : 38, elite ? 45 : 38, elite ? 0.45 : 0.38], `T${tier}`);
     h.run(0.6);
     const aspd0 = u.s.aspd, atk0 = u.s.atk;
     u.skill.gainSp(999);
@@ -161,14 +161,15 @@ test('S2 点燃 (AUTO, 2 charges, data DEFAULT): main target RES ×0.85 / ×0.8 
   }
 });
 
-test('S3 火山 (MANUAL, data ACTIVE_RANGE on x-3 — 「攻击范围增大」 is an attack-range change, owner rule 2026-10-05): 15 s, ATK +70 % / +85 %, interval 1.6 − 1.1 = 0.5 s, range x-3 while on, lava on 4 / 5 random different enemies of it per attack (all when fewer); back after', () => {
+test('S3 火山 (MANUAL, data SEARCH + SKILL_RANGE on x-3 — official CASTER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY]): 15 s, ATK +70 % / +85 %, interval 1.6 − 1.1 = 0.5 s, range x-3 while on, lava on 4 / 5 random different enemies of it per attack (all when fewer); back after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2, seed: 9 });
     const n = sk.bb['attack@max_target'];
     assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.rangeId, sk.duration, sk.bb.atk, sk.bb.base_attack_time, n, sk.spCost, sk.initSp],
-      ['ACTIVE_RANGE', 'DEFAULT', 'x-3', 15, elite ? 0.85 : 0.7, -1.1, elite ? 5 : 4, 80, elite ? 40 : 33], `T${tier}`);
-    assert.deepEqual(u.skill.triggerGrid, sk.rangeGrid, `T${tier}: the trigger grid is x-3`);
+      ['SEARCH', 'ATTACK_RANGE_ENEMY', 'x-3', 15, elite ? 0.85 : 0.7, -1.1, elite ? 5 : 4, 80, elite ? 40 : 33], `T${tier}`);
+    assert.deepEqual(u.skill.rules, ['SEARCH', 'SKILL_RANGE'], `T${tier}: the CASTER row`);
+    assert.deepEqual(u.skill.alsoRules[0].grid, sk.rangeGrid, `T${tier}: the SKILL_RANGE grid is x-3`);
     h.run(0.6);
     const atk0 = u.s.atk;
     approx(u.s.interval, 1.6, `T${tier}: own interval`);

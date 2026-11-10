@@ -57,15 +57,15 @@ for (const entry of GUARDIANS) {
   });
 }
 for (const motion of ['WALK', 'FLY']) {
-  test(`凯尔希·思衡托 S2 opens for a selectable ${motion} enemy only in the expanded range, without an injured ally`, () => {
+  test(`凯尔希·思衡托 S2 opens for any living ${motion} enemy in the expanded range (official [SKILL_RANGE_ENEMY, SKILL_RANGE_ALLY]), even a sleeping one that nothing in her own range selects, without an injured ally`, () => {
     const h = makeBattle({ autoFinish: false,
       defs: { enemies: { target: enemyRec({ key: 'target', motion, hp: 1e8, atk: 0, speed: 0 }) } },
       units: [{ uid: 1, diy: { slot: 6, charId: 'char_1052_kalts2', skillIndex: 1 }, elite: true, row: 10, col: 4 }] });
     h.step();const u = h.unit(1);u.skill.gainSp(999);h.run(0.5);assert.equal(u.skill.activations, 0);
     const e = h.spawn('target', { pos: [10, 7] });h.b.applyStatus(e, 'sleep', { duration: 1 });
     assert.equal(h.b.enemiesInKeys(u.baseRangeKeys, u, { canHitFly: true }).length, 0);
-    h.run(0.5);assert.equal(u.skill.activations, 0, 'sleep cannot open the mixed skill');
-    assert.ok(h.runUntil(() => u.skill.active, 1));
+    // SKILL_RANGE_ENEMY: any living enemy on the skill range (sleeping ones too, no selection needed): the mixed skill opens at once
+    assert.ok(h.runUntil(() => u.skill.active, 1), 'a sleeping enemy on the y-11 opens the skill');
     assert.equal(u.skill.activations, 1);checkInvariants(h.b);assert.deepEqual(h.b.errors, []);
   });
 }

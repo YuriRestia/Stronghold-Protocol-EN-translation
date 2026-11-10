@@ -269,8 +269,7 @@ export default {
         [S1]: { kind: 'duration', mods: { atkPct: num(b1.atk), aspd: num(b1.attack_speed) } },
         [S2]: {
           kind: 'ammo',
-          // The larger active range contains attack targets as well as patients (#406).
-          trigger: { rule: 'ACTIVE_RANGE', grid: s2?.rangeGrid, enemies: true },
+          // 技能策略: the data's official trigger list (officialUnitBuilder officialTrigger, the owner's decision of 2026-11-10): an enemy or a patient (#406) in the skill's range
           ammo: Math.max(1, Math.floor(num(b2['attack@trigger_time'], 10))),
           mods: { atkPct: num(b2.atk) },
           targeting: s2?.rangeGrid ? { rangeGrid: s2.rangeGrid } : undefined,

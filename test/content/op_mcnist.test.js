@@ -181,19 +181,19 @@ test('S1 聚类分析 (AUTO, attack SP, data DEFAULT): 11 / 9 SP, 3 bullets, int
   }
 });
 
-test('S2 协防术式 (MANUAL, data DEFAULT — rawRule TAKE_DAMAGE): ATK +90 % / +120 %; she and her 结构性原理 get a 10 % 屏障; a break: 200 % ATK arts and 战栗 2 s around the holder (1.5), a bullet spent and a new 屏障; attacks spend none; the last bullet ends the skill and leaves its 屏障', () => {
+test('S2 协防术式 (MANUAL, data [TAKE_DAMAGE, SEARCH] — official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]): ATK +90 % / +120 %; she and her 结构性原理 get a 10 % 屏障; a break: 200 % ATK arts and 战栗 2 s around the holder (1.5), a bullet spent and a new 屏障; attacks spend none; the last bullet ends the skill and leaves its 屏障', () => {
   for (const f of [[5, false, null], [6, true, SOA]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule, sk.bb.atk, sk.bb.hp_ratio, sk.bb.trigger_time, sk.bb.range_radius, sk.bb.atk_scale, sk.bb.not_combat],
-      ['DEFAULT', 'TAKE_DAMAGE', elite ? 1.2 : 0.9, 0.1, elite ? 7 : 6, 1.5, 2, 2], label(f));
+      ['TAKE_DAMAGE', 'ON_TAKE_DAMAGE', elite ? 1.2 : 0.9, 0.1, elite ? 7 : 6, 1.5, 2, 2], label(f));
     const { h, u, t } = field({ tier, elite, mod, skill: 1 });
     // her T2 屏障 first spent, so the S2 one is what breaks
     h.b.removeBuff(u, 'mcnist:t2:barrier');
     const e0 = h.spawn('enemy_dummy', { pos: [10, 5] }), e1 = h.spawn('enemy_dummy', { pos: [11, 4] }), e2 = h.spawn('enemy_fly', { pos: [11, 3] }), out = h.spawn('enemy_dummy', { pos: [12, 5] });
     u.skill.gainSp(999);
-    assert.ok(h.runUntil(() => u.skill.active, 3), `${label(f)}: cast as she is about to attack`);
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.ok(h.runUntil(() => u.skill.active, 3), `${label(f)}: cast as soon as an enemy is in her range (SEARCH; also at a hit: TAKE_DAMAGE)`);
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH'], label(f));
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `${label(f)}: ATK`);
     for (const x of [u, t]) approx(barrier(x, 'mcnist:s2:barrier').shield, x.s.maxHp * 0.1, `${label(f)}: ${x.kind} 10 % 屏障`);
     h.run(6);
@@ -234,12 +234,12 @@ test('S2 协防术式 (MANUAL, data DEFAULT — rawRule TAKE_DAMAGE): ATK +90 % 
   done(h);
 });
 
-test('S3 工程学十字星 (MANUAL, data DEFAULT, 40 s): ATK +160 % / +220 %, interval 1.2 + 2.3 s; each attack lands a cross 0.8 s later: 220 % / 240 % ATK arts on every enemy of the x-6 around its target\'s tile (air units too); the enemies her 结构性原理 blocks are her targets', () => {
+test('S3 工程学十字星 (MANUAL, data [TAKE_DAMAGE, SEARCH] — official TANK row, 40 s): ATK +160 % / +220 %, interval 1.2 + 2.3 s; each attack lands a cross 0.8 s later: 220 % / 240 % ATK arts on every enemy of the x-6 around its target\'s tile (air units too); the enemies her 结构性原理 blocks are her targets', () => {
   for (const f of [[5, false, null], [6, true, SOA]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule, sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb['attack@atk_scale'], sk.bbStr['attack@projectile_range']],
-      ['DEFAULT', 'TAKE_DAMAGE', 40, elite ? 2.2 : 1.6, 2.3, elite ? 2.4 : 2.2, 'x-6'], label(f));
+      ['TAKE_DAMAGE', 'ON_TAKE_DAMAGE', 40, elite ? 2.2 : 1.6, 2.3, elite ? 2.4 : 2.2, 'x-6'], label(f));
     // the 结构性原理 on (12, 3) facing LEFT: its charge stays in place (high ground at (12, 2)), far from the targets
     const { h, u } = field({ tier, elite, mod, skill: 2, graf: { row: 12, col: 3, dir: 'LEFT' } });
     const main = h.spawn('enemy_dummy', { pos: [10, 5] }), up2 = h.spawn('enemy_fly', { pos: [12, 5] });

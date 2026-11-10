@@ -1,8 +1,9 @@
 // test/content/standin_acmedc.test.js — the Touch (char_613_acmedc) 补位 stand-in kit (kits/ops/standin-acmedc.js) on every
 // chess she replaces: 5 塞雷娅, 6 塑心 / 纯烬艾雅法拉 (all S3, module PHY-X on the elite); S1 / S2 through the harness
 // `standIn: { skillIndex }`. S3 and the talents are content/tokens.js touchGospel / mapCharTalents, the implementation the
-// 外勤医疗 strategy's Touch runs (test/content/tokens_devices.test.js). Triggers: S1 DEFAULT, S2 / S3 ACTIVE_RANGE (the
-// owner's rule of 2026-10-05, a heal skill: an injured ally inside the running range).
+// 外勤医疗 strategy's Touch runs (test/content/tokens_devices.test.js). Triggers: the official MEDIC row [ATTACK_RANGE_ALLY,
+// SKILL_RANGE_ALLY] on all three skills -> SKILL_RANGE with allies (an injured ally inside the skill's range grid; S1 has
+// none: her own range).
 // Run: node --test test/content/standin_acmedc.test.js
 
 import { test } from 'node:test';
@@ -55,7 +56,7 @@ function battle(touch, allies, opts = {}) {
 
 // ---------------------------------------------------------------------------------------------------------------
 
-test('Touch fields on all 6 records she replaces: her body (+ PHY-X attributes on the elites), S3 恳切福音 everywhere, her own kit, ACTIVE_RANGE on the 5-2', () => {
+test('Touch fields on all 6 records she replaces: her body (+ PHY-X attributes on the elites), S3 恳切福音 everywhere, her own kit, SKILL_RANGE (allies) on the 5-2', () => {
   assert.equal(RECORDS.length, 6);
   for (const id of RECORDS) {
     const c = CHESS[id];
@@ -68,8 +69,9 @@ test('Touch fields on all 6 records she replaces: her body (+ PHY-X attributes o
     assert.equal(!!u.def.raw.module?.active, !!mod, `${id}: module`);
     assert.equal(!!mod, c.isGolden, `${id}: PHY-X on every elite`);
     assert.deepEqual([u.base.atk, u.base.maxHp], [form.stats.atk + (mod?.attr.atk ?? 0), form.stats.maxHp + (mod?.attr.maxHp ?? 0)], `${id}: stats`);
-    assert.equal(u.skill.rule, 'ACTIVE_RANGE', `${id}: trigger`);
-    assert.equal(u.skill.triggerGrid.length, 18, `${id}: the 5-2 running range`);
+    assert.deepEqual(u.skill.rules, ['SKILL_RANGE', 'SKILL_RANGE'], `${id}: trigger (ATTACK_RANGE_ALLY on her own range, SKILL_RANGE_ALLY on the 5-2)`);
+    assert.equal(u.skill.triggerAllies, true, `${id}: an injured ally`);
+    assert.equal(u.skill.alsoRules[0].grid.length, 18, `${id}: the 5-2 running range as the skill-range grid`);
     assert.equal(u.profile.dmgType, 'heal');
     // S3 is the strategy's touchGospel spec
     const g = touchGospel(skillOf(id, S3).bb, skillOf(id, S3));
@@ -166,7 +168,8 @@ test('S1 慨赠: cast on an injured ally in her range; 20 s of ATK +40 % / +50 %
       const h = battle({ id, standIn: { skillIndex: 0 }, carry: { sp: 999 } }, [['test_tank_a', 10, 5, 0.7]], { seed });
       const u = h.unit(1);
       assert.equal(u.skill.id, S1);
-      assert.equal(u.skill.rule, 'DEFAULT');
+      assert.deepEqual(u.skill.rules, ['SKILL_RANGE']);
+      assert.equal(u.skill.triggerAllies, true);
       let cast = null;
       h.b.on('skillStart', (c) => { if (c.unit === u) cast = h.b.time; });
       assert.ok(h.runUntil(() => cast != null, 5));
@@ -192,7 +195,7 @@ test('S1 慨赠: cast on an injured ally in her range; 20 s of ATK +40 % / +50 %
 test('S2 宛如天启: cast with an injured ally inside the 3-10 only; 30 s on the 3-10, 2 targets, every 医疗 operator of hers ATK +21 % / +30 % (herself too)', () => {
   for (const [id, v] of [['chess_char_6_09_a', 0.21], ['chess_char_6_09_b', 0.3]]) {
     const sk = skillOf(id, S2);
-    assert.deepEqual([sk.bb['attack@atk'], sk.bb['attack@max_target'], sk.duration, sk.trigger.rule], [v, 2, 30, 'ACTIVE_RANGE']);
+    assert.deepEqual([sk.bb['attack@atk'], sk.bb['attack@max_target'], sk.duration, sk.trigger.rule], [v, 2, 30, 'SKILL_RANGE']);
     const h = battle({ id, standIn: { skillIndex: 1 } }, [['test_tank_a', 10, 7, 0.6], ['test_medic_a', 12, 2, 1], ['test_tank2_a', 9, 4, 1]]);
     const u = h.unit(1), tank = h.unit(2), medic = h.unit(3), tank2 = h.unit(4);
     assert.equal(u.skill.id, S2);

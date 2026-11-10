@@ -169,12 +169,12 @@ test('S1 连续映射 (AUTO, 持续时间无限 — the kit\'s SP_FULL: no enemy
   }
 });
 
-test('S2 临界瞬爆 (MANUAL, data DEFAULT, 8 s): no normal attack; from 0.167 s every 0.5 s the beam hits every enemy along an unbounded path — turned by her 中继器 and by any allied operator it reaches — for 90 % / 120 % ATK arts; 16 hits; her range is back after', () => {
+test('S2 临界瞬爆 (MANUAL, data SEARCH — official [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY], 8 s): no normal attack; from 0.167 s every 0.5 s the beam hits every enemy along an unbounded path — turned by her 中继器 and by any allied operator it reaches — for 90 % / 120 % ATK arts; 16 hits; her range is back after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const others = [{ uid: 3, chessId: 'chess_char_1_02_a', row: 11, col: 4, dir: 'RIGHT' }];
     const { h, u } = field({ tier, elite, skill: 1, relay: UP4, others });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk_scale, sk.bb.interval, u.skill.spCost], ['DEFAULT', 8, elite ? 1.2 : 0.9, 0.5, elite ? 20 : 22], `T${tier}`);
+    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk_scale, sk.bb.interval, u.skill.spCost], ['SEARCH', 8, elite ? 1.2 : 0.9, 0.5, elite ? 20 : 22], `T${tier}`);
     const inPath = h.spawn('enemy_dummy', { pos: [10, 4] }), afterOp = h.spawn('enemy_fly', { pos: [11, 9] });
     const pastOp = h.spawn('enemy_dummy', { pos: [12, 4] }), straight = h.spawn('enemy_dummy', { pos: [9, 6] });
     u.skill.gainSp(999);
@@ -201,13 +201,13 @@ test('S2 临界瞬爆 (MANUAL, data DEFAULT, 8 s): no normal attack; from 0.167 
   }
 });
 
-test('S3 混沌的本质 (MANUAL, data DEFAULT, 20 bullets): 3 s 强制缴械 from the cast, every 中继器 withdrawn and back at once; interval 2.9 → 1.8 s, ATK +95 % / +115 %, 140 % / 155 % + 停顿 0.2 / 0.4 s; past a 中继器 +25 % / +30 % ATK and 停顿 +0.2 / +0.4 s; no 中继器 withdraws until it ends, all do then and come back at once', () => {
+test('S3 混沌的本质 (MANUAL, data SP_FULL — official [ALWAYS]: cast as soon as the SP is full, 20 bullets): 3 s 强制缴械 from the cast, every 中继器 withdrawn and back at once; interval 2.9 → 1.8 s, ATK +95 % / +115 %, 140 % / 155 % + 停顿 0.2 / 0.4 s; past a 中继器 +25 % / +30 % ATK and 停顿 +0.2 / +0.4 s; no 中继器 withdraws until it ends, all do then and come back at once', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, BLAY]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u, r } = field({ tier, elite, mod, skill: 2, relay: UP4 });
     const atk = elite && tier === 6 ? 0.35 : 0.25;
     assert.deepEqual([u.skill.rule, u.skill.kind, u.skill.ammo, sk.bb.charge_time, sk.bb.base_attack_time, sk.bb.atk, sk.bb['attack@atk_scale'], sk.bb['attack@origin_sluggish'], sk.bb['attack@extra_atk_scale'], sk.bb['attack@extra_sluggish']],
-      ['DEFAULT', 'ammo', 20, 3, -1.1, elite ? 1.15 : 0.95, elite ? 1.55 : 1.4, elite ? 0.4 : 0.2, elite ? 0.3 : 0.25, elite ? 0.4 : 0.2], `T${tier}`);
+      ['SP_FULL', 'ammo', 20, 3, -1.1, elite ? 1.15 : 0.95, elite ? 1.55 : 1.4, elite ? 0.4 : 0.2, elite ? 0.3 : 0.25, elite ? 0.4 : 0.2], `T${tier}`);
     const before = h.spawn('enemy_dummy', { pos: [9, 3] }), past = h.spawn('enemy_dummy', { pos: [11, 4] }), off = h.spawn('enemy_dummy', { pos: [9, 6] });
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast`);

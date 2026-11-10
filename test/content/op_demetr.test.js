@@ -187,14 +187,16 @@ test('S1 家主的余裕 (AUTO, attack SP 4, data DEFAULT): the next attack stri
   }
 });
 
-test('S2 军师的手段 (MANUAL, data ACTIVE_RANGE on its 3-13): 15 / 18 s, range 3-13, ASPD +40 / +60, three targets at 155 % / 170 %; 【手段】 up to 8 with 停顿 at 8, back to 5 within 0.1 s after (or once he leaves)', () => {
+test('S2 军师的手段 (MANUAL, data DEFAULT + SKILL_RANGE on its 3-13): 15 / 18 s, range 3-13, ASPD +40 / +60, three targets at 155 % / 170 %; 【手段】 up to 8 with 停顿 at 8, back to 5 within 0.1 s after (or once he leaves)', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, FGTY]]) {
     const sk = skillOf(tier, elite, S2);
     const b = sk.bb;
     assert.deepEqual([sk.duration, b.attack_speed, b['attack@max_target'], b['attack@atk_scale'], sk.rangeId], [elite ? 18 : 15, elite ? 60 : 40, 3, elite ? 1.7 : 1.55, '3-13'], `T${tier}`);
     const { h, u } = field({ tier, elite, mod, skill: 1 });
-    assert.deepEqual([u.skill.rule, sk.trigger.rawRule], ['ACTIVE_RANGE', 'DEFAULT'], `T${tier}: the owner's ACTIVE_RANGE rule`);
-    assert.deepEqual(sk.trigger.customRangeGrid, sk.rangeGrid);
+    // official default row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]: DEFAULT, then SKILL_RANGE on the skill's own 3-13
+    assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.trigger.official], ['DEFAULT', 'COMBAT_OR_ATTACK', ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY']], `T${tier}: the official row`);
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE'], `T${tier}: the rule list`);
+    assert.deepEqual(sk.trigger.also[0].customRangeGrid, sk.rangeGrid);
     u.skill.gainSp(999);
     const far = h.spawn('enemy_dummy', { pos: [10, 8] });   // [0, 3]: only in the 3-13
     assert.ok(h.runUntil(() => u.skill.active, 2), `T${tier}: cast with an enemy in the 3-13 only`);
@@ -246,7 +248,7 @@ test('S3 清算 (MANUAL, data CUSTOM_RANGE on x-2): 30 s, ATK +110 / 140 %, ASPD
     assert.deepEqual([sk.duration, b['attack@demetr_s3[bonus].atk'], b['attack@demetr_s3[bonus].attack_speed'], b['attack@demetr_s3[bonus].prob'], b['attack@demetr_s3[bonus].prob_atk_scale'], sk.overrideTokenKey],
       [30, elite ? 1.4 : 1.1, elite ? 40 : 30, elite ? 0.4 : 0.35, elite ? 1.5 : 1.4, BOND], `T${tier}`);
     const { h, u } = field({ tier, elite, mod, skill: 2, seed: 13 });
-    assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.trigger.customRangeGrid.length], ['CUSTOM_RANGE', 'CUSTOM_RANGE_SEARCH_ENEMY', 21], `T${tier}: x-2 (21 tiles)`);
+    assert.deepEqual([u.skill.rule, sk.trigger.rawRule, sk.trigger.customRangeGrid.length], ['CUSTOM_RANGE', 'CUSTOM_RANGE_ENEMY', 21], `T${tier}: x-2 (21 tiles)`);
     h.run(10);
     u.skill.gainSp(999);
     h.run(1);

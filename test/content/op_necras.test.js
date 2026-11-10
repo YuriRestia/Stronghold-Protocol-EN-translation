@@ -63,7 +63,7 @@ function killAt(h, pos, key = 'enemy_weak') {
   return e;
 }
 
-test('死芒 in every 自选 form: her kit (all three skills authored), stats + module attributes, 3-1, blocks 1, ranged arts that hit air, 维多利亚, no 特质, the data triggers (S3 SKILL_RANGE on its 3-3); offered as a pick', () => {
+test('死芒 in every 自选 form: her kit (all three skills authored), stats + module attributes, 3-1, blocks 1, ranged arts that hit air, 维多利亚, no 特质, the data triggers (official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY]: S1 / S2 SEARCH, S3 SEARCH + SKILL_RANGE on its 3-3); offered as a pick', () => {
   assert.equal(OPERATOR_KITS[NEC], KITS[NEC]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -79,7 +79,10 @@ test('死芒 in every 自选 form: her kit (all three skills authored), stats + 
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'SKILL_RANGE']);
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['SEARCH', 'SEARCH', 'SEARCH']);
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.official), Array(3).fill(['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY']));
+  assert.deepEqual(formOf(6, true).skills.map((s) => (s.trigger.also ?? []).map((a) => a.rule)), [[], [], ['SKILL_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills[2].trigger.also[0].customRangeGrid, formOf(6, true).skills[2].rangeGrid, 'S3: SKILL_RANGE on its 3-3');
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr], [{ maxHp: 120, atk: 35 }, { maxHp: 200, atk: 55 }]);
   const data = { chess: CHESS, backups: BACKUPS };
   assert.ok(KITTED_CHARS.includes(NEC));

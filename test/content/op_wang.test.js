@@ -70,7 +70,7 @@ function done(h) {
 }
 const label = ([tier, elite, mod]) => `T${tier} ${elite ? 'elite' : 'normal'} ${mod ?? 'none'}`;
 
-test('望 in every 自选 form: her kit, stats + module attributes, 3-3, blocks 1, ranged physical hitting air, ground-targetable, 炎, no 特质; S1 / S2 SP_FULL, S3 the data\'s ACTIVE_RANGE; her 棋子: untargetable, no attack, the variant\'s cost / redeploy time and skill', () => {
+test('望 in every 自选 form: her kit, stats + module attributes, 3-3, blocks 1, ranged physical hitting air, ground-targetable, 炎, no 特质; S1 / S2 SP_FULL, S3 the data\'s [SEARCH, SKILL_RANGE] (official SNIPER row); her 棋子: untargetable, no attack, the variant\'s cost / redeploy time and skill', () => {
   assert.equal(OPERATOR_KITS[WANG], KITS[WANG]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -82,7 +82,8 @@ test('望 in every 自选 form: her kit, stats + module attributes, 3-3, blocks 
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.canHitFly, u.profile.dmgType, u.base.bat], [1, 'ranged', true, 'phys', 0.85], `${label(f)}: 陷阱师`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-3`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['yanShip'], []], `${label(f)}: bonds / 特质`);
-      assert.equal(u.skill.rule, ['SP_FULL', 'SP_FULL', 'ACTIVE_RANGE'][skill], `${label(f)}: trigger`);
+      assert.equal(u.skill.rule, ['SP_FULL', 'SP_FULL', 'SEARCH'][skill], `${label(f)}: trigger`);
+      if (skill === 2) assert.deepEqual(u.skill.rules, ['SEARCH', 'SKILL_RANGE'], `${label(f)}: S3 official SNIPER row`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
       const v = tokOf(tier, elite, skill, elite ? mod : null);
       const s = st[0];
@@ -94,7 +95,11 @@ test('望 in every 自选 form: her kit, stats + module attributes, 3-3, blocks 
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['AUTO', 'DEFAULT'], ['AUTO', 'DEFAULT'], ['MANUAL', 'ACTIVE_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills.map((s) => [s.skillType, s.trigger.rule]), [['AUTO', 'DEFAULT'], ['AUTO', 'DEFAULT'], ['MANUAL', 'SEARCH']]);
+  // S3: official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] = SEARCH + SKILL_RANGE on its 4-12 grid (S1 / S2 are AUTO: own rule)
+  assert.deepEqual(formOf(6, true).skills[2].trigger.official, ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY']);
+  assert.deepEqual(formOf(6, true).skills[2].trigger.also.map((a) => a.rule), ['SKILL_RANGE']);
+  assert.deepEqual(formOf(6, true).skills[2].trigger.also[0].customRangeGrid, formOf(6, true).skills[2].rangeGrid);
   assert.deepEqual([modOf(5, X).attr, modOf(6, X).attr], [{ maxHp: 100, atk: 36 }, { maxHp: 150, atk: 60 }]);
   const data = { chess: CHESS, backups: BACKUPS };
   for (const t of [5, 6]) assert.ok(diyPool(t, { data, kitted: KITTED_CHARS }).includes(WANG), `tier ${t}`);
@@ -357,7 +362,7 @@ test('S2 连星 (AUTO, SP_FULL): a triggered piece hits every enemy on its conne
   }
 });
 
-test('S3 天下劫 (MANUAL, ACTIVE_RANGE 4-12, 20 bullets): passive — the pieces set off and hit on x-6 (290 % / 320 %); active — no attacks, range 4-12, +8 棋子 with the overflow placed as 跟子 on the enemies of her range first; returns inside it drop 3 跟子 for 3 bullets; it ends with the last bullet', () => {
+test('S3 天下劫 (MANUAL, [SEARCH, SKILL_RANGE on 4-12], 20 bullets): passive — the pieces set off and hit on x-6 (290 % / 320 %); active — no attacks, range 4-12, +8 棋子 with the overflow placed as 跟子 on the enemies of her range first; returns inside it drop 3 跟子 for 3 bullets; it ends with the last bullet', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const v = tokOf(tier, elite, 2, null);

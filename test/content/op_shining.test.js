@@ -90,12 +90,12 @@ test('a 自选 pick: 闪灵 is offered at tiers 5 and 6 (she has a kit) and a ro
     { ok: true, picks: { [SLOT[5]]: { charId: SHINING, skillIndex: 2, uniEquipId: PHYX } } });
 });
 
-test('S1 信条 (MANUAL, data DEFAULT): cast on an injured ally in range only; 20 s of ATK +58 % / +67 % and ASPD +10 / +20; 47 / 44 SP from 10 / 14', () => {
+test('S1 信条 (MANUAL, data SKILL_RANGE allies (MEDIC row)): cast on an injured ally in range only; 20 s of ATK +58 % / +67 % and ASPD +10 / +20; 47 / 44 SP from 10 / 14', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u, ground } = field({ tier, elite, mod: elite ? PHYY : null, skill: 0 });
     assert.deepEqual([u.skill.rule, u.skill.spCost, sk.initSp, sk.duration, sk.bb.atk, sk.bb.attack_speed],
-      ['DEFAULT', elite ? 44 : 47, elite ? 14 : 10, 20, elite ? 0.67 : 0.58, elite ? 20 : 10], `T${tier}`);
+      ['SKILL_RANGE', elite ? 44 : 47, elite ? 14 : 10, 20, elite ? 0.67 : 0.58, elite ? 20 : 10], `T${tier}`);
     const aspd0 = u.s.aspd;
     u.skill.gainSp(999);
     h.run(3);
@@ -166,11 +166,11 @@ test('S2 自动掩护: barriers stack with their own timers, the older absorbs f
   done(h);
 });
 
-test('S3 教条力场 (MANUAL, data DEFAULT): 60 s, ATK +30 % / +40 %, every ally in her range DEF +45 % / +60 % (not outside it); gone after it ends', () => {
+test('S3 教条力场 (MANUAL, data SKILL_RANGE allies (MEDIC row)): 60 s, ATK +30 % / +40 %, every ally in her range DEF +45 % / +60 % (not outside it); gone after it ends', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u, ground, high, out } = field({ tier, elite, mod: elite ? PHYX : null, skill: 2 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.spCost, sk.initSp, sk.bb.atk, sk.bb.def], ['DEFAULT', 60, 120, 100, elite ? 0.4 : 0.3, elite ? 0.6 : 0.45], `T${tier}`);
+    assert.deepEqual([u.skill.rule, sk.duration, sk.spCost, sk.initSp, sk.bb.atk, sk.bb.def], ['SKILL_RANGE', 60, 120, 100, elite ? 0.4 : 0.3, elite ? 0.6 : 0.45], `T${tier}`);
     u.skill.gainSp(999);
     ground.hp = 100;
     assert.ok(h.runUntil(() => u.skill.active, 5), `T${tier}: cast on the injured ally`);

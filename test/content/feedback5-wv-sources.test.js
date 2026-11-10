@@ -59,7 +59,8 @@ test('#4 深靛 S1 灯塔守卫者 (PRTS 备注): the energies she stored land w
   assert.ok(h.runUntil(() => u.trait.stored === 3, 15), 'three energies stored with no target');
   u.skill.gainSp(999);
   h.spawn('e', { pos: [10, 6] });
-  assert.ok(h.runUntil(() => u.skill.active, u.s.interval + 1), 'S1 cast at her next attack check');
+  assert.ok(h.runUntil(() => u.skill.active, u.s.interval + 1), 'S1 cast as soon as an enemy is in her range (official SEARCH row, no attack needed)');
+  assert.ok(h.runUntil(() => h.hooksOf('damaged').some((c) => c.source === u && c.dmg.isAttack), 4), 'the S1 attack lands');
   h.run(1);
   const first = h.hooksOf('damaged').filter((c) => c.source === u && c.dmg.isAttack);
   const id0 = first[0].dmg.attackId;

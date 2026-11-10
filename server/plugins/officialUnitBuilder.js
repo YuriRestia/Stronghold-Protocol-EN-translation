@@ -371,7 +371,115 @@ const ACTIVE_RANGE_OVER = new Set(['DEFAULT', 'SEARCH']);
  *   (STANDIN_TRIGGER_DEVIATIONS key);
  *   baseGrid = the operator's own range at that status (ACTIVE_RANGE)
  */
+/**
+ * The two deliberate deviations kept over the official triggers (the user's decision of 2026-11-10: "those 2 deviations
+ * are correct for gameplay, so restore them, the rest, follow official"). The client was checked for both (CN 2.7.91):
+ * official Season 3 does behave as players reported, so these are gameplay choices, not corrections.
+ * - 余 S2 厚礼上宾 (GitHub sganggs/Stronghold-Protocol#32 item 1; DESIGN §22.10): its list is replaced by SKILL_RANGE on its
+ *   x-1 alone — no cast at a hit (officially the TANK row casts it from a ranged hit with nobody to pull: its CastSkill has
+ *   no target trigger and `_allowNoTarget`).
+ * - The larger running range (the community report of 2026-10-05; DESIGN §25.5): officialTrigger adds ACTIVE_RANGE on the
+ *   running range to the list of a MANUAL operator skill with no range of its own whose running attack range
+ *   (activeAttackGrid: "攻击距离+N", ability_range_forward_extend) strictly contains the operator's own — officially it
+ *   waits for an enemy in the normal range (ATTACK_RANGE_ENEMY / SKILL_RANGE_ENEMY without a rangeId read the attack
+ *   trigger). A skill with a range of its own needs none: SKILL_RANGE_ENEMY already checks it; nor does one whose official
+ *   row has its own trigger range (史尔特尔 S2 / S3), nor 菲亚梅塔 S1 (the live client dropped its +1: UNIT_TRIGGER_CORRECTIONS).
+ *   Exactly 7 skills: 空弦 S3, 异客 S2, 赫拉格 S3, 嵯峨 S3, 帕拉斯 S2, 赫德雷 S3, 涤火杰西卡 S3.
+ */
+const OFFICIAL_TRIGGER_DEVIATIONS = Object.freeze({
+  char_2026_yu: Object.freeze({ skchr_yu_2: 'SKILL_RANGE' }),   // 余 S2: an enemy on its x-1 only
+});
+
+/** The client's default trigger list of a MANUAL skill no row names (AutoChessBattleTrigger DEFAULT_TRIGGERS, .cctor). */
+const OFFICIAL_DEFAULT_TRIGGERS = Object.freeze(['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY']);
+
+/**
+ * The official trigger of a skill from an official skillTriggerDataList (ctx.officialTriggers: the profile's
+ * skillTriggers file, tools/versions/official-skill-triggers.json) — the client's own rules (CN 2.7.91
+ * AutoChessBattleTrigger), with no deliberate deviation (the owner's decision of 2026-11-10):
+ * - only a MANUAL skill is cast by the mode (_DoDefaultCheck: skillType MANUAL); an AUTO one keeps its own rule (DEFAULT);
+ * - the row (_GetTriggerType): a row naming the operator whose skillIndex is the skill's (or -1) wins; else the row of
+ *   its subProfessionId; else the row of its profession (a class row applies to every MANUAL skill whatever its
+ *   skillIndex); else OFFICIAL_DEFAULT_TRIGGERS;
+ * - its types are tried in turn and the first that passes casts (_TryTriggerSkill(Character, List)): `rule` is the
+ *   first one, `also` the others (skills.js);
+ * - each type as one of our rules (_TryTriggerSkill(Character, type)): ALWAYS → SP_FULL; ON_TAKE_DAMAGE → TAKE_DAMAGE;
+ *   COMBAT_OR_ATTACK → DEFAULT (about to attack / heal, or an enemy it blocks); ATTACK_RANGE_ENEMY → SEARCH (an enemy in
+ *   its attack range, every tick); SKILL_RANGE_ENEMY → SKILL_RANGE on the skill's own range (rangeId), or SEARCH for a
+ *   skill without one (_HasTargetInSkillRange falls back to _HasTargetInAttackRange); CUSTOM_RANGE_ENEMY → CUSTOM_RANGE on
+ *   the skillRangeDict range; the ALLY types → an injured, healable ally (`allies`) on that range (the attack range: no
+ *   grid); GLOBAL_RANGE_ENEMY → GDGLOW_SKILL_2; MLYSS_S / MARCIL_S2 → their kits' rules (MLYSS_WTRMAN / MARCILS2);
+ *   AUTO_STOP as itself; INVALID_IN_SKILL (a flag of the list, no condition) is left out.
+ * `official` keeps the client's list for traceability; `rawRule` is its first type.
+ */
+function officialTrigger(ctx, char, charId, skillIdx, skill, { operator = false, baseGrid = null } = {}) {
+  const table = ctx.officialTriggers;
+  if (skill.skillType !== 'MANUAL') return { rule: 'DEFAULT', rawRule: 'DEFAULT', customRangeGrid: null };
+  const rows = Object.values(table.skillTriggerDataList || {});
+  const own = rows.find((r) => r.charId && r.charId === charId && (r.skillIndex === -1 || r.skillIndex === skillIdx));
+  const sub = !own && rows.find((r) => !r.charId && r.subProfessionId && r.subProfessionId === char?.subProfessionId);
+  const cls = !own && !sub && rows.find((r) => !r.charId && !r.subProfessionId && r.profession && r.profession !== 'NONE' && r.profession === char?.profession);
+  const types = (own || sub || cls)?.skillTriggerTypes ?? OFFICIAL_DEFAULT_TRIGGERS;
+  const skillGrid = skill.rangeGrid?.length ? skill.rangeGrid.map((p) => p.slice()) : null;
+  const customGrid = () => {
+    const rid = table.skillRangeDict?.[skill.skillId];
+    const g = rid ? rangeGrid(ctx, rid) : null;
+    if (!g) warn(`skill ${skill.skillId}: official CUSTOM_RANGE without a skillRangeDict range`);
+    return g;
+  };
+  const entryOf = (t) => {
+    switch (t) {
+      case 'ALWAYS': return { rule: 'SP_FULL' };
+      case 'ON_TAKE_DAMAGE': return { rule: 'TAKE_DAMAGE' };
+      case 'COMBAT_OR_ATTACK': return { rule: 'DEFAULT' };
+      case 'ATTACK_RANGE_ENEMY': return { rule: 'SEARCH' };
+      case 'SKILL_RANGE_ENEMY': return skillGrid ? { rule: 'SKILL_RANGE', customRangeGrid: skillGrid } : { rule: 'SEARCH' };
+      case 'CUSTOM_RANGE_ENEMY': return { rule: 'CUSTOM_RANGE', customRangeGrid: customGrid() };
+      case 'ATTACK_RANGE_ALLY': return { rule: 'SKILL_RANGE', allies: true };
+      case 'SKILL_RANGE_ALLY': return { rule: 'SKILL_RANGE', allies: true, ...(skillGrid ? { customRangeGrid: skillGrid } : null) };
+      case 'CUSTOM_RANGE_ALLY': return { rule: 'SKILL_RANGE', allies: true, customRangeGrid: customGrid() };
+      case 'GLOBAL_RANGE_ENEMY': return { rule: 'GDGLOW_SKILL_2' };
+      case 'MLYSS_S': return { rule: 'MLYSS_WTRMAN' };
+      case 'MARCIL_S2': return { rule: 'MARCILS2' };
+      case 'AUTO_STOP': return { rule: 'AUTO_STOP' };
+      case 'INVALID_IN_SKILL': return null;
+      default: warn(`skill ${skill.skillId}: unknown official trigger type ${t}`); return null;
+    }
+  };
+  const entries = [];
+  for (const t of types) {
+    const e = entryOf(t);
+    if (!e) continue;
+    // the same condition twice (SKILL_RANGE_ENEMY without a range after ATTACK_RANGE_ENEMY) counts once
+    if (entries.some((x) => x.rule === e.rule && !!x.allies === !!e.allies && JSON.stringify(x.customRangeGrid ?? null) === JSON.stringify(e.customRangeGrid ?? null))) continue;
+    entries.push(e);
+  }
+  if (!entries.length) entries.push({ rule: 'DEFAULT' });
+  const shape = (e) => ({ rule: e.rule, customRangeGrid: e.customRangeGrid ?? null, ...(e.allies ? { allies: true } : null) });
+  const traced = { rawRule: types[0] ?? 'DEFAULT', official: [...types] };
+  // the kept deviations (OFFICIAL_TRIGGER_DEVIATIONS): 余 S2 on its x-1 alone
+  const dev = OFFICIAL_TRIGGER_DEVIATIONS[charId]?.[skill.skillId];
+  if (dev === 'SKILL_RANGE') {
+    if (!skillGrid) warn(`official trigger deviation ${charId} ${skill.skillId}: SKILL_RANGE without a 技能范围`);
+    return { rule: 'SKILL_RANGE', customRangeGrid: skillGrid, ...traced, deviation: 'SKILL_RANGE' };
+  }
+  // the larger running range of a skill with no range of its own, whose list checks only the attack range (not a skill
+  // its official row gives a range of its own — 史尔特尔 S2 / S3's CUSTOM_RANGE —, nor one whose "攻击距离+N" the live
+  // client dropped: UNIT_TRIGGER_CORRECTIONS, 菲亚梅塔 S1)
+  const ownRange = entries.some((e) => e.rule === 'CUSTOM_RANGE' || e.rule === 'SKILL_RANGE' || e.rule === 'GDGLOW_SKILL_2');
+  if (operator && !skillGrid && baseGrid?.length && !ownRange && !UNIT_TRIGGER_CORRECTIONS[charId]?.[skill.skillId]) {
+    const active = activeAttackGrid(skill, baseGrid);
+    if (active && strictlyContains(active, baseGrid)) {
+      entries.push({ rule: 'ACTIVE_RANGE', customRangeGrid: active });
+      traced.deviation = 'ACTIVE_RANGE';
+    }
+  }
+  const [first, ...rest] = entries;
+  return { ...shape(first), ...traced, ...(rest.length ? { also: rest.map(shape) } : null) };
+}
+
 function resolveTrigger(ctx, char, charId, skillIdx, skill, { operator = false, chessId = null, unitCharId = null, baseGrid = null } = {}) {
+  if (ctx.officialTriggers) return officialTrigger(ctx, char, charId, skillIdx, skill, { operator, baseGrid });
   const rows = Object.values(ctx.ac.skillTriggerDataList || {});
   const manual = skill.skillType === 'MANUAL';
   const pick =
@@ -828,7 +936,7 @@ function deriveOfficialUnit(tables, charId, statuses) {
   return unit;
 }
 
-return { unescapeNewlines, stripRich, richRaw, cleanNum, flattenBB, formatValue, resolvePlaceholders, textPair, naturalCmp, PHASE_INDEX, phaseIdx, unlocked, bestCandidate, POTENTIAL_ATTRS, withPotential, rangeGrid, interpolateAttrs, MODULE_ATTR_MAP, statsFrom, immunitiesOf, TRIGGER_RENAME, TRIGGER_ALLY_RULES, ATTACK_RANGE_CHANGE, TRIGGER_DEVIATIONS, STANDIN_TRIGGER_DEVIATIONS, UNIT_TRIGGER_CORRECTIONS, activeAttackGrid, strictlyContains, ACTIVE_RANGE_OVER, resolveTrigger, SP_TYPE_NAMES, buildSkill, splitModuleParts, applyModuleTraitParts, traitRecord, moduleAttr, buildTalents, baseTalentList, moduleTalentChanges, mergeTalentChanges, MELEE_RANGED_SUBPROFS, NO_ATTACK_SUBPROFS, classifyAttack, hasE2Art, rarityOf, statusCmp, buildUnitHead, buildUnitForm, placeOnRangedOf, deriveOfficialUnit };
+return { unescapeNewlines, stripRich, richRaw, cleanNum, flattenBB, formatValue, resolvePlaceholders, textPair, naturalCmp, PHASE_INDEX, phaseIdx, unlocked, bestCandidate, POTENTIAL_ATTRS, withPotential, rangeGrid, interpolateAttrs, MODULE_ATTR_MAP, statsFrom, immunitiesOf, TRIGGER_RENAME, TRIGGER_ALLY_RULES, ATTACK_RANGE_CHANGE, TRIGGER_DEVIATIONS, STANDIN_TRIGGER_DEVIATIONS, UNIT_TRIGGER_CORRECTIONS, OFFICIAL_DEFAULT_TRIGGERS, OFFICIAL_TRIGGER_DEVIATIONS, officialTrigger, activeAttackGrid, strictlyContains, ACTIVE_RANGE_OVER, resolveTrigger, SP_TYPE_NAMES, buildSkill, splitModuleParts, applyModuleTraitParts, traitRecord, moduleAttr, buildTalents, baseTalentList, moduleTalentChanges, mergeTalentChanges, MELEE_RANGED_SUBPROFS, NO_ATTACK_SUBPROFS, classifyAttack, hasE2Art, rarityOf, statusCmp, buildUnitHead, buildUnitForm, placeOnRangedOf, deriveOfficialUnit };
 }
 
 export const { deriveOfficialUnit } = createOfficialUnitBuilders();

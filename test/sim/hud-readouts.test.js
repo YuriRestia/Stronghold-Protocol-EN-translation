@@ -30,7 +30,9 @@ test('隐现 S2: b.snap `ammo` carries the whole rounds left and the 14-round ma
   assert.ok(h.runUntil(() => u.skill.active, 80));
   assert.equal(u.skill.kind, 'ammo');
   assert.equal(u.skill.ammoMax, 14, 'skill_table skchr_inside_2 attack@trigger_time at the chess skill level');
-  // the activation tick already fired the first round
+  // the official trigger (a tick rule: an enemy in range) casts before the attack: the magazine is full at the activation tick
+  assert.deepEqual(row(), [u.id, 14, 14]);
+  assert.ok(h.runUntil(() => u.skill.ammoLeft === 13, 10), 'the first attack fires the first round');
   assert.deepEqual(row(), [u.id, 13, 14]);
   const [, , , , , sp, spMax] = unitTuple(u, h.b.time);
   assert.ok(Math.abs(sp / spMax - 13 / 14) < 0.01, 'the 9-field tuple still runs the SP bar on the same fraction');

@@ -70,13 +70,14 @@ test('Pith on every chess it replaces: the stand-in body, its kit, S3; SPC-X on 
   }
 });
 
-test('Pith triggers: the data rules — S1 AUTO DEFAULT (an attack buff waits for her attack), S2 / S3 MANUAL DEFAULT', () => {
+test('Pith triggers: the data rules — S1 AUTO DEFAULT (an attack buff waits for her attack), S2 / S3 MANUAL SEARCH (official 术师 row ATTACK_RANGE_ENEMY + SKILL_RANGE_ENEMY; no rangeGrid of their own, so one rule)', () => {
   for (const id of ['chess_char_5_03_a', 'chess_char_5_03_b']) {
     for (const [i, sid] of [[0, S1], [1, S2], [2, S3]]) {
       const h = arena(id, { standIn: { skillIndex: i }, sp: null });
       h.step();
       const u = h.unit(1);
-      assert.deepEqual([u.skill.id, u.skill.rule, u.def.skill.skillType], [sid, 'DEFAULT', sid === S1 ? 'AUTO' : 'MANUAL'], `${id} ${sid}`);
+      assert.deepEqual([u.skill.id, u.skill.rules, u.def.skill.skillType], [sid, sid === S1 ? ['DEFAULT'] : ['SEARCH'], sid === S1 ? 'AUTO' : 'MANUAL'], `${id} ${sid}`);
+      if (sid !== S1) assert.deepEqual(skillOf(id, sid).trigger.official, ['ATTACK_RANGE_ENEMY', 'SKILL_RANGE_ENEMY'], `${id} ${sid}: the official row`);
       done(h);
     }
   }

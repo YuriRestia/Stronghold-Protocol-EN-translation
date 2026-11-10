@@ -249,14 +249,17 @@ test('2_07 幽灵鲨 S1 攻击力强化·γ型: ATK +atk; no undying and no self
   }
 });
 
-test('2_08 泡泡 S1 防御力强化·β型: set off by a hit (TAKE_DAMAGE); DEF +def; keeps attacking; no counter, no taunt', () => {
+test('2_08 泡泡 S1 防御力强化·β型: official TANK row [TAKE_DAMAGE, SEARCH] (set off by a hit or an enemy in range); DEF +def; keeps attacking; no counter, no taunt', () => {
   for (const id of both('chess_char_2_08')) {
     const bb = bbAlt(id), tb = tbOf(id);
     const h = run({ defs: { enemies: { e: dummy('e', { atk: 300, bat: 1 }) } }, units: [U(id, 9, 5, { carryState: READY })], enemies: [{ key: 'e', pos: [9, 5] }] });
     const u = h.unit(id);
     usesAlt(u, id);
+    // official TANK row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]; no rangeGrid on this skill, so the second entry is SEARCH
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
     h.runUntil(() => u.skill.active, 3);
-    assert.equal(started(h, u)[0].reason, 'TAKE_DAMAGE');
+    // the enemy already stands on her tile: SEARCH casts it before the first hit
+    assert.equal(started(h, u)[0].reason, 'SEARCH');
     approx(u.s.def, u.base.def * (1 + bb.def + (tb.def ?? 0)), 'DEF (+ elite module while blocking)');
     assert.equal(u.s.taunt, 0);
     const t0 = started(h, u)[0].t;
@@ -360,18 +363,19 @@ test('2_12 砾 S1 影袭: at deployment DEF +def decaying to 0 over `duration` s
   }
 });
 
-test('2_13 蒂比 S1 专业喷绘技巧: ACTIVE_RANGE trigger (an enemy in its 2-3 only), takes off (skill range, ATK +atk, blocks flyers), single shots; hits never set it off', () => {
+test('2_13 蒂比 S1 专业喷绘技巧: official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] = DEFAULT + SKILL_RANGE on its 2-3 (an enemy in its 2-3 only), takes off (skill range, ATK +atk, blocks flyers), single shots; hits never set it off', () => {
   for (const id of both('chess_char_2_13')) {
     const bb = bbAlt(id);
-    // (10,5) = [1,0]: inside S1's 2-3, outside her own 2-2 — the owner's rule of 2026-10-05 (data trigger ACTIVE_RANGE)
+    // (10,5) = [1,0]: inside S1's 2-3, outside her own 2-2 — the SKILL_RANGE entry of the official list (data trigger.also, customRangeGrid the 2-3)
     const h = run({ defs: { enemies: { e: dummy('e'), f: dummy('f', { motion: 'FLY' }) } }, units: [U(id, 9, 5, { carryState: READY })], enemies: [{ key: 'e', pos: [10, 5] }] });
     const u = h.unit(id);
     usesAlt(u, id);
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']);
     h.step();
     const range0 = u.baseRangeKeys.length;
     assert.ok(!u.baseRangeKeys.includes(h.b.grid.key(10, 5)), 'the enemy is outside her own range');
     h.runUntil(() => u.skill.active, 3);
-    assert.equal(started(h, u)[0].reason, 'ACTIVE_RANGE');
+    assert.equal(started(h, u)[0].reason, 'SKILL_RANGE');
     assert.equal(u.s.flags.liftoff, true, 'airborne (起飞)');
     assert.equal(u.ground, true, 'still a ground unit on her low tile');
     approx(u.s.atk, u.base.atk * (1 + bb.atk));
@@ -442,14 +446,16 @@ test('2_16 拉普兰德 S1 日晷: toggle (持续时间无限) ATK +atk; dodges 
   }
 });
 
-test('2_17 折桠 S1 绝境抵抗: TAKE_DAMAGE; DEF +def and 抵抗 (control statuses halved) for its duration; 简易包扎 at the end', () => {
+test('2_17 折桠 S1 绝境抵抗: official TANK row [TAKE_DAMAGE, SEARCH]; DEF +def and 抵抗 (control statuses halved) for its duration; 简易包扎 at the end', () => {
   for (const id of both('chess_char_2_17')) {
     const bb = bbAlt(id), t = tal(id);
     const h = run({ defs: { enemies: { e: dummy('e', { atk: 300, bat: 1 }) } }, units: [U(id, 9, 5, { carryState: READY })], enemies: [{ key: 'e', pos: [9, 5] }] });
     const u = h.unit(id);
     usesAlt(u, id);
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
     h.runUntil(() => u.skill.active, 3);
-    assert.equal(started(h, u)[0].reason, 'TAKE_DAMAGE');
+    // the enemy already stands on her tile: SEARCH (SKILL_RANGE_ENEMY without a rangeGrid) casts it before the first hit
+    assert.equal(started(h, u)[0].reason, 'SEARCH');
     approx(u.s.def, u.base.def * (1 + bb.def));
     approx(h.b.resistOf(u), -bb.one_minus_status_resistance, '抵抗');
     h.b.applyStatus(u, 'stun', { duration: 4, source: h.enemies()[0] });
@@ -466,7 +472,7 @@ test('2_17 折桠 S1 绝境抵抗: TAKE_DAMAGE; DEF +def and 抵抗 (control sta
   }
 });
 
-test('2_18 灰毫 S2 专注轰击: cast with an enemy in range (DEFAULT, the deliberate deviation from the 重装 row — DESIGN §21.29), then blocks nothing, ranged splash bombs only, shorter interval, ATK +atk', () => {
+test('2_18 灰毫 S2 专注轰击: cast with an enemy in range (official 重装 row [TAKE_DAMAGE, SEARCH]), then blocks nothing, ranged splash bombs only, shorter interval, ATK +atk', () => {
   for (const id of both('chess_char_2_18')) {
     const bb = bbAlt(id);
     const enemies = { w: enemyRec({ key: 'w', hp: 1e7, speed: 2, atk: 50, bat: 1 }) };
@@ -480,12 +486,12 @@ test('2_18 灰毫 S2 专注轰击: cast with an enemy in range (DEFAULT, the del
     const h = run({ defs: { enemies }, units: [U(id, 9, 5, { carryState: READY })], enemies: [{ key: 'w', route: 0 }, { key: 'w', route: 0, time: 2 }] });
     const u = h.unit(id);
     usesAlt(u, id);
-    // the official 下半 重装 row (TAKE_DAMAGE) is overridden for this skill by the owner's decision (data rawRule keeps it)
-    assert.equal(u.skill.rule, 'DEFAULT', 'an offensive 重装 skill of the deviation: the basic strategy');
+    // the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: a hit OR an enemy in range (no rangeGrid → SEARCH)
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH'], 'an offensive 重装 skill: a hit or an enemy in range');
     assert.ok(h.runUntil(() => u.skill.active, 8));
     const st = h.b.time;
     const atk0 = h.eventsOf('atk').length;
-    assert.equal(started(h, u)[0].reason, 'DEFAULT', 'cast by the basic strategy');
+    assert.equal(started(h, u)[0].reason, 'SEARCH', 'cast by the enemy-in-range entry');
     assert.ok(!h.hooksOf('damaged').some((x) => x.target === u), 'with the walker in range, before anything hit her');
     assert.ok(u.s.flags.noBlock);
     approx(u.s.atk, u.base.atk * (1 + u.findBuff('talent:ashlok').mods.atkPct + bb.atk), 'ATK (+ 炮术研习)');

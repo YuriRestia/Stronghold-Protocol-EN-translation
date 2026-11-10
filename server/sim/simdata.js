@@ -142,7 +142,13 @@ export function normalizeSkill(rec) {
     maxCharges: Math.max(1, num(s.maxChargeTime ?? s.maxCharges ?? s.charges, 1)),
     rangeGrid: toArrayOfPairs(s.rangeGrid),
     // `allies` (data: an ally row, tools/build-data.mjs TRIGGER_ALLY_RULES — 黍 S3) — skills.js `trigger.allies`
-    trigger: typeof trig === 'object' && trig.allies === true ? { rule, grid: trigGrid, allies: true } : { rule, grid: trigGrid },
+    trigger: {
+      ...(typeof trig === 'object' && trig.allies === true ? { rule, grid: trigGrid, allies: true } : { rule, grid: trigGrid }),
+      // an official trigger list's further rules (officialUnitBuilder officialTrigger; skills.js `trigger.also`)
+      ...(typeof trig === 'object' && Array.isArray(trig.also) && trig.also.length ? { also: trig.also.map((e) => ({
+        rule: normTriggerRule(e.rule), grid: toArrayOfPairs(e.customRangeGrid ?? e.rangeGrid ?? e.grid), ...(e.allies === true ? { allies: true } : null),
+      })) } : null),
+    },
     kind: s.kind ?? null,
     bb,
     description: s.description ?? s.desc ?? '',

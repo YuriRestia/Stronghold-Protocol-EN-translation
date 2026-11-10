@@ -39,11 +39,8 @@ export default {
       skill: {
         kind: 'duration',
         // Source: author video BV1UdAHzNEVj + maintainer confirmation 2026-10-24 (§35.91).
-        // 技能开启: with an attackable target in range — the basic strategy, DEFAULT —
-        // at full HP too. The data's 重装 row (TAKE_DAMAGE: "受到伤害时释放技能") made a full-HP 瑕光 hold S3 with its SP
-        // ready: she opened it only after a hit, so an untouched guardian never cast. The condition is the engine's own
-        // target search (the DEFAULT rule: acquireTargets / the enemies she blocks), not a check of the kit's own.
-        trigger: 'DEFAULT',
+        // 技能开启: the data's official trigger list (officialUnitBuilder officialTrigger, the owner's decision of 2026-11-10) — the live TANK row: at a hit or with an enemy in the
+        // skill's range, at full HP too (it replaced the DEFAULT of §35.91).
         mods: { atkPct: num(bb.atk), defPct: num(bb.def) },
         heal: false,
         attack: { onHit({ battle, unit, target }) {

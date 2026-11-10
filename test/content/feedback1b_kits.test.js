@@ -157,7 +157,7 @@ test('B4 玛恩纳 S3 (default skill, real match, a flying wave): the cast hits 
   }
 });
 
-test('B4 玛恩纳 S1 / S2 have no 对空 note: their attacks stay ground-only (and they never fire on flyers alone)', () => {
+test('B4 玛恩纳 S1 / S2 have no 对空 note: their attacks stay ground-only (S1 never fires on flyers alone; S2, official SKILL_RANGE_ENEMY, opens for flyers on its skill range)', () => {
   for (const skill of [0, 1]) {
     const { b, m } = realField({ pieces: [[MLYNAR, 10, 5, 'RIGHT']], round: 2, seed: 21, spawns: flyers, loadout: { [MLYNAR]: { skill } } });
     const u = b.allyUnits.find((x) => x.defId === MLYNAR);
@@ -166,7 +166,11 @@ test('B4 玛恩纳 S1 / S2 have no 对空 note: their attacks stay ground-only (
     b.on('hit', (c) => { if (c.source === u && c.dmg.isAttack && c.target.isFlying) air++; });
     while (!b.finished && b.time < 400) b.step();
     assert.equal(air, 0, `S${skill + 1}`);
-    assert.equal(casts, 0, `S${skill + 1}: SEARCH needs a target of his own range`);
+    // official lists: S1 [SKILL_RANGE_ENEMY, COMBAT_OR_ATTACK] without a skill grid -> [SEARCH, DEFAULT]: a target of his own range
+    // is needed (his attacks cannot target flyers). S2 -> [SKILL_RANGE on its grid, DEFAULT]: SKILL_RANGE_ENEMY counts any
+    // living enemy of the skill range, flyers included ("无视其不可选中"), so it opens for them — but its attacks still miss the air.
+    if (skill === 0) assert.equal(casts, 0, 'S1: SEARCH needs a target of his own range');
+    else assert.ok(casts >= 1, 'S2: SKILL_RANGE opens for flyers on its skill range');
     m.dispose();
   }
 });

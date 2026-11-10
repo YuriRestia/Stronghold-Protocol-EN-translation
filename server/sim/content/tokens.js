@@ -1562,17 +1562,14 @@ export function touchGospel(bb, skill) {
 }
 
 /**
- * Touch (外勤医疗 map character): 恳切福音 (touchGospel) + 攫升 / 超脱 (mapCharTalents). The trigger is ACTIVE_RANGE on
- * the skill's 5-2 range (her running range, which strictly contains her own 3-3): an injured ally inside it casts — the
- * owner's larger-range rule of 2026-10-05, read for a heal skill as for the Touch 补位 stand-in, whose data rule it is
- * (data/backups.json). The map character's record keeps DEFAULT (tools/build-data.mjs resolveTrigger widens operators'
- * skills only), so she waited for an injured ally in her 3-3 (GitHub #260, PR #278).
+ * Touch (外勤医疗 map character): 恳切福音 (touchGospel) + 攫升 / 超脱 (mapCharTalents). The trigger is the record's
+ * official list (officialUnitBuilder officialTrigger: the MEDIC row, an injured ally in her range or in the skill's 5-2;
+ * it replaced the ACTIVE_RANGE of GitHub #260 / PR #278, the owner's decision of 2026-11-10).
  */
 function touchKit(bb, raw, def) {
   const sk = def?.skill;
   if (!sk) return { skill: null, talents: mapCharTalents(def) };
   const g = touchGospel(bb, sk);
-  if (sk.rangeGrid && sk.rangeGrid.length) g.skill.trigger = { rule: 'ACTIVE_RANGE', grid: sk.rangeGrid };
   return { talents: mapCharTalents(def), skill: g.skill, install: g.install };
 }
 

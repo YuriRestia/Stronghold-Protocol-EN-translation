@@ -53,7 +53,7 @@ function done(h) {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
 
-test('予愿安洁莉娜 in every 自选 form: her operator kit (all three skills authored), the form\'s stats, 2-2, melee physical that hits air units, blocks 2, 叙拉古, no 特质; S1 a timed deployment skill, S2 / S3 the data\'s ACTIVE_RANGE', () => {
+test('予愿安洁莉娜 in every 自选 form: her operator kit (all three skills authored), the form\'s stats, 2-2, melee physical that hits air units, blocks 2, 叙拉古, no 特质; S1 a timed deployment skill, S2 / S3 the official [DEFAULT, SKILL_RANGE on their own grid] (巡空者 row COMBAT_OR_ATTACK + SKILL_RANGE_ENEMY)', () => {
   assert.equal(OPERATOR_KITS[AGL], KITS[AGL]);
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
@@ -69,7 +69,9 @@ test('予愿安洁莉娜 in every 自选 form: her operator kit (all three skill
         assert.deepEqual(u.liveRangeGrid, form.skills[0].rangeGrid, `${label(f)}: 3-6 while it runs`);
       } else {
         assert.equal(u.skill.rule, form.skills[skill].trigger.rule, `${label(f)}: the data's trigger`);
-        assert.equal(u.skill.rule, 'ACTIVE_RANGE');
+        assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']);
+        assert.deepEqual(form.skills[skill].trigger.official, ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY']);
+        assert.deepEqual(u.skill.alsoRules[0].grid, form.skills[skill].rangeGrid, `${label(f)}: SKILL_RANGE on the skill's own grid`);
         assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 2-2`);
         assert.ok(!u.s.flags.liftoff && !u.s.flags.blockFly, `${label(f)}: on the ground`);
       }
@@ -223,13 +225,13 @@ test('S1 极速送达 (被动 ON_DEPLOY): at each deployment she takes off for 5
   }
 });
 
-test('S2 重力自定义 (MANUAL, data ACTIVE_RANGE on 3-10): takes off; 2.5 s 吟唱 (no attack, 无敌, control statuses refused) while the sweep (3.0 wide, 1.3 thick, 6 tiles/s, 4 tiles ahead) 浮空s ground enemies 10 / 12 s and 缚地s flyers 20 / 22 s; then ATK +105 % / +135 %, interval −0.6 / −0.8 s, arts, 4 / 5 targets, range 3-10; 22 s', () => {
+test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off; 2.5 s 吟唱 (no attack, 无敌, control statuses refused) while the sweep (3.0 wide, 1.3 thick, 6 tiles/s, 4 tiles ahead) 浮空s ground enemies 10 / 12 s and 缚地s flyers 20 / 22 s; then ATK +105 % / +135 %, interval −0.6 / −0.8 s, arts, 4 / 5 targets, range 3-10; 22 s', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb['attack@max_target'], sk.bb.chant_duration, sk.bb.buff_duration_levitate, sk.bb.buff_duration_ground_bound, sk.spCost, sk.initSp, sk.rangeId],
       [22, elite ? 1.35 : 1.05, elite ? -0.8 : -0.6, elite ? 5 : 4, 2.5, elite ? 12 : 10, elite ? 22 : 20, elite ? 29 : 32, elite ? 20 : 17, '3-10'], label(f));
-    assert.deepEqual(sk.trigger.customRangeGrid, sk.rangeGrid);
+    assert.deepEqual(sk.trigger.also.map((e) => [e.rule, e.customRangeGrid]), [['SKILL_RANGE', sk.rangeGrid]]);
     const { h, u } = field({ tier, elite, skill: 1 });
     u.skill.gainSp(999);
     h.run(1);
@@ -271,7 +273,7 @@ test('S2 重力自定义 (MANUAL, data ACTIVE_RANGE on 3-10): takes off; 2.5 s �
   }
 });
 
-test('S3 酸橙的心事 (MANUAL, data ACTIVE_RANGE on 3-9): 30 / 31 bullets, ATK +20 % / +30 %, 对空庇护 55 % / 60 %, range 3-9 + the 8 around her; each attack 275 % / 305 % on ≤ 3 ground enemies and flyers up to 4; flyers in range ×0.6 speed', () => {
+test('S3 酸橙的心事 (MANUAL, data DEFAULT + SKILL_RANGE on 3-9): 30 / 31 bullets, ATK +20 % / +30 %, 对空庇护 55 % / 60 %, range 3-9 + the 8 around her; each attack 275 % / 305 % on ≤ 3 ground enemies and flyers up to 4; flyers in range ×0.6 speed', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, S3);

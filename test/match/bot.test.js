@@ -102,8 +102,10 @@ test('user: Given two ground routes meeting at a guard, When planning support, T
       .map((id) => give(m, ps, `chess_char_${id}`, 'hand'));
     const plan = planLayout(m, ps, pieces);
     for (const route of [0, 1]) {
+      // 120 s: the three shield enemies come at 30 s; since the official skill triggers (2026-11-10) 角峰 S1 casts with an
+      // enemy in range before the first hit, and the last enemy of route 1 falls at 100.5 s (98.9 s before)
       const battle = makeBattle({
-        stageId: m.stageId, routes, timeLimit: 100,
+        stageId: m.stageId, routes, timeLimit: 120,
         enemies: [{ key: 'enemy_1006_shield_2', time: 30, route, count: 3, interval: 1 }],
         units: pieces.map((p) => {
           const [row, col] = parseKey(plan.get(p.uid));

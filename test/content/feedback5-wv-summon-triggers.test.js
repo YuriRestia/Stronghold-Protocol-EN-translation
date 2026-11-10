@@ -1,7 +1,7 @@
 // test/content/feedback5-wv-summon-triggers.test.js — 0.2.0 WV #2: the owner's larger-range rule through summons (the
 // owner's decision of 2026-10-06: "a skill whose effect reaches farther than the operator's own range casts when an enemy is
 // inside the larger area"). A skill that acts through its owner's summons casts on an enemy inside such an area of a summon
-// standing on the field, on top of its data rule (DEFAULT: an enemy in the owner's own range) — kits/shared/summoner.js
+// standing on the field, on top of its data rule (SEARCH, the official [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] row without a skill grid: an enemy in the owner's own range) — kits/shared/summoner.js
 // summonTriggerArea (a content trigger range, server/sim/skills.js addTriggerRange with a `{ keys, profile }` entry):
 //   * 麦哲伦 S1 高效制冷模块 — her drones' ranges (air units too: its 停顿 / 束缚 reach them);
 //   * 令 S3 宁作吾 — each summon's x-5 (ground enemies only: its pulses "不可对空");
@@ -48,7 +48,7 @@ const outOfHerRange = (u, r, c) => !u.rangeKeySet.has(r * COLS + c);
 test('#2 麦哲伦 S1: an enemy on a standing drone\'s range (air units too) casts it; none there or with the drone gone: no cast; S2 / S3 get no such area', () => {
   { // a ground enemy on 龙腾.F's x-4, far from her 3-1
     const { h, u, ps } = field(MG, 0, [[DRONE_F, 12, 9]]);
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.deepEqual(u.skill.rules, ['SEARCH']);   // official SNIPER / CASTER row: an enemy in the own initial range
     assert.ok(ps[0].alive && ps[0].rangeKeySet.has(12 * COLS + 10) && outOfHerRange(u, 12, 10), 'the setup');
     // (11, 13) would be held at the field edge, on the drone's tile (11, 10). Stay on the field and outside every area.
     h.spawn('enemy_dummy', { pos: [11, 6] });
@@ -80,7 +80,7 @@ test('#2 麦哲伦 S1: an enemy on a standing drone\'s range (air units too) cas
 test('#2 令 S3: a ground enemy on a standing summon\'s x-5 casts it; a flyer there, or a ground enemy off the x-5, does not; S1 / S2 get no such area', () => {
   { // 弦惊 at (12, 9): its x-5 = (12, 9) and its four side neighbours
     const { h, u, ps } = field(LING, 2, [[SOUL3, 12, 9]]);
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.deepEqual(u.skill.rules, ['SEARCH']);   // official SNIPER / CASTER row: an enemy in the own initial range
     assert.ok(ps[0].alive && outOfHerRange(u, 11, 9), 'the setup');
     h.spawn('enemy_fly', { pos: [11, 9] });       // on the x-5, but air
     h.spawn('enemy_dummy', { pos: [11, 10] });    // diagonal: off the x-5
@@ -99,7 +99,7 @@ test('#2 令 S3: a ground enemy on a standing summon\'s x-5 casts it; a flyer th
 test('#2 电弧 S2: a ground enemy on 赛柯\'s range casts it (a flyer there does not); S3: an enemy on 桑特拉\'s range, air units too; S1 gets no such area', () => {
   { // 赛柯 at (12, 6) facing RIGHT: its 3-2 = (12, 6) … (12, 9)
     const { h, u, ps } = field(RADIAN, 1, [[TOWER2, 12, 6]]);
-    assert.equal(u.skill.rule, 'DEFAULT');
+    assert.deepEqual(u.skill.rules, ['SEARCH']);   // official SNIPER / CASTER row: an enemy in the own initial range
     assert.ok(ps[0].alive && ps[0].rangeKeySet.has(12 * COLS + 9) && outOfHerRange(u, 12, 9), 'the setup');
     h.spawn('enemy_fly', { pos: [12, 9] });
     assert.ok(!casts(h, u), 'a flyer on 赛柯\'s range: no cast');

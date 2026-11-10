@@ -113,6 +113,14 @@ const RANGE_RULES = new Set(['SEARCH', 'CUSTOM_RANGE', 'SKILL_RANGE', 'ACTIVE_RA
  */
 function targetMet(u) {
   const sk = u.skill;
+  if (ruleTargetMet(u)) return true;
+  // an official trigger list (skills.js `alsoRules`): any of its further rules, each on its own range (OR)
+  return (sk.alsoRules || []).some((e) => sk._withRule(e, () => ruleTargetMet(u)));
+}
+
+/** targetMet for the rule the skill holds now (`sk.rule`, its grid and ally flag). */
+function ruleTargetMet(u) {
+  const sk = u.skill;
   if (NO_TARGET_RULES.has(sk.rule)) return enemyInReach(u);
   if (RANGE_RULES.has(sk.rule)) return !!sk._tickRuleSatisfied();
   return sk.triggerAllies ? !!sk._allyTriggerSatisfied() : !!sk._defaultCondition();

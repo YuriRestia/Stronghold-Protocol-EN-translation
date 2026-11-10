@@ -110,11 +110,11 @@ test('群愈师 heals 3 allies at once; RIN-Y “莺歌” 4 (stages 1 and 3)', 
   }
 });
 
-test('S1 治疗强化·γ型 (MANUAL, data DEFAULT): 30 s of ATK +55 % / +70 %, cast on an injured ally in range; 35 / 32 SP from 20', () => {
+test('S1 治疗强化·γ型 (MANUAL, data SKILL_RANGE allies (MEDIC row)): 30 s of ATK +55 % / +70 %, cast on an injured ally in range; 35 / 32 SP from 20', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u, a } = field({ tier, elite, mod: elite ? RINX : null, skill: 0 });
-    assert.deepEqual([u.skill.rule, u.skill.spCost, sk.initSp, sk.duration, sk.bb.atk], ['DEFAULT', elite ? 32 : 35, 20, 30, elite ? 0.7 : 0.55], `T${tier}`);
+    assert.deepEqual([u.skill.rule, u.skill.spCost, sk.initSp, sk.duration, sk.bb.atk], ['SKILL_RANGE', elite ? 32 : 35, 20, 30, elite ? 0.7 : 0.55], `T${tier}`);
     u.skill.gainSp(999);
     a(8).hp = 100; // outside her range: no cast
     h.run(2);
@@ -172,14 +172,15 @@ test('S2 法术护盾 (AUTO, data DEFAULT, 2 charges): the next heal gives each 
   }
 });
 
-test('S3 圣域 (MANUAL, data ACTIVE_RANGE on y-4): cast for an injured ally inside y-4 only; 60 s, range y-4, ATK +40 % / +50 %, allies in it RES ×1.9 / ×2.05 and 15 % / 20 % arts dodge; all back after', () => {
+test('S3 圣域 (MANUAL, data SKILL_RANGE allies on y-4 (MEDIC row)): cast for an injured ally inside y-4 only; 60 s, range y-4, ATK +40 % / +50 %, allies in it RES ×1.9 / ×2.05 and 15 % / 20 % arts dodge; all back after', () => {
   for (const f of [[5, false, null], [6, true, null], [6, true, RINX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S3);
     const { h, u, a } = field({ tier, elite, mod, skill: 2 });
     assert.deepEqual([u.skill.rule, sk.duration, sk.spCost, sk.rangeId, sk.bb.atk, sk.bb.magic_resistance, sk.bb.prob],
-      ['ACTIVE_RANGE', 60, 120, 'y-4', elite ? 0.5 : 0.4, elite ? 1.05 : 0.9, elite ? 0.2 : 0.15], label(f));
-    assert.deepEqual(sk.trigger.customRangeGrid, sk.rangeGrid, `${label(f)}: the trigger grid is its running range`);
+      ['SKILL_RANGE', 60, 120, 'y-4', elite ? 0.5 : 0.4, elite ? 1.05 : 0.9, elite ? 0.2 : 0.15], label(f));
+    assert.deepEqual(sk.trigger.official, ['ATTACK_RANGE_ALLY', 'SKILL_RANGE_ALLY'], `${label(f)}: the MEDIC row`);
+    assert.deepEqual(sk.trigger.also[0].customRangeGrid, sk.rangeGrid, `${label(f)}: the SKILL_RANGE_ALLY grid is its running range`);
     const base = u.liveRangeGrid;
     u.skill.gainSp(999);
     a(8).hp = 100; // outside y-4

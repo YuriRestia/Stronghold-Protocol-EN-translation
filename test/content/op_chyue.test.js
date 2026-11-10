@@ -91,12 +91,14 @@ test('a 自选 pick: 重岳 is offered at tiers 5 and 6 (he has a kit) and a ros
     { ok: true, picks: { [SLOT[6]]: { charId: CHYUE, skillIndex: 0, uniEquipId: FGTX } } });
 });
 
-test('S1 冲盈 (MANUAL, attack SP 5 / 4, 3 charges, data DEFAULT): 250 % / 290 % ATK on the attack target; from a full stack (蓄力) every charge goes and it strikes 3 times', () => {
+test('S1 冲盈 (MANUAL, attack SP 5 / 4, 3 charges, data [DEFAULT, SEARCH] — official ASSASSIN-class row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): 250 % / 290 % ATK on the attack target; from a full stack (蓄力) every charge goes and it strikes 3 times', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
     assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.spCost, u.skill.maxCharges, sk.initSp, sk.bb.atk_scale, sk.bb.times],
       ['DEFAULT', 'attack', elite ? 4 : 5, 3, 0, elite ? 2.9 : 2.5, 3], `T${tier}`);
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SEARCH'], `T${tier}: COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY (no skill grid = SEARCH)`);
+    assert.deepEqual(sk.trigger.official, ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], `T${tier}`);
     // a full stack: 蓄力
     u.skill.gainSp(999);
     assert.equal(u.skill.charges, 3);
@@ -119,6 +121,8 @@ test('S1 冲盈 (MANUAL, attack SP 5 / 4, 3 charges, data DEFAULT): 250 % / 290 
     assert.equal(u.skill.charges, 1);
     const n0 = hitsBy(h, u).filter((c) => c.dmg.isSkill).length;
     assert.ok(h.runUntil(() => u.skill.activations === 2, 4), `T${tier}: second cast`);
+    // SEARCH casts as soon as the charge is there, before the strike lands: wait for it
+    assert.ok(h.runUntil(() => hitsBy(h, u).filter((c) => c.dmg.isSkill).length > n0, 4), `T${tier}: the strike lands`);
     h.step();
     assert.equal(hitsBy(h, u).filter((c) => c.dmg.isSkill).length - n0, 1, `T${tier}: one strike`);
     done(h);
@@ -131,6 +135,7 @@ test('S1 冲盈: exact damage — 290 % ATK per strike, ×1.7 on a 止戈-marked
   const e = h.spawn('enemy_dummy', { pos: [10, 6] });
   u.skill.gainSp(u.skill.spCost);
   assert.ok(h.runUntil(() => u.skill.activations === 1, 3));
+  assert.ok(h.runUntil(() => hitsBy(h, u).some((x) => x.dmg.isSkill), 3), 'the strike lands (SEARCH casts before it)');
   h.step();
   const c = hitsBy(h, u).find((x) => x.dmg.isSkill);
   approx(c.amount, u.s.atk * sk.bb.atk_scale, '290 % (no mark yet)');
@@ -139,18 +144,19 @@ test('S1 冲盈: exact damage — 290 % ATK per strike, ×1.7 on a 止戈-marked
   h.b.addBuff(e, { key: `talent:chyue:mark#${u.id}`, duration: 2.5 });
   u.skill.gainSp(u.skill.spCost);
   assert.ok(h.runUntil(() => u.skill.activations === 2, 4));
+  assert.ok(h.runUntil(() => hitsBy(h, u).filter((x) => x.dmg.isSkill).length >= 2, 3), 'the second strike lands');
   h.step();
   const c2 = hitsBy(h, u).filter((x) => x.dmg.isSkill)[1];
   approx(c2.amount, u.s.atk * sk.bb.atk_scale * 1.7, '×1.7 on the marked target');
   done(h);
 });
 
-test('S2 拂尘 (MANUAL, 2 charges, data SKILL_RANGE x-4): ≤ 4 enemies around (air too; his marked ones first, then the one he blocks) take 290 % / 350 %; the marked ground ones 浮空 2 s; 0.5 s later every 浮空 enemy around loses it, takes 410 % / 480 % and is marked', () => {
+test('S2 拂尘 (MANUAL, 2 charges, data [DEFAULT, SKILL_RANGE x-4] — official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): ≤ 4 enemies around (air too; his marked ones first, then the one he blocks) take 290 % / 350 %; the marked ground ones 浮空 2 s; 0.5 s later every 浮空 enemy around loses it, takes 410 % / 480 % and is marked', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1, row: 9 });
-    assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.spCost, u.skill.maxCharges, sk.initSp, sk.rangeId, sk.bb.max_target, sk.bb.atk_scale, sk.bb.atk_scale_down],
-      ['SKILL_RANGE', 'time', elite ? 11 : 12, 2, elite ? 7 : 6, 'x-4', 4, elite ? 3.5 : 2.9, elite ? 4.8 : 4.1], `T${tier}`);
+    assert.deepEqual([u.skill.rules, u.skill.spType, u.skill.spCost, u.skill.maxCharges, sk.initSp, sk.rangeId, sk.bb.max_target, sk.bb.atk_scale, sk.bb.atk_scale_down],
+      [['DEFAULT', 'SKILL_RANGE'], 'time', elite ? 11 : 12, 2, elite ? 7 : 6, 'x-4', 4, elite ? 3.5 : 2.9, elite ? 4.8 : 4.1], `T${tier}`);
     const blocked = h.spawn('enemy_dummy', { pos: [9, 5] });
     const m1 = h.spawn('enemy_dummy', { pos: [10, 6] });
     const m2 = h.spawn('enemy_dummy', { pos: [10, 4] });
@@ -191,11 +197,12 @@ test('S2 拂尘 (MANUAL, 2 charges, data SKILL_RANGE x-4): ≤ 4 enemies around 
   }
 });
 
-test('S3 我无 (MANUAL, attack SP 11 / 10, data DEFAULT): its strike hits the target and the ground enemies within 0.8 for 240 % / 300 %; the 5th cast turns him — x-6, double normal hits, +1 SP per attack (阻回 ignored), a self-cast the moment SP is full, the strike lands twice; a redeploy undoes it', () => {
+test('S3 我无 (MANUAL, attack SP 11 / 10, data [DEFAULT, SEARCH]): its strike hits the target and the ground enemies within 0.8 for 240 % / 300 %; the 5th cast turns him — x-6, double normal hits, +1 SP per attack (阻回 ignored), a self-cast the moment SP is full, the strike lands twice; a redeploy undoes it', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2, seed: 9 });
     assert.deepEqual([u.skill.rule, u.skill.spType, u.skill.spCost, sk.initSp, sk.bb.atk_scale, sk.bb.cast_cnt], ['DEFAULT', 'attack', elite ? 10 : 11, 0, elite ? 3 : 2.4, 5], `T${tier}`);
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SEARCH'], `T${tier}: official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]`);
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     const near = h.spawn('enemy_dummy', { pos: [10.6, 6.4] });
     const fly = h.spawn('enemy_fly', { pos: [10, 6] });

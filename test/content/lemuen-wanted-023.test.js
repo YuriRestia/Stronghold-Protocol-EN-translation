@@ -79,10 +79,13 @@ test('immediate redeployment cannot attack through a cleared wanted range', () =
   done(h);
 });
 
-for (const skillIndex of [0, 1, 2]) test(`wanted S${skillIndex + 1} waits for the next attack, not the next tick`, () => {
+// S1 is AUTO (its own DEFAULT: cast on the next attack); S2 / S3 are MANUAL with the official SNIPER row
+// [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY] = SEARCH, a tick rule: an enemy in the (wanted) range casts them on the next tick.
+for (const skillIndex of [0, 1, 2]) test(`wanted S${skillIndex + 1} ${skillIndex === 0 ? 'waits for the next attack, not the next tick' : 'casts on the next tick (SEARCH), not on the next attack'}`, () => {
   const { h, u, e } = field({ skillIndex });
+  assert.deepEqual(u.skill.rules, [skillIndex === 0 ? 'DEFAULT' : 'SEARCH']);
   u.skill.sp = 0;h.run(8.5);assert.ok(e.findBuff('lemuen:wanted'));
   u.atkCd = 0.7;u.skill.gainSp(999);
-  h.run(0.3);assert.equal(u.skill.activations, 0);
+  h.run(0.3);assert.equal(u.skill.activations, skillIndex === 0 ? 0 : 1);
   h.run(0.6);assert.equal(u.skill.activations, 1);done(h);
 });

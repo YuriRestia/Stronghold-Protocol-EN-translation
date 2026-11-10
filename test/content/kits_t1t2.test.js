@@ -83,14 +83,16 @@ test('1_01 隐现 elite: +self_ammo after `duration` s on field; a random other 
   done(h);
 });
 
-test('1_02 角峰: 抗寒体质 (重装 TAKE_DAMAGE) HP/DEF/RES ×(1+x); 雪原卫士 RES +flat (normal and elite)', () => {
+test('1_02 角峰: 抗寒体质 (重装 row ON_TAKE_DAMAGE + SKILL_RANGE_ENEMY) HP/DEF/RES ×(1+x); 雪原卫士 RES +flat (normal and elite)', () => {
   for (const id of ['chess_char_1_02_a', 'chess_char_1_02_b']) {
     const bb = bbOf(id), t = tal(id);
     const h = run({ defs: { enemies: { e: dummy('e', { atk: 100, bat: 1 }) } }, units: [{ chessId: id, row: 9, col: 5, carryState: READY }], enemies: [{ key: 'e', pos: [9, 5] }] });
     const u = h.unit(id);
     approx(u.s.res, u.base.res + t.magic_resistance, `${id} talent RES`);
-    assert.ok(h.runUntil(() => u.skill.active, 3), 'cast by the first hit');
-    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'TAKE_DAMAGE');
+    // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] -> [TAKE_DAMAGE, SEARCH] (no skill grid: her own range)
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
+    assert.ok(h.runUntil(() => u.skill.active, 3), 'cast as soon as the enemy she holds is in range (or at its first hit)');
+    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SEARCH', 'the enemy in range fires SEARCH before any hit');
     approx(u.s.maxHp, u.base.maxHp * (1 + bb.max_hp), 'HP');
     approx(u.s.def, u.base.def * (1 + bb.def), 'DEF');
     approx(u.s.res, (u.base.res + t.magic_resistance) * (1 + bb.magic_resistance), 'RES');
@@ -133,12 +135,12 @@ test('1_04 深巡: fin darts pierce attack@max_target enemies on the line + 1 s 
   });
   const u = h.unit(id);
   h.step();
-  // 技能策略 (issue #4; the deliberate deviation of DESIGN §21.29, and since 0.2.0 the owner's ACTIVE_RANGE on top): an
-  // enemy inside the 3-2 she attacks with is enough — no hit required
-  assert.equal(u.skill.rule, 'ACTIVE_RANGE', '行动能力剥夺 is an offensive ranged skill, not a 重装 TAKE_DAMAGE one');
+  // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: 行动能力剥夺 = [TAKE_DAMAGE, SKILL_RANGE] on its skill range grid
+  // (the 3-2 she runs): an enemy inside it is enough — no hit required
+  assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SKILL_RANGE']);
   h.run(3.5);
   assert.ok(u.skill.active);
-  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'ACTIVE_RANGE', 'cast on its running range');
+  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SKILL_RANGE', 'cast on its skill range');
   approx(u.s.atk, u.base.atk * (1 + bb.atk));
   const firstAtk = h.hooksOf('attack').find((c) => c.attacker === u && c.isSkill);
   assert.equal(firstAtk.targets.length, bb['attack@max_target'], 'hits every enemy of the line');
@@ -151,18 +153,17 @@ test('1_04 深巡: fin darts pierce attack@max_target enemies on the line + 1 s 
   done(h);
 });
 
-test('1_04 深巡 / 1_20 雷蛇 S2 技能策略: both 哨戒铁卫 S2s cast with an enemy in range, no hit needed (issue #4); 深巡 on her 3-2', () => {
-  // both S2s are offensive (深巡: range up + ATK/ASPD + piercing darts; 雷蛇: ATK +125 % + arts on 3 + stun); the official
-  // 下半 重装 row (TAKE_DAMAGE for every MANUAL 重装 skill) made both wait for a hit, and the owner's deliberate deviation
-  // from it (DESIGN §21.29, after community feedback) gives them the basic strategy — 雷蛇's data and kit say DEFAULT;
-  // 深巡's 3-2 strictly contains her 2-2, so since 0.2.0 the owner's ACTIVE_RANGE rule casts it on the 3-2 (2026-10-05).
+test('1_04 深巡 / 1_20 雷蛇 S2 技能策略: both 哨戒铁卫 S2s cast with an enemy in range, no hit needed (official 重装 row); 深巡 on her 3-2', () => {
+  // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] for both S2s: a hit OR any enemy in the skill range casts them.
+  // 雷蛇 has no skill grid -> [TAKE_DAMAGE, SEARCH] (her own range); 深巡's skill range is the 3-2 she runs
+  // -> [TAKE_DAMAGE, SKILL_RANGE], so an enemy on the 3-2 beyond her 2-2 casts it.
   for (const id of ['chess_char_1_04_a', 'chess_char_1_04_b', 'chess_char_1_20_a', 'chess_char_1_20_b']) {
     const udflow = id.startsWith('chess_char_1_04');
     // (9,7) = [0,3]: on 深巡's 3-2, not on her 2-2
     const h = run({ units: [{ chessId: id, row: 9, col: 4, carryState: READY }], enemies: [{ key: 'e', pos: [9, udflow ? 7 : 6] }] });
     const u = h.unit(id);
-    const rule = udflow ? 'ACTIVE_RANGE' : 'DEFAULT';
-    assert.equal(u.skill.rule, rule, `${id}: an offensive skill, not the 重装 TAKE_DAMAGE row`);
+    const rule = udflow ? 'SKILL_RANGE' : 'SEARCH';
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', rule], `${id}: the official 重装 row`);
     assert.ok(h.runUntil(() => u.skill.activations >= 1, 5), `${id}: casts while an enemy is in range and untouched`);
     assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, rule, `${id}: cast by ${rule}`);
     done(h);
@@ -638,7 +639,7 @@ test('1_20 雷蛇: 反击电弧 arts on up to 3 enemies, self-stun `stun` s afte
   const u = h.unit(id);
   h.run(3);
   assert.ok(u.skill.active);
-  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'DEFAULT', 'an offensive skill: cast with an enemy in range');
+  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SEARCH', 'official 重装 row [TAKE_DAMAGE, SEARCH]: cast with an enemy in range, no hit needed');
   approx(u.s.atk, u.base.atk * (1 + bb.atk));
   approx(u.s.interval, u.base.bat * (1 + bb.base_attack_time) * 100 / u.s.aspd, 'attack interval +70 % (PRTS 增大(+70%): a ratio, not +0.7 s)');
   const a0 = h.hooksOf('attack').find((c) => c.attacker === u && c.isSkill);
@@ -1199,7 +1200,7 @@ test('2_17 折桠: 生存决心 trembles ground enemies around, ATK/DEF up, hits
   done(h2);
 });
 
-test('2_18 灰毫: 炮术研习 ATK +atk (ground surroundings: ashlok_t_1.atk); skill ATK +atk cast with an enemy in range (DEFAULT, DESIGN §21.29); elite ×1.1 vs blocked', () => {
+test('2_18 灰毫: 炮术研习 ATK +atk (ground surroundings: ashlok_t_1.atk); skill ATK +atk cast with an enemy in range (official 重装 row: TAKE_DAMAGE + SEARCH); elite ×1.1 vs blocked', () => {
   const id = 'chess_char_2_18_a', bb = bbOf(id), t = tal(id);
   const h = run({ units: [{ chessId: id, row: 10, col: 5 }, { chessId: 'chess_char_2_18_b', row: 10, col: 3 }] });
   h.step();
@@ -1209,10 +1210,10 @@ test('2_18 灰毫: 炮术研习 ATK +atk (ground surroundings: ashlok_t_1.atk); 
   const h2 = run({ defs: { enemies: { e: dummy('e', { atk: 400 }) } }, units: [{ chessId: id, row: 10, col: 5, carryState: READY }], enemies: [{ key: 'e', pos: [10, 5] }] });
   const u = h2.unit(id);
   h2.runUntil(() => u.skill.active, 5);
-  // the owner's deliberate deviation from the 重装 TAKE_DAMAGE row: the basic strategy, no hit needed — she casts before the
-  // enemy she holds has hit her
-  assert.equal(u.skill.rule, 'DEFAULT');
-  assert.equal(h2.hooksOf('skillStart').find((c) => c.unit === u).reason, 'DEFAULT');
+  // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] -> [TAKE_DAMAGE, SEARCH]: the enemy she holds is in her range, so she
+  // casts before it has hit her
+  assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
+  assert.equal(h2.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SEARCH');
   assert.ok(!h2.hooksOf('damaged').some((c) => c.target === u), 'not hit before the cast');
   approx(u.s.atk, u.base.atk * (1 + t['ashlok_t_1.atk'] + bb.atk));
   done(h2);

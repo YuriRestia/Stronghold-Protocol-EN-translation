@@ -1179,9 +1179,15 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
   {
     const [h, u, bb] = mk('chess_char_4_13_b');
     const e = h.spawn('enemy_dummy', { pos: [10, 4] });
+    // official SEARCH (enemy in the initial range) casts between two attacks, when the enemy is still chilled by the last one:
+    // her 坚冰 fragility (dmgTakenMul) is already on it at the burst; the old DEFAULT cast came at the attack, 1 s after the chill
+    let taken = null;
+    h.b.on('damaged', (c) => { if (c.source === u && c.dmg?.tags?.includes('burst') && taken == null) taken = c.target.s.dmgTakenMul; });
     assert.ok(h.runUntil(() => u.skill.activations >= 1, 20));
-    approx(dmgBy(h, u, (c) => c.dmg?.tags?.includes('burst'))[0].amount, u.s.atk * bb.atk_scale);
-    assert.ok(noisy(h, 'statusApplied').some((c) => c.target === e && c.status === 'cold' && c.duration === bb.cold));
+    assert.ok(taken >= 1, 'the burst saw the target damage-taken multiplier');
+    approx(dmgBy(h, u, (c) => c.dmg?.tags?.includes('burst'))[0].amount, u.s.atk * bb.atk_scale * taken);
+    // the 3 s cold lands on an enemy her last attack chilled: an enemy cold pairs into 冻结 (PRTS 寒冷), whose length is the longer of the two
+    assert.ok(noisy(h, 'statusApplied').some((c) => c.target === e && c.status === 'freeze' && c.duration === bb.cold));
   }
   // 莱恩哈特: 200 % and RES −12 %
   {

@@ -76,7 +76,7 @@ function storeUp(h, u, n, e, max = 60) {
   return log;
 }
 
-test('黑键 in every 自选 form: his operator kit (all three skills authored), the form\'s stats + module attributes, 3-14, ranged arts every 3 s that hits air units, blocks 1, ground-targetable, the data\'s DEFAULT triggers (S2: the kit casts it), 空 bond, no 特质', () => {
+test('黑键 in every 自选 form: his operator kit (all three skills authored), the form\'s stats + module attributes, 3-14, ranged arts every 3 s that hits air units, blocks 1, ground-targetable, the data\'s official triggers (S1 SKILL_RANGE on 4-1, S2 the kit casts it, S3 SEARCH), 空 bond, no 特质', () => {
   assert.equal(OPERATOR_KITS[EBN], KITS[EBN]);
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
@@ -88,7 +88,8 @@ test('黑键 in every 自选 form: his operator kit (all three skills authored),
         [form.stats.maxHp + (m?.attr.maxHp ?? 0), form.stats.atk + (m?.attr.atk ?? 0), form.stats.def + (m?.attr.def ?? 0), form.stats.res + (m?.attr.res ?? 0), 100 + (m?.attr.aspd ?? 0)], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.dmgType, u.profile.canHitFly, u.base.bat], [1, 'ranged', 'arts', true, 3], `${label(f)}: 秘术师`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 3-14`);
-      assert.equal(u.skill.rule, skill === 1 ? 'NEVER' : 'DEFAULT', `${label(f)}: the data's trigger (S2: the kit's own cast)`);
+      assert.equal(u.skill.rule, ['SKILL_RANGE', 'NEVER', 'SEARCH'][skill], `${label(f)}: the data's trigger (S2: the kit's own cast)`);
+      assert.deepEqual(form.skills[skill].trigger.official, [['SKILL_RANGE_ENEMY'], undefined, ['SKILL_RANGE_ENEMY']][skill], `${label(f)}: the official list`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['emptyShip'], []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target him`);
       done(h);
@@ -260,7 +261,7 @@ test('MSC-Δ 朽坏传承: every arts damage of his (attacks, energies, 倚音) 
   done(h);
 });
 
-test('S1 渐快急板 (MANUAL, data DEFAULT): 5 s, range 4-1, attack interval ×0.2, every attack 35 % / 40 % ATK arts — the energies released meanwhile 35 % / 40 % × 强弱法; all back after', () => {
+test('S1 渐快急板 (MANUAL, data SKILL_RANGE on 4-1 — official [SKILL_RANGE_ENEMY]): 5 s, range 4-1, attack interval ×0.2, every attack 35 % / 40 % ATK arts — the energies released meanwhile 35 % / 40 % × 强弱法; all back after', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S1);
@@ -275,7 +276,8 @@ test('S1 渐快急板 (MANUAL, data DEFAULT): 5 s, range 4-1, attack interval ×
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `${label(f)}: 4-1`);
     approx(u.skill.timeLeft, 5, `${label(f)}: 5 s`, 0.02);
     approx(u.s.interval, own() * 0.2, `${label(f)}: ×0.2`, 1e-6);
-    assert.ok(h.runUntil(() => mainHits(h, u).length > 0, 2));
+    // the cast now comes the moment an enemy is on the 4-1 (no attack needed): the first ×0.2 attack follows once her ordinary cooldown is over
+    assert.ok(h.runUntil(() => mainHits(h, u).length > 0, 4));
     const main = mainHits(h, u)[0];
     approx(main.amount, u.s.atk * sk.bb['attack@atk_scale'], `${label(f)}: ${sk.bb['attack@atk_scale']} ATK`, 1e-3);
     const en = energyHits(h, u).filter((c) => c.dmg.attackId === main.dmg.attackId);
@@ -422,7 +424,7 @@ test('旧日残影: a selectable ground enemy within 1.35 activates it; 0.93 s l
   }
 });
 
-test('S3 寂静之声 (MANUAL, data DEFAULT): 30 s, ASPD +50 / +60, ATK +43 % / +50 %; attacks only elite or leader enemies (with none he stores elite energy); energies turn elite at its start, deal × talent_scale_multiplier (1.23 / 1.30); at its end one stays elite, the rest normal', () => {
+test('S3 寂静之声 (MANUAL, data SEARCH — official [SKILL_RANGE_ENEMY] without a skill grid): 30 s, ASPD +50 / +60, ATK +43 % / +50 %; attacks only elite or leader enemies (with none he stores elite energy); energies turn elite at its start, deal × talent_scale_multiplier (1.23 / 1.30); at its end one stays elite, the rest normal', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, false, null], [5, true, MY], [6, true, MX]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.bb.attack_speed, sk.bb.atk, sk.bb.talent_scale_multiplier, sk.spCost, sk.initSp],

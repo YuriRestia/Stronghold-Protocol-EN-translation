@@ -17,5 +17,9 @@ export default Object.freeze({
   research: null,                // docs/research/
   tables: 'default',             // stock / shopDraft / tacticDraft / bountyDrafts as measured on 下半
   config: Object.freeze({ hiddenCore: Object.freeze({ single: 350, multi: 1200 }) }), // no rules: no config.version
-  expect: Object.freeze({ bonds: 23, bands: 40, visibleNonDiy: 112, triggerDeviations: 'default' }),
+  // the official skill triggers (技能策略) of the live client, in place of the pinned table's (tools/versions/
+  // official-skill-triggers.json; server/plugins/officialUnitBuilder.js officialTrigger): every skill casts as in the
+  // official mode, and none of the deliberate deviations applies (the owner's decision of 2026-11-10)
+  skillTriggers: 'official-skill-triggers.json',
+  expect: Object.freeze({ bonds: 23, bands: 40, visibleNonDiy: 112, triggerDeviations: 'official' }),
 });

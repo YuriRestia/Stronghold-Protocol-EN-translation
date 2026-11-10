@@ -69,13 +69,14 @@ test('Stormeye on every chess it replaces: the stand-in body, its kit (never gen
   }
 });
 
-test('Stormeye triggers: the data rules — S1 / S3 MANUAL DEFAULT (no range change), S2 AUTO DEFAULT (an attack buff waits for her next attack, endless)', () => {
+test('Stormeye triggers: the data rules — S1 / S3 MANUAL SEARCH (official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY], no range change), S2 AUTO DEFAULT (an attack buff waits for her next attack, endless)', () => {
   for (const id of ['chess_char_3_21_a', 'chess_char_3_21_b']) {
     for (const [i, sid] of [[0, S1], [1, S2], [2, S3]]) {
       const h = arena(id, { standIn: { skillIndex: i }, sp: null });
       h.step();
       const u = h.unit(1);
-      assert.deepEqual([u.skill.id, u.skill.rule, u.def.skill.trigger.rule, u.def.skill.skillType], [sid, 'DEFAULT', 'DEFAULT', sid === S2 ? 'AUTO' : 'MANUAL'], `${id} ${sid}`);
+      const rule = sid === S2 ? 'DEFAULT' : 'SEARCH';
+      assert.deepEqual([u.skill.id, u.skill.rules, u.def.skill.trigger.rule, u.def.skill.skillType], [sid, [rule], rule, sid === S2 ? 'AUTO' : 'MANUAL'], `${id} ${sid}`);
       done(h);
     }
   }

@@ -69,10 +69,13 @@ test('森蚺 in every 自选 form: her operator kit (all three skills authored),
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 1-1`);
       assert.deepEqual([u.def.bonds, u.def.raw.garrisonIds], [['sargonShip'], []], `${label(f)}: bonds / 特质`);
       assert.ok(!u.s.flags.liftoff && !u.s.flags.camou && !u.s.flags.stealth, `${label(f)}: ground enemies target her`);
-      // the 重装 exception (the owner's decision of 2026-10-05): S2 / S3 cast in range (DEFAULT), the official TAKE_DAMAGE kept
+      // the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: S2 / S3 cast at a hit (TAKE_DAMAGE) or with an enemy in range (SEARCH)
       const sk = form.skills[skill];
       if (skill === 0) assert.deepEqual([u.skill.kind, sk.skillType, u.skill.spCost], ['passive', 'PASSIVE', 0], `${label(f)}: S1 passive`);
-      else assert.deepEqual([u.skill.rule, sk.trigger.rule, sk.trigger.rawRule, sk.skillType], ['DEFAULT', 'DEFAULT', 'TAKE_DAMAGE', 'MANUAL'], `${label(f)}: S${skill + 1} trigger`);
+      else {
+        assert.deepEqual([u.skill.rule, sk.trigger.rule, sk.trigger.rawRule, sk.skillType], ['TAKE_DAMAGE', 'TAKE_DAMAGE', 'ON_TAKE_DAMAGE', 'MANUAL'], `${label(f)}: S${skill + 1} trigger`);
+        assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH'], `${label(f)}: S${skill + 1} trigger list`);
+      }
       done(h);
     }
   }
@@ -108,7 +111,7 @@ test('S1 轻型挂斧 (PASSIVE): ATK / DEF +14 % / +18 % from every deployment, 
   }
 });
 
-test('S2 震慑劈砍 (data DEFAULT: casts with the enemy she blocks): 16 / 17 s, ATK +100 % / +130 %, interval 1.6 + 0.4 s, every enemy she blocks stunned past 抵抗 while it lasts; a stun immunity holds; all gone after', () => {
+test('S2 震慑劈砍 (data TAKE_DAMAGE + SEARCH: casts with the enemy she blocks): 16 / 17 s, ATK +100 % / +130 %, interval 1.6 + 0.4 s, every enemy she blocks stunned past 抵抗 while it lasts; a stun immunity holds; all gone after', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1 });
@@ -151,7 +154,7 @@ test('S2 震慑劈砍 (data DEFAULT: casts with the enemy she blocks): 16 / 17 s
   }
 });
 
-test('S3 钢铁意志 (data DEFAULT): 31 / 32 s, ATK +140 % / +170 %, DEF +90 % / +120 %, block 1 + 2, 生命回复速度 3 % max HP / s (禁疗-proof); 5 s self-stun after, blocking nobody meanwhile', () => {
+test('S3 钢铁意志 (data TAKE_DAMAGE + SEARCH): 31 / 32 s, ATK +140 % / +170 %, DEF +90 % / +120 %, block 1 + 2, 生命回复速度 3 % max HP / s (禁疗-proof); 5 s self-stun after, blocking nobody meanwhile', () => {
   for (const [tier, elite, mod] of [[5, false, null], [6, true, HESX]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, mod, skill: 2 });

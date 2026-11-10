@@ -54,6 +54,9 @@ test('a window declared before R3 and before R9 opens on exactly those rounds �
   h.start();
   assert.ok(h.run(() => h.m.phase === PHASE.PREP && h.m.round === 1), 'R1 reached');
   assert.equal(h.m.offerWin.length, 0, 'no window before R1');
+  // the two AI 托管 humans pick in every window: keep them in the match up to R9 (seed 7's boards ran out of lp before R9
+  // once the official skill triggers changed the battles; the bosshp / boss-ai-grace precedent)
+  for (const ps of humans(h)) ps.lp = 400;
   for (const round of [3, 9]) {
     assert.ok(h.run(openWindow(h, round)), `the window opens before R${round}`);
     assert.equal(h.m.offerWin[0].id, 'early-pick');

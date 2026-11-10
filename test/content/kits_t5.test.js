@@ -142,7 +142,10 @@ test('烛煌 S3: its target and the enemies within the 1.7 splash, BAT −1.3 s,
   assert.ok(h.runUntil(() => u.skill.active, 10));
   approx(u.s.atk, atk0 * (1 + bb.atk));
   approx(u.s.interval, u.base.bat + bb.base_attack_time, 1e-6, 'BAT 1.6 − 1.3 s');
-  h.run(1);
+  // official SEARCH casts between two attacks (the enemy is in range as it arrives): the attack in progress keeps its
+  // 1.6 s cooldown, the first skill attack (BAT 0.3 s from then on) follows — wait for it
+  assert.ok(h.runUntil(() => h.hooksOf('damaged').some((c) => c.source === u && c.dmg.isSkill && c.dmg.isAttack), 3), 'the first skill attack');
+  h.run(1); // a few more shots, so the burn burst below has spent ammo to refill (it cannot exceed the 18 she holds)
   const hitIds = new Set(h.hooksOf('damaged').filter((c) => c.source === u && c.dmg.isSkill && c.dmg.isAttack).map((c) => c.target.id));
   assert.equal(hitIds.size, 3, 'group attack: the three stand within 1.7 of each other (PRTS 备注 "攻击溅射半径1.7")');
   // a burn burst anywhere: +ammo, 熔点引爆 elemental damage and heal
@@ -412,7 +415,7 @@ test('史尔特尔 S3 黄昏: full heal, max HP +5000, ATK +210 %, range +2, 3 t
 });
 
 // ------------------------------------------------------------------------------------------------------------------
-test('号角 S3: cast with an enemy in range (DEFAULT, DESIGN §21.29); ATK +25 %, BAT −1.2 s, then overload ATK +50 % with HP loss; T1 Defenders ATK +20 %; T2 血战', () => {
+test('号角 S3: cast with an enemy in range (official 重装 row [TAKE_DAMAGE, SEARCH]); ATK +25 %, BAT −1.2 s, then overload ATK +50 % with HP loss; T1 Defenders ATK +20 %; T2 血战', () => {
   const h = makeBattle({
     defs: { enemies: { enemy_dummy: dummy() }, chess: { t_tank: ally('t_tank', { profession: 'TANK', stats: { atk: 100 } }) } },
     units: [{ chessId: 'chess_char_5_08_a', row: 9, col: 3 }, { chessId: 't_tank', row: 12, col: 3 }],
@@ -424,11 +427,11 @@ test('号角 S3: cast with an enemy in range (DEFAULT, DESIGN §21.29); ATK +25 
   approx(h.unit('t_tank').s.atk, 100 * (1 + t0.atk), 1e-6, '军事要塞 on another Defender');
   approx(u.s.atk, u.base.atk * (1 + t0.atk), 1e-6, '… and on herself');
   u.skill.gainSp(1000);
-  // cast at her next attack with the enemy in range, no hit needed: DEFAULT — the owner's deliberate deviation from the
-  // 重装 TAKE_DAMAGE row (DESIGN §21.29)
-  assert.equal(u.skill.rule, 'DEFAULT');
+  // cast as soon as the enemy is in her initial range, no hit needed: the official 重装 row [ON_TAKE_DAMAGE,
+  // SKILL_RANGE_ENEMY] — TAKE_DAMAGE, then SEARCH (S3 has no rangeGrid of its own)
+  assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
   assert.ok(h.runUntil(() => u.skill.active, 5));
-  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'DEFAULT');
+  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SEARCH');
   assert.equal(u.stats.taken, 0, 'nothing hit her');
   const start = h.b.time;
   const total = u.def.skill.duration, ov = bb['horn_s_3[overload_start].damage_duration'];
@@ -696,14 +699,15 @@ test('凛御银灰 S2 auto-cast: SKILL_RANGE — an enemy inside the skill range
     defs: { enemies: { enemy_dummy: dummy() } },
     units: [{ chessId: 'chess_char_5_14_a', row: 10, col: 3 }],
     enemies: [{ key: 'enemy_dummy', pos: [10, 5] }, { key: 'enemy_dummy', pos: [11, 4] }],
-    hooks: ['damaged'], captureNoisy: true, autoFinish: false, timeLimit: 30,
+    hooks: ['damaged', 'skillStart'], captureNoisy: true, autoFinish: false, timeLimit: 30,
   });
   const u = h.unit('chess_char_5_14_a');
-  assert.equal(u.skill.rule, 'SKILL_RANGE');
+  assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']); // official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]
   h.step();
   u.skill.gainSp(1000);
   h.run(0.2);
   assert.equal(u.skill.activations, 1, 'enemies only in the skill range: cast');
+  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u)?.reason, 'SKILL_RANGE');
   assert.equal(h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack && !c.dmg.isSkill).length, 0, 'no attack needed');
   const hits = tagged(h, 'svash2');
   assert.equal(new Set(hits.map((c) => c.target.id)).size, 2, 'the burst covers the skill range');
@@ -821,9 +825,11 @@ test('百炼嘉维尔 S2: drags unblocked enemies in front of her; T1 ATK/DEF +1
   const near = h.spawn('enemy_dummy', { pos: [9, 5] });
   const far = h.spawn('enemy_dummy', { pos: [9, 6] });
   u.skill.gainSp(1000);
-  // S2's 2-5 strictly contains her 1-1: ACTIVE_RANGE (the owner's rule, 2026-10-05) casts it at once, no attack needed
+  // S2's 2-5 strictly contains her 1-1: the official list [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] casts it at once with an enemy
+  // on that range (SKILL_RANGE on the 2-5), no attack needed
   assert.ok(h.runUntil(() => u.skill.active, 3));
-  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u)?.reason, 'ACTIVE_RANGE');
+  assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']);
+  assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u)?.reason, 'SKILL_RANGE');
   approx(u.s.atk, u.base.atk * (1 + t0.atk + bb.atk));
   h.b.dealDamage(null, near, { amount: 1e9, type: 'true' });
   h.run(1.5);

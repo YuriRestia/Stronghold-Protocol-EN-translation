@@ -179,10 +179,7 @@ export default {
           kind: 'duration',
           // [ASSUMED] its glue / belt act on ground enemies only: 白铁's 铁钳号 alone does not open it (skills.js allyTargetsOk)
           allyTargets: false,
-          // the owner's rule for a skill whose area is larger than her range (her tile): cast as soon as a ground enemy she
-          // can affect is on the glue's first five tiles — her tile, the front one, its two sides and the one beyond
-          // (glueTiles' PRTS order), as 余 S2's x-1 (§22.10); the data's DEFAULT (重装 exception) only saw her own tile
-          trigger: { rule: 'ACTIVE_RANGE', grid: [[0, 0], [0, 1], [1, 1], [-1, 1], [0, 2]] },
+          // 技能策略: the data's official trigger list (officialUnitBuilder officialTrigger, the owner's decision of 2026-11-10) — the TANK row: at a hit or with an enemy in her range
           mods: nz({ atkPct: num(b2.atk), defPct: num(b2.def) }),
           onStart({ battle, unit }) {
             const keys = glueTiles(battle, unit, glueCount);
@@ -203,8 +200,7 @@ export default {
         [S3]: {
           kind: 'duration',
           allyTargets: false,
-          // likewise on the conveyor: her tile and the four ahead (the owner's larger-area rule; 余 S2 precedent)
-          trigger: { rule: 'ACTIVE_RANGE', grid: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]] },
+          // 技能策略: the data's official trigger list (officialUnitBuilder officialTrigger, the owner's decision of 2026-11-10) — her own row, CUSTOM_RANGE_ENEMY on 4-1 (skillRangeDict)
           mods: nz({ atkPct: num(b3.atk), defPct: num(b3.def), blockCnt: num(b3.block_cnt) }),
           attack: { hitAllBlocked: true },
           onStart({ battle, unit }) {

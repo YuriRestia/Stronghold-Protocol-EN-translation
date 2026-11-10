@@ -296,9 +296,13 @@ test('the full-charge auto cast of S1 never starts Fever; high 迅捷 refills S1
   const swift = { swiftShip: { count: 2, active: true, tier: 1, layers: 230 } };
   for (const [bonds, wantFever] of [[{}, true], [swift, false]]) {
     const { h, u } = field({ skill: 0, foes: [[10, 7]], bonds });
-    let fevers = 0, was = false;
-    for (let i = 0; i < 30 * 120; i++) { h.step(); if (h.b.fever.active && !was) fevers++; was = h.b.fever.active; }
-    assert.equal(h.b.fever.value, FEVER_NEED, 'the gauge fills either way');
+    let fevers = 0, was = false, peak = 0;
+    for (let i = 0; i < 30 * 120; i++) { h.step(); if (h.b.fever.active && !was) fevers++; was = h.b.fever.active; peak = Math.max(peak, h.b.fever.value); }
+    // official default row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] -> [DEFAULT, SEARCH]: the manual cast comes the tick an enemy is in
+    // range, so with Fever on a Fever spends the gauge (it is no longer still full at the end of the run, but it did fill)
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SEARCH']);
+    assert.equal(peak, FEVER_NEED, 'the gauge fills either way');
+    if (!wantFever) assert.equal(h.b.fever.value, FEVER_NEED, 'and without Fever it stays full');
     const reasons = h.hooksOf('skillStart').filter((c) => c.unit === u).map((c) => c.reason);
     assert.equal(fevers > 0, wantFever, `迅捷 ${bonds.swiftShip ? 'high' : 'off'}: ${[...new Set(reasons)]}`);
     // with 迅捷 only her first cast (1 charge, before any proc) is a manual one: every later cast is the full-charge one

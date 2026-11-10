@@ -104,12 +104,12 @@ test('trait 攻城手 "优先攻击重量最重的敌人": the heaviest enemy of
   }
 });
 
-test('S1 攻击力强化·γ型 (MANUAL, data DEFAULT): ATK +45 % / +60 % for 30 s, SP 37 / 35 from 5 / 10; cast with an enemy in her range at her attack', () => {
+test('S1 攻击力强化·γ型 (MANUAL, data SEARCH — official 狙击 row ATTACK_RANGE_ENEMY: cast as soon as an enemy is in her range): ATK +45 % / +60 % for 30 s, SP 37 / 35 from 5 / 10', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
-    assert.deepEqual([u.skill.rule, u.skill.kind, u.skill.spType, u.skill.spCost, u.skill.initSp, sk.duration, sk.bb.atk],
-      ['DEFAULT', 'duration', 'time', elite ? 35 : 37, elite ? 10 : 5, 30, elite ? 0.6 : 0.45], `T${tier}`);
+    assert.deepEqual([u.skill.rules, u.skill.kind, u.skill.spType, u.skill.spCost, u.skill.initSp, sk.duration, sk.bb.atk],
+      [['SEARCH'], 'duration', 'time', elite ? 35 : 37, elite ? 10 : 5, 30, elite ? 0.6 : 0.45], `T${tier}`);
     const st = studentAtk(tier, elite, null);
     approx(u.s.atk, u.base.atk * (1 + st), `T${tier}: 学生楷模 only`);
     u.skill.gainSp(999);
@@ -129,7 +129,7 @@ test('S2 分裂射击 (60 s): ATK +45 % / +60 % and two targets per attack (atta
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.atk, sk.bb['attack@max_target'], u.skill.spCost, u.skill.initSp], ['DEFAULT', 60, elite ? 0.6 : 0.45, 2, 80, elite ? 45 : 42], `T${tier}`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.atk, sk.bb['attack@max_target'], u.skill.spCost, u.skill.initSp], [['SEARCH'], 60, elite ? 0.6 : 0.45, 2, 80, elite ? 45 : 42], `T${tier}`);
     const lone = h.spawn('enemy_light', { pos: [10, 6] });
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 4));
@@ -155,8 +155,8 @@ test('S3 雪崩击 (6 / 7 s): harpoons link the 3 heaviest enemies of her range 
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.rule, sk.duration, sk.bb.max_target, sk.bb.hit_interval, sk.bb.hit_duration, sk.bb.atk, u.skill.spCost, u.skill.initSp],
-      ['DEFAULT', elite ? 7 : 6, 3, 1, elite ? 7 : 6, 0.1, elite ? 34 : 37, elite ? 12 : 11], `T${tier}`);
+    assert.deepEqual([u.skill.rules, sk.duration, sk.bb.max_target, sk.bb.hit_interval, sk.bb.hit_duration, sk.bb.atk, u.skill.spCost, u.skill.initSp],
+      [['SEARCH'], elite ? 7 : 6, 3, 1, elite ? 7 : 6, 0.1, elite ? 34 : 37, elite ? 12 : 11], `T${tier}`);
     const light = h.spawn('enemy_light', { pos: [10, 5] }), mid = h.spawn('enemy_mid', { pos: [10, 6] });
     const heavy = h.spawn('enemy_heavy', { pos: [11, 6] }), hfly = h.spawn('enemy_hfly', { pos: [9, 6] });
     const outside = h.spawn('enemy_heavy', { pos: [10, 9] });

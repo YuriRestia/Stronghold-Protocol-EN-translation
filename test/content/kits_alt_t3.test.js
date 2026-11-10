@@ -435,11 +435,13 @@ test('3_06 菲莱 S1 灵河护佑 (TAKE_DAMAGE): HP +, clears her element gauges
   }
 });
 
-test('3_08 薄绿 S1 风语 (阵法术师 row SEARCH "在初始攻击范围内存在敌人时", widened to its running x-2 by the owner\'s ACTIVE_RANGE rule of 2026-10-05): wider range, attacks at attack@atk_scale; guard/taunt rules kept', () => {
+test('3_08 薄绿 S1 风语 (阵法术师 row [SKILL_RANGE_ENEMY]: SKILL_RANGE on the x-2 she attacks with, an enemy there casts it): wider range, attacks at attack@atk_scale; guard/taunt rules kept', () => {
   for (const id of BOTH('chess_char_3_08_a')) {
     const b = SB(id, 'skchr_mint_1'), t0 = TB(id, 0);
     const sk = LD(id, 'skchr_mint_1').skill;
-    assert.equal(sk.trigger?.rule, 'ACTIVE_RANGE', 'data: the phalanx row (rawRule SEARCH) on the x-2 she attacks with');
+    assert.equal(sk.trigger?.rule, 'SKILL_RANGE', 'data: the official phalanx row SKILL_RANGE_ENEMY on the x-2 she attacks with');
+    assert.deepEqual(ds.rawChess(id).skills.find((s) => s.skillId === 'skchr_mint_1').trigger.official, ['SKILL_RANGE_ENEMY']);
+    assert.equal(sk.trigger.also, undefined, 'one rule');
     assert.deepEqual(sk.trigger.grid, sk.rangeGrid, 'trigger grid = the S1 x-2');
     const h = makeBattle({ defs: { enemies: { enemy_d: dummy('enemy_d'), enemy_far: dummy('enemy_far') } }, timeLimit: 60, hooks: ['damaged'], captureNoisy: true,
       units: [U(id, 'skchr_mint_1', 10, 4)], enemies: [{ key: 'enemy_far', pos: [10, 7] }] }); // [0,3]: outside the x-2 too
@@ -499,9 +501,13 @@ test('3_10 松果 S1 RMA长钉 (charges): an immediate extra shot ×atk_scale ig
     const n0 = h.hooksOf('attack').length;
     fill(u);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 5));
-    const at = h.hooksOf('attack').slice(n0).filter((c) => c.attacker === u);
-    assert.ok(at.some((c) => c.isSkill) && at.some((c) => !c.isSkill), 'skill shot + the normal attack');
-    assert.equal(new Set(at.map((c) => c.t)).size, 1, 'at the same moment');
+    const tCast = h.b.time;
+    // official SEARCH (an enemy in the initial range) casts between two attacks: the skill shot is immediate, the normal
+    // attack follows on its own cooldown (the old DEFAULT cast came together with an attack)
+    const skillShots = h.hooksOf('attack').slice(n0).filter((c) => c.attacker === u && c.isSkill);
+    assert.equal(skillShots.length, 1, 'the skill shot, at the cast');
+    assert.ok(skillShots[0].t <= tCast && tCast - skillShots[0].t <= h.b.dt + 1e-9, 'immediate: in the step of the cast');
+    assert.ok(h.runUntil(() => h.hooksOf('attack').slice(n0).some((c) => c.attacker === u && !c.isSkill), 3), 'the normal attack follows');
     h.run(0.5);
     const sk = atkHits(h, u, true);
     const main = sk.find((c) => c.target.defId === 'enemy_d');
@@ -571,7 +577,7 @@ test('3_12 瑕光 S2 慑敌辉光: ATK +, ground enemies on her tile sleep for t
   for (const id of BOTH('chess_char_3_12_a')) {
     const b = SB(id, 'skchr_blemsh_2'), t1 = TB(id, 1);
     const dur = LD(id, 'skchr_blemsh_2').skill.duration;
-    // (a MANUAL 重装 skill: TAKE_DAMAGE — the enemy she blocks hits her)
+    // (a MANUAL 重装 skill: official [TAKE_DAMAGE, SKILL_RANGE] — the enemy on her skill range casts it before it hits her)
     const h = makeBattle({ defs: { enemies: { enemy_d: dummy('enemy_d', { atk: 200, bat: 1 }), enemy_n: dummy('enemy_n') } }, timeLimit: 60, hooks: ['damaged', 'heal', 'skillStart'], captureNoisy: true,
       units: [U(id, 'skchr_blemsh_2', 10, 4), { chessId: 'chess_char_3_16_a', row: 10, col: 6 }],
       enemies: [{ key: 'enemy_d', pos: [10, 4] }, { key: 'enemy_n', pos: [10, 5] }] });
@@ -582,7 +588,8 @@ test('3_12 瑕光 S2 慑敌辉光: ATK +, ground enemies on her tile sleep for t
     ally.hp = ally.s.maxHp * 0.3;
     fill(u);
     assert.ok(h.runUntil(() => u.skill.active, 3));
-    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'TAKE_DAMAGE');
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SKILL_RANGE']);
+    assert.equal(h.hooksOf('skillStart').find((c) => c.unit === u).reason, 'SKILL_RANGE');
     h.step();
     approx(u.s.atk, u.base.atk * (1 + b.atk));
     assert.ok(e.s.flags.sleep, 'her tile: asleep');
@@ -626,7 +633,7 @@ test('3_12 瑕光 精锐 module GUA-X: heals on allies under 50 % HP ×1.15 (not
   done(h);
 });
 
-test('3_13 至简 S1 / 3_16 蛇屠箱 S1 / 3_20 耶拉 S1: timed stat skills from their own blackboards (蛇屠箱 on TAKE_DAMAGE, keeps attacking)', () => {
+test('3_13 至简 S1 / 3_16 蛇屠箱 S1 / 3_20 耶拉 S1: timed stat skills from their own blackboards (蛇屠箱 official [TAKE_DAMAGE, SEARCH]: a hit or an enemy in range casts it; keeps attacking)', () => {
   for (const [base, sid, check] of [
     ['chess_char_3_13_a', 'skcom_quickattack[3]', (u, b) => { approx(u.s.aspd, u.base.aspd + b.attack_speed); assert.ok(u.s.atk >= u.base.atk * (1 + b.atk) - 1e-6); }],
     // (精锐 PRO-X: + trait DEF while blocking — the enemy stands on her tile)
@@ -644,11 +651,32 @@ test('3_13 至简 S1 / 3_16 蛇屠箱 S1 / 3_20 耶拉 S1: timed stat skills fro
       const atk0 = u.s.atk;
       fill(u);
       if (d.skill.trigger.rule === 'TAKE_DAMAGE') {
-        h.run(0.5);
-        assert.equal(u.skill.activations, 0, `${id}: waits for a hit`);
-        h.b.dealDamage(h.enemy('enemy_d'), u, { type: 'phys', amount: 1 });
+        // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: a hit casts it with nothing in range ...
+        assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH'], id);
+        const far = makeBattle({ defs: { enemies: { enemy_d: dummy('enemy_d', { atk: 10 }) } }, timeLimit: 80, hooks: ['damaged', 'skillStart'], captureNoisy: true,
+          units: [U(id, sid, 10, 4)], enemies: [{ key: 'enemy_d', pos: [10, 9] }] });
+        const fu = far.unit(id);
+        far.run(1);
+        fill(fu);
+        far.run(0.5);
+        assert.equal(fu.skill.activations, 0, `${id}: nothing in range, no hit: waits`);
+        far.b.dealDamage(far.enemy('enemy_d'), fu, { type: 'phys', amount: 1 });
+        assert.ok(far.runUntil(() => fu.skill.active, 2), `${id}: cast at the hit`);
+        assert.equal(far.hooksOf('skillStart').find((c) => c.unit === fu).reason, 'TAKE_DAMAGE');
+        done(far);
+        // ... and an enemy in range casts it with no hit at all (a harmless one: atk 0)
+        const near = makeBattle({ defs: { enemies: { enemy_d: dummy('enemy_d', { atk: 0 }) } }, timeLimit: 80, hooks: ['damaged', 'skillStart'], captureNoisy: true,
+          units: [U(id, sid, 10, 4)], enemies: [{ key: 'enemy_d', pos: [10, melee ? 4 : 5] }] });
+        const nu = near.unit(id);
+        near.run(1);
+        fill(nu);
+        assert.ok(near.runUntil(() => nu.skill.active, 2), `${id}: cast with an enemy in range`);
+        assert.equal(near.hooksOf('skillStart').find((c) => c.unit === nu).reason, 'SEARCH');
+        assert.equal(near.hooksOf('damaged').filter((c) => c.target === nu).length, 0, `${id}: before any hit`);
+        done(near);
       }
       assert.ok(h.runUntil(() => u.skill.active, 5), id);
+
       h.step();
       check(u, b);
       const n0 = atkHits(h, u).length;
@@ -733,7 +761,7 @@ test('3_18 忍冬 S1 小施惩戒: next attack + extra arts and +DP; S2 坠刃�
     assert.equal(atkHits(g, v).length, 0, 'nothing in her own range');
     const gdp = gp.dp;
     v.skill.gainSp(v.skill.spCost - v.skill.sp + 0.01, 'test'); // one charge
-    assert.equal(v.skill.rule, 'SKILL_RANGE');
+    assert.deepEqual(v.skill.rules, ['DEFAULT', 'SKILL_RANGE']); // official 先锋 row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]
     assert.ok(g.runUntil(() => v.skill.activations === 1, 1), 'SKILL_RANGE: an enemy on the skill range');
     const first = g.b.time;
     approx(gp.dp, gdp + b2.cost);

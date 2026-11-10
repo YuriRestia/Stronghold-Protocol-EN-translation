@@ -99,12 +99,12 @@ test('trait 攻城手: the heaviest enemy of her range first; a flyer is a targe
   done(h);
 });
 
-test('S1 迅捷打击·γ型 (MANUAL, data DEFAULT): ATK +27 % / +34 %, ASPD +25 / +35 for 35 s; SP 42 / 39 from 5 / 10', () => {
+test('S1 迅捷打击·γ型 (MANUAL, data SEARCH — official SNIPER row [ATTACK_RANGE_ENEMY, SKILL_RANGE_ENEMY]): ATK +27 % / +34 %, ASPD +25 / +35 for 35 s; SP 42 / 39 from 5 / 10', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u } = field({ tier, elite, skill: 0 });
     assert.deepEqual([u.skill.rule, u.skill.kind, u.skill.spCost, u.skill.initSp, sk.duration, sk.bb.atk, sk.bb.attack_speed],
-      ['DEFAULT', 'duration', elite ? 39 : 42, elite ? 10 : 5, 35, elite ? 0.34 : 0.27, elite ? 35 : 25], `T${tier}`);
+      ['SEARCH', 'duration', elite ? 39 : 42, elite ? 10 : 5, 35, elite ? 0.34 : 0.27, elite ? 35 : 25], `T${tier}`);
     u.skill.gainSp(999);
     h.run(2);
     assert.equal(u.skill.activations, 0, `T${tier}: no enemy, no cast`);
@@ -124,7 +124,7 @@ test('S2 冰原秩序: ATK +26 % / +35 %, two arrows per attack — two enemies 
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1, seed: 9 });
     assert.deepEqual([u.skill.rule, u.skill.kind, sk.duration, sk.bb.first_duration, sk.bb.atk, sk.bb['attack@prob'], sk.bb['attack@stun'], u.skill.spCost, u.skill.initSp],
-      ['DEFAULT', 'toggle', 20, 20, elite ? 0.35 : 0.26, 0.4, 1, elite ? 51 : 53, elite ? 40 : 37], `T${tier}`);
+      ['SEARCH', 'toggle', 20, 20, elite ? 0.35 : 0.26, 0.4, 1, elite ? 51 : 53, elite ? 40 : 37], `T${tier}`);
     const lone = h.spawn('enemy_light', { pos: [10, 6] });
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.active, 4), `T${tier}: cast`);
@@ -172,7 +172,7 @@ test('S3 “永恒狩猎”: 7 / 8 rounds, attack interval 2.4 + 3.1 s; the mark
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2, seed: 7 });
     assert.deepEqual([u.skill.rule, u.skill.kind, sk.durationType, sk.bb['attack@s3_trigger_time'], sk.bb.base_attack_time, sk.bb['attack@s3_atk_scale'], sk.bb['attack@s3_max_hit_num'], sk.bb['attack@s3_stun'], u.skill.spCost, u.skill.initSp],
-      ['DEFAULT', 'ammo', 'AMMO', elite ? 8 : 7, 3.1, elite ? 1.6 : 1.45, 4, 0.4, elite ? 43 : 47, 25], `T${tier}`);
+      ['SEARCH', 'ammo', 'AMMO', elite ? 8 : 7, 3.1, elite ? 1.6 : 1.45, 4, 0.4, elite ? 43 : 47, 25], `T${tier}`);
     const marked = h.spawn('enemy_heavy', { pos: [10, 6] }), near = h.spawn('enemy_light', { pos: [11, 6] });
     const away = h.spawn('enemy_mid', { pos: [9, 5] });   // in her range, 1.4+ tiles from the mark: never hit
     u.skill.gainSp(999);

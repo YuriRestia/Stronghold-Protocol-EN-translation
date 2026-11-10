@@ -102,15 +102,20 @@ test('backups: the 17 stand-in characters, each with a form for every status it 
       else assert.deepEqual(f.modules.map((m) => [m.uniEquipId, m.level]), ELITES.includes(id) ? [[`uniequip_002_${id.replace(/^char_\d+_/, '')}`, f.status.equipLevel]] : [], `${label}: modules`);
     }
   }
-  // the official 重装 class row (TAKE_DAMAGE) meets the 重装 stand-ins' MANUAL skills, and the owner's 重装 exception
-  // (the approved 补位 plan, 2026-10-05; tools/build-data.mjs STANDIN_TRIGGER_DEVIATIONS) makes every one of them cast
-  // with an enemy in range — DEFAULT — on every form
+  // the official TANK class row (the live client's list, officialUnitBuilder officialTrigger: ON_TAKE_DAMAGE or
+  // SKILL_RANGE_ENEMY — no 技能范围, so the attack range: SEARCH) meets the 重装 stand-ins' MANUAL skills on every form: they
+  // cast at a hit or with an enemy in range (it replaced the STANDIN_TRIGGER_DEVIATIONS DEFAULT of 2026-10-05)
   for (const id of ['char_602_cdfend', 'char_610_acfend']) {
     for (const f of Object.values(backups.units[id].forms)) {
-      for (const s of f.skills) assert.deepEqual(s.trigger, { rule: 'DEFAULT', rawRule: 'TAKE_DAMAGE', customRangeGrid: null }, `${id}@${statusKey(f.status)} ${s.skillId}`);
+      for (const s of f.skills) {
+        assert.deepEqual(s.trigger, { rule: 'TAKE_DAMAGE', customRangeGrid: null, rawRule: 'ON_TAKE_DAMAGE', official: ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'],
+          also: [{ rule: 'SEARCH', customRangeGrid: null }] }, `${id}@${statusKey(f.status)} ${s.skillId}`);
+      }
     }
   }
-  assert.equal(backups.units.char_608_acpion.forms['2/1/4/0'].skills[2].trigger.rule, 'SKILL_RANGE', '郁金香 S3 对周围的敌人: its own x-1');
+  // 郁金香 S3 对周围的敌人: the default list, about to attack or an enemy on its own x-1
+  const acpion3 = backups.units.char_608_acpion.forms['2/1/4/0'].skills[2];
+  assert.deepEqual([acpion3.trigger.rule, acpion3.trigger.also.map((e) => [e.rule, e.customRangeGrid])], ['DEFAULT', [['SKILL_RANGE', acpion3.rangeGrid]]], '郁金香 S3: its own x-1');
   assert.equal(backups.units.char_617_sharp2.assets.avatarGolden, 'char_617_sharp2_2', '领主·Sharp has E2 art');
 });
 

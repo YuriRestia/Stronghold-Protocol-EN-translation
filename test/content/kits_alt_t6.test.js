@@ -255,7 +255,7 @@ test('6_02 圣聆初雪 S2 霜涛覆岭: toggle; group attacks at atk_scale_s2 �
 // =================================================================================================================
 // 6_03 余
 
-test('6_03 余 S1 今日做东: taunt +1 while carried; TAKE_DAMAGE cast, HP/DEF +, every attack taken burns the attacker (ep_damage_ratio × ATK)', () => {
+test('6_03 余 S1 今日做东: taunt +1 while carried; official 重装 row [TAKE_DAMAGE, SEARCH] cast, HP/DEF +, every attack taken burns the attacker (ep_damage_ratio × ATK)', () => {
   for (const id of both('chess_char_6_03')) {
     const sid = 'skchr_yu_1', bb = bbOf(id, sid);
     const h = run({
@@ -266,8 +266,10 @@ test('6_03 余 S1 今日做东: taunt +1 while carried; TAKE_DAMAGE cast, HP/DEF
     usesSkill(u, sid);
     h.step();
     assert.equal(u.s.taunt, bb.taunt_level, 'passive taunt');
-    assert.ok(h.runUntil(() => u.skill.active, 10), 'cast when hit');
-    assert.equal(started(h, u)[0].reason, 'TAKE_DAMAGE');
+    assert.deepEqual(u.skill.rules, ['TAKE_DAMAGE', 'SEARCH']);
+    assert.ok(h.runUntil(() => u.skill.active, 10), 'cast (a hit, or the enemy on her tile)');
+    // the enemy already stands on her tile: the SEARCH entry (SKILL_RANGE_ENEMY without a rangeGrid) casts it before the first hit
+    assert.equal(started(h, u)[0].reason, 'SEARCH');
     approx(skillBuff(u).mods.hpPct, bb.max_hp);
     approx(skillBuff(u).mods.defPct, bb.def);
     const t0 = h.b.time;

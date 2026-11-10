@@ -83,23 +83,34 @@ test('a 自选 pick: 年 is offered at tiers 5 and 6 (she has a kit) and a roste
     { ok: true, picks: { [SLOT[6]]: { charId: NIAN, skillIndex: 2, uniEquipId: PROY } } });
 });
 
-test('triggers: every skill is MANUAL with the data\'s DEFAULT (the owner\'s 重装 cast-in-range exception; rawRule TAKE_DAMAGE) — a ranged hit from outside her 1-1 casts nothing, an enemy on her front tile casts; a flyer there neither draws an attack nor a cast', () => {
+test('triggers: every skill is MANUAL with the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] (TAKE_DAMAGE + SEARCH; S3: SKILL_RANGE on its 技能范围) — a ranged hit from outside her 1-1 casts at the hit; a flyer on her front tile draws no attack and casts only S3 (SKILL_RANGE sees flyers); a ground enemy there casts', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     for (const skill of [0, 1, 2]) {
       const sk = formOf(tier, elite).skills[skill];
-      assert.deepEqual([sk.skillType, sk.trigger.rule, sk.trigger.rawRule], ['MANUAL', 'DEFAULT', 'TAKE_DAMAGE'], `T${tier} S${skill + 1}: data`);
-      const { h, u } = field({ tier, elite, skill });
-      assert.equal(u.skill.rule, 'DEFAULT', `T${tier} S${skill + 1}`);
-      h.spawn('enemy_shooter', { pos: [10, 8] });
-      h.spawn('enemy_fly', { pos: [10, 6] });
-      u.skill.gainSp(999);
-      h.run(3);
-      assert.ok(h.hooksOf('damaged').some((c) => c.target === u && c.source?.defId === 'enemy_shooter'), `T${tier} S${skill + 1}: she is being shot`);
-      assert.equal(u.skill.activations, 0, `T${tier} S${skill + 1}: no cast on a hit (no TAKE_DAMAGE) nor for the flyer in her range`);
-      assert.equal(u.stats.attacks, 0, `T${tier} S${skill + 1}: ground-only — the flyer on her front tile is no target`);
-      h.spawn('enemy_dummy', { pos: [10, 6] });
-      assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier} S${skill + 1}: cast with a ground enemy in her range`);
-      done(h);
+      const further = skill === 2 ? 'SKILL_RANGE' : 'SEARCH';
+      assert.deepEqual([sk.skillType, sk.trigger.rule, sk.trigger.rawRule, sk.trigger.official, sk.trigger.also.map((e) => e.rule)], ['MANUAL', 'TAKE_DAMAGE', 'ON_TAKE_DAMAGE', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], [further]], `T${tier} S${skill + 1}: data`);
+      assert.deepEqual(sk.trigger.also[0].customRangeGrid, skill === 2 ? sk.rangeGrid : null, `T${tier} S${skill + 1}: the further rule's grid`);
+      // official ON_TAKE_DAMAGE: a ranged hit from outside her 1-1 (and outside the S3 area) casts at the hit
+      const hit = field({ tier, elite, skill });
+      assert.deepEqual(hit.u.skill.rules, ['TAKE_DAMAGE', further], `T${tier} S${skill + 1}`);
+      hit.h.spawn('enemy_shooter', { pos: [10, 8] });
+      hit.u.skill.gainSp(999);
+      assert.ok(hit.h.runUntil(() => hit.u.skill.activations === 1, 4), `T${tier} S${skill + 1}: cast at the first hit`);
+      assert.ok(hit.h.hooksOf('damaged').some((c) => c.target === hit.u && c.source?.defId === 'enemy_shooter'), `T${tier} S${skill + 1}: it was the shooter's hit`);
+      done(hit.h);
+      // official SKILL_RANGE_ENEMY: a flyer on her front tile is no target of her ground-only attack; S1 / S2 (SEARCH) ignore it, S3 (SKILL_RANGE) casts
+      const fly = field({ tier, elite, skill });
+      fly.h.spawn('enemy_fly', { pos: [10, 6] });
+      fly.u.skill.gainSp(999);
+      fly.h.run(3);
+      assert.equal(fly.u.stats.attacks, 0, `T${tier} S${skill + 1}: ground-only — the flyer on her front tile is no target`);
+      assert.equal(fly.u.skill.activations, skill === 2 ? 1 : 0, `T${tier} S${skill + 1}: a flyer in her range ${skill === 2 ? 'casts S3 (any living enemy on its 技能范围)' : 'casts nothing (SEARCH: attackable enemies)'}`);
+      done(fly.h);
+      const ground = field({ tier, elite, skill });
+      ground.h.spawn('enemy_dummy', { pos: [10, 6] });
+      ground.u.skill.gainSp(999);
+      assert.ok(ground.h.runUntil(() => ground.u.skill.activations === 1, 3), `T${tier} S${skill + 1}: cast with a ground enemy in her range`);
+      done(ground.h);
     }
   }
 });

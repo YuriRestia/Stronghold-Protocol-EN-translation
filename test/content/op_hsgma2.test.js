@@ -82,11 +82,13 @@ test('a 自选 pick: 斩业星熊 is offered at tiers 5 and 6 (she has a kit) an
     { ok: true, picks: { [SLOT[6]]: { charId: HSG, skillIndex: 2, uniEquipId: ASTX } } });
 });
 
-test('triggers: S1 (AUTO, self buff) fires at full SP with no enemy (the kit\'s SP_FULL); S2 (AUTO) keeps the data DEFAULT; S3 (MANUAL) the data\'s ACTIVE_RANGE on its x-2 (rawRule TAKE_DAMAGE): an enemy two tiles ahead casts it, a shot from outside the x-2 does not', () => {
+test('triggers: S1 (AUTO, self buff) fires at full SP with no enemy (the kit\'s SP_FULL); S2 (AUTO) keeps the data DEFAULT; S3 (MANUAL) the official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] = TAKE_DAMAGE + SKILL_RANGE on its x-2: an enemy two tiles ahead casts it, and so does a shot from outside the x-2', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const form = formOf(tier, elite);
-    assert.deepEqual(form.skills.map((s) => [s.skillType, s.trigger.rule, s.trigger.rawRule]), [['AUTO', 'DEFAULT', 'DEFAULT'], ['AUTO', 'DEFAULT', 'DEFAULT'], ['MANUAL', 'ACTIVE_RANGE', 'TAKE_DAMAGE']], `T${tier}: data`);
-    assert.deepEqual(form.skills[2].trigger.customRangeGrid, form.skills[2].rangeGrid, `T${tier}: the running x-2`);
+    assert.deepEqual(form.skills.map((s) => [s.skillType, s.trigger.rule, s.trigger.rawRule]), [['AUTO', 'DEFAULT', 'DEFAULT'], ['AUTO', 'DEFAULT', 'DEFAULT'], ['MANUAL', 'TAKE_DAMAGE', 'ON_TAKE_DAMAGE']], `T${tier}: data`);
+    assert.deepEqual(form.skills[2].trigger.official, ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], `T${tier}: official types`);
+    assert.deepEqual(form.skills[2].trigger.also.map((a) => a.rule), ['SKILL_RANGE'], `T${tier}: the second rule`);
+    assert.deepEqual(form.skills[2].trigger.also[0].customRangeGrid, form.skills[2].rangeGrid, `T${tier}: SKILL_RANGE on the running x-2`);
     // S1: no enemy at all
     const a = field({ tier, elite, skill: 0 });
     assert.deepEqual([a.u.skill.rule, a.u.skill.spType, a.u.skill.kind], ['SP_FULL', 'hurt', 'toggle'], `T${tier} S1`);
@@ -104,15 +106,18 @@ test('triggers: S1 (AUTO, self buff) fires at full SP with no enemy (the kit\'s 
     done(b.h);
     // S3: the x-2
     const c = field({ tier, elite, skill: 2 });
-    assert.equal(c.u.skill.rule, 'ACTIVE_RANGE', `T${tier} S3`);
-    c.h.spawn('enemy_shooter', { pos: [10, 9] });
-    c.u.skill.gainSp(999);
-    c.h.run(3);
-    assert.ok(c.h.hooksOf('damaged').some((x) => x.target === c.u), `T${tier} S3: she is being shot`);
-    assert.equal(c.u.skill.activations, 0, `T${tier} S3: a hit from outside the x-2 casts nothing`);
+    assert.deepEqual(c.u.skill.rules, ['TAKE_DAMAGE', 'SKILL_RANGE'], `T${tier} S3`);
     c.h.spawn('enemy_dummy', { pos: [10, 7] });
-    assert.ok(c.h.runUntil(() => c.u.skill.activations === 1, 1), `T${tier} S3: an enemy two tiles ahead (outside her 1-1) casts it`);
+    c.u.skill.gainSp(999);
+    assert.ok(c.h.runUntil(() => c.u.skill.activations === 1, 1), `T${tier} S3: an enemy two tiles ahead (outside her 1-1, on the x-2) casts it`);
     done(c.h);
+    // the TAKE_DAMAGE entry: a shot from outside the x-2 (the shooter stands 4 tiles away) sets it off at the hit
+    const d = field({ tier, elite, skill: 2 });
+    d.h.spawn('enemy_shooter', { pos: [10, 9] });
+    d.u.skill.gainSp(999);
+    assert.ok(d.h.runUntil(() => d.u.skill.activations === 1, 3), `T${tier} S3: a hit from outside the x-2 casts it (TAKE_DAMAGE)`);
+    assert.ok(d.h.hooksOf('damaged').some((x) => x.target === d.u), `T${tier} S3: she was shot`);
+    done(d.h);
   }
 });
 

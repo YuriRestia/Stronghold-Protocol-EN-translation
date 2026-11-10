@@ -1,6 +1,6 @@
 // test/content/standin_acsupo.test.js — the 补位 stand-in Raidian (char_614_acsupo, kits/ops/standin-acsupo.js) on every
 // chess it replaces (灵知 T4 S2, 夕 / 安洁莉娜 T5 S3 + DEC-X, 浊心斯卡蒂 / 仇白 T6 S3 + DEC-X), normal and elite: every skill
-// (S1 双声, S2 三形, S3 信号跃动 with its range, auras and the data's ACTIVE_RANGE trigger), both talents (同调 on herself and
+// (S1 双声, S2 三形, S3 信号跃动 with its range, auras and the official trigger list [DEFAULT, SKILL_RANGE on y-4]), both talents (同调 on herself and
 // the operators next to her, 诱引's hit-rate cut on the attacks of the enemies in her range — PRTS 命中率), the module
 // (DEC-X SP, stats, 同调 at level 3), the 停顿 trait, anti-air; and the engine option behind S3's 虚弱 (applyStatus stackAs).
 // Run: node --test test/content/standin_acsupo.test.js
@@ -71,26 +71,27 @@ test('Raidian on every chess it replaces: the stand-in body, its kit, the backup
   }
 });
 
-test('Raidian triggers: S1 / S2 MANUAL DEFAULT; S3 the data\'s ACTIVE_RANGE over its y-4 (the owner\'s rule), the kit sets none', () => {
+test('Raidian triggers: the official row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]: S1 / S2 [DEFAULT, SEARCH]; S3 [DEFAULT, SKILL_RANGE over its y-4 rangeGrid]; the kit sets none', () => {
   for (const id of ['chess_char_4_13_a', 'chess_char_5_12_b']) {
     for (const [i, sid] of [[0, S1], [1, S2], [2, S3]]) {
       const h = arena(id, { standIn: { skillIndex: i }, sp: null });
       h.step();
       const u = h.unit(1);
-      const rule = sid === S3 ? 'ACTIVE_RANGE' : 'DEFAULT';
-      assert.deepEqual([u.skill.id, u.skill.rule, u.def.skill.trigger.rule, u.kit.skill.trigger], [sid, rule, rule, undefined], `${id} ${sid}`);
-      if (sid === S3) assert.deepEqual(u.def.skill.trigger.grid, skillOf(id, S3).rangeGrid, 'trigger grid = the skill range');
+      const rules = sid === S3 ? ['DEFAULT', 'SKILL_RANGE'] : ['DEFAULT', 'SEARCH'];
+      assert.deepEqual([u.skill.id, u.skill.rules, u.def.skill.trigger.rule, skillOf(id, sid).trigger.official, u.kit.skill.trigger],
+        [sid, rules, 'DEFAULT', ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], undefined], `${id} ${sid}`);
+      if (sid === S3) assert.deepEqual(u.skill.alsoRules[0].grid, skillOf(id, S3).rangeGrid, 'trigger grid = the skill range');
       done(h);
     }
   }
 });
 
-test('S3 ACTIVE_RANGE: an enemy only in its y-4 range ((10,7)) casts it at once, before any attack; none there, or one beyond it, no cast', () => {
+test('S3 SKILL_RANGE entry: an enemy only in its y-4 range ((10,7)) casts it at once, before any attack; none there, or one beyond it, no cast', () => {
   for (const id of ['chess_char_5_12_a', 'chess_char_6_15_b']) {
     const h = arena(id, { enemies: [{ key: 'd', pos: [10, 7] }] });
     const u = h.unit(1);
     assert.ok(h.runUntil(() => u.skill.active, 2), `${id}: cast`);
-    assert.equal(castOf(h, u).reason, 'ACTIVE_RANGE');
+    assert.equal(castOf(h, u).reason, 'SKILL_RANGE');
     assert.equal(h.hooksOf('attack').filter((c) => c.attacker === u && c.t < castOf(h, u).t).length, 0, 'no attack before (it is out of y-2)');
     assert.ok(u.rangeKeySet.has(key(10, 7)), 'then in her running range');
     h.run(3);

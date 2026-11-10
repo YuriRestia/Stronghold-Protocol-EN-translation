@@ -196,7 +196,7 @@ test('T2 追责: every cast strikes each low tile of her range ring by ring from
     const { h, u, log } = field({ tier: 5, skill });
     const e = h.spawn(pos[0] === 11 ? 'enemy_fly' : 'enemy_dummy', { pos });
     u.skill.gainSp(999);
-    if (skill === 0) h.spawn('enemy_dummy', { pos: [11, 5] });    // S1 (ACTIVE_RANGE on the 3-19) needs a ground enemy in range
+    if (skill === 0) h.spawn('enemy_dummy', { pos: [11, 5] });    // S1 (SKILL_RANGE on the 3-19, then DEFAULT) needs an enemy in range
     assert.ok(h.runUntil(() => u.skill.active, 2), `S${skill + 1}: cast`);
     const t0 = h.b.time;
     h.run(1.2);
@@ -223,11 +223,11 @@ test('T2 追责: every cast strikes each low tile of her range ring by ring from
   done(h);
 });
 
-test('S1 浩气长存 (MANUAL, 3 charges, data ACTIVE_RANGE — the SEARCH row on her larger 3-19): a 0.5 s skill on the 3-19; 0.3 s in, a 3-2 to her left, front and right each hits every ground enemy on it for 260 % / 300 % ATK × 1.11 physical (one on her tile three times, none diagonal, no flyer)', () => {
+test('S1 浩气长存 (MANUAL, 3 charges, data [SKILL_RANGE on her larger 3-19, DEFAULT] — the official 解放者 row SKILL_RANGE_ENEMY + COMBAT_OR_ATTACK): a 0.5 s skill on the 3-19; 0.3 s in, a 3-2 to her left, front and right each hits every ground enemy on it for 260 % / 300 % ATK × 1.11 physical (one on her tile three times, none diagonal, no flyer)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S1);
     const { h, u, log } = field({ tier, elite, skill: 0, silence: true });
-    assert.deepEqual([u.skill.rule, u.skill.maxCharges, sk.bb['attack@atk_scale_s1'], sk.rangeId, u.skill.spCost, sk.initSp], ['ACTIVE_RANGE', 3, elite ? 3 : 2.6, '3-19', elite ? 13 : 14, 17], `T${tier}`);
+    assert.deepEqual([u.skill.rules, u.skill.maxCharges, sk.bb['attack@atk_scale_s1'], sk.rangeId, u.skill.spCost, sk.initSp], [['SKILL_RANGE', 'DEFAULT'], 3, elite ? 3 : 2.6, '3-19', elite ? 13 : 14, 17], `T${tier}`);
     const own = h.spawn('enemy_dummy', { pos: [10, 5] }), front = h.spawn('enemy_dummy', { pos: [10, 8] });
     const left = h.spawn('enemy_dummy', { pos: [12, 5] }), right = h.spawn('enemy_dummy', { pos: [9, 5] });
     const diag = h.spawn('enemy_dummy', { pos: [11, 6] }), fly = h.spawn('enemy_fly', { pos: [11, 5] });
@@ -270,12 +270,12 @@ test('S1: "充能耗尽前特性不重置" — the ramp is kept while a charge r
   done(h);
 });
 
-test('S2 正霆摄威 (MANUAL, data SEARCH): range = the low tiles 3 four-way steps from hers (high ground and the field\'s edge stop it), 3 targets with air units for 110 % / 125 % ATK × 1.11, +10 % ATK per lightning cast up to 25, all gone after 36 s', () => {
+test('S2 正霆摄威 (MANUAL, data [SEARCH, DEFAULT]): range = the low tiles 3 four-way steps from hers (high ground and the field\'s edge stop it), 3 targets with air units for 110 % / 125 % ATK × 1.11, +10 % ATK per lightning cast up to 25, all gone after 36 s', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.bb['attack@atk_scale_s2'], sk.bb['attack@max_target_s2'], sk.bb.thunder_atk, sk.bb.thunder_max_stack_cnt, sk.duration, sk.rangeId], [elite ? 1.25 : 1.1, 3, 0.1, 25, 36, null]);
     const { h, u, log } = field({ tier, elite, skill: 1, row: 9, col: 3 });
-    assert.equal(u.skill.rule, 'SEARCH');
+    assert.deepEqual(u.skill.rules, ['SEARCH', 'DEFAULT']);
     u.skill.gainSp(999);
     const targets = [[9, 4], [10, 3], [9, 5]].map((pos) => h.spawn('enemy_dummy', { pos }));
     const fly = h.spawn('enemy_fly', { pos: [10, 4] });

@@ -85,21 +85,37 @@ test('a 自选 pick: 珊比 is offered at tiers 5 and 6 (she has a kit) and a ro
     { ok: true, picks: { [SLOT[5]]: { charId: THUMPY, skillIndex: 1, uniEquipId: PRPX } } });
 });
 
-test('triggers: every skill is MANUAL with the data\'s DEFAULT (the owner\'s 重装 exception; rawRule TAKE_DAMAGE); S1 casts with an enemy on her tile, S2 / S3 (areas larger than her range) as soon as a ground enemy is on the glue / conveyor — the kit\'s ACTIVE_RANGE; a flyer never counts', () => {
+test('triggers: every skill is MANUAL with the official list (data): S1 / S2 the 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY] = TAKE_DAMAGE + SEARCH (a hit, or a ground enemy on her tile); S3 her own row [CUSTOM_RANGE_ENEMY] = CUSTOM_RANGE on 4-1 (any enemy there, a flyer too); a flyer off her tile never casts S1 / S2', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     for (const skill of [0, 1, 2]) {
       const sk = formOf(tier, elite).skills[skill];
-      assert.deepEqual([sk.skillType, sk.trigger.rule, sk.trigger.rawRule], ['MANUAL', 'DEFAULT', 'TAKE_DAMAGE'], `T${tier} S${skill + 1}: data`);
+      const tank = skill < 2;
+      assert.deepEqual([sk.skillType, sk.trigger.rule, sk.trigger.rawRule, sk.trigger.official, (sk.trigger.also ?? []).map((a) => a.rule)],
+        tank ? ['MANUAL', 'TAKE_DAMAGE', 'ON_TAKE_DAMAGE', ['ON_TAKE_DAMAGE', 'SKILL_RANGE_ENEMY'], ['SEARCH']]
+          : ['MANUAL', 'CUSTOM_RANGE', 'CUSTOM_RANGE_ENEMY', ['CUSTOM_RANGE_ENEMY'], []], `T${tier} S${skill + 1}: data`);
+      if (!tank) assert.deepEqual(sk.trigger.customRangeGrid, [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4]], `T${tier} S3: the 4-1 belt grid`);
       const { h, u } = field({ tier, elite, skill });
-      assert.equal(u.skill.rule, skill === 0 ? 'DEFAULT' : 'ACTIVE_RANGE');
+      assert.deepEqual(u.skill.rules, tank ? ['TAKE_DAMAGE', 'SEARCH'] : ['CUSTOM_RANGE'], `T${tier} S${skill + 1}: rules`);
       h.spawn('enemy_fly', { pos: [10, 6] });
-      if (skill === 0) h.spawn('enemy_shooter', { pos: [10, 7] });
       u.skill.gainSp(999);
       h.run(3);
-      assert.deepEqual([u.skill.activations, u.stats.attacks], [0, 0], `T${tier} S${skill + 1}: no cast for a flyer (or a shooter off her tile for S1), no attack on the flyer`);
-      h.spawn('enemy_dummy', { pos: skill === 0 ? [10, 5] : [10, 7] });
-      assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier} S${skill + 1}: cast with a ground enemy ${skill === 0 ? 'on her tile' : 'on the skill area'}`);
+      if (tank) {
+        assert.deepEqual([u.skill.activations, u.stats.attacks], [0, 0], `T${tier} S${skill + 1}: no cast for a flyer, no attack on the flyer`);
+        h.spawn('enemy_dummy', { pos: [10, 5] });
+        assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier} S${skill + 1}: cast with a ground enemy on her tile (SEARCH)`);
+      } else {
+        // CUSTOM_RANGE_ENEMY counts every enemy on the grid, flyers too (official)
+        assert.equal(u.skill.activations, 1, `T${tier} S3: a flyer on the 4-1 casts it`);
+      }
       done(h);
+      if (tank) {
+        // the TAKE_DAMAGE entry: a shooter off her tile (range 3) that hits her sets it off
+        const r = field({ tier, elite, skill });
+        r.h.spawn('enemy_shooter', { pos: [10, 7] });
+        r.u.skill.gainSp(999);
+        assert.ok(r.h.runUntil(() => r.u.skill.activations === 1, 3), `T${tier} S${skill + 1}: cast at the shooter's hit (TAKE_DAMAGE)`);
+        done(r.h);
+      }
     }
   }
 });
@@ -114,9 +130,10 @@ test('S1 “还不走？” (30 s): ATK / DEF +28 % / +37 %; she strikes every e
     const at = [right, left, upE].map((e) => [e.x, e.y]);
     u.skill.gainSp(999);
     const n0 = h.hooksOf('damaged').length;
-    // the cast comes as she is about to attack: that attack is the first skill attack (same tick)
+    // official 重装 row: SEARCH is a tick rule (an enemy on her tile), so the cast comes at once; her next attack is the first skill attack
     assert.ok(h.runUntil(() => u.skill.active, 3), `T${tier}: cast`);
     assert.deepEqual(skillBuff(u).mods, { atkPct: sk.bb.atk, defPct: sk.bb.def }, `T${tier}: the skill buff`);
+    assert.ok(h.runUntil(() => h.hooksOf('damaged').slice(n0).some((c) => c.source === u && c.dmg.isAttack && c.dmg.isSkill), 3), `T${tier}: the first skill attack`);
     const hit = h.hooksOf('damaged').slice(n0).filter((c) => c.source === u && c.dmg.isAttack && c.dmg.isSkill);
     assert.equal(new Set(hit.map((c) => c.dmg.attackId)).size, 1, `T${tier}: one attack`);
     assert.deepEqual(sortN(hit.map((c) => c.target.id)), sortN([right.id, left.id, upE.id]), `T${tier}: every blocked enemy struck at once`);

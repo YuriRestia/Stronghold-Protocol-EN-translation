@@ -1128,14 +1128,16 @@ test('Touch talents: 攫升 +3 SP to the healed unit, 超脱 +5 SP when an opera
   checkInvariants(h.b);
 });
 
-test('GitHub #260: the 外勤医疗 Touch casts 恳切福音 on an injured ally only inside the skill\'s 5-2 (ACTIVE_RANGE, as the 补位 Touch); a full-HP or unhealable one does not', REAL, () => {
+test('GitHub #260: the 外勤医疗 Touch casts 恳切福音 on an injured ally only inside the skill\'s 5-2 (official MEDIC row [ATTACK_RANGE_ALLY, SKILL_RANGE_ALLY]: SKILL_RANGE with allies, as the 补位 Touch); a full-HP or unhealable one does not', REAL, () => {
   // Touch stands on (10,2) facing right: her 3-3 reaches column 5, the skill's 5-2 column 7
   const h = makeBattle({ stageId: 'act2autochess_m01', defs: { chess: { test_guard: guard({ stats: { maxHp: 10000, atk: 0 } }) } },
     units: [{ chessId: 'test_guard', row: 10, col: 7 }], autoFinish: false, timeLimit: 60 });
   h.step();
   const touch = spawnMapChar(h.b, 'p1', TOKEN_IDS.touch);
   assert.deepEqual([touch.tileR, touch.tileC], [10, 2]);
-  assert.equal(touch.skill.rule, 'ACTIVE_RANGE');
+  // an injured healable ally in her 3-3 or on the skill's 5-2 grid; the 5-2 entry reads that grid with allies
+  assert.deepEqual(touch.skill.rules, ['SKILL_RANGE', 'SKILL_RANGE']);
+  assert.ok(touch.skill.triggerAllies && touch.skill.alsoRules[0].allies && touch.skill.alsoRules[0].grid?.length > 0);
   const ally = h.unit('test_guard');
   touch.skill.gainSp(1000);
   h.run(3);

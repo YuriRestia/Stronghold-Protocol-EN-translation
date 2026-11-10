@@ -1,4 +1,7 @@
-// #440: special targeting supplies the DEFAULT attack opportunity, without extending S2 links.
+// #440: special targeting (a summon-blocked remote target her attacks select) opens her skills, without extending S2 links.
+// Since 2026-11-10 her S1 / S2 follow the official CASTER row (ATTACK_RANGE_ENEMY or SKILL_RANGE_ENEMY: SEARCH — the
+// client polls the attack trigger's Search every 0.2 s, AutoChessBattleTrigger), so such a target opens the skill at once,
+// not at her next attack as the basic strategy's DEFAULT did.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
@@ -24,11 +27,13 @@ function field(skillIndex, kind = 'unite') {
 }
 function done(h) { checkInvariants(h.b);assert.deepEqual(h.b.errors, []); }
 for (const kind of ['normal', 'unite']) for (const skillIndex of [0, 1]) {
-  test(`Necras S${skillIndex + 1} starts on its next attack against a summon-blocked remote target (${kind})`, () => {
+  test(`Necras S${skillIndex + 1} starts at once against a summon-blocked remote target, before her next attack (${kind})`, () => {
     const { h, u, e } = field(skillIndex, kind);
+    assert.deepEqual(u.skill.rules, ['SEARCH'], 'the CASTER row: no 技能范围, so the attack range');
     u.skill.gainSp(999);u.atkCd = 0.7;
-    h.run(0.3);assert.equal(u.skill.activations, 0, 'retain attack cadence');
-    h.run(0.6);assert.equal(u.skill.activations, 1);
+    h.run(0.3);assert.equal(u.skill.activations, 1, 'the remote target in her attack trigger opens it with her attack still cooling down');
+    assert.ok(u.atkCd > 0, 'cast between attacks');
+    h.run(0.6);assert.equal(u.skill.activations, 1, 'one cast');
     if (skillIndex === 1) assert.ok(!u.mem.necrasLinks?.some((l) => l.e === e), 'remote trigger does not extend S2 effect range');
     done(h);
   });
@@ -37,7 +42,7 @@ test('remote Necras trigger needs a selectable enemy and the owning summon', () 
   const { h, u, e, summon } = field(1);
   e.base.moveSpeed = 0;e.markDirty();
   h.b.applyStatus(e, 'sleep', { duration: 5 });u.skill.gainSp(999);u.atkCd = 0;
-  h.run(1);assert.equal(u.skill.activations, 0, 'sleep cannot open DEFAULT');
+  h.run(1);assert.equal(u.skill.activations, 0, 'a sleeping remote target cannot open it');
   h.b.retreat(summon, { reason: 'test' });
   h.run(5);assert.equal(u.skill.activations, 0, 'expired block does not retain an extra trigger');
   done(h);

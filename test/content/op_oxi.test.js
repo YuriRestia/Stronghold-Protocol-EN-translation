@@ -71,9 +71,10 @@ test('塔露拉 in every 自选 form: her operator kit (all three skills authore
       assert.deepEqual([u.base.maxHp, u.base.atk, u.base.def, u.base.res], [form.stats.maxHp, form.stats.atk, form.stats.def, form.stats.res], `${label(f)}: stats`);
       assert.deepEqual([u.s.blockCnt, u.profile.attack, u.profile.canHitFly, u.profile.dmgType, u.base.bat], [2, 'melee', false, 'arts', form.stats.bat], `${label(f)}: 本源近卫, 绝不妥协`);
       assert.deepEqual(u.liveRangeGrid, form.rangeGrid, `${label(f)}: 1-1`);
-      // S1 / S3: the data's DEFAULT; S2: never by the strategy (the prefab's NeverTrigger — its guard casts it)
-      assert.equal(u.skill.rule, skill === 1 ? 'NEVER' : 'DEFAULT', `${label(f)}: trigger`);
-      assert.equal(sk.trigger.rule, 'DEFAULT', 'the data rule');
+      // S1: the data's DEFAULT (AUTO); S2: never by the strategy (the prefab's NeverTrigger — its guard casts it); S3: SP_FULL,
+      // the official CN season 3 operator row (char_4247_oxi skillIndex 2 ALWAYS, tools/versions/official-skill-triggers.json)
+      assert.equal(u.skill.rule, ['DEFAULT', 'NEVER', 'SP_FULL'][skill], `${label(f)}: trigger`);
+      assert.deepEqual([sk.trigger.rule, sk.trigger.rawRule], [skill === 2 ? 'SP_FULL' : 'DEFAULT', skill === 2 ? 'ALWAYS' : 'DEFAULT'], 'the data rule');
       assert.deepEqual([u.skill.spCost, u.skill.maxCharges, u.skill.initSp], [sk.spCost, sk.maxChargeTime, sk.initSp], `${label(f)}: SP`);
       assert.equal(u.skill.kind, ['instant', 'charges', 'duration'][skill], `${label(f)}: kind`);
       done(h);
@@ -486,7 +487,7 @@ test('S2 centre: without a source an enemy she blocks, else a ground enemy of he
   done(h);
 });
 
-test('S3 日冕重烈 (MANUAL, DEFAULT, 36 s): ATK +atk, no attack; a volley at once and every 80 frames, 过载 from half its duration (a volley at once, then every 60 frames); it runs its full duration', () => {
+test('S3 日冕重烈 (MANUAL, SP_FULL, 36 s): ATK +atk, no attack; a volley at once and every 80 frames, 过载 from half its duration (a volley at once, then every 60 frames); it runs its full duration', () => {
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, 2), b = sk.bb;
@@ -510,6 +511,21 @@ test('S3 日冕重烈 (MANUAL, DEFAULT, 36 s): ATK +atk, no attack; a volley at 
     const want = [0, 80, 160, 240, 320, 400, 480, 540, 600, 660, 720, 780, 840, 900, 960, 1020];
     assert.deepEqual(rel, want, `${label(f)}: 80 frames (2.67 s), from 18 s 60 frames`);
     assert.ok(volleys.every(([, n]) => n === 4), `${label(f)}: every row of the field (4 < 5)`);
+    done(h);
+  }
+});
+
+test('S3 trigger SP_FULL (CN season 3 ALWAYS): cast once her SP is full, after the battle-start operation cooldown, with no enemy near her; never before', () => {
+  for (const f of FORMS_ALL) {
+    const [tier, elite] = f;
+    const sk = skillOf(tier, elite, 2);
+    const { h, u } = field({ tier, elite, skill: 2 });
+    h.spawn('enemy_dummy', { pos: [2, 12] });   // far outside her 1-1 (and the S3 lanes do not need it)
+    const ready = (sk.spCost - sk.initSp) / formOf(tier, elite).stats.spRecovery;   // 7 s: 38 → 45 at 1 SP/s
+    assert.ok(!h.runUntil(() => u.skill.active, ready - 0.2), `${label(f)}: not before its SP is full`);
+    assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast at ${ready} s with no enemy in her range`);
+    const at = h.hooksOf('skillStart').find((c) => c.unit === u).t;
+    assert.ok(Math.abs(at - ready) <= h.b.dt + 1e-6, `${label(f)}: at ${at} (ready ${ready}, one tick either way)`);
     done(h);
   }
 });

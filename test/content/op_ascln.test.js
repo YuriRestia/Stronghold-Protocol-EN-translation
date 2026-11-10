@@ -75,7 +75,12 @@ test('阿斯卡纶 in every 自选 form: her kit (all three skills authored), th
       done(h);
     }
   }
-  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'ACTIVE_RANGE']);
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.rule), ['DEFAULT', 'DEFAULT', 'DEFAULT']);
+  // S1 is AUTO (own DEFAULT). S2 / S3 are MANUAL with the official row [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]: S2 has no rangeGrid
+  // (SKILL_RANGE_ENEMY = SEARCH); S3 reads its y-10 rangeGrid (SKILL_RANGE on it, an enemy there casts at once)
+  assert.deepEqual(formOf(6, true).skills.map((s) => s.trigger.official), [undefined, ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY'], ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY']]);
+  assert.deepEqual(formOf(6, true).skills.map((s) => (s.trigger.also ?? []).map((a) => a.rule)), [[], ['SEARCH'], ['SKILL_RANGE']]);
+  assert.deepEqual(formOf(6, true).skills[2].trigger.also[0].customRangeGrid, skillOf(6, true, S3).rangeGrid);
   assert.deepEqual([modOf(5, AX).attr, modOf(6, AX).attr, modOf(5, AY).attr, modOf(6, AY).attr],
     [{ maxHp: 180, atk: 15 }, { maxHp: 270, atk: 53 }, { atk: 55, def: 25 }, { atk: 80, def: 60 }]);
   const data = { chess: CHESS, backups: BACKUPS };
@@ -188,12 +193,12 @@ test('S1 追袭 (AUTO, 2 / 3 charges, data DEFAULT): the next attack strikes eve
   }
 });
 
-test('S2 恩赐 (MANUAL, 35 s, data DEFAULT): ATK +50 % / +90 %; every enemy of her range — air units too (PRTS 修正) — moves ×0.7 / ×0.6; a ground enemy of her range knocked out gives one 死亡拘审 layer to the ground enemies within 1.3 of it (not flyers, not beyond)', () => {
+test('S2 恩赐 (MANUAL, 35 s, data [DEFAULT, SEARCH] = official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): ATK +50 % / +90 %; every enemy of her range — air units too (PRTS 修正) — moves ×0.7 / ×0.6; a ground enemy of her range knocked out gives one 死亡拘审 layer to the ground enemies within 1.3 of it (not flyers, not beyond)', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb.atk, sk.bb.move_speed, sk.bb.range_radius], [35, elite ? 24 : 27, elite ? 10 : 5, elite ? 0.9 : 0.5, elite ? -0.4 : -0.3, 1.3], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 1 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'DEFAULT']);
+    assert.deepEqual([u.skill.kind, ...u.skill.rules], ['duration', 'DEFAULT', 'SEARCH']);
     const weak = h.spawn('enemy_weak', { pos: [10, 6] });
     h.b.addBuff(weak, { key: 'test:dodge', mods: { dodgePhys: 1 } });
     const near = h.spawn('enemy_dummy', { pos: [11, 6] });   // 1 tile from it, in her range too
@@ -221,13 +226,13 @@ test('S2 恩赐 (MANUAL, 35 s, data DEFAULT): ATK +50 % / +90 %; every enemy of 
   }
 });
 
-test('S3 降临 (MANUAL, 45 s, data ACTIVE_RANGE on y-10): an enemy only on y-10 casts it; range y-10; ATK +20 %, interval 3.5 − 1.2 / 1.5 s, taunt level −1 → +1; ground enemies of her range miss 15 % / 30 % of their attacks (one roll per attack), and a miss on her or a dodge of hers heals 4 % / 5 % of her max HP', () => {
+test('S3 降临 (MANUAL, 45 s, data [DEFAULT, SKILL_RANGE on y-10] = official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): an enemy only on y-10 casts it; range y-10; ATK +20 %, interval 3.5 − 1.2 / 1.5 s, taunt level −1 → +1; ground enemies of her range miss 15 % / 30 % of their attacks (one roll per attack), and a miss on her or a dodge of hers heals 4 % / 5 % of her max HP', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     assert.deepEqual([sk.duration, sk.spCost, sk.initSp, sk.bb.atk, sk.bb.base_attack_time, sk.bb.taunt_level, sk.bb['attack@hp_ratio'], sk.bb['attack@damage_hitrate_physical'], sk.rangeId],
       [45, elite ? 49 : 53, elite ? 30 : 25, 0.2, elite ? -1.5 : -1.2, 2, elite ? 0.05 : 0.04, elite ? -0.3 : -0.15, 'y-10'], `T${tier}`);
     const { h, u } = field({ tier, elite, skill: 2 });
-    assert.deepEqual([u.skill.kind, u.skill.rule], ['duration', 'ACTIVE_RANGE']);
+    assert.deepEqual([u.skill.kind, ...u.skill.rules], ['duration', 'DEFAULT', 'SKILL_RANGE']);
     u.skill.gainSp(999);
     const far = h.spawn('enemy_dummy', { pos: [12, 5] });   // [2,0]: in y-10, not in y-1
     assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: cast for [2,0]`);

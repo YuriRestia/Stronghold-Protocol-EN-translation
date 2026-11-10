@@ -1,8 +1,9 @@
 // test/sim/feedback5-cb3-pins.test.js — community reports of 2026-10-06 that this tree already answers (stream CB3; they pass
 // on the parent commit — nothing changed for them), pinned:
 //   item 2 「敌人在干员铃兰技能范围内没有开技能，在攻击范围才开」 — 铃兰's default S3 狐火渺然 ("攻击范围扩大") was on the basic
-//     strategy up to 0.1.4 (DEFAULT: an enemy in her own 2-tile range); 0.2.0's ACTIVE_RANGE (the owner's rule of 2026-10-05,
-//     tools/build-data.mjs resolveTrigger) casts it with an enemy inside its running range y-8 (3 tiles ahead).
+//     strategy up to 0.1.4 (DEFAULT: an enemy in her own 2-tile range); the live client's official list
+//     [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY] (official-skill-triggers.json) casts it with an enemy inside its skill range y-8
+//     (3 tiles ahead): DEFAULT, then SKILL_RANGE on y-8.
 //   item 16.1 「突袭转职玛恩纳…攻击范围里有怪的时候即使长时间没攻击也不会突袭」 — the bond text itself: "干员10秒内未进行攻击或技能
 //     就绪时，若范围内没有敌人，则…再部署": a 解放者 never attacks with his skill off, so his 10 s are always met, and an enemy in
 //     his range is the one thing that holds the jump — as for every member.
@@ -22,12 +23,13 @@ import { prdConstant } from '../../server/sim/content/bonds/core.js';
 const ds = getDefaultSource();
 const dummy = (key, o = {}) => enemyRec({ key, hp: 1e9, speed: 0, mass: 0, atk: 0, ...o });
 
-test('item 2 — 铃兰 S3 狐火渺然: ACTIVE_RANGE on its y-8; casts with an enemy 3 tiles ahead (outside her own range), not 4', () => {
+test('item 2 — 铃兰 S3 狐火渺然: DEFAULT + SKILL_RANGE on its y-8; casts with an enemy 3 tiles ahead (outside her own range), not 4', () => {
   for (const id of ['chess_char_5_10_a', 'chess_char_5_10_b']) {
     const rec = ds.rawChess(id);
     const s3 = rec.skills.find((s) => s.skillId === 'skchr_lisa_3');
-    assert.deepEqual([rec.skill.skillId, s3.trigger.rule, s3.trigger.rawRule], ['skchr_lisa_3', 'ACTIVE_RANGE', 'DEFAULT'], `${id}: her default S3`);
-    assert.ok(!rec.rangeGrid.some(([r, c]) => r === 0 && c === 3) && s3.trigger.customRangeGrid.some(([r, c]) => r === 0 && c === 3), `${id}: 3 ahead is in y-8 only`);
+    assert.deepEqual([rec.skill.skillId, s3.trigger.rule, s3.trigger.rawRule, s3.trigger.official], ['skchr_lisa_3', 'DEFAULT', 'COMBAT_OR_ATTACK', ['COMBAT_OR_ATTACK', 'SKILL_RANGE_ENEMY']], `${id}: her default S3`);
+    assert.deepEqual(s3.trigger.also.map((e) => e.rule), ['SKILL_RANGE'], `${id}: the skill-range entry`);
+    assert.ok(!rec.rangeGrid.some(([r, c]) => r === 0 && c === 3) && s3.trigger.also[0].customRangeGrid.some(([r, c]) => r === 0 && c === 3), `${id}: 3 ahead is in y-8 only`);
     const casts = (pos) => {
       const h = makeBattle({ seed: 3, autoFinish: false, timeLimit: 60, defs: { enemies: { enemy_pin: dummy('enemy_pin') } }, units: [{ chessId: id, row: 10, col: 4 }] });
       h.step();

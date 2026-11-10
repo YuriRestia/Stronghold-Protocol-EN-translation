@@ -248,25 +248,37 @@ test('S1 策略：超压链接 (AUTO, attack SP 5 / 3, data DEFAULT — the next
   }
 });
 
-test('S2 策略：超负荷 (MANUAL, data SKILL_RANGE on y-2: an enemy there; 30 s): her 重构体 in range is her heal target, even at full HP with nobody injured; 0.6 s after her attack healed it a second chain starts on it', () => {
+test('S2 策略：超负荷 (MANUAL, data SKILL_RANGE with allies = official MEDIC row [ATTACK_RANGE_ALLY, SKILL_RANGE_ALLY]: an injured ally in her range or on y-2; 30 s): her 重构体 in range is her heal target, even at full HP with nobody injured; 0.6 s after her attack healed it a second chain starts on it', () => {
   for (const f of [[5, false, null], [6, true, XAHX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S2);
     assert.deepEqual([sk.duration, sk.trigger.rule, sk.rangeId, sk.spCost, sk.initSp], [30, 'SKILL_RANGE', 'y-2', 15, elite ? 8 : 7], label(f));
+    assert.deepEqual([sk.trigger.official, sk.trigger.allies, sk.trigger.also.map((a) => [a.rule, a.allies, a.customRangeGrid.length])], [['ATTACK_RANGE_ALLY', 'SKILL_RANGE_ALLY'], true, [['SKILL_RANGE', true, 12]]], label(f));
     const others = [{ uid: 3, chessId: YAK, row: 11, col: 5 }, { uid: 4, chessId: ESTELLE, row: 12, col: 6 }];
     const { h, u, p, log } = field({ tier, elite, mod, skill: 1, prosts: { row: 10, col: 5 }, others });
     const yak = h.unit(3), tx = h.unit(4);
-    assert.equal(u.skill.rule, 'SKILL_RANGE');
-    u.skill.gainSp(999);
-    setHp(yak, 0.3);
-    h.run(2);
-    assert.equal(u.skill.activations, 0, `${label(f)}: an injured ally, no enemy: no cast`);
-    h.spawn('enemy_dummy', { pos: [9, 6] });
-    assert.ok(h.runUntil(() => u.skill.active, 0.5), `${label(f)}: an enemy in her y-2`);
-    approx(u.skill.timeLeft, 30, `${label(f)}: 30 s`, 0.05);
-    // 角峰 is lower, the 重构体 is still the target
+    assert.deepEqual(u.skill.rules, ['SKILL_RANGE', 'SKILL_RANGE']);
+    {
+      // no 重构体 on the field: the MEDIC row waits for an injured ally — nobody injured and an enemy alone do not cast it
+      const r = field({ tier, elite, mod, skill: 1, others: [{ uid: 3, chessId: YAK, row: 11, col: 5 }] });
+      r.u.skill.gainSp(999);
+      r.h.run(2);
+      assert.equal(r.u.skill.activations, 0, `${label(f)}: nobody injured: no cast`);
+      r.h.spawn('enemy_dummy', { pos: [9, 6] });
+      r.h.run(2);
+      assert.equal(r.u.skill.activations, 0, `${label(f)}: an enemy alone: no cast`);
+      setHp(r.h.unit(3), 0.3);
+      assert.ok(r.h.runUntil(() => r.u.skill.active, 0.5), `${label(f)}: an injured ally in her range casts it`);
+      done(r.h);
+    }
+    // with her 重构体 in range (a heal target even at full HP) the SP-full tick casts it at once — 角峰 is lower, the 重构体
+    // is still the target (set before the cast: its first attack heal follows within a tick)
     setHp(p, 0.9); setHp(yak, 0.2);
     let n0 = log.length;
+    u.skill.gainSp(999);
+    h.spawn('enemy_dummy', { pos: [9, 6] });
+    assert.ok(h.runUntil(() => u.skill.active, 0.5), `${label(f)}: the 重构体 in her range is a heal target`);
+    approx(u.skill.timeLeft, 30, `${label(f)}: 30 s`, 0.05);
     assert.ok(h.runUntil(() => healsOf(log, u, n0).length > 0, 4), label(f));
     const first = healsOf(log, u, n0);
     assert.equal(first[0].target, p, `${label(f)}: the 重构体 first`);
@@ -287,12 +299,12 @@ test('S2 策略：超负荷 (MANUAL, data SKILL_RANGE on y-2: an enemy there; 30
   }
 });
 
-test('S3 策略：熔毁 (MANUAL, data DEFAULT, 25 s): refused without her 重构体; with it: it is withdrawn and she moves onto its tile — x-4, ATK +, interval 1.35 s, block 3, max HP +5000 (ratio kept), 流失 80/s; true damage on every ground enemy she blocks, a chain heal on herself (0.5 ATK, a free link) each attack; back at the end with SP 0, the 重构体 returns', () => {
+test('S3 策略：熔毁 (MANUAL, data SKILL_RANGE with allies = official MEDIC row, 25 s): refused without her 重构体; with it: it is withdrawn and she moves onto its tile — x-4, ATK +, interval 1.35 s, block 3, max HP +5000 (ratio kept), 流失 80/s; true damage on every ground enemy she blocks, a chain heal on herself (0.5 ATK, a free link) each attack; back at the end with SP 0, the 重构体 returns', () => {
   for (const f of [[5, false, null], [6, true, XAHX]]) {
     const [tier, elite, mod] = f;
     const sk = skillOf(tier, elite, S3);
-    assert.deepEqual([sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb.block_cnt, sk.bb.max_hp, sk.bb.damage_per_second, sk.bb['attack@heal_scale'], sk.rangeId, sk.trigger.rule],
-      [25, elite ? 2.8 : 2.5, -1.5, 2, 5000, 80, 0.5, 'x-4', 'DEFAULT'], label(f));
+    assert.deepEqual([sk.duration, sk.bb.atk, sk.bb.base_attack_time, sk.bb.block_cnt, sk.bb.max_hp, sk.bb.damage_per_second, sk.bb['attack@heal_scale'], sk.rangeId, sk.trigger.rule, sk.trigger.allies, sk.trigger.official],
+      [25, elite ? 2.8 : 2.5, -1.5, 2, 5000, 80, 0.5, 'x-4', 'SKILL_RANGE', true, ['ATTACK_RANGE_ALLY', 'SKILL_RANGE_ALLY']], label(f));
     // refused without the 重构体 (destroyed: its piece waits)
     const r0 = field({ tier, elite, mod, skill: 2, prosts: { row: 10, col: 6 }, others: [{ uid: 3, chessId: YAK, row: 11, col: 4 }] });
     r0.h.b.kill(r0.p, null);

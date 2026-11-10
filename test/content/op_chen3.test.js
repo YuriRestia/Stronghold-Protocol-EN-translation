@@ -275,12 +275,12 @@ test('S1 赤霄·奔夜 (MANUAL, data DEFAULT): ATK +65 % / +80 % for 18 s, ever
   done(h);
 });
 
-test('S2 赤霄·绝影-驰 (MANUAL, 技能范围 x-1, data SKILL_RANGE): 10 slashes on the nearest enemy, 0.4 s apart, 390 % / 430 % ATK arts; 无敌, blocks nobody, no attack, stun immune; then a 【移动】 onto its tile and 6 s of ATK +230 % / +260 % with 40 % / 50 % physical and arts dodge', () => {
+test('S2 赤霄·绝影-驰 (MANUAL, 技能范围 x-1, data SP_FULL = official [ALWAYS]): 10 slashes on the nearest enemy, 0.4 s apart, 390 % / 430 % ATK arts; 无敌, blocks nobody, no attack, stun immune; then a 【移动】 onto its tile and 6 s of ATK +230 % / +260 % with 40 % / 50 % physical and arts dodge', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S2);
     const { h, u } = field({ tier, elite, skill: 1 });
     assert.deepEqual([u.skill.rule, sk.rangeId, sk.duration, sk.bb.atk_scale, sk.bb['chen3_s2[respawn_buff].atk'], sk.bb['chen3_s2[respawn_buff].prob']],
-      ['SKILL_RANGE', 'x-1', 6, elite ? 4.3 : 3.9, elite ? 2.6 : 2.3, elite ? 0.5 : 0.4], `T${tier}`);
+      ['SP_FULL', 'x-1', 6, elite ? 4.3 : 3.9, elite ? 2.6 : 2.3, elite ? 0.5 : 0.4], `T${tier}`);
     u.skill.gainSp(999);
     const near = h.spawn('enemy_dummy', { pos: [11, 6] });      // √2 away
     const far = h.spawn('enemy_dummy', { pos: [10, 7] });       // 2 away
@@ -348,12 +348,14 @@ test('S2: a slashed enemy that falls hands the slashes to the nearest one within
   }
 });
 
-test('S3 赤霄·天喟 (MANUAL, data ACTIVE_RANGE on 3-12): range 3-12, each attack hits up to 3 ground enemies 3 times for 165 % / 180 % ATK arts; back to 1-1 after 20 s', () => {
+test('S3 赤霄·天喟 (MANUAL, data [DEFAULT, SKILL_RANGE on 3-12] = official [COMBAT_OR_ATTACK, SKILL_RANGE_ENEMY]): range 3-12, each attack hits up to 3 ground enemies 3 times for 165 % / 180 % ATK arts; back to 1-1 after 20 s', () => {
   for (const [tier, elite] of [[5, false], [6, true]]) {
     const sk = skillOf(tier, elite, S3);
     const { h, u } = field({ tier, elite, skill: 2 });
+    assert.deepEqual(u.skill.rules, ['DEFAULT', 'SKILL_RANGE']);
+    assert.deepEqual(u.skill.alsoRules[0].grid, sk.rangeGrid, 'the SKILL_RANGE entry reads the 3-12 grid');
     assert.deepEqual([u.skill.rule, sk.rangeId, sk.duration, sk.bb['attack@atk_scale'], sk.bb['attack@max_target'], sk.bb.hp_ratio, sk.bb.projectile_min_atk_scale],
-      ['ACTIVE_RANGE', '3-12', 20, elite ? 1.8 : 1.65, 3, 0.06, elite ? 5.5 : 5.3], `T${tier}`);
+      ['DEFAULT', '3-12', 20, elite ? 1.8 : 1.65, 3, 0.06, elite ? 5.5 : 5.3], `T${tier}`);
     u.skill.gainSp(999);
     const ground = [[10, 7], [9, 6], [11, 6], [10, 8]].map((pos) => h.spawn('enemy_dummy', { pos }));
     const fly = h.spawn('enemy_fly', { pos: [11, 5] });
