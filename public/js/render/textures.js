@@ -1431,6 +1431,12 @@ export function ringArc(frac) {
 
 /** Redeploy-ring label style (the seconds left, "DP", "!"); `fill` is set per label. */
 export const DOWN_LABEL_STYLE = Object.freeze({ fontFamily: 'Bender, Oxanium, "Noto Sans SC", sans-serif', fontSize: 32, fontWeight: '700', fill: '#ffffff', stroke: '#0b0f0e', strokeThickness: 6 });
+/**
+ * (fork) The stored-charges count's style (render/units.js CHARGE_MARK), as the official `text_skill_cnt` label in
+ * [uc]battlecommon char_skill_mark_panel: Novecento Wide Normal (self-hosted, fonts.css), no outline, a half-black Shadow
+ * offset (1, -1). `trim` cuts the canvas to the drawn glyph, so anchor 0.5 centres the digit itself, not its line box.
+ */
+export const CHARGE_LABEL_STYLE = Object.freeze({ fontFamily: '"Novecento Wide", Bender, sans-serif', fontSize: 32, fontWeight: '400', fill: '#ffd900', trim: true, dropShadow: true, dropShadowColor: '#000000', dropShadowAlpha: 0.5, dropShadowAngle: Math.PI / 4, dropShadowDistance: 1.6, dropShadowBlur: 0 });
 const _downLabels = new Map();
 
 /**
@@ -1440,14 +1446,20 @@ const _downLabels = new Map();
  * same few numbers; the shared one is drawn once and kept, the same pixels. At most 80 counts (the longest respawn in
  * chess.json) + "DP" + "!" per resolution, ≈ 2.5 MB at resolution 2.
  */
-export function downLabel(label, fill, resolution = 1) {
-  const key = `${label}|${fill}|${resolution}`;
+export function downLabel(label, fill, resolution = 1, style = DOWN_LABEL_STYLE) {
+  const key = `${label}|${fill}|${resolution}|${style === DOWN_LABEL_STYLE ? '' : style.fontFamily}`;
   let t = _downLabels.get(key);
   if (!t) {
-    t = new (PIXI().Text)(label, { ...DOWN_LABEL_STYLE, fill });
+    t = new (PIXI().Text)(label, { ...style, fill });
     t.resolution = resolution;
     t.updateText(false);
     _downLabels.set(key, t);
+    // (fork) a face only a canvas asks for is never fetched by the page: load it, then redraw this label in it
+    const fonts = globalThis.document?.fonts;
+    const spec = `${style.fontWeight} ${style.fontSize}px ${style.fontFamily}`;
+    try {
+      if (fonts && !fonts.check(spec)) fonts.load(spec).then(() => { try { t.updateText(false); } catch { /* keep */ } }, () => {});
+    } catch { /* no font loading API */ }
   }
   return t.texture;
 }
@@ -1457,4 +1469,27 @@ export function refreshDownLabels() {
   for (const t of _downLabels.values()) {
     try { t.updateText(false); } catch { /* keep the old glyphs */ }
   }
+}
+
+const _uiArt = new Map();
+/**
+ * (fork) An official UI sprite by its manifest URL (assets.ui, e.g. battleUi/sprite_auto) as a texture once it has loaded,
+ * null before that, without a URL or when it failed — the caller draws its own stand-in meanwhile. Loaded once per URL.
+ */
+export function uiArtTexture(url) {
+  if (!url) return null;
+  let e = _uiArt.get(url);
+  if (!e) {
+    e = { tex: null, failed: false };
+    _uiArt.set(url, e);
+    try {
+      const t = PIXI().Texture.from(url);
+      if (t.baseTexture.valid) e.tex = t;
+      else {
+        t.baseTexture.once('loaded', () => { e.tex = t; });
+        t.baseTexture.once('error', () => { e.failed = true; });
+      }
+    } catch { e.failed = true; }
+  }
+  return e.failed ? null : e.tex;
 }

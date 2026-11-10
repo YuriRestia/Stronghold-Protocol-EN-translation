@@ -89,7 +89,7 @@ import { SpineActor } from './spine.js';
 import { skillAttackMode } from './skillAttack.js';
 import { ATTACK_CLIPS } from './vfx/wiring.js';
 import { MANIFOLD, isManifold, manifoldCopyForm, manifoldAttackForm } from './manifold.js';
-import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, HUD_DISC, ELEMENT_RING } from './textures.js';
+import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, uiArtTexture, CHARGE_LABEL_STYLE, HUD_DISC, ELEMENT_RING } from './textures.js';
 import { COLORS, TIER_COLORS, ENEMY_FRAME, UNIT, PROJ, statusIconKey, statusIconSuppressed, statusValueLabel } from './style.js';
 import { drawCrate, rowDepthKey, ROW_KEY, deviceBoxOf, DEVICE_BOX } from './tiles.js';
 import { startAtkInterval, nextAtkInterval, clampAtkInterval } from './attackRate.js';
@@ -257,6 +257,16 @@ export const DOWN_LOOK = Object.freeze({
   ring: Object.freeze({ [DOWN_STATE.COUNTING]: 0x4ed8af, [DOWN_STATE.WAIT_DP]: 0xffc600, [DOWN_STATE.WAIT_TILE]: 0xff4b3e }),
   size: 0.42, height: 1.02,
 });
+/**
+ * (fork) Stored skill charges over the head (b.snap `charges`: a skill with maxCharges > 1, at least one stored) — the
+ * official auto-skill mark (client UIHudCharSkillMarkPanel `auto_skill_ready`, prefab char_skill_mark_panel in
+ * arts/ui/[uc]battlecommon): a 25 % black disc (ui_battle_new/sprite_circle, 36 of the ring's 50) inside a yellow ring
+ * (ui_battle_new/sprite_auto) with the count in the same yellow (text_skill_cnt, textures.js CHARGE_LABEL_STYLE), colour
+ * (1, 0.851, 0); `digit` is the count's glyph height in ring diameters, centred (measured on a client frame). `size` is the
+ * ring's diameter in tiles with its pixel clamp, `gap` the px above the bars / status icons; `spin` (turns per second)
+ * and the stand-in drawn while the official art is missing (the redeploy ring's disc and full arc) are [ASSUMED].
+ */
+export const CHARGE_MARK = Object.freeze({ color: 0xffd900, fill: '#ffd900', size: 0.36, min: 18, max: 40, gap: 2, disc: 36 / 50, discAlpha: 0.251, digit: 0.42, spin: 0.25 });
 /**
  * An enemy drawn with another enemy's web model because its own is only in the local client (manifest `spineAliasOf`
  * + `spineLocal`: 灼热 / 炽焰源石虫 → the plain 源石虫's skeleton, feedback D3 after 0.1.0): a multiply tint toward its own
@@ -879,6 +889,7 @@ export class UnitView {
     this._wolfPips = null;        // { root, back[], lit[] } diamonds of the 狼影 row, built on first use
     this.ammoCuts = [];           // the thin separators between the ammo bar's cells (_updateAmmoCuts)
     this._downRing = null;        // { disc, track, arc, text } sprites (text: the shared label, textures.js downLabel), built on first use
+    this._chargeMark = null;      // (fork) { disc, ring, text } of the stored-charges mark over the head (CHARGE_MARK), built on first use
     this.alpha = 1; this.fadeIn = this.prep ? 1 : 0;
     this.lunge = 0; this.lungeDir = { x: 1, y: 0 };
     this.flash = 0;
@@ -2393,6 +2404,11 @@ export class UnitView {
     const energyH = this._updateEnergy(showBars && !this.isEnemy && !!this.energy && this.ctx.settings?.ammoEnergyCount === true, x0, rowsTop + wolfH + coinH, s);
     this._updateElementBar(showBars && !!this.el, x0, bw, rowsTop + wolfH + coinH + energyH + 1, spH, s, t);
     this._updateDownRing(!prep && !!this.down && !this.alive, x, this.screen.y - DOWN_LOOK.height * s, s, t);
+    // (fork) stored skill charges over the head (CHARGE_MARK): above the bars, and above the status icons when any show
+    const ch = !this.isEnemy ? this.charges : null;
+    const iconRow = this.icons.some((ic) => ic.visible);
+    this._updateChargeMark(showBars && Array.isArray(ch) && ch[1] > 1 && ch[0] >= 1, x,
+      (iconRow ? iy - isz / 2 : cy - bh / 2) - CHARGE_MARK.gap, s, t);
     // blocked marker at the feet (enemies held by a blocker)
     const blocked = !prep && this.alive && this.isEnemy && (this.flags & UF.BLOCKED);
     this.blockIcon.visible = !!blocked;
@@ -2649,18 +2665,35 @@ export class UnitView {
    * Redeploy ring above a knocked-down operator (see header), centred on (cx, cy): a mint arc filling as its respawn
    * timer runs with the seconds left; a full pulsing amber ring with "DP" / red ring with "!" once it only waits.
    */
+  /**
+   * (fork) A round badge over the head — the redeploy ring and the charge mark share it: one sprite per texture (centred,
+   * in this order) and a label sprite last, on one container in the HUD. `badgeLabel` sets the label.
+   */
+  _headBadge(...textures) {
+    const P = this.P;
+    const root = new P.Container();
+    const mk = (tx) => { const sp = new P.Sprite(tx); sp.anchor.set(0.5); root.addChild(sp); return sp; };
+    const parts = textures.map(mk);
+    const text = mk(P.Texture.EMPTY);
+    this.hud.addChild(root);
+    return { root, parts, text, label: null, fill: null, res: 0 };
+  }
+
+  /** (fork) A head badge's label in `fill` (the shared ring label cache, textures.js downLabel), redrawn on a change only. */
+  _badgeLabel(r, label, fill, style) {
+    const res = this.ctx.renderer?.resolution || 1;
+    if (r.label === label && r.fill === fill && r.res === res) return;
+    r.label = label; r.fill = fill; r.res = res;
+    r.text.texture = downLabel(label, fill, res, style);
+  }
+
   _updateDownRing(show, cx, cy, s, t) {
     let r = this._downRing;
     if (!show) { if (r) r.root.visible = false; return; }
     const tex = hudRings();
     if (!r) {
-      const P = this.P;
-      const root = new P.Container();
-      const mk = (tx) => { const sp = new P.Sprite(tx); sp.anchor.set(0.5); root.addChild(sp); return sp; };
-      const disc = mk(tex.downDisc), track = mk(tex.track), arc = mk(tex.arcs[0]);
-      const text = mk(P.Texture.EMPTY);
-      r = this._downRing = { root, disc, track, arc, text, label: null, res: 0 };
-      this.hud.addChild(root);
+      r = this._downRing = this._headBadge(tex.downDisc, tex.track, tex.arcs[0]);
+      [r.disc, r.track, r.arc] = r.parts;
     }
     const dn = this.down;
     const counting = dn.state === DOWN_STATE.COUNTING;
@@ -2669,18 +2702,50 @@ export class UnitView {
     const color = DOWN_LOOK.ring[dn.state] ?? DOWN_LOOK.ring[DOWN_STATE.COUNTING];
     r.arc.tint = color;
     const label = counting ? String(Math.ceil(left - 1e-6)) : dn.state === DOWN_STATE.WAIT_DP ? 'DP' : '!';
-    const res = this.ctx.renderer?.resolution || 1;
-    if (r.label !== label || r.res !== res) {
-      r.label = label;
-      r.res = res;
-      r.text.texture = downLabel(label, counting ? '#ffffff' : '#' + color.toString(16).padStart(6, '0'), res);
-    }
+    this._badgeLabel(r, label, counting ? '#ffffff' : '#' + color.toString(16).padStart(6, '0'));
     const d = clamp(s * DOWN_LOOK.size, 22, 52);
     const k = d / tex.size;
     r.disc.scale.set(k); r.track.scale.set(k); r.arc.scale.set(k);
     r.text.scale.set((d * (label.length > 2 ? 0.34 : 0.44)) / 32);
     r.root.position.set(cx, cy);
     r.root.alpha = counting ? 1 : 0.72 + 0.28 * Math.sin(t * 5);
+    r.root.visible = true;
+  }
+
+  /**
+   * (fork) The stored skill charges over the head (CHARGE_MARK), its bottom at `bottom`: the official disc, ring and
+   * count once their art has loaded (manifest battleUi/sprite_circle, battleUi/sprite_auto), the redeploy ring's disc
+   * and full arc in the same yellow until then.
+   */
+  _updateChargeMark(show, cx, bottom, s, t) {
+    let r = this._chargeMark;
+    if (!show) { if (r) r.root.visible = false; return; }
+    const rings = hudRings();
+    if (!r) {
+      r = this._chargeMark = this._headBadge(rings.downDisc, ringArc(1));
+      [r.disc, r.ring] = r.parts;
+    }
+    const a = this.ctx.assets;
+    const disc = uiArtTexture(a?.ui?.('battleUi/sprite_circle'));
+    const ring = uiArtTexture(a?.ui?.('battleUi/sprite_auto'));
+    const official = !!(disc && ring);
+    r.disc.texture = official ? disc : rings.downDisc;
+    r.ring.texture = official ? ring : ringArc(1);
+    r.disc.tint = official ? 0x000000 : 0xffffff;
+    r.disc.alpha = official ? CHARGE_MARK.discAlpha : 0.85;
+    r.ring.tint = CHARGE_MARK.color;
+    this._badgeLabel(r, String(this.charges[0] | 0), CHARGE_MARK.fill, CHARGE_LABEL_STYLE);
+    const d = clamp(s * CHARGE_MARK.size, CHARGE_MARK.min, CHARGE_MARK.max);
+    // the official ring sprite (144 px) carries its own margin; the stand-in arc's cell (rings.size) does too
+    r.ring.scale.set(d / (official ? ring.width : rings.size) * (official ? 1 : 1.15));
+    const dd = d * CHARGE_MARK.disc;
+    r.disc.scale.set(official ? dd / disc.width : (dd / (rings.size * HUD_DISC)));
+    r.ring.rotation = -t * Math.PI * 2 * CHARGE_MARK.spin;
+    // the count's canvas is trimmed to its glyph (plus the shadow's offset): scale by its height, anchor 0.5 centres it
+    const sh = CHARGE_LABEL_STYLE.dropShadowDistance * Math.SQRT1_2;
+    r.text.scale.set((d * CHARGE_MARK.digit) / Math.max(1, r.text.texture.height - sh));
+    r.root.position.set(cx, bottom - d / 2);
+    r.root.alpha = 1;
     r.root.visible = true;
   }
 
