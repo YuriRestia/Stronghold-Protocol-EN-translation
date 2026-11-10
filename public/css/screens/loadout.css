@@ -1018,19 +1018,16 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
 .lo-diy__change:hover, .lo-diy__change:focus-visible { color: var(--text-on-mint); border-color: var(--mint-400); background: var(--mint-500); }
 .lo-diy__change .icon { width: 62%; height: 62%; }
-/* its 清空 (✕): a small red pill sticker on the card's top-right corner, sticking out past its edges (the user's call of
-   2026-11-10) — only as far as the deck's top padding lets it (a phone's is under 5 px) and into the gap to the next card,
-   over which it draws. The skill / outfit column steps down by the part over the card, so the sticker never covers or
-   takes a tap of the column's first button; it takes taps a few px around it */
-.lo-diy--filled { --xh: max(.28rem, 18px, calc(20px * var(--sp-ui, 1))); --xw: calc(var(--xh) * 1.9); --xout: 4px; }
-.lo-diy--filled .lo-op__side { padding-top: calc(var(--xh) - var(--xout) + 3px); }
-.lo-diy__clear { position: absolute; z-index: 3; top: calc(-1 * var(--xout)); right: calc(-1 * var(--xout) - 2px); display: grid; place-items: center;
-  width: var(--xw); height: var(--xh); padding: 0; font: inherit; color: #fff; cursor: pointer; background: var(--red); border: 0; border-radius: 999px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, .6); transition: background var(--t-fast); }
-.lo-diy__clear::before { content: ''; position: absolute; inset: -5px -5px -3px; border-radius: 999px; } /* the tap target, wider than the sticker */
-.lo-diy__clear:hover, .lo-diy__clear:focus-visible { background: #ff3b22; }
-.lo-diy__clear:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-.lo-diy__clear .icon { width: auto; height: 118%; aspect-ratio: 1; stroke: #fff; stroke-width: 1.4px; }
+/* its 清空 (✕): a disc in the swap button's style, in the danger red (.btn--danger's), inside the card at the top of the
+   skill / outfit column (the user's call of 2026-11-10). The column steps down by the disc, so it never covers or takes a
+   tap of the column's first button */
+.lo-diy--filled { --xd: var(--rail); --xtop: max(.06rem, calc(3px * var(--sp-ui, 1))); }
+.lo-diy--filled .lo-op__side { padding-top: calc(var(--xd) + var(--xtop) + 2px); }
+.lo-diy__clear { position: absolute; z-index: 3; top: var(--xtop); right: calc(var(--xtop) + (var(--side) - var(--xd)) / 2); display: grid; place-items: center;
+  width: var(--xd); aspect-ratio: 1; padding: 0; font: inherit; color: #fff; cursor: pointer; background: #a3241a; border: 1.5px solid #c83a2c;
+  border-radius: 999px; transition: border-color var(--t-fast), background var(--t-fast); }
+.lo-diy__clear:hover, .lo-diy__clear:focus-visible { background: #c83a2c; border-color: #e0574a; }
+.lo-diy__clear .icon { width: 62%; height: 62%; }
 /* its 原型 / 已持有 tag, flat, beside the slot's name ("6阶 自选") above the operator's */
 .lo-diy__meta { display: flex; align-items: center; gap: max(.04rem, calc(4px * var(--sp-ui, 1))); }
 .lo-op__rail .lo-diy__bad { width: 70%; height: auto; }
