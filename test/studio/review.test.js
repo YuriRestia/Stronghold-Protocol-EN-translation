@@ -20,6 +20,7 @@ import { buildContentSet } from '../../server/plugins/contentSet.js';
 import { appendOfficialBounds } from '../../shared/plugins/officialBounds.js';
 import { applyPatches } from '../../shared/plugins/patch.js';
 import { validateDraft } from '../../public/studio/js/validateDraft.js';
+import { WORKER_LOAD_MS } from '../helpers/simHostFixture.js';
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 function make(f, template = 'operator', id = 'review-op', options = {}) {
@@ -205,10 +206,12 @@ for (const mode of ['sandbox', 'trusted']) test(`trial uses the actual ${mode} e
   assert.equal(stale.ok, false); assert.equal(stale.plugin, undefined);
 });
 
-test('sandbox-incompatible code cannot be promoted to trusted by the studio key', { timeout: 20000 }, async t => {
+test('sandbox-incompatible code cannot be promoted to trusted by the studio key', { timeout: 2 * WORKER_LOAD_MS }, async t => {
+  // (fork) the trial child takes 8-15 s alone to refuse (its content set and sandbox check), past 20 s on a busy machine:
+  // this checks the refusal, not its speed (WORKER_LOAD_MS)
   const f = scriptFixture(t, { mode: 'sandbox' });
   f.put('bad-syntax', 'export let mutable = 1; export default () => {};');
-  const bench = createTrialBench({ registry: f.registry, files: createPluginFiles(f.pluginsDir) }); t.after(() => bench.close());
+  const bench = createTrialBench({ registry: f.registry, files: createPluginFiles(f.pluginsDir), limits: { ...TRIAL_LIMITS, timeoutMs: WORKER_LOAD_MS } }); t.after(() => bench.close());
   const result = await bench.run({ id: 'bad-syntax' });
   assert.equal(result.ok, false); assert.equal(result.plugin, undefined);
   assert.equal(result.issues[0].code, 'PLUGIN_SANDBOX_SYNTAX');
