@@ -37,6 +37,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Palsy (from Nervous Impairment and other sources) now shows its official effect on the unit while the stacks last, and a spark each time a stack interrupts an attack.
 - The effects come from the official buff data and buff templates for each burst. `tools/local-extract/fx.py` names them in new `burst` and `fx` groups of the effects index, and ten new effect files are extracted.
 
+### Attacks no longer twitch before the strike
+
+- In battles your browser runs (the sandbox, and match battles simulated in your browser), operators no longer flash their resting pose for a couple of frames just before each strike and then jump back into the swing at high speed. Every operator did this at 1× and most did at 2× (Reed the Flame Shadow's S3, Surtr, Exusiai, Texas the Omertosa…).
+- The battle on screen now trails the simulation by 0.2 game seconds, as server-run battles already do, so each attack's wind-up starts in time and plays out in full. In matches (2×) that is 0.1 s; in the sandbox at 1×, 0.2 s. Sandbox: `?lookahead=off` shows the old behaviour for comparison.
+
 ### Skills cast when the official game casts them
 
 - Every skill the mode casts by itself now follows the live official client's rules for when to cast (the trigger table of the current CN season). Before, the game used the previous season's table plus several rules of its own. Skills that cast automatically in the official game anyway (they start by their own rule) are unchanged.
