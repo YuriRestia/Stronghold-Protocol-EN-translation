@@ -30,7 +30,8 @@
 // pick goes with onMember: never the empty 甄选干员 slot's card). A 自选 piece that is a member through 变形同构体 shows its
 // operator too, with the 「同构」 tag (#846: it showed the empty slot's 「甄」).
 
-import { useEffect, useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
+import { cloneElement } from '../../vendor/preact.module.js';
+import { useLayoutEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, BondDisc, Icon, MicroLabel, Tooltip } from './components.js';
 import { RichText, UnitThumb, BondGlyph, GIcon } from './gameComponents.js';
 import { sortBonds, bondMembers, nextThreshold, bondTier, harmonyMembers, HARMONY_BOND, memberHeadCount, briefingBondTip, diyGetter, diyRecordFor, memberStandIn, standInForText } from './gameLogic.js';
@@ -53,10 +54,14 @@ function OwnerTag({ owner }) {
  * under the strip (the user's pick of 2026-11-10: the scrolling strip's bar looked ugly and the full line blocked the top
  * of the screen). No scrolling: the fit is measured from the real width (fewer on phones) and again on every resize.
  * Tap outside, Esc or the button closes the grid; a bond opened from it closes it too, and the button then wears the
- * open ring. `children`: the slots (each with its data-bond) in the strip's order.
+ * open ring. `children`: the whole `.bstrip` element as BondStrip builds it (whose it is, the owner tag, every slot with its
+ * data-bond in the strip's order); this keeps its leading non-bond children and trims the slots to what fits.
  */
-function FitStrip({ children, stripClass, label, ownerTag, owner, openId }) {
-  const items = [children].flat(Infinity).filter(Boolean).map((node) => ({ id: node.props?.['data-bond'], node }));
+function FitStrip({ children, openId }) {
+  const strip = [children].flat(Infinity).find(Boolean);
+  const kids = [strip.props.children].flat(Infinity).filter(Boolean);
+  const lead = kids.filter((node) => node.props?.['data-bond'] == null);
+  const items = kids.filter((node) => node.props?.['data-bond'] != null).map((node) => ({ id: node.props['data-bond'], node }));
   const wrapRef = useRef(null), stripRef = useRef(null), moreRef = useRef(null);
   const [fit, setFit] = useState(items.length);
   const [open, setOpen] = useState(false);
@@ -89,7 +94,7 @@ function FitStrip({ children, stripClass, label, ownerTag, owner, openId }) {
     });
     observer.observe(wrap);
     return () => { observer.disconnect(); if (frame !== null) cancelAnimationFrame(frame); };
-  }, [total, !!ownerTag]);
+  }, [total, lead.length]);
   const extras = items.slice(fit);
   const isOpen = open && extras.length > 0;
   useLayoutEffect(() => {
@@ -97,7 +102,7 @@ function FitStrip({ children, stripClass, label, ownerTag, owner, openId }) {
     const wrap = wrapRef.current, btn = moreRef.current;
     if (wrap && btn) setRight(Math.max(0, wrap.clientWidth - (btn.offsetLeft + btn.offsetWidth)));
   }, [isOpen, fit]);
-  useEffect(() => {
+  useLayoutEffect(() => { // layout, not effect: the listeners are in place before the next press (useEffect waits for a paint)
     if (!isOpen) return;
     const away = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
     const esc = (e) => {
@@ -110,10 +115,7 @@ function FitStrip({ children, stripClass, label, ownerTag, owner, openId }) {
   }, [isOpen]);
   const extraOpen = !!openId && extras.some((i) => i.id === openId);
   return html`<div class="bstrip-fit" ref=${wrapRef}>
-    <div class=${stripClass} role="list" aria-label=${label} data-owner=${owner || null} ref=${stripRef}>
-      ${ownerTag}
-      ${items.slice(0, fit).map((i) => i.node)}
-    </div>
+    ${cloneElement(strip, { ref: stripRef }, ...lead, ...items.slice(0, fit).map((i) => i.node))}
     ${extras.length ? html`<button type="button" ref=${moreRef} class=${cx('bstrip__more', isOpen && 'is-on', extraOpen && 'is-open')}
         aria-expanded=${isOpen} aria-controls="bstrip-grid" data-count=${extras.length}
         aria-label=${t('更多盟约（{n}）', { n: extras.length }) /* en: "{n} more bonds" */} title=${t('更多盟约（{n}）', { n: extras.length })}
@@ -164,9 +166,12 @@ export function BondStrip({ bonds, layersDisabled = false, onOpen, openId = null
         <span class=${cx('bslot__count', 'num', next == null && 'is-max')}>${b.count ?? 0}<small>/${next ?? th[th.length - 1] ?? '-'}</small></span>
       </div>`;
   });
-  const content = html`<${FitStrip} openId=${openId} owner=${owner} ownerTag=${owner ? html`<${OwnerTag} owner=${owner} />` : null}
-    stripClass=${cx('bstrip', layersDisabled && 'is-frozen', owner && 'is-other')}
-    label=${owner ? t('{owner} 的盟约', { owner }) : t('我的盟约')}>${items}<//>`;
+  const content = html`<${FitStrip} openId=${openId}>
+    <div class=${cx('bstrip', layersDisabled && 'is-frozen', owner && 'is-other')} role="list"
+        aria-label=${owner ? t('{owner} 的盟约', { owner }) : t('我的盟约')} data-owner=${owner || null}>
+      ${owner ? html`<${OwnerTag} owner=${owner} />` : null}${items}
+    </div>
+  <//>`;
   return layersDisabled ? html`<${Tooltip} text=${t('层数叠加已禁用')} placement="bottom">${content}<//>` : content;
 }
 
