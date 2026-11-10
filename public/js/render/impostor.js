@@ -30,7 +30,8 @@
 // vertex buffer of its own (render/app.js turns PIXI's BatchRenderer.canUploadSameBuffer off — PIXI's own setting on iOS:
 // uploading the batch's one shared buffer again for every flush stalled Apple GPUs once the slots were clipped).
 //
-//   const imp = new ImpostorAtlas(renderer, { onError })   // onError(err): a failed page pass (diag log)
+//   const imp = new ImpostorAtlas(renderer, { onError, mainPages })   // onError(err): a failed page pass (diag log);
+//                                           mainPages: main pages at most (default 3; (fork) a desktop gets 5, render/app.js)
 //   const slot = imp.alloc(w, h)            // CSS px; null when full
 //   imp.draw(slot, displayObject, matrixLike { a, d, tx, ty })   // queue for this frame (object must be parked here)
 //   imp.park(displayObject) / imp.unpark(displayObject)          // keep skeletons of impostor units in the batch
@@ -39,15 +40,18 @@
 //   imp.free(slot) ; imp.destroy()
 
 const MAX_PAGES = { main: 3, clip: 2 };
+/** (fork) Main pages a caller may ask for at most (2048² px RGBA + stencil, about 32 MB of video memory each). */
+export const MAX_MAIN_PAGES = 6;
 const PAGE_PX = { main: 2048, clip: 1024 };
 const GRID = 16;
 
 export class ImpostorAtlas {
   /** @param {any} renderer PIXI renderer @param {{ onError?: (err: any) => void }} [opts] */
-  constructor(renderer, { onError = null } = {}) {
+  constructor(renderer, { onError = null, mainPages = MAX_PAGES.main } = {}) {
     this.P = globalThis.PIXI;
     this.R = renderer;
     this.onError = onError;
+    this.maxPages = { ...MAX_PAGES, main: Math.max(1, Math.min(MAX_MAIN_PAGES, Math.floor(mainPages) || MAX_PAGES.main)) };
     this.res = Math.max(1, Math.min(2, renderer.resolution || 1));
     this.pages = [];
     this.parked = new this.P.Container(); // skeletons of impostor units (never rendered directly)
@@ -59,7 +63,7 @@ export class ImpostorAtlas {
   sizeOf(kind) { return Math.floor(PAGE_PX[kind] / this.res); }
 
   _page(kind) {
-    if (this.pages.filter((p) => p.kind === kind).length >= MAX_PAGES[kind]) return null;
+    if (this.pages.filter((p) => p.kind === kind).length >= this.maxPages[kind]) return null;
     const P = this.P;
     const size = this.sizeOf(kind);
     const rt = P.RenderTexture.create({ width: size, height: size, resolution: this.res });
