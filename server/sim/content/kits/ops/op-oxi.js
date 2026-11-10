@@ -59,7 +59,7 @@
 //   every enemy within RETALIATE_RADIUS of its centre — the damage source, else an enemy she blocks, else a ground enemy of
 //   her 1-1 (PRTS: 隐匿 ignored throughout, the source and the area may be airborne) — none without a centre; each instance
 //   heals her heal_ratio × the HP it removed (ON_AFTER_OUTPUT_DAMAGE, AssignDamageValueToBlackboard real delta).
-// - S3 日冕重烈 (MANUAL, data DEFAULT, 36 s): ATK +atk; she stops attacking (the S3NoAttack mode) and channels: a volley of
+// - S3 日冕重烈 (MANUAL, data SP_FULL — the CN season 3 row ALWAYS: cast once ready, 36 s): ATK +atk; she stops attacking (the S3NoAttack mode) and channels: a volley of
 //   簇火 at the start (ON_SPELL_ON), then every normal_interval (80 frames — PRTS "发射间隔固定为80帧", the prefab's 2.6667);
 //   过载 (ba.overdrive "技能进行到一半时触发额外效果"): from half its duration a volley at once, then every overload_interval
 //   (60 frames), overload_half_width instead of normal_half_width. A volley: one 簇火 per lane — the rows across her facing
