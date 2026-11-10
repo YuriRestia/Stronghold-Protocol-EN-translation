@@ -52,6 +52,26 @@ const NOTE_SFX_CHARS = new Set(['char_4182_oblvns']);
  * guard's strike back is the skill's hit (ON_ABILITY_HIT, max 1); T2: a footprint is the fire field's custom trigger.
  */
 const FX_SOUND_BANKS = Object.freeze({
+  // (fork) 莫斯提马 S2 (chess_char_4_02-mostma.js): each second's strike (fx 'timeLock' on her) and its impact on each
+  // stunned enemy ('timeLockHit', src her) — the skill's own ability ON / HIT banks (the HIT bank's official name starts
+  // with a space)
+  char_213_mostma: Object.freeze({
+    'timeLock|': 'battle.ON_ABILITY_ON.skchr_mostma_2',
+    'timeLockHit|': ' battle.ON_ABILITY_HIT.skchr_mostma_2',
+  }),
+  // (fork) 蕾缪安 (chess_char_6_01-lemuen.js; '#<skill index>': only while that skill is equipped): S2's aim (fx 'lock')
+  // and its shot ('crit') are her mode-2 attack.2.1 — START the charge, ON the shot —; S3's locks are attack.4's START;
+  // each shell ('bombardShell') the buff lemuen_s3_audio_triggered [ASSUMED: one per shell], its landing ('bombard') the
+  // shell projectile's REACH; the Wanted mark ('wanted', src: the Lemuen it counts for) her talent buff
+  // char_lemuen_range_aim's show
+  char_4193_lemuen: Object.freeze({
+    'lock|#1': 'battle.ON_ABILITY_START.char_4193_lemuen.attack.2.1',
+    'crit|#1': 'battle.ON_ABILITY_ON.char_4193_lemuen.attack.2.1',
+    'lock|#2': 'battle.ON_ABILITY_START.char_4193_lemuen.attack.4',
+    'bombardShell|': 'battle.ON_BUFF_START.lemuen_s3_audio_triggered',
+    'bombard|': 'battle.ON_PROJECTILE_REACH.projectile_chr_lemuen_s3_attack',
+    'wanted|': 'battle.ON_BUFF_SHOW_EFFECT.char_lemuen_range_aim',
+  }),
   char_4247_oxi: Object.freeze({
     'blast|oxi:retaliate': 'battle.ON_ABILITY_HIT.skchr_oxi_2',
     'zone|oxi:footprint': 'battle.ON_CUSTOM_TRIGGER.oxi_fire_field_create',
@@ -66,6 +86,42 @@ const FX_SOUND_BANKS = Object.freeze({
  * and impact while it runs) or `skill` (its cast sting). 塔露拉 S1 is a MeleeAttack skill (its strike); S2 a
  * BuffToOwnerDuringAbility cast by her guard (its start is the sting; its hit is the strike back, FX_SOUND_BANKS).
  */
+/**
+ * (fork) An operator's normal attack / impact bank the generic pick misses (pickUnitSfx): 莫斯提马's impact is her
+ * attack's ON_ABILITY_ON (p_imp_timewand_n; her swing is its START).
+ */
+const UNIT_SOUND_BANKS = Object.freeze({
+  char_213_mostma: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_213_mostma.attack' }),
+});
+/**
+ * (fork) A skill's own swing / impact by skill index where the mode pick misses it (assignSkillModeSfx): a bank name, or
+ * null — no impact at all while the skill runs (`quietHits`). 蕾缪安 S1 / S2: their projectiles' hits; S2's normal
+ * shots are attack.2.2 (attack.2.1 is the aimed shot: FX_SOUND_BANKS). 莫斯提马 S3: the ripple's mode has its swing only.
+ */
+const SKILL_MODE_BANKS = Object.freeze({
+  char_4193_lemuen: Object.freeze({
+    0: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_lemuen_s1' }),
+    1: Object.freeze({ attack: 'battle.ON_ABILITY_START.char_4193_lemuen.attack.2.2', hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_lemuen_s2' }),
+  }),
+  char_213_mostma: Object.freeze({ 2: Object.freeze({ hit: null }) }),
+});
+/**
+ * (fork) Sounds at a skill's start beside its ON_SKILL_START sting (`skillOn`, by index; `hold`: cut when the skill
+ * ends — the official ctrl bank ON_SKILL_FINISH stops it; a one-shot that fades out on its own, 5.4 s, never looped) and at its end (`skillOff`). 莫斯提马 S2's time lock
+ * (p_skill_blacktimewand_layer) and S3's activation (p_skill_whitetimewand); 蕾缪安's ammo skills close with
+ * ON_SKILL_SPECIAL_POINT (b_char_boostclose) when the last bullet is spent.
+ */
+const SKILL_ON_BANKS = Object.freeze({
+  char_213_mostma: Object.freeze({
+    1: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_mostma_2', hold: true }),
+    2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_mostma_3' }),
+  }),
+});
+const SKILL_OFF_BANKS = Object.freeze({
+  char_4193_lemuen: Object.freeze({
+    0: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_1', 1: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_2', 2: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_3',
+  }),
+});
 const SKILL_ABILITY_SOUNDS = Object.freeze({
   char_4247_oxi: Object.freeze({ 0: Object.freeze(['attack', 'hit']), 1: Object.freeze(['skill']) }),
 });
@@ -592,6 +648,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const short = id.replace(/^char_\d+_/, '');
     const sfx = pickUnitSfx(audio.unitBanks.get(id), { operator: true, projectile: {
       born: audio.bank(`battle.ON_PROJECTILE_BORN.projectile_chr_${short}`), hit: audio.bank(`battle.ON_PROJECTILE_HIT.projectile_chr_${short}`) } });
+    for (const [r, name] of Object.entries(UNIT_SOUND_BANKS[id] || {})) { const p = audio.bank(name); if (p.length) sfx[r] = p; }
     const { roles: u, mix } = unitSounds(audio, sfx, poolRef);
     const skillSfx = {};
     // Per-skill ATTACK / IMPACT sound (audio.mjs assignSkillModeSfx): a skill mode has its own swing and its own hit
@@ -615,6 +672,15 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       });
     }
     const assigned = assignSkillModeSfx(audio.unitBanks.get(id), skillRows, cm?.modes ?? null, cm?.skillMode ?? null);
+    const quietHits = [];
+    for (const [i, roles] of Object.entries(SKILL_MODE_BANKS[id] || {})) {
+      for (const [role, name] of Object.entries(roles)) {
+        const table = role === 'attack' ? assigned.attacks : assigned.hits;
+        if (name === null) { delete table[i]; if (role === 'hit') quietHits.push(Number(i)); continue; }
+        const p = audio.bank(name);
+        if (p.length) table[i] = p;
+      }
+    }
     const attacks = {};
     const hits = {};
     const attackMix = {}, hitMix = {};
@@ -682,6 +748,23 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       }
       if (Object.keys(fxSounds).length) u.fxSounds = fxSounds;
     }
+    if (quietHits.length) u.quietHits = literal(quietHits);
+    const edge = (table) => {
+      const out = {};
+      for (const [i, e] of Object.entries(table || {})) {
+        const name = typeof e === 'string' ? e : e.bank;
+        const paths = audio.bank(name);
+        if (!paths?.length) continue;
+        out[i] = { url: soundLeaf(paths, 'sfx', 1) };
+        const p = poolRef(paths);
+        if (p) out[i].pool = p;
+        if (e.hold) out[i].hold = true;
+      }
+      return Object.keys(out).length ? out : null;
+    };
+    const on = edge(SKILL_ON_BANKS[id]), off = edge(SKILL_OFF_BANKS[id]);
+    if (on) u.skillOn = on;
+    if (off) u.skillOff = off;
     // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank
     // (battle.ON_PROJECTILE_BORN / _HIT.projectile_chr_<short>[_<type>], ON_CUSTOM_TRIGGER for S1's hit), by the look key
     // her kit gives the notes — the client plays them per note on the bank's pool (public/js/audio.js _noteSound)

@@ -1405,6 +1405,11 @@ export function chargeKeys(plan) {
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
+ *   line        (fork) a line effect from the owner's muzzle to the unit the fx names, kept on both while the binding is
+ *               held (SkillFx._line: 蕾缪安 S2's aim line)
+ *   until       (fork) an fx kind from the same owner on the same unit that ends the held binding at once (her shot ends
+ *               her aim)
+ *   hit         (fork) with at 'target': a hit's role — a looping prefab there stops after SKILL_CAST_S
  *   only        (fork) { field: value }: the binding stands only for an fx whose extra has those values (another fx of
  *               that kind stays the kit's own)
  *   fan         (fork) { projectile, from, to }: that projectile flies from the unit the fx's extra[from] names to each
@@ -1607,6 +1612,18 @@ export const FX_BINDINGS = Object.freeze({
   // by its owner, so it ends on its own). The falling shell ('bombardShell', id = her, `t` its flight) is that attack
   // projectile's main effect lemuen_skill_03_trail_02 at the spot — its clip drops the shell from 7.27 up to the ground
   // in 0.27 s (the projectile's lifeTime 0.25, cleared when it reaches) —, held for the fx's flight
+  // (fork) 蕾缪安 S2 (chess_char_6_01-lemuen.js): her aim at a Wanted enemy ('lock', id = the enemy, src = her) is the
+  // template lemuen_s2_aim_attack — lemuen_skill_02_crosshair_02 on the target (CreateBuffToCastedTargets, a loop) and the
+  // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
+  // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
+  // the kit deals the snipe at once, no flight is drawn]
+  skchr_lemuen_2: Object.freeze({
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
+    crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
+  }),
+  // (fork) 莫斯提马 S2 (chess_char_4_02-mostma.js): each second's strike on an enemy in her range ('timeLockHit', id = the
+  // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
+  skchr_mostma_2: Object.freeze({ timeLockHit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['mostma_skill_02_hit'] }) }),
   skchr_lemuen_3: Object.freeze({
     lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
     bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),

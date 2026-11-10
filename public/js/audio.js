@@ -1329,9 +1329,27 @@ export class AudioManager {
    * the client's per-shot births cut each other], with the volley rather than each shot's birth delay.
    */
   _fxSound(kind, ex) {
-    const u = this.units.get(ex.id);
-    const e = u ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.fxSounds?.[`${kind}|${ex.skill ?? ''}`] : null;
-    if (typeof e?.url === 'string') this._playBank(e.url, e.pool, NOTE_GAIN);
+    // (fork) the unit the fx names (`id`), else its shooter (`src`: 蕾缪安's locks and shots name the enemy); a key with
+    // '#<skill index>' is that equipped skill's own (her S2 aim and S3 lock are both 'lock')
+    for (const id of [ex.id, ex.src]) {
+      const u = id != null ? this.units.get(id) : null;
+      const table = u ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.fxSounds : null;
+      if (!table) continue;
+      const tag = `${kind}|${ex.skill ?? ''}`;
+      const e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
+      if (typeof e?.url === 'string') { this._playBank(e.url, e.pool, NOTE_GAIN); return; }
+    }
+  }
+
+  /**
+   * (fork) A skill's own sound at its start beside its ON_SKILL_START sting (`skillOn[index]`; `hold`: cut when the
+   * skill ends — 莫斯提马 S2's time lock) or at its end (`skillOff[index]`: 蕾缪安's last bullet), on its bank's pool.
+   */
+  _skillEdge(id, u, on) {
+    const e = Number.isInteger(u?.skillIndex) ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.[on ? 'skillOn' : 'skillOff']?.[u.skillIndex] : null;
+    if (typeof e?.url !== 'string') return;
+    if (on && e.hold) this._stingLoop(id, e.url, this.getManifest()?.audio?.sfx?.pools?.[e.pool]?.group ?? null, { loop: false });
+    else this._playBank(e.url, e.pool, NOTE_GAIN);
   }
 
   /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): on its official bank's pool (_playBank). */
@@ -1375,6 +1393,7 @@ export class AudioManager {
     }
     for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
     for (const e of Object.values(sfx?.fxSounds || {})) if (typeof e?.url === 'string') this._buffer(e.url);
+    for (const t of [sfx?.skillOn, sfx?.skillOff]) for (const e of Object.values(t || {})) if (typeof e?.url === 'string') this._buffer(e.url);
   }
 
   /**
@@ -1427,7 +1446,7 @@ export class AudioManager {
   }
 
   /** The skill's held loop of unit `id` (one per unit: a new one replaces it), on its bank's mixer `group`. */
-  _stingLoop(id, url, group = null) {
+  _stingLoop(id, url, group = null, { loop = true } = {}) {
     this._stopStingLoop(id);
     const ctx = this.ctx;
     if (!ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
@@ -1438,8 +1457,9 @@ export class AudioManager {
       if (!buf || ctx !== this.ctx || this.stingLoops.get(id) !== cur) return;
       try {
         const src = ctx.createBufferSource(), gain = ctx.createGain();
-        src.buffer = buf; src.loop = true;
+        src.buffer = buf; src.loop = loop;
         gain.gain.value = STING_GAIN;
+        if (!loop) src.onended = () => { if (this.stingLoops.get(id) === cur) this.stingLoops.delete(id); };
         src.connect(gain); gain.connect(this._out(group));
         src.start();
         cur.node = { src, gain };
@@ -1851,6 +1871,8 @@ export class AudioManager {
         return { u, mode, own, url: byIndex ? own : typeof mode === 'string' ? mode : u?.[kind] };
       };
       const { u, mode, url, own } = pick();
+      // (fork) a skill whose attacks land no impact of their own (`quietHits`: 莫斯提马 S3's ripple has its swing only)
+      if (kind === 'hit' && skillActive && Number.isInteger(skillIndex) && Array.isArray(u?.quietHits) && u.quietHits.includes(skillIndex)) return true;
       if (typeof url !== 'string') return false;
       // a skill-mode file is fine here when it IS the running skill's (mode); the gate is for normal attacks
       // (丰川祥子's normal swing IS an `_h` file, ON_ABILITY_ON.attack.0.1: an operator with per-note banks is exempt)
@@ -2224,6 +2246,7 @@ export class AudioManager {
             this.unit(u.def, 'skill', e[1], u.skillIndex ?? undefined);
             // (fork) a cast cue (the sim's skill `cue`, 丰川祥子): the skill's sting, and its held loop
             if (e[3] && typeof e[3] === 'object') this._sting(e[1], u, e[3]);
+            this._skillEdge(e[1], u, true);
             // 作战中N: the equipped skill's own slot (0-based; 作战中4 is the fallback of a 4th slot)
             if (unitSoundClass(u) === 'char') {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;
@@ -2241,9 +2264,11 @@ export class AudioManager {
           // ['skill', id, 0] = the skill ENDED (the sim's skills.js: `b._ev(['skill', u.id, 0])`): back to the unit's own
           // attack / impact. The end carries no sound of its own (the activation sound belongs to the start).
           const u = this.units.get(e[1]);
+          const was = !!u?.skillActive;
           if (u) u.skillActive = false;
           this.pendingSkill.delete(e[1]);
           this._stopStingLoop(e[1]);
+          if (was) this._skillEdge(e[1], u, false);
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
           const u = this.units.get(e[1]);

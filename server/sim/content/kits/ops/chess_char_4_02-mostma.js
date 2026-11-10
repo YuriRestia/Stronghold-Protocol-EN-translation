@@ -45,7 +45,11 @@ export default withDefaults({
             L.acc += dt;
             while (L.acc + 1e-9 >= 1) { // loop-cap: one-second step
               L.acc -= 1;
+              // (fork) cosmetic: the second's strike on her (its sound) and on each enemy it hits (the skill's hit effect
+              // mostma_skill_02_hit and impact sound — render/vfx/skills.js FX_BINDINGS, tools/assets/plan.mjs)
+              battle.fx('timeLock', { x: unit.x, y: unit.y, id: unit.id });
               for (const e of enemiesOnRange(battle, unit)) {
+                battle.fx('timeLockHit', { x: e.x, y: e.y, id: e.id, src: unit.id });
                 battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.atk_scale, 1), type: 'arts', isSkill: true, tags: ['skill', 'timeLock'] });
               }
             }

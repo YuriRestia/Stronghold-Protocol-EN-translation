@@ -306,6 +306,46 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     assert.equal(shell.alive, false, 'gone once it has landed');
   });
 
+  test('(fork) 蕾缪安 S2: the aim holds its reticle and aim line until her shot, which plays its hit; 莫斯提马 S2\'s hit stops like a hit', async () => {
+    const RET = 'lemuen_skill_02_crosshair_02', LINE = 'lemuen_skill_02_trail_01', SHOT = 'lemuen_skill_02_hit_01', HIT = 'mostma_skill_02_hit';
+    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, RET, LINE, SHOT, HIT] });
+    index.prefabs[HIT].looping = true;                          // the Ethereal Harmony twin loops
+    index.units.char_4193_lemuen.skills.skchr_lemuen_2 = { mode: null, projectiles: [], uses: [] };
+    RECS.lemuen_s2 = rec('skchr_lemuen_2', { bb: { 'attack@aim_duration': 3.5 } });
+    RECS.mostma_s2 = rec('skchr_mostma_2', { duration: 7 });
+    try {
+      const lem = view(1, 'char_4193_lemuen', 3);
+      lem.info.defId = 'lemuen_s2';
+      const mo = view(4, 'char_213_mostma', 4);
+      mo.info.defId = 'mostma_s2';
+      view(2, 'enemy_1', 6);
+      view(3, 'enemy_1', 7);
+      frame();
+      w.skill(lem, true);
+      w.skill(mo, true);
+      frame();
+      assert.equal(w.simFx('lock', 6, 10, { id: 2, src: 1 }), true, 'the official aim stands for the procedural reticle');
+      w.simFx('lock', 7, 10, { id: 3, src: 1 });
+      const alive = (k) => handles.filter((h) => h.key === k && h.alive).length;
+      assert.deepEqual([alive(RET), alive(LINE)], [2, 2], 'a reticle and a line per aimed enemy');
+      for (let i = 0; i < 30; i++) frame();
+      assert.deepEqual([alive(RET), alive(LINE)], [2, 2], 'held while she aims (1 s in)');
+      assert.equal(w.simFx('crit', 6, 10, { id: 2, src: 1 }), true);
+      assert.deepEqual([alive(RET), alive(LINE)], [1, 1], 'her shot ends that aim only');
+      assert.equal(handles.filter((h) => h.key === SHOT).length, 1, 'and plays its hit on the enemy');
+      for (let i = 0; i < 90; i++) frame();
+      assert.deepEqual([alive(RET), alive(LINE)], [0, 0], 'an aim with no shot ends with her aim time');
+      assert.equal(w.simFx('timeLockHit', 6, 10, { id: 2, src: 4 }), true);
+      const hit = handles.find((h) => h.key === HIT);
+      assert.ok(hit.alive);
+      for (let i = 0; i < 20; i++) frame();
+      assert.equal(hit.alive, false, 'a looping hit prefab stops after SKILL_CAST_S');
+    } finally {
+      delete RECS.lemuen_s2;
+      delete RECS.mostma_s2;
+    }
+  });
+
   test('(fork) TEMPLATE_ROWS: a row the index does not list joins the plan once; a linked index keeps its own', () => {
     const SALUTE = 'lemuen_skill_03_start_01';
     const idx = makeIndex({ installed: [...KEYS, SALUTE] });

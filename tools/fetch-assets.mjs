@@ -128,6 +128,9 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
                     sound that never plays); by default such a drop is only reported
   --add-only        download only files missing on disk; never re-download, rewrite or delete an existing
                     file, no font rebuild (a worktree sharing public/assets and public/fonts)
+  --refresh-units=ID,ID
+                    with --add-only: these units' sound entries (audio.sfx.units[id]) are rebuilt from the plan
+                    instead of kept (a sound mapping change of those units)
   --local-spines    rewrite ${LOCAL_ENEMY_SPINES_FILE} and ${LOCAL_TOKEN_SPINES_FILE} from the
                     enemy and token models extracted by tools/local-extract/extract.py
                     (public/assets/local/spine/enemy/, public/assets/local/spine/token/)
@@ -151,10 +154,10 @@ function envFlag(value) {
 /**
  * Parse CLI flags.
  * @param {string[]} argv
- * @returns {{concurrency:number, force:boolean, offline:boolean, dryRun:boolean, refreshIndex:boolean, prune:boolean, allowShrink:boolean, strict:boolean, addOnly:boolean, localSpines:boolean, voiceLang:string, voiceAll:boolean, optionalVoice:boolean, help:boolean, source:string, sourceSnapshot:string}}
+ * @returns {{concurrency:number, force:boolean, offline:boolean, dryRun:boolean, refreshIndex:boolean, prune:boolean, allowShrink:boolean, strict:boolean, addOnly:boolean, refreshUnits:string[], localSpines:boolean, voiceLang:string, voiceAll:boolean, optionalVoice:boolean, help:boolean, source:string, sourceSnapshot:string}}
  */
 export function parseArgs(argv) {
-  const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, strict: envFlag(process.env.SP_ASSETS_STRICT), addOnly: false, localSpines: false, voiceLang: 'cn', voiceAll: false, optionalVoice: true, help: false, source: process.env.SP_ASSET_SOURCE || 'direct', sourceSnapshot: '' };
+  const o = { concurrency: 16, force: false, offline: false, dryRun: false, refreshIndex: false, prune: false, allowShrink: false, strict: envFlag(process.env.SP_ASSETS_STRICT), addOnly: false, refreshUnits: [], localSpines: false, voiceLang: 'cn', voiceAll: false, optionalVoice: true, help: false, source: process.env.SP_ASSET_SOURCE || 'direct', sourceSnapshot: '' };
   for (const a of argv) {
     const [k, v] = a.split('=');
     if (k === '--concurrency') o.concurrency = Math.max(1, Math.min(64, parseInt(v, 10) || 16));
@@ -168,6 +171,7 @@ export function parseArgs(argv) {
     else if (k === '--allow-shrink') o.allowShrink = true;
     else if (k === '--strict') o.strict = true;
     else if (k === '--add-only') o.addOnly = true;
+    else if (k === '--refresh-units') o.refreshUnits = String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
     else if (k === '--local-spines') o.localSpines = true;
     else if (k === '--voice-lang') { if (!VOICE_DIRS[v]) throw new Error(`unknown --voice-lang ${v} (cn | jp | en | kr)`); o.voiceLang = v; }
     else if (k === '--voice-all') o.voiceAll = true;
@@ -175,6 +179,7 @@ export function parseArgs(argv) {
     else if (k === '--help' || k === '-h') o.help = true;
     else throw new Error(`unknown option ${a}\n${HELP}`);
   }
+  if (o.refreshUnits?.length && !o.addOnly) throw new Error('--refresh-units needs --add-only (a full run rebuilds every unit anyway)');
   if (o.addOnly && (o.prune || o.force)) throw new Error(`--add-only never deletes or rewrites files: not with --prune / --force\n${HELP}`);
   if (o.sourceSnapshot && (o.offline || o.addOnly || o.localSpines)) throw new Error('--source-snapshot is incompatible with --offline / --add-only / --local-spines');
   if (!o.help) validateSource(o.source);
@@ -562,7 +567,15 @@ async function main() {
     : (verifier ? fonts.css : existsSync(join(FONTS, 'fonts.css'))) ? { css: '/fonts/fonts.css', faces: fontFaces } : { faces: fontFaces };
   if (opts.addOnly && current) {
     const { version, hash, generator, stats, ...previous } = current;
+    const planned = body;
     body = addManifestEntries(previous, body);
+    // (fork) --refresh-units: those units' sound entries as the plan builds them (a changed or removed slot too)
+    for (const id of opts.refreshUnits || []) {
+      const fresh = planned?.audio?.sfx?.units?.[id];
+      if (!body.audio?.sfx?.units) continue;
+      if (fresh) body.audio.sfx.units[id] = fresh; else delete body.audio.sfx.units[id];
+      log(`[refresh-units] ${id}: sound entries rebuilt from the plan`);
+    }
     // Retained entries still participate in size accounting and orphan detection.
     const files = (v) => {
       if (typeof v === 'string' && v.startsWith('/assets/')) resolved.files.add(v.slice('/assets/'.length));

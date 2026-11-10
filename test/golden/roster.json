@@ -2499,8 +2499,8 @@
         "enemy_9016_acstmr": [1,0,1,0,27]
       },
       "hooks": [1,102,5100,739,736,1038,1063,173,65,94,28,28,47,11049,306,12,65,29,1,69,0,1,16],
-      "events": {"atk":808,"bounty":3,"cast":3,"deploy":35,"die":65,"dmg":1047,"engage":12,"fx":112,"heal":4,"leak":29,"rate":105,"skill":56,"spawn":81,"status":277},
-      "fx": {"beam":5,"block":12,"buff":2,"burst":1,"coldWind":1,"dodge":16,"dp":2,"iceSpike":1,"overclock":1,"overload":1,"revive":4,"rockfall":1,"sentry":6,"shadowWeave":18,"shield":7,"shieldBreak":10,"stone":1,"summon":1,"swordStorm":8,"telegraph":3,"volley":7,"wake":1,"wolfShadow":1,"wolfShadowLost":1,"zone":1},
+      "events": {"atk":808,"bounty":3,"cast":3,"deploy":35,"die":65,"dmg":1047,"engage":12,"fx":124,"heal":4,"leak":29,"rate":105,"skill":56,"spawn":81,"status":277},
+      "fx": {"beam":5,"block":12,"buff":2,"burst":1,"coldWind":1,"dodge":16,"dp":2,"iceSpike":1,"overclock":1,"overload":1,"revive":4,"rockfall":1,"sentry":6,"shadowWeave":18,"shield":7,"shieldBreak":10,"stone":1,"summon":1,"swordStorm":8,"telegraph":3,"timeLock":5,"timeLockHit":7,"volley":7,"wake":1,"wolfShadow":1,"wolfShadowLost":1,"zone":1},
       "snaps": "990c1969 dc2ad38a 174923fe a6e58f84 b785ced8 520d5f1d 85a19357 3c166db5 b57c06f0 0fe8ab8f 0fd6f543 7fc3bfd7 f5c6f543 938db54a e45175df 639f0a8b 917179b8"
     },
     "roster-041": {

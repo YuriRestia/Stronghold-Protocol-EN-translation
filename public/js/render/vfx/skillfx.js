@@ -94,6 +94,7 @@ import {
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
+import { unitPoint } from './mounts.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
@@ -222,6 +223,7 @@ export class SkillFx {
     this.tloops = new Map();   // `${target id}|${key}` → { h, until, U, tgt, bySkill } (skills.js targetsOf `hit`)
     this.marks = [];           // FX_BINDINGS reached effects: { owner, r, c, until, h, cover }
     this.locks = [];           // FX_BINDINGS hold 'lock' crosshairs: { src, tv, x, y, shell, idle, hs } (_lockOn)
+    this.untils = [];          // (fork) FX_BINDINGS `until`: held effects a later fx of that kind ends { kind, src, id, hs }
     this.shots = new Map();    // FX_BINDINGS `shots`: '<unit id>:<shot id>' → its flight's handle, null before its birth (_lanes)
     this.born = new Map();     // unit id → { frame, own } of its official birth effect (deployed: FxWiring.deploy's key)
     this.frame = 0;            // FxWiring.tick counts frames: events of one frame share a value
@@ -1065,6 +1067,14 @@ export class SkillFx {
     if (this._enemyFx(kind, x, y, extra)) return true;
     // a shell of a lock binding's shooter takes its lock; its landing ends it (the kit's fx, drawn as before)
     if ((kind === 'bombardShell' || kind === 'bombard') && this.locks.length) this._lockShell(kind, x, y, extra);
+    // (fork) a held binding's `until` kind from the same shooter on the same unit ends it (蕾缪安 S2: her shot ends the aim)
+    if (this.untils.length) {
+      this.untils = this.untils.filter((u) => {
+        if (u.kind !== kind || u.src !== (extra.src ?? extra.id) || u.id !== extra.id) return true;
+        for (const h of u.hs) h.stop();
+        return false;
+      });
+    }
     // (1) explicit bindings and what they cover
     for (const m of this.marks) {
       if (m.until > now && m.cover.includes(kind) && extra.id === m.owner && Math.round(y) === m.r && Math.round(x) === m.c) return true;
@@ -1170,7 +1180,14 @@ export class SkillFx {
       // once on the unit the fx names (泡泡's attacker, 归溟幽灵鲨 S1's ally), else where it happens; turned by the owner's side
       const tv = this.w.view(extra[bind.target || 'target']) || { id: 'fx:point', x, y, z: 0 };
       let drew = false;
-      for (const k of keys) if (this.w.playOn(k, tv, { flipFrom: U.v || undefined })) drew = true;
+      for (const k of keys) {
+        const h = this.w.playOn(k, tv, { flipFrom: U.v || undefined });
+        if (!h) continue;
+        drew = true;
+        // (fork) `hit`: a hit's role — a looping prefab there stops after SKILL_CAST_S, as FxWiring stops one on an
+        // attack's one-shot row (莫斯提马's Ethereal Harmony S2 hit loops: 69 of them ran 4 s each and filled the budget)
+        if (bind.hit) later(this.w.ofx, SKILL_CAST_S, () => { if (this.w.ofx.lib.def(h.key)?.isLoop) h.stop({ cast: true }); });
+      }
       return drew;
     }
     if (bind.at === 'tiles') {
@@ -1193,14 +1210,43 @@ export class SkillFx {
     const holdS = bind.hold === 'fx' ? (fxS > 0 ? fxS : bind.holdS || SKILL_CAST_S)
       : Number(bb[bind.hold]) > 0 ? Number(bb[bind.hold]) : bind.holdS || SKILL_CAST_S;
     let drew = false;
+    const held = [];
     for (const k of keys) {
       const h = this.w.playOn(k, at, { loop: true, important: true });
       if (!h) continue;
       drew = true;
+      held.push(h);
       later(this.w.ofx, holdS, () => h.stop());
       this.marks.push({ owner: U.id, r: Math.round(y), c: Math.round(x), until: this.w.ofx.time + holdS, h, cover: bind.cover || [] });
     }
+    // (fork) `line`: a line effect from the owner's muzzle to the unit the fx names, kept on both while it is held
+    const line = drew && bind.line ? this._line(U, bind.line, tv, holdS) : null;
+    if (line) held.push(line);
+    if (drew && bind.until) this.untils.push({ kind: bind.until, src: U.id, id: extra.id, hs: held });
     return drew;
+  }
+
+  /**
+   * (fork) A binding's `line` (蕾缪安 S2's aim, lemuen_skill_02_trail_01 — its template's CreateLineEffect): its line
+   * renderers from the owner's muzzle to the target's hit point, following both, for `holdS` (or until stopped).
+   */
+  _line(U, key0, tv, holdS) {
+    const src = U?.v;
+    const key = this.w.skinKey(lc(key0), src);
+    if (!src || !tv || !this.w.ofx.lib.has(key)) return null;
+    const ss = this.w.skinOf(this.w.unitOf(src)), ts = this.w.skinOf(this.w.unitOf(tv));
+    const a = unitPoint(ss, 'muzzle', this.w.pose(src)), b = unitPoint(ts, 'hit', this.w.pose(tv));
+    const h = this.w.ofx.spawn(key, { pos: a.slice(), groundZ: -(src.z || 0) }, {
+      loop: true, important: true,
+      track: (fx) => {
+        if (!src.destroyed && src.alive !== false) unitPoint(ss, 'muzzle', this.w.pose(src), a);
+        if (!tv.destroyed && tv.alive !== false) unitPoint(ts, 'hit', this.w.pose(tv), b);
+        fx.anchor[0] = a[0]; fx.anchor[1] = a[1]; fx.anchor[2] = a[2];
+        fx.linkLines(a, b);
+      },
+    });
+    if (h) later(this.w.ofx, holdS, () => h.stop());
+    return h;
   }
 
   /**
@@ -1590,6 +1636,8 @@ export class SkillFx {
     this.shots.clear();
     for (const L of this.locks) this._endLock(L);
     this.locks = [];
+    for (const u of this.untils) for (const h of u.hs) h.stop();
+    this.untils = [];
     this.hitLog = [];
     this.windows = [];
     this.born.clear();
