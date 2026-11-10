@@ -118,6 +118,19 @@ FX_GENERIC = {
                'physFragile': 'buff_ fragile_01', 'elemFragile': 'buff_ fragile_01', 'defDown': 'buff_defdown',
                'resDown': 'buff_magic_resistance_down', 'aspdDown': 'buff_attack_speed_reduction_01',
                'disarm': 'common_disarm_01', 'invulnerable': 'common_invincible_01', 'poison': 'buff_poison'},
+    # (fork) element bursts (爆发), by `<sim element>.<side>.<role>`: side `enemy` = an enemy unit (the sim's
+    # isEnemyEntity), `char` = an operator / summon; role `hit` plays once at the burst, `loop` while the burst's
+    # `<element>Burst` lock lasts, `down` while erosion's permanent DEF cut (`erosionDown`) lasts. Read from the CN
+    # client's buff templates ep_break_<fire|sanity|water|dark>_<enemy|char> (2026-11-10): their ON_BUFF_START
+    # CreateEffect is the hit, the overrideEffectKey of the buff they create the loop. FIRE = burn, SANITY = neural,
+    # WATER = erosion, DARK = apoptosis. Not here: an enemy's neural burst (palsy stacks and damage, no effect of its
+    # own) and ep_break_water_enemy's common_waterdamage_debuff (created ON_OWNER_REBORN only).
+    'burst': {'burn.enemy.hit': 'common_firedamage_hit', 'burn.char.loop': 'buff_burn',
+              'neural.char.loop': 'common_nerve_injury_01_hit',
+              'erosion.enemy.hit': 'common_waterdamage_hit', 'erosion.char.hit': 'common_waterelementexplosion',
+              'erosion.char.down': 'buff_defdown',
+              'apoptosis.enemy.hit': 'common_darkdamage_hit', 'apoptosis.enemy.loop': 'common_darkdamage_debuff',
+              'apoptosis.char.hit': 'common_darkdamage_hit', 'apoptosis.char.loop': 'common_darkdamage_debuff'},
 }
 FX_GENERIC_BUNDLES = ('battle/prefabs/effects/buff.ab',)   # every prefab of these is a generic key too
 
