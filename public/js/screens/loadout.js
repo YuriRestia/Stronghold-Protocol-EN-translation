@@ -332,7 +332,7 @@ export function TierMark({ m, tier, count }) {
  * tiers 5 / 6 (not while filtering). Its drag, wheel, left-edge group and jumps are the shared deck's (`deckProps`:
  * screens/loadoutDeck.js useGroupDeck).
  */
-function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, diySlots, diyLegal, deckRef, drawer, deckProps, filtered,
+function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, onClearSlot = null, diySlots, diyLegal, deckRef, drawer, deckProps, filtered,
   selSlot = null, onSelSlot = () => {}, onQuickSlot = () => {}, onBlank = null }) {
   useDetailsSync(deckRef); // 「详情」's panels for cards drawn now (a filter, the first draw with it on)
   useNameFit(deckRef); // (fork) the names fitted to their cards (ui/nameFit.js)
@@ -351,7 +351,7 @@ function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, d
           entries=${st.entries} ops=${st.ops} selected=${!selSlot && c.chessId === selId} onPick=${onPick} onChange=${onChange}
           notOwned=${(st.notOwned || []).includes(c.chessId)} worn=${wornOf(c.charId)} />`)}
         ${filtered ? null : diySlots.filter((sl) => sl.tier === g.tier).map((sl) => html`<${DiyDeckSlot} key=${sl.slotId} m=${m} slot=${sl}
-          pick=${st.diy?.[sl.slotId] || null} illegal=${!!st.diy?.[sl.slotId] && !diyLegal[sl.slotId]} onOpen=${onDiySlot} ops=${st.ops}
+          pick=${st.diy?.[sl.slotId] || null} illegal=${!!st.diy?.[sl.slotId] && !diyLegal[sl.slotId]} onOpen=${onDiySlot} onClear=${onClearSlot} ops=${st.ops}
           selected=${selSlot === sl.slotId} onSel=${onSelSlot} onQuick=${onQuickSlot} wornOf=${wornOf} />`)}
       </div>
     </section>`)}
@@ -562,6 +562,8 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
     setDrawer(true);
     speakSelect(diyData().backups?.units?.[p.charId] || { charId: p.charId });
   };
+  // (fork) a slot card's ✕ (screens/diy.js DiyDeckSlot): empties the slot as its picker's 清空 does; a selected slot's drawer closes
+  const clearSlot = (slotId) => { setDiySlot(slotId, null); if (selSlot === slotId) { setSelSlot(null); setDrawer(false); } };
   const quickSlot = (slotId, patch) => {
     const p = loadoutStore.get().diy?.[slotId];
     if (p) { setDiySlot(slotId, { ...p, ...patch }); touchOperator(p, patch); }
@@ -875,7 +877,7 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
       </main>`
       : html`<main class="lo-deckwrap">
         <${DeckView} m=${m} list=${list} getChess=${getChess} st=${st} selId=${selId} onPick=${pick} onChange=${deckChange}
-          onDiySlot=${openDiyPicker} diySlots=${diySlots} diyLegal=${diyLegal} deckRef=${deckRef} drawer=${drawerOn} deckProps=${deckNav.deckProps} filtered=${nFilters > 0}
+          onDiySlot=${openDiyPicker} onClearSlot=${clearSlot} diySlots=${diySlots} diyLegal=${diyLegal} deckRef=${deckRef} drawer=${drawerOn} deckProps=${deckNav.deckProps} filtered=${nFilters > 0}
           selSlot=${slotDetail ? selSlot : null} onSelSlot=${selectSlot} onQuickSlot=${quickSlot} onBlank=${deckBlank} />
         ${drawerOn ? html`<${DeckDrawer} testid="loadout-drawer" onClose=${() => setDrawer(false)}>${slotDetail || loadoutDetail}<//>` : null}
       </main>
