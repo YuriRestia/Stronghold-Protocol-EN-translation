@@ -1010,13 +1010,14 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-op--diy.is-empty { border-style: dashed; }
 .lo-op--diy.is-empty[data-slot] { flex: none; width: calc(var(--opw) + var(--side) + max(.05rem, 3px)); } /* as wide as an operator card */
 .lo-op--diy.is-empty.is-bad, .lo-op--diy.is-bad .lo-op__card { border-color: var(--amber); }
-/* (fork) a filled slot's 更换 (screens/diy.js DiyDeckSlot): above its name, opens the slot's picker */
-/* at the rail's foot under the bonds, drawn as the rail's own chips (the levels' pill, the bond discs) */
-.lo-diy__change { flex: none; display: grid; place-items: center; width: 86%; aspect-ratio: 1; margin-top: max(.04rem, calc(3px * var(--sp-ui, 1))); padding: 0; font: inherit;
-  color: var(--text-md); cursor: pointer; background: rgba(0, 0, 0, .45); border: 1px solid rgba(255, 255, 255, .14); border-radius: 999px;
+/* (fork) a filled slot's 更换 (screens/diy.js DiyDeckSlot): at the rail's foot under the bonds, drawn as the rail's own
+   chips (the levels' pill, the bond discs) but in the game's mint, a ring and icon, so it stands out as the card's one
+   action (players could not find the grey icon it was, 2026-11-10; no glow, the user's call) */
+.lo-diy__change { flex: none; display: grid; place-items: center; width: 100%; aspect-ratio: 1; margin-top: max(.04rem, calc(3px * var(--sp-ui, 1))); padding: 0; font: inherit;
+  color: var(--mint-400); cursor: pointer; background: rgba(6, 30, 23, .85); border: 1.5px solid var(--mint-500); border-radius: 999px;
   transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
-.lo-diy__change:hover, .lo-diy__change:focus-visible { color: var(--mint-400); border-color: var(--mint-700); background: rgba(0, 0, 0, .6); }
-.lo-diy__change .icon { width: 56%; height: 56%; }
+.lo-diy__change:hover, .lo-diy__change:focus-visible { color: var(--text-on-mint); border-color: var(--mint-400); background: var(--mint-500); }
+.lo-diy__change .icon { width: 62%; height: 62%; }
 /* its 原型 / 已持有 tag, flat, beside the slot's name ("6阶 自选") above the operator's */
 .lo-diy__meta { display: flex; align-items: center; gap: max(.04rem, calc(4px * var(--sp-ui, 1))); }
 .lo-op__rail .lo-diy__bad { width: 70%; height: auto; }
