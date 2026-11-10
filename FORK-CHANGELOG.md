@@ -18,6 +18,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   | Nervous Impairment | a nerve flash, then the Palsy effect while its stacks last | a nerve flash, next to the stun |
   | Corrosion | a water hit, then a water mark while the DEF cut lasts | a water explosion, then the DEF-down mark while the DEF cut lasts |
 
+- Blaze the Igniting Spark's S3 no longer draws an orange ring on every hit on top of her official hit explosion.
 - Palsy (from Nervous Impairment and other sources) now shows its official effect on the unit while the stacks last, and a spark each time a stack interrupts an attack.
 - The effects come from the official buff data and buff templates for each burst. `tools/local-extract/fx.py` names them in new `burst` and `fx` groups of the effects index, and ten new effect files are extracted.
 

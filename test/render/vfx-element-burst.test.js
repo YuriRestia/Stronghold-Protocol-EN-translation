@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { compileEffect } from '../../public/js/render/vfx/effect.js';
 import { OfficialFx } from '../../public/js/render/vfx/system.js';
 import { FxWiring, burstSide } from '../../public/js/render/vfx/wiring.js';
+import { coverOf } from '../../public/js/render/vfx/skills.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -134,6 +135,11 @@ describe('official element bursts (generic.burst)', () => {
     assert.equal(w.status(op, 'burnBurst', false), true, 'the lock ends: the loop stops');
     assert.equal(w.loops.has('2|burnBurst'), false);
     assert.equal(w.status(op, 'burn', true), true, 'the plain status loops are unchanged');
+  });
+
+  test('烛煌 S3 fire splash = her S3 attack official hits: the stand-in orange ring is covered (the user, 2026-11-10)', () => {
+    assert.ok(coverOf('skchr_blaze2_3', 'splash'));
+    assert.equal(coverOf('skchr_blaze2_1', 'splash'), false, 'only her S3');
   });
 
   test('the burst keys are preloaded with the generic ones', async () => {
