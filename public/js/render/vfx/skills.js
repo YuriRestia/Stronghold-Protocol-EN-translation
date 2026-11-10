@@ -1740,6 +1740,9 @@ export const FX_COVER = Object.freeze({
   skchr_lumen_1: Object.freeze(['healField']),
   // 凛御银灰 S2: the blast in front of her — her skill attack's own cast / range / hit (svash2_skill_02_*_01)
   skchr_svash2_2: Object.freeze(['aoe']),
+  // (fork) 烛煌 S3: each bolt's fire splash — her S3 mode attack's own hits (blaze2_skill_03_hit / _hit_02) are the
+  // explosion at the target; the procedural splash drew a stand-in orange ring on top (the user, 2026-11-10)
+  skchr_blaze2_3: Object.freeze(['splash']),
   // 远牙 S2, 溯光星源 S3: the link at the cast — the skills' loops (fartth_skill_02_buff; halo2_skill_03_buff_01 / _03)
   skchr_fartth_2: Object.freeze(['link']),
   skchr_halo2_3: Object.freeze(['link']),

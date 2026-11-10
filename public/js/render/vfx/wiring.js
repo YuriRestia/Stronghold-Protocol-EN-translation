@@ -86,6 +86,16 @@ const HP_TYPES = new Set(['phys', 'arts', 'true']);
 const ID_ROT = Object.freeze([0, 0, 0, 1]);
 
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
+
+/**
+ * (fork) The side of an element burst (index generic.burst `<element>.<side>.<role>`, tools/local-extract/fx.py): 'enemy'
+ * for an enemy unit, as the sim's isEnemyEntity decides which burst terms apply (server/sim/units.js), else 'char' (an
+ * operator, a summon, an enemy's token).
+ */
+export function burstSide(v) {
+  const i = v?.info || {};
+  return i.kind === 'enemy' || String(i.defId || '').startsWith('enemy_') ? 'enemy' : 'char';
+}
 /** Torappu.SharedConsts.Direction order (a directional emitter row's `slots`). */
 const DIRS = ['UP', 'RIGHT', 'DOWN', 'LEFT'];
 /** Cast rows starting at these ability events start with the cast (0 ON_ATTACHED, 2 ON_CAST_START); 4 ON_SPELL_ON … at the strike. */
@@ -478,6 +488,8 @@ export class FxWiring {
       for (const k of Object.values(g.die || {})) if (k) keys.add(k);
       for (const k of Object.values(g.birth || {})) if (k) keys.add(k);
       for (const k of Object.values(g.status || {})) if (k) keys.add(k);
+      for (const k of Object.values(g.burst || {})) if (k) keys.add(k);
+      for (const k of Object.values(g.fx || {})) if (k) keys.add(k);
     }
     // an attack's rows and projectiles, its sub-abilities' too (index v2: a group's, a funnel attack's)
     const walk = (a, depth = 0) => {
@@ -1691,12 +1703,53 @@ export class FxWiring {
     if (!on) { if (prev) { prev.stop(); this.loops.delete(slot); } return !!prev; }
     if (!this.ofx.active) return false;
     if (prev && prev.alive) return true;
-    const key = this.idx.generic?.status?.[name];
+    const key = this.idx.generic?.status?.[name] || this._burstLoop(v, name);
     if (!key) return false;
     this.skills.status(v, lc(key));
     const h = this.playOn(key, v, { follow: true, loop: true, important: true });
     if (h) this.loops.set(slot, h);
     return !!h;
+  }
+
+  /**
+   * (fork) The official loop of an element burst's status (generic.burst): the `<element>Burst` lock (爆发冷却, server/sim/
+   * attack/element.js) loops the burst's `loop` effect of the unit's side (an operator's 灼燃: buff_burn), erosion's
+   * permanent DEF cut (`erosionDown`) its `down` effect. Null when the index names none.
+   */
+  _burstLoop(v, name) {
+    const b = this.idx.generic?.burst;
+    if (!b || typeof name !== 'string') return null;
+    if (name === 'erosionDown') return b[`erosion.${burstSide(v)}.down`] || null;
+    return name.endsWith('Burst') ? b[`${name.slice(0, -5)}.${burstSide(v)}.loop`] || null : null;
+  }
+
+  /**
+   * (fork) b.ev ['fx', 'burst', x, y, { id, element }] (server/sim/attack/element.js): the element's official burst
+   * (generic.burst) — its `hit` once on the unit. True when the official layer stands for the burst (a hit played, or
+   * the element has a lock loop for that side, which the burst's status draws), so the procedural flash is skipped; the legacy
+   * necrosis (no official burst) keeps it.
+   */
+  burst(extra) {
+    const b = this.idx?.generic?.burst;
+    const el = extra?.element;
+    if (!b || typeof el !== 'string' || !this.ofx.active) return false;
+    const v = this.view(extra.id);
+    if (!v) return false;
+    const side = burstSide(v);
+    const hit = b[`${el}.${side}.hit`], loop = b[`${el}.${side}.loop`];
+    const drew = !!(hit && this.playOn(hit, v, {}));
+    return drew || !!(loop && this.ofx.lib.has(loop));
+  }
+
+  /**
+   * (fork) A sim fx kind the client shows with a generic one-shot (index generic.fx: 'palsy' → common_061_numb_hit_01,
+   * a 麻痹 stack interrupting an attack) on the unit `extra.id`. True when it played (the procedural fx is skipped).
+   */
+  genericFx(kind, extra) {
+    const key = this.idx?.generic?.fx?.[kind];
+    if (!key || !this.ofx.active) return false;
+    const v = this.view(extra?.id);
+    return !!(v && this.playOn(key, v, {}));
   }
 
   /** Stop every loop of a unit (it died / left): its status loops, its skill / charge loops, the skills' loops on it. */
@@ -1742,7 +1795,9 @@ export class FxWiring {
     const t = this.talents.fx(kind, extra, x, y);
     // the floating units stand for the kit's 'drone' / 'drones' / 'droneLock' / 'overload' (render/vfx/funnelfx.js)
     const f = this.funnels.simFx(kind, x, y, extra);
-    return this.skills.simFx(kind, x, y, extra) || t || f;
+    const burst = kind === 'burst' && this.burst(extra);
+    const once = this.genericFx(kind, extra);
+    return this.skills.simFx(kind, x, y, extra) || t || f || burst || once;
   }
 
   /** b.ev 'die': the unit's own death effect or the generic one. */
