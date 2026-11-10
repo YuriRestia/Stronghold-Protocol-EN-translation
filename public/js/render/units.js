@@ -54,16 +54,15 @@
 // likewise (user report after 0.1.0) — FORMS; an operator's form is a 傀儡师's 替身 (GitHub issue #44). A view built later
 // (`info.form` = UnitInfo `form`, the sim's current form, through render/app.js renderInfo) starts in the mode; a dead
 // view keeps the form it died in (`_dieForm`) for a model built while it lies down.
-// Element gauges (b.snap `elem` → sample `el` / `elFill` / `elUntil` / `elDur`), the official form (PRTS 元素: "模型
-// 下部会显示对应的元素图标，并以白条显示剩余的元素值"; enemies "小尺寸图标（不显示元素图标，仅根据元素种类改变背景色）"): a row
-// right under the unit's own HP / SP bars and inside their span — the element's disc at the left (operators with its
-// glyph, enemies smaller and plain) and a white bar of the remaining 元素值 (1 − fill) that runs out right to left
-// like the HP bar above it; during a 爆发冷却 the bar refills over the cooldown (PRTS: "元素条显示缓慢恢复至上限"), drawn in
-// the element's colour with the disc pulsing [ASSUMED look], so a refill never reads as 元素值 still left while the
-// burst's stun / damage / 凋亡 ticks hit the unit. User playtest #6 (report 11): the v2.3 ring right of the bars sat on
-// the next operator's tier chip and bars (drawn under them) and read as that operator's gauge, a shrinking ring reads
-// like a filling progress ring, and its refill was the same white as the 元素值 left. The disc comes from the hudRings
-// atlas, the bars are tinted Texture.WHITE sprites; built on first use and hidden when idle.
+// Element gauges (b.snap `elem` → sample `el` / `elFill` / `elUntil` / `elDur`): (fork) the client's own gauge (EP_GAUGE,
+// prefabs enemy_ep_slider / char_ep_slider in arts/ui/[uc]battlecommon, logic UIFollowEpSlider / UIHudUnitEpSlider) under
+// the unit's feet, where the client's HUD root sits (UIUnitHUD follows Unit.uiPoint with Unit.hudOffset = Vector2.zero;
+// no unit prefab sets a UI mount point): a ring in the element's colour whose white arc is the remaining 元素值 (1 − fill),
+// running clockwise from 12 o'clock; operators carry the element's icon in it and a fading trail of the last drop. During a
+// 爆发冷却 the arc refills over the cooldown at half opacity (SetSliderInRecovery: GUIUtils.SetAlpha 0.5, the trail hidden);
+// an enemy's burst flashes a ring (SetEpBreakAnimation), an operator's every element hit pulses (SetEpHitAnimation). Our
+// HP / SP bars stay over the head. The art is manifest battleUi/slider_ep_* / sprite_ep_*; until it has loaded the gauge is
+// the hudRings element disc with a white arc (the same layout). Built on first use and hidden when idle.
 //
 // ItemView renders hand items as a floating icon plate; DeviceView renders battle devices (crates) as 3D boxes
 // with an HP bar once damaged.
@@ -89,7 +88,7 @@ import { SpineActor } from './spine.js';
 import { skillAttackMode } from './skillAttack.js';
 import { ATTACK_CLIPS } from './vfx/wiring.js';
 import { MANIFOLD, isManifold, manifoldCopyForm, manifoldAttackForm } from './manifold.js';
-import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, uiArtTexture, CHARGE_LABEL_STYLE, HUD_DISC, ELEMENT_RING } from './textures.js';
+import { diamondTexture, shadowTexture, fxAtlas, tierChip, statusTexture, itemTexture, hudRings, ringArc, downLabel, uiArtTexture, CHARGE_LABEL_STYLE, HUD_DISC, RING_ARC, epRadial, EP_RADIAL_SCALE } from './textures.js';
 import { COLORS, TIER_COLORS, ENEMY_FRAME, UNIT, PROJ, statusIconKey, statusIconSuppressed, statusValueLabel } from './style.js';
 import { drawCrate, rowDepthKey, ROW_KEY, deviceBoxOf, DEVICE_BOX } from './tiles.js';
 import { startAtkInterval, nextAtkInterval, clampAtkInterval } from './attackRate.js';
@@ -275,12 +274,34 @@ export const CHARGE_MARK = Object.freeze({ color: 0xffd900, fill: '#ffd900', siz
  */
 export const ALIAS_TINT = Object.freeze({ enemy_1305_mhslim: 0xffc48a, enemy_1305_mhslim_2: 0xff9070 });
 /**
- * Element gauge row under the bars (see header): the disc's diameter in tiles and its pixel clamp (enemies × `enemy`),
- * the gap under the bars (px). The white bar is as tall as the SP bar and fills the rest of the bars' width. During a
- * 爆发冷却 the refilling bar takes the element's colour (textures.js ELEMENT_RING `tint`) and the disc's alpha pulses
- * between `pulse` and 1 at `pulseHz` (real time).
+ * (fork) The official element gauge (see header), in the client prefab's own units (a sprite's pixels; the official HP
+ * bar hp_slider is 125 wide, drawn here as wide as our bar, UNIT.barWidth tiles):
+ *   - `scale`: ep_slider's localScale; `enemyY` / `charY`: its anchoredPosition, below the HUD root (the unit's feet);
+ *   - layers (bottom up), each its sprite at its own size, centred: enemies slider_ep_back_enemy (51), the element's
+ *     colour slider_ep_color_enemy (its 27 px disc in a 51 rect), the dark slider_ep_fill_back_enemy (17) and the fill
+ *     slider_ep_fill_enemy (12, colour `enemyFill`); operators the hit pulse sprite_ep_hit_spread, slider_ep_back
+ *     (alpha `backAlpha`), the colour sprite_ep_color (28), the trail and the fill slider_ep_fill (28; trail alpha
+ *     `trailAlpha`) and the element's icon (14);
+ *   - `recoverAlpha`: the fill during a 爆发冷却; `hit*`: the operator's hit pulse (EP_ANIM_DURATION 0.3 s, to scale
+ *     EP_ANIM_TO_SCALE 1.3, fading); `break*`: the enemy's burst ring (EP_BREAK_ANIM 0.5 s, scale 0.5 → 1.5, its canvas
+ *     group fading); `trailSpeed` / `trailMin`: UIFollowSlider's back slider (BACK_FOLLOW_SPEED 5, THRESHOLD 0.02);
+ *   - `el`: the prefabs' _elementDatas per ElementType (SANITY 神经, WATER 侵蚀, FIRE 灼燃, DARK 凋亡): the enemy colour and
+ *     burst colour, the operator colour and icon; 坏死 (no official element) shows as 凋亡;
+ *   - `standIn`: the drawn diameters of the hudRings disc and white arc while the art is missing (prefab units).
+ * The tweens' eases are not read from the client [ASSUMED linear].
  */
-export const EL_BAR = Object.freeze({ icon: 0.15, min: 8, max: 15, enemy: 0.8, gap: 1, pulse: 0.45, pulseHz: 1.5 });
+export const EP_GAUGE = Object.freeze({
+  scale: 1.2, enemyY: 26.5, charY: 25.9, enemyFill: 0xd5d5d5, backAlpha: 0.784, trailAlpha: 0.3, recoverAlpha: 0.5,
+  hitS: 0.3, hitTo: 1.3, breakS: 0.5, breakFrom: 0.5, breakTo: 1.5, trailSpeed: 5, trailMin: 0.02,
+  el: Object.freeze({
+    neural: Object.freeze({ enemy: 0x149882, burst: 0x149882, char: 0x00ffd8, icon: 'sprite_ep_icon' }),
+    erosion: Object.freeze({ enemy: 0x266ad0, burst: 0x266ad0, char: 0x3da1ff, icon: 'sprite_ep_water_icon' }),
+    burn: Object.freeze({ enemy: 0xe3531a, burst: 0xe3531a, char: 0xff4901, icon: 'sprite_ep_fire_icon' }),
+    apoptosis: Object.freeze({ enemy: 0x7c7c7c, burst: 0x1c1c1c, char: 0x474747, icon: 'sprite_ep_dark_icon' }),
+    necrosis: Object.freeze({ enemy: 0x7c7c7c, burst: 0x1c1c1c, char: 0x474747, icon: 'sprite_ep_dark_icon' }),
+  }),
+  standIn: Object.freeze({ enemy: 23, enemyArc: 12, char: 28, charArc: 26 }),
+});
 
 /** The share of a model's height a bar is placed above (the head is not the very top of the silhouette). */
 export const HEAD_TOP_K = 0.92;
@@ -885,7 +906,7 @@ export class UnitView {
     this.down = null;             // knocked out, waiting to redeploy: { until, total, state } (setDown) — no fade meanwhile
     this.gameT = 0;               // battle game time of the frame (render clock), for the redeploy ring's countdown and the element bar's refill
     this.el = null; this.elFill = 0; this.elUntil = 0; this.elDur = 0;   // shown element gauge (sync)
-    this._elBar = null;           // { root, disc, bg, fill } sprites of the element gauge row, built on first use
+    this._elBar = null;           // the element gauge under the feet (_updateElementGauge), built on first use
     this._wolfPips = null;        // { root, back[], lit[] } diamonds of the 狼影 row, built on first use
     this.ammoCuts = [];           // the thin separators between the ammo bar's cells (_updateAmmoCuts)
     this._downRing = null;        // { disc, track, arc, text } sprites (text: the shared label, textures.js downLabel), built on first use
@@ -2275,7 +2296,7 @@ export class UnitView {
       if (!this.ribbons) this.ribbons = new InvulnRibbons(this.P, this.root, this.body);
       this.ribbons.update(t, s * this.ribbonK, -headTiles * s * RIBBON.centre);
     } else if (this.ribbons) this.ribbons.hide();
-    this._updateHud(dt, s, hx, by - headTiles * s, alpha, t);
+    this._updateHud(dt, s, hx, by - headTiles * s, alpha, t, by);
   }
 
   /**
@@ -2300,7 +2321,7 @@ export class UnitView {
     return off;
   }
 
-  _updateHud(dt, s, x, y, alpha, t) {
+  _updateHud(dt, s, x, y, alpha, t, feetY = y) {
     const prep = this.prep;
     const showBars = !prep && this.alive && this.info.kind !== 'item';
     const damaged = this.hp < this.maxHp - 0.5;
@@ -2393,7 +2414,7 @@ export class UnitView {
       this._updateIconMark(mark, key, ic.position.x, iy, isz, alpha);
     }
     // 狼影 pips under the bars (b.snap `wolves`), then the purses and — 设置「显示弹药与能量数量」 on (off by default) —
-    // the stored energies (b.snap `coins` / `energy`), then the element gauge row under them (b.snap `elem`); redeploy
+    // the stored energies (b.snap `coins` / `energy`); the element gauge (b.snap `elem`) under the feet; redeploy
     // ring above a knocked-down operator (b.snap `down`). The same switch first puts the magazine's count right under
     // the ammo bar, and the rows below move down by its height.
     let rowsTop = cy + bh / 2 + (showSp ? spH + 1.5 : 0);
@@ -2401,8 +2422,8 @@ export class UnitView {
     const wolfH = this._updateWolfPips(showBars && !this.isEnemy && !!this.wolves, x0, rowsTop, s);
     this._updateFever(showBars && !this.isEnemy && !!this.fever, x0 + bw + 2, cy - bh / 2, s, t);
     const coinH = this._updateCoins(showBars && !this.isEnemy && !!this.coins, x0, rowsTop + wolfH, s);
-    const energyH = this._updateEnergy(showBars && !this.isEnemy && !!this.energy && this.ctx.settings?.ammoEnergyCount === true, x0, rowsTop + wolfH + coinH, s);
-    this._updateElementBar(showBars && !!this.el, x0, bw, rowsTop + wolfH + coinH + energyH + 1, spH, s, t);
+    this._updateEnergy(showBars && !this.isEnemy && !!this.energy && this.ctx.settings?.ammoEnergyCount === true, x0, rowsTop + wolfH + coinH, s);
+    this._updateElementGauge(showBars && !!this.el, x, feetY, s, dt);
     this._updateDownRing(!prep && !!this.down && !this.alive, x, this.screen.y - DOWN_LOOK.height * s, s, t);
     // (fork) stored skill charges over the head (CHARGE_MARK): above the bars, and above the status icons when any show
     const ch = !this.isEnemy ? this.charges : null;
@@ -2611,8 +2632,8 @@ export class UnitView {
   }
 
   /**
-   * The share of the element bar drawn (0..1): the remaining 元素值 (1 − fill), or during a 爆发冷却 the part of the
-   * cooldown already run (the bar refills to full, PRTS 元素 "元素条显示缓慢恢复至上限"). 0 without a gauge.
+   * The share of the element gauge's white arc (0..1): the remaining 元素值 (1 − fill), or during a 爆发冷却 the part of
+   * the cooldown already run (the arc refills to full, PRTS 元素 "元素条显示缓慢恢复至上限"). 0 without a gauge.
    */
   elementLeft() {
     if (!this.el) return 0;
@@ -2621,43 +2642,86 @@ export class UnitView {
   }
 
   /**
-   * Element gauge row (see header) under the bars spanning x0 … x0 + bw, its top at `top`: the element's disc at the
-   * left (operators with its glyph; enemies plain, × EL_BAR.enemy) and, beside it to the bars' right end, a bar of
-   * `elementLeft()` on a dark track `h` px tall — white for the 元素值 left; in the element's colour, the disc pulsing
-   * (clock `t`), while it refills over a 爆发冷却. Built on the first gauge, hidden while there is none.
+   * (fork) The element gauge (see header, EP_GAUGE) centred on `x`, its HUD root at the feet `feetY`; one prefab unit is
+   * our bar width over the official bar's 125. The client's sprites once their art has loaded (manifest battleUi/…),
+   * else the hudRings element disc with a white arc in the same place (`r.official`). `r.left` is the white arc's share
+   * (elementLeft), `r.trailK` the operator trail's; the hit pulse and the burst ring run on real time (`dt`). Built on the
+   * first gauge, hidden while there is none.
    */
-  _updateElementBar(show, x0, bw, top, h, s, t = 0) {
+  _updateElementGauge(show, x, feetY, s, dt = 0) {
     let r = this._elBar;
-    if (!show) { if (r) r.root.visible = false; return; }
-    const tex = hudRings();
+    if (!show) {
+      if (r) { r.root.visible = false; r.hitT = r.breakT = -1; r.cooling = false; r.lastFill = 0; }
+      return;
+    }
+    const P = this.P, G = EP_GAUGE, enemy = this.isEnemy;
     if (!r) {
-      const P = this.P;
       const root = new P.Container();
-      const bg = bar(P, root, COLORS.hpBack, 0.85);
-      const fill = bar(P, root, 0xffffff);
-      const disc = new P.Sprite(tex.disc.burn);
-      disc.anchor.set(0.5);
-      root.addChild(disc);
-      r = this._elBar = { root, disc, bg, fill };
+      const mk = () => { const sp = new P.Sprite(P.Texture.EMPTY); sp.anchor.set(0.5); root.addChild(sp); return sp; };
+      // bottom up, as the prefabs' siblings: enemies back, colour, fill back, fill, burst ring (its hint ring on top);
+      // operators hit pulse, back, colour, trail, fill, icon
+      r = enemy ? { root, back: mk(), color: mk(), fillBack: mk(), fill: mk(), brk: mk(), hint: mk() }
+        : { root, hit: mk(), back: mk(), color: mk(), trail: mk(), fill: mk(), icon: mk() };
+      Object.assign(r, { left: 1, trailK: 1, lastFill: 0, hitT: -1, breakT: -1, cooling: false, official: false });
+      this._elBar = r;
       this.hud.addChild(root);
     }
-    const d = clamp(s * EL_BAR.icon, EL_BAR.min, EL_BAR.max) * (this.isEnemy ? EL_BAR.enemy : 1);
-    const cy = top + EL_BAR.gap + d / 2;
-    r.disc.texture = (this.isEnemy ? tex.discEnemy : tex.disc)[this.el] || tex.disc.burn;
-    r.disc.width = r.disc.height = d / HUD_DISC;   // the disc fills HUD_DISC of its atlas cell
-    r.disc.position.set(x0 + d / 2, cy);
-    const bx = x0 + d + 2, w = Math.max(4, x0 + bw - bx);
-    r.bg.position.set(bx - 1, cy); r.bg.width = w + 2; r.bg.height = h + 2;
-    const k = this.elementLeft();
-    r.fill.visible = k > 0;
-    r.fill.position.set(bx, cy); r.fill.width = w * k; r.fill.height = h;
-    if (this.elementCooling()) {
-      r.fill.tint = (ELEMENT_RING[this.el] || ELEMENT_RING.burn).tint;
-      r.disc.alpha = EL_BAR.pulse + (1 - EL_BAR.pulse) * (0.5 + 0.5 * Math.cos(t * Math.PI * 2 * EL_BAR.pulseHz));
+    const look = G.el[this.el] || G.el.burn;
+    const left = this.elementLeft(), cooling = this.elementCooling();
+    // an enemy's burst flashes as its 爆发冷却 starts; an operator's gauge pulses on every element hit (元素值 drops)
+    if (enemy && cooling && !r.cooling) r.breakT = 0;
+    if (!enemy && !cooling && this.elFill > r.lastFill + 1e-6) r.hitT = 0;
+    r.cooling = cooling;
+    r.lastFill = cooling ? 0 : this.elFill;
+    // the trail (operators, UIFollowSlider's back slider): up with the arc at once, after a drop it follows it down
+    const gap = r.trailK - left;
+    r.trailK = cooling || gap <= G.trailMin ? left : r.trailK - gap * Math.min(1, G.trailSpeed * dt);
+    r.left = left;
+    const ui = (k) => uiArtTexture(this.ctx.assets?.ui?.(`battleUi/${k}`));
+    const radial = (k, f) => epRadial(this.ctx.assets?.ui?.(`battleUi/${k}`), f);
+    const fillKey = enemy ? 'slider_ep_fill_enemy' : 'slider_ep_fill';
+    const tex = enemy
+      ? { back: ui('slider_ep_back_enemy'), color: ui('slider_ep_color_enemy'), fillBack: ui('slider_ep_fill_back_enemy'),
+        fill: radial(fillKey, left), brk: ui('sprite_ep_break_spread'), hint: ui('sprite_ep_break_hint') }
+      : { hit: ui('sprite_ep_hit_spread'), back: ui('slider_ep_back'), color: ui('sprite_ep_color'), fill: radial(fillKey, left),
+        trail: radial(fillKey, r.trailK), icon: ui(look.icon) };
+    const official = r.official = Object.values(tex).every(Boolean);
+    const at = (sp, t, scale = 1, tint = 0xffffff, alpha = 1, on = true) => {
+      sp.visible = on && !!t;
+      if (!sp.visible) return;
+      sp.texture = t; sp.scale.set(scale); sp.tint = tint; sp.alpha = alpha;
+    };
+    const fillA = cooling ? G.recoverAlpha : 1;
+    const inv = 1 / EP_RADIAL_SCALE;
+    if (official) {
+      at(r.back, tex.back, 1, 0xffffff, enemy ? 1 : G.backAlpha);
+      at(r.color, tex.color, 1, enemy ? look.enemy : look.char);
+      at(r.fill, tex.fill, inv, enemy ? G.enemyFill : 0xffffff, fillA, left > 0);
+      if (enemy) {
+        at(r.fillBack, tex.fillBack);
+        const k = r.breakT >= 0 ? r.breakT / G.breakS : -1;
+        const sc = G.breakFrom + (G.breakTo - G.breakFrom) * k;
+        at(r.brk, tex.brk, sc, look.burst, 1 - k, k >= 0);
+        at(r.hint, tex.hint, sc, 0xffffff, 1 - k, k >= 0);
+      } else {
+        at(r.trail, tex.trail, inv, 0xffffff, G.trailAlpha, !cooling && r.trailK > left);
+        at(r.icon, tex.icon);
+        const k = r.hitT >= 0 ? r.hitT / G.hitS : -1;
+        at(r.hit, tex.hit, 1 + (G.hitTo - 1) * k, look.char, 1 - k, k >= 0);
+      }
     } else {
-      r.fill.tint = 0xffffff;
-      r.disc.alpha = 1;
+      // stand-in until the art has loaded: the element disc (operators with its glyph) and a white arc
+      const rings = hudRings();
+      const D = G.standIn;
+      for (const k of ['back', 'fillBack', 'brk', 'hint', 'hit', 'trail', 'icon']) if (r[k]) r[k].visible = false;
+      at(r.color, (enemy ? rings.discEnemy : rings.disc)[this.el] || rings.disc.burn, (enemy ? D.enemy : D.char) / (rings.size * HUD_DISC));
+      at(r.fill, ringArc(left), (enemy ? D.enemyArc : D.charArc) / (rings.size * RING_ARC), 0xffffff, fillA, left > 0);
     }
+    if (r.hitT >= 0 && (r.hitT += dt) >= G.hitS) r.hitT = -1;
+    if (r.breakT >= 0 && (r.breakT += dt) >= G.breakS) r.breakT = -1;
+    const u = clamp(s * UNIT.barWidth, 24, 96) / 125;
+    r.root.position.set(x, feetY + (enemy ? G.enemyY : G.charY) * u);
+    r.root.scale.set(u * G.scale);
     r.root.visible = true;
   }
 

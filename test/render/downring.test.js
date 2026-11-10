@@ -12,10 +12,11 @@ import { presetCamera } from '../../public/js/render/projection.js';
 import { SnapshotBuffer, normalizeSnapshot, TUPLE } from '../../public/js/render/interp.js';
 import { FORCED_EXIT as SIM_FORCED_EXIT } from '../../server/sim/constants.js';
 
-let fake, UnitView, DOWN_STATE, DOWN_LOOK, T;
+let fake, UnitView, DOWN_STATE, DOWN_LOOK, T, E;
 before(async () => {
   fake = installFakePixi();
-  ({ UnitView, DOWN_STATE, DOWN_LOOK } = await import('../../public/js/render/units.js'));
+  E = await import('../../public/js/render/units.js');
+  ({ UnitView, DOWN_STATE, DOWN_LOOK } = E);
   T = await import('../../public/js/render/textures.js');
 });
 after(() => fake.restore());
@@ -179,12 +180,132 @@ describe('knocked-down operator (UnitView.setDown)', () => {
   });
 });
 
-describe('element gauge row (official: element icon + white bar of the remaining 元素值; user playtest #6)', () => {
+describe('element gauge (the client\'s enemy_ep_slider / char_ep_slider, under the feet)', () => {
   const sample = (o = {}) => ({ x: 5, y: 10, hp: 1000, maxHp: 1000, sp: 0, spMax: 0, flags: 0, anim: 0, vx: 0, vy: 0, el: null, elFill: 0, elUntil: 0, elDur: 0, ...o });
-  /** The white bar's drawn share of its track (the track is 2 px wider: its dark outline). */
-  const share = (r) => (r.fill.visible ? r.fill.width / (r.bg.width - 2) : 0);
+  // the client's art, stubbed: each sprite at its pixel size (the fill frames are cut from a drawable source)
+  const SIZES = { slider_ep_back: 54, slider_ep_back_enemy: 51, slider_ep_color_enemy: 27, slider_ep_fill: 28, slider_ep_fill_back_enemy: 17,
+    slider_ep_fill_enemy: 12, sprite_ep_break_hint: 33, sprite_ep_break_spread: 41, sprite_ep_color: 28, sprite_ep_hit_spread: 76,
+    sprite_ep_icon: 14, sprite_ep_water_icon: 15, sprite_ep_fire_icon: 14, sprite_ep_dark_icon: 15 };
+  let from, n = 0;
+  before(() => {
+    from = fake.P.Texture.from;
+    fake.P.Texture.from = (src) => {
+      const w = SIZES[String(src).split('/').pop()];
+      return w ? new fake.P.Texture(new fake.P.BaseTexture({ width: w, height: w, source: {} })) : from(src);
+    };
+  });
+  after(() => { fake.P.Texture.from = from; });
+  /** A view whose manifest has the art (its own urls: uiArtTexture caches per url). */
+  function artView(info = {}) {
+    const tag = `/art${++n}/`;
+    const ctx = fakeViewCtx(fake.P, { cam, assets: { ui: (k) => tag + k } });
+    return new UnitView(ctx, { id: 1, side: 'ally', kind: 'chess', defId: 'char_x', tier: 3, x: 5, y: 10, maxHp: 1000, dir: 'RIGHT', ...info });
+  }
+  const enemyInfo = { id: 3, side: 'enemy', kind: 'enemy', defId: 'enemy_x', dir: undefined };
 
-  test('operators: the element disc with its glyph and a white bar of the remaining 元素值 (1 − fill)', () => {
+  test('under the feet, centred on the unit: the ring sits below the unit\'s position, the HP bar stays over the head', () => {
+    for (const v of [artView(), artView(enemyInfo)]) {
+      v.sync(sample({ el: 'burn', elFill: 0.25, hp: 500 }), 5);
+      frames(v, 1);
+      const r = v._elBar;
+      assert.ok(r.root.visible);
+      const feet = v.screen.y, u = (v.hpBg.width - 2) / 125;   // one prefab unit: our bar over the official 125
+      const y = v.isEnemy ? E.EP_GAUGE.enemyY : E.EP_GAUGE.charY;
+      assert.ok(Math.abs(r.root.position.y - (feet + y * u)) < 1e-6, `${y} units below the feet`);
+      assert.ok(Math.abs(r.root.position.x - (v.hpBg.position.x + v.hpBg.width / 2)) < 1e-6, 'centred under the bars');
+      assert.ok(r.root.position.y > v.hpBg.position.y + 20, 'far below the overhead bars');
+      assert.ok(Math.abs(r.root.scale.x - u * E.EP_GAUGE.scale) < 1e-9, 'ep_slider\'s scale 1.2');
+      v.destroy();
+    }
+  });
+
+  test('enemies: the client\'s layers in its colours; the white arc is the remaining 元素值', () => {
+    const e = artView(enemyInfo);
+    e.sync(sample({ el: 'erosion', elFill: 0.4 }), 5);
+    frames(e, 1);
+    const r = e._elBar;
+    assert.equal(r.official, true, 'the client\'s art draws it');
+    assert.deepEqual(r.root.children, [r.back, r.color, r.fillBack, r.fill, r.brk, r.hint], 'the prefab\'s order');
+    assert.equal(r.color.tint, 0x266ad0, 'WATER\'s enemy colour');
+    assert.equal(r.color.texture.width, 27, 'the colour disc at its own 27 px (its rect is 51, the disc centred)');
+    assert.equal(r.fill.tint, 0xd5d5d5);
+    assert.equal(r.fill.alpha, 1);
+    assert.equal(r.left, 0.6);
+    assert.equal(r.fill.texture, T.epRadial(`/art${n}/battleUi/slider_ep_fill_enemy`, 0.6), '60 % of the ring, from 12 o\'clock');
+    assert.equal(r.fill.scale.x, 1 / T.EP_RADIAL_SCALE, 'the cut frames at their sprite size');
+    assert.equal(r.brk.visible, false, 'no burst yet');
+    const kids = r.root.children.length;
+    frames(e, 30);
+    assert.equal(r.root.children.length, kids, 'no per-frame allocation');
+    e.sync(sample(), 6);
+    frames(e, 1);
+    assert.equal(r.root.visible, false, 'hidden once the gauges are empty');
+    e.destroy();
+  });
+
+  test('an enemy\'s burst: the ring flashes 0.5 s (scale 0.5 → 1.5, fading); the arc refills over the 爆发冷却 at half opacity', () => {
+    const e = artView(enemyInfo);
+    e.sync(sample({ el: 'apoptosis', elFill: 0.9 }), 10);
+    frames(e, 1);
+    const r = e._elBar;
+    e.sync(sample({ el: 'apoptosis', elFill: 1, elUntil: 25, elDur: 15 }), 10);
+    frames(e, 1, 0.1);
+    assert.equal(r.brk.visible, true);
+    assert.equal(r.brk.tint, 0x1c1c1c, 'DARK\'s burst colour');
+    assert.equal(r.brk.scale.x, 0.5);
+    assert.equal(r.brk.alpha, 1);
+    assert.equal(r.fill.visible, false, 'empty at the burst');
+    frames(e, 1, 0.1);
+    assert.ok(Math.abs(r.brk.scale.x - 0.7) < 1e-9 && Math.abs(r.hint.alpha - 0.8) < 1e-9, 'growing and fading together');
+    frames(e, 5, 0.1);
+    assert.equal(r.brk.visible, false, 'over after 0.5 s');
+    e.sync(sample({ el: 'apoptosis', elFill: 1, elUntil: 25, elDur: 15 }), 17.5);
+    frames(e, 1);
+    assert.ok(Math.abs(r.left - 0.5) < 1e-9, 'half refilled halfway through');
+    assert.equal(r.fill.alpha, 0.5, 'SetSliderInRecovery: half opacity');
+    assert.equal(r.fill.tint, 0xd5d5d5, 'still the white fill, not the element\'s colour');
+    e.sync(sample({ el: 'burn', elFill: 0.1 }), 26);
+    frames(e, 1);
+    assert.equal(r.fill.alpha, 1, 'opaque again after the cooldown');
+    assert.equal(r.brk.visible, false, 'a gauge filling again is no burst');
+    e.destroy();
+  });
+
+  test('operators: the element\'s icon in the ring, a pulse on every hit, a trail that follows each drop, no trail in the refill', () => {
+    const op = artView();
+    op.sync(sample({ el: 'neural', elFill: 0.2 }), 30);
+    frames(op, 1);
+    const r = op._elBar;
+    assert.deepEqual(r.root.children, [r.hit, r.back, r.color, r.trail, r.fill, r.icon], 'the prefab\'s order');
+    assert.equal(r.color.tint, 0x00ffd8, 'SANITY\'s operator colour');
+    assert.equal(r.icon.texture.width, 14, 'sprite_ep_icon');
+    assert.equal(r.back.alpha, 0.784);
+    assert.equal(r.hit.visible, true, 'the first hit pulses');
+    frames(op, 30);
+    assert.equal(r.hit.visible, false, 'the pulse lasts 0.3 s');
+    op.sync(sample({ el: 'neural', elFill: 0.5 }), 31);
+    frames(op, 1, 0.05);
+    assert.equal(r.hit.visible, true);
+    assert.equal(r.hit.tint, 0x00ffd8);
+    assert.ok(r.trail.visible && r.trailK > r.left && r.trail.alpha === 0.3, 'the trail still shows the drop');
+    frames(op, 60, 0.05);
+    assert.equal(r.trail.visible, false, 'and has caught up');
+    for (const [el, icon] of [['erosion', 15], ['burn', 14], ['apoptosis', 15]]) {
+      op.sync(sample({ el, elFill: 0.6 }), 32);
+      frames(op, 1);
+      assert.equal(r.icon.texture.width, icon, el);
+      assert.equal(r.color.tint, E.EP_GAUGE.el[el].char, el);
+    }
+    op.sync(sample({ el: 'neural', elFill: 1, elUntil: 40.5, elDur: 10 }), 34);
+    frames(op, 1);
+    assert.ok(op.elementCooling());
+    assert.ok(Math.abs(r.left - 0.35) < 1e-9, `refilled by the cooldown run (${r.left})`);
+    assert.equal(r.fill.alpha, 0.5);
+    assert.equal(r.trail.visible, false, 'the trail is hidden in the refill');
+    op.destroy();
+  });
+
+  test('without the art (a fresh install before the download): the element disc and a white arc in the same place', () => {
     const v = view();
     v.sync(sample(), 5);
     frames(v, 2);
@@ -192,66 +313,20 @@ describe('element gauge row (official: element icon + white bar of the remaining
     v.sync(sample({ el: 'burn', elFill: 0.25 }), 5);
     frames(v, 1);
     const r = v._elBar;
-    assert.ok(r.root.visible);
-    assert.equal(r.disc.texture, T.hudRings().disc.burn);
-    assert.ok(Math.abs(share(r) - 0.75) < 1e-9, `remaining EP = 1 − fill (${share(r)})`);
-    assert.equal(r.fill.tint, 0xffffff, 'a white bar');
-    v.sync(sample({ el: 'neural', elFill: 0.6 }), 5);
+    assert.equal(r.official, false);
+    assert.equal(r.color.texture, T.hudRings().disc.burn);
+    assert.equal(r.fill.texture, T.ringArc(0.75));
+    assert.equal(r.icon.visible, false);
+    assert.equal(v.elementLeft(), 0.75);
+    v.sync(sample({ el: 'burn', elFill: 1, elUntil: 20, elDur: 10 }), 15);
     frames(v, 1);
-    assert.equal(r.disc.texture, T.hudRings().disc.neural);
-    assert.ok(Math.abs(share(r) - 0.4) < 1e-9);
-    assert.equal(v.elementLeft(), 0.4);
-    const kids = r.root.children.length;
-    frames(v, 30);
-    assert.equal(r.root.children.length, kids, 'no per-frame allocation');
-    v.sync(sample(), 6);
-    frames(v, 1);
-    assert.equal(r.root.visible, false, 'hidden once the gauges are empty');
-  });
-
-  test('enemies: a smaller plain disc; during a 爆发冷却 the bar refills over the cooldown', () => {
+    assert.equal(r.fill.texture, T.ringArc(0.5));
+    assert.equal(r.fill.alpha, 0.5);
     const e = view({ id: 3, side: 'enemy', kind: 'enemy', defId: 'enemy_x', dir: undefined });
-    e.sync(sample({ el: 'apoptosis', elFill: 1, elUntil: 25, elDur: 15 }), 10);
+    e.sync(sample({ el: 'neural', elFill: 0.5 }), 1);
     frames(e, 1);
-    const r = e._elBar;
-    assert.equal(r.disc.texture, T.hudRings().discEnemy.apoptosis);
-    assert.equal(share(r), 0, 'empty at the burst');
-    e.sync(sample({ el: 'apoptosis', elFill: 1, elUntil: 25, elDur: 15 }), 17.5);
-    frames(e, 1);
-    assert.ok(Math.abs(share(r) - 0.5) < 1e-9, 'half refilled halfway through');
-    const op = view({ id: 4 });
-    op.sync(sample({ el: 'apoptosis', elFill: 0.5 }), 1);
-    frames(op, 1);
-    assert.ok(r.disc.width < op._elBar.disc.width, 'the enemy icon is smaller');
-  });
-
-  test('the 爆发冷却 refill is not the white 元素值 bar: element colour, pulsing disc; white again after the cooldown', () => {
-    const op = view({ id: 6 });
-    op.sync(sample({ el: 'neural', elFill: 0.97 }), 30);
-    frames(op, 1);
-    const r = op._elBar;
-    assert.equal(r.fill.tint, 0xffffff, 'the 元素值 left: white');
-    assert.equal(r.disc.alpha, 1);
-    // the burst: 神经 stun + 1000 true damage while the bar refills over the 10 s cooldown
-    op.sync(sample({ el: 'neural', elFill: 1, elUntil: 40.5, elDur: 10 }), 34);
-    const alphas = new Set();
-    for (let i = 0; i < 40; i++) { op.update(1 / 60, cam(), 100 + i / 60); alphas.add(Math.round(r.disc.alpha * 100)); }
-    assert.ok(op.elementCooling());
-    assert.ok(Math.abs(share(r) - 0.35) < 1e-9, `refilled by the cooldown run (${share(r)})`);
-    assert.equal(r.fill.tint, T.ELEMENT_RING.neural.tint, 'the refill is drawn in the element\'s colour');
-    assert.notEqual(r.fill.tint, 0xffffff);
-    assert.ok(alphas.size > 5 && Math.min(...alphas) >= 44 && Math.max(...alphas) <= 100, `the disc pulses (${[...alphas]})`);
-    for (const el of ['erosion', 'burn', 'apoptosis']) {
-      op.sync(sample({ el, elFill: 1, elUntil: 44, elDur: 10 }), 35);
-      frames(op, 1);
-      assert.equal(r.fill.tint, T.ELEMENT_RING[el].tint, el);
-    }
-    // the cooldown ends: every gauge resets; a new hit shows white again
-    op.sync(sample({ el: 'burn', elFill: 0.1 }), 45);
-    frames(op, 1);
-    assert.equal(op.elementCooling(), false);
-    assert.equal(r.fill.tint, 0xffffff);
-    assert.equal(r.disc.alpha, 1);
+    assert.equal(e._elBar.color.texture, T.hudRings().discEnemy.neural);
+    v.destroy(); e.destroy();
   });
 
   test('a burst lock status (爆发冷却) is not repeated in the status row while the element gauge shows it', () => {

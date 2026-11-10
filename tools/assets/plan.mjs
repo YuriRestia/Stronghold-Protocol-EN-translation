@@ -211,6 +211,10 @@ export const UI_EXTRAS = (() => {
   L.push(['battleUi', 'skill_ready', 'arts/ui/[uc]battlecommon/ui_battle/sprite_skill_ready.png']);
   // (fork) the auto-skill mark over the head: its ring and disc (render/units.js CHARGE_MARK, stored skill charges)
   for (const k of ['sprite_auto', 'sprite_circle']) L.push(['battleUi', k, `${bn}${k}.png`]);
+  // (fork) the element gauge at the feet (render/units.js EP_GAUGE): the client's enemy_ep_slider / char_ep_slider sprites
+  for (const k of ['slider_ep_back', 'slider_ep_back_enemy', 'slider_ep_color_enemy', 'slider_ep_fill', 'slider_ep_fill_back_enemy',
+    'slider_ep_fill_enemy', 'sprite_ep_break_hint', 'sprite_ep_break_spread', 'sprite_ep_color', 'sprite_ep_hit_spread', 'sprite_ep_icon',
+    'sprite_ep_water_icon', 'sprite_ep_fire_icon', 'sprite_ep_dark_icon']) L.push(['battleUi', k, `${bn}${k}.png`]);
   L.push(['skillIcon', 'empty', 'arts/ui/[uc]charcommon/skills/empty_skill.png']);
   L.push(['skillIcon', 'empty_large', 'arts/ui/[uc]charcommon/skills/empty_skill_large.png']);
   L.push(['entry', 'season_logo_settle', 'activity/[uc]act2autochess/arts/seasonlogo/season_logo_settle_game.png']);

@@ -1297,8 +1297,8 @@ export function itemTexture(url, img, color) {
 /** Arc frames: `arcs[k]` covers k / RING_STEPS of the circle. */
 export const RING_STEPS = 48;
 /**
- * Element disc colours (official icons: 神经 teal, 侵蚀 steel blue, 灼燃 rust, 凋亡 charcoal) and glyph colours; `tint` =
- * the element's bright colour (the gauge bar refilling over a 爆发冷却, render/units.js).
+ * Element disc colours (official icons: 神经 teal, 侵蚀 steel blue, 灼燃 rust, 凋亡 charcoal) and glyph colours: the element
+ * gauge's stand-in while the client's art is missing (render/units.js EP_GAUGE); `tint` = the element's bright colour.
  */
 export const ELEMENT_RING = Object.freeze({
   neural: Object.freeze({ disc: '#13806c', glyph: '#bfe6df', tint: 0x1fae93 }),
@@ -1312,6 +1312,8 @@ const RC = 64;              // cell px
 const RING_R = 26, RING_W = 6.5, DISC_R = 21.5;
 /** The element disc's diameter as a share of its atlas cell (a sprite `d / HUD_DISC` px wide draws a `d` px disc). */
 export const HUD_DISC = (2 * DISC_R) / RC;
+/** The arcs' outer diameter as a share of their atlas cell (render/units.js EP_GAUGE stand-in). */
+export const RING_ARC = (2 * RING_R + RING_W) / RC;
 let _rings = null;
 
 /**
@@ -1418,6 +1420,56 @@ export function hudRings() {
     discEnemy: Object.fromEntries(RING_KEYS.map((el) => [el, tex(frames['e:' + el])])),
   };
   return _rings;
+}
+
+/** (fork) Steps of an official radial fill (epRadial) and the resolution its frames are cut at (× the sprite's px). */
+export const EP_STEPS = 60;
+export const EP_RADIAL_SCALE = 4;
+const _epRadial = new Map();
+
+/**
+ * (fork) An official UI sprite filled radially as the client's Image (Type Filled, Radial 360, origin Top, clockwise —
+ * the element gauge's fill in [uc]battlecommon enemy_ep_slider / char_ep_slider): the frame keeping `frac` of the
+ * sprite from 12 o'clock clockwise, rounded to EP_STEPS (a non-zero fraction is never empty, a partial one never
+ * full). The frames are cut once per url from the loaded image at EP_RADIAL_SCALE × its size (draw them at
+ * 1 / EP_RADIAL_SCALE); null until the image has loaded, or when it cannot be drawn (no art, a headless fake).
+ */
+export function epRadial(url, frac) {
+  let e = _epRadial.get(url);
+  if (!e) {
+    const t = uiArtTexture(url);
+    const src = t?.baseTexture?.resource?.source;
+    const w = t?.width | 0, h = t?.height | 0;
+    if (!src || typeof src !== 'object' || w < 2 || h < 2) return null;
+    const P = PIXI();
+    const cols = 8, rows = Math.ceil((EP_STEPS + 1) / cols), cw = w * EP_RADIAL_SCALE, ch = h * EP_RADIAL_SCALE;
+    const canvas = makeCanvas(cols * cw, rows * ch);
+    const c = canvas.getContext('2d');
+    const cell = [];
+    try {
+      for (let k = 0; k <= EP_STEPS; k++) {
+        const x = (k % cols) * cw, y = Math.floor(k / cols) * ch;
+        cell.push([x, y]);
+        if (!k) continue;
+        c.save();
+        if (k < EP_STEPS) {
+          const cx = x + cw / 2, cy = y + ch / 2, r = Math.hypot(cw, ch);
+          c.beginPath(); c.moveTo(cx, cy); c.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * k) / EP_STEPS); c.closePath();
+          c.clip();
+        }
+        c.drawImage(src, x, y, cw, ch);
+        c.restore();
+      }
+    } catch { return null; }
+    const base = P.BaseTexture.from(canvas);
+    e = { base, frames: cell.map(([x, y]) => new P.Texture(base, new P.Rectangle(x, y, cw, ch))) };
+    _epRadial.set(url, e);
+  }
+  const f = frac > 1 ? 1 : frac > 0 ? frac : 0;
+  let k = Math.round(f * EP_STEPS);
+  if (k === 0 && f > 0) k = 1;
+  if (k === EP_STEPS && f < 1) k = EP_STEPS - 1;
+  return e.frames[k];
 }
 
 /** Arc frame of a fraction 0..1 (rounded to the nearest step; a non-zero fraction never shows an empty ring). */

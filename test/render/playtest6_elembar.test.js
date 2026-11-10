@@ -2,14 +2,13 @@
 // 损伤条远远没扣完但是实际已经爆条受到伤害了". The whole display path in Node (headless fake PIXI, test/render/fakepixi.js):
 // a real battle (古米 against real 海嗣) → Battle.snapshot() every tick like the client runner → render/interp.js
 // SnapshotBuffer with the local-feed clock → sample() → render/units.js UnitView. Checks:
-//   · the white bar drawn is the sim's remaining 元素值 at the render clock (within 1 %, never less than what is left,
-//     never empty before the burst), the icon is the element with the least 元素值 left, and the burst shows as a
-//     refill (PRTS 元素 "以白条显示剩余的元素值" / "元素条显示缓慢恢复至上限") drawn in the element's colour, never the
-//     white of 元素值 left — a white bar growing while the burst's stun / damage hits read as "not used up yet, but it
-//     burst";
+//   · the white arc drawn is the sim's remaining 元素值 at the render clock (within 1 %, never less than what is left,
+//     never empty before the burst), the gauge is the element with the least 元素值 left, and the burst shows as a
+//     refill (PRTS 元素 "以白条显示剩余的元素值" / "元素条显示缓慢恢复至上限") at half opacity, as the client's
+//     SetSliderInRecovery — never the opaque arc of 元素值 left, which while the burst's stun / damage hits would read as
+//     "not used up yet, but it burst";
 //   · the render clock trails the sim by ≤ 3 ticks;
-//   · the gauge row is the unit's own: under its HP / SP bars and inside their span — the v2.3 ring right of the bars
-//     sat on the next operator's tier chip and bars (drawn under them) and read as that operator's gauge.
+//   · the gauge is the unit's own: under its own feet, centred on it (the client's HUD root; render/units.js EP_GAUGE).
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,11 +18,10 @@ import { SnapshotBuffer } from '../../public/js/render/interp.js';
 import { makeBattle } from '../helpers/battleHarness.js';
 import { ELEMENT_ORDER, TICK } from '../../server/sim/constants.js';
 
-let fake, UnitView, EL_BAR, ELEMENT_RING;
+let fake, UnitView, EP_GAUGE;
 before(async () => {
   fake = installFakePixi();
-  ({ UnitView, EL_BAR } = await import('../../public/js/render/units.js'));
-  ({ ELEMENT_RING } = await import('../../public/js/render/textures.js'));
+  ({ UnitView, EP_GAUGE } = await import('../../public/js/render/units.js'));
 });
 after(() => fake.restore());
 
@@ -71,8 +69,8 @@ function renderRun(keys, { mods = {}, seconds = 70 } = {}) {
     const r = v._elBar;
     rows.push({
       t: snap.t, renderT: rt, sim: truth.get(shownT), el: r && r.root.visible ? v.el : null,
-      share: r && r.root.visible ? (r.fill.visible ? r.fill.width / (r.bg.width - 2) : 0) : null,
-      tint: r ? r.fill.tint : null, v,
+      share: r && r.root.visible ? (r.fill.visible ? r.left : 0) : null,
+      alpha: r ? r.fill.alpha : null, v,
     });
   }
   return { rows, v };
@@ -86,11 +84,11 @@ function checkRows(rows) {
     if (lock) {
       assert.ok(row.el, 'the 爆发冷却 shows');
       if (!prevLock) { bursts++; assert.ok(row.share < 0.02, `the refill starts empty (${row.share})`); }
-      assert.equal(row.tint, ELEMENT_RING[row.el].tint, `t=${row.t}: the refill is drawn in the element's colour, not white`);
+      assert.equal(row.alpha, EP_GAUGE.recoverAlpha, `t=${row.t}: the refill is drawn at half opacity, not as 元素值 left`);
     } else if (!g) assert.equal(row.el, null, 'no gauge, no row');
     else {
       assert.equal(row.el, g.el, `t=${row.t}: the icon is the element with the least 元素值 left`);
-      assert.equal(row.tint, 0xffffff, `t=${row.t}: 元素值 left is white`);
+      assert.equal(row.alpha, 1, `t=${row.t}: 元素值 left is the opaque arc`);
       assert.ok(row.share >= g.left - 1e-9, `t=${row.t}: bar ${row.share} never below the real remainder ${g.left}`);
       assert.ok(row.share - g.left < 0.01 + 1e-9, `t=${row.t}: bar ${row.share} within 1 % of ${g.left}`);
       assert.ok(row.share > 0, `t=${row.t}: never empty before the burst`);
@@ -119,16 +117,12 @@ test('掠海漂移体 + 骨海漂流体 on 古米 (绝境 R11 ATK ×1.77): chunk
   assert.ok(bursts >= 1);
 });
 
-test('the gauge row belongs to its unit: under its own HP / SP bars and inside their span', () => {
+test('the gauge belongs to its unit: centred under its own feet, below its HP / SP bars', () => {
   const { rows, v } = renderRun(['enemy_1148_dssbr'], { seconds: 12 });
   assert.ok(rows.at(-1).el, 'a gauge shows');
   const r = v._elBar;
-  const x0 = v.hpBg.position.x + 1, bw = v.hpBg.width - 2;
-  const spBottom = v.spFill.visible ? v.spFill.position.y + v.spFill.height / 2 : v.hpFill.position.y + v.hpFill.height / 2;
-  const discR = r.disc.width * 0.5 * (43 / 64);  // the drawn disc (textures.js HUD_DISC of the cell)
-  assert.ok(r.disc.position.x - discR >= x0 - 0.5, 'the icon starts at the bars\' left edge');
-  assert.ok(r.bg.position.x + r.bg.width <= x0 + bw + 1.5, 'the bar ends at the bars\' right end (never beyond, over a neighbour)');
-  assert.ok(r.fill.position.x + r.fill.width <= x0 + bw + 0.5);
-  assert.ok(r.disc.position.y - discR >= spBottom + EL_BAR.gap - 0.01, 'the row lies under the SP bar');
-  assert.ok(r.bg.position.y - r.bg.height / 2 > spBottom, 'the white bar too');
+  const u = (v.hpBg.width - 2) / 125;
+  assert.ok(Math.abs(r.root.position.x - (v.hpBg.position.x + v.hpBg.width / 2)) < 1e-6, 'centred on the unit');
+  assert.ok(Math.abs(r.root.position.y - (v.screen.y + EP_GAUGE.charY * u)) < 1e-6, 'below its feet');
+  assert.ok(r.root.position.y > v.spFill.position.y, 'under its bars');
 });

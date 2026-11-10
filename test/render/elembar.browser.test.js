@@ -1,11 +1,12 @@
 // test/render/elembar.browser.test.js — user playtest #6 report 11 in headless Chrome ("干员血条右边的元素损伤条积累速度
 // 不对，损伤条远远没扣完但是实际已经爆条"): a real battle (古米 against 底海滑动者) is simulated in Node, its frames are fed
 // to the real field view (public/dev/render-demo.html, real Spine models) the way the client runner does (local feed,
-// one tick per animation frame), and the drawn element gauge is read back every frame:
-//   · the white bar is the sim's remaining 元素值 at the frame shown (within 1 %, never below it, never empty before the
-//     burst), and the burst shows as the bar refilling over the 爆发冷却 in the element's colour (never white);
-//   · a row of five operators with gauges (desktop and a 844×390 phone at DPR 3): each gauge row lies under its own
-//     unit's bars and inside their span (the v2.3 ring sat on the next operator's tier chip and bars).
+// one tick per animation frame), and the drawn element gauge (the client's ring, render/units.js EP_GAUGE) is read back
+// every frame:
+//   · the white arc is the sim's remaining 元素值 at the frame shown (within 1 %, never below it, never empty before the
+//     burst), and the burst shows as the arc refilling over the 爆发冷却 at half opacity (never the opaque arc);
+//   · a row of five operators and two enemies with gauges (desktop and a 844×390 phone at DPR 3): each gauge is drawn
+//     with the client's art, centred under its own unit's feet, below its bars.
 //
 // Opt-in (starts Chrome): RENDER_E2E=1 node --test test/render/elembar.browser.test.js
 // Chrome path: $CHROME_PATH or the macOS default. Screenshots → test/e2e/out/elembar-*.png.
@@ -17,14 +18,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeBattle } from '../helpers/battleHarness.js';
 import { ELEMENT_ORDER } from '../../server/sim/constants.js';
-import { ELEMENT_RING } from '../../public/js/render/textures.js';
+import { EP_GAUGE } from '../../public/js/render/units.js';
+import { gpuArgs } from '../../tools/perfbench.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const OUT = path.join(ROOT, 'test/e2e/out');
 const CHROME = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const enabled = process.env.RENDER_E2E === '1' && existsSync(CHROME) && existsSync(path.join(ROOT, 'public/assets'));
 const skip = enabled ? false : 'set RENDER_E2E=1 (needs Chrome and downloaded assets)';
-const NEURAL_TINT = ELEMENT_RING.neural.tint;
 
 /** Real frames: 古米 blocking 底海滑动者 (15 % ATK 神经 per hit) until past its first burst. */
 function recordBattle(seconds = 54) {
@@ -52,16 +53,16 @@ function readGauge(id) {
   const x = v.debug.views.get(id);
   const r = x && x._elBar;
   if (!r || !r.root.visible) return { el: null, renderT: v.debug.interp.renderT };
-  return { el: x.el, share: r.fill.visible ? r.fill.width / (r.bg.width - 2) : 0, tint: r.fill.tint, renderT: v.debug.interp.renderT };
+  return { el: x.el, share: r.fill.visible ? r.left : 0, alpha: r.fill.alpha, official: r.official, renderT: v.debug.interp.renderT };
 }
 
-describe('element gauge row in headless Chrome (user playtest #6)', { skip }, () => {
+describe('element gauge in headless Chrome (user playtest #6)', { skip }, () => {
   let srv, browser;
   before(async () => {
     const puppeteer = (await import('puppeteer-core')).default;
     const { startServer } = await import('../../server/index.js');
     srv = await startServer({ port: 0, host: '127.0.0.1', quiet: true });
-    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: ['--mute-audio', '--no-first-run'] });
+    browser = await puppeteer.launch({ executablePath: CHROME, headless: true, args: gpuArgs() });
     mkdirSync(OUT, { recursive: true });
   });
   after(async () => {
@@ -81,7 +82,7 @@ describe('element gauge row in headless Chrome (user playtest #6)', { skip }, ()
     return { page, problems };
   };
 
-  test('a real battle: the white bar drawn every frame is the sim\'s remaining 元素值; the burst refills it', async () => {
+  test('a real battle: the white arc drawn every frame is the sim\'s remaining 元素值; the burst refills it', async () => {
     const { meta, frames, opId } = recordBattle();
     const { page, problems } = await open({ width: 1280, height: 720 });
     try {
@@ -112,18 +113,21 @@ describe('element gauge row in headless Chrome (user playtest #6)', { skip }, ()
         }, frames.slice(i, i + CHUNK), opId, readGauge.toString());
         rows.push(...got);
       }
-      let checked = 0, refills = 0, prevLock = false, lastBefore = null;
+      let checked = 0, refills = 0, prevLock = false, lastBefore = null, sawArt = false;
       for (const row of rows) {
         const f = byT.get(row.shownT);
         if (!f) continue;
         if (f.lock) {
           assert.equal(row.el, 'neural', 'the 爆发冷却 shows');
           if (!prevLock) { refills++; assert.ok(row.share < 0.03, `the refill starts empty (${row.share})`); }
-          assert.equal(row.tint, NEURAL_TINT, 'the refill is drawn in the 神经 colour, not white');
+          assert.equal(row.alpha, EP_GAUGE.recoverAlpha, 'the refill is drawn at half opacity, not as 元素值 left');
         } else if (f.el) {
           checked++;
           assert.equal(row.el, f.el);
-          assert.equal(row.tint, 0xffffff, 'the 元素值 left is white');
+          assert.equal(row.alpha, 1, 'the 元素值 left is the opaque arc');
+          // the stand-in until the art has loaded, then the client's art for good
+          if (row.official) sawArt = true;
+          else assert.equal(sawArt, false, `gt ${f.gt}: the client's art, once loaded, keeps drawing it`);
           assert.ok(row.share >= f.left - 1e-6 && row.share - f.left < 0.01 + 1e-6, `gt ${f.gt}: bar ${row.share} vs sim ${f.left}`);
           assert.ok(row.share > 0, 'never empty before the burst');
           lastBefore = row.share;
@@ -132,6 +136,7 @@ describe('element gauge row in headless Chrome (user playtest #6)', { skip }, ()
       }
       assert.ok(checked > 1000, `${checked} frames checked`);
       assert.equal(refills, 1, 'one 神经 burst');
+      assert.ok(sawArt, 'the client\'s art draws the gauge');
       assert.ok(lastBefore <= 0.05, `the burst comes off a sliver (${lastBefore})`);
       await page.screenshot({ path: path.join(OUT, 'elembar-cooldown.png') });
       assert.deepEqual(problems, []);
@@ -141,7 +146,7 @@ describe('element gauge row in headless Chrome (user playtest #6)', { skip }, ()
   });
 
   for (const [name, viewport] of [['desktop', { width: 1280, height: 720 }], ['phone', { width: 844, height: 390, deviceScaleFactor: 3 }]]) {
-    test(`a row of operators (${name}): every gauge row lies under its own unit's bars, inside their span`, async () => {
+    test(`a row of operators (${name}): every gauge lies centred under its own unit's feet, below its bars`, async () => {
       const { page, problems } = await open(viewport);
       try {
         await page.evaluate(() => {
@@ -170,10 +175,9 @@ describe('element gauge row in headless Chrome (user playtest #6)', { skip }, ()
           for (const [id, x] of window.__demo.view.debug.views) {
             const r = x._elBar;
             if (!r || !r.root.visible) continue;
-            const x0 = x.hpBg.position.x + 1, bw = x.hpBg.width - 2;
             const barsBottom = x.spFill.visible ? x.spFill.position.y + x.spFill.height / 2 : x.hpBg.position.y + x.hpBg.height / 2;
-            out[id] = { x0, bw, barsBottom, discL: r.disc.position.x - r.disc.width * 0.336, discTop: r.disc.position.y - r.disc.height * 0.336,
-              barR: r.bg.position.x + r.bg.width, share: r.fill.visible ? r.fill.width / (r.bg.width - 2) : 0, el: x.el, tint: r.fill.tint };
+            out[id] = { cx: x.hpBg.position.x + x.hpBg.width / 2, feet: x.screen.y, barsBottom, rx: r.root.position.x, ry: r.root.position.y,
+              share: r.fill.visible ? r.left : 0, el: x.el, alpha: r.fill.alpha, official: r.official };
           }
           return out;
         });
@@ -181,13 +185,14 @@ describe('element gauge row in headless Chrome (user playtest #6)', { skip }, ()
         for (const [id, left] of Object.entries(want)) {
           const g = geo[id];
           assert.ok(g, `unit ${id} shows its gauge`);
-          assert.ok(Math.abs(g.share - left) < 1e-6, `unit ${id}: bar ${g.share} = remaining ${left}`);
-          assert.ok(g.discL >= g.x0 - 1 && g.barR <= g.x0 + g.bw + 1.5, `unit ${id}: inside its bars' span`);
-          assert.ok(g.discTop >= g.barsBottom, `unit ${id}: under its bars`);
-          assert.equal(g.tint, 0xffffff, `unit ${id}: 元素值 left is white`);
+          assert.ok(Math.abs(g.share - left) < 1e-6, `unit ${id}: arc ${g.share} = remaining ${left}`);
+          assert.ok(Math.abs(g.rx - g.cx) < 1e-6, `unit ${id}: centred on its unit`);
+          assert.ok(g.ry > g.feet && g.ry > g.barsBottom, `unit ${id}: under its feet, below its bars`);
+          assert.equal(g.alpha, 1, `unit ${id}: 元素值 left is the opaque arc`);
+          assert.equal(g.official, true, `unit ${id}: the client's art`);
         }
         assert.ok(geo[5].share > 0.4 && geo[5].share < 0.6, `the 爆发冷却 half refilled (${geo[5].share})`);
-        assert.equal(geo[5].tint, NEURAL_TINT, 'the 爆发冷却 refill in the element\'s colour, unlike unit 1\'s white 神经 bar');
+        assert.equal(geo[5].alpha, EP_GAUGE.recoverAlpha, 'the 爆发冷却 refill at half opacity, unlike unit 1\'s opaque 神经 arc');
         await page.screenshot({ path: path.join(OUT, `elembar-row-${name}.png`) });
         assert.deepEqual(problems, []);
       } finally {
