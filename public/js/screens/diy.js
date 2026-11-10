@@ -64,8 +64,8 @@ function KindTag({ proto }) {
  * beside the others, and a custom operator acts as any other) — or an empty slot to fill. A press on a filled slot selects
  * it as a press on any card does (`onSel`: 干员调配's drawer shows its DiyDetail), its quick choices write the saved pick
  * (`onQuick(slotId, patch)`; a prototype's are fixed), its bonds stand on the rail and its 原型 / 已持有 tag beside the
- * slot's name above its own, its levels and 潜能 on the rail as any card's, and its 更换 button (an icon at the rail's foot,
- * under the bonds) opens the slot's picker (`onOpen`) — as a
+ * slot's name above its own, its levels and 潜能 on the rail as any card's, and its 更换 button (a mint-ringed icon at the rail's
+ * foot, under the bonds) opens the slot's picker (`onOpen`) — as a
  * press on an empty slot does (the card view has no 自选编队 overview: the deck stays where it was). A pick the current
  * version cannot field is marked as on the overview.
  */
