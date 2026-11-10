@@ -717,17 +717,23 @@ describe('AudioManager', () => {
     }
   });
 
-  test('塔露拉 (committed manifest): S3 has its cast sound by index only, and its kit fx their official banks and pools', () => {
+  test('塔露拉 (committed manifest): S2 and S3 have their cast sounds by index only, and her kit fx their official banks and pools', () => {
     const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
     const u = m.units.char_4247_oxi;
-    assert.equal(u.skill, undefined, 'no cast sound on S1 / S2');
-    assert.deepEqual(Object.keys(u.skills), ['2']);
+    assert.equal(u.skill, undefined, 'no primary cast sound: by index only');
+    // S2 has no ON_SKILL_START bank: its cast is its ability's start, ON_ABILITY_START.skchr_oxi_2 (tools/assets/plan.mjs
+    // SKILL_ABILITY_SOUNDS, dc9f0dbd); S1's ability start is her S1 swing (attacks[0]), no cast sound
+    assert.deepEqual(Object.keys(u.skills), ['1', '2']);
+    assert.match(u.skills[1], /p_skill_xtlfgbw_h\.mp3$/);
+    assert.equal(u.skillGroups[1], 'Battle_P_SAtk', 'on its official bank\'s mixer group');
     assert.match(u.skills[2], /p_skill_xtlfgbw_s\.mp3$/);
     assert.match(u.fxSounds['heatwave|oxi:heatwave'].url, /p_atk_xtlfgbwfb_s\.mp3$/);
     assert.match(u.fxSounds['blast|oxi:heatwave'].url, /p_imp_xtlfgbwfb_s\.mp3$/);
     assert.match(u.fxSounds['overload|'].url, /p_skill_xtlfgbwvl_s\.mp3$/);
     for (const e of Object.values(u.fxSounds)) assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
-    assert.equal(u.fxSounds['blast|oxi:retaliate'], undefined, 'S2\'s blast is another sound');
+    // S2's strike back is another sound than S3's blast: its ability's hit, ON_ABILITY_HIT.skchr_oxi_2 (dc9f0dbd)
+    assert.match(u.fxSounds['blast|oxi:retaliate'].url, /p_imp_xtlfgbwfb_h\.mp3$/);
+    assert.equal(u.fxSounds['blast|oxi:retaliate'].pool, 'battle.ON_ABILITY_HIT.skchr_oxi_2');
   });
 
   test('丰川祥子 (committed manifest): the skill stings — S1 d1/d2/d3 40/30/30, S2 h1 only (into organ), S3 s1/s2 50/50 + its loop, each on its official pool', () => {
