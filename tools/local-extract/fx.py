@@ -3146,10 +3146,14 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, tem
             if code:
                 sids |= {k for k in skill_roots if k.startswith(f'skchr_{code}_')}
             sids = {skill(sid) for sid in sorted(sids)} - {None}
+            # (fork) a mode the data gives to another skill is not guessed by name (莫斯提马: "S2" is her S3's mode;
+            # shared/fxModes.js applies the same rule to an index made before this)
+            claimed = {skills[s]['mode'] for s in sids if s in skills and skills[s].get('modeBy') == 'data'}
             for sid in sids:                     # no mode in the skill's data: the unit's mode named after the skill
                 m = re.match(r'skchr_.+_(\d+)$', sid)
                 names = [str(x.get('name') or '').lower() for x in u['modes']]
-                if sid in skills and skills[sid]['mode'] is None and m and f's{m.group(1)}' in names:
+                if (sid in skills and skills[sid]['mode'] is None and m and f's{m.group(1)}' in names
+                        and names.index(f's{m.group(1)}') not in claimed):
                     skills[sid]['mode'] = names.index(f's{m.group(1)}')
                     skills[sid]['modeBy'] = 'name'
             u['skills'] = {sid: skills[sid] for sid in sorted(sids) if sid in skills}

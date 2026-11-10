@@ -63,8 +63,11 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)
   // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (plan.mjs SKILL_ABILITY_SOUNDS) and the pools of
   // those two, her S2 strike back's impact and her T2 footprint (FX_SOUND_BANKS)
-  assert.equal(refs, 1042);
-  assert.equal(Object.keys(pools).length, 1051);
+  // (fork) + 2 references, + 16 pools: 莫斯提马's impact (+1; plan.mjs UNIT_SOUND_BANKS) and 蕾缪安's S1 / S2 impacts (+2;
+  // SKILL_MODE_BANKS), minus 莫斯提马's S2 slot (−1: its mode is her S3's, shared/fxModes.js); the 16 pools are the official
+  // banks those two operators' new sounds play on (impacts, S2 attack.2.2, FX_SOUND_BANKS, SKILL_ON_BANKS, SKILL_OFF_BANKS)
+  assert.equal(refs, 1044);
+  assert.equal(Object.keys(pools).length, 1067);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });

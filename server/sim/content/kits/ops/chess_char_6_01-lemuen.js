@@ -25,10 +25,12 @@ function ensureWanted(battle) {
   const activeLem = () => [...W.lemuens].filter(live);
   const reconcile = () => {
     for (const e of battle.enemies) {
-      const marked = [...W.sources.values()].some((s) => s.marks.has(e));
+      const by = [...W.sources].find(([, s]) => s.marks.has(e))?.[0];
+      const marked = !!by;
       if (marked && e.alive && !e.findBuff('lemuen:wanted')) {
         battle.addBuff(e, { key: 'lemuen:wanted', visible: true });
-        battle.fx('wanted', { x: e.x, y: e.y, id: e.id });
+        // `src`: the Lemuen whose mark it is (the mark's sound, tools/assets/plan.mjs FX_SOUND_BANKS)
+        battle.fx('wanted', { x: e.x, y: e.y, id: e.id, src: by.id });
       } else if (!marked && e.findBuff('lemuen:wanted')) battle.removeBuff(e, 'lemuen:wanted');
     }
     for (const refresh of W.refreshRanges) refresh();

@@ -233,6 +233,8 @@
 // cast (a skill-level begin effect for the skill); buff loops on the owner last the skill (a buff's own duration is not
 // in index.json); hit groups beyond the last repeat the last; passive skills' loops follow the deploy.
 
+import { skillModeOf } from '../../../../shared/fxModes.js';
+
 /** Torappu.Battle.AbilityStandard/Event (DESIGN §33.12): index.json's skill uses write the names, units' Emit rows the numbers. */
 export const ABILITY_EVENTS = Object.freeze({
   ON_ATTACHED: 0, ON_DETACHED: 1, ON_CAST_START: 2, ON_CAST_END: 3, ON_SPELL_ON: 4, ON_SPELL_END: 5, ON_ATTACK_FINISH: 6,
@@ -650,6 +652,15 @@ function tagCasts(plan, skill) {
  * @param {{ rec?: any, describe?: (key: string) => any }} [opts]  rec: our skill record (plan.kind); describe: key →
  *   prefab descriptor or summary, for each entry's `point` / `follow` (anchorOf)
  */
+/**
+ * (fork) Effects a skill's buff templates create that no use of the index names (crew-docs effect-gaps-audit: "never
+ * extracted", since extracted but not linked), by skill id: index uses added to its plan. 蕾缪安 S3: the template
+ * lemuen_s3_end (the skill's end) creates lemuen_skill_03_start_01 on her — the salute before the shells fall.
+ */
+export const TEMPLATE_ROWS = Object.freeze({
+  skchr_lemuen_3: Object.freeze([Object.freeze({ role: 'end', keys: Object.freeze(['lemuen_skill_03_start_01']), from: 'template lemuen_s3_end (buff_start: CreateEffect)', on: 'owner', oneshot: true })]),
+});
+
 export function skillPlan(idx, unitKey, skillId, opts = {}) {
   const id = lc(skillId);
   const plan = emptyPlan(unitKey || null, id);
@@ -659,10 +670,12 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
   if (!skill) return plan;
   plan.kind = kindOf(opts.rec, skill.rootClass);
   let attach = [];
-  if (Number.isInteger(skill.mode)) {
-    plan.mode = skill.mode;
-    plan.modeName = unit?.modes?.[skill.mode]?.name ?? null;
-    attach = attachUses(unit?.modes?.[skill.mode]);
+  // (fork) a mode the index only guessed by name loses to a skill the client data gives it (shared/fxModes.js)
+  const mode = unit?.skills?.[id] === skill ? skillModeOf(unit, id) : (Number.isInteger(skill.mode) ? skill.mode : null);
+  if (Number.isInteger(mode)) {
+    plan.mode = mode;
+    plan.modeName = unit?.modes?.[mode]?.name ?? null;
+    attach = attachUses(unit?.modes?.[mode]);
   }
   if (typeof skill.rootClass === 'string' && skill.rootClass) plan.rootClass = skill.rootClass;
   const projs = isObj(idx.projectiles) ? idx.projectiles : {};
@@ -671,6 +684,10 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
     if (kk && projs[kk] && !plan.projectiles.includes(kk)) plan.projectiles.push(kk);
   }
   let uses = Array.isArray(skill.uses) ? skill.uses : [];
+  // (fork) TEMPLATE_ROWS: a row the index does not list yet (a later extraction that links it wins)
+  const named = new Set(uses.flatMap((u) => (Array.isArray(u?.keys) ? u.keys.map(lc) : [])));
+  const extra = (TEMPLATE_ROWS[id] || []).filter((u) => !u.keys.some((k) => named.has(lc(k))));
+  if (extra.length) uses = [...uses, ...extra];
   if (id === 'skchr_yu_3') {
     // Official ProjectileProbElimateBehaviour places annex_01 at the removed bullet, never on Yu's attacks.
     // GlobalAuraAbility's annex_02 requires the ally buff's ON_TAKE_DAMAGE trigger; no matching sim event exists.
@@ -1388,6 +1405,11 @@ export function chargeKeys(plan) {
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
  *   during      only while the skill lasts (SkillFx._lasts: on, its activation frame, COVER_AFTER_S after its end, or a
  *               binding of its owner still held — a lasting area's strikes); another fx of that kind is the kit's own
+ *   line        (fork) a line effect from the owner's muzzle to the unit the fx names, kept on both while the binding is
+ *               held (SkillFx._line: 蕾缪安 S2's aim line)
+ *   until       (fork) an fx kind from the same owner on the same unit that ends the held binding at once (her shot ends
+ *               her aim)
+ *   hit         (fork) with at 'target': a hit's role — a looping prefab there stops after SKILL_CAST_S
  *   only        (fork) { field: value }: the binding stands only for an fx whose extra has those values (another fx of
  *               that kind stays the kit's own)
  *   fan         (fork) { projectile, from, to }: that projectile flies from the unit the fx's extra[from] names to each
@@ -1585,10 +1607,26 @@ export const FX_BINDINGS = Object.freeze({
   // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held as the lock mark is (hold 'lock': on
   // the enemy, at its last spot once it is gone — the shell still falls there —, until that shell's 'bombard'; the
   // fx's `hold` is a flag: read as a duration of 1 s, the crosshair went before its shell); a 'bombard' (id = her, its point)
-  // is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. The falling shell ('bombardShell': the attack
-  // projectile's flight, not flown here) stays procedural
+  // is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. (fork) The lock also plays the lock-on mark
+  // lemuen_skill_03_crosshair_01 on the enemy (template lemuen_proj_s3_effect, buff_start CreateEffect; a one-shot held
+  // by its owner, so it ends on its own). The falling shell ('bombardShell', id = her, `t` its flight) is that attack
+  // projectile's main effect lemuen_skill_03_trail_02 at the spot — its clip drops the shell from 7.27 up to the ground
+  // in 0.27 s (the projectile's lifeTime 0.25, cleared when it reaches) —, held for the fx's flight
+  // (fork) 蕾缪安 S2 (chess_char_6_01-lemuen.js): her aim at a Wanted enemy ('lock', id = the enemy, src = her) is the
+  // template lemuen_s2_aim_attack — lemuen_skill_02_crosshair_02 on the target (CreateBuffToCastedTargets, a loop) and the
+  // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
+  // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
+  // the kit deals the snipe at once, no flight is drawn]
+  skchr_lemuen_2: Object.freeze({
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
+    crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
+  }),
+  // (fork) 莫斯提马 S2 (chess_char_4_02-mostma.js): each second's strike on an enemy in her range ('timeLockHit', id = the
+  // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
+  skchr_mostma_2: Object.freeze({ timeLockHit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['mostma_skill_02_hit'] }) }),
   skchr_lemuen_3: Object.freeze({
-    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02'], hold: 'lock', during: true }),
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
+    bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
   }),
   // 泡泡 S2 (chess_char_2_08-bubble.js): she makes no attack; every damage instance she takes strikes back at its source
@@ -1689,6 +1727,8 @@ export const FX_COVER = Object.freeze({
   skchr_yu_3: Object.freeze(['firewall']), // YuS3EffectBehaviour's per-grid wall, held for the skill
   // 莫斯提马 S2: the zone at her feet — the skill's range rows (mostma_skill_02_range / _range_02) and loop show it
   skchr_mostma_2: Object.freeze(['zone']),
+  // (fork) 莫斯提马 S3: each attack's ripple — the skill's range row (mostma_skill_03_range, its outfits' twins) is the wave
+  skchr_mostma_3: Object.freeze(['ripple']),
   // 白面鸮 S2: the heal field at her — the client shows the skill's loop on her (plosis_attack_01_start), no area
   skchr_plosis_2: Object.freeze(['healField']),
   // 流明 S1: the heal field on his patient — the skill's buff on its target (lumen_skill_01_range) plays there with the heal
