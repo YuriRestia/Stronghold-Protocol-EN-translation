@@ -109,6 +109,11 @@ const SKILL_MODE_BANKS = Object.freeze({
     1: Object.freeze({ attack: 'battle.ON_ABILITY_START.char_4193_lemuen.attack.2.2', hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_lemuen_s2' }),
   }),
   char_213_mostma: Object.freeze({ 2: Object.freeze({ hit: null }) }),
+  // (fork) 烛煌 S2 / S3: each mode's bolt lands with its own projectile's impact (p_imp_hcnsrfr_h / _s), not her normal one
+  char_1040_blaze2: Object.freeze({
+    1: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s2' }),
+    2: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s3' }),
+  }),
 });
 /**
  * (fork) Sounds at a skill's start beside its ON_SKILL_START sting (`skillOn`, by index; `hold`: cut when the skill
@@ -120,15 +125,19 @@ const SKILL_ON_BANKS = Object.freeze({
   char_213_mostma: Object.freeze({
     1: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_mostma_2', hold: true }),
     2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_mostma_3' }),
-  }),
+  }),  // (fork) 烛煌 S3: its activation (p_skill_hcnsrfrsr, the skill ability's start)
+  char_1040_blaze2: Object.freeze({ 2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_blaze2_3' }) }),
 });
 const SKILL_OFF_BANKS = Object.freeze({
   char_4193_lemuen: Object.freeze({
     0: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_1', 1: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_2', 2: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_3',
-  }),
+  }),  // (fork) 烛煌 S3 (ammo): its last bolt closes the skill (b_char_boostclose); the ability's end sound
+  // (ON_ABILITY_END p_skill_hcnsrfrfld) plays at the same moment and is not carried (one end sound per skill)
+  char_1040_blaze2: Object.freeze({ 2: 'battle.ON_SKILL_SPECIAL_POINT.skchr_blaze2_3' }),
 });
 const SKILL_ABILITY_SOUNDS = Object.freeze({
-  char_4247_oxi: Object.freeze({ 0: Object.freeze(['attack', 'hit']), 1: Object.freeze(['skill']) }),
+  char_4247_oxi: Object.freeze({ 0: Object.freeze(['attack', 'hit']), 1: Object.freeze(['skill']) }),  // (fork) 烛煌 S1 (one cast): its swing and impact are the skill ability's own (p_atk_hcnsrfr_d / p_imp_hcnsrfr_d)
+  char_1040_blaze2: Object.freeze({ 0: Object.freeze(['attack', 'hit']) }),
 });
 /**
  * [look key (kits/ops/op-oblvns.js), projectile suffix, custom hit trigger or null]: an attack with a target

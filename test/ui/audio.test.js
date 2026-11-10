@@ -813,6 +813,21 @@ describe('AudioManager', () => {
     }
   });
 
+  test('(fork) 烛煌 (committed manifest): S1 swing / impact, S2 / S3 bolt impacts, S3 activation and closing (audio_data banks)', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const leaf = (u) => (typeof u === 'string' ? u : u?.url || '').split('/').pop();
+    const bz = m.units.char_1040_blaze2;
+    assert.equal(leaf(bz.hit), 'p_imp_hcnsrfr_n.mp3', 'her normal bolt');
+    assert.equal(leaf(bz.attacks[0]), 'p_atk_hcnsrfr_d.mp3', 'S1: ON_ABILITY_START.skchr_blaze2_1');
+    assert.equal(leaf(bz.hits[0]), 'p_imp_hcnsrfr_d.mp3', 'S1: ON_ABILITY_HIT.skchr_blaze2_1');
+    assert.equal(leaf(bz.hits[1]), 'p_imp_hcnsrfr_h.mp3', 'S2: ON_PROJECTILE_HIT.projectile_chr_blaze2_s2 (was her normal impact)');
+    assert.equal(leaf(bz.hits[2]), 'p_imp_hcnsrfr_s.mp3', 'S3: ON_PROJECTILE_HIT.projectile_chr_blaze2_s3 (was her normal impact)');
+    assert.equal(leaf(bz.skillOn[2]), 'p_skill_hcnsrfrsr.mp3', 'S3 activation: ON_ABILITY_START.skchr_blaze2_3');
+    assert.equal(leaf(bz.skillOff[2]), 'b_char_boostclose.mp3', 'S3 (ammo) closes: ON_SKILL_SPECIAL_POINT');
+    for (const e of [...Object.values(bz.skillOn), ...Object.values(bz.skillOff)]) assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    for (const k of ['0', '1', '2']) assert.ok(m.pools[bz.hitPools?.[k]], `S${Number(k) + 1} impact pool`);
+  });
+
   test('(fork) a sound its bank pops (popOldest) fades out over POP_FADE_S instead of a hard cut (a click)', async () => {
     const fw = fakeWindow();
     const origFetch = globalThis.fetch;
