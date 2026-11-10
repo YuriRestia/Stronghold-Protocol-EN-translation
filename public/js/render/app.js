@@ -37,7 +37,8 @@
 //                                               fx with a `form` (shared/protocol.js fxForm) switches the enemy's
 //                                               model to that clip set (render/units.js FORMS)
 //   view.setLocalFeed({ on, speed })            frames come from the local sim every frame (client-side combat):
-//                                               ~2-frame buffer at the battle's game speed
+//                                               the render clock trails them by LOCAL_LOOKAHEAD game s (at least
+//                                               ~2 frames), at the battle's game speed
 //   view.setFrozen(on)                          (fork) hold the battle on its newest frame (the dev sandbox's pause and
 //                                               frame step: a step's frame shows exactly, the units move only by it)
 //   view.highlightTiles(tiles, style)           [[r,c]] | [{row,col}]; style 'legal'|'illegal'|'range'|'rangeStand'|
@@ -188,6 +189,13 @@ export { ensurePixi } from './app/pixi.js';
 
 /** fx.damage / fx.heal option: the official effect drew the hit (no procedural spark, slash or glow; numbers stay). */
 const NO_SPARK = Object.freeze({ noSpark: true });
+/**
+ * (fork) Game seconds the client-side combat render clock trails the local sim: the attack wind-up look-ahead
+ * (render/app/windup.js) sees an attack that far ahead, as network battles do (0.1 real s at rate 2). With only ~2
+ * frames (0.034 s × speed) an operator's attack loop dropped to rest just before each strike and restarted its wind-up
+ * at 2.5× (spine.js RHYTHM_DROP_MARGIN 0.08 game s): a visible twitch on every attack at 1× and most at 2×.
+ */
+export const LOCAL_LOOKAHEAD = 0.2;
 export { PEN_CAMERA_MS, LEADER_HIT_STYLE, DRAG_HOLD_TILES, DEPLOY_REPLAY_MS } from './app/tune.js';
 export { viewKind, boardArea, bandFor, fieldRows, penShown, showsPen, leaderShown, restView, flightView, boardPreference, switchableBox } from './app/view.js';
 export { FORCED_EXIT, showsDeathFx, renderInfo } from './app/info.js';
@@ -2277,8 +2285,9 @@ export async function createFieldView(host, options = {}) {
     pushEvents,
     /**
      * Client-side combat glue (DESIGN §14): battle frames come from the local simulation (public/js/battle/runner.js)
-     * every animation frame instead of the network, so the render clock trails them by ~2 frames (not the 100 ms
-     * jitter buffer) and runs at the battle's game speed. `{ on: false }` restores the network settings.
+     * every animation frame instead of the network, so no jitter buffer is needed; the render clock still trails them
+     * by LOCAL_LOOKAHEAD game s (at least ~2 frames) and runs at the battle's game speed. `{ on: false }` restores the
+     * network settings.
      */
     /** (fork) Hold the battle still (the dev sandbox's pause and frame step); false resumes the normal render clock. */
     setFrozen(on) {
@@ -2289,7 +2298,7 @@ export async function createFieldView(host, options = {}) {
     setLocalFeed(o) {
       const on = !!(o && o.on);
       const speed = Number(o && o.speed) > 0 ? Number(o.speed) : 2;
-      interp.delay = on ? 0.034 : 0.1;
+      interp.delay = on ? Math.max(0.034, LOCAL_LOOKAHEAD / speed) : 0.1;
       interp.defaultRate = on ? Math.min(20, speed) : 2;
       interp.maxRate = on ? Math.max(8, speed * 1.5) : 8;
       return true;
