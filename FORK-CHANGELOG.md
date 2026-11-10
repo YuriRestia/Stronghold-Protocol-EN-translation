@@ -12,6 +12,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Mostima in Ethereal Harmony (`char_213_mostma@ambienceSynesthesia#6`): every S3 attack now sends out its wave again. The outfit's wave waits 0.8 s before it appears, and the effects layer ended an attack's effects after 0.6 s, so it never showed: enemies were hit and pushed back with nothing on screen. An effect part that is still waiting when an attack's effects end now plays once, as authored. Her default outfit's wave already played.
 - Lemuen in Ambience Synesthesia (`char_4193_lemuen@ambienceSynesthesia#7`): her S3 lock crosshairs and shell bursts now use the outfit's own effects instead of the default ones. Any skill effect tied to a sim event this way now follows the operator's outfit.
 - Lemuen's S3 (every outfit) now plays its official pieces that were missing: the shell falling from the sky onto each spot (it was a stand-in shell drawn by the game), the lock-on mark on each locked enemy, and her salute as the skill ends.
+- Mostima's S2 (Lock of Shattered Time) no longer draws its attacks with her S3 ripple. The game took the attack mode that belongs to her S3 for her S2 too, because of its name; the official data now decides. Mizuki's S1 had the same mix-up. During her S3, the old stand-in ring no longer draws under the official wave.
 
 ### Big Grand Alliance fights stay smooth on a PC
 

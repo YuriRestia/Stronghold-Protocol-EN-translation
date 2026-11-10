@@ -233,6 +233,8 @@
 // cast (a skill-level begin effect for the skill); buff loops on the owner last the skill (a buff's own duration is not
 // in index.json); hit groups beyond the last repeat the last; passive skills' loops follow the deploy.
 
+import { skillModeOf } from '../../../../shared/fxModes.js';
+
 /** Torappu.Battle.AbilityStandard/Event (DESIGN §33.12): index.json's skill uses write the names, units' Emit rows the numbers. */
 export const ABILITY_EVENTS = Object.freeze({
   ON_ATTACHED: 0, ON_DETACHED: 1, ON_CAST_START: 2, ON_CAST_END: 3, ON_SPELL_ON: 4, ON_SPELL_END: 5, ON_ATTACK_FINISH: 6,
@@ -668,10 +670,12 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
   if (!skill) return plan;
   plan.kind = kindOf(opts.rec, skill.rootClass);
   let attach = [];
-  if (Number.isInteger(skill.mode)) {
-    plan.mode = skill.mode;
-    plan.modeName = unit?.modes?.[skill.mode]?.name ?? null;
-    attach = attachUses(unit?.modes?.[skill.mode]);
+  // (fork) a mode the index only guessed by name loses to a skill the client data gives it (shared/fxModes.js)
+  const mode = unit?.skills?.[id] === skill ? skillModeOf(unit, id) : (Number.isInteger(skill.mode) ? skill.mode : null);
+  if (Number.isInteger(mode)) {
+    plan.mode = mode;
+    plan.modeName = unit?.modes?.[mode]?.name ?? null;
+    attach = attachUses(unit?.modes?.[mode]);
   }
   if (typeof skill.rootClass === 'string' && skill.rootClass) plan.rootClass = skill.rootClass;
   const projs = isObj(idx.projectiles) ? idx.projectiles : {};
@@ -1706,6 +1710,8 @@ export const FX_COVER = Object.freeze({
   skchr_yu_3: Object.freeze(['firewall']), // YuS3EffectBehaviour's per-grid wall, held for the skill
   // 莫斯提马 S2: the zone at her feet — the skill's range rows (mostma_skill_02_range / _range_02) and loop show it
   skchr_mostma_2: Object.freeze(['zone']),
+  // (fork) 莫斯提马 S3: each attack's ripple — the skill's range row (mostma_skill_03_range, its outfits' twins) is the wave
+  skchr_mostma_3: Object.freeze(['ripple']),
   // 白面鸮 S2: the heal field at her — the client shows the skill's loop on her (plosis_attack_01_start), no area
   skchr_plosis_2: Object.freeze(['healField']),
   // 流明 S1: the heal field on his patient — the skill's buff on its target (lumen_skill_01_range) plays there with the heal

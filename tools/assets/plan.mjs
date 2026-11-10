@@ -27,6 +27,7 @@ import { kindOf } from './formats.mjs';
 import { pickUnitSfx, assignSkillModeSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
+import { skillModeOf } from '../../shared/fxModes.js';
 
 /**
  * The voice slots are read from the zh_CN charword table, whose voiceIds are always `CN_*`: the other dubs
@@ -397,8 +398,8 @@ export function charModesFromIndex(index) {
     const u = resolve(id);
     if (!Array.isArray(u?.modes)) continue;
     const skillMode = new Map();
-    for (const [sid, sk] of Object.entries(u.skills || {})) {
-      skillMode.set(sid, Number.isInteger(sk?.mode) ? sk.mode : null);
+    for (const sid of Object.keys(u.skills || {})) {
+      skillMode.set(sid, skillModeOf(u, sid));   // (fork) a name-guessed mode loses to the data's (shared/fxModes.js)
     }
     map.set(id, {
       modes: u.modes.map((m) => ({ name: typeof m?.name === 'string' ? m.name : '' })),
