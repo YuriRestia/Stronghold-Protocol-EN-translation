@@ -650,6 +650,15 @@ function tagCasts(plan, skill) {
  * @param {{ rec?: any, describe?: (key: string) => any }} [opts]  rec: our skill record (plan.kind); describe: key →
  *   prefab descriptor or summary, for each entry's `point` / `follow` (anchorOf)
  */
+/**
+ * (fork) Effects a skill's buff templates create that no use of the index names (crew-docs effect-gaps-audit: "never
+ * extracted", since extracted but not linked), by skill id: index uses added to its plan. 蕾缪安 S3: the template
+ * lemuen_s3_end (the skill's end) creates lemuen_skill_03_start_01 on her — the salute before the shells fall.
+ */
+export const TEMPLATE_ROWS = Object.freeze({
+  skchr_lemuen_3: Object.freeze([Object.freeze({ role: 'end', keys: Object.freeze(['lemuen_skill_03_start_01']), from: 'template lemuen_s3_end (buff_start: CreateEffect)', on: 'owner', oneshot: true })]),
+});
+
 export function skillPlan(idx, unitKey, skillId, opts = {}) {
   const id = lc(skillId);
   const plan = emptyPlan(unitKey || null, id);
@@ -671,6 +680,10 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
     if (kk && projs[kk] && !plan.projectiles.includes(kk)) plan.projectiles.push(kk);
   }
   let uses = Array.isArray(skill.uses) ? skill.uses : [];
+  // (fork) TEMPLATE_ROWS: a row the index does not list yet (a later extraction that links it wins)
+  const named = new Set(uses.flatMap((u) => (Array.isArray(u?.keys) ? u.keys.map(lc) : [])));
+  const extra = (TEMPLATE_ROWS[id] || []).filter((u) => !u.keys.some((k) => named.has(lc(k))));
+  if (extra.length) uses = [...uses, ...extra];
   if (id === 'skchr_yu_3') {
     // Official ProjectileProbElimateBehaviour places annex_01 at the removed bullet, never on Yu's attacks.
     // GlobalAuraAbility's annex_02 requires the ally buff's ON_TAKE_DAMAGE trigger; no matching sim event exists.
@@ -1585,10 +1598,14 @@ export const FX_BINDINGS = Object.freeze({
   // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held as the lock mark is (hold 'lock': on
   // the enemy, at its last spot once it is gone — the shell still falls there —, until that shell's 'bombard'; the
   // fx's `hold` is a flag: read as a duration of 1 s, the crosshair went before its shell); a 'bombard' (id = her, its point)
-  // is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. The falling shell ('bombardShell': the attack
-  // projectile's flight, not flown here) stays procedural
+  // is projectile_chr_lemuen_s3_attack's reached lemuen_skill_03_hit_01. (fork) The lock also plays the lock-on mark
+  // lemuen_skill_03_crosshair_01 on the enemy (template lemuen_proj_s3_effect, buff_start CreateEffect; a one-shot held
+  // by its owner, so it ends on its own). The falling shell ('bombardShell', id = her, `t` its flight) is that attack
+  // projectile's main effect lemuen_skill_03_trail_02 at the spot — its clip drops the shell from 7.27 up to the ground
+  // in 0.27 s (the projectile's lifeTime 0.25, cleared when it reaches) —, held for the fx's flight
   skchr_lemuen_3: Object.freeze({
-    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02'], hold: 'lock', during: true }),
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
+    bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
   }),
   // 泡泡 S2 (chess_char_2_08-bubble.js): she makes no attack; every damage instance she takes strikes back at its source

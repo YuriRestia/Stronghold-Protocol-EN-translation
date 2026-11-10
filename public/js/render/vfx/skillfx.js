@@ -1189,7 +1189,7 @@ export class SkillFx {
     }
     if (bind.hold === 'lock') return this._lockOn(U, keys, at, tv, x, y);
     const bb = U.srec?.bb || {};
-    const fxS = Number(extra.duration ?? extra.dur ?? extra.hold);
+    const fxS = Number(extra.duration ?? extra.dur ?? extra.hold ?? extra.t);   // (fork) `t`: 蕾缪安's shell flight
     const holdS = bind.hold === 'fx' ? (fxS > 0 ? fxS : bind.holdS || SKILL_CAST_S)
       : Number(bb[bind.hold]) > 0 ? Number(bb[bind.hold]) : bind.holdS || SKILL_CAST_S;
     let drew = false;

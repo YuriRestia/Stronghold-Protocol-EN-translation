@@ -11,6 +11,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - Mostima in Ethereal Harmony (`char_213_mostma@ambienceSynesthesia#6`): every S3 attack now sends out its wave again. The outfit's wave waits 0.8 s before it appears, and the effects layer ended an attack's effects after 0.6 s, so it never showed: enemies were hit and pushed back with nothing on screen. An effect part that is still waiting when an attack's effects end now plays once, as authored. Her default outfit's wave already played.
 - Lemuen in Ambience Synesthesia (`char_4193_lemuen@ambienceSynesthesia#7`): her S3 lock crosshairs and shell bursts now use the outfit's own effects instead of the default ones. Any skill effect tied to a sim event this way now follows the operator's outfit.
+- Lemuen's S3 (every outfit) now plays its official pieces that were missing: the shell falling from the sky onto each spot (it was a stand-in shell drawn by the game), the lock-on mark on each locked enemy, and her salute as the skill ends.
 
 ### Big Grand Alliance fights stay smooth on a PC
 
