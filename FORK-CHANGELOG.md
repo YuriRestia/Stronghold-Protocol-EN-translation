@@ -9,7 +9,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Clear a Custom Squad slot from its card
 
-- A Custom Squad operator's card in Operator Loadout has a round ✕ in its top-right corner, in the same mint style as its swap button. Pressing it empties that slot back to "Choose an Operator", as the picker's Clear does, without opening the picker. It turns red under the mouse. The skill and module (or outfit) column moves down a little to make room, so the ✕ never covers or takes a tap meant for the button under it. It doesn't ask to confirm: only the pick and its skill and module choice go, and the operator's potential and levels stay. Players asked for it.
+- A Custom Squad operator's card in Operator Loadout has a small red ✕ sticker on its top-right corner, sticking out a little past the card's edges. Pressing it empties that slot back to "Choose an Operator", as the picker's Clear does, without opening the picker. The skill and module (or outfit) column moves down a little, so the sticker never covers or takes a tap meant for the button under it. It doesn't ask to confirm: only the pick and its skill and module choice go, and the operator's potential and levels stay. Players asked for it.
 
 ### The Custom Squad swap button is easier to spot
 
