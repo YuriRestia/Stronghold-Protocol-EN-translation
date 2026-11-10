@@ -305,6 +305,13 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
       const booms = handles.filter((h) => h.key === BOOM || h.key === TWIN);
       assert.deepEqual(booms.map((h) => h.key), [BOOM, TWIN], 'once each: the plain blast for the default outfit, the twin for Curator');
       assert.equal(booms[0].opts.important, true, 'never dropped');
+      // a chain: blasts of the same frame each play; a blast the sim defers past the skill's end (a kill on its last
+      // tick) still plays — every 'scorchBurst' the kit sends is a blast
+      for (const [x, y] of [[8, 11], [9, 11], [9, 12]]) assert.equal(w.simFx('scorchBurst', x, y, { id: 1, r: 1.7 }), true);
+      w.skill(reed, false);
+      frame();
+      assert.equal(w.simFx('scorchBurst', 10, 11, { id: 1, r: 1.7 }), true, 'after the skill ended');
+      assert.equal(handles.filter((h) => h.key === BOOM).length, 5);
     } finally {
       delete RECS.reed2_s3;
     }
