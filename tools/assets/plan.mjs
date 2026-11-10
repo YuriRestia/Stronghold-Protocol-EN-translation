@@ -79,6 +79,11 @@ const FX_SOUND_BANKS = Object.freeze({
     'blast|oxi:heatwave': 'battle.ON_PROJECTILE_HIT.projectile_chr_oxi_s_3_heatwave',
     'overload|': 'battle.ON_CUSTOM_TRIGGER.oxi_s_3_overload',
   }),
+  // (fork) 焰影苇草 S3 (chess_char_6_08-reed2.js): the blast of an enemy that dies with her S3 灼痕 ('scorchBurst') is
+  // projectile_chr_reed2_aoe_effect's REACH (p_aoe_fireexplo_h); her outfits have no sounds of their own
+  char_1020_reed2: Object.freeze({
+    'scorchBurst|': 'battle.ON_PROJECTILE_REACH.projectile_chr_reed2_aoe_effect',
+  }),
 });
 /**
  * (fork) Skills whose sounds are their own ability's banks (ON_ABILITY_START / _HIT.<skill id>), not an ON_SKILL_START or

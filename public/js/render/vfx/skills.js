@@ -1603,6 +1603,11 @@ export const FX_BINDINGS = Object.freeze({
   // 焰影苇草 S2 (a 'strike' from a fireball's carrier every cooldown: id = the enemy, src = the carrier): the fireball
   // projectile_chr_reed2_fire's hit reed2_skill_02_hit on the enemy
   skchr_reed2_2: Object.freeze({ strike: binding({ owner: 'skill', projectile: 'projectile_chr_reed2_fire', holdS: 2, during: true }) }),
+  // (fork) 焰影苇草 S3 (chess_char_6_08-reed2.js): an enemy that dies with the S3 灼痕 (buff reed2_t_1[skill_3_diffuse],
+  // ON_OWNER_KILLED) fires projectile_chr_reed2_aoe_effect at its feet, whose reached effect reed2_debuff_boom_01 is the
+  // blast on the ground there (_forceReachTargetGround); the index lists it as the skill's hit with no attack to play
+  // on. The kit's 'scorchBurst' (her id, the dead enemy's point) is that moment; her outfits' twins via skinKey.
+  skchr_reed2_3: Object.freeze({ scorchBurst: binding({ owner: 'id', at: 'point', oneshot: true, keys: ['reed2_debuff_boom_01'] }) }),
   // 蕾缪安 S3: a 'lock' (id = the enemy, src = her) is the aim projectile on it (projectile_chr_lemuen_s3_aim: its
   // main lemuen_skill_03_crosshair_range and lemuen_skill_03_crosshair_02), held as the lock mark is (hold 'lock': on
   // the enemy, at its last spot once it is gone — the shell still falls there —, until that shell's 'bombard'; the

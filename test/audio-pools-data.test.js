@@ -66,8 +66,10 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 2 references, + 16 pools: 莫斯提马's impact (+1; plan.mjs UNIT_SOUND_BANKS) and 蕾缪安's S1 / S2 impacts (+2;
   // SKILL_MODE_BANKS), minus 莫斯提马's S2 slot (−1: its mode is her S3's, shared/fxModes.js); the 16 pools are the official
   // banks those two operators' new sounds play on (impacts, S2 attack.2.2, FX_SOUND_BANKS, SKILL_ON_BANKS, SKILL_OFF_BANKS)
+  // (fork) + 1 pool: 焰影苇草 S3's blast on a defeated enemy (FX_SOUND_BANKS: projectile_chr_reed2_aoe_effect's REACH,
+  // p_aoe_fireexplo_h; an fx sound is no attack / hit reference)
   assert.equal(refs, 1044);
-  assert.equal(Object.keys(pools).length, 1067);
+  assert.equal(Object.keys(pools).length, 1068);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
