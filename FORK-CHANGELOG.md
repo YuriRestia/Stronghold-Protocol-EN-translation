@@ -7,6 +7,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### The lobby's update news can change without a new release
+
+- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts <servers> news.json` sends it to every server (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
+- Each player sees the news in their own language, else in the file's English, else the banner built into the release. Lines can use the game's own colour tags (blue, red, orange, mint, grey); there is no HTML and no links.
+- The file is checked before it is sent and again on each server: size, lengths, languages and line breaks. A refused file changes nothing. Notes in `docs/DEPLOY.md` / `DEPLOY.en.md` §1.7.
+- Server side: the notice, maintenance and news boards now share one file-polling base (`server/fileBoard.js`) instead of separate copies.
+
 ### Update news: 0.3.4-1
 
 - The lobby banner now announces Update 0.3.4-1, and it shows again for players who closed the 0.3.4 one. Its five headline lines are unchanged.

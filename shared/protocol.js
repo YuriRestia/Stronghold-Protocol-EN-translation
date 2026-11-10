@@ -773,6 +773,8 @@ export const S2C = [
   'b.snap', 'b.ev',
   // sys.notice { id, text, until } — operator notice (server/announce.js)
   'sys.notice',
+  // (fork) sys.news { news } — the lobby's live update news (server/news.js, shared/news.js), null = the release's own
+  'sys.news',
   // sys.retire { gen } — a newer server generation took over: go to `/` once no match is on screen (server/generation.js)
   'sys.retire',
   // sys.maintenance { at, closed, serverNow } — planned maintenance (server/maintenance.js): the countdown target (ms,

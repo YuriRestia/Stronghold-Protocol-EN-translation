@@ -3,8 +3,8 @@
 // connected session, and to each new session while it is active. A notice created before the server started is
 // ignored, so a restart warning does not come back after the restart.
 
-import fsp from 'node:fs/promises';
 import { sendSession } from './net.js';
+import { FileBoard } from './fileBoard.js';
 
 /** Longest notice text (the client's toast() caps at 200 too). */
 export const NOTICE_MAX_LEN = 200;
@@ -25,7 +25,7 @@ export function parseNotice(raw) {
   return { id, text: t, createdAt, until };
 }
 
-export class NoticeBoard {
+export class NoticeBoard extends FileBoard {
   /**
    * @param {{
    *   file: string,
@@ -37,30 +37,11 @@ export class NoticeBoard {
    * }} opts
    */
   constructor({ file, registry, startedAt, pollMs = NOTICE_POLL_MS, now = Date.now, log }) {
-    this.file = file;
-    this.registry = registry;
+    super({ file, registry, pollMs, tag: 'notice', log });
     this.startedAt = startedAt;
-    this.pollMs = pollMs;
     this.now = now;
-    this.log = log || { info() {}, warn() {} };
     /** @type {{ id: number, text: string, createdAt: number, until: number } | null} */
     this.notice = null;
-    /** @type {string | null} mtime:size at the last read, null = no file */
-    this.stamp = null;
-    this.busy = false;
-    this.timer = null;
-  }
-
-  start() {
-    if (this.timer) return;
-    this.timer = setInterval(() => { void this.check(); }, this.pollMs);
-    this.timer.unref?.();
-    void this.check();
-  }
-
-  stop() {
-    clearInterval(this.timer);
-    this.timer = null;
   }
 
   active() {
@@ -73,48 +54,28 @@ export class NoticeBoard {
     return { t: 'sys.notice', id: n.id, text: n.text, until: n.until };
   }
 
-  async check() {
-    if (this.busy) return;
-    this.busy = true;
-    try {
-      let st = null;
-      try {
-        st = await fsp.stat(this.file);
-      } catch (e) {
-        if (e?.code !== 'ENOENT') this.log.warn(`[notice] cannot read ${this.file}: ${e?.code || e}`);
-      }
-      const stamp = st ? `${st.mtimeMs}:${st.size}` : null;
-      if (stamp === this.stamp) return;
-      this.stamp = stamp;
-      if (!st) {
-        if (this.notice) this.log.info('[notice] cleared');
-        this.notice = null;
-        return;
-      }
-      let parsed = null;
-      try {
-        parsed = parseNotice(JSON.parse(await fsp.readFile(this.file, 'utf8')));
-      } catch { /* malformed: handled below */ }
-      if (!parsed) {
-        this.log.warn(`[notice] ignored malformed ${this.file}`);
-        return;
-      }
-      const isNew = parsed.id !== this.notice?.id;
-      this.notice = parsed;
-      if (isNew && this.active()) this.log.info(`[notice] sent to ${this.broadcast()} player(s): ${parsed.text}`);
-    } finally {
-      this.busy = false;
+  async poll() {
+    const f = await this.readChanged();
+    if (!f) return;
+    if (!f.present) {
+      if (this.notice) this.log.info('[notice] cleared');
+      this.notice = null;
+      return;
     }
+    const parsed = parseNotice(f.raw);
+    if (!parsed) {
+      this.log.warn(`[notice] ignored malformed ${this.file}`);
+      return;
+    }
+    const isNew = parsed.id !== this.notice?.id;
+    this.notice = parsed;
+    if (isNew && this.active()) this.log.info(`[notice] sent to ${this.broadcast()} player(s): ${parsed.text}`);
   }
 
   /** @returns {number} sessions reached */
   broadcast() {
     const n = this.active();
-    if (!n) return 0;
-    const msg = this.frame(n);
-    let sent = 0;
-    for (const s of this.registry.all()) if (sendSession(s, msg)) sent++;
-    return sent;
+    return n ? this.sendAll(this.frame(n)) : 0;
   }
 
   /** The client ignores ids it already showed, so a reconnect does not repeat the toast. */

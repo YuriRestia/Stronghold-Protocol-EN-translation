@@ -198,6 +198,25 @@ node scripts/maintenance.mjs --cancel            # remove all of it; the bar dis
 
 The script's normal text output and the wording of the players' bar are for people and may change. Our tools never run `git pull` or touch your service setup; to build on them, start from `server/maintenance.js` (the server side), `public/js/ui/maintenance.js` (the bar) and `docs/design/network.md` (the `sys.maintenance` message).
 
+### 1.7 Live update news (hosted servers, fork)
+
+The lobby's "Update" banner can change without a new release. A news file holds every language; the servers send it to every player, and players who are online see it within about 10 seconds, without a reload.
+
+```bash
+node scripts/deploy-regions.mjs news --hosts spa,usspa news.json   # from your PC: every server
+node scripts/deploy-regions.mjs news --hosts spa,usspa --show      # what each server shows
+node scripts/deploy-regions.mjs news --hosts spa,usspa --clear     # back to the release's own banner
+```
+
+On one server: `sudo -u stronghold node scripts/news.mjs set news.json` (also `check`, `show`, `clear`).
+
+- **The file:** `{ "id": "0.3.4-2", "langs": { "en": { "title": "…", "highlights": ["…"], "points": ["…"] }, "zh": { … }, "ja": { … }, "ko": { … }, "zh-TW": { … } } }`. `highlights` are the bold headline lines, `points` the list under them. A small example is in `test/news.test.js`.
+- **Which language:** the page's language, else its fallback languages, else the file's `en`, else the banner built into the release.
+- **Closing the banner** remembers its `id`: a new `id` shows it again to everyone; the same `id` with a fixed typo does not.
+- **Formatting:** plain text, plus the game's own colour tags: `<@ba.vup>blue</>`, `<@ba.vdown>red</>`, `<@ba.rem>orange</>`, `<@autochess.green>mint</>`, `<@autochess.gray>grey</>`. No HTML and no links; anything else stays as written.
+- **Checks** (the command before it sends, the server before it uses it): at most 32 KB, a title of up to 60 characters, up to 8 highlights and 16 points of up to 200 characters each, no line breaks or control characters. A refused file changes nothing. A file broken by hand on the server keeps the last good news (the server logs why).
+- `logs/` is shared by every server generation, so the news stays through restarts and new releases until you clear it.
+
 ## 2. Letting friends on other networks join
 
 ### 2.1 Tailscale / ZeroTier (recommended for a home mini PC)

@@ -205,6 +205,25 @@ node scripts/maintenance.mjs --cancel            # 全部取消，提示条消�
 
 脚本平时的文字输出和玩家提示条的措辞是给人看的，可能会改。我们的工具不会执行 `git pull`，也不会改动你的服务配置；想在它们的基础上开发，从 `server/maintenance.js`（服务器端）、`public/js/ui/maintenance.js`（提示条）和 `docs/design/network.md`（`sys.maintenance` 消息）看起。
 
+### 1.7 实时更新公告（托管服务器，fork）
+
+大厅的“更新”横幅无需发布新版本即可更换。一个公告文件包含所有语言；服务器把它发给每位玩家，在线玩家约 10 秒内看到，无需刷新页面。
+
+```bash
+node scripts/deploy-regions.mjs news --hosts spa,usspa news.json   # 在你的电脑上：所有服务器
+node scripts/deploy-regions.mjs news --hosts spa,usspa --show      # 每台服务器当前显示的内容
+node scripts/deploy-regions.mjs news --hosts spa,usspa --clear     # 恢复版本自带的横幅
+```
+
+在单台服务器上：`sudo -u stronghold node scripts/news.mjs set news.json`（还有 `check`、`show`、`clear`）。
+
+- **文件：** `{ "id": "0.3.4-2", "langs": { "en": { "title": "…", "highlights": ["…"], "points": ["…"] }, "zh": { … }, "ja": { … }, "ko": { … }, "zh-TW": { … } } }`。`highlights` 是加粗的标题行，`points` 是下面的列表。小示例见 `test/news.test.js`。
+- **语言：** 页面的语言，其次是它的后备语言，再其次是文件里的 `en`，都没有时显示版本自带的横幅。
+- **关闭横幅**会记住它的 `id`：新的 `id` 会对所有人重新显示；改错字时保持同一个 `id` 则不会。
+- **格式：** 纯文本，外加游戏自带的颜色标记：`<@ba.vup>蓝</>`、`<@ba.vdown>红</>`、`<@ba.rem>橙</>`、`<@autochess.green>薄荷绿</>`、`<@autochess.gray>灰</>`。不支持 HTML 和链接；其他内容按原样显示。
+- **检查**（命令发送前、服务器使用前各一次）：最多 32 KB，标题最多 60 个字符，最多 8 条标题行和 16 条要点、每条最多 200 个字符，不能有换行或控制字符。被拒绝的文件不会改变任何东西。在服务器上手动改坏的文件会保留上一份有效的公告（服务器日志会写明原因）。
+- `logs/` 由所有服务器版本（generation）共用，所以公告在重启和新版本后仍然有效，直到你清除它。
+
 ## 2. 让不在同一网络的朋友加入
 
 ### 2.1 Tailscale / ZeroTier（推荐给家用小主机）

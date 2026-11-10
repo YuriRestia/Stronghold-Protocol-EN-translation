@@ -16,6 +16,7 @@
 
 import fsp from 'node:fs/promises';
 import { sendSession } from './net.js';
+import { FileBoard } from './fileBoard.js';
 
 export const MAINTENANCE_POLL_MS = 2000;
 /** Longest free-text message (like announce.js NOTICE_MAX_LEN). */
@@ -44,7 +45,7 @@ export function parseMaintenance(raw) {
   return state.at != null || state.closed || state.stopWhenIdle || state.message ? state : null;
 }
 
-export class MaintenanceBoard {
+export class MaintenanceBoard extends FileBoard {
   /**
    * @param {{
    *   file: string,
@@ -57,35 +58,16 @@ export class MaintenanceBoard {
    * }} opts
    */
   constructor({ file, registry, lobby, startedAt, pollMs = MAINTENANCE_POLL_MS, now = Date.now, log }) {
-    this.file = file;
-    this.registry = registry;
+    super({ file, registry, pollMs, tag: 'maintenance', log });
     this.lobby = lobby;
     this.startedAt = startedAt;
-    this.pollMs = pollMs;
     this.now = now;
-    this.log = log || { info() {}, warn() {} };
     /** @type {ReturnType<typeof parseMaintenance>} */
     this.current = null;
-    /** @type {string | null} mtime:size at the last read, null = no file */
-    this.stamp = null;
-    this.busy = false;
-    this.timer = null;
     /** Called once when stopWhenIdle is set and no match is live (runMain: the clean shutdown). */
     this.onStop = null;
     this.stopping = false;
     this.checkedStale = false;
-  }
-
-  start() {
-    if (this.timer) return;
-    this.timer = setInterval(() => { void this.check(); }, this.pollMs);
-    this.timer.unref?.();
-    void this.check();
-  }
-
-  stop() {
-    clearInterval(this.timer);
-    this.timer = null;
   }
 
   /** The state in force, or null (none, or written before this server started). */
@@ -143,23 +125,13 @@ export class MaintenanceBoard {
   }
 
   async read() {
-    let st = null;
-    try {
-      st = await fsp.stat(this.file);
-    } catch (e) {
-      if (e?.code !== 'ENOENT') this.log.warn(`[maintenance] cannot read ${this.file}: ${e?.code || e}`);
-    }
-    const stamp = st ? `${st.mtimeMs}:${st.size}` : null;
-    if (stamp === this.stamp) return;
-    this.stamp = stamp;
+    const f = await this.readChanged();
+    if (!f) return;
     const before = JSON.stringify(this.report());
-    if (!st) {
+    if (!f.present) {
       this.current = null;
     } else {
-      let parsed = null;
-      try {
-        parsed = parseMaintenance(JSON.parse(await fsp.readFile(this.file, 'utf8')));
-      } catch { /* malformed: handled below */ }
+      const parsed = f.raw === undefined ? null : parseMaintenance(f.raw);
       if (!parsed) this.log.warn(`[maintenance] ignored malformed or empty ${this.file}`);
       this.current = parsed;
     }
@@ -178,9 +150,7 @@ export class MaintenanceBoard {
     this.stopping = true;
     const s = this.state();
     const backAt = s.backAt ?? (s.backIn != null ? this.now() + Math.round(s.backIn * 60000) : null);
-    const msg = this.frame({ stopping: true, backAt });
-    let sent = 0;
-    for (const session of this.registry.all()) if (sendSession(session, msg)) sent++;
+    const sent = this.sendAll(this.frame({ stopping: true, backAt }));
     this.log.info(`[maintenance] no match is live: stopping the server (told ${sent} player(s)${backAt != null ? `, back around ${new Date(backAt).toISOString()}` : ''})`);
     // one-shot: the setting is used up (removed before the process can exit)
     await fsp.rm(this.file, { force: true }).catch(() => {});
@@ -189,10 +159,7 @@ export class MaintenanceBoard {
 
   /** @returns {number} sessions reached */
   broadcast() {
-    const msg = this.frame();
-    let sent = 0;
-    for (const s of this.registry.all()) if (sendSession(s, msg)) sent++;
-    return sent;
+    return this.sendAll(this.frame());
   }
 
   /** A player who connects while maintenance is set gets it at once. */

@@ -15,6 +15,12 @@
 //   node scripts/deploy-regions.mjs deploy   --hosts spa,usspa:no-art [--ref origin/dev-0.2]
 //   node scripts/deploy-regions.mjs status   --hosts spa,usspa
 //   node scripts/deploy-regions.mjs announce --hosts spa,usspa --minutes 5 "Restart in 5 minutes"
+//   node scripts/deploy-regions.mjs news     --hosts spa,usspa news.json      (fork) the lobby's live update news
+//   node scripts/deploy-regions.mjs news     --hosts spa,usspa --show | --clear
+//
+// news: the file is checked here first (shared/news.js; a refused file goes nowhere), then on each server written to a
+// temporary file over ssh (stdin: no size limit of the command line) and put live by scripts/news.mjs as the service
+// user, which checks it again; the temporary file is removed either way.
 //
 // A host is an ssh name from ~/.ssh/config, `:no-art` marks a server that serves no art. SP_DEPLOY_HOSTS may hold the list.
 // The first host must be the page's server. Node's own modules only.
@@ -30,12 +36,14 @@
 import { spawnSync, execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { newGenId, PREPARED_MAX_AGE_MS } from './generations.mjs';
+import { readFileSync } from 'node:fs';
 import { GEN_ID_RE } from '../shared/gen.js';
+import { newsProblems } from '../shared/news.js';
 
 const APP = '/opt/stronghold/app';
 const AS_APP = 'sudo -u stronghold';
 const DEFAULT_REF = 'origin/dev-0.2';
-export const COMMANDS = Object.freeze(['prepare', 'activate', 'deploy', 'status', 'announce']);
+export const COMMANDS = Object.freeze(['prepare', 'activate', 'deploy', 'status', 'announce', 'news']);
 
 /** `spa,usspa:no-art` → [{ host, noArt }]. @param {string} raw */
 export function parseHosts(raw) {
@@ -73,6 +81,15 @@ export const sudoCheckCommand = (gen) => `sudo -n bash -c ${shQuote(checkCommand
 export const statusCommand = () => `sudo bash -c ${shQuote(`cd ${APP} && node scripts/generations.mjs status`)}`;
 export const announceCommand = (minutes, text) => `sudo bash -c ${shQuote(`cd ${APP} && ${AS_APP} node scripts/announce.mjs --minutes ${Number(minutes)} ${shQuote(text)}`)}`;
 
+/** (fork) A server's temporary copy of the news file (the login user's /tmp; root reads it for the service user). */
+export const newsUploadCommand = () => 'f=$(mktemp /tmp/sp-news-XXXXXX.json) && cat > "$f" && echo "$f"';
+/** @param {'set' | 'show' | 'clear'} action @param {string} [tmp] the upload's path (set) */
+export function newsCommand(action, tmp) {
+  if (action !== 'set') return `sudo bash -c ${shQuote(`cd ${APP} && ${AS_APP} node scripts/news.mjs ${action}`)}`;
+  if (!/^\/tmp\/sp-news-[A-Za-z0-9]+\.json$/.test(String(tmp))) throw new Error(`not a news upload path: ${tmp}`);
+  return `sudo bash -c ${shQuote(`cd ${APP} && ${AS_APP} node scripts/news.mjs set - < ${tmp}`)}; s=$?; rm -f ${tmp}; exit $s`;
+}
+
 /** The argument after a flag. */
 const flag = (args, name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 
@@ -107,6 +124,14 @@ export function parseArgs(argv, env = process.env) {
     if (!text || text.startsWith('--') || before === '--hosts' || before === '--minutes') return { error: 'announce needs the text last, in quotes' };
     o.minutes = minutes;
     o.text = text;
+  }
+  if (cmd === 'news') {
+    const show = args.includes('--show');
+    const clear = args.includes('--clear');
+    const file = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--hosts');
+    if ([show, clear, !!file].filter(Boolean).length !== 1) return { error: 'news needs one of: a news file, --show, --clear' };
+    o.action = show ? 'show' : clear ? 'clear' : 'set';
+    if (file) o.file = file;
   }
   return o;
 }
@@ -196,6 +221,24 @@ function prepare(o) {
   return gen;
 }
 
+/** (fork) The live update news on every server: checked here, then uploaded and put live one server after another. */
+function news(o) {
+  if (o.action !== 'set') { for (const h of o.hosts) ssh(h.host, newsCommand(o.action)); return; }
+  let text;
+  try { text = readFileSync(o.file, 'utf8').replace(/^\uFEFF/, ''); } catch (e) { throw new Error(`cannot read ${o.file}: ${e.code || e.message}`, { cause: e }); }
+  let raw;
+  try { raw = JSON.parse(text); } catch (e) { throw new Error(`${o.file} is not valid JSON: ${e.message}`, { cause: e }); }
+  const problems = newsProblems(raw);
+  if (problems.length) throw new Error(`${o.file} was refused, nothing was sent:\n  ${problems.join('\n  ')}`);
+  for (const h of o.hosts) {
+    console.log(`\n=== ${h.host} ===`);
+    const up = spawnSync('ssh', [h.host, newsUploadCommand()], { input: text, encoding: 'utf8', windowsHide: true });
+    const tmp = String(up.stdout || '').trim().split(/\r?\n/).pop();
+    if (up.status !== 0 || !tmp) throw new Error(`${h.host}: the upload failed (${String(up.stderr || '').trim() || `exit ${up.status}`})`);
+    ssh(h.host, newsCommand('set', tmp));
+  }
+}
+
 function activate(o, gen) {
   const problems = checkProblems(gen, checkAll(o.hosts, gen));
   if (problems.length) throw new Error(`refusing to activate ${gen}; no server was switched:\n  ${problems.join('\n  ')}`);
@@ -211,11 +254,13 @@ function main(argv) {
     console.log('usage: node scripts/deploy-regions.mjs prepare|deploy --hosts spa,usspa:no-art [--ref <git ref>]\n'
       + '       node scripts/deploy-regions.mjs activate <gen> --hosts spa,usspa:no-art\n'
       + '       node scripts/deploy-regions.mjs status --hosts spa,usspa\n'
-      + '       node scripts/deploy-regions.mjs announce --hosts spa,usspa [--minutes 5] "text"');
+      + '       node scripts/deploy-regions.mjs announce --hosts spa,usspa [--minutes 5] "text"\n'
+      + '       node scripts/deploy-regions.mjs news --hosts spa,usspa <news.json> | --show | --clear');
     process.exit(o.error === null ? 0 : 1);
   }
   if (o.cmd === 'status') { for (const h of o.hosts) ssh(h.host, statusCommand()); return; }
   if (o.cmd === 'announce') { for (const h of o.hosts) ssh(h.host, announceCommand(o.minutes, o.text)); return; }
+  if (o.cmd === 'news') { news(o); return; }
   if (o.cmd === 'prepare') { prepare(o); return; }
   if (o.cmd === 'activate') { activate(o, o.gen); return; }
   activate(o, prepare(o));
