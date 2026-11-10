@@ -88,6 +88,18 @@ const q = new URLSearchParams(location.search);
 const sb = { ready: false, error: null, facing: null };
 globalThis.__sandbox = sb;
 
+/**
+ * (fork, dev-only trial) `?lookahead=<game s>`: the client-side combat render clock trails the sim by that many game
+ * seconds instead of the match's ~2 frames (render/app.js setLocalFeed), so attack wind-ups see their attack that far
+ * ahead (the attack-animation option B under review, crew-docs/attack-jank). Without it: the match's settings.
+ */
+const LOOKAHEAD = Number(q.get('lookahead')) > 0 ? Math.min(1, Number(q.get('lookahead'))) : 0;
+function localFeed(speed) {
+  sb.view?.setLocalFeed({ on: true, speed });
+  const interp = sb.view?.debug?.interp;
+  if (LOOKAHEAD && interp) interp.delay = Math.max(interp.delay, LOOKAHEAD / (Number(speed) > 0 ? Number(speed) : 2));
+}
+
 /** The skill last picked per operator: { [charId]: skillIndex }. */
 const SKILL_KEY = 'sp.dev.sandbox.skills';
 /** The operators the last season switch left behind (named after the reload). */
@@ -1292,7 +1304,7 @@ async function main() {
     speed = Number(b.dataset.speed) || 2;
     renderSpeed();
     sync();
-    if (runner?.setSpeed?.(speed)) view.setLocalFeed({ on: true, speed });
+    if (runner?.setSpeed?.(speed)) localFeed(speed);
   };
   $('impostors').onchange = () => { sync(); view.setSettings(settings()); };
   // the frame rate and what the crowd rules do (render/crowd.js impostors, render/vfx/system.js crowd budget), each second
@@ -1340,7 +1352,7 @@ async function main() {
     // (another version: the battles run on its data and bounds, like a room of that version — runner.js loadSim)
     runner = createBattleRunner({ net, store: null, ...(seasonSim ? { loadSim: () => loadBrowserSim(seasonSim) } : null) });
     runner.on('field', (field) => {
-      view.setLocalFeed({ on: true, speed: field.speed });   // client-side combat, as the match screen runs it
+      localFeed(field.speed);   // client-side combat, as the match screen runs it
       view.enterBattle(field);
       view.setCamera(onBoss(template) ? 'boss' : 'normal', { rect: field.rect, side: 'L', instant: true });
       audio.setFieldUnits(field.units);
