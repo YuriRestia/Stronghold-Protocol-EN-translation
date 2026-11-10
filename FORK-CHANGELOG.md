@@ -13,12 +13,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
   | Element | On an enemy | On an operator |
   |---|---|---|
-  | Burn | a white-hot flash, then flame swirls | flames on the operator for the whole burst |
+  | Burn | a white-hot flash, then flames for the whole burst | flames on the operator for the whole burst |
   | Necrosis | a dark hit, then dark mist for the whole burst | the same |
-  | Nervous Impairment | the old flash (the official game shows none) | a nerve effect on the operator for the whole burst, next to the stun |
-  | Corrosion | a water hit | a water explosion, then the DEF-down mark while the DEF cut lasts |
+  | Nervous Impairment | a nerve flash, then the Palsy effect while its stacks last | a nerve flash, next to the stun |
+  | Corrosion | a water hit, then a water mark while the DEF cut lasts | a water explosion, then the DEF-down mark while the DEF cut lasts |
 
-- The effects come from the official buff templates for each burst. `tools/local-extract/fx.py` names them in a new `burst` group of the effects index, and six new effect files are extracted.
+- Palsy (from Nervous Impairment and other sources) now shows its official effect on the unit while the stacks last, and a spark each time a stack interrupts an attack.
+- The effects come from the official buff data and buff templates for each burst. `tools/local-extract/fx.py` names them in new `burst` and `fx` groups of the effects index, and ten new effect files are extracted.
 
 ### Skills cast when the official game casts them
 

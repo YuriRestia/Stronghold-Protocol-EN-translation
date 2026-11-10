@@ -489,6 +489,7 @@ export class FxWiring {
       for (const k of Object.values(g.birth || {})) if (k) keys.add(k);
       for (const k of Object.values(g.status || {})) if (k) keys.add(k);
       for (const k of Object.values(g.burst || {})) if (k) keys.add(k);
+      for (const k of Object.values(g.fx || {})) if (k) keys.add(k);
     }
     // an attack's rows and projectiles, its sub-abilities' too (index v2: a group's, a funnel attack's)
     const walk = (a, depth = 0) => {
@@ -1725,8 +1726,8 @@ export class FxWiring {
   /**
    * (fork) b.ev ['fx', 'burst', x, y, { id, element }] (server/sim/attack/element.js): the element's official burst
    * (generic.burst) — its `hit` once on the unit. True when the official layer stands for the burst (a hit played, or
-   * the element has a lock loop for that side, which the burst's status draws), so the procedural flash is skipped; an
-   * enemy's 神经 burst has no official effect and keeps it.
+   * the element has a lock loop for that side, which the burst's status draws), so the procedural flash is skipped; the legacy
+   * necrosis (no official burst) keeps it.
    */
   burst(extra) {
     const b = this.idx?.generic?.burst;
@@ -1738,6 +1739,17 @@ export class FxWiring {
     const hit = b[`${el}.${side}.hit`], loop = b[`${el}.${side}.loop`];
     const drew = !!(hit && this.playOn(hit, v, {}));
     return drew || !!(loop && this.ofx.lib.has(loop));
+  }
+
+  /**
+   * (fork) A sim fx kind the client shows with a generic one-shot (index generic.fx: 'palsy' → common_061_numb_hit_01,
+   * a 麻痹 stack interrupting an attack) on the unit `extra.id`. True when it played (the procedural fx is skipped).
+   */
+  genericFx(kind, extra) {
+    const key = this.idx?.generic?.fx?.[kind];
+    if (!key || !this.ofx.active) return false;
+    const v = this.view(extra?.id);
+    return !!(v && this.playOn(key, v, {}));
   }
 
   /** Stop every loop of a unit (it died / left): its status loops, its skill / charge loops, the skills' loops on it. */
@@ -1784,7 +1796,8 @@ export class FxWiring {
     // the floating units stand for the kit's 'drone' / 'drones' / 'droneLock' / 'overload' (render/vfx/funnelfx.js)
     const f = this.funnels.simFx(kind, x, y, extra);
     const burst = kind === 'burst' && this.burst(extra);
-    return this.skills.simFx(kind, x, y, extra) || t || f || burst;
+    const once = this.genericFx(kind, extra);
+    return this.skills.simFx(kind, x, y, extra) || t || f || burst || once;
   }
 
   /** b.ev 'die': the unit's own death effect or the generic one. */

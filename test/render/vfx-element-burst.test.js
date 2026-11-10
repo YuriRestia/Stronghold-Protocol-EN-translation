@@ -2,7 +2,8 @@
 // official element effect VFX working"). index.json generic.burst (tools/local-extract/fx.py FX_GENERIC, read from the CN
 // client's ep_break_* buff templates): the sim's ['fx', 'burst', …] plays the element's `hit` once on the unit, the
 // `<element>Burst` lock loops its `loop`, erosion's permanent DEF cut its `down` — each by the unit's side (an enemy unit
-// or an operator). render/vfx/wiring.js burst / status; the procedural flash stays only where the client has nothing.
+// or an operator) — and 麻痹 shows its stacks and interrupts (generic.status.palsy, generic.fx.palsy). render/vfx/wiring.js
+// burst / status / genericFx; the procedural flash stays only where the client has nothing.
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,12 +18,16 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 /** fx.py FX_GENERIC['burst'] as shipped (2026-11-10). */
 const BURST = {
-  'burn.enemy.hit': 'common_firedamage_hit', 'burn.char.loop': 'buff_burn',
-  'neural.char.loop': 'common_nerve_injury_01_hit',
-  'erosion.enemy.hit': 'common_waterdamage_hit', 'erosion.char.hit': 'common_waterelementexplosion', 'erosion.char.down': 'buff_defdown',
+  'burn.enemy.hit': 'common_firedamage_hit', 'burn.enemy.loop': 'common_firedamage_debuff', 'burn.char.loop': 'buff_burn',
+  'neural.enemy.hit': 'common_nerve_injury_01_hit', 'neural.char.hit': 'common_nerve_injury_01_hit',
+  'erosion.enemy.hit': 'common_waterdamage_hit', 'erosion.enemy.down': 'common_waterdamage_debuff',
+  'erosion.char.hit': 'common_waterelementexplosion', 'erosion.char.down': 'buff_defdown',
   'apoptosis.enemy.hit': 'common_darkdamage_hit', 'apoptosis.enemy.loop': 'common_darkdamage_debuff',
   'apoptosis.char.hit': 'common_darkdamage_hit', 'apoptosis.char.loop': 'common_darkdamage_debuff',
 };
+/** fx.py FX_GENERIC['fx'] and the palsy status loop (buff_table palsying / palsy[stack]). */
+const FX = { palsy: 'common_061_numb_hit_01' };
+const PALSY_LOOP = 'common_061_numb_01';
 
 const MAT = {
   name: 'm', shader: 'Torappu/Particles/Additive', passes: [{ blend: ['SrcAlpha', 'One', 'Zero', 'OneMinusSrcAlpha'], blendOp: 'Add', zTest: 'Disabled', zWrite: false, cull: 'Off', colorMask: 15 }],
@@ -42,11 +47,11 @@ function prefab(key, loop) {
 }
 
 async function setup(burst = BURST) {
-  const loops = new Set(['buff_burn', 'common_nerve_injury_01_hit', 'common_darkdamage_debuff', 'buff_defdown']);
-  const defs = new Map([...new Set(Object.values(BURST))].map((k) => [k, prefab(k, loops.has(k))]));
+  const loops = new Set(['buff_burn', 'common_firedamage_debuff', 'common_waterdamage_debuff', 'common_darkdamage_debuff', 'buff_defdown', PALSY_LOOP]);
+  const defs = new Map([...new Set([...Object.values(BURST), ...Object.values(FX), PALSY_LOOP])].map((k) => [k, prefab(k, loops.has(k))]));
   const INDEX = {
     version: 3, units: {}, skills: {}, projectiles: {}, skins: {}, prefabs: {},
-    generic: { hit: {}, die: {}, birth: {}, status: { burn: 'buff_burn' }, ...(burst ? { burst } : {}) },
+    generic: { hit: {}, die: {}, birth: {}, status: { burn: 'buff_burn', palsy: PALSY_LOOP }, ...(burst ? { burst, fx: FX } : {}) },
   };
   const lib = { available: true, defs, has: (k) => defs.has(k), def: (k) => defs.get(k) || null, load: async (k) => defs.get(k) || null, index: async () => INDEX, preload: async (keys) => keys.length };
   const ofx = new OfficialFx({ P: { Container: class {} }, renderer: null, cam: () => ({ tilt: 30 }), lib, tier: 'full' });
@@ -85,16 +90,31 @@ describe('official element bursts (generic.burst)', () => {
     assert.deepEqual(played, [['common_waterelementexplosion', 2, false, true]], 'operator 侵蚀: the water explosion');
   });
 
-  test('a burst with only a lock loop (an operator\'s 灼燃 / 神经) plays no hit but still skips the flash', async () => {
+  test('a burst with only a lock loop (an operator\'s 灼燃) plays no hit but still skips the flash', async () => {
     const { w, played } = await setup();
     assert.equal(w.simFx('burst', 3, 4, { id: 2, element: 'burn' }), true);
-    assert.equal(w.simFx('burst', 3, 4, { id: 2, element: 'neural' }), true);
     assert.deepEqual(played, []);
   });
 
-  test('where the client has nothing the procedural flash stays: an enemy\'s 神经, the legacy necrosis, an older index', async () => {
+  test('神经 on either side: the nerve flash once (common_nerve_injury_01_hit does not loop), no lock loop', async () => {
+    const { w, played, enemy, op } = await setup();
+    assert.equal(w.simFx('burst', 3, 4, { id: 1, element: 'neural' }), true, 'enemy: buff_table ep_break_sanity_enemy');
+    assert.equal(w.simFx('burst', 3, 4, { id: 2, element: 'neural' }), true, 'operator: the [epfree] buff of ep_break_sanity_char');
+    assert.deepEqual(played, [['common_nerve_injury_01_hit', 1, false, true], ['common_nerve_injury_01_hit', 2, false, true]]);
+    assert.equal(w.status(enemy, 'neuralBurst', true), false);
+    assert.equal(w.status(op, 'neuralBurst', true), false);
+  });
+
+  test('麻痹: the stacks loop common_061_numb_01, a stack spent interrupting an attack flashes common_061_numb_hit_01', async () => {
+    const { w, played, enemy } = await setup();
+    assert.equal(w.status(enemy, 'palsy', true), true);
+    assert.equal(w.simFx('palsy', 3, 4, { id: 1 }), true, 'the procedural palsy fx is skipped');
+    assert.deepEqual(played, [[PALSY_LOOP, 1, true, true], ['common_061_numb_hit_01', 1, false, true]]);
+    assert.equal(w.status(enemy, 'palsy', false), true);
+  });
+
+  test('where the client has nothing the procedural flash stays: the legacy necrosis, an older index', async () => {
     const { w, played } = await setup();
-    assert.equal(w.simFx('burst', 3, 4, { id: 1, element: 'neural' }), false);
     assert.equal(w.simFx('burst', 3, 4, { id: 1, element: 'necrosis' }), false);
     assert.equal(w.simFx('burst', 3, 4, { id: 99, element: 'burn' }), false, 'an unknown unit');
     assert.deepEqual(played, []);
@@ -106,12 +126,11 @@ describe('official element bursts (generic.burst)', () => {
     const { w, op, enemy, played } = await setup();
     assert.equal(w.status(op, 'burnBurst', true), true, 'operator 灼燃: buff_burn for the lock');
     assert.deepEqual(played.at(-1), ['buff_burn', 2, true, true], 'a held loop');
-    assert.equal(w.status(enemy, 'burnBurst', true), false, 'an enemy\'s 灼燃 has no lasting look');
+    assert.equal(w.status(enemy, 'burnBurst', true), true, 'enemy 灼燃: common_firedamage_debuff for the lock (buff_table ep_break_fire_enemy)');
     assert.equal(w.status(enemy, 'apoptosisBurst', true), true, 'enemy 凋亡: the dark debuff loop');
-    assert.equal(w.status(op, 'neuralBurst', true), true, 'operator 神经: common_nerve_injury_01_hit for the lock');
     assert.equal(w.status(op, 'erosionBurst', true), false, 'erosion has no lock loop');
     assert.equal(w.status(op, 'erosionDown', true), true, 'operator 侵蚀: buff_defdown for the permanent DEF cut');
-    assert.equal(w.status(enemy, 'erosionDown', true), false);
+    assert.equal(w.status(enemy, 'erosionDown', true), true, 'enemy 侵蚀: common_waterdamage_debuff with the permanent DEF cut');
     assert.equal(w.status(op, 'burnBurst', false), true, 'the lock ends: the loop stops');
     assert.equal(w.loops.has('2|burnBurst'), false);
     assert.equal(w.status(op, 'burn', true), true, 'the plain status loops are unchanged');
@@ -120,19 +139,21 @@ describe('official element bursts (generic.burst)', () => {
   test('the burst keys are preloaded with the generic ones', async () => {
     const { w } = await setup();
     const keys = new Set(w.keysFor([]));
-    for (const k of Object.values(BURST)) assert.ok(keys.has(k), k);
+    for (const k of [...Object.values(BURST), ...Object.values(FX), PALSY_LOOP]) assert.ok(keys.has(k), k);
   });
 
   test('fx.py FX_GENERIC and the extracted index carry the same burst map, and every key is in the file list', () => {
     const py = readFileSync(path.join(ROOT, 'tools/local-extract/fx.py'), 'utf8');
-    for (const [k, v] of Object.entries(BURST)) assert.ok(py.includes(`'${k}': '${v}'`), `fx.py names ${k} → ${v}`);
+    for (const [k, v] of Object.entries({ ...BURST, ...FX, palsy: PALSY_LOOP })) assert.ok(py.includes(`'${k}': '${v}'`), `fx.py names ${k} → ${v}`);
     const idxFile = path.join(ROOT, 'public/assets/local/fx/index.json');
     const listFile = path.join(ROOT, 'data/local-fx.json');
     if (!existsSync(idxFile) || !existsSync(listFile)) return; // no local extraction here (CI): the fx.py check stands
     const idx = JSON.parse(readFileSync(idxFile, 'utf8'));
     if (!idx.generic?.burst) return; // an extraction older than the burst group
     assert.deepEqual(idx.generic.burst, BURST);
+    assert.deepEqual(idx.generic.fx, FX);
+    assert.equal(idx.generic.status?.palsy, PALSY_LOOP);
     const prefabs = JSON.parse(readFileSync(listFile, 'utf8')).groups?.['fx/prefabs'] || {};
-    for (const k of new Set(Object.values(BURST))) assert.ok(prefabs[k], `${k} is extracted`);
+    for (const k of new Set([...Object.values(BURST), ...Object.values(FX), PALSY_LOOP])) assert.ok(prefabs[k], `${k} is extracted`);
   });
 });

@@ -117,20 +117,29 @@ FX_GENERIC = {
                'weaken': 'buff_weak', 'fragile': 'buff_ fragile_01', 'artsFragile': 'buff_ fragile_01',
                'physFragile': 'buff_ fragile_01', 'elemFragile': 'buff_ fragile_01', 'defDown': 'buff_defdown',
                'resDown': 'buff_magic_resistance_down', 'aspdDown': 'buff_attack_speed_reduction_01',
-               'disarm': 'common_disarm_01', 'invulnerable': 'common_invincible_01', 'poison': 'buff_poison'},
+               'disarm': 'common_disarm_01', 'invulnerable': 'common_invincible_01', 'poison': 'buff_poison',
+               # (fork) 麻痹 stacks: buff_table palsy[stack]'s overrideEffectKey (2026-11-10)
+               'palsy': 'common_061_numb_01'},
     # (fork) element bursts (爆发), by `<sim element>.<side>.<role>`: side `enemy` = an enemy unit (the sim's
     # isEnemyEntity), `char` = an operator / summon; role `hit` plays once at the burst, `loop` while the burst's
     # `<element>Burst` lock lasts, `down` while erosion's permanent DEF cut (`erosionDown`) lasts. Read from the CN
-    # client's buff templates ep_break_<fire|sanity|water|dark>_<enemy|char> (2026-11-10): their ON_BUFF_START
-    # CreateEffect is the hit, the overrideEffectKey of the buff they create the loop. FIRE = burn, SANITY = neural,
-    # WATER = erosion, DARK = apoptosis. Not here: an enemy's neural burst (palsy stacks and damage, no effect of its
-    # own) and ep_break_water_enemy's common_waterdamage_debuff (created ON_OWNER_REBORN only).
-    'burst': {'burn.enemy.hit': 'common_firedamage_hit', 'burn.char.loop': 'buff_burn',
-              'neural.char.loop': 'common_nerve_injury_01_hit',
-              'erosion.enemy.hit': 'common_waterdamage_hit', 'erosion.char.hit': 'common_waterelementexplosion',
-              'erosion.char.down': 'buff_defdown',
+    # client (2026-11-10): ep_breakbuff_table names each element's buff (ep_break_<fire|sanity|water|dark>), whose
+    # template creates ep_break_<el>_<enemy|char>; the effects are those buffs' overrideEffectKey in buff_table.json
+    # (the enemy side: fire → common_firedamage_debuff for the lock, water → common_waterdamage_debuff with the
+    # permanent DEF −120, sanity → common_nerve_injury_01_hit, an IMMEDIATELY buff: once), their templates'
+    # ON_BUFF_START CreateEffect (the hits) and the overrideEffectKey of the buffs those templates create (the
+    # operator side). common_nerve_injury_01_hit does not loop: once on either side. FIRE = burn, SANITY = neural,
+    # WATER = erosion, DARK = apoptosis.
+    'burst': {'burn.enemy.hit': 'common_firedamage_hit', 'burn.enemy.loop': 'common_firedamage_debuff',
+              'burn.char.loop': 'buff_burn',
+              'neural.enemy.hit': 'common_nerve_injury_01_hit', 'neural.char.hit': 'common_nerve_injury_01_hit',
+              'erosion.enemy.hit': 'common_waterdamage_hit', 'erosion.enemy.down': 'common_waterdamage_debuff',
+              'erosion.char.hit': 'common_waterelementexplosion', 'erosion.char.down': 'buff_defdown',
               'apoptosis.enemy.hit': 'common_darkdamage_hit', 'apoptosis.enemy.loop': 'common_darkdamage_debuff',
               'apoptosis.char.hit': 'common_darkdamage_hit', 'apoptosis.char.loop': 'common_darkdamage_debuff'},
+    # (fork) one-shots for the sim's fx kinds (b.ev ['fx', kind, …] on the unit `id`): 'palsy' = a 麻痹 stack spent
+    # interrupting an attack (sim ai.js) — buff_table palsying's overrideEffectKey
+    'fx': {'palsy': 'common_061_numb_hit_01'},
 }
 FX_GENERIC_BUNDLES = ('battle/prefabs/effects/buff.ab',)   # every prefab of these is a generic key too
 
