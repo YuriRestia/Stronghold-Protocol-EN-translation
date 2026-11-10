@@ -1018,15 +1018,16 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
   transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
 .lo-diy__change:hover, .lo-diy__change:focus-visible { color: var(--text-on-mint); border-color: var(--mint-400); background: var(--mint-500); }
 .lo-diy__change .icon { width: 62%; height: 62%; }
-/* its 清空 (✕): a disc in the swap button's style, in the danger red (.btn--danger's), inside the card at the top of the
-   skill / outfit column (the user's call of 2026-11-10). The column steps down by the disc, so it never covers or takes a
-   tap of the column's first button */
-.lo-diy--filled { --xd: var(--rail); --xtop: max(.06rem, calc(3px * var(--sp-ui, 1))); }
+/* its 清空 (✕): a disc in the swap button's style (dark fill, coloured ring and icon), in the danger red (.btn--danger's),
+   inside the card at the top of the skill / outfit column (the user's call of 2026-11-10); on a phone it is smaller than the
+   swap disc. The column steps down by the disc, so it never covers or takes a tap of the column's first button */
+.lo-diy--filled { --xd: max(.44rem, 17px); --xtop: max(.06rem, calc(3px * var(--sp-ui, 1))); }
 .lo-diy--filled .lo-op__side { padding-top: calc(var(--xd) + var(--xtop) + 2px); }
 .lo-diy__clear { position: absolute; z-index: 3; top: var(--xtop); right: calc(var(--xtop) + (var(--side) - var(--xd)) / 2); display: grid; place-items: center;
-  width: var(--xd); aspect-ratio: 1; padding: 0; font: inherit; color: #fff; cursor: pointer; background: #a3241a; border: 1.5px solid #c83a2c;
-  border-radius: 999px; transition: border-color var(--t-fast), background var(--t-fast); }
-.lo-diy__clear:hover, .lo-diy__clear:focus-visible { background: #c83a2c; border-color: #e0574a; }
+  width: var(--xd); aspect-ratio: 1; padding: 0; font: inherit; color: #ec5a4a; cursor: pointer; background: rgba(34, 8, 6, .85); border: 1.5px solid #c83a2c;
+  border-radius: 999px; transition: color var(--t-fast), border-color var(--t-fast), background var(--t-fast); }
+.lo-diy__clear::before { content: ''; position: absolute; inset: -4px -4px 0; border-radius: 999px; } /* a bigger tap target, not over the column */
+.lo-diy__clear:hover, .lo-diy__clear:focus-visible { color: #fff; border-color: #e0574a; background: #a3241a; }
 .lo-diy__clear .icon { width: 62%; height: 62%; }
 /* its 原型 / 已持有 tag, flat, beside the slot's name ("6阶 自选") above the operator's */
 .lo-diy__meta { display: flex; align-items: center; gap: max(.04rem, calc(4px * var(--sp-ui, 1))); }
