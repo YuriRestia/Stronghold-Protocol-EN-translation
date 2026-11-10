@@ -65,7 +65,9 @@ const log = {
   debug: () => {},
 };
 let beat = null;
-const startBeat = () => { if (!beat) beat = setInterval(() => post({ type: 'hb' }), Math.max(50, Number(options.heartbeatMs) || 1000)); };
+// (fork) the first beat goes out at once: it tells the parent this process has started (server/match/host/index.js
+// `started`), before the boot runs any plugin code, so its hang watchdog covers that boot and not the process start
+const startBeat = () => { if (!beat) { post({ type: 'hb' }); beat = setInterval(() => post({ type: 'hb' }), Math.max(50, Number(options.heartbeatMs) || 1000)); } };
 if (viaWorker) startBeat();
 
 /** @type {any[]} messages that came before the boot finished */
@@ -134,6 +136,9 @@ function grantPrepDsl(match, grants) {
   }
 }
 
+/** (fork) Let due heartbeats out between the boot's heavy steps (a starved CPU stretched one block past the watchdog). */
+const yieldBeat = () => new Promise((resolve) => setImmediate(resolve));
+
 async function boot() {
   if (!hashInput || typeof hashInput !== 'object' || !hashInput.data || !files) throw new Error('no content set was given');
   if (sandbox) for (const name of Object.keys(files)) files[name] = Uint8Array.from(files[name]);
@@ -142,12 +147,13 @@ async function boot() {
     const b = files[name];
     if (!b) throw new Error(`data/${name}.json is missing`);
     if (sha256(b) !== h) throw new Error(`data/${name}.json does not match its hash in the content set (changed on disk since the server started?)`);
+    await yieldBeat();
   }
   if (contentHashOf(hashInput) !== cs) throw new Error('the content set does not hash to its cs');
   const decoder = new TextDecoder('utf-8');
   /** @type {Record<string, any>} */
   const data = {};
-  for (const name of Object.keys(hashInput.data)) data[name] = JSON.parse(decoder.decode(files[name]));
+  for (const name of Object.keys(hashInput.data)) { data[name] = JSON.parse(decoder.decode(files[name])); await yieldBeat(); }
   setData(data);
   installOfficialBounds(bounds && bounds.v === 1 ? bounds : null);
   if (Object.values(data.garrisons ?? {}).some(g => g.operatorTrait)) {

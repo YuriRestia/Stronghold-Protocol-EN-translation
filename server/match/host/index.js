@@ -14,7 +14,10 @@
 //     design study's]; a new set needing a worker when `maxWorkers` run stops an idle one first, else PLUGIN_BUSY.
 //   Watchdog: every worker posts a heartbeat each heartbeatMs (1 s); one silent for watchdogMs (10 s) [ASSUMED: the design
 //     study's] is terminated and each of its matches ends with 'plugin-hang' (the room back in its lobby, its members told:
-//     proxy.js crash). A worker that exits on its own (an uncaught error, ERR_WORKER_OUT_OF_MEMORY past `resourceLimits`)
+//     proxy.js crash). (fork) That clock runs from the worker's first message (its first beat, posted as the content set
+//     arrives, before any plugin code): until then the process is still starting (Node, its modules, the set's bytes),
+//     which a busy machine stretched past watchdogMs, so a healthy match ended as a hang. A worker that sends nothing for
+//     startMs (60 s) [ASSUMED] from its creation ends its matches with 'plugin-start'. A worker that exits on its own (an uncaught error, ERR_WORKER_OUT_OF_MEMORY past `resourceLimits`)
 //     ends them with 'plugin-crash'; one whose content set does not boot, with 'plugin-start'. The log names the set and
 //     its plugins.
 //   resourceLimits [ASSUMED]: 768 MB old generation, 64 MB young generation, 4 MB stack per worker (options.resourceLimits;
@@ -59,6 +62,7 @@ export const HOST_DEFAULTS = Object.freeze({
   maxWorkers: 4,
   heartbeatMs: 1000,
   watchdogMs: 10_000,
+  startMs: 60_000,
   idleMs: 10 * 60_000,
   resourceLimits: Object.freeze({ maxOldGenerationSizeMb: 768, maxYoungGenerationSizeMb: 64, stackSizeMb: 4 }),
 });
@@ -107,7 +111,8 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
       this.plugins = versionKind ? String(set.name || csUrlPart(cs)) : (set.plugins || []).map((p) => `${p.id}@${p.version}`).join(', ');
       /** @type {Map<string, MatchProxy>} */
       this.matches = new Map();
-      this.lastBeat = Date.now();
+      this.lastBeat = Date.now(); // (fork) its creation until its first message (`started`): the start limit counts from here
+      this.started = false;
       this.ready = false;
       this.dead = null;
       this.idleTimer = null;
@@ -184,6 +189,7 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
 
     onMessage(m) {
       if (!validHostMessage(m)) return;
+      if (!this.started) { this.started = true; this.lastBeat = Date.now(); }
       if (m.type === 'hb') { this.lastBeat = Date.now(); return; }
       if (m.type === 'log') {
         const fn = log[m.level];
@@ -220,7 +226,12 @@ export function createMatchHosts({ contents, log = noopLog, options = {} }) {
   // the watchdog: a worker whose heartbeats stopped is terminated (its matches end)
   const watchdog = setInterval(() => {
     const now = Date.now();
-    for (const h of [...hosts.values()]) if (!h.dead && now - h.lastBeat > o.watchdogMs) h.stop(R.hang, `no heartbeat for ${Math.round((now - h.lastBeat) / 1000)} s`);
+    for (const h of [...hosts.values()]) {
+      if (h.dead) continue;
+      // (fork) not started yet (no message since its creation): the start limit, never the hang watchdog
+      if (!h.started) { if (now - h.lastBeat > Math.max(o.startMs, o.watchdogMs)) h.stop(R.start, `not started after ${Math.round((now - h.lastBeat) / 1000)} s`); }
+      else if (now - h.lastBeat > o.watchdogMs) h.stop(R.hang, `no heartbeat for ${Math.round((now - h.lastBeat) / 1000)} s`);
+    }
   }, Math.max(100, Math.min(1000, Math.floor(o.watchdogMs / 4))));
   watchdog.unref?.();
 

@@ -10,7 +10,7 @@ function composition(source, data = { bonds: {} }) {
   const files = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, Buffer.from(JSON.stringify(v))]));
   return { cs:set.cs, contents: { get: () => set, dataBytes: () => files } };
 }
-test('sandbox gate is off by default, rejects trusted; script hosts force permission child, watchdog ends matches', { timeout: 10000 }, async t => {
+test('sandbox gate is off by default, rejects trusted; script hosts force permission child, watchdog ends matches', { timeout: 45000 }, async t => {
   const old = process.env.SP_PLUGIN_SCRIPTS;
   t.after(() => { if (old === undefined) delete process.env.SP_PLUGIN_SCRIPTS; else process.env.SP_PLUGIN_SCRIPTS = old; });
   delete process.env.SP_PLUGIN_SCRIPTS;
@@ -31,6 +31,10 @@ test('sandbox gate is off by default, rejects trusted; script hosts force permis
   assert.equal(hosts._host(set.cs).transport, 'process');
   assert.ok(hosts._host(set.cs).child.spawnargs.includes('--permission'));
   proxy.start();
+  // (fork) the hang watchdog counts from the child's first beat (server/match/host/index.js `started`), not from its fork;
+  // a loaded machine can take seconds to start the process, so this fallback counts from there too
+  const h = hosts._host(set.cs);
+  for (let i = 0; i < 600 && !h.started && !h.dead; i++) await new Promise((r) => setTimeout(r, 50));
   const timer = setTimeout(() => finish({ reason: 'test-timeout' }), 7000);
   const result = await ended; clearTimeout(timer);
   assert.equal(result.reason, 'plugin-hang');

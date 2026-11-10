@@ -22,7 +22,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { startServer } from '../../server/index.js';
 import { getData } from '../../server/data.js';
 import { createPluginRegistry } from '../../server/plugins/registry.js';
@@ -151,6 +151,37 @@ describe('match hosts (P1c): a content set\'s matches in a match host of its own
       other.dispose();
     } finally { hosts.close(); }
   });
+  test('a slow start is not a hang: a child that needs longer than watchdogMs to start runs its match; one past startMs is stopped', { timeout: 60_000 }, async () => {
+    // (fork) a busy machine made repeatable: every child spends 3 s in a preload before it runs the host's entry. The
+    // watchdog counted that from the fork and ended the match as 'plugin-hang' (lobby-plugins under a covering run).
+    const dir = pluginsDir({ slow: [{ data: ['p.json'] }, { 'p.json': bondPatch(0.34) }] });
+    const contents = setsOf(dir);
+    const r = contents.resolve(['slow']);
+    assert.ok(r.ok, JSON.stringify(r));
+    const pre = path.join(path.dirname(dir), 'slow-start.mjs');
+    fs.writeFileSync(pre, 'const t = Date.now(); while (Date.now() - t < 3000) { /* a starved CPU */ }\n');
+    const human = [{ seat: 0, playerId: 'p_1', name: 'P1', isBot: false, connected: true }];
+    const was = process.env.NODE_OPTIONS;
+    const run = async (extra) => {
+      const hosts = createMatchHosts({ contents, log: quiet, options: { matchModule: FIXTURE, transport: 'process', heartbeatMs: 100, watchdogMs: 1500, ...extra } });
+      const out = frames();
+      try {
+        process.env.NODE_OPTIONS = `${was ? `${was} ` : ''}--import=${pathToFileURL(pre).href}`;
+        let m;
+        try { m = hosts.create(r.set.cs, matchOpts(r.set.cs, human, out)); } finally {
+          if (was === undefined) delete process.env.NODE_OPTIONS; else process.env.NODE_OPTIONS = was;
+        }
+        m.start();
+        const got = await m.handle('p_1', { t: 'g.emote', id: EMOTES[0] });
+        m.dispose();
+        return { got, ended: out.ended.map((s) => s?.reason) };
+      } finally { hosts.close(); }
+    };
+    assert.deepEqual(await run({}), { got: { ok: true }, ended: [] }, 'started late, then beats: the match runs');
+    const late = await run({ startMs: 2000 });
+    assert.deepEqual([late.got?.error, late.ended], [ERR.INTERNAL, ['plugin-start']], 'never started within startMs: stopped as a start failure');
+  });
+
   test('the official-bounds snapshot: a match host installs the one the server validated the set against (the caps its pages install), never a scan of the set', { timeout: 60_000 }, async () => {
     // a plugin whose own numbers are far above the official maximum: a scan of the set would raise the cap with them
     const dir = pluginsDir({ caps: [{ data: ['p.json'] }, { 'p.json': bondPatch(0.34) }] });
