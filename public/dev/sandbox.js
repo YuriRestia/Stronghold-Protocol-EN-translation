@@ -1295,6 +1295,14 @@ async function main() {
     if (runner?.setSpeed?.(speed)) view.setLocalFeed({ on: true, speed });
   };
   $('impostors').onchange = () => { sync(); view.setSettings(settings()); };
+  // the frame rate and what the crowd rules do (render/crowd.js impostors, render/vfx/system.js crowd budget), each second
+  setInterval(() => {
+    const st = view.stats?.();
+    if (!st) return;
+    const fx = st.officialFx;
+    $('perf').textContent = `${Math.round(st.fps)} fps · ${st.units} units · impostors ${st.impostor ? `every ${st.impostor} frames` : 'off'}`
+      + (fx ? ` · effects ${fx.effects}, particles ${fx.particles}${fx.crowded ? `, crowd budget on (${fx.merged} merged)` : ''}` : '');
+  }, 1000);
   $('legacy').onchange = () => { sync(); view.setSettings(settings()); };
   // Sakiko's notes: her official projectile prefabs or our fallback (render/fx/notes.js) — from the next note launched
   $('note-ours').onchange = () => { sync(); view.setSettings(settings()); };

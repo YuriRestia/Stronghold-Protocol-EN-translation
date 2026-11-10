@@ -157,7 +157,8 @@ import { FxSystem, ensureDamageFonts, projSpeed } from './fx.js';
 import { OfficialFx } from './vfx/system.js';
 import { FxWiring } from './vfx/wiring.js';
 import { PluginFxPlayer } from './vfx/pluginPlayer.js';
-import { resolveOfficialFx } from './vfx/tier.js';
+import { resolveOfficialFx, touchDevice } from './vfx/tier.js';
+import { impostorInterval, IMPOSTOR_BASE } from './crowd.js';
 import { NoteLayer } from './fx/notes.js';
 import { createDragController, pieceTile, dragStandTile } from './drag.js';
 import { backdropTextures, shadowTexture, refreshTierChips, refreshDownLabels, silhouetteTexture } from './textures.js';
@@ -487,7 +488,9 @@ export async function createFieldView(host, options = {}) {
   ofx.init().then((ok) => { if (!destroyed && ok) { syncOfficialFx(); loadLater(() => (destroyed ? null : wiring.ready())); } }, () => {});
   // battle devices (crates / turrets as sim units): the official crate mesh in the 3D scene, else a Pixi box
   ctx.createBox = (spec) => switchableBox({ board: () => board3d, pixi: () => tiles.createBox(), spec });
-  const impostors = new ImpostorAtlas(app.renderer, { onError: (err) => recordError('render', err, 'impostor atlas pass failed') });
+  // (fork) a desktop gets more main pages: a Grand Alliance relay field's 70–90 impostors no longer run out of slots
+  const desktop = !touchDevice();
+  const impostors = new ImpostorAtlas(app.renderer, { onError: (err) => recordError('render', err, 'impostor atlas pass failed'), mainPages: desktop ? 5 : 3 });
   setupCleanup.push(() => impostors.destroy());
   ctx.impostors = impostors;
   tiles.setView(bandFor('prep'), camRect(), fieldRows('prep'));
@@ -2042,7 +2045,12 @@ export async function createFieldView(host, options = {}) {
     const busy = views.size + penViews.size > 8;
     if (workMs > 19.5 && busy) { slowFor += dtRaw; fastFor = 0; }
     else if (workMs < 17.6) { fastFor += dtRaw; slowFor = 0; }
-    if (slowFor > 1 && loadLevel < 3) { loadLevel++; slowFor = 0; fastFor = 0; impInterval = pickImpostorInterval(); }
+    if (slowFor > 1 && loadLevel < 3) {
+      loadLevel++; slowFor = 0; fastFor = 0;
+      // (fork) frames fell behind with a crowd past the usual High base: back to that base until the crowd thins out
+      if (crowdUnits > IMPOSTOR_BASE.high) roomy = false;
+      impInterval = pickImpostorInterval();
+    }
     else if (loadLevel > 0 && (fastFor > 6 * loadLevel || !busy && fastFor > 2)) { loadLevel--; fastFor = 0; impInterval = pickImpostorInterval(); }
   }
   // Crowded fields render skeletons through staggered RenderTexture impostors (units.js): the interval grows with
@@ -2057,15 +2065,16 @@ export async function createFieldView(host, options = {}) {
     for (const v of views.values()) if (v.actor && v.actor.clipped && v.alive !== false) n++;
     return settings.quality === 'high' && n <= 1;
   }
+  // (fork) the rule itself is render/crowd.js: a desktop at High draws up to ROOMY_HIGH units directly while its frames
+  // keep up (`roomy`); the official effects get the same count for their crowd budget (render/vfx/system.js setCrowd)
+  let crowdUnits = 0, roomy = true;
   function pickImpostorInterval() {
-    if (settings.forceImpostors) return 2;
     let n = 0;
     for (const v of views.values()) if (v.actor && v.spineReady) n++;
-    const q = settings.quality;
-    const base = (q === 'low' ? 12 : q === 'medium' ? 26 : 44) / (1 + loadLevel);
-    if (n <= base) return 0;
-    // a struggling device (load level ≥ 2) may refresh a big crowd more rarely (10 Hz at worst)
-    return Math.min(loadLevel >= 2 ? 6 : 4, Math.max(2, Math.ceil(n / (base * 0.75))));
+    crowdUnits = n;
+    if (n <= IMPOSTOR_BASE.high) roomy = true;
+    ofx.setCrowd(n);
+    return impostorInterval(n, { force: !!settings.forceImpostors, quality: settings.quality, loadLevel, roomy: roomy && desktop });
   }
   function frame() {
     if (destroyed) return;

@@ -7,6 +7,13 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Big Grand Alliance fights stay smooth on a PC
+
+- On a computer at High quality, units now switch to impostors (sprites that redraw their pose every few frames) only past about 88 units on the field, not 44, as long as the frames keep up. A Grand Alliance relay field of 70–90 units is now drawn in full motion instead of in low-frame-rate sprites. If the frames fall behind during such a crowd, the field goes back to the old 44-unit limit until the crowd thins out. Phones and tablets, and Medium / Low quality, keep the old limits.
+- On a computer, the impostor atlas can now use 5 pages instead of 3, so a big crowd no longer runs out of room once impostors are on.
+- On a crowded field (more than 60 units), the official effects play a hit that repeats on the same unit within 0.1 s only once, and new hit effects wait while more than 1,200 particles are live (800 on the light effects tier). Skill loops, projectiles and other held effects always play. A fast Agile stack hitting one enemy no longer stacks dozens of identical sparks on it.
+- The dev sandbox's battle bar shows the frame rate, the units on the field, whether impostors are on, and the live effects and particles (with the crowd budget's merges).
+
 ### The Custom Squad swap button is easier to spot
 
 - On a Custom Squad operator's card in Operator Loadout, the round button at the bottom of the left rail that opens the picker to choose another operator now has a mint ring and a mint swap icon, and fills the rail's width. Before, it was grey like the Alliance discs above it, and players said they couldn't find it. It stays in the same place and works the same way.
