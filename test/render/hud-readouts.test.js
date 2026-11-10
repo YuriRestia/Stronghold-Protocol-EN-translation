@@ -470,7 +470,7 @@ describe('an ammo skill has no standing aura', () => {
 });
 
 describe('the chain: sim → snapshot → SnapshotBuffer → UnitView', () => {
-  test('隐现 S2: 14 cells, 13 after the first round, one more gone per attack; no aura; the plain SP bar after the last round', () => {
+  test('隐现 S2: 14 full cells at the cast, 13 after the first round, one more gone per attack; no aura; the plain SP bar after the last round', () => {
     const h = makeBattle({
       defs: { enemies: { enemy_dummy: enemyRec({ key: 'enemy_dummy', hp: 1e7, speed: 0 }) } },
       units: [{ chessId: 'chess_char_1_01_a', row: 10, col: 3 }],
@@ -489,9 +489,18 @@ describe('the chain: sim → snapshot → SnapshotBuffer → UnitView', () => {
     };
     show();
     const bw = barWidth(v);
-    assert.equal(u.skill.ammoLeft, 13, 'the activation tick already fired the first round');
+    // the official sniper row (ATTACK_RANGE_ENEMY or SKILL_RANGE_ENEMY: SEARCH, checked every tick — the live client's
+    // 0.2 s auto-trigger, AutoChessBattleTrigger) casts between attacks, so the cast tick fires no round yet: the
+    // magazine is full, every cell lit, its 13 separators drawn
+    assert.deepEqual(u.skill.rules, ['SEARCH']);
+    assert.equal(u.skill.ammoLeft, 14, 'the cast tick fires no round: the magazine is full');
+    assert.ok(Math.abs(v.spFill.width - bw) < 1e-9, 'all 14 cells lit');
+    assert.equal(v.ammoCuts.filter((c) => c.visible).length, 13, 'one separator at each of the 13 round boundaries');
+    assert.ok(h.runUntil(() => u.skill.ammoLeft < 14 && u.skill.active, 1));
+    show();
+    assert.equal(u.skill.ammoLeft, 13, 'the first round');
     assert.ok(Math.abs(v.spFill.width - bw * 13 / 14) < 1e-9);
-    assert.equal(v.ammoCuts.filter((c) => c.visible).length, 13);
+    assert.equal(v.ammoCuts.filter((c) => c.visible).length, 13, 'the separators stay: they mark the magazine, not the rounds left');
     const left = u.skill.ammoLeft;
     assert.ok(h.runUntil(() => u.skill.ammoLeft < left && u.skill.active, 10));
     show();
