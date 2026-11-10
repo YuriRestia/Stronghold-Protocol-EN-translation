@@ -283,6 +283,40 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     assert.deepEqual(keys, [...CROSSHAIR, ...twins].sort(), 'the outfit\'s twins for her, the plain crosshairs for the default outfit');
   });
 
+  test('(fork) 焰影苇草 S3: an enemy\'s death blast plays the official reed2_debuff_boom_01 once where it fell, her Curator outfit\'s twin', async () => {
+    const BOOM = 'reed2_debuff_boom_01', SUF = 'epoque#30', TWIN = `${BOOM}_${SUF}`;
+    assert.deepEqual(bindingKeys(makeIndex({ installed: [...KEYS, BOOM] }), 'skchr_reed2_3'), [BOOM]);
+    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, BOOM, TWIN] });
+    index.skinFx = { [SUF]: { [BOOM]: TWIN } };
+    index.units.char_1020_reed2.skills.skchr_reed2_3 = { mode: null, projectiles: [], uses: [] };
+    RECS.reed2_s3 = rec('skchr_reed2_3', { duration: 30 });
+    try {
+      const reed = view(1, 'char_1020_reed2', 3);
+      reed.info.defId = 'reed2_s3';
+      const curator = view(4, 'char_1020_reed2', 4);
+      curator.info.defId = 'reed2_s3';
+      curator.info.model = 'char_1020_reed2@epoque#30';
+      frame();
+      w.skill(reed, true);
+      w.skill(curator, true);
+      frame();
+      assert.equal(w.simFx('scorchBurst', 6, 11, { id: 1, r: 1.7 }), true, 'the official blast stands for the procedural one');
+      assert.equal(w.simFx('scorchBurst', 7, 12, { id: 4, r: 1.7 }), true);
+      const booms = handles.filter((h) => h.key === BOOM || h.key === TWIN);
+      assert.deepEqual(booms.map((h) => h.key), [BOOM, TWIN], 'once each: the plain blast for the default outfit, the twin for Curator');
+      assert.equal(booms[0].opts.important, true, 'never dropped');
+      // a chain: blasts of the same frame each play; a blast the sim defers past the skill's end (a kill on its last
+      // tick) still plays — every 'scorchBurst' the kit sends is a blast
+      for (const [x, y] of [[8, 11], [9, 11], [9, 12]]) assert.equal(w.simFx('scorchBurst', x, y, { id: 1, r: 1.7 }), true);
+      w.skill(reed, false);
+      frame();
+      assert.equal(w.simFx('scorchBurst', 10, 11, { id: 1, r: 1.7 }), true, 'after the skill ended');
+      assert.equal(handles.filter((h) => h.key === BOOM).length, 5);
+    } finally {
+      delete RECS.reed2_s3;
+    }
+  });
+
   test('(fork) 蕾缪安 S3: the official falling shell for the fx\'s flight, the lock-on mark with each lock, the salute at the end', async () => {
     const MARK = 'lemuen_skill_03_crosshair_01', SHELL = 'lemuen_skill_03_trail_02', SALUTE = 'lemuen_skill_03_start_01';
     const { w, view, frame, handles } = await setup({ installed: [...KEYS, MARK, SHELL, SALUTE] });

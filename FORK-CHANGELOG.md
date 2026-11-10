@@ -7,6 +7,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-10
 
+### Reed the Flame Shadow's S3 blast looks and sounds as in the official game
+
+- During Reed the Flame Shadow's S3 (Ember of Life), an enemy that is defeated while carrying Cinder now bursts with the official blast effect on the ground where it fell, with the official explosion sound. Before, the game drew a stand-in orange ring, with no sound.
+- Each outfit (Curator, Summer Flowers FA075, Glowing Flame in the Night) shows its own version of the blast, as in the official game. All outfits use the same sound, as in the official data.
+- What the blast does is unchanged: arts damage to the enemies within 1.7 tiles and Cinder on each of them, so a blast can set off the next one. This already matched the official game. One official sound file was added.
+
 ### Skills cast when the official game casts them
 
 - Every skill the mode casts by itself now follows the live official client's rules for when to cast (the trigger table of the current CN season). Before, the game used the previous season's table plus several rules of its own. Skills that cast automatically in the official game anyway (they start by their own rule) are unchanged.
