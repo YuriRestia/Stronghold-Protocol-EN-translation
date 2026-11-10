@@ -12,7 +12,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - On a computer at High quality, units now switch to impostors (sprites that redraw their pose every few frames) only past about 88 units on the field, not 44, as long as the frames keep up. A Grand Alliance relay field of 70–90 units is now drawn in full motion instead of in low-frame-rate sprites. If the frames fall behind during such a crowd, the field goes back to the old 44-unit limit until the crowd thins out. Phones and tablets, and Medium / Low quality, keep the old limits.
 - On a computer, the impostor atlas can now use 5 pages instead of 3, so a big crowd no longer runs out of room once impostors are on.
 - On a crowded field (more than 60 units), the official effects play a hit that repeats on the same unit within 0.1 s only once, and new hit effects wait while more than 1,200 particles are live (800 on the light effects tier). Skill loops, projectiles and other held effects always play. A fast Agile stack hitting one enemy no longer stacks dozens of identical sparks on it.
-- The dev sandbox has a "Loop attacks / Play once" switch on the battle bar, to compare the operators' looping attack clips with upstream's play-once look, and a frame-rate readout.
+- The dev sandbox's battle bar shows the frame rate, the units on the field, whether impostors are on, and the live effects and particles (with the crowd budget's merges).
 
 ### The Custom Squad swap button is easier to spot
 
