@@ -541,6 +541,21 @@ export function effectiveVoiceLang(a, charId, pref) {
 /** Gestures that may unlock audio: iOS Safari only accepts touchend / click / keydown; pointerdown covers the rest. */
 const UNLOCK_EVENTS = ['pointerdown', 'touchend', 'click', 'keydown'];
 
+/** (fork) Seconds a sound cut by a newer one of its bank (popOldest) takes to fall silent: a hard stop clicks. */
+export const POP_FADE_S = 0.015;
+/** (fork) Fade a playing source out over POP_FADE_S and stop it then (its onended does the rest). False when it cannot. */
+function fadeOut(ctx, src, gain) {
+  if (!ctx || !src || !gain) return false;
+  try {
+    const t = ctx.currentTime;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.linearRampToValueAtTime(0, t + POP_FADE_S);
+    src.stop(t + POP_FADE_S + 0.005);
+    return true;
+  } catch { return false; }
+}
+
 export class SfxLimiter {
   /** @param {{ maxVoices?: number, unitCooldownMs?: number, urlGapMs?: number, maxPerUrl?: number }} [o] */
   constructor(o = {}) {
@@ -1414,11 +1429,17 @@ export class AudioManager {
       const limit = params?.maxSoundAllowed > 0 ? params.maxSoundAllowed : Infinity;
       if (voices.length >= limit) {
         if (!params?.popOldest) return;
-        voices[0].stop();
+        voices[0].pop();
       }
       let src, gain, done = false;
       const voice = {
         stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
+        pop: () => {   // (fork) as a pool voice's pop: out of the bank now, silent over POP_FADE_S
+          const i = voices.indexOf(voice);
+          if (i >= 0) voices.splice(i, 1);
+          if (!voices.length) this.stingVoices.delete(key);
+          if (!fadeOut(ctx, src, gain)) voice.stop();
+        },
       };
       const end = () => {
         if (done) return;
@@ -1694,13 +1715,22 @@ export class AudioManager {
       }
       try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
     };
-    const voice = { stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); } };
+    const voice = {
+      stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
+      // (fork) popped by a newer sound of its bank (popOldest): out of the pool now, silent over POP_FADE_S — a hard cut
+      // clicked (莫斯提马's 5.6 s S3 ripple was cut on every attack: "static")
+      pop: () => {
+        const index = voices.indexOf(voice);
+        if (index >= 0) voices.splice(index, 1);
+        if (!fadeOut(ctx, src, gain)) voice.stop();
+      },
+    };
     try {
       src = ctx.createBufferSource(); gain = ctx.createGain();
       src.buffer = buf; src.playbackRate.value = rate;
       gain.gain.value = Math.max(0, Math.min(1.5, volume)) * spatialGain(pool.spatial, buf.numberOfChannels);
       src.connect(gain); gain.connect(this._out(pool.group));
-      if (oldest) oldest.stop();
+      if (oldest) oldest.pop();
       acquired = this.limiter.tryAcquire(now, unitKey, url, Infinity);
       if (!acquired) { end(); return; }
       voices.push(voice); this.poolVoices.set(pool.id, voices);

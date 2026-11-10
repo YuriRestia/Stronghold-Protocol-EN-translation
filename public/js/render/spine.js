@@ -1029,6 +1029,7 @@ export class SpineActor {
    * cast (no rhythm): the clip plays once at its own speed from its strike frame, then the resting state.
    */
   attack(interval, once = false) {
+    this.strikeLead = undefined;   // (fork) set below once this attack's clip is known (render/vfx/wiring.js attack)
     if (this.dead || this.mode === 'stun' || this.mode === 'die' || this.mode === 'change') return;   // a form change plays out
     if (!once) this.interval = clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     const clip = this._attackClip();
@@ -1044,6 +1045,10 @@ export class SpineActor {
     // rhythm loop still running goes on, re-phased below)
     const wasAttacking = this.mode === 'attack' && this.current === loop
       && (this.wound || (rhythm && !!this.spine.state.tracks[0]?.loop));
+    // (fork) an attack not wound up: how long before this strike its cast began, in game s at the clip's own speed
+    // (windSkip's rule) — its cast effects' FxDelay counts from there (render/vfx/wiring.js attack `lead`); 0 when the
+    // whole clip plays from its start
+    this.strikeLead = (per && !once && this.interval >= loopDur && !wasAttacking) ? 0 : hit / (once ? 1 : clampN(loopDur / Math.max(0.08, this.interval), 1, 4));
     this.mode = 'attack';
     this.attackUntil = rhythm ? this._rhythmUntil(this.clock, ts, loopDur) : this.clock + Math.max(0, loopDur - hit) / ts;
     this.windUntil = null;

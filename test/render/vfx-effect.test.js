@@ -98,6 +98,19 @@ describe('effect lifecycle', () => {
     assert.equal(after.lateWake, false);
   });
 
+  test('(fork) delayLead: a cast begun earlier counts its FxDelay from then; reset forgets it', () => {
+    const def = compileEffect(desc([root([pe({})]), psNode(1, 0, { behaviours: [{ class: 'FxDelay', enabled: true, fields: { _delayTime: 0.8 } }] })]));
+    const late = new Effect(def, { seed: 1 });
+    late.delayLead = 0.75;
+    runUntil(late, 0.1);
+    assert.equal(late.sys[1].count, 2, 'the wave lands with the blow, not 0.8 s after it');
+    const plain = new Effect(def, { seed: 1 });
+    runUntil(plain, 0.1);
+    assert.equal(plain.sys[1].count, 0);
+    late.reset(1);
+    assert.equal(late.delayLead, 0);
+  });
+
   test('a clip on m_IsActive switches a node (and its system plays when it turns on)', () => {
     const d = desc([root([pe({})]), psNode(1, 0, { active: false })], {
       clips: [{ name: 'c', length: 1, loop: false, curves: [{ node: 1, type: 'GameObject', property: 'm_IsActive', keys: [[0, 0, null, null], [0.5, 1, null, null]] }] }],
@@ -408,6 +421,19 @@ describe('wiring', () => {
     // the second attack, nobody wound up: every row at the strike, and the hook row joins in
     w.attack(a, t, 'arrow', 1, false);
     assert.deepEqual(spawned.slice(3), ['c_start', 'c_spell', 'c_hook', 'c_target']);
+    // (fork) its cast began before this strike: the start row's FxDelay counts from there — the actor's strikeLead, else
+    // one attack interval (UNWOUND_LEAD at most); the strike rows have none
+    assert.equal(handles[3].opts.lead, 2, 'no actor, no interval: UNWOUND_LEAD');
+    assert.equal(handles[4].opts.lead, 0, 'an ON_SPELL_ON row starts at the strike');
+    a.atkInterval = 1.1;
+    ofx.time = 2; w.tick();
+    w.attack(a, t, 'arrow', 2, false);
+    assert.equal(handles.find((h, i) => i > 6 && h.key === 'c_start').opts.lead, 1.1, 'at most one attack interval');
+    a.actor = { strikeLead: 0.44 };
+    ofx.time = 3; w.tick();
+    w.attack(a, t, 'arrow', 3, false);
+    assert.equal(handles.filter((h) => h.key === 'c_start').pop().opts.lead, 0.44, "the clip's own strike lead");
+    a.actor = null; delete a.atkInterval;
     assert.equal(w.castStart(a, t, 'chain', {}), false, 'a chain bounce is no attack of its own');
   });
 

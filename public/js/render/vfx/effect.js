@@ -291,6 +291,7 @@ export class Effect {
     this.time = 0;                                     // s since spawn (battle clock)
     this.delay = def.delayToPlay + (def.randomDelay > 0 ? Math.random() * def.randomDelay : 0);
     this.state = 'play'; this.lateWake = false;      // 'play' | 'stopping' | 'linger' | 'done'
+    this.delayLead = 0;                              // (fork) s its FxDelay nodes already waited (a cast begun earlier)
     this.linger = 0;
     this.started = false;
     this.track = null;
@@ -337,7 +338,7 @@ export class Effect {
     this.delay = def.delayToPlay + (def.randomDelay > 0 ? Math.random() * def.randomDelay : 0);
     this.state = 'play'; this.linger = 0; this.started = false; this.track = null; this.hidden = false; this.pausedBy = false; this.owner = null;
     this.tint = def.colorMod || null; this.speed = 1; this.ttl = Infinity; this.onFinish = null; this.data = null;
-    this.handle = null; this.fade = 1; this.stopT = 0; this.lateWake = false;
+    this.handle = null; this.fade = 1; this.stopT = 0; this.lateWake = false; this.delayLead = 0;
     const seed0 = (num(seed, 0) >>> 0) || ((Math.random() * 4294967296) >>> 0);
     for (let i = 0; i < n; i++) {
       const s = this.sys[i];
@@ -407,7 +408,7 @@ export class Effect {
     // data). Nodes still waiting on their FxDelay then wake and play once as authored: Mostima's Ethereal Harmony S3
     // wave (mostma_skill_03_range_…#6: root FxDelay 0.8 s, `_isLoop`) was stopped at 0.6 s and never showed.
     if (o.cast && this.state === 'play') {
-      for (const [nd, d] of this.def.fxDelay) if (!this.forcedOff[nd] && this.ctime < d) { this.lateWake = true; break; }
+      for (const [nd, d] of this.def.fxDelay) if (!this.forcedOff[nd] && this.ctime + this.delayLead < d) { this.lateWake = true; break; }
     }
     for (const nd of this.def.inactiveOnFinish) { this.forcedOff[nd] = 1; this.act[nd] = 0; }
     if (o.hit) for (const nd of this.def.inactiveOnHit) { this.forcedOff[nd] = 1; this.act[nd] = 0; }
@@ -501,7 +502,7 @@ export class Effect {
     const first = !this.started;
     this.started = true;
     // FxDelay activations
-    for (const [nd, d] of def.fxDelay) if (!this.forcedOff[nd] && ct >= d) this.act[nd] = 1;
+    for (const [nd, d] of def.fxDelay) if (!this.forcedOff[nd] && ct + this.delayLead >= d) this.act[nd] = 1;
     // hierarchy activity (parents come before children in the node list)
     const n = def.n;
     for (let i = 0; i < n; i++) {
@@ -691,7 +692,7 @@ export class Effect {
     // a trail keeps a stopped effect until it has faded; a playing one-shot ends with its systems and clips (its trail
     // fades during the `_delayToFinish` linger — a standing trail holds one point for ever)
     if (!busy && this.state === 'stopping') for (const t of this.trails.values()) if (t.n > 1) { busy = true; break; }
-    if (!busy) for (const [nd, d] of def.fxDelay) if (!this.forcedOff[nd] && ct < d) { busy = true; break; }
+    if (!busy) for (const [nd, d] of def.fxDelay) if (!this.forcedOff[nd] && ct + this.delayLead < d) { busy = true; break; }
     if (!busy && this.state === 'play') {
       for (const a of def.animators) {
         const c = def.clips[a.clip];

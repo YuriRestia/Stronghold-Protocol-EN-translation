@@ -52,6 +52,13 @@ import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a non-oneshot cast effect lasts without its end event. */
 export const CAST_LOOP_S = 0.6;
+/**
+ * (fork) Game s an attack's cast began before its strike when nothing knows (an attack not wound up whose actor has no
+ * attack clip of its own: 莫斯提马's S3 swings are her skill's animation): at most one attack interval, at most this —
+ * the delayed parts of its cast effects, authored to land with the blow, show at the strike; one authored to come
+ * longer after the cast than an attack lasts still waits [ASSUMED].
+ */
+export const UNWOUND_LEAD = 2;
 /** Battle seconds a melee blow waits for its damage. */
 const MELEE_WINDOW = 0.4;
 /** Battle seconds a projectile's arrival covers the damage event it stands for. */
@@ -677,7 +684,7 @@ export class FxWiring {
     const place = { pos, groundZ: -ground, yaw: 0, mirror: false, flipY: false, mountRot: null, rootRot: null };
     this._rotate(P, place, skin, pose);
     this._orient(def, place, pose, o, v);
-    const opts = { track: o.track || null, data: o.data ?? null, loop: !!o.loop, important: !!o.important, skip: o.skip > 0 ? o.skip : 0, owner: v };
+    const opts = { track: o.track || null, data: o.data ?? null, loop: !!o.loop, important: !!o.important, skip: o.skip > 0 ? o.skip : 0, lead: o.lead > 0 ? o.lead : 0, owner: v };
     // the owner each frame: FollowMountPoint keeps the effect on the unit's point (and its rotation), a held effect
     // moves with the unit (`keep`), FollowDirection turns it with the unit, PauseEffectIf hides it while the unit shows
     // a condition; a prefab with chained effects (OnPlayEmitter: system.js FxHandle._start hands them this track) has
@@ -866,11 +873,12 @@ export class FxWiring {
         const first = e.startEvent == null || CAST_START_EVENTS.has(e.startEvent);
         if ((phase === 'start' && !first) || (phase === 'strike' && first) || (onTarget && !tgt)) continue;
         const skip = phase === 'start' ? info.skip : 0;
+        const lead = phase === 'all' && first ? info.lead : 0;   // (fork) an attack not wound up (attack)
         for (const k of this._rowKeys(e, src, nth)) {
           // the rows of the strike sit where its attack clip poses the unit's points at the strike frame
           const h = onTarget
-            ? this.playOn(k, tgt, { toward: beyond(src, tgt), flipFrom: src, skip })
-            : this.playOn(k, src, { toward: tgt, fourFace: !!e.useFourDirectionalFace, skip, strike: phase !== 'start' });
+            ? this.playOn(k, tgt, { toward: beyond(src, tgt), flipFrom: src, skip, lead })
+            : this.playOn(k, src, { toward: tgt, fourFace: !!e.useFourDirectionalFace, skip, lead, strike: phase !== 'start' });
           // a looping row stops at its end event (the cast's end); so does a looping prefab on a one-shot row, which
           // would otherwise never end (known once loaded: decided when the time comes)
           if (h) {
@@ -1044,9 +1052,15 @@ export class FxWiring {
     if (!a && !sk) return !!fun;
     this.castFrame.set(id, this.skills.frame);
     const phase = wound ? 'strike' : 'all';
-    if (a) this._casts(a, src, tgt, phase, { owner: !again });
+    // (fork) not wound up: the clip shows its strike now, its cast began `lead` s earlier (SpineActor.attack strikeLead) —
+    // the cast rows' FxDelay counts from there, so 莫斯提马's S3 wave (FxDelay 0.8 s) lands with the blow, not after it. No
+    // attack clip to tell (her S3 swings are her skill's animation): the delayed parts show at the strike (UNWOUND_LEAD)
+    const sl = src.actor?.strikeLead;
+    const iv = Number(src.atkInterval);
+    const lead = phase === 'all' ? (Number.isFinite(sl) ? Math.max(0, sl) : Math.min(UNWOUND_LEAD, iv > 0 ? iv : UNWOUND_LEAD)) : 0;
+    if (a) this._casts(a, src, tgt, phase, { owner: !again, lead });
     if (sk) {
-      this.skills.casts(sk, src, tgt, phase, { owner: !again });
+      this.skills.casts(sk, src, tgt, phase, { owner: !again, lead });
       if (!again) { this.skills.attacked(sk); this.skills.attackLine(sk.U, src, tgt); }
     }
     if (!again) this.attackN.set(id, nth + 1);

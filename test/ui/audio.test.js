@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES, POP_FADE_S } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { songGain } from '../../public/js/audioMixer.js';
 import { PHASE } from '../../shared/constants.js';
@@ -804,6 +804,36 @@ describe('AudioManager', () => {
     });
     for (const e of [...Object.values(mo.fxSounds), ...Object.values(le.fxSounds), ...Object.values(mo.skillOn), ...Object.values(le.skillOff)]) {
       assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    }
+  });
+
+  test('(fork) a sound its bank pops (popOldest) fades out over POP_FADE_S instead of a hard cut (a click)', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const pools = { one: { maxSoundAllowed: 1, popOldest: true, sounds: {} } };
+      const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools, units: { char_x: { attack: '/assets/audio/sfx/a.mp3', pools: { attack: 'one' } } } } } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      const made = [];
+      const mkS = a.ctx.createBufferSource.bind(a.ctx), mkG = a.ctx.createGain.bind(a.ctx);
+      a.ctx.createBufferSource = () => { const s = mkS(); s.stops = []; s.stop = (t) => s.stops.push(t ?? 'now'); made.push(['src', s]); return s; };
+      a.ctx.createGain = () => { const g = mkG(); made.push(['gain', g]); return g; };
+      a.ctx.currentTime = 5;
+      let n = 0;
+      for (const run of [() => a.unit('char_x', 'attack', `u${++n}`), () => a._playBank('/assets/audio/sfx/b.mp3', 'one', 1)]) {
+        made.length = 0;
+        run(); await new Promise((r) => setTimeout(r, 60));
+        const si = made.findIndex(([k]) => k === 'src'), first = made[si][1], firstGain = made.slice(si).find(([k]) => k === 'gain')[1];   // its own gain: made right after it
+        run(); await new Promise((r) => setTimeout(r, 60));
+        assert.deepEqual(firstGain.gain.log.slice(-1), [['ramp', 0]], 'faded to silence');
+        assert.ok(first.stops.length === 1 && Math.abs(first.stops[0] - (5 + POP_FADE_S + 0.005)) < 1e-9, 'stopped once the fade is over');
+      }
+    } finally {
+      globalThis.fetch = origFetch;
     }
   });
 

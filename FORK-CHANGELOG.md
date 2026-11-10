@@ -16,6 +16,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Mostima's and Lemuen's sounds now follow the official game. Mostima: her attack impact, her S2 time lock as it starts, its strike every second and its impact on each stunned enemy, and her S3 activation sound; her S3 ripple lands without a separate impact sound, and her S2 attacks no longer use the S3 sound. Lemuen: her S1 and S2 impacts, her S2 attack, aim and aimed-shot sounds, her S3 lock, shell launch and shell impact sounds, the closing sound when a skill's ammo runs out, and the sound of the Wanted mark. Twelve official sound files were added.
 - Mostima's S2 now shows its official hit on each stunned enemy every second. Lemuen's S2 now shows the official aim reticle and aim line while she aims, and her aimed shot lands with the official S2 hit. Both replace stand-in effects.
 - Neither outfit (Ethereal Harmony, Ambience Synesthesia) has sounds of its own in the official data: both use the operators' default sounds.
+- Mostima's S3 wave now arrives with each blow. Its built-in delay counted from the hit instead of from the start of her swing, so the wave came about 0.4 s after the enemies were already hit and pushed back. Any operator's attack effect with such a delay now counts it the same way when the attack shows up without a wind-up.
+- A sound cut short by a newer copy of itself (each sound has an official limit of copies at once) now fades out over 15 ms instead of stopping dead, which clicked. Mostima's 5.6 s S3 ripple sound was cut this way on every attack, which sounded like static.
 
 ### Big Grand Alliance fights stay smooth on a PC
 
