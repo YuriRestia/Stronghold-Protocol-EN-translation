@@ -129,8 +129,9 @@ const HELP = `Usage: node tools/fetch-assets.mjs [options]
   --add-only        download only files missing on disk; never re-download, rewrite or delete an existing
                     file, no font rebuild (a worktree sharing public/assets and public/fonts)
   --refresh-units=ID,ID
-                    with --add-only: these units' sound entries (audio.sfx.units[id]) are rebuilt from the plan
-                    instead of kept (a sound mapping change of those units)
+                    with --add-only: these units' sound entries (audio.sfx.units[id]) and model entries
+                    (chars[id].spine, outfits.chars[id@…].spine) are rebuilt from the plan instead of kept
+                    (a sound mapping or animation role change of those units)
   --local-spines    rewrite ${LOCAL_ENEMY_SPINES_FILE} and ${LOCAL_TOKEN_SPINES_FILE} from the
                     enemy and token models extracted by tools/local-extract/extract.py
                     (public/assets/local/spine/enemy/, public/assets/local/spine/token/)
@@ -575,6 +576,14 @@ async function main() {
       if (!body.audio?.sfx?.units) continue;
       if (fresh) body.audio.sfx.units[id] = fresh; else delete body.audio.sfx.units[id];
       log(`[refresh-units] ${id}: sound entries rebuilt from the plan`);
+      // their models (default and every outfit) as this run built them: a role fix (assets/spine.mjs PREFAB_SPINE_ROLES)
+      // reaches the manifest without a full run
+      let models = 0;
+      if (planned?.chars?.[id]?.spine && body.chars?.[id]) { body.chars[id].spine = planned.chars[id].spine; models++; }
+      for (const [k, o] of Object.entries(planned?.outfits?.chars || {})) {
+        if (k.startsWith(`${id}@`) && o?.spine && body.outfits?.chars?.[k]) { body.outfits.chars[k].spine = o.spine; models++; }
+      }
+      log(`[refresh-units] ${id}: ${models} model entr${models === 1 ? 'y' : 'ies'} rebuilt from the plan`);
     }
     // Retained entries still participate in size accounting and orphan detection.
     const files = (v) => {
