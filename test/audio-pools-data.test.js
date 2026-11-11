@@ -71,8 +71,10 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
-  assert.equal(refs, 1048);
-  assert.equal(Object.keys(pools).length, 1074);
+  // (fork) + 1 reference, + 2 pools: 水月's normal impact (UNIT_SOUND_BANKS) and her S1 charge's own impact
+  // (SKILL_MODE_BANKS: skchr_mizuki_1's ON), minus her S1 slot that took S2's mode-2 impact (−1: shared/fxModes.js)
+  assert.equal(refs, 1049);
+  assert.equal(Object.keys(pools).length, 1076);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });

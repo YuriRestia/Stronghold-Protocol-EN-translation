@@ -97,6 +97,8 @@ const FX_SOUND_BANKS = Object.freeze({
  */
 const UNIT_SOUND_BANKS = Object.freeze({
   char_213_mostma: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_213_mostma.attack' }),
+  // (fork) 水月: her swing is the attack's START (p_atk_tentacle_n), its impact the ON (p_imp_tentacle_n)
+  char_437_mizuki: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack' }),
 });
 /**
  * (fork) A skill's own swing / impact by skill index where the mode pick misses it (assignSkillModeSfx): a bank name, or
@@ -114,6 +116,8 @@ const SKILL_MODE_BANKS = Object.freeze({
     1: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s2' }),
     2: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s3' }),
   }),
+  // (fork) 水月 S1: a charge is the skill's own MeleeAttack (ReplacementSkill), its impact the ability's ON (p_imp_tentacle_d)
+  char_437_mizuki: Object.freeze({ 0: Object.freeze({ hit: 'battle.ON_ABILITY_ON.skchr_mizuki_1' }) }),
 });
 /**
  * (fork) Sounds at a skill's start beside its ON_SKILL_START sting (`skillOn`, by index; `hold`: cut when the skill
