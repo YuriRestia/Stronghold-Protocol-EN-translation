@@ -125,7 +125,9 @@ export default {
           }, { owner: unit });
           battle.on('damaged', (ctx) => {
             if (ctx.source !== unit || !ctx.dmg?.shwazPierce || !(cut > 0) || !hasHp(ctx.target) || ctx.target.side !== 'enemy') return;
-            battle.applyStatus(ctx.target, 'defDown', { duration: dur, value: cut, source: unit });
+            // (fork) its mark: shwaz_t_1 (ON_CALCULATE_DAMAGE) gives the target shwaz_t_1[defdown], whose effect buff_defdown
+            // lasts defdown_duration (b.snap fxs; render/vfx/skills.js STATE_BUFFS)
+            if (battle.applyStatus(ctx.target, 'defDown', { duration: dur, value: cut, source: unit })) battle.fxState(ctx.target, 'shwaz_t_1', true, { src: unit, dur });
           }, { owner: unit });
         } },
         { install(battle, unit) { // 交叉火力: field aura, or (ARC-X stage 2+) the squad's snipers for the whole battle

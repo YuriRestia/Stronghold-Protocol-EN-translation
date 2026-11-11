@@ -1,12 +1,14 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-knowledge.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { knowledgePack, interestDigest } from '../../server/ai/knowledge.js';
-import { makeMatch, DATA, give } from './harness.js';
-import { GameData } from '../../server/match/gamedata.js';
-import { aiObservation } from '../../server/match/externalAI.js';
-import { validateC2S } from '../../shared/protocol.js';
-import { buildRecordOverlay } from '../../shared/i18nData.js';
-import { getVersionData } from '../../server/data.js';
+import { knowledgePack, interestDigest } from '../../../server/ai/knowledge.js';
+import { makeMatch, DATA, give } from '../../match/harness.js';
+import { GameData } from '../../../server/match/gamedata.js';
+import { aiObservation } from '../../../server/match/externalAI.js';
+import { validateC2S } from '../../../shared/protocol.js';
+import { buildRecordOverlay } from '../../../shared/i18nData.js';
+import { getVersionData } from '../../../server/data.js';
 
 const opts = { modeId: 'mode_single_normal' };
 test('knowledge is immutable, cached, content-addressed, language-aware and independent of match state', () => {

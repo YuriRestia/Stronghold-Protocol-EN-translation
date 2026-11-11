@@ -14,7 +14,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { unitPoint, mountRotation, spawnRotationKind, skinPoint, SKELETON_TILT } from '../../public/js/render/vfx/mounts.js';
+import { unitPoint, mountRotation, spawnRotationKind, skinPoint, SKELETON_TILT, MUZZLE_BONES } from '../../public/js/render/vfx/mounts.js';
 import { projectileParts, paracurve, arcHeight, wobble } from '../../public/js/render/vfx/flight.js';
 import { FxWiring, pickAttacks, modeVariant } from '../../public/js/render/vfx/wiring.js';
 import { quatRotate } from '../../public/js/render/vfx/math.js';
@@ -57,9 +57,12 @@ describe('mount points on the drawn model (mounts.js)', () => {
     const view = boneView({ F_Muzzle: { x: 0.97, up: 0.62, angle: 16 } });
     const u = { x: 4, y: 11, z: 0, left: false, back: false, view, tilt: 30 };
     nearV(unitPoint(SKIN, 'muzzle', u), [4 - 10 + 0.97, 11 - 9 + 0.62 * C30, -0.62 * S30], 1e-9, 'muzzle on its bone');
-    assert.deepEqual(view.calls[0], { names: ['F_Muzzle', 'B_Muzzle'], strike: false }, 'the facing\'s bone first, then the other skeleton\'s');
+    // the skin's own bones first (then the usual muzzle names: the outfit test below)
+    assert.deepEqual(view.calls[0].names.slice(0, 2), ['F_Muzzle', 'B_Muzzle'], 'the facing\'s bone first, then the other skeleton\'s');
+    assert.equal(view.calls[0].strike, false);
     unitPoint(SKIN, 'muzzle', { ...u, back: true, strike: true });
-    assert.deepEqual(view.calls[1], { names: ['B_Muzzle', 'F_Muzzle'], strike: true }, 'a Back model looks for B_Muzzle first; a shot asks for the strike frame');
+    assert.deepEqual(view.calls[1].names.slice(0, 2), ['B_Muzzle', 'F_Muzzle'], 'a Back model looks for B_Muzzle first');
+    assert.equal(view.calls[1].strike, true, 'a shot asks for the strike frame');
     // a raised unit (a high tile, a flyer's hover): from its feet
     nearV(unitPoint(SKIN, 'muzzle', { ...u, z: 0.4 }), [-6 + 0.97, 2 + 0.62 * C30, -0.4 - 0.62 * S30], 1e-9, 'raised');
     // the camera's tilt decides the plane (the official 30° when the camera says nothing)
@@ -74,6 +77,37 @@ describe('mount points on the drawn model (mounts.js)', () => {
     nearV(unitPoint(SKIN, 'muzzle', { ...u, left: true, view: boneView({}) }), [-6 - 0.907, 2 - 0.151, -0.028], 1e-9, 'no bone');
     assert.deepEqual(skinPoint(SKIN, 'hit', false).bones, null);
     assert.deepEqual(skinPoint(SKIN, 's0', true).bones, ['F_Weapon'], 'a front-only point serves the Back model too');
+  });
+
+  test('(fork) an outfit whose skeleton lacks the skin\'s muzzle bone follows its usual muzzle bone; a skin without a muzzle point shoots from the feet', () => {
+    // Ch'en the Holungday (char_1013_chen2) summer#20: index.json carries the default skin's F_L_Muzzle / B_L_Muzzle, the
+    // outfit's own MuzzlePoint follows F_Muzzle / B_Muzzle (its skinpack prefab)
+    const CHEN = { graphic: { rot: GRAPHIC }, points: { Muzzle: { front: { pos: [1.379, -0.4, -0.2], bone: 'F_L_Muzzle' }, back: { pos: [1.37, -0.3, -0.2], bone: 'B_L_Muzzle' } } } };
+    const outfit = boneView({ F_Muzzle: { x: 0.57, up: 0.57 }, B_Muzzle: { x: 0.38, up: 0.83 } });
+    const u = { x: 4, y: 11, z: 0, left: false, back: false, view: outfit, tilt: 30 };
+    nearV(unitPoint(CHEN, 'muzzle', u), [-6 + 0.57, 2 + 0.57 * C30, -0.57 * S30], 1e-9, 'front: the outfit\'s F_Muzzle');
+    assert.deepEqual(outfit.calls[0].names.slice(0, 3), ['F_L_Muzzle', 'B_L_Muzzle', 'F_Muzzle'], 'the skin\'s own bones first');
+    nearV(unitPoint(CHEN, 'muzzle', { ...u, back: true }), [-6 + 0.38, 2 + 0.83 * C30, -0.83 * S30], 1e-9, 'back: B_Muzzle before F_Muzzle');
+    // the default skin's skeleton still has its own bone: nothing changes
+    const def = boneView({ F_L_Muzzle: { x: 0.9, up: 0.4 }, F_Muzzle: { x: 0.1, up: 0.1 } });
+    nearV(unitPoint(CHEN, 'muzzle', { ...u, view: def }), [-6 + 0.9, 2 + 0.4 * C30, -0.4 * S30], 1e-9, 'default skin: F_L_Muzzle');
+    // a muzzle point no bone moves (Lee's) never borrows a bone: its own offset
+    const STATIC = { points: { Muzzle: { all: { pos: [0.3, 0.2, -0.1], bone: null } } } };
+    nearV(unitPoint(STATIC, 'muzzle', u), [-6 + 0.3, 2.2, -0.1], 1e-9, 'static muzzle');
+    assert.equal(outfit.calls.length, 2, 'the static point asked no bones');
+    // the other kinds keep their own names: no muzzle fallback for a Special point
+    const sp = boneView({ F_Muzzle: { x: 1, up: 1 } });
+    unitPoint(SKIN, 's0', { ...u, view: sp });
+    assert.deepEqual(sp.calls[0].names, ['F_Weapon']);
+    assert.equal(MUZZLE_BONES.front[0], 'F_Muzzle');
+    // Santalla (char_341_sntlla): her skin has a HitPoint and a SpecialPoint0, no muzzle. The client's animator hands its foot
+    // transform (get_muzzleTransform → get_footTransform), so the shot starts at her feet
+    const SNTLLA = { graphic: { rot: GRAPHIC }, points: { HitPoint: { all: { pos: [0, 0.232, -0.25], bone: null } }, SpecialPoint0: { front: { pos: [0.05, 0.22, -0.24], bone: 'F_Weapon' } } } };
+    nearV(unitPoint(SNTLLA, 'muzzle', u), [-6, 2, 0], 1e-12, 'no muzzle point: the feet');
+    nearV(unitPoint(SNTLLA, 'muzzle', { ...u, z: 0.4 }), [-6, 2, -0.4], 1e-12, 'on a raised tile: its feet there');
+    // no skin data at all (a unit the index lacks): still the guess over the feet
+    nearV(unitPoint(null, 'muzzle', u), [-6, 2 + 0.4 * 0.866, -0.2], 1e-9, 'no skin: the 0.4-tile guess');
+    nearV(unitPoint(SNTLLA, 'head', u), [-6, 2 + 0.75 * 0.866, -0.375], 1e-9, 'a missing head keeps its guess');
   });
 
   test('the mount rotation: the Graphic tilt, the facing turn (180° about the plane\'s up) and the bone\'s angle', () => {

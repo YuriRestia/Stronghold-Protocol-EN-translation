@@ -515,6 +515,12 @@ export const FORMS = Object.freeze({
     doll: Object.freeze({ change: 'Start_B', end: 'Die_B', leave: 'Start_2', roles: dollRoles('Idle_B', 'Die_B_2') }),
   }),
   char_4182_oblvns: OBLVNS_S2,
+  // (fork) 烛煌 T2 绝处重燃 (sim chess_char_5_03-blaze2.js: the 'downed' fx's form 'downed', the 'revive' fx's null): her
+  // charpack's Reborn mode — knocked down on Revive_Begin, kneeling on Revive_Idle (no attack, no skill: the kit disarms
+  // her), standing up on Revive_End (the user's clip RjrtWhMKwAU 0:29–0:34). Her outfits share the clip names.
+  char_1040_blaze2: Object.freeze({
+    downed: Object.freeze({ change: 'Revive_Begin', leave: 'Revive_End', roles: { ...dollRoles('Revive_Idle', 'Die'), stun: loop('Revive_Idle') } }),
+  }),
   char_4016_kazema: Object.freeze({
     doll: Object.freeze({ change: 'Start_B', leave: 'Start', roles: dollRoles('Idle_B', 'Die_B', 'Attack_B') }),
   }),
@@ -898,6 +904,7 @@ export class UnitView {
     this.moteRing = null;
     this.layers = 0;              // hit-negating 护盾 layers (sync; b.snap `layers`: the official layer effect, vfx/talentfx.js)
     this.charges = null;          // [stored, maximum] of a charge skill (sync; b.snap `charges`: vfx/skillfx.js)
+    this.fxs = null;              // (fork) [[buff, src, look]] official buffs it shows the lasting effects of (b.snap `fxs`: vfx/skillfx.js)
     this.skillCasts = 0;          // (fork) its skill's starts since its deployment (setSkill; VVANA, vfx/skillfx.js CAST_MODES)
     this.stanceOn = false;        // (fork) 薇薇安娜's 蓄力 shown (VVANA_STANCE), and when it last ended (performance ms)
     this.stanceOffAt = -Infinity;
@@ -1423,7 +1430,7 @@ export class UnitView {
     this.st = s.st || null;
     this.barrier = s.sh > 0 ? s.sh : 0;
     this.energy = s.energy || null;
-    this.layers = s.layers > 0 ? s.layers | 0 : 0; this.charges = s.charges || null;
+    this.layers = s.layers > 0 ? s.layers | 0 : 0; this.charges = s.charges || null; this.fxs = s.fxs || null;
     if (this.skillIndex === 0 && isVvana(this.info)) this._stance(this.alive && chargesFull(this.charges));
     const prevFlags = this.flags;
     this.flags = s.flags | 0;

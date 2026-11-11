@@ -1,11 +1,13 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-transports.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
-import { externalConfig } from '../../server/match/externalConfig.js';
-import { httpDecision, retryAfterMs, safeHeaders, StdioAI } from '../../server/ai/transport.js';
-import { exampleServer } from '../../tools/ai/http.mjs';
+import { externalConfig } from '../../../server/match/externalConfig.js';
+import { httpDecision, retryAfterMs, safeHeaders, StdioAI } from '../../../server/ai/transport.js';
+import { exampleServer } from '../../../tools/ai/http.mjs';
 
 const observation = { v: 'sp-ai/1', id: 'test', public: {}, private: { canReady: true }, context: { kind: 'prep' }, results: [] };
 async function serve(t, server) {

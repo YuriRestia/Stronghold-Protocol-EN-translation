@@ -51,6 +51,9 @@ export default {
           battle.removeBuff(unit, 'skill:vulpis_aspd');
           if (reason !== 'death' && unit.alive && unit.mem.vulpisKill) {
             battle.addBuff(unit, { key: CAMOU_KEY, flags: { camou: true }, status: 'camou', source: unit });
+            // (fork) its glow: vulpis_s_3[cam] keeps vulpis_s_3[cam][interval] (vulpis_buff_02) while she blocks no one
+            // (CheckBlocked) — read at a snapshot (b.snap fxs; render/vfx/skills.js STATE_BUFFS)
+            battle.fxProbe(unit, 'vulpis_s_3[finish_checker]', (u) => !!u.findBuff(CAMOU_KEY) && u.blocking.length === 0);
             fx(battle, 'camouflage', unit);
           }
         },

@@ -35,9 +35,10 @@ test('the asset plan emits ordinary and mode pool references and literal metadat
 });
 
 test('every generated attack/hit reference resolves to a valid pool and its selected sound parameters', () => {
-  const { units, pools } = manifest.audio.sfx;
-  let refs = 0;
-  for (const [id, u] of Object.entries(units)) {
+  const { units, pools, outfits = {} } = manifest.audio.sfx;
+  let refs = 0, outfitRefs = 0;
+  // (fork) an outfit's own entry (sfx.outfits, docs/OUTFITS.md) is held to the same rule, counted apart
+  for (const [id, u] of [...Object.entries(units), ...Object.entries(outfits).map(([k, v]) => [`outfit:${k}`, v])]) {
     for (const [urls, ids] of [[{ attack: u.attack, hit: u.hit }, u.pools], [u.attacks, u.attackPools], [u.hits, u.hitPools]]) {
       for (const [role, url] of Object.entries(urls || {})) {
         if (!url) continue;
@@ -48,7 +49,7 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
         const s = p.sounds[url.replace('/assets/audio/sfx/', '')];
         assert.ok(s, `${id}.${role}: selected file belongs to this bank`);
         assert.ok(s.minPitch > 0 && s.maxPitch >= s.minPitch && s.delay >= 0);
-        refs++;
+        if (id.startsWith('outfit:')) outfitRefs++; else refs++;
       }
     }
   }
@@ -61,18 +62,45 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
   // operators their slots and files (the 5 pool-only attack sounds among them)
   // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)
-  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (plan.mjs SKILL_ABILITY_SOUNDS) and the pools of
+  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (then plan.mjs SKILL_ABILITY_SOUNDS, now tools/assets/skillSounds.mjs) and the pools of
   // those two, her S2 strike back's impact and her T2 footprint (FX_SOUND_BANKS)
   // (fork) + 2 references, + 16 pools: 莫斯提马's impact (+1; plan.mjs UNIT_SOUND_BANKS) and 蕾缪安's S1 / S2 impacts (+2;
   // SKILL_MODE_BANKS), minus 莫斯提马's S2 slot (−1: its mode is her S3's, shared/fxModes.js); the 16 pools are the official
   // banks those two operators' new sounds play on (impacts, S2 attack.2.2, FX_SOUND_BANKS, SKILL_ON_BANKS, SKILL_OFF_BANKS)
   // (fork) + 1 pool: 焰影苇草 S3's blast on a defeated enemy (FX_SOUND_BANKS: projectile_chr_reed2_aoe_effect's REACH,
   // p_aoe_fireexplo_h; an fx sound is no attack / hit reference)
-  // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
+  // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS, now skillSounds.mjs), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
-  assert.equal(refs, 1048);
-  assert.equal(Object.keys(pools).length, 1074);
+  // (fork) + 4 pools: 烛煌's S3 ability end (SKILL_OFF_BANKS' second bank, ON_ABILITY_END.skchr_blaze2_3) and her talents'
+  // knock-down, stand-up and burn-burst banks (FX_SOUND_BANKS: reborn_start, reborn_finish, fire_ep_break)
+  // (fork) + 5 pools: the element burst banks (plan.mjs BURST_SOUND_BANKS: ep_break_fire_audio's START and SHOW_EFFECT,
+  // the sanity, water and dark START banks; a burst sound is no attack / hit reference)
+  // (fork) + 2 references, + 50 pools: 艾雅法拉's impact (UNIT_SOUND_BANKS: projectile_amgoat's REACH) and her S2 hit
+  // (SKILL_MODE_BANKS; her S2 swing and S3 impact replay her normal ones, so only their pools are registered), 澄闪's
+  // drone banks and 圣约送葬人's talent / S3-end banks (FX_SOUND_BANKS), and the Sanrio outfits' own banks; the three
+  // outfit entries hold 11 references
+    // (fork) + 1 reference, + 2 pools: 水月's normal impact (UNIT_SOUND_BANKS) and her S1 charge's own impact
+  // (SKILL_MODE_BANKS: skchr_mizuki_1's ON), minus her S1 slot that took S2's mode-2 impact (−1: shared/fxModes.js); her
+  // S2 / S3 mode impacts moved from the swing slots to the impact slots (SKILL_MODE_BANKS, ±0)
+  // (fork) + 123 references, + 212 pools: every skill's own ability banks (tools/assets/skillSounds.mjs; effect-gaps audit 2
+  // fix #1): 73 skill swings and 50 skill impacts, and the pools of those, the new casts and the start / end sounds
+  // (skillOn / skillOff); 214 new banks, two of which the lines above register already
+  assert.equal(refs, 1174);
+  assert.equal(outfitRefs, 11);
+  assert.equal(Object.keys(pools).length, 1347);
+  // (fork) every sound of a kit fx (and the ones played with it: `also`) and of an attack's follow-up (attackAlso) is a
+  // file of its pool's bank
+  let parts = 0;
+  for (const [id, u] of [...Object.entries(units), ...Object.entries(outfits)]) {
+    const lists = [...Object.values(u.fxSounds || {}).flatMap((e) => [e, ...(e.also || [])]), ...Object.values(u.attackAlso || {}).flat()];
+    for (const e of lists) {
+      if (!e.pool) continue;
+      assert.ok(pools[e.pool]?.sounds?.[e.url.replace('/assets/audio/sfx/', '')], `${id}: ${e.url} in ${e.pool}`);
+      parts++;
+    }
+  }
+  assert.ok(parts >= 40, `kit fx sounds checked: ${parts}`);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
@@ -86,7 +114,9 @@ test('all exported pools match the cached official bank limits, pitches and dela
     assert.equal(pool.maxSoundAllowed, bank.maxSoundAllowed, id);
     assert.equal(pool.popOldest, bank.popOldest, id);
     for (const [path, s] of Object.entries(pool.sounds)) {
-      const original = bank.sounds.find(v => v.asset?.toLowerCase().replace('audio/sound_beta_2/', '') + '.mp3' === path);
+      // (fork) keyed by the played path: each part safeName'd like the file (an outfit's 'p_atk_…_sanrio#2' → '_sanrio_2')
+      const played = (asset) => (asset.toLowerCase().replace('audio/sound_beta_2/', '') + '.mp3').split('/').map((c) => c.replace(/[^A-Za-z0-9._-]/g, '_')).join('/');
+      const original = bank.sounds.find(v => v.asset && played(v.asset) === path);
       assert.ok(original, `${id}: ${path}`);
       assert.deepEqual(s, { minPitch: original.minPitch, maxPitch: original.maxPitch, delay: original.delay }, id);
     }

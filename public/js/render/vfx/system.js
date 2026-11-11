@@ -136,6 +136,7 @@ export class OfficialFx {
     this.tier = TIERS.includes(ctx.tier) ? ctx.tier : 'off';
     this.effects = [];
     this.pending = [];
+    this.remap = null;         // (fork) (key, owner) → the key an owner's chained effects play (FxWiring: its outfit twin)
     this.time = 0;
     this.frameNo = 0;
     this.prepared = -1;
@@ -517,12 +518,15 @@ export class FxHandle {
     // stops with it (OnFinishEmitter's start where it finished)
     this.children = [];
     const own = { track: this.opts.track, data: this.opts.data, loop: this.opts.loop, important: this.opts.important, owner: this.opts.owner };
-    for (const e of def.onPlay) for (const k of e.keys) if (k !== def.key) { const c = s.spawn(k, this.placeArgs, own); if (c) this.children.push(c); }
+    // (fork) an outfit prefab's emitter names its children by their plain keys; the client plays the owner's outfit
+    // replacements of them (蕾缪安's Requiem Vesperis S1 loop: lemuen_skill_01_buff_02 → its _ambiencesynesthesia#7 twin)
+    const twin = (k) => (s.remap && this.opts.owner != null ? s.remap(k, this.opts.owner) || k : k);
+    for (const e of def.onPlay) for (const k of e.keys) if (k !== def.key) { const c = s.spawn(twin(k), this.placeArgs, own); if (c) this.children.push(c); }
     const prev = fx.onFinish;
     fx.onFinish = (f) => {
       prev?.(f);
       this._stopChildren();
-      for (const k of def.onFinish) if (k !== def.key) s.spawn(k, { pos: f.anchor.slice(), yaw: f.yaw, mirror: f.mirror, groundZ: f.groundZ }, { track: this.opts.track, owner: this.opts.owner });
+      for (const k of def.onFinish) if (k !== def.key) s.spawn(twin(k), { pos: f.anchor.slice(), yaw: f.yaw, mirror: f.mirror, groundZ: f.groundZ }, { track: this.opts.track, owner: this.opts.owner });
     };
     this.effect = fx;
     // started late (a cast whose wind-up began past the clip's start): advanced to where it would be

@@ -43,6 +43,7 @@ match never read an outfit. This feature exists on this fork only (upstream turn
 | 2D avatar / portrait | `public/js/ui/assetUrls.js` (setOutfitPicker) |
 | Battle model | `public/js/render/units.js` (`info.model`, `_modelId`; resolved by `ctx.outfitOf`) |
 | Voice | `public/js/audio.js` (setOutfitVoiceResolver, outfitVoiceLine) |
+| Battle sounds | `tools/assets/audio.mjs` (outfitAudioView), `tools/assets/plan.mjs` (`sfx.outfits`), `public/js/audio.js` (setOutfitSfxResolver, unitSfx) |
 | Server | `shared/protocol.js` `room.outfits`, `server/lobby.js` outfits() + room.state `seats[].outfits` |
 | Preload | `shared/resources.js` pack `outfits` (optional, off by default) |
 | Tests | `test/outfits.test.js`, `test/outfits-sync.test.js`, `test/render/outfit-model.test.js`, `test/ui/diy-ui.test.js`, `test/ui/outfits.e2e.test.js` |
@@ -83,6 +84,11 @@ outfits: {
   (`'char_4064_mlynar_epoque#28'`). The dump's folder keeps the `#` (URL-encoded `%23`); the local folder is
   `safeName`d. A dub that lacks a line leaves it out. CN-only outfits have no EN dub yet, so their EN tree misses them
   and the client falls back EN → JP → 中文.
+- Outfit battle sounds: audio_data names an outfit's twin of an operator's bank with the outfit's part of its skinId
+  (`battle.ON_ABILITY_ON.char_377_gdglow.attack_sanrio#1`). The plan builds the operator's sound entry again with each
+  picked bank swapped for its twin (same picks, the twin's file and pool) and keeps it as `audio.sfx.outfits[skinId]`
+  when it differs. A unit wearing that outfit plays it; any other outfit plays the operator's. New official twins are
+  picked up by the next asset build. Today: Goldenglow, Executor the Ex Foedere and Eyjafjalla (Sanrio outfits).
 - Size (2026-10-12, 273 outfits): ~455 MB on disk (models 311 MB, portraits 33 MB, avatars 19 MB, artwork 91 MB).
 - The `outfits` preload pack is optional and off by default. Unticked, each file loads when it is first used. Its saved
   files have their own remove button ("删除未勾选的时装", resources/index.js removeOutfitsPack), separate from the

@@ -52,6 +52,8 @@ import { hasHp, cancelDamage } from '../../../attack.js';
 
 const S1 = 'skchr_ascln_1';
 const S2 = 'skchr_ascln_2';
+/** (fork) The client's S2 buff whose kill-time layers (ascln_t_1[debuff]) glow on the enemies (ascln_buff_01 / _02). */
+const ASCLN_DREAD_FX = 'ascln_s_2[enemy]';
 const S3 = 'skchr_ascln_3';
 /** Refresh period / length of the range auras (S2's slow, AMB-X's slow): the kits' non-stacking aura convention. */
 const AURA_IV = 0.25;
@@ -81,8 +83,12 @@ export function addDread(battle, src, e, tb) {
   const old = e.findBuff(key);
   const n = Math.min(max, (old?.data?.n ?? 0) + 1);
   const mods = { moveMul: Math.max(0, 1 - ms * n) };
+  // (fork) its glow (b.snap fxs; render/vfx/skills.js STATE_BUFFS): the client's ascln_t_1[debuff] adds ascln_buff_02 at
+  // max_stack_cnt layers (FilterByBuffStackCount GE) — display only
+  const fxLook = n >= max ? 'max' : 'on';
   if (old) {
     old.data.n = n;
+    old.fxLook = fxLook;
     old.mods = mods;
     old.timeLeft = dur;
     old.duration = dur;
@@ -91,6 +97,7 @@ export function addDread(battle, src, e, tb) {
   }
   return battle.addBuff(e, {
     key, duration: dur, mods, source: src, interval: iv > 0 ? iv : 1, data: { n }, tags: ['talent', 'dot'],
+    fx: ASCLN_DREAD_FX, fxSrc: src.id, fxLook,
     onTick: ({ battle: b, unit: t, buff }) => {
       if (!up(src)) { b.removeBuff(t, buff); return; }
       if (!(ratio > 0)) return;

@@ -8,16 +8,17 @@
 //   * Pool: one pool for the whole room, copies × players ÷ 4 above 4 (shared/largeRoom.js roomScaleFor), rounded up —
 //     everyone fights over it, across squads (weishuxieyi's approach; the forks' separate pools are not used).
 //   * Drafts: each squad drafts on its own, both at once — the strategy draft in turn inside a squad (队友已选 inside the
-//     squad), the 机变 draft with its own 6 cards per squad. An AI-played seat (a dropped or departed player) takes the
+//     squad), the 机变 draft with its own 6 cards per squad. An AI-played seat (a dropped player, or a departed one: eliminated) takes the
 //     rule's pick at once (the highlighted / default strategy, a random card): two Workers picking in two squads at once
 //     would cancel each other (match/botTasks.js runs one bot task at a time).
 //   * 联防: relay across the room. Round 1 as today; what still gets through goes to the next 2 perfect players, who have
 //     not helped yet, with the round's normal time limit; after RELAY_MAX_ROUNDS it is settled. Helpers of both rounds
 //     keep their kill bounties.
-//   * An absent player (disconnected, departed or removed for idling) keeps playing: the AI plays the board, and its
-//     prep and battles run in a browser — a squadmate's first, then anyone's in the room (match/botBattles.js
-//     _botExecutorFor), never on the server; with no browser at all the battle gets host-side bots' synthetic result.
-//     A reconnect hands the board back.
+//   * A dropped player keeps playing during the rejoin window: the AI plays the board, and its prep and battles run in a
+//     browser — a squadmate's first, then anyone's in the room (match/botBattles.js _botExecutorFor), never on the
+//     server; with no browser at all the battle gets host-side bots' synthetic result. A reconnect hands the board back.
+//     A departure (g.leave, the window running out, removal for idling) eliminates the player as in every room type
+//     (user, 2026-11-11): a running battle plays out in a browser; from the next round on no AI board, no prep, no battles.
 //   * Idle: a seat that the prep deadline had to ready up IDLE_PREP_ROUNDS times in a row is removed (warned one round
 //     earlier); any intent of its own resets the count.
 // Installed on Match.prototype by server/match/Match.js (a method container: never instantiated; `this` is the match).
@@ -304,7 +305,7 @@ export class MatchLargeRoom {
     if (!this.largeRoom || !this.onIdle || ps.isBot || ps.botControlled || !ps.connected || !ps.alive) return;
     ps.idlePreps = (ps.idlePreps || 0) + 1;
     if (ps.idlePreps === IDLE_PREP_ROUNDS - 1) {
-      this.toast(ps, 'warn', msg('你已连续 {n} 个整备阶段没有操作。再有一次将被移出房间，由 AI 接管你的阵地。', { n: ps.idlePreps })); // en: "You have done nothing for {n} prep rounds in a row. One more and you will be removed from the room; the AI takes over your board."
+      this.toast(ps, 'warn', msg('你已连续 {n} 个整备阶段没有操作。再有一次将被移出房间并淘汰出局。', { n: ps.idlePreps })); // en: "You have done nothing for {n} prep rounds in a row. One more and you will be removed from the room and eliminated."
     }
     if (ps.idlePreps >= IDLE_PREP_ROUNDS) {
       const pid = ps.playerId;

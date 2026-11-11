@@ -231,7 +231,9 @@ history and the open points: DESIGN §32.14.25.
   (`simFx`): a cast flash on the owner in the frame of the skill start or, tagged with the skill, while its loops play;
   a skill-tagged fx standing for the plan's `pulse` rows (its buff's ticks on the owner, its other hits away from it),
   which play there; and `skills.js FX_BINDINGS` (克莱门莎 S3's 'lock': her skill projectile's mark and three strikes on
-  the tile, which also stand for her 'blast's there). A skill with nothing official (no plan, or none of its rows
+  the tile, which also stand for her 'blast's there; a talent bound under each of the operator's skills, such as 蕾缪安's
+  Wanted mark: the kit's 'wanted' loops `lemuen_talent_buff_01` on the marked enemy, `hold: 'life'`, until the enemy
+  or she is gone; 蕾缪安 S3's lock also holds the aim projectile's `_effectsToTargetWhenStart` beam, one per lock, until its shell lands; a `shot` binding plays a mode sub-ability only a kit fx fires — wiring.js KIT_SHOTS, 蕾缪安 S2's aimed shot on her 'crit', left out of her 'atk's). A skill with nothing official (no plan, or none of its rows
   extracted) keeps the procedural burst and aura. An effect a plan reaches two ways (a buff's `_buffs` and
   `_extraBuffs`) plays once. A skill attack flies its ability's projectile (index v3 `projectileKey`, else the naming
   rule) and the buffs of its attacks last their `life` (LIMITED: its time or the record's blackboard key; INFINITY: the
@@ -243,6 +245,16 @@ history and the open points: DESIGN §32.14.25.
   over, or on the enemy's death or leak. An enemy in a form whose name is one of its modes' attacks in that
   mode and plays that mode's copies of its skills. A summon's skill — its record's, else the only one its unit has —
   plays like an operator's.
+- **Lines and paths** (fork, 2026-11-11, `pathfx.js PathFx`, owned by `SkillFx`; its `PATH_BINDINGS`): the official
+  line effects whose points the game supplies, which `skills.js` leaves unmapped ('path' / 'tiles'). A
+  RangeLineEffectEmitter draws one line per closed outline of a tile set through the tile corners (`edgeLoops`; each
+  corner at its highest tile, the prefab's LineRenderer given the points: `effect.js setLinePoints`). 国度's kingdom
+  (the kit's 'domain' fx, its range every 0.5 s) shows its tile effect on every tile plus that outline, and fades `dur`
+  after the last fx, in place of the procedural field. 予愿安洁莉娜 S3's range line follows her: the 'takeoff' fx's
+  `range` (her deployment tile's 3-9) plus the tiles within `around` of her, re-traced as she flies, until the skill
+  ends. 谬因 S2's AphrisEffectEmitter draws one line from her muzzle through the 'beam' fx's `path` turns (`pathCorners`;
+  waypoints at the fixed height 0.65), with the start, 中继器 and end-point effects, until the skill ends. The sim only
+  added fields to fx it already sent (no event count changes: goldens unchanged).
 - **Talents and abilities** (0.3.0 Phase 3d, `talentfx.js TalentFx`, owned by the wiring; the bindings of `talents.js`,
   DESIGN §33.16, index v3 §33.17). A battle unit's talents in force — an operator's by its record's talents through
   `talentKeys` (a module's with its module, the trait's always, a node valid with one skill only with it), an enemy's
@@ -987,7 +999,10 @@ oldest one's voice (a 30 ms fade) instead of being dropped, so every landing of 
 the 1.41 s b_char_set; the field view fetches the generic files ahead (`warmLandings`). A piece whose
 Start still plays (on its model, owed to a model still loading, or cued less than a clip ago) keeps it and sounds nothing
 more. Only an idle prep piece lands, never a battle unit or one attacking, dying, dragged or in another clip, and nothing
-lands in a hidden tab. Battle deploys keep the silent `onDeploy`; audio.handleBattleEvents sounds them.
+lands in a hidden tab. Battle deploys keep the silent `onDeploy`; audio.handleBattleEvents sounds them. (fork) A piece put on
+a board tile and the round start's landing play the unit's official deploy effect (FxWiring.birth: its skill's birth row,
+else its default mode's / unit's start effect, else the generic birth; the outfit's twin), the procedural flash only
+without one; the look-up keeps no battle record (`cache: false`).
 
 - Round start (the maintainer's confirmation from official play, 2026-10-13): during 回合开始 the own board's pieces land
   one after another in deployment order — operators by column from the left, top to bottom within a column, then the

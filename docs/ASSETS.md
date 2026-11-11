@@ -92,7 +92,7 @@ npm run assets       # = node tools/vendor.mjs && node tools/fetch-assets.mjs
 | `--allow-shrink` | Write `data/assets.json` even when it loses entries the current one has (see "The manifest never shrinks by accident" below). |
 | `--strict` | Exit 1 when a leaf was dropped for having no file on disk, instead of only reporting it (see "A dropped leaf is reported" below). The same as the environment variable `SP_ASSETS_STRICT=1` — for CI and packaging builds. |
 | `--add-only` | For a checkout whose `public/assets/` and `public/fonts/` are shared with another one (a git worktree with symlinked asset folders): download only the files missing on disk and never re-download, rewrite or delete an existing file — atlases already on disk are left as they are, the fonts are not rebuilt (the manifest keeps its current `fonts`). Not with `--prune` / `--force`. |
-| `--refresh-units=ID,…` | With `--add-only`: the sound entries of these units (`audio.sfx.units[id]`) are rebuilt from the plan instead of kept, so a changed or removed slot of theirs reaches the manifest (a sound mapping change in `tools/assets/plan.mjs` for those units). |
+| `--refresh-units=ID,…` | With `--add-only`: the sound entries of these units (`audio.sfx.units[id]`, and their outfits' `audio.sfx.outfits['<id>@…']`) are rebuilt from the plan instead of kept, so a changed or removed slot of theirs reaches the manifest (a sound mapping change in `tools/assets/plan.mjs` for those units). |
 | `--local-spines` | Rewrite `tools/assets/local-enemy-spines.json` and `tools/assets/local-token-spines.json` (the metadata of the enemy and token models only the local client has, see "Enemy aliases" and "Token models from the local client") from the models `tools/local-extract/extract.py` extracted to `public/assets/local/spine/enemy/` and `public/assets/local/spine/token/`. Run it after a game update changed them; without it the committed files are used and a differing extraction only gets a warning. |
 
 ### Source snapshot verification
@@ -559,9 +559,13 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId},
                 groups?: { [skill|die|born]: mixerGroup }, skillGroups?: {[skillIndex]: mixerGroup},  // (fork) mixer groups
                 fxSounds?: {['<fx kind>|<skill tag>']: { url, pool?: bankId }},  // fork: a kit fx's official sound (塔露拉 S3's 簇火, overload)
+                // (fork) a skill's own sounds at its start / end (public/js/audio.js _skillEdge); `hold`: cut when the skill ends,
+                // `loop`: its bank loops until then, `more`: the edge's other banks
+                skillOn?: {[skillIndex]: { url, pool?: bankId, hold?: true, loop?: true, more?: [{ url, pool? }] }}, skillOff?: {[skillIndex]: …},
                 // (fork) an operator with a choice of skills has `skills`; its absent index casts silently, `skill` does not stand in
                 stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url, loopGroup?: mixerGroup }},  // (fork) 丰川祥子's skill stings
                 notes?: {[look]: { born?: url, bornPool?: bankId, hit?: url, hitPool?: bankId }} } },  // (fork) her per-note sounds
+      burst?: { ['<element>.<char|enemy>']: [{ url, pool?: bankId, vol? }] },  // (fork) element burst sounds (plan.mjs BURST_SOUND_BANKS), all play at once
       pools: { [bankId]: { maxSoundAllowed, popOldest, group?: mixerGroup,
                 spatial?: true,  // (fork) a 3D bank (audio_data sounds is2D: false): its mono clips play 3 dB lower
                 sounds: { [pathUnderSoundBeta2]: { minPitch, maxPitch, delay } } } },
@@ -583,6 +587,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   // swing p_atk_silver_n, community report of 2026-10-06); one that numbers its default mode takes those banks (`attack.0`,
   // `attack.0.1` …, START before ON) before any other number, so a shallower skill bank never wins (弑君者's S3 `attack.3`
   // smoke impact was her normal one until 0.3.2, DESIGN §35.38); enemies and tokens take the first attack-like bank
+  // (fork) every skill's own ability banks (tools/assets/skillSounds.mjs; ON_ABILITY_START / _ON / _HIT / _END and
+  // ON_SKILL_FINISH.<skillId>), for every operator: a p_atk_ file is the skill's swing (`attacks`), a p_imp_ file its
+  // impact (`hits`), any other a cast — the sting (`skills`) when the skill has no ON_SKILL_START, else `skillOn`; a
+  // looping bank holds until the skill ends; the end banks are `skillOff`. A per-operator table in plan.mjs wins for its skill
   fonts: { css: '/fonts/fonts.css', faces: { [name]: { family, weight, woff2?, original } } }
 }
 ```

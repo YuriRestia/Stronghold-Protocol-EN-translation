@@ -51,8 +51,9 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
 - **Scaled rules**: the Hidden Core threshold × players ÷ 4 (rounded up); the leader fight's overtime drain × players ÷ 4
   (2 LP a second at 8).
 - **Absent players**: a disconnected player's board goes to the AI at once (`autoplay`) and back on reconnect. A player
-  who leaves, or is removed for idling, keeps their board in the match under the AI instead of being eliminated. Its prep
-  and battles run in a browser — a squadmate's first (the host when the host is in that squad, else the lowest seat),
+  who leaves, is removed for idling, or does not come back before the rejoin window ends is eliminated, as in every room
+  type (user, 2026-11-11): a battle they were fighting plays out to its end in a browser, and from the next round on
+  nothing of theirs runs, no AI board, no prep, no battles. While the AI plays a dropped player's board, its prep and battles run in a browser — a squadmate's first (the host when the host is in that squad, else the lowest seat),
   then anyone's in the room — never on the server: the match always runs with host-side bots' browser mode
   (`botExecution: 'host'`, `botBattles: 'host'`), whatever the server's settings say. With no browser at all a battle
   gets host-side bots' synthetic result. The executor's result is checked on bounds only; the maintainer accepts that a
@@ -64,4 +65,4 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
   out (`scripts/generations.mjs` `LARGE_MAX_AGE_MS`). Every other generation keeps 60 (`MAX_AGE_MS`).
 - **Idle count**: only the player's own prep and draft actions, emotes and chat reset it — never what the page sends by
   itself (battle reports, bot work for others, unit stats, a watch change).
-- **联防 helpers**: a departed player whose board the AI plays is never a helper, in either relay round.
+- **联防 helpers**: a departed player is eliminated, so never a helper, in either relay round.

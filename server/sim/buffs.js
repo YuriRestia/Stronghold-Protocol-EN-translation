@@ -183,6 +183,11 @@ export function makeBuff(b) {
     persist: !!b.persist,
     status: b.status ?? null,
     visible: b.visible ?? false,
+    // (fork) the client's buff key whose lasting effects the carrier shows while this buff lasts, the unit that made it
+    // and the official branch (snapshot.js fxStateView; display only — nothing in the sim reads them)
+    fx: typeof b.fx === 'string' && b.fx ? b.fx : null,
+    fxSrc: b.fxSrc ?? null,
+    fxLook: b.fxLook ?? null,
     data: b.data ?? {},
     seq: ++buffSeq,
   };

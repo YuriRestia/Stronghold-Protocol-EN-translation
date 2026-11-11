@@ -162,6 +162,9 @@ export function compileEffect(desc, lib = {}) {
         case 'FollowOwner': case 'FollowOwnerRootTileHeight': case 'FollowTileHeight': if (!def.follow) def.follow = { mount: 0, keepRot: true, owner: true }; break;
         case 'FollowDirection': def.direction = { fourDir: on(f._useFourDir), leftIsDefault: on(f._leftIsDefault), reverseBack: on(f._reverseWhenFaceToBack) }; break;
         case 'OnPlayEmitter': case 'OnPlayEmitterIf': def.onPlay.push({ keys: (Array.isArray(f._effects) ? f._effects : []).map((k) => String(k).toLowerCase()), delay: num(f._preDelay, 0), cond: b.class === 'OnPlayEmitterIf' ? f : null }); break;
+        // (fork) a line's own end effects (LineEffectEmitterDynamic): `start` on its source, `end` on its target — 蕾缪安
+        // S2's aim line lemuen_skill_02_trail_01 puts lemuen_skill_02_crosshair_01 on the aimed enemy (SkillFx._line)
+        case 'LineEffectEmitterDynamic': def.lineEnds = { start: f._startEffect ? String(f._startEffect).toLowerCase() : null, end: f._endEffect ? String(f._endEffect).toLowerCase() : null }; break;
         case 'OnFinishEmitter': def.onFinish.push(...(Array.isArray(f._effects) ? f._effects : []).map((k) => String(k).toLowerCase())); break;
         case 'SwitchableBackEffect': def.switchable = { ...(def.switchable || {}), back: f._backEffect ? String(f._backEffect).toLowerCase() : null }; break;
         case 'SwitchableRightEffect': def.switchable = { ...(def.switchable || {}), right: f._rightEffect ? String(f._rightEffect).toLowerCase() : null, reverse: on(f._reverseLeftRight) }; break;
@@ -395,6 +398,23 @@ export class Effect {
       if (!p || p.length !== 2) { p = [[0, 0, 0], [0, 0, 0]]; this.linePts.set(i, p); }
       p[0][0] = from[0]; p[0][1] = from[1]; p[0][2] = from[2];
       p[1][0] = to[0]; p[1][1] = to[1]; p[1][2] = to[2];
+    }
+    return this;
+  }
+
+  /**
+   * (fork) Every LineRenderer of the prefab through the points `pts` ([[x, y, z]…], world space, Unity frame) — a path
+   * or a closed outline the game supplies (render/vfx/pathfx.js: 国度's kingdom edge, 谬因's S2 beam). The array is
+   * copied, so the caller may reuse its own.
+   */
+  setLinePoints(pts) {
+    const def = this.def;
+    if (!Array.isArray(pts) || pts.length < 2) return this;
+    for (let i = 0; i < def.n; i++) {
+      if (!def.line[i]) continue;
+      let p = this.linePts.get(i);
+      if (!p || p.length !== pts.length) { p = pts.map(() => [0, 0, 0]); this.linePts.set(i, p); }
+      for (let j = 0; j < pts.length; j++) { p[j][0] = pts[j][0]; p[j][1] = pts[j][1]; p[j][2] = pts[j][2]; }
     }
     return this;
   }

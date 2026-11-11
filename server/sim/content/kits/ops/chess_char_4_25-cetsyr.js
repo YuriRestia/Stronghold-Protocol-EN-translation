@@ -116,7 +116,11 @@ export default withDefaults({
                 if (!takeMote()) break;
                 hitAt.set(e.id, battle.time + MOTE_GAP);
                 battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.atk_scale, 2.2), type: 'true', isSkill: true, tags: ['skill', 'mote'] });
-                if (e.alive) battle.applyStatus(e, 'bind', { duration: num(bb.unmoveable_duration, 3), source: unit });
+                // (fork) the bind's rope: cetsyr_s_2 (ON_OUTPUT_DAMAGE) gives the target cetsyr_s_2[unmoveable], whose effect
+                // cetsyr_skill_02_tie lasts unmoveable_duration (b.snap fxs; render/vfx/skills.js STATE_BUFFS)
+                if (e.alive && battle.applyStatus(e, 'bind', { duration: num(bb.unmoveable_duration, 3), source: unit })) {
+                  battle.fxState(e, 'cetsyr_s_2', true, { src: unit, dur: num(bb.unmoveable_duration, 3) });
+                }
                 battle.fx('mote', { x: e.x, y: e.y, id: e.id, src: unit.id });   // (fork) src: render/vfx FX_BINDINGS
               }
               return;

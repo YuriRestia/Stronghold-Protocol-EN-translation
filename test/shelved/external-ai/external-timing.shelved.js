@@ -1,14 +1,16 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-timing.test.js.
 // §37.72 plan-mode time limits (handoff/round65 diag coop-timing): a plan seat's budget is its window minus the built-in
 // bot's reserve (not half of it), and a prep request that outlives its budget stays open — its plan steers the rest of a
 // still-running fallback or becomes the direction the next prep carries.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeMatch, DATA, checkInvariants } from './harness.js';
-import { FakeBattle } from './fakeBattle.js';
-import { planReserveMs, carryPlan } from '../../server/match/externalAI.js';
-import { externalConfig } from '../../server/match/externalConfig.js';
-import { decodeTestTrace, replayTestMatch } from '../../server/match/testReplay.js';
-import { runMatch } from '../../tools/ai/run-match.mjs';
+import { makeMatch, DATA, checkInvariants } from '../../match/harness.js';
+import { FakeBattle } from '../../match/fakeBattle.js';
+import { planReserveMs, carryPlan } from '../../../server/match/externalAI.js';
+import { externalConfig } from '../../../server/match/externalConfig.js';
+import { decodeTestTrace, replayTestMatch } from '../../../server/match/testReplay.js';
+import { runMatch } from '../../../tools/ai/run-match.mjs';
 
 const jobs = m => [...m.externalAI.jobs.values()];
 const jobOf = (m, ps, kind) => jobs(m).find(j => j.ps === ps && j.kind === kind);

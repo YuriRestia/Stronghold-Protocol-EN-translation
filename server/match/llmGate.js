@@ -1,4 +1,7 @@
 // Release gate for the external-AI / LLM integration (maintainer 2026-10-23, §35.66).
+// (fork, 2026-11-11) External AI is shelved in this fork: the gate is closed in every build, a dev checkout included, unless
+// SP_UNSHELVE_EXTERNAL_AI=1 (docs/EXTERNAL_AI.md "Shelved in this fork"). Closed, it behaves exactly as a release does
+// below: the configuration is ignored with one log line and the built-in bot plays. The code stays in place.
 // A dev checkout has no marker and still has server/match/externalAI.js, so this module loads that
 // implementation and the server behaves as before. A release package has the marker (and the
 // implementation files are not in the package): external-AI configuration is ignored, one log line,
@@ -12,8 +15,12 @@ import { LLM_RELEASE_MARKER } from './llmRelease.js';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-/** @param {string} [root] */
-export function llmIntegrationEnabled(root = ROOT) {
+/** (fork) The env that brings the shelved External AI back for this process ('1'). */
+export const UNSHELVE_ENV = 'SP_UNSHELVE_EXTERNAL_AI';
+
+/** @param {string} [root] @param {Record<string, string|undefined>} [env] */
+export function llmIntegrationEnabled(root = ROOT, env = process.env) {
+  if (env[UNSHELVE_ENV] !== '1') return false; // (fork) shelved
   if (existsSync(path.join(root, LLM_RELEASE_MARKER))) return false;
   return existsSync(path.join(root, 'server/match/externalAI.js'));
 }
@@ -22,7 +29,7 @@ export function llmIntegrationEnabled(root = ROOT) {
 export const llmIntegrationEnabledNow = llmIntegrationEnabled();
 
 /** One line. No URLs, commands or tokens. */
-export const LLM_IGNORED_LOG = '[llm] external AI is development-only and is not in this release; ignoring the external-AI configuration and using the built-in bot';
+export const LLM_IGNORED_LOG = '[llm] external AI is shelved in this build; ignoring the external-AI configuration and using the built-in bot';
 
 let noted = false;
 
@@ -34,7 +41,7 @@ export function noteLlmIgnored(log) {
   else console.log(LLM_IGNORED_LOG);
 }
 
-/** True when a release package was given external-AI / LLM settings that must not take effect. */
+/** True when a build with the gate closed (a release, or any build while shelved) was given external-AI / LLM settings. */
 export function releaseIgnoresExternalAi(env = process.env) {
   if (llmIntegrationEnabledNow) return false;
   // SP_BOT_STRATEGY_SEATS entries are seat:id (botStrategies.js getBotStrategySeats)

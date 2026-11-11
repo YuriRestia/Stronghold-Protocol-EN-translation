@@ -7,7 +7,8 @@ import { fixture } from '../helpers/contentFixtures.js';
 import { createPlugin, templateById, manifestText } from '../../server/studio/templates/index.js';
 import { createPluginFiles } from '../../server/studio/files.js';
 import { createAuthoring } from '../../server/studio/authoring.js';
-import { createTrialBench } from '../../server/studio/trial.js';
+import { createTrialBench, TRIAL_LIMITS } from '../../server/studio/trial.js';
+import { STUDIO_TRIAL_MS } from '../helpers/studioTrial.js';
 import { readStudioData } from '../../server/studio/gameData.js';
 import { checkPluginFolder } from '../../server/plugins/pack.js';
 import { buildContentSet } from '../../server/plugins/contentSet.js';
@@ -33,7 +34,8 @@ function setup(t, template, options = {}) {
   const read = rel => fs.readFileSync(path.join(dir, rel), 'utf8');
   const write = (rel, value) => fs.writeFileSync(path.join(dir, rel), typeof value === 'string' ? value : manifestText(value));
   const draft = patch => editGameplay({ ...author.read(id), id }, patch);
-  const bench = createTrialBench({ registry: f.registry, files }); t.after(() => bench.close());
+  // (fork) this checks what the trial computes, not how fast: STUDIO_TRIAL_MS, not the 20 s server budget
+  const bench = createTrialBench({ registry: f.registry, files, limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS } }); t.after(() => bench.close());
   return { ...f, id, dir, read, write, draft, author, bench };
 }
 function nodes(v) {

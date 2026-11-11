@@ -6,6 +6,11 @@ import { BroadcastChannel } from 'node:worker_threads';
 import WebSocket from 'ws';
 import { startServer } from '../server/index.js';
 import { CLAIM_QUERY_MS, createIdentity, Net } from '../public/js/net.js';
+import { WORKER_LOAD_MS } from './helpers/simHostFixture.js';
+
+// (fork) These check which session each tab ends up with, not how fast: each socket event waits up to WORKER_LOAD_MS
+// and each test (several server steps) twice that. They were 2 s and 5 s; the first test alone took 6 s on a loaded
+// machine. The tabs' own claim deadlines stay under the test's control (holdDeadline).
 
 function storage(seed = {}) {
   const values = new Map(Object.entries(seed));
@@ -19,7 +24,7 @@ function storage(seed = {}) {
 function nextEvent(net, type) {
   return new Promise((resolve, reject) => {
     const off = net.on(type, (value) => { clearTimeout(timer); off(); resolve(value); });
-    const timer = setTimeout(() => { off(); reject(new Error(`Timed out waiting for ${type}`)); }, 2000);
+    const timer = setTimeout(() => { off(); reject(new Error(`Timed out waiting for ${type}`)); }, WORKER_LOAD_MS);
   });
 }
 
@@ -72,7 +77,7 @@ async function assertOnline(h, clients) {
 }
 
 for (const [firstId, secondId] of [['a-tab', 'b-tab'], ['b-tab', 'a-tab']]) {
-  test(`staggered tabs ${firstId} then ${secondId} keep separate server sessions`, { timeout: 5000 }, async (t) => {
+  test(`staggered tabs ${firstId} then ${secondId} keep separate server sessions`, { timeout: 2 * WORKER_LOAD_MS }, async (t) => {
     const h = await harness(t);
     const seed = await h.connect('Seed');
     await closeClient(seed.net);
@@ -113,7 +118,7 @@ for (const [firstId, secondId] of [['a-tab', 'b-tab'], ['b-tab', 'a-tab']]) {
   });
 }
 
-test('live token ownership survives a duplicated tab, reload and reconnect', { timeout: 5000 }, async (t) => {
+test('live token ownership survives a duplicated tab, reload and reconnect', { timeout: 2 * WORKER_LOAD_MS }, async (t) => {
   const h = await harness(t);
   const owner = h.tab('z-owner');
   await owner.id.init();

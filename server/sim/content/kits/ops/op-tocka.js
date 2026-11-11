@@ -198,17 +198,25 @@ function installShared(battle) {
 }
 
 /**
+ * (fork) The client's trigger-effect buffs whose fired buff glows on its holder (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): S1's tocka_s1[shield] (tocka_skill_01_buff_01, while the barrier lasts), S2's tocka_s2[auto_skill]
+ * (tocka_skill_02_buff_01, buff_duration), S3's tocka_s3[bonus] (tocka_skill_03_buff_04, bonus_duration) — each created
+ * by the template named here when the effect fires (config/buff_template_holder.ab). Display only.
+ */
+const STATE_FX = Object.freeze({ s1: 'tocka_s1[trigger]', s2: 'tocka_s2[trigger]', s3: 'tocka_s3[trigger]' });
+
+/**
  * S1's barrier on `holder`: max(its S1 barrier left, `amount`) — the old one cleared first (PRTS S1 备注) — losing a fixed
  * initial / `dur` every second until it is gone [ASSUMED: one-second steps].
  */
-function barrier(battle, holder, amount, dur, source) {
+function barrier(battle, holder, amount, dur, source) { // (fork) its glow: tocka_s1[shield] (STATE_FX)
   const old = holder.findBuff(BARRIER);
   const total = Math.max(amount, old ? old.shield : 0);
   if (old) battle.removeBuff(holder, old);
   if (!(total > 0)) return;
   const step = dur > 0 ? total / dur : 0;
   battle.addBuff(holder, {
-    key: BARRIER, shield: total, duration: dur > 0 ? dur : Infinity, source, tags: ['skill'],
+    key: BARRIER, shield: total, duration: dur > 0 ? dur : Infinity, source, tags: ['skill'], fx: STATE_FX.s1, fxSrc: source?.id ?? null,
     interval: step > 0 ? 1 : 0,
     onTick: step > 0 ? ({ battle: b, unit, buff }) => {
       buff.shield = Math.max(0, buff.shield - step);
@@ -224,6 +232,7 @@ function decayingAtk(battle, u, key, init, dec, dur, source) {
   if (!(init > 0) || !(dur > 0)) return;
   battle.addBuff(u, {
     key, duration: dur, mods: { atkPct: init }, interval: 1, source, data: { v: init }, tags: ['skill'],
+    fx: STATE_FX.s3, fxSrc: source?.id ?? null, // (fork) its glow: tocka_s3[bonus]
     onTick: ({ unit, buff }) => {
       buff.data.v = Math.max(0, buff.data.v - dec);
       buff.mods = { atkPct: buff.data.v };
@@ -275,6 +284,7 @@ export default {
         if (!(dur > 0)) return;
         battle.addBuff(holder, {
           key: ASPD + tocka.id, duration: dur, mods: { aspd: num(b2.attack_speed) }, source: tocka, tags: ['skill'],
+          fx: STATE_FX.s2, fxSrc: tocka.id, // (fork) its glow: tocka_s2[auto_skill]
           onRemove: ({ unit }) => syncAutoOpen(unit), onExpire: ({ unit }) => syncAutoOpen(unit),
         });
         syncAutoOpen(holder);

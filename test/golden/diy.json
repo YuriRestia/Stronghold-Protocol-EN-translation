@@ -6094,8 +6094,8 @@
       ],
       "enemies": {"enemy_10031_cnvsld":[39,8,31,138,123805],"enemy_1019_jshoot_2":[57,7,50,15929,96253],"enemy_9008_acbunn":[21,0,21,35793,91553]},
       "hooks": [1,140,6777,303,303,575,657,48,38,140,21,21,0,7859,10,17,117,102,1,38,0,13,79],
-      "events": {"atk":340,"deploy":23,"die":38,"dmg":657,"engage":5,"fx":722,"heal":30,"leak":102,"rate":17,"skill":42,"spawn":129,"status":28},
-      "fx": {"aoe":21,"blast":21,"burst":13,"dodge":79,"domain":532,"heatwave":13,"overload":2,"shield":15,"zone":26},
+      "events": {"atk":340,"deploy":23,"die":38,"dmg":657,"engage":5,"fx":793,"heal":30,"leak":102,"rate":17,"skill":42,"spawn":129,"status":28},
+      "fx": {"aoe":21,"blast":21,"buffLayers":71,"burst":13,"dodge":79,"domain":532,"heatwave":13,"overload":2,"shield":15,"zone":26},
       "snaps": "6895465b 5caa745d 5742c855 39bf887c 51ced7d6 858f3675 6cc1ca8b 950b7065 3d362ce8 5579ce35 694784dd b0e912d6 1b4cb9cb 8db719cf 521ca941 9df4d6fd 6196afdd 1b5b1e80 964d7d12 3a1ee4ea f0a5841a 65e96602 0cf3674b"
     },
     "diy-141": {
@@ -6135,8 +6135,8 @@
       ],
       "enemies": {"enemy_1381_winman":[27,27,0,309,292253],"enemy_1381_winman_2":[48,48,0,6386,698720],"enemy_1387_winshd":[39,39,0,4718,873400]},
       "hooks": [1,129,5777,574,574,4205,6875,52,116,116,48,44,0,26063,4,104,114,0,1,116,0,108,0],
-      "events": {"atk":600,"deploy":13,"die":116,"dmg":6875,"engage":7,"fx":412,"heal":26,"rate":45,"skill":92,"spawn":128,"status":113},
-      "fx": {"blast":81,"burst":108,"heatwave":42,"overload":6,"shield":26,"zone":149},
+      "events": {"atk":600,"deploy":13,"die":116,"dmg":6875,"engage":7,"fx":637,"heal":26,"rate":45,"skill":92,"spawn":128,"status":113},
+      "fx": {"blast":81,"buffLayers":225,"burst":108,"heatwave":42,"overload":6,"shield":26,"zone":149},
       "snaps": "1757daa8 3e84f41d 5d7008d1 00087c41 503f3366 2c335212 e684aeb7 a1a5f045 9ed8ee69 aef5177b af4c5afe 89d0a6f1 1c6cfc71 1b9ad82c f20b557e d75874af 752398c0 7621b709 fd51aa51 93af83d0"
     },
     "diy-142": {

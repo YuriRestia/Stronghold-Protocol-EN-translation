@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as legacy from '../../server/match/bot.js';
 import { LEGACY_BOT, defineBotStrategy, createBotRegistry } from '../../server/match/botStrategyContract.js';
-import { BOT_STRATEGIES, getBotStrategy } from '../../server/match/botStrategies.js';
+import { BOT_STRATEGIES, getBotStrategy, getBotStrategySeats } from '../../server/match/botStrategies.js';
+import { llmIntegrationEnabled, llmIntegrationEnabledNow, releaseIgnoresExternalAi, createExternalAI, UNSHELVE_ENV } from '../../server/match/llmGate.js';
 import { createRng } from '../../server/sim/rng.js';
 import { makeMatch, checkInvariants, giveItem, DATA } from './harness.js';
 import { replayTestMatch, decodeTestTrace } from '../../server/match/testReplay.js';
@@ -12,7 +13,8 @@ const soloBot = (opts = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', f
   seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true, connected: true }], ...opts });
 
 test('the default strategy is the original bot functions with no wrapping or policy changes', () => {
-  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'external', 'ioleta', 'adaptive', 'ioleta-adaptive']);
+  // (fork, 2026-11-11) External AI is shelved: not registered unless SP_UNSHELVE_EXTERNAL_AI=1
+  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'ioleta', 'adaptive', 'ioleta-adaptive']);
   assert.equal(getBotStrategy(), LEGACY_BOT);
   assert.equal(getBotStrategy(''), LEGACY_BOT);
   assert.equal(LEGACY_BOT.pickBand, legacy.botPickBand);
@@ -72,7 +74,7 @@ test('strategies override individual hooks and inherit their base without mutati
   assert.ok(Object.isFrozen(registry));
   assert.equal(getBotStrategy('last-card', registry).pickCard, pickCard);
   assert.equal(getBotStrategy('legacy', registry), LEGACY_BOT);
-  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'external', 'ioleta', 'adaptive', 'ioleta-adaptive'], 'a local registry cannot leak into other rooms');
+  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'ioleta', 'adaptive', 'ioleta-adaptive'], 'a local registry cannot leak into other rooms');
 });
 
 test('unknown names, duplicate registrations, malformed hooks and misspellings fail early', () => {
@@ -192,4 +194,25 @@ test('adaptive is placement-only: legacy band picker and procurement; ioleta-ada
   assert.notEqual(adaptive.prepBegin, LEGACY_BOT.prepBegin);
   assert.equal(both.pickBand, ioleta.pickBand);
   assert.notEqual(both.prepBegin, ioleta.prepBegin);
+});
+
+test('(fork) External AI is shelved: every way of selecting it falls back to the built-in bot unless SP_UNSHELVE_EXTERNAL_AI=1', () => {
+  assert.equal(UNSHELVE_ENV, 'SP_UNSHELVE_EXTERNAL_AI');
+  assert.equal(llmIntegrationEnabledNow, process.env.SP_UNSHELVE_EXTERNAL_AI === '1', 'this process: shelved unless unlocked');
+  assert.equal(llmIntegrationEnabled(undefined, {}), false, 'a dev checkout is shelved too');
+  assert.equal(llmIntegrationEnabled(undefined, { SP_UNSHELVE_EXTERNAL_AI: 'true' }), false, 'only exactly 1 unlocks');
+  assert.equal(llmIntegrationEnabled(undefined, { SP_UNSHELVE_EXTERNAL_AI: '1' }), true, 'the unlock brings it back in a dev checkout');
+  if (llmIntegrationEnabledNow) return; // the rest is the shelved behaviour
+  assert.equal(getBotStrategy('external'), LEGACY_BOT, 'botStrategy external → the built-in bot');
+  assert.equal(getBotStrategySeats('1:external')['1'], LEGACY_BOT, 'a seat override too');
+  for (const env of [{ SP_BOT_STRATEGY: 'external' }, { SP_BOT_STRATEGY_SEATS: '0:external' }, { SP_EXTERNAL_AI_URL: 'http://127.0.0.1:1' }, { SP_LLM_MODEL: 'mock' }]) {
+    assert.equal(releaseIgnoresExternalAi(env), true, `${Object.keys(env)[0]} is ignored (one log line at startup)`);
+  }
+  assert.equal(releaseIgnoresExternalAi({}), false, 'nothing set, nothing to say');
+  const h = soloBot({ botStrategy: 'external', externalAI: { mode: 'plan' } });
+  try {
+    assert.equal(h.m.bot.id, 'legacy', 'a match asked for external plays the built-in bot');
+    assert.equal(h.m.externalAI ?? null, null, 'and has no external host');
+    assert.equal(createExternalAI(h.m, { externalAI: { mode: 'plan' } }), null);
+  } finally { h.m.dispose(); }
 });

@@ -1220,10 +1220,10 @@
       "killed": 3,
       "total": 3,
       "unspawned": 0,
-      "bossHpLeft": 2158506,
+      "bossHpLeft": 2145874,
       "rngDraws": 80,
       "errors": {"count":0,"kinds":[]},
-      "players": {"p1":{"killed":3,"total":3,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":2520224,"bossDmg":641494,"heal":71154,"deaths":5,"layerGains":{}}},
+      "players": {"p1":{"killed":3,"total":3,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":2544469,"bossDmg":654126,"heal":70586,"deaths":5,"layerGains":{}}},
       "units": [
         ["p1",1,"op","chess_char_5_08_b",2,"uniequip_002_horn",3052.5,1,1,1,345159,9501,0,112,4],
         ["p1",2,"op","chess_char_5_11_b",1,"uniequip_002_demkni",5285.28,1,3,0,841,1755,27340,19,28],
@@ -1232,7 +1232,7 @@
         ["p1",5,"op","chess_char_5_13_b",1,"uniequip_002_ghost2",3793.81,1,9,0,61316,8779,1378,58,2],
         ["p1",6,"op","chess_char_5_07_b",2,"uniequip_002_surtr",5846.26,1,37,0,25985,39287,8464,22,4],
         ["p1",7,"op","chess_char_5_02_b",2,"uniequip_002_titi",1582.9,1,5,0,122069,0,5847,24,1],
-        ["p1",8,"op","chess_char_5_03_b",2,"uniequip_002_blaze2",1458.28,1,6,0,272292,2541,2380,151,7],
+        ["p1",8,"op","chess_char_5_03_b",2,"uniequip_002_blaze2",1473.47,1,6,0,296537,1958,1813,180,7],
         ["p1",9,"op","chess_char_5_10_b",2,"uniequip_002_lisa",1058.33,1,39,0,800,12048,3339,16,5],
         ["p1",10,"op","chess_char_5_12_b",0,"uniequip_002_dusk",1965.7,1,2,0,163628,0,0,52,41],
         ["p1","~1","token","token_10039_ulpia_block",null,null,3290,0,22,0,0,210,0,0,null],
@@ -1242,15 +1242,15 @@
         "enemy_10067_ftsjc": [1,1,0,1161,21565],
         "enemy_5601_entlec": [7,7,0,0,264726],
         "enemy_9007_acelem": [2,2,0,843,119439],
-        "enemy_9017_achunt_2": [1,0,0,26450,641494],
-        "enemy_9018_actrpa": [1,0,0,17269,516857],
-        "enemy_9019_actrpb": [1,0,0,15060,383986],
-        "enemy_9020_actrpc": [1,0,0,16101,572156]
+        "enemy_9017_achunt_2": [1,0,0,26450,654126],
+        "enemy_9018_actrpa": [1,0,0,17269,522617],
+        "enemy_9019_actrpb": [1,0,0,15060,386942],
+        "enemy_9020_actrpc": [1,0,0,16101,575053]
       },
-      "hooks": [1,39,6000,782,782,3148,7817,5407,15,20,100,95,112,24444,2083,2,14,0,1,172,0,7,0],
-      "events": {"atk":1294,"cast":18,"deploy":25,"die":20,"dmg":6835,"engage":10,"fx":853,"heal":370,"rate":132,"skill":195,"spawn":26,"status":316},
-      "fx": {"anchor":3,"aoe":4,"beam":20,"burst":7,"candle":7,"charge":7,"dash":12,"downed":1,"ember":3,"explode":1,"healAoe":28,"link":597,"meltdown":2,"overload":4,"phase":13,"revive":2,"shieldBreak":12,"splash":112,"substitute":2,"swap":2,"teleport":5,"wake":9},
-      "snaps": "d29582a8 7d702602 d778bac2 1fdfb36c a990ebc1 14b97bc0 c99f718b 16e08413 b999ac77 79d1b81c 81e9286a d5254469 65023c08 204f034b 093fe315 ddaa15be 8cf08c6c 34d563a1 e20a5feb a85a859f"
+      "hooks": [1,39,6000,811,811,3182,7857,5006,15,20,100,96,137,24627,2086,2,14,0,1,172,0,7,0],
+      "events": {"atk":1323,"cast":18,"deploy":25,"die":20,"dmg":6875,"engage":10,"fx":879,"heal":372,"rate":133,"skill":196,"spawn":26,"status":323},
+      "fx": {"anchor":3,"aoe":4,"beam":20,"burst":7,"candle":7,"charge":7,"dash":12,"downed":1,"ember":3,"explode":1,"healAoe":28,"link":597,"meltdown":2,"overload":4,"phase":13,"revive":3,"shieldBreak":12,"splash":137,"substitute":2,"swap":2,"teleport":5,"wake":9},
+      "snaps": "d29582a8 7d702602 d778bac2 1fdfb36c a990ebc1 14b97bc0 c99f718b 16e08413 b999ac77 79d1b81c 81e9286a d5254469 65023c08 204f034b 093fe315 ddaa15be 8cf08c6c 34d563a1 255da450 f7dbae27"
     },
     "hidden-boss_10-pair": {
       "about": "假想敌：管 pair pool 15200000: chess_char_5_19_b chess_char_4_01_b chess_char_5_14_b chess_char_5_17_b chess_char_5_15_b chess_char_5_20_b chess_char_5_21_b chess_char_5_22_b chess_char_5_23_b chess_char_4_02_b | chess_char_4_11_b chess_char_4_04_b chess_char_4_07_b chess_char_4_16_b chess_char_4_09_b chess_char_4_06_b chess_char_4_10_b chess_char_4_12_b chess_char_4_13_b chess_char_4_14_b token_10041_cathy_catsld token_10041_cathy_catsld",

@@ -18,6 +18,7 @@ import { writeTrialDraftFile } from '../../server/studio/trialDraft.js';
 import { checkCandidate } from '../../server/studio/check.js';
 import { PLUGIN_MAX_BYTES } from '../../shared/plugins/manifest.js';
 import { validatePng } from '../../server/studio/mediaValidation.js';
+import { STUDIO_TRIAL_MS } from '../helpers/studioTrial.js';
 import { emptyBook, presentationOptions } from '../../public/studio/js/presentation.js';
 import { options as preact } from '../../public/vendor/preact.module.js';
 import { FxEditor } from '../../public/studio/js/editors/fx.js';
@@ -98,7 +99,8 @@ test('P1: 5000 files link once, no unchanged media reads/writes, checker yields,
     assert.equal(fs.statSync(staged.stat(m.id, 'padding/0.txt').abs).ino, fs.statSync(path.join(m.dir, 'padding/0.txt')).ino);
     assert.deepEqual(m.files.ids(), [m.id]);
     staged.write(m.id, 'tiny.png', bytes);
-  }, { dataDir: path.resolve('data') });
+    // (fork) checking 5000 files is what this measures, not how fast: STUDIO_TRIAL_MS, not the 20 s server budget
+  }, { dataDir: path.resolve('data'), checkMs: STUDIO_TRIAL_MS });
   assert.equal(yielded, true); assert.ok(writes <= 3, `${writes} writes`); noCandidates(m);
 });
 

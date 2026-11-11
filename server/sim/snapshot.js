@@ -278,6 +278,38 @@ export function chargeView(u) {
 }
 
 /**
+ * (fork) `fxStateView(u)` = `[[buff, src, look], …]` — the official buffs whose lasting effects a unit carries now, by the
+ * client's buff key (buff_template_holder; index.json uses' `buff`), or null: the moments the client never sees (a
+ * condition the official buff graph checks every tick, a would-die, a kill …) that a kit models in the sim
+ * (Battle.fxState, Battle.fxProbe — read here —, or a sim buff tagged `fx`). `src` is the unit whose skill or talent made it (null: the carrier
+ * itself), `look` the official branch the kit reached (null: every effect of that buff) — render/vfx/skillfx.js plays
+ * that buff's plan entries (skills.js STATE_BUFFS) on the carrier while the row lasts. Display only: no sim state reads
+ * it, and the golden canon leaves it out. A state set in an earlier deployment of the unit (`seq`), or past its `until`
+ * (battle time `t`), is not shown.
+ */
+export function fxStateView(u, t = 0) {
+  let out = null;
+  if (u.fxStates) {
+    for (const [buff, s] of u.fxStates) {
+      if (s.seq === u.deploySeq && !(t >= s.until)) (out || (out = [])).push([buff, s.src ?? null, s.look ?? null]);
+    }
+  }
+  if (u.fxProbes) {
+    for (const p of u.fxProbes) {
+      const v = p.probe(u);
+      if (v == null || v === false) continue;
+      if (!(out && out.some((r) => r[0] === p.buff))) (out || (out = [])).push([p.buff, null, v === true ? null : v]);
+    }
+  }
+  for (const b of u.buffs) {
+    if (typeof b.fx !== 'string' || !b.fx) continue;
+    if (out && out.some((r) => r[0] === b.fx && r[1] === (b.fxSrc ?? null))) continue;
+    (out || (out = [])).push([b.fx, b.fxSrc ?? null, b.fxLook ?? null]);
+  }
+  return out;
+}
+
+/**
  * `moteView(u)` = a unit's orbiting 「微尘」: `[count, wide]` (wide = the S2 半径扩大), null without a ring: 魔王's T1
  * 过往尘埃 (kits/ops/chess_char_4_25-cetsyr.js sets `unit.moteRing`, read when the snapshot is taken; at most three, six
  * while S2 runs) — display only: render/motes.js draws that many motes circling her, the sim's own mote logic (a mote

@@ -185,6 +185,21 @@ test('an unowned looping effect ends after LOOP_TTL; an OnPlayEmitter loop is ow
   assert.ok(child.stopped, 'stopped with it');
 });
 
+test('(fork) chained effects of an effect on a unit play its outfit twins (ofx.remap); a line emitter keeps its end effects', () => {
+  const kid = compileEffect(desc([root([pe({ _isLoop: 1 })]), psNode(1, 0, { loop: true, rate: 10 })], { key: 'kid' }));
+  const twin = compileEffect(desc([root([pe({ _isLoop: 1 })]), psNode(1, 0, { loop: true, rate: 10 })], { key: 'kid_skin#7' }));
+  const parent = compileEffect(desc([root([pe({}), { class: 'OnPlayEmitter', enabled: true, fields: { _effects: ['kid', 'gone'], _preDelay: 0 } }]), psNode(1, 0)], { key: 'parent' }));
+  const defs = new Map([['kid', kid], ['kid_skin#7', twin], ['parent', parent]]);
+  const lib = { available: true, defs, has: (k) => defs.has(k), def: (k) => defs.get(k) || null, load: async (k) => defs.get(k) || null };
+  const ofx = new OfficialFx({ P: { Container: class {} }, renderer: null, cam: () => null, lib, tier: 'full' });
+  const owner = { id: 1 };
+  ofx.remap = (k, o) => (o === owner && k === 'kid' ? 'kid_skin#7' : k);
+  assert.deepEqual(ofx.spawn('parent', { pos: [0, 0, 0] }, { loop: true, owner }).children.map((c) => c.key), ['kid_skin#7'], 'the owner\'s twin (a missing key plays nothing)');
+  assert.deepEqual(ofx.spawn('parent', { pos: [0, 0, 0] }, { loop: true }).children.map((c) => c.key), ['kid'], 'no owner: the plain key');
+  const line = compileEffect(desc([root([pe({}), { class: 'LineEffectEmitterDynamic', enabled: true, fields: { _startEffect: '', _endEffect: 'Lemuen_Skill_02_Crosshair_01' } }])], { key: 'line' }));
+  assert.deepEqual(line.lineEnds, { start: null, end: 'lemuen_skill_02_crosshair_01' });
+});
+
 describe('placement and direction', () => {
   test('the anchor moves the root; mirror reflects x about the anchor', () => {
     const d = desc([root([pe({})]), { ...psNode(1, 0), pos: [0.5, 0, 0] }]);
