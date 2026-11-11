@@ -9,7 +9,7 @@ import { createPlugin, templateById } from '../../server/studio/templates/index.
 import { createPluginFiles } from '../../server/studio/files.js';
 import { createTrialBench, TRIAL_LIMITS } from '../../server/studio/trial.js';
 import { createStudio } from '../../server/studio/index.js';
-import { WORKER_LOAD_MS } from '../helpers/simHostFixture.js';
+import { STUDIO_TRIAL_MS } from '../helpers/studioTrial.js';
 
 function plugin(f, id = 'bench-op', options = {}) {
   const made = createPlugin(templateById('operator'), { id, options });
@@ -18,9 +18,10 @@ function plugin(f, id = 'bench-op', options = {}) {
 }
 function bench(f, extra = {}) { return createTrialBench({ registry: f.registry, files: createPluginFiles(path.join(f.dir, 'plugins')), ...extra }); }
 
-test('trial child: vanilla and plugin repeated bit for bit, real frames, changed damage, unsaved draft and bad plugin refusal', { timeout: 60000 }, async t => {
+test('trial child: vanilla and plugin repeated bit for bit, real frames, changed damage, unsaved draft and bad plugin refusal', { timeout: 4 * STUDIO_TRIAL_MS }, async t => {
   const f = fixture(t); const id = plugin(f, 'bench-op', { normal: { atk: 800 } });
-  const b = bench(f); t.after(() => b.close());
+  // (fork) this checks what the trial computes, not how fast: STUDIO_TRIAL_MS, not the 20 s server budget
+  const b = bench(f, { limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS } }); t.after(() => b.close());
   const req = { id, scenario: 'dummy', seconds: 4, seed: 7 };
   const a = await b.run(req), again = await b.run(req);
   assert.equal(a.ok, true, JSON.stringify(a)); assert.deepEqual(again, a);
@@ -35,10 +36,10 @@ test('trial child: vanilla and plugin repeated bit for bit, real frames, changed
   assert.equal(bad.ok, false); assert.ok(bad.issues.every(x => x.code.startsWith('PLUGIN_'))); assert.equal(bad.plugin, undefined);
 });
 
-test('trial presets: wave, duel, and golden use engine events; invalid scenario refuses', { timeout: 4 * WORKER_LOAD_MS }, async t => {
+test('trial presets: wave, duel, and golden use engine events; invalid scenario refuses', { timeout: 4 * STUDIO_TRIAL_MS }, async t => {
   // (fork) each preset's two 20 s battles take 11-16 s alone and over the production 20 s wall limit on a busy machine:
-  // this checks what the trials compute, not how fast (WORKER_LOAD_MS)
-  const f = fixture(t); const id = plugin(f); const b = bench(f, { limits: { ...TRIAL_LIMITS, timeoutMs: WORKER_LOAD_MS } }); t.after(() => b.close());
+  // this checks what the trials compute, not how fast (STUDIO_TRIAL_MS)
+  const f = fixture(t); const id = plugin(f); const b = bench(f, { limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS } }); t.after(() => b.close());
   for (const scenario of ['wave','duel','golden:bonds:bond-deputShip-low']) {
     const r = await b.run({ id, scenario, seconds: 20 });
     assert.equal(r.ok, true, JSON.stringify(r)); assert.ok(r.plugin.frames.length > 1);

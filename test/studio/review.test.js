@@ -20,9 +20,13 @@ import { buildContentSet } from '../../server/plugins/contentSet.js';
 import { appendOfficialBounds } from '../../shared/plugins/officialBounds.js';
 import { applyPatches } from '../../shared/plugins/patch.js';
 import { validateDraft } from '../../public/studio/js/validateDraft.js';
-import { WORKER_LOAD_MS } from '../helpers/simHostFixture.js';
+import { STUDIO_TRIAL_MS } from '../helpers/studioTrial.js';
 
-const delay = ms => new Promise(r => setTimeout(r, ms));
+// (fork) The real timer, kept when a test mocks setTimeout to fire a trial's own timeout at a chosen moment.
+const realTimeout = globalThis.setTimeout;
+// (fork) The widest probe ceiling SP_SCRIPT_PROBE_MS takes, for trials that check something other than the probe's start.
+const WIDE_PROBE_MS = '60000';
+const delay = ms => new Promise(r => realTimeout(r, ms));
 function make(f, template = 'operator', id = 'review-op', options = {}) {
   const made = createPlugin(templateById(template), { id, options });
   const dir = f.put(id, made.manifest, made.files);
@@ -69,7 +73,7 @@ for (const ending of ['success', 'refusal', 'timeout', 'crash', 'error', 'send-e
   });
 }
 
-test('real draft success and validation failure clean before sending, and the parent leaves no draft', { timeout: 30000 }, async t => {
+test('real draft success and validation failure clean before sending, and the parent leaves no draft', { timeout: 2 * STUDIO_TRIAL_MS }, async t => {
   const f = fixture(t), { id } = make(f);
   const temporary = [];
   const spawn = (...args) => {
@@ -79,7 +83,8 @@ test('real draft success and validation failure clean before sending, and the pa
     c.on('message', () => assert.equal(fs.existsSync(temporary.at(-1)), false));
     return c;
   };
-  const bench = createTrialBench({ registry: f.registry, files: filesOf(f), spawn }); t.after(() => bench.close());
+  // (fork) this checks what the trial computes, not how fast: STUDIO_TRIAL_MS, not the 20 s server budget
+  const bench = createTrialBench({ registry: f.registry, files: filesOf(f), spawn, limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS } }); t.after(() => bench.close());
   const good = await bench.run({ id, seconds: 1, draft: { template: 'operator', options: {} } }); assert.equal(good.ok, true);
   const bad = await bench.run({ id, draft: { template: 'operator', options: { kitSource: 'dsl', dsl: { dsl: 1, talents: [{ when: 'wrong' }] } } } });
   assert.equal(bad.ok, false); assert.equal(bad.issues[0].code, 'PLUGIN_DSL_TRIGGER');
@@ -135,36 +140,43 @@ function loopBench(t, f, probeMs, timeoutMs, leaders) {
 }
 /** The probe (`pid`, the grandson) and every trial child are gone. */
 async function assertNoGrandson(pid, leaders) {
-  for (let n = 0; n < 100; n++) { try { process.kill(pid, 0); await delay(20); } catch { break; } }
+  // (fork) up to 30 s for the killed probe to be gone: about 2 s (100 × 20 ms) was too short for a SIGKILLed process to
+  // disappear on a loaded machine; a probe that leaked stays alive and still fails below
+  for (const end = Date.now() + 30_000; Date.now() < end;) { try { process.kill(pid, 0); await delay(20); } catch { break; } }
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
   for (const leader of leaders) assert.throws(() => process.kill(leader.pid, 0), { code: 'ESRCH' });
 }
 
-// The trial's own timeout must leave the probe time to reach its setup first: forking the trial child and composing
-// the content set took more than 6 s on a Windows runner, and the trial then ended before the marker was written.
-for (const ending of ['close', 'timeout']) test(`a real pinned SIGTERM-ignoring probe leaves no grandson after trial ${ending}`, { timeout: 40000 }, async t => {
+// The trial must end while the probe's setup runs: forking the trial child and composing the content set took more
+// than 6 s on a Windows runner, and over 12 s on a loaded machine, where a fixed trial timeout then fired before the
+// marker was written. (fork) So the trial's own timer is mocked and fired (or the bench closed) once the marker exists;
+// the wait for the marker has STUDIO_TRIAL_MS.
+for (const ending of ['close', 'timeout']) test(`a real pinned SIGTERM-ignoring probe leaves no grandson after trial ${ending}`, { timeout: 2 * STUDIO_TRIAL_MS }, async t => {
   const f = scriptFixture(t), marker = path.join(f.root, 'probe.pid'), leaders = [];
   f.put('loop', loopSetup(marker));
-  const bench = loopBench(t, f, 60000, ending === 'timeout' ? 12000 : 15000, leaders);
+  if (ending === 'timeout') t.mock.timers.enable({ apis: ['setTimeout'] });
+  const bench = loopBench(t, f, 60000, STUDIO_TRIAL_MS, leaders);
   const checked = assert.rejects(bench.run({ id: 'loop', seconds: 1 }), { code: ending === 'timeout' ? 'PLUGIN_STUDIO_TRIAL_TIMEOUT' : 'PLUGIN_STUDIO_TRIAL_FAILED' });
-  for (let n = 0; n < 700 && !fs.existsSync(marker); n++) await delay(20);
+  for (const end = Date.now() + STUDIO_TRIAL_MS; Date.now() < end && !fs.existsSync(marker);) await delay(20);
   assert.ok(fs.existsSync(marker), 'the actual contentSet preflight ran');
   const pid = Number(fs.readFileSync(marker, 'utf8'));
   t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* absent */ } });
   if (ending === 'close') bench.close();
+  else { t.mock.timers.tick(STUDIO_TRIAL_MS); t.mock.timers.reset(); }
   await checked;
   await assertNoGrandson(pid, leaders);
 });
 
-test('a real pinned SIGTERM-ignoring probe leaves no grandson after trial probe-timeout', { timeout: 60000 }, async t => {
+test('a real pinned SIGTERM-ignoring probe leaves no grandson after trial probe-timeout', { timeout: 4 * STUDIO_TRIAL_MS }, async t => {
   const f = scriptFixture(t), marker = path.join(f.root, 'probe.pid'), leaders = [];
   f.put('loop', loopSetup(marker));
   // The probe's ceiling covers its start too (Node, the SDK and the simulation modules: a quarter of a second on an
   // idle machine, over 1 s on a busy runner or Windows). Only a setup that is running when SIGKILL comes is this case:
   // when the trial reports the ceiling and no marker was written, the setup never started, and the trial runs again
-  // with a ceiling twice as long. Every report names its own ceiling.
-  for (const ms of [1000, 2000, 4000, 8000]) {
-    const bench = loopBench(t, f, ms, ms + 14000, leaders);
+  // with a ceiling twice as long. Every report names its own ceiling. (fork) The trial's own budget is not this case:
+  // it gets STUDIO_TRIAL_MS past the ceiling, since composing the content set alone passed 14 s on a loaded machine.
+  for (const ms of [1000, 2000, 4000, 8000, 16000]) {
+    const bench = loopBench(t, f, ms, ms + STUDIO_TRIAL_MS, leaders);
     const result = await bench.run({ id: 'loop', seconds: 1 });
     assert.equal(result.ok, false); assert.equal(result.issues[0].code, 'PLUGIN_SCRIPT_CHECK'); assert.match(result.issues[0].text, new RegExp(`${ms} ms.*SIGKILL`));
     bench.close();
@@ -176,7 +188,7 @@ test('a real pinned SIGTERM-ignoring probe leaves no grandson after trial probe-
   await assertNoGrandson(pid, leaders);
 });
 
-for (const mode of ['sandbox', 'trusted']) test(`trial uses the actual ${mode} executor, pinned mode and runtime kit`, { timeout: 30000 }, async t => {
+for (const mode of ['sandbox', 'trusted']) test(`trial uses the actual ${mode} executor, pinned mode and runtime kit`, { timeout: 2 * STUDIO_TRIAL_MS }, async t => {
   const f = scriptFixture(t, { mode });
   const made = createPlugin(templateById('operator'), { id: 'demo' });
   const source = `export default sp => {
@@ -196,8 +208,9 @@ for (const mode of ['sandbox', 'trusted']) test(`trial uses the actual ${mode} e
     // ceiling (as loopBench does), so a fully loaded runner's slow child start cannot fail it (GitHub #847, one Windows
     // job in 66 hit the 5 s default). The lobby default and the shared SIGKILL deadline stay as they are.
     const [entry, argv, opts] = args;
-    return fork(entry, argv, { ...opts, env: { ...process.env, SP_SCRIPT_PROBE_MS: '15000' } });
-  } }); t.after(() => bench.close());
+    // (fork) 15 s still ran out on a fully loaded machine; the widest ceiling
+    return fork(entry, argv, { ...opts, env: { ...process.env, SP_SCRIPT_PROBE_MS: WIDE_PROBE_MS } });
+  }, limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS } }); t.after(() => bench.close()); // (fork) nor the 20 s trial budget
   const r = await bench.run({ id: 'demo', seconds: 2 });
   assert.equal(r.ok, true, JSON.stringify(r)); assert.deepEqual(r.plugin.errors, []); assert.ok(r.plugin.damage > r.vanilla.damage);
   // A different, newly packed lock is not authorized by the parent's snapshot.
@@ -206,12 +219,15 @@ for (const mode of ['sandbox', 'trusted']) test(`trial uses the actual ${mode} e
   assert.equal(stale.ok, false); assert.equal(stale.plugin, undefined);
 });
 
-test('sandbox-incompatible code cannot be promoted to trusted by the studio key', { timeout: 2 * WORKER_LOAD_MS }, async t => {
+test('sandbox-incompatible code cannot be promoted to trusted by the studio key', { timeout: 2 * STUDIO_TRIAL_MS }, async t => {
   // (fork) the trial child takes 8-15 s alone to refuse (its content set and sandbox check), past 20 s on a busy machine:
-  // this checks the refusal, not its speed (WORKER_LOAD_MS)
+  // this checks the refusal, not its speed (STUDIO_TRIAL_MS)
   const f = scriptFixture(t, { mode: 'sandbox' });
   f.put('bad-syntax', 'export let mutable = 1; export default () => {};');
-  const bench = createTrialBench({ registry: f.registry, files: createPluginFiles(f.pluginsDir), limits: { ...TRIAL_LIMITS, timeoutMs: WORKER_LOAD_MS } }); t.after(() => bench.close());
+  // (fork) nor the probe's start: its trial child gets the widest probe ceiling, as the executor tests do (GitHub #847); the
+  // 5 s default ran out on a loaded machine and the refusal came back as PLUGIN_SCRIPT_CHECK instead of the syntax error
+  const bench = createTrialBench({ registry: f.registry, files: createPluginFiles(f.pluginsDir), limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS },
+    spawn: (entry, argv, opts) => fork(entry, argv, { ...opts, env: { ...process.env, SP_SCRIPT_PROBE_MS: WIDE_PROBE_MS } }) }); t.after(() => bench.close());
   const result = await bench.run({ id: 'bad-syntax' });
   assert.equal(result.ok, false); assert.equal(result.plugin, undefined);
   assert.equal(result.issues[0].code, 'PLUGIN_SANDBOX_SYNTAX');
