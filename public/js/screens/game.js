@@ -198,7 +198,8 @@ export function GameScreen() {
   const [, endHold] = useState(0);
   if (liveMode === 'draft' && pub?.draft) { lastDraft.current = pub; hold.current = null; }
   else if (lastDraft.current && pub) {
-    if (liveMode !== 'result' && !reducedMotion()) hold.current = { until: Date.now() + DRAFT_HOLD_MS, pub: heldDraftPub(lastDraft.current, pub) };
+    // (fork) One for All: no hold — the held screen would show everyone's winner before the reveal (ui/protocolBoot.js)
+    if (liveMode !== 'result' && !reducedMotion() && lastDraft.current.draft?.mode !== 'vote') hold.current = { until: Date.now() + DRAFT_HOLD_MS, pub: heldDraftPub(lastDraft.current, pub) };
     lastDraft.current = null;
   }
   const held = hold.current && hold.current.until > Date.now() && liveMode !== 'result' ? hold.current.pub : null;
@@ -296,6 +297,9 @@ function MatchScreen() {
   // 协议启动！ (ui/protocolBoot.js): { key, at } while it shows — from the first frame when the screen opens in BATTLE_CHECK
   // (after the held draft screen), so the board never shows before it
   const [boot, setBoot] = useState(() => (pub?.phase === PHASE.BATTLE_CHECK && bootArtReady() ? { key: `${pub.phase}:${pub.round}`, at: Date.now() } : null));
+  // (fork) One for All: the vote's reveal on 协议启动！, kept through its fade (m.public.draft is gone after BATTLE_CHECK)
+  const ofaReveal = useRef(null);
+  if (pub?.phase === PHASE.BATTLE_CHECK && pub.draft?.mode === 'vote' && pub.draft.reveal) ofaReveal.current = pub.draft.reveal;
   const [resultBox, setResultBox] = useState(null);      // the round's result box (ResultDialog), shown at SETTLE
   const [bossPlate, setBossPlate] = useState(null);      // ui/bossPlates.js: { kind: 'final'|'core'|'end', … , key }
   const [readyBusy, setReadyBusy] = useState(false);
@@ -1960,7 +1964,7 @@ function MatchScreen() {
       }} />` : null}
     ${!hasOffers && turnPop ? html`<${TurnPopup} key=${turnPop} onDone=${() => setTurnPop(0)} />` : null}
 
-    ${boot && !hasOffers ? html`<${ProtocolBoot} key=${boot.key} players=${players} myId=${myId} leaving=${bootLeaving} />` : null}
+    ${boot && !hasOffers ? html`<${ProtocolBoot} key=${boot.key} players=${players} myId=${myId} leaving=${bootLeaving} reveal=${ofaReveal.current} />` : null}
     ${roundPop && !hasOffers && (!boot || bootLeaving) && hudIn !== 'wait' ? html`<${RoundPopup} key=${roundPop.key} round=${roundPop.round} gain=${roundGain} left=${roundPop.left} sub=${roundPop.sub}
       watching=${roundPop.watching} onDone=${() => setRoundPop(null)} />` : null}
     ${!hasOffers && banner?.plate && !roundPop ? html`<${PhasePopup} key=${banner.key} tone=${banner.tone} faces=${banner.faces} title=${banner.title} sub=${banner.sub}

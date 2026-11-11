@@ -45,7 +45,7 @@ test('screens/game.js: the screen at BATTLE_CHECK once its art is in, else the b
   assert.match(g, /if \(phase === PHASE\.BATTLE_CHECK && bootArtReady\(\)\) \{ setBanner\(null\); setBoot\(\(b\) => \(b && b\.key === phaseKey \? b : \{ key: phaseKey, at: Date\.now\(\) \}\)\); \}\n\s+else if [\s\S]*?else if \(b\) setBanner/);
   // from the match screen's first frame when it opens in BATTLE_CHECK (after the held draft screen): the board never shows first
   assert.match(g, /const \[boot, setBoot\] = useState\(\(\) => \(pub\?\.phase === PHASE\.BATTLE_CHECK && bootArtReady\(\) \? \{ key: `\$\{pub\.phase\}:\$\{pub\.round\}`, at: Date\.now\(\) \} : null\)\);/);
-  assert.match(g, /<\$\{ProtocolBoot\} key=\$\{boot\.key\} players=\$\{players\} myId=\$\{myId\} leaving=\$\{bootLeaving\} \/>/);
+  assert.match(g, /<\$\{ProtocolBoot\} key=\$\{boot\.key\} players=\$\{players\} myId=\$\{myId\} leaving=\$\{bootLeaving\} reveal=\$\{ofaReveal\.current\} \/>/);
   assert.match(g, /setBootLeaving\(true\);\n\s+out = setTimeout\(\(\) => \{ setBoot\(null\); setBootLeaving\(false\); \}, BOOT_LEAVE_MS\);\n\s+\}, Math\.max\(0, \(boot\.at \|\| 0\) \+ BOOT_MIN_MS - Date\.now\(\)\)\);/);
   // the round plate comes in as it starts to leave (under it: z-index), inside 回合开始's 2 s
   // (and with the HUD's entry: never over the hidden top bar — PR #827, the maintainer's decision 5)
@@ -108,4 +108,47 @@ test('the stylesheet: every keyframe it uses is defined, reduced motion stops it
   assert.doesNotMatch(css, /--t\s*:/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{\n\s+\.pboot, \.pboot \*, \.pboot \*::after \{ animation: none; \}/);
   for (const page of ['public/index.html', 'public/dev/game-mock.html']) assert.match(read(page), /href="\/css\/screens\/protocol-boot\.css"/, page);
+});
+
+// (fork) a Grand Alliance's 8 Doctors and One for All's reveal (DESIGN §91.9)
+test('bootLayout: 7–8 Doctors in four rows (no 6-card cap); One for All lines end on the centre slot', () => {
+  const eight = B.bootLayout(8);
+  assert.equal(eight.length, 8);
+  assert.deepEqual(eight.map((s) => s.y), [250, 250, 400, 400, 550, 550, 700, 700]);
+  assert.equal(new Set(eight.map((s) => s.to.join())).size, 8, 'a node each');
+  assert.equal(B.bootLayout(6).length, 6);
+  const vote = B.bootLayout(8, { vote: true });
+  const S = B.OFA_SLOT;
+  for (const [i, s] of vote.entries()) assert.deepEqual(s.to, [i % 2 ? S.x + S.size : S.x, S.y + 23 + Math.floor(i / 2) * 45]);
+  assert.equal(B.bootLayout(1, { vote: true })[0].side, 'l', 'a lone voter still gets a card with a line');
+});
+
+test('ofaTimeline: the volley 70 ms apart, the lines after it, the reveal on the cue\'s high note, losers glitch then snap, unify last', () => {
+  const picks = ['a', 'b', 'a', null, 'c', 'a', 'b', 'a'];
+  const tl = B.ofaTimeline(picks, 'a');
+  assert.deepEqual(tl.pickAt.slice(0, 3), [B.OFA.PICK0, B.OFA.PICK0 + 70, B.OFA.PICK0 + 140]);
+  assert.equal(tl.grow, B.OFA.PICK0 + 8 * 70);
+  assert.equal(tl.land - tl.grow, 860, 'match-found\'s high note');
+  assert.equal(tl.charge, tl.grow + 300);
+  assert.deepEqual([...tl.glitchAt.keys()], [1, 4, 6], 'losers in card order; a card without a vote is no loser');
+  for (const [i, g] of tl.glitchAt) assert.equal(tl.swapAt.get(i) - g, 450);
+  assert.deepEqual([...tl.glitchAt.values()].map((g) => g - tl.land), [450, 610, 770]);
+  assert.equal(tl.unify, tl.land + 450 + 450 + 3 * 160 + 200);
+  const kinds = tl.events.map((e) => e.kind);
+  assert.equal(kinds.filter((k) => k === 'pick').length, 7);
+  assert.ok(kinds.indexOf('grow') > kinds.lastIndexOf('pick') && kinds.indexOf('land') > kinds.indexOf('grow'));
+  assert.ok(kinds.indexOf('glitch') > kinds.indexOf('land') && kinds.at(-1) === 'unify');
+  for (let k = 1; k < tl.events.length; k++) assert.ok(tl.events[k].at >= tl.events[k - 1].at, 'sorted');
+  // all on screen well inside One for All's 7.5 s BATTLE_CHECK, with ~3 s to read the unified screen
+  const worst = B.ofaTimeline(Array.from({ length: 8 }, (_, i) => (i ? `x${i}` : 'w')), 'w');
+  assert.ok(worst.unify <= 7500 - 2500, `unified by ${worst.unify} ms`);
+});
+
+test('One for All: the reveal sounds are UI keys (pick = room join, reveal = match found, glitch = distortion, snap = item merge)', () => {
+  const js = read('public/js/ui/protocolBoot.js');
+  for (const k of ['joinRoom', 'matchSucceed', 'distort', 'itemMerge']) assert.ok(js.includes(`audio.sfx('${k}'`), k);
+  assert.match(read('tools/assets/audio.mjs'), /distort: \{ bank: 'ui\.ON_ROGUELIKE_DISTORT2' \}/);
+  const game = read('public/js/screens/game.js');
+  assert.match(game, /reveal=\$\{ofaReveal\.current\}/);
+  assert.match(game, /lastDraft\.current\.draft\?\.mode !== 'vote'/, 'no held draft screen (it would show the winner early)');
 });

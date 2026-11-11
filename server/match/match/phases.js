@@ -10,6 +10,7 @@ import { pairPlayers, bossPairSalt } from '../finalAssault.js';
 import { createRng, deriveSeed } from '../../sim/rng.js';
 import { OK, fail, DELAYS, BAND_TURN_SECONDS } from './common.js';
 import { LEGACY_BOT } from '../botStrategyContract.js';
+import { ONE_FOR_ALL_CHECK_SECONDS } from '../../../shared/largeRoom.js';
 
 /**
  * What a bot seat drafts. A co-op seat gone before its pick has no game of its own to play: whatever strategy plays the AI seats,
@@ -57,6 +58,8 @@ export class MatchPhases {
    */
   enterBandDraft() {
     if (this.phase !== PHASE.INFO_CHECK) return;
+    // (fork) One for All: one room-wide secret vote instead of turns (match/oneForAll.js)
+    if (this.oneForAll) { this._enterBandVote(); return; }
     // (fork) a large room with two squads: one draft per squad, both at once (match/largeRoom.js)
     if (this.squads) { this._enterBandDraftLanes(); return; }
     this.phase = PHASE.BAND_DRAFT;
@@ -96,7 +99,7 @@ export class MatchPhases {
   /** @param {string|null} [playerId] (fork) with squads: the turn of that player's squad draft (match/largeRoom.js) */
   draftTurn(playerId = null) {
     const d = this.draft;
-    if (!d) return null;
+    if (!d || d.vote) return null; // (fork) a One for All vote has no turns
     if (d.lanes) return this._laneTurn(playerId ? this._laneOf(d, playerId) : d.lanes[0]);
     return d.order[d.idx] ?? null;
   }
@@ -142,6 +145,7 @@ export class MatchPhases {
 
   /** An AI seat's (or an AI 托管 seat's) turn: it picks at once (user playtest #4 item 4 — nobody waits on the AI). */
   scheduleBandBot(playerId = null) {
+    if (this.draft?.vote) { this._maybeCloseVote(); return; } // (fork) One for All: an AI-played seat is not waited for
     if (this.draft?.lanes) { this.startDraftTurn(playerId); return; } // (fork) a lane picks for the AI itself
     const token = this._turnToken;
     this.later(0, () => {
@@ -168,6 +172,7 @@ export class MatchPhases {
    * see timeoutBand / defaultBand.
    */
   bandTaken(bandId, playerId) {
+    if (this.draft?.vote) return false; // (fork) One for All: everyone may vote for the same strategy
     const picks = this.draft?.picks || {};
     // (fork) with squads 队友已选 is the squad's: the other squad may hold the same strategy
     const lane = this.draft?.lanes ? this._laneOf(this.draft, playerId) : null;
@@ -208,7 +213,7 @@ export class MatchPhases {
   bandFocus(ps, bandId) {
     if (this.phase !== PHASE.BAND_DRAFT || !this.draft) return fail(ERR.WRONG_PHASE);
     const d = this.draft;
-    if (d.picks[ps.playerId]) return fail(ERR.ALREADY);
+    if (d.picks[ps.playerId] || d.locks?.has(ps.playerId)) return fail(ERR.ALREADY);
     if (!(d.focus instanceof Map)) d.focus = new Map();
     if (bandId == null) { d.focus.delete(ps.playerId); return OK; }
     if (typeof bandId !== 'string' || !this.gd.bandAllowed(bandId)) return fail(ERR.BAD_TARGET);
@@ -218,6 +223,7 @@ export class MatchPhases {
 
   pickBand(ps, bandId) {
     if (this.phase !== PHASE.BAND_DRAFT || !this.draft) return fail(ERR.WRONG_PHASE);
+    if (this.draft.vote) return this._lockVote(ps, bandId); // (fork) One for All: Confirm locks the vote
     if (this.draft.picks[ps.playerId]) return fail(ERR.ALREADY);
     if (this.draftTurn(ps.playerId) !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
     if (typeof bandId !== 'string' || !this.gd.bandAllowed(bandId)) return fail(ERR.BAD_TARGET);
@@ -245,6 +251,7 @@ export class MatchPhases {
     if (this.phase !== PHASE.BAND_DRAFT || !this.draft) return fail(ERR.WRONG_PHASE);
     const d = this.draft;
     if (this.isSolo) return fail(ERR.WRONG_PHASE, 'no skip in solo');
+    if (d.vote) return fail(ERR.WRONG_PHASE, 'no skip in a vote');
     if (d.picks[ps.playerId]) return fail(ERR.ALREADY);
     if (this.draftTurn(ps.playerId) !== ps.playerId) return fail(ERR.NOT_YOUR_TURN);
     if (d.lanes) {
@@ -271,6 +278,8 @@ export class MatchPhases {
 
   finishBandDraft(timeout) {
     if (this.phase !== PHASE.BAND_DRAFT) return;
+    // (fork) One for All: an open vote ends by its own close (the tally gives every seat the winner)
+    if (this.draft?.vote && !this.draft.reveal) { this._closeVote(); return; }
     this.cancel(this._turnTimer);
     this._turnTimer = null;
     this._clearLaneTimers(this.draft);
@@ -290,8 +299,13 @@ export class MatchPhases {
 
   enterBattleCheck() {
     this.phase = PHASE.BATTLE_CHECK;
-    this.setDeadline(this.gd.timer('battleCheck'), () => this.afterBattleCheck(), { silent: this.soloUntimed });
+    this.setDeadline(this.battleCheckSeconds(), () => this.afterBattleCheck(), { silent: this.soloUntimed });
     this.markPublic();
+  }
+
+  /** BATTLE_CHECK length (s): the official 3 s; (fork) One for All's reveal needs ONE_FOR_ALL_CHECK_SECONDS. */
+  battleCheckSeconds() {
+    return this.oneForAll ? ONE_FOR_ALL_CHECK_SECONDS : this.gd.timer('battleCheck');
   }
 
   /**

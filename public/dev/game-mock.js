@@ -330,6 +330,17 @@ function setPhase(phase, variant) {
       break;
     case PHASE.BATTLE_CHECK:
       pub.round = 0; pub.deadline = Date.now() + 3000;
+      if (VARIANTS.has('ofa')) {
+        // (fork) One for All's reveal (ui/protocolBoot.js, DESIGN §91.9): 8 Doctors, 鸭爵 wins 5–2–1 with one random vote
+        const ids = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8'];
+        pub.players = ids.map((playerId, k) => ({ ...pub.players[k % 4], playerId, seat: k, isBot: false, connected: true, name: k < 4 ? pub.players[k].name.replace('AI·', '') : `Doctor·${k + 1}` }));
+        const picks = { p1: 'band_ducklord', p2: 'band_amiya', p3: 'band_ducklord', p4: 'band_bldsk', p5: 'band_ducklord', p6: 'band_amiya', p7: 'band_ducklord', p8: 'band_ducklord' };
+        const counts = {};
+        for (const id of Object.values(picks)) counts[id] = (counts[id] || 0) + 1;
+        pub.deadline = Date.now() + 7500;
+        pub.draft = { mode: 'vote', reveal: { picks, random: ['p7'], counts, winner: 'band_ducklord' } };
+        for (const p of pub.players) p.bandId = 'band_ducklord';
+      }
       break;
     case PHASE.SP_DRAFT: {
       pub.round = 9; pub.deadline = Date.now() + 14000;
@@ -851,7 +862,7 @@ function applyUiVariants() {
 // ---- switcher --------------------------------------------------------------------------------------------------------------
 const SWITCH = [
   ['INFO_CHECK', PHASE.INFO_CHECK, ''], ['BAND_DRAFT', PHASE.BAND_DRAFT, ''], ['BAND_DRAFT solo', PHASE.BAND_DRAFT, 'solo'],
-  ['BATTLE_CHECK', PHASE.BATTLE_CHECK, ''], ['PREP', PHASE.PREP, ''], ['PREP + reward', PHASE.PREP, 'reward'],
+  ['BATTLE_CHECK', PHASE.BATTLE_CHECK, ''], ['BATTLE_CHECK One for All', PHASE.BATTLE_CHECK, 'ofa'], ['PREP', PHASE.PREP, ''], ['PREP + reward', PHASE.PREP, 'reward'],
   ['PREP + temp', PHASE.PREP, 'temp'], ['PREP frozen', PHASE.PREP, 'frozen'], ['PREP dead', PHASE.PREP, 'dead'],
   ['PREP boss (L)', PHASE.PREP, 'boss'], ['PREP boss (R)', PHASE.PREP, 'bossR'], ['PREP 标准 同构体 + 调和', PHASE.PREP, 'funny,morph,harmony'],
   ['SP bounty', PHASE.SP_DRAFT, 'bounty'], ['SP supply', PHASE.SP_DRAFT, 'supply'], ['SP shop', PHASE.SP_DRAFT, 'shop'], ['SP tactic', PHASE.SP_DRAFT, 'tactic'], ['SP solo', PHASE.SP_DRAFT, 'solo'],
