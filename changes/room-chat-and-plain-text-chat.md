@@ -15,8 +15,3 @@
 - Match chat and room chat now take plain text only: letters of every language, digits, punctuation, currency signs and a few maths signs. HTML tags, emoji, symbols, invisible characters and "Zalgo" stacks of accents are removed; fancy-font letters become normal letters.
 - Before: match chat let emoji and any other character through.
 - A match chat line is also at most 100 letters now, whatever your kill wallet holds, and the same spam limits and busy check apply there.
-
-### Server cost
-
-- CPU: the text filter takes 1.3 µs for a typical line and at most ≈ 260 µs (measured); one run per player per 1.5 s at most, so ≤ 5 % of one core at 300 players in the absolute worst case, about 0 % typically. Sending stays under 0.1 % of a core at the budget.
-- Memory: ≤ 16 KB of history per room, under 1 KB of limits per player and about 100 B of budget per room chatting right now: ≈ 1.5 MB at 300 players, ≤ 16 MB at the server's 1,000-room limit. Disk: none (nothing is logged or saved). Bot budget: none.
