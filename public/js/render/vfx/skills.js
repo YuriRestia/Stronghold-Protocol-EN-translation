@@ -1629,6 +1629,10 @@ export const KIT_HELD_TALENT_KEYS = Object.freeze(new Set([BLAZE2_REVIVE].flatMa
 // (id = the enemy, src = the Lemuen it counts for) is that moment; the sim drops a mark only when the enemy dies or its
 // Lemuen leaves, which is when the loop ends here. A talent: bound under each of her skills.
 const LEMUEN_WANTED = binding({ owner: 'src', keys: ['lemuen_talent_buff_01'], hold: 'life' });
+// (fork) 蕾缪安 T2 逃犯引渡手续: the client's lemuen_t_2 triggers its interval after the deploy and gives her lemuen_t_2[buff]
+// (ATK, overrideEffectKey lemuen_talent_buff_02, life infinity) — a loop on her for the rest of her deployment. The kit's
+// 'talent' named extradition (id = her) is that moment.
+const LEMUEN_EXTRADITION = binding({ owner: 'id', only: Object.freeze({ name: 'extradition' }), keys: ['lemuen_talent_buff_02'], hold: 'life' });
 
 export const FX_BINDINGS = Object.freeze({
   // (fork) 烛煌 S1 炙手之援: the client's AnimatedActionToTargetAbility gives the operator it picks blaze2_s_1, whose
@@ -1781,24 +1785,29 @@ export const FX_BINDINGS = Object.freeze({
   // lemuen_skill_03_crosshair_01 on the enemy (template lemuen_proj_s3_effect, buff_start CreateEffect; a one-shot held
   // by its owner, so it ends on its own). The falling shell ('bombardShell', id = her, `t` its flight) is that attack
   // projectile's main effect lemuen_skill_03_trail_02 at the spot — its clip drops the shell from 7.27 up to the ground
-  // in 0.27 s (the projectile's lifeTime 0.25, cleared when it reaches) —, held for the fx's flight
+  // in 0.27 s (the projectile's lifeTime 0.25, cleared when it reaches) —, held for the fx's flight. (fork) The aim
+  // projectile's EffectBehaviour._effectsToTargetWhenStart lemuen_skill_03_trail_01 is the aim beam: a local-space line
+  // from 4.31 above the target down onto it, played on the locked enemy as each lock starts and held with the lock
+  // (_clearPlayEffectOnStop: it goes with the projectile), so a target locked n times stands under n beams until the
+  // shells come (the official Requiem Vesperis S3 at 1:18.8–1:21.6 of the user's reference video)
   // (fork) 蕾缪安 S2 (chess_char_6_01-lemuen.js): her aim at a Wanted enemy ('lock', id = the enemy, src = her) is the
   // template lemuen_s2_aim_attack — lemuen_skill_02_crosshair_02 on the target (CreateBuffToCastedTargets, a loop) and the
   // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
-  // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
-  // the kit deals the snipe at once, no flight is drawn]
-  skchr_lemuen_1: Object.freeze({ wanted: LEMUEN_WANTED }),
+  // her shot ('crit', same pair); the shot is her S2 mode's aimed ability (binding `shot`, wiring.js KIT_SHOTS) — its cast rows
+  // lemuen_skill_02_start_02 (_back facing up) and _start_01 on her, projectile_chr_lemuen_s2 (trail_02) to the target and
+  // its hit lemuen_skill_02_hit_01 there [ASSUMED: drawn in flight although the kit deals the snipe at once]
+  skchr_lemuen_1: Object.freeze({ wanted: LEMUEN_WANTED, talent: LEMUEN_EXTRADITION }),
   skchr_lemuen_2: Object.freeze({
-    wanted: LEMUEN_WANTED,
+    wanted: LEMUEN_WANTED, talent: LEMUEN_EXTRADITION,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
-    crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
+    crit: binding({ owner: 'src', target: 'id', shot: 'projectile_chr_lemuen_s2', during: true, keys: ['lemuen_skill_02_start_02', 'lemuen_skill_02_start_02_back', 'lemuen_skill_02_start_01', 'lemuen_skill_02_trail_02', 'lemuen_skill_02_hit_01'] }),
   }),
   // (fork) 莫斯提马 S2 (chess_char_4_02-mostma.js): each second's strike on an enemy in her range ('timeLockHit', id = the
   // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
   skchr_mostma_2: Object.freeze({ timeLockHit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['mostma_skill_02_hit'] }) }),
   skchr_lemuen_3: Object.freeze({
-    wanted: LEMUEN_WANTED,
-    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
+    wanted: LEMUEN_WANTED, talent: LEMUEN_EXTRADITION,
+    lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01', 'lemuen_skill_03_trail_01'], hold: 'lock', during: true }),
     bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
   }),

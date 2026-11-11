@@ -162,6 +162,9 @@ export function compileEffect(desc, lib = {}) {
         case 'FollowOwner': case 'FollowOwnerRootTileHeight': case 'FollowTileHeight': if (!def.follow) def.follow = { mount: 0, keepRot: true, owner: true }; break;
         case 'FollowDirection': def.direction = { fourDir: on(f._useFourDir), leftIsDefault: on(f._leftIsDefault), reverseBack: on(f._reverseWhenFaceToBack) }; break;
         case 'OnPlayEmitter': case 'OnPlayEmitterIf': def.onPlay.push({ keys: (Array.isArray(f._effects) ? f._effects : []).map((k) => String(k).toLowerCase()), delay: num(f._preDelay, 0), cond: b.class === 'OnPlayEmitterIf' ? f : null }); break;
+        // (fork) a line's own end effects (LineEffectEmitterDynamic): `start` on its source, `end` on its target — 蕾缪安
+        // S2's aim line lemuen_skill_02_trail_01 puts lemuen_skill_02_crosshair_01 on the aimed enemy (SkillFx._line)
+        case 'LineEffectEmitterDynamic': def.lineEnds = { start: f._startEffect ? String(f._startEffect).toLowerCase() : null, end: f._endEffect ? String(f._endEffect).toLowerCase() : null }; break;
         case 'OnFinishEmitter': def.onFinish.push(...(Array.isArray(f._effects) ? f._effects : []).map((k) => String(k).toLowerCase())); break;
         case 'SwitchableBackEffect': def.switchable = { ...(def.switchable || {}), back: f._backEffect ? String(f._backEffect).toLowerCase() : null }; break;
         case 'SwitchableRightEffect': def.switchable = { ...(def.switchable || {}), right: f._rightEffect ? String(f._rightEffect).toLowerCase() : null, reverse: on(f._reverseLeftRight) }; break;
