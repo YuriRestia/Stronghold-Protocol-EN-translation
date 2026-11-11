@@ -270,7 +270,8 @@ export function suggestId({ name = '', target = null, template = '' }, taken) {
  *   lobby: the rooms (its autoApplyPlugins is set to the studio's rule; their plugin sets tell which plugins are in use);
  *   sessions: the session registry (a token the page names → its player)
  */
-export function createStudio({ publicDir, pluginsDir, dataDir, registry, lobby = null, sessions = null, log = noopLog, mode = studioMode(), watch, trialSpawn, fetch: fetchImpl = globalThis.fetch }) {
+// `checkMs`: the time budget of every save/check's checker (default check.js's 20 s); a test that checks what it finds sets its own.
+export function createStudio({ publicDir, pluginsDir, dataDir, registry, lobby = null, sessions = null, log = noopLog, mode = studioMode(), watch, trialSpawn, fetch: fetchImpl = globalThis.fetch, checkMs }) {
   const pageDir = path.join(path.resolve(publicDir), 'studio');
   // the key every change carries (key.js; X-SP-Studio) — read or made when first needed (the boot banner, a studio
   // request: a server that only runs tests or never shows its banner writes no key file); none when the studio is off
@@ -294,7 +295,7 @@ export function createStudio({ publicDir, pluginsDir, dataDir, registry, lobby =
   };
   const files = createPluginFiles(pluginsDir);
   const targets = createTargetIndex(dataDir);
-  const authoring = createAuthoring({ files, dataDir, publicDir });
+  const authoring = createAuthoring({ files, dataDir, publicDir, checkMs });
   const trials = createTrialBench({ registry, files, spawn: trialSpawn });
   const previews = createPreviews({ vanilla: () => registry.vanillaAssets() });
   const compress = new CompressCache();
@@ -611,7 +612,7 @@ export function createStudio({ publicDir, pluginsDir, dataDir, registry, lobby =
   async function putSlot(id, body) {
     // The skins template's slots stage, check and commit the whole change (uploads add no new problem, §34.30); the
     // 0.3.0 slots (art, models, voice, audio, a bond's icon) write directly as before, their check shown afterwards.
-    if (body.at?.[0] === 'chars' && body.at?.[2] === 'skins') await editMediaDraft(files, id, staged => writeSlot(id, body, staged), { dataDir });
+    if (body.at?.[0] === 'chars' && body.at?.[2] === 'skins') await editMediaDraft(files, id, staged => writeSlot(id, body, staged), { dataDir, checkMs });
     else writeSlot(id, body, files);
     return changed(id);
   }
@@ -999,7 +1000,7 @@ export function createStudio({ publicDir, pluginsDir, dataDir, registry, lobby =
         const bytes = await readBody(req, STUDIO_LIMITS.fileBytes);
         // Resolve paths/links before looking at bytes; the candidate refuses links elsewhere too.
         files.resolve(id, rel, { forWrite: true });
-        await editMediaDraft(files, id, staged => staged.write(id, rel, bytes), { dataDir });
+        await editMediaDraft(files, id, staged => staged.write(id, rel, bytes), { dataDir, checkMs });
       }
       return json(200, changed(id));
     }
