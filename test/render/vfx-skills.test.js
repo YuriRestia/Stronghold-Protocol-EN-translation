@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   resolveSkill, skillPlan, attackFx, slotKey, planKeys, anchorOf, chargePlan, chargeStep, chargeKeys, hitGroups, unitKeyOf,
   skillRecordOf, skillIdsOf, mountPointName, CHARGE_EMITTERS, UNMAPPED,
+  stateRow,
 } from '../../public/js/render/vfx/skills.js';
 import { coverage, roster } from '../../tools/vfx-skill-coverage.mjs';
 
@@ -403,4 +404,11 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
     } else assert.equal(enemies.resolved, 0);
     assert.ok(rep.unmapped.every((u) => UNMAPPED[u.reason]));
   });
+});
+
+test("(fork) a STATE_BUFFS entry with `keys` claims only those rows of a shared buff name (Eunectes S2's blockee stun)", () => {
+  assert.equal(stateRow('stun', 'zumama_skill_02_buff_02'), true);
+  assert.equal(stateRow('stun', 'buff_stun'), false, "another skill's stun stays a target row");
+  assert.equal(stateRow('pallas_s_3[peak]', 'anything'), true, 'an entry without keys: every row of the buff');
+  assert.equal(stateRow('no_such_buff', 'x'), false);
 });

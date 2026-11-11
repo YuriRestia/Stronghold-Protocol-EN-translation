@@ -520,7 +520,8 @@ export const emptyPlan = (unitKey, skillId) => ({
  * (Battle.fxState, or a sim buff's `fx`: b.snap `fxs` [[carrier, buff, src, look]]; effect gaps audit 2, item 4). Keyed
  * by the client's buff key (index.json uses' `buff`, config/buff_template_holder.ab): `true` — every entry of that buff
  * plays while the row lasts; `{ looks }` — the keys each official branch (the row's `look`) keeps, a null look all of
- * them. render/vfx/skillfx.js holds the entries on the carrier from the plan of `src` (the unit whose skill made it;
+ * them; `{ keys }` — only those keys are this buff's state rows (a shared buff name such as `stun`; the others keep their
+ * place, stateRow). render/vfx/skillfx.js holds the entries on the carrier from the plan of `src` (the unit whose skill made it;
  * null: the carrier's own): a looping prefab loops, any other plays once per row. The kit names the branch the
  * template's graph takes; the graphs are read from the client of 2026-10-15 (each entry's comment).
  */
@@ -528,7 +529,9 @@ const L = (o) => Object.freeze(Object.fromEntries(Object.entries(o).map(([k, v])
 export const STATE_BUFFS = Object.freeze({
   // (fork) talents' and abilities' buffs on their targets (audit #7): the rows come from the src's talent bindings
   // (talentfx.js targetRows), signalled by the kits
-  'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true, stun: true, 'halo2_s_3_link': true,
+  'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true,
+  // Eunectes S2's blockee stun (op-zumama.js; her ability's _buffsToBlockee): only her row — every other skill's `stun` stays a target row
+  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02']) }), 'halo2_s_3_link': true,
   'heyak_s_3[hit_levitate]': true, 'inside_t_1[active]': true, 'shu_s_3[enemy][enter]': true, 'necras_t_1[upgrade]': true,
   // Necrass S3's special skeleton (op-necras.js): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
   'necras_upgrade_dragon': { looks: L({ stage1: ['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02'],
@@ -632,6 +635,9 @@ export const STATE_BUFFS = Object.freeze({
  * (fork) A plan's `state` entries a b.snap `fxs` row shows (STATE_BUFFS): that buff's, narrowed to the spec's `keys` and
  * the look's (a `byFacing` buff without a look: the carrier's side, `facing` −1 'left', else 'right').
  */
+/** (fork) Whether a use of `buff` with prefab `key` is a STATE_BUFFS row (an entry's `keys`, when listed, narrow it). */
+export const stateRow = (buff, key) => { const s = STATE_BUFFS[buff]; return !!s && (!s.keys || s.keys.includes(key)); };
+
 export function stateEntries(list, buff, look, facing = 1) {
   if (!Array.isArray(list) || !list.length) return [];
   const spec = STATE_BUFFS[buff];
@@ -1013,7 +1019,7 @@ export function planUses(idx, plan, uses, opts = {}) {
       if (hooked) e.firstOnly = true;
       let placed = place(plan, e, u, { attackOf, eachHit });
       // (fork) a buff of a moment the client never sees, whose start and end the sim signals (b.snap `fxs`)
-      if (placed === 'conditional' && e.buff && STATE_BUFFS[e.buff] && (e.role === 'loop' || e.role === 'trigger')) {
+      if (placed === 'conditional' && e.buff && stateRow(e.buff, e.key) && (e.role === 'loop' || e.role === 'trigger')) {
         e.at = 'carrier';
         e.hold = 'state';
         if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff)) plan.state.push(e);
@@ -1144,7 +1150,7 @@ function place(plan, e, u, { attackOf, eachHit }) {
   const ev = u.event;
   // (fork) a mark on the units the skill names, which the sim signals (b.snap `fxs` on the carrier, STATE_BUFFS): held
   // while the row lasts, an `end` once when it goes; a line (CreateLineEffect) or a tick stays unmapped
-  if (onTargets && STATE_BUFFS[u.buff] && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end')) {
+  if (onTargets && stateRow(u.buff, e.key) && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end')) {
     e.at = 'carrier';
     e.hold = 'state';
     if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff && x.role === e.role)) plan.state.push(e);
