@@ -42,10 +42,19 @@ node tools/golden.mjs --fast --list              # list only the fast subset
 GOLDEN_FULL=1 node --test test/golden.test.js   # the whole corpus (≈ 20 s with 4 worker threads)
 node --test test/golden.test.js                 # the fast subset
 npm run golden                                  # the same comparison from the tool (all families, a short report)
+npm run golden:fast                             # (fork) the tool on the fast subset only
 npm run golden:update                           # recompute and rewrite test/golden/*.json
 node tools/golden.mjs --twice                   # determinism: the corpus twice in one process, the second pass reversed
 ```
 
+- **(fork) Skipped when nothing changed.** `npm run golden` (a plain comparison, not `--update` / `--twice` /
+  `--coverage`) first hashes everything a digest can depend on: `server/`, `shared/`, `data/`, `tools/golden.mjs`,
+  `tools/versions/`, `test/golden/`, `package.json`, `package-lock.json` and the Node version. When a passing
+  comparison of the same inputs, version and families is on record in `.cache/golden-pass.json` (git-ignored, last 50
+  passes), it prints `golden: skipped …` and exits 0 at once; a whole-corpus pass also covers `--fast` / `--only`.
+  `--force` compares anyway. A full comparison costs about 33 CPU-minutes, about 8 minutes on 4 worker threads.
+- **(fork) Crew practice:** `npm run golden:fast` for a branch check; the whole corpus (`npm run golden`) when merging.
+  Keep the default worker count (at most 4): more threads finish sooner but keep every core under full load.
 - **A refactor commit must never change these files.** Run `GOLDEN_FULL=1 node --test test/golden.test.js` before
   committing it. If a digest moves, the refactor changed behaviour: find out why (the first differing value of `snaps`
   says when two runs parted, in 10-game-second steps) instead of updating the files.
