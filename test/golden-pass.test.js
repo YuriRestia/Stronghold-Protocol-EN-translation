@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { GOLDEN_INPUTS, goldenInputHash, goldenScope, coveringPass } from '../tools/golden.mjs';
+import { GOLDEN_INPUTS, goldenInputHash, goldenScope, coveringPass, goldenJobs, MAX_JOBS } from '../tools/golden.mjs';
 
 function tree(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sp-golden-pass-'));
@@ -53,4 +53,12 @@ test('a stored pass covers only the same inputs, version and families; a whole-c
   assert.equal(coveringPass('h', goldenScope({ families: ['roster', 'bonds'], version: 'act1autochess' }), [pass]), null, 'other version');
   const fastPass = { hash: 'h', ...goldenScope({ families: ['roster', 'bonds'], fast: true }) };
   assert.equal(coveringPass('h', full, [fastPass]), null, 'a --fast pass never covers the whole corpus');
+});
+
+test('golden never runs more than 4 worker threads, whatever is asked (user, 2026-11-11)', () => {
+  assert.equal(MAX_JOBS, 4);
+  for (const asked of [undefined, '', 'x', 0, 7, '16', 64]) assert.ok(goldenJobs(asked) >= 1 && goldenJobs(asked) <= 4, String(asked));
+  assert.equal(goldenJobs(16), 4);
+  assert.equal(goldenJobs(2), 2);
+  assert.equal(goldenJobs(1), 1);
 });

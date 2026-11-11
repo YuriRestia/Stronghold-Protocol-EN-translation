@@ -9,7 +9,7 @@
 //   node tools/golden.mjs                 compare the corpus with test/golden/*.json (exit 1 on a difference)
 //   node tools/golden.mjs --update        recompute and rewrite test/golden/*.json   (npm run golden:update)
 //   options: --family roster,bonds,fields,matches,standins   --fast (the test's default subset)   --only <id,id>
-//            --jobs N (worker threads, default: up to 4)   --list   --coverage (skills cast, stages, enemies…)
+//            --jobs N (worker threads, default and (fork) hard cap: 4)   --list   --coverage (skills cast, stages, enemies…)
 //            --version <id> historical data and test/golden/<slug>/ (default: act2autochess)
 //            --twice  determinism: compute twice in this process (the second pass in reverse order) and compare
 //            --force  (fork) compare even when nothing golden reads has changed since a passing comparison: a plain
@@ -105,6 +105,10 @@ export const FAMILY_NAMES = Object.freeze(['roster', 'bonds', 'fields', 'matches
 export const GOLDEN_INPUTS = Object.freeze(['server', 'shared', 'data', 'tools/golden.mjs', 'tools/versions', 'test/golden',
   'package.json', 'package-lock.json']);
 const PASS_FILE = join(ROOT, '.cache', 'golden-pass.json');
+/** (fork) Hard cap of worker threads (user, 2026-11-11): more finish sooner but keep every core of the PC under full load. */
+export const MAX_JOBS = 4;
+/** Worker threads for a requested count (absent or invalid: the cores minus one), never more than MAX_JOBS. */
+export const goldenJobs = (requested) => Math.min(MAX_JOBS, Math.max(1, Number(requested) || availableParallelism() - 1));
 const PASS_KEEP = 50;
 
 /** sha256 over the inputs' relative paths and bytes (sorted) and the Node version. */
@@ -1264,7 +1268,7 @@ export async function computeDigests(families, { select = () => true, jobs = 1, 
   await new Promise((resolve, reject) => {
     let live = 0;
     let failed = null;
-    const n = Math.min(jobs, queue.length);
+    const n = Math.min(jobs, MAX_JOBS, queue.length);
     for (let w = 0; w < n; w++) {
       const worker = new Worker(fileURLToPath(import.meta.url), { workerData: { golden: true, version: toolVersion } });
       live++;
@@ -1375,7 +1379,8 @@ if (isMain) {
   const families = opt.family ? String(opt.family).split(',') : FAMILY_NAMES.slice();
   const only = opt.only ? new Set(String(opt.only).split(',')) : null;
   const select = (sc) => (!only || only.has(sc.id)) && (!opt.fast || sc.fast);
-  const jobs = Math.max(1, Number(opt.jobs) || Math.min(4, Math.max(1, availableParallelism() - 1)));
+  const jobs = goldenJobs(opt.jobs);
+  if (Number(opt.jobs) > MAX_JOBS) console.log(`golden: --jobs ${opt.jobs} capped at ${MAX_JOBS} worker threads`);
   if (opt.list) {
     const lines = [];
     for (const f of families) for (const sc of scenariosOf(f)) if (select(sc)) lines.push(`${f}\t${sc.id}\t${sc.fast ? 'fast' : ''}\t${sc.about ?? ''}`.slice(0, 220));

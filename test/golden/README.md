@@ -54,7 +54,8 @@ node tools/golden.mjs --twice                   # determinism: the corpus twice 
   passes), it prints `golden: skipped …` and exits 0 at once; a whole-corpus pass also covers `--fast` / `--only`.
   `--force` compares anyway. A full comparison costs about 33 CPU-minutes, about 8 minutes on 4 worker threads.
 - **(fork) Crew practice:** `npm run golden:fast` for a branch check; the whole corpus (`npm run golden`) when merging.
-  Keep the default worker count (at most 4): more threads finish sooner but keep every core under full load.
+  The tool never runs more than 4 worker threads (`--jobs` / `GOLDEN_JOBS` above 4 are capped): more threads finish
+  sooner but keep every core of the PC under full load.
 - **A refactor commit must never change these files.** Run `GOLDEN_FULL=1 node --test test/golden.test.js` before
   committing it. If a digest moves, the refactor changed behaviour: find out why (the first differing value of `snaps`
   says when two runs parted, in 10-game-second steps) instead of updating the files.
