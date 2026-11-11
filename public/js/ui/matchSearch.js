@@ -1,18 +1,24 @@
 // 搜寻队友 UI (DESIGN §90): the room screen's search strip and status line, the 搜寻成功! toast, and the lobby's
-// update announcement (shown until closed; one per release).
+// update announcement (shown until closed; one per release). (fork) The servers can replace the announcement without a
+// release: the live news (sys.news, server/news.js, scripts/news.mjs) in the page's language, else its English, else
+// the one built in below.
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { MAX_SEATS } from '../../../shared/constants.js';
 import { html, Button, Icon, Tooltip } from './components.js';
 import { toast } from './toasts.js';
 import { net } from '../net.js';
-import { serverNow, loadPref, savePref } from '../store.js';
-import { t, tc, N_ } from '../../../shared/i18n.js';
+import { serverNow, loadPref, savePref, useStore } from '../store.js';
+import { t, tc, N_, getLang, langChain } from '../../../shared/i18n.js';
+import { newsEntry } from '../../../shared/news.js';
+import { RichText } from './gameComponents.js';
 
-// A new key per announcement, so everyone who closed the earlier one ('news.0.3.0') sees it again.
-export const UPDATE_NEWS_PREF = 'news.0.3.4';
+/** The built-in announcement's id. Closing a banner remembers its id (`news.<id>`), so a new id shows again to everyone
+ * who closed the earlier one ('news.0.3.4'); the live news names its own id. */
+export const UPDATE_NEWS_ID = '0.3.4-1';
+export const UPDATE_NEWS_PREF = `news.${UPDATE_NEWS_ID}`;
 
-/** The 0.3.4 announcement's emphasized lines, shown above the points in the highlight style (msgids). */
+/** The 0.3.4-1 announcement's emphasized lines (0.3.4's, kept), shown above the points in the highlight style (msgids). */
 const UPDATE_HIGHLIGHTS = [
   N_('冻河、国度与塔露拉加入自选编队，特效还原原作'), // en: "Toska, Territoriya and Talulah join the Custom Squad, with original effects"
   N_('全新干员调配'), // en: "New Operator Loadout"
@@ -21,36 +27,57 @@ const UPDATE_HIGHLIGHTS = [
   N_('新增美国东部服务器'), // en: "New US East server"
 ];
 
-/** The 0.3.4 announcement's points (msgids). */
+/** The 0.3.4-1 announcement's points (msgids): the hotfix lines first, then 0.3.4's four main points. */
 const UPDATE_POINTS = [
+  N_('技能现在按官方游戏的时机释放'), // en: "Skills now cast when the official game casts them"
+  N_('元素爆发使用官方特效，元素损伤显示为脚下的官方圆环'), // en: "Official element burst effects, and element damage shows as the official ring under the feet"
+  N_('莫斯提马、蕾缪安与焰影苇草：S3 的特效与音效与官方一致'), // en: "Mostima, Lemuen and Reed the Flame Shadow: S3 looks and sounds as in the official game"
+  N_('攻击出手前不再抽动'), // en: "Attacks no longer twitch before the strike"
+  N_('储存的技能次数显示在干员头顶'), // en: "Stored skill charges show over the operator's head"
+  N_('伤害统计保留对局的每一回合'), // en: "Damage Stats keep every round of the match"
+  N_('自选编队：更醒目的更换按钮，✕ 可清空位置'), // en: "Custom Squad: an easier-to-spot swap button, and ✕ clears a slot"
   N_('新增个人头像'), // en: "Profile Icon added"
   N_('凛御银灰 S3 使用官方特效，20 多名干员的攻击动作与特效对齐'), // en: "Official effects for SilverAsh the Reignfrost's S3, and attack animations that match their effects for over 20 operators"
-  N_('替换普通攻击的技能（如维娜·维多利亚 S1）现在会播放完整动作'), // en: "Skills that replace an attack, such as Vina Victoria's S1, now play their full animation"
   N_('新增 7 套时装，包括凛御银灰「雪覆伦城」与薇薇安娜「还愿礼」'), // en: "7 new outfits, including SilverAsh the Reignfrost's Snowfall Over Londinium and Viviana's Votive Offering"
-  N_('修复薇薇安娜的特效'), // en: "Fixed Viviana VFX"
-  N_('技能施放音效现在跟随所装备的技能'), // en: "Skill cast sounds now follow the skill you equip"
   N_('人机更聪明：围绕一个主盟约构筑，针对最终攻势的领袖布阵，并选择对全队有利的策略'), // en: "Smarter bots: they build around one main Alliance, plan the Final Assault around its Leader and pick Strategies that help the whole team"
 ];
 
-// '0.3.4 更新' — en: "Update 0.3.4"
+/**
+ * What the banner shows: the live news' entry for this page's language (its id, its lines as written, with the game's
+ * colour tags), else the built-in announcement (msgids, translated here).
+ * @param {ReturnType<typeof import('../../../shared/news.js').parseNews>} live
+ * @param {string} [lang]
+ */
+export function updateNewsView(live, lang = getLang()) {
+  const entry = newsEntry(live, [lang, ...langChain(lang)]);
+  if (entry) return { id: live.id, title: entry.title, highlights: entry.highlights, points: entry.points, rich: true };
+  // '0.3.4-1 更新' — en: "Update 0.3.4-1"
+  return { id: UPDATE_NEWS_ID, title: t('0.3.4-1 更新'), highlights: UPDATE_HIGHLIGHTS.map((h) => t(h)), points: UPDATE_POINTS.map((p) => t(p)), rich: false };
+}
+
 export function UpdateNews() {
-  const [hidden, setHidden] = useState(() => loadPref(UPDATE_NEWS_PREF, false) === true);
-  if (hidden) return null;
-  const dismiss = () => { savePref(UPDATE_NEWS_PREF, true); setHidden(true); };
-  return html`<aside class="search-news brackets" role="note" aria-label=${t('0.3.4 更新')}>
+  const live = useStore((st) => st.liveNews);
+  const view = updateNewsView(live);
+  const pref = `news.${view.id}`;
+  // closing remembers this id: the banner comes back only for a new one
+  const [, setClosed] = useState(0);
+  if (loadPref(pref, false) === true) return null;
+  const dismiss = () => { savePref(pref, true); setClosed((n) => n + 1); };
+  const line = (text) => (view.rich ? html`<${RichText} text=${text} />` : text);
+  return html`<aside class="search-news brackets" role="note" aria-label=${view.title}>
     <div class="search-news__head">
       <${Icon} name="info" />
       <span class="search-news__tag">NEW</span>
-      <span class="search-news__title">${t('0.3.4 更新')}</span>
+      <span class="search-news__title">${view.rich ? line(view.title) : view.title}</span>
       <${Button} variant="ghost" size="sm" square=${true} icon="close" class="search-news__close" onClick=${dismiss} aria-label=${t('关闭提示')} title=${t('关闭提示')} />
     </div>
     <div class="search-news__body" tabindex="0">
-      <div class="search-news__highlight">
-        ${UPDATE_HIGHLIGHTS.map((h) => html`<p key=${h}>${t(h)}</p>`)}
-      </div>
-      <ul class="search-news__list">
-        ${UPDATE_POINTS.map((p) => html`<li key=${p}>${t(p)}</li>`)}
-      </ul>
+      ${view.highlights.length ? html`<div class="search-news__highlight">
+        ${view.highlights.map((h, i) => html`<p key=${i}>${line(h)}</p>`)}
+      </div>` : null}
+      ${view.points.length ? html`<ul class="search-news__list">
+        ${view.points.map((p, i) => html`<li key=${i}>${line(p)}</li>`)}
+      </ul>` : null}
     </div>
   </aside>`;
 }

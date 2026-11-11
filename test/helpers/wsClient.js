@@ -14,6 +14,12 @@
 import WebSocket from 'ws';
 
 const REPLY_TYPES = new Set(['ok', 'error', 'welcome', 'pong']);
+/**
+ * (fork) Frames an operator's file in this checkout's logs/ adds to every session, whatever the test does: the live
+ * update news (server/news.js, logs/news.json; it has no expiry, unlike a notice). A wait for any frame (type null)
+ * skips them; a wait for 'sys.news' by name still gets them (test/news.test.js).
+ */
+export const AMBIENT_TYPES = new Set(['sys.news']);
 
 export class TestClient {
   /**
@@ -94,7 +100,7 @@ export class TestClient {
    * @returns {Promise<any>}
    */
   waitFor(type, predicate = () => true, timeout = 2000) {
-    const match = (m) => (type == null || m.t === type) && predicate(m);
+    const match = (m) => (type == null ? !AMBIENT_TYPES.has(m.t) : m.t === type) && predicate(m);
     const i = this.inbox.findIndex(match);
     if (i >= 0) return Promise.resolve(this.inbox.splice(i, 1)[0]);
     return new Promise((resolve, reject) => {

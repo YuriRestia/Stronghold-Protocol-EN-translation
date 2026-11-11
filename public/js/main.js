@@ -47,6 +47,7 @@ import { ConnectionBanner } from './ui/connBanner.js';
 import { ToastHost, toast, toastError, describeError } from './ui/toasts.js';
 import { TermTipHost } from './ui/termTip.js';
 import { MaintenanceBar, applyMaintenance, clearMaintenance } from './ui/maintenance.js';
+import { parseNews } from '../../shared/news.js';
 import { net, identity, NetError, regions } from './net.js';
 // (fork) the restored profile icon rides on the first hello (ui/avatars.js sets net.avatar when it loads)
 import './ui/avatars.js';
@@ -315,6 +316,8 @@ function wireNet() {
   net.on('status', regions.onStatus); // (fork) another region that stays away: back to the page's own server
   net.on('room.move', regions.follow); // (fork) matched with a group on another server (server/crossMatch.js)
   net.on('welcome', clearMaintenance); // the server that says hello resends its maintenance, if any
+  // (fork) and its live update news, if any (server/news.js): a news cleared while this page was away goes with it
+  net.on('welcome', () => { if (store.get().liveNews) store.set({ liveNews: null }); });
   net.on('helloError', (err) => {
     if (err.code === 'SESSION_IN_USE') identity.rejectToken();
     toastError(err);
@@ -334,6 +337,8 @@ function wireNet() {
     if (buildGuard) buildGuard.retire(); else retirePending = true;
   });
   net.on('sys.maintenance', applyMaintenance);
+  // (fork) the lobby's live update news (server/news.js): checked again here, null = the news built into the release
+  net.on('sys.news', (msg) => store.set({ liveNews: parseNews(msg?.news) }));
   net.on('room.state', onRoomState);
   net.on('room.closed', (msg) => {
     backToLobby();

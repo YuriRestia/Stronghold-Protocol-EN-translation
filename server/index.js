@@ -41,7 +41,8 @@
 // (maxConnectionsPerAddr, refused at upgrade with 429), rooms and running matches (lobby.js).
 //
 // Operator notices: announce.js watches logs/announce.json (option `noticeFile`, null disables). Planned maintenance:
-// maintenance.js watches logs/maintenance.json (option `maintenanceFile`, null disables; scripts/maintenance.mjs). presence.js sends
+// maintenance.js watches logs/maintenance.json (option `maintenanceFile`, null disables; scripts/maintenance.mjs). (fork) The
+// lobby's live update news: news.js watches logs/news.json (option `newsFile`, null disables; scripts/news.mjs). presence.js sends
 // the online count and the 搜寻队友 queue sizes (sys.online). Behind scripts/router.mjs (SP_GEN + SP_GEN_FILE, options
 // `gen` / `genFile`) generation.js retires this process once the router's generations.json names a newer one.
 //
@@ -84,6 +85,7 @@ import { createEventLoopMonitor } from './health/eventLoop.js';
 import { createRoomWorkerPool } from './workers/roomPool.js';
 import { lanUrls, displayHost, isProcessEntry, runMain } from './http/boot.js';
 import { NoticeBoard } from './announce.js';
+import { NewsBoard } from './news.js';
 import { AltArtLedger } from './altArt.js';
 import { MaintenanceBoard } from './maintenance.js';
 import { Presence } from './presence.js';
@@ -110,6 +112,7 @@ export {
  *   maxConnectionsPerAddr?: number, maxRoomsPerAddr?: number, maxMatchesPerAddr?: number, resyncMinGapMs?: number,
  *   heavyPerSec?: number, heavyBurst?: number, trustProxy?: 'auto' | boolean, soloReconnectWindowMs?: number,
  *   noticeFile?: string | null, noticePollMs?: number, maintenanceFile?: string | null, maintenancePollMs?: number,
+ *   newsFile?: string | null, newsPollMs?: number,
  *   presencePollMs?: number, presenceRefreshMs?: number,
  *   warmResources?: boolean, resourceHashCache?: string | null,
  *   gen?: string | null, genFile?: string | null, genPollMs?: number, altArtDir?: string | null,
@@ -131,7 +134,7 @@ export {
  *                     registry: import('./net.js').SessionRegistry, packs: ReturnType<typeof createPluginRegistry>,
  *                     content: import('./plugins/identity.js').VanillaContent, visual: ReturnType<typeof createVisualSets>,
  *                     contents: ReturnType<typeof createContentSets>, hosts: ReturnType<typeof createMatchHosts>,
- *                     notices: NoticeBoard | null, presence: Presence, generation: GenerationWatch | null,
+ *                     notices: NoticeBoard | null, news: NewsBoard | null, presence: Presence, generation: GenerationWatch | null,
  *                     versions: ReturnType<typeof createVersionSets>, versionHosts: ReturnType<typeof createMatchHosts> | null,
  *                     traffic: ReturnType<typeof createTrafficCounter>, assetIndex: ReturnType<typeof createAssetIndex> | null,
  *                     views: ReturnType<typeof createManifestViews> | null, studio: ReturnType<typeof createStudio> | null,
@@ -238,10 +241,12 @@ export async function startServer(opts = {}) {
     ? new MaintenanceBoard({ file: maintenanceFile, registry, lobby, startedAt, pollMs: opts.maintenancePollMs, log })
     : null;
   lobby.maintenance = maintenance; // Lobby.startMatch & co. ask maintenance.closed()
-  if (notices || maintenance) {
+  const newsFile = opts.newsFile === undefined ? path.join(ROOT, 'logs', 'news.json') : opts.newsFile;
+  const news = newsFile ? new NewsBoard({ file: newsFile, registry, pollMs: opts.newsPollMs, log }) : null;
+  if (notices || maintenance || news) {
     const lobbyHello = lobby.onHello.bind(lobby);
     lobby.onHello = (session, info) => {
-      try { lobbyHello(session, info); } finally { notices?.onHello(session); maintenance?.onHello(session); }
+      try { lobbyHello(session, info); } finally { notices?.onHello(session); maintenance?.onHello(session); news?.onHello(session); }
     };
   }
   const presence = new Presence({ network, lobby, pollMs: opts.presencePollMs, refreshMs: opts.presenceRefreshMs });
@@ -334,6 +339,7 @@ export async function startServer(opts = {}) {
   server.on('error', (e) => log.error('[http] server error', e));
   notices?.start();
   maintenance?.start();
+  news?.start();
   presence.start();
   peer?.start();
   generation?.start();
@@ -352,6 +358,7 @@ export async function startServer(opts = {}) {
       try { lobby.shutdown('shutdown'); } catch (e) { log.error('[shutdown] lobby', e); }
       notices?.stop();
       maintenance?.stop();
+      news?.stop();
       presence.stop();
       peer?.stop();
       loop.stop();
@@ -375,7 +382,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, content, visual, contents, hosts, notices, maintenance, presence, peer, generation, versions, versionHosts, traffic, assetIndex, views, studio, eventLoop, simPool, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, content, visual, contents, hosts, notices, news, maintenance, presence, peer, generation, versions, versionHosts, traffic, assetIndex, views, studio, eventLoop, simPool, close };
 }
 
 /**
