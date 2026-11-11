@@ -683,7 +683,7 @@ from frame 0 at the cast).
 **Skills with a begin clip: cast → start** (fork, the official order: `Character.States.SkillState.OnEnter` →
 `BasicSkill.OnBeforeSkillStart` → `PlayBeginAnimation`: the owner plays `_beginAnim` at time scale 1, `WaitForFixedSeconds`
 its length, then `DoStartSkill` → `Cast`). The skills the client marks `_playSkillBeginAnim` (tools/assets/
-skill-begin-anims.mjs, generated from `[uc]skills.ab` by tools/local-extract/skill_begin.py: 211 skills, 138 of our
+skill-begin-anims.mjs, generated from `[uc]skills.ab` by tools/skill_begin.py: 211 skills, 138 of our
 operators' — 91 operators) carry their clip on the data skill (`beginAnim` { clip, dur }, the default model's length;
 DATA.md). Their activation (`skills.js activate`) is a cast first: `['skill', id, 1]` goes out (the client plays the
 clip and the cast sound), `starting` holds it, and the skill starts — SP spent, mods, `onStart`, `skillStart`, its
