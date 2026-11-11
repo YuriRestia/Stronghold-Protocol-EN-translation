@@ -29,25 +29,87 @@ const DATE = /^## (\d{4}-\d{2}-\d{2})$/;
 const realDate = (s) => { const d = new Date(`${s}T00:00:00Z`); return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s; };
 
 /**
+ * (fork, SERVER COST rule, 2026-11-11) Fragments written before the rule whose change did touch server, network or
+ * bot code and that were never measured: the only ones `Server cost: unmeasured (pre-rule)` is accepted from. Never
+ * add a fragment written after 2026-11-11 here.
+ */
+export const PRE_RULE_UNMEASURED = Object.freeze([
+  // the audit of the fragments on dev-0.2 at the rule's start (tools/server-cost-check.mjs over each one's merge):
+  'grand-alliance-squad-moves.md', // server/lobby.js, shared/protocol.js
+  'host-bots-play-ioleta-adaptive.md', // server/index.js, server/match/Match.js
+  'load-tolerant-script-and-studio-check-tests.md', // server/studio/
+  'periodic-tick-hit-effects.md', // server/sim/ (battle events, kits)
+  'skill-start-animations.md', // server/sim/ai.js, simdata.js, skills.js
+  'summon-and-talent-effects.md', // server/sim/ kits
+  'target-mark-effects.md', // server/sim/ (fx states, kits)
+]);
+
+/** What a numeric `Server cost:` block must state, each as [label, test]. */
+export const COST_ITEMS = Object.freeze([
+  ['"typical" and "worst" case', (t) => /\btypical\b/i.test(t) && /\bworst\b/i.test(t)],
+  ['per player', (t) => /\bper player\b/i.test(t)],
+  ['per room', (t) => /\bper room\b/i.test(t)],
+  ['300 players', (t) => /\b300\b/.test(t)],
+  ['bandwidth in MB/s', (t) => /\d\s*MB\/s\b/.test(t)],
+  ['bandwidth in GB/day', (t) => /\d\s*GB\/day\b/.test(t)],
+  ['server CPU as % of one core', (t) => /\bCPU\b/i.test(t) && /\d\s*%/.test(t)],
+  ['memory in MB', (t) => /\bmemory\b/i.test(t) && /\d\s*MB\b(?!\/)/.test(t)],
+  ['disk in MB/day', (t) => /\d\s*MB\/day\b/.test(t)],
+  ['bot budget in ms/round', (t) => /\d\s*ms\/round\b/.test(t)],
+  ['a "Cap:" line (what bounds the worst case)', (t) => /^\s*(?:[-*]\s+)?(?:\*\*)?Cap:/mi.test(t)],
+  ['"measured" or "estimated"', (t) => /\b(?:measured|estimated)\b/i.test(t)],
+]);
+
+/**
+ * The `Server cost:` block of a fragment: the line starting `Server cost:` and everything after it.
+ * `none` (optionally with a reason in parentheses) when no server, network or bot code is touched; otherwise the numbers.
+ * @param {string} name file name
+ * @param {string} block the block's text (from `Server cost:` to the end), or null when the fragment has none
+ * @returns {{ kind: 'none'|'pre-rule'|'numbers'|'missing'|'invalid', text: string, problems: string[] }}
+ */
+export function parseServerCost(name, block) {
+  if (block == null) return { kind: 'missing', text: '', problems: [`${name}: no "Server cost:" line (changes/README.md "Server cost")`] };
+  const text = block.trim();
+  const first = text.split('\n')[0].replace(/^Server cost:\s*/, '');
+  const more = text.split('\n').slice(1).some((l) => l.trim());
+  if (/^none\b/i.test(first) && !more) return { kind: 'none', text, problems: [] };
+  if (/^unmeasured \(pre-rule\)$/i.test(first.trim()) && !more) {
+    return PRE_RULE_UNMEASURED.includes(name) ? { kind: 'pre-rule', text, problems: [] }
+      : { kind: 'invalid', text, problems: [`${name}: "unmeasured (pre-rule)" is only for the fragments listed in tools/changelog.mjs PRE_RULE_UNMEASURED`] };
+  }
+  const problems = [];
+  if (/\bMbit\/s\b|\bMbps\b|\bMb\/s\b/.test(text)) problems.push(`${name}: Server cost: bandwidth in MB/s and GB/day, never Mbit/s`);
+  for (const [label, ok] of COST_ITEMS) if (!ok(text)) problems.push(`${name}: Server cost: missing ${label}`);
+  return { kind: problems.length ? 'invalid' : 'numbers', text, problems };
+}
+
+/**
  * Check and parse one fragment. Format: `## YYYY-MM-DD`, then one or more `### Heading` sections, each with at least
- * one `- ` bullet; nothing else at heading level 1 or 2; LF line ends.
+ * one `- ` bullet; nothing else at heading level 1 or 2; LF line ends; last, the `Server cost:` block.
  * @param {string} name file name
  * @param {string} text
- * @returns {{ date: string|null, body: string, errors: string[] }} body = the `###` sections, trimmed
+ * @returns {{ date: string|null, body: string, cost: ReturnType<typeof parseServerCost>, errors: string[] }} body = the
+ *   `###` sections, trimmed, plus a numeric Server cost block (a `none` one is left out of the changelog)
  */
 export function parseFragment(name, text) {
   const errors = [];
   if (!NAME.test(name)) errors.push(`${name}: name must be lowercase words joined by hyphens, ending .md`);
   if (text.includes('\r')) errors.push(`${name}: CR line ends (use LF)`);
   if (Buffer.byteLength(text) > MAX_FRAGMENT) errors.push(`${name}: over ${MAX_FRAGMENT} bytes`);
-  const lines = text.replace(/\r/g, '').split('\n');
+  const all = text.replace(/\r/g, '').split('\n');
+  const costAt = all.findIndex((l) => /^Server cost:/.test(l));
+  if (costAt >= 0 && all.slice(costAt + 1).some((l) => /^Server cost:/.test(l))) errors.push(`${name}: more than one "Server cost:" line`);
+  const cost = parseServerCost(name, costAt >= 0 ? all.slice(costAt).join('\n') : null);
+  errors.push(...cost.problems);
+  const lines = costAt >= 0 ? all.slice(0, costAt) : all;
   let i = 0;
   while (i < lines.length && !lines[i].trim()) i++;
   const m = DATE.exec(lines[i] || '');
   const date = m && realDate(m[1]) ? m[1] : null;
   if (!date) errors.push(`${name}: the first line must be "## YYYY-MM-DD" (a real date)`);
   const rest = lines.slice(i + 1);
-  const body = rest.join('\n').trim();
+  const sectionsText = rest.join('\n').trim();
+  const body = cost.kind === 'numbers' ? `${sectionsText}\n\n${cost.text}` : sectionsText;
   let sections = 0, bullets = 0, open = false;
   for (const l of rest) {
     if (/^### \S/.test(l)) {
@@ -59,7 +121,7 @@ export function parseFragment(name, text) {
   }
   if (!sections) errors.push(`${name}: needs at least one "### Heading" section`);
   else if (!bullets) errors.push(`${name}: the last section has no "- " bullet`);
-  return { date, body, errors };
+  return { date, body, cost, errors };
 }
 
 /**
