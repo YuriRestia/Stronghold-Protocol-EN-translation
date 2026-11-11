@@ -42,6 +42,7 @@ test('水月 S3: the cast plays its begin clip; the skill starts, SP is spent an
   assert.equal(sk.beginDur, 1);
   assert.ok(h.runUntil(() => !!sk.starting, 120), 'she casts S3');
   const t0 = h.b.time;
+  const cd0 = u.atkCd;                  // the attack cooldown left at the cast (it keeps running through the clip)
   const sp = sk.spTotal;
   const n = h.events.length;
   assert.equal(sk.active, false, 'not started at the cast');
@@ -54,11 +55,18 @@ test('水月 S3: the cast plays its begin clip; the skill starts, SP is spent an
   assert.ok(sk.spTotal < sp, 'the SP is spent when it starts');
   const during = h.events.slice(n, before).filter((e) => e[1] === u.id && ['atkCast', 'atk'].includes(e[0]));
   assert.deepEqual(during, [], 'no attack during the begin clip');
-  assert.ok(h.events.slice(before).some((e) => e[0] === 'atkCast' && e[1] === u.id), 'her first attack is cast as the skill starts');
   const skillEvents = mine(h, u, ['skill']);
   assert.equal(skillEvents.filter((e) => e[2] === 1).length, 1, 'one skill event: at the cast, none again at the start');
-  h.run(2);
-  assert.ok(mine(h, u, ['atk']).length > 0, 'she attacks once the skill runs');
+  // her first attack: as the skill starts, or once the cooldown left at the cast runs out, whichever is later
+  let t1 = null;
+  for (let i = 0; i < 300 && t1 == null; i++) {
+    const m = h.events.length;
+    if (i > 0) h.step();
+    if (h.events.slice(i > 0 ? m : before).some((e) => e[0] === 'atkCast' && e[1] === u.id)) t1 = h.b.time;
+  }
+  assert.ok(t1 != null, 'she attacks once the skill runs');
+  const due = t0 + Math.max(1, cd0);
+  assert.ok(t1 >= due - 1e-9 && t1 < due + 1 / 15, `first attack at the start or the cooldown's end (${t1 - t0} s after the cast; cooldown left ${cd0})`);
 });
 
 test('水月 S3: a stun during the begin clip drops the cast — nothing spent, the skill clip ends — and she casts again later', () => {
