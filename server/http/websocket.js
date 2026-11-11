@@ -129,14 +129,17 @@ function applySendThreshold(ws) {
 /**
  * Serve the WebSocket endpoint /ws on `server` (its 'upgrade' event).
  * @param {import('node:http').Server} server
- * @param {{ network: Network, log: object, traffic?: ReturnType<typeof import('./traffic.js').createTrafficCounter> }} deps
+ * @param {{ network: Network, log: object, traffic?: ReturnType<typeof import('./traffic.js').createTrafficCounter>,
+ *           trafficDetail?: ReturnType<typeof import('./trafficDetail.js').createTrafficDetail> | null }} deps
+ *   trafficDetail: (fork) the dev traffic meter, null when off (no socket is wrapped)
  * @returns {WebSocketServer}
  */
-export function attachWebSocket(server, { network, log, traffic = null }) {
+export function attachWebSocket(server, { network, log, traffic = null, trafficDetail = null }) {
   const wss = new WebSocketServer({ noServer: true, maxPayload: WS_MAX_PAYLOAD, perMessageDeflate: { ...WS_DEFLATE }, clientTracking: false });
   wss.on('connection', (ws, req) => {
     applySendThreshold(ws);
     if (traffic) meterSocket(ws, req, traffic);
+    if (trafficDetail) trafficDetail.attach(ws);
     network.handleConnection(ws, req);
   });
   wss.on('error', (e) => log.error('[ws] server error', e));
