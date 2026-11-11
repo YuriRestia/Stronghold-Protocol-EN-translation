@@ -854,6 +854,32 @@ bandwidth, layer 1) the server hands out a view of each (`server/http/assetIndex
   and are laid over whatever the page draws. Neither committed manifest, nor the views above, ever change with a plugin:
   without one a page loads exactly what it loaded before.
 
+### Merging branches (fork)
+
+`data/assets.json` is one line of about 3.6 MB, and its `hash` and `stats` change on every rebuild, so git's line merge
+conflicts whenever two branches both changed any entry. The same went for the three totals `test/audio-pools-data.test.js`
+used to hold. Neither is merged by hand any more:
+
+- **Entry by entry.** `tools/merge-generated.mjs` merges the parsed JSON three ways. An entry only one side changed
+  takes that side, both sides' new entries are kept, and an entry both sides changed differently is a real conflict
+  (ours is kept and the path is printed). For the manifest it then recomputes `hash` (`contentHash` of the merged body)
+  and `stats` (`countStats`; `files` and `bytes` are the base plus both sides' change). `.gitattributes` names the
+  files (`merge=generated-json`); register the driver once per clone, and every worktree uses it:
+  `npm run merge:generated -- --setup`.
+- **The pool snapshot.** `test/audio-pools-data.snapshot.json` (`npm run assets:pool-snapshot -- --update`) holds the
+  attack / hit reference count of every unit and outfit and the sound count of every pool, one per line. The test holds
+  the manifest to it. A change that moves them updates it in the same commit, and its diff names each unit and pool
+  that moved. Branches that touch different units merge cleanly, even without the driver.
+- **After every merge** that touched either file: run `npm run merge:generated`. It resolves either file if git left it
+  conflicted (a clone without the driver), then rewrites the snapshot from the merged manifest. It exits 1 on a real
+  conflict, and also when one side changed the asset generator (`tools/assets/`, `tools/fetch-assets.mjs`) while the
+  other side changed manifest entries. Those entries were built by the old generator and an entry-by-entry merge keeps
+  them as they were (replaying merge `3e3cd159` this way would have kept Eyjafjalla's removed S2 swing slot), so it prints the
+  units and the command that rebuilds them with the merged generator on the art already on disk:
+  `node tools/fetch-assets.mjs --offline --add-only --refresh-units=<ids>`. After that, run
+  `npm run merge:generated -- --rebuilt`, which skips the check. Then run `node --test test/audio-pools-data.test.js
+  test/merge-generated.test.js` and commit.
+
 ## Player-initiated predownload
 
 The title screen's **下载完整素材** button (`public/js/ui/assetDownload.js`, queue in

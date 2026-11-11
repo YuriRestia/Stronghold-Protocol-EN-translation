@@ -3,7 +3,8 @@
 Changes made in this fork ([YuriRestia/Stronghold-Protocol-EN-translation](https://github.com/YuriRestia/Stronghold-Protocol-EN-translation))
 on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sganggs/Stronghold-Protocol)). Upstream's
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
-[CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
+[CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first. New entries arrive as one file per
+change in [changes/](changes/README.md) and are folded in here with `npm run changelog`.
 
 ## 2026-11-11
 

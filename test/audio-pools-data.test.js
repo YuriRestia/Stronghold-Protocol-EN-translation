@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { bankPool, indexAudio } from '../tools/assets/audio.mjs';
 import { buildPlan } from '../tools/assets/plan.mjs';
 import { resolveTemplate, collectLeaves } from '../tools/assets/manifest.mjs';
+import { poolSnapshot, diffSnapshots, snapshotTotals } from '../tools/assets/pool-snapshot.mjs';
 
 const manifest = JSON.parse(readFileSync(new URL('../data/assets.json', import.meta.url), 'utf8'));
 const official = new URL('../.cache/gamedata/excel/audio_data.json', import.meta.url);
@@ -86,9 +87,16 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 123 references, + 212 pools: every skill's own ability banks (tools/assets/skillSounds.mjs; effect-gaps audit 2
   // fix #1): 73 skill swings and 50 skill impacts, and the pools of those, the new casts and the start / end sounds
   // (skillOn / skillOff); 214 new banks, two of which the lines above register already
-  assert.equal(refs, 1174);
-  assert.equal(outfitRefs, 11);
-  assert.equal(Object.keys(pools).length, 1347);
+  // (fork) Since 2026-11-11 (at 1174 references, 11 outfit references, 1347 pools) the expected numbers are no literals
+  // here: test/audio-pools-data.snapshot.json holds them per unit, per outfit and per pool (sound count), one line each,
+  // so parallel branches stop conflicting on one total. A change that moves them reruns
+  // `npm run assets:pool-snapshot -- --update` in the same commit, and its diff names every unit and pool that moved.
+  const snap = poolSnapshot(manifest);
+  assert.equal(snapshotTotals(snap).refs, refs, 'the snapshot counts the references this loop checked');
+  assert.equal(snapshotTotals(snap).outfitRefs, outfitRefs);
+  assert.equal(snapshotTotals(snap).pools, Object.keys(pools).length);
+  const diff = diffSnapshots(JSON.parse(readFileSync(new URL('./audio-pools-data.snapshot.json', import.meta.url), 'utf8')), snap);
+  assert.deepEqual(diff, [], `data/assets.json differs from test/audio-pools-data.snapshot.json; if intended, run npm run assets:pool-snapshot -- --update\n${diff.slice(0, 40).join('\n')}`);
   // (fork) every sound of a kit fx (and the ones played with it: `also`) and of an attack's follow-up (attackAlso) is a
   // file of its pool's bank
   let parts = 0;
