@@ -7,7 +7,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseFragment, foldFragments, fragmentFiles, CHANGES_DIR, main } from '../tools/changelog.mjs';
+import { parseFragment, foldFragments, fragmentFiles, CHANGES_DIR, main, PRE_RULE_UNMEASURED } from '../tools/changelog.mjs';
 
 test('every fragment in changes/ is well-formed', () => {
   const bad = fragmentFiles().flatMap((f) => parseFragment(f, readFileSync(join(CHANGES_DIR, f), 'utf8')).errors);
@@ -23,8 +23,41 @@ test('a bad fragment is named with what is wrong', () => {
   assert.match(errs('x.md', '## 2026-11-11\n\n### A\n\ntext only\n'), /no "- " bullet/);
   assert.match(errs('x.md', '## 2026-11-11\n\n### A\n\n- b\n\n## 2026-11-12\n'), /only one "## date" line/);
   assert.match(errs('x.md', '## 2026-11-11\r\n\r\n### A\r\n\r\n- b\r\n'), /CR line ends/);
-  assert.deepEqual(parseFragment('ok-name.md', '\n## 2026-11-11\n\n### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d\n'),
-    { date: '2026-11-11', body: '### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d', errors: [] });
+  const ok = parseFragment('ok-name.md', '\n## 2026-11-11\n\n### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d\n\nServer cost: none (docs only)\n');
+  assert.deepEqual(ok.errors, []);
+  assert.equal(ok.date, '2026-11-11');
+  assert.equal(ok.body, '### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d', 'a "none" Server cost stays out of the changelog');
+  assert.equal(ok.cost.kind, 'none');
+});
+
+// The SERVER COST rule (changes/README.md "Server cost"): every fragment ends with "Server cost:" — none, or the numbers.
+const README_EXAMPLE = (() => {
+  const t = readFileSync(join(CHANGES_DIR, 'README.md'), 'utf8');
+  const m = /```markdown\n(Server cost:\n[\s\S]*?)```/.exec(t);
+  return m ? m[1] : '';
+})();
+
+test('Server cost: missing, none, the README example\'s numbers, and what a numbers block lacks', () => {
+  const head = '## 2026-11-11\n\n### A\n\n- b\n';
+  assert.match(parseFragment('x.md', head).errors.join(' | '), /no "Server cost:" line/);
+  assert.equal(parseFragment('x.md', head + '\nServer cost: none\n').cost.kind, 'none');
+  assert.ok(README_EXAMPLE.length > 100, 'changes/README.md carries the numbers example');
+  const full = parseFragment('x.md', head + '\n' + README_EXAMPLE);
+  assert.deepEqual(full.errors, []);
+  assert.equal(full.cost.kind, 'numbers');
+  assert.ok(full.body.endsWith(README_EXAMPLE.trim()), 'a numbers block is folded into the changelog with the entry');
+  const errs = parseFragment('x.md', head + '\nServer cost:\n\n- About 2 Mbit/s per room, typical.\n').errors.join(' | ');
+  for (const want of [/never Mbit\/s/, /missing "typical" and "worst" case/, /missing per player/, /missing 300 players/, /missing bandwidth in MB\/s/,
+    /missing bandwidth in GB\/day/, /missing server CPU/, /missing memory in MB/, /missing disk in MB\/day/, /missing bot budget in ms\/round/,
+    /missing a "Cap:" line/, /missing "measured" or "estimated"/]) assert.match(errs, want);
+  assert.match(parseFragment('x.md', head + '\nServer cost: none\nServer cost: none\n').errors.join(' | '), /more than one "Server cost:" line/);
+});
+
+test('"unmeasured (pre-rule)" is accepted only from the fragments named in PRE_RULE_UNMEASURED', () => {
+  const text = '## 2026-11-11\n\n### A\n\n- b\n\nServer cost: unmeasured (pre-rule)\n';
+  assert.ok(PRE_RULE_UNMEASURED.length > 0);
+  assert.equal(parseFragment(PRE_RULE_UNMEASURED[0], text).cost.kind, 'pre-rule');
+  assert.match(parseFragment('new-change.md', text).errors.join(' | '), /only for the fragments listed/);
 });
 
 const LOG = '# Fork changelog\n\nIntro.\n\n## 2026-11-11\n\n### Old today\n\n- x\n\n## 2026-11-09\n\n### Older\n\n- y\n';
@@ -67,7 +100,7 @@ describe('in a checkout', () => {
   let dir;
   const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const run = (args, branch) => { const lines = []; let printed = ''; const code = main(args, { root: dir, log: (x) => lines.push(x), out: (x) => { printed += x; }, ...(branch ? { branch } : {}) }); return { code, lines: lines.join('\n'), printed }; };
-  const frag = '## 2026-11-11\n\n### New thing\n\n- It works.\n';
+  const frag = '## 2026-11-11\n\n### New thing\n\n- It works.\n\nServer cost: none\n';
   before(() => {
     dir = mkdtempSync(join(tmpdir(), 'sp-changelog-'));
     g('init', '-q', '-b', 'dev-0.2');

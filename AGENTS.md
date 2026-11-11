@@ -41,6 +41,10 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 - **(fork) Changelog fragments.** A branch never edits `FORK-CHANGELOG.md`: it adds one file
   `changes/<what-it-changes>.md` ([changes/README.md](changes/README.md)); the lead folds them in on `dev-0.2` with
   `npm run changelog -- --write`.
+- **(fork) Server cost.** Every fragment ends with `Server cost: none` or the numbers (typical and worst case per
+  player, per room and for 300 players: MB/s and GB/day, CPU %, memory MB, disk MB/day, bot ms/round, the cap,
+  measured or estimated; [changes/README.md](changes/README.md) "Server cost"). `npm run server-cost` fails a branch
+  that touches server, network or bot code without them; measure with `SP_TRAFFIC_METER=1` and `npm run traffic-report`.
 - **No game art in git.** `public/assets/` is ignored; never commit extracted or downloaded game files.
 - **Interface strings** go through `t('…')`, with entries in every pack under `public/i18n/`
   (`node tools/i18n.mjs check --all --strict`).

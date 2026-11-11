@@ -76,6 +76,7 @@ import { MIME, COMPRESSIBLE, acceptsGzip, pickEncoding, parseRange } from './htt
 import { BUILD_INPUTS, computeBuildTag, buildTag, resetBuildTag } from './http/buildTag.js';
 import { createRequestHandler } from './http/routes.js';
 import { createTrafficCounter } from './http/traffic.js';
+import { createTrafficDetail, trafficMeterEnabled } from './http/trafficDetail.js';
 import { createLoopStats } from './http/loopStats.js';
 import { simMeter } from './match/simMeter.js';
 import { createAssetIndex } from './http/assetIndex.js';
@@ -104,7 +105,7 @@ export {
 /**
  * Build and start the HTTP + WebSocket server.
  * @param {{
- *   port?: number, host?: string, quiet?: boolean, log?: object,
+ *   port?: number, host?: string, quiet?: boolean, log?: object, trafficMeter?: boolean,
  *   publicDir?: string, dataDir?: string, sharedDir?: string, packsDir?: string, pluginsDir?: string,
  *   MatchClass?: Function, seedFn?: () => number,
  *   lobbyGraceMs?: number, reconnectWindowMs?: number, heartbeatMs?: number, helloTimeoutMs?: number,
@@ -129,6 +130,7 @@ export {
  *   versionVoteMs / versionRetryMs: the version vote's answer window and the guard after a declined or expired vote (tests;
  *   server/lobby.js header "Official versions")
  *   roomCode: a fixed alliance key for every new room (--room-code; four letters or digits — config.js parseRoomCode);
+ *   trafficMeter: (fork) the dev traffic meter on / off (default SP_TRAFFIC_METER=1 on a dev server: http/trafficDetail.js)
  * @returns {Promise<{ port: number, host: string, url: string, server: http.Server, wss: import('ws').WebSocketServer,
  *                     lobby: import('./lobby.js').Lobby, network: import('./net.js').Network,
  *                     registry: import('./net.js').SessionRegistry, packs: ReturnType<typeof createPluginRegistry>,
@@ -136,7 +138,8 @@ export {
  *                     contents: ReturnType<typeof createContentSets>, hosts: ReturnType<typeof createMatchHosts>,
  *                     notices: NoticeBoard | null, news: NewsBoard | null, presence: Presence, generation: GenerationWatch | null,
  *                     versions: ReturnType<typeof createVersionSets>, versionHosts: ReturnType<typeof createMatchHosts> | null,
- *                     traffic: ReturnType<typeof createTrafficCounter>, assetIndex: ReturnType<typeof createAssetIndex> | null,
+ *                     traffic: ReturnType<typeof createTrafficCounter>, trafficDetail: ReturnType<typeof createTrafficDetail> | null,
+ *                     assetIndex: ReturnType<typeof createAssetIndex> | null,
  *                     views: ReturnType<typeof createManifestViews> | null, studio: ReturnType<typeof createStudio> | null,
  *                     close: () => Promise<void> }>}
  */
@@ -283,13 +286,17 @@ export async function startServer(opts = {}) {
   }
 
   const traffic = createTrafficCounter();
+  // (fork) the dev traffic meter (trafficDetail.js): SP_TRAFFIC_METER=1 on a dev server only; null = nothing wrapped
+  const trafficDetail = (opts.trafficMeter ?? trafficMeterEnabled(process.env))
+    ? createTrafficDetail({ roomOf: (ws) => network.conns.get(ws)?.session?.roomCode ?? null }) : null;
+  if (trafficDetail) log.info('[traffic] dev traffic meter on: GET /healthz?traffic=1 (trafficDetail), tools/traffic-report.mjs');
   const loop = createLoopStats(); // (fork) /healthz?traffic=1 `loop` and `sim`: what blocks the main thread
   // (fork) the site policy hashes this generation's rewritten import map too (shared/gen.js rewriteIndexHtml), else
   // the browser refuses /g/<gen>/'s map and the page never boots
   const csp = process.env.SP_CSP === 'off' ? null : siteCsp(publicDir, { gen, cfAnalytics: process.env.SP_CF_ANALYTICS === '1', connectSources: regionConnectSources(regions) });
-  const server = http.createServer(createRequestHandler({ serveStatic, csp, cspNonce: process.env.SP_CSP_NONCE === '1', health: { startedAt, network, registry, lobby, content, traffic, assetIndex, views, trusted: trustedRuntime?.health, generation, loop, sim: simMeter, maintenance, versions, versionHosts, regions, peer }, log, trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
+  const server = http.createServer(createRequestHandler({ serveStatic, csp, cspNonce: process.env.SP_CSP_NONCE === '1', health: { startedAt, network, registry, lobby, content, traffic, trafficDetail, assetIndex, views, trusted: trustedRuntime?.health, generation, loop, sim: simMeter, maintenance, versions, versionHosts, regions, peer }, log, trustProxy: network.opts.trustProxy, studio, trustedRuntime }));
   server.on('clientError', answerClientError);
-  const wss = attachWebSocket(server, { network, log, traffic });
+  const wss = attachWebSocket(server, { network, log, traffic, trafficDetail });
 
   // The address actually bound. The default may fall back to IPv4; the returned host and url follow that.
   let boundHost;
@@ -389,7 +396,7 @@ export async function startServer(opts = {}) {
     return closing;
   }
 
-  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, content, visual, contents, hosts, notices, news, maintenance, presence, peer, generation, versions, versionHosts, traffic, assetIndex, views, studio, eventLoop, simPool, close };
+  return { port: actualPort, host: boundHost, url, server, wss, lobby, network, registry, packs, content, visual, contents, hosts, notices, news, maintenance, presence, peer, generation, versions, versionHosts, traffic, trafficDetail, assetIndex, views, studio, eventLoop, simPool, close };
 }
 
 /**

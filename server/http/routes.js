@@ -50,6 +50,7 @@ function contentSets(lobby) {
  * @param {{ startedAt: number, network: import('../net.js').Network, registry: import('../net.js').SessionRegistry,
  *           lobby: import('../lobby.js').Lobby, content?: { cs: string } | null,
  *           traffic?: ReturnType<typeof import('./traffic.js').createTrafficCounter>,
+ *           trafficDetail?: ReturnType<typeof import('./trafficDetail.js').createTrafficDetail> | null,
  *           assetIndex?: ReturnType<typeof import('./assetIndex.js').createAssetIndex> | null,
  *           views?: ReturnType<typeof import('./assetViews.js').createManifestViews> | null, trusted?: any,
  *           versions?: ReturnType<typeof import('../versions.js').createVersionSets> | null,
@@ -64,7 +65,7 @@ function contentSets(lobby) {
  *   and their match hosts (DESIGN §35.23)
  * @param {boolean} [withTraffic]
  */
-export function healthReport({ startedAt, network, registry, lobby, content = null, traffic, assetIndex, views, trusted, versions = null, versionHosts = null, generation = null, loop = null, sim = null, maintenance = null, regions = null, peer = null }, withTraffic = false) {
+export function healthReport({ startedAt, network, registry, lobby, content = null, traffic, trafficDetail = null, assetIndex, views, trusted, versions = null, versionHosts = null, generation = null, loop = null, sim = null, maintenance = null, regions = null, peer = null }, withTraffic = false) {
   const report = {
     ok: true, version: PROTOCOL_VERSION, app: APP_VERSION, uptimeSec: Math.round((Date.now() - startedAt) / 1000),
     // the runtime the server is serving right now (public/js/ui/buildGuard.js): a page whose own build is
@@ -90,6 +91,8 @@ export function healthReport({ startedAt, network, registry, lobby, content = nu
       hosts: versionHosts ? versionHosts.stats() : { workers: 0, matches: 0, transport: 'process' } };
   }
   if (withTraffic && traffic) report.traffic = traffic.snapshot();
+  // (fork) the dev traffic meter (trafficDetail.js), only when SP_TRAFFIC_METER=1 on a dev server
+  if (withTraffic && trafficDetail) report.trafficDetail = trafficDetail.snapshot();
   // content-hashed asset URLs (assetIndex.js / assetViews.js): off, building, or ready with how many files and URLs
   if (withTraffic) report.assetHashes = assetIndex ? { ...assetIndex.stats(), views: views ? views.stats() : null } : null;
   // (fork) the main thread's lateness and the server's own simulation time, per minute (loopStats.js, simMeter.js)
@@ -134,7 +137,10 @@ export function createRequestHandler({ serveStatic, health, log, trustProxy = 'a
       return;
     }
     if (g.rest === '/healthz') {
-      const withTraffic = wantsTraffic(parts.query) && isLocalIp(clientAddress(req, trustProxy).ip);
+      const local = isLocalIp(clientAddress(req, trustProxy).ip);
+      const withTraffic = wantsTraffic(parts.query) && local;
+      // (fork) ?trafficReset=1 from the machine itself: the dev traffic meter starts counting again (between test matches)
+      if (local && health.trafficDetail && /(?:^|&)trafficReset=1(?:&|$)/.test(parts.query || '')) health.trafficDetail.reset();
       sendJson(req, res, 200, healthReport(health, withTraffic));
       return;
     }
