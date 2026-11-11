@@ -2027,6 +2027,41 @@ def graph_effects(state, ek):
     return out
 
 
+def graph_branches(state, ek):
+    """(fork) {effect key: branch path} of the keys an action graph names inside a condition's branches (IfElse
+    `_succeedNodes` / `_failNodes`): one letter per condition from the outside in — 's' / 'f' (met / not met), and for a
+    target-side test (IfDamageTargetSide) 'E' / 'A' (the target is an enemy / an ally). A key outside every branch is
+    left out; a key named on several paths keeps the first."""
+    try:
+        nodes = json.loads(state) if isinstance(state, str) and state[:1] in '[{' else None
+    except ValueError:
+        return {}
+    out = {}
+
+    def walk(v, path):
+        if isinstance(v, dict):
+            if '_succeedNodes' in v or '_failNodes' in v:
+                c = v.get('_conditionNode') if isinstance(v.get('_conditionNode'), dict) else {}
+                side = str(c.get('$type') or '').endswith('IfDamageTargetSide')
+                enemy = 'ENEMY' in str(c.get('_sideMask') or '')
+                yes, no = (('E', 'A') if enemy else ('A', 'E')) if side else ('s', 'f')
+                walk(v.get('_succeedNodes'), path + yes)
+                walk(v.get('_failNodes'), path + no)
+                return
+            for k, x in v.items():
+                if k == '_conditionNode':
+                    continue
+                if isinstance(x, str) and ek(x) and path:
+                    out.setdefault(ek(x), path)
+                elif isinstance(x, (dict, list)):
+                    walk(x, path)
+        elif isinstance(v, list):
+            for x in v:
+                walk(x, path)
+    walk(nodes, '')
+    return out
+
+
 def graph_nodes(state):
     """Every action node of an Odin-serialized action graph (a SerializedState JSON string), nested ones included (a
     condition's `_succeedNodes`, …): [(node type without its namespace, node dict)…]."""
@@ -2178,6 +2213,62 @@ def template_uses(tkey, template, on, buff, templates=None, seen=()):
                 u['from'] = f'template {tkey} → {u["from"]}'
                 uses.append(u)
     return uses
+
+
+# (fork) buff fields of an attack node that are no buff on its hit or its owner per attack: an aura's own lasting buffs
+ATTACK_BUFF_SKIP = ('_passiveBuffs',)
+
+
+def attack_buff_rows(buffs, templates):
+    """(fork) The rows of the buffs an attack puts on each target it hits or on its owner (parse_unit ability_entry's
+    `_buffs`): {'hit': [...], 'cast': [...]}. A target's buff whose template (or a template it creates as it starts)
+    plays a CreateEffect as it starts is a hit row of the attack — the client plays it on the target the blow lands on
+    (Pepe's pepe_attack_fx / pepe_s_3_fx, Executor the Ex Foedere S3's mark end, Specter the Unchained S3, Folinic S2,
+    Saga S3 …); a per-attack owner buff's start effect (BuffToOwner: Lee S3's knockback) a cast row on the owner. Lasting effects (CreateBuff overrideEffectKey: a
+    mark on the target), later buff events (trigger, finish) and a created buff of an owner's buff (whom it lands on is
+    not in the graph) stay unlinked: they need the sim's signal."""
+    out, seen, cands = {}, set(), {}
+    for b in buffs or []:
+        tkey, t = b['templateKey'], (templates or {}).get(b['templateKey'])
+        if not t:
+            continue
+        # an owner's buff per attack (BuffToOwner, a …ToOwner field); the other owner buffs last the cast or longer
+        # (BuffDuringCasting…: Lemuen S3_End's, which her skill's end row already plays) and give no row
+        owner = b['class'].startswith('BuffToOwner') or 'ToOwner' in b['field']
+        if not owner and buff_target(b['class'], b['field'], {}) == 'owner':
+            continue
+        direct = template_uses(tkey, t, 'owner' if owner else 'targets', b.get('buffKey'))
+        uses = direct if owner else template_uses(tkey, t, 'targets', b.get('buffKey'), templates)
+        side = 'A' if 'Heal' in b['class'] else 'E'
+        for u in uses:
+            if not str(u.get('action', '')).startswith('CreateEffect') or u.get('event') not in ('ON_BUFF_START', 'ON_BUFF_ENABLE'):
+                continue
+            if u.get('action') == 'CreateLineEffect':
+                continue
+            src = (templates or {}).get(u['from'].rsplit('template ', 1)[-1]) or t
+            for k in u['keys']:
+                if (owner, k) in seen:
+                    continue
+                # a key on a condition's branch (graph_branches): the client does not know the stacks / buffs the
+                # test reads, so the path where no condition is met wins (Pepe S3's first range, Vigil's wolves' first
+                # hit); a target-side test takes the side the attack hits (a heal: allies)
+                br = src.get('branches') or {}
+                path = br.get(f'{u["event"]}|{k}') or br.get(f'ON_BUFF_START|{k}') or ''
+                seen.add((owner, k))
+                row = {'directionType': 0, 'effects': [k], 'oneshot': 1, 'template': tkey,
+                       'from': f'{b["class"]}.{b["field"]} → {u["from"]}'}
+                if owner:
+                    row.update({'startEvent': 2, 'endEvent': 3})
+                cands.setdefault((tkey, owner), []).append((sum(c not in ('f', side) for c in path), row))
+    # per buff: the keys needing the fewest conditions met — the base path's when it has any (a filter whose only
+    # effect is on its met side, Specter the Unchained S3's hit at high HP, keeps that one)
+    for (tkey, owner), rows in cands.items():
+        best = min(n for n, _ in rows)
+        # the generic hit / heal sparks are the client's own (its generic hit by damage type)
+        keep = [r for n, r in rows if n == best and not r['effects'][0].lower().startswith('common_')]
+        if keep:
+            out.setdefault('cast' if owner else 'hit', []).extend(keep)
+    return out
 
 
 def behaviour_uses(cls, fields, ek, templates=None, node=None, ability=None):
@@ -2340,10 +2431,15 @@ def merge_added(old, new):
     if isinstance(old, list) and isinstance(new, list):
         if all(isinstance(x, str) for x in old + new):
             return old + [x for x in new if x not in old]
-        if all(isinstance(x, dict) and 'node' in x for x in old + new):
-            by = {x['node']: x for x in old}
-            merged = [merge_added(x, next((y for y in new if y['node'] == x['node']), x)) for x in old]
-            return merged + [y for y in new if y['node'] not in by]
+        for idk in ('node', 'name'):                    # abilities by node; a unit's modes by name
+            if all(isinstance(x, dict) and idk in x for x in old + new):
+                by = {x[idk]: x for x in old}
+                merged = [merge_added(x, next((y for y in new if y[idk] == x[idk]), x)) for x in old]
+                return merged + [y for y in new if y[idk] not in by]
+        if all(isinstance(x, dict) for x in old + new):
+            # an attack's rows: the rows of its buffs' templates (attack_buff_rows: `template`) it lacks
+            have = {json.dumps(x, sort_keys=True, ensure_ascii=False) for x in old}
+            return old + [y for y in new if y.get('template') and json.dumps(y, sort_keys=True, ensure_ascii=False) not in have]
         return old
     return old
 
@@ -2462,6 +2558,14 @@ def parse_unit(env, rel, name, kind):
             return a
         a['node'] = path_of[gkey(ago)]
         claimed.add(gkey(ago))
+        # (fork) the buffs the attack node's behaviours put on what it hits or on its owner (MeleeAttack _activeBuffs,
+        # _activeBuffsToMainTarget, BuffToCastTargets, BuffToOwner …): crawl_units turns their templates' effects into
+        # rows (attack_buff_rows) once the templates are known
+        raw = [{'class': cls, 'field': f, 'templateKey': b.get('templateKey'), 'buffKey': b.get('buffKey')}
+               for cls, o, d in mbs_of.get(gkey(ago), []) for f, v in d.items()
+               if 'buff' in f.lower() and f not in ATTACK_BUFF_SKIP for b in buffs_in(v) if b.get('templateKey')]
+        if raw:
+            a['_buffs'] = raw
         ems = node_emitters(ago)
         if len(ems) == 1 and ems[0][2] is None:
             a.update(ems[0][1])
@@ -2723,10 +2827,12 @@ def buff_templates(env, ek):
                 if not isinstance(t, dict) or not t.get('templateKey'):
                     continue
                 graph, abilities, switches, creates, shots, made_at = [], [], [], [], [], {}
-                made, finishes = {}, []
+                made, finishes, branches = {}, [], {}
                 for it in ((t.get('eventToActions') or {}).get('_items') or []):
                     ev = event_name(BUFF_EVENTS, it.get('key')) or it.get('key')
                     state = (it.get('value') or {}).get('SerializedState')
+                    for key, path in graph_branches(state, ek).items():
+                        branches.setdefault(f'{ev}|{key}', path)
                     for typ, field, key in graph_effects(state, ek):
                         graph.append([ev, typ, field, key])
                     m, f = graph_made_buffs(state, ek)
@@ -2747,7 +2853,8 @@ def buff_templates(env, ek):
                                              **({'creates': creates, 'createdAt': made_at} if creates else {}),
                                              **({'projectiles': shots} if shots else {}),
                                    **({'made': made} if made else {}),
-                                   **({'finishes': finishes} if finishes else {})}
+                                   **({'finishes': finishes} if finishes else {}),
+                                   **({'branches': branches} if branches else {})}
     return out
 
 
@@ -2912,6 +3019,16 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, tem
                     vals = [ek(x) for x in (d.get(src) or []) if isinstance(x, str) and x]
                     if vals:
                         entry.setdefault(dst, []).extend(vals)
+                # (fork) the buffs the projectile leaves on its target as it ends (_actionController._extraBuffsInTheEnd:
+                # Lappland the Decadenza S3's wolf shot, Stainless's pile): their start effects play with its hit (attack_buff_rows)
+                ac = d.get('_actionController')
+                if isinstance(ac, dict):
+                    raw = [{'class': cls, 'field': '_extraBuffsInTheEnd', 'templateKey': b.get('templateKey'),
+                            'buffKey': b.get('buffKey')} for b in buffs_in(ac.get('_extraBuffsInTheEnd')) if b.get('templateKey')]
+                    for r in attack_buff_rows(raw, templates).get('hit', []):
+                        k = ek(r['effects'][0])
+                        if k and k.lower() in eff and k not in (entry.get('onHit') or []):
+                            entry.setdefault('onHit', []).append(k)
             stack.extend(go_children(shared, go))
         entry['effects'] = effect_refs(strings)
         entry['projectiles'] = sorted({pk(x) for x in strings if pk(x) and pk(x) != key})
@@ -2981,6 +3098,11 @@ def crawl_units(ab_root, cabs, unit_ids, gd, eff, enemy_idx, token_idx, log, tem
         return em
 
     def fix_attack(a, where):
+        for kind, rows in attack_buff_rows(a.pop('_buffs', None), templates).items():
+            have = {x.lower() for r in a.get(kind) or [] for x in r.get('effects') or [] if isinstance(x, str)}
+            rows = [r for r in rows if r['effects'][0].lower() not in have]
+            if rows:
+                a.setdefault(kind, []).extend(rows)
         for k in ('projectileKey', 'additionalProjectile'):
             if a.get(k):
                 a[k] = pk(a[k]) or a[k]

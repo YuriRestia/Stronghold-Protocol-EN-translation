@@ -348,6 +348,61 @@ print(json.dumps([made, [u.get('made') for u in uses], fx.merge_added(old, new)[
       'a relink adds `made` to the same use and keeps its earlier life');
   });
 
+  test('(fork) attack_buff_rows: an attack\'s target buffs start effects as hit rows, its owner buffs as cast rows', () => {
+    const out = py(`
+tpl = {'p_fx': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'p_hit_01'], ['ON_BUFF_START', 'CreateEffect', '_effectKey', 'p_hit_02'],
+                                          ['ON_BUFF_TRIGGER', 'CreateEffect', '_effectKey', 'p_later'], ['ON_BUFF_START', 'CreateBuff', 'overrideEffectKey', 'p_mark']],
+                'creates': ['p_child'], 'createdAt': {'p_child': 'ON_BUFF_START'}},
+       'p_child': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'p_child_hit'], ['ON_BUFF_START', 'CreateEffect', '_effectKey', 'p_hit_01']]},
+       'o_kb': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'o_range_hit']], 'creates': ['o_far'], 'createdAt': {'o_far': 'ON_BUFF_START'}},
+       'o_far': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'o_far_hit']]},
+       'l_lock': {'effect': None, 'graph': [['ON_BUFF_ENABLE', 'CreateLineEffect', '_effectKey', 'l_line']]},
+       'v_lvl': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', k] for k in ('v_3', 'v_2', 'v_1')],
+                 'branches': {'ON_BUFF_START|v_3': 's', 'ON_BUFF_START|v_2': 'fs', 'ON_BUFF_START|v_1': 'ff'}},
+       'f_hp': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'f_only']], 'branches': {'ON_BUFF_START|f_only': 's'}},
+       'h_side': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'h_dmg'], ['ON_BUFF_START', 'CreateEffect', '_effectKey', 'common_heal_hit_01']],
+                  'branches': {'ON_BUFF_START|h_dmg': 'E', 'ON_BUFF_START|common_heal_hit_01': 'A'}}}
+row = lambda cls, field, t: {'class': cls, 'field': field, 'templateKey': t, 'buffKey': t}
+rows = fx.attack_buff_rows([row('MeleeAttackWithSplashDmg', '_activeBuffsToMainTarget', 'p_fx'), row('BuffToOwner', '_buffs', 'o_kb'),
+                            row('BuffToCastTargets', '_buffs', 'l_lock'), row('MeleeAttack', '_activeBuffs', 'missing'),
+                            row('MeleeAttack', '_activeBuffs', 'v_lvl'), row('MeleeAttack', '_activeBuffs', 'f_hp'),
+                            row('BuffDuringCastingFixed', '_buffs', 'p_fx')], tpl)
+heal = fx.attack_buff_rows([row('RangedHeal', '_activeBuffs', 'h_side')], tpl)
+hurt = fx.attack_buff_rows([row('RangedAttack', '_activeBuffs', 'h_side')], tpl)
+pick = lambda rs: {k: [(r['effects'], r.get('startEvent'), r['template']) for r in v] for k, v in rs.items()}
+print(json.dumps([pick(rows), pick(heal), pick(hurt)]))`);
+    assert.deepEqual(out[0].hit, [[['p_hit_01'], null, 'p_fx'], [['p_hit_02'], null, 'p_fx'], [['p_child_hit'], null, 'p_fx'],
+      [['v_1'], null, 'v_lvl'], [['f_only'], null, 'f_hp']],
+      'start effects of the buff and of the template it creates as it starts, each key once; triggers, marks and lines stay out; '
+      + 'of a condition\'s branches the path with no condition met, else the fewest');
+    assert.deepEqual(out[0].cast, [[['o_range_hit'], 2, 'o_kb']], 'an owner buff\'s own start effect; whom its created buff lands on is not known');
+    assert.deepEqual(out[1], {}, 'a heal takes the ally side, whose only effect is the client\'s generic heal spark');
+    assert.deepEqual(out[2], { hit: [[['h_dmg'], null, 'h_side']] }, 'an attack on enemies takes the enemy side');
+  });
+
+  test('(fork) graph_branches: the branch path of every key inside a condition, target-side tests as E / A', () => {
+    const out = py(`${EK}
+state = json.dumps([{'$type': 'X+IfElse', '_conditionNode': {'$type': 'X+FilterByBuffStackCount'},
+  '_succeedNodes': [{'$type': 'X+CreateEffect', '_effectKey': 'x_hit'}],
+  '_failNodes': [{'$type': 'X+IfElse', '_conditionNode': {'$type': 'X+IfDamageTargetSide', '_sideMask': 'ENEMY'},
+                  '_succeedNodes': [{'$type': 'X+CreateEffect', '_effectKey': 'x_skill_buff'}], '_failNodes': []}]},
+  {'$type': 'X+CreateEffect', '_effectKey': 'x_tpl_start'}])
+print(json.dumps(fx.graph_branches(state, ek)))`);
+    assert.deepEqual(out, { x_hit: 's', x_skill_buff: 'fE' }, 'a key outside every branch is not listed');
+  });
+
+  test('(fork) merge_added: a relink adds an attack\'s template rows to the unit\'s modes (matched by name)', () => {
+    const out = py(`
+row = {'effects': ['e'], 'oneshot': 1}
+old = {'u': {'modes': [{'name': 'Default', 'attack': {'cast': [row]}}, {'name': 'S3', 'attack': {'hit': [row]}}]}}
+new = {'u': {'modes': [{'name': 'Default', 'attack': {'cast': [row], 'hit': [{'effects': ['t'], 'oneshot': 1, 'template': 'x'}]}},
+                       {'name': 'S3', 'attack': {'hit': [{**row, 'oneshot': 0}, {'effects': ['t3'], 'oneshot': 1, 'template': 'y'}]}}]}}
+print(json.dumps(fx.merge_added(old, new)))`);
+    assert.deepEqual(out.u.modes[0].attack, { cast: [{ effects: ['e'], oneshot: 1 }], hit: [{ effects: ['t'], oneshot: 1, template: 'x' }] });
+    assert.deepEqual(out.u.modes[1].attack.hit, [{ effects: ['e'], oneshot: 1 }, { effects: ['t3'], oneshot: 1, template: 'y' }],
+      'a changed earlier row stays as it was; only template rows join');
+  });
+
   test('(fork) behaviour_uses: buffs named by key, buffs of a serialized action graph, and the templates a template creates', () => {
     const out = py(`${EK}
 tpl = {'x_s2[trigger]': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'x_tpl_start']], 'creates': ['x_s2[child]'],
