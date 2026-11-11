@@ -67,7 +67,7 @@ import { SEL_RANGE } from '../js/screens/game/marks.js';
 import { rangePreviewStore } from '../js/ui/rangePreview.js';
 import { settingsStore } from '../js/ui/settings.js';
 import { loadLangIndex, loadLangChain } from '../js/ui/lang.js';
-import { audio, installAudio, setOutfitVoiceResolver, combatTrackFor } from '../js/audio.js';
+import { audio, installAudio, setOutfitVoiceResolver, setOutfitSfxResolver, combatTrackFor } from '../js/audio.js';
 import { setOutfitPicker } from '../js/ui/assetUrls.js';
 import { setLang, t } from '../../shared/i18n.js';
 import { VERSIONS, DEFAULT_VERSION, versionById } from '../../shared/versions.js';
@@ -633,6 +633,8 @@ async function main() {
     const id = info && info.side !== 'enemy' && (!info.kind || info.kind === 'op') ? skinByUid.get(info.uid) : null;
     return id ? (data.list('outfits') || []).find((r) => r && r.id === id)?.voice || null : null;
   });
+  // …and its own battle sounds (js/audio.js unitSfx: sfx.outfits[skinId], when that outfit has official banks of its own)
+  setOutfitSfxResolver((info) => (info && info.side !== 'enemy' && (!info.kind || info.kind === 'op') ? skinByUid.get(info.uid) || null : null));
   const view = await createFieldView($('field'), { data, assets, audio, settings: settings(), outfitOf });
   view.setStage(stage);
   const net = { on: () => () => {}, send() {}, request: async () => ({ ok: true }) };

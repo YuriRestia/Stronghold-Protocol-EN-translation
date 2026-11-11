@@ -35,9 +35,10 @@ test('the asset plan emits ordinary and mode pool references and literal metadat
 });
 
 test('every generated attack/hit reference resolves to a valid pool and its selected sound parameters', () => {
-  const { units, pools } = manifest.audio.sfx;
-  let refs = 0;
-  for (const [id, u] of Object.entries(units)) {
+  const { units, pools, outfits = {} } = manifest.audio.sfx;
+  let refs = 0, outfitRefs = 0;
+  // (fork) an outfit's own entry (sfx.outfits, docs/OUTFITS.md) is held to the same rule, counted apart
+  for (const [id, u] of [...Object.entries(units), ...Object.entries(outfits).map(([k, v]) => [`outfit:${k}`, v])]) {
     for (const [urls, ids] of [[{ attack: u.attack, hit: u.hit }, u.pools], [u.attacks, u.attackPools], [u.hits, u.hitPools]]) {
       for (const [role, url] of Object.entries(urls || {})) {
         if (!url) continue;
@@ -48,7 +49,7 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
         const s = p.sounds[url.replace('/assets/audio/sfx/', '')];
         assert.ok(s, `${id}.${role}: selected file belongs to this bank`);
         assert.ok(s.minPitch > 0 && s.maxPitch >= s.minPitch && s.delay >= 0);
-        refs++;
+        if (id.startsWith('outfit:')) outfitRefs++; else refs++;
       }
     }
   }
@@ -71,8 +72,12 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
-  assert.equal(refs, 1048);
-  assert.equal(Object.keys(pools).length, 1074);
+  // (fork) + 1 reference, + 26 pools: 艾雅法拉's impact (UNIT_SOUND_BANKS: projectile_amgoat's REACH; her S3 projectile's
+  // pool is registered but its slot replays the normal impact, so it carries no entry), 澄闪's drone banks
+  // (FX_SOUND_BANKS) and the Sanrio outfits' own banks; the three outfit entries hold 9 references
+  assert.equal(refs, 1049);
+  assert.equal(outfitRefs, 9);
+  assert.equal(Object.keys(pools).length, 1100);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
@@ -86,7 +91,9 @@ test('all exported pools match the cached official bank limits, pitches and dela
     assert.equal(pool.maxSoundAllowed, bank.maxSoundAllowed, id);
     assert.equal(pool.popOldest, bank.popOldest, id);
     for (const [path, s] of Object.entries(pool.sounds)) {
-      const original = bank.sounds.find(v => v.asset?.toLowerCase().replace('audio/sound_beta_2/', '') + '.mp3' === path);
+      // (fork) keyed by the played path: each part safeName'd like the file (an outfit's 'p_atk_…_sanrio#2' → '_sanrio_2')
+      const played = (asset) => (asset.toLowerCase().replace('audio/sound_beta_2/', '') + '.mp3').split('/').map((c) => c.replace(/[^A-Za-z0-9._-]/g, '_')).join('/');
+      const original = bank.sounds.find(v => v.asset && played(v.asset) === path);
       assert.ok(original, `${id}: ${path}`);
       assert.deepEqual(s, { minPitch: original.minPitch, maxPitch: original.maxPitch, delay: original.delay }, id);
     }

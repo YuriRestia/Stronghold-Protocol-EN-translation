@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, assignSkillModeSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
 import { skillModeOf } from '../../shared/fxModes.js';
@@ -84,6 +84,25 @@ const FX_SOUND_BANKS = Object.freeze({
   char_1020_reed2: Object.freeze({
     'scorchBurst|': 'battle.ON_PROJECTILE_REACH.projectile_chr_reed2_aoe_effect',
   }),
+  // (fork) 澄闪 (op-gdglow.js; '#<skill index>': that skill's drones): each drone's hit ('drone') is the skill's funnel
+  // projectile HIT, a drone's self-destruct (T1 'explode') the funnel boom's STOP (S1 / S2 share s12), the launch
+  // ('drones') S2's / S3's ability START (p_skill_sparklightboost / _boost1) [ASSUMED: the ability starts with the
+  // launch]. Her Sanrio outfit's twins play for it
+  char_377_gdglow: Object.freeze({
+    'drone|#0': 'battle.ON_PROJECTILE_HIT.projectile_chr_gdglow_funnel_s1',
+    'drone|#1': 'battle.ON_PROJECTILE_HIT.projectile_chr_gdglow_funnel_s2',
+    'drone|#2': 'battle.ON_PROJECTILE_HIT.projectile_chr_gdglow_funnel_s3',
+    'explode|gdglow:blast#0': 'battle.ON_PROJECTILE_STOP.projectile_chr_gdglow_funnel_s12_boom',
+    'explode|gdglow:blast#1': 'battle.ON_PROJECTILE_STOP.projectile_chr_gdglow_funnel_s12_boom',
+    'explode|gdglow:blast#2': 'battle.ON_PROJECTILE_STOP.projectile_chr_gdglow_funnel_s3_boom',
+    'drones|#1': 'battle.ON_ABILITY_START.skchr_gdglow_2',
+    'drones|#2': 'battle.ON_ABILITY_START.skchr_gdglow_3',
+  }),
+  // (fork) 艾雅法拉 S2 (op-amgoat.js 'explosion' on the ignited impact): her S2 projectile's REACH — only her Sanrio outfit
+  // has that bank (p_imp_firemag_h), so the default look stays silent there [ASSUMED: beside the attack's own impact]
+  char_180_amgoat: Object.freeze({
+    'explosion|': 'battle.ON_PROJECTILE_REACH.projectile_amgoat_s2',
+  }),
 });
 /**
  * (fork) Skills whose sounds are their own ability's banks (ON_ABILITY_START / _HIT.<skill id>), not an ON_SKILL_START or
@@ -97,6 +116,8 @@ const FX_SOUND_BANKS = Object.freeze({
  */
 const UNIT_SOUND_BANKS = Object.freeze({
   char_213_mostma: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_213_mostma.attack' }),
+  // (fork) 艾雅法拉's projectile is projectile_amgoat (no `chr_`): its REACH is her impact (p_imp_firemag_n)
+  char_180_amgoat: Object.freeze({ hit: 'battle.ON_PROJECTILE_REACH.projectile_amgoat' }),
 });
 /**
  * (fork) A skill's own swing / impact by skill index where the mode pick misses it (assignSkillModeSfx): a bank name, or
@@ -109,6 +130,8 @@ const SKILL_MODE_BANKS = Object.freeze({
     1: Object.freeze({ attack: 'battle.ON_ABILITY_START.char_4193_lemuen.attack.2.2', hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_lemuen_s2' }),
   }),
   char_213_mostma: Object.freeze({ 2: Object.freeze({ hit: null }) }),
+  // (fork) 艾雅法拉 S3: its projectile's own REACH (the default plays her normal impact file; her Sanrio outfit p_imp_firemag_s)
+  char_180_amgoat: Object.freeze({ 2: Object.freeze({ hit: 'battle.ON_PROJECTILE_REACH.projectile_amgoat_s3' }) }),
   // (fork) 烛煌 S2 / S3: each mode's bolt lands with its own projectile's impact (p_imp_hcnsrfr_h / _s), not her normal one
   char_1040_blaze2: Object.freeze({
     1: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s2' }),
@@ -373,14 +396,14 @@ function soundLeaf(paths, sub = 'sfx', max = 4) {
  * attack bank is 80 % silence). The caller stores `mix` last in the unit's entry (sfx.units[id].mix).
  * Attack/hit roles also retain canonical pool references (#680); the parameters live once in sfx.pools.
  */
-function unitSounds(audio, sfx, poolRef) {
+function unitSounds(audio, sfx, poolRef, leafOf = soundLeaf) {
   const roles = {};
   let mix = null;
   const pools = {};
   const groups = {};
   for (const r of ['attack', 'hit', 'die', 'born']) {
     if (!sfx[r]) continue;
-    roles[r] = soundLeaf(sfx[r]);
+    roles[r] = leafOf(sfx[r]);
     const m = typeof audio.mixOf === 'function' ? audio.mixOf(sfx[r]) : null;
     if (m) (mix || (mix = {}))[r] = m;
     if (r === 'attack' || r === 'hit') {
@@ -625,6 +648,9 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const pool = audio.poolOf?.(paths);
     if (!pool) return null;
     const { id, ...params } = pool;
+    // (fork) each file under the path the client plays it from (soundAlt: safeName'd, an outfit's '#2' → '_2'), the key
+    // public/js/audio.js reads its pitch / delay by
+    if (params.sounds) params.sounds = Object.fromEntries(Object.entries(params.sounds).map(([p, s]) => [p.split('/').map(safeName).join('/'), s]));
     sfxPools[id] = literal(params);
     return id;
   };
@@ -645,7 +671,9 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
   }
   const charIds = Object.keys(operators).sort();
   const skillIdxOf = new Map(); // charId → the skill indices its models resolve (an outfit's model resolves the same)
-  for (const id of charIds) {
+  // (fork) one operator's chars / skills / sfx.units entries. Run once per operator, then again per outfit with its own
+  // sound banks (below) through audio.mjs outfitAudioView: the same picks, each official bank swapped for the outfit's
+  const operatorEntry = (id, audio, soundLeaf, poolRef, unitsSfx, notes) => {
     const o = operators[id];
     // DESIGN §16 operator loadouts: any skill of the character can be equipped — the icons, skill SFX and Spine skill
     // clips of every skill index (the pool's primary index first, as before)
@@ -669,7 +697,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const sfx = pickUnitSfx(audio.unitBanks.get(id), { operator: true, projectile: {
       born: audio.bank(`battle.ON_PROJECTILE_BORN.projectile_chr_${short}`), hit: audio.bank(`battle.ON_PROJECTILE_HIT.projectile_chr_${short}`) } });
     for (const [r, name] of Object.entries(UNIT_SOUND_BANKS[id] || {})) { const p = audio.bank(name); if (p.length) sfx[r] = p; }
-    const { roles: u, mix } = unitSounds(audio, sfx, poolRef);
+    const { roles: u, mix } = unitSounds(audio, sfx, poolRef, soundLeaf);
     const skillSfx = {};
     // Per-skill ATTACK / IMPACT sound (audio.mjs assignSkillModeSfx): a skill mode has its own swing and its own hit
     // sound, and neither may play as the unit's normal attack / impact (银灰, 纯烬艾雅法拉). An operator whose every
@@ -750,6 +778,11 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     if (primarySkill && skillGroups[String(idx[0])]) u.groups = { ...(u.groups || {}), skill: skillGroups[String(idx[0])] };
     if (u.skills && Object.keys(skillGroups).length) u.skillGroups = skillGroups;
     if (Object.keys(attacks).length) u.attacks = attacks;
+    // (fork) a mode impact that only replays the normal one carries no entry (#679: 艾雅法拉's S3 projectile plays her
+    // normal impact file); an outfit's twin of it can differ, and then it stays (her Sanrio outfit's p_imp_firemag_s)
+    for (const i of Object.keys(hits)) {
+      if (u.hit && JSON.stringify(hits[i]) === JSON.stringify(u.hit)) { delete hits[i]; delete hitMix[i]; delete hitPools[i]; }
+    }
     if (Object.keys(hits).length) u.hits = hits;
     if (Object.keys(attackMix).length) u.attackMix = attackMix;
     if (Object.keys(hitMix).length) u.hitMix = hitMix;
@@ -841,6 +874,21 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       if (Object.keys(stings).length) u.stings = stings;
     }
     if (Object.keys(u).length) unitsSfx[id] = u;
+  };
+  for (const id of charIds) operatorEntry(id, audio, soundLeaf, poolRef, unitsSfx, notes);
+  // (fork, docs/OUTFITS.md) an outfit with its own official sound banks (audio_data `…_sanrio#2` twins of the operator's
+  // banks: Goldenglow's, Executor's and Eyjafjalla's Sanrio outfits) gets its own whole sfx entry, `sfx.outfits[skinId]`,
+  // when it differs from the operator's. The client plays it for a unit wearing that outfit (public/js/audio.js unitSfx)
+  const outfitSfx = {};
+  for (const rec of Object.values(outfits && typeof outfits === 'object' ? outfits : {})) {
+    const skinId = rec?.id, id = rec?.charId;
+    const token = typeof skinId === 'string' ? skinId.split('@')[1] : null;
+    if (!operators[id] || !unitsSfx[id] || !token) continue;
+    const view = outfitAudioView(audio, id, token);
+    if (!view) continue;
+    const own = {};
+    operatorEntry(id, view.audio, (paths, ...r) => soundLeaf(view.tr(paths), ...r), (paths) => poolRef(view.tr(paths)), own, []);
+    if (own[id] && JSON.stringify(own[id]) !== JSON.stringify(unitsSfx[id])) outfitSfx[skinId] = own[id];
   }
 
   // --- tokens --------------------------------------------------------------
@@ -1162,7 +1210,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
       ...optionalTrees,
-      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, pools: sfxPools, groups: literal(sfxGroups) },
+      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, ...(Object.keys(outfitSfx).length ? { outfits: outfitSfx } : {}), pools: sfxPools, groups: literal(sfxGroups) },
     },
   };
   return { template, models, notes };
