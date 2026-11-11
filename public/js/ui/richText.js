@@ -32,6 +32,9 @@ const STYLE_CLASS = {
   'autochess.yellow': 'rt-rem',
   'eb.key': 'rt-kw',
   'eb.danger': 'rt-vdown',
+  // (fork) the fork's own colours, for the lobby's update news (user 2026-11-12): a dark blood red and a leaf green
+  'sp.blood': 'rt-blood',
+  'sp.leaf': 'rt-leaf',
 };
 
 /**

@@ -14,32 +14,33 @@ import { newsEntry } from '../../../shared/news.js';
 import { RichText } from './gameComponents.js';
 
 /** The built-in announcement's id. Closing a banner remembers its id (`news.<id>`), so a new id shows again to everyone
- * who closed the earlier one ('news.0.3.4'); the live news names its own id. */
-export const UPDATE_NEWS_ID = '0.3.4-1';
+ * who closed the earlier one ('news.0.3.4-1'); the live news names its own id. */
+export const UPDATE_NEWS_ID = '0.3.4-2';
 export const UPDATE_NEWS_PREF = `news.${UPDATE_NEWS_ID}`;
 
-/** The 0.3.4-1 announcement's emphasized lines (0.3.4's, kept), shown above the points in the highlight style (msgids). */
+/** The 0.3.4-2 announcement's emphasized lines (user wording and colours, 2026-11-12: the new line, then 0.3.4's), shown
+ * above the points in the highlight style (msgids with the game's colour tags, ui/richText.js; sp.* are the fork's). */
 const UPDATE_HIGHLIGHTS = [
-  N_('冻河、国度与塔露拉加入自选编队，特效还原原作'), // en: "Toska, Territoriya and Talulah join the Custom Squad, with original effects"
+  N_('离开的博士将<@sp.blood>永久退出</>，下一回合不再等待他们（断线不算离开）'), // en: "A Doctor who leaves is <@sp.blood>out for good</>, and the next round no longer waits for them (disconnecting is fine)"
+  N_('<@sp.leaf>冻河</>、<@sp.leaf>国度</>与<@sp.leaf>塔露拉</>加入自选编队，特效还原原作'), // en: "<@sp.leaf>Toska</>, <@sp.leaf>Territoriya</> and <@sp.leaf>Talulah</> join the Custom Squad, with original effects"
   N_('全新干员调配'), // en: "New Operator Loadout"
   N_('对局聊天'), // en: "Match chat"
   N_('大同盟：最多 8 名博士，两个小队'), // en: "Grand Alliance: up to 8 Doctors in two squads"
   N_('新增美国东部服务器'), // en: "New US East server"
 ];
 
-/** The 0.3.4-1 announcement's points (msgids): the hotfix lines first, then 0.3.4's four main points. */
+/** The 0.3.4-2 announcement's points (msgids): what is new since the 0.3.4 release, then 0.3.4's four main points. */
 const UPDATE_POINTS = [
-  N_('技能现在按官方游戏的时机释放'), // en: "Skills now cast when the official game casts them"
-  N_('元素爆发使用官方特效，元素损伤显示为脚下的官方圆环'), // en: "Official element burst effects, and element damage shows as the official ring under the feet"
-  N_('莫斯提马、蕾缪安与焰影苇草：S3 的特效与音效与官方一致'), // en: "Mostima, Lemuen and Reed the Flame Shadow: S3 looks and sounds as in the official game"
-  N_('攻击出手前不再抽动'), // en: "Attacks no longer twitch before the strike"
-  N_('储存的技能次数显示在干员头顶'), // en: "Stored skill charges show over the operator's head"
-  N_('伤害统计保留对局的每一回合'), // en: "Damage Stats keep every round of the match"
-  N_('自选编队：更醒目的更换按钮，✕ 可清空位置'), // en: "Custom Squad: an easier-to-spot swap button, and ✕ clears a slot"
+  N_('<@sp.leaf>房间界面加入聊天</>：座位下方显示聊天记录，每位博士的卡片上方弹出气泡'), // en: "<@sp.leaf>Chat in the room screen</>: a chat log under the seats and bubbles over each Doctor's card"
+  N_('带有起手动画的技能现在会先完整播放动画再生效，与官方游戏一致'), // en: "Skills with a start animation now play it in full before they take effect, as in the official game"
+  N_('每个技能都播放自己的官方音效，带专属战斗音效的时装现在也会使用它们'), // en: "Every skill plays its own official sounds, and outfits with their own battle sounds now use them"
+  N_('更多官方特效：技能标记、持续伤害的命中与持续光效显示在正确的单位上'), // en: "More official effects: skill marks, damage-over-time hits and lasting glows show on the right units"
+  N_('攻击慢的干员按自己的速度出手，攻击特效跟上攻击速度'), // en: "Slow attackers swing at their own speed, and attack effects keep pace with attack speed"
+  N_('<@sp.leaf>蕾缪安</>、<@sp.leaf>烛煌</>、<@sp.leaf>塔露拉</>与<@sp.leaf>水月</>的特效和音效与官方一致'), // en: "<@sp.leaf>Lemuen</>, <@sp.leaf>Blaze the Igniting Spark</>, <@sp.leaf>Talulah</> and <@sp.leaf>Mizuki</> look and sound as in the official game"
   N_('新增个人头像'), // en: "Profile Icon added"
-  N_('凛御银灰 S3 使用官方特效，20 多名干员的攻击动作与特效对齐'), // en: "Official effects for SilverAsh the Reignfrost's S3, and attack animations that match their effects for over 20 operators"
-  N_('新增 7 套时装，包括凛御银灰「雪覆伦城」与薇薇安娜「还愿礼」'), // en: "7 new outfits, including SilverAsh the Reignfrost's Snowfall Over Londinium and Viviana's Votive Offering"
-  N_('人机更聪明：围绕一个主盟约构筑，针对最终攻势的领袖布阵，并选择对全队有利的策略'), // en: "Smarter bots: they build around one main Alliance, plan the Final Assault around its Leader and pick Strategies that help the whole team"
+  N_('<@sp.leaf>凛御银灰</> S3 使用官方特效，20 多名干员的攻击动作与特效对齐'), // en: "Official effects for <@sp.leaf>SilverAsh the Reignfrost</>'s S3, and attack animations that match their effects for over 20 operators"
+  N_('新增 7 套时装，包括<@sp.leaf>凛御银灰</>「雪覆伦城」与<@sp.leaf>薇薇安娜</>「还愿礼」'), // en: "7 new outfits, including <@sp.leaf>SilverAsh the Reignfrost</>'s Snowfall Over Londinium and <@sp.leaf>Viviana</>'s Votive Offering"
+  N_('<@ba.kw>人机更聪明</>：围绕一个主盟约构筑，针对最终攻势的领袖布阵，并选择对全队有利的策略'), // en: "<@ba.kw>Smarter bots</>: they build around one main Alliance, plan the Final Assault around its Leader and pick Strategies that help the whole team"
 ];
 
 /**
@@ -51,8 +52,8 @@ const UPDATE_POINTS = [
 export function updateNewsView(live, lang = getLang()) {
   const entry = newsEntry(live, [lang, ...langChain(lang)]);
   if (entry) return { id: live.id, title: entry.title, highlights: entry.highlights, points: entry.points, rich: true };
-  // '0.3.4-1 更新' — en: "Update 0.3.4-1"
-  return { id: UPDATE_NEWS_ID, title: t('0.3.4-1 更新'), highlights: UPDATE_HIGHLIGHTS.map((h) => t(h)), points: UPDATE_POINTS.map((p) => t(p)), rich: false };
+  // '0.3.4-2 更新' — en: "Update 0.3.4-2"; its lines carry colour tags, so they render as rich text like the live news
+  return { id: UPDATE_NEWS_ID, title: t('0.3.4-2 更新'), highlights: UPDATE_HIGHLIGHTS.map((h) => t(h)), points: UPDATE_POINTS.map((p) => t(p)), rich: true };
 }
 
 export function UpdateNews() {

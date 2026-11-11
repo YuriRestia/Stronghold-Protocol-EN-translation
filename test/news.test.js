@@ -14,6 +14,7 @@ import { newsProblems, parseNews, newsEntry, NEWS_MAX_BYTES, NEWS_LINE_MAX } fro
 import { S2C } from '../shared/protocol.js';
 import { parseArgs as regionArgs, parseHosts, newsCommand, newsUploadCommand } from '../scripts/deploy-regions.mjs';
 import { updateNewsView, UPDATE_NEWS_ID, UPDATE_NEWS_PREF } from '../public/js/ui/matchSearch.js';
+import { rtClassName } from '../public/js/ui/richText.js';
 import { TestClient } from './helpers/wsClient.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -76,8 +77,12 @@ describe('the banner (ui/matchSearch.js updateNewsView)', () => {
     const v = updateNewsView(null, 'en');
     assert.equal(v.id, UPDATE_NEWS_ID);
     assert.equal(UPDATE_NEWS_PREF, `news.${UPDATE_NEWS_ID}`);
-    assert.equal(v.rich, false);
+    assert.equal(v.rich, true, 'its lines carry the game\'s colour tags (0.3.4-2), so they render as rich text');
     assert.ok(v.highlights.length && v.points.length);
+    // every tag in the built-in lines is a known one (ui/richText.js): an unknown one would show in the gold fallback
+    const tags = [...v.highlights, ...v.points].flatMap((l) => [...l.matchAll(/<@([A-Za-z0-9_.-]+)>/g)].map((m) => m[1]));
+    assert.ok(tags.length > 0);
+    for (const tag of tags) assert.notEqual(rtClassName(tag), 'rt-hl', tag);
   });
   test('live news in the page\'s language, its own id, rich lines', () => {
     const v = updateNewsView(parseNews(NEWS), 'ja');
