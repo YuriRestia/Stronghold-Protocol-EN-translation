@@ -1,15 +1,17 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-ai.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
-import { AI_ACTIONS, aiObservation, validAIReply } from '../../server/match/externalAI.js';
-import { buildResult } from '../../server/match/results.js';
-import { replayTestMatch, decodeTestTrace } from '../../server/match/testReplay.js';
-import { makeMatch, DATA, giveItem, checkInvariants } from './harness.js';
-import { FakeBattle } from './fakeBattle.js';
-import { exampleServer } from '../../tools/ai/http.mjs';
-import { readOfferFile, readOfferCards } from '../../shared/plugins/offers.js';
-import { validateC2S } from '../../shared/protocol.js';
+import { AI_ACTIONS, aiObservation, validAIReply } from '../../../server/match/externalAI.js';
+import { buildResult } from '../../../server/match/results.js';
+import { replayTestMatch, decodeTestTrace } from '../../../server/match/testReplay.js';
+import { makeMatch, DATA, giveItem, checkInvariants } from '../../match/harness.js';
+import { FakeBattle } from '../../match/fakeBattle.js';
+import { exampleServer } from '../../../tools/ai/http.mjs';
+import { readOfferFile, readOfferCards } from '../../../shared/plugins/offers.js';
+import { validateC2S } from '../../../shared/protocol.js';
 
 const json = x => JSON.parse(JSON.stringify(x));
 const pending = m => [...m.externalAI.jobs.values()][0];

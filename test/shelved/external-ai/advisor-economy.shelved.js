@@ -1,9 +1,11 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/advisor-economy.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeMatch, give } from './harness.js';
-import { validPlan } from '../../server/match/aiPlan.js';
-import { planSpendSteps, spendDown, levelUp, botPrep } from '../../server/match/bot.js';
-import { aiObservation } from '../../server/match/externalAI.js';
+import { makeMatch, give } from '../../match/harness.js';
+import { validPlan } from '../../../server/match/aiPlan.js';
+import { planSpendSteps, spendDown, levelUp, botPrep } from '../../../server/match/bot.js';
+import { aiObservation } from '../../../server/match/externalAI.js';
 
 function setup(t, plan = { economy: { maxRefreshes: 0, refreshAbove: 100, reserve: 100 } }) {
   const h = makeMatch({ mode: 'solo', difficulty: 'HARD', fake: true, botStrategy: 'external', externalReplay: true,

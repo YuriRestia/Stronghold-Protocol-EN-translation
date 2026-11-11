@@ -76,18 +76,6 @@ test('the process entry exits with a clear configuration error for an invalid st
   assert.doesNotMatch(result.stdout, /Local:/);
 });
 
-test('external selection requires operator transport configuration before listening', async () => {
-  const previous = { strategy: process.env.SP_BOT_STRATEGY, transport: process.env.SP_EXTERNAL_AI_TRANSPORT };
-  try {
-    process.env.SP_BOT_STRATEGY = 'external';
-    delete process.env.SP_EXTERNAL_AI_TRANSPORT;
-    await assert.rejects(startServer({ port: 0, host: '127.0.0.1', quiet: true, dataDir: 'missing-external-test-data' }), /SP_EXTERNAL_AI_TRANSPORT/);
-  } finally {
-    if (previous.strategy == null) delete process.env.SP_BOT_STRATEGY; else process.env.SP_BOT_STRATEGY = previous.strategy;
-    if (previous.transport == null) delete process.env.SP_EXTERNAL_AI_TRANSPORT; else process.env.SP_EXTERNAL_AI_TRANSPORT = previous.transport;
-  }
-});
-
 test('invalid SP_BOT_STRATEGY_SEATS rejects startup before data loading or listening', async (t) => {
   const previous = process.env.SP_BOT_STRATEGY_SEATS;
   t.after(() => { if (previous == null) delete process.env.SP_BOT_STRATEGY_SEATS; else process.env.SP_BOT_STRATEGY_SEATS = previous; });
@@ -101,16 +89,4 @@ test('invalid SP_BOT_STRATEGY_SEATS rejects startup before data loading or liste
       return true;
     });
   }
-});
-
-test('an external seat requires operator transport configuration before listening', async (t) => {
-  const previous = { seats: process.env.SP_BOT_STRATEGY_SEATS, transport: process.env.SP_EXTERNAL_AI_TRANSPORT };
-  t.after(() => {
-    if (previous.seats == null) delete process.env.SP_BOT_STRATEGY_SEATS; else process.env.SP_BOT_STRATEGY_SEATS = previous.seats;
-    if (previous.transport == null) delete process.env.SP_EXTERNAL_AI_TRANSPORT; else process.env.SP_EXTERNAL_AI_TRANSPORT = previous.transport;
-  });
-  process.env.SP_BOT_STRATEGY_SEATS = '2:external';
-  delete process.env.SP_EXTERNAL_AI_TRANSPORT;
-  await assert.rejects(startServer({ port: 0, host: '127.0.0.1', quiet: true, dataDir: 'missing-external-test-data' }),
-    /Invalid SP_BOT_STRATEGY_SEATS: External AI: configure SP_EXTERNAL_AI_TRANSPORT/);
 });

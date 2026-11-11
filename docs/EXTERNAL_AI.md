@@ -1,5 +1,16 @@
 # External AI API (`sp-ai/1`)
 
+> **Shelved in this fork (2026-11-11).** External AI is locked away in every build, a development checkout included:
+> the server ignores `SP_BOT_STRATEGY=external`, `SP_BOT_STRATEGY_SEATS` entries naming `external`, a match's
+> `botStrategy: 'external'` and the `SP_EXTERNAL_AI_*` / `SP_LLM_*` settings, logs one line, and the built-in bot plays.
+> No test suite runs its tests: they are in `test/shelved/external-ai/` (`*.shelved.js`, see `test/shelved/README.md`).
+> The code is unchanged and still in place.
+>
+> **To unshelve:** set `SP_UNSHELVE_EXTERNAL_AI=1` for the server (and for any tool or test that uses it), then run the
+> shelved tests by hand (`test/shelved/README.md`). To bring it back for good: remove the check in
+> `server/match/llmGate.js` (`UNSHELVE_ENV`), move the files back to `test/` as `*.test.js`, drop the
+> `test/shelved/` lines from `test/ci.test.js`, and remove this note.
+
 **Development only for now (maintainer 2026-10-23, §35.66).** This API is not in a release package, an update
 package or the Docker image. A packaged server ignores `SP_BOT_STRATEGY=external` and the `SP_EXTERNAL_AI_*` /
 `SP_LLM_*` settings, logs one line, and uses the built-in bot. The pages below describe a development checkout.
