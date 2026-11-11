@@ -824,7 +824,13 @@ describe('AudioManager', () => {
     assert.equal(leaf(bz.hits[2]), 'p_imp_hcnsrfr_s.mp3', 'S3: ON_PROJECTILE_HIT.projectile_chr_blaze2_s3 (was her normal impact)');
     assert.equal(leaf(bz.skillOn[2]), 'p_skill_hcnsrfrsr.mp3', 'S3 activation: ON_ABILITY_START.skchr_blaze2_3');
     assert.equal(leaf(bz.skillOff[2]), 'b_char_boostclose.mp3', 'S3 (ammo) closes: ON_SKILL_SPECIAL_POINT');
-    for (const e of [...Object.values(bz.skillOn), ...Object.values(bz.skillOff)]) assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    assert.deepEqual((bz.skillOff[2].more || []).map(leaf), ['p_skill_hcnsrfrfld.mp3'], 'and its ability ends: ON_ABILITY_END.skchr_blaze2_3');
+    assert.deepEqual(Object.fromEntries(Object.entries(bz.fxSounds || {}).map(([k, e]) => [k, leaf(e)])), {
+      'downed|': 'p_atk_hcnsrfrvv.mp3', 'revive|': 'p_imp_hcnsrfrvv.mp3', 'meltdown|': 'p_imp_hcnsrfrbm.mp3',
+    }, 'T2 knocked down / standing up (reborn_start, reborn_finish), T1 a burn burst (fire_ep_break)');
+    for (const e of [...Object.values(bz.skillOn), ...Object.values(bz.skillOff), ...(bz.skillOff[2].more || []), ...Object.values(bz.fxSounds || {})]) {
+      assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    }
     for (const k of ['0', '1', '2']) assert.ok(m.pools[bz.hitPools?.[k]], `S${Number(k) + 1} impact pool`);
   });
 
@@ -865,7 +871,7 @@ describe('AudioManager', () => {
     try {
       const pools = { p: { maxSoundAllowed: 0, popOldest: false, sounds: {} } };
       const lemuen = { fxSounds: { 'lock|#1': { url: '/s/aim.mp3', pool: 'p' }, 'lock|#2': { url: '/s/lock.mp3', pool: 'p' }, 'wanted|': { url: '/s/mark.mp3', pool: 'p' } },
-        skillOff: { 1: { url: '/s/close.mp3', pool: 'p' } } };
+        skillOff: { 1: { url: '/s/close.mp3', pool: 'p', more: [{ url: '/s/end.mp3', pool: 'p' }] } } };
       const mostima = { hit: '/s/imp_n.mp3', quietHits: [2], skillOn: { 1: { url: '/s/layer.mp3', pool: 'p', hold: true }, 2: { url: '/s/s3.mp3', pool: 'p' } } };
       const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools, units: { char_4193_lemuen: lemuen, char_213_mostma: mostima } } } };
       const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
@@ -890,7 +896,7 @@ describe('AudioManager', () => {
       a.handleBattleEvents([['skill', 1, 0]]);
       assert.deepEqual(plays, [], 'an end without a start rings nothing');
       a.handleBattleEvents([['skill', 1, 1], ['skill', 1, 0]]);
-      assert.deepEqual(plays, ['/s/close.mp3'], 'her last bullet: the closing sound');
+      assert.deepEqual(plays, ['/s/close.mp3', '/s/end.mp3'], 'her last bullet: the closing sound, and every other bank of that end (`more`)');
       plays.length = 0;
       a.handleBattleEvents([['skill', 3, 1], ['skill', 4, 1]]);
       assert.deepEqual(loops, [[3, '/s/layer.mp3', false]], 'S2\'s time lock: held, not looped');

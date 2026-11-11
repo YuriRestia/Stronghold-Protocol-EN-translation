@@ -1112,6 +1112,11 @@ export class FxWiring {
       if (!again) this._followUps(shot, pk, src, tgt, kind, time, mount);
       this.skills.released(src, tgt, kind, time);
       if (grouped) { rec.hits = []; rec.window = (fo.dur || this._flightTime(src, tgt, kind)) + ARRIVAL_WINDOW; this.melee.set(tid, rec); }
+      // (fork) a skill whose hits mark the ground (skills.js FX_HIT_TILES, 烛煌 S2): its damage places the tile effect
+      else if (tid != null) {
+        const tileU = this.skills.tileOwner(src);
+        if (tileU) this.melee.set(tid, { hits: [], src, t: time, n: 0, hitT: null, seed: rec.seed, tileU, window: (fo.dur || this._flightTime(src, tgt, kind)) + ARRIVAL_WINDOW });
+      }
       // a chain lightning's shot: its bounces (the sim's 'chain' / 'chainHeal' events) draw its line from here (chain())
       const line = projectileParts(proj).chain;
       if (line && tid != null) this.chains.set(tid, { proj, rows: fo.hits, src, line, at: this.ofx.time + hitAt, until: this.ofx.time + hitAt + CHAIN_WINDOW });
@@ -1608,6 +1613,8 @@ export class FxWiring {
     const k = m.hitT === time ? m.n : 0;
     m.hitT = time;
     m.n = k + 1;
+    // (fork) only the ground mark of a shot whose own hit plays with its projectile (attack(): FX_HIT_TILES)
+    if (m.tileU) return k === 0 && !!this.skills.hitTile(m.tileU, v);
     let drawn = false;
     const play = (list) => { for (const h of list) if (this.playOn(h.k, v, { flipFrom: m.src, toward: h.along && m.src ? beyond(m.src, v) : undefined })) drawn = true; };
     play(m.hits);

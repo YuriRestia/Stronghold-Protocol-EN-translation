@@ -1358,13 +1358,16 @@ export class AudioManager {
 
   /**
    * (fork) A skill's own sound at its start beside its ON_SKILL_START sting (`skillOn[index]`; `hold`: cut when the
-   * skill ends — 莫斯提马 S2's time lock) or at its end (`skillOff[index]`: 蕾缪安's last bullet), on its bank's pool.
+   * skill ends — 莫斯提马 S2's time lock) or at its end (`skillOff[index]`: 蕾缪安's last bullet), on its bank's pool;
+   * (fork) an entry's `more`: the other banks of that edge, each on its own pool (烛煌 S3's end: b_char_boostclose and its
+   * ability's end p_skill_hcnsrfrfld).
    */
   _skillEdge(id, u, on) {
     const e = Number.isInteger(u?.skillIndex) ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.[on ? 'skillOn' : 'skillOff']?.[u.skillIndex] : null;
     if (typeof e?.url !== 'string') return;
     if (on && e.hold) this._stingLoop(id, e.url, this.getManifest()?.audio?.sfx?.pools?.[e.pool]?.group ?? null, { loop: false });
     else this._playBank(e.url, e.pool, NOTE_GAIN);
+    for (const m of Array.isArray(e.more) ? e.more : []) if (typeof m?.url === 'string') this._playBank(m.url, m.pool, NOTE_GAIN);
   }
 
   /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): on its official bank's pool (_playBank). */
@@ -1408,7 +1411,9 @@ export class AudioManager {
     }
     for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
     for (const e of Object.values(sfx?.fxSounds || {})) if (typeof e?.url === 'string') this._buffer(e.url);
-    for (const t of [sfx?.skillOn, sfx?.skillOff]) for (const e of Object.values(t || {})) if (typeof e?.url === 'string') this._buffer(e.url);
+    for (const t of [sfx?.skillOn, sfx?.skillOff]) {
+      for (const e of Object.values(t || {})) for (const x of [e, ...(Array.isArray(e?.more) ? e.more : [])]) if (typeof x?.url === 'string') this._buffer(x.url);
+    }
   }
 
   /**

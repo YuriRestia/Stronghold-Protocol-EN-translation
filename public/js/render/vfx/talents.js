@@ -32,7 +32,7 @@
 // (triggerKinds: a fatal blow → 'substitute' / 'undying', a stand-in buff's end → 'swap' / 'dollEnd', a skill start, the
 // owner's birth; a point strike — 火力电台's talent 'airstrike' at its spot, POINT_TRIGGERS); `attack` — the attack it adds or replaces only where a kit fx marks it ('extraAttack'), else nothing.
 
-import { planUses, emptyPlan, planKeys, resolveSkill } from './skills.js';
+import { planUses, emptyPlan, planKeys, resolveSkill, KIT_HELD_TALENT_KEYS } from './skills.js';
 
 const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
@@ -77,6 +77,9 @@ export function activeTalentKeys(idx, unitKey, { rec = null } = {}) {
   return out;
 }
 
+/** (fork) A use none of whose keys a kit fx binding plays instead (skills.js KIT_HELD_TALENT_KEYS). */
+const notKitHeld = (u) => !(Array.isArray(u?.keys) && u.keys.length && u.keys.every((k) => KIT_HELD_TALENT_KEYS.has(lc(k))));
+
 /** The equipped skill index of a unit view's info (a 自选 pick's, else its own). */
 const skillIndexOf = (info) => (Number.isInteger(info?.diy?.skillIndex) ? info.diy.skillIndex : Number.isInteger(info?.skillIndex) ? info.skillIndex : null);
 
@@ -102,7 +105,7 @@ export function talentBindings(idx, unitKey, { info = null, rec = null } = {}) {
     (Array.isArray(t.nodes) ? t.nodes : []).forEach((n, i) => {
       if (!isObj(n)) return;
       if (Array.isArray(n.skills) && n.skills.length && !(sk != null && n.skills.includes(sk))) return;
-      const uses = nodeUses(t, i);
+      const uses = nodeUses(t, i).filter(notKitHeld);
       const plan = planUses(idx, emptyPlan(unitKey, key), uses, { mode: null, abilities: t.abilities });
       out.push({
         id: `t:${key}#${i}`, source: 'talent', key, kind: null, node: n.node ?? null, class: n.class ?? null, ability: n.ability ?? null,
@@ -114,7 +117,7 @@ export function talentBindings(idx, unitKey, { info = null, rec = null } = {}) {
   }
   (Array.isArray(unit.abilities) ? unit.abilities : []).forEach((a, i) => {
     if (!isObj(a)) return;
-    const uses = Array.isArray(a.uses) ? a.uses : [];
+    const uses = (Array.isArray(a.uses) ? a.uses : []).filter(notKitHeld);
     const plan = planUses(idx, emptyPlan(unitKey, a.name ?? `ability${i}`), uses, { mode: null, abilities: a.abilities });
     out.push({
       id: `a:${a.name ?? i}#${i}`, source: 'ability', key: a.name ?? null, kind: a.kind ?? null, node: a.node ?? null, class: a.class ?? null,
