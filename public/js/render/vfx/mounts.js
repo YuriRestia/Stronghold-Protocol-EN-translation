@@ -17,6 +17,7 @@
 //                                        the Graphic tilt, no facing turn), a point kind (MUZZLE / Special), else null
 //   graphicRotation(skin, out)           the unit's Graphic rotation (−30° about X)
 //   POINT_NAMES                          the skin point names tried per point kind (names vary by skin)
+//   MUZZLE_BONES                         the usual muzzle bones, tried after a muzzle point's own (an outfit's skeleton)
 
 /** Point names per kind, in the order tried (§33.12: HitPoint, HeadPoint / HeadAnchor, Muzzle / MuzzlePoint, …). */
 export const POINT_NAMES = Object.freeze({
@@ -180,23 +181,48 @@ const _bo = { x: 0, up: 0, angle: 0, flip: 1 };
  * tiles — `x` along the screen's right with the facing applied, `up` along the model — its angle in the skeleton and
  * the drawn facing), or null (no model drawn, no such bone).
  */
-function liveBone(p, unit) {
+function liveBone(p, unit, kind) {
   const v = p && p.bones ? unit.view : null;
   if (!v || typeof v.boneOffset !== 'function') return null;
-  const o = v.boneOffset(p.bones, _bo, !!unit.strike);
+  const o = v.boneOffset(kind === 'muzzle' ? muzzleBones(p.bones, !!unit.back) : p.bones, _bo, !!unit.strike);
   return o && Number.isFinite(o.x) && Number.isFinite(o.up) ? o : null;
+}
+
+/**
+ * (fork) The usual muzzle bone names, tried after the skin's own: an outfit's skin prefab may follow another muzzle bone
+ * than the default skin's, whose points index.json carries (Ch'en the Holungday char_1013_chen2's summer#20: its
+ * MuzzlePoint follows F_Muzzle / B_Muzzle; the default skin's F_L_Muzzle / B_L_Muzzle are not in that skeleton). The
+ * facing's own side first.
+ */
+export const MUZZLE_BONES = Object.freeze({
+  front: ['F_Muzzle', 'F_L_Muzzle', 'F_R_Muzzle'],
+  back: ['B_Muzzle', 'B_L_Muzzle', 'B_R_Muzzle'],
+});
+const _muzzleNames = new Map();
+/** A bone-followed muzzle point's bones, then the usual muzzle bone names (cached per list). */
+function muzzleBones(bones, back) {
+  const key = (back ? 'b|' : 'f|') + bones.join('|');
+  let list = _muzzleNames.get(key);
+  if (!list) {
+    list = [...bones];
+    for (const n of back ? [...MUZZLE_BONES.back, ...MUZZLE_BONES.front] : [...MUZZLE_BONES.front, ...MUZZLE_BONES.back]) if (!list.includes(n)) list.push(n);
+    _muzzleNames.set(key, list);
+  }
+  return list;
 }
 
 /**
  * The Unity battle-frame position of a point of a unit: its feet (board x, y, z → (x − 10, y − 9, −z)) plus the
  * skin offset (x mirrored when the unit faces left; `scale` multiplies the offset) — for a bone-followed point the
  * bone where the model draws it now: `up` along the plane the camera sees face-on (`unit.tilt`, else SKELETON_TILT).
+ * A muzzle point the skin lacks is the feet, as the client's (its foot transform); with no skin data at all, and for
+ * the other kinds, a guess over the feet.
  */
 export function unitPoint(skin, kind, unit, out = [0, 0, 0]) {
   const k = Number.isFinite(unit.scale) ? unit.scale : 1;
   out[0] = unit.x - 10; out[1] = unit.y - 9; out[2] = -(unit.z || 0);
   const p = kind ? skinPoint(skin, kind, !!unit.back) : null;
-  const b = p ? liveBone(p, unit) : null;
+  const b = p ? liveBone(p, unit, kind) : null;
   if (b) {
     const t = (Number.isFinite(unit.tilt) ? unit.tilt : SKELETON_TILT) * DEG;
     out[0] += b.x; out[1] += b.up * Math.cos(t); out[2] -= b.up * Math.sin(t);
@@ -205,6 +231,10 @@ export function unitPoint(skin, kind, unit, out = [0, 0, 0]) {
     out[0] += (unit.left ? -o[0] : o[0]) * k;
     out[1] += o[1] * k;
     out[2] += o[2] * k;
+  } else if (kind === 'muzzle' && skin && skin.points) {
+    // (fork) a skin without a muzzle point (Santalla char_341_sntlla, Viy char_4226_veen): the client's animators hand over their foot
+    // transform instead (CharacterAnimator / SingleSpineAnimator / MultiSpineAnimator.get_muzzleTransform: the face's
+    // muzzle, else get_footTransform — the skeleton root at the feet; client dump, disassembled 2026-11-11)
   } else if (kind) {
     // no such point: a plausible fallback over the feet (hit ≈ a third of a tile up, muzzle a little higher, head ×2)
     const h = kind === 'head' ? 0.75 : kind === 'muzzle' ? 0.4 : 0.3;
@@ -235,7 +265,7 @@ export function mountRotation(skin, kind, unit, out = [0, 0, 0, 1]) {
   if (!kind) return null;
   const g = skin && skin.graphic && Array.isArray(skin.graphic.rot) && skin.graphic.rot.length === 4 ? skin.graphic.rot : GRAPHIC_ROT;
   const p = skinPoint(skin, kind, !!unit.back);
-  const b = p ? liveBone(p, unit) : null;
+  const b = p ? liveBone(p, unit, kind) : null;
   const left = b ? b.flip < 0 : !!unit.left;
   // the point's local rotation l: Rz(the bone's angle) = (0, 0, sin, cos) when the bone turns it, else its own
   let lx = 0, ly = 0, lz = 0, lw = 1;
