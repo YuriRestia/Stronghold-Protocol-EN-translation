@@ -1,3 +1,5 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/manual-ai.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -6,10 +8,10 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
-import { makeMatch } from './harness.js';
-import { externalConfig } from '../../server/match/externalConfig.js';
-import { StdioAI } from '../../server/ai/transport.js';
-import { actionReply, writeJSON, readJSON, replaceFile } from '../../tools/ai/manual-files.mjs';
+import { makeMatch } from '../../match/harness.js';
+import { externalConfig } from '../../../server/match/externalConfig.js';
+import { StdioAI } from '../../../server/ai/transport.js';
+import { actionReply, writeJSON, readJSON, replaceFile } from '../../../tools/ai/manual-files.mjs';
 
 const pending = m => [...m.externalAI.jobs.values()][0];
 const seats = Array.from({ length: 4 }, (_, seat) => ({ seat, playerId: `manual_${seat}`, name: `Seat ${seat}`, isBot: true, connected: true }));
@@ -152,7 +154,7 @@ test('scripted file player completes a real solo ABYSS match, shows validator re
 test('co-op stdio agent multiplexes four seat directories and supersedes late files without cross-seat actions', async t => {
   const dir = temp(t), h = makeMatch({ mode: 'coop', seats, fake: true });
   t.after(() => h.m.dispose()); h.start().toPrep();
-  const { aiObservation } = await import('../../server/match/externalAI.js');
+  const { aiObservation } = await import('../../../server/match/externalAI.js');
   const c = new StdioAI({ command: [process.execPath, 'tools/ai/manual-agent.mjs', '--dir', dir, '--mode', 'coop'], timeoutMs: 15000, maxBytes: 65536, backoffMs: 1 });
   t.after(() => c.close());
   const requests = seats.map((s, i) => {
@@ -258,9 +260,9 @@ test('historical solo selects its data and existing unlimited option; unavailabl
 });
 
 test('a completed winning fixture reports Final Assault pool, damage and settled layer banks', { timeout: 30000 }, async t => {
-  const { manualMatch } = await import('../../tools/ai/manual-match.mjs');
-  const { Match } = await import('../../server/match/Match.js');
-  const { FakeBattle } = await import('./fakeBattle.js');
+  const { manualMatch } = await import('../../../tools/ai/manual-match.mjs');
+  const { Match } = await import('../../../server/match/Match.js');
+  const { FakeBattle } = await import('../../match/fakeBattle.js');
   const dir = temp(t);
   FakeBattle.reset(); t.after(() => FakeBattle.reset());
   FakeBattle.script = b => ({ duration: b.sharedBoss ? Infinity : 0.1, bossDps: 1e8,

@@ -213,7 +213,10 @@ export default {
           onStart({ battle, unit }) {
             unit.mem.beamAt = 0;
             unit.mem.beamNext = BEAM_FIRST;
-            battle.fx('beam', { x: unit.x, y: unit.y, id: unit.id, skill: 'aphris:beam' });
+            // (fork) the beam's path for the client's AphrisEffectEmitter line (render/vfx/pathfx.js): its tiles from hers
+            // and which of them hold a 中继器 (display only: the path as it starts [ASSUMED: a later bend is not re-sent])
+            const p = aphrisPath(battle, unit, true);
+            battle.fx('beam', { x: unit.x, y: unit.y, id: unit.id, skill: 'aphris:beam', path: p.tiles, relays: p.relays });
           },
           onTick({ battle, unit, skill, dt }) {
             const iv = stepOf('interval', num(b2.interval, 0.5), 0.5);

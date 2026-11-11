@@ -1,3 +1,5 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/llm-adapter-v2.test.js.
 // Round 65: the example LLM adapter v2 — "the bot is the floor, the LLM overrides" (tools/ai/llm-*.mjs,
 // the measured priors in server/ai/strategy.js). Mock transports only: no socket, no real API, no hidden match state.
 import { test } from 'node:test';
@@ -5,17 +7,17 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DATA } from './harness.js';
-import { bandStrength as botBandStrength } from '../../server/match/bot.js';
-import { BAND_STRENGTH, bandStrength, lpWeight, draftPriors, strategyCandidates, LEVEL_CAP } from '../../server/ai/strategy.js';
-import { knowledgePack } from '../../server/ai/knowledge.js';
-import { buildPlaybook } from '../../server/ai/playbook.js';
-import { COMMUNITY } from '../../server/ai/strategy-community.js';
-import { createLLMAgent, advisorSystem, STRATEGY_PROMPT, BAND_TASK, CHOICE_TASK, SYSTEM_BUDGET, callRounds, callKinds, carriedPlan } from '../../tools/ai/llm-agent.mjs';
-import { compactDigest, compactBot, compactFa, compactTeam, bondPanel, mainAtFive, draftDigest } from '../../tools/ai/llm-context.mjs';
-import { slimKnowledge } from '../../tools/ai/llm-knowledge.mjs';
-import { repairPlan, holdFloor } from '../../tools/ai/llm-plan.mjs';
-import { validPlan } from '../../server/match/aiPlan.js';
+import { DATA } from '../../match/harness.js';
+import { bandStrength as botBandStrength } from '../../../server/match/bot.js';
+import { BAND_STRENGTH, bandStrength, lpWeight, draftPriors, strategyCandidates, LEVEL_CAP } from '../../../server/ai/strategy.js';
+import { knowledgePack } from '../../../server/ai/knowledge.js';
+import { buildPlaybook } from '../../../server/ai/playbook.js';
+import { COMMUNITY } from '../../../server/ai/strategy-community.js';
+import { createLLMAgent, advisorSystem, STRATEGY_PROMPT, BAND_TASK, CHOICE_TASK, SYSTEM_BUDGET, callRounds, callKinds, carriedPlan } from '../../../tools/ai/llm-agent.mjs';
+import { compactDigest, compactBot, compactFa, compactTeam, bondPanel, mainAtFive, draftDigest } from '../../../tools/ai/llm-context.mjs';
+import { slimKnowledge } from '../../../tools/ai/llm-knowledge.mjs';
+import { repairPlan, holdFloor } from '../../../tools/ai/llm-plan.mjs';
+import { validPlan } from '../../../server/match/aiPlan.js';
 
 const solo = knowledgePack(DATA, { modeId: 'mode_single_abyss' });
 const coop = knowledgePack(DATA, { modeId: 'mode_multi_abyss' });
@@ -257,7 +259,7 @@ test('cadence: SP_LLM_CALL_ROUNDS calls the model on its rounds; other preps kee
 });
 
 test('card and reward calls: "bot" leaves the pick to the built-in bot, a missing choice follows choiceName, only plan.choice runs', async () => {
-  const fixture = JSON.parse(readFileSync(new URL('../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
+  const fixture = JSON.parse(readFileSync(new URL('../../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
   const pack = fixture.knowledge;
   const d = { ...fixture.digest, actions: [{ id: 'a1', intent: { t: 'g.reward', idx: 0 }, text: 'support' },
     { id: 'a2', intent: { t: 'g.reward', idx: 1 }, text: 'lead' }],

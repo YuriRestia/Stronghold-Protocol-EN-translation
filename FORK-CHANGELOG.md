@@ -12,8 +12,34 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Skills now play their own sounds from the official audio data for every operator, not just a few picked by hand. Before, 72 skills on 66 operators made no sound of their own (Texas S2 Sword Rain, Ifrit S2, Ch'en S1, Mudrock S2 …). Now 71 of them do, and 91 of the 122 skills that were missing some of their sounds have more of them.
 - The sound files decide where each sound goes: a skill's own swing and impact play on its attacks while it runs, its cast plays when it starts (beside the activation sound when it has one), a looping sound (Ifrit S3's flamethrower) holds until the skill ends, and its end sound plays when it ends.
 - Blaze the Igniting Spark, Lemuen, Mostima and Talulah keep their hand-made sound setups.
-- 200 new sound files (5.9 MB) for the server and the preload zip.
+- 197 new sound files (5.8 MB) for the server and the preload zip.
 - Not covered yet: sounds the game plays on its own triggers inside a skill (custom triggers, check points, attack finishes), which need per-operator work.
+
+### External AI is shelved: locked in every build, and no test suite runs its tests
+
+- External AI (the `sp-ai/1` advisor / plan / LLM integration, shelved upstream since 2026-11-05) is now off in every build, development checkouts included. Selecting it (`SP_BOT_STRATEGY=external`, a seat override, a match's `botStrategy: 'external'`, any `SP_EXTERNAL_AI_*` / `SP_LLM_*` setting) logs one line and the built-in bot plays. `SP_UNSHELVE_EXTERNAL_AI=1` brings it back; the code is unchanged.
+- Its tests moved to `test/shelved/external-ai/` as `*.shelved.js`, which no runner picks up (`npm test`, the CI shards, the browser suite, perf): 15 whole files, plus the External AI cases split out of 6 files whose other tests keep running. `test/shelved/README.md` says how to run them by hand.
+
+### Outfits with their own official battle sounds play them
+
+- Three outfits have official battle sounds of their own, and now play them: Goldenglow's Party In The Garden, Executor the Ex Foedere's The Train Runner and Eyjafjalla's Fluffy Little Witch (the Sanrio outfits). Their attacks, impacts and skill sounds use the outfit's files; anything the outfit has no sound for stays the operator's. Eyjafjalla's outfit also has an S2 explosion sound of its own.
+- It works for any outfit: the asset build finds an outfit's sound banks in the official audio data by name, so a new one needs no code. Skadi the Corrupting Heart's Red Countess already played its own voice lines; its sound effects are the same as the default outfit's.
+- Goldenglow's drones were silent in every outfit. Each drone hit, a drone's self-destruct and S2 / S3's drone launch now play their official sounds. Eyjafjalla's attacks now have their impact sound (in her Sanrio outfit, S3's impact is its own).
+- The rest of these three operators' official battle sounds play too, in every outfit: Goldenglow's own S1 / S2 shot when she sends out drones, and each drone's signal 0.6 s after launch; Eyjafjalla's S2 swing and its hit; Executor the Ex Foedere's talent double strike (its own sound in S3) and his S3 final verdict. His Sanrio outfit's S2 attack also plays its second shot sound.
+- Behind the scenes: the dev sandbox plays an outfit's own battle sounds too, and an outfit sound's pitch and delay settings are found under the file's served name.
+- Server: 41 new sound files (26 for the outfits, 15 default ones for these three operators), all in data/assets.json.
+
+### Blaze the Igniting Spark can no longer use skills while downed
+
+- While her talent From the Ashes has her downed, she can no longer start a skill, as in the official game, where the downed state silences her. Her SP still recovers, so a full skill starts the moment she stands back up.
+
+### Line and path effects: Территория's kingdom, Aphrissa's S2 beam, Angelina the Mellow Wish's S3 range line
+
+- Территория's kingdom now shows the official kingdom look: the kingdom effect on every tile of it and the official line along its outer edge. It follows his range as it grows and shrinks, and fades shortly after he leaves. Before, the game drew a stand-in purple field.
+- Aphrissa's S2 beam now draws the official beam: one line from her weapon along the beam's path, bending where her relays and allied operators turn it, with the official start, relay and end point effects, for as long as S2 runs. Before, nothing showed the beam.
+- Angelina the Mellow Wish's S3 now shows the official range line around her running attack range: her original skill range plus the tiles around her, following her as she flies.
+- The points come from the battle: Aphrissa's S2 start now sends the beam's path, and Angelina the Mellow Wish's S3 start sends her skill range. These are display fields on events the battle already sent, so battles play out exactly as before. The new `render/vfx/pathfx.js` traces a tile set's outer edges into closed outlines through the tile corners, as the official range line does, and draws any official line through many points.
+- Not covered: Aphrissa's normal attack line and a beam path that changes during S2 (it keeps its starting path). Thorns the Lodestar's S3 polygon line is a separate follow-up.
 
 ### A player who leaves is out for good, and the next round doesn't wait for them
 
@@ -44,6 +70,25 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - The sounds come from the official buff templates of each burst, which name the sound each one plays. They are in `tools/assets/plan.mjs` (`BURST_SOUND_BANKS`) and the manifest's new `audio.sfx.burst`, and they follow each official sound's own pitch range, volume and how many can play at once. Five new sound files.
 
+### Lemuen's Wanted mark looks as in the official game
+
+- An enemy that Lemuen's talent marks as Wanted now carries the official mark, a loop on the enemy (`lemuen_talent_buff_01`), for as long as it stays Wanted: until it dies or leaves, or the Lemuen it counts for leaves. It was a short stand-in reticle drawn by the game.
+- In Requiem Vesperis (`char_4193_lemuen@ambienceSynesthesia#7`) the mark uses the outfit's own version.
+- It shows whatever skill she has equipped. Its sound (`p_imp_lmwlcrstrmk`) already played as the mark appears; that is unchanged.
+
+### Talulah (塔露拉): her talent's sword effects, her S2 stack as in the official game, no stand-in overload glow
+
+- Talent 1 (怒火): her blade glows (the official oxi_buff_02) while she holds any 怒火 layer, and embers run along it (oxi_buff_03) once the layers are full. An attack that spends a layer ends the embers.
+- S2: while its stack holds, her attacks land the official BuffedAttack impact sound (p_imp_xtlfgbw_h) instead of her normal one, and the stack's flame (oxi_skill_02_buff_01) lasts until the last layer runs out. It used to end one stack duration after the cast.
+- S3: the overload no longer draws a made-up orange glow on her. The official game plays only its sound there, which stays.
+- Her S3 still ends without a closing sound: the official client plays that sound (b_char_boostclose) only when a player stops the skill by hand, which this mode doesn't allow.
+- Behind the scenes: the battle sends her 怒火 and S2 layer counts to the client as a display-only fx (`buffLayers`). No battle result changes; only the fx counts of the two Talulah golden scenarios (diy-140, diy-141) moved.
+
+### Mizuki's skills play their own animations and impact sounds
+
+- Mizuki now animates each skill as in the official game, in every outfit. Her S2 (Prisoner's Dilemma) attacks with its own swing and rests in her normal pose. Her S3 (Moon in the Water) opens with its start animation, swings its own attack, stands in its skill stance between attacks and closes with its end animation. An S1 (Awaken) charge is her normal swing. Before, the game paired her animations with her skills by their names, which her model doesn't follow: S2 played S3's animations, S3 swung her plain attack and S1 played S2's swing.
+- Her attacks now land with their impact sound, and an S1 charge has its own impact instead of S2's. During S2 and S3 she swings with her normal swing sound and each hit lands with that skill's own impact. Before, the impact sound played at the swing.
+
 ## 2026-11-10
 
 ### Operators attack as in the official game: the swing starts, then the hit lands
@@ -58,7 +103,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### The lobby's update news can change without a new release
 
-- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts <servers> news.json` sends it to every server (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
+- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts spa,usspa news.json` sends it to both servers (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
 - Each player sees the news in their own language, else in the file's English, else the banner built into the release. Lines can use the game's own colour tags (blue, red, orange, mint, grey); there is no HTML and no links.
 - The file is checked before it is sent and again on each server: size, lengths, languages and line breaks. A refused file changes nothing. Notes in `docs/DEPLOY.md` / `DEPLOY.en.md` §1.7.
 - Server side: the notice, maintenance and news boards now share one file-polling base (`server/fileBoard.js`) instead of separate copies.
@@ -186,9 +231,9 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The in-battle bond strip shows as many bonds as fit its width (fewer on phones) and no longer scrolls, so the thick grey scrollbar is gone.
 - When you have more, a "+N" button after the last bond opens the rest in a small grid under the strip. Tap a bond there for its details as usual; the button, Esc or a tap elsewhere closes it.
 
-### Grand Alliance rooms from every server
+### Grand Alliance rooms from both servers
 
-- The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
+- The Grand Alliance room browser now lists the open rooms of both servers, Singapore and US East, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
 
 ### Room cards show every player's outfit
 
@@ -259,7 +304,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Returning players load the game's code from their own browser
 
-- Behind the zero-downtime generations (a hosted server), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when a CDN holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by a CDN. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. A CDN cache rule for scripts is no longer needed.
+- Behind the zero-downtime generations (the live servers), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when Cloudflare holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by Cloudflare. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. The optional Cloudflare cache rule for scripts is no longer needed.
 
 ### Ping shows the connection, not the frame rate
 
@@ -472,7 +517,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -575,10 +620,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -696,7 +741,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -1021,7 +1066,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.

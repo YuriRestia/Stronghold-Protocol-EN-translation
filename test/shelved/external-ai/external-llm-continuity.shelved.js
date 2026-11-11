@@ -1,3 +1,5 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-llm-continuity.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -5,9 +7,9 @@ import { once } from 'node:events';
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLLMAgent, parseReply } from '../../tools/ai/llm-agent.mjs';
-import { compactDigest, compactChoices, continuity, focusPlan } from '../../tools/ai/llm-context.mjs';
-import { repairPlan, holdFloor } from '../../tools/ai/llm-plan.mjs';
+import { createLLMAgent, parseReply } from '../../../tools/ai/llm-agent.mjs';
+import { compactDigest, compactChoices, continuity, focusPlan } from '../../../tools/ai/llm-context.mjs';
+import { repairPlan, holdFloor } from '../../../tools/ai/llm-plan.mjs';
 
 test('round54 complete equip plans missing only the outer brace recover without guessing partial JSON', () => {
   const complete = { why: 'Keep the carry.', pivot: false, pivotReason: '',
@@ -69,11 +71,11 @@ test('§35.62 an intent main (round 65: the bot\'s focus, the band\'s bond) may 
   assert.deepEqual(parseReply('```json\n{"plan":{}}\n```'), { plan: {} });
   assert.throws(() => parseReply('no json'));
 });
-import { validPlan } from '../../server/match/aiPlan.js';
-import { aiObservation } from '../../server/match/externalAI.js';
-import { makeMatch, give, chessOfTier } from './harness.js';
+import { validPlan } from '../../../server/match/aiPlan.js';
+import { aiObservation } from '../../../server/match/externalAI.js';
+import { makeMatch, give, chessOfTier } from '../../match/harness.js';
 
-const fixture = JSON.parse(readFileSync(new URL('../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
+const fixture = JSON.parse(readFileSync(new URL('../../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
 const pack = fixture.knowledge;
 const observation = (digest, id, matchId = 'match-a', kind = 'prep') => ({ v: 'sp-ai/1', id, knowledgeVersion: pack.version,
   context: { matchId, mode: 'plan', kind }, digest });

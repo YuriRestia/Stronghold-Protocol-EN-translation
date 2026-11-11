@@ -1,14 +1,16 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-advisor.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeMatch, DATA, give, giveItem, checkInvariants } from './harness.js';
-import { validPlan, planPlacementWeight, NOTE_MAX } from '../../server/match/aiPlan.js';
-import { aiObservation } from '../../server/match/externalAI.js';
-import { buyScoreOf, itemTarget, levelUp, bondPlan } from '../../server/match/bot.js';
-import { externalConfig } from '../../server/match/externalConfig.js';
-import { decodeTestTrace, replayTestMatch } from '../../server/match/testReplay.js';
-import { FakeBattle } from './fakeBattle.js';
-import { runMatch } from '../../tools/ai/run-match.mjs';
-import { exampleServer } from '../../tools/ai/http.mjs';
+import { makeMatch, DATA, give, giveItem, checkInvariants } from '../../match/harness.js';
+import { validPlan, planPlacementWeight, NOTE_MAX } from '../../../server/match/aiPlan.js';
+import { aiObservation } from '../../../server/match/externalAI.js';
+import { buyScoreOf, itemTarget, levelUp, bondPlan } from '../../../server/match/bot.js';
+import { externalConfig } from '../../../server/match/externalConfig.js';
+import { decodeTestTrace, replayTestMatch } from '../../../server/match/testReplay.js';
+import { FakeBattle } from '../../match/fakeBattle.js';
+import { runMatch } from '../../../tools/ai/run-match.mjs';
+import { exampleServer } from '../../../tools/ai/http.mjs';
 import { once } from 'node:events';
 import http from 'node:http';
 

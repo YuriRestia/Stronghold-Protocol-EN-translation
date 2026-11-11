@@ -1,5 +1,14 @@
 # 服主接入外部 AI
 
+> **本分支已封存（2026-11-11）。** 外部 AI 在所有构建里都被锁住，开发分支也一样：服务器忽略 `SP_BOT_STRATEGY=external`、
+> `SP_BOT_STRATEGY_SEATS` 里的 `external`、对局的 `botStrategy: 'external'` 以及 `SP_EXTERNAL_AI_*` / `SP_LLM_*`，打一行日志，
+> 用内置 AI。所有测试套件都不再跑它的测试：测试在 `test/shelved/external-ai/`（`*.shelved.js`，见 `test/shelved/README.md`）。
+> 代码保持原样，留在原处。
+>
+> **重新启用：** 给服务器（以及用到它的工具或测试）设置 `SP_UNSHELVE_EXTERNAL_AI=1`，再手动运行封存的测试
+> （`test/shelved/README.md`）。要长期恢复：删掉 `server/match/llmGate.js` 里的检查（`UNSHELVE_ENV`），把文件以 `*.test.js`
+> 移回 `test/`，删掉 `test/ci.test.js` 里关于 `test/shelved/` 的两行，并删除这段说明。
+
 **目前仅开发分支（维护者 2026-10-23，§35.66）。** 发布包、更新包和 Docker 镜像都不带这份接入。发布包里的服务器遇到 `SP_BOT_STRATEGY=external` 和 `SP_EXTERNAL_AI_*` / `SP_LLM_*` 时忽略它们，打一行日志，用内置 AI。下面的步骤只适用于从源码运行的开发分支。
 
 **2026-11-05 起暂时搁置（维护者，§37.85）。** 四人终极按种子配对，模型放开哪类决策都没有超过同代码的人机。代码留在开发分支，不再调优，也不再跑付费对局；只有维护者决定才重新打开。

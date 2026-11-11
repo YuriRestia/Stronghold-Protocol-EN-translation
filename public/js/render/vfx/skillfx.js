@@ -95,7 +95,9 @@ import {
   FX_HIT_TILES,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
+import { layerKeysOf } from './talentfx.js';
 import { unitPoint } from './mounts.js';
+import { PathFx } from './pathfx.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
@@ -239,8 +241,10 @@ export class SkillFx {
     this.gone = new Map();     // unit id → { frame, key, x, y }: the frame's deaths / leaks / retreats (an enemy's death zone)
     this.auraWins = [];        // the frame's aura ticks the official layer stands for: { frame, x, y, r, src, tg } (auraHit)
     this.aloops = new Map();   // `${target id}|${key}` → { h, until, v }: an aura's looping buff effect on a unit in it
+    this.lives = new Map();    // (fork) FX_BINDINGS hold 'life': `${unit id}|${key}` → { h, v, src } (_lifeMark)
     this.viewList = [];        // the battle's views as the last sync gave them (an enemy binding's 'near' owner)
     this.modeWins = new Map(); // unit id → { hs, seq }: the loops of a mode an enemy binding's fx started (_modeWin)
+    this.paths = new PathFx(w); // (fork) line / path effects whose points a kit fx carries (pathfx.js PATH_BINDINGS)
   }
 
   active() { return !!this.w.ofx.active && !!this.w.idx; }
@@ -402,6 +406,7 @@ export class SkillFx {
 
   /** b.ev ['skill', id, on] (module header). Returns true when the official layer shows this skill. */
   skill(v, on) {
+    if (!on) this.paths.skillOff(idOf(v));
     const U = this.of(v);
     if (!U || !U.plan) return false;
     const live = this.active();
@@ -435,6 +440,8 @@ export class SkillFx {
       let drew = false;
       for (const e of uniq([...U.plan.start, ...U.plan.range, ...U.plan.loop])) {
         if (e.birth) continue;     // the deploy's (birthOf: FxWiring.deploy plays it)
+        // (fork) a loop the kit's layer count holds (talentfx.js FX_LAYERS: 塔露拉 S2's stack) is TalentFx's to play
+        if (U.plan.loop.includes(e) && layerKeysOf(this.w.unitKeyOf(v)).has(e.key)) continue;
         // (fork) a buff loop on the owner with a life of its own (index v3 `life`: LIMITED, a time or our record's
         // blackboard key) outlives a skill that does not last — 塔露拉 S2's oxi_s_2_stack, stack_duration 10 s, of a skill
         // that is on and off in one tick: it runs its own time, as a target's buff loop does (_targetLoop)
@@ -961,9 +968,13 @@ export class SkillFx {
       this.tloops.clear();
       for (const t of this.aloops.values()) t.h.stop();
       this.aloops.clear();
+      // (fork) a 'life' mark is not started again (its fx came once): it is gone with the cleared effects
+      for (const t of this.lives.values()) t.h.stop();
+      this.lives.clear();
       // the held crosshairs too (PR #862 review): their handles died with the effects, a later lock starts afresh
       for (const L of this.locks) this._endLock(L);
       this.locks.length = 0;
+      this.paths.reset();
       this.tier = tier;
       this.wasActive = active;
     }
@@ -976,6 +987,7 @@ export class SkillFx {
     const wins = this.windows;
     this.windows = [];
     if (!active) return;
+    this.paths.sync();
     for (const win of wins) {
       if (!win.inst || win.frame !== this.frame) continue;
       if (win.U.instPending === this.frame && !win.U.attacked && win.U.v) this._instCast(win.U, win.U.v, win);
@@ -1041,6 +1053,11 @@ export class SkillFx {
       const tv = t.v;
       if (!tv || tv.destroyed || tv.alive === false || now >= t.until || !t.h.alive) { t.h.stop(); this.aloops.delete(slot); }
     }
+    // (fork) a 'life' mark ends with its unit or its owner (dead, left, retreated)
+    for (const [slot, t] of this.lives) {
+      const gone = (v) => !v || v.destroyed || v.alive === false;
+      if (gone(t.v) || gone(this.units.get(t.src)?.v) || !t.h.alive) { t.h.stop(); this.lives.delete(slot); }
+    }
     if (this.marks.length) this.marks = this.marks.filter((m) => m.until > now);
     if (this.locks.length) this._syncLocks(now);
   }
@@ -1102,6 +1119,9 @@ export class SkillFx {
     if (extra.charged === true && extra.id != null) { const C = this.units.get(extra.id); if (C) C.charged = true; }
     // (0) an enemy's area: its zone's official prefabs at the fx's point, an aura tick its talent loops stand for
     if (this._enemyFx(kind, x, y, extra)) return true;
+    // (fork) a line / path effect whose points the fx carries (pathfx.js: 国度's kingdom, 谬因 S2's beam; 予愿安洁莉娜 S3's
+    // range outline is added beside the kit's own fx)
+    if (extra.id != null && this.paths.simFx(kind, x, y, extra, this.of(this.w.view(extra.id)))) return true;
     // a shell of a lock binding's shooter takes its lock; its landing ends it (the kit's fx, drawn as before)
     if ((kind === 'bombardShell' || kind === 'bombard') && this.locks.length) this._lockShell(kind, x, y, extra);
     // (fork) a held binding's `until` kind from the same shooter on the same unit ends it (蕾缪安 S2: her shot ends the aim)
@@ -1121,6 +1141,7 @@ export class SkillFx {
       const bind = U ? FX_BINDINGS[U.skillId]?.[kind] : null;
       if (bind && bind.only && Object.entries(bind.only).some(([k, val]) => extra[k] !== val)) continue;
       if (bind && bind.owner === field && (!bind.during || this._lasts(U))) {
+        if (bind.none) return true;   // (fork) the official draws nothing there (skills.js `none`)
         if (bind.attack) return this._boundAttack(U, bind);
         if (bind.shots) return this._lanes(U, bind, extra);
         if (bind.flight) return this._flight(U, bind, x, y, extra);
@@ -1241,6 +1262,7 @@ export class SkillFx {
       for (const k of keys) if (this.w.playOn(k, at, { important: true })) drew = true;
       return drew;
     }
+    if (bind.hold === 'life') return this._lifeMark(U, keys, tv);
     if (bind.hold === 'lock') return this._lockOn(U, keys, at, tv, x, y);
     const bb = U.srec?.bb || {};
     const fxS = Number(extra.duration ?? extra.dur ?? extra.hold ?? extra.t);   // (fork) `t`: 蕾缪安's shell flight
@@ -1263,6 +1285,26 @@ export class SkillFx {
     const line = drew && bind.line ? this._line(U, bind.line, tv, holdS) : null;
     if (line) held.push(line);
     if (drew && bind.until) this.untils.push({ kind: bind.until, src: U.id, id: extra.id, hs: held });
+    return drew;
+  }
+
+  /**
+   * (fork) An FX_BINDINGS hold 'life' (蕾缪安's Wanted mark, skills.js LEMUEN_WANTED): its loops on the unit the fx names
+   * until that unit or the owner is gone (sync). One per unit and key: a mark already on it is kept (true). False without
+   * the unit's view or a prefab: the procedural fx stays.
+   */
+  _lifeMark(U, keys, tv) {
+    const id = tv?.id ?? tv?.info?.id;
+    if (!tv || id == null || tv.destroyed || tv.alive === false) return false;
+    let drew = false;
+    for (const k of keys) {
+      const slot = `${id}|${k}`;
+      if (this.lives.get(slot)?.h.alive) { drew = true; continue; }
+      const h = this.w.playOn(k, tv, { loop: true, important: true });
+      if (!h) continue;
+      this.lives.set(slot, { h, v: tv, src: U.id });
+      drew = true;
+    }
     return drew;
   }
 
@@ -1686,8 +1728,11 @@ export class SkillFx {
     this.gone.clear();
     this.auraWins = [];
     this.aloops.clear();
+    for (const t of this.lives.values()) t.h.stop();
+    this.lives.clear();
     this.viewList = [];
     for (const m of this.modeWins.values()) for (const h of m.hs) h.stop();
     this.modeWins.clear();
+    this.paths.clear();
   }
 }

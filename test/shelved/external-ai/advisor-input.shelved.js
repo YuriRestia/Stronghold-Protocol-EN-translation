@@ -1,19 +1,21 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/advisor-input.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { DATA, makeMatch, give, giveItem } from './harness.js';
-import { knowledgePack, effectText } from '../../server/ai/knowledge.js';
-import { buildPlaybook } from '../../server/ai/playbook.js';
-import { strategyCandidates } from '../../server/ai/strategy.js';
-import { aiDigest } from '../../server/match/aiDigest.js';
-import { advisorSystem, STRATEGY_PROMPT, SYSTEM_BUDGET } from '../../tools/ai/llm-agent.mjs';
-import { slimKnowledge } from '../../tools/ai/llm-knowledge.mjs';
-import { compactDigest, compactChoices, focusPlan } from '../../tools/ai/llm-context.mjs';
-import { repairPlan } from '../../tools/ai/llm-plan.mjs';
-import { validPlan } from '../../server/match/aiPlan.js';
+import { DATA, makeMatch, give, giveItem } from '../../match/harness.js';
+import { knowledgePack, effectText } from '../../../server/ai/knowledge.js';
+import { buildPlaybook } from '../../../server/ai/playbook.js';
+import { strategyCandidates } from '../../../server/ai/strategy.js';
+import { aiDigest } from '../../../server/match/aiDigest.js';
+import { advisorSystem, STRATEGY_PROMPT, SYSTEM_BUDGET } from '../../../tools/ai/llm-agent.mjs';
+import { slimKnowledge } from '../../../tools/ai/llm-knowledge.mjs';
+import { compactDigest, compactChoices, focusPlan } from '../../../tools/ai/llm-context.mjs';
+import { repairPlan } from '../../../tools/ai/llm-plan.mjs';
+import { validPlan } from '../../../server/match/aiPlan.js';
 
 const hard = knowledgePack(DATA, { modeId: 'mode_multi_hard' });
-const fixture = JSON.parse(readFileSync(new URL('../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
+const fixture = JSON.parse(readFileSync(new URL('../../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
 
 test('the example system prompt is a slim view of the unchanged pack within SYSTEM_BUDGET (round 65: 50000 characters)', () => {
   const system = advisorSystem(hard);

@@ -8,7 +8,7 @@
 // it at once), and room.state `seats[].outfits` carries every seat's choice back.
 //
 // Resolvers (registered on import): ui/assetUrls.js setOutfitPicker (the own avatar / portrait), audio.js
-// setOutfitVoiceResolver (a unit's outfit voice set), and outfitModelOf (render/units.js via ui/fieldHost.js: the model a
+// setOutfitVoiceResolver (a unit's outfit voice set) and setOutfitSfxResolver (the outfit whose battle sounds it plays), and outfitModelOf (render/units.js via ui/fieldHost.js: the model a
 // unit wears). A unit's owner: `ownerId` (sim / scout UnitInfo); a piece without one is the player's own (the own prep
 // board and bench). A 补位 stand-in is another operator (its own charId: no outfit of the replaced one); a 自选 piece is
 // its pick's operator. Summons wear the look the owner's outfit gives them (data/outfits.json `tokens`).
@@ -16,7 +16,7 @@
 import { createStore, loadPref, savePref, store } from '../store.js';
 import { data } from '../data.js';
 import { setOutfitPicker } from './assetUrls.js';
-import { setOutfitVoiceResolver } from '../audio.js';
+import { setOutfitVoiceResolver, setOutfitSfxResolver } from '../audio.js';
 import { OUTFITS_PREF, cleanOutfits } from '../../../shared/outfits.js';
 
 export const OUTFIT_SYNC_DEBOUNCE_MS = 500;
@@ -100,6 +100,13 @@ export function outfitVoiceOf(u) {
   return outfitRecord(skinId)?.voice || null;
 }
 
+/** (fork) The outfit (skinId) an operator unit / piece wears for its battle sounds (audio.js unitSfx), or null. */
+export function outfitSkinOf(u) {
+  if (!u || u.side === 'enemy' || (u.kind && u.kind !== 'op')) return null;
+  const charId = u.charId || u.spine;
+  return (typeof charId === 'string' && choiceOf(u.ownerId)[charId]) || null;
+}
+
 /**
  * The ui/assetUrls.js option that dresses `charId` as player `ownerId` does: undefined for the own units (null / the own
  * id: the own choice applies by itself), else `{ outfit: skinId | null }` (null = that player's default look).
@@ -112,6 +119,7 @@ export function outfitOptsOf(charId, ownerId) {
 
 setOutfitPicker((charId) => outfitStore.get().outfits[charId] || null);
 setOutfitVoiceResolver(outfitVoiceOf);
+setOutfitSfxResolver(outfitSkinOf);
 
 // ---- server sync --------------------------------------------------------------------------------------------
 
