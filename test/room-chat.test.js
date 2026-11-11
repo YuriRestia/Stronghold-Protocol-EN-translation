@@ -7,10 +7,10 @@ import assert from 'node:assert/strict';
 import { Lobby } from '../server/lobby.js';
 import { SessionRegistry } from '../server/net.js';
 import { getData } from '../server/data.js';
-import { chatLimitCheck, chatLimitState, chatNetworkCheck, chatNetworkSweep } from '../server/chatLimit.js';
+import { chatBudgetReset, chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes } from '../server/chatLimit.js';
 import {
-  CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_NETWORK_LINES, CHAT_PAUSE_FORGIVE_MS, EMOTES, ROOM_CHAT_GAP_MS,
-  ROOM_CHAT_HISTORY_LINES,
+  CHAT_BUDGET_BYTES_PER_S, CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_NETWORK_LINES,
+  CHAT_PAUSE_FORGIVE_MS, EMOTES, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_LINES,
 } from '../shared/constants.js';
 import { ROOM_LOG_KEEP, roomChatAppend, roomChatFor, roomChatLine, roomChatSystemLines } from '../public/js/roomChat.js';
 
@@ -19,6 +19,7 @@ const quiet = { info() {}, warn() {}, error() {}, debug() {} };
 class Rec { constructor(opts) { this.opts = opts; } start() {} dispose() {} onLeave() {} onDisconnect() {} }
 
 function harness() {
+  chatBudgetReset(CHAT_BUDGET_BYTES_PER_S);
   const clock = { t: 1_000_000 };
   const registry = new SessionRegistry();
   const lobby = new Lobby({ registry, log: quiet, MatchClass: Rec, content: { cs: VANILLA }, getData, now: () => clock.t, options: { largeRooms: true } });
@@ -64,8 +65,8 @@ test('limits: a gap, a burst that starts a pause, pauses that grow and are forgi
   const p1 = chatLimitCheck(st, 'one too many', now, { gapMs: 1500 });
   assert.deepEqual([p1.why, p1.newPause, p1.pausedUntil - now], ['burst', true, 30_000]);
   assert.equal(chatLimitCheck(st, 'x', now + 10_000, { gapMs: 1500 }).why, 'paused');
-  // the second and third offences pause longer; the steps stop at 120 s
-  const offend = () => { for (let i = 0; i < CHAT_BURST_LINES; i++) { now = st.pausedUntil + 1 + i * 1600; chatLimitCheck(st, `r${now}`, now, { gapMs: 1500 }); } now += 1600; return chatLimitCheck(st, 'y', now, { gapMs: 1500 }); };
+  // the second and third offences pause longer; the steps stop at 120 s (each after a quiet 5 min, so only the burst trips)
+  const offend = () => { const from = st.pausedUntil + CHAT_LONG_MS; for (let i = 0; i < CHAT_BURST_LINES; i++) { now = from + i * 1600; chatLimitCheck(st, `r${now}`, now, { gapMs: 1500 }); } now += 1600; return chatLimitCheck(st, 'y', now, { gapMs: 1500 }); };
   assert.equal(offend().pausedUntil - now, 60_000);
   assert.equal(offend().pausedUntil - now, 120_000);
   assert.equal(offend().pausedUntil - now, 120_000);
@@ -89,6 +90,55 @@ test('limits: a repeated line inside 10 s is dropped but counts toward the burst
   assert.equal(chatNetworkCheck(table, 'net', CHAT_BURST_MS + 50), true, 'the window moves on');
   chatNetworkSweep(table, 10 * CHAT_BURST_MS);
   assert.equal(table.size, 0, 'idle networks are dropped');
+});
+
+test('limits: 20 lines in 5 minutes, even kept just under the burst, start a pause', () => {
+  const st = chatLimitState();
+  let now = 0;
+  let sent = 0;
+  // 5 lines every 15 s never trips the burst; the 5-minute window still holds the sender to 20
+  for (let i = 0; i < 40 && sent < CHAT_LONG_LINES; i++) {
+    for (let k = 0; k < 5 && sent < CHAT_LONG_LINES; k++) { assert.equal(chatLimitCheck(st, `l${sent}`, now, { gapMs: 1500 }).ok, true); sent++; now += 1600; }
+    now += 15_000;
+  }
+  const r = chatLimitCheck(st, 'one more', now, { gapMs: 1500 });
+  assert.deepEqual([r.why, r.newPause], ['long', true]);
+  assert.ok(now - 0 < CHAT_LONG_MS, 'all inside one window');
+});
+
+test('limits: the gate refuses before any filtering — a line that cleans to nothing still spends the gap', () => {
+  const st = chatLimitState();
+  assert.equal(chatLimitGate(st, 0, { gapMs: 1500 }), true);
+  assert.equal(chatLimitGate(st, 500, { gapMs: 1500 }), false, 'a junk flood is turned away without a filter run');
+  assert.equal(chatLimitGate(st, 1000, { gapMs: 1500 }), true, '1.5 s less the 0.5 s of jitter');
+  st.pausedUntil = 5000;
+  assert.equal(chatLimitGate(st, 4000, { gapMs: 1500 }), false);
+});
+
+test('budget: one bucket for every chat line, two seconds deep, refilled by the second', () => {
+  chatBudgetReset(1000);
+  assert.equal(chatWireBytes(100, 3), 3 * 180, 'each recipient: the frame plus 80 B of TLS / TCP');
+  assert.equal(chatBudgetTake(1500, 0), true);
+  assert.equal(chatBudgetTake(600, 0), false, '2 s of budget is 2,000 B');
+  assert.equal(chatBudgetTake(600, 100), true, '100 ms refilled 100 B');
+  assert.equal(chatBudgetTake(2001, 10_000), false, 'never more than two seconds at once');
+  chatBudgetReset(CHAT_BUDGET_BYTES_PER_S);
+});
+
+test('room chat: over the server-wide budget a line is dropped and the sender told "busy", at most every 3 s', () => {
+  const h = harness();
+  const { host, guests: [a] } = h.room(2);
+  chatBudgetReset(100); // a tiny budget: 200 B at once
+  say(h, host, 'x'.repeat(100));
+  assert.equal(h.got(a, 'room.chat').length, 0, 'over the budget: nobody gets it');
+  assert.deepEqual(h.got(host, 'room.chatPause'), [{ t: 'room.chatPause', ms: 3000, busy: true }]);
+  h.step(ROOM_CHAT_GAP_MS);
+  say(h, host, 'y'.repeat(100));
+  assert.equal(h.got(host, 'room.chatPause').length, 1, 'told once per 3 s');
+  h.step(2000);
+  say(h, host, 'ok');
+  assert.equal(h.got(a, 'room.chat').at(-1)?.x, 'ok', 'a short line fits once the budget refilled');
+  chatBudgetReset(CHAT_BUDGET_BYTES_PER_S);
 });
 
 test('room chat: a plain-text line to every other member, never back to the sender; refusals send nothing', () => {

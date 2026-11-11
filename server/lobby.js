@@ -236,9 +236,9 @@
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
 import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
-import { CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_BYTES, ROOM_CHAT_HISTORY_LINES } from '../shared/constants.js';
+import { CHAT_BUSY_MS, CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_BYTES, ROOM_CHAT_HISTORY_LINES } from '../shared/constants.js';
 import { chatLine } from '../shared/text.js';
-import { chatLimitCheck, chatLimitState, chatNetworkCheck, chatNetworkSweep } from './chatLimit.js';
+import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './chatLimit.js';
 import { CHAT_ON } from './match/chatWallet.js';
 import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS, squadOfSeat, squadMoveWait, squadMoveLog, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
@@ -2201,10 +2201,11 @@ export class Lobby {
     const room = this.roomOf(session);
     const seat = room && !room.match ? room.seatOf(session.playerId) : null;
     if (!CHAT_ON || !seat || seat.isBot) return OK;
-    const text = chatLine(x);
-    if (!text) return OK;
     const now = this.now();
     if (!session.chatLimit) session.chatLimit = chatLimitState();
+    if (!chatLimitGate(session.chatLimit, now, { gapMs: ROOM_CHAT_GAP_MS })) return OK;
+    const text = chatLine(x);
+    if (!text) return OK;
     const lim = chatLimitCheck(session.chatLimit, text, now, { gapMs: ROOM_CHAT_GAP_MS });
     if (!lim.ok) {
       if (lim.newPause) sendSession(session, { t: 'room.chatPause', ms: lim.pausedUntil - now });
@@ -2214,8 +2215,16 @@ export class Lobby {
     if (!chatNetworkCheck(this.chatNets, session.addr, now)) return OK;
     const line = { t: 'room.chat', id: session.playerId, n: seat.name, x: text };
     const to = [...this.memberSessions(room)];
-    this.roomChatKeep(room, line, to.map((m) => m.playerId), now);
     const data = encode(line);
+    // the server-wide chat budget (server cost): over it the line is dropped and the sender told, at most every 3 s
+    if (!chatBudgetTake(chatWireBytes(utf8Bytes(data), to.length - 1), now)) {
+      if (now - (session.chatBusyAt ?? -Infinity) >= CHAT_BUSY_MS) {
+        session.chatBusyAt = now;
+        sendSession(session, { t: 'room.chatPause', ms: CHAT_BUSY_MS, busy: true });
+      }
+      return OK;
+    }
+    this.roomChatKeep(room, line, to.map((m) => m.playerId), now);
     for (const m of to) if (m !== session) sendSession(m, line, data);
     return OK;
   }

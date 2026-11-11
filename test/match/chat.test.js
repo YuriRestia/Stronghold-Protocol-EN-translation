@@ -20,10 +20,10 @@ function fixture(chatLeft = 10) {
 }
 const field = (count, players = ['p_0']) => ({ players, spec: { spawns: [{ enemyKey: 'a', count }, { enemyKey: 'b', count: 1 }] } });
 
-test('protocol: g.chat / room.chat take a string up to 1,000 UTF-16 units, nothing else; the chat frames are known', () => {
+test('protocol: g.chat / room.chat take a string up to 600 UTF-16 units, nothing else; the chat frames are known', () => {
   for (const t of ['g.chat', 'room.chat']) {
-    assert.equal(validateC2S({ t, x: 'x'.repeat(1000) }), null, t);
-    assert.ok(validateC2S({ t, x: 'x'.repeat(1001) }), `${t}: a frame far past any line (300 code points) is refused`);
+    assert.equal(validateC2S({ t, x: 'x'.repeat(600) }), null, t);
+    assert.ok(validateC2S({ t, x: 'x'.repeat(601) }), `${t}: a frame far past any line (300 code points) is refused`);
     assert.ok(validateC2S({ t, x: 5 }));
     assert.ok(validateC2S({ t }));
   }
@@ -86,6 +86,9 @@ test('no wallet, an empty line, a bot or the cooldown: nothing sent, no error fr
   assert.deepEqual(sendChat(m, ps, ' \u200b '), { ok: true }, 'nothing printable');
   assert.equal(sent.length, 0);
   assert.equal(ps.chatLeft, 10, 'an empty line costs nothing');
+  sendChat(m, ps, 'one');
+  assert.equal(sent.length, 0, 'but it spends the gap: the gate runs before the filter (server cost)');
+  wait();
   sendChat(m, ps, 'one');
   assert.deepEqual(sendChat(m, ps, 'two'), { ok: true }, 'cooldown');
   assert.equal(sent.length, 1);

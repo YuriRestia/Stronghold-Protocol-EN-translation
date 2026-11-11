@@ -379,6 +379,15 @@ export const CHAT_PAUSE_FORGIVE_MS = 10 * 60_000;
 export const CHAT_DUPLICATE_MS = 10_000;
 export const CHAT_DUPLICATE_LINES = 3;
 export const CHAT_NETWORK_LINES = 20;
+// (fork) server cost (user, 2026-11-11: no build without a cap that bounds the worst case): a sender's lines in any 5 min,
+// and one budget for every chat line the server sends (room and match chat in this process together): bytes a second on
+// the wire, the frame plus CHAT_FRAME_OVERHEAD for TLS / TCP, to every recipient. Over it a line is dropped and its
+// sender told "chat is busy" (once per CHAT_BUSY_MS). 32 KB/s ≈ 2.8 GB/day at most, however many players.
+export const CHAT_LONG_LINES = 20;
+export const CHAT_LONG_MS = 5 * 60_000;
+export const CHAT_BUDGET_BYTES_PER_S = 32 * 1024;
+export const CHAT_FRAME_OVERHEAD = 80;
+export const CHAT_BUSY_MS = 3000;
 // (fork) room chat history (server memory only, never disk): the last lines of a room, for a member who reconnects
 export const ROOM_CHAT_HISTORY_LINES = 50;
 export const ROOM_CHAT_HISTORY_BYTES = 16 * 1024;

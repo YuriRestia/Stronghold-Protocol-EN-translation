@@ -37,6 +37,7 @@ export function senderClass(room, myId, id) {
 function LineBody({ l }) {
   if (l.sys === 'join') return html`<span class="clog__sys">${t('{name} 加入了同盟', { name: l.n || t('博士') })}</span>`; // en: "{name} joined the Alliance"
   if (l.sys === 'leave') return html`<span class="clog__sys">${t('{name} 离开了同盟', { name: l.n || t('博士') })}</span>`; // en: "{name} left the Alliance"
+  if (l.sys === 'busy') return html`<span class="clog__warn">${t('聊天繁忙，请稍后再试。')}</span>`; // en: "Chat is busy. Try again in a moment."
   if (l.sys === 'pause') {
     return html`<span class="clog__warn">${t('发送太快了，聊天暂停 {n} 秒。', { n: Math.ceil((l.ms || 0) / 1000) })}</span>`; // en: "You're sending too fast. Chat paused for {n} s."
   }

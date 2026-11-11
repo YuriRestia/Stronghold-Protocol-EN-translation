@@ -10,7 +10,7 @@ export const ROOM_LOG_KEEP = 200;
 /** Bubbles kept in store.emotes (main.js EMOTE_KEEP). */
 const EMOTE_KEEP = 20;
 
-/** @typedef {{ seq: number, id: string|null, n: string, x: string, at: number, sys?: 'join'|'leave'|'pause', ms?: number }} RoomLine */
+/** @typedef {{ seq: number, id: string|null, n: string, x: string, at: number, sys?: 'join'|'leave'|'pause'|'busy', ms?: number }} RoomLine */
 
 let lineSeq = 0;
 /** A fresh log for room `code`. */
@@ -66,7 +66,7 @@ export function installRoomChat(net, store) {
     if (!Number.isFinite(ms) || ms <= 0) return;
     const now = Date.now();
     store.set((st) => {
-      const rc = roomChatAppend(ensure(st), [{ id: null, n: '', x: '', at: now, sys: 'pause', ms }]);
+      const rc = roomChatAppend(ensure(st), [{ id: null, n: '', x: '', at: now, sys: msg.busy ? 'busy' : 'pause', ms }]);
       return { roomChat: { ...rc, pausedUntil: now + Math.min(ms, 10 * 60_000) } };
     });
   });

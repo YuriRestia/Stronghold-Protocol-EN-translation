@@ -9,10 +9,10 @@
 // Every limit is enforced here; the browser only mirrors them. Nothing here answers with an error frame: a refused line
 // costs no download, and a page that follows the rules never has one refused. Nothing is stored or replayed.
 
-import { CHAT_COOLDOWN_MS, CHAT_MAX_LETTERS } from '../../shared/constants.js';
+import { CHAT_BUSY_MS, CHAT_COOLDOWN_MS, CHAT_MAX_LETTERS } from '../../shared/constants.js';
 import { chatLine, letterCount } from '../../shared/text.js';
 import { msg } from '../../shared/i18n.js';
-import { chatLimitCheck, chatLimitState } from '../chatLimit.js';
+import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatWireBytes, utf8Bytes } from '../chatLimit.js';
 import { creditedKillsOf } from '../sim/spec.js';
 import { OK } from './match/common.js';
 
@@ -71,9 +71,10 @@ export function settleChatWallet(ps, round) {
 export function sendChat(m, ps, raw) {
   if (!CHAT_ON || ps.isBot || !(ps.chatLeft > 0) || typeof raw !== 'string') return OK;
   const now = m.sched.now();
+  if (!ps.chatLimit) ps.chatLimit = chatLimitState();
+  if (!chatLimitGate(ps.chatLimit, now, { gapMs: CHAT_COOLDOWN_MS })) return OK;
   const text = chatLine(raw, Math.min(ps.chatLeft, CHAT_MAX_LETTERS));
   if (!text) return OK;
-  if (!ps.chatLimit) ps.chatLimit = chatLimitState();
   const lim = chatLimitCheck(ps.chatLimit, text, now, { gapMs: CHAT_COOLDOWN_MS });
   if (!lim.ok) {
     if (lim.newPause) {
@@ -82,7 +83,18 @@ export function sendChat(m, ps, raw) {
     }
     return OK;
   }
+  // the server-wide chat budget (server cost), shared with room chat in this process; its clock is the wall clock
+  const frame = { t: 'm.chat', p: ps.seat, x: text };
+  const recipients = Math.max(0, (m.players?.size ?? 0) + (m.spectators?.size ?? 0) - 1);
+  const wall = Date.now();
+  if (!chatBudgetTake(chatWireBytes(utf8Bytes(JSON.stringify(frame)), recipients), wall)) {
+    if (wall - (ps.chatBusyAt ?? -Infinity) >= CHAT_BUSY_MS) {
+      ps.chatBusyAt = wall;
+      m.toast(ps, 'warn', msg('聊天繁忙，请稍后再试。')); // en: "Chat is busy. Try again in a moment."
+    }
+    return OK;
+  }
   ps.chatLeft -= letterCount(text);
-  m.broadcast({ t: 'm.chat', p: ps.seat, x: text }, ps.playerId);
+  m.broadcast(frame, ps.playerId);
   return OK;
 }

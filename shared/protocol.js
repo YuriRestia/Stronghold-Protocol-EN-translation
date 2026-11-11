@@ -16,8 +16,8 @@ import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
 const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
-/** (fork) the longest chat frame text accepted at all (UTF-16 units); a real line is at most 600 */
-const CHAT_FRAME_MAX = 1000;
+/** (fork) the longest chat frame text accepted at all (UTF-16 units): a real line is at most 300 code points, 600 units */
+const CHAT_FRAME_MAX = 600;
 const isBool = (v) => typeof v === 'boolean';
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
 const isUid = (v) => isInt(v, 1, 2 ** 31);
@@ -755,7 +755,8 @@ export const S2C = [
   'm.chat',
   // (fork) room chat: room.chat { id, n, x } — a line in the room screen (`id` the sender's playerId, `n` their name then,
   // `x` the cleaned text), to the room's members but the sender · room.emote { id, e } — an emote there · room.chatPause
-  // { ms } — the sender's line started a spam pause of `ms` (to the sender, once a pause) · room.chatLog { lines: [{ id, n,
+  // { ms, busy? } — the sender's line started a spam pause of `ms` (to the sender, once a pause), or with `busy` the
+  // server-wide chat budget dropped it (at most every 3 s) · room.chatLog { lines: [{ id, n,
   // x, ago }] } — on a reconnect, the lines this member got before (server memory only; never on disk)
   'room.chat', 'room.emote', 'room.chatPause', 'room.chatLog',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.

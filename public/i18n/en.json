@@ -2619,6 +2619,7 @@
   "取消屏蔽 {name}": "Unmute {name}",
   "文字": "Text",
   "发送太快了，聊天暂停 {n} 秒。": "You're sending too fast. Chat paused for {n} s.",
+  "聊天繁忙，请稍后再试。": "Chat is busy. Try again in a moment.",
   "{name} 加入了同盟": "{name} joined the Alliance",
   "{name} 离开了同盟": "{name} left the Alliance",
   "观战席只能查看聊天": "Spectators can only read the chat",
