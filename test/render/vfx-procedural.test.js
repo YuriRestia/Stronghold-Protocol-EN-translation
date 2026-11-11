@@ -353,12 +353,27 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
   test('(fork) 蕾缪安 S2: the aim holds its reticle and aim line until her shot, which plays its hit; 莫斯提马 S2\'s hit stops like a hit', async () => {
     const RET = 'lemuen_skill_02_crosshair_02', LINE = 'lemuen_skill_02_trail_01', SHOT = 'lemuen_skill_02_hit_01', HIT = 'mostma_skill_02_hit';
     const END = 'lemuen_skill_02_crosshair_01';
-    const { w, ofx, view, frame, handles, index } = await setup({ installed: [...KEYS, RET, LINE, SHOT, HIT, END] });
+    const S2A = 'lemuen_skill_02_start_02', S2B = 'lemuen_skill_02_start_02_back', S21 = 'lemuen_skill_02_start_01', TRAIL = 'lemuen_skill_02_trail_02';
+    const NA = 'lemuen_attack_start_01', NTRAIL = 'lemuen_attack_trail_01';
+    const { w, ofx, view, frame, handles, index } = await setup({ installed: [...KEYS, RET, LINE, SHOT, HIT, END, S2A, S2B, S21, TRAIL, NA, NTRAIL] });
+    // (fork) her S2 mode as the client has it: an AbilityFirstSucceedGroup of the aimed shot (KIT_SHOTS: only her 'crit')
+    // and the normal shot (every 'atk')
+    const row = (slots, effects = slots) => ({ directionType: slots.length > 1 ? 5 : 0, effects, slots: slots.length > 1 ? slots : undefined, oneshot: 1, startEvent: 4, endEvent: 3 });
+    index.units.char_4193_lemuen.modes = [
+      { name: 'Default', attack: { class: 'RangedAttack', projectileKey: 'projectile_chr_lemuen', cast: [row([NA])], hit: [] } },
+      { name: 'S1', attack: { class: 'RangedAttack', cast: [], hit: [] } },
+      { name: 'S2', attack: { class: 'AbilityFirstSucceedGroup', select: { method: 'firstSucceed' }, cast: [], hit: [], abilities: [
+        { class: 'RangedAttack', projectileKey: 'projectile_chr_lemuen_s2', cast: [row([S2B, S2A, S2A, S2A], [S2B, S2A]), row([S21])], hit: [] },
+        { class: 'RangedAttack', projectileKey: 'projectile_chr_lemuen', cast: [row([NA])], hit: [] },
+      ] } },
+    ];
+    index.projectiles.projectile_chr_lemuen_s2 = { main: TRAIL, onHit: [SHOT], effects: [TRAIL, SHOT] };
+    index.projectiles.projectile_chr_lemuen = { main: NTRAIL, onHit: [], effects: [NTRAIL] };
     // (fork) the line prefab's LineEffectEmitterDynamic `_endEffect` (effect.js lineEnds): its reticle on the aimed enemy
     const def0 = ofx.lib.def;
     ofx.lib.def = (k) => (k === LINE ? { ...def0(k), lineEnds: { start: null, end: END } } : def0(k));
     index.prefabs[HIT].looping = true;                          // the Ethereal Harmony twin loops
-    index.units.char_4193_lemuen.skills.skchr_lemuen_2 = { mode: null, projectiles: [], uses: [] };
+    index.units.char_4193_lemuen.skills.skchr_lemuen_2 = { mode: 2, modeBy: 'data', projectiles: [], uses: [] };
     RECS.lemuen_s2 = rec('skchr_lemuen_2', { bb: { 'attack@aim_duration': 3.5 } });
     RECS.mostma_s2 = rec('skchr_mostma_2', { duration: 7 });
     try {
@@ -382,7 +397,15 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
       assert.equal(w.simFx('crit', 6, 10, { id: 2, src: 1 }), true);
       assert.deepEqual([alive(RET), alive(LINE)], [1, 1], 'her shot ends that aim only');
       assert.equal(alive(END), 1, 'the end reticle goes with its line');
-      assert.equal(handles.filter((h) => h.key === SHOT).length, 1, 'and plays its hit on the enemy');
+      const n = (k) => handles.filter((h) => h.key === k).length;
+      assert.deepEqual([n(S2A), n(S21), n(S2B), n(NA)], [1, 1, 0, 0], 'her aimed shot: its muzzle flashes (facing right: start_02), not the normal one');
+      assert.equal(n(TRAIL), 1, 'its projectile flies');
+      // the stub runs no effects: the flight is driven to its end through its track callback (wiring.js _fly)
+      handles.find((h) => h.key === TRAIL).opts.track({ time: 9, anchor: [0, 0, 0], def: {}, stop() {}, kill() {} });
+      assert.equal(n(SHOT), 1, 'and its hit plays on the enemy as it lands');
+      frame();   // another frame: the same frame's 'atk's are one attack
+      w.attack(lem, w.view(3), 'ranged', 0);
+      assert.deepEqual([n(NA), n(S2A)], [1, 1], 'an ordinary attack in S2 is her normal shot, not the aimed one');
       for (let i = 0; i < 90; i++) frame();
       assert.deepEqual([alive(RET), alive(LINE)], [0, 0], 'an aim with no shot ends with her aim time');
       assert.equal(w.simFx('timeLockHit', 6, 10, { id: 2, src: 4 }), true);
@@ -394,6 +417,20 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
       delete RECS.lemuen_s2;
       delete RECS.mostma_s2;
     }
+  });
+
+  test('(fork) a piece put on the board in prep plays its official birth (the outfit twin) and leaves no battle record', async () => {
+    const SUF = 'ambiencesynesthesia#7', TWIN = 'lemuen_birth_01_' + SUF;
+    const { w, view, handles, index } = await setup({ installed: [...KEYS, TWIN] });
+    index.skinPairs = { ['char_4193_lemuen@' + SUF]: { g_birth: TWIN } };
+    index.skinFx = { [SUF]: {} };
+    const plain = view('p:1', 'char_4193_lemuen', 3);
+    const rv = view('p:2', 'char_4193_lemuen', 4);
+    rv.info.model = 'char_4193_lemuen@ambienceSynesthesia#7';
+    assert.equal(w.birth(plain, { cache: false }), true);
+    assert.equal(w.birth(rv, { cache: false }), true);
+    assert.deepEqual(handles.map((h) => h.key), ['g_birth', TWIN], 'the generic birth; Requiem Vesperis plays its own');
+    assert.equal(w.skills.units.has('p:1') || w.skills.units.has('p:2'), false, 'no record in the battle table');
   });
 
   test('(fork) 蕾缪安 attack flash by deploy direction (FOUR_DIR_FIXED slots): UP the _back, DOWN the _down, LEFT / RIGHT the plain one', async () => {

@@ -250,7 +250,7 @@ export class SkillFx {
   // ---- resolution -------------------------------------------------------------------------------------------------
 
   /** The record of a battle unit (resolved once per battle id), or null when nothing official belongs to it. */
-  of(v) {
+  of(v, o = {}) {
     if (!v || !this.w.idx) return null;
     const id = idOf(v);
     if (id == null) return null;
@@ -264,6 +264,8 @@ export class SkillFx {
         const r = unitKey ? planFor(this.w.idx, { info, rec, unitKey }) : null;
         if (r && (r.plan || r.charge || r.enemy.length)) U = this._record(id, r, rec);
       }
+      // (fork) `cache: false`: a prep piece's look-up (FxWiring.birth) leaves no record in the battle's table
+      if (o.cache === false) return U;
       this.units.set(id, U);
     }
     if (U) U.v = v;
@@ -634,8 +636,8 @@ export class SkillFx {
    * drawn); `own` — the skill's start plays it at the deploy (a passive's start one-shots, a held one for its while:
    * 斯卡蒂 S2's loop), else FxWiring.deploy plays it and the skill's start leaves it out.
    */
-  birthOf(v) {
-    const U = this.of(v);
+  birthOf(v, o = {}) {
+    const U = this.of(v, o);
     const e = U?.plan ? U.plan.start.find((x) => x.birth) : null;
     if (!e) return null;
     const key = this._key(e, v);
@@ -1135,6 +1137,7 @@ export class SkillFx {
       if (bind && bind.owner === field && (!bind.during || this._lasts(U))) {
         if (bind.none) return true;   // (fork) the official draws nothing there (skills.js `none`)
         if (bind.attack) return this._boundAttack(U, bind);
+        if (bind.shot) return this._shot(U, bind, extra);
         if (bind.shots) return this._lanes(U, bind, extra);
         if (bind.flight) return this._flight(U, bind, x, y, extra);
         if (bind.fan) return this._fan(U, bind, extra);
@@ -1180,6 +1183,17 @@ export class SkillFx {
   }
 
   /** An FX_BINDINGS `attack` entry: that plan attack's rows on the owner now, its hits on the damage that follows. */
+  /**
+   * (fork) An FX_BINDINGS `shot` (a KIT_SHOTS projectile): the owner's mode attack of that shot on the unit the fx names,
+   * as FxWiring.attack draws an 'atk' — its cast rows by facing, its projectile, its hit on arrival (蕾缪安 S2's aimed shot).
+   */
+  _shot(U, bind, extra) {
+    const src = U?.v, tgt = this.w.view(extra[bind.target || 'id']);
+    if (!src || !tgt) return false;
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    return !!this.w.attack(src, tgt, bind.kind || 'ranged', now, false, { only: bind.shot });
+  }
+
   _boundAttack(U, bind) {
     const a = U.plan?.attacks.find((x) => x.node === bind.attack);
     const v = U.v;

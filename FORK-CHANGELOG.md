@@ -9,12 +9,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Lemuen's skills show every official effect
 
-A full check of Lemuen's effects against the game client found four pieces we never drew:
+A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesperis, found these pieces we never drew or drew wrong:
 
 - **S3 aim beams.** Each S3 lock now drops a beam onto the locked enemy (`lemuen_skill_03_trail_01`), gold in Requiem Vesperis. The beams stack, one per lock, and each stays until its shell lands, as in the official game.
 - **S2 aim reticle.** The aim line now also puts its reticle on the aimed enemy (`lemuen_skill_02_crosshair_01`, the line's own end effect), until her shot.
 - **Talent 2 (Extradition Procedure).** When it activates, its loop (`lemuen_talent_buff_02`) now plays on her for the rest of her deployment, instead of a stand-in burst.
 - **Outfit effects inside effects.** Effects that an effect starts on its own now use the unit's outfit version. In Requiem Vesperis, Lemuen's S1 glow showed a default-look piece; other operators' outfits that work the same way are fixed too.
+- **S2 aimed shot.** Her aimed S2 shot now plays its muzzle flash (`lemuen_skill_02_start_02`, the back-facing `_back` when she faces up, with `_start_01`) and flies its own projectile to the target, whose hit plays as it lands. Her ordinary shots during S2 now look like her normal shots; before, they borrowed the aimed shot's look and the aimed shots had no flash.
+- **Deploy effect in prep.** Putting an operator on the board in prep, and the round-start landing, now play the official deploy effect: the generic one, or the outfit's own (Requiem Vesperis: `lemuen_birth_01`). Before, only a stand-in flash showed. This applies to every operator.
 
 ### A player who leaves is out for good, and the next round doesn't wait for them
 

@@ -1677,13 +1677,14 @@ export const FX_BINDINGS = Object.freeze({
   // (fork) 蕾缪安 S2 (chess_char_6_01-lemuen.js): her aim at a Wanted enemy ('lock', id = the enemy, src = her) is the
   // template lemuen_s2_aim_attack — lemuen_skill_02_crosshair_02 on the target (CreateBuffToCastedTargets, a loop) and the
   // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
-  // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
-  // the kit deals the snipe at once, no flight is drawn]
+  // her shot ('crit', same pair); the shot is her S2 mode's aimed ability (binding `shot`, wiring.js KIT_SHOTS) — its cast rows
+  // lemuen_skill_02_start_02 (_back facing up) and _start_01 on her, projectile_chr_lemuen_s2 (trail_02) to the target and
+  // its hit lemuen_skill_02_hit_01 there [ASSUMED: drawn in flight although the kit deals the snipe at once]
   skchr_lemuen_1: Object.freeze({ wanted: LEMUEN_WANTED, talent: LEMUEN_EXTRADITION }),
   skchr_lemuen_2: Object.freeze({
     wanted: LEMUEN_WANTED, talent: LEMUEN_EXTRADITION,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
-    crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
+    crit: binding({ owner: 'src', target: 'id', shot: 'projectile_chr_lemuen_s2', during: true, keys: ['lemuen_skill_02_start_02', 'lemuen_skill_02_start_02_back', 'lemuen_skill_02_start_01', 'lemuen_skill_02_trail_02', 'lemuen_skill_02_hit_01'] }),
   }),
   // (fork) 莫斯提马 S2 (chess_char_4_02-mostma.js): each second's strike on an enemy in her range ('timeLockHit', id = the
   // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
