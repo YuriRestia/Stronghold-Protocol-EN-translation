@@ -706,7 +706,8 @@ Semantics below are read from the field names, the data and the client's type, f
   (its owner holds it: the effect moves with the unit — §33.16 Placement; **assumed** from the client's names
   `ParticleEffect.holdByOwner`, `Entity.m_holdEffects`, `CreateEffectHoldBySource(…, setAsParent)`: 1 on the attack
   starts, buffs and statuses, 0 on the hits and ground ranges), `_overwriteHeight` / `_heightOffset` (place at this height),
-  `_usePlaybackSpeed` / `_limitedPlaybackSpeed` (follow the owner's attack speed, capped), `_preloadCnt` (pool size
+  `_usePlaybackSpeed` / `_limitedPlaybackSpeed` (follow the owner's ability's playback speed, capped at the limit ÷ the
+  battle speed, −1 = no cap; render/vfx/effect.js `Effect.setPlayback`), `_preloadCnt` (pool size
   hint), `_allowAutoReuse`, `_disableBattleEffectShrink`, `_ignoredByParticleEffectManager`, `_toggleMeshRendererWhenPause`.
 * An effect is finished when every non-looping system has ended and has no live particle (and its clips have ended);
   looping effects run until the game stops them (a status ends, a skill ends, a projectile arrives).

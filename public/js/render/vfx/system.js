@@ -122,7 +122,9 @@ function byUnityOrder(a, b) {
 export class OfficialFx {
   /**
    * @param {{ P: any, renderer: any, assets?: any, cam: () => any, heightAt?: (r: number, c: number) => number,
-   *           fieldRect?: () => any, lib?: FxLibrary, tier?: string }} ctx
+   *           fieldRect?: () => any, lib?: FxLibrary, tier?: string, rate?: () => number }} ctx
+   * `rate`: the battle speed (the client's Time.timeScale, 2 at 2×): an effect's playback-speed cap counts in real time
+   * (Effect.setPlayback)
    */
   constructor(ctx) {
     this.ctx = ctx;
@@ -524,8 +526,14 @@ export class FxHandle {
     };
     this.effect = fx;
     // started late (a cast whose wind-up began past the clip's start): advanced to where it would be
-    // (fork) a cast that began `lead` s before it was shown (an attack not wound up): its FxDelay counts from there
-    if (this.opts.lead > 0) fx.delayLead = Math.min(2, this.opts.lead);
+    // (fork) an ability's effect plays at its playback speed (an attack: its clip's speed, SpineActor.abilitySpeed)
+    if (this.opts.speed > 0 && this.opts.speed !== 1) {
+      const r = Number(s.ctx?.rate?.());
+      fx.setPlayback(this.opts.speed, Number.isFinite(r) && r > 0 ? r : 1);
+    }
+    // (fork) a cast that began `lead` s before it was shown (an attack not wound up): its FxDelay counts from there (in
+    // the effect's own time, which runs at its speed)
+    if (this.opts.lead > 0) fx.delayLead = Math.min(2, this.opts.lead) * fx.speed;
     if (this.opts.skip > 0) fx.update(Math.min(1, this.opts.skip));
     if (this.stopped) fx.stop(this.stopped);
     s._add(fx);

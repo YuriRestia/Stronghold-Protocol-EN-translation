@@ -219,6 +219,10 @@ export function compileEffect(desc, lib = {}) {
   def.delayToFinish = Math.max(0, num(pe._delayToFinish, 0));
   def.maxLifetime = num(pe._maxLifetime, -1);
   def.isLoop = on(pe._isLoop);
+  // (fork) ParticleEffect `_usePlaybackSpeed` / `_limitedPlaybackSpeed`: it follows its ability's playback speed, capped
+  // (−1 = no cap) — Effect.setPlayback
+  def.usePlaybackSpeed = on(def.pe?._usePlaybackSpeed);
+  def.limitedPlaybackSpeed = num(def.pe?._limitedPlaybackSpeed, -1);
   def.spawn = num(def.pe?._spawnLocation, 0) | 0;
   // ParticleEffect `_holdByOwner`: its owner holds it — the effect moves with the unit (render/vfx/wiring.js playOn)
   def.holdByOwner = on(def.pe?._holdByOwner);
@@ -299,7 +303,8 @@ export class Effect {
     this.pausedBy = false;                             // PauseAnotherEffect of another effect on its owner (system.js)
     this.owner = null;                                 // the unit it plays on (FxWiring.playOn; system.js pauses by it)
     this.tint = def.colorMod || null;
-    this.speed = 1;                                    // playback speed (1 = the battle clock)
+    this.speed = 1;                                    // playback speed (1 = the battle clock; setPlayback)
+    this.age = 0;                                      // battle s since it was started (`time` runs at `speed`)
     this.ttl = Infinity;                               // battle s after which a still-playing effect is stopped (a cap)
     this.onFinish = null;                              // callback (chained effects)
     this.data = null;                                  // the caller's own record (wiring)
@@ -337,7 +342,7 @@ export class Effect {
     this.time = 0;
     this.delay = def.delayToPlay + (def.randomDelay > 0 ? Math.random() * def.randomDelay : 0);
     this.state = 'play'; this.linger = 0; this.started = false; this.track = null; this.hidden = false; this.pausedBy = false; this.owner = null;
-    this.tint = def.colorMod || null; this.speed = 1; this.ttl = Infinity; this.onFinish = null; this.data = null;
+    this.tint = def.colorMod || null; this.speed = 1; this.age = 0; this.ttl = Infinity; this.onFinish = null; this.data = null;
     this.handle = null; this.fade = 1; this.stopT = 0; this.lateWake = false; this.delayLead = 0;
     const seed0 = (num(seed, 0) >>> 0) || ((Math.random() * 4294967296) >>> 0);
     for (let i = 0; i < n; i++) {
@@ -396,6 +401,27 @@ export class Effect {
 
   /** Content time (after `_delayToPlay`). */
   get ctime() { return this.time - this.delay; }
+
+  /**
+   * (fork) Play at an ability's playback speed, as the client does (GameAssembly of 2026-09-13, disassembled):
+   * Effect._PlayInternal caps `speed` at `_limitedPlaybackSpeed` / Time.timeScale (_LimitedPlaybackSpeed: −1 = no cap; the
+   * cap counts in real time, so at 2× battle speed a 2× cap allows 1× of the battle clock) and waits `_delayToPlay` /
+   * speed before the content starts, for every effect; with `_usePlaybackSpeed` the content runs at that speed too
+   * (ParticleEffect.UpdatePlaybackSpeed: each ParticleSystem's simulationSpeed, the Animator's speed, and through the base
+   * Effect.UpdatePlaybackSpeed every FxDelay's playbackSpeed — FxDelay waits delayTime / playbackSpeed). Call it right
+   * after the effect is started (FxHandle._start). `rate` = the battle speed (Time.timeScale).
+   */
+  setPlayback(speed, rate = 1) {
+    let s = Number.isFinite(speed) && speed > 0 ? speed : 1;
+    const lim = this.def.limitedPlaybackSpeed;
+    if (lim >= 0) s = Math.min(s, rate > 0 ? lim / rate : lim);
+    if (!(s > 0)) return this;   // a cap of 0: no prefab has one
+    const c = this.def.usePlaybackSpeed ? s : 1;
+    // `time` runs at `c`, so a delay of d / s battle s is d · c / s of it
+    this.delay = this.delay * c / s;
+    this.speed = c;
+    return this;
+  }
 
   /**
    * Stop (the game finishes it: a status or a skill ends, a projectile lands): a looping effect stops emitting and ends
@@ -493,12 +519,16 @@ export class Effect {
   update(dt) {
     if (this.state === 'done') return;
     if (this.track) { try { this.track(this); } catch { /* the owner went away: the effect stays where it was */ } }
+    // (fork) the content runs at `speed` (setPlayback); the cap (ttl), a stop's fade and the `_delayToFinish` linger stay
+    // on the battle clock (`bdt`)
+    const bdt = dt;
+    this.age += bdt;
     dt *= this.speed;
     this.time += dt;
     const def = this.def;
     const ct = this.ctime;
     if (ct < 0) return;
-    if (this.state === 'play' && this.time >= this.ttl) this.stop();
+    if (this.state === 'play' && this.age >= this.ttl) this.stop();
     const first = !this.started;
     this.started = true;
     // FxDelay activations
@@ -587,7 +617,7 @@ export class Effect {
       st.head = (st.head + 1) % 256;
       if (st.n < 255) st.n++;
     }
-    this._lifecycle(dt);
+    this._lifecycle(dt, bdt);
   }
 
   _tween(node, prop, dx, dy, keep) {
@@ -668,18 +698,18 @@ export class Effect {
     return f;
   }
 
-  _lifecycle(dt) {
+  _lifecycle(dt, bdt = dt) {
     const def = this.def;
     if (this.state === 'stopping') {
       // a stopped effect fades out within STOP_FADE (long-lived one-shot particles — a status ring of a 10 s
       // lifetime — must not outlive their status) [ASSUMED]
-      this.stopT += dt;
+      this.stopT += bdt;
       const end = Math.max(STOP_FADE, def.delayToFinish + 0.3);
       if (this.stopT >= end) { this.state = 'done'; return; }
       this.fade = Math.min(1, Math.max(0, (end - this.stopT) / 0.3));
     }
     if (this.state === 'linger') {
-      this.linger -= dt;
+      this.linger -= bdt;
       if (this.linger <= 0) this.state = 'done';
       return;
     }

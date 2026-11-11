@@ -696,7 +696,7 @@ export class FxWiring {
     const place = { pos, groundZ: -ground, yaw: 0, mirror: false, flipY: false, mountRot: null, rootRot: null };
     this._rotate(P, place, skin, pose);
     this._orient(def, place, pose, o, v);
-    const opts = { track: o.track || null, data: o.data ?? null, loop: !!o.loop, important: !!o.important, skip: o.skip > 0 ? o.skip : 0, lead: o.lead > 0 ? o.lead : 0, owner: v };
+    const opts = { track: o.track || null, data: o.data ?? null, loop: !!o.loop, important: !!o.important, skip: o.skip > 0 ? o.skip : 0, lead: o.lead > 0 ? o.lead : 0, speed: o.speed > 0 ? o.speed : 1, owner: v };
     // the owner each frame: FollowMountPoint keeps the effect on the unit's point (and its rotation), a held effect
     // moves with the unit (`keep`), FollowDirection turns it with the unit, PauseEffectIf hides it while the unit shows
     // a condition; a prefab with chained effects (OnPlayEmitter: system.js FxHandle._start hands them this track) has
@@ -886,11 +886,12 @@ export class FxWiring {
         if ((phase === 'start' && !first) || (phase === 'strike' && first) || (onTarget && !tgt)) continue;
         const skip = phase === 'start' ? info.skip : 0;
         const lead = phase === 'all' && first ? info.lead : 0;   // (fork) an attack not wound up (attack)
+        const speed = info.speed;                                // (fork) the attack's playback speed (abilitySpeed)
         for (const k of this._rowKeys(e, src, nth)) {
           // the rows of the strike sit where its attack clip poses the unit's points at the strike frame
           const h = onTarget
-            ? this.playOn(k, tgt, { toward: beyond(src, tgt), flipFrom: src, skip, lead })
-            : this.playOn(k, src, { toward: tgt, fourFace: !!e.useFourDirectionalFace, skip, lead, strike: phase !== 'start' });
+            ? this.playOn(k, tgt, { toward: beyond(src, tgt), flipFrom: src, skip, lead, speed })
+            : this.playOn(k, src, { toward: tgt, fourFace: !!e.useFourDirectionalFace, skip, lead, speed, strike: phase !== 'start' });
           // a looping row stops at its end event (the cast's end); so does a looping prefab on a one-shot row, which
           // would otherwise never end (known once loaded: decided when the time comes)
           if (h) {
@@ -985,9 +986,20 @@ export class FxWiring {
     // a funnel shot's casts on its floating unit (耶拉's token) start with the owner's wind-up
     const fun = this.funnels.castStart(src, tgt, kind, info);
     if (!set && !sk) return fun;
+    info = { ...info, speed: this.abilitySpeed(src) };
     if (set) this._casts(set, src, tgt, 'start', info);
     if (sk) this.skills.casts(sk, src, tgt, 'start', info);
     return true;
+  }
+
+  /**
+   * (fork) The playback speed an attack of `src` gives its effects (the client: the ability's playbackSpeed, handed to
+   * each effect its emitters create — Effect.setPlayback caps it per prefab): its attack clip's own speed at its attack
+   * interval (SpineActor.abilitySpeed); 1 without a Spine actor or an interval.
+   */
+  abilitySpeed(src) {
+    const s = src?.actor?.abilitySpeed?.(Number(src.atkInterval));
+    return Number.isFinite(s) && s > 0 ? s : 1;
   }
 
   /**
@@ -1070,9 +1082,10 @@ export class FxWiring {
     const sl = src.actor?.strikeLead;
     const iv = Number(src.atkInterval);
     const lead = phase === 'all' ? (Number.isFinite(sl) ? Math.max(0, sl) : Math.min(UNWOUND_LEAD, iv > 0 ? iv : UNWOUND_LEAD)) : 0;
-    if (a) this._casts(a, src, tgt, phase, { owner: !again, lead });
+    const speed = this.abilitySpeed(src);
+    if (a) this._casts(a, src, tgt, phase, { owner: !again, lead, speed });
     if (sk) {
-      this.skills.casts(sk, src, tgt, phase, { owner: !again, lead });
+      this.skills.casts(sk, src, tgt, phase, { owner: !again, lead, speed });
       if (!again) { this.skills.attacked(sk); this.skills.attackLine(sk.U, src, tgt); }
     }
     if (!again) this.attackN.set(id, nth + 1);
@@ -1081,7 +1094,8 @@ export class FxWiring {
     if (kind === 'note') return true;
     // the hit rows wait for the damage (each target hit: HitEffectOptions); useOwnerToTargetDirection turns the hit
     // along the blow
-    const keysOf = (rows) => rows.flatMap((e) => this._rowKeys(e, src, nth).map((k) => ({ k, along: !!e.useOwnerToTargetDirection })));
+    // (fork) at the attack's playback speed (abilitySpeed): the client's hit effects come from the attack's emitter
+    const keysOf = (rows) => rows.flatMap((e) => this._rowKeys(e, src, nth).map((k) => ({ k, along: !!e.useOwnerToTargetDirection, speed })));
     const hits = keysOf(a?.hit || []);
     // the projectile: a ranged skill attack's own, else the mode's (a sub-ability's)
     const pk = sk?.projectile || set?.projectileKey || null;
@@ -1500,7 +1514,7 @@ export class FxWiring {
         for (const k of proj.onHit || []) this.playOn(k, tgt, { by: src || undefined });
         if (rows) {
           const own = new Set((proj.onHit || []).map(lc));
-          for (const h of rows) if (!own.has(lc(h.k))) this.playOn(h.k, tgt, { flipFrom: src || undefined, toward: h.along && src ? beyond(src, tgt) : undefined });
+          for (const h of rows) if (!own.has(lc(h.k))) this.playOn(h.k, tgt, { flipFrom: src || undefined, toward: h.along && src ? beyond(src, tgt) : undefined, speed: h.speed });
         }
         const id = tgt.id ?? tgt.info?.id;
         this.arrived.set(id, now);
@@ -1609,7 +1623,7 @@ export class FxWiring {
     m.hitT = time;
     m.n = k + 1;
     let drawn = false;
-    const play = (list) => { for (const h of list) if (this.playOn(h.k, v, { flipFrom: m.src, toward: h.along && m.src ? beyond(m.src, v) : undefined })) drawn = true; };
+    const play = (list) => { for (const h of list) if (this.playOn(h.k, v, { flipFrom: m.src, toward: h.along && m.src ? beyond(m.src, v) : undefined, speed: h.speed })) drawn = true; };
     play(m.hits);
     if (m.modeGroups) play(pickGroup(m.modeGroups, k, m.modeOpts, m.seed));
     if (m.groups && this.skills.landed(m, v, k)) drawn = true;
