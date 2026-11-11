@@ -28,7 +28,7 @@ const HAS_INDEX = existsSync(INDEX);
 const LOOPING = new Set(['ymgtop_spin', 'enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'dsubrl_aura', 'cjhot_aura',
   'enemy_cjhot_debuff', 'horn_skill_01_hit_02_buff', 'skadi2_skill_03_buff', 'svrash_skill_02_buff', 'tinman_skill_01_range_01', 'sleach_skill_02_flag_01',
   'sleach_skill_02_ground_01', 'sleach_skill_03_flag_01', 'sleach_skill_03_range_loop_01', 'thumpy_skill_03_range_01', 'svash2_skill_03_range_01']);
-const KEYS = [...LOOPING, 'svash2_skill_03_trail_02', 'svash2_skill_03_hit_01', 'svash2_skill_03_deploy_01', 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
+const KEYS = [...LOOPING, 'svash2_skill_03_trail_02', 'svash2_skill_03_hit_01', 'svash2_skill_03_deploy_01', 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'tinman_skill_01_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
   'tank_shell_hit', 'sleach_skill_03_range_start_01', 'chen2_skill_02_range_01', 'enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range',
   'enemy_dslily_skill_01_start'];
 const GROUND = new Set(['enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'mousek_skill_02_range']);
@@ -89,7 +89,10 @@ function makeIndex({ installed = KEYS } = {}) {
       char_1012_skadi2: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_skadi2_3: { rootClass: 'CastSkill', mode: null, projectiles: [], uses: [aura('skadi2_skill_03_buff')] } } },
       char_172_svrash: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_svrash_2: { rootClass: 'ToggleSkill', mode: null, projectiles: [], uses: [
         { role: 'loop', keys: ['svrash_skill_02_buff'], from: 'PassiveBuffAbility._buffs', node: 'skchr_svrash_2', on: 'owner' }] } } },
-      char_4151_tinman: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_tinman_1: { rootClass: 'CastSkill', mode: null, projectiles: ['projectile_chr_tinman_s1'], uses: [] } } },
+      char_4151_tinman: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_tinman_1: { rootClass: 'CastSkill', mode: null, projectiles: ['projectile_chr_tinman_s1'], uses: [
+        // its dot's per-second trigger (sim battle.tickFx → fx 'tick')
+        { role: 'trigger', keys: ['tinman_skill_01_hit_01'], from: 'RangedAttack._activeBuffs → template tinman_s_1[dot]', event: 'ON_BUFF_TRIGGER', action: 'CreateEffectHookProjectileEffect', buff: 'tinman_s_1[dot]', on: 'targets', node: 'skchr_tinman_1', point: 'HIT_POINT' },
+      ] } } },
       char_479_sleach: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: {
         skchr_sleach_2: { rootClass: 'CastSkill', mode: null, projectiles: [], uses: [] }, skchr_sleach_3: { rootClass: 'CastSkill', mode: null, projectiles: [], uses: [] } } },
       char_4235_thumpy: { kind: 'char', modes: melee('g_hit'), startEffect: null, deadEffect: null, skills: { skchr_thumpy_3: { rootClass: 'CastSkill', mode: null, projectiles: [], uses: [
@@ -819,6 +822,31 @@ describe('operators\' areas', () => {
     assert.deepEqual(spawned.filter((k) => /^sleach/.test(k)), ['sleach_skill_03_flag_01', 'sleach_skill_03_range_loop_01']);
     assert.equal(w.simFx('aoe', 7, 9, { radius: 1.5, id: 1, skill: 'sleach:strike' }), true);
     assert.equal(spawned.at(-1), 'sleach_skill_03_range_start_01');
+  });
+});
+
+describe('(fork) periodic tick hits (fx tick, sim battle.tickFx)', () => {
+  test("a tick plays the owner's plan 'tick' row on the unit it names, once, also with no skill running; nothing procedural", async () => {
+    const { w, view, frame, spawned, handles } = await setup();
+    view(1, 'char_4151_tinman', 4);
+    const e = view(2, 'enemy_1267_nhpbr', 6);
+    frame();
+    assert.equal(w.simFx('tick', 6, 9, { id: 1, on: 2, skill: 'tinman:s1' }), true, 'claimed');
+    assert.deepEqual(spawned, ['tinman_skill_01_hit_01']);
+    assert.equal(handles[0].place.pos[0], e.x - 10, "on the enemy (the effects' frame)");
+    assert.equal(w.simFx('tick', 6, 9, { id: 1, on: 2, skill: 'tinman:s1', key: 'other_key' }), true, 'another key: claimed');
+    assert.equal(spawned.length, 1, 'plays nothing');
+    assert.equal(w.simFx('tick', 6, 9, { id: 1, on: 99, skill: 'tinman:s1' }), true, 'a unit no longer on the field: claimed');
+    assert.equal(spawned.length, 1, 'plays nothing');
+  });
+
+  test("a skill whose kit sends its ticks (TICK_SIGNALED) keeps its 'tick' rows off its other kit fx", async () => {
+    const { w, view, frame, spawned } = await setup();
+    view(1, 'char_4151_tinman', 4);
+    view(2, 'enemy_1267_nhpbr', 6);
+    frame();
+    w.simFx('zone', 6, 9, { id: 1, skill: 'tinman1', radius: 1, dur: 8 });
+    assert.ok(!spawned.includes('tinman_skill_01_hit_01'));
   });
 });
 

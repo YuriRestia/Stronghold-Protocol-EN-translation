@@ -94,7 +94,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES, stateEntries,
+  FX_HIT_TILES, stateEntries, TICK_SIGNALED,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -1198,6 +1198,8 @@ export class SkillFx {
   simFx(kind, x, y, extra) {
     if (!this.active() || !extra || typeof extra !== 'object' || typeof kind !== 'string') return false;
     const now = this.w.ofx.time;
+    // (fork) one tick of an official buff's periodic trigger (sim battle.tickFx): the plan's 'tick' rows on the unit it names
+    if (kind === 'tick') return this._tick(extra);
     // a skill start cast with every charge stored (the kit's `charged`: 卡涅利安) — the `[eff_cond]` state (_cond)
     if (extra.charged === true && extra.id != null) { const C = this.units.get(extra.id); if (C) C.charged = true; }
     // (0) an enemy's area: its zone's official prefabs at the fx's point, an aura tick its talent loops stand for
@@ -1254,9 +1256,11 @@ export class SkillFx {
     const a = fxSpec(kind, extra).a;
     const near = !Number.isFinite(x) || !Number.isFinite(y) || Math.hypot(v.x - x, v.y - y) <= ON_UNIT;
     const on = this._on(U);
-    // (2) the skill's pulse: the kit's own fx of the moment its plan's tick / hit rows have no event for
+    // (2) the skill's pulse: the kit's own fx of the moment its plan's tick / hit rows have no event for (a skill whose kit
+    // sends its ticks, TICK_SIGNALED, keeps its 'tick' rows for those)
     if (extra.skill != null && on && plan.pulse.length && !NOT_PULSE.has(a)) {
-      const list = plan.pulse.filter((e) => (e.at === 'owner') === near);
+      const ticked = TICK_SIGNALED.has(plan.skillId);
+      const list = plan.pulse.filter((e) => (e.at === 'owner') === near && !(ticked && e.reason === 'tick'));
       if (list.length) {
         const at = near ? v : (this.w.view(extra.target ?? extra.to) || { id: 'fx:point', x, y, z: 0 });
         let drew = false;
@@ -1269,6 +1273,41 @@ export class SkillFx {
     // (3) the frame of the official skill start, (4) a skill-tagged flash while the official loops play
     if (U.startFrame === this.frame && (U.ewin ? U.ewin.draws : U.drawsStart)) return true;
     return extra.skill != null && on && (U.loops.some((h) => h.alive) || !!U.ewin?.loops.some((h) => h.alive));
+  }
+
+  /**
+   * (fork) fx 'tick' { id: the skill's owner, on, key? } (sim battle.tickFx): its plan's 'tick' rows (`key`: only that one)
+   * on the unit `on`, one-shot — also after the skill ended or its owner left (Lumen S1's heals outlast the instant cast;
+   * a summon's ticks run after it is gone: its record stays in the battle's table). Claimed even when nothing plays.
+   */
+  _tick(extra) {
+    const U = extra.id != null ? (this.units.get(extra.id) ?? this.of(this.w.view(extra.id))) : null;
+    const at = extra.on != null ? this.w.view(extra.on) : null;
+    const plan = U?.plan;
+    if (!plan || !at) return true;
+    let rows = plan.pulse.filter((e) => e.reason === 'tick' && (!extra.key || e.key === extra.key));
+    // a talent's tick the index reaches through one skill only (遥's bubbles: S1's selector) plays with any skill equipped
+    if (!rows.length && extra.key && plan.unitKey) rows = this._tickRows(plan.unitKey, extra.key);
+    const from = U.v && U.v !== at && Number.isFinite(U.v.x) ? U.v : undefined;
+    for (const e of uniq(rows)) {
+      const h = this._play(e, at, { flipFrom: from });
+      if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
+    }
+    return true;
+  }
+
+  /** (fork) The 'tick' rows of `key` in any skill plan of the unit (cached per battle). */
+  _tickRows(unitKey, key) {
+    const memo = this.tickRowMemo || (this.tickRowMemo = new Map());
+    const k = `${unitKey}|${key}`;
+    if (memo.has(k)) return memo.get(k);
+    let rows = [];
+    for (const sid of Object.keys(this.w.idx?.units?.[unitKey]?.skills || {})) {
+      rows = skillPlan(this.w.idx, unitKey, sid).pulse.filter((e) => e.reason === 'tick' && e.key === key);
+      if (rows.length) break;
+    }
+    memo.set(k, rows);
+    return rows;
   }
 
   /** An FX_BINDINGS `attack` entry: that plan attack's rows on the owner now, its hits on the damage that follows. */

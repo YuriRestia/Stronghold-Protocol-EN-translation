@@ -173,8 +173,8 @@
         "enemy_9011_acrefr": [12,2,4,27487,149832]
       },
       "hooks": [1,91,5700,1368,1368,1883,1890,137,49,76,28,28,0,30214,3555,50,74,27,1,49,0,0,8],
-      "events": {"atk":1482,"bounty":4,"cast":2,"deploy":17,"die":49,"dmg":1890,"engage":11,"fx":140,"heal":137,"leak":27,"rate":56,"skill":57,"spawn":86,"status":622},
-      "fx": {"aoe":60,"dodge":13,"dp":18,"phase":1,"slash":40,"sp":1,"spGain":7},
+      "events": {"atk":1482,"bounty":4,"cast":2,"deploy":17,"die":49,"dmg":1890,"engage":11,"fx":328,"heal":137,"leak":27,"rate":56,"skill":57,"spawn":86,"status":622},
+      "fx": {"aoe":60,"dodge":13,"dp":18,"phase":1,"slash":40,"sp":1,"spGain":7,"tick":188},
       "snaps": "007b7534 68064d95 9de22180 1127a818 68c581b5 dd3b87f2 6fa998ea 28ebce46 192d0003 f30976f1 f2cf9956 bda134f9 29975954 6d9e44e3 4c8a67f4 5dcf9af3 007d5490 6e92cab9 ee151c28"
     },
     "standin-04": {
@@ -464,8 +464,8 @@
         "enemy_1254_lypa_2": [48,0,48,93637,376133]
       },
       "hooks": [1,206,6326,1641,1641,2903,2997,118,41,193,37,42,0,22822,17610,53,179,152,1,52,0,0,9],
-      "events": {"atk":1880,"bounty":1,"deploy":24,"die":41,"dmg":2905,"engage":11,"fx":261,"heal":104,"leak":152,"rate":63,"skill":86,"spawn":194,"status":1271},
-      "fx": {"aoe":60,"displace":11,"dodge":36,"dp":18,"shieldBreak":60,"slash":59,"sp":5,"spGain":12},
+      "events": {"atk":1880,"bounty":1,"deploy":24,"die":41,"dmg":2905,"engage":11,"fx":496,"heal":104,"leak":152,"rate":63,"skill":86,"spawn":194,"status":1271},
+      "fx": {"aoe":60,"displace":11,"dodge":36,"dp":18,"shieldBreak":60,"slash":59,"sp":5,"spGain":12,"tick":235},
       "snaps": "f88aa149 269533bd b15af6d0 8e0186bf 06d085c9 89620bff db5e7358 5aecf8ae 58258824 14b54ab4 6c96ef02 855a7e95 6db5c85c 432c5e25 51d42dbc ea2c57ef eecd6f21 afcc9db2 3ada343b 51e597fe f90c9ee9"
     },
     "standin-09": {

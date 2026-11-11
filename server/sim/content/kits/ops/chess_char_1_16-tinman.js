@@ -93,6 +93,7 @@ export function tinmanKit(bb, chess, def) {
               if (e.isFlying || e.s.flags.untargetable) continue;
               b.dealDamage({ source: null, credit: unit, target: e, amount: atk * dmgScale, type: 'arts',
                 attackType: 'BUFF', calculation: 'precomputed', isSkill: true, tags: ['dot', 'zone'] });
+              b.tickFx(unit, e, 'tinman:s2');   // tinman_s_2[buff] ON_BUFF_TRIGGER: tinman_skill_02_hit_01 + tinman_s_2[audio]
             }
           },
         });

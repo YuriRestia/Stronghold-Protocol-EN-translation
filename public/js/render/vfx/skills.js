@@ -641,6 +641,16 @@ export function condState({ on = false, charged = false, charges = null } = {}) 
   return n >= 2 ? 'full' : n >= 1 ? 'ready' : null;
 }
 
+/**
+ * (fork) The skills whose kits send each tick of the official periodic trigger (sim battle.tickFx → fx 'tick'): their
+ * plan's 'tick' rows play there (SkillFx._tick), not on the skill's other kit fx (pulse path (2)).
+ */
+export const TICK_SIGNALED = new Set([
+  'skchr_necras_2', 'skchr_tinman_1', 'skchr_tinman_2', 'skchr_lumen_1', 'skchr_judge_2', 'sktok_phatm2_encdool_2',
+  'skchr_thorn2_2', 'skchr_hsgma2_2', 'skchr_svash2_2', 'skchr_haruka_1', 'skchr_tocka_3', 'skchr_closur_2', 'skchr_titi_3',
+  'skchr_yu_2', 'skchr_mlyss_3', 'skchr_acfend_3',
+]);
+
 /** Unmapped reasons whose entries a kit's own 'fx' of the skill may stand for (plan.pulse). */
 const PULSE = new Set(['tick', 'channel-hit', 'hit-no-attack']);
 
@@ -1907,6 +1917,10 @@ export const BOUND_BY_SKILL = Object.freeze((() => {
  */
 export const FX_COVER = Object.freeze({
   skchr_yu_3: Object.freeze(['firewall']), // YuS3EffectBehaviour's per-grid wall, held for the skill
+  // (fork) 缇缇 S3 (chess_char_5_02-titi.js): a woken enemy's burst — the official wake hit (titi_skill_03_hit_02, fx 'tick') shows it
+  skchr_titi_3: Object.freeze(['wake']),
+  // (fork) 余 S2 (chess_char_6_03-yu.js): a teleported enemy — the official teleport effect (yu_skill2_teleport_02, fx 'tick') shows it
+  skchr_yu_2: Object.freeze(['teleport']),
   // 莫斯提马 S2: the zone at her feet — the skill's range rows (mostma_skill_02_range / _range_02) and loop show it
   skchr_mostma_2: Object.freeze(['zone']),
   // (fork) 莫斯提马 S3: each attack's ripple — the skill's range row (mostma_skill_03_range, its outfits' twins) is the wave

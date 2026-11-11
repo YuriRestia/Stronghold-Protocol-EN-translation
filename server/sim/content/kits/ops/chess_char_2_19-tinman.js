@@ -40,6 +40,7 @@ export default {
                 if (weak > 0) b.applyStatus(e, 'weaken', { duration: STEP + 0.05, value: weak, source: unit });
                 if (pulse && dmgScale > 0) b.dealDamage({ source: null, credit: unit, target: e, amount: atk * dmgScale, type: 'arts',
                   attackType: 'BUFF', calculation: 'precomputed', isSkill: true, tags: ['dot', 'zone'] });
+                if (pulse && dmgScale > 0) b.tickFx(unit, e, 'tinman:s1');   // tinman_s_1[dot] ON_BUFF_TRIGGER: tinman_skill_01_hit_01
               }
               if (++i >= n) sc.cancel();
             }, { immediate: true });

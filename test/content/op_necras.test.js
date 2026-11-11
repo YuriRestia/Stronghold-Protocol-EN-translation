@@ -391,3 +391,25 @@ test('复燃: a stealthed enemy knocked out on her range counts (天赋无视隐
   assert.ok(s1.findBuff('necras:upgrade'), '… the upgrade instead');
   done(h);
 });
+
+test('display: every S2 tick sends fx tick { id: her, on: the linked enemy, skill necras:s2 } with its damage (the official necras_s_2 trigger: her hit effect and necras_skill_dot)', () => {
+  const { h, u } = field({ tier: 6, elite: true, skill: 1 });
+  const sent = [];
+  const fx = h.b.fx.bind(h.b);
+  h.b.fx = (kind, p) => { if (kind === 'tick') sent.push({ ...p, t: h.b.time }); return fx(kind, p); };
+  const a = h.spawn('enemy_dummy', { pos: [10, 5] });
+  const b = h.spawn('enemy_dummy', { pos: [9, 5] });
+  u.skill.gainSp(999);
+  assert.ok(h.runUntil(() => u.skill.active, 3), 'cast');
+  const t0 = h.b.time;
+  h.run(3.01);
+  const ticks = h.hooksOf('damaged').filter((x) => x.source === u && x.dmg.tags?.includes('necras:s2') && x.t > t0 - 1e-9);
+  const mine = sent.filter((p) => p.t > t0 - 1e-9);
+  assert.equal(mine.length, ticks.length, 'one tick fx per damage tick');
+  assert.ok(mine.length >= 12, `${mine.length} ticks`);
+  for (const p of mine) {
+    assert.deepEqual([p.id, p.skill, p.key], [u.id, 'necras:s2', undefined]);
+    assert.ok([a.id, b.id].includes(p.on), 'on a linked enemy');
+  }
+  done(h);
+});

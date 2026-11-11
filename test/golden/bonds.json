@@ -444,8 +444,8 @@
       ],
       "enemies": {"enemy_1158_divman":[15,15,0,819,44550],"enemy_1160_hvyslr":[2,2,0,2200,18000],"enemy_1161_tidmag":[1,1,0,1626,5400]},
       "hooks": [1,43,1505,141,141,221,228,1,20,30,9,8,0,4330,42,8,18,0,1,21,0,0,5],
-      "events": {"atk":151,"cast":2,"deploy":23,"die":30,"dmg":228,"engage":5,"fx":71,"rate":41,"skill":21,"spawn":42,"status":62},
-      "fx": {"aoe":4,"coin":17,"dodge":5,"explode":11,"flame":1,"garrisonGrant":1,"revive":1,"riposte":5,"sp":1,"summon":14,"swordRain":6,"swordStorm":3,"zone":2},
+      "events": {"atk":151,"cast":2,"deploy":23,"die":30,"dmg":228,"engage":5,"fx":102,"rate":41,"skill":21,"spawn":42,"status":62},
+      "fx": {"aoe":4,"coin":17,"dodge":5,"explode":11,"flame":1,"garrisonGrant":1,"revive":1,"riposte":5,"sp":1,"summon":14,"swordRain":6,"swordStorm":3,"tick":31,"zone":2},
       "snaps": "6ba9c3a2 891dd2f9 978f7664 f7476d73 9ca63c44"
     },
     "bond-investShip-high": {
@@ -720,8 +720,8 @@
       ],
       "enemies": {"enemy_1006_shield_3":[3,3,0,4194,298598],"enemy_1043_zomsbr":[23,23,0,0,150697],"enemy_1402_tgshd_2":[4,4,0,4961,129393]},
       "hooks": [1,38,2284,354,354,605,605,3078,32,32,15,12,187,4256,32,8,30,0,1,33,0,0,0],
-      "events": {"atk":397,"deploy":8,"die":32,"dmg":605,"engage":7,"fx":228,"rate":43,"skill":27,"spawn":38,"status":111},
-      "fx": {"aoe":6,"buff":2,"displace":19,"expose":189,"ripple":8,"sermon":1,"shield":2,"substitute":1},
+      "events": {"atk":397,"deploy":8,"die":32,"dmg":605,"engage":7,"fx":246,"rate":43,"skill":27,"spawn":38,"status":111},
+      "fx": {"aoe":6,"buff":2,"displace":19,"expose":189,"ripple":8,"sermon":1,"shield":2,"substitute":1,"tick":18},
       "snaps": "958d02f6 0fb82408 116d4eeb 057e35e5 0f15a53c 36741c4a 7200431f 8015e582"
     },
     "bond-maniShip-low": {
@@ -800,8 +800,8 @@
       ],
       "enemies": {"enemy_1288_duskls":[11,11,0,0,63415],"enemy_1288_duskls_2":[7,7,0,0,48419],"enemy_1292_duskld":[5,5,0,734,57650]},
       "hooks": [1,38,2447,250,281,488,488,187,23,25,19,15,0,11427,198,28,23,0,1,46,0,0,0],
-      "events": {"atk":301,"deploy":12,"die":25,"dmg":488,"engage":11,"fx":207,"rate":136,"skill":34,"spawn":38,"status":391},
-      "fx": {"aoe":2,"copy":1,"crit":5,"dp":2,"ember":23,"iceSpike":64,"sleep":4,"split":3,"weightless":2,"zone":101},
+      "events": {"atk":301,"deploy":12,"die":25,"dmg":488,"engage":11,"fx":339,"rate":136,"skill":34,"spawn":38,"status":391},
+      "fx": {"aoe":2,"copy":1,"crit":5,"dp":2,"ember":23,"iceSpike":64,"sleep":4,"split":3,"tick":132,"weightless":2,"zone":101},
       "snaps": "949be706 822ea5b7 e1acbc40 8fc9aa75 f4a38ade 098bc1c9 e79a2692 fb2e01e0 e7f9c311"
     },
     "bond-miraShip-low": {
@@ -1264,8 +1264,8 @@
       ],
       "enemies": {"enemy_1116_liprr_2":[10,10,0,0,86400],"enemy_1119_vofsd":[5,5,0,0,63360],"enemy_1121_lifbos_2":[3,3,0,0,86400]},
       "hooks": [1,28,2189,121,121,211,477,793,19,20,10,6,7,4586,208,0,18,0,1,70,0,0,0],
-      "events": {"atk":131,"deploy":10,"die":20,"dmg":236,"engage":5,"fx":16,"rate":26,"skill":16,"spawn":26,"status":79},
-      "fx": {"anchor":2,"aoe":1,"ember":1,"overload":1,"sleep":1,"splash":7,"wake":3},
+      "events": {"atk":131,"deploy":10,"die":20,"dmg":236,"engage":5,"fx":24,"rate":26,"skill":16,"spawn":26,"status":79},
+      "fx": {"anchor":2,"aoe":1,"ember":1,"overload":1,"sleep":1,"splash":7,"tick":8,"wake":3},
       "snaps": "a018dbb7 c2244943 94e1ff6d bdacd7d8 f13f73d5 439e8a05 94ad4e0b b71b5bf1"
     },
     "bond-soloShip-low": {
@@ -1349,8 +1349,8 @@
         "enemy_1208_msfji": [3,3,0,0,186]
       },
       "hooks": [1,80,2643,197,197,590,588,279,69,69,31,29,0,9883,72,11,67,0,1,70,0,0,1],
-      "events": {"atk":282,"deploy":10,"die":69,"dmg":588,"engage":8,"fx":134,"rate":117,"skill":60,"spawn":78,"status":178},
-      "fx": {"aoe":10,"crit":8,"dodge":1,"dp":4,"sp":1,"substitute":2,"summon":21,"swap":1,"weightless":3,"zone":83},
+      "events": {"atk":282,"deploy":10,"die":69,"dmg":588,"engage":8,"fx":281,"rate":117,"skill":60,"spawn":78,"status":178},
+      "fx": {"aoe":10,"crit":8,"dodge":1,"dp":4,"sp":1,"substitute":2,"summon":21,"swap":1,"tick":147,"weightless":3,"zone":83},
       "snaps": "ba483ab1 69e6e903 a7581a19 8fa49fb7 df26a89e 1adac19c eeb0b5c3 218b4865 7831ec7c"
     },
     "bond-steadShip-low": {

@@ -62,10 +62,12 @@ export default {
       a.mem.svashCostBase ??= a.base.cost;
       a.base.cost = Math.max(0, a.base.cost - v);
     };
-    const slash = (battle, caster, atk) => {
+    // `owner`: 凛御银灰 (the slash of an op left of the eye is his S2's too: its official hit effect is his plan's)
+    const slash = (battle, caster, atk, owner = caster) => {
       // PRTS 备注: the slash ignores 隐匿 and hits flying enemies (and its reveal makes them targetable afterwards)
       for (const e of enemiesInGrid(battle, caster, grid, n, { ignoreStealth: true })) {
         battle.dealDamage(caster, e, { amount: atk * num(bb.atk_scale, 1), type: 'phys', isSkill: true, tags: ['skill', 'svash2'] });
+        battle.tickFx(owner, e, 'svash2:s2');   // svash2_s_2[build] ON_BUFF_TRIGGER: AOEDamage's hit effect svash2_skill_02_hit_01
         if (!e.alive) continue;
         battle.applyStatus(e, 'cold', { duration: num(bb.cold), source: caster });
         battle.applyStatus(e, 'reveal', { duration: num(bb.cold), source: caster });
@@ -210,7 +212,7 @@ export default {
           const casts = num(a.mem.svashCasts);
           if (casts > 0 && !c.initial) {
             a.mem.svashCasts = 0;
-            for (let i = 0; i < casts; i++) slash(battle, a, a.s.atk);
+            for (let i = 0; i < casts; i++) slash(battle, a, a.s.atk, unit);
           }
         }, { owner: unit });
         // CSR-X 特性追加 (see the header): at the battle start — after 开放性开局's gifts, registered first — the cheapest
