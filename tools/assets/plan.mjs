@@ -26,6 +26,7 @@ import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
 import { pickUnitSfx, assignSkillModeSfx, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
+import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
 import { skillModeOf } from '../../shared/fxModes.js';
 
@@ -111,12 +112,6 @@ const BURST_SOUND_BANKS = Object.freeze({
   'apoptosis.enemy': Object.freeze(['battle.ON_BUFF_START.ep_break_dark_audio']),
 });
 /**
- * (fork) Skills whose sounds are their own ability's banks (ON_ABILITY_START / _HIT.<skill id>), not an ON_SKILL_START or
- * a mode's attack: charId → skill index → which roles they fill — `attack` / `hit` (the skill's own strike: its swing
- * and impact while it runs) or `skill` (its cast sting). 塔露拉 S1 is a MeleeAttack skill (its strike); S2 a
- * BuffToOwnerDuringAbility cast by her guard (its start is the sting; its hit is the strike back, FX_SOUND_BANKS).
- */
-/**
  * (fork) An operator's normal attack / impact bank the generic pick misses (pickUnitSfx): 莫斯提马's impact is her
  * attack's ON_ABILITY_ON (p_imp_timewand_n; her swing is its START).
  */
@@ -159,10 +154,6 @@ const SKILL_OFF_BANKS = Object.freeze({
   }),  // (fork) 烛煌 S3 (ammo): its last bolt closes the skill (b_char_boostclose) and its ability ends at the same moment
   // (ON_ABILITY_END p_skill_hcnsrfrfld): a list — every bank plays (the manifest's `more`)
   char_1040_blaze2: Object.freeze({ 2: Object.freeze(['battle.ON_SKILL_SPECIAL_POINT.skchr_blaze2_3', 'battle.ON_ABILITY_END.skchr_blaze2_3']) }),
-});
-const SKILL_ABILITY_SOUNDS = Object.freeze({
-  char_4247_oxi: Object.freeze({ 0: Object.freeze(['attack', 'hit']), 1: Object.freeze(['skill']) }),  // (fork) 烛煌 S1 (one cast): its swing and impact are the skill ability's own (p_atk_hcnsrfr_d / p_imp_hcnsrfr_d)
-  char_1040_blaze2: Object.freeze({ 0: Object.freeze(['attack', 'hit']) }),
 });
 /**
  * [look key (kits/ops/op-oblvns.js), projectile suffix, custom hit trigger or null]: an attack with a target
@@ -731,19 +722,34 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const attackMix = {}, hitMix = {};
     const attackPools = {}, hitPools = {};
     const skillGroups = {};
+    // (fork) files a per-operator table below already plays: the general skill banks never take them twice
+    const tableFiles = new Set();
+    for (const t of [FX_SOUND_BANKS[id], SKILL_ON_BANKS[id], SKILL_OFF_BANKS[id], SKILL_MODE_BANKS[id], UNIT_SOUND_BANKS[id]]) {
+      for (const v of Object.values(t || {})) {
+        for (const e of [v].flat().flatMap((x) => (x && typeof x === 'object' && !x.bank ? Object.values(x) : [x])).flat()) {
+          const name = typeof e === 'string' ? e : e?.bank;
+          const p = name ? audio.bank(name) : null;
+          if (p?.length) tableFiles.add(p[0]);
+        }
+      }
+    }
+    // … and the unit's normal swing / impact (煌's S1 ability repeats p_atk_chainsaw_n): not a skill sound of its own
+    for (const r of ['attack', 'hit']) if (sfx[r]?.length) tableFiles.add(sfx[r][0]);
+    const ownOn = {}, ownOff = {};
     for (const i of idx) {
       const s = (o.skills || []).find((k) => k.index === i);
       if (!s) { notes.push(`${id}: skill index ${i} missing in research data`); continue; }
       const iconId = s.iconId || s.skillId;
       if (s.icon?.url && !skills[iconId]) skills[iconId] = leaf(alt(`skill/${safeName(iconId)}.png`, s.icon.url, s.icon.bytes));
       if (s.skillId) skillsById[s.skillId] = iconId;
-      const own = SKILL_ABILITY_SOUNDS[id]?.[i] || [];
-      const abStart = own.length && s.skillId ? audio.bank(`battle.ON_ABILITY_START.${s.skillId}`) : null;
-      const abHit = own.length && s.skillId ? audio.bank(`battle.ON_ABILITY_HIT.${s.skillId}`) : null;
+      // (fork) the skill's own ability banks, for every operator (skillSounds.mjs: the files say swing / impact / cast)
       let ss = audio.skillBanks.get(s.skillId)?.get('ON_SKILL_START');
-      if (!ss?.length && own.includes('skill') && abStart?.length) ss = abStart;
-      if (own.includes('attack') && !assigned.attacks[String(i)] && abStart?.length) assigned.attacks[String(i)] = abStart;
-      if (own.includes('hit') && !assigned.hits[String(i)] && abHit?.length) assigned.hits[String(i)] = abHit;
+      const own = skillAbilitySounds(audio, s.skillId, { sting: ss, skip: tableFiles });
+      if (!ss?.length && own.sting) ss = own.sting;
+      if (own.attack && !assigned.attacks[String(i)]) assigned.attacks[String(i)] = own.attack;
+      if (own.hit && !assigned.hits[String(i)] && !quietHits.includes(i)) assigned.hits[String(i)] = own.hit;
+      if (own.on.length) ownOn[String(i)] = own.on;
+      if (own.off.length) ownOff[String(i)] = own.off.map((paths) => ({ paths }));
       if (ss?.length) {
         skillSfx[String(i)] = soundLeaf(ss);
         const g = audio.groupOf?.(ss);
@@ -800,12 +806,13 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       for (const [i, e0] of Object.entries(table || {})) {
         const list = [];
         for (const e of Array.isArray(e0) ? e0 : [e0]) {
-          const paths = audio.bank(typeof e === 'string' ? e : e.bank);
+          const paths = e.paths || audio.bank(typeof e === 'string' ? e : e.bank);
           if (!paths?.length) continue;
           const one = { url: soundLeaf(paths, 'sfx', 1) };
           const p = poolRef(paths);
           if (p) one.pool = p;
           if (e.hold) one.hold = true;
+          if (e.loop) one.loop = true;
           list.push(one);
         }
         if (!list.length) continue;
@@ -813,7 +820,8 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       }
       return Object.keys(out).length ? out : null;
     };
-    const on = edge(SKILL_ON_BANKS[id]), off = edge(SKILL_OFF_BANKS[id]);
+    // (fork) a per-operator entry wins for its skill index; the skill's own ability banks fill every other one
+    const on = edge({ ...ownOn, ...SKILL_ON_BANKS[id] }), off = edge({ ...ownOff, ...SKILL_OFF_BANKS[id] });
     if (on) u.skillOn = on;
     if (off) u.skillOff = off;
     // 丰川祥子's notes (sim notes.js, ['fx', 'note', …, { look, on }]): each note type's own born / hit bank

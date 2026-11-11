@@ -722,7 +722,7 @@ describe('AudioManager', () => {
     const u = m.units.char_4247_oxi;
     assert.equal(u.skill, undefined, 'no primary cast sound: by index only');
     // S2 has no ON_SKILL_START bank: its cast is its ability's start, ON_ABILITY_START.skchr_oxi_2 (tools/assets/plan.mjs
-    // SKILL_ABILITY_SOUNDS, dc9f0dbd); S1's ability start is her S1 swing (attacks[0]), no cast sound
+    // SKILL_ABILITY_SOUNDS, dc9f0dbd; now tools/assets/skillSounds.mjs); S1's ability start is her S1 swing (attacks[0]), no cast sound
     assert.deepEqual(Object.keys(u.skills), ['1', '2']);
     assert.match(u.skills[1], /p_skill_xtlfgbw_h\.mp3$/);
     assert.equal(u.skillGroups[1], 'Battle_P_SAtk', 'on its official bank\'s mixer group');
@@ -1771,21 +1771,16 @@ describe('the cast sound belongs to its own skill', () => {
   });
 
   test('data/assets.json: an operator whose lone bank is not on its primary skill keeps it, by index', () => {
+    // (fork, every skill's own sounds: tools/assets/skillSounds.mjs) 13 of the original 23 have official ability banks on
+    // their other skills too (陈 S3, 泥岩 S1, 银灰 S2 …) and left this list; the ten below still have one bank in all
     const LONE = {
-      char_010_chen: [1, 'player/p_skill/p_skill_chixiaobadao.mp3'], char_1033_swire2: [2, 'battle/b_char/b_char_atkboost.mp3'],
-      char_1045_svash2: [2, 'player/p_skill/p_skill_snwlprdg_s.mp3'], char_135_halo: [1, 'battle/b_char/b_char_atkboost.mp3'],
-      char_172_svrash: [1, 'battle/b_char/b_char_defboost.mp3'], char_179_cgbird: [2, 'player/p_skill/p_field_elefield_loop.mp3'],
-      char_183_skgoat: [1, 'player/p_skill/p_field_calcinosis.mp3'], char_196_sunbr: [1, 'battle/b_char/b_char_healboost.mp3'],
-      char_198_blackd: [1, 'battle/b_char/b_char_tactboost.mp3'], char_2025_shu: [2, 'player/p_skill/p_skill_drgndfmrhl.mp3'],
-      char_2027_wang: [2, 'player/p_skill/p_skill_stwctp_s.mp3'], char_218_cuttle: [1, 'battle/b_char/b_char_atkboost.mp3'],
-      char_311_mudrok: [2, 'battle/b_char/b_char_atkboost.mp3'], char_4054_malist: [0, 'battle/b_char/b_char_atkboost.mp3'],
-      char_4098_vvana: [1, 'battle/b_char/b_char_atkboost.mp3'], char_4121_zuole: [1, 'player/p_skill/p_skill_wrrsldisk.mp3'],
-      char_4139_papyrs: [1, 'battle/b_char/b_char_healboost.mp3'], char_4179_monstr: [2, 'battle/b_char/b_char_atkboost.mp3'],
-      char_4204_mantra: [2, 'player/p_skill/p_skill_mtelrncpnt.mp3'], char_4244_tocka: [2, 'battle/b_char/b_char_rylntbw_s.mp3'],
-      char_431_ashlok: [1, 'battle/b_char/b_char_atkboost.mp3'], char_449_glider: [1, 'battle/b_char/b_char_healboost.mp3'],
-      char_473_mberry: [1, 'battle/b_char/b_char_healboost.mp3'],
+      char_1033_swire2: [2, 'battle/b_char/b_char_atkboost.mp3'], char_135_halo: [1, 'battle/b_char/b_char_atkboost.mp3'],
+      char_196_sunbr: [1, 'battle/b_char/b_char_healboost.mp3'], char_2027_wang: [2, 'player/p_skill/p_skill_stwctp_s.mp3'],
+      char_4054_malist: [0, 'battle/b_char/b_char_atkboost.mp3'], char_4098_vvana: [1, 'battle/b_char/b_char_atkboost.mp3'],
+      char_4139_papyrs: [1, 'battle/b_char/b_char_healboost.mp3'], char_4244_tocka: [2, 'battle/b_char/b_char_rylntbw_s.mp3'],
+      char_449_glider: [1, 'battle/b_char/b_char_healboost.mp3'], char_473_mberry: [1, 'battle/b_char/b_char_healboost.mp3'],
     };
-    assert.equal(Object.keys(LONE).length, 23);
+    assert.equal(Object.keys(LONE).length, 10);
     for (const [id, [index, file]] of Object.entries(LONE)) {
       const rec = manifest.audio.sfx.units[id];
       assert.equal(rec.skill, undefined, `${id}: its primary skill has no bank`);
@@ -1796,7 +1791,9 @@ describe('the cast sound belongs to its own skill', () => {
   });
 
   test('data/assets.json: the primary skill\'s sound stays off the skills without a bank', () => {
-    const GAPS = [['char_1041_angel2', 1, [0, 2]], ['char_202_demkni', 1, [0]], ['char_2026_yu', 2, [0]], ['char_4087_ines', 1, [0, 2]]];
+    // (fork) 新约能天使 S1 / S3 and 余 S1 cast their official ability banks now (ON_ABILITY_START.skchr_angel2_1 …,
+    // tools/assets/skillSounds.mjs): the skills below still have no bank of any kind
+    const GAPS = [['char_202_demkni', 1, [0]], ['char_4087_ines', 1, [0, 2]]];
     for (const [id, own, silent] of GAPS) {
       assert.equal(castOf(manifest, id, own).played[0]?.url, manifest.audio.sfx.units[id].skills[own], `${id}: S${own + 1} keeps its sound`);
       for (const i of silent) assert.deepEqual(castOf(manifest, id, i).played, [], `${id}: S${i + 1} has no bank`);

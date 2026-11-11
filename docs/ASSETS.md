@@ -559,6 +559,9 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId},
                 groups?: { [skill|die|born]: mixerGroup }, skillGroups?: {[skillIndex]: mixerGroup},  // (fork) mixer groups
                 fxSounds?: {['<fx kind>|<skill tag>']: { url, pool?: bankId }},  // fork: a kit fx's official sound (塔露拉 S3's 簇火, overload)
+                // (fork) a skill's own sounds at its start / end (public/js/audio.js _skillEdge); `hold`: cut when the skill ends,
+                // `loop`: its bank loops until then, `more`: the edge's other banks
+                skillOn?: {[skillIndex]: { url, pool?: bankId, hold?: true, loop?: true, more?: [{ url, pool? }] }}, skillOff?: {[skillIndex]: …},
                 // (fork) an operator with a choice of skills has `skills`; its absent index casts silently, `skill` does not stand in
                 stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url, loopGroup?: mixerGroup }},  // (fork) 丰川祥子's skill stings
                 notes?: {[look]: { born?: url, bornPool?: bankId, hit?: url, hitPool?: bankId }} } },  // (fork) her per-note sounds
@@ -584,6 +587,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
   // swing p_atk_silver_n, community report of 2026-10-06); one that numbers its default mode takes those banks (`attack.0`,
   // `attack.0.1` …, START before ON) before any other number, so a shallower skill bank never wins (弑君者's S3 `attack.3`
   // smoke impact was her normal one until 0.3.2, DESIGN §35.38); enemies and tokens take the first attack-like bank
+  // (fork) every skill's own ability banks (tools/assets/skillSounds.mjs; ON_ABILITY_START / _ON / _HIT / _END and
+  // ON_SKILL_FINISH.<skillId>), for every operator: a p_atk_ file is the skill's swing (`attacks`), a p_imp_ file its
+  // impact (`hits`), any other a cast — the sting (`skills`) when the skill has no ON_SKILL_START, else `skillOn`; a
+  // looping bank holds until the skill ends; the end banks are `skillOff`. A per-operator table in plan.mjs wins for its skill
   fonts: { css: '/fonts/fonts.css', faces: { [name]: { family, weight, woff2?, original } } }
 }
 ```

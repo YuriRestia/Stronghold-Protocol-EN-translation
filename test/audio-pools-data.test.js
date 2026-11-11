@@ -61,22 +61,25 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
   // operators their slots and files (the 5 pool-only attack sounds among them)
   // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)
-  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (plan.mjs SKILL_ABILITY_SOUNDS) and the pools of
+  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (then plan.mjs SKILL_ABILITY_SOUNDS, now tools/assets/skillSounds.mjs) and the pools of
   // those two, her S2 strike back's impact and her T2 footprint (FX_SOUND_BANKS)
   // (fork) + 2 references, + 16 pools: 莫斯提马's impact (+1; plan.mjs UNIT_SOUND_BANKS) and 蕾缪安's S1 / S2 impacts (+2;
   // SKILL_MODE_BANKS), minus 莫斯提马's S2 slot (−1: its mode is her S3's, shared/fxModes.js); the 16 pools are the official
   // banks those two operators' new sounds play on (impacts, S2 attack.2.2, FX_SOUND_BANKS, SKILL_ON_BANKS, SKILL_OFF_BANKS)
   // (fork) + 1 pool: 焰影苇草 S3's blast on a defeated enemy (FX_SOUND_BANKS: projectile_chr_reed2_aoe_effect's REACH,
   // p_aoe_fireexplo_h; an fx sound is no attack / hit reference)
-  // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
+  // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS, now skillSounds.mjs), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
   // (fork) + 4 pools: 烛煌's S3 ability end (SKILL_OFF_BANKS' second bank, ON_ABILITY_END.skchr_blaze2_3) and her talents'
   // knock-down, stand-up and burn-burst banks (FX_SOUND_BANKS: reborn_start, reborn_finish, fire_ep_break)
   // (fork) + 5 pools: the element burst banks (plan.mjs BURST_SOUND_BANKS: ep_break_fire_audio's START and SHOW_EFFECT,
   // the sanity, water and dark START banks; a burst sound is no attack / hit reference)
-  assert.equal(refs, 1048);
-  assert.equal(Object.keys(pools).length, 1083);
+  // (fork) + 123 references, + 214 pools: every skill's own ability banks (tools/assets/skillSounds.mjs; effect-gaps audit 2
+  // fix #1): 73 skill swings and 50 skill impacts (net of 水月 S1's mode swing, which the local fx index of 2026-11-11 no
+  // longer gives her), and the pools of those, the new casts and the start / end sounds (skillOn / skillOff)
+  assert.equal(refs, 1171);
+  assert.equal(Object.keys(pools).length, 1297);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
