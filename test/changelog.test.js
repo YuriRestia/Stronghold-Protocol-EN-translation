@@ -1,10 +1,13 @@
 // (fork) Changelog fragments (changes/README.md): every fragment is well-formed, and tools/changelog.mjs folds them
 // into FORK-CHANGELOG.md in date order without touching the rest.
-import { test } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { spawnSync, execFileSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseFragment, foldFragments, fragmentFiles, CHANGES_DIR } from '../tools/changelog.mjs';
+import { fileURLToPath } from 'node:url';
+import { parseFragment, foldFragments, fragmentFiles, CHANGES_DIR, main } from '../tools/changelog.mjs';
 
 test('every fragment in changes/ is well-formed', () => {
   const bad = fragmentFiles().flatMap((f) => parseFragment(f, readFileSync(join(CHANGES_DIR, f), 'utf8')).errors);
@@ -41,4 +44,70 @@ test('with no fragments FORK-CHANGELOG.md comes back byte for byte', () => {
   const t = readFileSync(new URL('../FORK-CHANGELOG.md', import.meta.url), 'utf8');
   assert.equal(foldFragments(t, []), t);
   assert.equal(foldFragments(LOG, []), LOG);
+});
+
+// The command (tools/changelog.mjs main): only --write folds and deletes, on dev-0.2 with changes/ committed; --help,
+// an unknown option and --dry-run touch nothing (a `--help` once folded and deleted every fragment).
+const TOOL = fileURLToPath(new URL('../tools/changelog.mjs', import.meta.url));
+const listing = (dir) => readdirSync(dir).sort().map((f) => `${f}:${readFileSync(join(dir, f), 'utf8').length}`);
+
+test('--help and an unknown option print the usage and exit 1 without touching changes/ or FORK-CHANGELOG.md', () => {
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const before = [listing(join(root, 'changes')), readFileSync(join(root, 'FORK-CHANGELOG.md'), 'utf8')];
+  for (const args of [['--help'], ['-h'], ['--bogus'], ['--dry-run', '--write'], ['write']]) {
+    const r = spawnSync(process.execPath, [TOOL, ...args], { cwd: root, encoding: 'utf8', timeout: 30_000, maxBuffer: 4 << 20 });
+    assert.equal(r.status, 1, args.join(' '));
+    assert.match(r.stdout, /^Usage: node tools\/changelog\.mjs/m, args.join(' '));
+    if (args[0] !== '--help' && args[0] !== '-h') assert.match(r.stdout, /unknown option|not several/, args.join(' '));
+  }
+  assert.deepEqual([listing(join(root, 'changes')), readFileSync(join(root, 'FORK-CHANGELOG.md'), 'utf8')], before);
+});
+
+describe('in a checkout', () => {
+  let dir;
+  const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const run = (args, branch) => { const lines = []; let printed = ''; const code = main(args, { root: dir, log: (x) => lines.push(x), out: (x) => { printed += x; }, ...(branch ? { branch } : {}) }); return { code, lines: lines.join('\n'), printed }; };
+  const frag = '## 2026-11-11\n\n### New thing\n\n- It works.\n';
+  before(() => {
+    dir = mkdtempSync(join(tmpdir(), 'sp-changelog-'));
+    g('init', '-q', '-b', 'dev-0.2');
+    g('config', 'user.email', 'test@example.invalid'); g('config', 'user.name', 'test'); g('config', 'core.autocrlf', 'false');
+    mkdirSync(join(dir, 'changes'));
+    writeFileSync(join(dir, 'changes/README.md'), '# format\n');
+    writeFileSync(join(dir, 'changes/new-thing.md'), frag);
+    writeFileSync(join(dir, 'FORK-CHANGELOG.md'), LOG);
+    g('add', '-A'); g('commit', '-q', '-m', 'base');
+  });
+  after(() => rmSync(dir, { recursive: true, force: true }));
+  const untouched = () => { assert.equal(readFileSync(join(dir, 'changes/new-thing.md'), 'utf8'), frag); assert.equal(readFileSync(join(dir, 'FORK-CHANGELOG.md'), 'utf8'), LOG); };
+
+  test('no option checks; --dry-run prints the folded changelog; neither writes', () => {
+    const c = run([]);
+    assert.equal(c.code, 0);
+    assert.match(c.lines, /1 fragment\(s\) OK/);
+    const d = run(['--dry-run']);
+    assert.equal(d.code, 0);
+    assert.match(d.printed, /## 2026-11-11\n\n### New thing\n\n- It works\.\n\n### Old today/);
+    untouched();
+  });
+
+  test('--write refuses on another branch and with uncommitted changes/ or FORK-CHANGELOG.md', () => {
+    const other = run(['--write'], 'main');
+    assert.equal(other.code, 1);
+    assert.match(other.lines, /runs on main only \(this checkout is on dev-0\.2\)/);
+    untouched();
+    writeFileSync(join(dir, 'changes/second.md'), frag.replace('New thing', 'Second'));
+    const dirty = run(['--write']);
+    assert.equal(dirty.code, 1);
+    assert.match(dirty.lines, /uncommitted changes[\s\S]*changes\/second\.md/);
+    untouched();
+    rmSync(join(dir, 'changes/second.md'));
+  });
+
+  test('--write on dev-0.2 with everything committed folds the fragments in and deletes them', () => {
+    const w = run(['--write']);
+    assert.equal(w.code, 0, w.lines);
+    assert.deepEqual(readdirSync(join(dir, 'changes')), ['README.md']);
+    assert.match(readFileSync(join(dir, 'FORK-CHANGELOG.md'), 'utf8'), /## 2026-11-11\n\n### New thing\n\n- It works\.\n\n### Old today/);
+  });
 });
