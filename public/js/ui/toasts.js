@@ -109,6 +109,8 @@ export function describeError(err) {
   }
   // the per-seat 重刷本局 cooldown (PR #860, DESIGN §28.21): say which limit it is, not the generic RATE text
   if (err.code === 'RATE' && err.detail === 'setup reroll cooldown') return t('每人 {s} 秒内只能发起一次重刷投票', { s: SETUP_REROLL_COOLDOWN_MS / 1000 });
+  // (fork) a Grand Alliance's squad-move limit (server/lobby.js moveSeat). msgid en: "You're changing squads too often. Try again in a moment."
+  if (err.code === 'RATE' && err.detail === 'squad moves too fast') return t('换小队太频繁，请稍后再试');
   if (err.code && Object.hasOwn(ERR_TEXT, err.code)) return t(ERR_TEXT[err.code]);
   if (typeof err.message === 'string' && err.message) return t(err.message);
   if (typeof err.msg === 'string' && err.msg) return t(err.msg);
