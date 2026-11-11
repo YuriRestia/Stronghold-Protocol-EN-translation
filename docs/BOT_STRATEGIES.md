@@ -120,6 +120,14 @@ four entries and an unknown ID all prevent startup: `startServer()` validates th
 Programmatic matches pass `opts.botStrategySeats` (`{ [seat]: id | definition }` or the same text), which takes
 precedence over the environment like `opts.botStrategy`.
 
+### Host-run bots (fork)
+
+`SP_HOST_BOT_STRATEGY` picks the strategy of bots played in a human's browser (`SP_BOT_EXECUTION=host`, and every
+Grand Alliance room), in place of `SP_BOT_STRATEGY`; bots the server plays itself never see it. Unset or empty, host-run
+bots play `SP_BOT_STRATEGY` as before. Per-seat overrides still win. The servers set it to `ioleta-adaptive`. An unknown
+ID, or `external`, prevents startup. Programmatic matches pass `opts.hostBotStrategy`, used only with
+`botExecution: 'host'`.
+
 An override belongs to the seat number, not to who sits there: an AI teammate and a human under AI takeover on that
 seat both play it, as both play `SP_BOT_STRATEGY` on a seat without one. Every hook of a seat (band and card
 picks, private bounty choices, both prep stages, plugin offers and the bounty estimate shown to an advisor) comes

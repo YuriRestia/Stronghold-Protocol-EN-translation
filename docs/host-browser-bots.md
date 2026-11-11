@@ -178,7 +178,8 @@ has no direct writes to board, hand, funds or pieces. That is what makes a move 
 
 `Match` gets one option, `botExecution: 'local' | 'host'`. `new Match()` defaults to `local`, so tests, tools and golden
 results stay as they are. `server/lobby.js` passes `host` when `SP_BOT_EXECUTION=host`. In `host` mode a guard throws if
-bot decision code runs on the server.
+bot decision code runs on the server. `SP_HOST_BOT_STRATEGY` (`opts.hostBotStrategy`) gives host-run bots a strategy of their
+own, e.g. `ioleta-adaptive`, without changing what server-run bots play (docs/BOT_STRATEGIES.md).
 
 **The player's UI never shows a bot's task data.** `botHost.js` hands `b.botTask` straight to the Worker. The frames never
 reach the page's game store, so no screen can draw a bot's shop or a teammate's hand from them. A test asserts this.

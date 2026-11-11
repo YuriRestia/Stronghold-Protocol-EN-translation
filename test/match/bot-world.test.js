@@ -160,3 +160,13 @@ test('a seat played with the Worker\'s own environment gives the moves of the No
   assert.ok(out.plan.moves.length + out.final.moves.length > 0);
   h.m.dispose();
 });
+
+test('host-only strategy: host-run bots play opts.hostBotStrategy, server-run bots and seat overrides keep theirs', () => {
+  const ids = (h) => { const ps = h.m.players.get('ai_1'); return buildWorld(h.m, ps, h.m.newBotTask(ps)).strategies; };
+  const host = makeMatch({ seats: SEATS, seed: 3, fake: true, botExecution: 'host', hostBotStrategy: 'ioleta-adaptive', botStrategySeats: '2:ioleta' });
+  assert.deepEqual(ids(host), { 0: 'ioleta-adaptive', 1: 'ioleta-adaptive', 2: 'ioleta' }, 'host mode: the host strategy, a seat override still wins');
+  assert.throws(() => host.m.bot.pickCard?.(host.m, host.m.players.get('ai_1'), [], []), /host/i, 'and the server still never runs it');
+  const local = makeMatch({ seats: SEATS, seed: 3, fake: true, hostBotStrategy: 'ioleta-adaptive' });
+  assert.equal(local.m.bot.id, 'legacy', 'a match the server plays ignores it');
+  assert.throws(() => makeMatch({ seats: SEATS, seed: 3, fake: true, botExecution: 'host', hostBotStrategy: 'nope' }), /Unknown bot strategy/);
+});
