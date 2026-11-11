@@ -2,15 +2,14 @@
 // every digest with test/golden/*.json — battles (every chess record × skill × module, every bond, the leader and 联防
 // fields) and bot-only matches. A behaviour-preserving refactor must leave every digest unchanged; a failure names the
 // scenario, the field and old → new. Default: the fast subset (scenarios marked "fast": true in the golden files);
-// GOLDEN_FULL=1 checks the whole corpus. GOLDEN_JOBS=N sets the worker threads (default: up to 4).
+// GOLDEN_FULL=1 checks the whole corpus. GOLDEN_JOBS=N sets the worker threads (default and (fork) cap: 4).
 // After an intended gameplay change: `npm run golden:update`, review the diff, commit the files with the change.
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { availableParallelism } from 'node:os';
-import { FAMILY_NAMES, scenariosOf, computeDigests, loadGolden, storedDigests, compareFamily, formatDiffs } from '../tools/golden.mjs';
+import { FAMILY_NAMES, scenariosOf, computeDigests, loadGolden, storedDigests, compareFamily, formatDiffs, goldenJobs } from '../tools/golden.mjs';
 
 const FULL = process.env.GOLDEN_FULL === '1';
-const JOBS = Math.max(1, Number(process.env.GOLDEN_JOBS) || Math.min(4, Math.max(1, availableParallelism() - 1)));
+const JOBS = goldenJobs(process.env.GOLDEN_JOBS);
 
 let digests = null;
 // ≈ 7 s (fast) / 20 s (full) with 4 worker threads here; the timeout only stops a hang (a step that never returns)
