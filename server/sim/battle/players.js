@@ -12,6 +12,7 @@ import { normalizeToken } from '../simdata.js';
 import { isPotential, isCultivate } from '../../../shared/potential.js';
 import { setupUnitKit } from '../content/index.js';
 import { installTraitAttackSpeed } from '../content/traitMods.js';
+import { installFxStates } from '../content/fxStates.js';
 import { clone } from './util.js';
 
 export class BattlePlayers {
@@ -250,6 +251,8 @@ export class BattlePlayers {
     // their hand-written copy deleted in the same change. Calling it before kit.install would let a kit's own buff and
     // this rule both land on the same unit.
     this._safe(() => installTraitAttackSpeed(this, u), 'traitMods.attackSpeed', u);
+    // (fork) display only: the official lasting effects read off the sim's state at a snapshot (content/fxStates.js)
+    installFxStates(this, u);
     return u.kit;
   }
 }

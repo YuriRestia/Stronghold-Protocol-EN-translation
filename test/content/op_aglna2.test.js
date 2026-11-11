@@ -367,3 +367,20 @@ test('S3 move: blocking nothing, she flies (2 tiles/s, 无敌, disarmed) to the 
     done(h);
   }
 });
+
+test('(fork) S3 takeoff fx: the original 3-9 of her deployment tile (`range`, [row, col]) and `around` 1 (the 8 tiles around her), for the client\'s range line (render/vfx/pathfx.js)', () => {
+  const { h, u } = field({ tier: 5, skill: 2 });
+  u.skill.gainSp(999);
+  h.spawn('enemy_dummy', { pos: [10, 6] });
+  assert.ok(h.runUntil(() => u.skill.active, 1), 'cast');
+  const fx = h.eventsOf('fx').filter((e) => e[1] === 'takeoff' && e[4]?.id === u.id);
+  assert.equal(fx.length, 1, 'one takeoff, at the cast');
+  const { range, around } = fx[0][4];
+  assert.equal(around, 1);
+  const keys = range.map(([r, c]) => r * 21 + c).sort((a, b) => a - b);
+  const sk = skillOf(5, false, S3);
+  assert.equal(keys.length, sk.rangeGrid.length, 'the 3-9, tile for tile');
+  for (const k of keys) assert.ok(u.rangeKeySet.has(k), 'each tile is in her running range');
+  for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) assert.ok(u.rangeKeySet.has((10 + dr) * 21 + 4 + dc), `(${10 + dr}, ${4 + dc}) around her`);
+  done(h);
+});

@@ -63,6 +63,29 @@ const isPost = (e) => /^\w*RebornTalent\._buffs\b/.test(e.from || '');
  */
 export const FX_SHIELDS = Object.freeze({ char_4098_vvana: 'vvana_buff_01' });
 
+/**
+ * (fork) Kit buffs whose layer count the sim sends (fx 'buffLayers' { id, n, max, skill: tag }, at every change), by
+ * unit → tag → the official loops held on the owner while it has at least `min` layers ('max': every one). No client
+ * signal reaches the events the client's templates create these buffs at. 塔露拉 (op-oxi.js): 【怒火】 'oxi:rage' —
+ * oxi_t_1_arcane_manager stacks oxi_t_1_arcane_stack (overrideEffectKey oxi_buff_02) from one layer and, at max_stack_cnt,
+ * adds oxi_t_1_arcane_full_fx (oxi_buff_03), which her next normal attack finishes (oxi_t_1_attack_completed); her S2
+ * stack 'oxi:stack' — oxi_s_2_stack carries oxi_skill_02_buff_01 while a layer is left (SkillFx leaves that loop to this).
+ */
+export const FX_LAYERS = Object.freeze({
+  char_4247_oxi: Object.freeze({
+    'oxi:rage': Object.freeze([Object.freeze({ key: 'oxi_buff_02', min: 1 }), Object.freeze({ key: 'oxi_buff_03', min: 'max' })]),
+    'oxi:stack': Object.freeze([Object.freeze({ key: 'oxi_skill_02_buff_01', min: 1 })]),
+  }),
+});
+const NO_KEYS = Object.freeze(new Set());
+const LAYER_KEYS = new Map(Object.entries(FX_LAYERS).map(([unit, tags]) => [unit, new Set(Object.values(tags).flat().map((r) => r.key))]));
+/** The loop keys a unit's layer counts hold (FX_LAYERS), an empty set for any other unit. */
+export const layerKeysOf = (unitKey) => LAYER_KEYS.get(unitKey) ?? NO_KEYS;
+/** The FX_LAYERS rows a count holds now: n ≥ min ('max': n ≥ max, max ≥ 1). */
+export function layerRowsOn(rows, n, max) {
+  return (rows || []).filter((r) => (r.min === 'max' ? max >= 1 && n >= max : n >= r.min));
+}
+
 export class TalentFx {
   constructor(w) {
     this.w = w;
@@ -95,7 +118,7 @@ export class TalentFx {
         const all = key ? talentBindings(this.w.idx, key, { info, rec }) : [];
         // (a 驭械术士's floating unit — the passive general ability beside her funnel shot — is FunnelFx's to draw)
         const binds = all.filter((b) => (bindable(b).ok || b.when === 'attack') && !this.w.funnels?.owns(key, b));
-        if (binds.length) {
+        if (binds.length || FX_LAYERS[key]) {
           U = {
             id, key, v, binds, rec, standing: false, born: false,
             loops: new Map(),   // `${key}|${at}` → { h, e }
@@ -224,6 +247,7 @@ export class TalentFx {
     U.standing = false;
     U.born = false;
     U.fxShield = 0;
+    U.fxLayers = null;
   }
 
   /** A triggered node casts: its rows once (held rows for a cast, loops for TRIGGER_HOLD_S). */
@@ -251,6 +275,13 @@ export class TalentFx {
     if (sk && (kind === 'shield' || kind === 'shieldBreak')) {
       U.fxShield = Math.max(0, (U.fxShield | 0) + (kind === 'shield' ? 1 : -1));
       return kind === 'shield' && this.w.ofx.lib.has(this.w.skinKey(sk, U.v));
+    }
+    // (fork) a kit buff's layer count (FX_LAYERS): its loops hold from it (sync); nothing is drawn at the fx itself
+    if (kind === 'buffLayers') {
+      const tag = typeof extra.skill === 'string' ? extra.skill : '';
+      if (!FX_LAYERS[U.key]?.[tag]) return false;
+      (U.fxLayers || (U.fxLayers = new Map())).set(tag, { n: Math.max(0, Number(extra.n) || 0), max: Math.max(0, Number(extra.max) || 0) });
+      return true;
     }
     // an arts barrier (the sim's artsBarrier: 'phase' kind 'artsBarrier' as it is raised, 'shieldBreak' as it breaks):
     // the loops of a barrier talent (its key names a shield) last while it holds [ASSUMED: the client's buff ends there]
@@ -399,6 +430,8 @@ export class TalentFx {
       if (!up) { if (U.standing || U.loops.size) this.release(v); continue; }
       if (!U.standing) { U.standing = true; U.born = true; }   // a view built mid-battle: its loops, not its deploy rows
       const want = new Map();
+      // (fork) an idle buff the owner's skill finishes while it is on (SkillFx.idleOff: char_1046_sbell2's sbell2_idle)
+      const hide = this.w.skills?.idleOff?.(v) || null;
       for (const b of U.binds) {
         const on = this._inForce(U, b, v, now);
         const was = !!U.act.get(b.id);
@@ -406,10 +439,15 @@ export class TalentFx {
         if (!on && was) for (const e of uniq(b.plan.end)) this._play(e, v);
         U.act.set(b.id, on);
         if (!on) continue;
-        for (const e of this._layerLoops(U, b, v, this._loopsOf(b))) want.set(`${e.key}|${e.at}`, e);
+        for (const e of this._layerLoops(U, b, v, this._loopsOf(b))) if (!hide?.has(e.buff)) want.set(`${e.key}|${e.at}`, e);
       }
       for (const e of U.post) want.set(`${e.key}|${e.at}`, e);
       if (U.fxShield > 0 && FX_SHIELDS[U.key]) { const e = shieldEntry(FX_SHIELDS[U.key]); want.set(`${e.key}|${e.at}`, e); }
+      if (U.fxLayers) {
+        for (const [tag, c] of U.fxLayers) {
+          for (const r of layerRowsOn(FX_LAYERS[U.key]?.[tag], c.n, c.max)) { const e = shieldEntry(r.key); want.set(`${e.key}|${e.at}`, e); }
+        }
+      }
       if (U.inv && now < U.inv.until) for (const e of U.inv.entries) want.set(`${e.key}|${e.at}`, e);
       else if (U.inv) U.inv = null;
       // (a prefab that does not loop plays once while it is wanted — its record stays, so it is not started again)
@@ -430,6 +468,7 @@ export class TalentFx {
       if (!U) continue;
       for (const b of U.binds) for (const k of bindingKeys(b)) out.add(k);
       if (FX_SHIELDS[U.key]) out.add(FX_SHIELDS[U.key]);
+      for (const k of layerKeysOf(U.key)) out.add(k);
     }
     return [...out];
   }

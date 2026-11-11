@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES, POP_FADE_S } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES, POP_FADE_S, HELD_ATTACK_LAYERS } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { songGain } from '../../public/js/audioMixer.js';
 import { PHASE } from '../../shared/constants.js';
@@ -722,7 +722,7 @@ describe('AudioManager', () => {
     const u = m.units.char_4247_oxi;
     assert.equal(u.skill, undefined, 'no primary cast sound: by index only');
     // S2 has no ON_SKILL_START bank: its cast is its ability's start, ON_ABILITY_START.skchr_oxi_2 (tools/assets/plan.mjs
-    // SKILL_ABILITY_SOUNDS, dc9f0dbd); S1's ability start is her S1 swing (attacks[0]), no cast sound
+    // SKILL_ABILITY_SOUNDS, dc9f0dbd; now tools/assets/skillSounds.mjs); S1's ability start is her S1 swing (attacks[0]), no cast sound
     assert.deepEqual(Object.keys(u.skills), ['1', '2']);
     assert.match(u.skills[1], /p_skill_xtlfgbw_h\.mp3$/);
     assert.equal(u.skillGroups[1], 'Battle_P_SAtk', 'on its official bank\'s mixer group');
@@ -834,6 +834,30 @@ describe('AudioManager', () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+
+  test('(fork) 塔露拉 S2 stack: while the kit counts a layer (buffLayers oxi:stack) her normal attacks are BuffedAttack\'s — its impact hits[1]; at 0 her own again', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const u = m.units.char_4247_oxi;
+    assert.match(u.hits[1], /p_imp_xtlfgbw_h\.mp3$/, 'BuffedAttack (attack.0.1) lands p_imp_xtlfgbw_h');
+    assert.equal(u.hitPools[1], 'battle.ON_ABILITY_HIT.char_4247_oxi.attack.0.1');
+    assert.match(u.hit, /p_imp_xtlfgbw_n\.mp3$/, 'Attack (attack.0.2) lands _n');
+    assert.deepEqual(HELD_ATTACK_LAYERS.char_4247_oxi, { 'oxi:stack': 1 });
+    const a = new AudioManager({ win: fakeWindow().win, getManifest: () => ({ audio: { bgm: {}, sfx: m } }), random: () => 0 });
+    a.ctx = {};   // past the gate: unit() is spied, nothing is decoded
+    a.setFieldUnits([{ id: 3, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4247_oxi', skillIndex: 1 },
+      { id: 9, kind: 'enemy', side: 'enemy', defId: 'enemy_x', spine: 'enemy_x' }]);
+    const calls = [];
+    a.unit = (def, role, key, skillIndex, active) => { calls.push([role, skillIndex, active]); return true; };
+    const strike = () => { calls.length = 0; a.handleBattleEvents([['atk', 3, 9, 'none'], ['dmg', 9, 100, 'arts']]); return calls.slice(); };
+    const layers = (n) => a.handleBattleEvents([['fx', 'buffLayers', 5, 9, { id: 3, n, max: 5, skill: 'oxi:stack' }]]);
+    assert.deepEqual(strike(), [['attack', 1, false], ['hit', 1, false]], 'no layer: her own attack');
+    layers(2);
+    assert.deepEqual(strike(), [['attack', 1, true], ['hit', 1, true]], 'a layer: the skill\'s own swing and impact');
+    layers(0);
+    assert.deepEqual(strike(), [['attack', 1, false], ['hit', 1, false]], 'the last layer gone');
+    a.handleBattleEvents([['fx', 'buffLayers', 5, 9, { id: 3, n: 6, max: 6, skill: 'oxi:rage' }]]);
+    assert.deepEqual(strike(), [['attack', 1, false], ['hit', 1, false]], '怒火 changes no attack');
   });
 
   test('(fork) 莫斯提马 / 蕾缪安 (committed manifest): their official impact, skill-mode, skill start / end and kit fx banks', () => {
@@ -1771,21 +1795,16 @@ describe('the cast sound belongs to its own skill', () => {
   });
 
   test('data/assets.json: an operator whose lone bank is not on its primary skill keeps it, by index', () => {
+    // (fork, every skill's own sounds: tools/assets/skillSounds.mjs) 13 of the original 23 have official ability banks on
+    // their other skills too (陈 S3, 泥岩 S1, 银灰 S2 …) and left this list; the ten below still have one bank in all
     const LONE = {
-      char_010_chen: [1, 'player/p_skill/p_skill_chixiaobadao.mp3'], char_1033_swire2: [2, 'battle/b_char/b_char_atkboost.mp3'],
-      char_1045_svash2: [2, 'player/p_skill/p_skill_snwlprdg_s.mp3'], char_135_halo: [1, 'battle/b_char/b_char_atkboost.mp3'],
-      char_172_svrash: [1, 'battle/b_char/b_char_defboost.mp3'], char_179_cgbird: [2, 'player/p_skill/p_field_elefield_loop.mp3'],
-      char_183_skgoat: [1, 'player/p_skill/p_field_calcinosis.mp3'], char_196_sunbr: [1, 'battle/b_char/b_char_healboost.mp3'],
-      char_198_blackd: [1, 'battle/b_char/b_char_tactboost.mp3'], char_2025_shu: [2, 'player/p_skill/p_skill_drgndfmrhl.mp3'],
-      char_2027_wang: [2, 'player/p_skill/p_skill_stwctp_s.mp3'], char_218_cuttle: [1, 'battle/b_char/b_char_atkboost.mp3'],
-      char_311_mudrok: [2, 'battle/b_char/b_char_atkboost.mp3'], char_4054_malist: [0, 'battle/b_char/b_char_atkboost.mp3'],
-      char_4098_vvana: [1, 'battle/b_char/b_char_atkboost.mp3'], char_4121_zuole: [1, 'player/p_skill/p_skill_wrrsldisk.mp3'],
-      char_4139_papyrs: [1, 'battle/b_char/b_char_healboost.mp3'], char_4179_monstr: [2, 'battle/b_char/b_char_atkboost.mp3'],
-      char_4204_mantra: [2, 'player/p_skill/p_skill_mtelrncpnt.mp3'], char_4244_tocka: [2, 'battle/b_char/b_char_rylntbw_s.mp3'],
-      char_431_ashlok: [1, 'battle/b_char/b_char_atkboost.mp3'], char_449_glider: [1, 'battle/b_char/b_char_healboost.mp3'],
-      char_473_mberry: [1, 'battle/b_char/b_char_healboost.mp3'],
+      char_1033_swire2: [2, 'battle/b_char/b_char_atkboost.mp3'], char_135_halo: [1, 'battle/b_char/b_char_atkboost.mp3'],
+      char_196_sunbr: [1, 'battle/b_char/b_char_healboost.mp3'], char_2027_wang: [2, 'player/p_skill/p_skill_stwctp_s.mp3'],
+      char_4054_malist: [0, 'battle/b_char/b_char_atkboost.mp3'], char_4098_vvana: [1, 'battle/b_char/b_char_atkboost.mp3'],
+      char_4139_papyrs: [1, 'battle/b_char/b_char_healboost.mp3'], char_4244_tocka: [2, 'battle/b_char/b_char_rylntbw_s.mp3'],
+      char_449_glider: [1, 'battle/b_char/b_char_healboost.mp3'], char_473_mberry: [1, 'battle/b_char/b_char_healboost.mp3'],
     };
-    assert.equal(Object.keys(LONE).length, 23);
+    assert.equal(Object.keys(LONE).length, 10);
     for (const [id, [index, file]] of Object.entries(LONE)) {
       const rec = manifest.audio.sfx.units[id];
       assert.equal(rec.skill, undefined, `${id}: its primary skill has no bank`);
@@ -1796,7 +1815,9 @@ describe('the cast sound belongs to its own skill', () => {
   });
 
   test('data/assets.json: the primary skill\'s sound stays off the skills without a bank', () => {
-    const GAPS = [['char_1041_angel2', 1, [0, 2]], ['char_202_demkni', 1, [0]], ['char_2026_yu', 2, [0]], ['char_4087_ines', 1, [0, 2]]];
+    // (fork) 新约能天使 S1 / S3 and 余 S1 cast their official ability banks now (ON_ABILITY_START.skchr_angel2_1 …,
+    // tools/assets/skillSounds.mjs): the skills below still have no bank of any kind
+    const GAPS = [['char_202_demkni', 1, [0]], ['char_4087_ines', 1, [0, 2]]];
     for (const [id, own, silent] of GAPS) {
       assert.equal(castOf(manifest, id, own).played[0]?.url, manifest.audio.sfx.units[id].skills[own], `${id}: S${own + 1} keeps its sound`);
       for (const i of silent) assert.deepEqual(castOf(manifest, id, i).played, [], `${id}: S${i + 1} has no bank`);

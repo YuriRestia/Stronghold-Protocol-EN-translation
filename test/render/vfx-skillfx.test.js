@@ -17,7 +17,8 @@ const SKILL = 16; // UF.SKILL
 
 const LOOPING = new Set(['foo_s1_buff', 'foo_s1_ready', 'foo_s2_burn', 'buff_stun', 'buff_burn', 'foo_s3_loop', 'bar_buff', 'foo_s1_range_l',
   'indigo_attack_charge_02', 'indigo_attack_charge_03', 'indigo_attack_charge_04', 'indigo_attack_charge_05', 'clemnt_skill_03_mark_all_01',
-  'once_loop', 'oncep_loop', 'oxi_skill_02_buff_01', 'oxi_buff_01']);
+  'once_loop', 'oncep_loop', 'oxi_skill_02_buff_01', 'oxi_buff_01', 'oxi_buff_02', 'oxi_buff_03', 'idle_s1_buff', 'idle_common', 'idlet_s1_buff', 'idlet_idle',
+  'bleed_s3_buff', 'bleed_after']);
 const KEYS = ['foo_atk_start', 'foo_atk_hit', 'foo_s2_mode_cast', 'foo_s3_mode_cast', 'foo_trail', 'foo_phit', 'foo_s1_buff', 'foo_s1_begin',
   'foo_s1_range', 'foo_s1_range_l', 'foo_s1_end', 'foo_s1_ready', 'foo_s1_trig', 'foo_s2_cast_start', 'foo_s2_cast_spell', 'foo_s2_aim', 'foo_s2_h1',
   'foo_s2_h2', 'foo_s2_burn', 'foo_s2_trail', 'foo_s2_phit', 'foo_s3_loop', 'foo_s3_tick', 'foo_each_hit', 'bar_buff', 'bar_birth',
@@ -27,7 +28,9 @@ const KEYS = ['foo_atk_start', 'foo_atk_hit', 'foo_s2_mode_cast', 'foo_s3_mode_c
   // (fork) the template shots' bindings (FX_BINDINGS flight / keysIf / tiles)
   'token_mcnist_mcgraf_skill_03_trail_01_right', 'token_mcnist_mcgraf_skill_03_trail_02_up_left', 'token_mcnist_mcgraf_skill_03_hit_01',
   'kalts2_skill_02_indicator_damage_01', 'kalts2_skill_02_range_heal_01_delay', 'kalts2_skill_02_indicator_heal_01',
-  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01', 'oxi_skill_02_hit_01', 'oxi_skill_02_buff_01', 'oxi_buff_01'];
+  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01', 'oxi_skill_02_hit_01', 'oxi_skill_02_buff_01', 'oxi_buff_01',
+  'oxi_buff_02', 'oxi_buff_03',
+  'idle_s1_buff', 'idle_common', 'idlet_s1_buff', 'idlet_idle', 'bleed_s3_buff', 'bleed_after'];
 
 const melee = (k, ev = 2) => ({ effects: [k], oneshot: 1, startEvent: ev, endEvent: 3, directionType: 0 });
 
@@ -83,6 +86,24 @@ function makeIndex() {
       { role: 'loop', keys: ['once_buff'], from: 'BuffDuringSkill._buffs', node: 'sk', on: 'owner' },
       { role: 'loop', keys: ['once_loop'], from: 'BuffDuringSkill._buffs', node: 'sk', on: 'owner' },
     ] },
+    // (fork) buffs the skill's end creates (index `made`): an idle loop whose passive copy is the skill's own
+    // (char_4212_nasti S1), one a unit ability carries (char_1046_sbell2), a LIMITED one (char_1026_gvial2 S3's bleed)
+    skchr_idle_1: { mode: null, projectiles: [], uses: [
+      { role: 'loop', keys: ['idle_s1_buff'], from: 'BuffDuringSkill._buffs → template i_s[mgr]', event: 'ON_BUFF_START', action: 'CreateBuff', on: 'owner', buff: 'i_s[mgr]' },
+      { role: 'loop', keys: ['idle_common'], from: 'BuffDuringSkill._buffs → template i_s[mgr]', event: 'ON_BUFF_FINISH', action: 'CreateBuff', on: 'owner', buff: 'i_s[mgr]',
+        made: { type: 'INFINITY', buff: 'i_s[effect]', until: 'start' } },
+      { role: 'loop', keys: ['idle_common'], from: 'PassiveBuffAbility._buffs', node: 'ExtraAbility0', on: 'owner', buff: 'i_s[effect]', template: 'empty' },
+    ] },
+    skchr_idlet_1: { mode: null, projectiles: [], uses: [
+      { role: 'loop', keys: ['idlet_s1_buff'], from: 'BuffDuringSkill._buffs', node: 'sk', on: 'owner', buff: 'it_s1', template: 'empty' },
+      { role: 'loop', keys: ['idlet_idle'], from: 'BuffDuringSkill._buffs → template it_s[idle]', event: 'ON_BUFF_FINISH', action: 'CreateBuff', on: 'owner', buff: 'it_s[idle]',
+        made: { type: 'INFINITY', buff: 'it_a[idle]', until: 'start' } },
+    ] },
+    skchr_bleed_3: { mode: null, projectiles: [], uses: [
+      { role: 'loop', keys: ['bleed_s3_buff'], from: 'ActiveBuffAbility._buffs', node: 'sk', on: 'owner', buff: 'bl_s3', template: 'bl_s3' },
+      { role: 'loop', keys: ['bleed_after'], from: 'ActiveBuffAbility._buffs → template bl_s3', event: 'ON_BUFF_FINISH', action: 'CreateBuff', on: 'owner', buff: 'bl_s3',
+        made: { type: 'LIMITED', key: 'final_duration', buff: 'bl_s3[final]' } },
+    ] },
     skchr_once_2: { mode: null, projectiles: [], uses: [
       { role: 'loop', keys: ['oncep_buff'], from: 'PassiveBuffAbility._buffs', node: 'sk', on: 'owner' },
       { role: 'loop', keys: ['oncep_loop'], from: 'PassiveBuffAbility._buffs', node: 'sk', on: 'owner' },
@@ -108,6 +129,12 @@ function makeIndex() {
       char_4246_dminon: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_dminon_1']),
       char_500_once: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_once_1']),
       char_510_oncep: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_once_2']),
+      char_600_idle: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_idle_1']),
+      char_610_idlet: { ...unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_idlet_1']),
+        abilities: [{ kind: 'common', name: 'Effect', node: 'Others/Direction/CommonAbilities/Effect', class: 'PassiveBuffAbility', when: 'passive',
+          effects: ['idlet_idle'], uses: [{ role: 'loop', keys: ['idlet_idle'], from: 'PassiveBuffAbility._buffs', node: 'Others/Direction/CommonAbilities/Effect',
+            on: 'owner', buff: 'it_a[idle]', template: 'empty', life: { type: 'INFINITY' } }] }] },
+      char_620_bleed: unit([{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], ['skchr_bleed_3']),
       enemy_1: { kind: 'enemy', modes: [{ name: 'Default', attack: { class: 'MeleeAttack', cast: [], hit: [] } }], skills: {} },
     },
     skills,
@@ -150,6 +177,9 @@ const RECS = {
   char_4246_dminon: { charId: 'char_4246_dminon', skill: { skillId: 'skchr_dminon_1', index: 0, skillType: 'AUTO', duration: 10, bb: {} } },
   char_300_qux: { charId: 'char_300_qux', skill: { skillId: 'skchr_qux_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 10, bb: {} } },
   char_500_once: { charId: 'char_500_once', skill: { skillId: 'skchr_once_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 20, bb: {} } },
+  char_600_idle: { charId: 'char_600_idle', skill: { skillId: 'skchr_idle_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 10, bb: {} } },
+  char_610_idlet: { charId: 'char_610_idlet', skill: { skillId: 'skchr_idlet_1', index: 0, skillType: 'MANUAL', durationType: 'NONE', duration: 10, bb: {} } },
+  char_620_bleed: { charId: 'char_620_bleed', skill: { skillId: 'skchr_bleed_3', index: 2, skillType: 'MANUAL', durationType: 'NONE', duration: 10, bb: { final_duration: 20 } } },
   char_510_oncep: { charId: 'char_510_oncep', skill: { skillId: 'skchr_once_2', index: 0, skillType: 'PASSIVE', durationType: 'NONE', duration: -1, bb: {} } },
 };
 
@@ -583,18 +613,42 @@ describe('(fork) 塔露拉 S2', () => {
     assert.equal(spawned.slice(n).includes('oxi_skill_02_hit_01'), false, 'another blast of hers is not this hit');
   });
 
-  test('her S2 buff loop runs its own life (stack_duration 10 s) though the skill is on and off in one tick', async () => {
+  test('her S2 buff loop holds while the kit counts a layer of her stack (buffLayers oxi:stack), not for a time from the cast', async () => {
     const { w, handles, view, frame, ofx } = await setup();
     const o = view(1, 'char_4247_oxi', 5, { skill: 1 });
     frame();
     w.skill(o, true);
     w.skill(o, false);
     frame();
-    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1, 'still on after the skill');
-    ofx.time += 9.5; frame();
-    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1);
-    ofx.time += 0.6; frame();
-    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 0, 'gone after its 10 s');
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 0, 'the cast itself leaves the loop to the layer count');
+    const layers = (n) => w.simFx('buffLayers', 5, 10, { x: 5, y: 10, id: 1, n, max: 5, skill: 'oxi:stack' });
+    assert.equal(layers(1), true, 'claimed: nothing procedural');
+    frame();
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1, 'one layer: the loop');
+    layers(3);
+    ofx.time += 12; frame();
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1, 'more layers, long after the cast: still one loop');
+    layers(0); frame();
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 0, 'the last layer gone: off');
+  });
+
+  test('T1 【怒火】: oxi_buff_02 from one layer, oxi_buff_03 at max (buffLayers oxi:rage); her death ends both', async () => {
+    const { w, handles, view, frame } = await setup();
+    const o = view(1, 'char_4247_oxi', 5, { skill: 0 });
+    frame();
+    const rage = (n) => w.simFx('buffLayers', 5, 10, { x: 5, y: 10, id: 1, n, max: 6, skill: 'oxi:rage' });
+    const on = () => ['oxi_buff_02', 'oxi_buff_03'].map((k) => live(handles, k).length);
+    assert.deepEqual(on(), [0, 0], 'none at deployment');
+    rage(1); frame();
+    assert.deepEqual(on(), [1, 0], 'a layer: the blade glow');
+    rage(6); frame();
+    assert.deepEqual(on(), [1, 1], 'full: and the embers');
+    rage(5); frame();
+    assert.deepEqual(on(), [1, 0], 'an attack took one: the embers stop');
+    rage(6); frame();
+    o.alive = false; frame();
+    assert.deepEqual(on(), [0, 0], 'she left the field');
+    assert.equal(w.simFx('buffLayers', 5, 10, { x: 5, y: 10, id: 1, n: 1, max: 1, skill: 'oxi:other' }), false, 'a tag without loops is not claimed');
   });
 
   test("T2 footprints: the fire field's oxi_buff_01 on the leased tile for the lease's time; her other zones stay the kit's", async () => {
@@ -607,6 +661,47 @@ describe('(fork) 塔露拉 S2', () => {
     assert.equal(w.simFx('zone', 8, 10, { x: 8, y: 10, radius: 1, dur: 4, id: 1, skill: 'oxi:other' }), false);
     ofx.time += 4.1; w.tick();
     assert.equal(live(handles, 'oxi_buff_01').length, 0, 'gone with the lease');
+  });
+});
+
+describe('(fork) buffs the skill end creates (index `made`)', () => {
+  test("an idle loop the skill's passive copy gives: on from the deploy, off while the skill is on, back at its end (char_4212_nasti S1)", async () => {
+    const { w, handles, view, frame } = await setup();
+    const u = view(1, 'char_600_idle', 5);
+    frame();
+    assert.equal(live(handles, 'idle_common').length, 1, 'on from the deploy');
+    w.skill(u, true); frame();
+    assert.equal(live(handles, 'idle_common').length, 0, 'the start finishes it');
+    assert.equal(live(handles, 'idle_s1_buff').length, 1);
+    w.skill(u, false); frame();
+    assert.equal(live(handles, 'idle_common').length, 1, 'the end creates it again');
+    assert.equal(live(handles, 'idle_s1_buff').length, 0);
+    u.alive = false; frame();
+    assert.equal(live(handles, 'idle_common').length, 0, 'a death ends it');
+  });
+  test("an idle loop a unit ability carries: TalentFx's, hidden while the skill is on, never doubled (char_1046_sbell2)", async () => {
+    const { w, handles, view, frame } = await setup();
+    const u = view(1, 'char_610_idlet', 5);
+    frame();
+    assert.equal(live(handles, 'idlet_idle').length, 1, 'the ability loops it from the deploy');
+    w.skill(u, true); frame();
+    assert.equal(live(handles, 'idlet_idle').length, 0, 'gone while the skill is on');
+    assert.equal(live(handles, 'idlet_s1_buff').length, 1);
+    w.skill(u, false); frame(); frame();
+    assert.equal(live(handles, 'idlet_idle').length, 1, 'back after the skill, once');
+  });
+  test("a LIMITED buff the end creates loops its own time from the end (char_1026_gvial2 S3's bleed, final_duration)", async () => {
+    const { w, handles, view, frame, ofx } = await setup();
+    const u = view(1, 'char_620_bleed', 5, { skill: 2 });
+    frame();
+    w.skill(u, true); frame();
+    assert.equal(live(handles, 'bleed_after').length, 0, 'not during the skill');
+    w.skill(u, false); frame();
+    assert.equal(live(handles, 'bleed_after').length, 1, 'from the end');
+    ofx.time += 19.5; frame();
+    assert.equal(live(handles, 'bleed_after').length, 1);
+    ofx.time += 0.6; frame();
+    assert.equal(live(handles, 'bleed_after').length, 0, 'gone after final_duration (20 s)');
   });
 });
 

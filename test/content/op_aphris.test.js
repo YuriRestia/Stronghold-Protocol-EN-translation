@@ -290,3 +290,19 @@ test('谬因 searches by the tile of an enemy\'s position (PRTS 链路协议 备
     done(h);
   }
 });
+
+test('(fork) S2 beam fx: its path from her tile — turned by her 中继器 and by an allied operator — and the 中继器 tiles on it, for the client\'s AphrisEffectEmitter line (render/vfx/pathfx.js)', () => {
+  const others = [{ uid: 3, chessId: 'chess_char_1_02_a', row: 11, col: 4, dir: 'RIGHT' }];
+  const { h, u } = field({ tier: 5, skill: 1, relay: UP4, others });
+  h.spawn('enemy_dummy', { pos: [10, 4] });   // (SEARCH: an enemy on the path)
+  u.skill.gainSp(999);
+  assert.ok(h.runUntil(() => u.skill.active, 4), 'cast');
+  const fx = h.eventsOf('fx').filter((e) => e[1] === 'beam' && e[4]?.id === u.id);
+  assert.equal(fx.length, 1, 'one beam fx, at the cast');
+  const { path, relays } = fx[0][4];
+  assert.deepEqual(path.slice(0, 6), [[9, 2], [9, 3], [9, 4], [10, 4], [11, 4], [11, 5]], 'her tile, the 中继器 turns it UP, the operator RIGHT');
+  assert.deepEqual(path.at(-1), [11, 20], 'to the field\'s edge');
+  assert.deepEqual(relays, [2], 'the 中继器 is the third tile');
+  for (const k of path.map(([a, b]) => K(a, b))) assert.ok(u.rangeKeySet.has(k), 'the path is her beam range');
+  done(h);
+});

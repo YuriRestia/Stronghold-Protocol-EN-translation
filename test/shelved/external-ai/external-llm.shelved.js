@@ -1,3 +1,5 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-llm.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -7,11 +9,11 @@ import { promisify } from 'node:util';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLLMAgent, STRATEGY_PROMPT, advisorSystem } from '../../tools/ai/llm-agent.mjs';
-import { knowledgePack } from '../../server/ai/knowledge.js';
-import { DATA } from './harness.js';
-import { exampleServer } from '../../tools/ai/http.mjs';
-import { aggregateStrategies } from '../../tools/ai/run-match.mjs';
+import { createLLMAgent, STRATEGY_PROMPT, advisorSystem } from '../../../tools/ai/llm-agent.mjs';
+import { knowledgePack } from '../../../server/ai/knowledge.js';
+import { DATA } from '../../match/harness.js';
+import { exampleServer } from '../../../tools/ai/http.mjs';
+import { aggregateStrategies } from '../../../tools/ai/run-match.mjs';
 
 const exec = promisify(execFile);
 const pack = knowledgePack(DATA, { modeId: 'mode_single_funny', language: 'en' });

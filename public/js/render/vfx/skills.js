@@ -63,6 +63,8 @@
 //     each: { cast, hit },                 any attack of the owner while on (buff template actions)
 //     trigger,                             reactive: the owner taking damage while on
 //     cond,                                `[eff_cond]` state loops on the owner (COND_BUFFS, condState)
+//     state,                               (fork) a buff's effects at a moment the client never sees, held on its carrier
+//                                          while the sim says it lasts (STATE_BUFFS, b.snap `fxs`)
 //     targets,                             on other units (the skill's buffs on targets / aura members): no client signal
 //     unmapped: [{ key, role, reason, from }] }
 // `hit` lists are hit groups: [[entry…]…] — the k-th hit of one attack plays group min(k, last) (a plain attack has one
@@ -271,7 +273,7 @@ export const UNMAPPED = Object.freeze({
   token: "a buff on the unit's summons: UnitInfo has no summoner link",
   tick: "a periodic tick of the skill's buff (ON_BUFF_TRIGGER): the sim sends no tick event (some kits send their own 'fx')",
   conditional: 'a buff template action at an event the client never sees (a condition check, would-die, a kill …)',
-  'after-end': 'a buff created when the skill ends: its duration is not in index.json',
+  'after-end': 'a buff created when the skill ends that nothing the client sees ends (index `made`: no LIMITED life, no next-start finish)',
   'hit-no-attack': "hits of a non-attack ability: no 'atk' event names its targets",
   'channel-hit': "a channel's damage ticks: the sim sends them without a source",
   path: 'a line / path effect: its points come from the game',
@@ -292,6 +294,7 @@ export const SIGNALS = Object.freeze({
   trigger: "b.ev ['dmg', ownerId, …] while the skill is on",
   targets: "the buffs of the skill's own attacks: that attack's 'atk' targets; the others none (the client is not told who carries them)",
   charge: 'b.snap energy [[id, stored, cap]] (PR #636; char_469_indigo / the shared mystic store only)',
+  state: "b.snap fxs [[carrier id, buff, src, look]] (sim Battle.fxState / a sim buff's `fx`; STATE_BUFFS)",
 });
 
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
@@ -508,8 +511,77 @@ function kindOf(srec, rootClass = null) {
 export const emptyPlan = (unitKey, skillId) => ({
   unitKey, skillId, mode: null, modeName: null, kind: null, rootClass: null, projectiles: [],
   start: [], loop: [], end: [], ready: [], range: [], attacks: [], each: { cast: [], hit: [[]] }, trigger: [], targets: [],
-  pulse: [], unmapped: [], cond: [],
+  pulse: [], unmapped: [], cond: [], state: [], after: [], idle: [],
 });
+
+/**
+ * (fork) The official buffs whose effects play at a moment the client never sees — a condition the buff's graph checks
+ * every tick, a would-die, a kill … (unmapped 'conditional') — and whose start and end a kit signals in the sim
+ * (Battle.fxState, or a sim buff's `fx`: b.snap `fxs` [[carrier, buff, src, look]]; effect gaps audit 2, item 4). Keyed
+ * by the client's buff key (index.json uses' `buff`, config/buff_template_holder.ab): `true` — every entry of that buff
+ * plays while the row lasts; `{ looks }` — the keys each official branch (the row's `look`) keeps, a null look all of
+ * them. render/vfx/skillfx.js holds the entries on the carrier from the plan of `src` (the unit whose skill made it;
+ * null: the carrier's own): a looping prefab loops, any other plays once per row. The kit names the branch the
+ * template's graph takes; the graphs are read from the client of 2026-10-15 (each entry's comment).
+ */
+const L = (o) => Object.freeze(Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Object.freeze(v)])));
+export const STATE_BUFFS = Object.freeze({
+  // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
+  'horn_s_2[overload_mark]': true,
+  'horn_s_3[overload_start_effect_2]': true,
+  // Leizi the Thunderbringer S1 (content/fxStates.js): a ring per stored charge
+  'leizi2_s_1[effect_controller]': { looks: L({ 1: ['leizi2_skill_01_buff_01'], 2: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02'], 3: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02', 'leizi2_skill_01_buff_03'] }) },
+  // Ascalon S2 (op-ascln.js): 死亡拘审's glow on the enemies, ascln_buff_02 added at max_stack_cnt (the kill burst
+  // ascln_skill_02_death_01 sits on the enemy that died: no row carries it)
+  'ascln_s_2[enemy]': { looks: L({ on: ['ascln_buff_01'], max: ['ascln_buff_01', 'ascln_buff_02'] }) },
+  // Тоска (char_4244_tocka, not on EN yet) S1–S3 (op-tocka.js): the buff a fired trigger effect gives its holder
+  'tocka_s1[trigger]': true,
+  'tocka_s2[trigger]': true,
+  'tocka_s3[trigger]': true,
+  // Lumen S2 / Gnosis S2 (content/fxStates.js): one stored charge, two
+  'lumen_s_2[eff_cond]': { looks: L({ 1: ['lumen_skill_02_buff'], 2: ['lumen_skill_02_buff_02'] }) },
+  'gnosis_s_2[eff_cond]': { looks: L({ 1: ['gnosis_skill_02_buff_01'], 2: ['gnosis_skill_02_buff_02'] }) },
+  // Mon3tr S1, Minimalist S2, Caper S1, Nearl the Radiant Knight S3 (content/fxStates.js): on / off
+  'monstr_s_1[ready]': true,
+  'malist_s_2[eff_cond]': true,
+  'caper_s_1[effect_trigger]': true,
+  'nearl2_s_3[effect]': true,
+  // Ch'en the Holungday S2 (content/fxStates.js): [half] / [full]
+  'chen2_s_2[eff_cond]': { looks: L({ half: ['chen2_skill_02_buff_01_01'], full: ['chen2_skill_02_buff_01_02'] }) },
+  // Angelina the Mellow Wish (char_1015_aglna2, not on EN yet) S3 (content/fxStates.js): the wing glow of her facing — the client's side (`byFacing`)
+  'aglna2_s_3[mode]': { byFacing: true, looks: L({ right: ['aglna2_skill_03_buff_right_01'], left: ['aglna2_skill_03_buff_left_01'] }) },
+  // Philae S2 (chess_char_3_06-philae.js): the ATK glow from the first element hit, its start burst once
+  'philae_s_2': true,
+  // Haruka (op-haruka.js): the bubble's glow (the parry burst plays when a bubble breaks, not here)
+  'haruka_t_1': { keys: Object.freeze(['haruka_talent_01_buff']) },
+  // Lessing S2 (op-lessng.js) and Vulpisfoglia S3 (chess_char_3_18-vulpis.js): CheckBlocked — blocking / not blocking
+  'lessng_s2[eff_manager]': true,
+  'vulpis_s_3[finish_checker]': true,
+  // marks on the units a kit names (b.snap fxs on the target; `src` the operator): Civilight Eterna S2's rope, Executor
+  // the Ex Foedere S3's aim, Muelsyse S3's water bind, Schwarz's DEF down, Bellone's 【手段】, Silence the Paradigmatic S3's
+  // shallow grave
+  'cetsyr_s_2': true,
+  'excu2_s_3': true,
+  'mlyss_s_3[buff]': true,
+  'shwaz_t_1': true,
+  'demetr_t1[def_dec]': true,
+  'slent2_s_3': true,
+  // Ch'en the Dawnstreak S2 (op-chen3.js): the respawn glows while its buff lasts
+  'chen3_s2[respawn_buff]': true,
+});
+
+/**
+ * (fork) A plan's `state` entries a b.snap `fxs` row shows (STATE_BUFFS): that buff's, narrowed to the spec's `keys` and
+ * the look's (a `byFacing` buff without a look: the carrier's side, `facing` −1 'left', else 'right').
+ */
+export function stateEntries(list, buff, look, facing = 1) {
+  if (!Array.isArray(list) || !list.length) return [];
+  const spec = STATE_BUFFS[buff];
+  if (!spec) return [];
+  const lk = look ?? (spec.byFacing ? (facing === -1 ? 'left' : 'right') : null);
+  const keys = lk != null && spec !== true ? spec.looks?.[lk] : null;
+  return list.filter((e) => e.buff === buff && (!keys || keys.includes(e.key)) && (!spec.keys || spec.keys.includes(e.key)));
+}
 
 /**
  * The client's condition graphs of `[eff_cond]` buffs (config/buff_template_holder.ab, the template's ON_BUFF_TRIGGER —
@@ -696,6 +768,7 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
     plan.unmapped.push({ key: 'yu_skill3_annex_02', role: 'trigger', reason: 'conditional', from: 'GlobalAuraAbility._buffs' });
   }
   planUses(idx, plan, [...uses, ...attach], { ...opts, abilities: skill.abilities });
+  if (plan.idle.length) afterIdle(plan, unit);
   // EmptyEffect has no particles/loop flag, but FinishEffectViaOwnerBuff holds this controller for yu_s_3[effect].
   if (id === 'skchr_yu_3') for (const role of ['start', 'loop', 'range']) for (const e of plan[role]) {
     if (e.key === 'yu_skill3_range_01_source') { e.hold = 'skill'; e.loop = true; }
@@ -710,6 +783,31 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
   attackLinePlan(idx, plan, FX_ATTACK_LINES[id]);
   if (isObj(opts.rec)) tagCasts(plan, skill);
   return plan;
+}
+
+/**
+ * (fork) The idle loops of a skill (plan.idle: a buff its start finishes and its end creates again — index `made.until`
+ * 'start'; char_1046_sbell2 S1–S3's sbell2_s[idle_effect] → sbell2_a[idle_effect], char_4212_nasti S1's
+ * nasti_s1[effect_manager] → nasti_s1[effect]): the same buff's passive copy — the skill's own (nasti's ExtraAbility0
+ * PassiveBuffAbility, planned as a skill loop) leaves plan.loop and the entry plays from the deploy (`deploy`); a unit
+ * ability's or talent's (sbell2's CommonAbilities/Effect) stays TalentFx's, which hides it while the skill is on
+ * (`talent`: SkillFx.idleOff) — so the loop shows while no skill is on, as the client's buffs do.
+ * @param {ReturnType<typeof emptyPlan>} plan
+ * @param {any} unit  the index unit
+ */
+function afterIdle(plan, unit) {
+  const passive = new Set();
+  for (const t of [...(Array.isArray(unit?.abilities) ? unit.abilities : []), ...Object.values(isObj(unit?.talents) ? unit.talents : {})]) {
+    for (const u of Array.isArray(t?.uses) ? t.uses : []) if (u?.buff) passive.add(u.buff);
+  }
+  for (const e of plan.idle) {
+    const buff = e.made?.buff;
+    if (!buff) continue;
+    if (passive.has(buff)) { e.talent = true; continue; }
+    const n = plan.loop.length;
+    plan.loop = plan.loop.filter((x) => x.buff !== buff || x.key !== e.key);
+    if (plan.loop.length < n) e.deploy = true;
+  }
 }
 
 /**
@@ -844,7 +942,14 @@ export function planUses(idx, plan, uses, opts = {}) {
       const e = entryOf(key, role, u, prefabs, opts.describe);
       if (hook) e.afterFirst = true;
       if (hooked) e.firstOnly = true;
-      const placed = place(plan, e, u, { attackOf, eachHit });
+      let placed = place(plan, e, u, { attackOf, eachHit });
+      // (fork) a buff of a moment the client never sees, whose start and end the sim signals (b.snap `fxs`)
+      if (placed === 'conditional' && e.buff && STATE_BUFFS[e.buff] && (e.role === 'loop' || e.role === 'trigger')) {
+        e.at = 'carrier';
+        e.hold = 'state';
+        if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff)) plan.state.push(e);
+        placed = null;
+      }
       if (placed) {
         miss(key, role, placed, u);
         // a facing family's other variants are unmapped with it (dirFamilies)
@@ -892,7 +997,8 @@ function entryOf(key, role, u, prefabs, describe) {
   // (v2: a group list's `group` / `groups`, a replace group's `anim`, the MultiHit choice flags, an enemy copy's `mode`)
   // (v3: a buff use's `life`, an emitter use's `projectileKey`)
   for (const f of ['node', 'ability', 'list', 'startEvent', 'endEvent', 'directionType', 'event', 'action', 'buff', 'on',
-    'group', 'groups', 'anim', 'useLoopHitEffect', 'useRandomHitEffect', 'keepBaseHitEffect', 'oncePerTarget', 'mode', 'life', 'projectileKey']) {
+    'group', 'groups', 'anim', 'useLoopHitEffect', 'useRandomHitEffect', 'keepBaseHitEffect', 'oncePerTarget', 'mode', 'life', 'projectileKey',
+    'made']) {
     if (u[f] != null) e[f] = u[f];
   }
   // where it sits on its owner: index v2's prefab summary (`spawn` / `follow`), without loading the descriptor
@@ -963,7 +1069,15 @@ function place(plan, e, u, { attackOf, eachHit }) {
   if (role === 'loop' && ev && COND_BUFFS[u.buff]?.event === ev) { e.hold = 'cond'; plan.cond.push(e); return null; }
   if (ev && !START_EVENTS.has(ev)) {
     if (END_EVENTS.has(ev)) {
-      if (role === 'loop') return 'after-end';
+      if (role === 'loop') {
+        // (fork) a buff the end creates, with its own life (index `made`, fx.py graph_made_buffs): one the next start
+        // finishes again (`until: 'start'`) is the unit's idle loop — `idle`, on while no skill is (afterIdle) —, a
+        // LIMITED one plays its own time from the end — `after` (char_1026_gvial2 S3's bleed, final_duration) —, any
+        // other outlives the skill with nothing the client sees ending it
+        if (isObj(u.made) && u.made.until === 'start') { e.hold = 'idle'; plan.idle.push(e); return null; }
+        if (isObj(u.made) && u.made.type === 'LIMITED') { e.hold = 'made'; plan.after.push(e); return null; }
+        return 'after-end';
+      }
       if (onTargets) { e.at = 'targets'; e.hold = oneShotHold(e); plan.targets.push(e); return null; }
       e.hold = oneShotHold(e);
       plan.end.push(e);
@@ -1171,6 +1285,8 @@ export function planKeys(plan) {
   for (const g of plan?.each?.hit || []) for (const e of g) add(e);
   for (const e of plan?.pulse || []) add(e);
   for (const e of plan?.cond || []) add(e);
+  for (const e of plan?.state || []) add(e);
+  for (const e of [...(plan?.after || []), ...(plan?.idle || [])]) add(e);
   if (plan?.line) out.add(plan.line.key);
   return [...out];
 }
@@ -1400,7 +1516,9 @@ export function chargeKeys(plan) {
  *   hold        how long a looping reached effect stays: a blackboard key of our skill record (seconds), 'fx' — the
  *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
  *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, (fork) 'until' — no
- *               timer: the binding's `until` kind (or the unit leaving) ends it —, else `holdS`
+ *               timer: the binding's `until` kind (or the unit leaving) ends it —, 'life' — a mark that lasts as long as
+ *               its unit: on the unit `extra.id` names, one per unit and key, until that unit dies or leaves or the owner
+ *               does (SkillFx._lifeMark) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   shots       the fx's `lanes` ([x, y, wait, shot id]…; `dx`, `dy`, `len`, `speed`) fly `keys` along straight lines
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
@@ -1417,6 +1535,8 @@ export function chargeKeys(plan) {
  *               unit of extra[to] (a list of ids) — a child shot that leaves the first target (空弦 S1's scatter)
  *   keysBy      (fork) { field, map }: `keys` by the value of a field of the fx's extra (no entry: the kit's own fx)
  *   keysIf      (fork) { field, yes, no }: `keys` by a field of the fx's extra (truthy: yes, else no)
+ *   none        (fork) the official client draws nothing at that moment (its sound only): the binding claims the fx and
+ *               plays nothing, so no procedural stand-in shows (塔露拉 S3's 过载)
  *   flight      (fork) a projectile's flight between two points of the fx (SkillFx._flight): { side, up, down } — the
  *               projectile for a way along the row / up (+row) / down, each [facing left, facing right] or [one] (the
  *               client's branches on the unit's direction and faceLeft) —, from: 'from' (the fx's fromX / fromY; its
@@ -1503,6 +1623,13 @@ const BLAZE2_REVIVE = Object.freeze({
  */
 export const KIT_HELD_TALENT_KEYS = Object.freeze(new Set([BLAZE2_REVIVE].flatMap((b) => Object.values(b)).flatMap((x) => x.keys || [])));
 
+// (fork) 蕾缪安 T1 跨境追缉许可 (chess_char_6_01-lemuen.js ensureWanted): the client's char_lemuen_laterano_range[tick] gives
+// an enemy char_lemuen_range_aim, whose first ON_BUFF_TRIGGER creates char_lemuen_range_aim[effect] (overrideEffectKey
+// lemuen_talent_buff_01, life infinity) — the Wanted mark, looping on the enemy while it is marked. The kit's 'wanted'
+// (id = the enemy, src = the Lemuen it counts for) is that moment; the sim drops a mark only when the enemy dies or its
+// Lemuen leaves, which is when the loop ends here. A talent: bound under each of her skills.
+const LEMUEN_WANTED = binding({ owner: 'src', keys: ['lemuen_talent_buff_01'], hold: 'life' });
+
 export const FX_BINDINGS = Object.freeze({
   // (fork) 烛煌 S1 炙手之援: the client's AnimatedActionToTargetAbility gives the operator it picks blaze2_s_1, whose
   // effect blaze2_skill_01_hit_range (looping, GROUND_CENTER) burns around that operator for max_duration (the user's
@@ -1529,6 +1656,9 @@ export const FX_BINDINGS = Object.freeze({
     zone: OXI_FOOTPRINT,
     heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
     blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
+    // (fork) 过载 (the kit's 'overload'): the client raises ON_CUSTOM_TRIGGER oxi_s_3_overload, a sound only — no effect of
+    // the skill or its buffs plays there (the index: start, oxi_skill_03_buff_01, the volley's projectile)
+    overload: binding({ owner: 'id', none: true }),
   }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked
@@ -1657,7 +1787,9 @@ export const FX_BINDINGS = Object.freeze({
   // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
   // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
   // the kit deals the snipe at once, no flight is drawn]
+  skchr_lemuen_1: Object.freeze({ wanted: LEMUEN_WANTED }),
   skchr_lemuen_2: Object.freeze({
+    wanted: LEMUEN_WANTED,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
     crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
   }),
@@ -1665,6 +1797,7 @@ export const FX_BINDINGS = Object.freeze({
   // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
   skchr_mostma_2: Object.freeze({ timeLockHit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['mostma_skill_02_hit'] }) }),
   skchr_lemuen_3: Object.freeze({
+    wanted: LEMUEN_WANTED,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
     bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),

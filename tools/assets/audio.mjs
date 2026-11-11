@@ -88,13 +88,15 @@ export function bankPool(bank) {
  *   mixOf: (paths: string[]|null|undefined) => ({ p?: number, vol?: number }|null),
  *   poolOf: (paths: string[]|null|undefined) => (ReturnType<typeof bankPool>|null),
  *   weightsOf: (paths: string[]|null|undefined) => (number[]|null),
- *   groupOf: (paths: string[]|null|undefined) => (string|null) }}
+ *   groupOf: (paths: string[]|null|undefined) => (string|null), loopOf: (paths: string[]|null|undefined) => boolean,
+ *   namesWith: (prefix: string) => string[] }}
  */
 export function indexAudio(audioData) {
   const banks = new Map();
   const mixes = new WeakMap(); // a bank's path list (the very array every lookup hands out) → bankMix
   const pools = new WeakMap();
   const weights = new WeakMap(); // a bank's path list → each file's draw weight (same order)
+  const loops = new WeakSet(); // (fork) a bank's path list whose bank loops (`loop: true`: 伊芙利特 S3's flamethrower)
   for (const b of Array.isArray(audioData?.soundFXBanks) ? audioData.soundFXBanks : []) {
     if (!b || typeof b.name !== 'string') continue;
     const sounds = Array.isArray(b.sounds) ? b.sounds : [];
@@ -111,6 +113,7 @@ export function indexAudio(audioData) {
     }
     if (list.length && !mixes.has(list)) { const m = bankMix(b.sounds, list[0]); if (m) mixes.set(list, m); }
     if (list.length && !pools.has(list)) pools.set(list, bankPool(b));
+    if (list.length && b.loop === true) loops.add(list);
   }
   const alias = audioData?.bankAlias && typeof audioData.bankAlias === 'object' ? audioData.bankAlias : {};
   const bank = (name, depth = 0) => {
@@ -132,29 +135,94 @@ export function indexAudio(audioData) {
   // Per-unit and per-skill bank tables.
   const unitBanks = new Map();
   const skillBanks = new Map();
-  const addUnit = (name, paths) => {
-    const parts = name.split('.');
-    if (parts.length < 3 || parts[0] !== 'battle') return;
-    if (/^ON_SKILL_(START|FINISH|SPECIAL_POINT)$/.test(parts[1])) {
-      const skillId = parts.slice(2).join('.');
-      if (!skillBanks.has(skillId)) skillBanks.set(skillId, new Map());
-      skillBanks.get(skillId).set(parts[1], paths);
-      return;
-    }
-    const unit = parts[2];
-    if (!/^(char|enemy|token|trap)_/.test(unit)) return;
-    const key = parts[1] + (parts.length > 3 ? '.' + parts.slice(3).join('.') : '');
-    if (!unitBanks.has(unit)) unitBanks.set(unit, new Map());
-    unitBanks.get(unit).set(key, paths);
-  };
+  const addUnit = (name, paths) => addBankSlot(unitBanks, skillBanks, name, paths);
   for (const [name, paths] of banks) if (paths.length) addUnit(name, paths);
   for (const name of Object.keys(alias)) if (!banks.has(name)) { const p = bank(name); if (p.length) addUnit(name, p); }
+  // (fork) the outfits' own battle banks: '<group>#<n>' (an outfit skinId's part after '@') in the name, `base` = the
+  // operator's bank it stands for ('battle.ON_ABILITY_ON.char_1032_excu2_sanrio#2.attack' → '…char_1032_excu2.attack')
+  const skinBanks = [];
+  for (const name of banks.keys()) {
+    if (!name.startsWith('battle.')) continue;
+    const m = OUTFIT_BANK_TOKEN.exec(name);
+    if (m) skinBanks.push({ name, token: m[2].toLowerCase(), base: name.slice(0, m.index) + name.slice(m.index + m[0].length) });
+  }
   const mixOf = (paths) => (paths && typeof paths === 'object' && mixes.get(paths)) || null;
   const poolOf = (paths) => (paths && typeof paths === 'object' && pools.get(paths)) || null;
   const weightsOf = (paths) => (paths && typeof paths === 'object' && weights.get(paths)) || null;
   // (fork) a bank's official mixer group (customMixerGroup), or null
   const groupOf = (paths) => poolOf(paths)?.group ?? null;
-  return { bank, bgm, unitBanks, skillBanks, mixOf, poolOf, weightsOf, groupOf };
+  // (fork) whether a bank loops until it is stopped (its official `loop`)
+  const loopOf = (paths) => !!(paths && typeof paths === 'object' && loops.has(paths));
+  // (fork) every bank name (trimmed) that starts with a prefix, sorted (a skill's sub-abilities: skchr_texas2_3.2)
+  const namesWith = (prefix) => [...banks.keys()].filter((n) => n.trim().startsWith(prefix) && banks.get(n).length).sort();
+  return { bank, bgm, unitBanks, skillBanks, skinBanks, mixOf, poolOf, weightsOf, groupOf, loopOf, namesWith };
+}
+
+/** An outfit's token in a bank name: '_sanrio#2' / '.iteration#2' (then '.', '_', '[', '@' or the end). */
+const OUTFIT_BANK_TOKEN = /([._])([a-z0-9]+#\d+)(?=[._[@]|$)/i;
+
+/** File a bank under its unit (`unitBanks`: unit id → event key → paths) or its skill (`skillBanks`), like the client. */
+function addBankSlot(unitBanks, skillBanks, name, paths) {
+  const parts = name.split('.');
+  if (parts.length < 3 || parts[0] !== 'battle') return;
+  if (/^ON_SKILL_(START|FINISH|SPECIAL_POINT)$/.test(parts[1])) {
+    const skillId = parts.slice(2).join('.');
+    if (!skillBanks.has(skillId)) skillBanks.set(skillId, new Map());
+    skillBanks.get(skillId).set(parts[1], paths);
+    return;
+  }
+  const unit = parts[2];
+  if (!/^(char|enemy|token|trap)_/.test(unit)) return;
+  const key = parts[1] + (parts.length > 3 ? '.' + parts.slice(3).join('.') : '');
+  if (!unitBanks.has(unit)) unitBanks.set(unit, new Map());
+  unitBanks.get(unit).set(key, paths);
+}
+
+/**
+ * (fork, docs/OUTFITS.md) The sound index as an outfit hears it, or null when the outfit has no banks of its own. The
+ * official client plays an outfit's twin of a bank ('…_sanrio#2') where one exists, else the operator's own bank. So
+ * every pick (plan.mjs operatorEntry) stays the operator's — same banks, same roles — and only what a picked bank plays
+ * changes: `tr(paths)` is the twin's file list for a bank the outfit replaces (`paths` otherwise), and the view's
+ * mix / pool / weights / group read the twin's. A twin with no operator bank (Eyjafjalla's outfit deploy sound) is
+ * added under the operator's name.
+ * @param {ReturnType<typeof indexAudio>} audio
+ * @param {string} charId the operator ('char_180_amgoat')
+ * @param {string} token the outfit's part of its skinId after '@' ('sanrio#2')
+ * @returns {{ audio: ReturnType<typeof indexAudio>, tr: (paths: string[]) => string[], replaced: number, added: string[] } | null}
+ */
+export function outfitAudioView(audio, charId, token) {
+  const short = String(charId).replace(/^char_\d+_/, '');
+  const tok = String(token || '').toLowerCase();
+  if (!/^[a-z0-9]+$/i.test(short) || !tok || !Array.isArray(audio?.skinBanks)) return null;
+  // the bank is this operator's: its short name stands alone in the name ('skchr_amgoat_1', 'excu2_multi_attack', never
+  // 'skadi' in 'skadi2')
+  const own = new RegExp(`(^|[._])${short}(?=[._[#@]|$)`, 'i');
+  const twin = new Map();
+  const added = new Map();
+  for (const b of audio.skinBanks) {
+    if (b.token !== tok || !own.test(b.base)) continue;
+    const to = audio.bank(b.name);
+    if (!to.length) continue;
+    const from = audio.bank(b.base);
+    if (!from.length) added.set(b.base, to);
+    else if (from !== to) twin.set(from, to);
+  }
+  if (!twin.size && !added.size) return null;
+  const tr = (paths) => twin.get(paths) ?? paths;
+  const unitBanks = new Map([...audio.unitBanks].map(([k, v]) => [k, new Map(v)]));
+  const skillBanks = new Map([...audio.skillBanks].map(([k, v]) => [k, new Map(v)]));
+  for (const [name, paths] of added) addBankSlot(unitBanks, skillBanks, name, paths);
+  const view = {
+    ...audio,
+    bank: (name) => added.get(name) ?? audio.bank(name),
+    unitBanks, skillBanks,
+    mixOf: (paths) => audio.mixOf(tr(paths)),
+    poolOf: (paths) => audio.poolOf(tr(paths)),
+    weightsOf: (paths) => audio.weightsOf(tr(paths)),
+    groupOf: (paths) => audio.groupOf(tr(paths)),
+    loopOf: (paths) => audio.loopOf(tr(paths)),
+  };
+  return { audio: view, tr, replaced: twin.size, added: [...added.keys()] };
 }
 
 /** Sort key for ability sub-keys: plain first, then numeric suffixes ascending. */

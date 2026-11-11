@@ -576,6 +576,13 @@ async function main() {
       if (!body.audio?.sfx?.units) continue;
       if (fresh) body.audio.sfx.units[id] = fresh; else delete body.audio.sfx.units[id];
       log(`[refresh-units] ${id}: sound entries rebuilt from the plan`);
+      // … and its outfits' sound entries (sfx.outfits['<id>@<token>'], docs/OUTFITS.md): the same picks through the outfit's banks
+      const outfitsSfx = body.audio.sfx.outfits;
+      for (const k of Object.keys({ ...(outfitsSfx || {}), ...(planned?.audio?.sfx?.outfits || {}) })) {
+        if (!k.startsWith(`${id}@`)) continue;
+        const o = planned?.audio?.sfx?.outfits?.[k];
+        if (o) (body.audio.sfx.outfits ||= {})[k] = o; else if (outfitsSfx) delete outfitsSfx[k];
+      }
       // their models (default and every outfit) as this run built them: a role fix (assets/spine.mjs PREFAB_SPINE_ROLES)
       // reaches the manifest without a full run
       let models = 0;
