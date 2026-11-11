@@ -1299,7 +1299,7 @@ export class SpineActor {
    * = the attack interval in battle s (the sim's, UnitInfo.atkInterval). The clip: the one this attack plays
    * (_attackBase), else the skill's attack clip (`skillAttackMode().animKey`: 莫斯提马's S3, whose loop has no strike).
    * 1 when neither is known. `maxScale`: the ability's `_maxAnimScale` (the unit's data `attackAnim.maxScale`, read from
-   * the client: docs/research/15-attack-anim-scale.json; −1 = no cap), ABILITY_MAX_ANIM_SCALE when the data has none. [ASSUMED: a
+   * the client: research table 15, attack-anim-scale, via tools/build-data.mjs; −1 = no cap), ABILITY_MAX_ANIM_SCALE when the data has none. [ASSUMED: a
    * skill's attack has its normal attack's cap; the ability's extra speed factor is 1]
    */
   abilitySpeed(interval, maxScale) {
