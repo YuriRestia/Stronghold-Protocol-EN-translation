@@ -42,6 +42,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - In Requiem Vesperis (`char_4193_lemuen@ambienceSynesthesia#7`) the mark uses the outfit's own version.
 - It shows whatever skill she has equipped. Its sound (`p_imp_lmwlcrstrmk`) already played as the mark appears; that is unchanged.
 
+### Talulah (塔露拉): her talent's sword effects, her S2 stack as in the official game, no stand-in overload glow
+
+- Talent 1 (怒火): her blade glows (the official oxi_buff_02) while she holds any 怒火 layer, and embers run along it (oxi_buff_03) once the layers are full. An attack that spends a layer ends the embers.
+- S2: while its stack holds, her attacks land the official BuffedAttack impact sound (p_imp_xtlfgbw_h) instead of her normal one, and the stack's flame (oxi_skill_02_buff_01) lasts until the last layer runs out. It used to end one stack duration after the cast.
+- S3: the overload no longer draws a made-up orange glow on her. The official game plays only its sound there, which stays.
+- Her S3 still ends without a closing sound: the official client plays that sound (b_char_boostclose) only when a player stops the skill by hand, which this mode doesn't allow.
+- Behind the scenes: the battle sends her 怒火 and S2 layer counts to the client as a display-only fx (`buffLayers`). No battle result changes; only the fx counts of the two Talulah golden scenarios (diy-140, diy-141) moved.
+
 ## 2026-11-10
 
 ### Operators attack as in the official game: the swing starts, then the hit lands

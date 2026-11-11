@@ -95,6 +95,7 @@ import {
   FX_HIT_TILES,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
+import { layerKeysOf } from './talentfx.js';
 import { unitPoint } from './mounts.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
 
@@ -436,6 +437,8 @@ export class SkillFx {
       let drew = false;
       for (const e of uniq([...U.plan.start, ...U.plan.range, ...U.plan.loop])) {
         if (e.birth) continue;     // the deploy's (birthOf: FxWiring.deploy plays it)
+        // (fork) a loop the kit's layer count holds (talentfx.js FX_LAYERS: 塔露拉 S2's stack) is TalentFx's to play
+        if (U.plan.loop.includes(e) && layerKeysOf(this.w.unitKeyOf(v)).has(e.key)) continue;
         // (fork) a buff loop on the owner with a life of its own (index v3 `life`: LIMITED, a time or our record's
         // blackboard key) outlives a skill that does not last — 塔露拉 S2's oxi_s_2_stack, stack_duration 10 s, of a skill
         // that is on and off in one tick: it runs its own time, as a target's buff loop does (_targetLoop)
@@ -1130,6 +1133,7 @@ export class SkillFx {
       const bind = U ? FX_BINDINGS[U.skillId]?.[kind] : null;
       if (bind && bind.only && Object.entries(bind.only).some(([k, val]) => extra[k] !== val)) continue;
       if (bind && bind.owner === field && (!bind.during || this._lasts(U))) {
+        if (bind.none) return true;   // (fork) the official draws nothing there (skills.js `none`)
         if (bind.attack) return this._boundAttack(U, bind);
         if (bind.shots) return this._lanes(U, bind, extra);
         if (bind.flight) return this._flight(U, bind, x, y, extra);
