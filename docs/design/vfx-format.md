@@ -862,6 +862,18 @@ distinct key, and `slots` holds the effect per facing as *metadata* `Torappu.Sha
 0 / 2). `hookEffectAfterFirstAttack` (a key or '') replaces the row's effect from the second attack on; a row may have
 only that. Keys the client does not have are dropped (the extractor logs them).
 
+**Rows of the attack's buffs (fork, 2026-11-11).** A buff that the attack node's behaviours put on what it hits
+(`_activeBuffs`, `_activeBuffsToMainTarget`, BuffToCastTargets, CachedBuffToCastTargetsBehaviour) or on its owner per
+attack (BuffToOwner, a `…ToOwner` field) adds rows for the CreateEffect actions its template (and the templates that
+template creates as it starts) plays at ON_BUFF_START / ON_BUFF_ENABLE: a target's are `hit` rows, played on the target
+the blow lands on; an owner's are `cast` rows (`startEvent` 2). These rows carry `template` (the buff's template key)
+and no `emitter`. Of the effects on a condition's branches (fx.py `graph_branches`), only those needing the fewest
+conditions met stay (the plain path; a target-side test takes the side the attack hits: a heal's allies), since the
+client does not know the stacks or buffs the test reads; generic `common_` sparks are left to the client's generic
+hit. Lasting buffs (CreateBuff override effects), later buff events and lines need the sim's signal and add no row
+(`attack_buff_rows`). A projectile's `_actionController._extraBuffsInTheEnd` adds the same start effects to its `onHit`.
+A relink (`--fx-relink`) adds these rows to the units' modes, matched by name (`merge_added`).
+
 **Every emitter of the attack's node (v2).** The rows come from every effect emitter on the ability's node, whatever its
 class: `UberEffectEmitter` and its subclasses — `MultiHitUberEffectEmitter`, `UberAnimationEffectEmitter`,
 `MultiChargeUberEffectEmitter`, `MultiExChargeUberEffectEmitter`, `MergeableChargeUberEffectEmitter`,
@@ -1460,6 +1472,13 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
   the half one (S3: its two halves); off with 2 charges stored → full + half; with 1 → the idle half (`_buff_01`); none
   below. The stored charges come from b.snap `charges` (sim `snapshot.js chargeView`, display only). Other
   `[eff_cond]` templates stay unmapped 'conditional' unless the sim signals them (state buffs, below).
+* **Marks on targets** (fork, effect gaps audit 2 item 5): a use `on: 'targets'` of a STATE_BUFFS buff (a loop, start
+  or end; not a CreateLineEffect or a tick) joins plan `state` too (`place`), so it plays on the carrier the sim names
+  in b.snap `fxs` (`src` the operator) instead of waiting in plan `targets`. An `end` entry plays once on the carrier
+  when its row goes (`skillfx.js _states`, `sends`: a mark's ON_BUFF_FINISH — Titi S3's wake burst). The kits tag the
+  buff they put on the target (`fx` / `fxSrc`) or call `fxState` with `dur`; skills whose ActiveBuffAbility buff sits on
+  the operator herself use a `running` probe, and summons wear their owner's skill buffs through
+  `content/fxStates.js TOKEN_FX_STATES` (a probe on the token, `src` its `ownerUnit`). 41 of 43 marks on 27 operators.
 * **State buffs** (fork, effect gaps audit 2 item 4; `skills.js STATE_BUFFS`, `stateEntries`, plan `state`;
   `skillfx.js _states`): a buff template action at a moment the client never sees (unmapped 'conditional': a condition
   checked every tick, a would-die, a kill, a fired trigger effect) whose buff the sim signals in b.snap `fxs`

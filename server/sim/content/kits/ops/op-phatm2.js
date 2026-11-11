@@ -168,6 +168,7 @@ function callKit(t, owner, b2) {
               const gone = !owner.alive;
               fixedNeural(b, owner, tgt, a0 * ep, gone);
               if (tgt.alive) b.dealDamage(owner, tgt, { amount: a0 * scale, type: 'arts', canDodge: false, isSkill: true, sourceless: gone, tags: ['skill', 'dot', 'phatm2:delirium'] });
+              b.tickFx(tok, tgt, 'phatm2:s2', null, owner);   // phatm2_s_2[damage] ON_BUFF_TRIGGER: phatm2_skill_02_debuff_hit_01 + phatm2_s2_boom_damage
             },
           });
         }

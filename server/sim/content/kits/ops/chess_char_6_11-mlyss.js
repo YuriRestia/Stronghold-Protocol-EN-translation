@@ -226,6 +226,8 @@ function mlyss(bb, chess, def) {
             for (const e of battle.unitsInGrid(t, AROUND8, { side: 'enemy' })) pullToward(battle, t, e, num(t.def?.skill?.bb?.force));
             for (const e of t.blocking) if (e.alive) battle.applyStatus(e, 'stun', { duration: pulseIv + 0.1, source: unit });
             battle.fx('pulse', { x: t.x, y: t.y, id: t.id });
+            // mlyss_s_3[token_melee_trigger] ON_BUFF_TRIGGER (PullS3): its range effect on the 流形 + mlyss_s_3[melee_audio]
+            battle.tickFx(unit, t, 'mlyss:s3');
           }
         }, { owner: unit, immediate: true });
       },

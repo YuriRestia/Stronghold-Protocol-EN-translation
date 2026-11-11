@@ -94,7 +94,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES, stateEntries,
+  FX_HIT_TILES, stateEntries, TICK_SIGNALED,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -262,6 +262,7 @@ export class SkillFx {
     this.modeWins = new Map(); // unit id → { hs, seq }: the loops of a mode an enemy binding's fx started (_modeWin)
     this.paths = new PathFx(w); // (fork) line / path effects whose points a kit fx carries (pathfx.js PATH_BINDINGS)
     this.sloops = new Map();   // (fork) b.snap fxs: `${carrier id}|${key}` → { h, e } held while the sim's row lasts (_states)
+    this.sends = new Map();    // (fork) the `end` entries of the rows on now: `${carrier id}|${key}` → { e, id }, played when the row goes
   }
 
   active() { return !!this.w.ofx.active && !!this.w.idx; }
@@ -758,6 +759,7 @@ export class SkillFx {
     for (const [slot, t] of this.tloops) if (idOf(t.tgt) === id) { t.h.stop(); this.tloops.delete(slot); }
     for (const [slot, t] of this.aloops) if (idOf(t.v) === id) { t.h.stop(); this.aloops.delete(slot); }
     for (const [slot, t] of this.sloops) if (t.id === id) { t.h?.stop(); this.sloops.delete(slot); }
+    for (const [slot, t] of this.sends) if (t.id === id) this.sends.delete(slot);
     // (fork) a held binding on it (`hold: 'until'`: 烛煌's downed ring) ends with it too
     if (this.untils.length) this.untils = this.untils.filter((u) => { if (u.id !== id && u.src !== id) return true; for (const h of u.hs) h.stop(); return false; });
     this._modeEnd(v);
@@ -1145,10 +1147,10 @@ export class SkillFx {
    * (fork) The lasting effects of the moments the client never sees (skills.js STATE_BUFFS, plan.state), reconciled each
    * frame with b.snap `fxs` (sim Battle.fxState): each row [buff, src, look] of a unit holds that buff's entries of
    * `src`'s plan (null: the unit's own) on it — a looping prefab looped (restarted if its handle died), any other once
-   * per row — and a row gone stops them.
+   * per row — and a row gone stops them; an `end` entry (a mark's ON_BUFF_FINISH) plays once then.
    */
   _states(views) {
-    let want = null;
+    let want = null, ends = null;
     for (const v of views) {
       if (!Array.isArray(v.fxs) || !v.fxs.length || v.alive === false || v.destroyed || v.down) continue;
       const id = idOf(v);
@@ -1162,10 +1164,20 @@ export class SkillFx {
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
         for (const e of list) {
           const k = `${id}|${e.key}`;
+          if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
           if (!(want || (want = new Map())).has(k)) want.set(k, { e, v, id });
         }
       }
     }
+    // an `end` entry plays once on the carrier when its row goes (the mark ran out, or the carrier fell with it)
+    for (const [k, t] of this.sends) {
+      if (ends?.has(k)) continue;
+      this.sends.delete(k);
+      const cv = this.w.view(t.id);
+      const key = cv && !cv.destroyed ? this._key(t.e, cv) : null;
+      if (key) this.w.playOn(key, cv, { follow: true, loop: false, important: true });
+    }
+    if (ends) for (const [k, t] of ends) if (!this.sends.has(k)) this.sends.set(k, t);
     for (const [k, t] of this.sloops) {
       if (want?.has(k) && !(t.loop && t.h && !t.h.alive)) continue;
       t.h?.stop();
@@ -1184,6 +1196,7 @@ export class SkillFx {
   _stopStates() {
     for (const t of this.sloops.values()) t.h?.stop();
     this.sloops.clear();
+    this.sends.clear();
   }
 
   _stopCond(U) {
@@ -1226,6 +1239,8 @@ export class SkillFx {
   simFx(kind, x, y, extra) {
     if (!this.active() || !extra || typeof extra !== 'object' || typeof kind !== 'string') return false;
     const now = this.w.ofx.time;
+    // (fork) one tick of an official buff's periodic trigger (sim battle.tickFx): the plan's 'tick' rows on the unit it names
+    if (kind === 'tick') return this._tick(extra);
     // a skill start cast with every charge stored (the kit's `charged`: 卡涅利安) — the `[eff_cond]` state (_cond)
     if (extra.charged === true && extra.id != null) { const C = this.units.get(extra.id); if (C) C.charged = true; }
     // (fork) a summon's own effects at its kit fx (SUMMON_FX)
@@ -1294,9 +1309,11 @@ export class SkillFx {
     const a = fxSpec(kind, extra).a;
     const near = !Number.isFinite(x) || !Number.isFinite(y) || Math.hypot(v.x - x, v.y - y) <= ON_UNIT;
     const on = this._on(U);
-    // (2) the skill's pulse: the kit's own fx of the moment its plan's tick / hit rows have no event for
+    // (2) the skill's pulse: the kit's own fx of the moment its plan's tick / hit rows have no event for (a skill whose kit
+    // sends its ticks, TICK_SIGNALED, keeps its 'tick' rows for those)
     if (extra.skill != null && on && plan.pulse.length && !NOT_PULSE.has(a)) {
-      const list = plan.pulse.filter((e) => (e.at === 'owner') === near);
+      const ticked = TICK_SIGNALED.has(plan.skillId);
+      const list = plan.pulse.filter((e) => (e.at === 'owner') === near && !(ticked && e.reason === 'tick'));
       if (list.length) {
         const at = near ? v : (this.w.view(extra.target ?? extra.to) || { id: 'fx:point', x, y, z: 0 });
         let drew = false;
@@ -1309,6 +1326,41 @@ export class SkillFx {
     // (3) the frame of the official skill start, (4) a skill-tagged flash while the official loops play
     if (U.startFrame === this.frame && (U.ewin ? U.ewin.draws : U.drawsStart)) return true;
     return extra.skill != null && on && (U.loops.some((h) => h.alive) || !!U.ewin?.loops.some((h) => h.alive));
+  }
+
+  /**
+   * (fork) fx 'tick' { id: the skill's owner, on, key? } (sim battle.tickFx): its plan's 'tick' rows (`key`: only that one)
+   * on the unit `on`, one-shot — also after the skill ended or its owner left (Lumen S1's heals outlast the instant cast;
+   * a summon's ticks run after it is gone: its record stays in the battle's table). Claimed even when nothing plays.
+   */
+  _tick(extra) {
+    const U = extra.id != null ? (this.units.get(extra.id) ?? this.of(this.w.view(extra.id))) : null;
+    const at = extra.on != null ? this.w.view(extra.on) : null;
+    const plan = U?.plan;
+    if (!plan || !at) return true;
+    let rows = plan.pulse.filter((e) => e.reason === 'tick' && (!extra.key || e.key === extra.key));
+    // a talent's tick the index reaches through one skill only (遥's bubbles: S1's selector) plays with any skill equipped
+    if (!rows.length && extra.key && plan.unitKey) rows = this._tickRows(plan.unitKey, extra.key);
+    const from = U.v && U.v !== at && Number.isFinite(U.v.x) ? U.v : undefined;
+    for (const e of uniq(rows)) {
+      const h = this._play(e, at, { flipFrom: from });
+      if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
+    }
+    return true;
+  }
+
+  /** (fork) The 'tick' rows of `key` in any skill plan of the unit (cached per battle). */
+  _tickRows(unitKey, key) {
+    const memo = this.tickRowMemo || (this.tickRowMemo = new Map());
+    const k = `${unitKey}|${key}`;
+    if (memo.has(k)) return memo.get(k);
+    let rows = [];
+    for (const sid of Object.keys(this.w.idx?.units?.[unitKey]?.skills || {})) {
+      rows = skillPlan(this.w.idx, unitKey, sid).pulse.filter((e) => e.reason === 'tick' && e.key === key);
+      if (rows.length) break;
+    }
+    memo.set(k, rows);
+    return rows;
   }
 
   /** An FX_BINDINGS `attack` entry: that plan attack's rows on the owner now, its hits on the damage that follows. */

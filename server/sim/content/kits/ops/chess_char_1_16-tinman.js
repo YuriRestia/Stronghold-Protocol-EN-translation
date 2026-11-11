@@ -36,7 +36,8 @@ export function startTinmanCoverage(battle, source, { key, x, y, radius, duratio
       if (!battle.allySelectable(target, source)) continue;
       covered.add(target);
       if (!target.buffs.includes(held.get(target))) held.set(target,
-        battle.addBuff(target, { key, source, mods: { hpRegen: regen } }));
+        // (fork) the official S2 heal glow (tinman_s_2[buff] → tinman_skill_02_heal_01) while it stands in it (b.snap fxs)
+        battle.addBuff(target, { key, source, mods: { hpRegen: regen }, fx: 'tinman_s_2[buff]', fxSrc: source?.id ?? null }));
     }
     for (const [target, buff] of held) if (!covered.has(target)) {
       battle.removeBuff(target, buff);
@@ -93,6 +94,7 @@ export function tinmanKit(bb, chess, def) {
               if (e.isFlying || e.s.flags.untargetable) continue;
               b.dealDamage({ source: null, credit: unit, target: e, amount: atk * dmgScale, type: 'arts',
                 attackType: 'BUFF', calculation: 'precomputed', isSkill: true, tags: ['dot', 'zone'] });
+              b.tickFx(unit, e, 'tinman:s2');   // tinman_s_2[buff] ON_BUFF_TRIGGER: tinman_skill_02_hit_01 + tinman_s_2[audio]
             }
           },
         });

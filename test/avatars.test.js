@@ -176,9 +176,9 @@ describe('Grand Alliance (8 seats)', () => {
     assert.equal(room.seats[3], null);
     assert.deepEqual(lobby.moveSeat(ps[7], { seat: 3 }), { ok: true });
     assert.equal('avatar' in states.at(-1).seats[3], false);
-    assert.deepEqual(lobby.swapSeats(ps[0], { a: 1, b: 3 }), { ok: true });
-    assert.equal(states.at(-1).seats[3].avatar, UNOFFICIAL, 'the swapped seat keeps its icon');
-    assert.equal(states.at(-1).seats[1].name, 'P7');
+    assert.deepEqual(lobby.swapSeats(ps[0], { a: 1, b: 4 }), { ok: true });
+    assert.equal(states.at(-1).seats[4].avatar, UNOFFICIAL, 'the swapped seat keeps its icon');
+    assert.equal(states.at(-1).seats[1].name, 'P4');
     for (const s of room.seats) if (s) s.ready = true;
     assert.deepEqual(lobby.start(ps[0]), { ok: true });
     const bySeat = Object.fromEntries(Rec.last.seats.map((s) => [s.playerId, s.avatar]));

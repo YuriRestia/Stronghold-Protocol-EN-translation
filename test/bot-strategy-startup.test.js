@@ -90,3 +90,17 @@ test('invalid SP_BOT_STRATEGY_SEATS rejects startup before data loading or liste
     });
   }
 });
+
+test('invalid SP_HOST_BOT_STRATEGY rejects startup before data loading or listening (fork)', async () => {
+  const previous = process.env.SP_HOST_BOT_STRATEGY;
+  try {
+    process.env.SP_HOST_BOT_STRATEGY = 'ioleta-adaptiv';
+    await assert.rejects(startServer({ port: 0, quiet: true, dataDir: 'missing-bot-strategy-test-data' }), (error) => {
+      assert.match(error.message, /Invalid SP_HOST_BOT_STRATEGY/);
+      assert.match(error.message, /Unknown bot strategy: ioleta-adaptiv;/);
+      return true;
+    });
+  } finally {
+    if (previous == null) delete process.env.SP_HOST_BOT_STRATEGY; else process.env.SP_HOST_BOT_STRATEGY = previous;
+  }
+});

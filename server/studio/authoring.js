@@ -25,7 +25,8 @@ export function authorRevision(files, id) {
   return folderRevision(inventory(files.root(id)));
 }
 
-export function createAuthoring({ files, dataDir, publicDir = path.join(dataDir, '../public') }) {
+// `checkMs`: the checker's time budget (default check.js's 20 s); a test that checks what it finds sets its own.
+export function createAuthoring({ files, dataDir, publicDir = path.join(dataDir, '../public'), checkMs }) {
   let data;
   const official = () => (data ||= readStudioData(dataDir));
   const targets = createTargetIndex(dataDir);
@@ -150,12 +151,12 @@ export function createAuthoring({ files, dataDir, publicDir = path.join(dataDir,
   };
   // HTTP saves/checks use a disposable checker so large media never blocks the game loop.
   const checkedCandidate = async (id, input, save) => {
-    const made = prepare(id, input, { validate: false, validateMedia: false }), candidate = await createCandidateAsync(files, id);
+    const made = prepare(id, input, { validate: false, validateMedia: false }), candidate = await createCandidateAsync(files, id, { checkMs });
     try {
       if (input.revision !== undefined && input.revision !== candidate.revision) throw new StudioError('PLUGIN_STUDIO_CHANGED', 409);
       writeDocuments(candidate, id, made.files);
       const checked = await checkCandidate({ dir: candidate.dir, dataDir, pluginsDir: files.base,
-        strict: PRESENTATION_TEMPLATES.includes(input.template), uploads: (input.uploads || []).map(u => u.path) });
+        strict: PRESENTATION_TEMPLATES.includes(input.template), uploads: (input.uploads || []).map(u => u.path) }, { timeoutMs: checkMs });
       if (!checked.ok) { const p = checked.problems[0]; throw new StudioError(p.code, 400, { where: p.path, detail: p.message }); }
       captureLockChange(candidate);
       if (save) {

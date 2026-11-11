@@ -46,7 +46,7 @@ function casterAtk(battle, unit, v) {
     if (!isCaster(a)) continue;
     const cur = a.findBuff(S2_KEY);
     if (cur && cur.source !== unit && (cur.data?.v ?? 0) > v && cur.timeLeft > 0.05) continue;
-    battle.addBuff(a, { key: S2_KEY, duration: AURA_DUR, mods: { atkPct: v }, source: unit, data: { v }, tags: ['aura'] });
+    battle.addBuff(a, { key: S2_KEY, duration: AURA_DUR, mods: { atkPct: v }, source: unit, data: { v }, tags: ['aura'], fx: 'accast_s_2', fxSrc: unit.id }); // (fork) fx: b.snap fxs
   }
 }
 

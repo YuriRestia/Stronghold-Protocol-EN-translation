@@ -736,6 +736,27 @@ describe('AudioManager', () => {
     assert.equal(u.fxSounds['blast|oxi:retaliate'].pool, 'battle.ON_ABILITY_HIT.skchr_oxi_2');
   });
 
+  test("(fork) periodic tick hits (committed manifest): each kit's fx tick plays the official buff trigger's sound on its pool", () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const want = {
+      char_450_necras: ['tick|necras:s2', 'p_imp_prlfrhlrd_h'],
+      char_4151_tinman: ['tick|tinman:s1', 'p_imp_stmpnklchbm'],
+      char_1039_thorn2: ['tick|thorn2:s2', 'p_imp_trshldacy_n'],
+      char_1042_phatm2: ['tick|phatm2:s2', 'p_imp_dmgrct_h'],   // her summon's ticks name her (src)
+      char_1044_hsgma2: ['tick|hsgma2:s2', 'p_imp_ktsldghstlp'],
+      char_4056_titi: ['tick|titi:s3', 'p_imp_sdycrtlswk'],
+      char_4202_haruka: ['tick|haruka:t1', 'p_imp_gfshblcrt'],
+      char_249_mlyss: ['tick|mlyss:s3', 'p_atk_wtrlimepull'],
+    };
+    for (const [id, [key, file]] of Object.entries(want)) {
+      const e = m.units[id]?.fxSounds?.[key];
+      assert.ok(e, `${id} ${key}`);
+      assert.equal(e.url?.split('/').pop(), `${file}.mp3`, `${id} ${key}`);
+      assert.ok(m.pools[e.pool], `${id}: the pool ${e.pool}`);
+    }
+    assert.match(m.units.char_4151_tinman.fxSounds['tick|tinman:s2'].url, /p_imp_stmpnklchbm\.mp3$/);
+  });
+
   test('丰川祥子 (committed manifest): the skill stings — S1 d1/d2/d3 40/30/30, S2 h1 only (into organ), S3 s1/s2 50/50 + its loop, each on its official pool', () => {
     const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
     const st = m.units.char_4182_oblvns.stings;

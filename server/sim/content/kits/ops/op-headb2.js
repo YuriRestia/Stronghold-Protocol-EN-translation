@@ -134,7 +134,8 @@ export default {
         if (!e.alive) continue;
         battle.dealDamage(unit, e, { amount, type: 'phys', isSplash: true, canDodge: false, sourceless: true, isProjectile: true, tags: [HIGHLAND_TAG] });
         if (!e.alive) continue;
-        if (s3) battle.applyStatus(e, 'bind', { duration: num(b3.unmovable, 1), source: unit });
+        // (fork) S3's bind shows the official headb2_s_3[unmovable] (common_unmovable_01) while it lasts (b.snap fxs)
+        if (s3) { if (battle.applyStatus(e, 'bind', { duration: num(b3.unmovable, 1), source: unit })) battle.fxState(e, 'headb2_s_3[unmovable]', true, { src: unit, dur: num(b3.unmovable, 1) }); }
         else if (num(t0['attack@sluggish']) > 0) battle.applyStatus(e, 'sluggish', { duration: num(t0['attack@sluggish']), source: unit });
       }
     };

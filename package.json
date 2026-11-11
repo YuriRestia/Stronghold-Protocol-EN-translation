@@ -31,6 +31,7 @@
     "test:browser": "node tools/browser-suite.mjs",
     "golden": "node tools/golden.mjs",
     "golden:update": "node tools/golden.mjs --update",
+    "golden:fast": "node tools/golden.mjs --fast",
     "vendor": "node tools/vendor.mjs",
     "build-data": "node tools/build-data.mjs",
     "assets": "node tools/vendor.mjs && node tools/fetch-assets.mjs",

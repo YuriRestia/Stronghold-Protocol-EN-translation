@@ -231,7 +231,7 @@ export default {
             if (n > 0) dpTicker(unit, { total: n, step: 1, iv: dur / n, first: dur / n / 2 });
             const layers = Math.max(1, Math.floor(num(b1.shield_cnt, 1)));
             for (const a of reinfOf(battle, unit)) {
-              battle.addBuff(a, { key: `${SHIELD_KEY}:${unit.id}`, shieldHits: layers, source: unit, tags: ['skill'] });
+              battle.addBuff(a, { key: `${SHIELD_KEY}:${unit.id}`, shieldHits: layers, source: unit, tags: ['skill'], fx: 'closur_s_1[block]', fxSrc: unit.id }); // (fork) its glow (b.snap fxs)
               battle.fx('shield', { x: a.x, y: a.y, id: a.id, src: unit.id });
             }
           },
@@ -375,6 +375,7 @@ export default {
               if (!inRange) return;
               const back = Math.ceil(num(a.base.cost) * ret - 1e-9);
               if (back > 0) { battle.addDp(unit.ownerId, back); battle.fx('dp', { x: a.x, y: a.y, n: back, id: unit.id }); }
+              battle.tickFx(unit, a, 'closur:s2');   // closur_s_2[friend] ON_BUFF_TRIGGER (the refund): common_charge_cost_start_01 on the op
             }, { owner: unit });
           }
         } },

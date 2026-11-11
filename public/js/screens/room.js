@@ -54,7 +54,7 @@
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
-import { SQUAD_SEATS, ROOM_PASSWORD_RE } from '../../../shared/largeRoom.js';
+import { SQUAD_SEATS, ROOM_PASSWORD_RE, squadOfSeat, squadMoveWait, squadMoveLog } from '../../../shared/largeRoom.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyIcon, Tooltip, Spinner, confirmDialog, doctorNo, Modal,
   TextField,
@@ -286,7 +286,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
-  onMoveSeat = null, swapFrom = null, onSwap = null }) {
+  onMoveSquad = null, mySquad = null, moveWait = 0, swapFrom = null, onSwap = null }) {
   const [badArt, setBadArt] = useState([]);
   // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
   const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
@@ -294,15 +294,20 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
   // the 转场 flash: a seat that turns ready (or becomes the host's), and an AI teammate added while the room is open
   // (`fresh`: this card mounted after the room was already on screen)
   const flash = useRise(!!seat && (seat.ready || seat.isBot || seat.playerId === room.hostId), 700, fresh);
-  // (fork) a large room's seat moves (shared/largeRoom.js): sit in an empty seat, or the host swaps two seats.
-  // msgids — 坐到这里 en: "Sit here"; 与此交换 en: "Swap here"; 与另一个座位交换 en: "Swap with another seat"; 取消交换 en: "Cancel swap"
+  // (fork) a large room's seat moves (shared/largeRoom.js): join the other squad (from its empty seats; the server picks
+  // its lowest free seat, with a cooldown shown here), or the host swaps two seats of different squads. Never inside a
+  // squad: the seat in a squad means nothing in play (user 2026-11-11, seat-hopping spam).
+  // msgids — 加入小队 {name} en: "Join Squad {name}"; 加入小队 {name}（{s} 秒） en: "Join Squad {name} ({s}s)";
+  // 与此交换 en: "Swap here"; 与另一个座位交换 en: "Swap with another seat"; 取消交换 en: "Cancel swap"
   const large = isLargeRoom(room);
   const swapping = large && facts.isHost && swapFrom != null;
-  const swapHere = swapping && swapFrom !== index ? html`<button type="button" class="rseat__swapto" data-testid="seat-swap-here" disabled=${!!busy}
+  const squad = squadOfSeat(index), squadName = squad ? 'B' : 'A';
+  const swapHere = swapping && swapFrom !== index && squadOfSeat(swapFrom) !== squad ? html`<button type="button" class="rseat__swapto" data-testid="seat-swap-here" disabled=${!!busy}
     onClick=${() => onSwap?.(swapFrom, index)}><${Icon} name="swap" />${t('与此交换')}</button>` : null; // en: "Swap here"
   if (!seat) {
     const canAdd = coop && facts.isHost && !large;
-    const canSit = large && !facts.spectating && !!facts.mine && !swapping;
+    const canSit = large && !facts.spectating && !!facts.mine && !swapping && mySquad != null && mySquad !== squad;
+    const waitS = Math.ceil(moveWait / 1000);
     const invitable = coop && !facts.spectating;
     return html`<article class="seat seat--empty rseat rseat--empty" style=${`--i:${index}`}>
       <span class="rseat__clip" aria-hidden="true"></span>
@@ -314,7 +319,8 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
               <span class="rseat__plus" aria-hidden="true"></span><b>${t('邀请')}</b><small>${t('复制同盟密钥以邀请队友')}</small></button>`
           : html`<span class="rseat__wait"><small>${t('等待博士加入')}</small></span>`}
         ${canAdd ? html`<${Button} variant="secondary" size="sm" icon="robot" class="rseat__add" loading=${busy === 'add'} onClick=${onAddBot}>${t('添加 AI 队友')}<//>` : null}
-        ${canSit ? html`<${Button} variant="secondary" size="sm" icon="user" class="rseat__add" data-testid="seat-sit" loading=${busy === `sit${index}`} onClick=${() => onMoveSeat?.(index)}>${t('坐到这里')}<//>` : null}
+        ${canSit ? html`<${Button} variant="secondary" size="sm" icon="user" class="rseat__add" data-testid="seat-sit" disabled=${waitS > 0}
+          loading=${busy === `sq${squad}`} onClick=${() => onMoveSquad?.(squad)}>${waitS > 0 ? t('加入小队 {name}（{s} 秒）', { name: squadName, s: waitS }) : t('加入小队 {name}', { name: squadName })}<//>` : null}
         ${swapHere}
         <span class="rseat__noinfo" aria-hidden="true">NOINFO</span>
       </div>
@@ -663,7 +669,26 @@ export function RoomScreen() {
   // (fork) a large room (shared/largeRoom.js): the list switch, sitting elsewhere, the host's seat swap (two taps)
   const setLock = (on, password) => run('lock', () => net.request('room.setLock', on && password ? { on, password } : { on }));
   const [swapFrom, setSwapFrom] = useState(null);
-  const moveSeat = (seat) => run(`sit${seat}`, () => net.request('room.moveSeat', { seat }));
+  // this page's own squad moves (shared/largeRoom.js squadMoveWait, the server's rule): the join button shows the wait
+  const moveLog = useRef([]);
+  const [moveWait, setMoveWait] = useState(0);
+  useEffect(() => {
+    if (!(moveWait > 0)) return undefined;
+    const id = setTimeout(() => setMoveWait(squadMoveWait(moveLog.current, Date.now())), Math.min(moveWait, 250));
+    return () => clearTimeout(id);
+  }, [moveWait]);
+  const moveSquad = (squad) => run(`sq${squad}`, async () => {
+    if (squadMoveWait(moveLog.current, Date.now()) > 0) return;
+    try {
+      await net.request('room.moveSeat', { squad });
+    } finally {
+      // a refused move (RATE: the server counted moves this page did not, e.g. before a reload) waits too
+      moveLog.current = squadMoveLog(moveLog.current, Date.now());
+      if (alive.current) setMoveWait(squadMoveWait(moveLog.current, Date.now()));
+    }
+  });
+  const myIndex = facts.seats.findIndex((x) => x && x.playerId === me.playerId);
+  const mySquad = myIndex >= 0 ? squadOfSeat(myIndex) : null;
   const swap = (a, b) => {
     if (a == null || b == null) { setSwapFrom(a); return; }
     setSwapFrom(null);
@@ -835,7 +860,7 @@ export function RoomScreen() {
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
           portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
-          fresh=${shownRoom.current === room.code} onMoveSeat=${moveSeat} swapFrom=${swapFrom} onSwap=${swap} />`;
+          fresh=${shownRoom.current === room.code} onMoveSquad=${moveSquad} mySquad=${mySquad} moveWait=${moveWait} swapFrom=${swapFrom} onSwap=${swap} />`;
       }))}
       ${coop ? null : html`<aside class="solo-brief rs-brief brackets">
         <${MicroLabel} tone="mint">BRIEFING<//>

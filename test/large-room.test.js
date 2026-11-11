@@ -15,7 +15,7 @@ import { planUnite } from '../server/match/unite.js';
 import { reapPlan, MAX_AGE_MS, LARGE_MAX_AGE_MS } from '../scripts/generations.mjs';
 import { ERR, PHASE } from '../shared/constants.js';
 import { validateC2S } from '../shared/protocol.js';
-import { roomScaleFor, scaleCount, squadOfSeat, LARGE_ROOM_SEATS } from '../shared/largeRoom.js';
+import { roomScaleFor, scaleCount, squadOfSeat, LARGE_ROOM_SEATS, squadMoveWait, squadMoveLog, SQUAD_MOVE_GAP_MS, SQUAD_MOVE_WINDOW_MS, SQUAD_MOVES_PER_WINDOW, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
 
 const VANILLA = 'a0'.repeat(32);
 const quiet = { info() {}, warn() {}, error() {}, debug() {} };
@@ -29,9 +29,9 @@ class Rec {
   onDisconnect() {}
 }
 
-function harness({ largeRooms = true } = {}) {
+function harness({ largeRooms = true, now = Date.now } = {}) {
   const registry = new SessionRegistry();
-  const lobby = new Lobby({ registry, log: quiet, MatchClass: Rec, content: { cs: VANILLA }, getData, options: { largeRooms, roomListGapMs: 0 } });
+  const lobby = new Lobby({ registry, log: quiet, MatchClass: Rec, content: { cs: VANILLA }, getData, now, options: { largeRooms, roomListGapMs: 0 } });
   const frames = new Map();
   const player = (name) => {
     const s = registry.create(name);
@@ -62,6 +62,8 @@ test('protocol: capacity 4 or 8, the seat moves, the list flag and rooms.watch',
   assert.notEqual(validateC2S({ t: 'room.create', mode: 'coop', capacity: 6 }), null);
   assert.equal(validateC2S({ t: 'room.moveSeat', seat: 7 }), null);
   assert.notEqual(validateC2S({ t: 'room.moveSeat', seat: 8 }), null);
+  assert.equal(validateC2S({ t: 'room.moveSeat', squad: 1 }), null);
+  assert.notEqual(validateC2S({ t: 'room.moveSeat', squad: 2 }), null);
   assert.equal(validateC2S({ t: 'room.swapSeats', a: 0, b: 5 }), null);
   assert.equal(validateC2S({ t: 'room.setLock', on: true, password: 'abcd' }), null);
   assert.equal(validateC2S({ t: 'room.setLock', on: false }), null);
@@ -132,8 +134,9 @@ test('large room: 8 seats, humans only, searches like any room (DESIGN §90.4), 
   assert.equal(h.last(other, 'room.state').seats.length, 4);
 });
 
-test('large room: members move to empty seats, the host swaps, joiners fill the first free seat', () => {
-  const h = harness();
+test('large room: members move to the other squad\'s first free seat, the host swaps across squads, joiners fill the first free seat', () => {
+  let t = 1_000_000;
+  const h = harness({ now: () => t });
   const host = h.player('Host');
   ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
   const code = h.last(host, 'room.state').code;
@@ -141,18 +144,101 @@ test('large room: members move to empty seats, the host swaps, joiners fill the 
   for (const p of ps) ok(h.lobby.join(p, { code }));
   const room = h.lobby.rooms.get(code);
   assert.deepEqual(room.seats.map((s) => s?.name ?? null), ['Host', 'B', 'C', 'D', 'E', null, null, null]);
-  ok(h.lobby.moveSeat(ps[2], { seat: 6 }));
-  refused(h.lobby.moveSeat(ps[0], { seat: 4 }), ERR.BAD_TARGET); // taken
-  assert.equal(room.seats[6].name, 'D');
-  assert.equal(room.seats[6].seat, 6);
+  ok(h.lobby.moveSeat(ps[2], { squad: 1 }));
+  assert.equal(room.seats[5].name, 'D', 'the lowest free seat of squad B');
+  assert.equal(room.seats[5].seat, 5);
   assert.equal(room.seats[3], null);
-  refused(h.lobby.swapSeats(ps[0], { a: 0, b: 1 }), ERR.NOT_HOST);
-  ok(h.lobby.swapSeats(host, { a: 1, b: 5 }));
-  assert.equal(room.seats[5].name, 'B');
-  assert.equal(room.seats[1], null);
+  refused(h.lobby.moveSeat(ps[0], { squad: 0 }), ERR.BAD_TARGET); // already in squad A
+  refused(h.lobby.moveSeat(ps[3], { seat: 7 }), ERR.BAD_TARGET); // an old page's seat in its own squad
+  ok(h.lobby.moveSeat(ps[0], { seat: 7 })); // an old page's seat: that seat's squad, its lowest free seat
+  assert.equal(room.seats[6].name, 'B');
+  refused(h.lobby.swapSeats(ps[1], { a: 0, b: 4 }), ERR.NOT_HOST);
+  refused(h.lobby.swapSeats(host, { a: 0, b: 2 }), ERR.BAD_TARGET); // same squad
+  refused(h.lobby.swapSeats(host, { a: 4, b: 7 }), ERR.BAD_TARGET);
+  ok(h.lobby.swapSeats(host, { a: 2, b: 7 }));
+  assert.equal(room.seats[7].name, 'C');
+  assert.equal(room.seats[2], null);
   const late = h.player('F');
   ok(h.lobby.join(late, { code }));
   assert.equal(room.seats[1].name, 'F');
+});
+
+test('large room: squad moves are limited per player (a gap, then a count per minute), across a rejoin, never for the host\'s swap', () => {
+  let t = 1_000_000;
+  const h = harness({ now: () => t });
+  const host = h.player('Host');
+  ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  const code = h.last(host, 'room.state').code;
+  const p = h.player('Hopper');
+  ok(h.lobby.join(p, { code }));
+  const room = h.lobby.rooms.get(code);
+  const squad = () => squadOfSeat(room.seatOf(p.playerId).seat);
+  ok(h.lobby.moveSeat(p, { squad: 1 }));
+  t += SQUAD_MOVE_GAP_MS - 1;
+  refused(h.lobby.moveSeat(p, { squad: 0 }), ERR.RATE);
+  assert.equal(squad(), 1, 'a refused move moves nobody');
+  t += 1;
+  ok(h.lobby.moveSeat(p, { squad: 0 }));
+  t += SQUAD_MOVE_GAP_MS; ok(h.lobby.moveSeat(p, { squad: 1 }));
+  t += SQUAD_MOVE_GAP_MS; ok(h.lobby.moveSeat(p, { squad: 0 }));
+  t += SQUAD_MOVE_GAP_MS;
+  refused(h.lobby.moveSeat(p, { squad: 1 }), ERR.RATE); // the 5th inside a minute
+  // leaving and joining again does not reset it
+  h.lobby.leave(p);
+  ok(h.lobby.join(p, { code }));
+  refused(h.lobby.moveSeat(p, { squad: 1 }), ERR.RATE);
+  t = 1_000_000 + SQUAD_MOVE_WINDOW_MS;
+  ok(h.lobby.moveSeat(p, { squad: 1 }));
+  // the host swaps as often as needed
+  for (let i = 0; i < 6; i++) ok(h.lobby.swapSeats(host, { a: 1, b: 4 + (i % 2) }));
+  // the log stays bounded: at most SQUAD_MOVE_LOG_MAX players, each at most SQUAD_MOVES_PER_WINDOW times
+  for (let i = 0; i < SQUAD_MOVE_LOG_MAX + 3; i++) room.squadMoves.set(`x${i}`, [t]);
+  t += SQUAD_MOVE_GAP_MS;
+  ok(h.lobby.moveSeat(p, { squad: squad() ? 0 : 1 }));
+  assert.equal(room.squadMoves.size, SQUAD_MOVE_LOG_MAX);
+  assert.ok(room.squadMoves.has(p.playerId), 'the latest mover is kept');
+  assert.ok(room.squadMoves.get(p.playerId).length <= SQUAD_MOVES_PER_WINDOW);
+});
+
+test('large room: a full squad refuses a move; changing squad un-readies the mover, a swap both players, never the host', () => {
+  let t = 1_000_000;
+  const h = harness({ now: () => t });
+  const host = h.player('Host');
+  ok(h.lobby.create(host, { mode: 'coop', capacity: 8 }));
+  const code = h.last(host, 'room.state').code;
+  const ps = ['B', 'C', 'D', 'E', 'F', 'G', 'H'].map((n) => h.player(n));
+  for (const p of ps) ok(h.lobby.join(p, { code }));
+  const room = h.lobby.rooms.get(code);
+  refused(h.lobby.moveSeat(ps[0], { squad: 1 }), ERR.BAD_TARGET); // 4 + 4: squad B is full
+  h.lobby.leave(ps[6]); // seat 8 free
+  for (const s of room.seats) if (s) s.ready = true;
+  ok(h.lobby.moveSeat(ps[0], { squad: 1 }));
+  assert.equal(room.seats[7].name, 'B');
+  assert.equal(room.seats[7].ready, false, 'the mover is un-readied');
+  assert.equal(room.seats[2].ready, true, 'the others keep theirs');
+  for (const s of room.seats) if (s) s.ready = true;
+  ok(h.lobby.swapSeats(host, { a: 2, b: 4 }));
+  assert.equal(room.seats[2].ready, false);
+  assert.equal(room.seats[4].ready, false);
+  assert.equal(room.seats[3].ready, true);
+  ok(h.lobby.swapSeats(host, { a: 0, b: 5 }));
+  assert.equal(room.seats[5].playerId, host.playerId);
+  assert.equal(room.seats[5].ready, true, 'the host\'s own flag is not touched');
+  ok(h.lobby.moveSeat(host, { squad: 0 })); // the host moves like any member
+});
+
+test('shared squad-move wait: the gap after the last move, then the window once full', () => {
+  assert.equal(squadMoveWait([], 0), 0);
+  assert.equal(squadMoveWait(undefined, 0), 0);
+  assert.equal(squadMoveWait([1000], 1000), SQUAD_MOVE_GAP_MS);
+  assert.equal(squadMoveWait([1000], 1000 + SQUAD_MOVE_GAP_MS), 0);
+  const four = [0, 10_000, 20_000, 30_000];
+  assert.equal(squadMoveWait(four, 40_000), SQUAD_MOVE_WINDOW_MS - 40_000);
+  assert.equal(squadMoveWait(four, SQUAD_MOVE_WINDOW_MS), 0, 'the oldest left the window');
+  let log = [];
+  for (let i = 0; i < 9; i++) log = squadMoveLog(log, i * SQUAD_MOVE_GAP_MS);
+  assert.equal(log.length, SQUAD_MOVES_PER_WINDOW);
+  assert.deepEqual(squadMoveLog([0, 5], SQUAD_MOVE_WINDOW_MS + 5), [SQUAD_MOVE_WINDOW_MS + 5], 'old moves dropped');
 });
 
 test('room browser: every open room, a locked one marked, refreshed while watched, gone once started', async () => {

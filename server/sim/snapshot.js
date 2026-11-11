@@ -301,9 +301,10 @@ export function fxStateView(u, t = 0) {
     for (const p of u.fxProbes) {
       const v = p.probe(u);
       if (v == null || v === false) continue;
-      // (fork) an object names the unit that gave it: { src, look? }
-      const obj = v && typeof v === 'object';
-      const src = obj ? (v.src && typeof v.src === 'object' ? v.src.id : v.src) ?? null : null;
+      // (fork) the unit that gave it: the probe's src(u) (a summon's owner), else an object's { src, look? }; the carrier: null
+      const obj = typeof v === 'object';
+      const by = p.src ? p.src(u) : obj ? v.src : null;
+      const src = (by && typeof by === 'object' ? by.id : by) ?? null;
       if (!(out && out.some((r) => r[0] === p.buff))) (out || (out = [])).push([p.buff, src === u.id ? null : src, v === true ? null : obj ? v.look ?? null : v]);
     }
   }
