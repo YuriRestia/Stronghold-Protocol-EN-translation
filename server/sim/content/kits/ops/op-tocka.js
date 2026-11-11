@@ -269,7 +269,11 @@ export default {
       const hs = num(t0.heal_scale);
       const t = battle.injuredAlliesInKeys(tocka.rangeKeySet ?? tocka.rangeKeys, tocka)
         .filter((a) => isOp(a) && battle.allySelectable(a, tocka)).sort((a, b) => a.hpRatio - b.hpRatio || later(a, b))[0];
-      if (t && hs > 0) battle.heal(tocka, t, tocka.s.atk * hs);
+      if (t && hs > 0) {
+        battle.heal(tocka, t, tocka.s.atk * hs);
+        // (fork) the client's tocka_t1[sp_and_heal] heal hit (tocka_heal_01_hit_01, once) on the healed ally — display only
+        battle.fxState(t, 'tocka_t1[sp_and_heal]', true, { src: tocka, dur: 0.6 });
+      }
     };
 
     /** What each effect does when it fires (`ctx`: the injury event for S1). */

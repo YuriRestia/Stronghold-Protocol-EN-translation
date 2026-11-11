@@ -39,6 +39,8 @@ export default {
       }),
       talents: [{ install(battle, unit) {
         unit.mem.hainiMul = 1;
+        // (fork) the client's haini_s_2[modify_talent]: haini_skill_02_buff_01 / _02 and _weapon_01 on her while S2 runs — display only
+        battle.fxProbe(unit, 'haini_s_2[modify_talent]', (u) => !!(u.alive && u.deployed && u.skill?.active));
         aura(battle, unit, {
           key: 'talent:haini_fragile', side: 'enemy', tiles: () => unit.rangeKeySet, filter: isNormalEnemy,
           mods: () => ({ dmgTakenMul: 1 + (num(t0.damage_scale, 1) - 1) * (unit.mem.hainiMul ?? 1) }),
