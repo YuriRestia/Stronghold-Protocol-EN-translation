@@ -1448,6 +1448,26 @@
   .privacy__opt { padding: 6px 14px; min-height: 40px; }
 }
 
+/* (fork) One for All (一策同心, ui/largeRooms.js): the ONE FOR ALL tag (room title, browser card) and the Grand Alliance's
+   策略：自由选择 | 一策同心 switch (create screen, room bar); amber like a private room's lock, the mode's colour */
+.ofa-tag { flex: none; display: inline-flex; align-items: center; padding: .01rem .09rem; font-size: calc(.13 * var(--t, 100px)); font-weight: 700;
+  letter-spacing: .14em; text-transform: uppercase; white-space: nowrap; color: #2a1d02; background: #f2c14e; border-radius: 2px; line-height: 1.4; }
+.ofa-switch { display: inline-flex; align-items: center; gap: .1rem; align-self: flex-start; font-size: calc(.15 * var(--t, 100px)); color: #c9d1ce; white-space: nowrap; }
+.ofa-switch__k { font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: #f2c14e; }
+.ofa-switch__seg { display: inline-flex; border: 1px solid rgba(242, 193, 78, .55); border-radius: 3px; overflow: hidden; }
+.ofa-switch__opt { display: inline-flex; align-items: center; padding: .03rem .14rem; font: inherit; color: #c4cbc9; background: transparent; border: 0; cursor: pointer; }
+.ofa-switch__opt + .ofa-switch__opt { border-left: 1px solid rgba(242, 193, 78, .55); }
+.ofa-switch__opt:hover:not(:disabled), .ofa-switch__opt:focus-visible { color: #fff; }
+.ofa-switch__opt.is-on { color: #2a1d02; background: #f2c14e; font-weight: 700; cursor: default; }
+.ofa-switch__opt:disabled:not(.is-on) { opacity: .5; cursor: default; }
+.ofa-switch--ro b { font-weight: 700; color: #e6ebe9; }
+.ofa-switch--ro.is-ofa b { color: #f2c14e; }
+@media (max-width: 720px) {
+  .ofa-tag { font-size: 12px; }
+  .ofa-switch { font-size: 14px; }
+  .ofa-switch__opt { padding: 6px 12px; min-height: 36px; }
+}
+
 /* (fork) Horizontal scroller (ui/hScroll.js HScroll): no native scrollbar; edge fades on the hidden ends; ‹ › buttons
    only while the row overflows (hidden at the end they point to). The screen places the box and its row. */
 .hscroll { position: relative; }

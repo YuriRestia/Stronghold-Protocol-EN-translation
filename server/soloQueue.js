@@ -6,12 +6,13 @@
 // a room only takes Doctors who queued for its version, a Grand Alliance only those who opted in. A Grand Alliance
 // that has searched longer than partialMergeAfterMs also takes opted-in Doctors who waited that long without filling
 // it, as a partial merge would: they sit in its room until it fills [ASSUMED: else 8 seats would almost never fill].
+// A One for All Grand Alliance only takes Doctors who also ticked its sub-opt-in (`oneForAll`, only with `large`).
 
 import { MAX_SEATS } from '../shared/constants.js';
 import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
-import { roomSize, roomCap, roomVersion, isLarge, isMatchable } from './matchmaker.js';
+import { roomSize, roomCap, roomVersion, isLarge, isOneForAll, isMatchable } from './matchmaker.js';
 
-/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], large: boolean }} SoloEntry */
+/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], large: boolean, oneForAll: boolean }} SoloEntry */
 
 /** The versions an entry queued for (an entry without the key: the default version). @param {any} e */
 export function entryVersions(e) {
@@ -26,10 +27,10 @@ export class SoloQueue {
 
   /**
    * @param {string} playerId @param {string} difficulty @param {number} since
-   * @param {{ versions?: string[], large?: boolean }} [opts] @returns {SoloEntry}
+   * @param {{ versions?: string[], large?: boolean, oneForAll?: boolean }} [opts] @returns {SoloEntry}
    */
-  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], large = false } = {}) {
-    const e = { playerId, difficulty, since, versions: [...versions], large: large === true };
+  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], large = false, oneForAll = false } = {}) {
+    const e = { playerId, difficulty, since, versions: [...versions], large: large === true, oneForAll: large === true && oneForAll === true };
     this.entries.set(playerId, e);
     return e;
   }
@@ -59,7 +60,7 @@ function versionOrder(entries) {
 /**
  * This pass's placements. Pure.
  *   1. Searching rooms (longest search first) take the longest-waiting Doctors who queued for their version and difficulty
- *      (a Grand Alliance: who also opted in), only when that fills them. A room needing more than are left is skipped,
+ *      (a Grand Alliance: who also opted in; a One for All one: who also ticked its sub-opt-in), only when that fills them. A room needing more than are left is skipped,
  *      so a smaller one behind it can still fill.
  *   2. The Doctors left over form new rooms of exactly MAX_SEATS, version by version (versionOrder).
  *   3. (fork) A Grand Alliance that has searched `partialMergeAfterMs` takes the opted-in Doctors left over who have
@@ -73,7 +74,8 @@ function versionOrder(entries) {
 export function planSolos(rooms, entries, { now = 0, partialMergeAfterMs = 0 } = {}) {
   if (!entries.length) return [];
   const left = new Set(entries);
-  const takes = (e, r) => e.difficulty === r.difficulty && entryVersions(e).includes(roomVersion(r)) && (!isLarge(r) || e.large === true);
+  const takes = (e, r) => e.difficulty === r.difficulty && entryVersions(e).includes(roomVersion(r)) && (!isLarge(r) || e.large === true)
+    && (!isOneForAll(r) || e.oneForAll === true);
   const waiting = [...rooms].filter((r) => isMatchable(r))
     .sort((a, b) => (a.searchSince ?? 0) - (b.searchSince ?? 0) || (a.code < b.code ? -1 : 1));
   const plans = [];
