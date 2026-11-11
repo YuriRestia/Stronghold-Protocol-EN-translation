@@ -10,6 +10,7 @@
 //   * a solo pause (Match.paused, g.pause) skips the intervals: the field clock stands still (HeadlessPacer too).
 // Every SNAP_EVERY (3) ticks of a field its events are drained; watchers of that field get `b.ev` then `b.snap`, both
 // carrying the field's game time `gt` (`emit: false` skips the streaming: server-run fields under client-side combat).
+// (fork) The snapshot's `fxs` rows go out only when they change, plus a full set once a second (shared/fxsDiff.js).
 // Per-field isolation: an exception from step() force-ends that field as a timeout (and, if even that throws, the
 // field is closed with a synthetic result). A hard cap (HARD_CAP_SECONDS of game time) force-ends anything left.
 // Results that did not come from a finished battle carry `synthetic: true` (the match never charges LP for them).
@@ -36,6 +37,7 @@ import { layerGainRoom } from '../../shared/constants.js';
 import { uniteLeft } from '../sim/spec.js';
 import { diyTokenOwner, diyRecordOf } from '../../shared/diy.js';
 import { simMeter } from './simMeter.js';
+import { FxsDiff } from '../../shared/fxsDiff.js';
 import { requiresTraitLayerAuthority } from './operatorTraits.js';
 
 export const MAX_TICKS_PER_INTERVAL = 8;
@@ -212,15 +214,19 @@ export class FieldRunner {
     try { ev = f.battle.drainEvents() || []; } catch (e) { this.m.reportError(`field ${f.fieldId} drainEvents`, e); }
     if (!this.emit) return;
     const watchers = this.m.watchersOf(f.fieldId);
-    if (!watchers.length) return;
+    // (fork) fxs on change (shared/fxsDiff.js): a field nobody watches keeps nobody in step
+    const fxs = f.fxsDiff || (f.fxsDiff = new FxsDiff());
+    if (!watchers.length) { fxs.synced.clear(); return; }
+    fxs.keep(watchers);
     let snapMsg = null;
     try { snapMsg = snapFrame(f.fieldId, f.battle.snapshot()); } catch (e) { this.m.reportError(`field ${f.fieldId} snapshot`, e); }
     const time = Number(f.battle.time);
     const gt = snapMsg ? snapMsg.gt : Number.isFinite(time) ? time : 0;
     const evMsg = ev.length ? { t: 'b.ev', fieldId: f.fieldId, gt, ev } : null;
+    const snaps = snapMsg ? fxs.frames(f.battle, snapMsg) : null;
     for (const pid of watchers) {
       if (evMsg) this.m.sendTo(pid, evMsg);
-      if (snapMsg) this.m.sendTo(pid, snapMsg);
+      if (snaps) fxs.sent(pid, this.m.sendTo(pid, fxs.synced.has(pid) ? snaps.shared : snaps.full));
     }
   }
 
