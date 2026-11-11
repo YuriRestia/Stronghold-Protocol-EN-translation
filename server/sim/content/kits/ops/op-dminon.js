@@ -30,7 +30,7 @@
 // - T2 此身为界 (bb atk_scale / stun): PRTS 修正 "自身离场时" and 备注 "因任何原因离场均可触发此天赋，但如果是因“被击倒”而离场，
 //   则会延迟0.7秒产生伤害" / "依靠弹道存储触发天赋时的攻击力（缓存攻击力）与场上的“国度”状态，因此处于三技能期间离场时此天赋
 //   可享受攻击力加成与“国度”扩大增益": every removal of his (the `death` hook: a knock-out — 0.7 s later —, a 撤退 or forced
-//   exit — at once [ASSUMED: no flight time] —, the 突袭 jump, which is a retreat and a redeploy [ASSUMED: a 离场]; the end of
+//   exit — 0.1 s later, the client's projectile_chr_dminon_withdraw (WITHDRAW_DELAY) —, the 突袭 jump, which is a retreat and a redeploy [ASSUMED: a 离场]; the end of
 //   a battle is none [ASSUMED]) deals atk_scale × the ATK he had as he left, as arts damage, and stuns `stun` s every
 //   ground enemy standing, when it lands, on the 国度 as it was — his field then (S2 / S3 range, spread tiles) and the other
 //   国度's —; the damage first, the stun on those it leaves alive [ASSUMED]. "随后所有“国度”消失": his own field is gone at
@@ -73,6 +73,13 @@ const S2 = 'skchr_dminon_2';
 const S3 = 'skchr_dminon_3';
 /** 此身为界 "如果是因“被击倒”而离场，则会延迟0.7秒产生伤害" (PRTS 备注; no blackboard key). */
 export const KO_DELAY = 0.7;
+/**
+ * 此身为界 on any other removal (撤退, forced exit, the 突袭 jump): the client's talent fires projectile_chr_dminon_withdraw
+ * (ON_OWNER_FINISH), which reaches at once (AttachToTarget _immediatelyReach), lives 0.1 s (_lifeTime) and hits as it stops
+ * (HitBehaviour _onlyCheckHitWhenStop), its tile effect with it (_tileEffectKeyOnStop) — the knock-out's twin
+ * projectile_chr_dminon_dead stops at 0.7 s, KO_DELAY.
+ */
+export const WITHDRAW_DELAY = 0.1;
 /** 实质坍缩's damage period: "自身每隔1秒…造成法术普通伤害" (PRTS 备注; the text's 每秒). */
 export const COLLAPSE_IV = 1;
 /** S3's buff on the allies on the 国度: "每隔0.15秒…施加…（光环效果）" (PRTS 备注). */
@@ -334,8 +341,7 @@ export default {
             const tiles = new Set(fresh && c.keys ? c.keys : (unit.rangeKeys ?? []));
             for (const { unit: o } of domsOf(battle)) if (o !== unit && up(o) && o.rangeKeys) for (const k of o.rangeKeys) tiles.add(k);
             const keys = [...tiles];
-            if (ctx.reason === 'killed') battle.after(KO_DELAY, () => boundary(battle, unit, atk, keys, t1), { owner: unit });
-            else boundary(battle, unit, atk, keys, t1);
+            battle.after(ctx.reason === 'killed' ? KO_DELAY : WITHDRAW_DELAY, () => boundary(battle, unit, atk, keys, t1), { owner: unit });
           }, { owner: unit, priority: DEATH_PRIORITY });
         } },
       ],
