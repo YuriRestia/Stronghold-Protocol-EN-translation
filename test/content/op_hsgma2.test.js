@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -413,7 +413,7 @@ test('AST-X 无迹 trait (stages 1 and 3, during skill): every damage instance o
     if (x) assert.deepEqual(modOf(tier, ASTX).traitOverride.bb, { atk_scale: 0.1 }, label(f));
     const { h, u } = field({ tier, elite, mod, skill: 2 });
     noSp(h, u);
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.run(3.5);
     const atk = mine(h, u).filter((c) => c.dmg.isAttack);
@@ -434,7 +434,7 @@ for (const dodge of [false, true]) test(`AST-X output uses precomputed ADDITION/
   const { h, u } = field({ tier: 6, elite: true, mod: ASTX, skill: 2 });
   const b = h.b, e = h.spawn('enemy_dummy', { pos: [10, 7] });
   u.atkCd = 999;
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   if (dodge) b.addBuff(e, { key: 'dodge', mods: { dodgeArts: 1 } });
   let calculations = 0;
   b.on('damageCalculate', c => { if (c.source === u) { calculations++; c.dmg.amount *= 2; } });
@@ -460,7 +460,7 @@ test('AST-X incoming reflection is precomputed NORMAL/NONE without a recursive o
   const { h, u } = field({ tier: 6, elite: true, mod: ASTX, skill: 2 });
   const b = h.b, e = h.spawn('enemy_dummy', { pos: [10, 7] });
   u.atkCd = 999;
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   let calculations = 0;
   b.on('damageCalculate', c => { if (c.source === u) calculations++; });
   const out = [];
@@ -478,7 +478,7 @@ test('AST-X incoming reflection is precomputed NORMAL/NONE without a recursive o
 for (const attackType of ['SPLASH', 'BUFF', 'ADDITION', 'NONE']) test(`AST-X output excludes ${attackType} even with attack behavior`, () => {
   const { h, u } = field({ tier: 6, elite: true, mod: ASTX, skill: 2 });
   const b = h.b, e = h.spawn('enemy_dummy', { pos: [10, 7] });
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   const out = [];
   b.on('damageOutput', c => { if (c.dmg.tags.includes('hsgma2:astx')) out.push(c); });
   b.dealDamage({ source: u, target: e, amount: 100, type: 'true', attackType, isAttack: true });
@@ -491,7 +491,7 @@ test('AST-X ADDITION does not retrigger Pegasus, while the original attack still
     items: ['chess_item_5_09_e_a', 'chess_item_6_01_e_a'] });
   const b = h.b, e = h.spawn('enemy_dummy', { pos: [10, 7] });
   u.atkCd = 999;
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   const rows = [];
   b.on('damageApplied', c => { if (c.target === e) rows.push(c); });
   b.dealDamage({ source: u, target: e, amount: 100, type: 'phys', isAttack: true });

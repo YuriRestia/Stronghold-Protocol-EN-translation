@@ -3,7 +3,7 @@
 // asserts its signature effect with numbers taken from the chess blackboards (data/chess.json).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { ELEMENT_GAUGE_MAX, PROJECTILE_SPEEDS, BOOMERANG_RETURN_SPEED } from '../../server/sim/constants.js';
 import { sortEnemyTargets, canTargetEnemy } from '../../server/sim/targeting.js';
@@ -402,6 +402,7 @@ test('1_12 艾丝黛尔: 舍身突击 ATK +atk and no healing from others; 自�
   const h = run({ defs: { enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 9, col: 5, carryState: READY }], enemies: [{ key: 'e', pos: [9, 6] }] });
   const u = h.unit(id);
   h.step();
+  throughBegin(h, u);
   assert.ok(u.skill.active);
   approx(u.s.atk, u.base.atk * (1 + bb.atk));
   u.hp = u.s.maxHp * 0.5;
@@ -563,6 +564,7 @@ test('1_17 深靛: 光影迷宫 interval ×0.7, bound enemies take 12 % ATK ever
   const h = run({ defs: { enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 10, col: 4, carryState: READY }], enemies: [{ key: 'e', pos: [10, 6] }, { key: 'e', pos: [10, 7] }] });
   const u = h.unit(id);
   h.step();
+  throughBegin(h, u);
   assert.ok(u.skill.active);
   approx(u.s.interval, u.base.bat * bb.base_attack_time, 'interval');
   const [a, b] = h.enemies();
@@ -905,6 +907,7 @@ test('2_09 休谟斯: 高效处理 block +1 and 精力充沛 by HP thresholds; �
   const h = run({ defs: { enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 9, col: 5, carryState: READY }], enemies: [{ key: 'e', pos: [9, 6] }] });
   const u = h.unit(id);
   h.step();
+  throughBegin(h, u);
   assert.ok(u.skill.active);
   assert.equal(u.s.blockCnt, u.base.blockCnt + bb.block_cnt);
   approx(u.s.atk, u.base.atk * (1 + bb['humus_s_2[peak_2].peak_performance.atk']), '>80 %');
@@ -930,6 +933,7 @@ test('2_10 洛洛: 自负此轭 ASPD; 过载 half-way ATK +atk and funnel cap ×
   const u = h.unit(id);
   const cap0 = u.profile.funnel.max;
   h.step();
+  throughBegin(h, u);
   assert.ok(u.skill.active);
   approx(u.s.aspd - u.base.aspd, bb.attack_speed);
   const D = u.skill.duration;
@@ -951,6 +955,7 @@ test('2_11 风丸: 纸艺·双影 −50 % HP, ATK +atk, summons the <替身> who
   const h = run({ defs: { enemies: { e: dummy('e') } }, units: [{ chessId: id, row: 9, col: 5, carryState: READY }], enemies: [{ key: 'e', pos: [9, 6] }, { key: 'e', pos: [9, 9] }] });
   const u = h.unit(id);
   h.step();
+  throughBegin(h, u);
   assert.ok(u.skill.active);
   approx(u.hpRatio, 1 - bb.hp_ratio, 'HP loss');
   approx(u.s.atk, u.base.atk * (1 + bb.atk));
@@ -1259,7 +1264,7 @@ test('1_01 隐现 elite: the ally magazine bonus is one grant per deployment (ne
   const u = h.unit(id), l = h.unit('t_lat');
   const magazine = () => {
     if (l.skill.active) l.skill.end('test');
-    l.skill.activate('test', { free: true });
+    castNow(l, 'test', { free: true });
     const n = l.skill.ammoLeft;
     l.skill.end('test');
     return n;

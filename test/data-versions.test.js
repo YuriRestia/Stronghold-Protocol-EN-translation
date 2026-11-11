@@ -285,8 +285,9 @@ test('data/versions/act2autochess-v2_1: the same-id records that differ from tod
   // (fork) dev-0.2's build-data adds `activeRange` / `activeExtend` (the 攻击范围 技能 toggle) to today's skills; the stored
   // set predates them. Since 2026-11-10 today's skills carry the live client's official triggers (the default profile's
   // skillTriggers) while V2_1 keeps its own table's: the triggers are left out here (the V2_1 set itself is unchanged —
-  // the byte-for-byte rebuild test above)
-  const noRange = (sk) => (sk && typeof sk === 'object' ? { ...sk, activeRange: undefined, activeExtend: undefined, trigger: undefined } : sk);
+  // the byte-for-byte rebuild test above). (fork) Today's skills also carry their begin clip (`beginAnim`, build-data
+  // operatorBeginAnims: the default version only — the skill starts when it ends), left out the same way
+  const noRange = (sk) => (sk && typeof sk === 'object' ? { ...sk, activeRange: undefined, activeExtend: undefined, trigger: undefined, beginAnim: undefined } : sk);
   assert.deepEqual(changed('chess', (c) => [noRange(c.skill), (c.skills || []).map(noRange), c.talents, c.talentsBase]), ['chess_char_3_06_a', 'chess_char_3_06_b',
     'chess_char_3_18_a', 'chess_char_3_18_b', 'chess_char_4_10_a', 'chess_char_4_10_b', 'chess_char_5_05_a', 'chess_char_5_05_b',
     'chess_char_6_02_a', 'chess_char_6_02_b', 'chess_char_6_08_a', 'chess_char_6_08_b']);

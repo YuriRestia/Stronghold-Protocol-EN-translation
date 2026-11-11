@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mitigate } from '../../server/sim/attack.js';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 
 function defensiveSkill(chessId, skillIndex = 0) {
   const h = makeBattle({ defs: { enemies: { enemy_probe: enemyRec({ key: 'enemy_probe', hp: 100000, speed: 0, atk: 0 }) } },
@@ -70,7 +70,7 @@ test('Executor S2 +2000 priority beats an earlier ordinary shield but stops afte
     const { b, u, e } = defensiveSkill('chess_char_5_01_a', 1);
     u.skill.end('test');
     b.addBuff(u, { key: 'shield', shieldHits: 1, injuryPriority: priority });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     u.skill.ammoLeft = 1;
     let rolls = 0;
     b.rng = () => { rolls++; return 0; };
@@ -107,7 +107,7 @@ test('Lappland S1 acquired after a shield cannot dodge before that shield is con
   const { b, u } = defensiveSkill('chess_char_2_16_a');
   u.skill.end('test');
   b.addBuff(u, { key: 'earlier-shield', shieldHits: 1 });
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   let rolls = 0;
   b.rng = () => { rolls++; return 0; };
   b.dealDamage({ target: u, amount: 500, type: 'phys' });
@@ -143,7 +143,7 @@ test('Liskarm S1 acquired after a barrier retains its charge when that earlier b
   const { b, u } = defensiveSkill('chess_char_1_20_a');
   u.skill.end('test');
   b.addBuff(u, { key: 'earlier-barrier', shield: 100 });
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   b.dealDamage({ target: u, amount: 100, type: 'true' });
   assert.equal(u.findBuff('earlier-barrier'), null);
   assert.ok(u.findBuff('liskam:block'), 'the earlier barrier already blocked this instance');
@@ -324,10 +324,10 @@ test('Eyjafjalla alter S2 refreshes its source pool; element barriers absorb bef
   const scale = u.def.skill.bb['agoat2_s_2[shield].atk_scale'];
   const pool = u.s.atk * scale;
   assert.ok(pool > 0);
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   h.b.dealElementDamage({ target: t, amount: pool * 0.2, element: 'burn' });
   assert.equal(t.elem.burn, 0);
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   const intake = t.s.elemTakenMul * 0.5;
   const applied = h.b.dealElementDamage({ target: t, amount: pool * 1.1, element: 'burn' });
   assert.ok(Math.abs(applied - pool * 0.1 * intake) < 1e-8);

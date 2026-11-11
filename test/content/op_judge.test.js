@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -269,7 +269,9 @@ test('S3 披荆斩棘 (data [TAKE_DAMAGE, SEARCH] = official 重装 row, 受击�
     const b0 = barrier(u);
     h.b.dealDamage(src, u, { amount: 1, type: 'true' });
     // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: the hit that fills the SP casts it at once — no enemy in range needed
-    assert.ok(u.skill.active, `T${tier}: cast at the hit that filled the SP (TAKE_DAMAGE)`);
+    assert.ok(u.skill.active || u.skill.starting, `T${tier}: cast at the hit that filled the SP (TAKE_DAMAGE)`);
+    throughBegin(h, u);
+    assert.ok(u.skill.active, `T${tier}: on once its begin clip has played`);
     assert.equal(u.skill.activations, 1);
     h.spawn('enemy_dummy', { pos: [10, 6] });
     approx(barrier(u), Math.min(u.s.maxHp * 3, b0 + u.s.maxHp * sk.bb.hp_ratio), `T${tier}: +${sk.bb.hp_ratio * 100} % max HP`, 1e-3);

@@ -15,7 +15,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { absoluteRangeKeys, canTargetAlly } from '../../server/sim/targeting.js';
 import { flagsOf } from '../../server/sim/snapshot.js';
@@ -86,6 +86,7 @@ test('#15 audit: every MANUAL chess skill with its own 技能范围 casts with a
       fill(u);
       h.spawn('enemy_d', { pos: [Math.floor(k / COLS), k % COLS] });
       h.run(0.5);
+      throughBegin(h, u);
       assert.ok(u.skill.activations >= 1, `${id} ${s.skillId} (${s.name}): cast by an enemy on its skill range${outside.length ? ' outside the attack range' : ''}`);
       done(h);
       n++;
@@ -199,6 +200,7 @@ test('#15 GDGLOW_SKILL_2 "全场存在可选目标时释放技能": 荒芜拉普
   assert.equal(u.skill.activations, 0, 'nobody to heal');
   h.unit('t_mate').hp = 5000;
   h.step(2);
+  throughBegin(h, u);
   assert.equal(u.skill.activations, 1, 'an injured ally anywhere');
   done(h);
 });
@@ -304,7 +306,7 @@ test('#16 塞雷娅 S1 急救 (audit): checked at her attack — an ally of her 
   // the engine's safety net: a cast whose ally condition fails before the attack is withdrawn, its charge returned
   m.hp = 4000;
   u.atkCd = 5;
-  assert.ok(u.skill.activate('test'));
+  assert.ok(castNow(u, 'test'));
   assert.ok(u.skill.pending && u.skill.charges === 0);
   m.hp = 10000;
   h.step();

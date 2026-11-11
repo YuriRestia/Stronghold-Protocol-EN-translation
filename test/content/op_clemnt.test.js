@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS } from '../../server/sim/content/kits/index.js';
 import { diyPool } from '../../shared/diy.js';
 import { performAttack, effectiveProfile } from '../../server/sim/ai.js';
@@ -18,7 +18,7 @@ function field({ tier = 6, elite = true, skill = 0, potential = 6, dir = 'RIGHT'
   h.step(); return { h, u: h.unit(1) };
 }
 function done(h) { checkInvariants(h.b); assert.deepEqual(h.b.errors, []); }
-function start(u) { u.skill.gainSp(999, 'init'); assert.equal(u.skill.activate('test'), true); }
+function start(u) { u.skill.gainSp(999, 'init'); assert.equal(castNow(u, 'test'), true); }
 const hits = (h, tag) => h.hooksOf('damaged').filter((c) => c.dmg?.tags?.includes(tag));
 
 for (const tier of [5, 6]) for (const elite of [false, true]) test(`风暴潮 air-only automation retains ground-only normal attacks (${tier}/${elite})`, () => {
@@ -40,12 +40,12 @@ test('风暴潮 auto-cast rejects a distant flyer, accepts stealthed/sleeping fl
   for (const [name, hide] of [['stealthed', (x, y) => y.b.addBuff(x, { key: 'test:hide', flags: { stealth: true } })], ['sleeping', (x, y) => y.b.applyStatus(x, 'sleep', { duration: 9 })]]) {
     const f = field({ skill: 1 }); f.u.skill.gainSp(999, 'init');
     const e = f.h.spawn('fly', { pos: [10, 6] }); hide(e, f.h);
-    f.h.run(0.5); assert.equal(f.u.skill.activations, 1, `a ${name} flyer on the skill range casts it`); done(f.h);
+    f.h.run(0.5); throughBegin(f.h, f.u); assert.equal(f.u.skill.activations, 1, `a ${name} flyer on the skill range casts it`); done(f.h);
   }
   const s = field({ skill: 1 }); s.u.skill.gainSp(999, 'init');
   s.h.spawn('fly', { pos: [10, 6] });
   s.h.b.applyStatus(s.u, 'stun', { duration: 0.6 }); s.h.run(0.4); assert.equal(s.u.skill.activations, 0, 'waits through the stun');
-  s.h.run(0.5); assert.equal(s.u.skill.activations, 1); done(s.h);
+  s.h.run(0.5); throughBegin(s.h, s.u); assert.equal(s.u.skill.activations, 1); done(s.h);
 });
 
 test('克莱门莎 is selectable with authored skills in both slots, every form and potential', () => {

@@ -9,7 +9,7 @@
 // on operators is "受到…真实持续伤害" (PRTS) — both damage too. Operator 生命流失 (华法琳, 史尔特尔, 号角 …) stays a 流失.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { makeMatch, give, giveItem, DATA } from '../match/harness.js';
 import { buildBattleSpec, createBattleFromSpec } from '../../server/sim/spec.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
@@ -72,8 +72,9 @@ test('D1 real path, drain alone: 信仰搅拌机 S3 fires on a 源石溶剂 tick
     assert.ok(rec.casts.length >= 1, `${mixId}: S3 cast from the drain alone`);
     const first = rec.casts[0];
     assert.equal(first.reason, 'TAKE_DAMAGE');
-    const ready = sk.spCost - sk.initSp;
-    assert.ok(first.t >= ready - 1e-6 && first.t <= ready + 1 + 1e-6, `${mixId}: cast at the first tick after ${ready} s (${first.t})`);
+    // (fork) `casts` are the skill's starts: the cast plus its begin clip (skills.js activate)
+    const ready = sk.spCost - sk.initSp, begin = sk.beginAnim?.dur ?? 0;
+    assert.ok(first.t >= ready + begin - 1e-6 && first.t <= ready + 1 + begin + 1e-6, `${mixId}: cast at the first tick after ${ready} s, started ${begin} s later (${first.t})`);
     // counters with nobody in range: one bullet per drain tick, every one with no enemy on the field
     assert.ok(rec.ammo.length >= 6, `${mixId}: bullets spent (${rec.ammo.length})`);
     assert.ok(rec.ammo.every((a) => a.enemies === 0));
@@ -174,7 +175,7 @@ test('信仰搅拌机 S3 counter: any damage (an attack, a sourceless zone tick)
     const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 4 }], timeLimit: 120, hooks: ['ammoUsed', 'attack', 'damaged'], captureNoisy: true });
     h.step();
     const u = h.unit(id);
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     const left0 = u.skill.ammoLeft;
     const used = () => h.hooksOf('ammoUsed').filter((c) => c.unit === u).length;
     const zone = (amount = 10) => h.b.dealDamage(null, u, { amount, type: 'true', canDodge: false, tags: ['zone'] });

@@ -27,7 +27,11 @@ test('隐现 S2: b.snap `ammo` carries the whole rounds left and the 14-round ma
   const row = () => (h.b.snapshot().ammo || []).find((e) => e[0] === u.id);
   assert.equal(h.b.snapshot().ammo, undefined, 'no skill running: no list at all');
   assert.equal(unitInfo(u).ammoSkill, true, 'UnitInfo says the skill is an ammo magazine from the first appearance');
-  assert.ok(h.runUntil(() => u.skill.active, 80));
+  // (fork) the cast plays its begin clip before the skill starts (skills.js activate); the attack that waited for it is
+  // held a little past the start, so the row is read with the magazine still full
+  assert.ok(h.runUntil(() => !!u.skill.starting, 80));
+  u.atkCd = u.skill.beginDur + 0.2;
+  assert.ok(h.runUntil(() => u.skill.active, 2));
   assert.equal(u.skill.kind, 'ammo');
   assert.equal(u.skill.ammoMax, 14, 'skill_table skchr_inside_2 attack@trigger_time at the chess skill level');
   // the official trigger (a tick rule: an enemy in range) casts before the attack: the magazine is full at the activation tick

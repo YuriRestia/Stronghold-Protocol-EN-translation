@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { GUARD_KEY, MARK_RADIUS } from '../../server/sim/content/kits/ops/op-lmlee.js';
@@ -284,6 +284,7 @@ test('S3 贵客盈门 (AUTO, SP_FULL): range x-4, ATK / DEF +31 % / +37 %, taunt
     assert.deepEqual([u.skill.kind, u.skill.rule], ['toggle', 'SP_FULL']);
     u.skill.gainSp(999);
     h.step();
+    throughBegin(h, u);
     assert.ok(u.skill.active, `T${tier}: on at full SP`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: x-4`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);

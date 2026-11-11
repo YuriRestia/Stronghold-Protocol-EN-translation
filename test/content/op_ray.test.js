@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { allyCastWindup } from '../../server/sim/ai.js';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { SANDBEAST, SPECIAL_TAG } from '../../server/sim/content/kits/ops/op-ray.js';
@@ -359,6 +359,7 @@ test('沙地兽 with S2: 广域警觉 cuts its redeploy time by 20 % / 30 % whil
     // S2 on ⇒ redeploy ×(1 + respawn_time)
     u.skill.gainSp(999, 'init');
     h.step();
+    throughBegin(h, u);
     assert.ok(u.skill.active, 'S2 on');
     const left = h.b.time;
     assert.ok(h.runUntil(() => t.alive, resp + 2), 'back');

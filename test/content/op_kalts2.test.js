@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { COLS } from '../../server/sim/constants.js';
@@ -236,7 +236,7 @@ test('S2 保护性拒止 (MANUAL, data [SKILL_RANGE on its y-11, SKILL_RANGE all
     const e = h.spawn('enemy_dummy', { pos: [11, 8] });   // √2 from 角峰, outside the y-11 (col +4)
     const n0 = log.length;
     yak.hp = yak.s.maxHp * 0.3;
-    assert.ok(h.runUntil(() => u.skill.active, 0.5), `${label(f)}: cast for the y-11`);
+    assert.ok(h.runUntil(() => u.skill.active, 0.5 + u.skill.beginDur), `${label(f)}: cast for the y-11`);
     assert.deepEqual([u.liveRangeGrid, u.skill.ammoMax], [sk.rangeGrid, 10], `${label(f)}: y-11, 10 shots`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `${label(f)}: ATK`);
     assert.ok(h.runUntil(() => u.skill.ammoLeft === 9, 3), `${label(f)}: one shot (the cast's attack)`);

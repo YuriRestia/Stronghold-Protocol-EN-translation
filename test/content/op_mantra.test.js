@@ -9,7 +9,7 @@ import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -54,7 +54,7 @@ function done(h) {
   checkInvariants(h.b);
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
-function cast(u) { u.skill.gainSp(999); assert.ok(u.skill.activate('test')); }
+function cast(u) { u.skill.gainSp(999); assert.ok(castNow(u, 'test')); }
 const palsy = (e) => e.findBuff('palsy')?.stacks ?? 0;
 
 test('真言 in every 自选 form: her operator kit (all three skills authored), stats + PRI-X attributes, 3-1 range, ranged arts that hits air units, targetable by ground enemies, 萨尔贡 bond, no 特质', () => {
@@ -209,17 +209,17 @@ test('S3 无言为真 麻痹付与 and the cap 2: 0.1 s after the cast every ene
     const near = h.spawn('enemy_dummy', { pos: [10, 8] });
     h.step();
     // an operator outside her range starting a skill: nothing
-    outside.skill.gainSp(999); outside.skill.activate('test');
+    outside.skill.gainSp(999); castNow(outside, 'test');
     h.step();
     assert.equal(palsy(e), 0, `T${tier}: an operator off her range`);
     // the one on her range: the first grant (2 stacks, at the cap)
-    inside.skill.gainSp(999); inside.skill.activate('test');
+    inside.skill.gainSp(999); castNow(inside, 'test');
     h.step();
     assert.deepEqual([palsy(e), palsy(near), u.mem.mantraS3.grants], [2, 2, 2], `T${tier}: 2 麻痹 each`);
     assert.equal(tagged(h, u, 'mantraOverflow').length, 0, `T${tier}: no overflow yet`);
     // the second: 2 over the cap each ⇒ 溢出麻痹 2 each, one bounce at once each
     const n0 = h.hooksOf('damaged').length;
-    inside.skill.gainSp(999); inside.skill.activate('test');
+    inside.skill.gainSp(999); castNow(inside, 'test');
     h.step();
     assert.deepEqual([palsy(e), palsy(near)], [2, 2], `T${tier}: capped at 2`);
     let bounces = h.hooksOf('damaged').slice(n0).filter((c) => c.source === u && (c.dmg.tags || []).includes('mantraOverflow'));
@@ -235,11 +235,11 @@ test('S3 无言为真 麻痹付与 and the cap 2: 0.1 s after the cast every ene
     bounces = h.hooksOf('damaged').slice(n0).filter((c) => c.source === u && (c.dmg.tags || []).includes('mantraOverflow'));
     assert.ok(bounces.length >= 6, `T${tier}: the next one 1.5 s later (${bounces.length})`);
     // the third grant, then no more
-    inside.skill.gainSp(999); inside.skill.activate('test');
+    inside.skill.gainSp(999); castNow(inside, 'test');
     h.step();
     assert.equal(u.mem.mantraS3.grants, 0, `T${tier}: 3 grants used`);
     const g = h.hooksOf('statusApplied').filter((c) => c.source === u && c.status === 'palsy').length;
-    inside.skill.gainSp(999); inside.skill.activate('test');
+    inside.skill.gainSp(999); castNow(inside, 'test');
     h.step();
     assert.equal(h.hooksOf('statusApplied').filter((c) => c.source === u && c.status === 'palsy').length, g, `T${tier}: no 4th grant`);
     done(h);
@@ -280,7 +280,7 @@ test('S3 无言为真: an enemy holding 3 麻痹 entering her range keeps 2 and 
   assert.equal(palsy(imm), 0, 'no 麻痹 buff (immune)');
   assert.equal(imm.mem.mantraPalsy, 2, 'counted');
   const ally = h2.unit(2);
-  ally.skill.gainSp(999); ally.skill.activate('test');
+  ally.skill.gainSp(999); castNow(ally, 'test');
   h2.step();
   assert.equal(tagged(h2, u2, 'mantraOverflow').filter((c) => c.target === imm).length, 1, 'its 溢出麻痹 bounces');
   done(h);

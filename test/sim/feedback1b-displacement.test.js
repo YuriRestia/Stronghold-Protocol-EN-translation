@@ -18,7 +18,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { hasGeneratedData, getDefaultSource, spawnsFromTemplate } from '../../server/sim/simdata.js';
 import { PUSH_TILES, PULL_STOP_RADIUS } from '../../server/sim/constants.js';
 
@@ -274,7 +274,7 @@ test('B5 audit: 缪尔赛思 S3 — a melee 流形 copy\'s pulse reaches air uni
     assert.equal(u.skill.id, 'skchr_mlyss_3');
     const t = tok();
     const e = h.spawn(key, { routeIndex: route, pos: [10, 7], mods: STILL });
-    assert.ok(u.skill.activate('test', { free: true }), 'S3 on');
+    assert.ok(castNow(u, 'test', { free: true }), 'S3 on');
     h.step(2);
     // 小力 − weight 0 = 0: all the way to the 急停 radius around the copy's centre (from √2 tiles)
     if (pulled) approx(Math.hypot(e.x - t.x, e.y - t.y), PULL_STOP_RADIUS, 1e-6, `${key}: pulled to the copy`);

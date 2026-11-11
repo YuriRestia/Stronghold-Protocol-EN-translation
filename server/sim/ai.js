@@ -95,6 +95,8 @@ export function updateAlly(b, u, dt) {
   // (fork) an attack cast under way (the official cast → hit order, startAllyCast): its hit, or its interruption
   if (u.cast && allyCastTick(b, u, dt)) return;
   if (!u.canAct || !u.profile) return;
+  // (fork) a skill cast playing its begin clip (skills.js activate): the official Skill state runs no attack
+  if (u.skill?.starting) return;
   // a rangeExtend change (buff added / expired) rebuilds the range — also for units that never attack (auras)
   if (b.rangeChanged(u)) b._refreshRange(u);
   const sk = u.skill;
@@ -109,6 +111,7 @@ export function updateAlly(b, u, dt) {
   // A DEFAULT charged heal can replace this attack with an eligible ally even when no enemy exists.
   // Run after cooldown/control checks so silence, disarm and the exact attack cadence still apply (#406).
   if (!targets.length && sk?.triggerAllies && sk.onAboutToAttack()) {
+    if (sk.starting) return;   // (fork) its begin clip first (skills.js activate)
     prof = effectiveProfile(u);
     if (prof.noAttack || !u.alive) return;
     targets = acquireTargets(b, u, prof);
@@ -133,6 +136,7 @@ export function updateAlly(b, u, dt) {
   }
   u.trait.hadTarget = true;
   if (sk && sk.onAboutToAttack()) {
+    if (sk.starting) return;   // (fork) its begin clip first: the attack waits (skills.js activate)
     prof = effectiveProfile(u);
     if (prof.noAttack || !u.alive) return;
     targets = acquireTargets(b, u, prof);
@@ -186,7 +190,8 @@ function startAllyCast(b, u, prof, targets, wind, dt) {
 /**
  * (fork) One tick of an attack cast (startAllyCast). It is cut — no hit, ['atkCancel', id] — by anything that stops an
  * attack: the unit stunned / frozen / asleep (canAct), 缴械, knocked out or retreated, its attack switched off (a
- * skill's noAttack) — the official client's interrupt (AbstractAnimatedAbility OnStunnedChanged / OnFrozenChanged …).
+ * skill's noAttack), a skill cast with a begin clip (`starting`: the client leaves the Attack state for the Skill state
+ * [ASSUMED: the ability is interrupted, as by a stun]) — the official client's interrupt (AbstractAnimatedAbility OnStunnedChanged / OnFrozenChanged …).
  * At the hit, the locked targets still alive and selectable take it; with none left it picks again, and with nobody at
  * all the cast is cut. A skill that started or ended during the wind-up (castMode: a heal mode, a wider target count)
  * picks again with the attack it has now, so that a heal never lands on the enemy the cast locked. (EasyToStartAbility `_interuptIfTargetDead`). A cut cast frees its cooldown, so the next one can
@@ -195,7 +200,7 @@ function startAllyCast(b, u, prof, targets, wind, dt) {
 function allyCastTick(b, u, dt) {
   const c = u.cast;
   const prof = u.profile ? effectiveProfile(u) : null;
-  if (!u.alive || !u.deployed || !u.canAct || !prof || prof.noAttack || u.s.flags.disarm
+  if (!u.alive || !u.deployed || !u.canAct || !prof || prof.noAttack || u.s.flags.disarm || u.skill?.starting
       || (prof.noAttackUnlessSkill && !(u.skill && u.skill.active))) {
     cancelAllyCast(b, u);
     return true;

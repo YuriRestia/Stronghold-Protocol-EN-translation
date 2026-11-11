@@ -2,7 +2,7 @@
 // No live enemy movement/HP edits. These cases are distinct from the normal Match/browser route.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { bodyInKeys } from '../../server/sim/body.js';
 import { DRONE_TAG } from '../../server/sim/content/kits/ops/chess_char_2_10-rockr.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
@@ -31,6 +31,7 @@ const setup = (id, { skillIndex = 1, moduleId, newcomer = false, staysOutside = 
       ...(killer ? [{ key: 'enemy_killer', route: stationary, time: 7 }] : [])],
   });
   h.step();
+  throughBegin(h, h.unit(id));   // (fork) her S2 starts after its begin clip (skills.js activate)
   return { h, u: h.unit(id), target: h.enemies()[0] };
 };
 const hits = (h, u, target, after) => h.hooksOf('damaged').filter(c => c.source === u && c.target === target && c.t >= after && c.amount > 0);
@@ -213,7 +214,7 @@ for (const sameTarget of [false, true]) {
     assert.equal(h.hooksOf('attack').length, 1); assert.equal(h.hooksOf('damaged').length, 0);
     const target = sameTarget ? old : h.spawn('preferred', { pos: [10, 5] });
     h.step(); // update the spatial index for the second target
-    u.skill.gainSp(999); u.skill.activate('test');
+    u.skill.gainSp(999); castNow(u, 'test');
     assert.equal(u.mem.rockLock, target);
     h.run(2);
     assert.ok(hits(h, u, old, 0).some(c => c.dmg.isAttack), 'the old shot really lands');

@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks, diyRecord } from '../../shared/diy.js';
 import { meleeOnHighGround } from '../../shared/highGround.js';
@@ -129,6 +129,7 @@ test('S2 水炮模式 (AUTO, SP_FULL): ATK +140 % / +170 %, interval ×3.2, rang
     assert.deepEqual([u.skill.kind, u.skill.rule], ['toggle', 'SP_FULL']);
     u.skill.gainSp(999);
     h.step();
+    throughBegin(h, u);
     assert.ok(u.skill.active, `T${tier}: on at full SP, no enemy needed`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
     // full potential: her ASPD is 108 (潜能「攻击速度+8」), so the interval ×100 / 108

@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -288,7 +288,7 @@ test('S3 shell: with her shield next to her at the cast it flies ahead at 5 tile
     const near = h.spawn('enemy_dummy', { pos: [10, 7] }), side = h.spawn('enemy_dummy', { pos: [11, 7] });
     const fly = h.spawn('enemy_fly', { pos: [11, 6] }), far = h.spawn('enemy_dummy', { pos: [12, 8] });
     u.skill.gainSp(999);
-    u.skill.activate('test');
+    castNow(u, 'test');
     const atk = u.s.atk;
     assert.ok(h.runUntil(() => bombHits(h, u).length > 0, 2), `${label(f)}: the shell lands`);
     // from (10, 4) to the enemy at (10, 7): it touches it 0.5 before, at x 6.5, i.e. 2.5 tiles in 0.5 s
@@ -317,7 +317,7 @@ test('S3 shell: with her shield next to her at the cast it flies ahead at 5 tile
   const a = field({ skill: 2, shield: null });
   a.h.spawn('enemy_dummy', { pos: [10, 6] });
   a.u.skill.gainSp(999);
-  a.u.skill.activate('test');
+  castNow(a.u, 'test');
   a.h.run(3);
   assert.equal(bombHits(a.h, a.u).length, 0, 'no shield: no shell');
   done(a.h);
@@ -325,7 +325,7 @@ test('S3 shell: with her shield next to her at the cast it flies ahead at 5 tile
   b.h.spawn('enemy_dummy', { pos: [10, 7] });
   b.h.b.addBuff(b.u, { key: 'test:disarm', flags: { disarm: true }, duration: 2 });
   b.u.skill.gainSp(999);
-  b.u.skill.activate('test');
+  castNow(b.u, 'test');
   b.h.run(1.5);
   assert.equal(bombHits(b.h, b.u).length, 0, 'disarmed: held');
   assert.ok(b.h.runUntil(() => bombHits(b.h, b.u).length > 0, 2), 'fired once the disarm is gone');
