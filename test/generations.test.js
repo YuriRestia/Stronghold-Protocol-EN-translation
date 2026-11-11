@@ -18,8 +18,14 @@ import { ERR, ERR_TEXT } from '../shared/constants.js';
 import { TestClient } from './helpers/wsClient.js';
 import { StubMatch } from '../server/match/StubMatch.js';
 import { botModuleFiles } from '../server/http/botModules.js';
+import { WORKER_LOAD_MS } from './helpers/simHostFixture.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// (fork) Wait until a server has picked up a table change (its genPollMs poll): a fixed 80 / 150 ms sleep was too short
+// on a loaded machine. Returns the last value, so the assertion after it reports what it saw.
+async function until(read, ok, ms = WORKER_LOAD_MS) {
+  for (const end = Date.now() + ms; ; await sleep(20)) { const v = await read(); if (ok(v) || Date.now() > end) return v; }
+}
 
 describe('shared/gen.js', () => {
   test('splitGenPath strips the prefix', () => {
@@ -174,13 +180,15 @@ describe('buildGuard retire', () => {
 describe('two generations behind the router', () => {
   let dir, file, g1, g2, router, base;
   const clients = [];
-  const ok = async (c, msg) => { const r = await c.request(msg); assert.equal(r.t, 'ok', `${msg.t}: ${JSON.stringify(r)}`); return r; };
+  // (fork) Event waits on the router and its generations get WORKER_LOAD_MS: the client's 2-3 s defaults (connect, hello,
+  // request, sys.retire after a table poll) ran out on a loaded machine. Only expectNone keeps its short window.
+  const ok = async (c, msg) => { const r = await c.request(msg, WORKER_LOAD_MS); assert.equal(r.t, 'ok', `${msg.t}: ${JSON.stringify(r)}`); return r; };
   const writeTable = (t) => { fs.writeFileSync(`${file}.tmp`, JSON.stringify(t)); fs.renameSync(`${file}.tmp`, file); };
   const get = (p, opts) => fetch(`${base}${p}`, { redirect: 'manual', ...opts });
   const wsAt = async (gen, name) => {
-    const c = await TestClient.connect(`ws://127.0.0.1:${router.server.address().port}/_build/${gen}/_/ws`);
+    const c = await TestClient.connect(`ws://127.0.0.1:${router.server.address().port}/_build/${gen}/_/ws`, { timeout: WORKER_LOAD_MS });
     clients.push(c);
-    await c.hello(name);
+    assert.equal((await c.request({ t: 'hello', name, version: 1 }, WORKER_LOAD_MS)).t, 'welcome'); // c.hello, with the longer wait
     return c;
   };
   const gen = (id) => startServer({ port: 0, host: '127.0.0.1', quiet: true, noticeFile: null, MatchClass: StubMatch,
@@ -274,27 +282,26 @@ describe('two generations behind the router', () => {
 
     g2 = await gen('g2');
     writeTable({ current: 'g2', gens: { g1: { port: g1.port, retiringSince: Date.now() }, g2: { port: g2.port } } });
-    await Promise.all([player.waitFor('sys.retire'), idle.waitFor('sys.retire')]);
+    await Promise.all([player.waitFor('sys.retire', undefined, WORKER_LOAD_MS), idle.waitFor('sys.retire', undefined, WORKER_LOAD_MS)]);
 
     assert.equal((await get('/')).headers.get('location'), '/_build/g2/');
     const h1 = await (await get('/_build/g1/_/healthz')).json();
     assert.equal(h1.retiring, true);
     assert.equal(h1.humanMatches, 1, 'the match still runs on g1');
     // g1 refuses anything new
-    const r = await idle.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' });
+    const r = await idle.request({ t: 'room.create', mode: 'solo', difficulty: 'NORMAL' }, WORKER_LOAD_MS);
     assert.equal(r.t, 'error');
     assert.equal(r.code, 'RETIRING');
     // a reconnect into the running match still works, and hears sys.retire again
     const again = await wsAt('g1', 'Again');
-    await again.waitFor('sys.retire');
+    await again.waitFor('sys.retire', undefined, WORKER_LOAD_MS);
     // g2 takes new players
     const fresh = await wsAt('g2', 'Fresh');
     await ok(fresh, { t: 'room.create', mode: 'coop', difficulty: 'NORMAL' });
     await fresh.expectNone('sys.retire');
     // a dropped generation's pages get the "ended" page
     writeTable({ current: 'g2', gens: { g2: { port: g2.port } } });
-    await sleep(80);
-    assert.equal((await get('/_build/g1/_/healthz')).status, 410);
+    assert.equal(await until(async () => (await get('/_build/g1/_/healthz')).status, (s) => s === 410), 410);
   });
 });
 
@@ -321,13 +328,11 @@ describe('a new generation starting before the table lists it (deploy order)', (
     assert.equal((await health(old)).retiring, false);
     // the deploy makes g2 current: only g1 retires
     fs.writeFileSync(file, JSON.stringify({ current: 'g2', gens: { g1: { port: old.port, retiringSince: 1 }, g2: { port: next.port } } }));
-    await sleep(150);
-    assert.equal((await health(old)).retiring, true);
+    assert.equal((await until(() => health(old), (h) => h.retiring)).retiring, true);
     assert.equal((await health(next)).retiring, false);
     // a later deploy (g3) makes g2 retire too, even though g3 is not running here
     fs.writeFileSync(file, JSON.stringify({ current: 'g3', gens: { g2: { port: next.port, retiringSince: 2 }, g3: { port: 1 } } }));
-    await sleep(150);
-    assert.equal((await health(next)).retiring, true);
+    assert.equal((await until(() => health(next), (h) => h.retiring)).retiring, true);
   });
 });
 

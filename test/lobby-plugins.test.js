@@ -25,6 +25,11 @@ import { contentHashOf } from '../shared/plugins/identity.js';
 import { nodeSha256 } from '../server/plugins/identity.js';
 import { DEFAULT_POLICY, readPolicy, createPluginPolicy } from '../server/plugins/policy.js';
 import { ROOT } from '../server/data.js';
+import { WORKER_LOAD_MS } from './helpers/simHostFixture.js';
+
+// (fork) The guard of every wait on a content-set build or a match host: these are event waits that return as soon as
+// the event lands, and a loaded machine took over 15 s to build a set (5 s guards for a match host's toast likewise).
+const LOAD_MS = WORKER_LOAD_MS;
 
 class RecordingStub extends StubMatch {
   static last = null;
@@ -279,8 +284,8 @@ describe('room content sets (P1c: gameplay plugins)', () => {
     return c;
   };
   // (15 s per answer: a content set's first build and a match host's first worker take a while on a loaded machine)
-  const ok = async (c, msg) => { const r = await c.request(msg, 15000); assert.equal(r.t, 'ok', `${msg.t}: ${JSON.stringify(r)}`); return r; };
-  const refuse = async (c, msg, code) => { const r = await c.request(msg, 15000); assert.deepEqual([r.t, r.code], ['error', code], `${msg.t}: ${JSON.stringify(r)}`); return r; };
+  const ok = async (c, msg) => { const r = await c.request(msg, LOAD_MS); assert.equal(r.t, 'ok', `${msg.t}: ${JSON.stringify(r)}`); return r; };
+  const refuse = async (c, msg, code) => { const r = await c.request(msg, LOAD_MS); assert.deepEqual([r.t, r.code], ['error', code], `${msg.t}: ${JSON.stringify(r)}`); return r; };
   const seatOf = (s, id) => s.seats.find((x) => x && x.playerId === id) || null;
   const room = async (host, mode = 'coop') => {
     await ok(host, { t: 'room.create', mode, difficulty: 'NORMAL' });
@@ -369,7 +374,7 @@ describe('room content sets (P1c: gameplay plugins)', () => {
 
     // the worker's match runs the content set: its data, the room's cs, the cs check on
     await ok(host, { t: 'g.emote', id: EMOTES[0] });
-    const probe = await host.waitFor('m.toast', (m) => /^probe;/.test(m.text || ''), 5000);
+    const probe = await host.waitFor('m.toast', (m) => /^probe;/.test(m.text || ''), LOAD_MS);
     assert.match(probe.text, new RegExp(`;cs=${s1.content.cs};`));
     assert.match(probe.text, /;requireCs=true;/);
     assert.match(probe.text, /;bond=0\.3;/, 'the patched bond reached the worker');
@@ -381,7 +386,7 @@ describe('room content sets (P1c: gameplay plugins)', () => {
     host.clearInbox();
     await ok(host, { t: 'g.infoReady' });
     await ok(guest, { t: 'g.infoReady' });
-    const back = await host.waitFor('room.state', (s) => s.inMatch === false, 5000);
+    const back = await host.waitFor('room.state', (s) => s.inMatch === false, LOAD_MS);
     assert.equal(seatOf(back, guest.id).content, 'ready');
   });
 
@@ -442,12 +447,12 @@ describe('room content sets (P1c: gameplay plugins)', () => {
     await ok(host, { t: 'room.start' });
     await host.waitFor('room.state', (s) => s.inMatch === true);
     await ok(host, { t: 'g.emote', id: EMOTES[0] });
-    const probe = await host.waitFor('m.toast', (m) => /^probe;/.test(m.text || ''), 5000);
+    const probe = await host.waitFor('m.toast', (m) => /^probe;/.test(m.text || ''), LOAD_MS);
     assert.match(probe.text, /;modeId=mode_x_marathon_long;/);
     assert.match(probe.text, /;plugin-modes=mode_x_marathon_long,mode_x_marathon_solo;/);
     await ok(host, { t: 'g.infoReady' });
     await ok(guest, { t: 'g.infoReady' });
-    await host.waitFor('room.state', (s) => s.inMatch === false, 5000);
+    await host.waitFor('room.state', (s) => s.inMatch === false, LOAD_MS);
     // switching the plugins off takes the plugin mode with it
     await ok(host, { t: 'room.setPlugins', plugins: [] });
     const s5 = await guest.waitFor('room.state', (s) => s.content?.vanilla === true);
@@ -554,7 +559,7 @@ describe('room content sets (P1c: gameplay plugins)', () => {
     await ok(host, { t: 'room.start' });
     await host.waitFor('room.state', (s) => s.inMatch === true);
     await ok(host, { t: 'g.emote', id: EMOTES[0] });
-    const probe = await host.waitFor('m.toast', (m) => /^probe;/.test(m.text || ''), 5000);
+    const probe = await host.waitFor('m.toast', (m) => /^probe;/.test(m.text || ''), LOAD_MS);
     assert.match(probe.text, /"char_x_data_demo_guard":\{"potential":6,"cultivate":2\}/, 'the room\'s match takes it');
     await ok(host, { t: 'room.leave' });
     // … refused in a vanilla room (strict, nothing stored) — and the one stored loses its unknown operator at the start
@@ -611,14 +616,14 @@ describe('room content sets (P1c: gameplay plugins)', () => {
     const want = new Set();
     for (let i = 0; i < 6; i++) { const rid = host.send({ t: 'g.emote', id: EMOTES[0] }); rids.push(rid); want.add(rid); }
     while (want.size) {
-      const m = await host.waitFor(null, (x) => (x.t === 'ok' || x.t === 'error') && want.has(x.rid), 5000);
+      const m = await host.waitFor(null, (x) => (x.t === 'ok' || x.t === 'error') && want.has(x.rid), LOAD_MS);
       want.delete(m.rid);
       replies.push(m.rid);
     }
     assert.deepEqual(replies, rids, 'in order');
     await ok(host, { t: 'g.infoReady' });
     await ok(again, { t: 'g.infoReady' });
-    await host.waitFor('room.state', (s) => s.inMatch === false, 5000);
+    await host.waitFor('room.state', (s) => s.inMatch === false, LOAD_MS);
   });
 
   test('the protocol: room.setMode { modeId } and room.contentReady { cs, ok? }', () => {
@@ -650,7 +655,7 @@ describe('the server owner\'s policy and the content-set limit (P1c)', () => {
     return s;
   }
   /** A request or a wait that builds a content set: the 15 s the other P1c tests give one (about 1 s alone, more under a full run). */
-  const BUILD_MS = 15000;
+  const BUILD_MS = LOAD_MS;
   const player = async (s, name) => {
     const c = await TestClient.connect(s.url.replace('http', 'ws') + '/ws');
     open.push(c);

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeMatch, DATA, checkInvariants } from './harness.js';
 import { FakeBattle } from './fakeBattle.js';
-import { planReserveMs, carryPlan } from '../../server/match/externalAI.js';
+import { planReserveMs, carryPlan, AI_VERSION } from '../../server/match/externalAI.js';
 import { externalConfig } from '../../server/match/externalConfig.js';
 import { decodeTestTrace, replayTestMatch } from '../../server/match/testReplay.js';
 import { runMatch } from '../../tools/ai/run-match.mjs';
@@ -218,8 +218,8 @@ test('§37.72 journal replay: in-time, late-steered, late-carried and superseded
 });
 
 test('§37.72 real IO: a plan past the old half but inside the new budget is accepted; a slower one falls back and the seat readies', async t => {
-  const run = async sleep => {
-    const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 0, bots: 4, fake: true, timerScale: 0.02, botStrategy: 'external',
+  const run = async (sleep, timerScale) => {
+    const h = makeMatch({ mode: 'coop', difficulty: 'ABYSS', humans: 0, bots: 4, fake: true, timerScale, botStrategy: 'external',
       externalAI: { mode: 'plan', transport: 'stdio', seats: [0], timeoutMs: 60000, reserveMs: 100,
         command: [process.execPath, 'test/fixtures/slow-plan-agent.mjs', ...sleep, '--kinds', 'prep'] } });
     t.after(() => h.m.dispose());
@@ -227,17 +227,24 @@ test('§37.72 real IO: a plan past the old half but inside the new budget is acc
     let job;
     const request = ai.request.bind(ai);
     ai.request = j => { if (j.kind === 'prep') job = j; request(j); };
+    // (fork) The agent is booted and answers a hello before the match starts: the first request otherwise pays the child's
+    // cold start inside its budget, seconds on a loaded machine, and this checks the reply's timing, not Node's boot.
+    ai.transport.start();
+    await ai.send({ v: AI_VERSION, type: 'hello', id: 'warm-up', knowledge: ai.knowledge }, new AbortController().signal);
     h.start();
     assert.ok(await runMatch(m, () => !!job && ps.ready));
     return { m, ai, ps, job };
   };
-  // R1 at timerScale 0.02: 1282 ms left at the decision; half was 641 ms, the budget is now 1182 ms
-  const fast = await run(['--sleep-ms', '900']);
-  assert.equal(fast.job.budget, fast.m.deadline - 100 - (fast.job.deadline - fast.job.budget));
-  assert.ok(fast.job.budget > 900 && 900 > (fast.m.deadline - (fast.job.deadline - fast.job.budget)) / 2);
+  // R1 at timerScale 0.1: 6410 ms left at the decision; half was 3205 ms, the budget is now 6310 ms. (fork) The fast
+  // agent answers at 3/4 of its budget: past the old half, with a quarter (1.5 s) left for real IO on a loaded machine
+  // (a fixed 900 ms of 1182 ms at timerScale 0.02 left 282 ms, which a busy machine's child process overran).
+  const fast = await run(['--sleep-frac', '0.75'], 0.1);
+  const window = fast.m.deadline - (fast.job.deadline - fast.job.budget);
+  assert.equal(fast.job.budget, window - 100);
+  assert.ok(0.75 * fast.job.budget > window / 2 && fast.job.budget - 0.75 * fast.job.budget >= 1000);
   assert.deepEqual(fast.ai.feedbackFor(fast.ps).acceptedPlan, { id: fast.job.id, round: 1, plan: marker(1) });
   assert.deepEqual([fast.ai.metrics.fallbacks, fast.ai.states.get(fast.ps.playerId).failures], [0, 0]);
-  const slow = await run(['--sleep-frac', '3']);
+  const slow = await run(['--sleep-frac', '3'], 0.02);
   assert.equal(slow.ai.feedbackFor(slow.ps).acceptedPlan, null);
   assert.deepEqual([slow.ai.metrics.fallbacks, slow.ai.states.get(slow.ps.playerId).failures], [1, 0], 'a slow plan is a soft fallback');
   assert.ok(slow.ps.deployCount > 0, 'the fallback placed a board');

@@ -11,6 +11,7 @@ import { runMatch } from '../../tools/ai/run-match.mjs';
 import { exampleServer } from '../../tools/ai/http.mjs';
 import { once } from 'node:events';
 import http from 'node:http';
+import { WORKER_LOAD_MS } from '../helpers/simHostFixture.js';
 
 const pending = m => [...m.externalAI.jobs.values()][0];
 function send(m, plan) { const j = pending(m); m.externalReply(j.id, { v: 'sp-ai/1', id: j.id, plan }, false); }
@@ -115,10 +116,12 @@ test('a mismatched hello acknowledgement falls back without sending a decision o
   assert.ok(h.m.order[0].bandId); assert.equal(h.m.externalAI.jobs.size, 0);
 });
 
+// (fork) The AI call's own budget is not what this checks: WORKER_LOAD_MS, as a loaded machine's slow child start
+// passed 5 s and turned a correct reply into a retried hello / fallback.
 test('a restarted stdio child receives knowledge again before its next plan', async t => {
   const h = makeMatch({ mode: 'solo', fake: true, botStrategy: 'external',
     seats: [{ seat: 0, playerId: 'ai_0', name: 'AI', isBot: true }],
-    externalAI: { mode: 'plan', transport: 'stdio', command: [process.execPath, 'tools/ai/stdio.mjs'], timeoutMs: 5000 } });
+    externalAI: { mode: 'plan', transport: 'stdio', command: [process.execPath, 'tools/ai/stdio.mjs'], timeoutMs: WORKER_LOAD_MS } });
   t.after(() => h.m.dispose()); h.start();
   assert.ok(await runMatch(h.m, () => h.m.order[0].ready));
   const ai = h.m.externalAI, old = ai.transport.child;
@@ -141,6 +144,8 @@ test('accepted advisor plans and short draft IDs replay offline with identical s
   assert.equal(replay.externalAI.inflight.size, 0); assert.equal(replay.externalAI.transport, null);
 });
 
+// (fork) The AI call's own budget is not what this checks: WORKER_LOAD_MS, as a loaded machine's slow child start
+// passed 5 s and turned a correct reply into a retried hello / fallback.
 for (const transport of ['http', 'stdio']) test(`advisor ${transport}: one hello shared by seats, one prep call per round and real IO`, async t => {
   let config;
   if (transport === 'http') {
@@ -149,7 +154,7 @@ for (const transport of ['http', 'stdio']) test(`advisor ${transport}: one hello
     config = { transport, url: `http://127.0.0.1:${server.address().port}` };
   } else config = { transport, command: [process.execPath, 'tools/ai/stdio.mjs'] };
   const h = makeMatch({ mode: 'coop', humans: 0, bots: 2, fake: true, botStrategy: 'external',
-    externalAI: { ...config, mode: 'plan', timeoutMs: 5000 } });
+    externalAI: { ...config, mode: 'plan', timeoutMs: WORKER_LOAD_MS } });
   t.after(() => h.m.dispose()); h.start();
   assert.ok(await runMatch(h.m, () => !!h.ended));
   const ai = h.m.externalAI;
