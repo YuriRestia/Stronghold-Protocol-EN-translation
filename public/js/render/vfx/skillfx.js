@@ -92,7 +92,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES,
+  FX_HIT_TILES, stateEntries,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -245,6 +245,7 @@ export class SkillFx {
     this.viewList = [];        // the battle's views as the last sync gave them (an enemy binding's 'near' owner)
     this.modeWins = new Map(); // unit id → { hs, seq }: the loops of a mode an enemy binding's fx started (_modeWin)
     this.paths = new PathFx(w); // (fork) line / path effects whose points a kit fx carries (pathfx.js PATH_BINDINGS)
+    this.sloops = new Map();   // (fork) b.snap fxs: `${carrier id}|${key}` → { h, e } held while the sim's row lasts (_states)
   }
 
   active() { return !!this.w.ofx.active && !!this.w.idx; }
@@ -734,6 +735,7 @@ export class SkillFx {
     if (U) this._releaseU(U);
     for (const [slot, t] of this.tloops) if (idOf(t.tgt) === id) { t.h.stop(); this.tloops.delete(slot); }
     for (const [slot, t] of this.aloops) if (idOf(t.v) === id) { t.h.stop(); this.aloops.delete(slot); }
+    for (const [slot, t] of this.sloops) if (t.id === id) { t.h?.stop(); this.sloops.delete(slot); }
     // (fork) a held binding on it (`hold: 'until'`: 烛煌's downed ring) ends with it too
     if (this.untils.length) this.untils = this.untils.filter((u) => { if (u.id !== id && u.src !== id) return true; for (const h of u.hs) h.stop(); return false; });
     this._modeEnd(v);
@@ -971,6 +973,7 @@ export class SkillFx {
       // (fork) a 'life' mark is not started again (its fx came once): it is gone with the cleared effects
       for (const t of this.lives.values()) t.h.stop();
       this.lives.clear();
+      this._stopStates();
       // the held crosshairs too (PR #862 review): their handles died with the effects, a later lock starts afresh
       for (const L of this.locks) this._endLock(L);
       this.locks.length = 0;
@@ -1040,6 +1043,7 @@ export class SkillFx {
     for (const U of this.units.values()) {
       if (U && U.seen !== sweep && (U.loopsOn || U.readyOn || U.passiveOn || U.energy || U.ewin)) this._releaseU(U);
     }
+    this._states(views);
     for (const [slot, t] of this.tiles) if (!this._on(t.U) || !t.h.alive) { t.h.stop(); this.tiles.delete(slot); }
     for (const [slot, t] of this.tloops) {
       const tv = t.tgt;
@@ -1101,6 +1105,47 @@ export class SkillFx {
       const h = this.w.playOn(k, v, { follow: true, loop: e.loop !== false, important: true });
       if (h) map.set(k, { h, e });
     }
+  }
+
+  /**
+   * (fork) The lasting effects of the moments the client never sees (skills.js STATE_BUFFS, plan.state), reconciled each
+   * frame with b.snap `fxs` (sim Battle.fxState): each row [buff, src, look] of a unit holds that buff's entries of
+   * `src`'s plan (null: the unit's own) on it — a looping prefab looped (restarted if its handle died), any other once
+   * per row — and a row gone stops them.
+   */
+  _states(views) {
+    let want = null;
+    for (const v of views) {
+      if (!Array.isArray(v.fxs) || !v.fxs.length || v.alive === false || v.destroyed || v.down) continue;
+      const id = idOf(v);
+      for (const row of v.fxs) {
+        const src = row[1];
+        const sv = src == null ? v : this.w.view(src);
+        const U = sv ? this.of(sv) : this.units.get(src) || null;
+        for (const e of stateEntries(U?.plan?.state, row[0], row[2], v.facing)) {
+          const k = `${id}|${e.key}`;
+          if (!(want || (want = new Map())).has(k)) want.set(k, { e, v, id });
+        }
+      }
+    }
+    for (const [k, t] of this.sloops) {
+      if (want?.has(k) && !(t.loop && t.h && !t.h.alive)) continue;
+      t.h?.stop();
+      this.sloops.delete(k);
+    }
+    if (!want) return;
+    for (const [k, w] of want) {
+      if (this.sloops.has(k)) continue;
+      const loop = w.e.loop !== false && w.e.role !== 'trigger';
+      const key = this._key(w.e, w.v);
+      const h = key ? this.w.playOn(key, w.v, { follow: true, loop, important: true }) : null;
+      this.sloops.set(k, { h, loop: loop && !!h, id: w.id });
+    }
+  }
+
+  _stopStates() {
+    for (const t of this.sloops.values()) t.h?.stop();
+    this.sloops.clear();
   }
 
   _stopCond(U) {
@@ -1713,6 +1758,7 @@ export class SkillFx {
   clear() {
     this.units.clear();
     this.tloops.clear();
+    this._stopStates();
     for (const t of this.tiles.values()) t.h.stop();
     this.tiles.clear();
     this.marks = [];

@@ -142,7 +142,9 @@ export default {
       battle.fx('blink', { x: unit.x, y: unit.y, id: unit.id, skill: 'chen3:respawn' });
       if (!unit.alive || !skill.active) return;
       const p = num(b2['chen3_s2[respawn_buff].prob']);
-      battle.addBuff(unit, { key: AFTER_KEY, mods: { atkPct: num(b2['chen3_s2[respawn_buff].atk']), dodgePhys: p, dodgeArts: p }, tags: ['skill'] });
+      // (fork) its glows: chen3_s2[respawn_buff] (ON_OWNER_LOCATE) keeps chen3_skill_02_buff_01 and chen3_skill_02_F_buff_02
+      // on her while it lasts (b.snap fxs; render/vfx/skills.js STATE_BUFFS)
+      battle.addBuff(unit, { key: AFTER_KEY, mods: { atkPct: num(b2['chen3_s2[respawn_buff].atk']), dodgePhys: p, dodgeArts: p }, tags: ['skill'], fx: 'chen3_s2[respawn_buff]' });
       skill.timeLeft = Math.max(0.01, skill.duration);
     };
     /** S2: one slash on the current target; a target that falls hands over (+1 slash) or ends the slashing. */

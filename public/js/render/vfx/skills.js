@@ -63,6 +63,8 @@
 //     each: { cast, hit },                 any attack of the owner while on (buff template actions)
 //     trigger,                             reactive: the owner taking damage while on
 //     cond,                                `[eff_cond]` state loops on the owner (COND_BUFFS, condState)
+//     state,                               (fork) a buff's effects at a moment the client never sees, held on its carrier
+//                                          while the sim says it lasts (STATE_BUFFS, b.snap `fxs`)
 //     targets,                             on other units (the skill's buffs on targets / aura members): no client signal
 //     unmapped: [{ key, role, reason, from }] }
 // `hit` lists are hit groups: [[entry…]…] — the k-th hit of one attack plays group min(k, last) (a plain attack has one
@@ -292,6 +294,7 @@ export const SIGNALS = Object.freeze({
   trigger: "b.ev ['dmg', ownerId, …] while the skill is on",
   targets: "the buffs of the skill's own attacks: that attack's 'atk' targets; the others none (the client is not told who carries them)",
   charge: 'b.snap energy [[id, stored, cap]] (PR #636; char_469_indigo / the shared mystic store only)',
+  state: "b.snap fxs [[carrier id, buff, src, look]] (sim Battle.fxState / a sim buff's `fx`; STATE_BUFFS)",
 });
 
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
@@ -508,8 +511,77 @@ function kindOf(srec, rootClass = null) {
 export const emptyPlan = (unitKey, skillId) => ({
   unitKey, skillId, mode: null, modeName: null, kind: null, rootClass: null, projectiles: [],
   start: [], loop: [], end: [], ready: [], range: [], attacks: [], each: { cast: [], hit: [[]] }, trigger: [], targets: [],
-  pulse: [], unmapped: [], cond: [],
+  pulse: [], unmapped: [], cond: [], state: [],
 });
+
+/**
+ * (fork) The official buffs whose effects play at a moment the client never sees — a condition the buff's graph checks
+ * every tick, a would-die, a kill … (unmapped 'conditional') — and whose start and end a kit signals in the sim
+ * (Battle.fxState, or a sim buff's `fx`: b.snap `fxs` [[carrier, buff, src, look]]; effect gaps audit 2, item 4). Keyed
+ * by the client's buff key (index.json uses' `buff`, config/buff_template_holder.ab): `true` — every entry of that buff
+ * plays while the row lasts; `{ looks }` — the keys each official branch (the row's `look`) keeps, a null look all of
+ * them. render/vfx/skillfx.js holds the entries on the carrier from the plan of `src` (the unit whose skill made it;
+ * null: the carrier's own): a looping prefab loops, any other plays once per row. The kit names the branch the
+ * template's graph takes; the graphs are read from the client of 2026-10-15 (each entry's comment).
+ */
+const L = (o) => Object.freeze(Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Object.freeze(v)])));
+export const STATE_BUFFS = Object.freeze({
+  // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
+  'horn_s_2[overload_mark]': true,
+  'horn_s_3[overload_start_effect_2]': true,
+  // Leizi the Thunderbringer S1 (content/fxStates.js): a ring per stored charge
+  'leizi2_s_1[effect_controller]': { looks: L({ 1: ['leizi2_skill_01_buff_01'], 2: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02'], 3: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02', 'leizi2_skill_01_buff_03'] }) },
+  // Ascalon S2 (op-ascln.js): 死亡拘审's glow on the enemies, ascln_buff_02 added at max_stack_cnt (the kill burst
+  // ascln_skill_02_death_01 sits on the enemy that died: no row carries it)
+  'ascln_s_2[enemy]': { looks: L({ on: ['ascln_buff_01'], max: ['ascln_buff_01', 'ascln_buff_02'] }) },
+  // Тоска (char_4244_tocka, not on EN yet) S1–S3 (op-tocka.js): the buff a fired trigger effect gives its holder
+  'tocka_s1[trigger]': true,
+  'tocka_s2[trigger]': true,
+  'tocka_s3[trigger]': true,
+  // Lumen S2 / Gnosis S2 (content/fxStates.js): one stored charge, two
+  'lumen_s_2[eff_cond]': { looks: L({ 1: ['lumen_skill_02_buff'], 2: ['lumen_skill_02_buff_02'] }) },
+  'gnosis_s_2[eff_cond]': { looks: L({ 1: ['gnosis_skill_02_buff_01'], 2: ['gnosis_skill_02_buff_02'] }) },
+  // Mon3tr S1, Minimalist S2, Caper S1, Nearl the Radiant Knight S3 (content/fxStates.js): on / off
+  'monstr_s_1[ready]': true,
+  'malist_s_2[eff_cond]': true,
+  'caper_s_1[effect_trigger]': true,
+  'nearl2_s_3[effect]': true,
+  // Ch'en the Holungday S2 (content/fxStates.js): [half] / [full]
+  'chen2_s_2[eff_cond]': { looks: L({ half: ['chen2_skill_02_buff_01_01'], full: ['chen2_skill_02_buff_01_02'] }) },
+  // Angelina the Mellow Wish (char_1015_aglna2, not on EN yet) S3 (content/fxStates.js): the wing glow of her facing — the client's side (`byFacing`)
+  'aglna2_s_3[mode]': { byFacing: true, looks: L({ right: ['aglna2_skill_03_buff_right_01'], left: ['aglna2_skill_03_buff_left_01'] }) },
+  // Philae S2 (chess_char_3_06-philae.js): the ATK glow from the first element hit, its start burst once
+  'philae_s_2': true,
+  // Haruka (op-haruka.js): the bubble's glow (the parry burst plays when a bubble breaks, not here)
+  'haruka_t_1': { keys: Object.freeze(['haruka_talent_01_buff']) },
+  // Lessing S2 (op-lessng.js) and Vulpisfoglia S3 (chess_char_3_18-vulpis.js): CheckBlocked — blocking / not blocking
+  'lessng_s2[eff_manager]': true,
+  'vulpis_s_3[finish_checker]': true,
+  // marks on the units a kit names (b.snap fxs on the target; `src` the operator): Civilight Eterna S2's rope, Executor
+  // the Ex Foedere S3's aim, Muelsyse S3's water bind, Schwarz's DEF down, Bellone's 【手段】, Silence the Paradigmatic S3's
+  // shallow grave
+  'cetsyr_s_2': true,
+  'excu2_s_3': true,
+  'mlyss_s_3[buff]': true,
+  'shwaz_t_1': true,
+  'demetr_t1[def_dec]': true,
+  'slent2_s_3': true,
+  // Ch'en the Dawnstreak S2 (op-chen3.js): the respawn glows while its buff lasts
+  'chen3_s2[respawn_buff]': true,
+});
+
+/**
+ * (fork) A plan's `state` entries a b.snap `fxs` row shows (STATE_BUFFS): that buff's, narrowed to the spec's `keys` and
+ * the look's (a `byFacing` buff without a look: the carrier's side, `facing` −1 'left', else 'right').
+ */
+export function stateEntries(list, buff, look, facing = 1) {
+  if (!Array.isArray(list) || !list.length) return [];
+  const spec = STATE_BUFFS[buff];
+  if (!spec) return [];
+  const lk = look ?? (spec.byFacing ? (facing === -1 ? 'left' : 'right') : null);
+  const keys = lk != null && spec !== true ? spec.looks?.[lk] : null;
+  return list.filter((e) => e.buff === buff && (!keys || keys.includes(e.key)) && (!spec.keys || spec.keys.includes(e.key)));
+}
 
 /**
  * The client's condition graphs of `[eff_cond]` buffs (config/buff_template_holder.ab, the template's ON_BUFF_TRIGGER —
@@ -844,7 +916,14 @@ export function planUses(idx, plan, uses, opts = {}) {
       const e = entryOf(key, role, u, prefabs, opts.describe);
       if (hook) e.afterFirst = true;
       if (hooked) e.firstOnly = true;
-      const placed = place(plan, e, u, { attackOf, eachHit });
+      let placed = place(plan, e, u, { attackOf, eachHit });
+      // (fork) a buff of a moment the client never sees, whose start and end the sim signals (b.snap `fxs`)
+      if (placed === 'conditional' && e.buff && STATE_BUFFS[e.buff] && (e.role === 'loop' || e.role === 'trigger')) {
+        e.at = 'carrier';
+        e.hold = 'state';
+        if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff)) plan.state.push(e);
+        placed = null;
+      }
       if (placed) {
         miss(key, role, placed, u);
         // a facing family's other variants are unmapped with it (dirFamilies)
@@ -1171,6 +1250,7 @@ export function planKeys(plan) {
   for (const g of plan?.each?.hit || []) for (const e of g) add(e);
   for (const e of plan?.pulse || []) add(e);
   for (const e of plan?.cond || []) add(e);
+  for (const e of plan?.state || []) add(e);
   if (plan?.line) out.add(plan.line.key);
   return [...out];
 }

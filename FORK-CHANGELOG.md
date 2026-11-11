@@ -15,6 +15,33 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - 197 new sound files (5.8 MB) for the server and the preload zip.
 - Not covered yet: sounds the game plays on its own triggers inside a skill (custom triggers, check points, attack finishes), which need per-operator work.
 
+### Lasting skill glows that only start partway through now show
+
+Many official skills light up a lasting glow only when something happens mid-fight: a charge is stored, an overload begins, an enemy dies, an ally's bubble or shield goes up. The battle never told the screen about those moments, so the glows never appeared. They now show for 23 operators, and stop when the official game stops them:
+
+| Operator | What now shows |
+|---|---|
+| Horn | S2 / S3 overload glow, from the moment the overload begins |
+| Leizi the Thunderbringer | S1: one ring per stored charge |
+| Ascalon | S2: the debuff glow on enemies around a kill, stronger at full stacks |
+| Тоска | S1 shield, S2 attack-speed and S3 attack glows on the ally whose trigger effect fired |
+| Lumen, Gnosis | S2: the one-charge and two-charge glows |
+| Mon3tr, Caper | S1: the ready glow |
+| Minimalist | S2: the weapon and body glows while the skill is ready |
+| Ch'en the Holungday | S2: the half and full charge glows |
+| Haruka | The bubble's glow on the ally holding it (S1) |
+| Philae | S2: the attack glow after the first element hit, with its start burst |
+| Lessing, Vulpisfoglia | S2 glow while blocking; S3 camouflage glow while not blocking |
+| Civilight Eterna, Muelsyse | S2 rope / S3 water on the enemies they bind |
+| Executor the Ex Foedere | S3: the aim mark on every enemy he hits, until the skill ends |
+| Schwarz, Bellone | The DEF-down mark on the enemies they weaken |
+| Silence the Paradigmatic | S3: the glow on an ally kept alive at the brink |
+| Ch'en the Dawnstreak | S2: the glows after she comes back |
+| Angelina the Mellow Wish | S3: the wing glow on the side she faces |
+| Nearl the Radiant Knight | S3: the combo glow when deployed right after a Kazimierz operator |
+
+Fights don't change, and bot battles do no extra work.
+
 ### External AI is shelved: locked in every build, and no test suite runs its tests
 
 - External AI (the `sp-ai/1` advisor / plan / LLM integration, shelved upstream since 2026-11-05) is now off in every build, development checkouts included. Selecting it (`SP_BOT_STRATEGY=external`, a seat override, a match's `botStrategy: 'external'`, any `SP_EXTERNAL_AI_*` / `SP_LLM_*` setting) logs one line and the built-in bot plays. `SP_UNSHELVE_EXTERNAL_AI=1` brings it back; the code is unchanged.

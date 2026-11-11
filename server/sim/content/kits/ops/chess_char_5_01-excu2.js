@@ -9,6 +9,9 @@ import { damageApplyWay } from '../../../attack.js';
 
 const isLaterano = (u) => inFaction(u, 'lateranoShip', ['laterano']);
 
+/** (fork) The client's S3 buff whose aim mark sits on every enemy hit during the skill (b.snap fxs). */
+const EXCU2_MARK_FX = 'excu2_s_3';
+
 export default {
   // ---------------------------------------------------------------------------------------------------------------
   // 圣约送葬人 — S2 近身铳斗 (ammo, attack SP): ATK/DEF +, block +1, melee hits dodged with prob (+ammo refill).
@@ -32,7 +35,15 @@ export default {
           kind: 'ammo', ammo: num(bb['attack@trigger_time'], 16),
           mods: mods({ atkPct: num(bb.atk), batPct: batPct(bb.base_attack_time, chess) }),
           targeting: skillRange(chess, def),
-          attack: { onEachHit({ unit, target }) { if (target && target.side === 'enemy') unit.mem.verdict?.add(target); } },
+          // (fork) the aim mark: excu2_s_3[mark][effect] (ON_OUTPUT_DAMAGE) gives each enemy hit excu2_s_3[mark]
+          // (excu2_skill_03_aim_01) until the skill ends (b.snap fxs; render/vfx/skills.js STATE_BUFFS)
+          attack: {
+            onEachHit({ battle, unit, target }) {
+              if (!target || target.side !== 'enemy' || !unit.mem.verdict) return;
+              unit.mem.verdict.add(target);
+              battle?.fxState(target, EXCU2_MARK_FX, true, { src: unit });
+            },
+          },
           onStart({ unit }) {
             unit.mem.verdict = new Set();
             // 特性的回复生命效果提高至2倍 (the reaper profile reads profile.selfHeal on every attack)
@@ -41,6 +52,7 @@ export default {
           onEnd({ battle, unit }) {
             const hit = unit.mem.verdict;
             unit.mem.verdict = null;
+            if (hit) for (const e of hit) battle.fxState(e, EXCU2_MARK_FX, false);
             if (unit.profile && unit.mem.verdictHeal0 != null) unit.profile.selfHeal = unit.mem.verdictHeal0;
             if (hit && unit.alive) {
               for (const e of hit) {

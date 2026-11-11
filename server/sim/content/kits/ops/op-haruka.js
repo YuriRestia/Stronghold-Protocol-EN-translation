@@ -106,6 +106,8 @@ export default {
       const v = shelterNow(u);
       battle.addBuff(a, {
         key: BUBBLE, source: u, visible: true, mods: protectMods(v), tags: ['talent'],
+        // (fork) its glow on the holder: haruka_t_1's own effect haruka_talent_01_buff (b.snap fxs; skills.js STATE_BUFFS)
+        fx: 'haruka_t_1', fxSrc: u.id,
         data: { v, atk: u.s.atk, heal: t2Heal, prob: t2Prob, sp: t2Sp, boom: false },
       });
       battle.fx('shield', { x: a.x, y: a.y, id: a.id, kind: 'bubble' });
