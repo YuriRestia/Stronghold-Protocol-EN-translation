@@ -113,7 +113,9 @@ export default {
         }
         battle.on('elementHit', ctx => {
           if (ctx.target === unit && unit.alive && isS2 && unit.skill?.active && !unit.findBuff('skill:philae_rage')) {
-            battle.addBuff(unit, { key: 'skill:philae_rage', mods: { atkPct: num(bb.atk) }, visible: true });
+            // (fork) its glow: philae_s_2's ON_APPLYING_MODIFIER (IsElementDamage) creates philae_s_2[atk]
+            // (philae_skill_02_buff_02) and plays philae_skill_02_start_02 once (b.snap fxs; skills.js STATE_BUFFS)
+            battle.addBuff(unit, { key: 'skill:philae_rage', mods: { atkPct: num(bb.atk) }, visible: true, fx: 'philae_s_2' });
           }
         }, { owner: unit });
       },

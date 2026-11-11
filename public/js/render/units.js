@@ -904,6 +904,7 @@ export class UnitView {
     this.moteRing = null;
     this.layers = 0;              // hit-negating 护盾 layers (sync; b.snap `layers`: the official layer effect, vfx/talentfx.js)
     this.charges = null;          // [stored, maximum] of a charge skill (sync; b.snap `charges`: vfx/skillfx.js)
+    this.fxs = null;              // (fork) [[buff, src, look]] official buffs it shows the lasting effects of (b.snap `fxs`: vfx/skillfx.js)
     this.skillCasts = 0;          // (fork) its skill's starts since its deployment (setSkill; VVANA, vfx/skillfx.js CAST_MODES)
     this.stanceOn = false;        // (fork) 薇薇安娜's 蓄力 shown (VVANA_STANCE), and when it last ended (performance ms)
     this.stanceOffAt = -Infinity;
@@ -1429,7 +1430,7 @@ export class UnitView {
     this.st = s.st || null;
     this.barrier = s.sh > 0 ? s.sh : 0;
     this.energy = s.energy || null;
-    this.layers = s.layers > 0 ? s.layers | 0 : 0; this.charges = s.charges || null;
+    this.layers = s.layers > 0 ? s.layers | 0 : 0; this.charges = s.charges || null; this.fxs = s.fxs || null;
     if (this.skillIndex === 0 && isVvana(this.info)) this._stance(this.alive && chargesFull(this.charges));
     const prevFlags = this.flags;
     this.flags = s.flags | 0;
