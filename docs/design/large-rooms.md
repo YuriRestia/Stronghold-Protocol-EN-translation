@@ -81,11 +81,13 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
 `[ASSUMED]` A remake-only option of a Grand Alliance, the user's decisions of 2026-11-12: the room votes on one strategy in
 secret and everyone plays the winner.
 
-- **Room**: the host's 策略 switch (Free pick | One for All) at the bottom left of the room bar, before the match, Grand
-  Alliances only (`room.create { oneForAll }`, `room.setOneForAll { on }`: `NOT_HOST` / `WRONG_PHASE` / `BAD_MSG`;
+- **Room**: 一策同心 (One for All). The host's 策略 switch (自由选择 Free pick | 一策同心 One for All) sits in the room
+  footer beside the difficulty (the room chat holds the bottom left), plus a ONE FOR ALL tag by the Grand Alliance title
+  and the choice on the create screen; before the match, Grand Alliances only (`room.create { oneForAll }`, `room.setOneForAll { on }`: `NOT_HOST` / `WRONG_PHASE` / `BAD_MSG`;
   `room.state.oneForAll`, `rooms.list[].oneForAll`; the browser's badge and filter). Switching it un-readies nobody; a
   room that is matchmaking restarts its search, since One for All rooms merge only with each other and take only solo
-  Doctors who ticked 「包括 One for All 房间」 with the Grand Alliance tick ([§90.4](matchmaking.md)). The match gets
+  Doctors who ticked 「也可加入一策同心房间」 with the Grand Alliance tick ([§90.4](matchmaking.md)). `room.setOneForAll`
+  is in the heavy rate bucket (`server/net.js` HEAVY_TYPES). The match gets
   `oneForAll: true` beside `largeRoom: true`.
 - **The vote** (replaces the turn draft and the squad lanes): everyone votes at once, both squads together, on the usual
   draft screen with one 50 s clock (a single human: untimed). The page shows only the player's own card and 「已锁定的博士
