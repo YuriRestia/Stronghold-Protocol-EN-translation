@@ -1399,7 +1399,9 @@ export function chargeKeys(plan) {
  *               `extra.id` names (the fx's point without one)
  *   hold        how long a looping reached effect stays: a blackboard key of our skill record (seconds), 'fx' — the
  *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
- *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
+ *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, 'life' — a mark that
+ *               lasts as long as its unit: on the unit `extra.id` names, one per unit and key, until that unit dies or
+ *               leaves or the owner does (SkillFx._lifeMark) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   shots       the fx's `lanes` ([x, y, wait, shot id]…; `dx`, `dy`, `len`, `speed`) fly `keys` along straight lines
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
@@ -1474,6 +1476,13 @@ const DMINON_BOUNDARY = Object.freeze({ aoe: binding({ owner: 'id', only: Object
 // ground) on each tile it leases, for the lease's field_duration from its latest refresh. The kit's 'zone' tagged
 // oxi:footprint is a fresh lease (its tile, dur). A talent: bound under each of her skills.
 const OXI_FOOTPRINT = binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:footprint' }), at: 'point', hold: 'fx', keys: ['oxi_buff_01'] });
+
+// (fork) 蕾缪安 T1 跨境追缉许可 (chess_char_6_01-lemuen.js ensureWanted): the client's char_lemuen_laterano_range[tick] gives
+// an enemy char_lemuen_range_aim, whose first ON_BUFF_TRIGGER creates char_lemuen_range_aim[effect] (overrideEffectKey
+// lemuen_talent_buff_01, life infinity) — the Wanted mark, looping on the enemy while it is marked. The kit's 'wanted'
+// (id = the enemy, src = the Lemuen it counts for) is that moment; the sim drops a mark only when the enemy dies or its
+// Lemuen leaves, which is when the loop ends here. A talent: bound under each of her skills.
+const LEMUEN_WANTED = binding({ owner: 'src', keys: ['lemuen_talent_buff_01'], hold: 'life' });
 
 export const FX_BINDINGS = Object.freeze({
   skchr_oxi_1: Object.freeze({ zone: OXI_FOOTPRINT }),
@@ -1622,7 +1631,9 @@ export const FX_BINDINGS = Object.freeze({
   // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
   // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
   // the kit deals the snipe at once, no flight is drawn]
+  skchr_lemuen_1: Object.freeze({ wanted: LEMUEN_WANTED }),
   skchr_lemuen_2: Object.freeze({
+    wanted: LEMUEN_WANTED,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
     crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
   }),
@@ -1630,6 +1641,7 @@ export const FX_BINDINGS = Object.freeze({
   // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
   skchr_mostma_2: Object.freeze({ timeLockHit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['mostma_skill_02_hit'] }) }),
   skchr_lemuen_3: Object.freeze({
+    wanted: LEMUEN_WANTED,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
     bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
