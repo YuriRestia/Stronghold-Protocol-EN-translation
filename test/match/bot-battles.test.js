@@ -186,15 +186,16 @@ test('a human who disconnects mid-battle: their field goes on in a browser, not 
   h.m.dispose();
 });
 
-test('a human who leaves is out of the match (中途退出 = elimination): their battle ends at once and no browser is asked for it', () => {
-  // en: 中途退出 = "quitting mid-match"
+test('a human who leaves is out of the match (中途退出 = elimination): their running battle plays out in a browser, then nothing of theirs runs', () => {
+  // en: 中途退出 = "quitting mid-match". The user's rule (2026-11-11): the battle goes on as usual, the next round has no field
   const h = atCombat();
   const own = h.m.fields.find((x) => x.players.length === 1 && x.players[0] === 'p_1');
-  const before = h.allTo('p_0', 'b.botBattle').length;
   h.m.onLeave('p_1');
-  assert.ok(own.result && own.result.synthetic);
-  assert.equal(h.allTo('p_0', 'b.botBattle').length, before);
-  assert.ok(!h.serverRuns.some(([id]) => id === own.fieldId));
+  assert.equal(h.m.players.get('p_1').alive, false);
+  assertFieldOnBrowser(h, own);
+  h.m.handle('p_0', fakeAnswer(own));
+  h.run(() => own.done);
+  assert.equal(own.resultSource, 'host');
   h.runToPhase('COMBAT', 2);
   assert.deepEqual(h.m.fields.filter((x) => x.players.includes('p_1')).map((x) => x.fieldId), []);
   h.m.dispose();

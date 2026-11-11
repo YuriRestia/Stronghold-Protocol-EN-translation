@@ -1947,7 +1947,7 @@ export class Lobby {
 
   /**
    * (fork) A large room's match removed an idle seat (IDLE_PREP_ROUNDS idle prep rounds, shared/largeRoom.js): it leaves
-   * like a kicked player and its page is told why. The match keeps its board under the AI.
+   * like a kicked player and its page is told why. The match eliminates the seat (onLeave: leaving eliminates).
    */
   idleKick(room, ctx, playerId) {
     if (room.matchCtx !== ctx || room.disposed) return;
