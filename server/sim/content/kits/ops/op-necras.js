@@ -213,7 +213,7 @@ export default {
         ...(third ? { blockCnt: num(b3['attack@block_cnt'], 1) * third, rangeExtend: num(b3['attack@ability_range_forward_extend'], 1) * third } : {}) } });
       battle.heal(d, d, d.s.maxHp * num(b3['attack@hp_ratio']), { self: true, ignoreHealFree: true });
       battle.fx('grow', { x: d.x, y: d.y, id: d.id, n });
-      // (fork) the client's necras_upgrade_dragon on the special form, its look by stage (talentfx.js TALENT_LOOKS) — display only
+      // (fork) the client's necras_upgrade_dragon on the special form, its look by stage (skills.js STATE_BUFFS looks) — display only
       battle.fxState(d, 'necras_upgrade_dragon', true, { src: unit, look: n >= 3 ? 'stage2' : 'stage1' });
     };
 

@@ -114,7 +114,7 @@ function makeIndex() {
         kind: 'char', modes: [{ name: 'Default', attack: melee([]) }], skills: {}, talents: {},
         abilities: [
           { kind: 'general', name: 'Aura', node: 'Others/GeneralAbilities/Aura', class: 'AuraAbility', when: 'passive',
-            uses: [{ role: 'loop', keys: ['tgt_buff_fx'], from: 'AuraAbility._buffs → template t_aura', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 't_aura', life: { type: 'INFINITY' } }] },
+            uses: [{ role: 'loop', keys: ['tgt_buff_fx'], from: 'AuraAbility._buffs → template peak_performance[inf]', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 'peak_performance[inf]', life: { type: 'INFINITY' } }] },
           { kind: 'general', name: 'Aim', node: 'Others/GeneralAbilities/Aim', class: 'RangedAttack', when: null,
             triggers: [{ template: 't_aim[switch]', event: 'ON_BUFF_START', action: 'TriggerAbilityUseSelector', name: 'Aim' }],
             uses: [{ role: 'loop', keys: ['abl_loop'], from: 'BuffToOwner._buffs', node: 'Others/GeneralAbilities/Aim', on: 'owner', buff: 't_aim_fx', life: { type: 'INFINITY' } }] },
@@ -218,7 +218,7 @@ describe('(fork) abilities of a summoner on its summons (UnitInfo summonerId)', 
     const ally = view(2, 'char_800_dep');
     frame(2);
     assert.equal(live('tgt_buff_fx'), 0);
-    ally.fxs = [['t_aura', 1, null]];
+    ally.fxs = [['peak_performance[inf]', 1, null]];
     frame(2);
     assert.equal(live('tgt_buff_fx'), 1, 'on the carrier while the sim says it lasts');
     ally.fxs = null;

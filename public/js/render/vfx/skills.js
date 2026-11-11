@@ -527,10 +527,12 @@ export const emptyPlan = (unitKey, skillId) => ({
 const L = (o) => Object.freeze(Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Object.freeze(v)])));
 export const STATE_BUFFS = Object.freeze({
   // (fork) talents' and abilities' buffs on their targets (audit #7): the rows come from the src's talent bindings
-  // (talentfx.js targetRows, TALENT_LOOKS), signalled by the kits
+  // (talentfx.js targetRows), signalled by the kits
   'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true, stun: true, 'halo2_s_3_link': true,
   'heyak_s_3[hit_levitate]': true, 'inside_t_1[active]': true, 'shu_s_3[enemy][enter]': true, 'necras_t_1[upgrade]': true,
-  'necras_upgrade_dragon': true,
+  // Necrass S3's special skeleton (op-necras.js): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
+  'necras_upgrade_dragon': { looks: L({ stage1: ['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02'],
+    stage2: ['token_necras_skeltn2_buff_02', 'token_necras_skeltn2_buff_02_02'] }) },
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
   'horn_s_2[overload_mark]': true,
   'horn_s_3[overload_start_effect_2]': true,

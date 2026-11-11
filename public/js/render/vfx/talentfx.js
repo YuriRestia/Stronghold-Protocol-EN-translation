@@ -29,19 +29,8 @@
 // signal of its own (a template's cast at an event the client never sees, a talent attack no kit fx marks) never plays.
 
 import { talentBindings, toggleOn, triggerKinds, pointKinds, bindable, bindingKeys, nodeUses, summonTargets } from './talents.js';
-import { slotKey, lifeOf } from './skills.js';
+import { slotKey, lifeOf, stateEntries } from './skills.js';
 import { UF } from '../../../../shared/constants.js';
-
-/**
- * (fork) A buff's looks among its target rows (targetRows `look`): by buff, look → keys. Default: every row of the buff.
- */
-export const TALENT_LOOKS = Object.freeze({
-  // 死芒 S3's special 仆役 (necras_upgrade_dragon): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
-  'necras_upgrade_dragon': Object.freeze({
-    stage1: Object.freeze(['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02']),
-    stage2: Object.freeze(['token_necras_skeltn2_buff_02', 'token_necras_skeltn2_buff_02_02']),
-  }),
-});
 
 /** Battle seconds a held (non-oneshot) row of a talent's single cast lasts (SkillFx's SKILL_CAST_S). */
 export const TALENT_CAST_S = 0.6;
@@ -514,22 +503,22 @@ export class TalentFx {
   /**
    * (fork) The target rows of `v`'s talent and ability bindings for buff `buff` (plan.targets with that `buff`): what a
    * b.snap fxs row [buff, src = v] shows on its carrier (SkillFx._states; the sim's fxState at the moment the client gives
-   * that buff — 帕拉斯's 峰值状态, 缄默德克萨斯's 刀伤 …). `look`, when given, keeps the rows whose key is that look's
-   * (TALENT_LOOKS) or ends with it; none: every row.
+   * that buff — 帕拉斯's 峰值状态, 缄默德克萨斯's 刀伤 …), filtered as a skill's plan.state (skills.js stateEntries:
+   * STATE_BUFFS, a `look` keeps its branch's keys).
    */
   targetRows(v, buff, look = null) {
     const U = this.of(v);
     if (!U || typeof buff !== 'string') return [];
-    const out = [];
-    for (const b of U.binds0 || U.binds) for (const e0 of [...(b.plan?.targets || []), ...(b.plan?.start || []), ...(b.plan?.loop || []), ...(b.plan?.unmapped || [])]) {
-      // (an unmapped row — a condition the client checks — is a plain record: its loop from the prefab)
-      const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
-      if (e.buff !== buff || out.some((x) => x.key === e.key)) continue;
-      const keys = look != null ? TALENT_LOOKS[buff]?.[look] : null;
-      if (keys ? !keys.includes(e.key) : look != null && !e.key.endsWith(look)) continue;
-      out.push(e);
+    const rows = [];
+    for (const b of U.binds0 || U.binds) {
+      const p = b.plan;
+      for (const e0 of [...(p?.state || []), ...(p?.targets || []), ...(p?.start || []), ...(p?.loop || []), ...(p?.unmapped || [])]) {
+        // (an unmapped or state row — a condition the client checks — is a plain record: its loop from the prefab)
+        const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
+        if (e.buff === buff && !rows.some((x) => x.key === e.key)) rows.push(e);
+      }
     }
-    return out;
+    return stateEntries(rows, buff, look);
   }
 
   /** Every key the battle's units' talents and abilities can play (preloading). */
