@@ -1,7 +1,9 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/manual-report.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { observationMarkdown, resultMarkdown } from '../../tools/ai/manual-report.mjs';
-import { actionReply } from '../../tools/ai/manual-files.mjs';
+import { observationMarkdown, resultMarkdown } from '../../../tools/ai/manual-report.mjs';
+import { actionReply } from '../../../tools/ai/manual-files.mjs';
 
 const row = (r, cells) => `${String(r).padStart(4)} ${cells.map(c => c.padStart(3)).join('')}`;
 const unit = (uid, name, extra = {}) => ({ uid, id: `c${uid}`, name, kind: 'chess', class: 'WARRIOR', caps: { block: true }, bonds: [], items: [], ...extra });

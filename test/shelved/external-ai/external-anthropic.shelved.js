@@ -1,3 +1,5 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/external-anthropic.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -5,10 +7,10 @@ import { once } from 'node:events';
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createLLMAgent, advisorSystem, RETRY_TEXT } from '../../tools/ai/llm-agent.mjs';
-import { validPlan, validUsage } from '../../server/match/aiPlan.js';
+import { createLLMAgent, advisorSystem, RETRY_TEXT } from '../../../tools/ai/llm-agent.mjs';
+import { validPlan, validUsage } from '../../../server/match/aiPlan.js';
 
-const fixture = JSON.parse(readFileSync(new URL('../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
+const fixture = JSON.parse(readFileSync(new URL('../../fixtures/llm-advisor.json', import.meta.url), 'utf8'));
 const hello = { v: 'sp-ai/1', type: 'hello', id: 'hello', knowledge: fixture.knowledge };
 const observation = { v: 'sp-ai/1', id: 'a1', knowledgeVersion: fixture.knowledge.version,
   context: { mode: 'plan', kind: 'prep', matchId: 'mock-match' }, digest: fixture.digest };

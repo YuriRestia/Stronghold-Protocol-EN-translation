@@ -147,23 +147,3 @@ test('journals record per-seat IDs beside botStrategy and replay them without re
   unknown[0].options.botStrategySeats = { 1: 'unavailable-recorded-strategy' };
   assert.throws(() => replayTestMatch(DATA, unknown), /seat 1: Unknown bot strategy: unavailable-recorded-strategy/);
 });
-
-test('one external seat creates the one external host; only that seat asks it, within SP_EXTERNAL_AI_SEATS', (t) => {
-  cleanEnv(t);
-  const none = bots();
-  t.after(() => none.m.dispose());
-  assert.equal(none.m.externalAI, null);
-  for (const [externalAI, asked] of [[undefined, [1]], [{ seats: [0, 1] }, [1]], [{ seats: [0] }, []]]) {
-    const h = bots({ botStrategySeats: { 1: 'external' }, externalReplay: true, externalAI });
-    t.after(() => h.m.dispose());
-    const { m } = h;
-    assert.ok(m.externalAI);
-    const seats = [];
-    const start = m.externalAI.start.bind(m.externalAI);
-    m.externalAI.start = (ps, decision) => { seats.push(ps.seat); return start(ps, decision); };
-    h.start();
-    assert.ok(h.run(() => m.phase === 'BAND_DRAFT' && m.order.every((ps) => ps.bandId || m.externalAI.jobs.size > 0)));
-    assert.deepEqual([...new Set(seats)], [1], JSON.stringify(externalAI));
-    assert.deepEqual([...m.externalAI.states.keys()].map((id) => m.players.get(id).seat), asked);
-  }
-});

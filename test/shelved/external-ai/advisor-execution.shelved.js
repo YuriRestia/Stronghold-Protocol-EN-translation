@@ -1,10 +1,12 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/match/advisor-execution.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeMatch, give, giveItem, legalTileFor } from './harness.js';
-import { validPlan, planContains, planUnitWeight, planBuyTarget } from '../../server/match/aiPlan.js';
-import { planProtected } from '../../server/match/aiEconomy.js';
+import { makeMatch, give, giveItem, legalTileFor } from '../../match/harness.js';
+import { validPlan, planContains, planUnitWeight, planBuyTarget } from '../../../server/match/aiPlan.js';
+import { planProtected } from '../../../server/match/aiEconomy.js';
 import { botPrep, botPrepBeginSteps, buyLoopSteps, planSpendSteps, sellWeakestHand, sellJunk,
-  freeHandSlot, resolveTemp, arrange, levelUp, maybeFreeze } from '../../server/match/bot.js';
+  freeHandSlot, resolveTemp, arrange, levelUp, maybeFreeze } from '../../../server/match/bot.js';
 
 const HAMMER = 'chess_item_1_01_e_a', SHIELD = 'chess_item_1_02_e_a';
 const ROSE = 'chess_char_1_06_a', ESTELLE = 'chess_char_1_12_a';

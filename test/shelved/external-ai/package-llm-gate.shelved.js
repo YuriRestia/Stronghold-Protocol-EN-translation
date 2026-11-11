@@ -1,3 +1,5 @@
+// SHELVED (2026-11-11): External AI is shelved in this fork, so no suite runs this file (test/shelved/README.md).
+// Moved from test/package-llm-gate.test.js.
 // A release package omits the external-AI / LLM integration (§35.66). A dev checkout still registers it.
 // Run: node --test test/package-llm-gate.test.js
 
@@ -7,14 +9,14 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { findSpecifiers } from '../tools/check-imports.mjs';
-import { isPlayerFile, plan, resolveSpecifier, trackedFiles } from '../tools/package.mjs';
+import { findSpecifiers } from '../../../tools/check-imports.mjs';
+import { isPlayerFile, plan, resolveSpecifier, trackedFiles } from '../../../tools/package.mjs';
 import {
   LLM_RELEASE_EXCLUDE, LLM_RELEASE_MARKER, LLM_RELEASE_MARKER_TEXT, isLlmReleasePath, omitLlmFromRelease,
-} from '../server/match/llmRelease.js';
-import { llmIntegrationEnabled, llmIntegrationEnabledNow, LLM_IGNORED_LOG, releaseIgnoresExternalAi, EXTERNAL_BOT } from '../server/match/llmGate.js';
-import { BOT_STRATEGIES, getBotStrategy } from '../server/match/botStrategies.js';
-import { TestClient } from './helpers/wsClient.js';
+} from '../../../server/match/llmRelease.js';
+import { llmIntegrationEnabled, llmIntegrationEnabledNow, LLM_IGNORED_LOG, releaseIgnoresExternalAi, EXTERNAL_BOT } from '../../../server/match/llmGate.js';
+import { BOT_STRATEGIES, getBotStrategy } from '../../../server/match/botStrategies.js';
+import { TestClient } from '../../helpers/wsClient.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 

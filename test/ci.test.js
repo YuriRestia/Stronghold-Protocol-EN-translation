@@ -126,9 +126,11 @@ test('npm test runs every test file and nothing else under test/: no helper, no 
   const tests = [...underTest, ...walk('plugins/_template')].filter((f) => f.endsWith('.test.js'));
   assert.deepEqual(picked, [...tests].sort());
   assert.ok(!picked.some((f) => /^test\/(fixtures|helpers)\/|\/fixtures\//.test(f)), 'a fixture or helper would run as a test');
+  // (fork, 2026-11-11) test/shelved/: tests of shelved features (*.shelved.js), run by hand only (test/shelved/README.md)
+  assert.ok(!picked.some((f) => f.startsWith('test/shelved/')), 'a shelved test would run');
   // every other module under test/ is imported by the tests (or is untrusted bait): one that uses node:test is a test
   // file the globs miss — name it *.test.js
-  for (const f of underTest.filter((x) => /\.[cm]?js$/.test(x) && !picked.includes(x))) {
+  for (const f of underTest.filter((x) => /\.[cm]?js$/.test(x) && !picked.includes(x) && !x.startsWith('test/shelved/'))) {
     assert.doesNotMatch(fs.readFileSync(path.join(ROOT, f), 'utf8'), /['"]node:test['"]/, `${f} uses node:test but npm test does not run it`);
   }
 });
