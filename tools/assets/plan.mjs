@@ -165,10 +165,14 @@ const UNIT_SOUND_BANKS = Object.freeze({
   char_213_mostma: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_213_mostma.attack' }),
   // (fork) 艾雅法拉's projectile is projectile_amgoat (no `chr_`): its REACH is her impact (p_imp_firemag_n)
   char_180_amgoat: Object.freeze({ hit: 'battle.ON_PROJECTILE_REACH.projectile_amgoat' }),
+
+  // (fork) 水月: her swing is the attack's START (p_atk_tentacle_n), its impact the ON (p_imp_tentacle_n)
+  char_437_mizuki: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack' }),
 });
 /**
  * (fork) A skill's own swing / impact by skill index where the mode pick misses it (assignSkillModeSfx): a bank name, or
- * null — no impact at all while the skill runs (`quietHits`). 蕾缪安 S1 / S2: their projectiles' hits; S2's normal
+ * null — no impact at all while the skill runs (`quietHits`); an `attack` null drops the skill's own swing (the normal one
+ * plays). 蕾缪安 S1 / S2: their projectiles' hits; S2's normal
  * shots are attack.2.2 (attack.2.1 is the aimed shot: FX_SOUND_BANKS). 莫斯提马 S3: the ripple's mode has its swing only.
  */
 const SKILL_MODE_BANKS = Object.freeze({
@@ -192,6 +196,14 @@ const SKILL_MODE_BANKS = Object.freeze({
   char_1040_blaze2: Object.freeze({
     1: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s2' }),
     2: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_blaze2_s3' }),
+  }),
+  // (fork) 水月 S1: a charge is the skill's own MeleeAttack (ReplacementSkill), its impact the ability's ON (p_imp_tentacle_d).
+  // S2 / S3 (modes 2 / 3): the mode's ON bank (p_imp_tentacle_h / _s) is the impact in place of her normal one; the mode has
+  // no START bank, so she swings with her normal p_atk_tentacle_n (attack: null drops the mode pick's swing slot)
+  char_437_mizuki: Object.freeze({
+    0: Object.freeze({ hit: 'battle.ON_ABILITY_ON.skchr_mizuki_1' }),
+    1: Object.freeze({ attack: null, hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack.2' }),
+    2: Object.freeze({ attack: null, hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack.3' }),
   }),
 });
 /**

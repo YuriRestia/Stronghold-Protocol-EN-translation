@@ -68,6 +68,11 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Her S3 still ends without a closing sound: the official client plays that sound (b_char_boostclose) only when a player stops the skill by hand, which this mode doesn't allow.
 - Behind the scenes: the battle sends her 怒火 and S2 layer counts to the client as a display-only fx (`buffLayers`). No battle result changes; only the fx counts of the two Talulah golden scenarios (diy-140, diy-141) moved.
 
+### Mizuki's skills play their own animations and impact sounds
+
+- Mizuki now animates each skill as in the official game, in every outfit. Her S2 (Prisoner's Dilemma) attacks with its own swing and rests in her normal pose. Her S3 (Moon in the Water) opens with its start animation, swings its own attack, stands in its skill stance between attacks and closes with its end animation. An S1 (Awaken) charge is her normal swing. Before, the game paired her animations with her skills by their names, which her model doesn't follow: S2 played S3's animations, S3 swung her plain attack and S1 played S2's swing.
+- Her attacks now land with their impact sound, and an S1 charge has its own impact instead of S2's. During S2 and S3 she swings with her normal swing sound and each hit lands with that skill's own impact. Before, the impact sound played at the swing.
+
 ## 2026-11-10
 
 ### Operators attack as in the official game: the swing starts, then the hit lands

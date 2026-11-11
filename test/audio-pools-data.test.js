@@ -80,9 +80,12 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (SKILL_MODE_BANKS; her S2 swing and S3 impact replay her normal ones, so only their pools are registered), 澄闪's
   // drone banks and 圣约送葬人's talent / S3-end banks (FX_SOUND_BANKS), and the Sanrio outfits' own banks; the three
   // outfit entries hold 11 references
-  assert.equal(refs, 1050);
+    // (fork) + 1 reference, + 2 pools: 水月's normal impact (UNIT_SOUND_BANKS) and her S1 charge's own impact
+  // (SKILL_MODE_BANKS: skchr_mizuki_1's ON), minus her S1 slot that took S2's mode-2 impact (−1: shared/fxModes.js); her
+  // S2 / S3 mode impacts moved from the swing slots to the impact slots (SKILL_MODE_BANKS, ±0)
+  assert.equal(refs, 1051);
   assert.equal(outfitRefs, 11);
-  assert.equal(Object.keys(pools).length, 1133);
+  assert.equal(Object.keys(pools).length, 1135);
   // (fork) every sound of a kit fx (and the ones played with it: `also`) and of an attack's follow-up (attackAlso) is a
   // file of its pool's bank
   let parts = 0;
