@@ -308,16 +308,17 @@ test('match: the prep deadline warns an idle seat on its 2nd round and removes i
   assert.equal(ps.idlePreps, 3);
 });
 
-test('match: a dropped player\'s board goes to the AI and comes back on reconnect; a departure keeps it under the AI', () => {
+test('match: a dropped player\'s board goes to the AI and comes back on reconnect; a departure eliminates the player', () => {
   const { m } = largeMatch([0, 1, 4]);
   const ps = m.players.get('p_1');
   m.onDisconnect('p_1');
   assert.equal(ps.autoplay, true);
   m.onReconnect('p_1');
   assert.equal(ps.autoplay, false);
+  // (user, 2026-11-11) leaving eliminates in every room type: no AI board, no battles (test/match/eliminated-leavers.test.js)
   m.onLeave('p_1');
-  assert.equal(ps.alive, true);
-  assert.equal(ps.botControlled, true);
+  assert.equal(ps.alive, false);
+  assert.equal(ps.lp, 0);
 });
 
 test('match: bot work for a player goes to a browser of its squad first, then anyone', () => {
@@ -343,13 +344,13 @@ test('match: an AFK player whose page still sends battle reports and bot work st
   assert.equal(ps.idlePreps, 0);
 });
 
-test('match: a departed player whose board the AI plays never helps in a 联防, in round 1 or the relay', () => {
+test('match: a departed player (eliminated) never helps in a 联防, in round 1 or the relay', () => {
   const { m } = largeMatch([0, 1, 4, 5]);
   const P = (i) => m.players.get(`p_${i}`);
   const key = Object.keys(m.data.enemies || {}).find((k) => m.gd.enemy(k));
   assert.ok(key, 'an enemy of the data');
   m.onLeave('p_4');
-  assert.equal(P(4).alive, true);
+  assert.equal(P(4).alive, false, 'leaving eliminates (user, 2026-11-11)');
   assert.equal(P(4).left, true);
   const results = new Map([
     ['p_0', { leaked: [{ enemyKey: key, counted: true }], perfect: false }],

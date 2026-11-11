@@ -2635,7 +2635,7 @@
   "与另一个座位交换": "Swap with another seat",
   "取消交换": "Cancel swap",
   "加入": "Join",
-  "你已连续 {n} 个整备阶段没有操作。再有一次将被移出房间，由 AI 接管你的阵地。": "You have done nothing for {n} prep rounds in a row. One more and you will be removed from the room, and the AI takes over your board.",
+  "你已连续 {n} 个整备阶段没有操作。再有一次将被移出房间并淘汰出局。": "You have done nothing for {n} prep rounds in a row. One more and you will be removed from the room and eliminated.",
   "大同盟": "Grand Alliance",
   "最多 8 名博士 · 两个小队": "Up to 8 Doctors · two squads",
   "浏览房间": "Browse Rooms",
