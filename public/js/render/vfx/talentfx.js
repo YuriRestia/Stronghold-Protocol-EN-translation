@@ -29,7 +29,7 @@
 // signal of its own (a template's cast at an event the client never sees, a talent attack no kit fx marks) never plays.
 
 import { talentBindings, toggleOn, triggerKinds, pointKinds, bindable, bindingKeys, nodeUses, summonTargets } from './talents.js';
-import { slotKey, lifeOf, stateEntries } from './skills.js';
+import { slotKey, lifeOf, stateEntries, stateRow } from './skills.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a talent's single cast lasts (SkillFx's SKILL_CAST_S). */
@@ -118,7 +118,9 @@ export class TalentFx {
         const all = key ? talentBindings(this.w.idx, key, { info, rec }) : [];
         // (a 驭械术士's floating unit — the passive general ability beside her funnel shot — is FunnelFx's to draw)
         const binds = all.filter((b) => (bindable(b).ok || b.when === 'attack') && !this.w.funnels?.owns(key, b));
-        const hasTargets = all.some((b) => b.plan?.targets?.length);
+        // (rows a b.snap fxs row holds — on other units, a state the sim signals, an unmapped row of such a buff: targetRows)
+        const hasTargets = all.some((b) => b.plan?.targets?.length || b.plan?.state?.length
+          || b.plan?.unmapped?.some((e) => e.buff && stateRow(e.buff, e.key)));
         if (binds.length || FX_LAYERS[key] || hasTargets) {
           U = {
             id, key, v, binds, binds0: all, rec, standing: false, born: false,

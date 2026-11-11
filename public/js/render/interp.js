@@ -39,7 +39,8 @@
 //     and two the official effects read (render/vfx/talentfx.js, skillfx.js), the same way:
 //       `layers`  [[id, n]] (the hit-negating 护盾 layers, n ≥ 1)                → sample().layers  number (0: none)
 //       `charges` [[id, stored, maximum]] (a charge skill's stored charges)   → sample().charges [stored, maximum] | null
-//       `fxs`     [[id, buff, src, look]] (fork: the official buffs a unit shows the lasting effects of — sim fxStateView)
+//       `fxs`     [[id, buff, src, look]] (fork: the official buffs a unit shows the lasting effects of — sim fxStateView;
+//                 the server sends them as changes, net.js puts the whole set back: shared/fxsDiff.js)
 //                                                                        → sample().fxs [[buff, src, look]…] | null
 //     An entry that is malformed, or names a unit the snapshot does not list, is dropped; a snapshot without the list
 //     clears the readout (render/units.js: the segmented ammo bar, the wolf pips, the red bar of 斩业星熊's 我执).

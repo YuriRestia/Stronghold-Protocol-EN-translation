@@ -31,6 +31,8 @@ function merchantInstall(onPay) {
         battle.addDp(unit.ownerId, -cost, unit);
         onPay(battle, unit, cost);
         battle.emit('merchantPay', { unit, cost });
+        // (fork) the client's swire2_tr payment glow (swire2_buff_01_start / _02) on her [ASSUMED: 1 s per payment] — display only
+        battle.fxState(unit, 'swire2_tr', true, { dur: 1 });
       } else battle.retreat(unit, { reason: 'merchant' });
     }, { owner: unit });
   };
@@ -232,6 +234,8 @@ export default {
             ctx.prevented = true;
             unit.hp = Math.max(1, unit.s.maxHp * num(t1.hp_ratio, 0.7));
             fx(battle, 'revive', unit, { cost });
+            // (fork) the client's swire2_t_2 revive effect (swire2_buff_02_start, once) — display only
+            battle.fxState(unit, 'swire2_t_2', true, { dur: 1 });
           }, { owner: unit });
         } },
       ],
