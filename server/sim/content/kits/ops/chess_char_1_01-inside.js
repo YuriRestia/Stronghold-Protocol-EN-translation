@@ -3,6 +3,9 @@
 
 import { num, talentBb, up, once, skillBbOf, batMod } from '../shared/tier1.js';
 
+/** (fork) The Insider whose live grant a unit holds (its fxProbe's src). */
+const g0 = (a) => [...(a.mem.insiderAmmo?.values() || [])].find((g) => up(g.src) && g.src.deploySeq === g.seq)?.src ?? null;
+
 export default {
   // ---------------------------------------------------------------------------------------------------------------
   // 1_01 隐现 “解决麻烦”: ammo (attack@trigger_time) ATK+atk, base attack time +base_attack_time s, prefers ranged
@@ -42,6 +45,9 @@ export default {
             const pick = battle.rng.pick(pool);
             if (!pick) return;
             (pick.mem.insiderAmmo ??= new Map()).set(unit.id, { src: unit, seq, n: allyAmmo });
+            // (fork) the client's inside_t_1[active] (RandomAuraAbility buff): inside_buff_01_start on the chosen ally while the
+            // grant lasts — display only, read at snapshot time (b.snap fxs)
+            battle.fxProbe(pick, 'inside_t_1[active]', (a) => ([...(a.mem.insiderAmmo?.values() || [])].some((g) => up(g.src) && g.src.deploySeq === g.seq) ? { src: g0(a) } : false)); // (snapshot.js fxStateView: { src })
             battle.fx('buff', { x: pick.x, y: pick.y, id: pick.id, kind: 'ammo' });
           }, { owner: unit });
         }, { owner: unit });

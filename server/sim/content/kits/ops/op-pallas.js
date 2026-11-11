@@ -76,10 +76,13 @@ function peakSources(battle) {
   battle.on('tick', () => {
     for (const a of battle.allyUnits) {
       if (!a.alive || !a.deployed || a.kind === 'device') continue;
-      let v = 0;
-      for (const f of set) v = Math.max(v, f(a));
+      let v = 0, by = null;
+      for (const f of set) { const x = f(a); if (x > v) { v = x; by = f.src ?? null; } }
       const cur = a.findBuff(PEAK_KEY);
       if ((cur?.data?.v ?? 0) === v) continue;
+      // (fork) the client's peak_performance[inf] (英雄的诞生's GlobalAuraAbility buff): its pallas_buff_01_start on the
+      // ally while it holds 精力充沛 (render: talentfx.js targetRows via b.snap fxs) — display only
+      battle.fxState(a, 'peak_performance[inf]', v > 0, { src: by });
       if (v > 0) battle.addBuff(a, { key: PEAK_KEY, mods: { atkPct: v }, data: { v }, tags: ['talent'] });
       else battle.removeBuff(a, PEAK_KEY);
     }
@@ -111,9 +114,11 @@ export default {
       const st = unit.mem.pallasBless ?? (unit.mem.pallasBless = { holder: null });
       const h = unit.skill?.active && up(unit) ? blessingHolder(battle, unit) : null;
       if (st.holder === h) return;
-      if (st.holder) battle.removeBuff(st.holder, holderKey(unit));
+      if (st.holder) { battle.removeBuff(st.holder, holderKey(unit)); battle.fxState(st.holder, 'pallas_s_3[peak]', false); }
       st.holder = h;
       if (h) battle.addBuff(h, { key: holderKey(unit), source: unit, mods: { defPct: blessDef, blockCnt: blessBlock }, tags: ['skill'], visible: true });
+      // (fork) the client's S3 AuraAbility buff pallas_s_3[peak] on the blessed (pallas_skill_03_buff_02 / _03) — display only
+      if (h) battle.fxState(h, 'pallas_s_3[peak]', true, { src: unit });
     };
     return {
       skills: {
@@ -142,13 +147,15 @@ export default {
       talents: [
         { install(battle, unit) { // 英雄的诞生 (and S3's 精力充沛, same 同类取最高 buff)
           const hp0 = num(t0['peak_performance.hp_ratio'], 0.8), atk0 = num(t0['peak_performance.atk']);
-          peakSources(battle).add((a) => {
+          const f = (a) => {
             if (!up(unit) || !battle.allySelectable(a, unit)) return 0;
             let v = 0;
             if (atk0 > 0 && isMinos(a) && a.hpRatio > hp0) v = atk0;
             if (blessAtk > 0 && unit.mem.pallasBless?.holder === a && unit.skill?.active && a.hpRatio > blessHp) v = Math.max(v, blessAtk);
             return v;
-          });
+          };
+          f.src = unit;
+          peakSources(battle).add(f);
         } },
         { install(battle, unit) { // 女神的振奋 (+ INS-Y stage 2+: the minos extra heal)
           const value = num(t1.value), extra = num(t1['pallas_e_t_2.value']);

@@ -78,7 +78,11 @@ export default {
           mods: { atkPct: num(b2.atk), batPct: batMod(b2.base_attack_time, chess) },
           onTick({ battle, unit }) {
             for (const e of unit.blocking) {
-              if (e.alive && e.blockedBy === unit) battle.applyStatus(e, 'stun', { duration: STUN_PULSE, source: unit, resistApplied: true });
+              if (e.alive && e.blockedBy === unit) {
+                battle.applyStatus(e, 'stun', { duration: STUN_PULSE, source: unit, resistApplied: true });
+                // (fork) the client's _buffsToBlockee 'stun' of the S2 toggle: zumama_skill_02_buff_02 on the blockee — display only
+                battle.fxState(e, 'stun', true, { src: unit, dur: STUN_PULSE });
+              }
             }
           },
         },

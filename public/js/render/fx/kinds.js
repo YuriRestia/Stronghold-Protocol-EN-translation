@@ -73,6 +73,9 @@ export const FX_KINDS = Object.freeze({
   // 限伤 (sim/attack/health.js leaderHitCancelled): a leader's hit of ≥ 300000 dealt nothing — the official shows no number and
   // no effect [ASSUMED], so nothing is drawn (`a: 'none'`)
   hitCap: { a: 'none', c: 0xffffff },
+  // (fork) a kit's 'ability' (id = the unit, name = the client buff template whose action triggers one of its abilities):
+  // the official talent binding it fires draws it (render/vfx/talents.js triggerKinds `ability:<template>`); nothing else
+  ability: { a: 'none', c: 0xffffff },
   // 丰川祥子's notes (sim notes.js): born / hit, drawn by render/fx/notes.js (the hit burst) — nothing generic here
   note: { a: 'none', c: 0xffffff },
   // the Ave Mujica Fever start / end (sim fever.js): the BGM (audio.js) and the gauge (render/units.js) show it

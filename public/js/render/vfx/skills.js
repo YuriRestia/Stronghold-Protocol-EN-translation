@@ -511,7 +511,7 @@ function kindOf(srec, rootClass = null) {
 export const emptyPlan = (unitKey, skillId) => ({
   unitKey, skillId, mode: null, modeName: null, kind: null, rootClass: null, projectiles: [],
   start: [], loop: [], end: [], ready: [], range: [], attacks: [], each: { cast: [], hit: [[]] }, trigger: [], targets: [],
-  pulse: [], unmapped: [], cond: [], state: [], after: [], idle: [],
+  pulse: [], unmapped: [], cond: [], state: [], after: [], idle: [], tokens: [],
 });
 
 /**
@@ -526,6 +526,11 @@ export const emptyPlan = (unitKey, skillId) => ({
  */
 const L = (o) => Object.freeze(Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Object.freeze(v)])));
 export const STATE_BUFFS = Object.freeze({
+  // (fork) talents' and abilities' buffs on their targets (audit #7): the rows come from the src's talent bindings
+  // (talentfx.js targetRows, TALENT_LOOKS), signalled by the kits
+  'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true, stun: true, 'halo2_s_3_link': true,
+  'heyak_s_3[hit_levitate]': true, 'inside_t_1[active]': true, 'shu_s_3[enemy][enter]': true, 'necras_t_1[upgrade]': true,
+  'necras_upgrade_dragon': true,
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
   'horn_s_2[overload_mark]': true,
   'horn_s_3[overload_start_effect_2]': true,
@@ -919,7 +924,8 @@ export function planUses(idx, plan, uses, opts = {}) {
     return a;
   };
   const eachHit = [];
-  const miss = (key, role, reason, u) => { plan.unmapped.push({ key, role, reason, from: u.from }); };
+  // (fork) `buff`: the client buff the row belongs to (a b.snap fxs row of it shows it: talentfx.js targetRows)
+  const miss = (key, role, reason, u) => { plan.unmapped.push({ key, role, reason, from: u.from, ...(u.buff ? { buff: u.buff } : null) }); };
 
   // an enemy skill held in several modes (index v2): its copies' uses name their `mode` — the plan of `opts.mode`
   // (default 'Default') keeps that copy's and the uses without one
@@ -948,6 +954,14 @@ export function planUses(idx, plan, uses, opts = {}) {
         e.at = 'carrier';
         e.hold = 'state';
         if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff)) plan.state.push(e);
+        placed = null;
+      }
+      // (fork) a buff the skill gives the owner's summons (CreateBuffToToken: 可露希尔's base range, 伺夜's wolves, 麦哲伦-
+      // style tokens): `tokens`, played on each summon (UnitInfo summonerId) while the skill lasts — a loop held, an
+      // IMMEDIATELY one once (SkillFx._tokens)
+      if (placed === 'token' && u.on !== 'token') {
+        e.hold = u.life?.type === 'IMMEDIATELY' ? 'once' : 'skill';
+        if (!plan.tokens.some((x) => x.key === e.key)) plan.tokens.push(e);
         placed = null;
       }
       if (placed) {
@@ -1276,7 +1290,7 @@ export function slotKey(entry, dir) {
 export function planKeys(plan) {
   const out = new Set();
   const add = (e) => { if (!e) return; out.add(e.key); for (const s of e.slots || []) if (s) out.add(s); };
-  for (const g of ['start', 'loop', 'end', 'ready', 'range', 'trigger', 'targets']) for (const e of plan?.[g] || []) add(e);
+  for (const g of ['start', 'loop', 'end', 'ready', 'range', 'trigger', 'targets', 'tokens']) for (const e of plan?.[g] || []) add(e);
   for (const a of plan?.attacks || []) {
     for (const e of [...a.cast, ...a.range, ...(a.aim || [])]) add(e);
     for (const g of a.hit) for (const e of g) add(e);

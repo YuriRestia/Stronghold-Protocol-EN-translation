@@ -130,6 +130,8 @@ export default {
       const away = !(unit.alive && unit.deployed && unit.deploySeq === w.seq);
       const lev = num(b3['attack@levitate']);
       if (lev > 0) battle.applyStatus(best, 'levitate', { duration: lev, source: unit });
+      // (fork) the client's heyak_s_3[hit_levitate] (IMMEDIATELY): heyak_cyclone_01_emit once on the lifted enemy — display only
+      if (lev > 0) battle.fxState(best, 'heyak_s_3[hit_levitate]', true, { src: unit, dur: 0.6 });
       const lo = num(b3['attack@min_atk_scale']), hi = num(b3['attack@max_atk_scale'], lo);
       const scale = lo + (hi - lo) * Math.min(1, w.age / WIND_RAMP);
       if (best.alive) {

@@ -218,6 +218,8 @@ function land(battle, unit) {
     battle.refreshRange(unit);
   }
   battle.fx('teleport', { x: unit.x, y: unit.y, id: unit.id, fromX: f.from.x, fromY: f.from.y });
+  // (fork) the client's RespawnBorn (kalts2_s_3[restore]): kalts2_skill_03_teleport_end_01 where she lands (talentfx 'ability')
+  battle.fx('ability', { x: unit.x, y: unit.y, id: unit.id, name: 'kalts2_s_3[restore]' });
 }
 
 /** S3 ①②: the 待投放 operators and the flight to `anchor`. */
@@ -243,6 +245,8 @@ function startTransport(battle, unit, anchor) {
   battle.releaseBlocked(unit);
   unit.hidden = true;
   battle.fx('disappear', { x: unit.x, y: unit.y, id: unit.id });
+  // (fork) the client's StartTransporting (kalts2_s3_trigger_transporting): its kalts2_skill_03_teleport_01 (talentfx 'ability')
+  battle.fx('ability', { x: unit.x, y: unit.y, id: unit.id, name: 'kalts2_s3_trigger_transporting' });
   collide(battle, unit, f);
   battle.after(T, () => land(battle, unit), { owner: unit });
 }

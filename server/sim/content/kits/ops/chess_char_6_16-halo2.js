@@ -98,7 +98,7 @@ function halo2(bb, chess, def) {
       mods: { atkPct: num(bb.atk), batPct: batOf(bb.base_attack_time, def) },
       targeting: { maxTargets: n, ...(skillGrid ? { rangeGrid: skillGrid } : {}) },
       onStart({ unit }) { unit.mem.haloLocks = []; },
-      onEnd({ unit }) { unit.mem.haloLocks = []; },
+      onEnd({ battle, unit }) { for (const e of unit.mem.haloLocks || []) battle.fxState(e, 'halo2_s_3_link', false); unit.mem.haloLocks = []; },
     },
     talents: [
       { install(battle, unit) { // S3: persistent locks + damage transfer between linked targets
@@ -110,6 +110,9 @@ function halo2(bb, chess, def) {
           for (const e of ctx.targets) if (keep.length < n && !keep.includes(e)) keep.push(e);
           ctx.targets = keep.slice(0, n);
           const fresh = ctx.targets.some((e) => !(unit.mem.haloLocks || []).includes(e));
+          // (fork) the client's LockTargetAbility._buff halo2_s_3_link (halo2_skill_03_buff_02) on each locked enemy — display only
+          for (const e of unit.mem.haloLocks || []) if (!ctx.targets.includes(e)) battle.fxState(e, 'halo2_s_3_link', false);
+          for (const e of ctx.targets) battle.fxState(e, 'halo2_s_3_link', true, { src: unit });
           unit.mem.haloLocks = ctx.targets.slice();
           if (fresh && ctx.targets.length > 1) battle.fx('link', { x: ctx.targets[0].x, y: ctx.targets[0].y, id: unit.id, ids: ctx.targets.map((e) => e.id) });
         }, { owner: unit });

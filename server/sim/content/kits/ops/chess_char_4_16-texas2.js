@@ -125,6 +125,9 @@ export default withDefaults({
             battle.applyStatus(e, 'silence', { duration: sil, source: unit });
             battle.addBuff(e, { key: `texas2:drizzleDot:${unit.id}`, duration: dotDur + 1e-6, interval: dotIv, source: unit, refresh: 'extend', // a re-hit refreshes it, the per-second ticks keep their rhythm
               onTick: ({ unit: t }) => battle.dealDamage(unit, t, { amount: dot, type: 'arts', isSkill: true, tags: ['skill', 'dot'] }) });
+            // (fork) the client's texas2_s_1[dot] (PassiveAttachmentAbility._additiveActiveBuffs): texas2_skill_01_hit_buff on the
+            // enemy while the dot lasts — display only (render: talentfx.js targetRows via b.snap fxs)
+            battle.fxState(e, 'texas2_s_1[dot]', true, { src: unit, dur: dotDur });
           }, { owner: unit });
         }
         if (S2) {

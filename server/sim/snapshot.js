@@ -2,7 +2,7 @@
 //
 // b.snap  = { fieldId, t, units: [[id, x, y, hp, maxHp, sp, spMax, flags, anim]], dp, killed, total, resolved }
 //   (hp of a countdown summon — unit.countdown, content/tokens.js startCountdown — is maxHp × the share of its life left)
-// UnitInfo = { id, kind, side, ownerId, defId, name, tier, golden, spine, avatar, x, y, facing, dir, maxHp, motion?, boss?, uid?,
+// UnitInfo = { id, kind, side, ownerId, summonerId?, defId, name, tier, golden, spine, avatar, x, y, facing, dir, maxHp, motion?, boss?, uid?,
 //   form?, skillIndex?, ammoSkill?, moduleId?, items?, standInFor?, diy?, skin? }  (ammoSkill = an ally whose skill is an ammo
 //   magazine: the HP bar shows its rounds as cells, b.snap `ammo`; standInFor = the replaced operator's charId of a 补位
 //   stand-in; diy = a 自选 piece's pick { charId, skillIndex, uniEquipId } — defId is its slot, spine / avatar the operator's;
@@ -38,6 +38,9 @@ export function unitInfo(u) {
     kind: u.kind,
     side: u.side,
     ownerId: u.ownerId ?? null,
+    // (fork) the unit that summoned it (units.js ownerUnit), a summon only — the client plays its summoner's effects for
+    // its summons on it (render/vfx/skillfx.js tokens, talentfx.js onSummons)
+    ...(u.ownerUnit?.id != null ? { summonerId: u.ownerUnit.id } : null),
     defId: u.defId,
     name: u.name,
     tier: d.tier ?? (d.rank === 'BOSS' ? 3 : d.rank === 'ELITE' ? 2 : 1),
@@ -298,7 +301,10 @@ export function fxStateView(u, t = 0) {
     for (const p of u.fxProbes) {
       const v = p.probe(u);
       if (v == null || v === false) continue;
-      if (!(out && out.some((r) => r[0] === p.buff))) (out || (out = [])).push([p.buff, null, v === true ? null : v]);
+      // (fork) an object names the unit that gave it: { src, look? }
+      const obj = v && typeof v === 'object';
+      const src = obj ? (v.src && typeof v.src === 'object' ? v.src.id : v.src) ?? null : null;
+      if (!(out && out.some((r) => r[0] === p.buff))) (out || (out = [])).push([p.buff, src === u.id ? null : src, v === true ? null : obj ? v.look ?? null : v]);
     }
   }
   for (const b of u.buffs) {

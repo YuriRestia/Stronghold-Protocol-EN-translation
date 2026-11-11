@@ -193,9 +193,11 @@ describe('skill plans (synthetic)', () => {
     assert.deepEqual(keysOf(p.each.hit[0]), ['tmpl_out_hit', 'byname_hit']);
     assert.equal(p.each.hit[0][1].byName, true);
     const why = Object.fromEntries(p.unmapped.map((u) => [u.key, u.reason]));
-    assert.deepEqual(why, { tmpl_after: 'after-end', tmpl_cond: 'conditional', tmpl_tick: 'tick', tok_buff: 'token', line_fx: 'path',
+    assert.deepEqual(why, { tmpl_after: 'after-end', tmpl_cond: 'conditional', tmpl_tick: 'tick', line_fx: 'path',
       tile_fx: 'tiles', ch_hit: 'channel-hit', act_hit: 'hit-no-attack', a_start: 'other' });
     for (const u of p.unmapped) assert.ok(UNMAPPED[u.reason], u.reason);
+    // (fork) a buff the skill gives the owner's summons (CreateBuffToToken) plays on them (SkillFx._tokens), held for the skill
+    assert.deepEqual(p.tokens.map((e) => [e.key, e.hold]), [['tok_buff', 'skill']]);
   });
   test('directional rows: slotKey by facing; planKeys holds every slot', () => {
     const p = skillPlan(idx, null, 'sk_dir');
