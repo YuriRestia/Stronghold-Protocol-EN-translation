@@ -17,7 +17,8 @@ import { UF } from '../../shared/constants.js';
 
 const BLOCKED = 1, STEALTH = 8, SKILL = 16;
 const LOOPING = new Set(['dep_buff', 'mode_buff', 'atk_buff', 'reb_loop', 'reb_inv', 'reb_post', 'common_invisible', 'blk_buff', 'unblk_buff', 'aura_loop', 'gen_loop', 'never_buff',
-  'bar_loop', 'enr_loop', 'token_sum_buff', 'tgt_buff_fx', 'abl_loop']);
+  'bar_loop', 'enr_loop', 'token_sum_buff', 'tgt_buff_fx', 'abl_loop',
+  'billro_skill_03_buff_03_01', 'billro_skill_03_buff_03_02', 'zebra_buff_01']);
 const KEYS = [...LOOPING, 'dep_birth', 'reb_end', 'reb_hit', 'doll_start', 'def_cast', 'stand_cast', 'sk_trig', 'exa_cast', 'exa_hit', 'pj_cast',
   'lv_hit', 'lv_lim', 'lv_inf', 'lv_once', 'g_hit', 'g_enemy', 'g_heal', 'g_die', 'g_birth', 'sh_cast', 'bomb_hit'];
 const PROJ = ['proj_a', 'proj_b', 'proj_c', 'proj_z_s1', 'proj_m'];
@@ -114,11 +115,20 @@ function makeIndex() {
         kind: 'char', modes: [{ name: 'Default', attack: melee([]) }], skills: {}, talents: {},
         abilities: [
           { kind: 'general', name: 'Aura', node: 'Others/GeneralAbilities/Aura', class: 'AuraAbility', when: 'passive',
-            uses: [{ role: 'loop', keys: ['tgt_buff_fx'], from: 'AuraAbility._buffs → template peak_performance[inf]', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 'peak_performance[inf]', life: { type: 'INFINITY' } }] },
+            uses: [{ role: 'loop', keys: ['tgt_buff_fx'], from: 'AuraAbility._buffs → template peak_performance[inf]', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 'peak_performance[inf]', life: { type: 'INFINITY' } },
+            // (a buff with looks, STATE_BUFFS: 卡涅利安's S3 mark below and at its stack cap)
+            { role: 'loop', keys: ['billro_skill_03_buff_03_01'], from: 'AuraAbility._buffs', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 'billro_s_3[mark_effect]', life: { type: 'INFINITY' } },
+            { role: 'loop', keys: ['billro_skill_03_buff_03_02'], from: 'AuraAbility._buffs', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 'billro_s_3[mark_effect]', life: { type: 'INFINITY' } }] },
           { kind: 'general', name: 'Aim', node: 'Others/GeneralAbilities/Aim', class: 'RangedAttack', when: null,
             triggers: [{ template: 't_aim[switch]', event: 'ON_BUFF_START', action: 'TriggerAbilityUseSelector', name: 'Aim' }],
             uses: [{ role: 'loop', keys: ['abl_loop'], from: 'BuffToOwner._buffs', node: 'Others/GeneralAbilities/Aim', on: 'owner', buff: 't_aim_fx', life: { type: 'INFINITY' } }] },
         ],
+      },
+      // (fork) a unit whose only official rows are a state the sim signals (Heavyrain's S2 aura on her allies)
+      char_813_st: {
+        kind: 'char', modes: [{ name: 'Default', attack: melee([]) }], skills: {}, talents: {},
+        abilities: [{ kind: 'general', name: 'Aura', node: 'Others/GeneralAbilities/Aura', class: 'AuraAbility', when: 'passive',
+          uses: [{ role: 'loop', keys: ['zebra_buff_01'], from: 'AuraAbility._buffs', node: 'Others/GeneralAbilities/Aura', on: 'targets', buff: 'zebra_s_2[aura]', life: { type: 'INFINITY' } }] }],
       },
       enemy_806_aura: {
         kind: 'enemy', skills: {}, modes: [{ name: 'Default', attack: null, combat: melee([]) }, { name: 'M2', attack: null, combat: melee([]) }],
@@ -165,6 +175,7 @@ const RECS = {
   char_804_doll: { charId: 'char_804_doll', talents: [] },
   char_810_sum: { charId: 'char_810_sum', talents: [] },
   char_812_tgt: { charId: 'char_812_tgt', talents: [] },
+  char_813_st: { charId: 'char_813_st', talents: [] },
   enemy_809_bar: { talents: { bb: { 'enrage.hp_ratio': 0.5 } }, skills: [] },
 };
 
@@ -228,6 +239,32 @@ describe('(fork) abilities of a summoner on its summons (UnitInfo summonerId)', 
     assert.equal(live('abl_loop'), 1);
     assert.equal(w.simFx('ability', 5, 5, { id: 1, name: 'nothing' }), false);
     void own;
+  });
+
+  test("a b.snap fxs row's look keeps that look's rows of the buff (STATE_BUFFS looks)", async () => {
+    const { view, frame, live } = await setup();
+    view(1, 'char_812_tgt');
+    const foe = view(2, 'char_800_dep');
+    foe.fxs = [['billro_s_3[mark_effect]', 1, 'part']];
+    frame(2);
+    assert.deepEqual([live('billro_skill_03_buff_03_01'), live('billro_skill_03_buff_03_02')], [1, 0], 'below the cap');
+    foe.fxs = [['billro_s_3[mark_effect]', 1, 'full']];
+    frame(2);
+    assert.deepEqual([live('billro_skill_03_buff_03_01'), live('billro_skill_03_buff_03_02')], [0, 1], 'at the cap');
+    foe.fxs = [['billro_s_3[mark_effect]', 1, null]];
+    frame(2);
+    assert.deepEqual([live('billro_skill_03_buff_03_01'), live('billro_skill_03_buff_03_02')], [1, 1], 'no look: every row');
+  });
+
+  test('a unit whose only official rows are sim-signalled states still plays them (its talent record holds them)', async () => {
+    const { view, frame, live } = await setup();
+    view(1, 'char_813_st');
+    const ally = view(2, 'char_800_dep');
+    frame(2);
+    assert.equal(live('zebra_buff_01'), 0);
+    ally.fxs = [['zebra_s_2[aura]', 1, null]];
+    frame(2);
+    assert.equal(live('zebra_buff_01'), 1, 'on the ally while the row lasts');
   });
 });
 

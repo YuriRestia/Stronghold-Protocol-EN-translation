@@ -70,6 +70,8 @@ export default {
       },
       talents: [{ install(battle, unit) {
         const sk = unit.skill;
+        // (fork) the client's papyrs_s_1[fx_ctrl]: papyrs_skill1_buff_01 on her while S1 has a charge ready — display only
+        if (sk && sk.id === 'skchr_papyrs_1') battle.fxProbe(unit, 'papyrs_s_1[fx_ctrl]', (u) => !!(up(u) && u.skill?.ready && !u.skill.active));
         if (sk && sk.id === 'skchr_papyrs_2' && !Object.prototype.hasOwnProperty.call(sk, 'activate')) {
           // "无法可选单位时无法开启技能": every activation path (DEFAULT heal trigger, carried skill, content) is refused
           // while no ally can be locked — the charge stays, nothing starts (non-enumerable: never serialised)

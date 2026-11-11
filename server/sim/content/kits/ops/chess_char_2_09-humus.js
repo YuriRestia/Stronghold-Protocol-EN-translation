@@ -44,6 +44,10 @@ export default {
       },
       talents: [{ install(battle, unit) {
         const ratio = num(t.max_hp_ratio);
+        // (fork) the client's humus_trait heal (humus_recover_01, once per heal) and humus_t_1[effect] (humus_buff_03 while
+        // her 再回收 barrier holds) — display only
+        battle.on('heal', (ctx) => { if (ctx.target === unit && ctx.amount > 0) battle.fxState(unit, 'humus_trait', true, { dur: 0.6 }); }, { owner: unit });
+        battle.fxProbe(unit, 'humus_t_1[effect]', (u) => !!(u.alive && u.deployed && u.findBuff('humus:recycle')?.shield > 0));
         if (!(ratio > 0)) return;
         battle.on('heal', (ctx) => {
           if (ctx.target !== unit || !(ctx.amount > 0)) return;

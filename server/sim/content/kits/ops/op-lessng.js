@@ -128,6 +128,8 @@ export default {
         } },
       ],
       install(battle, unit) {
+        // (fork) the client's lessng_a[s1_eff]: lessng_skill_01_hint on him while his S1 strike is ready — display only
+        if (unit.skill?.id === S1) battle.fxProbe(unit, 'lessng_a[s1_eff]', (u) => !!(u.alive && u.deployed && u.skill?.ready && !u.skill.active));
         // DRE-Y stage 3: 攻击自身阻挡的敌人时，无视目标12%的防御力 (every damage of his to an enemy he blocks)
         const pen = num(hb.def_penetrate);
         if (pen > 0) {

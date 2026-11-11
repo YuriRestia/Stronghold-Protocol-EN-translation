@@ -536,6 +536,18 @@ export const STATE_BUFFS = Object.freeze({
   // Necrass S3's special skeleton (op-necras.js): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
   'necras_upgrade_dragon': { looks: L({ stage1: ['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02'],
     stage2: ['token_necras_skeltn2_buff_02', 'token_necras_skeltn2_buff_02_02'] }) },
+  // (fork) phase D (audit #7): the conditional talent rows, signalled by the kits / professions.js (fxState / fxProbe)
+  'papyrs_s_1[fx_ctrl]': true, 'lessng_a[s1_eff]': true, 'nasti_s2[update_shield]': true,
+  'haini_s_2[modify_talent]': true, 'zebra_s_2[aura]': true, 'swire2_tr': true, 'swire2_t_2': true,
+  'humus_trait': true, 'humus_t_1[effect]': true, 'aroma_s_2': true, 'tocka_t1[sp_and_heal]': true,
+  // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
+  // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
+  'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
+  'mlynar_tr': { looks: L({ low: ['mlynar_attack_01_buff_l_01'], mid: ['mlynar_attack_01_buff_l_02'], max: ['mlynar_attack_01_buff_l_03'] }) },
+  // Carnelian S3's mark on an enemy (chess_char_4_24-billro.js): [part] below the stack cap, [full] at it
+  'billro_s_3[mark_effect]': { looks: L({ part: ['billro_skill_03_buff_03_01'], full: ['billro_skill_03_buff_03_02'] }) },
+  // Lee's guard (op-lmlee.js, lmlee_tr → lmlee_t_2[bounce]): its loop while held, the hit as it cancels a stun
+  'lmlee_tr': { looks: L({ guard: ['lmlee_buff_02_start'], hit: ['lmlee_buff_02_hit'] }) },
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
   'horn_s_2[overload_mark]': true,
   'horn_s_3[overload_start_effect_2]': true,

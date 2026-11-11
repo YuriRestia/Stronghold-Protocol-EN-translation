@@ -40,7 +40,9 @@ export default withDefaults({
           battle.addBuff(e, { key: AROMA_MARK, source: unit });
           unit.mem.bubbled.add(e.id);
           c.dmg.mul *= num(t0.damage_scale, 1.1);
-          if (battle.applyStatus(e, 'levitate', { duration: num(t0.levitate_duration, 2.5), source: unit })) battle.fx('levitate', { x: e.x, y: e.y, id: e.id });
+          if (battle.applyStatus(e, 'levitate', { duration: num(t0.levitate_duration, 2.5), source: unit })) {
+            battle.fx('levitate', { x: e.x, y: e.y, id: e.id });
+          }
         }, { owner: unit });
         battle.on('death', (c) => {
           if (c.unit !== unit) return;
@@ -63,6 +65,8 @@ export default withDefaults({
             if (S2 && unit.alive && unit.deployed && skillActive(unit) && bodyInRange(e, keySet(unit))) {
               battle.dealDamage(unit, e, { amount: unit.s.atk * land, type: 'arts', isSkill: true, tags: ['skill', 'landing'] });
               battle.fx('splash', { x: e.x, y: e.y, id: e.id });
+              // (fork) the client's aroma_s_2 tick hit (aroma_skill_02_hit_02, once) on the landed enemy — display only
+              battle.fxState(e, 'aroma_s_2', true, { src: unit, dur: 0.6 });
             }
           }
         }, { owner: unit });

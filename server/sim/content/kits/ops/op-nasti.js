@@ -367,6 +367,8 @@ export default {
       },
       talents: [
         { install(battle, unit) {
+          // (fork) the client's nasti_s2[update_shield]: common_shield_01_follow_hit on her while her S2 barrier holds — display only
+          battle.fxProbe(unit, 'nasti_s2[update_shield]', (u) => !!(u.alive && u.deployed && u.findBuff(SELF_SHIELD)?.shield > 0));
           // 前方施工: her device pieces run their kits; the stock; CRA-X stage 2+ the first device after each deployment −3 DP
           const st = deviceState(unit);
           st.cap = cnt;

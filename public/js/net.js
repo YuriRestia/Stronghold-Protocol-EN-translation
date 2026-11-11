@@ -34,6 +34,7 @@ import { validateC2S } from '../../shared/protocol.js';
 import { N_ } from '../../shared/i18n.js';
 import { genUrl } from './gen.js';
 import { STATE_DELTA_VERSION, StateReceiver } from '../../shared/stateDelta.js';
+import { FxsResolver } from '../../shared/fxsDiff.js';
 import { PeerTransport } from './p2p.js';
 import { createRegions } from './regions.js';
 
@@ -188,6 +189,8 @@ export class Net {
     // hello named STATE_DELTA_VERSION. A missed frame blocks that channel, and one resync request per RESYNC_GAP_MS
     // asks for a full one — the server answers it like a repeated hello (and throttles it the same way).
     this._receiver = new StateReceiver();
+    // (fork) b.snap `fxs` arrive as changes (shared/fxsDiff.js): each field's last set, put back into every frame
+    this._fxs = new FxsResolver();
     this._stateRoom = null;
     this._resyncAt = 0;        // epoch ms of the last resync request we sent
     this.peers = new PeerTransport(this, opts.p2p);
@@ -621,8 +624,10 @@ export class Net {
     if (msg.t === 'room.closed' || (msg.t === 'room.state' && msg.code !== this._stateRoom)) {
       this._stateRoom = msg.t === 'room.state' ? msg.code : null;
       this._receiver.reset();
+      this._fxs.reset();
       this._resyncAt = 0;
     }
+    if (msg.t === 'b.snap') msg = this._fxs.apply(msg);
     if (msg.t === 'm.state') {
       const { message, resync } = this._receiver.receive(msg);
       if (resync) this.requestResync();

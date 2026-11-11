@@ -298,6 +298,9 @@ const installDollkeeper = (battle, unit) => {
   }, { owner: unit });
 };
 
+/** (fork) Librators whose trait buff the client shows as a glow by the ramp's stage (installLibrator's fxProbe). */
+export const LIBRATOR_FX = Object.freeze({ char_1043_leizi2: 'leizi2_tr', char_4064_mlynar: 'mlynar_tr' });
+
 const installLibrator = (battle, unit) => {
   // ATK ramps linearly to +rampMax (bb atk, default +200 %) over rampTime s (bb max_stack_cnt, default 40) while
   // the skill is inactive; blocks nothing while inactive; everything resets when the skill ends.
@@ -309,6 +312,15 @@ const installLibrator = (battle, unit) => {
     else { battle.addBuff(unit, { key: 'trait:libratorBlock', mods: { blockCnt: -99 } }); battle.releaseBlocked(unit); }
   };
   unit.trait.ramp = 0;
+  // (fork) the client's trait buff of the operator (LIBRATOR_FX): its glow by the ramp's stage — `mid` from half the
+  // ramp, `max` at the full ramp [ASSUMED: mid_stack_cnt = max_stack_cnt / 2, no data] — display only, read at snapshot time
+  const fxBuff = LIBRATOR_FX[unit.def?.charId ?? unit.def?.raw?.charId];
+  if (fxBuff) {
+    battle.fxProbe(unit, fxBuff, (u) => {
+      const r = u.alive && u.deployed && !u.skill?.active ? u.trait.ramp / rampMax : 0;
+      return r >= 1 - 1e-9 ? 'max' : r >= 0.5 - 1e-9 ? 'mid' : r > 0 ? 'low' : false;
+    });
+  }
   battle.every(1, () => {
     if (!unit.alive || !unit.deployed || unit.skill?.active) return;
     unit.trait.ramp = Math.min(rampMax, unit.trait.ramp + rampMax / rampTime);

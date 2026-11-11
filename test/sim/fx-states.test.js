@@ -10,6 +10,7 @@ import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.
 import { fxStateView } from '../../server/sim/snapshot.js';
 import { BattleEvents } from '../../server/sim/battle/events.js';
 import { SKILL_FX_STATES, TOKEN_FX_STATES, installFxStates } from '../../server/sim/content/fxStates.js';
+import { LIBRATOR_FX } from '../../server/sim/professions.js';
 import { STATE_BUFFS } from '../../public/js/render/vfx/skills.js';
 
 const rowsOf = (snap, id) => (snap.fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
@@ -114,6 +115,25 @@ describe('marks on targets: the kits name the carrier (effect gaps audit 2, item
   });
 });
 
+describe('talent and skill states the kits signal (audit #7 phase D)', () => {
+  test("Heavyrain S2 (Season 1): zebra_s_2[aura] on her and each ally it hides, src Heavyrain, gone with the skill", async () => {
+    const { VERSION_KITS } = await import('../../server/sim/content/kits/index.js');
+    const s1 = JSON.parse(readFileSync(new URL('../../data/versions/act1autochess/chess.json', import.meta.url), 'utf8'));
+    const h = makeBattle({ autoFinish: false, defs: { chess: { chess_char_2_08_a: (s1.units || s1).chess_char_2_08_a } },
+      kits: { chess_char_2_08: VERSION_KITS.char_304_zebra },
+      units: [{ uid: 1, chessId: 'chess_char_2_08_a', skillIndex: 1, row: 10, col: 3 }, { uid: 2, chessId: 'chess_char_4_02_a', skillIndex: 0, row: 10, col: 4 }] });
+    h.step();
+    const u = h.unit(1), ally = h.unit(2);
+    u.skill.activate('test', { free: true });
+    h.step();
+    assert.deepEqual(rowsOf(h.b.snapshot(), u.id), [['zebra_s_2[aura]', null, null]], 'on her (her own: no src)');
+    assert.deepEqual(rowsOf(h.b.snapshot(), ally.id), [['zebra_s_2[aura]', u.id, null]], 'on the ally beside her');
+    assert.ok(h.runUntil(() => !u.skill.active, 60), 'the skill ends');
+    h.step();
+    assert.deepEqual([rowsOf(h.b.snapshot(), u.id), rowsOf(h.b.snapshot(), ally.id)], [[], []]);
+  });
+});
+
 describe('the sim and the client name the same buffs', () => {
   const kits = new URL('../../server/sim/content/kits/ops/', import.meta.url);
   const src = readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')).join('\n');
@@ -124,6 +144,7 @@ describe('the sim and the client name the same buffs', () => {
   for (const m of src.matchAll(/_FX\s*=\s*Object\.freeze\(\[(.*?)\]\)/g)) for (const k of m[1].matchAll(/'([^']+)'/g)) named.add(k[1]);
   for (const s of Object.values(SKILL_FX_STATES)) for (const e of [].concat(s)) named.add(e.buff);
   for (const list of Object.values(TOKEN_FX_STATES)) for (const b of list) named.add(b);
+  for (const b of Object.values(LIBRATOR_FX)) named.add(b);
   test('each signalled buff is in STATE_BUFFS', () => {
     for (const b of named) assert.ok(STATE_BUFFS[b], `${b}: signalled by the sim, unknown to the client`);
   });

@@ -135,6 +135,9 @@ export default withDefaults({
                 if (m) unit.mem.billroMarked?.add(e.id);
               }
             }
+            // (fork) the client's billro_s_3[mark_effect]: [part] (billro_skill_03_buff_03_01) on a marked enemy, [full]
+            // (_03_02) at the stack cap — display only
+            if (m && m.source === unit) battle.fxState(e, 'billro_s_3[mark_effect]', true, { src: unit, look: (m.stacks || 1) >= BILLRO_MARK_MAX ? 'full' : 'part', dur: m.timeLeft });
             if (m && m.source === unit) c.dmg.mul *= 1 + per * (m.stacks || 1);
           }, { owner: unit });
         }
