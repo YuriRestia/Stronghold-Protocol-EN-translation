@@ -62,7 +62,7 @@ import { absoluteRangeKeys, canTargetEnemy, sortEnemyTargets } from '../../../ta
 import { bodyInRange } from '../../../body.js';
 import { hasHp } from '../../../attack.js';
 import { RESIST_STATUSES } from '../../../buffs.js';
-import { TICK } from '../../../constants.js';
+import { TICK, COLS } from '../../../constants.js';
 import { hypot } from '../../../detmath.js';
 
 const S1 = 'skchr_aglna2_1';
@@ -91,9 +91,9 @@ const bbOf = (chess, id) => skillRec(chess, id)?.bb ?? {};
 const skillOn = (unit, id) => !!(unit.skill && unit.skill.active && unit.skill.id === id);
 const keyOf = (r, c) => `${r},${c}`;
 
-function takeOff(battle, unit) {
+function takeOff(battle, unit, show = null) {
   battle.releaseBlocked(unit);   // 起飞 "不阻挡地面敌人": the ground enemies she held walk on
-  battle.fx('takeoff', { x: unit.x, y: unit.y, id: unit.id });
+  battle.fx('takeoff', { x: unit.x, y: unit.y, id: unit.id, ...show });
 }
 function land(battle, unit) { battle.releaseBlocked(unit); }   // the flyers she held
 
@@ -235,8 +235,10 @@ export default {
           targeting: s3Targeting,
           attack: { atkScale: num(b3['attack@atk_scale'], 1) },
           onStart({ battle, unit, skill }) {
-            takeOff(battle, unit);
             st = { r0: unit.tileR, c0: unit.tileC, dir0: unit.dir, act: skill.activations, flight: null, marker: null };
+            // (fork) display only: her running range for the client's range line (render/vfx/pathfx.js) — the 3-9 of
+            // her deployment tile (`range`, [row, col]…) and the tiles within `around` of her wherever she flies (x-4)
+            takeOff(battle, unit, { range: keys39(unit).map((k) => [Math.floor(k / COLS), k % COLS]), around: 1 });
             s3Targeting.rangeGrid = g39x4;
           },
           onEnd({ battle, unit, reason }) {

@@ -25,6 +25,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - While her talent From the Ashes has her downed, she can no longer start a skill, as in the official game, where the downed state silences her. Her SP still recovers, so a full skill starts the moment she stands back up.
 
+### Line and path effects: Территория's kingdom, Aphrissa's S2 beam, Angelina the Mellow Wish's S3 range line
+
+- Территория's kingdom now shows the official kingdom look: the kingdom effect on every tile of it and the official line along its outer edge. It follows his range as it grows and shrinks, and fades shortly after he leaves. Before, the game drew a stand-in purple field.
+- Aphrissa's S2 beam now draws the official beam: one line from her weapon along the beam's path, bending where her relays and allied operators turn it, with the official start, relay and end point effects, for as long as S2 runs. Before, nothing showed the beam.
+- Angelina the Mellow Wish's S3 now shows the official range line around her running attack range: her original skill range plus the tiles around her, following her as she flies.
+- The points come from the battle: Aphrissa's S2 start now sends the beam's path, and Angelina the Mellow Wish's S3 start sends her skill range. These are display fields on events the battle already sent, so battles play out exactly as before. The new `render/vfx/pathfx.js` traces a tile set's outer edges into closed outlines through the tile corners, as the official range line does, and draws any official line through many points.
+- Not covered: Aphrissa's normal attack line and a beam path that changes during S2 (it keeps its starting path). Thorns the Lodestar's S3 polygon line is a separate follow-up.
+
 ### A player who leaves is out for good, and the next round doesn't wait for them
 
 - Leaving a match now eliminates the player in every room type, Grand Alliance included. Before, a Grand Alliance player who left (or was removed for idling) stayed in the match and the AI played their board every round. This also applies when a dropped player doesn't come back before the rejoin window ends. During that window nothing changes: in a Grand Alliance room the AI still plays a dropped player's board until they come back.
