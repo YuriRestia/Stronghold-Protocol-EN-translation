@@ -251,7 +251,8 @@ export default {
           if (c.source === a || c.credit === a || holdsUndying(battle, a)) return;
           c.prevented = true;
           unit.mem.slent2Grave = false;
-          battle.addBuff(a, { key: GRAVE_KEY, duration: graveDur, flags: { undying: true }, source: unit, visible: true, tags: ['skill'] });
+          // (fork) fx: slent2_s_3's would-die slent2_shallow_grave (slent2_skill_03_buff_02) while it lasts (b.snap fxs)
+          battle.addBuff(a, { key: GRAVE_KEY, duration: graveDur, flags: { undying: true }, source: unit, visible: true, tags: ['skill'], fx: 'slent2_s_3', fxSrc: unit.id });
           battle.fx('undying', { x: a.x, y: a.y, id: a.id, duration: graveDur });
         }, { owner: unit, priority: PRIO_GRAVE });
         // the 不死 window, held whoever opened it (one battle-wide hook, like 坚固维式重锤's running windows)

@@ -1677,6 +1677,12 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `layers: [[id, n]]` and `charges: [[id, stored, max]]` (each only when non-empty; display only, 0.3.0 round 46) =
   `snapshot.js` `layerView` (the sum of a unit's buffs' `shieldHits`: 泥岩's 护盾 layers) and `chargeView` (an ally skill
   with maxCharges > 1: `skill.charges`), read by the official effects (DESIGN §33.16).
+  (fork) `fxs: [[id, buff, src, look]]` (only when non-empty; display only, the golden canon leaves it out) = `snapshot.js`
+  `fxStateView`: the official buffs (client keys) whose lasting effects a unit shows now. A kit signals them with
+  `battle.fxState(unit, buff, on, { src, look, dur })` (a moment the sim marks: a kill, a fired trigger effect, an
+  overload), `battle.fxProbe(unit, buff, (u) => false | true | look)` (a state the kit already keeps, read only when a
+  snapshot is taken — nothing runs in the ticks) or a buff's `fx` / `fxSrc` / `fxLook` (shown while the buff lasts);
+  `content/fxStates.js` holds the skill-wide probes (charge-count glows). A state lasts the unit's deployment at most.
   `notes: [[noteId, ownerId, x, y, hx, hy,
   look, state]]` (only while notes fly; display only) = the free-flight notes of `notes.js` (丰川祥子): position, heading, the
   owner's look key and 0 wander / 1 trace / 2 passby; `fever: [[memberId, fill, active]]` (only on a field with a gauge) = the

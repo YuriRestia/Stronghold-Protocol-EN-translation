@@ -8,6 +8,10 @@ import {
 
 /** 号角 S2 过载: the second half of the ammo (PRTS 备注 of S3 "技能进行到一半时"; S2 counts shots). [ASSUMED] */
 const HORN_S2_OVERLOAD_AT = 0.5;
+// (fork) the client's overload buffs whose glow (horn_skill_0x_buff_*_front / _back by facing) lasts the 过载 — their
+// switch template checks the mark every tick (b.snap fxs, render/vfx/skills.js STATE_BUFFS)
+const HORN_S2_FX = 'horn_s_2[overload_mark]';
+const HORN_S3_FX = 'horn_s_3[overload_start_effect_2]';
 
 export default {
   // ---------------------------------------------------------------------------------------------------------------
@@ -58,7 +62,7 @@ export default {
           kind: 'ammo', ammo: s2Ammo,
           attack: { atkScale: num(bb['attack@s2.atk_scale'], 1), fortressMeleeSplash: true },
           onStart({ unit }) { unit.mem.hornS2Over = false; },
-          onEnd({ unit }) { unit.mem.hornS2Over = false; },
+          onEnd({ battle, unit }) { unit.mem.hornS2Over = false; battle.fxState(unit, HORN_S2_FX, false); },
         }),
       }),
       skill: {
@@ -70,7 +74,7 @@ export default {
           if (!unit.mem.overload && unit.mem.hornT >= main - 1e-9) {
             unit.mem.overload = true;
             const delta = ovAtk - num(bb.atk);
-            battle.addBuff(unit, { key: 'horn:overload', visible: true, mods: mods({ atkPct: delta }) });
+            battle.addBuff(unit, { key: 'horn:overload', visible: true, mods: mods({ atkPct: delta }), fx: HORN_S3_FX });
             battle.fx('overload', { x: unit.x, y: unit.y, id: unit.id });
           }
           if (!unit.mem.overload || !(ovPeak > 0)) return;
@@ -131,7 +135,7 @@ export default {
             if (c.attacker !== unit || !unit.skill?.active || !c.profile) return;
             const shot = s2Ammo - num(unit.skill.ammoLeft) + 1;
             const over = shot > s2Ammo * HORN_S2_OVERLOAD_AT + 1e-9;
-            if (over && !unit.mem.hornS2Over) battle.fx('overload', { x: unit.x, y: unit.y, id: unit.id });
+            if (over && !unit.mem.hornS2Over) { battle.fx('overload', { x: unit.x, y: unit.y, id: unit.id }); battle.fxState(unit, HORN_S2_FX, true); }
             unit.mem.hornS2Over = over;
             if (!over || !(magic > 0)) return;
             // decided at the shot (a shell still in flight when the skill ends keeps it): the effective profile of this

@@ -104,7 +104,8 @@ function applyMeans(battle, unit, e, p) {
   setMeans(battle, e, unit, { stacks, pct, cap5: p.cap5, cap8: p.cap8 }, p.dur);
 }
 function setMeans(battle, e, src, data, dur) {
-  battle.addBuff(e, { key: MEANS_KEY, duration: dur, refresh: 'replace', source: src, mods: { defMul: Math.max(0, 1 - data.pct * data.stacks) }, data: { ...data, src }, tags: ['talent'] });
+  // (fork) fx: its mark — demetr_t1[def_dec]'s demetr_t1[def_dec_core] (demetr_buff_01) while it lasts (b.snap fxs)
+  battle.addBuff(e, { key: MEANS_KEY, duration: dur, refresh: 'replace', source: src, mods: { defMul: Math.max(0, 1 - data.pct * data.stacks) }, data: { ...data, src }, tags: ['talent'], fx: 'demetr_t1[def_dec]', fxSrc: src?.id ?? null });
   if (data.stacks >= data.cap8) battle.addBuff(e, { key: MEANS_SLUG_KEY, duration: dur, refresh: 'replace', source: src, status: 'sluggish', mods: { moveMul: 0.2 }, visible: true, tags: ['talent'] });
   else battle.removeBuff(e, MEANS_SLUG_KEY);
 }
