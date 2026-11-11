@@ -12,7 +12,6 @@ import { knowledgePack } from '../../server/ai/knowledge.js';
 import { DATA } from './harness.js';
 import { exampleServer } from '../../tools/ai/http.mjs';
 import { aggregateStrategies } from '../../tools/ai/run-match.mjs';
-import { WORKER_LOAD_MS } from '../helpers/simHostFixture.js';
 
 const exec = promisify(execFile);
 const pack = knowledgePack(DATA, { modeId: 'mode_single_funny', language: 'en' });
@@ -317,8 +316,6 @@ test('a token-limit reply cannot use missing-wrapper recovery even when its plan
   await assert.rejects(agent(observation), /incomplete/);
 });
 
-// (fork) The AI call's own budget is not what this checks: WORKER_LOAD_MS, as a loaded machine's slow child start
-// passed 5 s and turned a correct reply into a fallback; the run's guard is twice that.
 for (const [tool, mode, transport] of [['botbench', 'direct', 'stdio'], ['botbench', 'plan', 'http'], ['matchrun', 'plan', 'stdio']]) {
   test(`${tool} executes ${mode} example ${transport} IO and reports real per-strategy outcomes`, async t => {
     let url;
@@ -328,9 +325,9 @@ for (const [tool, mode, transport] of [['botbench', 'direct', 'stdio'], ['botben
     }
     const args = tool === 'botbench' ? ['--configs', 'solo:FUNNY', '--json', '-'] : ['--mode', 'solo', '--difficulty', 'FUNNY', '--json'];
     const { stdout } = await exec(process.execPath, [`tools/${tool}.mjs`, ...args, '--bot', 'external', '--seeds', '1', '--seed', '7', '--rehearsal', '0', '--quiet'], {
-      timeout: 2 * WORKER_LOAD_MS, maxBuffer: 2e6, env: { ...process.env, SP_EXTERNAL_AI_MODE: mode, SP_EXTERNAL_AI_TRANSPORT: transport,
+      timeout: 60000, maxBuffer: 2e6, env: { ...process.env, SP_EXTERNAL_AI_MODE: mode, SP_EXTERNAL_AI_TRANSPORT: transport,
         SP_EXTERNAL_AI_URL: url || '', SP_EXTERNAL_AI_COMMAND: JSON.stringify([process.execPath, 'tools/ai/stdio.mjs']),
-        SP_EXTERNAL_AI_SEATS: '', SP_EXTERNAL_AI_TIMEOUT_MS: String(WORKER_LOAD_MS) },
+        SP_EXTERNAL_AI_SEATS: '', SP_EXTERNAL_AI_TIMEOUT_MS: '5000' },
     });
     const [r] = JSON.parse(stdout); const p = r.strategyMetrics[0];
     assert.equal(p.strategy, `external:${mode}`); assert.ok(p.survivalRound > 1); assert.ok(p.external.calls > 1);
@@ -341,7 +338,6 @@ for (const [tool, mode, transport] of [['botbench', 'direct', 'stdio'], ['botben
   });
 }
 
-// (fork) WORKER_LOAD_MS per AI call, as above.
 test('the stdio LLM example runs through matchrun using only the loopback mock API', async t => {
   let calls = 0;
   const url = await mock(t, (req, res) => {
@@ -349,8 +345,8 @@ test('the stdio LLM example runs through matchrun using only the loopback mock A
       usage: { prompt_tokens: 10, completion_tokens: 2 } })); });
   });
   const { stdout, stderr } = await exec(process.execPath, ['tools/matchrun.mjs', '--mode', 'solo', '--difficulty', 'FUNNY', '--bot', 'external', '--seed', '7', '--rehearsal', '0', '--json'], {
-    timeout: 2 * WORKER_LOAD_MS, maxBuffer: 2e6, env: { ...process.env, ...envFor(url), SP_EXTERNAL_AI_MODE: 'plan', SP_EXTERNAL_AI_TRANSPORT: 'stdio',
-      SP_EXTERNAL_AI_COMMAND: JSON.stringify([process.execPath, 'tools/ai/llm-agent.mjs']), SP_EXTERNAL_AI_SEATS: '', SP_EXTERNAL_AI_TIMEOUT_MS: String(WORKER_LOAD_MS) },
+    timeout: 60000, maxBuffer: 2e6, env: { ...process.env, ...envFor(url), SP_EXTERNAL_AI_MODE: 'plan', SP_EXTERNAL_AI_TRANSPORT: 'stdio',
+      SP_EXTERNAL_AI_COMMAND: JSON.stringify([process.execPath, 'tools/ai/llm-agent.mjs']), SP_EXTERNAL_AI_SEATS: '', SP_EXTERNAL_AI_TIMEOUT_MS: '5000' },
   });
   const [r] = JSON.parse(stdout); assert.ok(calls > 1); assert.equal(r.external.calls, calls);
   assert.equal(r.external.fallbacks, 0); assert.equal(r.external.inputTokens, calls * 10); assert.equal(r.external.outputTokens, calls * 2);
