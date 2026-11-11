@@ -1,7 +1,7 @@
 // Community follow-up: deployment clocks, air-only casts, champagne healing and airborne splash.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 
 const TRAP = 'token_10031_swire2_gdtrap';
 const SW = 'chess_char_3_04_a';
@@ -58,18 +58,18 @@ test('赤刃陈 S3 rejects an out-of-range flyer; a hidden or sleeping flyer on 
   { const { h, u } = chen3();
     const e = h.spawn('fly', { pos: [10, 6] });
     h.b.addBuff(e, { key: 'test:stealth', flags: { stealth: true } });
-    h.run(0.3); assert.equal(u.skill.activations, 1, 'a hidden flyer on the skill range'); done(h); }
+    h.run(0.3); throughBegin(h, u); assert.equal(u.skill.activations, 1, 'a hidden flyer on the skill range'); done(h); }
   { const { h, u } = chen3();
     const e = h.spawn('fly', { pos: [10, 6] });
     h.b.applyStatus(e, 'sleep', { duration: 0.4 });
-    h.run(0.2); assert.equal(u.skill.activations, 1, 'a sleeping flyer on the skill range'); done(h); }
+    h.run(0.2); throughBegin(h, u); assert.equal(u.skill.activations, 1, 'a sleeping flyer on the skill range'); done(h); }
 });
 
 test('赤刃陈 S3 cannot cast while stunned', () => {
   const { h, u } = chen3();
   h.spawn('fly', { pos: [10, 6] });
   h.b.applyStatus(u, 'stun', { duration: 0.7 }); h.run(0.5); assert.equal(u.skill.activations, 0);
-  h.run(0.4); assert.equal(u.skill.activations, 1); done(h);
+  h.run(0.4); throughBegin(h, u); assert.equal(u.skill.activations, 1); done(h);
 });
 
 test('琳琅诗怀雅 S2 receives the deployment coin and throws without waiting for the first merchant payment', () => {
@@ -109,7 +109,7 @@ for (const skillIndex of [0, 1, 2]) {
       units: [{ uid: 1, diy: diy('char_1015_aglna2', skillIndex), row: 9, col: 5 },
         { uid: 2, chessId: 'wall', row: 10, col: 5 }] });
     h.step(); const u = h.unit(1), bait = h.unit(2);
-    if (skillIndex > 0) assert.ok(u.skill.activate('test', { free: true }));
+    if (skillIndex > 0) assert.ok(castNow(u, 'test', { free: true }));
     h.run(3); assert.ok(u.s.flags.liftoff, 'past S2 invulnerable chant, still airborne');
     const e = h.spawn('enemy_1161_tidmag', { pos: [10, 7], mods: { hpMul: 1e4, speedMul: 0, atkMul: 0.1 } });
     h.run(7);

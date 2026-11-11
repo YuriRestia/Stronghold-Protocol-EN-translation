@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 
 test('Clementia S3 ignores allied erosion bursts but still marks enemy bursts', () => {
   const h = makeBattle({ autoFinish: false, hooks: ['elementBurst'],
@@ -11,7 +11,7 @@ test('Clementia S3 ignores allied erosion bursts but still marks enemy bursts', 
   });
   h.step();
   const u = h.unit(1), ally = h.unit(2);
-  u.skill.gainSp(999, 'test'); assert.ok(u.skill.activate('test'));
+  u.skill.gainSp(999, 'test'); assert.ok(castNow(u, 'test'));
   h.b.dealDamage(null, ally, { type: 'element', element: 'erosion', amount: 2000 });
   assert.equal(h.hooksOf('elementBurst').filter(c => c.target === ally).length, 1, 'a real allied burst occurred');
   assert.equal(u.mem.clemntBombs.marks.size, 0, 'friendly injury must not schedule a shot');
@@ -91,7 +91,7 @@ test('Horn changing to melee does not remove splash from an already flying shell
   });
   h.step(); const u = h.unit(1);
   h.b.addBuff(u, { key: 'test:fast', persist: true, mods: { aspd: 500 } });
-  u.skill.gainSp(999, 'test'); assert.ok(u.skill.activate('test'));
+  u.skill.gainSp(999, 'test'); assert.ok(castNow(u, 'test'));
   const far = h.spawn('dummy', { pos: [10, 8] }), side = h.spawn('dummy', { pos: [11, 8] });
   assert.ok(h.runUntil(() => h.hooksOf('attack').some(c => c.attacker === u), 1));
   h.spawn('dummy', { pos: [10, 3] }); h.run(0.4);

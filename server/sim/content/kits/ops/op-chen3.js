@@ -50,7 +50,8 @@
 //   The wave is a kit-managed probe, not a snapshot projectile, so it is shown with `fx('chen3Wave')` events every
 //   WAVE_FX_EVERY s (its position, the previous point and its direction — render/fx 'qi': a procedural blade trail with
 //   a crescent head, not the official particle prefab); before that the 龙剑气 had no visual at all (PR #382). Her
-//   begin clips (S1 0.2 s, S3 0.433 s) are not modelled [ASSUMED: the engine starts skills at once].
+//   begin clips (S1 0.2 s, S3 0.433 s) come first: the skill starts when its clip ends (skills.js activate, data
+//   `beginAnim`).
 
 import { num, talentBb, traitBb, skillRec, statBuff, toggleBuff, up } from '../shared/tier1.js';
 import { absoluteRangeKeys, canTargetEnemy } from '../../../targeting.js';

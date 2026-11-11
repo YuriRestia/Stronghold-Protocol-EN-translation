@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { allyCastWindup } from '../../server/sim/ai.js';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -56,7 +56,7 @@ function done(h) {
   assert.equal(h.b.errors.length, 0, JSON.stringify(h.b.errors[0]));
 }
 /** Start the skill now (SP filled, no enemy needed). */
-function cast(u) { u.skill.gainSp(999); assert.ok(u.skill.activate('test')); }
+function cast(u) { u.skill.gainSp(999); assert.ok(castNow(u, 'test')); }
 
 test('逻各斯 in every 自选 form: his operator kit (all three skills authored), stats + module attributes, 3-1 range, ranged arts that hits air units, targetable by ground enemies, 空 bond, no 特质', () => {
   assert.equal(OPERATOR_KITS[LOGOS], KITS[LOGOS]);

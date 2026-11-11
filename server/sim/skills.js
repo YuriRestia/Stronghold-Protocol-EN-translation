@@ -126,6 +126,10 @@ export class SkillRuntime {
     this.manual = String(d.skillType ?? 'MANUAL').toUpperCase() === 'MANUAL';
     this.opReadyAt = -Infinity;   // no automatic cast before this battle time (AUTO_OP_COOLDOWN)
     this.nextCastAt = -Infinity;  // instant / charges with no attack of its own: no cast from the tick before (GitHub #298)
+    // (fork) the begin clip the client plays before the skill starts (data `beginAnim`, the official _playSkillBeginAnim
+    // skills: tools/build-data.mjs operatorBeginAnims) and the cast waiting for it (`starting`, activate / tick)
+    this.beginDur = this.kind !== 'passive' && d.beginAnim?.dur > 0 ? +d.beginAnim.dur : 0;
+    this.starting = null;
     if (this.kind === 'passive') this.baseSpCost = 0;
     this._spCostMul = 1;          // content may set spCostMul (e.g. 绝技 ×0.7) — see the accessor below
     this.sp = 0;
@@ -303,6 +307,7 @@ export class SkillRuntime {
   reset(carry = null) {
     this.active = false;
     this.pending = false;
+    this.starting = null;
     this.timeLeft = 0;
     this.ammoLeft = 0;
     this.ammoMax = 0;
@@ -428,6 +433,17 @@ export class SkillRuntime {
     if (this.spType === 'time' && !(this.active && this.isTimed) && !u.s.flags.noSp && u.alive && u.deployed && !u.hidden) {
       const rate = u.s.spRecovery;
       if (rate > 0) this.gainSp(rate * dt, 'time');
+    }
+    // (fork) a cast playing its begin clip (activate): dropped when the unit leaves the Skill state (it cannot act, or it
+    // is gone), else the skill starts on the tick its clip ends (WaitForFixedSeconds) — nothing else is cast meanwhile
+    if (this.starting) {
+      const st = this.starting;
+      if (!u.alive || !u.deployed || !u.canAct) { this.dropStart(); return; }
+      st.left -= dt;
+      if (st.left > 1e-9) return;
+      this.starting = null;
+      if (!this.activate(st.reason, { free: st.free, began: true })) this.battle._ev(['skill', u.id, 0]);
+      return;
     }
     if (!u.canAct) return;
     // PRTS 卫戍协议/帮助, removed 2026-03-14: 斩业星熊 S3 closes after half its duration
@@ -563,8 +579,18 @@ export class SkillRuntime {
     return !this.healSkill && this.triggerRanges.length > 0 && this._extraTriggerSatisfied();
   }
 
+  /** (fork) Drop a cast still playing its begin clip (tick, activate): nothing was spent; the client's skill clip ends. */
+  dropStart() {
+    if (!this.starting) return;
+    this.starting = null;
+    const u = this.unit;
+    u.skillAnimUntil = -1;
+    this.battle._ev(['skill', u.id, 0]);
+  }
+
   /** Called by the attack loop right before a normal attack/heal. Returns true when the skill fired. */
   onAboutToAttack() {
+    if (this.starting) return false;
     if (!this.ready || this.unit.s.flags.silence) return false;
     if (this.active && this.isTimed) return false;
     const own = !(this.rule === 'TAKE_DAMAGE' || this.rule === 'NEVER' || TICK_RULES.has(this.rule));
@@ -587,13 +613,29 @@ export class SkillRuntime {
     }
   }
 
-  /** Activate now (consumes one charge). Returns true on success. */
-  activate(reason = 'manual', { free = false } = {}) {
+  /**
+   * Activate now (consumes one charge). Returns true on success. (fork) A skill with a begin clip (`beginDur`, the official
+   * _playSkillBeginAnim skills) is cast first: the client enters the Skill state, plays the clip — its 'skill' event, its
+   * sound — and starts the skill only when the clip ends (BasicSkill.PlayBeginAnimation → DoStartSkill → Cast, where the
+   * SP is spent); no attack runs meanwhile (the Attack state is left). `starting` holds the cast until tick() starts it
+   * (`began`: the call that does); leaving the Skill state first (stunned, frozen, asleep, knocked out, retreated —
+   * SkillState.OnExit → InterruptStartIfNot) drops it with nothing spent.
+   */
+  activate(reason = 'manual', { free = false, began = false } = {}) {
     if (this.noSkill || this.kind === 'passive') return false;
     if (!free && !this.ready) return false;
     if (this.active && this.isTimed) return false;
+    if (this.starting && !began) return false;
     const u = this.unit;
     if (!u.alive || !u.deployed) return false;
+    if (this.beginDur > 0 && !began) {
+      const b = this.battle;
+      this.starting = { left: this.beginDur, reason, free };
+      const cue = this.spec.cue ? this._call('cue', { reason }) : null;
+      b._ev(cue && typeof cue === 'object' ? ['skill', u.id, 1, cue] : ['skill', u.id, 1]);
+      u.skillAnimUntil = b.time + Math.max(SKILL_ANIM_WINDOW, this.beginDur);
+      return true;
+    }
     if (!free) {
       const wasFull = this.charges >= this.maxCharges;
       this.charges--;
@@ -616,9 +658,12 @@ export class SkillRuntime {
       // (a targeting-only instant skill must still switch to its skill range for the pending attack)
       if (this.spec.mods || this.spec.flags || this.spec.targeting) this._applyMods();
     }
-    const cue = this.spec.cue ? this._call('cue', { reason }) : null;
-    b._ev(cue && typeof cue === 'object' ? ['skill', u.id, 1, cue] : ['skill', u.id, 1]);
-    u.skillAnimUntil = b.time + SKILL_ANIM_WINDOW;
+    // (a begun cast sent its event, and its cue, with its begin clip)
+    if (!began) {
+      const cue = this.spec.cue ? this._call('cue', { reason }) : null;
+      b._ev(cue && typeof cue === 'object' ? ['skill', u.id, 1, cue] : ['skill', u.id, 1]);
+      u.skillAnimUntil = b.time + SKILL_ANIM_WINDOW;
+    }
     this._call('onStart', { reason });
     if (b._hooks.skillStart) b.emit('skillStart', { unit: u, skill: this, reason });
     // bullets added in skillStart (拉特兰's ×(1.05 + 0.015 × layers), 逃犯引渡手续, talents): the bar's full mark

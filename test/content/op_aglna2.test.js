@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -104,7 +104,7 @@ test('trait 巡空者: on the ground she blocks ground enemies, not flyers; airb
     assert.notEqual(fl.blockedBy, u, `${label(f)}: no air block on the ground`);
     h.b.kill(fl, null);
     // S2: take off (the walker walks on)
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.ok(u.s.flags.liftoff && u.s.flags.blockFly, `${label(f)}: airborne`);
     assert.equal(w.blockedBy, null, `${label(f)}: the ground enemy released`);
     assert.equal(canTargetAlly(w, u, true), false, `${label(f)}: 对地规避`);
@@ -242,7 +242,7 @@ test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off
     const fl = h.spawn('enemy_fly', { pos: [9, 6] });           // swept flyer
     const far = h.spawn('enemy_dummy', { pos: [10, 9] });       // 5 ahead: not swept
     const wide = h.spawn('enemy_dummy', { pos: [12, 6] });      // 2 aside: not swept
-    assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast with an enemy in 3-10 (none in her 2-2)`);
+    assert.ok(h.runUntil(() => u.skill.active, 1 + u.skill.beginDur), `${label(f)}: cast with an enemy in 3-10 (none in her 2-2)`);
     assert.ok(u.s.flags.liftoff, `${label(f)}: airborne`);
     assert.ok(u.s.flags.disarm && u.s.flags.invulnerable, `${label(f)}: 吟唱`);
     assert.equal(h.b.applyStatus(u, 'stun', { duration: 3, source: g }), false, `${label(f)}: control statuses refused while gliding`);

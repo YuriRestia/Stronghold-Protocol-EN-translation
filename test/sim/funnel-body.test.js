@@ -2,7 +2,7 @@
 // Controlled Battle inputs; the production Match / browser reproduction is recorded separately.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { hitCount } from '../../server/sim/content/enemies/helpers.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { bodyInKeys } from '../../server/sim/body.js';
@@ -155,7 +155,7 @@ test('Minimalist charged S2: two body hits and two drone additions share one tal
 test('Whitw2 S1 on: the toggle keeps one body hit and both unreleased additions', () => {
   for (const id of ['chess_char_6_18_a', 'chess_char_6_18_b']) {
     const { h, u } = field({ chessId: id, skillIndex: 0 });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     const t0 = h.b.time;
     h.run(2);
     const vs = volleys(h, u).filter((v) => v[0].t + 1e-9 >= t0);
@@ -206,6 +206,7 @@ test('Kjera S2: a lock that leaves her range still takes drone hits, and the bod
     });
     h.step();
     const u = h.unit(1), e = h.enemies()[0];
+    throughBegin(h, u);
     assert.ok(u.skill.active, `${id} opens on the carried SP`);
     assert.ok(h.runUntil(() => e.alive && !bodyInKeys(e, u.rangeKeySet), 8), `${id}: the lock leaves range`);
     h.run(1.5);

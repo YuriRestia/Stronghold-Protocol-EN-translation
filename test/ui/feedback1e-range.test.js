@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { makeBattle, enemyRec } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, castNow } from '../helpers/battleHarness.js';
 import { unitStatsEntry } from '../../shared/protocol.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -91,7 +91,7 @@ test('a whole-field skill (纯烬艾雅法拉 S3 "攻击范围扩大至整个战
   const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5, dir: 'RIGHT', skillIndex: 2 }], autoFinish: false, timeLimit: 30 });
   const u = h.unit(id);
   h.step();
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   h.step();
   const live = { ...unitStatsEntry(u, u._s), src: 'battle' };
   assert.ok(live.range.length >= FIELD_WIDE_CELLS);
@@ -114,7 +114,7 @@ test('远牙 S3 光羽箭 (default, "攻击范围改为前方无限长的直线"
   const h = makeBattle({ units: [{ chessId: id, row: 10, col: 0, dir: 'RIGHT', skillIndex: 2 }], autoFinish: false, timeLimit: 30 });
   const u = h.unit(id);
   h.step();
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   h.step();
   const live = { ...unitStatsEntry(u, u._s), src: 'battle' };
   const box = rangeGridBox(live.range);

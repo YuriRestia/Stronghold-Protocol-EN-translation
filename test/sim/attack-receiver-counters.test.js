@@ -1,7 +1,7 @@
 // PRTS 伤判效果 / 玛恩纳 / 刺玫: receiving units own their injury observation effects.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 
 function fixture(kind, duplicate = false, skillIndex = 0) {
   const chessId = kind === 'mlynar' ? 'chess_char_5_19_a' : 'chess_char_1_06_a';
@@ -15,7 +15,7 @@ function fixture(kind, duplicate = false, skillIndex = 0) {
   const b = h.b, source = h.unit('source'), receiver = h.unit('receiver');
   const enemy = h.spawn('enemy_probe', { pos: [10, 8] });
   if (kind === 'vendela') {
-    assert.ok(source.skill.activate('test', { free: true }));
+    assert.ok(castNow(source, 'test', { free: true }));
     assert.equal(source.mem.protege, receiver);
   }
   return { h, b, source, receiver, enemy };
@@ -114,7 +114,7 @@ test('Mlynar duplicate-provider policy remains one living source and switches im
 test("ending one Vendela skill removes only its receiver observer and leaves another source's current taunt", () => {
   const { h, b, source, receiver, enemy } = fixture('vendela', true);
   const other = h.unit('other');
-  assert.ok(other.skill.activate('test', { free: true }));
+  assert.ok(castNow(other, 'test', { free: true }));
   assert.equal(other.mem.protege, receiver);
   assert.equal(receiver.findBuff('vendla:taunt').source, other);
   source.skill.end('test');
@@ -184,7 +184,7 @@ function markFixture() {
   const { source, enemy } = f;
   enemy.x = 5;
   enemy.y = 10;
-  assert.ok(source.skill.activate('test', { free: true }));
+  assert.ok(castNow(source, 'test', { free: true }));
   assert.ok(enemy.findBuff(`mlynar:mark:${source.id}`));
   return f;
 }

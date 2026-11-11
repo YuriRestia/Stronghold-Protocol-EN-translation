@@ -7,7 +7,7 @@
 // real record) and runs both seat orders.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { DataSource, getDefaultSource, hasGeneratedData } from '../../server/sim/simdata.js';
 
 const skip = !hasGeneratedData() && 'no generated data (run node tools/build-data.mjs)';
@@ -50,7 +50,7 @@ const done = (h) => { assert.deepEqual(h.b.errors.map((e) => `${e.label} ${e.mes
 
 /** Cast each summoner's skill once; returns the summon each one placed. */
 function castAndCollect(h, ops, tokenId) {
-  for (const u of ops) assert.ok(u.skill.activate('test', { free: true }), `${u.player.playerId} cast`);
+  for (const u of ops) assert.ok(castNow(u, 'test', { free: true }), `${u.player.playerId} cast`);
   h.step();
   return ops.map((u) => {
     const s = summons(h, u, tokenId);

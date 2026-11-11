@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -251,7 +251,7 @@ test('S3 死境硝烟 (MANUAL, data [DEFAULT, SEARCH] + the kept ACTIVE_RANGE de
     h.run(1);
     assert.equal(u.skill.activations, 0, `T${tier}: nothing in his range`);
     const far = h.spawn('enemy_dummy', { pos: [10, 7] });
-    assert.ok(h.runUntil(() => u.skill.active, 1), `T${tier}: an enemy 2 tiles ahead (the running range)`);
+    assert.ok(h.runUntil(() => u.skill.active, 1 + u.skill.beginDur), `T${tier}: an enemy 2 tiles ahead (the running range)`);
     assert.deepEqual(u.liveRangeGrid, [[0, 0], [0, 1], [0, 2]], `T${tier}: 攻击距离+1`);
     approx(u.skill.timeLeft, 70, `T${tier}: 70 s`, 0.01);
     approx(u.s.maxHp, u.base.maxHp * (1 + sk.bb.max_hp), `T${tier}: max HP`);

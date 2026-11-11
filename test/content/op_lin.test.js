@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -112,7 +112,7 @@ test('S1 玲珑 (MANUAL, data SEARCH, a 状态切换类 skill: switched on once 
     h.run(1);
     assert.equal(u.skill.activations, 0, `T${tier}: nobody in range`);
     const a = h.spawn('enemy_dummy', { pos: [10, 7] }), b = h.spawn('enemy_fly', { pos: [11, 5] }), off = h.spawn('enemy_dummy', { pos: [10, 8] });
-    assert.ok(h.runUntil(() => u.skill.active, 0.2), `T${tier}: cast at once (SEARCH)`);
+    assert.ok(h.runUntil(() => u.skill.active, 0.2 + u.skill.beginDur), `T${tier}: cast at once (SEARCH), on once its begin clip has played`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
     approx(u.s.interval, 3, `T${tier}: 3 s`);
     h.runUntil(() => atkHits(h, u).length >= 2, 4);

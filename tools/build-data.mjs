@@ -50,6 +50,7 @@ import { createOfficialUnitBuilders } from '../server/plugins/officialUnitBuilde
 import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
 import { loadProfile, pinnedShaOf } from './versions/profiles.mjs';
 import { applyAdapters } from './versions/adapters.mjs';
+import { SKILL_BEGIN_ANIMS } from './assets/skill-begin-anims.mjs';
 
 // ===== CLI & IO ==================================================================================
 
@@ -725,6 +726,8 @@ function checkUnitFormParity(ctx, chess) {
       continue;
     }
     const form = buildUnitForm(ctx, c.charId, c.status, { chessId: c.baseId, skillIndex: c.skill.index });
+    // (fork) and its skills' begin clips (operatorBeginAnims, the default version only)
+    if (IS_DEFAULT && ctx.manifest && c.skills?.some((k) => k.beginAnim)) markBeginAnims(ctx.manifest, c.charId, [form.skill, ...(form.skills || [])]);
     // (fork) the unit's attack clip is set after the build (operatorAttackAnims, from the same manifest entry as the
     // chess record's): composeUnitRecord must carry it through
     const head = { ...buildUnitHead(ctx, c.charId), ...(c.attackAnim ? { attackAnim: c.attackAnim } : {}) };
@@ -1740,6 +1743,33 @@ function operatorAttackAnims(manifest, chess, backups, tokens) {
   for (const [id, t] of Object.entries(tokens || {})) {
     const a = attackAnimOf(manifest.tokens?.[id]?.spine);
     if (a) t.attackAnim = a;
+  }
+}
+
+/**
+ * (fork) A skill's begin clip → `beginAnim` { clip, dur } on each skill record of its operator (data/chess.json `skill` /
+ * `skills`, backups.json forms' `skills`): the client plays it at the cast and starts the skill — and attacks again — when
+ * it ends (BasicSkill.PlayBeginAnimation: PlayAnimation at time scale 1, WaitForFixedSeconds(its length), DoStartSkill;
+ * server/sim/skills.js activate). Only the skills the client marks `_playSkillBeginAnim` (tools/assets/
+ * skill-begin-anims.mjs, generated from [uc]skills.ab); the length is the clip's in the default model's front skeleton
+ * (outfits never change it, as `attackAnim`). A clip the model lacks gets none [ASSUMED: PlayAnimation then waits 0].
+ */
+function operatorBeginAnims(manifest, chess, backups) {
+  if (!manifest) return;
+  for (const c of Object.values(chess)) if (c.charId) markBeginAnims(manifest, c.charId, [c.skill, ...(c.skills || [])]);
+  for (const u of Object.values(backups?.units || {})) {
+    for (const f of Object.values(u.forms || {})) markBeginAnims(manifest, u.charId, [f.skill, ...(f.skills || [])]);
+  }
+}
+
+/** (fork) Set (or clear) `beginAnim` on each of an operator's skill records (operatorBeginAnims). */
+function markBeginAnims(manifest, charId, skills) {
+  const sp = manifest?.chars?.[charId]?.spine?.front ?? manifest?.chars?.[charId]?.spine?.back;
+  for (const s of skills) {
+    if (!s || typeof s !== 'object') continue;
+    const row = SKILL_BEGIN_ANIMS[String(s.prefabId || s.skillId || '').toLowerCase().replace(/\[\d+\]$/, '')];
+    const dur = row ? sp?.animations?.[row.begin] : null;
+    if (typeof dur === 'number' && dur > 0) s.beginAnim = { clip: row.begin, dur }; else delete s.beginAnim;
   }
 }
 
@@ -3422,6 +3452,8 @@ async function main() {
   // version only, so the older versions' data stays as it was (their operators strike at the end of the cooldown)
   // (every potential pass: shared/potential.js atRank rebuilds each rank from the full one)
   if (IS_DEFAULT) for (const p of passes) operatorAttackAnims(ctx.manifest, p.chess, p.backups, p.tokens);
+  // (fork) the skills' begin clips (the official cast → start order, server/sim/skills.js activate): the default version only
+  if (IS_DEFAULT) for (const p of passes) operatorBeginAnims(ctx.manifest, p.chess, p.backups);
   const waves = buildWaves(ctx, enemies);
   const stages = buildStages(ctx, ctx.act.modeDataDict);
   const factions = buildFactions(ctx, enemies);

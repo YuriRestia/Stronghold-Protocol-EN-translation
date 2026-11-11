@@ -151,6 +151,8 @@ export function normalizeSkill(rec) {
     },
     kind: s.kind ?? null,
     bb,
+    // (fork) the begin clip the client plays before the skill starts (tools/build-data.mjs operatorBeginAnims; skills.js)
+    ...(s.beginAnim && num(s.beginAnim.dur, 0) > 0 ? { beginAnim: { clip: String(s.beginAnim.clip ?? ''), dur: num(s.beginAnim.dur, 0) } } : null),
     description: s.description ?? s.desc ?? '',
   };
 }

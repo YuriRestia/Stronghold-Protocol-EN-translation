@@ -9,7 +9,7 @@ import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -326,6 +326,7 @@ test('S3 爆裂黎明 (MANUAL, data SP_FULL: at once, no enemy needed): 1 / 2 sh
     for (const t of shadowsOf(h, u)) h.b.addBuff(t, { key: 'test:silence', flags: { silence: true } });
     u.skill.gainSp(999);
     h.step();
+    throughBegin(h, u);
     assert.ok(u.skill.active, `T${tier}: cast at once, no enemy on the field`);
     const sh = shadowsOf(h, u);
     assert.equal(sh.length, 1 + sk.bb.max_cnt, `T${tier}: the talent's + ${sk.bb.max_cnt}`);

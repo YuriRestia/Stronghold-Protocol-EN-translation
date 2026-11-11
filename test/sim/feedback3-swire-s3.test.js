@@ -2,7 +2,7 @@
 // https://prts.wiki/w/卫戍协议/帮助 says 通常不会自动关闭技能. Maintainer 2026-10-17 withdrew the cap close.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 
 const ds = getDefaultSource();
@@ -21,7 +21,7 @@ for (const id of ['chess_char_3_04_a', 'chess_char_3_04_b']) {
       h.step();
       const u = h.unit(id), e = h.enemy('enemy_sw');
       assert.equal(u.skill.id, 'skchr_swire2_3');
-      assert.ok(u.skill.activate('test', { free: true }));
+      assert.ok(castNow(u, 'test', { free: true }));
       const t0 = ds.getChess(id, { skillIndex: 2 }).talents[0].bb;
       const cap = u.skill.bb.sp;
       assert.equal(cap, 10);

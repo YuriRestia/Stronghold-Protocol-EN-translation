@@ -678,6 +678,19 @@ cadence counts from the cast (`lastCastAt`: 逻各斯 S2's 0.5 s), as an ability
 run the same rule (it is gameplay); only the two events are display (`render/app/windup.js windCasts` plays the clip
 from frame 0 at the cast).
 
+**Skills with a begin clip: cast → start** (fork, the official order: `Character.States.SkillState.OnEnter` →
+`BasicSkill.OnBeforeSkillStart` → `PlayBeginAnimation`: the owner plays `_beginAnim` at time scale 1, `WaitForFixedSeconds`
+its length, then `DoStartSkill` → `Cast`). The skills the client marks `_playSkillBeginAnim` (tools/assets/
+skill-begin-anims.mjs, generated from `[uc]skills.ab` by tools/local-extract/skill_begin.py: 211 skills, 138 of our
+operators' — 91 operators) carry their clip on the data skill (`beginAnim` { clip, dur }, the default model's length;
+DATA.md). Their activation (`skills.js activate`) is a cast first: `['skill', id, 1]` goes out (the client plays the
+clip and the cast sound), `starting` holds it, and the skill starts — SP spent, mods, `onStart`, `skillStart`, its
+duration — on the tick its clip ends (`tick`; no second event). Meanwhile the unit makes no attack (the client's Attack
+state is left: `ai.js updateAlly`) and an attack wind-up under way is cut (`atkCancel`, its cooldown freed) [ASSUMED:
+the ability is interrupted, as by a stun]. Leaving the Skill state first — stunned, frozen, asleep, knocked out,
+retreated (`canAct`, `SkillState.OnExit` → `InterruptStartIfNot`) — drops the cast: `['skill', id, 0]`, nothing spent,
+it may cast again. Skills with no begin clip start at their cast as before; the older versions' data has none.
+
 **Which bucket (PRTS 游戏数据基础 属性基本公式 / 作战机制, DESIGN §20.10).** `Σpct` is the official **直接乘算** class — its
 values are summed (`A = (A₀ + D_p)(1 + D_t)`, D_t = t₁ + … + tₙ): a skill's or talent's "攻击力+X%" **and** every "+X%"
 ATK / DEF / max HP bonus of the 卫戍 systems — 盟约, 策略 (bands), 装备, 机变 cards, the per-layer 特质 (PRTS

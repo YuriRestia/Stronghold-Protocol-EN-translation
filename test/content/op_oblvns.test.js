@@ -7,7 +7,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { NOTE_KINDS } from '../../server/sim/content/kits/ops/op-oblvns.js';
 import { NOTE_LIFETIME, ownerTarget } from '../../server/sim/notes.js';
@@ -222,7 +222,7 @@ test('S2 + an S3 member (owner 2026-10-19): the cast that starts Fever is not he
   u.skill.sp = 0; u.skill.charges = 0;
   h.b.fever.value = FEVER_NEED;
   v.skill.charges = 1; v.skill.opReadyAt = -Infinity;
-  assert.ok(v.skill.activate('manual'));
+  assert.ok(castNow(v, 'manual'));
   assert.ok(h.b.fever.active);
   h.runUntil(() => !h.b.fever.active, FEVER_DURATION + 1);
   h.b.fever.value = FEVER_NEED;

@@ -7,7 +7,7 @@
 // The 重生 + same-hit status case (妮芙 S2's fear on the hit that makes an ember) is in feedback1-transform.test.js.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getData } from '../../server/data.js';
 import { holdsUndying } from '../../server/sim/content/items/battle.js';
 
@@ -61,7 +61,7 @@ test('信仰搅拌机 S2: a lethal hit with fewer than 30 bullets left is still 
     const u = h.unit(id);
     const foe = h.b.enemies[0];
     assert.equal(u.skill.id, 'skchr_rmixer_2');
-    assert.ok(u.skill.activate('test', { free: true }), 'S2 on');
+    assert.ok(castNow(u, 'test', { free: true }), 'S2 on');
     u.skill.ammoLeft = left;
     const hp = u.hp;
     h.b.dealDamage(foe, u, { amount: u.s.maxHp * 10, type: 'true', tags: ['test'] });
@@ -86,7 +86,7 @@ test('信仰搅拌机 S2 steps aside while she holds 不死 (坚固维式重锤\
   const lethal = () => h.b.dealDamage(foe, u, { amount: u.s.maxHp * 10, type: 'true', tags: ['test'] });
   lethal();                                            // before the skill: the hammer's lock starts (8 s of 不死)
   assert.ok(u.alive && holdsUndying(h.b, u), 'the hammer holds her');
-  assert.ok(u.skill.activate('test', { free: true }), 'S2 on');
+  assert.ok(castNow(u, 'test', { free: true }), 'S2 on');
   const ammo = u.skill.ammoLeft;
   lethal();
   assert.ok(u.alive, 'still standing (不死)');
@@ -116,7 +116,7 @@ test('信仰搅拌机 S2 guards again in a new deployment although the old 不�
   h.b.retreat(u, { reason: 'raid' });                 // a 突袭-style retreat + redeploy 3 s into the window
   assert.ok(h.b.redeploy(u, { free: true, tile: [9, 6] }), 'redeployed');
   assert.ok(!holdsUndying(h.b, u), 'the window ended with its deployment');
-  assert.ok(u.skill.activate('test', { free: true }), 'S2 on');
+  assert.ok(castNow(u, 'test', { free: true }), 'S2 on');
   const ammo = u.skill.ammoLeft;
   lethal();
   assert.ok(u.alive, 'S2 blocks it');

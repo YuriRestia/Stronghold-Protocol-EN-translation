@@ -1,7 +1,7 @@
 // Native buff_template_data at ArknightsGameResource 9bf2396 + PRTS: separate injury, gauge applying and output success.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 
 function fixture(kind) {
   const ids = { philae: ['chess_char_3_06_a', 1], rmixer: ['chess_char_4_01_a', 2], yu: ['chess_char_6_03_a', 2] };
@@ -10,7 +10,7 @@ function fixture(kind) {
     defs: { enemies: { enemy_probe: enemyRec({ key: 'enemy_probe', hp: 100000, def: 0, res: 20, speed: 0, atk: 0 }) } } });
   h.step();
   const b = h.b, u = h.unit('defender'), e = h.spawn('enemy_probe', { pos: [10, 5.2] });
-  if (kind !== 'yu') assert.ok(u.skill.activate('test', { free: true }));
+  if (kind !== 'yu') assert.ok(castNow(u, 'test', { free: true }));
   u.hp = u.s.maxHp;
   return { h, b, u, e };
 }
