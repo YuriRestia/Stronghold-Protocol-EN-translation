@@ -461,7 +461,7 @@ export async function createFieldView(host, options = {}) {
   let noteFrame = 0;
   // the official battle effects (设置「官方特效」, render/vfx): drawn on the 3D board only (the 2D board fallback keeps the
   // procedural fx), on the battle clock; their files load on demand (data/local-fx.json)
-  const ofx = new OfficialFx({ P, renderer: app.renderer, assets, cam: () => cam, heightAt, fieldRect: fx.ctx.fieldRect });
+  const ofx = new OfficialFx({ P, renderer: app.renderer, assets, cam: () => cam, heightAt, fieldRect: fx.ctx.fieldRect, rate: () => ctx.timeScale() });
   setupCleanup.push(() => ofx.destroy());
   layers.vfxGround.addChild(ofx.ground);
   layers.vfxOver.addChild(ofx.over);
