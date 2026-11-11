@@ -1210,10 +1210,11 @@ test('引星棘刺 S3 “我的海疆”: passive skill range; alchemy units on 
     assert.ok(u.rangeKeySet.has(10 * COLS + 7) && u.baseRangeKeys.includes(10 * COLS + 7), 'passive: the skill range is her range (and trigger range)');
     cast(h, u);
     assert.equal(u.mem.zones.length, 1, 'one area for the three units');
-    const corners = u.mem.zones[0].shape.map((p) => `${p[1]},${p[0]}`).sort();
+    const fxs = h.events.filter((x) => x[0] === 'fx' && x[1] === 'zone' && x[4]?.polyKey);
+    const corners = (fxs[0]?.[4].poly ?? []).map((p) => `${p[0]},${p[1]}`).sort();
     const ownBlk = u.s.blockCnt;
     assert.deepEqual(corners, (ownBlk <= 1 ? ['10,3', '12,6', '12,10'] : ['12,6', '12,10', '9,8']).sort(), 'spanned by the 3 lowest block counts');
-    const fxs = h.events.filter((x) => x[0] === 'fx' && x[1] === 'zone' && x[4]?.polyKey);
+    assert.equal(u.mem.zones[0].shape.length, 6, 'the collider: each of the 3 edges pushed out (two points each)');
     assert.equal(fxs.length, 3, 'one zone fx per unit');
     assert.ok(fxs.every((x) => x[4].polyKey === fxs[0][4].polyKey && x[4].poly.length === 3), 'each names the whole area');
     h.run(0.6);

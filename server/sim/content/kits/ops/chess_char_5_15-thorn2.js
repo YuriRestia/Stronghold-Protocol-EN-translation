@@ -53,8 +53,9 @@ export default {
   // the enemies in the area they span get ATK/DEF/RES −, one strongest instance (不叠加), and take atk_scale × ATK arts
   // per second, everything ramping +per_interval each `interval` s up to max_stack_cnt steps. The area is the client's
   // (projectile_chr_thorn2_s3_polygon, Thorn2PolygonRange; polygon.js thorn2Area, user's choice of 2026-11-12): the
-  // convex hull of those operators' tiles at the throw — a strip along them when they stand in one line —, an enemy in
-  // it when its collider overlaps it (body.js bodyInConvex); one area, so one burn per interval however many units.
+  // convex hull of those operators' tiles at the throw with every edge pushed out 0.325 — a strip 0.65 wide along them
+  // when they stand in one line —, an enemy in it when its collider overlaps it (body.js bodyInConvex); one area, so one
+  // burn per interval however many units.
   // Until 2026-11-12 it was a RING1 circle around each operator, following it, each burning on its own.
   chess_char_5_15_a: (bb, chess, def) => {
     const t0 = talent(chess, 0), t1 = talent(chess, 1), tm = talent(chess, -1);

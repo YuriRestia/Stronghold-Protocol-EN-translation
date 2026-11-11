@@ -2,20 +2,24 @@
 // char_1039_thorn2 S3 “我的海疆”, 2026-11-12). Pure and deterministic: + − × ÷ only, no trigonometry, so every engine
 // gives the same bits (detmath.js header).
 //
-// The client (Thorn2PolygonRange.InitPolygonCollidersIfNot → _DoCalculateHull → _OptimizeLineCollider): the tiles of
-// the operators the alchemy units land on, as map points (tile centres), make a convex hull (a Graham scan: the lowest
-// point first, the rest sorted by angle, right turns popped); points on a straight edge are dropped (_Cross ≈ 0, 1e-5).
-// That hull is `resultForEffect`, the corners the S3 line (Thorn2S3Renderer, thorn2_skill_03_line) runs through. The
-// collider is the hull itself when it has 3+ corners; when every point lies on one line it is a strip along it,
-// _polygonLineColliderWide (0.325) wide and running _polygonColliderOffset (0.325) past each end. An enemy is in the
-// area when its collider (a circle, or a huge unit's rectangle) overlaps it (CheckTargetIn: Polygon2DPhysicsUtil
-// PolygonCircle / PolygonRectangle).
+// The client (Thorn2PolygonRange.InitPolygonCollidersIfNot → _DoCalculateHull → _OptimizeLineCollider): the grid
+// positions of the operators the alchemy units land on (VisualObject.gridPosition → GridPosition.asLocalPosition: tile
+// centres) make a convex hull (a Graham scan: left turns kept, _Cross ≤ 0 popped, so counter-clockwise); with exactly 3
+// points on one line the middle one is dropped (Vector2.Distance sums, MathUtil.Equals). That hull is `resultForEffect`
+// (m_resultOrigin), the corners the S3 line (Thorn2S3Renderer, thorn2_skill_03_line) runs through. The collider is
+// the hull with every edge pushed OUT by _polygonColliderOffset (0.325): for each edge p→q, n = normalize(q.y − p.y,
+// −(q.x − p.x)), the points p + 0.325·n and q + 0.325·n (_OptimizeLineCollider's loop, 1e-5 length guard). With 2
+// points that is a strip 0.65 wide covering exactly the segment (no overrun past the ends). The client's separate
+// 2-point branch (a strip _polygonLineColliderWide × 0.5 each side) tests result.Count == 2 right after result.Clear(),
+// so it never runs. An enemy is in the area when its collider (a circle, or a huge unit's rectangle) overlaps it
+// (CheckTargetIn: Polygon2DPhysicsUtil PolygonCircle / PolygonRectangle).
 //
 //   convexHull(points)       [[x, y]…] → the hull's corners, in order, without repeats or straight-edge points
 //   thorn2Area(points)       { hull, shape }: hull = the line's corners, shape = the convex collider ([] for no point)
 //   circleInConvex(shape, x, y, r) / rectInConvex(shape, R)   the overlap tests (R = { x0, x1, y0, y1 })
 
-/** Thorn2PolygonRange's prefab fields (projectile_chr_thorn2_s3_polygon): the strip's width and its overrun. */
+/** Thorn2PolygonRange's prefab fields (projectile_chr_thorn2_s3_polygon): the strip's width (only read by the client's
+ * unreachable 2-point branch) and how far every edge of the area is pushed out. */
 export const POLYGON_LINE_WIDE = 0.325;
 export const POLYGON_OFFSET = 0.325;
 
@@ -53,25 +57,23 @@ export function convexHull(points) {
 }
 
 /**
- * The S3 area of the points ([x, y]…, the operators' tile centres): `hull` the line's corners (convexHull), `shape` the
- * collider — the hull when it has 3+ corners, else the strip around its segment (POLYGON_LINE_WIDE wide, POLYGON_OFFSET
- * past each end). One point: a square of the strip's overrun around it [ASSUMED: the client's strip has no direction
- * there; its box collider (_SetBoxCollider) is the only shape left].
+ * The S3 area of the points ([x, y]…, the operators' tile centres): `hull` the line's corners (convexHull,
+ * counter-clockwise), `shape` the collider — every hull edge pushed out by POLYGON_OFFSET (two points per edge, so a
+ * 2-point hull gives a strip 2 × POLYGON_OFFSET wide over the segment). One point: the point itself [ASSUMED: the
+ * client returns before the edge loop there and leaves the single point as the collider's polygon].
  */
 export function thorn2Area(points) {
   const hull = convexHull(points);
-  if (hull.length >= 3) return { hull, shape: hull };
-  if (hull.length === 1) {
-    const [x, y] = hull[0], o = POLYGON_OFFSET;
-    return { hull, shape: [[x - o, y - o], [x + o, y - o], [x + o, y + o], [x - o, y + o]] };
+  if (hull.length < 2) return { hull, shape: hull.map((p) => [p[0], p[1]]) };
+  const o = POLYGON_OFFSET, shape = [];
+  for (let i = 0; i < hull.length; i++) {
+    const p = hull[i], q = hull[(i + 1) % hull.length];
+    let nx = q[1] - p[1], ny = -(q[0] - p[0]);
+    const len = Math.sqrt(nx * nx + ny * ny);
+    if (len > EPS) { nx /= len; ny /= len; } else { nx = 0; ny = 0; }
+    shape.push([p[0] + o * nx, p[1] + o * ny], [q[0] + o * nx, q[1] + o * ny]);
   }
-  if (hull.length !== 2) return { hull, shape: [] };
-  const [a, b] = hull;
-  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.sqrt(dx * dx + dy * dy);
-  const ux = dx / len, uy = dy / len, o = POLYGON_OFFSET, w = POLYGON_LINE_WIDE / 2;
-  const s = [a[0] - ux * o, a[1] - uy * o], e = [b[0] + ux * o, b[1] + uy * o];
-  const nx = -uy * w, ny = ux * w;
-  return { hull, shape: [[s[0] + nx, s[1] + ny], [e[0] + nx, e[1] + ny], [e[0] - nx, e[1] - ny], [s[0] - nx, s[1] - ny]] };
+  return { hull, shape };
 }
 
 /** Is (x, y) inside the convex polygon `shape` (either winding; its edges count as inside)? */
