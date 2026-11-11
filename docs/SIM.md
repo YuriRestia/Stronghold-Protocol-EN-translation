@@ -1684,7 +1684,10 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `battle.fxState(unit, buff, on, { src, look, dur })` (a moment the sim marks: a kill, a fired trigger effect, an
   overload), `battle.fxProbe(unit, buff, (u) => false | true | look)` (a state the kit already keeps, read only when a
   snapshot is taken — nothing runs in the ticks) or a buff's `fx` / `fxSrc` / `fxLook` (shown while the buff lasts);
-  `content/fxStates.js` holds the skill-wide probes (charge-count glows). A state lasts the unit's deployment at most.
+  `content/fxStates.js` holds the skill-wide probes (charge-count glows, a skill's own buff while it runs) and
+  `TOKEN_FX_STATES` (a summon wears its owner's skill buffs while that skill runs: `fxProbe`'s 4th argument `src(u)`
+  names the owner). Marks on targets (audit item 5): the kit tags the buff it puts on the target with `fx` / `fxSrc`, or
+  calls `fxState(target, buff, true, { src: unit, dur })`. A state lasts the unit's deployment at most.
   `notes: [[noteId, ownerId, x, y, hx, hy,
   look, state]]` (only while notes fly; display only) = the free-flight notes of `notes.js` (丰川祥子): position, heading, the
   owner's look key and 0 wander / 1 trace / 2 passby; `fever: [[memberId, fill, active]]` (only on a field with a gauge) = the

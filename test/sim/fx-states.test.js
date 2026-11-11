@@ -9,7 +9,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { fxStateView } from '../../server/sim/snapshot.js';
 import { BattleEvents } from '../../server/sim/battle/events.js';
-import { SKILL_FX_STATES } from '../../server/sim/content/fxStates.js';
+import { SKILL_FX_STATES, TOKEN_FX_STATES, installFxStates } from '../../server/sim/content/fxStates.js';
 import { STATE_BUFFS } from '../../public/js/render/vfx/skills.js';
 
 const rowsOf = (snap, id) => (snap.fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
@@ -45,6 +45,19 @@ describe('Battle.fxState / fxProbe / a buff\'s fx → fxStateView', () => {
     u.n = 2; assert.deepEqual(fxStateView(u, 0), [['p', null, 2]]);
     fxProbe(b, u, 'p', () => false);
     assert.equal(fxStateView(u, 0), null);
+  });
+  test('a summon wears the skill buffs of its owner while that skill runs, src the owner (TOKEN_FX_STATES)', () => {
+    const probes = [];
+    const b = { fxProbe: (...a) => { fxProbe(b, ...a); probes.push(a[1]); } };
+    const owner = { id: 5, alive: true, skill: { id: 'skchr_ling_1', active: false } };
+    const tok = unit({ id: 9, kind: 'token', ownerUnit: owner });
+    installFxStates(b, tok);
+    assert.deepEqual(probes, TOKEN_FX_STATES.skchr_ling_1);
+    assert.equal(fxStateView(tok, 0), null, 'the skill off');
+    owner.skill.active = true;
+    assert.deepEqual(fxStateView(tok, 0), [['ling_s_1', 5, null], ['ling_s_1[effect]', 5, null]]);
+    owner.alive = false;
+    assert.equal(fxStateView(tok, 0), null, 'the owner gone');
   });
   test('a buff tagged `fx` shows while it lasts, with its src and look', () => {
     const u = unit({ buffs: [{ fx: 'b[x]', fxSrc: 4, fxLook: 'on' }, { fx: null }] });
@@ -82,13 +95,35 @@ describe('the kits signal their moments (b.snap fxs)', () => {
   });
 });
 
+describe('marks on targets: the kits name the carrier (effect gaps audit 2, item 5)', () => {
+  test('Mostima S2: the lock glow on each enemy it stuns, src Mostima, gone with the skill', () => {
+    const h = makeBattle({ autoFinish: false, units: [{ uid: 1, chessId: 'chess_char_4_02_a', skillIndex: 1, row: 10, col: 3 }],
+      defs: { enemies: { dummy: enemyRec({ key: 'dummy', hp: 1e9, atk: 0, speed: 0 }) } } });
+    h.step();
+    const u = h.unit(1);
+    assert.equal(u.skill.id, 'skchr_mostma_2');
+    const e = h.spawn('dummy', { pos: [10, 4] });
+    u.skill.activate('test', { free: true });
+    h.step(); h.step();
+    assert.ok(u.skill.active, 'S2 runs');
+    assert.deepEqual(rowsOf(h.b.snapshot(), e.id), [['mostma_s_1', u.id, null]]);
+    assert.ok(h.runUntil(() => !u.skill.active, 40), 'the skill ends');
+    h.step();
+    assert.deepEqual(rowsOf(h.b.snapshot(), e.id), []);
+    checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
+  });
+});
+
 describe('the sim and the client name the same buffs', () => {
   const kits = new URL('../../server/sim/content/kits/ops/', import.meta.url);
   const src = readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')).join('\n');
   // every literal buff key a kit hands fxState / fxProbe / a buff's fx, or a const holding one (…_FX = '…')
   const named = new Set([...src.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
     .map((m) => m[1] || m[2] || m[3] || m[4]));
-  for (const s of Object.values(SKILL_FX_STATES)) named.add(s.buff);
+  // … or a const list of them (…_FX = Object.freeze(['…', …]))
+  for (const m of src.matchAll(/_FX\s*=\s*Object\.freeze\(\[(.*?)\]\)/g)) for (const k of m[1].matchAll(/'([^']+)'/g)) named.add(k[1]);
+  for (const s of Object.values(SKILL_FX_STATES)) for (const e of [].concat(s)) named.add(e.buff);
+  for (const list of Object.values(TOKEN_FX_STATES)) for (const b of list) named.add(b);
   test('each signalled buff is in STATE_BUFFS', () => {
     for (const b of named) assert.ok(STATE_BUFFS[b], `${b}: signalled by the sim, unknown to the client`);
   });

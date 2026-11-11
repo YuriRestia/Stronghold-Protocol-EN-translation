@@ -11,6 +11,9 @@ const CANDLE_MIN_ATK = 0.35;
 /** 隐德来希 S3 心烛 enemy key (hidden talent bbStr take_extra_enemy_key; not in data/enemies.json). */
 const CANDLE_KEY = 'enemy_5601_entlec';
 
+/** (fork) S2's scythes on the other unit: the client's buffs (render/vfx/skills.js STATE_BUFFS). */
+const ETLCHI_S2_FX = Object.freeze(['etlchi_s_2[aoe]', 'etlchi_s_2[eff]']);
+
 export default {
   // ---------------------------------------------------------------------------------------------------------------
   // 隐德来希 — S3 灵与欲的惜别 (20 s): skill range, ATK +, ASPD +100; summons a 心烛 for up to 3 highest-HP ground enemies
@@ -39,6 +42,8 @@ export default {
               .sort((a, b) => aroundN(battle, b) - aroundN(battle, a) || dist(a, unit) - dist(b, unit) || a.id - b.id)[0] ?? null;
             unit.mem.sickles = other ? [unit, other] : [unit];
             unit.mem.sickleAcc = 0;
+            // (fork) the official scythes on the other unit (etlchi_s_2[aoe] / [eff]; her own are the skill's loops; b.snap fxs)
+            if (other) for (const b of ETLCHI_S2_FX) battle.fxState(other, b, true, { src: unit });
             for (const a of unit.mem.sickles) battle.fx('aoe', { x: a.x, y: a.y, id: unit.id, r: RING1, skill: 'etlchiSickle' });
           },
           onTick({ battle, unit, dt }) {
@@ -58,7 +63,11 @@ export default {
               }
             }
           },
-          onEnd({ unit }) { unit.mem.sickles = null; },
+          onEnd({ battle, unit }) {
+            const other = unit.mem.sickles?.[1];
+            if (other) for (const b of ETLCHI_S2_FX) battle.fxState(other, b, false);
+            unit.mem.sickles = null;
+          },
         }),
       }),
       skill: {

@@ -298,7 +298,7 @@ export function fxStateView(u, t = 0) {
     for (const p of u.fxProbes) {
       const v = p.probe(u);
       if (v == null || v === false) continue;
-      if (!(out && out.some((r) => r[0] === p.buff))) (out || (out = [])).push([p.buff, null, v === true ? null : v]);
+      if (!(out && out.some((r) => r[0] === p.buff))) (out || (out = [])).push([p.buff, p.src ? p.src(u) ?? null : null, v === true ? null : v]);
     }
   }
   for (const b of u.buffs) {

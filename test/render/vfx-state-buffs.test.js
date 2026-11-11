@@ -103,3 +103,42 @@ describe('SkillFx._states: b.snap fxs holds the entries on the carrier', () => {
     assert.equal(played[0].o.loop, false);
   });
 });
+
+describe('marks on targets (effect gaps audit 2, item 5): `on: \'targets\'` rows of a STATE_BUFFS buff', () => {
+  const T = 'titi_s_3[dmg_ticker]';
+  const plan = (() => {
+    const keys = ['mark_loop', 'wake_end', 'tick_trig', 'line_loop', 'other_tgt'];
+    const prefabs = Object.fromEntries(keys.map((k) => [k, { file: `prefabs/${k}.json`, looping: true }]));
+    const use = (k, role, o = {}) => ({ role, keys: [k], from: `GlobalAuraAbility._buffs → template ${T}`, on: 'targets', buff: T, node: 'skchr_titi_3', ...o });
+    const idx = { units: { char_4056_titi: { modes: [{ name: 'Default', attack: { class: 'RangedAttack' } }], skills: { skchr_titi_3: { rootClass: 'CastSkill', uses: [
+      use('mark_loop', 'loop', { event: 'ON_BUFF_START', action: 'CreateBuff' }),
+      use('wake_end', 'end', { event: 'ON_BUFF_FINISH', action: 'CreateEffect' }),
+      use('tick_trig', 'trigger', { event: 'ON_BUFF_TRIGGER', action: 'CreateEffect' }),
+      use('line_loop', 'loop', { event: 'ON_BUFF_START', action: 'CreateLineEffect' }),
+      use('other_tgt', 'loop', { buff: 'not_signalled[x]' }),
+    ] } } } }, skills: {}, projectiles: {}, prefabs };
+    return skillPlan(idx, 'char_4056_titi', 'skchr_titi_3', { rec: { skillType: 'MANUAL', durationType: 'NONE', duration: 20 } });
+  })();
+  test('its loops and its end join plan.state on the carrier; a line, a tick and an unsignalled buff do not', () => {
+    assert.deepEqual(plan.state.map((e) => [e.key, e.role, e.at, e.hold]), [['mark_loop', 'loop', 'carrier', 'state'], ['wake_end', 'end', 'carrier', 'state']]);
+    assert.deepEqual(plan.targets.map((e) => e.key), ['line_loop', 'other_tgt'], 'as before');
+    assert.ok(!plan.state.some((e) => e.key === 'line_loop' || e.key === 'tick_trig'));
+  });
+  test('SkillFx._states: the loop while the row lasts, the end once as it goes (on the carrier, from the src\'s plan)', () => {
+    const played = [];
+    const views = new Map();
+    const w = { ofx: { time: 0, tier: 1, lib: new Set() }, view: (id) => views.get(id) || null, _dirIndex: () => 1,
+      playOn: (k, v, o) => { const h = { k, id: v.id, o, alive: true, stop() { this.alive = false; h.stopped = true; } }; played.push(h); return h; } };
+    const s = new SkillFx(w);
+    s.of = (v) => (v.id === 1 ? { plan } : null);
+    const op = { id: 1, alive: true }, foe = { id: 9, alive: true, fxs: [[T, 1, null]] };
+    views.set(1, op); views.set(9, foe);
+    s._states([op, foe]); s._states([op, foe]);
+    assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop]), [['mark_loop', 9, true]], 'the end waits for the row to go');
+    foe.fxs = null;
+    s._states([op, foe]);
+    assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop, !!h.stopped]), [['mark_loop', 9, true, true], ['wake_end', 9, false, false]]);
+    s._states([op, foe]);
+    assert.equal(played.length, 2, 'once');
+  });
+});

@@ -40,7 +40,9 @@ export default withDefaults({
             for (const e of enemiesOnRange(battle, unit)) {
               if (L.locked.has(e.id)) continue;
               L.locked.add(e.id);
-              battle.applyStatus(e, 'stun', { duration: Math.max(TICK_EPS, skill.timeLeft), source: unit });
+              const d = Math.max(TICK_EPS, skill.timeLeft);
+              // (fork) the official mostma_s_1 lock glow on it while the stun lasts (b.snap fxs)
+              if (battle.applyStatus(e, 'stun', { duration: d, source: unit })) battle.fxState(e, 'mostma_s_1', true, { src: unit, dur: d });
             }
             L.acc += dt;
             while (L.acc + 1e-9 >= 1) { // loop-cap: one-second step

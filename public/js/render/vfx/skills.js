@@ -549,7 +549,11 @@ export const STATE_BUFFS = Object.freeze({
   // Ch'en the Holungday S2 (content/fxStates.js): [half] / [full]
   'chen2_s_2[eff_cond]': { looks: L({ half: ['chen2_skill_02_buff_01_01'], full: ['chen2_skill_02_buff_01_02'] }) },
   // Angelina the Mellow Wish (char_1015_aglna2, not on EN yet) S3 (content/fxStates.js): the wing glow of her facing — the client's side (`byFacing`)
-  'aglna2_s_3[mode]': { byFacing: true, looks: L({ right: ['aglna2_skill_03_buff_right_01'], left: ['aglna2_skill_03_buff_left_01'] }) },
+  // and her weapon glow and range ring either side (audit item 5: the skill's ActiveBuffAbility on herself)
+  'aglna2_s_3[mode]': { byFacing: true, looks: L({
+    right: ['aglna2_skill_03_buff_right_01', 'aglna2_skill_03_buff_weapon_01', 'aglna2_skill_03_range_01'],
+    left: ['aglna2_skill_03_buff_left_01', 'aglna2_skill_03_buff_weapon_01', 'aglna2_skill_03_range_01'],
+  }) },
   // Philae S2 (chess_char_3_06-philae.js): the ATK glow from the first element hit, its start burst once
   'philae_s_2': true,
   // Haruka (op-haruka.js): the bubble's glow (the parry burst plays when a bubble breaks, not here)
@@ -568,6 +572,53 @@ export const STATE_BUFFS = Object.freeze({
   'slent2_s_3': true,
   // Ch'en the Dawnstreak S2 (op-chen3.js): the respawn glows while its buff lasts
   'chen3_s2[respawn_buff]': true,
+  // (audit item 5) marks on the units a skill names — the index's `on: 'targets'` rows, placed on the carrier the sim
+  // names (b.snap fxs; src the operator). Enemies: Lee S2's paper, Titi S3's sleepers (the wake burst as the row goes;
+  // its line and ticks are other items), Mostima S2's lock, Degenbrecher S2's slashes, Zima the Raging Tide S3's bind,
+  // Blemishine S2's sleep, Saria S3's calcification
+  'lmlee_s_2[paper]': true,
+  'titi_s_3[dmg_ticker]': true,
+  'mostma_s_1': true,
+  'blkkgt_s_2[check_block]': true,
+  'headb2_s_3[unmovable]': true,
+  'blemsh_s_2[sleep]': true,
+  'demkni_s_3': true,
+  // allies: Closure S1's shield, Titi S2's ward, Tin Man S2's heal zone, Entelechia S2's second scythes, Heavyrain S1's
+  // camouflage, Warfarin S2's plasma (her own too), Exusiai the New Covenant S2's stolen ASPD, Pith S2's Caster aura,
+  // Papyrus S2's lock (`mark`; `self` her mode's glow)
+  'closur_s_1[block]': true,
+  'titi_s_2': true,
+  'tinman_s_2[buff]': true,
+  'etlchi_s_2[aoe]': true,
+  'etlchi_s_2[eff]': true,
+  'zebra_s_1': true,
+  'bldsk_s_2': true,
+  'angel2_s_2[select_target]': true,
+  'accast_s_2': true,
+  'papyrs_s_2[switch_mode]': { looks: L({ self: ['papyrs_skill2_buff_02'], mark: ['papyrs_skill2_mark_01'] }) },
+  // the operator herself while the skill runs (content/fxStates.js): Pozëmka S1, Thorns S2, Swire S1, Papyrus S2,
+  // Gladiia S3, Mon3tr S3's move (begin / end; common_spine_hide is the client's own model hide)
+  'bfsnow_s_1[random_atk]': true,
+  'thorns_s_2': true,
+  'swire_s_1': true,
+  'swire_s_1[effect]': true,
+  'papyrs_s_2[fx]': true,
+  'glady_s3[effect]': true,
+  'monstr_s_3_buff[respawn]': { keys: Object.freeze(['monstr_skill_03_begin_03', 'monstr_skill_03_end_02']) },
+  // summons while their owner's skill runs (content/fxStates.js TOKEN_FX_STATES): Raidian's towers, Ling's souls,
+  // Stainless's device, Jessica the Liberated's shield, Magallan's drones
+  'radian_s_1[shield]': true,
+  'radian_s_2[token]': true,
+  'radian_s_3[token]': true,
+  'ling_s_1': true,
+  'ling_s_1[effect]': true,
+  'ling_s3[aoe]': true,
+  'ironmn_s_3[token]': true,
+  'ironmn_s_3[token_eff]': true,
+  'jesca2_s_1_token[def]': true,
+  'jesca2_s_3_token[def]': true,
+  'mgllan_s_2': true,
+  'mgllan_s_3': true,
 });
 
 /**
@@ -1065,6 +1116,14 @@ function place(plan, e, u, { attackOf, eachHit }) {
   if (e.action === 'CreateBuffToToken' || u.on === 'token' || /_buffsToToken/.test(u.from)) return 'token';
   const onTargets = u.on === 'targets';
   const ev = u.event;
+  // (fork) a mark on the units the skill names, which the sim signals (b.snap `fxs` on the carrier, STATE_BUFFS): held
+  // while the row lasts, an `end` once when it goes; a line (CreateLineEffect) or a tick stays unmapped
+  if (onTargets && STATE_BUFFS[u.buff] && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end')) {
+    e.at = 'carrier';
+    e.hold = 'state';
+    if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff && x.role === e.role)) plan.state.push(e);
+    return null;
+  }
   // (fork) a mode buff whose loops the stored charges hold, not the skill's start (COND_BUFFS `event`: 薇薇安娜's 蓄力)
   if (role === 'loop' && ev && COND_BUFFS[u.buff]?.event === ev) { e.hold = 'cond'; plan.cond.push(e); return null; }
   if (ev && !START_EVENTS.has(ev)) {
