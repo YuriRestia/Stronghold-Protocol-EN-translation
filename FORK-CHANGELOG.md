@@ -9,8 +9,8 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Shots leave from the right spot when a model has no usual muzzle point
 
-- Ch'en the Holungday's Holiday (summer#20) outfit aims from its own muzzle again. Its model has different muzzle bones from her default look, so her shots and muzzle effects used to start from a fixed spot of the default model. A muzzle point now also tries the usual muzzle bones of the model actually drawn.
-- An operator or enemy without a muzzle point now shoots from its feet, as in the official game: the client's animators hand over the foot point when there is no muzzle. Santalla's S2 ice spikes now leave from her feet instead of 0.4 tiles above them.
+- Ch'en the Holungday in her Holiday HD79 outfit: her S2 and S3 water bursts now leave her water gun. That outfit's model has different muzzle bones from her default look, so they used to start below her feet. A muzzle point now also tries the usual muzzle bones of the model actually drawn.
+- A unit with no muzzle point at all (Santalla, Viy) now aims from its feet, as in the official game, where the animator hands over the foot point when there is no muzzle. Before, it was a guessed spot 0.4 tiles up.
 
 ### External AI is shelved: locked in every build, and no test suite runs its tests
 
