@@ -59,8 +59,9 @@ test('invisible filler: gone from chat, an all-filler line is refused and costs 
   const heart = '\u2764\ufe0f';
   assert.equal(cleanChat(heart), '', 'no emoji: chat is plain text (user, 2026-11-11; test/chat-text.test.js)');
   assert.equal(chopChat('\u0301a', 1), '', 'a cut that leaves nothing visible sends nothing');
-  assert.equal(sanitizeName(hangul + 'x'), hangul + 'x', 'nicknames keep their own rules');
-  assert.equal(cleanText(hangul), hangul);
+  assert.equal(sanitizeName(hangul + 'x'), 'x', 'nicknames are plain text too (user, 2026-11-11): no filler');
+  assert.equal(sanitizeName('\u{1D4D7}i \u{1F602}'), 'Hi', 'fancy letters folded, emoji dropped');
+  assert.equal(cleanText(hangul), hangul, 'cleanText itself is unchanged');
 });
 
 test('a line is cleaned, charged by its letters and goes to everyone but the sender, by seat', () => {

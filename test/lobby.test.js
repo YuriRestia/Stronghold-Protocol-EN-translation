@@ -2165,7 +2165,9 @@ describe('platform units', () => {
     assert.equal(sanitizeName(String.fromCharCode(0xd800)), null);
     assert.equal(sanitizeName(''), null);
     assert.equal(sanitizeName(42), null);
-    assert.equal([...sanitizeName('😀'.repeat(20))].length, 12);
+    assert.equal([...sanitizeName('x'.repeat(20))].length, 12);
+    assert.equal(sanitizeName('😀'.repeat(20)), null, 'a name of emoji only is no name (plain text, user 2026-11-11)');
+    assert.equal(sanitizeName('<b>Amiya</b> ✨'), 'Amiya');
   });
 
   test('TokenBucket refills continuously up to burst', () => {

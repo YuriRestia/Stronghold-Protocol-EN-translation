@@ -1,8 +1,8 @@
 import { NAME_MAX_LEN } from '../../../shared/constants.js';
+import { cleanName } from '../../../shared/text.js';
 
-// Same character classes as server/net.js sanitizeName (control, zero-width, bidi, BOM), so a name
-// the client accepts is never rejected by the server's hello validation.
-const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g;
+// The same plain-text rules as server/net.js sanitizeName (shared/text.js cleanName, the chat rules), so a name the
+// client accepts is never changed or rejected by the server's hello validation.
 // Lone surrogates are removed by a scan, not a regex: the lookbehind such a regex needs is a *syntax error* in Safari
 // < 16.4, which would stop the whole client from loading there.
 export function stripLoneSurrogates(str) {
@@ -21,16 +21,14 @@ export function stripLoneSurrogates(str) {
 }
 
 /**
- * Normalise a nickname like the server does (NFC, strip lone surrogates / control / invisible /
- * bidi characters, collapse whitespace, trim), then clamp to NAME_MAX_LEN UTF-16 code units — the
- * protocol's `hello.name` limit — without splitting a surrogate pair.
+ * Normalise a nickname like the server does (fork: plain text, shared/text.js cleanName — no tags, emoji, symbols or
+ * invisible characters, whitespace collapsed, trimmed), then clamp to NAME_MAX_LEN UTF-16 code units — the protocol's
+ * `hello.name` limit — without splitting a surrogate pair.
  * @param {any} raw
  * @returns {string}
  */
 export function sanitizeName(raw) {
-  let s = String(raw ?? '');
-  try { s = s.normalize('NFC'); } catch { /* keep as is */ }
-  s = stripLoneSurrogates(s).replace(/\s+/g, ' ').replace(CONTROL_CHARS, '').replace(/ {2,}/g, ' ').trim();
+  let s = cleanName(stripLoneSurrogates(String(raw ?? '')));
   if (s.length > NAME_MAX_LEN) {
     s = s.slice(0, NAME_MAX_LEN);
     // Don't leave half a surrogate pair at the end.

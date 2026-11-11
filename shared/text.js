@@ -91,5 +91,13 @@ export function chopChat(s, n) {
   return VISIBLE_RE.test(cut) ? cut : '';
 }
 
+/**
+ * (fork) A nickname as plain text (user, 2026-11-11): the same rules as chat (cleanChat: no tags, emoji, symbols, invisible
+ * or filler characters, fancy letters folded), uncut — the server cuts it to NAME_MAX_LEN code points (server/net.js
+ * sanitizeName), the page to as many UTF-16 units (ui/playerName.js). '' when nothing visible is left.
+ * @param {string} raw @returns {string}
+ */
+export const cleanName = (raw) => cleanChat(raw);
+
 /** One chat line as the server sends it: plain text, at most `n` letters (default CHAT_LINE_LETTERS). */
 export const chatLine = (raw, n = CHAT_LINE_LETTERS) => chopChat(cleanChat(raw), Math.min(n, CHAT_LINE_LETTERS));

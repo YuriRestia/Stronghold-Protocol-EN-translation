@@ -42,7 +42,7 @@
 
 import { prepareStateFrame, negotiateStateDelta, resetStateDelta, setStateDeltaRoom } from './stateTransport.js';
 import { randomBytes } from 'node:crypto';
-import { cleanText } from '../shared/text.js';
+import { cleanName } from '../shared/text.js';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
 import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
@@ -383,7 +383,7 @@ export function errorMsg(code, rid, detail) {
  */
 export function sanitizeName(raw) {
   if (typeof raw !== 'string') return null;
-  const s = [...cleanText(raw)].slice(0, NAME_MAX_LEN).join('').trim();
+  const s = [...cleanName(raw)].slice(0, NAME_MAX_LEN).join('').trim(); // (fork) plain text, shared/text.js cleanName
   return s.length > 0 ? s : null;
 }
 
