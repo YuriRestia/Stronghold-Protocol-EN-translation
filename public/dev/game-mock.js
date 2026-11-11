@@ -326,8 +326,10 @@ function setPhase(phase, variant) {
       if (VARIANTS.has('vote')) {
         // (fork) One for All: a secret room-wide vote — the count only in public, my own vote in private (variant=vote,locked)
         pub.deadline = Date.now() + 50000;
-        pub.draft = { mode: 'vote', voters: 8, locked: 3, turnSeconds: 50, turnDeadline: pub.deadline };
-        S.priv.vote = VARIANTS.has('locked') ? { bandId: 'band_sarkazb', locked: true } : null;
+        // (the server's exact shape: one-for-all-split.md "Exact vote-mode draft")
+        pub.draft = { mode: 'vote', voters: 8, locked: 3, order: pub.players.filter((x) => !x.isBot).map((x) => x.playerId), picks: {}, turn: null,
+          skipsLeft: {}, turnDeadline: pub.deadline, turnSeconds: 50, untimed: false };
+        S.priv.vote = VARIANTS.has('locked') ? { bandId: 'band_sarkazb', locked: true } : { bandId: null, locked: false };
         if (VARIANTS.has('locked')) pub.draft.locked = 4;
       } else if (!solo) {
         pub.draft = { order: ['p3', 'p1', 'ai_2', 'p4'], turn: 'p1', picks: { p3: 'band_sarkazb' }, skipsLeft: { p1: 1, p3: 1, ai_2: 1, p4: 1 }, turnDeadline: Date.now() + 9000 };
@@ -632,6 +634,7 @@ async function mockRequest(t, f = {}) {
     case 'g.band': {
       if (pub.draft?.mode === 'vote') { // One for All: the pick locks my vote; nothing public but the count
         if (p.vote?.locked) fail('ALREADY');
+        if (!f.bandId) fail('BAD_MSG');
         p.vote = { bandId: f.bandId, locked: true }; pub.draft.locked = Math.min(pub.draft.voters, (pub.draft.locked || 0) + 1);
         pushPublic(); refreshPrivate(); return {};
       }

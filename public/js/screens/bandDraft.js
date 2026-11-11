@@ -325,7 +325,9 @@ export function BandDraftScreen({ held = null } = {}) {
   if (vote?.myLocked) lastVote.current = vote.myVote;
   const myPick = vote ? (vote.myLocked ? vote.myVote : held ? lastVote.current : null)
     : draft.picks.get(myId) || priv?.bandId || null;
-  const inOrder = solo || (vote ? (vote.inVote ?? (!!priv?.vote || draft.order.includes(myId) || players.some((p) => p.playerId === myId && !p.isBot)))
+  // (One for All: draft.order lists the voting seats; without it, my private vote or my player row says so)
+  const voteOrder = Array.isArray(pub?.draft?.order) && pub.draft.order.length ? pub.draft.order : null;
+  const inOrder = solo || (vote ? (vote.inVote ?? (voteOrder ? voteOrder.includes(myId) : !!priv?.vote || players.some((p) => p.playerId === myId && !p.isBot)))
     : draft.order.includes(myId));
   const myTurn = !myPick && (solo || (vote ? inOrder && !vote.done && !held : draft.turnPid === myId));
   const skipsLeft = draft.skipsLeft.has(myId) ? draft.skipsLeft.get(myId) : (skipped ? 0 : 1);
@@ -345,7 +347,10 @@ export function BandDraftScreen({ held = null } = {}) {
   const takenKey = [...taken.keys()].sort().join(',');
   // (One for All: nothing is highlighted until a portrait is tapped — a vote that runs out unhighlighted is a random one)
   useEffect(() => {
-    const next = vote ? (myPick || sel) : draftSelection(sel, { bands, taken, myPick, myTurn, defaultId });
+    // (One for All: an unlocked highlight the server already holds — priv.vote.bandId, e.g. after a reload — comes back)
+    const held0 = vote && !sel && typeof priv?.vote?.bandId === 'string' && bands.some((b) => b.bandId === priv.vote.bandId) ? priv.vote.bandId : null;
+    if (held0 && !myPick) { focusSent.current = held0; setOpen(true); }
+    const next = vote ? (myPick || sel || held0) : draftSelection(sel, { bands, taken, myPick, myTurn, defaultId });
     if (next !== sel) setSel(next);
   }, [bands.length, myPick, myTurn, takenKey, !!vote]);
   // "your turn" cue: the sound and the event's 请选择策略 band (ui/turnBanner.js) once its art is in — co-op and solo
