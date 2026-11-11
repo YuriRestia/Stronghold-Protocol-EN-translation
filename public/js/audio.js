@@ -1979,8 +1979,13 @@ export class AudioManager {
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
       this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
+      // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has
       const also = kind === 'attack' && typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : null;
-      if (Array.isArray(also)) this._playParts({ also }, unitGain(UNIT_BASE_GAIN, mix));
+      const alsoKey = `${unitId}:attackAlso`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (Array.isArray(also) && !this.limiter.cooling(at, alsoKey)) {
+        this.limiter.lastByUnit.set(alsoKey, at);
+        this._playParts({ also }, unitGain(UNIT_BASE_GAIN, mix));
+      }
       return true;
     } catch { return false; }
   }

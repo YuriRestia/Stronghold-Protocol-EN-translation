@@ -205,7 +205,8 @@ test('AudioManager: a kit fx with several banks plays each on its pool, the late
     fw.fire('pointerdown');
     await new Promise((r) => setTimeout(r, 10));
     a.setFieldUnits([{ id: 1, kind: 'op', side: 'ally', defId: 'char_1032_excu2', spine: 'char_1032_excu2', skillIndex: 1 },
-      { id: 9, kind: 'enemy', side: 'enemy', defId: 'enemy_1007_slime', spine: 'enemy_1007_slime' }]);
+      { id: 9, kind: 'enemy', side: 'enemy', defId: 'enemy_1007_slime', spine: 'enemy_1007_slime' },
+      { id: 10, kind: 'enemy', side: 'enemy', defId: 'enemy_1007_slime', spine: 'enemy_1007_slime' }]);
     const plays = [];
     const play = a._playBank.bind(a);
     a._playBank = (url, p, vol) => { plays.push(url); return play(url, p, vol); };
@@ -214,9 +215,9 @@ test('AudioManager: a kit fx with several banks plays each on its pool, the late
     await new Promise((r) => setTimeout(r, 120));
     assert.deepEqual(plays, ['/s/t1.mp3', '/s/double.mp3'], 'the listed one after its delay');
     plays.length = 0;
-    a.handleBattleEvents([['skill', 1, 1], ['atk', 1, 9]]);
+    a.handleBattleEvents([['skill', 1, 1], ['atk', 1, 9], ['atk', 1, 10]]);
     await new Promise((r) => setTimeout(r, 120));
-    assert.deepEqual(plays, ['/s/shot.mp3'], 'the running skill\'s attack: its follow-up after the swing');
+    assert.deepEqual(plays, ['/s/shot.mp3'], 'the running skill\'s attack: its follow-up after the swing, once for two targets');
     plays.length = 0;
     a.handleBattleEvents([['fx', 'extraAttack', 0, 0, { id: 1 }]]);
     a.setFieldUnits([]);
