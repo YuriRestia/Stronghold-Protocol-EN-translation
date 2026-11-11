@@ -168,6 +168,12 @@ const VOICE_GAP_MS = 1200;
 const VOICE_XFADE_S = 0.1;
 /** 'atk' projectile kinds whose first id is the previous bounce target (sim ai.js), not the attacker. */
 const CHAIN_KINDS = new Set(['chain', 'chainHeal']);
+/**
+ * (fork) Kit layer counts (fx 'buffLayers' { id, n, skill: tag }) whose layers make a unit's normal attacks a skill's
+ * own — its `attacks` / `hits[index]` —, by unit → tag → that skill index. 塔露拉 S2 'oxi:stack': while oxi_s_2_stack
+ * holds she attacks with BuffedAttack (attack.0.1, impact p_imp_xtlfgbw_h), not Attack (attack.0.2, p_imp_xtlfgbw_n).
+ */
+export const HELD_ATTACK_LAYERS = Object.freeze({ char_4247_oxi: Object.freeze({ 'oxi:stack': 1 }) });
 /** 'dmg' types that are an attack's impact (element gauge fills / 元素伤害 carry the element's name instead). */
 const IMPACT_TYPES = new Set(['phys', 'arts', 'true']);
 /** A 'dmg' later than this (real ms) after the attack aimed at the target is not that attack's impact. */
@@ -2259,8 +2265,12 @@ export class AudioManager {
           if (!src) continue;
           // only a hostile attack authors the target's next impact (a heal — an ally aiming at an ally — never does)
           const tgt = this.units.get(e[2]);
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, at: now, skillIndex: src.skillIndex ?? null, skillActive: !!src.skillActive });
-          if (!this.unit(src.def, 'attack', e[1], src.skillIndex ?? undefined, src.skillActive) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
+          // (fork) a held layer count (HELD_ATTACK_LAYERS) makes this normal attack that skill's own, as while it runs
+          const held = Number.isInteger(src.heldAttack) && !src.skillActive;
+          const sIdx = held ? src.heldAttack : src.skillIndex ?? null;
+          const sOn = held || !!src.skillActive;
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, at: now, skillIndex: sIdx, skillActive: sOn });
+          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
@@ -2348,6 +2358,12 @@ export class AudioManager {
           if (e[4] && typeof e[4] === 'object') this._noteSound(e[4]);
         } else if (kind === 'fx' && e[1] === 'fever') {
           if (e[4] && e[4].on) this.feverStart();
+        } else if (kind === 'fx' && e[1] === 'buffLayers') {
+          // (fork) a layer count that makes her attacks a skill's own (HELD_ATTACK_LAYERS); no sound of its own
+          const ex = e[4];
+          const u = ex && typeof ex === 'object' ? this.units.get(ex.id) : null;
+          const idx = u ? HELD_ATTACK_LAYERS[u.def]?.[ex.skill] : undefined;
+          if (u && Number.isInteger(idx)) u.heldAttack = Number(ex.n) > 0 ? idx : null;
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];

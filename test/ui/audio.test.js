@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES, POP_FADE_S } from '../../public/js/audio.js';
+import { bgmKeyFor, resolveBgm, SfxLimiter, AudioManager, normalAttackSfx, installAudio, audio, combatTrackFor, COMBAT_TRACK_SWITCH_ROUND, VoiceGate, resultSpeaker, resultVoiceSlot, VOICE_PRIORITY, VOICE_COOLDOWN_MS, voiceLangsOf, effectiveVoiceLang, voiceLine, VOICE_TREES, POP_FADE_S, HELD_ATTACK_LAYERS } from '../../public/js/audio.js';
 import { mediaUrl } from '../../public/js/media.js';
 import { songGain } from '../../public/js/audioMixer.js';
 import { PHASE } from '../../shared/constants.js';
@@ -786,6 +786,30 @@ describe('AudioManager', () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+
+  test('(fork) 塔露拉 S2 stack: while the kit counts a layer (buffLayers oxi:stack) her normal attacks are BuffedAttack\'s — its impact hits[1]; at 0 her own again', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const u = m.units.char_4247_oxi;
+    assert.match(u.hits[1], /p_imp_xtlfgbw_h\.mp3$/, 'BuffedAttack (attack.0.1) lands p_imp_xtlfgbw_h');
+    assert.equal(u.hitPools[1], 'battle.ON_ABILITY_HIT.char_4247_oxi.attack.0.1');
+    assert.match(u.hit, /p_imp_xtlfgbw_n\.mp3$/, 'Attack (attack.0.2) lands _n');
+    assert.deepEqual(HELD_ATTACK_LAYERS.char_4247_oxi, { 'oxi:stack': 1 });
+    const a = new AudioManager({ win: fakeWindow().win, getManifest: () => ({ audio: { bgm: {}, sfx: m } }), random: () => 0 });
+    a.ctx = {};   // past the gate: unit() is spied, nothing is decoded
+    a.setFieldUnits([{ id: 3, kind: 'op', side: 'ally', defId: 'chess_char_6_diy1_a', spine: 'char_4247_oxi', skillIndex: 1 },
+      { id: 9, kind: 'enemy', side: 'enemy', defId: 'enemy_x', spine: 'enemy_x' }]);
+    const calls = [];
+    a.unit = (def, role, key, skillIndex, active) => { calls.push([role, skillIndex, active]); return true; };
+    const strike = () => { calls.length = 0; a.handleBattleEvents([['atk', 3, 9, 'none'], ['dmg', 9, 100, 'arts']]); return calls.slice(); };
+    const layers = (n) => a.handleBattleEvents([['fx', 'buffLayers', 5, 9, { id: 3, n, max: 5, skill: 'oxi:stack' }]]);
+    assert.deepEqual(strike(), [['attack', 1, false], ['hit', 1, false]], 'no layer: her own attack');
+    layers(2);
+    assert.deepEqual(strike(), [['attack', 1, true], ['hit', 1, true]], 'a layer: the skill\'s own swing and impact');
+    layers(0);
+    assert.deepEqual(strike(), [['attack', 1, false], ['hit', 1, false]], 'the last layer gone');
+    a.handleBattleEvents([['fx', 'buffLayers', 5, 9, { id: 3, n: 6, max: 6, skill: 'oxi:rage' }]]);
+    assert.deepEqual(strike(), [['attack', 1, false], ['hit', 1, false]], '怒火 changes no attack');
   });
 
   test('(fork) 莫斯提马 / 蕾缪安 (committed manifest): their official impact, skill-mode, skill start / end and kit fx banks', () => {

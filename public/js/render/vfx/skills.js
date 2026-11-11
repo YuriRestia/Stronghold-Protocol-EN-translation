@@ -1416,6 +1416,8 @@ export function chargeKeys(plan) {
  *               unit of extra[to] (a list of ids) — a child shot that leaves the first target (空弦 S1's scatter)
  *   keysBy      (fork) { field, map }: `keys` by the value of a field of the fx's extra (no entry: the kit's own fx)
  *   keysIf      (fork) { field, yes, no }: `keys` by a field of the fx's extra (truthy: yes, else no)
+ *   none        (fork) the official client draws nothing at that moment (its sound only): the binding claims the fx and
+ *               plays nothing, so no procedural stand-in shows (塔露拉 S3's 过载)
  *   flight      (fork) a projectile's flight between two points of the fx (SkillFx._flight): { side, up, down } — the
  *               projectile for a way along the row / up (+row) / down, each [facing left, facing right] or [one] (the
  *               client's branches on the unit's direction and faceLeft) —, from: 'from' (the fx's fromX / fromY; its
@@ -1494,6 +1496,9 @@ export const FX_BINDINGS = Object.freeze({
     zone: OXI_FOOTPRINT,
     heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
     blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
+    // (fork) 过载 (the kit's 'overload'): the client raises ON_CUSTOM_TRIGGER oxi_s_3_overload, a sound only — no effect of
+    // the skill or its buffs plays there (the index: start, oxi_skill_03_buff_01, the volley's projectile)
+    overload: binding({ owner: 'id', none: true }),
   }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked

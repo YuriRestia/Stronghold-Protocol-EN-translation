@@ -559,6 +559,36 @@ test('S3 lanes: across her facing within normal_half_width (overload_half_width 
   }
 });
 
+test('display: fx buffLayers sends her 【怒火】 and S2 layer counts at every change (one fx per change, the last one 0), for the client\'s loops', () => {
+  const { h, u } = field({ skill: 1 });
+  const sent = [];
+  const fx = h.b.fx.bind(h.b);
+  h.b.fx = (kind, p) => { if (kind === 'buffLayers') sent.push({ ...p, rage: rageOf(u), stack: u.findBuff('skill:oxi:stack')?.stacks ?? 0 }); return fx(kind, p); };
+  const t = talentOf(6, true, 0), b = skillOf(6, true, 1).bb, max = Math.round(t.arcane_max / t.arcane_step);
+  h.run(7);
+  const rage = sent.filter((p) => p.skill === 'oxi:rage');
+  assert.deepEqual(rage.map((p) => p.n), [1, 2, 3, 4, 5, 6], '怒火 1 → 6, once each');
+  for (const p of rage) assert.deepEqual([p.id, p.max, p.n], [u.id, max, p.rage], 'the count it reached');
+  // a normal attack takes one layer: 5
+  const e = h.spawn('enemy_dummy', { pos: [10, 6] });
+  assert.ok(h.runUntil(() => sent.some((p) => p.skill === 'oxi:rage' && p.n === 5), 3), 'the attack sends 5');
+  h.b.kill(e, null);
+  // S2: a hit casts it — one layer, then two; they run out one per stack_duration s, the last one sends 0
+  const src = h.spawn('enemy_fly', { pos: [11, 9] });
+  for (let i = 0; i < 2; i++) {
+    u.skill.gainSp(999);
+    inTick(h, () => h.b.dealDamage(src, u, { amount: 100, type: 'phys' }));
+    h.run(b.skill_duration + 0.1);
+  }
+  h.run(2 * b.stack_duration + 0.5);
+  const stack = sent.filter((p) => p.skill === 'oxi:stack');
+  assert.deepEqual(stack.map((p) => p.n), [1, 2, 1, 0], 'S2 layers 1, 2, then down to 0');
+  for (const p of stack) assert.deepEqual([p.id, p.max, p.n], [u.id, b.max_stack_cnt, p.stack], 'the count it holds');
+  assert.equal(u.findBuff('skill:oxi:stack'), null, 'no layer left');
+  assert.deepEqual(JSON.parse(JSON.stringify(sent[0])), sent[0], 'plain data on the wire');
+  done(h);
+});
+
 test('S3 簇火: the volley fx names every lane and the blast its shot and enemy, for the client to draw them (no outcome moves)', () => {
   const { h, u } = field({ skill: 2, row: 9, col: 2 });
   const e = h.spawn('enemy_dummy', { pos: [10, 7] });
