@@ -8,6 +8,7 @@ import { UF, ANIM, BOND_LAYER_CAP } from '../../shared/constants.js';
 import { EV } from '../../shared/protocol.js';
 import { getDefaultSource, spawnsFromTemplate, hasGeneratedData } from '../../server/sim/simdata.js';
 import { LocalBossPool } from '../../server/sim/spec.js';
+import { unitInfo } from '../../server/sim/snapshot.js';
 
 const approx = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) <= eps, `${a} ≈ ${b}`);
 const guard = (o = {}) => chessRec({ id: 't_guard', profession: 'WARRIOR', stats: { atk: 300, blockCnt: 2 }, skill: null, ...o });
@@ -528,6 +529,10 @@ test('tokens: spawnToken deploys a token next to its owner; manual token pieces 
   h.run(1.1);
   assert.equal(t2.alive, false, 'expired');
   assert.ok(ds.getToken('token_10000_silent_healrb', 'chess_char_2_02_b').stats.atk > ds.getToken('token_10000_silent_healrb', 'chess_char_2_02_a').stats.atk);
+  // (fork) the client's summoner link: a summon's UnitInfo names the unit that summoned it, others carry none
+  assert.equal(unitInfo(tok).summonerId, h.unit(7).id);
+  assert.equal(unitInfo(t2).summonerId, h.unit(7).id);
+  assert.equal('summonerId' in unitInfo(h.unit(7)), false);
 });
 
 test('displacement helper moves enemies along passable tiles and re-paths', () => {

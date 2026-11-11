@@ -419,6 +419,39 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     }
   });
 
+  test('(fork) a skill buff on the summons of its owner (plan.tokens) plays on each summon while the skill lasts; a split 流形 plays its own (SUMMON_FX)', async () => {
+    const TOK = 'token_closur_ourbase_range_02_loop', SPLIT = 'token_10030_mlyss_wtrman_split_start_01', END = 'token_10030_mlyss_wtrman_c3_to_c0';
+    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, TOK, SPLIT, END] });
+    index.prefabs[TOK].looping = true;
+    index.units.char_700_quiet.skills.skchr_quiet_1.uses = [{ role: 'loop', keys: [TOK], on: 'owner', action: 'CreateBuffToToken', from: 'ActiveBuffAbility._buffs → template t', life: { type: 'LIMITED', key: 'duration' } }];
+    index.units.token_10030_mlyss_wtrman = { kind: 'token', modes: [], skills: {}, startEffect: null, deadEffect: null };
+    const own = view(1, 'char_700_quiet', 3);
+    const sum = view(2, 'token_2_plain', 4);
+    sum.info.summonerId = 1;
+    const other = view(3, 'token_2_plain', 5);
+    other.info.summonerId = 9;
+    frame();
+    w.skill(own, true);
+    frame();
+    const live = (k) => handles.filter((h) => h.key === k && h.alive);
+    assert.equal(live(TOK).length, 1, 'on her summon, not on a summon of another unit');
+    assert.equal(live(TOK)[0].opts.owner ?? live(TOK)[0].place?.view ?? sum, sum);
+    const late = view(4, 'token_2_plain', 6);
+    late.info.summonerId = 1;
+    frame();
+    assert.equal(live(TOK).length, 2, 'a summon that comes during the skill gets it then');
+    w.skill(own, false);
+    for (let i = 0; i < 40; i++) frame();
+    assert.equal(live(TOK).length, 0, 'gone with the skill');
+    const clone = view(5, 'token_10030_mlyss_wtrman', 7);
+    clone.info.summonerId = 1;
+    frame();
+    assert.equal(w.simFx('split', 7, 10, { id: 5, src: 4 }), true, 'the official split stands for the procedural one');
+    assert.equal(handles.filter((h) => h.key === SPLIT).length, 1);
+    w.release(clone);
+    assert.equal(handles.filter((h) => h.key === END).length, 1, 'its end where it stood');
+  });
+
   test('(fork) a piece put on the board in prep plays its official birth (the outfit twin) and leaves no battle record', async () => {
     const SUF = 'ambiencesynesthesia#7', TWIN = 'lemuen_birth_01_' + SUF;
     const { w, view, handles, index } = await setup({ installed: [...KEYS, TWIN] });

@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -269,7 +269,9 @@ test('S3 披荆斩棘 (data [TAKE_DAMAGE, SEARCH] = official 重装 row, 受击�
     const b0 = barrier(u);
     h.b.dealDamage(src, u, { amount: 1, type: 'true' });
     // official 重装 row [ON_TAKE_DAMAGE, SKILL_RANGE_ENEMY]: the hit that fills the SP casts it at once — no enemy in range needed
-    assert.ok(u.skill.active, `T${tier}: cast at the hit that filled the SP (TAKE_DAMAGE)`);
+    assert.ok(u.skill.active || u.skill.starting, `T${tier}: cast at the hit that filled the SP (TAKE_DAMAGE)`);
+    throughBegin(h, u);
+    assert.ok(u.skill.active, `T${tier}: on once its begin clip has played`);
     assert.equal(u.skill.activations, 1);
     h.spawn('enemy_dummy', { pos: [10, 6] });
     approx(barrier(u), Math.min(u.s.maxHp * 3, b0 + u.s.maxHp * sk.bb.hp_ratio), `T${tier}: +${sk.bb.hp_ratio * 100} % max HP`, 1e-3);
@@ -316,4 +318,23 @@ test('UNY-X “通往未来的荆棘之路”: damage from an enemy she blocks �
     assert.equal(u.findBuff('trait:judge:alone'), null, `${label(f)}: not alone`);
     done(h);
   }
+});
+
+test('display: every S2 pulse sends fx tick judge_skill_02_weapon_hit_01 on her and judge_skill_02_hit_01 on each enemy it hits (the official judge_s_2[aoe] trigger)', () => {
+  const { h, u } = field({ tier: 6, elite: true, skill: 1 });
+  const sent = [];
+  const fx = h.b.fx.bind(h.b);
+  h.b.fx = (kind, p) => { if (kind === 'tick') sent.push({ ...p, t: h.b.time }); return fx(kind, p); };
+  u.skill.gainSp(999, 'init');
+  const inside = [h.spawn('enemy_dummy', { pos: [10, 6] }), h.spawn('enemy_dummy', { pos: [11, 4] })];
+  assert.ok(h.runUntil(() => u.skill.active, 3), 'cast');
+  h.run(3.5);
+  const pulses = h.hooksOf('damaged').filter((c) => c.source === u && (c.dmg?.tags ?? []).includes('judge:atonement'));
+  const weapon = sent.filter((p) => p.key === 'judge_skill_02_weapon_hit_01');
+  const hits = sent.filter((p) => p.key === 'judge_skill_02_hit_01');
+  assert.equal(weapon.length, new Set(pulses.map((c) => c.t)).size, 'one weapon hit per pulse');
+  assert.ok(weapon.every((p) => p.id === u.id && p.on === u.id && p.skill === 'judge:s2'), 'on her');
+  assert.equal(hits.length, pulses.length, 'one hit per enemy hit');
+  for (const e of inside) assert.equal(hits.filter((p) => p.on === e.id).length, pulses.filter((c) => c.target === e).length, `on ${e.tileR},${e.tileC}`);
+  done(h);
 });

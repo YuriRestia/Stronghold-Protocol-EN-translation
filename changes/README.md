@@ -3,7 +3,7 @@
 A branch never edits [FORK-CHANGELOG.md](../FORK-CHANGELOG.md) directly. It adds **one file here per change**, named
 after what it changes (`changes/<what-it-changes>.md`, lowercase words joined by hyphens), so parallel branches never
 conflict on the changelog. The lead folds the fragments into FORK-CHANGELOG.md on `dev-0.2` with
-`npm run changelog` (at the latest before each release; never on a feature branch) and commits the result.
+`npm run changelog -- --write` (at the latest before each release; it refuses on any other branch) and commits the result.
 
 ## Format
 
@@ -30,6 +30,7 @@ conflict on the changelog. The lead folds the fragments into FORK-CHANGELOG.md o
 
 | Command | What it does |
 |---|---|
-| `npm run changelog -- --check` | Checks every fragment (also done by `test/changelog.test.js`) |
+| `npm run changelog` (or `-- --check`) | Checks every fragment (also done by `test/changelog.test.js`); writes nothing |
 | `npm run changelog -- --dry-run` | Prints FORK-CHANGELOG.md with the fragments folded in; writes nothing |
-| `npm run changelog` | Folds them in (newest first within a day, by the time git added the file) and deletes them |
+| `npm run changelog -- --write` | Folds them in (newest first within a day, by the time git added the file) and deletes them. Only on `dev-0.2`, and only when `changes/` and FORK-CHANGELOG.md have no uncommitted changes |
+| `npm run changelog -- --help` | Prints the usage. It and any unknown option exit 1 and touch nothing |

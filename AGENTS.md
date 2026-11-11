@@ -40,7 +40,7 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
   `npm run merge:generated` ([docs/ASSETS.md](docs/ASSETS.md) "Merging branches").
 - **(fork) Changelog fragments.** A branch never edits `FORK-CHANGELOG.md`: it adds one file
   `changes/<what-it-changes>.md` ([changes/README.md](changes/README.md)); the lead folds them in on `dev-0.2` with
-  `npm run changelog`.
+  `npm run changelog -- --write`.
 - **No game art in git.** `public/assets/` is ignored; never commit extracted or downloaded game files.
 - **Interface strings** go through `t('…')`, with entries in every pack under `public/i18n/`
   (`node tools/i18n.mjs check --all --strict`).

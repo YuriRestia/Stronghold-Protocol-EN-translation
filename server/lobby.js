@@ -240,7 +240,7 @@ import { CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_
 import { chatLine } from '../shared/text.js';
 import { chatLimitCheck, chatLimitState, chatNetworkCheck, chatNetworkSweep } from './chatLimit.js';
 import { CHAT_ON } from './match/chatWallet.js';
-import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS } from '../shared/largeRoom.js';
+import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS, squadOfSeat, squadMoveWait, squadMoveLog, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
 import { cleanOutfits } from '../shared/outfits.js';
 import { knownAvatar } from '../shared/avatars.js';
@@ -438,6 +438,8 @@ export class Room {
     this.locked = false;
     /** @type {string | null} */
     this.password = null;
+    /** (fork) a Grand Alliance's recent squad moves per player (shared/largeRoom.js squadMoveWait), at most SQUAD_MOVE_LOG_MAX players @type {Map<string, number[]>} */
+    this.squadMoves = new Map();
     /** @type {(Seat | null)[]} */
     this.seats = new Array(MAX_SEATS).fill(null);
     /** @type {{ playerId: string, name: string, connected: boolean }[]} spectator seats, ≤ MAX_SPECTATORS (header) */
@@ -1824,25 +1826,45 @@ export class Lobby {
     return OK;
   }
 
-  /** (fork) room.moveSeat: a member moves to an empty seat of a large room before the match (shared/largeRoom.js). */
-  moveSeat(session, { seat }) {
+  /**
+   * (fork) room.moveSeat { squad } (an old page: { seat }, read as that seat's squad): a member moves to the other squad of
+   * a large room before the match, into its lowest free seat (shared/largeRoom.js). Never inside the own squad: the seat
+   * in a squad means nothing in play (the draft order is shuffled). [ASSUMED] (user 2026-11-11, seat-hopping spam) at most
+   * one move per SQUAD_MOVE_GAP_MS and SQUAD_MOVES_PER_WINDOW per window, kept on the room per player (RATE), and the
+   * mover is un-readied (their squad changed).
+   */
+  moveSeat(session, { seat, squad }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
     if (!room.large) return fail(ERR.BAD_TARGET, 'only large rooms have squads');
     if (room.match) return fail(ERR.ROOM_STARTED);
     const mine = room.seatOf(session.playerId);
     if (!mine) return fail(ERR.SPECTATOR);
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.capacity || room.seats[seat]) return fail(ERR.BAD_TARGET, 'seat is not free');
+    const want = squad === 0 || squad === 1 ? squad : Number.isInteger(seat) && seat >= 0 && seat < room.capacity ? squadOfSeat(seat) : null;
+    if (want == null) return fail(ERR.BAD_TARGET, 'no squad named');
+    if (want === squadOfSeat(mine.seat)) return fail(ERR.BAD_TARGET, 'already in that squad');
     if (room.reservations?.length) return fail(ERR.BAD_TARGET, 'seats are held');
+    const to = room.freeSeatIn(want);
+    if (to < 0) return fail(ERR.BAD_TARGET, 'squad is full');
+    const now = this.now();
+    const moves = room.squadMoves.get(session.playerId);
+    if (squadMoveWait(moves, now) > 0) return fail(ERR.RATE, 'squad moves too fast');
+    room.squadMoves.delete(session.playerId); // re-inserted last: the map drops its least recent mover first
+    room.squadMoves.set(session.playerId, squadMoveLog(moves, now));
+    while (room.squadMoves.size > SQUAD_MOVE_LOG_MAX) room.squadMoves.delete(room.squadMoves.keys().next().value); // loop-cap: one per excess player
     this.dropReplay(room, session.playerId);
     room.seats[mine.seat] = null;
-    mine.seat = seat;
-    room.seats[seat] = mine;
+    mine.seat = to;
+    room.seats[to] = mine;
+    if (mine.playerId !== room.hostId) mine.ready = false;
     this.broadcastState(room);
     return OK;
   }
 
-  /** (fork) room.swapSeats: the host swaps two seats of a large room before the match (either may be empty). */
+  /**
+   * (fork) room.swapSeats: the host swaps two seats of different squads of a large room before the match (either may be
+   * empty); the swapped players are un-readied. No limit: the host already controls the room.
+   */
   swapSeats(session, { a, b }) {
     const room = this.roomOf(session);
     if (!room) return fail(ERR.NOT_IN_ROOM);
@@ -1850,13 +1872,17 @@ export class Lobby {
     if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
     if (room.match) return fail(ERR.ROOM_STARTED);
     if (a === b || a >= room.capacity || b >= room.capacity) return fail(ERR.BAD_TARGET);
+    if (squadOfSeat(a) === squadOfSeat(b)) return fail(ERR.BAD_TARGET, 'same squad');
     if (room.reservations?.length) return fail(ERR.BAD_TARGET, 'seats are held');
     this.dropReplay(room, session.playerId);
     const sa = room.seats[a], sb = room.seats[b];
     room.seats[a] = sb;
     room.seats[b] = sa;
-    if (sb) sb.seat = a;
-    if (sa) sa.seat = b;
+    for (const [s, at] of [[sb, a], [sa, b]]) {
+      if (!s) continue;
+      s.seat = at;
+      if (s.playerId !== room.hostId) s.ready = false;
+    }
     this.broadcastState(room);
     return OK;
   }

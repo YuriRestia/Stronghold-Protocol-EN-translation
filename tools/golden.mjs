@@ -9,9 +9,13 @@
 //   node tools/golden.mjs                 compare the corpus with test/golden/*.json (exit 1 on a difference)
 //   node tools/golden.mjs --update        recompute and rewrite test/golden/*.json   (npm run golden:update)
 //   options: --family roster,bonds,fields,matches,standins   --fast (the test's default subset)   --only <id,id>
-//            --jobs N (worker threads, default: up to 4)   --list   --coverage (skills cast, stages, enemies…)
+//            --jobs N (worker threads, default and (fork) hard cap: 4)   --list   --coverage (skills cast, stages, enemies…)
 //            --version <id> historical data and test/golden/<slug>/ (default: act2autochess)
 //            --twice  determinism: compute twice in this process (the second pass in reverse order) and compare
+//            --force  (fork) compare even when nothing golden reads has changed since a passing comparison: a plain
+//                     comparison is skipped when a hash of every input (server/, shared/, data/, tools/golden.mjs,
+//                     tools/versions/, test/golden/, package.json, package-lock.json, the Node version and the
+//                     selection) matches a passing run's, kept in .cache/golden-pass.json (last 50 passes)
 //
 // Families (all scenarios are generated from data/*.json in a fixed order — no randomness outside the seeds):
 //   roster   49 battles: every visible chess record (normal + elite) with every selectable skill and module (DESIGN
@@ -62,7 +66,8 @@
 
 import { toolVersion } from './versions/runtime.mjs';
 import { DEFAULT_VERSION, versionById, versionSlug } from '../shared/versions.js';
-import { readFileSync, writeFileSync, mkdirSync, writeSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, writeSync, readdirSync, renameSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { availableParallelism } from 'node:os';
@@ -89,6 +94,62 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_CULTIVATION = Object.freeze({ potential: POTENTIAL_DEFAULT, cultivate: CULTIVATE_DEFAULT });
 export const GOLDEN_DIR = join(ROOT, 'test', 'golden', ...(toolVersion === DEFAULT_VERSION ? [] : [versionSlug(versionById(toolVersion))]));
 export const FAMILY_NAMES = Object.freeze(['roster', 'bonds', 'fields', 'matches', 'standins', 'diy']);
+
+// ---------------------------------------------------------------------------------------------------------------------
+// (fork) skipping a comparison whose inputs have not changed since it passed (2026-11-11: a full comparison costs about
+// 33 CPU-minutes, and the crew re-ran it on unchanged trees). The key hashes every file golden can read, so any change
+// to the engine, the data, the corpus or the stored digests runs it again; jobs never enter the key (they never change
+// a digest). A passing run of the whole corpus also covers a --fast or --only run of the same inputs.
+
+/** Everything a digest can depend on, relative to the repository root. */
+export const GOLDEN_INPUTS = Object.freeze(['server', 'shared', 'data', 'tools/golden.mjs', 'tools/versions', 'test/golden',
+  'package.json', 'package-lock.json']);
+const PASS_FILE = join(ROOT, '.cache', 'golden-pass.json');
+/** (fork) Hard cap of worker threads (user, 2026-11-11): more finish sooner but keep every core of the PC under full load. */
+export const MAX_JOBS = 4;
+/** Worker threads for a requested count (absent or invalid: the cores minus one), never more than MAX_JOBS. */
+export const goldenJobs = (requested) => Math.min(MAX_JOBS, Math.max(1, Number(requested) || availableParallelism() - 1));
+const PASS_KEEP = 50;
+
+/** sha256 over the inputs' relative paths and bytes (sorted) and the Node version. */
+export function goldenInputHash(root = ROOT) {
+  const h = createHash('sha256');
+  h.update(`node ${process.version}\0`);
+  const add = (rel) => {
+    let entries;
+    try { entries = readdirSync(join(root, rel), { withFileTypes: true }); } catch (e) {
+      if (e.code === 'ENOTDIR') { h.update(`${rel}\0`); h.update(readFileSync(join(root, rel))); h.update('\0'); return; }
+      if (e.code === 'ENOENT') { h.update(`${rel} (absent)\0`); return; }
+      throw e;
+    }
+    for (const d of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) add(`${rel}/${d.name}`);
+  };
+  for (const rel of GOLDEN_INPUTS) add(rel);
+  return h.digest('hex');
+}
+
+/** What a run compares: the version, the families and the selection ('full', 'fast' or the --only list). */
+export function goldenScope({ version = toolVersion, families = FAMILY_NAMES, fast = false, only = null } = {}) {
+  const sel = only ? `only:${[...only].sort().join(',')}` : fast ? 'fast' : 'full';
+  return { version, families: [...families].sort().join(','), sel };
+}
+
+function readPasses() { try { return JSON.parse(readFileSync(PASS_FILE, 'utf8')).passes || []; } catch { return []; } }
+
+/** The passing run that covers this one (same inputs, version and families; the same selection or the whole corpus). */
+export function coveringPass(hash, scope, passes = readPasses()) {
+  return passes.find((p) => p.hash === hash && p.version === scope.version && p.families === scope.families
+    && (p.sel === scope.sel || p.sel === 'full')) || null;
+}
+
+function rememberPass(hash, scope, ms) {
+  const passes = [{ hash, ...scope, at: new Date().toISOString(), ms }, ...readPasses().filter((p) => !(p.hash === hash
+    && p.version === scope.version && p.families === scope.families && p.sel === scope.sel))].slice(0, PASS_KEEP);
+  mkdirSync(dirname(PASS_FILE), { recursive: true });
+  writeFileSync(`${PASS_FILE}.tmp`, `${JSON.stringify({ passes }, null, 1)}
+`);
+  renameSync(`${PASS_FILE}.tmp`, PASS_FILE);
+}
 
 const QUIET = Object.freeze({ warn() {}, error() {}, info() {}, log() {}, debug() {} });
 const data = getData({ log: QUIET });
@@ -1207,7 +1268,7 @@ export async function computeDigests(families, { select = () => true, jobs = 1, 
   await new Promise((resolve, reject) => {
     let live = 0;
     let failed = null;
-    const n = Math.min(jobs, queue.length);
+    const n = Math.min(jobs, MAX_JOBS, queue.length);
     for (let w = 0; w < n; w++) {
       const worker = new Worker(fileURLToPath(import.meta.url), { workerData: { golden: true, version: toolVersion } });
       live++;
@@ -1318,7 +1379,8 @@ if (isMain) {
   const families = opt.family ? String(opt.family).split(',') : FAMILY_NAMES.slice();
   const only = opt.only ? new Set(String(opt.only).split(',')) : null;
   const select = (sc) => (!only || only.has(sc.id)) && (!opt.fast || sc.fast);
-  const jobs = Math.max(1, Number(opt.jobs) || Math.min(4, Math.max(1, availableParallelism() - 1)));
+  const jobs = goldenJobs(opt.jobs);
+  if (Number(opt.jobs) > MAX_JOBS) console.log(`golden: --jobs ${opt.jobs} capped at ${MAX_JOBS} worker threads`);
   if (opt.list) {
     const lines = [];
     for (const f of families) for (const sc of scenariosOf(f)) if (select(sc)) lines.push(`${f}\t${sc.id}\t${sc.fast ? 'fast' : ''}\t${sc.about ?? ''}`.slice(0, 220));
@@ -1329,6 +1391,15 @@ if (isMain) {
     // writeSync blocks until the kernel has accepted every byte. The list is generated from the version
     // directory's tracked JSON and the kit sources; it does not read data/local-assets.json, data/local-fx.json or .cache.
     if (lines.length) writeStdoutSync(`${lines.join('\n')}\n`);
+    process.exit(0);
+  }
+  // (fork) a plain comparison is skipped when a passing one already covered these exact inputs (--force runs it)
+  const plain = !opt.update && !opt.twice && !opt.coverage;
+  const scope = goldenScope({ families, fast: !!opt.fast, only });
+  const inputHash = plain ? goldenInputHash() : null;
+  const covered = plain && !opt.force ? coveringPass(inputHash, scope) : null;
+  if (covered) {
+    console.log(`golden: skipped, nothing it reads has changed since the passing ${covered.sel} run of ${covered.at} (--force runs it)`);
     process.exit(0);
   }
   const t0 = performance.now();
@@ -1359,6 +1430,7 @@ if (isMain) {
       if (d.length) { bad++; console.log(formatDiffs(f, d)); } else console.log(`golden ${f}: ${Object.keys(digests[f]).length} scenarios match`);
     }
     console.log(`${bad ? 'MISMATCH' : 'ok'} · ${ms} ms (jobs ${jobs})`);
+    if (!bad && plain) rememberPass(inputHash, scope, ms);
   }
   process.exit(bad ? 1 : 0);
 }

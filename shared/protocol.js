@@ -563,9 +563,10 @@ export const C2S = {
   // the host removes another human before the match (server/lobby.js kick; community report #17); playerId = the one the
   // host confirmed — a seat that changed hands meanwhile is refused
   'room.kick': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), playerId: isId },
-  // (fork) Grand Alliance rooms (shared/largeRoom.js): move to an empty seat (any member), swap two seats (the host), lock
-  // the room with a 4-letter password or unlock it (the host)
-  'room.moveSeat': { seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
+  // (fork) Grand Alliance rooms (shared/largeRoom.js): move to the other squad (any member: `squad`, or an old page's
+  // `seat` naming a seat of it), swap two seats of different squads (the host), lock the room with a 4-letter password
+  // or unlock it (the host)
+  'room.moveSeat': { $optional: ['seat', 'squad'], seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), squad: (v) => v === 0 || v === 1 },
   'room.swapSeats': { a: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), b: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
   'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['password'] },
   // (fork) the room browser of Grand Alliance rooms: rooms.watch { on } — while on, the server sends rooms.list on every change

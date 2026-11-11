@@ -153,11 +153,14 @@ export function triggerKinds(b) {
   const out = new Set();
   for (const t of Array.isArray(b?.triggers) ? b.triggers : []) {
     if (!isObj(t)) continue;
+    const n0 = out.size;
     if (t.event === 'ON_BEFORE_TRY_SET_HP_ZERO') for (const k of FATAL) out.add(k);
     else if (t.event === 'ON_BUFF_FINISH' && /standin/i.test(`${t.template || ''} ${t.buff || ''}`)) for (const k of STAND_IN_END) out.add(k);
     else if (t.event === 'ON_SKILL_START') out.add('skill');
     else if (t.event === 'ON_OWNER_BORN') out.add('born');
     else if (POINT_TRIGGERS[t.template]) out.add(POINT_TRIGGERS[t.template]);
+    // (fork) a template no other signal covers: the kit's 'ability' fx naming it (`ability:<template>`, talentfx.js fx)
+    if (out.size === n0 && t.template) out.add(`ability:${t.template}`);
   }
   return [...out];
 }
@@ -256,11 +259,22 @@ export function bindingKeys(b) {
   return b?.plan ? planKeys(b.plan) : [];
 }
 
+/**
+ * (fork) A passive ability whose only rows are on its targets, and every one of them a summon's effect (`token_…` keys:
+ * 凯尔希's tokenEff — token_kalts_skill_0N_buff on Mon3tr —, 鸿雪's TokenEff on her sub-bow): its targets are the owner's
+ * summons (UnitInfo `summonerId`), so it plays on them (talentfx.js `onSummons`).
+ */
+export function summonTargets(b) {
+  const t = b?.plan?.targets || [];
+  return b?.when === 'passive' && t.length > 0 && t.every((e) => /^token_/.test(String(e.key || ''))) ? t : null;
+}
+
 /** Whether a binding can ever play on this client (talentfx.js binds it), with the reason it cannot. */
 export function bindable(b) {
   if (!b || !b.plan) return { ok: false, reason: 'no-plan' };
   const p = b.plan;
   const draws = p.start.length || p.loop.length || p.end.length || p.range.length || p.attacks.some((a) => a.cast.length || a.range.length || a.hit.some((g) => g.length));
+  if (!draws && summonTargets(b)) return { ok: true, reason: null, onSummons: true };
   if (!draws) return { ok: false, reason: p.targets.length ? 'targets-only' : p.unmapped.length ? 'unmapped' : 'no-effects' };
   if (b.when === 'toggle') {
     const probe = toggleOn(b, { flags: 0, hp: 1, maxHp: 1 }, {}, 0);

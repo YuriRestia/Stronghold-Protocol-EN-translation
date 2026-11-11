@@ -193,10 +193,12 @@ export default {
             const far = Math.max(1, num(b3.max_distance, 4));
             for (const e of battle.enemies) {
               const m = marks.get(e.id);
-              if (!e.alive || e.hidden) { if (m) marks.delete(e.id); continue; }
+              if (!e.alive || e.hidden) { if (m) { marks.delete(e.id); battle.fxState(e, 'shu_s_3[enemy][enter]', false); } continue; }
               const k = tileKey(e);
               if (!m) {
-                if (!e.isFlying && tiles.has(k)) marks.set(e.id, { r: Math.round(e.y), c: Math.round(e.x), last: k });
+                if (!e.isFlying && tiles.has(k)) { marks.set(e.id, { r: Math.round(e.y), c: Math.round(e.x), last: k });
+                  // (fork) the client's shu_s_3[enemy][enter] (shu_talent_buff_03) on a marked enemy while its mark lasts — display only
+                  battle.fxState(e, 'shu_s_3[enemy][enter]', true, { src: unit }); }
                 continue;
               }
               if (k === m.last) continue;
@@ -219,7 +221,7 @@ export default {
             performAttack(battle, unit, { ...prof, dmgType: 'heal', heal: { mode: 'single' }, atkScale: 1, healScale: 1, projectile: 'none', splashRadius: 0, chain: null, hits: 1 }, [a]);
             unit.atkCd = Math.max(unit.atkCd, unit.s.interval);
           },
-          onEnd({ unit }) { unit.mem.shuMarks = null; },
+          onEnd({ battle, unit }) { for (const id of unit.mem.shuMarks?.keys() || []) { const e = battle.unitById?.(id); if (e) battle.fxState(e, 'shu_s_3[enemy][enter]', false); } unit.mem.shuMarks = null; },
         },
       },
       talents: [

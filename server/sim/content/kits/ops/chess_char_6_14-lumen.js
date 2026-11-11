@@ -31,7 +31,11 @@ function lumen(bb, chess, def) {
           if (a.kind === 'device' || a.s.flags.noHeal || a.profile?.noHeal) continue; // a heal: never on 禁疗 / 孤立
           battle.addBuff(a, {
             key: `lumen:rain:${unit.id}`, duration: life, interval: iv, refresh: 'replace', visible: true, source: unit,
-            onTick: ({ unit: x }) => { if (x.hp < x.s.maxHp) battle.heal(unit, x, unit.s.atk * sc, { hot: true }); },
+            onTick: ({ unit: x }) => {
+              if (!(x.hp < x.s.maxHp)) return;
+              battle.heal(unit, x, unit.s.atk * sc, { hot: true });
+              battle.tickFx(unit, x, 'lumen:s1');   // lumen_s_1[heal] ON_BUFF_TRIGGER (hp below full): lumen_skill_01_hit
+            },
           });
         }
       },

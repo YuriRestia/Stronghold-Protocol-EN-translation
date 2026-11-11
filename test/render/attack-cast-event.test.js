@@ -9,7 +9,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, chessRec } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, castNow } from '../helpers/battleHarness.js';
 import { createWindUpLookahead } from '../../public/js/render/app/windup.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { ALLY_ANIM_SCALE_MIN, ALLY_ANIM_SCALE_MAX } from '../../server/sim/constants.js';
@@ -109,7 +109,7 @@ test('a skill that starts during the wind-up: the hit picks its targets again wi
     if (!locked && i > 30 && u.cast) {
       locked = u.cast.targets.length;
       u.skill.gainSp(999);
-      u.skill.activate('manual');
+      castNow(u, 'manual');
       assert.ok(u.skill.active && u.cast, 'the skill runs, the cast goes on');
     }
   }

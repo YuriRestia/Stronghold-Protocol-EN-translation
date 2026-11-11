@@ -13,6 +13,7 @@ import { createStudio } from '../../server/studio/index.js';
 import { checkGameplayFolder } from '../../server/studio/gameplayCheck.js';
 import { validatePng } from '../../server/studio/mediaValidation.js';
 import { fxPath } from '../../public/js/render/vfx/pluginFormat.js';
+import { STUDIO_TRIAL_MS } from '../helpers/studioTrial.js';
 
 function setup(t, template = 'fx') {
   const f = fixture(t), id = `third-${template}`, made = createPlugin(templateById(template), { id });
@@ -20,7 +21,8 @@ function setup(t, template = 'fx') {
   for (const [rel, bytes] of Object.entries(made.files)) files.write(id, rel, Buffer.from(bytes), { generated: true });
   const raw = () => JSON.parse(fs.readFileSync(path.join(dir, 'plugin.json')));
   const write = value => files.write(id, 'plugin.json', Buffer.from(manifestText(value)));
-  const studio = createStudio({ registry: f.registry, pluginsDir: files.base, dataDir: path.resolve('data'), publicDir: path.resolve('public'), watch: () => ({ on() {}, close() {} }) });
+  // (fork) these saves check what the checker finds, not how fast: STUDIO_TRIAL_MS, not the 20 s server budget
+  const studio = createStudio({ registry: f.registry, pluginsDir: files.base, dataDir: path.resolve('data'), publicDir: path.resolve('public'), watch: () => ({ on() {}, close() {} }), checkMs: STUDIO_TRIAL_MS });
   t.after(() => studio.close());
   const api = async (sub, body, method = 'PUT') => {
     const req = Readable.from([Buffer.isBuffer(body) ? body : Buffer.from(JSON.stringify(body))]);

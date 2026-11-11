@@ -171,7 +171,9 @@ export default {
             if (!unit.skill?.active || !on(unit)) continue;
             const scale = minS + (maxS - minS) * Math.min(1, (battle.time - t0s) / Math.max(0.1, chainSleep));
             battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type: 'arts', isSkill: true, tags: ['skill', 'titiWake'] });
-            battle.fx('wake', { x: e.x, y: e.y, id: e.id, scale: Math.round(scale * 100) / 100 });
+            // (fork) src: FX_COVER skchr_titi_3 — the official wake hit (the tick below) shows it while the skill lasts
+            battle.fx('wake', { x: e.x, y: e.y, id: e.id, src: unit.id, scale: Math.round(scale * 100) / 100 });
+            battle.tickFx(unit, e, 'titi:s3');   // titi_s_3[dmg_ticker] ON_BUFF_TRIGGER (woke up): titi_skill_03_hit_02 + titi_s_3[awake]
             sleepOthers(e);
           }
         }, { owner: unit });
@@ -179,7 +181,9 @@ export default {
           const v = c.victim;
           if (v.side !== 'enemy' || !asleep.has(v)) return;
           asleep.delete(v);
-          if (unit.skill?.active && on(unit)) sleepOthers(v);
+          if (!unit.skill?.active || !on(unit)) return;
+          battle.tickFx(unit, v, 'titi:s3');   // titi_s_3[dmg_ticker] ON_BUFF_FINISH (knocked out asleep): the same hit + sound
+          sleepOthers(v);
         }, { owner: unit });
         // S3: other allies in range fall asleep instead of dying, until healed to full or the skill ends
         battle.on('fatal', (c) => {

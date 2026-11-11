@@ -2,7 +2,7 @@
 // through the harness. Numbers are read back from the data blackboards so the tests follow data changes.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { TIER_KITS } from '../../server/sim/content/kits/index.js';
 import { absoluteRangeKeys } from '../../server/sim/targeting.js';
@@ -78,9 +78,9 @@ test('信仰搅拌机 S3 start reloads other 拉特兰 operators (Lv4 +2 / elite
     const h = makeBattle({ units: [{ chessId: id, row: 9, col: 5 }, { chessId: 'chess_char_1_01_a', row: 10, col: 4 }], timeLimit: 60, hooks: [] });
     h.step();
     const ins = h.unit('chess_char_1_01_a'), mix = h.unit(id);
-    assert.ok(ins.skill.activate('test', { free: true }));
+    assert.ok(castNow(ins, 'test', { free: true }));
     const before = ins.skill.ammoLeft;
-    assert.ok(mix.skill.activate('test', { free: true }));
+    assert.ok(castNow(mix, 'test', { free: true }));
     assert.equal(ins.skill.ammoLeft, before + D(id).skill.bb.ammo);
   }
 });
@@ -172,14 +172,15 @@ test('伊内丝 S2: stealth, ATK +60 %, +1 DP per attack, steals ASPD (restored 
   assert.ok(h.runUntil(() => u.skill.active, 60));
   assert.ok(u.s.flags.stealth, 'stealth');
   const dp0 = h.b.players[0].dp, a0 = u.stats.attacks;
-  h.runUntil(() => !u.skill.active, 30);
-  const attacks = u.stats.attacks - a0;
+  // the attacks made while the skill runs (one landing on the tick its duration ends comes after the end: no DP)
+  let attacks = 0;
+  for (let i = 0; i < 900 && u.skill.active; i++) { const n = u.stats.attacks; h.step(); if (u.skill.active) attacks += u.stats.attacks - n; }
   assert.ok(attacks >= 3);
   approx(h.b.players[0].dp - dp0, attacks * bb.cost, 1e-9, '+1 DP per attack');
   assert.equal(e.findBuff(`ines:aspd:${u.id}`), null, 'stolen ASPD returned');
   assert.equal(u.findBuff('ines:aspdGain'), null);
   // mid-skill steal magnitude
-  u.skill.activate('test', { free: true });
+  castNow(u, 'test', { free: true });
   h.runUntil(() => u.stats.attacks >= a0 + attacks + 3, 10);
   h.run(0.3);
   const stolen = u.findBuff('ines:aspdGain').mods.aspd;
@@ -289,7 +290,7 @@ test('瑰盐 S2: allies in range take 80 % of phys/arts damage now, 20 % as 5 s 
   approx(u.s.atk, u.base.atk * (1 + t0.atk), 1e-9);
   h.run(0.3);
   approx(ally.s.healingTakenMul, t0.heal_scale, 1e-9);
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   approx(u.s.interval, u.base.bat + bb.base_attack_time, 1e-9);
   const before = noisy(h, 'damaged').length;
   h.b.dealDamage(null, ally, { amount: 1000, type: 'arts' });
@@ -324,7 +325,7 @@ test('瑰盐 / 白面鸮 / 莱恩哈特 elite modules extend the range — the i
     const h = makeBattle({ units: [{ chessId: id, row: 10, col: 3 }], timeLimit: 20, hooks: [] });
     h.step();
     const u = h.unit(id);
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.step();
     assert.equal(u.rangeKeys.length, D(id).skill.rangeGrid.length, '白面鸮 S2 keeps its own range');
   }
@@ -380,7 +381,7 @@ test('阿罗玛: first attack ×1.1 + 2.5 s levitation; S2: +ATK and landing dam
   approx(hits[0].amount, hits[1].amount * t0.damage_scale, 1e-6, 'first attack ×1.1');
   assert.ok(noisy(h, 'statusApplied').some((c) => c.target === e && c.status === 'levitate' && c.duration === t0.levitate_duration));
   // a second enemy: skill on before it is bubbled → landing damage
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   const e2 = h.spawn('enemy_dummy', { pos: [10, 7] }); // on her line: struck by the next attack too (轰击术师)
   approx(u.s.atk, u.base.atk * (1 + bb.atk), 1e-9);
   h.runUntil(() => dmgBy(h, u, (c) => c.dmg?.tags?.includes('landing')).length >= 1, 15);
@@ -425,7 +426,7 @@ test('凯瑟琳: 2 placed support devices shield allies (20 % of her HP), 6 %/s 
   h.run(2.1);
   assert.ok(ally.findBuff('cathy:shield').shield > left + u.s.maxHp * tb.shield_ratio_each_trigger * 0.99, 'refills 6 %/s');
   // S2
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   approx(u.s.maxHp, u.base.maxHp * (1 + bb.max_hp), 1e-9);
   const a0 = noisy(h, 'attack').filter((c) => c.attacker === u).length;
   h.b.dealDamage(null, ally, { amount: 1e5, type: 'phys' }); // breaks the shield (and more)
@@ -447,7 +448,7 @@ test('歌蕾蒂娅 S3: binds the farthest target, tornado pulses 85 % ATK arts e
   const far = h.spawn('enemy_dummy', { pos: [10, 6] });
   h.runUntil(() => dmgBy(h, u, (c) => c.dmg.isAttack).length >= 1, 10);
   approx(dmgBy(h, u, (c) => c.dmg.isAttack)[0].amount, u.s.atk * t1.atk_scale, 1e-6, 'weight ≤ 3 ×1.3');
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   assert.ok(noisy(h, 'statusApplied').some((c) => c.target === far && c.status === 'bind'), 'farthest target bound');
   h.run(0.2);
   approx(far.findBuff(`glady:slow:${u.id}`).mods.moveMul, 1 + bb.move_speed, 1e-9);
@@ -467,7 +468,7 @@ test('歌蕾蒂娅 S3: the skill-end 捕网 has radius 1, the tornado 1.5 (PRTS 
   const u = h.unit(id);
   h.spawn('enemy_dummy', { pos: [10, 6] });   // the farthest enemy: bound, the tornado sits on it
   h.step();
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   assert.deepEqual([u.mem.tornado.x, u.mem.tornado.y], [6, 10]);
   const at = (x, y) => { const e = h.spawn('enemy_dummy', { pos: [10, 6] }); e.x = x; e.y = y; return e; };
   const inner = at(6, 9.1), outer = at(6, 11.25);   // 0.9 and 1.25 from the centre
@@ -500,7 +501,7 @@ test('歌蕾蒂娅 阿戈尔的波涛: 深海猎人 regen 2.5 %/s and −25 % da
   g.spawn('enemy_dummy', { pos: [10, 5] });
   g.spawn('enemy_dummy', { pos: [10, 6] });
   g.step();
-  gl.skill.activate('test', { free: true });
+  castNow(gl, 'test', { free: true });
   g.runUntil(() => !gl.skill.active, 20);
   assert.ok(dmgBy(g, gl, (c) => c.dmg?.tags?.includes('drag')).length > 0, 'drag damage');
 });
@@ -618,7 +619,7 @@ test('同名效果取最高: two 灵知 never compound 坚冰, two 莱恩哈特 
   assert.equal(two.length, 2);
   const x = h.spawn('enemy_dummy', { pos: [10, 5] });
   h.step();
-  for (const u of two) assert.ok(u.skill.activate('test', { free: true }), 'S2 cast');
+  for (const u of two) assert.ok(castNow(u, 'test', { free: true }), 'S2 cast');
   assert.equal(x.buffs.filter((b) => String(b.key).startsWith('lionhd:res')).length, 1, 'one RES cut');
   approx(x.s.res, 50 * (1 + bb.magic_resistance), 1e-9, 'RES −8 % once, not twice');
   h.run(bb.duration + 0.1);
@@ -631,10 +632,10 @@ test('录武官 S2: healed allies regain 80 HP whenever damaged for 10 s; 学成
   h.step();
   const u = h.unit(id), ally = h.unit('chess_char_1_02_a');
   const sp0 = u.skill.sp;
-  ally.skill.activate('test', { free: true });
+  castNow(ally, 'test', { free: true });
   approx(u.skill.sp, sp0 + t0.sp, 1e-9);
   approx(u.s.aspd, u.base.aspd + t0.attack_speed, 1e-9);
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   approx(u.s.atk, u.base.atk * (1 + bb.atk), 1e-9);
   h.b.dealDamage(null, ally, { amount: ally.s.maxHp * 0.6, type: 'true' });
   h.runUntil(() => ally.findBuff(`reckpr:guard:${u.id}`), 5);
@@ -793,7 +794,7 @@ test('白面鸮: SP aura +0.3/s for all allies (highest SP aura wins); S2 faster
   const u = h.unit(id), mh = h.unit('chess_char_1_02_a'), mo = h.unit('chess_char_4_02_a');
   approx(mh.s.spRecovery, 1 + t0.sp_recovery_per_sec, 1e-9);
   approx(mo.s.spRecovery, 1 + Math.max(t0.sp_recovery_per_sec, D('chess_char_4_02_a').talents[0].bb.sp_recovery_per_sec), 1e-9, 'not cumulative');
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   approx(u.s.interval, u.base.bat + bb.base_attack_time, 1e-9);
   assert.ok(u.rangeKeys.length > u.baseRangeKeys.length);
 });
@@ -837,7 +838,7 @@ test('百炼嘉维尔 S3: ATK/ASPD/block up; only 50 % damage now, the rest as 2
   h.run(0.2);
   const u = h.unit(id);
   approx(u.s.atk, u.base.atk * (1 + t0.atk), 1e-9, '战地巨斧');
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   approx(u.s.atk, u.base.atk * (1 + t0.atk + bb.atk), 1e-9);
   assert.equal(u.s.blockCnt, u.base.blockCnt + bb.block_cnt);
   const hp0 = u.hp;
@@ -887,7 +888,7 @@ test('卡涅利安 / 蜜蜡 elite trait: keep DEF +100 % / RES +10 during the sk
     const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5 }], timeLimit: 30, hooks: [] });
     h.step();
     const u = h.unit(id);
-    u.skill.activate('test', { free: true });
+    castNow(u, 'test', { free: true });
     approx(u.s.def, u.base.def * (1 + tb[`${pre}[buff].def`]), 1e-9, id);
     approx(u.s.res, u.base.res + tb[`${pre}[buff].magic_resistance`], 1e-9, id);
   }
@@ -913,7 +914,7 @@ test('魔王 S3: range up, trait 65 % ATK/s (生命回复速度), 鼓舞 +65 % o
   assert.equal(noisy(h, 'heal').filter((c) => c.source === u && c.target === a).length, 0, 'no heal of hers');
   // S3
   h.b.dealDamage(null, b, { amount: b.s.maxHp * 0.7, type: 'true' });
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   h.run(0.3);
   approx(a.s.maxHp, a.base.maxHp + u.s.maxHp * bb.max_hp, 1e-6, '鼓舞');
   approx(u.s.maxHp, u.base.maxHp, 1e-9, 'not on herself');
@@ -1061,7 +1062,7 @@ test('寒芒克洛丝: dodged shots neither count towards the 40 hits nor stun',
   const u = h.unit(id);
   const e = h.spawn('enemy_dummy', { pos: [10, 5] });
   h.b.addBuff(e, { key: 'test:dodge', mods: { dodgePhys: 1 } });
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   h.run(6);
   assert.ok(h.hooksOf('dodge').length >= 8, 'shots were fired and dodged');
   assert.equal(u.mem.kroosHits ?? 0, 0);
@@ -1116,7 +1117,7 @@ test('华法琳 血液样本回收: the random SP gift skips allies whose timed 
   const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy() } }, units: [{ chessId: id, row: 10, col: 3 }, { chessId: 'chess_char_1_02_a', row: 10, col: 4 }], timeLimit: 60, hooks: [] });
   h.step();
   const ally = h.unit('chess_char_1_02_a');
-  assert.ok(ally.skill.activate('test', { free: true }) && ally.skill.isTimed);
+  assert.ok(castNow(ally, 'test', { free: true }) && ally.skill.isTimed);
   const sp0 = ally.skill.sp;
   const e = h.spawn('enemy_dummy', { pos: [10, 5] });
   h.b.dealDamage(null, e, { amount: 1e9, type: 'true' });
@@ -1130,7 +1131,7 @@ test('瑰盐 S2 only defers damage taken by operators (summons take it in full)'
   const u = h.unit(id);
   const tok = h.b.spawnToken(u, 'test_token', 10, 4, { def: { name: 'tok', stats: { maxHp: 5000, atk: 0, def: 0, magicResistance: 0, blockCnt: 0, baseAttackTime: 1, attackSpeed: 100 }, rangeGrid: [[0, 0]], profession: 'TOKEN' } });
   assert.ok(tok && u.rangeKeys.includes(tok.tileR * 21 + tok.tileC));
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   const n0 = noisy(h, 'damaged').length;
   h.b.dealDamage(null, tok, { amount: 1000, type: 'true' });
   h.b.dealDamage(null, tok, { amount: 1000, type: 'phys' });
@@ -1172,7 +1173,7 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
   ]) {
     const [h, u, bb] = mk(id);
     assert.notDeepEqual(bb, D(id.replace(/_b$/, '_a')).skill.bb, `${id}: Lv7 blackboard differs`);
-    assert.ok(u.skill.activate('test', { free: true }), id);
+    assert.ok(castNow(u, 'test', { free: true }), id);
     check(u, bb);
     checkInvariants(h.b);
   }
@@ -1206,7 +1207,7 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
   {
     const [h, u, bb] = mk('chess_char_4_15_b', { units: [{ chessId: 'chess_char_4_15_b', row: 10, col: 3 }, { chessId: 'chess_char_1_02_a', row: 10, col: 4 }] });
     const ally = h.unit('chess_char_1_02_a');
-    u.skill.activate('test', { free: true });
+    castNow(u, 'test', { free: true });
     h.b.dealDamage(null, ally, { amount: ally.s.maxHp * 0.4, type: 'true' });
     assert.ok(h.runUntil(() => ally.findBuff(`reckpr:guard:${u.id}`), 5));
     const n0 = noisy(h, 'heal').length;
@@ -1235,7 +1236,7 @@ test('elite (精锐) kits read the Lv7 blackboard: skill magnitudes differ from 
       const side = h.spawn('enemy_dummy', { pos: [11, 7] });
       h.step();
       const x0 = side.x, y0 = side.y;
-      u.skill.activate('test', { free: true });
+      castNow(u, 'test', { free: true });
       h.run(D(id).skill.bb.interval + 0.1);
       return Math.hypot(side.x - x0, side.y - y0);
     };
@@ -1251,7 +1252,7 @@ test('焰尾 S3 dodge stacks independently with the 卡西米尔 aura (elite 80 
     h.run(0.3);
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [12, 9] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     let landed = 0;
     const N = 3000;
     for (let i = 0; i < N; i++) if (h.b.dealDamage(e, u, { amount: 1, type: i % 2 ? 'phys' : 'arts', isAttack: true }) > 0 || u.hp < u.s.maxHp) { landed++; u.hp = u.s.maxHp; }

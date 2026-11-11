@@ -4,7 +4,7 @@
 // and the elite's non-default module choices (Y / RA modules, or 'none') change what the kit does.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { KITS, skillSpecSource } from '../../server/sim/content/index.js';
 import { kitCoverage } from '../../tools/kit-coverage.mjs';
@@ -480,20 +480,20 @@ test('6_06 佩佩 S2 阻遏混乱锤: skill range, ATK/ASPD +, random targets; e
     h.step();
     const as0 = u.s.aspd;
     const aspdAt = () => { u.markDirty(); return u.s.aspd; };
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(aspdAt(), as0 + bb.attack_speed, '1st use');
     approx(skillBuff(u).mods.atkPct, bb.atk);
     assert.ok(u.rangeKeySet.has(10 * COLS + 6), 'skill range reaches 2 tiles');
     h.run(2.5);
     assert.ok(dealt(h, u, (c) => c.dmg.isAttack).some((c) => c.target.x > 5.5), 'hits the enemy only the skill range reaches');
     u.skill.end('test');
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(aspdAt(), as0 + bb.attack_speed + bb.attack_speed_extra, '2nd use');
     u.skill.end('test');
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(aspdAt(), as0 + bb.attack_speed + bb.attack_speed_extra * bb.max_stack_cnt, '3rd use (max stacks)');
     u.skill.end('test');
-    u.skill.activate('test', { free: true });
+    castNow(u, 'test', { free: true });
     approx(aspdAt(), as0 + bb.attack_speed + bb.attack_speed_extra * bb.max_stack_cnt, 'capped');
     done(h);
   }

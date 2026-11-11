@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import {
   resolveSkill, skillPlan, attackFx, slotKey, planKeys, anchorOf, chargePlan, chargeStep, chargeKeys, hitGroups, unitKeyOf,
   skillRecordOf, skillIdsOf, mountPointName, CHARGE_EMITTERS, UNMAPPED,
+  stateRow,
 } from '../../public/js/render/vfx/skills.js';
 import { coverage, roster } from '../../tools/vfx-skill-coverage.mjs';
 
@@ -193,9 +194,11 @@ describe('skill plans (synthetic)', () => {
     assert.deepEqual(keysOf(p.each.hit[0]), ['tmpl_out_hit', 'byname_hit']);
     assert.equal(p.each.hit[0][1].byName, true);
     const why = Object.fromEntries(p.unmapped.map((u) => [u.key, u.reason]));
-    assert.deepEqual(why, { tmpl_after: 'after-end', tmpl_cond: 'conditional', tmpl_tick: 'tick', tok_buff: 'token', line_fx: 'path',
+    assert.deepEqual(why, { tmpl_after: 'after-end', tmpl_cond: 'conditional', tmpl_tick: 'tick', line_fx: 'path',
       tile_fx: 'tiles', ch_hit: 'channel-hit', act_hit: 'hit-no-attack', a_start: 'other' });
     for (const u of p.unmapped) assert.ok(UNMAPPED[u.reason], u.reason);
+    // (fork) a buff the skill gives the owner's summons (CreateBuffToToken) plays on them (SkillFx._tokens), held for the skill
+    assert.deepEqual(p.tokens.map((e) => [e.key, e.hold]), [['tok_buff', 'skill']]);
   });
   test('directional rows: slotKey by facing; planKeys holds every slot', () => {
     const p = skillPlan(idx, null, 'sk_dir');
@@ -401,4 +404,11 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
     } else assert.equal(enemies.resolved, 0);
     assert.ok(rep.unmapped.every((u) => UNMAPPED[u.reason]));
   });
+});
+
+test("(fork) a STATE_BUFFS entry with `keys` claims only those rows of a shared buff name (Eunectes S2's blockee stun)", () => {
+  assert.equal(stateRow('stun', 'zumama_skill_02_buff_02'), true);
+  assert.equal(stateRow('stun', 'buff_stun'), false, "another skill's stun stays a target row");
+  assert.equal(stateRow('pallas_s_3[peak]', 'anything'), true, 'an entry without keys: every row of the buff');
+  assert.equal(stateRow('no_such_buff', 'x'), false);
 });

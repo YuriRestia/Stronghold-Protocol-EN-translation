@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 const LEM = 'chess_char_6_01_a';
 function field({ skillIndex = 2, second = false, unite = false } = {}) {
   const units = [{ uid: 1, chessId: LEM, row: 12, col: 2, skillIndex, potential: 1 },
@@ -86,6 +86,6 @@ for (const skillIndex of [0, 1, 2]) test(`wanted S${skillIndex + 1} ${skillIndex
   assert.deepEqual(u.skill.rules, [skillIndex === 0 ? 'DEFAULT' : 'SEARCH']);
   u.skill.sp = 0;h.run(8.5);assert.ok(e.findBuff('lemuen:wanted'));
   u.atkCd = 0.7;u.skill.gainSp(999);
-  h.run(0.3);assert.equal(u.skill.activations, skillIndex === 0 ? 0 : 1);
+  h.run(0.3);throughBegin(h, u);assert.equal(u.skill.activations, skillIndex === 0 ? 0 : 1);
   h.run(0.6);assert.equal(u.skill.activations, 1);done(h);
 });

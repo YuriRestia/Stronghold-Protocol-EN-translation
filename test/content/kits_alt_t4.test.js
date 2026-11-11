@@ -4,7 +4,7 @@
 // are read back from the data blackboards (the SELECTED skill's `bb`), real battles through the harness.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { loadoutOptions } from '../../shared/protocol.js';
 import { skillSpecSource } from '../../server/sim/content/index.js';
@@ -96,7 +96,7 @@ test('信仰搅拌机 S1 铳骑主考官 (自动触发 ⇒ DEFAULT: hurt SP, fir
     const u = h.unit(id), ins = h.unit('chess_char_1_01_a');
     assert.equal(u.skill.id, 'skchr_rmixer_1');
     assert.equal(u.skill.rule, 'DEFAULT', 'an AUTO skill takes no 技能策略 (the 重装 row is for MANUAL skills)');
-    assert.ok(ins.skill.activate('test', { free: true }));
+    assert.ok(castNow(ins, 'test', { free: true }));
     u.skill.gainSp(1000);
     const ammo0 = ins.skill.ammoLeft;
     h.hooksOf('attack').length = 0;
@@ -125,9 +125,9 @@ test('信仰搅拌机 S1 reloads the latest-deployed 拉特兰 ammo user around 
     }
     const latest = redeploy ? near : far, other = redeploy ? far : near;
     assert.ok(latest.deploySeq > other.deploySeq);
-    for (const a of [near, far]) { assert.ok(a.skill.activate('test', { free: true })); a.skill.ammoLeft = 5; }
+    for (const a of [near, far]) { assert.ok(castNow(a, 'test', { free: true })); a.skill.ammoLeft = 5; }
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.b.forceAttack(u, [e]);
     h.run(0.5);
     const reloads = h.eventsOf('fx').filter((x) => x[1] === 'reload');
@@ -144,7 +144,7 @@ test('信仰搅拌机 S2 八臂电锯侠: ammo skill, ATK/DEF up; a lethal hit i
       const h = battle([U(id, 9, 5, 1)], { enemies: { enemy_killer: dummy({ key: 'enemy_killer', atk: 1e6, bat: 2 }) } });
       h.step();
       const u = h.unit(id);
-      assert.ok(u.skill.activate('test', { free: true }));
+      assert.ok(castNow(u, 'test', { free: true }));
       assert.equal(u.skill.kind, 'ammo');
       assert.equal(u.skill.ammoLeft, bb['attack@trigger_time']);
       approx(u.s.atk, u.base.atk * (1 + bb.atk), 1e-6, 'ATK');
@@ -196,7 +196,7 @@ test('莫斯提马 S1 攻击力强化·γ型: ATK +45 %/+60 %; talent 2 slow is 
     h.step();
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [10, 4] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.run(0.5);
     approx(u.s.atk, u.base.atk * (1 + bb.atk), 1e-6, `${id} ATK`);
     approx(e.findBuff(`mostma:slow:${u.id}`).mods.moveMul, 1 + t1.move_speed, 1e-9, 'plain talent slow');
@@ -212,7 +212,7 @@ test('莫斯提马 S2 荒时之锁: every enemy in range stunned until the skill
     const u = h.unit(id);
     const es = [h.spawn('enemy_dummy', { pos: [10, 4] }), h.spawn('enemy_dummy', { pos: [9, 5] }), h.spawn('enemy_dummy', { pos: [11, 5] })];
     const far = h.spawn('enemy_dummy', { pos: [10, 9] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.run(0.2);
     for (const e of es) assert.ok(e.s.flags.stun, `${id}: enemy in range stunned`);
     assert.ok(!far.s.flags.stun, 'enemy out of range not stunned');
@@ -245,7 +245,7 @@ test('莫斯提马 SPC-X: the range becomes the module grid (only the centre til
     h.step();
     const u = h.unit(id);
     const base = rel(u), initial = u.baseRangeKeys.length, ext = u.s.rangeExtend;
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.step();
     return { base, initial, ext, skill: rel(u) };
   };
@@ -271,7 +271,7 @@ test('伊内丝 S1 淬影突袭: next attack +2 DP and a 3 s non-stacking arts D
     const e = h.spawn('enemy_dummy', { pos: [10, 5] });
     h.run(1.5); // first damage: 影织 binds + steals ATK (her ATK is stable afterwards)
     const dp0 = h.b.getPlayer('p1').dp;
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.ok(h.runUntil(() => !u.skill.active, 10));
     h.run(0.4); // the bolt lands
     assert.equal(h.b.getPlayer('p1').dp, dp0 + bb.cost, `${id}: +${bb.cost} DP`);
@@ -357,7 +357,7 @@ test('寒芒克洛丝 S1 无痕: ATK up, every attack is a double shot, 迷彩 (
     h.step();
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.equal(u.skill.kind, 'duration');
     approx(u.s.atk, u.base.atk * (1 + bb.atk), 1e-6, `${id} ATK`);
     assert.ok(u.s.flags.camou && !u.s.flags.stealth, '迷彩 (not 隐匿)');
@@ -379,14 +379,14 @@ test('风笛 S1 迅捷打击·γ型 (ATK/ASPD) and S3 闭膛连发 (BAT +0.7 s, 
     let h = battle([U(id, 10, 4, 0)]);
     h.step();
     let u = h.unit(id);
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + b1.atk), 1e-6, 'S1 ATK');
     assert.equal(u.s.aspd, u.base.aspd + b1.attack_speed);
     h = battle([U(id, 10, 4, 2)]);
     h.step();
     u = h.unit(id);
     h.spawn('enemy_dummy', { pos: [10, 5] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + b3.atk), 1e-6, 'S3 ATK');
     approx(u.s.def, u.base.def * (1 + b3.def), 1e-6, 'S3 DEF');
     assert.equal(u.s.blockCnt, u.base.blockCnt + b3.block_cnt);
@@ -427,7 +427,7 @@ test('水月 S1 唤醒: charges; the next attack hits every enemy in range for a
     const u = h.unit(id);
     assert.equal(u.skill.maxCharges, bb.cnt);
     const es = [h.spawn('enemy_dummy', { pos: [10, 5] }), h.spawn('enemy_dummy', { pos: [9, 5] })];
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.ok(h.runUntil(() => !u.skill.active, 10));
     const sk = dmgBy(h, u, (c) => c.dmg.isAttack && c.dmg.isSkill);
     assert.deepEqual(new Set(sk.map((c) => c.target)), new Set(es), `${id}: every enemy in range`);
@@ -450,7 +450,7 @@ test('水月 S3 镜花水月: wider range, ATK up, talent 1 +2 targets with stun
       const base = u.rangeKeys.length;
       const es = [];
       for (let i = 0; i < n; i++) es.push(h.spawn('enemy_dummy', { pos: [10 + (i === 1 ? -1 : i === 2 ? 1 : 0), 5] }));
-      assert.ok(u.skill.activate('test', { free: true }));
+      assert.ok(castNow(u, 'test', { free: true }));
       assert.ok(u.rangeKeys.length > base, 'range widened');
       approx(u.s.atk, u.base.atk * (1 + bb.atk) * (u.findBuff('mizuki:t2') ? 1 + D(id, 2).talents[1].bb.atk : 1), 1e-6);
       const hp0 = u.hp;
@@ -478,7 +478,7 @@ test('阿罗玛 S1 强效清洁: charges; next blast atk_scale arts, flying vict
     const u = h.unit(id);
     const g = h.spawn('enemy_dummy', { pos: [10, 6] }), f = h.spawn('enemy_flyer', { pos: [10, 6] });
     h.run(4); // the talent's first-hit bonus / levitation are spent
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.ok(h.runUntil(() => !u.skill.active, 10));
     h.run(1);
     const sk = dmgBy(h, u, (c) => c.dmg.isAttack && c.dmg.isSkill);
@@ -526,7 +526,7 @@ test('歌蕾蒂娅 S1 缺水的大洋裂断: charges; next attack atk_scale (×1
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     const x0 = e.x;
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.ok(h.runUntil(() => !u.skill.active, 10));
     h.run(0.5);
     const sk = dmgBy(h, u, (c) => c.dmg.isAttack && c.dmg.isSkill);
@@ -547,7 +547,7 @@ test('歌蕾蒂娅 S2 缺水的掌握怒海: BAT +0.5 s, wider range, 2 targets 
     h.step();
     const u = h.unit(id);
     const es = [h.spawn('enemy_dummy', { pos: [10, 6] }), h.spawn('enemy_dummy', { pos: [11, 6] }), h.spawn('enemy_dummy', { pos: [9, 6] })];
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.interval, (u.base.bat + bb.base_attack_time) * 100 / u.s.aspd, 1e-6, 'BAT +0.5 s');
     assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 10));
     const atk = h.hooksOf('attack').find((c) => c.attacker === u);
@@ -569,7 +569,7 @@ test('歌蕾蒂娅 module HOK-Y 淡金坠饰: pulling a far enemy (> 2.5 tiles) 
     h.step();
     const u = h.unit('chess_char_4_12_b');
     const e = h.spawn('enemy_heavy', { pos: [10, 6] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.runUntil(() => !u.skill.active, 10);
     h.run(0.5);
     return 6 - e.x;
@@ -586,7 +586,7 @@ test('灵知 S1 高速思考: next attack hits twice for atk_scale arts', () => 
     h.step();
     const u = h.unit(id);
     h.spawn('enemy_dummy', { pos: [10, 5] });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.ok(h.runUntil(() => !u.skill.active, 10));
     h.run(0.5);
     const sk = dmgBy(h, u, (c) => c.dmg.isAttack && c.dmg.isSkill);
@@ -605,7 +605,7 @@ test('灵知 S3 失温症: ASPD up, 2 targets (unfrozen first), freezes held unt
     const frozenOne = h.spawn('enemy_dummy', { pos: [10, 5] });
     const others = [h.spawn('enemy_dummy', { pos: [10, 6] }), h.spawn('enemy_dummy', { pos: [9, 5] })];
     h.b.applyStatus(frozenOne, 'freeze', { duration: 1 });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.equal(u.s.aspd, u.base.aspd + bb.attack_speed);
     assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 5));
     const first = h.hooksOf('attack').find((c) => c.attacker === u);
@@ -643,7 +643,7 @@ test('莱恩哈特 S1 攻击力强化·γ型: ATK up for 30 s; module none: no r
     const h = battle([U(id, 10, 4, 0)]);
     h.step();
     const u = h.unit(id);
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + d.skill.bb.atk), 1e-6);
     approx(u.skill.timeLeft, d.skill.duration, 1e-6);
   }
@@ -804,7 +804,7 @@ test('星熊 S1 战意 (TAKE_DAMAGE: DEF/ATK up, no thorns) and S3 力之锯 (AT
     h.step();
     u = h.unit(id);
     const es = [h.spawn('enemy_dummy', { pos: [10, 5] }), h.spawn('enemy_dummy', { pos: [10, 5] }), h.spawn('enemy_dummy', { pos: [10, 5] })];
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + b3.atk), 1e-6, 'S3 ATK');
     assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u), 5));
     assert.equal(h.hooksOf('attack').find((c) => c.attacker === u).targets.length, es.length, 'all enemies in front');
@@ -842,7 +842,7 @@ test('泥岩 S1 防御力强化·γ型 (TAKE_DAMAGE) and S3 秽壤的血脉 (闭
     assert.ok(h.runUntil(() => u.blocking.length === 3, 30), 'blocks three walkers');
     const walkers = u.blocking.slice();
     const hp0 = u.hp;
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     const t0 = h.b.time;
     h.step();
     // 闭锁 (PRTS 备注 "实际将会进入闭锁状态"; PRTS 异常效果 闭锁 = 强制缴械 + 无敌 + 不可阻挡, 不可阻挡 "无法阻挡/被阻挡，自动解除阻挡")
@@ -891,7 +891,7 @@ test('焰尾 S1 迅敏直觉: +6 DP and the next physical attack on her is dodge
     h.step();
     const u = h.unit(id);
     const dp0 = h.b.getPlayer('p1').dp;
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.equal(h.b.getPlayer('p1').dp, dp0 + bb.cost, `${id}: +${bb.cost} DP`);
     assert.ok(u.findBuff('flamtl:evade'));
     h.spawn('enemy_hitter', { pos: [10, 4] });
@@ -923,7 +923,7 @@ test('焰尾 S2 “红松林”: +11/12 DP; ≤ 6 enemies around: 2 × atk_scale
     const u = h.unit(id), ally = h.unit('chess_char_1_01_a');
     for (let i = 0; i < 7; i++) h.spawn('enemy_dummy', { pos: [10, 6] });
     const dp0 = h.b.getPlayer('p1').dp;
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.equal(h.b.getPlayer('p1').dp, dp0 + bb.cost);
     const hits = dmgBy(h, u, tagged('redPine'));
     const victims = new Set(hits.map((c) => c.target));
@@ -957,7 +957,7 @@ test('远牙 S1 迅捷打击·γ型 / S2 同盟支援: taunt −1 with any skill
     let h = battle([U(id, 12, 3, 0)]);
     h.step();
     let u = h.unit(id);
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + b1.atk + (u.findBuff('fartth:focus') ? D(id, 0).talents[0].bb.atk : 0)), 1e-6, 'S1 ATK (+ 凝神)');
     assert.equal(u.s.aspd, u.base.aspd + b1.attack_speed);
     assert.equal(u.s.taunt, -1, '屏息');
@@ -968,7 +968,7 @@ test('远牙 S1 迅捷打击·γ型 / S2 同盟支援: taunt −1 with any skill
     assert.ok(h.runUntil(() => e.blockedBy && e.blockedBy.defId === 'chess_char_4_17_a', 20), 'blocked by 星熊 far away');
     h.run(2);
     assert.equal(dmgBy(h, u, (c) => c.target === e).length, 0, 'out of her range without S2');
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.equal(u.s.aspd, u.base.aspd + b2.attack_speed);
     assert.equal(u.s.taunt, -1);
     h.run(4);
@@ -990,7 +990,7 @@ test('远牙 S2 同盟支援: an UNBLOCKED enemy on a blocked enemy\'s tile outs
     assert.ok(h.runUntil(() => e.blockedBy && e.blockedBy.defId === 'chess_char_4_17_a', 20), 'blocked by 星熊 far away');
     const fly = h.spawn('e_fly', { pos: [Math.round(e.y), Math.round(e.x)] });
     assert.ok(fly.isFlying && !fly.blockedBy, 'setup: unblocked flyer (lower DEF: her lowDef priority would pick it)');
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.run(4);
     assert.ok(dmgBy(h, u, (c) => c.target === e).length > 0, `${id}: S2 hits the blocked enemy`);
     assert.equal(dmgBy(h, u, (c) => c.target === fly).length, 0, `${id}: not the unblocked flyer on its tile`);
@@ -1092,7 +1092,7 @@ test('百炼嘉维尔 S1 精准痛击: ATK up, heals herself heal_scale of the d
     const u = h.unit(id);
     const e = h.spawn('enemy_dummy', { pos: [10, 4] });
     assert.ok(h.runUntil(() => e.blockedBy === u, 2));
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     u.hp = u.s.maxHp * 0.3;
     const hp0 = u.hp, t0 = h.b.time;
     assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u && c.t >= t0), 5));
@@ -1115,7 +1115,7 @@ test('百炼嘉维尔 S2 链锯强袭: wider range, ATK/DEF up, unblocked enemie
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.run(0.2);
     assert.equal(dmgBy(h, u).length, 0, 'out of the normal range');
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     approx(u.s.atk, u.base.atk * (1 + bb.atk + D(id, 1).talents[0].bb.atk), 1e-6, 'ATK (+ 战地巨斧)');
     assert.ok(h.runUntil(() => dmgBy(h, u).length > 0, 5), `${id}: reaches 2 tiles ahead`);
     assert.ok(e.x < 6 - 0.4, `pulled (${e.x})`);
@@ -1147,7 +1147,7 @@ test('卡涅利安 S1 沙暴守卫: SEARCH; ATK/DEF up; charged keeps the trait 
       assert.equal(u.skill.rule, 'SEARCH');
       u.hp = u.s.maxHp * 0.1;
       u.skill.addCharge(charged ? 2 : 1);
-      assert.ok(u.skill.activate('test'));
+      assert.ok(castNow(u, 'test'));
       assert.equal(!!u.findBuff('billro:s1guard'), charged, `${id}: guard kept iff charged`);
       const guard = charged ? u.profile.guardDef : 0;
       approx(u.s.def, u.base.def * (1 + bb.def + guard), 1e-6, 'DEF');
@@ -1168,7 +1168,7 @@ test('卡涅利安 S3 食噬之印: wider range, ATK ramps to +atk over the skil
     const n0 = u.rangeKeys.length;
     const e = h.spawn('enemy_dummy', { pos: [10, 5] });
     u.skill.addCharge(2);
-    assert.ok(u.skill.activate('test'));
+    assert.ok(castNow(u, 'test'));
     u.skill.charges = 0; // (the spare charge would re-cast right after the end)
     u.skill.sp = 0;
     assert.ok(u.rangeKeys.length > n0);
@@ -1196,7 +1196,7 @@ test('卡涅利安 module PLX-Y 乡音: +3 % damage per enemy in range (≤ 5); 
     const u = h.unit('chess_char_4_24_b');
     for (let i = 0; i < 3; i++) h.spawn('enemy_dummy', { pos: [10, 5] });
     u.skill.addCharge(1);
-    assert.ok(u.skill.activate('test'));
+    assert.ok(castNow(u, 'test'));
     h.runUntil(() => dmgBy(h, u, (c) => c.dmg.isAttack).length > 0, 5);
     const c = dmgBy(h, u, (c) => c.dmg.isAttack)[0];
     return { r: c.amount / u.s.atk, keep: !!u.findBuff('billro:keep') };
@@ -1206,7 +1206,7 @@ test('卡涅利安 module PLX-Y 乡音: +3 % damage per enemy in range (≤ 5); 
   approx(y.r, 1 + mb.damage_scale * 3, 1e-6, 'three enemies');
   approx(none.r, 1, 1e-6);
   assert.deepEqual([x.keep, y.keep, none.keep], [true, false, false]);
-  const s1keep = (charges) => { const h = battle([U('chess_char_4_24_b', 10, 4, 0)]); h.step(); const u = h.unit('chess_char_4_24_b'); u.skill.addCharge(charges); u.skill.activate('test'); return !!u.findBuff('billro:keep'); };
+  const s1keep = (charges) => { const h = battle([U('chess_char_4_24_b', 10, 4, 0)]); h.step(); const u = h.unit('chess_char_4_24_b'); u.skill.addCharge(charges); castNow(u, 'test'); return !!u.findBuff('billro:keep'); };
   assert.equal(s1keep(1), true, 'uncharged S1 keeps the PLX-X part');
   assert.equal(s1keep(2), false, 'charged S1 keeps the whole guard instead');
 });
@@ -1239,7 +1239,7 @@ test('魔王 S2 明日渺远不及: 6 motes that hit enemies within 2 tiles (tru
     h.step();
     const u = h.unit(id), hs = h.unit('chess_char_4_17_a');
     const es = [h.spawn('enemy_dummy', { pos: [10, 6] }), h.spawn('enemy_dummy', { pos: [11, 5] })];
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     assert.equal(u.mem.motes.length, D(id, 1).talents[0].bb.cnt + 3, '上限+3');
     h.run(1);
     const hits = dmgBy(h, u, tagged('mote'));
@@ -1267,7 +1267,7 @@ test('魔王 鼓舞: strongest source wins (never summed), a bard never receives
   const h = battle([U(na, 10, 4, 1), U(el, 10, 5, 1), U('chess_char_4_17_a', 11, 4)]);
   h.step();
   const a = h.unit(na), b = h.unit(el), hs = h.unit('chess_char_4_17_a');
-  assert.ok(a.skill.activate('test', { free: true }) && b.skill.activate('test', { free: true }));
+  assert.ok(castNow(a, 'test', { free: true }) && castNow(b, 'test', { free: true }));
   h.run(0.5);
   assert.ok(!a.findBuff('inspire') && !b.findBuff('inspire'), 'bards get no 鼓舞 from each other');
   const inRangeOfBoth = h.b.alliesInGrid(a).includes(hs) && h.b.alliesInGrid(b).includes(hs);
@@ -1280,7 +1280,7 @@ test('魔王 鼓舞: strongest source wins (never summed), a bard never receives
   h3.step();
   const m = h3.unit(el), t = h3.unit('chess_char_4_17_a');
   h3.b.addBuff(t, { key: 'test:hpUp', mods: { hpPct: 0.5 } });
-  assert.ok(m.skill.activate('test', { free: true }));
+  assert.ok(castNow(m, 'test', { free: true }));
   h3.run(0.3);
   const { add, mul } = aggregateMods(t.buffs.filter((x) => x.key !== 'inspire:hp'));
   approx(t.s.maxHp, (t.base.maxHp + (add.hpFlat ?? 0)) * (1 + (add.hpPct ?? 0)) * (mul.hpMul ?? 1) + m.s.maxHp * D(el).skill.bb.max_hp, 1e-6, 'max HP + 鼓舞');

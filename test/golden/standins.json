@@ -173,8 +173,8 @@
         "enemy_9011_acrefr": [12,1,7,16669,101769]
       },
       "hooks": [1,93,5700,1032,1032,1468,1471,112,50,79,25,26,0,28250,3325,53,74,29,1,50,0,0,12],
-      "events": {"atk":1122,"bounty":4,"cast":2,"deploy":19,"die":50,"dmg":1466,"engage":11,"fx":138,"heal":106,"leak":29,"rate":62,"skill":54,"spawn":86,"status":614},
-      "fx": {"aoe":30,"displace":3,"dodge":19,"dp":27,"phase":1,"slash":48,"sp":2,"spGain":8},
+      "events": {"atk":1122,"bounty":4,"cast":2,"deploy":19,"die":50,"dmg":1466,"engage":11,"fx":228,"heal":106,"leak":29,"rate":62,"skill":54,"spawn":86,"status":614},
+      "fx": {"aoe":30,"displace":3,"dodge":19,"dp":27,"phase":1,"slash":48,"sp":2,"spGain":8,"tick":90},
       "snaps": "e7c8b69b 56ebf94d 0cd9e4bf ca40600c 90b60b19 ddeb07ed e3e11b72 0f28dc17 8798eb60 d60f75e5 28eaf659 c3ca595f 4e1ad132 bad36981 45df726b ce5cbf46 20f660b3 b461b50b 8a25f6cc"
     },
     "standin-04": {
@@ -239,8 +239,8 @@
         "enemy_1072_dlancer": [60,55,5,18848,475238]
       },
       "hooks": [1,178,5994,971,971,2075,2080,67,156,164,36,36,0,39499,4283,57,158,8,1,157,2,0,4],
-      "events": {"atk":1125,"bounty":4,"cast":1,"deploy":18,"die":156,"dmg":2080,"engage":11,"fx":184,"heal":53,"layer":2,"leak":8,"rate":342,"skill":72,"spawn":172,"status":449},
-      "fx": {"aoe":13,"dodge":10,"dp":41,"garrison":2,"revive":1,"slash":99,"sp":14,"spGain":2,"telegraph":2},
+      "events": {"atk":1125,"bounty":4,"cast":1,"deploy":18,"die":156,"dmg":2080,"engage":11,"fx":207,"heal":53,"layer":2,"leak":8,"rate":342,"skill":72,"spawn":172,"status":449},
+      "fx": {"aoe":13,"dodge":10,"dp":41,"garrison":2,"revive":1,"slash":99,"sp":14,"spGain":2,"telegraph":2,"tick":23},
       "snaps": "84051edc b511a5f2 adce22ba bfc5f1bb 77a3f4da d1c865d5 ca227c62 9c9cc6cf 05827d85 2b26353c b5e6f463 5bde4eb0 1e0e2f36 03e4d820 5725f42f 2bc1949b 163b3308 b4a0d178 bae4d85e 05ebdea1"
     },
     "standin-05": {
@@ -452,8 +452,8 @@
         "enemy_1254_lypa_2": [48,0,48,63351,377094]
       },
       "hooks": [1,203,6577,1777,1777,2995,3092,146,40,189,39,38,0,25053,16631,54,179,149,1,48,0,0,9],
-      "events": {"atk":2014,"bounty":1,"deploy":21,"die":40,"dmg":3032,"engage":11,"fx":271,"heal":123,"leak":149,"rate":64,"skill":80,"spawn":194,"status":1247},
-      "fx": {"aoe":87,"displace":1,"dodge":28,"dp":16,"shieldBreak":59,"slash":71,"sp":2,"spGain":7},
+      "events": {"atk":2014,"bounty":1,"deploy":21,"die":40,"dmg":3032,"engage":11,"fx":584,"heal":123,"leak":149,"rate":64,"skill":80,"spawn":194,"status":1247},
+      "fx": {"aoe":87,"displace":1,"dodge":28,"dp":16,"shieldBreak":59,"slash":71,"sp":2,"spGain":7,"tick":313},
       "snaps": "868063e3 e97e863e 893cfe85 c31b065f b197a4e0 0bc88520 91e4ef55 d70c1c30 9e4fa0cd 7c5a5bbf 0460cf37 e36cc5d2 8a24bd57 18d2185e 14f85476 8ff2a6c2 ac2ca0f4 ba181f6f ce6290a2 ad0c652b de82a4da 201d9c15"
     },
     "standin-09": {

@@ -1,3 +1,4 @@
+import '../helpers/wideScriptProbe.js'; // (fork) first: the probe ceiling is read at load; these tests don't time the probe
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

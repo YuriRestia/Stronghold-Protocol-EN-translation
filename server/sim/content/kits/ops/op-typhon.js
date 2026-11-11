@@ -134,6 +134,8 @@ export default {
             const t = cands[0] ?? null;
             const st = { target: t, x: t ? t.x : unit.x, y: t ? t.y : unit.y, inArea: [], timer: null };
             unit.mem.typhonMark = st;
+            // (fork) the client's Aim (typhon_s_3[switch_mode] ON_BUFF_START): typhon_skill_03_start_05 on her (talentfx 'ability')
+            battle.fx('ability', { x: unit.x, y: unit.y, id: unit.id, name: 'typhon_s_3[switch_mode]' });
             scan(battle, unit, st);
             st.timer = battle.every(MARK_SCAN, (b, sc) => {
               if (unit.mem.typhonMark !== st) { sc.cancel(); return; }

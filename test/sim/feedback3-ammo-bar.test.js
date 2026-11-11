@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { unitTuple } from '../../server/sim/snapshot.js';
 
 const DEFS = { enemies: { enemy_dummy: enemyRec({ key: 'enemy_dummy', hp: 1e7, speed: 0 }) } };
@@ -44,7 +44,7 @@ test('the full mark follows bullets added mid-skill only above it; without extra
   });
   const u = h.unit('chess_char_6_01_a');
   h.step(1);
-  u.skill.activate('test', { free: true });
+  castNow(u, 'test', { free: true });
   const sk = u.skill;
   assert.equal(sk.ammoMax, sk.ammoLeft);
   const base = sk.ammoMax;

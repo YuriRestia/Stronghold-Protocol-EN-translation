@@ -14,6 +14,8 @@
 //        URL-encoded); `~<charId>` = the operator a 自选 slot (chess_char_5/6_diy*_a/_b) fields (shared/diy.js);
 //        `!…` = its equipped items (data/items.json EQUIP, at most EQUIP_SLOTS); `|m=` its module (none | a uniEquipId),
 //        `|sp=` its starting SP (a number or full; sandbox-only) — sandbox-units.js parseUnits / unitsParam
+//        &tokens=<tokenId>@<n>:<row>,<col>[:<dir>];…  (fork) placed summon pieces (a match's token pieces): the summon of the
+//        n-th unit of &units (0-based) on that tile — 凯尔希's Mon3tr, 可露希尔's 指挥中心 —, sandbox-units.js parseTokens
 //        &layers=<bondId>:<n>,… (the bonds' stacks) &bonus=<bondId>:<n>,… (extra members: the match's bondCountBonus)
 //        &map=<stageId> (one of the 7 HARD maps, default act2autochess_m01; a preset belongs to the map it was saved on)
 //        &enemies=hard-normal-rN | hard-boss-r14 (Final Assault) | hard-hidden-r15 (Hidden Core: both on the boss field,
@@ -81,7 +83,7 @@ import { isOutfitOf } from '../../shared/outfits.js';
 import { diySlotIds, diySlot, diyPool, diyRecord, isPrototypePick, lockedSelection } from '../../shared/diy.js';
 import * as W from './sandbox-waves.js';
 import { renderOverlay, operatorGroups, itemGroups, HoldControls } from './sandbox-ui.js';
-import { DIRS, EQUIP_SLOTS, parseUnits, unitsParam, battleUnit, skillSpOf, sandboxZoom, leftOutReason, matchUnitsByOperator, holdSkill } from './sandbox-units.js';
+import { DIRS, EQUIP_SLOTS, parseUnits, parseTokens, unitsParam, battleUnit, skillSpOf, sandboxZoom, leftOutReason, matchUnitsByOperator, holdSkill } from './sandbox-units.js';
 import { MODULE_NONE, chessOptions, pickChoices, defaultPick } from './sandbox-loadout.js';
 import { bondIconUrl } from '../js/ui/assetUrls.js';
 
@@ -1346,6 +1348,11 @@ async function main() {
     for (const u of board) if (u.skin) skinByUid.set(uidOf(u), u.skin);
     // (sandbox-units.js: the module as the match sends it, the starting SP as the sim's carryState)
     me.units = board.map((u) => battleUnit(u, uidOf(u), { golden: !!data.lookup('chess', u.chessId)?.isGolden }));
+    // (fork) &tokens: the placed summon pieces, owned by the board unit they name
+    for (const [i, t] of parseTokens(q.get('tokens')).entries()) {
+      const owner = board[t.owner];
+      if (owner) me.units.push({ uid: 900000 + i, kind: 'token', tokenId: t.tokenId, ownerUid: uidOf(owner), row: t.row, col: t.col, dir: t.dir });
+    }
     ui.unit = null;
     // the match's PlayerBattleInput.bonds (bondSnapshot); without the rules every bond is inactive
     const st = bondState();

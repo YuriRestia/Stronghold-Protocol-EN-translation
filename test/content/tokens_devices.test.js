@@ -2,7 +2,7 @@
 // Every token of data/tokens.json and every device/terrain kind runs in a real battle through the harness.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow, throughBegin } from '../helpers/battleHarness.js';
 import { hasGeneratedData, getDefaultSource } from '../../server/sim/simdata.js';
 import { genericKit } from '../../server/sim/content/generic.js';
 import { spawnYanyou, spawnMapChar, TOKEN_IDS, wolfShadows, wolfShadowInterval, wolfTacticalPoint, tileFree, findSummonTile, summonToken } from '../../server/sim/content/tokens.js';
@@ -401,6 +401,7 @@ test('黄金盟誓: attacks deal true damage; lasts while the owner skill runs',
   const h = makeBattle({ defs: { enemies: { enemy_dummy: dummy({ def: 5000 }) } }, kits: { chess_char_6_07_a: kit }, units: [{ chessId: 'chess_char_6_07_a', row: 12, col: 3 }], enemies: [{ key: 'enemy_dummy', pos: [9, 6] }], autoFinish: false, timeLimit: 30,
     setup: (b) => b.on('damaged', (c) => { if (c.source?.defId === TOKEN_IDS.goldenOath) types.add(c.type); }) });
   h.step(2);
+  throughBegin(h, h.unit('chess_char_6_07_a'));   // (fork) the lion comes at the skill's start, after its begin clip
   const lion = h.b.allyUnits.find((x) => x.defId === TOKEN_IDS.goldenOath);
   assert.ok(lion && lion.alive);
   assert.equal(lion.profile.dmgType, 'true');
@@ -520,7 +521,7 @@ test('band map characters: spawnMapChar puts 预备干员-医疗 at its stage sl
   const touch = spawnMapChar(h.b, 'p1', TOKEN_IDS.touch);
   assert.ok(touch);
   assert.ok(touch.aggroSeq > gu.aggroSeq, 'an ad-hoc Touch also keeps ordinary summon priority');
-  touch.skill.activate('test', { free: true });
+  castNow(touch, 'test', { free: true });
   gu.hp = 3000;
   h.run(4);
   const bb = touch.skill.bb;
@@ -1095,7 +1096,7 @@ test('预备干员-医疗: stat talent 攻击提升 (+4 % ATK) on top of the dat
   h.step();
   const med = spawnMapChar(h.b, 'p1', TOKEN_IDS.reserveMedic);
   approx(med.s.atk, tokDef(TOKEN_IDS.reserveMedic).stats.atk * 1.04, 1e-9);
-  med.skill.activate('test', { free: true });
+  castNow(med, 'test', { free: true });
   approx(med.s.atk, tokDef(TOKEN_IDS.reserveMedic).stats.atk * (1.04 + 0.5), 1e-9, '治疗强化·β型 +50 %');
 });
 
@@ -1117,7 +1118,7 @@ test('Touch talents: 攫升 +3 SP to the healed unit, 超脱 +5 SP when an opera
   // skill: main heal (×1.5 below 50 %) + an extra heal of 30 % of its base (ATK) on the lowest-ratio unit of the target and
   // its neighbours — the target again, still below half after the main heal: ×1.5 on its own (PRTS 技能3 备注)
   h.b.mem = [];
-  touch.skill.activate('test', { free: true });
+  castNow(touch, 'test', { free: true });
   a.hp = 2000;
   assert.ok(h.runUntil(() => h.b.mem.length >= 2, 5));
   const [main, extra] = h.b.mem;

@@ -208,6 +208,29 @@ function standInDefs(units) {
   return out;
 }
 
+/**
+ * (fork) Cast a unit's skill and start it on the spot: a skill with a begin clip (server/sim/skills.js activate,
+ * `starting`: the official skill starts when that clip ends) skips the clip's wait. For tests of what a skill does, not
+ * of when it starts — test/content/skill-begin-clip.test.js covers the begin clip. Returns activate()'s result.
+ */
+export function castNow(u, reason = 'test', opts = {}) {
+  const sk = u.skill;
+  const ok = sk.activate(reason, opts);
+  if (!ok || !sk.starting) return ok;
+  const st = sk.starting;
+  sk.starting = null;
+  return sk.activate(st.reason, { free: st.free, began: true });
+}
+
+/**
+ * (fork) Run a unit's skill cast through its begin clip (skills.js `starting`): the battle goes on until the skill has
+ * started, as the official skill does when that clip ends. Nothing happens for a skill with no begin clip, or no cast.
+ */
+export function throughBegin(h, u) {
+  const sk = u.skill;
+  if (sk?.starting) h.runUntil(() => !sk.starting, sk.beginDur + 1);
+}
+
 /** Create a battle + harness. See header for options. */
 export function makeBattle(opts = {}) {
   const kind = opts.kind ?? 'normal';

@@ -129,7 +129,13 @@ export default {
               const foes = enemiesInGrid(battle, unit, s2?.rangeGrid?.length ? s2.rangeGrid : X4, { canHitFly: false });
               battle.fx('aoe', { x: unit.x, y: unit.y, radius: 1.5, id: unit.id, skill: 'judge:atonement' });
               const amount = unit.s.atk * num(b2.atk_scale) * unit.s.atkScaleMul;
-              for (const e of foes) if (e.alive) battle.dealDamage(unit, e, { amount, type: 'arts', isSkill: true, tags: ['skill', 'judge:atonement'] });
+              // judge_s_2[aoe] ON_BUFF_TRIGGER: judge_skill_02_weapon_hit_01 on her, AOEDamage's hit judge_skill_02_hit_01 on each foe hit
+              battle.tickFx(unit, unit, 'judge:s2', 'judge_skill_02_weapon_hit_01');
+              for (const e of foes) {
+                if (!e.alive) continue;
+                battle.dealDamage(unit, e, { amount, type: 'arts', isSkill: true, tags: ['skill', 'judge:atonement'] });
+                battle.tickFx(unit, e, 'judge:s2', 'judge_skill_02_hit_01');
+              }
             }
           },
           onEnd({ battle, unit }) { if (unit.findBuff(PROTECT)?.source === unit) battle.removeBuff(unit, PROTECT); },
