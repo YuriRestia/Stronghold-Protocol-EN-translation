@@ -297,6 +297,9 @@ export function normalizeRecord(raw) {
   // (fork) the alternate result background (m.result.altArt): noted in the record; the re-view (recordToResult)
   // doesn't show it, only the screen right after the match does
   if (r.altArt === true) rec.altArt = true;
+  // (fork) One for All (Grand Alliance draft mode, the user's Q11): its own mode on the stats page — only the literal
+  // true, a missing key keeps every older record as it was
+  if (r.oneForAll === true) rec.oneForAll = true;
   // an id-less (hand-made) record gets a content id, so both copies of it land on the same key (`vs` and `content` left
   // out: the id of a record from before 0.3.0 stays the same)
   if (!rec.id) rec.id = `c.${fnv1a(JSON.stringify({ ...rec, vs: undefined, content: undefined, version: undefined }))}`;
@@ -400,7 +403,7 @@ export function peekStatsRecords() {
 // ---- compaction + the storage budget ---------------------------------------------------------------------------
 
 const COMPACT_FRAME = ['id', 'v', 't', 'end', 'victory', 'roundsPassed', 'lastRound', 'hiddenReached', 'hiddenCleared', 'reason', 'modeId',
-  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions'];
+  'difficulty', 'roomMode', 'durationMs', 'selfId', 'vs', 'content', 'version', 'test', 'testActions', 'oneForAll'];
 
 /**
  * The compact form of a record: the frame and the player's OWN row without lineup, bonds and name — everything the
@@ -484,6 +487,17 @@ export function saveStats(stats) {
 }
 
 /**
+ * (fork) The stats page's mode of a record: 'oneForAll' for a One for All match (its own mode, the user's Q11), else
+ * the room shape ('solo' | 'coop'), null when unknown.
+ * @param {any} rec a normalized record
+ * @returns {'solo'|'coop'|'oneForAll'|null}
+ */
+export function statsModeOf(rec) {
+  if (rec?.oneForAll === true && rec.roomMode !== 'solo') return 'oneForAll';
+  return rec?.roomMode === 'solo' || rec?.roomMode === 'coop' ? rec.roomMode : null;
+}
+
+/**
  * Derive the room shape ('solo' | 'coop') the way constants.js modeIdFor builds modeIds.
  * @param {string|null|undefined} modeId
  * @param {string|null|undefined} roomMode room.state `mode` when known
@@ -539,6 +553,8 @@ export function buildRecord(res, ctx = {}) {
     version: ctx.version ?? null,
     players: r.players,
     altArt: r.altArt === true,
+    // (fork) One for All: the server's m.result.mode, else the room's switch (room.state.oneForAll)
+    oneForAll: r.mode === 'oneForAll' || ctx.oneForAll === true,
   });
 }
 
@@ -645,6 +661,8 @@ export function buildQuitRecord(state, ctx = {}) {
     content: contentOf(state.room?.content),
     // the room's version, else the frames' (m.public `version`; absent = 第二期下半, as versions.js matchFrameVersion)
     version: state.room ? state.room.version ?? null : str(pub.version) ?? null,
+    // (fork) One for All: the room's switch (room.state.oneForAll), else the draft's vote mode while it runs
+    oneForAll: state.room?.oneForAll === true || pub.oneForAll === true || pub.draft?.mode === 'vote',
     players: [{
       playerId: myId, seat: row.seat, name: row.name, isBot: false, left: true, alive, victory: false, roundsPassed,
       ...(Number.isInteger(row.aiTakeoverRound) ? { aiTakeoverRound: row.aiTakeoverRound } : {}),
@@ -681,6 +699,7 @@ export function recordToResult(rec) {
     players: r.players,
   };
   if (Number.isFinite(r.lastRound)) res.lastRound = r.lastRound;
+  if (r.oneForAll === true) res.mode = 'oneForAll';
   // (fork) no `altArt`: the alternate background is for the live result only (normalizeRecord above)
   if (r.test === true) res.test = true;
   if (Number.isInteger(r.testActions)) res.testActions = r.testActions;
@@ -893,7 +912,8 @@ export function aggregateStats(records, { modded: withModded = false } = {}) {
     hidden: { reached: 0, cleared: 0 },
     trophies: 0,
     byDifficulty: {},
-    byMode: { solo: { games: 0, wins: 0, hiddenCleared: 0 }, coop: { games: 0, wins: 0, hiddenCleared: 0 } },
+    // (fork) oneForAll: One for All matches, their own mode (the user's Q11) — counted there instead of coop
+    byMode: { solo: { games: 0, wins: 0, hiddenCleared: 0 }, coop: { games: 0, wins: 0, hiddenCleared: 0 }, oneForAll: { games: 0, wins: 0, hiddenCleared: 0 } },
     titles: {}, bands: {}, sums: {},
     bonds: Object.create(null),
     maxima: { gold: null, merges: null, kills: null },
@@ -925,7 +945,7 @@ export function aggregateStats(records, { modded: withModded = false } = {}) {
     if (rec.hiddenCleared) bd.hiddenCleared++;
 
     if (rec.roomMode === 'solo' || rec.roomMode === 'coop') {
-      const mode = out.byMode[rec.roomMode];
+      const mode = out.byMode[statsModeOf(rec)];
       mode.games++;
       if (won) mode.wins++;
       if (won && rec.hiddenCleared) mode.hiddenCleared++;

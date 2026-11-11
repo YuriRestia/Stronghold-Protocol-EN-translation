@@ -2733,5 +2733,20 @@
   "一策同心": "One for All",
   "自由选择": "Free pick",
   "一策同心：所有博士同时秘密投票选择策略，得票最多的策略由全体使用。": "One for All: every Doctor votes for a strategy at once, in secret, and the most-voted one goes to everyone.",
-  "也可加入一策同心房间": "Include One for All rooms"
+  "也可加入一策同心房间": "Include One for All rooms",
+  "确认后投票即锁定，不能更改": "Confirming locks your vote; it can't be changed",
+  "得票最多的策略将由全体博士共同使用": "The strategy with the most votes is used by every Doctor",
+  "{lock}；本局不限时": "{lock}; no time limit this match",
+  "{lock}；超时将投给当前选中的「{autoName}」": "{lock}; when time runs out, your vote goes to the highlighted \"{autoName}\"",
+  "{lock}；超时未选中策略将随机投票": "{lock}; with nothing highlighted when time runs out, a random strategy gets your vote",
+  "已锁定的博士：{count}": "Doctors locked in: {count}",
+  "投票完成": "Votes Are In",
+  "正在揭晓结果…": "Revealing the result…",
+  "投票已锁定": "Vote locked",
+  "等待其他博士…": "Waiting for the other Doctors…",
+  "博士们正在投票…": "The Doctors are voting…",
+  "已锁定投票": "Vote Locked",
+  "已投票给「{name}」": "Voted for \"{name}\"",
+  "投票已结束": "Voting has ended",
+  "一策同心": "One for All"
 }

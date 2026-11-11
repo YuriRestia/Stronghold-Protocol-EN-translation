@@ -323,7 +323,15 @@ function setPhase(phase, variant) {
       pub.round = 0; pub.deadline = Date.now() + 9000;
       pub.players.forEach((p) => { p.bandId = null; p.status = 'deciding'; p.ready = false; });
       S.priv.bandId = null;
-      if (!solo) {
+      if (VARIANTS.has('vote')) {
+        // (fork) One for All: a secret room-wide vote — the count only in public, my own vote in private (variant=vote,locked)
+        pub.deadline = Date.now() + 50000;
+        // (the server's exact shape: one-for-all-split.md "Exact vote-mode draft")
+        pub.draft = { mode: 'vote', voters: 8, locked: 3, order: pub.players.filter((x) => !x.isBot).map((x) => x.playerId), picks: {}, turn: null,
+          skipsLeft: {}, turnDeadline: pub.deadline, turnSeconds: 50, untimed: false };
+        S.priv.vote = VARIANTS.has('locked') ? { bandId: 'band_sarkazb', locked: true } : { bandId: null, locked: false };
+        if (VARIANTS.has('locked')) pub.draft.locked = 4;
+      } else if (!solo) {
         pub.draft = { order: ['p3', 'p1', 'ai_2', 'p4'], turn: 'p1', picks: { p3: 'band_sarkazb' }, skipsLeft: { p1: 1, p3: 1, ai_2: 1, p4: 1 }, turnDeadline: Date.now() + 9000 };
         pub.players.find((p) => p.playerId === 'p3').bandId = 'band_sarkazb';
       } else pub.deadline = 0;
@@ -639,6 +647,12 @@ async function mockRequest(t, f = {}) {
   switch (t) {
     case 'g.infoReady': { const me = pub.players.find((x) => x.playerId === ME); me.ready = true; me.status = 'ready'; pushPublic(); return {}; }
     case 'g.band': {
+      if (pub.draft?.mode === 'vote') { // One for All: the pick locks my vote; nothing public but the count
+        if (p.vote?.locked) fail('ALREADY');
+        if (!f.bandId) fail('BAD_MSG');
+        p.vote = { bandId: f.bandId, locked: true }; pub.draft.locked = Math.min(pub.draft.voters, (pub.draft.locked || 0) + 1);
+        pushPublic(); refreshPrivate(); return {};
+      }
       p.bandId = f.bandId; const me = pub.players.find((x) => x.playerId === ME); me.bandId = f.bandId;
       if (pub.draft) { pub.draft.picks[ME] = f.bandId; pub.draft.turn = 'ai_2'; pub.draft.turnDeadline = Date.now() + 12000; }
       refreshPrivate(); return {};
@@ -866,6 +880,7 @@ function applyUiVariants() {
 // ---- switcher --------------------------------------------------------------------------------------------------------------
 const SWITCH = [
   ['INFO_CHECK', PHASE.INFO_CHECK, ''], ['BAND_DRAFT', PHASE.BAND_DRAFT, ''], ['BAND_DRAFT solo', PHASE.BAND_DRAFT, 'solo'],
+  ['BAND_DRAFT One for All', PHASE.BAND_DRAFT, 'vote'], ['BAND_DRAFT One for All locked', PHASE.BAND_DRAFT, 'vote,locked'],
   ['BATTLE_CHECK', PHASE.BATTLE_CHECK, ''], ['BATTLE_CHECK One for All', PHASE.BATTLE_CHECK, 'ofa'], ['PREP', PHASE.PREP, ''], ['PREP + reward', PHASE.PREP, 'reward'],
   ['PREP + temp', PHASE.PREP, 'temp'], ['PREP frozen', PHASE.PREP, 'frozen'], ['PREP dead', PHASE.PREP, 'dead'],
   ['PREP boss (L)', PHASE.PREP, 'boss'], ['PREP boss (R)', PHASE.PREP, 'bossR'], ['PREP 标准 同构体 + 调和', PHASE.PREP, 'funny,morph,harmony'],
