@@ -343,7 +343,7 @@ export class SkillFx {
     if (!k) return null;
     const held = e.hold === 'skill' || e.hold === 'ready' || e.hold === 'cast';
     const loop = (e.hold === 'skill' || e.hold === 'ready') && e.loop !== false;
-    return this.w.playOn(k, v, { follow: held, loop, important: held || !!o.important, toward: o.toward, flipFrom: o.flipFrom, skip: o.skip, lead: o.lead, strike: !!o.strike });
+    return this.w.playOn(k, v, { follow: held, loop, important: held || !!o.important, toward: o.toward, flipFrom: o.flipFrom, skip: o.skip, lead: o.lead, speed: o.speed, strike: !!o.strike });
   }
 
   /** Keep a started entry by its hold: the skill's loops, the ready loops, or stopped at the cast's end. */
@@ -825,7 +825,8 @@ export class SkillFx {
         if ((e.firstOnly && nth > 0) || (e.afterFirst && nth === 0)) continue;
         const skip = phase === 'start' ? info.skip : 0;
         const lead = phase === 'all' && first ? info.lead : 0;   // (fork) FxWiring.attack: an attack not wound up
-        const h = onTarget ? this._play(e, tgt, { toward: beyond(src, tgt), flipFrom: src, skip, lead }) : this._play(e, src, { toward: tgt, skip, lead, strike: phase !== 'start' });
+        const speed = info.speed;                                // (fork) the attack's playback speed (FxWiring.abilitySpeed)
+        const h = onTarget ? this._play(e, tgt, { toward: beyond(src, tgt), flipFrom: src, skip, lead, speed }) : this._play(e, src, { toward: tgt, skip, lead, speed, strike: phase !== 'start' });
         if (h && (e.hold === 'cast' || e.loop)) later(this.w.ofx, phase === 'start' && info.left > 0 ? Math.min(3, info.left) : SKILL_CAST_S, () => h.stop({ cast: true }));
       }
     }

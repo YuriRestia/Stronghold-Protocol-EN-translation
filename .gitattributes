@@ -25,3 +25,8 @@
 *.ttf binary
 *.mp3 binary
 *.ogg binary
+
+# (fork) Generated JSON merges entry by entry instead of line by line (tools/merge-generated.mjs; register the driver
+# once per clone with `npm run merge:generated -- --setup`; without it git falls back to its normal line merge).
+data/assets.json                     merge=generated-json
+test/audio-pools-data.snapshot.json  merge=generated-json

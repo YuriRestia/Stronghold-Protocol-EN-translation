@@ -151,17 +151,23 @@ export function updateAlly(b, u, dt) {
 /**
  * (fork) The wind-up of an operator's (or summon's) normal attack, in game s: the official client plays the attack clip
  * from its cast start, scaled to the attack time (AbstractAnimatedAbility.UpdatePlaybackSpeed, disassembled: animScale =
- * attackTime / clipDuration, at least MIN_ANIM_SCALE 0.1, at most 2.5), and lands the attack at the clip's attack
+ * attackTime / clipDuration, at least MIN_ANIM_SCALE 0.1, at most the ability's `_maxAnimScale`), and lands the attack at the clip's attack
  * event (EasyToStartAbility's pre-delay, `_waitForAttackEvent`): hit × animScale after the cast. The clip and its strike
  * frame are its data's `attackAnim` (tools/build-data.mjs operatorAttackAnims, the default model's clip); the attack time
- * is its current interval [ASSUMED: the 2.5 cap — `_maxAnimScale` — on every basic attack]. 0 with no clip known (the
+ * is its current interval. The cap is `attackAnim.maxScale` (research table 15, attack-anim-scale, read from the client by tools/build-data.mjs; 1.0 on
+ * the attacks read so far: a slow attacker's clip plays at its own speed, the hit lands at its strike frame);
+ * ALLY_ANIM_SCALE_MAX 2.5 when the client data has none [ASSUMED]. Not modelled: under an animation slow-down the client
+ * also caps it at 2.5 / the slow (`animSlowDown`). 0 with no clip known (the
  * old rule: the attack lands as its cooldown ends) — the older versions' data, summons the manifest lacks.
  */
 export function allyCastWindup(u) {
   const a = u.def?.attackAnim;
   const iv = u.s?.interval;
   if (!a || !(a.dur > 0) || !(iv > 0)) return 0;
-  const scale = Math.min(ALLY_ANIM_SCALE_MAX, Math.max(ALLY_ANIM_SCALE_MIN, iv / a.dur));
+  // the clip stretches up to the ability's own `_maxAnimScale` (attackAnim.maxScale, from the client; −1 = no cap);
+  // ALLY_ANIM_SCALE_MAX for a unit the client data does not cover
+  const max = Number.isFinite(a.maxScale) ? (a.maxScale < 0 ? Infinity : a.maxScale) : ALLY_ANIM_SCALE_MAX;
+  const scale = Math.min(max, Math.max(ALLY_ANIM_SCALE_MIN, iv / a.dur));
   return Math.min(iv, clipHit(a) * scale);
 }
 
