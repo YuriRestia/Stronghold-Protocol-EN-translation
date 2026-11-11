@@ -231,7 +231,7 @@ export default {
             if (n > 0) dpTicker(unit, { total: n, step: 1, iv: dur / n, first: dur / n / 2 });
             const layers = Math.max(1, Math.floor(num(b1.shield_cnt, 1)));
             for (const a of reinfOf(battle, unit)) {
-              battle.addBuff(a, { key: `${SHIELD_KEY}:${unit.id}`, shieldHits: layers, source: unit, tags: ['skill'] });
+              battle.addBuff(a, { key: `${SHIELD_KEY}:${unit.id}`, shieldHits: layers, source: unit, tags: ['skill'], fx: 'closur_s_1[block]', fxSrc: unit.id }); // (fork) its glow (b.snap fxs)
               battle.fx('shield', { x: a.x, y: a.y, id: a.id, src: unit.id });
             }
           },

@@ -56,6 +56,9 @@ function blkkgt(bb, chess, def) {
         if (v.length) battle.fx('slash', { x: unit.x, y: unit.y, id: unit.id, n: v.length });
         for (const e of v) {
           const n = e.blockedBy ? nBlocked : nFree;
+          // (fork) the official slashes on each (blkkgt_s_2[check_block] → blkkgt_skill_02_hit_2): the sim's hits are
+          // instant, the glow shows a moment [ASSUMED 0.5 s] (b.snap fxs)
+          battle.fxState(e, 'blkkgt_s_2[check_block]', true, { src: unit, dur: 0.5 });
           for (let i = 0; i < n && e.alive; i++) battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.dot_scale, 1), type: 'phys', isSkill: true, tags: ['skill', 'slash'] });
         }
       },

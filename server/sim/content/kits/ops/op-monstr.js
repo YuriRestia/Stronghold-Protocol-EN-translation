@@ -70,6 +70,10 @@ import { chainHealNext } from '../../../ai.js';
 const S1 = 'skchr_monstr_1';
 const S2 = 'skchr_monstr_2';
 const S3 = 'skchr_monstr_3';
+/** (fork) S3's 【移动】 / 【返回】 glow (monstr_s_3_buff[respawn]: begin_03 while it lasts, end_02 as it ends; b.snap fxs) —
+ *  the client's respawn takes a moment the sim's move does not [ASSUMED 0.5 s]. */
+const MONSTR_S3_MOVE_FX = 'monstr_s_3_buff[respawn]';
+const MONSTR_S3_MOVE_S = 0.5;
 /** Her summon 重构体 (T1). */
 export const PROSTS = 'token_10050_monstr_prosts';
 /** S2: the second chain starts this long after a heal of hers on her 重构体 (monstr_s_2[proj] lifeTime). */
@@ -211,6 +215,7 @@ export default {
             if (!battle.moveRedeploy(unit, to[0], to[1])) { skill.end('blocked'); skill.addCharge(1); return; }   // 强制结束技能并返还技力
             unit.mem.mHome = home;
             battle.fx('teleport', { x: unit.x, y: unit.y, id: unit.id, fromX, fromY });
+            battle.fxState(unit, MONSTR_S3_MOVE_FX, true, { dur: MONSTR_S3_MOVE_S }); // (fork) the move's glow (b.snap fxs)
           },
           onTick({ unit, skill }) { if (unit.mem.mFatal) skill.end('fatal'); },   // 受到致命伤害结算后立即结束技能
           onEnd({ battle, unit }) {
@@ -222,7 +227,10 @@ export default {
             // 【返回】 to the tile she left: SP emptied (S3_Restore ModifySp −100 %), 1 s 不死
             const fromX = unit.x, fromY = unit.y, dir0 = unit.dir;
             unit.dir = h.dir;
-            if (battle.moveRedeploy(unit, h.r, h.c, { clearSp: true })) battle.fx('teleport', { x: unit.x, y: unit.y, id: unit.id, fromX, fromY });
+            if (battle.moveRedeploy(unit, h.r, h.c, { clearSp: true })) {
+              battle.fx('teleport', { x: unit.x, y: unit.y, id: unit.id, fromX, fromY });
+              battle.fxState(unit, MONSTR_S3_MOVE_FX, true, { dur: MONSTR_S3_MOVE_S }); // (fork) the return's glow
+            }
             else unit.dir = dir0;
             unit.mem.mUndeadUntil = battle.time + RETURN_UNDEAD;
           },

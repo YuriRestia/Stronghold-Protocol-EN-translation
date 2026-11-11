@@ -36,7 +36,8 @@ export function startTinmanCoverage(battle, source, { key, x, y, radius, duratio
       if (!battle.allySelectable(target, source)) continue;
       covered.add(target);
       if (!target.buffs.includes(held.get(target))) held.set(target,
-        battle.addBuff(target, { key, source, mods: { hpRegen: regen } }));
+        // (fork) the official S2 heal glow (tinman_s_2[buff] → tinman_skill_02_heal_01) while it stands in it (b.snap fxs)
+        battle.addBuff(target, { key, source, mods: { hpRegen: regen }, fx: 'tinman_s_2[buff]', fxSrc: source?.id ?? null }));
     }
     for (const [target, buff] of held) if (!covered.has(target)) {
       battle.removeBuff(target, buff);
