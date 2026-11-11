@@ -995,10 +995,14 @@ export class FxWiring {
   /**
    * (fork) The playback speed an attack of `src` gives its effects (the client: the ability's playbackSpeed, handed to
    * each effect its emitters create — Effect.setPlayback caps it per prefab): its attack clip's own speed at its attack
-   * interval (SpineActor.abilitySpeed); 1 without a Spine actor or an interval.
+   * interval and its ability's `_maxAnimScale` (its data record's attackAnim.maxScale; SpineActor.abilitySpeed); 1 without
+   * a Spine actor or an interval.
    */
   abilitySpeed(src) {
-    const s = src?.actor?.abilitySpeed?.(Number(src.atkInterval));
+    if (!src?.actor?.abilitySpeed) return 1;
+    let rec;
+    try { rec = src.info ? this.opts?.record?.(src.info) : null; } catch { rec = null; }
+    const s = src.actor.abilitySpeed(Number(src.atkInterval), rec?.attackAnim?.maxScale);
     return Number.isFinite(s) && s > 0 ? s : 1;
   }
 

@@ -53,7 +53,7 @@
 // while it runs.
 
 const clampN = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
-/** (fork) The clip scale cap of an attack ability (`_maxAnimScale`) for its effects' speed: SpineActor.abilitySpeed. */
+/** (fork) The clip scale cap of an attack ability (`_maxAnimScale`) when the unit's data has none: SpineActor.abilitySpeed. */
 export const ABILITY_MAX_ANIM_SCALE = 1;
 
 /** Longest wind-up compression (× the rhythm speed) when the look-ahead is shorter than the natural wind-up. */
@@ -1298,18 +1298,20 @@ export class SpineActor {
    * clip length, MIN_ANIM_SCALE 0.1, the ability's `_maxAnimScale`); the clip's own speed, not our drawn one). `interval`
    * = the attack interval in battle s (the sim's, UnitInfo.atkInterval). The clip: the one this attack plays
    * (_attackBase), else the skill's attack clip (`skillAttackMode().animKey`: 莫斯提马's S3, whose loop has no strike).
-   * 1 when neither is known. [ASSUMED: `_maxAnimScale` ABILITY_MAX_ANIM_SCALE 1 — our data does not carry it; every
-   * ability read so far has 1.0 (昆图斯's Attack, 4 boss skills) or 1.2 (one S1): a slow attack never slows its effects;
-   * the ability's extra speed factor is 1]
+   * 1 when neither is known. `maxScale`: the ability's `_maxAnimScale` (the unit's data `attackAnim.maxScale`, read from
+   * the client: docs/research/15-attack-anim-scale.json; −1 = no cap), ABILITY_MAX_ANIM_SCALE when the data has none. [ASSUMED: a
+   * skill's attack has its normal attack's cap; the ability's extra speed factor is 1]
    */
-  abilitySpeed(interval) {
+  abilitySpeed(interval, maxScale) {
     const iv = Number(interval);
     if (!(iv > 0)) return 1;
     let name = this._attackBase()?.loop || null;
     if (!name && this.skillOn) name = this.skillAttackMode?.()?.animKey || null;
     const dur = name ? this.dur(this._shot(name)) : 0;
     if (!(dur > 0)) return 1;
-    return 1 / clampN(iv / dur, 0.1, ABILITY_MAX_ANIM_SCALE);
+    const m = Number(maxScale);
+    const cap = maxScale != null && Number.isFinite(m) ? (m < 0 ? Infinity : m) : ABILITY_MAX_ANIM_SCALE;
+    return 1 / clampN(iv / dur, 0.1, cap);
   }
 
   /** The clip the roles name for this attack, before any pick; the skill role itself when that is the clip (_skillIdle). */

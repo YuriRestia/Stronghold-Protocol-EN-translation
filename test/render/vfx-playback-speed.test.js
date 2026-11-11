@@ -140,11 +140,18 @@ describe('the speed reaches the effect', () => {
     assert.equal(sp({ skill: 'Skill_3_Loop', dur: 1.2 }, 0.6), 2, 'a skill whose loop has no strike: its attack clip');
     assert.equal(sp({ dur: 1 }, 0.5), 1, 'no clip known');
     assert.equal(sp({ clip: 'Attack', dur: 1 }, NaN), 1, 'no interval');
+    const spm = (o, iv, m) => SpineActor.prototype.abilitySpeed.call(actor(o), iv, m);
+    assert.equal(spm({ clip: 'Attack', dur: 1 }, 4, 2), 0.5, 'the unit\'s own `_maxAnimScale` 2: slowed to 1 / 2');
+    assert.equal(spm({ clip: 'Attack', dur: 1 }, 4, -1), 0.25, '−1: no cap');
+    assert.equal(spm({ clip: 'Attack', dur: 1 }, 0.5, 1), 2, 'a cap never limits a fast attack');
   });
 
-  test('FxWiring.abilitySpeed asks the actor with the unit\'s attack interval; 1 without one', () => {
+  test('FxWiring.abilitySpeed asks the actor with the unit\'s attack interval and its data cap; 1 without one', () => {
     const w = Object.create(FxWiring.prototype);
-    assert.equal(w.abilitySpeed({ atkInterval: 0.5, actor: { abilitySpeed: (iv) => 1 / iv } }), 2);
+    w.opts = { record: (info) => (info.defId === 'x' ? { attackAnim: { maxScale: -1 } } : null) };
+    let got = null;
+    assert.equal(w.abilitySpeed({ atkInterval: 0.5, info: { defId: 'x' }, actor: { abilitySpeed: (iv, m) => { got = m; return 1 / iv; } } }), 2);
+    assert.equal(got, -1, 'the record\'s attackAnim.maxScale');
     assert.equal(w.abilitySpeed({ atkInterval: 0.5 }), 1);
     assert.equal(w.abilitySpeed(null), 1);
   });

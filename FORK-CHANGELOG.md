@@ -7,11 +7,19 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-11
 
+### Slow attackers swing at their own speed, as in the official game
+
+- Each operator's attack now slows its animation only as far as the official game allows that attack: its own limit, read from the game client (`docs/research/15-attack-anim-scale.json`, 239 units). Until now every operator could slow down to 2.5×.
+- Most operators have a limit of 1×: a slow attacker swings at its normal speed and its hit lands at the swing's strike frame, early in its attack interval. Mostima's hit now lands 0.70 s after her swing starts instead of 1.17 s; Mizuki, Ashlock, Warfarin, Greyy and Ptilopsis gain about 0.7 s. A few attacks have a limit of 1.1×, 1.2× or 2×, and 62 have none.
+- Attack effects follow the same limit.
+- This changes battle results a little: in the test battles kills rise 0.8 %, healing 2.3 %, and the bot matches win one more (20 of 21).
+- Not yet modelled: in the official game an enemy effect that slows a unit's animation also limits its swing further.
+
 ### Attack effects speed up with the attack, as in the official game
 
 - When a unit attacks faster than its attack animation lasts (attack-speed buffs, fast skills), the effects of its attack now play faster too, as the official game plays them: the swing and skill effects the game marks for it (2,976 of the 10,330 effect files, mostly attack and skill starts), their delays included, so a flash or a wave stays with the swing. Vulpisfoglia's S3 now plays its swing effects at 2×, Archetto's S3 and Swire's S2 at about 1.25×.
 - Each effect keeps the official limit: most may play at most 2× as fast in real time, so at 2× battle speed they keep their normal speed. A few have no limit or a higher one.
-- A slow attack never slows its effects down. Effects the game doesn't mark (buffs, statuses, most hits) keep their speed; only their official start delay shortens with the attack, as in the game.
+- A slow attack slows its effects only as far as its swing may slow (the attack's own limit, above). Effects the game doesn't mark (buffs, statuses, most hits) keep their speed; only their official start delay shortens with the attack, as in the game.
 - Display only: battle results and bots are unchanged.
 
 ## 2026-11-10
