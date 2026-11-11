@@ -112,7 +112,7 @@ export default {
             elementHit(battle, unit, c.target, unit.s.atk * num(t0.ep_damage_scale), 'blazeMelt', 'burn');
             // 绝处重燃: "倒地期间…无法被治疗" — the meltdown heal does not reach her while downed
             if (!unit.mem.downed) battle.heal(unit, unit, unit.s.maxHp * num(t0.hp_ratio), { self: true });
-            battle.fx('meltdown', { x: c.target.x, y: c.target.y, id: c.target.id });
+            battle.fx('meltdown', { x: c.target.x, y: c.target.y, id: c.target.id, src: unit.id }); // src: her talent sound
           }, { owner: unit });
         } },
         { install(battle, unit) { // 绝处重燃
@@ -133,10 +133,10 @@ export default {
                 battle.removeBuff(u, buff);
                 u.mem.downed = false;
                 for (const e of battle.foesInRadius(u.x, u.y, NEARBY_RADIUS)) if (e.alive) battle.applyStatus(e, 'stun', { duration: num(t1.stun), source: u });
-                battle.fx('revive', { x: u.x, y: u.y, id: u.id, r: NEARBY_RADIUS });
+                battle.fx('revive', { x: u.x, y: u.y, id: u.id, r: NEARBY_RADIUS, form: null }); // the view stands up (Revive_End)
               },
             });
-            battle.fx('downed', { x: unit.x, y: unit.y, id: unit.id });
+            battle.fx('downed', { x: unit.x, y: unit.y, id: unit.id, form: 'downed' }); // display only: her Revive_* clips (render FORMS)
           }, { owner: unit, priority: -50 });
         } },
       ],

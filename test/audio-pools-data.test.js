@@ -71,8 +71,10 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
+  // (fork) + 4 pools: 烛煌's S3 ability end (SKILL_OFF_BANKS' second bank, ON_ABILITY_END.skchr_blaze2_3) and her talents'
+  // knock-down, stand-up and burn-burst banks (FX_SOUND_BANKS: reborn_start, reborn_finish, fire_ep_break)
   assert.equal(refs, 1048);
-  assert.equal(Object.keys(pools).length, 1074);
+  assert.equal(Object.keys(pools).length, 1078);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });

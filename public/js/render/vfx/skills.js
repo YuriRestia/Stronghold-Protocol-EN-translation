@@ -1399,7 +1399,8 @@ export function chargeKeys(plan) {
  *               `extra.id` names (the fx's point without one)
  *   hold        how long a looping reached effect stays: a blackboard key of our skill record (seconds), 'fx' — the
  *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
- *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
+ *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, (fork) 'until' — no
+ *               timer: the binding's `until` kind (or the unit leaving) ends it —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   shots       the fx's `lanes` ([x, y, wait, shot id]…; `dx`, `dy`, `len`, `speed`) fly `keys` along straight lines
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
@@ -1453,6 +1454,17 @@ export const FX_ATTACK_LINES = Object.freeze({
 });
 
 /**
+ * (fork) A skill whose attacks leave an official effect on the tile under each enemy hit, held while the skill lasts:
+ * render/vfx/skillfx.js _hitTile, one per tile. 烛煌 S2 (chess_char_5_03-blaze2.js: every hit adds the target's rounded
+ * tile to her burning tiles until the skill ends): her S2 mode's talent node BuffAfterAffecting (index talent 3, its
+ * only key unclassified) places blaze2_skill_02_hit_plot (looping, GROUND_CENTER) — the user's clip RjrtWhMKwAU
+ * 0:46–1:02, the fire on the struck tiles. The sim sends no fx for a tile (one would move the golden fx counts).
+ */
+export const FX_HIT_TILES = Object.freeze({
+  skchr_blaze2_2: Object.freeze(['blaze2_skill_02_hit_plot']),
+});
+
+/**
  * (fork) Chain hops that leave one unit as another projectile's (wiring.js chain()): by skill id, `via` (the index unit
  * key the hop leaves) → `projectile` (its ChainLightningEffectBehaviour line and hit draw the hop). Mon3tr S2
  * (op-monstr.js chainFrom): a heal of hers on her 重构体 gives it monstr_s_2[proj], whose ON_BUFF_FINISH (lifeTime 0.6 s,
@@ -1475,7 +1487,30 @@ const DMINON_BOUNDARY = Object.freeze({ aoe: binding({ owner: 'id', only: Object
 // oxi:footprint is a fresh lease (its tile, dur). A talent: bound under each of her skills.
 const OXI_FOOTPRINT = binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:footprint' }), at: 'point', hold: 'fx', keys: ['oxi_buff_01'] });
 
+// (fork) 烛煌 T2 绝处重燃 (chess_char_5_03-blaze2.js): the client's blaze2_t_2 creates its buff at the fatal blow
+// (ON_BEFORE_TRY_SET_HP_ZERO: blaze2_revive_buff) and its [reborn_state] (blaze2_revive_buff_03) — the fire ring she kneels
+// in while downed (the user's clip RjrtWhMKwAU 0:29–0:34); standing up, blaze2[to_default_state]'s CauseStun cast plays
+// blaze2_revive_end_start. The kit's 'downed' is the fatal blow, its 'revive' the stand-up (`until` ends the ring). A
+// talent: bound under each of her skills; talentfx leaves these keys to the binding (KIT_HELD_TALENT_KEYS).
+const BLAZE2_REVIVE = Object.freeze({
+  downed: binding({ owner: 'id', hold: 'until', until: 'revive', keys: ['blaze2_revive_buff', 'blaze2_revive_buff_03'] }),
+  revive: binding({ owner: 'id', oneshot: true, keys: ['blaze2_revive_end_start'] }),
+});
+
+/**
+ * (fork) Talent prefab keys a kit fx binding plays (the talents' FX_BINDINGS entries above): talents.js leaves them out
+ * of the talent's own bindings — 烛煌's [reborn_state] ring read as a passive loop and burned at her feet from the deploy.
+ */
+export const KIT_HELD_TALENT_KEYS = Object.freeze(new Set([BLAZE2_REVIVE].flatMap((b) => Object.values(b)).flatMap((x) => x.keys || [])));
+
 export const FX_BINDINGS = Object.freeze({
+  // (fork) 烛煌 S1 炙手之援: the client's AnimatedActionToTargetAbility gives the operator it picks blaze2_s_1, whose
+  // effect blaze2_skill_01_hit_range (looping, GROUND_CENTER) burns around that operator for max_duration (the user's
+  // clip 0:10–0:34: the red smoke ring). The kit's 'aoe' tagged blaze2Aid is that pick (x, y: the operator's tile).
+  skchr_blaze2_1: Object.freeze({ ...BLAZE2_REVIVE,
+    aoe: binding({ owner: 'id', only: Object.freeze({ skill: 'blaze2Aid' }), at: 'point', hold: 'max_duration', keys: ['blaze2_skill_01_hit_range'] }) }),
+  skchr_blaze2_2: BLAZE2_REVIVE,
+  skchr_blaze2_3: BLAZE2_REVIVE,
   skchr_oxi_1: Object.freeze({ zone: OXI_FOOTPRINT }),
   skchr_dminon_1: DMINON_BOUNDARY, skchr_dminon_2: DMINON_BOUNDARY, skchr_dminon_3: DMINON_BOUNDARY,
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
@@ -1806,6 +1841,7 @@ export function enemyCoverOf(unitKey, prefabKey, kind) {
 export function bindingKeys(idx, skillId) {
   const out = new Set();
   for (const bind of Object.values(FX_BINDINGS[lc(skillId)] || {})) for (const k of bindingEffects(idx, bind)) out.add(k);
+  for (const k of FX_HIT_TILES[lc(skillId)] || []) out.add(lc(k));   // (fork) and its hit tiles (skillfx _hitTile)
   return [...out];
 }
 
