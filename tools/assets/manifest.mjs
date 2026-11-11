@@ -206,3 +206,41 @@ export function droppedEntries(prev, next) {
   }
   return out.sort();
 }
+
+/**
+ * (fork) The manifest's `stats` block from its body: entry counts, plus the file count and byte total of the build (the
+ * caller's, from the disk). Shared by fetch-assets and tools/merge-generated.mjs, which recounts a merged manifest.
+ * @param {any} m
+ * @param {number} bytes
+ * @param {number} files
+ */
+export function countStats(m, bytes, files) {
+  const vals = (o) => Object.values(o || {});
+  const spines = new Set();
+  for (const c of vals(m.chars)) for (const s of vals(c.spine)) spines.add(s.skel);
+  for (const e of vals(m.enemies)) if (e.spine) spines.add(e.spine.skel);
+  for (const t of vals(m.tokens)) if (t.spine) spines.add(t.spine.skel);
+  return {
+    files,
+    bytes,
+    chars: Object.keys(m.chars || {}).length,
+    charsWithBack: vals(m.chars).filter((c) => c.spine?.back).length,
+    enemies: Object.keys(m.enemies || {}).length,
+    enemiesWithSpine: vals(m.enemies).filter((e) => e.spine).length,
+    tokens: Object.keys(m.tokens || {}).length,
+    tokensWithSpine: vals(m.tokens).filter((t) => t.spine).length,
+    spineModels: spines.size,
+    bonds: Object.keys(m.bonds || {}).length,
+    items: Object.keys(m.items || {}).length,
+    bands: Object.keys(m.bands || {}).length,
+    skills: Object.keys(m.skills || {}).length,
+    modules: Object.keys(m.modules || {}).length,
+    ui: Object.keys(m.ui || {}).length,
+    sfxUnits: Object.keys(m.audio?.sfx?.units || {}).length,
+    voiceChars: Object.keys(m.audio?.voice || {}).length,
+    voiceJpChars: Object.keys(m.audio?.voiceJp || {}).length,
+    voiceEnChars: Object.keys(m.audio?.voiceEn || {}).length,
+    voiceKrChars: Object.keys(m.audio?.voiceKr || {}).length,
+    voiceNativeChars: Object.keys(m.audio?.voiceNative || {}).length,
+  };
+}

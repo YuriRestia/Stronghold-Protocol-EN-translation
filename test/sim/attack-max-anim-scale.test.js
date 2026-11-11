@@ -1,6 +1,6 @@
 // (fork) Each attack ability's own clip-scale cap, `_maxAnimScale` (AbstractAnimatedAbility.UpdatePlaybackSpeed: animScale =
 // attack time / clip length, at least 0.1, at most `_maxAnimScale` when it is ≥ 0), read from the client into
-// docs/research/15-attack-anim-scale.json (tools/local-extract/anim_scale.py) and from there into `attackAnim.maxScale`
+// docs/research/15-attack-anim-scale.json (tools/anim_scale.py) and from there into `attackAnim.maxScale`
 // (tools/build-data.mjs): the sim's attack wind-up (ai.js allyCastWindup) and the effects' speed (render/spine.js
 // abilitySpeed) follow it.
 import { test, describe } from 'node:test';

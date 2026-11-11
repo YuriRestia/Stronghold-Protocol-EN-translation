@@ -7,7 +7,7 @@ MIN_ANIM_SCALE 0.1 and, when `_maxAnimScale` ≥ 0, at most `_maxAnimScale` (und
 not modelled). The sim times an attack's strike by it (server/sim/ai.js allyCastWindup), the renderer its effects'
 speed (render/spine.js abilitySpeed).
 
-  .venv-extract/Scripts/python tools/local-extract/anim_scale.py [--game <client>] [--out docs/research/15-attack-anim-scale.json]
+  .venv-extract/Scripts/python tools/anim_scale.py [--game <client>] [--out docs/research/15-attack-anim-scale.json]
 
 Output: { "<unitId>": { "<node path under the prefab root>": [maxAnimScale, animKey, class] } }, sorted; only abilities
 that carry the field.
@@ -19,8 +19,10 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parent.parent
-sys.path.insert(0, str(HERE))
+ROOT = HERE.parent
+# a maintainer tool, kept out of tools/local-extract/ (which ships to players) because it writes a research table; it
+# borrows that folder's client reader
+sys.path.insert(0, str(HERE / 'local-extract'))
 
 from extract import locate_client  # noqa: E402
 from fx import AssetEnv, scan_cabs  # noqa: E402

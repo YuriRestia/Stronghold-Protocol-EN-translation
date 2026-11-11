@@ -158,7 +158,7 @@ export function updateAlly(b, u, dt) {
  * attackTime / clipDuration, at least MIN_ANIM_SCALE 0.1, at most the ability's `_maxAnimScale`), and lands the attack at the clip's attack
  * event (EasyToStartAbility's pre-delay, `_waitForAttackEvent`): hit × animScale after the cast. The clip and its strike
  * frame are its data's `attackAnim` (tools/build-data.mjs operatorAttackAnims, the default model's clip); the attack time
- * is its current interval. The cap is `attackAnim.maxScale` (docs/research/15-attack-anim-scale.json, read from the client; 1.0 on
+ * is its current interval. The cap is `attackAnim.maxScale` (research table 15, attack-anim-scale, read from the client by tools/build-data.mjs; 1.0 on
  * the attacks read so far: a slow attacker's clip plays at its own speed, the hit lands at its strike frame);
  * ALLY_ANIM_SCALE_MAX 2.5 when the client data has none [ASSUMED]. Not modelled: under an animation slow-down the client
  * also caps it at 2.5 / the slow (`animSlowDown`). 0 with no clip known (the
