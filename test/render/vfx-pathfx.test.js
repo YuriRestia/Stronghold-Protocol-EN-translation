@@ -58,7 +58,7 @@ test('pathCorners: start, every turn, end', () => {
 
 test('PATH_BINDINGS names official prefabs only (extracted when the local fx folder is present)', () => {
   const keys = pathBindingKeys();
-  assert.ok(keys.includes('dminon_range_line_01') && keys.includes('aglna2_skill_03_range_line_01') && keys.includes('aphris_skill_02_line_01'));
+  assert.ok(keys.includes('dminon_range_line_01') && keys.includes('aglna2_skill_03_range_line_01') && keys.includes('aphris_skill_02_line_01') && keys.includes('thorn2_skill_03_line'));
   const dir = path.join(ROOT, 'public/assets/local/fx/prefabs');
   if (!existsSync(dir)) return;
   for (const k of keys) assert.ok(existsSync(path.join(dir, `${k}.json`)), `${k} extracted`);
@@ -159,6 +159,34 @@ describe('PathFx', () => {
     p.skillOff(1);
     assert.equal(frame().length, 0);
     assert.ok(played.every((x) => !x.h.alive));
+  });
+  test('引星棘刺 S3: one closed line through the area corners per polyKey, the zone fxs stay the kit ones, gone after the duration', () => {
+    const { w, views, frame, tick, spawned } = fakeWiring();
+    const p = new PathFx(w);
+    const v = { id: 3, x: 4, y: 10 };
+    views.set(3, v);
+    const poly = [[10, 4], [12, 7], [9, 8]];
+    const fx = (x, y) => ({ id: 3, x, y, r: 1.1, duration: 5, poly, polyKey: 'thorn2:sea:3:1' });
+    // the kit sends one 'zone' per unit, each naming the whole area: not claimed (the unit's landing binding plays on)
+    assert.equal(p.simFx('zone', 4, 10, fx(4, 10), U(3, 'skchr_thorn2_3', v)), false);
+    assert.equal(p.simFx('zone', 7, 12, fx(7, 12), U(3, 'skchr_thorn2_3', v)), false);
+    assert.equal(p.simFx('zone', 8, 9, fx(8, 9), U(3, 'skchr_thorn2_3', v)), false);
+    assert.deepEqual(spawned.map((s) => s.key), ['thorn2_skill_03_line'], 'drawn once for the area');
+    const [line] = frame();
+    assert.deepEqual(line.pts.map((q) => [q[0] + 10, q[1] + 9]), [[4, 10], [7, 12], [8, 9], [4, 10]], 'through the corners, closed');
+    assert.ok(line.pts.every((q) => Math.abs(q[2] + 0.01) < 1e-9), 'just over the ground');
+    p.skillOff(3);
+    assert.equal(frame().length, 1, 'an instant skill: the area outlives the skill');
+    tick(5.01);
+    assert.equal(frame().length, 0, 'gone with the area');
+    // two operators: one stretch, not closed; no polyKey or a single corner: nothing
+    assert.equal(p.simFx('zone', 4, 10, { id: 3, duration: 2, poly: [[10, 4], [12, 7]], polyKey: 'k2' }, U(3, 'skchr_thorn2_3', v)), false);
+    assert.equal(frame()[0].pts.length, 2);
+    p.simFx('zone', 4, 10, { id: 3, duration: 2, poly: [[10, 4], [12, 7]] }, U(3, 'skchr_thorn2_3', v));
+    p.simFx('zone', 4, 10, { id: 3, duration: 2, poly: [[10, 4]], polyKey: 'k3' }, U(3, 'skchr_thorn2_3', v));
+    assert.equal(spawned.length, 2);
+    p.clear();
+    assert.equal(frame().length, 0);
   });
   test('a skill PATH_BINDINGS does not name is left alone', () => {
     const { w, played } = fakeWiring();

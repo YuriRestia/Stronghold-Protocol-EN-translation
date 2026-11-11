@@ -9,6 +9,8 @@ import {
   instantKind, whileOn, permBuff,
 } from '../shared/tier5.js';
 import { hypot } from '../../../detmath.js';
+import { thorn2Area } from '../../../polygon.js';
+import { bodyInConvex } from '../../../body.js';
 
 /** Straight-road length through each tile (max of the horizontal and vertical runs of ground-passable tiles). */
 const ROAD_CACHE = new WeakMap();
@@ -40,16 +42,20 @@ export default {
   // around it get healing ×0.5, take 120/140 % ATK arts per second, allies recover 12/15 % ATK per second; the unit drifts
   // along the throw direction and its radius grows. T1 心相: ATK +10 %, +3 s when another op is in range.
   // T2 视界: allies ASPD +5, enemies −5 (doubled on straight roads ≥ 6 tiles). Module (elite): +0.1 SP/s with a unit out.
-  // S1 度算浪波 (instant): an alchemy unit thrown at the ally in her range with the lowest HP ratio: for
+  // S1 度算浪波 (instant): an alchemy unit thrown at the ally in his range with the lowest HP ratio: for
   // projectile_delay_time s (+3 s 心相) allies on the landing tile and the 8 around it get DEF +def and recover
   // hp_recovery_per_sec_ratio × ATK per second. The recovery of S1 / S2 ("每秒回复/恢复相当于攻击力…的生命") is 生命回复速度,
   // an hpRegen buff per alchemy unit set at each 1 s pulse until the next — the wording and blackboard key of 锡人 S2, whose
   // PRTS 备注 says "生命恢复的提供方式为增加目标的“生命回复速度”属性，不受治疗加成和禁疗影响" (the only other 炼金师): 不屈者 and
   // 禁疗 units recover too (community report: 炼金单元无法给不屈者等禁疗的干员提供生命恢复; it was a heal up to 0.2.1).
-  // S3 “我的海疆”: passive — her range is the skill range; active
+  // S3 “我的海疆”: passive — his range is the skill range; active
   // (instant) — alchemy units on the max_target_token operators with the lowest block count: for projectile_delay_time s
-  // the enemies around each of them (RING1, following it) get ATK/DEF/RES −, one strongest instance (不叠加), and take
-  // atk_scale × ATK arts per second, everything ramping +per_interval each `interval` s up to max_stack_cnt steps.
+  // the enemies in the area they span get ATK/DEF/RES −, one strongest instance (不叠加), and take atk_scale × ATK arts
+  // per second, everything ramping +per_interval each `interval` s up to max_stack_cnt steps. The area is the client's
+  // (projectile_chr_thorn2_s3_polygon, Thorn2PolygonRange; polygon.js thorn2Area, user's choice of 2026-11-12): the
+  // convex hull of those operators' tiles at the throw — a strip along them when they stand in one line —, an enemy in
+  // it when its collider overlaps it (body.js bodyInConvex); one area, so one burn per interval however many units.
+  // Until 2026-11-12 it was a RING1 circle around each operator, following it, each burning on its own.
   chess_char_5_15_a: (bb, chess, def) => {
     const t0 = talent(chess, 0), t1 = talent(chess, 1), tm = talent(chess, -1);
     const sid = selectedId(chess, def);
@@ -78,12 +84,12 @@ export default {
         }
         return;
       }
-      // sea: follows its operator while it stands on the field; the first burn lands with the unit, then one per
-      // `interval` (so the 15th step — the max — is reached 15 s after the throw, for the debuff and the damage alike)
-      if (z.anchor && z.anchor.alive && z.anchor.deployed) { z.x = z.anchor.x; z.y = z.anchor.y; }
+      // sea: the area spanned at the throw (it stays where it was laid: the client's polygon keeps the tiles of OnInit);
+      // the first burn lands with the units, then one per `interval` (so the 15th step — the max — is reached 15 s after
+      // the throw, for the debuff and the damage alike)
       const iv = Math.max(0.1, num(bb.interval, 1));
       const steps = Math.min(Math.max(0, num(bb.max_stack_cnt, 15)), Math.floor((z.t - AURA_IV + 1e-9) / iv));
-      const foes = battle.foesInRadius(z.x, z.y, RING1);
+      const foes = battle.foesInRadius(z.x, z.y, z.reach).filter((e) => bodyInConvex(e, z.shape));
       for (const e of foes) seaHits.set(e, Math.max(seaHits.get(e) ?? -1, steps));
       if (z.acc >= iv - 1e-9) {
         z.acc -= iv;
@@ -117,16 +123,26 @@ export default {
               .sort((a, b) => a.s.blockCnt - b.s.blockCnt || dist(a, unit) - dist(b, unit) || a.id - b.id)
               .slice(0, Math.max(1, num(bb.max_target_token, 3)));
             const dur = num(bb.projectile_delay_time, 19) + extend(battle, unit);
-            for (const a of ops) {
-              (unit.mem.zones ??= []).push({ type: 'sea', anchor: a, x: a.x, y: a.y, t: 0, acc: Math.max(0.1, num(bb.interval, 1)) - AURA_IV, dur });
-              battle.fx('zone', { x: a.x, y: a.y, id: unit.id, r: RING1, duration: dur });
-            }
+            const { hull, shape } = thorn2Area(ops.map((a) => [a.x, a.y]));
+            if (!shape.length) return;
+            // the broad search around the area's centre: its farthest corner plus a huge unit's reach (body.js hitRect)
+            let x = 0, y = 0;
+            for (const p of shape) { x += p[0]; y += p[1]; }
+            x /= shape.length; y /= shape.length;
+            let reach = 0;
+            for (const p of shape) reach = Math.max(reach, hypot(p[0] - x, p[1] - y));
+            (unit.mem.zones ??= []).push({ type: 'sea', shape, x, y, reach: reach + 4, t: 0, acc: Math.max(0.1, num(bb.interval, 1)) - AURA_IV, dur });
+            // one 'zone' per unit (render/vfx/skills.js: the unit lands on that operator), each naming the whole area:
+            // `poly` the line's corners ([row, col]…, pathfx.js draws thorn2_skill_03_line through them once per `polyKey`)
+            const polyKey = `thorn2:sea:${unit.id}:${unit.mem.seaSeq = (unit.mem.seaSeq ?? 0) + 1}`;
+            const poly = hull.map((p) => [p[1], p[0]]);
+            for (const a of ops) battle.fx('zone', { x: a.x, y: a.y, id: unit.id, r: RING1, duration: dur, poly, polyKey });
           },
         }),
       }),
       skill: {
         kind: maxCharges(chess, def) > 1 ? 'charges' : 'instant',
-        // 白铁's 铁钳号·原型机 (a registered ally target) is a target like an enemy when no enemy is in her range — the owner's
+        // 白铁's 铁钳号·原型机 (a registered ally target) is a target like an enemy when no enemy is in his range — the owner's
         // rule of 2026-10-08: the unit lands on it and its pulses hit it (cancelled by its kit) [ASSUMED] (skills.js allyTargetsOk)
         allyTargets: true,
         onStart({ battle, unit }) {
@@ -134,7 +150,7 @@ export default {
           sortEnemyTargets(battle, unit, list, null);
           let t = list.find((e) => !e.isFlying) ?? list[0] ?? battle.allyTargetsInKeys(unit.rangeKeys, unit)[0];
           if (!t) {
-            // PRTS 备注: no enemy in range → thrown at the farthest tile straight ahead inside her range
+            // PRTS 备注: no enemy in range → thrown at the farthest tile straight ahead inside his range
             let best = null;
             for (const k of unit.rangeKeys || []) {
               const r = Math.floor(k / COLS), c = k % COLS;
@@ -147,7 +163,7 @@ export default {
             t = best;
           }
           const extra = battle.alliesInGrid(unit).some((a) => a !== unit && isOp(a)) ? Math.min(num(t0.projectile_extend), num(t0.projectile_extend_max, Infinity)) : 0;
-          // it drifts away from her deployment tile ("移动方向始终为远离棘刺部署位置中心的方向")
+          // it drifts away from his deployment tile ("移动方向始终为远离棘刺部署位置中心的方向")
           const dx = t.x - unit.x, dy = t.y - unit.y, len = hypot(dx, dy) || 1;
           // `key`: the fx re-sent every second as the unit drifts and grows is this one zone — the client updates it in
           // place instead of stacking a new layer each second (render/fx/zones.js; community report of 2026-10-06)
@@ -177,11 +193,11 @@ export default {
       ],
       install(battle, unit) {
         const sp = num(tm.sp_recovery_per_sec);
-        if (sid === 'skchr_thorn2_3') { // S3 被动效果：攻击范围扩大 (her own range, so also the DEFAULT trigger range)
+        if (sid === 'skchr_thorn2_3') { // S3 被动效果：攻击范围扩大 (his own range, so also the DEFAULT trigger range)
           const g = skillGrid(chess, def);
           if (g) { unit.rangeGrid = g; battle.refreshRange(unit); }
         }
-        // alchemy units keep working after she falls (they are already thrown)
+        // alchemy units keep working after he falls (they are already thrown)
         battle.every(AURA_IV, () => {
           const zones = unit.mem.zones;
           if (!zones || !zones.length) return;

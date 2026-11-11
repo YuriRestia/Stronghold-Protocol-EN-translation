@@ -254,7 +254,11 @@ history and the open points: DESIGN §32.14.25.
   `range` (her deployment tile's 3-9) plus the tiles within `around` of her, re-traced as she flies, until the skill
   ends. 谬因 S2's AphrisEffectEmitter draws one line from her muzzle through the 'beam' fx's `path` turns (`pathCorners`;
   waypoints at the fixed height 0.65), with the start, 中继器 and end-point effects, until the skill ends. The sim only
-  added fields to fx it already sent (no event count changes: goldens unchanged).
+  added fields to fx it already sent (no event count changes: goldens unchanged). 引星棘刺 S3 (2026-11-12): the kit's
+  'zone' fxs carry the area's hull corners (`poly`, [row, col]…) and a `polyKey` per cast; `polygon { line }` draws
+  thorn2_skill_03_line once per key through those corners, closed (Thorn2S3Renderer), fixed where it was thrown, for
+  the fx `duration`; the zone fxs still land the official projectile per operator. The area itself is
+  server/sim/polygon.js (Thorn2PolygonRange's hull, strip and overlap tests).
 - **Talents and abilities** (0.3.0 Phase 3d, `talentfx.js TalentFx`, owned by the wiring; the bindings of `talents.js`,
   DESIGN §33.16, index v3 §33.17). A battle unit's talents in force — an operator's by its record's talents through
   `talentKeys` (a module's with its module, the trait's always, a node valid with one skill only with it), an enemy's

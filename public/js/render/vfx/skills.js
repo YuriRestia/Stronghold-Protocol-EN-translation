@@ -1853,7 +1853,7 @@ export const FX_BINDINGS = Object.freeze({
   // looping), the flask on the ground (_token_01, looping) and the splash (_start_01 / _02)
   skchr_tinman_1: Object.freeze({ zone: binding({ owner: 'id', projectile: 'projectile_chr_tinman_s1', at: 'point', hold: 'fx', holdS: 8, during: true, cover: ['zone'] }) }),
   skchr_tinman_2: Object.freeze({ zone: binding({ owner: 'id', projectile: 'projectile_chr_tinman_s2', at: 'point', hold: 'fx', holdS: 8, during: true, cover: ['zone'] }) }),
-  // 引星棘刺 S1 / S3 (chess_char_5_15-thorn2.js: a 'zone' on each chosen ally's tile, id = her, duration): the unit she
+  // 引星棘刺 S1 / S3 (chess_char_5_15-thorn2.js: a 'zone' on each chosen ally's tile, id = him, duration): the unit he
   // throws (projectile_chr_thorn2_s1 / _s3) lands there — thorn2_token_start, the unit (thorn2_skill_0N_token, looping),
   // S1's ring (thorn2_skill_01_range). S2's unit drifts (its zone re-sent every second): not bound — the procedural area
   // stays (open)
