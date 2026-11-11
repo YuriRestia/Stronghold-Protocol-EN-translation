@@ -44,7 +44,8 @@
 // Puppeteer hook: window.__sandbox = { ready, error, view, runner, units(), bench(), wave(), fight(), prep(), facing,
 // bonds(), layers(), gains(), bank(next), setWave(id), pause(on), step(n), tick(), lastResult, addBond(bondId, elite),
 // ui, click(pieceClick event), camLayer('L' | 'ALL' | 'R'), boardUids(), open(uid) (a unit's drawer), speed(),
-// hold(i, { cast?, infSp?, infDur?, infHp? }) (board unit i's skill hold mid-battle, as its link's |cast= / |isp= …) }
+// hold(i, { cast?, infSp?, infDur?, infHp?, retreat? }) (board unit i's skill hold mid-battle, as its link's |cast= / |isp= …;
+// retreat: true withdraws it on the next tick, once) }
 // The game's widgets ride on top (sandbox-ui.js): the bond strip (stacks, active state) and its popup, the detail card of
 // a clicked piece / unit / enemy / boss with live HP and stats in battle, and icon pickers for operators (by bond) and
 // items (by name). On a boss field in battle, "My side" / "Whole field" / "Partner's side" move the camera like the
@@ -904,18 +905,22 @@ async function main() {
     SimBattle.prototype.addLayers = wrapped;
   }
   // the skill hold (sandbox-units.js holdSkill): after every step of a battle on this page, each own operator whose board
-  // entry asks for it — forced on / off, infinite SP, infinite duration. Page-only: the sim is not changed.
+  // entry asks for it — forced on / off, infinite SP, infinite duration — and a one-shot 撤退 mid-battle (`retreat`, for
+  // proof captures of what a unit's leaving plays). Page-only: the sim is not changed.
   if (SimBattle?.prototype?.step && !SimBattle.prototype.step.sandboxHold) {
     const baseStep = SimBattle.prototype.step;
     const held = function (...a) {
       const r = baseStep.apply(this, a);
       try {
+        const leaving = [];
         for (const u of Array.isArray(this.allyUnits) ? this.allyUnits : []) {
           if (u?.kind !== 'op' || u.ownerId !== myId) continue;
           const e = board.find((b) => b.uid === u.uid);
           if (e && (e.cast || e.infSp || e.infDur)) holdSkill(u.skill, e);
           if (e?.infHp && u.alive && u.s && u.hp < u.s.maxHp) u.hp = u.s.maxHp;
+          if (e?.retreat) { e.retreat = false; if (u.alive && u.deployed) leaving.push(u); }
         }
+        for (const u of leaving) this.retreat(u);
       } catch (err) { console.warn('[sandbox] skill hold', err); }
       return r;
     };
@@ -1445,7 +1450,7 @@ async function main() {
   sb.hold = (i, o = {}) => {
     const e = board[i];
     if (!e) return false;
-    for (const k of ['cast', 'infSp', 'infDur', 'infHp']) if (k in o) e[k] = k === 'cast' ? (o.cast === 'on' || o.cast === 'off' ? o.cast : null) : !!o[k];
+    for (const k of ['cast', 'infSp', 'infDur', 'infHp', 'retreat']) if (k in o) e[k] = k === 'cast' ? (o.cast === 'on' || o.cast === 'off' ? o.cast : null) : !!o[k];
     return true;
   };
   sb.bench = () => bench.map((u) => (u ? u.chessId : null));

@@ -152,6 +152,13 @@ export async function startServer(opts = {}) {
     throw new Error(`Invalid SP_BOT_STRATEGY: ${cause.message}. Unset SP_BOT_STRATEGY to use the original bot (legacy).`, { cause });
   }
   try {
+    // (fork) host-run bots only (Match opts.hostBotStrategy); the external AI never runs in a browser
+    const strategy = getBotStrategy(String(process.env.SP_HOST_BOT_STRATEGY ?? '').trim());
+    if (strategy.id === 'external') throw new Error('external cannot run in a browser');
+  } catch (cause) {
+    throw new Error(`Invalid SP_HOST_BOT_STRATEGY: ${cause.message}. Unset SP_HOST_BOT_STRATEGY to give host-run bots SP_BOT_STRATEGY.`, { cause });
+  }
+  try {
     const seats = getBotStrategySeats(process.env.SP_BOT_STRATEGY_SEATS);
     if (Object.values(seats).some((s) => s.id === 'external')) validateExternalConfig();
   } catch (cause) {

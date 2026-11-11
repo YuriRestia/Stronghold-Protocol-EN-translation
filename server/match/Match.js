@@ -162,6 +162,9 @@
 //   opts.botRehearsal  candidate layouts a bot simulates per prep before placing (default 6, 0 = heuristic only; (fork) env SP_BOT_REHEARSAL when unset;
 //                      a whole battle per candidate: ~20–300 ms of CPU each, see server/match/bot.js createRehearsal)
 //   opts.botStrategy  a registered ID or trusted server-side strategy object; defaults to SP_BOT_STRATEGY / 'legacy'
+//   opts.hostBotStrategy  (fork) host mode only (opts.botExecution 'host'): the strategy a bot seat plays in the host's browser,
+//                      in place of opts.botStrategy; defaults to SP_HOST_BOT_STRATEGY (unset or empty = opts.botStrategy). Bots the
+//                      server plays itself never see it. Seat overrides (opts.botStrategySeats) still win.
 //   opts.botStrategySeats  per-seat overrides { [seat 0..3]: ID | object } or 'seat:id,…'; defaults to
 //                      SP_BOT_STRATEGY_SEATS (none); a seat not listed plays opts.botStrategy (getBotStrategySeats)
 //   opts.botSliceMs    wall-clock ms of rehearsal per scheduler callback (default 8 with a real scheduler, unbounded
@@ -419,6 +422,9 @@ export class Match {
     this.seatStreams = opts.seatStreams === true || this.botExecution === 'host';
     // The hard rule (docs/host-browser-bots.md): in host mode no bot decision may run here, so a strategy's hooks throw.
     if (this.botExecution === 'host') {
+      // (fork) SP_HOST_BOT_STRATEGY: the strategy of host-run bots only (deploy: ioleta-adaptive); server-run bots keep this.bot
+      const hostBot = String(opts.hostBotStrategy ?? env('SP_HOST_BOT_STRATEGY') ?? '').trim();
+      if (hostBot) this.bot = getBotStrategy(hostBot);
       this.bot = guardBotStrategy(this.bot);
       this.seatBots = Object.freeze(Object.fromEntries(Object.entries(this.seatBots).map(([seat, s]) => [seat, guardBotStrategy(s)])));
     }

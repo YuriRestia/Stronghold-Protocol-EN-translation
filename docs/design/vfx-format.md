@@ -706,7 +706,8 @@ Semantics below are read from the field names, the data and the client's type, f
   (its owner holds it: the effect moves with the unit — §33.16 Placement; **assumed** from the client's names
   `ParticleEffect.holdByOwner`, `Entity.m_holdEffects`, `CreateEffectHoldBySource(…, setAsParent)`: 1 on the attack
   starts, buffs and statuses, 0 on the hits and ground ranges), `_overwriteHeight` / `_heightOffset` (place at this height),
-  `_usePlaybackSpeed` / `_limitedPlaybackSpeed` (follow the owner's attack speed, capped), `_preloadCnt` (pool size
+  `_usePlaybackSpeed` / `_limitedPlaybackSpeed` (follow the owner's ability's playback speed, capped at the limit ÷ the
+  battle speed, −1 = no cap; render/vfx/effect.js `Effect.setPlayback`), `_preloadCnt` (pool size
   hint), `_allowAutoReuse`, `_disableBattleEffectShrink`, `_ignoredByParticleEffectManager`, `_toggleMeshRendererWhenPause`.
 * An effect is finished when every non-looping system has ended and has no live particle (and its clips have ended);
   looping effects run until the game stops them (a status ends, a skill ends, a projectile arrives).
@@ -1459,6 +1460,13 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
   the half one (S3: its two halves); off with 2 charges stored → full + half; with 1 → the idle half (`_buff_01`); none
   below. The stored charges come from b.snap `charges` (sim `snapshot.js chargeView`, display only). Other
   `[eff_cond]` templates stay unmapped 'conditional' unless the sim signals them (state buffs, below).
+* **Marks on targets** (fork, effect gaps audit 2 item 5): a use `on: 'targets'` of a STATE_BUFFS buff (a loop, start
+  or end; not a CreateLineEffect or a tick) joins plan `state` too (`place`), so it plays on the carrier the sim names
+  in b.snap `fxs` (`src` the operator) instead of waiting in plan `targets`. An `end` entry plays once on the carrier
+  when its row goes (`skillfx.js _states`, `sends`: a mark's ON_BUFF_FINISH — Titi S3's wake burst). The kits tag the
+  buff they put on the target (`fx` / `fxSrc`) or call `fxState` with `dur`; skills whose ActiveBuffAbility buff sits on
+  the operator herself use a `running` probe, and summons wear their owner's skill buffs through
+  `content/fxStates.js TOKEN_FX_STATES` (a probe on the token, `src` its `ownerUnit`). 41 of 43 marks on 27 operators.
 * **State buffs** (fork, effect gaps audit 2 item 4; `skills.js STATE_BUFFS`, `stateEntries`, plan `state`;
   `skillfx.js _states`): a buff template action at a moment the client never sees (unmapped 'conditional': a condition
   checked every tick, a would-die, a kill, a fired trigger effect) whose buff the sim signals in b.snap `fxs`

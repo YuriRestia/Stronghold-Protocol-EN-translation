@@ -14,7 +14,7 @@ import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { COLS } from '../../server/sim/constants.js';
 import {
-  COLLAPSE, BOUNDARY_TAG, SPREAD_TAG, KO_DELAY, haltKey, guardKey, ambxKey,
+  COLLAPSE, BOUNDARY_TAG, SPREAD_TAG, KO_DELAY, WITHDRAW_DELAY, haltKey, guardKey, ambxKey,
 } from '../../server/sim/content/kits/ops/op-dminon.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../../data/${f}.json`, import.meta.url), 'utf8'));
@@ -212,7 +212,7 @@ test('T2 此身为界: knocked out — 0.7 s later 600 % (潜能 5+; 500 % below
   }
 });
 
-test('T2 此身为界: a retreat triggers it at once; a 复活 inside the `death` hook does not change what it cached; with S3 running, the cached ATK has the skill bonus and the expanded field (y-10, the spread tiles) counts', () => {
+test('T2 此身为界: a retreat triggers it 0.1 s later (the client withdraw shot); a 复活 inside the `death` hook does not change what it cached; with S3 running, the cached ATK has the skill bonus and the expanded field (y-10, the spread tiles) counts', () => {
   {
     const { h, u } = field({ tier: 5 });
     noSkill(h, u);
@@ -221,8 +221,12 @@ test('T2 此身为界: a retreat triggers it at once; a 复活 inside the `death
     h.run(0.3);
     const atk = u.s.atk;
     h.b.retreat(u);
+    assert.equal(tagged(h, u, BOUNDARY_TAG).length, 0, 'not yet: the withdraw shot is still flying');
+    h.run(WITHDRAW_DELAY - 0.05);
+    assert.equal(tagged(h, u, BOUNDARY_TAG).length, 0, 'not before it stops');
+    h.run(0.1);
     const hits = tagged(h, u, BOUNDARY_TAG);
-    assert.equal(hits.length, 1, 'at once');
+    assert.equal(hits.length, 1, '0.1 s later');
     approx(hits[0].amount, atk * 6, '600 %');
     assert.ok(a.s.flags.stun, 'stunned');
     done(h);
