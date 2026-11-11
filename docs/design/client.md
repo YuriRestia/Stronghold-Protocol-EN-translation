@@ -258,7 +258,9 @@ history and the open points: DESIGN §32.14.25.
   'zone' fxs carry the area's hull corners (`poly`, [row, col]…) and a `polyKey` per cast; `polygon { line }` draws
   thorn2_skill_03_line once per key through those corners, closed (Thorn2S3Renderer), fixed where it was thrown, for
   the fx `duration`; the zone fxs still land the official projectile per operator. The area itself is
-  server/sim/polygon.js (Thorn2PolygonRange's hull, strip and overlap tests).
+  server/sim/polygon.js (Thorn2PolygonRange's hull, strip and overlap tests). On the procedural tier (officialFx off)
+  simfx.js sends a 'zone' with `poly` + `polyKey` to zones.js `areaField` instead of a ring: one outline through the
+  corners (a line for 2, a small ring for 1) in domainGfx, once per key.
 - **Talents and abilities** (0.3.0 Phase 3d, `talentfx.js TalentFx`, owned by the wiring; the bindings of `talents.js`,
   DESIGN §33.16, index v3 §33.17). A battle unit's talents in force — an operator's by its record's talents through
   `talentKeys` (a module's with its module, the trait's always, a node valid with one skill only with it), an enemy's

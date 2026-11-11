@@ -11,12 +11,16 @@
 // −(q.x − p.x)), the points p + 0.325·n and q + 0.325·n (_OptimizeLineCollider's loop, 1e-5 length guard). With 2
 // points that is a strip 0.65 wide covering exactly the segment (no overrun past the ends). The client's separate
 // 2-point branch (a strip _polygonLineColliderWide × 0.5 each side) tests result.Count == 2 right after result.Clear(),
-// so it never runs. An enemy is in the area when its collider (a circle, or a huge unit's rectangle) overlaps it
-// (CheckTargetIn: Polygon2DPhysicsUtil PolygonCircle / PolygonRectangle).
+// so it never runs. With fewer than 3 points _DoCalculateHull returns the points as they are (`cmp count, 3; jl` to
+// its end, after copying the input into the result), so one operator gives the single point p, and the edge loop's
+// zero-length edge p → p adds p twice (its normal is 0). An enemy is in the area when its collider overlaps it
+// (CheckTargetIn: Polygon2DPhysicsUtil PolygonCircle for a circle — an edge within its radius, an end point inside
+// it, or its centre inside — and PolygonRectangle for a huge unit's rectangle: rectInArea).
 //
 //   convexHull(points)       [[x, y]…] → the hull's corners, in order, without repeats or straight-edge points
 //   thorn2Area(points)       { hull, shape }: hull = the line's corners, shape = the convex collider ([] for no point)
-//   circleInConvex(shape, x, y, r) / rectInConvex(shape, R)   the overlap tests (R = { x0, x1, y0, y1 })
+//   circleInConvex(shape, x, y, r)   a circle collider in the area
+//   rectInArea(shape, R)     a huge unit's rectangle (R = { x0, x1, y0, y1 }) in the area, by the client's own rule
 
 /** Thorn2PolygonRange's prefab fields (projectile_chr_thorn2_s3_polygon): the strip's width (only read by the client's
  * unreachable 2-point branch) and how far every edge of the area is pushed out. */
@@ -59,8 +63,8 @@ export function convexHull(points) {
 /**
  * The S3 area of the points ([x, y]…, the operators' tile centres): `hull` the line's corners (convexHull,
  * counter-clockwise), `shape` the collider — every hull edge pushed out by POLYGON_OFFSET (two points per edge, so a
- * 2-point hull gives a strip 2 × POLYGON_OFFSET wide over the segment). One point: the point itself [ASSUMED: the
- * client returns before the edge loop there and leaves the single point as the collider's polygon].
+ * 2-point hull gives a strip 2 × POLYGON_OFFSET wide over the segment). One point: the point itself (the client's
+ * [p, p]: _DoCalculateHull keeps fewer than 3 points as they are and the edge loop's zero-length edge adds p twice).
  */
 export function thorn2Area(points) {
   const hull = convexHull(points);
@@ -106,21 +110,49 @@ export function circleInConvex(shape, x, y, r) {
   return false;
 }
 
-/** Does the axis-aligned rectangle R ({ x0, x1, y0, y1 }) overlap the convex polygon `shape`? (separating axes) */
-export function rectInConvex(shape, R) {
+/** Polygon2DPhysicsUtil.LineLine: do segments p1p2 and p3p4 cross (both parameters in [0, 1])? Parallel or zero-length
+ * segments (a zero denominator) never do. */
+export function lineLine(p1, p2, p3, p4) {
+  const den = (p4[1] - p3[1]) * (p2[0] - p1[0]) - (p4[0] - p3[0]) * (p2[1] - p1[1]);
+  if (den === 0) return false;
+  const uA = ((p4[0] - p3[0]) * (p1[1] - p3[1]) - (p4[1] - p3[1]) * (p1[0] - p3[0])) / den;
+  const uB = ((p2[0] - p1[0]) * (p1[1] - p3[1]) - (p2[1] - p1[1]) * (p1[0] - p3[0])) / den;
+  return uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1;
+}
+
+/** Polygon2DPhysicsUtil.PolygonPoint: the crossing test of (px, py) against `points` — an edge counts when
+ * (vc.y ≥ py > vn.y) or (vc.y < py ≤ vn.y) and px lies left of where it meets the row y = py. */
+export function polygonPoint(px, py, points) {
+  let inside = false;
+  for (let i = 0; i < points.length; i++) {
+    const vc = points[i], vn = points[(i + 1) % points.length];
+    if (((vc[1] >= py && vn[1] < py) || (vc[1] < py && vn[1] >= py))
+      && px < (vn[0] - vc[0]) * (py - vc[1]) / (vn[1] - vc[1]) + vc[0]) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Does a huge unit's rectangle R ({ x0, x1, y0, y1 }) count as in the area `shape`, as the client decides it? First its
+ * broad phase: R must overlap the area's axis-aligned box (_GetBoxColliderData: the min / max of the collider's points,
+ * the BoxCollider2D the physics query uses). Then Polygon2DPhysicsUtil.PolygonRectangle (GameAssembly, disassembled
+ * 2026-11-12): for each corner i of the area, its edge i → i+1 against R's four edges (LineLine), then
+ * PolygonPoint(points[i], points) — the area's OWN corner tested against the area, not a corner of R. So an area wholly
+ * inside R counts only when one of its corners passes that self-test (a corner whose row runs on into the area: most
+ * pushed-out triangles), and a single-point area (one operator) never counts: its edge has no length and its corner no
+ * crossing. A regular enemy's circle goes through circleInConvex instead.
+ */
+export function rectInArea(shape, R) {
   if (!Array.isArray(shape) || !shape.length || !R) return false;
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   for (const [x, y] of shape) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
   if (maxX < R.x0 || minX > R.x1 || maxY < R.y0 || minY > R.y1) return false;
-  const corners = [[R.x0, R.y0], [R.x1, R.y0], [R.x1, R.y1], [R.x0, R.y1]];
+  const lu = [R.x0, R.y1], ld = [R.x0, R.y0], ru = [R.x1, R.y1], rd = [R.x1, R.y0];
+  const edges = [[lu, ru], [ru, rd], [rd, ld], [ld, lu]];
   for (let i = 0; i < shape.length; i++) {
     const a = shape[i], b = shape[(i + 1) % shape.length];
-    const nx = a[1] - b[1], ny = b[0] - a[0];
-    if (nx === 0 && ny === 0) continue;
-    let pMin = Infinity, pMax = -Infinity, qMin = Infinity, qMax = -Infinity;
-    for (const [x, y] of shape) { const d = x * nx + y * ny; pMin = Math.min(pMin, d); pMax = Math.max(pMax, d); }
-    for (const [x, y] of corners) { const d = x * nx + y * ny; qMin = Math.min(qMin, d); qMax = Math.max(qMax, d); }
-    if (pMax < qMin - 1e-12 || qMax < pMin - 1e-12) return false;
+    for (const [e0, e1] of edges) if (lineLine(a, b, e0, e1)) return true;
+    if (polygonPoint(a[0], a[1], shape)) return true;
   }
-  return true;
+  return false;
 }

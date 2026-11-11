@@ -31,7 +31,7 @@
 
 import { ROWS, COLS, ENEMY_COLLIDER_RADIUS } from './constants.js';
 import { hypot, roundHalfEven } from './detmath.js';
-import { circleInConvex, rectInConvex } from './polygon.js';
+import { circleInConvex, rectInArea } from './polygon.js';
 
 /**
  * Validated hit area of a data record (`{ w, h, dx, dy }`, tiles) or null for a regular (point) unit.
@@ -161,11 +161,11 @@ export function bodyInRadius(u, x, y, r) {
 /**
  * (fork) Is the unit's body in the convex area `shape` ([x, y]…, polygon.js)? Its collider overlaps it: a regular unit's
  * ENEMY_COLLIDER_RADIUS circle, a huge unit's rectangle — the client's Polygon2DPhysicsUtil PolygonCircle /
- * PolygonRectangle (Thorn2PolygonRange.CheckTargetIn, 引星棘刺 S3).
+ * PolygonRectangle (Thorn2PolygonRange.CheckTargetIn, 引星棘刺 S3; polygon.js rectInArea: the client's own rectangle rule).
  */
 export function bodyInConvex(u, shape) {
   const R = hitRect(u);
-  return R ? rectInConvex(shape, R) : circleInConvex(shape, u.x, u.y, ENEMY_COLLIDER_RADIUS);
+  return R ? rectInArea(shape, R) : circleInConvex(shape, u.x, u.y, ENEMY_COLLIDER_RADIUS);
 }
 
 /**

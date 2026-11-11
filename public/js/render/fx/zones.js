@@ -9,6 +9,11 @@ export const ZONE_PERSIST = 3;
 export const DOMAIN_FILL = 0x160b22;
 const DOMAIN_CORNERS = Object.freeze([[-0.47, 0.47], [0.47, 0.47], [0.47, -0.47], [-0.47, -0.47]]);
 export const DOMAIN_FADE = 0.4;
+/** (fork) areaField (引星棘刺 S3's area): at most this many corners, its fill's alpha, the ring drawn for a 1-point area
+ * (an octagon 0.33 tiles across its centre: about the area's own reach, POLYGON_OFFSET 0.325). */
+export const AREA_MAX_CORNERS = 16;
+export const AREA_FILL_ALPHA = 0.12;
+const AREA_DOT = Object.freeze([[0, 0.33], [0.23, 0.23], [0.33, 0], [0.23, -0.23], [0, -0.33], [-0.23, -0.23], [-0.33, 0], [-0.23, 0.23]]);
 /** Disc / edge alpha: a short zone, a persistent one (before the overlap damping), a telegraph. */
 export const ZONE_ALPHA = Object.freeze({ short: [0.28, 0.75], persist: [0.16, 0.5], warn: [0.35, 0.75] });
 
@@ -200,9 +205,23 @@ export class FxZones {
     this.domains.set(k, { tiles: list, tint, left: dur, t: 0, out: 0 });
   }
 
+  /**
+   * (fork) An area spanning points (引星棘刺 S3: `corners` [[row, col]…], its operators' tiles in order): the outline
+   * through them on the ground with a faint fill (a line for 2, a small ring for 1), held `dur` real s, once per `key`
+   * (each operator's zone fx carries the same area). Drawn with 国度's field in domainGfx: one polygon, no sprites.
+   */
+  areaField(key, corners, tint, dur) {
+    if (this.areas.has(key)) return;
+    const pts = (Array.isArray(corners) ? corners : []).filter((t) => Array.isArray(t) && Number.isFinite(t[0]) && Number.isFinite(t[1]))
+      .slice(0, AREA_MAX_CORNERS).map(([r, c]) => [r, c]);
+    if (!pts.length) return;
+    this.areas.set(key, { pts, tint, left: dur, t: 0, out: 0 });
+  }
+
   _updateDomains(dt) {
     const g = this.domainGfx;
     g.clear();
+    if (this.areas.size) this._drawAreas(g, dt);
     if (!this.domains.size) return;
     const cam = this.ctx.cam();
     const p = this._p;
@@ -221,6 +240,33 @@ export class FxZones {
         g.drawPolygon(pts);
         g.endFill();
       }
+    }
+  }
+
+  /** The areaField outlines into `g` (cleared by the caller), fading in and out like 国度's field. */
+  _drawAreas(g, dt) {
+    const cam = this.ctx.cam();
+    const p = this._p;
+    for (const [k, d] of this.areas) {
+      d.t += dt;
+      d.left -= dt;
+      d.out = d.left > 0 ? 0 : d.out + dt;
+      if (d.out >= DOMAIN_FADE) { this.areas.delete(k); continue; }
+      const a = Math.min(1, d.t / DOMAIN_FADE) * (1 - d.out / DOMAIN_FADE) * (0.85 + 0.15 * Math.sin(d.t * 2.4));
+      const xy = [];
+      let s = 1;
+      const ring = d.pts.length === 1 ? AREA_DOT.map(([dr, dc]) => [d.pts[0][0] + dr, d.pts[0][1] + dc]) : d.pts;
+      for (const [r, c] of ring) {
+        const z = (this.ctx.heightAt ? this.ctx.heightAt(Math.round(r), Math.round(c)) : 0) + 0.012;
+        cam.project(c, r, z, p);
+        xy.push(p.x, p.y);
+        s = p.s;
+      }
+      g.lineStyle(Math.max(1.5, s * 0.05), d.tint, 0.9 * a);
+      if (xy.length === 4) { g.moveTo(xy[0], xy[1]); g.lineTo(xy[2], xy[3]); continue; }
+      g.beginFill(d.tint, AREA_FILL_ALPHA * a);
+      g.drawPolygon(xy);
+      g.endFill();
     }
   }
 

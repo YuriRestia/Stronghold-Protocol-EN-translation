@@ -5,7 +5,7 @@ import { COLS } from '../../../constants.js';
 import { sortEnemyTargets } from '../../../targeting.js';
 import { toLocal } from '../../../dir.js';
 import {
-  AURA_IV, AURA_DUR, RING1, num, on, talent, skillGrid, maxCharges, mods, dist, isOp, selectedId, lazySkills,
+  AURA_IV, AURA_DUR, RING1, num, on, talent, skillGrid, maxCharges, mods, isOp, selectedId, lazySkills,
   instantKind, whileOn, permBuff,
 } from '../shared/tier5.js';
 import { hypot } from '../../../detmath.js';
@@ -49,7 +49,11 @@ export default {
   // PRTS 备注 says "生命恢复的提供方式为增加目标的“生命回复速度”属性，不受治疗加成和禁疗影响" (the only other 炼金师): 不屈者 and
   // 禁疗 units recover too (community report: 炼金单元无法给不屈者等禁疗的干员提供生命恢复; it was a heal up to 0.2.1).
   // S3 “我的海疆”: passive — his range is the skill range; active
-  // (instant) — alchemy units on the max_target_token operators with the lowest block count: for projectile_delay_time s
+  // (instant) — alchemy units on the max_target_token operators in his range with the lowest block count (the client's
+  // skill selector, [uc]skills.ab skchr_thorn2_3: AdvancedSelectorWithTagAndBuffKey on his box range, _excludeOwner 0 so
+  // he may pick himself, profession mask 639 = no summon or device, _postFilter BLOCK_COUNT_ASC_CREATED_TIME_DES_FIRST:
+  // a tie to the latest deployed; it also skips an operator still holding this skill's thorn2_s_3[buff] from him, which
+  // only matters for a recast inside one area's time — 60 SP against 23 s — and is not modelled): for projectile_delay_time s
   // the enemies in the area they span get ATK/DEF/RES −, one strongest instance (不叠加), and take atk_scale × ATK arts
   // per second, everything ramping +per_interval each `interval` s up to max_stack_cnt steps. The area is the client's
   // (projectile_chr_thorn2_s3_polygon, Thorn2PolygonRange; polygon.js thorn2Area, user's choice of 2026-11-12): the
@@ -120,8 +124,8 @@ export default {
         skchr_thorn2_3: () => ({
           kind: instantKind(chess, def),
           onStart({ battle, unit }) {
-            const ops = battle.allies(unit.ownerId).filter((a) => isOp(a) && a.hp > 0)
-              .sort((a, b) => a.s.blockCnt - b.s.blockCnt || dist(a, unit) - dist(b, unit) || a.id - b.id)
+            const ops = battle.alliesInGrid(unit).filter((a) => isOp(a) && a.hp > 0)
+              .sort((a, b) => a.s.blockCnt - b.s.blockCnt || b.deploySeq - a.deploySeq || a.id - b.id)
               .slice(0, Math.max(1, num(bb.max_target_token, 3)));
             const dur = num(bb.projectile_delay_time, 19) + extend(battle, unit);
             const { hull, shape } = thorn2Area(ops.map((a) => [a.x, a.y]));
