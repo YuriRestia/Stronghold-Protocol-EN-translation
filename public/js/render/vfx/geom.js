@@ -8,8 +8,10 @@
 // billboards lie in the world XZ plane and vertical ones turn about world Y — Unity's literal geometry in this frame,
 // whose ground is XY. The roll of a billboard turns it clockwise on screen for positive angles (ROLL_SIGN, §33.5:
 // assumed, Unity's behaviour, which no data of the client confirms). Stretched billboards run along the velocity from the particle (the head) back by
-// the particle's Y size × lengthScale + speed × velocityScale, its X size across, the texture's u along the stretch (u
-// = 1 at the head) [ASSUMED: the streak textures are horizontal]. The particle's Y is the stretched axis in the client's
+// the particle's Y size × lengthScale + speed × velocityScale, its X size across, the texture's u along the stretch
+// (u = 0 at the head, 1 at the tail; (fork) 2026-11-10: 烛煌 S3's burst thorns blaze2_skill_03_hit_02 baoci_light /
+// baoci_dark_02 — trail_233 thick at u = 0, pointed at u = 1, emitted outward from the centre — point outward in the
+// client's footage; with u = 1 at the head they pointed in) [ASSUMED: the streak textures are horizontal]. The particle's Y is the stretched axis in the client's
 // data (0.3.1, 风笛's lance thrust drawn as a vertical needle): of the used set's stretched renderers with a pivot, 2,434
 // set it in Y and 9 in X (plain billboards: 405 / 379), and of the 2,449 stretched systems with unequal X / Y sizes 2,130
 // make Y the long one. Mesh particles: the mesh × the 3D size, turned by the particle's Euler rotation
@@ -334,8 +336,9 @@ export function buildParticles(ps, r, cam, fd, frameNo) {
       buf[o] = cx; buf[o + 1] = cy; buf[o + 2] = cz;
       buf[o + 3] = ax0; buf[o + 4] = ax1; buf[o + 5] = ax2;
       buf[o + 6] = ay0; buf[o + 7] = ay1; buf[o + 8] = ay2;
-      // (stretched: the quad's x runs tail → head, so the texture's u = 1 at the head)
+      // (stretched: the quad's x runs tail → head; the texture's u runs the other way, u = 0 at the head — header)
       const uvr = sheetRect(def, ps, i, t, _uvr);
+      if (r.mode === 'stretch') { uvr[0] += uvr[2]; uvr[2] = -uvr[2]; }
       buf[o + 9] = _c4[0]; buf[o + 10] = _c4[1]; buf[o + 11] = _c4[2]; buf[o + 12] = _c4[3];
       buf[o + 13] = uvr[0]; buf[o + 14] = uvr[1]; buf[o + 15] = uvr[2]; buf[o + 16] = uvr[3];
       if (r.streams) packStreams(ps, i, t, r.streams, buf, o + 17, frameNo);

@@ -30,6 +30,15 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Seven new points come first: skills cast when the official game casts them; official element burst effects and the element ring under the feet; Mostima's, Lemuen's and Reed the Flame Shadow's S3 look and sound as in the official game; attacks no longer twitch before the strike; stored skill charges show over the operator's head; Damage Stats keep every round; and the Custom Squad's easier-to-spot swap button and ✕ to clear a slot.
 - Kept: Profile Icon, SilverAsh the Reignfrost's S3 with 20+ operators' attacks, 7 new outfits, and smarter bots. Dropped from the banner and the language packs: the lines about skills that replace an attack, the Viviana VFX fix, and skill cast sounds.
 
+### Streak and spike particles point the right way
+
+- Stretched particles (streaks, spikes, speed lines) now draw their texture in the official direction: the pointed end trails behind the particle instead of leading. Blaze the Igniting Spark's S3 hit becomes a burst of thorns pointing outward, as in the official game, instead of a pale disc of blades pointing inward. Every effect that uses stretched particles changes the same way.
+
+### Blaze the Igniting Spark sounds like the official game
+
+- Her S1 now plays its own cast and impact sounds, and the bolts of her S2 and S3 land with their own impact sounds instead of her normal attack's.
+- Her S3 plays its activation sound when it starts and its closing sound when the last bolt is spent.
+
 ### Plugin studio trial tests no longer time out on a busy machine
 
 - Two plugin studio tests ran a real trial against the production 20 s wall limit, though that trial alone takes 8–16 s and over 20 s while the machine is busy, so they failed even when run alone. They now allow the tests' shared load time (60 s) and still check the same results: the three trial presets, and the sandbox refusing code it cannot run. The studio's own 20 s limit for players is unchanged.

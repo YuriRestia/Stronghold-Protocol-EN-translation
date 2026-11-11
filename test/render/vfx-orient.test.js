@@ -240,7 +240,7 @@ function quads(node) {
   const out = [];
   fx.collect(CAM, fd, (it) => {
     const mesh = it.kind === 'mesh', b = mesh ? fd.mesh : fd.quad, st = mesh ? 30 : 27;
-    for (let k = 0; k < it.count; k++) { const o = (it.first + k) * st; out.push({ c: [b[o], b[o + 1], b[o + 2]], ax: [b[o + 3], b[o + 4], b[o + 5]], ay: [b[o + 6], b[o + 7], b[o + 8]] }); }
+    for (let k = 0; k < it.count; k++) { const o = (it.first + k) * st; out.push({ c: [b[o], b[o + 1], b[o + 2]], ax: [b[o + 3], b[o + 4], b[o + 5]], ay: [b[o + 6], b[o + 7], b[o + 8]], uvr: mesh ? null : [b[o + 13], b[o + 14], b[o + 15], b[o + 16]] }); }
   }, 1);
   return out;
 }
@@ -268,6 +268,17 @@ describe("a renderer's pivot", () => {
     nearV([y.c[0] - z.c[0], y.c[1] - z.c[1], y.c[2] - z.c[2]], along.map((v) => v * 1), 1e-4, 'Y pivot 0.5 × size.y 2 = 1 along the velocity, not half of the length 8');
     const across = z.ay.map((v) => v / (Math.hypot(...z.ay) || 1));
     nearV([x.c[0] - z.c[0], x.c[1] - z.c[1], x.c[2] - z.c[2]], across.map((v) => v * 1), 1e-4, 'X pivot 0.5 × size.x 2 across');
+  });
+
+  test('(fork) a stretched billboard runs the texture u from its head (u = 0, the particle) back to its tail (u = 1): 烛煌 S3 burst thorns point outward', () => {
+    // blaze2_skill_03_hit_02 baoci_light / baoci_dark_02: trail_233 is thick at u = 0 and pointed at u = 1, the thorns are
+    // emitted outward from the centre, and the client's footage shows their points outward (2026-11-10)
+    const burst = { InitialModule: { startLifetime: 1, startSpeed: 6, startSize: 1, startColor: [1, 1, 1, 1], maxNumParticles: 10 } };
+    const [q] = quads(psNode(1, 0, { r: { renderMode: 'stretch', m_LengthScale: 3, m_VelocityScale: 0, m_MaxParticleSize: 0 }, ps: burst }));
+    const [u0, , du] = q.uvr;
+    // the quad's x runs tail (corner -0.5: c - ax / 2) to head (corner +0.5: c + ax / 2, at the particle)
+    near(u0 + du, 0, 1e-6, 'u at the head (the particle)');
+    near(u0, 1, 1e-6, 'u at the tail');
   });
 
   test('a mesh particle\'s pivot alike: 荒芜拉普兰德 S3\'s seal tips (a pivot of −0.5) reach out to the left of their node, their mirrored twins to the right', () => {
