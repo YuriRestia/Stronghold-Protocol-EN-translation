@@ -23,7 +23,7 @@ export default {
   // or starts the burst keeps / does not get it); loses 3 % max HP/s; any burn burst on the field refills ammo_recover
   // bullets, never above the skill's ammo ("补充后的弹药数量无法超过上限"). Each landed bolt shows its splash (fx 'splash' r 1.7).
   // T1 熔点引爆: burn burst anywhere → 350 % ATK elemental damage to it + heal 12 % max HP. T2 绝处重燃: downed instead of
-  // dying (6000 shield, no attack, no heal, 3 %/s regen) → revives at full HP and stuns nearby enemies.
+  // dying (6000 shield, no attack, no skill, no heal, 3 %/s regen) → revives at full HP and stuns nearby enemies.
   // Module (elite): ×damage_scale vs enemies in an element burst.
   // S1 炙手之援 (instant): the operator with the highest max HP in her range carries a fire aura for max_duration s —
   // every `interval` s the enemies within range_radius of it take atk_scale × her ATK arts + element_multiplier × that
@@ -126,7 +126,9 @@ export default {
             const dep = unit.deploySeq;
             battle.addBuff(unit, {
               key: 'blaze2:downed', visible: true, shield: num(t1.dynamic), interval: 0.2,
-              flags: { disarm: true, noHeal: true },
+              // the official SwitchBegin buff blaze2_switchbegin: FORCE_DISARMED, HEAL_FREE and SILENCED — no skill starts
+              // while downed, though her SP keeps recovering (no SP_RECOVER_STOPPED; charpack char_1040_blaze2)
+              flags: { disarm: true, noHeal: true, silence: true },
               mods: mods({ hpRegenRatio: num(t1.hp_recovery_per_sec_by_max_hp_ratio), blockCnt: -99 }),
               onTick: ({ unit: u, buff }) => {
                 if (u.deploySeq !== dep || u.hp < u.s.maxHp - 1e-6) return;

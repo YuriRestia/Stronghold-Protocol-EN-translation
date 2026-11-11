@@ -7,6 +7,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-11
 
+### Blaze the Igniting Spark can no longer use skills while downed
+
+- While her talent From the Ashes has her downed, she can no longer start a skill, as in the official game, where the downed state silences her. Her SP still recovers, so a full skill starts the moment she stands back up.
+
 ### A player who leaves is out for good, and the next round doesn't wait for them
 
 - Leaving a match now eliminates the player in every room type, Grand Alliance included. Before, a Grand Alliance player who left (or was removed for idling) stayed in the match and the AI played their board every round. This also applies when a dropped player doesn't come back before the rejoin window ends. During that window nothing changes: in a Grand Alliance room the AI still plays a dropped player's board until they come back.
