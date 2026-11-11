@@ -380,6 +380,43 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     }
   });
 
+  test('(fork) 蕾缪安 T1: a Wanted mark loops lemuen_talent_buff_01 on the enemy (her outfit\'s twin) until it or she is gone, whatever her skill', async () => {
+    const BUFF = 'lemuen_talent_buff_01', SUF = 'ambiencesynesthesia#7', TWIN = `${BUFF}_${SUF}`;
+    for (const sid of ['skchr_lemuen_1', 'skchr_lemuen_2', 'skchr_lemuen_3']) {
+      assert.ok(bindingKeys(makeIndex({ installed: [...KEYS, BUFF] }), sid).includes(BUFF), `${sid}: preloaded`);
+    }
+    const lite = await setup();
+    lite.view(1, 'char_4193_lemuen', 3);
+    lite.view(2, 'enemy_1', 5);
+    lite.frame();
+    assert.equal(lite.w.simFx('wanted', 5, 10, { id: 2, src: 1 }), false, 'without the prefab the procedural reticle stays');
+    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, BUFF, TWIN] });
+    index.skinFx = { [SUF]: { [BUFF]: TWIN } };
+    const lem = view(1, 'char_4193_lemuen', 3);
+    const out = view(4, 'char_4193_lemuen', 4);
+    out.info.model = 'char_4193_lemuen@ambienceSynesthesia#7';
+    const e2 = view(2, 'enemy_1', 5);
+    view(3, 'enemy_1', 6);
+    view(5, 'enemy_1', 7);
+    frame();
+    assert.equal(w.simFx('wanted', 5, 10, { id: 2, src: 1 }), true, 'the official mark stands for the procedural reticle, her skill off');
+    assert.equal(w.simFx('wanted', 6, 10, { id: 3, src: 1 }), true);
+    assert.equal(w.simFx('wanted', 7, 10, { id: 5, src: 4 }), true);
+    assert.equal(w.simFx('wanted', 5, 10, { id: 2, src: 1 }), true, 'a mark already on it');
+    assert.equal(live(handles, BUFF).length, 2, 'one loop per marked enemy');
+    assert.equal(live(handles, TWIN).length, 1, 'Requiem Vesperis plays its twin');
+    assert.ok(handles.filter((h) => h.key === BUFF).every((h) => h.opts.loop), 'a loop');
+    for (let i = 0; i < 300; i++) frame();
+    assert.equal(live(handles, BUFF).length, 2, 'held for as long as the mark lasts (10 s in)');
+    e2.alive = false;
+    frame();
+    assert.equal(live(handles, BUFF).length, 1, 'gone with its enemy');
+    lem.alive = false;
+    frame();
+    assert.equal(live(handles, BUFF).length, 0, 'gone when the Lemuen it counts for leaves');
+    assert.equal(live(handles, TWIN).length, 1, 'another Lemuen\'s mark stays');
+  });
+
   test('(fork) TEMPLATE_ROWS: a row the index does not list joins the plan once; a linked index keeps its own', () => {
     const SALUTE = 'lemuen_skill_03_start_01';
     const idx = makeIndex({ installed: [...KEYS, SALUTE] });

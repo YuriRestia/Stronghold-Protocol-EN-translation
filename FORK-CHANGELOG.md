@@ -36,6 +36,12 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - The sounds come from the official buff templates of each burst, which name the sound each one plays. They are in `tools/assets/plan.mjs` (`BURST_SOUND_BANKS`) and the manifest's new `audio.sfx.burst`, and they follow each official sound's own pitch range, volume and how many can play at once. Five new sound files.
 
+### Lemuen's Wanted mark looks as in the official game
+
+- An enemy that Lemuen's talent marks as Wanted now carries the official mark, a loop on the enemy (`lemuen_talent_buff_01`), for as long as it stays Wanted: until it dies or leaves, or the Lemuen it counts for leaves. It was a short stand-in reticle drawn by the game.
+- In Requiem Vesperis (`char_4193_lemuen@ambienceSynesthesia#7`) the mark uses the outfit's own version.
+- It shows whatever skill she has equipped. Its sound (`p_imp_lmwlcrstrmk`) already played as the mark appears; that is unchanged.
+
 ## 2026-11-10
 
 ### Operators attack as in the official game: the swing starts, then the hit lands
