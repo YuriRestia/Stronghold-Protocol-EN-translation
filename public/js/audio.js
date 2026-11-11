@@ -310,7 +310,7 @@ export function deathSfxUrl(manifest, info, { consumed = false, reason = null } 
   if (!info || consumed) return null;
   const cls = unitSoundClass(info);
   if (cls === 'char' && reason && reason !== 'killed') return null;
-  const own = manifest?.audio?.sfx?.units?.[info.def]?.die;
+  const own = unitSfx(manifest?.audio?.sfx, info.def, info.outfit)?.die;
   if (typeof own === 'string') return own;
   const b = manifest?.audio?.sfx?.battle ?? {};
   if (cls === 'enemy') return (info.boss ? b.enemyDieHeavy : null) ?? b.enemyDie ?? null;
@@ -325,7 +325,7 @@ export function deathSfxUrl(manifest, info, { consumed = false, reason = null } 
  */
 export function deploySfxUrl(manifest, info) {
   if (!info || info.side === 'enemy') return null;
-  const own = manifest?.audio?.sfx?.units?.[info.def]?.born;
+  const own = unitSfx(manifest?.audio?.sfx, info.def, info.outfit)?.born;
   if (typeof own === 'string') return own;
   const b = manifest?.audio?.sfx?.battle ?? {};
   const cls = unitSoundClass(info);
@@ -454,6 +454,21 @@ export function setOutfitVoiceResolver(fn) { voiceKeyResolver = typeof fn === 'f
 /** The outfit voice key of a tracked unit / an operator, or null. */
 export function outfitVoiceKey(u) {
   try { return (voiceKeyResolver && voiceKeyResolver(u)) || null; } catch { return null; }
+}
+
+// (fork, docs/OUTFITS.md) An outfit with official battle banks of its own (Goldenglow's, Executor's and Eyjafjalla's
+// Sanrio outfits) has its own whole sound entry, `sfx.outfits[skinId]` (tools/assets/plan.mjs outfitSfx); every other
+// outfit is the operator's.
+let outfitResolver = null;
+/** Set the function that names the outfit a unit wears ((unitInfo) => skinId | null; ui/outfits.js outfitSkinOf). */
+export function setOutfitSfxResolver(fn) { outfitResolver = typeof fn === 'function' ? fn : null; }
+/** The outfit (skinId) a tracked unit / an operator piece wears, or null. */
+export function outfitSfxKey(u) {
+  try { return (outfitResolver && outfitResolver(u)) || null; } catch { return null; }
+}
+/** The sound entry of unit `def` wearing `outfit`: the outfit's own when it has one, else the unit's. */
+export function unitSfx(sfx, def, outfit = null) {
+  return (outfit && sfx?.outfits?.[outfit]) || sfx?.units?.[def];
 }
 
 /** The language outfit voice set `key` of `charId` speaks: the operator's language pick, else the global dub. */
@@ -1355,11 +1370,25 @@ export class AudioManager {
     // '#<skill index>' is that equipped skill's own (her S2 aim and S3 lock are both 'lock')
     for (const id of [ex.id, ex.src]) {
       const u = id != null ? this.units.get(id) : null;
-      const table = u ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.fxSounds : null;
+      const table = u ? unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.fxSounds : null;
       if (!table) continue;
       const tag = `${kind}|${ex.skill ?? ''}`;
       const e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
-      if (typeof e?.url === 'string') { this._playBank(e.url, e.pool, NOTE_GAIN); return; }
+      if (typeof e?.url === 'string') { this._playParts(e, NOTE_GAIN); return; }
+    }
+  }
+
+  /**
+   * (fork) A sound and the ones listed with it (`also`: one official moment's several banks, tools/assets/plan.mjs
+   * FX_SOUND_BANKS / attackAlso), each on its bank's pool; one with `after` waits that many seconds [ASSUMED: real time,
+   * not the battle speed] and is dropped when the field changed meanwhile.
+   */
+  _playParts(e, gain) {
+    for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
+      if (typeof p?.url !== 'string') continue;
+      if (!(p.after > 0)) { this._playBank(p.url, p.pool, gain); continue; }
+      const token = this.poolFieldToken;
+      setTimeout(() => { if (token === this.poolFieldToken) this._playBank(p.url, p.pool, gain); }, p.after * 1000);
     }
   }
 
@@ -1386,7 +1415,7 @@ export class AudioManager {
    * ability's end p_skill_hcnsrfrfld).
    */
   _skillEdge(id, u, on) {
-    const e = Number.isInteger(u?.skillIndex) ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.[on ? 'skillOn' : 'skillOff']?.[u.skillIndex] : null;
+    const e = Number.isInteger(u?.skillIndex) ? unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.[on ? 'skillOn' : 'skillOff']?.[u.skillIndex] : null;
     if (typeof e?.url !== 'string') return;
     if (on && e.hold) this._stingLoop(id, e.url, this.getManifest()?.audio?.sfx?.pools?.[e.pool]?.group ?? null, { loop: false });
     else this._playBank(e.url, e.pool, NOTE_GAIN);
@@ -1398,7 +1427,7 @@ export class AudioManager {
     const u = this.units.get(ex.owner);
     if (!u) return;
     const look = typeof ex.look === 'string' ? (ex.look.startsWith('s1_') ? 's1' : ex.look) : '';
-    const e = this.getManifest()?.audio?.sfx?.units?.[u.def]?.notes?.[look];
+    const e = unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.notes?.[look];
     const role = ex.on === 'hit' ? 'hit' : 'born';
     if (typeof e?.[role] !== 'string') return;
     this._playBank(e[role], e[role + 'Pool'], NOTE_GAIN);
@@ -1411,7 +1440,7 @@ export class AudioManager {
    * _stopStingLoop when the skill ends, the unit dies or the field changes).
    */
   _sting(id, u, cue) {
-    const st = Number.isInteger(u.skillIndex) ? this.getManifest()?.audio?.sfx?.units?.[u.def]?.stings?.[u.skillIndex] : null;
+    const st = Number.isInteger(u.skillIndex) ? unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.stings?.[u.skillIndex] : null;
     if (!st) return;
     const clips = Array.isArray(st.clips) ? st.clips.filter((c) => typeof c?.url === 'string') : [];
     if (cue.sting && clips.length) {
@@ -1425,15 +1454,16 @@ export class AudioManager {
   }
 
   /** Decode a unit's stings, loops and note sounds ahead (a tracked unit with them): they then play at once, never late. */
-  _warmStings(def) {
-    const sfx = this.getManifest()?.audio?.sfx?.units?.[def];
+  _warmStings(def, outfit = null) {
+    const sfx = unitSfx(this.getManifest()?.audio?.sfx, def, outfit);
     if (!this.ctx) return;
     for (const e of Object.values(sfx?.stings || {})) {
       for (const c of Array.isArray(e?.clips) ? e.clips : []) if (typeof c?.url === 'string') this._buffer(c.url);
       if (typeof e?.loop === 'string') this._buffer(e.loop);
     }
     for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
-    for (const e of Object.values(sfx?.fxSounds || {})) if (typeof e?.url === 'string') this._buffer(e.url);
+    for (const e of Object.values(sfx?.fxSounds || {})) for (const x of [e, ...(Array.isArray(e?.also) ? e.also : [])]) if (typeof x?.url === 'string') this._buffer(x.url);
+    for (const list of Object.values(sfx?.attackAlso || {})) for (const x of Array.isArray(list) ? list : []) if (typeof x?.url === 'string') this._buffer(x.url);
     for (const t of [sfx?.skillOn, sfx?.skillOff]) {
       for (const e of Object.values(t || {})) for (const x of [e, ...(Array.isArray(e?.more) ? e.more : [])]) if (typeof x?.url === 'string') this._buffer(x.url);
     }
@@ -1912,10 +1942,10 @@ export class AudioManager {
    * @param {boolean} [skillActive] whether that skill runs right now (`attacks` / `hits` need it, see header)
    * @returns {boolean} whether a unit-specific sound exists
    */
-  unit(defId, kind, unitId, skillIndex, skillActive = false) {
+  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null) {
     try {
       const pick = () => {
-        const u = this.getManifest()?.audio?.sfx?.units?.[defId];
+        const u = unitSfx(this.getManifest()?.audio?.sfx, defId, outfit);
         // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`). (fork) A unit with `skills` plays by
         // index only: an index without a sound is a skill the official bank table leaves silent, never `skill` (the
         // primary skill's sound, which rang on 54 operators' other skills)
@@ -1948,6 +1978,14 @@ export class AudioManager {
       // (fork) a singing skill (SONG_SKILLS): the battle sounds step back while its song plays
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
       this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
+      // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
+      // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has
+      const also = kind === 'attack' && typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : null;
+      const alsoKey = `${unitId}:attackAlso`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (Array.isArray(also) && !this.limiter.cooling(at, alsoKey)) {
+        this.limiter.lastByUnit.set(alsoKey, at);
+        this._playParts({ also }, unitGain(UNIT_BASE_GAIN, mix));
+      }
       return true;
     } catch { return false; }
   }
@@ -2136,10 +2174,10 @@ export class AudioManager {
     // official class sounds (operator vs summon vs device). `skillActive` follows the ['skill', id, 1] / 0 events.
     // (fork, docs/OUTFITS.md) `voiceKey`: the voice set of the outfit its owner chose (null = the operator's own)
     this.units.set(u.id, { def: u.spine || u.defId, voice: u.voice || u.spine || u.defId, defId: u.defId ?? null, kind: u.kind ?? null, side: u.side, boss: !!u.boss,
-      voiceKey: u.side === 'enemy' ? null : outfitVoiceKey(u),
+      voiceKey: u.side === 'enemy' ? null : outfitVoiceKey(u), outfit: u.side === 'enemy' ? null : outfitSfxKey(u),
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
     // (fork) its skill stings and note sounds decode now, so its first cast / note is not late (or dropped)
-    if (u.side !== 'enemy') this._warmStings(u.spine || u.defId);
+    if (u.side !== 'enemy') this._warmStings(u.spine || u.defId, this.units.get(u.id)?.outfit);
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
     if (held) {
@@ -2157,9 +2195,10 @@ export class AudioManager {
    * (fork) The mixer group of a unit's die / born sound `url`: its own bank's (sfx.units[def].groups), else the generic
    * file's (sfx.groups.battle by its sfx.battle name).
    */
-  _unitUrlGroup(def, role, url) {
+  _unitUrlGroup(def, role, url, outfit = null) {
     const s = this.getManifest()?.audio?.sfx;
-    if (url === s?.units?.[def]?.[role]) return s.units[def].groups?.[role] ?? null;
+    const own = unitSfx(s, def, outfit);
+    if (url === own?.[role]) return own.groups?.[role] ?? null;
     for (const [name, u] of Object.entries(s?.battle || {})) if (u === url) return this._groupOf('battle', name);
     return null;
   }
@@ -2179,11 +2218,13 @@ export class AudioManager {
     try {
       const m = this.getManifest();
       const u = { def: info?.def ?? null, defId: info?.defId ?? null, kind: info?.kind ?? null, side: 'ally' };
+      u.outfit = outfitSfxKey({ ...u, spine: u.def, ownerId: info?.ownerId ?? null });
       const url = deploySfxUrl(m, u);
       if (!url) return false;
-      const own = url === m?.audio?.sfx?.units?.[u.def]?.born;
-      const mix = own ? m.audio.sfx.units[u.def].mix?.born : null;
-      if (unitSoundPlays(mix, this.random())) this._playLanding(url, `land:${key}`, own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'born', url));
+      const e = unitSfx(m?.audio?.sfx, u.def, u.outfit);
+      const own = url === e?.born;
+      const mix = own ? e.mix?.born : null;
+      if (unitSoundPlays(mix, this.random())) this._playLanding(url, `land:${key}`, own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'born', url, u.outfit));
       return true;
     } catch { return false; }
   }
@@ -2291,13 +2332,13 @@ export class AudioManager {
           const held = Number.isInteger(src.heldAttack) && !src.skillActive;
           const sIdx = held ? src.heldAttack : src.skillIndex ?? null;
           const sOn = held || !!src.skillActive;
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, at: now, skillIndex: sIdx, skillActive: sOn });
-          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn });
+          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
-          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive);
+          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit);
         } else if (kind === 'heal') {
           this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.8 }); // (fork) the bank's own volume 0.8, on the mixer
         } else if (kind === 'skill' && e[2]) {
@@ -2305,7 +2346,7 @@ export class AudioManager {
           if (u) {
             // the running skill's own swing / impact (`attacks` / `hits`, header) follow this flag
             u.skillActive = true;
-            this.unit(u.def, 'skill', e[1], u.skillIndex ?? undefined);
+            this.unit(u.def, 'skill', e[1], u.skillIndex ?? undefined, false, u.outfit);
             // (fork) a cast cue (the sim's skill `cue`, 丰川祥子): the skill's sting, and its held loop
             if (e[3] && typeof e[3] === 'object') this._sting(e[1], u, e[3]);
             this._skillEdge(e[1], u, true);
@@ -2343,10 +2384,11 @@ export class AudioManager {
           const m = this.getManifest();
           const url = deathSfxUrl(m, u, { consumed, reason: typeof e[2] === 'string' ? e[2] : null });
           if (!url) continue;
-          const own = url === m?.audio?.sfx?.units?.[u.def]?.die;
-          const mix = own ? m.audio.sfx.units[u.def].mix?.die : null;
+          const ue = unitSfx(m?.audio?.sfx, u.def, u.outfit);
+          const own = url === ue?.die;
+          const mix = own ? ue.mix?.die : null;
           if (!unitSoundPlays(mix, this.random())) continue;
-          this._playUnitUrl(url, own ? `${e[1]}:die` : `die:${e[1]}`, own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'die', url));
+          this._playUnitUrl(url, own ? `${e[1]}:die` : `die:${e[1]}`, own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'die', url, u.outfit));
         } else if (kind === 'leak') {
           // 漏怪: an enemy reached its goal (Battle.leak emits the sim's own EV.LEAK — it is NOT a `die`, so until now a
           // leak was completely silent, for the player's own field and for a 联防 the helpers could not hold alike).
@@ -2372,10 +2414,11 @@ export class AudioManager {
             } else this.voice(u.voice, 'place', { unitKey: e[1], voiceKey: u.voiceKey });
           }
           if (!url) continue;
-          const own = url === m?.audio?.sfx?.units?.[u.def]?.born;
-          const mix = own ? m.audio.sfx.units[u.def].mix?.born : null;
+          const ue = unitSfx(m?.audio?.sfx, u.def, u.outfit);
+          const own = url === ue?.born;
+          const mix = own ? ue.mix?.born : null;
           if (!unitSoundPlays(mix, this.random())) continue;
-          this._playUnitUrl(url, own ? `${e[1]}:born` : 'deploy', own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'born', url));
+          this._playUnitUrl(url, own ? `${e[1]}:born` : 'deploy', own ? unitGain(UNIT_BASE_GAIN, mix) : 1, this._unitUrlGroup(u.def, 'born', url, u.outfit));
         } else if (kind === 'fx' && e[1] === 'note') {
           if (e[4] && typeof e[4] === 'object') this._noteSound(e[4]);
         } else if (kind === 'fx' && e[1] === 'fever') {
@@ -2395,7 +2438,7 @@ export class AudioManager {
           if (!u || u.side === 'enemy') continue;
           this.consumed.add(ex.id);
           if (this.consumed.size > 200) this.consumed.delete(this.consumed.values().next().value);
-          this.unit(u.def, 'hit', `${ex.id}:boom`);
+          this.unit(u.def, 'hit', `${ex.id}:boom`, undefined, false, u.outfit);
         } else if (kind === 'bounty') {
           this.battle('killCoin', { unitKey: 'coin' });
         }
