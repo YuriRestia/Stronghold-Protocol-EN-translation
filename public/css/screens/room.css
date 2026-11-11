@@ -995,3 +995,94 @@
 
 /* (fork) one's own plate icon as the profile icon picker's button (screens/room.js, ui/avatarPicker.js): placed as .avatar is */
 .rseat__face { grid-row: 1 / 3; grid-column: 1; position: relative; display: block; line-height: 0; }
+
+/* ---- (fork) room chat (ui/chatLog.js; docs/design/network.md "Room chat") ------------------------------------------
+   Docked in the footer's left column, under the seat cards; ⤢ grows it upward over the left cards. A narrow or short
+   screen (the column is gone there): a Chat button with the unread count, the log a sheet over the left half.
+   Text follows 文字大小 (--t, theme.css): docked .18 × --t (12 px at 720p, 18 px at 1080p on 小); the phone sheet and
+   button keep their 12–13 px at 小 (1rem is 40 px there) and grow a pixel a step above it (--t-step caps). */
+.rs-foot__left { position: relative; align-self: stretch; }
+.clog {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 4;
+  display: flex; flex-direction: column; min-width: 0;
+  background: rgba(8, 11, 10, .9); border: 1px solid var(--line-2); box-shadow: 0 .06rem .3rem rgba(0, 0, 0, .5);
+  font-size: calc(.18 * var(--t)); color: var(--text-md);
+}
+/* three lines at 小; the box keeps that height at every 文字大小 (layout never follows --t), bigger text scrolls */
+.clog__list { height: calc(3 * 1.35 * .18rem + .1rem); }
+.clog.is-expanded .clog__list { height: min(48vh, 5rem); }
+.rs-chat-open .rs-foot { z-index: 4; }
+.clog.is-sheet {
+  position: fixed; left: calc(6px + env(safe-area-inset-left, 0px)); top: max(48px, 11vh); bottom: 6px; right: auto;
+  font-size: min(calc(.3 * var(--t)), calc(14px + var(--t-step)));
+  width: min(50vw, 440px); height: auto; z-index: var(--z-modal, 50);
+}
+.clog.is-sheet .clog__list { height: auto; }
+.clog__head {
+  display: flex; align-items: center; gap: .08rem; padding: .03rem .08rem .03rem .12rem; border-bottom: 1px solid var(--line);
+  color: var(--mint-400); font-family: var(--font-display); letter-spacing: .02em; font-size: calc(.16 * var(--t));
+}
+.clog__head b { color: var(--text-hi); font-weight: 600; text-transform: uppercase; }
+.clog__sp { flex: 1; }
+/* the emote wheel's button, small in the input row (its panel still opens upward over the cards) */
+.clog__in .ewheel__btn, .clog__in .ewheel__btn.has-sprite {
+  --ewb-w: 28px; width: 28px; height: 24px; min-width: 0; padding: 0; display: grid; place-items: center;
+  background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); border-radius: 0;
+}
+.clog__in .ewheel__btn .icon { width: 16px; height: 16px; }
+.clog__in .ewheel__label { display: none; }
+.clog__in .ewheel__panel { left: auto; right: 0; }
+.clog__mini {
+  min-width: 24px; height: 22px; display: grid; place-items: center; padding: 0 .06rem;
+  border: 1px solid var(--line-2); background: rgba(0, 0, 0, .4); color: var(--text-lo); cursor: pointer;
+}
+.clog__mini:hover { color: var(--mint-400); border-color: var(--mint-700); }
+.clog__mini .icon { width: 14px; height: 14px; }
+.clog__list {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .04rem .12rem;
+  display: flex; flex-direction: column; gap: .02rem; line-height: 1.35;
+  scrollbar-width: thin; scrollbar-color: var(--mint-700) transparent;
+}
+.clog__list > :first-child { margin-top: auto; }
+.clog__line { overflow-wrap: anywhere; }
+.clog__t { color: var(--text-dim); font-size: calc(.16 * var(--t)); margin-right: .06rem; }
+.clog.is-sheet .clog__head, .clog.is-sheet .clog__t, .clog.is-sheet .clog__new { font-size: min(calc(.28 * var(--t)), calc(13px + var(--t-step))); }
+.clog__n { font-weight: 600; }
+.clog__n.is-a, .clog-mini__last .is-a { color: var(--mint-400); }
+.clog__n.is-b, .clog-mini__last .is-b { color: var(--ice); }
+.clog__n.is-me, .clog-mini__last .is-me { color: var(--gold); }
+.clog__x { color: var(--text-hi); }
+.clog__sys { color: var(--text-lo); font-style: italic; }
+.clog__warn { color: var(--orange-hi); }
+.clog__new {
+  position: absolute; left: 50%; bottom: max(.5rem, 38px); transform: translateX(-50%); z-index: 1;
+  padding: .02rem .12rem; border: 0; border-radius: .2rem; background: var(--mint-600); color: var(--text-on-mint);
+  font: inherit; font-weight: 600; font-size: calc(.16 * var(--t)); white-space: nowrap; cursor: pointer;
+}
+.clog__in { display: flex; gap: .06rem; align-items: center; padding: .05rem .08rem; border-top: 1px solid var(--line); }
+.clog__box {
+  flex: 1; min-width: 0; background: rgba(0, 0, 0, .45); border: 1px solid var(--line-2); color: var(--text-hi);
+  padding: .03rem .08rem; font: inherit; min-height: 24px;
+}
+.clog__box:focus { outline: none; border-color: var(--mint-700); }
+.clog__box:disabled { opacity: .7; }
+.clog__cnt { color: var(--text-lo); min-width: 3.4em; text-align: right; }
+.clog-mini {
+  position: fixed; left: calc(8px + env(safe-area-inset-left, 0px)); top: max(52px, 13vh); z-index: 5;
+  display: flex; flex-direction: column; gap: 6px; width: min(14vw, 112px);
+}
+.clog-mini__btn {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: rgba(8, 11, 10, .9);
+  border: 1px solid var(--mint-700); color: var(--mint-400); font-weight: 600; font-size: min(calc(.33 * var(--t)), calc(15px + var(--t-step))); cursor: pointer;
+}
+.clog-mini__btn .icon { width: 16px; height: 16px; }
+.clog-mini__badge { margin-left: auto; background: var(--red); color: #fff; border-radius: 9px; padding: 0 6px; font-size: min(calc(.28 * var(--t)), calc(13px + var(--t-step))); }
+.clog-mini__last {
+  background: rgba(8, 11, 10, .75); border: 1px solid var(--line); padding: 4px 6px; font-size: min(calc(.28 * var(--t)), calc(13px + var(--t-step))); line-height: 1.3;
+  color: var(--text-hi); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+@media (max-width: 900px) { .rs-foot__left { display: contents; } }
+/* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute */
+.rseat__bubble { position: absolute; left: 50%; bottom: 30%; transform: translateX(-50%); z-index: 4; pointer-events: none; }
+.rseat__plate { position: relative; }
+.rseat__mute { position: absolute; right: .06rem; top: 50%; transform: translateY(-50%); z-index: 2; }

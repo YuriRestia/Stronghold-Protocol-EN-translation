@@ -1,15 +1,17 @@
 // public/js/ui/chat.js — the text side of the 交流 panel (ui/emotes.js EmoteWheel; server/match/chatWallet.js is the rule).
 // The player types as many letters as last round's kills, and the box takes no more; the server chops anything over it
 // whatever a page sends. The text itself shows as a bubble by the sender's avatar (ChatBubble, ui/emotes.js); there is no
-// log and no history, on purpose. Muting is a button in the team panel (ui/teamPanel.js).
+// log and no history in the match, on purpose. Muting is ChatMuteButton below, in the team panel (ui/teamPanel.js) and on
+// the room screen's seats (screens/room.js). (fork, 2026-11-11) A line is plain text, at most CHAT_LINE_LETTERS letters
+// (shared/text.js chatLine), whatever the wallet holds; the room screen's chat is ui/chatLog.js.
 
 import { useEffect, useRef, useState } from '../../vendor/hooks.module.js';
 import { CHAT_COOLDOWN_MS } from '../../../shared/constants.js';
 import { t } from '../../../shared/i18n.js';
-import { cleanChat, letterCount, chopChat } from '../../../shared/text.js';
-import { chatEntry, fitChatInput } from '../chatState.js';
+import { chatLine, cleanChat, letterCount } from '../../../shared/text.js';
+import { chatEntry, fitChatInput, toggleChatMute } from '../chatState.js';
 import { store, useStore } from '../store.js';
-import { html } from './components.js';
+import { html, Icon } from './components.js';
 import { actions } from './gameActions.js';
 
 const EMOTE_KEEP = 20;
@@ -38,7 +40,7 @@ export function useChatBox({ pub, priv, myId, online }) {
 
   const others = Array.isArray(pub?.players) && pub.players.some((p) => !p.isBot && p.playerId !== myId);
   const send = () => {
-    const line = chopChat(cleanChat(text), left);
+    const line = chatLine(text, left);
     if (!line || cooling || !online || !actions.chat(line)) return;
     setLeft(left - letterCount(line));
     setText('');
@@ -52,6 +54,21 @@ export function useChatBox({ pub, priv, myId, online }) {
     available: Number.isInteger(serverLeft) && (others || spectators > 0),
     left, round, text, setText, cooling, online, send,
   };
+}
+
+/**
+ * (fork) Stop seeing a player's text: their bubbles (match and room) and their lines in the room's log. This page's own
+ * (chatState.js); emotes still show. Shared by the match's team panel and the room screen's seat plates.
+ * @param {{ player: { playerId: string, name?: string }, muted: boolean, class?: string }} props
+ */
+export function ChatMuteButton({ player, muted, class: cls = 'team__mute' }) {
+  const name = player.name || t('博士');
+  const title = muted
+    ? t('取消屏蔽 {name}', { name }) // en: "Unmute {name}"
+    : t('屏蔽 {name}', { name }); // en: "Mute {name}"
+  return html`<button type="button" class=${[cls, muted && 'is-on'].filter(Boolean).join(' ')} aria-pressed=${muted} aria-label=${title}
+    title=${title} data-testid="chat-mute" onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }}
+    onClick=${() => store.set((s) => ({ chatMute: toggleChatMute(s.chatMute, player.playerId) }))}><${Icon} name=${muted ? 'chatOff' : 'chat'} /></button>`;
 }
 
 /** @param {{ chat: ReturnType<typeof useChatBox>, onClose: () => void }} props */
