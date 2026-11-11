@@ -245,6 +245,16 @@ history and the open points: DESIGN §32.14.25.
   over, or on the enemy's death or leak. An enemy in a form whose name is one of its modes' attacks in that
   mode and plays that mode's copies of its skills. A summon's skill — its record's, else the only one its unit has —
   plays like an operator's.
+- **Lines and paths** (fork, 2026-11-11, `pathfx.js PathFx`, owned by `SkillFx`; its `PATH_BINDINGS`): the official
+  line effects whose points the game supplies, which `skills.js` leaves unmapped ('path' / 'tiles'). A
+  RangeLineEffectEmitter draws one line per closed outline of a tile set through the tile corners (`edgeLoops`; each
+  corner at its highest tile, the prefab's LineRenderer given the points: `effect.js setLinePoints`). 国度's kingdom
+  (the kit's 'domain' fx, its range every 0.5 s) shows its tile effect on every tile plus that outline, and fades `dur`
+  after the last fx, in place of the procedural field. 予愿安洁莉娜 S3's range line follows her: the 'takeoff' fx's
+  `range` (her deployment tile's 3-9) plus the tiles within `around` of her, re-traced as she flies, until the skill
+  ends. 谬因 S2's AphrisEffectEmitter draws one line from her muzzle through the 'beam' fx's `path` turns (`pathCorners`;
+  waypoints at the fixed height 0.65), with the start, 中继器 and end-point effects, until the skill ends. The sim only
+  added fields to fx it already sent (no event count changes: goldens unchanged).
 - **Talents and abilities** (0.3.0 Phase 3d, `talentfx.js TalentFx`, owned by the wiring; the bindings of `talents.js`,
   DESIGN §33.16, index v3 §33.17). A battle unit's talents in force — an operator's by its record's talents through
   `talentKeys` (a module's with its module, the trait's always, a node valid with one skill only with it), an enemy's

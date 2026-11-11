@@ -97,6 +97,7 @@ import {
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
 import { unitPoint } from './mounts.js';
+import { PathFx } from './pathfx.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
@@ -243,6 +244,7 @@ export class SkillFx {
     this.lives = new Map();    // (fork) FX_BINDINGS hold 'life': `${unit id}|${key}` → { h, v, src } (_lifeMark)
     this.viewList = [];        // the battle's views as the last sync gave them (an enemy binding's 'near' owner)
     this.modeWins = new Map(); // unit id → { hs, seq }: the loops of a mode an enemy binding's fx started (_modeWin)
+    this.paths = new PathFx(w); // (fork) line / path effects whose points a kit fx carries (pathfx.js PATH_BINDINGS)
   }
 
   active() { return !!this.w.ofx.active && !!this.w.idx; }
@@ -404,6 +406,7 @@ export class SkillFx {
 
   /** b.ev ['skill', id, on] (module header). Returns true when the official layer shows this skill. */
   skill(v, on) {
+    if (!on) this.paths.skillOff(idOf(v));
     const U = this.of(v);
     if (!U || !U.plan) return false;
     const live = this.active();
@@ -971,6 +974,7 @@ export class SkillFx {
       // the held crosshairs too (PR #862 review): their handles died with the effects, a later lock starts afresh
       for (const L of this.locks) this._endLock(L);
       this.locks.length = 0;
+      this.paths.reset();
       this.tier = tier;
       this.wasActive = active;
     }
@@ -983,6 +987,7 @@ export class SkillFx {
     const wins = this.windows;
     this.windows = [];
     if (!active) return;
+    this.paths.sync();
     for (const win of wins) {
       if (!win.inst || win.frame !== this.frame) continue;
       if (win.U.instPending === this.frame && !win.U.attacked && win.U.v) this._instCast(win.U, win.U.v, win);
@@ -1114,6 +1119,9 @@ export class SkillFx {
     if (extra.charged === true && extra.id != null) { const C = this.units.get(extra.id); if (C) C.charged = true; }
     // (0) an enemy's area: its zone's official prefabs at the fx's point, an aura tick its talent loops stand for
     if (this._enemyFx(kind, x, y, extra)) return true;
+    // (fork) a line / path effect whose points the fx carries (pathfx.js: 国度's kingdom, 谬因 S2's beam; 予愿安洁莉娜 S3's
+    // range outline is added beside the kit's own fx)
+    if (extra.id != null && this.paths.simFx(kind, x, y, extra, this.of(this.w.view(extra.id)))) return true;
     // a shell of a lock binding's shooter takes its lock; its landing ends it (the kit's fx, drawn as before)
     if ((kind === 'bombardShell' || kind === 'bombard') && this.locks.length) this._lockShell(kind, x, y, extra);
     // (fork) a held binding's `until` kind from the same shooter on the same unit ends it (蕾缪安 S2: her shot ends the aim)
@@ -1725,5 +1733,6 @@ export class SkillFx {
     this.viewList = [];
     for (const m of this.modeWins.values()) for (const h of m.hs) h.stop();
     this.modeWins.clear();
+    this.paths.clear();
   }
 }

@@ -394,6 +394,23 @@ export class Effect {
     return this;
   }
 
+  /**
+   * (fork) Every LineRenderer of the prefab through the points `pts` ([[x, y, z]…], world space, Unity frame) — a path
+   * or a closed outline the game supplies (render/vfx/pathfx.js: 国度's kingdom edge, 谬因's S2 beam). The array is
+   * copied, so the caller may reuse its own.
+   */
+  setLinePoints(pts) {
+    const def = this.def;
+    if (!Array.isArray(pts) || pts.length < 2) return this;
+    for (let i = 0; i < def.n; i++) {
+      if (!def.line[i]) continue;
+      let p = this.linePts.get(i);
+      if (!p || p.length !== pts.length) { p = pts.map(() => [0, 0, 0]); this.linePts.set(i, p); }
+      for (let j = 0; j < pts.length; j++) { p[j][0] = pts[j][0]; p[j][1] = pts[j][1]; p[j][2] = pts[j][2]; }
+    }
+    return this;
+  }
+
   /** Content time (after `_delayToPlay`). */
   get ctime() { return this.time - this.delay; }
 
