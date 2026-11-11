@@ -340,6 +340,10 @@ function setPhase(phase, variant) {
         pub.deadline = Date.now() + 7500;
         pub.draft = { mode: 'vote', reveal: { picks, random: ['p7'], counts, winner: 'band_ducklord' } };
         for (const p of pub.players) p.bandId = 'band_ducklord';
+        // (dev) the glitch's sfx.ui.distort comes with the next asset refresh (tools/assets/audio.mjs UI_SFX); until then
+        // the mock points it at the official file's place so the reveal is heard whole
+        const ui = data.get('assets')?.audio?.sfx?.ui;
+        if (ui && !ui.distort) ui.distort = '/assets/audio/sfx/general/g_ui/g_ui_distort2.mp3';
       }
       break;
     case PHASE.SP_DRAFT: {

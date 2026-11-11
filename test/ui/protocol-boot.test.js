@@ -151,4 +151,6 @@ test('One for All: the reveal sounds are UI keys (pick = room join, reveal = mat
   const game = read('public/js/screens/game.js');
   assert.match(game, /reveal=\$\{ofaReveal\.current\}/);
   assert.match(game, /lastDraft\.current\.draft\?\.mode !== 'vote'/, 'no held draft screen (it would show the winner early)');
+  assert.ok(js.includes('player=${vote ? { ...p, bandId: null } : p}'), 'no card avatar shows the winner (PlayerAvatar draws the band icon)');
+  assert.ok(game.includes('warmOfaSounds()') && js.includes("audio.warmUi(OFA_SOUNDS)"), 'the reveal sounds load ahead');
 });

@@ -2313,6 +2313,18 @@ export class AudioManager {
   }
 
   /**
+   * (fork) Fetch these sfx.ui sounds ahead (One for All's reveal, ui/protocolBoot.js warmOfaSounds): a sound's first
+   * play waits for its download and decode, which bunched the reveal's beats together. Nothing before the first gesture
+   * or while the SFX are silent (the play would be silent too).
+   * @param {string[]} names sfx.ui keys
+   */
+  warmUi(names) {
+    if (!this.ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
+    const ui = this.getManifest()?.audio?.sfx?.ui;
+    for (const n of Array.isArray(names) ? names : []) if (typeof ui?.[n] === 'string') this._buffer(ui[n]);
+  }
+
+  /**
    * Fetch the generic landing sounds ahead (b_char_set / b_char_tokenset, ~30 KB together), so the round start's first
    * landings never wait for a download (a wait would bunch the chain's first sounds together). The field view asks when a
    * match screen comes up (render/app.js createFieldView); before the first gesture, or while the SFX are silent, the wish

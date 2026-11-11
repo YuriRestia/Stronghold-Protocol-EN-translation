@@ -133,7 +133,7 @@ import { LoadoutButton } from './loadout.js';
 import { BriefingScreen } from './briefing.js';
 import { BandDraftScreen } from './bandDraft.js';
 import { ResultScreen } from './settle.js';
-import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS } from '../ui/protocolBoot.js';
+import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS, warmOfaSounds } from '../ui/protocolBoot.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
 import { battleRunner } from '../battle/runner.js';
@@ -188,6 +188,9 @@ export function GameScreen() {
   const voteRoom = useStore((s) => (s.room?.versionVote && !s.room.inMatch ? s.room : null));
   // 协议启动！'s official sprites (ui/protocolBoot.js), fetched while the briefing and the band draft run
   useEffect(() => { if (gd.ready) preloadBootArt(); }, [gd.ready]);
+  // (fork) One for All: the reveal's sounds load during the vote, so its beats never wait for a download
+  const voteDraft = pub?.draft?.mode === 'vote';
+  useEffect(() => { if (voteDraft) warmOfaSounds(); }, [voteDraft]);
   // 已选定策略 (PR #643, the event's draft end, video 7:36–7:44): once the draft is over the screen stays DRAFT_HOLD_MS on
   // 策略选择完成 · 正在进入模拟… with the pick, from the last draft snapshot (m.public.draft is gone after BAND_DRAFT),
   // then 协议启动！ — both inside BATTLE_CHECK's official 3 s (see DRAFT_HOLD_MS). Decided while rendering, so the match

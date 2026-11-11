@@ -143,6 +143,12 @@ export function ofaTimeline(picks, winner) {
   return { pickAt, grow, charge: grow + OFA.GROW, land, glitchAt, swapAt, unify, events };
 }
 
+/** (fork) One for All: the reveal's sounds (sfx.ui keys). */
+export const OFA_SOUNDS = Object.freeze(['joinRoom', 'matchSucceed', 'distort', 'itemMerge']);
+
+/** (fork) One for All: fetch the reveal's sounds ahead (screens/game.js during the vote, and as the reveal mounts). */
+export function warmOfaSounds() { audio.warmUi(OFA_SOUNDS); }
+
 /** (fork) One for All: each beat's sound (sfx.ui keys; the reviewed mix: panned by card side, a 6 kHz high cut). */
 export function ofaSound(kind, i = 0) {
   const pan = i % 2 === 0 ? -0.55 : 0.55; // left cards even, right cards odd
@@ -208,6 +214,7 @@ export function ProtocolBoot({ players, myId, leaving = false, reveal = null }) 
   const tlRef = useRef(null);
   if (!tlRef.current || tlRef.current.winner !== (vote ? reveal.winner : null)) tlRef.current = { ...ofaTimeline(vote ? picks : [], vote ? reveal.winner : ''), winner: vote ? reveal.winner : null };
   const tl = tlRef.current;
+  useEffect(() => { if (vote) warmOfaSounds(); }, [vote]);
   const now = useOfaClock(tl, vote);
   const bands = data.get('bands') || {};
   const nameOf = (id) => bands[id]?.name || id;
@@ -258,7 +265,7 @@ export function ProtocolBoot({ players, myId, leaving = false, reveal = null }) 
             <span class="pboot__done">COMPLETE</span>
             <i class="pboot__check"><${Icon} name="check" /></i>
           </span>
-          <span class="pboot__face"><${PlayerAvatar} player=${p} self=${p.playerId === myId} /></span>
+          <span class="pboot__face"><${PlayerAvatar} player=${vote ? { ...p, bandId: null } : p} self=${p.playerId === myId} /></span>
           ${picks[i] ? chip(i, picks[i], p.playerId) : null}
         </div>`;
       })}
