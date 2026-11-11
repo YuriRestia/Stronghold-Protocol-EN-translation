@@ -70,6 +70,20 @@ test('水月: the shipped manifest carries the fix on every model and outfit', (
   }
 });
 
+test('水月: her normal swing and impact, and each skill\'s own impact in place of the normal one (official banks)', () => {
+  const u = assets.audio.sfx.units.char_437_mizuki;
+  assert.match(u.attack, /p_atk_tentacle_n\.mp3$/, 'swing: ON_ABILITY_START.attack');
+  assert.match(u.hit, /p_imp_tentacle_n\.mp3$/, 'impact: ON_ABILITY_ON.attack');
+  // S1 skchr_mizuki_1's ON; S2 / S3 their modes' ON (attack.2 / attack.3), which have no START: the swing stays the normal one
+  const own = { 0: ['p_imp_tentacle_d', 'battle.ON_ABILITY_ON.skchr_mizuki_1'], 1: ['p_imp_tentacle_h', 'battle.ON_ABILITY_ON.char_437_mizuki.attack.2'],
+    2: ['p_imp_tentacle_s', 'battle.ON_ABILITY_ON.char_437_mizuki.attack.3'] };
+  for (const [i, [file, pool]] of Object.entries(own)) {
+    assert.match(u.hits[i], new RegExp(`${file}\\.mp3$`), `S${+i + 1} impact`);
+    assert.equal(u.hitPools[i], pool, `S${+i + 1} impact pool`);
+    assert.equal(u.attacks?.[i], undefined, `S${+i + 1}: no impact file in the swing slot (it rang with the normal impact)`);
+  }
+});
+
 test('水月 S1: a charge swings her normal Attack, no Skill_1 clip, and the swing plays out', () => {
   for (const [k, m] of models()) {
     const { a, log, run } = actor(m.spine.front, 0);

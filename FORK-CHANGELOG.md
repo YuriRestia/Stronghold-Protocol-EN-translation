@@ -10,7 +10,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 ### Mizuki's skills play their own animations and impact sounds
 
 - Mizuki now animates each skill as in the official game, in every outfit. Her S2 (Prisoner's Dilemma) attacks with its own swing and rests in her normal pose. Her S3 (Moon in the Water) opens with its start animation, swings its own attack, stands in its skill stance between attacks and closes with its end animation. An S1 (Awaken) charge is her normal swing. Before, the game paired her animations with her skills by their names, which her model doesn't follow: S2 played S3's animations, S3 swung her plain attack and S1 played S2's swing.
-- Her attacks now land with their impact sound, and an S1 charge has its own impact instead of S2's.
+- Her attacks now land with their impact sound, and an S1 charge has its own impact instead of S2's. During S2 and S3 she swings with her normal swing sound and each hit lands with that skill's own impact. Before, the impact sound played at the swing.
 
 ## 2026-11-10
 
