@@ -803,7 +803,11 @@ describe('extracted effects (when fx was extracted on this machine)', { skip: !f
       for (const m of u.modes) {
         for (const a of [m.attack, m.combat]) {
           if (!a?.emitters) continue;
-          for (const e of attackRows({ ...a, abilities: [] })) assert.ok(Number.isInteger(e.emitter) && e.emitter < a.emitters.length, `${u.prefab} ${m.name}: emitter index`);
+          // (fork) a row of a buff the attack puts on its target or owner (attack_buff_rows) names its template, no emitter
+          for (const e of attackRows({ ...a, abilities: [] })) {
+            assert.ok(typeof e.template === 'string' ? e.emitter === undefined : Number.isInteger(e.emitter) && e.emitter < a.emitters.length,
+              `${u.prefab} ${m.name}: emitter index`);
+          }
         }
       }
     }
