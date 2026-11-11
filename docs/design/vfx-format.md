@@ -862,6 +862,18 @@ distinct key, and `slots` holds the effect per facing as *metadata* `Torappu.Sha
 0 / 2). `hookEffectAfterFirstAttack` (a key or '') replaces the row's effect from the second attack on; a row may have
 only that. Keys the client does not have are dropped (the extractor logs them).
 
+**Rows of the attack's buffs (fork, 2026-11-11).** A buff that the attack node's behaviours put on what it hits
+(`_activeBuffs`, `_activeBuffsToMainTarget`, BuffToCastTargets, CachedBuffToCastTargetsBehaviour) or on its owner per
+attack (BuffToOwner, a `…ToOwner` field) adds rows for the CreateEffect actions its template (and the templates that
+template creates as it starts) plays at ON_BUFF_START / ON_BUFF_ENABLE: a target's are `hit` rows, played on the target
+the blow lands on; an owner's are `cast` rows (`startEvent` 2). These rows carry `template` (the buff's template key)
+and no `emitter`. Of the effects on a condition's branches (fx.py `graph_branches`), only those needing the fewest
+conditions met stay (the plain path; a target-side test takes the side the attack hits: a heal's allies), since the
+client does not know the stacks or buffs the test reads; generic `common_` sparks are left to the client's generic
+hit. Lasting buffs (CreateBuff override effects), later buff events and lines need the sim's signal and add no row
+(`attack_buff_rows`). A projectile's `_actionController._extraBuffsInTheEnd` adds the same start effects to its `onHit`.
+A relink (`--fx-relink`) adds these rows to the units' modes, matched by name (`merge_added`).
+
 **Every emitter of the attack's node (v2).** The rows come from every effect emitter on the ability's node, whatever its
 class: `UberEffectEmitter` and its subclasses — `MultiHitUberEffectEmitter`, `UberAnimationEffectEmitter`,
 `MultiChargeUberEffectEmitter`, `MultiExChargeUberEffectEmitter`, `MergeableChargeUberEffectEmitter`,
