@@ -1750,7 +1750,7 @@ function operatorAttackAnims(manifest, chess, backups, tokens) {
 }
 
 /**
- * (fork) docs/research/15-attack-anim-scale.json (tools/local-extract/anim_scale.py, from the official client): unit id → { node path
+ * (fork) docs/research/15-attack-anim-scale.json (tools/anim_scale.py, from the official client): unit id → { node path
  * → [`_maxAnimScale`, `_animKey`, class] } of every ability of its prefab. {} when the file is missing.
  */
 function attackScaleTable() {
