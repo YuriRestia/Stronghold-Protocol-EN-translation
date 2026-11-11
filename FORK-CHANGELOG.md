@@ -23,6 +23,19 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - New sounds: her S3's ability end (alongside its closing sound), going down, standing back up, and her Meltdown talent's Burn burst.
 - A skill can now play several official sounds when it starts or ends, not just one.
 
+### Element bursts sound as in the official game
+
+- When an element gauge fills and bursts, the official burst sound now plays. As in the official game, the sound belongs to the unit that bursts:
+
+  | Element | On an enemy | On an operator |
+  |---|---|---|
+  | Burn | no sound | the burn sound, layered with a flare |
+  | Necrosis | the necrosis sound (slightly quieter) | the same |
+  | Nervous Impairment | no sound | the nervous impairment sound |
+  | Corrosion | no sound | the corrosion sound |
+
+- The sounds come from the official buff templates of each burst, which name the sound each one plays. They are in `tools/assets/plan.mjs` (`BURST_SOUND_BANKS`) and the manifest's new `audio.sfx.burst`, and they follow each official sound's own pitch range, volume and how many can play at once. Five new sound files.
+
 ## 2026-11-10
 
 ### Operators attack as in the official game: the swing starts, then the hit lands

@@ -94,6 +94,23 @@ const FX_SOUND_BANKS = Object.freeze({
   }),
 });
 /**
+ * (fork) Element burst (爆发) sounds, by `<sim element>.<side>` (side as public/js/render/vfx/wiring.js burstSide: 'enemy'
+ * = an enemy unit, 'char' = an operator / summon) → the banks the burst plays at once, each on its own pool (public/js/
+ * audio.js _burstSound). Read from the CN client (2026-11-11): the ep_break_<el>_<char|enemy> buff templates
+ * (buff_template_holder.ab) name an `audioSignal` on the buff they create, and audio_data.json holds that signal's banks.
+ * Only the operator side carries one, except DARK (apoptosis), whose enemy side signals the same bank; the enemy side of
+ * FIRE / SANITY / WATER plays its effect only, so it stays silent. FIRE's signal also has an ON_BUFF_SHOW_EFFECT bank
+ * [ASSUMED: it fires as the buff shows buff_burn, the same moment]. FIRE = burn, SANITY = neural, WATER = erosion,
+ * DARK = apoptosis.
+ */
+const BURST_SOUND_BANKS = Object.freeze({
+  'burn.char': Object.freeze(['battle.ON_BUFF_START.ep_break_fire_audio', 'battle.ON_BUFF_SHOW_EFFECT.ep_break_fire_audio']),
+  'neural.char': Object.freeze(['battle.ON_BUFF_START.ep_break_sanity_audio']),
+  'erosion.char': Object.freeze(['battle.ON_BUFF_START.ep_break_water_audio']),
+  'apoptosis.char': Object.freeze(['battle.ON_BUFF_START.ep_break_dark_audio']),
+  'apoptosis.enemy': Object.freeze(['battle.ON_BUFF_START.ep_break_dark_audio']),
+});
+/**
  * (fork) Skills whose sounds are their own ability's banks (ON_ABILITY_START / _HIT.<skill id>), not an ON_SKILL_START or
  * a mode's attack: charId → skill index → which roles they fill — `attack` / `hit` (the skill's own strike: its swing
  * and impact while it runs) or `skill` (its cast sting). 塔露拉 S1 is a MeleeAttack skill (its strike); S2 a
@@ -1099,6 +1116,22 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const g = specGroup(spec);
     if (l && g) sfxGroups.battle[name] = g;
   }
+  // (fork) element burst sounds (BURST_SOUND_BANKS), each bank's first file on its official pool
+  const sfxBurst = {};
+  for (const [key, banks] of Object.entries(BURST_SOUND_BANKS)) {
+    const list = [];
+    for (const name of banks) {
+      const paths = audio.bank(name);
+      if (!paths?.length) { notes.push(`burst SFX ${key}: no sound for ${name}`); continue; }
+      const e = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) e.pool = p;
+      const vol = audio.mixOf?.(paths)?.vol;  // the bank's volume when not 1 (ep_break_dark_audio: 0.8)
+      if (vol != null) e.vol = vol;
+      list.push(e);
+    }
+    if (list.length) sfxBurst[key] = list;
+  }
 
   // --- module type icons ----------------------------------------------------
   const modules = {};
@@ -1176,7 +1209,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
       ...optionalTrees,
-      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, pools: sfxPools, groups: literal(sfxGroups) },
+      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, ...(Object.keys(sfxBurst).length ? { burst: sfxBurst } : {}), pools: sfxPools, groups: literal(sfxGroups) },
     },
   };
   return { template, models, notes };

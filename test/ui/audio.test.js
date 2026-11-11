@@ -788,6 +788,54 @@ describe('AudioManager', () => {
     }
   });
 
+  test('(fork) element bursts (committed manifest): the official ep_break_<el>_audio banks, operator side only except apoptosis', () => {
+    const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
+    const leaf = (e) => e.url.split('/').pop();
+    assert.deepEqual(Object.keys(m.burst).sort(), ['apoptosis.char', 'apoptosis.enemy', 'burn.char', 'erosion.char', 'neural.char'],
+      'an enemy\'s burn / neural / erosion burst has no sound (its ep_break_<el>_enemy template signals none)');
+    assert.deepEqual(m.burst['burn.char'].map(leaf), ['b_char_fireharm.mp3', 'e_imp_dmfttrb_d.mp3'], 'ON_BUFF_START + ON_BUFF_SHOW_EFFECT');
+    assert.deepEqual(m.burst['neural.char'].map(leaf), ['b_char_energyharm.mp3']);
+    assert.deepEqual(m.burst['erosion.char'].map(leaf), ['b_char_waterharm.mp3']);
+    assert.deepEqual(m.burst['apoptosis.char'].map(leaf), ['b_char_darkharm.mp3']);
+    assert.deepEqual(m.burst['apoptosis.enemy'].map(leaf), ['b_char_darkharm.mp3']);
+    assert.equal(m.burst['apoptosis.char'][0].vol, 0.8, 'the dark bank plays at volume 0.8');
+    for (const list of Object.values(m.burst)) for (const e of list) assert.ok(m.pools[e.pool], `the pool of ${e.url}`);
+    assert.equal(m.pools['battle.ON_BUFF_START.ep_break_water_audio'].maxSoundAllowed, 1);
+  });
+
+  test('(fork) an element burst plays its side\'s official sounds on their pools; an enemy\'s burn burst and unknown units stay silent', async () => {
+    const fw = fakeWindow();
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+    try {
+      const burst = { 'burn.char': [{ url: '/s/fire.mp3', pool: 'f' }, { url: '/s/fire2.mp3', pool: 'f2' }], 'apoptosis.enemy': [{ url: '/s/dark.mp3', pool: 'd', vol: 0.8 }] };
+      const pools = { f: { maxSoundAllowed: 2, popOldest: true, sounds: {} }, f2: { maxSoundAllowed: 2, popOldest: true, sounds: {} }, d: { maxSoundAllowed: 1, popOldest: false, sounds: {} } };
+      const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools, units: {}, burst } } };
+      const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
+      a.install();
+      fw.fire('pointerdown');
+      await new Promise((r) => setTimeout(r, 10));
+      a.setFieldUnits([{ id: 1, kind: 'op', side: 'ally', defId: 'chess_char_x', spine: 'char_x' },
+        { id: 2, kind: 'enemy', side: 'enemy', defId: 'enemy_1007_slime' }]);
+      const plays = [];
+      a._playBank = (url, pool, vol) => { plays.push([url, pool, vol]); };
+      const fx = (ex) => a.handleBattleEvents([['fx', 'burst', 5, 9, ex]]);
+      fx({ id: 1, element: 'burn' });
+      assert.deepEqual(plays, [['/s/fire.mp3', 'f', 1], ['/s/fire2.mp3', 'f2', 1]], 'an operator\'s burn burst: both banks');
+      plays.length = 0;
+      fx({ id: 2, element: 'apoptosis' });
+      assert.deepEqual(plays, [['/s/dark.mp3', 'd', 0.8]], 'an enemy\'s apoptosis burst, at its bank volume');
+      plays.length = 0;
+      fx({ id: 2, element: 'burn' });
+      fx({ id: 1, element: 'apoptosis' });
+      fx({ id: 9, element: 'burn' });
+      fx({ id: 1 });
+      assert.deepEqual(plays, [], 'no entry, an untracked unit or no element: silent');
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
   test('(fork) 莫斯提马 / 蕾缪安 (committed manifest): their official impact, skill-mode, skill start / end and kit fx banks', () => {
     const m = JSON.parse(readFileSync(path.join(ROOT, 'data/assets.json'), 'utf8')).audio.sfx;
     const leaf = (u) => (typeof u === 'string' ? u : u?.url || '').split('/').pop();
