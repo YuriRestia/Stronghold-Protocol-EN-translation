@@ -146,6 +146,8 @@ export default {
       if (fresh.length) {
         const mods = Object.fromEntries(Object.entries(up0).filter(([, v]) => v));
         battle.addBuff(s, { key: UPGRADE_KEY, mods, persist: true, allowDead: true, tags: ['talent'] });
+        // (fork) the client's necras_t_1[upgrade] on the 仆役 (token_necras_skeltn1_levelup_01, _buff_01) — display only
+        battle.fxState(s, 'necras_t_1[upgrade]', true, { src: unit });
         s1Strike(battle, unit, s);
       }
       battle.heal(s, s, s.s.maxHp, { self: true, ignoreHealFree: true });
@@ -211,6 +213,8 @@ export default {
         ...(third ? { blockCnt: num(b3['attack@block_cnt'], 1) * third, rangeExtend: num(b3['attack@ability_range_forward_extend'], 1) * third } : {}) } });
       battle.heal(d, d, d.s.maxHp * num(b3['attack@hp_ratio']), { self: true, ignoreHealFree: true });
       battle.fx('grow', { x: d.x, y: d.y, id: d.id, n });
+      // (fork) the client's necras_upgrade_dragon on the special form, its look by stage (skills.js STATE_BUFFS looks) — display only
+      battle.fxState(d, 'necras_upgrade_dragon', true, { src: unit, look: n >= 3 ? 'stage2' : 'stage1' });
     };
 
     /** 悲叹的仆役 kit (`def` = its token def for her loadout: 怨火缠身 only when she carries S3). */

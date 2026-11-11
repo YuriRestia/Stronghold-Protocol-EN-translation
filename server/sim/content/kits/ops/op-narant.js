@@ -187,6 +187,9 @@ export default {
       if (!up(unit)) return;
       const n = count(b3['attack@aoe.max_target'], 3), scale = num(b3.atk_scale_aoe, 1), slug = num(b3.sluggish);
       battle.fx('aoe', { x: unit.x, y: unit.y, radius: 1, id: unit.id, skill: 'narant:sunswallower' });
+      // (fork) the client's trait buff narant_s_3[AOE] (BoomberangTrait._activeBuffsWhenProjectileComeback): narant_skill_03_hit_04
+      // and _slash_01 on her as the boomerangs come back (talentfx 'ability', matched by its buff)
+      battle.fx('ability', { x: unit.x, y: unit.y, id: unit.id, name: 'narant_s_3[AOE]' });
       for (const e of enemiesInGrid(battle, unit, AROUND, { n, canHitFly: true })) {
         battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type: 'phys', isSkill: true, tags: ['skill', 'narant:blast'] });
         if (e.alive && slug > 0) battle.applyStatus(e, 'sluggish', { duration: slug, source: unit });

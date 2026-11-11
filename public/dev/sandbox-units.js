@@ -55,6 +55,19 @@ export function parseUnits(raw) {
   return out;
 }
 
+/**
+ * (fork) `&tokens=` → [{ tokenId, owner, row, col, dir }]: placed summon pieces, `owner` the index of their summoner in
+ * `&units` (sandbox.js header). At most 8; malformed entries are skipped.
+ */
+export function parseTokens(raw) {
+  const out = [];
+  for (const part of String(raw || '').split(';')) {
+    const m = /^(token_[a-z0-9_]+)@(\d+):(\d+),(\d+)(?::([A-Z]+))?$/.exec(part.trim());
+    if (m && out.length < 8) out.push({ tokenId: m[1], owner: +m[2], row: +m[3], col: +m[4], dir: DIRS.includes(m[5]) ? m[5] : 'RIGHT' });
+  }
+  return out;
+}
+
 /** The board as the `units=` value (parseUnits reads it back). */
 export const unitsParam = (list) => list.map((u) => `${u.chessId}${u.diy ? `~${u.diy.charId}` : ''}:${u.row},${u.col}:${u.skillIndex}:${u.dir}`
   + `${u.skin ? `:${u.skin}` : ''}${u.items?.length ? `!${u.items.join(',')}` : ''}${u.module ? `|m=${u.module}` : ''}${u.sp != null ? `|sp=${u.sp}` : ''}`

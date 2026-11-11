@@ -46,8 +46,9 @@ export class BattleEvents {
 
   /**
    * (fork) The same as fxState for a state the kit already keeps (a charge count, a mark, a mode …): `probe(unit)` is
-   * read only when a snapshot is taken (snapshot.js fxStateView) — false / null: off, true: on, else the official branch
-   * (`look`); `src(unit)` names the unit whose skill made it (a summon's owner; null: the carrier). Nothing runs in the
+   * read only when a snapshot is taken (snapshot.js fxStateView) — false / null: off, true: on, a string: on, in that
+   * official branch (`look`), { src, look? }: on, given by unit (or id) src, in branch look. The giver: `src(unit)` when
+   * passed (a summon's owner), else the object's src; none / null / the carrier itself: the carrier. Nothing runs in the
    * battle's ticks (the bots' budget). One probe per buff and unit (a later call replaces it).
    */
   fxProbe(unit, buff, probe, src = null) {
