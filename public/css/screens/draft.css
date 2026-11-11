@@ -392,3 +392,16 @@
   .modal__box.minfo-dlg { width: min(max(12rem, 32px, calc(600px * var(--sp-ui, 1))), calc(100vw - .6rem - var(--sa-l, 0px) - var(--sa-r, 0px))); }
   .minfo-dlg__content.has-enemies { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* (fork) One for All (bandDraft.js VoteCount): only the player's own card, then 「已锁定的博士：n / N」 with a dot per
+   voting Doctor right under it (the count only); the tip stays at the bottom */
+.draft--vote .draft-order__rows { flex: none; }
+.draft-vote { flex: none; display: flex; flex-direction: column; gap: .1rem; margin: .26rem .5rem auto .3rem; padding: .16rem .22rem .2rem;
+  border: .02rem dashed rgba(23, 249, 183, .45); background: rgba(23, 249, 183, .05); }
+.draft-vote__tag { font-size: calc(.12 * var(--t)); letter-spacing: .18em; font-weight: 700; color: var(--mint-400); }
+.draft-vote__count { margin: 0; font-size: calc(.17 * var(--t)); color: var(--text-hi); }
+.draft-vote__count b { margin-left: .06rem; color: var(--mint-400); }
+.draft-vote__dots { display: flex; flex-wrap: wrap; gap: .08rem; }
+.draft-vote__dots i { width: .16rem; height: .16rem; border-radius: 50%; border: .02rem solid rgba(255, 255, 255, .35); }
+.draft-vote__dots i.is-on { border-color: var(--mint-400); background: var(--mint-400); box-shadow: 0 0 .08rem rgba(23, 249, 183, .6); }
+.draft--detail .draft-vote { margin-right: .12rem; margin-left: .28rem; }

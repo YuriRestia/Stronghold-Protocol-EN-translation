@@ -33,6 +33,13 @@
 // inert, before 协议启动！.
 // [ASSUMED] the corner badge, the count and the name card's trophy medal read this browser's records (ui/stats.js,
 // read once after the screen is up) in place of the event's account data — there are no accounts here.
+// (fork) One for All (Grand Alliance draft mode, m.public.draft.mode 'vote' — normalizeVote; crew-docs
+// one-for-all-design.md §2.2, the user's answers Q1–Q6): everyone votes secretly at once on one clock. The order list
+// shows only the player's own card, with 「已锁定的博士：n / N」 and a dot per voter under it (the count only, never names or
+// picks); the wall shows all 40 with no 已被选择 (duplicates are the point) and keeps 本局禁用; there is no skip; 确认选择
+// LOCKS the vote (the server treats the pick message as the lock); nothing is highlighted until a portrait is tapped,
+// because a vote that runs out takes the highlighted strategy and, with none, a random one (voteTip says which).
+// After the vote the held screen keeps the player's own vote only — the winner waits for 协议启动's reveal.
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
 import { html, Button, Icon, useTicker, secondsLeft } from '../ui/components.js';
@@ -43,7 +50,7 @@ import { BondCallChip } from '../ui/bondCall.js';
 import { useTimerWarning } from '../ui/timerWarn.js';
 import { MatchEnemies } from '../ui/matchEnemies.js';
 import { actions, act } from '../ui/gameActions.js';
-import { normalizeDraft, sortedPlayers } from '../ui/gameLogic.js';
+import { normalizeDraft, normalizeVote, sortedPlayers } from '../ui/gameLogic.js';
 import { useStore } from '../store.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
@@ -174,7 +181,40 @@ export function draftClock(pub) {
   if (!d || d.untimed) return null;
   const deadline = Number(pub.deadline) > 0 ? Number(pub.deadline) : Number(d.turnDeadline) || 0;
   if (!(deadline > 0)) return null;
-  return { deadline, total: Number(d.turnSeconds) > 0 ? Number(d.turnSeconds) : null };
+  return { deadline, total: draftSeconds(d) };
+}
+
+/** A turn's length — in One for All the vote's one clock (`voteSeconds`, else `turnSeconds`); null when unknown. */
+export function draftSeconds(draft) {
+  const s = Number(draft?.mode === 'vote' && draft.voteSeconds > 0 ? draft.voteSeconds : draft?.turnSeconds);
+  return s > 0 ? s : null;
+}
+
+/**
+ * (fork) The tip under the One for All order list: confirming locks the vote, and what a vote that runs out counts as —
+ * the highlighted strategy, else a random one (the server draws it from the strategies the mode allows). Untimed (a
+ * single human) names no clock.
+ * @param {{ timed: boolean, autoName?: string|null, locked?: boolean }} o autoName: the highlighted strategy's name
+ */
+export function voteTip({ timed, autoName = null, locked = false }) {
+  const lock = t('确认后投票即锁定，不能更改'); // en: "Confirming locks your vote; it can't be changed"
+  if (locked) return t('得票最多的策略将由全体博士共同使用'); // en: "The strategy with the most votes is used by every Doctor"
+  if (!timed) return t('{lock}；本局不限时', { lock }); // en: "{lock}; no time limit this match"
+  return autoName ? t('{lock}；超时将投给当前选中的「{autoName}」', { lock, autoName }) // en: "{lock}; when time runs out your vote goes to the highlighted 「{autoName}」"
+    : t('{lock}；超时未选中策略将随机投票', { lock }); // en: "{lock}; with nothing highlighted when time runs out, a random strategy gets your vote"
+}
+
+/**
+ * (fork) 「已锁定的博士：n / N」 under the One for All order list, with one dot per voting Doctor (the count only, Q4).
+ * @param {{ locked: number, voters: number }} props
+ */
+export function VoteCount({ locked, voters }) {
+  const n = Math.max(0, Math.min(locked | 0, voters | 0));
+  return html`<div class="draft-vote" data-testid="vote-count" role="status" aria-live="polite">
+    <span class="draft-vote__tag">ONE FOR ALL</span>
+    <p class="draft-vote__count">${tParts('已锁定的博士：{count}', { count: html`<b class="num" data-testid="vote-count-n">${n} / ${voters | 0}</b>` }) /* en: "Doctors locked in: {count}" */}</p>
+    <span class="draft-vote__dots" aria-hidden="true">${Array.from({ length: Math.min(voters | 0, 16) }, (_, i) => html`<i key=${i} class=${i < n ? 'is-on' : ''}></i>`)}</span>
+  </div>`;
 }
 
 /**
@@ -277,13 +317,21 @@ export function BandDraftScreen({ held = null } = {}) {
   const bands = useMemo(() => allowedBands(gd.list('bands'), mode?.type || (solo ? 'SINGLE' : 'MULTI')), [gd.ready, mode?.type, solo, data.locale(), data.contentId()]);
   const players = sortedPlayers(pub);
   const draft = normalizeDraft(pub?.draft, players);
-  const myPick = draft.picks.get(myId) || priv?.bandId || null;
-  const inOrder = solo || draft.order.includes(myId);
-  const myTurn = !myPick && (solo || draft.turnPid === myId);
+  // (fork) One for All: a secret vote (normalizeVote). My pick is my own LOCKED vote only (never anyone's public pick,
+  // never the players' bandId — after the vote that is the winner, which the reveal shows); the held screen, whose
+  // private state may have moved on, keeps the vote seen last
+  const vote = solo ? null : normalizeVote(pub?.draft, priv, myId);
+  const lastVote = useRef(null);
+  if (vote?.myLocked) lastVote.current = vote.myVote;
+  const myPick = vote ? (vote.myLocked ? vote.myVote : held ? lastVote.current : null)
+    : draft.picks.get(myId) || priv?.bandId || null;
+  const inOrder = solo || (vote ? (vote.inVote ?? (!!priv?.vote || draft.order.includes(myId) || players.some((p) => p.playerId === myId && !p.isBot)))
+    : draft.order.includes(myId));
+  const myTurn = !myPick && (solo || (vote ? inOrder && !vote.done && !held : draft.turnPid === myId));
   const skipsLeft = draft.skipsLeft.has(myId) ? draft.skipsLeft.get(myId) : (skipped ? 0 : 1);
-  // the last doctor still to pick cannot skip (no one to pass the turn to)
-  const canSkip = !solo && myTurn && skipsLeft > 0 && draft.order.filter((pid) => !draft.picks.has(pid)).length > 1;
-  const taken = solo ? new Map() : teammateBands(draft.picks, myId);
+  // the last doctor still to pick cannot skip (no one to pass the turn to); One for All has no skip
+  const canSkip = !solo && !vote && myTurn && skipsLeft > 0 && draft.order.filter((pid) => !draft.picks.has(pid)).length > 1;
+  const taken = solo || vote ? new Map() : teammateBands(draft.picks, myId);
   const pickers = new Map(); // bandId → players
   for (const [pid, bid] of draft.picks) {
     const p = players.find((x) => x.playerId === pid);
@@ -295,10 +343,11 @@ export function BandDraftScreen({ held = null } = {}) {
   // band has been taken by a teammate meanwhile (队友已选), move the selection back to that default
   const defaultId = gd.config?.bandDraft?.timeoutBandId || DEFAULT_TIMEOUT_BAND;
   const takenKey = [...taken.keys()].sort().join(',');
+  // (One for All: nothing is highlighted until a portrait is tapped — a vote that runs out unhighlighted is a random one)
   useEffect(() => {
-    const next = draftSelection(sel, { bands, taken, myPick, myTurn, defaultId });
+    const next = vote ? (myPick || sel) : draftSelection(sel, { bands, taken, myPick, myTurn, defaultId });
     if (next !== sel) setSel(next);
-  }, [bands.length, myPick, myTurn, takenKey]);
+  }, [bands.length, myPick, myTurn, takenKey, !!vote]);
   // "your turn" cue: the sound and the event's 请选择策略 band (ui/turnBanner.js) once its art is in — co-op and solo
   // alike (the maintainer's decision of 2026-10-21, as in PR #643; [ASSUMED] for solo, see the header). The sprites are
   // fetched early (a room entered, the match screen, this screen's mount); a turn whose art is still loading plays the
@@ -330,13 +379,14 @@ export function BandDraftScreen({ held = null } = {}) {
   const focusSent = useRef(null);
   useEffect(() => {
     // (a spectator seat — community report #26 — is in no draft order: it never reports)
-    if (!timed || myPick || !sel || focusSent.current === sel || !draft.order.includes(myId)) return;
+    if (!timed || myPick || !sel || focusSent.current === sel || !(vote ? inOrder : draft.order.includes(myId))) return;
     focusSent.current = sel;
     act('g.bandFocus', { bandId: sel }, { sfx: false, quiet: true });
   }, [sel, timed, myPick]);
 
   // what a timeout gives me: the highlighted band while free, else the default (never 队友已选 — match/phases.js timeoutBand)
-  const autoId = autoPickBand(sel, { bands, taken, myPick, defaultId });
+  // (One for All: the highlighted strategy, else a random one — no name)
+  const autoId = vote ? (!myPick && sel && bands.some((b) => b.bandId === sel) ? sel : null) : autoPickBand(sel, { bands, taken, myPick, defaultId });
   const autoName = (autoId && gd.band(autoId)?.name) || gd.band(defaultId)?.name || tName('华法琳');
 
   const band = sel ? gd.band(sel) : null;
@@ -358,11 +408,11 @@ export function BandDraftScreen({ held = null } = {}) {
   const turnName = shownName(players.find((p) => p.playerId === draft.turnPid)) || undefined;
   useTicker(clock ? 250 : 0);
   const turnSecs = clock ? secondsLeft(clock.deadline) : null;
-  const turnLen = Number(pub?.draft?.turnSeconds) > 0 ? Math.round(pub.draft.turnSeconds) : null;
+  const turnLen = draftSeconds(pub?.draft) ? Math.round(draftSeconds(pub.draft)) : null;
   // 本局信息: the briefing's blocks (built only while the dialog is open) and the draft's state under it
   const info = infoOpen ? matchInfoModel(pub, { bonds: gd.list('bonds'), chess: gd.chess, mode, priv, diyData: { chess: data.get('chess'), backups: data.get('backups') } }) : null;
   const infoStatus = infoOpen ? draftInfoStatus({ myPick, pickName: myPick ? gd.band(myPick)?.name : null, myTurn, turnName, secs: turnSecs,
-    waiting: !solo && !draft.done }) : null;
+    waiting: !solo && !(vote ? vote.done : draft.done) }) : null;
 
   // 名片干员 art of the order rows (as on the room's seat cards: the doctor's pick, else one chosen by the player id), in
   // the doctor's outfit for that operator (B6 picture-only outfits, docs/SKINS.md; the maintainer's decision 4 of 2026-10-21
@@ -401,16 +451,20 @@ export function BandDraftScreen({ held = null } = {}) {
   }, [gd.ready, local]);
 
   // what the right side shows: 已选定策略 after my pick, else the detail pane once opened, else only the wall
-  const allPicked = !!draft.done || (draft.order.length > 0 && draft.order.every((pid) => draft.picks.has(pid)));
+  const allPicked = vote ? vote.done : !!draft.done || (draft.order.length > 0 && draft.order.every((pid) => draft.picks.has(pid)));
   const view = peek ? 'detail' : inOrder && myPick ? 'done' : open && band ? 'detail' : 'grid';
   const shownBand = peek ? gd.band(peek) : band;
-  const rows = solo ? players.filter((p) => p.playerId === myId) : draft.order.map((pid) => players.find((p) => p.playerId === pid)).filter(Boolean);
+  // (One for All: only my own card — nobody else's state or pick shows before the reveal)
+  const rows = solo || vote ? players.filter((p) => p.playerId === myId) : draft.order.map((pid) => players.find((p) => p.playerId === pid)).filter(Boolean);
 
-  const head = allPicked ? html`<div class="dturn is-done"><span class="dturn__txt"><b>${t('策略选择完成')}</b><span>${t('正在进入模拟…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>`
+  const head = vote && allPicked ? html`<div class="dturn is-done"><span class="dturn__txt"><b>${t('投票完成')}</b><span>${t('正在揭晓结果…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>` // en: "Votes are in" / "Revealing the result…"
+    : vote && myPick ? html`<div class="dturn is-done"><span class="dturn__txt"><b>${t('投票已锁定')}</b><span>${t('等待其他博士…')}</span></span><${Icon} name="lock" class="dturn__glass" /></div>` // en: "Vote locked" / "Waiting for the other Doctors…"
+    : vote && !inOrder ? html`<div class="dturn"><span class="dturn__txt"><b>ONE FOR ALL</b><span>${t('博士们正在投票…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>` // en: "The Doctors are voting…"
+    : allPicked ? html`<div class="dturn is-done"><span class="dturn__txt"><b>${t('策略选择完成')}</b><span>${t('正在进入模拟…')}</span></span><${Icon} name="hourglass" class="dturn__glass" /></div>`
     : myTurn ? html`<div class="dturn is-turn">
         <span class="dturn__go"><${Sprite} k="bandChoose/youturn_finger" class="dturn__finger" fallback=${html`<${Icon} name="chevronLeft" class="dturn__finger" />`} />
           <b>${t('请选择策略')}</b></span>
-        ${!solo ? html`<button type="button" class="draft-skip" disabled=${!canSkip || !!busy} aria-busy=${busy === 'skip' ? 'true' : undefined} onClick=${skip}
+        ${!solo && !vote ? html`<button type="button" class="draft-skip" disabled=${!canSkip || !!busy} aria-busy=${busy === 'skip' ? 'true' : undefined} onClick=${skip}
             title=${skipsLeft > 0 ? t('跳过本轮，稍后再选') : t('跳过次数已用完')}>
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 19v-5a7 7 0 0 1 7-7h7V3.5L22.5 9 17 14.5V11h-7a3 3 0 0 0-3 3v5z" /></svg>
           <span>${skipsLeft > 0 ? t('跳过选择') : t('无法跳过')}</span></button>` : null}
@@ -420,7 +474,7 @@ export function BandDraftScreen({ held = null } = {}) {
 
   // held after the draft (the server is already in BATTLE_CHECK): only to look at — 离开, 本局信息 and the 🔍 boxes would
   // open dialogs the match screen tears down a moment later
-  return html`<div class=${cx('screen draft', `draft--${view}`, held && 'is-held', head && 'has-status')} inert=${held ? true : undefined} aria-busy=${held ? 'true' : undefined}>
+  return html`<div class=${cx('screen draft', `draft--${view}`, vote && 'draft--vote', held && 'is-held', head && 'has-status')} inert=${held ? true : undefined} aria-busy=${held ? 'true' : undefined}>
     <div class="brief__bg" aria-hidden="true"></div>
     <${StepHeader} step=${2} of=${2} title=${t('选择策略')} micro="STRATEGY // BAND CHECK" pub=${clock ? { ...pub, deadline: clock.deadline } : { ...pub, deadline: 0 }}
       total=${clock ? clock.total : null} onExit=${() => setExit(true)}
@@ -433,25 +487,28 @@ export function BandDraftScreen({ held = null } = {}) {
         <div class="draft-order__rows">
           ${rows.map((p, i) => {
             const picked = draft.picks.get(p.playerId) || (p.playerId === myId ? myPick : p.bandId) || null;
-            const cur = !picked && !allPicked && (solo || draft.turnPid === p.playerId);
+            const cur = !picked && !allPicked && (solo || (vote ? myTurn : draft.turnPid === p.playerId));
             return html`<${OrderRow} key=${p.playerId} p=${p} i=${i} picked=${picked} cur=${cur} self=${p.playerId === myId}
               arts=${artOf(p)} medal=${p.playerId === myId ? myMedal : null} gd=${gd} onPeek=${peekBand} bondCall=${solo ? null : p.bondCall} />`;
           })}
         </div>
-        ${!solo ? html`<p class="draft-order__tip" data-testid="draft-tip">${draftTip({ timed, turnSeconds: turnLen, autoName: myPick ? null : autoName, selected: open && autoId === sel })}</p>` : null}
+        ${vote ? html`<${VoteCount} locked=${vote.locked} voters=${vote.voters} />` : null}
+        ${vote ? html`<p class="draft-order__tip" data-testid="draft-tip">${voteTip({ timed, autoName: autoId ? gd.band(autoId)?.name || null : null, locked: !!myPick })}</p>`
+          : !solo ? html`<p class="draft-order__tip" data-testid="draft-tip">${draftTip({ timed, turnSeconds: turnLen, autoName: myPick ? null : autoName, selected: open && autoId === sel })}</p>` : null}
       </aside>
       <i class="draft__link" aria-hidden="true"></i>
 
       ${view === 'done' ? html`<section class="draft-done" key=${myPick} aria-live="polite">
           <div class="draft-done__art"><${BandIcon} bandId=${myPick} size="xl" /></div>
           <div class="draft-done__head">
-            <span class="draft-tag">STRATEGY</span>
-            <h2 class="draft-done__title">${t('已选定策略')}</h2>
+            <span class="draft-tag">${vote ? 'MY VOTE' : 'STRATEGY'}</span>
+            <h2 class="draft-done__title">${vote ? t('已锁定投票') /* en: "Vote locked" */ : t('已选定策略')}</h2>
             <b class="draft-done__name">${gd.band(myPick)?.name || ''}</b>
           </div>
           <div class="draft-done__hp">${t('初始生命值')}<b class="num">${gd.band(myPick)?.totalHp ?? '--'}</b></div>
           ${gd.band(myPick) ? html`<${BandText} band=${gd.band(myPick)} class="draft-done__desc" />` : null}
-          <p class="draft-detail__status t-mint"><${Icon} name="check" />${t('已选择「{name}」', { name: gd.band(myPick)?.name || '' })}${!solo && !allPicked ? t('，等待其他博士') : ''}</p>
+          <p class="draft-detail__status t-mint"><${Icon} name=${vote ? 'lock' : 'check'} />${vote ? t('已投票给「{name}」', { name: gd.band(myPick)?.name || '' }) /* en: "You voted for 「{name}」" */
+            : t('已选择「{name}」', { name: gd.band(myPick)?.name || '' })}${!solo && !allPicked ? t('，等待其他博士') : ''}</p>
         </section>` : html`
         <section class="draft-grid" role="listbox" aria-label=${t('策略')}>
           ${bands.map((b, i) => {
@@ -488,7 +545,8 @@ export function BandDraftScreen({ held = null } = {}) {
             ${peek ? html`<p class="draft-detail__status"><${Icon} name="search" />${myPick === peek ? t('你选择的策略') : t('{names} 选择的策略', { names: (pickers.get(peek) || []).map((x) => shownName(x)).join('、') || t('博士') })}</p>
               <div class="draft-detail__btns"><${Button} variant="secondary" size="lg" icon="chevronLeft" onClick=${() => setPeek(null)}>${t('返回')}<//></div>`
             : html`${selTaken ? html`<p class="draft-detail__status draft-detail__status--taken"><${Icon} name="close" />${t('队友已选，请选择其他策略')}</p>`
-                : !myTurn ? html`<p class="draft-detail__status"><${Icon} name="hourglass" />${!inOrder ? t('观战中') : turnName ? t('{turnName} 正在决策…', { turnName }) : t('等待轮到你')}</p>` : null}
+                : !myTurn ? html`<p class="draft-detail__status"><${Icon} name="hourglass" />${!inOrder ? t('观战中') : vote ? t('投票已结束') /* en: "Voting has ended" */
+                  : turnName ? t('{turnName} 正在决策…', { turnName }) : t('等待轮到你')}</p>` : null}
               <div class="draft-detail__btns">
                 <${Button} variant="primary" size="lg" icon="check" class="draft-confirm" disabled=${!myTurn || !band || selTaken} loading=${busy === 'pick'} onClick=${confirm}>${selTaken ? t('已被选择') : t('确认选择')}<//>
               </div>`}

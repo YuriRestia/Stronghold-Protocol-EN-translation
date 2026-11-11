@@ -43,7 +43,7 @@ import { ResultView } from './result.js';
 import { toast, toastError } from '../ui/toasts.js';
 import {
   loadStats, peekStatsRecords, saveStats, emptyStats, importStats, exportStats, aggregateStats, countsTowardStats, selfRowOf, roundsOf, isModdedRecord,
-  recordToResult, MAX_RECORDS, FULL_KEEP, IMPORT_MAX_CHARS,
+  recordToResult, statsModeOf, MAX_RECORDS, FULL_KEEP, IMPORT_MAX_CHARS,
   trophyMedalOf, strategyBadgeIds, bondMemberChess, highestBondRecord, achievementRecords, recordVersion, recordsOfVersion, recordsOfSeason,
 } from '../ui/stats.js';
 import { t, N_ } from '../../../shared/i18n.js';
@@ -162,7 +162,7 @@ function ModdedSwitch({ agg }) {
 function ProfileBlock({ agg, gd, nickname, gems = 0 }) {
   const titles = (Array.isArray(gd.config?.titles) ? gd.config.titles : []).map((x) => ({ ...x, count: agg.titles[x.id]?.count || 0 }));
   // records whose room mode is unknown (`roomMode` null) count in the total but in neither mode row
-  const unknownMode = Math.max(0, agg.count - agg.byMode.solo.games - agg.byMode.coop.games);
+  const unknownMode = Math.max(0, agg.count - agg.byMode.solo.games - agg.byMode.coop.games - (agg.byMode.oneForAll?.games || 0));
   return html`<div class="st-overview-details">
       <div class="st-mode-summary">
         <div class="st-profile">
@@ -177,8 +177,8 @@ function ProfileBlock({ agg, gd, nickname, gems = 0 }) {
           </div>
         </div>
       <table class="st-modegrid"><tbody>
-        ${[['solo', N_('独立模拟')], ['coop', N_('联合模拟')]].map(([mode, label]) => {
-          const v = agg.byMode[mode];
+        ${[['solo', N_('独立模拟')], ['coop', N_('联合模拟')], ['oneForAll', N_('一策同心')]].map(([mode, label]) => { // en: "One for All" (fork: its own mode, Q11)
+          const v = agg.byMode[mode] || { games: 0, wins: 0, hiddenCleared: 0 };
           const metrics = [
             { value: v.games, label: N_('总模拟数') },
             { value: v.wins, label: N_('成功卫戍') },
@@ -186,7 +186,7 @@ function ProfileBlock({ agg, gd, nickname, gems = 0 }) {
           ];
           return html`<tr key=${mode} class="st-modegrid__row">
             <th scope="row" class="st-modegrid__mode">
-              <${Icon} name=${mode === 'solo' ? 'user' : 'users'} />
+              <${Icon} name=${mode === 'solo' ? 'user' : mode === 'oneForAll' ? 'link' : 'users'} />
               <span class="st-modegrid__name">${t(label)}</span>
             </th>
             ${metrics.map(({ value, label }) => html`<td key=${label} class="st-modegrid__cell">
@@ -535,7 +535,7 @@ function HistoryRow({ rec, gd, onOpen }) {
       onClick=${view ? open : undefined} onKeyDown=${view ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } } : undefined}>
     <td class="st-t">${dateTime(rec.t)}</td>
     <td>${difficultyName(rec.difficulty)}</td>
-    <td>${rec.roomMode === 'solo' ? t('单人') : rec.roomMode === 'coop' ? t('同盟') : '—'}</td>
+    <td>${statsModeOf(rec) === 'oneForAll' ? t('一策同心') /* en: "One for All" */ : rec.roomMode === 'solo' ? t('单人') : rec.roomMode === 'coop' ? t('同盟') : '—'}</td>
     <td><span class="st-band">${band ? html`<${BandIcon} bandId=${band.bandId} size="xs" />${band.name}` : self?.bandId || '—'}</span></td>
     <td class="st-res">${quit ? html`<span class="t-quit">${t('中途退出')}</span>` : html`<span class=${won ? 't-win' : 't-lose'}>${won ? t('胜') : t('负')}</span>`}
       ${!counted ? html`<em class="st-chip">${t('不计入统计')}</em>` : null}
