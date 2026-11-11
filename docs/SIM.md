@@ -664,9 +664,11 @@ and a target is found (`ai.js updateAlly`, after `skill.onAboutToAttack()`: a "n
 attack **casts**: the cooldown restarts at once (`interval`), `lastCastAt` is stamped, the targets are locked
 (`u.cast`) and `['atkCast', id, windUp, targetId]` is sent; the hit (`performAttack`: damage / heal, SP, the attack
 count, hooks, `'atk'`) lands **one wind-up later** (`allyCastTick`). Wind-up = `allyCastWindup`: the strike frame of the
-unit's attack clip × the official clip scale `clamp(interval / clipDur, 0.1, 2.5)` (`AbstractAnimatedAbility.
-UpdatePlaybackSpeed`, disassembled: `MIN_ANIM_SCALE`, `_maxAnimScale` [ASSUMED on every basic attack];
-`ALLY_ANIM_SCALE_MIN` / `_MAX`), at most the interval, rounded up to whole ticks; the clip is the data's `attackAnim`
+unit's attack clip × the official clip scale `clamp(interval / clipDur, 0.1, maxScale)` (`AbstractAnimatedAbility.
+UpdatePlaybackSpeed`, disassembled: `MIN_ANIM_SCALE` 0.1; `maxScale` = the attack ability's own `_maxAnimScale`, read
+from the client into `attackAnim.maxScale` — 1.0 on most operators, 1.1 / 1.2 / 2 on a few, −1 = no cap on 62 —;
+`ALLY_ANIM_SCALE_MAX` 2.5 only for a unit the client data lacks [ASSUMED]; the client's extra cap under an animation
+slow-down, 2.5 / `animSlowDown`, is not modelled), at most the interval, rounded up to whole ticks; the clip is the data's `attackAnim`
 (DATA.md; the default model's clip — outfits never change it). No `attackAnim` (summons the manifest lacks, the older
 versions' data, test stand-ins) = wind-up 0: the old rule, the hit as the cooldown ends. During the wind-up the cast is
 cut — no hit, `['atkCancel', id]`, the cooldown freed to 0 [ASSUMED: ResetCooldownStrategy not read] — by a stun /

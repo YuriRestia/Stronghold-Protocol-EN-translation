@@ -35,6 +35,12 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
   `npm run golden:update` in the same commit, and the commit / PR names every moved scenario and why
   ([test/golden/README.md](test/golden/README.md)).
 - **Generated data.** Never hand-edit `data/*.json`: change `tools/build-data.mjs` and regenerate.
+- **(fork) Asset manifest and pool snapshot.** A change to `data/assets.json` reruns
+  `npm run assets:pool-snapshot -- --update` in the same commit. Neither file is merged by hand: after a merge run
+  `npm run merge:generated` ([docs/ASSETS.md](docs/ASSETS.md) "Merging branches").
+- **(fork) Changelog fragments.** A branch never edits `FORK-CHANGELOG.md`: it adds one file
+  `changes/<what-it-changes>.md` ([changes/README.md](changes/README.md)); the lead folds them in on `dev-0.2` with
+  `npm run changelog`.
 - **No game art in git.** `public/assets/` is ignored; never commit extracted or downloaded game files.
 - **Interface strings** go through `t('…')`, with entries in every pack under `public/i18n/`
   (`node tools/i18n.mjs check --all --strict`).

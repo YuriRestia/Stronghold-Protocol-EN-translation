@@ -72,7 +72,7 @@ import {
   processModels, findLocalEnemyModels, findLocalTokenModels, localSpineMeta, loadLocalSpines, LOCAL_ENEMY_SPINES_FILE,
   LOCAL_TOKEN_SPINES_FILE, LOCAL_ENEMY_SPINE_DIR, LOCAL_TOKEN_SPINE_DIR,
 } from './assets/spine.mjs';
-import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
+import { collectLeaves, downloadLeaves, resolveTemplate, totalBytes, contentHash, countStats, droppedEntries, MANIFEST_VERSION } from './assets/manifest.mjs';
 import { fontJobs, buildFonts } from './assets/fonts.mjs';
 import { statsTemplateJobs } from './assets/stats-template.mjs';
 import { skelParserAvailable } from './assets/skel.mjs';
@@ -357,37 +357,6 @@ export function tidyVoiceTrees(m) {
     for (const id of Object.keys(a.voiceNativeLangType)) if (!a.voiceNative?.[id]) delete a.voiceNativeLangType[id];
     if (!Object.keys(a.voiceNativeLangType).length) delete a.voiceNativeLangType;
   }
-}
-
-function countStats(m, bytes, files) {
-  const vals = (o) => Object.values(o || {});
-  const spines = new Set();
-  for (const c of vals(m.chars)) for (const s of vals(c.spine)) spines.add(s.skel);
-  for (const e of vals(m.enemies)) if (e.spine) spines.add(e.spine.skel);
-  for (const t of vals(m.tokens)) if (t.spine) spines.add(t.spine.skel);
-  return {
-    files,
-    bytes,
-    chars: Object.keys(m.chars || {}).length,
-    charsWithBack: vals(m.chars).filter((c) => c.spine?.back).length,
-    enemies: Object.keys(m.enemies || {}).length,
-    enemiesWithSpine: vals(m.enemies).filter((e) => e.spine).length,
-    tokens: Object.keys(m.tokens || {}).length,
-    tokensWithSpine: vals(m.tokens).filter((t) => t.spine).length,
-    spineModels: spines.size,
-    bonds: Object.keys(m.bonds || {}).length,
-    items: Object.keys(m.items || {}).length,
-    bands: Object.keys(m.bands || {}).length,
-    skills: Object.keys(m.skills || {}).length,
-    modules: Object.keys(m.modules || {}).length,
-    ui: Object.keys(m.ui || {}).length,
-    sfxUnits: Object.keys(m.audio?.sfx?.units || {}).length,
-    voiceChars: Object.keys(m.audio?.voice || {}).length,
-    voiceJpChars: Object.keys(m.audio?.voiceJp || {}).length,
-    voiceEnChars: Object.keys(m.audio?.voiceEn || {}).length,
-    voiceKrChars: Object.keys(m.audio?.voiceKr || {}).length,
-    voiceNativeChars: Object.keys(m.audio?.voiceNative || {}).length,
-  };
 }
 
 /** Required assets whose absence makes the run fail (exit code 1). */
