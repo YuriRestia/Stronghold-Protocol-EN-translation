@@ -8,4 +8,4 @@
 - Lee's S3 shows its knockback burst around him on each attack.
 - Vigil's wolves now show their own bite effect, and the enemies Burning Vine and 'Hateful Avenger' show their own attack effects.
 - When the game picks one of several versions (Pepe's S3 by stacks, Vigil's wolves by pack size), the plain version shows, since the battle doesn't tell the board which one applies.
-- The effect extractor now reads these buffs on attacks (and the ones projectiles leave as they end) and records which branch of a condition each effect sits on. A relink run (`--fx-relink`) added them to the shared effect index. No new effect files were needed.
+- The effect extractor now reads these buffs on attacks (and the ones projectiles leave as they end) and records which branch of a condition each effect sits on. A relink run (`--fx-relink`) adds them to the effect index; no new effect files are needed.
