@@ -345,3 +345,27 @@ test('outside S3 a bubble levitates nobody; a bubble outlasts her leaving and st
   approx(heals(h, u, n0)[0].amount, atk * 0.28, 'her heal after she left');
   done(h);
 });
+
+test('display: each S3 levitation tick sends fx tick haruka_skill_03_attack_hit_01 on the floating enemy (haruka_s_3_debuff trigger); a bubble that breaks with a heal sends haruka_talent_02_hit on its holder (haruka_t_1_delay)', () => {
+  const { h, u } = field({ tier: 6, elite: true, skill: 2, others: [ally(2, 11, 6)] });
+  const a = h.unit(2);
+  const sent = [];
+  const fx = h.b.fx.bind(h.b);
+  h.b.fx = (kind, p) => { if (kind === 'tick') sent.push({ ...p }); return fx(kind, p); };
+  u.skill.gainSp(999);
+  h.spawn('enemy_dummy', { pos: [10, 8] });
+  assert.ok(h.runUntil(() => u.skill.active, 3), 'cast');
+  for (const x of h.b.allyUnits) h.b.removeBuff(x, BUBBLE);
+  h.b.addBuff(a, { key: BUBBLE, source: u, data: { v: 0.42, atk: u.s.atk, heal: 0, prob: 0, sp: 0, boom: false } });
+  const e = h.spawn('enemy_dummy', { pos: [12, 9] });
+  h.b.dealDamage(e, a, { amount: 50, type: 'true' });
+  const n0 = h.hooksOf('damaged').length;
+  h.run(2.2);
+  const ticks = h.hooksOf('damaged').slice(n0).filter((c) => c.target === e && c.dmg?.tags?.includes('haruka:float'));
+  const float = sent.filter((p) => p.key === 'haruka_skill_03_attack_hit_01');
+  assert.ok(ticks.length >= 2 && float.length === ticks.length, `${float.length} tick fx for ${ticks.length} ticks`);
+  assert.ok(float.every((p) => p.id === u.id && p.on === e.id && p.skill === 'haruka:s3'));
+  const heals = sent.filter((p) => p.key === 'haruka_talent_02_hit');
+  assert.ok(heals.every((p) => p.id === u.id && p.skill === 'haruka:t1'), 'a talent heal names her');
+  done(h);
+});

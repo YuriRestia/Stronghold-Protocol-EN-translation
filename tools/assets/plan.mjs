@@ -82,6 +82,20 @@ const FX_SOUND_BANKS = Object.freeze({
     'blast|oxi:heatwave': 'battle.ON_PROJECTILE_HIT.projectile_chr_oxi_s_3_heatwave',
     'overload|': 'battle.ON_CUSTOM_TRIGGER.oxi_s_3_overload',
   }),
+  // (fork) periodic tick hits (sim battle.tickFx → fx 'tick' { skill }): the PlayAudio of the official buff's trigger, or its
+  // own audio buff's trigger (锡人 S1's tinman_s_1[audio] [ASSUMED: one per tick, as S2's in its damage trigger])
+  char_450_necras: Object.freeze({ 'tick|necras:s2': 'battle.ON_CUSTOM_TRIGGER.necras_skill_dot' }),
+  char_4151_tinman: Object.freeze({
+    'tick|tinman:s1': 'battle.ON_BUFF_TRIGGER.tinman_s_1[audio]',
+    'tick|tinman:s2': 'battle.ON_CUSTOM_TRIGGER.tinman_s_2[audio]',
+  }),
+  char_1039_thorn2: Object.freeze({ 'tick|thorn2:s2': 'battle.ON_CUSTOM_TRIGGER.thorn2_s2_projectile_hit' }),
+  // 酒神 S2: her 本能的召唤's ticks run after it left; the fx names her as `src` (summons have no fxSounds table of their own)
+  char_1042_phatm2: Object.freeze({ 'tick|phatm2:s2': 'battle.ON_CUSTOM_TRIGGER.phatm2_s2_boom_damage' }),
+  char_1044_hsgma2: Object.freeze({ 'tick|hsgma2:s2': 'battle.ON_CUSTOM_TRIGGER.shield_hit' }),
+  char_4056_titi: Object.freeze({ 'tick|titi:s3': 'battle.ON_CUSTOM_TRIGGER.titi_s_3[awake]' }),
+  char_4202_haruka: Object.freeze({ 'tick|haruka:t1': 'battle.ON_CUSTOM_TRIGGER.haruka_shield_break_ally' }),
+  char_249_mlyss: Object.freeze({ 'tick|mlyss:s3': 'battle.ON_BUFF_TRIGGER.mlyss_s_3[melee_audio]' }),
   // (fork) 焰影苇草 S3 (chess_char_6_08-reed2.js): the blast of an enemy that dies with her S3 灼痕 ('scorchBurst') is
   // projectile_chr_reed2_aoe_effect's REACH (p_aoe_fireexplo_h); her outfits have no sounds of their own
   char_1020_reed2: Object.freeze({

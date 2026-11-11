@@ -198,7 +198,10 @@ export default {
             for (const e of foes) battle.addBuff(e, { key: 'thorn2:rot', duration: AURA_DUR, mods: { healingTakenMul: healMul } });
             if (z.acc >= 1 - 1e-9) {
               z.acc -= 1;
-              for (const e of foes) battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, tags: ['skill', 'alchemy'] });
+              for (const e of foes) {
+                battle.dealDamage(unit, e, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, tags: ['skill', 'alchemy'] });
+                battle.tickFx(unit, e, 'thorn2:s2');   // thorn2_s2_damage ON_BUFF_TRIGGER: thorn2_skill_hit + thorn2_s2_projectile_hit
+              }
               // (白铁's 铁钳号 too, like a ground enemy — its kit cancels the hit)
               for (const a of battle.allyTargetsInRadius(z.x, z.y, r, unit)) battle.dealDamage(unit, a, { amount: unit.s.atk * num(bb.atk_scale), type: 'arts', isSkill: true, tags: ['skill', 'alchemy'] });
               const regen = unit.s.atk * num(bb.hp_recovery_per_sec_ratio_chr);   // 生命回复速度 (see the header)

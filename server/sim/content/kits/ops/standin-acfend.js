@@ -82,7 +82,10 @@ export default {
             unit.mem.acfendStress -= STRESS_INTERVAL;
             const v = battle.blockedTargets(unit, { canHitFly: true });
             if (v.length) battle.fx('aoe', { x: unit.x, y: unit.y, id: unit.id, radius: 0.5, skill: S3 });
-            for (const e of v) battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type: 'arts', isSkill: true, tags: ['skill', 'stress'] });
+            for (const e of v) {
+              battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type: 'arts', isSkill: true, tags: ['skill', 'stress'] });
+              battle.tickFx(unit, e, 'acfend:s3');   // acfend_s_3 ON_BUFF_TRIGGER → [damage] ON_BUFF_START: acfend_skill_03_hit on the blocked enemy
+            }
           }
         },
         onEnd({ unit }) { unit.mem.acfendStress = 0; },

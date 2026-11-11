@@ -375,6 +375,7 @@ export default {
               if (!inRange) return;
               const back = Math.ceil(num(a.base.cost) * ret - 1e-9);
               if (back > 0) { battle.addDp(unit.ownerId, back); battle.fx('dp', { x: a.x, y: a.y, n: back, id: unit.id }); }
+              battle.tickFx(unit, a, 'closur:s2');   // closur_s_2[friend] ON_BUFF_TRIGGER (the refund): common_charge_cost_start_01 on the op
             }, { owner: unit });
           }
         } },

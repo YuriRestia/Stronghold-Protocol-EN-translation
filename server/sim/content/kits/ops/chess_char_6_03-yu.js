@@ -27,6 +27,7 @@ function teleportEnemy(battle, unit, e) {
   battle._unblock(e);
   if (e.route) e.route.pts = null;
   battle.fx('teleport', { x: c, y: r, id: e.id, src: unit.id });
+  battle.tickFx(unit, e, 'yu:s2');   // yu_s_2[try_tp] ON_BUFF_TRIGGER (teleported): yu_skill2_teleport_02 on the enemy
   return true;
 }
 

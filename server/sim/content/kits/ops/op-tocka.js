@@ -318,6 +318,8 @@ export default {
       }
       battle.addBuff(holder, buff);
       battle.fx('buff', { x: holder.x, y: holder.y, id: holder.id, kind: 'tocka', src: tocka.id });   // (fork) src: render/vfx FX_BINDINGS
+      // tocka_s3[trigger] ON_BUFF_START: tocka_skill_03_buff_start_02 on the holder (a row of the listener's trigger: plan 'tick')
+      if (kind === 's3') battle.tickFx(tocka, holder, 'tocka:s3', 'tocka_skill_03_buff_start_02');
       if (applied && up(tocka)) battle.addBuff(tocka, { key: SNOW_READY, tags: ['talent'] });
     }
 

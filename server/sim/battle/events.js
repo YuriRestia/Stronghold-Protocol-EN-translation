@@ -14,6 +14,18 @@ export class BattleEvents {
   }
 
   /**
+   * (fork) One tick of an official buff's periodic trigger (ON_BUFF_TRIGGER: a lasting skill's damage / heal tick), which
+   * the client otherwise never sees (a dmg / heal event names no source): fx 'tick' { id: the unit whose skill it is, on:
+   * the unit the official effect plays on, skill: the kit's tag, key?: only that effect key of the skill's tick rows }.
+   * Display only (render/vfx/skillfx.js plays the plan's 'tick' rows on `on`, also after the skill ended; audio.js
+   * fxSounds 'tick|<tag>' its sound; `src`: the unit whose sound table has it when `owner` is a summon).
+   */
+  tickFx(owner, on, skill, key = null, src = null) {
+    if (!owner || !on) return;
+    this.fx('tick', { x: on.x, y: on.y, id: owner.id, on: on.id, skill, ...(key ? { key } : {}), ...(src ? { src: src.id } : {}) });
+  }
+
+  /**
    * (fork) The official buff `buff` (the client's key: buff_template_holder, index.json uses' `buff`) on `unit` turns on
    * or off — the lasting effects of a moment the client never sees, shown while it lasts (b.snap `fxs`, snapshot.js
    * fxStateView). `src`: the unit whose skill or talent made it (default: the carrier); `look`: the official branch the

@@ -147,6 +147,7 @@ export default {
           const here = up(u);
           if (here) lastAtk = u.s.atk;
           b.dealDamage(u, tgt, { amount: lastAtk * scale, type: 'arts', canDodge: false, isSkill: true, sourceless: !here, tags: ['skill', 'dot', 'haruka:float'] });
+          b.tickFx(u, tgt, 'haruka:s3', 'haruka_skill_03_attack_hit_01');   // haruka_s_3_debuff ON_BUFF_TRIGGER (both branches)
         },
       });
       battle.fx('levitate', { x: e.x, y: e.y, id: e.id });
@@ -158,6 +159,7 @@ export default {
       if (d.heal > 0) {
         battle.heal(u, a, d.atk * d.heal);
         battle.fx('heal', { x: a.x, y: a.y, id: a.id });
+        battle.tickFx(u, a, 'haruka:t1', 'haruka_talent_02_hit');   // haruka_t_1_delay ON_BUFF_TRIGGER (a heal): + haruka_shield_break_ally
         if (d.prob > 0 && d.sp > 0 && battle.rng.chance(d.prob)) giveSp(a, d.sp);
       }
       if (skillOn(u, S1) && up(u)) {
