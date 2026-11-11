@@ -7,6 +7,14 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-11
 
+### Every skill plays its own official sounds
+
+- Skills now play their own sounds from the official audio data for every operator, not just a few picked by hand. Before, 72 skills on 66 operators made no sound of their own (Texas S2 Sword Rain, Ifrit S2, Ch'en S1, Mudrock S2 …). Now 71 of them do, and 91 of the 122 skills that were missing some of their sounds have more of them.
+- The sound files decide where each sound goes: a skill's own swing and impact play on its attacks while it runs, its cast plays when it starts (beside the activation sound when it has one), a looping sound (Ifrit S3's flamethrower) holds until the skill ends, and its end sound plays when it ends.
+- Blaze the Igniting Spark, Lemuen, Mostima and Talulah keep their hand-made sound setups.
+- 197 new sound files (5.8 MB) for the server and the preload zip.
+- Not covered yet: sounds the game plays on its own triggers inside a skill (custom triggers, check points, attack finishes), which need per-operator work.
+
 ### Lasting skill glows that only start partway through now show
 
 Many official skills light up a lasting glow only when something happens mid-fight: a charge is stored, an overload begins, an enemy dies, an ally's bubble or shield goes up. The battle never told the screen about those moments, so the glows never appeared. They now show for 23 operators, and stop when the official game stops them:

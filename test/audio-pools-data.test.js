@@ -62,14 +62,14 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 37 references: the manifest built on a local fx index that lists all 230 operators gives the older-season
   // operators their slots and files (the 5 pool-only attack sounds among them)
   // (fork) + 3 pools: 塔露拉 S3's launch, impact and overload banks (tools/assets/plan.mjs FX_SOUND_BANKS)
-  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (plan.mjs SKILL_ABILITY_SOUNDS) and the pools of
+  // (fork) + 2 references, + 4 pools: 塔露拉 S1's own swing and impact (then plan.mjs SKILL_ABILITY_SOUNDS, now tools/assets/skillSounds.mjs) and the pools of
   // those two, her S2 strike back's impact and her T2 footprint (FX_SOUND_BANKS)
   // (fork) + 2 references, + 16 pools: 莫斯提马's impact (+1; plan.mjs UNIT_SOUND_BANKS) and 蕾缪安's S1 / S2 impacts (+2;
   // SKILL_MODE_BANKS), minus 莫斯提马's S2 slot (−1: its mode is her S3's, shared/fxModes.js); the 16 pools are the official
   // banks those two operators' new sounds play on (impacts, S2 attack.2.2, FX_SOUND_BANKS, SKILL_ON_BANKS, SKILL_OFF_BANKS)
   // (fork) + 1 pool: 焰影苇草 S3's blast on a defeated enemy (FX_SOUND_BANKS: projectile_chr_reed2_aoe_effect's REACH,
   // p_aoe_fireexplo_h; an fx sound is no attack / hit reference)
-  // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
+  // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS, now skillSounds.mjs), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
   // (fork) + 4 pools: 烛煌's S3 ability end (SKILL_OFF_BANKS' second bank, ON_ABILITY_END.skchr_blaze2_3) and her talents'
@@ -83,9 +83,12 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
     // (fork) + 1 reference, + 2 pools: 水月's normal impact (UNIT_SOUND_BANKS) and her S1 charge's own impact
   // (SKILL_MODE_BANKS: skchr_mizuki_1's ON), minus her S1 slot that took S2's mode-2 impact (−1: shared/fxModes.js); her
   // S2 / S3 mode impacts moved from the swing slots to the impact slots (SKILL_MODE_BANKS, ±0)
-  assert.equal(refs, 1051);
+  // (fork) + 123 references, + 212 pools: every skill's own ability banks (tools/assets/skillSounds.mjs; effect-gaps audit 2
+  // fix #1): 73 skill swings and 50 skill impacts, and the pools of those, the new casts and the start / end sounds
+  // (skillOn / skillOff); 214 new banks, two of which the lines above register already
+  assert.equal(refs, 1174);
   assert.equal(outfitRefs, 11);
-  assert.equal(Object.keys(pools).length, 1135);
+  assert.equal(Object.keys(pools).length, 1347);
   // (fork) every sound of a kit fx (and the ones played with it: `also`) and of an attack's follow-up (attackAlso) is a
   // file of its pool's bank
   let parts = 0;
