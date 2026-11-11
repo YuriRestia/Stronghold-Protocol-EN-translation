@@ -17,7 +17,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 import { absoluteRangeKeys, extendedGrid } from '../../server/sim/targeting.js';
 import { buildBattleSpec, createBattleFromSpec } from '../../server/sim/spec.js';
@@ -185,7 +185,8 @@ test('烛煌 S3: the burst bonus is dealt BEFORE the attack\'s damage (PRTS 备�
   assert.ok(h.runUntil(() => u.skill.active, 5));
   h.b.applyStatus(main, 'burnBurst', { duration: 10 });
   h.b.applyStatus(low, 'burnBurst', { duration: 10 });
-  h.run(0.5);                                     // the attack begun on the 3-1 enemy before the immediate cast lands first
+  // (fork) her S3 cast cut the attack begun before it (the begin clip, skills.js activate): S3's own first attack is
+  // the first to land, so the window opens at once
   const mark = h.hooksOf('damaged').length;
   h.run(3);
   const ev = h.hooksOf('damaged').slice(mark).filter((c) => c.source === u);
@@ -344,7 +345,7 @@ test('audit: every selectable attack-range change attacks with the official grid
       const want = keysOf(grid, u, own ? (NO_EXTEND.has(s.skillId) ? 0 : permExt) : ext);
       if (permExt) extended++;
       if (s.skillType !== 'PASSIVE' && !/被动效果：攻击范围扩大/.test(s.desc)) {
-        assert.ok(u.skill.activate('test', { free: true }), `${tag}: cast`);
+        assert.ok(castNow(u, 'test', { free: true }), `${tag}: cast`);
         h.step();
         assert.ok(u.skill.active, `${tag}: running`);
       }
@@ -370,7 +371,7 @@ test('信仰搅拌机 SPT-Y "攻击距离+1（部分技能不受此影响）": S
     const tag = `S${skillIndex + 1} ${mid}`;
     assert.ok(sameSet(new Set(u.rangeKeys), keysOf(C[id].rangeGrid, u, plus)), `${tag}: before the cast 2-2${plus ? ' + 1' : ''}`);
     assert.ok(sameSet(new Set(u.baseRangeKeys), keysOf(C[id].rangeGrid, u, plus)), `${tag}: the initial range`);
-    assert.ok(u.skill.activate('test', { free: true }), `${tag}: cast`);
+    assert.ok(castNow(u, 'test', { free: true }), `${tag}: cast`);
     h.step();
     const want = skillIndex === 2 ? keysOf(C[id].skills[2].rangeGrid, u, 0) : keysOf(C[id].rangeGrid, u, plus);
     assert.equal(u.rangeKeys.length, want.size, `${tag}: ${want.size} tiles while it runs`);
@@ -398,7 +399,7 @@ test('S3 counter of 信仰搅拌机 with SPT-Y reaches 3-13 only: an enemy on th
   });
   const u = h.unit(id);
   h.step();
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   h.step();
   const e = h.enemy('enemy_far');
   assert.ok(!u.rangeKeySet.has(tileKey(e)), 'the +1 tile is outside S3');
@@ -413,7 +414,7 @@ test('荒芜拉普兰德 S1 慵怠者悲鸣 (no rangeId, no 攻击范围 text): 
     const h = makeBattle({ units: [{ chessId: id, row: 10, col: 5, dir: 'RIGHT', skillIndex: 0 }], autoFinish: false, timeLimit: 30 });
     const u = h.unit(id);
     h.step();
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     h.step();
     assert.ok(u.skill.active);
     assert.ok(u.rangeKeys.length > 100, 'the sim selects targets field-wide');

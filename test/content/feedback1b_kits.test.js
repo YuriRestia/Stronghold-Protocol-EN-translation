@@ -18,7 +18,7 @@ import { makeMatch, DATA } from '../match/harness.js';
 import { checkLoadout } from '../../shared/protocol.js';
 import { buildBattleSpec, createBattleFromSpec } from '../../server/sim/spec.js';
 import { COLS } from '../../server/sim/constants.js';
-import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, chessRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 
 const VINA = 'chess_char_6_07_a';
 const MLYNAR = 'chess_char_5_19_a';
@@ -357,7 +357,7 @@ test('Mlynar excludes a nested reflection kill after his attack already produced
   h.step();
   const b = h.b, u = h.unit(MLYNAR), e = h.spawn('enemy_reflector', { pos: [10, 5] });
   u.skill.gainSp(1000);
-  assert.ok(u.skill.activate('test'));
+  assert.ok(castNow(u, 'test'));
   u.atkCd = 999;
   let reflected = false, children = 0;
   b.on('damageApplied', c => { if (c.dmg.tags?.includes('item:pegasus')) children++; });

@@ -9,7 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow as castSkill } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool } from '../../shared/diy.js';
 
@@ -328,11 +328,11 @@ test('S2 意欲呼啸之心 (AUTO): at full SP the effect goes on the latest cre
   const [m1, m2] = [h.unit(2), h.unit(3)];
   assert.ok(m2.aggroSeq > m1.aggroSeq);
   m2.skill.gainSp(10, 'init');
-  assert.ok(m2.skill.activate('test') && m2.skill.active);
+  assert.ok(castSkill(m2, 'test') && m2.skill.active);
   castNow(h, u, 1);
   assert.deepEqual([m1, m2].map((x) => !!x.findBuff(eff('s2', u))), [true, false], 'uid 3 is casting');
   m1.skill.gainSp(10, 'init');
-  assert.ok(m1.skill.activate('test'));
+  assert.ok(castSkill(m1, 'test'));
   assert.ok(m1.findBuff(`tocka:s2:aspd:${u.id}`), 'uid 2 fired (its skill start)');
   h.run(5.5);
   assert.ok(!m1.skill.active && !m2.skill.active);
@@ -426,7 +426,7 @@ test('S2 effect: its holder opening its skill fires it at once (T1: her `sp` SP)
   castNow(h, u, 1);
   const sp0 = u.skill.sp;
   m.skill.gainSp(10, 'init');
-  assert.ok(m.skill.activate('test'));
+  assert.ok(castSkill(m, 'test'));
   assert.ok(!m.findBuff(eff('s2', u)) && m.findBuff(`tocka:s2:aspd:${u.id}`), '技能开启时: fired at its skill start');
   approx(u.skill.sp - sp0, t0.sp, '夜的哑然 SP');
   assert.equal(m.skill.manual, false);
@@ -506,14 +506,14 @@ test('S3 effect: at its start it goes on the ally operator of her range with the
     const [a, b, c, d] = [2, 3, 4, 5].map((id) => h.unit(id));
     // true ratios: uid 2 2 of 3 charges ≈ 0.67, uid 3 8 / 10, uid 4 9.5 / 10 (outside her range), uid 5 casting: 0
     a.skill.gainSp(20, 'init'); b.skill.gainSp(8, 'init'); c.skill.gainSp(9.5, 'init'); d.skill.gainSp(10, 'init');
-    assert.ok(d.skill.activate('test'));
+    assert.ok(castSkill(d, 'test'));
     const holder = () => h.allies().filter((x) => x.findBuff(eff('s3', u)));
     u.skill.gainSp(999, 'init');
-    assert.ok(u.skill.activate('test'));
+    assert.ok(castSkill(u, 'test'));
     assert.deepEqual(holder(), [b], `${label(f)}: uid 3 (0.8)`);
     assert.ok(u.findBuff('tocka:snow'), `${label(f)}: placed: her next attack armed`);
     b.skill.gainSp(5, 'init');
-    assert.ok(b.skill.activate('test'));
+    assert.ok(castSkill(b, 'test'));
     for (const x of [b, u]) assert.deepEqual(x.findBuff(`tocka:s3:atk:${u.id}`)?.mods, { atkPct: bb.bonus_init_atk }, `${label(f)}: uid ${x.uid} ATK +${bb.bonus_init_atk * 100} %`);
     approx(u.s.atk, u.base.atk * (1 + bb.bonus_init_atk), `${label(f)}: her ATK`);
     assert.deepEqual(holder(), [a], `${label(f)}: moved to uid 2 (0.67 > 0)`);
@@ -528,7 +528,7 @@ test('S3 effect: at its start it goes on the ally operator of her range with the
     h.runUntil(() => !u.skill.active, 25);
     assert.deepEqual(holder(), [a]);
     u.skill.gainSp(999, 'init');
-    assert.ok(u.skill.activate('test'));
+    assert.ok(castSkill(u, 'test'));
     assert.deepEqual(a.findBuff(`tocka:s3:atk:${u.id}`)?.mods, { atkPct: bb.bonus_init_atk }, `${label(f)}: fired at her S3 start`);
     // uids 3 and 5 are both full again (ratio 1): the latest created of the two (uid 3: col 5 deploys bottom row first)
     assert.deepEqual([b, d].map((x) => x.skill.spTotal / (x.skill.maxCharges * x.skill.spCost)), [1, 1]);
@@ -540,10 +540,10 @@ test('S3 effect: at its start it goes on the ally operator of her range with the
   const { h, u } = field({ skill: 2, others: [{ uid: 2, chessId: 'ally_m', row: 9, col: 5 }, { uid: 3, chessId: 'ally_m', row: 10, col: 9 }] });
   const b = h.unit(2);
   u.skill.gainSp(999, 'init');
-  u.skill.activate('test');
+  castSkill(u, 'test');
   assert.ok(b.findBuff(eff('s3', u)));
   b.skill.gainSp(10, 'init');
-  b.skill.activate('test');
+  castSkill(b, 'test');
   assert.ok(b.findBuff(`tocka:s3:atk:${u.id}`));
   assert.equal(h.allies().filter((x) => x.findBuff(eff('s3', u))).length, 0, 'uid 3 is outside her range: none left');
   done(h);

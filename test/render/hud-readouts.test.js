@@ -478,7 +478,11 @@ describe('the chain: sim → snapshot → SnapshotBuffer → UnitView', () => {
       timeLimit: 200, seed: 7,
     });
     const u = h.unit('chess_char_1_01_a');
-    assert.ok(h.runUntil(() => u.skill.active, 80));
+    // (fork) the cast plays its begin clip before the skill starts (skills.js activate); the attack that waited for it
+    // is held a little past the start, so the readout is seen with the magazine still full
+    assert.ok(h.runUntil(() => !!u.skill.starting, 80));
+    u.atkCd = u.skill.beginDur + 0.2;
+    assert.ok(h.runUntil(() => u.skill.active, 2));
     const v = new UnitView(fakeViewCtx(fake.P, { cam }), renderInfo(unitInfo(u)));
     const buffer = new SnapshotBuffer({ delay: 0 });
     const show = () => {

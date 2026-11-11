@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { rotateOffset } from '../../server/sim/dir.js';
 
 // [char, skill index, an offset (facing right) in the skill area but outside the normal range, whether the skill lists
@@ -29,7 +29,7 @@ for (const [charId, skillIndex, delta, skillRange] of CASES) {
         // Leizi's terrain flood and Hoshiguma's x-2 are symmetric; Angelina's y-4 follows her facing.
         const [dr, dc] = charId === 'char_1015_aglna2' ? rotateOffset(...delta, dir) : delta;
         h.spawn(key, { pos: [10 + dr, 5 + dc] });
-        u.skill.addCharge(1); h.step();
+        u.skill.addCharge(1); h.step(); throughBegin(h, u);
         assert.equal(u.skill.activations, 1, `${charId}/${tier}/${elite}/${dir}/${key}`);
         assert.equal(h.b.errors.length, 0); checkInvariants(h.b);
       }
@@ -61,7 +61,7 @@ test('Leizi S2 uses low-terrain reachability and permanent range extension, with
   for (const extended of [false, true]) {
     const { h, u } = field('char_1043_leizi2', 1);
     if (extended) h.b.addBuff(u, { key: 'test:range', mods: { rangeExtend: 1 }, persist: true });
-    h.spawn('flyer', { pos: [10, 9] }); u.skill.addCharge(1); h.step();
+    h.spawn('flyer', { pos: [10, 9] }); u.skill.addCharge(1); h.step(); throughBegin(h, u);
     assert.equal(u.skill.activations, extended ? 1 : 0);
   }
 });

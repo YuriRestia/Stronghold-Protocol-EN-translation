@@ -96,7 +96,7 @@ test('塑心 S2 安魂的弥撒: the partner\'s 凋亡 lands before its damage (
     const seq = [];
     const h = makeBattle({
       seed: 7, autoFinish: false, timeLimit: 60,
-      defs: { chess: { big: plain('big', { stats: { atk: 2000 } }) }, enemies: { enemy_fu: dummy('enemy_fu', { hp }) } },
+      defs: { chess: { big: plain('big', { stats: { atk: 2000 } }) }, enemies: { enemy_fu: dummy('enemy_fu', { hp: 1e7 }) } },
       units: [{ chessId: id, row: 10, col: 4, skillIndex: s2.index, carryState: { sp: 999 } }, { chessId: 'big', row: 10, col: 5 }],
       enemies: [{ key: 'enemy_fu', pos: [10, 6] }],
       setup: (b) => {
@@ -106,6 +106,12 @@ test('塑心 S2 安魂的弥撒: the partner\'s 凋亡 lands before its damage (
     });
     const u = h.unit(id), big = h.unit('big');
     assert.ok(h.runUntil(() => u.skill.active && u.mem.celloPartner === big, 5), 'S2 running, partner picked');
+    // (fork) her S2 starts after its begin clip (Skill_2_Begin, skills.js activate): the partner's swing of the first tick
+    // came before it, with no 凋亡 — the hits under test are those made while S2 runs, on the target's HP of the case
+    // (the low-HP case: that HP on the tick before the partner's next hit, so its blow is the one that kills)
+    if (hp < 1000) assert.ok(h.runUntil(() => big.atkCd > 0 && big.atkCd <= 1 / 30 + 1e-9, 3), 'the partner hits next tick');
+    seq.length = 0;
+    h.enemy('enemy_fu').hp = hp;
     assert.ok(h.runUntil(() => seq.some((x) => x[0] === 'dmg'), 10), 'the partner hits');
     const i = seq.findIndex((x) => x[0] === 'dmg');
     assert.ok(i > 0 && seq[i - 1][0] === 'el' && seq[i - 1][1] === id, `the 凋亡 (source 塑心) right before the damage: ${JSON.stringify(seq.slice(0, i + 1))}`);

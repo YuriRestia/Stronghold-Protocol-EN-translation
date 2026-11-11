@@ -1,7 +1,7 @@
 // PRTS 伤判效果 / 事件: injury observers continue after earlier dodge/block; success notifications do not.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 
 function fixture(kind) {
   const choices = {
@@ -18,7 +18,7 @@ function fixture(kind) {
     autoFinish: false });
   h.step();
   const u = h.unit('defender'), e = h.spawn('enemy_probe', { pos: [10, 8] });
-  if (!['judge', 'nianModule'].includes(kind)) assert.ok(u.skill.activate('test', { free: true }));
+  if (!['judge', 'nianModule'].includes(kind)) assert.ok(castNow(u, 'test', { free: true }));
   return { h, b: h.b, u, e };
 }
 
@@ -147,7 +147,7 @@ test('Hoshiguma alter module needs an active skill and remains active in the S3 
   u.skill.end('test');
   exchange();
   assert.equal(riders, 2, 'the trait does not add damage outside a skill');
-  assert.ok(u.skill.activate('test', { free: true }));
+  assert.ok(castNow(u, 'test', { free: true }));
   u.skill.end('manual');
   assert.ok(u.mem.hsDying);
   exchange();

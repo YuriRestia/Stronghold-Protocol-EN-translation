@@ -3,7 +3,7 @@
 // asserted with literal numbers. The last test checks that coverage.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getData } from '../../server/data.js';
 
 const D = getData({ log: { warn() {}, error() {}, info() {} } });
@@ -319,7 +319,7 @@ test('缇缇 125 + S2 封护 (GitHub #162): every 0.25 s sleep pulse of the ward
       h.step(1);
       const tt = h.unit(id);
       tt.skill.gainSp(1000);
-      assert.ok(tt.skill.activate('test'), `${id}: S2 cast`);
+      assert.ok(castNow(tt, 'test'), `${id}: S2 cast`);
       assert.equal(tt.skill.id, 'skchr_titi_2');
       return { h, tt };
     };

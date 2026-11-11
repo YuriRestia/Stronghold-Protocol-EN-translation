@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, throughBegin } from '../helpers/battleHarness.js';
 import { getDefaultSource } from '../../server/sim/simdata.js';
 
 const close = (a, b, eps, msg = '') => assert.ok(Math.abs(a - b) <= eps, `${msg} expected ${b} ± ${eps}, got ${a}`);
@@ -27,6 +27,7 @@ test('洛洛 S2 自负此轭: the data matches skill_table (lv 4 / 7), the stun 
   });
   const u = h.unit('chess_char_2_10_a');
   h.step();
+  throughBegin(h, u);
   assert.ok(u.skill.active, 'cast at once');
   h.runUntil(() => !u.skill.active, 45);
   h.step();

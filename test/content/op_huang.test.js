@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, throughBegin } from '../helpers/battleHarness.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -111,7 +111,7 @@ test('S2 链锯延伸模块 (AUTO, 持续时间无限): on as soon as its 85 / 8
     assert.deepEqual([u.skill.kind, u.skill.rule, u.skill.spCost, sk.initSp, sk.bb.atk, sk.bb.def, sk.duration], ['toggle', 'SP_FULL', elite ? 80 : 85, 0, elite ? 0.7 : 0.55, elite ? 0.2 : 0.15, -1], `T${tier}`);
     h.run(sk.spCost - 1);
     assert.equal(u.skill.activations, 0, `T${tier}: not before its SP is full`);
-    assert.ok(h.runUntil(() => u.skill.active, 2), `T${tier}: on at full SP, no enemy on the field`);
+    assert.ok(h.runUntil(() => u.skill.active, 2 + u.skill.beginDur), `T${tier}: on at full SP, no enemy on the field`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk), `T${tier}: ATK`);
     approx(u.s.def, u.base.def * (1 + sk.bb.def), `T${tier}: DEF`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `T${tier}: 2-2`);

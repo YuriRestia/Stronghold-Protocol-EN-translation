@@ -8,7 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { allyCastWindup } from '../../server/sim/ai.js';
 import { sortEnemyTargets } from '../../server/sim/targeting.js';
@@ -232,7 +232,7 @@ test('S3 “明灭” (MANUAL, DEFAULT): 15 s, interval 1.25 + 0.5 s, ATK / DEF 
     assert.deepEqual(sortEnemyTargets(h.b, u, [eliteE, normal], null).map((e) => e.defId), ['enemy_dummy', 'enemy_elite'], `T${tier}: her usual order takes the one nearer the goal`);
     assert.deepEqual(sortEnemyTargets(h.b, u, [normal, eliteE], 'elite').map((e) => e.defId), ['enemy_elite', 'enemy_dummy'], `T${tier}: the 'elite' priority (targeting.js)`);
     u.skill.gainSp(999);
-    u.skill.activate('test');
+    castNow(u, 'test');
     approx(u.skill.timeLeft, 25, `T${tier}: 持续时间延长至25秒`, 0.01);
     assert.deepEqual(u.liveRangeGrid, RANGE_3_2, `T${tier}: 3-2 while it runs`);
     const n1 = atkHits(h, u).length;
@@ -246,7 +246,7 @@ test('S3 “明灭” (MANUAL, DEFAULT): 15 s, interval 1.25 + 0.5 s, ATK / DEF 
     h.b.redeploy(u);
     h.step();
     u.skill.gainSp(999);
-    u.skill.activate('test');
+    castNow(u, 'test');
     assert.deepEqual([Math.round(u.skill.timeLeft), u.liveRangeGrid], [15, [[0, 0], [0, 1]]], `T${tier}: the first cast of the new deployment`);
     done(h);
   }
@@ -292,7 +292,7 @@ test('T2 散华: hits on elite / leader enemies give a 护盾 layer at 20 % (AFT
     const { h, u } = field({ tier, elite, mod, skill: s3 ? 2 : 1, seed: 21 });
     if (!s3) h.b.on('spGain', (c) => { if (c.unit === u) c.amount = 0; });
     const el = h.spawn('enemy_elite', { pos: [10, 6] });
-    if (s3) { u.skill.gainSp(999); u.skill.activate('test'); u.skill.extend(600); }
+    if (s3) { u.skill.gainSp(999); castNow(u, 'test'); u.skill.extend(600); }
     let gains = 0, rolls = 0;
     const cap = mod === AFTY && tier === 6 ? 2 : 1;
     h.b.on('damaged', (c) => {

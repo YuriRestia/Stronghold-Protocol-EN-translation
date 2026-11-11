@@ -1,7 +1,7 @@
 // PRTS 逻各斯 / 游戏数据基础: cancellation immunity preserves attempts and partial barrier reduction.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { dealDamage, cancelDamage } from '../../server/sim/attack.js';
 
 function fixture() {
@@ -135,7 +135,7 @@ for (const kind of ['count', 'full', 'partial', 'special-hp']) {
     const shield = e.findBuff('shield'), seen = [];
     b.rng = Object.assign(() => 0, b.rng);
     b.on('damageApplied', c => { if (c.target === e && c.dmg.tags.includes('execute')) seen.push(c); });
-    assert.ok(u.skill.activate('test', { free: true }));
+    assert.ok(castNow(u, 'test', { free: true }));
     u.atkCd = 999;
     h.step();
     assert.equal(seen.length, 1);
@@ -163,7 +163,7 @@ for (const charId of ['char_4138_narant', 'char_1502_crosly', 'char_4132_ascln']
       defs: { enemies: { enemy_probe: enemyRec({ key: 'enemy_probe', hp: 10000, speed: 0, atk: 0, def: 0, res: 0 }) } } });
     h.step();
     const b = h.b, u = h.unit('operator'), e = h.spawn('enemy_probe', { pos: [10, 6] });
-    if (charId !== 'char_4138_narant' && !u.skill.active) assert.ok(u.skill.activate('test', { free: true }));
+    if (charId !== 'char_4138_narant' && !u.skill.active) assert.ok(castNow(u, 'test', { free: true }));
     u.hp = u.s.maxHp / 2;
     let rolls = 0;
     b.rng = Object.assign(() => { rolls++; return 0; }, b.rng);

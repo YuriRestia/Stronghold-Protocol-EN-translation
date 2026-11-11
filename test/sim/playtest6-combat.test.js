@@ -18,7 +18,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { makeBattle, chessRec, enemyRec, checkInvariants, castNow } from '../helpers/battleHarness.js';
 import { getDefaultSource, hasGeneratedData } from '../../server/sim/simdata.js';
 import { effectiveProfile } from '../../server/sim/ai.js';
 import { PUSH_TILES, PUSH_TILES_EFFECT, PULL_STOP_RADIUS, ASPD_MIN, COLS } from '../../server/sim/constants.js';
@@ -212,7 +212,7 @@ test('#17 skills that pick their own targets keep the enemy the operator blocks 
       assert.ok(h.runUntil(() => E()?.blockedBy === F, 40), `${name}: blocks the walker`);
       const e = E();
       h.step(30);
-      if (!F.skill.active) F.skill.activate('manual', { free: true });
+      if (!F.skill.active) castNow(F, 'manual', { free: true });
       assert.ok(F.skill.active && F.skill.id === skillId, `${name}: ${skillId} on`);
       const t0 = h.b.time;
       let outside = true;
@@ -423,7 +423,7 @@ test('#14 锏 S3 归于宁静 slashes air units and pulls a non-static one (PRTS
   assert.equal(u.skill.id, 'skchr_blkkgt_3');
   const fly = h.b.enemies.find((x) => x.defId === 'enemy_fly'), near = h.b.enemies.find((x) => x.defId === 'enemy_near');
   assert.ok(fly.isFlying);
-  assert.ok(u.skill.activate('test', { free: true }), 'S3 on');
+  assert.ok(castNow(u, 'test', { free: true }), 'S3 on');
   h.run(4.5);
   const slashes = h.hooksOf('damaged').filter((c) => c.source === u && c.target === fly && c.dmg?.isSkill).length;
   assert.ok(slashes >= 10, `the flyer is slashed (${slashes} skill hits)`);
@@ -469,7 +469,7 @@ test('#14 流形 S3 pulse: the enemy a melee copy blocks is not pulled (so not r
     assert.ok(h.runUntil(() => E()?.blockedBy === tok(), 30), 'blocked by the copy');
     const u = h.unit('chess_char_6_11_a');
     assert.equal(u.skill.id, 'skchr_mlyss_3');
-    assert.ok(u.skill.activate('test', { free: true }), 'S3 on');
+    assert.ok(castNow(u, 'test', { free: true }), 'S3 on');
     const e = E(), x0 = e.x, y0 = e.y;
     let stunned = 0, released = 0;
     for (let i = 0; i < 30 * 6; i++) { h.step(); if (e.s.flags.stun) stunned++; if (e.blockedBy !== tok()) released++; }
@@ -598,7 +598,7 @@ test('#18 孤立 in every ally selection: 刺玫\'s 荆藤庇荫 picks the opera
   assert.ok(h.b.relocate(y, 10, 5), '炎佑 inside her range');
   assert.ok(y.s.maxHp > op.s.maxHp);
   assert.deepEqual(alliesInGridOf(h.b, cm).filter((a) => a !== cm), [op], 'the range selection skips 炎佑');
-  assert.ok(cm.skill.activate('test', { free: true }), 'skill on');
+  assert.ok(castNow(cm, 'test', { free: true }), 'skill on');
   assert.equal(cm.mem.protege, op, 'protégé = the operator');
   assert.ok(!y.buffs.some((b) => b.key.startsWith('vendla')), '炎佑 not taunted');
   assert.equal(h.b.allySelectable(y, cm), false);
