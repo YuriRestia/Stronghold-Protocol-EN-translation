@@ -21,6 +21,8 @@
 //   s.simFx(kind, x, y, extra)   a kit 'fx' tuple the official layer stands for (true: the procedural one is skipped)
 //   s.auraHit(v, claimed)        b.ev 'dmg' (HP) no attack owns: a hit of an enemy aura's tick of this frame (true: drawn)
 //   s.bindsReached(src, proj)    a skill binding of the shooter's places the projectile's reached effects (FxWiring._arrive)
+//   s.idleOff(v)                 (fork) the idle buffs a unit's talents must hide now: its skill's plan.idle `talent`
+//                                entries' while the skill is on (render/vfx/talentfx.js sync)
 //   s.keys(views)                every key to preload; s.clear()
 //
 // What plays when (skills.js header for the roles and signals):
@@ -475,6 +477,10 @@ export class SkillFx {
     if (was) this._endCast(U, v);
     this._stopLoops(U);
     for (const e of uniq(U.plan.end)) this._keep(U, e, this._play(e, v));
+    // (fork) the buffs the end creates (skills.js `after`, `idle`): a LIMITED one loops its own time on the owner
+    // (index `made`: char_1026_gvial2 S3's bleed, our record's final_duration); the idle loops come back (_idle)
+    for (const e of uniq(U.plan.after)) this._targetLoop(U, { ...e, life: e.made }, v);
+    if (was) U.ended = true;
     return U.drawsStart;
   }
 
@@ -754,6 +760,7 @@ export class SkillFx {
     U.passiveShots = false;
     U.passiveDone = false;
     U.on = null;
+    U.ended = false;
   }
 
   /** The status wiring draws `key` on v from now on: a skill's target loop of the same key hands over (never twice). */
@@ -1003,7 +1010,7 @@ export class SkillFx {
       if (!U) continue;
       U.seen = sweep;
       const up = v.alive !== false && !v.destroyed && !v.down;
-      if (!up) { if (U.loopsOn || U.readyOn || U.passiveOn || U.energy || U.ewin) this._releaseU(U); continue; }
+      if (!up) { if (U.loopsOn || U.readyOn || U.passiveOn || U.energy || U.ewin || U.idle?.size) this._releaseU(U); continue; }
       if (U.enemy.length) {
         // an enemy's skill window: the snapshot's anim SKILL (the sim's 0.5 s after an ability fires); with no 'cast'
         // slot event, an enemy whose data record has a single skill opens that skill's window on it [ASSUMED]
@@ -1038,6 +1045,7 @@ export class SkillFx {
       }
       if (U.charge) this._charge(U, v, Array.isArray(v.energy) ? Math.max(0, Math.floor(Number(v.energy[0]) || 0)) : 0);
       if (U.plan?.cond?.length) this._cond(U, v);
+      if (U.plan?.idle?.length) this._idle(U, v);
       U.quiet = false;
     }
     for (const U of this.units.values()) {
@@ -1149,9 +1157,37 @@ export class SkillFx {
   }
 
   _stopCond(U) {
+    if (U.idle) { for (const t of U.idle.values()) t.h.stop(); U.idle.clear(); }
     if (!U.cond) return;
     for (const t of U.cond.values()) t.h.stop();
     U.cond.clear();
+  }
+
+  /**
+   * (fork) The skill's idle loops (skills.js plan.idle, afterIdle): on while the skill is off — from the deploy when the
+   * skill's passive copy gave it then (`deploy`: char_4212_nasti S1), else from its first end —, gone while it is on, as
+   * the client's buff that the start finishes and the end creates again. A unit ability's copy (`talent`) is TalentFx's.
+   */
+  _idle(U, v) {
+    const off = !this._on(U);
+    const want = new Map();
+    if (off) for (const e of U.plan.idle) if (!e.talent && (e.deploy || U.ended)) want.set(e.key, e);
+    const map = U.idle || (U.idle = new Map());
+    for (const [k, t] of map) if (!want.has(k) || (!t.h.alive && t.e.loop)) { if (!want.has(k)) t.h.stop(); map.delete(k); }
+    for (const [k, e] of want) {
+      if (map.has(k)) continue;
+      const h = this.w.playOn(this._key(e, v) || k, v, { follow: true, loop: e.loop !== false, important: true });
+      if (h) map.set(k, { h, e });
+    }
+  }
+
+  /** (fork) The idle buffs v's talents hide now (module header): its skill's `talent` idle entries while it is on. */
+  idleOff(v) {
+    const U = this.units.get(idOf(v));
+    if (!U?.plan?.idle?.length || !this._on(U)) return null;
+    const out = new Set();
+    for (const e of U.plan.idle) if (e.talent && e.made?.buff) out.add(e.made.buff);
+    return out.size ? out : null;
   }
 
   // ---- kit fx -----------------------------------------------------------------------------------------------------

@@ -327,6 +327,27 @@ print(json.dumps(fx.merge_added(old, new)))`);
     assert.ok(out.gone_from_new && out.s2, 'records only in one of them stay');
   });
 
+  test('(fork) graph_made_buffs / template_uses `made`: a created buff\'s own life; `until: start` when the start finishes it; a relink adds it', () => {
+    const out = py(`${EK}
+def node(t, **kw): return dict({'$type': 'Torappu.Battle.Action.Nodes+' + t + ', Assembly-CSharp'}, **kw)
+start = json.dumps([node('FinishBuffsById', _buffKey='x_a[idle]')])
+finish = json.dumps([node('CreateBuff', _buff={'buffKey': 'x_a[idle]', 'templateKey': 'empty', 'overrideEffectKey': 'x_hit', 'lifeTimeType': 'INFINITY'}),
+                     node('CreateBuff', _buff={'buffKey': 'x_b[bleed]', 'templateKey': 'empty', 'overrideEffectKey': 'x_skill_buff', 'lifeTimeType': 'LIMITED',
+                                               'durationKey': 'final_duration'})])
+made = [fx.graph_made_buffs(start, ek), fx.graph_made_buffs(finish, ek)]
+tpl = {'effect': None, 'graph': [['ON_BUFF_FINISH', 'CreateBuff', 'overrideEffectKey', 'x_hit'], ['ON_BUFF_FINISH', 'CreateBuff', 'overrideEffectKey', 'x_skill_buff']],
+       'made': {'ON_BUFF_FINISH|' + k: v for k, v in made[1][0].items()}, 'finishes': [['ON_BUFF_START', 'x_a[idle]']]}
+uses = fx.template_uses('x_s', tpl, 'owner', 'x_s')
+old = {'s': {'uses': [{'role': 'loop', 'keys': ['x_hit'], 'event': 'ON_BUFF_FINISH', 'from': 't', 'life': {'type': 'LIMITED'}}]}}
+new = {'s': {'uses': [{'role': 'loop', 'keys': ['x_hit'], 'event': 'ON_BUFF_FINISH', 'from': 't', 'life': {'type': 'X'}, 'made': {'type': 'INFINITY'}}]}}
+print(json.dumps([made, [u.get('made') for u in uses], fx.merge_added(old, new)['s']['uses']]))`);
+    assert.deepEqual(out[0], [[{}, ['x_a[idle]']], [{ x_hit: { type: 'INFINITY', buff: 'x_a[idle]' },
+      x_skill_buff: { type: 'LIMITED', key: 'final_duration', buff: 'x_b[bleed]' } }, []]]);
+    assert.deepEqual(out[1], [{ type: 'INFINITY', buff: 'x_a[idle]', until: 'start' }, { type: 'LIMITED', key: 'final_duration', buff: 'x_b[bleed]' }]);
+    assert.deepEqual(out[2], [{ role: 'loop', keys: ['x_hit'], event: 'ON_BUFF_FINISH', from: 't', life: { type: 'LIMITED' }, made: { type: 'INFINITY' } }],
+      'a relink adds `made` to the same use and keeps its earlier life');
+  });
+
   test('(fork) behaviour_uses: buffs named by key, buffs of a serialized action graph, and the templates a template creates', () => {
     const out = py(`${EK}
 tpl = {'x_s2[trigger]': {'effect': None, 'graph': [['ON_BUFF_START', 'CreateEffect', '_effectKey', 'x_tpl_start']], 'creates': ['x_s2[child]'],
