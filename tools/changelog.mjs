@@ -34,14 +34,8 @@ const realDate = (s) => { const d = new Date(`${s}T00:00:00Z`); return !Number.i
  * add a fragment written after 2026-11-11 here.
  */
 export const PRE_RULE_UNMEASURED = Object.freeze([
-  // the audit of the fragments on dev-0.2 at the rule's start (tools/server-cost-check.mjs over each one's merge):
-  'grand-alliance-squad-moves.md', // server/lobby.js, shared/protocol.js
-  'host-bots-play-ioleta-adaptive.md', // server/index.js, server/match/Match.js
+  // the audit at the rule's start (tools/server-cost-check.mjs over each one's merge); the others are measured since
   'load-tolerant-script-and-studio-check-tests.md', // server/studio/
-  'periodic-tick-hit-effects.md', // server/sim/ (battle events, kits)
-  'skill-start-animations.md', // server/sim/ai.js, simdata.js, skills.js
-  'summon-and-talent-effects.md', // server/sim/ kits
-  'target-mark-effects.md', // server/sim/ (fx states, kits)
 ]);
 
 /** What a numeric `Server cost:` block must state, each as [label, test]. */
