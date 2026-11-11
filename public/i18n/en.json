@@ -2729,5 +2729,9 @@
   "时装数据仍在载入，请稍候再导入": "Outfit data is still loading: try the import again in a moment",
   "展开": "Expanded",
   "卡片显示": "Card display",
-  "只显示卡片与其技能 / 模组按钮": "Show only the cards with their skill / module buttons"
+  "只显示卡片与其技能 / 模组按钮": "Show only the cards with their skill / module buttons",
+  "一策同心": "One for All",
+  "自由选择": "Free pick",
+  "一策同心：所有博士同时秘密投票选择策略，得票最多的策略由全体使用。": "One for All: every Doctor votes for a strategy at once, in secret, and the most-voted one goes to everyone.",
+  "也可加入一策同心房间": "Include One for All rooms"
 }
