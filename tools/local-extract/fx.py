@@ -2094,6 +2094,24 @@ def template_owned(tkey, owners, refs=()):
     return (own is not None and own in owners) or tkey in refs or str(tkey or '').split('[', 1)[0] in refs
 
 
+def graph_made_buffs(state, ek):
+    """(fork) The buffs an action graph creates and finishes itself: ({effect key: the created buff's life (buff_life,
+    with its `buff` key)} — a CreateBuff node's own BuffData, whose life is not its parent's: char_1026_gvial2 S3's
+    gvial2_s_3[final_bleed], LIMITED `final_duration`, made at ON_BUFF_FINISH —, [buff keys of its FinishBuffsById
+    nodes]). Its effect key: the BuffData's overrideEffectKey (the empty template's own effect is none)."""
+    made, finishes = {}, []
+    for typ, n in graph_nodes(state):
+        if typ == 'FinishBuffsById' and isinstance(n.get('_buffKey'), str) and n['_buffKey']:
+            finishes.append(n['_buffKey'])
+        b = n.get('_buff')
+        if typ.startswith('CreateBuff') and isinstance(b, dict) and isinstance(b.get('overrideEffectKey'), str):
+            key = ek(b['overrideEffectKey']) if b['overrideEffectKey'] else None
+            life = buff_life(b)
+            if key and life:
+                made.setdefault(key, {**life, **({'buff': b['buffKey']} if b.get('buffKey') else {})})
+    return made, finishes
+
+
 def graph_links(state):
     """What an action graph does to abilities, modes and buffs (v3): (abilities: [[action type, ability name | None (the
     buff's blackboard `ability_name`), 'cast' | 'stop']…] — TRIGGER_ACTION / STOP_ACTION nodes, switches: [[mode index |
@@ -2133,8 +2151,19 @@ def template_uses(tkey, template, on, buff, templates=None, seen=()):
             role = 'range'
         if on == 'targets' and role == 'start':
             role = 'hit'
-        uses.append({'role': role, 'keys': [key], 'from': f'template {tkey}', 'event': event, 'action': typ,
-                     **({'on': on} if on else {}), 'buff': buff})
+        u = {'role': role, 'keys': [key], 'from': f'template {tkey}', 'event': event, 'action': typ,
+             **({'on': on} if on else {}), 'buff': buff}
+        # (fork) a buff this graph creates carries its own life (`made`; graph_made_buffs) — the use's `life` stays its
+        # parent's; `until: 'start'`: the template's own start finishes it again (FinishBuffsById at a start event:
+        # char_1046_sbell2's sbell2_s[idle_effect], char_4212_nasti S1's nasti_s1[effect_manager] — idle loops made at
+        # ON_BUFF_FINISH that the next cast removes)
+        made = (template.get('made') or {}).get(f'{event}|{key}') if typ.startswith('CreateBuff') else None
+        if made:
+            mb = made.get('buff')
+            if mb and any(f == mb and BUFF_EVENT_ROLES.get(ev) == 'start' for ev, f in template.get('finishes') or []):
+                made = {**made, 'until': 'start'}
+            u['made'] = made
+        uses.append(u)
     if templates and len(seen) < 3:
         for c in template.get('creates') or []:
             if c in seen or c == tkey or c not in templates:
@@ -2283,7 +2312,8 @@ def use_sig(u):
 
 def merge_added(old, new):
     """(fork) A relink's records (--fx-relink): the earlier `old` as it was, plus what the new crawl adds — records and
-    fields it lacks, uses it does not have (use_sig; a record's `roles` / `effects` then follow its uses), new list
+    fields it lacks, uses it does not have (use_sig; a record's `roles` / `effects` then follow its uses) and the fields
+    a use both have lacks in `old`, new list
     entries (abilities matched by `node`); a value both have keeps the earlier one. So a relink only adds links: what an
     extractor change since the earlier run would alter in an existing record stays for a full run to decide."""
     if isinstance(old, dict) and isinstance(new, dict):
@@ -2293,7 +2323,14 @@ def merge_added(old, new):
         if isinstance(out.get('uses'), list) and isinstance(old.get('uses'), list):
             have = {use_sig(u) for u in old['uses']}
             added = [u for u in new.get('uses') or [] if isinstance(u, dict) and use_sig(u) not in have]
-            out['uses'] = old['uses'] + added
+            # a use both have gains the fields it lacks (a created buff's `made`, graph_made_buffs); its own stay
+            fresh = {}
+            for u in new.get('uses') or []:
+                if isinstance(u, dict):
+                    fresh.setdefault(use_sig(u), u)
+            kept = [{**u, **{k: v for k, v in fresh[use_sig(u)].items() if k not in u}}
+                    if isinstance(u, dict) and use_sig(u) in fresh else u for u in old['uses']]
+            out['uses'] = kept + added
             if added and 'roles' in out:
                 out['roles'] = roles_of(out['uses'])
             if added and isinstance(out.get('effects'), list):
@@ -2686,11 +2723,16 @@ def buff_templates(env, ek):
                 if not isinstance(t, dict) or not t.get('templateKey'):
                     continue
                 graph, abilities, switches, creates, shots, made_at = [], [], [], [], [], {}
+                made, finishes = {}, []
                 for it in ((t.get('eventToActions') or {}).get('_items') or []):
                     ev = event_name(BUFF_EVENTS, it.get('key')) or it.get('key')
                     state = (it.get('value') or {}).get('SerializedState')
                     for typ, field, key in graph_effects(state, ek):
                         graph.append([ev, typ, field, key])
+                    m, f = graph_made_buffs(state, ek)
+                    for k, life in m.items():
+                        made.setdefault(f'{ev}|{k}', life)
+                    finishes += [[ev, b] for b in f]
                     ab, sw, cr = graph_links(state)
                     abilities += [[ev] + x for x in ab]
                     switches += [[ev] + x for x in sw]
@@ -2703,7 +2745,9 @@ def buff_templates(env, ek):
                     out[t['templateKey']] = {'effect': effect, 'graph': graph, **({'abilities': abilities} if abilities else {}),
                                              **({'switches': switches} if switches else {}),
                                              **({'creates': creates, 'createdAt': made_at} if creates else {}),
-                                             **({'projectiles': shots} if shots else {})}
+                                             **({'projectiles': shots} if shots else {}),
+                                   **({'made': made} if made else {}),
+                                   **({'finishes': finishes} if finishes else {})}
     return out
 
 

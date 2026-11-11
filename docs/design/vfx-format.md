@@ -706,7 +706,8 @@ Semantics below are read from the field names, the data and the client's type, f
   (its owner holds it: the effect moves with the unit — §33.16 Placement; **assumed** from the client's names
   `ParticleEffect.holdByOwner`, `Entity.m_holdEffects`, `CreateEffectHoldBySource(…, setAsParent)`: 1 on the attack
   starts, buffs and statuses, 0 on the hits and ground ranges), `_overwriteHeight` / `_heightOffset` (place at this height),
-  `_usePlaybackSpeed` / `_limitedPlaybackSpeed` (follow the owner's attack speed, capped), `_preloadCnt` (pool size
+  `_usePlaybackSpeed` / `_limitedPlaybackSpeed` (follow the owner's ability's playback speed, capped at the limit ÷ the
+  battle speed, −1 = no cap; render/vfx/effect.js `Effect.setPlayback`), `_preloadCnt` (pool size
   hint), `_allowAutoReuse`, `_disableBattleEffectShrink`, `_ignoredByParticleEffectManager`, `_toggleMeshRendererWhenPause`.
 * An effect is finished when every non-looping system has ended and has no live particle (and its clips have ended);
   looping effects run until the game stops them (a status ends, a skill ends, a projectile arrives).
@@ -1458,7 +1459,22 @@ index.json — version 1 and the version 2 fields (§33.12, §33.15; Phase 3c) �
   the skill on and cast with every charge stored (the kit's start fx says `charged`) → full + half sand armour; on →
   the half one (S3: its two halves); off with 2 charges stored → full + half; with 1 → the idle half (`_buff_01`); none
   below. The stored charges come from b.snap `charges` (sim `snapshot.js chargeView`, display only). Other
-  `[eff_cond]` templates stay unmapped 'conditional'.
+  `[eff_cond]` templates stay unmapped 'conditional' unless the sim signals them (state buffs, below).
+* **State buffs** (fork, effect gaps audit 2 item 4; `skills.js STATE_BUFFS`, `stateEntries`, plan `state`;
+  `skillfx.js _states`): a buff template action at a moment the client never sees (unmapped 'conditional': a condition
+  checked every tick, a would-die, a kill, a fired trigger effect) whose buff the sim signals in b.snap `fxs`
+  [[carrier, buff, src, look]] goes to plan `state` (hold 'state', at 'carrier'). Each frame the client holds, on each
+  carrier, the entries of that buff from `src`'s plan (null: its own): a looping prefab loops (restarted if its handle
+  died), any other plays once per row; a row gone stops them, and so does the carrier's death. STATE_BUFFS names the
+  buffs the sim signals — `true` (all its entries), `looks` (the keys each official branch keeps: a charge count, a
+  stack cap, half / full), `byFacing` (the side picked by the carrier's facing: the sim keeps none) or `keys` (a subset).
+  The graphs are read from config/buff_template_holder.ab (client of 2026-10-15). 23 of the audit's 24 operators: Horn
+  S2 / S3, Leizi the Thunderbringer S1, Ascalon S2, Тоска S1–S3, Lumen S2, Mon3tr S1, Haruka (S1's bubble), Philae S2,
+  Minimalist S2, Schwarz, Vulpisfoglia S3, Gnosis S2, Civilight Eterna S2, Executor the Ex Foedere S3, Muelsyse S3,
+  Ch'en the Holungday S2, Ch'en the Dawnstreak S2, Angelina the Mellow Wish S3, Silence the Paradigmatic S3, Bellone,
+  Caper S1, Nearl the Radiant Knight S3, Lessing S2. Open: SilverAsh the Reignfrost S3's eagle (`svash2_eagle_fly_01`
+  lands on the card its graph names by uid — no sim counterpart). [ASSUMED]: Caper S1's ratio (the template's
+  `_spRatio` is 0: the strike ready), Nearl the Radiant Knight S3's card buff (不畏苦暗's combo).
 * **The procedural looks the official layer stands for** (round 46, the official-effects audit's R10 / R11; history
   §32.14.44). With 官方特效 on and the effects installed — never with the layer off or a lite install without them:
   - A skill whose official plan has no cast rows (no start, loop or range row, no attack cast / range row: 赫默 S2,
@@ -1674,6 +1690,13 @@ lasts what its ability gives it, *assumed*: the skill), INFINITY (until removed:
 aura, the skill ends), CUSTOM; `db` = `loadFromDB` (the client's buff table may replace these; 2 uses); `tick` =
 `triggerInterval` (the period of its ON_BUFF_TRIGGER actions — the ticks no client event reports). The templates have
 no life of their own (Torappu.Battle.BuffTemplate: `templateKey`, `effectKey`, `eventToActions`, `onEventPriority`).
+(fork) A use a template action's CreateBuff makes also has `made` = the created buff's own life (`{ type, time?, key?,
+buff, until? }` — `life` stays its parent's): `buff` its buffKey, `until: 'start'` when the template's own start
+finishes that buff again (FinishBuffsById). The client plays a loop made at the skill's end (ON_BUFF_FINISH) from
+there: a LIMITED one for its time (`after`: char_1026_gvial2 S3's bleed, `final_duration`), an `until: 'start'` one
+while the skill is off (`idle`: char_1046_sbell2's and char_4212_nasti S1's idle loops — the same buff's passive copy
+starts it at the deploy and the skill hides it); any other stays unmapped `after-end`. A relink (`--fx-relink`) adds
+`made` to the uses an earlier run wrote.
 
 **Group choice.** `select` on a group ability (mode attacks, sub-abilities, skills' and talents' abilities): `{ method,
 probKeys?, diffFromLast?, allAtLeastOnce?, loop?, main?, burst? }` — `random` / `loop` (*metadata*

@@ -88,13 +88,15 @@ export function bankPool(bank) {
  *   mixOf: (paths: string[]|null|undefined) => ({ p?: number, vol?: number }|null),
  *   poolOf: (paths: string[]|null|undefined) => (ReturnType<typeof bankPool>|null),
  *   weightsOf: (paths: string[]|null|undefined) => (number[]|null),
- *   groupOf: (paths: string[]|null|undefined) => (string|null) }}
+ *   groupOf: (paths: string[]|null|undefined) => (string|null), loopOf: (paths: string[]|null|undefined) => boolean,
+ *   namesWith: (prefix: string) => string[] }}
  */
 export function indexAudio(audioData) {
   const banks = new Map();
   const mixes = new WeakMap(); // a bank's path list (the very array every lookup hands out) → bankMix
   const pools = new WeakMap();
   const weights = new WeakMap(); // a bank's path list → each file's draw weight (same order)
+  const loops = new WeakSet(); // (fork) a bank's path list whose bank loops (`loop: true`: 伊芙利特 S3's flamethrower)
   for (const b of Array.isArray(audioData?.soundFXBanks) ? audioData.soundFXBanks : []) {
     if (!b || typeof b.name !== 'string') continue;
     const sounds = Array.isArray(b.sounds) ? b.sounds : [];
@@ -111,6 +113,7 @@ export function indexAudio(audioData) {
     }
     if (list.length && !mixes.has(list)) { const m = bankMix(b.sounds, list[0]); if (m) mixes.set(list, m); }
     if (list.length && !pools.has(list)) pools.set(list, bankPool(b));
+    if (list.length && b.loop === true) loops.add(list);
   }
   const alias = audioData?.bankAlias && typeof audioData.bankAlias === 'object' ? audioData.bankAlias : {};
   const bank = (name, depth = 0) => {
@@ -148,7 +151,11 @@ export function indexAudio(audioData) {
   const weightsOf = (paths) => (paths && typeof paths === 'object' && weights.get(paths)) || null;
   // (fork) a bank's official mixer group (customMixerGroup), or null
   const groupOf = (paths) => poolOf(paths)?.group ?? null;
-  return { bank, bgm, unitBanks, skillBanks, skinBanks, mixOf, poolOf, weightsOf, groupOf };
+  // (fork) whether a bank loops until it is stopped (its official `loop`)
+  const loopOf = (paths) => !!(paths && typeof paths === 'object' && loops.has(paths));
+  // (fork) every bank name (trimmed) that starts with a prefix, sorted (a skill's sub-abilities: skchr_texas2_3.2)
+  const namesWith = (prefix) => [...banks.keys()].filter((n) => n.trim().startsWith(prefix) && banks.get(n).length).sort();
+  return { bank, bgm, unitBanks, skillBanks, skinBanks, mixOf, poolOf, weightsOf, groupOf, loopOf, namesWith };
 }
 
 /** An outfit's token in a bank name: '_sanrio#2' / '.iteration#2' (then '.', '_', '[', '@' or the end). */
@@ -213,6 +220,7 @@ export function outfitAudioView(audio, charId, token) {
     poolOf: (paths) => audio.poolOf(tr(paths)),
     weightsOf: (paths) => audio.weightsOf(tr(paths)),
     groupOf: (paths) => audio.groupOf(tr(paths)),
+    loopOf: (paths) => audio.loopOf(tr(paths)),
   };
   return { audio: view, tr, replaced: twin.size, added: [...added.keys()] };
 }

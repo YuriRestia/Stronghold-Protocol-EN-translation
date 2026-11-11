@@ -9,6 +9,9 @@ import { validateC2S } from '../shared/protocol.js';
 import { ERR } from '../shared/constants.js';
 
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// (fork) A test that checks something BEFORE the ACK deadline runs on mocked timers: a real pause(40) on a loaded
+// machine can overshoot past the 100 ms watchdog, which then fires before the step the test means to come first.
+const exactPause = (t) => { t.mock.timers.enable({ apis: ['setTimeout'] }); return async (ms) => { t.mock.timers.tick(ms); }; };
 const stateOnly = ({ deliveryEpoch: _epoch, deliverySeq: _seq, ...state }) => state;
 function socket() {
   return { readyState: 1, bufferedAmount: 0, frames: [], send(frame) { this.frames.push(JSON.parse(frame)); }, terminate() { this.readyState = 3; } };
@@ -172,6 +175,7 @@ test('protocol rejects injection, ambiguous signals, oversized SDP, and invalid 
 });
 
 test('an acknowledged snapshot still comes back on WebSocket by the original deadline', async (t) => {
+  const pause = exactPause(t);
   const { lobby, room, clients: [a, b], start, ready, plan, clear } = setup(t, 2, { ackMs: 70 });
   start();
   lobby.broadcastRoom(room, { t: 'm.public', turn: 1 });
@@ -229,6 +233,7 @@ test('fresh readiness needs a lease; signing/ack timers are absent for raw-only 
 });
 
 test('steady delayed ACK progress keeps the route while stagnant ACK heartbeats still time out', async (t) => {
+  const pause = exactPause(t);
   const { lobby, room, clients: [a, b], start, ready, plan, clear } = setup(t, 2, { ackMs: 100 });
   start();
   lobby.broadcastRoom(room, { t: 'm.public', turn: 1 });

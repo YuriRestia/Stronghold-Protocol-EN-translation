@@ -54,11 +54,12 @@ export function captureLockChange(candidate) {
   if (fs.existsSync(lock) && (!before || !fs.readFileSync(lock).equals(fs.readFileSync(before.abs)))) candidate.changes.add('plugin.lock.json');
 }
 
-export async function editMediaDraft(files, id, edit, { dataDir }) {
-  const candidate = await createCandidateAsync(files, id);
+// `checkMs`: the checker's time budget (default check.js's 20 s); a test that checks what it finds sets its own.
+export async function editMediaDraft(files, id, edit, { dataDir, checkMs }) {
+  const candidate = await createCandidateAsync(files, id, { checkMs });
   try {
     edit(candidate.files);
-    const checked = await checkCandidate({ dir: candidate.dir, live: files.root(id), dataDir, pluginsDir: files.base, strict: true, uploads: [...candidate.changes] });
+    const checked = await checkCandidate({ dir: candidate.dir, live: files.root(id), dataDir, pluginsDir: files.base, strict: true, uploads: [...candidate.changes] }, { timeoutMs: checkMs });
     if (!checked.ok) {
       const p = checked.problems[0]; throw new StudioError(p.code, 400, { where: p.path, detail: p.message });
     }

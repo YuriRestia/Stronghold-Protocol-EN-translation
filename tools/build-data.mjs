@@ -36,7 +36,7 @@
 // waves · stages · bosses · config · validation · main.
 
 import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
@@ -1731,7 +1731,13 @@ function attackAnimOf(sp) {
  */
 function operatorAttackAnims(manifest, chess, backups, tokens) {
   if (!manifest) return;
-  const ofChar = (charId) => attackAnimOf(manifest.chars?.[charId]?.spine?.front ?? manifest.chars?.[charId]?.spine?.back);
+  const scales = attackScaleTable();
+  const withScale = (id, a) => {
+    if (!a) return a;
+    const m = attackMaxScale(scales[id], a.clip);
+    return m == null ? a : { ...a, maxScale: m };
+  };
+  const ofChar = (charId) => withScale(charId, attackAnimOf(manifest.chars?.[charId]?.spine?.front ?? manifest.chars?.[charId]?.spine?.back));
   for (const c of Object.values(chess)) {
     const a = c.charId ? ofChar(c.charId) : null;
     if (a) c.attackAnim = a;
@@ -1741,7 +1747,7 @@ function operatorAttackAnims(manifest, chess, backups, tokens) {
     if (a) u.attackAnim = a;
   }
   for (const [id, t] of Object.entries(tokens || {})) {
-    const a = attackAnimOf(manifest.tokens?.[id]?.spine);
+    const a = withScale(id, attackAnimOf(manifest.tokens?.[id]?.spine));
     if (a) t.attackAnim = a;
   }
 }
@@ -1771,6 +1777,30 @@ function markBeginAnims(manifest, charId, skills) {
     const dur = row ? sp?.animations?.[row.begin] : null;
     if (typeof dur === 'number' && dur > 0) s.beginAnim = { clip: row.begin, dur }; else delete s.beginAnim;
   }
+}
+
+/**
+ * (fork) docs/research/15-attack-anim-scale.json (tools/local-extract/anim_scale.py, from the official client): unit id → { node path
+ * → [`_maxAnimScale`, `_animKey`, class] } of every ability of its prefab. {} when the file is missing.
+ */
+function attackScaleTable() {
+  const f = join(RESEARCH_DIR, '15-attack-anim-scale.json');
+  return existsSync(f) ? JSON.parse(readFileSync(f, 'utf8')) : {};
+}
+
+/**
+ * (fork) The clip-scale cap of a unit's normal attack (`attackAnim.maxScale`): the `_maxAnimScale` of its Default mode's
+ * ability that plays the attack clip, else of `Modes/Default/Body/Attack`, else of the first Default-mode ability with
+ * one; −1 when the client sets none (the clip stretches without a limit); null when the client data has no entry (the sim
+ * keeps ALLY_ANIM_SCALE_MAX). AbstractAnimatedAbility.UpdatePlaybackSpeed: animScale ≤ `_maxAnimScale` when it is ≥ 0.
+ */
+export function attackMaxScale(abilities, clip) {
+  if (!abilities) return null;
+  const rows = Object.entries(abilities).filter(([p]) => p.startsWith('Modes/Default/'));
+  const pick = rows.find(([, r]) => clip && r[1] === clip) || rows.find(([p]) => p === 'Modes/Default/Body/Attack') || rows[0];
+  if (!pick) return null;
+  const v = Number(pick[1][0]);
+  return Number.isFinite(v) ? (v < 0 ? -1 : v) : null;
 }
 
 /** The handbook's 「不停止移动」 attack (“十字路口”量产型's 四向攻击) → enemies.json `attackMoves`: it never stops to attack. */

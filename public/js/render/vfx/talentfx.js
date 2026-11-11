@@ -430,6 +430,8 @@ export class TalentFx {
       if (!up) { if (U.standing || U.loops.size) this.release(v); continue; }
       if (!U.standing) { U.standing = true; U.born = true; }   // a view built mid-battle: its loops, not its deploy rows
       const want = new Map();
+      // (fork) an idle buff the owner's skill finishes while it is on (SkillFx.idleOff: char_1046_sbell2's sbell2_idle)
+      const hide = this.w.skills?.idleOff?.(v) || null;
       for (const b of U.binds) {
         const on = this._inForce(U, b, v, now);
         const was = !!U.act.get(b.id);
@@ -437,7 +439,7 @@ export class TalentFx {
         if (!on && was) for (const e of uniq(b.plan.end)) this._play(e, v);
         U.act.set(b.id, on);
         if (!on) continue;
-        for (const e of this._layerLoops(U, b, v, this._loopsOf(b))) want.set(`${e.key}|${e.at}`, e);
+        for (const e of this._layerLoops(U, b, v, this._loopsOf(b))) if (!hide?.has(e.buff)) want.set(`${e.key}|${e.at}`, e);
       }
       for (const e of U.post) want.set(`${e.key}|${e.at}`, e);
       if (U.fxShield > 0 && FX_SHIELDS[U.key]) { const e = shieldEntry(FX_SHIELDS[U.key]); want.set(`${e.key}|${e.at}`, e); }

@@ -122,7 +122,9 @@ function byUnityOrder(a, b) {
 export class OfficialFx {
   /**
    * @param {{ P: any, renderer: any, assets?: any, cam: () => any, heightAt?: (r: number, c: number) => number,
-   *           fieldRect?: () => any, lib?: FxLibrary, tier?: string }} ctx
+   *           fieldRect?: () => any, lib?: FxLibrary, tier?: string, rate?: () => number }} ctx
+   * `rate`: the battle speed (the client's Time.timeScale, 2 at 2×): an effect's playback-speed cap counts in real time
+   * (Effect.setPlayback)
    */
   constructor(ctx) {
     this.ctx = ctx;
@@ -134,6 +136,7 @@ export class OfficialFx {
     this.tier = TIERS.includes(ctx.tier) ? ctx.tier : 'off';
     this.effects = [];
     this.pending = [];
+    this.remap = null;         // (fork) (key, owner) → the key an owner's chained effects play (FxWiring: its outfit twin)
     this.time = 0;
     this.frameNo = 0;
     this.prepared = -1;
@@ -515,17 +518,26 @@ export class FxHandle {
     // stops with it (OnFinishEmitter's start where it finished)
     this.children = [];
     const own = { track: this.opts.track, data: this.opts.data, loop: this.opts.loop, important: this.opts.important, owner: this.opts.owner };
-    for (const e of def.onPlay) for (const k of e.keys) if (k !== def.key) { const c = s.spawn(k, this.placeArgs, own); if (c) this.children.push(c); }
+    // (fork) an outfit prefab's emitter names its children by their plain keys; the client plays the owner's outfit
+    // replacements of them (蕾缪安's Requiem Vesperis S1 loop: lemuen_skill_01_buff_02 → its _ambiencesynesthesia#7 twin)
+    const twin = (k) => (s.remap && this.opts.owner != null ? s.remap(k, this.opts.owner) || k : k);
+    for (const e of def.onPlay) for (const k of e.keys) if (k !== def.key) { const c = s.spawn(twin(k), this.placeArgs, own); if (c) this.children.push(c); }
     const prev = fx.onFinish;
     fx.onFinish = (f) => {
       prev?.(f);
       this._stopChildren();
-      for (const k of def.onFinish) if (k !== def.key) s.spawn(k, { pos: f.anchor.slice(), yaw: f.yaw, mirror: f.mirror, groundZ: f.groundZ }, { track: this.opts.track, owner: this.opts.owner });
+      for (const k of def.onFinish) if (k !== def.key) s.spawn(twin(k), { pos: f.anchor.slice(), yaw: f.yaw, mirror: f.mirror, groundZ: f.groundZ }, { track: this.opts.track, owner: this.opts.owner });
     };
     this.effect = fx;
     // started late (a cast whose wind-up began past the clip's start): advanced to where it would be
-    // (fork) a cast that began `lead` s before it was shown (an attack not wound up): its FxDelay counts from there
-    if (this.opts.lead > 0) fx.delayLead = Math.min(2, this.opts.lead);
+    // (fork) an ability's effect plays at its playback speed (an attack: its clip's speed, SpineActor.abilitySpeed)
+    if (this.opts.speed > 0 && this.opts.speed !== 1) {
+      const r = Number(s.ctx?.rate?.());
+      fx.setPlayback(this.opts.speed, Number.isFinite(r) && r > 0 ? r : 1);
+    }
+    // (fork) a cast that began `lead` s before it was shown (an attack not wound up): its FxDelay counts from there (in
+    // the effect's own time, which runs at its speed)
+    if (this.opts.lead > 0) fx.delayLead = Math.min(2, this.opts.lead) * fx.speed;
     if (this.opts.skip > 0) fx.update(Math.min(1, this.opts.skip));
     if (this.stopped) fx.stop(this.stopped);
     s._add(fx);

@@ -259,12 +259,18 @@ export function immuneSet(v, extra = null) {
   return out;
 }
 
-/** data/enemies.json `attackAnim` → { dur, hit } (hit null = none: half the clip), or null when malformed / absent. */
+/**
+ * data `attackAnim` → { dur, hit, maxScale? } (hit null = none: half the clip; maxScale: the ability's `_maxAnimScale`,
+ * −1 = no cap, absent = not known — ai.js allyCastWindup), or null when malformed / absent.
+ */
 function normAttackAnim(a) {
   const dur = Number(a?.dur);
   if (!(Number.isFinite(dur) && dur > 0)) return null;
   const hit = Number(a.hit);
-  return { dur, hit: a.hit != null && Number.isFinite(hit) ? Math.min(dur, Math.max(0, hit)) : null };
+  const out = { dur, hit: a.hit != null && Number.isFinite(hit) ? Math.min(dur, Math.max(0, hit)) : null };
+  const m = Number(a.maxScale);
+  if (a.maxScale != null && Number.isFinite(m)) out.maxScale = m < 0 ? -1 : m;
+  return out;
 }
 
 /** Normalise an enemy record (research 05 shape or data/enemies.json shape) into an EnemyDef. */

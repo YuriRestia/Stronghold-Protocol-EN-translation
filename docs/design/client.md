@@ -233,7 +233,7 @@ history and the open points: DESIGN §32.14.25.
   which play there; and `skills.js FX_BINDINGS` (克莱门莎 S3's 'lock': her skill projectile's mark and three strikes on
   the tile, which also stand for her 'blast's there; a talent bound under each of the operator's skills, such as 蕾缪安's
   Wanted mark: the kit's 'wanted' loops `lemuen_talent_buff_01` on the marked enemy, `hold: 'life'`, until the enemy
-  or she is gone). A skill with nothing official (no plan, or none of its rows
+  or she is gone; 蕾缪安 S3's lock also holds the aim projectile's `_effectsToTargetWhenStart` beam, one per lock, until its shell lands; a `shot` binding plays a mode sub-ability only a kit fx fires — wiring.js KIT_SHOTS, 蕾缪安 S2's aimed shot on her 'crit', left out of her 'atk's). A skill with nothing official (no plan, or none of its rows
   extracted) keeps the procedural burst and aura. An effect a plan reaches two ways (a buff's `_buffs` and
   `_extraBuffs`) plays once. A skill attack flies its ability's projectile (index v3 `projectileKey`, else the naming
   rule) and the buffs of its attacks last their `life` (LIMITED: its time or the record's blackboard key; INFINITY: the
@@ -999,7 +999,10 @@ oldest one's voice (a 30 ms fade) instead of being dropped, so every landing of 
 the 1.41 s b_char_set; the field view fetches the generic files ahead (`warmLandings`). A piece whose
 Start still plays (on its model, owed to a model still loading, or cued less than a clip ago) keeps it and sounds nothing
 more. Only an idle prep piece lands, never a battle unit or one attacking, dying, dragged or in another clip, and nothing
-lands in a hidden tab. Battle deploys keep the silent `onDeploy`; audio.handleBattleEvents sounds them.
+lands in a hidden tab. Battle deploys keep the silent `onDeploy`; audio.handleBattleEvents sounds them. (fork) A piece put on
+a board tile and the round start's landing play the unit's official deploy effect (FxWiring.birth: its skill's birth row,
+else its default mode's / unit's start effect, else the generic birth; the outfit's twin), the procedural flash only
+without one; the look-up keeps no battle record (`cache: false`).
 
 - Round start (the maintainer's confirmation from official play, 2026-10-13): during 回合开始 the own board's pieces land
   one after another in deployment order — operators by column from the left, top to bottom within a column, then the

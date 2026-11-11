@@ -664,9 +664,11 @@ and a target is found (`ai.js updateAlly`, after `skill.onAboutToAttack()`: a "n
 attack **casts**: the cooldown restarts at once (`interval`), `lastCastAt` is stamped, the targets are locked
 (`u.cast`) and `['atkCast', id, windUp, targetId]` is sent; the hit (`performAttack`: damage / heal, SP, the attack
 count, hooks, `'atk'`) lands **one wind-up later** (`allyCastTick`). Wind-up = `allyCastWindup`: the strike frame of the
-unit's attack clip × the official clip scale `clamp(interval / clipDur, 0.1, 2.5)` (`AbstractAnimatedAbility.
-UpdatePlaybackSpeed`, disassembled: `MIN_ANIM_SCALE`, `_maxAnimScale` [ASSUMED on every basic attack];
-`ALLY_ANIM_SCALE_MIN` / `_MAX`), at most the interval, rounded up to whole ticks; the clip is the data's `attackAnim`
+unit's attack clip × the official clip scale `clamp(interval / clipDur, 0.1, maxScale)` (`AbstractAnimatedAbility.
+UpdatePlaybackSpeed`, disassembled: `MIN_ANIM_SCALE` 0.1; `maxScale` = the attack ability's own `_maxAnimScale`, read
+from the client into `attackAnim.maxScale` — 1.0 on most operators, 1.1 / 1.2 / 2 on a few, −1 = no cap on 62 —;
+`ALLY_ANIM_SCALE_MAX` 2.5 only for a unit the client data lacks [ASSUMED]; the client's extra cap under an animation
+slow-down, 2.5 / `animSlowDown`, is not modelled), at most the interval, rounded up to whole ticks; the clip is the data's `attackAnim`
 (DATA.md; the default model's clip — outfits never change it). No `attackAnim` (summons the manifest lacks, the older
 versions' data, test stand-ins) = wind-up 0: the old rule, the hit as the cooldown ends. During the wind-up the cast is
 cut — no hit, `['atkCancel', id]`, the cooldown freed to 0 [ASSUMED: ResetCooldownStrategy not read] — by a stun /
@@ -1690,6 +1692,12 @@ Unknown subprofessions fall back to the profession default (test `professions.te
   `layers: [[id, n]]` and `charges: [[id, stored, max]]` (each only when non-empty; display only, 0.3.0 round 46) =
   `snapshot.js` `layerView` (the sum of a unit's buffs' `shieldHits`: 泥岩's 护盾 layers) and `chargeView` (an ally skill
   with maxCharges > 1: `skill.charges`), read by the official effects (DESIGN §33.16).
+  (fork) `fxs: [[id, buff, src, look]]` (only when non-empty; display only, the golden canon leaves it out) = `snapshot.js`
+  `fxStateView`: the official buffs (client keys) whose lasting effects a unit shows now. A kit signals them with
+  `battle.fxState(unit, buff, on, { src, look, dur })` (a moment the sim marks: a kill, a fired trigger effect, an
+  overload), `battle.fxProbe(unit, buff, (u) => false | true | look)` (a state the kit already keeps, read only when a
+  snapshot is taken — nothing runs in the ticks) or a buff's `fx` / `fxSrc` / `fxLook` (shown while the buff lasts);
+  `content/fxStates.js` holds the skill-wide probes (charge-count glows). A state lasts the unit's deployment at most.
   `notes: [[noteId, ownerId, x, y, hx, hy,
   look, state]]` (only while notes fly; display only) = the free-flight notes of `notes.js` (丰川祥子): position, heading, the
   owner's look key and 0 wander / 1 trace / 2 passby; `fever: [[memberId, fill, active]]` (only on a field with a gauge) = the

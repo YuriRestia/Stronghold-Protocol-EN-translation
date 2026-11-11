@@ -43,7 +43,8 @@
 // the game's audio manager (js/audio.js) with the player's volume settings — prep / combat BGM, battle SFX and voices.
 // Puppeteer hook: window.__sandbox = { ready, error, view, runner, units(), bench(), wave(), fight(), prep(), facing,
 // bonds(), layers(), gains(), bank(next), setWave(id), pause(on), step(n), tick(), lastResult, addBond(bondId, elite),
-// ui, click(pieceClick event), camLayer('L' | 'ALL' | 'R'), boardUids(), open(uid) (a unit's drawer), speed() }
+// ui, click(pieceClick event), camLayer('L' | 'ALL' | 'R'), boardUids(), open(uid) (a unit's drawer), speed(),
+// hold(i, { cast?, infSp?, infDur?, infHp? }) (board unit i's skill hold mid-battle, as its link's |cast= / |isp= …) }
 // The game's widgets ride on top (sandbox-ui.js): the bond strip (stacks, active state) and its popup, the detail card of
 // a clicked piece / unit / enemy / boss with live HP and stats in battle, and icon pickers for operators (by bond) and
 // items (by name). On a boss field in battle, "My side" / "Whole field" / "Partner's side" move the camera like the
@@ -1439,6 +1440,14 @@ async function main() {
 
   sb.view = view;
   sb.units = () => board.map(({ uid, ...u }) => u);
+  // the skill hold of board unit i, changed mid-battle (the step hook reads it every step: holdSkill) — a proof capture turns
+  // a skill on, then off, at the moments it records (crew-tools capture.mjs --at)
+  sb.hold = (i, o = {}) => {
+    const e = board[i];
+    if (!e) return false;
+    for (const k of ['cast', 'infSp', 'infDur', 'infHp']) if (k in o) e[k] = k === 'cast' ? (o.cast === 'on' || o.cast === 'off' ? o.cast : null) : !!o[k];
+    return true;
+  };
   sb.bench = () => bench.map((u) => (u ? u.chessId : null));
   sb.wave = () => JSON.parse(JSON.stringify(wave));
   sb.stageId = mapId;

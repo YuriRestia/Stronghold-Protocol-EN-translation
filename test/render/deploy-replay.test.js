@@ -194,7 +194,7 @@ test('render/app.js wiring: landings in setPrep, the replay schedule, its timers
   // the replay: prep mode only, the same view, the tab shown, one turn after the other; cancelled by enterBattle,
   // enterPrepMode and destroy
   assert.match(src, /function replayDeploys\(uids, gap = DEPLOY_REPLAY_MS\) \{\s*if \(destroyed \|\| mode !== 'prep'/);
-  assert.match(src, /if \(destroyed \|\| mode !== 'prep'\) return;\s*const \{ uid, v \} = queue\[i\+\+\];\s*if \(!globalThis\.document\?\.hidden && views\.get\('p:' \+ uid\) === v\) landPiece\(v, 'round'\);\s*if \(i < queue\.length\) replayTimer = setTimeout\(turn, step\);/);
+  assert.match(src, /if \(destroyed \|\| mode !== 'prep'\) return;\s*const \{ uid, v \} = queue\[i\+\+\];\s*(?:\/\/[^\n]*\n\s*)*if \(!globalThis\.document\?\.hidden && views\.get\('p:' \+ uid\) === v && landPiece\(v, 'round'\)\) prepBirth\(v\);\s*if \(i < queue\.length\) replayTimer = setTimeout\(turn, step\);/);
   const body = (name) => src.slice(src.indexOf(name), src.indexOf(name) + 900);
   assert.match(body('function enterBattle(meta)'), /cancelReplay\(\);/);
   assert.match(body('function enterPrepMode()'), /cancelReplay\(\);/);

@@ -461,7 +461,7 @@ export async function createFieldView(host, options = {}) {
   let noteFrame = 0;
   // the official battle effects (设置「官方特效」, render/vfx): drawn on the 3D board only (the 2D board fallback keeps the
   // procedural fx), on the battle clock; their files load on demand (data/local-fx.json)
-  const ofx = new OfficialFx({ P, renderer: app.renderer, assets, cam: () => cam, heightAt, fieldRect: fx.ctx.fieldRect });
+  const ofx = new OfficialFx({ P, renderer: app.renderer, assets, cam: () => cam, heightAt, fieldRect: fx.ctx.fieldRect, rate: () => ctx.timeScale() });
   setupCleanup.push(() => ofx.destroy());
   layers.vfxGround.addChild(ofx.ground);
   layers.vfxOver.addChild(ofx.over);
@@ -968,7 +968,7 @@ export async function createFieldView(host, options = {}) {
           fx.promote(v, promoFrom.get(e.uid).filter((f) => Math.abs(f.x - w.x) + Math.abs(f.y - w.y) > 1e-3));
           promotions.push({ uid: e.uid, id: e.piece.id, area: e.area, row: e.row ?? null, col: e.col ?? null, idx: e.idx ?? null, copies: promoFrom.get(e.uid).length });
           if (promotions.length > 20) promotions.shift();
-        } else if (e.area === 'board' && prevBoard.size && !prevBoard.has(e.uid)) { landPiece(v, 'board'); fx.deploy(v); }
+        } else if (e.area === 'board' && prevBoard.size && !prevBoard.has(e.uid)) { landPiece(v, 'board'); prepBirth(v); }
         else if (before.length && (e.area === 'hand' || e.area === 'temp') && !before.some((g) => g.uid === e.uid)) {
           // an operator that just arrived on the bench — bought, a reward, a grant — lands there (PR #416); a summon that comes
           // with its owner's placement does not, nor does an item
@@ -986,7 +986,7 @@ export async function createFieldView(host, options = {}) {
           pending.delete(key);
           if (moved || Math.abs(v.x - w.x) + Math.abs(v.y - w.y) > 1e-3) v._tween = { fx: v.x, fy: v.y, fz: v.z, tx: w.x, ty: w.y, tz: w.z, t: 0 };
           v.lift = 0;
-          if (e.area === 'board' && !prevBoard.has(e.uid) && v.onDeploy) fx.deploy(v);
+          if (e.area === 'board' && !prevBoard.has(e.uid) && v.onDeploy) prepBirth(v);
         }
         // a piece this state puts on a board tile it was not on — from the bench, from another tile, a swap — lands (PR #416),
         // also while its drop is still held on that tile (the direction step pins it there, so `moved` is false); turned in
@@ -1020,6 +1020,16 @@ export async function createFieldView(host, options = {}) {
     if (dragState && !views.has(dragState.key)) { drag.reset(); endDragVisual(false); }
     holdScene(false); // the prep pieces reference their models now (a battle's hold ends here)
     return true;
+  }
+
+  /**
+   * (fork) A piece put on the board in prep: its official deploy effect (FxWiring.birth — the unit's own or the generic
+   * birth, its outfit's twin: 蕾缪安's Requiem Vesperis lemuen_birth_01), else the procedural flash.
+   */
+  function prepBirth(v) {
+    let drew;
+    try { drew = !!wiring.birth(v, { cache: false }); } catch { drew = false; }
+    if (!drew) fx.deploy(v);
   }
 
   /** Land a prep piece (UnitView.land, PR #416) and note it (`landings`, dev / tests); false when the view refused. */
@@ -1056,7 +1066,9 @@ export async function createFieldView(host, options = {}) {
       replayTimer = 0;
       if (destroyed || mode !== 'prep') return;
       const { uid, v } = queue[i++];
-      if (!globalThis.document?.hidden && views.get('p:' + uid) === v) landPiece(v, 'round');
+      // (fork) a landing is a deploy: its birth effect too, as a piece put on the board [ASSUMED: the round start's
+      // confirmed landing (DEPLOY_REPLAY_MS) plays the client's deploy effect with it]
+      if (!globalThis.document?.hidden && views.get('p:' + uid) === v && landPiece(v, 'round')) prepBirth(v);
       if (i < queue.length) replayTimer = setTimeout(turn, step);
     };
     replayTimer = setTimeout(turn, 0);

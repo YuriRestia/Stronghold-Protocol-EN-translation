@@ -11,6 +11,79 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 - When an operator casts a skill that opens with a start animation, the animation now plays to its end before the skill takes effect, as in the official game. The operator's attacks wait for it, so the first attack no longer cuts it off. This covers 138 skills of 91 operators, such as Mizuki S3, Ayerscarpe S2 and Gavial the Invincible S2; the start animations last 0.1 to 1.5 s. Being stunned, frozen or put to sleep during the animation cancels the cast and keeps the skill points. Skills without a start animation, such as Mostima S3, are unchanged.
 
+### Slow attackers swing at their own speed, as in the official game
+
+- Each operator's attack now slows its animation only as far as the official game allows that attack: its own limit, read from the game client (`docs/research/15-attack-anim-scale.json`, 239 units). Until now every operator could slow down to 2.5×.
+- Most operators have a limit of 1×: a slow attacker swings at its normal speed and its hit lands at the swing's strike frame, early in its attack interval. Mostima's hit now lands 0.70 s after her swing starts instead of 1.17 s; Mizuki, Ashlock, Warfarin, Greyy and Ptilopsis gain about 0.7 s. A few attacks have a limit of 1.1×, 1.2× or 2×, and 62 have none.
+- Attack effects follow the same limit.
+- This changes battle results a little: in the test battles kills rise 0.7 %, healing 2.2 %, and the bot matches win one more (20 of 21). The stored test results (goldens) are regenerated with it.
+- Not yet modelled: in the official game an enemy effect that slows a unit's animation also limits its swing further.
+
+### Attack effects speed up with the attack, as in the official game
+
+- When a unit attacks faster than its attack animation lasts (attack-speed buffs, fast skills), the effects of its attack now play faster too, as the official game plays them: the swing and skill effects the game marks for it (2,976 of the 10,330 effect files, mostly attack and skill starts), their delays included, so a flash or a wave stays with the swing. Vulpisfoglia's S3 now plays its swing effects at 2×, Archetto's S3 and Swire's S2 at about 1.25×.
+- Each effect keeps the official limit: most may play at most 2× as fast in real time, so at 2× battle speed they keep their normal speed. A few have no limit or a higher one.
+- A slow attack slows its effects only as far as its swing may slow (the attack's own limit, above). Effects the game doesn't mark (buffs, statuses, most hits) keep their speed; only their official start delay shortens with the attack, as in the game.
+- Display only: battle results and bots are unchanged.
+
+### Tests no longer fail just because the computer is busy
+
+- Several tests failed only when the machine was busy (a full test run beside a browser run), and passed when run alone. They were checking real behaviour, but with stopwatches that assumed an idle machine. Each one now waits for the event it needs instead, with a generous limit that only stops a real hang. What each test checks is unchanged.
+- The relay acknowledgement tests (`test/p2p-server.test.js`) run on mocked timers, so the order of their steps is exact at any speed.
+- The generations tests (`test/generations.test.js`) wait until the server has picked up a table change instead of sleeping a fixed 80 or 150 ms.
+- Server-event waits in the plugin lobby, tab-identity and generations tests use the shared test limit (`WORKER_LOAD_MS`, 60 s) instead of 2, 5 or 15 seconds.
+- Plugin studio tests that check what a trial battle or a check finds no longer use the server's 20-second budget. They get their own guard of 180 s per trial (`STUDIO_TRIAL_MS`), because one short trial took 36–88 s on a fully busy machine. The server's budget is unchanged, and the tests of the budget itself keep theirs. The trial-timeout cleanup test now fires the timeout right after the probe starts, instead of racing a 12-second timer against it.
+- The script probe test (`test/plugins/script-review.test.js`) no longer kills a correct but slow-starting composition after 7 s; its hang guard is that shared limit, and its probe ceilings go up to 16 s.
+- New crew tool `cpu-load.mjs` reproduces these failures on purpose: it runs a test pinned to a few cores next to busy threads.
+
+### Effects that stay after a skill ends
+
+- Pramanix the Prerita's idle glow now goes away while any of her skills is on and comes back when it ends, as in the official game. Before, it stayed on through her skills.
+- Nasti's S1 glow is now the other way round from before: it shows while S1 is off (from deployment) and disappears while S1 is on. Before, it only showed during S1.
+- Gavial the Invincible's S3 now leaves its bleed effect on her for 20 seconds after the skill ends (the skill's own final duration). Before, it never showed.
+- Their outfits use their own versions of these effects.
+- The effect extractor now records the duration of a buff that a skill creates, not only its parent's, so effects like these play for the official time.
+
+### Every skill plays its own official sounds
+
+- Skills now play their own sounds from the official audio data for every operator, not just a few picked by hand. Before, 72 skills on 66 operators made no sound of their own (Texas S2 Sword Rain, Ifrit S2, Ch'en S1, Mudrock S2 …). Now 71 of them do, and 91 of the 122 skills that were missing some of their sounds have more of them.
+- The sound files decide where each sound goes: a skill's own swing and impact play on its attacks while it runs, its cast plays when it starts (beside the activation sound when it has one), a looping sound (Ifrit S3's flamethrower) holds until the skill ends, and its end sound plays when it ends.
+- Blaze the Igniting Spark, Lemuen, Mostima and Talulah keep their hand-made sound setups.
+- 197 new sound files (5.8 MB) for the server and the preload zip.
+- Not covered yet: sounds the game plays on its own triggers inside a skill (custom triggers, check points, attack finishes), which need per-operator work.
+
+### Lasting skill glows that only start partway through now show
+
+Many official skills light up a lasting glow only when something happens mid-fight: a charge is stored, an overload begins, an enemy dies, an ally's bubble or shield goes up. The battle never told the screen about those moments, so the glows never appeared. They now show for 23 operators, and stop when the official game stops them:
+
+| Operator | What now shows |
+|---|---|
+| Horn | S2 / S3 overload glow, from the moment the overload begins |
+| Leizi the Thunderbringer | S1: one ring per stored charge |
+| Ascalon | S2: the debuff glow on enemies around a kill, stronger at full stacks |
+| Тоска | S1 shield, S2 attack-speed and S3 attack glows on the ally whose trigger effect fired |
+| Lumen, Gnosis | S2: the one-charge and two-charge glows |
+| Mon3tr, Caper | S1: the ready glow |
+| Minimalist | S2: the weapon and body glows while the skill is ready |
+| Ch'en the Holungday | S2: the half and full charge glows |
+| Haruka | The bubble's glow on the ally holding it (S1) |
+| Philae | S2: the attack glow after the first element hit, with its start burst |
+| Lessing, Vulpisfoglia | S2 glow while blocking; S3 camouflage glow while not blocking |
+| Civilight Eterna, Muelsyse | S2 rope / S3 water on the enemies they bind |
+| Executor the Ex Foedere | S3: the aim mark on every enemy he hits, until the skill ends |
+| Schwarz, Bellone | The DEF-down mark on the enemies they weaken |
+| Silence the Paradigmatic | S3: the glow on an ally kept alive at the brink |
+| Ch'en the Dawnstreak | S2: the glows after she comes back |
+| Angelina the Mellow Wish | S3: the wing glow on the side she faces |
+| Nearl the Radiant Knight | S3: the combo glow when deployed right after a Kazimierz operator |
+
+Fights don't change, and bot battles do no extra work.
+
+### Shots leave from the right spot when a model has no usual muzzle point
+
+- Ch'en the Holungday in her Holiday HD79 outfit: her S2 and S3 water bursts now leave her water gun. That outfit's model has different muzzle bones from her default look, so they used to start below her feet. A muzzle point now also tries the usual muzzle bones of the model actually drawn.
+- A unit with no muzzle point at all (Santalla, Viy) now aims from its feet, as in the official game, where the animator hands over the foot point when there is no muzzle. Before, it was a guessed spot 0.4 tiles up.
+
 ### External AI is shelved: locked in every build, and no test suite runs its tests
 
 - External AI (the `sp-ai/1` advisor / plan / LLM integration, shelved upstream since 2026-11-05) is now off in every build, development checkouts included. Selecting it (`SP_BOT_STRATEGY=external`, a seat override, a match's `botStrategy: 'external'`, any `SP_EXTERNAL_AI_*` / `SP_LLM_*` setting) logs one line and the built-in bot plays. `SP_UNSHELVE_EXTERNAL_AI=1` brings it back; the code is unchanged.
@@ -36,6 +109,17 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Angelina the Mellow Wish's S3 now shows the official range line around her running attack range: her original skill range plus the tiles around her, following her as she flies.
 - The points come from the battle: Aphrissa's S2 start now sends the beam's path, and Angelina the Mellow Wish's S3 start sends her skill range. These are display fields on events the battle already sent, so battles play out exactly as before. The new `render/vfx/pathfx.js` traces a tile set's outer edges into closed outlines through the tile corners, as the official range line does, and draws any official line through many points.
 - Not covered: Aphrissa's normal attack line and a beam path that changes during S2 (it keeps its starting path). Thorns the Lodestar's S3 polygon line is a separate follow-up.
+
+### Lemuen's skills show every official effect
+
+A full check of all 31 of Lemuen's effects, in her default look and Requiem Vesperis, found these pieces we never drew or drew wrong:
+
+- **S3 aim beams.** Each S3 lock now drops a beam onto the locked enemy (`lemuen_skill_03_trail_01`), gold in Requiem Vesperis. The beams stack, one per lock, and each stays until its shell lands, as in the official game.
+- **S2 aim reticle.** The aim line now also puts its reticle on the aimed enemy (`lemuen_skill_02_crosshair_01`, the line's own end effect), until her shot.
+- **Talent 2 (Extradition Procedure).** When it activates, its loop (`lemuen_talent_buff_02`) now plays on her for the rest of her deployment, instead of a stand-in burst.
+- **Outfit effects inside effects.** Effects that an effect starts on its own now use the unit's outfit version. In Requiem Vesperis, Lemuen's S1 glow showed a default-look piece; other operators' outfits that work the same way are fixed too.
+- **S2 aimed shot.** Her aimed S2 shot now plays its muzzle flash (`lemuen_skill_02_start_02`, the back-facing `_back` when she faces up, with `_start_01`) and flies its own projectile to the target, whose hit plays as it lands. Her ordinary shots during S2 now look like her normal shots; before, they borrowed the aimed shot's look and the aimed shots had no flash.
+- **Deploy effect in prep.** Putting an operator on the board in prep, and the round-start landing, now play the official deploy effect: the generic one, or the outfit's own (Requiem Vesperis: `lemuen_birth_01`). Before, only a stand-in flash showed. This applies to every operator.
 
 ### A player who leaves is out for good, and the next round doesn't wait for them
 
@@ -99,7 +183,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### The lobby's update news can change without a new release
 
-- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts <servers> news.json` sends it to every server (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
+- The servers can now replace the lobby's Update banner at any time: one news file holds every language, and `node scripts/deploy-regions.mjs news --hosts spa,usspa news.json` sends it to both servers (`--show` and `--clear` too; `scripts/news.mjs` on one server). Online players see the new banner within about 10 seconds, without a reload, and it shows again for players who closed an earlier one. A new release is still needed for anything else.
 - Each player sees the news in their own language, else in the file's English, else the banner built into the release. Lines can use the game's own colour tags (blue, red, orange, mint, grey); there is no HTML and no links.
 - The file is checked before it is sent and again on each server: size, lengths, languages and line breaks. A refused file changes nothing. Notes in `docs/DEPLOY.md` / `DEPLOY.en.md` §1.7.
 - Server side: the notice, maintenance and news boards now share one file-polling base (`server/fileBoard.js`) instead of separate copies.
@@ -227,9 +311,9 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The in-battle bond strip shows as many bonds as fit its width (fewer on phones) and no longer scrolls, so the thick grey scrollbar is gone.
 - When you have more, a "+N" button after the last bond opens the rest in a small grid under the strip. Tap a bond there for its details as usual; the button, Esc or a tap elsewhere closes it.
 
-### Grand Alliance rooms from every server
+### Grand Alliance rooms from both servers
 
-- The Grand Alliance room browser now lists the open rooms of every linked server, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
+- The Grand Alliance room browser now lists the open rooms of both servers, Singapore and US East, not only the server your page is on. Each card says which server the room is on, with that server's ping. Join works for a room on the other server too, including a private room: you enter its password as usual, and the game moves you to that server. If the link between the servers is down, the list shows your own server's rooms only.
 
 ### Room cards show every player's outfit
 
@@ -300,7 +384,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Returning players load the game's code from their own browser
 
-- Behind the zero-downtime generations (a hosted server), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when a CDN holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by a CDN. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. A CDN cache rule for scripts is no longer needed.
+- Behind the zero-downtime generations (the live servers), every script and style of a version was sent as "ask again every time", so a returning player's browser asked the server about each of the game's 250-odd code files on every visit, one chain step after another, which costs a distant player about 0.2 s per step even when Cloudflare holds the file. A version's code can never change under its address (each version is one commit, and every update gets a new address), so these files are now kept for a year by the browser and by Cloudflare. Measured on a local copy of the live setup, a second visit asked the server for 25 files instead of 272, and none of the 252 code files. The page itself, the service worker, the health check and the game data still ask every time, and a server started without versions (`npm start`) keeps asking for everything, so an edited file still shows on reload. The optional Cloudflare cache rule for scripts is no longer needed.
 
 ### Ping shows the connection, not the frame rate
 
@@ -513,7 +597,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ### Update news
 
-- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and a second server region. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
+- The lobby banner now announces Update 0.3.4. Four lines in the highlight style name Toska, Territoriya and Talulah, match chat, Grand Alliance (up to 8 Doctors in two squads) and the US East server. The points below cover SilverAsh the Reignfrost's S3 effects and the attack clips, full skill clips for skills that replace an attack, 7 new outfits, skill cast sounds, the damage meter's modes, four new Modules and smarter bots. It has a new dismiss key, `news.0.3.4`, so it shows again for players who closed 0.3.0's, and the 0.3.0 lines are gone from the en, ja, ko and zh-TW packs.
 - The lobby's Combat Tips box is always as tall as its longest tip, so a rotating tip no longer moves the update banner above it up and down. Its count and arrows stay on the title's row: the small TACTICAL TIPS label hides itself when it doesn't fit, instead of pushing them onto an empty row of their own.
 
 ### Profile icons
@@ -616,10 +700,10 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The website stays on the main domain, so players keep their stats, settings, loadouts and art cache, and only the game connection goes to the other server. That server needs no art, so origin traffic doesn't double.
 - The first letter of an alliance key names its server, so keys and invite links work from anywhere, even while the servers can't reach each other.
 - Matchmaking looks at the player's own server first, then after 15 seconds across servers. It only moves a group into a match that starts at once, on the server with the most humans.
-- Browsers pick the faster server by ping, with an Auto choice or a named server in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
-- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto or a server, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
+- Browsers pick the faster server by ping, with an Auto / Singapore / US East choice in Settings, and the server's name appears beside the ping. A page that loses another server falls back to the main one.
+- The server choice moved from Settings to the lobby: tap the server name and ping at the top left to pick Auto, Singapore or US East, each with its live ping and the one you're on marked. As before, a change waits until you leave your alliance or queue, and a match never moves.
 - The online count's tooltip lists each server's players (hover, focus or tap the count), with yours marked; the count itself stays the total of every linked server.
-- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds.
+- The online count now updates at most once a minute for players already connected (a new player still gets it at once), instead of whenever it changed, checked every 2 seconds. At 300 players that cuts its traffic from about 1.6 GB a day to about 50 MB.
 - The online count covers every server. `scripts/deploy-regions.mjs` deploys one build to every server in two steps, so nobody is sent to a build that isn't ready, and old generations stay up while a match on the other server still needs them.
 
 ### Browser tests
@@ -737,7 +821,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   (`shared/dataHash.js`, `public/js/dataUrls.js`); without it the plain URLs are used as before. A CDN needs a cache
   rule for paths containing `/data/h/`.
 - Site policy: `SP_CF_ANALYTICS=1` lets the Cloudflare Web Analytics beacon through the page's Content-Security-Policy
-  (its script host in `script-src` and its reporting host in `connect-src`). Off by
+  (`https://static.cloudflareinsights.com` in `script-src`, `https://cloudflareinsights.com` in `connect-src`). Off by
   default; the policy is otherwise unchanged.
 - Site policy: `SP_CSP_NONCE=1` adds a fresh random nonce to `script-src` in every response's policy header, so
   Cloudflare's JavaScript Detections (Bot Fight Mode) can run: Cloudflare copies the header's nonce onto the script it
@@ -1062,7 +1146,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
   a bar segment shows its round and damage. To preview: `/dev/game-mock.html?phase=RESULT&lang=en` (the mock now
   accepts `?lang=` and fills the damage log on RESULT).
 - Zero-downtime restarts ("generations"). Each deploy (`scripts/generations.mjs deploy`) starts a new server process
-  next to the old one, behind a small router (`scripts/router.mjs`) that the reverse proxy talks to. New visitors go to the new
+  next to the old one, behind a small router (`scripts/router.mjs`) that Caddy talks to. New visitors go to the new
   generation, and running matches finish on the old one. Old pages get `sys.retire` and move over once no match is on
   screen; a room still waiting is lost. An old generation is stopped when its last human match ends, or after one hour.
   The client builds its URLs through `public/js/gen.js`. Without the router (local play, LAN, tests) nothing changes.
