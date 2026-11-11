@@ -14,6 +14,7 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - The generations tests (`test/generations.test.js`) wait until the server has picked up a table change instead of sleeping a fixed 80 or 150 ms.
 - Server-event waits in the plugin lobby, tab-identity and generations tests use the shared test limit (`WORKER_LOAD_MS`, 60 s) instead of 2, 5 or 15 seconds.
 - The external-AI tests (upstream's shelved dev feature) give each AI call that limit. The §37.72 timing test starts its test agent before the match and answers at three quarters of its budget instead of at a fixed 900 ms of 1182 ms.
+- The script probe test (`test/plugins/script-review.test.js`) no longer kills a correct but slow-starting composition after 7 s; its hang guard is that shared limit, and its probe ceilings go up to 16 s.
 - New crew tool `cpu-load.mjs` reproduces these failures on purpose: it runs a test pinned to a few cores next to busy threads.
 
 ### A player who leaves is out for good, and the next round doesn't wait for them
