@@ -8,8 +8,10 @@ Part of [DESIGN.md](../DESIGN.md) (the index; section numbers are global).
 seats instead of 4. It is for humans only and is off unless the server sets `SP_LARGE_ROOMS=1` (lobby option `largeRooms`).
 
 - **Protocol**: `room.create { capacity: 8, password? }` (co-op on the default version only; `BAD_MSG` while the server keeps them
-  off; `password`, 4 letters, creates it private, and `BAD_MSG` on any other room), `room.state.capacity` / `locked` / `password` (the password in the host's copy only; omitted for a normal room), `room.moveSeat { seat }`
-  (any member, before the match, to an empty seat), `room.swapSeats { a, b }` (the host, either seat may be empty),
+  off; `password`, 4 letters, creates it private, and `BAD_MSG` on any other room), `room.state.capacity` / `locked` / `password` (the password in the host's copy only; omitted for a normal room), `room.moveSeat { squad }`
+  (any member, before the match, to the other squad's lowest free seat; an old page's `{ seat }` names that seat's squad;
+  `BAD_TARGET` inside the own squad or into a full one, `RATE` over the squad-move limit), `room.swapSeats { a, b }` (the
+  host, two seats of different squads, either may be empty; `BAD_TARGET` inside one squad),
   `room.setLock { on, password? }` (the host; 4 letters A–Z), `room.join` / `room.spectate { password? }` (`ROOM_LOCKED`
   without it or with a wrong one, `RATE` after 6 wrong ones in a minute from a session), `rooms.watch { on }` →
   `rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads, locked?, region? }] }` while watched,
@@ -33,9 +35,16 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
   counts per session, so a reconnect resets it, and 4 letters are about 457,000 combinations — enough to keep strangers
   out, not a secret. Gameplay plugins, plugin modes and other official versions
   are refused.
-- **Squads**: seats 1–4 are squad A, 5–8 squad B, where the players sat. Nobody balances them: players move to an empty
-  seat and the host swaps two seats, so 6 players may be 3+3 or 4+2. With players in both squads the match has squads;
-  everyone in one squad plays today's rules (still humans only).
+- **Squads**: seats 1–4 are squad A, 5–8 squad B, where the players sat. Nobody balances them: players join the other
+  squad and the host swaps two players across the squads, so 6 players may be 3+3 or 4+2. With players in both squads the
+  match has squads; everyone in one squad plays today's rules (still humans only).
+- **Squad moves** (the user's decision of 2026-11-11, after a player hopped seats to spam the room): a member chooses a
+  squad, never a seat, since the seat inside a squad means nothing in play (the draft order is shuffled). The page shows
+  加入小队 (Join Squad) on the other squad's empty seats only; the server seats the mover in that squad's lowest free
+  seat. [ASSUMED] One move per 5 s and at most 4 a minute per player (`shared/largeRoom.js` SQUAD_MOVE_*), kept on the
+  room in memory (at most 16 players, 4 times each), so a reconnect or a rejoin does not reset it; the page counts its
+  own moves the same way and shows the wait on the button. A move un-readies the mover; a host swap un-readies both
+  players, never the host. The host's swap has no limit (the host already controls the room) but only crosses squads.
 - **Pool**: one pool for the whole room. With more than 4 players at the start, every operator's and equipment's copies
   are multiplied by players ÷ 4, rounded up (tier 6: 10 → 20 at 8), so everyone fights over the same pool across squads.
   Bans are one draw for the room; each player's 自选 stock stays theirs.

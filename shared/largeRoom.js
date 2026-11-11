@@ -23,6 +23,36 @@ export const ROOM_PASSWORD_RE = /^[A-Za-z]{4}$/;
 export const ROOM_PASSWORD_TRIES = 6;
 export const ROOM_PASSWORD_WINDOW_MS = 60_000;
 
+/**
+ * [ASSUMED] (fork, user 2026-11-11: seat-hopping spam) A member changes squad at most once per SQUAD_MOVE_GAP_MS and
+ * SQUAD_MOVES_PER_WINDOW times per SQUAD_MOVE_WINDOW_MS. Kept on the room per player (a reconnect or a rejoin does not
+ * reset it); the page counts its own moves the same way to show the wait.
+ */
+export const SQUAD_MOVE_GAP_MS = 5_000;
+export const SQUAD_MOVES_PER_WINDOW = 4;
+export const SQUAD_MOVE_WINDOW_MS = 60_000;
+/** The players whose move times a room keeps (the oldest is dropped beyond it): a bound, not a rule. */
+export const SQUAD_MOVE_LOG_MAX = 16;
+
+/**
+ * Milliseconds a member must still wait before the next squad move, 0 when it may move now.
+ * @param {number[]} times this member's earlier moves (epoch ms, any order; older than the window ignored) @param {number} now
+ */
+export function squadMoveWait(times, now) {
+  const recent = (Array.isArray(times) ? times : []).filter((t) => Number.isFinite(t) && now - t < SQUAD_MOVE_WINDOW_MS && t <= now).sort((a, b) => a - b);
+  if (!recent.length) return 0;
+  const gap = recent[recent.length - 1] + SQUAD_MOVE_GAP_MS - now;
+  const full = recent.length >= SQUAD_MOVES_PER_WINDOW ? recent[recent.length - SQUAD_MOVES_PER_WINDOW] + SQUAD_MOVE_WINDOW_MS - now : 0;
+  return Math.max(0, gap, full);
+}
+
+/** A member's move times kept after a move at `now`: the window's, at most SQUAD_MOVES_PER_WINDOW, oldest dropped. */
+export function squadMoveLog(times, now) {
+  const kept = (Array.isArray(times) ? times : []).filter((t) => Number.isFinite(t) && now - t < SQUAD_MOVE_WINDOW_MS && t <= now);
+  kept.push(now);
+  return kept.sort((a, b) => a - b).slice(-SQUAD_MOVES_PER_WINDOW);
+}
+
 /** The room capacities a co-op room may have. */
 export const ROOM_CAPACITIES = Object.freeze([MAX_SEATS, LARGE_ROOM_SEATS]);
 
