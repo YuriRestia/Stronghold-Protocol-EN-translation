@@ -273,7 +273,7 @@ export const UNMAPPED = Object.freeze({
   token: "a buff on the unit's summons: UnitInfo has no summoner link",
   tick: "a periodic tick of the skill's buff (ON_BUFF_TRIGGER): the sim sends no tick event (some kits send their own 'fx')",
   conditional: 'a buff template action at an event the client never sees (a condition check, would-die, a kill …)',
-  'after-end': 'a buff created when the skill ends: its duration is not in index.json',
+  'after-end': 'a buff created when the skill ends that nothing the client sees ends (index `made`: no LIMITED life, no next-start finish)',
   'hit-no-attack': "hits of a non-attack ability: no 'atk' event names its targets",
   'channel-hit': "a channel's damage ticks: the sim sends them without a source",
   path: 'a line / path effect: its points come from the game',
@@ -511,7 +511,7 @@ function kindOf(srec, rootClass = null) {
 export const emptyPlan = (unitKey, skillId) => ({
   unitKey, skillId, mode: null, modeName: null, kind: null, rootClass: null, projectiles: [],
   start: [], loop: [], end: [], ready: [], range: [], attacks: [], each: { cast: [], hit: [[]] }, trigger: [], targets: [],
-  pulse: [], unmapped: [], cond: [], state: [],
+  pulse: [], unmapped: [], cond: [], state: [], after: [], idle: [],
 });
 
 /**
@@ -768,6 +768,7 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
     plan.unmapped.push({ key: 'yu_skill3_annex_02', role: 'trigger', reason: 'conditional', from: 'GlobalAuraAbility._buffs' });
   }
   planUses(idx, plan, [...uses, ...attach], { ...opts, abilities: skill.abilities });
+  if (plan.idle.length) afterIdle(plan, unit);
   // EmptyEffect has no particles/loop flag, but FinishEffectViaOwnerBuff holds this controller for yu_s_3[effect].
   if (id === 'skchr_yu_3') for (const role of ['start', 'loop', 'range']) for (const e of plan[role]) {
     if (e.key === 'yu_skill3_range_01_source') { e.hold = 'skill'; e.loop = true; }
@@ -782,6 +783,31 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
   attackLinePlan(idx, plan, FX_ATTACK_LINES[id]);
   if (isObj(opts.rec)) tagCasts(plan, skill);
   return plan;
+}
+
+/**
+ * (fork) The idle loops of a skill (plan.idle: a buff its start finishes and its end creates again — index `made.until`
+ * 'start'; char_1046_sbell2 S1–S3's sbell2_s[idle_effect] → sbell2_a[idle_effect], char_4212_nasti S1's
+ * nasti_s1[effect_manager] → nasti_s1[effect]): the same buff's passive copy — the skill's own (nasti's ExtraAbility0
+ * PassiveBuffAbility, planned as a skill loop) leaves plan.loop and the entry plays from the deploy (`deploy`); a unit
+ * ability's or talent's (sbell2's CommonAbilities/Effect) stays TalentFx's, which hides it while the skill is on
+ * (`talent`: SkillFx.idleOff) — so the loop shows while no skill is on, as the client's buffs do.
+ * @param {ReturnType<typeof emptyPlan>} plan
+ * @param {any} unit  the index unit
+ */
+function afterIdle(plan, unit) {
+  const passive = new Set();
+  for (const t of [...(Array.isArray(unit?.abilities) ? unit.abilities : []), ...Object.values(isObj(unit?.talents) ? unit.talents : {})]) {
+    for (const u of Array.isArray(t?.uses) ? t.uses : []) if (u?.buff) passive.add(u.buff);
+  }
+  for (const e of plan.idle) {
+    const buff = e.made?.buff;
+    if (!buff) continue;
+    if (passive.has(buff)) { e.talent = true; continue; }
+    const n = plan.loop.length;
+    plan.loop = plan.loop.filter((x) => x.buff !== buff || x.key !== e.key);
+    if (plan.loop.length < n) e.deploy = true;
+  }
 }
 
 /**
@@ -971,7 +997,8 @@ function entryOf(key, role, u, prefabs, describe) {
   // (v2: a group list's `group` / `groups`, a replace group's `anim`, the MultiHit choice flags, an enemy copy's `mode`)
   // (v3: a buff use's `life`, an emitter use's `projectileKey`)
   for (const f of ['node', 'ability', 'list', 'startEvent', 'endEvent', 'directionType', 'event', 'action', 'buff', 'on',
-    'group', 'groups', 'anim', 'useLoopHitEffect', 'useRandomHitEffect', 'keepBaseHitEffect', 'oncePerTarget', 'mode', 'life', 'projectileKey']) {
+    'group', 'groups', 'anim', 'useLoopHitEffect', 'useRandomHitEffect', 'keepBaseHitEffect', 'oncePerTarget', 'mode', 'life', 'projectileKey',
+    'made']) {
     if (u[f] != null) e[f] = u[f];
   }
   // where it sits on its owner: index v2's prefab summary (`spawn` / `follow`), without loading the descriptor
@@ -1042,7 +1069,15 @@ function place(plan, e, u, { attackOf, eachHit }) {
   if (role === 'loop' && ev && COND_BUFFS[u.buff]?.event === ev) { e.hold = 'cond'; plan.cond.push(e); return null; }
   if (ev && !START_EVENTS.has(ev)) {
     if (END_EVENTS.has(ev)) {
-      if (role === 'loop') return 'after-end';
+      if (role === 'loop') {
+        // (fork) a buff the end creates, with its own life (index `made`, fx.py graph_made_buffs): one the next start
+        // finishes again (`until: 'start'`) is the unit's idle loop — `idle`, on while no skill is (afterIdle) —, a
+        // LIMITED one plays its own time from the end — `after` (char_1026_gvial2 S3's bleed, final_duration) —, any
+        // other outlives the skill with nothing the client sees ending it
+        if (isObj(u.made) && u.made.until === 'start') { e.hold = 'idle'; plan.idle.push(e); return null; }
+        if (isObj(u.made) && u.made.type === 'LIMITED') { e.hold = 'made'; plan.after.push(e); return null; }
+        return 'after-end';
+      }
       if (onTargets) { e.at = 'targets'; e.hold = oneShotHold(e); plan.targets.push(e); return null; }
       e.hold = oneShotHold(e);
       plan.end.push(e);
@@ -1251,6 +1286,7 @@ export function planKeys(plan) {
   for (const e of plan?.pulse || []) add(e);
   for (const e of plan?.cond || []) add(e);
   for (const e of plan?.state || []) add(e);
+  for (const e of [...(plan?.after || []), ...(plan?.idle || [])]) add(e);
   if (plan?.line) out.add(plan.line.key);
   return [...out];
 }

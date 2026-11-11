@@ -1689,6 +1689,13 @@ lasts what its ability gives it, *assumed*: the skill), INFINITY (until removed:
 aura, the skill ends), CUSTOM; `db` = `loadFromDB` (the client's buff table may replace these; 2 uses); `tick` =
 `triggerInterval` (the period of its ON_BUFF_TRIGGER actions — the ticks no client event reports). The templates have
 no life of their own (Torappu.Battle.BuffTemplate: `templateKey`, `effectKey`, `eventToActions`, `onEventPriority`).
+(fork) A use a template action's CreateBuff makes also has `made` = the created buff's own life (`{ type, time?, key?,
+buff, until? }` — `life` stays its parent's): `buff` its buffKey, `until: 'start'` when the template's own start
+finishes that buff again (FinishBuffsById). The client plays a loop made at the skill's end (ON_BUFF_FINISH) from
+there: a LIMITED one for its time (`after`: char_1026_gvial2 S3's bleed, `final_duration`), an `until: 'start'` one
+while the skill is off (`idle`: char_1046_sbell2's and char_4212_nasti S1's idle loops — the same buff's passive copy
+starts it at the deploy and the skill hides it); any other stays unmapped `after-end`. A relink (`--fx-relink`) adds
+`made` to the uses an earlier run wrote.
 
 **Group choice.** `select` on a group ability (mode attacks, sub-abilities, skills' and talents' abilities): `{ method,
 probKeys?, diffFromLast?, allAtLeastOnce?, loop?, main?, burst? }` — `random` / `loop` (*metadata*
