@@ -1344,6 +1344,7 @@ export class AudioManager {
    * the client's per-shot births cut each other], with the volley rather than each shot's birth delay.
    */
   _fxSound(kind, ex) {
+    if (kind === 'burst') { this._burstSound(ex); return; }
     // (fork) the unit the fx names (`id`), else its shooter (`src`: 蕾缪安's locks and shots name the enemy); a key with
     // '#<skill index>' is that equipped skill's own (her S2 aim and S3 lock are both 'lock')
     for (const id of [ex.id, ex.src]) {
@@ -1353,6 +1354,22 @@ export class AudioManager {
       const tag = `${kind}|${ex.skill ?? ''}`;
       const e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
       if (typeof e?.url === 'string') { this._playBank(e.url, e.pool, NOTE_GAIN); return; }
+    }
+  }
+
+  /**
+   * (fork) An element burst's official sound (b.ev ['fx', 'burst', x, y, { id, element }], server/sim/attack/element.js):
+   * manifest sfx.burst['<element>.<side>'], every listed bank at once on its own pool (burn: its START and SHOW_EFFECT
+   * banks). The side is the bursting unit's, as render/vfx/wiring.js burstSide decides; a side with no entry (an enemy's
+   * burn / neural / erosion burst, as in the official client) stays silent.
+   */
+  _burstSound(ex) {
+    const u = this.units.get(ex.id);
+    if (!u || typeof ex.element !== 'string') return;
+    const side = u.kind === 'enemy' || String(u.defId || '').startsWith('enemy_') ? 'enemy' : 'char';
+    const list = this.getManifest()?.audio?.sfx?.burst?.[`${ex.element}.${side}`];
+    for (const e of Array.isArray(list) ? list : []) {
+      if (typeof e?.url === 'string') this._playBank(e.url, e.pool, NOTE_GAIN * (Number(e.vol) > 0 ? Number(e.vol) : 1));
     }
   }
 

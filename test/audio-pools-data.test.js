@@ -71,8 +71,10 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
+  // (fork) + 5 pools: the element burst banks (plan.mjs BURST_SOUND_BANKS: ep_break_fire_audio's START and SHOW_EFFECT,
+  // the sanity, water and dark START banks; a burst sound is no attack / hit reference)
   assert.equal(refs, 1048);
-  assert.equal(Object.keys(pools).length, 1074);
+  assert.equal(Object.keys(pools).length, 1079);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });
