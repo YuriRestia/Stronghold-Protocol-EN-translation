@@ -72,12 +72,25 @@ test('every generated attack/hit reference resolves to a valid pool and its sele
   // (fork) + 4 references, + 6 pools: 烛煌's S1 swing and impact (SKILL_ABILITY_SOUNDS), her S2 / S3 bolt impacts
   // (SKILL_MODE_BANKS: projectile_chr_blaze2_s2 / _s3's ON_PROJECTILE_HIT), and the pools of those four, her S3
   // activation (SKILL_ON_BANKS) and its closing (SKILL_OFF_BANKS)
-  // (fork) + 1 reference, + 26 pools: 艾雅法拉's impact (UNIT_SOUND_BANKS: projectile_amgoat's REACH; her S3 projectile's
-  // pool is registered but its slot replays the normal impact, so it carries no entry), 澄闪's drone banks
-  // (FX_SOUND_BANKS) and the Sanrio outfits' own banks; the three outfit entries hold 9 references
-  assert.equal(refs, 1049);
-  assert.equal(outfitRefs, 9);
-  assert.equal(Object.keys(pools).length, 1100);
+  // (fork) + 3 references, + 50 pools: 艾雅法拉's impact (UNIT_SOUND_BANKS: projectile_amgoat's REACH; her S3 projectile's
+  // pool is registered but its slot replays the normal impact, so it carries no entry) and her S2 swing and hit
+  // (SKILL_MODE_BANKS), 澄闪's drone banks and 圣约送葬人's talent / S3-end banks (FX_SOUND_BANKS), and the Sanrio
+  // outfits' own banks; the three outfit entries hold 11 references
+  assert.equal(refs, 1051);
+  assert.equal(outfitRefs, 11);
+  assert.equal(Object.keys(pools).length, 1124);
+  // (fork) every sound of a kit fx (and the ones played with it: `also`) and of an attack's follow-up (attackAlso) is a
+  // file of its pool's bank
+  let parts = 0;
+  for (const [id, u] of [...Object.entries(units), ...Object.entries(outfits)]) {
+    const lists = [...Object.values(u.fxSounds || {}).flatMap((e) => [e, ...(e.also || [])]), ...Object.values(u.attackAlso || {}).flat()];
+    for (const e of lists) {
+      if (!e.pool) continue;
+      assert.ok(pools[e.pool]?.sounds?.[e.url.replace('/assets/audio/sfx/', '')], `${id}: ${e.url} in ${e.pool}`);
+      parts++;
+    }
+  }
+  assert.ok(parts >= 40, `kit fx sounds checked: ${parts}`);
   const p = pools[units.char_4064_mlynar.attackPools[2]];
   assert.equal(p.sounds['player/p_imp/p_imp_loyalsword_h.mp3'].delay, 0.1);
 });

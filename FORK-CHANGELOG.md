@@ -12,8 +12,9 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 - Three outfits have official battle sounds of their own, and now play them: Goldenglow's Party In The Garden, Executor the Ex Foedere's The Train Runner and Eyjafjalla's Fluffy Little Witch (the Sanrio outfits). Their attacks, impacts and skill sounds use the outfit's files; anything the outfit has no sound for stays the operator's. Eyjafjalla's outfit also has an S2 explosion sound of its own.
 - It works for any outfit: the asset build finds an outfit's sound banks in the official audio data by name, so a new one needs no code. Skadi the Corrupting Heart's Red Countess already played its own voice lines; its sound effects are the same as the default outfit's.
 - Goldenglow's drones were silent in every outfit. Each drone hit, a drone's self-destruct and S2 / S3's drone launch now play their official sounds. Eyjafjalla's attacks now have their impact sound (in her Sanrio outfit, S3's impact is its own).
+- The rest of these three operators' official battle sounds play too, in every outfit: Goldenglow's own S1 / S2 shot when she sends out drones, and each drone's signal 0.6 s after launch; Eyjafjalla's S2 swing and its hit; Executor the Ex Foedere's talent double strike (its own sound in S3) and his S3 final verdict. His Sanrio outfit's S2 attack also plays its second shot sound.
 - Behind the scenes: the dev sandbox plays an outfit's own battle sounds too, and an outfit sound's pitch and delay settings are found under the file's served name.
-- Server: 22 new sound files (16 for the outfits, 6 default Goldenglow / Eyjafjalla sounds), all in data/assets.json.
+- Server: 41 new sound files (26 for the outfits, 15 default ones for these three operators), all in data/assets.json.
 
 ## 2026-11-10
 

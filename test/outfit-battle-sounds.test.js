@@ -103,8 +103,22 @@ test('data/assets.json: the three Sanrio outfits carry their own files; Goldengl
   assert.deepEqual([0, 1, 2].map((i) => f(exo.attacks[i])), ['p_atk_shotgunx_d_sanrio_2.mp3', 'p_atk_shotgunxfr_h_sanrio_2.mp3', 'p_atk_shotgunx_s_sanrio_2.mp3']);
   const go = m.units.char_180_amgoat, goo = m.outfits['char_180_amgoat@sanrio#2'];
   assert.deepEqual([f(go.hit), f(goo.hit)], ['p_imp_firemag_n.mp3', 'p_imp_firemag_n_sanrio_2.mp3'], 'her projectile\'s REACH is her impact');
-  assert.equal(go.hits, undefined, 'her S3 projectile replays her normal impact: no mode slot (#679)');
+  assert.deepEqual(Object.keys(go.hits), ['1'], 'her S3 projectile replays her normal impact: no S3 slot (#679)');
   assert.equal(f(goo.hits[2]), 'p_imp_firemag_s_sanrio_2.mp3', 'the outfit\'s S3 projectile has its own');
+  // S2 (a ReplacementSkill): the skill's own swing and its projectile's hit
+  assert.deepEqual([f(go.attacks[1]), f(go.hits[1])], ['p_atk_firemag_n.mp3', 'p_skill_firebuff.mp3']);
+  assert.deepEqual([f(goo.attacks[1]), f(goo.hits[1])], ['p_atk_firemag_h_sanrio_2.mp3', 'p_skill_firebuff.mp3'], 'the hit has no outfit twin');
+  // Goldenglow's drone launch: her own S1 / S2 shot, the funnel's signal 0.6 s later
+  const parts = (e) => [f(e), ...(e.also || []).map((x) => `${f(x)}+${x.after}`)];
+  assert.deepEqual(parts(gd.fxSounds['droneLock|#0']), ['p_imp_sparklight_d.mp3', 'p_imp_sparklightfunnel_end_n.mp3+0.6']);
+  assert.deepEqual(parts(gdo.fxSounds['droneLock|#1']), ['p_imp_sparklight_h_sanrio_1.mp3', 'p_imp_sparklightfunnel_end_n_sanrio_1.mp3+0.6']);
+  assert.equal(gd.fxSounds['droneLock|#2'].after, 0.6, 'S3 has no own projectile: the signal alone, late');
+  // Executor: T1's double strike, its S3 twin, S3's final verdict; the outfit's S2 shot after the swing
+  assert.deepEqual(parts(ex.fxSounds['extraAttack|']), ['p_atk_shotgunxdouble.mp3', 'p_atk_shotgunxdouble_2.mp3+0.1']);
+  assert.deepEqual(parts(exo.fxSounds['extraAttack|#2']), ['p_atk_shotgunxdouble_sanrio_2.mp3', 'p_atk_shotgunxdouble3_sanrio_2.mp3+0.1']);
+  assert.deepEqual(parts(exo.fxSounds['aoe|excu2']), ['p_atk_bngel_sanrio_2.mp3', 'p_imp_bngel_sanrio_2.mp3+0.1']);
+  assert.equal(ex.attackAlso, undefined, 'the default S2 has one sound');
+  assert.deepEqual(exo.attackAlso[1].map((x) => `${f(x)}+${x.after}`), ['p_atk_shotgunx_h_sanrio_2.mp3+0.15']);
   assert.equal(go.fxSounds, undefined, 'the S2 explosion bank is the outfit\'s only');
   assert.equal(f(goo.fxSounds['explosion|']), 'p_imp_firemag_h_sanrio_2.mp3');
   assert.deepEqual([go.born, f(goo.born)], [undefined, 'b_char_set.mp3']);
@@ -172,6 +186,42 @@ test('AudioManager: a unit wearing an outfit with its own sounds requests the ou
     assert.deepEqual(await run([['fx', 'drone', 5, 9, { id: 5 }]]), ['drone.mp3'], 'an outfit without sounds of its own: the operator\'s');
   } finally {
     setOutfitSfxResolver(null);
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('AudioManager: a kit fx with several banks plays each on its pool, the late one after its delay; an attack follow-up after the swing', async () => {
+  const fw = fakeWindow();
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+  const pool = { maxSoundAllowed: 4, popOldest: true, sounds: {} };
+  const vm = { audio: { bgm: {}, sfx: { ui: {}, battle: {}, pools: { a: pool, b: pool, s: pool, f: pool },
+    units: { char_1032_excu2: { attacks: { 1: '/s/swing_h.mp3' }, attackPools: { 1: 's' }, attackAlso: { 1: [{ url: '/s/shot.mp3', pool: 'f', after: 0.05 }] },
+      fxSounds: { 'extraAttack|': { url: '/s/t1.mp3', pool: 'a', also: [{ url: '/s/double.mp3', pool: 'b', after: 0.05 }] } } } } } } };
+  try {
+    const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
+    a.install();
+    fw.fire('pointerdown');
+    await new Promise((r) => setTimeout(r, 10));
+    a.setFieldUnits([{ id: 1, kind: 'op', side: 'ally', defId: 'char_1032_excu2', spine: 'char_1032_excu2', skillIndex: 1 },
+      { id: 9, kind: 'enemy', side: 'enemy', defId: 'enemy_1007_slime', spine: 'enemy_1007_slime' }]);
+    const plays = [];
+    const play = a._playBank.bind(a);
+    a._playBank = (url, p, vol) => { plays.push(url); return play(url, p, vol); };
+    a.handleBattleEvents([['fx', 'extraAttack', 0, 0, { id: 1 }]]);
+    assert.deepEqual(plays, ['/s/t1.mp3'], 'the lead at once');
+    await new Promise((r) => setTimeout(r, 120));
+    assert.deepEqual(plays, ['/s/t1.mp3', '/s/double.mp3'], 'the listed one after its delay');
+    plays.length = 0;
+    a.handleBattleEvents([['skill', 1, 1], ['atk', 1, 9]]);
+    await new Promise((r) => setTimeout(r, 120));
+    assert.deepEqual(plays, ['/s/shot.mp3'], 'the running skill\'s attack: its follow-up after the swing');
+    plays.length = 0;
+    a.handleBattleEvents([['fx', 'extraAttack', 0, 0, { id: 1 }]]);
+    a.setFieldUnits([]);
+    await new Promise((r) => setTimeout(r, 120));
+    assert.deepEqual(plays, ['/s/t1.mp3'], 'a late sound of a field that changed is dropped');
+  } finally {
     globalThis.fetch = origFetch;
   }
 });

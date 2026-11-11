@@ -1367,7 +1367,21 @@ export class AudioManager {
       if (!table) continue;
       const tag = `${kind}|${ex.skill ?? ''}`;
       const e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
-      if (typeof e?.url === 'string') { this._playBank(e.url, e.pool, NOTE_GAIN); return; }
+      if (typeof e?.url === 'string') { this._playParts(e, NOTE_GAIN); return; }
+    }
+  }
+
+  /**
+   * (fork) A sound and the ones listed with it (`also`: one official moment's several banks, tools/assets/plan.mjs
+   * FX_SOUND_BANKS / attackAlso), each on its bank's pool; one with `after` waits that many seconds [ASSUMED: real time,
+   * not the battle speed] and is dropped when the field changed meanwhile.
+   */
+  _playParts(e, gain) {
+    for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
+      if (typeof p?.url !== 'string') continue;
+      if (!(p.after > 0)) { this._playBank(p.url, p.pool, gain); continue; }
+      const token = this.poolFieldToken;
+      setTimeout(() => { if (token === this.poolFieldToken) this._playBank(p.url, p.pool, gain); }, p.after * 1000);
     }
   }
 
@@ -1935,6 +1949,9 @@ export class AudioManager {
       // (fork) a singing skill (SONG_SKILLS): the battle sounds step back while its song plays
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
       this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
+      // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
+      const also = kind === 'attack' && typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : null;
+      if (Array.isArray(also)) this._playParts({ also }, unitGain(UNIT_BASE_GAIN, mix));
       return true;
     } catch { return false; }
   }
