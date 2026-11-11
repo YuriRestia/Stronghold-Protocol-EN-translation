@@ -388,6 +388,11 @@ export const CHAT_LONG_MS = 5 * 60_000;
 export const CHAT_BUDGET_BYTES_PER_S = 32 * 1024;
 export const CHAT_FRAME_OVERHEAD = 80;
 export const CHAT_BUSY_MS = 3000;
+// (fork) who gets the budget (user, 2026-11-11, "per room fair share & match reserve"): one room (or match) may use at
+// most CHAT_ROOM_SHARE of it, so a spamming room only silences itself; CHAT_MATCH_RESERVE of it only match chat may use,
+// so lobby or room spam never blocks in-game chat. The operator's SP_CHAT_ROOM_SHARE / SP_CHAT_MATCH_RESERVE override them.
+export const CHAT_ROOM_SHARE = 0.25;
+export const CHAT_MATCH_RESERVE = 0.25;
 // (fork) room chat history (server memory only, never disk): the last lines of a room, for a member who reconnects
 export const ROOM_CHAT_HISTORY_LINES = 50;
 export const ROOM_CHAT_HISTORY_BYTES = 16 * 1024;

@@ -7,9 +7,10 @@ import assert from 'node:assert/strict';
 import { Lobby } from '../server/lobby.js';
 import { SessionRegistry } from '../server/net.js';
 import { getData } from '../server/data.js';
-import { chatBudgetReset, chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes } from '../server/chatLimit.js';
+import { sendChat } from '../server/match/chatWallet.js';
+import { chatBudgetReset, chatBudgetRooms, chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes } from '../server/chatLimit.js';
 import {
-  CHAT_BUDGET_BYTES_PER_S, CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_NETWORK_LINES,
+  CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_NETWORK_LINES,
   CHAT_PAUSE_FORGIVE_MS, EMOTES, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_LINES,
 } from '../shared/constants.js';
 import { ROOM_LOG_KEEP, roomChatAppend, roomChatFor, roomChatLine, roomChatSystemLines } from '../public/js/roomChat.js';
@@ -19,7 +20,7 @@ const quiet = { info() {}, warn() {}, error() {}, debug() {} };
 class Rec { constructor(opts) { this.opts = opts; } start() {} dispose() {} onLeave() {} onDisconnect() {} }
 
 function harness() {
-  chatBudgetReset(CHAT_BUDGET_BYTES_PER_S);
+  chatBudgetReset();
   const clock = { t: 1_000_000 };
   const registry = new SessionRegistry();
   const lobby = new Lobby({ registry, log: quiet, MatchClass: Rec, content: { cs: VANILLA }, getData, now: () => clock.t, options: { largeRooms: true } });
@@ -116,19 +117,45 @@ test('limits: the gate refuses before any filtering — a line that cleans to no
 });
 
 test('budget: one bucket for every chat line, two seconds deep, refilled by the second', () => {
-  chatBudgetReset(1000);
+  chatBudgetReset(1000, { roomShare: 1, matchReserve: 0 });
   assert.equal(chatWireBytes(100, 3), 3 * 180, 'each recipient: the frame plus 80 B of TLS / TCP');
   assert.equal(chatBudgetTake(1500, 0), true);
   assert.equal(chatBudgetTake(600, 0), false, '2 s of budget is 2,000 B');
   assert.equal(chatBudgetTake(600, 100), true, '100 ms refilled 100 B');
   assert.equal(chatBudgetTake(2001, 10_000), false, 'never more than two seconds at once');
-  chatBudgetReset(CHAT_BUDGET_BYTES_PER_S);
+  chatBudgetReset();
+});
+
+test('budget: one room gets at most its fair share; other rooms still chat', () => {
+  chatBudgetReset(1000, { roomShare: 0.25, matchReserve: 0 }); // a room: 250 B/s, 500 B at once
+  assert.equal(chatBudgetTake(400, 0, { room: 'A' }), true);
+  assert.equal(chatBudgetTake(400, 0, { room: 'A' }), false, 'room A spent its share');
+  assert.equal(chatBudgetTake(400, 0, { room: 'B' }), true, 'room B is not silenced by A');
+  assert.equal(chatBudgetTake(400, 1200, { room: 'A' }), true, '1.2 s refilled A by 300 B');
+  // a line bigger than the share (a heavily watched match) still goes out once when the room's bucket is full
+  assert.equal(chatBudgetTake(900, 20_000, { room: 'C' }), true);
+  assert.equal(chatBudgetTake(10, 20_000, { room: 'C' }), false, 'then the room waits out the debt');
+  assert.equal(chatBudgetTake(10, 21_700, { room: 'C' }), true);
+  // idle rooms are forgotten (their bucket is full again anyway)
+  chatBudgetTake(1, 40_000, { room: 'D' });
+  assert.equal(chatBudgetRooms(), 1, 'only room D is still kept');
+  chatBudgetReset();
+});
+
+test('budget: the match reserve is only for match chat, which uses it first', () => {
+  chatBudgetReset(1000, { roomShare: 1, matchReserve: 0.25 }); // shared pool 1,500 B at once, reserve 500 B
+  assert.equal(chatBudgetTake(1500, 0, { room: 'R' }), true, 'room chat empties the shared pool');
+  assert.equal(chatBudgetTake(100, 0, { room: 'R2' }), false, 'room chat never touches the reserve');
+  assert.equal(chatBudgetTake(400, 0, { room: 'match:M', match: true }), true, 'match chat still goes out');
+  assert.equal(chatBudgetTake(200, 0, { room: 'match:M', match: true }), false, 'the reserve has 100 B left, the pool none');
+  assert.equal(chatBudgetTake(200, 1000, { room: 'match:M', match: true }), true, 'reserve first, then the pool');
+  chatBudgetReset();
 });
 
 test('room chat: over the server-wide budget a line is dropped and the sender told "busy", at most every 3 s', () => {
   const h = harness();
   const { host, guests: [a] } = h.room(2);
-  chatBudgetReset(100); // a tiny budget: 200 B at once
+  chatBudgetReset(100, { roomShare: 1, matchReserve: 0 }); // a tiny budget: 200 B at once
   say(h, host, 'x'.repeat(100));
   assert.equal(h.got(a, 'room.chat').length, 0, 'over the budget: nobody gets it');
   assert.deepEqual(h.got(host, 'room.chatPause'), [{ t: 'room.chatPause', ms: 3000, busy: true }]);
@@ -138,7 +165,40 @@ test('room chat: over the server-wide budget a line is dropped and the sender to
   h.step(2000);
   say(h, host, 'ok');
   assert.equal(h.got(a, 'room.chat').at(-1)?.x, 'ok', 'a short line fits once the budget refilled');
-  chatBudgetReset(CHAT_BUDGET_BYTES_PER_S);
+  chatBudgetReset();
+});
+
+test('room chat: a flooding room is told "busy" and only silences itself; another room still chats', () => {
+  const h = harness();
+  const spam = h.room(4);
+  const calm = h.room(2);
+  // each room: 1,000 B/s, 2,000 B at once; a 100-letter line to 3 others is about 3 × 260 B
+  chatBudgetReset(4000);
+  for (const s of [spam.host, ...spam.guests]) say(h, s, 'x'.repeat(100));
+  const heard = h.got(spam.guests[2], 'room.chat').length;
+  assert.equal(heard, 2, 'the room ran out of its share after two lines');
+  assert.ok(h.got(spam.guests[1], 'room.chatPause').some((p) => p.busy), 'the sender over the share is told "busy"');
+  say(h, calm.host, 'anyone up for a run?');
+  assert.equal(h.got(calm.guests[0], 'room.chat').at(-1)?.x, 'anyone up for a run?', 'the calm room is not blocked');
+  chatBudgetReset();
+});
+
+test('match chat: room spam that empties the shared pool never blocks in-game chat', () => {
+  chatBudgetReset(4000); // shared pool 6,000 B at once, match reserve 2,000 B
+  const t0 = Date.now();
+  for (let i = 0; i < 40; i++) chatBudgetTake(1000, t0, { room: `R${i}` });
+  assert.equal(chatBudgetTake(200, t0, { room: 'R-late' }), false, 'room chat is busy now');
+  const sent = [];
+  const toasts = [];
+  const ps = { playerId: 'p_0', seat: 1, isBot: false, chatLeft: 50, chatRound: 1, chatPending: null, dirty() {} };
+  const m = {
+    roomCode: 'ABCD', sched: { now: () => 100_000 }, players: new Map([['p_0', ps], ['p_1', {}], ['p_2', {}], ['p_3', {}]]),
+    broadcast: (msg) => sent.push(msg), toast: (_ps, _kind, text) => toasts.push(text),
+  };
+  assert.deepEqual(sendChat(m, ps, 'push left lane'), { ok: true });
+  assert.deepEqual(sent.map((f) => f.x), ['push left lane'], 'the match reserve carries it');
+  assert.deepEqual(toasts, []);
+  chatBudgetReset();
 });
 
 test('room chat: a plain-text line to every other member, never back to the sender; refusals send nothing', () => {

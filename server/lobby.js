@@ -2216,8 +2216,8 @@ export class Lobby {
     const line = { t: 'room.chat', id: session.playerId, n: seat.name, x: text };
     const to = [...this.memberSessions(room)];
     const data = encode(line);
-    // the server-wide chat budget (server cost): over it the line is dropped and the sender told, at most every 3 s
-    if (!chatBudgetTake(chatWireBytes(utf8Bytes(data), to.length - 1), now)) {
+    // the server-wide chat budget (server cost; this room's fair share of the shared pool): over it the line is dropped and the sender told, at most every 3 s
+    if (!chatBudgetTake(chatWireBytes(utf8Bytes(data), to.length - 1), now, { room: room.code })) {
       if (now - (session.chatBusyAt ?? -Infinity) >= CHAT_BUSY_MS) {
         session.chatBusyAt = now;
         sendSession(session, { t: 'room.chatPause', ms: CHAT_BUSY_MS, busy: true });

@@ -10,14 +10,16 @@
 //   * at most CHAT_LONG_LINES lines in any CHAT_LONG_MS (5 min): the next one starts a pause too, so a sender who keeps
 //     just under the burst all day is held to a fraction of it (server cost, user 2026-11-11);
 //   * every session of one network together: at most CHAT_NETWORK_LINES lines in any CHAT_BURST_MS (chatNetworkCheck);
-//   * one budget for every chat line this process sends (chatBudgetTake): CHAT_BUDGET_BYTES_PER_S on the wire; over it a
-//     line is dropped and the sender told the chat is busy — the hard ceiling of chat traffic, whatever the player count.
+//   * one budget for every chat line this process sends (chatBudgetTake): CHAT_BUDGET_BYTES_PER_S on the wire, with a
+//     slice only match chat may use and a fair share per room; over it a line is dropped and the sender told the chat is
+//     busy — the hard ceiling of chat traffic, whatever the player count.
 // A refused line gets no reply frame, so spam cannot make the server talk back; only the start of a pause is told to the
 // sender (once). State is a few numbers per sender, bounded; nothing is written anywhere.
 
 import {
   CHAT_BUDGET_BYTES_PER_S, CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_COOLDOWN_GRACE_MS, CHAT_DUPLICATE_LINES, CHAT_DUPLICATE_MS,
-  CHAT_FRAME_OVERHEAD, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_NETWORK_LINES, CHAT_PAUSE_FORGIVE_MS, CHAT_PAUSE_STEPS_MS,
+  CHAT_FRAME_OVERHEAD, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_MATCH_RESERVE, CHAT_NETWORK_LINES, CHAT_PAUSE_FORGIVE_MS,
+  CHAT_PAUSE_STEPS_MS, CHAT_ROOM_SHARE,
 } from '../shared/constants.js';
 
 /** A fresh sender state. Kept on the lobby session (room chat: survives reconnects) or on the match's PlayerState. */
@@ -94,30 +96,84 @@ export function chatNetworkSweep(table, now) {
 }
 
 // ---- the server-wide budget ---------------------------------------------------------------------------------------
-// One token bucket for this process: CHAT_BUDGET_BYTES_PER_S (the operator's SP_CHAT_BUDGET_KBPS overrides it), holding at
-// most two seconds' worth. Its state is two numbers.
-const ENV_KBPS = Number(globalThis.process?.env?.SP_CHAT_BUDGET_KBPS);
-let budgetRate = Number.isFinite(ENV_KBPS) && ENV_KBPS > 0 ? ENV_KBPS * 1024 : CHAT_BUDGET_BYTES_PER_S;
-let budget = { tokens: budgetRate * 2, at: null };
+// One ceiling for this process: CHAT_BUDGET_BYTES_PER_S (the operator's SP_CHAT_BUDGET_KBPS overrides it), split into two
+// token buckets, each two seconds deep (user, 2026-11-11, "per room fair share & match reserve"):
+//   * the match reserve, CHAT_MATCH_RESERVE of the ceiling (SP_CHAT_MATCH_RESERVE): only match chat draws from it (first),
+//     so lobby or room spam never blocks in-game chat;
+//   * the shared pool, the rest: room chat, and match chat once its reserve is spent.
+// On top, each room has its own bucket of CHAT_ROOM_SHARE of the ceiling (SP_CHAT_ROOM_SHARE), so one spamming room only
+// silences itself (room chat is keyed by the room code, match chat by "match:" + its room code). A full room bucket lets
+// one line through even when it is bigger than the bucket (a heavily watched match), and the room then waits out the
+// debt. Idle room buckets are full again after two seconds and are forgotten on a sweep, so the table stays as small as
+// the rooms chatting right now.
+const ENV = globalThis.process?.env ?? {};
+const envNum = (name, def, ok) => {
+  const raw = ENV[name];
+  const v = Number(raw);
+  return raw != null && raw !== '' && Number.isFinite(v) && ok(v) ? v : def;
+};
+const CONF_RATE = envNum('SP_CHAT_BUDGET_KBPS', CHAT_BUDGET_BYTES_PER_S / 1024, (v) => v > 0) * 1024;
+const CONF_SHARE = envNum('SP_CHAT_ROOM_SHARE', CHAT_ROOM_SHARE, (v) => v > 0 && v <= 1);
+const CONF_RESERVE = envNum('SP_CHAT_MATCH_RESERVE', CHAT_MATCH_RESERVE, (v) => v >= 0 && v < 1);
+let budgetRate = CONF_RATE;
+let roomShare = CONF_SHARE;
+let matchReserve = CONF_RESERVE;
+const bucket = (rate) => ({ rate, tokens: rate * 2, at: null });
+const fill = (b, now) => {
+  if (b.at == null) b.at = now;
+  b.tokens = Math.min(b.rate * 2, b.tokens + Math.max(0, now - b.at) * b.rate / 1000);
+  b.at = now;
+};
+let shared = bucket(budgetRate * (1 - matchReserve));
+let reserve = bucket(budgetRate * matchReserve);
+/** @type {Map<string, ReturnType<typeof bucket>>} room key → its fair-share bucket */
+const rooms = new Map();
+let sweptAt = -Infinity;
+const SWEEP_MS = 10_000;
 /** Wire bytes of one line to `recipients` players: the frame's UTF-8 bytes plus CHAT_FRAME_OVERHEAD each. */
 export const chatWireBytes = (frameBytes, recipients) => Math.max(0, recipients) * (frameBytes + CHAT_FRAME_OVERHEAD);
 /** UTF-8 bytes of an encoded frame, in Node and in browsers (the bot Worker loads this module too). */
 const ENCODER = typeof TextEncoder === 'function' ? new TextEncoder() : null;
 export const utf8Bytes = (s) => (ENCODER ? ENCODER.encode(s).length : String(s).length * 3);
 /**
- * May a line that costs `bytes` on the wire go out now? Takes them from the budget when it may.
- * @param {number} bytes @param {number} now ms @returns {boolean}
+ * May a line that costs `bytes` on the wire go out now? Takes them from the budget when it may: from the room's fair
+ * share (when `room` is given) and from the match reserve (match chat, first) or the shared pool.
+ * @param {number} bytes @param {number} now ms
+ * @param {{ room?: string|null, match?: boolean }} [opts]
+ * @returns {boolean}
  */
-export function chatBudgetTake(bytes, now) {
-  if (budget.at == null) budget.at = now;
-  budget.tokens = Math.min(budgetRate * 2, budget.tokens + Math.max(0, now - budget.at) * budgetRate / 1000);
-  budget.at = now;
-  if (bytes > budget.tokens) return false;
-  budget.tokens -= bytes;
+export function chatBudgetTake(bytes, now, { room = null, match = false } = {}) {
+  if (now - sweptAt >= SWEEP_MS) {
+    sweptAt = now;
+    for (const [key, b] of rooms) if (now - b.at >= 2000) rooms.delete(key);
+  }
+  fill(shared, now);
+  fill(reserve, now);
+  let rb = null;
+  if (room != null) {
+    rb = rooms.get(room) || bucket(budgetRate * roomShare);
+    fill(rb, now);
+    if (bytes > rb.tokens && rb.tokens < rb.rate * 2) return false;
+  }
+  const fromReserve = match ? Math.min(bytes, reserve.tokens) : 0;
+  if (bytes - fromReserve > shared.tokens) return false;
+  reserve.tokens -= fromReserve;
+  shared.tokens -= bytes - fromReserve;
+  if (rb) { rb.tokens -= bytes; rooms.set(room, rb); }
   return true;
 }
-/** Tests: a fresh budget at `bytesPerS` (default the configured one). */
-export function chatBudgetReset(bytesPerS = null) {
-  if (bytesPerS != null) budgetRate = bytesPerS;
-  budget = { tokens: budgetRate * 2, at: null };
+/**
+ * Tests: a fresh budget at `bytesPerS`, room share and match reserve (each left out = the configured one).
+ * @param {number|null} [bytesPerS] @param {{ roomShare?: number, matchReserve?: number }} [opts]
+ */
+export function chatBudgetReset(bytesPerS = null, opts = {}) {
+  budgetRate = bytesPerS ?? CONF_RATE;
+  roomShare = opts.roomShare ?? CONF_SHARE;
+  matchReserve = opts.matchReserve ?? CONF_RESERVE;
+  shared = bucket(budgetRate * (1 - matchReserve));
+  reserve = bucket(budgetRate * matchReserve);
+  rooms.clear();
+  sweptAt = -Infinity;
 }
+/** Tests / diagnostics: how many room buckets are kept right now. */
+export const chatBudgetRooms = () => rooms.size;

@@ -7,7 +7,7 @@
 - On a phone the log is a Chat button with an unread count and the last line; tap it to open the log over the left half of the screen.
 - No kill wallet in the room: anyone seated can talk, up to 100 letters a line. Spectators can read along.
 - Spam limits: one line every 1.5 s, 6 lines in any 15 s and 20 lines in any 5 minutes; going over pauses your chat for 30 s, then 60 s, then 120 s. The same line twice within 10 s is dropped. Reconnecting does not reset a pause.
-- If the whole server's chat gets too busy, a line is not sent and you see "Chat is busy. Try again in a moment."
+- If the whole server's chat gets too busy, or one room uses more than its fair share, a line is not sent and you see "Chat is busy. Try again in a moment." A room that floods the chat only silences itself, and lobby chat can never use up the part of the budget kept for in-game chat.
 - If you lose the connection and come back, you get the lines you had already seen. Someone who joins later does not see older lines. Chat is kept only in the server's memory, never saved, and is gone when the room closes.
 
 ### Plain text in both chats
@@ -19,4 +19,4 @@
 ### Server cost
 
 - CPU: the text filter takes 1.3 µs for a typical line and at most ≈ 260 µs (measured); one run per player per 1.5 s at most, so ≤ 5 % of one core at 300 players in the absolute worst case, about 0 % typically. Sending stays under 0.1 % of a core at the budget.
-- Memory: ≤ 16 KB of history per room and under 1 KB of limits per player: ≈ 1.5 MB at 300 players, ≤ 16 MB at the server's 1,000-room limit. Disk: none (nothing is logged or saved). Bot budget: none.
+- Memory: ≤ 16 KB of history per room, under 1 KB of limits per player and about 100 B of budget per room chatting right now: ≈ 1.5 MB at 300 players, ≤ 16 MB at the server's 1,000-room limit. Disk: none (nothing is logged or saved). Bot budget: none.

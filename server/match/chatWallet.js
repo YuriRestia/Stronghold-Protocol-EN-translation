@@ -83,11 +83,12 @@ export function sendChat(m, ps, raw) {
     }
     return OK;
   }
-  // the server-wide chat budget (server cost), shared with room chat in this process; its clock is the wall clock
+  // the server-wide chat budget (server cost), shared with room chat in this process: the match reserve first, then
+  // the shared pool, within this match's fair share; its clock is the wall clock
   const frame = { t: 'm.chat', p: ps.seat, x: text };
   const recipients = Math.max(0, (m.players?.size ?? 0) + (m.spectators?.size ?? 0) - 1);
   const wall = Date.now();
-  if (!chatBudgetTake(chatWireBytes(utf8Bytes(JSON.stringify(frame)), recipients), wall)) {
+  if (!chatBudgetTake(chatWireBytes(utf8Bytes(JSON.stringify(frame)), recipients), wall, { room: `match:${m.roomCode ?? ''}`, match: true })) {
     if (wall - (ps.chatBusyAt ?? -Infinity) >= CHAT_BUSY_MS) {
       ps.chatBusyAt = wall;
       m.toast(ps, 'warn', msg('聊天繁忙，请稍后再试。')); // en: "Chat is busy. Try again in a moment."
