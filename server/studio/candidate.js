@@ -62,10 +62,11 @@ export function createCandidate(files, id, { deferLinks = false } = {}) {
 }
 
 // Link creation on some filesystems also takes seconds at the 5000-file cap. Keep it off the game loop.
-export async function createCandidateAsync(files, id) {
+// `checkMs`: the staging check's time budget (default check.js's 20 s); a test that checks what it finds sets its own.
+export async function createCandidateAsync(files, id, { checkMs } = {}) {
   const candidate = createCandidate(files, id, { deferLinks: true });
   try {
-    await checkCandidate({ stage: { entries: candidate.entries, dir: candidate.dir } });
+    await checkCandidate({ stage: { entries: candidate.entries, dir: candidate.dir } }, { timeoutMs: checkMs });
     return candidate;
   } catch (e) { await candidate.cleanupAsync(); throw e; }
 }

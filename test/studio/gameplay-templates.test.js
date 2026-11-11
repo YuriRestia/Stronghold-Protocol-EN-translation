@@ -10,7 +10,8 @@ import { createAuthoring } from '../../server/studio/authoring.js';
 import { checkGameplayDraft } from '../../server/studio/gameplayCheck.js';
 import { buildContentSet } from '../../server/plugins/contentSet.js';
 import { checkPluginFolder } from '../../server/plugins/pack.js';
-import { createTrialBench } from '../../server/studio/trial.js';
+import { createTrialBench, TRIAL_LIMITS } from '../../server/studio/trial.js';
+import { STUDIO_TRIAL_MS } from '../helpers/studioTrial.js';
 import { GAMEPLAY_TEMPLATES, editGameplay, gameplayOptions, bondId } from '../../public/studio/js/gameplayModel.js';
 import { validateDraft } from '../../public/studio/js/validateDraft.js';
 import { BondEditor } from '../../public/studio/js/editors/bond.js';
@@ -79,10 +80,11 @@ for (const template of GAMEPLAY_TEMPLATES) {
     assert.equal(fs.readFileSync(path.join(f.dir, 'plugin.json'), 'utf8'), before);
   });
 
-  test(`${template}: fresh template passes complete check and runs an unsaved trial battle`, { timeout: 60000 }, async t => {
+  test(`${template}: fresh template passes complete check and runs an unsaved trial battle`, { timeout: 2 * STUDIO_TRIAL_MS }, async t => {
     const f = setup(t, template);
     assert.equal(checkGameplayDraft(f.id, f.made).ok, true);
-    const bench = createTrialBench({ registry: f.registry, files: f.files }); t.after(() => bench.close());
+    // (fork) this checks what the trial computes, not how fast: STUDIO_TRIAL_MS, not the 20 s server budget
+    const bench = createTrialBench({ registry: f.registry, files: f.files, limits: { ...TRIAL_LIMITS, timeoutMs: STUDIO_TRIAL_MS } }); t.after(() => bench.close());
     const result = await bench.run({ id: f.id, scenario: 'dummy', seconds: 2, draft: { template, options: {} } });
     assert.equal(result.ok, true, JSON.stringify(result.issues));
     assert.ok(result.plugin.frames.length > 1); assert.deepEqual(result.plugin.errors, []);
