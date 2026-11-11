@@ -21,7 +21,8 @@ function zebra(_bb, chess, def) {
           const t = cand[0];
           if (!t) return;
           const dur = rec?.duration > 0 ? rec.duration : 4;
-          battle.addBuff(t, { key, duration: dur, flags: { camou: true }, mods: { hpRegen: num(sbb.hp_recovery_per_sec) }, source: unit });
+          // (fork) fx: the official zebra_s_1 glow on it while it lasts (b.snap fxs)
+          battle.addBuff(t, { key, duration: dur, flags: { camou: true }, mods: { hpRegen: num(sbb.hp_recovery_per_sec) }, source: unit, fx: 'zebra_s_1', fxSrc: unit.id });
         },
       },
     };

@@ -10,6 +10,9 @@ const isSargonMinos = (u) => inFaction(u, 'sargonShip', ['sargon', 'minos']);
 
 /** Enemy not moving along its route (blocked, stunned, rooted, waiting…). */
 const isStill = (e) => !!(e.blockedBy || !e.moving || e.s.flags.stun || e.s.flags.noMove || !(e.s.moveSpeed > 0));
+/** (fork) The client's buffs whose effects mark S2's ward and S3's sleepers (render/vfx/skills.js STATE_BUFFS; b.snap fxs). */
+const TITI_S2_FX = 'titi_s_2';
+const TITI_S3_FX = 'titi_s_3[dmg_ticker]';
 
 export default {
   // ---------------------------------------------------------------------------------------------------------------
@@ -33,7 +36,8 @@ export default {
     const t0Scale = (unit) => (sid === 'skchr_titi_2' && unit.skill?.active ? num(bb.talent_scale, 1) : 1);
     const ward = (battle, unit, a) => {
       const entered = !a.buffs.some((b) => (b.status ?? b.key) === 'sleep');
-      battle.addBuff(a, { key: 'titi:ward', flags: { sleep: true }, visible: true, status: 'sleep', data: { src: unit } });
+      // (fork) the official titi_s_2 glow on the ward she picks (her own is the skill's range loop)
+      battle.addBuff(a, { key: 'titi:ward', flags: { sleep: true }, visible: true, status: 'sleep', data: { src: unit }, fx: a === unit ? null : TITI_S2_FX, fxSrc: unit.id });
       battle.releaseBlocked(a);
       if (battle.hasHook('statusApplied')) battle.emit('statusApplied', { source: unit, target: a, status: 'sleep', duration: Infinity, entered });
     };
@@ -151,14 +155,19 @@ export default {
           }
         };
         battle.on('statusApplied', (c) => {
-          if (c.status === 'sleep' && c.target.side === 'enemy' && !asleep.has(c.target)) asleep.set(c.target, battle.time);
+          if (c.status === 'sleep' && c.target.side === 'enemy' && !asleep.has(c.target)) {
+            asleep.set(c.target, battle.time);
+            // (fork) the official titi_s_3[dmg_ticker] on a sleeper while the skill runs: its wake burst plays as it goes
+            if (unit.skill?.active && on(unit)) battle.fxState(c.target, TITI_S3_FX, true, { src: unit });
+          }
         }, { owner: unit });
         battle.on('tick', () => {
           if (!asleep.size) return;
           for (const [e, t0s] of asleep) {
             if (!e.alive) { asleep.delete(e); continue; }
-            if (e.s.flags.sleep) continue;
+            if (e.s.flags.sleep) { if (e.fxStates?.has(TITI_S3_FX) && !unit.skill?.active) battle.fxState(e, TITI_S3_FX, false); continue; }
             asleep.delete(e);
+            battle.fxState(e, TITI_S3_FX, false);
             if (!unit.skill?.active || !on(unit)) continue;
             const scale = minS + (maxS - minS) * Math.min(1, (battle.time - t0s) / Math.max(0.1, chainSleep));
             battle.dealDamage(unit, e, { amount: unit.s.atk * scale, type: 'arts', isSkill: true, tags: ['skill', 'titiWake'] });

@@ -122,7 +122,8 @@ export default {
               for (const e of battle.enemies) {
                 if (!e.alive || e.hidden) continue;
                 if (e.blockedBy !== unit && (e.isFlying || !bodyOnTile(e, unit.tileR, unit.tileC))) continue;
-                if (battle.applyStatus(e, 'sleep', { duration: dur, source: unit })) n++;
+                // (fork) the official blemsh_s_2[sleep] glow on each sleeper while it lasts (b.snap fxs)
+                if (battle.applyStatus(e, 'sleep', { duration: dur, source: unit })) { n++; battle.fxState(e, 'blemsh_s_2[sleep]', true, { src: unit, dur }); }
               }
               fx(battle, 'aoe', unit, { radius: 0.5, skill: 'blemsh_2', status: 'sleep', n });
               unit.mem.blemshRegen = 0;

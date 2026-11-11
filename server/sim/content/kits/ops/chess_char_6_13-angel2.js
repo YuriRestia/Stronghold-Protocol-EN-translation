@@ -129,7 +129,8 @@ function angel2(bb, chess, def) {
         unit.mem.angelVictim = victim;
         decayingShield(battle, unit, 'angel2:barrier', unit.s.maxHp * shieldRatio, shieldDur);
         if (victim) {
-          battle.addBuff(victim, { key: 'angel2:stolen', mods: { aspd: -steal }, source: unit, visible: true });
+          // (fork) fx: the official angel2_s_2[select_target] mark on the operator she steals from (b.snap fxs)
+          battle.addBuff(victim, { key: 'angel2:stolen', mods: { aspd: -steal }, source: unit, visible: true, fx: 'angel2_s_2[select_target]', fxSrc: unit.id });
           battle.addBuff(unit, { key: 'angel2:steal', mods: { aspd: steal } });
           decayingShield(battle, victim, 'angel2:barrier', victim.s.maxHp * shieldRatio, shieldDur);
           if (extra > 0) skill.addAmmo(extra);

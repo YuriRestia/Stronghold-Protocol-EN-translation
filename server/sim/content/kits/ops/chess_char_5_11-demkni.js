@@ -63,7 +63,7 @@ export default {
             if (unit.mem.calcAura >= AURA_IV - 1e-9) {
               unit.mem.calcAura = 0;
               const m = { artsTakenMul: num(bb['demkni_s_3.damage_scale'], 1), moveMul: Math.max(0, 1 + num(bb['demkni_s_3.move_speed'])) };
-              for (const e of battle.unitsInGrid(unit, grid, { side: 'enemy' })) battle.addBuff(e, { key: 'saria:calcify', duration: AURA_DUR, visible: true, mods: m });
+              for (const e of battle.unitsInGrid(unit, grid, { side: 'enemy' })) battle.addBuff(e, { key: 'saria:calcify', duration: AURA_DUR, visible: true, mods: m, fx: 'demkni_s_3', fxSrc: unit.id }); // (fork) fx: b.snap fxs
             }
             unit.mem.calcAcc += dt;
             if (unit.mem.calcAcc < 1 - 1e-9) return;

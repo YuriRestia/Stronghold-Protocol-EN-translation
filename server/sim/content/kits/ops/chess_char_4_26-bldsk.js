@@ -13,6 +13,7 @@ export default withDefaults({
     const S1 = isSel(def, 'skchr_bldsk_1');
     const plasma = (battle, unit, a) => battle.addBuff(a, {
       key: 'bldsk:plasma', duration: num(bb.duration, 15) + 1e-6, interval: Math.max(0.1, num(bb.interval, 1)), mods: { atkPct: num(bb.atk) }, visible: true, source: unit,
+      fx: 'bldsk_s_2', fxSrc: unit.id, // (fork) the official plasma glow on both while it lasts (b.snap fxs)
       onTick: ({ unit: t }) => battle.loseHp(t, t.s.maxHp * num(bb.hp_ratio, 0.03), { tags: ['skill', 'plasma'] }), // (no source: not damage dealt)
     });
     return {

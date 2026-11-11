@@ -104,7 +104,7 @@ export default {
             const m = { target: t, n: 0, alive: true, atk: unit.s.atk };
             unit.mem.lmleeMark = m;
             const dur = num(b2.paper_duration, 5);
-            battle.addBuff(t, { key: markKey(unit), duration: dur + 0.1, mods: tauntLv ? { taunt: tauntLv } : null, source: unit, tags: ['skill'] });
+            battle.addBuff(t, { key: markKey(unit), duration: dur + 0.1, mods: tauntLv ? { taunt: tauntLv } : null, source: unit, tags: ['skill'], fx: 'lmlee_s_2[paper]', fxSrc: unit.id }); // (fork) its glow (b.snap fxs)
             battle.fx('mark', { x: t.x, y: t.y, id: t.id, src: unit.id, skill: 'lmlee_2' });
             battle.after(dur, () => burstMark(battle, unit, m, b2), { owner: unit });
           },
