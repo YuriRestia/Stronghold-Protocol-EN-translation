@@ -99,6 +99,8 @@ export const initialState = Object.freeze({
   emotes: [],
   /** (fork) match chat: the playerIds this page mutes (chatState.js) */
   chatMute: [],
+  /** (fork) room chat: the room screen's log (roomChat.js) — the room's code, its lines, a spam pause's end */
+  roomChat: { code: null, lines: [], pausedUntil: 0 },
   clock: { offset: 0, rtt: null, synced: false },
   ui: { pendingJoin: null, restoring: false, buildStale: false },
   // planned maintenance (sys.maintenance, ui/maintenance.js): { at, closed } or null

@@ -54,6 +54,7 @@ import './ui/avatars.js';
 import { PHASE } from '../../shared/constants.js';
 import { store, useStore, emptyMatch, selectRoute, sessionResetNotice, isSpectating } from './store.js';
 import { nextBubbleSeq, chatEntry, chatMuted } from './chatState.js';
+import { installRoomChat, roomChatOnState } from './roomChat.js';
 import { data } from './data.js';
 import { GAME_FILES } from './ui/gameComponents.js';
 import { TitleScreen, sanitizeName } from './screens/title.js';
@@ -279,6 +280,7 @@ function onRoomState(msg) {
   // version's chess ids, and the server dropped the room's replay — it closes, back to the room.
   else if (prevRoom && prevRoom.code === room.code && !room.inMatch && roomVersion(prevRoom) !== roomVersion(room) && store.get().match.public) store.set({ match: emptyMatch() });
   store.set({ room });
+  roomChatOnState(store, prevRoom, room); // (fork) room chat: a new room's empty log, or who joined / left
   identity.rememberMatch(room.inMatch && seats.some((seat) => seat?.playerId === myId)
     ? { name: store.get().me.name, code: room.code || '' } : null);
   if (room.mode === 'coop' && typeof room.code === 'string') rememberRoom(room.code, room.test === true);
@@ -390,6 +392,8 @@ function wireNet() {
     if (!sender || typeof msg.x !== 'string' || chatMuted(store.get().chatMute, sender.playerId)) return;
     store.set((s) => ({ emotes: [...s.emotes.slice(-(EMOTE_KEEP - 1)), chatEntry(sender.playerId, msg.x, Date.now())] }));
   });
+  // (fork) room chat: the room screen's log, bubbles, emotes and spam pauses (roomChat.js)
+  installRoomChat(net, store);
 
   // Entering (title → lobby) while already online also needs the deep-link join.
   store.subscribe((s, prev) => {

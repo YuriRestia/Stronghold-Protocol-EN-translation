@@ -23,8 +23,9 @@ import { PHASE } from '../../../shared/constants.js';
 import { html, Icon, Tooltip } from './components.js';
 import { PlayerAvatar, LpTower, GIcon, LocalSprite } from './gameComponents.js';
 import { EmoteBubble, ChatBubble } from './emotes.js';
-import { chatMuted, toggleChatMute } from '../chatState.js';
-import { store, useStore } from '../store.js';
+import { chatMuted } from '../chatState.js';
+import { ChatMuteButton } from './chat.js';
+import { useStore } from '../store.js';
 import { STATUS_META, sortedPlayers, teamFrameIds } from './gameLogic.js';
 import { MissTag, uniteRemaining } from './hud.js';
 import { localAsset } from '../data.js';
@@ -118,17 +119,6 @@ export function rowLpTip(lp, cap = 10) {
  *   observe?: null | { canObserve: (p:any) => { fieldId?: string, reason?: string|null, back?: boolean }, observing: boolean, onBack: () => void } }} props
  *   uniteLocal: the local 联防 replica's per-leaker counts while it is on screen (battle runner state().uniteLeft), else null
  */
-/** (fork) match chat: stop seeing a teammate's text bubbles. This page's own (chatState.js); emotes still show. */
-function ChatMuteButton({ player, muted }) {
-  const name = player.name || t('博士');
-  const title = muted
-    ? t('取消屏蔽 {name}', { name }) // en: "Unmute {name}"
-    : t('屏蔽 {name}', { name }); // en: "Mute {name}"
-  return html`<button type="button" class=${cx('team__mute', muted && 'is-on')} aria-pressed=${muted} aria-label=${title} title=${title}
-    onKeyDown=${(e) => { if (e.key === ' ') e.stopPropagation(); }}
-    onClick=${() => store.set((s) => ({ chatMute: toggleChatMute(s.chatMute, player.playerId) }))}><${Icon} name=${muted ? 'chatOff' : 'chat'} /></button>`;
-}
-
 export function TeamPanel({ pub, myId, watching, bubbles, onWatch, compact = false, observe = null, self: selfLive = null, cap = 10, uniteLocal = null, spMarks = null, chatOn = false }) {
   const chatMute = useStore((s) => s.chatMute);
   const [openPid, setOpenPid] = useState(null);

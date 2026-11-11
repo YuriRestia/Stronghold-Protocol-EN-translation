@@ -53,11 +53,11 @@
 // Texts go through t() (docs/I18N.md).
 
 import { useEffect, useMemo, useRef, useState } from '../../vendor/hooks.module.js';
-import { DIFFICULTY_NAMES, DIFFICULTY_COLORS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
+import { DIFFICULTY_NAMES, DIFFICULTY_COLORS, EMOTE_BUBBLE_MS, MAX_SEATS, MAX_SPECTATORS } from '../../../shared/constants.js';
 import { SQUAD_SEATS, ROOM_PASSWORD_RE } from '../../../shared/largeRoom.js';
 import {
   html, Button, Icon, MicroLabel, PingPill, AvatarFrame, DifficultyIcon, Tooltip, Spinner, confirmDialog, doctorNo, Modal,
-  TextField,
+  TextField, useTicker,
 } from '../ui/components.js';
 import { toast, toastError } from '../ui/toasts.js';
 import { TestMark } from '../ui/testConsole.js';
@@ -89,6 +89,11 @@ import { SearchBar, SearchButton, SearchStatus, useSearchNotice, useFindMates, c
 import { OnlinePill } from '../ui/presence.js';
 import { publicPath } from '../gen.js';
 import { t, tc, tName, botNameParts as splitBotName } from '../../../shared/i18n.js';
+import { RoomChat } from '../ui/chatLog.js';
+import { ChatMuteButton } from '../ui/chat.js';
+import { ChatBubble, EmoteBubble } from '../ui/emotes.js';
+import { chatMuted } from '../chatState.js';
+import { activeBubbles } from '../ui/gameLogic/watch.js';
 
 /**
  * Seats padded to the room's capacity (co-op 4, solo 1), each null or a seat record.
@@ -286,7 +291,7 @@ function CardPicker({ current, list, m, localSkins = {}, onPick, onClose }) {
  * (given when an outfit is worn): a picture that fails to load gives way to the next, the last to the avatar frame.
  */
 function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot, onKick, onInvite, portrait = null, portraitDefault = null, botAvatar = null, operator = null, onPickCard = null, onPickAvatar = null, fresh = false,
-  onMoveSeat = null, swapFrom = null, onSwap = null }) {
+  onMoveSeat = null, swapFrom = null, onSwap = null, bubble = null, chatOn = false, muted = false }) {
   const [badArt, setBadArt] = useState([]);
   // (fork) the profile icon (ui/avatars.js): the name plate's frame, and the card's frame without portrait art
   const iconSrc = useAvatarArt(seat, !!seat && seat.playerId === myId);
@@ -353,6 +358,9 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
         </span>` : null}
       </div>
       ${offline ? html`<span class="rseat__lost"><${Icon} name="wifiOff" />${t('连接中断')}</span>` : null}
+      ${bubble ? html`<div class="rseat__bubble" data-testid="seat-bubble">${bubble.text != null
+        ? html`<${ChatBubble} key=${bubble.seq} text=${bubble.text} at=${bubble.at} ttl=${bubble.ttl} />`
+        : html`<${EmoteBubble} key=${bubble.seq} id=${bubble.id} />`}</div>` : null}
       <div class="rseat__low">
         ${art ? html`<span class="seat__op">${operator?.name || ''}</span>` : null}
         <span class=${`rseat__state seat__state--${state}`}>
@@ -380,6 +388,7 @@ function SeatCard({ seat, index, room, facts, myId, busy, onAddBot, onRemoveBot,
         : html`<${AvatarFrame} size="sm" name=${seat.name} src=${botAvatar || iconSrc} seat=${index} bot=${seat.isBot} self=${isMe} />`}
       <span class="rseat__who"><b class="seat__name">${botPrefix ? html`<span class="seat__name-pre">${botPrefix[0]}</span>${botPrefix[1]}` : seat.name || t('博士')}</b>${isMe ? html`<span class="seat__you" aria-hidden="true">${t('你')}</span>` : null}</span>
       <small class="rseat__doc">${seat.isBot ? 'AUTONOMOUS UNIT' : `DOCTOR #${doctorNo(seat.playerId)}`}</small>
+      ${chatOn && !isMe && !seat.isBot ? html`<${ChatMuteButton} player=${seat} muted=${muted} class="team__mute rseat__mute" />` : null}
     </div>
   </article>`;
 }
@@ -626,7 +635,14 @@ export function RoomScreen() {
   // every pick, welcome and content change and retries a RATE / TIMEOUT / OFFLINE refusal (review of PR #813)
   const pickCard = (charId) => { setCard(charId); setPicking(false); };
 
+  // (fork) room chat (ui/chatLog.js): the seat bubbles — match chat's store.emotes and its rule (each player's newest, for
+  // its time) — and the page's mutes; the operator's SP_CHAT=0 shows none of it
+  const emotes = useStore((s) => s.emotes);
+  const chatMute = useStore((s) => s.chatMute);
+  const bubbles = activeBubbles(emotes, Date.now(), EMOTE_BUBBLE_MS);
+  useTicker(bubbles.size ? 500 : 0);
   if (!room) return null;
+  const chatOn = !room.chatOff;
   const online = conn.status === 'online';
   const coop = room.mode !== 'solo';
   const facts = roomFacts(room, me.playerId);
@@ -835,7 +851,8 @@ export function RoomScreen() {
           myId=${me.playerId} busy=${busy} onAddBot=${addBot} onRemoveBot=${removeBot} onKick=${kick} onInvite=${() => copy('code')}
           portrait=${art} botAvatar=${chessAvatarUrl(data.get('assets'), { charId: botCharId(s) }, { outfit: null })}
           portraitDefault=${art && plain !== art ? plain : null} operator=${op?.chess} onPickCard=${() => setPicking(true)} onPickAvatar=${avatarReady ? () => setPickingAvatar(true) : null}
-          fresh=${shownRoom.current === room.code} onMoveSeat=${moveSeat} swapFrom=${swapFrom} onSwap=${swap} />`;
+          fresh=${shownRoom.current === room.code} onMoveSeat=${moveSeat} swapFrom=${swapFrom} onSwap=${swap}
+          bubble=${s ? bubbles.get(s.playerId) || null : null} chatOn=${chatOn} muted=${!!s && chatMuted(chatMute, s.playerId)} />`;
       }))}
       ${coop ? null : html`<aside class="solo-brief rs-brief brackets">
         <${MicroLabel} tone="mint">BRIEFING<//>
@@ -853,7 +870,7 @@ export function RoomScreen() {
     ${bannerText ? html`<p class="rs-verbanner" data-testid="version-banner"><${Icon} name="info" />${bannerText}</p>` : null}
 
     <footer class="room-bar rs-foot">
-      <div class="rs-foot__left" aria-hidden="true"></div>
+      <div class="rs-foot__left">${coop && chatOn ? html`<${RoomChat} room=${room} myId=${me.playerId} seated=${!!facts.mine} online=${online} />` : null}</div>
       <div class="rs-foot__center">
         <p class="rs-hint">${coop ? html`<span class="rs-ready num" title=${t('已就绪')}>${facts.humans.map((s) => html`<${Icon} key=${s.playerId} name="user" class=${facts.isReady(s) ? 'is-on' : ''} />`)}<b>${facts.readyHumans}</b>/${facts.humans.length}</span>` : null}<span class="room-bar__status">${statusLine}</span></p>
         <div class="rs-pill">

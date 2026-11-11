@@ -9,16 +9,15 @@
 // Every limit is enforced here; the browser only mirrors them. Nothing here answers with an error frame: a refused line
 // costs no download, and a page that follows the rules never has one refused. Nothing is stored or replayed.
 
-import { CHAT_COOLDOWN_MS, CHAT_COOLDOWN_GRACE_MS, CHAT_MAX_LETTERS } from '../../shared/constants.js';
-import { cleanChat, letterCount, chopChat } from '../../shared/text.js';
+import { CHAT_COOLDOWN_MS, CHAT_MAX_LETTERS } from '../../shared/constants.js';
+import { chatLine, letterCount } from '../../shared/text.js';
+import { msg } from '../../shared/i18n.js';
+import { chatLimitCheck, chatLimitState } from '../chatLimit.js';
 import { creditedKillsOf } from '../sim/spec.js';
 import { OK } from './match/common.js';
 
 /** The operator's off switch, SP_CHAT=0: the page hides the box (m.private has no wallet) and g.chat does nothing. */
 export const CHAT_ON = globalThis.process?.env?.SP_CHAT !== '0'; // (fork) this module also loads in the bot Worker
-
-/** More than this many UTF-16 units cannot survive the chop, so they are never even cleaned. */
-const RAW_LIMIT = CHAT_MAX_LETTERS * 8;
 
 /**
  * Enemies the server scheduled on a field (bounties and bosses included, runtime split children and summons not): the
@@ -64,15 +63,25 @@ export function settleChatWallet(ps, round) {
 
 /**
  * g.chat: spends letters and sends the line. Spectators never get here (Lobby refuses their g.* intents).
+ * (fork, 2026-11-11) The line is plain text (shared/text.js chatLine: no tags, emoji or symbols) and at most
+ * CHAT_LINE_LETTERS letters, whatever the wallet holds; the spam limits are server/chatLimit.js's with this chat's 3 s gap,
+ * and the start of a pause is the only refusal the sender hears of (a toast).
  * @param {any} m the match @param {any} ps the sender @param {string} raw @returns {{ ok: true }}
  */
 export function sendChat(m, ps, raw) {
-  if (!CHAT_ON || ps.isBot || !(ps.chatLeft > 0)) return OK;
+  if (!CHAT_ON || ps.isBot || !(ps.chatLeft > 0) || typeof raw !== 'string') return OK;
   const now = m.sched.now();
-  if (now - ps.lastChatAt < CHAT_COOLDOWN_MS - CHAT_COOLDOWN_GRACE_MS) return OK;
-  const text = chopChat(cleanChat(raw.slice(0, RAW_LIMIT)), ps.chatLeft);
+  const text = chatLine(raw, Math.min(ps.chatLeft, CHAT_MAX_LETTERS));
   if (!text) return OK;
-  ps.lastChatAt = now;
+  if (!ps.chatLimit) ps.chatLimit = chatLimitState();
+  const lim = chatLimitCheck(ps.chatLimit, text, now, { gapMs: CHAT_COOLDOWN_MS });
+  if (!lim.ok) {
+    if (lim.newPause) {
+      const n = Math.ceil((lim.pausedUntil - now) / 1000);
+      m.toast(ps, 'warn', msg('发送太快了，聊天暂停 {n} 秒。', { n })); // en: "You're sending too fast. Chat paused for {n} s."
+    }
+    return OK;
+  }
   ps.chatLeft -= letterCount(text);
   m.broadcast({ t: 'm.chat', p: ps.seat, x: text }, ps.playerId);
   return OK;

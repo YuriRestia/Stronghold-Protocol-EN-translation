@@ -6,7 +6,7 @@ import { Lobby } from '../../server/lobby.js';
 import { validateC2S, S2C } from '../../shared/protocol.js';
 import { cleanChat, cleanText, letterCount, chopChat } from '../../shared/text.js';
 import { sanitizeName } from '../../server/net.js';
-import { CHAT_COOLDOWN_MS, CHAT_MAX_LETTERS, PHASE, chatBubbleMs } from '../../shared/constants.js';
+import { CHAT_COOLDOWN_MS, CHAT_MAX_LETTERS, EMOTES, PHASE, chatBubbleMs } from '../../shared/constants.js';
 import { activeBubbles } from '../../public/js/ui/gameLogic/watch.js';
 import { chatEntry, chatMuted, fitChatInput, toggleChatMute } from '../../public/js/chatState.js';
 import { makeMatch } from './harness.js';
@@ -20,11 +20,16 @@ function fixture(chatLeft = 10) {
 }
 const field = (count, players = ['p_0']) => ({ players, spec: { spawns: [{ enemyKey: 'a', count }, { enemyKey: 'b', count: 1 }] } });
 
-test('protocol: g.chat takes any string, nothing else; m.chat is a known frame', () => {
-  assert.equal(validateC2S({ t: 'g.chat', x: 'x'.repeat(5000) }), null);
-  assert.ok(validateC2S({ t: 'g.chat', x: 5 }));
-  assert.ok(validateC2S({ t: 'g.chat' }));
-  assert.ok(S2C.includes('m.chat'));
+test('protocol: g.chat / room.chat take a string up to 1,000 UTF-16 units, nothing else; the chat frames are known', () => {
+  for (const t of ['g.chat', 'room.chat']) {
+    assert.equal(validateC2S({ t, x: 'x'.repeat(1000) }), null, t);
+    assert.ok(validateC2S({ t, x: 'x'.repeat(1001) }), `${t}: a frame far past any line (300 code points) is refused`);
+    assert.ok(validateC2S({ t, x: 5 }));
+    assert.ok(validateC2S({ t }));
+  }
+  assert.equal(validateC2S({ t: 'room.emote', id: EMOTES[0] }), null);
+  assert.ok(validateC2S({ t: 'room.emote', id: 'nope' }));
+  for (const t of ['m.chat', 'room.chat', 'room.emote', 'room.chatPause', 'room.chatLog']) assert.ok(S2C.includes(t), t);
 });
 
 test('text: cleaned, trimmed, counted in code points', () => {
@@ -52,7 +57,7 @@ test('invisible filler: gone from chat, an all-filler line is refused and costs 
   assert.equal(cleanChat(`a${hangul}b ${hangul} c`), 'ab c', 'filler inside a line costs nothing either');
   assert.equal(cleanChat('\u0301\u0301'), '', 'combining marks with nothing to sit on');
   const heart = '\u2764\ufe0f';
-  assert.equal(cleanChat(heart), heart, 'an emoji keeps what makes it draw as one');
+  assert.equal(cleanChat(heart), '', 'no emoji: chat is plain text (user, 2026-11-11; test/chat-text.test.js)');
   assert.equal(chopChat('\u0301a', 1), '', 'a cut that leaves nothing visible sends nothing');
   assert.equal(sanitizeName(hangul + 'x'), hangul + 'x', 'nicknames keep their own rules');
   assert.equal(cleanText(hangul), hangul);
@@ -201,7 +206,8 @@ test('page: the box takes no more than the wallet', () => {
   assert.equal(fitChatInput('hi ', 5).value, 'hi ', 'under the limit a space can start the next word');
   const mid = fitChatInput('heXllo', 5, 3);
   assert.deepEqual(mid, { value: 'hello', caret: 2 }, 'typing in the middle drops what was typed, not the end');
-  assert.equal(fitChatInput('😀😀😀', 2).value, '😀😀', 'emoji stay whole');
+  assert.equal(fitChatInput('😀😀😀', 2).value, '', 'an emoji never sits in the box (it would not be sent)');
+  assert.equal(fitChatInput('x'.repeat(150), 200).value, 'x'.repeat(100), 'one line takes at most 100 letters, whatever the wallet');
   assert.equal(fitChatInput('医疗医疗', 3).value, '医疗医');
   assert.equal(fitChatInput('x'.repeat(100000), 3).value, 'xxx', 'a huge paste');
 });

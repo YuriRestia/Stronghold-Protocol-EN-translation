@@ -16,6 +16,8 @@ import { PLUGIN_OFFER_SLOTS } from './plugins/limits.js';
 // ---- tiny validators -------------------------------------------------------
 const isInt = (v, lo = -Infinity, hi = Infinity) => Number.isInteger(v) && v >= lo && v <= hi;
 const isStr = (v, max = 64) => typeof v === 'string' && v.length <= max;
+/** (fork) the longest chat frame text accepted at all (UTF-16 units); a real line is at most 600 */
+const CHAT_FRAME_MAX = 1000;
 const isBool = (v) => typeof v === 'boolean';
 const isId = (v) => typeof v === 'string' && v.length > 0 && v.length <= 64 && /^[A-Za-z0-9_\-.:]+$/.test(v);
 const isUid = (v) => isInt(v, 1, 2 ** 31);
@@ -585,6 +587,10 @@ export const C2S = {
   // 名片干员 (PR #643 split 6): the operator whose portrait fills the player's seat card in the waiting room — an
   // operator charId ('' for none; the server keeps only a visible charId of the room's chess.json); cosmetic, any room phase
   'room.card': { charId: (v) => v === '' || isCharId(v) },
+  // (fork) room chat (docs/design/network.md "Room chat"): a seated player's line in the room screen, cleaned and cut by
+  // the lobby like match chat's, under the same spam limits (server/chatLimit.js); and an emote. Both without a rid.
+  'room.chat': { x: (v) => isStr(v, CHAT_FRAME_MAX) },
+  'room.emote': { id: (v) => EMOTES.includes(v) },
   // operator ownership (干员持有, 0.2.0 补位): stored per session / seat; a match takes the list its seat had when it
   // started (an out-of-match setting — during a match it is stored for the next one: ROOM_STARTED)
   'room.ownership': { notOwned: isNotOwnedList },
@@ -657,9 +663,10 @@ export const C2S = {
   'g.offerRefresh': { offerId: isId, pluginId: isId, seq: (v) => isInt(v, 0, 1000000), cardId: optional(isId), idx: (v) => isInt(v, 0, PLUGIN_OFFER_SLOTS - 1) },
   'g.ready': { ready: isBool },
   'g.emote': { id: (v) => EMOTES.includes(v) },
-  // (fork) match chat: `x` is what the player typed. Any string passes here: the match cleans it and chops it to the
-  // player's kill wallet instead of refusing it (server/match/chatWallet.js). The page sends it without a rid.
-  'g.chat': { x: (v) => typeof v === 'string' },
+  // (fork) match chat: `x` is what the player typed. The match cleans it and chops it to the player's kill wallet and the
+  // line cap instead of refusing it (server/match/chatWallet.js); only a frame far past any line is refused here (a line
+  // is at most 300 code points, 600 UTF-16 units). The page sends it without a rid.
+  'g.chat': { x: (v) => isStr(v, CHAT_FRAME_MAX) },
   // playerId: the player tapped in the team panel (a 联防 / boss pair field shows two) — what an eliminated viewer or a
   // spectator seat follows from then on (Match.watchPref; community report of 2026-10-06, item 56)
   'g.watch': { fieldId: (v) => isStr(v, 32), playerId: isId, $optional: ['playerId'] },
@@ -745,6 +752,11 @@ export const S2C = [
   // (fork) m.chat { p, x } — a player's chat line: `p` the sender's seat, `x` the cleaned text. To everyone in the room
   // but the sender (the page shows its own line itself); ephemeral, never replayed on resync.
   'm.chat',
+  // (fork) room chat: room.chat { id, n, x } — a line in the room screen (`id` the sender's playerId, `n` their name then,
+  // `x` the cleaned text), to the room's members but the sender · room.emote { id, e } — an emote there · room.chatPause
+  // { ms } — the sender's line started a spam pause of `ms` (to the sender, once a pause) · room.chatLog { lines: [{ id, n,
+  // x, ago }] } — on a reconnect, the lines this member got before (server memory only; never on disk)
+  'room.chat', 'room.emote', 'room.chatPause', 'room.chatLog',
   // m.layer { playerId, bondId, add } — own live prep layer gain; ephemeral, never replayed on resync.
   'm.layer',
   // m.unitStats { seq, round, units: [unitStatsEntry] } — the answer to g.unitStats (the requester only)

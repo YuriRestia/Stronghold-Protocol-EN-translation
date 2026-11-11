@@ -112,7 +112,7 @@ test('typing, the counter, bubbles, escaping, hotkeys and mute', { skip: process
     await sleep(300);
     await badge(8);
     await sleep(3100);
-    me.lastChatAt = m.sched.now(); // the server's cooldown drops the next line, and says nothing
+    me.chatLimit.lastAt = m.sched.now(); // the server's gap drops the next line, and says nothing
     await page.keyboard.type('xyz');
     await page.keyboard.press('Enter');
     await badge(5);
@@ -123,10 +123,11 @@ test('typing, the counter, bubbles, escaping, hotkeys and mute', { skip: process
     me.chatLeft = 0; me.dirty(); m.flush(true);
     await badge(0);
 
-    // a line from a teammate: seen as text, never as markup
+    // a line from a teammate: plain text (the server drops anything that looks like a tag, shared/text.js cleanChat; the
+    // text between stays), and rendered as text, never as markup
     mate.chatLeft = 200; mate.chatRound = 1;
-    await host.request({ t: 'g.chat', x: '  <img src=x onerror="window.__xss=1"><b>hi</b>  ' });
-    await page.waitForFunction(() => [...document.querySelectorAll('.cbubble')].some((el) => el.textContent.includes('<b>hi</b>')));
+    await host.request({ t: 'g.chat', x: '  <img src=x onerror="window.__xss=1"><b>hi</b> 2 < 3  ' });
+    await page.waitForFunction(() => [...document.querySelectorAll('.cbubble')].some((el) => el.textContent === 'hi 2 < 3'));
     assert.equal(await page.evaluate(() => document.querySelector('.cbubble b, .cbubble img') === null && window.__xss === undefined), true);
     await shot(page, 'teammate');
 

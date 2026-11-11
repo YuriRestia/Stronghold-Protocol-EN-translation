@@ -236,6 +236,10 @@
 import { aiTakeover, resetAiTakeover, reconcileAiTakeover } from './aiTakeover.js';
 import { randomBytes, randomInt } from 'node:crypto';
 import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
+import { CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_BYTES, ROOM_CHAT_HISTORY_LINES } from '../shared/constants.js';
+import { chatLine } from '../shared/text.js';
+import { chatLimitCheck, chatLimitState, chatNetworkCheck, chatNetworkSweep } from './chatLimit.js';
+import { CHAT_ON } from './match/chatWallet.js';
 import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS } from '../shared/largeRoom.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
 import { cleanOutfits } from '../shared/outfits.js';
@@ -539,6 +543,8 @@ export class Room {
   toState(now = Date.now(), viewerId = null) {
     return {
       t: 'room.state',
+      // (fork) the operator turned chat off (SP_CHAT=0): the room screen shows no chat log
+      ...(CHAT_ON ? {} : { chatOff: true }),
       ...(this.aiTakeoverEnabled ? { aiTakeoverEnabled: true, aiTakeoverVotes: this.aiTakeoverVotes || [] } : {}),
       code: this.code,
       hostId: this.hostId,
@@ -666,6 +672,8 @@ export class Lobby {
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
     this.resyncTimers = new Map();
+    /** @type {Map<string, number[]>} (fork) room chat: recent line times per network address (server/chatLimit.js) */
+    this.chatNets = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
     this.soloQueue = new SoloQueue();
@@ -857,6 +865,7 @@ export class Lobby {
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
+    if (resumed) this.sendRoomChatLog(room, session);
     this.resync(session, !resumed);
   }
 
@@ -960,6 +969,8 @@ export class Lobby {
       case 'room.outfits': return this.outfits(session, msg);
       case 'room.skins': return this.skins(session, msg);
       case 'room.card': return this.card(session, msg);
+      case 'room.chat': return this.roomChat(session, msg);
+      case 'room.emote': return this.roomEmote(session, msg);
       case 'room.spectate': return this.spectate(session, msg);
       case 'room.removeSpectator': return this.removeSpectator(session, msg);
       case 'room.search': return this.search(session, msg);
@@ -2150,6 +2161,66 @@ export class Lobby {
       seat.card = session.card;
       this.broadcastState(room);
     }
+    return OK;
+  }
+
+  /**
+   * (fork) room.chat: a seated player's line in the room screen (docs/design/network.md "Room chat"). Plain text and the
+   * line cap (shared/text.js chatLine), the spam limits (server/chatLimit.js: gap, burst → escalating pause, duplicates,
+   * the per-network cap); no kill wallet in the room (user, 2026-11-11). Not during a match (match chat has its own), not
+   * from spectators or with chat off. A refused line gets no frame back; only a new pause is told, to the sender.
+   * The room keeps its last lines in memory (roomChatKeep) for members who reconnect; nothing is written anywhere.
+   */
+  roomChat(session, { x }) {
+    const room = this.roomOf(session);
+    const seat = room && !room.match ? room.seatOf(session.playerId) : null;
+    if (!CHAT_ON || !seat || seat.isBot) return OK;
+    const text = chatLine(x);
+    if (!text) return OK;
+    const now = this.now();
+    if (!session.chatLimit) session.chatLimit = chatLimitState();
+    const lim = chatLimitCheck(session.chatLimit, text, now, { gapMs: ROOM_CHAT_GAP_MS });
+    if (!lim.ok) {
+      if (lim.newPause) sendSession(session, { t: 'room.chatPause', ms: lim.pausedUntil - now });
+      return OK;
+    }
+    if (this.chatNets.size > 512) chatNetworkSweep(this.chatNets, now);
+    if (!chatNetworkCheck(this.chatNets, session.addr, now)) return OK;
+    const line = { t: 'room.chat', id: session.playerId, n: seat.name, x: text };
+    const to = [...this.memberSessions(room)];
+    this.roomChatKeep(room, line, to.map((m) => m.playerId), now);
+    const data = encode(line);
+    for (const m of to) if (m !== session) sendSession(m, line, data);
+    return OK;
+  }
+
+  /** (fork) A room's chat history: the last ROOM_CHAT_HISTORY_LINES lines within ROOM_CHAT_HISTORY_BYTES, oldest out. */
+  roomChatKeep(room, line, to, now) {
+    const log = room.chatLog || (room.chatLog = []);
+    const bytes = line.x.length * 3 + line.n.length * 3 + 64; // a UTF-8 upper bound, plus the entry itself
+    log.push({ id: line.id, n: line.n, x: line.x, at: now, to: new Set(to), bytes });
+    room.chatBytes = (room.chatBytes || 0) + bytes;
+    while (log.length > ROOM_CHAT_HISTORY_LINES || room.chatBytes > ROOM_CHAT_HISTORY_BYTES) room.chatBytes -= log.shift().bytes;
+  }
+
+  /** (fork) On a reconnect: the room's lines this member got before, each with its age (`ago` ms). */
+  sendRoomChatLog(room, session) {
+    const now = this.now();
+    const lines = (room.chatLog || []).filter((l) => l.to.has(session.playerId)).map((l) => ({ id: l.id, n: l.n, x: l.x, ago: Math.max(0, now - l.at) }));
+    if (lines.length) sendSession(session, { t: 'room.chatLog', lines });
+  }
+
+  /** (fork) room.emote: an emote in the room screen, at most one a second (the match's chatCD), from a seated player. */
+  roomEmote(session, { id }) {
+    const room = this.roomOf(session);
+    const seat = room && !room.match ? room.seatOf(session.playerId) : null;
+    if (!seat || seat.isBot) return OK;
+    const now = this.now();
+    if (now - (session.roomEmoteAt ?? -Infinity) < EMOTE_COOLDOWN_MS - CHAT_COOLDOWN_GRACE_MS) return OK;
+    session.roomEmoteAt = now;
+    const frame = { t: 'room.emote', id: session.playerId, e: id };
+    const data = encode(frame);
+    for (const m of this.memberSessions(room)) if (m !== session) sendSession(m, frame, data);
     return OK;
   }
 
