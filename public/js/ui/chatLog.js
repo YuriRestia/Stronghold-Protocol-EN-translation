@@ -81,6 +81,14 @@ export function RoomChat({ room, myId, seated, online }) {
     else if (added) setNewCount((n) => n + added);
   }, [lastSeq, visible, expanded]);
   useEffect(() => { if (visible) setSeenSeq(lastSeq); }, [visible, lastSeq]);
+  // the open sheet lives in the footer, whose stacking context sits under the top bar (room.css: .rs-foot 2 < .rs-top 3),
+  // so at a large 文字大小 the top bar's text drew over the sheet's header: while it is open the footer goes on top
+  useEffect(() => {
+    if (!(short && open)) return undefined;
+    const root = document.documentElement;
+    root.classList.add('rs-chat-open');
+    return () => root.classList.remove('rs-chat-open');
+  }, [short, open]);
 
   const onScroll = () => {
     const el = list.current;
