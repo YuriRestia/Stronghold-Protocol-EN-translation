@@ -1319,8 +1319,19 @@ export class SkillFx {
         fx.linkLines(a, b);
       },
     });
-    if (h) later(this.w.ofx, holdS, () => h.stop());
-    return h;
+    if (!h) return null;
+    // (fork) the line's own end effects (its LineEffectEmitterDynamic: effect.js `lineEnds`) on the source / the target,
+    // the owner's outfit twins, for as long as the line shows
+    const ends = this.w.ofx.lib.def?.(key)?.lineEnds;
+    const extra = [];
+    for (const [k, v] of [[ends?.start, src], [ends?.end, tv]]) {
+      const ek = k ? this.w.skinKey(k, src) : null;
+      const e = ek && this.w.ofx.lib.has(ek) ? this.w.playOn(ek, v, { loop: true, important: true }) : null;
+      if (e) extra.push(e);
+    }
+    const all = { stop: (o) => { h.stop(o); for (const e of extra) e.stop(o); }, get alive() { return h.alive; } };
+    later(this.w.ofx, holdS, () => all.stop());
+    return all;
   }
 
   /**

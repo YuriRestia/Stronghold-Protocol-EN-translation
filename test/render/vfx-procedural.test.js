@@ -318,8 +318,8 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
   });
 
   test('(fork) 蕾缪安 S3: the official falling shell for the fx\'s flight, the lock-on mark with each lock, the salute at the end', async () => {
-    const MARK = 'lemuen_skill_03_crosshair_01', SHELL = 'lemuen_skill_03_trail_02', SALUTE = 'lemuen_skill_03_start_01';
-    const { w, view, frame, handles } = await setup({ installed: [...KEYS, MARK, SHELL, SALUTE] });
+    const MARK = 'lemuen_skill_03_crosshair_01', SHELL = 'lemuen_skill_03_trail_02', SALUTE = 'lemuen_skill_03_start_01', BEAM = 'lemuen_skill_03_trail_01';
+    const { w, view, frame, handles } = await setup({ installed: [...KEYS, MARK, SHELL, SALUTE, BEAM] });
     const lem = view(1, 'char_4193_lemuen', 3);
     view(2, 'enemy_1', 5);
     frame();
@@ -327,6 +327,12 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     frame();
     w.simFx('lock', 5, 10, { id: 2, src: 1, hold: 1 });
     assert.equal(handles.filter((h) => h.key === MARK).length, 1, 'the lock-on mark with the lock');
+    // (fork) the aim beam (the aim projectile's _effectsToTargetWhenStart) on the enemy, one per lock, held with it
+    assert.equal(live(handles, BEAM).length, 1, 'the aim beam with the lock');
+    for (let i = 0; i < 15; i++) frame();
+    w.simFx('lock', 5, 10, { id: 2, src: 1, hold: 1 });
+    for (let i = 0; i < 30; i++) frame();
+    assert.equal(live(handles, BEAM).length, 2, 'a second lock on the same enemy: a second beam; both held');
     w.skill(lem, false);
     frame();
     assert.equal(handles.filter((h) => h.key === SALUTE).length, 1, 'the salute on her as the skill ends (TEMPLATE_ROWS)');
@@ -338,11 +344,19 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     assert.ok(shell.alive, 'falling for the fx\'s `t`');
     for (let i = 0; i < 3; i++) frame();
     assert.equal(shell.alive, false, 'gone once it has landed');
+    assert.equal(live(handles, BEAM).length, 2, 'the beams stay until the shells land');
+    w.simFx('bombard', 5.1, 9.9, { id: 1, r: 1.5 });
+    frame();
+    assert.equal(live(handles, BEAM).length, 1, 'a landing ends its lock\'s beam');
   });
 
   test('(fork) 蕾缪安 S2: the aim holds its reticle and aim line until her shot, which plays its hit; 莫斯提马 S2\'s hit stops like a hit', async () => {
     const RET = 'lemuen_skill_02_crosshair_02', LINE = 'lemuen_skill_02_trail_01', SHOT = 'lemuen_skill_02_hit_01', HIT = 'mostma_skill_02_hit';
-    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, RET, LINE, SHOT, HIT] });
+    const END = 'lemuen_skill_02_crosshair_01';
+    const { w, ofx, view, frame, handles, index } = await setup({ installed: [...KEYS, RET, LINE, SHOT, HIT, END] });
+    // (fork) the line prefab's LineEffectEmitterDynamic `_endEffect` (effect.js lineEnds): its reticle on the aimed enemy
+    const def0 = ofx.lib.def;
+    ofx.lib.def = (k) => (k === LINE ? { ...def0(k), lineEnds: { start: null, end: END } } : def0(k));
     index.prefabs[HIT].looping = true;                          // the Ethereal Harmony twin loops
     index.units.char_4193_lemuen.skills.skchr_lemuen_2 = { mode: null, projectiles: [], uses: [] };
     RECS.lemuen_s2 = rec('skchr_lemuen_2', { bb: { 'attack@aim_duration': 3.5 } });
@@ -362,10 +376,12 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
       w.simFx('lock', 7, 10, { id: 3, src: 1 });
       const alive = (k) => handles.filter((h) => h.key === k && h.alive).length;
       assert.deepEqual([alive(RET), alive(LINE)], [2, 2], 'a reticle and a line per aimed enemy');
+      assert.equal(alive(END), 2, 'and the end reticle of each line on its aimed enemy');
       for (let i = 0; i < 30; i++) frame();
       assert.deepEqual([alive(RET), alive(LINE)], [2, 2], 'held while she aims (1 s in)');
       assert.equal(w.simFx('crit', 6, 10, { id: 2, src: 1 }), true);
       assert.deepEqual([alive(RET), alive(LINE)], [1, 1], 'her shot ends that aim only');
+      assert.equal(alive(END), 1, 'the end reticle goes with its line');
       assert.equal(handles.filter((h) => h.key === SHOT).length, 1, 'and plays its hit on the enemy');
       for (let i = 0; i < 90; i++) frame();
       assert.deepEqual([alive(RET), alive(LINE)], [0, 0], 'an aim with no shot ends with her aim time');
@@ -378,6 +394,31 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
       delete RECS.lemuen_s2;
       delete RECS.mostma_s2;
     }
+  });
+
+  test('(fork) 蕾缪安 attack flash by deploy direction (FOUR_DIR_FIXED slots): UP the _back, DOWN the _down, LEFT / RIGHT the plain one', async () => {
+    const { w, view } = await setup();
+    const row = { directionType: 5, effects: ['lemuen_attack_start_01_back', 'lemuen_attack_start_01', 'lemuen_attack_start_01_down'],
+      slots: ['lemuen_attack_start_01_back', 'lemuen_attack_start_01', 'lemuen_attack_start_01_down', 'lemuen_attack_start_01'] };
+    const lem = view(1, 'char_4193_lemuen', 3);
+    const got = {};
+    for (const d of ['UP', 'RIGHT', 'DOWN', 'LEFT']) { lem.dir = d; got[d] = w._rowKeys(row, lem, 0)[0]; }
+    assert.deepEqual(got, { UP: 'lemuen_attack_start_01_back', RIGHT: 'lemuen_attack_start_01', DOWN: 'lemuen_attack_start_01_down', LEFT: 'lemuen_attack_start_01' });
+  });
+
+  test('(fork) 蕾缪安 T2: her extradition loops lemuen_talent_buff_02 on her until she leaves; another talent fx is not it', async () => {
+    const BUFF2 = 'lemuen_talent_buff_02';
+    const { w, view, frame, handles } = await setup({ installed: [...KEYS, BUFF2] });
+    const lem = view(1, 'char_4193_lemuen', 3);
+    frame();
+    assert.notEqual(w.simFx('talent', 3, 10, { id: 1, name: 'other' }), true, 'only the extradition');
+    assert.equal(w.simFx('talent', 3, 10, { id: 1, name: 'extradition' }), true, 'the official loop stands for the procedural look');
+    assert.equal(live(handles, BUFF2).length, 1);
+    for (let i = 0; i < 300; i++) frame();
+    assert.equal(live(handles, BUFF2).length, 1, 'held while she stands (10 s in)');
+    lem.alive = false;
+    frame();
+    assert.equal(live(handles, BUFF2).length, 0, 'gone with her');
   });
 
   test('(fork) 蕾缪安 T1: a Wanted mark loops lemuen_talent_buff_01 on the enemy (her outfit\'s twin) until it or she is gone, whatever her skill', async () => {

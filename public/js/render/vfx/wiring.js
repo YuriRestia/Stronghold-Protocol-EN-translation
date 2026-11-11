@@ -340,6 +340,8 @@ export class FxWiring {
    */
   constructor(ofx, opts = {}) {
     this.ofx = ofx;
+    // (fork) chained effects (OnPlayEmitter / OnFinishEmitter) of an effect on a unit play that unit's outfit twins
+    if (ofx && typeof ofx === 'object') ofx.remap = (k, owner) => this.skinKey(k, owner);
     this.opts = opts;
     this.idx = null;
     this.flights = new Set();     // projectile flights in the air
