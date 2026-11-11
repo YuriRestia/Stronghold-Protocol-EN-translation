@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -187,6 +188,7 @@ test('S1 脱身矢 (MANUAL, 2 charges, data SEARCH): a special bullet at once (n
       const e = h.spawn('enemy_dummy', { pos: [11, 5] });
       u.skill.gainSp(999);
       assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast`);
+      h.run(allyCastWindup(u) + 0.05); // the cast's normal attack hits (and takes its bullet) one wind-up after the cast (official cast → hit)
       const ammo0 = u.trait.ammo;
       h.run(0.6);
       const special = atkAt.filter(([c]) => c.dmg.tags?.includes(SPECIAL_TAG));
@@ -268,11 +270,11 @@ test('S3 “得见光芒” (MANUAL, 16 s, data SEARCH + SKILL_RANGE on 3-8): an
     const tCast = h.b.time;
     const attacksAfter = () => h.hooksOf('attack').filter((c) => c.attacker === u && c.t > tCast - 1e-9);
     assert.ok(h.runUntil(() => attacksAfter().length > 0, 5), 'attacks once full');
-    // 2 → 8 one bullet every 0.4 s, the first attack on the reload that fills it (the log sees 3 … 7, then 7 after that shot)
+    // 2 → 8 one bullet every 0.4 s, the cast starts on the reload that fills it (the log sees 3 … 8), its shot (7) lands one wind-up later (official cast → hit)
     const fills = log.filter((x) => x[0] > tCast - 1e-9);
-    assert.deepEqual(fills.map((x) => x[1]), [3, 4, 5, 6, 7], `T${tier}: one at a time`);
-    for (let i = 1; i < fills.length; i++) approx(fills[i][0] - fills[i - 1][0], 0.4, `T${tier}: a reload every 0.4 s`, 0.05);
-    approx(attacksAfter()[0].t - fills[fills.length - 1][0], 0.4, `T${tier}: the 8th bullet, then the shot`, 0.05);
+    assert.deepEqual(fills.map((x) => x[1]), [3, 4, 5, 6, 7, 8, 7], `T${tier}: one at a time`);
+    for (let i = 1; i < fills.length - 1; i++) approx(fills[i][0] - fills[i - 1][0], 0.4, `T${tier}: a reload every 0.4 s`, 0.05);
+    approx(attacksAfter()[0].t - fills[fills.length - 2][0], allyCastWindup(u), `T${tier}: the 8th bullet, then the shot one wind-up later`, 0.05);
     assert.equal(u.trait.ammo, 7, `T${tier}: full when it shot`);
     const atkAt = [];
     h.b.on('damaged', (c) => { if (c.source === u && c.dmg.isAttack) atkAt.push([c, u.s.atk]); }, { priority: -100 });

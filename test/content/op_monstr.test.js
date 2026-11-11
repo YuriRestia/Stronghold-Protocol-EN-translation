@@ -168,8 +168,10 @@ test('T1 自我修复 — the 重构体: only her heals reach it (禁疗), it lo
     assert.equal(hp0, p.s.maxHp);
     h.run(0.6);
     assert.equal(p.hp, hp0, `${label(f)}: nothing before 1 s`);
+    // the 流失 itself is counted (her heal can land in this second, one wind-up after the drain starts — official cast → hit)
+    const drain0 = h.b.time;
     h.run(1.0);
-    const lost = hp0 - p.hp;
+    const lost = h.hooksOf('damaged').filter((c) => c.target === p && c.dmg?.tags?.includes('hpLoss') && c.t > drain0 + 1e-9).reduce((a, c) => a + c.amount, 0);
     assert.ok(lost > 60 && lost < 100, `${label(f)}: ≈80 HP in the next second (${lost})`);
     assert.ok(h.hooksOf('damaged').some((c) => c.target === p && c.dmg?.tags?.includes('hpLoss')), `${label(f)}: a 流失`);
     // 禁疗: 赫默 never heals it; Mon3tr does
@@ -239,6 +241,7 @@ test('S1 策略：超压链接 (AUTO, attack SP 5 / 3, data DEFAULT — the next
     setHp(A, 0.2); setHp(B, 0.4); setHp(C, 0.5); setHp(D, 0.6);
     const n0 = log.length;
     assert.ok(h.runUntil(() => u.skill.activations === 1, 4), `${label(f)}: cast as she heals`);
+    assert.ok(h.runUntil(() => healsOf(log, u, n0).length >= 4, 2), `${label(f)}: the heal lands one wind-up after the cast (official cast → hit)`);
     const hs = healsOf(log, u, n0);
     assert.deepEqual(hs.slice(0, 4).map((c) => c.target), [A, B, C, D], `${label(f)}: 4 units`);
     const base = u.s.atk * sk.bb.heal_scale;

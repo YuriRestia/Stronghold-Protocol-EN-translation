@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -123,9 +124,10 @@ test('S2 点题 (MANUAL, 2 charges, data SEARCH + SKILL_RANGE on 3-1): an enemy 
     assert.ok(h.runUntil(() => u.skill.activations === 1, 1), `T${tier}: cast for the enemy on 3-1`);
     const tc = h.b.time;
     assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `T${tier}: the card keeps 3-6`);
-    h.run(0.5);
+    h.run(0.5 + allyCastWindup(u));
     const atk = h.hooksOf('attack').filter((c) => c.attacker === u);
-    approx(atk[0].t, tc, `T${tier}: 立即`, 0.04);
+    // the skill arms at the cast start and its attack hits one wind-up later (official cast → hit, ai.js allyCastWindup)
+    approx(atk[0].t, tc + allyCastWindup(u), `T${tier}: 立即`, 0.04);
     assert.equal(atk[0].isSkill, true);
     const dodged = h.hooksOf('dodge').filter((c) => c.source === u);
     const hits = from(h, u);

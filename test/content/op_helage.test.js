@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -173,7 +174,8 @@ test('S3 满月 (MANUAL, time SP 43 / 41 from 15, data DEFAULT + SEARCH + ACTIVE
     const n0 = hitsBy(h, u).length;
     h.run(2);
     const hits = hitsBy(h, u).slice(n0);
-    const id = hits[0].dmg.attackId;
+    // the attack already cast at `far` alone keeps its locked target (official cast → hit); count the next one, cast with all in range
+    const id = hits.find((c) => c.dmg.attackId !== hits[0].dmg.attackId).dmg.attackId;
     assert.equal(hits.filter((c) => c.dmg.attackId === id).length, 3, `${lb}: three targets per attack`);
     assert.ok(hits.every((c) => [far, near, third, fourth].includes(c.target)), `${lb}: ground enemies only (the flyer is never struck)`);
     assert.ok(!hits.some((c) => c.target === fly), lb);

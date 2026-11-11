@@ -9,6 +9,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -97,7 +98,7 @@ test('trait + T1 汹涌怒火 + HAM-X: the target takes ATK, the others within 1
     const a = h.spawn('enemy_dummy', { pos: [10, 6] });
     const c = h.spawn('enemy_dummy', { pos: [9, 6] });
     const fly = h.spawn('enemy_fly', { pos: [11, 6] });
-    h.run(0.1);
+    h.run(0.1 + allyCastWindup(u)); // the hit lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     const ma = dmgOn(h, a), mc = dmgOn(h, c);
     assert.ok(ma.length === 1 && mc.length === 1, `${label(f)}: one attack (${ma.length} / ${mc.length})`);
     approx(ma[0].amount, u.s.atk, `${label(f)}: the target 100 % (no ×${ds})`);
@@ -127,7 +128,7 @@ test('T1 汹涌怒火 高台: every 高台 the 1.0 circle around her target touc
     const b = h.spawn('enemy_dummy', { pos: [12, 7] });        // only on (11, 7)'s x-5
     const far = h.spawn('enemy_dummy', { pos: [12, 9] });      // on no 高台's x-5
     const fly = h.spawn('enemy_fly', { pos: [11, 8] });         // an air unit on the x-5
-    h.step();
+    assert.ok(h.runUntil(() => dmgOn(h, a).length > 0, 2), `${label(f)}: her attack lands one wind-up after the cast (official cast → hit)`);
     const atkT = h.b.time, atk = u.s.atk;
     assert.equal(dmgOn(h, a).length, 1, `${label(f)}: her attack`);
     h.run(0.05);

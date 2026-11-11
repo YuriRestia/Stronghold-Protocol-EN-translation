@@ -205,5 +205,7 @@ for (const elite of [false, true]) test(`哈洛德 S2 starts for an ally at full
   h.step(); const u = h.unit(1), a = h.unit(2); assert.equal(u.skill.id, 'skchr_harold_2');
   u.skill.gainSp(999, 'init'); h.run(0.5); assert.equal(u.skill.activations, 0, 'no injury means no cast');
   h.b.dealDamage(null, a, { type: 'element', element: 'burn', amount: 600 }); assert.equal(a.hp, a.s.maxHp);
-  assert.ok(h.runUntil(() => u.skill.activations > 0, 4)); assert.ok(a.elem.burn < 600); done(h);
+  assert.ok(h.runUntil(() => u.skill.activations > 0, 4));
+  assert.ok(h.runUntil(() => a.elem.burn < 600, 1)); // the cure lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+  done(h);
 });

@@ -5,6 +5,7 @@
 // of kits/README.md item by item.
 // Run: node --test test/content/op_oxi.test.js
 
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -292,6 +293,7 @@ test('S1 照霎白夜 (AUTO, DEFAULT): her next attack hits every ground enemy o
     const main = h.spawn('enemy_dummy', { pos: [10, 6] }), mate = h.spawn('enemy_dummy', { pos: [10, 6.3] });
     const fly = h.spawn('enemy_fly', { pos: [10, 5.8] }), next = h.spawn('enemy_dummy', { pos: [10, 7] });
     assert.ok(h.runUntil(() => u.skill.activations === 1, 2), `${label(f)}: cast on her attack`);
+    h.run(allyCastWindup(u) + 0.05); // the hit lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     const hits = h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack);
     assert.deepEqual(hits.map((c) => c.target.id).sort(), [main.id, mate.id].sort(), `${label(f)}: the ground enemies of that tile`);
     for (const c of hits) {

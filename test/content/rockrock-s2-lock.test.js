@@ -207,7 +207,8 @@ for (const sameTarget of [false, true]) {
       units: [{ chessId: 'chess_char_2_10_a', row: 10, col: 4, carryState: { sp: 0 } }],
       enemies: [{ key: 'old', pos: [10, 6] }],
     });
-    h.step(); // launch an ordinary shot, which has not landed yet
+    h.step(); // the ordinary attack's cast starts; its shot leaves one wind-up later (official cast → hit, ai.js allyCastWindup)
+    assert.ok(h.runUntil(() => h.hooksOf('attack').length === 1, 1)); // launch an ordinary shot, which has not landed yet
     const u = h.unit('chess_char_2_10_a'), old = h.enemies()[0];
     assert.equal(h.hooksOf('attack').length, 1); assert.equal(h.hooksOf('damaged').length, 0);
     const target = sameTarget ? old : h.spawn('preferred', { pos: [10, 5] });

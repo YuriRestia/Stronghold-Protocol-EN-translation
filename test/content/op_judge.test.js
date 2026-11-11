@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, chessRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -184,7 +185,7 @@ test('S1 一锤定音 (AUTO, data DEFAULT): the next attack adds 160 % / 180 % A
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast at her attack`);
     assert.deepEqual([u.skill.charges, u.skill.sp], [0, 0], `T${tier}: all SP spent`);
     const hits = () => h.hooksOf('damaged').filter((c) => c.source === u && c.target === e);
-    h.step(2);
+    h.run(allyCastWindup(u) + 2 / 30);   // the skill arms at the cast start; the hit lands one wind-up later (official cast → hit)
     const gavel = hits().filter((c) => (c.dmg?.tags ?? []).includes('judge:gavel'));
     assert.equal(gavel.length, 1, `T${tier}: one arts rider`);
     approx(gavel[0].amount, u.s.atk * sk.bb.atk_scale_2, `T${tier}: ${sk.bb.atk_scale_2 * 100} % ATK arts`);
@@ -203,7 +204,7 @@ test('S1 一锤定音 (AUTO, data DEFAULT): the next attack adds 160 % / 180 % A
     probe = { u, e: e2, done: false };
     assert.ok(h.runUntil(() => u.skill.activations === 2, 1), `T${tier}: 蓄力 cast`);
     assert.deepEqual([u.skill.charges, u.skill.sp], [0, 0], `T${tier}: all SP spent`);
-    h.step(2);
+    h.run(allyCastWindup(u) + 2 / 30);   // same: the hit comes one wind-up after the cast that armed the skill
     const all = h.hooksOf('damaged').filter((c) => c.source === u && c.target === e2);
     const phys = all.find((c) => c.dmg?.isAttack);
     const rider = all.find((c) => (c.dmg?.tags ?? []).includes('judge:gavel'));

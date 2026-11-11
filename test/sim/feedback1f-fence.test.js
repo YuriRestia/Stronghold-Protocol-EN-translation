@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import { makeBattle } from '../helpers/battleHarness.js';
 import { canTargetEnemy } from '../../server/sim/targeting.js';
 import { bodyInKeys } from '../../server/sim/body.js';
-import { effectiveProfile } from '../../server/sim/ai.js';
+import { effectiveProfile, allyCastWindup } from '../../server/sim/ai.js';
 import { rotateOffset } from '../../server/sim/dir.js';
 
 const STAGES = JSON.parse(fs.readFileSync(new URL('../../data/stages.json', import.meta.url), 'utf8'));
@@ -61,7 +61,8 @@ function watch(stageId, chessId, r, c, dir, { template = 'act1autochess_02', sec
     if (!target) { waitFrom = null; continue; }
     inRange++;
     if (waitFrom == null) { waitFrom = h.b.time; waitIv = u.s.interval; }
-    worst = Math.max(worst, h.b.time - waitFrom - Math.max(waitIv, u.s.interval));
+    // the attack is counted at its hit, one wind-up after its cast (official cast → hit, ai.js allyCastWindup)
+    worst = Math.max(worst, h.b.time - waitFrom - Math.max(waitIv, u.s.interval) - allyCastWindup(u));
   }
   return { attacks, inRange, blocked, worst };
 }

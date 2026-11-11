@@ -65,6 +65,8 @@ const RHYTHM_DROP_MARGIN = 0.08;
 // strike frame, for at most SKILL_HOLD_MAX game s, then gives up (back to rest, no new prediction until a strike)
 const SKILL_HOLD_BEFORE = 0.05;
 const SKILL_HOLD_MAX = 1;
+/** (fork) How long (game s) a cast's clip loops on past its end (castAttack): a steady rhythm's next cast restarts it. */
+const CAST_HOLD = 0.12;
 
 /**
  * (fork) The melee clip of a model whose manifest attack is its ranged one (SpineActor.shot 'melee'), first present
@@ -1031,6 +1033,21 @@ export class SpineActor {
   attack(interval, once = false) {
     this.strikeLead = undefined;   // (fork) set below once this attack's clip is known (render/vfx/wiring.js attack)
     if (this.dead || this.mode === 'stun' || this.mode === 'die' || this.mode === 'change') return;   // a form change plays out
+    // (fork) the hit of a cast (castAttack): the clip already reached its strike frame at the cast's speed — it plays on
+    if (this.windCast && this.mode === 'attack' && !once) {
+      const e = this.spine.state.tracks[0];
+      const loop = this.current;
+      const dur = this.dur(loop), hit = this._hitTime(loop, dur), ts = this.windTs || 1;
+      this.windCast = false;
+      this.wound = false;
+      this.windUntil = null;
+      if (e) e.timeScale = ts;
+      this.attackUntil = this.clock + Math.max(0, dur - hit) / ts + CAST_HOLD;
+      this.strikeLead = hit / ts;
+      this.lastStrikeAt = this.clock;
+      this.skillAhead = false;
+      return;
+    }
     if (!once) this.interval = clampN(Number.isFinite(interval) && interval > 0 ? interval : this.interval, 0.08, 8);
     const clip = this._attackClip();
     if (!clip) return;
@@ -1082,6 +1099,60 @@ export class SpineActor {
         }
       }
     }
+  }
+
+  /**
+   * (fork) An attack cast (the sim's ['atkCast'], the official cast → hit order): the attack clip from its first frame
+   * (`elapsed` game s into it when the cast is rendered late), at `hit / windUp` so its strike frame lands with the hit —
+   * the official AbstractAnimatedAbility scale, the clip stretched to the attack time —, then the rest of the clip at
+   * that speed; it loops on for CAST_HOLD past its end, where the next cast of a steady rhythm restarts it from frame 0,
+   * else back to rest. A clip with no strike frame returns false (the attack plays as it comes). True once started.
+   */
+  castAttack(windUp, elapsed = 0) {
+    if (this.dead || this.mode === 'stun' || this.mode === 'die' || this.mode === 'change' || !(windUp > 0)) return false;
+    const clip = this._attackClip();
+    if (!clip) return false;
+    const loop = this._shot(clip.loop);
+    const dur = this.dur(loop);
+    const hit = this._hitTime(loop, dur);
+    if (!(hit > 0) || !(dur > 0)) return false;
+    const speed = clampN(hit / windUp, 0.1, 10);
+    const into = clampN(elapsed, 0, windUp);
+    this.mode = 'attack';
+    this._play(loop, true, { timeScale: speed, start: Math.min(hit, into * speed), mix: 0.06 });
+    this.windTs = speed;
+    this.windUntil = this.clock + (windUp - into);
+    this.attackUntil = this.windUntil + Math.max(0, dur - hit) / speed + CAST_HOLD;
+    this.windCast = true;
+    this.wound = true;
+    this.windSingle = null;
+    this.interval = clampN(dur / speed, 0.08, 8);
+    // the official cast effects (render/vfx/wiring.js castStart): this cast from its first frame, at the clip's speed
+    this.windSkip = into;
+    this.windCastLeft = (windUp - into) + Math.max(0, dur - hit) / speed;
+    return true;
+  }
+
+  /**
+   * (fork) The next cast of this unit is in sight (render/app/windup.js windCasts): an attack clip still playing past its
+   * hit loops on at least `sec` more (real s) instead of dropping to rest, so that cast restarts it from frame 0 with no
+   * rest pose between — the clip fills the whole interval (the official scale), and the render clock may run a little
+   * behind the clip's at high game speed. Nothing else: a resting unit stays at rest until its cast is rendered.
+   */
+  holdCast(sec) {
+    if (this.mode === 'attack' && !this.wound && this.attackUntil > this.clock) this.attackUntil = Math.max(this.attackUntil, this.clock + sec);
+  }
+
+  /**
+   * (fork) A wound-up swing whose attack never came (the sim's ['atkCancel'] → UnitView.cancelWindUp): it drops to rest on
+   * the next update, by the same path as an unconfirmed rhythm loop. True when there was one.
+   */
+  cancelWindUp() {
+    if (this.mode !== 'attack' || !this.wound) return false;
+    this.attackUntil = this.clock;
+    this.windUntil = null;
+    this.windCast = false;
+    return true;
   }
 
   /** (fork) When an operator's rhythm loop, striking at `strikeAt` at `ts`, drops to its resting state: just before

@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { canTargetAlly } from '../../server/sim/targeting.js';
@@ -260,8 +261,11 @@ test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off
     approx(u.s.interval, (1.5 + sk.bb.base_attack_time) * 100 / u.s.aspd, `${label(f)}: interval`);
     for (const p of [[9, 7], [11, 5], [9, 8], [11, 8]]) h.spawn('enemy_dummy', { pos: p });
     const n0 = ANY_ATK(h, u).length;
+    // the attack cast just before the four appeared keeps its locked targets (official cast → hit): let it land, then take the next one
     assert.ok(h.runUntil(() => ANY_ATK(h, u).length > n0, 3));
-    const a1 = ANY_ATK(h, u)[n0];
+    const preId = ANY_ATK(h, u)[n0].dmg.attackId;
+    assert.ok(h.runUntil(() => ANY_ATK(h, u).some((c, i) => i >= n0 && c.dmg.attackId !== preId), 4));
+    const a1 = ANY_ATK(h, u).find((c, i) => i >= n0 && c.dmg.attackId !== preId);
     const one = ANY_ATK(h, u).filter((c) => c.dmg.attackId === a1.dmg.attackId);
     assert.equal(one.length, sk.bb['attack@max_target'], `${label(f)}: ${sk.bb['attack@max_target']} targets`);
     assert.ok(one.every((c) => c.type === 'arts'), `${label(f)}: arts`);

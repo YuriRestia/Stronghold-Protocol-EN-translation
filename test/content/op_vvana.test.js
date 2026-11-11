@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { sortEnemyTargets } from '../../server/sim/targeting.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -97,7 +98,7 @@ test('S1 光影迅捷剑 (AUTO, DEFAULT, 2 charges): with one charge the next at
     const fly = h.spawn('enemy_fly', { pos: [10, 6] });
     assert.ok(h.runUntil(() => u.skill.activations === 1, sk.spCost + 2), `T${tier}: cast once a charge is stored`);
     assert.equal(h.hooksOf('damaged').filter((c) => c.target === fly).length, 0, `T${tier}: a melee 术战者 never hits the flyer`);
-    h.run(0.1);
+    h.run(0.1 + allyCastWindup(u)); // the hit lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     const skillAtk = byAttack(atkHits(h, u).filter((c) => c.dmg.isSkill));
     assert.equal(skillAtk.length, 1, `T${tier}: one skill attack`);
     assert.equal(skillAtk[0].length, 2, `T${tier}: 连续攻击两次`);
@@ -127,12 +128,12 @@ test('S1 蓄力: both charges stored ⇒ the 3-2 range (card and trigger), the c
     assert.deepEqual([...u.baseRangeKeys].sort((a, b) => a - b), keysOf(u, RANGE_3_2), `T${tier}: the DEFAULT trigger range follows`);
     const e = h.spawn('enemy_dummy', { pos: [10, 8] });
     assert.ok(h.runUntil(() => u.skill.activations === 1, 2), `T${tier}: cast on the enemy 3 tiles ahead`);
-    h.step();
+    assert.ok(u.skill.charges === 0 && u.skill.sp < 0.2, `T${tier}: 任何时候开启均消耗全部技力 (${u.skill.charges} / ${u.skill.sp})`);
+    h.run(allyCastWindup(u) + 0.1); // the hit lands one wind-up after the cast (official cast → hit)
     const skillAtk = byAttack(atkHits(h, u).filter((c) => c.dmg.isSkill));
     assert.equal(skillAtk.length, 1);
     assert.equal(skillAtk[0].length, 3, `T${tier}: 改为连续攻击三次`);
     for (const c of skillAtk[0]) { assert.equal(c.target, e); approx(c.amount, u.s.atk * sk.bb.atk_scale * 1.09, `T${tier}: ${sk.bb.atk_scale * 100} %`); }
-    assert.ok(u.skill.charges === 0 && u.skill.sp < 0.2, `T${tier}: 任何时候开启均消耗全部技力 (${u.skill.charges} / ${u.skill.sp})`);
     assert.deepEqual(u.liveRangeGrid, [[0, 0], [0, 1]], `T${tier}: 蓄力 over with the skill`);
     const n = atkHits(h, u).length;
     h.run(3);

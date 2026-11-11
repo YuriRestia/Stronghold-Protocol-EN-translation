@@ -97,13 +97,16 @@ test('S3 恳切福音: cast with an injured ally inside the 5-2 only (no heal be
     assert.equal(h.heals.filter((x) => x.t < cast).length, 0, `${id}: no heal before the cast — it was out of her range`);
     assert.equal(u.rangeKeys.length, 18, `${id}: the 5-2`);
     close(u.s.atk, u.base.atk * (1 + atk), `${id}: ATK`);
-    h.run(0.5);
+    h.step();
+    assert.ok(h.runUntil(() => h.heals.length > 0, 2), `${id}: the first heal`); // lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     const first = h.heals.filter((x) => x.t === h.heals[0].t);
     assert.ok(first[0].t >= cast, `${id}: the first heal comes with the cast`);
     assert.deepEqual(first.map((x) => x.uid), [2, 2], `${id}: the main heal on the far ally, then the extra on it (the lowest HP ratio of it and its neighbours)`);
     close(first[0].amount, u.s.atk * phy * boost, `${id}: main heal ×${boost}${phy > 1 ? ' ×1.15 PHY-X' : ''}`);
     close(first[1].amount, u.s.atk * 0.3 * phy * boost, `${id}: extra heal = 30 % of the main heal's base, its still-low recipient's bonuses on it`);
     // two injured allies: both healed per action
+    // a cast under way has locked its targets before this ally was hurt: let it land, the next action takes both
+    h.runUntil(() => !u.cast, 2);
     h.b.loseHp(near, near.hp * 0.2);
     const n0 = h.heals.length;
     h.runUntil(() => h.heals.length > n0, 5);
@@ -209,6 +212,8 @@ test('S2 宛如天启: cast with an injured ally inside the 3-10 only; 30 s on t
     close(u.s.atk, u.base.atk * (1 + v), `${id}: her ATK`);
     close(medic.s.atk, medic.base.atk * (1 + v), `${id}: another medic's ATK`);
     close(tank.s.atk, tank.base.atk, `${id}: not a non-medic`);
+    // a cast under way has locked its targets before this ally was hurt: let it land, the next action takes both
+    h.runUntil(() => !u.cast, 2);
     h.b.loseHp(tank2, tank2.hp * 0.3);
     const n0 = h.heals.length;
     h.runUntil(() => h.heals.length > n0, 5);

@@ -824,6 +824,12 @@ export const EV = Object.freeze({
   RATE: 'rate',
   // ['resource', id, 'cost'|'sp', actual signed delta, source reason]: optional live-display receipts (#657).
   RESOURCE: 'resource',
+  // (fork) ['atkCast', id, windUp, targetId] - an operator's attack cast starts (server/sim/ai.js startAllyCast, the
+  // official cast → hit order): its hit (the 'atk') lands `windUp` game s later. The renderer starts the attack clip
+  // from its first frame now, at the speed that brings its strike frame to the hit (render/app/windup.js).
+  ATK_CAST: 'atkCast',
+  // (fork) ['atkCancel', id] - that cast was cut (a stun, 缴械, its targets gone): no hit; the clip goes back to rest
+  ATK_CANCEL: 'atkCancel',
 });
 
 /**

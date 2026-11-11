@@ -869,8 +869,10 @@ test('6_14 流明 S1 沐雨: the next heal gives its target and the allies aroun
     h.step();
     a1.hp = a1.s.maxHp * 0.3; a2.hp = a2.s.maxHp * 0.9; far.hp = far.s.maxHp * 0.9;
     assert.ok(h.runUntil(() => started(h, u).length > 0, 5));
-    h.run(0.5);
     const key = `lumen:rain:${u.id}`;
+    // the heal (and its rain) lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+    assert.ok(h.runUntil(() => a1.findBuff(key), 5));
+    h.run(0.5);
     assert.ok(a1.findBuff(key) && a2.findBuff(key), 'target and its neighbour');
     assert.ok(!far.findBuff(key), 'not a distant ally');
     approx(a1.findBuff(key).duration, bb['aura.projectile_life_time']);
@@ -971,7 +973,12 @@ test('6_16 溯光星源 S1 星图闪烁: ATK +; every attack bounces 3 more time
     const ch = dealt(h, u, tagged('chain')).slice(0, bb['attack@chain.max_target']);
     for (let i = 1; i < ch.length; i++) assert.notEqual(ch[i].target, ch[i - 1].target, 'never twice in a row');
     assert.equal(ch[0].target, ch[2].target, 'back and forth');
-    for (const x of ch) approx(x.amount, u.s.atk, 'full hits');
+    // the hit lands one wind-up after the cast, so the enemy in her range (10,6) already carries 能源解析's 脆弱
+    // (damage_scale, refreshed every 0.25 s while it stays there) and the one outside it (10,7) does not: full hits
+    const frag = tal(id, null, 1)['halo2_t_1[weak].damage_scale'];
+    const fragile = (e) => e.buffs.some((x) => x.status === 'fragile');
+    assert.deepEqual(ch.map((x) => fragile(x.target)), [false, true, false], '脆弱 on the in-range enemy only');
+    for (const x of ch) approx(x.amount, u.s.atk * (fragile(x.target) ? frag : 1), 'full hits');
     done(h);
   }
 });
@@ -990,11 +997,13 @@ test('6_16 溯光星源 S2 星束引力: the target farthest from its goal, atk_
     const x0 = 5;
     h.run(1);
     const hit = dealt(h, u, (c) => c.target === main && c.dmg.isAttack && c.dmg.isSkill)[0];
-    approx(hit.amount, u.s.atk * bb.atk_scale, 'atk_scale');
+    // 能源解析's 脆弱 is on the in-range main target by the time the delayed hit lands (cast → hit, ai.js allyCastWindup)
+    const frag = tal(id, null, 1)['halo2_t_1[weak].damage_scale'];
+    approx(hit.amount, u.s.atk * bb.atk_scale * frag, 'atk_scale (×脆弱)');
     assert.ok(statuses(h, 'sluggish', (c) => c.source === u && c.target === main && Math.abs(c.duration - bb.sluggish) < 1e-9).length === 1, '3 s 停顿');
     const link = dealt(h, u, (c) => c.target === side && (c.dmg.tags || []).includes('link'));
     assert.equal(link.length, 1, 'linked neighbour hit');
-    approx(link[0].amount, u.s.atk * bb.atk_scale_link, 'link');
+    approx(link[0].amount, u.s.atk * bb.atk_scale_link * frag, 'link (×脆弱: the neighbour stands in her range too)');
     assert.ok(side.x > x0 + 0.05 || main.x < side.x, `pulled toward the target (${x0} → ${side.x})`);
     done(h);
   }

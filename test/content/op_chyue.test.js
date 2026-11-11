@@ -8,6 +8,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -105,7 +106,7 @@ test('S1 冲盈 (MANUAL, attack SP 5 / 4, 3 charges, data [DEFAULT, SEARCH] — 
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
     const fly = h.spawn('enemy_fly', { pos: [10, 6] });
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast`);
-    h.step();
+    h.run(allyCastWindup(u) + 0.05); // the strike lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
     const strike = hitsBy(h, u).filter((c) => c.dmg.isSkill);
     assert.equal(strike.length, 3, `T${tier}: three strikes`);
     for (const c of strike) {
@@ -211,7 +212,7 @@ test('S3 我无 (MANUAL, attack SP 11 / 10, data [DEFAULT, SEARCH]): its strike 
     for (let n = 1; n <= 5; n++) {
       u.skill.gainSp(999);
       assert.ok(h.runUntil(() => u.skill.activations === n, 5), `T${tier}: cast ${n} (3 s apart: the automatic-operation cooldown)`);
-      h.step();
+      h.run(allyCastWindup(u) + 0.05); // the strike lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
       assert.equal(u.mem.chyueAwake, n === 5, `T${tier}: transformed after the 5th cast only`);
     }
     const pre = strikes();

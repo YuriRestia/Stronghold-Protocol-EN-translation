@@ -37,7 +37,7 @@
 // moveFeared; a self-inflicted fear flutters inside its own tile); an `attract` (诱导) status walks it to the status
 // point instead (moveAttracted); both re-plan the route when released (恐惧 outranks 诱导).
 
-import { ATTACK_PAUSE, ALLY_COLLIDER_RADIUS, MOVE_SCALE, PROJECTILE_SPEEDS, PROJECTILE_SPEED, BOOMERANG_RETURN_SPEED, COLS, CHAIN_RADIUS } from './constants.js';
+import { ATTACK_PAUSE, ALLY_COLLIDER_RADIUS, MOVE_SCALE, PROJECTILE_SPEEDS, PROJECTILE_SPEED, BOOMERANG_RETURN_SPEED, COLS, CHAIN_RADIUS, ALLY_ANIM_SCALE_MIN, ALLY_ANIM_SCALE_MAX } from './constants.js';
 import { sortEnemyTargets, sortAllyTargets, canTargetEnemy, canTargetAlly, tileKeyOf } from './targeting.js';
 import { straightClear } from './grid.js';
 import { moveFeared, endFear } from './fear.js';
@@ -92,6 +92,8 @@ export function attackCountdown(cd, dt) {
 export function updateAlly(b, u, dt) {
   if (u.atkCd > 0 && u.canAct) u.atkCd = attackCountdown(u.atkCd, dt);
   if (u.blocking.length) enforceBlockCapacity(b, u);
+  // (fork) an attack cast under way (the official cast → hit order, startAllyCast): its hit, or its interruption
+  if (u.cast && allyCastTick(b, u, dt)) return;
   if (!u.canAct || !u.profile) return;
   // a rangeExtend change (buff added / expired) rebuilds the range — also for units that never attack (auras)
   if (b.rangeChanged(u)) b._refreshRange(u);
@@ -136,8 +138,83 @@ export function updateAlly(b, u, dt) {
     targets = acquireTargets(b, u, prof);
     if (!targets.length) { storeEnergy(b, u, prof); return; }   // the cast left none (a range change): still this check
   }
+  // (fork) the official cast → hit order: the attack's cycle starts here (its cooldown), its hit lands one wind-up later;
+  // `lastCastAt`: when the attack landing next (or now) was cast — a kit's fixed cadence counts from it (op-logos.js)
+  u.atkCd = Math.max(u.atkCd, u.s.interval);
+  u.lastCastAt = b.time;
+  const wind = allyCastWindup(u);
+  if (wind > 0) { startAllyCast(b, u, prof, targets, wind, dt); return; }
   performAttack(b, u, prof, targets);
   u.atkCd = Math.max(u.atkCd, u.s.interval);
+}
+
+/**
+ * (fork) The wind-up of an operator's (or summon's) normal attack, in game s: the official client plays the attack clip
+ * from its cast start, scaled to the attack time (AbstractAnimatedAbility.UpdatePlaybackSpeed, disassembled: animScale =
+ * attackTime / clipDuration, at least MIN_ANIM_SCALE 0.1, at most 2.5), and lands the attack at the clip's attack
+ * event (EasyToStartAbility's pre-delay, `_waitForAttackEvent`): hit × animScale after the cast. The clip and its strike
+ * frame are its data's `attackAnim` (tools/build-data.mjs operatorAttackAnims, the default model's clip); the attack time
+ * is its current interval [ASSUMED: the 2.5 cap — `_maxAnimScale` — on every basic attack]. 0 with no clip known (the
+ * old rule: the attack lands as its cooldown ends) — the older versions' data, summons the manifest lacks.
+ */
+export function allyCastWindup(u) {
+  const a = u.def?.attackAnim;
+  const iv = u.s?.interval;
+  if (!a || !(a.dur > 0) || !(iv > 0)) return 0;
+  const scale = Math.min(ALLY_ANIM_SCALE_MAX, Math.max(ALLY_ANIM_SCALE_MIN, iv / a.dur));
+  return Math.min(iv, clipHit(a) * scale);
+}
+
+/**
+ * (fork) Start an attack cast: its targets are the ones found now (the hit lands on them even if they leave its range:
+ * a cast locks its targets — PRTS 作战机制, as the enemies' swing), the hit comes `wind` game s later on the tick the
+ * countdown crosses 0 (allyCastTick). ['atkCast', id, windUp, targetId]: the renderer starts the attack clip from its
+ * first frame now, at the speed that brings its strike frame to the hit (render/app/windup.js).
+ */
+function startAllyCast(b, u, prof, targets, wind, dt) {
+  const ticks = dt > 0 ? Math.max(1, Math.ceil(wind / dt - 1e-6)) : 1;
+  u.cast = { left: ticks * dt, targets: targets.slice(), mode: castMode(u, prof) };
+  if (b.recordEvents) b._ev(['atkCast', u.id, Math.round(ticks * dt * 1000) / 1000, targets[0] ? targets[0].id : 0]);
+}
+
+/**
+ * (fork) One tick of an attack cast (startAllyCast). It is cut — no hit, ['atkCancel', id] — by anything that stops an
+ * attack: the unit stunned / frozen / asleep (canAct), 缴械, knocked out or retreated, its attack switched off (a
+ * skill's noAttack) — the official client's interrupt (AbstractAnimatedAbility OnStunnedChanged / OnFrozenChanged …).
+ * At the hit, the locked targets still alive and selectable take it; with none left it picks again, and with nobody at
+ * all the cast is cut. A skill that started or ended during the wind-up (castMode: a heal mode, a wider target count)
+ * picks again with the attack it has now, so that a heal never lands on the enemy the cast locked. (EasyToStartAbility `_interuptIfTargetDead`). A cut cast frees its cooldown, so the next one can
+ * start as soon as a target is there [ASSUMED: ResetCooldownStrategy is not read]. True when the tick is spent on it.
+ */
+function allyCastTick(b, u, dt) {
+  const c = u.cast;
+  const prof = u.profile ? effectiveProfile(u) : null;
+  if (!u.alive || !u.deployed || !u.canAct || !prof || prof.noAttack || u.s.flags.disarm
+      || (prof.noAttackUnlessSkill && !(u.skill && u.skill.active))) {
+    cancelAllyCast(b, u);
+    return true;
+  }
+  c.left = attackCountdown(c.left, dt);
+  if (c.left > 0) return true;
+  u.cast = null;
+  let targets = c.mode !== castMode(u, prof) ? [] : c.targets.filter((t) => t && t.alive && t.deployed !== false
+    && (t.side === 'enemy' ? canTargetEnemy(u, t, prof) : true));
+  if (!targets.length) targets = acquireTargets(b, u, prof);
+  if (!targets.length) { cancelAllyCast(b, u); return true; }
+  performAttack(b, u, prof, targets);
+  return true;
+}
+
+/** (fork) What a cast's locked targets were picked for: its skill on or off, an attack or a heal (allyCastTick). */
+function castMode(u, prof) {
+  return `${u.skill && u.skill.active ? 1 : 0}${prof.heal ? 'h' : 'a'}`;
+}
+
+/** (fork) Cut an attack cast (allyCastTick): no hit, its cooldown freed, ['atkCancel', id] for the renderer. */
+function cancelAllyCast(b, u) {
+  u.cast = null;
+  u.atkCd = 0;
+  if (b.recordEvents) b._ev(['atkCancel', u.id]);
 }
 
 /**
@@ -990,6 +1067,11 @@ function enemyAttack(b, e, prevCd) {
     e.swingTargets = targets.slice();
     // ready before this tick (it walked with its cooldown over, or its swing was cut): the whole wind-up from now
     if (prevCd < wind) e.atkCd = wind;
+    // (fork) the swing's start for the renderer (display only): its strike lands on the tick the countdown crosses 0
+    if (b.recordEvents && e.atkCd > 0) {
+      const dt = b.dt > 0 ? b.dt : 1 / 30;
+      b._ev(['atkCast', e.id, Math.round(Math.max(1, Math.ceil(e.atkCd / dt - 1e-6)) * dt * 1000) / 1000, targets[0] ? targets[0].id : 0]);
+    }
   }
   // the wind-up (GitHub #58): an unblocked ranged enemy stands through it (a 「不停止移动」 one walks on)
   if (e.atkCd > 0) return !e.blockedBy && radius > 0 && !(e.profile?.attackMoves ?? def.attackMoves);

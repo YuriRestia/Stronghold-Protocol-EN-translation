@@ -10,6 +10,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks, diyRecordOf } from '../../shared/diy.js';
 
@@ -313,7 +314,9 @@ test('S3 铁钳号·原型机: 30 s, ATK +25 / 40 %, ASPD +25 / 40, +1 stock at 
     assert.ok(h.hooksOf('spGain').filter((x) => x.unit === c && x.reason === 'hurt').length >= 5, `T${tier}: one SP per hit`);
     // an enemy in an attacker's range comes first (one on the crab's tile, in 白铁's range)
     const e = h.spawn('enemy_dummy', { pos: [10, 6] });
-    h.step();
+    // an attack already cast at the crab keeps its locked target and lands one wind-up later (official cast → hit):
+    // let it land, then count only the attacks cast after the enemy stood there
+    h.run(Math.max(allyCastWindup(u), allyCastWindup(tx)) + 2 / 30);
     const a0 = atkOn(u);
     h.run(3);
     assert.ok(h.events.filter((x) => x[0] === 'atk' && x[1] === u.id && x[2] === e.id).length >= 1, `T${tier}: 白铁 attacks the enemy`);

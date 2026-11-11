@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { dreadKey, DREAD_TAG } from '../../server/sim/content/kits/ops/op-ascln.js';
@@ -183,7 +184,7 @@ test('S1 追袭 (AUTO, 2 / 3 charges, data DEFAULT): the next attack strikes eve
     const a = h.spawn('enemy_dummy', { pos: [10, 6] }), b = h.spawn('enemy_dummy', { pos: [11, 5] });
     u.skill.gainSp(999);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 3), `T${tier}: cast on her next attack`);
-    h.step();
+    h.run(allyCastWindup(u) + 2 / 30);   // the skill arms at the cast start; its strikes land one wind-up later (official cast → hit)
     const hits = atkHits(h, u).filter((c) => c.dmg.isSkill);
     assert.equal(hits.length, 4, `T${tier}: 2 enemies × 2 strikes`);
     for (const c of hits) approx(c.amount, u.s.atk * sk.bb.atk_scale, `T${tier}: ×${sk.bb.atk_scale}`);

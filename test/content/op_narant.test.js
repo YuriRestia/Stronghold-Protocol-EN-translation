@@ -6,6 +6,7 @@
 // boomerang flight it relies on (ai.js throwBoomerang: `boomerangCaught`, a profile's `boomerangOnward`).
 // Run: node --test test/content/op_narant.test.js
 
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -99,7 +100,8 @@ test('trait 回环射手 (engine): one boomerang out at 15 and back at 3.75 tile
   const d = 3;
   const flight = d / PROJECTILE_SPEEDS.boomerang + d / BOOMERANG_RETURN_SPEED;
   approx(caught[0].t - hits[0].t, d / BOOMERANG_RETURN_SPEED, 'back at 3.75 tiles/s', 0.1);
-  approx(hits[1].t - hits[0].t, flight, 'she waits for it (longer than her 1 s interval)', 0.1);
+  // the next cast starts when the boomerang is caught and its throw lands one wind-up later (official cast → hit, ai.js allyCastWindup)
+  approx(hits[1].t - hits[0].t, flight + allyCastWindup(u), 'she waits for it (longer than her 1 s interval), then the wind-up', 0.1);
   assert.ok(h.eventsOf('atk').filter((e) => e[1] === u.id).every((e) => e[3] === 'boomerang'));
   done(h);
 });

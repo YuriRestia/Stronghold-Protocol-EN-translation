@@ -158,6 +158,9 @@ export function runBattle(sc, probe = {}) {
   const fx = {};
   const drain = () => {
     for (const e of b.drainEvents()) {
+      // (fork) 'atkCast' / 'atkCancel' (ai.js startAllyCast, enemies' swings) are display only: the hit or the cut they
+      // announce is in the digest already, so they stay out of it (the older versions' battles digest as before)
+      if (e[0] === 'atkCast' || e[0] === 'atkCancel') continue;
       ev[e[0]] = (ev[e[0]] || 0) + 1;
       if (e[0] === 'fx') fx[e[1]] = (fx[e[1]] || 0) + 1;
     }

@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 
@@ -89,7 +90,7 @@ test('S1 强力击·γ型 (AUTO, attack SP 3, data DEFAULT): her 4th attack is t
     h.step();
     assert.equal(u.blocking.length, 3, `T${tier}: blocks all three`);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 10), `T${tier}: cast`);
-    h.step();
+    h.run(allyCastWindup(u) + 2 / 30);   // the skill arms at the cast start; the skill attack hits one wind-up later (official cast → hit)
     const attacks = [...new Set(hitsBy(h, u).map((c) => c.dmg.attackId))];
     assert.equal(attacks.length, 4, `T${tier}: the 4th attack (3 SP, then the skill attack)`);
     const last = hitsBy(h, u).filter((c) => c.dmg.attackId === attacks[3]);

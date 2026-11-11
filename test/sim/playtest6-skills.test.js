@@ -234,6 +234,7 @@ test('#16 古米 备用军粮 with an enemy blocked: the cast turns her next att
     units: [{ chessId: id, row: 10, col: 4 }, { chessId: 't_mate', row: 11, col: 4 }, { chessId: 't_mate2', row: 9, col: 4 }], enemies: [{ key: 'enemy_d', pos: [10, 4] }] });
   const u = h.unit(id), m = h.unit('t_mate'), m2 = h.unit('t_mate2');
   h.step();
+  assert.ok(h.runUntil(() => !u.cast, 2)); // the opening attack cast (cast → hit, ai.js allyCastWindup) lands first
   assert.equal(u.skill.maxCharges, 2);
   u.atkCd = 1.5; // the heal waits for her next attack
   fill(u);
@@ -277,13 +278,16 @@ test('#16 塞雷娅 S1 急救 (audit): checked at her attack — an ally of her 
   assert.ok(h.runUntil(() => hits() >= 2, 5), '60 %: she attacks the enemy she blocks');
   assert.equal(u.skill.activations, 0, 'and casts nothing');
   // an ally at exactly half HP: her next attack is the heal (the enemy is not hit by it)
+  assert.ok(h.runUntil(() => !u.cast, 2)); // an attack cast already under way lands first (cast → hit, ai.js allyCastWindup)
   u.atkCd = 0.5;
   m.hp = 5000;
   const hits0 = hits();
   assert.ok(h.runUntil(() => u.skill.activations === 1, 2));
   assert.equal(starts(h, u)[0].reason, 'DEFAULT');
+  // the skill arms at the cast start, the heal lands one wind-up later
+  assert.ok(h.runUntil(() => h.hooksOf('heal').some((c) => c.source === u && c.target === m), 1));
   const heal = h.hooksOf('heal').find((c) => c.source === u && c.target === m);
-  assert.ok(heal, 'healed at once, in place of that attack');
+  assert.ok(heal, 'healed in place of that attack');
   approx(heal.amount, u.s.atk * s.bb.heal_scale);
   assert.equal(hits(), hits0, 'that attack hit nobody');
   assert.ok(!u.skill.pending);

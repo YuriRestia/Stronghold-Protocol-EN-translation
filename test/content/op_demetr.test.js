@@ -9,6 +9,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { makeBattle, enemyRec, checkInvariants } from '../helpers/battleHarness.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { BOND, MEANS_KEY, MEANS_SLUG_KEY, STREET_KEY, UNDEAD_KEY, RETURN_UNDYING } from '../../server/sim/content/kits/ops/op-demetr.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
@@ -212,6 +213,8 @@ test('S2 军师的手段 (MANUAL, data DEFAULT + SKILL_RANGE on its 3-13): 15 / 
       const base = u.s.atk * b['attack@atk_scale'];
       approx(c.amount, base, `T${tier}: ${b['attack@atk_scale'] * 100} %`, 0.0001);
     }
+    // the attack already cast at `far` alone when the others appeared keeps its locked target (official cast → hit): the first one is not counted
+    per.delete([...per.keys()][0]);
     assert.ok(per.size >= 4 && [...per.values()].every((s) => s.size === 3), `T${tier}: three targets per attack`);
     const hitOnes = es.filter((e) => meansOf(e) > 0);
     assert.ok(hitOnes.some((e) => meansOf(e) === 8), `T${tier}: 8 stacks during S2`);

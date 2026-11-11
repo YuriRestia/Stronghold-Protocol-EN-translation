@@ -6,6 +6,7 @@
 // fidelity checklist of kits/README.md.
 // Run: node --test test/content/op_phatm2.test.js
 
+import { allyCastWindup } from '../../server/sim/ai.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -188,7 +189,7 @@ test('S1 暗夜回声 (AUTO, 3 attack SP): every 4th attack hits twice for 105 %
     const fresh = h.spawn('enemy_dummy', { pos: [10, 6] });
     h.b.addBuff(burst, { key: 'neuralBurst', duration: 100, flags: { burstLock: true } });
     assert.ok(h.runUntil(() => u.skill.activations === 1, 10));
-    h.run(0.5);   // the bolts land
+    h.run(allyCastWindup(u) + 0.5);   // the bolts land (one wind-up after the cast: official cast → hit, ai.js allyCastWindup)
     const atks = h.hooksOf('attack').filter((c) => c.attacker === u);
     assert.deepEqual(atks.map((c) => c.isSkill), [false, false, false, true], 'three plain attacks, then the skill\'s');
     const skillHits = h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack && c.dmg.isSkill);

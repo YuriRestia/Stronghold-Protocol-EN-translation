@@ -14,6 +14,7 @@ import { makeBattle, chessRec, enemyRec, checkInvariants } from '../helpers/batt
 import * as enemiesMod from '../../server/sim/content/enemies.js';
 import * as bossesMod from '../../server/sim/content/bosses.js';
 import { canTargetEnemy } from '../../server/sim/targeting.js';
+import { allyCastWindup } from '../../server/sim/ai.js';
 
 const FLOATER = 'enemy_2025_syufo';   // 掠海漂移体 (海嗣, ELEMENT faction)
 const PARROT = 'enemy_10045_parrot';  // 吉兆飞鳞 (悬赏·飞行II)
@@ -82,6 +83,9 @@ test('#220 (the owner\'s decision of 2026-10-08): a 速射手 blocking a ground 
     const o = h.spawn(other, { pos: [10, 6], routeIndex: 0, route: { motion: other === 'e_bat' ? 'FLY' : 'WALK', start: [10, 6], end: [10, 6], checkpoints: [] } });
     h.step();
     assert.ok(h.b.enemiesInKeys(u.rangeKeys, u, u.profile).includes(o), `${other} in range`);
+    // the attack already cast at the blocked walker keeps its locked target and lands one wind-up later (official cast → hit):
+    // let it land, then count the shots cast after the second enemy stood in range
+    h.run(allyCastWindup(u) + 2 / 30);
     const n0 = h.hooksOf('damaged').length;
     h.run(4);
     const hits = (t) => h.hooksOf('damaged').slice(n0).filter((c) => c.source === u && c.target === t).length;

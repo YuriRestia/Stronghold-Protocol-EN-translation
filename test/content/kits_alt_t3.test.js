@@ -160,6 +160,8 @@ test('3_02 断崖 S1 多导向散射弹丸: next attack hits max_target enemies 
       units: [U(id, 'skchr_ayer_1', 10, 4)], enemies: [{ key: 'enemy_e1', pos: [10, 5] }, { key: 'enemy_e2', pos: [9, 5] }, { key: 'enemy_e3', pos: [11, 5] }, { key: 'enemy_e4', pos: [10, 6] }] });
     const u = h.unit(id);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 40));
+    // the hit lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+    assert.ok(h.runUntil(() => h.hooksOf('attack').some((c) => c.attacker === u && c.isSkill), 5));
     h.run(0.5);
     const atk = h.hooksOf('attack').find((c) => c.attacker === u && c.isSkill);
     assert.equal(atk.targets.length, b.max_target);
@@ -719,6 +721,8 @@ test('3_17 流星 S1 碎甲击: next attack ×atk_scale and the target DEF − f
       units: [U(id, 'skchr_shotst_1', 10, 4)], enemies: [{ key: 'enemy_d', pos: [10, 6] }] });
     const u = h.unit(id);
     assert.ok(h.runUntil(() => u.skill.activations === 1, 30));
+    // the hit lands one wind-up after the cast (official cast → hit, ai.js allyCastWindup)
+    assert.ok(h.runUntil(() => atkHits(h, u, true).length > 0, 5));
     h.run(0.3);
     const e = h.enemy('enemy_d');
     const sk = atkHits(h, u, true);

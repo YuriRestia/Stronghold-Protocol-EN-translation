@@ -109,6 +109,8 @@ test('S1 破虏 (AUTO, 2 charges, data DEFAULT): the next attack at 145 % / 160 
       u.hp = u.s.maxHp * ratio;
       const e = h.spawn('enemy_dummy', { pos: [10, 6] });
       assert.ok(h.runUntil(() => u.skill.activations === 1, 2), `T${tier}: cast`);
+      // the strikes land one wind-up after the cast (official cast → hit); wait for the first one (坚忍 changes the interval with the HP lost)
+      assert.ok(h.runUntil(() => hitsBy(h, u).some((c) => c.dmg.isSkill), 2), `T${tier} at ${ratio * 100} % HP: the strike lands`);
       h.step();
       const sk1 = hitsBy(h, u).filter((c) => c.dmg.isSkill);
       assert.equal(sk1.length, strikes, `T${tier} at ${ratio * 100} % HP: ${strikes} strike(s)`);

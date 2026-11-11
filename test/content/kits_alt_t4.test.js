@@ -1176,6 +1176,10 @@ test('卡涅利安 S3 食噬之印: wider range, ATK ramps to +atk over the skil
     approx(u.findBuff('billro:s3atk').mods.atkPct, bb.atk * 0.5, 0.02, `${id}: half-way ramp`);
     const m = e.findBuff('billro:mark');
     assert.ok(m && m.stacks === 5 && m.source === u, `${id}: marks capped at 5 (${m?.stacks})`);
+    // the ATK ramps while a hit is still on its way (it lands one wind-up after its cast: official cast → hit): compare the
+    // next hit with the ATK of the tick it lands in
+    const n = dmgBy(h, u, (c) => c.dmg.isAttack && c.target === e).length;
+    assert.ok(h.runUntil(() => dmgBy(h, u, (c) => c.dmg.isAttack && c.target === e).length > n, 3), 'a hit');
     const hits = dmgBy(h, u, (c) => c.dmg.isAttack && c.target === e);
     const last = hits[hits.length - 1];
     approx(last.amount / (u.s.atk), 1 + bb['attack@damage_scale'] * 5, 0.05, '+100 % with 5 marks');
