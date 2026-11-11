@@ -1101,6 +1101,32 @@ test('烛煌 T2 绝处重燃: the revive stuns enemies within 1.7 tiles (PRTS)',
   clean(h);
 });
 
+// (fork) the official SwitchBegin buff blaze2_switchbegin (charpack char_1040_blaze2, abnormal flags FORCE_DISARMED, HEAL_FREE,
+// SILENCED): downed, she cannot start a skill however full her SP (it kept recovering — no SP_RECOVER_STOPPED), from the
+// moment she stands up she can (the user saw her S3 start while she knelt, 2026-11-11)
+test('烛煌 T2 绝处重燃: silenced while downed — no skill starts until she stands up', () => {
+  for (const sk of [0, 2]) {
+    const h = makeBattle({
+      defs: { enemies: { enemy_dummy: dummy() } },
+      units: [{ chessId: 'chess_char_5_03_a', row: 10, col: 3, skillIndex: sk }],
+      enemies: [{ key: 'enemy_dummy', pos: [10, 4.6] }], autoFinish: false, timeLimit: 60,
+    });
+    const u = h.unit('chess_char_5_03_a');
+    h.step();
+    h.b.dealDamage(null, u, { amount: 1e9, type: 'true' });
+    assert.ok(u.hasBuff('blaze2:downed') && u.s.flags.silence, `S${sk + 1}: downed and silenced`);
+    u.skill.gainSp(1000);
+    const cast = () => u.skill.active || !u.skill.ready;   // an instant S1 spends its SP at once, S3 runs
+    h.run(3);
+    assert.ok(!cast(), `S${sk + 1}: no skill while downed (full SP, an enemy in range)`);
+    u.hp = u.s.maxHp;
+    h.run(0.3);
+    assert.ok(!u.hasBuff('blaze2:downed') && !u.s.flags.silence, `S${sk + 1}: revived, no longer silenced`);
+    assert.ok(h.runUntil(cast, 5), `S${sk + 1}: the skill starts once she stands`);
+    clean(h);
+  }
+});
+
 test('夕 S1 splash widens to 1.7 (PRTS); T2 点睛 summons only on a free deployable target tile', () => {
   const h = makeBattle({
     defs: { enemies: { enemy_dummy: dummy() } },

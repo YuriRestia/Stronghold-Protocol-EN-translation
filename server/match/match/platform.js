@@ -6,7 +6,6 @@
 
 import { C2S } from '../../../shared/protocol.js';
 import { PHASE, ERR } from '../../../shared/constants.js';
-import { syntheticResult } from '../fields.js';
 import { FLOW_TICKER_PRIORITY, OK, fail } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { ruleOption } from '../../../shared/plugins/rules.js';
@@ -221,8 +220,9 @@ export class MatchPlatform {
         this.finish({ victory: false, reason: 'abandoned' });
         return;
       }
-      // (fork) a large room: a departed player's board stays in the match under the AI (match/largeRoom.js) [ASSUMED]
-      if (this.largeRoom && ps.alive) { this.kickBot(ps); return; }
+      // (fork) every room type, Grand Alliance included: leaving eliminates (user, 2026-11-11). A running battle plays out
+      // in a browser (_authorityLost above); from the next round on no AI board, no prep, no battles. The rejoin window
+      // before this (onDisconnect) keeps the AI on a Grand Alliance board.
       this._quit(ps);
     });
   }
@@ -238,17 +238,9 @@ export class MatchPlatform {
     if (!ps.alive) return;
     const phase = this.phase;
     const passedRound = phase === PHASE.SETTLE ? this.round + 1 : Math.max(1, this.round);
-    // its own normal battle has nobody left to fight for
-    for (const f of this.fields) {
-      if (f.live && f.kind === 'normal' && f.players.length === 1 && f.players[0] === ps.playerId) {
-        if (this.clientCombat && f.cc) {
-          if (!f.result) f.result = syntheticResult(f.players);
-          this._fieldDone(f);
-          continue;
-        }
-        try { f.battle.forceEnd('left'); } catch (e) { this.reportError('quit forceEnd', e); }
-      }
-    }
+    // (fork) a battle the player was fighting plays out to its natural end (user, 2026-11-11): _authorityLost handed it to
+    // a browser (or the boss partner) like a disconnect's, so nobody waits on a silent field; from the next round on the
+    // seat has no field at all (not alive)
     ps.lp = 0;
     ps.eliminate(passedRound);
     this.offersChanged();

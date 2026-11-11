@@ -272,7 +272,7 @@ test('onLeave: a quitter has no place in the Final Assault pairing or the boss p
   checkInvariants(m2);
   m2.dispose();
 
-  // mid-combat: the quitter's own battle is force-ended, the others play on
+  // mid-combat: the quitter is eliminated, and every battle plays on — its own too (fork, user 2026-11-11)
   const h4 = makeMatch({ mode: 'coop', difficulty: 'FUNNY', humans: 3, seed: 20, fake: true, instant: false, script: (b) => (b.kind === 'normal' ? { duration: 5 } : {}) }).start();
   const m4 = h4.m;
   h4.toPrep(2);
@@ -280,7 +280,8 @@ test('onLeave: a quitter has no place in the Final Assault pairing or the boss p
   h4.sched.advance(500);
   m4.onLeave('p_2');
   const f2 = m4.fields.find((f) => f.fieldId === 'n:p_2');
-  assert.ok(f2.battle.finished, 'its battle was force-ended');
+  assert.equal(h4.ps('p_2').alive, false);
+  assert.ok(!f2.battle.finished, 'its battle plays on to its end');
   assert.ok(m4.fields.filter((f) => f.fieldId !== 'n:p_2').every((f) => !f.battle.finished), 'the others still fight');
   checkInvariants(m4);
   h4.drive(() => m4.phase === PHASE.PREP && m4.round === 3);

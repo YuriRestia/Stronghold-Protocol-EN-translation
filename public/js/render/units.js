@@ -515,6 +515,12 @@ export const FORMS = Object.freeze({
     doll: Object.freeze({ change: 'Start_B', end: 'Die_B', leave: 'Start_2', roles: dollRoles('Idle_B', 'Die_B_2') }),
   }),
   char_4182_oblvns: OBLVNS_S2,
+  // (fork) 烛煌 T2 绝处重燃 (sim chess_char_5_03-blaze2.js: the 'downed' fx's form 'downed', the 'revive' fx's null): her
+  // charpack's Reborn mode — knocked down on Revive_Begin, kneeling on Revive_Idle (no attack, no skill: the kit disarms
+  // her), standing up on Revive_End (the user's clip RjrtWhMKwAU 0:29–0:34). Her outfits share the clip names.
+  char_1040_blaze2: Object.freeze({
+    downed: Object.freeze({ change: 'Revive_Begin', leave: 'Revive_End', roles: { ...dollRoles('Revive_Idle', 'Die'), stun: loop('Revive_Idle') } }),
+  }),
   char_4016_kazema: Object.freeze({
     doll: Object.freeze({ change: 'Start_B', leave: 'Start', roles: dollRoles('Idle_B', 'Die_B', 'Attack_B') }),
   }),

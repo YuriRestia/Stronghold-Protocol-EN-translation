@@ -425,8 +425,11 @@ humans who left the match or humans who are only disconnected. **The user's rule
 with the 8-player mode in mind. The executor could fake such a field's result within the bounds check (`botField`); the user accepted
 that risk. A human who disconnects mid-battle hands their field to the same chain (`_authorityLost`, `_bossHandover`; a boss field
 goes on live from the field's clock). Back mid-battle, they watch: the executor's result stands, their own reports are ignored, and
-the board is theirs again at the next prep. A leaver's own battle ends at once with a synthetic result (中途退出, "quitting
-mid-match"), so no browser is asked for it. A Worker runs the spec headless and
+the board is theirs again at the next prep. Leaving (g.leave, or the rejoin window running out)
+eliminates in every room type, the Grand Alliance included (中途退出, "quitting mid-match"; user, 2026-11-11). A battle the
+leaver was fighting plays out to its natural end, handed at once to the same chain as a disconnect's (a boss field to the
+partner first): nobody waits for a silent field, and the server never runs it. From the next round on the seat has no
+field, no prep and no AI. During the rejoin window (only disconnected) nothing changes. A Worker runs the spec headless and
 sends the result early, and the server holds it until the battle's natural end with the existing `_armRelease`, so pacing and
 teammates' progress UI do not change.
 
@@ -436,7 +439,7 @@ teammates' progress UI do not change.
 | Timeout, or host gone | Next human, then a synthetic result (`syntheticResult`: no kills, no leaks). Never `_runOnServer`. |
 | Layer traits (`requiresTraitLayerAuthority`, `fields.js:793`) | A field with no connected human is exempt, and gains stay capped by the existing allowance. A field with a connected human keeps upstream's rule (the server runs it). |
 | A human's field with that human disconnected, at the start or mid-battle | A browser runs it like a bot field, never the server. With no browser at all, the synthetic result. |
-| A field whose humans all left | The same. A human who leaves is eliminated, so this is a field shared with bots that was running when they left. |
+| A field whose humans all left | The same: it was running when they left (leaving eliminates, so later rounds have no such field). It plays out in a browser. |
 | Bot-only boss field | Runs live in the Worker on the field's clock and reports at 4 Hz through `b.progress` and `b.result`, so the existing boss rules apply. A silent or lost executor hands it to the next human; with nobody left, a synthetic result stands (piece 9) |
 | Bot-only joint field (seen in the run: `ai_2+ai_1:server`) | Same burst path as a normal field |
 

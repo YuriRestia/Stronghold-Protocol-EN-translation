@@ -125,6 +125,31 @@ const FX_SOUND_BANKS = Object.freeze({
     'aoe|excu2': Object.freeze(['battle.ON_ABILITY_START.char_1032_excu2.attack.4',
       Object.freeze({ bank: 'battle.ON_ABILITY_HIT.char_1032_excu2.attack.4', after: 0.1 })]),
   }),
+  // (fork) 烛煌 (chess_char_5_03-blaze2.js): T2 绝处重燃 — knocked down ('downed': the reborn buff's start) and standing up
+  // ('revive': its custom trigger reborn_finish); T1 熔点引爆 — a burn burst she answers ('meltdown', src: her; the custom
+  // trigger fire_ep_break). Her outfits have no sounds of their own.
+  char_1040_blaze2: Object.freeze({
+    'downed|': 'battle.ON_BUFF_START.reborn_start',
+    'revive|': 'battle.ON_CUSTOM_TRIGGER.reborn_finish',
+    'meltdown|': 'battle.ON_CUSTOM_TRIGGER.fire_ep_break',
+  }),
+});
+/**
+ * (fork) Element burst (爆发) sounds, by `<sim element>.<side>` (side as public/js/render/vfx/wiring.js burstSide: 'enemy'
+ * = an enemy unit, 'char' = an operator / summon) → the banks the burst plays at once, each on its own pool (public/js/
+ * audio.js _burstSound). Read from the CN client (2026-11-11): the ep_break_<el>_<char|enemy> buff templates
+ * (buff_template_holder.ab) name an `audioSignal` on the buff they create, and audio_data.json holds that signal's banks.
+ * Only the operator side carries one, except DARK (apoptosis), whose enemy side signals the same bank; the enemy side of
+ * FIRE / SANITY / WATER plays its effect only, so it stays silent. FIRE's signal also has an ON_BUFF_SHOW_EFFECT bank
+ * [ASSUMED: it fires as the buff shows buff_burn, the same moment]. FIRE = burn, SANITY = neural, WATER = erosion,
+ * DARK = apoptosis.
+ */
+const BURST_SOUND_BANKS = Object.freeze({
+  'burn.char': Object.freeze(['battle.ON_BUFF_START.ep_break_fire_audio', 'battle.ON_BUFF_SHOW_EFFECT.ep_break_fire_audio']),
+  'neural.char': Object.freeze(['battle.ON_BUFF_START.ep_break_sanity_audio']),
+  'erosion.char': Object.freeze(['battle.ON_BUFF_START.ep_break_water_audio']),
+  'apoptosis.char': Object.freeze(['battle.ON_BUFF_START.ep_break_dark_audio']),
+  'apoptosis.enemy': Object.freeze(['battle.ON_BUFF_START.ep_break_dark_audio']),
 });
 /**
  * (fork) Skills whose sounds are their own ability's banks (ON_ABILITY_START / _HIT.<skill id>), not an ON_SKILL_START or
@@ -185,9 +210,9 @@ const SKILL_ON_BANKS = Object.freeze({
 const SKILL_OFF_BANKS = Object.freeze({
   char_4193_lemuen: Object.freeze({
     0: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_1', 1: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_2', 2: 'battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_3',
-  }),  // (fork) 烛煌 S3 (ammo): its last bolt closes the skill (b_char_boostclose); the ability's end sound
-  // (ON_ABILITY_END p_skill_hcnsrfrfld) plays at the same moment and is not carried (one end sound per skill)
-  char_1040_blaze2: Object.freeze({ 2: 'battle.ON_SKILL_SPECIAL_POINT.skchr_blaze2_3' }),
+  }),  // (fork) 烛煌 S3 (ammo): its last bolt closes the skill (b_char_boostclose) and its ability ends at the same moment
+  // (ON_ABILITY_END p_skill_hcnsrfrfld): a list — every bank plays (the manifest's `more`)
+  char_1040_blaze2: Object.freeze({ 2: Object.freeze(['battle.ON_SKILL_SPECIAL_POINT.skchr_blaze2_3', 'battle.ON_ABILITY_END.skchr_blaze2_3']) }),
 });
 const SKILL_ABILITY_SOUNDS = Object.freeze({
   char_4247_oxi: Object.freeze({ 0: Object.freeze(['attack', 'hit']), 1: Object.freeze(['skill']) }),  // (fork) 烛煌 S1 (one cast): its swing and impact are the skill ability's own (p_atk_hcnsrfr_d / p_imp_hcnsrfr_d)
@@ -857,16 +882,22 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       if (Object.keys(fxSounds).length) u.fxSounds = fxSounds;
     }
     if (quietHits.length) u.quietHits = literal(quietHits);
+    // (fork) an entry may list several banks (all play at that edge): the first is the entry, the others its `more`
     const edge = (table) => {
       const out = {};
-      for (const [i, e] of Object.entries(table || {})) {
-        const name = typeof e === 'string' ? e : e.bank;
-        const paths = audio.bank(name);
-        if (!paths?.length) continue;
-        out[i] = { url: soundLeaf(paths, 'sfx', 1) };
-        const p = poolRef(paths);
-        if (p) out[i].pool = p;
-        if (e.hold) out[i].hold = true;
+      for (const [i, e0] of Object.entries(table || {})) {
+        const list = [];
+        for (const e of Array.isArray(e0) ? e0 : [e0]) {
+          const paths = audio.bank(typeof e === 'string' ? e : e.bank);
+          if (!paths?.length) continue;
+          const one = { url: soundLeaf(paths, 'sfx', 1) };
+          const p = poolRef(paths);
+          if (p) one.pool = p;
+          if (e.hold) one.hold = true;
+          list.push(one);
+        }
+        if (!list.length) continue;
+        out[i] = list.length > 1 ? { ...list[0], more: list.slice(1) } : list[0];
       }
       return Object.keys(out).length ? out : null;
     };
@@ -1188,6 +1219,22 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     const g = specGroup(spec);
     if (l && g) sfxGroups.battle[name] = g;
   }
+  // (fork) element burst sounds (BURST_SOUND_BANKS), each bank's first file on its official pool
+  const sfxBurst = {};
+  for (const [key, banks] of Object.entries(BURST_SOUND_BANKS)) {
+    const list = [];
+    for (const name of banks) {
+      const paths = audio.bank(name);
+      if (!paths?.length) { notes.push(`burst SFX ${key}: no sound for ${name}`); continue; }
+      const e = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) e.pool = p;
+      const vol = audio.mixOf?.(paths)?.vol;  // the bank's volume when not 1 (ep_break_dark_audio: 0.8)
+      if (vol != null) e.vol = vol;
+      list.push(e);
+    }
+    if (list.length) sfxBurst[key] = list;
+  }
 
   // --- module type icons ----------------------------------------------------
   const modules = {};
@@ -1265,7 +1312,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       voice,
       ...(voiceJp ? { voiceJp: voiceTree(VOICE_JP_LANG) } : {}),
       ...optionalTrees,
-      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, ...(Object.keys(outfitSfx).length ? { outfits: outfitSfx } : {}), pools: sfxPools, groups: literal(sfxGroups) },
+      sfx: { ui: sfxUi, battle: sfxBattle, units: unitsSfx, ...(Object.keys(outfitSfx).length ? { outfits: outfitSfx } : {}), ...(Object.keys(sfxBurst).length ? { burst: sfxBurst } : {}), pools: sfxPools, groups: literal(sfxGroups) },
     },
   };
   return { template, models, notes };

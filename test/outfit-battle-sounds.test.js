@@ -106,7 +106,8 @@ test('data/assets.json: the three Sanrio outfits carry their own files; Goldengl
   assert.deepEqual(Object.keys(go.hits), ['1'], 'her S3 projectile replays her normal impact: no S3 slot (#679)');
   assert.equal(f(goo.hits[2]), 'p_imp_firemag_s_sanrio_2.mp3', 'the outfit\'s S3 projectile has its own');
   // S2 (a ReplacementSkill): the skill's own swing and its projectile's hit
-  assert.deepEqual([f(go.attacks[1]), f(go.hits[1])], ['p_atk_firemag_n.mp3', 'p_skill_firebuff.mp3']);
+  assert.equal(go.attacks, undefined, 'her default S2 swing replays her normal attack: no slot (#679)');
+  assert.equal(f(go.hits[1]), 'p_skill_firebuff.mp3');
   assert.deepEqual([f(goo.attacks[1]), f(goo.hits[1])], ['p_atk_firemag_h_sanrio_2.mp3', 'p_skill_firebuff.mp3'], 'the hit has no outfit twin');
   // Goldenglow's drone launch: her own S1 / S2 shot, the funnel's signal 0.6 s later
   const parts = (e) => [f(e), ...(e.also || []).map((x) => `${f(x)}+${x.after}`)];

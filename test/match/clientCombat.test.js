@@ -211,13 +211,17 @@ test('takeover: a connected client that never reports is taken over at time limi
   h.sched.advance(1);
   assert.ok(h.clients.get('p_2').ends.some((x) => x.reason === 'takeover'), 'the stalled client is told');
   h.run(() => m.phase !== PHASE.COMBAT);
-  // a player who leaves mid-combat: its field is closed at once (it is eliminated anyway)
+  // a player who leaves mid-combat is eliminated, and its running battle plays out to its end (fork, user 2026-11-11:
+  // handed on at once like a disconnect's, never waited out)
   h.run(() => m.phase === PHASE.COMBAT && m.round === 2, { maxSteps: 3e6 });
   if (m.phase === PHASE.COMBAT) {
     const g = fields(h).find((x) => x.fieldId === 'n:p_1');
     m.onLeave('p_1');
+    assert.equal(h.ps('p_1').alive, false);
+    assert.equal(g.done, false, 'it plays on');
+    assert.notEqual(g.authority, 'p_1', 'handed on at once');
+    h.run(() => g.done || m.phase !== PHASE.COMBAT);
     assert.equal(g.done, true);
-    assert.equal(g.live, false);
   }
   m.dispose();
 });

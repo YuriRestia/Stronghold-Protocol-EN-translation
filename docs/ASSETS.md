@@ -562,6 +562,7 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 // (fork) an operator with a choice of skills has `skills`; its absent index casts silently, `skill` does not stand in
                 stings?: {[skillIndex]: { clips: [{ url, w }], pool?: bankId, loop?: url, loopGroup?: mixerGroup }},  // (fork) 丰川祥子's skill stings
                 notes?: {[look]: { born?: url, bornPool?: bankId, hit?: url, hitPool?: bankId }} } },  // (fork) her per-note sounds
+      burst?: { ['<element>.<char|enemy>']: [{ url, pool?: bankId, vol? }] },  // (fork) element burst sounds (plan.mjs BURST_SOUND_BANKS), all play at once
       pools: { [bankId]: { maxSoundAllowed, popOldest, group?: mixerGroup,
                 spatial?: true,  // (fork) a 3D bank (audio_data sounds is2D: false): its mono clips play 3 dB lower
                 sounds: { [pathUnderSoundBeta2]: { minPitch, maxPitch, delay } } } },

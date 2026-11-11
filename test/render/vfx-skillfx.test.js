@@ -17,7 +17,7 @@ const SKILL = 16; // UF.SKILL
 
 const LOOPING = new Set(['foo_s1_buff', 'foo_s1_ready', 'foo_s2_burn', 'buff_stun', 'buff_burn', 'foo_s3_loop', 'bar_buff', 'foo_s1_range_l',
   'indigo_attack_charge_02', 'indigo_attack_charge_03', 'indigo_attack_charge_04', 'indigo_attack_charge_05', 'clemnt_skill_03_mark_all_01',
-  'once_loop', 'oncep_loop', 'oxi_skill_02_buff_01', 'oxi_buff_01']);
+  'once_loop', 'oncep_loop', 'oxi_skill_02_buff_01', 'oxi_buff_01', 'oxi_buff_02', 'oxi_buff_03']);
 const KEYS = ['foo_atk_start', 'foo_atk_hit', 'foo_s2_mode_cast', 'foo_s3_mode_cast', 'foo_trail', 'foo_phit', 'foo_s1_buff', 'foo_s1_begin',
   'foo_s1_range', 'foo_s1_range_l', 'foo_s1_end', 'foo_s1_ready', 'foo_s1_trig', 'foo_s2_cast_start', 'foo_s2_cast_spell', 'foo_s2_aim', 'foo_s2_h1',
   'foo_s2_h2', 'foo_s2_burn', 'foo_s2_trail', 'foo_s2_phit', 'foo_s3_loop', 'foo_s3_tick', 'foo_each_hit', 'bar_buff', 'bar_birth',
@@ -27,7 +27,8 @@ const KEYS = ['foo_atk_start', 'foo_atk_hit', 'foo_s2_mode_cast', 'foo_s3_mode_c
   // (fork) the template shots' bindings (FX_BINDINGS flight / keysIf / tiles)
   'token_mcnist_mcgraf_skill_03_trail_01_right', 'token_mcnist_mcgraf_skill_03_trail_02_up_left', 'token_mcnist_mcgraf_skill_03_hit_01',
   'kalts2_skill_02_indicator_damage_01', 'kalts2_skill_02_range_heal_01_delay', 'kalts2_skill_02_indicator_heal_01',
-  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01', 'oxi_skill_02_hit_01', 'oxi_skill_02_buff_01', 'oxi_buff_01'];
+  'kalts2_skill_02_range_damage_01_delay', 'dminon_talent_range_hit_01', 'oxi_skill_02_hit_01', 'oxi_skill_02_buff_01', 'oxi_buff_01',
+  'oxi_buff_02', 'oxi_buff_03'];
 
 const melee = (k, ev = 2) => ({ effects: [k], oneshot: 1, startEvent: ev, endEvent: 3, directionType: 0 });
 
@@ -583,18 +584,42 @@ describe('(fork) 塔露拉 S2', () => {
     assert.equal(spawned.slice(n).includes('oxi_skill_02_hit_01'), false, 'another blast of hers is not this hit');
   });
 
-  test('her S2 buff loop runs its own life (stack_duration 10 s) though the skill is on and off in one tick', async () => {
+  test('her S2 buff loop holds while the kit counts a layer of her stack (buffLayers oxi:stack), not for a time from the cast', async () => {
     const { w, handles, view, frame, ofx } = await setup();
     const o = view(1, 'char_4247_oxi', 5, { skill: 1 });
     frame();
     w.skill(o, true);
     w.skill(o, false);
     frame();
-    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1, 'still on after the skill');
-    ofx.time += 9.5; frame();
-    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1);
-    ofx.time += 0.6; frame();
-    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 0, 'gone after its 10 s');
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 0, 'the cast itself leaves the loop to the layer count');
+    const layers = (n) => w.simFx('buffLayers', 5, 10, { x: 5, y: 10, id: 1, n, max: 5, skill: 'oxi:stack' });
+    assert.equal(layers(1), true, 'claimed: nothing procedural');
+    frame();
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1, 'one layer: the loop');
+    layers(3);
+    ofx.time += 12; frame();
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 1, 'more layers, long after the cast: still one loop');
+    layers(0); frame();
+    assert.equal(live(handles, 'oxi_skill_02_buff_01').length, 0, 'the last layer gone: off');
+  });
+
+  test('T1 【怒火】: oxi_buff_02 from one layer, oxi_buff_03 at max (buffLayers oxi:rage); her death ends both', async () => {
+    const { w, handles, view, frame } = await setup();
+    const o = view(1, 'char_4247_oxi', 5, { skill: 0 });
+    frame();
+    const rage = (n) => w.simFx('buffLayers', 5, 10, { x: 5, y: 10, id: 1, n, max: 6, skill: 'oxi:rage' });
+    const on = () => ['oxi_buff_02', 'oxi_buff_03'].map((k) => live(handles, k).length);
+    assert.deepEqual(on(), [0, 0], 'none at deployment');
+    rage(1); frame();
+    assert.deepEqual(on(), [1, 0], 'a layer: the blade glow');
+    rage(6); frame();
+    assert.deepEqual(on(), [1, 1], 'full: and the embers');
+    rage(5); frame();
+    assert.deepEqual(on(), [1, 0], 'an attack took one: the embers stop');
+    rage(6); frame();
+    o.alive = false; frame();
+    assert.deepEqual(on(), [0, 0], 'she left the field');
+    assert.equal(w.simFx('buffLayers', 5, 10, { x: 5, y: 10, id: 1, n: 1, max: 1, skill: 'oxi:other' }), false, 'a tag without loops is not claimed');
   });
 
   test("T2 footprints: the fire field's oxi_buff_01 on the leased tile for the lease's time; her other zones stay the kit's", async () => {

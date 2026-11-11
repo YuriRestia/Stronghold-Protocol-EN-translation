@@ -748,6 +748,17 @@ describe('塔露拉 S3: the 簇火 fly their lanes', () => {
     assert.equal(spawned.filter((k) => k === 'oxi_skill_03_trail_01').length, 1, 'shot 2 was gone before its birth');
   });
 
+  test('(fork) 过载 draws nothing — the official raises a sound only —, while her skill runs or not; no procedural stand-in', async () => {
+    const { w, view, frame, spawned } = await setup();
+    view(1, 'char_4247_oxi', 5);
+    frame();
+    assert.equal(w.simFx('overload', 5, 9, { x: 5, y: 9, id: 1 }), true, 'claimed');
+    assert.deepEqual(spawned, [], 'nothing played');
+    view(2, 'enemy_1040_bombd', 7);
+    frame();
+    assert.equal(w.simFx('overload', 7, 9, { x: 7, y: 9, id: 2 }), false, "another unit's overload: the kit's own");
+  });
+
   test('without the extracted prefabs the procedural cue stays; a cleared field stops the flights', async () => {
     const none = await setup({ installed: KEYS.filter((k) => !k.startsWith('oxi_')) });
     none.view(1, 'char_4247_oxi', 5);
@@ -878,6 +889,8 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
     for (const sid of ['skchr_horn_1', 'skchr_sleach_2', 'skchr_sleach_3', 'skchr_oxi_3']) {
       for (const [kind, b] of Object.entries(FX_BINDINGS[sid])) {
         const keys = bindingEffects(idx, b);
+        // (fork) `none`: the official draws nothing there (塔露拉 S3's 过载) — it names no prefab at all
+        if (b.none) { assert.deepEqual([keys.length, b.keys, b.projectile], [0, undefined, undefined], `${sid} ${kind}: none names nothing`); continue; }
         assert.ok(keys.length && keys.every((k) => idx.prefabs[k]), `${sid} ${kind}: ${keys.join(' ')}`);
       }
     }

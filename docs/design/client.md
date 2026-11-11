@@ -231,7 +231,9 @@ history and the open points: DESIGN §32.14.25.
   (`simFx`): a cast flash on the owner in the frame of the skill start or, tagged with the skill, while its loops play;
   a skill-tagged fx standing for the plan's `pulse` rows (its buff's ticks on the owner, its other hits away from it),
   which play there; and `skills.js FX_BINDINGS` (克莱门莎 S3's 'lock': her skill projectile's mark and three strikes on
-  the tile, which also stand for her 'blast's there). A skill with nothing official (no plan, or none of its rows
+  the tile, which also stand for her 'blast's there; a talent bound under each of the operator's skills, such as 蕾缪安's
+  Wanted mark: the kit's 'wanted' loops `lemuen_talent_buff_01` on the marked enemy, `hold: 'life'`, until the enemy
+  or she is gone). A skill with nothing official (no plan, or none of its rows
   extracted) keeps the procedural burst and aura. An effect a plan reaches two ways (a buff's `_buffs` and
   `_extraBuffs`) plays once. A skill attack flies its ability's projectile (index v3 `projectileKey`, else the naming
   rule) and the buffs of its attacks last their `life` (LIMITED: its time or the record's blackboard key; INFINITY: the

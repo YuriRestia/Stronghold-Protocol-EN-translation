@@ -85,6 +85,10 @@
 // - 我即火焰: every enemy carries the detector at once (the aura's 0.2 s refresh is not modelled); the damage buff that runs
 //   out on the frame of a tick ends first; an enemy that comes back before then keeps its tick phase.
 // - The skills' clips are not modelled: S2's area lands as its cast settles, S3's first volley comes at the cast.
+// Display (no rule reads it): fx 'buffLayers' { id, n, max, skill } whenever a layer count of hers changes — 'oxi:rage'
+// (【怒火】; the client's oxi_t_1_arcane_stack shows oxi_buff_02 from one layer, oxi_t_1_arcane_full_fx oxi_buff_03 at max)
+// and 'oxi:stack' (oxi_s_2_stack: oxi_skill_02_buff_01 while a layer is left, her BuffedAttack's own impact sound) —
+// render/vfx/talentfx.js FX_LAYERS, audio.js HELD_ATTACK_LAYERS.
 
 import { num, talentBb, skillRec, up, holdProtect } from '../shared/tier1.js';
 import { absoluteRangeKeys, canTargetEnemy, enemyStealthed, sortEnemyTargets, tileKeyOf } from '../../../targeting.js';
@@ -135,11 +139,22 @@ export default {
     /** One oxi_s_2_stack layer count `n` for stack_duration s; at its end one layer goes and the time starts again. */
     const setStack = (battle, unit, n) => {
       const dur = num(b2.stack_duration);
-      if (!(n > 0) || !(dur > 0)) { battle.removeBuff(unit, STACK_KEY); return; }
+      if (!(n > 0) || !(dur > 0)) { battle.removeBuff(unit, STACK_KEY); stackFx(battle, unit, 0); return; }
       battle.addBuff(unit, {
         key: STACK_KEY, duration: dur, stacks: n, maxStacks: n, mods: { atkPct: num(b2.atk), defPct: num(b2.def) }, tags: ['skill'],
-        onExpire: ({ battle: b, unit: u, buff }) => { if (u.alive && buff.stacks > 1) setStack(b, u, buff.stacks - 1); },
+        onExpire: ({ battle: b, unit: u, buff }) => {
+          if (!u.alive) return;
+          if (buff.stacks > 1) setStack(b, u, buff.stacks - 1);
+          else stackFx(b, u, 0);
+        },
       });
+      stackFx(battle, unit, n);
+    };
+    /** The display of her S2 layers (header): one fx per change of the count. */
+    const stackFx = (battle, unit, n) => {
+      if ((unit.mem.oxiStackShown ?? 0) === n) return;
+      unit.mem.oxiStackShown = n;
+      battle.fx('buffLayers', { x: unit.x, y: unit.y, id: unit.id, n, max: Math.max(1, Math.floor(num(b2.max_stack_cnt, 1))), skill: 'oxi:stack' });
     };
     /** 庇护 damage_resistance for shelter_hold_duration s, then linearly to 0 at skill_duration s: one shared application per tick. */
     const shelter = (battle, unit) => {
@@ -302,8 +317,14 @@ export default {
           const ep = num(t0.ep_damage_ratio), step = num(t0.arcane_step);
           const max = step > 0 ? Math.round(Math.abs(num(t0.arcane_max) / step)) : 0;
           const every = num(t0.arcane_step_interval), idle = num(t0.arcane_idle_delay);
-          const rage = () => unit.mem.oxiRage ?? (unit.mem.oxiRage = { n: 0, quietTo: 0, next: Infinity });
-          const deployed = () => { const r = rage(); r.n = 0; r.quietTo = battle.time + idle; r.next = every > 0 ? battle.time + every : Infinity; };
+          const rage = () => unit.mem.oxiRage ?? (unit.mem.oxiRage = { n: 0, shown: 0, quietTo: 0, next: Infinity });
+          /** The display of her 【怒火】 (header): one fx per change of the count. */
+          const rageFx = (r) => {
+            if (r.shown === r.n) return;
+            r.shown = r.n;
+            battle.fx('buffLayers', { x: unit.x, y: unit.y, id: unit.id, n: r.n, max, skill: 'oxi:rage' });
+          };
+          const deployed = () => { const r = rage(); r.n = 0; r.quietTo = battle.time + idle; r.next = every > 0 ? battle.time + every : Infinity; rageFx(r); };
           if (up(unit)) deployed();
           battle.on('deploy', (c) => { if (c.unit === unit) deployed(); }, { owner: unit });
           battle.on('tick', () => {
@@ -314,12 +335,14 @@ export default {
               r.next += every;
               if (battle.time >= r.quietTo - 1e-9 && r.n < max) r.n++;
             }
+            rageFx(r);
           }, { owner: unit });
           battle.on('attack', (c) => {
             if (c.attacker !== unit || c.isSkill) return;
             const r = rage();
             r.n = Math.max(0, r.n - 1);
             r.quietTo = battle.time + idle;
+            rageFx(r);
           }, { owner: unit });
           // (both on her buffs: none for a 簇火 still in flight once she left the field)
           battle.on('damageOutput', (c) => {

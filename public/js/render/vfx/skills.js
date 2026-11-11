@@ -1399,7 +1399,10 @@ export function chargeKeys(plan) {
  *               `extra.id` names (the fx's point without one)
  *   hold        how long a looping reached effect stays: a blackboard key of our skill record (seconds), 'fx' — the
  *               fx's own `duration` / `dur` / `hold` (the kit's area or lock time) —, 'lock' — a lock mark's: on the
- *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, else `holdS`
+ *               enemy, at its last spot once it is gone, until its shell lands (SkillFx._lockOn) —, (fork) 'until' — no
+ *               timer: the binding's `until` kind (or the unit leaving) ends it —, 'life' — a mark that lasts as long as
+ *               its unit: on the unit `extra.id` names, one per unit and key, until that unit dies or leaves or the owner
+ *               does (SkillFx._lifeMark) —, else `holdS`
  *   cover       fx kinds of the same owner at that tile that the reached effect draws (skipped while it plays)
  *   shots       the fx's `lanes` ([x, y, wait, shot id]…; `dx`, `dy`, `len`, `speed`) fly `keys` along straight lines
  *               (SkillFx._lanes); `endsShot` on another kind: its `shot` stops that flight
@@ -1416,6 +1419,8 @@ export function chargeKeys(plan) {
  *               unit of extra[to] (a list of ids) — a child shot that leaves the first target (空弦 S1's scatter)
  *   keysBy      (fork) { field, map }: `keys` by the value of a field of the fx's extra (no entry: the kit's own fx)
  *   keysIf      (fork) { field, yes, no }: `keys` by a field of the fx's extra (truthy: yes, else no)
+ *   none        (fork) the official client draws nothing at that moment (its sound only): the binding claims the fx and
+ *               plays nothing, so no procedural stand-in shows (塔露拉 S3's 过载)
  *   flight      (fork) a projectile's flight between two points of the fx (SkillFx._flight): { side, up, down } — the
  *               projectile for a way along the row / up (+row) / down, each [facing left, facing right] or [one] (the
  *               client's branches on the unit's direction and faceLeft) —, from: 'from' (the fx's fromX / fromY; its
@@ -1453,6 +1458,17 @@ export const FX_ATTACK_LINES = Object.freeze({
 });
 
 /**
+ * (fork) A skill whose attacks leave an official effect on the tile under each enemy hit, held while the skill lasts:
+ * render/vfx/skillfx.js _hitTile, one per tile. 烛煌 S2 (chess_char_5_03-blaze2.js: every hit adds the target's rounded
+ * tile to her burning tiles until the skill ends): her S2 mode's talent node BuffAfterAffecting (index talent 3, its
+ * only key unclassified) places blaze2_skill_02_hit_plot (looping, GROUND_CENTER) — the user's clip RjrtWhMKwAU
+ * 0:46–1:02, the fire on the struck tiles. The sim sends no fx for a tile (one would move the golden fx counts).
+ */
+export const FX_HIT_TILES = Object.freeze({
+  skchr_blaze2_2: Object.freeze(['blaze2_skill_02_hit_plot']),
+});
+
+/**
  * (fork) Chain hops that leave one unit as another projectile's (wiring.js chain()): by skill id, `via` (the index unit
  * key the hop leaves) → `projectile` (its ChainLightningEffectBehaviour line and hit draw the hop). Mon3tr S2
  * (op-monstr.js chainFrom): a heal of hers on her 重构体 gives it monstr_s_2[proj], whose ON_BUFF_FINISH (lifeTime 0.6 s,
@@ -1475,7 +1491,37 @@ const DMINON_BOUNDARY = Object.freeze({ aoe: binding({ owner: 'id', only: Object
 // oxi:footprint is a fresh lease (its tile, dur). A talent: bound under each of her skills.
 const OXI_FOOTPRINT = binding({ owner: 'id', only: Object.freeze({ skill: 'oxi:footprint' }), at: 'point', hold: 'fx', keys: ['oxi_buff_01'] });
 
+// (fork) 烛煌 T2 绝处重燃 (chess_char_5_03-blaze2.js): the client's blaze2_t_2 creates its buff at the fatal blow
+// (ON_BEFORE_TRY_SET_HP_ZERO: blaze2_revive_buff) and its [reborn_state] (blaze2_revive_buff_03) — the fire ring she kneels
+// in while downed (the user's clip RjrtWhMKwAU 0:29–0:34); standing up, blaze2[to_default_state]'s CauseStun cast plays
+// blaze2_revive_end_start. The kit's 'downed' is the fatal blow, its 'revive' the stand-up (`until` ends the ring). A
+// talent: bound under each of her skills; talentfx leaves these keys to the binding (KIT_HELD_TALENT_KEYS).
+const BLAZE2_REVIVE = Object.freeze({
+  downed: binding({ owner: 'id', hold: 'until', until: 'revive', keys: ['blaze2_revive_buff', 'blaze2_revive_buff_03'] }),
+  revive: binding({ owner: 'id', oneshot: true, keys: ['blaze2_revive_end_start'] }),
+});
+
+/**
+ * (fork) Talent prefab keys a kit fx binding plays (the talents' FX_BINDINGS entries above): talents.js leaves them out
+ * of the talent's own bindings — 烛煌's [reborn_state] ring read as a passive loop and burned at her feet from the deploy.
+ */
+export const KIT_HELD_TALENT_KEYS = Object.freeze(new Set([BLAZE2_REVIVE].flatMap((b) => Object.values(b)).flatMap((x) => x.keys || [])));
+
+// (fork) 蕾缪安 T1 跨境追缉许可 (chess_char_6_01-lemuen.js ensureWanted): the client's char_lemuen_laterano_range[tick] gives
+// an enemy char_lemuen_range_aim, whose first ON_BUFF_TRIGGER creates char_lemuen_range_aim[effect] (overrideEffectKey
+// lemuen_talent_buff_01, life infinity) — the Wanted mark, looping on the enemy while it is marked. The kit's 'wanted'
+// (id = the enemy, src = the Lemuen it counts for) is that moment; the sim drops a mark only when the enemy dies or its
+// Lemuen leaves, which is when the loop ends here. A talent: bound under each of her skills.
+const LEMUEN_WANTED = binding({ owner: 'src', keys: ['lemuen_talent_buff_01'], hold: 'life' });
+
 export const FX_BINDINGS = Object.freeze({
+  // (fork) 烛煌 S1 炙手之援: the client's AnimatedActionToTargetAbility gives the operator it picks blaze2_s_1, whose
+  // effect blaze2_skill_01_hit_range (looping, GROUND_CENTER) burns around that operator for max_duration (the user's
+  // clip 0:10–0:34: the red smoke ring). The kit's 'aoe' tagged blaze2Aid is that pick (x, y: the operator's tile).
+  skchr_blaze2_1: Object.freeze({ ...BLAZE2_REVIVE,
+    aoe: binding({ owner: 'id', only: Object.freeze({ skill: 'blaze2Aid' }), at: 'point', hold: 'max_duration', keys: ['blaze2_skill_01_hit_range'] }) }),
+  skchr_blaze2_2: BLAZE2_REVIVE,
+  skchr_blaze2_3: BLAZE2_REVIVE,
   skchr_oxi_1: Object.freeze({ zone: OXI_FOOTPRINT }),
   skchr_dminon_1: DMINON_BOUNDARY, skchr_dminon_2: DMINON_BOUNDARY, skchr_dminon_3: DMINON_BOUNDARY,
   // Existing kit event supplies the elimination position (no invented projectile collision or ally trigger).
@@ -1494,6 +1540,9 @@ export const FX_BINDINGS = Object.freeze({
     zone: OXI_FOOTPRINT,
     heatwave: binding({ owner: 'id', shots: true, keys: ['oxi_skill_03_trail_01'] }),
     blast: binding({ owner: 'id', at: 'target', endsShot: true, keys: ['oxi_skill_03_hit_01'] }),
+    // (fork) 过载 (the kit's 'overload'): the client raises ON_CUSTOM_TRIGGER oxi_s_3_overload, a sound only — no effect of
+    // the skill or its buffs plays there (the index: start, oxi_skill_03_buff_01, the volley's projectile)
+    overload: binding({ owner: 'id', none: true }),
   }),
   // 克莱门莎 S3 (op-clemnt.js bombard): the kit marks an enemy's tile ('lock': id = the enemy, src = her) and strikes it
   // three times ('blast', id = her, 0.5 / 1.5 / 2.5 s later). The client fires projectile_chr_clemnt_s3 at the marked
@@ -1622,7 +1671,9 @@ export const FX_BINDINGS = Object.freeze({
   // aim line lemuen_skill_02_trail_01 from her (CreateLineEffect) —, held for her aim time (attack@aim_duration) or until
   // her shot ('crit', same pair); the shot plays her S2 projectile's hit lemuen_skill_02_hit_01 on the target [ASSUMED:
   // the kit deals the snipe at once, no flight is drawn]
+  skchr_lemuen_1: Object.freeze({ wanted: LEMUEN_WANTED }),
   skchr_lemuen_2: Object.freeze({
+    wanted: LEMUEN_WANTED,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_02_crosshair_02'], hold: 'attack@aim_duration', holdS: 3.5, line: 'lemuen_skill_02_trail_01', until: 'crit', during: true }),
     crit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['lemuen_skill_02_hit_01'] }),
   }),
@@ -1630,6 +1681,7 @@ export const FX_BINDINGS = Object.freeze({
   // enemy, src = her) plays the skill's hit mostma_skill_02_hit on it (index roles.hit: its ability's ON_ABILITY_HIT)
   skchr_mostma_2: Object.freeze({ timeLockHit: binding({ owner: 'src', at: 'target', target: 'id', hit: true, during: true, keys: ['mostma_skill_02_hit'] }) }),
   skchr_lemuen_3: Object.freeze({
+    wanted: LEMUEN_WANTED,
     lock: binding({ owner: 'src', keys: ['lemuen_skill_03_crosshair_range', 'lemuen_skill_03_crosshair_02', 'lemuen_skill_03_crosshair_01'], hold: 'lock', during: true }),
     bombardShell: binding({ owner: 'id', keys: ['lemuen_skill_03_trail_02'], at: 'point', hold: 'fx', holdS: 0.3, during: true }),
     bombard: binding({ owner: 'id', projectile: 'projectile_chr_lemuen_s3_attack', at: 'point', holdS: 2, during: true }),
@@ -1806,6 +1858,7 @@ export function enemyCoverOf(unitKey, prefabKey, kind) {
 export function bindingKeys(idx, skillId) {
   const out = new Set();
   for (const bind of Object.values(FX_BINDINGS[lc(skillId)] || {})) for (const k of bindingEffects(idx, bind)) out.add(k);
+  for (const k of FX_HIT_TILES[lc(skillId)] || []) out.add(lc(k));   // (fork) and its hit tiles (skillfx _hitTile)
   return [...out];
 }
 

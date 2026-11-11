@@ -168,6 +168,12 @@ const VOICE_GAP_MS = 1200;
 const VOICE_XFADE_S = 0.1;
 /** 'atk' projectile kinds whose first id is the previous bounce target (sim ai.js), not the attacker. */
 const CHAIN_KINDS = new Set(['chain', 'chainHeal']);
+/**
+ * (fork) Kit layer counts (fx 'buffLayers' { id, n, skill: tag }) whose layers make a unit's normal attacks a skill's
+ * own — its `attacks` / `hits[index]` —, by unit → tag → that skill index. 塔露拉 S2 'oxi:stack': while oxi_s_2_stack
+ * holds she attacks with BuffedAttack (attack.0.1, impact p_imp_xtlfgbw_h), not Attack (attack.0.2, p_imp_xtlfgbw_n).
+ */
+export const HELD_ATTACK_LAYERS = Object.freeze({ char_4247_oxi: Object.freeze({ 'oxi:stack': 1 }) });
 /** 'dmg' types that are an attack's impact (element gauge fills / 元素伤害 carry the element's name instead). */
 const IMPACT_TYPES = new Set(['phys', 'arts', 'true']);
 /** A 'dmg' later than this (real ms) after the attack aimed at the target is not that attack's impact. */
@@ -1359,6 +1365,7 @@ export class AudioManager {
    * the client's per-shot births cut each other], with the volley rather than each shot's birth delay.
    */
   _fxSound(kind, ex) {
+    if (kind === 'burst') { this._burstSound(ex); return; }
     // (fork) the unit the fx names (`id`), else its shooter (`src`: 蕾缪安's locks and shots name the enemy); a key with
     // '#<skill index>' is that equipped skill's own (her S2 aim and S3 lock are both 'lock')
     for (const id of [ex.id, ex.src]) {
@@ -1386,14 +1393,33 @@ export class AudioManager {
   }
 
   /**
+   * (fork) An element burst's official sound (b.ev ['fx', 'burst', x, y, { id, element }], server/sim/attack/element.js):
+   * manifest sfx.burst['<element>.<side>'], every listed bank at once on its own pool (burn: its START and SHOW_EFFECT
+   * banks). The side is the bursting unit's, as render/vfx/wiring.js burstSide decides; a side with no entry (an enemy's
+   * burn / neural / erosion burst, as in the official client) stays silent.
+   */
+  _burstSound(ex) {
+    const u = this.units.get(ex.id);
+    if (!u || typeof ex.element !== 'string') return;
+    const side = u.kind === 'enemy' || String(u.defId || '').startsWith('enemy_') ? 'enemy' : 'char';
+    const list = this.getManifest()?.audio?.sfx?.burst?.[`${ex.element}.${side}`];
+    for (const e of Array.isArray(list) ? list : []) {
+      if (typeof e?.url === 'string') this._playBank(e.url, e.pool, NOTE_GAIN * (Number(e.vol) > 0 ? Number(e.vol) : 1));
+    }
+  }
+
+  /**
    * (fork) A skill's own sound at its start beside its ON_SKILL_START sting (`skillOn[index]`; `hold`: cut when the
-   * skill ends — 莫斯提马 S2's time lock) or at its end (`skillOff[index]`: 蕾缪安's last bullet), on its bank's pool.
+   * skill ends — 莫斯提马 S2's time lock) or at its end (`skillOff[index]`: 蕾缪安's last bullet), on its bank's pool;
+   * (fork) an entry's `more`: the other banks of that edge, each on its own pool (烛煌 S3's end: b_char_boostclose and its
+   * ability's end p_skill_hcnsrfrfld).
    */
   _skillEdge(id, u, on) {
     const e = Number.isInteger(u?.skillIndex) ? unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.[on ? 'skillOn' : 'skillOff']?.[u.skillIndex] : null;
     if (typeof e?.url !== 'string') return;
     if (on && e.hold) this._stingLoop(id, e.url, this.getManifest()?.audio?.sfx?.pools?.[e.pool]?.group ?? null, { loop: false });
     else this._playBank(e.url, e.pool, NOTE_GAIN);
+    for (const m of Array.isArray(e.more) ? e.more : []) if (typeof m?.url === 'string') this._playBank(m.url, m.pool, NOTE_GAIN);
   }
 
   /** One note's born / hit sound (handleBattleEvents 'fx' 'note'): on its official bank's pool (_playBank). */
@@ -1436,8 +1462,11 @@ export class AudioManager {
       if (typeof e?.loop === 'string') this._buffer(e.loop);
     }
     for (const e of Object.values(sfx?.notes || {})) for (const r of ['born', 'hit']) if (typeof e?.[r] === 'string') this._buffer(e[r]);
-    for (const e of Object.values(sfx?.fxSounds || {})) if (typeof e?.url === 'string') this._buffer(e.url);
-    for (const t of [sfx?.skillOn, sfx?.skillOff]) for (const e of Object.values(t || {})) if (typeof e?.url === 'string') this._buffer(e.url);
+    for (const e of Object.values(sfx?.fxSounds || {})) for (const x of [e, ...(Array.isArray(e?.also) ? e.also : [])]) if (typeof x?.url === 'string') this._buffer(x.url);
+    for (const list of Object.values(sfx?.attackAlso || {})) for (const x of Array.isArray(list) ? list : []) if (typeof x?.url === 'string') this._buffer(x.url);
+    for (const t of [sfx?.skillOn, sfx?.skillOff]) {
+      for (const e of Object.values(t || {})) for (const x of [e, ...(Array.isArray(e?.more) ? e.more : [])]) if (typeof x?.url === 'string') this._buffer(x.url);
+    }
   }
 
   /**
@@ -2294,8 +2323,12 @@ export class AudioManager {
           if (!src) continue;
           // only a hostile attack authors the target's next impact (a heal — an ally aiming at an ally — never does)
           const tgt = this.units.get(e[2]);
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: src.skillIndex ?? null, skillActive: !!src.skillActive });
-          if (!this.unit(src.def, 'attack', e[1], src.skillIndex ?? undefined, src.skillActive, src.outfit) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
+          // (fork) a held layer count (HELD_ATTACK_LAYERS) makes this normal attack that skill's own, as while it runs
+          const held = Number.isInteger(src.heldAttack) && !src.skillActive;
+          const sIdx = held ? src.heldAttack : src.skillIndex ?? null;
+          const sOn = held || !!src.skillActive;
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn });
+          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
@@ -2385,6 +2418,12 @@ export class AudioManager {
           if (e[4] && typeof e[4] === 'object') this._noteSound(e[4]);
         } else if (kind === 'fx' && e[1] === 'fever') {
           if (e[4] && e[4].on) this.feverStart();
+        } else if (kind === 'fx' && e[1] === 'buffLayers') {
+          // (fork) a layer count that makes her attacks a skill's own (HELD_ATTACK_LAYERS); no sound of its own
+          const ex = e[4];
+          const u = ex && typeof ex === 'object' ? this.units.get(ex.id) : null;
+          const idx = u ? HELD_ATTACK_LAYERS[u.def]?.[ex.skill] : undefined;
+          if (u && Number.isInteger(idx)) u.heldAttack = Number(ex.n) > 0 ? idx : null;
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];
