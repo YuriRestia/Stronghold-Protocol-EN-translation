@@ -17,3 +17,22 @@ Talent and trait effects that depend on what is happening in the battle now show
 - **Ready and charged states.** Papyrus's and Lessing's glow while S1 is ready; Leizi the Thunderbringer's and Młynar's trait glow grows with their attack ramp.
 - **Effects while something lasts.** Nasti's S2 shield while it holds; Lucilla's S2 talent boost while S2 runs; Heavyrain's S2 aura on the allies inside it; Humus's recycle shield while it holds; Lee's guard while it is up, and its hit when it cancels a stun.
 - **Marks and moments.** Carnelian's S3 mark on enemies, part-charged and full; Swire the Elegant Wit's merchant payment and revive; Humus's trait heal; Aroma's S2 landing; Тоска's heal and SP grant on the ally.
+
+Server cost:
+
+| Measure | Typical | Worst case |
+|---|---|---|
+| Bandwidth out / in, per player | 0.0005 / 0 MB/s (0.04 / 0 GB/day) | 0.005 / 0 MB/s (0.43 / 0 GB/day) |
+| Bandwidth out / in, per room (4 players; 8 in Grand Alliance) | 0.002 / 0 MB/s (0.004 with 8) | 0.02 / 0 MB/s (0.04 with 8) |
+| Bandwidth out / in, 300 players | 0.15 / 0 MB/s (13 / 0 GB/day) | 1.5 / 0 MB/s (130 / 0 GB/day) |
+| Server CPU | under 0.1 % of one core | under 0.5 % of one core |
+| Memory | under 0.1 MB | under 1 MB |
+| Disk | 0 MB/day | 0 MB/day |
+| Bot budget | 0 ms/round | under 0.1 ms/round |
+
+- Cap: one b.snap `fxs` row per unit and buff (a unit's states are keyed by buff, one probe per buff), each gone with
+  its duration or the unit's deployment, so a field sends at most its units × the ~15 buffs of part 2; the probes run
+  only when a snapshot is built, never in the battle's ticks (the bots build none).
+- Estimated, not measured: part 2's rows are about 40 bytes each in every 20 Hz b.snap to the field's watchers;
+  typical 3 rows (a ready glow, a few marks), worst case 40 (Carnelian's marks on a full wave and Heavyrain's aura on
+  every ally); about 7× smaller after the WebSocket's deflate. Part 1 went in before the rule (unmeasured).
