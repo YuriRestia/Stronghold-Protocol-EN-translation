@@ -2245,6 +2245,13 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
     telegraph: ebind({ xkind: 'blastArrow', owner: 'id', fly: 'projectile_enemy_dekght_s' }),
     explode: ebind({ xkind: 'blastArrow', owner: 'from', keys: ['dekght_2_skill_01_range'], once: true }),
   }),
+  // (fork) enemies, silent shots (VFX 2): a kit 'shot' (fx/kinds.js: never drawn procedurally) names a sim projectile
+  // 重弩突袭者 (invisible.js, 直击): the bolt — projectile_enemy_msnip (its trail enemy_msnip_skill_taril, enemy_msnip_skill_hit
+  // and the skill's hit row enemy_hummbd_buff_01 on the unit hit) over the sim's flight [ASSUMED: homing on the unit hit,
+  // not FarthestPointMovement's flight on past it]
+  enemy_1404_msnip: Object.freeze({ shot: ebind({ xkind: 'crossBolt', owner: 'from', fly: 'projectile_enemy_msnip', flyDur: 'fx', hits: ['enemy_hummbd_buff_01'] }) }),
+  // 迷路的巨像 (leaders.js, StunAttack): the boulder — projectile_enemy_rockman (rockman_skill_01_trail, rockman_skill_01_hit)
+  enemy_2003_rockman: Object.freeze({ shot: ebind({ xkind: 'boulder', owner: 'from', fly: 'projectile_enemy_rockman', flyDur: 'fx' }) }),
 });
 
 /** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */

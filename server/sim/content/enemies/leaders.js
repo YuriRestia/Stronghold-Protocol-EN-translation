@@ -250,6 +250,8 @@ function kitLeaderMisc(key, ab, e) {
       return [skill(s, (b, e2) => {
         const t = byPriority(e2, cands(b, e2))[0];
         if (!t) return;
+        // (fork) the boulder for the client (fx/kinds.js 'shot'): it flies the official projectile_enemy_rockman
+        b.fx('shot', { x: e2.x, y: e2.y, from: e2.id, to: t.id, kind: 'boulder', dur: hypot(t.x - e2.x, t.y - e2.y) / 8 });
         b.addProjectile({ from: e2, target: t, speed: 8, visual: 'lob', source: e2, onHit: (c) => {
           if (!c.target || !c.target.alive) return;
           hurt(b, e2, c.target, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys');

@@ -146,6 +146,10 @@ test(`${nm('enemy_1404_msnip')}: 直击 — 1.4 s after the cast a unit in line 
   approx(statuses(h, w.id, 'stun')[0].duration, s.bb.stun);
   approx(w.stats.taken, e.s.atk * s.bb.atk_scale * (1 - 0 / 100));
   assert.ok(e.findBuff('ab:revealed'), 'still revealed at 2.1 s');
+  // (fork) the bolt's 'shot' names it, its target and the sim's flight (4 tiles at 12/s): the client flies the official bolt
+  const shot = h.eventsOf('fx').find((f) => f[1] === 'shot' && f[4].kind === 'crossBolt');
+  assert.ok(shot && shot[4].from === e.id && shot[4].to === w.id);
+  approx(shot[4].dur, 4 / 12);
   h.run(0.5);                                               // 2.6 s in: the skill is over
   assert.ok(!e.findBuff('ab:revealed') && !e.s.flags.noMove, 'skill over after 2.5 s');
   // stunned during the charge: no bolt
@@ -2014,10 +2018,12 @@ test(`${nm('enemy_1539_reid')}: ATK up below half; first KO ⇒ ${tb('enemy_1539
 test(`${nm('enemy_2003_rockman')}: boulder stuns a non-stunned unit for ${skb('enemy_2003_rockman', 'StunAttack').bb.stun} s`, () => {
   const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 6 }], hooks: ['statusApplied'] });
   h.step();
-  put(h, 'enemy_2003_rockman', [10, 8]);
+  const e = put(h, 'enemy_2003_rockman', [10, 8]);
   h.run(skb('enemy_2003_rockman', 'StunAttack').initCooldown + 1);
   const s = statuses(h, h.unit('t_wall').id, 'stun');
   assert.equal(s.length, 1);
+  // (fork) the boulder's 'shot' names it and its target: the client flies the official boulder
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'shot' && f[4].kind === 'boulder' && f[4].from === e.id && f[4].to === h.unit('t_wall').id && f[4].dur > 0));
   approx(s[0].duration, skb('enemy_2003_rockman', 'StunAttack').bb.stun);
 });
 
