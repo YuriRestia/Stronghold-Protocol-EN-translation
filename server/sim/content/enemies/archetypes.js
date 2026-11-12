@@ -156,19 +156,22 @@ const nthAttackPower = (n, scale, el = null, ratio = 0, s = null) => ({
   attack(c, b, e, a) { a.n++; },
 });
 
-/** Aura on other enemies within r: timed buff refreshed every iv s. */
-const enemyAura = (r, key, mods, sil = true, iv = 0.5) => ({
+/**
+ * Aura on other enemies within r: timed buff refreshed every iv s. `fx`: (fork, display only) the official buff key the
+ * carriers show while it holds them (b.snap fxs; src: this enemy).
+ */
+const enemyAura = (r, key, mods, sil = true, iv = 0.5, fx = null) => ({
   sil, iv,
-  tick(b, e) { for (const o of b.enemiesInRadius(e.x, e.y, r)) if (o !== e) auraBuff(b, o, key, iv, mods); },
+  tick(b, e) { for (const o of b.enemiesInRadius(e.x, e.y, r)) if (o !== e) auraBuff(b, o, key, iv, mods, null, false, fx && { fx, src: e.id }); },
 });
 
 /**
  * Aura on allies within r — every ally there, 隐匿 ones included: its one user, 寒霜, is PRTS's own example of an enemy
  * debuff that "无视隐匿状态起作用" (PRTS 作战机制 §隐匿与Buff的关系: "敌方寒霜的攻速下降Debuff").
  */
-const allyAura = (r, key, mods, sil = true, iv = 0.5, flags = null) => ({
+const allyAura = (r, key, mods, sil = true, iv = 0.5, flags = null, fx = null) => ({
   sil, iv,
-  tick(b, e) { for (const u of b.alliesInRadius(e.x, e.y, r)) auraBuff(b, u, key, iv, mods, flags, true); },
+  tick(b, e) { for (const u of b.alliesInRadius(e.x, e.y, r)) auraBuff(b, u, key, iv, mods, flags, true, fx && { fx, src: e.id }); },
 });
 
 /** Self ATK buff once HP first drops below ratio. */
@@ -472,7 +475,7 @@ function artsBarrier(amount, { key = 'ab:artsBarrier', whileUp = null } = {}) {
  * fx (setForm): 'ember' {id, hits, dur, form: 'husk'} at the knock-out, 'revive' {id, form: 'revived'} when it stands
  * up (the renderer switches the model's clip set: render/units.js FORMS).
  */
-function husk({ hits, delay, stealthy = true, unblock = false, onHusk = null, key = 'ab:ember' }) {
+function husk({ hits, delay, stealthy = true, unblock = false, onHusk = null, key = 'ab:ember', rebornSkill = null }) {
   const revive = (b, e, a) => {
     if (!e.alive || a.state !== 'husk') return;
     a.state = null;
@@ -514,6 +517,9 @@ function husk({ hits, delay, stealthy = true, unblock = false, onHusk = null, ke
       b._unblock(e);
       if (e.route) e.route.pts = null;
       setForm(b, e, 'husk', 'ember', { hits, dur: HUSK_REBIRTH + delay });
+      // rebornSkill: (fork, enemy skills 2026-11-13) the official skill the 重生 is (深池逐火战士's BornAnim): its slot for
+      // the client, held for the 重生 (display only: castSlot)
+      if (rebornSkill) castSlot(b, e, { slot: rebornSkill.slot, bb: { duration: HUSK_REBIRTH } });
       b.after(HUSK_REBIRTH, () => { if (e.alive && a.state === 'husk') { rebirthCooldowns(e); if (onHusk) onHusk(b, e); } }, { owner: e });
       b.after(HUSK_REBIRTH + delay, () => revive(b, e, a), { owner: e });
       return true;
@@ -566,13 +572,15 @@ function statue(ab) {
  * Bleeding on hit (逐腐兽): arts damage per second, removed by healing. A tick selects nobody (`ignoreSelect`): it keeps
  * hurting an ally that took off (起飞) after the bleed landed; so do the other enemy debuff DoTs (沙狱, burnDot, 淤困).
  */
-function bleed(ab) {
+function bleed(ab, fx = null) {
   const dmg = T(ab, 'Bleeding.attack@bleeding_damage') ?? 0, dur = T(ab, 'Bleeding.attack@duration') ?? 0;
   return {
     dealt(c, b, e) {
       if (!(dmg > 0 && dur > 0)) return;
       b.addBuff(c.target, {
         key: 'ab:bleed', duration: dur, refresh: 'replace', interval: 1, visible: true,
+        // (fork) the official bleed buff's lasting effect on the target (snapshot.js fxStateView; display only)
+        ...(fx ? { fx, fxSrc: e.id ?? null } : {}),
         onTick: ({ battle, unit }) => battle.dealDamage(e, unit, { amount: dmg, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility', 'bleed'] }),
       });
     },
@@ -655,7 +663,10 @@ const kitEp = (el, ...keys) => (ab) => [ep(el, T(ab, ...keys) ?? 0)];
 
 const kitStealth = () => [stealth()];
 
-const kitTimes = (artsOnly = false) => () => [times(artsOnly), unblockable()];
+// (fork) the prop's idle loop (PropLikeEnemy._basicEffects, played from its birth: render/vfx/indexGaps.js msf_basic) —
+// display only (Battle.fxProbe: read when a snapshot is taken)
+const propBasic = { spawn(b, e) { b.fxProbe(e, 'msf_basic', (u) => !!u.alive); } };
+const kitTimes = (artsOnly = false) => () => [times(artsOnly), unblockable(), propBasic];
 
 const kitRefraction = (ab) => [refraction(T(ab, 'refracting.magic_resistance', 'Refracting.magic_resistance') ?? 0)];
 
@@ -671,7 +682,12 @@ const kitSelfFear = (ab) => [selfFear(ab)];
  *  (PRTS 深池逐火战士 天赋: "基础最大生命值临时变为5…具有特殊生命值机制，不进行攻击，获得隐匿、缴械，10s后若未被击倒则变回战士形态并恢复所有
  *  生命"); blocking it lifts the 隐匿, so its blocker (and every operator in range) can beat it — also during the 3 s
  *  after a block ends, the warrior's own block that the knock-out releases included (Battle._stealthSwitch). */
-const kitEmber = (ab) => [husk({ hits: T(ab, 'Revive[Trigger].prop_max_hp'), delay: T(ab, 'Revive[Trigger].interval') })];
+// (fork, enemy skills 2026-11-13) the 1 s 重生 is the ember's BornAnim (client enm_pfb_12 Modes/Prop/Skills/BornAnim, the
+// skill of the record): its BuffToOwnerDuringAbility holds `enemy_duskls_invincible` (effect enemy_duskls_revive_2) for the
+// cast, so the 重生 casts it (husk rebornSkill: the client's skill window plays that loop for the 1 s). The aura talent's
+// enemy_duskls_weapon_buff needs a burning 芦苇 tile in 1.5 (RangeTileToggleChecker: tile_reed / tile_reedf / tile_reedw);
+// no board of ours has one (act2autochess_m03's rune names them, its board has none), so it never switches on here.
+const kitEmber = (ab) => [husk({ hits: T(ab, 'Revive[Trigger].prop_max_hp'), delay: T(ab, 'Revive[Trigger].interval'), rebornSkill: ab.sk.BornAnim })];
 
 /**
  * 萨卡兹枯朽战士 / 组长 (`enemy_1267_nhpbr`, `enemy_1267_nhpbr_2`) · death: 【污染秽蚀】 (PollutedDie; PRTS 天赋

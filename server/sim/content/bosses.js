@@ -109,6 +109,13 @@ const BLADE_ATK_SCALE = Object.freeze({ enemy_9015_acstmb: 1.5 });
  */
 const BLADE_HAND = Object.freeze({ enemy_9014_acstma: 'left_hand', enemy_9015_acstmb: 'right_hand' });
 /**
+ * (fork) The official buff key of each blade's dizzy loop while it is shot down (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): its skill 1's BuffToOwner template, whose ON_APPLIED_MODIFIER makes the [special_stun] buff that loops
+ * enemy_acstma_dizzy_loop for special_stun_duration — the sim's 'boss:downed'.
+ */
+const ACSTMA_FX = 'acstma_s_1', ACSTMB_FX = 'acstmb_s_1';
+const BLADE_DIZZY_FX = Object.freeze({ enemy_9014_acstma: ACSTMA_FX, enemy_9015_acstmb: ACSTMB_FX });
+/**
  * 死亡集群: a drone that dies (PRTS 能力修正 "该无人机单位死亡时", whoever kills it) costs 胄 `hp_ratio` (2 %) of "最大生命值"
  * (PRTS 假想敌：胄 "该妖怪死亡时令假想敌：胄受到最大生命值2%的真实伤害"). WHICH max HP is not documented [ASSUMED reading]:
  *   'pool' (default, = v2.5): the leader's max HP as the battle shows it — the shared pool (the engine syncs the unit's
@@ -557,7 +564,7 @@ function kitBlade(ab, e, b, tpl) {
     e2.motion = 'WALK';                                              // 变为地面单位（不改变寻路方式）
     const stun = bb.stun ?? 0;
     b2.applyStatus(e2, 'stun', { duration: stun, source: null, force: true });
-    b2.addBuff(e2, { key: 'boss:downed', duration: Math.min(bb.special_stun_duration ?? stun, stun), visible: true,
+    b2.addBuff(e2, { key: 'boss:downed', duration: Math.min(bb.special_stun_duration ?? stun, stun), visible: true, fx: BLADE_DIZZY_FX[e2.defId] ?? null,
       mods: { dmgTakenMul: bb.damage_scale ?? 1 }, onExpire: () => { if (e2.alive && P.state === 'down') replace(b2, e2); } });
     b2.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'shotDown' });
   };

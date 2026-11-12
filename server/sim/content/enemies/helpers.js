@@ -449,9 +449,13 @@ export function expose(b, u, dur, scale) {
   b.fx('expose', { x: u.x, y: u.y, id: u.id });
 }
 
-/** Timed buff on each unit (same key never stacks: aura semantics). */
-function auraBuff(b, u, key, iv, mods, flags = null, visible = false) {
-  b.addBuff(u, { key, duration: iv + 0.1, refresh: 'replace', mods, flags, visible });
+/**
+ * Timed buff on each unit (same key never stacks: aura semantics). `fx`: (fork, display only) the official buff key whose
+ * lasting effect the carrier shows while the aura holds it, and `src` the enemy whose talent gives it (b.snap fxs,
+ * render/vfx/skills.js STATE_BUFFS); null: none.
+ */
+function auraBuff(b, u, key, iv, mods, flags = null, visible = false, fx = null) {
+  b.addBuff(u, { key, duration: iv + 0.1, refresh: 'replace', mods, flags, visible, fx: fx?.fx ?? null, fxSrc: fx?.src ?? null });
 }
 
 /** Mark an ally/enemy ability as watching every death on the field. */
