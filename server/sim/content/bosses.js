@@ -801,7 +801,7 @@ function kitSpring(ab, e) {
           hurt(b, e2, u, e2.s.atk, 'phys');
           // (fork) the official trample hit on the unit (its MoveToHunter aura buff; a short one-shot row, display only)
           const fx = SPRING_TRAMPLE_FX[e2.defId];
-          if (fx) b.fxState(u, fx, true, { src: e2, dur: SPRING_TRAMPLE_ROW });
+          if (fx) b.fxState?.(u, fx, true, { src: e2, dur: SPRING_TRAMPLE_ROW });
         }
         if (b.time >= d.until) { e2.mem.ab.dash = null; b.removeBuff(e2, 'boss:dash'); if (e2.route) e2.route.pts = null; }
       },

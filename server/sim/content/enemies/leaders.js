@@ -510,7 +510,7 @@ function kitWarden(ab) {
       const pierceTimes = Math.min(bbCap('times'), typeof pierce.bb.times === 'number' && Number.isFinite(pierce.bb.times) ? pierce.bb.times : 1);
       // (fork) the armour-piercing skill's hit effect on its target (the reborn form's jakill_skill_1_reborn_hit, one-shot:
       // a short row; snapshot.js fxStateView, display only)
-      b.fxState(c.target, 'jakill_skill_1_reborn_hit[eff]', true, { src: e, dur: JAKILL_HIT_ROW });
+      b.fxState?.(c.target, 'jakill_skill_1_reborn_hit[eff]', true, { src: e, dur: JAKILL_HIT_ROW });
       for (let i = 1; i < pierceTimes && c.target.alive; i++) b.dealDamage(e, c.target, { amount: e.s.atk, type: 'phys', defIgnorePct: pen(), canDodge: true, isSkill: true, tags: ['enemyAbility', 'armorPiercing'] });
     },
     attack(c, b, e) {
@@ -654,7 +654,7 @@ function kitMace(ab) {
           if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
           // (fork) the official ClearSp buff's effect on each unit it reaches, for its duration [ASSUMED: the disarm's]
           // (snapshot.js fxStateView; display only)
-          if (cs.dur > 0) b.fxState(u, 'enemy_blkswb_s[effect]', true, { src: e, dur: cs.dur });
+          if (cs.dur > 0) b.fxState?.(u, 'enemy_blkswb_s[effect]', true, { src: e, dur: cs.dur });
         }
       }
     },
@@ -693,7 +693,7 @@ function kitWolfLord(ab) {
       ab2.immune = new Set([...(ab2.immune || []), 'stun']);   // 第一形态: 不可被晕眩
       b.addBuff(e, { key: 'ab:wolfGuard', persist: true, visible: true, mods: { dmgTakenMul: 1 - (T(ab, 'Passive.damage_resistance') ?? 0) } });
       // (fork) its HP record (BuffToOwner enemy_wlfmster_damage_record) shows while a caught unit waits for the cure (display only)
-      b.fxProbe(e, 'enemy_wlfmster_damage_record', () => !P.form2 && P.caught > 0);
+      b.fxProbe?.(e, 'enemy_wlfmster_damage_record', () => !P.form2 && P.caught > 0);
     },
     iv: 0.1,
     tick(b, e, a, dt) {

@@ -143,8 +143,8 @@ describe('the sim and the client name the same buffs', () => {
   const src = [...readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')),
     ...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => readFileSync(new URL(f, ekits), 'utf8')),
     readFileSync(new URL('../../server/sim/content/bosses.js', import.meta.url), 'utf8')].join('\n');
-  // every literal buff key a kit hands fxState / fxProbe / a buff's fx, or a const holding one (…_FX = '…')
-  const named = new Set([...src.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
+  // every literal buff key a kit hands fxState / fxProbe (or ?.() for a light battle) / a buff's fx, or a const holding one (…_FX = '…')
+  const named = new Set([...src.matchAll(/(?:fxState|fxProbe)(?:\?\.)?\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
     .map((m) => m[1] || m[2] || m[3] || m[4]));
   // … or a const list of them (…_FX = Object.freeze(['…', …]))
   for (const m of src.matchAll(/_FX\s*=\s*Object\.freeze\(\[(.*?)\]\)/g)) for (const k of m[1].matchAll(/'([^']+)'/g)) named.add(k[1]);
