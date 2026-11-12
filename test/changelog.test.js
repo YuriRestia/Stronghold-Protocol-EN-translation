@@ -23,7 +23,7 @@ test('a bad fragment is named with what is wrong', () => {
   assert.match(errs('x.md', '## 2026-11-11\n\n### A\n\ntext only\n'), /no "- " bullet/);
   assert.match(errs('x.md', '## 2026-11-11\n\n### A\n\n- b\n\n## 2026-11-12\n'), /only one "## date" line/);
   assert.match(errs('x.md', '## 2026-11-11\r\n\r\n### A\r\n\r\n- b\r\n'), /CR line ends/);
-  const ok = parseFragment('ok-name.md', '\n## 2026-11-11\n\n### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d\n\nServer cost: none (docs only)\n');
+  const ok = parseFragment('ok-name.md', '\n## 2026-11-11\n\n### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d\n\nKind: player\n\nServer cost: none (docs only)\n');
   assert.deepEqual(ok.errors, []);
   assert.equal(ok.date, '2026-11-11');
   assert.equal(ok.body, '### A\n\n- b\n  more\n  - nested\n\n### C\n\n- d', 'a "none" Server cost stays out of the changelog');
@@ -40,17 +40,34 @@ const README_EXAMPLE = (() => {
 test('Server cost: missing, none, the README example\'s numbers, and what a numbers block lacks', () => {
   const head = '## 2026-11-11\n\n### A\n\n- b\n';
   assert.match(parseFragment('x.md', head).errors.join(' | '), /no "Server cost:" line/);
-  assert.equal(parseFragment('x.md', head + '\nServer cost: none\n').cost.kind, 'none');
+  assert.equal(parseFragment('x.md', head + '\nKind: player\n\nServer cost: none\n').cost.kind, 'none');
   assert.ok(README_EXAMPLE.length > 100, 'changes/README.md carries the numbers example');
-  const full = parseFragment('x.md', head + '\n' + README_EXAMPLE);
+  const full = parseFragment('x.md', head + '\nKind: player\n\n' + README_EXAMPLE);
   assert.deepEqual(full.errors, []);
   assert.equal(full.cost.kind, 'numbers');
   assert.equal(full.body, '### A\n\n- b', 'a numbers block stays in the fragment: never folded into the public changelog');
-  const errs = parseFragment('x.md', head + '\nServer cost:\n\n- About 2 Mbit/s per room, typical.\n').errors.join(' | ');
+  const errs = parseFragment('x.md', head + '\nKind: player\n\nServer cost:\n\n- About 2 Mbit/s per room, typical.\n').errors.join(' | ');
   for (const want of [/never Mbit\/s/, /missing "typical" and "worst" case/, /missing per player/, /missing 300 players/, /missing bandwidth in MB\/s/,
     /missing bandwidth in GB\/day/, /missing server CPU/, /missing memory in MB/, /missing disk in MB\/day/, /missing bot budget in ms\/round/,
     /missing a "Cap:" line/, /missing "measured" or "estimated"/]) assert.match(errs, want);
-  assert.match(parseFragment('x.md', head + '\nServer cost: none\nServer cost: none\n').errors.join(' | '), /more than one "Server cost:" line/);
+  assert.match(parseFragment('x.md', head + '\nKind: player\n\nServer cost: none\nKind: player\n\nServer cost: none\n').errors.join(' | '), /more than one "Server cost:" line/);
+});
+
+// (fork, 2026-11-13) The public changelog is for players: every fragment says its kind, only "player" ones fold.
+test('Kind: missing or unknown is an error that asks for it; player and internal parse', () => {
+  const head = '## 2026-11-13\n\n### A\n\n- b\n\n';
+  assert.match(parseFragment('x.md', head + 'Server cost: none\n').errors.join(' | '), /no "Kind:" line\. Add "Kind: player"[\s\S]*When unsure: internal/);
+  assert.match(parseFragment('x.md', head + 'Kind: tooling\n\nServer cost: none\n').errors.join(' | '), /"Kind:" must be one line, "Kind: player" or "Kind: internal"/);
+  assert.match(parseFragment('x.md', head + 'Kind: player\nKind: internal\n\nServer cost: none\n').errors.join(' | '), /more than one "Kind:" line/);
+  for (const kind of ['player', 'internal']) {
+    for (const tail of [`Kind: ${kind}\n\nServer cost: none\n`, `Server cost: none\n\nKind: ${kind}\n`]) {
+      const f = parseFragment('x.md', head + tail);
+      assert.deepEqual(f.errors, [], tail);
+      assert.equal(f.kind, kind);
+      assert.equal(f.cost.kind, 'none', 'the Server cost block ends where Kind starts');
+      assert.equal(f.body, '### A\n\n- b');
+    }
+  }
 });
 
 // (fork, 2026-11-13) The public changelog never carries the operator's own deployment (OPERATOR_ONLY).
@@ -59,14 +76,14 @@ describe('operator-only content', () => {
 
   test('the Operator notes block is never folded, in either order with Server cost', () => {
     const notes = 'Operator notes:\n\n- Deploy: ssh spa, then sudo systemctl restart stronghold@x; peer.env is untouched.\n';
-    for (const tail of [`\nServer cost: none\n\n${notes}`, `\n${notes}\nServer cost: none\n`]) {
+    for (const tail of [`\nKind: player\n\nServer cost: none\n\n${notes}`, `\n${notes}\nKind: player\n\nServer cost: none\n`]) {
       const f = parseFragment('x.md', head + tail);
       assert.deepEqual(f.errors, []);
       assert.equal(f.body, '### A\n\n- b');
       assert.match(f.notes, /^Operator notes:/);
       assert.equal(f.cost.kind, 'none', 'the Server cost block ends where the notes start');
     }
-    assert.match(parseFragment('x.md', `${head}\nServer cost: none\n\n${notes}\n${notes}`).errors.join(' | '), /more than one "Operator notes:" line/);
+    assert.match(parseFragment('x.md', `${head}\nKind: player\n\nServer cost: none\n\n${notes}\n${notes}`).errors.join(' | '), /more than one "Operator notes:" line/);
   });
 
   test('each kind of operator-only line in a section is refused with what it is', () => {
@@ -83,7 +100,7 @@ describe('operator-only content', () => {
       ['1.6 GB a day', /a traffic or disk rate/],
     ];
     for (const [line, want] of cases) {
-      const errs = parseFragment('x.md', `## 2026-11-13\n\n### A\n\n- ${line}\n\nServer cost: none\n`).errors.join(' | ');
+      const errs = parseFragment('x.md', `## 2026-11-13\n\n### A\n\n- ${line}\n\nKind: player\n\nServer cost: none\n`).errors.join(' | ');
       assert.match(errs, want, line);
       assert.match(errs, /move it under "Operator notes:"/);
     }
@@ -104,7 +121,7 @@ describe('operator-only content', () => {
 });
 
 test('"unmeasured (pre-rule)" is accepted only from the fragments named in PRE_RULE_UNMEASURED', () => {
-  const text = '## 2026-11-11\n\n### A\n\n- b\n\nServer cost: unmeasured (pre-rule)\n';
+  const text = '## 2026-11-11\n\n### A\n\n- b\n\nKind: player\n\nServer cost: unmeasured (pre-rule)\n';
   assert.ok(PRE_RULE_UNMEASURED.length > 0);
   assert.equal(parseFragment(PRE_RULE_UNMEASURED[0], text).cost.kind, 'pre-rule');
   assert.match(parseFragment('new-change.md', text).errors.join(' | '), /only for the fragments listed/);
@@ -150,7 +167,8 @@ describe('in a checkout', () => {
   let dir;
   const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const run = (args, branch) => { const lines = []; let printed = ''; const code = main(args, { root: dir, log: (x) => lines.push(x), out: (x) => { printed += x; }, ...(branch ? { branch } : {}) }); return { code, lines: lines.join('\n'), printed }; };
-  const frag = '## 2026-11-11\n\n### New thing\n\n- It works.\n\nServer cost: none\n';
+  const frag = '## 2026-11-11\n\n### New thing\n\n- It works.\n\nKind: player\n\nServer cost: none\n';
+  const INTERNAL = '## 2026-11-11\n\n### Release tool\n\n- One command for the release.\n\nKind: internal\n\nServer cost: none (tooling only)\n';
   before(() => {
     dir = mkdtempSync(join(tmpdir(), 'sp-changelog-'));
     g('init', '-q', '-b', 'dev-0.2');
@@ -158,6 +176,7 @@ describe('in a checkout', () => {
     mkdirSync(join(dir, 'changes'));
     writeFileSync(join(dir, 'changes/README.md'), '# format\n');
     writeFileSync(join(dir, 'changes/new-thing.md'), frag);
+    writeFileSync(join(dir, 'changes/release-tool.md'), INTERNAL);
     writeFileSync(join(dir, 'FORK-CHANGELOG.md'), LOG);
     g('add', '-A'); g('commit', '-q', '-m', 'base');
   });
@@ -167,10 +186,11 @@ describe('in a checkout', () => {
   test('no option checks; --dry-run prints the folded changelog; neither writes', () => {
     const c = run([]);
     assert.equal(c.code, 0);
-    assert.match(c.lines, /1 fragment\(s\) OK/);
+    assert.match(c.lines, /2 fragment\(s\) OK/);
     const d = run(['--dry-run']);
     assert.equal(d.code, 0);
     assert.match(d.printed, /## 2026-11-11\n\n### New thing\n\n- It works\.\n\n### Old today/);
+    assert.doesNotMatch(d.printed, /Release tool/, 'an internal fragment is never folded');
     untouched();
   });
 
@@ -190,7 +210,10 @@ describe('in a checkout', () => {
   test('--write on dev-0.2 with everything committed folds the fragments in and deletes them', () => {
     const w = run(['--write']);
     assert.equal(w.code, 0, w.lines);
-    assert.deepEqual(readdirSync(join(dir, 'changes')), ['README.md']);
-    assert.match(readFileSync(join(dir, 'FORK-CHANGELOG.md'), 'utf8'), /## 2026-11-11\n\n### New thing\n\n- It works\.\n\n### Old today/);
+    assert.deepEqual(readdirSync(join(dir, 'changes')), ['README.md'], 'player and internal fragments are both deleted');
+    const log = readFileSync(join(dir, 'FORK-CHANGELOG.md'), 'utf8');
+    assert.match(log, /## 2026-11-11\n\n### New thing\n\n- It works\.\n\n### Old today/);
+    assert.doesNotMatch(log, /Release tool/);
+    assert.match(w.lines, /deleted 1 internal fragment\(s\) without folding: release-tool\.md/);
   });
 });

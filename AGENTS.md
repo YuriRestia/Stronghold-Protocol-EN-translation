@@ -40,7 +40,9 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
   `npm run merge:generated` ([docs/ASSETS.md](docs/ASSETS.md) "Merging branches").
 - **(fork) Changelog fragments.** A branch never edits `FORK-CHANGELOG.md`: it adds one file
   `changes/<what-it-changes>.md` ([changes/README.md](changes/README.md)); the lead folds them in on `dev-0.2` with
-  `npm run changelog -- --write`.
+  `npm run changelog -- --write`. FORK-CHANGELOG.md is public and for players: each fragment says `Kind: player`
+  (folded) or `Kind: internal` (tooling, scripts, CI, tests, deploy: deleted unfolded; when unsure, internal), and our
+  own hosts, regions, domain, commands and traffic numbers never go in its sections (`Operator notes:`).
 - **(fork) Server cost.** Every fragment ends with `Server cost: none` or the numbers (typical and worst case per
   player, per room and for 300 players: MB/s and GB/day, CPU %, memory MB, disk MB/day, bot ms/round, the cap,
   measured or estimated; [changes/README.md](changes/README.md) "Server cost"). `npm run server-cost` fails a branch

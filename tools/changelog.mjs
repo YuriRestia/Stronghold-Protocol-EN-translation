@@ -113,17 +113,25 @@ export function operatorOnly(text) {
   return out;
 }
 
-/** The fragment's blocks that never fold, after its sections: `Server cost:` (the SERVER COST rule) and `Operator notes:`. */
-const TAIL = /^(?:Server cost|Operator notes):/;
+/** The fragment's blocks that never fold, after its sections: `Kind:`, `Server cost:` (the SERVER COST rule) and
+ * `Operator notes:`, in any order. */
+const TAIL = /^(?:Kind|Server cost|Operator notes):/;
+/**
+ * (fork, 2026-11-13) FORK-CHANGELOG.md is for players: only `Kind: player` fragments (game, UI, balance, fixes players
+ * notice, credits) are folded into it. `Kind: internal` (tooling, scripts, CI, tests, hooks, deploy, the changelog
+ * itself) is checked like any fragment, then deleted at fold time without being folded. No kind = an error: when
+ * unsure, it is internal.
+ */
+export const KINDS = Object.freeze(['player', 'internal']);
 
 /**
  * Check and parse one fragment. Format: `## YYYY-MM-DD`, then one or more `### Heading` sections, each with at least
- * one `- ` bullet; nothing else at heading level 1 or 2; LF line ends; last, the `Server cost:` block and optionally an
+ * one `- ` bullet; nothing else at heading level 1 or 2; LF line ends; last, the `Kind:` line, the `Server cost:` block and optionally an
  * `Operator notes:` block (either order). Neither block is folded into FORK-CHANGELOG.md, and the sections may not
  * hold operator-only content (OPERATOR_ONLY).
  * @param {string} name file name
  * @param {string} text
- * @returns {{ date: string|null, body: string, cost: ReturnType<typeof parseServerCost>, notes: string, errors: string[] }}
+ * @returns {{ date: string|null, kind: 'player'|'internal'|null, body: string, cost: ReturnType<typeof parseServerCost>, notes: string, errors: string[] }}
  *   body = the `###` sections, trimmed (what is folded); notes = the Operator notes block's text
  */
 export function parseFragment(name, text) {
@@ -134,14 +142,25 @@ export function parseFragment(name, text) {
   const all = text.replace(/\r/g, '').split('\n');
   const tailAt = all.findIndex((l) => TAIL.test(l));
   const tail = tailAt >= 0 ? all.slice(tailAt) : [];
-  const costAt = tail.findIndex((l) => /^Server cost:/.test(l));
-  const notesAt = tail.findIndex((l) => /^Operator notes:/.test(l));
-  if (tail.filter((l) => /^Server cost:/.test(l)).length > 1) errors.push(`${name}: more than one "Server cost:" line`);
-  if (tail.filter((l) => /^Operator notes:/.test(l)).length > 1) errors.push(`${name}: more than one "Operator notes:" line`);
-  const blockEnd = (at, other) => (other > at ? other : tail.length);
-  const cost = parseServerCost(name, costAt >= 0 ? tail.slice(costAt, blockEnd(costAt, notesAt)).join('\n') : null);
+  for (const label of ['Kind', 'Server cost', 'Operator notes']) {
+    if (tail.filter((l) => l.startsWith(`${label}:`)).length > 1) errors.push(`${name}: more than one "${label}:" line`);
+  }
+  // each block runs to the next block's first line (or the end)
+  const starts = tail.map((l, k) => (TAIL.test(l) ? k : -1)).filter((k) => k >= 0);
+  const block = (label) => {
+    const at = tail.findIndex((l) => l.startsWith(`${label}:`));
+    if (at < 0) return null;
+    const next = starts.find((k) => k > at);
+    return tail.slice(at, next ?? tail.length).join('\n');
+  };
+  const cost = parseServerCost(name, block('Server cost'));
   errors.push(...cost.problems);
-  const notes = notesAt >= 0 ? tail.slice(notesAt, blockEnd(notesAt, costAt)).join('\n').trim() : '';
+  const notes = (block('Operator notes') || '').trim();
+  const kindBlock = block('Kind');
+  const kindM = kindBlock && /^Kind:[ \t]*(\S*)[ \t]*$/.exec(kindBlock.trim());
+  const kind = kindM && KINDS.includes(kindM[1]) ? kindM[1] : null;
+  if (!kindBlock) errors.push(`${name}: no "Kind:" line. Add "Kind: player" (players notice it: game, UI, balance, fixes, credits) or "Kind: internal" (tooling, scripts, CI, tests, deploy: checked, then deleted without being folded into the public changelog). When unsure: internal`);
+  else if (!kind) errors.push(`${name}: "Kind:" must be one line, "Kind: player" or "Kind: internal" (found "${kindBlock.trim().slice(0, 60)}")`);
   const lines = tailAt >= 0 ? all.slice(0, tailAt) : all;
   let i = 0;
   while (i < lines.length && !lines[i].trim()) i++;
@@ -165,7 +184,7 @@ export function parseFragment(name, text) {
   }
   if (!sections) errors.push(`${name}: needs at least one "### Heading" section`);
   else if (!bullets) errors.push(`${name}: the last section has no "- " bullet`);
-  return { date, body, cost, notes, errors };
+  return { date, kind, body, cost, notes, errors };
 }
 
 /**
@@ -219,8 +238,9 @@ export function fragmentFiles(dir = CHANGES_DIR) {
 
 export const USAGE = `Usage: node tools/changelog.mjs [--check | --dry-run | --write]
   (no option), --check  check every fragment in changes/ (exit 1 on a bad one); writes nothing
-  --dry-run             print FORK-CHANGELOG.md with the fragments folded in; writes nothing
-  --write               fold the fragments into FORK-CHANGELOG.md and delete them (dev-0.2 only, with changes/ and
+  --dry-run             print FORK-CHANGELOG.md with the "Kind: player" fragments folded in; writes nothing
+  --write               fold the "Kind: player" fragments into FORK-CHANGELOG.md, delete every fragment ("Kind: internal"
+                        ones without folding) (dev-0.2 only, with changes/ and
                         FORK-CHANGELOG.md committed)
   --help                this text`;
 const MODES = new Set(['--check', '--dry-run', '--write']);
@@ -277,7 +297,9 @@ export function main(args, { root = ROOT, log = (x) => console.log(x), out = (x)
 ${g.dirty}`); return 1; }
   }
   if (!files.length) { log('changelog: no fragments in changes/'); return 0; }
-  const text = foldFragments(readFileSync(logPath, 'utf8'), parsed.map((p) => ({ ...p, order: addedAt(p.path, root) })));
+  const player = parsed.filter((p) => p.kind === 'player');
+  const internal = parsed.filter((p) => p.kind !== 'player').map((p) => p.name);
+  const text = foldFragments(readFileSync(logPath, 'utf8'), player.map((p) => ({ ...p, order: addedAt(p.path, root) })));
   if (Buffer.byteLength(text) > MAX_CHANGELOG) { log(`changelog: result over ${MAX_CHANGELOG} bytes; nothing written`); return 1; }
   const leaks = operatorOnly(text);
   if (leaks.length) {
@@ -289,7 +311,8 @@ ${g.dirty}`); return 1; }
   writeFileSync(logPath + '.tmp', text);
   renameSync(logPath + '.tmp', logPath);
   for (const p of parsed) unlinkSync(p.path);
-  log(`changelog: folded ${files.length} fragment(s) into FORK-CHANGELOG.md and deleted them: ${files.join(', ')}`);
+  log(`changelog: folded ${player.length} player fragment(s) into FORK-CHANGELOG.md and deleted them: ${player.map((p) => p.name).join(', ') || '(none)'}`);
+  if (internal.length) log(`changelog: deleted ${internal.length} internal fragment(s) without folding: ${internal.join(', ')}`);
   return 0;
 }
 

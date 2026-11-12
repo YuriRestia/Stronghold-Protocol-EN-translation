@@ -19,6 +19,8 @@ conflict on the changelog. The maintainer folds the fragments into FORK-CHANGELO
 
 - …
 
+Kind: player
+
 Server cost: none
 
 Operator notes:
@@ -27,13 +29,26 @@ Operator notes:
 ```
 
 - The first line is `## YYYY-MM-DD`: the day of the change. Then one or more `### Heading` sections, each with at least
-  one `- ` bullet. Nothing else at heading level 1 or 2. LF line ends. Last, the `Server cost:` block (below) and,
-  optionally, an `Operator notes:` block, in either order.
+  one `- ` bullet. Nothing else at heading level 1 or 2. LF line ends. Last, the `Kind:` line, the `Server cost:`
+  block (below) and, optionally, an `Operator notes:` block, in any order.
 - The sections are written exactly as they will read in FORK-CHANGELOG.md (English only, credits as there: "thanks to
   @login" for contributions, upstream merges as one linked line).
 - A later fix to the same change edits its fragment while it is still here; once folded, it is a new fragment.
-- No fragment for development workflow or tooling-only changes (test plumbing, merge and review process, dev
-  tools): the changelog lists what players and server hosts get.
+- No fragment is needed for development workflow or tooling-only changes; when one is (a merge guard asks for its
+  `Server cost:`), it is `Kind: internal`.
+
+## Kind: player or internal
+
+FORK-CHANGELOG.md is for players. Every fragment says which it is, on one line:
+
+| `Kind: player`: folded into FORK-CHANGELOG.md | `Kind: internal`: checked, then deleted at fold time, never folded |
+|---|---|
+| Game, UI, balance, sounds and art, fixes players notice, new options in Settings | Release, deploy and server scripts, CI, tests, golden files, hooks, crew tooling, loop caps |
+| Credits for contributions, upstream merges | The changelog and fragment machinery itself |
+| | Server-only changes players never see (logging, limits, internal refactors) |
+
+No `Kind:` line, or anything else after it, is an error from `npm run changelog` (and from the merge guard). **When
+unsure, it is internal.** The update news draft of `scripts/release.mjs` also uses only `Kind: player` fragments.
 
 ## Public sections, operator notes
 

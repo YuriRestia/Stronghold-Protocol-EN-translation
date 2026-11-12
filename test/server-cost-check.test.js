@@ -50,7 +50,7 @@ describe('the CLI on a scratch repository', () => {
   let dir;
   const g = (...a) => execFileSync('git', a, { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
   const put = (file, text) => { mkdirSync(dirname(join(dir, file)), { recursive: true }); writeFileSync(join(dir, file), text); };
-  const frag = (cost) => `## 2026-11-11\n\n### A change\n\n- What it does.\n\n${cost}`;
+  const frag = (cost) => `## 2026-11-11\n\n### A change\n\n- What it does.\n\nKind: internal\n\n${cost}`;
   const run = (args) => { let out = ''; const code = main(args, { root: dir, out: (s) => { out += s; } }); return { code, out }; };
   /** A branch off dev-0.2 with these files, committed. */
   const branch = (name, files) => { g('checkout', '-q', '-b', name, 'dev-0.2'); for (const [f, t] of Object.entries(files)) put(f, t); g('add', '-A'); g('commit', '-q', '-m', name); };

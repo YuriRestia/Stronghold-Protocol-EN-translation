@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { operatorOnly } from '../tools/changelog.mjs';
+import { operatorOnly, parseFragment } from '../tools/changelog.mjs';
 import { newsProblems, parseNews, NEWS_MAX_BYTES, NEWS_MAX_HIGHLIGHTS, NEWS_MAX_POINTS, NEWS_LINE_MAX } from '../shared/news.js';
 
 const MAX_EDITS = 3;
@@ -56,16 +56,18 @@ export function builtInNews(src, pack) {
 }
 
 /**
- * The draft's lines from the fragments: one per `### ` heading, backend-only headings set aside.
+ * The draft's lines from the fragments: one per `### ` heading of a `Kind: player` fragment, backend-only headings
+ * set aside; every heading of a `Kind: internal` fragment (or one without a kind) is set aside too.
  * @param {{ name: string, text: string }[]} fragments
  * @returns {{ points: string[], skipped: { line: string, name: string }[] }}
  */
 export function draftNewsLines(fragments) {
   const points = [], skipped = [];
   for (const { name, text } of fragments) {
+    const player = parseFragment(name, String(text)).kind === 'player';
     for (const m of String(text).matchAll(/^### (.+?)\s*$/gm)) {
       const line = m[1].trim();
-      if (BACKEND_ONLY.test(line) || operatorOnly(line).length) skipped.push({ line, name });
+      if (!player || BACKEND_ONLY.test(line) || operatorOnly(line).length) skipped.push({ line, name });
       else if (!points.includes(line)) points.push(line);
     }
   }
