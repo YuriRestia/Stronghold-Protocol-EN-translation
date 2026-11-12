@@ -651,6 +651,14 @@ export const STATE_BUFFS = Object.freeze({
   'duphlx_t_aura': true,
   // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
   'enemy_lrcmra[originum][dmg]': true,
+  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
+  'lslime_t_dot': true,
+  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
+  'flking_shiled': true,
+  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
+  'enemy_smsha_buffs': true,
+  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
+  'wintun_t[attack_speed]': true,
 });
 
 /**

@@ -229,6 +229,8 @@ function kitExposeOnHit(ab) {
  */
 const CATAPULT_SPLASH = 1.5;
 const CATAPULT_STONE = 'catapult:stone';
+/** (fork) Garum Gourmet's barrel zone: the official buff key of its glow on the enemies in it (b.snap fxs; STATE_BUFFS). */
+const WINTUN_ZONE_FX = 'wintun_t[attack_speed]';
 
 function catapultInPlay(e) {
   if (e?.s?.flags?.inPlay) return true;
@@ -457,7 +459,8 @@ export const SPECIAL_KITS = Object.freeze({
         b.fx('zone', { x, y, r: BARREL_RADIUS, dur: life, kind: 'barrel' });
         let left = life;
         const h = b.every(0.5, () => {
-          for (const o of b.enemiesInRadius(x, y, BARREL_RADIUS)) auraBuff(b, o, 'ab:barrelZone', 0.5, { aspd: s.attack_speed ?? 0, dodgePhys: s.prob ?? 0 });
+          // (fork) fx: the official zone glow (wintun_t[attack_speed]: enemy_wintun_range_buff) on the enemies in it (b.snap fxs)
+          for (const o of b.enemiesInRadius(x, y, BARREL_RADIUS)) auraBuff(b, o, 'ab:barrelZone', 0.5, { aspd: s.attack_speed ?? 0, dodgePhys: s.prob ?? 0 }, null, false, { fx: WINTUN_ZONE_FX, src: e.id });
           left -= 0.5;
           if (left <= 0) h.cancel();
         });

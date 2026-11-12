@@ -1162,6 +1162,9 @@ export class SkillFx {
         // rows of that buff (TalentFx.targetRows), when no skill state entry names it
         let list = stateEntries(U?.plan?.state, row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
+        // (fork) enemy VFX audit, S rows: an enemy skill's buff (U.enemy: its skills by slot, index v2) — that skill
+        // plan's state rows ('Gravestone''s shield, Fallen Snowpriest's chain buff, Garum Gourmet's barrel zone)
+        if (!list.length && U?.enemy?.length) for (const s of U.enemy) if ((list = stateEntries(s.plan?.state, row[0], row[2], v.facing)).length) break;
         for (const e of list) {
           const k = `${id}|${e.key}`;
           if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
