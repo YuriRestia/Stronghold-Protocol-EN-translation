@@ -423,8 +423,8 @@
         "enemy_2004_balloon": [1,1,0,32,46400]
       },
       "hooks": [1,54,5100,608,588,1070,1109,13334,31,40,31,30,9,24612,2526,35,38,9,1,51,0,7,4],
-      "events": {"atk":796,"bounty":6,"cast":13,"deploy":14,"die":31,"dmg":1109,"engage":9,"fx":56,"heal":11,"leak":9,"rate":115,"skill":66,"spawn":52,"status":317},
-      "fx": {"aoe":16,"beam":1,"buff":1,"burst":7,"coin":4,"dodge":4,"explode":1,"revive":1,"strike":9,"telegraph":2,"undying":1,"volley":9},
+      "events": {"atk":796,"bounty":6,"cast":13,"deploy":14,"die":31,"dmg":1109,"engage":9,"fx":57,"heal":11,"leak":9,"rate":115,"skill":66,"spawn":52,"status":317},
+      "fx": {"aoe":16,"beam":1,"buff":1,"burst":7,"coin":4,"dodge":4,"explode":1,"revive":1,"strike":9,"telegraph":2,"tick":1,"undying":1,"volley":9},
       "snaps": "5b6e27f3 b8decb2d 36326ffe 98f4ceb9 398d7385 fa6af01e 9db2baad ef890422 a6d10de6 0ffdb19b c75be066 dd35aaab 08a6dc41 690df427 7b105190 1a9a8937 08273262"
     },
     "roster-008": {
@@ -1734,8 +1734,8 @@
         "enemy_2004_balloon": [1,1,0,98,46400]
       },
       "hooks": [1,115,5670,828,827,1034,1034,1862,97,99,187,184,0,14431,302,64,97,0,1,97,0,0,0],
-      "events": {"atk":1013,"bounty":4,"cast":2,"deploy":15,"die":99,"dmg":1034,"engage":8,"fx":220,"heal":117,"rate":302,"skill":371,"spawn":113,"status":753},
-      "fx": {"explode":10,"hpShare":2,"liberate":2,"mote":64,"phase":3,"shield":1,"sp":66,"telegraph":2,"zone":70},
+      "events": {"atk":1013,"bounty":4,"cast":2,"deploy":15,"die":99,"dmg":1034,"engage":8,"fx":221,"heal":117,"rate":302,"skill":371,"spawn":113,"status":753},
+      "fx": {"explode":10,"hpShare":2,"liberate":2,"mote":64,"phase":3,"shield":1,"sp":66,"telegraph":2,"tick":1,"zone":70},
       "snaps": "19e38413 7a37fabb 9e4836ba 1e2651e7 12c98c27 a8747989 7ef52a10 d646a87c 3dff1407 6114da9a e97c4173 4c3bcc77 579ceea5 401f329e 04565ca6 0483c29a b3837041 f1c8f383 53f9ab19"
     },
     "roster-030": {
