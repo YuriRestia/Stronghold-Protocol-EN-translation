@@ -118,7 +118,11 @@ export function compileEffect(desc, lib = {}) {
     if (nd.meshRenderer && nd.meshFilter !== undefined) {
       const r = nd.meshRenderer;
       def.mesh[i] = { enabled: r.m_Enabled !== false && r.m_Enabled !== 0, mesh: meshRef(nd.meshFilter),
-        order: num(r.m_SortingOrder, 0), layer: num(r.m_SortingLayer, 0), mats: Array.isArray(r.materials) ? r.materials : [] };
+        order: num(r.m_SortingOrder, 0), layer: num(r.m_SortingLayer, 0), mats: Array.isArray(r.materials) ? r.materials : [],
+        // This standing background follows its owner's depth, immediately before Spine. The global ground pass
+        // also precedes the 2D board's raised tiles, which would cover the bottom of this order-zero mesh.
+        // [ASSUMED] Scoped painter-order mapping, not a reconstruction of Unity's full transparent sorting.
+        unitBack: def.key === 'cetsyr_skill_03_buff_01' && nd.name === 'beijing_01' };
     }
     if (nd.skinnedMeshRenderer) {
       const r = nd.skinnedMeshRenderer;
@@ -805,11 +809,17 @@ export class Effect {
       if (mr && mr.enabled && mr.mesh && (this.rendOv.get(i)?.enabled ?? true)) {
         const md = this.lib ? this.lib.mesh(mr.mesh) : null;
         if (md && md.submeshes) {
-          const flat = behindUnits(mr.layer, mr.order, def.back || mr.back) || (isFlatMesh(md, w) && nearGround);
+          // (fork) upstream's owner pass (unitBack) wins over our nested-depth rule (mr.back): that rule would send
+          // Civilight Eterna's S3 background to the ground pass, under raised tiles (upstream #919 / #924)
+          const flat = !mr.unitBack && (behindUnits(mr.layer, mr.order, def.back || mr.back) || (isFlatMesh(md, w) && nearGround));
           for (let k = 0; k < mr.mats.length; k++) {
             if (mr.mats[k] == null || !md.submeshes[k]) continue;
             const mat = def.material(mr.mats[k], lite);
-            if (mat) sink(entry('mesh', i, k, mat, ov, mr.order, mr.layer, dist, flat, this, mr.mesh));
+            if (mat) {
+              const draw = entry('mesh', i, k, mat, ov, mr.order, mr.layer, dist, flat, this, mr.mesh);
+              draw.unitBack = !!mr.unitBack;
+              sink(draw);
+            }
           }
         }
       }

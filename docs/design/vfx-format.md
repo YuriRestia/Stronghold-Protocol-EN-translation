@@ -560,7 +560,14 @@ board than the anchor (`pos` z > 0; 50 prefabs of the used set — auras, the `*
 facing up) puts the effect farther from the camera than the unit's tilted body, which lies at its feet's depth, so
 Unity draws it first (0.3.1: 瑕光 S3's horses, wings and halo, z +0.23 and 0.5–1.1 tiles behind her feet, covered her);
 a `static_offset` pulled forward (z < 0) or at 0 keeps the flat rule [ASSUMED: the units' renderers sort at their
-feet's depth; an effect whose depth comes from its children's positions alone is not judged].
+feet's depth; an effect whose depth comes from its children's positions alone is not generally judged].
+The verified exception is 魔王 S3's `cetsyr_skill_03_buff_01` / `beijing_01`: its +0.104 depth belongs to a nested
+`scale` helper while `static_offset` is zero. This standing background must not use the global ground pass: raised
+2D tile rows share the unit layer and would cover it. Only this mesh uses an owner-local `unitBack` draw node at
+the start of `UnitView.root`, sorting after that owner's platform and before its body. Each owner's items are sorted
+and batched independently; finished effects and destroyed owners release the node. Its authored order 0 and its
+siblings' original pass remain unchanged [ASSUMED: a scoped painter-order mapping, not full Unity distance sorting;
+history 0.3.4 §37.106].
 
 ### 33.7 Materials (`descriptor.materials[]`)
 
