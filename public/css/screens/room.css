@@ -993,6 +993,18 @@
   .rs-access__pwk { display: none; }
 }
 
+/* (fork) One for All (ui/largeRooms.js; components.css .ofa-tag / .ofa-switch): the tag beside 大同盟 and the strategy
+   switch in the footer pill, beside the difficulty (the room bar's left column holds the chat) */
+.rs-clock__ofa { margin-left: .1rem; vertical-align: middle; }
+.rs-pill__ofa { align-self: stretch; padding: 0 .12rem 0 .06rem; font-size: calc(.16 * var(--t)); }
+.rs-pill__ofa .ofa-switch__seg { height: 78%; border-radius: 999px; }
+.rs-pill__ofa.ofa-switch--ro { padding-right: .2rem; }
+@media (max-width: 720px) {
+  .rs-pill__ofa { font-size: min(calc(.28 * var(--t)), calc(14px + var(--t-step))); }
+  .rs-pill__ofa .ofa-switch__k { display: none; }
+  .rs-pill__ofa .ofa-switch__opt { min-height: 0; padding: 0 10px; }
+}
+
 /* (fork) one's own plate icon as the profile icon picker's button (screens/room.js, ui/avatarPicker.js): placed as .avatar is */
 .rseat__face { grid-row: 1 / 3; grid-column: 1; position: relative; display: block; line-height: 0; }
 
@@ -1102,7 +1114,7 @@
 .clog__sys { color: var(--text-lo); font-style: italic; }
 .clog__warn { color: var(--orange-hi); }
 .clog__new {
-  position: absolute; left: 50%; bottom: max(.5rem, 38px); transform: translateX(-50%); z-index: 1;
+  position: absolute; left: 50%; bottom: max(.5rem, calc(38px * var(--sp-ui, 1))); transform: translateX(-50%); z-index: 1;
   padding: .02rem .12rem; border: 0; border-radius: .2rem; background: var(--mint-600); color: var(--text-on-mint);
   font: inherit; font-weight: 600; font-size: calc(.16 * var(--t)); white-space: nowrap; cursor: pointer;
 }

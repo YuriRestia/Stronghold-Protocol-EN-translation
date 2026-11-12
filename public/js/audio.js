@@ -1633,9 +1633,10 @@ export class AudioManager {
    * @param {{ volume?: number, rate?: number, limited?: boolean, unitKey?: string | null, again?: (() => unknown) | null, pool?: any, group?: string | null }} [o]
    *   again: the sound's URL picked from the manifest again — played instead once when this one was a cosmetic plugin's
    *   file that would not load (its entry fell back: see the header); pool: the official bank pool (_playPool); group:
-   *   (fork) its official mixer group (_out)
+   *   (fork) its official mixer group (_out); (fork) shape, all off by default: pan (-1..1, StereoPanner), lowpass (Hz),
+   *   offset / len (s: a slice of the file, faded out over its last 45 %; the One for All reveal, ui/protocolBoot.js)
    */
-  _play(url, { volume = 1, rate = 1, limited = false, unitKey = null, pool = null, again = null, group = null, song = false } = {}) {
+  _play(url, { volume = 1, rate = 1, limited = false, unitKey = null, pool = null, again = null, group = null, song = false, pan = 0, lowpass = 0, offset = 0, len = 0 } = {}) {
     if (!this.ctx || !url || this.volumes.muted || this.volumes.sfx <= 0) return;
     if (limited && pool) { this._playPool(url, { volume, unitKey, again, pool }); return; }
     // (fork) its mixer group: the call's, else the UI / battle default (_out); a song past its own group's duck
@@ -1655,7 +1656,7 @@ export class AudioManager {
       if (!buf && again && this.fellBack.has(url)) {
         release();
         const next = again();
-        if (typeof next === 'string' && next !== url) this._play(next, { volume, rate, limited, unitKey, pool, group, song });
+        if (typeof next === 'string' && next !== url) this._play(next, { volume, rate, limited, unitKey, pool, group, song, pan, lowpass, offset, len });
         return;
       }
       if (!buf || !this.ctx) { release(); return; }
@@ -1666,7 +1667,24 @@ export class AudioManager {
         const g = this.ctx.createGain();
         // (fork) a singing skill's song plays its boost over the battle (audioMixer.js SONG_DUCK)
         g.gain.value = Math.max(0, Math.min(1.5, volume)) * (song && this.mixer ? songGain() : 1);
-        s.connect(g); g.connect(out);
+        // (fork) the optional shape: high cut before the gain, the slice's fade on it, the pan after it
+        const shaped = [];
+        let head = s;
+        if (lowpass > 0 && typeof this.ctx.createBiquadFilter === 'function') {
+          const f = this.ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass; head.connect(f); head = f; shaped.push(f);
+        }
+        const cut = len > 0 ? Math.min(len, Math.max(0, buf.duration - offset)) : 0;
+        if (cut > 0 && g.gain.setValueAtTime) {
+          const t0 = this.ctx.currentTime;
+          g.gain.setValueAtTime(g.gain.value, t0 + cut * 0.55);
+          g.gain.linearRampToValueAtTime(0, t0 + cut);
+        }
+        head.connect(g);
+        let tail = g;
+        if (pan && typeof this.ctx.createStereoPanner === 'function') {
+          const p = this.ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p); tail = p; shaped.push(p);
+        }
+        tail.connect(out);
         let done = false;
         const mixer = song ? this.mixer : null;
         if (mixer) { mixer.songStart(); this.songNodes.add(s); }
@@ -1675,10 +1693,12 @@ export class AudioManager {
           done = true; release();
           if (mixer && this.songNodes.delete(s)) mixer.songEnd();
           try { g.disconnect(); } catch { /* ignore */ }
+          for (const n of shaped) { try { n.disconnect(); } catch { /* ignore */ } }
         };
         s.onended = end;
-        setTimeout(end, (buf.duration / rate) * 1000 + 250); // safety if onended never fires
-        s.start();
+        const plays = cut > 0 ? cut : Math.max(0, buf.duration - offset);
+        setTimeout(end, (plays / rate) * 1000 + 250); // safety if onended never fires
+        if (offset > 0 || cut > 0) s.start(0, Math.max(0, offset), cut > 0 ? cut : undefined); else s.start();
       } catch { release(); }
     }, release);
   }
@@ -1821,7 +1841,8 @@ export class AudioManager {
   /**
    * UI sound by name (sfx.ui keys). Unknown names are ignored.
    * @param {string} name
-   * @param {{ volume?: number, scope?: string }} [o]
+   * @param {{ volume?: number, scope?: string, pan?: number, lowpass?: number, offset?: number, len?: number }} [o] (fork) pan /
+   *   lowpass / offset / len: _play's optional shape (the One for All reveal)
    */
   sfx(name, o = {}) {
     try {
@@ -1829,7 +1850,7 @@ export class AudioManager {
       const url = pick();
       if (typeof url === 'string') {
         if (name === 'bondUp') this._playBondCue(url, o.volume ?? 0.9, o.scope, pick);
-        else this._play(url, { volume: o.volume ?? 0.9, again: pick, group: this._groupOf('ui', name) });
+        else this._play(url, { volume: o.volume ?? 0.9, again: pick, group: this._groupOf('ui', name), pan: o.pan || 0, lowpass: o.lowpass || 0, offset: o.offset || 0, len: o.len || 0 });
       }
     } catch { /* ignore */ }
   }
@@ -2289,6 +2310,18 @@ export class AudioManager {
       g.linearRampToValueAtTime(0, t + LAND_STEAL_S);
       v.src.stop(t + LAND_STEAL_S + 0.005);
     } catch { /* ignore */ }
+  }
+
+  /**
+   * (fork) Fetch these sfx.ui sounds ahead (One for All's reveal, ui/protocolBoot.js warmOfaSounds): a sound's first
+   * play waits for its download and decode, which bunched the reveal's beats together. Nothing before the first gesture
+   * or while the SFX are silent (the play would be silent too).
+   * @param {string[]} names sfx.ui keys
+   */
+  warmUi(names) {
+    if (!this.ctx || this.volumes.muted || this.volumes.sfx <= 0) return;
+    const ui = this.getManifest()?.audio?.sfx?.ui;
+    for (const n of Array.isArray(names) ? names : []) if (typeof ui?.[n] === 'string') this._buffer(ui[n]);
   }
 
   /**

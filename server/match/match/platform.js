@@ -265,6 +265,7 @@ export class MatchPlatform {
     // drafts for it (botControlled → scheduleBandBot; botPickBand's departedWeight: Touch while nobody else holds it,
     // never 歌利亚) and it keeps the 0 LP it left with (_applyBand; §37.65)
     else if (phase === PHASE.BAND_DRAFT && this.draft && this.draftTurn(ps.playerId) === ps.playerId) this.startDraftTurn(ps.playerId);
+    else if (phase === PHASE.BAND_DRAFT && this.draft?.vote) this._voteLeave(ps); // (fork) One for All: the leaver's vote is dropped
     else if (phase === PHASE.PREP) this.maybeEndPrep();
   }
 

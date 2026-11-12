@@ -113,6 +113,7 @@ export function makeMatch(o = {}) {
     ...(o.kitted !== undefined ? { kitted: o.kitted } : {}),
     ...(o.rules !== undefined ? { rules: o.rules } : {}),
     ...(o.largeRoom !== undefined ? { largeRoom: o.largeRoom } : {}),
+    ...(o.oneForAll !== undefined ? { oneForAll: o.oneForAll } : {}),
   });
   const m = h.m;
   if (m.clientCombat && o.clients !== false) {

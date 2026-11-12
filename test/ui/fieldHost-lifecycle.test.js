@@ -40,6 +40,7 @@ function fixture() {
     audio: {}, data: { get() { return null; } }, settingsStore: { get() { return {}; } },
     outfitModelOf: () => null, // (fork, docs/OUTFITS.md) ui/outfits.js
     needNow: (load) => load, // (fork) public/js/loadLater.js
+    fieldBuildReady: async () => {}, // (fork) public/js/ui/fieldBuildHold.js: no reveal holding the build
     setTimeout(fn) { timers.set(++timerId, fn); return timerId; },
     clearTimeout(id) { timers.delete(id); },
     importAssets: async () => null,

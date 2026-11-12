@@ -16,6 +16,7 @@ import { store } from '../store.js';
 import { needNow } from '../loadLater.js';
 import { settingsStore } from './settings.js';
 import { outfitModelOf } from './outfits.js';
+import { fieldBuildReady } from './fieldBuildHold.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 // [ASSUMED] Two automatic retries; keep the existing two event retries available for a later network/tab recovery.
@@ -267,6 +268,10 @@ export async function mountFieldView(host, { signal } = {}) {
       const mod = await withTimeout(needNow(import('../render/app.js')), LOAD_TIMEOUT_MS, 'render engine import', controller.signal);
       checkActive(controller.signal);
       if (typeof mod?.createFieldView !== 'function') throw new Error('createFieldView missing');
+      // (fork) One for All's reveal holds the build until its picks resolve (ui/fieldBuildHold.js); outside the
+      // createFieldView timeout below, which times the build alone
+      await fieldBuildReady(controller.signal);
+      checkActive(controller.signal);
       // A factory that ignores cancellation still belongs to this attempt when it eventually returns.
       const pending = needNow(Promise.resolve(mod.createFieldView(host, { ...opts, signal: controller.signal })).then((view) => {
         if (controller.signal.aborted) dispose(view); else engineView = view;

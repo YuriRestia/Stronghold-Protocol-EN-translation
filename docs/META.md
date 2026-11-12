@@ -108,6 +108,9 @@ player moves to the end of the order; refused when nobody is left to pass to). T
 no other unpicked player remains; finished players stay in the published order but are not skip targets. A strategy a teammate already took is
 refused (队友已选); band must list the mode type in `modeTypeList`. A single human (co-op with AI teammates only):
 untimed. Solo: free pick, no timer, no skip. Starting LP = `bands[id].totalHp` (a seat gone before its pick keeps 0, §37.65).
+(fork) One for All (DESIGN §91.9): one room-wide secret vote instead of turns — `g.band` locks the vote, `m.public.draft`
+carries only `mode: 'vote'`, `voters` and `locked` counts until `reveal { picks, random, counts, winner }` in
+BATTLE_CHECK (7.5 s), and `m.private.vote { bandId, locked }` is the player's own vote.
 
 ### 1.2 机变 (SP draft)
 Family = weighted pick from `choices.schedule[modeId].rounds[r].families`; cards: co-op 6 shared (each player takes 1,
@@ -998,7 +1001,8 @@ switched off; summon pieces `{ sp }`, "召唤物仅修改技力"); an operator k
 combat carries `{ down: true }` (PRTS 卫戍协议/帮助: "部署完成后…上一阶段为退场状态的干员强制退场"): deployed, then forced out
 at once, it lies on its tile with the redeploy ring and redeploys like after any knock-out (docs/SIM.md §1.1; user
 playtest #5 item 2 — it used to stay out and vanish); its timer is its full redeploy time (the official setup carries
-only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召); summons are
+only hp / tech per operator; confirmed by the user), with the redeploy-time effects that start with the battle (机变 征召).
+A reached 阿戈尔 revive tier instead spends one slot to revive that member on the battle-start scan (BV1auHq67Eoi); summons are
 fielded as the board has them (their SP carried); `flags.layerGainsEnabled = false`; time limit = the round's combat limit.
 Every enemy still alive at the end (leaked again, or never spawned before the limit) costs its **source** player 1 LP.
 **Only what the escaped wave sent in is billable** (player report, 2026-10-16): an enemy that appears while the field runs
@@ -1192,7 +1196,8 @@ See [BOT_STRATEGIES](BOT_STRATEGIES.md) for composition and lifecycle details.
 * A 联防 helper's operator knocked out at the end of its own combat is deployed and forced out at once (PRTS 强制退场,
   §4) with HP 0, and redeploys after its full redeploy time: no timer carry (the official setup carries only hp / tech
   per operator), forced out before `battleStart` (its timer re-read after it, so 征召's −50 % applies; 征召's row check
-  does not count it), no knock-out hooks (`kill`, 'killed' deaths) a second time.
+  does not count it), no knock-out hooks (`kill`, 'killed' deaths) a second time. A reached 阿戈尔 revive tier then
+  revives that member on the same scan as the devour's knock-outs, spending one slot of this battle.
 * A merge completed after the prep (SETTLE effects) keeps its reward offer for the next prep; its elite goes where a prep
   merge's would — onto the tile of a consumed deployed copy (PRTS 卫戍协议/帮助 "若消耗已部署至作战区的干员，则发送至作战区
   对应位置"), else to the hand, overflowing into temp (temp pieces that arrive after the prep wait through the next prep).

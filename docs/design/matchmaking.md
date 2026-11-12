@@ -60,3 +60,8 @@ The owner's decision of 2026-11-08 reverses "Grand Alliances never get matchmaki
 - **Across regions.** As §90.2, exact fills only: digests carry `cap` and `squads`; the plan plays where its target room is; the target holds seats per squad (`reservations[].squads`), the reserve answer names each incoming room's target squads (`assign`) and each queued Doctor's (`soloSquads`), `room.move` carries `squad`, and `room.join { ticket, squad }` sits in that squad (another with a held seat when it is full). A key join to a room with held seats takes a seat only in a squad with room beyond them.
 - **AI.** No AI seat is ever added: Grand Alliances take humans only, so matchmaking adds nothing to the bot budget.
 - Tests: `test/matchmaker.test.js`, `test/lobby-matchmaking.test.js`, `test/regions.test.js`.
+- **One for All** (fork, 2026-11-12, [§91.9](large-rooms.md)): `oneForAll` is part of the pool key, so a One for All
+  Grand Alliance merges only with other One for All rooms, and keeps the flag through a merge. It takes only solo-queue
+  Doctors who ticked 「也可加入一策同心房间」 (`queue.join.oneForAll`, only with `large`; off by default). Switching it
+  while searching restarts the search. [ASSUMED] Own server only for now: the cross-region matchmaker never plans a One
+  for All room (a later step).

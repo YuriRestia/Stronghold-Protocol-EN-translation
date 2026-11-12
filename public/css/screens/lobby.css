@@ -683,6 +683,11 @@
 }
 .proto-list > :first-child { margin-top: auto; }
 .proto-list > :last-child { margin-bottom: auto; }
+/* (fork) only the last level scrolls (screens/lobby.js ProtoFit): 'full' and 'brief' are chosen only when they fit, give or
+   take the 1 px of rounding the fit allows, so they never show a scrollbar for that pixel. A scrollbar there narrowed the
+   list, the narrower list measured differently, and the cards flipped between two levels every few frames (a player's
+   report, 2026-11-12: 'full' with a scrollbar ↔ 'brief'). The pixel falls in the list's bottom padding. */
+.proto__body:not([data-fit="names"]) .proto-list { overflow-y: hidden; }
 .pcard {
   position: relative;
   flex: none;
@@ -756,7 +761,10 @@
 }
 .create-box__test input { width: .2rem; height: .2rem; margin: 0; flex: none; accent-color: #e8b84a; }
 .create-box__test em { flex-basis: 100%; font-style: normal; }
-/* (fork) 单人匹配: the versions to be matched for and the Grand Alliance opt-in */
+/* (fork) 单人匹配: the versions to be matched for and the Grand Alliance opt-in, with its One for All sub-opt-in */
+.create-box__sub { padding-left: .3rem; }
+.create-box__sub.is-off { opacity: .5; }
+.create-box__strategy { margin-top: .04rem; }
 .create-box__queue { display: flex; flex-direction: column; gap: .06rem; }
 .create-box__versions { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .04rem .16rem; }
 .create-box__legend { flex-basis: 100%; color: rgba(255, 255, 255, .72); font-size: calc(.14 * var(--t)); }
@@ -1367,6 +1375,10 @@ button.ally-card:disabled .ally-card__bar { filter: grayscale(.5) brightness(.8)
 .rbr-card__lock { flex: none; display: inline-flex; align-items: center; gap: .04rem; padding: .01rem .08rem; font-size: calc(.13 * var(--t));
   color: #ffc45c; border: 1px solid rgba(255, 196, 92, .5); }
 .rbr-card__lock .icon { width: 1em; height: 1em; }
+/* (fork) One for All (ui/largeRooms.js OneForAllTag): the card's tag beside the lock, the room browser's note */
+.rbr-card__tags { flex: none; display: inline-flex; align-items: center; gap: .06rem; }
+.rbr-card.is-ofa { border-color: rgba(242, 193, 78, .4); }
+.rbr__intro--ofa { color: #f2c14e; font-weight: 600; }
 .rbr-card__diff { display: flex; align-items: center; gap: .06rem; min-width: 0; font-size: calc(.15 * var(--t)); color: #b9c2bf; }
 /* (fork) the server a room is on and its ping (ui/largeRooms.js RegionTag); the page's own server in the accent colour */
 .rbr-card__region { margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: .05rem; padding: .01rem .07rem;

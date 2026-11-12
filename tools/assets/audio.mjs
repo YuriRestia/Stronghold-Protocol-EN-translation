@@ -672,6 +672,8 @@ export const UI_SFX = Object.freeze({
   matchFail: { bank: 'ui.ON_ACT1AUTOCHESS_MATCH_FAIL' },
   matchCancel: { bank: 'ui.ON_ACT1AUTOCHESS_MATCH_CANCEL' },
   joinRoom: { bank: 'ui.ON_ACT1AUTOCHESS_PLAYER_JOINROOM' },
+  // (fork) One for All (ui/protocolBoot.js): each losing pick's glitch — the client's roguelike distortion cue
+  distort: { bank: 'ui.ON_ROGUELIKE_DISTORT2' },
 });
 
 /** In-battle generic SFX: name → { bank } or { path }. */

@@ -13,7 +13,7 @@
 //     difficulty is not recorded [ASSUMED: 标准, the first one unlocked; the event room research 06 §3.2 describes shows
 //     ♜ 标准模拟 in its footer pill]. The game's own lobby always sends the remembered one.
 //   * Host-only: room.setDifficulty, room.setAiPicksLast, room.setSoloUnlimited, room.addBot, room.removeBot, room.kick,
-//     room.start.
+//     room.start, (fork) room.setOneForAll.
 //     ▸ Changing the difficulty or the AI-picks-last option (co-op only) un-readies the other humans.
 //     ▸ 「不限时」 (room.setSoloUnlimited { on }, DESIGN §35.23.10): a solo room of a version whose rules.soloTimed is
 //       true, off by default. On, the match is built with opts.soloUnlimited (preparation and 机变 untimed — the existing
@@ -438,6 +438,12 @@ export class Room {
     this.locked = false;
     /** @type {string | null} */
     this.password = null;
+    /**
+     * (fork) a Grand Alliance in the One for All strategy mode (room.create oneForAll / room.setOneForAll): one secret
+     * room-wide strategy vote instead of the draft (server/match/match/oneForAll.js). Large rooms only; part of the
+     * matchmaking pool (server/matchmaker.js poolKey), so a merge keeps it.
+     */
+    this.oneForAll = false;
     /** (fork) a Grand Alliance's recent squad moves per player (shared/largeRoom.js squadMoveWait), at most SQUAD_MOVE_LOG_MAX players @type {Map<string, number[]>} */
     this.squadMoves = new Map();
     /** @type {(Seat | null)[]} */
@@ -555,7 +561,7 @@ export class Room {
       aiPicksLast: this.aiPicksLast,
       // (fork) a Grand Alliance room's capacity and lock; the password only in the host's copy (the owner's rule: only the
       // host sees the lock settings). Omitted otherwise, so a normal room.state stays identical
-      ...(this.large ? { capacity: this.capacity, locked: this.locked, ...(this.locked && viewerId != null && viewerId === this.hostId ? { password: this.password } : {}) } : {}),
+      ...(this.large ? { capacity: this.capacity, locked: this.locked, oneForAll: this.oneForAll, ...(this.locked && viewerId != null && viewerId === this.hostId ? { password: this.password } : {}) } : {}),
       inMatch: !!this.match,
       seats: this.seats.map((s) => (s
         ? { seat: s.seat, playerId: s.playerId, name: s.name, isBot: s.isBot, ready: s.ready, connected: s.connected && !s.left,
@@ -852,6 +858,10 @@ export class Lobby {
       return;
     }
     session.notice = null;
+    // A result kept for a seat that dropped *during* its match (onMatchEnd) must survive this resume too: the room's
+    // replay may be gone (disposeRoom / every other player moved on). Held here and sent after this resume's state, in
+    // the order a player who stayed connected gets them (room.state, m.public RESULT, m.result). (upstream PR #912)
+    const kept = session.pendingResult;
     session.pendingResult = null;
     // a player seat, or a spectator seat (header): both carry `connected` / `name`
     const seat = room.seatOf(session.playerId) || room.spectatorOf(session.playerId);
@@ -867,6 +877,8 @@ export class Lobby {
     if (!room.hostId) { this.migrateHost(room); changed = true; }
     if (changed) this.broadcastState(room);
     else this.sendState(room, session);
+    // the room no longer replays the result (resync would send nothing): the kept frames are the only copy
+    if (kept && (room.disposed || !room.replay)) for (const frame of kept) if (frame) sendRaw(session.ws, frame);
     if (resumed) this.sendRoomChatLog(room, session);
     this.resync(session, !resumed);
   }
@@ -979,6 +991,7 @@ export class Lobby {
       case 'room.moveSeat': return this.moveSeat(session, msg);
       case 'room.swapSeats': return this.swapSeats(session, msg);
       case 'room.setLock': return this.setLock(session, msg);
+      case 'room.setOneForAll': return this.setOneForAll(session, msg);
       case 'rooms.watch': return this.watchRooms(session, msg);
       case 'queue.join': return this.queueJoin(session, msg);
       case 'queue.leave': return this.queueLeave(session);
@@ -1085,7 +1098,7 @@ export class Lobby {
   // room.* handlers
   // ---------------------------------------------------------------------------------------------------
 
-  create(session, { mode, difficulty: asked, test, version: askedVersion, soloUnlimited, capacity, password } = {}) {
+  create(session, { mode, difficulty: asked, test, version: askedVersion, soloUnlimited, capacity, password, oneForAll } = {}) {
     // A test room exists only when the process switch allowed it. The check runs before the room is built.
     if (test === true && this.testEnabled !== true) return fail(ERR.TEST_DISABLED);
     // (fork) an 8-seat room (shared/largeRoom.js): co-op on the default version, only while the server allows them
@@ -1094,6 +1107,8 @@ export class Lobby {
     if (large && (mode !== 'coop' || (askedVersion != null && askedVersion !== DEFAULT_VERSION))) return fail(ERR.BAD_MSG, 'a large room is a co-op room of the default version');
     // (fork) a Grand Alliance created private (私密, the room's lock) with its 4-letter password
     if (password != null && (!large || typeof password !== 'string' || !ROOM_PASSWORD_RE.test(password))) return fail(ERR.BAD_MSG, 'a password is a Grand Alliance\'s 4 letters');
+    // (fork) One for All is a Grand Alliance strategy mode only
+    if (oneForAll === true && !large) return fail(ERR.BAD_MSG, 'One for All is a Grand Alliance mode');
     // the official version (header "Official versions"): left out, the server's default
     const version = askedVersion ?? this.defaultVersion();
     if (!this.versionEnabled(version)) return fail(ERR.VERSION_UNKNOWN);
@@ -1153,6 +1168,7 @@ export class Lobby {
     room.test = test === true;
     if (large) { room.capacity = LARGE_ROOM_SEATS; room.seats = new Array(LARGE_ROOM_SEATS).fill(null); }
     if (large && password != null) { room.locked = true; room.password = password.toUpperCase(); }
+    if (large && oneForAll === true) room.oneForAll = true;
     // 「不限时」 only on a solo room of a version whose solo is timed (header). Anywhere else the key is ignored, so a
     // stray true cannot change a default or co-op create.
     if (mode === 'solo' && soloUnlimited === true && this.versionSoloTimed(version)) room.soloUnlimited = true;
@@ -1165,7 +1181,7 @@ export class Lobby {
     session.roomCode = code;
     session.notice = null;
     session.pendingResult = null;
-    this.log.info(`[lobby] ${code} created (${mode}/${difficulty}${version !== DEFAULT_VERSION ? `, ${version}` : ''}${room.test ? ', test' : ''}${large ? ', large' : ''}) by ${session.name}`);
+    this.log.info(`[lobby] ${code} created (${mode}/${difficulty}${version !== DEFAULT_VERSION ? `, ${version}` : ''}${room.test ? ', test' : ''}${large ? ', large' : ''}${room.oneForAll ? ', one for all' : ''}) by ${session.name}`);
     this.broadcastState(room);
     return OK;
   }
@@ -1906,6 +1922,26 @@ export class Lobby {
   }
 
   /**
+   * (fork) room.setOneForAll { on }: the host switches the Grand Alliance's strategy mode, Free pick or One for All, before
+   * the match. Nobody is un-readied (the rules of the match do not change, only how its strategy is chosen); a room that
+   * is searching restarts its search, since the mode is part of its matchmaking pool (server/matchmaker.js poolKey).
+   */
+  setOneForAll(session, { on }) {
+    const room = this.roomOf(session);
+    if (!room) return fail(ERR.NOT_IN_ROOM);
+    if (!room.large) return fail(ERR.BAD_MSG, 'One for All is a Grand Alliance mode');
+    if (room.hostId !== session.playerId) return fail(ERR.NOT_HOST);
+    if (room.match) return fail(ERR.WRONG_PHASE, 'the match has started');
+    if (room.oneForAll !== on) {
+      this.dropReplay(room, session.playerId);
+      room.oneForAll = on;
+      if (room.searching) room.searchSince = this.now();
+      this.broadcastState(room);
+    }
+    return OK;
+  }
+
+  /**
    * (fork) A join or watch of a locked room: null when `password` is right, else ROOM_LOCKED — or RATE after
    * ROOM_PASSWORD_TRIES wrong ones within ROOM_PASSWORD_WINDOW_MS from this session (no guessing the 4 letters).
    */
@@ -1933,7 +1969,7 @@ export class Lobby {
       const host = room.seatOf(room.hostId);
       const squads = [0, 1].map((sq) => room.seats.slice(sq * SQUAD_SEATS, (sq + 1) * SQUAD_SEATS).filter(Boolean).length);
       out.push({ code: room.code, host: host ? host.name : '', seats, capacity: room.capacity, difficulty: room.difficulty, squads,
-        ...(room.locked ? { locked: true } : {}), at: room.createdAt });
+        ...(room.locked ? { locked: true } : {}), ...(room.oneForAll ? { oneForAll: true } : {}), at: room.createdAt });
     }
     out.sort((x, y) => x.at - y.at);
     return out.slice(0, 50);
@@ -2496,6 +2532,8 @@ export class Lobby {
         // (fork) a large room (shared/largeRoom.js): squads, one scaled pool, relay 联防; an absent player's board is played
         // by the AI in a browser, never here, whatever SP_BOT_EXECUTION / SP_BOT_BATTLES say (the owner's rule, 2026-11-08)
         ...(room.large ? { largeRoom: true, botExecution: 'host', botBattles: 'host', onIdle: (playerId) => this.idleKick(room, ctx, playerId) } : {}),
+        // (fork) the One for All strategy vote (server/match/match/oneForAll.js); a Grand Alliance only
+        ...(room.large && room.oneForAll ? { oneForAll: true } : {}),
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
         seed,
@@ -2587,6 +2625,18 @@ export class Lobby {
       if (!s.connected) this.startGrace(room, s);
     }
     for (const s of room.spectators) if (!s.connected) this.startGrace(room, s);
+    // (upstream PR #912 by SatsumaUton) A seat that dropped *during* the match is still here, but `m.result` reached it
+    // through sendSession, which drops frames of a disconnected session. The room's replay holds it only while the room
+    // lives: a removal that skips the grace's copy (e.g. waitContent in a matchmade room) disposes the room and the
+    // replay with it. Keep the frames on the session itself (two frames, freed on its resume or expiry); onHello hands
+    // them over whether the room still exists or not.
+    for (const s of room.seats) {
+      if (!s || s.isBot || s.left || s.connected) continue;
+      const session = this.registry.byId(s.playerId);
+      if (!session) continue;
+      const frames = this.replayFor(room, s.playerId);
+      if (frames && frames.length) session.pendingResult = frames;
+    }
     const host = room.hostId ? room.seatOf(room.hostId) : null;
     if (!host || host.isBot || host.left) this.migrateHost(room);
     if (room.activeHumans().length === 0) this.disposeRoom(room, 'empty');
@@ -2961,7 +3011,8 @@ export class Lobby {
     const now = this.now();
     const rooms = [];
     for (const r of this.rooms.values()) {
-      if (!isMatchable(r) || r.test || !this.matchAllowed(r)) continue;
+      // (fork) a One for All room matches on its own server only [ASSUMED: the digest and the arbiter carry no mode]
+      if (!isMatchable(r) || r.test || r.oneForAll || !this.matchAllowed(r)) continue;
       const humans = r.seats.filter((s) => s && !s.left && !s.isBot).length;
       rooms.push({ code: r.code, humans, bots: roomSize(r) - humans, difficulty: r.difficulty, wait: now - (r.searchSince ?? now),
         ...(r.version !== DEFAULT_VERSION ? { version: r.version } : {}), ...(r.large ? { cap: r.capacity, squads: squadCounts(r) } : {}) });
@@ -3007,7 +3058,7 @@ export class Lobby {
     if (this.retiring || this.closedForMaintenance() || !this.crossTicket) return { ok: false };
     if (!this.versionEnabled(version) || !this.versionAvailable(version)) return { ok: false };
     const rooms = codes.map((c) => this.rooms.get(c));
-    if (!rooms.every((r) => isMatchable(r) && r.difficulty === difficulty && r.version === version && !!r.large === large && !r.test && this.matchAllowed(r))) return { ok: false };
+    if (!rooms.every((r) => isMatchable(r) && r.difficulty === difficulty && r.version === version && !!r.large === large && !r.oneForAll && !r.test && this.matchAllowed(r))) return { ok: false };
     const sessions = this.crossSolos(ids, difficulty, version, large);
     if (!sessions) return { ok: false };
     const cap = large ? LARGE_ROOM_SEATS : MAX_SEATS;
@@ -3080,7 +3131,7 @@ export class Lobby {
    */
   crossMove({ member, region, code, ticket, rooms: codes = [], solos: ids = [], humans = null, bots = null, version = DEFAULT_VERSION, large = false, assign = null, soloSquads = null, squads = null }) {
     const rooms = codes.map((c) => this.rooms.get(c));
-    if (this.retiring || !rooms.every((r) => isMatchable(r) && r.version === version && !!r.large === large)) return { ok: false, member };
+    if (this.retiring || !rooms.every((r) => isMatchable(r) && r.version === version && !!r.large === large && !r.oneForAll)) return { ok: false, member };
     const difficulty = rooms[0]?.difficulty ?? this.soloQueue.get(ids[0])?.difficulty;
     const sessions = this.crossSolos(ids, difficulty, version, large);
     if (!sessions) return { ok: false, member };
@@ -3198,8 +3249,9 @@ export class Lobby {
     sendSession(session, e
       ? { t: 'queue.state', queued: true, difficulty: e.difficulty, since: e.since, aiAt: e.since + this.matchmaker.opts.soloAiAfterMs,
         // (fork) the versions queued for (omitted for 第二期下半 alone, so that queue.state stays as it was) and the Grand
-        // Alliance opt-in (omitted when off)
-        ...(e.versions.length === 1 && e.versions[0] === DEFAULT_VERSION ? {} : { versions: [...e.versions] }), ...(e.large ? { large: true } : {}) }
+        // Alliance opt-in and its One for All sub-opt-in (each omitted when off)
+        ...(e.versions.length === 1 && e.versions[0] === DEFAULT_VERSION ? {} : { versions: [...e.versions] }), ...(e.large ? { large: true } : {}),
+        ...(e.oneForAll ? { oneForAll: true } : {}) }
       : { t: 'queue.state', queued: false, ...extra });
   }
 
@@ -3213,8 +3265,9 @@ export class Lobby {
    * 第二期下半 alone, as before); one this server does not enable is refused (VERSION_UNKNOWN), and one whose data is not
    * available or that has no co-op room at this difficulty is dropped — none left is VERSION_UNSUPPORTED. `large`: may
    * also be seated in a Grand Alliance (only while the server has them and 第二期下半 is queued for: they play it alone).
+   * `oneForAll` (with `large` only): may also be seated in a One for All Grand Alliance (off by default).
    */
-  queueJoin(session, { difficulty, versions: asked, large }) {
+  queueJoin(session, { difficulty, versions: asked, large, oneForAll }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
@@ -3223,11 +3276,12 @@ export class Lobby {
     const versions = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').includes(difficulty));
     if (!versions.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms at this difficulty');
     const opts = { versions, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
+    opts.oneForAll = opts.large && oneForAll === true;
     if (cur) this.removeMember(cur, session.playerId);
     const e = this.soloQueue.get(session.playerId);
     // a second click keeps the wait; another difficulty starts over; other versions or opt-in keep the wait
     if (!e || e.difficulty !== difficulty) this.soloQueue.add(session.playerId, difficulty, this.now(), opts);
-    else { e.versions = opts.versions; e.large = opts.large; }
+    else { e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll; }
     this.sendQueue(session);
     this.matchmaker.poke();
     return OK;

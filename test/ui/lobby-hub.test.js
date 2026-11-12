@@ -458,7 +458,10 @@ test('选择模拟协议 above 520 px tall (§35.18 leftover: the label cut, the
   // re-fitted at every render, on the list's resize and on every font load (late web fonts make the lines taller)
   assert.match(lobbySrc, /body\.dataset\.fit = pickCardFit\(\(level\) => \{ body\.dataset\.fit = level; return list\.scrollHeight > list\.clientHeight \+ 1; \}\);/);
   assert.match(lobbySrc, /useLayoutEffect\(fit\);/);
-  assert.match(lobbySrc, /ro\?\.observe\(list\);/);
+  // (fork) the observer watches the border box, and only 'names' scrolls: a level never changes the list's width either
+  // (a player's report, 2026-11-12: 'full' kept a scrollbar for under 1 px and the cards flipped full ↔ brief)
+  assert.match(lobbySrc, /ro\?\.observe\(list, \{ box: 'border-box' \}\);/);
+  assert.match(base, /\n\.proto__body:not\(\[data-fit="names"\]\) \.proto-list \{ overflow-y: hidden; \}/);
   assert.match(lobbySrc, /fonts\?\.addEventListener\?\.\('loadingdone', refit\);/);
   assert.match(lobbySrc, /fonts\?\.removeEventListener\?\.\('loadingdone', refit\);/);
   assert.match(lobbyCss, /\[ASSUMED\] the levels and the sizes/);
