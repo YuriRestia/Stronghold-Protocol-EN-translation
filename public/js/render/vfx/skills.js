@@ -646,6 +646,12 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
   'enemy_acfort[kill_other]': true,
   'enemy_acfort_vfx': true,
+  // (fork, enemy skills 2026-11-13: Dublinn, Rat King) enemies, by id —
+  // enemy_1288_duskls / _2: the ember's 1 s 重生 (its BornAnim's buff: enemy_duskls_revive_2; content/enemies archetypes kitEmber)
+  'enemy_duskls_invincible': true,
+  // enemy_1509_mousek: the Mark skill's markers on the highest- / lowest-max-HP units (mousek_skill_01_buff / _02_buff; leaders.js mousekMark)
+  'mousek_mark[b]': true,
+  'mousek_mark[a]': true,
 });
 
 /**
@@ -2173,7 +2179,13 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 鼠王 (leaders.js: 【沙狱】's 'zone' of kind 'sandStorm' on its target, id = it, dur): its skill SandStorm's emitter plays
   // mousek_skill_02_range on that target as it casts (_castTargetEffects) — the sandstorm itself, a one-shot of 21 s
   // (its root's FxDelay 0.7 s); the 沙狱's hits are projectile_mousek_s2 attached to the target (no flying effect)
-  enemy_1509_mousek: Object.freeze({ zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }) }),
+  // (fork, enemy skills 2026-11-13) and 【唱沙】's 'telegraph' of kind 'driftSand' on its target's cross, id = it: its skill
+  // DriftSand's emitter plays mousek_skill_01_range_02 and mousek_skill_01_range on that target as it casts
+  // (_castTargetEffects, client enm_pfb_17 Skills/DriftSand)
+  enemy_1509_mousek: Object.freeze({
+    zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }),
+    telegraph: ebind({ xkind: 'driftSand', owner: 'id', keys: ['mousek_skill_01_range', 'mousek_skill_01_range_02'], once: true }),
+  }),
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,
   enemy_1234_dsubrl_2: NEST_AURA,
