@@ -296,8 +296,8 @@
         "enemy_9006_actoxi": [1,0,1,1203,3774]
       },
       "hooks": [1,104,4200,563,563,2738,2732,2479,59,90,29,28,0,25119,299,49,85,25,1,59,0,0,6],
-      "events": {"atk":691,"bounty":5,"cast":12,"deploy":19,"die":65,"dmg":2716,"engage":7,"fx":67,"heal":56,"leak":25,"rate":142,"skill":57,"spawn":98,"status":356},
-      "fx": {"aoe":3,"displace":12,"dodge":6,"pull":13,"shieldBreak":12,"sleep":10,"summon":7,"takeoff":3,"telegraph":1},
+      "events": {"atk":691,"bounty":5,"cast":12,"deploy":19,"die":65,"dmg":2716,"engage":7,"fx":75,"heal":56,"leak":25,"rate":142,"skill":57,"spawn":98,"status":356},
+      "fx": {"aoe":3,"displace":12,"dodge":6,"pull":13,"shieldBreak":12,"sleep":10,"summon":7,"takeoff":3,"telegraph":1,"tick":8},
       "snaps": "b4adeea5 192de6ad d620ba34 5723e2bf d3c21ccf 3f1a54ad e1f0ac99 55df91ae 79b78338 051c1350 f896e8ba ecede65e 52c0aeb4 903aadcc"
     },
     "roster-006": {
@@ -2919,8 +2919,8 @@
         "enemy_2002_bearmi_2": [1,0,1,0,1320]
       },
       "hooks": [1,67,5700,229,228,1645,1645,189,20,62,13,14,0,3369,611,9,62,42,1,21,0,0,0],
-      "events": {"atk":257,"bounty":1,"cast":6,"deploy":5,"die":20,"dmg":1645,"engage":3,"fx":28,"leak":42,"rate":230,"skill":30,"spawn":65,"status":168},
-      "fx": {"beam":2,"coin":8,"dilemma":1,"explode":3,"frostNova":12,"revive":1,"telegraph":1},
+      "events": {"atk":257,"bounty":1,"cast":6,"deploy":5,"die":20,"dmg":1645,"engage":3,"fx":30,"leak":42,"rate":230,"skill":30,"spawn":65,"status":168},
+      "fx": {"beam":2,"coin":8,"dilemma":1,"explode":3,"frostNova":12,"revive":1,"telegraph":1,"tick":2},
       "snaps": "fcdcb12c ff110915 bbd74935 25e7cb9f 73d093ef 4f70109b ccdb6a13 47989ea8 c81e04ce 4d2835b4 e91b87df 3c2f3250 2f00476b 25c19fac d9965793 3071809b 9be77ee0 b5a364ed 53861419"
     }
   }

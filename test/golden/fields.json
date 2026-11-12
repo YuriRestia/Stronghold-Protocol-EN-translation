@@ -1000,7 +1000,7 @@
         "enemy_9016_acstmr": [7,6,0,0,131]
       },
       "hooks": [1,88,6000,1248,1245,3431,3697,5022,60,65,123,119,4,32622,907,12,34,0,1,50,0,10,15],
-      "events": {"atk":1371,"cast":63,"deploy":54,"die":65,"dmg":3694,"engage":19,"fx":1290,"heal":32,"rate":570,"skill":242,"spawn":56,"status":854},
+      "events": {"atk":1371,"cast":63,"deploy":54,"die":65,"dmg":3694,"engage":19,"fx":1309,"heal":32,"rate":570,"skill":242,"spawn":56,"status":854},
       "fx": {
         "aoe": 49,
         "appear": 5,
@@ -1038,7 +1038,7 @@
         "swordRain": 135,
         "swordStorm": 12,
         "telegraph": 6,
-        "tick": 520,
+        "tick": 539,
         "tornado": 3,
         "tornadoPulse": 15,
         "weightless": 2,
@@ -1092,8 +1092,8 @@
         "enemy_9016_acstmr": [6,6,0,0,39]
       },
       "hooks": [1,61,6000,363,357,664,697,1599,48,53,31,32,0,5432,63,7,33,5,1,41,0,0,1],
-      "events": {"atk":449,"cast":40,"deploy":24,"die":48,"dmg":685,"engage":7,"fx":253,"heal":93,"leak":5,"rate":8,"skill":64,"spawn":47,"status":176},
-      "fx": {"appear":14,"bandage":3,"beam":35,"blink":11,"block":12,"charge":6,"disappear":14,"dodge":1,"explode":11,"featherArrow":2,"flame":2,"garrisonGrant":1,"healField":5,"jungleSoul":1,"mote":5,"redistribute":5,"reweave":1,"riposte":1,"rockslide":13,"sandChains":2,"shell":6,"shieldBreak":12,"slash":32,"spGift":5,"summon":7,"telegraph":3,"thorns":41,"truesilver":2},
+      "events": {"atk":449,"cast":40,"deploy":24,"die":48,"dmg":685,"engage":7,"fx":267,"heal":93,"leak":5,"rate":8,"skill":64,"spawn":47,"status":176},
+      "fx": {"appear":14,"bandage":3,"beam":35,"blink":11,"block":12,"charge":6,"disappear":14,"dodge":1,"explode":11,"featherArrow":2,"flame":2,"garrisonGrant":1,"healField":5,"jungleSoul":1,"mote":5,"redistribute":5,"reweave":1,"riposte":1,"rockslide":13,"sandChains":2,"shell":6,"shieldBreak":12,"slash":32,"spGift":5,"summon":7,"telegraph":3,"thorns":41,"tick":14,"truesilver":2},
       "snaps": "5b192a76 418e9901 2f362e02 e83a8f8b 9f73fc06 708f605b a1ba953b 4e85bc3d 15512e27 5815043f b9a532e6 e2313605 c8dc4165 14b6082e 1a090b23 360e9e2b 30293adc 3bceb669 d18b3748 853e33e1"
     },
     "hidden-boss_9-pair": {
