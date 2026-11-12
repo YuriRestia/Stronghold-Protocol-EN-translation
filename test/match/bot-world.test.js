@@ -4,6 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BOT_UID_BLOCK } from '../../server/match/match/botTasks.js';
@@ -147,6 +148,26 @@ test('the modules a browser Worker loads: computed from the imports, no Node, no
   }
   // a module that needs Node is refused at the walk
   assert.throws(() => botModuleFiles(path.join(ROOT, 'server', 'match', 'llmRelease.js')), /cannot run in a browser Worker/);
+});
+
+// (fork, live bug 2026-11-12) PlayerState.js imported ../chatLimit.js: the walk skipped it, the browser got a 404, the Worker's whole
+// module graph failed, and no AI seat played a single move all match. A server file outside the mounts is refused at the walk now.
+test('the modules a browser Worker loads: an import of a server file the browser cannot load is refused at the walk', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-modules-'));
+  try {
+    const serverDir = path.join(dir, 'server');
+    for (const sub of ['match', 'sim', path.join('..', 'shared')]) fs.mkdirSync(path.join(serverDir, sub), { recursive: true });
+    fs.writeFileSync(path.join(serverDir, 'chatLimit.js'), 'export const x = 1;\n');
+    fs.writeFileSync(path.join(serverDir, 'data.js'), 'export const d = 1;\n');
+    fs.writeFileSync(path.join(serverDir, 'sim', 'a.js'), 'export const a = 1;\n');
+    fs.writeFileSync(path.join(dir, 'shared', 'c.js'), 'export const c = 1;\n');
+    fs.writeFileSync(path.join(serverDir, 'match', 'ok.js'), "import { a } from '../sim/a.js';\nimport { c } from '../../shared/c.js';\nimport { d } from '../data.js';\nexport const ok = a + c + d;\n");
+    fs.writeFileSync(path.join(serverDir, 'match', 'bad.js'), "import { ok } from './ok.js';\nimport { x } from '../chatLimit.js';\nexport const bad = ok + x;\n");
+    assert.deepEqual([...botModuleFiles(path.join(serverDir, 'match', 'ok.js'), { serverDir }).keys()], ['ok.js'], 'the mounts are fine');
+    assert.throws(() => botModuleFiles(path.join(serverDir, 'match', 'bad.js'), { serverDir }), /match[\\/]bad\.js imports chatLimit\.js: the browser Worker cannot load it/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a seat played with the Worker\'s own environment gives the moves of the Node one', () => {
