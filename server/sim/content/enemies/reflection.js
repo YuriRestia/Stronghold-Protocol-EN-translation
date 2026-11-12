@@ -26,7 +26,7 @@ function kitHolyGuard(ab) {
   // breaks) keeps duholy_traitAbility[TauntLevelUp] (enemy_duholy_buff) on it: while a 影刃 is in range, as the ASPD field
   // below; display only (snapshot fxs)
   const paired = (b, e) => b.enemiesInRadius(e.x, e.y, r).some((o) => /enemy_1175_dushdo/.test(o.defId));
-  return [...kitRefraction(ab), fxWhile('duholy_traitAbility[TauntLevelUp]', paired), {
+  return [...kitRefraction(ab), {
     iv: 0.5,
     tick(b, e) {
       const on = b.enemiesInRadius(e.x, e.y, r).some((o) => /enemy_1175_dushdo/.test(o.defId));
@@ -35,7 +35,7 @@ function kitHolyGuard(ab) {
       // its page), but an airborne 起飞 one still [ASSUMED, as §21.22's ground-enemy auras]
       for (const u of auraAllies(b, e, e.x, e.y, r)) auraBuff(b, u, 'ab:forceField', 0.5, { aspd }, null, true);
     },
-  }];
+  }, fxWhile('duholy_traitAbility[TauntLevelUp]', paired)];
 }
 
 // ---------------------------------------------------------------------------------------------------------------

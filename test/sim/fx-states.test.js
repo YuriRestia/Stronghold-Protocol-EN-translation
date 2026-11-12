@@ -136,7 +136,10 @@ describe('talent and skill states the kits signal (audit #7 phase D)', () => {
 
 describe('the sim and the client name the same buffs', () => {
   const kits = new URL('../../server/sim/content/kits/ops/', import.meta.url);
-  const src = readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')).join('\n');
+  // (fork) and the enemies' kits (content/enemies/*.js: OpFor: BlackCloud's grab and ammo glow)
+  const ekits = new URL('../../server/sim/content/enemies/', import.meta.url);
+  const src = [...readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')),
+    ...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => readFileSync(new URL(f, ekits), 'utf8'))].join('\n');
   // every literal buff key a kit hands fxState / fxProbe / a buff's fx, or a const holding one (…_FX = '…')
   const named = new Set([...src.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
     .map((m) => m[1] || m[2] || m[3] || m[4]));
@@ -146,7 +149,6 @@ describe('the sim and the client name the same buffs', () => {
   for (const list of Object.values(TOKEN_FX_STATES)) for (const b of list) named.add(b);
   for (const b of Object.values(LIBRATOR_FX)) named.add(b);
   // (fork) the enemies' kits (content/enemies.js, content/enemies/*.js, content/bosses.js): fxWhile('…', …) too
-  const ekits = new URL('../../server/sim/content/enemies/', import.meta.url);
   const esrc = [...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => new URL(f, ekits)),
     new URL('../../server/sim/content/enemies.js', import.meta.url), new URL('../../server/sim/content/bosses.js', import.meta.url)]
     .map((u) => readFileSync(u, 'utf8')).join('\n');

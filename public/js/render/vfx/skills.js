@@ -546,6 +546,39 @@ export const STATE_BUFFS = Object.freeze({
   'mlynar_tr': { looks: L({ low: ['mlynar_attack_01_buff_l_01'], mid: ['mlynar_attack_01_buff_l_02'], max: ['mlynar_attack_01_buff_l_03'] }) },
   // Carnelian S3's mark on an enemy (chess_char_4_24-billro.js): [part] below the stack cap, [full] at it
   'billro_s_3[mark_effect]': { looks: L({ part: ['billro_skill_03_buff_03_01'], full: ['billro_skill_03_buff_03_02'] }) },
+  // (fork) enemies, S-M rows (VFX 3): the official glow a talent's buff keeps on the enemy while its condition holds, or
+  // an event starts (content/enemies/*.js fxWhile / fxProbe / fxState; display only). By enemy id:
+  // Sarkaz Lancer (enemy_1072_dlancer) — its charge glow while unblocked
+  'dlancer_t_listener[c]': true,
+  // Diver (enemy_1158_divman) / Caster Speedboat (enemy_1162_magmot) — on a deep-water tile
+  'divman_swim': true,
+  'magmot_effect': true,
+  // Dublinn Companion Guard (enemy_1174_duholy) / Elite Companion Shadowblade (enemy_1175_dushdo_2) — while a Guard and a
+  // Shadowblade stand paired (their traitAbility's child node: TalentFx.targetRows reads it from the index)
+  'duholy_traitAbility[TauntLevelUp]': true,
+  'dushdo_traitAbility[BaseAttackTimeDown]': true,
+  'dushdo_traitAbility[effect]': true,
+  // Sarkaz Wither Tank (enemy_1272_nhtank) — with full SP (its next shot is the polluted one)
+  'nhtank_skill_effect[buff]': true,
+  // Arc Frontliner (enemy_1328_cbjedi) — while unbalanced
+  'enemy_cbjedi_bleed': true,
+  // Sarkaz Wither Vanguard (enemy_1422_lrsldr) — on an originium (infection) tile
+  'enemy_lrsldr[switchMode][toOrig]': true,
+  // Nucleic Maleficent (enemy_1439_dslntf) — from its first damage taken
+  'dslntf_tr_1': true,
+  // 'Forsaken One' (enemy_2005_axetro) — from 3 attack stacks until they reset
+  'axetro_t': true,
+  // Scarlet Singer (enemy_2010_csdcr) — `warn` from its warning hit count, `song` the burst as it sings, `aspd` on every
+  // enemy while the ASPD it gives lasts (src the Singer)
+  'csdcr_t': { looks: L({ warn: ['enemy_csder_buff_02'], song: ['enemy_csder_buff_01_range_01'], aspd: ['enemy_csder_buff_01'] }) },
+  // OpFor: Bonespur (enemy_9008_acbunn) — while stealthed; its switch burst as that turns
+  'acbunn_invisible': true,
+  'enemy_acbunn[cute]': true,
+  'enemy_acbunn[horror]': true,
+  // Lucky Flyfin (enemy_10045_parrot) — while it sprints after the first hit
+  'parrot_m0_t[speed_up]': true,
+  // Shrine Swordsman (enemy_10087_hlchgr) — from its first enhancement on
+  'hlchgr_t[attribute_storage]': true,
   // Lee's guard (op-lmlee.js, lmlee_tr → lmlee_t_2[bounce]): its loop while held, the hit as it cancels a stun
   'lmlee_tr': { looks: L({ guard: ['lmlee_buff_02_start'], hit: ['lmlee_buff_02_hit'] }) },
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
@@ -641,33 +674,16 @@ export const STATE_BUFFS = Object.freeze({
   'jesca2_s_3_token[def]': true,
   'mgllan_s_2': true,
   'mgllan_s_3': true,
-  // (fork) enemies, official conditions (enemy VFX audit, S-M rows; content/enemies/*.js fxWhile / fxProbe): a talent's
-  // buff whose template keeps its effect on the enemy while a condition holds, read off the kit's own state. By enemy id:
-  // 1072 Sarkaz Lancer's charge; 1158 Diver in deep water; 1162 Caster Speedboat's wake on deep water; 1174 / 1175 the
-  // Dublinn Companion Guard and Shadowblade while paired (their traitAbility's child node: TalentFx.targetRows reads it
-  // from the index); 1272 Sarkaz Wither Tank with full SP; 1328 Arc Frontliner while unbalanced; 1422 Sarkaz Wither
-  // Vanguard on an infection tile; 10087 Shrine Swordsman from its first enhancement
-  'dlancer_t_listener[c]': true,
-  'divman_swim': true,
-  'magmot_effect': true,
-  'duholy_traitAbility[TauntLevelUp]': true,
-  'dushdo_traitAbility[BaseAttackTimeDown]': true,
-  'dushdo_traitAbility[effect]': true,
-  'nhtank_skill_effect[buff]': true,
-  'enemy_cbjedi_bleed': true,
-  'enemy_lrsldr[switchMode][toOrig]': true,
-  'hlchgr_t[attribute_storage]': true,
-  // (fork) enemies, official conditions: glows an event starts. By enemy id: 1439 Nucleic Maleficent from its first damage
-  // taken; 2005 'Forsaken One' from 3 attack stacks; 2010 Scarlet Singer — `warn` from its warning hit count, `song` the
-  // burst as it sings, `aspd` on every enemy while the ASPD it gives lasts (src the Singer); 9008 OpFor: Bonespur while
-  // stealthed, its switch burst as that turns; 10045 Lucky Flyfin while it sprints
-  'dslntf_tr_1': true,
-  'axetro_t': true,
-  'csdcr_t': { looks: L({ warn: ['enemy_csder_buff_02'], song: ['enemy_csder_buff_01_range_01'], aspd: ['enemy_csder_buff_01'] }) },
-  'acbunn_invisible': true,
-  'enemy_acbunn[cute]': true,
-  'enemy_acbunn[horror]': true,
-  'parrot_m0_t[speed_up]': true,
+  // (fork) enemies (content/enemies): OpFor: BlackCloud's grab — enemy_acfort_trapped on each grabbed flyer while
+  // enemy_acfort[kill_other] lasts (its KillOthers skill's `on: 'targets'` row; src BlackCloud) — and its passive
+  // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
+  'enemy_acfort[kill_other]': true,
+  'enemy_acfort_vfx': true,
+  // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
+  // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
+  // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
+  'enemy_xi_mark[a]': true,
+  'enemy_xi_mark[b]': true,
 });
 
 /**
@@ -2151,6 +2167,11 @@ export const OWNER_NEAR = 1;
  *   modeLoops  or: the fx starts a mode of the unit whose talent (this prefab key) loops on it meanwhile — its loop uses
  *              (a buff it creates at its tick: a condition talents.js cannot read, here the mode's own) — for its record's
  *              blackboard value `bbKey` (talents.bb), else `holdS` s; `endMode`: the fx ends it early
+ *   (fork) owner 'from' — `extra.from` names the enemy (a kit 'beam'); `fly`: the projectile flown from its muzzle to
+ *              the unit `extra.to` (its flying effect, then its hit), `stagger` s after the previous one of the same
+ *              enemy in that frame (the client's MultiRangedAttack triggerDelta); `cover`: nothing drawn — the kit fx
+ *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
+ * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
 const POLLUTED_DIE = Object.freeze({
@@ -2206,18 +2227,37 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
     telegraph: ebind({ xkind: 'spin', owner: 'id', modeLoops: 'RotateEffect', bbKey: 'EndRotate.rotate_duration', holdS: 60 }),
     phase: ebind({ xkind: 'spinStop', owner: 'id', endMode: true }),
   }),
+  // (fork) 假想敌：黑云 (fly.js kitBlackCloud): 全弹发射's 'beam' of kind 'fireWeapon' per shot (from it, to the target, all in
+  // its cast's tick) — the client's FireWeapon MultiRangedAttack fires projectile_enemy_acfort_skill once per ammo,
+  // triggerDelta 0.3 s apart (enemy_acfort_skill_02_trail flying, enemy_acfort_skill_02_hit on arrival); 抓取's 'beam' of
+  // kind 'devour' (at its first prey) has no official effect: the KillOthers window's channel loop and the trapped loops
+  // on the prey (STATE_BUFFS enemy_acfort[kill_other]) are the grab
+  enemy_9009_acfort: Object.freeze({
+    beam: Object.freeze([
+      ebind({ xkind: 'fireWeapon', owner: 'from', fly: 'projectile_enemy_acfort_skill', stagger: 0.3 }),
+      ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
+    ]),
+  }),
+  // (fork) “自在” (leaders.js kitXi: 【纬地经天】's 'telegraph' of kind 'xiCross' at its target's tile, id = it, at the
+  // strike): the client's CrossAttack fires projectile_enemy_xi_s — AttachToTarget (no flight), its TileSelectorHitBehaviour
+  // the cross, its EffectBehaviour enemy_xi_skill_01_hit on the target as it hits (_onlyPlayHitEffectOnTraceTarget)
+  enemy_1517_xi: Object.freeze({ telegraph: ebind({ xkind: 'xiCross', owner: 'id', projectile: 'projectile_enemy_xi_s', part: 'onHit', once: true }) }),
 });
+
+/** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */
+export const enemyBinds = (entry) => (Array.isArray(entry) ? entry : entry ? [entry] : []);
 
 /**
  * The enemy unit keys with a binding of each fx kind (SkillFx._enemyFx's candidates). The list order is an id, a cast,
  * a death, a unit at the point, the kind alone; the fx itself is ranked again — the unit `extra.id` names, then a death
  * within OWNER_NEAR, then a cast the zone does not name (skillfx.js _fxRank).
  */
-const OWNER_ORDER = Object.freeze({ id: 0, cast: 1, died: 2, near: 3, any: 4 });
+const OWNER_ORDER = Object.freeze({ id: 0, from: 0, cast: 1, died: 2, near: 3, any: 4 });
 export const ENEMY_FX_KINDS = Object.freeze((() => {
   const out = {};
+  const ord = (key, kind) => OWNER_ORDER[enemyBinds(ENEMY_FX_BINDINGS[key][kind])[0]?.owner] ?? 9;
   for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) for (const kind of Object.keys(kinds)) (out[kind] ||= []).push(key);
-  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => (OWNER_ORDER[ENEMY_FX_BINDINGS[a][kind].owner] ?? 9) - (OWNER_ORDER[ENEMY_FX_BINDINGS[b][kind].owner] ?? 9)));
+  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => ord(a, kind) - ord(b, kind)));
   return out;
 })());
 
@@ -2243,8 +2283,10 @@ export function auraTargets(idx, unitKey, talent) {
 /** Every key an enemy's kit-fx bindings can play (preloading). */
 export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
-  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {})) {
-    if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
+  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
+    if (bind.cover) continue;
+    if (bind.fly) { const p = idx?.projectiles?.[lc(bind.fly)]; for (const k of p ? [p.main, ...(p.onHit || []), ...(p.onReached || [])] : []) if (lc(k)) out.add(lc(k)); }
+    else if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
     else if (bind.modeLoops) for (const k of modeLoopKeys(idx, unitKey, bind.modeLoops)) out.add(k);
     else for (const k of bindingEffects(idx, bind)) out.add(k);
   }

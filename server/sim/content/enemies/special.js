@@ -113,7 +113,7 @@ function kitParrot(ab) {
   // (fork) fx: the client's parrot_m0_t[speed_up] (its first Fly mode: the first damage taken) keeps
   // parrot_m0_t[speed_up_core] (enemy_parrot_move_1) on it while the sprint lasts; display only (snapshot fxs). Its
   // Fly2 twin (parrot_m1_t, enemy_parrot_move_2) follows its ThrowEnemy, which our sim has not (no 冒险家水手 to throw)
-  return [float(), fxWhile('parrot_m0_t[speed_up]', (b, e) => !!e.findBuff('ab:parrotRun')), {
+  return [float(), {
     taken(c, b, e, a) {
       if (a.ran || a.down) return;
       a.ran = true;
@@ -141,7 +141,7 @@ function kitParrot(ab) {
         b.fx('phase', { x: e.x, y: e.y, id: e.id, kind: 'float' });
       }
     },
-  }];
+  }, fxWhile('parrot_m0_t[speed_up]', (b, e) => !!e.findBuff('ab:parrotRun'))];
 }
 
 /**

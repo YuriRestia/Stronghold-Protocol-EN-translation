@@ -1178,7 +1178,13 @@ test(`${nm('enemy_9009_acfort')}: grabs ≤ 3 normal flyers within 2.5 × range_
   assert.ok(Math.hypot(out.x - e.x, out.y - e.y) > R && Math.hypot(near[3].x - e.x, near[3].y - e.y) <= R);
   h.run(k.initCooldown + 0.1);
   assert.ok(e.findBuff('ab:grabbing')?.flags.bind, '黑云 holds still while grabbing');
-  h.run(0.5 + k.bb.duration + 0.1);
+  // (fork) display: each grabbed flyer carries the client's enemy_acfort[kill_other] (its trapped loop; src 黑云), the
+  // flyer out of the three does not; no ammo yet: no glow (b.snap fxs)
+  h.run(0.6);
+  const fxRows = (id) => (h.b.snapshot().fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
+  assert.deepEqual(near.map((y) => fxRows(y.id)), [...Array(3).fill([['enemy_acfort[kill_other]', e.id, null]]), []]);
+  assert.deepEqual(fxRows(e.id), []);
+  h.run(k.bb.duration);
   assert.deepEqual(near.map((y) => y.alive), [false, false, false, true], 'the nearest three are devoured');
   assert.ok(out.alive, 'out of reach');
   const w1 = h.unit('t_wall'), w2 = h.unit('t_wall2');
@@ -1187,6 +1193,12 @@ test(`${nm('enemy_9009_acfort')}: grabs ≤ 3 normal flyers within 2.5 × range_
   h.run(0.1);
   approx(w1.stats.taken + w2.stats.taken, 3 * e.s.atk * f.bb.atk_scale, 1e-6, 'one hit per ammo');
   assert.equal(e.mem.ab.ammo, 0, 'all SP spent');
+  // (fork) display: 黑云 glows while it holds ammo (enemy_acfort_vfx: SP > 0) — here it fires as the ammo comes, so the
+  // snapshot-time probe is read with ammo held by hand (restored: nothing in the battle reads it)
+  assert.deepEqual(fxRows(e.id), [], 'no glow once the ammo is spent');
+  e.mem.ab.ammo = 2;
+  assert.deepEqual(fxRows(e.id), [['enemy_acfort_vfx', null, null]], 'the ammo glow while it holds ammo');
+  e.mem.ab.ammo = 0;
   checkInvariants(h.b);
 });
 
