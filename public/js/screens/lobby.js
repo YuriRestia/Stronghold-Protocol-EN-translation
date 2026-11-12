@@ -378,7 +378,11 @@ export function pickCardFit(overflows) {
  * Sets 选择模拟协议's `data-fit` (pickCardFit; css/screens/lobby.css) before the screen paints: at every render (a new
  * difficulty, language or label), when the list's box changes (the window, 文字大小 through the header and the button) and
  * whenever a font finishes loading (a web font that arrives late — after a resize, say — makes the lines taller). A level
- * only changes what the cards show, never the list's box, so measuring cannot loop.
+ * only changes what the cards show, never the list's box, so measuring cannot loop. (fork) Nor its width: only 'names'
+ * may scroll (css/screens/lobby.css), so 'full' and 'brief' are measured at the same width whatever shows now, and the
+ * observer watches the border box, which a scrollbar coming or going leaves alone. Before, a 'full' that overflowed by
+ * under the 1 px allowance kept a scrollbar, the narrower list measured differently, and the cards flipped between
+ * 'full' and 'brief' every few frames (a player's report, 2026-11-12).
  */
 function ProtoFit() {
   const ref = useRef(null);
@@ -394,15 +398,14 @@ function ProtoFit() {
     if (!list) return undefined;
     let live = true;
     const refit = () => { if (live) fit(); };
-    // (fork) a level can still nudge the list's box (a scrollbar coming or going): the observer's refit waits for the next
-    // frame (as ui/bondStrip.js does), so that change is measured there, not reported as "ResizeObserver loop completed
-    // with undelivered notifications"
+    // (fork) the observer's refit waits for the next frame (as ui/bondStrip.js does), so a box that changes during a refit
+    // is measured there, not reported as "ResizeObserver loop completed with undelivered notifications"
     let frame = null;
     const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => {
       if (frame !== null) return;
       frame = requestAnimationFrame(() => { frame = null; refit(); });
     }) : null;
-    ro?.observe(list);
+    ro?.observe(list, { box: 'border-box' });
     const fonts = document.fonts;
     fonts?.ready?.then(refit);
     fonts?.addEventListener?.('loadingdone', refit);

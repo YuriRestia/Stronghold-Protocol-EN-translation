@@ -683,6 +683,11 @@
 }
 .proto-list > :first-child { margin-top: auto; }
 .proto-list > :last-child { margin-bottom: auto; }
+/* (fork) only the last level scrolls (screens/lobby.js ProtoFit): 'full' and 'brief' are chosen only when they fit, give or
+   take the 1 px of rounding the fit allows, so they never show a scrollbar for that pixel. A scrollbar there narrowed the
+   list, the narrower list measured differently, and the cards flipped between two levels every few frames (a player's
+   report, 2026-11-12: 'full' with a scrollbar ↔ 'brief'). The pixel falls in the list's bottom padding. */
+.proto__body:not([data-fit="names"]) .proto-list { overflow-y: hidden; }
 .pcard {
   position: relative;
   flex: none;
