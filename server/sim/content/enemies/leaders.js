@@ -272,6 +272,7 @@ function kitLeaderMisc(key, ab, e) {
         });
         b.addBuff(e2, { key: 'ab:takeoffBrake', duration: BRAKE_UP, mods: BRAKE });
         b.fx('telegraph', { x: e2.x, y: e2.y, r: 0.5, kind: 'takeoff', id: e2.id });
+        b.tickFx(e2, e2, 'balloon:takeoff');   // (fork) enemy VFX audit, S rows: its official take-off jets (balloon_s[trigger]), display only
       }, { cond: (b, e2) => !!e2.blockedBy })];
     }
     case 'enemy_2005_axetro':
@@ -751,6 +752,8 @@ function kitTranslator(ab, e) {
 
 /** 乌顶巨角卢鲁 · 【角力对决】 when blocked: charges `duration` s (no normal attacks; a stun or 失衡 interrupts), then hits its
  *  blocker; operators hold fixed tiles, so the push always fails ⇒ extra damage and a fail_duration stun. */
+// (fork) enemy VFX audit, S rows: Blackhorn Rhuul's official skill rows (its cast-target mark, its hit), fx 'tick' keys
+const ELK_MARK_KEY = 'enemy_xdelk_buff_03', ELK_HIT_KEY = 'enemy_xdelk_skill_hit_01';
 function kitElk(ab) {
   const s = ab.sk.skill;
   const P = { ch: null };
@@ -763,6 +766,7 @@ function kitElk(ab) {
       if (b.time + 1e-9 < ch.until || unbalancedNow(b, e)) return;   // a 失衡 that did not move it holds the clash (no skill meanwhile)
       stop(b, e);
       b.fx('explode', { x: ch.t.x, y: ch.t.y, r: 0.5, kind: 'elkClash' });
+      b.tickFx(e, ch.t, 'elk:clash', ELK_HIT_KEY);   // (fork) enemy VFX audit, S rows: the official hit on its blocker, display only
       hurt(b, e, ch.t, e.s.atk * ((s && s.bb.atk_scale_s) ?? 1) * ELK_FAIL_SCALE, 'phys');
       const st = T(ab, 'data.attack@fail_duration') ?? 0;
       if (ch.t.alive && st > 0) b.applyStatus(ch.t, 'stun', { duration: st, source: e });
@@ -773,6 +777,7 @@ function kitElk(ab) {
     P.ch = { t: e.blockedBy, until: b.time + dur };
     b.addBuff(e, { key: 'ab:elkCharge', duration: dur + 0.1, visible: true, flags: { disarm: true } });
     b.fx('telegraph', { x: e.blockedBy.x, y: e.blockedBy.y, r: 0.5, dur, kind: 'elkCharge', id: e.id });
+    b.tickFx(e, e.blockedBy, 'elk:charge', ELK_MARK_KEY);   // (fork) enemy VFX audit, S rows: the official mark on its blocker
   }, { cond: (b, e) => !P.ch && !!(e.blockedBy && e.blockedBy.alive) })];
 }
 

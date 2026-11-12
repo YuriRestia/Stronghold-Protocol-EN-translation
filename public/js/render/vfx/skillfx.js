@@ -1340,7 +1340,8 @@ export class SkillFx {
     const U = extra.id != null ? (this.units.get(extra.id) ?? this.of(this.w.view(extra.id))) : null;
     const at = extra.on != null ? this.w.view(extra.on) : null;
     const plan = U?.plan;
-    if (!plan || !at) return true;
+    if (!at) return true;
+    if (!plan) { if (U?.enemy?.length) this._enemyTick(U, at, extra.key); return true; }
     let rows = plan.pulse.filter((e) => e.reason === 'tick' && (!extra.key || e.key === extra.key));
     // a talent's tick the index reaches through one skill only (遥's bubbles: S1's selector) plays with any skill equipped
     if (!rows.length && extra.key && plan.unitKey) rows = this._tickRows(plan.unitKey, extra.key);
@@ -1350,6 +1351,24 @@ export class SkillFx {
       if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
     }
     return true;
+  }
+
+  /**
+   * (fork) enemy VFX audit, S rows: fx 'tick' of an enemy (U.enemy: its skills by slot, index v2) — the moment its kit
+   * signals plays the first of its skill plans with pulse rows ('tick' / 'hit-no-attack', `key`: only that one) on `at`,
+   * one-shot (a 'cast' hold ends after SKILL_CAST_S): Jetman's takeoff jets, Blackhorn Rhuul's clash.
+   */
+  _enemyTick(U, at, key) {
+    const from = U.v && U.v !== at && Number.isFinite(U.v.x) ? U.v : undefined;
+    for (const en of U.enemy) {
+      const rows = (en.plan?.pulse || []).filter((e) => !key || e.key === key);
+      if (!rows.length) continue;
+      for (const e of uniq(rows)) {
+        const h = this._play(e, at, { flipFrom: from });
+        if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
+      }
+      return;
+    }
   }
 
   /** (fork) The 'tick' rows of `key` in any skill plan of the unit (cached per battle). */
