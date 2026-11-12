@@ -22,7 +22,10 @@ import { html, Icon, useTicker } from './components.js';
 import { EmoteWheel } from './emotes.js';
 import { useMediaQuery } from './device.js';
 
-const SIZE_KEY = 'roomChatSize';
+// what a press on the faded chat leaves to the page under it: real controls, and anything drawn as clickable
+const CONTROL = 'button, a[href], input, select, textarea, label, summary, [role="button"], [role="link"], [role="tab"], [role="checkbox"], [role="switch"], [contenteditable="true"]';
+const isControl = (t) => t instanceof Element && (!!t.closest(CONTROL) || getComputedStyle(t).cursor === 'pointer');
+const SIZE_KEY ='roomChatSize';
 const FOLD_KEY = 'roomChatFolded';
 /** A saved { w, h } in px, or null (the default dock). */
 const savedSize = (v) => (v && Number.isFinite(v.w) && Number.isFinite(v.h) && v.w > 0 && v.h > 0 ? { w: Math.round(v.w), h: Math.round(v.h) } : null);
@@ -146,11 +149,19 @@ export function RoomChat({ room, myId, seated, online }) {
     else if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); send(); }
   };
   const toggleFold = () => { const v = !folded; setFolded(v); savePref(FOLD_KEY, v); };
-  // in use from a press or focus inside it until a press anywhere outside (or Esc, or Tab away): the faded log lets that
-  // press through to whatever is under it
+  // in use from a press or focus inside it until a press anywhere outside (or Esc, or Tab away). Faded, the log lets
+  // presses through (pointer-events: none), so a button under it still works first; a press on the faded log over
+  // anything that isn't a control (empty space, art, text) brings the chat back instead (user 2026-11-12)
   useEffect(() => {
-    if (!active || short) return undefined;
-    const onDown = (e) => { if (!section.current?.contains(e.target)) setActive(false); };
+    if (short) return undefined;
+    const onDown = (e) => {
+      const el = section.current;
+      if (!el) return;
+      if (active) { if (!el.contains(e.target)) setActive(false); return; }
+      if (el.contains(e.target) || isControl(e.target)) return;
+      const r = el.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) setActive(true);
+    };
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [active, short]);

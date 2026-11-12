@@ -74,6 +74,26 @@ describe('room chat (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + 
       await outside();
       await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-idle'), { timeout: 3000 });
       assert.equal((await box(host)).under, false, 'faded, the log lets presses through to what is under it');
+      // a button under the faded log still gets the press first; a press on the faded log over no control brings the chat back
+      const probe = await host.page.evaluate(() => {
+        const el = document.querySelector('[data-testid="room-chat"]');
+        const r = el.getBoundingClientRect(), p = el.parentElement.getBoundingClientRect();
+        const b = document.createElement('button');
+        b.id = 'under-chat'; b.textContent = 'under'; b.dataset.n = '0';
+        b.style.cssText = `position:absolute;z-index:1;left:${r.left - p.left + 10}px;top:${r.top - p.top + 4}px;width:60px;height:24px`;
+        b.addEventListener('click', () => { b.dataset.n = String(+b.dataset.n + 1); });
+        el.parentElement.append(b);
+        return { x: r.left + 40, y: r.top + 16, ex: r.left + r.width / 2, ey: r.top + 12 };
+      });
+      await host.page.mouse.click(probe.x, probe.y);
+      assert.equal(await host.page.$eval('#under-chat', (b) => b.dataset.n), '1', 'the button under the faded log took the press');
+      assert.match((await box(host)).cls, /is-idle/, 'and the chat stays faded');
+      await host.page.$eval('#under-chat', (b) => b.remove());
+      const what = await host.page.evaluate((q) => { const e = document.elementFromPoint(q.ex, q.ey); return `${e?.tagName}.${e?.className} ${e && getComputedStyle(e).cursor}`; }, probe);
+      await host.page.mouse.click(probe.ex, probe.ey);
+      assert.ok(!(await box(host)).cls.includes('is-idle'), `a press on the faded log (over ${what}) brings the chat back`);
+      await outside();
+      await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-idle'), { timeout: 3000 });
       await host.click('[data-testid="room-chat-input"]');
       assert.ok(!(await box(host)).cls.includes('is-idle'), 'a press into the input row brings it back');
       assert.equal((await box(host)).under, true);
