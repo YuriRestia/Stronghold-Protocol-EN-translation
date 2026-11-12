@@ -12,6 +12,7 @@ import { BattleEvents } from '../../server/sim/battle/events.js';
 import { SKILL_FX_STATES, TOKEN_FX_STATES, installFxStates } from '../../server/sim/content/fxStates.js';
 import { LIBRATOR_FX } from '../../server/sim/professions.js';
 import { STATE_BUFFS } from '../../public/js/render/vfx/skills.js';
+import { ENEMY_STATE_KEYS } from '../../public/js/render/vfx/indexGaps.js';
 
 const rowsOf = (snap, id) => (snap.fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
 
@@ -148,8 +149,12 @@ describe('the sim and the client name the same buffs', () => {
   for (const s of Object.values(SKILL_FX_STATES)) for (const e of [].concat(s)) named.add(e.buff);
   for (const list of Object.values(TOKEN_FX_STATES)) for (const b of list) named.add(b);
   for (const b of Object.values(LIBRATOR_FX)) named.add(b);
-  test('each signalled buff is in STATE_BUFFS', () => {
-    for (const b of named) assert.ok(STATE_BUFFS[b], `${b}: signalled by the sim, unknown to the client`);
+  // (fork) or in the index-gap fallback (render/vfx/indexGaps.js ENEMY_STATE_KEYS: the props' idle loops, Rotchaser's bleed …)
+  test('each signalled buff is in STATE_BUFFS or ENEMY_STATE_KEYS', () => {
+    for (const b of named) assert.ok(STATE_BUFFS[b] || ENEMY_STATE_KEYS[b], `${b}: signalled by the sim, unknown to the client`);
+  });
+  test('each ENEMY_STATE_KEYS buff is signalled by the sim', () => {
+    for (const b of Object.keys(ENEMY_STATE_KEYS)) assert.ok(named.has(b), `${b}: in ENEMY_STATE_KEYS, signalled by no kit`);
   });
   test('each STATE_BUFFS buff is signalled by the sim', () => {
     for (const b of Object.keys(STATE_BUFFS)) assert.ok(named.has(b), `${b}: in STATE_BUFFS, signalled by no kit`);

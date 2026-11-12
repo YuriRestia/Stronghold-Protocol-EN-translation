@@ -563,13 +563,15 @@ function statue(ab) {
  * Bleeding on hit (逐腐兽): arts damage per second, removed by healing. A tick selects nobody (`ignoreSelect`): it keeps
  * hurting an ally that took off (起飞) after the bleed landed; so do the other enemy debuff DoTs (沙狱, burnDot, 淤困).
  */
-function bleed(ab) {
+function bleed(ab, fx = null) {
   const dmg = T(ab, 'Bleeding.attack@bleeding_damage') ?? 0, dur = T(ab, 'Bleeding.attack@duration') ?? 0;
   return {
     dealt(c, b, e) {
       if (!(dmg > 0 && dur > 0)) return;
       b.addBuff(c.target, {
         key: 'ab:bleed', duration: dur, refresh: 'replace', interval: 1, visible: true,
+        // (fork) the official bleed buff's lasting effect on the target (snapshot.js fxStateView; display only)
+        ...(fx ? { fx, fxSrc: e.id ?? null } : {}),
         onTick: ({ battle, unit }) => battle.dealDamage(e, unit, { amount: dmg, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility', 'bleed'] }),
       });
     },
@@ -652,7 +654,10 @@ const kitEp = (el, ...keys) => (ab) => [ep(el, T(ab, ...keys) ?? 0)];
 
 const kitStealth = () => [stealth()];
 
-const kitTimes = (artsOnly = false) => () => [times(artsOnly), unblockable()];
+// (fork) the prop's idle loop (PropLikeEnemy._basicEffects, played from its birth: render/vfx/indexGaps.js msf_basic) —
+// display only (Battle.fxProbe: read when a snapshot is taken)
+const propBasic = { spawn(b, e) { b.fxProbe(e, 'msf_basic', (u) => !!u.alive); } };
+const kitTimes = (artsOnly = false) => () => [times(artsOnly), unblockable(), propBasic];
 
 const kitRefraction = (ab) => [refraction(T(ab, 'refracting.magic_resistance', 'Refracting.magic_resistance') ?? 0)];
 

@@ -22,6 +22,8 @@ const UACANN_ZONE_SCALE = 1.5;
 const NEST_PULSE_INTERVAL = 1;
 
 const NEST_PULSE_TAG = 'nestPulse';
+// (fork) the Rotchasers' official bleed buff (its Combat MeleeAttack's _activeBuffs; render/vfx/indexGaps.js plays its effect)
+const NHSTLK_BLEED_FX = 'enemy_nhstlk_t[bleeding]';
 
 /**
  * 深溟巢涌者 / 富营养的巢涌者 (PRTS 天赋): "不进行普通攻击", 抵抗 (一减状态抵抗率 −0.5) and 停顿免疫; "未处于消失状态时，令攻击范围
@@ -98,8 +100,8 @@ export const DOT_KITS = Object.freeze({
   enemy_1234_dsubrl_2: kitDsubrl,                                    // 富营养的巢涌者 · same
   enemy_1267_nhpbr: kitPolluted,                                     // 萨卡兹枯朽战士 · death: 污染秽蚀 zone (50 / 25 true per second)
   enemy_1267_nhpbr_2: kitPolluted,                                   // 萨卡兹枯朽战士组长 · same
-  enemy_1270_nhstlk: (ab) => [bleed(ab)],                            // 逐腐兽 · bleeding (arts/s, cleared by healing)
-  enemy_1270_nhstlk_2: (ab) => [bleed(ab)],                          // 疯狂的逐腐兽 · same
+  enemy_1270_nhstlk: (ab) => [bleed(ab, NHSTLK_BLEED_FX)],           // 逐腐兽 · bleeding (arts/s, cleared by healing)
+  enemy_1270_nhstlk_2: (ab) => [bleed(ab, NHSTLK_BLEED_FX)],         // 疯狂的逐腐兽 · same
   enemy_1272_nhtank: kitTank,                                        // 萨卡兹枯朽战车 · ground targets only, melee ×2, 秽蚀轰击 on attacks 1, 4, 7 …
   enemy_1272_nhtank_2: kitTank,                                      // 尖端萨卡兹枯朽战车 · same
   enemy_9006_actoxi: (ab) => [{                                      // 假想敌：蚀裂 · death: poison cloud on its killer
