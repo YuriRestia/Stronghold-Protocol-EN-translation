@@ -531,7 +531,8 @@ export const STATE_BUFFS = Object.freeze({
   // (talentfx.js targetRows), signalled by the kits
   'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true,
   // Eunectes S2's blockee stun (op-zumama.js; her ability's _buffsToBlockee): only her row — every other skill's `stun` stays a target row
-  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02']) }), 'halo2_s_3_link': true,
+  // …and the Dockworker's ready-hit stun (nthAttackStatus; enemy_1160_hvyslr / _2 Dockworker / Dockworker Leader)
+  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02', 'enemy_hvyslr_2_buff']) }), 'halo2_s_3_link': true,
   'heyak_s_3[hit_levitate]': true, 'inside_t_1[active]': true, 'shu_s_3[enemy][enter]': true, 'necras_t_1[upgrade]': true,
   // Necrass S3's special skeleton (op-necras.js): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
   'necras_upgrade_dragon': { looks: L({ stage1: ['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02'],
@@ -565,6 +566,10 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
   // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
   'enemy_wdrrl[AOE_attack]': true,
+  // enemy_9007_acelem OpFor: Quagmire's parasite on the operator it latches onto (enemy_acelem_buff; its talent's buff)
+  'enemy_acelem[to_parasitic]': true,
+  // enemy_1525_blkswb Degenbrecher's second-form SP clear: its mark on each operator it disarms (enemy_blkswb_skill_03_start_02)
+  'enemy_blkswb_s[effect]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
