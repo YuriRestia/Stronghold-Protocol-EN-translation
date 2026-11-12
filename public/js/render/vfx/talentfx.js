@@ -316,6 +316,14 @@ export class TalentFx {
         const rows = uniq([...(b.plan?.start || []), ...(b.plan?.loop || [])]).filter((e) => e.buff === name);
         for (const e of rows) if (this._play(e, U.v, { holdS: TALENT_CAST_S })) any = true;
       }
+      // (fork) …else an ability binding the kit names by its key (the index ability's name: 重犯's LibertyOthersAbility at
+      // its first liberation, whose cast effect is a start row with no buff) — its start rows, once
+      if (!any) {
+        for (const b of U.binds0 || U.binds) {
+          if (b.source !== 'ability' || b.key !== name || triggerKinds(b).length || !this._modeOk(U, b, true)) continue;
+          for (const e of uniq(b.plan?.start || [])) if (this._play(e, U.v, { holdS: TALENT_CAST_S })) any = true;
+        }
+      }
       if (any) return true;
     }
     for (const b of U.binds) {

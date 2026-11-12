@@ -217,3 +217,57 @@ test('enemy_10138_xdsnow: its burst at a high-ground hit while unbalanced, not o
   assert.equal(on(h, sn, 'enemy_xdsnow_t[wall]'), true);
   assert.equal(on(h, sn2, 'enemy_xdsnow_t[wall]'), false);
 });
+
+test('enemy_10065_ftzlc: its burning glow while ignited', () => {
+  const h = arena();
+  h.step();
+  const e = put(h, 'enemy_10065_ftzlc', [10, 7]);
+  h.step();
+  assert.equal(on(h, e, 'enemy_ftzlc[boom]'), false);
+  e.mem.ab.ignited = true;
+  assert.equal(on(h, e, 'enemy_ftzlc[boom]'), true);
+});
+
+// death bursts: no state row (a dead unit has none) — the kit's 'explode' at the point where it fell, in its death
+// hook, is what skills.js ENEMY_FX_BINDINGS (owner 'died') turns into the official burst
+for (const [key, kind] of [['enemy_1407_hummbd', 'expose'], ['enemy_10156_mncrer', 'heal']]) {
+  test(`${key}: its death's '${kind}' explode at the point where it fell (the official death burst's signal)`, () => {
+    const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+    h.step();
+    const e = put(h, key, [10, 7]);
+    h.step();
+    h.b.dealDamage(h.unit('t_wall'), e, { amount: 1e9, type: 'true' });
+    h.step();
+    assert.equal(e.alive, false);
+    const f = h.eventsOf('fx').filter((x) => x[1] === 'explode' && x[4].kind === kind);
+    assert.equal(f.length, 1);
+    assert.deepEqual([f[0][2], f[0][3]], [e.x, e.y]);
+  });
+}
+
+test("enemy_1121_lifbos: its LibertyOthersAbility 'ability' fx once, at the first liberation that frees the field", () => {
+  const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+  h.step();
+  const e = h.spawn('enemy_1121_lifbos', { pos: [9, 8], routeIndex: 0 });
+  const abl = () => h.eventsOf('fx').filter((x) => x[1] === 'ability' && x[4].name === 'LibertyOthersAbility');
+  h.runUntil(() => abl().length > 0, 60);
+  assert.equal(abl().length, 1);
+  assert.equal(abl()[0][4].id, e.id);
+  h.run(10);
+  assert.equal(abl().length, 1, 'once');
+});
+
+test("enemy_9006_actoxi: killed by a unit, its death's 'ability' fx of kind 'fissureDie' where it fell; killed by nothing, none", () => {
+  const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+  h.step();
+  const a = put(h, 'enemy_9006_actoxi', [10, 7]), b2 = put(h, 'enemy_9006_actoxi', [11, 7]);
+  h.step();
+  const die = () => h.eventsOf('fx').filter((x) => x[1] === 'ability' && x[4].kind === 'fissureDie');
+  h.b.dealDamage(null, b2, { amount: 1e9, type: 'true' });
+  h.step();
+  assert.equal(die().length, 0, 'no killer: no die_2');
+  h.b.dealDamage(h.unit('t_wall'), a, { amount: 1e9, type: 'true' });
+  h.step();
+  assert.equal(die().length, 1);
+  assert.deepEqual([die()[0][2], die()[0][3], die()[0][4].id], [a.x, a.y, a.id]);
+});

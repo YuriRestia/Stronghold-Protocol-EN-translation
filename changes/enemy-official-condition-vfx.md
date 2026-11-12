@@ -19,6 +19,9 @@
   official burst each time it hides or shows itself.
 - 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' burst as they switch form, Decode Basis α as it changes into its
   new form, and Snowchild when it is knocked into high ground (at most once every 5 seconds, as in the official game).
+- Farseer and Novice Acolyte play their official burst where they fall, OpFor: Fissure too when its target kills it,
+  and a Cabbage Seedling burns with the official fire while it is ignited.
+- Recidivist and Infamous Recidivist play their official burst as their first liberation frees every prisoner.
 - Before: none of these effects showed.
 
 Kind: player
@@ -40,7 +43,8 @@ Server cost:
   10 s per song; the field's living enemies (MAX_ALIVE_ENEMIES, 600) bound it.
 - Estimated from the code, not measured: display-only state probes and timed effect rows in
   `server/sim/content/enemies/*.js` and `server/sim/content/bosses.js` (the Echoes); nothing the battle reads. A one-shot
-  burst is one row for 1 s (2 s for Decode Basis α's change).
+  burst is one row for 1 s (2 s for Decode Basis α's change). The Recidivist's and OpFor: Fissure's bursts are one
+  `ability` fx event each (about 60 B), at most once per unit.
 
 News:
 
