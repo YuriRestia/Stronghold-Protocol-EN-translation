@@ -125,6 +125,8 @@ function ensureParasiteHook(b) {
   }, { priority: 20 });
 }
 
+/** (fork) OpFor: Quagmire's parasite on its host: the official talent buff (b.snap fxs; STATE_BUFFS). */
+const ACELEM_PARASITE_FX = 'enemy_acelem[to_parasitic]';
 function kitParasite(ab) {
   const scale = T(ab, '1.atk_scale') ?? 0, elMul = T(ab, '1.ep_damage_scale') ?? 1;
   return [taunt(-1), {
@@ -149,6 +151,8 @@ function kitParasite(ab) {
       b.addBuff(host, {
         // "受到的元素损伤提高至130%": a 元素损伤 multiplier on the element hit (ensureParasiteHook), not 元素伤害
         key: 'ab:parasite', visible: true, interval: 1, data: { src: e, spread: PARASITE_SPREAD, epMul: elMul },
+        // (fork) enemy VFX audit, S rows: its official parasite glow on the host (talent buff enemy_acelem[to_parasitic]), display only
+        fx: ACELEM_PARASITE_FX, fxSrc: e.id,
         onTick: ({ battle, unit }) => { if (e.alive) battle.dealDamage(e, unit, { amount: e.s.atk * scale, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility', 'parasite'] }); },
       });
     },

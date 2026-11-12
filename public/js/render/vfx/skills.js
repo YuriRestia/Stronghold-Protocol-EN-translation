@@ -566,6 +566,10 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
   // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
   'enemy_wdrrl[AOE_attack]': true,
+  // enemy_9007_acelem OpFor: Quagmire's parasite on the operator it latches onto (enemy_acelem_buff; its talent's buff)
+  'enemy_acelem[to_parasitic]': true,
+  // enemy_1525_blkswb Degenbrecher's second-form SP clear: its mark on each operator it disarms (enemy_blkswb_skill_03_start_02)
+  'enemy_blkswb_s[effect]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
