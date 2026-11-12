@@ -17,7 +17,7 @@ import { UF } from '../../shared/constants.js';
 import { AURA_HOLD_S } from '../../public/js/render/vfx/skillfx.js';
 import {
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, auraTargets, enemyBindingKeys, modeLoopKeys, bindingEffects, FX_BINDINGS, FX_COVER, coverOf,
-  ENEMY_FX_COVER, enemyCoverOf,
+  ENEMY_FX_COVER, enemyCoverOf, enemyBinds,
 } from '../../public/js/render/vfx/skills.js';
 import { compileEffect, Effect } from '../../public/js/render/vfx/effect.js';
 
@@ -169,11 +169,12 @@ const zone = (o) => ({ r: 2, dur: 8, ...o });
 describe('skills.js: the enemies\' kit-fx bindings', () => {
   test('every binding names its kind, owner and prefabs; the kinds index lists the units', () => {
     for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) {
-      for (const [kind, b] of Object.entries(kinds)) {
-        assert.ok(['id', 'died', 'cast', 'near', 'any'].includes(b.owner), `${key} ${kind} owner`);
-        assert.ok(b.talent || b.projectile || b.keys || b.modeLoops || b.endMode, `${key} ${kind} plays something`);
+      for (const [kind, entry] of Object.entries(kinds)) for (const b of enemyBinds(entry)) {
+        assert.ok(['id', 'died', 'cast', 'near', 'any', 'from'].includes(b.owner), `${key} ${kind} owner`);
+        assert.ok(b.talent || b.projectile || b.keys || b.modeLoops || b.endMode || b.fly || b.cover, `${key} ${kind} plays something`);
         assert.ok(ENEMY_FX_KINDS[kind].includes(key));
-        if (b.owner === 'cast') assert.equal(typeof b.skill, 'string', 'a cast owner names the skill (its prefabKey, lower case)');
+        if (b.owner === 'cast' || b.cover) assert.equal(typeof b.skill, 'string', 'a cast owner / a cover names the skill (its prefabKey, lower case)');
+        if (Array.isArray(entry)) assert.ok(b.xkind, `${key} ${kind}: a list's bindings each name their xkind`);
       }
     }
     assert.deepEqual(ENEMY_FX_KINDS.pulse, ['enemy_1234_dsubrl', 'enemy_1234_dsubrl_2']);
@@ -900,8 +901,14 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
   test("every enemy binding's prefabs and the new operator bindings resolve to extracted prefabs of the client", () => {
     for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) {
       assert.ok(idx.units[key] || idx.units[key.replace(/_\d+$/, '')], `${key} is a unit of the index`);
-      for (const [kind, b] of Object.entries(kinds)) {
+      for (const [kind, entry] of Object.entries(kinds)) for (const b of enemyBinds(entry)) {
         if (b.endMode) continue;
+        if (b.cover) { assert.ok(idx.units[key].skills[b.skill], `${key}: skill ${b.skill}`); continue; }
+        if (b.fly) {
+          const p = idx.projectiles[b.fly];
+          assert.ok(p && idx.prefabs[p.main] && (p.onHit || []).every((k) => idx.prefabs[k]), `${key} ${kind}: ${b.fly} flies and hits`);
+          continue;
+        }
         if (b.modeLoops) {
           const keys = modeLoopKeys(idx, key, b.modeLoops);
           assert.ok(keys.length && keys.every((k) => idx.prefabs[k]), `${key}: ${b.modeLoops}'s loops ${keys.join(' ')}`);

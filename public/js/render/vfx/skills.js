@@ -540,6 +540,31 @@ export const STATE_BUFFS = Object.freeze({
   'papyrs_s_1[fx_ctrl]': true, 'lessng_a[s1_eff]': true, 'nasti_s2[update_shield]': true,
   'haini_s_2[modify_talent]': true, 'zebra_s_2[aura]': true, 'swire2_tr': true, 'swire2_t_2': true,
   'humus_trait': true, 'humus_t_1[effect]': true, 'aroma_s_2': true, 'tocka_t1[sp_and_heal]': true,
+  // ── (fork) enemy VFX audit, S rows (Design 2): enemy talents' buffs on the units they reach, signalled by the sim's aura
+  // buffs (content/enemies: auraBuff `fx`; src the enemy whose talent it is, null the carrier's own). By enemy id:
+  // enemy_1017_defdrn Defender-4's DEF aura on the other enemies (defdrn_buff_01_self)
+  'defdrn_t_defup': true,
+  // enemy_1042_frostd Frost's ASPD-down aura on the operators (firstar_skill_01_buff)
+  'frostd_t_attack_speed_down': true,
+  // enemy_1169_duphlx / _2 Dublinn Phalanx: a phalanx another one reaches (enemy_duphx_2_buff)
+  'duphlx_t_aura': true,
+  // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
+  'enemy_lrcmra[originum][dmg]': true,
+  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
+  'lslime_t_dot': true,
+  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
+  'flking_shiled': true,
+  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
+  'enemy_smsha_buffs': true,
+  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
+  'wintun_t[attack_speed]': true,
+  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
+  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
+  'acstma_s_1': true,
+  'acstmb_s_1': true,
+  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
+  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
+  'enemy_wdrrl[AOE_attack]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
@@ -641,31 +666,16 @@ export const STATE_BUFFS = Object.freeze({
   'jesca2_s_3_token[def]': true,
   'mgllan_s_2': true,
   'mgllan_s_3': true,
-  // ── (fork) enemy VFX audit, S rows (Design 2): enemy talents' buffs on the units they reach, signalled by the sim's aura
-  // buffs (content/enemies: auraBuff `fx`; src the enemy whose talent it is, null the carrier's own). By enemy id:
-  // enemy_1017_defdrn Defender-4's DEF aura on the other enemies (defdrn_buff_01_self)
-  'defdrn_t_defup': true,
-  // enemy_1042_frostd Frost's ASPD-down aura on the operators (firstar_skill_01_buff)
-  'frostd_t_attack_speed_down': true,
-  // enemy_1169_duphlx / _2 Dublinn Phalanx: a phalanx another one reaches (enemy_duphx_2_buff)
-  'duphlx_t_aura': true,
-  // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
-  'enemy_lrcmra[originum][dmg]': true,
-  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
-  'lslime_t_dot': true,
-  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
-  'flking_shiled': true,
-  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
-  'enemy_smsha_buffs': true,
-  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
-  'wintun_t[attack_speed]': true,
-  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
-  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
-  'acstma_s_1': true,
-  'acstmb_s_1': true,
-  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
-  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
-  'enemy_wdrrl[AOE_attack]': true,
+  // (fork) enemies (content/enemies): OpFor: BlackCloud's grab — enemy_acfort_trapped on each grabbed flyer while
+  // enemy_acfort[kill_other] lasts (its KillOthers skill's `on: 'targets'` row; src BlackCloud) — and its passive
+  // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
+  'enemy_acfort[kill_other]': true,
+  'enemy_acfort_vfx': true,
+  // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
+  // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
+  // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
+  'enemy_xi_mark[a]': true,
+  'enemy_xi_mark[b]': true,
 });
 
 /**
@@ -2149,6 +2159,11 @@ export const OWNER_NEAR = 1;
  *   modeLoops  or: the fx starts a mode of the unit whose talent (this prefab key) loops on it meanwhile — its loop uses
  *              (a buff it creates at its tick: a condition talents.js cannot read, here the mode's own) — for its record's
  *              blackboard value `bbKey` (talents.bb), else `holdS` s; `endMode`: the fx ends it early
+ *   (fork) owner 'from' — `extra.from` names the enemy (a kit 'beam'); `fly`: the projectile flown from its muzzle to
+ *              the unit `extra.to` (its flying effect, then its hit), `stagger` s after the previous one of the same
+ *              enemy in that frame (the client's MultiRangedAttack triggerDelta); `cover`: nothing drawn — the kit fx
+ *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
+ * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
 const POLLUTED_DIE = Object.freeze({
@@ -2177,6 +2192,21 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // projectile_life_time, in the tick of its 'cast')
   enemy_1272_nhtank: POLLUTED_ATK,
   enemy_1272_nhtank_2: POLLUTED_ATK,
+  // (fork) enemies, XS-S check rows (Tools 2): Infused Originium Slug (enemy_1021_bslime), Infused Glacial Originium
+  // Slug (enemy_1067_snslime) — their death blast. The client's Boom talent (BslimeTalent_1) fires projectile_bslime /
+  // projectile_snslime where the slug falls, whose EffectBehaviour plays bslime_die_01_start / snslime_die_01_start on
+  // its target as it starts (_effectsToTargetWhenStart, never cleared on stop). The sim's deathBoom sends an 'explode'
+  // of kind 'deathBoom' at the slug in its death hook. The glacial one runs its own 9 s; the plain one has a looping
+  // smoke part [ASSUMED: 2 s, its blast's other parts' length].
+  enemy_1021_bslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_bslime', part: 'toTargetOnStart', holdS: 2 }) }),
+  enemy_1067_snslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_snslime', part: 'toTargetOnStart', once: true }) }),
+  // Armor Piercer (enemy_9016_acstmr, OpFor: Armor's shell): its Boom mode's `killed` talent (BslimeTalent_1) fires
+  // projectile_enemy_acstmr_s1 (AttachToTarget, a 3×3 ConstBoxRange, 9.95 s), whose reached effect
+  // enemy_acstmr_explode_range loops on the 3×3 until it stops (_clearReachedEffectWhenStop). The sim's stunBlast sends
+  // an 'explode' of kind 'helmShell' on the tile the shell reached, before it removes the shell.
+  enemy_9016_acstmr: Object.freeze({ explode: ebind({ xkind: 'helmShell', owner: 'near', projectile: 'projectile_enemy_acstmr_s1', holdS: 9.95 }) }),
+
+
   // 假想敌：蚀裂 (dot.js: the 'zone' of kind 'poison' where its lob lands — on its killer — or where it fell, r =
   // 1.projectile_range, dur = 1.projectile_life_time): its talent 1 (BslimeTalent_1) fires projectile_enemy_actoxi at its
   // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud
@@ -2204,18 +2234,37 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
     telegraph: ebind({ xkind: 'spin', owner: 'id', modeLoops: 'RotateEffect', bbKey: 'EndRotate.rotate_duration', holdS: 60 }),
     phase: ebind({ xkind: 'spinStop', owner: 'id', endMode: true }),
   }),
+  // (fork) 假想敌：黑云 (fly.js kitBlackCloud): 全弹发射's 'beam' of kind 'fireWeapon' per shot (from it, to the target, all in
+  // its cast's tick) — the client's FireWeapon MultiRangedAttack fires projectile_enemy_acfort_skill once per ammo,
+  // triggerDelta 0.3 s apart (enemy_acfort_skill_02_trail flying, enemy_acfort_skill_02_hit on arrival); 抓取's 'beam' of
+  // kind 'devour' (at its first prey) has no official effect: the KillOthers window's channel loop and the trapped loops
+  // on the prey (STATE_BUFFS enemy_acfort[kill_other]) are the grab
+  enemy_9009_acfort: Object.freeze({
+    beam: Object.freeze([
+      ebind({ xkind: 'fireWeapon', owner: 'from', fly: 'projectile_enemy_acfort_skill', stagger: 0.3 }),
+      ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
+    ]),
+  }),
+  // (fork) “自在” (leaders.js kitXi: 【纬地经天】's 'telegraph' of kind 'xiCross' at its target's tile, id = it, at the
+  // strike): the client's CrossAttack fires projectile_enemy_xi_s — AttachToTarget (no flight), its TileSelectorHitBehaviour
+  // the cross, its EffectBehaviour enemy_xi_skill_01_hit on the target as it hits (_onlyPlayHitEffectOnTraceTarget)
+  enemy_1517_xi: Object.freeze({ telegraph: ebind({ xkind: 'xiCross', owner: 'id', projectile: 'projectile_enemy_xi_s', part: 'onHit', once: true }) }),
 });
+
+/** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */
+export const enemyBinds = (entry) => (Array.isArray(entry) ? entry : entry ? [entry] : []);
 
 /**
  * The enemy unit keys with a binding of each fx kind (SkillFx._enemyFx's candidates). The list order is an id, a cast,
  * a death, a unit at the point, the kind alone; the fx itself is ranked again — the unit `extra.id` names, then a death
  * within OWNER_NEAR, then a cast the zone does not name (skillfx.js _fxRank).
  */
-const OWNER_ORDER = Object.freeze({ id: 0, cast: 1, died: 2, near: 3, any: 4 });
+const OWNER_ORDER = Object.freeze({ id: 0, from: 0, cast: 1, died: 2, near: 3, any: 4 });
 export const ENEMY_FX_KINDS = Object.freeze((() => {
   const out = {};
+  const ord = (key, kind) => OWNER_ORDER[enemyBinds(ENEMY_FX_BINDINGS[key][kind])[0]?.owner] ?? 9;
   for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) for (const kind of Object.keys(kinds)) (out[kind] ||= []).push(key);
-  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => (OWNER_ORDER[ENEMY_FX_BINDINGS[a][kind].owner] ?? 9) - (OWNER_ORDER[ENEMY_FX_BINDINGS[b][kind].owner] ?? 9)));
+  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => ord(a, kind) - ord(b, kind)));
   return out;
 })());
 
@@ -2241,8 +2290,10 @@ export function auraTargets(idx, unitKey, talent) {
 /** Every key an enemy's kit-fx bindings can play (preloading). */
 export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
-  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {})) {
-    if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
+  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
+    if (bind.cover) continue;
+    if (bind.fly) { const p = idx?.projectiles?.[lc(bind.fly)]; for (const k of p ? [p.main, ...(p.onHit || []), ...(p.onReached || [])] : []) if (lc(k)) out.add(lc(k)); }
+    else if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
     else if (bind.modeLoops) for (const k of modeLoopKeys(idx, unitKey, bind.modeLoops)) out.add(k);
     else for (const k of bindingEffects(idx, bind)) out.add(k);
   }
