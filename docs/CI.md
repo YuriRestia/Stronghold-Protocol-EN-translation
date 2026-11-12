@@ -6,6 +6,7 @@
 - `node24`：Ubuntu / Node 24，只跑 `npm run test:guards`（分片、工作流接线、测试运行器），超时 15 分钟。维护者 #833 接受此范围，不代表 Node 24 全量套件已验证。
 - `tooling`：Ubuntu / Node 22 跑 lint、导入边界和类型检查；lint 警告不失败。
 - `golden`：独立 Ubuntu / Node 22，全量 `npm run golden`，有差异则失败，绝不更新期望。
+- `golden-refresh`（fork，`.github/workflows/golden-refresh.yml`）：只能手动运行（workflow_dispatch），在所选分支上按版本跑 `npm run golden:update`，只把变动的黄金文件和移动场景的摘要作为保留 3 天的 artifact 上传；只读权限，从不提交或推送。用法见 [test/golden/README.md](../test/golden/README.md)「Refreshing on GitHub」。
 
 本机 `npm run ci`（`node tools/ci.mjs`）依次复跑 setup、全量测试、冒烟、CI 守卫、lint、导入边界和类型检查。
 `--only`、`--keep-going`、`--list` 见 [CONTRIBUTING.md](../CONTRIBUTING.md)。本地测试步骤清除继承的 `SHARD` 和 `JUNIT`，保证全量且不意外写报告；全量黄金另跑 `npm run golden`。本地不复制 CI 的系统或 Node 版本矩阵。
