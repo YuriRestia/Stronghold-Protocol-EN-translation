@@ -540,6 +540,31 @@ export const STATE_BUFFS = Object.freeze({
   'papyrs_s_1[fx_ctrl]': true, 'lessng_a[s1_eff]': true, 'nasti_s2[update_shield]': true,
   'haini_s_2[modify_talent]': true, 'zebra_s_2[aura]': true, 'swire2_tr': true, 'swire2_t_2': true,
   'humus_trait': true, 'humus_t_1[effect]': true, 'aroma_s_2': true, 'tocka_t1[sp_and_heal]': true,
+  // ── (fork) enemy VFX audit, S rows (Design 2): enemy talents' buffs on the units they reach, signalled by the sim's aura
+  // buffs (content/enemies: auraBuff `fx`; src the enemy whose talent it is, null the carrier's own). By enemy id:
+  // enemy_1017_defdrn Defender-4's DEF aura on the other enemies (defdrn_buff_01_self)
+  'defdrn_t_defup': true,
+  // enemy_1042_frostd Frost's ASPD-down aura on the operators (firstar_skill_01_buff)
+  'frostd_t_attack_speed_down': true,
+  // enemy_1169_duphlx / _2 Dublinn Phalanx: a phalanx another one reaches (enemy_duphx_2_buff)
+  'duphlx_t_aura': true,
+  // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
+  'enemy_lrcmra[originum][dmg]': true,
+  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
+  'lslime_t_dot': true,
+  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
+  'flking_shiled': true,
+  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
+  'enemy_smsha_buffs': true,
+  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
+  'wintun_t[attack_speed]': true,
+  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
+  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
+  'acstma_s_1': true,
+  'acstmb_s_1': true,
+  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
+  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
+  'enemy_wdrrl[AOE_attack]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
@@ -651,6 +676,10 @@ export const STATE_BUFFS = Object.freeze({
   // on a knight (TriggerRage's row, dekght_buff_04_start; the kit's `ab:rage` buff's fx)
   'dekght_2[aoe]': true,
   'dekght[trigger_rage]': true,
+  // (fork, enemy skills 2026-11-13: Rat King) enemy_1509_mousek: the Mark skill's markers on the highest- / lowest-max-HP
+  // units (mousek_skill_01_buff / _02_buff; content/enemies/leaders.js mousekMark)
+  'mousek_mark[b]': true,
+  'mousek_mark[a]': true,
   // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
   // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
   // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
@@ -2203,7 +2232,13 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 鼠王 (leaders.js: 【沙狱】's 'zone' of kind 'sandStorm' on its target, id = it, dur): its skill SandStorm's emitter plays
   // mousek_skill_02_range on that target as it casts (_castTargetEffects) — the sandstorm itself, a one-shot of 21 s
   // (its root's FxDelay 0.7 s); the 沙狱's hits are projectile_mousek_s2 attached to the target (no flying effect)
-  enemy_1509_mousek: Object.freeze({ zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }) }),
+  // (fork, enemy skills 2026-11-13) and 【唱沙】's 'telegraph' of kind 'driftSand' on its target's cross, id = it: its skill
+  // DriftSand's emitter plays mousek_skill_01_range_02 and mousek_skill_01_range on that target as it casts
+  // (_castTargetEffects, client enm_pfb_17 Skills/DriftSand)
+  enemy_1509_mousek: Object.freeze({
+    zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }),
+    telegraph: ebind({ xkind: 'driftSand', owner: 'id', keys: ['mousek_skill_01_range', 'mousek_skill_01_range_02'], once: true }),
+  }),
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,
   enemy_1234_dsubrl_2: NEST_AURA,
