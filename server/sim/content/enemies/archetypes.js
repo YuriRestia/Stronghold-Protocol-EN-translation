@@ -7,7 +7,7 @@ import { MOVE_SCALE, COLS, STEALTH_RESTORE } from '../../constants.js';
 import {
   HUSK_REBIRTH, BOOM_RADIUS, POLLUTION_INTERVAL, STEALTH_RESTORE_BY_KEY, DUCK_STEALTH_RESTORE, nthOf, stOf, safe, num, T, elem, hurt,
   areaAllies, areaAlliesInTiles, zone, spawnChildren, stepToward, setHits, hitCount, setForm, auraBuff,
-  unbalancedNow, castSlot,
+  unbalancedNow, castSlot, readyProbe,
 } from './helpers.js';
 import { hypot } from '../../detmath.js';
 
@@ -132,9 +132,12 @@ const resist = (immune = []) => ({
 const immuneTo = (...keys) => ({ spawn(b, e, a, ab) { ab.immune = new Set([...(ab.immune || []), ...keys]); } });
 
 /** Every Nth attack: status on the targets ("攻击2次后，下一次攻击会晕眩目标"). */
-const nthAttackStatus = (n, key, dur, sil = true, s = null) => ({
+// (fork) `stunFx`: also show the status on each target as b.snap fxs row `key` (src: this enemy) for `dur` s, display
+// only — the Dockworkers' ready-hit stun (enemy VFX audit, S rows: enemy_hvyslr_2_buff via STATE_BUFFS.stun.keys)
+const nthAttackStatus = (n, key, dur, sil = true, s = null, stunFx = false) => ({
   sil,
-  spawn(b, e, a) { a.n = 0; },
+  // (fork) its skill's official ready glow while the next attack is the Nth (readyProbe; display only)
+  spawn(b, e, a) { a.n = 0; readyProbe(b, e, s, () => (a.n + 1) % n === 0); },
   // the Nth attack is the skill's (display only: its slot for the client, castSlot)
   before(c, b, e, a) { if (s && (a.n + 1) % n === 0) castSlot(b, e, s); },
   attack(c, b, e, a) {
@@ -143,13 +146,15 @@ const nthAttackStatus = (n, key, dur, sil = true, s = null) => ({
     for (const t of c.targets) {
       if (!t.alive || !(dur > 0) || (c.targetDeployments && c.targetDeployments.get(t) !== t.deploySeq)) continue;
       b.applyStatus(t, key, { duration: dur, source: e });
+      if (stunFx) b.fxState(t, key, true, { src: e, dur });
     }
   },
 });
 
 /** Every Nth attack deals ×scale (+ optional element). */
 const nthAttackPower = (n, scale, el = null, ratio = 0, s = null) => ({
-  spawn(b, e, a) { a.n = 0; a.power = false; },
+  // (fork) its skill's official ready glow while the next attack is the Nth (readyProbe; display only)
+  spawn(b, e, a) { a.n = 0; a.power = false; readyProbe(b, e, s, () => (a.n + 1) % n === 0); },
   before(c, b, e, a) { a.power = (a.n + 1) % n === 0; if (a.power && s) castSlot(b, e, s); },
   hitOut(c, b, e, a) { if (a.power && c.dmg.isAttack) c.dmg.amount *= scale; },
   dealt(c, b, e, a) { if (a.power && el && ratio > 0) elem(b, e, c.target, el, e.s.atk * ratio); },
@@ -675,6 +680,8 @@ const kitPrisoner = (freeAll = false) => (ab) => [prisoner(ab, { freeAll })];
 const kitDeathSpawn = (extra = []) => (ab) => [deathSpawn(ab.tS['DeadSpawn.enemy_key'], T(ab, 'DeadSpawn.cnt') ?? 0), ...extra];
 
 const kitStun3 = (ab) => [nthAttackStatus(nthOf(ab.sk.stuncombat), 'stun', (ab.sk.stuncombat && ab.sk.stuncombat.bb.stun) || 0, true, ab.sk.stuncombat)];
+/** (fork) kitStun3 whose stun shows its official mark on the target (the Dockworkers: nthAttackStatus `stunFx`). */
+const kitStun3Fx = (ab) => [nthAttackStatus(nthOf(ab.sk.stuncombat), 'stun', (ab.sk.stuncombat && ab.sk.stuncombat.bb.stun) || 0, true, ab.sk.stuncombat, true)];
 
 const kitSelfFear = (ab) => [selfFear(ab)];
 
@@ -716,5 +723,5 @@ export {
   noAirTargets, resist, immuneTo, nthAttackStatus, nthAttackPower, enemyAura, allyAura, lowHpBuff, deathSpawn,
   deathBoom, refraction, setFloat, float, selfFear, freeAllPrisoners, reborn, frontGuard, faceMove, faceCrowd,
   unbalanced, artsBarrier, husk, statue, bleed, pollution, dmgZone, skill, kitEp, kitStealth, kitTimes, kitRefraction,
-  kitPrisoner, kitDeathSpawn, kitStun3, kitSelfFear, kitEmber, kitPolluted,
+  kitPrisoner, kitDeathSpawn, kitStun3, kitStun3Fx, kitSelfFear, kitEmber, kitPolluted,
 };

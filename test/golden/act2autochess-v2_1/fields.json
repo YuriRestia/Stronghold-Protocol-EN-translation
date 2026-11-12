@@ -907,7 +907,7 @@
         "enemy_9016_acstmr": [6,5,0,0,169]
       },
       "hooks": [1,81,6000,1300,1469,3785,4209,8272,55,58,122,117,26,40537,2434,23,33,0,1,50,0,4,1],
-      "events": {"atk":1577,"cast":55,"deploy":48,"die":58,"dmg":4064,"engage":16,"fx":1448,"heal":136,"rate":494,"skill":239,"spawn":58,"status":951},
+      "events": {"atk":1577,"cast":55,"deploy":48,"die":58,"dmg":4064,"engage":16,"fx":1469,"heal":136,"rate":494,"skill":239,"spawn":58,"status":951},
       "fx": {
         "aoe": 32,
         "beam": 27,
@@ -941,7 +941,7 @@
         "summon": 4,
         "swap": 2,
         "telegraph": 6,
-        "tick": 478,
+        "tick": 499,
         "weightless": 7,
         "zone": 260
       },
@@ -995,8 +995,8 @@
         "enemy_9016_acstmr": [7,6,0,0,33]
       },
       "hooks": [1,64,6000,298,291,510,806,1539,51,53,47,47,0,9030,331,5,33,3,1,44,0,0,0],
-      "events": {"atk":338,"cast":43,"deploy":27,"die":50,"dmg":776,"engage":7,"fx":156,"heal":95,"leak":3,"rate":108,"skill":94,"spawn":49,"status":200},
-      "fx": {"appear":3,"beam":42,"blink":10,"charge":18,"disappear":3,"explode":8,"explosion":7,"frostNova":13,"knack":1,"overclock":1,"phase":1,"pull":1,"saltWard":4,"shell":7,"slippery":1,"summon":7,"swordRain":9,"swordStorm":6,"telegraph":3,"tornado":2,"tornadoPulse":9},
+      "events": {"atk":338,"cast":43,"deploy":27,"die":50,"dmg":776,"engage":7,"fx":172,"heal":95,"leak":3,"rate":108,"skill":94,"spawn":49,"status":200},
+      "fx": {"appear":3,"beam":42,"blink":10,"charge":18,"disappear":3,"explode":8,"explosion":7,"frostNova":13,"knack":1,"overclock":1,"phase":1,"pull":1,"saltWard":4,"shell":7,"slippery":1,"summon":7,"swordRain":9,"swordStorm":6,"telegraph":3,"tick":16,"tornado":2,"tornadoPulse":9},
       "snaps": "38f36a53 0d1704d6 fe72baf6 b18223f6 bf895c8f b40797dc 483a6900 424190e1 92b7b0cf 18ec8375 9cce3767 97ee62db 504b0fd1 081d67a4 13c34409 e193efea 31c4b359 a4873307 4a269d74 3d902457"
     },
     "hidden-boss_9-pair": {

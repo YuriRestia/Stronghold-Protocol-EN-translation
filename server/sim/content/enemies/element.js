@@ -7,7 +7,7 @@ import {
   stOf, T, elem, hurt, targetsNear, areaAllies, areaAlliesInTiles, targetAndArea, byPriority, setForm, onTerrain, stepToward,
   attackSkillOf, fxWhile,
 } from './helpers.js';
-import { taunt, ep, deathSpawn, deathBoom, setFloat, float, skill, kitEp, kitStun3 } from './archetypes.js';
+import { taunt, ep, deathSpawn, deathBoom, setFloat, float, skill, kitEp, kitStun3Fx } from './archetypes.js';
 
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
@@ -214,8 +214,8 @@ export const ELEMENT_KITS = Object.freeze({
   // (fork) fx: the client's enemy_divman_swim (CheckContainsBuff buff_sea) — its swim mode and enemy_divman_2_buff while it
   // is in deep water (its ab:swim); display only (snapshot fxs)
   enemy_1158_divman: (ab) => [...kitDeepsea(ab, { swim: true }), fxWhile('divman_swim', (b, e) => !!e.findBuff('ab:swim'))], // 潜水员 · in deep water: ATK up + stealth; immune to 水蚀
-  enemy_1160_hvyslr: (ab) => [...kitStun3(ab), ...kitDeepsea(ab, { drown: true })],   // 码头水手 · every (spCost+1)th attack stuns; drowns in deep water
-  enemy_1160_hvyslr_2: (ab) => [...kitStun3(ab), ...kitDeepsea(ab, { drown: true })], // 码头水手长 · same
+  enemy_1160_hvyslr: (ab) => [...kitStun3Fx(ab), ...kitDeepsea(ab, { drown: true })],   // 码头水手 · every (spCost+1)th attack stuns; drowns in deep water
+  enemy_1160_hvyslr_2: (ab) => [...kitStun3Fx(ab), ...kitDeepsea(ab, { drown: true })], // 码头水手长 · same
   enemy_1161_tidmag: kitTidmag,                                      // 控潮术师 · attack hits target + 4 neighbours, erosion
   enemy_1161_tidmag_2: kitTidmag,                                    // 领潮员 · same
   // (fork) fx: the client's enemy_magmot_effect (CheckContainsBuff under_sea[tile]) — enemy_magmot_idle_01 and _move_01
