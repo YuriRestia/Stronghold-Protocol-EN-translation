@@ -407,12 +407,12 @@ describe('scripts/deploy-regions.mjs', () => {
     assert.deepEqual(parseHosts(''), []);
   });
 
-  test('prepare pulls, names the generation and commit, and passes --no-art only where asked', () => {
-    const plain = prepareCommand({ gen: 'g1', commit: 'abc' });
-    assert.match(plain, /git pull --ff-only/);
-    assert.match(plain, /deploy --prepare --gen g1 --ref abc/);
+  test('prepare fetches and resets to the commit, names the generation and commit, and passes --no-art only where asked', () => {
+    const plain = prepareCommand({ gen: 'g1', commit: 'abc1234' });
+    assert.match(plain, /git fetch --quiet origin && .*git reset --quiet --hard abc1234 /);
+    assert.match(plain, /deploy --prepare --gen g1 --ref abc1234/);
     assert.doesNotMatch(plain, /--no-art/);
-    assert.match(prepareCommand({ gen: 'g1', commit: 'abc', noArt: true }), /--no-art/);
+    assert.match(prepareCommand({ gen: 'g1', commit: 'abc1234', noArt: true }), /--no-art/);
     assert.match(activateCommand('g1'), /generations\.mjs activate g1/);
   });
 

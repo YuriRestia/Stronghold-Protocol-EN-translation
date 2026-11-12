@@ -59,12 +59,34 @@ export const formatHosts = (hosts) => hosts.map((h) => `${h.host}${h.noArt ? ':n
 /** Quote for a POSIX shell. @param {string} s */
 export const shQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
 
-/** The shell line that prepares a generation on one server. @param {{ gen: string, commit: string, noArt?: boolean }} o */
+/** Exit code of a prepare that refused because the server's checkout has local changes (nothing was changed). */
+export const PREPARE_LOCAL_CHANGES = 3;
+
+/**
+ * The shell line that prepares a generation on one server.
+ * (fork, 2026-11-13) The checkout in APP moves to the exact release commit with fetch + `reset --hard`, not
+ * `pull --ff-only`, so it works whether or not the server's commit is an ancestor of the release (after a force push
+ * it is not, and a fast-forward pull fails).
+ * - First, before anything changes: `git status --porcelain --untracked-files=no`. A local change to any tracked file
+ *   other than data/assets.json (which the server rewrites itself) refuses: the list is printed, nothing is reset and
+ *   that server's prepare stops with exit PREPARE_LOCAL_CHANGES. So `reset --hard` never throws away an edit.
+ * - Never `git clean`: untracked and ignored files stay as they are. The art (public/assets/), the 4 fx lists and
+ *   clip-bounds.json are gitignored, so the reset never touches them. (An untracked file at a path the release starts
+ *   tracking is replaced by the release's file, as a checkout would.)
+ * - Only APP: the generations' own folders are made by generations.mjs from the commit.
+ * @param {{ gen: string, commit: string, noArt?: boolean }} o commit: the full or short commit id (hex only)
+ */
 export function prepareCommand({ gen, commit, noArt = false }) {
+  if (!/^[0-9a-f]{4,64}$/.test(String(commit))) throw new Error(`prepare: not a commit id: ${commit}`);
   const inner = [
     `cd ${APP}`,
+    `st=$(${AS_APP} git status --porcelain --untracked-files=no)`,
+    `changed=$(printf '%s\n' "$st" | grep -v -e '^$' -e '^.. data/assets\.json$' || true)`,
+    `if [ -n "$changed" ]; then echo "prepare refused: tracked files in ${APP} have local changes (nothing was changed; commit, move or undo them first):"; printf '%s\n' "$changed"; exit ${PREPARE_LOCAL_CHANGES}; fi`,
     `${AS_APP} git checkout -- data/assets.json`,
-    `${AS_APP} git pull --ff-only`,
+    `${AS_APP} git fetch --quiet origin`,
+    `${AS_APP} git cat-file -e ${commit}^{commit}`,
+    `${AS_APP} git reset --quiet --hard ${commit}`,
     `node scripts/generations.mjs deploy --prepare --gen ${gen} --ref ${commit}${noArt ? ' --no-art' : ''}`,
   ].join(' && ');
   return `sudo bash -c ${shQuote(inner)}`;
