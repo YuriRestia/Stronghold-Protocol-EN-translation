@@ -595,7 +595,7 @@ export const C2S = {
   // operator charId ('' for none; the server keeps only a visible charId of the room's chess.json); cosmetic, any room phase
   'room.card': { charId: (v) => v === '' || isCharId(v) },
   // (fork) room chat (docs/design/network.md "Room chat"): a seated player's line in the room screen, cleaned and cut by
-  // the lobby like match chat's, under the same spam limits (server/chatLimit.js); and an emote. Both without a rid.
+  // the lobby like match chat's, under the same spam limits (server/match/chatLimit.js); and an emote. Both without a rid.
   'room.chat': { x: (v) => isStr(v, CHAT_FRAME_MAX) },
   'room.emote': { id: (v) => EMOTES.includes(v) },
   // operator ownership (干员持有, 0.2.0 补位): stored per session / seat; a match takes the list its seat had when it
