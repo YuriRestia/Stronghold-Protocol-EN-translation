@@ -1,5 +1,5 @@
 // scripts/release-sudo.mjs — (fork) the remembered sudo password of a server that asks for one (the US server), for
-// scripts/release.mjs. Windows only.
+// scripts/release.mjs and scripts/deploy-regions.mjs (through scripts/ssh-sudo.mjs). Windows only.
 //
 // Where: %LOCALAPPDATA%\Stronghold-Protocol\release\sudo-<host>.dpapi, encrypted with Windows DPAPI for the current
 // Windows user (PowerShell ConvertFrom-SecureString). Only this Windows account on this PC can decrypt it: another
@@ -8,8 +8,8 @@
 //
 // The password is typed into PowerShell's own hidden prompt (Read-Host -AsSecureString), never echoed, never on a
 // command line, never in the repo or a log. To use it, it is decrypted into memory and written to `sudo -S` on the
-// server through ssh's stdin. `node scripts/release.mjs --forget-sudo` deletes the file. The server's sudoers stay as
-// they are.
+// server through ssh's stdin. `--forget-sudo` (release.mjs or deploy-regions.mjs) deletes the file. The server's
+// sudoers stay as they are.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
