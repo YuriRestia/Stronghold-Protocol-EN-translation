@@ -225,7 +225,7 @@ export function RoomChat({ room, myId, seated, online }) {
       ${last ? html`<div class="clog-mini__last" dir="auto"><b class=${senderClass(room, myId, last.id)}>${last.n || t('博士')}:</b> ${last.x}</div>` : null}
     </div>`;
   }
-  const emotes = seated ? html`<${EmoteWheel} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${sendEmote} disabled=${!online} />` : null;
+  const emotes = seated ? html`<${EmoteWheel} plain open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${sendEmote} disabled=${!online} />` : null;
   // docked (desktop): no header — the input row carries the emotes and ▾, so the log fits under the seat cards even at
   // 720p; the sheet (short screens) has a header with its title and ✕
   const dock = !short;
