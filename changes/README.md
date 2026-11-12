@@ -50,6 +50,52 @@ FORK-CHANGELOG.md is for players. Every fragment says which it is, on one line:
 No `Kind:` line, or anything else after it, is an error from `npm run changelog` (and from the merge guard). **When
 unsure, it is internal.** The update news draft of `scripts/release.mjs` also uses only `Kind: player` fragments.
 
+## News lines (player fragments)
+
+A `Kind: player` fragment whose change players should read about in the lobby's update news carries a `News:` block:
+its line(s) for the news, in all five languages the game ships, written with the change so a release never waits on
+translation. The release builds the news from these blocks (`scripts/release-news.mjs`). A player fragment without one
+is fine (not every change is news); an internal fragment with one is an error. The block is never folded.
+
+```markdown
+Kind: player
+
+Server cost: none
+
+News:
+
+- highlight: <@sp.leaf>{term:大同盟}</> rooms now find players through matchmaking
+  zh: <@sp.leaf>{term:大同盟}</>房间现在可以通过匹配找到玩家
+  ja: <@sp.leaf>{term:大同盟}</>ルームがマッチングでプレイヤーを見つけられるようになりました
+  ko: <@sp.leaf>{term:大同盟}</> 방이 이제 매칭으로 플레이어를 찾습니다
+  zh-TW: <@sp.leaf>{term:大同盟}</>房間現在可以透過配對找到玩家
+- point: {name:char_4247_oxi}'s fireballs now play their sounds
+  zh: {name:char_4247_oxi}的火球现在会播放音效
+  ja: {name:char_4247_oxi|タルラ}の火球に効果音が付きました
+  ko: {name:char_4247_oxi}의 화염구가 이제 효과음을 냅니다
+  zh-TW: {name:char_4247_oxi}的火球現在會播放音效
+```
+
+- `- highlight:` is a bold line at the top of the news, `- point:` a bullet. The English line follows the colon; the
+  `zh:`, `ja:`, `ko:` and `zh-TW:` lines follow, indented. Every item has all five.
+- **Names are never typed by hand.** `{name:<id>}` is the game's own name of an operator, token, enemy, item or bond by
+  its game-data id (`char_1033_swire2` → Swire the Elegant Wit / 琳琅诗怀雅 / 琳琅スワイヤー / 스와이어 디 엘리건트 위트 /
+  琳瑯詩懷雅), filled in per language. `{term:<Chinese UI text>}` is a UI term from the language packs (`{term:大同盟}` →
+  Grand Alliance / 大同盟 / 대동맹). Sources, all in git: `data/*.json` (ids → Chinese names), `data/i18n/<lang>.json`
+  (the official game data's names), `public/i18n/<lang>.json` (the UI packs). zh-TW falls back to the Chinese name, as
+  the game does.
+- Only where the game data has no name in a language, write it out: `{name:<id>|<name>}` (Talulah has no Japanese name
+  in our data, so `{name:char_4247_oxi|タルラ}`). It is refused when the data has one.
+- Colour tags as the game uses them (`<@sp.leaf>…</>`); every language has the same tags and the same placeholders as
+  the English line. At most 200 characters a line once the names are filled in. Only what players notice: no server,
+  CI, test, tooling, bandwidth or download lines, no "Many fixes" line.
+- `npm run changelog` checks all of it and names the problem: a missing language, other placeholders or tags than the
+  English line, an unknown id, a missing name, a line too long.
+- At release time Notepad shows each line with its translations under it. A line whose English is rewritten there, or
+  a new one, has no translations: the release stops, names it (`h1` = first highlight, `p1` = first point) and keeps
+  the edit in `logs/news-<id>.draft.txt`. A crew session fills in the four lines there (names as above) and the next
+  release run opens it again; or `node scripts/release.mjs --english-only h1,p3` ships those lines in English for now.
+
 ## Public sections, operator notes
 
 FORK-CHANGELOG.md is public. Its sections say what players and **any** server host get: features, fixes, credits,
