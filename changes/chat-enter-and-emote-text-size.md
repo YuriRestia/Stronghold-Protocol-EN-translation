@@ -11,6 +11,6 @@
   leaves the screen. The size is remembered; a double click on the corner goes back to the default size.
 - Click anywhere outside the chat (or press Esc) and the chat log darkens and fades: the lines stay readable, and clicks
   go through to any button under it first. Click the faded log anywhere that isn't over a button, or the message box,
-  to bring it back.
+  to bring it back. The resize corner stays live while faded: drag it and the chat comes back at the new size.
 - The new ▾ button folds the chat down to a small message-box bar that covers no room button; new lines show as an
   unread count on ▴, which opens it again. The phone chat sheet is unchanged.

@@ -1030,7 +1030,7 @@
 .clog.is-idle .clog__line { text-shadow: 0 1px 2px #000, 0 0 4px #000; }
 .clog.is-idle .clog__in { pointer-events: auto; background: rgb(8, 11, 10); border-top-color: transparent; } /* solid: nothing under it shows through */
 .clog.is-idle .clog__in > * { opacity: .8; }
-.clog.is-idle .clog__grip { display: none; }
+.clog.is-idle .clog__grip { pointer-events: auto; opacity: .6; } /* faded, the corner still resizes (and brings the chat back) */
 .clog__list { transition: opacity .3s var(--ease-out); }
 /* the resize grip: an L in the top-right corner, nesw cursor */
 .clog__grip {

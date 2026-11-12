@@ -94,6 +94,18 @@ describe('room chat (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + 
       assert.ok(!(await box(host)).cls.includes('is-idle'), `a press on the faded log (over ${what}) brings the chat back`);
       await outside();
       await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-idle'), { timeout: 3000 });
+      // faded, the resize corner still answers: dragging it resizes and brings the chat back
+      const gi = await host.page.$eval('[data-testid="room-chat-grip"]', (e) => { const r = e.getBoundingClientRect(); const x = r.left + r.width / 2, y = r.top + r.height / 2; return { x, y, hit: !!document.elementFromPoint(x, y)?.closest('.clog__grip') }; });
+      assert.ok(gi.hit, 'faded, the resize corner is still the top hit');
+      const i0 = await box(host);
+      await host.page.mouse.move(gi.x, gi.y);
+      await host.page.mouse.down();
+      await host.page.mouse.move(gi.x + 30, gi.y - 20, { steps: 4 });
+      await host.page.mouse.up();
+      const i1 = await box(host);
+      assert.ok(!i1.cls.includes('is-idle') && i1.w > i0.w && i1.h > i0.h, `dragged from faded: ${JSON.stringify([i0, i1])}`);
+      await outside();
+      await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-idle'), { timeout: 3000 });
       await host.click('[data-testid="room-chat-input"]');
       assert.ok(!(await box(host)).cls.includes('is-idle'), 'a press into the input row brings it back');
       assert.equal((await box(host)).under, true);
