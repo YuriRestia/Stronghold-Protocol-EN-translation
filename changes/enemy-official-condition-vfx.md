@@ -17,6 +17,8 @@
 - 'Forsaken One' glows once its attacks have stacked three times, Nucleic Maleficent and Allotropic Maleficent once
   they have been hit, Lucky Flyfin while it sprints after the first hit, and OpFor: Bonespur while it is hidden, with the
   official burst each time it hides or shows itself.
+- 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' burst as they switch form, Decode Basis α as it changes into its
+  new form, and Snowchild when it is knocked into high ground (at most once every 5 seconds, as in the official game).
 - Before: none of these effects showed.
 
 Kind: player
@@ -37,4 +39,13 @@ Server cost:
   second (shared/fxsDiff.js). The Scarlet Singer's speed-up glow puts one row on every living enemy of its field for
   10 s per song; the field's living enemies (MAX_ALIVE_ENEMIES, 600) bound it.
 - Estimated from the code, not measured: display-only state probes and timed effect rows in
-  `server/sim/content/enemies/*.js`; nothing the battle reads.
+  `server/sim/content/enemies/*.js` and `server/sim/content/bosses.js` (the Echoes); nothing the battle reads. A one-shot
+  burst is one row for 1 s (2 s for Decode Basis α's change).
+
+News:
+
+- point: More enemies now show their official effects, such as {name:enemy_2010_csdcr}'s song and the {name:enemy_1174_duholy}'s glow
+  zh: 更多敌人现在会显示官方特效，例如{name:enemy_2010_csdcr}的歌声和{name:enemy_1174_duholy}的光效
+  ja: より多くの敵が公式エフェクトを表示するようになりました（{name:enemy_2010_csdcr}の歌、{name:enemy_1174_duholy}の光など）
+  ko: 더 많은 적이 공식 이펙트를 표시합니다(예: {name:enemy_2010_csdcr}의 노래, {name:enemy_1174_duholy}의 광채)
+  zh-TW: 更多敵人現在會顯示官方特效，例如{name:enemy_2010_csdcr}的歌聲和{name:enemy_1174_duholy}的光效

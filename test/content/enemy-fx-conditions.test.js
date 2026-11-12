@@ -178,3 +178,42 @@ test('enemy_10045_parrot: its sprint glow while the first-hit sprint lasts', () 
   h.run(e.mem.ab.t['M0SpeedUp.duration'] + 0.5);
   assert.equal(on(h, e, 'parrot_m0_t[speed_up]'), false);
 });
+
+// one-shot bursts: a short timed row (Battle.fxState `dur`) at the moment the client's template plays it
+test("enemy_9023_acdums: its switch burst at its form switch (acdums_t_1's hit_times run out)", () => {
+  const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+  h.step();
+  const e = put(h, 'enemy_9023_acdums', [10, 7]);
+  h.step();
+  const form = e.mem.ab.form;
+  assert.equal(on(h, e, 'acdums_t_1'), false);
+  h.runUntil(() => { h.b.dealDamage(h.unit('t_wall'), e, { amount: 1, type: 'true' }); return e.mem.ab.form !== form; }, 30);
+  assert.notEqual(e.mem.ab.form, form, 'switched');
+  assert.equal(on(h, e, 'acdums_t_1'), true);
+  h.run(1.5);
+  assert.equal(on(h, e, 'acdums_t_1'), false, 'the one-shot row gone');
+});
+
+test('enemy_10081_mpplai: its burst for the change at its 4th physical hit', () => {
+  const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+  h.step();
+  const e = put(h, 'enemy_10081_mpplai', [10, 7]);
+  for (let i = 0; i < 3; i++) h.b.dealDamage(h.unit('t_wall'), e, { amount: 1, type: 'phys' });
+  assert.equal(on(h, e, 'enemy_mpplai_passive_p0'), false);
+  h.b.dealDamage(h.unit('t_wall'), e, { amount: 1, type: 'phys' });
+  assert.equal(on(h, e, 'enemy_mpplai_passive_p0'), true);
+  h.run(2.5);
+  assert.equal(on(h, e, 'enemy_mpplai_passive_p0'), false, 'over with the change');
+});
+
+test('enemy_10138_xdsnow: its burst at a high-ground hit while unbalanced, not on an open road', () => {
+  const h = arena();
+  h.step();
+  const sn = put(h, 'enemy_10138_xdsnow', [10, 3]), sn2 = put(h, 'enemy_10138_xdsnow', [11, 6]);
+  h.step(2);
+  h.b.displace(sn, { x: -1, y: 0 }, 1, { force: 3 });                // (10,3) → high ground at (10,2)
+  h.b.displace(sn2, { x: 1, y: 0 }, 0.5, { force: 3 });              // open road: no collision
+  h.step();
+  assert.equal(on(h, sn, 'enemy_xdsnow_t[wall]'), true);
+  assert.equal(on(h, sn2, 'enemy_xdsnow_t[wall]'), false);
+});

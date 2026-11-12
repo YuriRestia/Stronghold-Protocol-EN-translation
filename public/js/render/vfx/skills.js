@@ -575,10 +575,16 @@ export const STATE_BUFFS = Object.freeze({
   'acbunn_invisible': true,
   'enemy_acbunn[cute]': true,
   'enemy_acbunn[horror]': true,
+  // 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' (enemy_9023_acdums) — its switch burst at each form switch
+  'acdums_t_1': true,
   // Lucky Flyfin (enemy_10045_parrot) — while it sprints after the first hit
   'parrot_m0_t[speed_up]': true,
+  // Decode Basis α (enemy_10081_mpplai) — its burst at its one change
+  'enemy_mpplai_passive_p0': true,
   // Shrine Swordsman (enemy_10087_hlchgr) — from its first enhancement on
   'hlchgr_t[attribute_storage]': true,
+  // Snowchild (enemy_10138_xdsnow) — its burst at a high-ground hit while unbalanced (5 s cooldown)
+  'enemy_xdsnow_t[wall]': true,
   // Lee's guard (op-lmlee.js, lmlee_tr → lmlee_t_2[bounce]): its loop while held, the hit as it cancels a stun
   'lmlee_tr': { looks: L({ guard: ['lmlee_buff_02_start'], hit: ['lmlee_buff_02_hit'] }) },
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
