@@ -12,6 +12,9 @@
 .rt-kw { color: #2fd0ff; }
 .rt-mint { color: var(--mint-400); }
 .rt-hl { color: var(--gold-2); }
+/* (fork) sp.blood / sp.leaf (ui/richText.js): the update news' dark blood red and leaf green */
+.rt-blood { color: #b3121e; }
+.rt-leaf { color: #9be15d; }
 .rt-term { color: #9fd4ff; border-bottom: 1px dotted rgba(159, 212, 255, .6); }
 
 /* ---- unit thumbnail ---- */
