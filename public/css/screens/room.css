@@ -1046,6 +1046,8 @@
 }
 .clog__mini:hover { color: var(--mint-400); border-color: var(--mint-700); }
 .clog__mini .icon { width: 14px; height: 14px; }
+/* ⤢ / ⤡ (docked only) in the input row: as tall and wide as the emote button, the glyph a little over the chat's text */
+.clog__in .clog__mini { align-self: stretch; height: auto; min-height: 24px; width: max(28px, calc(2.3 * .18 * var(--t))); padding: 0; line-height: 1; font-size: calc(.24 * var(--t)); }
 .clog__list {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .04rem .12rem;
   display: flex; flex-direction: column; gap: .02rem; line-height: 1.35;
