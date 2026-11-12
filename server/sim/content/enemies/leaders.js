@@ -6,7 +6,7 @@ import { aggroCmp, areaSelectable } from '../../targeting.js';
 import { periodicDamage } from '../../attack.js';
 import {
   nthOf, T, hurt, alliesInTiles, targetsNear, allTargets, areaAllies, areaAlliesInTiles, auraAllies, targetAndArea,
-  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf,
+  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf, fxWhile,
 } from './helpers.js';
 import {
   unblockable, maxTargets, onHitStatus, splashAttack, pathKeysAhead, noAirTargets, resist, nthAttackStatus, lowHpBuff,
@@ -53,6 +53,13 @@ const MCM_RANGE = 2.5, MCM_BOMB_DELAY = 2.17;
  *  自身当前所在地块)的距离自身最近的我方单位…"): the search radius. The blackboard's range_radius is 1.5; PRTS's figure is the
  *  one used. Until 0.1.3: any unit within 1.5, 隐匿 / 迷彩 ones included. */
 const RUSH_RADIUS = 3;
+
+/** (fork) “遗弃者”: the attack stacks its official glow needs (enemy_axetro_t's FilterByBuffStackCount `_stackCount`: 3). */
+const AXETRO_FX_STACKS = 3;
+/** (fork) How long the b.snap fxs row of a one-shot official effect stays (s): the client plays it once as it appears. */
+const ONE_SHOT_FX = 1;
+/** (fork) 雪孩子: enemy_xdsnow_t[wall][cd]'s life (LIMITED 5 in the official template): no second wall burst before it ends. */
+const XDSNOW_WALL_CD = 5;
 
 /** W's C4 fuse and blast radius [ASSUMED]. */
 const C4_FUSE = 1, C4_RADIUS = 1;
@@ -333,7 +340,11 @@ function kitLeaderMisc(key, ab, e) {
         },
         iv: 0.5,
         tick(b, e2, a) { if (a.last != null && b.time - a.last >= (T(ab, 'checker.delay') ?? 4)) { a.last = null; b.removeBuff(e2, 'ab:axeStack'); } },
-      }];
+      },
+      // (fork) fx: the client's enemy_axetro_t adds axetro_t[effect] (axetro_buff_01_start) once its stacks reach
+      // AXETRO_FX_STACKS (FilterByBuffStackCount GE, the template's constant), until its checker clears them; display
+      // only (snapshot fxs)
+      fxWhile('axetro_t', (b, e2) => (e2.findBuff('ab:axeStack')?.stacks ?? 0) >= AXETRO_FX_STACKS)];
     case 'enemy_2008_flking': {
       // 使全战场我方所有单位攻击力、防御力减半 (text; the blackboard's atkdown.atk_scale is not the halving),
       // 部署费用回复速度减半，再部署时间加倍; 周期性地添加正比于自身最大生命值的伤害防护屏障. The halving is a map effect
@@ -609,6 +620,8 @@ function kitXi(ab) {
 /** 锏 · 抵抗; DEF penetration against its blocker; 【速杀】 passes through its blocker hitting those on the way; 【肆虐风雪】
  *  AoE; KO ⇒ second form: stealth, more penetration, double hits, 【瞬息杀机】 at every 25 % HP lost (SP cleared + no attacks
  *  / heals around it). <降雪> absent. */
+// (fork) enemy VFX audit, S rows: Degenbrecher's ClearSp mark on each operator it disarms (b.snap fxs; STATE_BUFFS)
+const BLKSWB_CLEAR_FX = 'enemy_blkswb_s[effect]';
 function kitMace(ab) {
   const pen1 = T(ab, 'DefPenetrate.enemy_blkswb_t_2.def_penetrate') ?? 0, pen2 = T(ab, 'DefPenetrate.enemy_blkswb_t_2[reborn].def_penetrate') ?? pen1;
   const cs = { ratio: T(ab, 'ClearSp.hp_ratio') ?? 0, dur: T(ab, 'ClearSp.duration') ?? 0, r: T(ab, 'ClearSp.range_radius') ?? 0 };
@@ -647,6 +660,7 @@ function kitMace(ab) {
           const sk = u.skill;
           if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
           if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
+          if (cs.dur > 0) b.fxState(u, BLKSWB_CLEAR_FX, true, { src: e, dur: cs.dur });   // (fork) its official mark while disarmed, display only
         }
       }
     },
@@ -797,6 +811,10 @@ function kitTranslator(ab, e) {
   const change = (b, e2, form) => {
     if (P.form || !e2.alive) return;
     P.form = form;
+    // (fork) fx: the client's enemy_mpplai_passive_p0 plays enemy_mpplai_brith_01 on it at this change (its 4th phys /
+    // arts hit or a blocker: TriggerEnemySkill ChangeToB / D / C, then CreateEffect) — a looping prefab with no life of
+    // its own: held for the change [ASSUMED: it ends with the change]; display only (snapshot fxs)
+    b.fxState(e2, 'enemy_mpplai_passive_p0', true, { dur: TRANSLATOR_CHANGE });
     b.addBuff(e2, { key: 'ab:change', duration: TRANSLATOR_CHANGE, persist: true, flags: { noMove: true }, onExpire: ({ battle }) => finish(battle, e2) });
     setForm(b, e2, `translator_${form}`, 'phase', { dur: TRANSLATOR_CHANGE });
   };
@@ -907,6 +925,8 @@ export const LEADER_KITS = Object.freeze({
     // after the 急停 or with no movement). Until 0.2.2 one hit in proportion to the tiles moved [ASSUMED], from the position jump.
     const v = T(ab, 'unbalanced_bleed.damage') ?? 0;
     const iv = stepOf('unbalanced_bleed.interval', T(ab, 'unbalanced_bleed.interval') ?? 0, 0.066);
+    // (fork) fx: the client's enemy_cbjedi_bleed (CheckEnemyUnbalanced) keeps cbjedi_blood (weedy_skill_03_buff) on it while
+    // it is unbalanced; display only (snapshot fxs)
     return [{
       tick(b, e, a, dt) {
         if (!(v > 0 && iv > 0) || !unbalancedNow(b, e)) { a.bleed = 0; return; }
@@ -917,7 +937,7 @@ export const LEADER_KITS = Object.freeze({
           b.dealDamage(null, e, { ...periodicDamage(v), tags: ['dot', 'periodic', 'unbalanced'] });
         }
       },
-    }];
+    }, fxWhile('enemy_cbjedi_bleed', unbalancedNow)];
   },
   enemy_10112_ymgds: (ab) => [unbalanced((b, e) => {                 // 冒失的小弟 · stunned after being unbalanced
     const st = T(ab, 'StunAfterUnbalance.stun') ?? 0;
@@ -929,6 +949,9 @@ export const LEADER_KITS = Object.freeze({
     const r = Math.round(e.y + (dy / d) * 0.6), c = Math.round(e.x + (dx / d) * 0.6);
     if (b.grid.isLow(r, c) && b.grid.groundPassable(r, c)) return;   // stopped by nothing: no collision
     b.fx('explode', { x: e.x, y: e.y, r: 0.4, kind: 'wallHit', id: e.id });
+    // (fork) fx: the client's enemy_xdsnow_t[wall] plays enemy_xdsnow_die_01 on it at a high-ground hit while unbalanced,
+    // then not again for its [cd] buff's 5 s; display only (snapshot fxs; the damage above keeps its own rule)
+    if (!(b.time < (a.fxCd ?? -Infinity))) { a.fxCd = b.time + XDSNOW_WALL_CD; b.fxState(e, 'enemy_xdsnow_t[wall]', true, { dur: ONE_SHOT_FX }); }
     hurt(b, null, e, T(ab, 'hitWall.value') ?? 0, 'true', { tags: ['wallHit'] });
   })],
   // 拥霜羽兽 · PRTS 天赋 "不会攻击飞行单位"; unbalanced once ⇒ 失去蛋的模式 "不进行普通攻击，不可阻挡，移动速度最终提升至200%" (until
