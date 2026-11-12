@@ -1,0 +1,100 @@
+name: Golden refresh
+
+# (fork) Recompute the golden files on GitHub instead of a Dev's PC (test/golden/README.md "Refreshing on GitHub").
+# Button-run only: Actions → Golden refresh → Run workflow, on the branch that carries the change. It runs
+# `npm run golden:update` for the chosen versions and uploads ONLY the golden files that changed, plus a summary of the
+# moved scenarios, as a short-lived artifact. It never commits or pushes: the Dev downloads the artifact and commits the
+# files locally.
+on:
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: 'Versions: all, or a comma list of ids (act2autochess, act2autochess@V2_1, act1autochess, act1autochess@V1_1)'
+        required: true
+        default: all
+        type: string
+      families:
+        description: 'Families: all, or a comma list (roster, bonds, fields, matches, standins, diy)'
+        required: true
+        default: all
+        type: string
+
+concurrency:
+  group: golden-refresh-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    name: golden refresh (ubuntu, node 22)
+    runs-on: ubuntu-latest
+    # One full corpus is about 8 minutes on 4 worker threads (test/golden/README.md); four versions run one after another.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install (npm ci → postinstall copies public/vendor)
+        run: npm ci --no-audit --no-fund
+
+      # The inputs reach the shell only as environment variables, checked by the helper before use.
+      - name: Check the inputs
+        id: inputs
+        env:
+          VERSIONS: ${{ inputs.versions }}
+          FAMILIES: ${{ inputs.families }}
+        run: |
+          set -euo pipefail
+          ids="$(node tools/golden-moved.mjs --versions "$VERSIONS" | tr '\n' ' ')"
+          fam="$(node tools/golden-moved.mjs --families "$FAMILIES")"
+          echo "versions=${ids% }" >> "$GITHUB_OUTPUT"
+          echo "families=$fam" >> "$GITHUB_OUTPUT"
+          echo "versions: ${ids% }"
+          echo "families: ${fam:-all}"
+
+      - name: Keep the committed golden files to compare with
+        run: cp -r test/golden "$RUNNER_TEMP/golden-before"
+
+      - name: Recompute the golden files (npm run golden:update)
+        env:
+          VERSIONS: ${{ steps.inputs.outputs.versions }}
+          FAMILIES: ${{ steps.inputs.outputs.families }}
+        run: |
+          set -euo pipefail
+          for v in $VERSIONS; do
+            echo "::group::golden:update --version $v"
+            if [ -n "$FAMILIES" ]; then
+              npm run golden:update -- --version "$v" --family "$FAMILIES"
+            else
+              npm run golden:update -- --version "$v"
+            fi
+            echo "::endgroup::"
+          done
+
+      - name: Summarise the moved scenarios and collect the changed files
+        id: collect
+        env:
+          GOLDEN_REF: ${{ github.ref_name }}
+          GOLDEN_VERSIONS: ${{ steps.inputs.outputs.versions }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/golden-refresh"
+          node tools/golden-moved.mjs --compare "$RUNNER_TEMP/golden-before" test/golden --out "$out" >> "$GITHUB_STEP_SUMMARY"
+          n="$(find "$out/test" -type f 2>/dev/null | wc -l | tr -d ' ')"
+          echo "changed=$n" >> "$GITHUB_OUTPUT"
+          echo "changed golden files: $n"
+
+      - name: Upload the changed golden files
+        if: steps.collect.outputs.changed != '0'
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-refresh-${{ github.run_number }}
+          path: ${{ runner.temp }}/golden-refresh/
+          retention-days: 3
+          if-no-files-found: error

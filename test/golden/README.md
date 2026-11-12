@@ -82,3 +82,20 @@ Historical versions (0.3.2 M2): pass `--version <official-id>` to use the snapsh
 The six corpora live under `<versionSlug>/`; root JSON files remain the default. Generate a historical corpus with
 `node tools/golden.mjs --version act1autochess --update --twice`; the second pass reverses scenario order.
 `test/versions-golden.test.js` checks corpus identity, engine errors and representative worker execution.
+
+## (fork) Refreshing on GitHub
+
+A golden update takes the whole PC for minutes, so a Dev refreshes the files on GitHub instead
+(`.github/workflows/golden-refresh.yml`, helper `tools/golden-moved.mjs`):
+
+1. Push the branch that carries the change.
+2. On GitHub: **Actions → Golden refresh → Run workflow**, pick that branch. `versions` is `all` (the default and the
+   three historical versions, one after another) or a comma list of ids such as `act2autochess,act1autochess@V1_1`;
+   `families` is `all` or a comma list such as `roster,bonds`. A full run of every version takes about half an hour.
+3. The run's summary lists every golden file that changed and its moved, added and removed scenarios. When nothing
+   moved there is no artifact.
+4. Download the artifact `golden-refresh-<run number>` (kept 3 days), unzip it at the repository root (its files are
+   at their `test/golden/...` paths), delete `golden-refresh-summary.md`, review `git diff test/golden`, and commit the
+   files with the change that moved them, saying which scenarios moved and why.
+
+The workflow only reads the repository (`contents: read`): it never commits or pushes.
