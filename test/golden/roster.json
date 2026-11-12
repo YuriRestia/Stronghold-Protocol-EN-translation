@@ -432,8 +432,8 @@
         "enemy_2021_syfish": [1,0,1,0,441]
       },
       "hooks": [1,197,4200,598,598,981,990,322,145,184,32,32,0,18870,16,35,172,39,1,155,0,0,0],
-      "events": {"atk":710,"bounty":3,"cast":1,"deploy":23,"die":145,"dmg":978,"engage":12,"fx":200,"heal":5,"leak":39,"rate":313,"skill":64,"spawn":187,"status":69},
-      "fx": {"aoe":2,"camouflage":1,"displace":31,"dp":3,"drone":40,"explode":22,"expose":1,"liberate":1,"phase":1,"pull":31,"strike":3,"summon":47,"volley":8,"wolfShadow":3,"wolfShadowLost":6},
+      "events": {"atk":710,"bounty":3,"cast":1,"deploy":23,"die":145,"dmg":978,"engage":12,"fx":201,"heal":5,"leak":39,"rate":313,"skill":64,"spawn":187,"status":69},
+      "fx": {"ability":1,"aoe":2,"camouflage":1,"displace":31,"dp":3,"drone":40,"explode":22,"expose":1,"liberate":1,"phase":1,"pull":31,"strike":3,"summon":47,"volley":8,"wolfShadow":3,"wolfShadowLost":6},
       "snaps": "fcf05fb0 3d189d5f d25289ce ed38f985 e0c16b44 51217442 d885151f 32501b50 118fe069 a8982af1 bebe8746 4421996c bb001488 fa860f86"
     },
     "roster-008": {
@@ -998,8 +998,8 @@
         "enemy_9006_actoxi": [30,30,0,9113,699840]
       },
       "hooks": [1,141,5894,303,303,1944,2711,5237,110,120,166,163,2,16396,3737,52,110,0,1,235,2,0,0],
-      "events": {"atk":355,"bounty":6,"cast":2,"deploy":28,"die":120,"dmg":2109,"engage":11,"fx":900,"heal":1450,"layer":2,"rate":309,"skill":329,"spawn":130,"status":653},
-      "fx": {"anchor":6,"aoe":55,"candle":3,"ember":2,"garrison":2,"healAoe":81,"overload":4,"sp":109,"splash":2,"substitute":1,"summon":3,"swap":1,"telegraph":1,"teleport":8,"tick":415,"zone":207},
+      "events": {"atk":355,"bounty":6,"cast":2,"deploy":28,"die":120,"dmg":2109,"engage":11,"fx":930,"heal":1450,"layer":2,"rate":309,"skill":329,"spawn":130,"status":653},
+      "fx": {"ability":30,"anchor":6,"aoe":55,"candle":3,"ember":2,"garrison":2,"healAoe":81,"overload":4,"sp":109,"splash":2,"substitute":1,"summon":3,"swap":1,"telegraph":1,"teleport":8,"tick":415,"zone":207},
       "snaps": "5282dc76 d4b94f6c 3d6584b8 3edb47f5 3e0c5a5c 0a83c368 9c282e16 c83b8969 31bc5d69 3b9f0d3e ed5b4b9e 22682d95 e8620b72 9dee369a 6c0cdbff 97b77751 f2930aff 2ce13cc3 a6071453 8a36a16f"
     },
     "roster-016": {
@@ -1404,8 +1404,8 @@
         "enemy_2085_skzjxd_2": [1,1,0,0,11700]
       },
       "hooks": [1,45,2885,444,442,560,569,111,31,32,39,37,46,9816,104,20,29,0,1,31,0,0,0],
-      "events": {"atk":515,"bounty":4,"cast":1,"deploy":13,"die":32,"dmg":561,"engage":11,"fx":29,"heal":32,"rate":104,"skill":76,"spawn":44,"status":234},
-      "fx": {"crit":14,"dp":3,"explode":1,"liberate":4,"phase":2,"sp":4,"telegraph":1},
+      "events": {"atk":515,"bounty":4,"cast":1,"deploy":13,"die":32,"dmg":561,"engage":11,"fx":30,"heal":32,"rate":104,"skill":76,"spawn":44,"status":234},
+      "fx": {"ability":1,"crit":14,"dp":3,"explode":1,"liberate":4,"phase":2,"sp":4,"telegraph":1},
       "snaps": "a1eda3b4 e7834a26 6db481d9 1e7b306f 6175bc02 d72bcab1 3ef52c9c b7992045 d59e9170 553b3a3f"
     },
     "roster-022": {
@@ -1458,8 +1458,8 @@
         "enemy_2002_bearmi": [1,0,0,12377,14653]
       },
       "hooks": [1,43,3300,438,437,1048,1040,589,27,29,37,35,0,13695,136,32,28,2,1,27,1,0,0],
-      "events": {"atk":479,"bounty":3,"cast":9,"deploy":13,"die":27,"dmg":1040,"engage":10,"fx":49,"heal":522,"layer":1,"leak":2,"rate":129,"skill":72,"spawn":42,"status":269},
-      "fx": {"buff":2,"crit":6,"garrison":1,"liberate":10,"phase":5,"shield":16,"shot":5,"zone":4},
+      "events": {"atk":479,"bounty":3,"cast":9,"deploy":13,"die":27,"dmg":1040,"engage":10,"fx":50,"heal":522,"layer":1,"leak":2,"rate":129,"skill":72,"spawn":42,"status":269},
+      "fx": {"ability":1,"buff":2,"crit":6,"garrison":1,"liberate":10,"phase":5,"shield":16,"shot":5,"zone":4},
       "snaps": "359a01fe 665d7641 55509a46 2a93f2bf ff071dab 6b9f3fb8 a6532c55 7ea1b048 755ea999 0cc187ea cb8f38a4"
     },
     "roster-023": {
@@ -1732,8 +1732,8 @@
         "enemy_9006_actoxi": [12,8,3,6403,168686]
       },
       "hooks": [1,67,5100,657,657,2028,2028,49,47,60,134,134,0,8856,50,30,53,11,1,47,2,0,0],
-      "events": {"atk":860,"bounty":2,"cast":4,"deploy":14,"die":49,"dmg":1954,"engage":12,"fx":151,"heal":49,"layer":2,"leak":11,"rate":109,"skill":271,"spawn":65,"status":183},
-      "fx": {"blink":1,"buff":1,"coin":40,"explode":31,"garrison":2,"shield":23,"shieldBreak":1,"strike":15,"volley":8,"zone":29},
+      "events": {"atk":860,"bounty":2,"cast":4,"deploy":14,"die":49,"dmg":1954,"engage":12,"fx":158,"heal":49,"layer":2,"leak":11,"rate":109,"skill":271,"spawn":65,"status":183},
+      "fx": {"ability":7,"blink":1,"buff":1,"coin":40,"explode":31,"garrison":2,"shield":23,"shieldBreak":1,"strike":15,"volley":8,"zone":29},
       "snaps": "f6cc9020 b0a0d12b 885a6c4d 7445f2af de6a89d4 2673a0a7 4e14d5c9 9e2d6872 2c67637b e0221902 b7368388 b4a04027 5cf5159e 6377cb7b c11415a3 6c0237bc 395a8916"
     },
     "roster-028": {
@@ -2688,8 +2688,8 @@
         "enemy_9006_actoxi": [12,12,0,14589,298598]
       },
       "hooks": [1,85,5477,708,707,2558,2709,1401,70,72,22,17,12,30575,733,57,64,1,1,75,9,8,4],
-      "events": {"atk":877,"bounty":3,"cast":4,"deploy":18,"die":71,"dmg":2709,"engage":13,"fx":145,"heal":1343,"layer":9,"leak":1,"rate":117,"skill":39,"spawn":80,"status":619},
-      "fx": {"aoe":10,"beam":1,"burst":8,"crit":18,"displace":27,"dodge":4,"dollEnd":1,"garrison":9,"meltdown":6,"overload":1,"reborn":1,"substitute":5,"summon":1,"swap":3,"telegraph":3,"zone":47},
+      "events": {"atk":877,"bounty":3,"cast":4,"deploy":18,"die":71,"dmg":2709,"engage":13,"fx":157,"heal":1343,"layer":9,"leak":1,"rate":117,"skill":39,"spawn":80,"status":619},
+      "fx": {"ability":12,"aoe":10,"beam":1,"burst":8,"crit":18,"displace":27,"dodge":4,"dollEnd":1,"garrison":9,"meltdown":6,"overload":1,"reborn":1,"substitute":5,"summon":1,"swap":3,"telegraph":3,"zone":47},
       "snaps": "cc08131a d999df37 429c07d8 6f4162fe 8a9e1dc5 240f66ee d882cc05 5f01b1ae 639e58c7 d3017d05 eba7493e 2680ac60 8451497a 76e27f22 006358fa 6c6ce0ba 113f53ea c10592d4 2d99a7f3"
     },
     "roster-044": {
