@@ -819,7 +819,7 @@ export const LEADER_KITS = Object.freeze({
     const iv = stepOf('unbalanced_bleed.interval', T(ab, 'unbalanced_bleed.interval') ?? 0, 0.066);
     // (fork) fx: the client's enemy_cbjedi_bleed (CheckEnemyUnbalanced) keeps cbjedi_blood (weedy_skill_03_buff) on it while
     // it is unbalanced; display only (snapshot fxs)
-    return [fxWhile('enemy_cbjedi_bleed', unbalancedNow), {
+    return [{
       tick(b, e, a, dt) {
         if (!(v > 0 && iv > 0) || !unbalancedNow(b, e)) { a.bleed = 0; return; }
         a.bleed = (a.bleed ?? 0) + dt;
@@ -829,7 +829,7 @@ export const LEADER_KITS = Object.freeze({
           b.dealDamage(null, e, { ...periodicDamage(v), tags: ['dot', 'periodic', 'unbalanced'] });
         }
       },
-    }];
+    }, fxWhile('enemy_cbjedi_bleed', unbalancedNow)];
   },
   enemy_10112_ymgds: (ab) => [unbalanced((b, e) => {                 // 冒失的小弟 · stunned after being unbalanced
     const st = T(ab, 'StunAfterUnbalance.stun') ?? 0;
