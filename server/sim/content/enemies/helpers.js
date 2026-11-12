@@ -94,7 +94,8 @@ export function abOf(b, e) {
   list.forEach((s, i) => {
     if (!s || s.prefabKey == null) return;
     const at = base.findIndex((x) => x && x.prefabKey === s.prefabKey);
-    sk[s.prefabKey] = { cd: num(s.cooldown, 0), icd: num(s.initCooldown, 0), sp: num(s.spCost, 0), pr: num(s.priority, 0), bb: s.bb || {}, bs: s.bbStr || {}, slot: at >= 0 ? at : i };
+    sk[s.prefabKey] = { cd: num(s.cooldown, 0), icd: num(s.initCooldown, 0), sp: num(s.spCost, 0), pr: num(s.priority, 0), bb: s.bb || {}, bs: s.bbStr || {}, slot: at >= 0 ? at : i,
+      pk: String(s.prefabKey) };   // (fork) pk: its prefabKey (the client's 'ready:<pk>' state row, enemy VFX audit)
   });
   e.mem.ab = { key, t, tS, sk, list: [], times: null, atkType: null, immune: null, origMaxHp: e.base.maxHp };
   return e.mem.ab;
@@ -125,6 +126,16 @@ export function grantHitShield(battle, enemy, count) {
  * place of the attack (render/units.js UnitView.onCast; DESIGN §35.57). No gameplay effect: no state, no random draw
  * (DESIGN §8.2; golden counts the event, nothing else moves).
  */
+/**
+ * (fork) enemy VFX audit, S rows: skill `s` of enemy `e` is ready (its ReadyEnemySkillEffect: the official glow while the
+ * skill can be cast, gone at the cast) while `ready()` holds — b.snap fxs row 'ready:<prefabKey>' (Battle.fxProbe),
+ * display only; the client plays that skill plan's `ready` rows on the enemy. `ready` must be O(1) (a counter, no search).
+ */
+export const READY_PREFIX = 'ready:';
+export function readyProbe(b, e, s, ready) {
+  if (b && e && s && s.pk && typeof ready === 'function') b.fxProbe(e, READY_PREFIX + s.pk, () => ready());
+}
+
 export function castSlot(b, e, s, turnClip = null) {
   if (!b || !e || !s || !Number.isInteger(s.slot)) return;
   const d = s.bb && typeof s.bb.duration === 'number' && s.bb.duration > 0 ? Math.round(s.bb.duration * 100) / 100 : 0;

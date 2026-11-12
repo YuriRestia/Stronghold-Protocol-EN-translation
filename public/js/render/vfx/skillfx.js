@@ -124,6 +124,8 @@ import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
 export const SKILL_CAST_S = 0.6;
+/** (fork) enemy VFX audit, S rows: the prefix of an enemy skill's ready row (sim enemies/helpers.js READY_PREFIX). */
+const READY_ROW = 'ready:';
 /**
  * Battle seconds after a skill's end in which a kit fx still belongs to it (FX_COVER, FX_BINDINGS `during`): an instant
  * skill's kit lands its blast or shells a moment after the 0 (蕾缪安 S3's last shells 0.3–0.7 s, 溯光星源 S2's link
@@ -1181,6 +1183,9 @@ export class SkillFx {
         // (fork) an enemy src: its skills' rows on their targets (index v2 skill plans: OpFor: BlackCloud's grab)
         if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || [])]), row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
+        // (fork) enemy VFX audit, S rows: 'ready:<prefabKey>' (sim enemies/helpers.js readyProbe: its ReadyEnemySkillEffect)
+        // — that enemy skill plan's `ready` rows on the enemy while the row lasts
+        if (!list.length && typeof row[0] === 'string' && row[0].startsWith(READY_ROW) && U?.enemy?.length) list = this._readyRows(U, row[0]);
         // (fork) last: an official effect in a field the indexer does not read (indexGaps.js ENEMY_STATE_KEYS) (a light world without unit keys: by-unit rows skip)
         if (!list.length) list = enemyStateKeys(row[0], this.w.unitKeyOf?.(sv || v), row[2]).map((key) => ({ key, buff: row[0], loop: this.w.idx?.prefabs?.[key]?.looping !== false }));
         for (const e of list) {
@@ -1362,7 +1367,8 @@ export class SkillFx {
     const U = extra.id != null ? (this.units.get(extra.id) ?? this.of(this.w.view(extra.id))) : null;
     const at = extra.on != null ? this.w.view(extra.on) : null;
     const plan = U?.plan;
-    if (!plan || !at) return true;
+    if (!at) return true;
+    if (!plan) { if (U?.enemy?.length) this._enemyTick(U, at, extra.key); return true; }
     let rows = plan.pulse.filter((e) => e.reason === 'tick' && (!extra.key || e.key === extra.key));
     // a talent's tick the index reaches through one skill only (遥's bubbles: S1's selector) plays with any skill equipped
     if (!rows.length && extra.key && plan.unitKey) rows = this._tickRows(plan.unitKey, extra.key);
@@ -1372,6 +1378,37 @@ export class SkillFx {
       if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
     }
     return true;
+  }
+
+  /**
+   * (fork) enemy VFX audit, S rows: fx 'tick' of an enemy (U.enemy: its skills by slot, index v2) — the moment its kit
+   * signals plays the first of its skill plans with pulse rows ('tick' / 'hit-no-attack', `key`: only that one) on `at`,
+   * one-shot (a 'cast' hold ends after SKILL_CAST_S): Jetman's takeoff jets, Blackhorn Rhuul's clash.
+   */
+  _enemyTick(U, at, key) {
+    const from = U.v && U.v !== at && Number.isFinite(U.v.x) ? U.v : undefined;
+    for (const en of U.enemy) {
+      // `key` also finds the plan's attack hit rows: a skill attack whose blow the kit deals itself (no 'atk' event:
+      // the Corrupted Knight's charged hammer, 'Armor of the Empire''s multi-hit)
+      const rows = key ? [...(en.plan?.pulse || []), ...(en.plan?.attacks || []).flatMap((a) => (a.hit || []).flat())].filter((e) => e.key === key)
+        : (en.plan?.pulse || []);
+      if (!rows.length) continue;
+      for (const e of uniq(rows)) {
+        const h = this._play(e, at, { flipFrom: from });
+        if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
+      }
+      return;
+    }
+  }
+
+  /**
+   * (fork) enemy VFX audit, S rows: the `ready` rows of the enemy skill a 'ready:<prefabKey>' row names (U.enemy, its
+   * skills by slot; prefabKey matched without case: the sim's record key against the index's), as state entries.
+   */
+  _readyRows(U, buff) {
+    const pk = buff.slice(READY_ROW.length).toLowerCase();
+    const en = U.enemy.find((x) => String(x.prefabKey).toLowerCase() === pk);
+    return (en?.plan?.ready || []).map((e) => ('loop' in e ? e : { ...e, loop: this.w.idx?.prefabs?.[e.key]?.looping !== false }));
   }
 
   /** (fork) The 'tick' rows of `key` in any skill plan of the unit (cached per battle). */

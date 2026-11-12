@@ -37,6 +37,8 @@ const CANNON_IMMUNE = Object.freeze(['stun', 'freeze', 'cold', 'levitate', 'slee
  * STATE_BUFFS), held on the target it splashes around for the template's 0.7 s.
  */
 const WDRRL_AOE_FX = 'enemy_wdrrl[AOE_attack]', WDRRL_AOE_TIME = 0.7;
+/** (fork) 'Armor of the Empire''s MultiCombat hit row (fx 'tick' key: the multi-hit the kit deals itself). */
+const VTSK_MULTI_HIT_KEY = 'enemy_vtsk_skill_02_hit_01';
 /** Radius of 骸骨拷打者's "周围" death sensing when its talent has no Attack.range_radius [ASSUMED]. */
 const TORTURER_RADIUS = 1;
 
@@ -446,6 +448,7 @@ export const SPECIAL_KITS = Object.freeze({
         const m = e.mem.ab.multi;
         if (!(m > 1)) return;
         e.mem.ab.multi = 0;
+        b.tickFx(e, c.target, 'vtsk:multi', VTSK_MULTI_HIT_KEY);   // (fork) enemy VFX audit, S rows: its official multi-hit, display only
         for (let i = 1; i < m; i++) hurt(b, e, c.target, e.s.atk, 'phys');
       },
     } : null];

@@ -58,8 +58,8 @@
         "enemy_10043_sailor": [25,19,5,3805,90336]
       },
       "hooks": [1,65,3300,471,470,467,488,41,31,50,18,17,0,20518,40,29,44,17,1,32,1,0,0],
-      "events": {"atk":470,"bounty":1,"cast":8,"deploy":18,"die":33,"dmg":488,"engage":8,"fx":31,"heal":41,"layer":1,"leak":17,"rate":3,"skill":35,"spawn":59,"status":79},
-      "fx": {"beam":21,"blink":2,"dp":5,"garrison":1,"telegraph":1,"turretOnline":1},
+      "events": {"atk":470,"bounty":1,"cast":8,"deploy":18,"die":33,"dmg":488,"engage":8,"fx":36,"heal":41,"layer":1,"leak":17,"rate":3,"skill":35,"spawn":59,"status":79},
+      "fx": {"beam":21,"blink":2,"dp":5,"garrison":1,"telegraph":1,"tick":5,"turretOnline":1},
       "snaps": "61b1ed8c 2422c35c c672c949 b16c8dcb 19d097c0 f633e887 28911b83 87a5bb17 35aa1c9d a5bcfca1 391599e9"
     },
     "standin-02": {

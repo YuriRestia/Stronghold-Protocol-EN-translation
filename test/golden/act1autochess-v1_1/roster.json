@@ -182,8 +182,8 @@
         "enemy_9011_acrefr": [1,0,0,222,13106]
       },
       "hooks": [1,131,3300,456,456,803,794,341,105,112,39,38,0,25624,2427,13,111,3,1,105,1,0,9],
-      "events": {"atk":688,"bounty":2,"cast":11,"deploy":17,"die":109,"dmg":777,"engage":9,"fx":48,"heal":133,"layer":1,"leak":3,"rate":276,"skill":77,"spawn":127,"status":608},
-      "fx": {"dodge":9,"garrison":1,"summon":34,"telegraph":1,"zone":3},
+      "events": {"atk":688,"bounty":2,"cast":11,"deploy":17,"die":109,"dmg":777,"engage":9,"fx":55,"heal":133,"layer":1,"leak":3,"rate":276,"skill":77,"spawn":127,"status":608},
+      "fx": {"dodge":9,"garrison":1,"summon":34,"telegraph":1,"tick":7,"zone":3},
       "snaps": "79a09a39 a25e821e 96a11139 41be6624 41fa7dee 85f3a066 18b8f27e 1fb3bb0a 8a89f4a9 63010ce5 26abdd3f"
     },
     "roster-004": {
@@ -423,8 +423,8 @@
         "enemy_2004_balloon": [1,1,0,32,46400]
       },
       "hooks": [1,54,5100,608,588,1070,1109,13334,31,40,31,30,9,24612,2526,35,38,9,1,51,0,7,4],
-      "events": {"atk":796,"bounty":6,"cast":13,"deploy":14,"die":31,"dmg":1109,"engage":9,"fx":56,"heal":11,"leak":9,"rate":115,"skill":66,"spawn":52,"status":317},
-      "fx": {"aoe":16,"beam":1,"buff":1,"burst":7,"coin":4,"dodge":4,"explode":1,"revive":1,"strike":9,"telegraph":2,"undying":1,"volley":9},
+      "events": {"atk":796,"bounty":6,"cast":13,"deploy":14,"die":31,"dmg":1109,"engage":9,"fx":57,"heal":11,"leak":9,"rate":115,"skill":66,"spawn":52,"status":317},
+      "fx": {"aoe":16,"beam":1,"buff":1,"burst":7,"coin":4,"dodge":4,"explode":1,"revive":1,"strike":9,"telegraph":2,"tick":1,"undying":1,"volley":9},
       "snaps": "5b6e27f3 b8decb2d 36326ffe 98f4ceb9 398d7385 fa6af01e 9db2baad ef890422 a6d10de6 0ffdb19b c75be066 dd35aaab 08a6dc41 690df427 7b105190 1a9a8937 08273262"
     },
     "roster-008": {
@@ -1596,8 +1596,8 @@
         "enemy_1513_dekght": [1,1,0,9562,30000]
       },
       "hooks": [1,79,5700,425,423,926,944,11483,64,65,62,60,0,17489,294,47,64,0,1,64,0,0,0],
-      "events": {"atk":474,"bounty":3,"cast":2,"deploy":15,"die":65,"dmg":944,"engage":8,"fx":196,"heal":213,"rate":784,"skill":122,"spawn":77,"status":522},
-      "fx": {"anchor":21,"aoe":5,"displace":6,"explode":2,"mote":126,"summon":1,"telegraph":2,"zone":33},
+      "events": {"atk":474,"bounty":3,"cast":2,"deploy":15,"die":65,"dmg":944,"engage":8,"fx":200,"heal":213,"rate":784,"skill":122,"spawn":77,"status":522},
+      "fx": {"anchor":21,"aoe":5,"displace":6,"explode":2,"mote":126,"summon":1,"telegraph":2,"tick":4,"zone":33},
       "snaps": "84a44762 61561b77 b1d84dad 4e446806 bc0da2c6 33173c53 172b2185 b10ced4a 2cf34f5d d3a81059 f8f6a56b b4b82cae 8e1556e5 5ae97979 559cbd3b 2e4fed19 8cf8036b 6a1652d6 b7b6b260"
     },
     "roster-028": {
@@ -1706,8 +1706,8 @@
         "enemy_2004_balloon": [1,1,0,98,46400]
       },
       "hooks": [1,115,5670,828,827,1034,1034,1862,97,99,187,184,0,14431,302,64,97,0,1,97,0,0,0],
-      "events": {"atk":1013,"bounty":4,"cast":2,"deploy":15,"die":99,"dmg":1034,"engage":8,"fx":220,"heal":117,"rate":302,"skill":371,"spawn":113,"status":753},
-      "fx": {"explode":10,"hpShare":2,"liberate":2,"mote":64,"phase":3,"shield":1,"sp":66,"telegraph":2,"zone":70},
+      "events": {"atk":1013,"bounty":4,"cast":2,"deploy":15,"die":99,"dmg":1034,"engage":8,"fx":221,"heal":117,"rate":302,"skill":371,"spawn":113,"status":753},
+      "fx": {"explode":10,"hpShare":2,"liberate":2,"mote":64,"phase":3,"shield":1,"sp":66,"telegraph":2,"tick":1,"zone":70},
       "snaps": "19e38413 7a37fabb 9e4836ba 1e2651e7 12c98c27 a8747989 7ef52a10 d646a87c 3dff1407 6114da9a e97c4173 4c3bcc77 579ceea5 401f329e 04565ca6 0483c29a b3837041 f1c8f383 53f9ab19"
     },
     "roster-030": {
@@ -1840,8 +1840,8 @@
         "enemy_9010_acpupp": [1,1,0,0,9615]
       },
       "hooks": [1,128,5906,790,790,1372,1792,7180,110,114,77,75,40,27476,552,35,109,0,1,111,0,22,0],
-      "events": {"atk":945,"bounty":4,"cast":2,"deploy":16,"die":114,"dmg":1569,"engage":8,"fx":519,"heal":196,"rate":7,"skill":152,"spawn":128,"status":328},
-      "fx": {"airstrike":13,"aoe":36,"bounce":85,"burst":22,"drone":162,"droneLock":63,"drones":3,"ember":1,"explode":16,"heal":3,"healField":13,"shield":11,"shieldBreak":4,"summon":1,"talent":1,"telegraph":2,"tick":80,"wanted":3},
+      "events": {"atk":945,"bounty":4,"cast":2,"deploy":16,"die":114,"dmg":1569,"engage":8,"fx":520,"heal":196,"rate":7,"skill":152,"spawn":128,"status":328},
+      "fx": {"airstrike":13,"aoe":36,"bounce":85,"burst":22,"drone":162,"droneLock":63,"drones":3,"ember":1,"explode":16,"heal":3,"healField":13,"shield":11,"shieldBreak":4,"summon":1,"talent":1,"telegraph":2,"tick":81,"wanted":3},
       "snaps": "92a9510b 7316a6d5 ef1e9834 ccf5fb45 5c40fdf6 1fd8236f 2ae69514 104c5e86 30a6d114 234d1c8d 99d7aa63 73d1a007 7541e9b5 07679c18 20f03076 0b5660b2 3109d547 4db5816f f2015f77 6733549e"
     },
     "roster-032": {

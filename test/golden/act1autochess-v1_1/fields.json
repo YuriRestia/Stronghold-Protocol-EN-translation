@@ -732,8 +732,8 @@
         "enemy_9016_acstmr": [6,6,0,0,48]
       },
       "hooks": [1,57,6000,1229,1212,2040,3148,2778,33,34,89,83,25,51031,2208,10,32,0,1,28,0,2,11],
-      "events": {"atk":1409,"cast":43,"deploy":25,"die":34,"dmg":2511,"engage":13,"fx":660,"heal":199,"rate":2822,"skill":172,"spawn":52,"status":612},
-      "fx": {"ability":4,"aoe":83,"arrowRain":25,"beam":33,"blink":13,"buff":3,"burst":2,"charge":7,"crit":10,"dilemma":5,"dodge":11,"dp":9,"healAoe":22,"hpShare":37,"mark":4,"mote":25,"phase":5,"saltWard":3,"sentry":1,"shadowWeave":4,"shell":6,"shield":8,"slash":49,"sp":14,"stealth":8,"summon":4,"telegraph":6,"tick":90,"truesilver":2,"zone":167},
+      "events": {"atk":1409,"cast":43,"deploy":25,"die":34,"dmg":2511,"engage":13,"fx":677,"heal":199,"rate":2822,"skill":172,"spawn":52,"status":612},
+      "fx": {"ability":4,"aoe":83,"arrowRain":25,"beam":33,"blink":13,"buff":3,"burst":2,"charge":7,"crit":10,"dilemma":5,"dodge":11,"dp":9,"healAoe":22,"hpShare":37,"mark":4,"mote":25,"phase":5,"saltWard":3,"sentry":1,"shadowWeave":4,"shell":6,"shield":8,"slash":49,"sp":14,"stealth":8,"summon":4,"telegraph":6,"tick":107,"truesilver":2,"zone":167},
       "snaps": "01c943da fbc117bb 707c8937 81098bd5 a2baa0ed 0722ce97 3db5b66f bf9485e5 b153d91a 826d9fe0 216d9f8a 5b67c675 9611cb92 1a86faa2 d4eab154 c72680da e3f60626 2e135f6a 457b20dc c16807a6"
     },
     "hidden-boss_8-solo": {
