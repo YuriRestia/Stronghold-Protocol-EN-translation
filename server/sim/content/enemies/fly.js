@@ -80,7 +80,9 @@ function kitBlackCloud(ab, e) {
         if (!e2.alive) return;
         for (const o of list) {
           if (!o.alive) continue;
-          b.addBuff(o, { key: 'ab:devoured', duration: dur, visible: true, flags: { bind: true, noMove: true, disarm: true } });
+          // (fork) fx: the client's enemy_acfort[kill_other] (its skill's _activeBuffs on the targets): enemy_acfort_trapped
+          // loops on the grabbed flyer while it lasts (display only: snapshot fxs)
+          b.addBuff(o, { key: 'ab:devoured', duration: dur, visible: true, flags: { bind: true, noMove: true, disarm: true }, fx: 'enemy_acfort[kill_other]', fxSrc: e2.id });
           b.after(dur, () => {
             if (!o.alive || !e2.alive) return;
             const gain = num(k.bb.sp, 1);
@@ -103,6 +105,10 @@ function kitBlackCloud(ab, e) {
       }
     }, { sil: true, cond: (b, e2) => (e2.mem.ab.ammo ?? 0) >= Math.max(1, num(f.sp, 1)) && allTargets(b, e2).length > 0,
       turn: attackSkillOf('enemy_9009_acfort', 'FireWeapon') }),   // the attack's turn (DESIGN §35.52)
+    // (fork) the client's passive enemy_acfort_vfx (FilterByTargetSpRatio GT 0 on the owner, re-checked every 1 s) keeps
+    // enemy_acfort_vfx[core] — enemy_acfort_skill_01_end — on it while it holds ammo (our SP: mem.ab.ammo); read only
+    // when a snapshot is taken (Battle.fxProbe: display only, nothing runs in the ticks)
+    { spawn(b, e2) { b.fxProbe(e2, 'enemy_acfort_vfx', (u) => (u.mem?.ab?.ammo ?? 0) > 0); } },
   ];
 }
 
