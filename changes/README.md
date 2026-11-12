@@ -2,7 +2,7 @@
 
 A branch never edits [FORK-CHANGELOG.md](../FORK-CHANGELOG.md) directly. It adds **one file here per change**, named
 after what it changes (`changes/<what-it-changes>.md`, lowercase words joined by hyphens), so parallel branches never
-conflict on the changelog. The lead folds the fragments into FORK-CHANGELOG.md on `dev-0.2` with
+conflict on the changelog. The maintainer folds the fragments into FORK-CHANGELOG.md on `dev-0.2` with
 `npm run changelog -- --write` (at the latest before each release; it refuses on any other branch) and commits the result.
 
 ## Format
@@ -27,6 +27,8 @@ Server cost: none
 - The sections are written exactly as they will read in FORK-CHANGELOG.md (English only, credits as there: "thanks to
   @login" for contributions, upstream merges as one linked line).
 - A later fix to the same change edits its fragment while it is still here; once folded, it is a new fragment.
+- No fragment for development workflow or tooling-only changes (test plumbing, merge and review process, dev
+  tools): the changelog lists what players and server hosts get.
 
 ## Server cost
 
