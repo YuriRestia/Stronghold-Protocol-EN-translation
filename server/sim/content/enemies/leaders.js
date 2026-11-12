@@ -620,6 +620,8 @@ function kitXi(ab) {
 /** 锏 · 抵抗; DEF penetration against its blocker; 【速杀】 passes through its blocker hitting those on the way; 【肆虐风雪】
  *  AoE; KO ⇒ second form: stealth, more penetration, double hits, 【瞬息杀机】 at every 25 % HP lost (SP cleared + no attacks
  *  / heals around it). <降雪> absent. */
+// (fork) enemy VFX audit, S rows: Degenbrecher's ClearSp mark on each operator it disarms (b.snap fxs; STATE_BUFFS)
+const BLKSWB_CLEAR_FX = 'enemy_blkswb_s[effect]';
 function kitMace(ab) {
   const pen1 = T(ab, 'DefPenetrate.enemy_blkswb_t_2.def_penetrate') ?? 0, pen2 = T(ab, 'DefPenetrate.enemy_blkswb_t_2[reborn].def_penetrate') ?? pen1;
   const cs = { ratio: T(ab, 'ClearSp.hp_ratio') ?? 0, dur: T(ab, 'ClearSp.duration') ?? 0, r: T(ab, 'ClearSp.range_radius') ?? 0 };
@@ -658,6 +660,7 @@ function kitMace(ab) {
           const sk = u.skill;
           if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
           if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
+          if (cs.dur > 0) b.fxState(u, BLKSWB_CLEAR_FX, true, { src: e, dur: cs.dur });   // (fork) its official mark while disarmed, display only
         }
       }
     },
