@@ -462,8 +462,8 @@
         ["p1",2,"op","chess_char_3_12_b",2,"uniequip_002_blemsh",0,0,20,9,49344,6765,4824,22,1],
         ["p1",3,"op","chess_char_3_02_b",1,"uniequip_002_ayer",0,0,10,1,45702,3076,0,51,2],
         ["p1",4,"op","chess_char_3_03_b",1,"uniequip_002_swire",345.51,1,132,1,23134,4973,0,27,1],
-        ["p1",5,"op","chess_char_3_04_b",1,"uniequip_002_swire2",2455.7,0,126,3,81410,10499,0,39,0],
-        ["p1",6,"op","chess_char_3_05_b",2,"uniequip_002_skadi",6975.39,1,131,15,87674,25479,0,42,2],
+        ["p1",5,"op","chess_char_3_04_b",1,"uniequip_002_swire2",2455.7,0,126,3,77733,10499,0,39,0],
+        ["p1",6,"op","chess_char_3_05_b",2,"uniequip_002_skadi",6966.43,1,131,15,91351,25538,0,43,2],
         ["p1",7,"op","chess_char_3_21_a",2,null,0,0,2,1,30757,1600,0,37,2],
         ["p1",8,"op","chess_char_3_01_b",2,"uniequip_002_angel",0,0,3,4,106825,2226,0,65,2],
         ["p1",9,"op","chess_char_3_08_b",1,"uniequip_002_mint",0,0,4,8,46198,7885,0,10,1],
@@ -505,13 +505,13 @@
         "enemy_1305_mhslim_2": [1,1,0,564,3110],
         "enemy_1415_mmkabi_2": [1,0,1,50,48844],
         "enemy_1513_dekght": [1,0,1,2213,18050],
-        "enemy_2021_syfish": [60,39,21,3026,307694],
+        "enemy_2021_syfish": [60,39,21,3085,307694],
         "enemy_2025_syufo": [13,3,7,36463,128892]
       },
-      "hooks": [1,133,5100,609,607,1222,1330,407,69,126,23,26,0,10328,70,56,88,31,1,75,9,15,0],
-      "events": {"atk":713,"bounty":4,"cast":5,"deploy":45,"die":95,"dmg":1329,"engage":12,"fx":224,"heal":405,"layer":9,"leak":31,"rate":22,"skill":52,"spawn":121,"status":142},
-      "fx": {"aoe":21,"blink":4,"buff":1,"burst":15,"coin":22,"displace":34,"explode":29,"garrison":9,"pull":34,"revive":6,"shield":1,"shieldBreak":1,"stone":1,"strike":13,"summon":22,"telegraph":2,"volley":9},
-      "snaps": "93717a17 cc38db25 32658b8a d7446d6b 961d16dd db36e81a 4698e07b 03c1acd5 9f03218b 1b661c97 27ec2f6e 5cfcd256 c54b3b68 e9fb6937 cdc50ca6 3c688413 a36941c7"
+      "hooks": [1,133,5100,611,609,1222,1331,408,69,126,23,26,0,10328,69,56,88,31,1,75,9,15,0],
+      "events": {"atk":715,"bounty":4,"cast":5,"deploy":45,"die":95,"dmg":1330,"engage":12,"fx":223,"heal":406,"layer":9,"leak":31,"rate":22,"skill":52,"spawn":121,"status":140},
+      "fx": {"aoe":21,"blink":4,"buff":1,"burst":15,"coin":22,"displace":34,"explode":28,"garrison":9,"pull":34,"revive":6,"shield":1,"shieldBreak":1,"stone":1,"strike":13,"summon":22,"telegraph":2,"volley":9},
+      "snaps": "93717a17 cc38db25 32658b8a d7446d6b 961d16dd db36e81a 4698e07b 03c1acd5 9f03218b 1b661c97 27ec2f6e 5cfcd256 c54b3b68 e9fb6937 0d098c3a 16495243 018a176f"
     },
     "roster-009": {
       "about": "pass 0 band 4: chess_char_3_16_b chess_char_4_01_a chess_char_3_18_b chess_char_4_04_a chess_char_3_13_b chess_char_3_14_b chess_char_3_17_b chess_char_3_19_b chess_char_3_20_b chess_char_3_21_b chess_char_4_02_a chess_char_4_06_a token_10028_vigil_wolf",
