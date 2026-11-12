@@ -13,6 +13,7 @@ import * as bossesMod from '../../server/sim/content/bosses.js';
 import { grantHitShield } from '../../server/sim/content/enemies/helpers.js';
 import { spawnYanyou } from '../../server/sim/content/tokens.js';
 import { attackWindup } from '../../server/sim/ai.js';
+import { fxStateView } from '../../server/sim/snapshot.js';
 
 const E = JSON.parse(fs.readFileSync(new URL('../../data/enemies.json', import.meta.url), 'utf8'));
 const W = JSON.parse(fs.readFileSync(new URL('../../data/waves.json', import.meta.url), 'utf8'));
@@ -400,7 +401,17 @@ for (const key of ['enemy_1200_msfjin', 'enemy_1204_msfhu', 'enemy_1288_duskls']
     h.step();
     const e = put(h, key, [10, 7]);
     const g = h.unit('t_mage');
-    if (/duskls/.test(key)) { killed(h, e, g); assert.ok(e.alive, 'ember'); h.run(HUSK_REBIRTH + 0.05); }
+    if (/duskls/.test(key)) {
+      const ev0 = h.events.length;
+      killed(h, e, g);
+      assert.ok(e.alive, 'ember');
+      // (fork, enemy skills 2026-11-13) the 1 s 重生 casts the record's BornAnim (its slot, held HUSK_REBIRTH s: the client's
+      // skill window plays enemy_duskls_revive_2 for it)
+      h.step();
+      const slot = E[key].skills.findIndex((x) => x.prefabKey === 'BornAnim');
+      assert.deepEqual(h.events.slice(ev0).filter((ev) => ev[0] === 'cast' && ev[1] === e.id), [['cast', e.id, slot, HUSK_REBIRTH]], 'the 重生 casts BornAnim');
+      h.run(HUSK_REBIRTH + 0.05);
+    }
     const hits = e.s.maxHp;
     assert.ok(hits > 1 && hits <= 30);
     let n = 0;
@@ -1178,7 +1189,13 @@ test(`${nm('enemy_9009_acfort')}: grabs ≤ 3 normal flyers within 2.5 × range_
   assert.ok(Math.hypot(out.x - e.x, out.y - e.y) > R && Math.hypot(near[3].x - e.x, near[3].y - e.y) <= R);
   h.run(k.initCooldown + 0.1);
   assert.ok(e.findBuff('ab:grabbing')?.flags.bind, '黑云 holds still while grabbing');
-  h.run(0.5 + k.bb.duration + 0.1);
+  // (fork) display: each grabbed flyer carries the client's enemy_acfort[kill_other] (its trapped loop; src 黑云), the
+  // flyer out of the three does not; no ammo yet: no glow (b.snap fxs)
+  h.run(0.6);
+  const fxRows = (id) => (h.b.snapshot().fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
+  assert.deepEqual(near.map((y) => fxRows(y.id)), [...Array(3).fill([['enemy_acfort[kill_other]', e.id, null]]), []]);
+  assert.deepEqual(fxRows(e.id), []);
+  h.run(k.bb.duration);
   assert.deepEqual(near.map((y) => y.alive), [false, false, false, true], 'the nearest three are devoured');
   assert.ok(out.alive, 'out of reach');
   const w1 = h.unit('t_wall'), w2 = h.unit('t_wall2');
@@ -1187,6 +1204,12 @@ test(`${nm('enemy_9009_acfort')}: grabs ≤ 3 normal flyers within 2.5 × range_
   h.run(0.1);
   approx(w1.stats.taken + w2.stats.taken, 3 * e.s.atk * f.bb.atk_scale, 1e-6, 'one hit per ammo');
   assert.equal(e.mem.ab.ammo, 0, 'all SP spent');
+  // (fork) display: 黑云 glows while it holds ammo (enemy_acfort_vfx: SP > 0) — here it fires as the ammo comes, so the
+  // snapshot-time probe is read with ammo held by hand (restored: nothing in the battle reads it)
+  assert.deepEqual(fxRows(e.id), [], 'no glow once the ammo is spent');
+  e.mem.ab.ammo = 2;
+  assert.deepEqual(fxRows(e.id), [['enemy_acfort_vfx', null, null]], 'the ammo glow while it holds ammo');
+  e.mem.ab.ammo = 0;
   checkInvariants(h.b);
 });
 
@@ -1926,6 +1949,34 @@ test(`${nm('enemy_1509_mousek')}: 【唱沙】 ${skb('enemy_1509_mousek', 'Drift
   const w3 = h.unit('t_wall3');
   approx(w3.s.atk, 100 * (1 + ss.bb.atk));
   approx(w3.stats.taken, ss.bb.damage, 1e-6);
+  checkInvariants(h.b);
+});
+
+// (fork, enemy skills 2026-11-13) the client's Mark (enm_pfb_17 Skills/Mark): cast once at its initCooldown, a marker on the
+// highest- and one on the lowest-max-HP unit (b.snap fxs, src 鼠王), moved every tick as that changes, gone with 鼠王
+test(`${nm('enemy_1509_mousek')}: Mark — markers on the highest- and lowest-max-HP units from ${skb('enemy_1509_mousek', 'Mark').initCooldown} s, following them, gone with it`, () => {
+  const big = WALL('t_wall', { stats: { maxHp: 2e7 } });
+  const mid = WALL('t_wall2', { stats: { maxHp: 1e7 } });
+  const small = WALL('t_wall3', { stats: { maxHp: 5e6 } });
+  const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 4 }, { chessId: 't_wall2', row: 10, col: 5 }, { chessId: 't_wall3', row: 12, col: 8 }],
+    chess: { t_wall: big, t_wall2: mid, t_wall3: small } });
+  h.step();
+  const e = put(h, 'enemy_1509_mousek', [9, 9]);
+  e.profile.noAttack = true;
+  const fx = (id) => (fxStateView(h.unit(id), h.b.time) || []).map((r) => `${r[0]}<${r[1] === e.id ? 'rat' : r[1]}`);
+  const mk = skb('enemy_1509_mousek', 'Mark');
+  h.run(mk.initCooldown - 0.2);
+  assert.deepEqual([fx('t_wall'), fx('t_wall3')], [[], []], 'not before its first cast');
+  h.run(0.3);
+  assert.deepEqual(fx('t_wall'), ['mousek_mark[b]<rat'], 'the highest max HP');
+  assert.deepEqual(fx('t_wall3'), ['mousek_mark[a]<rat'], 'the lowest max HP');
+  assert.deepEqual(fx('t_wall2'), []);
+  killed(h, h.unit('t_wall'), null);
+  h.step();
+  assert.deepEqual(fx('t_wall2'), ['mousek_mark[b]<rat'], 'the marker moves to the next highest');
+  killed(h, e, null);
+  h.step();
+  assert.deepEqual([fx('t_wall2'), fx('t_wall3')], [[], []], 'gone with 鼠王');
   checkInvariants(h.b);
 });
 

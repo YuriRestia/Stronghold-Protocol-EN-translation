@@ -94,7 +94,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES, stateEntries, TICK_SIGNALED,
+  FX_HIT_TILES, stateEntries, TICK_SIGNALED, enemyBinds,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -1161,10 +1161,9 @@ export class SkillFx {
         // (fork) a talent's or an ability's buff on its targets (talents.js plan.targets, `buff`): the src's own bindings'
         // rows of that buff (TalentFx.targetRows), when no skill state entry names it
         let list = stateEntries(U?.plan?.state, row[0], row[2], v.facing);
+        // (fork) an enemy src: its skills' rows on their targets (index v2 skill plans: OpFor: BlackCloud's grab)
+        if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || [])]), row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
-        // (fork) enemy VFX audit, S rows: an enemy skill's buff (U.enemy: its skills by slot, index v2) — that skill
-        // plan's state rows ('Gravestone''s shield, Fallen Snowpriest's chain buff, Garum Gourmet's barrel zone)
-        if (!list.length && U?.enemy?.length) for (const s of U.enemy) if ((list = stateEntries(s.plan?.state, row[0], row[2], v.facing)).length) break;
         for (const e of list) {
           const k = `${id}|${e.key}`;
           if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
@@ -1756,17 +1755,20 @@ export class SkillFx {
     if (!cands) return false;
     const rows = [];
     for (const key of cands) {
-      const bind = ENEMY_FX_BINDINGS[key][kind];
-      if (bind.xkind && extra.kind !== bind.xkind) continue;
-      const owner = this._enemyOwner(key, bind, x, y, extra);
-      if (!owner) continue;
-      rows.push({ key, bind, owner, rank: this._fxRank(bind, owner, extra) });
+      for (const bind of enemyBinds(ENEMY_FX_BINDINGS[key][kind])) {
+        if (bind.xkind && extra.kind !== bind.xkind) continue;
+        const owner = this._enemyOwner(key, bind, x, y, extra);
+        if (!owner) continue;
+        rows.push({ key, bind, owner, rank: this._fxRank(bind, owner, extra) });
+      }
     }
     rows.sort((a, b) => a.rank - b.rank);
     for (const { key, bind, owner } of rows) {
       if (bind.endMode) { this._modeEnd(owner); return false; }   // (its procedural cue stays)
       const drew = bind.modeLoops ? this._modeWin(owner, key, bind)
         : bind.talent ? this._aura(owner, key, bind, x, y, extra)
+        : bind.fly ? this._enemyFly(owner, bind, extra)
+        : bind.cover ? this._enemyCover(owner, bind)
         : this._zone(bind, x, y, extra);
       if (!drew) continue;
       // the kit's own moment stood for an attack-rooted skill of a window: that was its one attack — the enemy's next
@@ -1790,7 +1792,7 @@ export class SkillFx {
    */
   _fxRank(bind, owner, extra) {
     const oid = owner && owner !== true ? idOf(owner) : null;
-    if (bind.owner === 'id' || (extra.id != null && oid != null && oid === extra.id)) return 0;
+    if (bind.owner === 'id' || bind.owner === 'from' || (extra.id != null && oid != null && oid === extra.id)) return 0;
     if (bind.owner === 'died') return 1;
     if (bind.owner === 'cast') return 2;
     if (bind.owner === 'near') return 3;
@@ -1804,8 +1806,8 @@ export class SkillFx {
   _enemyOwner(key, bind, x, y, extra) {
     const near = (p) => Number.isFinite(x) && Number.isFinite(y) && Math.hypot(p.x - x, p.y - y) <= OWNER_NEAR;
     switch (bind.owner) {
-      case 'id': {
-        const v = this.w.view(extra.id);
+      case 'id': case 'from': {
+        const v = this.w.view(bind.owner === 'from' ? extra.from : extra.id);
         return v && this.w.unitKeyOf(v) === key ? v : null;
       }
       case 'died':
@@ -1826,6 +1828,30 @@ export class SkillFx {
       case 'any': return true;
       default: return null;
     }
+  }
+
+  /**
+   * (fork) An enemy binding's `fly`: its projectile from the enemy to the unit `extra.to` (FxWiring._fly: the flying
+   * effect, then the hit), each further one of the same enemy in this frame `stagger` s after the one before (a
+   * MultiRangedAttack's shots; the sim lands their damage in the cast's tick). False when the projectile's flying effect is
+   * not installed or the target is gone (the procedural beam stays).
+   */
+  _enemyFly(owner, bind, extra) {
+    const p = this.w.idx?.projectiles?.[lc(bind.fly)];
+    const tv = this.w.view(extra.to);
+    if (!p || !tv || !this.w.ofx.lib.has(lc(p.main))) return false;
+    const oid = idOf(owner);
+    const q = this.volley?.id === oid && this.volley.frame === this.frame ? this.volley : (this.volley = { id: oid, frame: this.frame, n: 0 });
+    const delay = (q.n++) * (Number(bind.stagger) || 0);
+    const go = () => { if (owner.alive !== false && !owner.destroyed) this.w._fly(p, owner, tv, 'arrow', this.w.ofx.time, {}); };
+    if (delay > 0) later(this.w.ofx, delay, go); else go();
+    return true;
+  }
+
+  /** (fork) An enemy binding's `cover`: the kit fx is what the enemy's open window of skill `skill` already shows. */
+  _enemyCover(owner, bind) {
+    const U = this.units.get(idOf(owner));
+    return !!U?.ewin && lc(U.ewin.plan?.skillId) === lc(bind.skill) && this._ewinDraws(U.ewin);
   }
 
   /** An enemy's zone: its binding's prefabs at the fx's point on the ground, the looping ones for the zone's time. */

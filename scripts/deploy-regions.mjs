@@ -1,9 +1,11 @@
 // scripts/deploy-regions.mjs — (fork) one command, run on the operator's own PC, for every server of a game with several
-// regions (DESIGN §8.7). It only runs the ordinary commands over `ssh`, in the right order; each server asks for its sudo
-// password if it needs one. A page's generation must exist on every server, so one id and one commit go everywhere:
+// regions (DESIGN §8.7). It only runs the ordinary commands over `ssh`, in the right order. (fork) A server that asks
+// for a sudo password gets the one remembered for this Windows user (scripts/ssh-sudo.mjs, shared with release.mjs; typed
+// once in a terminal when none is remembered); `--forget-sudo` deletes it. A page's generation must exist on every
+// server, so one id and one commit go everywhere:
 //
-//   prepare   on every server: pull, start the new generation, wait for its /healthz, list it as prepared. Nobody is
-//             sent there: players keep the current generation. Prints the id and the private test URLs
+//   prepare   on every server: move the checkout to the commit, start the new generation, wait for its /healthz,
+//             list it as prepared. Nobody is sent there: players keep the current generation. Prints the id and the private test URLs
 //             (https://<page server>/_build/<gen>/, plus ?region=<id> for each other server): the routers already serve a
 //             prepared generation under its own prefix. If any server fails, nothing has changed for players.
 //   activate  checks that <gen> is prepared (or already current) and answering on EVERY server, and refuses otherwise
@@ -39,6 +41,8 @@ import { newGenId, PREPARED_MAX_AGE_MS } from './generations.mjs';
 import { readFileSync } from 'node:fs';
 import { GEN_ID_RE } from '../shared/gen.js';
 import { newsProblems } from '../shared/news.js';
+import { sudoRunners } from './ssh-sudo.mjs';
+import * as sudoStore from './release-sudo.mjs';
 
 const APP = '/opt/stronghold/app';
 const AS_APP = 'sudo -u stronghold';
@@ -252,8 +256,8 @@ export function prepare(o, io = {}) {
 }
 
 /** (fork) The live update news on every server: checked here, then uploaded and put live one server after another. */
-function news(o) {
-  if (o.action !== 'set') { for (const h of o.hosts) ssh(h.host, newsCommand(o.action)); return; }
+function news(o, io) {
+  if (o.action !== 'set') { for (const h of o.hosts) io.ssh(h.host, newsCommand(o.action)); return; }
   let text;
   try { text = readFileSync(o.file, 'utf8').replace(/^\uFEFF/, ''); } catch (e) { throw new Error(`cannot read ${o.file}: ${e.code || e.message}`, { cause: e }); }
   let raw;
@@ -262,22 +266,42 @@ function news(o) {
   if (problems.length) throw new Error(`${o.file} was refused, nothing was sent:\n  ${problems.join('\n  ')}`);
   for (const h of o.hosts) {
     console.log(`\n=== ${h.host} ===`);
-    const up = spawnSync('ssh', [h.host, newsUploadCommand()], { input: text, encoding: 'utf8', windowsHide: true });
+    // no sudo in the upload line, so the news text is the only stdin (the password is never fed to it)
+    const up = io.capture(h.host, newsUploadCommand(), { input: text });
     const tmp = String(up.stdout || '').trim().split(/\r?\n/).pop();
     if (up.status !== 0 || !tmp) throw new Error(`${h.host}: the upload failed (${String(up.stderr || '').trim() || `exit ${up.status}`})`);
-    ssh(h.host, newsCommand('set', tmp));
+    io.ssh(h.host, newsCommand('set', tmp));
   }
 }
 
-function activate(o, gen) {
-  const problems = checkProblems(gen, checkAll(o.hosts, gen));
+function activate(o, gen, io) {
+  const problems = checkProblems(gen, checkAll(o.hosts, gen, io.capture));
   if (problems.length) throw new Error(`refusing to activate ${gen}; no server was switched:\n  ${problems.join('\n  ')}`);
   console.log(`[activate] ${gen} is ready on every server; switching players over, ${o.hosts[0].host} first`);
-  for (const h of o.hosts) ssh(h.host, activateCommand(gen));
+  for (const h of o.hosts) io.ssh(h.host, activateCommand(gen));
   console.log(`\n[activate] ${gen} is current everywhere.`);
 }
 
-function main(argv) {
+/**
+ * (fork) The ssh calls of every command, through each host's sudo runner (scripts/ssh-sudo.mjs): ssh(host, line)
+ * streams and throws on failure, capture(host, line, { input }) returns { status, stdout, stderr }.
+ * @param {Map<string, { stream: (l: string) => void, capture: (l: string, o?: { input?: string }) => { status: number|null, stdout: string, stderr: string } } | null>} runners
+ */
+export function runnerIo(runners) {
+  const get = (host) => {
+    const r = runners.get(host);
+    if (!r) throw new Error(`${host}: no ssh runner`);
+    return r;
+  };
+  return { ssh: (host, line) => get(host).stream(line), capture: (host, line, opts) => get(host).capture(line, opts) };
+}
+
+export function main(argv, { runnersFor = (hosts) => sudoRunners(hosts), store = sudoStore } = {}) {
+  if (argv.includes('--forget-sudo')) {
+    const gone = store.forget();
+    console.log(gone.length ? `[sudo] forgotten: ${gone.join(', ')}` : '[sudo] no remembered password');
+    return 0;
+  }
   const o = parseArgs(argv);
   if (o.error !== undefined) {
     if (o.error) console.error(`[deploy] ${o.error}`);
@@ -285,19 +309,22 @@ function main(argv) {
       + '       node scripts/deploy-regions.mjs activate <gen> --hosts spa,usspa:no-art\n'
       + '       node scripts/deploy-regions.mjs status --hosts spa,usspa\n'
       + '       node scripts/deploy-regions.mjs announce --hosts spa,usspa [--minutes 5] "text"\n'
-      + '       node scripts/deploy-regions.mjs news --hosts spa,usspa <news.json> | --show | --clear');
-    process.exit(o.error === null ? 0 : 1);
+      + '       node scripts/deploy-regions.mjs news --hosts spa,usspa <news.json> | --show | --clear\n'
+      + '       node scripts/deploy-regions.mjs --forget-sudo   (delete the remembered sudo password)');
+    return o.error === null ? 0 : 1;
   }
-  if (o.cmd === 'status') { for (const h of o.hosts) ssh(h.host, statusCommand()); return; }
-  if (o.cmd === 'announce') { for (const h of o.hosts) ssh(h.host, announceCommand(o.minutes, o.text)); return; }
-  if (o.cmd === 'news') { news(o); return; }
-  if (o.cmd === 'prepare') { prepare(o); return; }
-  if (o.cmd === 'activate') { activate(o, o.gen); return; }
-  activate(o, prepare(o));
+  const io = runnerIo(runnersFor(o.hosts));
+  if (o.cmd === 'status') { for (const h of o.hosts) io.ssh(h.host, statusCommand()); return 0; }
+  if (o.cmd === 'announce') { for (const h of o.hosts) io.ssh(h.host, announceCommand(o.minutes, o.text)); return 0; }
+  if (o.cmd === 'news') { news(o, io); return 0; }
+  if (o.cmd === 'prepare') { prepare(o, io); return 0; }
+  if (o.cmd === 'activate') { activate(o, o.gen, io); return 0; }
+  activate(o, prepare(o, io), io);
+  return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  try { main(process.argv.slice(2)); } catch (e) {
+  try { process.exitCode = main(process.argv.slice(2)); } catch (e) {
     console.error(`\n[deploy] stopped: ${e.message || e}`);
     console.error('A server that was not switched keeps its old generation. Fix the cause and run the same command again.');
     process.exit(1);

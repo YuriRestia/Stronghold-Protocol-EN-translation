@@ -7,13 +7,16 @@
 //                                            committed, pushed, uploaded or prepared
 //   node scripts/release.mjs --skip-ci       ship without waiting for GitHub's checks
 //   node scripts/release.mjs --forget-sudo   delete the remembered sudo password(s) (scripts/release-sudo.mjs)
+//   node scripts/release.mjs --english-only h1,p3   ship those update news lines in English in every language for now
+//                                            (the lines a release stopped on for missing translations; step 1)
 //   options: --hosts spa,usspa:no-art (default; SP_DEPLOY_HOSTS) · --ci-timeout <minutes> (default 45)
 //
 // Steps, in order; the first failure stops the release with what to do, and each step prints what it changed:
 //   0. checks: on dev-0.2, no uncommitted change to tracked files, nothing on GitHub's dev-0.2 that this PC lacks
 //   1. the changelog fragments folded into FORK-CHANGELOG.md (tools/changelog.mjs --write), shown and committed; and
-//      the lobby's live update news drafted from them (scripts/release-news.mjs): edited in Notepad, checked, saved in
-//      logs/. It goes live only with the news command printed at the end, after you activate. Nothing to fold: goes on.
+//      the lobby's live update news in every language, drafted from their News blocks (scripts/release-news.mjs):
+//      edited in Notepad, checked, saved in logs/; a line left without translations stops it (kept for the rerun),
+//      unless --english-only names it. It goes live only with the news command printed at the end, after you activate. Nothing to fold: goes on.
 //   2. dev-0.2 pushed to origin (only dev-0.2: the script pushes nothing else)
 //   3. GitHub's checks (CI) on the pushed commit, read with `gh`: waits up to --ci-timeout. Not green: stops, unless
 //      you answer y to "ship anyway?" or passed --skip-ci.
@@ -40,6 +43,7 @@ import {
   parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, mb,
 } from './release-art.mjs';
 import * as sudoStore from './release-sudo.mjs';
+import { sudoLine, sudoRunners } from './ssh-sudo.mjs';
 import { fragmentFiles } from '../tools/changelog.mjs';
 import { bumpNews } from './release-news.mjs';
 
@@ -58,8 +62,8 @@ const TAR = process.platform === 'win32' ? join(process.env.SystemRoot || 'C:\\W
 
 /** The command line → options, or { error }. @param {string[]} argv @param {Record<string, string | undefined>} [env] */
 export function parseReleaseArgs(argv, env = process.env) {
-  const known = new Set(['--dry-run', '--skip-ci', '--forget-sudo', '--hosts', '--ci-timeout', '--root', '--help', '-h']);
-  const o = { dryRun: false, skipCi: false, forgetSudo: false, help: false, ciTimeoutMin: 45, root: join(HERE, '..'), hosts: [] };
+  const known = new Set(['--dry-run', '--skip-ci', '--forget-sudo', '--hosts', '--ci-timeout', '--root', '--english-only', '--help', '-h']);
+  const o = { dryRun: false, skipCi: false, forgetSudo: false, help: false, ciTimeoutMin: 45, root: join(HERE, '..'), hosts: [], englishOnly: [] };
   let hostsRaw = env.SP_DEPLOY_HOSTS || DEFAULT_HOSTS;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -73,7 +77,11 @@ export function parseReleaseArgs(argv, env = process.env) {
       if (v === undefined || v.startsWith('--')) return { error: `${a} needs a value` };
       if (a === '--hosts') hostsRaw = v;
       else if (a === '--root') o.root = v;
-      else {
+      else if (a === '--english-only') {
+        const labels = v.split(',').map((s) => s.trim()).filter(Boolean);
+        if (!labels.length || labels.some((l) => !/^[hp][1-9]\d?$/.test(l))) return { error: '--english-only needs news lines like h1,p3 (h = highlight, p = point)' };
+        o.englishOnly = [...new Set([...o.englishOnly, ...labels])];
+      } else {
         const n = Number(v);
         if (!(n > 0 && n <= 180)) return { error: '--ci-timeout needs minutes, 1 to 180' };
         o.ciTimeoutMin = n;
@@ -133,16 +141,8 @@ export function foldPlan(fragments) {
   return { fold: true, say: `changelog: ${fragments.length} fragment(s) to fold: ${fragments.join(', ')}` };
 }
 
-/**
- * A server command for a host: its leading `sudo` / `sudo -n` becomes `sudo -S -p ''` (password on stdin) for a host
- * with a password, `sudo -n` (never prompts: fails at once) for one without. Inner sudo calls run as root and are left.
- * @param {string} line @param {boolean} withPassword
- */
-export function sudoLine(line, withPassword) {
-  const m = /^sudo (?:-n )?(?!-)/.exec(line);
-  if (!m) return line;
-  return `${withPassword ? "sudo -S -p ''" : 'sudo -n'} ${line.slice(m[0].length)}`;
-}
+// sudoLine lives in scripts/ssh-sudo.mjs (shared with deploy-regions.mjs); re-exported for test/release.test.js
+export { sudoLine };
 
 /** sed expression (server) and its JS twin: the clip bounds without their `"generated"` time, to compare tables. */
 const CLIP_STAMP_SED = 's/"generated":"[^"]*"//';
@@ -195,58 +195,8 @@ async function promptLine(question) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * ssh to one host. capture/stream run one command; a remembered password goes to `sudo -S` on stdin, a host without
- * one gets `sudo -n` (sudoLine). The password is never printed or put on a command line.
- */
-function hostRunner(host, password) {
-  const pw = password == null ? null : `${password}\n`;
-  const line = (l) => sudoLine(l, pw !== null);
-  return {
-    host,
-    hasPassword: pw !== null,
-    capture(l, { maxBuffer = CAPTURE_MAX } = {}) {
-      const r = spawnSync('ssh', [host, line(l)], { input: pw ?? '', encoding: 'utf8', windowsHide: true, maxBuffer, stdio: ['pipe', 'pipe', 'pipe'] });
-      return { status: r.status, stdout: String(r.stdout || ''), stderr: String(r.stderr || r.error?.message || '') };
-    },
-    stream(l) {
-      say(`\n=== ${host} ===`);
-      const r = spawnSync('ssh', [host, line(l)], { input: pw ?? '', windowsHide: true, stdio: ['pipe', 'inherit', 'inherit'] });
-      if (r.status !== 0) throw new Error(`${host}: the command failed (exit ${r.status ?? r.error?.message})`);
-    },
-  };
-}
-
-/**
- * The runner of each host: probes `sudo -n true`; a host that needs a password gets the remembered one (asked once
- * and stored when there is a terminal), checked with `sudo true` before anything else. null password + no terminal:
- * the host's sudo steps are skipped (dry run) or the release stops.
- */
-function runnersFor(hosts, { dryRun }) {
-  const out = new Map();
-  for (const { host } of hosts) {
-    const probe = hostRunner(host, null).capture('sudo true');
-    if (probe.status === 255) stop(`${host}: ssh failed: ${probe.stderr.trim()}`);
-    if (probe.status === 0) { out.set(host, hostRunner(host, null)); continue; }
-    let pw = sudoStore.load(host);
-    if (pw == null) {
-      if (!process.stdin.isTTY) {
-        if (dryRun) { say(`[sudo] ${host} asks for a sudo password and none is remembered; its sudo reads are skipped in this dry run`); out.set(host, null); continue; }
-        stop(`${host} asks for a sudo password: run this in a terminal once to type it`);
-      }
-      pw = sudoStore.askAndRemember(host);
-    }
-    const r = hostRunner(host, pw);
-    const check = r.capture('sudo true');
-    if (check.status !== 0) {
-      sudoStore.forget(host);
-      stop(`${host}: sudo refused the remembered password (${check.stderr.trim() || `exit ${check.status}`}); it is forgotten: run again to type it`);
-    }
-    say(`[sudo] ${host}: using the remembered sudo password (forget it: node scripts/release.mjs --forget-sudo)`);
-    out.set(host, r);
-  }
-  return out;
-}
+/** The runner of each host (scripts/ssh-sudo.mjs): a dry run skips a host whose password is not remembered here. */
+const runnersFor = (hosts, { dryRun }) => sudoRunners(hosts, { allowMissing: dryRun, say, stop });
 
 // -- step 0 ------------------------------------------------------------------------------------------------------
 
@@ -288,7 +238,7 @@ async function foldChangelog(o, runners) {
     if (check.status !== 0) stop(`a fragment is not valid; fix it first:\n${String(check.stdout || '') + String(check.stderr || '')}`);
   }
   // the news is drafted from the fragments before they are folded away
-  const news = await bumpNews({ root: o.root, fragments: files, dryRun: o.dryRun, live: files.length ? liveNews(o, runners) : null, ask, prompt: promptLine });
+  const news = await bumpNews({ root: o.root, fragments: files, dryRun: o.dryRun, live: files.length ? liveNews(o, runners) : null, ask, prompt: promptLine, englishOnly: o.englishOnly });
   if (!plan.fold) return { folded: 0, news };
   if (o.dryRun) { say('  (dry run) would run: node tools/changelog.mjs --write, then commit FORK-CHANGELOG.md and changes/'); return { folded: 0, news }; }
   const w = spawnSync(process.execPath, ['tools/changelog.mjs', '--write'], { cwd: o.root, encoding: 'utf8', windowsHide: true });
@@ -598,7 +548,7 @@ export async function main(argv) {
   const o = parseReleaseArgs(argv);
   if (o.error || o.help) {
     if (o.error) console.error(`[release] ${o.error}`);
-    say('usage: node scripts/release.mjs [--dry-run] [--skip-ci] [--hosts spa,usspa:no-art] [--ci-timeout <min>]\n'
+    say('usage: node scripts/release.mjs [--dry-run] [--skip-ci] [--hosts spa,usspa:no-art] [--ci-timeout <min>] [--english-only h1,p3]\n'
       + '       node scripts/release.mjs --forget-sudo');
     return o.error ? 1 : 0;
   }
