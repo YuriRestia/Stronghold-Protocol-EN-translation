@@ -572,8 +572,8 @@
       ],
       "enemies": {"enemy_1116_liprr":[11,11,0,81,69696],"enemy_1116_liprr_2":[4,4,0,151,34560],"enemy_1121_lifbos":[1,1,0,2805,23040]},
       "hooks": [1,44,1722,156,156,253,253,0,18,33,4,3,0,3656,14,13,16,0,1,19,1,0,0],
-      "events": {"atk":156,"deploy":25,"die":33,"dmg":253,"engage":6,"fx":64,"layer":1,"rate":28,"skill":9,"spawn":44,"status":38},
-      "fx": {"buff":1,"coin":20,"displace":6,"explode":15,"garrison":1,"liberate":1,"phase":1,"revive":1,"shield":1,"summon":17},
+      "events": {"atk":156,"deploy":25,"die":33,"dmg":253,"engage":6,"fx":65,"layer":1,"rate":28,"skill":9,"spawn":44,"status":38},
+      "fx": {"ability":1,"buff":1,"coin":20,"displace":6,"explode":15,"garrison":1,"liberate":1,"phase":1,"revive":1,"shield":1,"summon":17},
       "snaps": "4d796857 3cde9e21 43853499 f62dc8f1 bfb50ff4 f7636a8f"
     },
     "bond-kazimierzShip-high": {

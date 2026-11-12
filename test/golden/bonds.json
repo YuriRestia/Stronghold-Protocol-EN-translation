@@ -522,8 +522,8 @@
       ],
       "enemies": {"enemy_1116_liprr":[11,11,0,4370,69696],"enemy_1116_liprr_2":[4,4,0,18,34560],"enemy_1121_lifbos":[1,1,0,8203,23040]},
       "hooks": [1,28,2429,226,226,396,396,1996,18,18,9,8,0,9548,8,16,16,0,1,18,2,0,0],
-      "events": {"atk":233,"deploy":9,"die":18,"dmg":385,"engage":5,"fx":60,"heal":27,"layer":2,"rate":36,"skill":17,"spawn":27,"status":43},
-      "fx": {"displace":15,"garrison":2,"healField":1,"liberate":4,"phase":3,"redistribute":15,"reweave":1,"sandChains":1,"shield":2,"slash":15,"truesilver":1},
+      "events": {"atk":233,"deploy":9,"die":18,"dmg":385,"engage":5,"fx":61,"heal":27,"layer":2,"rate":36,"skill":17,"spawn":27,"status":43},
+      "fx": {"ability":1,"displace":15,"garrison":2,"healField":1,"liberate":4,"phase":3,"redistribute":15,"reweave":1,"sandChains":1,"shield":2,"slash":15,"truesilver":1},
       "snaps": "da3a82af 01de3c64 69d1ccaa e369d6dc b98f7bfc 369a858b 9333835e 92be8805"
     },
     "bond-kazimierzShip-high": {
