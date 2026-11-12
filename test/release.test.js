@@ -5,14 +5,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   parseReleaseArgs, githubRepo, ciDecision, ciShips, foldPlan, foldMessage, sudoLine, DEFAULT_HOSTS,
-  clipInfo, clipVerdict, stripClipStamp,
+  clipInfo, clipVerdict, stripClipStamp, unpackCommand, BACKUPS_KEPT,
 } from '../scripts/release.mjs';
 import {
   parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, urlToPath, SHARED_LISTS, PUBLIC_FILE_LIMIT,
 } from '../scripts/release-art.mjs';
 import { prepareCommand, statusCommand, sudoCheckCommand } from '../scripts/deploy-regions.mjs';
 import {
-  nextNewsId, draftNewsLines, draftNews, editorText, parseEditorText, newsFromEdit, builtInNews, newsFile,
+  nextNewsId, draftNewsLines, draftNews, editorText, parseEditorText, newsFromEdit, builtInNews, newsFile, NEWS_FILE_MAX,
 } from '../scripts/release-news.mjs';
 import { newsProblems, NEWS_MAX_POINTS } from '../shared/news.js';
 
@@ -65,6 +65,22 @@ describe('art diff (release-art.mjs)', () => {
     assert.equal(g.ok, false);
     assert.deepEqual(g.missing.sort(), ['/assets/v%20b.ogg?x=1', '/fonts/f.woff2'], 'a zero-size file counts as missing, as in prepare');
     assert.equal(g.problems.length, 2);
+  });
+});
+
+describe('server writes are capped', () => {
+  test('the unpack backs up first, keeps the newest backup folders only, and always deletes the tar', () => {
+    const line = unpackCommand('/home/ubuntu/sp-release-AbC123.tar', ['data/local-fx.json'], '20261113-0123');
+    assert.match(line, /mkdir -p \/root\/release-backups\/20261113-0123/);
+    assert.match(line, new RegExp(`head -n -${BACKUPS_KEPT} \\| xargs -r rm -rf --`));
+    assert.equal(BACKUPS_KEPT, 5);
+    assert.match(line, /trap .*rm -f \/home\/ubuntu\/sp-release-AbC123\.tar.* EXIT/);
+    assert.doesNotMatch(unpackCommand('/home/u/sp-release-x.tar', [], '20261113-0123'), /release-backups/, 'nothing replaced: no backup');
+    assert.throws(() => unpackCommand('/home/u/sp-release-x.tar', [], '../x'), /not a backup stamp/);
+  });
+
+  test('the news file has a size cap', () => {
+    assert.equal(NEWS_FILE_MAX, 64 * 1024);
   });
 });
 

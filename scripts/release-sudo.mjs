@@ -44,6 +44,7 @@ export function askAndRemember(host) {
   if (r.status === 3) throw new Error('no password typed');
   const blob = String(r.stdout || '').trim();
   if (r.status !== 0 || !/^[0-9a-f]+$/i.test(blob)) throw new Error(`PowerShell could not encrypt the password (exit ${r.status})`);
+  if (blob.length > MAX_BLOB) throw new Error(`the encrypted password is over ${MAX_BLOB} bytes; nothing was stored`);
   mkdirSync(storeDir(), { recursive: true });
   writeFileSync(file, blob, { mode: 0o600 });
   console.log(`[sudo] the password for ${host} is stored encrypted for your Windows user: ${file}`);

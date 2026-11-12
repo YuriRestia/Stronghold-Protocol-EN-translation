@@ -454,11 +454,21 @@ function sendTar(r, root, files, expectBytes) {
   });
 }
 
-/** On the server, as root: back up the files of `replace` that exist, unpack the tar as the game's user, delete it. */
-function unpackCommand(tarPath, replace, stamp) {
-  const backup = `/root/release-backups/${stamp}`;
+/** Release backup folders kept on the server (each about 17 MB: the 4 shared lists and the clip bounds); older ones go. */
+export const BACKUPS_KEPT = 5;
+const BACKUPS = '/root/release-backups';
+
+/**
+ * On the server, as root: back up the files of `replace` that exist (keeping the newest BACKUPS_KEPT backup folders),
+ * unpack the tar as the game's user, delete it.
+ * @param {string} tarPath @param {string[]} replace @param {string} stamp YYYYMMDD-HHMM (sorts by time)
+ */
+export function unpackCommand(tarPath, replace, stamp) {
+  if (!/^\d{8}-\d{4}$/.test(stamp)) throw new Error(`not a backup stamp: ${stamp}`);
+  const backup = `${BACKUPS}/${stamp}`;
+  const prune = `find ${BACKUPS} -mindepth 1 -maxdepth 1 -type d -name '2*' | sort | head -n -${BACKUPS_KEPT} | xargs -r rm -rf --`;
   const save = replace.length
-    ? `mkdir -p ${backup} && for p in ${replace.map(shQuote).join(' ')}; do if [ -f "$p" ]; then cp -p --parents "$p" ${backup}/; fi; done && echo "backups: ${backup}" && `
+    ? `mkdir -p ${backup} && for p in ${replace.map(shQuote).join(' ')}; do if [ -f "$p" ]; then cp -p --parents "$p" ${backup}/; fi; done && echo "backups: ${backup}" && ${prune} && `
     : '';
   return `sudo bash -c ${shQuote(`trap ${shQuote(`rm -f ${tarPath}`)} EXIT; cd ${APP} && ${save}sudo -u stronghold tar -xf - -C ${APP} < ${tarPath}`)}`;
 }

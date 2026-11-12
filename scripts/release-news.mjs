@@ -15,10 +15,12 @@ import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { newsProblems, parseNews, NEWS_MAX_HIGHLIGHTS, NEWS_MAX_POINTS, NEWS_LINE_MAX } from '../shared/news.js';
+import { newsProblems, parseNews, NEWS_MAX_BYTES, NEWS_MAX_HIGHLIGHTS, NEWS_MAX_POINTS, NEWS_LINE_MAX } from '../shared/news.js';
 
 const MAX_EDITS = 3;
 const MAX_EDIT_BYTES = 256 * 1024;
+/** logs/news-<id>.json: valid news is at most NEWS_MAX_BYTES compact; this leaves room for the indentation. */
+export const NEWS_FILE_MAX = 2 * NEWS_MAX_BYTES;
 
 /** Headings that are not for players (the draft leaves them out as notes; the user can put any back). */
 export const BACKEND_ONLY = /\b(CI|golden|tests?|checks?|workflow|GitHub|servers?|peer|deploy|tooling|bandwidth|downloads?|loop check|sim|release)\b/i;
@@ -168,7 +170,9 @@ export async function bumpNews(o) {
   try {
     let draft = d;
     for (let attempt = 1; attempt <= MAX_EDITS && !news; attempt++) {
-      writeFileSync(tmp, editorText(draft, problems));
+      const draftText = editorText(draft, problems);
+      if (Buffer.byteLength(draftText) > MAX_EDIT_BYTES) throw new Error('the news draft is over 256 kB');
+      writeFileSync(tmp, draftText);
       await edit(tmp, o.prompt);
       const text = readFileSync(tmp, 'utf8');
       if (text.length > MAX_EDIT_BYTES) throw new Error('the edited news is over 256 kB');
@@ -186,7 +190,9 @@ export async function bumpNews(o) {
   if (!(await o.ask('  Use this update news?'))) throw new Error('the update news was not accepted; nothing was saved');
   const file = newsFile(news.id);
   mkdirSync(join(o.root, 'logs'), { recursive: true });
-  writeFileSync(join(o.root, file), `${JSON.stringify(news, null, 2)}\n`);
+  const body = `${JSON.stringify(news, null, 2)}\n`;
+  if (Buffer.byteLength(body) > NEWS_FILE_MAX) throw new Error(`the news file would be over ${NEWS_FILE_MAX} bytes; nothing was saved`);
+  writeFileSync(join(o.root, file), body);
   console.log(`  saved ${file}: it goes live with the news command printed at the end, after you activate`);
   return { say: `${news.id} saved to ${file}`, id: news.id, file };
 }
