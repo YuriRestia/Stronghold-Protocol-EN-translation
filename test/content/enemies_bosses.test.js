@@ -1798,11 +1798,15 @@ test(`${nm('enemy_1364_spnaxe_2')}: heals and stacks ATK when a unit within ${tb
   const e = put(h, 'enemy_1364_spnaxe_2', [10, 7]);
   const o = put(h, 'enemy_1007_slime', [10, 6.5]);
   const far = put(h, 'enemy_1007_slime', [10, 5.8]);                 // 1.2 tiles away: outside Attack.range_radius
+  // (fork) its official mark on every unit within the radius (either side; here enemies spawned after it), not on itself
+  assert.deepEqual([fxRows(o, h, 'enemy_spnaxe_buffs[mark]'), fxRows(far, h, 'enemy_spnaxe_buffs[mark]'), fxRows(e, h, 'enemy_spnaxe_buffs[mark]')], [[[e.id, 'mark']], [], []]);
   h.b.dealDamage(null, e, { amount: 5000, type: 'true' });
   const hp = e.hp;
   killed(h, far, null);
   assert.equal(e.hp, hp);
+  assert.deepEqual(fxRows(e, h, 'enemy_spnaxe_buffs[mark]'), [], 'no heal for a knock-out outside');
   killed(h, o, null);
+  assert.deepEqual(fxRows(e, h, 'enemy_spnaxe_buffs[mark]'), [[null, 'heal']], '(fork) its official heal');
   approx(e.hp - hp, e.s.maxHp * tb('enemy_1364_spnaxe_2', 'Attack.hp_ratio'));
   approx(e.s.atk, E.enemy_1364_spnaxe_2.stats.atk * (1 + tb('enemy_1364_spnaxe_2', 'Attack.atk')));
   const total = h.b.total;

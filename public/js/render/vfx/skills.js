@@ -589,6 +589,9 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_9018_actrpa / enemy_9020_actrpc 'Gunshatter' chasing its gun: the trample hit on each operator it runs into
   // (enemy_actrpa_skill_a_hit; their MoveToHunter-mode aura)
   'actrpa_s_1[damage]': true, 'actrpc_s_1[damage]': true,
+  // enemy_1364_spnaxe_2 Sarkaz Boneguard Torturer: its mark on the operators within its radius (enemy_spnaxe_2_buff_1),
+  // its heal when one of them is knocked out (enemy_spnaxe_heal)
+  'enemy_spnaxe_buffs[mark]': { looks: L({ mark: ['enemy_spnaxe_2_buff_1'], heal: ['enemy_spnaxe_heal'] }) },
 
 
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
