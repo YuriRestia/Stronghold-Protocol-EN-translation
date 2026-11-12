@@ -148,6 +148,10 @@ test('One for All: the reveal sounds are UI keys (pick = room join, reveal = mat
   const js = read('public/js/ui/protocolBoot.js');
   for (const k of ['joinRoom', 'matchSucceed', 'distort', 'itemMerge']) assert.ok(js.includes(`audio.sfx('${k}'`), k);
   assert.match(read('tools/assets/audio.mjs'), /distort: \{ bank: 'ui\.ON_ROGUELIKE_DISTORT2' \}/);
+  // every reveal sound is in the shipped manifest (a missing key plays nothing: the glitch would be silent)
+  const ui = JSON.parse(read('data/assets.json')).audio.sfx.ui;
+  for (const k of ['joinRoom', 'matchSucceed', 'distort', 'itemMerge']) assert.ok(ui[k], `data/assets.json audio.sfx.ui.${k}`);
+  assert.equal(ui.distort, '/assets/audio/sfx/general/g_ui/g_ui_distort2.mp3');
   const game = read('public/js/screens/game.js');
   assert.match(game, /reveal=\$\{ofaReveal\.current\}/);
   assert.match(game, /lastDraft\.current\.draft\?\.mode !== 'vote'/, 'no held draft screen (it would show the winner early)');
