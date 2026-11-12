@@ -1067,7 +1067,7 @@
 .clog__sys { color: var(--text-lo); font-style: italic; }
 .clog__warn { color: var(--orange-hi); }
 .clog__new {
-  position: absolute; left: 50%; bottom: max(.5rem, 38px); transform: translateX(-50%); z-index: 1;
+  position: absolute; left: 50%; bottom: max(.5rem, calc(38px * var(--sp-ui, 1))); transform: translateX(-50%); z-index: 1;
   padding: .02rem .12rem; border: 0; border-radius: .2rem; background: var(--mint-600); color: var(--text-on-mint);
   font: inherit; font-weight: 600; font-size: calc(.16 * var(--t)); white-space: nowrap; cursor: pointer;
 }

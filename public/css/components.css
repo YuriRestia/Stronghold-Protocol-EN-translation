@@ -1481,9 +1481,9 @@
 .hscroll.has-left.has-right .hscroll__view {
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--hs-fade, .6rem), #000 calc(100% - var(--hs-fade, .6rem)), transparent);
   mask-image: linear-gradient(90deg, transparent, #000 var(--hs-fade, .6rem), #000 calc(100% - var(--hs-fade, .6rem)), transparent); }
-.hscroll__arrow { position: absolute; top: 50%; z-index: 2; width: max(36px, .6rem); height: max(36px, .6rem); padding: 0 0 .04rem; display: grid; place-items: center;
+.hscroll__arrow { position: absolute; top: 50%; z-index: 2; width: max(.6rem, 32px, calc(36px * var(--sp-ui, 1))); height: max(.6rem, 32px, calc(36px * var(--sp-ui, 1))); padding: 0 0 .04rem; display: grid; place-items: center;
   transform: translateY(-50%); border: 0; border-radius: 50%; background: rgba(8, 14, 13, .82); color: #4af2c4; box-shadow: inset 0 0 0 1px rgba(74, 242, 196, .5), 0 0 .16rem rgba(0, 0, 0, .6);
-  font: 700 max(24px, .42rem)/1 var(--font-display, sans-serif); cursor: pointer; transition: opacity 160ms, visibility 160ms; }
+  font: 700 .42rem/1 var(--font-display, sans-serif); font-size: max(24px, .42rem); cursor: pointer; transition: opacity 160ms, visibility 160ms; }
 .hscroll__arrow--prev { left: var(--hs-inset, .14rem); }
 .hscroll__arrow--next { right: var(--hs-inset, .14rem); }
 .hscroll__arrow:hover { background: rgba(20, 60, 50, .9); }

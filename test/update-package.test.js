@@ -395,9 +395,12 @@ test('(fork) systemTar: Windows\' own tar.exe by its full path, only on Windows 
   try {
     assert.equal(systemTar('linux', { SystemRoot: dir }), null, 'not Windows');
     assert.equal(systemTar('win32', {}), null, 'no SystemRoot');
-    assert.equal(systemTar('win32', { SystemRoot: dir }), null, 'no tar.exe there');
+    assert.equal(systemTar('win32', { SystemRoot: dir }, () => false), null, 'no tar.exe there');
+    // the win32 path is no real file on Linux or macOS, so the existing-file case injects its file check (CI ran it on Ubuntu)
+    const exe = path.win32.join(dir, 'System32', 'tar.exe');
+    assert.equal(systemTar('win32', { SystemRoot: dir }, (f) => f === exe), exe);
     put(dir, 'System32/tar.exe', '');
-    assert.equal(systemTar('win32', { SystemRoot: dir }), path.win32.join(dir, 'System32', 'tar.exe'));
+    if (process.platform === 'win32') assert.equal(systemTar('win32', { SystemRoot: dir }), exe, 'the real file check on Windows');
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

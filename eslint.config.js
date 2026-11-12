@@ -125,4 +125,14 @@ export default [
     },
     rules,
   },
+  {
+    // The host-bot benchmark drives Chrome: its page.evaluate callbacks run in the page and use DOM globals (window, Worker).
+    files: ['tools/hostbotbench.mjs'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
+    rules,
+  },
 ];
