@@ -113,6 +113,11 @@ const WOLF_RANGE = 1.25, WOLF_AWE_RADIUS = 1.5, WOLF_AWE_ASPD = -50;
 
 /** 乌顶巨角卢鲁 【角力对决】: the operator cannot be pushed (fixed tiles) ⇒ "更多伤害" multiplier [ASSUMED]. */
 const ELK_FAIL_SCALE = 2;
+/**
+ * (fork) The official buff keys of the lasting effects these leaders put on units (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): 'Pompeii''s burn on its targets, 'Gravestone''s shield, Fallen Snowpriest's buff on the enemies it reaches.
+ */
+const LSLIME_DOT_FX = 'lslime_t_dot', FLKING_SHIELD_FX = 'flking_shiled', SMSHA_BUFF_FX = 'enemy_smsha_buffs';
 
 // ---------------------------------------------------------------------------------------------------------------
 // kits
@@ -138,7 +143,8 @@ function kitLeaderMisc(key, ab, e) {
       return [maxTargets(4), lowHpBuff(T(ab, 'selfbuff.hp_ratio') ?? 0.5, { aspd: T(ab, 'selfbuff.attack_speed') ?? 0 }), {
         dealt(c, b, e2) {
           if (!(dot.dur > 0)) return;
-          b.addBuff(c.target, { key: 'ab:burnDot', duration: dot.dur, refresh: 'replace', interval: dot.iv, visible: true,
+          // (fork) fx: the official burn (lslime_t_dot: buff_burn) on its target while the DoT lasts (b.snap fxs)
+          b.addBuff(c.target, { key: 'ab:burnDot', duration: dot.dur, refresh: 'replace', interval: dot.iv, visible: true, fx: LSLIME_DOT_FX, fxSrc: e2.id,
             onTick: ({ battle, unit }) => battle.dealDamage(e2, unit, { amount: dot.dmg, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility'] }) });
         },
       }, {
@@ -335,7 +341,8 @@ function kitLeaderMisc(key, ab, e) {
         },
       }, {
         tick(b, e2, a, dt) { for (const p of b.players) b.addDp(p.playerId, -0.5 * b.flags.dpPerSec * dt); },
-      }, skill(s, (b, e2) => b.addBuff(e2, { key: 'ab:tombShield', shield: e2.s.maxHp * (s.bb.hp_ratio ?? 0), persist: true }))];
+      // (fork) fx: the official shield glow (flking_shiled: enemy_mdrock_skill_buff_01) while the barrier holds (b.snap fxs)
+      }, skill(s, (b, e2) => b.addBuff(e2, { key: 'ab:tombShield', shield: e2.s.maxHp * (s.bb.hp_ratio ?? 0), persist: true, fx: FLKING_SHIELD_FX }))];
     }
     case 'enemy_2048_smgrd':
       // 持续在自身周围8格生成【国度】 (the 3×3 around its tile), 大幅降低其中我方单位的攻击速度; 对【国度】中的我方单位造成高额物理伤害.
@@ -384,7 +391,8 @@ function kitLeaderMisc(key, ab, e) {
         while (cur && seen.size < max) { // loop-cap: units
           seen.add(cur);
           b.fx('beam', { x: prev.x, y: prev.y, from: prev.id, to: cur.id, kind: 'chainBuff' });
-          b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 } });
+          // (fork) fx: the official glow (enemy_smsha_buffs: enemy_smsha_buff) on each enemy it reaches while the buff lasts
+          b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 }, fx: SMSHA_BUFF_FX, fxSrc: e2.id });
           prev = cur;
           cur = near(cur.x, cur.y, jump, seen);
         }

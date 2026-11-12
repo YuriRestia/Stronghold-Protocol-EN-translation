@@ -540,6 +540,31 @@ export const STATE_BUFFS = Object.freeze({
   'papyrs_s_1[fx_ctrl]': true, 'lessng_a[s1_eff]': true, 'nasti_s2[update_shield]': true,
   'haini_s_2[modify_talent]': true, 'zebra_s_2[aura]': true, 'swire2_tr': true, 'swire2_t_2': true,
   'humus_trait': true, 'humus_t_1[effect]': true, 'aroma_s_2': true, 'tocka_t1[sp_and_heal]': true,
+  // ── (fork) enemy VFX audit, S rows (Design 2): enemy talents' buffs on the units they reach, signalled by the sim's aura
+  // buffs (content/enemies: auraBuff `fx`; src the enemy whose talent it is, null the carrier's own). By enemy id:
+  // enemy_1017_defdrn Defender-4's DEF aura on the other enemies (defdrn_buff_01_self)
+  'defdrn_t_defup': true,
+  // enemy_1042_frostd Frost's ASPD-down aura on the operators (firstar_skill_01_buff)
+  'frostd_t_attack_speed_down': true,
+  // enemy_1169_duphlx / _2 Dublinn Phalanx: a phalanx another one reaches (enemy_duphx_2_buff)
+  'duphlx_t_aura': true,
+  // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
+  'enemy_lrcmra[originum][dmg]': true,
+  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
+  'lslime_t_dot': true,
+  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
+  'flking_shiled': true,
+  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
+  'enemy_smsha_buffs': true,
+  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
+  'wintun_t[attack_speed]': true,
+  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
+  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
+  'acstma_s_1': true,
+  'acstmb_s_1': true,
+  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
+  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
+  'enemy_wdrrl[AOE_attack]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
