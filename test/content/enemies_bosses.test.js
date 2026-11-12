@@ -748,8 +748,6 @@ test(`${nm('enemy_9007_acelem')}: harder to target (taunt −1); parasitises its
   h.run(2.6);
   const w = h.unit('t_wall');
   assert.ok(w.findBuff('ab:parasite'));
-  // (fork) the official parasite buff's effect on its host (b.snap fxs; render/vfx/skills.js STATE_BUFFS)
-  assert.deepEqual(fxRows(w, h, 'enemy_acelem[to_parasitic]'), [[e.id, null]]);
   // "受到的元素损伤提高至130%": an elementHit multiplier on the host's gauge fills (SIM.md §7.2), not the elemTakenMul mod
   assert.equal(w.s.elemTakenMul, 1);
   const n0 = w.elem.neural;
@@ -2528,8 +2526,6 @@ test(`${nm('enemy_1516_jakill')}: 狱警 — RES +${tb('enemy_1516_jakill', 'enh
   const t0 = h2.b.time;
   const pierce = skb('enemy_1516_jakill', 'armorpiercing');
   h2.runUntil(() => k.stats.attacks >= pierce.spCost + 1, 60);
-  // (fork) the armour-piercing hit's official effect on its target: a short one-shot row
-  assert.deepEqual(fxRows(h2.unit('t_wall'), h2, 'jakill_skill_1_reborn_hit[eff]'), [[k.id, null]]);
   const d = h2.hooksOf('damaged').filter((c) => c.source === k && c.t > t0);
   assert.ok(d.every((c) => c.dmg.type === 'phys'));
   const atk = k.s.atk, pen = pierce.bb.def_penetrate;
@@ -2625,10 +2621,6 @@ test(`${nm('enemy_1525_blkswb')}: 抵抗; ignores ${tb('enemy_1525_blkswb', 'Def
   assert.ok(cs.skill.sp < 0.1, 'SP cleared');
   assert.equal(statuses(h2, cs.id, 'disarm').length, 1);
   approx(statuses(h2, cs.id, 'disarm')[0].duration, tb('enemy_1525_blkswb', 'ClearSp.duration'));
-  // (fork) the official ClearSp effect on the unit, for its duration
-  assert.deepEqual(fxRows(cs, h2, 'enemy_blkswb_s[effect]'), [[k.id, null]]);
-  h2.run(tb('enemy_1525_blkswb', 'ClearSp.duration') + 0.1);
-  assert.deepEqual(fxRows(cs, h2, 'enemy_blkswb_s[effect]'), []);
 });
 
 test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.damage_resistance') * 100} % damage and not stunnable; 溶血骇惧 (3 units, ASPD ${skb('enemy_1535_wlfmster', 'FearCage').bb.attack_speed}, HP loss rising to ${skb('enemy_1535_wlfmster', 'FearCage').bb.hp_ratio * 100} %/s over ${skb('enemy_1535_wlfmster', 'FearCage').bb.duration_bleed} s, no end, cured after it loses ${-skb('enemy_1535_wlfmster', 'FearCage').bb.hp_ratio_offset * 100} %); KO ⇒ ${tb('enemy_1535_wlfmster', 'Reborn.duration')} s 远古威慑 (r 1.5, −50) ⇒ ranged double hits within 1.25, 远古威慑 still on`, () => {

@@ -39,6 +39,26 @@ export const ENEMY_STATE_KEYS = Object.freeze({
   }),
 });
 
+const VTLIONK_TRAP_DIE = Object.freeze(['enemy_vtlionk_skill_02_trap_die_01', 'enemy_vtlionk_skill_02_trap_die_02', 'enemy_vtlionk_skill_02_trap_die_03']);
+const VTLIONK_STORE = Object.freeze({ keys: VTLIONK_TRAP_DIE, by: 'enemy_9032_aclionk', skills: Object.freeze(['store', 'storea']) });
+
+/**
+ * (fork) Tools 2: a unit's death effect that the official client plays from another unit's skill, so the dying unit's
+ * own record has no `deadEffect` (render/vfx/wiring.js death: in its place, never on top of the generic one). By the dying
+ * unit's index unit key: `keys`, played only when an enemy of key `by` cast one of `skills` (prefab keys) in the same
+ * frame — the cause; any other death keeps the generic effect.
+ *   Alistair, Final Flame of the Empire (enemy_9032_aclionk) 'store' / 'storeA' (【莫非王土】): AnimatedActionToTargetAbility
+ *   puts buff enemy_vtlionk_s2 on the equipment it animates, whose ON_BUFF_START CreateEffect plays trap_die_01–03 on it.
+ *   Our sim (bosses.js kitLion animate) removes the piece in that cast's tick (castSlot, then b.kill). The pieces are
+ *   invulnerable and untargetable (kitEquip), but OpFor: BlackCloud's grab can still take one (fly.js isPrey: a NORMAL
+ *   flyer), hence the cast check.
+ */
+export const DEAD_EFFECTS = Object.freeze({
+  enemy_10028_vtswd: VTLIONK_STORE,   // Unequipped Blade
+  enemy_10029_vtshld: VTLIONK_STORE,  // Protective Vest
+  enemy_10030_vtwand: VTLIONK_STORE,  // Assault Arts Unit
+});
+
 /** The keys a fxs row [buff, src, look] shows by ENEMY_STATE_KEYS, `unit` the giver's index unit key (none: []). */
 export function enemyStateKeys(buff, unit, look = null) {
   const s = ENEMY_STATE_KEYS[buff];
@@ -48,7 +68,7 @@ export function enemyStateKeys(buff, unit, look = null) {
   return Array.isArray(v) ? v : [];
 }
 
-/** Every key ENEMY_STATE_KEYS and DUO_PROJECTILES can play for index unit `unit` (preloading). */
+/** Every key ENEMY_STATE_KEYS, DEAD_EFFECTS and DUO_PROJECTILES can play for index unit `unit` (preloading). */
 export function indexGapKeys(unit, idx) {
   const out = [];
   if (!unit) return out;
@@ -57,6 +77,7 @@ export function indexGapKeys(unit, idx) {
     if (Array.isArray(v)) out.push(...v);
     else if (v?.looks) for (const ks of Object.values(v.looks)) out.push(...ks);
   }
+  if (DEAD_EFFECTS[unit]) out.push(...DEAD_EFFECTS[unit].keys);
   const duo = DUO_PROJECTILES[unit];
   if (duo) out.push(...(idx?.projectiles?.[duo]?.effects || []));
   return out;

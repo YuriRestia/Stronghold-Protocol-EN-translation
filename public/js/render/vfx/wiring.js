@@ -48,7 +48,7 @@ import { FunnelFx } from './funnelfx.js';
 import { YuWall, YU_WALL_SOURCE } from './yuwall.js';
 import { formModes } from './talents.js';
 import { shotOf, CHAIN_RELAYS } from './skills.js';
-import { DUO_PROJECTILES, indexGapKeys } from './indexGaps.js';
+import { DUO_PROJECTILES, DEAD_EFFECTS, indexGapKeys } from './indexGaps.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a non-oneshot cast effect lasts without its end event. */
@@ -1855,7 +1855,15 @@ export class FxWiring {
     const u = this.unitOf(v);
     const m = u ? this.mode(u, v) : null;
     const g = this.idx.generic?.die || {};
-    const key = lc(m?.overrideDeadEffect) || lc(u?.deadEffect) || (v.isEnemy ? g.enemy : g.char);
+    const own = lc(m?.overrideDeadEffect) || lc(u?.deadEffect);
+    // (fork) Tools 2: a death effect another unit's skill plays (indexGaps.js DEAD_EFFECTS), when that skill was its cause
+    const gap = !own ? DEAD_EFFECTS[this.unitKeyOf(v)] : null;
+    if (gap && this.skills.castNow(gap.by, gap.skills)) {
+      let drew = false;
+      for (const k of gap.keys) if (this.playOn(k, v, {})) drew = true;
+      if (drew) return true;
+    }
+    const key = own || (v.isEnemy ? g.enemy : g.char);
     return !!(key && this.playOn(key, v, {}));
   }
 

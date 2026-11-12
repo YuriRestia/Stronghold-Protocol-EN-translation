@@ -576,12 +576,6 @@ export const STATE_BUFFS = Object.freeze({
   'lmlee_tr': { looks: L({ guard: ['lmlee_buff_02_start'], hit: ['lmlee_buff_02_hit'] }) },
   // ── (fork) enemy VFX audit, complex S rows (Tools 2): enemy skills', talents' and abilities' buffs on the units they
   // reach, signalled by the kits (a buff's `fx`, fxState, fxProbe; src the enemy). By enemy id:
-  // enemy_9007_acelem OpFor: Quagmire's parasite on its host (enemy_acelem_buff)
-  'enemy_acelem[to_parasitic]': true,
-  // enemy_1525_blkswb Degenbrecher's second-form SP clear on each unit it reaches (enemy_blkswb_skill_03_start_02)
-  'enemy_blkswb_s[effect]': true,
-  // enemy_1516_jakill Jesselton Williams's armour-piercing hit on its target (enemy_jakill_skill_01_hit_reborn, one-shot)
-  'jakill_skill_1_reborn_hit[eff]': true,
   // enemy_1535_wlfmster Zaaro, Signore dei Lupi: the fear cage on the units it catches (enemy_wlfmster_a_skill_end_buff,
   // its end hit enemy_wlfmster_a_skill_end_buff_hit), its own HP record while they wait (enemy_wlfmster_a_skill_end_start_03),
   // and the FearAura on the units around it (enemy_wlfmster_b_buff_02_02)

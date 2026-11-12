@@ -708,6 +708,12 @@ export class SkillFx {
    * held for the skill's blackboard `duration` when the event carries one. A window the snapshot's SKILL anim opened for
    * the same slot a moment before is kept (the event and the snapshot come apart by up to a frame).
    */
+  /** (fork) Whether an enemy of index unit key `key` cast one of `skills` (prefab keys, lower case) in this frame. */
+  castNow(key, skills) {
+    for (const U of this.units.values()) if (U && U.key === key && U.castFrame === this.frame && skills.includes(U.castKey)) return true;
+    return false;
+  }
+
   cast(v, slot, dur = 0) {
     const U = this.of(v);
     const entry = U?.enemy?.find((x) => x.slot === slot);
@@ -1181,8 +1187,7 @@ export class SkillFx {
         // rows of that buff (TalentFx.targetRows), when no skill state entry names it
         let list = stateEntries(U?.plan?.state, row[0], row[2], v.facing);
         // (fork) an enemy src: its skills' rows on their targets (index v2 skill plans: OpFor: BlackCloud's grab)
-        // (fork) Tools 2: and their attack's buff hit rows (each.hit with a `buff`: Jesselton Williams's armour piercing)
-        if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || []), ...(x.plan?.each?.hit || []).flat().filter((e) => e?.buff)]), row[0], row[2], v.facing);
+        if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || [])]), row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
         // (fork) enemy VFX audit, S rows: 'ready:<prefabKey>' (sim enemies/helpers.js readyProbe: its ReadyEnemySkillEffect)
         // — that enemy skill plan's `ready` rows on the enemy while the row lasts

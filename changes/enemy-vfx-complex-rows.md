@@ -5,13 +5,11 @@
 - With official effects on, these now show the game's own effect on the units they reach, for as long as it lasts:
   - Zaaro, Signore dei Lupi: the fear cage on the operators it catches, and the hit when it ends. Its own glow shows
     while they wait for the cure, and its fear aura shows on the operators around it.
-  - Degenbrecher's second-form SP clear, on each operator it reaches.
-  - OpFor: Quagmire's parasite, on the operator it latches onto.
   - Sarkaz Boneguard Torturer's mark, on every unit around it. Its own heal shows when one of them falls.
   - Yan's Protection's flame channel, as the game's range effect on the enemy it locks onto.
-- These now show the game's own hit effect on the operators they strike:
-  - Jesselton Williams's armour-piercing strike.
-  - 'Gunshatter' running operators over while it chases its gun.
+- 'Gunshatter' now shows the game's own hit effect on each operator it runs over while it chases its gun.
+- Alistair, Final Flame of the Empire: each piece of equipment he animates now breaks with the game's own effect, in place
+  of the usual death puff.
 - Before: the units showed nothing.
 
 Kind: player
@@ -28,11 +26,10 @@ Server cost:
 | Disk | 0 MB/day | 0 MB/day |
 | Bot budget | 0 ms/round | under 0.01 ms/round (nothing new runs in the battle's ticks) |
 
-- Cap: one effect row (about 40 B) per affected unit and effect. The one-shot hits last 0.3 s, Degenbrecher's for the
-  clear's duration. They go out when they change, plus a full set once a second (shared/fxsDiff.js).
+- Cap: one effect row (about 40 B) per affected unit and effect. The one-shot hits last 0.3 s. They go out when they change, plus a full set once a second (shared/fxsDiff.js).
 - Estimated from the code and the row sizes, not measured: display-only buff keys, short rows and snapshot-time
   probes (the Torturer's checks the Torturers on the field per unit, only when a snapshot is taken); no event, no state
-  the battle reads.
+  the battle reads. Alistair's equipment effect is client only: nothing new is sent.
 
 News:
 
@@ -51,8 +48,13 @@ News:
   ja: {name:enemy_9012_acloon}の炎が、ロックした敵に公式の範囲エフェクトを表示するようになりました
   ko: {name:enemy_9012_acloon}의 화염이 이제 고정한 적에게 공식 범위 이펙트를 표시합니다
   zh-TW: {name:enemy_9012_acloon}的火焰現在會在其鎖定的敵人身上顯示官方範圍特效
-- point: {name:enemy_1525_blkswb}, {name:enemy_1516_jakill}, {name:enemy_9007_acelem} and {name:enemy_9018_actrpa} now show their official effects on the operators they hit
-  zh: {name:enemy_1525_blkswb}、{name:enemy_1516_jakill}、{name:enemy_9007_acelem}和{name:enemy_9018_actrpa}现在会在被命中的干员身上显示官方特效
-  ja: {name:enemy_1525_blkswb}、{name:enemy_1516_jakill}、{name:enemy_9007_acelem}、{name:enemy_9018_actrpa}が命中したオペレーターに公式エフェクトを表示するようになりました
-  ko: {name:enemy_1525_blkswb}, {name:enemy_1516_jakill}, {name:enemy_9007_acelem}, {name:enemy_9018_actrpa}이(가) 이제 적중한 오퍼레이터에게 공식 이펙트를 표시합니다
-  zh-TW: {name:enemy_1525_blkswb}、{name:enemy_1516_jakill}、{name:enemy_9007_acelem}和{name:enemy_9018_actrpa}現在會在被命中的幹員身上顯示官方特效
+- point: {name:enemy_9032_aclionk}'s equipment now breaks with its official effect when he animates it
+  zh: {name:enemy_9032_aclionk}操纵的装备现在会以官方特效碎裂
+  ja: {name:enemy_9032_aclionk}が操る装備が、公式エフェクトで砕けるようになりました
+  ko: {name:enemy_9032_aclionk}이(가) 조종하는 장비가 이제 공식 이펙트로 부서집니다
+  zh-TW: {name:enemy_9032_aclionk}操縱的裝備現在會以官方特效碎裂
+- point: {name:enemy_9018_actrpa} now shows its official hit effect on the operators it runs over
+  zh: {name:enemy_9018_actrpa}现在会在被其碾过的干员身上显示官方命中特效
+  ja: {name:enemy_9018_actrpa}が轢いたオペレーターに公式のヒットエフェクトを表示するようになりました
+  ko: {name:enemy_9018_actrpa}이(가) 이제 들이받은 오퍼레이터에게 공식 적중 이펙트를 표시합니다
+  zh-TW: {name:enemy_9018_actrpa}現在會在被其碾過的幹員身上顯示官方命中特效

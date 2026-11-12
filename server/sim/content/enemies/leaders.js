@@ -109,8 +109,6 @@ const XI_CROSS_REACH = 2;
  *  【远古威慑】 aura radius / ASPD ("自身1.5半径范围内的我方单位攻击速度-50(指定状况下生效)" — during the 重生 and in the second form).
  *  Until 0.1.3: 2.5 / 2.5 / −30, the aura only during the 重生 [ASSUMED]. */
 const WOLF_RANGE = 1.25, WOLF_AWE_RADIUS = 1.5, WOLF_AWE_ASPD = -50;
-// (fork) how long the armour-piercing hit's one-shot row stays in b.snap fxs (a few snapshots; it plays once per row)
-const JAKILL_HIT_ROW = 0.3;
 
 
 /** 乌顶巨角卢鲁 【角力对决】: the operator cannot be pushed (fixed tiles) ⇒ "更多伤害" multiplier [ASSUMED]. */
@@ -508,9 +506,6 @@ function kitWarden(ab) {
       if (!P.killer || !P.power || !pierce) return;
       // [ASSUMED] DESIGN §32.5: extra pierce hits share the `times` cap. Official values stay at or below 12.
       const pierceTimes = Math.min(bbCap('times'), typeof pierce.bb.times === 'number' && Number.isFinite(pierce.bb.times) ? pierce.bb.times : 1);
-      // (fork) the armour-piercing skill's hit effect on its target (the reborn form's jakill_skill_1_reborn_hit, one-shot:
-      // a short row; snapshot.js fxStateView, display only)
-      b.fxState?.(c.target, 'jakill_skill_1_reborn_hit[eff]', true, { src: e, dur: JAKILL_HIT_ROW });
       for (let i = 1; i < pierceTimes && c.target.alive; i++) b.dealDamage(e, c.target, { amount: e.s.atk, type: 'phys', defIgnorePct: pen(), canDodge: true, isSkill: true, tags: ['enemyAbility', 'armorPiercing'] });
     },
     attack(c, b, e) {
@@ -652,9 +647,6 @@ function kitMace(ab) {
           const sk = u.skill;
           if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
           if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
-          // (fork) the official ClearSp buff's effect on each unit it reaches, for its duration [ASSUMED: the disarm's]
-          // (snapshot.js fxStateView; display only)
-          if (cs.dur > 0) b.fxState?.(u, 'enemy_blkswb_s[effect]', true, { src: e, dur: cs.dur });
         }
       }
     },
