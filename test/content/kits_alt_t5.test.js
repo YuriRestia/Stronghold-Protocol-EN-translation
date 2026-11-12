@@ -1191,15 +1191,18 @@ test('引星棘刺 S1 度算浪波 (AUTO): fires as soon as its SP is full, no e
   }
 });
 
-test('引星棘刺 S3 “我的海疆”: passive skill range; alchemy units on the 3 lowest-block ops debuff (不叠加) and burn enemies around them, ramping to the max after 15 s', () => {
+test('引星棘刺 S3 “我的海疆”: passive skill range; alchemy units on the 3 lowest-block ops in his range debuff (不叠加) and burn the enemies in the area they span (once per interval), ramping to the max after 15 s', () => {
   for (const id of pair('15')) {
     const h = run({
       defs: {
-        chess: { t_b0: ally('t_b0', { stats: { blockCnt: 0 } }), t_b1: ally('t_b1', { stats: { blockCnt: 1 } }), t_b2: ally('t_b2', { stats: { blockCnt: 2 } }), t_b3: ally('t_b3', { stats: { blockCnt: 3 } }) },
+        chess: { t_b0: ally('t_b0', { stats: { blockCnt: 0 } }), t_b1: ally('t_b1', { stats: { blockCnt: 1 } }), t_b2: ally('t_b2', { stats: { blockCnt: 1 } }), t_b3: ally('t_b3', { stats: { blockCnt: 3 } }), t_far: ally('t_far', { stats: { blockCnt: 0 } }) },
         enemies: { enemy_dummy: dummy('enemy_dummy', { atk: 100, def: 100 }), enemy_res: dummy('enemy_res', { res: 50 }) },
       },
-      units: [entry(id, 'skchr_thorn2_3', { row: 10, col: 3 }), { chessId: 't_b0', row: 12, col: 8 }, { chessId: 't_b1', row: 12, col: 9 }, { chessId: 't_b2', row: 9, col: 9 }, { chessId: 't_b3', row: 9, col: 5 }],
-      enemies: [{ key: 'enemy_dummy', pos: [10, 7] }, { key: 'enemy_dummy', pos: [11, 9] }, { key: 'enemy_dummy', pos: [9, 7] }, { key: 'enemy_res', pos: [12, 7] }],
+      // his S3 range (3-9, facing right) from (10, 3): rows 8–12, up to col 7. t_b0 / t_b1 on col 5 either side of row 10:
+      // an enemy at (10, 5) is on the area's edge whichever operators fill the other slots. t_far has the lowest block too
+      // but stands outside his range: never picked. t_b1, t_b2 and (usually) he share block 1: the tie decides.
+      units: [entry(id, 'skchr_thorn2_3', { row: 10, col: 3 }), { chessId: 't_b0', row: 12, col: 5 }, { chessId: 't_b1', row: 9, col: 5 }, { chessId: 't_b2', row: 10, col: 7 }, { chessId: 't_b3', row: 11, col: 6 }, { chessId: 't_far', row: 10, col: 9 }],
+      enemies: [{ key: 'enemy_dummy', pos: [12, 8] }, { key: 'enemy_dummy', pos: [10, 5] }, { key: 'enemy_dummy', pos: [10, 8] }, { key: 'enemy_res', pos: [11, 5] }],
     });
     const u = sel(h, id, 'skchr_thorn2_3');
     const bb = bbOf(u);
@@ -1207,28 +1210,64 @@ test('引星棘刺 S3 “我的海疆”: passive skill range; alchemy units on 
     h.step();
     assert.ok(u.rangeKeySet.has(10 * COLS + 7) && u.baseRangeKeys.includes(10 * COLS + 7), 'passive: the skill range is her range (and trigger range)');
     cast(h, u);
-    const anchors = u.mem.zones.map((z) => z.anchor.defId).sort();
+    assert.equal(u.mem.zones.length, 1, 'one area for the three units');
+    const fxs = h.events.filter((x) => x[0] === 'fx' && x[1] === 'zone' && x[4]?.polyKey);
+    const corners = (fxs[0]?.[4].poly ?? []).map((p) => `${p[0]},${p[1]}`).sort();
     const ownBlk = u.s.blockCnt;
-    assert.deepEqual(anchors, (ownBlk <= 1 ? [u.defId, 't_b0', 't_b1'] : ['t_b0', 't_b1', 't_b2']).sort(), 'the 3 lowest block counts');
+    // lowest block first, a tie to the latest deployed (_postFilter BLOCK_COUNT_ASC_CREATED_TIME_DES_FIRST)
+    const inRange = h.b.allyUnits.filter((a) => a.def?.id !== 't_far');
+    const want = inRange.slice().sort((x, y) => x.s.blockCnt - y.s.blockCnt || y.deploySeq - x.deploySeq).slice(0, 3);
+    assert.deepEqual(corners, want.map((a) => `${a.tileR},${a.tileC}`).sort(), 'the 3 lowest block counts in his range, ties to the latest deployed');
+    assert.ok(!corners.includes('10,9'), 't_far (block 0, out of range) is not picked');
+    const ones = inRange.filter((a) => a.s.blockCnt === 1);
+    if (ownBlk === 1) assert.ok(ones.length === 3 && !corners.includes(ones.reduce((m, a) => (a.deploySeq < m.deploySeq ? a : m)).tileR + ',' + ones.reduce((m, a) => (a.deploySeq < m.deploySeq ? a : m)).tileC), 'of three at block 1, the earliest deployed is left out');
+    assert.equal(u.mem.zones[0].shape.length, 6, 'the collider: each of the 3 edges pushed out (two points each)');
+    assert.equal(fxs.length, 3, 'one zone fx per unit');
+    assert.ok(fxs.every((x) => x[4].polyKey === fxs[0][4].polyKey && x[4].poly.length === 3), 'each names the whole area');
     h.run(0.6);
     const b = e2.findBuff('thorn2:sea');
-    assert.ok(b, 'around t_b0 / t_b1');
+    assert.ok(b, 'on the edge of the area between t_b0 and t_b1');
+    assert.equal(e1.findBuff('thorn2:sea'), null, 'outside the area');
     approx(e2.s.atk, 100 * (1 + bb.atk));
     approx(e2.s.def, 100 * (1 + bb.def));
     approx(er.s.res, 50 * (1 + bb.magic_resistance), 'RES −%');
     assert.equal(e2.buffs.filter((x) => x.key === 'thorn2:sea').length, 1, '不叠加: one debuff under two units');
     const first = tagged(h, u, 'mySea', e2);
-    assert.equal(first.length, 2, 'the first burn lands with the units (two units around e2)');
+    assert.equal(first.length, 1, 'the first burn lands with the units, once: one area');
     for (const c of first) approx(c.amount, u.s.atk * bb.atk_scale, 'first burn');
     h.run(bb.max_stack_cnt * bb.interval + 0.5);
     approx(e2.s.atk, 100 * (1 + bb.max_atk), 'max ATK cut');
     approx(e2.s.def, 100 * (1 + bb.max_def), 'max DEF cut');
     approx(er.s.res, 50 * (1 + bb.max_magic_resistance), 'max RES cut');
     approx(tagged(h, u, 'mySea', e2).at(-1).amount, u.s.atk * bb.max_atk_scale, 'max scale');
-    assert.equal(tagged(h, u, 'mySea', e3).length, 0, 'not around an anchor');
+    assert.equal(tagged(h, u, 'mySea', e3).length, 0, 'outside the area');
     h.run(bb.projectile_delay_time);
     assert.equal(e2.findBuff('thorn2:sea'), null, 'expired');
-    assert.ok(e1);
+    done(h);
+  }
+});
+
+test('引星棘刺 S3: he may pick himself (_excludeOwner 0); alone in range, the area is his point — a regular enemy on it burns, a huge one never (the client’s PolygonRectangle)', () => {
+  for (const id of pair('15')) {
+    const h = run({
+      defs: {
+        chess: { t_far: ally('t_far', { stats: { blockCnt: 0 } }) },
+        enemies: { enemy_dummy: dummy('enemy_dummy'), e_huge: { ...dummy('e_huge'), rank: 'BOSS', hitArea: { w: 3, h: 3, dx: 0, dy: 0 } } },
+      },
+      units: [entry(id, 'skchr_thorn2_3', { row: 10, col: 3 }), { chessId: 't_far', row: 10, col: 9 }],
+      enemies: [{ key: 'enemy_dummy', pos: [10, 3] }, { key: 'e_huge', pos: [10, 3] }],
+    });
+    const u = sel(h, id, 'skchr_thorn2_3');
+    const [small, huge] = h.b.enemies;
+    h.step();
+    cast(h, u);
+    const fx = h.events.find((x) => x[0] === 'fx' && x[1] === 'zone' && x[4]?.polyKey);
+    assert.deepEqual(fx?.[4].poly, [[10, 3]], 'only himself: t_far is out of his range');
+    assert.deepEqual(u.mem.zones[0].shape, [[3, 10]], 'the area is his tile centre');
+    h.run(0.6);
+    assert.ok(small.findBuff('thorn2:sea'), 'a regular enemy whose 0.1 circle covers the point');
+    assert.equal(huge.findBuff('thorn2:sea'), null, 'a huge enemy over the point: no edge to cross, no corner inside');
+    assert.equal(tagged(h, u, 'mySea', huge).length, 0);
     done(h);
   }
 });

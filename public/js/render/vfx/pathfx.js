@@ -26,6 +26,9 @@ const later = (ofx, s, fn) => { if (!ofx.timers) ofx.timers = []; ofx.timers.pus
  *           along the field's outer edges, one line per closed outline. The procedural field is skipped.
  *   follow  { edge }: the fx's `range` tiles plus the tiles within `around` of the owner where he stands now, outlined
  *           by `edge` until his skill ends (an attack range that moves with him). The fx itself stays the kit's.
+ *   polygon { line }: the fx's `poly` ([row, col]… the corners of an area, in turn) as one line through them, closed
+ *           when there are 3+, under the fx's `polyKey` (the same area named by several fxs is drawn once), for the fx's
+ *           `duration` s. The fx itself stays the kit's (its own binding plays on).
  *   beam    { line, start, waypoint, end }: the fx's `path` ([row, col]… from the owner's tile) as one line from the
  *           owner's muzzle through its turns to its last tile; `start` on the owner, `waypoint` on each tile of
  *           `relays` (indices into the path), `end` at the last tile — held until the owner's skill ends.
@@ -43,6 +46,12 @@ export const PATH_BINDINGS = Object.freeze({
   // (op-aglna2.js s3Targeting). Her S3 start's 'takeoff' fx carries the 3-9 tiles (`range`) and `around` (1).
   skchr_aglna2_3: Object.freeze({
     takeoff: Object.freeze({ follow: Object.freeze({ edge: 'aglna2_skill_03_range_line_01' }) }),
+  }),
+  // 引星棘刺 (char_1039_thorn2) S3 我的海疆: the polygon projectile's Thorn2S3Renderer — thorn2_skill_03_line through the
+  // corners of the area the alchemy units span (Thorn2PolygonRange.resultForEffect: the hull of their operators' tiles;
+  // a loop with 3+ corners, else one stretch). The kit's 'zone' fxs (one per unit) carry the corners (`poly`).
+  skchr_thorn2_3: Object.freeze({
+    zone: Object.freeze({ polygon: Object.freeze({ line: 'thorn2_skill_03_line' }) }),
   }),
   // 谬因 (char_4229_aphris) S2 临界瞬爆: the ChannelingMeleeAttack's AphrisEffectEmitter — line aphris_skill_02_line_01,
   // start aphris_skill_02_start_01 (startMountType 2: her muzzle), waypoint token_aphris_pc_skill_02_buff_01 on each
@@ -162,6 +171,7 @@ export class PathFx {
     this.fields = new Map();    // key → { tiles: Map(tileKey → handle), edges: [{ h, pts }], sig, until, edge }
     this.follows = new Map();   // owner id → { v, base: [[r, c]…], around, edge, sig, edges: [{ h, pts }] }
     this.beams = new Map();     // owner id → [handle…]
+    this.polys = new Map();     // polyKey → { h, pts }
   }
 
   /** Whether the prefab is installed (the outfit's twin of it, by the unit it belongs to). */
@@ -213,6 +223,7 @@ export class PathFx {
     if (b.field) return this._field(b.field, extra, U);
     if (b.follow) { this._follow(b.follow, extra, U); return false; }
     if (b.beam) return this._beam(b.beam, extra, U);
+    if (b.polygon) { this._polygon(b.polygon, extra, U); return false; }
     return false;
   }
 
@@ -286,6 +297,32 @@ export class PathFx {
     this.follows.delete(id);
   }
 
+  /** 引星棘刺 S3's area line: once per `polyKey`, held for the fx's `duration`. */
+  _polygon(spec, extra, U) {
+    const poly = (Array.isArray(extra.poly) ? extra.poly : []).filter((t) => Array.isArray(t) && Number.isFinite(t[0]) && Number.isFinite(t[1]));
+    const id = extra.polyKey != null ? String(extra.polyKey) : null;
+    if (poly.length < 2 || !id || this.polys.has(id)) return;
+    const lineKey = this._key(spec.line, U.v);
+    if (!lineKey) return;
+    const pts = poly.map(([r, c]) => unity(c, r, this._h(r, c) + EDGE_LIFT));
+    if (pts.length >= 3) pts.push(pts[0].slice());   // the client's LineRenderer.loop
+    const P = { h: null, pts };
+    P.h = this.w.ofx.spawn(lineKey, { pos: pts[0].slice(), groundZ: 0 }, {
+      loop: true, important: true, owner: extra.id,
+      track: (fx) => { fx.anchor[0] = P.pts[0][0]; fx.anchor[1] = P.pts[0][1]; fx.anchor[2] = P.pts[0][2]; fx.setLinePoints(P.pts); },
+    });
+    if (!P.h) return;
+    this.polys.set(id, P);
+    const dur = Number(extra.duration) > 0 ? Number(extra.duration) : 0;
+    later(this.w.ofx, dur, () => this._endPolygon(id, P));
+  }
+
+  _endPolygon(id, P) {
+    if (this.polys.get(id) !== P) return;
+    P.h?.stop();
+    this.polys.delete(id);
+  }
+
   /** 谬因 S2's beam: the line along the fx's path and its point effects, until her skill ends. */
   _beam(spec, extra, U) {
     const path = (Array.isArray(extra.path) ? extra.path : []).filter((t) => Array.isArray(t) && Number.isFinite(t[0]) && Number.isFinite(t[1]));
@@ -353,6 +390,7 @@ export class PathFx {
     for (const F of this.fields.values()) { F.sig = ''; F.tiles.clear(); F.edges.length = 0; }
     for (const P of this.follows.values()) { P.sig = ''; P.edges.length = 0; }
     this.beams.clear();
+    this.polys.clear();
   }
 
   /** Battle reset. */
@@ -360,5 +398,6 @@ export class PathFx {
     for (const id of [...this.fields.keys()]) this._endField(id);
     for (const id of [...this.follows.keys()]) this._endFollow(id);
     for (const id of [...this.beams.keys()]) this._endBeam(id);
+    for (const [id, P] of [...this.polys]) this._endPolygon(id, P);
   }
 }
