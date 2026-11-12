@@ -86,7 +86,12 @@ export class FxSim {
         break;
       }
       // `key`: one zone the sim re-sends as it moves / grows (an update in place, never a second layer — zones.js)
-      case 'zone': this.zone(at.x, at.y, at.z, r, col, Math.max(0.6, dur || 1.5), spec.tex, false, ex.key != null ? String(ex.key) : null); break;
+      case 'zone':
+        // (fork) 引星棘刺 S3: one area spanning the operators (`poly` its corners, [row, col]…; one per `polyKey`, sent with
+        // each operator's zone) — drawn once as that area's outline, not as a ring per operator (zones.js areaField)
+        if (Array.isArray(ex.poly) && ex.poly.length && ex.polyKey != null) { this.areaField(String(ex.polyKey), ex.poly, col, Math.max(0.6, dur || 1.5)); break; }
+        this.zone(at.x, at.y, at.z, r, col, Math.max(0.6, dur || 1.5), spec.tex, false, ex.key != null ? String(ex.key) : null);
+        break;
       // 国度 (“邪魔的利刃”'s 3×3, 国度's range): a tile field the sim re-sends every pulse, updated in place by `key` (zones.js)
       case 'domain': this.domainField(ex.key != null ? String(ex.key) : null, ex.tiles, col, Math.max(0.3, dur || 0.75)); break;
       case 'wall': {
