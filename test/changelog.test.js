@@ -7,7 +7,7 @@ import { spawnSync, execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseFragment, foldFragments, fragmentFiles, CHANGES_DIR, main, PRE_RULE_UNMEASURED } from '../tools/changelog.mjs';
+import { parseFragment, foldFragments, fragmentFiles, CHANGES_DIR, CHANGELOG, main, PRE_RULE_UNMEASURED, operatorOnly } from '../tools/changelog.mjs';
 
 test('every fragment in changes/ is well-formed', () => {
   const bad = fragmentFiles().flatMap((f) => parseFragment(f, readFileSync(join(CHANGES_DIR, f), 'utf8')).errors);
@@ -45,12 +45,62 @@ test('Server cost: missing, none, the README example\'s numbers, and what a numb
   const full = parseFragment('x.md', head + '\n' + README_EXAMPLE);
   assert.deepEqual(full.errors, []);
   assert.equal(full.cost.kind, 'numbers');
-  assert.ok(full.body.endsWith(README_EXAMPLE.trim()), 'a numbers block is folded into the changelog with the entry');
+  assert.equal(full.body, '### A\n\n- b', 'a numbers block stays in the fragment: never folded into the public changelog');
   const errs = parseFragment('x.md', head + '\nServer cost:\n\n- About 2 Mbit/s per room, typical.\n').errors.join(' | ');
   for (const want of [/never Mbit\/s/, /missing "typical" and "worst" case/, /missing per player/, /missing 300 players/, /missing bandwidth in MB\/s/,
     /missing bandwidth in GB\/day/, /missing server CPU/, /missing memory in MB/, /missing disk in MB\/day/, /missing bot budget in ms\/round/,
     /missing a "Cap:" line/, /missing "measured" or "estimated"/]) assert.match(errs, want);
   assert.match(parseFragment('x.md', head + '\nServer cost: none\nServer cost: none\n').errors.join(' | '), /more than one "Server cost:" line/);
+});
+
+// (fork, 2026-11-13) The public changelog never carries the operator's own deployment (OPERATOR_ONLY).
+describe('operator-only content', () => {
+  const head = '## 2026-11-13\n\n### A\n\n- b\n';
+
+  test('the Operator notes block is never folded, in either order with Server cost', () => {
+    const notes = 'Operator notes:\n\n- Deploy: ssh spa, then sudo systemctl restart stronghold@x; peer.env is untouched.\n';
+    for (const tail of [`\nServer cost: none\n\n${notes}`, `\n${notes}\nServer cost: none\n`]) {
+      const f = parseFragment('x.md', head + tail);
+      assert.deepEqual(f.errors, []);
+      assert.equal(f.body, '### A\n\n- b');
+      assert.match(f.notes, /^Operator notes:/);
+      assert.equal(f.cost.kind, 'none', 'the Server cost block ends where the notes start');
+    }
+    assert.match(parseFragment('x.md', `${head}\nServer cost: none\n\n${notes}\n${notes}`).errors.join(' | '), /more than one "Operator notes:" line/);
+  });
+
+  test('each kind of operator-only line in a section is refused with what it is', () => {
+    const cases = [
+      ['the site at stronghold-en.dev', /a domain name/],
+      ['moved to 15.235.210.12', /an IP address/],
+      ['run it on usspa first', /a server alias/],
+      ['players on the Singapore server', /a server region name/],
+      ['then `sudo systemctl restart`', /a server command/],
+      ['edit /etc/stronghold/peer.env', /a server path/],
+      ['the secret in peer.env', /a secrets file/],
+      ['our OVH box', /a hosting provider/],
+      ['about 0.3 MB/s for 300 players', /a traffic or disk rate/],
+      ['1.6 GB a day', /a traffic or disk rate/],
+    ];
+    for (const [line, want] of cases) {
+      const errs = parseFragment('x.md', `## 2026-11-13\n\n### A\n\n- ${line}\n\nServer cost: none\n`).errors.join(' | ');
+      assert.match(errs, want, line);
+      assert.match(errs, /move it under "Operator notes:"/);
+    }
+  });
+
+  test('public references, versions and game words pass', () => {
+    for (const line of [
+      'thanks to @sganggs ([#912](https://github.com/sganggs/Stronghold-Protocol/pull/912))',
+      'names from [arknights.wiki.gg](https://arknights.wiki.gg/wiki/Operator/List)',
+      'Lobby banner Update 0.2.4.1', 'a 4 MB pack', 'SilverAsh the Reignfrost', 'deploy tiles', 'a spacious Spartan room',
+      'files under `docs/` and `public/assets`', 'the US English voice', 'the `SP_REGIONS` setting',
+    ]) assert.deepEqual(operatorOnly(line), [], line);
+  });
+
+  test('FORK-CHANGELOG.md holds none of it', () => {
+    assert.deepEqual(operatorOnly(readFileSync(CHANGELOG, 'utf8')).map((h) => `${h.line}: ${h.label}: ${h.text}`), []);
+  });
 });
 
 test('"unmeasured (pre-rule)" is accepted only from the fragments named in PRE_RULE_UNMEASURED', () => {

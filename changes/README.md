@@ -20,15 +20,39 @@ conflict on the changelog. The maintainer folds the fragments into FORK-CHANGELO
 - …
 
 Server cost: none
+
+Operator notes:
+
+- (optional) Anything only our own servers need: hosts, regions, deploy steps, settings we set. Never folded.
 ```
 
 - The first line is `## YYYY-MM-DD`: the day of the change. Then one or more `### Heading` sections, each with at least
-  one `- ` bullet. Nothing else at heading level 1 or 2. LF line ends. Last, the `Server cost:` block (below).
+  one `- ` bullet. Nothing else at heading level 1 or 2. LF line ends. Last, the `Server cost:` block (below) and,
+  optionally, an `Operator notes:` block, in either order.
 - The sections are written exactly as they will read in FORK-CHANGELOG.md (English only, credits as there: "thanks to
   @login" for contributions, upstream merges as one linked line).
 - A later fix to the same change edits its fragment while it is still here; once folded, it is a new fragment.
 - No fragment for development workflow or tooling-only changes (test plumbing, merge and review process, dev
   tools): the changelog lists what players and server hosts get.
+
+## Public sections, operator notes
+
+FORK-CHANGELOG.md is public. Its sections say what players and **any** server host get: features, fixes, credits,
+upstream links, and a new setting in general terms ("`SP_X=1` turns on Y"). Our own deployment never goes there.
+
+| Goes in the sections | Goes in `Operator notes:` (or `Server cost:`), never folded |
+|---|---|
+| "Players connect to the nearest server" | Which servers we run, their regions (Singapore, US East), aliases (`spa`, `usspa`) |
+| "New setting `SP_REGIONS` lists the servers" | The values we set, our domain, IP addresses, the proxy or CDN set-up we use |
+| "A prepared version waits 4 hours for activate" | Deploy steps, `ssh` / `sudo` / `systemctl` / `journalctl` commands, `/etc` and `/opt` paths, `peer.env` |
+| "Bots run in the host's browser" | Traffic and disk numbers (MB/s, GB/day): they belong in `Server cost:` |
+| | Hosting providers, incidents on our servers and their dates |
+
+Both blocks stay in the fragment, where the merge guards read them, and are dropped when the fragment is folded.
+`npm run changelog` refuses a section, and FORK-CHANGELOG.md itself, holding any of the right-hand column
+(`OPERATOR_ONLY` in `tools/changelog.mjs`: domains other than public references, IP addresses, the server aliases and
+region names, server commands and paths, secrets files, provider names, MB/s and GB/day rates). The refusal names the
+line; move it under `Operator notes:`.
 
 ## Server cost
 
@@ -36,9 +60,10 @@ Every fragment ends with a line starting `Server cost:` (the SERVER COST rule, 2
 numbers). `npm run changelog -- --check` (and `test/changelog.test.js`) refuse a fragment without it.
 
 - `Server cost: none` only when the change touches no server, network or bot code. A reason in parentheses is fine
-  (`none (tooling only)`). A `none` line is left out when the fragment is folded into FORK-CHANGELOG.md.
+  (`none (tooling only)`).
 - Otherwise `Server cost:` and the numbers, typical **and** worst case, measured with the dev traffic meter where
-  possible (below), arithmetic marked "estimated". The block is folded into FORK-CHANGELOG.md with the entry. It must
+  possible (below), arithmetic marked "estimated". The block stays in the fragment; it is never folded into
+  FORK-CHANGELOG.md (2026-11-13: the public changelog carries no traffic numbers). It must
   state per player, per room and for 300 concurrent players: bandwidth out / in in **MB/s** at peak and **GB/day**
   (never Mbit/s), server CPU as % of one core, memory MB, disk MB/day, bot ms/round against the budget, and a
   `Cap:` line (what bounds the worst case; no cap, no build):

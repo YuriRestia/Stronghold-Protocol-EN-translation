@@ -210,6 +210,8 @@ describe('update news draft (release-news.mjs)', () => {
     const { points, skipped } = draftNewsLines([frag('a.md', 'A quick start keeps your custom squad', "The fork's online checks (GitHub CI) pass again"), frag('b.md', 'A quick start keeps your custom squad', 'Golden files refresh')]);
     assert.deepEqual(points, ['A quick start keeps your custom squad']);
     assert.deepEqual(skipped.map((s) => s.name), ['a.md', 'b.md']);
+    assert.deepEqual(draftNewsLines([frag('o.md', 'Faster joins on the Singapore box', 'Chat costs 0.03 MB/s less')]).points, [],
+      'operator-only headings (tools/changelog.mjs OPERATOR_ONLY) never reach the news');
     const old = Array.from({ length: 16 }, (_, i) => `old ${i}`);
     const live = { id: '0.3.4-5', langs: { en: { title: 'Update 0.3.4-5', highlights: ['H'], points: old }, ja: { title: 'J', points: ['j'] } } };
     const d = draftNews(live, [frag('c.md', 'New one', 'old 3')]);
