@@ -2210,8 +2210,9 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   enemy_1272_nhtank_2: POLLUTED_ATK,
   // 假想敌：蚀裂 (dot.js: the 'zone' of kind 'poison' where its lob lands — on its killer — or where it fell, r =
   // 1.projectile_range, dur = 1.projectile_life_time): its talent 1 (BslimeTalent_1) fires projectile_enemy_actoxi at its
-  // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud
-  enemy_9006_actoxi: Object.freeze({ zone: ebind({ xkind: 'poison', owner: 'any', projectile: 'projectile_enemy_actoxi', hold: 'fx', holdS: 8 }) }),
+  // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud. (fork, VFX 3) Killed by its target, its
+  // 'ability' fx of kind 'fissureDie' where it fell plays enemy_actoxi_deadrattle's enemy_actoxi_die_2_start once (owner 'died')
+  enemy_9006_actoxi: Object.freeze({ zone: ebind({ xkind: 'poison', owner: 'any', projectile: 'projectile_enemy_actoxi', hold: 'fx', holdS: 8 }), ability: ebind({ xkind: 'fissureDie', owner: 'died', keys: ['enemy_actoxi_die_2_start'], once: true }) }),
   // 咸鳞汁推荐者 (special.js: its barrel blow's 'zone' of kind 'barrel' where it stands, dur = fixed_duration, in the tick of
   // its 'cast'): the skill BlockedBoom (ProjectileToTileAbility) puts projectile_enemy_wintun_range on its tile —
   // AuraHitBehaviour, its reached effect enemy_wintun_range (looping) the zone

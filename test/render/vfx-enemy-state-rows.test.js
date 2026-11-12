@@ -71,5 +71,28 @@ test("death bursts: Farseer's and Novice Acolyte's kit explode at a death plays 
     assert.deepEqual({ owner: b.owner, xkind: b.xkind, keys: [...b.keys], once: b.once }, { owner: 'died', xkind, keys: [fx], once: true });
     assert.ok(ENEMY_FX_KINDS.explode.includes(key));
   }
+  // OpFor: Fissure: its kit's 'ability' fx of kind 'fissureDie' (killed by its target), beside its cloud's zone row
+  const f = ENEMY_FX_BINDINGS.enemy_9006_actoxi;
+  assert.deepEqual({ owner: f.ability.owner, xkind: f.ability.xkind, keys: [...f.ability.keys], once: f.ability.once }, { owner: 'died', xkind: 'fissureDie', keys: ['enemy_actoxi_die_2_start'], once: true });
+  assert.equal(f.zone.xkind, 'poison', 'the zone row kept');
+  assert.deepEqual(ENEMY_FX_KINDS.ability, ['enemy_9006_actoxi']);
   assert.ok(STATE_BUFFS['enemy_ftzlc[boom]'], 'Cabbage Seedling: its glow while ignited');
+});
+
+test("a kit 'ability' fx naming an ability binding by its key plays that ability's start rows once (Recidivist's LibertyOthersAbility)", () => {
+  const ab = { name: 'LibertyOthersAbility', kind: 'general', node: 'Modes/L/LibertyOthersAbility', class: 'AnimatedActionToTargetAbility', modes: ['L'], when: null,
+    uses: [{ role: 'start', keys: ['open_start'], from: 'UberEffectEmitter._castEffects', node: 'Modes/L/LibertyOthersAbility', ability: 'AnimatedActionToTargetAbility' }] };
+  const i2 = { units: { enemy_1121_lifbos: { kind: 'enemy', modes: [{ name: 'Default' }, { name: 'L' }], abilities: [ab], talents: {
+    Liberty: { nodes: [{ node: 'Modes/L/Talents/Liberty', class: 'Talent', ability: 'PassiveBuffAbility', mode: 'L', when: 'passive' }],
+      uses: [loop('guard_pass', 'lifbos_liberty', 'Modes/L/Talents/Liberty', { mode: 'L' })] } } } },
+  skills: {}, projectiles: {}, prefabs: { ...prefabs, open_start: { file: 'prefabs/open_start.json', looping: false } } };
+  const v = view(7, 'enemy_1121_lifbos');
+  const t = new TalentFx({ idx: i2, ofx: { active: true }, opts: {}, unitKeyOf: (x) => x.key, funnels: null, view: (id) => (id === 7 ? v : null) });
+  const played = [];
+  t._play = (e) => { played.push(e.key); return true; };
+  assert.equal(t.fx('ability', { id: 7, name: 'LibertyOthersAbility' }, 5, 5), true);
+  assert.deepEqual(played, ['open_start']);
+  played.length = 0;
+  assert.equal(t.fx('ability', { id: 7, name: 'SomethingElse' }, 5, 5), false);
+  assert.deepEqual(played, []);
 });
