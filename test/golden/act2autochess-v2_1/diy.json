@@ -1887,8 +1887,8 @@
       ],
       "enemies": {"enemy_1009_lurker":[66,2,64,2309,37155],"enemy_1019_jshoot_2":[57,1,52,10569,39027],"enemy_1404_msnip":[48,0,48,86470,8620]},
       "hooks": [1,194,6900,601,595,779,779,0,23,187,10,9,0,12463,530,74,171,164,1,23,0,0,0],
-      "events": {"atk":588,"cast":135,"deploy":23,"die":23,"dmg":713,"engage":9,"fx":116,"leak":164,"skill":19,"spawn":183,"status":194},
-      "fx": {"buff":1,"counter":74,"shield":23,"shieldBreak":18},
+      "events": {"atk":588,"cast":135,"deploy":23,"die":23,"dmg":713,"engage":9,"fx":235,"leak":164,"skill":19,"spawn":183,"status":194},
+      "fx": {"buff":1,"counter":74,"shield":23,"shieldBreak":18,"shot":119},
       "snaps": "46dc9a64 bd20962b da3d78a8 ab24f071 9eb0b1ad 230c4cb5 0331da61 e50c378e 9aba1f0f e2c54e46 38828adc 4a817343 15f9e184 4e2251f0 a5f54ab2 9ae0c8a1 4eb456dc e378bf14 05b0a300 86439f85 3a1d8907 8f33999b 0aaf6305"
     },
     "diy-047": {
@@ -4200,8 +4200,8 @@
       ],
       "enemies": {"enemy_1009_lurker":[66,3,63,2830,27630],"enemy_1019_jshoot_2":[57,2,55,33848,21381],"enemy_1404_msnip":[48,0,48,15019,36570]},
       "hooks": [1,209,6824,251,250,246,246,0,39,205,8,8,0,6445,10,16,171,166,1,39,0,0,0],
-      "events": {"atk":236,"cast":83,"deploy":35,"die":39,"dmg":246,"engage":12,"fx":32,"leak":166,"skill":16,"spawn":186,"status":18},
-      "fx": {"explode":14,"summon":18},
+      "events": {"atk":236,"cast":83,"deploy":35,"die":39,"dmg":246,"engage":12,"fx":80,"leak":166,"skill":16,"spawn":186,"status":18},
+      "fx": {"explode":14,"shot":48,"summon":18},
       "snaps": "96110caf 6f029c2f 1bda372e b7b119da 59058d69 5e000dca fd0c95bb 0b6239e1 fa67e5e7 eb868cf6 f1a7d9ba 10af6800 06215aa7 55549254 9c5a739c 96d008c6 195186c1 211019ab f4c39560 b2f8e588 4c9454be 0b96e1be 0b6bef32"
     },
     "diy-101": {

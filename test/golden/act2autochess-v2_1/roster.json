@@ -547,8 +547,8 @@
         "enemy_9010_acpupp": [1,0,1,47,12961]
       },
       "hooks": [1,196,4693,526,524,922,1069,146,169,182,108,114,0,17857,296,19,174,7,1,176,0,2,0],
-      "events": {"atk":683,"bounty":6,"cast":4,"deploy":20,"die":175,"dmg":1050,"engage":11,"fx":225,"leak":7,"rate":1591,"skill":216,"spawn":189,"status":324},
-      "fx": {"aoe":4,"burst":2,"camouflage":5,"displace":28,"dp":5,"ember":1,"explode":11,"pull":21,"push":8,"shieldBreak":2,"sp":43,"strike":11,"summon":58,"telegraph":3,"volley":23},
+      "events": {"atk":683,"bounty":6,"cast":4,"deploy":20,"die":175,"dmg":1050,"engage":11,"fx":227,"leak":7,"rate":1591,"skill":216,"spawn":189,"status":324},
+      "fx": {"aoe":4,"burst":2,"camouflage":5,"displace":28,"dp":5,"ember":1,"explode":11,"pull":21,"push":8,"shieldBreak":2,"shot":2,"sp":43,"strike":11,"summon":58,"telegraph":3,"volley":23},
       "snaps": "bff22558 6f8bd065 d4112c82 3cff6763 0c2ba884 7c40625c 45c3255d e97c8b26 7f222464 e9cc26b1 4e2c4437 8fd28a72 7a16cefa 5682991a e0d58f77 06d97b7f"
     },
     "roster-010": {
@@ -1053,8 +1053,8 @@
         "enemy_2025_syufo": [1,1,0,396,19200]
       },
       "hooks": [1,192,5442,916,908,1192,1462,3972,175,178,38,35,126,38268,204,167,170,0,1,176,2,1,0],
-      "events": {"atk":923,"bounty":6,"cast":59,"deploy":22,"die":178,"dmg":1164,"engage":13,"fx":121,"heal":108,"layer":2,"rate":67,"skill":73,"spawn":191,"status":309},
-      "fx": {"airstrike":33,"bombard":1,"bombardShell":1,"burst":1,"cleanse":6,"copy":5,"dp":3,"emergency":9,"explode":12,"firewall":1,"garrison":2,"link":1,"revive":1,"scorchBurst":23,"shieldBreak":1,"shockBlast":10,"sp":2,"spGain":1,"steal":3,"telegraph":2,"tide":3},
+      "events": {"atk":923,"bounty":6,"cast":59,"deploy":22,"die":178,"dmg":1164,"engage":13,"fx":166,"heal":108,"layer":2,"rate":67,"skill":73,"spawn":191,"status":309},
+      "fx": {"airstrike":33,"bombard":1,"bombardShell":1,"burst":1,"cleanse":6,"copy":5,"dp":3,"emergency":9,"explode":12,"firewall":1,"garrison":2,"link":1,"revive":1,"scorchBurst":23,"shieldBreak":1,"shockBlast":10,"shot":45,"sp":2,"spGain":1,"steal":3,"telegraph":2,"tide":3},
       "snaps": "4621ecf9 cf37efba da865e81 d30af5bb c56c74ba d2aa34fc 10637fe3 f9513716 1704584f f9591e3d c8bdf388 48d5e958 8779d5d2 452e5f8b 4927c957 7a33d658 480f644f 17bbe178 90f2a971"
     },
     "roster-018": {
@@ -1622,8 +1622,8 @@
         "enemy_2003_rockman": [1,1,0,2534,67500]
       },
       "hooks": [1,94,4200,776,773,1365,1382,28,81,82,89,88,0,15970,57,44,81,0,1,82,3,1,0],
-      "events": {"atk":887,"bounty":3,"cast":4,"deploy":13,"die":82,"dmg":1382,"engage":10,"fx":59,"heal":28,"layer":3,"rate":77,"skill":179,"spawn":93,"status":110},
-      "fx": {"blink":1,"buff":1,"burst":1,"coin":18,"displace":19,"explode":5,"garrison":3,"revive":1,"strike":8,"summon":1,"telegraph":1},
+      "events": {"atk":887,"bounty":3,"cast":4,"deploy":13,"die":82,"dmg":1382,"engage":10,"fx":62,"heal":28,"layer":3,"rate":77,"skill":179,"spawn":93,"status":110},
+      "fx": {"blink":1,"buff":1,"burst":1,"coin":18,"displace":19,"explode":5,"garrison":3,"revive":1,"shot":3,"strike":8,"summon":1,"telegraph":1},
       "snaps": "9c3bca96 96e85712 bf730760 b3fd2cb8 d93eb140 527ad71c 6b254f92 4f603d5f efca772d 637dac2d 42c9d0c3 4debe4b2 eadbd5f6 23f3baf8"
     },
     "roster-028": {
@@ -2056,8 +2056,8 @@
         "enemy_2001_duckmi_2": [1,1,0,0,5760]
       },
       "hooks": [1,144,6900,1093,1093,1612,1629,10420,105,129,199,199,0,19782,65,28,125,24,1,105,0,2,6],
-      "events": {"atk":1403,"bounty":3,"cast":11,"deploy":19,"die":105,"dmg":1407,"engage":9,"fx":666,"heal":11,"leak":24,"rate":235,"skill":398,"spawn":138,"status":228},
-      "fx": {"aoe":20,"burst":2,"crit":19,"dodge":6,"expose":332,"hpShare":4,"sp":156,"summon":1,"zone":126},
+      "events": {"atk":1403,"bounty":3,"cast":11,"deploy":19,"die":105,"dmg":1407,"engage":9,"fx":672,"heal":11,"leak":24,"rate":235,"skill":398,"spawn":138,"status":228},
+      "fx": {"aoe":20,"burst":2,"crit":19,"dodge":6,"expose":332,"hpShare":4,"shot":6,"sp":156,"summon":1,"zone":126},
       "snaps": "3c08f6c4 14fb19af c068570e e2d94c9a 191a6c0e fcd13bd0 c827033d ae8a765e bc2607a0 89732689 1c2b86bd 860706ac 7cbee4ef ff54a4fd e90f0388 03087e89 0ab03141 0d3e13e0 11babba0 a173b29d 70d3ddab 93b3f297 5327c7eb"
     },
     "roster-036": {

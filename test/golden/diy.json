@@ -1885,8 +1885,8 @@
       ],
       "enemies": {"enemy_1009_lurker":[66,1,65,4852,28875],"enemy_1019_jshoot_2":[57,1,56,22010,18055],"enemy_1404_msnip":[48,0,48,7480,23241]},
       "hooks": [1,191,6474,117,117,169,169,0,22,191,6,6,1,6305,10,6,171,169,1,22,0,0,0],
-      "events": {"atk":125,"cast":37,"deploy":20,"die":22,"dmg":169,"engage":12,"fx":4,"leak":169,"rate":2,"skill":12,"spawn":183,"status":18},
-      "fx": {"beam":4},
+      "events": {"atk":125,"cast":37,"deploy":20,"die":22,"dmg":169,"engage":12,"fx":29,"leak":169,"rate":2,"skill":12,"spawn":183,"status":18},
+      "fx": {"beam":4,"shot":25},
       "snaps": "612b4a4c a63b5e80 b7344716 3d70b4c3 270b73c2 1b187e65 f52ee7ef 8ba3faaf 9eb3c8d6 d7646532 d1c85309 eeb8e31f bedb1582 910cfea1 d47a5c63 2e879781 4817bf67 e6d5c9ec 9a090d5f 75e960f5 fd190b27 f743b3fb"
     },
     "diy-047": {
@@ -5105,8 +5105,8 @@
       ],
       "enemies": {"enemy_1009_lurker":[66,0,66,2363,10080],"enemy_1019_jshoot_2":[57,0,57,24555,5021],"enemy_1404_msnip":[48,0,48,11052,5504]},
       "hooks": [1,206,6686,215,214,156,156,0,34,205,6,6,0,6864,24,18,171,171,1,34,0,0,0],
-      "events": {"atk":185,"cast":66,"deploy":35,"die":34,"dmg":156,"engage":12,"fx":27,"leak":171,"rate":2,"skill":12,"spawn":183,"status":42},
-      "fx": {"coldWind":27},
+      "events": {"atk":185,"cast":66,"deploy":35,"die":34,"dmg":156,"engage":12,"fx":60,"leak":171,"rate":2,"skill":12,"spawn":183,"status":42},
+      "fx": {"coldWind":27,"shot":33},
       "snaps": "87dc774a ed95788e 24fe4c0d 2d919b08 53859dae 8b170309 cda0d416 e340dede 9ef5c4af 4a938449 26a806da 8baa775b 14a4bcfb 3eaf6b6e 216e12be dfa745d3 70ef7437 826b2ead 5bd44b37 d2089b01 b442fb1a b86611a8 7943fc33"
     },
     "diy-119": {
