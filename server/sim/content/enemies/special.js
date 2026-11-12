@@ -65,7 +65,7 @@ function kitChimera(ab) {
       const pulse = a.acc >= CHIMERA_AURA_EVERY - 1e-9;
       if (pulse) a.acc -= CHIMERA_AURA_EVERY;
       for (const u of b.alliesInRadius(e.x, e.y, CHIMERA_AURA_RADIUS)) {
-        auraBuff(b, u, 'ab:originium', 0.25, { spRecoveryMul: Math.max(0, 1 + spr) }, null, true);
+        auraBuff(b, u, 'ab:originium', 0.25, { spRecoveryMul: Math.max(0, 1 + spr) }, null, true, { fx: 'enemy_lrcmra[originum][dmg]', src: e.id });
         // PRTS "持续视为受到源石污染区影响…每0.5秒受到50真实持续伤害": a damage instance (受击回复, the 重装 trigger), not a
         // 流失 — 无来源 like the 源石污染区 terrain it stands for [ASSUMED], the chimera keeps the credit; "同类效果取最高": one
         // tick per unit per period however many chimeras reach it (`mem.chimeraAt`; every chimera's is 50). A terrain

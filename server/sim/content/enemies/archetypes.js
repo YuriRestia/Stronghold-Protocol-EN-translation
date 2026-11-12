@@ -156,19 +156,22 @@ const nthAttackPower = (n, scale, el = null, ratio = 0, s = null) => ({
   attack(c, b, e, a) { a.n++; },
 });
 
-/** Aura on other enemies within r: timed buff refreshed every iv s. */
-const enemyAura = (r, key, mods, sil = true, iv = 0.5) => ({
+/**
+ * Aura on other enemies within r: timed buff refreshed every iv s. `fx`: (fork, display only) the official buff key the
+ * carriers show while it holds them (b.snap fxs; src: this enemy).
+ */
+const enemyAura = (r, key, mods, sil = true, iv = 0.5, fx = null) => ({
   sil, iv,
-  tick(b, e) { for (const o of b.enemiesInRadius(e.x, e.y, r)) if (o !== e) auraBuff(b, o, key, iv, mods); },
+  tick(b, e) { for (const o of b.enemiesInRadius(e.x, e.y, r)) if (o !== e) auraBuff(b, o, key, iv, mods, null, false, fx && { fx, src: e.id }); },
 });
 
 /**
  * Aura on allies within r — every ally there, 隐匿 ones included: its one user, 寒霜, is PRTS's own example of an enemy
  * debuff that "无视隐匿状态起作用" (PRTS 作战机制 §隐匿与Buff的关系: "敌方寒霜的攻速下降Debuff").
  */
-const allyAura = (r, key, mods, sil = true, iv = 0.5, flags = null) => ({
+const allyAura = (r, key, mods, sil = true, iv = 0.5, flags = null, fx = null) => ({
   sil, iv,
-  tick(b, e) { for (const u of b.alliesInRadius(e.x, e.y, r)) auraBuff(b, u, key, iv, mods, flags, true); },
+  tick(b, e) { for (const u of b.alliesInRadius(e.x, e.y, r)) auraBuff(b, u, key, iv, mods, flags, true, fx && { fx, src: e.id }); },
 });
 
 /** Self ATK buff once HP first drops below ratio. */

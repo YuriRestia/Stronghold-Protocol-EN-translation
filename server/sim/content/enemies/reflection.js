@@ -15,7 +15,8 @@ function kitPhalanx(ab, e) {
     tick(b, e2) {
       let n = 0;
       for (const o of b.enemiesInRadius(e2.x, e2.y, r)) if (o !== e2 && o.defId === e2.defId) n++;
-      if (n > 0) auraBuff(b, e2, 'ab:phalanx', 0.5, { defFlat: def * n });
+      // (fork) the official aura's glow (duphlx_t_aura: enemy_duphx_2_buff) on a phalanx another one reaches; its own talent
+      if (n > 0) auraBuff(b, e2, 'ab:phalanx', 0.5, { defFlat: def * n }, null, false, { fx: 'duphlx_t_aura', src: null });
     },
   }];
 }
