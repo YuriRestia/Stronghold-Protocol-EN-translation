@@ -659,6 +659,13 @@ export const STATE_BUFFS = Object.freeze({
   'enemy_smsha_buffs': true,
   // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
   'wintun_t[attack_speed]': true,
+  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
+  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
+  'acstma_s_1': true,
+  'acstmb_s_1': true,
+  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
+  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
+  'enemy_wdrrl[AOE_attack]': true,
 });
 
 /**

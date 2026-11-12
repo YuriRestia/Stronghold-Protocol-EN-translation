@@ -32,6 +32,11 @@ const CANNON_EVERY = 0.5, CANNON_SHOTS = 10;
 
 const CANNON_IMMUNE = Object.freeze(['stun', 'freeze', 'cold', 'levitate', 'sleep']);
 
+/**
+ * (fork) Sarkaz Absurdist Tyrant Captain's splashing first attack: the official buff key of its AOEDamage hits (b.snap fxs;
+ * STATE_BUFFS), held on the target it splashes around for the template's 0.7 s.
+ */
+const WDRRL_AOE_FX = 'enemy_wdrrl[AOE_attack]', WDRRL_AOE_TIME = 0.7;
 /** Radius of 骸骨拷打者's "周围" death sensing when its talent has no Attack.range_radius [ASSUMED]. */
 const TORTURER_RADIUS = 1;
 
@@ -195,6 +200,7 @@ function kitFirstAoe(ab) {
       if (a.done) return;
       a.done = true;
       b.fx('explode', { x: c.target.x, y: c.target.y, r: 1, kind: 'aoeAttack' });
+      b.fxState(c.target, WDRRL_AOE_FX, true, { src: e, dur: WDRRL_AOE_TIME });
       for (const u of b.alliesInRadius(c.target.x, c.target.y, 1)) {
         if (u !== c.target) hurt(b, e, u, e.s.atk * scale, 'phys', { ignoreSelect: true, tags: ['aoeAttack'] });
       }

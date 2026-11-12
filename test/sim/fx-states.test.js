@@ -138,7 +138,8 @@ describe('the sim and the client name the same buffs', () => {
   const kits = new URL('../../server/sim/content/kits/ops/', import.meta.url);
   // (fork) and the enemies' content (their talents' auras: content/enemies, enemy VFX audit S rows)
   const enemies = new URL('../../server/sim/content/enemies/', import.meta.url);
-  const src = [...readdirSync(kits).map((f) => new URL(f, kits)), ...readdirSync(enemies).filter((f) => f.endsWith('.js')).map((f) => new URL(f, enemies))]
+  const src = [...readdirSync(kits).map((f) => new URL(f, kits)), ...readdirSync(enemies).filter((f) => f.endsWith('.js')).map((f) => new URL(f, enemies)),
+    new URL('../../server/sim/content/bosses.js', import.meta.url)]
     .map((u) => readFileSync(u, 'utf8')).join('\n');
   // every literal buff key a kit hands fxState / fxProbe / a buff's fx, or a const holding one (…_FX = '…')
   const named = new Set([...src.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
