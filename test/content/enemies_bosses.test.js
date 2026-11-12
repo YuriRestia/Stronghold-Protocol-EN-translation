@@ -704,6 +704,8 @@ test(`${nm('enemy_1275_dwlock_2')}: apoptosis on hit; DeathEye channels arts dam
   assert.ok(h.b.time >= s.initCooldown - 1e-6);
   h.run(s.bb.hit_duration + 1);
   assert.ok(h.eventsOf('fx').some((f) => f[1] === 'beam' && f[4].kind === 'deathEye'));
+  // (fork) the burst names its caster and target: the client flies the official ChargeAttack shot for it
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'apoptosis' && f[4].from === e.id && f[4].to != null));
   const w2 = h.unit('t_wall2');
   assert.ok(w2.elem.apoptosis >= e.s.atk * s.bb.ep_damage_ratio - 1e-6 || w2.findBuff('apoptosisBurst'));
 });

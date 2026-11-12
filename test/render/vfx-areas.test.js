@@ -906,7 +906,9 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
         if (b.cover) { assert.ok(idx.units[key].skills[b.skill], `${key}: skill ${b.skill}`); continue; }
         if (b.fly) {
           const p = idx.projectiles[b.fly];
-          assert.ok(p && idx.prefabs[p.main] && (p.onHit || []).every((k) => idx.prefabs[k]), `${key} ${kind}: ${b.fly} flies and hits`);
+          // its flying effect, a harpoon's rope, a timer's on-target / hit / reached effects: at least one, all extracted
+          const keys = p ? [p.main, p.link, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || [])].filter(Boolean) : [];
+          assert.ok(keys.length && [...keys, ...(b.hits || [])].every((k) => idx.prefabs[k]), `${key} ${kind}: ${b.fly} flies and hits`);
           continue;
         }
         if (b.modeLoops) {

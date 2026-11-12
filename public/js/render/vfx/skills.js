@@ -2133,6 +2133,9 @@ export const OWNER_NEAR = 1;
  *              the unit `extra.to` (its flying effect, then its hit), `stagger` s after the previous one of the same
  *              enemy in that frame (the client's MultiRangedAttack triggerDelta); `cover`: nothing drawn — the kit fx
  *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
+ *              `flyDur`: the flight's own time (a timer shot whose hit lands at once); `rehit`: one flight per enemy and
+ *              target while its projectile lives (a lasso), each later fx playing its onHit on the target; `hits`: the
+ *              skill's own hit rows (prefab keys) played on the target as the shot lands
  * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
@@ -2200,6 +2203,22 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
       ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
     ]),
   }),
+  // (fork) enemies, beam shots (VFX 2): kit 'beam' / 'explode' fxs that carry from / to fly the official projectile
+  // 萨卡兹王庭军精锐术师 (element.js, 死亡之眼): the channel's 'beam' of kind 'deathEye' — LineAttack's harpoon
+  // projectile_enemy_dwlock_line (its rope enemy_dwlock_skill_line_01 to the locked target; LineAttack's hit row
+  // enemy_dwlock_skill_hit_01 as it reaches, `hits`); the burst's 'explode' of kind
+  // 'apoptosis' — ChargeAttack's projectile_enemy_dwlock_charge, a timer whose reached effect enemy_dwlock_skill_hit_02
+  // lands on the target [ASSUMED: at the burst, not flown through the channel]
+  enemy_1275_dwlock_2: Object.freeze({
+    beam: ebind({ xkind: 'deathEye', owner: 'from', fly: 'projectile_enemy_dwlock_line', hits: ['enemy_dwlock_skill_hit_01'] }),
+    explode: ebind({ xkind: 'apoptosis', owner: 'from', fly: 'projectile_enemy_dwlock_charge', flyDur: 0.05 }),
+  }),
+  // “萨米的意志” (bosses.js kitDeer, 自然涌动): a 'beam' of kind 'naturalSurge' per target — projectile_enemy_smdeer_s, a
+  // timer that puts enemy_smdeer_skill_01_hit_buff on its target as it starts (the stun's look)
+  enemy_9033_acdeer: Object.freeze({ beam: ebind({ xkind: 'naturalSurge', owner: 'from', fly: 'projectile_enemy_smdeer_s' }) }),
+  // 节日爵士乐手 (invisible.js, 火力全开): a 'beam' of kind 'jazzFire' per hit_interval — one LassoProjectile
+  // projectile_enemy_cnvsax per channel (its rope enemy_cnvsax_skill_line_01), enemy_cnvsax_hit_02 on each hit (`rehit`)
+  enemy_10034_cnvsax: Object.freeze({ beam: ebind({ xkind: 'jazzFire', owner: 'from', fly: 'projectile_enemy_cnvsax', rehit: true }) }),
 });
 
 /** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */
@@ -2243,7 +2262,11 @@ export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
   for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
     if (bind.cover) continue;
-    if (bind.fly) { const p = idx?.projectiles?.[lc(bind.fly)]; for (const k of p ? [p.main, ...(p.onHit || []), ...(p.onReached || [])] : []) if (lc(k)) out.add(lc(k)); }
+    if (bind.fly) {
+      // its flying effect, a harpoon's rope (`link`), what it puts on its target as it starts, its hit / reached
+      const p = idx?.projectiles?.[lc(bind.fly)];
+      for (const k of p ? [p.main, p.link, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || []), ...(bind.hits || [])] : []) if (lc(k)) out.add(lc(k));
+    }
     else if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
     else if (bind.modeLoops) for (const k of modeLoopKeys(idx, unitKey, bind.modeLoops)) out.add(k);
     else for (const k of bindingEffects(idx, bind)) out.add(k);
