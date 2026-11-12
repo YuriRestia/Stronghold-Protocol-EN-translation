@@ -107,7 +107,10 @@ secret and everyone plays the winner.
   frame marked 「未投票 · 随机」; the lines grow into a slot in the centre of the ship with the match-found cue, whose
   high note is the reveal (0.86 s after the lines start): the winner bursts into the slot under a gold 「全员！」 with the
   vote counts. The losing picks glitch one after another (the roguelike distortion cue, `sfx.ui.distort`) and snap to the
-  winner (`itemMerge`); the unified screen holds about 3 s.
+  winner (`itemMerge`); the unified screen holds about 3 s. The beats run on a JS clock, so the reveal holds the
+  battlefield build (`public/js/ui/fieldBuildHold.js`; the tile atlas holds the main thread ~1.7 s on a desktop) until
+  its picks resolve, at most 5 s: the engine's downloads and imports go on meanwhile, and BATTLE_CHECK leaves at least
+  2.5 s to build before the round. A normal match never holds it.
 - **Effects**: each player gets the strategy's effects as their own; a global one applies once however many hold it
   (鸭爵 finds the first holder: `test/one-for-all.test.js`).
 - **Stats**: `m.result.mode = 'oneForAll'`; the stats page lists it as its own mode.

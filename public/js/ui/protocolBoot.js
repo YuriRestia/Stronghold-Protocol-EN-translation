@@ -14,6 +14,7 @@ import { html, Icon } from './components.js';
 import { PlayerAvatar } from './gameComponents.js';
 import { uiUrl, bandIconUrl } from './assetUrls.js';
 import { reducedMotion } from './device.js';
+import { holdFieldBuild, releaseFieldBuild } from './fieldBuildHold.js';
 import { data } from '../data.js';
 import { audio } from '../audio.js';
 import { t } from '../../../shared/i18n.js';
@@ -212,9 +213,15 @@ export function ProtocolBoot({ players, myId, leaving = false, reveal = null }) 
   const spots = bootLayout(list.length, { vote });
   const picks = list.map((p) => (vote && typeof reveal.picks?.[p.playerId] === 'string' ? reveal.picks[p.playerId] : null));
   const tlRef = useRef(null);
-  if (!tlRef.current || tlRef.current.winner !== (vote ? reveal.winner : null)) tlRef.current = { ...ofaTimeline(vote ? picks : [], vote ? reveal.winner : ''), winner: vote ? reveal.winner : null };
+  if (!tlRef.current || tlRef.current.winner !== (vote ? reveal.winner : null)) {
+    tlRef.current = { ...ofaTimeline(vote ? picks : [], vote ? reveal.winner : ''), winner: vote ? reveal.winner : null };
+    // the battlefield waits for the picks to resolve (ui/fieldBuildHold.js): its build would hold the beats' clock.
+    // Set while rendering, so it is on before the match screen's field mount reaches the build.
+    if (vote && !reducedMotion()) holdFieldBuild(tlRef.current.unify);
+  }
   const tl = tlRef.current;
   useEffect(() => { if (vote) warmOfaSounds(); }, [vote]);
+  useEffect(() => (vote ? releaseFieldBuild : undefined), [vote]);
   const now = useOfaClock(tl, vote);
   const bands = data.get('bands') || {};
   const nameOf = (id) => bands[id]?.name || id;
