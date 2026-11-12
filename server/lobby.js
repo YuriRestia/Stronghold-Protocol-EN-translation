@@ -238,7 +238,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { CODE_ALPHABET, DIFFICULTIES, ERR, MAX_SEATS, MAX_SPECTATORS, ROOM_CODE_LEN, modeIdFor } from '../shared/constants.js';
 import { CHAT_BUSY_MS, CHAT_COOLDOWN_GRACE_MS, EMOTE_COOLDOWN_MS, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_BYTES, ROOM_CHAT_HISTORY_LINES } from '../shared/constants.js';
 import { chatLine } from '../shared/text.js';
-import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './chatLimit.js';
+import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes, utf8Bytes } from './match/chatLimit.js';
 import { CHAT_ON } from './match/chatWallet.js';
 import { LARGE_ROOM_SEATS, IDLE_PREP_ROUNDS, SQUAD_SEATS, ROOM_PASSWORD_RE, ROOM_PASSWORD_TRIES, ROOM_PASSWORD_WINDOW_MS, squadOfSeat, squadMoveWait, squadMoveLog, SQUAD_MOVE_LOG_MAX } from '../shared/largeRoom.js';
 import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, checkDiyPicks, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../shared/protocol.js';
@@ -680,7 +680,7 @@ export class Lobby {
     this.graceTimers = new Map();
     /** @type {Map<string, NodeJS.Timeout>} deferred (coalesced) resyncs by playerId */
     this.resyncTimers = new Map();
-    /** @type {Map<string, number[]>} (fork) room chat: recent line times per network address (server/chatLimit.js) */
+    /** @type {Map<string, number[]>} (fork) room chat: recent line times per network address (server/match/chatLimit.js) */
     this.chatNets = new Map();
     /** per-network limit warnings: at most one log line per 10 s (the rest are counted) */
     this.limitLog = { at: -Infinity, suppressed: 0 };
@@ -2222,7 +2222,7 @@ export class Lobby {
 
   /**
    * (fork) room.chat: a seated player's line in the room screen (docs/design/network.md "Room chat"). Plain text and the
-   * line cap (shared/text.js chatLine), the spam limits (server/chatLimit.js: gap, burst → escalating pause, duplicates,
+   * line cap (shared/text.js chatLine), the spam limits (server/match/chatLimit.js: gap, burst → escalating pause, duplicates,
    * the per-network cap); no kill wallet in the room (user, 2026-11-11). Not during a match (match chat has its own), not
    * from spectators or with chat off. A refused line gets no frame back; only a new pause is told, to the sender.
    * The room keeps its last lines in memory (roomChatKeep) for members who reconnect; nothing is written anywhere.

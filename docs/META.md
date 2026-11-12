@@ -1086,7 +1086,7 @@ Hidden-Core trophy row only for the players still in when it was cleared — a t
 gets the table value of its own rounds. `onEnd(summary)` receives the same object (without `t`, plus `errors`).
 
 `m.chat { p, x }` / `g.chat { x }`: the fork's match chat, DESIGN "Match chat" (docs/design/network.md), `server/match/chatWallet.js`.
-The text rules, the line cap and the spam limits are shared with room chat: DESIGN "Chat text", "Chat line", "Chat limits" (`shared/text.js`, `server/chatLimit.js`).
+The text rules, the line cap and the spam limits are shared with room chat: DESIGN "Chat text", "Chat line", "Chat limits" (`shared/text.js`, `server/match/chatLimit.js`).
 
 `room.chat { x }` → `room.chat { id, n, x }` · `room.emote { id }` → `room.emote { id, e }` · `room.chatPause { ms }` · `room.chatLog { lines }`: the fork's room chat in the room screen, DESIGN "Room chat", `server/lobby.js` `roomChat`.
 
