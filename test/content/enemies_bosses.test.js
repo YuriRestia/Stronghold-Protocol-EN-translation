@@ -402,12 +402,15 @@ for (const key of ['enemy_1200_msfjin', 'enemy_1204_msfhu', 'enemy_1288_duskls']
     const e = put(h, key, [10, 7]);
     const g = h.unit('t_mage');
     if (/duskls/.test(key)) {
+      const ev0 = h.events.length;
       killed(h, e, g);
       assert.ok(e.alive, 'ember');
-      // (fork, enemy skills 2026-11-13) the 1 s 重生 shows the BornAnim's buff (enemy_duskls_revive_2) while it lasts
-      assert.deepEqual((fxStateView(e, h.b.time) || []).map((r) => r[0]), ['enemy_duskls_invincible'], 'the 重生 fx');
+      // (fork, enemy skills 2026-11-13) the 1 s 重生 casts the record's BornAnim (its slot, held HUSK_REBIRTH s: the client's
+      // skill window plays enemy_duskls_revive_2 for it)
+      h.step();
+      const slot = E[key].skills.findIndex((x) => x.prefabKey === 'BornAnim');
+      assert.deepEqual(h.events.slice(ev0).filter((ev) => ev[0] === 'cast' && ev[1] === e.id), [['cast', e.id, slot, HUSK_REBIRTH]], 'the 重生 casts BornAnim');
       h.run(HUSK_REBIRTH + 0.05);
-      assert.equal(fxStateView(e, h.b.time), null, 'none once the ember walks');
     }
     const hits = e.s.maxHp;
     assert.ok(hits > 1 && hits <= 30);

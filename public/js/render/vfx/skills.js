@@ -646,10 +646,8 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
   'enemy_acfort[kill_other]': true,
   'enemy_acfort_vfx': true,
-  // (fork, enemy skills 2026-11-13: Dublinn, Rat King) enemies, by id —
-  // enemy_1288_duskls / _2: the ember's 1 s 重生 (its BornAnim's buff: enemy_duskls_revive_2; content/enemies archetypes kitEmber)
-  'enemy_duskls_invincible': true,
-  // enemy_1509_mousek: the Mark skill's markers on the highest- / lowest-max-HP units (mousek_skill_01_buff / _02_buff; leaders.js mousekMark)
+  // (fork, enemy skills 2026-11-13: Rat King) enemy_1509_mousek: the Mark skill's markers on the highest- / lowest-max-HP
+  // units (mousek_skill_01_buff / _02_buff; content/enemies/leaders.js mousekMark)
   'mousek_mark[b]': true,
   'mousek_mark[a]': true,
 });
