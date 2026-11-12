@@ -12,6 +12,7 @@ import { BattleEvents } from '../../server/sim/battle/events.js';
 import { SKILL_FX_STATES, TOKEN_FX_STATES, installFxStates } from '../../server/sim/content/fxStates.js';
 import { LIBRATOR_FX } from '../../server/sim/professions.js';
 import { STATE_BUFFS } from '../../public/js/render/vfx/skills.js';
+import { ENEMY_STATE_KEYS } from '../../public/js/render/vfx/indexGaps.js';
 
 const rowsOf = (snap, id) => (snap.fxs || []).filter((r) => r[0] === id).map((r) => r.slice(1));
 
@@ -136,10 +137,12 @@ describe('talent and skill states the kits signal (audit #7 phase D)', () => {
 
 describe('the sim and the client name the same buffs', () => {
   const kits = new URL('../../server/sim/content/kits/ops/', import.meta.url);
-  // (fork) and the enemies' kits (content/enemies/*.js: OpFor: BlackCloud's grab and ammo glow)
+  // (fork) and the enemies' kits (content/enemies/*.js: OpFor: BlackCloud's grab and ammo glow; the enemy VFX audit's S
+  // rows) and the bosses' (content/bosses.js: 'Armor Cleaver' / 'Armor Crusher' shot down)
   const ekits = new URL('../../server/sim/content/enemies/', import.meta.url);
   const src = [...readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')),
-    ...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => readFileSync(new URL(f, ekits), 'utf8'))].join('\n');
+    ...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => readFileSync(new URL(f, ekits), 'utf8')),
+    readFileSync(new URL('../../server/sim/content/bosses.js', import.meta.url), 'utf8')].join('\n');
   // every literal buff key a kit hands fxState / fxProbe / a buff's fx, or a const holding one (…_FX = '…')
   const named = new Set([...src.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
     .map((m) => m[1] || m[2] || m[3] || m[4]));
@@ -153,8 +156,12 @@ describe('the sim and the client name the same buffs', () => {
     new URL('../../server/sim/content/enemies.js', import.meta.url), new URL('../../server/sim/content/bosses.js', import.meta.url)]
     .map((u) => readFileSync(u, 'utf8')).join('\n');
   for (const m of esrc.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fxWhile\('([^']+)'|fx:\s*'([^']+)'/g)) named.add(m[1] || m[2] || m[3]);
-  test('each signalled buff is in STATE_BUFFS', () => {
-    for (const b of named) assert.ok(STATE_BUFFS[b], `${b}: signalled by the sim, unknown to the client`);
+  // (fork) or in the index-gap fallback (render/vfx/indexGaps.js ENEMY_STATE_KEYS: the props' idle loops, Rotchaser's bleed …)
+  test('each signalled buff is in STATE_BUFFS or ENEMY_STATE_KEYS', () => {
+    for (const b of named) assert.ok(STATE_BUFFS[b] || ENEMY_STATE_KEYS[b], `${b}: signalled by the sim, unknown to the client`);
+  });
+  test('each ENEMY_STATE_KEYS buff is signalled by the sim', () => {
+    for (const b of Object.keys(ENEMY_STATE_KEYS)) assert.ok(named.has(b), `${b}: in ENEMY_STATE_KEYS, signalled by no kit`);
   });
   test('each STATE_BUFFS buff is signalled by the sim', () => {
     for (const b of Object.keys(STATE_BUFFS)) assert.ok(named.has(b), `${b}: in STATE_BUFFS, signalled by no kit`);

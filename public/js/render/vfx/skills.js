@@ -540,6 +540,31 @@ export const STATE_BUFFS = Object.freeze({
   'papyrs_s_1[fx_ctrl]': true, 'lessng_a[s1_eff]': true, 'nasti_s2[update_shield]': true,
   'haini_s_2[modify_talent]': true, 'zebra_s_2[aura]': true, 'swire2_tr': true, 'swire2_t_2': true,
   'humus_trait': true, 'humus_t_1[effect]': true, 'aroma_s_2': true, 'tocka_t1[sp_and_heal]': true,
+  // ── (fork) enemy VFX audit, S rows (Design 2): enemy talents' buffs on the units they reach, signalled by the sim's aura
+  // buffs (content/enemies: auraBuff `fx`; src the enemy whose talent it is, null the carrier's own). By enemy id:
+  // enemy_1017_defdrn Defender-4's DEF aura on the other enemies (defdrn_buff_01_self)
+  'defdrn_t_defup': true,
+  // enemy_1042_frostd Frost's ASPD-down aura on the operators (firstar_skill_01_buff)
+  'frostd_t_attack_speed_down': true,
+  // enemy_1169_duphlx / _2 Dublinn Phalanx: a phalanx another one reaches (enemy_duphx_2_buff)
+  'duphlx_t_aura': true,
+  // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
+  'enemy_lrcmra[originum][dmg]': true,
+  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
+  'lslime_t_dot': true,
+  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
+  'flking_shiled': true,
+  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
+  'enemy_smsha_buffs': true,
+  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
+  'wintun_t[attack_speed]': true,
+  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
+  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
+  'acstma_s_1': true,
+  'acstmb_s_1': true,
+  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
+  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
+  'enemy_wdrrl[AOE_attack]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
@@ -690,6 +715,15 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
   'enemy_acfort[kill_other]': true,
   'enemy_acfort_vfx': true,
+  // (fork) enemies, lobbed shells (VFX 2): 凋零骑士's 爆炸箭 mark on each target until the blast (TripleAttack's
+  // `on: 'targets'` row, dekght_2_skill_01_buff; leaders.js fxState, src the knight) and the rage a partner's death leaves
+  // on a knight (TriggerRage's row, dekght_buff_04_start; the kit's `ab:rage` buff's fx)
+  'dekght_2[aoe]': true,
+  'dekght[trigger_rage]': true,
+  // (fork, enemy skills 2026-11-13: Rat King) enemy_1509_mousek: the Mark skill's markers on the highest- / lowest-max-HP
+  // units (mousek_skill_01_buff / _02_buff; content/enemies/leaders.js mousekMark)
+  'mousek_mark[b]': true,
+  'mousek_mark[a]': true,
   // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
   // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
   // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
@@ -2185,6 +2219,11 @@ export const OWNER_NEAR = 1;
  *              the unit `extra.to` (its flying effect, then its hit), `stagger` s after the previous one of the same
  *              enemy in that frame (the client's MultiRangedAttack triggerDelta); `cover`: nothing drawn — the kit fx
  *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
+ *              `flyDur`: the flight's own time (a timer shot whose hit lands at once); `rehit`: one flight per enemy and
+ *              target while its projectile lives (a lasso), each later fx playing its onHit on the target; `hits`: the
+ *              skill's own hit rows (prefab keys) played on the target as the shot lands; `flyDur: 'fx'`: the fx's
+ *              own `dur` (a fuse); `quiet`: nothing drawn — the official prefab named (installed) already plays for
+ *              this moment from an earlier fx's flight (W's C4 blast is the reached effect of the C4 flown at the fuse)
  * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
@@ -2214,6 +2253,21 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // projectile_life_time, in the tick of its 'cast')
   enemy_1272_nhtank: POLLUTED_ATK,
   enemy_1272_nhtank_2: POLLUTED_ATK,
+  // (fork) enemies, XS-S check rows (Tools 2): Infused Originium Slug (enemy_1021_bslime), Infused Glacial Originium
+  // Slug (enemy_1067_snslime) — their death blast. The client's Boom talent (BslimeTalent_1) fires projectile_bslime /
+  // projectile_snslime where the slug falls, whose EffectBehaviour plays bslime_die_01_start / snslime_die_01_start on
+  // its target as it starts (_effectsToTargetWhenStart, never cleared on stop). The sim's deathBoom sends an 'explode'
+  // of kind 'deathBoom' at the slug in its death hook. The glacial one runs its own 9 s; the plain one has a looping
+  // smoke part [ASSUMED: 2 s, its blast's other parts' length].
+  enemy_1021_bslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_bslime', part: 'toTargetOnStart', holdS: 2 }) }),
+  enemy_1067_snslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_snslime', part: 'toTargetOnStart', once: true }) }),
+  // Armor Piercer (enemy_9016_acstmr, OpFor: Armor's shell): its Boom mode's `killed` talent (BslimeTalent_1) fires
+  // projectile_enemy_acstmr_s1 (AttachToTarget, a 3×3 ConstBoxRange, 9.95 s), whose reached effect
+  // enemy_acstmr_explode_range loops on the 3×3 until it stops (_clearReachedEffectWhenStop). The sim's stunBlast sends
+  // an 'explode' of kind 'helmShell' on the tile the shell reached, before it removes the shell.
+  enemy_9016_acstmr: Object.freeze({ explode: ebind({ xkind: 'helmShell', owner: 'near', projectile: 'projectile_enemy_acstmr_s1', holdS: 9.95 }) }),
+
+
   // 假想敌：蚀裂 (dot.js: the 'zone' of kind 'poison' where its lob lands — on its killer — or where it fell, r =
   // 1.projectile_range, dur = 1.projectile_life_time): its talent 1 (BslimeTalent_1) fires projectile_enemy_actoxi at its
   // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud. (fork, VFX 3) Killed by its target, its
@@ -2226,7 +2280,13 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 鼠王 (leaders.js: 【沙狱】's 'zone' of kind 'sandStorm' on its target, id = it, dur): its skill SandStorm's emitter plays
   // mousek_skill_02_range on that target as it casts (_castTargetEffects) — the sandstorm itself, a one-shot of 21 s
   // (its root's FxDelay 0.7 s); the 沙狱's hits are projectile_mousek_s2 attached to the target (no flying effect)
-  enemy_1509_mousek: Object.freeze({ zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }) }),
+  // (fork, enemy skills 2026-11-13) and 【唱沙】's 'telegraph' of kind 'driftSand' on its target's cross, id = it: its skill
+  // DriftSand's emitter plays mousek_skill_01_range_02 and mousek_skill_01_range on that target as it casts
+  // (_castTargetEffects, client enm_pfb_17 Skills/DriftSand)
+  enemy_1509_mousek: Object.freeze({
+    zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }),
+    telegraph: ebind({ xkind: 'driftSand', owner: 'id', keys: ['mousek_skill_01_range', 'mousek_skill_01_range_02'], once: true }),
+  }),
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,
   enemy_1234_dsubrl_2: NEST_AURA,
@@ -2261,6 +2321,48 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
       ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
     ]),
   }),
+  // (fork) enemies, beam shots (VFX 2): kit 'beam' / 'explode' fxs that carry from / to fly the official projectile
+  // 萨卡兹王庭军精锐术师 (element.js, 死亡之眼): the channel's 'beam' of kind 'deathEye' — LineAttack's harpoon
+  // projectile_enemy_dwlock_line (its rope enemy_dwlock_skill_line_01 to the locked target; LineAttack's hit row
+  // enemy_dwlock_skill_hit_01 as it reaches, `hits`); the burst's 'explode' of kind
+  // 'apoptosis' — ChargeAttack's projectile_enemy_dwlock_charge, a timer whose reached effect enemy_dwlock_skill_hit_02
+  // lands on the target [ASSUMED: at the burst, not flown through the channel]
+  enemy_1275_dwlock_2: Object.freeze({
+    beam: ebind({ xkind: 'deathEye', owner: 'from', fly: 'projectile_enemy_dwlock_line', hits: ['enemy_dwlock_skill_hit_01'] }),
+    explode: ebind({ xkind: 'apoptosis', owner: 'from', fly: 'projectile_enemy_dwlock_charge', flyDur: 0.05 }),
+  }),
+  // “萨米的意志” (bosses.js kitDeer, 自然涌动): a 'beam' of kind 'naturalSurge' per target — projectile_enemy_smdeer_s, a
+  // timer that puts enemy_smdeer_skill_01_hit_buff on its target as it starts (the stun's look)
+  enemy_9033_acdeer: Object.freeze({ beam: ebind({ xkind: 'naturalSurge', owner: 'from', fly: 'projectile_enemy_smdeer_s' }) }),
+  // 节日爵士乐手 (invisible.js, 火力全开): a 'beam' of kind 'jazzFire' per hit_interval — one LassoProjectile
+  // projectile_enemy_cnvsax per channel (its rope enemy_cnvsax_skill_line_01), enemy_cnvsax_hit_02 on each hit (`rehit`)
+  enemy_10034_cnvsax: Object.freeze({ beam: ebind({ xkind: 'jazzFire', owner: 'from', fly: 'projectile_enemy_cnvsax', rehit: true }) }),
+  // (fork) enemies, lobbed shells (VFX 2)
+  // 高准度伦蒂尼姆城防自行炮 (special.js, 炮击): each shell's 'explode' of kind 'cannon' (from it, to the unit hit) —
+  // projectile_enemy_stmgun_s, a timer on its target: enemy_stmgun_skill_hit on it, enemy_stmgun_skill_range_01 where it
+  // lands [ASSUMED: landed at the sim's shot, not 6 s (its life) after]
+  enemy_1273_stmgun_2: Object.freeze({ explode: ebind({ xkind: 'cannon', owner: 'from', fly: 'projectile_enemy_stmgun_s', flyDur: 0.05 }) }),
+  // W (leaders.js, C4): the 'telegraph' of kind 'c4' (from her, to its carrier, dur the fuse) — projectile_enemy_cqbw_s1,
+  // a timer that puts enemy_cqbw_skill_01_buff on its target as it starts and enemy_cqbw_skill_02_hit where it is at the
+  // fuse's end; the 'explode' then is that blast (`quiet`; 'any': the kind is hers alone, she may have fallen meanwhile)
+  enemy_1504_cqbw: Object.freeze({
+    telegraph: ebind({ xkind: 'c4', owner: 'from', fly: 'projectile_enemy_cqbw_s1', flyDur: 'fx' }),
+    explode: ebind({ xkind: 'c4', owner: 'any', quiet: 'enemy_cqbw_skill_02_hit' }),
+  }),
+  // 凋零骑士 (leaders.js, 爆炸箭): the arrow's 'telegraph' of kind 'blastArrow' (`id` it, `to` its target) —
+  // projectile_enemy_dekght_s (its trail dekght_2_skill_01_trail); the target carries dekght_2[aoe] (STATE_BUFFS) until the
+  // blast, whose 'explode' plays the buff's trigger effect dekght_2_skill_01_range there
+  enemy_1513_dekght_2: Object.freeze({
+    telegraph: ebind({ xkind: 'blastArrow', owner: 'id', fly: 'projectile_enemy_dekght_s' }),
+    explode: ebind({ xkind: 'blastArrow', owner: 'from', keys: ['dekght_2_skill_01_range'], once: true }),
+  }),
+  // (fork) enemies, silent shots (VFX 2): a kit 'shot' (fx/kinds.js: never drawn procedurally) names a sim projectile
+  // 重弩突袭者 (invisible.js, 直击): the bolt — projectile_enemy_msnip (its trail enemy_msnip_skill_taril, enemy_msnip_skill_hit
+  // and the skill's hit row enemy_hummbd_buff_01 on the unit hit) over the sim's flight [ASSUMED: homing on the unit hit,
+  // not FarthestPointMovement's flight on past it]
+  enemy_1404_msnip: Object.freeze({ shot: ebind({ xkind: 'crossBolt', owner: 'from', fly: 'projectile_enemy_msnip', flyDur: 'fx', hits: ['enemy_hummbd_buff_01'] }) }),
+  // 迷路的巨像 (leaders.js, StunAttack): the boulder — projectile_enemy_rockman (rockman_skill_01_trail, rockman_skill_01_hit)
+  enemy_2003_rockman: Object.freeze({ shot: ebind({ xkind: 'boulder', owner: 'from', fly: 'projectile_enemy_rockman', flyDur: 'fx' }) }),
   // (fork) “自在” (leaders.js kitXi: 【纬地经天】's 'telegraph' of kind 'xiCross' at its target's tile, id = it, at the
   // strike): the client's CrossAttack fires projectile_enemy_xi_s — AttachToTarget (no flight), its TileSelectorHitBehaviour
   // the cross, its EffectBehaviour enemy_xi_skill_01_hit on the target as it hits (_onlyPlayHitEffectOnTraceTarget)
@@ -2307,8 +2409,12 @@ export function auraTargets(idx, unitKey, talent) {
 export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
   for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
-    if (bind.cover) continue;
-    if (bind.fly) { const p = idx?.projectiles?.[lc(bind.fly)]; for (const k of p ? [p.main, ...(p.onHit || []), ...(p.onReached || [])] : []) if (lc(k)) out.add(lc(k)); }
+    if (bind.cover || bind.quiet) continue;
+    if (bind.fly) {
+      // its flying effect, a harpoon's rope (`link`), what it puts on its target as it starts, its hit / reached
+      const p = idx?.projectiles?.[lc(bind.fly)];
+      for (const k of p ? [p.main, p.link, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || []), ...(bind.hits || [])] : []) if (lc(k)) out.add(lc(k));
+    }
     else if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
     else if (bind.modeLoops) for (const k of modeLoopKeys(idx, unitKey, bind.modeLoops)) out.add(k);
     else for (const k of bindingEffects(idx, bind)) out.add(k);

@@ -101,7 +101,8 @@ function kitDeathEye(ab, e) {
       hurt(b, e2, t, e2.s.atk * (s.bb.atk_scale ?? 0), 'arts');
       if (++n >= dur) {
         stop();   // the burst ends the channel: the buff is removed and `a.left` restarts (the natural end too)
-        b.fx('explode', { x: t.x, y: t.y, r: 1, kind: 'apoptosis' });
+        // (fork) from / to: the client flies the official ChargeAttack shot (projectile_enemy_dwlock_charge) for it
+        b.fx('explode', { x: t.x, y: t.y, r: 1, kind: 'apoptosis', from: e2.id, to: t.id });
         // "对目标及其周围4格的我方单位": the locked target (a 隐匿 it gained mid-channel does not save it) + an area around it
         for (const u of targetAndArea(t, areaAllies(b, e2, t.x, t.y, 1))) elem(b, e2, u, 'apoptosis', e2.s.atk * (s.bb.ep_damage_ratio ?? 0));
       }

@@ -32,6 +32,11 @@ const CANNON_EVERY = 0.5, CANNON_SHOTS = 10;
 
 const CANNON_IMMUNE = Object.freeze(['stun', 'freeze', 'cold', 'levitate', 'sleep']);
 
+/**
+ * (fork) Sarkaz Absurdist Tyrant Captain's splashing first attack: the official buff key of its AOEDamage hits (b.snap fxs;
+ * STATE_BUFFS), held on the target it splashes around for the template's 0.7 s.
+ */
+const WDRRL_AOE_FX = 'enemy_wdrrl[AOE_attack]', WDRRL_AOE_TIME = 0.7;
 /** Radius of 骸骨拷打者's "周围" death sensing when its talent has no Attack.range_radius [ASSUMED]. */
 const TORTURER_RADIUS = 1;
 
@@ -74,7 +79,7 @@ function kitChimera(ab) {
       const pulse = a.acc >= CHIMERA_AURA_EVERY - 1e-9;
       if (pulse) a.acc -= CHIMERA_AURA_EVERY;
       for (const u of b.alliesInRadius(e.x, e.y, CHIMERA_AURA_RADIUS)) {
-        auraBuff(b, u, 'ab:originium', 0.25, { spRecoveryMul: Math.max(0, 1 + spr) }, null, true);
+        auraBuff(b, u, 'ab:originium', 0.25, { spRecoveryMul: Math.max(0, 1 + spr) }, null, true, { fx: 'enemy_lrcmra[originum][dmg]', src: e.id });
         // PRTS "持续视为受到源石污染区影响…每0.5秒受到50真实持续伤害": a damage instance (受击回复, the 重装 trigger), not a
         // 流失 — 无来源 like the 源石污染区 terrain it stands for [ASSUMED], the chimera keeps the credit; "同类效果取最高": one
         // tick per unit per period however many chimeras reach it (`mem.chimeraAt`; every chimera's is 50). A terrain
@@ -213,6 +218,7 @@ function kitFirstAoe(ab) {
       if (a.done) return;
       a.done = true;
       b.fx('explode', { x: c.target.x, y: c.target.y, r: 1, kind: 'aoeAttack' });
+      b.fxState(c.target, WDRRL_AOE_FX, true, { src: e, dur: WDRRL_AOE_TIME });
       for (const u of b.alliesInRadius(c.target.x, c.target.y, 1)) {
         if (u !== c.target) hurt(b, e, u, e.s.atk * scale, 'phys', { ignoreSelect: true, tags: ['aoeAttack'] });
       }
@@ -247,6 +253,8 @@ function kitExposeOnHit(ab) {
  */
 const CATAPULT_SPLASH = 1.5;
 const CATAPULT_STONE = 'catapult:stone';
+/** (fork) Garum Gourmet's barrel zone: the official buff key of its glow on the enemies in it (b.snap fxs; STATE_BUFFS). */
+const WINTUN_ZONE_FX = 'wintun_t[attack_speed]';
 
 function catapultInPlay(e) {
   if (e?.s?.flags?.inPlay) return true;
@@ -376,7 +384,8 @@ export const SPECIAL_KITS = Object.freeze({
         // one not (areaSelectable; it used to skip 迷彩 like a normal attack)
         const t = b.allies().filter((a) => areaSelectable(e, a) && Math.abs(Math.round(a.y) - r0) <= 1 && Math.abs(Math.round(a.x) - c0) <= 1)
           .sort((p, q) => q.hpRatio - p.hpRatio)[0];
-        if (t) { b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'cannon' }); hurt(b, e, t, e.s.atk * (ab.sk.Cannon.bb.atk_scale ?? 0), 'arts'); }
+        // (fork) from / to: the client lands the official shell (projectile_enemy_stmgun_s) on the target
+        if (t) { b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'cannon', from: e.id, to: t.id }); hurt(b, e, t, e.s.atk * (ab.sk.Cannon.bb.atk_scale ?? 0), 'arts'); }
       }, { owner: e });
     }, { cond: (b, e) => inRange(b, e).length > 0, turn: attackSkillOf('enemy_1273_stmgun_2', 'Cannon') })];   // the attack's turn (DESIGN §35.52)
   },
@@ -482,7 +491,8 @@ export const SPECIAL_KITS = Object.freeze({
         b.fx('zone', { x, y, r: BARREL_RADIUS, dur: life, kind: 'barrel' });
         let left = life;
         const h = b.every(0.5, () => {
-          for (const o of b.enemiesInRadius(x, y, BARREL_RADIUS)) auraBuff(b, o, 'ab:barrelZone', 0.5, { aspd: s.attack_speed ?? 0, dodgePhys: s.prob ?? 0 });
+          // (fork) fx: the official zone glow (wintun_t[attack_speed]: enemy_wintun_range_buff) on the enemies in it (b.snap fxs)
+          for (const o of b.enemiesInRadius(x, y, BARREL_RADIUS)) auraBuff(b, o, 'ab:barrelZone', 0.5, { aspd: s.attack_speed ?? 0, dodgePhys: s.prob ?? 0 }, null, false, { fx: WINTUN_ZONE_FX, src: e.id });
           left -= 0.5;
           if (left <= 0) h.cancel();
         });
