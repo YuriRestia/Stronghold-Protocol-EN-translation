@@ -452,6 +452,21 @@ describe('R11: FX_BINDINGS — the official prefab the client plays at the kit f
     assert.equal(handles.filter((h) => h.key === END).length, 1, 'its end where it stood');
   });
 
+  test('(fork) 假想敌：胄\'s 刺胄之弹: its rolling loop rides the shell (SUMMON_FX `hold`) until it leaves, then the explode where it went', async () => {
+    const MOVE = 'enemy_acstmr_move', BOOM = 'enemy_acstmr_explode';
+    const { w, view, frame, handles, index } = await setup({ installed: [...KEYS, MOVE, BOOM] });
+    index.prefabs[MOVE].looping = true;
+    index.units.enemy_9016_acstmr = { kind: 'enemy', modes: [], skills: {}, startEffect: null, deadEffect: null };
+    const shell = view(6, 'enemy_9016_acstmr', 5);
+    frame();
+    assert.equal(w.simFx('shell', 5, 10, { id: 6, kind: 'helmShell', tx: 3, ty: 10 }), true, 'the official flight stands for the procedural shell');
+    const live = (k) => handles.filter((h) => h.key === k && h.alive);
+    assert.equal(live(MOVE).length, 1, 'rolling on the shell');
+    w.release(shell);
+    assert.equal(live(MOVE).length, 0, 'stopped as it leaves');
+    assert.equal(handles.filter((h) => h.key === BOOM).length, 1, 'the explode where it went');
+  });
+
   test('(fork) a piece put on the board in prep plays its official birth (the outfit twin) and leaves no battle record', async () => {
     const SUF = 'ambiencesynesthesia#7', TWIN = 'lemuen_birth_01_' + SUF;
     const { w, view, handles, index } = await setup({ installed: [...KEYS, TWIN] });

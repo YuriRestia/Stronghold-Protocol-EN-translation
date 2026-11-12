@@ -106,9 +106,15 @@ import { layerKeysOf } from './talentfx.js';
  * mlyss_wtrman_summon[trigger] — token_10030_mlyss_wtrman_split_start_01 — and that split 流形's end the
  * mlyss_wtrman_summon[override] buff's ON_BUFF_FINISH — token_10030_mlyss_wtrman_c3_to_c0. Its _buffsToExistToken
  * refresh (…_refresh_01) needs a refresh the sim does not make (a split always spawns): not played.
+ * (fork) `hold`: the keys loop on the summon (following it) until it leaves. 假想敌：胄's 刺胄之弹 (enemy_9016_acstmr; bosses.js
+ * fireShell's 'shell', id = the shell): the client's projectile_enemy_acstmr flies its main effect enemy_acstmr_move to the
+ * tile and plays enemy_acstmr_explode there as it is reached (SummonEnemyBehaviour; the shell enemy the projectile summons
+ * is invisible) — the sim's shell is that flight: the loop rides it, the explode where it leaves [ASSUMED: also when
+ * operators knock it down mid-flight].
  */
 export const SUMMON_FX = Object.freeze({
   split: Object.freeze({ unit: 'token_10030_mlyss_wtrman', keys: Object.freeze(['token_10030_mlyss_wtrman_split_start_01']), gone: Object.freeze(['token_10030_mlyss_wtrman_c3_to_c0']) }),
+  shell: Object.freeze({ unit: 'enemy_9016_acstmr', keys: Object.freeze(['enemy_acstmr_move']), gone: Object.freeze(['enemy_acstmr_explode']), hold: true }),
 });
 import { unitPoint } from './mounts.js';
 import { projectileParts } from './flight.js';
@@ -778,7 +784,8 @@ export class SkillFx {
     const m = id != null ? this.marked.get(id) : null;
     if (m) {
       this.marked.delete(id);
-      for (const k of m.sf.gone) this.w.playOn(k, this._ground(v.x, v.y, v), { important: true, by: m.by });
+      for (const h of m.hs || []) h.stop();
+      for (const k of m.sf.gone || []) this.w.playOn(k, this._ground(v.x, v.y, v), { important: true, by: m.by });
     }
   }
 
@@ -1264,8 +1271,12 @@ export class SkillFx {
       if (sv && this.w.unitKeyOf(sv) === sf.unit) {
         const by = this.w.view(sv.info?.summonerId) || sv;
         let drew = false;
-        for (const k of sf.keys) if (this.w.playOn(k, sv, { important: true, by })) drew = true;
-        if (sf.gone?.length) this.marked.set(extra.id, { sf, by });
+        const hs = [];
+        for (const k of sf.keys) {
+          const h = this.w.playOn(k, sv, sf.hold ? { important: true, by, follow: true, loop: true } : { important: true, by });
+          if (h) { drew = true; if (sf.hold) hs.push(h); }
+        }
+        if (sf.gone?.length || hs.length) this.marked.set(extra.id, { sf, by, hs });
         if (drew) return true;
       }
     }
