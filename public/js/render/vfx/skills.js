@@ -579,6 +579,8 @@ export const STATE_BUFFS = Object.freeze({
   'acdums_t_1': true,
   // Lucky Flyfin (enemy_10045_parrot) — while it sprints after the first hit
   'parrot_m0_t[speed_up]': true,
+  // Cabbage Seedling (enemy_10065_ftzlc) — while ignited (its OnFire mode's boom talent)
+  'enemy_ftzlc[boom]': true,
   // Decode Basis α (enemy_10081_mpplai) — its burst at its one change
   'enemy_mpplai_passive_p0': true,
   // Shrine Swordsman (enemy_10087_hlchgr) — from its first enhancement on
@@ -2221,6 +2223,14 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,
   enemy_1234_dsubrl_2: NEST_AURA,
+  // (fork) enemies, S-M rows (VFX 3): death bursts — the kit's existing 'explode' at the point where it fell, in its death
+  // hook right after its 'die' (owner 'died'), plays the official CreateEffect of its ON_OWNER_KILLED template (both
+  // skipped while silenced: the kits' `sil`, the templates' CheckAbnormalFlag SILENCED). By enemy id:
+  // Farseer (enemy_1407_hummbd) — enemy_hummbd_t's death burst with its exposing blast (fly.js kitExposeOnDeath)
+  enemy_1407_hummbd: Object.freeze({ explode: ebind({ xkind: 'expose', owner: 'died', keys: ['enemy_hummbd_die_02'], once: true }) }),
+  // Novice Acolyte (enemy_10156_mncrer) — enemy_mncrer_heal_water's death burst with its heal (special.js; its heal
+  // projectile has no flying effect)
+  enemy_10156_mncrer: Object.freeze({ explode: ebind({ xkind: 'heal', owner: 'died', keys: ['enemy_mncrer_die_start'], once: true }) }),
   // 鼎沸 (dot.js: an 'explode' of kind 'boil' every attack interval at its feet, r = its range, no id): its aoe talent
   // (AppearSyncedTalent / AuraAbility) — its `_effects` loop while it stands, and the units in it carry enemy_cjhot_debuff
   // (its buff enemy_cjhot_t[aoe], INFINITY, tick 1)

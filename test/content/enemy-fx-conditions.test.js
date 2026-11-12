@@ -217,3 +217,30 @@ test('enemy_10138_xdsnow: its burst at a high-ground hit while unbalanced, not o
   assert.equal(on(h, sn, 'enemy_xdsnow_t[wall]'), true);
   assert.equal(on(h, sn2, 'enemy_xdsnow_t[wall]'), false);
 });
+
+test('enemy_10065_ftzlc: its burning glow while ignited', () => {
+  const h = arena();
+  h.step();
+  const e = put(h, 'enemy_10065_ftzlc', [10, 7]);
+  h.step();
+  assert.equal(on(h, e, 'enemy_ftzlc[boom]'), false);
+  e.mem.ab.ignited = true;
+  assert.equal(on(h, e, 'enemy_ftzlc[boom]'), true);
+});
+
+// death bursts: no state row (a dead unit has none) — the kit's 'explode' at the point where it fell, in its death
+// hook, is what skills.js ENEMY_FX_BINDINGS (owner 'died') turns into the official burst
+for (const [key, kind] of [['enemy_1407_hummbd', 'expose'], ['enemy_10156_mncrer', 'heal']]) {
+  test(`${key}: its death's '${kind}' explode at the point where it fell (the official death burst's signal)`, () => {
+    const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+    h.step();
+    const e = put(h, key, [10, 7]);
+    h.step();
+    h.b.dealDamage(h.unit('t_wall'), e, { amount: 1e9, type: 'true' });
+    h.step();
+    assert.equal(e.alive, false);
+    const f = h.eventsOf('fx').filter((x) => x[1] === 'explode' && x[4].kind === kind);
+    assert.equal(f.length, 1);
+    assert.deepEqual([f[0][2], f[0][3]], [e.x, e.y]);
+  });
+}

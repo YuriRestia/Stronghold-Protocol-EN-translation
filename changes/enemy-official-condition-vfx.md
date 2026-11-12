@@ -19,6 +19,8 @@
   official burst each time it hides or shows itself.
 - 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' burst as they switch form, Decode Basis α as it changes into its
   new form, and Snowchild when it is knocked into high ground (at most once every 5 seconds, as in the official game).
+- Farseer and Novice Acolyte play their official burst where they fall, and a Cabbage Seedling burns with the official
+  fire while it is ignited.
 - Before: none of these effects showed.
 
 Kind: player

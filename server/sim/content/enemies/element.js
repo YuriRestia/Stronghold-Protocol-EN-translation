@@ -156,7 +156,10 @@ function kitParasite(ab) {
 }
 
 function kitIgnitable(ab) {
-  return [deathBoom({ scale: T(ab, 'boom.atk_scale') ?? 0, type: 'arts', cond: (e) => !!e.mem.ab.ignited, sil: true })];
+  // (fork) fx: its OnFire mode's boom talent (BslimeTalent_1) keeps enemy_ftzlc[boom] (enemy_ftzlc_buff_02, looping) on it
+  // while ignited; display only (snapshot fxs)
+  return [deathBoom({ scale: T(ab, 'boom.atk_scale') ?? 0, type: 'arts', cond: (e) => !!e.mem.ab.ignited, sil: true }),
+    fxWhile('enemy_ftzlc[boom]', (b, e) => !!e.mem.ab?.ignited)];
 }
 
 function kitFlameVine(ab) {

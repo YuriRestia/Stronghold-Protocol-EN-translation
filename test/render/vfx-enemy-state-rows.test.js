@@ -63,3 +63,13 @@ test("a look narrows a buff's rows to its branch (Scarlet Singer: warn / song / 
 test('an unsignalled or unknown buff has no rows', () => {
   assert.deepEqual(fx().targetRows(view(4, 'enemy_1174_duholy'), 'nothing[here]'), []);
 });
+
+test("death bursts: Farseer's and Novice Acolyte's kit explode at a death plays their official die effect once (owner 'died')", async () => {
+  const { ENEMY_FX_BINDINGS, ENEMY_FX_KINDS } = await import('../../public/js/render/vfx/skills.js');
+  for (const [key, xkind, fx] of [['enemy_1407_hummbd', 'expose', 'enemy_hummbd_die_02'], ['enemy_10156_mncrer', 'heal', 'enemy_mncrer_die_start']]) {
+    const b = ENEMY_FX_BINDINGS[key].explode;
+    assert.deepEqual({ owner: b.owner, xkind: b.xkind, keys: [...b.keys], once: b.once }, { owner: 'died', xkind, keys: [fx], once: true });
+    assert.ok(ENEMY_FX_KINDS.explode.includes(key));
+  }
+  assert.ok(STATE_BUFFS['enemy_ftzlc[boom]'], 'Cabbage Seedling: its glow while ignited');
+});
