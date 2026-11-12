@@ -394,14 +394,33 @@ function sha256(file) {
   try { return createHash('sha256').update(readFileSync(file)).digest('hex'); } catch { return undefined; }
 }
 
+/**
+ * Free bytes from `df -B1 --output=avail <path>` (a header line, then one number). Anything else (no number, a failed
+ * df, a path the user cannot stat) is an error naming the path, never a number: a NaN read as "not enough space" hid
+ * the real cause. @param {{ status?: number|null, stdout?: string, stderr?: string }} res @param {string} path
+ * @returns {{ free: number } | { error: string }}
+ */
+export function parseDfAvail(res, path) {
+  const lines = String(res?.stdout ?? '').trim().split('\n').map((l) => l.trim()).filter(Boolean);
+  const last = lines[lines.length - 1] || '';
+  if (res?.status === 0 && lines.length === 2 && /^\d+$/.test(last)) return { free: Number(last) };
+  const why = String(res?.stderr ?? '').trim().split('\n').filter(Boolean).slice(-2).join(' / ') || `exit ${res?.status ?? '?'}, output "${lines.join(' / ').slice(0, 120)}"`;
+  return { error: `could not read free space on ${path}: ${why}` };
+}
+
 function serverState(r) {
   const list = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && find public/assets public/fonts -type f -printf '%p\\t%s\\n'`)}`);
   if (list.status !== 0) stop(`${r.host}: cannot list the art: ${list.stderr.trim()}`);
   const files = [...SHARED_LISTS, CLIP_BOUNDS];
   const sums = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && sha256sum ${files.join(' ')} 2>/dev/null; true`)}`);
   const count = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && find public -type f | wc -l`)}`);
-  const df = r.capture(`df -B1 --output=avail "$HOME" ${APP} | tail -n +2`);
-  const [homeFree, appFree] = df.stdout.trim().split(/\s+/).map(Number);
+  // the login user's home, then the app folder under sudo (the login user cannot stat /opt/stronghold/app)
+  const free = [['$HOME', `df -B1 --output=avail "$HOME"`], [APP, `sudo df -B1 --output=avail ${APP}`]].map(([path, line]) => {
+    const got = parseDfAvail(r.capture(line), path);
+    if ('error' in got) stop(`${r.host}: ${got.error}`);
+    return got.free;
+  });
+  const [homeFree, appFree] = free;
   const clip = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && [ -f ${CLIP_BOUNDS} ] && head -c 400 ${CLIP_BOUNDS} && echo && sed ${shQuote(CLIP_STAMP_SED)} ${CLIP_BOUNDS} | sha256sum; true`)}`);
   const [clipHead = '', clipSum = ''] = clip.stdout.split('\n');
   return {
