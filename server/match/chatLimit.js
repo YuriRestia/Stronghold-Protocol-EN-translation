@@ -48,9 +48,9 @@ const fold = (text) => text.toLowerCase().replace(/\s+/g, '');
 export function chatLimitCheck(st, text, now, { gapMs }) {
   if (now < st.pausedUntil) return { ok: false, why: 'paused', pausedUntil: st.pausedUntil };
   if (now - st.lastAt < gapMs - CHAT_COOLDOWN_GRACE_MS) return { ok: false, why: 'gap' };
-  while (st.times.length && now - st.times[0] >= CHAT_BURST_MS) st.times.shift();
+  while (st.times.length && now - st.times[0] >= CHAT_BURST_MS) st.times.shift(); // loop-cap: the list (one shift a pass)
   if (!st.long) st.long = [];
-  while (st.long.length && now - st.long[0] >= CHAT_LONG_MS) st.long.shift();
+  while (st.long.length && now - st.long[0] >= CHAT_LONG_MS) st.long.shift(); // loop-cap: the list (one shift a pass)
   if (st.times.length >= CHAT_BURST_LINES || st.long.length >= CHAT_LONG_LINES) {
     // forgive a step per quiet stretch since the last pause, then take the next step
     if (st.strikes > 0 && Number.isFinite(st.strikeAt)) {
