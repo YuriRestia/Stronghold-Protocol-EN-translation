@@ -1024,12 +1024,20 @@
 }
 .clog__head b { color: var(--text-hi); font-weight: 600; text-transform: uppercase; }
 .clog__sp { flex: 1; }
-/* the emote wheel's button, small in the input row (its panel still opens upward over the cards) */
+/* the emote wheel's button in the input row, as tall as the box; its icon follows the chat's text (its panel still
+   opens upward over the cards) */
+.clog__in .ewheel { display: flex; align-self: stretch; }
 .clog__in .ewheel__btn, .clog__in .ewheel__btn.has-sprite {
-  --ewb-w: 28px; width: 28px; height: 24px; min-width: 0; padding: 0; display: grid; place-items: center;
+  --ewb-w: max(28px, 2.3em); width: max(28px, 2.3em); height: auto; min-height: 24px; min-width: 0;
+  padding: 0; display: grid; place-items: center;
   background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); border-radius: 0;
 }
-.clog__in .ewheel__btn .icon { width: 16px; height: 16px; }
+.clog__in .ewheel__btn .icon { width: max(16px, 1.6em); height: max(16px, 1.6em); }
+/* Send: as tall as the box */
+.clog__in .clog__send { align-self: stretch; height: auto; min-height: 24px; padding: 0 .7em; }
+/* both at the chat's own text size (.clog's and .clog.is-sheet's), not their components' smaller ones */
+.clog__in .clog__send, .clog__in .ewheel__btn { font-size: calc(.18 * var(--t)); }
+.clog.is-sheet .clog__in .clog__send, .clog.is-sheet .clog__in .ewheel__btn { font-size: min(calc(.3 * var(--t)), calc(14px + var(--t-step))); }
 .clog__in .ewheel__label { display: none; }
 .clog__in .ewheel__panel { left: auto; right: 0; }
 .clog__mini {
