@@ -1432,8 +1432,8 @@
       ],
       "enemies": {"enemy_1009_lurker":[23,23,0,0,37950],"enemy_1019_jshoot_2":[7,7,0,788,14175],"enemy_1404_msnip":[5,5,0,840,22500]},
       "hooks": [1,54,2148,85,85,91,91,45,35,41,13,13,0,8172,325,32,35,0,1,35,0,0,0],
-      "events": {"atk":85,"cast":5,"deploy":16,"die":41,"dmg":91,"engage":5,"fx":39,"rate":7,"skill":30,"spawn":54,"status":26},
-      "fx": {"coin":11,"displace":1,"explode":6,"explosion":4,"frostNova":6,"shield":3,"summon":7,"yanyouSummon":1},
+      "events": {"atk":85,"cast":5,"deploy":16,"die":41,"dmg":91,"engage":5,"fx":42,"rate":7,"skill":30,"spawn":54,"status":26},
+      "fx": {"coin":11,"displace":1,"explode":6,"explosion":4,"frostNova":6,"shield":3,"shot":3,"summon":7,"yanyouSummon":1},
       "snaps": "0292dbe2 855138c9 ea289749 4fd7f584 961e9fc8 2ab5acb4 7aee6438 38c4cdb1"
     }
   }

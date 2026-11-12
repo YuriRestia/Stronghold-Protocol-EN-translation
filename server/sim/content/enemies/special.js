@@ -366,7 +366,8 @@ export const SPECIAL_KITS = Object.freeze({
         // one not (areaSelectable; it used to skip 迷彩 like a normal attack)
         const t = b.allies().filter((a) => areaSelectable(e, a) && Math.abs(Math.round(a.y) - r0) <= 1 && Math.abs(Math.round(a.x) - c0) <= 1)
           .sort((p, q) => q.hpRatio - p.hpRatio)[0];
-        if (t) { b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'cannon' }); hurt(b, e, t, e.s.atk * (ab.sk.Cannon.bb.atk_scale ?? 0), 'arts'); }
+        // (fork) from / to: the client lands the official shell (projectile_enemy_stmgun_s) on the target
+        if (t) { b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'cannon', from: e.id, to: t.id }); hurt(b, e, t, e.s.atk * (ab.sk.Cannon.bb.atk_scale ?? 0), 'arts'); }
       }, { owner: e });
     }, { cond: (b, e) => inRange(b, e).length > 0, turn: attackSkillOf('enemy_1273_stmgun_2', 'Cannon') })];   // the attack's turn (DESIGN §35.52)
   },

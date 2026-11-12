@@ -147,6 +147,10 @@ test(`${nm('enemy_1404_msnip')}: 直击 — 1.4 s after the cast a unit in line 
   approx(statuses(h, w.id, 'stun')[0].duration, s.bb.stun);
   approx(w.stats.taken, e.s.atk * s.bb.atk_scale * (1 - 0 / 100));
   assert.ok(e.findBuff('ab:revealed'), 'still revealed at 2.1 s');
+  // (fork) the bolt's 'shot' names it, its target and the sim's flight (4 tiles at 12/s): the client flies the official bolt
+  const shot = h.eventsOf('fx').find((f) => f[1] === 'shot' && f[4].kind === 'crossBolt');
+  assert.ok(shot && shot[4].from === e.id && shot[4].to === w.id);
+  approx(shot[4].dur, 4 / 12);
   h.run(0.5);                                               // 2.6 s in: the skill is over
   assert.ok(!e.findBuff('ab:revealed') && !e.s.flags.noMove, 'skill over after 2.5 s');
   // stunned during the charge: no bolt
@@ -715,6 +719,8 @@ test(`${nm('enemy_1275_dwlock_2')}: apoptosis on hit; DeathEye channels arts dam
   assert.ok(h.b.time >= s.initCooldown - 1e-6);
   h.run(s.bb.hit_duration + 1);
   assert.ok(h.eventsOf('fx').some((f) => f[1] === 'beam' && f[4].kind === 'deathEye'));
+  // (fork) the burst names its caster and target: the client flies the official ChargeAttack shot for it
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'apoptosis' && f[4].from === e.id && f[4].to != null));
   const w2 = h.unit('t_wall2');
   assert.ok(w2.elem.apoptosis >= e.s.atk * s.bb.ep_damage_ratio - 1e-6 || w2.findBuff('apoptosisBurst'));
 });
@@ -1588,6 +1594,9 @@ test(`${nm('enemy_1273_stmgun_2')}: Cannon locks the highest-max-HP unit in rang
   assert.equal(h.b.applyStatus(e, 'stun', { duration: 1 }), false, '晕眩免疫 during it');
   h.run(5.5);
   assert.equal(h.eventsOf('fx').filter((f) => f[1] === 'explode' && f[4].kind === 'cannon').length, 10, '10 shots');
+  // (fork) each shell names the gun and the unit hit: the client lands the official shell on it
+  const hit = new Set([h.unit('t_wall').id, h.unit('t_gun').id]);
+  assert.ok(h.eventsOf('fx').filter((f) => f[1] === 'explode' && f[4].kind === 'cannon').every((f) => f[4].from === e.id && hit.has(f[4].to)));
   assert.ok(h.unit('t_wall').stats.taken + h.unit('t_gun').stats.taken > 0);
   assert.ok(!e.findBuff('ab:cannon') && h.b.applyStatus(e, 'stun', { duration: 1 }) !== false, 'over afterwards');
 });
@@ -1910,6 +1919,10 @@ test(`${nm('enemy_1504_cqbw')}: C4 blasts (ATK×${skb('enemy_1504_cqbw', 'C4').b
   e.profile.noAttack = true;
   h.run(skb('enemy_1504_cqbw', 'C4').initCooldown + 1.2);
   approx(h.unit('t_wall').stats.taken, e.s.atk * skb('enemy_1504_cqbw', 'C4').bb.atk_scale);
+  // (fork) the C4 names her and its carrier, the blast her: the client flies the official C4 for the fuse
+  const w = h.unit('t_wall');
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'telegraph' && f[4].kind === 'c4' && f[4].from === e.id && f[4].to === w.id && f[4].dur > 0));
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'c4' && f[4].from === e.id));
 });
 
 test(`${nm('enemy_1509_mousek')}: opening arts-only barrier (${tb('enemy_1509_mousek', 'shield.dynamic')}) with DEF +${tb('enemy_1509_mousek', 'defup.def')} while it holds; ×${tb('enemy_1509_mousek', 'enrage.damage_scale')} damage below half`, () => {
@@ -2000,6 +2013,8 @@ test(`${nm('enemy_1513_dekght')} + ${nm('enemy_1513_dekght_2')}: plus-shaped hit
   assert.ok(h.unit('t_wall2').stats.taken > 0);
   killed(h, b, null);
   approx(a.s.atk, E.enemy_1513_dekght.stats.atk * (1 + tb('enemy_1513_dekght', 'triggerrage.atk')));
+  // (fork) the rage shows: the client's TriggerRage row (b.snap fxs)
+  assert.ok((h.b.snapshot().fxs || []).some((r) => r[0] === a.id && r[1] === 'dekght[trigger_rage]'));
 });
 
 test(`${nm('enemy_1539_reid')}: ATK up below half; first KO ⇒ ${tb('enemy_1539_reid', 'Reborn.duration')} s rebirth (invulnerable, inert), back at ${tb('enemy_1539_reid', 'Reborn.hp_ratio') * 100} %; 【冲锋】 speeds up near a unit`, () => {
@@ -2042,10 +2057,12 @@ test(`${nm('enemy_1539_reid')}: ATK up below half; first KO ⇒ ${tb('enemy_1539
 test(`${nm('enemy_2003_rockman')}: boulder stuns a non-stunned unit for ${skb('enemy_2003_rockman', 'StunAttack').bb.stun} s`, () => {
   const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 6 }], hooks: ['statusApplied'] });
   h.step();
-  put(h, 'enemy_2003_rockman', [10, 8]);
+  const e = put(h, 'enemy_2003_rockman', [10, 8]);
   h.run(skb('enemy_2003_rockman', 'StunAttack').initCooldown + 1);
   const s = statuses(h, h.unit('t_wall').id, 'stun');
   assert.equal(s.length, 1);
+  // (fork) the boulder's 'shot' names it and its target: the client flies the official boulder
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'shot' && f[4].kind === 'boulder' && f[4].from === e.id && f[4].to === h.unit('t_wall').id && f[4].dur > 0));
   approx(s[0].duration, skb('enemy_2003_rockman', 'StunAttack').bb.stun);
 });
 
@@ -2239,7 +2256,15 @@ test(`${nm('enemy_1513_dekght_2')}: 爆炸箭 — 3 targets, ${skb('enemy_1513_d
   h.run(s.initCooldown + 0.1);
   assert.equal(h.eventsOf('fx').filter((f) => f[1] === 'telegraph' && f[4].kind === 'blastArrow').length, 3);
   assert.equal(h.unit('t_wall').stats.taken, 0, 'delayed');
+  // (fork) each arrow names its target; the targets carry the official mark until the blast (b.snap fxs)
+  const tel = h.eventsOf('fx').filter((f) => f[1] === 'telegraph' && f[4].kind === 'blastArrow');
+  assert.ok(tel.every((f) => f[4].id === e.id && f[4].to != null));
+  const marked = (h.b.snapshot().fxs || []).filter((r) => r[1] === 'dekght_2[aoe]');
+  assert.deepEqual(marked.map((r) => r[0]).sort(), tel.map((f) => f[4].to).sort());
+  assert.ok(marked.every((r) => r[2] === e.id));
   h.run(s.bb['dekght_2[aoe].interval']);
+  assert.ok(!(h.b.snapshot().fxs || []).some((r) => r[1] === 'dekght_2[aoe]'), 'the mark ends with the blast');
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'blastArrow' && f[4].from === e.id));
   approx(h.unit('t_wall').stats.taken, e.s.atk * s.bb['dekght_2[aoe].atk_scale']);
   assert.equal(h.unit('t_wall4').stats.taken, 0, 'out of range');
 });

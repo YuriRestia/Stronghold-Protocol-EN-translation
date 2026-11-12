@@ -171,7 +171,7 @@ describe('skills.js: the enemies\' kit-fx bindings', () => {
     for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) {
       for (const [kind, entry] of Object.entries(kinds)) for (const b of enemyBinds(entry)) {
         assert.ok(['id', 'died', 'cast', 'near', 'any', 'from'].includes(b.owner), `${key} ${kind} owner`);
-        assert.ok(b.talent || b.projectile || b.keys || b.modeLoops || b.endMode || b.fly || b.cover, `${key} ${kind} plays something`);
+        assert.ok(b.talent || b.projectile || b.keys || b.modeLoops || b.endMode || b.fly || b.cover || b.quiet, `${key} ${kind} plays something`);
         assert.ok(ENEMY_FX_KINDS[kind].includes(key));
         if (b.owner === 'cast' || b.cover) assert.equal(typeof b.skill, 'string', 'a cast owner / a cover names the skill (its prefabKey, lower case)');
         if (Array.isArray(entry)) assert.ok(b.xkind, `${key} ${kind}: a list's bindings each name their xkind`);
@@ -913,9 +913,12 @@ describe('the extracted effects (when fx was extracted on this machine)', { skip
       for (const [kind, entry] of Object.entries(kinds)) for (const b of enemyBinds(entry)) {
         if (b.endMode) continue;
         if (b.cover) { assert.ok(idx.units[key].skills[b.skill], `${key}: skill ${b.skill}`); continue; }
+        if (b.quiet) { assert.ok(idx.prefabs[b.quiet], `${key}: quiet ${b.quiet} is an extracted prefab`); continue; }
         if (b.fly) {
           const p = idx.projectiles[b.fly];
-          assert.ok(p && idx.prefabs[p.main] && (p.onHit || []).every((k) => idx.prefabs[k]), `${key} ${kind}: ${b.fly} flies and hits`);
+          // its flying effect, a harpoon's rope, a timer's on-target / hit / reached effects: at least one, all extracted
+          const keys = p ? [p.main, p.link, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || [])].filter(Boolean) : [];
+          assert.ok(keys.length && [...keys, ...(b.hits || [])].every((k) => idx.prefabs[k]), `${key} ${kind}: ${b.fly} flies and hits`);
           continue;
         }
         if (b.modeLoops) {

@@ -111,6 +111,7 @@ export const SUMMON_FX = Object.freeze({
   split: Object.freeze({ unit: 'token_10030_mlyss_wtrman', keys: Object.freeze(['token_10030_mlyss_wtrman_split_start_01']), gone: Object.freeze(['token_10030_mlyss_wtrman_c3_to_c0']) }),
 });
 import { unitPoint } from './mounts.js';
+import { projectileParts } from './flight.js';
 import { PathFx } from './pathfx.js';
 import { enemyStateKeys } from './indexGaps.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
@@ -130,6 +131,14 @@ const ARRIVAL = new Set(['summonBurst', 'summonStun', 'radiantSword', 'paperDoll
 /** The 驭械术士's kit fx: render/vfx/funnelfx.js decides them (its floating units). */
 const FUNNEL_KINDS = new Set(['drone', 'drones', 'droneLock', 'overload']);
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
+/**
+ * (fork) Whether flying projectile `p` draws anything installed: its flying effect, a harpoon's rope, or (a timer with no
+ * flying effect: 节日爵士乐手's lasso, “萨米的意志”'s 自然涌动) what it puts on its target as it starts or as it hits.
+ */
+const flyDraws = (p, lib) => {
+  const parts = projectileParts(p);
+  return [parts.main, parts.rope, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || [])].some((k) => k && lib.has(lc(k)));
+};
 /** (fork) Plan kinds whose skill lasts (its loops are held for it); another's buff loops with a life run their own time. */
 const SKILL_LASTS = new Set(['lasting', 'ammo', 'passive']);
 /** Battle seconds after a release in which a stale energy reading is ignored (the next store takes an attack interval). */
@@ -1790,6 +1799,7 @@ export class SkillFx {
         : bind.talent ? this._aura(owner, key, bind, x, y, extra)
         : bind.fly ? this._enemyFly(owner, bind, extra)
         : bind.cover ? this._enemyCover(owner, bind)
+        : bind.quiet ? !!this.w.ofx.lib.has(lc(bind.quiet))
         : this._zone(bind, x, y, extra);
       if (!drew) continue;
       // the kit's own moment stood for an attack-rooted skill of a window: that was its one attack — the enemy's next
@@ -1854,17 +1864,28 @@ export class SkillFx {
   /**
    * (fork) An enemy binding's `fly`: its projectile from the enemy to the unit `extra.to` (FxWiring._fly: the flying
    * effect, then the hit), each further one of the same enemy in this frame `stagger` s after the one before (a
-   * MultiRangedAttack's shots; the sim lands their damage in the cast's tick). False when the projectile's flying effect is
-   * not installed or the target is gone (the procedural beam stays).
+   * MultiRangedAttack's shots; the sim lands their damage in the cast's tick). `flyDur`: the flight's own time; `rehit`:
+   * while a flight of this enemy at this target lives (its projectile's life), the fx plays the projectile's onHit on the
+   * target instead (a lasso's later hits). False when the projectile draws nothing installed (flyDraws) or the target is
+   * gone (the procedural beam stays).
    */
   _enemyFly(owner, bind, extra) {
     const p = this.w.idx?.projectiles?.[lc(bind.fly)];
     const tv = this.w.view(extra.to);
-    if (!p || !tv || !this.w.ofx.lib.has(lc(p.main))) return false;
+    if (!p || !tv || !flyDraws(p, this.w.ofx.lib)) return false;
     const oid = idOf(owner);
+    if (bind.rehit) {
+      const now = this.w.ofx.time, k = `${oid}>${extra.to}`;
+      this.lassos ??= new Map();
+      for (const [x, until] of this.lassos) if (until <= now) this.lassos.delete(x);
+      if (this.lassos.has(k)) { for (const h of p.onHit || []) if (this.w.ofx.lib.has(lc(h))) this.w.playOn(lc(h), tv, {}); return true; }
+      this.lassos.set(k, now + (Number(projectileParts(p).life) || 1));
+    }
     const q = this.volley?.id === oid && this.volley.frame === this.frame ? this.volley : (this.volley = { id: oid, frame: this.frame, n: 0 });
     const delay = (q.n++) * (Number(bind.stagger) || 0);
-    const go = () => { if (owner.alive !== false && !owner.destroyed) this.w._fly(p, owner, tv, 'arrow', this.w.ofx.time, {}); };
+    const fd = bind.flyDur === 'fx' ? Number(extra.dur) : Number(bind.flyDur);
+    const o = { ...(fd > 0 ? { dur: fd } : {}), ...(bind.hits ? { hits: bind.hits.map((k) => ({ k })) } : {}) };
+    const go = () => { if (owner.alive !== false && !owner.destroyed) this.w._fly(p, owner, tv, 'arrow', this.w.ofx.time, o); };
     if (delay > 0) later(this.w.ofx, delay, go); else go();
     return true;
   }

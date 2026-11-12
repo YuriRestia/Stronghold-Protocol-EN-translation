@@ -41,6 +41,8 @@ function kitCrossbow(ab) {
       if (!e.alive || e.hidden || e.s.flags.stun || e.s.flags.silence) return;
       const tt = nearest(b, e, aligned(b, e).filter((u) => Math.sign(Math.round(u.x - e.x)) === dx && Math.sign(Math.round(u.y - e.y)) === dy));
       if (!tt) return;
+      // (fork) the bolt for the client (fx/kinds.js 'shot'): it flies the official projectile_enemy_msnip over the sim's flight
+      b.fx('shot', { x: e.x, y: e.y, from: e.id, to: tt.id, kind: 'crossBolt', dur: hypot(tt.x - e.x, tt.y - e.y) / 12 });
       b.addProjectile({ from: e, target: tt, speed: 12, visual: 'enemy', source: e, onHit: (c) => {
         if (!c.target || !c.target.alive) return;
         hurt(b, e, c.target, e.s.atk * (bb.atk_scale ?? 1), 'arts');
