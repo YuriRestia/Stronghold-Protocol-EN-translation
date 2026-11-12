@@ -2167,6 +2167,21 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // projectile_life_time, in the tick of its 'cast')
   enemy_1272_nhtank: POLLUTED_ATK,
   enemy_1272_nhtank_2: POLLUTED_ATK,
+  // (fork) enemies, XS-S check rows (Tools 2): Infused Originium Slug (enemy_1021_bslime), Infused Glacial Originium
+  // Slug (enemy_1067_snslime) — their death blast. The client's Boom talent (BslimeTalent_1) fires projectile_bslime /
+  // projectile_snslime where the slug falls, whose EffectBehaviour plays bslime_die_01_start / snslime_die_01_start on
+  // its target as it starts (_effectsToTargetWhenStart, never cleared on stop). The sim's deathBoom sends an 'explode'
+  // of kind 'deathBoom' at the slug in its death hook. The glacial one runs its own 9 s; the plain one has a looping
+  // smoke part [ASSUMED: 2 s, its blast's other parts' length].
+  enemy_1021_bslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_bslime', part: 'toTargetOnStart', holdS: 2 }) }),
+  enemy_1067_snslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_snslime', part: 'toTargetOnStart', once: true }) }),
+  // Armor Piercer (enemy_9016_acstmr, OpFor: Armor's shell): its Boom mode's `killed` talent (BslimeTalent_1) fires
+  // projectile_enemy_acstmr_s1 (AttachToTarget, a 3×3 ConstBoxRange, 9.95 s), whose reached effect
+  // enemy_acstmr_explode_range loops on the 3×3 until it stops (_clearReachedEffectWhenStop). The sim's stunBlast sends
+  // an 'explode' of kind 'helmShell' on the tile the shell reached, before it removes the shell.
+  enemy_9016_acstmr: Object.freeze({ explode: ebind({ xkind: 'helmShell', owner: 'near', projectile: 'projectile_enemy_acstmr_s1', holdS: 9.95 }) }),
+
+
   // 假想敌：蚀裂 (dot.js: the 'zone' of kind 'poison' where its lob lands — on its killer — or where it fell, r =
   // 1.projectile_range, dur = 1.projectile_life_time): its talent 1 (BslimeTalent_1) fires projectile_enemy_actoxi at its
   // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud
