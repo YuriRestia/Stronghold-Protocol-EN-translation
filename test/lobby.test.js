@@ -1847,6 +1847,68 @@ describe('match result replay', () => {
       await real.close();
     }
   });
+
+  /** A lone human (three bots) in a real Match drops at the info check, then the match finishes while it is away. */
+  async function loneHumanAwayAtTheEnd(opts = {}) {
+    const real = await startServer({ port: 0, host: '127.0.0.1', log: cap.log, MatchClass: RealMatch, seedFn: () => 1312887319, ...opts });
+    const url = `ws://127.0.0.1:${real.port}/ws`;
+    const a = await TestClient.connect(url);
+    const w = await a.hello('A');
+    a.id = w.playerId;
+    await createRoom(a, 'coop', 'FUNNY');
+    for (let i = 0; i < 3; i++) await expectOk(a, { t: 'room.addBot' });
+    await expectOk(a, { t: 'room.start' });
+    await a.waitFor('m.public', (p) => p.phase === PHASE.INFO_CHECK);
+    const room = real.lobby.getRoom([...real.lobby.rooms.keys()][0]);
+    const m = room.match;
+    await a.terminate();
+    await delay(30);
+    m.finish({ victory: true, reason: 'victory' });
+    assert.equal(room.match, null, 'room back in LOBBY');
+    return { real, url, a, w, room, m };
+  }
+
+  // upstream open PR #912 (by SatsumaUton): `m.result` reaches a disconnected seat through sendSession, which drops
+  // frames of a disconnected session, and the room's replay dies with the room (disposeRoom clears room.replay).
+  test('the last human away when the match ends still gets its m.result after the room is disposed (PR #912)', async () => {
+    const { real, url, a, w, room, m } = await loneHumanAwayAtTheEnd();
+    try {
+      // the seat freed with the session still alive: no active human is left, the room is disposed with its replay
+      real.lobby.removeMember(room, a.id);
+      assert.equal(room.disposed, true, 'no active human was left, so the room is gone');
+      const b = await TestClient.connect(url);
+      await b.hello('A', w.token);
+      const res = await b.waitFor('m.result', () => true, 3000);
+      assert.equal(res.playerId, a.id);
+      assert.equal(res.victory, true);
+      assert.equal(b.log.find((x) => x.t === 'm.public')?.phase, PHASE.RESULT);
+      // delivered once: a second reconnect gets nothing but the welcome
+      await b.terminate();
+      const c = await TestClient.connect(url);
+      await c.hello('A', w.token);
+      await c.expectNone(null, (msg) => msg.t !== 'welcome' && msg.t !== 'sys.online', 300);
+      await c.terminate();
+    } finally {
+      m.dispose?.();
+      await real.close();
+    }
+  });
+
+  test('the lone human whose lobby grace runs out after the match still gets its result after room.closed{timeout}', async () => {
+    const { real, url, w, room, m } = await loneHumanAwayAtTheEnd({ lobbyGraceMs: 150 });
+    try {
+      await delay(400);
+      assert.equal(room.disposed, true, 'the grace freed the last seat and the room went with it');
+      const b = await TestClient.connect(url);
+      await b.hello('A', w.token);
+      assert.equal((await b.waitFor('m.result', () => true, 3000)).victory, true);
+      assert.equal((b.log.find((x) => x.t === 'room.closed') || {}).reason, 'timeout');
+      await b.terminate();
+    } finally {
+      m.dispose?.();
+      await real.close();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------------------------------
