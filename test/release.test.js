@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   parseReleaseArgs, githubRepo, ciDecision, ciShips, foldPlan, foldMessage, sudoLine, DEFAULT_HOSTS,
-  clipInfo, clipVerdict, stripClipStamp, unpackCommand, BACKUPS_KEPT,
+  clipInfo, clipVerdict, stripClipStamp, unpackCommand, BACKUPS_KEPT, parseDfAvail,
 } from '../scripts/release.mjs';
 import {
   parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, urlToPath, SHARED_LISTS, PUBLIC_FILE_LIMIT,
@@ -236,4 +236,19 @@ describe('update news draft (release-news.mjs)', () => {
     assert.deepEqual(newsProblems(news), []);
     assert.ok(newsProblems(newsFromEdit({ ...e, id: '' })).length, 'a missing id is refused');
   });
+});
+
+// (fork, 2026-11-13) The first live run stopped with "not enough free space ... app NaN MB free": the app folder's df ran
+// without sudo, could not stat the folder, and the missing number read as NaN.
+test('free space: a number, or an error naming the path and why, never NaN', () => {
+  assert.deepEqual(parseDfAvail({ status: 0, stdout: '    Avail\n33300516864\n', stderr: '' }, '$HOME'), { free: 33300516864 });
+  const denied = parseDfAvail({ status: 1, stdout: '', stderr: "df: /opt/stronghold/app: Permission denied\n" }, '/opt/stronghold/app');
+  assert.deepEqual(denied, { error: 'could not read free space on /opt/stronghold/app: df: /opt/stronghold/app: Permission denied' });
+  for (const res of [{ status: 0, stdout: 'Avail\n', stderr: '' }, { status: 0, stdout: 'Avail\n12\n34\n', stderr: '' }, { status: 0, stdout: 'Avail\nlots\n', stderr: '' }, { status: null, stdout: '', stderr: '' }, undefined]) {
+    const got = parseDfAvail(res, '/x');
+    assert.ok('error' in got && /^could not read free space on \/x: /.test(got.error), JSON.stringify(res));
+  }
+  const src = readFileSync(new URL('../scripts/release.mjs', import.meta.url), 'utf8');
+  assert.match(src, /sudo df -B1 --output=avail \$\{APP\}/, 'the app folder is read under sudo');
+  assert.doesNotMatch(src, /df -B1 --output=avail "\$HOME" \$\{APP\}/, 'never both paths in one unprivileged df');
 });
