@@ -1181,7 +1181,8 @@ export class SkillFx {
         // rows of that buff (TalentFx.targetRows), when no skill state entry names it
         let list = stateEntries(U?.plan?.state, row[0], row[2], v.facing);
         // (fork) an enemy src: its skills' rows on their targets (index v2 skill plans: OpFor: BlackCloud's grab)
-        if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || [])]), row[0], row[2], v.facing);
+        // (fork) Tools 2: and their attack's buff hit rows (each.hit with a `buff`: Jesselton Williams's armour piercing)
+        if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || []), ...(x.plan?.each?.hit || []).flat().filter((e) => e?.buff)]), row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
         // (fork) enemy VFX audit, S rows: 'ready:<prefabKey>' (sim enemies/helpers.js readyProbe: its ReadyEnemySkillEffect)
         // — that enemy skill plan's `ready` rows on the enemy while the row lasts

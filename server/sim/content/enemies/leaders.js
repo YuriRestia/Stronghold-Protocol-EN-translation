@@ -109,6 +109,8 @@ const XI_CROSS_REACH = 2;
  *  【远古威慑】 aura radius / ASPD ("自身1.5半径范围内的我方单位攻击速度-50(指定状况下生效)" — during the 重生 and in the second form).
  *  Until 0.1.3: 2.5 / 2.5 / −30, the aura only during the 重生 [ASSUMED]. */
 const WOLF_RANGE = 1.25, WOLF_AWE_RADIUS = 1.5, WOLF_AWE_ASPD = -50;
+// (fork) how long the armour-piercing hit's one-shot row stays in b.snap fxs (a few snapshots; it plays once per row)
+const JAKILL_HIT_ROW = 0.3;
 
 
 /** 乌顶巨角卢鲁 【角力对决】: the operator cannot be pushed (fixed tiles) ⇒ "更多伤害" multiplier [ASSUMED]. */
@@ -506,6 +508,9 @@ function kitWarden(ab) {
       if (!P.killer || !P.power || !pierce) return;
       // [ASSUMED] DESIGN §32.5: extra pierce hits share the `times` cap. Official values stay at or below 12.
       const pierceTimes = Math.min(bbCap('times'), typeof pierce.bb.times === 'number' && Number.isFinite(pierce.bb.times) ? pierce.bb.times : 1);
+      // (fork) the armour-piercing skill's hit effect on its target (the reborn form's jakill_skill_1_reborn_hit, one-shot:
+      // a short row; snapshot.js fxStateView, display only)
+      b.fxState(c.target, 'jakill_skill_1_reborn_hit[eff]', true, { src: e, dur: JAKILL_HIT_ROW });
       for (let i = 1; i < pierceTimes && c.target.alive; i++) b.dealDamage(e, c.target, { amount: e.s.atk, type: 'phys', defIgnorePct: pen(), canDodge: true, isSkill: true, tags: ['enemyAbility', 'armorPiercing'] });
     },
     attack(c, b, e) {
@@ -647,6 +652,9 @@ function kitMace(ab) {
           const sk = u.skill;
           if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
           if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
+          // (fork) the official ClearSp buff's effect on each unit it reaches, for its duration [ASSUMED: the disarm's]
+          // (snapshot.js fxStateView; display only)
+          if (cs.dur > 0) b.fxState(u, 'enemy_blkswb_s[effect]', true, { src: e, dur: cs.dur });
         }
       }
     },
@@ -678,11 +686,14 @@ function kitWolfLord(ab) {
   const caught = (b) => b.allies().some((u) => u.findBuff('ab:fearCage'));
   const cure = (b) => { for (const u of b.allies()) { const d = u.findBuff('ab:fearCage'); if (d) b.removeBuff(u, d); } };
   // 【远古威慑】 (a buff aura, auraAllies): no 隐匿 operator, the blocker included, an airborne 起飞 one still — as 深池伙友卫队's
-  const awe = (b, e) => { for (const u of auraAllies(b, e, e.x, e.y, WOLF_AWE_RADIUS)) auraBuff(b, u, 'ab:ancientAwe', 0.2, { aspd: WOLF_AWE_ASPD }, null, true); };
+  // (fork) with the official FearAura buff's effect on each unit it holds (display only)
+  const awe = (b, e) => { for (const u of auraAllies(b, e, e.x, e.y, WOLF_AWE_RADIUS)) auraBuff(b, u, 'ab:ancientAwe', 0.2, { aspd: WOLF_AWE_ASPD }, null, true, { fx: 'enemy_wlfmster_fear', src: e.id }); };
   return [{
     spawn(b, e, a, ab2) {
       ab2.immune = new Set([...(ab2.immune || []), 'stun']);   // 第一形态: 不可被晕眩
       b.addBuff(e, { key: 'ab:wolfGuard', persist: true, visible: true, mods: { dmgTakenMul: 1 - (T(ab, 'Passive.damage_resistance') ?? 0) } });
+      // (fork) its HP record (BuffToOwner enemy_wlfmster_damage_record) shows while a caught unit waits for the cure (display only)
+      b.fxProbe(e, 'enemy_wlfmster_damage_record', () => !P.form2 && P.caught > 0);
     },
     iv: 0.1,
     tick(b, e, a, dt) {
@@ -712,7 +723,8 @@ function kitWolfLord(ab) {
     const ramp = Math.max(1, fc.bb.duration_bleed ?? 40), peak = fc.bb.hp_ratio ?? 0;
     for (const u of l) {
       b.fx('beam', { x: e.x, y: e.y, from: e.id, to: u.id, kind: 'fearCage' });
-      b.addBuff(u, { key: 'ab:fearCage', refresh: 'replace', visible: true, interval: 1, data: { src: e, hp0: e.hpRatio, t0: b.time },
+      // (fork) fx: the official fear-cage buff's loop on the unit, and its end hit when it goes (display only)
+      b.addBuff(u, { key: 'ab:fearCage', refresh: 'replace', visible: true, interval: 1, data: { src: e, hp0: e.hpRatio, t0: b.time }, fx: 'enemy_wlfmster_fearcage', fxSrc: e.id,
         mods: { aspd: fc.bb.attack_speed ?? 0 },
         onTick: ({ battle, unit, buff }) => {
           // its 扎罗 gone from the field without a 重生 (leaked, removed): the effect ends, no loss this tick [ASSUMED — no

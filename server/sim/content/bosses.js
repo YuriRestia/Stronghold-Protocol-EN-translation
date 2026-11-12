@@ -148,6 +148,12 @@ const TENTACLE_STUN = 5, TENTACLE_RADIUS = 1;
 const ROCKFALL_DELAY = 1, ROCKFALL_TARGETS = [2, 4, 8], DOOM_DELAY = 4;
 /** 铳: minimum attack speed (PRTS "最低20") and charge hit radius (PRTS 0.35 — also “碎铳之簧”'s 追逐模式 trample). */
 const ASPD_FLOOR = 20, CHARGE_RADIUS = 0.35;
+// (fork) “碎铳之簧”'s 追逐模式 trample hit: the official buff of each variant's MoveToHunter aura (render/vfx/skills.js
+// STATE_BUFFS; the element variant actrpb has none) and how long its one-shot row stays in b.snap fxs
+const ACTRPA_TRAMPLE_FX = 'actrpa_s_1[damage]';
+const ACTRPC_TRAMPLE_FX = 'actrpc_s_1[damage]';
+const SPRING_TRAMPLE_FX = Object.freeze({ enemy_9018_actrpa: ACTRPA_TRAMPLE_FX, enemy_9020_actrpc: ACTRPC_TRAMPLE_FX });
+const SPRING_TRAMPLE_ROW = 0.3;
 /** 盲信之誓 link half-width (PRTS 0.5). */
 const LINK_WIDTH = 0.5;
 /** 碎铳之簧 bullet bounce falloff / reach [ASSUMED], combo = 十连击; tag of the damage share passed between springs. */
@@ -789,7 +795,14 @@ function kitSpring(ab, e) {
         const g = d.gun && d.gun.alive ? d.gun : gun(b);
         if (g) stepToward(e2, g.x, g.y, e2.s.moveSpeed * d.mul * MOVE_SCALE * dt);
         // 追逐模式 "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次攻击力100%的物理普通伤害" (until 0.1.3: radius 0.5)
-        for (const u of areaAllies(b, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!d.hit.has(u)) { d.hit.add(u); hurt(b, e2, u, e2.s.atk, 'phys'); }
+        for (const u of areaAllies(b, e2, e2.x, e2.y, CHARGE_RADIUS)) {
+          if (d.hit.has(u)) continue;
+          d.hit.add(u);
+          hurt(b, e2, u, e2.s.atk, 'phys');
+          // (fork) the official trample hit on the unit (its MoveToHunter aura buff; a short one-shot row, display only)
+          const fx = SPRING_TRAMPLE_FX[e2.defId];
+          if (fx) b.fxState(u, fx, true, { src: e2, dur: SPRING_TRAMPLE_ROW });
+        }
         if (b.time >= d.until) { e2.mem.ab.dash = null; b.removeBuff(e2, 'boss:dash'); if (e2.route) e2.route.pts = null; }
       },
     },

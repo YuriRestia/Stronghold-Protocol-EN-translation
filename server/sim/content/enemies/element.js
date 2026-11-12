@@ -149,6 +149,8 @@ function kitParasite(ab) {
       b.addBuff(host, {
         // "受到的元素损伤提高至130%": a 元素损伤 multiplier on the element hit (ensureParasiteHook), not 元素伤害
         key: 'ab:parasite', visible: true, interval: 1, data: { src: e, spread: PARASITE_SPREAD, epMul: elMul },
+        // (fork) the official parasite buff's lasting effect on the host (snapshot.js fxStateView; display only)
+        fx: 'enemy_acelem[to_parasitic]', fxSrc: e.id,
         onTick: ({ battle, unit }) => { if (e.alive) battle.dealDamage(e, unit, { amount: e.s.atk * scale, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility', 'parasite'] }); },
       });
     },
