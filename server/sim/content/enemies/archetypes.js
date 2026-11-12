@@ -7,7 +7,7 @@ import { MOVE_SCALE, COLS, STEALTH_RESTORE } from '../../constants.js';
 import {
   HUSK_REBIRTH, BOOM_RADIUS, POLLUTION_INTERVAL, STEALTH_RESTORE_BY_KEY, DUCK_STEALTH_RESTORE, nthOf, stOf, safe, num, T, elem, hurt,
   areaAllies, areaAlliesInTiles, zone, spawnChildren, stepToward, setHits, hitCount, setForm, auraBuff,
-  unbalancedNow, castSlot,
+  unbalancedNow, castSlot, readyProbe,
 } from './helpers.js';
 import { hypot } from '../../detmath.js';
 
@@ -134,7 +134,8 @@ const immuneTo = (...keys) => ({ spawn(b, e, a, ab) { ab.immune = new Set([...(a
 /** Every Nth attack: status on the targets ("攻击2次后，下一次攻击会晕眩目标"). */
 const nthAttackStatus = (n, key, dur, sil = true, s = null) => ({
   sil,
-  spawn(b, e, a) { a.n = 0; },
+  // (fork) its skill's official ready glow while the next attack is the Nth (readyProbe; display only)
+  spawn(b, e, a) { a.n = 0; readyProbe(b, e, s, () => (a.n + 1) % n === 0); },
   // the Nth attack is the skill's (display only: its slot for the client, castSlot)
   before(c, b, e, a) { if (s && (a.n + 1) % n === 0) castSlot(b, e, s); },
   attack(c, b, e, a) {
@@ -149,7 +150,8 @@ const nthAttackStatus = (n, key, dur, sil = true, s = null) => ({
 
 /** Every Nth attack deals ×scale (+ optional element). */
 const nthAttackPower = (n, scale, el = null, ratio = 0, s = null) => ({
-  spawn(b, e, a) { a.n = 0; a.power = false; },
+  // (fork) its skill's official ready glow while the next attack is the Nth (readyProbe; display only)
+  spawn(b, e, a) { a.n = 0; a.power = false; readyProbe(b, e, s, () => (a.n + 1) % n === 0); },
   before(c, b, e, a) { a.power = (a.n + 1) % n === 0; if (a.power && s) castSlot(b, e, s); },
   hitOut(c, b, e, a) { if (a.power && c.dmg.isAttack) c.dmg.amount *= scale; },
   dealt(c, b, e, a) { if (a.power && el && ratio > 0) elem(b, e, c.target, el, e.s.atk * ratio); },

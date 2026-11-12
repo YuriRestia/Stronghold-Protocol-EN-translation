@@ -116,6 +116,8 @@ import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
 export const SKILL_CAST_S = 0.6;
+/** (fork) enemy VFX audit, S rows: the prefix of an enemy skill's ready row (sim enemies/helpers.js READY_PREFIX). */
+const READY_ROW = 'ready:';
 /**
  * Battle seconds after a skill's end in which a kit fx still belongs to it (FX_COVER, FX_BINDINGS `during`): an instant
  * skill's kit lands its blast or shells a moment after the 0 (蕾缪安 S3's last shells 0.3–0.7 s, 溯光星源 S2's link
@@ -1164,6 +1166,9 @@ export class SkillFx {
         // (fork) an enemy src: its skills' rows on their targets (index v2 skill plans: OpFor: BlackCloud's grab)
         if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || [])]), row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
+        // (fork) enemy VFX audit, S rows: 'ready:<prefabKey>' (sim enemies/helpers.js readyProbe: its ReadyEnemySkillEffect)
+        // — that enemy skill plan's `ready` rows on the enemy while the row lasts
+        if (!list.length && typeof row[0] === 'string' && row[0].startsWith(READY_ROW) && U?.enemy?.length) list = this._readyRows(U, row[0]);
         for (const e of list) {
           const k = `${id}|${e.key}`;
           if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
@@ -1371,6 +1376,16 @@ export class SkillFx {
       }
       return;
     }
+  }
+
+  /**
+   * (fork) enemy VFX audit, S rows: the `ready` rows of the enemy skill a 'ready:<prefabKey>' row names (U.enemy, its
+   * skills by slot; prefabKey matched without case: the sim's record key against the index's), as state entries.
+   */
+  _readyRows(U, buff) {
+    const pk = buff.slice(READY_ROW.length).toLowerCase();
+    const en = U.enemy.find((x) => String(x.prefabKey).toLowerCase() === pk);
+    return (en?.plan?.ready || []).map((e) => ('loop' in e ? e : { ...e, loop: this.w.idx?.prefabs?.[e.key]?.looping !== false }));
   }
 
   /** (fork) The 'tick' rows of `key` in any skill plan of the unit (cached per battle). */

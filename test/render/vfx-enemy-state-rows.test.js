@@ -42,3 +42,24 @@ test("an enemy's own skill buff (no src) plays from its own skill plan; a buff n
   s._states([g]);
   assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_mdrock_skill_buff_01', 6]]);
 });
+
+test("an enemy's 'ready:<prefabKey>' row plays that skill's ready rows once per flip on (prefabKey without case)", () => {
+  const records = new Map([[4, { plan: null, enemy: [
+    { slot: 0, prefabKey: 'stuncombat', plan: { state: [], ready: [{ key: 'hammer_skill_01_buff', role: 'ready', loop: true }] } },
+  ] }]]);
+  const { s, played, views } = rig(records);
+  const ham = { id: 4, alive: true, fxs: [['ready:StunCombat', null, null]] };
+  views.set(4, ham);
+  s._states([ham]);
+  s._states([ham]);
+  assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop]), [['hammer_skill_01_buff', 4, true]], 'once while it holds');
+  ham.fxs = null;
+  s._states([ham]);
+  assert.ok(played[0].stopped, 'gone with the row');
+  ham.fxs = [['ready:stuncombat', null, null]];
+  s._states([ham]);
+  assert.equal(played.length, 2, 'again on the next flip on');
+  ham.fxs = [['ready:other', null, null]];
+  s._states([ham]);
+  assert.equal(played.length, 2, 'a skill it does not have plays nothing');
+});
