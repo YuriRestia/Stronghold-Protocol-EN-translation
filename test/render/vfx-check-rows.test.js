@@ -4,9 +4,10 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { FxWiring } from '../../public/js/render/vfx/wiring.js';
 import { ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, bindingEffects } from '../../public/js/render/vfx/skills.js';
+import { DUO_PROJECTILES } from '../../public/js/render/vfx/indexGaps.js';
 
-const LOOPING = new Set(['bslime_die_01_start', 'enemy_acstmr_explode_range']);
-const KEYS = [...LOOPING, 'snslime_die_01_start', 'g_hit', 'g_enemy', 'g_heal'];
+const LOOPING = new Set(['bslime_die_01_start', 'enemy_acstmr_explode_range', 'enemy_msfyin_idle_01', 'enemy_nhstlk_attack_buff_01', 'enemy_ymtro_buff_02', 'enemy_ymtro_buff_03']);
+const KEYS = [...LOOPING, 'enemy_ymtro_buff_01', 'snslime_die_01_start', 'enemy_sgrobh_attack_01', 'enemy_sgrobh_attack_02', 'enemy_sgrobh_attack_hit_01', 'g_hit', 'g_enemy', 'g_heal'];
 
 function makeIndex() {
   const prefabs = Object.fromEntries(KEYS.map((k) => [k, { file: `prefabs/${k}.json`, looping: LOOPING.has(k), spawn: 5 }]));
@@ -18,11 +19,20 @@ function makeIndex() {
       enemy_1021_bslime: slime('projectile_bslime'), enemy_1067_snslime: slime('projectile_snslime'),
       enemy_9016_acstmr: { kind: 'enemy', modes: melee, skills: {}, startEffect: null, deadEffect: null, projectiles: ['projectile_enemy_acstmr_s1'],
         talents: { killed: { nodes: [{ node: 'Modes/Boom/Body/Talents/killed', class: 'Talent', ability: 'BslimeTalent_1', mode: 'Boom', when: null }], uses: [], projectiles: ['projectile_enemy_acstmr_s1'] } } },
+      // the index-gap fallback's carriers (indexGaps.js ENEMY_STATE_KEYS): no plan names their rows' buffs
+      enemy_1196_msfyin: { kind: 'enemy', modes: melee, skills: {}, talents: {}, startEffect: null, deadEffect: null, projectiles: [] },
+      enemy_1270_nhstlk: { kind: 'enemy', modes: melee, skills: {}, talents: {}, startEffect: null, deadEffect: null, projectiles: [] },
+      enemy_1302_ymtro_2: { kind: 'enemy', modes: melee, skills: {}, talents: {}, startEffect: null, deadEffect: null, projectiles: [] },
+      // Unicycle Toy: a DuoRangedAttack whose `_duoProjectileKey` the index does not carry (indexGaps.js DUO_PROJECTILES)
+      enemy_10018_sgrobh: { kind: 'enemy', skills: {}, startEffect: null, deadEffect: null, talents: {}, projectiles: ['projectile_enemy_sgrobh_1', 'projectile_enemy_sgrobh_2'],
+        modes: [{ name: 'Default', attack: { class: 'DuoRangedAttack', projectileKey: 'projectile_enemy_sgrobh_1', cast: [], hit: [] }, combat: null }] },
     },
     skills: {},
     projectiles: {
       projectile_bslime: { main: null, lifeTime: 1, toTargetOnStart: ['bslime_die_01_start'], effects: ['bslime_die_01_start'] },
       projectile_snslime: { main: null, lifeTime: 1, toTargetOnStart: ['snslime_die_01_start'], effects: ['snslime_die_01_start'] },
+      projectile_enemy_sgrobh_1: { main: null, lifeTime: 1.5, link: 'enemy_sgrobh_attack_01', behaviours: [{ class: 'HarpoonRenderer', fields: { _mainEffect: 'enemy_sgrobh_attack_01' } }], onHit: ['enemy_sgrobh_attack_hit_01'], effects: ['enemy_sgrobh_attack_01', 'enemy_sgrobh_attack_hit_01'] },
+      projectile_enemy_sgrobh_2: { main: null, lifeTime: 1.5, link: 'enemy_sgrobh_attack_02', behaviours: [{ class: 'HarpoonRenderer', fields: { _mainEffect: 'enemy_sgrobh_attack_02' } }], onHit: ['enemy_sgrobh_attack_hit_01'], effects: ['enemy_sgrobh_attack_02', 'enemy_sgrobh_attack_hit_01'] },
       projectile_enemy_acstmr_s1: { main: null, lifeTime: 9.95, onReached: ['enemy_acstmr_explode_range'], effects: ['enemy_acstmr_explode_range'] },
     },
     skins: {},
@@ -49,8 +59,9 @@ async function setup() {
   const views = new Map();
   const w = new FxWiring(ofx, { speed: () => 10, record: () => null, view: (id) => views.get(id) || null });
   await w.ready();
-  const view = (id, key, x, y = 9) => {
-    const v = { id, x, y, z: 0, visFacing: 1, isEnemy: true, alive: true, flags: 0, info: { id, spine: key, defId: key, side: 'enemy', kind: 'enemy' } };
+  const view = (id, key, x, y = 9, enemy = true) => {
+    const side = enemy ? 'enemy' : 'player';
+    const v = { id, x, y, z: 0, visFacing: 1, isEnemy: enemy, alive: true, flags: 0, info: { id, spine: key, defId: key, side, kind: enemy ? 'enemy' : 'char' } };
     views.set(id, v);
     return v;
   };
@@ -125,5 +136,72 @@ describe("Armor Piercer's arrival (its Boom talent projectile's reached effect o
     assert.equal(w.simFx('explode', 7, 6, { r: 1.5, kind: 'helmShell', tiles: 'box' }), false);
     assert.equal(w.simFx('explode', 2, 2, { r: 1.5, kind: 'bladeDive', tiles: 'box' }), false);
     assert.deepEqual(spawned.filter((k) => !k.startsWith('g_')), []);
+  });
+});
+
+describe("Unicycle Toy's two harpoons (DuoRangedAttack: the second target of one attack flies its duo projectile)", () => {
+  const links = (spawned) => spawned.filter((k) => /^enemy_sgrobh_attack_0/.test(k));
+
+  test('one attack on two targets: harpoon 1 at the first, harpoon 2 at the second', async () => {
+    const { w, view, frame, spawned } = await setup();
+    const toy = view(7, 'enemy_10018_sgrobh', 8, 5);
+    const a = view(8, 'char_a', 5, 5, false), b = view(9, 'char_b', 6, 6, false);
+    frame();
+    w.attack(toy, a, 'enemy', 1);
+    w.attack(toy, b, 'enemy', 1);
+    assert.deepEqual(links(spawned), ['enemy_sgrobh_attack_01', 'enemy_sgrobh_attack_02']);
+  });
+
+  test('one target per attack: always harpoon 1 (the duo key is for the second target only)', async () => {
+    const { w, view, frame, spawned } = await setup();
+    const toy = view(7, 'enemy_10018_sgrobh', 8, 5);
+    const a = view(8, 'char_a', 5, 5, false);
+    frame();
+    w.attack(toy, a, 'enemy', 1);
+    frame();
+    w.attack(toy, a, 'enemy', 2);
+    assert.deepEqual(links(spawned), ['enemy_sgrobh_attack_01', 'enemy_sgrobh_attack_01']);
+  });
+});
+
+describe('the index-gap fallback (indexGaps.js ENEMY_STATE_KEYS): a b.snap fxs row no plan names', () => {
+  const live = (handles, key) => handles.filter((h) => h.key === key && h.alive);
+
+  test("a prop's idle loop on itself, by its unit; gone with the row", async () => {
+    const { view, frame, handles } = await setup();
+    const p = view(10, 'enemy_1196_msfyin', 5, 5);
+    p.fxs = [['msf_basic', null, null]];
+    frame();
+    const [h] = live(handles, 'enemy_msfyin_idle_01');
+    assert.ok(h && h.opts.loop, 'the idle loop plays, looped');
+    p.fxs = [];
+    frame();
+    assert.ok(!h.alive);
+  });
+
+  test("Rotchaser's bleed on the operator it bled (src: the Rotchaser)", async () => {
+    const { view, frame, handles } = await setup();
+    view(11, 'enemy_1270_nhstlk', 6, 5);
+    const op = view(12, 'char_a', 5, 5, false);
+    op.fxs = [['enemy_nhstlk_t[bleeding]', 11, null]];
+    frame();
+    assert.equal(live(handles, 'enemy_nhstlk_attack_buff_01').length, 1);
+    assert.equal(Math.abs(live(handles, 'enemy_nhstlk_attack_buff_01')[0].place.pos[0]), op.x, 'on the operator (x 5), not the Rotchaser (x 6)');
+  });
+
+  test("Sand Voyager's effect follows its passenger count (the row's look)", async () => {
+    const { view, frame, handles } = await setup();
+    const bus = view(13, 'enemy_1302_ymtro_2', 4, 4);
+    bus.fxs = [['durbus_passengers', null, 2]];
+    frame();
+    assert.equal(live(handles, 'enemy_ymtro_buff_02').length, 1);
+    bus.fxs = [['durbus_passengers', null, 3]];
+    frame();
+    assert.deepEqual([live(handles, 'enemy_ymtro_buff_02').length, live(handles, 'enemy_ymtro_buff_03').length], [0, 1]);
+  });
+
+  test('the duo table names a projectile of its own unit', () => {
+    const idx = makeIndex();
+    for (const [u, pk] of Object.entries(DUO_PROJECTILES)) assert.ok(idx.units[u].projectiles.includes(pk), `${u}: ${pk}`);
   });
 });
