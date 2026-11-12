@@ -1,7 +1,7 @@
 // server/sim/content/enemies/reflection.js — REFLECTION 折射 kits (深池 enemies, 守墓石像) and their part of KITS (split from
 // content/enemies.js).
 
-import { T, auraAllies, auraBuff } from './helpers.js';
+import { T, auraAllies, auraBuff, fxWhile } from './helpers.js';
 import { refraction, statue, kitRefraction } from './archetypes.js';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -22,6 +22,10 @@ function kitPhalanx(ab, e) {
 
 function kitHolyGuard(ab) {
   const r = T(ab, 'traitAbility.range_radius') ?? 1.1, aspd = T(ab, 'traitAbility.attack_speed') ?? 0;
+  // (fork) fx: its traitAbility (cast by enemy_dushdo_duholy_trigger while it is paired with a 影刃, stopped when the pair
+  // breaks) keeps duholy_traitAbility[TauntLevelUp] (enemy_duholy_buff) on it: while a 影刃 is in range, as the ASPD field
+  // below; display only (snapshot fxs)
+  const paired = (b, e) => b.enemiesInRadius(e.x, e.y, r).some((o) => /enemy_1175_dushdo/.test(o.defId));
   return [...kitRefraction(ab), {
     iv: 0.5,
     tick(b, e) {
@@ -31,7 +35,7 @@ function kitHolyGuard(ab) {
       // its page), but an airborne 起飞 one still [ASSUMED, as §21.22's ground-enemy auras]
       for (const u of auraAllies(b, e, e.x, e.y, r)) auraBuff(b, u, 'ab:forceField', 0.5, { aspd }, null, true);
     },
-  }];
+  }, fxWhile('duholy_traitAbility[TauntLevelUp]', paired)];
 }
 
 // ---------------------------------------------------------------------------------------------------------------

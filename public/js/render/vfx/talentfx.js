@@ -29,7 +29,7 @@
 // signal of its own (a template's cast at an event the client never sees, a talent attack no kit fx marks) never plays.
 
 import { talentBindings, toggleOn, triggerKinds, pointKinds, bindable, bindingKeys, nodeUses, summonTargets } from './talents.js';
-import { slotKey, lifeOf, stateEntries, stateRow } from './skills.js';
+import { slotKey, lifeOf, stateEntries, stateRow, planUses, emptyPlan } from './skills.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a talent's single cast lasts (SkillFx's SKILL_CAST_S). */
@@ -520,7 +520,32 @@ export class TalentFx {
         if (e.buff === buff && !rows.some((x) => x.key === e.key)) rows.push(e);
       }
     }
+    if (!rows.length) rows.push(...this._childRows(U, buff));
     return stateEntries(rows, buff, look);
+  }
+
+  /**
+   * (fork) The rows of buff `buff` from the unit's talent uses no binding's target rows hold — a use on a child of its
+   * talent's node (an ActiveAbilityWrapper's inner ability: 深池伙友卫队's `Talent/traitAbility/TauntLevelUp`, which
+   * nodeUses does not match), or one planned at an event (plan.trigger) — planned like a binding's, for a b.snap fxs row
+   * the sim signals (targetRows; cached per unit and buff).
+   */
+  _childRows(U, buff) {
+    const memo = U.childRows || (U.childRows = new Map());
+    if (memo.has(buff)) return memo.get(buff);
+    const out = [];
+    for (const [name, t] of Object.entries(this.w.idx?.units?.[U.key]?.talents || {})) {
+      const uses = (Array.isArray(t?.uses) ? t.uses : []).filter((u) => u && u.buff === buff);
+      if (!uses.length) continue;
+      const p = planUses(this.w.idx, emptyPlan(U.key, name), uses, { mode: null, abilities: t.abilities });
+      // (and a talent's rows at an event the client never sees — 吉兆飞鳞's sprint at its first damage taken: plan.trigger)
+      for (const e0 of [...p.state, ...p.targets, ...p.start, ...p.loop, ...p.unmapped, ...p.trigger]) {
+        const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
+        if (e.buff === buff && !out.some((x) => x.key === e.key)) out.push(e);
+      }
+    }
+    memo.set(buff, out);
+    return out;
   }
 
   /** Every key the battle's units' talents and abilities can play (preloading). */

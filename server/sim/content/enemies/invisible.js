@@ -3,7 +3,7 @@
 
 import { canTargetAlly, enemyStealthed } from '../../targeting.js';
 import { ALLY_COLLIDER_RADIUS } from '../../constants.js';
-import { T, elem, hurt, targetsNear, byPriority, auraBuff, castSlot, attackSkillOf } from './helpers.js';
+import { T, elem, hurt, targetsNear, byPriority, auraBuff, castSlot, attackSkillOf, fxWhile } from './helpers.js';
 import { stealth, onHitStatus, skill, kitStealth } from './archetypes.js';
 import { hypot } from '../../detmath.js';
 
@@ -13,6 +13,8 @@ import { hypot } from '../../detmath.js';
 /** 假想敌：骨刺's targets at once while its 隐匿 holds: 3 — the level's own description 「隐匿；隐匿状态下同时攻击3个目标。」
  *  (enemy_database; the handbook line says 「数个目标」) and PRTS 天赋 「隐匿期间可同时攻击3个目标」 (GitHub #365). */
 const ACBUNN_TARGETS = 3;
+/** (fork) 假想敌：骨刺: seconds between its 隐匿 checks for the official switch effect (its templates' trigger interval [ASSUMED]). */
+const ACBUNN_SWITCH_CHECK = 0.1;
 
 /** 重弩突袭者 直击 reach along a row/column [ASSUMED]; the skill's length and its charge before the bolt (PRTS 直击 "蓄力1.4s后
  *  向目标方向发射1支弩箭…※技能持续2.5s"). */
@@ -117,14 +119,20 @@ function kitJazz(ab, e) {
 
 function kitShadowBlade(ab) {
   const bat = ab.t['traitAbility.base_attack_time'] ?? 0;
+  const paired = (b, e) => {
+    const partner = b.enemiesInRadius(e.x, e.y, 3).find((o) => /enemy_1174_duholy/.test(o.defId));
+    const r = partner && partner.mem.ab ? (T(partner.mem.ab, 'traitAbility.range_radius') ?? 1.1) : 1.1;
+    return !!partner && hypot(partner.x - e.x, partner.y - e.y) <= r + 1e-9;
+  };
   return [stealth(), {
     iv: 0.5,
     tick(b, e) {
-      const partner = b.enemiesInRadius(e.x, e.y, 3).find((o) => /enemy_1174_duholy/.test(o.defId));
-      const r = partner && partner.mem.ab ? (T(partner.mem.ab, 'traitAbility.range_radius') ?? 1.1) : 1.1;
-      if (partner && hypot(partner.x - e.x, partner.y - e.y) <= r + 1e-9 && e.base.bat > 0) auraBuff(b, e, 'ab:shadowSync', 0.5, { batPct: bat / e.base.bat });
+      if (paired(b, e) && e.base.bat > 0) auraBuff(b, e, 'ab:shadowSync', 0.5, { batPct: bat / e.base.bat });
     },
-  }];
+  },
+  // (fork) fx: its traitAbility (cast by enemy_dushdo_duholy_trigger while it is paired with a 卫队) keeps
+  // dushdo_traitAbility[BaseAttackTimeDown] (enemy_dushdo_2_buff) and [effect] (_buff_02) on it; display only (snapshot fxs)
+  fxWhile('dushdo_traitAbility[BaseAttackTimeDown]', paired), fxWhile('dushdo_traitAbility[effect]', paired)];
 }
 
 /**
@@ -146,6 +154,21 @@ function kitBoneSpike() {
       if (!enemyStealthed(e)) return;
       const l = byPriority(e, targetsNear(b, e, e.base.rangeRadius + ALLY_COLLIDER_RADIUS).filter(e.profile.canTarget));
       if (l.length) c.targets = l.slice(0, ACBUNN_TARGETS);
+    },
+  },
+  // (fork) fx, display only (snapshot fxs): its toggled talent's acbunn_invisible (enemy_acbunn_buff) while its 隐匿 holds,
+  // and enemy_acbunn_switch once each time it turns — the client's enemy_acbunn[cute] (CheckAbnormalFlag INVISIBLE: into
+  // its Horror mode) and enemy_acbunn[horror] (out of it)
+  fxWhile('acbunn_invisible', (b, e) => enemyStealthed(e)),
+  {
+    iv: ACBUNN_SWITCH_CHECK,
+    tick(b, e, a) {
+      const s = enemyStealthed(e);
+      if (a.st !== undefined && s !== a.st) {
+        if (s) b.fxState(e, 'enemy_acbunn[cute]', true, { dur: 1 });
+        else b.fxState(e, 'enemy_acbunn[horror]', true, { dur: 1 });
+      }
+      a.st = s;
     },
   }];
 }
