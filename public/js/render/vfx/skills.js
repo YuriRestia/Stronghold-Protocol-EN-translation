@@ -681,6 +681,9 @@ export const STATE_BUFFS = Object.freeze({
   // units (mousek_skill_01_buff / _02_buff; content/enemies/leaders.js mousekMark)
   'mousek_mark[b]': true,
   'mousek_mark[a]': true,
+  // (fork, enemy skills 2026-11-13) enemy_10027_vtsk 'Armor of the Empire': its Appear barrage's mark on the target
+  // (enemy_vtsk_skillRange, 5.8 s; special.js VTSK_MARK_FX): the marker only — the range is a tile effect, the 'telegraph'
+  'enemy_vtsk_skillRange': Object.freeze({ keys: Object.freeze(['enemy_vtsk_skill_01_marker_01']) }),
   // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
   // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
   // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
@@ -2239,6 +2242,13 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   enemy_1509_mousek: Object.freeze({
     zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }),
     telegraph: ebind({ xkind: 'driftSand', owner: 'id', keys: ['mousek_skill_01_range', 'mousek_skill_01_range_02'], once: true }),
+  }),
+  // (fork, enemy skills 2026-11-13) 'Armor of the Empire' (special.js, Appear): the shell's spot 0.8 s after the mark —
+  // the 'telegraph' of kind 'barrage', id = it: enemy_vtsk_skill_01_range_01 (the template's CreateTileEffect, not held:
+  // its own life) — and each shell's 'explode' of kind 'vtskShell' on the unit it hits: projectile_enemy_vtsk_s's hit
+  enemy_10027_vtsk: Object.freeze({
+    telegraph: ebind({ xkind: 'barrage', owner: 'id', keys: ['enemy_vtsk_skill_01_range_01'], once: true }),
+    explode: ebind({ xkind: 'vtskShell', owner: 'id', keys: ['enemy_vtsk_skill_01_hit_01'], once: true }),
   }),
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,

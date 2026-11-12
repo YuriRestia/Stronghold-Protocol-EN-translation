@@ -39,6 +39,19 @@ const CANNON_IMMUNE = Object.freeze(['stun', 'freeze', 'cold', 'levitate', 'slee
 const WDRRL_AOE_FX = 'enemy_wdrrl[AOE_attack]', WDRRL_AOE_TIME = 0.7;
 /** (fork) 'Armor of the Empire''s MultiCombat hit row (fx 'tick' key: the multi-hit the kit deals itself). */
 const VTSK_MULTI_HIT_KEY = 'enemy_vtsk_skill_02_hit_01';
+/**
+ * (fork, enemy skills 2026-11-13) 'Armor of the Empire''s Appear barrage, timed as the CN client's Skills/Appear
+ * (AbilityParallelGroup): its AnimatedActionToTargetAbility puts enemy_vtsk_skillRange (template
+ * enemy_vtsk_skillRange_start, 5.8 s; the marker enemy_vtsk_skill_01_marker_01 loops on the target, b.fxState), and its
+ * RangedAttack fires projectile_enemy_vtsk_s, which reaches the target's place after AttachToTarget's _delayToStart 0.8 s
+ * (no _followTarget: the spot stays; the template's 0.8 s child buff ends then: enemy_vtsk_skill_01_range_01 on that
+ * tile, the 'telegraph') and lands a shell every SelectorHitBehaviour _interval 0.5333 s (_waitFirstPeriod) on one unit of
+ * the 3×3 x-4 box, `times` hits (_maxHitNumBBKey) within its 5.85 s life, also after the enemy fell
+ * (_stopWhenSourceInvalid 0). [ASSUMED] the hit timer starts as the shell reaches the spot (it would otherwise land its
+ * first hit before the range shows). Until then the sim dealt every hit at once, 0.5 s after it appeared.
+ */
+const VTSK_MARK_FX = 'enemy_vtsk_skillRange', VTSK_MARK_S = 5.8, VTSK_SHELL_DELAY = 0.8, VTSK_SHELL_EVERY = 0.5333,
+  VTSK_SHELL_LIFE = 5.85;
 /** Radius of 骸骨拷打者's "周围" death sensing when its talent has no Attack.range_radius [ASSUMED]. */
 const TORTURER_RADIUS = 1;
 
@@ -432,13 +445,21 @@ export const SPECIAL_KITS = Object.freeze({
           const lock = allTargets(b, e).sort((p, q) => q.hp - p.hp)[0];
           if (!lock) return;
           castSlot(b, e, ap);   // the entrance barrage is its Appear skill (display only)
-          b.fx('telegraph', { x: lock.x, y: lock.y, r: 1, kind: 'barrage', id: e.id });
-          for (let i = 0; i < n; i++) {
-            // "对碰撞范围内的1名当前生命值最高的我方单位" — an area selection: never an airborne 起飞 ally nor an unblocking
-            // 隐匿 one (PRTS “帝国的甲胄”; areaAlliesInTiles)
-            const t = areaAlliesInTiles(b, e, lock.tileR, lock.tileC, 'box', 1).sort((p, q) => q.hp - p.hp)[0];
-            if (t) hurt(b, e, t, e.s.atk, 'phys');
-          }
+          b.fxState(lock, VTSK_MARK_FX, true, { src: e, dur: VTSK_MARK_S });
+          b.after(VTSK_SHELL_DELAY, () => {
+            const x = lock.x, y = lock.y, r = lock.tileR, c = lock.tileC;   // the shell's spot: the target's place now
+            b.fx('telegraph', { x, y, r: 1, kind: 'barrage', id: e.id, dur: VTSK_SHELL_LIFE - VTSK_SHELL_DELAY });
+            for (let i = 1; i <= n && i * VTSK_SHELL_EVERY <= VTSK_SHELL_LIFE - VTSK_SHELL_DELAY; i++) {
+              b.after(i * VTSK_SHELL_EVERY, () => {
+                // "对碰撞范围内的1名当前生命值最高的我方单位" — an area selection: never an airborne 起飞 ally nor an
+                // unblocking 隐匿 one (PRTS “帝国的甲胄”; areaAlliesInTiles)
+                const t = areaAlliesInTiles(b, e, r, c, 'box', 1).sort((p, q) => q.hp - p.hp)[0];
+                if (!t) return;
+                hurt(b, e, t, e.s.atk, 'phys');
+                b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'vtskShell', id: e.id });   // its hit row (display only)
+              }, { owner: e });
+            }
+          }, { owner: e });
         }, { owner: e });
       },
       hitOut(c, b, e) { if (c.dmg.isAttack && c.target !== e.blockedBy) c.dmg.amount *= T(ab, 'range.attack@atk_scale_range') ?? 1; },
