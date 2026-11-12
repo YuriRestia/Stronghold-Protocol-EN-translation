@@ -2,6 +2,7 @@
 // the art diff and its gate, the CI decision, the fold-or-skip step, the sudo rewrite and the command line.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   parseReleaseArgs, githubRepo, ciDecision, ciShips, foldPlan, foldMessage, sudoLine, DEFAULT_HOSTS,
   clipInfo, clipVerdict, stripClipStamp,
@@ -10,6 +11,10 @@ import {
   parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, urlToPath, SHARED_LISTS, PUBLIC_FILE_LIMIT,
 } from '../scripts/release-art.mjs';
 import { prepareCommand, statusCommand, sudoCheckCommand } from '../scripts/deploy-regions.mjs';
+import {
+  nextNewsId, draftNewsLines, draftNews, editorText, parseEditorText, newsFromEdit, builtInNews, newsFile,
+} from '../scripts/release-news.mjs';
+import { newsProblems, NEWS_MAX_POINTS } from '../shared/news.js';
 
 describe('art diff (release-art.mjs)', () => {
   const manifest = { ops: { a: { img: '/assets/a.png', voice: ['/assets/v%20b.ogg?x=1'] } }, font: '/fonts/f.woff2', other: 'https://x/y.png', n: 3 };
@@ -159,5 +164,55 @@ describe('command line', () => {
     assert.equal(githubRepo('https://github.com/YuriRestia/Stronghold-Protocol-EN-translation.git'), 'YuriRestia/Stronghold-Protocol-EN-translation');
     assert.equal(githubRepo('git@github.com:o/r.git'), 'o/r');
     assert.equal(githubRepo('https://example.com/o/r'), null);
+  });
+});
+
+describe('update news draft (release-news.mjs)', () => {
+  test('the real built-in banner reads back in English, every line translated', () => {
+    const root = new URL('..', import.meta.url);
+    const b = builtInNews(readFileSync(new URL('public/js/ui/matchSearch.js', root), 'utf8'), JSON.parse(readFileSync(new URL('public/i18n/en.json', root), 'utf8')));
+    assert.ok(b && b.langs.en.highlights.length && b.langs.en.points.length);
+    for (const l of [...b.langs.en.highlights, ...b.langs.en.points]) assert.doesNotMatch(l, /[\u4e00-\u9fff]/, l);
+    assert.deepEqual(newsProblems(newsFromEdit({ id: nextNewsId(b.id), title: 'Update', ...b.langs.en })), []);
+  });
+
+  const frag = (name, ...heads) => ({ name, text: `## 2026-11-13\n\n${heads.map((h) => `### ${h}\n\n- x\n`).join('\n')}\nServer cost: none\n` });
+
+  test('the id follows the version bump pattern, from the live news or the built-in id', () => {
+    assert.equal(nextNewsId('0.3.4-2'), '0.3.4-3');
+    assert.equal(nextNewsId('0.3.4'), '0.3.4-1');
+    assert.equal(builtInNews('nothing', {}), null);
+    const src = "export const UPDATE_NEWS_ID = '0.3.4-2';\nconst UPDATE_HIGHLIGHTS = [\n  N_('新'), // en\n];\nconst UPDATE_POINTS = [\n  N_('点\\'一'),\n  N_('无译'),\n];\n";
+    const b = builtInNews(src, { '新': 'New', "点'一": "Point's one" });
+    assert.deepEqual(b, { id: '0.3.4-2', langs: { en: { highlights: ['New'], points: ["Point's one", '无译'] } } });
+    assert.equal(draftNews(b, []).id, '0.3.4-3');
+    assert.equal(draftNews(null, []).id, '0-1');
+    assert.equal(newsFile('0.3.4-3'), 'logs/news-0.3.4-3.json');
+  });
+
+  test('draft: fragment headings first, backend-only ones set aside, the live points after, cut to the limit', () => {
+    const { points, skipped } = draftNewsLines([frag('a.md', 'A quick start keeps your custom squad', "The fork's online checks (GitHub CI) pass again"), frag('b.md', 'A quick start keeps your custom squad', 'Golden files refresh')]);
+    assert.deepEqual(points, ['A quick start keeps your custom squad']);
+    assert.deepEqual(skipped.map((s) => s.name), ['a.md', 'b.md']);
+    const old = Array.from({ length: 16 }, (_, i) => `old ${i}`);
+    const live = { id: '0.3.4-5', langs: { en: { title: 'Update 0.3.4-5', highlights: ['H'], points: old }, ja: { title: 'J', points: ['j'] } } };
+    const d = draftNews(live, [frag('c.md', 'New one', 'old 3')]);
+    assert.deepEqual([d.id, d.title, d.highlights, d.fresh], ['0.3.4-6', 'Update 0.3.4-6', ['H'], 2]);
+    assert.deepEqual(d.points.slice(0, 3), ['New one', 'old 3', 'old 0']);
+    assert.equal(d.points.length, NEWS_MAX_POINTS);
+    assert.deepEqual(d.cut, ['old 15'], 'old 3 moved up, not repeated');
+  });
+
+  test('the Notepad text round-trips; notes, bullets, a BOM and CRLF are fine', () => {
+    const d = { id: '0.3.4-3', title: 'Update 0.3.4-3', highlights: ['<@sp.leaf>Talulah</> joins'], points: ['One', 'Two'], cut: ['Three'], skipped: [{ line: 'CI', name: 'x.md' }] };
+    const text = editorText(d, ['a problem']);
+    assert.match(text, /Wording rules/);
+    assert.match(text, /# PROBLEMS/);
+    const e = parseEditorText(String.fromCharCode(0xFEFF) + text.replace('One', '- One'));
+    assert.deepEqual(e, { id: '0.3.4-3', title: 'Update 0.3.4-3', highlights: ['<@sp.leaf>Talulah</> joins'], points: ['One', 'Two'] });
+    const news = newsFromEdit(e);
+    assert.deepEqual(Object.keys(news.langs), ['en'], 'English only: the other languages fall back to it');
+    assert.deepEqual(newsProblems(news), []);
+    assert.ok(newsProblems(newsFromEdit({ ...e, id: '' })).length, 'a missing id is refused');
   });
 });

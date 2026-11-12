@@ -11,8 +11,9 @@
 //
 // Steps, in order; the first failure stops the release with what to do, and each step prints what it changed:
 //   0. checks: on dev-0.2, no uncommitted change to tracked files, nothing on GitHub's dev-0.2 that this PC lacks
-//   1. the changelog fragments folded into FORK-CHANGELOG.md (tools/changelog.mjs --write) and the lobby's update news
-//      bumped from them (scripts/release-news.mjs): each shown, then committed. Nothing to fold: says so, goes on.
+//   1. the changelog fragments folded into FORK-CHANGELOG.md (tools/changelog.mjs --write), shown and committed; and
+//      the lobby's live update news drafted from them (scripts/release-news.mjs): edited in Notepad, checked, saved in
+//      logs/. It goes live only with the news command printed at the end, after you activate. Nothing to fold: goes on.
 //   2. dev-0.2 pushed to origin (only dev-0.2: the script pushes nothing else)
 //   3. GitHub's checks (CI) on the pushed commit, read with `gh`: waits up to --ci-timeout. Not green: stops, unless
 //      you answer y to "ship anyway?" or passed --skip-ci.
@@ -186,6 +187,12 @@ async function ask(question) {
   try { return /^y(es)?$/i.test((await rl.question(`${question} y/N `)).trim()); } finally { rl.close(); }
 }
 
+/** One typed line (e.g. Enter after editing the news in Notepad). */
+async function promptLine(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try { return await rl.question(question); } finally { rl.close(); }
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -271,7 +278,7 @@ function preflight(o) {
 
 // -- step 1 ------------------------------------------------------------------------------------------------------
 
-function foldChangelog(o) {
+async function foldChangelog(o, runners) {
   head(1, 'Changelog and update news');
   const files = fragmentFiles(join(o.root, 'changes'));
   const plan = foldPlan(files);
@@ -281,7 +288,7 @@ function foldChangelog(o) {
     if (check.status !== 0) stop(`a fragment is not valid; fix it first:\n${String(check.stdout || '') + String(check.stderr || '')}`);
   }
   // the news is drafted from the fragments before they are folded away
-  const news = bumpNews({ root: o.root, fragments: files, dryRun: o.dryRun, ask: o.askSync });
+  const news = await bumpNews({ root: o.root, fragments: files, dryRun: o.dryRun, live: files.length ? liveNews(o, runners) : null, ask, prompt: promptLine });
   if (!plan.fold) return { folded: 0, news };
   if (o.dryRun) { say('  (dry run) would run: node tools/changelog.mjs --write, then commit FORK-CHANGELOG.md and changes/'); return { folded: 0, news }; }
   const w = spawnSync(process.execPath, ['tools/changelog.mjs', '--write'], { cwd: o.root, encoding: 'utf8', windowsHide: true });
@@ -291,6 +298,18 @@ function foldChangelog(o) {
   git(o.root, ['commit', '-q', '-m', foldMessage(files.length, new Date().toISOString().slice(0, 10))]);
   say(git(o.root, ['show', '--stat', '--format=  committed: %s', 'HEAD']));
   return { folded: files.length, news };
+}
+
+/**
+ * The live news now on the first server we can read (its logs/news.json), parsed JSON or null (none, unreadable, or
+ * no sudo for it in a dry run). Every server holds the same file (deploy-regions.mjs news puts it on all of them).
+ */
+function liveNews(o, runners) {
+  const r = o.hosts.map((h) => runners.get(h.host)).find(Boolean);
+  if (!r) { say('  news: no server readable (sudo password), drafting without the live news'); return null; }
+  const got = r.capture(`sudo bash -c ${shQuote(`cd ${APP} && [ -f logs/news.json ] && head -c 65536 logs/news.json; true`)}`);
+  if (got.status !== 0 || !got.stdout.trim()) return null;
+  try { return JSON.parse(got.stdout); } catch { say(`  news: ${r.host}'s logs/news.json is not JSON; drafting without it`); return null; }
 }
 
 // -- step 2 ------------------------------------------------------------------------------------------------------
@@ -559,17 +578,20 @@ export async function main(argv) {
     say(gone.length ? `[sudo] forgotten: ${gone.join(', ')}` : '[sudo] no remembered password');
     return 0;
   }
-  o.askSync = (q) => ask(q);
   process.chdir(o.root); // prepare (deploy-regions.mjs) resolves the commit in the working directory
   say(`[release] ${o.dryRun ? 'DRY RUN: reads only; nothing is committed, pushed, uploaded or prepared' : 'release'} · servers ${formatHosts(o.hosts)}`);
   const pre = preflight(o);
   const runners = runnersFor(o.hosts, o);
-  const folded = foldChangelog(o);
+  const folded = await foldChangelog(o, runners);
   const sha = push(o, pre);
   const ci = await ciStep(o, pre, sha);
   const art = await artStep(o, runners);
   const gen = prepareStep(o, runners, sha);
   say(`\n[release] ${o.dryRun ? 'dry run done: nothing changed' : `done: ${gen} is prepared on every server; activate stays your command`}`);
+  if (folded.news?.file) {
+    say(`  Update news: after you activate, put it live on every server (players on the old version would read it too early before):`);
+    say(`    node scripts/deploy-regions.mjs news --hosts ${o.hosts.map((h) => h.host).join(',')} ${folded.news.file}`);
+  }
   say(`  changelog: ${folded.folded ? `${folded.folded} fragment(s) folded` : 'nothing folded'} · news: ${folded.news?.say || '-'} · CI: ${ci} · art: ${art ? `${art.plan.upload.length} file(s) ${o.dryRun ? 'to upload' : 'uploaded'}, gate missing ${art.gate.missing.length}` : 'skipped'}`);
   return 0;
 }
