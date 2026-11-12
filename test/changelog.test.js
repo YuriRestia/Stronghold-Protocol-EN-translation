@@ -71,8 +71,8 @@ describe('operator-only content', () => {
 
   test('each kind of operator-only line in a section is refused with what it is', () => {
     const cases = [
-      ['the site at stronghold-en.dev', /a domain name/],
-      ['moved to 15.235.210.12', /an IP address/],
+      ['the site at play.example.net', /a domain name/],
+      ['moved to 203.0.113.7', /an IP address/],
       ['run it on usspa first', /a server alias/],
       ['players on the Singapore server', /a server region name/],
       ['then `sudo systemctl restart`', /a server command/],

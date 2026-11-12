@@ -42,7 +42,7 @@ upstream links, and a new setting in general terms ("`SP_X=1` turns on Y"). Our 
 
 | Goes in the sections | Goes in `Operator notes:` (or `Server cost:`), never folded |
 |---|---|
-| "Players connect to the nearest server" | Which servers we run, their regions (Singapore, US East), aliases (`spa`, `usspa`) |
+| "Players connect to the nearest server" | Which servers we run, their regions and SSH aliases |
 | "New setting `SP_REGIONS` lists the servers" | The values we set, our domain, IP addresses, the proxy or CDN set-up we use |
 | "A prepared version waits 4 hours for activate" | Deploy steps, `ssh` / `sudo` / `systemctl` / `journalctl` commands, `/etc` and `/opt` paths, `peer.env` |
 | "Bots run in the host's browser" | Traffic and disk numbers (MB/s, GB/day): they belong in `Server cost:` |
