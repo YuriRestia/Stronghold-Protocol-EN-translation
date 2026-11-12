@@ -190,7 +190,9 @@ function kitFlameVine(ab) {
 }
 
 function kitNucleus(ab) {
-  return [{
+  // (fork) fx: the client's dslntf_tr_1 adds dslntf_tr_1[aura_effect] (enemy_dslntf_buff_03) at its first damage taken (or
+  // a block): its combat state, which never ends; display only (snapshot fxs)
+  return [fxWhile('dslntf_tr_1', (b, e) => !!e.findBuff('ab:combat')), {
     taken(c, b, e, a) { if (a.on) return; a.on = true; b.addBuff(e, { key: 'ab:combat', persist: true, visible: true, mods: { moveMul: T(ab, '0.move_speed') ?? 1 } }); },
     iv: T(ab, '1.interval') ?? 1,
     // 【孽生者的神经毒素】 "（无视迷彩，同名效果不叠加…）": an area selection (no unblocking 隐匿 ally)

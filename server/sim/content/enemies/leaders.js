@@ -54,6 +54,9 @@ const MCM_RANGE = 2.5, MCM_BOMB_DELAY = 2.17;
  *  one used. Until 0.1.3: any unit within 1.5, 隐匿 / 迷彩 ones included. */
 const RUSH_RADIUS = 3;
 
+/** (fork) “遗弃者”: the attack stacks its official glow needs (enemy_axetro_t's FilterByBuffStackCount `_stackCount`: 3). */
+const AXETRO_FX_STACKS = 3;
+
 /** W's C4 fuse and blast radius [ASSUMED]. */
 const C4_FUSE = 1, C4_RADIUS = 1;
 
@@ -276,7 +279,11 @@ function kitLeaderMisc(key, ab, e) {
         },
         iv: 0.5,
         tick(b, e2, a) { if (a.last != null && b.time - a.last >= (T(ab, 'checker.delay') ?? 4)) { a.last = null; b.removeBuff(e2, 'ab:axeStack'); } },
-      }];
+      },
+      // (fork) fx: the client's enemy_axetro_t adds axetro_t[effect] (axetro_buff_01_start) once its stacks reach
+      // AXETRO_FX_STACKS (FilterByBuffStackCount GE, the template's constant), until its checker clears them; display
+      // only (snapshot fxs)
+      fxWhile('axetro_t', (b, e2) => (e2.findBuff('ab:axeStack')?.stacks ?? 0) >= AXETRO_FX_STACKS)];
     case 'enemy_2008_flking': {
       // 使全战场我方所有单位攻击力、防御力减半 (text; the blackboard's atkdown.atk_scale is not the halving),
       // 部署费用回复速度减半，再部署时间加倍; 周期性地添加正比于自身最大生命值的伤害防护屏障. The halving is a map effect

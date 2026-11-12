@@ -108,3 +108,73 @@ test('enemy_1174_duholy / enemy_1175_dushdo_2: their trait effects while paired'
   assert.equal(on(h, s2, 'dushdo_traitAbility[effect]'), true);
   assert.equal(on(h, s, 'dushdo_traitAbility[effect]'), false, 'the far one stays unpaired');
 });
+
+test('enemy_1439_dslntf(_2): its combat-state aura from its first damage taken', () => {
+  const h = arena();
+  h.step();
+  for (const key of ['enemy_1439_dslntf', 'enemy_1439_dslntf_2']) {
+    const e = put(h, key, [10, 7]);
+    h.step();
+    assert.equal(on(h, e, 'dslntf_tr_1'), false, key);
+    h.b.dealDamage(null, e, { amount: 1, type: 'true' });
+    h.step();
+    assert.equal(on(h, e, 'dslntf_tr_1'), true, key);
+  }
+});
+
+test("enemy_2005_axetro: its glow from 3 attack stacks, gone when they reset", () => {
+  const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+  h.step();
+  const e = put(h, 'enemy_2005_axetro', [9, 5]);
+  h.runUntil(() => e.stats.attacks >= 2, 30);
+  assert.equal(on(h, e, 'axetro_t'), false, 'two stacks');
+  h.runUntil(() => e.stats.attacks >= 3, 30);
+  assert.equal(on(h, e, 'axetro_t'), true);
+  h.b.removeBuff(e, 'ab:axeStack');
+  assert.equal(on(h, e, 'axetro_t'), false);
+});
+
+test('enemy_2010_csdcr: warning glow from its warning hit count, the song burst on it and the ASPD glow on every enemy (src it)', () => {
+  const h = arena();
+  h.step();
+  const s = put(h, 'enemy_2010_csdcr', [10, 7]), o = put(h, 'enemy_1007_slime', [11, 7]);
+  const E = s.mem.ab.t;
+  const hit = () => h.b.dealDamage(null, s, { amount: 1, type: 'true' });
+  const rows = (u) => (fxStateView(u, h.b.time) || []).filter((r) => r[0] === 'csdcr_t');
+  for (let i = 1; i < E['AttackSpeedUp.warning_stack_cnt']; i++) hit();
+  assert.deepEqual(rows(s), []);
+  hit();
+  assert.deepEqual(rows(s), [['csdcr_t', null, 'warn']]);
+  for (let i = E['AttackSpeedUp.warning_stack_cnt']; i < E['AttackSpeedUp.stack_cnt']; i++) hit();
+  assert.deepEqual(rows(s).map((r) => r[2]).sort(), ['aspd', 'song']);
+  assert.deepEqual(rows(o), [['csdcr_t', s.id, 'aspd']]);
+  h.run(1.5);
+  assert.deepEqual(rows(s).map((r) => r[2]), ['aspd'], 'the burst once; the warning gone with the count');
+  h.run(E['AttackSpeedUp.duration']);
+  assert.deepEqual(rows(o), [], 'the ASPD over');
+});
+
+test('enemy_9008_acbunn: its stealth glow while hidden, the switch burst as it turns', () => {
+  const h = arena({ units: [{ chessId: 't_wall', row: 9, col: 5 }] });
+  h.step();
+  const e = h.spawn('enemy_9008_acbunn', { pos: [9, 9], routeIndex: 0 });
+  h.step(2);
+  assert.equal(on(h, e, 'acbunn_invisible'), true);
+  h.runUntil(() => !!e.blockedBy, 30);
+  h.run(0.2);
+  assert.equal(on(h, e, 'acbunn_invisible'), false, 'blocked: revealed');
+  assert.equal(on(h, e, 'enemy_acbunn[horror]'), true, 'the switch out of hiding');
+});
+
+test('enemy_10045_parrot: its sprint glow while the first-hit sprint lasts', () => {
+  const h = arena();
+  h.step();
+  const e = put(h, 'enemy_10045_parrot', [10, 7]);
+  h.step();
+  assert.equal(on(h, e, 'parrot_m0_t[speed_up]'), false);
+  h.b.dealDamage(null, e, { amount: 1, type: 'true' });
+  h.step();
+  assert.equal(on(h, e, 'parrot_m0_t[speed_up]'), true);
+  h.run(e.mem.ab.t['M0SpeedUp.duration'] + 0.5);
+  assert.equal(on(h, e, 'parrot_m0_t[speed_up]'), false);
+});

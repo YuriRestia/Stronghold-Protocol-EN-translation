@@ -657,6 +657,17 @@ export const STATE_BUFFS = Object.freeze({
   'enemy_cbjedi_bleed': true,
   'enemy_lrsldr[switchMode][toOrig]': true,
   'hlchgr_t[attribute_storage]': true,
+  // (fork) enemies, official conditions: glows an event starts. By enemy id: 1439 Nucleic Maleficent from its first damage
+  // taken; 2005 'Forsaken One' from 3 attack stacks; 2010 Scarlet Singer — `warn` from its warning hit count, `song` the
+  // burst as it sings, `aspd` on every enemy while the ASPD it gives lasts (src the Singer); 9008 OpFor: Bonespur while
+  // stealthed, its switch burst as that turns; 10045 Lucky Flyfin while it sprints
+  'dslntf_tr_1': true,
+  'axetro_t': true,
+  'csdcr_t': { looks: L({ warn: ['enemy_csder_buff_02'], song: ['enemy_csder_buff_01_range_01'], aspd: ['enemy_csder_buff_01'] }) },
+  'acbunn_invisible': true,
+  'enemy_acbunn[cute]': true,
+  'enemy_acbunn[horror]': true,
+  'parrot_m0_t[speed_up]': true,
 });
 
 /**

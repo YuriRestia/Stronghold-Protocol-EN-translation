@@ -525,9 +525,10 @@ export class TalentFx {
   }
 
   /**
-   * (fork) The rows of buff `buff` from the unit's talent uses no binding holds — a use on a child of its talent's node
-   * (an ActiveAbilityWrapper's inner ability: 深池伙友卫队's `Talent/traitAbility/TauntLevelUp`, which nodeUses does not
-   * match) — planned like a binding's, for a b.snap fxs row the sim signals (targetRows; cached per unit and buff).
+   * (fork) The rows of buff `buff` from the unit's talent uses no binding's target rows hold — a use on a child of its
+   * talent's node (an ActiveAbilityWrapper's inner ability: 深池伙友卫队's `Talent/traitAbility/TauntLevelUp`, which
+   * nodeUses does not match), or one planned at an event (plan.trigger) — planned like a binding's, for a b.snap fxs row
+   * the sim signals (targetRows; cached per unit and buff).
    */
   _childRows(U, buff) {
     const memo = U.childRows || (U.childRows = new Map());
@@ -537,7 +538,8 @@ export class TalentFx {
       const uses = (Array.isArray(t?.uses) ? t.uses : []).filter((u) => u && u.buff === buff);
       if (!uses.length) continue;
       const p = planUses(this.w.idx, emptyPlan(U.key, name), uses, { mode: null, abilities: t.abilities });
-      for (const e0 of [...p.state, ...p.targets, ...p.start, ...p.loop, ...p.unmapped]) {
+      // (and a talent's rows at an event the client never sees — 吉兆飞鳞's sprint at its first damage taken: plan.trigger)
+      for (const e0 of [...p.state, ...p.targets, ...p.start, ...p.loop, ...p.unmapped, ...p.trigger]) {
         const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
         if (e.buff === buff && !out.some((x) => x.key === e.key)) out.push(e);
       }

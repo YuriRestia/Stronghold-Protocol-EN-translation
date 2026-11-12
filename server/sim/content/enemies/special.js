@@ -46,6 +46,12 @@ function infectionArts() {
   return { hitOut(c, b, e) { if (c.dmg.isAttack && onTerrain(b, e, 'infection')) c.dmg.type = 'arts'; } };
 }
 
+/**
+ * (fork) Seconds a one-shot official effect's fxs row stays in the snapshot (an event's burst: the client plays a
+ * 'trigger' row once per row; long enough for a snapshot to carry it, short enough not to repeat). [ASSUMED] display only.
+ */
+const CSDCR_SONG_FX = 1;
+
 /** (fork) 萨卡兹枯朽前锋's originium-mode glow (KITS below). */
 const LRSLDR_FX = fxWhile('enemy_lrsldr[switchMode][toOrig]', (b, e) => onTerrain(b, e, 'infection'));
 
@@ -104,7 +110,10 @@ const PARROT_CHILL_STUN = 0.05;
  */
 function kitParrot(ab) {
   const down = T(ab, 'Stun.duration') ?? 0;
-  return [float(), {
+  // (fork) fx: the client's parrot_m0_t[speed_up] (its first Fly mode: the first damage taken) keeps
+  // parrot_m0_t[speed_up_core] (enemy_parrot_move_1) on it while the sprint lasts; display only (snapshot fxs). Its
+  // Fly2 twin (parrot_m1_t, enemy_parrot_move_2) follows its ThrowEnemy, which our sim has not (no 冒险家水手 to throw)
+  return [float(), fxWhile('parrot_m0_t[speed_up]', (b, e) => !!e.findBuff('ab:parrotRun')), {
     taken(c, b, e, a) {
       if (a.ran || a.down) return;
       a.ran = true;
@@ -410,12 +419,17 @@ export const SPECIAL_KITS = Object.freeze({
   enemy_10159_mntrjn: (ab) => [unblockable(), passengerBus(ab, true)], // 伊利昂的木驮兽 · unblockable; bus.max_cnt / bus.move_speed
   enemy_2009_csaudc: kitEp('neural', 'combat.attack@ep_damage_ratio'), // 骇笑看客 · neural on hit
   enemy_2010_csdcr: (ab) => [ep('neural', T(ab, 'attack.attack@ep_damage_ratio') ?? 0), { // 绯红歌伶 · neural on hit; every 20 hits taken: global enemy ASPD up
+    // (fork) fx, display only (snapshot fxs) — the client's csdcr_t: csdcr_warning[effect] (enemy_csder_buff_02) on it from
+    // its warning_stack_cnt-th hit taken until the song; at the song enemy_csder_buff_01_range_01 once on it and
+    // csdcr_attack_speed_up (enemy_csder_buff_01) on every enemy while their ASPD lasts (src it)
+    spawn(b, e, a) { b.fxProbe(e, 'csdcr_t', () => ((a.n ?? 0) >= (T(ab, 'AttackSpeedUp.warning_stack_cnt') ?? Infinity) ? 'warn' : null)); },
     taken(c, b, e, a) {
       a.n = (a.n ?? 0) + 1;
       if (a.n < (T(ab, 'AttackSpeedUp.stack_cnt') ?? Infinity)) return;
       a.n = 0;
       b.fx('telegraph', { x: e.x, y: e.y, r: 99, kind: 'songOfWar', id: e.id });
-      for (const o of b.aliveEnemies()) b.addBuff(o, { key: 'ab:songOfWar', duration: T(ab, 'AttackSpeedUp.duration') ?? 0, refresh: 'extend', mods: { aspd: T(ab, 'AttackSpeedUp.attack_speed') ?? 0 }, visible: true });
+      b.fxState(e, 'csdcr_t', true, { look: 'song', dur: CSDCR_SONG_FX });
+      for (const o of b.aliveEnemies()) b.addBuff(o, { key: 'ab:songOfWar', duration: T(ab, 'AttackSpeedUp.duration') ?? 0, refresh: 'extend', mods: { aspd: T(ab, 'AttackSpeedUp.attack_speed') ?? 0 }, visible: true, fx: 'csdcr_t', fxSrc: e.id, fxLook: 'aspd' });
     },
   }],
   enemy_10001_trslim: (ab) => [skill(ab.sk.StartRun, (b, e) => {    // 简饲源石虫 · below half: runs (faster, unblockable 3 s)
