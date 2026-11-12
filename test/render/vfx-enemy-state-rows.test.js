@@ -63,3 +63,19 @@ test("an enemy's 'ready:<prefabKey>' row plays that skill's ready rows once per 
   s._states([ham]);
   assert.equal(played.length, 2, 'a skill it does not have plays nothing');
 });
+
+test("a 'stun' row plays only the Dockworker's own stun entry (STATE_BUFFS.stun.keys); another src's stun plays nothing", () => {
+  const records = new Map([
+    [5, { plan: null, enemy: [{ slot: 0, prefabKey: 'stuncombat', plan: { state: [], targets: [{ key: 'enemy_hvyslr_2_buff', buff: 'stun', role: 'loop', loop: true }] } }] }],
+    [6, { plan: null, enemy: [{ slot: 0, prefabKey: 'stuncombat', plan: { state: [], targets: [{ key: 'some_other_stun_fx', buff: 'stun', role: 'loop', loop: true }] } }] }],
+  ]);
+  const { s, played, views } = rig(records);
+  const dock = { id: 5, alive: true }, other = { id: 6, alive: true };
+  const op = { id: 8, alive: true, fxs: [['stun', 6, null]] };
+  views.set(5, dock); views.set(6, other); views.set(8, op);
+  s._states([dock, other, op]);
+  assert.deepEqual(played, [], "another src's stun: nothing");
+  op.fxs = [['stun', 5, null]];
+  s._states([dock, other, op]);
+  assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_hvyslr_2_buff', 8]]);
+});

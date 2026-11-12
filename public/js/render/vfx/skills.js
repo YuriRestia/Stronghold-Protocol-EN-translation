@@ -531,7 +531,8 @@ export const STATE_BUFFS = Object.freeze({
   // (talentfx.js targetRows), signalled by the kits
   'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true,
   // Eunectes S2's blockee stun (op-zumama.js; her ability's _buffsToBlockee): only her row — every other skill's `stun` stays a target row
-  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02']) }), 'halo2_s_3_link': true,
+  // …and the Dockworker's ready-hit stun (nthAttackStatus; enemy_1160_hvyslr / _2 Dockworker / Dockworker Leader)
+  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02', 'enemy_hvyslr_2_buff']) }), 'halo2_s_3_link': true,
   'heyak_s_3[hit_levitate]': true, 'inside_t_1[active]': true, 'shu_s_3[enemy][enter]': true, 'necras_t_1[upgrade]': true,
   // Necrass S3's special skeleton (op-necras.js): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
   'necras_upgrade_dragon': { looks: L({ stage1: ['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02'],

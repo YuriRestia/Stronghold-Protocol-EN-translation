@@ -31,3 +31,24 @@ for (const [key, buff, nth] of [['enemy_1045_hammer', 'ready:stuncombat', 3], ['
     checkInvariants(h.b);
   });
 }
+
+test("Dockworker: its ready-hit stun shows 'stun' (src: the Dockworker) on the target while the stun lasts", () => {
+  const { h, e } = field('enemy_1160_hvyslr');
+  const t = h.unit(2);
+  const stunRow = () => (fxStateView(t, h.b.time) || []).filter((r) => r[0] === 'stun');
+  assert.deepEqual(stunRow(), [], 'none at first');
+  assert.ok(h.runUntil(() => stunRow().length > 0, 90), 'its Nth attack stunned');
+  assert.deepEqual(stunRow(), [['stun', e.id, null]]);
+  assert.ok(t.s.flags.stun, 'the target is stunned');
+  assert.ok(h.runUntil(() => !t.s.flags.stun, 30), 'the stun ends');
+  h.step();
+  assert.deepEqual(stunRow(), [], 'gone with it');
+  checkInvariants(h.b);
+});
+
+test("Defense Crusher: its stun shows no 'stun' row (its record has no such official mark)", () => {
+  const { h, e } = field('enemy_1045_hammer');
+  const t = h.unit(2);
+  assert.ok(h.runUntil(() => t.s.flags.stun, 90), 'it stunned');
+  assert.equal((fxStateView(t, h.b.time) || []).filter((r) => r[0] === 'stun' && r[1] === e.id).length, 0);
+});

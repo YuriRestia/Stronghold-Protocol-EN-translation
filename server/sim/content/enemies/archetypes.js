@@ -132,7 +132,9 @@ const resist = (immune = []) => ({
 const immuneTo = (...keys) => ({ spawn(b, e, a, ab) { ab.immune = new Set([...(ab.immune || []), ...keys]); } });
 
 /** Every Nth attack: status on the targets ("攻击2次后，下一次攻击会晕眩目标"). */
-const nthAttackStatus = (n, key, dur, sil = true, s = null) => ({
+// (fork) `stunFx`: also show the status on each target as b.snap fxs row `key` (src: this enemy) for `dur` s, display
+// only — the Dockworkers' ready-hit stun (enemy VFX audit, S rows: enemy_hvyslr_2_buff via STATE_BUFFS.stun.keys)
+const nthAttackStatus = (n, key, dur, sil = true, s = null, stunFx = false) => ({
   sil,
   // (fork) its skill's official ready glow while the next attack is the Nth (readyProbe; display only)
   spawn(b, e, a) { a.n = 0; readyProbe(b, e, s, () => (a.n + 1) % n === 0); },
@@ -144,6 +146,7 @@ const nthAttackStatus = (n, key, dur, sil = true, s = null) => ({
     for (const t of c.targets) {
       if (!t.alive || !(dur > 0) || (c.targetDeployments && c.targetDeployments.get(t) !== t.deploySeq)) continue;
       b.applyStatus(t, key, { duration: dur, source: e });
+      if (stunFx) b.fxState(t, key, true, { src: e, dur });
     }
   },
 });
@@ -674,6 +677,8 @@ const kitPrisoner = (freeAll = false) => (ab) => [prisoner(ab, { freeAll })];
 const kitDeathSpawn = (extra = []) => (ab) => [deathSpawn(ab.tS['DeadSpawn.enemy_key'], T(ab, 'DeadSpawn.cnt') ?? 0), ...extra];
 
 const kitStun3 = (ab) => [nthAttackStatus(nthOf(ab.sk.stuncombat), 'stun', (ab.sk.stuncombat && ab.sk.stuncombat.bb.stun) || 0, true, ab.sk.stuncombat)];
+/** (fork) kitStun3 whose stun shows its official mark on the target (the Dockworkers: nthAttackStatus `stunFx`). */
+const kitStun3Fx = (ab) => [nthAttackStatus(nthOf(ab.sk.stuncombat), 'stun', (ab.sk.stuncombat && ab.sk.stuncombat.bb.stun) || 0, true, ab.sk.stuncombat, true)];
 
 const kitSelfFear = (ab) => [selfFear(ab)];
 
@@ -715,5 +720,5 @@ export {
   noAirTargets, resist, immuneTo, nthAttackStatus, nthAttackPower, enemyAura, allyAura, lowHpBuff, deathSpawn,
   deathBoom, refraction, setFloat, float, selfFear, freeAllPrisoners, reborn, frontGuard, faceMove, faceCrowd,
   unbalanced, artsBarrier, husk, statue, bleed, pollution, dmgZone, skill, kitEp, kitStealth, kitTimes, kitRefraction,
-  kitPrisoner, kitDeathSpawn, kitStun3, kitSelfFear, kitEmber, kitPolluted,
+  kitPrisoner, kitDeathSpawn, kitStun3, kitStun3Fx, kitSelfFear, kitEmber, kitPolluted,
 };
