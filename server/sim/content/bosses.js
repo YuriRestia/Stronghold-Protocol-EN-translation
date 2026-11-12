@@ -614,6 +614,9 @@ function kitBlade(ab, e, b, tpl) {
 
 const isGun = (o) => /enemy_9017_achunt/.test(o.defId);
 const isSpring = (o) => /enemy_90(18|19|20)_actrp/.test(o.defId);
+// (fork) the charge's hit on each unit (talent 3's achunt_s_1[damage]); HIT_ROW_S: how long its b.snap row stays, our
+// own time (the client's buff is IMMEDIATELY; the row only has to reach a snapshot) [ASSUMED]
+const GUN_HIT_FX = 'achunt_s_1[damage]', HIT_ROW_S = 1;
 
 function kitGun(ab, e, b) {
   const hidden = /_2$/.test(e.defId);
@@ -642,7 +645,13 @@ function kitGun(ab, e, b) {
         const arrived = stepToward(e2, t.x, t.y, sp);
         if (!b2.grid.groundPassable(Math.round(e2.y), Math.round(e2.x))) { e2.x = nx; e2.y = ny; }
         // "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次…": an area selection (areaAllies)
-        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) { ch.hit.add(u); hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys'); }
+        // (fork) the client's AuraAbility gives each unit it hits achunt_s_1[damage] (ON_BUFF_START: enemy_achunt_skill_1_hit,
+        // life IMMEDIATELY): display only (b.snap fxs, src the gun), held HIT_ROW_S so the client sees the row and plays it once
+        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) {
+          ch.hit.add(u);
+          b2.fxState(u, GUN_HIT_FX, true, { src: e2, dur: HIT_ROW_S });
+          hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys');
+        }
         if (arrived || b2.time >= ch.until || (e2.x === nx && e2.y === ny)) {
           P.charge = null;
           b2.removeBuff(e2, 'boss:charge');
