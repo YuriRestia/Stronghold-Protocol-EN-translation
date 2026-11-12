@@ -60,6 +60,45 @@ const C4_FUSE = 1, C4_RADIUS = 1;
 /** 鼠王 【唱沙】 cross reach and 【沙狱】 "及其周围" radius [ASSUMED]. */
 const DRIFT_REACH = 1, SANDSTORM_RADIUS = 1;
 
+/**
+ * (fork, enemy skills 2026-11-13) 鼠王's `Mark` (client enm_pfb_17 Skills/Mark, read 2026-11-13): an AbilityParallelGroup of
+ * two GloballUniqueBuffAbility — MaxHpDes, the field's highest-max-HP unit (selector postFilter 19, the 【唱沙】 trigger's),
+ * gets `mousek_mark[b]` (effect mousek_skill_01_buff); MaxHpAsc, the lowest (postFilter 20, 【沙狱】's), `mousek_mark[a]`
+ * (mousek_skill_02_buff). Both buffs use the `empty` template: a marker only, no stat. The skill casts once (EnemySkill
+ * _maxTriggerTime 1; cooldown 9999, initCooldown 1); from that cast on, the ability's OnTick re-picks its target every tick
+ * (GameAssembly GloballUniqueBuffAbility.OnTick → _DoUpdateTarget once OnSpellStart set m_startCheck), so each mark moves
+ * to whoever is highest / lowest now; with no target it stays where it is (_removeBuffsIfNoValidTarget 0), and it goes
+ * with 鼠王 (OnDetached). Display only: b.snap fxs (render/vfx/skills.js STATE_BUFFS).
+ */
+const MOUSEK_MARKS = Object.freeze([
+  { key: 'ab:mousekMark:b', fx: 'mousek_mark[b]', top: (p, q) => q.s.maxHp - p.s.maxHp },
+  { key: 'ab:mousekMark:a', fx: 'mousek_mark[a]', top: (p, q) => p.s.maxHp - q.s.maxHp },
+]);
+function mousekMark(s) {
+  const clear = (b, a) => {
+    for (const m of MOUSEK_MARKS) { const u = a.marked?.[m.key]; if (u) b.removeBuff(u, m.key); }
+    a.marked = null;
+  };
+  const place = (b, e, a) => {
+    a.marked ??= {};
+    const list = allTargets(b, e);
+    for (const m of MOUSEK_MARKS) {
+      let t = null;
+      for (const u of list) if (!t || (m.top(u, t) || aggroCmp(u, t)) < 0) t = u;
+      const was = a.marked[m.key];
+      if (!t || t === was) continue;
+      if (was) b.removeBuff(was, m.key);
+      b.addBuff(t, { key: m.key, persist: true, fx: m.fx, fxSrc: e.id });
+      a.marked[m.key] = t;
+    }
+  };
+  const sk = skill(s, (b, e, a) => { a.marking = true; place(b, e, a); });
+  return sk && { ...sk,
+    tick(b, e, a) { if (a.marking) place(b, e, a); },
+    death(_c, b, _e, a) { clear(b, a); },
+  };
+}
+
 /** “巨大的丑东西” self-destruct radius (PRTS 天赋 "对半径3.0范围内所有我方单位…"; 2.5 [ASSUMED] until 0.1.3). */
 const MCM_BOMB_RADIUS = 3;
 
@@ -156,7 +195,7 @@ function kitLeaderMisc(key, ab, e) {
       // 出场时拥有能够吸收大量法术伤害的屏障，屏障存在时防御力大幅增加 (arts-only barrier + DEF while it holds)
       const bar = artsBarrier(T(ab, 'shield.dynamic') ?? 0, { key: 'ab:sandDef', whileUp: { defFlat: T(ab, 'defup.def') ?? 0 } });
       const ds = ab.sk.DriftSand, ss = ab.sk.SandStorm;
-      return [bar, lowHpBuff(T(ab, 'enrage.hp_ratio') ?? 0.5, { dmgDealtMul: T(ab, 'enrage.damage_scale') ?? 1 }),
+      return [bar, lowHpBuff(T(ab, 'enrage.hp_ratio') ?? 0.5, { dmgDealtMul: T(ab, 'enrage.damage_scale') ?? 1 }), mousekMark(ab.sk.Mark),
         // 【唱沙】 the highest-max-HP unit on the field and everything in its cross: physical `damage`
         skill(ds, (b, e2) => {
           const t = allTargets(b, e2).sort((p, q) => q.s.maxHp - p.s.maxHp || aggroCmp(p, q))[0];
