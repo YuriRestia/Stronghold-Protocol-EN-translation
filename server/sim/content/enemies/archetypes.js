@@ -296,6 +296,9 @@ function prisoner(ab, { freeAll = false } = {}) {
     if (freeAll && !stOf(b).freedAll) {
       // "第一次解放时同时解放全场敌人"
       stOf(b).freedAll = true;
+      // (fork) fx: its general ability LibertyOthersAbility (the client's enemy_lifbos_open_start as it casts), once per
+      // unit; display only (talentfx.js matches an 'ability' fx to an ability binding by its key)
+      if (!a.openFx) { a.openFx = true; b.fx('ability', { x: e.x, y: e.y, id: e.id, name: 'LibertyOthersAbility' }); }
       for (const o of b.aliveEnemies()) for (const x of (o.mem.ab ? o.mem.ab.list : [])) if (x.liberate && !x.free) x.liberate(b, o, x);
     }
   };

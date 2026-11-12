@@ -576,6 +576,47 @@ export const STATE_BUFFS = Object.freeze({
   'mlynar_tr': { looks: L({ low: ['mlynar_attack_01_buff_l_01'], mid: ['mlynar_attack_01_buff_l_02'], max: ['mlynar_attack_01_buff_l_03'] }) },
   // Carnelian S3's mark on an enemy (chess_char_4_24-billro.js): [part] below the stack cap, [full] at it
   'billro_s_3[mark_effect]': { looks: L({ part: ['billro_skill_03_buff_03_01'], full: ['billro_skill_03_buff_03_02'] }) },
+  // (fork) enemies, S-M rows (VFX 3): the official glow a talent's buff keeps on the enemy while its condition holds, or
+  // an event starts (content/enemies/*.js fxWhile / fxProbe / fxState; display only). By enemy id:
+  // Sarkaz Lancer (enemy_1072_dlancer) — its charge glow while unblocked
+  'dlancer_t_listener[c]': true,
+  // Diver (enemy_1158_divman) / Caster Speedboat (enemy_1162_magmot) — on a deep-water tile
+  'divman_swim': true,
+  'magmot_effect': true,
+  // Dublinn Companion Guard (enemy_1174_duholy) / Elite Companion Shadowblade (enemy_1175_dushdo_2) — while a Guard and a
+  // Shadowblade stand paired (their traitAbility's child node: TalentFx.targetRows reads it from the index)
+  'duholy_traitAbility[TauntLevelUp]': true,
+  'dushdo_traitAbility[BaseAttackTimeDown]': true,
+  'dushdo_traitAbility[effect]': true,
+  // Sarkaz Wither Tank (enemy_1272_nhtank) — with full SP (its next shot is the polluted one)
+  'nhtank_skill_effect[buff]': true,
+  // Arc Frontliner (enemy_1328_cbjedi) — while unbalanced
+  'enemy_cbjedi_bleed': true,
+  // Sarkaz Wither Vanguard (enemy_1422_lrsldr) — on an originium (infection) tile
+  'enemy_lrsldr[switchMode][toOrig]': true,
+  // Nucleic Maleficent (enemy_1439_dslntf) — from its first damage taken
+  'dslntf_tr_1': true,
+  // 'Forsaken One' (enemy_2005_axetro) — from 3 attack stacks until they reset
+  'axetro_t': true,
+  // Scarlet Singer (enemy_2010_csdcr) — `warn` from its warning hit count, `song` the burst as it sings, `aspd` on every
+  // enemy while the ASPD it gives lasts (src the Singer)
+  'csdcr_t': { looks: L({ warn: ['enemy_csder_buff_02'], song: ['enemy_csder_buff_01_range_01'], aspd: ['enemy_csder_buff_01'] }) },
+  // OpFor: Bonespur (enemy_9008_acbunn) — while stealthed; its switch burst as that turns
+  'acbunn_invisible': true,
+  'enemy_acbunn[cute]': true,
+  'enemy_acbunn[horror]': true,
+  // 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' (enemy_9023_acdums) — its switch burst at each form switch
+  'acdums_t_1': true,
+  // Lucky Flyfin (enemy_10045_parrot) — while it sprints after the first hit
+  'parrot_m0_t[speed_up]': true,
+  // Cabbage Seedling (enemy_10065_ftzlc) — while ignited (its OnFire mode's boom talent)
+  'enemy_ftzlc[boom]': true,
+  // Decode Basis α (enemy_10081_mpplai) — its burst at its one change
+  'enemy_mpplai_passive_p0': true,
+  // Shrine Swordsman (enemy_10087_hlchgr) — from its first enhancement on
+  'hlchgr_t[attribute_storage]': true,
+  // Snowchild (enemy_10138_xdsnow) — its burst at a high-ground hit while unbalanced (5 s cooldown)
+  'enemy_xdsnow_t[wall]': true,
   // Lee's guard (op-lmlee.js, lmlee_tr → lmlee_t_2[bounce]): its loop while held, the hit as it cancels a stun
   'lmlee_tr': { looks: L({ guard: ['lmlee_buff_02_start'], hit: ['lmlee_buff_02_hit'] }) },
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
@@ -2228,8 +2269,9 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
 
   // 假想敌：蚀裂 (dot.js: the 'zone' of kind 'poison' where its lob lands — on its killer — or where it fell, r =
   // 1.projectile_range, dur = 1.projectile_life_time): its talent 1 (BslimeTalent_1) fires projectile_enemy_actoxi at its
-  // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud
-  enemy_9006_actoxi: Object.freeze({ zone: ebind({ xkind: 'poison', owner: 'any', projectile: 'projectile_enemy_actoxi', hold: 'fx', holdS: 8 }) }),
+  // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud. (fork, VFX 3) Killed by its target, its
+  // 'ability' fx of kind 'fissureDie' where it fell plays enemy_actoxi_deadrattle's enemy_actoxi_die_2_start once (owner 'died')
+  enemy_9006_actoxi: Object.freeze({ zone: ebind({ xkind: 'poison', owner: 'any', projectile: 'projectile_enemy_actoxi', hold: 'fx', holdS: 8 }), ability: ebind({ xkind: 'fissureDie', owner: 'died', keys: ['enemy_actoxi_die_2_start'], once: true }) }),
   // 咸鳞汁推荐者 (special.js: its barrel blow's 'zone' of kind 'barrel' where it stands, dur = fixed_duration, in the tick of
   // its 'cast'): the skill BlockedBoom (ProjectileToTileAbility) puts projectile_enemy_wintun_range on its tile —
   // AuraHitBehaviour, its reached effect enemy_wintun_range (looping) the zone
@@ -2247,6 +2289,14 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,
   enemy_1234_dsubrl_2: NEST_AURA,
+  // (fork) enemies, S-M rows (VFX 3): death bursts — the kit's existing 'explode' at the point where it fell, in its death
+  // hook right after its 'die' (owner 'died'), plays the official CreateEffect of its ON_OWNER_KILLED template (both
+  // skipped while silenced: the kits' `sil`, the templates' CheckAbnormalFlag SILENCED). By enemy id:
+  // Farseer (enemy_1407_hummbd) — enemy_hummbd_t's death burst with its exposing blast (fly.js kitExposeOnDeath)
+  enemy_1407_hummbd: Object.freeze({ explode: ebind({ xkind: 'expose', owner: 'died', keys: ['enemy_hummbd_die_02'], once: true }) }),
+  // Novice Acolyte (enemy_10156_mncrer) — enemy_mncrer_heal_water's death burst with its heal (special.js; its heal
+  // projectile has no flying effect)
+  enemy_10156_mncrer: Object.freeze({ explode: ebind({ xkind: 'heal', owner: 'died', keys: ['enemy_mncrer_die_start'], once: true }) }),
   // 鼎沸 (dot.js: an 'explode' of kind 'boil' every attack interval at its feet, r = its range, no id): its aoe talent
   // (AppearSyncedTalent / AuraAbility) — its `_effects` loop while it stands, and the units in it carry enemy_cjhot_debuff
   // (its buff enemy_cjhot_t[aoe], INFINITY, tick 1)

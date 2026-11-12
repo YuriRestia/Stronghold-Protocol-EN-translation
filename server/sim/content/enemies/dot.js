@@ -76,7 +76,12 @@ function kitTank(ab, e) {
   const max = Math.max(1, num(spd && spd.maxSp, 0) || (sk && sk.sp) || (T(ab, 'Empty.sp') ?? 2));
   const init = Math.min(max, Math.max(0, num(spd && spd.initSp, 0)));
   return [{
-    spawn(b, e2, a) { a.sp = init; a.skill = false; e2.profile.canTarget = (u) => !!u.ground && !u.isFlying; },
+    spawn(b, e2, a) {
+      a.sp = init; a.skill = false; e2.profile.canTarget = (u) => !!u.ground && !u.isFlying;
+      // (fork) fx: the client's enemy_nhtank_s_effect[buff] (CheckHasSp EQUALS the talent's `sp`) keeps
+      // enemy_nhtank_attack_buff_01 on it while its SP is full: the next shot is 秽蚀轰击 (display only: snapshot fxs)
+      b.fxProbe(e2, 'nhtank_skill_effect[buff]', () => a.sp >= max);
+    },
     // SP full: this attack is 秽蚀轰击 (a blocked hit lands at once, inside this attack, while `a.skill` is set) — the
     // client is told its skill slot (castSlot, display only)
     before(c, b, e2, a) { a.skill = a.sp >= max; if (a.skill) castSlot(b, e2, sk); },
@@ -113,6 +118,10 @@ export const DOT_KITS = Object.freeze({
       // a sourceless zone (`src` null): its ticks skip a 隐匿 / untargetable / sleeping operator (PRTS 假想敌：蚀裂: no 无视
       // 可选性 note — PRTS 作战机制's "无来源的毒雾" that reaches 隐匿 units is the stage hazard), not an airborne 起飞 one
       const cloud = (x, y) => dmgZone(b, null, x, y, T(ab, '1.projectile_range') ?? 0.8, T(ab, '1.projectile_life_time') ?? 0, T(ab, '1.interval') ?? 1, atk * (T(ab, '1.damage_atk_scale') ?? 0), 'arts', 'poison');
+      // (fork) fx: killed by its target, the client's enemy_actoxi_deadrattle (ON_OWNER_KILLED_BY_MAIN_TARGET) plays
+      // enemy_actoxi_die_2_start where it fell as it lobs — the 'ability' fx of kind 'fissureDie' (skills.js
+      // ENEMY_FX_BINDINGS, owner 'died'); display only, nothing procedural
+      if (k) b.fx('ability', { x: e.x, y: e.y, id: e.id, name: 'enemy_actoxi_deadrattle', kind: 'fissureDie' });
       if (k) b.addProjectile({ from: e, target: k, speed: 8, visual: 'lob', source: null, hitDead: true, onHit: (h) => cloud(h.x ?? k.x, h.y ?? k.y) });
       else cloud(e.x, e.y);
     },

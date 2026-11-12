@@ -140,6 +140,8 @@ const ECHO_PULSE_RADIUS = 1.6;
 const ECHO_ENSEMBLE_RADIUS = Object.freeze({ gold: 0.8, dark: 1.6 });
 /** "只能被阻挡数大于等于2的单位阻挡". */
 const ECHO_BLOCK_WEIGHT = 2;
+/** (fork) How long the b.snap fxs row of its switch burst stays (s): the client plays the one-shot once as it appears. */
+const ECHO_SWITCH_FX = 1;
 /** 裂管之奏 strike spacing (s). */
 const PIPE_STRIKE_GAP = 0.4;
 /** 断裂生殖 tentacle: stun duration and reach around its device tile [ASSUMED]. */
@@ -861,7 +863,12 @@ export function echoHit(b, echo) {
       }
       const need = ab.form === 'gold' ? T(ab, '1.hit_times_to_switch') : T(ab, '2.hit_times_to_switch');
       ab.strikes = (ab.strikes ?? 0) + 1;
-      if (echo.alive && need > 0 && ab.strikes >= need) setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+      if (echo.alive && need > 0 && ab.strikes >= need) {
+        setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+        // (fork) fx: the client's acdums_t_1 plays enemy_acdums_switch on it at this switch (its hit_times run out:
+        // SwitchMode, then CreateEffect); display only (snapshot fxs)
+        b.fxState(echo, 'acdums_t_1', true, { dur: ECHO_SWITCH_FX });
+      }
     }
   } finally { ab.pulses.length = 0; ab.pulsing = false; }
 }

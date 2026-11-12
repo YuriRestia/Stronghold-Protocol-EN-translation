@@ -5,7 +5,7 @@ import { periodicDamage } from '../../attack.js';
 import { hypot } from '../../detmath.js';
 import {
   stOf, T, elem, hurt, targetsNear, areaAllies, areaAlliesInTiles, targetAndArea, byPriority, setForm, onTerrain, stepToward,
-  attackSkillOf,
+  attackSkillOf, fxWhile,
 } from './helpers.js';
 import { taunt, ep, deathSpawn, deathBoom, setFloat, float, skill, kitEp, kitStun3Fx } from './archetypes.js';
 
@@ -161,7 +161,10 @@ function kitParasite(ab) {
 }
 
 function kitIgnitable(ab) {
-  return [deathBoom({ scale: T(ab, 'boom.atk_scale') ?? 0, type: 'arts', cond: (e) => !!e.mem.ab.ignited, sil: true })];
+  // (fork) fx: its OnFire mode's boom talent (BslimeTalent_1) keeps enemy_ftzlc[boom] (enemy_ftzlc_buff_02, looping) on it
+  // while ignited; display only (snapshot fxs)
+  return [deathBoom({ scale: T(ab, 'boom.atk_scale') ?? 0, type: 'arts', cond: (e) => !!e.mem.ab.ignited, sil: true }),
+    fxWhile('enemy_ftzlc[boom]', (b, e) => !!e.mem.ab?.ignited)];
 }
 
 function kitFlameVine(ab) {
@@ -195,12 +198,14 @@ function kitFlameVine(ab) {
 }
 
 function kitNucleus(ab) {
+  // (fork) fx: the client's dslntf_tr_1 adds dslntf_tr_1[aura_effect] (enemy_dslntf_buff_03) at its first damage taken (or
+  // a block): its combat state, which never ends; display only (snapshot fxs)
   return [{
     taken(c, b, e, a) { if (a.on) return; a.on = true; b.addBuff(e, { key: 'ab:combat', persist: true, visible: true, mods: { moveMul: T(ab, '0.move_speed') ?? 1 } }); },
     iv: T(ab, '1.interval') ?? 1,
     // 【孽生者的神经毒素】 "（无视迷彩，同名效果不叠加…）": an area selection (no unblocking 隐匿 ally)
     tick(b, e, a) { if (!a.on) return; for (const u of areaAllies(b, e, e.x, e.y, T(ab, '1.range_radius') ?? 0)) elem(b, e, u, 'neural', e.s.atk * (T(ab, '1.ep_damage_ratio') ?? 0)); },
-  }];
+  }, fxWhile('dslntf_tr_1', (b, e) => !!e.findBuff('ab:combat'))];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -210,12 +215,17 @@ export const ELEMENT_KITS = Object.freeze({
   // --- ELEMENT 元素
   enemy_1148_dssbr: kitEp('neural', 'epdamage.attack@ep_damage_ratio'),       // 底海滑动者 · neural on hit
   enemy_1148_dssbr_2: kitEp('neural', 'epdamage.attack@ep_damage_ratio'),     // 富营养的滑动者 · neural on hit
-  enemy_1158_divman: (ab) => kitDeepsea(ab, { swim: true }),          // 潜水员 · in deep water: ATK up + stealth; immune to 水蚀
+  // (fork) fx: the client's enemy_divman_swim (CheckContainsBuff buff_sea) — its swim mode and enemy_divman_2_buff while it
+  // is in deep water (its ab:swim); display only (snapshot fxs)
+  enemy_1158_divman: (ab) => [...kitDeepsea(ab, { swim: true }), fxWhile('divman_swim', (b, e) => !!e.findBuff('ab:swim'))], // 潜水员 · in deep water: ATK up + stealth; immune to 水蚀
   enemy_1160_hvyslr: (ab) => [...kitStun3Fx(ab), ...kitDeepsea(ab, { drown: true })],   // 码头水手 · every (spCost+1)th attack stuns; drowns in deep water
   enemy_1160_hvyslr_2: (ab) => [...kitStun3Fx(ab), ...kitDeepsea(ab, { drown: true })], // 码头水手长 · same
   enemy_1161_tidmag: kitTidmag,                                      // 控潮术师 · attack hits target + 4 neighbours, erosion
   enemy_1161_tidmag_2: kitTidmag,                                    // 领潮员 · same
-  enemy_1162_magmot: (ab) => [...kitTidmag(ab), deathSpawn(ab.tS['DeathRattle.enemy_key'], 1)], // 术师快艇 · same + 控潮术师 on death
+  // (fork) fx: the client's enemy_magmot_effect (CheckContainsBuff under_sea[tile]) — enemy_magmot_idle_01 and _move_01
+  // (its wake) while it is on a deep-water tile; display only (snapshot fxs)
+  enemy_1162_magmot: (ab) => [...kitTidmag(ab), deathSpawn(ab.tS['DeathRattle.enemy_key'], 1), // 术师快艇 · same + 控潮术师 on death
+    fxWhile('magmot_effect', (b, e) => onTerrain(b, e, 'deepsea'))],
   enemy_1305_mhslim: kitEp('burn', 'EpDamage.attack@ep_damage_ratio'),        // 灼热源石虫 · burn on hit
   enemy_1305_mhslim_2: kitEp('burn', 'EpDamage.attack@ep_damage_ratio'),      // 炽焰源石虫 · burn on hit
   enemy_2021_syfish: kitEp('erosion', 'EpDamage.attack@ep_damage_ratio'),     // 骨海漂流体 · erosion on hit
