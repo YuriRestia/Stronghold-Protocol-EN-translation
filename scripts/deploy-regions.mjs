@@ -196,20 +196,28 @@ export function checkOnHost(host, gen, run) {
 
 const sshCapture = (host, cmd) => spawnSync('ssh', [host, cmd], { stdio: ['ignore', 'pipe', 'pipe'], encoding: 'utf8', windowsHide: true });
 
-function checkAll(hosts, gen) {
+function checkAll(hosts, gen, capture = sshCapture) {
   return hosts.map(({ host }) => {
-    const { check, stderr } = checkOnHost(host, gen, sshCapture);
+    const { check, stderr } = checkOnHost(host, gen, capture);
     if (stderr) console.error(`[${host}] ${stderr.replace(/\n/g, `\n[${host}] `)}`);
     return { host, check };
   });
 }
 
-function prepare(o) {
+/**
+ * Prepare on every server; returns the generation id. (fork) `io` swaps the ssh calls (scripts/release.mjs feeds a
+ * remembered sudo password through them): ssh(host, line) streams and throws on failure, capture(host, line) returns
+ * { stdout, stderr }.
+ * @param {{ hosts: { host: string, noArt?: boolean }[], ref: string }} o
+ * @param {{ ssh?: (host: string, line: string) => void, capture?: (host: string, line: string) => { stdout?: string, stderr?: string } }} [io]
+ */
+export function prepare(o, io = {}) {
+  const run = io.ssh || ssh;
   const commit = execFileSync('git', ['rev-parse', '--verify', `${o.ref}^{commit}`], { encoding: 'utf8', windowsHide: true }).trim();
   const gen = newGenId();
   console.log(`[prepare] generation ${gen}, commit ${commit.slice(0, 10)} (${o.ref}) on ${o.hosts.map((h) => h.host).join(', ')}`);
-  for (const h of o.hosts) ssh(h.host, prepareCommand({ gen, commit, noArt: h.noArt }));
-  const results = checkAll(o.hosts, gen);
+  for (const h of o.hosts) run(h.host, prepareCommand({ gen, commit, noArt: h.noArt }));
+  const results = checkAll(o.hosts, gen, io.capture);
   const problems = checkProblems(gen, results);
   if (problems.length) throw new Error(`prepared, but not ready everywhere:\n  ${problems.join('\n  ')}`);
   console.log(`\n[prepare] ${gen} is prepared on every server (build ${results[0].check.build}). Players are not sent there.`);
