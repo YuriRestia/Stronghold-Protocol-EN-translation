@@ -67,3 +67,10 @@ export const roomScaleFor = (players) => (Number.isInteger(players) && players >
 
 /** A count scaled by the room scale, rounded up; unchanged at scale 1. */
 export const scaleCount = (n, scale) => (scale > 1 && Number.isFinite(n) ? Math.ceil(n * scale) : n);
+
+/**
+ * (fork) One for All (DESIGN §91.9): the BATTLE_CHECK of a Grand Alliance whose strategy is one room-wide secret vote.
+ * The reveal on 协议启动！ (public/js/ui/protocolBoot.js) needs the picks, the lines, the charge-up, the reveal, the glitch
+ * of the losing picks and a ~3 s hold of the unified screen: 7.5 s instead of the official 3 s [ASSUMED: remake mode].
+ */
+export const ONE_FOR_ALL_CHECK_SECONDS = 7.5;

@@ -672,11 +672,12 @@ const errLine = (text) => String(text || '').trim().split(/\r?\n/).map((l) => l.
 /**
  * Windows' own bsdtar (`%SystemRoot%\System32\tar.exe`, Windows 10+) when this is Windows and it exists, else null.
  * @param {NodeJS.Platform} [platform] @param {Record<string, string | undefined>} [env]
+ * @param {(file: string) => boolean} [exists] the file check (a test on another OS passes its own: a win32 path is no file there)
  */
-export function systemTar(platform = process.platform, env = process.env) {
+export function systemTar(platform = process.platform, env = process.env, exists = isFile) {
   if (platform !== 'win32' || !env.SystemRoot) return null;
   const exe = path.win32.join(env.SystemRoot, 'System32', 'tar.exe');
-  return isFile(exe) ? exe : null;
+  return exists(exe) ? exe : null;
 }
 
 /**

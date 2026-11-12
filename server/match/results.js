@@ -180,6 +180,8 @@ export function buildResult(m, outcome) {
     hiddenCleared,
     // (fork) only when it fires, so every other payload (and the golden matches) keeps its shape
     ...(altArtResult(m, hiddenReached, rows) ? { altArt: true } : {}),
+    // (fork) One for All (match/oneForAll.js): the stats page keeps it as its own mode; absent otherwise
+    ...(m.oneForAll ? { mode: 'oneForAll' } : {}),
     reason: outcome.reason,
     // the merged Final Assault pool (null before round 14); players[].lp are the alive players' shares of it
     teamLp: m.teamLp != null ? Math.max(0, Math.round(m.teamLp)) : null,

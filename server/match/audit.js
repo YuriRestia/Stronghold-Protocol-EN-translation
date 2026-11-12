@@ -298,7 +298,8 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
     check('band draft', () => {
       if (m.phase !== PHASE.BAND_DRAFT) return;
       const d = m.draft;
-      const ids = m.order.map((p) => p.playerId).sort();
+      // (fork) One for All: the vote's voters are the seats that are not AI seats (match/oneForAll.js)
+      const ids = m.order.filter((p) => !d.vote || !p.isBot).map((p) => p.playerId).sort();
       if (JSON.stringify(d.order.slice().sort()) !== JSON.stringify(ids)) fail(`draft order ${d.order} != seats ${ids}`);
       // one countdown (user playtest #4 item 4): the step's deadline IS the current turn's, BAND_TURN_SECONDS long
       if (m.soloUntimed) { if (m.deadline || d.turnDeadline) fail('untimed band draft is timed'); } else {
@@ -318,7 +319,7 @@ export function attachAudit(m, { invariants = true, limit = 200 } = {}) {
         if (!ps.alive) { if (ps.lp !== 0) fail(`${ps.playerId}: LP ${ps.lp} of a departed seat`); continue; }
         if (ps.lp !== gd.startLp(ps.bandId)) fail(`${ps.playerId}: LP ${ps.lp} != totalHp ${gd.startLp(ps.bandId)} of ${ps.bandId}`);
       }
-      expectDeadline(gd.timer('battleCheck'), 'BATTLE_CHECK', { silentSolo: true });
+      expectDeadline(m.battleCheckSeconds(), 'BATTLE_CHECK', { silentSolo: true });
     });
     return r;
   });

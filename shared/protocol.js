@@ -537,7 +537,10 @@ export const C2S = {
     // (fork) capacity: 8 makes a large room (shared/largeRoom.js; refused unless the server allows them)
     capacity: (v) => ROOM_CAPACITIES.includes(v),
     // (fork) password: a Grand Alliance created private (私密), its 4 letters
-    password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity', 'password'] },
+    password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v),
+    // (fork) oneForAll: a Grand Alliance created in the One for All strategy mode (one secret room-wide strategy vote;
+    // refused on a room that is not large: BAD_MSG)
+    oneForAll: isBool, $optional: ['test', 'difficulty', 'version', 'soloUnlimited', 'capacity', 'password', 'oneForAll'] },
   // password: (fork) a locked Grand Alliance room's 4 letters (shared/largeRoom.js)
   // squad: (fork) with a ticket, the Grand Alliance squad room.move named (0 = seats 1–4, 1 = seats 5–8)
   'room.join': { $optional: ['testAck', 'ticket', 'password', 'squad'], testAck: (v) => v === true, ticket: (v) => isStr(v, 512), password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), squad: (v) => v === 0 || v === 1, code: (v) => isStr(v, ROOM_CODE_LEN + 2) && /^[A-Za-z0-9]+$/.test(v) },
@@ -569,6 +572,9 @@ export const C2S = {
   'room.moveSeat': { $optional: ['seat', 'squad'], seat: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), squad: (v) => v === 0 || v === 1 },
   'room.swapSeats': { a: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1), b: (v) => isInt(v, 0, LARGE_ROOM_SEATS - 1) },
   'room.setLock': { on: isBool, password: (v) => typeof v === 'string' && ROOM_PASSWORD_RE.test(v), $optional: ['password'] },
+  // (fork) the Grand Alliance strategy mode「Free pick | One for All」(host, before the match, large rooms only; un-readies
+  // nobody, a searching room restarts its search): room.state.oneForAll
+  'room.setOneForAll': { on: isBool },
   // (fork) the room browser of Grand Alliance rooms: rooms.watch { on } — while on, the server sends rooms.list on every change
   'rooms.watch': { on: isBool },
   'room.start': {},
@@ -609,8 +615,9 @@ export const C2S = {
   // 搜寻队友 (DESIGN §90): the host of a co-op room turns the search on or off
   'room.search': { on: isBool },
   // 单人匹配 (DESIGN §90): queue from the lobby without a room; queue.ai once queue.state's aiAt has passed
-  // (fork) versions: the official versions to be matched for (left out: 第二期下半); large: may also sit in a Grand Alliance
-  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, $optional: ['versions', 'large'] },
+  // (fork) versions: the official versions to be matched for (left out: 第二期下半); large: may also sit in a Grand Alliance;
+  // oneForAll: with large, may also sit in a One for All Grand Alliance (ignored without large)
+  'queue.join': { difficulty: (v) => DIFFICULTIES.includes(v), versions: (v) => isList(v, 8, isVersionId) && v.length > 0, large: isBool, oneForAll: isBool, $optional: ['versions', 'large', 'oneForAll'] },
   'queue.leave': {},
   'queue.ai': {},
   // the room's plugins (DESIGN §32, P1a; host, before the match — like a difficulty change it un-readies the others):
@@ -799,7 +806,7 @@ export const S2C = [
   'sys.online',
   // queue.state { queued, difficulty?, since?, aiAt?, placed? } — 单人匹配 (server/lobby.js sendQueue)
   'queue.state',
-  // (fork) rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads: [a, b], locked? }] } — the open Grand
+  // (fork) rooms.list { rooms: [{ code, host, seats, capacity, difficulty, squads: [a, b], locked?, oneForAll? }] } — the open Grand
   // Alliance rooms (server/lobby.js roomList), while the page watches them (rooms.watch)
   'rooms.list',
 ];

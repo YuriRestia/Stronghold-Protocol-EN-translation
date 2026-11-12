@@ -2,7 +2,8 @@
 // with whom; the merge and the auto-start are Lobby methods (mergeRooms / autoStart).
 // (fork) Rooms only meet rooms of their own pool (poolKey): the same official version, difficulty and size. A Grand
 // Alliance (8 seats, shared/largeRoom.js) merges only with other Grand Alliances, and only when every squad of a source
-// fits whole into one squad of the target (fitSquads); a squad never splits.
+// fits whole into one squad of the target (fitSquads); a squad never splits. A One for All Grand Alliance (room.oneForAll)
+// merges only with other One for All rooms.
 
 import { MAX_SEATS } from '../shared/constants.js';
 import { DEFAULT_VERSION } from '../shared/versions.js';
@@ -33,8 +34,14 @@ export function isLarge(room) { return roomCap(room) > MAX_SEATS; }
 /** (fork) The official version a room plays. */
 export function roomVersion(room) { return room.version ?? DEFAULT_VERSION; }
 
-/** (fork) The matchmaking pool of a room: rooms meet only rooms of the same version, difficulty and size. */
-export function poolKey(room) { return `${roomVersion(room)}|${room.difficulty}|${roomCap(room)}`; }
+/** (fork) A One for All Grand Alliance (server/lobby.js Room.oneForAll); a normal room never is. */
+export function isOneForAll(room) { return isLarge(room) && room.oneForAll === true; }
+
+/**
+ * (fork) The matchmaking pool of a room: rooms meet only rooms of the same version, difficulty and size, and a Grand
+ * Alliance only one of the same strategy mode (Free pick or One for All). Rooms without One for All keep their old key.
+ */
+export function poolKey(room) { return `${roomVersion(room)}|${room.difficulty}|${roomCap(room)}${isOneForAll(room) ? '|ofa' : ''}`; }
 
 /** (fork) Occupied seats per squad (seats 1–4, 5–8); a normal room has its players in the first. */
 export function squadCounts(room) {

@@ -80,11 +80,12 @@ export const NET_DEFAULTS = Object.freeze({
  * #643 split 6): every accepted change re-broadcasts room.state to the room. room.rerollSetup (重刷本局): with one human a
  * start completes at once and clears that seat's 30 s cooldown, and each reroll rebuilds the opening and resends m.public
  * to every connection (server/match/match/setupVote.js, DESIGN §35.47). Any seated player may start it (#860).
+ * (fork) room.setOneForAll: each switch re-broadcasts room.state to the room and refreshes the room browser.
  * room.proposeVersion (DESIGN §35.23) stays host-proposed: an accepted proposal by a lone human switches the room's
  * version — every page then downloads that version's data.
  * (fork) room.skins is upstream's (dormant here: no skin plugin, the fork dresses operators with room.outfits).
  */
-export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.setPlugins', 'room.outfits', 'room.skins', 'room.card', 'room.rerollSetup', 'room.proposeVersion', 'state.resync']);
+export const HEAVY_TYPES = new Set(['g.watch', 'room.loadout', 'room.ownership', 'room.diy', 'room.spectate', 'room.setPlugins', 'room.outfits', 'room.skins', 'room.card', 'room.rerollSetup', 'room.proposeVersion', 'state.resync', 'room.setOneForAll']);
 
 /** Close codes (see header). */
 export const CLOSE = Object.freeze({ REPLACED: 4001, HELLO_TIMEOUT: 4002, POLICY: 1008, SHUTDOWN: 1001 });
