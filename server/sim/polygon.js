@@ -50,6 +50,7 @@ export function convexHull(points) {
   const half = (list) => {
     const out = [];
     for (const p of list) {
+      // loop-cap: each pass pops one point; `out` never holds more than the input's points
       while (out.length >= 2 && cross(out[out.length - 2], out[out.length - 1], p) <= EPS) out.pop();
       out.push(p);
     }
