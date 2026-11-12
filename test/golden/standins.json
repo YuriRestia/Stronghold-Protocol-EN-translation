@@ -69,8 +69,8 @@
         "enemy_1121_lifbos_2": [9,0,8,17763,34616]
       },
       "hooks": [1,95,5100,763,763,1217,1216,1356,45,87,40,37,0,16753,40,43,50,26,1,46,5,0,1],
-      "events": {"atk":856,"bounty":2,"cast":7,"deploy":45,"die":61,"dmg":1216,"engage":11,"fx":88,"heal":35,"layer":5,"leak":26,"rate":92,"skill":77,"spawn":62,"status":159},
-      "fx": {"blink":16,"dodge":1,"dp":7,"garrison":5,"liberate":15,"phase":14,"slash":24,"telegraph":1,"tick":5},
+      "events": {"atk":856,"bounty":2,"cast":7,"deploy":45,"die":61,"dmg":1216,"engage":11,"fx":89,"heal":35,"layer":5,"leak":26,"rate":92,"skill":77,"spawn":62,"status":159},
+      "fx": {"ability":1,"blink":16,"dodge":1,"dp":7,"garrison":5,"liberate":15,"phase":14,"slash":24,"telegraph":1,"tick":5},
       "snaps": "6ae9b85f 6567e573 9325849e dc1b5a37 e8d2bb9e e6dab4c1 3b9d491c ae72015b 1b391125 f4fb09c9 0a869cf1 e5606643 008797ce 6850a40d 523ac202 b1adea87 8d2d0143"
     },
     "standin-02": {
