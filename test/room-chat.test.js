@@ -1,4 +1,4 @@
-// (fork) Room chat (user, 2026-11-11; docs/design/network.md "Room chat"): the spam limits (server/chatLimit.js) and the
+// (fork) Room chat (user, 2026-11-11; docs/design/network.md "Room chat"): the spam limits (server/match/chatLimit.js) and the
 // lobby's room.chat / room.emote — who gets a line, what is refused without a frame, the escalating pauses, the
 // per-network cap, the in-memory history a reconnect gets (and a newcomer does not), and the page's log state.
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ import { Lobby } from '../server/lobby.js';
 import { SessionRegistry } from '../server/net.js';
 import { getData } from '../server/data.js';
 import { sendChat } from '../server/match/chatWallet.js';
-import { chatBudgetReset, chatBudgetRooms, chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes } from '../server/chatLimit.js';
+import { chatBudgetReset, chatBudgetRooms, chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatNetworkCheck, chatNetworkSweep, chatWireBytes } from '../server/match/chatLimit.js';
 import {
   CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_NETWORK_LINES,
   CHAT_PAUSE_FORGIVE_MS, EMOTES, ROOM_CHAT_GAP_MS, ROOM_CHAT_HISTORY_LINES,

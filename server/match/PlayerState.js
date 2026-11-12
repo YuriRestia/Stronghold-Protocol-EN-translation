@@ -134,7 +134,7 @@ import { PlayerPrep } from './player/prep.js';
 import { PlayerRound } from './player/round.js';
 import { PlayerViews } from './player/views.js';
 import { PlayerDiy, DiyStock } from './player/diy.js';
-import { chatLimitState } from '../chatLimit.js';
+import { chatLimitState } from './chatLimit.js';
 
 export class PlayerState {
   /**
@@ -247,7 +247,7 @@ export class PlayerState {
     this.chatRound = 0;
     /** kills of the round being resolved, until settlement turns them into the wallet (null: no real report) */
     this.chatPending = null;
-    /** (fork) the spam limits of this player's match chat (server/chatLimit.js) */
+    /** (fork) the spam limits of this player's match chat (server/match/chatLimit.js) */
     this.chatLimit = chatLimitState();
     this.lpAtFinal = null;
     /** last combat result for this player (unite carry state, bounties) */
