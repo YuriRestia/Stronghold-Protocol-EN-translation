@@ -158,7 +158,11 @@ export class MatchViews {
     // 最终攻势 / 隐秘核心: when the overtime drain starts (ms epoch; `deadline` is the level's 120 s countdown)
     if ((this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE) && this.overtimeAt) v.overtimeAt = this.overtimeAt;
     if (this.bossPool) v.bossHp = { hp: Math.max(0, Math.round(this.bossPool.hp)), max: Math.round(this.bossPool.maxHp) };
-    if (this.phase === PHASE.BAND_DRAFT && this.draft) {
+    // (fork) One for All: counts only during the secret vote, the reveal during BATTLE_CHECK (match/oneForAll.js)
+    if (this.draft?.vote && (this.phase === PHASE.BAND_DRAFT || this.phase === PHASE.BATTLE_CHECK)) {
+      const dv = this._voteView();
+      if (dv) v.draft = dv;
+    } else if (this.phase === PHASE.BAND_DRAFT && this.draft) {
       const d = this.draft;
       // turnSeconds: the length of a turn (the countdown gauge's total; 0 when untimed) — deadline = turnDeadline
       v.draft = {

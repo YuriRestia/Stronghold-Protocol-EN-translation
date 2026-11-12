@@ -161,3 +161,67 @@
 @media (prefers-reduced-motion: reduce) {
   .tbanner { display: none; }
 }
+
+/* (fork) One for All (ui/protocolBoot.js `reveal`, DESIGN §91.9): the picks on the cards, the lines growing into the centre
+   slot, its charge-up, the winner under a gold ALL!, the losing picks' glitch and snap. The beats are the component's
+   (OFA, ofaTimeline): it sets these classes on its own clock; the sizes are the reviewed preview's at 1280×720. */
+.pboot--ofa .pboot__lines line { animation: none; }
+.pboot--ofa .pboot__lines.ofa-grow line { animation: pboot-draw 300ms ease-in forwards; }
+.pboot--ofa .pboot__node { animation: none; opacity: 0; }
+.pboot--ofa .pboot__lines.ofa-grow .pboot__node { animation: pboot-show 80ms 280ms forwards; }
+.ofa-pick { position: absolute; top: calc(12 * var(--px)); bottom: calc(12 * var(--px)); z-index: 3; display: flex; align-items: center; gap: calc(18 * var(--px));
+  padding: 0 calc(24 * var(--px)) 0 calc(9 * var(--px)); background: rgba(11, 20, 24, .9); border: calc(3 * var(--px)) solid rgba(78, 216, 175, .6);
+  color: #fff; font-size: calc(25 * var(--px)); font-weight: 700; white-space: nowrap; transition: filter .3s, opacity .3s, border-color .3s; animation: ofa-in .3s both; }
+.pboot__card--l .ofa-pick { left: calc(15 * var(--px)); }
+.pboot__card--r .ofa-pick { right: calc(15 * var(--px)); flex-direction: row-reverse; padding: 0 calc(9 * var(--px)) 0 calc(24 * var(--px)); }
+.ofa-pick.is-wait { opacity: 0; animation: none; }
+.ofa-pick__art { position: relative; display: block; flex: none; width: calc(93 * var(--px)); height: calc(93 * var(--px)); }
+.ofa-pick__art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ofa-pick__art img.g1, .ofa-pick__art img.g2 { opacity: 0; }
+.ofa-pick.is-random { border-style: dashed; }
+.ofa-rand { position: absolute; left: calc(12 * var(--px)); bottom: calc(-16 * var(--px)); padding: 0 calc(7 * var(--px)); line-height: calc(24 * var(--px));
+  background: #0b1418; border: calc(1.5 * var(--px)) solid rgba(78, 216, 175, .6); color: #4ed8af; font-size: calc(16 * var(--px)); letter-spacing: .12em; }
+.pboot__card--r .ofa-rand { left: auto; right: calc(12 * var(--px)); }
+.ofa-count { position: absolute; right: calc(-15 * var(--px)); top: calc(-18 * var(--px)); padding: 0 calc(9 * var(--px)); background: #e8b64c; color: #111;
+  font-size: calc(22 * var(--px)); font-weight: 800; animation: ofa-in .3s both; }
+.ofa-pick.is-lose { filter: grayscale(.7) brightness(.6); }
+.ofa-pick.is-win { border-color: #e8b64c; box-shadow: 0 0 calc(14 * var(--px)) rgba(232, 182, 76, .67); }
+.ofa-pick.is-glitch { filter: none; border-color: #ff3b6b; animation: ofa-jit .12s steps(2) infinite; }
+.ofa-pick.is-glitch .ofa-pick__art img:first-child { filter: drop-shadow(calc(7 * var(--px)) 0 0 #ff004c) drop-shadow(calc(-7 * var(--px)) 0 0 #00e5ff); }
+.ofa-pick.is-glitch .g1 { opacity: 1; animation: ofa-s1 .16s steps(3) infinite; }
+.ofa-pick.is-glitch .g2 { opacity: 1; animation: ofa-s2 .2s steps(3) infinite; }
+.ofa-pick.is-glitch b { text-shadow: 2px 0 #ff004c, -2px 0 #00e5ff; transform: skewX(-12deg); }
+.ofa-pick.is-glitch::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, .2) 0 1px, transparent 1px 3px); mix-blend-mode: screen; }
+.ofa-pick.is-flash { animation: ofa-flash .25s both; }
+.ofa-core { position: absolute; z-index: 4; display: grid; place-items: center; overflow: hidden; background: rgba(11, 20, 24, .94); border: calc(4 * var(--px)) solid #4ed8af;
+  box-shadow: 0 0 calc(18 * var(--px)) rgba(78, 216, 175, .4), inset 0 0 calc(22 * var(--px)) #000; transition: transform .35s, border-color .3s, box-shadow .3s; animation: ofa-in .4s 1.2s both; }
+.ofa-core .ofa-pick__art { position: absolute; inset: 0; width: auto; height: auto; }
+.ofa-core__q { font-style: normal; font-weight: 900; color: #4ed8af; font-size: calc(110 * var(--px)); animation: ofa-pulse 1s ease-in-out infinite; }
+.ofa-core.is-charge { border-color: #bff5e6; animation: ofa-charge var(--charge, 560ms) ease-in both; }
+.ofa-core.is-charge .ofa-core__q { animation: ofa-q-out 300ms ease-in forwards; }
+.ofa-core.is-land { border-color: #e8b64c; box-shadow: 0 0 calc(30 * var(--px)) rgba(232, 182, 76, .8), inset 0 0 calc(12 * var(--px)) #000; animation: ofa-land .45s both; }
+.ofa-core.is-unified { transform: scale(1.12); }
+.ofa-core__label, .ofa-core__name { position: absolute; z-index: 4; text-align: center; font-weight: 800; text-shadow: 0 0 6px #000, 0 0 2px #000; }
+.ofa-core__label.is-all { color: #e8b64c; font-size: calc(64 * var(--px)); font-weight: 900; letter-spacing: .06em; line-height: 1; margin-top: calc(-46 * var(--px));
+  transform-origin: 50% 100%; animation: ofa-all .45s both; }
+.ofa-core__name { color: #fff; font-size: calc(34 * var(--px)); }
+.ofa-core__name small { margin-left: .4em; color: #e8b64c; font-size: 1em; }
+@keyframes ofa-in { from { opacity: 0; transform: translateY(calc(15 * var(--px))); } to { opacity: 1; transform: none; } }
+@keyframes ofa-pulse { 50% { opacity: .35; } }
+@keyframes ofa-q-out { to { transform: scale(.3); opacity: 0; } }
+@keyframes ofa-charge {
+  0% { transform: scale(1); box-shadow: 0 0 calc(18 * var(--px)) rgba(78, 216, 175, .4), inset 0 0 calc(22 * var(--px)) #000; }
+  60% { transform: scale(.94) translate(1px, -1px); box-shadow: 0 0 calc(34 * var(--px)) rgba(78, 216, 175, .8), inset 0 0 calc(40 * var(--px)) rgba(78, 216, 175, .33); }
+  80% { transform: scale(.93) translate(-1px, 1px); }
+  100% { transform: scale(.92); box-shadow: 0 0 calc(48 * var(--px)) #bff5e6, inset 0 0 calc(60 * var(--px)) rgba(78, 216, 175, .53); }
+}
+@keyframes ofa-land { 0% { transform: scale(1.18); filter: brightness(2.4); } 100% { transform: none; filter: none; } }
+@keyframes ofa-all { 0% { transform: scale(1.5); filter: brightness(2.5); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; filter: none; } }
+@keyframes ofa-flash { 0% { background: #fff; filter: brightness(3); } 100% { background: rgba(11, 20, 24, .9); filter: none; } }
+@keyframes ofa-jit { 0% { transform: translate(0, 0); } 25% { transform: translate(-5px, 1px); } 50% { transform: translate(6px, -1px); } 75% { transform: translate(-2px, 0); opacity: .75; } 100% { transform: none; } }
+@keyframes ofa-s1 { 0% { clip-path: inset(18% 0 58% 0); transform: translateX(14px); } 50% { clip-path: inset(40% 0 35% 0); transform: translateX(-10px); } 100% { clip-path: inset(8% 0 80% 0); transform: translateX(18px); } }
+@keyframes ofa-s2 { 0% { clip-path: inset(62% 0 14% 0); transform: translateX(-12px); } 50% { clip-path: inset(75% 0 5% 0); transform: translateX(12px); } 100% { clip-path: inset(50% 0 30% 0); transform: translateX(-16px); } }
+@media (prefers-reduced-motion: reduce) {
+  .pboot--ofa .pboot__lines line { stroke-dashoffset: 0; }
+  .pboot--ofa .pboot__node { opacity: 1; }
+}

@@ -46,9 +46,42 @@ export function normalizeDraft(draft, players = []) {
  */
 export function heldDraftPub(last, pub) {
   const players = Array.isArray(pub?.players) ? pub.players : last.players;
+  // (fork) One for All: the vote stays secret until 协议启动's reveal — the players' `bandId` (everyone's is the winner by
+  // now) is never written into the held screen; it holds on "every vote is in" instead
+  if (last.draft?.mode === 'vote') {
+    return { ...last, players, deadline: 0, draft: { ...last.draft, locked: votersOf(last.draft), turn: null, turnDeadline: 0 } };
+  }
   const picks = { ...(last.draft?.picks || {}) };
   for (const p of Array.isArray(players) ? players : []) if (p && p.bandId && !picks[p.playerId]) picks[p.playerId] = p.bandId;
   return { ...last, players, deadline: 0, draft: { ...last.draft, picks, turn: null, turnDeadline: 0 } };
+}
+
+/** How many human seats vote in a One for All draft: `draft.voters` as a count or as their playerIds. */
+function votersOf(draft) {
+  const v = draft?.voters;
+  if (Array.isArray(v)) return v.filter((x) => typeof x === 'string').length;
+  return Number.isFinite(v) && v > 0 ? Math.min(Math.floor(v), 64) : 0;
+}
+
+/**
+ * (fork) One for All (Grand Alliance draft mode, crew-docs one-for-all-design.md §2.2): every Doctor votes secretly at
+ * once. m.public.draft carries only `mode: 'vote'`, `locked` (how many have locked their vote — a count, never names or
+ * picks) and `voters` (a count, or the voting seats' playerIds); the player's own vote is private: `priv.vote =
+ * { bandId, locked }`. Null outside vote mode.
+ * @param {any} draft m.public.draft
+ * @param {any} priv m.private
+ * @param {string|null} myId
+ * @returns {{ voters: number, locked: number, inVote: boolean|null, myVote: string|null, myLocked: boolean, done: boolean } | null}
+ *   inVote: whether I am a voting seat (null when `voters` is a bare count); done: every vote is locked
+ */
+export function normalizeVote(draft, priv, myId) {
+  if (!isObj(draft) || draft.mode !== 'vote') return null;
+  const voters = votersOf(draft);
+  const locked = Number.isFinite(draft.locked) ? Math.max(0, Math.min(Math.floor(draft.locked), voters || 64)) : 0;
+  const inVote = Array.isArray(draft.voters) ? draft.voters.includes(myId) : null;
+  const v = isObj(priv?.vote) && (!priv.playerId || priv.playerId === myId) ? priv.vote : null;
+  const myVote = v && typeof v.bandId === 'string' && v.bandId ? v.bandId : null;
+  return { voters, locked, inVote, myVote, myLocked: !!(v?.locked && myVote), done: voters > 0 && locked >= voters };
 }
 
 /**

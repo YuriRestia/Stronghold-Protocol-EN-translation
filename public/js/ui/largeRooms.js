@@ -4,6 +4,8 @@
 // the server's `locked`), and PrivacyFields, the 公开 / 私密 choice with the password field (the create screen and the
 // room's access button). While the browser is open the page watches the list (rooms.watch on); the server sends
 // rooms.list on every change. Matchmaking fills these rooms too when their host searches (DESIGN §90.4).
+// One for All (一策同心, a Grand Alliance strategy mode: one secret room-wide strategy vote): StrategySwitch (the create
+// screen and the room bar), OneForAllTag (the room title and the browser card) and the browser's filter chip.
 
 import { useEffect, useState } from '../../vendor/hooks.module.js';
 import { DIFFICULTY_NAMES } from '../../../shared/constants.js';
@@ -12,7 +14,7 @@ import { html, Button, Icon, Spinner, DifficultyIcon, promptDialog } from './com
 import { net, regions } from '../net.js';
 import { useStore } from '../store.js';
 import { regionLabel } from './regionNames.js';
-import { t } from '../../../shared/i18n.js';
+import { t, N_ } from '../../../shared/i18n.js';
 
 /** A ping test of every server while the browser is open, this often (the server picker's pace, ui/regionPicker.js). */
 const REMEASURE_MS = 10_000;
@@ -26,6 +28,7 @@ export function roomRows(msg) {
       code: r.code, host: typeof r.host === 'string' ? r.host : '', seats: r.seats, capacity: r.capacity, difficulty: r.difficulty,
       squads: Array.isArray(r.squads) && r.squads.length === 2 ? r.squads.map((n) => (Number.isInteger(n) ? n : 0)) : [r.seats, 0],
       locked: r.locked === true,
+      oneForAll: r.oneForAll === true,
       // (fork) the server the room is on (server/regions.js id); null without regions
       region: typeof r.region === 'string' && REGION_ID_RE.test(r.region) ? r.region : null,
     }));
@@ -72,9 +75,43 @@ export function PrivacyFields({ priv, pw, onPriv, onPw, onEnter = null, focus = 
   </div>`;
 }
 
-/** The rows a filter keeps: 'all', 'open' (公开) or 'locked' (私密). */
+/** The rows a filter keeps: 'all', 'open' (公开), 'locked' (私密) or 'oneForAll' (一策同心). */
 export function filterRows(rows, filter) {
-  return filter === 'open' ? rows.filter((r) => !r.locked) : filter === 'locked' ? rows.filter((r) => r.locked) : rows;
+  return filter === 'open' ? rows.filter((r) => !r.locked) : filter === 'locked' ? rows.filter((r) => r.locked)
+    : filter === 'oneForAll' ? rows.filter((r) => r.oneForAll) : rows;
+}
+
+/** The One for All rule in one line: the switch's tooltip and the room browser's note. */
+// en: "One for All: every Doctor votes for a strategy at once, in secret, and the most-voted one goes to everyone."
+const ONE_FOR_ALL_RULE = N_('一策同心：所有博士同时秘密投票选择策略，得票最多的策略由全体使用。');
+
+/** (fork) The ONE FOR ALL tag: beside a One for All room's 大同盟 title and on its room browser card. */
+export function OneForAllTag({ class: cls = '' }) {
+  // 一策同心 en: "One for All"
+  return html`<span class=${`ofa-tag${cls ? ` ${cls}` : ''}`} data-testid="one-for-all-tag" title=${t(ONE_FOR_ALL_RULE)}>${t('一策同心')}</span>`;
+}
+
+/**
+ * (fork) A Grand Alliance's strategy mode, 策略：自由选择 | 一策同心 (en "Strategy: Free pick | One for All"): the create
+ * screen (PrivacyFields' neighbour) and the room bar (screens/room.js, room.setOneForAll). `editable` false: a read-only
+ * label of the current one (everyone but the host). msgid 自由选择 en: "Free pick".
+ * @param {{ on: boolean, onPick?: (on: boolean) => void, editable?: boolean, busy?: boolean, class?: string }} p
+ */
+export function StrategySwitch({ on, onPick = null, editable = true, busy = false, class: cls = '' }) {
+  const box = `ofa-switch${on ? ' is-ofa' : ''}${editable ? '' : ' ofa-switch--ro'}${cls ? ` ${cls}` : ''}`;
+  if (!editable) {
+    return html`<div class=${box} data-testid="strategy-switch" title=${t(ONE_FOR_ALL_RULE)}>
+      <span class="ofa-switch__k">${t('策略')}</span><b>${on ? t('一策同心') : t('自由选择')}</b>
+    </div>`;
+  }
+  const opt = (v, label, id) => html`<button type="button" role="radio" aria-checked=${on === v ? 'true' : 'false'} data-testid=${id}
+      class=${`ofa-switch__opt${on === v ? ' is-on' : ''}`} disabled=${!!busy} onClick=${() => { if (!busy && on !== v) onPick?.(v); }}>${label}</button>`;
+  return html`<div class=${box} data-testid="strategy-switch" title=${t(ONE_FOR_ALL_RULE)}>
+    <span class="ofa-switch__k">${t('策略')}</span>
+    <div class="ofa-switch__seg" role="radiogroup" aria-label=${t('策略')}>
+      ${opt(false, t('自由选择'), 'strategy-free')}${opt(true, t('一策同心'), 'strategy-one-for-all')}
+    </div>
+  </div>`;
 }
 
 /**
@@ -149,9 +186,10 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
       <${Button} icon="plus" class="rbr__create" data-testid="grand-create" loading=${busy === 'create'} disabled=${!online} onClick=${onCreate}>${t('创建大同盟')}<//>
     </header>
     <p class="rbr__intro">${t('最多 8 名真人博士，分为两个小队：1–4 号座位为小队 A，5–8 号为小队 B。每个小队各自轮选，全房间争夺同一个干员池，最终一起对抗同一个敌方领袖。')}</p>
+    <p class="rbr__intro rbr__intro--ofa">${t(ONE_FOR_ALL_RULE)}</p>
     <nav class="rbr__filters" aria-label=${t('筛选')}>
-      ${[['all', t('全部')], ['open', t('公开')], ['locked', t('私密')]].map(([id, label]) => html`<button type="button" key=${id}
-        class=${`rbr__chip${filter === id ? ' is-on' : ''}`} aria-pressed=${filter === id ? 'true' : 'false'} onClick=${() => setFilter(id)}>
+      ${[['all', t('全部')], ['open', t('公开')], ['locked', t('私密')], ['oneForAll', t('一策同心')]].map(([id, label]) => html`<button type="button" key=${id}
+        class=${`rbr__chip${filter === id ? ' is-on' : ''}`} data-testid=${`grand-filter-${id}`} aria-pressed=${filter === id ? 'true' : 'false'} onClick=${() => setFilter(id)}>
         ${id === 'locked' ? html`<${Icon} name="lock" />` : null}${label}<span class="num">${count(id)}</span></button>`)}
     </nav>
     <main class="rbr__body">
@@ -160,10 +198,11 @@ export function RoomBrowser({ onClose, onCreate, onJoin, busy, online }) {
             <${Button} icon="plus" loading=${busy === 'create'} disabled=${!online} onClick=${onCreate}>${t('创建大同盟')}<//></div>`
         : !shown.length ? html`<div class="rbr__empty"><p>${t('没有符合条件的房间')}</p></div>`
         : html`<ul class="rbr__grid" data-testid="grand-list">
-          ${shown.map((r) => html`<li key=${r.code} class=${`rbr-card${r.locked ? ' is-locked' : ''}`}>
+          ${shown.map((r) => html`<li key=${r.code} class=${`rbr-card${r.locked ? ' is-locked' : ''}${r.oneForAll ? ' is-ofa' : ''}`}>
             <div class="rbr-card__head">
               <span class="rbr-card__host"><${Icon} name="crown" /><b>${r.host || t('博士')}</b></span>
-              ${r.locked ? html`<span class="rbr-card__lock" title=${t('私密')}><${Icon} name="lock" />${t('私密')}</span>` : null}
+              <span class="rbr-card__tags">${r.oneForAll ? html`<${OneForAllTag} class="rbr-card__ofa" />` : null}
+                ${r.locked ? html`<span class="rbr-card__lock" title=${t('私密')}><${Icon} name="lock" />${t('私密')}</span>` : null}</span>
             </div>
             <div class="rbr-card__diff"><${DifficultyIcon} difficulty=${r.difficulty} />${DIFFICULTY_NAMES[r.difficulty] ? t(DIFFICULTY_NAMES[r.difficulty]) : ''}
               ${multi && r.region ? html`<${RegionTag} id=${r.region} here=${r.region === here} ms=${msOf(r.region)} />` : null}</div>

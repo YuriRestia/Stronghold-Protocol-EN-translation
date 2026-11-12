@@ -108,6 +108,9 @@ player moves to the end of the order; refused when nobody is left to pass to). T
 no other unpicked player remains; finished players stay in the published order but are not skip targets. A strategy a teammate already took is
 refused (队友已选); band must list the mode type in `modeTypeList`. A single human (co-op with AI teammates only):
 untimed. Solo: free pick, no timer, no skip. Starting LP = `bands[id].totalHp` (a seat gone before its pick keeps 0, §37.65).
+(fork) One for All (DESIGN §91.9): one room-wide secret vote instead of turns — `g.band` locks the vote, `m.public.draft`
+carries only `mode: 'vote'`, `voters` and `locked` counts until `reveal { picks, random, counts, winner }` in
+BATTLE_CHECK (7.5 s), and `m.private.vote { bandId, locked }` is the player's own vote.
 
 ### 1.2 机变 (SP draft)
 Family = weighted pick from `choices.schedule[modeId].rounds[r].families`; cards: co-op 6 shared (each player takes 1,

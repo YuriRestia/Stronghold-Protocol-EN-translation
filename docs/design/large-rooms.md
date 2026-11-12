@@ -75,3 +75,42 @@ seats instead of 4. It is for humans only and is off unless the server sets `SP_
 - **Idle count**: only the player's own prep and draft actions, emotes and chat reset it — never what the page sends by
   itself (battle reports, bot work for others, unit stats, a watch change).
 - **联防 helpers**: a departed player is eliminated, so never a helper, in either relay round.
+
+### 91.9 One for All — `server/match/match/oneForAll.js`, `ui/protocolBoot.js` (`reveal`)
+
+`[ASSUMED]` A remake-only option of a Grand Alliance, the user's decisions of 2026-11-12: the room votes on one strategy in
+secret and everyone plays the winner.
+
+- **Room**: 一策同心 (One for All). The host's 策略 switch (自由选择 Free pick | 一策同心 One for All) sits in the room
+  footer beside the difficulty (the room chat holds the bottom left), plus a ONE FOR ALL tag by the Grand Alliance title
+  and the choice on the create screen; before the match, Grand Alliances only (`room.create { oneForAll }`, `room.setOneForAll { on }`: `NOT_HOST` / `WRONG_PHASE` / `BAD_MSG`;
+  `room.state.oneForAll`, `rooms.list[].oneForAll`; the browser's badge and filter). Switching it un-readies nobody; a
+  room that is matchmaking restarts its search, since One for All rooms merge only with each other and take only solo
+  Doctors who ticked 「也可加入一策同心房间」 with the Grand Alliance tick ([§90.4](matchmaking.md)). `room.setOneForAll`
+  is in the heavy rate bucket (`server/net.js` HEAVY_TYPES). The match gets
+  `oneForAll: true` beside `largeRoom: true`.
+- **The vote** (replaces the turn draft and the squad lanes): everyone votes at once, both squads together, on the usual
+  draft screen with one 50 s clock (a single human: untimed). The page shows only the player's own card and 「已锁定的博士
+  n / N」. All 40 strategies are votable, with no 队友已选; 本局禁用 marks stay; no skip. 确认选择 (`g.band`) locks the
+  vote for good (`ALREADY` after it, for `g.bandFocus` too). The vote ends at once when no voter is left deciding: a
+  dropped seat (the AI plays it) is not waited for.
+- **Secret**: `m.public.draft = { mode: 'vote', voters, locked, order, picks: {}, turnDeadline, turnSeconds, untimed }`
+  carries counts only; the player's own vote is `m.private.vote { bandId, locked }` (bandId once locked).
+- **The close**: a vote not locked counts the highlighted strategy (`g.bandFocus`), else a random one; a dropped seat votes
+  at random unless it had locked; a seat that left before the close loses its vote; AI seats never vote. Random = the
+  mode's allowed strategies minus those built around a bond the mode switches off, drawn from `rngDraft` in seat order.
+  Most votes wins; a tie is drawn from `rngDraft` among the tied strategies. Every seat gets the winner the way a pick
+  does (its starting LP; a departed seat keeps its 0).
+- **Reveal**: `m.public.draft = { mode: 'vote', reveal: { picks, random, counts, winner } }` during BATTLE_CHECK, which
+  runs 7.5 s in this mode (`shared/largeRoom.js` ONE_FOR_ALL_CHECK_SECONDS) with no held draft screen. 协议启动！ shows
+  up to 8 cards; each pick lands in a volley 70 ms apart (the room-join sound, panned by side), a random vote in a dashed
+  frame marked 「未投票 · 随机」; the lines grow into a slot in the centre of the ship with the match-found cue, whose
+  high note is the reveal (0.86 s after the lines start): the winner bursts into the slot under a gold 「全员！」 with the
+  vote counts. The losing picks glitch one after another (the roguelike distortion cue, `sfx.ui.distort`) and snap to the
+  winner (`itemMerge`); the unified screen holds about 3 s. The beats run on a JS clock, so the reveal holds the
+  battlefield build (`public/js/ui/fieldBuildHold.js`; the tile atlas holds the main thread ~1.7 s on a desktop) until
+  its picks resolve, at most 5 s: the engine's downloads and imports go on meanwhile, and BATTLE_CHECK leaves at least
+  2.5 s to build before the round. A normal match never holds it.
+- **Effects**: each player gets the strategy's effects as their own; a global one applies once however many hold it
+  (鸭爵 finds the first holder: `test/one-for-all.test.js`).
+- **Stats**: `m.result.mode = 'oneForAll'`; the stats page lists it as its own mode.

@@ -779,6 +779,7 @@ describe('local stats: aggregation (what the page renders)', () => {
     assert.deepEqual(summary.byMode.coop, { games: 2, wins: 1, hiddenCleared: 1 }, 'an eliminated teammate gets neither a personal clear nor a breakthrough');
     assert.deepEqual(aggregateStats([]).byMode, {
       solo: { games: 0, wins: 0, hiddenCleared: 0 }, coop: { games: 0, wins: 0, hiddenCleared: 0 },
+      oneForAll: { games: 0, wins: 0, hiddenCleared: 0 }, // (fork) One for All, its own mode (test/ui/one-for-all-vote.test.js)
     });
   });
 

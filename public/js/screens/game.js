@@ -133,7 +133,7 @@ import { LoadoutButton } from './loadout.js';
 import { BriefingScreen } from './briefing.js';
 import { BandDraftScreen } from './bandDraft.js';
 import { ResultScreen } from './settle.js';
-import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS } from '../ui/protocolBoot.js';
+import { ProtocolBoot, preloadBootArt, bootArtReady, BOOT_LEAVE_MS, warmOfaSounds } from '../ui/protocolBoot.js';
 import { net } from '../net.js';
 import { store, useStore, shallowEqual, serverNow, isSpectating } from '../store.js';
 import { battleRunner } from '../battle/runner.js';
@@ -188,6 +188,9 @@ export function GameScreen() {
   const voteRoom = useStore((s) => (s.room?.versionVote && !s.room.inMatch ? s.room : null));
   // 协议启动！'s official sprites (ui/protocolBoot.js), fetched while the briefing and the band draft run
   useEffect(() => { if (gd.ready) preloadBootArt(); }, [gd.ready]);
+  // (fork) One for All: the reveal's sounds load during the vote, so its beats never wait for a download
+  const voteDraft = pub?.draft?.mode === 'vote';
+  useEffect(() => { if (voteDraft) warmOfaSounds(); }, [voteDraft]);
   // 已选定策略 (PR #643, the event's draft end, video 7:36–7:44): once the draft is over the screen stays DRAFT_HOLD_MS on
   // 策略选择完成 · 正在进入模拟… with the pick, from the last draft snapshot (m.public.draft is gone after BAND_DRAFT),
   // then 协议启动！ — both inside BATTLE_CHECK's official 3 s (see DRAFT_HOLD_MS). Decided while rendering, so the match
@@ -198,7 +201,8 @@ export function GameScreen() {
   const [, endHold] = useState(0);
   if (liveMode === 'draft' && pub?.draft) { lastDraft.current = pub; hold.current = null; }
   else if (lastDraft.current && pub) {
-    if (liveMode !== 'result' && !reducedMotion()) hold.current = { until: Date.now() + DRAFT_HOLD_MS, pub: heldDraftPub(lastDraft.current, pub) };
+    // (fork) One for All: no hold — the held screen would show everyone's winner before the reveal (ui/protocolBoot.js)
+    if (liveMode !== 'result' && !reducedMotion() && lastDraft.current.draft?.mode !== 'vote') hold.current = { until: Date.now() + DRAFT_HOLD_MS, pub: heldDraftPub(lastDraft.current, pub) };
     lastDraft.current = null;
   }
   const held = hold.current && hold.current.until > Date.now() && liveMode !== 'result' ? hold.current.pub : null;
@@ -296,6 +300,9 @@ function MatchScreen() {
   // 协议启动！ (ui/protocolBoot.js): { key, at } while it shows — from the first frame when the screen opens in BATTLE_CHECK
   // (after the held draft screen), so the board never shows before it
   const [boot, setBoot] = useState(() => (pub?.phase === PHASE.BATTLE_CHECK && bootArtReady() ? { key: `${pub.phase}:${pub.round}`, at: Date.now() } : null));
+  // (fork) One for All: the vote's reveal on 协议启动！, kept through its fade (m.public.draft is gone after BATTLE_CHECK)
+  const ofaReveal = useRef(null);
+  if (pub?.phase === PHASE.BATTLE_CHECK && pub.draft?.mode === 'vote' && pub.draft.reveal) ofaReveal.current = pub.draft.reveal;
   const [resultBox, setResultBox] = useState(null);      // the round's result box (ResultDialog), shown at SETTLE
   const [bossPlate, setBossPlate] = useState(null);      // ui/bossPlates.js: { kind: 'final'|'core'|'end', … , key }
   const [readyBusy, setReadyBusy] = useState(false);
@@ -1960,7 +1967,7 @@ function MatchScreen() {
       }} />` : null}
     ${!hasOffers && turnPop ? html`<${TurnPopup} key=${turnPop} onDone=${() => setTurnPop(0)} />` : null}
 
-    ${boot && !hasOffers ? html`<${ProtocolBoot} key=${boot.key} players=${players} myId=${myId} leaving=${bootLeaving} />` : null}
+    ${boot && !hasOffers ? html`<${ProtocolBoot} key=${boot.key} players=${players} myId=${myId} leaving=${bootLeaving} reveal=${ofaReveal.current} />` : null}
     ${roundPop && !hasOffers && (!boot || bootLeaving) && hudIn !== 'wait' ? html`<${RoundPopup} key=${roundPop.key} round=${roundPop.round} gain=${roundGain} left=${roundPop.left} sub=${roundPop.sub}
       watching=${roundPop.watching} onDone=${() => setRoundPop(null)} />` : null}
     ${!hasOffers && banner?.plate && !roundPop ? html`<${PhasePopup} key=${banner.key} tone=${banner.tone} faces=${banner.faces} title=${banner.title} sub=${banner.sub}

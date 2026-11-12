@@ -95,6 +95,8 @@ export class PlayerViews {
       lp: this.lp,
       funds: this.funds,
       bandId: this.bandId,
+      // (fork) One for All: the player's own vote while the secret vote runs (match/oneForAll.js); absent otherwise
+      ...(this.m.draft?.vote && this.m._ownVote(this.playerId) ? { vote: this.m._ownVote(this.playerId) } : {}),
       ready: this.ready,
       canReady: this.alive && this.tempEmpty && !this.personalChoice && this.m.phase === PHASE.PREP,
       personalChoice: this.personalChoice ? {

@@ -73,7 +73,7 @@ import { QueuePanel, useSoloQueue } from '../ui/soloQueue.js';
 import { DifficultyDetailsButton } from '../ui/difficultyDetails.js';
 import { NoticesButton } from '../ui/notices.js';
 import { VersionSwitch } from '../ui/versionPicker.js';
-import { RoomBrowser, askRoomPassword, PrivacyFields } from '../ui/largeRooms.js';
+import { RoomBrowser, askRoomPassword, PrivacyFields, StrategySwitch } from '../ui/largeRooms.js';
 import { ROOM_PASSWORD_RE } from '../../../shared/largeRoom.js';
 import { RegionPing } from '../ui/regionPicker.js';
 import { contentSet, retryContentSet } from '../content.js';
@@ -615,9 +615,9 @@ function BackPlate({ onClick, class: cls = '' }) {
  * button (the other doctors: the host chooses).
  */
 export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, onCreate, busy, online, testMode, asTest, onTest, action = null, hint = null, readOnly = false,
-  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, modeId = roomMode, queueOpts = null, privacy = null }) {
+  difficulties = DIFFICULTIES, loading = false, failed = false, soloTime = null, modeId = roomMode, queueOpts = null, privacy = null, strategy = null }) {
   // (fork) `hint` false: no hint line; `privacy`: a Grand Alliance's 公开 / 私密 (ui/largeRooms.js PrivacyFields), whose
-  // 私密 needs a valid password before the button creates
+  // 私密 needs a valid password before the button creates; `strategy`: its 策略：自由选择 | 一策同心 (StrategySwitch)
   const hintText = hint === false ? null : hint ?? (roomMode === 'solo' ? t('创建后即可开始模拟') : t('创建后可邀请好友、添加 AI 队友或搜寻队友'));
   const blocked = !!privacy && privacy.priv && !ROOM_PASSWORD_RE.test(privacy.pw);
   // (fork) `modeId`: the entry named in the title — 'match' (单人匹配) shows the co-op difficulties under its own name
@@ -666,6 +666,7 @@ export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, on
             </label>` : null}
             ${queueOpts ? html`<${QueueOptions} opts=${queueOpts} />` : null}
             ${privacy ? html`<${PrivacyFields} priv=${privacy.priv} pw=${privacy.pw} onPriv=${privacy.onPriv} onPw=${privacy.onPw} onEnter=${blocked ? null : onCreate} />` : null}
+            ${strategy ? html`<${StrategySwitch} on=${strategy.on} onPick=${strategy.onPick} class="create-box__strategy" />` : null}
             ${testMode ? html`<label class="create-box__test" data-testid="create-test">
               <input type="checkbox" checked=${asTest} onChange=${(e) => onTest(e.target.checked)} />
               <span>${t('测试房间')}</span>
@@ -688,9 +689,11 @@ export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, on
 
 /**
  * (fork) 单人匹配's choices on 选择模拟协议: the official versions to be matched for (shown when the server offers more
- * than one; at least one stays ticked) and the Grand Alliance opt-in (when the server has them; they play 第二期下半 only).
+ * than one; at least one stays ticked) and the Grand Alliance opt-in (when the server has them; they play 第二期下半 only),
+ * with its One for All sub-opt-in under it (enabled only while the Grand Alliance one is ticked; off by default).
  * @param {{ opts: { versions: { id: string, on: boolean }[] | null, onVersion: (id: string, on: boolean) => void,
- *   large: { on: boolean, disabled: boolean, onToggle: (on: boolean) => void } | null } }} props
+ *   large: { on: boolean, disabled: boolean, onToggle: (on: boolean) => void } | null,
+ *   oneForAll?: { on: boolean, disabled: boolean, onToggle: (on: boolean) => void } | null } }} props
  */
 function QueueOptions({ opts }) {
   const ticked = (opts.versions || []).filter((v) => v.on).length;
@@ -706,6 +709,10 @@ function QueueOptions({ opts }) {
       <input type="checkbox" checked=${opts.large.on && !opts.large.disabled} disabled=${opts.large.disabled} onChange=${(e) => opts.large.onToggle(e.target.checked)} />
       <span>${/* en: "Also join Grand Alliances" */ t('也可加入大同盟')}</span>
       <em class="t-dim">${/* en: "Rooms of 8 in two squads. If one is not full yet, you wait in its room." */ t('8 人房间，分为两支小队。房间未满时，你会先在房间中等待。')}</em>
+    </label>` : null}
+    ${opts.large && opts.oneForAll ? html`<label class=${`create-box__test create-box__sub${opts.oneForAll.disabled ? ' is-off' : ''}`} data-testid="queue-one-for-all">
+      <input type="checkbox" checked=${opts.oneForAll.on && !opts.oneForAll.disabled} disabled=${opts.oneForAll.disabled} onChange=${(e) => opts.oneForAll.onToggle(e.target.checked)} />
+      <span>${/* en: "Include One for All rooms" */ t('也可加入一策同心房间')}</span>
     </label>` : null}
   </div>`;
 }
@@ -852,6 +859,8 @@ export function LobbyScreen() {
   // (fork) 单人匹配: the versions ticked (remembered; none of them offered here: the lobby's) and the Grand Alliance opt-in
   const [queueVersionsPref, setQueueVersionsPref] = useState(() => { const v = loadPref('lobby.queueVersions', null); return Array.isArray(v) ? v : null; });
   const [queueLarge, setQueueLarge] = useState(() => loadPref('lobby.queueLarge', false) === true);
+  // (fork) its One for All sub-opt-in: off by default (design Q7), sent only with the Grand Alliance one
+  const [queueOfa, setQueueOfa] = useState(() => loadPref('lobby.queueOneForAll', false) === true);
   const offeredIds = Array.isArray(versions) ? versions.map((v) => v.id) : [DEFAULT_VERSION];
   const keptIds = (queueVersionsPref || []).filter((id) => offeredIds.includes(id));
   const queueVersions = keptIds.length ? keptIds : [offeredIds.includes(version) ? version : offeredIds[0]];
@@ -866,6 +875,7 @@ export function LobbyScreen() {
     versions: offeredIds.length > 1 ? offeredIds.map((id) => ({ id, on: queueVersions.includes(id) })) : null,
     onVersion: tickVersion,
     large: largeRooms ? { on: queueLarge, disabled: !queueLargeOk, onToggle: (on) => { setQueueLarge(on === true); savePref('lobby.queueLarge', on === true); } } : null,
+    oneForAll: largeRooms ? { on: queueOfa, disabled: !(queueLargeOk && queueLarge), onToggle: (on) => { setQueueOfa(on === true); savePref('lobby.queueOneForAll', on === true); } } : null,
   };
 
   const run = async (kind, fn) => {
@@ -889,15 +899,16 @@ export function LobbyScreen() {
   const [grandOpen, setGrandOpen] = useState(false);
   const [grandPriv, setGrandPriv] = useState(false);
   const [grandPw, setGrandPw] = useState('');
+  const [grandOfa, setGrandOfa] = useState(false);
   const createLarge = () => setGrandOpen(true);
   const createGrand = () => {
     if (grandPriv && !ROOM_PASSWORD_RE.test(grandPw)) return;
     run('create', () => net.request('room.create', { mode: 'coop', capacity: 8, difficulty: shownCoop, ...(grandPriv ? { password: grandPw } : {}),
-      ...(testMode && asTest ? { test: true } : {}) }));
+      ...(grandOfa ? { oneForAll: true } : {}), ...(testMode && asTest ? { test: true } : {}) }));
   };
   // (fork) 单人匹配: the queue at the co-op difficulty shown; the lobby stays on screen while queued
   const joinQueue = () => run('create', async () => {
-    await net.request('queue.join', { difficulty: shownCoop, ...(Array.isArray(versions) ? { versions: queueVersions } : {}), ...(queueLargeOk && queueLarge ? { large: true } : {}) });
+    await net.request('queue.join', { difficulty: shownCoop, ...(Array.isArray(versions) ? { versions: queueVersions } : {}), ...(queueLargeOk && queueLarge ? { large: true, ...(queueOfa ? { oneForAll: true } : {}) } : {}) });
     if (alive.current) setMatchOpen(false);
   });
   const join = (c = code) => {
@@ -1008,7 +1019,7 @@ export function LobbyScreen() {
     ${grandOpen ? html`<${ProtocolSelect} roomMode="coop" modeId="grand" difficulty=${shownCoop} onDifficulty=${pickDifficulty}
       onClose=${() => setGrandOpen(false)} onCreate=${createGrand} busy=${busy} online=${online} difficulties=${coop}
       testMode=${testMode} asTest=${asTest} onTest=${setAsTest} action=${t('创建大同盟')} hint=${false}
-      privacy=${{ priv: grandPriv, pw: grandPw, onPriv: setGrandPriv, onPw: setGrandPw }} />` : null}
+      privacy=${{ priv: grandPriv, pw: grandPw, onPriv: setGrandPriv, onPw: setGrandPw }} strategy=${{ on: grandOfa, onPick: setGrandOfa }} />` : null}
     ${sweep ? html`<${SweepReport} restore=${sweep.restore} onClose=${() => setSweep(null)} onReopen=${(restore) => setSweep({ restore })} />` : null}
     ${achOpen ? html`<${AchievementDialog} onClose=${() => setAchOpen(false)} />` : null}
   </div>`;
