@@ -40,6 +40,7 @@ import {
   parseFileList, neededArt, artPlan, differingLists, parseSha256, artGate, mb,
 } from './release-art.mjs';
 import * as sudoStore from './release-sudo.mjs';
+import { sudoLine, sudoRunners } from './ssh-sudo.mjs';
 import { fragmentFiles } from '../tools/changelog.mjs';
 import { bumpNews } from './release-news.mjs';
 
@@ -133,16 +134,8 @@ export function foldPlan(fragments) {
   return { fold: true, say: `changelog: ${fragments.length} fragment(s) to fold: ${fragments.join(', ')}` };
 }
 
-/**
- * A server command for a host: its leading `sudo` / `sudo -n` becomes `sudo -S -p ''` (password on stdin) for a host
- * with a password, `sudo -n` (never prompts: fails at once) for one without. Inner sudo calls run as root and are left.
- * @param {string} line @param {boolean} withPassword
- */
-export function sudoLine(line, withPassword) {
-  const m = /^sudo (?:-n )?(?!-)/.exec(line);
-  if (!m) return line;
-  return `${withPassword ? "sudo -S -p ''" : 'sudo -n'} ${line.slice(m[0].length)}`;
-}
+// sudoLine lives in scripts/ssh-sudo.mjs (shared with deploy-regions.mjs); re-exported for test/release.test.js
+export { sudoLine };
 
 /** sed expression (server) and its JS twin: the clip bounds without their `"generated"` time, to compare tables. */
 const CLIP_STAMP_SED = 's/"generated":"[^"]*"//';
@@ -195,58 +188,8 @@ async function promptLine(question) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/**
- * ssh to one host. capture/stream run one command; a remembered password goes to `sudo -S` on stdin, a host without
- * one gets `sudo -n` (sudoLine). The password is never printed or put on a command line.
- */
-function hostRunner(host, password) {
-  const pw = password == null ? null : `${password}\n`;
-  const line = (l) => sudoLine(l, pw !== null);
-  return {
-    host,
-    hasPassword: pw !== null,
-    capture(l, { maxBuffer = CAPTURE_MAX } = {}) {
-      const r = spawnSync('ssh', [host, line(l)], { input: pw ?? '', encoding: 'utf8', windowsHide: true, maxBuffer, stdio: ['pipe', 'pipe', 'pipe'] });
-      return { status: r.status, stdout: String(r.stdout || ''), stderr: String(r.stderr || r.error?.message || '') };
-    },
-    stream(l) {
-      say(`\n=== ${host} ===`);
-      const r = spawnSync('ssh', [host, line(l)], { input: pw ?? '', windowsHide: true, stdio: ['pipe', 'inherit', 'inherit'] });
-      if (r.status !== 0) throw new Error(`${host}: the command failed (exit ${r.status ?? r.error?.message})`);
-    },
-  };
-}
-
-/**
- * The runner of each host: probes `sudo -n true`; a host that needs a password gets the remembered one (asked once
- * and stored when there is a terminal), checked with `sudo true` before anything else. null password + no terminal:
- * the host's sudo steps are skipped (dry run) or the release stops.
- */
-function runnersFor(hosts, { dryRun }) {
-  const out = new Map();
-  for (const { host } of hosts) {
-    const probe = hostRunner(host, null).capture('sudo true');
-    if (probe.status === 255) stop(`${host}: ssh failed: ${probe.stderr.trim()}`);
-    if (probe.status === 0) { out.set(host, hostRunner(host, null)); continue; }
-    let pw = sudoStore.load(host);
-    if (pw == null) {
-      if (!process.stdin.isTTY) {
-        if (dryRun) { say(`[sudo] ${host} asks for a sudo password and none is remembered; its sudo reads are skipped in this dry run`); out.set(host, null); continue; }
-        stop(`${host} asks for a sudo password: run this in a terminal once to type it`);
-      }
-      pw = sudoStore.askAndRemember(host);
-    }
-    const r = hostRunner(host, pw);
-    const check = r.capture('sudo true');
-    if (check.status !== 0) {
-      sudoStore.forget(host);
-      stop(`${host}: sudo refused the remembered password (${check.stderr.trim() || `exit ${check.status}`}); it is forgotten: run again to type it`);
-    }
-    say(`[sudo] ${host}: using the remembered sudo password (forget it: node scripts/release.mjs --forget-sudo)`);
-    out.set(host, r);
-  }
-  return out;
-}
+/** The runner of each host (scripts/ssh-sudo.mjs): a dry run skips a host whose password is not remembered here. */
+const runnersFor = (hosts, { dryRun }) => sudoRunners(hosts, { allowMissing: dryRun, say, stop });
 
 // -- step 0 ------------------------------------------------------------------------------------------------------
 
