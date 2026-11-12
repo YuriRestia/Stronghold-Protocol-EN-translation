@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { operatorOnly, parseFragment } from '../tools/changelog.mjs';
 import { newsProblems, parseNews, NEWS_MAX_BYTES, NEWS_MAX_HIGHLIGHTS, NEWS_MAX_POINTS, NEWS_LINE_MAX } from '../shared/news.js';
 
 const MAX_EDITS = 3;
@@ -22,7 +23,8 @@ const MAX_EDIT_BYTES = 256 * 1024;
 /** logs/news-<id>.json: valid news is at most NEWS_MAX_BYTES compact; this leaves room for the indentation. */
 export const NEWS_FILE_MAX = 2 * NEWS_MAX_BYTES;
 
-/** Headings that are not for players (the draft leaves them out as notes; the user can put any back). */
+/** Headings that are not for players (the draft leaves them out as notes; the user can put any back), besides the
+ * operator-only content of tools/changelog.mjs OPERATOR_ONLY. */
 export const BACKEND_ONLY = /\b(CI|golden|tests?|checks?|workflow|GitHub|servers?|peer|deploy|tooling|bandwidth|downloads?|loop check|sim|release)\b/i;
 
 /** The next id in the version bump pattern: `0.3.4-2` → `0.3.4-3`, `0.3.4` → `0.3.4-1`. @param {string} id */
@@ -54,16 +56,18 @@ export function builtInNews(src, pack) {
 }
 
 /**
- * The draft's lines from the fragments: one per `### ` heading, backend-only headings set aside.
+ * The draft's lines from the fragments: one per `### ` heading of a `Kind: player` fragment, backend-only headings
+ * set aside; every heading of a `Kind: internal` fragment (or one without a kind) is set aside too.
  * @param {{ name: string, text: string }[]} fragments
  * @returns {{ points: string[], skipped: { line: string, name: string }[] }}
  */
 export function draftNewsLines(fragments) {
   const points = [], skipped = [];
   for (const { name, text } of fragments) {
+    const player = parseFragment(name, String(text)).kind === 'player';
     for (const m of String(text).matchAll(/^### (.+?)\s*$/gm)) {
       const line = m[1].trim();
-      if (BACKEND_ONLY.test(line)) skipped.push({ line, name });
+      if (!player || BACKEND_ONLY.test(line) || operatorOnly(line).length) skipped.push({ line, name });
       else if (!points.includes(line)) points.push(line);
     }
   }
