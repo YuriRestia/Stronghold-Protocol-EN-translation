@@ -57,6 +57,24 @@ describe('room chat (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + 
         await c.page.waitForFunction(() => [...document.querySelectorAll('.rseat__bubble')].some((b) => b.textContent.includes('gl hf ready')), { timeout: 5000 });
       }
       await host.shot('line');
+
+      // (fork, user 2026-11-12) docked chat: a click into the box expands it, a click outside the chat lowers it; ⤢ keeps
+      // it up through clicks outside, ⤡ lowers it
+      const expandedOf = (c) => c.page.evaluate(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-expanded'));
+      const outside = () => host.page.mouse.click(1546 / 2, 45); // the empty middle of the top bar, well clear of the chat
+      assert.equal(await expandedOf(host), false, 'docked and low before any click');
+      await host.click('[data-testid="room-chat-input"]');
+      await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-expanded'), { timeout: 3000 });
+      await host.click('[data-testid="room-chat-send"]', null, { optional: true, timeout: 500 }); // a press inside the chat keeps it up
+      assert.equal(await expandedOf(host), true, 'a click inside the chat keeps it expanded');
+      await outside();
+      await host.page.waitForFunction(() => !document.querySelector('[data-testid="room-chat"]').classList.contains('is-expanded'), { timeout: 3000 });
+      await host.click('[data-testid="room-chat-expand"]');
+      await outside();
+      await sleep(200);
+      assert.equal(await expandedOf(host), true, '⤢ keeps it expanded through a click outside');
+      await host.click('[data-testid="room-chat-expand"]');
+      assert.equal(await expandedOf(host), false, '⤡ lowers it');
       await say(host, 'welcome 加油，我们能赢！');
       await waitLine(guest, '凯尔希: welcome 加油，我们能赢！', 'the host\'s line, fullwidth punctuation kept');
 

@@ -1,7 +1,8 @@
 // public/js/ui/chatLog.js — (fork) the room screen's chat (user, 2026-11-11; docs/design/network.md "Room chat"): an
 // MMO-style log you can scroll up — time, name (squad colours: A mint, B blue, yours gold), the line; who joined or left;
 // a "↓ N new messages" pill while scrolled up — with one input row (the box, a letter counter, Send) and the emote wheel.
-// Desktop: docked in the empty strip under the seat cards, ⤢ expands it upward (remembered per browser). A short screen
+// Desktop: docked in the empty strip under the seat cards. Clicking into the box expands it upward and clicking anywhere
+// outside the chat lowers it again (user, 2026-11-12); ⤢ keeps it expanded (remembered per browser). A short screen
 // (a phone in landscape): a Chat button with the unread count and the last line; the log opens over the left half.
 // The seat bubbles and mutes are screens/room.js's (the shared ChatBubble / ChatMuteButton); the state is roomChat.js's.
 // Text is rendered as text, never markup; what the box holds is already the plain text the server will take.
@@ -53,6 +54,10 @@ export function RoomChat({ room, myId, seated, online }) {
   const mute = useStore((s) => s.chatMute);
   const short = useMediaQuery(SHEET_QUERY);
   const [expanded, setExpanded] = useState(() => loadPref(EXPAND_KEY, false) === true);
+  // (fork) expanded while the box is in use: from a click into it until a click outside the chat (or Esc, or Tab away)
+  const [focusOpen, setFocusOpen] = useState(false);
+  const big = expanded || focusOpen;
+  const section = useRef(null);
   const [open, setOpen] = useState(false); // short screens: the log over the left half
   const [text, setText] = useState('');
   const [coolUntil, setCoolUntil] = useState(0);
@@ -79,7 +84,7 @@ export function RoomChat({ room, myId, seated, online }) {
     if (!el) return;
     if (atBottom.current) el.scrollTop = el.scrollHeight;
     else if (added) setNewCount((n) => n + added);
-  }, [lastSeq, visible, expanded]);
+  }, [lastSeq, visible, big]);
   useEffect(() => { if (visible) setSeenSeq(lastSeq); }, [visible, lastSeq]);
   // the open sheet lives in the footer, whose stacking context sits under the top bar (room.css: .rs-foot 2 < .rs-top 3),
   // so at a large 文字大小 the top bar's text drew over the sheet's header: while it is open the footer goes on top
@@ -129,10 +134,19 @@ export function RoomChat({ room, myId, seated, online }) {
   };
   const onKeyDown = (e) => {
     e.stopPropagation(); // typing is not the screen's hotkeys
-    if (e.key === 'Escape') e.target.blur();
+    if (e.key === 'Escape') { e.target.blur(); setFocusOpen(false); }
     else if (e.key === 'Enter' && !e.isComposing && e.keyCode !== 229) { e.preventDefault(); send(); }
   };
-  const toggleExpand = () => { const v = !expanded; setExpanded(v); savePref(EXPAND_KEY, v); };
+  // ⤢ keeps it expanded; ⤡ lowers it, whichever way it was opened
+  const toggleExpand = () => { const v = !big; setExpanded(v); savePref(EXPAND_KEY, v); if (!v) setFocusOpen(false); };
+  // a press anywhere outside the chat lowers a box that opened for typing
+  useEffect(() => {
+    if (!focusOpen || short) return undefined;
+    const onDown = (e) => { if (!section.current?.contains(e.target)) setFocusOpen(false); };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [focusOpen, short]);
+  const onFocusOut = (e) => { if (e.relatedTarget && !section.current?.contains(e.relatedTarget)) setFocusOpen(false); };
 
   const typed = letterCount(cleanChat(text));
   const pausedLeft = paused ? Math.ceil((rc.pausedUntil - now) / 1000) : 0;
@@ -154,7 +168,8 @@ export function RoomChat({ room, myId, seated, online }) {
   const emotes = seated ? html`<${EmoteWheel} open=${emoteOpen} onToggle=${setEmoteOpen} onSend=${sendEmote} disabled=${!online} />` : null;
   // docked (desktop): no header — the input row carries the emotes and ⤢, so the log fits under the seat cards even at
   // 720p; the sheet (short screens) has a header with its title and ✕
-  return html`<section class=${`clog${expanded && !short ? ' is-expanded' : ''}${short ? ' is-sheet' : ''}`} data-testid="room-chat" aria-label=${t('同盟聊天')}>
+  return html`<section ref=${section} class=${`clog${big && !short ? ' is-expanded' : ''}${short ? ' is-sheet' : ''}`} data-testid="room-chat" aria-label=${t('同盟聊天')}
+    onFocusOut=${onFocusOut}>
     ${short ? html`<header class="clog__head">
       <b>${t('同盟聊天')}</b>
       <span class="clog__sp"></span>
@@ -171,13 +186,14 @@ export function RoomChat({ room, myId, seated, online }) {
     <div class="clog__in">
       <input ref=${input} type="text" class="clog__box" value=${text} disabled=${!seated || !online || paused} placeholder=${placeholder}
         aria-label=${t('聊天输入')} autocomplete="off" enterkeyhint="send" dir="auto" data-testid="room-chat-input"
-        onInput=${(e) => { if (e.isComposing) setText(e.target.value); else fit(e.target); }} onCompositionEnd=${(e) => fit(e.target)} onKeyDown=${onKeyDown} />
+        onInput=${(e) => { if (e.isComposing) setText(e.target.value); else fit(e.target); }} onCompositionEnd=${(e) => fit(e.target)} onKeyDown=${onKeyDown}
+        onFocus=${() => { if (!short) setFocusOpen(true); }} />
       <span class="clog__cnt num" title=${t('每条最多 {n} 字', { n: CHAT_LINE_LETTERS })}>${typed}/${CHAT_LINE_LETTERS}</span>
       <button type="button" class="btn btn--primary btn--sm clog__send" data-testid="room-chat-send" disabled=${!typed || cooling || paused || !online || !seated}
         onClick=${send}><span class="btn__label">${t('发送')}</span></button>
       ${emotes}
       ${short ? null : html`<button type="button" class="clog__mini" data-testid="room-chat-expand" onClick=${toggleExpand}
-        title=${expanded ? t('收起聊天') : t('展开聊天')} aria-label=${expanded ? t('收起聊天') : t('展开聊天')}>${expanded ? '⤡' : '⤢'}</button>`}
+        title=${big ? t('收起聊天') : t('展开聊天')} aria-label=${big ? t('收起聊天') : t('展开聊天')}>${big ? '⤡' : '⤢'}</button>`}
     </div>
   </section>`;
 }

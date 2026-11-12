@@ -1029,12 +1029,14 @@
 .clog__in .ewheel { display: flex; align-self: stretch; }
 .clog__in .ewheel__btn, .clog__in .ewheel__btn.has-sprite {
   --ewb-w: max(28px, 2.3em); width: max(28px, 2.3em); height: auto; min-height: 24px; min-width: 0;
-  padding: 0; display: grid; place-items: center;
+  padding: 0; display: grid; place-items: center; place-content: center;
   background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); border-radius: 0;
 }
 .clog__in .ewheel__btn .icon { width: max(16px, 1.6em); height: max(16px, 1.6em); }
 /* Send: as tall as the box */
 .clog__in .clog__send { align-self: stretch; height: auto; min-height: 24px; padding: 0 .7em; }
+/* the label's trailing letter-spacing would sit it a hair left of the middle */
+.clog__in .clog__send .btn__label { margin-right: -.06em; }
 /* both at the chat's own text size (.clog's and .clog.is-sheet's), not their components' smaller ones */
 .clog__in .clog__send, .clog__in .ewheel__btn { font-size: calc(.18 * var(--t)); }
 .clog.is-sheet .clog__in .clog__send, .clog.is-sheet .clog__in .ewheel__btn { font-size: min(calc(.3 * var(--t)), calc(14px + var(--t-step))); }
