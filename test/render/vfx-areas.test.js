@@ -28,7 +28,7 @@ const HAS_INDEX = existsSync(INDEX);
 const LOOPING = new Set(['ymgtop_spin', 'enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'dsubrl_aura', 'cjhot_aura',
   'enemy_cjhot_debuff', 'horn_skill_01_hit_02_buff', 'skadi2_skill_03_buff', 'svrash_skill_02_buff', 'tinman_skill_01_range_01', 'sleach_skill_02_flag_01',
   'sleach_skill_02_ground_01', 'sleach_skill_03_flag_01', 'sleach_skill_03_range_loop_01', 'thumpy_skill_03_range_01', 'svash2_skill_03_range_01']);
-const KEYS = [...LOOPING, 'svash2_skill_03_trail_02', 'svash2_skill_03_hit_01', 'svash2_skill_03_deploy_01', 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'tinman_skill_01_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
+const KEYS = [...LOOPING, 'svash2_skill_03_trail_02', 'svash2_skill_03_hit_01', 'svash2_skill_03_deploy_01', 'oxi_skill_03_trail_01', 'oxi_skill_03_hit_01', 'tinman_skill_01_hit_01', 'mousek_skill_02_range', 'mousek_skill_02_start', 'mousek_skill_01_range', 'mousek_skill_01_range_02', 'bombd_cast', 'enemy_dsubrl_attack_hit', 'horn_skill_01_hit_02', 'g_hit', 'g_enemy', 'g_heal',
   'tank_shell_hit', 'sleach_skill_03_range_start_01', 'chen2_skill_02_range_01', 'enemy_dslily_skill_02_start_l', 'enemy_dslily_skill_02_range',
   'enemy_dslily_skill_01_start'];
 const GROUND = new Set(['enemy_nhpbr_attack_range', 'enemy_nhtank_attack_range', 'enemy_actoxi_idle', 'enemy_wintun_range', 'mousek_skill_02_range']);
@@ -188,7 +188,7 @@ describe('skills.js: the enemies\' kit-fx bindings', () => {
     assert.deepEqual(auraTargets(idx, 'enemy_1234_dsubrl', 'AOE'), { shots: ['enemy_dsubrl_attack_hit'], loops: [] });
     assert.deepEqual(auraTargets(idx, 'enemy_10054_cjhot', 'aoe'), { shots: [], loops: ['enemy_cjhot_debuff'] });
     assert.deepEqual(enemyBindingKeys(idx, 'enemy_1234_dsubrl'), ['enemy_dsubrl_attack_hit']);
-    assert.deepEqual(enemyBindingKeys(idx, 'enemy_1509_mousek'), ['mousek_skill_02_range']);
+    assert.deepEqual(enemyBindingKeys(idx, 'enemy_1509_mousek'), ['mousek_skill_02_range', 'mousek_skill_01_range', 'mousek_skill_01_range_02']);
     assert.deepEqual(enemyBindingKeys(idx, 'char_4039_horn'), []);
     assert.deepEqual(modeLoopKeys(idx, 'enemy_10116_ymgtop', 'RotateEffect'), ['ymgtop_spin']);
     assert.deepEqual(enemyBindingKeys(idx, 'enemy_10116_ymgtop'), ['ymgtop_spin']);
@@ -322,6 +322,15 @@ describe('an enemy\'s zone under the official layer', () => {
     w.attack(boss, ally, 'enemy', 3);
     assert.ok(!spawned.slice(before).includes('mousek_skill_02_range') && !spawned.slice(before).includes('mousek_skill_02_start'), 'a normal attack, not the sandstorm again');
     assert.equal(w.skills.state(boss).plan, null);
+  });
+
+  // (fork, enemy skills 2026-11-13) 【唱沙】's castTarget rows: the kit's 'telegraph' of kind 'driftSand' on the target's cross
+  test("鼠王's 唱沙 (id = it): both of DriftSand's range rows once on its target, the procedural cue skipped", async () => {
+    const { w, view, frame, spawned } = await setup();
+    view(1, 'enemy_1509_mousek', 10);
+    frame();
+    assert.equal(w.simFx('telegraph', 4, 10, { r: 1, kind: 'driftSand', tiles: 'plus', id: 1 }), true);
+    assert.deepEqual(spawned.slice().sort(), ['mousek_skill_01_range', 'mousek_skill_01_range_02']);
   });
 
   test("an attack-rooted skill no kit fx stands for keeps its window's rows for its attack (暴鸰's bomb, 0.27 s after the cast)", async () => {

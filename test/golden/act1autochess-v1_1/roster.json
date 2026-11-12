@@ -598,9 +598,9 @@
         "enemy_2034_sythef": [1,1,0,14,8000]
       },
       "hooks": [1,136,4816,558,558,929,924,17,122,122,69,66,0,17038,980,25,105,0,1,122,3,0,5],
-      "events": {"atk":679,"bounty":6,"cast":1,"deploy":28,"die":122,"dmg":917,"engage":7,"fx":193,"heal":3,"layer":3,"rate":1898,"skill":135,"spawn":120,"status":396},
+      "events": {"atk":679,"bounty":6,"cast":2,"deploy":28,"die":122,"dmg":917,"engage":7,"fx":193,"heal":3,"layer":3,"rate":1898,"skill":135,"spawn":120,"status":396},
       "fx": {"blink":14,"buff":3,"crit":10,"dilemma":7,"dodge":5,"dp":10,"explode":2,"explosion":9,"garrison":3,"garrisonGrant":1,"phase":1,"shieldBreak":1,"sp":26,"spGift":14,"summon":1,"swordRain":54,"swordStorm":32},
-      "snaps": "cceccbdb c40eecec 2875b69c ba393edd 3fd0901f 3fa5e2a0 5cd995fc 9d2a1945 367978a4 62da78e0 f2edbcb9 8d09461b c66d8ad2 81e8dbb5 c6342153 fc1f2184"
+      "snaps": "cceccbdb c40eecec 2875b69c ba393edd 3fd0901f 8f848e63 ccccc047 12be694a dcc46f6f f08d02d3 07983626 2191623c 8ec156f9 a0ea4262 f3fa36e0 f2053fdb"
     },
     "roster-011": {
       "about": "pass 0 band 5: chess_char_4_17_b chess_char_5_08_a chess_char_5_01_a chess_char_5_05_a chess_char_5_04_a chess_char_5_07_a chess_char_4_18_b chess_char_5_02_a chess_char_5_03_a chess_char_5_06_a chess_char_5_09_a chess_char_5_10_a token_10032_jesca2_jckshd",
@@ -2262,9 +2262,9 @@
         "enemy_9011_acrefr": [1,0,1,152,10482]
       },
       "hooks": [1,112,6900,1107,1093,2675,2904,7207,84,96,46,43,200,40941,135,53,83,5,1,84,8,0,0],
-      "events": {"atk":1100,"bounty":2,"cast":30,"deploy":26,"die":91,"dmg":2647,"engage":11,"fx":346,"heal":489,"layer":8,"leak":5,"rate":90,"skill":89,"spawn":105,"status":337},
+      "events": {"atk":1100,"bounty":2,"cast":31,"deploy":26,"die":91,"dmg":2647,"engage":11,"fx":346,"heal":489,"layer":8,"leak":5,"rate":90,"skill":89,"spawn":105,"status":337},
       "fx": {"airstrike":41,"anchor":1,"appear":1,"copy":3,"dodge":1,"dp":3,"drone":115,"droneLock":35,"drones":1,"explode":16,"garrison":8,"heal":12,"phase":1,"rockfall":4,"shield":8,"shieldBreak":23,"split":2,"stone":4,"summon":2,"telegraph":9,"zone":56},
-      "snaps": "f25b162a 4924a3ca 9a0607cc 44d349a7 ca7315ae 91abc85b 5159798e 49aa5d86 a2bafc4c ce0cf100 5d284fd2 8019a8de b8af2074 8ed663e2 e7176f67 1cad03ba e7e9ea3e c87a1a7e 6fc33d5f a4e34157 7d59ec0e 8fb4539c 8aa74a06"
+      "snaps": "f25b162a 4924a3ca 9a0607cc 1d13f9fd 8d3c837c 8d04a5e5 c62d1d88 754c7764 c8590746 bffedaf2 d5846884 0efd4ee0 540702d6 7d8935a4 f8e70949 fec41ee4 a8e044ac 64e72450 22193ff1 53376285 bd46a754 4488ca86 25be2e7c"
     },
     "roster-039": {
       "about": "pass 2 band 7: chess_char_6_03_b chess_char_6_02_b chess_char_6_06_b chess_char_6_07_b chess_char_6_01_b chess_char_6_04_b chess_char_6_05_b chess_char_6_08_b chess_char_6_09_b chess_char_6_10_b chess_char_6_11_b chess_char_6_12_b token_10017_skadi2_dedant token_10030_mlyss_wtrman",
