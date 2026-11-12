@@ -1361,7 +1361,10 @@ export class SkillFx {
   _enemyTick(U, at, key) {
     const from = U.v && U.v !== at && Number.isFinite(U.v.x) ? U.v : undefined;
     for (const en of U.enemy) {
-      const rows = (en.plan?.pulse || []).filter((e) => !key || e.key === key);
+      // `key` also finds the plan's attack hit rows: a skill attack whose blow the kit deals itself (no 'atk' event:
+      // the Corrupted Knight's charged hammer, 'Armor of the Empire''s multi-hit)
+      const rows = key ? [...(en.plan?.pulse || []), ...(en.plan?.attacks || []).flatMap((a) => (a.hit || []).flat())].filter((e) => e.key === key)
+        : (en.plan?.pulse || []);
       if (!rows.length) continue;
       for (const e of uniq(rows)) {
         const h = this._play(e, at, { flipFrom: from });

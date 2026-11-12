@@ -47,6 +47,16 @@ test("`key` plays only that row, on the target; a 'cast' hold ends after the cas
   assert.deepEqual(played.map((h) => h.k), ['enemy_xdelk_buff_03', 'enemy_xdelk_skill_hit_01']);
 });
 
+test("`key` finds an attack's hit row too (a skill blow the kit deals itself: the Corrupted Knight's hammer)", () => {
+  const hit = { key: 'dekght_skill_01_hit', role: 'hit', at: 'target' }, range = { key: 'dekght_skill_01_range', role: 'hit', at: 'target' };
+  const { s, played, views } = rig(new Map([[3, { plan: null, enemy: [{ slot: 0, prefabKey: 'chargeattack', plan: { pulse: [], attacks: [{ hit: [[hit, range]] }] } }] }]]));
+  views.set(3, { id: 3, alive: true, x: 4, y: 9 }); views.set(2, { id: 2, alive: true, x: 5, y: 9 });
+  s._tick({ id: 3, on: 2, skill: 'dekght:charge', key: 'dekght_skill_01_range' });
+  assert.deepEqual(played.map((h) => [h.k, h.id]), [['dekght_skill_01_range', 2]]);
+  s._tick({ id: 3, on: 2, skill: 'dekght:charge' });
+  assert.equal(played.length, 1, 'no key: only pulse rows, never the attack rows');
+});
+
 test('an enemy with no pulse rows, or a tick on a unit gone, plays nothing (still claimed)', () => {
   const { s, played, views } = rig(new Map([[9, { plan: null, enemy: [{ slot: 0, prefabKey: 'attack', plan: { pulse: [] } }] }]]));
   views.set(9, { id: 9, alive: true, x: 1, y: 9 });

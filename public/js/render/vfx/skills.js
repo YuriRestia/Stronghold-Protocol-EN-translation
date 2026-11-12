@@ -666,6 +666,9 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
   // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
   'enemy_wdrrl[AOE_attack]': true,
+  // enemy_1513_dekght / enemy_1513_dekght_2 Corrupted Knight / Withered Knight raging once its partner falls
+  // (dekght_buff_04_start; their TriggerRage talent, content/enemies/leaders.js 'ab:rage')
+  'dekght[trigger_rage]': true,
 });
 
 /**

@@ -83,6 +83,9 @@ const LSLIME_DOT_FX = 'lslime_t_dot', FLKING_SHIELD_FX = 'flking_shiled', SMSHA_
 // ---------------------------------------------------------------------------------------------------------------
 // kits
 
+// (fork) enemy VFX audit, S rows: the knights' official rows — the rage glow of their TriggerRage talent (a b.snap fxs
+// row, STATE_BUFFS), the Corrupted Knight's charged-hammer hit rows (fx 'tick' keys)
+const DEKGHT_RAGE_FX = 'dekght[trigger_rage]', DEKGHT_HIT_KEYS = Object.freeze(['dekght_skill_01_hit', 'dekght_skill_01_range']);
 function kitDekght(ab) {
   const rage = { atkPct: T(ab, 'triggerrage.atk') ?? 0, aspd: T(ab, 'triggerrage.attack_speed') ?? 0, moveMul: 1 + (T(ab, 'triggerrage.move_speed') ?? 0) };
   const partnerRage = {
@@ -90,7 +93,7 @@ function kitDekght(ab) {
       const u = c.unit;
       if (a.raged || !u || u === e || !/enemy_1513_dekght/.test(u.defId || '')) return;
       a.raged = true;
-      b.addBuff(e, { key: 'ab:rage', mods: rage, persist: true, visible: true });
+      b.addBuff(e, { key: 'ab:rage', mods: rage, persist: true, visible: true, fx: DEKGHT_RAGE_FX });
     },
     spawn(b, e) { watchDeaths(b, e); },
   };
@@ -203,6 +206,8 @@ function kitLeaderMisc(key, ab, e) {
           b.after(dur, () => {
             if (!e2.alive || e2.s.flags.stun) return;
             b.fx('explode', { x: cc, y: r, r: 1, kind: 'chargeAttack', tiles: 'plus' });
+            // (fork) enemy VFX audit, S rows: its official hammer hit and its cross on the blocker, display only
+            if (t.alive) for (const k of DEKGHT_HIT_KEYS) b.tickFx(e2, t, 'dekght:charge', k);
             for (const u of areaAlliesInTiles(b, e2, r, cc, 'plus', 1)) hurt(b, e2, u, e2.s.atk * (s.bb['dekght[aoe].atk_scale'] ?? s.bb.atk_scale ?? 1), 'phys');
           }, { owner: e2 });
         }, { cond: (b, e2) => !!(e2.blockedBy && e2.blockedBy.alive), turn: attackSkillOf(key, 'ChargeAttack', false) })];   // its blocker: the swing's turn
