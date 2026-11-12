@@ -6,7 +6,7 @@ import { aggroCmp, areaSelectable } from '../../targeting.js';
 import { periodicDamage } from '../../attack.js';
 import {
   nthOf, T, hurt, alliesInTiles, targetsNear, allTargets, areaAllies, areaAlliesInTiles, auraAllies, targetAndArea,
-  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf,
+  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf, fxWhile,
 } from './helpers.js';
 import {
   unblockable, maxTargets, onHitStatus, splashAttack, pathKeysAhead, noAirTargets, resist, nthAttackStatus, lowHpBuff,
@@ -810,7 +810,9 @@ export const LEADER_KITS = Object.freeze({
     // after the 急停 or with no movement). Until 0.2.2 one hit in proportion to the tiles moved [ASSUMED], from the position jump.
     const v = T(ab, 'unbalanced_bleed.damage') ?? 0;
     const iv = stepOf('unbalanced_bleed.interval', T(ab, 'unbalanced_bleed.interval') ?? 0, 0.066);
-    return [{
+    // (fork) fx: the client's enemy_cbjedi_bleed (CheckEnemyUnbalanced) keeps cbjedi_blood (weedy_skill_03_buff) on it while
+    // it is unbalanced; display only (snapshot fxs)
+    return [fxWhile('enemy_cbjedi_bleed', unbalancedNow), {
       tick(b, e, a, dt) {
         if (!(v > 0 && iv > 0) || !unbalancedNow(b, e)) { a.bleed = 0; return; }
         a.bleed = (a.bleed ?? 0) + dt;

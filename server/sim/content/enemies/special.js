@@ -6,7 +6,7 @@ import { canTargetAlly, areaSelectable } from '../../targeting.js';
 import { periodicDamage } from '../../attack.js';
 import {
   BOOM_RADIUS, nthOf, stOf, T, elem, hurt, targetsNear, allTargets, areaAllies, areaAlliesInTiles, byPriority,
-  stayRoute, spawnChildren, expose, auraBuff, watchDeaths, onTerrain, castSlot, grantHitShield, attackSkillOf,
+  stayRoute, spawnChildren, expose, auraBuff, watchDeaths, onTerrain, castSlot, grantHitShield, attackSkillOf, fxWhile,
 } from './helpers.js';
 import {
   unblockable, runWhenHit, blockWeight, taunt, maxTargets, ep, nthAttackPower, lowHpBuff, deathBoom, setFloat, float,
@@ -45,6 +45,9 @@ const BARREL_RADIUS = 1.5;
 function infectionArts() {
   return { hitOut(c, b, e) { if (c.dmg.isAttack && onTerrain(b, e, 'infection')) c.dmg.type = 'arts'; } };
 }
+
+/** (fork) 萨卡兹枯朽前锋's originium-mode glow (KITS below). */
+const LRSLDR_FX = fxWhile('enemy_lrsldr[switchMode][toOrig]', (b, e) => onTerrain(b, e, 'infection'));
 
 function kitChimera(ab) {
   const dmg = T(ab, 'OrigAura.damage') ?? 0, spr = T(ab, 'OrigAura.sp_recover_ratio') ?? 0;
@@ -157,7 +160,13 @@ function kitRush(ab) {
   return [{
     iv: RUSH_LISTEN,
     // the listeners first look at once (waitFirstTriggerInterval 0): a walker spawned unblocked starts at t = 0
-    spawn(b, e, a) { a.on = !e.blockedBy && !held(e); a.n = 0; a.tries = 0; a.acc = 0; },
+    spawn(b, e, a) {
+      a.on = !e.blockedBy && !held(e); a.n = 0; a.tries = 0; a.acc = 0;
+      // (fork) fx: the client's dlancer_t_listener[c] → dlancer_t[trigger] keeps dlancer_t[core] (dlancer_buff_01_start) on
+      // it while the charge lasts (unblocked until its charged hit, a stun or a bind) [ASSUMED: dlancer_t_predelay, which
+      // holds it back, is not in its data]; display only (snapshot fxs)
+      b.fxProbe(e, 'dlancer_t_listener[c]', () => !!a.on);
+    },
     tick(b, e, a, dt) {
       if (held(e)) { if (a.on) stop(b, e, a); return; }
       if (!a.on) {
@@ -321,8 +330,10 @@ export const SPECIAL_KITS = Object.freeze({
   enemy_1402_tgshd_2: kitExposeOnHit,                                // 重装侦察兵 · exposes its attackers 5 s
   enemy_1081_sotisd: (ab) => [taunt(T(ab, 'taunt.taunt_level') ?? 0)], // 游击队盾卫 · taunt +1
   enemy_1427_lrnazg: kitNazg,                                        // “灵幛” · attack hits everyone around it (+ on infection tiles)
-  enemy_1422_lrsldr: () => [infectionArts()],                        // 萨卡兹枯朽前锋 · arts attacks on 源石污染区 (infection tiles)
-  enemy_1422_lrsldr_2: () => [infectionArts()],                      // 萨卡兹枯朽辟路前锋 · same
+  // (fork) fx: the client's enemy_lrsldr[switchMode][toOrig] (CheckContainsBuff buff_originum[tile] …) — its originium
+  // mode and enemy_lrsldr_buff_01 while it stands on an infection tile; display only (snapshot fxs)
+  enemy_1422_lrsldr: () => [infectionArts(), LRSLDR_FX],             // 萨卡兹枯朽前锋 · arts attacks on 源石污染区 (infection tiles)
+  enemy_1422_lrsldr_2: () => [infectionArts(), LRSLDR_FX],           // 萨卡兹枯朽辟路前锋 · same
   enemy_1425_lrcmra: kitChimera,                                     // 孽罪奇美拉 · activated on infection: arts attacks + pollution aura
   enemy_1425_lrcmra_2: kitChimera,                                   // 渎罪奇美拉 · same
   enemy_1430_lrrook: (ab) => [{                                      // 愧悔魂灵圣杯 · shares damage taken by nearby ground enemies
@@ -474,7 +485,10 @@ export const SPECIAL_KITS = Object.freeze({
       const s = ab.sk.ForeverEnhance ? ab.sk.ForeverEnhance.bb : {};
       b.addBuff(e, { key: 'ab:enhance', refresh: 'stack', stacks: 1, maxStacks: 5, persist: true, mods: { moveFlat: (s.move_speed_add ?? 0) * e.base.moveSpeed, atkPct: s.atk_add ?? 0 } });
     },
-  }],
+  },
+  // (fork) fx: the client's hlchgr_t[attribute_storage] adds hlchgr_t[stack_mark] (enemy_hlchgr_buff_01) at each enhancement:
+  // the glow stays from the first one on; display only (snapshot fxs)
+  fxWhile('hlchgr_t[attribute_storage]', (b, e) => !!e.findBuff('ab:enhance'))],
   enemy_10094_crstf: kitEp('neural', 'ep.ep_damage_ratio'),          // 临时收音师 · neural on hit (filming zones n/a → always)
   enemy_10097_crshd: (ab) => [                                       // 心虚设计师 · neural to its blocker every s; front damage −80 % (faces the blocker, else the walk)
     { iv: 1, tick(b, e) { if (e.blockedBy) elem(b, e, e.blockedBy, 'neural', e.s.atk * (T(ab, 'block.ep_damage_ratio') ?? 0)); } },

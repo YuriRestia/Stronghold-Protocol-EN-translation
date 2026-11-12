@@ -74,7 +74,12 @@ function kitTank(ab, e) {
   const max = Math.max(1, num(spd && spd.maxSp, 0) || (sk && sk.sp) || (T(ab, 'Empty.sp') ?? 2));
   const init = Math.min(max, Math.max(0, num(spd && spd.initSp, 0)));
   return [{
-    spawn(b, e2, a) { a.sp = init; a.skill = false; e2.profile.canTarget = (u) => !!u.ground && !u.isFlying; },
+    spawn(b, e2, a) {
+      a.sp = init; a.skill = false; e2.profile.canTarget = (u) => !!u.ground && !u.isFlying;
+      // (fork) fx: the client's enemy_nhtank_s_effect[buff] (CheckHasSp EQUALS the talent's `sp`) keeps
+      // enemy_nhtank_attack_buff_01 on it while its SP is full: the next shot is 秽蚀轰击 (display only: snapshot fxs)
+      b.fxProbe(e2, 'nhtank_skill_effect[buff]', () => a.sp >= max);
+    },
     // SP full: this attack is 秽蚀轰击 (a blocked hit lands at once, inside this attack, while `a.skill` is set) — the
     // client is told its skill slot (castSlot, display only)
     before(c, b, e2, a) { a.skill = a.sp >= max; if (a.skill) castSlot(b, e2, sk); },

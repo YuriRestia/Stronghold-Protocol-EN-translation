@@ -641,6 +641,22 @@ export const STATE_BUFFS = Object.freeze({
   'jesca2_s_3_token[def]': true,
   'mgllan_s_2': true,
   'mgllan_s_3': true,
+  // (fork) enemies, official conditions (enemy VFX audit, S-M rows; content/enemies/*.js fxWhile / fxProbe): a talent's
+  // buff whose template keeps its effect on the enemy while a condition holds, read off the kit's own state. By enemy id:
+  // 1072 Sarkaz Lancer's charge; 1158 Diver in deep water; 1162 Caster Speedboat's wake on deep water; 1174 / 1175 the
+  // Dublinn Companion Guard and Shadowblade while paired (their traitAbility's child node: TalentFx.targetRows reads it
+  // from the index); 1272 Sarkaz Wither Tank with full SP; 1328 Arc Frontliner while unbalanced; 1422 Sarkaz Wither
+  // Vanguard on an infection tile; 10087 Shrine Swordsman from its first enhancement
+  'dlancer_t_listener[c]': true,
+  'divman_swim': true,
+  'magmot_effect': true,
+  'duholy_traitAbility[TauntLevelUp]': true,
+  'dushdo_traitAbility[BaseAttackTimeDown]': true,
+  'dushdo_traitAbility[effect]': true,
+  'nhtank_skill_effect[buff]': true,
+  'enemy_cbjedi_bleed': true,
+  'enemy_lrsldr[switchMode][toOrig]': true,
+  'hlchgr_t[attribute_storage]': true,
 });
 
 /**

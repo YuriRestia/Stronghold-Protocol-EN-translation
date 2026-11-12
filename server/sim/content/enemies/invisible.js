@@ -3,7 +3,7 @@
 
 import { canTargetAlly, enemyStealthed } from '../../targeting.js';
 import { ALLY_COLLIDER_RADIUS } from '../../constants.js';
-import { T, elem, hurt, targetsNear, byPriority, auraBuff, castSlot, attackSkillOf } from './helpers.js';
+import { T, elem, hurt, targetsNear, byPriority, auraBuff, castSlot, attackSkillOf, fxWhile } from './helpers.js';
 import { stealth, onHitStatus, skill, kitStealth } from './archetypes.js';
 import { hypot } from '../../detmath.js';
 
@@ -117,14 +117,20 @@ function kitJazz(ab, e) {
 
 function kitShadowBlade(ab) {
   const bat = ab.t['traitAbility.base_attack_time'] ?? 0;
+  const paired = (b, e) => {
+    const partner = b.enemiesInRadius(e.x, e.y, 3).find((o) => /enemy_1174_duholy/.test(o.defId));
+    const r = partner && partner.mem.ab ? (T(partner.mem.ab, 'traitAbility.range_radius') ?? 1.1) : 1.1;
+    return !!partner && hypot(partner.x - e.x, partner.y - e.y) <= r + 1e-9;
+  };
   return [stealth(), {
     iv: 0.5,
     tick(b, e) {
-      const partner = b.enemiesInRadius(e.x, e.y, 3).find((o) => /enemy_1174_duholy/.test(o.defId));
-      const r = partner && partner.mem.ab ? (T(partner.mem.ab, 'traitAbility.range_radius') ?? 1.1) : 1.1;
-      if (partner && hypot(partner.x - e.x, partner.y - e.y) <= r + 1e-9 && e.base.bat > 0) auraBuff(b, e, 'ab:shadowSync', 0.5, { batPct: bat / e.base.bat });
+      if (paired(b, e) && e.base.bat > 0) auraBuff(b, e, 'ab:shadowSync', 0.5, { batPct: bat / e.base.bat });
     },
-  }];
+  },
+  // (fork) fx: its traitAbility (cast by enemy_dushdo_duholy_trigger while it is paired with a 卫队) keeps
+  // dushdo_traitAbility[BaseAttackTimeDown] (enemy_dushdo_2_buff) and [effect] (_buff_02) on it; display only (snapshot fxs)
+  fxWhile('dushdo_traitAbility[BaseAttackTimeDown]', paired), fxWhile('dushdo_traitAbility[effect]', paired)];
 }
 
 /**

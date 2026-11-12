@@ -1,7 +1,7 @@
 // server/sim/content/enemies/reflection.js — REFLECTION 折射 kits (深池 enemies, 守墓石像) and their part of KITS (split from
 // content/enemies.js).
 
-import { T, auraAllies, auraBuff } from './helpers.js';
+import { T, auraAllies, auraBuff, fxWhile } from './helpers.js';
 import { refraction, statue, kitRefraction } from './archetypes.js';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -22,7 +22,11 @@ function kitPhalanx(ab, e) {
 
 function kitHolyGuard(ab) {
   const r = T(ab, 'traitAbility.range_radius') ?? 1.1, aspd = T(ab, 'traitAbility.attack_speed') ?? 0;
-  return [...kitRefraction(ab), {
+  // (fork) fx: its traitAbility (cast by enemy_dushdo_duholy_trigger while it is paired with a 影刃, stopped when the pair
+  // breaks) keeps duholy_traitAbility[TauntLevelUp] (enemy_duholy_buff) on it: while a 影刃 is in range, as the ASPD field
+  // below; display only (snapshot fxs)
+  const paired = (b, e) => b.enemiesInRadius(e.x, e.y, r).some((o) => /enemy_1175_dushdo/.test(o.defId));
+  return [...kitRefraction(ab), fxWhile('duholy_traitAbility[TauntLevelUp]', paired), {
     iv: 0.5,
     tick(b, e) {
       const on = b.enemiesInRadius(e.x, e.y, r).some((o) => /enemy_1175_dushdo/.test(o.defId));
