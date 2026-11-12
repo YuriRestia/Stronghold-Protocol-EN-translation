@@ -386,7 +386,9 @@ const doubleHit = (on = () => true, extra = null) => ({
 
 /** 巨大的丑东西 · melee ×rage; KO ⇒ self-destruct (big stun) and the 大祭司 pilot ejects: no attack, unblockable, own DEF/RES,
  *  faster, loses bird_run.damage true HP per second. (巨蕈/木桩 tiles and its ranged splash attack have no counterpart here:
- *  its data radius is 0.) */
+ *  its data radius is 0.) Its cuttree skill never fires in this mode, officially too: the client's CutTree
+ *  (SpawnTokenOnTileAbility) waits for a TileTrigger whose TileSelector keeps ONLY_CERTAIN_TILE_KEY tiles, `trap_015_tree`
+ *  and `tile_wooden_wall`, and no act1/act2 autochess map has either (their bushes are trap_218_fttree). */
 function kitUglyThing(ab) {
   const rage = T(ab, 'combat.attack@mcmstr_rage_attack.atk_scale') ?? 1;
   const bomb = ab.sk['bomb[reborning]'] ? ab.sk['bomb[reborning]'].bb : {};
@@ -492,14 +494,42 @@ function kitXi(ab) {
         for (const u of areaAllies(battle, e, e.x, e.y, r)) hurt(battle, e, u, e.s.atk * (s.bb.atk_scale ?? 0), 'arts');
       } });
   };
+  // (fork) fx: 【纬地经天】's target mark — the client's CrossAttackMark (form 1) / CrossAttackMarkReborn (form 2), each a
+  // GloballUniqueBuffAbility that re-selects every tick (global range, the cross's own selection): form 1 the nearest unit
+  // carries enemy_xi_mark[a]; form 2 the nearest enemy_xi_mark[b] and the farthest enemy_xi_mark[a] — both play
+  // enemy_xi_skill_01_buff_02 there. Display only (Battle.fxState: no sim state reads it); [ASSUMED] none while the 重生
+  // runs (the Default mode's mark detaches, the Reborn mode's attaches when it stands up) and none after it falls
+  const MARK_A_FX = 'enemy_xi_mark[a]', MARK_B_FX = 'enemy_xi_mark[b]';
+  const marks = (b, e, a, bb) => {
+    for (const [buff, u, k] of [[MARK_A_FX, a, 'a'], [MARK_B_FX, bb, 'b']]) {
+      const was = P.mark[k];
+      if (was === u) continue;
+      if (was) b.fxState(was, buff, false);
+      if (u) b.fxState(u, buff, true, { src: e });
+      P.mark[k] = u;
+    }
+  };
+  P.mark = { a: null, b: null };
+  const markPart = {
+    iv: 0.1,
+    tick(b, e) {
+      if (P.ko) return;
+      const l = byDist(b, e);
+      // removeBuffsIfNoValidTarget false: with nobody to select, the mark stays where it was (a dead carrier drops it)
+      if (!l.length) return;
+      if (P.form2) marks(b, e, l[l.length - 1], l[0]);
+      else marks(b, e, l[0], null);
+    },
+    death(c, b, e) { marks(b, e, null, null); },
+  };
   const re = reborn({
     dur: T(ab, 'reborn.duration') ?? 0, invincible: T(ab, 'reborn.invincible') ?? 0,
     // #510: Xi's post-rebirth 无敌 also prevents hostile selection (PRTS “自在” / 无敌).
     // Explicit opt-in: the engine's general invulnerable flag remains damage protection only.
     invincibleUntargetable: true,
-    onKo(b, e) { b.removeBuff(e, 'ab:xiShield'); },
+    onKo(b, e) { b.removeBuff(e, 'ab:xiShield'); P.ko = true; marks(b, e, null, null); },
     onReborn(b, e) {
-      P.form2 = true;
+      P.form2 = true; P.ko = false;
       b.addBuff(e, { key: 'ab:xiReborn', persist: true, visible: true, mods: { atkPct: T(ab, 'reborn.atk') ?? 0 } });   // 攻击力提升
       if (s2) s2.left = s2.icd;
     },
@@ -508,7 +538,7 @@ function kitXi(ab) {
   // selector of its own: it waits for a swing at the attack's target (`own` false; PRTS 「触发索敌和普通攻击相同」, §35.54)
   const s1 = skill(sb, burst(sb), { cond: () => !P.form2, turn: attackSkillOf('enemy_1517_xi', 'ShieldBurst', false) });
   const s2 = skill(sb2, sb2 ? burst(sb2) : null, { cond: () => P.form2, turn: attackSkillOf('enemy_1517_xi', 'ShieldBurstReborn', false) });
-  return [re, s1, s2, doubleHit(() => P.form2),                   // 普通攻击进行两次
+  return [re, s1, s2, markPart, doubleHit(() => P.form2),         // 普通攻击进行两次
     skill(cross, (b, e) => {
       const l = byDist(b, e);
       if (!l.length) return;
