@@ -1,6 +1,6 @@
 ## 2026-11-13
 
-### Leader and boss effects on the operators they reach
+### Leader and boss effects on the units they reach
 
 - With official effects on, these now show the game's own effect on the units they reach, for as long as it lasts:
   - Zaaro, Signore dei Lupi: the fear cage on the operators it catches, and the hit when it ends. Its own glow shows
@@ -8,10 +8,11 @@
   - Degenbrecher's second-form SP clear, on each operator it reaches.
   - OpFor: Quagmire's parasite, on the operator it latches onto.
   - Sarkaz Boneguard Torturer's mark, on every unit around it. Its own heal shows when one of them falls.
+  - Yan's Protection's flame channel, as the game's range effect on the enemy it locks onto.
 - These now show the game's own hit effect on the operators they strike:
   - Jesselton Williams's armour-piercing strike.
   - 'Gunshatter' running operators over while it chases its gun.
-- Before: the operators showed nothing.
+- Before: the units showed nothing.
 
 Kind: player
 
@@ -45,6 +46,11 @@ News:
   ja: {name:enemy_1364_spnaxe_2}のマークが周囲のユニットに表示され、そのユニットが倒れると回復エフェクトも表示されるようになりました
   ko: {name:enemy_1364_spnaxe_2}의 표식이 이제 주변 유닛에게 표시되고, 그중 하나가 쓰러지면 회복 이펙트도 표시됩니다
   zh-TW: {name:enemy_1364_spnaxe_2}的標記現在會顯示在其周圍的單位身上，周圍單位被擊倒時也會顯示其回復特效
+- point: {name:enemy_9012_acloon}'s flame now shows its official range effect on the enemy it locks onto
+  zh: {name:enemy_9012_acloon}的火焰现在会在其锁定的敌人身上显示官方范围特效
+  ja: {name:enemy_9012_acloon}の炎が、ロックした敵に公式の範囲エフェクトを表示するようになりました
+  ko: {name:enemy_9012_acloon}의 화염이 이제 고정한 적에게 공식 범위 이펙트를 표시합니다
+  zh-TW: {name:enemy_9012_acloon}的火焰現在會在其鎖定的敵人身上顯示官方範圍特效
 - point: {name:enemy_1525_blkswb}, {name:enemy_1516_jakill}, {name:enemy_9007_acelem} and {name:enemy_9018_actrpa} now show their official effects on the operators they hit
   zh: {name:enemy_1525_blkswb}、{name:enemy_1516_jakill}、{name:enemy_9007_acelem}和{name:enemy_9018_actrpa}现在会在被命中的干员身上显示官方特效
   ja: {name:enemy_1525_blkswb}、{name:enemy_1516_jakill}、{name:enemy_9007_acelem}、{name:enemy_9018_actrpa}が命中したオペレーターに公式エフェクトを表示するようになりました

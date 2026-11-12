@@ -55,7 +55,7 @@ test("TalentFx.targetRows: a talent's buff hit rows join its target rows ('Gunsh
 
 test('the complex rows are state buffs', () => {
   for (const b of ['enemy_acelem[to_parasitic]', 'enemy_blkswb_s[effect]', 'jakill_skill_1_reborn_hit[eff]', 'enemy_wlfmster_fearcage',
-    'enemy_wlfmster_damage_record', 'enemy_wlfmster_fear', 'actrpa_s_1[damage]', 'actrpc_s_1[damage]']) assert.ok(STATE_BUFFS[b], b);
+    'enemy_wlfmster_damage_record', 'enemy_wlfmster_fear', 'actrpa_s_1[damage]', 'actrpc_s_1[damage]', 'acloon_s_2']) assert.ok(STATE_BUFFS[b], b);
   // the Torturer's one buff: its mark on the units around it, its heal on itself — by the row's look
   assert.deepEqual(STATE_BUFFS['enemy_spnaxe_buffs[mark]'].looks, { mark: ['enemy_spnaxe_2_buff_1'], heal: ['enemy_spnaxe_heal'] });
 });

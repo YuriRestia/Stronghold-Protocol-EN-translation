@@ -592,6 +592,8 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_1364_spnaxe_2 Sarkaz Boneguard Torturer: its mark on the operators within its radius (enemy_spnaxe_2_buff_1),
   // its heal when one of them is knocked out (enemy_spnaxe_heal)
   'enemy_spnaxe_buffs[mark]': { looks: L({ mark: ['enemy_spnaxe_2_buff_1'], heal: ['enemy_spnaxe_heal'] }) },
+  // enemy_9012_acloon Yan's Protection (the bond's ally): its channel's range on the locked enemy (enemy_acloon_skill_hit_range)
+  'acloon_s_2': true,
 
 
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
