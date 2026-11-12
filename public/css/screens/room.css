@@ -997,8 +997,11 @@
 .rseat__face { grid-row: 1 / 3; grid-column: 1; position: relative; display: block; line-height: 0; }
 
 /* ---- (fork) room chat (ui/chatLog.js; docs/design/network.md "Room chat") ------------------------------------------
-   Docked in the footer's left column, under the seat cards; ⤢ grows it upward over the left cards. A narrow or short
-   screen (the column is gone there): a Chat button with the unread count, the log a sheet over the left half.
+   Docked in the footer's left column, under the seat cards, like an MMO chat box (user, 2026-11-12): the top-right grip
+   drags it to any size over the cards (.is-sized; never under the min-width / min-height that keep the input row
+   whole), it fades while not in use (.is-idle: presses go through to the cards), ▾ folds it to the input row
+   (.is-folded). A narrow or short screen (the column is gone there): a Chat button with the unread count, the log a
+   sheet over the left half.
    Text follows 文字大小 (--t, theme.css): docked .18 × --t (12 px at 720p, 18 px at 1080p on 小); the phone sheet and
    button keep their 12–13 px at 小 (1rem is 40 px there) and grow a pixel a step above it (--t-step caps). */
 .rs-foot__left { position: relative; align-self: stretch; }
@@ -1010,7 +1013,34 @@
 }
 /* three lines at 小; the box keeps that height at every 文字大小 (layout never follows --t), bigger text scrolls */
 .clog__list { height: calc(3 * 1.35 * .18rem + .1rem); }
-.clog.is-expanded .clog__list { height: min(48vh, 5rem); }
+/* the docked box: never so small that the input row's box, Send, emote and ▾ squeeze into each other (em: these follow
+   文字大小 with the text), never past the top bar or the screen's edge */
+.clog:not(.is-sheet) {
+  min-width: 21em; min-height: 6.6em; max-width: calc(100vw - 32px); max-height: calc(100vh - 80px);
+  transition: background-color .3s var(--ease-out), border-color .3s var(--ease-out), box-shadow .3s var(--ease-out);
+}
+.clog.is-sized .clog__list { height: auto; }
+.clog.is-folded { min-height: 0; right: auto; width: 21em; }
+.clog.is-folded .clog__list, .clog.is-folded .clog__new { display: none; }
+.clog.is-folded .clog__in { border-top: 0; }
+/* not in use: the log darkens and fades but stays readable, and presses go through it to the seat cards; the input row
+   stays a target (a press there brings the chat back) */
+.clog.is-idle { background: rgba(8, 11, 10, .3); border-color: transparent; box-shadow: none; pointer-events: none; }
+.clog.is-idle .clog__list { opacity: .62; scrollbar-color: transparent transparent; }
+.clog.is-idle .clog__line { text-shadow: 0 1px 2px #000, 0 0 4px #000; }
+.clog.is-idle .clog__in { pointer-events: auto; background: rgb(8, 11, 10); border-top-color: transparent; } /* solid: nothing under it shows through */
+.clog.is-idle .clog__in > * { opacity: .8; }
+.clog.is-idle .clog__grip { display: none; }
+.clog__list { transition: opacity .3s var(--ease-out); }
+/* the resize grip: an L in the top-right corner, nesw cursor */
+.clog__grip {
+  position: absolute; top: -1px; right: -1px; z-index: 2; width: 18px; height: 18px; cursor: nesw-resize; touch-action: none;
+}
+.clog__grip::after {
+  content: ''; position: absolute; top: 0; right: 0; width: 11px; height: 11px;
+  border-top: 2px solid var(--mint-600); border-right: 2px solid var(--mint-600);
+}
+.clog__grip:hover::after { border-color: var(--mint-400); width: 13px; height: 13px; }
 .rs-chat-open .rs-foot { z-index: 4; }
 .clog.is-sheet {
   position: fixed; left: calc(6px + env(safe-area-inset-left, 0px)); top: max(48px, 11vh); bottom: 6px; right: auto;
@@ -1048,8 +1078,13 @@
 }
 .clog__mini:hover { color: var(--mint-400); border-color: var(--mint-700); }
 .clog__mini .icon { width: 14px; height: 14px; }
-/* ⤢ / ⤡ (docked only) in the input row: as tall and wide as the emote button, the glyph a little over the chat's text */
-.clog__in .clog__mini { align-self: stretch; height: auto; min-height: 24px; width: max(28px, calc(2.3 * .18 * var(--t))); padding: 0; line-height: 1; font-size: calc(.24 * var(--t)); }
+/* ▾ / ▴ (docked only) in the input row: as tall and wide as the emote button; folded, it carries the unread count */
+.clog__in .clog__mini { position: relative; align-self: stretch; height: auto; min-height: 24px; width: max(28px, 2.3em); padding: 0; font-size: calc(.18 * var(--t)); }
+.clog__in .clog__mini .icon { width: max(16px, 1.4em); height: max(16px, 1.4em); }
+.clog__badge {
+  position: absolute; top: -.6em; right: -.6em; min-width: 1.5em; padding: 0 .3em; border-radius: .8em;
+  background: var(--red); color: #fff; font-size: calc(.14 * var(--t)); line-height: 1.5; text-align: center;
+}
 .clog__list {
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .04rem .12rem;
   display: flex; flex-direction: column; gap: .02rem; line-height: 1.35;

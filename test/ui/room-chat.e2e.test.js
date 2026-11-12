@@ -58,23 +58,69 @@ describe('room chat (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + 
       }
       await host.shot('line');
 
-      // (fork, user 2026-11-12) docked chat: a click into the box expands it, a click outside the chat lowers it; ⤢ keeps
-      // it up through clicks outside, ⤡ lowers it
-      const expandedOf = (c) => c.page.evaluate(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-expanded'));
+      // (fork, user 2026-11-12) the docked chat as an MMO chat box: a press outside fades it and lets presses through to
+      // the cards under it, a press into the input row brings it back; the top-right grip resizes it, never below the size
+      // that keeps the input row whole; ▾ folds it to the input row with an unread count; a double click on the grip resets
+      const box = (c) => c.page.evaluate(() => {
+        const el = document.querySelector('[data-testid="room-chat"]');
+        const r = el.getBoundingClientRect();
+        const row = ['.clog__box', '.clog__cnt', '.clog__send', '.clog__in .ewheel__btn', '.clog__fold']
+          .map((s) => document.querySelector(s)?.getBoundingClientRect()).filter(Boolean).map((q) => ({ l: q.left, r: q.right }));
+        return { cls: el.className, w: Math.round(r.width), h: Math.round(r.height), left: r.left, right: r.right, top: r.top, row,
+          under: (() => { const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 12); return hit ? !!hit.closest('.clog') : null; })(),
+          style: el.getAttribute('style') || '' };
+      });
       const outside = () => host.page.mouse.click(1546 / 2, 45); // the empty middle of the top bar, well clear of the chat
-      assert.equal(await expandedOf(host), false, 'docked and low before any click');
+      await outside();
+      await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-idle'), { timeout: 3000 });
+      assert.equal((await box(host)).under, false, 'faded, the log lets presses through to what is under it');
       await host.click('[data-testid="room-chat-input"]');
-      await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat"]').classList.contains('is-expanded'), { timeout: 3000 });
-      await host.click('[data-testid="room-chat-send"]', null, { optional: true, timeout: 500 }); // a press inside the chat keeps it up
-      assert.equal(await expandedOf(host), true, 'a click inside the chat keeps it expanded');
-      await outside();
-      await host.page.waitForFunction(() => !document.querySelector('[data-testid="room-chat"]').classList.contains('is-expanded'), { timeout: 3000 });
-      await host.click('[data-testid="room-chat-expand"]');
-      await outside();
+      assert.ok(!(await box(host)).cls.includes('is-idle'), 'a press into the input row brings it back');
+      assert.equal((await box(host)).under, true);
+      // drag the grip up and right
+      const drag = async (dx, dy) => {
+        const g = await host.page.$eval('[data-testid="room-chat-grip"]', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+        await host.page.mouse.move(g.x, g.y);
+        await host.page.mouse.down();
+        await host.page.mouse.move(g.x + dx / 2, g.y + dy / 2, { steps: 4 });
+        await host.page.mouse.move(g.x + dx, g.y + dy, { steps: 4 });
+        await host.page.mouse.up();
+      };
+      const b0 = await box(host);
+      await drag(220, -160);
+      const bigger = await box(host);
+      assert.ok(Math.abs(bigger.w - (b0.w + 220)) <= 2 && Math.abs(bigger.h - (b0.h + 160)) <= 2, `resized by the drag: ${JSON.stringify([b0, bigger])}`);
+      assert.ok(Math.abs(bigger.left - b0.left) <= 1, 'the left edge stays put');
+      const saved = await host.page.evaluate(() => JSON.parse(localStorage.getItem('sp.pref.roomChatSize')));
+      assert.deepEqual(saved, { w: bigger.w, h: bigger.h }, 'the size is remembered');
+      // far too small: stops at the size that keeps the input row whole (nothing overlaps, all inside the box)
+      await drag(-3000, 3000);
+      const small = await box(host);
+      assert.ok(small.w < b0.w && small.h < bigger.h, `shrunk: ${JSON.stringify(small)}`);
+      for (let i = 1; i < small.row.length; i++) assert.ok(small.row[i].l >= small.row[i - 1].r - 0.5, `input row items overlap at the minimum: ${JSON.stringify(small.row)}`);
+      assert.ok(small.row[small.row.length - 1].r <= small.right + 0.5, 'the last button stays inside the box');
+      assert.ok(small.row[0].r - small.row[0].l >= 60, 'the message box keeps room to type');
+      // too big: never over the top bar
+      await drag(3000, -3000);
+      const top = await host.page.evaluate(() => document.querySelector('.rs-top').getBoundingClientRect().bottom);
+      assert.ok((await box(host)).top >= top, 'never over the top bar');
+      // fold: the input row only; a new line shows as an unread count on ▴
+      await host.click('[data-testid="room-chat-fold"]');
+      assert.match((await box(host)).cls, /is-folded/);
+      assert.ok((await box(host)).h < 80, 'folded to the input row');
+      assert.ok((await box(host)).w <= small.w + 1, 'folded to the smallest width, whatever size it had');
+      await sleep(1600);
+      await say(guest, 'folded?');
+      await host.page.waitForFunction(() => document.querySelector('[data-testid="room-chat-unread"]')?.textContent === '1', { timeout: 5000 });
+      await host.click('[data-testid="room-chat-fold"]');
+      assert.ok(!(await box(host)).cls.includes('is-folded'));
+      assert.equal(await host.page.$('[data-testid="room-chat-unread"]'), null, 'unfolded: read');
+      // a double click on the grip goes back to the default dock
+      const g = await host.page.$eval('[data-testid="room-chat-grip"]', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+      for (let i = 0; i < 2; i++) { await host.page.mouse.move(g.x, g.y); await host.page.mouse.down(); await host.page.mouse.up(); await sleep(60); }
       await sleep(200);
-      assert.equal(await expandedOf(host), true, '⤢ keeps it expanded through a click outside');
-      await host.click('[data-testid="room-chat-expand"]');
-      assert.equal(await expandedOf(host), false, '⤡ lowers it');
+      assert.equal((await box(host)).style, '', 'the default dock again');
+      assert.equal(await host.page.evaluate(() => localStorage.getItem('sp.pref.roomChatSize')), 'null');
       await say(host, 'welcome 加油，我们能赢！');
       await waitLine(guest, '凯尔希: welcome 加油，我们能赢！', 'the host\'s line, fullwidth punctuation kept');
 
