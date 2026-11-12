@@ -624,6 +624,9 @@ export const STATE_BUFFS = Object.freeze({
   'horn_s_3[overload_start_effect_2]': true,
   // Leizi the Thunderbringer S1 (content/fxStates.js): a ring per stored charge
   'leizi2_s_1[effect_controller]': { looks: L({ 1: ['leizi2_skill_01_buff_01'], 2: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02'], 3: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02', 'leizi2_skill_01_buff_03'] }) },
+  // (fork) enemies, row 90 (Gameplay 2): OpFor: Gun (enemy_9017_achunt) — enemy_achunt_skill_1_hit once on each unit its
+  // charge hits (talent 3's achunt_s_1[damage], ON_BUFF_START on the targets; bosses.js kitGun)
+  'achunt_s_1[damage]': true,
   // Ascalon S2 (op-ascln.js): 死亡拘审's glow on the enemies, ascln_buff_02 added at max_stack_cnt (the kill burst
   // ascln_skill_02_death_01 sits on the enemy that died: no row carries it)
   'ascln_s_2[enemy]': { looks: L({ on: ['ascln_buff_01'], max: ['ascln_buff_01', 'ascln_buff_02'] }) },
@@ -1252,7 +1255,10 @@ function place(plan, e, u, { attackOf, eachHit }) {
   const ev = u.event;
   // (fork) a mark on the units the skill names, which the sim signals (b.snap `fxs` on the carrier, STATE_BUFFS): held
   // while the row lasts, an `end` once when it goes; a line (CreateLineEffect) or a tick stays unmapped
-  if (onTargets && stateRow(u.buff, e.key) && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end')) {
+  // (fork) an enemy talent's hit on its targets with no attack to carry it (life IMMEDIATELY: OpFor: Gun's charge,
+  // achunt_s_1[damage]) is such a row too, played once as it comes; operators' hit rows keep their attacks' path
+  const enemyHit = role === 'hit' && u.life?.type === 'IMMEDIATELY' && /^enemy_/.test(plan.unitKey || '');
+  if (onTargets && stateRow(u.buff, e.key) && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end' || enemyHit)) {
     e.at = 'carrier';
     e.hold = 'state';
     if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff && x.role === e.role)) plan.state.push(e);
