@@ -1759,6 +1759,7 @@ export class SkillFx {
         : bind.talent ? this._aura(owner, key, bind, x, y, extra)
         : bind.fly ? this._enemyFly(owner, bind, extra)
         : bind.cover ? this._enemyCover(owner, bind)
+        : bind.quiet ? !!this.w.ofx.lib.has(lc(bind.quiet))
         : this._zone(bind, x, y, extra);
       if (!drew) continue;
       // the kit's own moment stood for an attack-rooted skill of a window: that was its one attack — the enemy's next
@@ -1842,7 +1843,8 @@ export class SkillFx {
     }
     const q = this.volley?.id === oid && this.volley.frame === this.frame ? this.volley : (this.volley = { id: oid, frame: this.frame, n: 0 });
     const delay = (q.n++) * (Number(bind.stagger) || 0);
-    const o = { ...(bind.flyDur > 0 ? { dur: bind.flyDur } : {}), ...(bind.hits ? { hits: bind.hits.map((k) => ({ k })) } : {}) };
+    const fd = bind.flyDur === 'fx' ? Number(extra.dur) : Number(bind.flyDur);
+    const o = { ...(fd > 0 ? { dur: fd } : {}), ...(bind.hits ? { hits: bind.hits.map((k) => ({ k })) } : {}) };
     const go = () => { if (owner.alive !== false && !owner.destroyed) this.w._fly(p, owner, tv, 'arrow', this.w.ofx.time, o); };
     if (delay > 0) later(this.w.ofx, delay, go); else go();
     return true;

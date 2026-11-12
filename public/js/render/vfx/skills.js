@@ -646,6 +646,11 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
   'enemy_acfort[kill_other]': true,
   'enemy_acfort_vfx': true,
+  // (fork) enemies, lobbed shells (VFX 2): 凋零骑士's 爆炸箭 mark on each target until the blast (TripleAttack's
+  // `on: 'targets'` row, dekght_2_skill_01_buff; leaders.js fxState, src the knight) and the rage a partner's death leaves
+  // on a knight (TriggerRage's row, dekght_buff_04_start; the kit's `ab:rage` buff's fx)
+  'dekght_2[aoe]': true,
+  'dekght[trigger_rage]': true,
 });
 
 /**
@@ -2135,7 +2140,9 @@ export const OWNER_NEAR = 1;
  *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
  *              `flyDur`: the flight's own time (a timer shot whose hit lands at once); `rehit`: one flight per enemy and
  *              target while its projectile lives (a lasso), each later fx playing its onHit on the target; `hits`: the
- *              skill's own hit rows (prefab keys) played on the target as the shot lands
+ *              skill's own hit rows (prefab keys) played on the target as the shot lands; `flyDur: 'fx'`: the fx's
+ *              own `dur` (a fuse); `quiet`: nothing drawn — the official prefab named (installed) already plays for
+ *              this moment from an earlier fx's flight (W's C4 blast is the reached effect of the C4 flown at the fuse)
  * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
@@ -2219,6 +2226,25 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 节日爵士乐手 (invisible.js, 火力全开): a 'beam' of kind 'jazzFire' per hit_interval — one LassoProjectile
   // projectile_enemy_cnvsax per channel (its rope enemy_cnvsax_skill_line_01), enemy_cnvsax_hit_02 on each hit (`rehit`)
   enemy_10034_cnvsax: Object.freeze({ beam: ebind({ xkind: 'jazzFire', owner: 'from', fly: 'projectile_enemy_cnvsax', rehit: true }) }),
+  // (fork) enemies, lobbed shells (VFX 2)
+  // 高准度伦蒂尼姆城防自行炮 (special.js, 炮击): each shell's 'explode' of kind 'cannon' (from it, to the unit hit) —
+  // projectile_enemy_stmgun_s, a timer on its target: enemy_stmgun_skill_hit on it, enemy_stmgun_skill_range_01 where it
+  // lands [ASSUMED: landed at the sim's shot, not 6 s (its life) after]
+  enemy_1273_stmgun_2: Object.freeze({ explode: ebind({ xkind: 'cannon', owner: 'from', fly: 'projectile_enemy_stmgun_s', flyDur: 0.05 }) }),
+  // W (leaders.js, C4): the 'telegraph' of kind 'c4' (from her, to its carrier, dur the fuse) — projectile_enemy_cqbw_s1,
+  // a timer that puts enemy_cqbw_skill_01_buff on its target as it starts and enemy_cqbw_skill_02_hit where it is at the
+  // fuse's end; the 'explode' then is that blast (`quiet`; 'any': the kind is hers alone, she may have fallen meanwhile)
+  enemy_1504_cqbw: Object.freeze({
+    telegraph: ebind({ xkind: 'c4', owner: 'from', fly: 'projectile_enemy_cqbw_s1', flyDur: 'fx' }),
+    explode: ebind({ xkind: 'c4', owner: 'any', quiet: 'enemy_cqbw_skill_02_hit' }),
+  }),
+  // 凋零骑士 (leaders.js, 爆炸箭): the arrow's 'telegraph' of kind 'blastArrow' (`id` it, `to` its target) —
+  // projectile_enemy_dekght_s (its trail dekght_2_skill_01_trail); the target carries dekght_2[aoe] (STATE_BUFFS) until the
+  // blast, whose 'explode' plays the buff's trigger effect dekght_2_skill_01_range there
+  enemy_1513_dekght_2: Object.freeze({
+    telegraph: ebind({ xkind: 'blastArrow', owner: 'id', fly: 'projectile_enemy_dekght_s' }),
+    explode: ebind({ xkind: 'blastArrow', owner: 'from', keys: ['dekght_2_skill_01_range'], once: true }),
+  }),
 });
 
 /** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */
@@ -2261,7 +2287,7 @@ export function auraTargets(idx, unitKey, talent) {
 export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
   for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
-    if (bind.cover) continue;
+    if (bind.cover || bind.quiet) continue;
     if (bind.fly) {
       // its flying effect, a harpoon's rope (`link`), what it puts on its target as it starts, its hit / reached
       const p = idx?.projectiles?.[lc(bind.fly)];

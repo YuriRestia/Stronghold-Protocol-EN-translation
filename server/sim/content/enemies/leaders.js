@@ -85,7 +85,8 @@ function kitDekght(ab) {
       const u = c.unit;
       if (a.raged || !u || u === e || !/enemy_1513_dekght/.test(u.defId || '')) return;
       a.raged = true;
-      b.addBuff(e, { key: 'ab:rage', mods: rage, persist: true, visible: true });
+      // (fork) fx: the client's TriggerRage row (dekght_buff_04_start on the knight its partner's GlobalAuraAbility leaves raged)
+      b.addBuff(e, { key: 'ab:rage', mods: rage, persist: true, visible: true, fx: 'dekght[trigger_rage]' });
     },
     spawn(b, e) { watchDeaths(b, e); },
   };
@@ -140,9 +141,10 @@ function kitLeaderMisc(key, ab, e) {
         const n = e2.hpRatio < 0.5 ? 2 : 1; // 生命值降至一半以下时炸药包的使用数量增加
         for (const t of l.slice(0, n)) {
           const x = t.x, y = t.y;
-          b.fx('telegraph', { x, y, r: C4_RADIUS, dur: C4_FUSE, kind: 'c4' });
+          // (fork) from / to: the client flies the official C4 (projectile_enemy_cqbw_s1) onto the target for the fuse
+          b.fx('telegraph', { x, y, r: C4_RADIUS, dur: C4_FUSE, kind: 'c4', from: e2.id, to: t.id });
           // the C4 sits on its target (PRTS "在…1个非飞行的我方单位身上安装C4"): it is hit; the blast around it is an area
-          b.after(C4_FUSE, () => { b.fx('explode', { x, y, r: C4_RADIUS, kind: 'c4' }); for (const u of targetAndArea(t, areaAllies(b, e2, x, y, C4_RADIUS))) hurt(b, e2, u, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys'); });
+          b.after(C4_FUSE, () => { b.fx('explode', { x, y, r: C4_RADIUS, kind: 'c4', from: e2.id }); for (const u of targetAndArea(t, areaAllies(b, e2, x, y, C4_RADIUS))) hurt(b, e2, u, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys'); });
         }
       }, { cond: (b, e2) => targetsNear(b, e2, s.bb.range_radius ?? e2.base.rangeRadius).length > 0, turn: attackSkillOf(key, 'C4') })];
     }
@@ -209,10 +211,13 @@ function kitLeaderMisc(key, ab, e) {
         const delay = s.bb['dekght_2[aoe].interval'] ?? 0, scale = s.bb['dekght_2[aoe].atk_scale'] ?? 1;
         for (const t of cands(b, e2).slice(0, 3)) {
           const r = t.tileR, cc = t.tileC;
-          b.fx('telegraph', { x: cc, y: r, r: 1, dur: delay, kind: 'blastArrow', tiles: 'plus', id: e2.id });
+          // (fork) to: the client flies the official arrow (projectile_enemy_dekght_s) at it; the target carries the
+          // official dekght_2[aoe] mark (its loop) until the blast
+          b.fx('telegraph', { x: cc, y: r, r: 1, dur: delay, kind: 'blastArrow', tiles: 'plus', id: e2.id, to: t.id });
+          b.fxState(t, 'dekght_2[aoe]', true, { src: e2, dur: delay });
           b.after(delay, () => {
             if (!e2.alive) return;
-            b.fx('explode', { x: cc, y: r, r: 1, kind: 'blastArrow', tiles: 'plus' });
+            b.fx('explode', { x: cc, y: r, r: 1, kind: 'blastArrow', tiles: 'plus', from: e2.id });
             // "对主目标造成法术普通伤害，对溅射目标造成法术溅射伤害": the arrow's target + the 周围四格 (an area)
             for (const u of targetAndArea(t, areaAlliesInTiles(b, e2, r, cc, 'plus', 1))) hurt(b, e2, u, e2.s.atk * scale, 'arts');
           }, { owner: e2 });

@@ -1579,6 +1579,9 @@ test(`${nm('enemy_1273_stmgun_2')}: Cannon locks the highest-max-HP unit in rang
   assert.equal(h.b.applyStatus(e, 'stun', { duration: 1 }), false, '晕眩免疫 during it');
   h.run(5.5);
   assert.equal(h.eventsOf('fx').filter((f) => f[1] === 'explode' && f[4].kind === 'cannon').length, 10, '10 shots');
+  // (fork) each shell names the gun and the unit hit: the client lands the official shell on it
+  const hit = new Set([h.unit('t_wall').id, h.unit('t_gun').id]);
+  assert.ok(h.eventsOf('fx').filter((f) => f[1] === 'explode' && f[4].kind === 'cannon').every((f) => f[4].from === e.id && hit.has(f[4].to)));
   assert.ok(h.unit('t_wall').stats.taken + h.unit('t_gun').stats.taken > 0);
   assert.ok(!e.findBuff('ab:cannon') && h.b.applyStatus(e, 'stun', { duration: 1 }) !== false, 'over afterwards');
 });
@@ -1901,6 +1904,10 @@ test(`${nm('enemy_1504_cqbw')}: C4 blasts (ATK×${skb('enemy_1504_cqbw', 'C4').b
   e.profile.noAttack = true;
   h.run(skb('enemy_1504_cqbw', 'C4').initCooldown + 1.2);
   approx(h.unit('t_wall').stats.taken, e.s.atk * skb('enemy_1504_cqbw', 'C4').bb.atk_scale);
+  // (fork) the C4 names her and its carrier, the blast her: the client flies the official C4 for the fuse
+  const w = h.unit('t_wall');
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'telegraph' && f[4].kind === 'c4' && f[4].from === e.id && f[4].to === w.id && f[4].dur > 0));
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'c4' && f[4].from === e.id));
 });
 
 test(`${nm('enemy_1509_mousek')}: opening arts-only barrier (${tb('enemy_1509_mousek', 'shield.dynamic')}) with DEF +${tb('enemy_1509_mousek', 'defup.def')} while it holds; ×${tb('enemy_1509_mousek', 'enrage.damage_scale')} damage below half`, () => {
@@ -1963,6 +1970,8 @@ test(`${nm('enemy_1513_dekght')} + ${nm('enemy_1513_dekght_2')}: plus-shaped hit
   assert.ok(h.unit('t_wall2').stats.taken > 0);
   killed(h, b, null);
   approx(a.s.atk, E.enemy_1513_dekght.stats.atk * (1 + tb('enemy_1513_dekght', 'triggerrage.atk')));
+  // (fork) the rage shows: the client's TriggerRage row (b.snap fxs)
+  assert.ok((h.b.snapshot().fxs || []).some((r) => r[0] === a.id && r[1] === 'dekght[trigger_rage]'));
 });
 
 test(`${nm('enemy_1539_reid')}: ATK up below half; first KO ⇒ ${tb('enemy_1539_reid', 'Reborn.duration')} s rebirth (invulnerable, inert), back at ${tb('enemy_1539_reid', 'Reborn.hp_ratio') * 100} %; 【冲锋】 speeds up near a unit`, () => {
@@ -2202,7 +2211,15 @@ test(`${nm('enemy_1513_dekght_2')}: 爆炸箭 — 3 targets, ${skb('enemy_1513_d
   h.run(s.initCooldown + 0.1);
   assert.equal(h.eventsOf('fx').filter((f) => f[1] === 'telegraph' && f[4].kind === 'blastArrow').length, 3);
   assert.equal(h.unit('t_wall').stats.taken, 0, 'delayed');
+  // (fork) each arrow names its target; the targets carry the official mark until the blast (b.snap fxs)
+  const tel = h.eventsOf('fx').filter((f) => f[1] === 'telegraph' && f[4].kind === 'blastArrow');
+  assert.ok(tel.every((f) => f[4].id === e.id && f[4].to != null));
+  const marked = (h.b.snapshot().fxs || []).filter((r) => r[1] === 'dekght_2[aoe]');
+  assert.deepEqual(marked.map((r) => r[0]).sort(), tel.map((f) => f[4].to).sort());
+  assert.ok(marked.every((r) => r[2] === e.id));
   h.run(s.bb['dekght_2[aoe].interval']);
+  assert.ok(!(h.b.snapshot().fxs || []).some((r) => r[1] === 'dekght_2[aoe]'), 'the mark ends with the blast');
+  assert.ok(h.eventsOf('fx').some((f) => f[1] === 'explode' && f[4].kind === 'blastArrow' && f[4].from === e.id));
   approx(h.unit('t_wall').stats.taken, e.s.atk * s.bb['dekght_2[aoe].atk_scale']);
   assert.equal(h.unit('t_wall4').stats.taken, 0, 'out of range');
 });
