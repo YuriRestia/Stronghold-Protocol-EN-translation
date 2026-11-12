@@ -60,6 +60,45 @@ const C4_FUSE = 1, C4_RADIUS = 1;
 /** 鼠王 【唱沙】 cross reach and 【沙狱】 "及其周围" radius [ASSUMED]. */
 const DRIFT_REACH = 1, SANDSTORM_RADIUS = 1;
 
+/**
+ * (fork, enemy skills 2026-11-13) 鼠王's `Mark` (client enm_pfb_17 Skills/Mark, read 2026-11-13): an AbilityParallelGroup of
+ * two GloballUniqueBuffAbility — MaxHpDes, the field's highest-max-HP unit (selector postFilter 19, the 【唱沙】 trigger's),
+ * gets `mousek_mark[b]` (effect mousek_skill_01_buff); MaxHpAsc, the lowest (postFilter 20, 【沙狱】's), `mousek_mark[a]`
+ * (mousek_skill_02_buff). Both buffs use the `empty` template: a marker only, no stat. The skill casts once (EnemySkill
+ * _maxTriggerTime 1; cooldown 9999, initCooldown 1); from that cast on, the ability's OnTick re-picks its target every tick
+ * (GameAssembly GloballUniqueBuffAbility.OnTick → _DoUpdateTarget once OnSpellStart set m_startCheck), so each mark moves
+ * to whoever is highest / lowest now; with no target it stays where it is (_removeBuffsIfNoValidTarget 0), and it goes
+ * with 鼠王 (OnDetached). Display only: b.snap fxs (render/vfx/skills.js STATE_BUFFS).
+ */
+const MOUSEK_MARKS = Object.freeze([
+  { key: 'ab:mousekMark:b', fx: 'mousek_mark[b]', top: (p, q) => q.s.maxHp - p.s.maxHp },
+  { key: 'ab:mousekMark:a', fx: 'mousek_mark[a]', top: (p, q) => p.s.maxHp - q.s.maxHp },
+]);
+function mousekMark(s) {
+  const clear = (b, a) => {
+    for (const m of MOUSEK_MARKS) { const u = a.marked?.[m.key]; if (u) b.removeBuff(u, m.key); }
+    a.marked = null;
+  };
+  const place = (b, e, a) => {
+    a.marked ??= {};
+    const list = allTargets(b, e);
+    for (const m of MOUSEK_MARKS) {
+      let t = null;
+      for (const u of list) if (!t || (m.top(u, t) || aggroCmp(u, t)) < 0) t = u;
+      const was = a.marked[m.key];
+      if (!t || t === was) continue;
+      if (was) b.removeBuff(was, m.key);
+      b.addBuff(t, { key: m.key, persist: true, fx: m.fx, fxSrc: e.id });
+      a.marked[m.key] = t;
+    }
+  };
+  const sk = skill(s, (b, e, a) => { a.marking = true; place(b, e, a); });
+  return sk && { ...sk,
+    tick(b, e, a) { if (a.marking) place(b, e, a); },
+    death(_c, b, _e, a) { clear(b, a); },
+  };
+}
+
 /** “巨大的丑东西” self-destruct radius (PRTS 天赋 "对半径3.0范围内所有我方单位…"; 2.5 [ASSUMED] until 0.1.3). */
 const MCM_BOMB_RADIUS = 3;
 
@@ -74,6 +113,11 @@ const WOLF_RANGE = 1.25, WOLF_AWE_RADIUS = 1.5, WOLF_AWE_ASPD = -50;
 
 /** 乌顶巨角卢鲁 【角力对决】: the operator cannot be pushed (fixed tiles) ⇒ "更多伤害" multiplier [ASSUMED]. */
 const ELK_FAIL_SCALE = 2;
+/**
+ * (fork) The official buff keys of the lasting effects these leaders put on units (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): 'Pompeii''s burn on its targets, 'Gravestone''s shield, Fallen Snowpriest's buff on the enemies it reaches.
+ */
+const LSLIME_DOT_FX = 'lslime_t_dot', FLKING_SHIELD_FX = 'flking_shiled', SMSHA_BUFF_FX = 'enemy_smsha_buffs';
 
 // ---------------------------------------------------------------------------------------------------------------
 // kits
@@ -99,7 +143,8 @@ function kitLeaderMisc(key, ab, e) {
       return [maxTargets(4), lowHpBuff(T(ab, 'selfbuff.hp_ratio') ?? 0.5, { aspd: T(ab, 'selfbuff.attack_speed') ?? 0 }), {
         dealt(c, b, e2) {
           if (!(dot.dur > 0)) return;
-          b.addBuff(c.target, { key: 'ab:burnDot', duration: dot.dur, refresh: 'replace', interval: dot.iv, visible: true,
+          // (fork) fx: the official burn (lslime_t_dot: buff_burn) on its target while the DoT lasts (b.snap fxs)
+          b.addBuff(c.target, { key: 'ab:burnDot', duration: dot.dur, refresh: 'replace', interval: dot.iv, visible: true, fx: LSLIME_DOT_FX, fxSrc: e2.id,
             onTick: ({ battle, unit }) => battle.dealDamage(e2, unit, { amount: dot.dmg, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility'] }) });
         },
       }, {
@@ -150,7 +195,7 @@ function kitLeaderMisc(key, ab, e) {
       // 出场时拥有能够吸收大量法术伤害的屏障，屏障存在时防御力大幅增加 (arts-only barrier + DEF while it holds)
       const bar = artsBarrier(T(ab, 'shield.dynamic') ?? 0, { key: 'ab:sandDef', whileUp: { defFlat: T(ab, 'defup.def') ?? 0 } });
       const ds = ab.sk.DriftSand, ss = ab.sk.SandStorm;
-      return [bar, lowHpBuff(T(ab, 'enrage.hp_ratio') ?? 0.5, { dmgDealtMul: T(ab, 'enrage.damage_scale') ?? 1 }),
+      return [bar, lowHpBuff(T(ab, 'enrage.hp_ratio') ?? 0.5, { dmgDealtMul: T(ab, 'enrage.damage_scale') ?? 1 }), mousekMark(ab.sk.Mark),
         // 【唱沙】 the highest-max-HP unit on the field and everything in its cross: physical `damage`
         skill(ds, (b, e2) => {
           const t = allTargets(b, e2).sort((p, q) => q.s.maxHp - p.s.maxHp || aggroCmp(p, q))[0];
@@ -296,7 +341,8 @@ function kitLeaderMisc(key, ab, e) {
         },
       }, {
         tick(b, e2, a, dt) { for (const p of b.players) b.addDp(p.playerId, -0.5 * b.flags.dpPerSec * dt); },
-      }, skill(s, (b, e2) => b.addBuff(e2, { key: 'ab:tombShield', shield: e2.s.maxHp * (s.bb.hp_ratio ?? 0), persist: true }))];
+      // (fork) fx: the official shield glow (flking_shiled: enemy_mdrock_skill_buff_01) while the barrier holds (b.snap fxs)
+      }, skill(s, (b, e2) => b.addBuff(e2, { key: 'ab:tombShield', shield: e2.s.maxHp * (s.bb.hp_ratio ?? 0), persist: true, fx: FLKING_SHIELD_FX }))];
     }
     case 'enemy_2048_smgrd':
       // 持续在自身周围8格生成【国度】 (the 3×3 around its tile), 大幅降低其中我方单位的攻击速度; 对【国度】中的我方单位造成高额物理伤害.
@@ -345,7 +391,8 @@ function kitLeaderMisc(key, ab, e) {
         while (cur && seen.size < max) { // loop-cap: units
           seen.add(cur);
           b.fx('beam', { x: prev.x, y: prev.y, from: prev.id, to: cur.id, kind: 'chainBuff' });
-          b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 } });
+          // (fork) fx: the official glow (enemy_smsha_buffs: enemy_smsha_buff) on each enemy it reaches while the buff lasts
+          b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 }, fx: SMSHA_BUFF_FX, fxSrc: e2.id });
           prev = cur;
           cur = near(cur.x, cur.y, jump, seen);
         }
