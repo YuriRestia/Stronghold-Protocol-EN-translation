@@ -368,7 +368,7 @@ export const CHAT_MAX_LETTERS = 200;   // [ASSUMED] a safety ceiling for plugin 
 // Worst case ≈ 1 KB a frame; docs/design/network.md "Chat lines".
 export const CHAT_LINE_LETTERS = 100;
 export const CHAT_LINE_CODEPOINTS = 300;
-// (fork) the server's spam limits for a sender (server/chatLimit.js; the page is not trusted): a gap between lines, a burst
+// (fork) the server's spam limits for a sender (server/match/chatLimit.js; the page is not trusted): a gap between lines, a burst
 // window, pauses that grow on repeat offences and are forgiven one step at a time, and a cap for every session of one
 // network together, so new tabs or tokens do not multiply it. Room chat's gap; match chat keeps CHAT_COOLDOWN_MS.
 export const ROOM_CHAT_GAP_MS = 1500;

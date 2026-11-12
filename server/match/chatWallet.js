@@ -12,7 +12,7 @@
 import { CHAT_BUSY_MS, CHAT_COOLDOWN_MS, CHAT_MAX_LETTERS } from '../../shared/constants.js';
 import { chatLine, letterCount } from '../../shared/text.js';
 import { msg } from '../../shared/i18n.js';
-import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatWireBytes, utf8Bytes } from '../chatLimit.js';
+import { chatBudgetTake, chatLimitCheck, chatLimitGate, chatLimitState, chatWireBytes, utf8Bytes } from './chatLimit.js';
 import { creditedKillsOf } from '../sim/spec.js';
 import { OK } from './match/common.js';
 
@@ -64,7 +64,7 @@ export function settleChatWallet(ps, round) {
 /**
  * g.chat: spends letters and sends the line. Spectators never get here (Lobby refuses their g.* intents).
  * (fork, 2026-11-11) The line is plain text (shared/text.js chatLine: no tags, emoji or symbols) and at most
- * CHAT_LINE_LETTERS letters, whatever the wallet holds; the spam limits are server/chatLimit.js's with this chat's 3 s gap,
+ * CHAT_LINE_LETTERS letters, whatever the wallet holds; the spam limits are server/match/chatLimit.js's with this chat's 3 s gap,
  * and the start of a pause is the only refusal the sender hears of (a toast).
  * @param {any} m the match @param {any} ps the sender @param {string} raw @returns {{ ok: true }}
  */

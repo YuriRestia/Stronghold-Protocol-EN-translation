@@ -7,6 +7,132 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-12
 
+### Transmitter can't go on a Custom Squad Operator (from upstream)
+
+- Transmitter's text says it cannot be equipped by Custom Operators, and now the game agrees: dragging it no longer
+  offers a Custom Squad Operator, and the server refuses it. Before, equipping it there destroyed the Operator and
+  gave nothing back.
+- Bots (also the ones the host's browser runs) no longer aim Transmitter at a Custom Squad Operator.
+- From upstream: sganggs, issue #913.
+
+### AI teammates play again
+
+- Fixed: AI teammates did nothing all match: no strategy, no units bought or placed, funds left unspent. This hit every
+  match with an AI seat since bots started running in the players' browsers: AI teammates in solo and co-op rooms, the
+  AI seats matchmaking adds, and the AI that takes over a seat. A file the browser's bot needs was not served to it,
+  so the bot could never start.
+
+### Civilight Eterna's S3 background stays behind her (from upstream)
+
+- The tall background her S3 raises now draws just behind Civilight Eterna and in front of raised tiles, instead
+  of covering her or hiding under the tiles. From upstream: ForkΨKILLET (@ForkKILLET), PR #919 and #924.
+- On the 3D boss field, scene parts the game client keeps switched off are no longer drawn, and the scene
+  extractor leaves them out (no more white squares on maps that have them). Our current boss fields have no such
+  parts, so nothing needs re-extracting. From upstream: sganggs, issue #918.
+
+### Aegir operators already down at co-op defence revive
+
+- An Aegir operator that is already down when co-op defence starts now gets the bond's revive on the battle-start check
+  and spends one of the bond's revives, as in the official game. Before, it stayed down for the whole defence and the
+  revive was never used. Ported from upstream's fix for
+  [issue #882](https://github.com/sganggs/Stronghold-Protocol/issues/882), thanks to @sganggs; reported by @19p-0 with a
+  recording by @modongfox.
+
+### Swire the Elegant Wit's champagne bomb leaves with her
+
+- Swire the Elegant Wit's S2 champagne bomb now leaves the field when she does (knocked out, retreated or sold), as in
+  the official game. Before, an unexploded bomb stayed behind without her. Only her own bombs leave: other summons and
+  other operators' exits are unchanged. From [PR #872](https://github.com/sganggs/Stronghold-Protocol/pull/872)
+  (issue #871), thanks to @zasx77771, narrowed to the bomb as @sganggs asked in its review after checking it in the
+  official client.
+
+### A quick start keeps your custom squad
+
+- Settings chosen in the lobby (your custom squad and the other room settings that wait for the game data) are sent the moment you enter a room.
+- Before: they went out 50 ms later, so pressing Start right after the room appeared could start the match without your custom squad.
+- Ported from upstream ([`54d24b2b`](https://github.com/sganggs/Stronghold-Protocol/commit/54d24b2b32d4a1ad8a5f43ee79b61eb562b1b5b7), thanks to @sganggs).
+
+### Reconnecting after the match ended shows your result
+
+- A player whose connection dropped during a match and who comes back after it ended now sees the result screen and their own result, once, even when the room has closed in the meantime.
+- Before: if the room was closed before they came back (for example a matchmade room that removed them while waiting for game data), they got no result and sat on the paused board until their session expired. Coming back after the room's own waiting time ran out already worked.
+- Ported from upstream's open [PR #912](https://github.com/sganggs/Stronghold-Protocol/pull/912), thanks to @SatsumaUton.
+
+### Golden files refresh on GitHub
+
+- A button-run GitHub workflow (Actions → Golden refresh) recomputes the golden test files for the chosen versions and hands back only the files that changed, with a list of the moved scenarios, as a download kept 3 days. It never commits or pushes; developers no longer run golden updates on their own PC.
+- No game or server changes in this entry.
+
+### Thorns the Lodestar's S3 area passes the sim's loop check
+
+- The area's corner-finding loop now carries the note the sim's loop check asks for, saying why it always ends.
+  Nothing changes in play.
+
+### The difficulty list no longer twitches
+
+- On Select Simulation Protocol, the difficulty cards stay in one layout. At some window sizes they flipped every few
+  frames between the long cards with a scrollbar and the short cards, moving the list up and down (a player's report).
+- Before: the long cards were kept when they overflowed by under a pixel, which showed a scrollbar. The scrollbar
+  narrowed the list, and the narrower list was measured again and changed the layout back.
+
+### The fork's online checks (GitHub CI) pass again
+
+- Fixed the failures that had turned every check on our fork red since 2026-11-07: the host-bot benchmark tool no longer trips the linter, a few interface sizes (the scroll arrows, the new-messages button in the room chat, a loadout offset) follow the interface-size rules their guard tests check, and the update-package test no longer fails on Linux.
+- No game rule changes in this entry.
+
+### Room chat: a resizable MMO-style chat box, and Send / emote at the chat's text size
+
+- In the room screen's chat (team rooms and Grand Alliance rooms), the Send button's label is now as big as the chat's
+  own text, and the button is as tall as the message box. The emote button's icon grows with it, and the emote icon and
+  the Send label sit in the middle of their buttons. Before: Send used the small button text (about 12 px on a desktop,
+  about 6 px in the phone chat sheet) and the emote icon stayed 16 px. Both follow the Text Size setting.
+- The ⤢ / ⤡ grow button is gone. Drag the chat's top-right corner to make it any width and height; it never gets so
+  small that the message box, Send, emote and fold buttons squeeze into each other, never covers the top bar and never
+  leaves the screen. The size is remembered; a double click on the corner goes back to the default size.
+- Click anywhere outside the chat (or press Esc) and the chat log darkens and fades: the lines stay readable, and clicks
+  go through to any button under it first. Click the faded log anywhere that isn't over a button, or the message box,
+  to bring it back. The resize corner stays live while faded: drag it and the chat comes back at the new size.
+- The new ▾ button folds the chat down to a small message-box bar that covers no room button; new lines show as an
+  unread count on ▴, which opens it again. The phone chat sheet is unchanged.
+
+### The link between the servers survives a broken direct route
+
+- When a server's direct posts to the main server's socket host (`SP_REGION_SOCKETS`) fail 3 times in a row, the
+  link posts through the main server's public site address instead. Every 5 minutes it tries the direct host again and
+  goes back to it once it answers. Each switch is logged once.
+- Before: a broken direct route left the link down until the route came back by itself, and cross-server matchmaking,
+  counts and the room browser stayed local all that time.
+- Only the link between the servers switches. Players' sockets and ping tests keep the direct host; nothing they see
+  changes.
+- While every post fails, the posts slow down from every 2 s to every 30 s, and go back to every 2 s once one gets
+  through. `/healthz` shows `peer.fallback: true` while the link uses the fallback.
+
+### Grand Alliance: One for All
+
+- A Grand Alliance host can switch the room's strategy from Free pick to One for All. Everyone then votes in secret for
+  one strategy, and the whole room plays the winner.
+- Everyone votes at the same time, with one 50 s clock. You see only your own card and how many Doctors have locked in.
+  Confirm locks your vote. When everyone has locked in, the vote ends at once.
+- If you don't confirm, your highlighted strategy counts. With nothing highlighted, you vote for a random strategy (never
+  one switched off this match). A tie is a random draw among the tied strategies.
+- The reveal plays on Protocol Start!: every Doctor's pick lands on their card, the lines grow into the ship, the winner
+  bursts into the centre under a gold ALL!, and the other picks glitch and turn into it.
+- One for All rooms have their own badge and filter in the room browser and are matched only with each other. The
+  stats page keeps One for All as its own mode.
+
+### Thorns the Lodestar's third skill covers the official area
+
+- Thorns the Lodestar's S3 now works like the official game: one sea area spanning the operators it lands on (the
+  shape between them, fixed where it was thrown), burning the enemies inside once per interval. Before, each targeted
+  operator got its own ring reaching 1.5 tiles out, moving with them and burning on its own, so an enemy near two of
+  them burned twice.
+- The area reaches a third of a tile past the line joining the targets on every side; when they stand in one line it
+  is a strip two thirds of a tile wide along it. The official line effect now runs around the area's corners.
+- Its targets follow the official rule: operators in his range only (he can pick himself), the lowest Block first, a
+  tie going to the latest deployed. Alone in range, the area is just his tile: enemies standing on it burn, but huge
+  enemies never do, as in the official game; otherwise a huge enemy counts once its body reaches the area's box.
+- With official effects off, the area shows as one outline through its corners instead of a ring per operator.
+
 ### Lobby update news: Update 0.3.4-2
 
 - The lobby banner now reads "Update 0.3.4-2" and shows again to everyone who closed the last one. Its new highlight: a

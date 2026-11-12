@@ -1,4 +1,4 @@
-// server/chatLimit.js — (fork) the server's spam limits for one chat sender, shared by match chat (g.chat,
+// server/match/chatLimit.js — (fork) the server's spam limits for one chat sender, shared by match chat (g.chat,
 // server/match/chatWallet.js) and room chat (room.chat, server/lobby.js). The page is not trusted: it keeps to these
 // limits by itself, and the server refuses whatever goes past them. Rules (docs/design/network.md "Chat limits"):
 //   * a gap between lines (room ROOM_CHAT_GAP_MS, match CHAT_COOLDOWN_MS), with CHAT_COOLDOWN_GRACE_MS of jitter allowed;
@@ -20,7 +20,7 @@ import {
   CHAT_BUDGET_BYTES_PER_S, CHAT_BURST_LINES, CHAT_BURST_MS, CHAT_COOLDOWN_GRACE_MS, CHAT_DUPLICATE_LINES, CHAT_DUPLICATE_MS,
   CHAT_FRAME_OVERHEAD, CHAT_LONG_LINES, CHAT_LONG_MS, CHAT_MATCH_RESERVE, CHAT_NETWORK_LINES, CHAT_PAUSE_FORGIVE_MS,
   CHAT_PAUSE_STEPS_MS, CHAT_ROOM_SHARE,
-} from '../shared/constants.js';
+} from '../../shared/constants.js';
 
 /** A fresh sender state. Kept on the lobby session (room chat: survives reconnects) or on the match's PlayerState. */
 export const chatLimitState = () => ({ lastAt: -Infinity, triedAt: -Infinity, times: [], long: [], recent: [], strikes: 0, strikeAt: -Infinity, pausedUntil: 0 });
@@ -48,9 +48,9 @@ const fold = (text) => text.toLowerCase().replace(/\s+/g, '');
 export function chatLimitCheck(st, text, now, { gapMs }) {
   if (now < st.pausedUntil) return { ok: false, why: 'paused', pausedUntil: st.pausedUntil };
   if (now - st.lastAt < gapMs - CHAT_COOLDOWN_GRACE_MS) return { ok: false, why: 'gap' };
-  while (st.times.length && now - st.times[0] >= CHAT_BURST_MS) st.times.shift();
+  while (st.times.length && now - st.times[0] >= CHAT_BURST_MS) st.times.shift(); // loop-cap: the list (one shift a pass)
   if (!st.long) st.long = [];
-  while (st.long.length && now - st.long[0] >= CHAT_LONG_MS) st.long.shift();
+  while (st.long.length && now - st.long[0] >= CHAT_LONG_MS) st.long.shift(); // loop-cap: the list (one shift a pass)
   if (st.times.length >= CHAT_BURST_LINES || st.long.length >= CHAT_LONG_LINES) {
     // forgive a step per quiet stretch since the last pause, then take the next step
     if (st.strikes > 0 && Number.isFinite(st.strikeAt)) {
