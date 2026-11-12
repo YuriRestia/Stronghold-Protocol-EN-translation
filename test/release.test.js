@@ -192,7 +192,7 @@ describe('update news draft (release-news.mjs)', () => {
     assert.deepEqual(newsProblems(newsFromEdit({ id: nextNewsId(b.id), title: 'Update', ...b.langs.en })), []);
   });
 
-  const frag = (name, ...heads) => ({ name, text: `## 2026-11-13\n\n${heads.map((h) => `### ${h}\n\n- x\n`).join('\n')}\nServer cost: none\n` });
+  const frag = (name, ...heads) => ({ name, text: `## 2026-11-13\n\n${heads.map((h) => `### ${h}\n\n- x\n`).join('\n')}\nKind: player\n\nServer cost: none\n` });
 
   test('the id follows the version bump pattern, from the live news or the built-in id', () => {
     assert.equal(nextNewsId('0.3.4-2'), '0.3.4-3');
@@ -210,6 +210,11 @@ describe('update news draft (release-news.mjs)', () => {
     const { points, skipped } = draftNewsLines([frag('a.md', 'A quick start keeps your custom squad', "The fork's online checks (GitHub CI) pass again"), frag('b.md', 'A quick start keeps your custom squad', 'Golden files refresh')]);
     assert.deepEqual(points, ['A quick start keeps your custom squad']);
     assert.deepEqual(skipped.map((s) => s.name), ['a.md', 'b.md']);
+    assert.deepEqual(draftNewsLines([frag('o.md', 'Faster joins on the Singapore box', 'Chat costs 0.03 MB/s less')]).points, [],
+      'operator-only headings (tools/changelog.mjs OPERATOR_ONLY) never reach the news');
+    const internal = { name: 'i.md', text: frag('i.md', 'One-command release').text.replace('Kind: player', 'Kind: internal') };
+    const ki = draftNewsLines([internal]);
+    assert.deepEqual([ki.points, ki.skipped.map((s) => s.line)], [[], ['One-command release']], 'a Kind: internal fragment never reaches the news');
     const old = Array.from({ length: 16 }, (_, i) => `old ${i}`);
     const live = { id: '0.3.4-5', langs: { en: { title: 'Update 0.3.4-5', highlights: ['H'], points: old }, ja: { title: 'J', points: ['j'] } } };
     const d = draftNews(live, [frag('c.md', 'New one', 'old 3')]);
