@@ -42,6 +42,11 @@ describe('room chat (real server)', { skip: !ENABLED && 'set SP_E2E=1 (Chrome + 
       assert.equal(await request(host, 'room.create', { mode: 'coop', difficulty: 'NORMAL' }), 'ok');
       const { code } = (await host.waitFor((s) => !!s.room?.code, 'room created')).room;
       await host.page.waitForSelector('[data-testid="room-chat"]');
+      // (fork, live bug 2026-11-13) the input row's emote button is the icon alone, also where the server has the client's
+      // 交流 plate (data/local-assets.json): there the row's style wiped the plate and showed neither the icon nor a label
+      const emoBtn = await host.page.$eval('.clog__in .ewheel__btn', (b) => ({ sprite: b.classList.contains('has-sprite'), icon: !!b.querySelector('.icon'),
+        label: getComputedStyle(b.querySelector('.ewheel__label')).display }));
+      assert.deepEqual(emoBtn, { sprite: false, icon: true, label: 'none' }, 'the chat row\'s emote button shows its icon');
       await guest.open();
       await guest.enter('阿米娅');
       assert.equal(await request(guest, 'room.join', { code }), 'ok');

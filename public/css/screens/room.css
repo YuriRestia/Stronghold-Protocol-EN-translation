@@ -1069,7 +1069,7 @@
 /* the emote wheel's button in the input row, as tall as the box; its icon follows the chat's text (its panel still
    opens upward over the cards) */
 .clog__in .ewheel { display: flex; align-self: stretch; }
-.clog__in .ewheel__btn, .clog__in .ewheel__btn.has-sprite {
+.clog__in .ewheel__btn {
   --ewb-w: max(28px, 2.3em); width: max(28px, 2.3em); height: auto; min-height: 24px; min-width: 0;
   padding: 0; display: grid; place-items: center; place-content: center;
   background: rgba(0, 0, 0, .4); border: 1px solid var(--line-2); border-radius: 0;
