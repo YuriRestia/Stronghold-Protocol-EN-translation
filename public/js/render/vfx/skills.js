@@ -646,6 +646,11 @@ export const STATE_BUFFS = Object.freeze({
   // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
   'enemy_acfort[kill_other]': true,
   'enemy_acfort_vfx': true,
+  // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
+  // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
+  // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
+  'enemy_xi_mark[a]': true,
+  'enemy_xi_mark[b]': true,
 });
 
 /**
@@ -2215,6 +2220,10 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
       ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
     ]),
   }),
+  // (fork) “自在” (leaders.js kitXi: 【纬地经天】's 'telegraph' of kind 'xiCross' at its target's tile, id = it, at the
+  // strike): the client's CrossAttack fires projectile_enemy_xi_s — AttachToTarget (no flight), its TileSelectorHitBehaviour
+  // the cross, its EffectBehaviour enemy_xi_skill_01_hit on the target as it hits (_onlyPlayHitEffectOnTraceTarget)
+  enemy_1517_xi: Object.freeze({ telegraph: ebind({ xkind: 'xiCross', owner: 'id', projectile: 'projectile_enemy_xi_s', part: 'onHit', once: true }) }),
 });
 
 /** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */

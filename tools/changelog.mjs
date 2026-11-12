@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, renameSync, readdirSync, unlinkSync, exist
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseNewsBlock, checkNewsItems, createNames } from './news-block.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const CHANGES_DIR = join(ROOT, 'changes');
@@ -115,7 +116,7 @@ export function operatorOnly(text) {
 
 /** The fragment's blocks that never fold, after its sections: `Kind:`, `Server cost:` (the SERVER COST rule) and
  * `Operator notes:`, in any order. */
-const TAIL = /^(?:Kind|Server cost|Operator notes):/;
+const TAIL = /^(?:Kind|Server cost|Operator notes|News):/;
 /**
  * (fork, 2026-11-13) FORK-CHANGELOG.md is for players: only `Kind: player` fragments (game, UI, balance, fixes players
  * notice, credits) are folded into it. `Kind: internal` (tooling, scripts, CI, tests, hooks, deploy, the changelog
@@ -131,10 +132,14 @@ export const KINDS = Object.freeze(['player', 'internal']);
  * hold operator-only content (OPERATOR_ONLY).
  * @param {string} name file name
  * @param {string} text
- * @returns {{ date: string|null, kind: 'player'|'internal'|null, body: string, cost: ReturnType<typeof parseServerCost>, notes: string, errors: string[] }}
+ * @param {{ names?: ReturnType<typeof createNames> }} [o] names: the game's names (tools/news-block.mjs); without them a
+ *   News block is checked for its shape only
+ * @returns {{ date: string|null, kind: 'player'|'internal'|null, body: string, cost: ReturnType<typeof parseServerCost>, notes: string,
+ *   news: { kind: 'highlight'|'point', lines: Record<string, string> }[], newsLines: { kind: 'highlight'|'point', lines: Record<string, string> }[], errors: string[] }}
+ *   news: the News block's items as written; newsLines: filled in per language (with names only)
  *   body = the `###` sections, trimmed (what is folded); notes = the Operator notes block's text
  */
-export function parseFragment(name, text) {
+export function parseFragment(name, text, { names } = {}) {
   const errors = [];
   if (!NAME.test(name)) errors.push(`${name}: name must be lowercase words joined by hyphens, ending .md`);
   if (text.includes('\r')) errors.push(`${name}: CR line ends (use LF)`);
@@ -142,7 +147,7 @@ export function parseFragment(name, text) {
   const all = text.replace(/\r/g, '').split('\n');
   const tailAt = all.findIndex((l) => TAIL.test(l));
   const tail = tailAt >= 0 ? all.slice(tailAt) : [];
-  for (const label of ['Kind', 'Server cost', 'Operator notes']) {
+  for (const label of ['Kind', 'Server cost', 'Operator notes', 'News']) {
     if (tail.filter((l) => l.startsWith(`${label}:`)).length > 1) errors.push(`${name}: more than one "${label}:" line`);
   }
   // each block runs to the next block's first line (or the end)
@@ -184,7 +189,24 @@ export function parseFragment(name, text) {
   }
   if (!sections) errors.push(`${name}: needs at least one "### Heading" section`);
   else if (!bullets) errors.push(`${name}: the last section has no "- " bullet`);
-  return { date, kind, body, cost, notes, errors };
+  // (fork, 2026-11-13) the News block: the change's update news line(s) in every language, never folded
+  const newsBlock = block('News');
+  let news = [], newsLines = [];
+  if (newsBlock != null) {
+    const nb = parseNewsBlock(name, newsBlock);
+    errors.push(...nb.errors);
+    news = nb.items;
+    if (kind && kind !== 'player') errors.push(`${name}: a "News:" block belongs to a "Kind: player" fragment only`);
+    if (names && !nb.errors.length) {
+      const c = checkNewsItems(name, news, names);
+      errors.push(...c.errors);
+      newsLines = c.expanded;
+      for (const it of newsLines) {
+        for (const h of operatorOnly(Object.values(it.lines).join(' '))) errors.push(`${name}: operator-only content in a News line, ${h.label}: "${h.text}"`);
+      }
+    }
+  }
+  return { date, kind, body, cost, notes, news, newsLines, errors };
 }
 
 /**
@@ -274,9 +296,10 @@ export function main(args, { root = ROOT, log = (x) => console.log(x), out = (x)
   const mode = modes[0] || '--check';
   const dir = join(root, 'changes'), logPath = join(root, 'FORK-CHANGELOG.md');
   const files = fragmentFiles(dir);
+  const names = createNames(root);
   const parsed = files.map((name) => {
     const path = join(dir, name);
-    return { name, path, ...parseFragment(name, readFileSync(path, 'utf8')) };
+    return { name, path, ...parseFragment(name, readFileSync(path, 'utf8'), { names }) };
   });
   const errors = parsed.flatMap((p) => p.errors);
   // the changelog itself stays free of the operator's own deployment (OPERATOR_ONLY), whoever edited it
