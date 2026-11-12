@@ -220,7 +220,9 @@ export function ChatBubble({ text, at, ttl = EMOTE_BUBBLE_MS, class: cls }) {
   return html`<div class=${cx('cbubble', cls)} style=${style} dir="auto">${text}</div>`;
 }
 
-export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS, textPane = null, textLeft = null }) {
+// (fork) plain: the button is the emote icon alone, never the client's 交流 plate (the room chat's input row; live bug
+// 2026-11-13: where the server has the client art, the row's own button style wiped the plate and showed no icon)
+export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownMs = EMOTE_COOLDOWN_MS, textPane = null, textLeft = null, plain = false }) {
   useData('local');
   useEffect(() => { ensureEmoteCss(); }, []);
   const [page, setPage] = useState(lastThemeIndex);
@@ -320,7 +322,7 @@ export function EmoteWheel({ onSend, open, onToggle, disabled = false, cooldownM
   const emotesTab = t('表情'); // en: "Emote"
   const textTab = t('文字'); // en: "Text"
   const theme = EMOTE_THEMES[clampPage(page)];
-  const btnSprite = emoteUiSprite(disabled || cooling ? 'emoji_btn_disable' : 'emoji_btn');
+  const btnSprite = plain ? null : emoteUiSprite(disabled || cooling ? 'emoji_btn_disable' : 'emoji_btn');
   const panelBg = emoteUiSprite('emoji_bkg');
   const cellBg = emoteUiSprite('emoji_cell_bkg');
   const panelStyle = [panelBg && `--ewheel-bg:url("${panelBg}")`, cellBg && `--ewheel-cell:url("${cellBg}")`].filter(Boolean).join(';');

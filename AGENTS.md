@@ -42,7 +42,9 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
   `changes/<what-it-changes>.md` ([changes/README.md](changes/README.md)); the lead folds them in on `dev-0.2` with
   `npm run changelog -- --write`. FORK-CHANGELOG.md is public and for players: each fragment says `Kind: player`
   (folded) or `Kind: internal` (tooling, scripts, CI, tests, deploy: deleted unfolded; when unsure, internal), and our
-  own hosts, regions, domain, commands and traffic numbers never go in its sections (`Operator notes:`).
+  own hosts, regions, domain, commands and traffic numbers never go in its sections (`Operator notes:`). A player
+  change that is news adds a `News:` block: its update news line(s) in en, zh, ja, ko and zh-TW, names only through
+  `{name:<game-data id>}` / `{term:<Chinese UI text>}` (changes/README.md "News lines"); `npm run changelog` checks it.
 - **(fork) Server cost.** Every fragment ends with `Server cost: none` or the numbers (typical and worst case per
   player, per room and for 300 players: MB/s and GB/day, CPU %, memory MB, disk MB/day, bot ms/round, the cap,
   measured or estimated; [changes/README.md](changes/README.md) "Server cost"). `npm run server-cost` fails a branch

@@ -530,6 +530,9 @@ export class TalentFx {
       const U = this.of(v);
       if (!U) continue;
       for (const b of U.binds) for (const k of bindingKeys(b)) out.add(k);
+      // (fork) and the rows a b.snap fxs row can hold (targetRows: an unbindable binding's state rows — OpFor: BlackCloud's
+      // ammo glow): unloaded, their first particles drew untextured (black shards)
+      for (const b of U.binds0 || []) for (const e of [...(b.plan?.state || []), ...(b.plan?.unmapped || [])]) if (e?.buff && e.key && stateRow(e.buff, e.key)) out.add(e.key);
       if (FX_SHIELDS[U.key]) out.add(FX_SHIELDS[U.key]);
       for (const k of layerKeysOf(U.key)) out.add(k);
     }
