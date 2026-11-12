@@ -12,7 +12,8 @@
 //   SP_CROSS_AFTER_MS 15000              how long a search stays local before it may cross regions
 //   SP_REGION_SOCKETS sg=sg.example.com  (fork) optional per-region socket host. Browsers use it for the socket and the
 //                                        ping test, and the region's host when it cannot be reached; the link between
-//                                        the servers posts to it. The same text on every region; a region without an
+//                                        the servers posts to it (and to the host while it fails, server/peerLink.js).
+//                                        The same text on every region; a region without an
 //                                        entry keeps its host for everything.
 
 import { parseRegions, regionLetters, isLocalHost, isRegionHost } from '../shared/regions.js';
@@ -93,7 +94,7 @@ export function regionConnectSources(config) {
   return [...new Set(out)];
 }
 
-/** (fork) The host this server reaches another region on: its socket host when it has one (server/peerLink.js). */
+/** (fork) The host this server reaches another region on: its socket host when it has one (server/peerLink.js falls back to the host when it fails). */
 export function peerHostOf(config, id) {
   const r = config?.list.find((x) => x.id === id);
   return r ? r.socket || r.host : null;

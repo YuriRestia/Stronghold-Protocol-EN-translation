@@ -4,7 +4,7 @@ import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { regionConfigFrom, regionConnectSources, regionsReport, parseRegionSockets, peerHostOf } from '../server/regions.js';
-import { PeerLink } from '../server/peerLink.js';
+import { PeerLink, FALLBACK_AFTER_FAILS, DIRECT_RETRY_MS, BACKOFF_MAX_MS } from '../server/peerLink.js';
 import { siteCsp } from '../server/http/csp.js';
 
 const SECRET = 'x'.repeat(40);
@@ -57,5 +57,125 @@ describe('the link between the servers', () => {
   test('posts to the arbiter\'s socket host when it has one, else to its host', async () => {
     assert.deepEqual(await postedTo({ ...BASE, SP_REGION: 'us', SP_REGION_SOCKETS: 'sg=sg.example.com' }), ['https://sg.example.com/_peer/sync']);
     assert.deepEqual(await postedTo({ ...BASE, SP_REGION: 'us' }), ['https://example.com/_peer/sync']);
+  });
+});
+
+// (fork) the link's fallback: the direct socket host first, the arbiter's own host (through Cloudflare) while it fails
+describe('the link falls back to the arbiter\'s own host', () => {
+  const DIRECT = 'https://sg.example.com/_peer/sync';
+  const OWN = 'https://example.com/_peer/sync';
+  const flush = async () => { for (let i = 0; i < 5; i++) await new Promise((r) => setImmediate(r)); };
+
+  function setup({ sockets = 'sg=sg.example.com' } = {}) {
+    const config = regionConfigFrom({ ...BASE, SP_REGION: 'us', ...(sockets ? { SP_REGION_SOCKETS: sockets } : {}) });
+    const before = structuredClone(config);
+    const down = new Set([DIRECT]);
+    const urls = [];
+    const logs = [];
+    let now = 1_000_000;
+    const fetch = async (url) => {
+      urls.push(url);
+      if (down.has(url)) throw new Error('The operation was aborted due to timeout');
+      return { ok: true, json: async () => ({ region: 'sg', gen: null, cmds: [] }) };
+    };
+    const log = { info: (t) => logs.push(t), warn: (t) => logs.push(t), error: (t) => logs.push(t) };
+    const link = new PeerLink({ config, network: { connectionCount: 0 }, lobby: {}, fetch, log, now: () => now, pollMs: 60_000 });
+    return { config, before, down, urls, logs, link, advance: (ms) => { now += ms; } };
+  }
+
+  test(`after ${FALLBACK_AFTER_FAILS} failed direct posts it posts through the arbiter's host at once, and says so once`, async () => {
+    const s = setup();
+    s.link.start(); // the first post
+    await flush();
+    await s.link.poll();
+    await s.link.poll(); // the third failure switches and posts again at once
+    await flush();
+    s.link.stop();
+    assert.deepEqual(s.urls, [DIRECT, DIRECT, DIRECT, OWN]);
+    assert.equal(s.logs.filter((l) => l.includes('posting through example.com')).length, 1);
+    assert.equal(s.logs.filter((l) => l.includes('link to the arbiter failed')).length, 1);
+    assert.equal(s.logs.filter((l) => l.includes('link to the arbiter is back')).length, 1);
+    const r = s.link.report();
+    assert.equal(r.up, true);
+    assert.equal(r.fallback, true);
+    assert.equal(JSON.stringify(r).includes('example.com'), false, '/healthz names no address');
+    await s.link.poll();
+    assert.deepEqual(s.urls.slice(4), [OWN], 'stays on the fallback');
+    assert.equal(s.logs.filter((l) => l.includes('posting through')).length, 1, 'no line per post');
+  });
+
+  test(`on the fallback it tries the direct host every ${DIRECT_RETRY_MS / 60_000} min, quietly, and stays while that fails`, async () => {
+    const s = setup();
+    for (let i = 0; i < 4; i++) await s.link.poll();
+    assert.deepEqual(s.urls, [DIRECT, DIRECT, DIRECT, OWN]);
+    const logged = s.logs.length;
+    s.advance(DIRECT_RETRY_MS - 1);
+    await s.link.poll();
+    assert.equal(s.urls.at(-1), OWN, 'not yet');
+    s.advance(1);
+    await s.link.poll();
+    assert.equal(s.urls.at(-1), DIRECT, 'the direct try');
+    await s.link.poll();
+    await s.link.poll();
+    assert.deepEqual(s.urls.slice(-2), [OWN, OWN], 'back on the fallback for another 5 min');
+    assert.equal(s.logs.length, logged, 'a failed direct try logs nothing');
+    assert.equal(s.link.report().fallback, true);
+  });
+
+  test('once the direct host answers again it goes back to it and says so once', async () => {
+    const s = setup();
+    for (let i = 0; i < 4; i++) await s.link.poll();
+    s.down.clear();
+    s.advance(DIRECT_RETRY_MS);
+    await s.link.poll();
+    await s.link.poll();
+    assert.deepEqual(s.urls.slice(-2), [DIRECT, DIRECT]);
+    assert.equal(s.link.report().fallback, undefined);
+    assert.equal(s.logs.filter((l) => l.includes('works again')).length, 1);
+    // a later outage starts the count afresh
+    s.down.add(DIRECT);
+    for (let i = 0; i < 4; i++) await s.link.poll();
+    assert.deepEqual(s.urls.slice(-4), [DIRECT, DIRECT, DIRECT, OWN]);
+  });
+
+  test('players keep the direct host: the fallback changes nothing they read', async () => {
+    const s = setup();
+    const sources = regionConnectSources(s.config);
+    const report = JSON.stringify(regionsReport(s.config));
+    for (let i = 0; i < 4; i++) await s.link.poll();
+    assert.equal(s.link.report().fallback, true);
+    assert.deepEqual(s.config, s.before, 'the region list the server hands out is untouched');
+    assert.equal(peerHostOf(s.config, 'sg'), 'sg.example.com');
+    assert.deepEqual(regionConnectSources(s.config), sources, 'the page may still reach the socket hosts');
+    assert.equal(JSON.stringify(regionsReport(s.config)), report, '/healthz still sends browsers to sg.example.com');
+    assert.equal(regionsReport(s.config).list[0].socket, 'sg.example.com');
+  });
+
+  test('without a socket host there is nothing to fall back to: every post goes to the host', async () => {
+    const s = setup({ sockets: null });
+    s.down.add(OWN);
+    for (let i = 0; i < 6; i++) await s.link.poll();
+    assert.deepEqual(s.urls, Array(6).fill(OWN));
+    assert.equal(s.link.report().fallback, undefined);
+  });
+
+  test(`while posts keep failing they slow down from 2 s to ${BACKOFF_MAX_MS / 1000} s, and speed up once one gets through`, async () => {
+    const s = setup({ sockets: null });
+    s.down.add(OWN);
+    s.link.pollMs = 2000;
+    for (let t = 0; t <= 60_000; t += 2000) {
+      s.link.tick();
+      await flush();
+      s.advance(2000);
+    }
+    // posts at 0, 2, 4, 6 s, then after 4, 8, 16 and 30 s: 10, 18, 34 (64 is past the minute)
+    assert.equal(s.urls.length, 7);
+    s.down.clear();
+    s.advance(30_000);
+    s.link.tick();
+    await flush();
+    s.link.tick();
+    await flush();
+    assert.equal(s.urls.length, 9, 'back to every tick');
   });
 });
