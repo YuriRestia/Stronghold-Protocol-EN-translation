@@ -641,6 +641,11 @@ export const STATE_BUFFS = Object.freeze({
   'jesca2_s_3_token[def]': true,
   'mgllan_s_2': true,
   'mgllan_s_3': true,
+  // (fork) enemies (content/enemies): OpFor: BlackCloud's grab — enemy_acfort_trapped on each grabbed flyer while
+  // enemy_acfort[kill_other] lasts (its KillOthers skill's `on: 'targets'` row; src BlackCloud) — and its passive
+  // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
+  'enemy_acfort[kill_other]': true,
+  'enemy_acfort_vfx': true,
 });
 
 /**
@@ -2124,6 +2129,11 @@ export const OWNER_NEAR = 1;
  *   modeLoops  or: the fx starts a mode of the unit whose talent (this prefab key) loops on it meanwhile — its loop uses
  *              (a buff it creates at its tick: a condition talents.js cannot read, here the mode's own) — for its record's
  *              blackboard value `bbKey` (talents.bb), else `holdS` s; `endMode`: the fx ends it early
+ *   (fork) owner 'from' — `extra.from` names the enemy (a kit 'beam'); `fly`: the projectile flown from its muzzle to
+ *              the unit `extra.to` (its flying effect, then its hit), `stagger` s after the previous one of the same
+ *              enemy in that frame (the client's MultiRangedAttack triggerDelta); `cover`: nothing drawn — the kit fx
+ *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
+ * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
 const POLLUTED_DIE = Object.freeze({
@@ -2179,18 +2189,33 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
     telegraph: ebind({ xkind: 'spin', owner: 'id', modeLoops: 'RotateEffect', bbKey: 'EndRotate.rotate_duration', holdS: 60 }),
     phase: ebind({ xkind: 'spinStop', owner: 'id', endMode: true }),
   }),
+  // (fork) 假想敌：黑云 (fly.js kitBlackCloud): 全弹发射's 'beam' of kind 'fireWeapon' per shot (from it, to the target, all in
+  // its cast's tick) — the client's FireWeapon MultiRangedAttack fires projectile_enemy_acfort_skill once per ammo,
+  // triggerDelta 0.3 s apart (enemy_acfort_skill_02_trail flying, enemy_acfort_skill_02_hit on arrival); 抓取's 'beam' of
+  // kind 'devour' (at its first prey) has no official effect: the KillOthers window's channel loop and the trapped loops
+  // on the prey (STATE_BUFFS enemy_acfort[kill_other]) are the grab
+  enemy_9009_acfort: Object.freeze({
+    beam: Object.freeze([
+      ebind({ xkind: 'fireWeapon', owner: 'from', fly: 'projectile_enemy_acfort_skill', stagger: 0.3 }),
+      ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
+    ]),
+  }),
 });
+
+/** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */
+export const enemyBinds = (entry) => (Array.isArray(entry) ? entry : entry ? [entry] : []);
 
 /**
  * The enemy unit keys with a binding of each fx kind (SkillFx._enemyFx's candidates). The list order is an id, a cast,
  * a death, a unit at the point, the kind alone; the fx itself is ranked again — the unit `extra.id` names, then a death
  * within OWNER_NEAR, then a cast the zone does not name (skillfx.js _fxRank).
  */
-const OWNER_ORDER = Object.freeze({ id: 0, cast: 1, died: 2, near: 3, any: 4 });
+const OWNER_ORDER = Object.freeze({ id: 0, from: 0, cast: 1, died: 2, near: 3, any: 4 });
 export const ENEMY_FX_KINDS = Object.freeze((() => {
   const out = {};
+  const ord = (key, kind) => OWNER_ORDER[enemyBinds(ENEMY_FX_BINDINGS[key][kind])[0]?.owner] ?? 9;
   for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) for (const kind of Object.keys(kinds)) (out[kind] ||= []).push(key);
-  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => (OWNER_ORDER[ENEMY_FX_BINDINGS[a][kind].owner] ?? 9) - (OWNER_ORDER[ENEMY_FX_BINDINGS[b][kind].owner] ?? 9)));
+  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => ord(a, kind) - ord(b, kind)));
   return out;
 })());
 
@@ -2216,8 +2241,10 @@ export function auraTargets(idx, unitKey, talent) {
 /** Every key an enemy's kit-fx bindings can play (preloading). */
 export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
-  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {})) {
-    if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
+  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
+    if (bind.cover) continue;
+    if (bind.fly) { const p = idx?.projectiles?.[lc(bind.fly)]; for (const k of p ? [p.main, ...(p.onHit || []), ...(p.onReached || [])] : []) if (lc(k)) out.add(lc(k)); }
+    else if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
     else if (bind.modeLoops) for (const k of modeLoopKeys(idx, unitKey, bind.modeLoops)) out.add(k);
     else for (const k of bindingEffects(idx, bind)) out.add(k);
   }
