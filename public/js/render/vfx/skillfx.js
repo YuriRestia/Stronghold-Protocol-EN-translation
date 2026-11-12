@@ -112,6 +112,7 @@ export const SUMMON_FX = Object.freeze({
 });
 import { unitPoint } from './mounts.js';
 import { PathFx } from './pathfx.js';
+import { enemyStateKeys } from './indexGaps.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
@@ -1169,6 +1170,8 @@ export class SkillFx {
         // (fork) enemy VFX audit, S rows: 'ready:<prefabKey>' (sim enemies/helpers.js readyProbe: its ReadyEnemySkillEffect)
         // — that enemy skill plan's `ready` rows on the enemy while the row lasts
         if (!list.length && typeof row[0] === 'string' && row[0].startsWith(READY_ROW) && U?.enemy?.length) list = this._readyRows(U, row[0]);
+        // (fork) last: an official effect in a field the indexer does not read (indexGaps.js ENEMY_STATE_KEYS) (a light world without unit keys: by-unit rows skip)
+        if (!list.length) list = enemyStateKeys(row[0], this.w.unitKeyOf?.(sv || v), row[2]).map((key) => ({ key, buff: row[0], loop: this.w.idx?.prefabs?.[key]?.looping !== false }));
         for (const e of list) {
           const k = `${id}|${e.key}`;
           if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
