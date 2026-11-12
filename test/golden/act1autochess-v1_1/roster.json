@@ -857,8 +857,8 @@
         "enemy_9006_actoxi": [1,1,0,0,15000]
       },
       "hooks": [1,209,5411,574,574,1213,1305,2317,170,192,39,37,35,39051,322,86,170,0,1,171,3,0,2],
-      "events": {"atk":621,"bounty":6,"cast":1,"deploy":37,"die":192,"dmg":1225,"engage":26,"fx":630,"heal":122,"layer":3,"rate":51,"skill":76,"spawn":209,"status":368},
-      "fx": {"ability":41,"aoe":119,"arrowRain":17,"bombard":18,"bombardShell":18,"displace":3,"dodge":6,"drone":141,"droneLock":93,"drones":2,"explode":14,"finale":1,"firewall":1,"garrison":3,"grow":73,"lock":18,"mark":3,"revive":1,"saltWard":2,"slash":11,"sp":14,"summon":23,"talent":1,"telegraph":1,"tide":4,"zone":2},
+      "events": {"atk":621,"bounty":6,"cast":1,"deploy":37,"die":192,"dmg":1225,"engage":26,"fx":631,"heal":122,"layer":3,"rate":51,"skill":76,"spawn":209,"status":368},
+      "fx": {"ability":42,"aoe":119,"arrowRain":17,"bombard":18,"bombardShell":18,"displace":3,"dodge":6,"drone":141,"droneLock":93,"drones":2,"explode":14,"finale":1,"firewall":1,"garrison":3,"grow":73,"lock":18,"mark":3,"revive":1,"saltWard":2,"slash":11,"sp":14,"summon":23,"talent":1,"telegraph":1,"tide":4,"zone":2},
       "snaps": "48d0f730 6b19ea7c 9546a6d6 8e08e858 019cec64 6bc93c3d 704bef27 69b5843f 6986a762 7258e624 86af1197 27afe944 b1ae93cb f84d335c 72edf89b 51d07021 280a9a01 247031dd"
     },
     "roster-015": {
@@ -1385,8 +1385,8 @@
         "enemy_9006_actoxi": [12,12,0,23648,144000]
       },
       "hooks": [1,66,5049,497,494,1096,1096,4513,52,54,36,35,0,15436,17,33,52,0,1,53,0,0,0],
-      "events": {"atk":530,"bounty":4,"cast":3,"deploy":12,"die":54,"dmg":1095,"engage":7,"fx":122,"heal":153,"rate":22,"skill":75,"spawn":66,"status":140},
-      "fx": {"buff":1,"coin":58,"displace":6,"revive":1,"shield":1,"strike":15,"telegraph":5,"zone":35},
+      "events": {"atk":530,"bounty":4,"cast":3,"deploy":12,"die":54,"dmg":1095,"engage":7,"fx":134,"heal":153,"rate":22,"skill":75,"spawn":66,"status":140},
+      "fx": {"ability":12,"buff":1,"coin":58,"displace":6,"revive":1,"shield":1,"strike":15,"telegraph":5,"zone":35},
       "snaps": "b051574e 4e45e7e7 681044cb 8327cb1b 5ef8edc3 f611290f 3e7a8f60 8685e059 780beb0f b996adfc 608eb004 12115af5 e0a3d62a ee80891f b0ddddfc 072a8e74 5349368b"
     },
     "roster-024": {
@@ -1652,8 +1652,8 @@
         "enemy_9010_acpupp": [30,16,14,24131,504454]
       },
       "hooks": [1,233,6004,1022,1022,2002,2413,3914,194,219,285,282,0,31032,185,44,217,25,1,237,2,3,0],
-      "events": {"atk":1251,"bounty":4,"deploy":14,"die":194,"dmg":1977,"engage":10,"fx":676,"heal":249,"layer":2,"leak":25,"rate":449,"skill":567,"spawn":231,"status":415},
-      "fx": {"anchor":68,"aoe":12,"appear":4,"bombard":12,"bombardShell":12,"burst":3,"devour":2,"disappear":4,"displace":50,"ember":42,"healAoe":7,"hpShare":4,"meltdown":3,"revive":13,"shield":1,"shieldBreak":76,"sp":15,"spGain":212,"summon":45,"telegraph":42,"zone":49},
+      "events": {"atk":1251,"bounty":4,"deploy":14,"die":194,"dmg":1977,"engage":10,"fx":677,"heal":249,"layer":2,"leak":25,"rate":449,"skill":567,"spawn":231,"status":415},
+      "fx": {"ability":1,"anchor":68,"aoe":12,"appear":4,"bombard":12,"bombardShell":12,"burst":3,"devour":2,"disappear":4,"displace":50,"ember":42,"healAoe":7,"hpShare":4,"meltdown":3,"revive":13,"shield":1,"shieldBreak":76,"sp":15,"spGain":212,"summon":45,"telegraph":42,"zone":49},
       "snaps": "94cab60d 12da4ff8 4d5823a3 54da593f 4773467c a97495b4 c90f21d6 7514f423 d885c418 6fd882c5 22ba5830 cc3d063b d1a961f9 23702306 bb3d801f da58a325 a9191528 6769ae32 a07b1074 3b4204fb"
     },
     "roster-029": {
@@ -2081,8 +2081,8 @@
         "enemy_9007_acelem": [1,1,0,288,28800]
       },
       "hooks": [1,79,5217,426,426,532,565,302,64,64,30,27,0,25794,861,44,61,0,1,65,0,2,0],
-      "events": {"atk":482,"bounty":4,"deploy":16,"die":64,"dmg":533,"engage":7,"fx":42,"heal":174,"rate":236,"skill":57,"spawn":76,"status":140},
-      "fx": {"aoe":1,"beam":1,"buff":1,"burst":2,"coldWind":2,"displace":2,"dp":9,"explode":2,"iceSpike":2,"liberate":2,"meltdown":2,"phase":2,"shield":6,"swordStorm":4,"teleport":1,"wake":3},
+      "events": {"atk":482,"bounty":4,"deploy":16,"die":64,"dmg":533,"engage":7,"fx":43,"heal":174,"rate":236,"skill":57,"spawn":76,"status":140},
+      "fx": {"ability":1,"aoe":1,"beam":1,"buff":1,"burst":2,"coldWind":2,"displace":2,"dp":9,"explode":2,"iceSpike":2,"liberate":2,"meltdown":2,"phase":2,"shield":6,"swordStorm":4,"teleport":1,"wake":3},
       "snaps": "26bbad20 3fddefe4 3eb7c7fc 20f5ad65 6c4c6b04 6e8ace96 da5b502d 0831399d 4b2b8f9b 55066e10 daadd67f ea4ecb73 6656caaf cfb4f9f1 04770046 ad22f328 db0f6eee 896f0610"
     },
     "roster-036": {

@@ -421,8 +421,8 @@
       ],
       "enemies": {"enemy_1116_liprr":[11,11,0,230,45375],"enemy_1116_liprr_2":[4,4,0,133,22500],"enemy_1121_lifbos":[1,1,0,5499,15000]},
       "hooks": [1,29,2764,212,212,263,264,2,20,19,6,7,0,7907,21,19,16,0,1,20,0,0,0],
-      "events": {"atk":212,"deploy":10,"die":19,"dmg":264,"engage":5,"fx":44,"heal":1,"rate":24,"skill":16,"spawn":27,"status":60},
-      "fx": {"aoe":9,"buff":1,"displace":5,"heal":1,"liberate":3,"phase":6,"swordRain":16,"swordStorm":3},
+      "events": {"atk":212,"deploy":10,"die":19,"dmg":264,"engage":5,"fx":45,"heal":1,"rate":24,"skill":16,"spawn":27,"status":60},
+      "fx": {"ability":1,"aoe":9,"buff":1,"displace":5,"heal":1,"liberate":3,"phase":6,"swordRain":16,"swordStorm":3},
       "snaps": "ffd4bd45 26d8a32c 7c62d5f0 9c61ea01 7a1604fe 5fa177c2 8165d85f f6fcd28d 46218fad 92b7a9e0"
     },
     "bond-kjeragShip-high": {

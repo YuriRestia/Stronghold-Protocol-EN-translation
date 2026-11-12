@@ -452,8 +452,8 @@
         "enemy_1200_msfjin": [1,0,1,0,22]
       },
       "hooks": [1,86,5100,816,816,781,781,292,27,73,34,33,0,14821,100,29,56,41,1,27,5,0,0],
-      "events": {"atk":814,"bounty":2,"deploy":28,"die":32,"dmg":781,"engage":8,"fx":40,"heal":32,"layer":5,"leak":41,"rate":95,"skill":67,"spawn":69,"status":286},
-      "fx": {"blink":5,"garrison":5,"liberate":13,"phase":12,"revive":2,"summon":3},
+      "events": {"atk":814,"bounty":2,"deploy":28,"die":32,"dmg":781,"engage":8,"fx":41,"heal":32,"layer":5,"leak":41,"rate":95,"skill":67,"spawn":69,"status":286},
+      "fx": {"ability":1,"blink":5,"garrison":5,"liberate":13,"phase":12,"revive":2,"summon":3},
       "snaps": "ff75fb68 5b1a3a40 2f5a709f 46d55809 56212b6d 63f1bc6e 6de8c18c b9793824 e010e8c7 527fb32f 08890308 f78ddb12 6291551a 742a0413 f71cbf31 a0b82c30 9408b093"
     },
     "standin-09": {

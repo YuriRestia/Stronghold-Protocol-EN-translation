@@ -229,6 +229,16 @@ export function silenced(e) { return !!e.s.flags.silence; }
  */
 export function unbalancedNow(b, e) { return !!(b && e && b.time < e.unbalanceUntil - 1e-9); }
 
+/**
+ * (fork) A kit entry that shows the official lasting effect of client buff `buff` (index.json uses' `buff`; skills.js
+ * STATE_BUFFS) on the enemy while `probe(b, e)` holds — the condition its template's graph re-checks every tick, read
+ * over the sim's own state only when a snapshot is taken (Battle.fxProbe → b.snap `fxs`). Display only: nothing runs in
+ * the battle's ticks (the bots' budget, the golden results).
+ */
+export function fxWhile(buff, probe) {
+  return { spawn(b, e) { b.fxProbe(e, buff, (u) => probe(b, u)); } };
+}
+
 /** Can enemy `e` use a skill now: alive, on the field, not stunned, not silenced (`sil`), not in its 失衡 state (`b` given). */
 export function canCast(e, sil, b = null) { return e.alive && !e.hidden && !e.s.flags.stun && !(sil && e.s.flags.silence) && !unbalancedNow(b, e); }
 

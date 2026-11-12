@@ -151,6 +151,11 @@ describe('the sim and the client name the same buffs', () => {
   for (const s of Object.values(SKILL_FX_STATES)) for (const e of [].concat(s)) named.add(e.buff);
   for (const list of Object.values(TOKEN_FX_STATES)) for (const b of list) named.add(b);
   for (const b of Object.values(LIBRATOR_FX)) named.add(b);
+  // (fork) the enemies' kits (content/enemies.js, content/enemies/*.js, content/bosses.js): fxWhile('…', …) too
+  const esrc = [...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => new URL(f, ekits)),
+    new URL('../../server/sim/content/enemies.js', import.meta.url), new URL('../../server/sim/content/bosses.js', import.meta.url)]
+    .map((u) => readFileSync(u, 'utf8')).join('\n');
+  for (const m of esrc.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fxWhile\('([^']+)'|fx:\s*'([^']+)'/g)) named.add(m[1] || m[2] || m[3]);
   // (fork) or in the index-gap fallback (render/vfx/indexGaps.js ENEMY_STATE_KEYS: the props' idle loops, Rotchaser's bleed …)
   test('each signalled buff is in STATE_BUFFS or ENEMY_STATE_KEYS', () => {
     for (const b of named) assert.ok(STATE_BUFFS[b] || ENEMY_STATE_KEYS[b], `${b}: signalled by the sim, unknown to the client`);

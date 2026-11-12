@@ -140,6 +140,8 @@ const ECHO_PULSE_RADIUS = 1.6;
 const ECHO_ENSEMBLE_RADIUS = Object.freeze({ gold: 0.8, dark: 1.6 });
 /** "只能被阻挡数大于等于2的单位阻挡". */
 const ECHO_BLOCK_WEIGHT = 2;
+/** (fork) How long the b.snap fxs row of its switch burst stays (s): the client plays the one-shot once as it appears. */
+const ECHO_SWITCH_FX = 1;
 /** 裂管之奏 strike spacing (s). */
 const PIPE_STRIKE_GAP = 0.4;
 /** 断裂生殖 tentacle: stun duration and reach around its device tile [ASSUMED]. */
@@ -621,6 +623,9 @@ function kitBlade(ab, e, b, tpl) {
 
 const isGun = (o) => /enemy_9017_achunt/.test(o.defId);
 const isSpring = (o) => /enemy_90(18|19|20)_actrp/.test(o.defId);
+// (fork) the charge's hit on each unit (talent 3's achunt_s_1[damage]); HIT_ROW_S: how long its b.snap row stays, our
+// own time (the client's buff is IMMEDIATELY; the row only has to reach a snapshot) [ASSUMED]
+const HIT_ROW_S = 1;
 
 function kitGun(ab, e, b) {
   const hidden = /_2$/.test(e.defId);
@@ -649,7 +654,13 @@ function kitGun(ab, e, b) {
         const arrived = stepToward(e2, t.x, t.y, sp);
         if (!b2.grid.groundPassable(Math.round(e2.y), Math.round(e2.x))) { e2.x = nx; e2.y = ny; }
         // "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次…": an area selection (areaAllies)
-        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) { ch.hit.add(u); hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys'); }
+        // (fork) the client's AuraAbility gives each unit it hits achunt_s_1[damage] (ON_BUFF_START: enemy_achunt_skill_1_hit,
+        // life IMMEDIATELY): display only (b.snap fxs, src the gun), held HIT_ROW_S so the client sees the row and plays it once
+        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) {
+          ch.hit.add(u);
+          b2.fxState(u, 'achunt_s_1[damage]', true, { src: e2, dur: HIT_ROW_S });
+          hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys');
+        }
         if (arrived || b2.time >= ch.until || (e2.x === nx && e2.y === ny)) {
           P.charge = null;
           b2.removeBuff(e2, 'boss:charge');
@@ -861,7 +872,12 @@ export function echoHit(b, echo) {
       }
       const need = ab.form === 'gold' ? T(ab, '1.hit_times_to_switch') : T(ab, '2.hit_times_to_switch');
       ab.strikes = (ab.strikes ?? 0) + 1;
-      if (echo.alive && need > 0 && ab.strikes >= need) setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+      if (echo.alive && need > 0 && ab.strikes >= need) {
+        setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+        // (fork) fx: the client's acdums_t_1 plays enemy_acdums_switch on it at this switch (its hit_times run out:
+        // SwitchMode, then CreateEffect); display only (snapshot fxs)
+        b.fxState(echo, 'acdums_t_1', true, { dur: ECHO_SWITCH_FX });
+      }
     }
   } finally { ab.pulses.length = 0; ab.pulsing = false; }
 }
