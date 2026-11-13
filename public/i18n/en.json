@@ -1292,6 +1292,7 @@
   "待同意": "Waiting",
   "全体真人玩家一致同意后刷新，随机结果可能重复。": "All human players must agree. Random results may repeat.",
   "请等待所有玩家连接后再发起投票": "Wait for all players to connect before starting a vote.",
+  "房间公开或搜寻队友后，不能再重刷本局。": "Once a room is public or uses Find Teammates, it has no stage setup reroll.",
   "公开对局不能重刷": "No reroll in public matches",
   "公开的大同盟不能重刷本局：重刷留给好友私下游玩或单人游戏。": "Public Grand Alliances have no stage setup reroll. It is for friends playing privately, or solo.",
   "对其他玩家开放过的房间（搜寻队友、单人匹配）不能重刷本局：重刷留给好友私下游玩或单人游戏。": "Rooms open to other players (Find Teammates, Solo Matchmaking) have no stage setup reroll. It is for friends playing privately, or solo.",

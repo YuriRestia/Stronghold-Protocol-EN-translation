@@ -126,3 +126,21 @@ test('the match refuses a reroll when locked and says why in m.public; unlocked 
   ok(free.m.requestSetupReroll('p_0', 0));
   assert.ok(free.m.setupVote);
 });
+
+test('the client says it: the greyed briefing button, and the host\'s notice on Public and Find Teammates, in every language', async () => {
+  const { readFileSync } = await import('node:fs');
+  const src = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8');
+  const NOTICE = '房间公开或搜寻队友后，不能再重刷本局。';
+  const OFF = ['公开对局不能重刷', '公开的大同盟不能重刷本局：重刷留给好友私下游玩或单人游戏。',
+    '对其他玩家开放过的房间（搜寻队友、单人匹配）不能重刷本局：重刷留给好友私下游玩或单人游戏。'];
+  assert.match(src('public/js/ui/setupReroll.js'), /pub\.rerollOff/);
+  for (const id of OFF) assert.ok(src('public/js/ui/setupReroll.js').includes(`t('${id}'`), id);
+  // the create form's hint line (Public picked), the room's Public option, the Find Teammates switch and button
+  assert.ok(src('public/js/ui/largeRooms.js').includes(`t('${NOTICE}'`));
+  assert.ok(src('public/js/screens/room.js').includes(`t('${NOTICE}'`));
+  assert.equal(src('public/js/ui/matchSearch.js').split(`t('${NOTICE}'`).length - 1, 3);
+  for (const lang of ['en', 'ja', 'ko', 'zh-TW']) {
+    const pack = JSON.parse(src(`public/i18n/${lang}.json`));
+    for (const id of [NOTICE, ...OFF]) assert.ok(typeof pack[id] === 'string' && pack[id].length > 0, `${lang}: ${id}`);
+  }
+});

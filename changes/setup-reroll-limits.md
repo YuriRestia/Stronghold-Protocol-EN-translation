@@ -6,6 +6,8 @@
   Alliances and in any team or Grand Alliance that used Find Teammates or took players from Solo Matchmaking, even if
   the room was made private again before the start. In those matches the button is greyed out, with "No reroll in
   public matches" beside it.
+- Hosts see this before they open a room up: a hint under Public when creating a Grand Alliance, and the same note in
+  the tooltips of the room's Public switch and of Find Teammates.
 - Before: anyone in any room could start a reroll vote.
 
 ### A reroll vote no longer stops the countdown
