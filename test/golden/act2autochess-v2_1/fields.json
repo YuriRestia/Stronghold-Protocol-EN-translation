@@ -908,7 +908,7 @@
         "enemy_9016_acstmr": [5,5,0,0,170]
       },
       "hooks": [1,76,6000,1407,1577,3863,4361,9101,47,52,135,127,7,41405,2378,27,32,0,1,44,0,4,3],
-      "events": {"atk":1687,"cast":58,"deploy":44,"die":52,"dmg":4219,"engage":18,"fx":1381,"heal":143,"rate":463,"skill":262,"spawn":58,"status":886},
+      "events": {"atk":1687,"cast":58,"deploy":44,"die":52,"dmg":4219,"engage":18,"fx":1387,"heal":143,"rate":463,"skill":262,"spawn":58,"status":886},
       "fx": {
         "aoe": 43,
         "beam": 26,
@@ -937,6 +937,7 @@
         "shadowWeave": 12,
         "shell": 5,
         "shield": 12,
+        "sound": 6,
         "sp": 15,
         "stealth": 11,
         "substitute": 2,
@@ -997,8 +998,8 @@
         "enemy_9016_acstmr": [7,6,0,0,38]
       },
       "hooks": [1,65,6000,341,334,619,946,2508,49,51,54,54,0,10946,380,4,34,3,1,49,0,0,4],
-      "events": {"atk":392,"cast":43,"deploy":27,"die":48,"dmg":906,"engage":7,"fx":212,"heal":132,"leak":3,"rate":112,"skill":108,"spawn":50,"status":243},
-      "fx": {"appear":3,"beam":41,"blink":11,"charge":21,"dilemma":1,"disappear":3,"dodge":4,"explode":33,"explosion":7,"frostNova":14,"knack":2,"overclock":1,"phase":1,"pull":2,"saltWard":3,"shell":7,"slippery":3,"summon":7,"swordRain":12,"swordStorm":6,"telegraph":3,"tick":15,"tornado":2,"tornadoPulse":10},
+      "events": {"atk":392,"cast":43,"deploy":27,"die":48,"dmg":906,"engage":7,"fx":217,"heal":132,"leak":3,"rate":112,"skill":108,"spawn":50,"status":243},
+      "fx": {"appear":3,"beam":41,"blink":11,"charge":21,"dilemma":1,"disappear":3,"dodge":4,"explode":33,"explosion":7,"frostNova":14,"knack":2,"overclock":1,"phase":1,"pull":2,"saltWard":3,"shell":7,"slippery":3,"sound":5,"summon":7,"swordRain":12,"swordStorm":6,"telegraph":3,"tick":15,"tornado":2,"tornadoPulse":10},
       "snaps": "38f36a53 0d06cbb2 8c789889 538f74fd d503b811 97bacd28 1a94f814 39896fb3 3e6969ad 82385661 7625f6c5 09dc9617 e90f0dc0 08e60327 18a77978 81ebb942 bea0b58f 8f86261a b0b3f7f4 8da3f517"
     },
     "hidden-boss_9-pair": {
@@ -1077,7 +1078,7 @@
         "enemy_9020_actrpc": [1,0,0,24032,1601076]
       },
       "hooks": [1,64,6000,1416,1416,5024,9958,2554,39,43,87,84,254,34766,957,1,13,0,1,48,0,19,0],
-      "events": {"atk":1665,"cast":12,"deploy":45,"die":43,"dmg":9615,"engage":29,"fx":1636,"heal":192,"rate":210,"skill":174,"spawn":56,"status":775},
+      "events": {"atk":1665,"cast":12,"deploy":45,"die":43,"dmg":9615,"engage":29,"fx":2097,"heal":192,"rate":210,"skill":174,"spawn":56,"status":775},
       "fx": {
         "airstrike": 75,
         "beam": 11,
@@ -1103,6 +1104,7 @@
         "shieldBreak": 15,
         "shockBlast": 16,
         "snow": 19,
+        "sound": 461,
         "split": 4,
         "steal": 3,
         "storm": 3,
@@ -1163,8 +1165,8 @@
         "enemy_9020_actrpc": [1,0,0,19435,422128]
       },
       "hooks": [1,36,6000,770,770,3675,7532,812,10,13,34,29,140,21814,313,5,15,0,1,5,0,2,0],
-      "events": {"atk":1444,"cast":17,"deploy":21,"die":13,"dmg":7313,"engage":11,"fx":1266,"heal":579,"rate":87,"skill":63,"spawn":30,"status":223},
-      "fx": {"anchor":5,"beam":20,"burst":2,"candle":8,"charge":7,"dash":12,"displace":18,"drone":333,"droneLock":14,"drones":3,"extraAttack":23,"finale":4,"garrisonGrant":1,"healAoe":2,"link":597,"palsy":4,"phase":12,"radiantSword":4,"shieldBreak":10,"slash":44,"splash":105,"summon":4,"talent":3,"teleport":5,"tick":13,"wake":13},
+      "events": {"atk":1444,"cast":17,"deploy":21,"die":13,"dmg":7313,"engage":11,"fx":1735,"heal":579,"rate":87,"skill":63,"spawn":30,"status":223},
+      "fx": {"anchor":5,"beam":20,"burst":2,"candle":8,"charge":7,"dash":12,"displace":18,"drone":333,"droneLock":14,"drones":3,"extraAttack":23,"finale":4,"garrisonGrant":1,"healAoe":2,"link":597,"palsy":4,"phase":12,"radiantSword":4,"shieldBreak":10,"slash":44,"sound":469,"splash":105,"summon":4,"talent":3,"teleport":5,"tick":13,"wake":13},
       "snaps": "90f4098c 81803438 56461e33 0524f8f7 73d251a1 e39e8798 2cbc8d19 db5fa83d f11a3529 c9cdf2dc 0953d6a2 4fe868b6 2e6013ca 06eec609 7a64e5fd 4dd3f64d fe693e2b 94549d06 2ed2113d bac0f5e7"
     },
     "hidden-boss_10-pair": {
