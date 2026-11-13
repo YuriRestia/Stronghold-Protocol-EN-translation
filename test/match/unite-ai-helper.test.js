@@ -9,6 +9,8 @@ import { DataSource } from '../../server/sim/simdata.js';
 import { wire } from './fakeBotHost.js';
 import { FakeBattle } from './fakeBattle.js';
 import { DATA, makeMatch } from './harness.js';
+import { validateC2S } from '../../shared/protocol.js';
+import { BOT_FIELD_MAX_EXECUTORS } from '../../server/match/match/botBattles.js';
 
 const DS = new DataSource(DATA, null);
 const human = (seat, connected = true) => ({ seat, playerId: `p_${seat}`, name: `P${seat}`, isBot: false, connected });
@@ -48,11 +50,48 @@ test('a 联防 whose only helper is a dropped seat goes to a browser and ends', 
   m.dispose();
 });
 
+// Live 2026-11-13 (room FKCJ, 8 players, R8): 7 browsers in a row "did not answer". They had answered, but the timeline's
+// per-leaker `left` map held 7 players and shared/protocol.js RESULT_LIMITS.players was 4: validateC2S refused every
+// b.botBattleResult (server/net.js answers BAD_MSG and logs nothing), so the match never saw one.
+test('an 8-player 联防 answer from a browser (real battle, 7 leakers) passes the wire schema and is accepted', () => {
+  const h = uniteWithDroppedHelper();
+  const m = h.m;
+  const f = m.fields[0];
+  const frame = h.allTo(f.executor, 'b.botBattle').find((x) => x.battleId === f.battleId);
+  const run = createBotBattleRun(frame.spec, { ds: DS }); // the real Battle, as the Worker runs it
+  assert.equal(run.run(), true, 'the battle ran to its end');
+  const msg = wire({ t: 'b.botBattleResult', battleId: f.battleId, ...run.output() });
+  assert.ok(msg.timeline.some((s) => s[4] && Object.keys(s[4]).length > 4), 'the timeline names more than 4 leakers');
+  assert.equal(validateC2S(msg), null, 'the frame passes the schema');
+  // a 联防 with 8 helpers: b.result's perPlayer holds 8 players too (a 9th never exists)
+  const pp = Object.values(msg.result.perPlayer)[0];
+  const withPlayers = (n) => ({ t: 'b.result', battleId: f.battleId, result: { ...msg.result, perPlayer: Object.fromEntries(Array.from({ length: n }, (_, i) => [`p_${i}`, pp])) } });
+  assert.equal(validateC2S(withPlayers(8)), null, '8 helpers pass');
+  assert.notEqual(validateC2S(withPlayers(9)), null, 'a 9th player does not');
+  m.handle(f.executor, msg);
+  assert.equal(f.resultSource, 'host', 'the answer was accepted');
+  m.dispose();
+});
+
+test('wire schema: 8-player maps pass in b.progress, a 9th player does not', () => {
+  const ids = (n) => Array.from({ length: n }, (_, i) => `p_${i}`);
+  const map = (n, v) => Object.fromEntries(ids(n).map((id) => [id, v]));
+  const progress = (n) => ({ t: 'b.progress', battleId: 'bt_1', gt: 1, killed: 0, total: 8, left: map(n, 1), by: map(n, 1), leaksBy: map(n, 1) });
+  assert.equal(validateC2S(progress(8)), null);
+  assert.notEqual(validateC2S(progress(9)), null);
+});
+
 test('a 联防 whose only helper is a dropped seat ends even when no browser answers', () => {
   const h = uniteWithDroppedHelper();
   const m = h.m;
+  const f = m.fields[0];
   h.run(() => m.phase !== 'UNITE', { maxSteps: 5000 });
   assert.notEqual(m.phase, 'UNITE', 'the 联防 ended');
+  // at most BOT_FIELD_MAX_EXECUTORS browsers (live: 7 in a row, 30 s each), then the synthetic result
+  assert.equal(f.botTried.size, BOT_FIELD_MAX_EXECUTORS, `${BOT_FIELD_MAX_EXECUTORS} browsers asked, of 7 connected`);
+  assert.equal(h.logs.warn.filter((l) => l.includes('did not answer')).length, BOT_FIELD_MAX_EXECUTORS);
+  assert.ok(h.logs.warn.some((l) => l.includes(`nobody can run this bot battle (${BOT_FIELD_MAX_EXECUTORS} browsers tried)`)));
+  assert.equal(f.resultSource, 'none');
   m.dispose();
 });
 

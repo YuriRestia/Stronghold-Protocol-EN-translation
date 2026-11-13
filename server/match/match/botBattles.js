@@ -14,6 +14,12 @@ import { syntheticResult, validateClientResult } from '../fields.js';
 export const BOT_BATTLE_ANSWER_MS = 30000;
 /** Timeouts after which a human stops being asked for the rest of the match (docs/host-browser-bots.md B9). */
 export const BOT_HOST_STRIKES = 2;
+/**
+ * (fork) Browsers one normal / 联防 bot field is offered to before it gets the synthetic result (live 2026-11-13, room FKCJ:
+ * 7 browsers in a row, 30 s each, left an 8-player room at "Uniting" with the countdown at 00 for about 4 minutes). When one
+ * browser fails, the next mostly fails the same way. A boss field is not capped: it shares the pool and hands over live.
+ */
+export const BOT_FIELD_MAX_EXECUTORS = 2;
 
 export class MatchBotBattles {
   /**
@@ -67,9 +73,11 @@ export class MatchBotBattles {
 
   /** Send the field to the next executor; with nobody left it gets a synthetic result (no kills, no leaks). */
   _assignBotHost(f) {
+    const bossLike = f.kind === 'boss' || f.kind === 'hidden';
+    if (!bossLike && f.botTried && f.botTried.size >= BOT_FIELD_MAX_EXECUTORS) { this._botBattleGiveUp(f, `${f.botTried.size} browsers tried`); return; }
     const pid = this._botExecutorFor(f.botTried, f.players);
     if (!pid) { this._botBattleGiveUp(f); return; }
-    if (f.kind === 'boss' || f.kind === 'hidden') { this._assignBotBoss(f, pid); return; }
+    if (bossLike) { this._assignBotBoss(f, pid); return; }
     f.mode = 'host';
     f.authority = null;
     f.executor = pid;
@@ -125,9 +133,9 @@ export class MatchBotBattles {
     if (pid) this.sendTo(pid, { t: 'b.botBattleCancel', battleId: f.battleId });
   }
 
-  _botBattleGiveUp(f) {
+  _botBattleGiveUp(f, why = null) {
     this.botBattleStats.synthetic++;
-    this.log.warn?.(`[match ${this.roomCode}] ${f.fieldId}: nobody can run this bot battle`);
+    this.log.warn?.(`[match ${this.roomCode}] ${f.fieldId}: nobody can run this bot battle${why ? ` (${why})` : ''}`);
     const bossLike = f.kind === 'boss' || f.kind === 'hidden';
     f.mode = 'server';
     f.executor = null;

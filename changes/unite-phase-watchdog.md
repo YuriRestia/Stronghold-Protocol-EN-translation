@@ -2,6 +2,10 @@
 
 ### A unite phase can no longer get stuck
 
+- Grand Alliance: when the unite battle's helpers were offline, it sat at "Uniting" with the countdown at 00 for minutes
+  and then charged the leakers as if nobody had played it. The browsers did run it, but their answers were refused once
+  more than 4 players were in it. They now count, and the round goes on as soon as the battle ends. If the browsers
+  still cannot run it, the room now waits for two of them, not for every player in turn.
 - If something goes wrong while the unite phase ends, the match no longer stays on "Uniting" with the countdown at 00.
   Once the phase is well past its time, the server closes the unite battle with what it has and moves on to the
   results. If no result came in, the leakers lose LP for their own leaks, as when the unite battle cannot run.
@@ -18,11 +22,16 @@ Server cost:
 | Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) [src: per player × 300] | 0 / 0 MB/s |
 | Server CPU | 0 % of one core [src: server/match/match/unitePhase.js:177 one timer per unite phase] | under 0.01 % of one core: one settle a stuck room would have done anyway [unverified] |
 | Memory | 0 MB [src: server/match/Match.js:613 one timer handle per match] | 0 MB |
-| Disk | 0 MB/day [src: server/match/match/unitePhase.js:209 one log line only when overdue] | under 0.001 MB/day: two log lines per overdue unite [unverified] |
+| Disk | 0 MB/day [src: server/match/match/unitePhase.js:209 one log line only when overdue; server/lobby.js:937 one line per refused message type] | under 0.003 MB per match: 11 refused-frame lines of about 200 bytes [src: server/lobby.js:308 REJECTED_LOG_MAX 10, server/lobby.js:932 one more line] plus two watchdog lines [unverified] |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
 - Cap: at most one watchdog timer per match, re-armed only by the next unite phase and cancelled by settlement
   [src: server/match/match/settle.js:17]; it acts at most twice per unite phase [src: server/match/match/unitePhase.js:212].
+- The answer limit (4 → 8 players) [src: shared/protocol.js:51]: those frames already reached the server and were refused, so
+  inbound bytes stay the same and one BAD_MSG reply per refused frame goes away; the progress they carry is what a 4-player
+  room already publishes [unverified].
+- A normal / 联防 bot field is offered to at most 2 browsers [src: server/match/match/botBattles.js:22, server/match/match/botBattles.js:77]:
+  fewer b.botBattle frames than before, never more.
 - Estimated from the code, not measured: no new message, field or snapshot data.
 
 News:

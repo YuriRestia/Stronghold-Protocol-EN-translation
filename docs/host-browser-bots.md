@@ -437,7 +437,7 @@ teammates' progress UI do not change.
 | Case | Handling |
 |------|----------|
 | Result arrives | `validateClientResult` as for a human, then release at the natural end |
-| Timeout, or host gone | Next human, then a synthetic result (`syntheticResult`: no kills, no leaks). Never `_runOnServer`. |
+| Timeout, or host gone | Next human, then a synthetic result (`syntheticResult`: no kills, no leaks). Never `_runOnServer`. (fork, live 2026-11-13) A normal / 联防 field is offered to at most `BOT_FIELD_MAX_EXECUTORS` (2) browsers, so it waits about 60 s at most, not 30 s per human; a boss field is not capped. |
 | Layer traits (`requiresTraitLayerAuthority`, `fields.js:793`) | A field with no connected human is exempt, and gains stay capped by the existing allowance. A field with a connected human keeps upstream's rule (the server runs it). |
 | A human's field with that human disconnected, at the start or mid-battle | A browser runs it like a bot field, never the server. With no browser at all, the synthetic result. |
 | A field whose humans all left | The same: it was running when they left (leaving eliminates, so later rounds have no such field). It plays out in a browser. |

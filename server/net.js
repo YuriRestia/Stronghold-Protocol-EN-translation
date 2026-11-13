@@ -638,7 +638,12 @@ export class Network {
       return;
     }
     const reason = validateC2S(msg);
-    if (reason) { this.reply(conn, errorMsg(ERR.BAD_MSG, rid, reason)); return; }
+    if (reason) {
+      this.reply(conn, errorMsg(ERR.BAD_MSG, rid, reason));
+      // (fork) a refused frame of a match member is logged, capped per match (Lobby.onRejected)
+      if (conn.session && conn.session.ws === conn.ws) { try { this.handler.onRejected?.(conn.session, msg.t, reason); } catch { /* logging only */ } }
+      return;
+    }
 
     if (msg.t === 'ping') {
       const pong = { t: 'pong', c: msg.c, s: now };
