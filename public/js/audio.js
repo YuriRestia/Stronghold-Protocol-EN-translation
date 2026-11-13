@@ -178,6 +178,9 @@ export const HELD_ATTACK_LAYERS = Object.freeze({ char_4247_oxi: Object.freeze({
 const IMPACT_TYPES = new Set(['phys', 'arts', 'true']);
 /** A 'dmg' later than this (real ms) after the attack aimed at the target is not that attack's impact. */
 const IMPACT_WINDOW_MS = 2500;
+// (fork) the same enemy skill-cast file again within this gap stays silent (_castPart: a crowd casting together, an
+// impact effect spawned once per target)
+const CAST_PART_GAP_MS = 80;
 /** Casts held for a unit that is not tracked yet (`pendingSkill`): a hold per unit of a field, never more than this. */
 const PENDING_SKILL_MAX = 64;
 /**
@@ -783,6 +786,8 @@ export class AudioManager {
     this.onLobbyTrackFailed = null; // called when that file would not decode (the official track plays instead)
     this.units = new Map();   // battle unit id → defId
     this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
+    this.castPartAt = new Map(); // (fork) url → when an enemy skill-cast part last rang (_castPart's gap)
+    this.castKeys = null;         // (fork) { sfx, map }: effect key → enemy skill impact part (fxKey)
     this.lastAttacker = new Map(); // target id → { def, at, skillIndex, skillActive } of the hostile attack aimed at it (its impact sound,
                                    // including the running skill's own `hits` — 赤刃明霄陈 S3's slash)
     this.consumed = new Set();     // summons used up by their own effect (香槟炸弹 exploded): no death sound
@@ -1383,6 +1388,51 @@ export class AudioManager {
    * FX_SOUND_BANKS / attackAlso), each on its bank's pool; one with `after` waits that many seconds [ASSUMED: real time,
    * not the battle speed] and is dropped when the field changed meanwhile.
    */
+  /**
+   * (fork, enemy sound audit chunk 2) An enemy skill cast (b.ev ['cast', id, slot]): manifest sfx.units[enemyId].casts[slot]
+   * .start, its official ON_ABILITY_START / ON banks (and a projectile's BORN), at once. The skill's impact rings later,
+   * when its own impact effect spawns (fxKey).
+   */
+  _enemyCast(id, slot) {
+    const u = this.units.get(id);
+    if (!u || u.side !== 'enemy') return;
+    const c = unitSfx(this.getManifest()?.audio?.sfx, u.def, null)?.casts?.[String(slot)];
+    for (const p of Array.isArray(c?.start) ? c.start : []) this._castPart(p);
+  }
+
+  /**
+   * (fork, enemy sound audit chunk 2) An official effect started (render/vfx/system.js OfficialFx.onSpawn): when it is an
+   * enemy skill's impact effect (sfx.units[id].casts[slot].keys), that skill's impact sound (its ON_ABILITY_HIT or
+   * projectile HIT / REACH bank). Effects off (no spawns): no skill impact sounds.
+   */
+  fxKey(key) {
+    const sfx = this.getManifest()?.audio?.sfx;
+    if (!sfx || typeof key !== 'string') return;
+    if (this.castKeys?.sfx !== sfx) {
+      const map = new Map();
+      for (const u of Object.values(sfx.units || {})) {
+        for (const c of Object.values(u?.casts || {})) {
+          if (typeof c?.hit?.url !== 'string') continue;
+          for (const k of Array.isArray(c.keys) ? c.keys : []) if (!map.has(k)) map.set(k, c.hit);
+        }
+      }
+      this.castKeys = { sfx, map };
+    }
+    const part = this.castKeys.map.get(key.toLowerCase());
+    if (part) this._castPart(part);
+  }
+
+  /** One enemy skill-cast part on its pool; the same file again within CAST_PART_GAP_MS stays silent (a crowd's casts). */
+  _castPart(p) {
+    if (typeof p?.url !== 'string') return;
+    const at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const last = this.castPartAt.get(p.url);
+    if (last != null && at - last < CAST_PART_GAP_MS) return;
+    if (this.castPartAt.size > 256) this.castPartAt.clear();
+    this.castPartAt.set(p.url, at);
+    this._playBank(p.url, p.pool, UNIT_BASE_GAIN);
+  }
+
   _playParts(e, gain) {
     for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
       if (typeof p?.url !== 'string') continue;
@@ -2199,6 +2249,11 @@ export class AudioManager {
       skillIndex: Number.isInteger(u.skillIndex) ? u.skillIndex : null, skillActive: !!u.skillActive });
     // (fork) its skill stings and note sounds decode now, so its first cast / note is not late (or dropped)
     if (u.side !== 'enemy') this._warmStings(u.spine || u.defId, this.units.get(u.id)?.outfit);
+    else {
+      // (fork) an enemy's skill-cast sounds decode now, so its first cast is not late
+      const casts = unitSfx(this.getManifest()?.audio?.sfx, u.spine || u.defId, null)?.casts;
+      for (const c of Object.values(casts || {})) for (const p of [...(Array.isArray(c?.start) ? c.start : []), c?.hit]) if (typeof p?.url === 'string') this._buffer(p.url);
+    }
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
     if (held) {
@@ -2405,6 +2460,9 @@ export class AudioManager {
           this.pendingSkill.delete(e[1]);
           this._stopStingLoop(e[1]);
           if (was) this._skillEdge(e[1], u, false);
+        } else if (kind === 'cast') {
+          // (fork, enemy sound audit) an enemy's skill cast ['cast', id, slot, dur?, clip?]: that skill's own start sounds
+          this._enemyCast(e[1], e[2] | 0);
         } else if (kind === 'engage') {
           // 行动开始: the first attack a unit makes on an enemy (the sim's ENGAGE, official ENCOUNTER_ENEMY, 3 s apart)
           const u = this.units.get(e[1]);

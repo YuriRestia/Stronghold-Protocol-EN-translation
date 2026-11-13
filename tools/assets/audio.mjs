@@ -613,6 +613,53 @@ export function pickUnitSfx(banks, opts = {}) {
 }
 
 /**
+ * (fork, enemy sound audit chunk 2) The official sounds of one enemy skill cast (the sim's ['cast', id, slot]): its
+ * ability banks `ON_ABILITY_START|ON|HIT.<node>` (the node or a numbered `<node>.N`, case-insensitive) and, for a
+ * projectile skill, `ON_PROJECTILE_BORN` / `ON_PROJECTILE_HIT|REACH|STOP.<projectile>`. A looping bank is left out (no
+ * moment ends it here).
+ * @param {Map<string,string[]>|undefined} banks the enemy's unit bank table (indexAudio().unitBanks)
+ * @param {(name: string) => string[]} bank any bank by full name (projectile banks are not unit banks)
+ * @param {{ nodes: string[], projectiles?: string[] }} skill the skill's ability nodes (its prefabKey first) and projectiles
+ * @param {(paths: string[]) => boolean} [loopOf] whether a bank loops
+ * @returns {{ start: string[][], hit: string[] | null, hitFrom: { ev: string, projectile?: string } | null } | null}
+ *   start: START then ON banks, then the projectile's BORN; hitFrom: the bank event the hit came from
+ */
+export function pickEnemyCastSfx(banks, bank, skill, loopOf = () => false) {
+  const nodes = [...new Set((skill?.nodes || []).filter((n) => typeof n === 'string' && n).map((n) => n.toLowerCase()))];
+  if (!nodes.length) return null;
+  const ok = (p) => Array.isArray(p) && p.length > 0 && !loopOf(p);
+  const of = (ev) => {
+    const out = [];
+    for (const node of nodes) {
+      const keys = [...(banks?.keys() || [])].filter((k) => {
+        if (!k.startsWith(ev + '.')) return false;
+        const a = k.slice(ev.length + 1).toLowerCase();
+        return a === node || a.startsWith(node + '.');
+      }).sort(abilityOrder);
+      for (const k of keys) if (ok(banks.get(k))) out.push(banks.get(k));
+      if (out.length) break;   // the first node with banks of this event (the prefabKey before the ability nodes)
+    }
+    return out;
+  };
+  const projs = [...new Set((skill.projectiles || []).filter((p) => typeof p === 'string' && p).map((p) => p.toLowerCase()))];
+  let hitFrom = null;
+  const shot = (ev) => {
+    for (const p of projs) { const b = bank(`battle.${ev}.${p}`); if (ok(b)) { hitFrom = { ev, projectile: p }; return b; } }
+    return null;
+  };
+  const start = [...of('ON_ABILITY_START'), ...of('ON_ABILITY_ON')];
+  const born = shot('ON_PROJECTILE_BORN');
+  if (born) start.push(born);
+  hitFrom = null;
+  const own = of('ON_ABILITY_HIT')[0] ?? null;
+  if (own) hitFrom = { ev: 'ON_ABILITY_HIT' };
+  const hit = own ?? shot('ON_PROJECTILE_HIT') ?? shot('ON_PROJECTILE_REACH') ?? shot('ON_PROJECTILE_STOP') ?? null;
+  const seen = new Set();
+  const uniq = start.filter((p) => { const k = p.join('|'); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 4);
+  return uniq.length || hit ? { start: uniq, hit, hitFrom: hit ? hitFrom : null } : null;
+}
+
+/**
  * UI / battle-flow SFX map: name → { bank } or { path } (path under sound_beta_2).
  * Bank names are the official act1autochess banks (shared by act2autochess).
  */

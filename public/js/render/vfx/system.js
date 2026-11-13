@@ -133,6 +133,8 @@ export class OfficialFx {
     this.renderer = ctx.renderer;
     this.lib = ctx.lib || new FxLibrary({ assets: ctx.assets });
     this.glr = null;
+    /** (fork) (key) => void at every spawn of a known effect, before the caps (render/app.js: audio.js fxKey) */
+    this.onSpawn = null;
     this.unsupported = false;
     this.tier = TIERS.includes(ctx.tier) ? ctx.tier : 'off';
     this.effects = [];
@@ -219,6 +221,9 @@ export class OfficialFx {
     if (!this.active || !key) return null;
     const k = String(key).toLowerCase();
     if (!this.lib.has(k)) return null;
+    // (fork, enemy sound audit) the effect's moment, before the crowd merge and the caps may drop its picture: an enemy
+    // skill impact's official sound (audio.js fxKey) rings even when its effect does not show
+    if (this.onSpawn) { try { this.onSpawn(k); } catch { /* sound is optional */ } }
     const lim = MAX_EFFECTS[this.tier] || 200;
     const important = !!opts.loop || !!opts.important;
     // [ASSUMED] Author loops never bypass tier budgets; pending plugin loads also count toward 128 instances.
