@@ -111,6 +111,9 @@ secret and everyone plays the winner.
   battlefield build (`public/js/ui/fieldBuildHold.js`; the tile atlas holds the main thread ~1.7 s on a desktop) until
   its picks resolve, at most 5 s: the engine's downloads and imports go on meanwhile, and BATTLE_CHECK leaves at least
   2.5 s to build before the round. A normal match never holds it.
-- **Effects**: each player gets the strategy's effects as their own; a global one applies once however many hold it
-  (鸭爵 finds the first holder: `test/one-for-all.test.js`).
+- **Effects**: each player gets the strategy's effects as their own, so a strategy held by 8 players applies 8 times
+  (the user, 2026-11-13: "if there's 8 players duck lord, that gets applied 8 times"). 鸭爵 makes one 0–2 swap draw per
+  living holder on separate units, the same units for every player (`content/bands/meta.js` duckHolders;
+  `test/one-for-all.test.js`). Touch's field medic stays one per field (one stage slot). Per-strategy check:
+  `crew-docs/one-for-all-strategies.md` (the 2026-11-13 audit).
 - **Stats**: `m.result.mode = 'oneForAll'`; the stats page lists it as its own mode.

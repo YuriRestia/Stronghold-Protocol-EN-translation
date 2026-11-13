@@ -457,7 +457,7 @@ const notOwn = (s) => !s || s.tag === 'bounty' || s.tag === 'duck';
  * per call, drawn with `typeRng` (the player's own stream; default `rng`). `side` ('L' | 'R', a pair boss field) limits
  * the draw to the units whose route ends on that half.
  */
-export function duckPicks(gd, rng, base, p, { routes = null, side = null, leader = false, typeRng = rng } = {}) {
+export function duckPicks(gd, rng, base, p, { routes = null, side = null, leader = false, typeRng = rng, exclude = null } = {}) {
   const ducks = list(p.enemylist).filter((k) => gd.enemy(k));
   if (!ducks.length || !Array.isArray(base)) return [];
   const lo = Math.max(0, int(p.min, 0)), hi = Math.max(lo, int(p.max, lo));
@@ -497,13 +497,17 @@ export function duckPicks(gd, rng, base, p, { routes = null, side = null, leader
     const frac = n > 1 ? j / (n - 1) : 0;
     const route = Array.isArray(routes) ? routes[s.routeIndex] : null;
     return !s.tag && s.countInTotal !== false && e && e.rank !== 'BOSS' && !e.notCountInTotal && e.stats?.motion !== 'FLY'
-      && frac >= w0 - 1e-9 && frac <= w1 + 1e-9 && gateOf(route?.start, leader) === 'lower';
+      && frac >= w0 - 1e-9 && frac <= w1 + 1e-9 && gateOf(route?.start, leader) === 'lower'
+      && !(exclude && exclude.has(duckUnitKey(f)));
   });
   const picked = rng.shuffle(ok).slice(0, want);
   if (!picked.length) return [];
   const enemyKey = typeRng.pick(ducks);
   return picked.map((f) => ({ action: f.action, k: f.k, enemyKey }));
 }
+
+/** A wave unit's identity across draws (`exclude` of duckPicks): its action and its place in that action. */
+export const duckUnitKey = (pk) => `${pk.action}|${pk.k}`;
 
 /**
  * Apply the round's swaps to a player's spawn list in place (exported for tests): the k-th own unit of each picked
@@ -551,20 +555,44 @@ export function duckReplace(ctx, spawns, p, ownerPlayerId, { routes = null, side
   return applyDuckPicks(spawns, picks, ownerPlayerId);
 }
 
+/**
+ * (fork, One for All 2026-11-13) Every living holder among the player and the teammates makes its own round draw — the
+ * user: "if there's 8 players duck lord, that gets applied 8 times". In the official game a strategy is held once per
+ * team (队友已选), so one holder is all it ever sees; a draw per holder keeps that case as it was. Holders in seat order
+ * (then playerId), the same list for every player; the first holder's draw uses the official stream `duck:<round>`, each
+ * further one `duck:<round>:by:<holderId>` and skips the units earlier draws took (separate units), so every player
+ * still gets the same units. Each draw's kind is the player's own (`duck:<round>:<playerId>`, a further holder's
+ * `…:by:<holderId>`): a player's swaps from one draw are one kind.
+ */
+export function duckHolders(ctx) {
+  const holds = (t) => (t.gd.band(t.bandId())?.effectRef ?? t.bandId()) === DUCK_BAND;
+  const seatOf = (t) => (Number.isInteger(t.seat) ? t.seat : Infinity);
+  return [ctx, ...ctx.teammates()].filter(holds)
+    .sort((a, b) => seatOf(a) - seatOf(b) || (String(a.playerId) < String(b.playerId) ? -1 : String(a.playerId) > String(b.playerId) ? 1 : 0));
+}
+
 const duckGlobal = {
   onBattleStart(ctx, ev) {
     if (!ev || !DUCK_KINDS.has(ev.kind) || !Array.isArray(ev.spawns)) return;
-    const holder = [ctx, ...ctx.teammates()].find(t => (t.gd.band(t.bandId())?.effectRef ?? t.bandId()) === DUCK_BAND);
-    if (!holder) return;
-    const p = duckParams(holder.bandId());
-    if (!p || ctx.round < int(p.round, 1)) return;
-    // one draw per round for every player (GitHub #839): its own stream from the match seed — no player's meta stream,
-    // the same in the stats preview and the bot rehearsals — on the wave before the player's bounties (ev.waveSpawns);
-    // the kind from the player's own stream
+    const holders = duckHolders(ctx);
+    if (!holders.length) return;
+    // one draw per round and holder for every player (GitHub #839): streams of their own from the match seed — no
+    // player's meta stream, the same in the stats preview and the bot rehearsals — on the wave before the player's
+    // bounties (ev.waveSpawns); the kind from the player's own stream
     const seeded = typeof ctx.seedFor === 'function';
-    const rng = seeded ? createRng(ctx.seedFor(`duck:${ctx.round}`)) : ctx.rng;
-    const typeRng = seeded ? createRng(ctx.seedFor(`duck:${ctx.round}:${ctx.playerId}`)) : rng;
-    duckReplace(ctx, ev.spawns, p, ctx.playerId, { routes: ev.routes, side: ev.side, leader: ev.kind !== 'normal', base: ev.waveSpawns, rng, typeRng });
+    const base = Array.isArray(ev.waveSpawns) ? ev.waveSpawns : ev.spawns.filter((s) => !notOwn(s));
+    const opts = { routes: ev.routes, side: ev.side, leader: ev.kind !== 'normal' };
+    const taken = new Set();
+    const picks = [];
+    holders.forEach((holder, j) => {
+      const p = duckParams(holder.bandId());
+      if (!p || ctx.round < int(p.round, 1)) return;
+      const by = j === 0 ? '' : `:by:${holder.playerId}`;
+      const rng = seeded ? createRng(ctx.seedFor(`duck:${ctx.round}${by}`)) : ctx.rng;
+      const typeRng = seeded ? createRng(ctx.seedFor(`duck:${ctx.round}:${ctx.playerId}${by}`)) : rng;
+      for (const pk of duckPicks(ctx.gd, rng, base, p, { ...opts, typeRng, exclude: taken })) { taken.add(duckUnitKey(pk)); picks.push(pk); }
+    });
+    applyDuckPicks(ev.spawns, picks, ctx.playerId);
   },
 };
 
