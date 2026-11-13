@@ -1211,6 +1211,11 @@ the first reroll. Each seat may start one vote per 30 s (`ERR.RATE`): a complete
 opening is a new window), a cancelled vote does not, and leaving the seat drops it.
 `m.public` includes `setupRevision` and `rerollVote` (null or `{id, proposerId, voters, agreed}`). Old vote/revision
 requests cannot affect a new opening. See DESIGN §28.21 for cancellation and timer behavior.
+(fork, 2026-11-13) A room strangers could join has no reroll: `Lobby.rerollLock` passes `rerollLock` to the match —
+`'public'` for an unlocked Grand Alliance, `'matchmade'` for a room that ever searched (Find Teammates), took players
+from the solo queue, or seats a matched player (a merge or a cross-server move), even if it was made private again
+before the start (`room.wentPublic`, never cleared). `requestSetupReroll` then refuses (`WRONG_PHASE`, detail
+`setup reroll off: <why>`) and `m.public.rerollOff` carries the reason; the briefing shows the button disabled with it.
 
 `botEmotes.js` is isolated from bot decisions and RNG. It sends the existing `m.emote` only in mixed matches, under
 normal cooldown/whitelist rules; `SP_BOT_EMOTES=0` disables it. The cooperation score in `bot.js` and these cosmetic

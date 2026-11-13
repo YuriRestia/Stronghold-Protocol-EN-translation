@@ -19,6 +19,8 @@ import { OK, fail } from './common.js';
 export class MatchSetupVote {
   requestSetupReroll(playerId, revision) {
     if (this.disposed || this.ended || this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE);
+    // (fork) a room strangers could join has no reroll (Lobby.rerollLock; user, 2026-11-13)
+    if (this.rerollLock) return fail(ERR.WRONG_PHASE, `setup reroll off: ${this.rerollLock}`);
     const ps = this.players.get(playerId);
     if (!ps || ps.isBot || ps.left || !ps.connected) return fail(ERR.NOT_IN_ROOM);
     if (revision !== this.setupRevision) return fail(ERR.BAD_TARGET, 'setup revision changed');
