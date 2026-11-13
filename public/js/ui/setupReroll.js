@@ -46,7 +46,7 @@ export function SetupReroll({ pub }) {
     return `${p?.name || id} · ${vote.agreed.includes(id) ? t('已同意') : t('待同意')}`;
   }).join('\n') : '';
   return html`<div class="brief-reroll" role="group" aria-label=${t('重刷本局')} aria-live="polite">
-    ${vote ? html`<span class="brief-reroll__count num" title=${`${t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时已暂停。')}\n${who}`}>
+    ${vote ? html`<span class="brief-reroll__count num" title=${`${t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时不会暂停，归零时以当前配置开始。' /* en: "With unanimous consent, reroll the field, bosses, training enemies and bans. The confirmation timer keeps running; at zero the match starts with the current setup." */)}\n${who}`}>
       ${t('重刷本局投票：{agreed}/{total}', { agreed: vote.agreed.length, total: vote.voters.length })}</span>` : null}
     <div class="brief-reroll__actions">
       ${!vote ? html`<${Button} icon="refresh" class="brief-reroll__go" aria-label=${t('重刷本局')} loading=${busy} disabled=${!online || !allConnected}

@@ -1208,7 +1208,9 @@ See [BOT_STRATEGIES](BOT_STRATEGIES.md) for composition and lifecycle details.
 `room.rerollSetup {setupRevision}` and `room.cancelReroll {voteId}` from any seated player and refuses spectators.
 Participants send `g.rerollVote {voteId, agree}`; `g.infoReady {setupRevision?}` accepts an omitted revision only before
 the first reroll. Each seat may start one vote per 30 s (`ERR.RATE`): a completed reroll clears that cooldown (a new
-opening is a new window), a cancelled vote does not, and leaving the seat drops it.
+opening is a new window), a cancelled vote does not, and leaving the seat drops it. (fork, 2026-11-13) The INFO_CHECK
+countdown runs on through a vote; at zero `enterBandDraft` drops the vote and plays the current opening, so no vote can
+delay the start.
 `m.public` includes `setupRevision` and `rerollVote` (null or `{id, proposerId, voters, agreed}`). Old vote/revision
 requests cannot affect a new opening. See DESIGN §28.21 for cancellation and timer behavior.
 (fork, 2026-11-13) A room strangers could join has no reroll: `Lobby.rerollLock` passes `rerollLock` to the match —
