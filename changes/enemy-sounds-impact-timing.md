@@ -16,7 +16,7 @@
 - Each one is timed like the official game: the Elite Caster's line and the Withered Knight's arrows ring when they reach
   their target (at the official projectile speed, so a farther target hears it later, and the arrow's look lands at the
   same moment), BlackCloud's grab rings at its official attack moment, and the Acolyte's flask lands at the end of its
-  official flight. The timing follows the battle's speed.
+  official flight. The timing follows the battle's speed [src: official index.json projectiles.projectile_enemy_dwlock_line / projectile_enemy_dekght_s movement.speed, projectile_enemy_mncrer_heal _lifeTime; official enemy_9009_acfort.skel Skill_1_Begin OnAttack].
 
 Kind: player
 
@@ -24,18 +24,18 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (sounds play from events the battle already sends) | 0 / 0 MB/s |
-| Bandwidth out / in, per room (4 players) | 0 / 0 MB/s | 0 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 GB/day) | 0 / 0 MB/s (0 GB/day) |
-| Server CPU | 0 % | 0 % |
-| Memory | 0 MB | 0 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
+| Bandwidth out / in, per player | 0 / 0 MB/s (sounds play from events the battle already sends) [src: public/js/audio.js:2667] | 0 / 0 MB/s [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
+| Bandwidth out / in, per room (4 players) | 0 / 0 MB/s [src: public/js/audio.js:2667] | 0 / 0 MB/s [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
+| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 GB/day) [src: public/js/audio.js:2667] | 0 / 0 MB/s (0 GB/day) [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
+| Server CPU | 0 % [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] | 0 % [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
+| Memory | 0 MB [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] | 0 MB [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
+| Disk | 0 MB/day [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] | 0 MB/day [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
+| Bot budget | 0 ms/round [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] | 0 ms/round [src: git log --no-merges dev-0.2..HEAD: no server/ file changed] |
 
 - Cap: no new messages or server work; the client picks a sound per event it already gets. The new sound files are
   static assets, downloaded once per player.
 - Estimated from the code: the client only chooses among sounds for events it already receives.
-- Server upload: the new sound files (under 0.2 MB in all) go up with the next asset upload.
+- Server upload: the new sound files (under 0.2 MB in all: 31 KB) go up with the next asset upload [src: public/assets/audio/sfx/enemy/e_atk/e_atk_thrwtrpt.mp3 3885 B, e_imp/e_imp_thrwtrpt.mp3 6573 B, e_imp/e_imp_magic_ice.mp3 12974 B, e_skill/e_skill_mephiimp.mp3 7750 B].
 
 Operator notes:
 
@@ -44,7 +44,7 @@ Operator notes:
   the distance between the units at the fx over it), `after` (a projectile's life, a spine attack event) and `gap` (a
   chain projectile's life), all in battle seconds; public/js/audio.js turns them into real time at the view's playback
   rate (screens/game.js setBattleView). The renderer flies those two shots at the same official speed (skills.js
-  `flyDur: 'speed'`).
+  `flyDur: 'speed'`) [src: tools/assets/plan.mjs:174].
 
 News:
 
