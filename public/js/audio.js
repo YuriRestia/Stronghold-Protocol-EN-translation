@@ -125,6 +125,9 @@ const POOL_DECODE_MAX_MS = 2500; // [ASSUMED] Older undecoded attacks are obsole
  * (The SFX limiter still applies on top.)
  */
 const LEAK_SFX_GAP_MS = 1500;
+/** (fork) One battle tick in game seconds: the sim's fixed step (server/sim/constants.js TICK, DESIGN §4). _battleDelay
+ *  reads the playback rate once per tick. */
+const BATTLE_TICK_S = 1 / 30;
 const BUFFER_CACHE = 180;
 /** Decoded-PCM budget of the buffer cache beside its entry count: a voice line decodes to 0.4–1.3 MB (see _buffer). */
 const BUFFER_BYTES = 64 * 1024 * 1024;
@@ -1508,6 +1511,13 @@ export class AudioManager {
     return r > 0 ? r : 1;
   }
 
+  /** (fork) _battleRate, but 0 while the view reports the battle paused (rate 0): _battleDelay holds then. */
+  _battleRateNow() {
+    let r = 1;
+    try { r = this.battleView?.rate ? Number(this.battleView.rate()) : 1; } catch { r = 1; }
+    return r === 0 ? 0 : r > 0 ? r : 1;
+  }
+
   /**
    * (fork) Where the units of the watched battle are and how fast it plays (screens/game.js): skill impact sounds timed in
    * battle seconds (sfx.units[id].fxHits) wait the real time that makes, and a shot's flight its real distance.
@@ -1675,18 +1685,37 @@ export class AudioManager {
       if (!buf || ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
       const sound = params?.sounds?.[unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '')];
       // (fork) the file's official `delay` (audio_data soundFXBanks[].sounds[].delay, pools[id].sounds[path].delay): it is
-      // admitted to its bank that long after, on the audio clock, as the attack pools' _poolDecoded does
+      // admitted to its bank that many battle seconds later (_battleDelay)
       const delay = Math.max(0, Number(sound?.delay) || 0);
       if (!(delay > 0)) { this._admitBank(ctx, buf, url, poolId, params, sound, volume); return; }
-      const due = ctx.currentTime + delay;
-      const ready = () => {
-        if (ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
-        const remaining = due - ctx.currentTime;
-        if (remaining > 1e-6) { setTimeout(ready, Math.max(10, remaining * 1000)); return; }
-        this._admitBank(ctx, buf, url, poolId, params, sound, volume);
-      };
-      ready();
+      this._battleDelay(ctx, delay, sound?.ignoreTimeScale === true,
+        () => ctx === this.ctx && field === this.stingField && !this.volumes.muted,
+        () => this._admitBank(ctx, buf, url, poolId, params, sound, volume));
     }, () => {});
+  }
+
+  /**
+   * (fork) Wait `seconds` of battle time, then `done()`, while `alive()` holds. The official SoundFX keeps its `delay` on
+   * game time: it carries `ignoreTimeScale`, false on every official sound (Il2Cpp dump.cs SoundFXBank.SoundFX fields;
+   * audio_data soundFXBanks[].sounds[].ignoreTimeScale). So the delay runs at the battle's playback rate now (the view's
+   * rate, setBattleView: 2× halves it, a speed change mid-wait takes effect from then on, 0 = paused holds it) and on the
+   * audio clock (a suspended context holds it too). `real` (ignoreTimeScale true) keeps real seconds.
+   */
+  _battleDelay(ctx, seconds, real, alive, done) {
+    let left = seconds;
+    let last = ctx.currentTime;
+    const step = () => {
+      if (!alive()) return;
+      const now = ctx.currentTime;
+      const rate = real ? 1 : this._battleRateNow();
+      left -= Math.max(0, now - last) * rate;
+      last = now;
+      if (left <= 1e-6) { done(); return; }
+      // the rate is read again each battle tick (as the sim counts its own timers), so a speed change or a pause takes
+      // hold mid-wait; paused, it looks again one tick of real time later
+      setTimeout(step, (Math.min(BATTLE_TICK_S, left) / (rate > 0 ? rate : 1)) * 1000);
+    };
+    step();
   }
 
   /** (fork) _playBank's admission: the bank's own cap (`maxSoundAllowed`, 0 = unlimited; `popOldest`), then playback. */
