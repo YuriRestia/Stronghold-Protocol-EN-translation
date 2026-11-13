@@ -788,6 +788,9 @@ export class AudioManager {
     this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
     this.castPartAt = new Map(); // (fork) url → when an enemy skill-cast part last rang (_castPart's gap)
     this.castKeys = null;         // (fork) { sfx, map }: effect key → enemy skill impact part (fxKey)
+    this.fxHitAt = new Map();     // (fork) '<unit>><to>|<tag>' → when that fx last came (_enemyFxHit's `gap`)
+    this.turnHit = new Map();     // (fork) enemy id → its attack-turn skill's impact (fxHits['turn|<pk>'], _enemyCast)
+    this.battleView = null;       // (fork) { pos(id) → {x, y} tiles | null, rate() → battle s per real s } (setBattleView)
     this.lastAttacker = new Map(); // target id → { def, at, skillIndex, skillActive } of the hostile attack aimed at it (its impact sound,
                                    // including the running skill's own `hits` — 赤刃明霄陈 S3's slash)
     this.consumed = new Set();     // summons used up by their own effect (香槟炸弹 exploded): no death sound
@@ -1396,8 +1399,92 @@ export class AudioManager {
   _enemyCast(id, slot) {
     const u = this.units.get(id);
     if (!u || u.side !== 'enemy') return;
-    const c = unitSfx(this.getManifest()?.audio?.sfx, u.def, null)?.casts?.[String(slot)];
+    const ue = unitSfx(this.getManifest()?.audio?.sfx, u.def, null);
+    const c = ue?.casts?.[String(slot)];
     for (const p of Array.isArray(c?.start) ? c.start : []) this._castPart(p);
+    // (fork, enemy sound leftovers job 2) an attack-turn skill (castSlot, then the attack): its impact is that attack's
+    const turn = c?.pk != null ? ue?.fxHits?.[`turn|${c.pk}`] : null;
+    if (turn) {
+      if (this.turnHit.size >= PENDING_SKILL_MAX) this.turnHit.delete(this.turnHit.keys().next().value);
+      this.turnHit.set(id, turn);
+    }
+  }
+
+  /**
+   * (fork, enemy sound leftovers job 2) A kit fx (b.ev ['fx', kind, x, y, extra]) that times an enemy skill's impact:
+   * manifest sfx.units[def].fxHits['<kind>|<extra.kind>'] of the unit the fx names (`id`, `from`, `src`), else of an enemy
+   * dying in this batch (`died`: 新手祭司学徒's flask names nobody). Battle effects on or off alike. `gap`: the same fx of
+   * the same pair again within that many battle seconds stays silent (one chain while the sim re-sends it every second).
+   * @param {string} kind
+   * @param {any} ex
+   * @param {Map<any, string>} [died] enemy id → def of the 'die' events in this batch
+   * @param {number} [x] the fx's point (tiles): where the shot starts or lands when a unit's position is unknown
+   * @param {number} [y]
+   */
+  _enemyFxHit(kind, ex, died, x, y) {
+    const sfx = this.getManifest()?.audio?.sfx;
+    if (!sfx || !ex || typeof ex !== 'object') return;
+    const tag = `${kind}|${typeof ex.kind === 'string' ? ex.kind : ''}`;
+    const named = [ex.id, ex.from, ex.src].filter((x) => x != null);
+    const cands = named.length ? named.map((id) => [id, this.units.get(id)?.def]) : [...(died || [])];
+    for (const [id, def] of cands) {
+      const e = def ? unitSfx(sfx, def, null)?.fxHits?.[tag] : null;
+      if (typeof e?.url !== 'string') continue;
+      if (e.gap > 0) {
+        const at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const k = `${id}>${ex.to ?? ''}|${tag}`;
+        const last = this.fxHitAt.get(k);
+        if (this.fxHitAt.size > 256) this.fxHitAt.clear();
+        this.fxHitAt.set(k, at);
+        if (last != null && at - last < (e.gap * 1000) / this._battleRate()) return;
+      }
+      this._castParts(e, this._flightAfter(e, id, ex, x, y));
+      return;
+    }
+  }
+
+  /**
+   * (fork) An fxHits entry and its `also` parts on their pools (_castPart): each `after` its own battle seconds (plus
+   * `flight`: the lead part's shot in the air, _flightAfter), in real time at the battle's playback rate.
+   */
+  _castParts(e, flight = 0) {
+    const rate = this._battleRate();
+    for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
+      if (typeof p?.url !== 'string') continue;
+      const s = (p.after > 0 ? p.after : 0) + (p === e && flight > 0 ? flight : 0);
+      if (!(s > 0)) { this._castPart(p); continue; }
+      const token = this.poolFieldToken;
+      setTimeout(() => { if (token === this.poolFieldToken) this._castPart(p); }, (s * 1000) / rate);
+    }
+  }
+
+  /**
+   * (fork) Battle seconds an fxHits entry's shot flies (`speed`: its official projectile speed, tiles per s): from the
+   * shooter `id` to the fx's `to`, each where the latest snapshot has it (setBattleView), else at the fx's point. 0 with
+   * no speed, or when neither end is known.
+   */
+  _flightAfter(e, id, ex, x, y) {
+    if (!(e?.speed > 0)) return 0;
+    const at = Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+    const pos = (u) => { try { const p = u != null ? this.battleView?.pos?.(u) : null; return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null; } catch { return null; } };
+    const a = pos(id) || at, b = pos(ex?.to) || at;
+    return a && b ? Math.hypot(b.x - a.x, b.y - a.y) / e.speed : 0;
+  }
+
+  /** (fork) Battle seconds per real second now (the view's playback rate; 1 without a view). */
+  _battleRate() {
+    let r = 1;
+    try { r = Number(this.battleView?.rate?.()); } catch { r = 1; }
+    return r > 0 ? r : 1;
+  }
+
+  /**
+   * (fork) Where the units of the watched battle are and how fast it plays (screens/game.js): skill impact sounds timed in
+   * battle seconds (sfx.units[id].fxHits) wait the real time that makes, and a shot's flight its real distance.
+   * @param {{ pos?: (id: any) => ({ x: number, y: number } | null), rate?: () => number } | null} v
+   */
+  setBattleView(v) {
+    this.battleView = v && typeof v === 'object' ? v : null;
   }
 
   /**
@@ -2265,6 +2352,7 @@ export class AudioManager {
     // unit ids belong to one battle: a cast still held for a unit of the field left must not sound for a unit of the new
     // one that happens to share its id
     this.pendingSkill.clear();
+    this.turnHit.clear(); // (fork) a held attack-turn impact goes with the field
     this.lastAttacker.clear();
     this.consumed.clear();
     // the Fever song belongs to the field it started on
@@ -2436,6 +2524,13 @@ export class AudioManager {
     if (!this.ctx || !Array.isArray(ev)) return;
     try {
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      // (fork) the enemies dying in this batch (an fx that names nobody, _enemyFxHit), before 'die' forgets them
+      let died = null;
+      for (const e of ev) {
+        if (!Array.isArray(e) || e[0] !== 'die') continue;
+        const u = this.units.get(e[1]);
+        if (u?.side === 'enemy') (died ??= new Map()).set(e[1], u.def);
+      }
       for (const e of ev) {
         if (!Array.isArray(e)) continue;
         const kind = e[0];
@@ -2458,15 +2553,20 @@ export class AudioManager {
           const sOn = held || !!src.skillActive;
           // (fork) an enemy's melee strike (server/sim/ai.js: kind 'none' — blocked, or no range) plays its melee set
           const melee = src.side === 'enemy' && e[3] === 'none';
+          // (fork) an enemy's attack-turn skill (_enemyCast): this attack's impact is the skill's
+          const turnHit = src.side === 'enemy' ? this.turnHit.get(e[1]) ?? null : null;
+          if (turnHit) this.turnHit.delete(e[1]);
           // (fork, enemy sound leftovers job 1) an enemy's form picks its attack variant (ENEMY_ATTACK_VARIANTS)
           const form = src.side === 'enemy' ? src.form ?? null : null;
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn, melee, form });
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn, melee, form, turnHit });
           if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit, melee, form) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
-          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit, !!by.melee, this._hitVariant(by, e[3]));
+          if (!(now - by.at <= IMPACT_WINDOW_MS)) continue;
+          if (by.turnHit) this._castParts(by.turnHit);
+          else this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit, !!by.melee, this._hitVariant(by, e[3]));
         } else if (kind === 'heal') {
           this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.8 }); // (fork) the bank's own volume 0.8, on the mixer
         } else if (kind === 'skill' && e[2]) {
@@ -2563,6 +2663,8 @@ export class AudioManager {
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];
+          // (fork, enemy sound leftovers job 2) an enemy skill impact this fx times (sfx.units[def].fxHits)
+          this._enemyFxHit(e[1], ex, died, e[2], e[3]);
           // (fork, enemy sound leftovers job 1) an enemy's form from now on (its attack variant: unit())
           if (ex && typeof ex === 'object' && ex.id != null) this._noteForm(e[1], ex);
           if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);

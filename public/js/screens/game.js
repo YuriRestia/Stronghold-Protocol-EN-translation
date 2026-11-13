@@ -773,6 +773,12 @@ function MatchScreen() {
       } catch { /* ignore */ }
     };
     const offs = [net.on('m.field', onFieldMeta), net.on('b.snap', onSnap), net.on('b.ev', onEv)];
+    // (fork) enemy skill impact sounds timed in battle seconds (audio.js _enemyFxHit): the units where the latest snapshot
+    // has them (a shot's flight) and the battle's playback rate (battle s → real s)
+    audio.setBattleView({
+      pos: (id) => { const t = snapUnitsRef.current.get(id); return t ? { x: t[1], y: t[2] } : null; },
+      rate: () => view?.raw?.timeScale?.() ?? 1,
+    });
     if (battleRunner) offs.push(battleRunner.on('field', onFieldMeta), battleRunner.on('snap', onSnap), battleRunner.on('ev', onEv), battleRunner.on('result', onResult));
     // Metadata must include enemies/tokens spawned before this renderer existed, not only events buffered during
     // loading. Subscribe first so the reshow's metadata and snapshot take the ordinary buffered re-entry path.
@@ -783,7 +789,7 @@ function MatchScreen() {
         net.request('g.watch', { fieldId: field.fieldId, ...(who ? { playerId: who } : {}) }).catch(() => {});
       }
     }
-    return () => { for (const off of offs) { try { off(); } catch { /* ignore */ } } clearTimeout(pending); };
+    return () => { for (const off of offs) { try { off(); } catch { /* ignore */ } } clearTimeout(pending); audio.setBattleView(null); };
   }, [view]);
 
   // the prep board moves while prep is shown (a boss round's prep begins, or a teammate left and the pairs changed):
