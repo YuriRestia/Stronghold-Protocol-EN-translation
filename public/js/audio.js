@@ -1465,6 +1465,28 @@ export class AudioManager {
     else if (part) this._castPart(part);
   }
 
+  /**
+   * (fork, enemy sound leftovers job 1) A unit's sim form from a form fx: its `form` (shared/protocol.js fxForm — setForm,
+   * a 重生's 'revive'), else a 'phase' fx's kind (“余音”'s setEchoForm: 'echo_gold' / 'echo_dark').
+   */
+  _noteForm(kind, ex) {
+    const form = typeof ex.form === 'string' ? ex.form : kind === 'phase' && typeof ex.kind === 'string' ? ex.kind : undefined;
+    const u = form !== undefined ? this.units.get(ex.id) : null;
+    if (u) u.form = form;
+  }
+
+  /**
+   * (fork, enemy sound leftovers job 1) The attack variant of an impact (unit()): its attacker's form when it has a variant
+   * for it, else `dmg:<type>` when it has one for the damage type dealt (萨卡兹枯朽前锋's Originium mode: arts on an
+   * infection tile), else none.
+   */
+  _hitVariant(by, type) {
+    const vs = unitSfx(this.getManifest()?.audio?.sfx, by.def, by.outfit)?.variants;
+    if (!vs) return null;
+    if (by.form != null && vs[by.form]) return by.form;
+    return vs[`dmg:${type}`] ? `dmg:${type}` : null;
+  }
+
   /** One enemy skill-cast part on its pool; the same file again within CAST_PART_GAP_MS stays silent (a crowd's casts). */
   _castPart(p) {
     if (typeof p?.url !== 'string') return;
@@ -2057,14 +2079,18 @@ export class AudioManager {
    * @param {string|null} [outfit]
    * @param {boolean} [melee] (fork) an enemy's melee attack (the sim's 'atk' kind 'none'): its `melee` set, when it has
    *   one, stands for its attack / hit / pools / mix / attackNext (tools/assets/audio.mjs pickEnemySfx)
+   * @param {string|null} [variant] (fork, enemy sound leftovers job 1) an enemy's attack in another official mode: its
+   *   `variants[variant]` set (tools/assets/audio.mjs ENEMY_ATTACK_VARIANTS) stands for them instead, when it has one
    * @returns {boolean} whether a unit-specific sound exists
    */
-  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null, melee = false) {
+  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null, melee = false, variant = null) {
     try {
       const pick = () => {
         const all = unitSfx(this.getManifest()?.audio?.sfx, defId, outfit);
-        const m = melee && (kind === 'attack' || kind === 'hit') ? all?.melee : null;
-        const u = m ? { ...all, attack: m.attack, hit: m.hit, pools: m.pools, mix: m.mix, attackNext: m.attackNext } : all;
+        const strike = kind === 'attack' || kind === 'hit';
+        const v = strike && variant != null ? all?.variants?.[variant] : null;
+        const m = v || (melee && strike ? all?.melee : null);
+        const u = m ? { ...all, attack: m.attack, hit: m.hit, pools: m.pools, mix: m.mix, attackNext: m.attackNext, hitNext: m.hitNext } : all;
         // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`). (fork) A unit with `skills` plays by
         // index only: an index without a sound is a skill the official bank table leaves silent, never `skill` (the
         // primary skill's sound, which rang on 54 operators' other skills)
@@ -2101,8 +2127,11 @@ export class AudioManager {
       // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has.
       // (fork) An enemy's normal attack: the fire / release banks of the same attack (`attackNext`: 假想敌：铳's shot
       // after its charge), with the swing [ASSUMED: at once — the sim's 'atk' is already the release]
-      const also = kind !== 'attack' ? null : typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : u?.attackNext;
-      const alsoKey = `${unitId}:attackAlso`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      // (fork, enemy sound leftovers job 1) …and an enemy's impact the other banks of it (`hitNext`: 潜水员's splash with
+      // its arrow, 腐败骑士's splash blade with its axe)
+      const also = kind === 'hit' ? (typeof mode === 'string' ? null : u?.hitNext)
+        : kind !== 'attack' ? null : typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : u?.attackNext;
+      const alsoKey = `${unitId}:${kind === 'hit' ? 'hitAlso' : 'attackAlso'}`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
       if (Array.isArray(also) && !this.limiter.cooling(at, alsoKey)) {
         this.limiter.lastByUnit.set(alsoKey, at);
         this._playParts({ also }, unitGain(UNIT_BASE_GAIN, mix));
@@ -2477,13 +2506,15 @@ export class AudioManager {
           const sOn = held || !!src.skillActive;
           // (fork) an enemy's melee strike (server/sim/ai.js: kind 'none' — blocked, or no range) plays its melee set
           const melee = src.side === 'enemy' && e[3] === 'none';
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn, melee });
-          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit, melee) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
+          // (fork, enemy sound leftovers job 1) an enemy's form picks its attack variant (ENEMY_ATTACK_VARIANTS)
+          const form = src.side === 'enemy' ? src.form ?? null : null;
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn, melee, form });
+          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit, melee, form) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
-          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit, !!by.melee);
+          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit, !!by.melee, this._hitVariant(by, e[3]));
         } else if (kind === 'heal') {
           this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.8 }); // (fork) the bank's own volume 0.8, on the mixer
         } else if (kind === 'skill' && e[2]) {
@@ -2593,6 +2624,8 @@ export class AudioManager {
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];
+          // (fork, enemy sound leftovers job 1) an enemy's form from now on (its attack variant: unit())
+          if (ex && typeof ex === 'object' && ex.id != null) this._noteForm(e[1], ex);
           if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);
           if (!ex || typeof ex !== 'object' || !ex.consumed || ex.id == null) continue;
           const u = this.units.get(ex.id);

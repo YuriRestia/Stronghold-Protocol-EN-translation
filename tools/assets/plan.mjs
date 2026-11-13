@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, ENEMY_SHOT_SOUNDS, ENEMY_ATTACK_VARIANTS, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
@@ -1381,7 +1381,8 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     // (fork) the enemy picker (audio.mjs pickEnemySfx): its shot's impact, the fire after the wind-up (`attackNext`) and
     // a melee set beside the ranged one (`melee`, public/js/audio.js unit())
     const short = bankOwner.replace(/^enemy_\d+_/, '').replace(/_\d+$/, '');
-    const picked = pickEnemySfx(banks, audio.bank, short);
+    // (fork, enemy sound leftovers job 1) + the shots named for another enemy / a kit moment, the other modes' attacks
+    const picked = pickEnemySfx(banks, audio.bank, short, { shots: ENEMY_SHOT_SOUNDS[id], variants: ENEMY_ATTACK_VARIANTS[id] });
     const { roles: u, mix } = unitSounds(audio, picked, poolRef);
     if (mix) u.mix = mix;
     const casts = enemyCastSounds(audio, banks, enemyCasts?.get(id), poolRef);
@@ -1400,6 +1401,19 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       if (picked.melee.next?.length) m.attackNext = nextParts(picked.melee.next);
       if (mm) m.mix = mm;
       if (Object.keys(m).length) u.melee = m;
+    }
+    // (fork, enemy sound leftovers job 1) the impact's other banks (`hitNext`), a kit fx's own sound (`fxSounds`, as the
+    // operators' FX_SOUND_BANKS: the first part is the entry, the rest its `also`) and the other modes' attacks (`variants`)
+    if (picked.hitNext?.length) u.hitNext = nextParts(picked.hitNext);
+    for (const [tag, list] of Object.entries(picked.fx || {})) {
+      const [lead, ...also] = nextParts(list);
+      (u.fxSounds || (u.fxSounds = {}))[tag] = also.length ? { ...lead, also } : lead;
+    }
+    for (const [key, set] of Object.entries(picked.variants || {})) {
+      const { roles: v, mix: vm } = unitSounds(audio, set, poolRef);
+      if (set.next?.length) v.attackNext = nextParts(set.next);
+      if (vm) v.mix = vm;
+      if (Object.keys(v).length) (u.variants || (u.variants = {}))[key] = v;
     }
     if (Object.keys(u).length) unitsSfx[id] = u;
   }

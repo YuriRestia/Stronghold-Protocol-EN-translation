@@ -21,6 +21,9 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 4. Before editing battle simulation code, read [server/sim/AGENTS.md](server/sim/AGENTS.md) for a short settlement API usage guide.
 5. [docs/CI.md](docs/CI.md) — the CI jobs, the test-sharding contract (`ci-shards.json`), how to re-weigh it, the
    timeout policy, and the ways a CI measurement lies.
+6. [docs/doc-map.json](docs/doc-map.json) — which doc sections to read before editing each code area
+   (`node tools/doc-map.mjs <path>`); state numbers and official behaviour with a source, `[src: …]` or `[unverified]`
+   (changes/README.md "Sourced claims").
 
 ## Hard rules
 
