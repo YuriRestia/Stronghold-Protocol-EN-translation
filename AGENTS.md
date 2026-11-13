@@ -31,6 +31,10 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 - **Official first.** Rules come from the official data tables (`.cache/gamedata/excel/` after setup) and
   [PRTS](https://prts.wiki/). A detail no source settles is implemented the simplest way and marked `[ASSUMED]` in the
   code and the PR. Deliberate deviations from the official mode are the maintainer's decision only.
+- **(fork) No guessed values.** On this fork the `[ASSUMED]` route above needs the maintainer's OK first. Timings,
+  rates, ranges and counts cite their official source in a comment (file + field). With no source, ship no number:
+  leave it out and say so, or ask. A new `[ASSUMED] …` line needs `user OK YYYY-MM-DD` on the same line
+  (`npm run changelog -- --check` checks it, as does the crew's covering-test tool).
 - **Determinism.** `server/sim/` is plain ESM that runs in Node and in browsers: no Node APIs, no `Math.random`, no
   clocks, and no engine-approximated Math functions (use `server/sim/detmath.js`; ESLint and
   `test/sim/detmath.test.js` enforce it).
@@ -60,7 +64,8 @@ rooms) and a deterministic battle sim shared by the server and the browser. It a
 - **Commits and PRs**: one topic per PR; a one-line message of what changed (Chinese or English) with the issue number;
   no attribution trailers (`Co-Authored-By:`, `Generated with …`). The PR description states what, why, the sources,
   the `[ASSUMED]` points, the tests you ran (paste the summary lines) and the golden moves. No ads, payments or other
-  monetisation — the project stays non-commercial.
+  monetisation — the project stays non-commercial. (fork) The line is at most ~70 characters; the details go in the
+  changelog fragment. Merge commits are exempt.
 
 ## Verify
 
