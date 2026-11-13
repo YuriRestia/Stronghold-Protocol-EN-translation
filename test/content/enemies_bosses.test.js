@@ -54,6 +54,8 @@ const approx = (a, b, eps = 1e-6, msg = '') => assert.ok(Math.abs(a - b) <= eps 
 const nm = (k) => `${k} ${E[k] ? E[k].name : ''}`;
 const statuses = (h, id, key) => h.hooksOf('statusApplied').filter((c) => c.target.id === id && c.status === key);
 const killed = (h, e, by = null) => h.b.kill(e, by);
+// (fork) a unit's b.snap fxs rows of one buff: [src, look] each
+const fxRows = (u, h, buff) => (fxStateView(u, h.b.time) || []).filter((r) => r[0] === buff).map((r) => r.slice(1));
 const alive = (h, key) => h.enemies().filter((e) => e.defId === key);
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1794,11 +1796,15 @@ test(`${nm('enemy_1364_spnaxe_2')}: heals and stacks ATK when a unit within ${tb
   const e = put(h, 'enemy_1364_spnaxe_2', [10, 7]);
   const o = put(h, 'enemy_1007_slime', [10, 6.5]);
   const far = put(h, 'enemy_1007_slime', [10, 5.8]);                 // 1.2 tiles away: outside Attack.range_radius
+  // (fork) its official mark on every unit within the radius (either side; here enemies spawned after it), not on itself
+  assert.deepEqual([fxRows(o, h, 'enemy_spnaxe_buffs[mark]'), fxRows(far, h, 'enemy_spnaxe_buffs[mark]'), fxRows(e, h, 'enemy_spnaxe_buffs[mark]')], [[[e.id, 'mark']], [], []]);
   h.b.dealDamage(null, e, { amount: 5000, type: 'true' });
   const hp = e.hp;
   killed(h, far, null);
   assert.equal(e.hp, hp);
+  assert.deepEqual(fxRows(e, h, 'enemy_spnaxe_buffs[mark]'), [], 'no heal for a knock-out outside');
   killed(h, o, null);
+  assert.deepEqual(fxRows(e, h, 'enemy_spnaxe_buffs[mark]'), [[null, 'heal']], '(fork) its official heal');
   approx(e.hp - hp, e.s.maxHp * tb('enemy_1364_spnaxe_2', 'Attack.hp_ratio'));
   approx(e.s.atk, E.enemy_1364_spnaxe_2.stats.atk * (1 + tb('enemy_1364_spnaxe_2', 'Attack.atk')));
   const total = h.b.total;
@@ -2632,6 +2638,9 @@ test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.dama
   const caged = h.allies().filter((u) => u.findBuff('ab:fearCage'));
   assert.equal(caged.length, fc.bb.max_target);
   assert.equal(caged[0].s.aspd, 100 + fc.bb.attack_speed);
+  // (fork) the official fear cage on each caught unit, and Zaaro's HP record while they wait
+  for (const u of caged) assert.deepEqual(fxRows(u, h, 'enemy_wlfmster_fearcage'), [[e.id, null]]);
+  assert.deepEqual(fxRows(e, h, 'enemy_wlfmster_damage_record'), [[null, null]]);
   const hp0 = caged[0].hp, mh = caged[0].s.maxHp;
   h.run(10);
   // 1 tick per second at maxHp × hp_ratio × t / duration_bleed: 10 ticks ≈ 30 % × (0+1+…+10)/40 of max HP
@@ -2646,6 +2655,7 @@ test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.dama
   h.b.loseHp(e, e.s.maxHp * 0.03);
   h.run(0.3);
   assert.equal(h.allies().filter((u) => u.findBuff('ab:fearCage')).length, 0, 'cured at 20 %');
+  assert.deepEqual([...caged.map((u) => fxRows(u, h, 'enemy_wlfmster_fearcage')), fxRows(e, h, 'enemy_wlfmster_damage_record')], [[], [], [], []]);
   h.run(fc.bb.duration_wait - 0.7);
   assert.equal(h.allies().filter((u) => u.findBuff('ab:fearCage')).length, 0, '"场上技能效果全部结束时狼之主获得7s静默"');
   h.run(0.6);
@@ -2656,6 +2666,8 @@ test(`${nm('enemy_1535_wlfmster')}: −${tb('enemy_1535_wlfmster', 'Passive.dama
   h.run(tb('enemy_1535_wlfmster', 'Reborn.duration') / 2);
   approx(e.hpRatio, 0.5, 0.05, 'HP refills during 远古威慑');
   assert.equal(h.unit('t_wall').s.aspd, 100 - 50, 'aura slows the units within 1.5');
+  assert.deepEqual(fxRows(h.unit('t_wall'), h, 'enemy_wlfmster_fear'), [[e.id, null]], '(fork) the official FearAura effect on it');
+  assert.deepEqual(fxRows(h.unit('t_wall3'), h, 'enemy_wlfmster_fear'), []);
   assert.equal(h.unit('t_wall4').s.aspd, 100 - 50, '√2 away: inside');
   assert.equal(h.unit('t_wall3').s.aspd, 100, '√5 away: outside');
   h.run(tb('enemy_1535_wlfmster', 'Reborn.duration') / 2 + 0.1);
@@ -3117,6 +3129,23 @@ test('假想敌：铳 (隐秘核心): damage ×0.2 while springs live; 盲信之
   h.run(s2.initCooldown - h.b.time + 0.2);
   assert.ok(sp.s.flags.invulnerable && sp.mem.ab.dash);
   assert.ok(sp.s.flags.disarm, '追逐模式: 不进行普通攻击');
+});
+
+test("(fork) “碎铳之簧” 追逐模式: each trample hit shows the variant's official hit (a: actrpa_s_1[damage], c: actrpc_s_1[damage], b: none)", () => {
+  for (const [key, buff] of [['enemy_9018_actrpa', 'actrpa_s_1[damage]'], ['enemy_9020_actrpc', 'actrpc_s_1[damage]'], ['enemy_9019_actrpb', null]]) {
+    const h = bossArena({ units: [{ chessId: 't_wall', row: 3, col: 4 }] });
+    h.step();
+    put(h, 'enemy_9017_achunt_2', [3, 18], { tag: 'boss' }).profile.noAttack = true;
+    const sp = put(h, key, [3, 4], { tag: 'part' });
+    sp.profile.noAttack = true;
+    sp.mem.ab.dash = { until: h.b.time + 1, hit: new Set(), mul: 1, gun: null };
+    h.step();
+    const w = h.unit('t_wall');
+    const rows = (fxStateView(w, h.b.time) || []).filter((r) => /_s_1\[damage\]$/.test(r[0]));
+    assert.deepEqual(rows, buff ? [[buff, sp.id, null]] : [], key);
+    h.run(0.5);
+    assert.deepEqual((fxStateView(w, h.b.time) || []).filter((r) => /_s_1\[damage\]$/.test(r[0])), [], `${key}: one-shot, gone`);
+  }
 });
 
 test('“碎铳之簧” 法术护盾 (9018): barrier absorbs arts, physical ×0.1 with a counter; damage passes to 铳', () => {

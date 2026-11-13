@@ -692,11 +692,14 @@ function kitWolfLord(ab) {
   const caught = (b) => b.allies().some((u) => u.findBuff('ab:fearCage'));
   const cure = (b) => { for (const u of b.allies()) { const d = u.findBuff('ab:fearCage'); if (d) b.removeBuff(u, d); } };
   // 【远古威慑】 (a buff aura, auraAllies): no 隐匿 operator, the blocker included, an airborne 起飞 one still — as 深池伙友卫队's
-  const awe = (b, e) => { for (const u of auraAllies(b, e, e.x, e.y, WOLF_AWE_RADIUS)) auraBuff(b, u, 'ab:ancientAwe', 0.2, { aspd: WOLF_AWE_ASPD }, null, true); };
+  // (fork) with the official FearAura buff's effect on each unit it holds (display only)
+  const awe = (b, e) => { for (const u of auraAllies(b, e, e.x, e.y, WOLF_AWE_RADIUS)) auraBuff(b, u, 'ab:ancientAwe', 0.2, { aspd: WOLF_AWE_ASPD }, null, true, { fx: 'enemy_wlfmster_fear', src: e.id }); };
   return [{
     spawn(b, e, a, ab2) {
       ab2.immune = new Set([...(ab2.immune || []), 'stun']);   // 第一形态: 不可被晕眩
       b.addBuff(e, { key: 'ab:wolfGuard', persist: true, visible: true, mods: { dmgTakenMul: 1 - (T(ab, 'Passive.damage_resistance') ?? 0) } });
+      // (fork) its HP record (BuffToOwner enemy_wlfmster_damage_record) shows while a caught unit waits for the cure (display only)
+      b.fxProbe?.(e, 'enemy_wlfmster_damage_record', () => !P.form2 && P.caught > 0);
     },
     iv: 0.1,
     tick(b, e, a, dt) {
@@ -726,7 +729,8 @@ function kitWolfLord(ab) {
     const ramp = Math.max(1, fc.bb.duration_bleed ?? 40), peak = fc.bb.hp_ratio ?? 0;
     for (const u of l) {
       b.fx('beam', { x: e.x, y: e.y, from: e.id, to: u.id, kind: 'fearCage' });
-      b.addBuff(u, { key: 'ab:fearCage', refresh: 'replace', visible: true, interval: 1, data: { src: e, hp0: e.hpRatio, t0: b.time },
+      // (fork) fx: the official fear-cage buff's loop on the unit, and its end hit when it goes (display only)
+      b.addBuff(u, { key: 'ab:fearCage', refresh: 'replace', visible: true, interval: 1, data: { src: e, hp0: e.hpRatio, t0: b.time }, fx: 'enemy_wlfmster_fearcage', fxSrc: e.id,
         mods: { aspd: fc.bb.attack_speed ?? 0 },
         onTick: ({ battle, unit, buff }) => {
           // its 扎罗 gone from the field without a 重生 (leaked, removed): the effect ends, no loss this tick [ASSUMED — no

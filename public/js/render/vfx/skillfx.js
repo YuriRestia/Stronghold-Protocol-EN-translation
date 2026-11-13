@@ -708,6 +708,12 @@ export class SkillFx {
    * held for the skill's blackboard `duration` when the event carries one. A window the snapshot's SKILL anim opened for
    * the same slot a moment before is kept (the event and the snapshot come apart by up to a frame).
    */
+  /** (fork) Whether an enemy of index unit key `key` cast one of `skills` (prefab keys, lower case) in this frame. */
+  castNow(key, skills) {
+    for (const U of this.units.values()) if (U && U.key === key && U.castFrame === this.frame && skills.includes(U.castKey)) return true;
+    return false;
+  }
+
   cast(v, slot, dur = 0) {
     const U = this.of(v);
     const entry = U?.enemy?.find((x) => x.slot === slot);
