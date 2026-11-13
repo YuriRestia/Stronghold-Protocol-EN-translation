@@ -20,8 +20,12 @@ local (0,0,0) and 17 at the same (0,−0.2,−0.06) that ground units such as �
 per-model correction) — i.e. the client applies **no per-model vertical correction**, which is why
 `units.js FLY_HOVER` is a flat constant and why a model whose art hangs below its pivot keeps that hang.
 
+(fork, 2026-11-14) `--heights` prints each prefab's root `Enemy._height` instead: the official flying height in tiles
+(world units) that the client spawns the unit at (Enemy.get_originHeight → OnInit → HeightController), which
+tools/build-data.mjs FLY_HEIGHTS carries into enemies.json `flyHeight` (docs/research/12 §7).
+
 Usage:
-  python tools/local-extract/enemy_model_offsets.py [--game <AB root>] [--keys k1,k2,...] [--only-fly]
+  python tools/local-extract/enemy_model_offsets.py [--game <AB root>] [--keys k1,k2,...] [--only-fly] [--heights]
 Needs UnityPy + lz4 (tools/local-extract/requirements.txt).
 """
 import argparse
@@ -59,11 +63,27 @@ def graphic_of(root_god, by_id):
     return None, None
 
 
+def root_height(root_god, by_id):
+    """The prefab root's `Enemy` component `_height` (None when it has none)."""
+    for c in root_god['m_Component']:
+        r = by_id.get(c['component']['m_PathID'])
+        if r is None or r.type.name != 'MonoBehaviour':
+            continue
+        try:
+            d = r.read_typetree()
+        except Exception:
+            continue
+        if '_height' in d:
+            return d['_height']
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--game', help='install directory or AB root (default: the known install locations)')
     ap.add_argument('--keys', help='comma-separated enemies.json keys (default: every enemy)')
     ap.add_argument('--only-fly', action='store_true', help='just the units whose stats.motion is FLY')
+    ap.add_argument('--heights', action='store_true', help="print each prefab's Enemy._height (flying height) instead")
     ap.add_argument('--json', action='store_true', help='print the raw {prefab: {pos, scale}} JSON instead of a table')
     args = ap.parse_args()
     ab_root = locate_client(args.game)
@@ -84,7 +104,15 @@ def main():
         for name, obj in env.container.items():
             m = re.search(r'/enemies/(.+)\.prefab$', name)
             if m and m.group(1) in wanted:
-                rows[m.group(1)] = graphic_of(obj.read_typetree(), by_id)
+                tree = obj.read_typetree()
+                rows[m.group(1)] = root_height(tree, by_id) if args.heights else graphic_of(tree, by_id)
+
+    if args.heights:
+        for prefab, key in wanted.items():
+            h = rows.get(prefab)
+            motion = enemies[key].get('stats', {}).get('motion')
+            print(f"{key:<24}{str(enemies[key].get('name'))[:16]:<18}{motion or '':<6}{'—' if h is None else round(h, 4)}")
+        return
 
     if args.json:
         out = {}

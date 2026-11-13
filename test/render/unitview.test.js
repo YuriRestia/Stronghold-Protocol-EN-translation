@@ -361,66 +361,81 @@ describe('impostor refresh slots', () => {
   });
 });
 
-// Player report 2026-10-05: 「无人机等飞行单位贴图位置明显偏低」, and the follow-up "绝对不止 0.35" with an official
-// screenshot of 帝国炮火先兆者 over a tile (PR #211 by @xcdoge; the owner's decision of 2026-10-06). The lift is the
-// official client's own single constant — Vector3(0, 0.35, 0) written by Torappu.Battle.CharacterAnimator's constructor
-// (docs/research/12-flying-visuals-official.md) — measured in the client's character space, whose unit is the standard
-// battle-prefab scale 0.27, so the tile-space lift is 0.35 / 0.27 ≈ 1.3 tiles (the screenshot measures 1.2–1.4). The
-// client applies it to the model's root transform and nothing per model (its battle prefabs carry no flyer-specific
-// vertical offset), so a model whose art hangs below its origin keeps that hang and flies with it — 妖怪 at ≈ 0.9 tiles
-// of rotor clearance. The previous flat 0.32 left every flyer ~1 tile too low (the two 妖怪 drones even had their art
-// under the tile).
-describe('flying units hover FLY_HOVER above the ground, whatever their model', () => {
+// Player report 2026-10-05: 「无人机等飞行单位贴图位置明显偏低」 (PR #211 by @xcdoge). The official height is per unit:
+// each enemy prefab's root `Enemy._height` (dump.cs Enemy field +0x308, read by Enemy.get_originHeight; the client
+// spawns the unit at it — Enemy.OnInit → HeightController.OnInit) in tiles, the world unit (Defaults.HIGHLAND_HEIGHT
+// 0.4 = our 0.42 high ground). tools/build-data.mjs FLY_HEIGHTS carries it into enemies.json `flyHeight`
+// (tools/local-extract/enemy_model_offsets.py --heights reads it; docs/research/12 §7). Nothing per model
+// moves the art (the battle prefabs carry no flyer-specific Graphic offset), so a model whose art hangs below its origin
+// keeps that hang. The earlier flat FLY_HOVER 1.3 (0.35 / 0.27, from CharacterAnimator._flyHitOffset — a hit-point
+// offset, not a body lift) is now only the fallback for a flyer without a known height (four boss parts whose prefab
+// says 0).
+describe('flying units hover at their official flyHeight above the ground, whatever their model', () => {
+  const ENEMIES = JSON.parse(readFileSync(path.join(ROOT, 'data/enemies.json'), 'utf8'));
   const boundsOf = (key) => { const sp = ASSETS.enemies[key].spine; return (sp.front || sp).bounds; };
   const MODEL_K = { enemy_1005_yokai: 0.7407, enemy_1005_yokai_2: 0.8148, enemy_1040_bombd: 0.7407, enemy_1042_frostd: 0.6667 };
   /** Independent algorithm: tiles the art bottom hangs below the unit's ground point. */
   const sinkOf = (key) => (-boundsOf(key).y / 320) * MODEL_K[key];
+  // the official Enemy._height per prefab (CN client battle/enm_pfb_*.ab, 2026-11-14), restated independently of the builder
+  const OFFICIAL = {
+    enemy_1005_yokai: 1.2, enemy_1040_bombd: 1.2, enemy_1042_frostd: 1.2, enemy_1112_emppnt: 1.2, enemy_10085_hllevi_2: 1.2,
+    enemy_9009_acfort: 1, enemy_9012_acloon: 1, enemy_10084_hlegle: 1, enemy_1430_lrrook: 0.8, enemy_9014_acstma: 1.5, enemy_9015_acstmb: 1.5,
+  };
+  const UNKNOWN = ['enemy_9016_acstmr', 'enemy_10028_vtswd', 'enemy_10029_vtshld', 'enemy_10030_vtwand'];
 
-  test('FLY_HOVER is the client constant 0.35 in character space, i.e. 0.35 / 0.27 tiles', async () => {
-    const { FLY_HOVER } = await import('../../public/js/render/units.js');
-    const STANDARD_PREFAB_SCALE = 0.27;   // enemies.json modelScale is a multiple of it (units.js enemyModelScale)
-    const want = 0.35 / STANDARD_PREFAB_SCALE;
-    assert.ok(Math.abs(FLY_HOVER - want) < 0.02, `FLY_HOVER ${FLY_HOVER} ≈ 0.35 / ${STANDARD_PREFAB_SCALE} = ${want.toFixed(3)} 格`);
+  test('enemies.json carries the official flyHeight for every flyer, and only for flyers', () => {
+    for (const [key, h] of Object.entries(OFFICIAL)) assert.equal(ENEMIES[key].flyHeight, h, key);
+    for (const [key, e] of Object.entries(ENEMIES)) {
+      const fly = e.stats && e.stats.motion === 'FLY';
+      if (!fly) assert.equal(e.flyHeight, undefined, `${key}: a ground unit has no flyHeight`);
+      else if (UNKNOWN.includes(key)) assert.equal(e.flyHeight, undefined, `${key}: prefab says 0, left to the fallback`);
+      else assert.ok(e.flyHeight > 0, `${key}: a flyer has its height`);
+    }
+    const tokens = JSON.parse(readFileSync(path.join(ROOT, 'data/tokens.json'), 'utf8'));
+    const loon = Object.values(tokens).find((t) => t && t.motion === 'FLY' && t.flyHeight != null);
+    assert.equal(loon && loon.flyHeight, 1, '炎佑 (token) keeps its enemy record\'s 1.0');
   });
 
-  test('every flyer of this mode gets the same lift, whatever its model hangs below its origin', async () => {
-    const { FLY_HOVER } = await import('../../public/js/render/units.js');
+  test('flyHeightOf: the record\'s height, FLY_HOVER when it has none', async () => {
+    const { FLY_HOVER, flyHeightOf } = await import('../../public/js/render/units.js');
+    assert.equal(flyHeightOf({ flyHeight: 1.2 }), 1.2);
+    assert.equal(flyHeightOf({ flyHeight: 0 }), 0);
+    for (const rec of [null, undefined, {}, { flyHeight: null }, { flyHeight: 'x' }, { flyHeight: -1 }]) assert.equal(flyHeightOf(rec), FLY_HOVER);
+    assert.equal(FLY_HOVER, 1.3, 'the old flat lift, kept as the fallback');
+  });
+
+  test('every drone\'s art clears the tile at its official height, whatever it hangs below its origin', () => {
     for (const key of Object.keys(MODEL_K)) {
       const sink = sinkOf(key);
       assert.ok(sink > 0, `${key}: the model does hang ${sink.toFixed(3)} tiles below its pivot`);
-      // the lift is model-independent, so a flyer's visible clearance is FLY_HOVER − sink, and it differs per model
-      assert.ok(FLY_HOVER - sink > 0.8, `${key}: 净高度 ${(FLY_HOVER - sink).toFixed(3)} 格（修复前 0.32 − sink 为负 → 贴地）`);
+      assert.ok(ENEMIES[key].flyHeight - sink > 0.5, `${key}: 净高度 ${(ENEMIES[key].flyHeight - sink).toFixed(3)} 格`);
     }
-    // with the old flat 0.32 the two 妖怪 drones had a negative clearance = art under the tile, and 寒霜 floated 0.25
-    assert.ok(0.32 - sinkOf('enemy_1005_yokai') < 0, 'before: 妖怪 −0.06 tiles');
-    assert.ok(0.32 - sinkOf('enemy_1042_frostd') > 0.2, 'before: 寒霜 floated 0.25 tiles (inconsistent)');
-    // a model whose art starts above its pivot (帝国炮火先兆者) gets the plain FLY_HOVER
     assert.equal(boundsOf('enemy_1112_emppnt').y > 0, true, '帝国炮火先兆者 art bottom is above the origin');
-    assert.ok(FLY_HOVER > 1.2, 'the sub-tile 0.35 left every flyer about one tile low');
   });
 
-  test('a flying UnitView lifts by FLY_HOVER — its body and HP bar ride it, its shadow stays on the ground; a ground view keeps its feet on the tile', async () => {
-    const { FLY_HOVER } = await import('../../public/js/render/units.js');
+  test('a flying UnitView spawns at its flyHeight — its body and HP bar ride it, its shadow stays on the ground; a ground view keeps its feet on the tile', async () => {
     const bounds = boundsOf('enemy_1005_yokai');
     const entry = { skel: '/s/x.skel', atlas: '/s/x.atlas', textures: ['/s/x.png'], anims: { idle: 'Idle' }, animations: { Idle: 1 }, bounds };
     const assets = {
       picture: () => null, image: async () => null, spineEntry: () => entry,
       spine: { acquire: async () => ({ animations: [{ name: 'Idle' }] }), release() {} },
     };
-    const ctx = fakeViewCtx(fake.P, { assets, cam: cam, lookupDef: () => ({ modelScale: MODEL_K.enemy_1005_yokai }) });
+    const H = ENEMIES.enemy_1005_yokai.flyHeight;
+    const ctx = fakeViewCtx(fake.P, { assets, cam: cam, lookupDef: () => ({ modelScale: MODEL_K.enemy_1005_yokai, flyHeight: H }) });
     const fly = new UnitView(ctx, { id: 1, side: 'enemy', kind: 'enemy', defId: 'enemy_1005_yokai', x: 5, y: 12, maxHp: 100, motion: 'FLY' }, {});
+    assert.equal(fly.hover, H, 'spawned at its height (Enemy.OnInit(initHeight)), no rise');
     await tick(); await tick();
     for (let i = 0; i < 180; i++) fly.update(1 / 60, cam(), i / 60);
-    assert.ok(Math.abs(fly.hover - FLY_HOVER) < 1e-3, `hover ${fly.hover.toFixed(3)} ≈ FLY_HOVER ${FLY_HOVER}`);
+    assert.ok(Math.abs(fly.hover - H) < 1e-9, `hover ${fly.hover.toFixed(3)} = flyHeight ${H}`);
     const ground = new UnitView(ctx, { id: 2, side: 'enemy', kind: 'enemy', defId: 'enemy_1005_yokai', x: 5, y: 12, maxHp: 100 }, {});
     await tick(); await tick();
     for (let i = 0; i < 60; i++) ground.update(1 / 60, cam(), i / 60);
     assert.equal(ground.hover, 0, 'a ground unit is not lifted');
-    // the same tile: the flyer's body (and the bar above it) is FLY_HOVER higher on screen, the shadows coincide
+    // the same tile: the flyer's body (and the bar above it) is flyHeight higher on screen, the shadows coincide
     const c = cam();
     const lift = c.project(5, 12, 0).y - c.project(5, 12, fly.hover).y;
     assert.ok(lift > 0);
-    assert.ok(Math.abs((ground.screen.y - fly.screen.y) - lift) < 1e-6, `body lifted by the projected FLY_HOVER (${ground.screen.y - fly.screen.y} vs ${lift})`);
+    assert.ok(Math.abs((ground.screen.y - fly.screen.y) - lift) < 1e-6, `body lifted by the projected flyHeight (${ground.screen.y - fly.screen.y} vs ${lift})`);
     // the bar sits the head height above the body (the projected scale at the body's height, so not exactly `lift`)
     assert.ok(fly.screen.top < fly.screen.y && Math.abs((fly.screen.y - fly.screen.top) - (ground.screen.y - ground.screen.top)) < 0.1 * (ground.screen.y - ground.screen.top), 'the HP bar keeps its head height over the body');
     assert.ok(ground.screen.top - fly.screen.top > 0.9 * lift, `the HP bar rides the body (${ground.screen.top - fly.screen.top} vs ${lift})`);
@@ -430,8 +445,8 @@ describe('flying units hover FLY_HOVER above the ground, whatever their model', 
 
 // GitHub #277 (@FrogThai): 飞机经过一格方块时会跟走楼梯一样，有高低差 — a flyer crossing one raised tile (high ground,
 // a forbidden block) rose onto the block and dropped back like a step, because the view added the tile's height under
-// it before its FLY_HOVER. The official lift is one constant over the route (docs/research/12: Vector3(0, 0.35, 0) added
-// while flying), so an enemy flyer hovers from the road (z 0) whatever tile it crosses; its shadow lies on the tile top
+// it before its lift. The view keeps one height over the route (its flyHeight, here the FLY_HOVER fallback of a record
+// without one), so an enemy flyer hovers from the road (z 0) whatever tile it crosses; its shadow lies on the tile top
 // under it. Ground enemies keep to the road as before, and an operator on high ground keeps standing on the block.
 describe('an enemy flyer crossing a raised tile keeps its height (GitHub #277)', () => {
   const RAISED = { row: 12, col: 6, h: 0.42 };   // one high-ground block ('h', TILE_H.wall) on the flyer's row

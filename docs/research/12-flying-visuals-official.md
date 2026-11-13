@@ -1,4 +1,4 @@
-# 12 · Official flying visuals: a flat lift of ~1.3 tiles (the client's 0.35 in character space)
+# 12 · Official flying visuals (per-unit heights since 2026-11-14, §7; §0–§6 are the earlier flat-lift reading)
 
 Written 2026-10-05 by @xcdoge as research for PR #211, after a player report (「无人机等飞行单位贴图位置明显偏低」) that
 flying units sat too low, and the follow-up 「绝对不止 0.35」 with an official screenshot of 帝国炮火先兆者 over a tile.
@@ -346,3 +346,51 @@ explains every other per-model difference (§3.1): **the code never repositions 
   (render/projection.js) drives the Pixi units over both the 2D atlas board and the three.js board, so both boards show
   the same lift.
 - The sim is untouched (fly height is drawing only), so no golden result moves. A hard refresh applies the client change.
+
+---
+
+## 7. Correction (2026-11-14): the height is per unit, not one constant [DATA]
+
+An audit on 2026-11-14 ("are the take-off heights right?") found that §2's reading was wrong and that **no** flying or
+take-off unit was drawn at its official height. What the current client says:
+
+- **The 0.35 of §2 is not a body lift.** In the current dump it is `CharacterAnimator._flyHitOffset`, a
+  `[SerializeField]` per-prefab value that `_OffsetHitTransform(FaceConfiguration, Vector3)` adds to each face's **hit
+  point** (dump.cs:377857, 378073). Dividing it by 0.27 (§3's unsourced character-space conversion) gave 1.3 by coincidence; the
+  screenshot's 1.2–1.4 tiles agrees with the real value below.
+- **Enemy flyers: each prefab's `Enemy._height`.** The root `Enemy` component serializes `_height` (field +0x308,
+  dump.cs:456882); `Enemy.get_originHeight` (RVA 0xACE340) returns it, the auto-chess spawn
+  (`AutoChessEnemyPreviewManager._DoSpawnPreviewEnemy`, 0xBD2DED) hands it to the enemy's init, and `Enemy.OnInit`
+  (0xABF5F0) passes it to `Enemy.HeightController.OnInit` (0xAE3400). The unit is **spawned at** that height. Units are
+  Unity world units = tiles (`Defaults.HIGHLAND_HEIGHT` 0.4, dump.cs:374296; our camera is the official one, our high
+  ground 0.42). Read from the CN client's `battle/enm_pfb_*.ab` with `tools/local-extract/enemy_model_offsets.py
+  --heights` (243 prefabs; no WALK enemy has a non-zero `_height`):
+
+  | Height (tiles) | Flyers (enemies.json keys) |
+  |---|---|
+  | 1.2 | 1005_yokai, 1005_yokai_2, 1005_yokai_3, 1017_defdrn, 1040_bombd, 1041_lazerd, 1041_lazerd_2, 1042_frostd, 1112_emppnt, 1112_emppnt_2, 1269_nhfly, 1321_wdarft, 1355_mrfly, 1355_mrfly_2, 1407_hummbd, 10040_cnvbln, 10083_hlbird, 10085_hllevi_2 |
+  | 1.0 | 9009_acfort, 9012_acloon (also the 炎 bond summon 炎佑), 10084_hlegle |
+  | 0.8 | 1430_lrrook |
+  | 1.5 | 9014_acstma, 9015_acstmb |
+  | 0 in the prefab (unknown) | 9016_acstmr, 10028_vtswd, 10029_vtshld, 10030_vtwand — boss parts; a boss can set a summon's height at spawn (`HeightController.SetEnemyHeight`), not traced, so they keep `FLY_HOVER` 1.3 |
+
+- **Operator take-off (起飞): `Nodes.ModifyGraphicHolderHeight`** (`_offset` / `_OffsetKey`, `_duration` /
+  `_durationKey`, dump.cs:622228) → `Unit.SetGraphicHolderHeightOffset` (0xB1C110) → a battle tween with no ease set,
+  which `BattleTweenMgr.Tween.Tick` runs as a plain lerp (**linear**, battle seconds). Values from
+  `buff_template_data.json`, `skill_table.json` / `character_table.json` blackboards and the operators' battle-prefab
+  animation events:
+
+  | Operator | Height | Rise / landing |
+  |---|---|---|
+  | 蒂比 Tippi (char_4191_tippi), while S1 / S2 runs | 0.8 | 0.8333 s / 0.8333 s |
+  | 雷蛇·惊蛰 Leizi the Thunderbringer (char_1043_leizi2), talent, while no skill runs | 0.4 | at deploy 0.8 s after a 0.2 s wait; lands when a skill starts in 0.1667 / 0.1333 / 0.1667 s (S1 / S2 / S3), takes off after it in 0.3 / 0.2667 / 0.2667 s |
+  | 凯尔希·残光 Kal'tsit Esperanta (char_1052_kalts2), talent | 0 (no `ModifyGraphicHolderHeight` in any of her buffs, no height key in her prefab: only the block mode changes) | — |
+  | 予愿安洁莉娜 (char_1015_aglna2), while a skill runs | 0.8 (trait); S3's re-deploy on high ground 0.4 | 0.8333 s — **not implemented here** (handed to the Angelina work; she keeps `FLY_HOVER` until then) |
+
+**Implemented** (2026-11-14, client-only): `tools/build-data.mjs FLY_HEIGHTS` → enemies.json / tokens.json `flyHeight`;
+`render/units.js flyHeightOf` (a flyer hovers its `flyHeight`, spawns at it, falls back to `FLY_HOVER` 1.3) and
+`render/units.js TAKEOFF` (per-operator height and linear rise / landing times, keyed by charId; an operator without an
+entry keeps `FLY_HOVER`). `LIFTOFF_HOVER` 0.3 is gone; the sim's `UF.LIFTOFF_LOW` bit is no longer read by the
+renderer. Not modelled: the tile height a `HeightController` may track under a flyer (GitHub #277 keeps the flyer over
+the road), and 浮空 (levitate) lifts. Tests: `test/render/unitview.test.js` (flyers), `test/render/battle-visuals.test.js`
+(take-offs). §0–§6 above are kept as the record of the earlier reading.
