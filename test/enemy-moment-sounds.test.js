@@ -85,7 +85,7 @@ test('the client: moments play on their pools, a held loop starts / ends, timed 
     const requested = [];
     const buffer = a._buffer.bind(a);
     a._buffer = (url) => { requested.push(file(url)); return buffer(url); };
-    const run = async (ev) => { requested.length = 0; a.castPartAt.clear(); a.handleBattleEvents(ev); await new Promise((r) => setTimeout(r, 10)); return [...requested]; };
+    const run = async (ev) => { requested.length = 0; a.handleBattleEvents(ev); await new Promise((r) => setTimeout(r, 10)); return [...requested]; };
 
     assert.deepEqual(await run([['fx', 'telegraph', 5, 5, { id: 1, kind: 'reborn', form: 'reborn' }]]), ['die.mp3', 'dieloop.mp3'], 'the knock-out and its loop');
     assert.ok(a.stingLoops.has(1), 'the loop holds');
@@ -95,7 +95,7 @@ test('the client: moments play on their pools, a held loop starts / ends, timed 
     assert.deepEqual(await run([['cast', 1, 0]]), ['caststart.mp3', 'emit.mp3'], "the cast's start and its moment ('cast|<pk>')");
     assert.deepEqual(await run([['fx', 'explode', 5, 5, { id: 1, kind: 'clearSp' }]]), ['clear.mp3', 'clear2.mp3'], 'several banks of one moment');
     assert.deepEqual(await run([['fx', 'explode', 5, 5, { id: 1, kind: 'other' }]]), [], 'no entry: silent');
-    requested.length = 0; a.castPartAt.clear();
+    requested.length = 0;
     a.fxKey('enemy_w_hit');
     await new Promise((r) => setTimeout(r, 10));
     assert.deepEqual(requested, ['keyhit.mp3'], "an effect key's own sound");
