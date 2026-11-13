@@ -46,9 +46,9 @@ bytes each.
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | about 0 / 0 MB/s: a few events per match | 0.0012 MB/s (0.1 GB/day if it never stopped) while a shielded Gunshatter takes 20 normal physical hits/s (estimated: a full physical board at 2× speed), one event per hit |
-| Bandwidth out / in, per room (4 players) | about 0 / 0 MB/s | 0.005 MB/s (0.4 GB/day if it never stopped), all four fields hitting a Gunshatter |
-| Bandwidth out / in, 300 players | about 0 / 0 MB/s | 0.36 MB/s (31 GB/day only if every field hit a shielded Gunshatter all day) |
+| Bandwidth out / in, per player | about 0 / 0 MB/s: a few events per match | 0.00005 MB/s (0.004 GB/day if it never stopped) while fighting Gunshatter: measured 43 to 84 shield-hit events per 200 s battle in the golden Gunshatter rounds (`test/golden/fields.json` hidden-boss_8 / _9), at most 0.84 per second at 2× speed |
+| Bandwidth out / in, per room (4 players) | about 0 / 0 MB/s | 0.0002 MB/s (0.02 GB/day if it never stopped), all four fields fighting Gunshatter |
+| Bandwidth out / in, 300 players | about 0 / 0 MB/s | 0.015 MB/s (1.3 GB/day only if every field fought Gunshatter all day) |
 | Server CPU | about 0 %: one stack check before a Mudrock attack, one event per Gunshatter shield hit | about 0 % |
 
 - Cap: the new display events are at most 5 tier changes per Mudrock, one landing per Jetman take-off, one per Bonespur
@@ -57,7 +57,8 @@ bytes each.
   once per browser and then cached. The client plays one held loop per enemy at most, stopped at its death, its skill's
   end or the field's change.
 - Code: display-only fx in the sim kits (`server/sim/content/`), the asset generator (`tools/assets/plan.mjs`) and the
-  client's sound player (`public/js/audio.js`). Estimated from event and file sizes, not measured.
+  client's sound player (`public/js/audio.js`). Event rates measured in the golden runs; bytes per event estimated from
+  the event's JSON size; file sizes measured.
 
 Operator notes:
 
