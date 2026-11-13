@@ -1699,21 +1699,25 @@ export class AudioManager {
    * game time: it carries `ignoreTimeScale`, false on every official sound (Il2Cpp dump.cs SoundFXBank.SoundFX fields;
    * audio_data soundFXBanks[].sounds[].ignoreTimeScale). So the delay runs at the battle's playback rate now (the view's
    * rate, setBattleView: 2× halves it, a speed change mid-wait takes effect from then on, 0 = paused holds it) and on the
-   * audio clock (a suspended context holds it too). `real` (ignoreTimeScale true) keeps real seconds.
+   * audio clock (a suspended context holds it too). `real` (ignoreTimeScale true) keeps real seconds. `onTimer` gets each
+   * pending timer, so an owner can cancel the wait (the attack pools' _dropPoolRequest clears `req.timer`).
    */
-  _battleDelay(ctx, seconds, real, alive, done) {
+  _battleDelay(ctx, seconds, real, alive, done, onTimer = null) {
     let left = seconds;
     let last = ctx.currentTime;
+    let rate = null;   // the rate read at the start of the interval now running
     const step = () => {
       if (!alive()) return;
       const now = ctx.currentTime;
-      const rate = real ? 1 : this._battleRateNow();
-      left -= Math.max(0, now - last) * rate;
+      if (rate != null) left -= Math.max(0, now - last) * rate;
       last = now;
       if (left <= 1e-6) { done(); return; }
-      // the rate is read again each battle tick (as the sim counts its own timers), so a speed change or a pause takes
-      // hold mid-wait; paused, it looks again one tick of real time later
-      setTimeout(step, (Math.min(BATTLE_TICK_S, left) / (rate > 0 ? rate : 1)) * 1000);
+      // the rate is read again each battle tick (as the sim counts its own timers) and holds for that tick, so a speed
+      // change or a pause takes hold within one tick and a paused tick consumes nothing; paused, it looks again one tick
+      // of real time later
+      rate = real ? 1 : this._battleRateNow();
+      const t = setTimeout(step, (Math.min(BATTLE_TICK_S, left) / (rate > 0 ? rate : 1)) * 1000);
+      onTimer?.(t);
     };
     step();
   }
@@ -1986,19 +1990,13 @@ export class AudioManager {
       const path = unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '');
       const sound = req.pool.sounds?.[path];
       const delay = Math.max(0, sound?.delay || 0);
-      const due = req.ctx.currentTime + delay;
-      const ready = () => {
-        if (!this._poolRequestCurrent(req)) { this._dropPoolRequest(req); return; }
-        // Wall timers also run while AudioContext is suspended. Keep the file's delay on the audio clock.
-        const remaining = due - req.ctx.currentTime;
-        if (remaining > 1e-6) {
-          req.timer = setTimeout(ready, Math.max(10, remaining * 1000));
-          return;
-        }
-        this._dropPoolRequest(req);
-        this._startPool(req, buf, sound);
-      };
-      ready();
+      // (fork) the file's official delay in battle seconds (_battleDelay: the official SoundFX keeps it on game time,
+      // ignoreTimeScale false on every official sound), on the audio clock; a request dropped meanwhile (field change,
+      // mute, a newer request of its bank and unit) clears its pending timer as before
+      this._battleDelay(req.ctx, delay, sound?.ignoreTimeScale === true,
+        () => { if (this._poolRequestCurrent(req)) return true; this._dropPoolRequest(req); return false; },
+        () => { this._dropPoolRequest(req); this._startPool(req, buf, sound); },
+        (t) => { req.timer = t; });
     }
     load.clear();
   }
