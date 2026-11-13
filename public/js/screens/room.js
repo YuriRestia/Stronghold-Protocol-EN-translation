@@ -470,8 +470,11 @@ function RoomAccess({ room, isHost, busy, onLock }) {
     if (ROOM_PASSWORD_RE.test(pw) && pw !== room.password) onLock?.(true, pw);
     else setPw(room.password || '');
   };
-  const opt = (priv, icon, label, id) => html`<button type="button" role="radio" aria-checked=${on === priv ? 'true' : 'false'} data-testid=${id}
+  const btn = (priv, icon, label, id) => html`<button type="button" role="radio" aria-checked=${on === priv ? 'true' : 'false'} data-testid=${id}
       class=${`rs-access__opt${on === priv ? ' is-on' : ''}`} disabled=${!!busy} onClick=${() => pick(priv)}><${Icon} name=${icon} />${label}</button>`;
+  // (fork) Public: rerolls stay off for this room from then on (server/lobby.js rerollLock; user, 2026-11-13)
+  const opt = (priv, icon, label, id) => (priv ? btn(priv, icon, label, id)
+    : html`<${Tooltip} text=${t('房间公开或搜寻队友后，不能再重刷本局。' /* en: "Once a room is public or uses Find Teammates, it has no stage setup reroll." */)}>${btn(priv, icon, label, id)}<//>`);
   const short = pw.length < 4;
   return html`<div class=${`rs-access${on ? ' is-private' : ''}`} data-testid="room-access">
     <div class="rs-access__seg" role="radiogroup" aria-label=${t('房间权限')}>

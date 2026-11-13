@@ -1,6 +1,7 @@
 // INFO_CHECK full setup reroll: unanimous human consent, keeping the room and player settings.
-// [ASSUMED] Remake convenience, not official mode rules (DESIGN §28.21): the unanimous human vote, the INFO_CHECK
-// timer paused during the vote and resumed with its remaining time, the independent reroll stream; and (PR #860) any
+// [ASSUMED] Remake convenience, not official mode rules (DESIGN §28.21): the unanimous human vote, the independent
+// reroll stream; (fork, user 2026-11-13) the INFO_CHECK countdown never pauses for a vote: at zero the match goes on
+// with the setup on screen and an open vote fails, so no reroll can delay the start; and (PR #860) any
 // seated player may open or cancel the vote, each seat may open one every 30 s, a completed reroll opens a fresh window
 // (a cancelled or rejected vote does not give the cooldown back); a connection's starts also draw from its heavy bucket.
 // Installed on Match.prototype like the other method containers. The lobby only refuses spectators and absent seats.
@@ -10,8 +11,8 @@ import { setupMatchWaves } from '../waves.js';
 import { drawDisabledBonds, SharedPool } from '../pool.js';
 import { OK, fail } from './common.js';
 
-// One start per seat per cooldown: the vote freezes the INFO_CHECK countdown, so an endless restart loop would stall
-// the opening. A completed reroll starts a new opening and therefore a new window. (SETUP_REROLL_COOLDOWN_MS, 30 s, lives
+// One start per seat per cooldown, so a player cannot flood the others with vote prompts (the countdown runs on through
+// every vote, so the start never waits on one). A completed reroll starts a new opening and therefore a new window. (SETUP_REROLL_COOLDOWN_MS, 30 s, lives
 // in shared/constants.js so the client's refusal toast names the same value.) With one human every start completes at
 // once and clears the seat cooldown, so the throttle there is the connection's heavy bucket: room.rerollSetup is in
 // server/net.js HEAVY_TYPES (2 per second, burst 6), as each reroll rebuilds the opening and resends m.public (DESIGN §35.47).
@@ -19,10 +20,14 @@ import { OK, fail } from './common.js';
 export class MatchSetupVote {
   requestSetupReroll(playerId, revision) {
     if (this.disposed || this.ended || this.phase !== PHASE.INFO_CHECK) return fail(ERR.WRONG_PHASE);
+    // (fork) a room strangers could join has no reroll (Lobby.rerollLock; user, 2026-11-13)
+    if (this.rerollLock) return fail(ERR.WRONG_PHASE, `setup reroll off: ${this.rerollLock}`);
     const ps = this.players.get(playerId);
     if (!ps || ps.isBot || ps.left || !ps.connected) return fail(ERR.NOT_IN_ROOM);
     if (revision !== this.setupRevision) return fail(ERR.BAD_TARGET, 'setup revision changed');
     if (this.setupVote) return fail(ERR.WRONG_PHASE, 'setup reroll vote in progress');
+    // everyone is ready and the briefing is ending (maybeEndInfo): too late for a new opening
+    if (this._infoAdvanceTimer) return fail(ERR.WRONG_PHASE, 'briefing ending');
     const humans = this.humans();
     if (humans.some((p) => !p.connected)) return fail(ERR.NOT_READY, 'all humans must be connected to vote');
     const now = this.sched.now();
@@ -34,11 +39,9 @@ export class MatchSetupVote {
       proposerId: playerId,
       voters: humans.map((p) => p.playerId),
       agreed: new Set([playerId]),
-      remainingMs: this.deadline > 0 ? Math.max(1, this.deadline - now) : 0,
     };
-    this.cancel(this._infoAdvanceTimer);
-    this._infoAdvanceTimer = null;
-    this.setDeadline(0);
+    // (fork, user 2026-11-13: "Rerolls vote should not stop the countdown") the briefing's deadline keeps running: when it
+    // fires, enterBandDraft drops the vote and the match goes on with the current setup
     if (humans.length === 1) return this.completeSetupReroll();
     this.markPublic();
     this.flush(true);
@@ -71,14 +74,8 @@ export class MatchSetupVote {
     const vote = this.setupVote;
     if (!vote) return;
     this.setupVote = null;
+    // the countdown never stopped (requestSetupReroll), so there is nothing to resume
     if (this.phase === PHASE.INFO_CHECK && !this.disposed && !this.ended) {
-      if (vote.remainingMs > 0) {
-        this.deadline = this.sched.now() + vote.remainingMs;
-        this._phaseTimer = this.later(vote.remainingMs, () => {
-          this._phaseTimer = null;
-          this.enterBandDraft();
-        });
-      }
       this.maybeEndInfo();
       this.markPublic();
       this.flush(true);

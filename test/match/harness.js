@@ -114,6 +114,7 @@ export function makeMatch(o = {}) {
     ...(o.rules !== undefined ? { rules: o.rules } : {}),
     ...(o.largeRoom !== undefined ? { largeRoom: o.largeRoom } : {}),
     ...(o.oneForAll !== undefined ? { oneForAll: o.oneForAll } : {}),
+    ...(o.rerollLock !== undefined ? { rerollLock: o.rerollLock } : {}),
   });
   const m = h.m;
   if (m.clientCombat && o.clients !== false) {
