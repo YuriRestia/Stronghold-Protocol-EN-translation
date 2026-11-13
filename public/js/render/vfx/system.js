@@ -381,7 +381,14 @@ export class OfficialFx {
     this.timers = [];
   }
 
-  /** Remove every effect (battle reset). */
+  /**
+   * Remove every effect (battle reset). (fork) The geometry prepared for the last drawn frame goes too, and the next draw
+   * prepares again (`prepared` = -1). Without that, a draw after the clear could repeat the old geometry: the prep board
+   * advances no `frameNo` (update runs in battle only), and renderPass keeps drawing while the warm queue has work. A
+   * battle that ended in a hidden tab ends that way: the deaths the backlog delivers on return start their effects, prep
+   * clears them, then the warm-up of the late spawns' prefabs (wiring.more) lands. The death bursts stayed on the bench
+   * and the lanes, frozen (player report 2026-11-13).
+   */
   clear() {
     for (const fx of this.effects) fx.kill();
     this.effects.length = 0;
@@ -390,6 +397,9 @@ export class OfficialFx {
     this.recent.clear();
     for (const bucket of this.unitBack.values()) if (!bucket.container.destroyed) bucket.container.destroy();
     this.unitBack.clear();
+    this.items.ground.length = 0;
+    this.items.over.length = 0;
+    this.prepared = -1;
   }
 
   /** Raw-GL geometry already uses world coordinates; the container contributes only its owner's painter order. */
