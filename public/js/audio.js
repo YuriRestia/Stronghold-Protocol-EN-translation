@@ -790,6 +790,7 @@ export class AudioManager {
     this.castKeys = null;         // (fork) { sfx, map }: effect key → enemy skill impact part (fxKey)
     this.fxHitAt = new Map();     // (fork) '<unit>><to>|<tag>' → when that fx last came (_enemyFxHit's `gap`)
     this.turnHit = new Map();     // (fork) enemy id → its attack-turn skill's impact (fxHits['turn|<pk>'], _enemyCast)
+    this.battleView = null;       // (fork) { pos(id) → {x, y} tiles | null, rate() → battle s per real s } (setBattleView)
     this.lastAttacker = new Map(); // target id → { def, at, skillIndex, skillActive } of the hostile attack aimed at it (its impact sound,
                                    // including the running skill's own `hits` — 赤刃明霄陈 S3's slash)
     this.consumed = new Set();     // summons used up by their own effect (香槟炸弹 exploded): no death sound
@@ -1413,12 +1414,14 @@ export class AudioManager {
    * (fork, enemy sound leftovers job 2) A kit fx (b.ev ['fx', kind, x, y, extra]) that times an enemy skill's impact:
    * manifest sfx.units[def].fxHits['<kind>|<extra.kind>'] of the unit the fx names (`id`, `from`, `src`), else of an enemy
    * dying in this batch (`died`: 新手祭司学徒's flask names nobody). Battle effects on or off alike. `gap`: the same fx of
-   * the same pair again within that many seconds stays silent (a chain the sim re-sends every second).
+   * the same pair again within that many battle seconds stays silent (one chain while the sim re-sends it every second).
    * @param {string} kind
    * @param {any} ex
    * @param {Map<any, string>} [died] enemy id → def of the 'die' events in this batch
+   * @param {number} [x] the fx's point (tiles): where the shot starts or lands when a unit's position is unknown
+   * @param {number} [y]
    */
-  _enemyFxHit(kind, ex, died) {
+  _enemyFxHit(kind, ex, died, x, y) {
     const sfx = this.getManifest()?.audio?.sfx;
     if (!sfx || !ex || typeof ex !== 'object') return;
     const tag = `${kind}|${typeof ex.kind === 'string' ? ex.kind : ''}`;
@@ -1433,21 +1436,55 @@ export class AudioManager {
         const last = this.fxHitAt.get(k);
         if (this.fxHitAt.size > 256) this.fxHitAt.clear();
         this.fxHitAt.set(k, at);
-        if (last != null && at - last < e.gap * 1000) return;
+        if (last != null && at - last < (e.gap * 1000) / this._battleRate()) return;
       }
-      this._castParts(e);
+      this._castParts(e, this._flightAfter(e, id, ex, x, y));
       return;
     }
   }
 
-  /** (fork) An fxHits entry and its `also` parts, each after its own `after` (s, real time) on its pool (_castPart). */
-  _castParts(e) {
+  /**
+   * (fork) An fxHits entry and its `also` parts on their pools (_castPart): each `after` its own battle seconds (plus
+   * `flight`: the lead part's shot in the air, _flightAfter), in real time at the battle's playback rate.
+   */
+  _castParts(e, flight = 0) {
+    const rate = this._battleRate();
     for (const p of [e, ...(Array.isArray(e?.also) ? e.also : [])]) {
       if (typeof p?.url !== 'string') continue;
-      if (!(p.after > 0)) { this._castPart(p); continue; }
+      const s = (p.after > 0 ? p.after : 0) + (p === e && flight > 0 ? flight : 0);
+      if (!(s > 0)) { this._castPart(p); continue; }
       const token = this.poolFieldToken;
-      setTimeout(() => { if (token === this.poolFieldToken) this._castPart(p); }, p.after * 1000);
+      setTimeout(() => { if (token === this.poolFieldToken) this._castPart(p); }, (s * 1000) / rate);
     }
+  }
+
+  /**
+   * (fork) Battle seconds an fxHits entry's shot flies (`speed`: its official projectile speed, tiles per s): from the
+   * shooter `id` to the fx's `to`, each where the latest snapshot has it (setBattleView), else at the fx's point. 0 with
+   * no speed, or when neither end is known.
+   */
+  _flightAfter(e, id, ex, x, y) {
+    if (!(e?.speed > 0)) return 0;
+    const at = Number.isFinite(x) && Number.isFinite(y) ? { x, y } : null;
+    const pos = (u) => { try { const p = u != null ? this.battleView?.pos?.(u) : null; return p && Number.isFinite(p.x) && Number.isFinite(p.y) ? p : null; } catch { return null; } };
+    const a = pos(id) || at, b = pos(ex?.to) || at;
+    return a && b ? Math.hypot(b.x - a.x, b.y - a.y) / e.speed : 0;
+  }
+
+  /** (fork) Battle seconds per real second now (the view's playback rate; 1 without a view). */
+  _battleRate() {
+    let r = 1;
+    try { r = Number(this.battleView?.rate?.()); } catch { r = 1; }
+    return r > 0 ? r : 1;
+  }
+
+  /**
+   * (fork) Where the units of the watched battle are and how fast it plays (screens/game.js): skill impact sounds timed in
+   * battle seconds (sfx.units[id].fxHits) wait the real time that makes, and a shot's flight its real distance.
+   * @param {{ pos?: (id: any) => ({ x: number, y: number } | null), rate?: () => number } | null} v
+   */
+  setBattleView(v) {
+    this.battleView = v && typeof v === 'object' ? v : null;
   }
 
   /**
@@ -2596,7 +2633,7 @@ export class AudioManager {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];
           // (fork, enemy sound leftovers job 2) an enemy skill impact this fx times (sfx.units[def].fxHits)
-          this._enemyFxHit(e[1], ex, died);
+          this._enemyFxHit(e[1], ex, died, e[2], e[3]);
           if (ex && typeof ex === 'object' && ex.id != null) this._fxSound(e[1], ex);
           if (!ex || typeof ex !== 'object' || !ex.consumed || ex.id == null) continue;
           const u = this.units.get(ex.id);

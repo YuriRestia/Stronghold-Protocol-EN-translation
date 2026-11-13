@@ -10,15 +10,17 @@ import { AudioManager } from '../public/js/audio.js';
 
 const leafUrl = (e) => (typeof e === 'string' ? e : e?.url ?? e?.path ?? JSON.stringify(e));
 
-test('enemyFxHits: the banks that exist, the first as the entry and the rest as `also`, with after / gap', () => {
+test('enemyFxHits: the banks that exist, the first as the entry and the rest as `also`, with after / speed / gap', () => {
   const banks = { 'b.one': ['enemy/e_imp/one.mp3'], 'b.two': ['enemy/e_imp/two.mp3'] };
   const audio = { bank: (n) => banks[n] || [] };
   const out = enemyFxHits(audio, {
     'explode|x': [{ bank: 'b.one' }, { bank: 'b.two', after: 0.7 }],
     'link|y': { bank: 'b.one', gap: 2 },
+    'telegraph|w': { bank: 'b.two', speed: 10 },
     'beam|z': 'b.missing',
   }, (p) => `pool:${p[0]}`);
-  assert.deepEqual(Object.keys(out).sort(), ['explode|x', 'link|y'], 'a bank the audio data lacks makes no entry');
+  assert.deepEqual(Object.keys(out).sort(), ['explode|x', 'link|y', 'telegraph|w'], 'a bank the audio data lacks makes no entry');
+  assert.equal(out['telegraph|w'].speed, 10);
   assert.equal(out['explode|x'].pool, 'pool:enemy/e_imp/one.mp3');
   assert.equal(out['explode|x'].also.length, 1);
   assert.equal(out['explode|x'].also[0].after, 0.7);
@@ -50,10 +52,40 @@ test('manifest: each enemy carries its fxHits with the official files', () => {
     }
   }
   assert.equal(units.enemy_10156_mncrer.fxHits['explode|heal'].also[0].after, 0.7, 'the flask lands after its 0.7 s life');
-  assert.equal(units.enemy_9017_achunt_2.fxHits['link|faithLink'].gap, 2);
+  assert.equal(units.enemy_1275_dwlock_2.fxHits['beam|deathEye'].speed, 8, 'the harpoon flies at its own speed');
+  assert.equal(units.enemy_1513_dekght_2.fxHits['telegraph|blastArrow'].speed, 10, 'the arrow flies at its own speed');
+  assert.equal(units.enemy_9009_acfort.fxHits['beam|devour'].after, 0.633, 'the grab hits at Skill_1_Begin\'s OnAttack');
+  assert.equal(units.enemy_9017_achunt_2.fxHits['link|faithLink'].gap, 60, 'one chain per projectile life');
   // the attack-turn skill's impact is the attack's: its effect-key timing is gone (no second ring)
   const jc = Object.values(units.enemy_1516_jakill.casts || {}).find((c) => c.pk === 'ironsandstorm');
   assert.ok(jc && !jc.keys, 'jakill ironsandstorm: no casts.keys');
+});
+
+// Every time in the table is the official client's (the user, 2026-11-13: no guessed delays): no [ASSUMED] in its comments,
+// and, where the extracted client data is on this machine (public/assets/local, .cache: not in CI), each value is that data's
+test('the timings are the official client\'s own (projectile speed / life, spine attack event)', (t) => {
+  const src = fs.readFileSync('tools/assets/plan.mjs', 'utf8');
+  const from = src.indexOf('const VTLIONK_FX_HITS');
+  const table = src.slice(from, src.indexOf('\n});', src.indexOf('export const ENEMY_FX_SOUND_BANKS')));
+  assert.ok(table.length > 0 && !table.includes('[ASSUMED]'), 'no assumed value in ENEMY_FX_SOUND_BANKS');
+  const T = ENEMY_FX_SOUND_BANKS;
+  const idxPath = 'public/assets/local/fx/index.json', spinePath = '.cache/spine-info.json';
+  if (!fs.existsSync(idxPath) || !fs.existsSync(spinePath)) { t.skip('no extracted client data here'); return; }
+  const idx = JSON.parse(fs.readFileSync(idxPath, 'utf8'));
+  const P = (k) => idx.projectiles[k];
+  const own = (k) => P(k).behaviours.find((b) => /Projectile$/.test(b.class)).fields;
+  assert.equal(T.enemy_1275_dwlock_2['beam|deathEye'].speed, P('projectile_enemy_dwlock_line').movement.speed);
+  assert.equal(T.enemy_1513_dekght_2['telegraph|blastArrow'].speed, P('projectile_enemy_dekght_s').movement.speed);
+  assert.equal(P('projectile_enemy_dekght_s').movement.delayToStart, 0);
+  const heal = own('projectile_enemy_mncrer_heal');
+  assert.equal(heal._lifeTimeType, 1);
+  assert.equal(heal._alwaysReachInTheEnd, 1);
+  assert.equal(P('projectile_enemy_mncrer_heal').movement, null);
+  assert.equal(T.enemy_10156_mncrer['explode|heal'][1].after, heal._lifeTime);
+  assert.equal(T.enemy_9017_achunt_2['link|faithLink'].gap, P('projectile_enemy_achunt_ray').lifeTime);
+  const spine = JSON.parse(fs.readFileSync(spinePath, 'utf8'));
+  const skel = Object.entries(spine).find(([k]) => k.endsWith('/enemy_9009_acfort.skel'))?.[1]?.info;
+  assert.equal(T.enemy_9009_acfort['beam|devour'].after, skel.hits.Skill_1_Begin[0]);
 });
 
 test('every fx tag names an event the sim sends (kind and extra.kind in the kit source)', () => {
@@ -101,16 +133,18 @@ async function rig(units) {
   return { a, requested };
 }
 
-test('client: a kit fx rings its enemy\'s impact (id / from), after its delay, a chain once per gap, a nameless death flask', async () => {
+test('client: a kit fx rings its enemy\'s impact (id / from), after its battle-time delay, a chain once per gap, a nameless death flask', async () => {
   const origFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
   try {
     const { a, requested } = await rig({
-      enemy_9009_acfort: { fxHits: { 'beam|devour': { url: '/s/grab.mp3', after: 0.05 } } },
-      enemy_9017_achunt_2: { fxHits: { 'link|faithLink': { url: '/s/ray.mp3', gap: 2 } } },
-      enemy_10156_mncrer: { fxHits: { 'explode|heal': { url: '/s/throw.mp3', also: [{ url: '/s/land.mp3', after: 0.05 }] } } },
+      enemy_9009_acfort: { fxHits: { 'beam|devour': { url: '/s/grab.mp3', after: 0.633 } } },
+      enemy_9017_achunt_2: { fxHits: { 'link|faithLink': { url: '/s/ray.mp3', gap: 60 } } },
+      enemy_10156_mncrer: { fxHits: { 'explode|heal': { url: '/s/throw.mp3', also: [{ url: '/s/land.mp3', after: 0.7 }] } } },
       enemy_1513_dekght_2: { fxHits: { 'telegraph|blastArrow': { url: '/s/arrow.mp3' } } },
     });
+    // the battle plays at 10 battle s per real s here: 0.633 s -> 63 ms, the 60 s chain -> 6 s
+    a.setBattleView({ pos: () => null, rate: () => 10 });
     a.setFieldUnits([
       { id: 1, kind: 'enemy', side: 'enemy', defId: 'enemy_9009_acfort', spine: 'enemy_9009_acfort' },
       { id: 2, kind: 'enemy', side: 'enemy', defId: 'enemy_9017_achunt_2', spine: 'enemy_9017_achunt_2' },
@@ -121,7 +155,7 @@ test('client: a kit fx rings its enemy\'s impact (id / from), after its delay, a
     await wait(10);
     requested.length = 0;
     a.handleBattleEvents([['fx', 'beam', 0, 0, { from: 1, to: 9, kind: 'devour' }]]);
-    await wait(5);
+    await wait(30);
     assert.deepEqual(requested, [], 'the grab lands later');
     await wait(80);
     assert.deepEqual(requested, ['grab.mp3']);
@@ -134,6 +168,8 @@ test('client: a kit fx rings its enemy\'s impact (id / from), after its delay, a
     a.handleBattleEvents([['fx', 'link', 0, 0, { from: 2, to: 5, kind: 'faithLink' }]]);
     await wait(100);   // past the crowd gap (two chains in one moment are one sound, _castPart)
     a.handleBattleEvents([['fx', 'link', 0, 0, { from: 2, to: 6, kind: 'faithLink' }]]);
+    await wait(100);
+    a.handleBattleEvents([['fx', 'link', 0, 0, { from: 2, to: 5, kind: 'faithLink' }]]);   // the sim's re-send, 1 s on
     await wait(10);
     assert.deepEqual(requested, ['ray.mp3', 'ray.mp3'], 'once per chain while it holds; a second spring\'s chain rings');
     requested.length = 0;
@@ -141,8 +177,49 @@ test('client: a kit fx rings its enemy\'s impact (id / from), after its delay, a
     await wait(10);
     assert.deepEqual(requested, [], 'a nameless fx with nobody dying rings nothing');
     a.handleBattleEvents([['fx', 'explode', 5, 5, { r: 1, kind: 'heal' }], ['die', 3, 'killed']]);
+    await wait(30);
+    assert.deepEqual(requested.filter((u) => u === 'throw.mp3' || u === 'land.mp3'), ['throw.mp3'], 'the flask is thrown at the death');
     await wait(80);
     assert.deepEqual(requested.filter((u) => u === 'throw.mp3' || u === 'land.mp3'), ['throw.mp3', 'land.mp3'], 'the dying acolyte\'s flask: thrown, then landing');
+  } finally {
+    globalThis.fetch = origFetch;
+  }
+});
+
+test('client: a shot\'s impact waits its flight: the distance at the fx over its official speed, at the playback rate', async () => {
+  const origFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
+  try {
+    const { a, requested } = await rig({
+      enemy_1513_dekght_2: { fxHits: { 'telegraph|blastArrow': { url: '/s/arrow.mp3', speed: 10 } } },
+      enemy_1275_dwlock_2: { fxHits: { 'beam|deathEye': { url: '/s/line.mp3', speed: 8 } } },
+    });
+    a.setFieldUnits([
+      { id: 4, kind: 'enemy', side: 'enemy', defId: 'enemy_1513_dekght_2', spine: 'enemy_1513_dekght_2' },
+      { id: 5, kind: 'enemy', side: 'enemy', defId: 'enemy_1275_dwlock_2', spine: 'enemy_1275_dwlock_2' },
+    ]);
+    const at = new Map([[4, { x: 0, y: 0 }], [7, { x: 3, y: 4 }], [5, { x: 1, y: 1 }]]);
+    a.setBattleView({ pos: (id) => at.get(id) || null, rate: () => 10 });
+    await wait(10);
+    requested.length = 0;
+    // 5 tiles at 10 tiles / s = 0.5 battle s = 50 ms at rate 10
+    a.handleBattleEvents([['fx', 'telegraph', 3, 4, { id: 4, to: 7, kind: 'blastArrow' }]]);
+    await wait(25);
+    assert.deepEqual(requested, [], 'the arrow is still flying');
+    await wait(60);
+    assert.deepEqual(requested, ['arrow.mp3'], 'the arrow lands');
+    requested.length = 0;
+    // the harpoon's target is not in the snapshot: its end is the fx's point; (1,1) to (1,1) is no flight at all
+    a.handleBattleEvents([['fx', 'beam', 1, 1, { from: 5, to: 99, kind: 'deathEye' }]]);
+    await wait(10);
+    assert.deepEqual(requested, ['line.mp3'], 'no distance known: no invented flight time');
+    requested.length = 0;
+    // with no battle view at all, no positions: the sound plays at the fx
+    a.setBattleView(null);
+    await wait(150);   // past the crowd gap
+    a.handleBattleEvents([['fx', 'telegraph', 3, 4, { id: 4, to: 7, kind: 'blastArrow' }]]);
+    await wait(10);
+    assert.deepEqual(requested, ['arrow.mp3']);
   } finally {
     globalThis.fetch = origFetch;
   }
