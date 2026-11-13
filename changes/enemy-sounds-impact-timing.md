@@ -13,6 +13,10 @@
   - Novice Acolyte: the heal when defeated (the flask thrown, then landing)
   - Jesselton Williams: the shot that stuns several units (Jailer Form)
 - Before, these impacts were silent.
+- Each one is timed like the official game: the Elite Caster's line and the Withered Knight's arrows ring when they reach
+  their target (at the official projectile speed, so a farther target hears it later, and the arrow's look lands at the
+  same moment), BlackCloud's grab rings at its official attack moment, and the Acolyte's flask lands at the end of its
+  official flight. The timing follows the battle's speed.
 
 Kind: player
 
@@ -35,7 +39,12 @@ Server cost:
 
 Operator notes:
 
-- data/assets.json gains `fxHits` for 11 enemy ids (tools/assets/plan.mjs ENEMY_FX_SOUND_BANKS).
+- data/assets.json gains `fxHits` for 11 enemy ids (tools/assets/plan.mjs ENEMY_FX_SOUND_BANKS). Every time there is
+  official client data, each comment naming its file and field: `speed` (a projectile's movement speed: the sound waits
+  the distance between the units at the fx over it), `after` (a projectile's life, a spine attack event) and `gap` (a
+  chain projectile's life), all in battle seconds; public/js/audio.js turns them into real time at the view's playback
+  rate (screens/game.js setBattleView). The renderer flies those two shots at the same official speed (skills.js
+  `flyDur: 'speed'`).
 
 News:
 
