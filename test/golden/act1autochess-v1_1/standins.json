@@ -58,9 +58,9 @@
         "enemy_10043_sailor": [25,19,5,3805,90336]
       },
       "hooks": [1,65,3300,471,470,467,488,41,31,50,18,17,0,20518,40,29,44,17,1,32,1,0,0],
-      "events": {"atk":470,"bounty":1,"cast":8,"deploy":18,"die":33,"dmg":488,"engage":8,"fx":36,"heal":41,"layer":1,"leak":17,"rate":3,"skill":35,"spawn":59,"status":79},
-      "fx": {"beam":21,"blink":2,"dp":5,"garrison":1,"telegraph":1,"tick":5,"turretOnline":1},
-      "snaps": "61b1ed8c 2422c35c c672c949 b16c8dcb 19d097c0 f633e887 28911b83 87a5bb17 35aa1c9d a5bcfca1 391599e9"
+      "events": {"atk":470,"bounty":1,"cast":8,"deploy":18,"die":33,"dmg":488,"engage":8,"fx":44,"heal":41,"layer":1,"leak":17,"rate":3,"skill":35,"spawn":59,"status":79},
+      "fx": {"beam":21,"blink":2,"dp":5,"explode":8,"garrison":1,"telegraph":1,"tick":5,"turretOnline":1},
+      "snaps": "61b1ed8c 97ea7b28 6467428f 8c4568c9 df37ef16 5f276bd5 6f55dddd a1debef5 083c5b83 51a49c37 11cd5d73"
     },
     "standin-02": {
       "about": "normal band 3 as stand-ins: chess_char_3_02_a→char_602_cdfend chess_char_2_11_a→char_601_cguard chess_char_2_12_a→char_607_cspec chess_char_3_03_a→char_607_cspec chess_char_3_05_a→char_601_cguard chess_char_2_10_a→char_604_ccast chess_char_2_15_a→char_606_csuppo chess_char_3_01_a→char_603_csnipe chess_char_3_04_a→char_605_cmedic chess_char_3_10_a→char_606_csuppo chess_char_3_11_a→char_604_ccast",

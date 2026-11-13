@@ -1650,11 +1650,27 @@ test(`${nm('enemy_10027_vtsk')}: entrance barrage (${skb('enemy_10027_vtsk', 'Ap
   const h = arena({ units: [{ chessId: 't_wall', row: 10, col: 7 }, { chessId: 't_gun', row: 12, col: 3 }], captureNoisy: true, hooks: ['damaged'], chess: { t_wall: WALL('t_wall', { stats: { maxHp: 2e7 } }) } });
   h.step();
   const e = put(h, 'enemy_10027_vtsk', [10, 8]);
-  h.run(0.6);
-  const barrage = h.hooksOf('damaged').filter((c) => c.source === e && !c.dmg.isAttack);
-  assert.equal(barrage.length, skb('enemy_10027_vtsk', 'Appear').bb.times);
-  assert.ok(barrage.every((c) => c.target === h.unit('t_wall')), 'the highest-HP unit');
-  approx(barrage[0].amount, e.s.atk);
+  const wall = h.unit('t_wall'), n = skb('enemy_10027_vtsk', 'Appear').bb.times;
+  const barrage = () => h.hooksOf('damaged').filter((c) => c.source === e && !c.dmg.isAttack);
+  // (fork, enemy skills 2026-11-13) as the client times it: the mark at 0.5 s (enemy_vtsk_skillRange, 5.8 s), the shell
+  // on the spot 0.8 s later, then a hit every 0.5333 s
+  h.run(0.55);
+  assert.equal(barrage().length, 0, 'marked, not hit yet');
+  assert.ok(wall.fxStates?.has('enemy_vtsk_skillRange'), 'the mark on its target');
+  h.run(0.8 + 0.5333 - 0.1);
+  assert.equal(barrage().length, 0, 'no hit before the first period');
+  h.run(0.15);
+  assert.equal(barrage().length, 1, 'the first shell');
+  h.run(0.5333 * (n - 1));
+  assert.equal(barrage().length, n);
+  assert.ok(barrage().every((c) => c.target === wall), 'the highest-HP unit');
+  approx(barrage()[0].amount, e.s.atk);
+  const fx = h.events.filter((ev) => ev[0] === 'fx');
+  assert.equal(fx.filter((ev) => ev[1] === 'explode' && ev[4]?.kind === 'vtskShell' && ev[4].id === e.id).length, n, 'a hit row per shell');
+  const tg = fx.find((ev) => ev[1] === 'telegraph' && ev[4]?.kind === 'barrage');
+  approx(tg[4].dur, 5.85 - 0.8);
+  h.run(5.8 - (0.8 + 0.5333 * n) + 0.1);
+  assert.ok(!wall.fxStates?.get('enemy_vtsk_skillRange') || wall.fxStates.get('enemy_vtsk_skillRange').until <= h.b.time, 'the mark ends after 5.8 s');
   h.runUntil(() => e.stats.attacks >= 1, 10);
   h.run(1);   // (its shot lands: since 0.2.0 the first strike comes at the clip's damage frame, after the barrage window)
   const d = h.hooksOf('damaged').find((c) => c.source === e && c.dmg.isAttack);

@@ -4,6 +4,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SkillFx } from '../../public/js/render/vfx/skillfx.js';
+import { existsSync, readFileSync } from 'node:fs';
+import { skillPlan, enemyBindingKeys, ENEMY_FX_BINDINGS } from '../../public/js/render/vfx/skills.js';
 
 function rig(records) {
   const played = [];
@@ -78,4 +80,24 @@ test("a 'stun' row plays only the Dockworker's own stun entry (STATE_BUFFS.stun.
   op.fxs = [['stun', 5, null]];
   s._states([dock, other, op]);
   assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_hvyslr_2_buff', 8]]);
+});
+
+// (fork, enemy skills 2026-11-13) 'Armor of the Empire''s Appear barrage (sim special.js): the mark enemy_vtsk_skillRange
+// on its target plays the marker alone (the range is the tile effect of the 'telegraph'), and the bindings play the
+// range on the spot and each shell's hit (local fx index, when extracted)
+const FX_INDEX = new URL('../../public/assets/local/fx/index.json', import.meta.url);
+test("'Armor of the Empire': the barrage mark plays its marker on the target; the range and the shells are bindings", { skip: !existsSync(FX_INDEX) && 'no public/assets/local/fx/index.json' }, () => {
+  const idx = JSON.parse(readFileSync(FX_INDEX, 'utf8'));
+  const appear = skillPlan(idx, 'enemy_10027_vtsk', 'appear');
+  const records = new Map([[5, { plan: null, enemy: [{ slot: 0, prefabKey: 'Appear', plan: appear }] }]]);
+  const { s, played, views } = rig(records);
+  const vtsk = { id: 5, alive: true }, op = { id: 8, alive: true, fxs: [['enemy_vtsk_skillRange', 5, null]] };
+  views.set(5, vtsk); views.set(8, op);
+  s._states([vtsk, op]);
+  assert.deepEqual(played.map((h) => [h.k, h.id]), [['enemy_vtsk_skill_01_marker_01', 8]]);
+  op.fxs = null;
+  s._states([vtsk, op]);
+  assert.ok(played[0].stopped, 'the mark gone stops it');
+  assert.deepEqual(enemyBindingKeys(idx, 'enemy_10027_vtsk'), ['enemy_vtsk_skill_01_range_01', 'enemy_vtsk_skill_01_hit_01']);
+  assert.deepEqual([ENEMY_FX_BINDINGS.enemy_10027_vtsk.telegraph.xkind, ENEMY_FX_BINDINGS.enemy_10027_vtsk.explode.xkind], ['barrage', 'vtskShell']);
 });

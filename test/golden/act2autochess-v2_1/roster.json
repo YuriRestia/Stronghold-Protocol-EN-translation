@@ -296,9 +296,9 @@
         "enemy_9006_actoxi": [1,0,1,1203,3774]
       },
       "hooks": [1,104,4200,563,563,2738,2732,2479,59,90,29,28,0,25119,299,49,85,25,1,59,0,0,6],
-      "events": {"atk":691,"bounty":5,"cast":12,"deploy":19,"die":65,"dmg":2716,"engage":7,"fx":75,"heal":56,"leak":25,"rate":142,"skill":57,"spawn":98,"status":356},
-      "fx": {"aoe":3,"displace":12,"dodge":6,"pull":13,"shieldBreak":12,"sleep":10,"summon":7,"takeoff":3,"telegraph":1,"tick":8},
-      "snaps": "b4adeea5 192de6ad d620ba34 5723e2bf d3c21ccf 3f1a54ad e1f0ac99 55df91ae 79b78338 051c1350 f896e8ba ecede65e 52c0aeb4 903aadcc"
+      "events": {"atk":691,"bounty":5,"cast":12,"deploy":19,"die":65,"dmg":2716,"engage":7,"fx":83,"heal":56,"leak":25,"rate":142,"skill":57,"spawn":98,"status":356},
+      "fx": {"aoe":3,"displace":12,"dodge":6,"explode":8,"pull":13,"shieldBreak":12,"sleep":10,"summon":7,"takeoff":3,"telegraph":1,"tick":8},
+      "snaps": "d83b054f 8d804a61 c04b8a9a 139761e1 08a6cb7d 0fe3150b ef78b73f c0a6f59c 3561f926 3f33df7e ea99ed3c be57ed44 5a37439a 40bdb1b6"
     },
     "roster-006": {
       "about": "pass 0 band 3: chess_char_2_07_b chess_char_2_08_b chess_char_2_17_b chess_char_2_18_b chess_char_2_09_b chess_char_2_11_b chess_char_2_13_b chess_char_2_16_b chess_char_2_12_b chess_char_2_10_b chess_char_2_14_b chess_char_2_15_b",
@@ -2893,17 +2893,17 @@
       "time": 190,
       "ticks": 5700,
       "reason": "timeout",
-      "killed": 17,
+      "killed": 18,
       "total": 62,
       "unspawned": 0,
       "bossHpLeft": null,
       "rngDraws": 3,
       "errors": {"count":0,"kinds":[]},
-      "players": {"p1":{"killed":17,"total":62,"perfect":false,"leaks":45,"leaksUncounted":0,"coins":2,"dmg":231538,"bossDmg":0,"heal":0,"deaths":3,"layerGains":{}}},
+      "players": {"p1":{"killed":18,"total":62,"perfect":false,"leaks":44,"leaksUncounted":0,"coins":2,"dmg":219717,"bossDmg":0,"heal":0,"deaths":3,"layerGains":{}}},
       "units": [
-        ["p1",1,"op","chess_char_3_04_b",1,"none",241.44,1,43,8,88614,6172,0,125,0],
-        ["p1",2,"op","chess_char_4_09_b",1,"none",0,0,2,8,88469,2844,0,12,1],
-        ["p1",3,"op","chess_char_4_13_b",1,"none",4455.66,1,39,1,54455,4456,0,55,12]
+        ["p1",1,"op","chess_char_3_04_b",1,"none",1587.55,1,43,9,78087,6652,0,121,0],
+        ["p1",2,"op","chess_char_4_09_b",1,"none",0,0,2,8,86791,2844,0,12,1],
+        ["p1",3,"op","chess_char_4_13_b",1,"none",4455.66,1,39,0,54839,4456,0,54,11]
       ],
       "enemies": {
         "enemy_10027_vtsk": [1,0,1,8598,8251],
@@ -2912,16 +2912,16 @@
         "enemy_1165_duhond": [1,1,0,0,4645],
         "enemy_1203_sfhu": [1,0,1,1213,3048],
         "enemy_1275_dwlock_2": [1,0,1,1489,1120],
-        "enemy_1381_winman": [27,10,17,105,112491],
-        "enemy_1381_winman_2": [15,3,12,117,49676],
-        "enemy_1387_winshd": [12,2,7,1948,95963],
+        "enemy_1381_winman": [27,10,17,53,113330],
+        "enemy_1381_winman_2": [15,2,13,0,37457],
+        "enemy_1387_winshd": [12,4,6,2598,95591],
         "enemy_1415_mmkabi_2": [1,0,1,0,1080],
         "enemy_2002_bearmi_2": [1,0,1,0,1320]
       },
-      "hooks": [1,67,5700,229,228,1645,1645,189,20,62,13,14,0,3369,611,9,62,42,1,21,0,0,0],
-      "events": {"atk":257,"bounty":1,"cast":6,"deploy":5,"die":20,"dmg":1645,"engage":3,"fx":30,"leak":42,"rate":230,"skill":30,"spawn":65,"status":168},
-      "fx": {"beam":2,"coin":8,"dilemma":1,"explode":3,"frostNova":12,"revive":1,"telegraph":1,"tick":2},
-      "snaps": "fcdcb12c ff110915 bbd74935 25e7cb9f 73d093ef 4f70109b ccdb6a13 47989ea8 c81e04ce 4d2835b4 e91b87df 3c2f3250 2f00476b 25c19fac d9965793 3071809b 9be77ee0 b5a364ed 53861419"
+      "hooks": [1,67,5700,223,222,1642,1642,189,21,63,12,13,0,3263,604,10,62,42,1,23,0,0,0],
+      "events": {"atk":251,"bounty":1,"cast":6,"deploy":5,"die":21,"dmg":1642,"engage":3,"fx":35,"leak":42,"rate":232,"skill":28,"spawn":65,"status":172},
+      "fx": {"beam":2,"coin":8,"dilemma":1,"explode":8,"frostNova":11,"revive":2,"telegraph":1,"tick":2},
+      "snaps": "10d597cf bfcea88b 5ea0c82e b333d566 fa946744 65d84e51 291f5464 1709f725 87e1d634 206348bf b2e0b347 7165095d e9743cbd 1533600f df3022a7 14577d2b af53fffe f505e04b b11787cb"
     }
   }
 }
