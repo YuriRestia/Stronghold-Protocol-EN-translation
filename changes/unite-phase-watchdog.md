@@ -5,7 +5,8 @@
 - Grand Alliance: when the unite battle's helpers were offline, it sat at "Uniting" with the countdown at 00 for minutes
   and then charged the leakers as if nobody had played it. The browsers did run it, but their answers were refused once
   more than 4 players were in it. They now count, and the round goes on as soon as the battle ends. If the browsers
-  still cannot run it, the room now waits for two of them, not for every player in turn.
+  still cannot run it, the room now waits for two of them, not for every player in turn. A unite with 5 or more
+  helpers also counts their result again (it used to name only 4 of them and was refused).
 - If something goes wrong while the unite phase ends, the match no longer stays on "Uniting" with the countdown at 00.
   Once the phase is well past its time, the server closes the unite battle with what it has and moves on to the
   results. If no result came in, the leakers lose LP for their own leaks, as when the unite battle cannot run.

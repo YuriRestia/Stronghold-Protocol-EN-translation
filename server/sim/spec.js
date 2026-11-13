@@ -43,6 +43,7 @@ import { isPotential, isCultivate } from '../../shared/potential.js';
 import { isContentHash } from '../../shared/plugins/identity.js';
 import { BOSS_POOL_MIN_HP } from './constants.js';
 import { DEFAULT_VERSION, versionById, versionOfData } from '../../shared/versions.js';
+import { LARGE_ROOM_SEATS } from '../../shared/largeRoom.js';
 
 export const SPEC_VERSION = 1;
 
@@ -409,7 +410,9 @@ function compactMods(m) {
 export function compactResult(res) {
   const r = res && typeof res === 'object' ? res : {};
   const perPlayer = {};
-  for (const pid of Object.keys(r.perPlayer || {}).slice(0, 4)) {
+  // (fork, 2026-11-13) every player of the battle up to a Grand Alliance's seats (shared/protocol.js RESULT_LIMITS.players):
+  // at 4, a 联防 with 5+ helpers sent 4 of them and validateClientResult refused the result ('players')
+  for (const pid of Object.keys(r.perPlayer || {}).slice(0, LARGE_ROOM_SEATS)) {
     const p = r.perPlayer[pid] || {};
     const layerGains = {};
     for (const [k, v] of Object.entries(p.layerGains || {}).slice(0, 40)) if (isKey(k) && fnum(v) > 0) layerGains[k] = Math.min(1e4, fnum(v));

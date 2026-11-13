@@ -73,6 +73,32 @@ test('an 8-player 联防 answer from a browser (real battle, 7 leakers) passes t
   m.dispose();
 });
 
+// 2026-11-13: server/sim/spec.js compactResult kept 4 players, so a 联防 with 5+ helpers answered with 4 of them and
+// validateClientResult refused it ('players'): a human authority's field went to the server, a bot field to the synthetic result.
+test('a 联防 with 5 helpers: the browser result names all 5 and is accepted', () => {
+  const seats = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => human(i, i < 3)); // seats 3–7 dropped: their 联防 runs in a browser
+  const h = makeMatch({ mode: 'coop', difficulty: 'NORMAL', seats, seed: 3, fake: true, largeRoom: true, clientCombat: true, hostId: 'p_0', botBattles: 'host', botBattleAnswerMs: 1000 });
+  h.autoHumans().start();
+  h.runToPhase('COMBAT', 1);
+  const m = h.m;
+  m._stopClientCombat();
+  m.fields = [];
+  const helpers = [3, 4, 5, 6, 7].map((i) => m.players.get(`p_${i}`));
+  const leakers = [0, 1, 2].map((i) => m.players.get(`p_${i}`));
+  m.startUnite({ helpers, leakers, leaked: leakers.map((ps) => ({ enemyKey, mods: null, lpr: 1, sourcePlayerId: ps.playerId, tag: null, bounty: null })), notReentered: new Map() });
+  const f = m.fields[0];
+  assert.equal(f.mode, 'host');
+  const frame = h.allTo(f.executor, 'b.botBattle').find((x) => x.battleId === f.battleId);
+  const run = createBotBattleRun(frame.spec, { ds: DS });
+  assert.equal(run.run(), true);
+  const msg = wire({ t: 'b.botBattleResult', battleId: f.battleId, ...run.output() });
+  assert.equal(Object.keys(msg.result.perPlayer).length, 5, 'all 5 helpers are in the result');
+  assert.equal(validateC2S(msg), null);
+  m.handle(f.executor, msg);
+  assert.equal(f.resultSource, 'host', 'the answer was accepted');
+  m.dispose();
+});
+
 test('wire schema: 8-player maps pass in b.progress, a 9th player does not', () => {
   const ids = (n) => Array.from({ length: n }, (_, i) => `p_${i}`);
   const map = (n, v) => Object.fromEntries(ids(n).map((id) => [id, v]));
