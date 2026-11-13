@@ -149,6 +149,62 @@ const FX_SOUND_BANKS = Object.freeze({
     'meltdown|': 'battle.ON_CUSTOM_TRIGGER.fire_ep_break',
   }),
 });
+
+/**
+ * (fork, enemy sound leftovers job 2, 2026-11-13) Enemy skill impacts timed by the sim's own events, not by an effect
+ * spawning (crew-docs/enemy-sound-audit.md: "impact has no effect to follow" / "not a cast our sim makes"), so they ring
+ * with battle effects off too → sfx.units[id].fxHits['<fx kind>|<extra.kind>'] (public/js/audio.js _enemyFxHit). The
+ * unit is the fx's `id` / `from` / `src`; an fx with none of them (新手祭司学徒's death flask) is the enemy that died in
+ * the same batch. `after`: seconds after the fx; `gap`: the same fx between the same pair again within that many seconds
+ * stays silent (a chain the sim re-sends every second). 'turn|<prefabKey>' is an attack-turn skill (castSlot, then the
+ * attack): its sound replaces the attack's impact after ['cast', id, slot], and that cast's effect-key timing (casts.keys)
+ * is dropped so it does not ring twice. Banks are the official ones (CN audio_data); ids checked in EN gamedata.
+ */
+const VTLIONK_FX_HITS = Object.freeze({
+  // Alistair, Final Flame of the Empire (bosses.js 王权号令): the plus strike's 'telegraph' — s1 is a 0.12 s timer shot
+  'telegraph|royalDecree': 'battle.ON_PROJECTILE_HIT.projectile_enemy_vtlionk_s1',
+});
+const SMDEER_FX_HITS = Object.freeze({
+  // 'Samivilinn,' the Resolution of the Very North (bosses.js 自然涌动): each lasso 'beam' — a timer whose effects start at once
+  'beam|naturalSurge': 'battle.ON_PROJECTILE_HIT.projectile_enemy_smdeer_s',
+});
+export const ENEMY_FX_SOUND_BANKS = Object.freeze({
+  // Novice Acolyte (special.js death heal): the flask's throw at the death, its landing after the shot's 0.7 s life
+  enemy_10156_mncrer: Object.freeze({
+    'explode|heal': [{ bank: 'battle.ON_PROJECTILE_BORN.projectile_enemy_mncrer_heal' }, { bank: 'battle.ON_PROJECTILE_REACH.projectile_enemy_mncrer_heal', after: 0.7 }],
+  }),
+  // Sarkaz Royal Court Elite Caster (element.js 死亡之眼): the burst's ChargeAttack shot (a 0.05 s flight); the channel's
+  // LineAttack harpoon (speed 8, range 2.5: [ASSUMED] about 0.15 s to reach)
+  enemy_1275_dwlock_2: Object.freeze({
+    'explode|apoptosis': 'battle.ON_PROJECTILE_HIT.projectile_enemy_dwlock_charge',
+    'beam|deathEye': { bank: 'battle.ON_PROJECTILE_HIT.projectile_enemy_dwlock_line', after: 0.15 },
+  }),
+  // Withered Knight (leaders.js 爆炸箭): each arrow's 'telegraph' (speed 10, range 2.5: [ASSUMED] about 0.15 s to land)
+  enemy_1513_dekght_2: Object.freeze({
+    'telegraph|blastArrow': { bank: 'battle.ON_PROJECTILE_HIT.projectile_enemy_dekght_s', after: 0.15 },
+  }),
+  // Jesselton Williams (leaders.js kitWarden): 铁沙暴 is an attack turn; its shot's hit and reach at the attack's impact
+  enemy_1516_jakill: Object.freeze({
+    'turn|ironsandstorm': ['battle.ON_PROJECTILE_HIT.projectile_enemy_jakill_s1', 'battle.ON_PROJECTILE_REACH.projectile_enemy_jakill_s1'],
+  }),
+  enemy_1559_vtlionk: VTLIONK_FX_HITS,
+  enemy_2054_smdeer: SMDEER_FX_HITS,
+  // OpFor: BlackCloud (fly.js 抓取): the grab lands GRAB_DELAY (0.5 s) after the 'beam' of kind 'devour'
+  enemy_9009_acfort: Object.freeze({
+    'beam|devour': { bank: 'battle.ON_ABILITY_HIT.enemy_9009_acfort.KillOthers', after: 0.5 },
+  }),
+  // Yan's Protection (tokens.js 祛恶之焰): each second's hit of the flame line
+  enemy_9012_acloon: Object.freeze({
+    'yanyouFlame|': 'battle.ON_PROJECTILE_HIT.projectile_enemy_acloon_line',
+  }),
+  // OpFor: Gun, hidden core (bosses.js 盲信之誓): the chain ray reaching a spring — the sim re-sends the 'link' every
+  // second; the chain is fired once while it holds
+  enemy_9017_achunt_2: Object.freeze({
+    'link|faithLink': { bank: 'battle.ON_PROJECTILE_REACH.projectile_enemy_achunt_ray', gap: 2 },
+  }),
+  enemy_9032_aclionk: VTLIONK_FX_HITS,
+  enemy_9033_acdeer: SMDEER_FX_HITS,
+});
 /**
  * (fork) Element burst (爆发) sounds, by `<sim element>.<side>` (side as public/js/render/vfx/wiring.js burstSide: 'enemy'
  * = an enemy unit, 'char' = an operator / summon) → the banks the burst plays at once, each on its own pool (public/js/
@@ -515,6 +571,37 @@ function enemyCastSounds(audio, banks, slots, poolRef) {
       if (keys?.length) e.keys = [...keys].sort();
     }
     out[String(s.slot)] = e;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * (fork, enemy sound leftovers job 2) ENEMY_FX_SOUND_BANKS[id] → sfx.units[id].fxHits: { [tag]: { url, pool?, after?,
+ * gap?, also?: [{ url, pool?, after? }] } } — the banks that exist (the first is the entry, the rest its `also`).
+ * @param {{ bank: (name: string) => string[] }} audio
+ * @param {Record<string, any>|undefined} table
+ * @param {(paths: string[]) => string|null|undefined} poolRef
+ */
+export function enemyFxHits(audio, table, poolRef) {
+  if (!table) return null;
+  const out = {};
+  for (const [tag, spec] of Object.entries(table)) {
+    const parts = [];
+    let gap = 0;
+    for (const s of [].concat(spec)) {
+      const name = typeof s === 'string' ? s : s?.bank;
+      const paths = name ? audio.bank(name) : null;
+      if (!paths?.length) continue;
+      const e = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) e.pool = p;
+      if (s?.after > 0) e.after = s.after;
+      if (s?.gap > 0) gap = s.gap;
+      parts.push(e);
+    }
+    if (!parts.length) continue;
+    const [lead, ...also] = parts;
+    out[tag] = { ...lead, ...(gap > 0 ? { gap } : {}), ...(also.length ? { also } : {}) };
   }
   return Object.keys(out).length ? out : null;
 }
@@ -1212,6 +1299,13 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     if (mix) u.mix = mix;
     const casts = enemyCastSounds(audio, banks, enemyCasts?.get(id), poolRef);
     if (casts) u.casts = casts;
+    // (fork, enemy sound leftovers job 2) skill impacts timed by the sim's fx events (ENEMY_FX_SOUND_BANKS)
+    const fxHits = enemyFxHits(audio, ENEMY_FX_SOUND_BANKS[id], poolRef);
+    if (fxHits) {
+      u.fxHits = fxHits;
+      // an attack-turn skill's impact is the attack's: its effect-key timing would ring it a second time
+      for (const c of Object.values(u.casts || {})) if (fxHits[`turn|${c.pk}`]) delete c.keys;
+    }
     const nextParts = (list) => (list || []).map((paths) => {
       const part = { url: soundLeaf(paths, 'sfx', 1) };
       const p = poolRef(paths);
