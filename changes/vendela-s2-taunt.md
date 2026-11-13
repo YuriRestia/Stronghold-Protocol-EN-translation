@@ -10,7 +10,21 @@
 
 Kind: player
 
-Server cost: none
+Server cost:
+
+| Measure | Typical | Worst case |
+|---|---|---|
+| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
+| Bandwidth out / in, per room (4 players; 8 in Grand Alliance) | 0 / 0 MB/s | 0 / 0 MB/s |
+| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | 0 / 0 MB/s |
+| Server CPU | 0 % of one core | 0 % of one core |
+| Memory | 0 MB | 0 MB |
+| Disk | 0 MB/day | 0 MB/day |
+| Bot budget | 0 ms/round | 0 ms/round |
+
+- Cap: unchanged. The skill still picks one unit when it starts; the pick only leaves summons out of the same list.
+- Estimated from the code, not measured: `server/sim/content/kits/ops/chess_char_1_06-vendla.js` filters the
+  candidates it already sorted; no new state, event or snapshot field.
 
 News:
 
