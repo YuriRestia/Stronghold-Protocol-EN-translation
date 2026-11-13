@@ -499,6 +499,13 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
   // The roll helpers only read pools/data; shadow their RNG receiver without replacing the live match stream.
   const rolls = preview ? Object.assign(Object.create(m), { rngMeta: rng }) : m;
   const view = (p) => (p ? ps.pieceView(p) : null);
+  // (fork) One for All (match/oneForAll.js), the user's decision of 2026-11-13 ("One for all: C"): every seat holds the
+  // same strategy, so a strategy's item grants, and those of an operator's garrison effect (驻守), are kept apart from
+  // the shop / reward stock: never refused, they take no copy, their draws ignore the stock, and selling or destroying
+  // them repays nothing (pool.js offStock). Every other match keeps the official rule: equipment from any source
+  // occupies the stock, fixed gifts are never refused (路标月报#2, bilibili BV1eLXXBqEgF 1:30 / 2:30;
+  // docs/history/0.2.5.md §30.1).
+  const offStockGrant = m.oneForAll === true && (source?.kind === 'band' || source?.kind === 'garrison');
   // the piece whose per-round counters a handler reads: an owned one, or the handler's own source copy that a merge
   // consumed during this refresh dispatch — it still witnessed the refresh (EffectDispatcher._garrisons, GitHub #627)
   const counted = (uid) => {
@@ -624,18 +631,12 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     },
     grantItem: (itemId, opts = {}) => {
       if (!ps.alive || !gd.item(itemId)) return null;
-      // (fork) One for All (match/oneForAll.js): every seat holds the same strategy, and the user's rule is that each
-      // holder's strategy works exactly as it does for a sole holder (2026-11-13: one of 8 Muelsyse holders got no
-      // 博士投影). A strategy's item grant is therefore never refused for the room's equipment stock, which is sized
-      // for one holder per strategy: the copies past the stock are recorded as debt, as for a card already on screen
-      // (acquireItem `displayed`). Other matches keep the stock refusal.
-      const everyHolder = m.oneForAll === true && source.kind === 'band';
       const p = ps.acquireItem(itemId, {
         source: opts.source || source.key || 'effect',
         toTemp: !!opts.toTemp,
         deferMerge: ps._deferItemMerge > 0,
         requirePool: opts.requirePool !== false,
-        displayed: everyHolder,
+        offStock: offStockGrant,
       });
       return p ? view(p) : null;
     },
@@ -652,12 +653,13 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
       const extra = typeof ps.diyStockEntries === 'function' ? ps.diyStockEntries() : null;
       return m.pool.roll(rng, { maxTier: Number.isInteger(opts.maxTier) ? opts.maxTier : 6, tier: Number.isInteger(opts.tier) ? opts.tier : null, filter: f, extra, ignoreCounts: opts.ignoreCounts === true });
     },
-    rollItem: (opts = {}) => rolls.rollItemId(opts),
+    rollItem: (opts = {}) => rolls.rollItemId({ ignoreStock: offStockGrant, ...opts }),
     /**
      * Roll a choices.json pool: equip pools → { kind: 'item', id }; chess pools (items / weighted / shopEligible with
      * tier, minTier, bond, golden) → { kind: 'chess', id, golden } (a pool chess needs a free copy). null when empty.
      */
     rollPool: (poolId, opts = {}) => rolls.rollPool(poolId, {
+      ignoreStock: offStockGrant,
       shopLevel: ps.shop.level,
       // a shared-pool draw also takes the player's 自选 stock, its bonds read through the player's view (rollChess)
       extra: typeof ps.diyStockEntries === 'function' ? ps.diyStockEntries() : null, chessOf: (id) => gd.chess(id),
@@ -714,7 +716,7 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     /** Queue a free pick-one offer of chess (shop.rewardOffer; `label` defaults to offerLabel(source), the bar's header). */
     offerChess: (ids, opts = {}) => !!ps.pushRewardOffer(opts.source || source.key || 'effect', { ids, tier: opts.tier ?? null, label: opts.label ?? offerLabel(gd, source) }),
     /** Queue a free pick-one offer of items (shop.rewardOffer with slots of kind 'item'). */
-    offerItems: (ids, opts = {}) => !!ps.pushItemOffer(ids, { source: opts.source || source.key || 'effect', tier: opts.tier ?? null, label: opts.label ?? offerLabel(gd, source) }),
+    offerItems: (ids, opts = {}) => !!ps.pushItemOffer(ids, { source: opts.source || source.key || 'effect', tier: opts.tier ?? null, label: opts.label ?? offerLabel(gd, source), offStock: offStockGrant }),
     setShopSlot: (i, slot) => {
       if (!Number.isInteger(i) || i < 0 || i >= ps.shop.slots.length) return false;
       if (slot == null) { ps.shop.slots[i] = null; ps.dirty(); return true; }
