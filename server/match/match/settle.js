@@ -14,6 +14,7 @@ import { settleChatWallet } from '../chatWallet.js';
 
 export class MatchSettle {
   settle(plan, uniteResult) {
+    this._cancelUniteWatchdog(); // (fork) match/unitePhase.js
     this.phase = PHASE.SETTLE;
     this.runner = null;
     this._stopClientCombat();

@@ -6,15 +6,19 @@
 import { PHASE, GEO } from '../../../shared/constants.js';
 import { deriveSeed } from '../../sim/rng.js';
 import { uniteBattleOpts, uniteSurvivors } from '../unite.js';
-import { FieldRunner, timelineAt, uniteBillBounds } from '../fields.js';
+import { FieldRunner, timelineAt, uniteBillBounds, syntheticResult, RESULT_GRACE_MS } from '../fields.js';
 import { uniteLeft } from '../../sim/spec.js';
 import { FLOW_TICKER_PRIORITY, DELAYS } from './common.js';
 import { msg, playerParam } from '../../../shared/i18n.js';
 import { onStartUnite } from '../botEmotes.js';
 import { noteChatKills } from '../chatWallet.js';
 
+/** (fork) The watchdog's second stage: how long after the field closed `_afterUnite` gets to move the phase on. */
+const UNITE_SETTLE_GRACE_MS = 10_000;
+
 export class MatchUnite {
   startUnite(plan) {
+    this._armUniteWatchdog(plan, this.wave ? this.wave.timeLimit : 60);
     if (this.clientCombat) { this._startUniteClient(plan); return; }
     this.phase = PHASE.UNITE;
     this.unitePlan = plan;
@@ -155,5 +159,69 @@ export class MatchUnite {
     if (key === this._uniteLeftKey) return;
     this._uniteLeftKey = key;
     this.markPublic();
+  }
+
+  /**
+   * (fork) Live report 2026-11-13: an 8-player Grand Alliance stayed in 联防 with the countdown at 00 after its battle had
+   * ended in every browser. Every step that ends the phase runs in a guarded timer (infra.js guard: an exception is logged
+   * and swallowed), so one throw on the way (_finishUniteClient → _afterUnite → relay / settle) left the match there for
+   * good. This watchdog only acts when the phase is already overdue: the field's time limit, the result grace, two browser
+   * answer windows and the COMBAT_END pause after the deadline (every normal path ends long before). Stage 1 closes the
+   * field with what it has (else a synthetic result, settle() then charges the leakers' own leaks) and lets the usual end
+   * run; stage 2, when the phase still has not moved UNITE_SETTLE_GRACE_MS after that, settles straight away. A pause
+   * or the harness hold (pause.js _freezeBattle) holds it and _resume re-arms what was left, like the field deadlines.
+   */
+  _armUniteWatchdog(plan, limit) {
+    this._cancelUniteWatchdog();
+    const lim = Number(limit) > 0 ? Number(limit) : 60;
+    const ms = Math.round((lim / this.gameSpeed) * 1000) + RESULT_GRACE_MS + 2 * this.botBattleAnswerMs + this.scaled(DELAYS.COMBAT_END);
+    this._setUniteWatchdog(plan, 1, ms);
+  }
+
+  _setUniteWatchdog(plan, stage, ms) {
+    this._uniteWatchdogArm = { plan, stage, at: this.sched.now() + ms, left: 0 };
+    this._uniteWatchdog = this.later(ms, () => { this._uniteWatchdog = null; this._uniteWatchdogArm = null; this._uniteOverdue(plan, stage); });
+  }
+
+  _cancelUniteWatchdog() {
+    if (this._uniteWatchdog) { this.cancel(this._uniteWatchdog); this._uniteWatchdog = null; }
+    this._uniteWatchdogArm = null;
+  }
+
+  /** Pause / hold (pause.js): stop the watchdog's clock; _releaseUniteWatchdog re-arms the time it had left. */
+  _holdUniteWatchdog() {
+    const a = this._uniteWatchdogArm;
+    if (!this._uniteWatchdog || !a) return;
+    this.cancel(this._uniteWatchdog);
+    this._uniteWatchdog = null;
+    a.left = Math.max(0, a.at - this.sched.now());
+  }
+
+  _releaseUniteWatchdog() {
+    const a = this._uniteWatchdogArm;
+    if (this._uniteWatchdog || !a) return;
+    this._setUniteWatchdog(a.plan, a.stage, a.left);
+  }
+
+  _uniteOverdue(plan, stage) {
+    if (this.phase !== PHASE.UNITE || this.unitePlan !== plan || this.ended) return;
+    const open = this.fields.filter((f) => f && f.cc && f.kind === 'unite' && !f.done);
+    this.log.warn?.(`[match ${this.roomCode}] 联防 R${this.round} overdue (stage ${stage}, ${open.length} open field(s)): ending it`);
+    if (stage === 1 && open.length) {
+      // armed first: if the usual end throws again, the second stage still comes
+      this._setUniteWatchdog(plan, 2, this.scaled(DELAYS.COMBAT_END) + UNITE_SETTLE_GRACE_MS);
+      for (const f of open) {
+        this._clearFieldTimers(f);
+        if (!f.result) { f.result = syntheticResult(f.players, { time: this._fieldElapsed(f) }); f.resultSource = 'none'; }
+        this._fieldDone(f);
+      }
+      return;
+    }
+    const f = this.fields.find((x) => x && x.kind === 'unite') || null;
+    let res = null;
+    if (f && f.cc) res = f.result || null;
+    else if (f && f.battle && f.battle.finished) { try { res = f.battle.result(); } catch { res = null; } }
+    if (this.runner) { try { this.runner.stop(); } catch { /* ignore */ } }
+    this.settle(plan, res || syntheticResult(plan.helpers.map((p) => p.playerId)));
   }
 }

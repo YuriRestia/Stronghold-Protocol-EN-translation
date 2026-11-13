@@ -304,6 +304,8 @@ const matchAnswer = (res) => (res && typeof res === 'object' && res.error
 const noopLog = { info() {}, warn() {}, error() {}, debug() {} };
 /** What a retiring lobby refuses (retire()): everything that opens a room, a queue or a match. */
 const RETIRED_MSGS = new Set(['room.create', 'room.join', 'room.spectate', 'room.start', 'room.search', 'queue.join', 'queue.ai']);
+/** (fork) Lines one match logs of refused frames (Lobby.onRejected), one per message type; then one "more suppressed". */
+export const REJECTED_LOG_MAX = 10;
 
 /**
  * @typedef {{ seat: number, playerId: string, name: string, isBot: boolean, ready: boolean,
@@ -648,6 +650,8 @@ export class Lobby {
      */
     this.simPool = simPool;
     this.log = log;
+    /** (fork) onRejected: what each match has logged of the frames validateC2S refused (dropped with the match) */
+    this._rejectedLog = new WeakMap();
     this.MatchClass = MatchClass;
     this.getData = getData;
     this.now = now;
@@ -908,6 +912,29 @@ export class Lobby {
     // between bumps it, and the page that comes back checks the set again (contentReady)
     const ctx = msg && msg.t === 'room.contentReady' ? { from: this.seatGen(room, session.playerId) } : null;
     return this.serial(room, () => this.handleMessage(session, msg, ctx));
+  }
+
+  /**
+   * (fork) A frame of `session` that failed validateC2S (server/net.js): logged so a refused report is never silent again
+   * (live 2026-11-13, room FKCJ: every browser's 联防 answer was refused for minutes and nothing showed in the log). Only
+   * a member of a running match, one line per message type, at most REJECTED_LOG_MAX lines per match and then one
+   * "more suppressed" line: bounded whatever a client sends.
+   * @param {import('./net.js').Session} session @param {string} t @param {string} reason
+   */
+  onRejected(session, t, reason) {
+    const room = session && session.roomCode ? this.rooms.get(session.roomCode) : null;
+    const match = room && !room.disposed ? room.match : null;
+    if (!match) return;
+    let seen = this._rejectedLog.get(match);
+    if (!seen) { seen = { types: new Set(), lines: 0, suppressed: false }; this._rejectedLog.set(match, seen); }
+    if (seen.types.has(t)) return;
+    if (seen.lines >= REJECTED_LOG_MAX) {
+      if (!seen.suppressed) { seen.suppressed = true; this.log.warn?.(`[match ${room.code}] rejected frames: more suppressed`); }
+      return;
+    }
+    seen.types.add(t);
+    seen.lines++;
+    this.log.warn?.(`[match ${room.code}] rejected ${t} from ${session.playerId}: ${String(reason).slice(0, 120)}`);
   }
 
   /** A seat (or spectator seat) of `room` and its content generation (header "Gameplay plugins"), or null. */
