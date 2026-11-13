@@ -47,7 +47,8 @@ export class PlayerPrep {
     this.offers.shift();
     if (price > 0) this.spend(price);
     if (slot.kind === 'item') {
-      const gained = this.acquireItem(slot.id, { source: 'reward', displayed: true });
+      // (fork) One for All: a strategy's offer (pushItemOffer offStock) takes no copy of the stock (pool.js)
+      const gained = this.acquireItem(slot.id, offer.offStock ? { source: 'reward', offStock: true } : { source: 'reward', displayed: true });
       // #677: maintainer decision 2026-10-17 (official play memory): one Cathy cell per player/match.
       // [ASSUMED] Only a successful pick from this source counts; Quintus's grant is independent.
       if (gained && offer.source === 'band:band_cathy' && isMutationCell(slot.id, this.gd.raw)) {
