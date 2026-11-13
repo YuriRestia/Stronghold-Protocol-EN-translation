@@ -17,20 +17,27 @@ export default {
   // skill HP regeneration (the 生命回复速度 attribute is "不受治疗加成影响": 宴 分神, 角峰 体能强化; PRTS).
   // Alternate S1 战术咏唱·γ型: ASPD +attack_speed (the trait heal keeps going to the most injured ally in range).
   // Elite module INC-X (heal 60 % of the damage) is the incantation profile of the module trait (TUNE.incantationmedic).
+  // Who "the ally with the highest max HP in range" is (client skill prefab skchr_vendla_2 ability MaxHpSelector, and
+  // the talent's selector in charpack char_494_vendla alike): allies in her attack range, _postFilter MAX_HP_DES,
+  // _excludeOwner 0 — so 刺玫 herself when no operator in range has more max HP (she then taunts herself, as in the
+  // client) —, _professionMask 639 = every operator class, not TOKEN (128) / TRAP (256): summons are never picked. A summon
+  // with more max HP took the taunt before 2026-11-13. Ties: the earlier deployed [ASSUMED].
   chess_char_1_06_a: (bb, chess) => {
     const hs = num(talentBb(chess, 0).heal_scale, 1);
     const tauntKey = 'vendla:taunt';
     const counterKey = unit => `vendla:counter:${unit.id}`;
     // the protégé only exists while 荆藤庇荫 runs (mem.protege is set by its onStart only)
     const protege = (u) => (u.skill?.active && up(u.mem.protege) ? u.mem.protege : null);
+    // MaxHpSelector: operators in range (herself too), highest max HP first
+    const topMaxHp = (battle, unit) => alliesInGridOf(battle, unit).filter((a) => a.kind === 'op')
+      .sort((a, b) => b.s.maxHp - a.s.maxHp || a.deploySeq - b.deploySeq)[0] ?? null;
     return {
       skills: { 'skcom_magic_rage[3]': { kind: 'duration', mods: { aspd: num(skillBbOf(chess, 'skcom_magic_rage[3]').attack_speed) } } },
     // The shared incantation trait honors traitAlly on S2 counter damage.
       skill: {
         kind: 'duration', mods: { atkPct: num(bb.atk) },
         onStart({ battle, unit, skill }) {
-          const cands = alliesInGridOf(battle, unit).sort((a, b) => b.s.maxHp - a.s.maxHp || a.deploySeq - b.deploySeq);
-          const p = cands[0] ?? null;
+          const p = topMaxHp(battle, unit);
           unit.mem.protege = p;
           if (!p) return;
           battle.addBuff(p, { key: tauntKey, duration: skill.duration + 0.1, mods: { taunt: num(bb.taunt_level, 1) }, visible: true, source: unit });
@@ -60,7 +67,7 @@ export default {
             if (!up(unit) || ctx.opts?.regen) return;
             if (cacheT !== battle.time) {
               cacheT = battle.time;
-              top = alliesInGridOf(battle, unit).sort((a, b) => b.s.maxHp - a.s.maxHp || a.deploySeq - b.deploySeq)[0] ?? null;
+              top = topMaxHp(battle, unit);
             }
             if (ctx.target === top) ctx.amount *= hs;
           }, { owner: unit });
