@@ -760,6 +760,7 @@ export class AudioManager {
     this.poolRequests = new Set(); // decoding / delayed requests; no playing slots reserved
     this.poolLoads = new Map(); // url → coalesced decode requests (one subscriber per URL, even across fields)
     this.poolFieldToken = 0;
+    this.battleSpeed = 1;      // (fork, enemy sound audit job 3) setBattleSpeed: the field's game speed
     // prep landings (deployCue): their own voices — a full pool hands the oldest one's voice to the newest (_playLanding);
     // no per-file gap (one landing per piece, the cap bounds the overlap), the per-piece cooldown of the battle sounds
     this.landLimiter = new SfxLimiter({ maxVoices: LAND_VOICES, maxPerUrl: LAND_VOICES, urlGapMs: 0 });
@@ -1389,12 +1390,24 @@ export class AudioManager {
     }
   }
 
+  /** (fork, enemy sound audit job 3) The battle's game speed (matches run at 2), for moment parts timed in clip seconds. */
+  setBattleSpeed(s) { this.battleSpeed = Number(s) > 0 ? Number(s) : 1; }
+
   /**
    * (fork, enemy sound audit job 3) One enemy moment (sfx.units[id].fxSounds entry): its sounds on their pools, then its
-   * held loop — started (`loop`; with `hold`, stopped that long after the moment last came), or ended (`endLoop`).
+   * held loop — started (`loop`, until the unit's skill ends, it dies or the field changes) or ended (`endLoop`).
+   * Only the bank's own limits apply (audio_data maxSoundAllowed / popOldest, in `_playBank`). A part's `after` is its
+   * spine event's time in the official clip (seconds of game time, plan.mjs ENEMY_FX_SOUND_BANKS cites each): divided by
+   * the battle speed, dropped when the field changed meanwhile.
    */
   _enemyMoment(id, e) {
-    for (const p of [e, ...(Array.isArray(e.also) ? e.also : [])]) this._castPart(p);
+    const speed = this.battleSpeed > 0 ? this.battleSpeed : 1;
+    for (const p of [e, ...(Array.isArray(e.also) ? e.also : [])]) {
+      if (typeof p?.url !== 'string') continue;
+      if (!(p.after > 0)) { this._playBank(p.url, p.pool, UNIT_BASE_GAIN); continue; }
+      const token = this.poolFieldToken;
+      setTimeout(() => { if (token === this.poolFieldToken) this._playBank(p.url, p.pool, UNIT_BASE_GAIN); }, p.after * 1000 / speed);
+    }
     if (e.endLoop) { this._stopStingLoop(id); return; }
     if (typeof e.loop !== 'string') return;
     const cur = this.stingLoops.get(id);
@@ -1403,11 +1416,6 @@ export class AudioManager {
       const now = this.stingLoops.get(id);
       if (now) now.url = e.loop;
     }
-    if (!(e.hold > 0)) return;
-    const held = this.stingLoops.get(id);
-    if (!held) return;
-    clearTimeout(held.holdTimer);
-    held.holdTimer = setTimeout(() => { if (this.stingLoops.get(id) === held) this._stopStingLoop(id); }, e.hold * 1000);
   }
 
   /**
@@ -1447,12 +1455,14 @@ export class AudioManager {
           for (const k of Array.isArray(c.keys) ? c.keys : []) if (!map.has(k)) map.set(k, c.hit);
         }
         // (fork, enemy sound audit job 3) an effect's own official sound (plan.mjs ENEMY_KEY_SOUND_BANKS)
-        for (const [k, p] of Object.entries(u?.keySounds || {})) if (typeof p?.url === 'string' && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), p);
+        // (only the bank's own limits: `own`, no CAST_PART_GAP_MS)
+        for (const [k, p] of Object.entries(u?.keySounds || {})) if (typeof p?.url === 'string' && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), { ...p, own: true });
       }
       this.castKeys = { sfx, map };
     }
     const part = this.castKeys.map.get(key.toLowerCase());
-    if (part) this._castPart(part);
+    if (part?.own) this._playBank(part.url, part.pool, UNIT_BASE_GAIN);
+    else if (part) this._castPart(part);
   }
 
   /** One enemy skill-cast part on its pool; the same file again within CAST_PART_GAP_MS stays silent (a crowd's casts). */
@@ -2485,6 +2495,10 @@ export class AudioManager {
             // (fork) a cast cue (the sim's skill `cue`, 丰川祥子): the skill's sting, and its held loop
             if (e[3] && typeof e[3] === 'object') this._sting(e[1], u, e[3]);
             this._skillEdge(e[1], u, true);
+            // (fork, enemy sound audit job 3) a loop held while the skill runs (fxSounds 'skill|on': 炎佑's flame, the
+            // official ON_ABILITY_ON bank; the end below stops it)
+            const on = unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.fxSounds?.['skill|on'];
+            if (on) this._enemyMoment(e[1], on);
             // 作战中N: the equipped skill's own slot (0-based; 作战中4 is the fallback of a 4th slot)
             if (unitSoundClass(u) === 'char') {
               const n = Number.isInteger(u.skillIndex) ? Math.min(4, u.skillIndex + 1) : 1;

@@ -1841,8 +1841,6 @@
     "battle.ON_BUFF_START.csdcr_skill[audio]": 1,
     "battle.ON_BUFF_START.enemy_acbunn[cute]": 1,
     "battle.ON_BUFF_START.enemy_acbunn[horror]": 1,
-    "battle.ON_BUFF_START.enemy_acstma_back": 1,
-    "battle.ON_BUFF_START.enemy_acstmb_back": 1,
     "battle.ON_BUFF_START.enemy_wlfmster_reborn_start": 1,
     "battle.ON_BUFF_START.ep_break_dark_audio": 1,
     "battle.ON_BUFF_START.ep_break_fire_audio": 1,
@@ -2097,12 +2095,11 @@
     "battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_2": 1,
     "battle.ON_SKILL_SPECIAL_POINT.skchr_lemuen_3": 1,
     "battle.ON_SKILL_START.skchr_oblvns_2.2": 1,
+    "battle.ON_SPINE_EVENT_TRIGGER.enemy_10027_vtsk.zan_hold": 1,
     "battle.ON_SPINE_EVENT_TRIGGER.enemy_1273_stmgun_2.emit": 1,
     "battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.reborn_bomb": 1,
     "battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.stone_gather": 1,
     "battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.sword_in": 1,
-    "battle.ON_SPINE_EVENT_TRIGGER.enemy_1517_xi.xi_reborn": 1,
-    "battle.ON_SPINE_EVENT_TRIGGER.enemy_9014_acstma.revive_start_a": 1,
-    "battle.ON_SPINE_EVENT_TRIGGER.enemy_9015_acstmb.revive_start_b": 1
+    "battle.ON_SPINE_EVENT_TRIGGER.enemy_1517_xi.xi_reborn": 1
   }
 }

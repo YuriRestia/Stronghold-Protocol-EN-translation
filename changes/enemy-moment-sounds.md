@@ -7,11 +7,12 @@
   holds its official loop until Zaaro stands up again.
 - Other official moments that were silent now play too: Jetman's landing, OpFor: Bonespur's switches, Gunshatter's
   shield taking hits, the Echoes' form switches and ensembles, Alistair's golden shield and advance, Samivilinn's doom,
-  Lucky Flyfin taking off, Snowchild hitting high ground, the OpFor blades being shot down and flying back, and more
-  (24 enemies).
+  Lucky Flyfin taking off, Snowchild hitting high ground, the OpFor blades being shot down, and more (24 enemies).
+- Sounds that belong to a moment inside an enemy's animation now play at that moment of the animation, as in the
+  official game: Jesselton Williams's three knock-out sounds, the Shoulder Cannon Crawler's volley, each shot of it.
 - Mudrock's attacks now change sound as Mudrock's charge grows, by the official rule: tiers 4 and 5 swing with their own heavy
   sounds.
-- Yans Protection's flame holds its official looping sound while it burns.
+- Yans Protection's flame holds its official looping sound while its skill runs.
 
 Kind: player
 
@@ -25,24 +26,40 @@ News:
 
 Server cost:
 
+Default mode (client-side combat, the live setting: `SP_COMBAT` unset, `server/match/Match.js` clientCombat true).
+Battles run in the players' browsers, and watchers get the field's spec (`b.start`) and simulate it locally. The new
+display events are made in each browser and never cross the server.
+
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | about 0 / 0 MB/s (0 / 0 GB/day): a few new display events per match (about 60 bytes each); about 0.05 MB once (estimated: the new sounds of one match's enemies, then cached) | 0.0003 MB/s (0.02 GB/day if it never stopped) while a Gunshatter's shield is hit, 4 events/s at most; 1.13 MB once (all 33 new files), then cached |
-| Bandwidth out / in, per room (4 players) | about 0 / 0 MB/s; about 0.2 MB once | 0.001 MB/s (0.08 GB/day if it never stopped); 4.5 MB once |
-| Bandwidth out / in, 300 players | about 0 / 0 MB/s (0 / 0 GB/day); about 0.02 GB once (estimated) | 0.07 MB/s (6 GB/day only if all 75 rooms fought Gunshatter all day); 0.34 GB once |
-| Server CPU | about 0 %: one stack check before a Mudrock attack, one time check per Gunshatter shield hit | about 0 % |
+| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day) for the events; about 0.05 MB once (estimated: the new sounds of one match's enemies, then cached) | 0 / 0 MB/s; 1.13 MB once (all 31 new files), then cached |
+| Bandwidth out / in, per room (4 players) | 0 / 0 MB/s; about 0.2 MB once | 0 / 0 MB/s; 4.5 MB once |
+| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day); about 0.02 GB once (estimated) | 0 / 0 MB/s; 0.34 GB once |
+| Server CPU | 0 % (the sim runs in the browsers) | 0 % |
 | Memory | 0 MB | 0 MB |
-| Disk | 1.13 MB once (33 new sound files), then 0 MB/day | 1.13 MB once |
+| Disk | 1.13 MB once (31 new sound files), then 0 MB/day | 1.13 MB once |
 | Bot budget | 0 ms/round (display events only; bots do not read them) | 0 ms/round |
 
+Legacy server-combat mode only (`SP_COMBAT=server`, off on the live server). The server runs the battles and streams
+each field's events to its watchers (`server/match/fields.js`), so the new display events cross the wire, about 60
+bytes each.
+
+| Measure | Typical | Worst case |
+|---|---|---|
+| Bandwidth out / in, per player | about 0 / 0 MB/s: a few events per match | 0.0012 MB/s (0.1 GB/day if it never stopped) while a shielded Gunshatter takes 20 normal physical hits/s (estimated: a full physical board at 2× speed), one event per hit |
+| Bandwidth out / in, per room (4 players) | about 0 / 0 MB/s | 0.005 MB/s (0.4 GB/day if it never stopped), all four fields hitting a Gunshatter |
+| Bandwidth out / in, 300 players | about 0 / 0 MB/s | 0.36 MB/s (31 GB/day only if every field hit a shielded Gunshatter all day) |
+| Server CPU | about 0 %: one stack check before a Mudrock attack, one event per Gunshatter shield hit | about 0 % |
+
 - Cap: the new display events are at most 5 tier changes per Mudrock, one landing per Jetman take-off, one per Bonespur
-  switch, one per OpFor blade return, and at most 4 per second per Gunshatter shield (SPRING_HIT_SOUND_GAP 0.25 s); 33
-  static sound files (1.13 MB), each fetched at most once per browser and then cached. The client plays one held loop per
-  enemy at most, stopped at its death.
+  switch, and one per normal physical hit on a Gunshatter's shield (the official buff plays the sound on every such hit;
+  the client plays at most 2 at once, the bank's official limit). 31 static sound files (1.13 MB), each fetched at most
+  once per browser and then cached. The client plays one held loop per enemy at most, stopped at its death, its skill's
+  end or the field's change.
 - Code: display-only fx in the sim kits (`server/sim/content/`), the asset generator (`tools/assets/plan.mjs`) and the
   client's sound player (`public/js/audio.js`). Estimated from event and file sizes, not measured.
 
 Operator notes:
 
-- Upload the 33 new enemy sound files (1.13 MB, under `public/assets/audio/sfx/enemy/`) with the next art upload; the
+- Upload the 31 new enemy sound files (1.13 MB, under `public/assets/audio/sfx/enemy/`) with the next art upload; the
   release art gate lists them from `data/assets.json`.

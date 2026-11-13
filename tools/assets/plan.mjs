@@ -153,55 +153,66 @@ const FX_SOUND_BANKS = Object.freeze({
 /**
  * (fork, enemy sound audit job 3) An enemy's official moment sounds no attack or skill cast plays: enemy id → '<sim fx
  * kind>|<its kind / form>' → bank(s), as FX_SOUND_BANKS (public/js/audio.js _fxSound). 'cast|<skill pk, lower case>'
- * rings with that skill's cast; 'sound|…' and 'mode' are display-only fx the sim sends for these moments alone. An entry
- * may be { play, loop, hold, endLoop }: `loop` a held loop bank (one per unit; it stops at its unit's death, at an entry
- * with `endLoop`, or `hold` s after its fx last came). Spine-event banks play at the sim moment their clip belongs to
- * [ASSUMED: at its start — the renderer reads no clip events].
+ * rings with that skill's cast, 'skill|on' when its skill turns on (its loop then ends with the skill); 'sound|…' and
+ * 'mode' are display-only fx the sim sends for these moments alone. An entry may be { play, loop, endLoop }: `loop` a
+ * held loop bank (one per unit; it stops at its unit's death, its skill's end or an entry with `endLoop`). A spine-event
+ * bank (ON_SPINE_EVENT_TRIGGER) rings `after` game s: its OnPlayAudio event's time in the official skeleton's clip that
+ * our client plays at that moment (public/assets/spine/enemy/<id>/<id>.skel, read with the client's @pixi-spine runtime)
+ * — from the clip's start for a form change or a plain cast, from its OnAttack for an attack-turn cast (render/units.js
+ * _turnCast: that clip plays from its strike frame, which is the cast). Only official values: no bank here without one.
  */
 const ENEMY_FX_SOUND_BANKS = Object.freeze({
-  // Dublinn Flamechasers: the ember's birth (T.Born) and its return to a warrior (enemy_duskl*_revive's ON_BUFF_TRIGGER:
-  // SwitchToRebornState + the default max HP back)
+  // Dublinn Flamechasers: the ember's birth (T.Born) and its return to a warrior (CN buff template
+  // enemy_duskl*_revive_listener ON_BUFF_TRIGGER: SwitchToRebornState + the default max HP back)
   enemy_1288_duskls: { 'ember|husk': 'battle.ON_ABILITY_START.enemy_1288_duskls.T.Born', 'revive|revived': 'battle.ON_BUFF_TRIGGER.enemy_duskls_revive' },
   enemy_1288_duskls_2: { 'ember|husk': 'battle.ON_ABILITY_START.enemy_1288_duskls_2.T.Born', 'revive|revived': 'battle.ON_BUFF_TRIGGER.enemy_duskls_revive' },
   enemy_1292_duskld: { 'ember|husk': 'battle.ON_ABILITY_START.enemy_1292_duskld.T.Born', 'revive|revived': 'battle.ON_BUFF_TRIGGER.enemy_duskld_revive' },
-  // its cannon shot's muzzle (spine 'emit')
-  enemy_1273_stmgun_2: { 'cast|cannon': 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1273_stmgun_2.emit' },
-  // knock-outs (reborn: fx 'telegraph' kind 'reborn') and stand-ups (fx 'revive' kind 'reborn')
-  enemy_1512_mcmstr: { 'telegraph|reborn': 'battle.ON_BUFF_START.mcmstr_t_state_1[reborn]' },
-  enemy_1516_jakill: {
-    'telegraph|reborn': 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.sword_in',
-    'revive|reborn': 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.reborn_bomb',
-    'cast|ironsandstorm': 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.stone_gather',
+  // its Cannon (an attack-turn cast, ENEMY_ATTACK_SKILL_CLIP 10 s = clip Skill): Skill's nine OnPlayAudio 'emit' at
+  // 4.033 … 6.7 s, from its OnAttack at 4.033 s (its normal attack's emit: ENEMY_ATTACK_ALSO_BANKS)
+  enemy_1273_stmgun_2: {
+    'cast|cannon': [4.033, 4.367, 4.7, 5.033, 5.367, 5.7, 6.033, 6.367, 6.7]
+      .map((t) => ({ bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1273_stmgun_2.emit', after: Math.round((t - 4.033) * 1000) / 1000 })),
   },
+  // knock-outs (reborn: fx 'telegraph' kind 'reborn', which plays the form's change clip — render/units.js FORMS) and
+  // stand-ups (fx 'revive' kind 'reborn')
+  enemy_1512_mcmstr: { 'telegraph|reborn': 'battle.ON_BUFF_START.mcmstr_t_state_1[reborn]' },
+  // its knock-out clip C1_Die: OnPlayAudio stone_gather at 2.367 s, sword_in at 2.733 s, reborn_bomb at 3.333 s
+  enemy_1516_jakill: {
+    'telegraph|reborn': [
+      { bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.stone_gather', after: 2.367 },
+      { bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.sword_in', after: 2.733 },
+      { bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1516_jakill.reborn_bomb', after: 3.333 },
+    ],
+  },
+  // its knock-out clip Revive_01: OnPlayAudio xi_reborn at 0 s
   enemy_1517_xi: { 'telegraph|reborn': 'battle.ON_SPINE_EVENT_TRIGGER.enemy_1517_xi.xi_reborn' },
   enemy_1525_blkswb: {
     'telegraph|reborn': 'battle.ON_ABILITY_START.enemy_1525_blkswb.T.Reborn',
     'explode|clearSp': 'battle.ON_ABILITY_START.enemy_1525_blkswb.T.ClearSp',
   },
-  // Zaaro: the knock-out, its held loop (enemy_wlfmster_reborn_start) until the stand-up (T.Reborn's check point)
+  // Zaaro: T.Reborn starts at the knock-out with its held loop (enemy_wlfmster_reborn_start); its check point is the
+  // stand-up (the fx index's Reborn talent: an EmptyAnimatedAbility whose end-role effects are enemy_wlfmster_a_revive_3*)
   enemy_1535_wlfmster: {
     'telegraph|reborn': { play: 'battle.ON_ABILITY_START.enemy_1535_wlfmster.T.Reborn', loop: 'battle.ON_BUFF_START.enemy_wlfmster_reborn_start' },
     'revive|reborn': { play: 'battle.ON_ABILITY_CHECK_POINT.enemy_1535_wlfmster.T.Reborn', endLoop: true },
   },
+  // the take-off buff balloon_s's ON_BUFF_FINISH is the landing (fx index: enemy_balloon_land_01_* on it)
   enemy_2004_balloon: { 'sound|land': 'battle.ON_BUFF_START.balloon_s[land]' },
   enemy_2010_csdcr: { 'telegraph|songOfWar': 'battle.ON_BUFF_START.csdcr_skill[audio]' },
   enemy_9008_acbunn: { 'sound|cute': 'battle.ON_BUFF_START.enemy_acbunn[cute]', 'sound|horror': 'battle.ON_BUFF_START.enemy_acbunn[horror]' },
-  // 炎佑 (an ally built from this record): Skill_2's held flame loop while its per-second flame ticks come
-  enemy_9012_acloon: { 'yanyouFlame|': { loop: 'battle.ON_ABILITY_ON.enemy_9012_acloon.Skill_2', hold: 1.5 } },
-  // the blades: shot down (special_stun) and the copy flying back (revive spine + enemy_acstm*_back)
-  enemy_9014_acstma: {
-    'phase|shotDown': 'battle.ON_BUFF_START.acstma_s_1[special_stun]',
-    'sound|back': ['battle.ON_SPINE_EVENT_TRIGGER.enemy_9014_acstma.revive_start_a', 'battle.ON_BUFF_START.enemy_acstma_back'],
-  },
-  enemy_9015_acstmb: {
-    'phase|shotDown': 'battle.ON_BUFF_START.acstmb_s_1[special_stun]',
-    'sound|back': ['battle.ON_SPINE_EVENT_TRIGGER.enemy_9015_acstmb.revive_start_b', 'battle.ON_BUFF_START.enemy_acstmb_back'],
-  },
+  // 炎佑 (an ally built from this record): Skill_2's ON loop while its skill is on
+  enemy_9012_acloon: { 'skill|on': { loop: 'battle.ON_ABILITY_ON.enemy_9012_acloon.Skill_2' } },
+  // the blades shot down (CN buff template acstm*_s_1[special_stun]: STUNNED)
+  enemy_9014_acstma: { 'phase|shotDown': 'battle.ON_BUFF_START.acstma_s_1[special_stun]' },
+  enemy_9015_acstmb: { 'phase|shotDown': 'battle.ON_BUFF_START.acstmb_s_1[special_stun]' },
   // OpFor: Gun S3's chain hit
   enemy_9017_achunt: { 'link|faithLink': 'battle.ON_CUSTOM_TRIGGER.achunt_line_damage.chain_hit' },
   enemy_9017_achunt_2: { 'link|faithLink': 'battle.ON_CUSTOM_TRIGGER.achunt_line_damage.chain_hit' },
+  // every NORMAL physical hit on its shield (CN buff template actrpa_t_1 ON_TAKE_DAMAGE)
   enemy_9018_actrpa: { 'sound|shieldHit': 'battle.ON_CUSTOM_TRIGGER.actrpa_t_1.shield_hit' },
-  // Echoes: the form switches, each form's ensemble (its sound and its [delay] twin, the bank's own delay) and the pulse
+  // Echoes: the form switches; each form's ensemble — gold is Passion (it reads ep_damage_ratio_passion) — with its
+  // [delay] twin (that bank's own delay 0.7 s, audio_data); the pulse on damage taken (fx index: ability AOE, triggered by
+  // acdums_t_3 ON_TAKE_DAMAGE)
   enemy_9023_acdums: {
     'phase|echo_gold': 'battle.ON_CUSTOM_TRIGGER.enemy_9023_acdums.switch_a',
     'phase|echo_dark': 'battle.ON_CUSTOM_TRIGGER.enemy_9023_acdums.switch_b',
@@ -209,14 +220,29 @@ const ENEMY_FX_SOUND_BANKS = Object.freeze({
     'explode|ensembleDark': ['battle.ON_CUSTOM_TRIGGER.acdums_audio[depassion]', 'battle.ON_CUSTOM_TRIGGER.acdums_audio[depassion][delay]'],
     'explode|echoPulse': 'battle.ON_CUSTOM_TRIGGER.acdums_audio[aoe]',
   },
-  // Alistair: the golden shield and the advance
+  // Alistair: the golden shield and the advance (fx index: talent advance, buff enemy_vtlionk_advance)
   enemy_9032_aclionk: {
     'vest|': 'battle.ON_CUSTOM_TRIGGER.enemy_vtlionk_skill_shld',
     'phase|lionAdvance': 'battle.ON_CUSTOM_TRIGGER.enemy_vtlionk_advance',
   },
   enemy_9033_acdeer: { 'telegraph|samiDoom': 'battle.ON_CUSTOM_TRIGGER.enemy_smdeer_doom[audio]' },
-  enemy_10027_vtsk: { 'telegraph|barrage': 'battle.ON_CUSTOM_TRIGGER.enemy_vtsk_skillRange' },
+  // its barrage mark (fx index: skill appear, enemy_vtsk_skill_01_marker_01 / _range_01) and its multicombat (a plain
+  // cast; clip Skill_2: OnPlayAudio zan_hold at 2 s)
+  enemy_10027_vtsk: {
+    'telegraph|barrage': 'battle.ON_CUSTOM_TRIGGER.enemy_vtsk_skillRange',
+    'cast|multicombat': [{ bank: 'battle.ON_SPINE_EVENT_TRIGGER.enemy_10027_vtsk.zan_hold', after: 2 }],
+  },
+  // taking off (fx index: parrot_a[fly] ON_BUFF_ENABLE → enemy_parrot_takeoff)
   enemy_10045_parrot: { 'phase|float': 'battle.ON_CUSTOM_TRIGGER.parrot_fly' },
+});
+
+/**
+ * (fork, enemy sound audit job 3) Sounds an enemy's normal attack plays besides its swing: a spine event at its Attack
+ * clip's OnAttack (the strike the client's 'atk' marks), appended to `attackNext`. 伦蒂尼姆城防自行炮 (elite): Attack's
+ * OnPlayAudio 'emit' at 0.033 s = its OnAttack at 0.033 s.
+ */
+const ENEMY_ATTACK_ALSO_BANKS = Object.freeze({
+  enemy_1273_stmgun_2: ['battle.ON_SPINE_EVENT_TRIGGER.enemy_1273_stmgun_2.emit'],
 });
 
 /**
@@ -612,27 +638,30 @@ function enemyCastSounds(audio, banks, slots, poolRef) {
 
 /**
  * (fork, enemy sound audit job 3) An enemy's moment sounds onto its sfx entry `u` (docs/ASSETS.md): `fxSounds`
- * (ENEMY_FX_SOUND_BANKS: { url, pool?, also?, loop?, loopPool?, hold?, endLoop? }), `keySounds` (ENEMY_KEY_SOUND_BANKS:
- * effect key → { url, pool? }) and the attack modes' `attacks` / `hits` (+ pools) by mode index
+ * (ENEMY_FX_SOUND_BANKS: { url, pool?, after?, also?: [{ url, pool?, after? }], loop?, loopPool?, endLoop? }; `after` in
+ * game s), `keySounds` (ENEMY_KEY_SOUND_BANKS: effect key → { url, pool? }), its normal attack's extra sounds appended to
+ * `attackNext` (ENEMY_ATTACK_ALSO_BANKS) and the attack modes' `attacks` / `hits` (+ pools) by mode index
  * (ENEMY_MODE_ATTACK_BANKS). A bank missing from the sound index is a note, never a guess.
  */
 function enemyMomentSounds(u, id, audio, banks, poolRef, notes) {
-  const part = (name) => {
+  const part = (s) => {
+    const name = typeof s === 'string' ? s : s?.bank;
     const paths = typeof name === 'string' ? audio.bank(name) : null;
     if (!paths?.length) { if (name) notes.push(`${id}: moment bank missing: ${name}`); return null; }
     const e = { url: soundLeaf(paths, 'sfx', 1) };
     const p = poolRef(paths);
     if (p) e.pool = p;
+    if (s?.after > 0) e.after = s.after;
     return e;
   };
   const fx = {};
   for (const [key, raw] of Object.entries(ENEMY_FX_SOUND_BANKS[id] || {})) {
-    const spec = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : { play: raw };
+    const spec = raw && typeof raw === 'object' && !Array.isArray(raw) && !raw.bank ? raw : { play: raw };
     const [lead, ...also] = [].concat(spec.play || []).map(part).filter(Boolean);
     const e = lead ? { ...lead } : {};
     if (also.length) e.also = also;
     const loop = spec.loop ? part(spec.loop) : null;
-    if (loop) { e.loop = loop.url; if (loop.pool) e.loopPool = loop.pool; if (spec.hold > 0) e.hold = spec.hold; }
+    if (loop) { e.loop = loop.url; if (loop.pool) e.loopPool = loop.pool; }
     if (spec.endLoop) e.endLoop = true;
     if (e.url || e.loop || e.endLoop) fx[key] = e;
   }
@@ -649,6 +678,18 @@ function enemyMomentSounds(u, id, audio, banks, poolRef, notes) {
       const p = poolRef(paths);
       if (p) (u[role === 'attack' ? 'attackPools' : 'hitPools'] ||= {})[mode] = p;
     }
+  }
+}
+
+/** (fork, enemy sound audit job 3) ENEMY_ATTACK_ALSO_BANKS onto `u.attackNext` (played with each normal attack). */
+function enemyAttackAlso(u, id, audio, poolRef, notes) {
+  for (const name of ENEMY_ATTACK_ALSO_BANKS[id] || []) {
+    const paths = audio.bank(name);
+    if (!paths?.length) { notes.push(`${id}: attack bank missing: ${name}`); continue; }
+    const e = { url: soundLeaf(paths, 'sfx', 1) };
+    const p = poolRef(paths);
+    if (p) e.pool = p;
+    (u.attackNext ||= []).push(e);
   }
 }
 
@@ -1353,6 +1394,7 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
       return part;
     });
     if (picked.next?.length) u.attackNext = nextParts(picked.next);
+    enemyAttackAlso(u, id, audio, poolRef, notes);
     if (picked.melee) {
       const { roles: m, mix: mm } = unitSounds(audio, picked.melee, poolRef);
       if (picked.melee.next?.length) m.attackNext = nextParts(picked.melee.next);

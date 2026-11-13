@@ -100,6 +100,7 @@ globalThis.__sandbox = sb;
 const LOOKAHEAD = q.get('lookahead') === 'off' ? 'off' : Number(q.get('lookahead')) > 0 ? Math.min(1, Number(q.get('lookahead'))) : 0;
 function localFeed(speed) {
   sb.view?.setLocalFeed({ on: true, speed });
+  audio.setBattleSpeed?.(Number(speed) > 0 ? Number(speed) : 2);   // timed sounds follow the game speed
   const interp = sb.view?.debug?.interp;
   if (!LOOKAHEAD || !interp) return;
   interp.delay = LOOKAHEAD === 'off' ? 0.034 : Math.max(0.034, LOOKAHEAD / (Number(speed) > 0 ? Number(speed) : 2));

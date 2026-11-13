@@ -642,6 +642,8 @@ function MatchScreen() {
       : sides && sides[myId] ? sides[myId] : members.length > 1 && members.indexOf(myId) === 1 ? 'R' : 'L';
     // local simulation (client-side combat) feeds a frame per animation frame: no network jitter buffer
     view.raw?.setLocalFeed?.({ on: !!field.local, speed: field.speed });
+    // (fork) timed sounds follow the game speed: the field's, else the match default 2× (as setLocalFeed, fields.js)
+    audio.setBattleSpeed?.(Number(field.speed) > 0 ? Number(field.speed) : 2);
     // a lone 联防 helper starts on its own half with the ‹ › pill on that half (全景 stays one press away)
     const helperHalf = field.prep ? null : loneHalf(field);
     setLayer(helperHalf || 'ALL');

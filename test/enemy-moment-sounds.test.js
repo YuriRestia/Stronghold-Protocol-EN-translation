@@ -21,7 +21,13 @@ test('the manifest: moment sounds of the revives, Zaaro\'s held loop, the effect
     assert.equal(file(U[id].fxSounds['ember|husk'].url), 'e_skill_skeletonreborn.mp3', id);
     assert.equal(file(U[id].fxSounds['revive|revived'].url), 'e_atk_reborn_n.mp3', id);
   }
-  assert.equal(file(U.enemy_9012_acloon.fxSounds['yanyouFlame|'].loop), 'e_atk_frlgblcklp.mp3');
+  assert.equal(file(U.enemy_9012_acloon.fxSounds['skill|on'].loop), 'e_atk_frlgblcklp.mp3');
+  // parts timed by their official spine events (Jesselton's C1_Die stone_gather / sword_in / reborn_bomb), and the
+  // Shoulder Cannon Crawler's `emit` with each attack (Attack OnAttack and emit both at 0.033)
+  const j = U.enemy_1516_jakill.fxSounds['telegraph|reborn'];
+  assert.deepEqual([j, ...j.also].map((p) => p.after), [2.367, 2.733, 3.333]);
+  assert.ok(U.enemy_1273_stmgun_2.attackNext.some((p) => file(p.url) === 'e_atk_robotfire.mp3'));
+  for (const u of Object.values(U)) for (const e of Object.values(u.fxSounds || {})) assert.equal(e.hold, undefined, 'no guessed hold');
   assert.equal(file(U.enemy_10138_xdsnow.keySounds.enemy_xdsnow_die_01.url), 'e_imp_ltlswal.mp3');
   assert.deepEqual(Object.keys(U.enemy_1511_mdrock.attacks).sort(), ['4', '5']);
   assert.equal(file(U.enemy_1511_mdrock.attacks[5]), 'e_skill_hugeaxe_cast.mp3');
@@ -49,7 +55,7 @@ function fakeWindow() {
   return { win: { AudioContext: Ctx, document: { hidden: false, addEventListener() {} }, addEventListener(t, fn) { listeners.set(t, fn); }, removeEventListener() {} }, fire: (t) => listeners.get(t)?.() };
 }
 
-test('the client: moments play on their pools, a held loop starts / ends / times out, a cast\'s moment, an effect key, the tier mode', async () => {
+test('the client: moments play on their pools, a held loop starts / ends, timed parts, a cast\'s moment, an effect key, the tier mode', async () => {
   const fw = fakeWindow();
   const origFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
@@ -63,7 +69,9 @@ test('the client: moments play on their pools, a held loop starts / ends / times
         'explode|clearSp': { url: '/s/clear.mp3', pool: 'p', also: [{ url: '/s/clear2.mp3', pool: 'p' }] },
       }, casts: { 0: { pk: 'Cannon', start: [{ url: '/s/caststart.mp3', pool: 'p' }] } }, keySounds: { enemy_w_hit: { url: '/s/keyhit.mp3', pool: 'p' } } },
       enemy_m: { attack: '/s/plain.mp3', attacks: { 4: '/s/tier4.mp3' } },
-      enemy_y: { fxSounds: { 'yanyouFlame|': { loop: '/s/flame.mp3', hold: 0.05 } } },
+      enemy_y: { fxSounds: { 'skill|on': { loop: '/s/flame.mp3' } } },
+      enemy_t: { fxSounds: { 'telegraph|reborn': { url: '/s/a.mp3', pool: 'p', after: 0.2, also: [{ url: '/s/b.mp3', pool: 'p' }] },
+        'sound|shieldHit': { url: '/s/shield.mp3', pool: 'p' } } },
     } } } };
   try {
     const a = new AudioManager({ win: fw.win, getManifest: () => vm, random: () => 0 });
@@ -72,7 +80,8 @@ test('the client: moments play on their pools, a held loop starts / ends / times
     await new Promise((r) => setTimeout(r, 10));
     a.setFieldUnits([{ id: 1, kind: 'enemy', side: 'enemy', defId: 'enemy_w', spine: 'enemy_w' },
       { id: 2, kind: 'enemy', side: 'enemy', defId: 'enemy_m', spine: 'enemy_m' },
-      { id: 3, kind: 'token', side: 'ally', defId: 'enemy_y', spine: 'enemy_y' }]);
+      { id: 3, kind: 'token', side: 'ally', defId: 'enemy_y', spine: 'enemy_y' },
+      { id: 4, kind: 'enemy', side: 'enemy', defId: 'enemy_t', spine: 'enemy_t' }]);
     const requested = [];
     const buffer = a._buffer.bind(a);
     a._buffer = (url) => { requested.push(file(url)); return buffer(url); };
@@ -97,13 +106,23 @@ test('the client: moments play on their pools, a held loop starts / ends / times
     a.handleBattleEvents([['fx', 'mode', 5, 5, { id: 2, n: 3 }]]);
     assert.equal(a.units.get(2).heldAttack, null);
 
-    // an ally built from an enemy record (炎佑): its flame ticks hold the loop; it stops `hold` s after the last one
-    await run([['fx', 'yanyouFlame', 5, 5, { id: 3, target: 1, dur: 1 }]]);
+    // an ally built from an enemy record (炎佑): its skill's loop runs while the skill runs (official ON_ABILITY_ON)
+    await run([['skill', 3, 1]]);
     assert.ok(a.stingLoops.has(3), 'the flame loop runs');
-    await run([['fx', 'yanyouFlame', 5, 5, { id: 3, target: 1, dur: 1 }]]);
-    assert.ok(a.stingLoops.has(3), 'still running: one loop, refreshed');
-    await new Promise((r) => setTimeout(r, 120));
-    assert.ok(!a.stingLoops.has(3), 'it stops after its hold');
+    await run([['skill', 3, 0]]);
+    assert.ok(!a.stingLoops.has(3), 'the skill end stops it');
+
+    // a part's `after`: its spine event's clip time in game seconds, divided by the battle speed
+    a.setBattleSpeed(2);
+    assert.deepEqual(await run([['fx', 'telegraph', 5, 5, { id: 4, kind: 'reborn' }]]), ['b.mp3'], 'the untimed part at once');
+    // 0.2 s of clip at 2× = 100 ms (at 1× it would be 200 ms)
+    await new Promise((r) => setTimeout(r, 140));
+    assert.ok(requested.includes('a.mp3'), 'the timed one 100 ms later');
+    // only the bank's own limits: the same moment twice in a row plays twice (no extra gap)
+    requested.length = 0;
+    a.handleBattleEvents([['fx', 'sound', 5, 5, { id: 4, kind: 'shieldHit' }], ['fx', 'sound', 5, 5, { id: 4, kind: 'shieldHit' }]]);
+    await new Promise((r) => setTimeout(r, 10));
+    assert.deepEqual(requested, ['shield.mp3', 'shield.mp3'], 'every hit, no throttle');
   } finally {
     globalThis.fetch = origFetch;
   }
