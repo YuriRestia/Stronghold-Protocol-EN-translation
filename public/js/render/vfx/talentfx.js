@@ -522,7 +522,9 @@ export class TalentFx {
     const rows = [];
     for (const b of U.binds0 || U.binds) {
       const p = b.plan;
-      for (const e0 of [...(p?.state || []), ...(p?.targets || []), ...(p?.start || []), ...(p?.loop || []), ...(p?.unmapped || [])]) {
+      // (fork) Tools 2: and the buff hit rows (each.hit with a `buff`: 'Gunshatter''s trample hit)
+      const hits = (p?.each?.hit || []).flat().filter((e) => e?.buff);
+      for (const e0 of [...(p?.state || []), ...(p?.targets || []), ...(p?.start || []), ...(p?.loop || []), ...(p?.unmapped || []), ...hits]) {
         // (an unmapped or state row — a condition the client checks — is a plain record: its loop from the prefab)
         const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
         if (e.buff === buff && !rows.some((x) => x.key === e.key)) rows.push(e);

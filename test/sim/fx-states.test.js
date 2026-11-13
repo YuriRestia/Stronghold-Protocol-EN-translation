@@ -138,14 +138,17 @@ describe('talent and skill states the kits signal (audit #7 phase D)', () => {
 describe('the sim and the client name the same buffs', () => {
   const kits = new URL('../../server/sim/content/kits/ops/', import.meta.url);
   // (fork) and the enemies' kits (content/enemies/*.js: OpFor: BlackCloud's grab and ammo glow; the enemy VFX audit's S
-  // rows) and the bosses' (content/bosses.js: 'Armor Cleaver' / 'Armor Crusher' shot down)
+  // rows) and the bosses' (content/bosses.js: 'Armor Cleaver' / 'Armor Crusher' shot down), and the tokens' (content/tokens.js:
+  // Yan's Protection's channel)
   const ekits = new URL('../../server/sim/content/enemies/', import.meta.url);
   const src = [...readdirSync(kits).map((f) => readFileSync(new URL(f, kits), 'utf8')),
     ...readdirSync(ekits).filter((f) => f.endsWith('.js')).map((f) => readFileSync(new URL(f, ekits), 'utf8')),
     readFileSync(new URL('../../server/sim/content/bosses.js', import.meta.url), 'utf8')].join('\n');
-  // every literal buff key a kit hands fxState / fxProbe / a buff's fx, or a const holding one (…_FX = '…')
-  const named = new Set([...src.matchAll(/(?:fxState|fxProbe)\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
+  // every literal buff key a kit hands fxState / fxProbe (or ?.() for a light battle) / a buff's fx, or a const holding one (…_FX = '…')
+  const named = new Set([...src.matchAll(/(?:fxState|fxProbe)(?:\?\.)?\([^,]+,\s*'([^']+)'|fx:\s*'([^']+)'|_FX\s*=\s*'([^']+)'|\b(?:s1|s2|s3):\s*'(tocka_[^']+)'/g)]
     .map((m) => m[1] || m[2] || m[3] || m[4]));
+  // (the tokens: only their …_FX consts — their `fx:` keys are kit fx kinds, not buffs)
+  for (const m of readFileSync(new URL('../../server/sim/content/tokens.js', import.meta.url), 'utf8').matchAll(/_FX\s*=\s*'([^']+)'/g)) named.add(m[1]);
   // … or a const list of them (…_FX = Object.freeze(['…', …]))
   for (const m of src.matchAll(/_FX\s*=\s*Object\.freeze\(\[(.*?)\]\)/g)) for (const k of m[1].matchAll(/'([^']+)'/g)) named.add(k[1]);
   for (const s of Object.values(SKILL_FX_STATES)) for (const e of [].concat(s)) named.add(e.buff);

@@ -54,6 +54,10 @@ const VTSK_MARK_FX = 'enemy_vtsk_skillRange', VTSK_MARK_S = 5.8, VTSK_SHELL_DELA
   VTSK_SHELL_LIFE = 5.85;
 /** Radius of 骸骨拷打者's "周围" death sensing when its talent has no Attack.range_radius [ASSUMED]. */
 const TORTURER_RADIUS = 1;
+// (fork) the Torturer's official mark (its Attack talent's AuraAbility buff) on the operators within its radius, and its
+// heal when one of them is knocked out (render/vfx/skills.js STATE_BUFFS looks 'mark' / 'heal'; display only)
+const SPNAXE_MARK_FX = 'enemy_spnaxe_buffs[mark]';
+const SPNAXE_HEAL_ROW = 0.3;
 
 /** Barrel zone radius of 咸鳞汁推荐者 [ASSUMED]. */
 const BARREL_RADIUS = 1.5;
@@ -413,10 +417,24 @@ export const SPECIAL_KITS = Object.freeze({
       spawnChildren(b, e, key, n, { route: stayRoute(e), countInTotal: false, mods: null });
     },
   }, {
-    spawn(b, e) { watchDeaths(b, e); },
+    spawn(b, e) {
+      watchDeaths(b, e);
+      // (fork) the mark ("周围有敌人或我方单位被击倒时": every unit around it, either side): one snapshot-time probe per unit —
+      // the operators and enemies on the field at its spawn, and each enemy spawned after [ASSUMED: a summon placed later
+      // shows none] — any other Torturer standing within the radius marks it (one probe for all: a later spawn replaces it)
+      const r = T(ab, 'Attack.range_radius') ?? TORTURER_RADIUS;
+      const mark = (u) => {
+        if (!u.alive) return false;
+        for (const t of b.enemies) if (t !== u && t.alive && t.defId === e.defId && hypot(u.x - t.x, u.y - t.y) <= r + 1e-9) return { src: t, look: 'mark' };
+        return false;
+      };
+      for (const u of [...b.allies(), ...b.enemies]) if (u.alive) b.fxProbe?.(u, SPNAXE_MARK_FX, mark);
+      b.on?.('enemySpawn', ({ enemy }) => { b.fxProbe?.(enemy, SPNAXE_MARK_FX, mark); }, { owner: e });
+    },
     otherDeath(c, b, e) {
       const u = c.unit;
       if (!u || u === e || c.reason !== 'killed' || hypot(u.x - e.x, u.y - e.y) > (T(ab, 'Attack.range_radius') ?? TORTURER_RADIUS) + 1e-9) return;
+      b.fxState?.(e, SPNAXE_MARK_FX, true, { look: 'heal', dur: SPNAXE_HEAL_ROW });   // (fork) its official heal (display only)
       b.heal(e, e, e.s.maxHp * (T(ab, 'Attack.hp_ratio') ?? 0), { self: true });
       b.addBuff(e, { key: 'ab:torture', refresh: 'stack', stacks: 1, maxStacks: T(ab, 'Attack.max_stack_cnt') ?? 1, persist: true, mods: { atkPct: T(ab, 'Attack.atk') ?? 0 } });
     },
