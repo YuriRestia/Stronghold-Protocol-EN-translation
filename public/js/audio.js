@@ -1961,12 +1961,17 @@ export class AudioManager {
    * @param {number|string} unitId battle unit id (cooldown key)
    * @param {number} [skillIndex] the unit's equipped skill slot (0-based)
    * @param {boolean} [skillActive] whether that skill runs right now (`attacks` / `hits` need it, see header)
+   * @param {string|null} [outfit]
+   * @param {boolean} [melee] (fork) an enemy's melee attack (the sim's 'atk' kind 'none'): its `melee` set, when it has
+   *   one, stands for its attack / hit / pools / mix / attackNext (tools/assets/audio.mjs pickEnemySfx)
    * @returns {boolean} whether a unit-specific sound exists
    */
-  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null) {
+  unit(defId, kind, unitId, skillIndex, skillActive = false, outfit = null, melee = false) {
     try {
       const pick = () => {
-        const u = unitSfx(this.getManifest()?.audio?.sfx, defId, outfit);
+        const all = unitSfx(this.getManifest()?.audio?.sfx, defId, outfit);
+        const m = melee && (kind === 'attack' || kind === 'hit') ? all?.melee : null;
+        const u = m ? { ...all, attack: m.attack, hit: m.hit, pools: m.pools, mix: m.mix, attackNext: m.attackNext } : all;
         // DESIGN §16: the equipped skill's own ON_SKILL_START sound (`skills[index]`). (fork) A unit with `skills` plays by
         // index only: an index without a sound is a skill the official bank table leaves silent, never `skill` (the
         // primary skill's sound, which rang on 54 operators' other skills)
@@ -2000,8 +2005,10 @@ export class AudioManager {
       const song = kind === 'skill' && typeof own === 'string' && SONG_SKILLS[defId]?.includes(skillIndex);
       this._play(url, { volume: unitGain(UNIT_BASE_GAIN, mix), limited: true, unitKey: `${unitId}:${kind}`, again: () => pick().url, pool, group, song });
       // (fork) the running skill's attack may sound again after its swing (attackAlso: 圣约送葬人's Sanrio S2 shot)
-      // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has
-      const also = kind === 'attack' && typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : null;
+      // — once per swing: an attack on several targets is one 'atk' per target, so it keeps the unit cooldown the swing has.
+      // (fork) An enemy's normal attack: the fire / release banks of the same attack (`attackNext`: 假想敌：铳's shot
+      // after its charge), with the swing [ASSUMED: at once — the sim's 'atk' is already the release]
+      const also = kind !== 'attack' ? null : typeof mode === 'string' ? u?.attackAlso?.[skillIndex] : u?.attackNext;
       const alsoKey = `${unitId}:attackAlso`, at = typeof performance !== 'undefined' ? performance.now() : Date.now();
       if (Array.isArray(also) && !this.limiter.cooling(at, alsoKey)) {
         this.limiter.lastByUnit.set(alsoKey, at);
@@ -2365,13 +2372,15 @@ export class AudioManager {
           const held = Number.isInteger(src.heldAttack) && !src.skillActive;
           const sIdx = held ? src.heldAttack : src.skillIndex ?? null;
           const sOn = held || !!src.skillActive;
-          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn });
-          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
+          // (fork) an enemy's melee strike (server/sim/ai.js: kind 'none' — blocked, or no range) plays its melee set
+          const melee = src.side === 'enemy' && e[3] === 'none';
+          if (tgt && tgt.side !== src.side) this.lastAttacker.set(e[2], { def: src.def, outfit: src.outfit ?? null, at: now, skillIndex: sIdx, skillActive: sOn, melee });
+          if (!this.unit(src.def, 'attack', e[1], sIdx ?? undefined, sOn, src.outfit, melee) && src.side === 'enemy') this.battle('enemyHit', { unitKey: `${e[1]}:atk` });
         } else if (kind === 'dmg') {
           const by = this.lastAttacker.get(e[1]);
           if (!by || !IMPACT_TYPES.has(e[3])) continue;
           this.lastAttacker.delete(e[1]); // one impact per attack
-          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit);
+          if (now - by.at <= IMPACT_WINDOW_MS) this.unit(by.def, 'hit', `h${e[1]}`, by.skillIndex ?? undefined, by.skillActive, by.outfit, !!by.melee);
         } else if (kind === 'heal') {
           this.battle('heal', { unitKey: `heal:${e[1]}`, volume: 0.8 }); // (fork) the bank's own volume 0.8, on the mixer
         } else if (kind === 'skill' && e[2]) {

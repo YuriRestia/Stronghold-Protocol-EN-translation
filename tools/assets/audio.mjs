@@ -613,6 +613,94 @@ export function pickUnitSfx(banks, opts = {}) {
 }
 
 /**
+ * (fork) An enemy's normal-attack sounds (the 2026-11-13 enemy sound audit, crew-docs/enemy-sound-audit.md). Officially an
+ * enemy attack sounds in up to three banks of one ability: its wind-up (ON_ABILITY_START), its fire / strike
+ * (ON_ABILITY_ON) and its impact (ON_ABILITY_HIT) — and a ranged one's impact is its shot's (ON_PROJECTILE_HIT / _REACH /
+ * _STOP of projectile_enemy_<name>), its ON_ABILITY_HIT then sounding at the release (自由's e_atk_magic_ice). pickUnitSfx
+ * kept one swing and took the impact from any ability, never the shot: 45 ranged enemies had no impact, 16 lost their
+ * fire, and three played another ability's clip (重弩手伏击者's sword impact on every bolt).
+ * An enemy with a ranged (`attack`) and a melee (`combat`) ability gets both: the top-level set is the ranged one, `melee`
+ * the other (public/js/audio.js plays it for an 'atk' the sim marks melee). One with a single family uses it for both.
+ * A named ability (CrossAttack, StunCombat …) stands for the attack only when the enemy has no plain one; the rest of its named
+ * abilities are skills.
+ * @param {Map<string, string[]>|undefined} banks the enemy's unitBanks entry (event.ability → paths)
+ * @param {(name: string) => string[]} bank audio.bank (the shot banks are not unit banks)
+ * @param {string} short the enemy's name part (enemy_9017_achunt_2 → 'achunt')
+ * @returns {{ attack?: string[], hit?: string[], next?: string[][], melee?: { attack?: string[], hit?: string[], next?: string[][] },
+ *   die?: string[], born?: string[] }}
+ */
+export function pickEnemySfx(banks, bank, short) {
+  const out = {};
+  banks = banks || new Map();
+  const abilities = new Set();
+  for (const k of banks.keys()) {
+    const m = /^ON_ABILITY_(START|ON|HIT)\.(.+)$/.exec(k);
+    if (m) abilities.add(m[2]);
+  }
+  const family = (re) => [...abilities].filter((a) => re.test(a)).sort(abilityOrder);
+  const ranged = family(/^attack(\.\d+)*$/);
+  const melee = family(/^combat(\.\d+)*$/);
+  const got =(ev, a) => (banks.get(`ON_ABILITY_${ev}.${a}`)?.length ? banks.get(`ON_ABILITY_${ev}.${a}`) : null);
+  // the shot: projectile_enemy_<name>, else projectile_<name>, else the lowest numbered projectile_enemy_<name>_<n>
+  const shot = (ev) => {
+    for (const p of [`projectile_enemy_${short}`, `projectile_${short}`]) {
+      const b = bank(`battle.ON_PROJECTILE_${ev}.${p}`);
+      if (b.length) return b;
+    }
+    for (let n = 1; n <= 3; n++) {
+      const b = bank(`battle.ON_PROJECTILE_${ev}.projectile_enemy_${short}_${n}`);
+      if (b.length) return b;
+    }
+    return null;
+  };
+  const shotHit = shot('HIT') ?? shot('REACH') ?? shot('STOP');
+  const shotBorn = shot('BORN');
+  // a named attack (重弩手伏击者's CrossAttack) is the ranged one when the enemy has a shot and no plain `attack`; with
+  // no plain ability at all, any named attack / combat stands for it (as pickUnitSfx's attackLike)
+  // — never one whose swing is a skill file (腐败骑士's ChargeAttack, e_skill_charge, is its charge skill)
+  const skillFile = (a) => [got('START', a), got('ON', a)].some((p) => p && /\/e_skill_/.test(p[0]));
+  const named = ranged.length ? []
+    : melee.length ? (shotHit || shotBorn ? family(/^[a-z]+attack(\.\d+)*$/i).filter((a) => !skillFile(a)) : [])
+      : family(/^[a-z]*(attack|combat)(\.\d+)*$/i);
+  const set =(list, isRanged) => {
+    // the first ability of the family with a swing; its impact, else the family's first impact
+    const a = list.find((x) => got('START', x) || got('ON', x)) ?? list[0];
+    if (!a) return null;
+    const s = {};
+    const start = got('START', a), on = got('ON', a);
+    const abilityHit = got('HIT', a) ?? list.map((x) => got('HIT', x)).find(Boolean) ?? null;
+    s.attack = start ?? on ?? (isRanged ? shotBorn : null) ?? undefined;
+    const next = [];
+    if (start && on && on.join() !== start.join()) next.push(on);
+    if (isRanged && shotBorn && s.attack !== shotBorn) next.push(shotBorn);
+    if (isRanged && shotHit) {
+      s.hit = shotHit;
+      if (abilityHit && s.attack && abilityHit.join() !== s.attack.join() && !next.some((p) => p.join() === abilityHit.join())) next.push(abilityHit);
+      else if (abilityHit && !s.attack) s.attack = abilityHit;
+    } else if (abilityHit) s.hit = abilityHit;
+    if (next.length) s.next = next;
+    for (const k of Object.keys(s)) if (s[k] === undefined) delete s[k];
+    return Object.keys(s).length ? s : null;
+  };
+  const top = set(ranged.length ? ranged : named.length ? named : melee, ranged.length > 0 || named.length > 0 || !melee.length);
+  const close = ranged.length || named.length ? set(melee, false) : null;
+  // a set without a swing or an impact of its own borrows the other's, as before this picker (弩手's ranged `attack` has no
+  // impact bank: its bolts kept the `combat` impact they always had)
+  if (top && close) {
+    for (const r of ['attack', 'hit']) {
+      if (!top[r] && close[r]) top[r] = close[r];
+      if (!close[r] && top[r]) close[r] = top[r];
+    }
+  }
+  if (top) Object.assign(out, top);
+  else if (shotHit) out.hit = shotHit; // a shot with no ability bank (W's grenade: heard only where it lands)
+  if (close && JSON.stringify(close) !== JSON.stringify(top)) out.melee = close;
+  if (banks.get('ON_UNIT_DEAD')?.length) out.die = banks.get('ON_UNIT_DEAD');
+  if (banks.get('ON_UNIT_BORN')?.length) out.born = banks.get('ON_UNIT_BORN');
+  return out;
+}
+
+/**
  * UI / battle-flow SFX map: name → { bank } or { path } (path under sound_beta_2).
  * Bank names are the official act1autochess banks (shared by act2autochess).
  */

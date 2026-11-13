@@ -559,6 +559,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 pools?: { [attack|hit]: bankId }, attackPools?: {[skillIndex]: bankId}, hitPools?: {[skillIndex]: bankId},
                 groups?: { [skill|die|born]: mixerGroup }, skillGroups?: {[skillIndex]: mixerGroup},  // (fork) mixer groups
                 fxSounds?: {['<fx kind>|<skill tag>']: { url, pool?: bankId }},  // fork: a kit fx's official sound (塔露拉 S3's 簇火, overload)
+                // (fork) enemies (tools/assets/audio.mjs pickEnemySfx): `hit` of a ranged enemy is its shot's impact bank;
+                // `attackNext` the fire after the wind-up (played with `attack`); `melee` the melee ability's own set, played
+                // for an 'atk' the sim marks melee (kind 'none')
+                attackNext?: [{ url, pool?: bankId }], melee?: { attack?, hit?, pools?, mix?, attackNext? },
                 // (fork) a skill's own sounds at its start / end (public/js/audio.js _skillEdge); `hold`: cut when the skill ends,
                 // `loop`: its bank loops until then, `more`: the edge's other banks
                 skillOn?: {[skillIndex]: { url, pool?: bankId, hold?: true, loop?: true, more?: [{ url, pool? }] }}, skillOff?: {[skillIndex]: …},

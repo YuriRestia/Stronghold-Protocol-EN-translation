@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickEnemySfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
@@ -1117,12 +1117,30 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     }
     enemies[id] = e;
     let banks = audio.unitBanks.get(id);
+    let bankOwner = id;
     for (const other of [handbookOf.get(id), e.spineAliasOf, baseIdOf(id)]) {
       if (banks?.size) break;
-      if (other) banks = audio.unitBanks.get(other);
+      if (other) { banks = audio.unitBanks.get(other); bankOwner = other; }
     }
-    const { roles: u, mix } = unitSounds(audio, pickUnitSfx(banks), poolRef);
+    // (fork) the enemy picker (audio.mjs pickEnemySfx): its shot's impact, the fire after the wind-up (`attackNext`) and
+    // a melee set beside the ranged one (`melee`, public/js/audio.js unit())
+    const short = bankOwner.replace(/^enemy_\d+_/, '').replace(/_\d+$/, '');
+    const picked = pickEnemySfx(banks, audio.bank, short);
+    const { roles: u, mix } = unitSounds(audio, picked, poolRef);
     if (mix) u.mix = mix;
+    const nextParts = (list) => (list || []).map((paths) => {
+      const part = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) part.pool = p;
+      return part;
+    });
+    if (picked.next?.length) u.attackNext = nextParts(picked.next);
+    if (picked.melee) {
+      const { roles: m, mix: mm } = unitSounds(audio, picked.melee, poolRef);
+      if (picked.melee.next?.length) m.attackNext = nextParts(picked.melee.next);
+      if (mm) m.mix = mm;
+      if (Object.keys(m).length) u.melee = m;
+    }
     if (Object.keys(u).length) unitsSfx[id] = u;
   }
 
