@@ -2246,7 +2246,8 @@ export const OWNER_NEAR = 1;
  *              `flyDur`: the flight's own time (a timer shot whose hit lands at once); `rehit`: one flight per enemy and
  *              target while its projectile lives (a lasso), each later fx playing its onHit on the target; `hits`: the
  *              skill's own hit rows (prefab keys) played on the target as the shot lands; `flyDur: 'fx'`: the fx's
- *              own `dur` (a fuse); `quiet`: nothing drawn — the official prefab named (installed) already plays for
+ *              own `dur` (a fuse); `flyDur: 'speed'`: the distance at the projectile's own movement speed (its sound,
+ *              audio.js fxHits `speed`, rings at the same moment); `quiet`: nothing drawn — the official prefab named (installed) already plays for
  *              this moment from an earlier fx's flight (W's C4 blast is the reached effect of the C4 flown at the fuse)
  * A kind may hold a list of bindings (one per `xkind`).
  */
@@ -2359,7 +2360,7 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 'apoptosis' — ChargeAttack's projectile_enemy_dwlock_charge, a timer whose reached effect enemy_dwlock_skill_hit_02
   // lands on the target [ASSUMED: at the burst, not flown through the channel]
   enemy_1275_dwlock_2: Object.freeze({
-    beam: ebind({ xkind: 'deathEye', owner: 'from', fly: 'projectile_enemy_dwlock_line', hits: ['enemy_dwlock_skill_hit_01'] }),
+    beam: ebind({ xkind: 'deathEye', owner: 'from', fly: 'projectile_enemy_dwlock_line', flyDur: 'speed', hits: ['enemy_dwlock_skill_hit_01'] }),
     explode: ebind({ xkind: 'apoptosis', owner: 'from', fly: 'projectile_enemy_dwlock_charge', flyDur: 0.05 }),
   }),
   // “萨米的意志” (bosses.js kitDeer, 自然涌动): a 'beam' of kind 'naturalSurge' per target — projectile_enemy_smdeer_s, a
@@ -2384,7 +2385,7 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // projectile_enemy_dekght_s (its trail dekght_2_skill_01_trail); the target carries dekght_2[aoe] (STATE_BUFFS) until the
   // blast, whose 'explode' plays the buff's trigger effect dekght_2_skill_01_range there
   enemy_1513_dekght_2: Object.freeze({
-    telegraph: ebind({ xkind: 'blastArrow', owner: 'id', fly: 'projectile_enemy_dekght_s' }),
+    telegraph: ebind({ xkind: 'blastArrow', owner: 'id', fly: 'projectile_enemy_dekght_s', flyDur: 'speed' }),
     explode: ebind({ xkind: 'blastArrow', owner: 'from', keys: ['dekght_2_skill_01_range'], once: true }),
   }),
   // (fork) enemies, silent shots (VFX 2): a kit 'shot' (fx/kinds.js: never drawn procedurally) names a sim projectile

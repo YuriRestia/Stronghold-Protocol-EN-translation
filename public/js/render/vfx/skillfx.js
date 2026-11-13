@@ -1881,7 +1881,8 @@ export class SkillFx {
   /**
    * (fork) An enemy binding's `fly`: its projectile from the enemy to the unit `extra.to` (FxWiring._fly: the flying
    * effect, then the hit), each further one of the same enemy in this frame `stagger` s after the one before (a
-   * MultiRangedAttack's shots; the sim lands their damage in the cast's tick). `flyDur`: the flight's own time; `rehit`:
+   * MultiRangedAttack's shots; the sim lands their damage in the cast's tick). `flyDur`: the flight's own time ('speed':
+   * the distance at the projectile's official movement speed, FxWiring._displayTime); `rehit`:
    * while a flight of this enemy at this target lives (its projectile's life), the fx plays the projectile's onHit on the
    * target instead (a lasso's later hits). False when the projectile draws nothing installed (flyDraws) or the target is
    * gone (the procedural beam stays).
@@ -1900,7 +1901,7 @@ export class SkillFx {
     }
     const q = this.volley?.id === oid && this.volley.frame === this.frame ? this.volley : (this.volley = { id: oid, frame: this.frame, n: 0 });
     const delay = (q.n++) * (Number(bind.stagger) || 0);
-    const fd = bind.flyDur === 'fx' ? Number(extra.dur) : Number(bind.flyDur);
+    const fd = bind.flyDur === 'fx' ? Number(extra.dur) : bind.flyDur === 'speed' ? this.w._displayTime(p, owner, tv) : Number(bind.flyDur);
     const o = { ...(fd > 0 ? { dur: fd } : {}), ...(bind.hits ? { hits: bind.hits.map((k) => ({ k })) } : {}) };
     const go = () => { if (owner.alive !== false && !owner.destroyed) this.w._fly(p, owner, tv, 'arrow', this.w.ofx.time, o); };
     if (delay > 0) later(this.w.ofx, delay, go); else go();

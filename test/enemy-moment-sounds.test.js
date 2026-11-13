@@ -1,5 +1,5 @@
 // test/enemy-moment-sounds.test.js — (fork, enemy sound audit job 3) enemy moment sounds: the generator's tables
-// (tools/assets/plan.mjs ENEMY_FX_SOUND_BANKS / ENEMY_KEY_SOUND_BANKS / ENEMY_MODE_ATTACK_BANKS → sfx.units[id].fxSounds /
+// (tools/assets/plan.mjs ENEMY_MOMENT_SOUND_BANKS / ENEMY_KEY_SOUND_BANKS / ENEMY_MODE_ATTACK_BANKS → sfx.units[id].fxSounds /
 // keySounds / attacks by mode) in the shipped manifest, and the client playing them (public/js/audio.js _fxSound →
 // _enemyMoment, a cast's moment, fxKey, the 'mode' fx): knock-outs and stand-ups, held loops, Mudrock's tiers.
 import { test } from 'node:test';
