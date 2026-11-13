@@ -67,7 +67,7 @@ import { MirrorPolicy, selectDownloadSource, validateSource } from './assets/net
 import { normalizeProxyPrefix } from './assets/sources.mjs';
 import { loadIndexes } from './assets/cache.mjs';
 import { indexAudio, VOICE_DIRS } from './assets/audio.mjs';
-import { buildPlan, charModesFromIndex, VOICE_OPTIONAL_TREES } from './assets/plan.mjs';
+import { buildPlan, charModesFromIndex, enemyCastsFromIndex, VOICE_OPTIONAL_TREES } from './assets/plan.mjs';
 import {
   processModels, findLocalEnemyModels, findLocalTokenModels, localSpineMeta, loadLocalSpines, LOCAL_ENEMY_SPINES_FILE,
   LOCAL_TOKEN_SPINES_FILE, LOCAL_ENEMY_SPINE_DIR, LOCAL_TOKEN_SPINE_DIR,
@@ -427,8 +427,9 @@ async function main() {
   // extract (public/assets is not in git); without it the plan keeps the filename-letter fallback.
   const fxIndexPath = join(ROOT, 'public', 'assets', 'local', 'fx', 'index.json');
   let charModes = null;
+  let fxIndex = null;
   if (existsSync(fxIndexPath)) {
-    const fxIndex = JSON.parse(await readFile(fxIndexPath, 'utf8'));
+    fxIndex = JSON.parse(await readFile(fxIndexPath, 'utf8'));
     charModes = charModesFromIndex(fxIndex);
     log(`[fx] skill modes for ${charModes.size} operators`);
   } else {
@@ -470,6 +471,9 @@ async function main() {
     outfitChars: outfitRoster(dataChess, dataBackups, versionSets),
     statsTemplate,
     charModes,
+    // (fork) enemy skill-cast sounds: the slots of the data's enemy records, with the fx index's ability nodes and impact
+    // effect keys when it is on disk (without it: the prefabKey only, no impact keys)
+    enemyCasts: enemyCastsFromIndex(fxIndex, all.enemies),
   });
   const leaves = collectLeaves(plan.template);
   log(`[plan] ${leaves.length} files + ${plan.models.size} Spine models ` +
