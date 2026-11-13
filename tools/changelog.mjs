@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseNewsBlock, checkNewsItems, createNames } from './news-block.mjs';
+import { branchAssumed, ASSUMED_HELP, MARKER, stripMarkers, unsourced } from './claims.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const CHANGES_DIR = join(ROOT, 'changes');
@@ -38,6 +39,24 @@ export const PRE_RULE_UNMEASURED = Object.freeze([
   // the audit at the rule's start (tools/server-cost-check.mjs over each one's merge); the others are measured since
   'load-tolerant-script-and-studio-check-tests.md', // server/studio/
 ]);
+
+/**
+ * (fork, 2026-11-13) Sourced claims (tools/claims.mjs): every line of a numeric `Server cost:` block that states a
+ * number with a unit, and every section or operator-notes line with a timing number ("0.3 s apart"), carries
+ * `[src: path:line]`, `[src: doc §heading]`, `[src: official <file> <field>]` or `[unverified]`. The markers are
+ * stripped when the sections are folded. The fragments that were already in changes/ when the rule came in are exempt
+ * (they are deleted at the next fold); never add a name here.
+ */
+export const UNSOURCED_BEFORE_RULE = Object.freeze([
+  'enemy-attack-sounds.md', 'enemy-aura-glows.md', 'enemy-dockworker-stun-mark.md', 'enemy-official-condition-vfx.md',
+  'enemy-owner-state-fx.md', 'enemy-ready-glow.md', 'enemy-skill-armor-empire-barrage.md', 'enemy-skill-dublinn-rebirth.md',
+  'enemy-skill-hit-fx.md', 'enemy-skill-moment-fx.md', 'enemy-skill-rat-king-mark.md', 'enemy-skill-sounds.md',
+  'enemy-sounds-shot-names-and-variants.md', 'enemy-target-buff-glows.md', 'enemy-target-marks.md', 'enemy-vfx-beam-shots.md',
+  'enemy-vfx-blackcloud.md', 'enemy-vfx-complex-rows.md', 'enemy-vfx-lobbed-shells.md', 'enemy-vfx-rolling-bomb.md',
+  'enemy-vfx-silent-shots.md', 'enemy-vfx-unnamed-effects.md', 'free-target-mark.md', 'news-translated-per-change.md',
+  'one-for-all-ducklord-per-holder.md', 'opfor-gun-charge-hit.md', 'setup-reroll-limits.md', 'vendela-s2-taunt.md',
+]);
+const SRC_HELP = 'add [src: path:line], [src: doc §heading], [src: official <file> <field>] or [unverified] (tools/claims.mjs)';
 
 /** What a numeric `Server cost:` block must state, each as [label, test]. */
 export const COST_ITEMS = Object.freeze([
@@ -174,7 +193,14 @@ export function parseFragment(name, text, { names } = {}) {
   if (!date) errors.push(`${name}: the first line must be "## YYYY-MM-DD" (a real date)`);
   const rest = lines.slice(i + 1);
   const sectionsText = rest.join('\n').trim();
-  const body = sectionsText;
+  const body = stripMarkers(sectionsText);
+  if (!UNSOURCED_BEFORE_RULE.includes(name)) {
+    const where = [['a section', sectionsText, true], ['Operator notes', notes, true]];
+    if (cost.kind === 'numbers') where.push(['Server cost', cost.text, false]);
+    for (const [label, t, timingOnly] of where) {
+      for (const u of unsourced(t, { timingOnly })) errors.push(`${name}: ${label}: ${u.why} has no source ("${u.text.slice(0, 80)}"); ${SRC_HELP}`);
+    }
+  }
   for (const h of operatorOnly(body)) {
     errors.push(`${name}: operator-only content in a section, ${h.label}: "${h.text}". The changelog is public: move it under "Operator notes:" (changes/README.md)`);
   }
@@ -197,6 +223,7 @@ export function parseFragment(name, text, { names } = {}) {
     errors.push(...nb.errors);
     news = nb.items;
     if (kind && kind !== 'player') errors.push(`${name}: a "News:" block belongs to a "Kind: player" fragment only`);
+    if (MARKER.test(newsBlock)) errors.push(`${name}: source markers belong in the sections, never in News lines (players read them)`);
     if (names && !nb.errors.length) {
       const c = checkNewsItems(name, news, names);
       errors.push(...c.errors);
@@ -283,7 +310,7 @@ function gitState(root) {
  *   (tests); branch: the branch `--write` must be on
  * @returns {number} exit code
  */
-export function main(args, { root = ROOT, log = (x) => console.log(x), out = (x) => process.stdout.write(x), branch = 'dev-0.2' } = {}) {
+export function main(args, { root = ROOT, log = (x) => console.log(x), out = (x) => process.stdout.write(x), branch = 'dev-0.2', assumed = branchAssumed } = {}) {
   const unknown = args.filter((a) => !MODES.has(a));
   const modes = args.filter((a) => MODES.has(a));
   if (unknown.length || modes.length > 1) {
@@ -306,6 +333,11 @@ export function main(args, { root = ROOT, log = (x) => console.log(x), out = (x)
   let current = '';
   try { current = readFileSync(logPath, 'utf8'); } catch { /* no changelog yet */ }
   for (const h of operatorOnly(current)) errors.push(`FORK-CHANGELOG.md:${h.line}: operator-only content, ${h.label}: "${h.text}"`);
+  // (fork, 2026-11-13) the [ASSUMED gate: this branch's new [ASSUMED lines need the user's dated OK (tools/claims.mjs);
+  // skipped where the checkout has no dev-0.2 (a shallow CI clone): cover-tests.mjs and the merge run it locally
+  if (mode === '--check' && assumed) {
+    for (const v of assumed(root).violations) errors.push(`${v.file}:${v.line}: new [ASSUMED line without "user OK <date>": ${v.text.trim().slice(0, 100)}; ${ASSUMED_HELP}`);
+  }
   for (const e of errors) log(`changelog: ${e}`);
   if (errors.length) return 1;
   if (mode === '--check') {
