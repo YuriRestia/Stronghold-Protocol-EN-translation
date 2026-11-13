@@ -2474,8 +2474,9 @@ export async function createFieldView(host, options = {}) {
       };
     },
     get mode() { return mode; },
-    /** (fork) Battle seconds per real second now (the playback rate; 1 outside a battle): audio.js setBattleView. */
-    timeScale() { return ctx.timeScale(); },
+    /** (fork) Battle seconds per real second now (the playback rate; 1 outside a battle; 0 while held by setFrozen, the
+     *  dev sandbox's pause): audio.js setBattleView. */
+    timeScale() { return frozen ? 0 : ctx.timeScale(); },
     /** Dev hooks (demo / tests). */
     debug: {
       app, get cam() { return cam; }, get board3d() { return board3d; }, tiles, views, penViews, get leader() { return leader; }, interp, fx, ofx, wiring, ctx, drag, get camKind() { return viewKind(camKind, camOpts); },
