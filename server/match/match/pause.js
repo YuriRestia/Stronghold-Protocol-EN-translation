@@ -39,6 +39,7 @@ export class MatchPause {
       if (f.doneTimer) { this.cancel(f.doneTimer); f.doneTimer = null; f.rearmRelease = true; }
     }
     if (this._bossClock) { this.cancel(this._bossClock); this._bossClock = null; }
+    this._holdUniteWatchdog(); // (fork) match/unitePhase.js
     this.markPublic();
     return OK;
   }
@@ -66,6 +67,7 @@ export class MatchPause {
     if (this._bossClockOn && !this._bossClock && (this.phase === PHASE.FINAL_ASSAULT || this.phase === PHASE.HIDDEN_CORE)) {
       this._bossClock = this.later(BOSS_CLOCK_MS, () => this._bossClockTick());
     }
+    this._releaseUniteWatchdog(); // (fork) match/unitePhase.js
     this.markPublic();
   }
 
