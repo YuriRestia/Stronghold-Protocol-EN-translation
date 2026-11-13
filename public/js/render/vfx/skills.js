@@ -531,7 +531,8 @@ export const STATE_BUFFS = Object.freeze({
   // (talentfx.js targetRows), signalled by the kits
   'peak_performance[inf]': true, 'pallas_s_3[peak]': true, 'texas2_s_1[dot]': true,
   // Eunectes S2's blockee stun (op-zumama.js; her ability's _buffsToBlockee): only her row — every other skill's `stun` stays a target row
-  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02']) }), 'halo2_s_3_link': true,
+  // …and the Dockworker's ready-hit stun (nthAttackStatus; enemy_1160_hvyslr / _2 Dockworker / Dockworker Leader)
+  stun: Object.freeze({ keys: Object.freeze(['zumama_skill_02_buff_02', 'enemy_hvyslr_2_buff']) }), 'halo2_s_3_link': true,
   'heyak_s_3[hit_levitate]': true, 'inside_t_1[active]': true, 'shu_s_3[enemy][enter]': true, 'necras_t_1[upgrade]': true,
   // Necrass S3's special skeleton (op-necras.js): [ASSUMED] the _01 pair below 3 upgrades, the _02 pair from the third
   'necras_upgrade_dragon': { looks: L({ stage1: ['token_necras_skeltn2_buff_01', 'token_necras_skeltn2_buff_01_02'],
@@ -540,19 +541,108 @@ export const STATE_BUFFS = Object.freeze({
   'papyrs_s_1[fx_ctrl]': true, 'lessng_a[s1_eff]': true, 'nasti_s2[update_shield]': true,
   'haini_s_2[modify_talent]': true, 'zebra_s_2[aura]': true, 'swire2_tr': true, 'swire2_t_2': true,
   'humus_trait': true, 'humus_t_1[effect]': true, 'aroma_s_2': true, 'tocka_t1[sp_and_heal]': true,
+  // ── (fork) enemy VFX audit, S rows (Design 2): enemy talents' buffs on the units they reach, signalled by the sim's aura
+  // buffs (content/enemies: auraBuff `fx`; src the enemy whose talent it is, null the carrier's own). By enemy id:
+  // enemy_1017_defdrn Defender-4's DEF aura on the other enemies (defdrn_buff_01_self)
+  'defdrn_t_defup': true,
+  // enemy_1042_frostd Frost's ASPD-down aura on the operators (firstar_skill_01_buff)
+  'frostd_t_attack_speed_down': true,
+  // enemy_1169_duphlx / _2 Dublinn Phalanx: a phalanx another one reaches (enemy_duphx_2_buff)
+  'duphlx_t_aura': true,
+  // enemy_1425_lrcmra / _2 the Chimeras' pollution aura on the operators, once activated (mapeff_v050_toxci_debuff_01)
+  'enemy_lrcmra[originum][dmg]': true,
+  // enemy_1050_lslime 'Pompeii''s burn on its targets while the DoT lasts (buff_burn)
+  'lslime_t_dot': true,
+  // enemy_2008_flking 'Gravestone''s shield glow while its barrier holds (enemy_mdrock_skill_buff_01)
+  'flking_shiled': true,
+  // enemy_2050_smsha Fallen Snowpriest's buff on each enemy its chain reaches (enemy_smsha_buff)
+  'enemy_smsha_buffs': true,
+  // enemy_10044_wintun Garum Gourmet's barrel zone on the enemies in it (enemy_wintun_range_buff)
+  'wintun_t[attack_speed]': true,
+  // enemy_9014_acstma / enemy_9015_acstmb 'Armor Cleaver' / 'Armor Crusher' shot down: the dizzy loop for its special stun
+  // (enemy_acstma_dizzy_loop; content/bosses.js 'boss:downed')
+  'acstma_s_1': true,
+  'acstmb_s_1': true,
+  // enemy_1320_wdrrl_2 Sarkaz Absurdist Tyrant Captain's splashing first attack: its AOEDamage hits on the target it splashes
+  // around (enemy_wdrrl_skill_hit_01, enemy_wdrrl_skill_hit_rangre_01; one-shot)
+  'enemy_wdrrl[AOE_attack]': true,
+  // enemy_9007_acelem OpFor: Quagmire's parasite on the operator it latches onto (enemy_acelem_buff; its talent's buff)
+  'enemy_acelem[to_parasitic]': true,
+  // enemy_1525_blkswb Degenbrecher's second-form SP clear: its mark on each operator it disarms (enemy_blkswb_skill_03_start_02)
+  'enemy_blkswb_s[effect]': true,
   // librator traits by the ramp's stage (professions.js installLibrator, LIBRATOR_FX): Leizi the Thunderbringer's
   // leizi2_tr_effect[b] / [c] from mid / max stacks; Młynar's three [ASSUMED: one per stage]
   'leizi2_tr': { looks: L({ low: [], mid: ['leizi2_modao_buff_01'], max: ['leizi2_modao_buff_02'] }) },
   'mlynar_tr': { looks: L({ low: ['mlynar_attack_01_buff_l_01'], mid: ['mlynar_attack_01_buff_l_02'], max: ['mlynar_attack_01_buff_l_03'] }) },
   // Carnelian S3's mark on an enemy (chess_char_4_24-billro.js): [part] below the stack cap, [full] at it
   'billro_s_3[mark_effect]': { looks: L({ part: ['billro_skill_03_buff_03_01'], full: ['billro_skill_03_buff_03_02'] }) },
+  // (fork) enemies, S-M rows (VFX 3): the official glow a talent's buff keeps on the enemy while its condition holds, or
+  // an event starts (content/enemies/*.js fxWhile / fxProbe / fxState; display only). By enemy id:
+  // Sarkaz Lancer (enemy_1072_dlancer) — its charge glow while unblocked
+  'dlancer_t_listener[c]': true,
+  // Diver (enemy_1158_divman) / Caster Speedboat (enemy_1162_magmot) — on a deep-water tile
+  'divman_swim': true,
+  'magmot_effect': true,
+  // Dublinn Companion Guard (enemy_1174_duholy) / Elite Companion Shadowblade (enemy_1175_dushdo_2) — while a Guard and a
+  // Shadowblade stand paired (their traitAbility's child node: TalentFx.targetRows reads it from the index)
+  'duholy_traitAbility[TauntLevelUp]': true,
+  'dushdo_traitAbility[BaseAttackTimeDown]': true,
+  'dushdo_traitAbility[effect]': true,
+  // Sarkaz Wither Tank (enemy_1272_nhtank) — with full SP (its next shot is the polluted one)
+  'nhtank_skill_effect[buff]': true,
+  // Arc Frontliner (enemy_1328_cbjedi) — while unbalanced
+  'enemy_cbjedi_bleed': true,
+  // Sarkaz Wither Vanguard (enemy_1422_lrsldr) — on an originium (infection) tile
+  'enemy_lrsldr[switchMode][toOrig]': true,
+  // Nucleic Maleficent (enemy_1439_dslntf) — from its first damage taken
+  'dslntf_tr_1': true,
+  // 'Forsaken One' (enemy_2005_axetro) — from 3 attack stacks until they reset
+  'axetro_t': true,
+  // Scarlet Singer (enemy_2010_csdcr) — `warn` from its warning hit count, `song` the burst as it sings, `aspd` on every
+  // enemy while the ASPD it gives lasts (src the Singer)
+  'csdcr_t': { looks: L({ warn: ['enemy_csder_buff_02'], song: ['enemy_csder_buff_01_range_01'], aspd: ['enemy_csder_buff_01'] }) },
+  // OpFor: Bonespur (enemy_9008_acbunn) — while stealthed; its switch burst as that turns
+  'acbunn_invisible': true,
+  'enemy_acbunn[cute]': true,
+  'enemy_acbunn[horror]': true,
+  // 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' (enemy_9023_acdums) — its switch burst at each form switch
+  'acdums_t_1': true,
+  // Lucky Flyfin (enemy_10045_parrot) — while it sprints after the first hit
+  'parrot_m0_t[speed_up]': true,
+  // Cabbage Seedling (enemy_10065_ftzlc) — while ignited (its OnFire mode's boom talent)
+  'enemy_ftzlc[boom]': true,
+  // Decode Basis α (enemy_10081_mpplai) — its burst at its one change
+  'enemy_mpplai_passive_p0': true,
+  // Shrine Swordsman (enemy_10087_hlchgr) — from its first enhancement on
+  'hlchgr_t[attribute_storage]': true,
+  // Snowchild (enemy_10138_xdsnow) — its burst at a high-ground hit while unbalanced (5 s cooldown)
+  'enemy_xdsnow_t[wall]': true,
   // Lee's guard (op-lmlee.js, lmlee_tr → lmlee_t_2[bounce]): its loop while held, the hit as it cancels a stun
   'lmlee_tr': { looks: L({ guard: ['lmlee_buff_02_start'], hit: ['lmlee_buff_02_hit'] }) },
+  // ── (fork) enemy VFX audit, complex S rows (Tools 2): enemy skills', talents' and abilities' buffs on the units they
+  // reach, signalled by the kits (a buff's `fx`, fxState, fxProbe; src the enemy). By enemy id:
+  // enemy_1535_wlfmster Zaaro, Signore dei Lupi: the fear cage on the units it catches (enemy_wlfmster_a_skill_end_buff,
+  // its end hit enemy_wlfmster_a_skill_end_buff_hit), its own HP record while they wait (enemy_wlfmster_a_skill_end_start_03),
+  // and the FearAura on the units around it (enemy_wlfmster_b_buff_02_02)
+  'enemy_wlfmster_fearcage': true, 'enemy_wlfmster_damage_record': true, 'enemy_wlfmster_fear': true,
+  // enemy_9018_actrpa / enemy_9020_actrpc 'Gunshatter' chasing its gun: the trample hit on each operator it runs into
+  // (enemy_actrpa_skill_a_hit; their MoveToHunter-mode aura)
+  'actrpa_s_1[damage]': true, 'actrpc_s_1[damage]': true,
+  // enemy_1364_spnaxe_2 Sarkaz Boneguard Torturer: its mark on the operators within its radius (enemy_spnaxe_2_buff_1),
+  // its heal when one of them is knocked out (enemy_spnaxe_heal)
+  'enemy_spnaxe_buffs[mark]': { looks: L({ mark: ['enemy_spnaxe_2_buff_1'], heal: ['enemy_spnaxe_heal'] }) },
+  // enemy_9012_acloon Yan's Protection (the bond's ally): its channel's range on the locked enemy (enemy_acloon_skill_hit_range)
+  'acloon_s_2': true,
+
+
   // Horn S2 / S3 (chess_char_5_08-horn.js): the overload switch keeps _front / _back by facing while the mark lasts
   'horn_s_2[overload_mark]': true,
   'horn_s_3[overload_start_effect_2]': true,
   // Leizi the Thunderbringer S1 (content/fxStates.js): a ring per stored charge
   'leizi2_s_1[effect_controller]': { looks: L({ 1: ['leizi2_skill_01_buff_01'], 2: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02'], 3: ['leizi2_skill_01_buff_01', 'leizi2_skill_01_buff_02', 'leizi2_skill_01_buff_03'] }) },
+  // (fork) enemies, row 90 (Gameplay 2): OpFor: Gun (enemy_9017_achunt) — enemy_achunt_skill_1_hit once on each unit its
+  // charge hits (talent 3's achunt_s_1[damage], ON_BUFF_START on the targets; bosses.js kitGun)
+  'achunt_s_1[damage]': true,
   // Ascalon S2 (op-ascln.js): 死亡拘审's glow on the enemies, ascln_buff_02 added at max_stack_cnt (the kill burst
   // ascln_skill_02_death_01 sits on the enemy that died: no row carries it)
   'ascln_s_2[enemy]': { looks: L({ on: ['ascln_buff_01'], max: ['ascln_buff_01', 'ascln_buff_02'] }) },
@@ -641,6 +731,28 @@ export const STATE_BUFFS = Object.freeze({
   'jesca2_s_3_token[def]': true,
   'mgllan_s_2': true,
   'mgllan_s_3': true,
+  // (fork) enemies (content/enemies): OpFor: BlackCloud's grab — enemy_acfort_trapped on each grabbed flyer while
+  // enemy_acfort[kill_other] lasts (its KillOthers skill's `on: 'targets'` row; src BlackCloud) — and its passive
+  // enemy_acfort_vfx — enemy_acfort_skill_01_end on itself while it holds ammo (an ability's row: TalentFx.targetRows)
+  'enemy_acfort[kill_other]': true,
+  'enemy_acfort_vfx': true,
+  // (fork) enemies, lobbed shells (VFX 2): 凋零骑士's 爆炸箭 mark on each target until the blast (TripleAttack's
+  // `on: 'targets'` row, dekght_2_skill_01_buff; leaders.js fxState, src the knight) and the rage a partner's death leaves
+  // on a knight (TriggerRage's row, dekght_buff_04_start; the kit's `ab:rage` buff's fx)
+  'dekght_2[aoe]': true,
+  'dekght[trigger_rage]': true,
+  // (fork, enemy skills 2026-11-13: Rat King) enemy_1509_mousek: the Mark skill's markers on the highest- / lowest-max-HP
+  // units (mousek_skill_01_buff / _02_buff; content/enemies/leaders.js mousekMark)
+  'mousek_mark[b]': true,
+  'mousek_mark[a]': true,
+  // (fork, enemy skills 2026-11-13) enemy_10027_vtsk 'Armor of the Empire': its Appear barrage's mark on the target
+  // (enemy_vtsk_skillRange, 5.8 s; special.js VTSK_MARK_FX): the marker only — the range is a tile effect, the 'telegraph'
+  'enemy_vtsk_skillRange': Object.freeze({ keys: Object.freeze(['enemy_vtsk_skill_01_marker_01']) }),
+  // (fork) “自在” (enemy_1517_xi; leaders.js kitXi): 【纬地经天】's target mark — CrossAttackMark / CrossAttackMarkReborn
+  // (GloballUniqueBuffAbility) keep enemy_xi_mark[a] (form 1: the nearest unit; form 2: the farthest) and enemy_xi_mark[b]
+  // (form 2: the nearest) on the unit it will hit, enemy_xi_skill_01_buff_02 looping there (src the enemy)
+  'enemy_xi_mark[a]': true,
+  'enemy_xi_mark[b]': true,
 });
 
 /**
@@ -1162,7 +1274,10 @@ function place(plan, e, u, { attackOf, eachHit }) {
   const ev = u.event;
   // (fork) a mark on the units the skill names, which the sim signals (b.snap `fxs` on the carrier, STATE_BUFFS): held
   // while the row lasts, an `end` once when it goes; a line (CreateLineEffect) or a tick stays unmapped
-  if (onTargets && stateRow(u.buff, e.key) && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end')) {
+  // (fork) an enemy talent's hit on its targets with no attack to carry it (life IMMEDIATELY: OpFor: Gun's charge,
+  // achunt_s_1[damage]) is such a row too, played once as it comes; operators' hit rows keep their attacks' path
+  const enemyHit = role === 'hit' && u.life?.type === 'IMMEDIATELY' && /^enemy_/.test(plan.unitKey || '');
+  if (onTargets && stateRow(u.buff, e.key) && u.action !== 'CreateLineEffect' && (role === 'loop' || role === 'start' || role === 'end' || enemyHit)) {
     e.at = 'carrier';
     e.hold = 'state';
     if (!plan.state.some((x) => x.key === e.key && x.buff === e.buff && x.role === e.role)) plan.state.push(e);
@@ -2124,6 +2239,16 @@ export const OWNER_NEAR = 1;
  *   modeLoops  or: the fx starts a mode of the unit whose talent (this prefab key) loops on it meanwhile — its loop uses
  *              (a buff it creates at its tick: a condition talents.js cannot read, here the mode's own) — for its record's
  *              blackboard value `bbKey` (talents.bb), else `holdS` s; `endMode`: the fx ends it early
+ *   (fork) owner 'from' — `extra.from` names the enemy (a kit 'beam'); `fly`: the projectile flown from its muzzle to
+ *              the unit `extra.to` (its flying effect, then its hit), `stagger` s after the previous one of the same
+ *              enemy in that frame (the client's MultiRangedAttack triggerDelta); `cover`: nothing drawn — the kit fx
+ *              stands for what the enemy's open window of skill `skill` already shows, while that window draws
+ *              `flyDur`: the flight's own time (a timer shot whose hit lands at once); `rehit`: one flight per enemy and
+ *              target while its projectile lives (a lasso), each later fx playing its onHit on the target; `hits`: the
+ *              skill's own hit rows (prefab keys) played on the target as the shot lands; `flyDur: 'fx'`: the fx's
+ *              own `dur` (a fuse); `quiet`: nothing drawn — the official prefab named (installed) already plays for
+ *              this moment from an earlier fx's flight (W's C4 blast is the reached effect of the C4 flown at the fuse)
+ * A kind may hold a list of bindings (one per `xkind`).
  */
 const ebind = (o) => Object.freeze({ ...o, ...(o.keys ? { keys: Object.freeze(o.keys) } : {}) });
 const POLLUTED_DIE = Object.freeze({
@@ -2152,10 +2277,26 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // projectile_life_time, in the tick of its 'cast')
   enemy_1272_nhtank: POLLUTED_ATK,
   enemy_1272_nhtank_2: POLLUTED_ATK,
+  // (fork) enemies, XS-S check rows (Tools 2): Infused Originium Slug (enemy_1021_bslime), Infused Glacial Originium
+  // Slug (enemy_1067_snslime) — their death blast. The client's Boom talent (BslimeTalent_1) fires projectile_bslime /
+  // projectile_snslime where the slug falls, whose EffectBehaviour plays bslime_die_01_start / snslime_die_01_start on
+  // its target as it starts (_effectsToTargetWhenStart, never cleared on stop). The sim's deathBoom sends an 'explode'
+  // of kind 'deathBoom' at the slug in its death hook. The glacial one runs its own 9 s; the plain one has a looping
+  // smoke part [ASSUMED: 2 s, its blast's other parts' length].
+  enemy_1021_bslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_bslime', part: 'toTargetOnStart', holdS: 2 }) }),
+  enemy_1067_snslime: Object.freeze({ explode: ebind({ xkind: 'deathBoom', owner: 'died', projectile: 'projectile_snslime', part: 'toTargetOnStart', once: true }) }),
+  // Armor Piercer (enemy_9016_acstmr, OpFor: Armor's shell): its Boom mode's `killed` talent (BslimeTalent_1) fires
+  // projectile_enemy_acstmr_s1 (AttachToTarget, a 3×3 ConstBoxRange, 9.95 s), whose reached effect
+  // enemy_acstmr_explode_range loops on the 3×3 until it stops (_clearReachedEffectWhenStop). The sim's stunBlast sends
+  // an 'explode' of kind 'helmShell' on the tile the shell reached, before it removes the shell.
+  enemy_9016_acstmr: Object.freeze({ explode: ebind({ xkind: 'helmShell', owner: 'near', projectile: 'projectile_enemy_acstmr_s1', holdS: 9.95 }) }),
+
+
   // 假想敌：蚀裂 (dot.js: the 'zone' of kind 'poison' where its lob lands — on its killer — or where it fell, r =
   // 1.projectile_range, dur = 1.projectile_life_time): its talent 1 (BslimeTalent_1) fires projectile_enemy_actoxi at its
-  // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud
-  enemy_9006_actoxi: Object.freeze({ zone: ebind({ xkind: 'poison', owner: 'any', projectile: 'projectile_enemy_actoxi', hold: 'fx', holdS: 8 }) }),
+  // killer, whose reached effect enemy_actoxi_idle (looping) is the cloud. (fork, VFX 3) Killed by its target, its
+  // 'ability' fx of kind 'fissureDie' where it fell plays enemy_actoxi_deadrattle's enemy_actoxi_die_2_start once (owner 'died')
+  enemy_9006_actoxi: Object.freeze({ zone: ebind({ xkind: 'poison', owner: 'any', projectile: 'projectile_enemy_actoxi', hold: 'fx', holdS: 8 }), ability: ebind({ xkind: 'fissureDie', owner: 'died', keys: ['enemy_actoxi_die_2_start'], once: true }) }),
   // 咸鳞汁推荐者 (special.js: its barrel blow's 'zone' of kind 'barrel' where it stands, dur = fixed_duration, in the tick of
   // its 'cast'): the skill BlockedBoom (ProjectileToTileAbility) puts projectile_enemy_wintun_range on its tile —
   // AuraHitBehaviour, its reached effect enemy_wintun_range (looping) the zone
@@ -2163,10 +2304,31 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
   // 鼠王 (leaders.js: 【沙狱】's 'zone' of kind 'sandStorm' on its target, id = it, dur): its skill SandStorm's emitter plays
   // mousek_skill_02_range on that target as it casts (_castTargetEffects) — the sandstorm itself, a one-shot of 21 s
   // (its root's FxDelay 0.7 s); the 沙狱's hits are projectile_mousek_s2 attached to the target (no flying effect)
-  enemy_1509_mousek: Object.freeze({ zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }) }),
+  // (fork, enemy skills 2026-11-13) and 【唱沙】's 'telegraph' of kind 'driftSand' on its target's cross, id = it: its skill
+  // DriftSand's emitter plays mousek_skill_01_range_02 and mousek_skill_01_range on that target as it casts
+  // (_castTargetEffects, client enm_pfb_17 Skills/DriftSand)
+  enemy_1509_mousek: Object.freeze({
+    zone: ebind({ xkind: 'sandStorm', owner: 'id', keys: ['mousek_skill_02_range'], once: true }),
+    telegraph: ebind({ xkind: 'driftSand', owner: 'id', keys: ['mousek_skill_01_range', 'mousek_skill_01_range_02'], once: true }),
+  }),
+  // (fork, enemy skills 2026-11-13) 'Armor of the Empire' (special.js, Appear): the shell's spot 0.8 s after the mark —
+  // the 'telegraph' of kind 'barrage', id = it: enemy_vtsk_skill_01_range_01 (the template's CreateTileEffect, not held:
+  // its own life) — and each shell's 'explode' of kind 'vtskShell' on the unit it hits: projectile_enemy_vtsk_s's hit
+  enemy_10027_vtsk: Object.freeze({
+    telegraph: ebind({ xkind: 'barrage', owner: 'id', keys: ['enemy_vtsk_skill_01_range_01'], once: true }),
+    explode: ebind({ xkind: 'vtskShell', owner: 'id', keys: ['enemy_vtsk_skill_01_hit_01'], once: true }),
+  }),
   // 深溟巢涌者 / 富营养的巢涌者 (dot.js kitDsubrl: a 'pulse' each second it hurts, id = it, r = its range)
   enemy_1234_dsubrl: NEST_AURA,
   enemy_1234_dsubrl_2: NEST_AURA,
+  // (fork) enemies, S-M rows (VFX 3): death bursts — the kit's existing 'explode' at the point where it fell, in its death
+  // hook right after its 'die' (owner 'died'), plays the official CreateEffect of its ON_OWNER_KILLED template (both
+  // skipped while silenced: the kits' `sil`, the templates' CheckAbnormalFlag SILENCED). By enemy id:
+  // Farseer (enemy_1407_hummbd) — enemy_hummbd_t's death burst with its exposing blast (fly.js kitExposeOnDeath)
+  enemy_1407_hummbd: Object.freeze({ explode: ebind({ xkind: 'expose', owner: 'died', keys: ['enemy_hummbd_die_02'], once: true }) }),
+  // Novice Acolyte (enemy_10156_mncrer) — enemy_mncrer_heal_water's death burst with its heal (special.js; its heal
+  // projectile has no flying effect)
+  enemy_10156_mncrer: Object.freeze({ explode: ebind({ xkind: 'heal', owner: 'died', keys: ['enemy_mncrer_die_start'], once: true }) }),
   // 鼎沸 (dot.js: an 'explode' of kind 'boil' every attack interval at its feet, r = its range, no id): its aoe talent
   // (AppearSyncedTalent / AuraAbility) — its `_effects` loop while it stands, and the units in it carry enemy_cjhot_debuff
   // (its buff enemy_cjhot_t[aoe], INFINITY, tick 1)
@@ -2179,18 +2341,79 @@ export const ENEMY_FX_BINDINGS = Object.freeze({
     telegraph: ebind({ xkind: 'spin', owner: 'id', modeLoops: 'RotateEffect', bbKey: 'EndRotate.rotate_duration', holdS: 60 }),
     phase: ebind({ xkind: 'spinStop', owner: 'id', endMode: true }),
   }),
+  // (fork) 假想敌：黑云 (fly.js kitBlackCloud): 全弹发射's 'beam' of kind 'fireWeapon' per shot (from it, to the target, all in
+  // its cast's tick) — the client's FireWeapon MultiRangedAttack fires projectile_enemy_acfort_skill once per ammo,
+  // triggerDelta 0.3 s apart (enemy_acfort_skill_02_trail flying, enemy_acfort_skill_02_hit on arrival); 抓取's 'beam' of
+  // kind 'devour' (at its first prey) has no official effect: the KillOthers window's channel loop and the trapped loops
+  // on the prey (STATE_BUFFS enemy_acfort[kill_other]) are the grab
+  enemy_9009_acfort: Object.freeze({
+    beam: Object.freeze([
+      ebind({ xkind: 'fireWeapon', owner: 'from', fly: 'projectile_enemy_acfort_skill', stagger: 0.3 }),
+      ebind({ xkind: 'devour', owner: 'from', skill: 'killothers', cover: true }),
+    ]),
+  }),
+  // (fork) enemies, beam shots (VFX 2): kit 'beam' / 'explode' fxs that carry from / to fly the official projectile
+  // 萨卡兹王庭军精锐术师 (element.js, 死亡之眼): the channel's 'beam' of kind 'deathEye' — LineAttack's harpoon
+  // projectile_enemy_dwlock_line (its rope enemy_dwlock_skill_line_01 to the locked target; LineAttack's hit row
+  // enemy_dwlock_skill_hit_01 as it reaches, `hits`); the burst's 'explode' of kind
+  // 'apoptosis' — ChargeAttack's projectile_enemy_dwlock_charge, a timer whose reached effect enemy_dwlock_skill_hit_02
+  // lands on the target [ASSUMED: at the burst, not flown through the channel]
+  enemy_1275_dwlock_2: Object.freeze({
+    beam: ebind({ xkind: 'deathEye', owner: 'from', fly: 'projectile_enemy_dwlock_line', hits: ['enemy_dwlock_skill_hit_01'] }),
+    explode: ebind({ xkind: 'apoptosis', owner: 'from', fly: 'projectile_enemy_dwlock_charge', flyDur: 0.05 }),
+  }),
+  // “萨米的意志” (bosses.js kitDeer, 自然涌动): a 'beam' of kind 'naturalSurge' per target — projectile_enemy_smdeer_s, a
+  // timer that puts enemy_smdeer_skill_01_hit_buff on its target as it starts (the stun's look)
+  enemy_9033_acdeer: Object.freeze({ beam: ebind({ xkind: 'naturalSurge', owner: 'from', fly: 'projectile_enemy_smdeer_s' }) }),
+  // 节日爵士乐手 (invisible.js, 火力全开): a 'beam' of kind 'jazzFire' per hit_interval — one LassoProjectile
+  // projectile_enemy_cnvsax per channel (its rope enemy_cnvsax_skill_line_01), enemy_cnvsax_hit_02 on each hit (`rehit`)
+  enemy_10034_cnvsax: Object.freeze({ beam: ebind({ xkind: 'jazzFire', owner: 'from', fly: 'projectile_enemy_cnvsax', rehit: true }) }),
+  // (fork) enemies, lobbed shells (VFX 2)
+  // 高准度伦蒂尼姆城防自行炮 (special.js, 炮击): each shell's 'explode' of kind 'cannon' (from it, to the unit hit) —
+  // projectile_enemy_stmgun_s, a timer on its target: enemy_stmgun_skill_hit on it, enemy_stmgun_skill_range_01 where it
+  // lands [ASSUMED: landed at the sim's shot, not 6 s (its life) after]
+  enemy_1273_stmgun_2: Object.freeze({ explode: ebind({ xkind: 'cannon', owner: 'from', fly: 'projectile_enemy_stmgun_s', flyDur: 0.05 }) }),
+  // W (leaders.js, C4): the 'telegraph' of kind 'c4' (from her, to its carrier, dur the fuse) — projectile_enemy_cqbw_s1,
+  // a timer that puts enemy_cqbw_skill_01_buff on its target as it starts and enemy_cqbw_skill_02_hit where it is at the
+  // fuse's end; the 'explode' then is that blast (`quiet`; 'any': the kind is hers alone, she may have fallen meanwhile)
+  enemy_1504_cqbw: Object.freeze({
+    telegraph: ebind({ xkind: 'c4', owner: 'from', fly: 'projectile_enemy_cqbw_s1', flyDur: 'fx' }),
+    explode: ebind({ xkind: 'c4', owner: 'any', quiet: 'enemy_cqbw_skill_02_hit' }),
+  }),
+  // 凋零骑士 (leaders.js, 爆炸箭): the arrow's 'telegraph' of kind 'blastArrow' (`id` it, `to` its target) —
+  // projectile_enemy_dekght_s (its trail dekght_2_skill_01_trail); the target carries dekght_2[aoe] (STATE_BUFFS) until the
+  // blast, whose 'explode' plays the buff's trigger effect dekght_2_skill_01_range there
+  enemy_1513_dekght_2: Object.freeze({
+    telegraph: ebind({ xkind: 'blastArrow', owner: 'id', fly: 'projectile_enemy_dekght_s' }),
+    explode: ebind({ xkind: 'blastArrow', owner: 'from', keys: ['dekght_2_skill_01_range'], once: true }),
+  }),
+  // (fork) enemies, silent shots (VFX 2): a kit 'shot' (fx/kinds.js: never drawn procedurally) names a sim projectile
+  // 重弩突袭者 (invisible.js, 直击): the bolt — projectile_enemy_msnip (its trail enemy_msnip_skill_taril, enemy_msnip_skill_hit
+  // and the skill's hit row enemy_hummbd_buff_01 on the unit hit) over the sim's flight [ASSUMED: homing on the unit hit,
+  // not FarthestPointMovement's flight on past it]
+  enemy_1404_msnip: Object.freeze({ shot: ebind({ xkind: 'crossBolt', owner: 'from', fly: 'projectile_enemy_msnip', flyDur: 'fx', hits: ['enemy_hummbd_buff_01'] }) }),
+  // 迷路的巨像 (leaders.js, StunAttack): the boulder — projectile_enemy_rockman (rockman_skill_01_trail, rockman_skill_01_hit)
+  enemy_2003_rockman: Object.freeze({ shot: ebind({ xkind: 'boulder', owner: 'from', fly: 'projectile_enemy_rockman', flyDur: 'fx' }) }),
+  // (fork) “自在” (leaders.js kitXi: 【纬地经天】's 'telegraph' of kind 'xiCross' at its target's tile, id = it, at the
+  // strike): the client's CrossAttack fires projectile_enemy_xi_s — AttachToTarget (no flight), its TileSelectorHitBehaviour
+  // the cross, its EffectBehaviour enemy_xi_skill_01_hit on the target as it hits (_onlyPlayHitEffectOnTraceTarget)
+  enemy_1517_xi: Object.freeze({ telegraph: ebind({ xkind: 'xiCross', owner: 'id', projectile: 'projectile_enemy_xi_s', part: 'onHit', once: true }) }),
 });
+
+/** (fork) The bindings of an ENEMY_FX_BINDINGS kind entry (one, or a list: one per `xkind`). */
+export const enemyBinds = (entry) => (Array.isArray(entry) ? entry : entry ? [entry] : []);
 
 /**
  * The enemy unit keys with a binding of each fx kind (SkillFx._enemyFx's candidates). The list order is an id, a cast,
  * a death, a unit at the point, the kind alone; the fx itself is ranked again — the unit `extra.id` names, then a death
  * within OWNER_NEAR, then a cast the zone does not name (skillfx.js _fxRank).
  */
-const OWNER_ORDER = Object.freeze({ id: 0, cast: 1, died: 2, near: 3, any: 4 });
+const OWNER_ORDER = Object.freeze({ id: 0, from: 0, cast: 1, died: 2, near: 3, any: 4 });
 export const ENEMY_FX_KINDS = Object.freeze((() => {
   const out = {};
+  const ord = (key, kind) => OWNER_ORDER[enemyBinds(ENEMY_FX_BINDINGS[key][kind])[0]?.owner] ?? 9;
   for (const [key, kinds] of Object.entries(ENEMY_FX_BINDINGS)) for (const kind of Object.keys(kinds)) (out[kind] ||= []).push(key);
-  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => (OWNER_ORDER[ENEMY_FX_BINDINGS[a][kind].owner] ?? 9) - (OWNER_ORDER[ENEMY_FX_BINDINGS[b][kind].owner] ?? 9)));
+  for (const [kind, keys] of Object.entries(out)) out[kind] = Object.freeze(keys.sort((a, b) => ord(a, kind) - ord(b, kind)));
   return out;
 })());
 
@@ -2216,8 +2439,14 @@ export function auraTargets(idx, unitKey, talent) {
 /** Every key an enemy's kit-fx bindings can play (preloading). */
 export function enemyBindingKeys(idx, unitKey) {
   const out = new Set();
-  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {})) {
-    if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
+  for (const bind of Object.values(ENEMY_FX_BINDINGS[unitKey] || {}).flatMap(enemyBinds)) {
+    if (bind.cover || bind.quiet) continue;
+    if (bind.fly) {
+      // its flying effect, a harpoon's rope (`link`), what it puts on its target as it starts, its hit / reached
+      const p = idx?.projectiles?.[lc(bind.fly)];
+      for (const k of p ? [p.main, p.link, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || []), ...(bind.hits || [])] : []) if (lc(k)) out.add(lc(k));
+    }
+    else if (bind.talent) { const a = auraTargets(idx, unitKey, bind.talent); for (const k of [...a.shots, ...a.loops]) out.add(k); }
     else if (bind.modeLoops) for (const k of modeLoopKeys(idx, unitKey, bind.modeLoops)) out.add(k);
     else for (const k of bindingEffects(idx, bind)) out.add(k);
   }

@@ -109,6 +109,13 @@ const BLADE_ATK_SCALE = Object.freeze({ enemy_9015_acstmb: 1.5 });
  */
 const BLADE_HAND = Object.freeze({ enemy_9014_acstma: 'left_hand', enemy_9015_acstmb: 'right_hand' });
 /**
+ * (fork) The official buff key of each blade's dizzy loop while it is shot down (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): its skill 1's BuffToOwner template, whose ON_APPLIED_MODIFIER makes the [special_stun] buff that loops
+ * enemy_acstma_dizzy_loop for special_stun_duration — the sim's 'boss:downed'.
+ */
+const ACSTMA_FX = 'acstma_s_1', ACSTMB_FX = 'acstmb_s_1';
+const BLADE_DIZZY_FX = Object.freeze({ enemy_9014_acstma: ACSTMA_FX, enemy_9015_acstmb: ACSTMB_FX });
+/**
  * 死亡集群: a drone that dies (PRTS 能力修正 "该无人机单位死亡时", whoever kills it) costs 胄 `hp_ratio` (2 %) of "最大生命值"
  * (PRTS 假想敌：胄 "该妖怪死亡时令假想敌：胄受到最大生命值2%的真实伤害"). WHICH max HP is not documented [ASSUMED reading]:
  *   'pool' (default, = v2.5): the leader's max HP as the battle shows it — the shared pool (the engine syncs the unit's
@@ -133,6 +140,8 @@ const ECHO_PULSE_RADIUS = 1.6;
 const ECHO_ENSEMBLE_RADIUS = Object.freeze({ gold: 0.8, dark: 1.6 });
 /** "只能被阻挡数大于等于2的单位阻挡". */
 const ECHO_BLOCK_WEIGHT = 2;
+/** (fork) How long the b.snap fxs row of its switch burst stays (s): the client plays the one-shot once as it appears. */
+const ECHO_SWITCH_FX = 1;
 /** 裂管之奏 strike spacing (s). */
 const PIPE_STRIKE_GAP = 0.4;
 /** 断裂生殖 tentacle: stun duration and reach around its device tile [ASSUMED]. */
@@ -141,6 +150,12 @@ const TENTACLE_STUN = 5, TENTACLE_RADIUS = 1;
 const ROCKFALL_DELAY = 1, ROCKFALL_TARGETS = [2, 4, 8], DOOM_DELAY = 4;
 /** 铳: minimum attack speed (PRTS "最低20") and charge hit radius (PRTS 0.35 — also “碎铳之簧”'s 追逐模式 trample). */
 const ASPD_FLOOR = 20, CHARGE_RADIUS = 0.35;
+// (fork) “碎铳之簧”'s 追逐模式 trample hit: the official buff of each variant's MoveToHunter aura (render/vfx/skills.js
+// STATE_BUFFS; the element variant actrpb has none) and how long its one-shot row stays in b.snap fxs
+const ACTRPA_TRAMPLE_FX = 'actrpa_s_1[damage]';
+const ACTRPC_TRAMPLE_FX = 'actrpc_s_1[damage]';
+const SPRING_TRAMPLE_FX = Object.freeze({ enemy_9018_actrpa: ACTRPA_TRAMPLE_FX, enemy_9020_actrpc: ACTRPC_TRAMPLE_FX });
+const SPRING_TRAMPLE_ROW = 0.3;
 /** 盲信之誓 link half-width (PRTS 0.5). */
 const LINK_WIDTH = 0.5;
 /** 碎铳之簧 bullet bounce falloff / reach [ASSUMED], combo = 十连击; tag of the damage share passed between springs. */
@@ -555,7 +570,7 @@ function kitBlade(ab, e, b, tpl) {
     e2.motion = 'WALK';                                              // 变为地面单位（不改变寻路方式）
     const stun = bb.stun ?? 0;
     b2.applyStatus(e2, 'stun', { duration: stun, source: null, force: true });
-    b2.addBuff(e2, { key: 'boss:downed', duration: Math.min(bb.special_stun_duration ?? stun, stun), visible: true,
+    b2.addBuff(e2, { key: 'boss:downed', duration: Math.min(bb.special_stun_duration ?? stun, stun), visible: true, fx: BLADE_DIZZY_FX[e2.defId] ?? null,
       mods: { dmgTakenMul: bb.damage_scale ?? 1 }, onExpire: () => { if (e2.alive && P.state === 'down') replace(b2, e2); } });
     b2.fx('phase', { x: e2.x, y: e2.y, id: e2.id, kind: 'shotDown' });
   };
@@ -614,6 +629,9 @@ function kitBlade(ab, e, b, tpl) {
 
 const isGun = (o) => /enemy_9017_achunt/.test(o.defId);
 const isSpring = (o) => /enemy_90(18|19|20)_actrp/.test(o.defId);
+// (fork) the charge's hit on each unit (talent 3's achunt_s_1[damage]); HIT_ROW_S: how long its b.snap row stays, our
+// own time (the client's buff is IMMEDIATELY; the row only has to reach a snapshot) [ASSUMED]
+const HIT_ROW_S = 1;
 
 function kitGun(ab, e, b) {
   const hidden = /_2$/.test(e.defId);
@@ -642,7 +660,13 @@ function kitGun(ab, e, b) {
         const arrived = stepToward(e2, t.x, t.y, sp);
         if (!b2.grid.groundPassable(Math.round(e2.y), Math.round(e2.x))) { e2.x = nx; e2.y = ny; }
         // "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次…": an area selection (areaAllies)
-        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) { ch.hit.add(u); hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys'); }
+        // (fork) the client's AuraAbility gives each unit it hits achunt_s_1[damage] (ON_BUFF_START: enemy_achunt_skill_1_hit,
+        // life IMMEDIATELY): display only (b.snap fxs, src the gun), held HIT_ROW_S so the client sees the row and plays it once
+        for (const u of areaAllies(b2, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!ch.hit.has(u)) {
+          ch.hit.add(u);
+          b2.fxState(u, 'achunt_s_1[damage]', true, { src: e2, dur: HIT_ROW_S });
+          hurt(b2, e2, u, e2.s.atk * (T(ab, '3.atk_scale') ?? 1), 'phys');
+        }
         if (arrived || b2.time >= ch.until || (e2.x === nx && e2.y === ny)) {
           P.charge = null;
           b2.removeBuff(e2, 'boss:charge');
@@ -782,7 +806,14 @@ function kitSpring(ab, e) {
         const g = d.gun && d.gun.alive ? d.gun : gun(b);
         if (g) stepToward(e2, g.x, g.y, e2.s.moveSpeed * d.mul * MOVE_SCALE * dt);
         // 追逐模式 "对进入自身0.35半径范围内的我方单位（包括飞行单位）造成一次攻击力100%的物理普通伤害" (until 0.1.3: radius 0.5)
-        for (const u of areaAllies(b, e2, e2.x, e2.y, CHARGE_RADIUS)) if (!d.hit.has(u)) { d.hit.add(u); hurt(b, e2, u, e2.s.atk, 'phys'); }
+        for (const u of areaAllies(b, e2, e2.x, e2.y, CHARGE_RADIUS)) {
+          if (d.hit.has(u)) continue;
+          d.hit.add(u);
+          hurt(b, e2, u, e2.s.atk, 'phys');
+          // (fork) the official trample hit on the unit (its MoveToHunter aura buff; a short one-shot row, display only)
+          const fx = SPRING_TRAMPLE_FX[e2.defId];
+          if (fx) b.fxState?.(u, fx, true, { src: e2, dur: SPRING_TRAMPLE_ROW });
+        }
         if (b.time >= d.until) { e2.mem.ab.dash = null; b.removeBuff(e2, 'boss:dash'); if (e2.route) e2.route.pts = null; }
       },
     },
@@ -854,7 +885,12 @@ export function echoHit(b, echo) {
       }
       const need = ab.form === 'gold' ? T(ab, '1.hit_times_to_switch') : T(ab, '2.hit_times_to_switch');
       ab.strikes = (ab.strikes ?? 0) + 1;
-      if (echo.alive && need > 0 && ab.strikes >= need) setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+      if (echo.alive && need > 0 && ab.strikes >= need) {
+        setEchoForm(b, echo, ab.form === 'gold' ? 'dark' : 'gold');
+        // (fork) fx: the client's acdums_t_1 plays enemy_acdums_switch on it at this switch (its hit_times run out:
+        // SwitchMode, then CreateEffect); display only (snapshot fxs)
+        b.fxState(echo, 'acdums_t_1', true, { dur: ECHO_SWITCH_FX });
+      }
     }
   } finally { ab.pulses.length = 0; ab.pulsing = false; }
 }

@@ -6,7 +6,7 @@ import { aggroCmp, areaSelectable } from '../../targeting.js';
 import { periodicDamage } from '../../attack.js';
 import {
   nthOf, T, hurt, alliesInTiles, targetsNear, allTargets, areaAllies, areaAlliesInTiles, auraAllies, targetAndArea,
-  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf,
+  byPriority, setForm, auraBuff, watchDeaths, unbalancedNow, castSlot, attackSkillOf, fxWhile,
 } from './helpers.js';
 import {
   unblockable, maxTargets, onHitStatus, splashAttack, pathKeysAhead, noAirTargets, resist, nthAttackStatus, lowHpBuff,
@@ -54,11 +54,57 @@ const MCM_RANGE = 2.5, MCM_BOMB_DELAY = 2.17;
  *  one used. Until 0.1.3: any unit within 1.5, 隐匿 / 迷彩 ones included. */
 const RUSH_RADIUS = 3;
 
+/** (fork) “遗弃者”: the attack stacks its official glow needs (enemy_axetro_t's FilterByBuffStackCount `_stackCount`: 3). */
+const AXETRO_FX_STACKS = 3;
+/** (fork) How long the b.snap fxs row of a one-shot official effect stays (s): the client plays it once as it appears. */
+const ONE_SHOT_FX = 1;
+/** (fork) 雪孩子: enemy_xdsnow_t[wall][cd]'s life (LIMITED 5 in the official template): no second wall burst before it ends. */
+const XDSNOW_WALL_CD = 5;
+
 /** W's C4 fuse and blast radius [ASSUMED]. */
 const C4_FUSE = 1, C4_RADIUS = 1;
 
 /** 鼠王 【唱沙】 cross reach and 【沙狱】 "及其周围" radius [ASSUMED]. */
 const DRIFT_REACH = 1, SANDSTORM_RADIUS = 1;
+
+/**
+ * (fork, enemy skills 2026-11-13) 鼠王's `Mark` (client enm_pfb_17 Skills/Mark, read 2026-11-13): an AbilityParallelGroup of
+ * two GloballUniqueBuffAbility — MaxHpDes, the field's highest-max-HP unit (selector postFilter 19, the 【唱沙】 trigger's),
+ * gets `mousek_mark[b]` (effect mousek_skill_01_buff); MaxHpAsc, the lowest (postFilter 20, 【沙狱】's), `mousek_mark[a]`
+ * (mousek_skill_02_buff). Both buffs use the `empty` template: a marker only, no stat. The skill casts once (EnemySkill
+ * _maxTriggerTime 1; cooldown 9999, initCooldown 1); from that cast on, the ability's OnTick re-picks its target every tick
+ * (GameAssembly GloballUniqueBuffAbility.OnTick → _DoUpdateTarget once OnSpellStart set m_startCheck), so each mark moves
+ * to whoever is highest / lowest now; with no target it stays where it is (_removeBuffsIfNoValidTarget 0), and it goes
+ * with 鼠王 (OnDetached). Display only: b.snap fxs (render/vfx/skills.js STATE_BUFFS).
+ */
+const MOUSEK_MARKS = Object.freeze([
+  { key: 'ab:mousekMark:b', fx: 'mousek_mark[b]', top: (p, q) => q.s.maxHp - p.s.maxHp },
+  { key: 'ab:mousekMark:a', fx: 'mousek_mark[a]', top: (p, q) => p.s.maxHp - q.s.maxHp },
+]);
+function mousekMark(s) {
+  const clear = (b, a) => {
+    for (const m of MOUSEK_MARKS) { const u = a.marked?.[m.key]; if (u) b.removeBuff(u, m.key); }
+    a.marked = null;
+  };
+  const place = (b, e, a) => {
+    a.marked ??= {};
+    const list = allTargets(b, e);
+    for (const m of MOUSEK_MARKS) {
+      let t = null;
+      for (const u of list) if (!t || (m.top(u, t) || aggroCmp(u, t)) < 0) t = u;
+      const was = a.marked[m.key];
+      if (!t || t === was) continue;
+      if (was) b.removeBuff(was, m.key);
+      b.addBuff(t, { key: m.key, persist: true, fx: m.fx, fxSrc: e.id });
+      a.marked[m.key] = t;
+    }
+  };
+  const sk = skill(s, (b, e, a) => { a.marking = true; place(b, e, a); });
+  return sk && { ...sk,
+    tick(b, e, a) { if (a.marking) place(b, e, a); },
+    death(_c, b, _e, a) { clear(b, a); },
+  };
+}
 
 /** “巨大的丑东西” self-destruct radius (PRTS 天赋 "对半径3.0范围内所有我方单位…"; 2.5 [ASSUMED] until 0.1.3). */
 const MCM_BOMB_RADIUS = 3;
@@ -74,10 +120,17 @@ const WOLF_RANGE = 1.25, WOLF_AWE_RADIUS = 1.5, WOLF_AWE_ASPD = -50;
 
 /** 乌顶巨角卢鲁 【角力对决】: the operator cannot be pushed (fixed tiles) ⇒ "更多伤害" multiplier [ASSUMED]. */
 const ELK_FAIL_SCALE = 2;
+/**
+ * (fork) The official buff keys of the lasting effects these leaders put on units (b.snap fxs; render/vfx/skills.js
+ * STATE_BUFFS): 'Pompeii''s burn on its targets, 'Gravestone''s shield, Fallen Snowpriest's buff on the enemies it reaches.
+ */
+const LSLIME_DOT_FX = 'lslime_t_dot', FLKING_SHIELD_FX = 'flking_shiled', SMSHA_BUFF_FX = 'enemy_smsha_buffs';
 
 // ---------------------------------------------------------------------------------------------------------------
 // kits
 
+// (fork) enemy VFX audit, S rows: the Corrupted Knight's charged-hammer hit rows (fx 'tick' keys)
+const DEKGHT_HIT_KEYS = Object.freeze(['dekght_skill_01_hit', 'dekght_skill_01_range']);
 function kitDekght(ab) {
   const rage = { atkPct: T(ab, 'triggerrage.atk') ?? 0, aspd: T(ab, 'triggerrage.attack_speed') ?? 0, moveMul: 1 + (T(ab, 'triggerrage.move_speed') ?? 0) };
   const partnerRage = {
@@ -85,7 +138,8 @@ function kitDekght(ab) {
       const u = c.unit;
       if (a.raged || !u || u === e || !/enemy_1513_dekght/.test(u.defId || '')) return;
       a.raged = true;
-      b.addBuff(e, { key: 'ab:rage', mods: rage, persist: true, visible: true });
+      // (fork) fx: the client's TriggerRage row (dekght_buff_04_start on the knight its partner's GlobalAuraAbility leaves raged)
+      b.addBuff(e, { key: 'ab:rage', mods: rage, persist: true, visible: true, fx: 'dekght[trigger_rage]' });
     },
     spawn(b, e) { watchDeaths(b, e); },
   };
@@ -99,7 +153,8 @@ function kitLeaderMisc(key, ab, e) {
       return [maxTargets(4), lowHpBuff(T(ab, 'selfbuff.hp_ratio') ?? 0.5, { aspd: T(ab, 'selfbuff.attack_speed') ?? 0 }), {
         dealt(c, b, e2) {
           if (!(dot.dur > 0)) return;
-          b.addBuff(c.target, { key: 'ab:burnDot', duration: dot.dur, refresh: 'replace', interval: dot.iv, visible: true,
+          // (fork) fx: the official burn (lslime_t_dot: buff_burn) on its target while the DoT lasts (b.snap fxs)
+          b.addBuff(c.target, { key: 'ab:burnDot', duration: dot.dur, refresh: 'replace', interval: dot.iv, visible: true, fx: LSLIME_DOT_FX, fxSrc: e2.id,
             onTick: ({ battle, unit }) => battle.dealDamage(e2, unit, { amount: dot.dmg, type: 'arts', canDodge: false, ignoreSelect: true, tags: ['enemyAbility'] }) });
         },
       }, {
@@ -140,9 +195,10 @@ function kitLeaderMisc(key, ab, e) {
         const n = e2.hpRatio < 0.5 ? 2 : 1; // 生命值降至一半以下时炸药包的使用数量增加
         for (const t of l.slice(0, n)) {
           const x = t.x, y = t.y;
-          b.fx('telegraph', { x, y, r: C4_RADIUS, dur: C4_FUSE, kind: 'c4' });
+          // (fork) from / to: the client flies the official C4 (projectile_enemy_cqbw_s1) onto the target for the fuse
+          b.fx('telegraph', { x, y, r: C4_RADIUS, dur: C4_FUSE, kind: 'c4', from: e2.id, to: t.id });
           // the C4 sits on its target (PRTS "在…1个非飞行的我方单位身上安装C4"): it is hit; the blast around it is an area
-          b.after(C4_FUSE, () => { b.fx('explode', { x, y, r: C4_RADIUS, kind: 'c4' }); for (const u of targetAndArea(t, areaAllies(b, e2, x, y, C4_RADIUS))) hurt(b, e2, u, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys'); });
+          b.after(C4_FUSE, () => { b.fx('explode', { x, y, r: C4_RADIUS, kind: 'c4', from: e2.id }); for (const u of targetAndArea(t, areaAllies(b, e2, x, y, C4_RADIUS))) hurt(b, e2, u, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys'); });
         }
       }, { cond: (b, e2) => targetsNear(b, e2, s.bb.range_radius ?? e2.base.rangeRadius).length > 0, turn: attackSkillOf(key, 'C4') })];
     }
@@ -150,7 +206,7 @@ function kitLeaderMisc(key, ab, e) {
       // 出场时拥有能够吸收大量法术伤害的屏障，屏障存在时防御力大幅增加 (arts-only barrier + DEF while it holds)
       const bar = artsBarrier(T(ab, 'shield.dynamic') ?? 0, { key: 'ab:sandDef', whileUp: { defFlat: T(ab, 'defup.def') ?? 0 } });
       const ds = ab.sk.DriftSand, ss = ab.sk.SandStorm;
-      return [bar, lowHpBuff(T(ab, 'enrage.hp_ratio') ?? 0.5, { dmgDealtMul: T(ab, 'enrage.damage_scale') ?? 1 }),
+      return [bar, lowHpBuff(T(ab, 'enrage.hp_ratio') ?? 0.5, { dmgDealtMul: T(ab, 'enrage.damage_scale') ?? 1 }), mousekMark(ab.sk.Mark),
         // 【唱沙】 the highest-max-HP unit on the field and everything in its cross: physical `damage`
         skill(ds, (b, e2) => {
           const t = allTargets(b, e2).sort((p, q) => q.s.maxHp - p.s.maxHp || aggroCmp(p, q))[0];
@@ -197,6 +253,8 @@ function kitLeaderMisc(key, ab, e) {
           b.after(dur, () => {
             if (!e2.alive || e2.s.flags.stun) return;
             b.fx('explode', { x: cc, y: r, r: 1, kind: 'chargeAttack', tiles: 'plus' });
+            // (fork) enemy VFX audit, S rows: its official hammer hit and its cross on the blocker, display only
+            if (t.alive) for (const k of DEKGHT_HIT_KEYS) b.tickFx(e2, t, 'dekght:charge', k);
             for (const u of areaAlliesInTiles(b, e2, r, cc, 'plus', 1)) hurt(b, e2, u, e2.s.atk * (s.bb['dekght[aoe].atk_scale'] ?? s.bb.atk_scale ?? 1), 'phys');
           }, { owner: e2 });
         }, { cond: (b, e2) => !!(e2.blockedBy && e2.blockedBy.alive), turn: attackSkillOf(key, 'ChargeAttack', false) })];   // its blocker: the swing's turn
@@ -209,10 +267,13 @@ function kitLeaderMisc(key, ab, e) {
         const delay = s.bb['dekght_2[aoe].interval'] ?? 0, scale = s.bb['dekght_2[aoe].atk_scale'] ?? 1;
         for (const t of cands(b, e2).slice(0, 3)) {
           const r = t.tileR, cc = t.tileC;
-          b.fx('telegraph', { x: cc, y: r, r: 1, dur: delay, kind: 'blastArrow', tiles: 'plus', id: e2.id });
+          // (fork) to: the client flies the official arrow (projectile_enemy_dekght_s) at it; the target carries the
+          // official dekght_2[aoe] mark (its loop) until the blast
+          b.fx('telegraph', { x: cc, y: r, r: 1, dur: delay, kind: 'blastArrow', tiles: 'plus', id: e2.id, to: t.id });
+          b.fxState(t, 'dekght_2[aoe]', true, { src: e2, dur: delay });
           b.after(delay, () => {
             if (!e2.alive) return;
-            b.fx('explode', { x: cc, y: r, r: 1, kind: 'blastArrow', tiles: 'plus' });
+            b.fx('explode', { x: cc, y: r, r: 1, kind: 'blastArrow', tiles: 'plus', from: e2.id });
             // "对主目标造成法术普通伤害，对溅射目标造成法术溅射伤害": the arrow's target + the 周围四格 (an area)
             for (const u of targetAndArea(t, areaAlliesInTiles(b, e2, r, cc, 'plus', 1))) hurt(b, e2, u, e2.s.atk * scale, 'arts');
           }, { owner: e2 });
@@ -245,6 +306,8 @@ function kitLeaderMisc(key, ab, e) {
       return [skill(s, (b, e2) => {
         const t = byPriority(e2, cands(b, e2))[0];
         if (!t) return;
+        // (fork) the boulder for the client (fx/kinds.js 'shot'): it flies the official projectile_enemy_rockman
+        b.fx('shot', { x: e2.x, y: e2.y, from: e2.id, to: t.id, kind: 'boulder', dur: hypot(t.x - e2.x, t.y - e2.y) / 8 });
         b.addProjectile({ from: e2, target: t, speed: 8, visual: 'lob', source: e2, onHit: (c) => {
           if (!c.target || !c.target.alive) return;
           hurt(b, e2, c.target, e2.s.atk * (s.bb.atk_scale ?? 1), 'phys');
@@ -266,6 +329,7 @@ function kitLeaderMisc(key, ab, e) {
         });
         b.addBuff(e2, { key: 'ab:takeoffBrake', duration: BRAKE_UP, mods: BRAKE });
         b.fx('telegraph', { x: e2.x, y: e2.y, r: 0.5, kind: 'takeoff', id: e2.id });
+        b.tickFx(e2, e2, 'balloon:takeoff');   // (fork) enemy VFX audit, S rows: its official take-off jets (balloon_s[trigger]), display only
       }, { cond: (b, e2) => !!e2.blockedBy })];
     }
     case 'enemy_2005_axetro':
@@ -276,7 +340,11 @@ function kitLeaderMisc(key, ab, e) {
         },
         iv: 0.5,
         tick(b, e2, a) { if (a.last != null && b.time - a.last >= (T(ab, 'checker.delay') ?? 4)) { a.last = null; b.removeBuff(e2, 'ab:axeStack'); } },
-      }];
+      },
+      // (fork) fx: the client's enemy_axetro_t adds axetro_t[effect] (axetro_buff_01_start) once its stacks reach
+      // AXETRO_FX_STACKS (FilterByBuffStackCount GE, the template's constant), until its checker clears them; display
+      // only (snapshot fxs)
+      fxWhile('axetro_t', (b, e2) => (e2.findBuff('ab:axeStack')?.stacks ?? 0) >= AXETRO_FX_STACKS)];
     case 'enemy_2008_flking': {
       // 使全战场我方所有单位攻击力、防御力减半 (text; the blackboard's atkdown.atk_scale is not the halving),
       // 部署费用回复速度减半，再部署时间加倍; 周期性地添加正比于自身最大生命值的伤害防护屏障. The halving is a map effect
@@ -296,7 +364,8 @@ function kitLeaderMisc(key, ab, e) {
         },
       }, {
         tick(b, e2, a, dt) { for (const p of b.players) b.addDp(p.playerId, -0.5 * b.flags.dpPerSec * dt); },
-      }, skill(s, (b, e2) => b.addBuff(e2, { key: 'ab:tombShield', shield: e2.s.maxHp * (s.bb.hp_ratio ?? 0), persist: true }))];
+      // (fork) fx: the official shield glow (flking_shiled: enemy_mdrock_skill_buff_01) while the barrier holds (b.snap fxs)
+      }, skill(s, (b, e2) => b.addBuff(e2, { key: 'ab:tombShield', shield: e2.s.maxHp * (s.bb.hp_ratio ?? 0), persist: true, fx: FLKING_SHIELD_FX }))];
     }
     case 'enemy_2048_smgrd':
       // 持续在自身周围8格生成【国度】 (the 3×3 around its tile), 大幅降低其中我方单位的攻击速度; 对【国度】中的我方单位造成高额物理伤害.
@@ -345,7 +414,8 @@ function kitLeaderMisc(key, ab, e) {
         while (cur && seen.size < max) { // loop-cap: units
           seen.add(cur);
           b.fx('beam', { x: prev.x, y: prev.y, from: prev.id, to: cur.id, kind: 'chainBuff' });
-          b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 } });
+          // (fork) fx: the official glow (enemy_smsha_buffs: enemy_smsha_buff) on each enemy it reaches while the buff lasts
+          b.addBuff(cur, { key: 'ab:chainBuff', duration: bb.duration ?? 0, refresh: 'replace', visible: true, mods: { moveMul: 1 + (bb.move_speed ?? 0), aspd: bb.attack_speed ?? 0 }, fx: SMSHA_BUFF_FX, fxSrc: e2.id });
           prev = cur;
           cur = near(cur.x, cur.y, jump, seen);
         }
@@ -386,7 +456,9 @@ const doubleHit = (on = () => true, extra = null) => ({
 
 /** 巨大的丑东西 · melee ×rage; KO ⇒ self-destruct (big stun) and the 大祭司 pilot ejects: no attack, unblockable, own DEF/RES,
  *  faster, loses bird_run.damage true HP per second. (巨蕈/木桩 tiles and its ranged splash attack have no counterpart here:
- *  its data radius is 0.) */
+ *  its data radius is 0.) Its cuttree skill never fires in this mode, officially too: the client's CutTree
+ *  (SpawnTokenOnTileAbility) waits for a TileTrigger whose TileSelector keeps ONLY_CERTAIN_TILE_KEY tiles, `trap_015_tree`
+ *  and `tile_wooden_wall`, and no act1/act2 autochess map has either (their bushes are trap_218_fttree). */
 function kitUglyThing(ab) {
   const rage = T(ab, 'combat.attack@mcmstr_rage_attack.atk_scale') ?? 1;
   const bomb = ab.sk['bomb[reborning]'] ? ab.sk['bomb[reborning]'].bb : {};
@@ -492,14 +564,42 @@ function kitXi(ab) {
         for (const u of areaAllies(battle, e, e.x, e.y, r)) hurt(battle, e, u, e.s.atk * (s.bb.atk_scale ?? 0), 'arts');
       } });
   };
+  // (fork) fx: 【纬地经天】's target mark — the client's CrossAttackMark (form 1) / CrossAttackMarkReborn (form 2), each a
+  // GloballUniqueBuffAbility that re-selects every tick (global range, the cross's own selection): form 1 the nearest unit
+  // carries enemy_xi_mark[a]; form 2 the nearest enemy_xi_mark[b] and the farthest enemy_xi_mark[a] — both play
+  // enemy_xi_skill_01_buff_02 there. Display only (Battle.fxState: no sim state reads it); [ASSUMED] none while the 重生
+  // runs (the Default mode's mark detaches, the Reborn mode's attaches when it stands up) and none after it falls
+  const MARK_A_FX = 'enemy_xi_mark[a]', MARK_B_FX = 'enemy_xi_mark[b]';
+  const marks = (b, e, a, bb) => {
+    for (const [buff, u, k] of [[MARK_A_FX, a, 'a'], [MARK_B_FX, bb, 'b']]) {
+      const was = P.mark[k];
+      if (was === u) continue;
+      if (was) b.fxState(was, buff, false);
+      if (u) b.fxState(u, buff, true, { src: e });
+      P.mark[k] = u;
+    }
+  };
+  P.mark = { a: null, b: null };
+  const markPart = {
+    iv: 0.1,
+    tick(b, e) {
+      if (P.ko) return;
+      const l = byDist(b, e);
+      // removeBuffsIfNoValidTarget false: with nobody to select, the mark stays where it was (a dead carrier drops it)
+      if (!l.length) return;
+      if (P.form2) marks(b, e, l[l.length - 1], l[0]);
+      else marks(b, e, l[0], null);
+    },
+    death(c, b, e) { marks(b, e, null, null); },
+  };
   const re = reborn({
     dur: T(ab, 'reborn.duration') ?? 0, invincible: T(ab, 'reborn.invincible') ?? 0,
     // #510: Xi's post-rebirth 无敌 also prevents hostile selection (PRTS “自在” / 无敌).
     // Explicit opt-in: the engine's general invulnerable flag remains damage protection only.
     invincibleUntargetable: true,
-    onKo(b, e) { b.removeBuff(e, 'ab:xiShield'); },
+    onKo(b, e) { b.removeBuff(e, 'ab:xiShield'); P.ko = true; marks(b, e, null, null); },
     onReborn(b, e) {
-      P.form2 = true;
+      P.form2 = true; P.ko = false;
       b.addBuff(e, { key: 'ab:xiReborn', persist: true, visible: true, mods: { atkPct: T(ab, 'reborn.atk') ?? 0 } });   // 攻击力提升
       if (s2) s2.left = s2.icd;
     },
@@ -508,7 +608,7 @@ function kitXi(ab) {
   // selector of its own: it waits for a swing at the attack's target (`own` false; PRTS 「触发索敌和普通攻击相同」, §35.54)
   const s1 = skill(sb, burst(sb), { cond: () => !P.form2, turn: attackSkillOf('enemy_1517_xi', 'ShieldBurst', false) });
   const s2 = skill(sb2, sb2 ? burst(sb2) : null, { cond: () => P.form2, turn: attackSkillOf('enemy_1517_xi', 'ShieldBurstReborn', false) });
-  return [re, s1, s2, doubleHit(() => P.form2),                   // 普通攻击进行两次
+  return [re, s1, s2, markPart, doubleHit(() => P.form2),         // 普通攻击进行两次
     skill(cross, (b, e) => {
       const l = byDist(b, e);
       if (!l.length) return;
@@ -520,6 +620,8 @@ function kitXi(ab) {
 /** 锏 · 抵抗; DEF penetration against its blocker; 【速杀】 passes through its blocker hitting those on the way; 【肆虐风雪】
  *  AoE; KO ⇒ second form: stealth, more penetration, double hits, 【瞬息杀机】 at every 25 % HP lost (SP cleared + no attacks
  *  / heals around it). <降雪> absent. */
+// (fork) enemy VFX audit, S rows: Degenbrecher's ClearSp mark on each operator it disarms (b.snap fxs; STATE_BUFFS)
+const BLKSWB_CLEAR_FX = 'enemy_blkswb_s[effect]';
 function kitMace(ab) {
   const pen1 = T(ab, 'DefPenetrate.enemy_blkswb_t_2.def_penetrate') ?? 0, pen2 = T(ab, 'DefPenetrate.enemy_blkswb_t_2[reborn].def_penetrate') ?? pen1;
   const cs = { ratio: T(ab, 'ClearSp.hp_ratio') ?? 0, dur: T(ab, 'ClearSp.duration') ?? 0, r: T(ab, 'ClearSp.range_radius') ?? 0 };
@@ -558,6 +660,7 @@ function kitMace(ab) {
           const sk = u.skill;
           if (sk && !sk.noSkill && sk.kind !== 'passive' && !sk.active && sk.spCost > 0) { sk.sp = 0; sk.charges = 0; }   // 清空技力 (stored charges too)
           if (cs.dur > 0) b.applyStatus(u, 'disarm', { duration: cs.dur, source: e });
+          if (cs.dur > 0) b.fxState(u, BLKSWB_CLEAR_FX, true, { src: e, dur: cs.dur });   // (fork) its official mark while disarmed, display only
         }
       }
     },
@@ -589,11 +692,14 @@ function kitWolfLord(ab) {
   const caught = (b) => b.allies().some((u) => u.findBuff('ab:fearCage'));
   const cure = (b) => { for (const u of b.allies()) { const d = u.findBuff('ab:fearCage'); if (d) b.removeBuff(u, d); } };
   // 【远古威慑】 (a buff aura, auraAllies): no 隐匿 operator, the blocker included, an airborne 起飞 one still — as 深池伙友卫队's
-  const awe = (b, e) => { for (const u of auraAllies(b, e, e.x, e.y, WOLF_AWE_RADIUS)) auraBuff(b, u, 'ab:ancientAwe', 0.2, { aspd: WOLF_AWE_ASPD }, null, true); };
+  // (fork) with the official FearAura buff's effect on each unit it holds (display only)
+  const awe = (b, e) => { for (const u of auraAllies(b, e, e.x, e.y, WOLF_AWE_RADIUS)) auraBuff(b, u, 'ab:ancientAwe', 0.2, { aspd: WOLF_AWE_ASPD }, null, true, { fx: 'enemy_wlfmster_fear', src: e.id }); };
   return [{
     spawn(b, e, a, ab2) {
       ab2.immune = new Set([...(ab2.immune || []), 'stun']);   // 第一形态: 不可被晕眩
       b.addBuff(e, { key: 'ab:wolfGuard', persist: true, visible: true, mods: { dmgTakenMul: 1 - (T(ab, 'Passive.damage_resistance') ?? 0) } });
+      // (fork) its HP record (BuffToOwner enemy_wlfmster_damage_record) shows while a caught unit waits for the cure (display only)
+      b.fxProbe?.(e, 'enemy_wlfmster_damage_record', () => !P.form2 && P.caught > 0);
     },
     iv: 0.1,
     tick(b, e, a, dt) {
@@ -623,7 +729,8 @@ function kitWolfLord(ab) {
     const ramp = Math.max(1, fc.bb.duration_bleed ?? 40), peak = fc.bb.hp_ratio ?? 0;
     for (const u of l) {
       b.fx('beam', { x: e.x, y: e.y, from: e.id, to: u.id, kind: 'fearCage' });
-      b.addBuff(u, { key: 'ab:fearCage', refresh: 'replace', visible: true, interval: 1, data: { src: e, hp0: e.hpRatio, t0: b.time },
+      // (fork) fx: the official fear-cage buff's loop on the unit, and its end hit when it goes (display only)
+      b.addBuff(u, { key: 'ab:fearCage', refresh: 'replace', visible: true, interval: 1, data: { src: e, hp0: e.hpRatio, t0: b.time }, fx: 'enemy_wlfmster_fearcage', fxSrc: e.id,
         mods: { aspd: fc.bb.attack_speed ?? 0 },
         onTick: ({ battle, unit, buff }) => {
           // its 扎罗 gone from the field without a 重生 (leaked, removed): the effect ends, no loss this tick [ASSUMED — no
@@ -704,6 +811,10 @@ function kitTranslator(ab, e) {
   const change = (b, e2, form) => {
     if (P.form || !e2.alive) return;
     P.form = form;
+    // (fork) fx: the client's enemy_mpplai_passive_p0 plays enemy_mpplai_brith_01 on it at this change (its 4th phys /
+    // arts hit or a blocker: TriggerEnemySkill ChangeToB / D / C, then CreateEffect) — a looping prefab with no life of
+    // its own: held for the change [ASSUMED: it ends with the change]; display only (snapshot fxs)
+    b.fxState(e2, 'enemy_mpplai_passive_p0', true, { dur: TRANSLATOR_CHANGE });
     b.addBuff(e2, { key: 'ab:change', duration: TRANSLATOR_CHANGE, persist: true, flags: { noMove: true }, onExpire: ({ battle }) => finish(battle, e2) });
     setForm(b, e2, `translator_${form}`, 'phase', { dur: TRANSLATOR_CHANGE });
   };
@@ -743,6 +854,8 @@ function kitTranslator(ab, e) {
 
 /** 乌顶巨角卢鲁 · 【角力对决】 when blocked: charges `duration` s (no normal attacks; a stun or 失衡 interrupts), then hits its
  *  blocker; operators hold fixed tiles, so the push always fails ⇒ extra damage and a fail_duration stun. */
+// (fork) enemy VFX audit, S rows: Blackhorn Rhuul's official skill rows (its cast-target mark, its hit), fx 'tick' keys
+const ELK_MARK_KEY = 'enemy_xdelk_buff_03', ELK_HIT_KEY = 'enemy_xdelk_skill_hit_01';
 function kitElk(ab) {
   const s = ab.sk.skill;
   const P = { ch: null };
@@ -755,6 +868,7 @@ function kitElk(ab) {
       if (b.time + 1e-9 < ch.until || unbalancedNow(b, e)) return;   // a 失衡 that did not move it holds the clash (no skill meanwhile)
       stop(b, e);
       b.fx('explode', { x: ch.t.x, y: ch.t.y, r: 0.5, kind: 'elkClash' });
+      b.tickFx(e, ch.t, 'elk:clash', ELK_HIT_KEY);   // (fork) enemy VFX audit, S rows: the official hit on its blocker, display only
       hurt(b, e, ch.t, e.s.atk * ((s && s.bb.atk_scale_s) ?? 1) * ELK_FAIL_SCALE, 'phys');
       const st = T(ab, 'data.attack@fail_duration') ?? 0;
       if (ch.t.alive && st > 0) b.applyStatus(ch.t, 'stun', { duration: st, source: e });
@@ -765,6 +879,7 @@ function kitElk(ab) {
     P.ch = { t: e.blockedBy, until: b.time + dur };
     b.addBuff(e, { key: 'ab:elkCharge', duration: dur + 0.1, visible: true, flags: { disarm: true } });
     b.fx('telegraph', { x: e.blockedBy.x, y: e.blockedBy.y, r: 0.5, dur, kind: 'elkCharge', id: e.id });
+    b.tickFx(e, e.blockedBy, 'elk:charge', ELK_MARK_KEY);   // (fork) enemy VFX audit, S rows: the official mark on its blocker
   }, { cond: (b, e) => !P.ch && !!(e.blockedBy && e.blockedBy.alive) })];
 }
 
@@ -810,6 +925,8 @@ export const LEADER_KITS = Object.freeze({
     // after the 急停 or with no movement). Until 0.2.2 one hit in proportion to the tiles moved [ASSUMED], from the position jump.
     const v = T(ab, 'unbalanced_bleed.damage') ?? 0;
     const iv = stepOf('unbalanced_bleed.interval', T(ab, 'unbalanced_bleed.interval') ?? 0, 0.066);
+    // (fork) fx: the client's enemy_cbjedi_bleed (CheckEnemyUnbalanced) keeps cbjedi_blood (weedy_skill_03_buff) on it while
+    // it is unbalanced; display only (snapshot fxs)
     return [{
       tick(b, e, a, dt) {
         if (!(v > 0 && iv > 0) || !unbalancedNow(b, e)) { a.bleed = 0; return; }
@@ -820,7 +937,7 @@ export const LEADER_KITS = Object.freeze({
           b.dealDamage(null, e, { ...periodicDamage(v), tags: ['dot', 'periodic', 'unbalanced'] });
         }
       },
-    }];
+    }, fxWhile('enemy_cbjedi_bleed', unbalancedNow)];
   },
   enemy_10112_ymgds: (ab) => [unbalanced((b, e) => {                 // 冒失的小弟 · stunned after being unbalanced
     const st = T(ab, 'StunAfterUnbalance.stun') ?? 0;
@@ -832,6 +949,9 @@ export const LEADER_KITS = Object.freeze({
     const r = Math.round(e.y + (dy / d) * 0.6), c = Math.round(e.x + (dx / d) * 0.6);
     if (b.grid.isLow(r, c) && b.grid.groundPassable(r, c)) return;   // stopped by nothing: no collision
     b.fx('explode', { x: e.x, y: e.y, r: 0.4, kind: 'wallHit', id: e.id });
+    // (fork) fx: the client's enemy_xdsnow_t[wall] plays enemy_xdsnow_die_01 on it at a high-ground hit while unbalanced,
+    // then not again for its [cd] buff's 5 s; display only (snapshot fxs; the damage above keeps its own rule)
+    if (!(b.time < (a.fxCd ?? -Infinity))) { a.fxCd = b.time + XDSNOW_WALL_CD; b.fxState(e, 'enemy_xdsnow_t[wall]', true, { dur: ONE_SHOT_FX }); }
     hurt(b, null, e, T(ab, 'hitWall.value') ?? 0, 'true', { tags: ['wallHit'] });
   })],
   // 拥霜羽兽 · PRTS 天赋 "不会攻击飞行单位"; unbalanced once ⇒ 失去蛋的模式 "不进行普通攻击，不可阻挡，移动速度最终提升至200%" (until

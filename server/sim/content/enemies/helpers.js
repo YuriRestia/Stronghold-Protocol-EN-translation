@@ -94,7 +94,8 @@ export function abOf(b, e) {
   list.forEach((s, i) => {
     if (!s || s.prefabKey == null) return;
     const at = base.findIndex((x) => x && x.prefabKey === s.prefabKey);
-    sk[s.prefabKey] = { cd: num(s.cooldown, 0), icd: num(s.initCooldown, 0), sp: num(s.spCost, 0), pr: num(s.priority, 0), bb: s.bb || {}, bs: s.bbStr || {}, slot: at >= 0 ? at : i };
+    sk[s.prefabKey] = { cd: num(s.cooldown, 0), icd: num(s.initCooldown, 0), sp: num(s.spCost, 0), pr: num(s.priority, 0), bb: s.bb || {}, bs: s.bbStr || {}, slot: at >= 0 ? at : i,
+      pk: String(s.prefabKey) };   // (fork) pk: its prefabKey (the client's 'ready:<pk>' state row, enemy VFX audit)
   });
   e.mem.ab = { key, t, tS, sk, list: [], times: null, atkType: null, immune: null, origMaxHp: e.base.maxHp };
   return e.mem.ab;
@@ -125,6 +126,16 @@ export function grantHitShield(battle, enemy, count) {
  * place of the attack (render/units.js UnitView.onCast; DESIGN §35.57). No gameplay effect: no state, no random draw
  * (DESIGN §8.2; golden counts the event, nothing else moves).
  */
+/**
+ * (fork) enemy VFX audit, S rows: skill `s` of enemy `e` is ready (its ReadyEnemySkillEffect: the official glow while the
+ * skill can be cast, gone at the cast) while `ready()` holds — b.snap fxs row 'ready:<prefabKey>' (Battle.fxProbe),
+ * display only; the client plays that skill plan's `ready` rows on the enemy. `ready` must be O(1) (a counter, no search).
+ */
+export const READY_PREFIX = 'ready:';
+export function readyProbe(b, e, s, ready) {
+  if (b && e && s && s.pk && typeof ready === 'function') b.fxProbe(e, READY_PREFIX + s.pk, () => ready());
+}
+
 export function castSlot(b, e, s, turnClip = null) {
   if (!b || !e || !s || !Number.isInteger(s.slot)) return;
   const d = s.bb && typeof s.bb.duration === 'number' && s.bb.duration > 0 ? Math.round(s.bb.duration * 100) / 100 : 0;
@@ -217,6 +228,16 @@ export function silenced(e) { return !!e.s.flags.silence; }
  * (canCast), blinks and scripted moves wait for its end.
  */
 export function unbalancedNow(b, e) { return !!(b && e && b.time < e.unbalanceUntil - 1e-9); }
+
+/**
+ * (fork) A kit entry that shows the official lasting effect of client buff `buff` (index.json uses' `buff`; skills.js
+ * STATE_BUFFS) on the enemy while `probe(b, e)` holds — the condition its template's graph re-checks every tick, read
+ * over the sim's own state only when a snapshot is taken (Battle.fxProbe → b.snap `fxs`). Display only: nothing runs in
+ * the battle's ticks (the bots' budget, the golden results).
+ */
+export function fxWhile(buff, probe) {
+  return { spawn(b, e) { b.fxProbe(e, buff, (u) => probe(b, u)); } };
+}
 
 /** Can enemy `e` use a skill now: alive, on the field, not stunned, not silenced (`sil`), not in its 失衡 state (`b` given). */
 export function canCast(e, sil, b = null) { return e.alive && !e.hidden && !e.s.flags.stun && !(sil && e.s.flags.silence) && !unbalancedNow(b, e); }
@@ -439,9 +460,13 @@ export function expose(b, u, dur, scale) {
   b.fx('expose', { x: u.x, y: u.y, id: u.id });
 }
 
-/** Timed buff on each unit (same key never stacks: aura semantics). */
-function auraBuff(b, u, key, iv, mods, flags = null, visible = false) {
-  b.addBuff(u, { key, duration: iv + 0.1, refresh: 'replace', mods, flags, visible });
+/**
+ * Timed buff on each unit (same key never stacks: aura semantics). `fx`: (fork, display only) the official buff key whose
+ * lasting effect the carrier shows while the aura holds it, and `src` the enemy whose talent gives it (b.snap fxs,
+ * render/vfx/skills.js STATE_BUFFS); null: none.
+ */
+function auraBuff(b, u, key, iv, mods, flags = null, visible = false, fx = null) {
+  b.addBuff(u, { key, duration: iv + 0.1, refresh: 'replace', mods, flags, visible, fx: fx?.fx ?? null, fxSrc: fx?.src ?? null });
 }
 
 /** Mark an ally/enemy ability as watching every death on the field. */

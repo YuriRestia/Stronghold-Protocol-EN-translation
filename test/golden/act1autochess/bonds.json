@@ -423,8 +423,8 @@
       ],
       "enemies": {"enemy_1116_liprr":[11,11,0,230,45375],"enemy_1116_liprr_2":[4,4,0,133,22500],"enemy_1121_lifbos":[1,1,0,5499,15000]},
       "hooks": [1,29,2764,212,212,263,264,2,20,19,6,7,0,7907,21,19,16,0,1,20,0,0,0],
-      "events": {"atk":212,"deploy":10,"die":19,"dmg":264,"engage":5,"fx":44,"heal":1,"rate":24,"skill":16,"spawn":27,"status":60},
-      "fx": {"aoe":9,"buff":1,"displace":5,"heal":1,"liberate":3,"phase":6,"swordRain":16,"swordStorm":3},
+      "events": {"atk":212,"deploy":10,"die":19,"dmg":264,"engage":5,"fx":45,"heal":1,"rate":24,"skill":16,"spawn":27,"status":60},
+      "fx": {"ability":1,"aoe":9,"buff":1,"displace":5,"heal":1,"liberate":3,"phase":6,"swordRain":16,"swordStorm":3},
       "snaps": "ffd4bd45 26d8a32c 7c62d5f0 9c61ea01 7a1604fe 5fa177c2 8165d85f f6fcd28d 46218fad 92b7a9e0"
     },
     "bond-kjeragShip-high": {
@@ -1432,8 +1432,8 @@
       ],
       "enemies": {"enemy_1009_lurker":[23,23,0,0,37950],"enemy_1019_jshoot_2":[7,7,0,788,14175],"enemy_1404_msnip":[5,5,0,840,22500]},
       "hooks": [1,54,2148,85,85,91,91,45,35,41,13,13,0,8172,325,32,35,0,1,35,0,0,0],
-      "events": {"atk":85,"cast":5,"deploy":16,"die":41,"dmg":91,"engage":5,"fx":39,"rate":7,"skill":30,"spawn":54,"status":26},
-      "fx": {"coin":11,"displace":1,"explode":6,"explosion":4,"frostNova":6,"shield":3,"summon":7,"yanyouSummon":1},
+      "events": {"atk":85,"cast":5,"deploy":16,"die":41,"dmg":91,"engage":5,"fx":42,"rate":7,"skill":30,"spawn":54,"status":26},
+      "fx": {"coin":11,"displace":1,"explode":6,"explosion":4,"frostNova":6,"shield":3,"shot":3,"summon":7,"yanyouSummon":1},
       "snaps": "0292dbe2 855138c9 ea289749 4fd7f584 961e9fc8 2ab5acb4 7aee6438 38c4cdb1"
     }
   }

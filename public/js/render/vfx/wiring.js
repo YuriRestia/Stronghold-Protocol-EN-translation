@@ -48,6 +48,7 @@ import { FunnelFx } from './funnelfx.js';
 import { YuWall, YU_WALL_SOURCE } from './yuwall.js';
 import { formModes } from './talents.js';
 import { shotOf, CHAIN_RELAYS } from './skills.js';
+import { DUO_PROJECTILES, DEAD_EFFECTS, indexGapKeys } from './indexGaps.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a non-oneshot cast effect lasts without its end event. */
@@ -372,6 +373,7 @@ export class FxWiring {
     this.keyCache = new Map();    // unit id → index unit key | null
     this.attackN = new Map();     // unit id → attacks so far (onlyOnce / hookEffectAfterFirstAttack rows)
     this.castFrame = new Map();   // unit id → the frame of its last attack (several targets of one attack cast once)
+    this.targetN = new Map();     // (fork) unit id → its last attack's targets so far, from 0 (DuoRangedAttack)
     this.skills = new SkillFx(this);
     this.talents = new TalentFx(this);
     this.funnels = new FunnelFx(this);
@@ -532,6 +534,7 @@ export class FxWiring {
       }
       if (u.startEffect) keys.add(u.startEffect);
       if (u.deadEffect) keys.add(u.deadEffect);
+      for (const k of indexGapKeys(this.unitKeyOf(v), this.idx)) keys.add(k);   // (fork) render/vfx/indexGaps.js
     }
     // the skill, talent and charge effects (render/vfx/skillfx.js keys: plans, the skills' projectiles, bindings) and the
     // talents' and abilities' (render/vfx/talentfx.js, index v3)
@@ -1116,7 +1119,12 @@ export class FxWiring {
     const keysOf = (rows) => rows.flatMap((e) => this._rowKeys(e, src, nth).map((k) => ({ k, along: !!e.useOwnerToTargetDirection, speed })));
     const hits = keysOf(a?.hit || []);
     // the projectile: a ranged skill attack's own, else the mode's (a sub-ability's)
-    const pk = sk?.projectile || set?.projectileKey || null;
+    // (fork) a DuoRangedAttack (indexGaps.js DUO_PROJECTILES, the client's CreateProjectile: m_targetCount & 1): its
+    // odd-numbered targets of one attack fly its duo projectile
+    const tn = again ? (this.targetN.get(id) || 0) + 1 : 0;
+    this.targetN.set(id, tn);
+    const duo = !sk?.projectile && (tn & 1) ? DUO_PROJECTILES[this.unitKeyOf(src)] : null;
+    const pk = sk?.projectile || (duo && this.idx.projectiles[duo] ? duo : null) || set?.projectileKey || null;
     const proj = pk ? this.idx.projectiles[pk] : null;
     const isShot = kind && kind !== 'none';
     const tid = tgt ? tgt.id ?? tgt.info?.id : null;
@@ -1847,7 +1855,15 @@ export class FxWiring {
     const u = this.unitOf(v);
     const m = u ? this.mode(u, v) : null;
     const g = this.idx.generic?.die || {};
-    const key = lc(m?.overrideDeadEffect) || lc(u?.deadEffect) || (v.isEnemy ? g.enemy : g.char);
+    const own = lc(m?.overrideDeadEffect) || lc(u?.deadEffect);
+    // (fork) Tools 2: a death effect another unit's skill plays (indexGaps.js DEAD_EFFECTS), when that skill was its cause
+    const gap = !own ? DEAD_EFFECTS[this.unitKeyOf(v)] : null;
+    if (gap && this.skills.castNow(gap.by, gap.skills)) {
+      let drew = false;
+      for (const k of gap.keys) if (this.playOn(k, v, {})) drew = true;
+      if (drew) return true;
+    }
+    const key = own || (v.isEnemy ? g.enemy : g.char);
     return !!(key && this.playOn(key, v, {}));
   }
 
@@ -1910,6 +1926,7 @@ export class FxWiring {
     this.keyCache.clear();
     this.attackN.clear();
     this.castFrame.clear();
+    this.targetN.clear();
     this.skills.clear();
     this.talents.clear();
     this.funnels.clear();

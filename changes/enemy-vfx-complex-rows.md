@@ -1,0 +1,60 @@
+## 2026-11-13
+
+### Leader and boss effects on the units they reach
+
+- With official effects on, these now show the game's own effect on the units they reach, for as long as it lasts:
+  - Zaaro, Signore dei Lupi: the fear cage on the operators it catches, and the hit when it ends. Its own glow shows
+    while they wait for the cure, and its fear aura shows on the operators around it.
+  - Sarkaz Boneguard Torturer's mark, on every unit around it. Its own heal shows when one of them falls.
+  - Yan's Protection's flame channel, as the game's range effect on the enemy it locks onto.
+- 'Gunshatter' now shows the game's own hit effect on each operator it runs over while it chases its gun.
+- Alistair, Final Flame of the Empire: each piece of equipment he animates now breaks with the game's own effect, in place
+  of the usual death puff.
+- Before: the units showed nothing.
+
+Kind: player
+
+Server cost:
+
+| Measure | Typical | Worst case |
+|---|---|---|
+| Bandwidth out / in, per player | under 0.0001 / 0 MB/s (under 0.01 / 0 GB/day): these leaders and bosses come in a few rounds only | 0.0006 / 0 MB/s while Zaaro holds 3 caged and 4 slowed operators, a Torturer marks 4 units and the others are on the field |
+| Bandwidth out / in, per room (4 players; 8 in Grand Alliance) | under 0.0008 / 0 MB/s | 0.005 / 0 MB/s |
+| Bandwidth out / in, 300 players | under 0.03 / 0 MB/s (under 2.6 / 0 GB/day) | 0.18 / 0 MB/s (16 / 0 GB/day, if every player fought them all at once all day) |
+| Server CPU | 0 % of one core | under 0.01 % of one core |
+| Memory | 0 MB | under 0.01 MB (one state probe per Zaaro and one per unit while a Torturer is on the field) |
+| Disk | 0 MB/day | 0 MB/day |
+| Bot budget | 0 ms/round | under 0.01 ms/round (nothing new runs in the battle's ticks) |
+
+- Cap: one effect row (about 40 B) per affected unit and effect. The one-shot hits last 0.3 s. They go out when they change, plus a full set once a second (shared/fxsDiff.js).
+- Estimated from the code and the row sizes, not measured: display-only buff keys, short rows and snapshot-time
+  probes (the Torturer's checks the Torturers on the field per unit, only when a snapshot is taken); no event, no state
+  the battle reads. Alistair's equipment effect is client only: nothing new is sent.
+
+News:
+
+- point: {name:enemy_1535_wlfmster}'s fear cage and fear aura now show their official effects on the operators they hold
+  zh: {name:enemy_1535_wlfmster}的恐惧牢笼和恐惧光环现在会在受影响的干员身上显示官方特效
+  ja: {name:enemy_1535_wlfmster}の恐怖の檻と恐怖のオーラが、影響を受けたオペレーターに公式エフェクトを表示するようになりました
+  ko: {name:enemy_1535_wlfmster}의 공포의 우리와 공포 오라가 이제 영향을 받은 오퍼레이터에게 공식 이펙트를 표시합니다
+  zh-TW: {name:enemy_1535_wlfmster}的恐懼牢籠和恐懼光環現在會在受影響的幹員身上顯示官方特效
+- point: {name:enemy_1364_spnaxe_2}'s mark now shows on the units around it, and its heal when one of them falls
+  zh: {name:enemy_1364_spnaxe_2}的标记现在会显示在其周围的单位身上，周围单位被击倒时也会显示其回复特效
+  ja: {name:enemy_1364_spnaxe_2}のマークが周囲のユニットに表示され、そのユニットが倒れると回復エフェクトも表示されるようになりました
+  ko: {name:enemy_1364_spnaxe_2}의 표식이 이제 주변 유닛에게 표시되고, 그중 하나가 쓰러지면 회복 이펙트도 표시됩니다
+  zh-TW: {name:enemy_1364_spnaxe_2}的標記現在會顯示在其周圍的單位身上，周圍單位被擊倒時也會顯示其回復特效
+- point: {name:enemy_9012_acloon}'s flame now shows its official range effect on the enemy it locks onto
+  zh: {name:enemy_9012_acloon}的火焰现在会在其锁定的敌人身上显示官方范围特效
+  ja: {name:enemy_9012_acloon}の炎が、ロックした敵に公式の範囲エフェクトを表示するようになりました
+  ko: {name:enemy_9012_acloon}의 화염이 이제 고정한 적에게 공식 범위 이펙트를 표시합니다
+  zh-TW: {name:enemy_9012_acloon}的火焰現在會在其鎖定的敵人身上顯示官方範圍特效
+- point: {name:enemy_9032_aclionk}'s equipment now breaks with its official effect when he animates it
+  zh: {name:enemy_9032_aclionk}操纵的装备现在会以官方特效碎裂
+  ja: {name:enemy_9032_aclionk}が操る装備が、公式エフェクトで砕けるようになりました
+  ko: {name:enemy_9032_aclionk}이(가) 조종하는 장비가 이제 공식 이펙트로 부서집니다
+  zh-TW: {name:enemy_9032_aclionk}操縱的裝備現在會以官方特效碎裂
+- point: {name:enemy_9018_actrpa} now shows its official hit effect on the operators it runs over
+  zh: {name:enemy_9018_actrpa}现在会在被其碾过的干员身上显示官方命中特效
+  ja: {name:enemy_9018_actrpa}が轢いたオペレーターに公式のヒットエフェクトを表示するようになりました
+  ko: {name:enemy_9018_actrpa}이(가) 이제 들이받은 오퍼레이터에게 공식 적중 이펙트를 표시합니다
+  zh-TW: {name:enemy_9018_actrpa}現在會在被其碾過的幹員身上顯示官方命中特效

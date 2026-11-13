@@ -356,7 +356,7 @@ test('F3 review: one-shot area abilities of ground enemies skip an airborne 蒂�
     assert.ok(h.runUntil(() => u.s.flags.liftoff, 3), 'takes off');
     bait.hp = Math.min(bait.hp, 100);                                     // she has the most HP in the 3×3
     const e = h.spawn(VTSK, { pos: [9, 8], routeIndex: 0, mods: { speedMul: 0, atkMul: 0.01 } });
-    h.run(1.5);
+    h.run(6);                                                             // (2026-11-13) the shells land 1.3–5.6 s after it appears
     const shots = (t) => h.hooksOf('damaged').filter((c) => c.target === t && c.source === e && !c.dmg.isAttack).length;
     assert.equal(shots(u), 0, 'no shot on her');
     assert.equal(shots(bait), ds.rawEnemy(VTSK).skills.find((s) => s.prefabKey === 'Appear').bb.times, 'every shot hits 角峰 instead of being wasted on her');

@@ -2,7 +2,9 @@
 // the art diff and its gate, the CI decision, the fold-or-skip step, the sudo rewrite and the command line.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   parseReleaseArgs, githubRepo, ciDecision, ciShips, foldPlan, foldMessage, sudoLine, DEFAULT_HOSTS,
   clipInfo, clipVerdict, stripClipStamp, unpackCommand, BACKUPS_KEPT, parseDfAvail,
@@ -12,7 +14,7 @@ import {
 } from '../scripts/release-art.mjs';
 import { prepareCommand, statusCommand, sudoCheckCommand } from '../scripts/deploy-regions.mjs';
 import {
-  nextNewsId, draftNewsLines, draftNews, editorText, parseEditorText, newsFromEdit, builtInNews, newsFile, NEWS_FILE_MAX,
+  nextNewsId, draftNews, editorText, parseEditorText, newsFromEdit, builtInNews, newsFile, newsDraftFile, untranslatedLines, bumpNews, NEWS_FILE_MAX,
 } from '../scripts/release-news.mjs';
 import { newsProblems, NEWS_MAX_POINTS } from '../shared/news.js';
 
@@ -184,57 +186,183 @@ describe('command line', () => {
 });
 
 describe('update news draft (release-news.mjs)', () => {
-  test('the real built-in banner reads back in English, every line translated', () => {
-    const root = new URL('..', import.meta.url);
-    const b = builtInNews(readFileSync(new URL('public/js/ui/matchSearch.js', root), 'utf8'), JSON.parse(readFileSync(new URL('public/i18n/en.json', root), 'utf8')));
-    assert.ok(b && b.langs.en.highlights.length && b.langs.en.points.length);
-    for (const l of [...b.langs.en.highlights, ...b.langs.en.points]) assert.doesNotMatch(l, /[\u4e00-\u9fff]/, l);
-    assert.deepEqual(newsProblems(newsFromEdit({ id: nextNewsId(b.id), title: 'Update', ...b.langs.en })), []);
+  /** Fake game names (the real ones: test/news-block.test.js): op_a has no Japanese name. */
+  const names = {
+    name(id, code, own) {
+      const v = { en: 'Ann', zh: '安', ko: '안', 'zh-TW': '安' }[code];
+      if (id !== 'op_a') return { error: `{name:${id}}: no such id` };
+      if (own != null) return v ? { error: 'named' } : { text: own };
+      return v ? { text: v } : { error: `{name:${id}}: no ${code} name` };
+    },
+    term: (zh) => ({ text: zh }),
+  };
+  const others = ['zh', 'ja', 'ko', 'zh-TW'];
+  /** A player fragment; `news`: [kind, en] pairs, each with a line per language ("<lang> <en>"). */
+  const frag = (name, news = [], heads = ['h']) => ({
+    name,
+    text: `## 2026-11-13\n\n${heads.map((h) => `### ${h}\n\n- x\n`).join('\n')}\nKind: player\n\nServer cost: none\n`
+      + (news.length ? `\nNews:\n\n${news.map(([k, en]) => [`- ${k}: ${en}`, ...others.map((l) => `  ${l}: ${l} ${l === 'ja' ? en.replace('{name:op_a}', '{name:op_a|アン}') : en}`)].join('\n')).join('\n')}\n` : ''),
+  });
+  const all = (en) => Object.fromEntries([['en', en], ...others.map((l) => [l, `${l} ${en}`])]);
+  const live = (points, extra = {}) => ({
+    id: '0.3.4-5',
+    langs: {
+      en: { title: 'Update 0.3.4-5', highlights: ['H'], points },
+      zh: { title: '0.3.4-5 更新', highlights: ['zh H'], points: points.map((p) => `zh ${p}`) },
+      ...extra,
+    },
   });
 
-  const frag = (name, ...heads) => ({ name, text: `## 2026-11-13\n\n${heads.map((h) => `### ${h}\n\n- x\n`).join('\n')}\nKind: player\n\nServer cost: none\n` });
+  test('the real built-in banner: English and every pack that translates all of it', () => {
+    const root = new URL('..', import.meta.url);
+    const pack = (l) => JSON.parse(readFileSync(new URL(`public/i18n/${l}.json`, root), 'utf8'));
+    const b = builtInNews(readFileSync(new URL('public/js/ui/matchSearch.js', root), 'utf8'), { en: pack('en'), ja: pack('ja'), ko: pack('ko') });
+    assert.ok(b && b.langs.en.highlights.length && b.langs.en.points.length);
+    for (const l of [...b.langs.en.highlights, ...b.langs.en.points]) assert.doesNotMatch(l, /[一-鿿]/, l);
+    const d = draftNews(b, [], { names });
+    const { news, errors } = newsFromEdit(parseEditorText(editorText(d)), new Set(), names);
+    assert.deepEqual([errors, newsProblems(news)], [[], []]);
+  });
 
-  test('the id follows the version bump pattern, from the live news or the built-in id', () => {
+  test('the id follows the version bump pattern; the built-in banner per language', () => {
     assert.equal(nextNewsId('0.3.4-2'), '0.3.4-3');
     assert.equal(nextNewsId('0.3.4'), '0.3.4-1');
     assert.equal(builtInNews('nothing', {}), null);
     const src = "export const UPDATE_NEWS_ID = '0.3.4-2';\nconst UPDATE_HIGHLIGHTS = [\n  N_('新'), // en\n];\nconst UPDATE_POINTS = [\n  N_('点\\'一'),\n  N_('无译'),\n];\n";
-    const b = builtInNews(src, { '新': 'New', "点'一": "Point's one" });
-    assert.deepEqual(b, { id: '0.3.4-2', langs: { en: { highlights: ['New'], points: ["Point's one", '无译'] } } });
-    assert.equal(draftNews(b, []).id, '0.3.4-3');
-    assert.equal(draftNews(null, []).id, '0-1');
+    const b = builtInNews(src, { en: { '新': 'New', "点'一": "Point's one" }, ja: { '新': '新しい' }, ko: { '新': '새', "点'一": '하나', '无译': '없음' } });
+    assert.deepEqual(b, { id: '0.3.4-2', langs: {
+      zh: { highlights: ['新'], points: ["点'一", '无译'] },
+      en: { highlights: ['New'], points: ["Point's one", '无译'] },
+      ko: { highlights: ['새'], points: ['하나', '없음'] },
+    } }, 'ja misses a line, so it is left out');
+    assert.equal(draftNews(b, [], { names }).id, '0.3.4-3');
+    assert.equal(draftNews(null, [], { names }).id, '0-1');
     assert.equal(newsFile('0.3.4-3'), 'logs/news-0.3.4-3.json');
+    assert.equal(newsDraftFile('0.3.4-3'), 'logs/news-0.3.4-3.draft.txt');
   });
 
-  test('draft: fragment headings first, backend-only ones set aside, the live points after, cut to the limit', () => {
-    const { points, skipped } = draftNewsLines([frag('a.md', 'A quick start keeps your custom squad', "The fork's online checks (GitHub CI) pass again"), frag('b.md', 'A quick start keeps your custom squad', 'Golden files refresh')]);
-    assert.deepEqual(points, ['A quick start keeps your custom squad']);
-    assert.deepEqual(skipped.map((s) => s.name), ['a.md', 'b.md']);
-    assert.deepEqual(draftNewsLines([frag('o.md', 'Faster joins on the Singapore box', 'Chat costs 0.03 MB/s less')]).points, [],
-      'operator-only headings (tools/changelog.mjs OPERATOR_ONLY) never reach the news');
-    const internal = { name: 'i.md', text: frag('i.md', 'One-command release').text.replace('Kind: player', 'Kind: internal') };
-    const ki = draftNewsLines([internal]);
-    assert.deepEqual([ki.points, ki.skipped.map((s) => s.line)], [[], ['One-command release']], 'a Kind: internal fragment never reaches the news');
+  test('draft: the News blocks first in every language, then the previous lines with theirs, cut to the limit', () => {
     const old = Array.from({ length: 16 }, (_, i) => `old ${i}`);
-    const live = { id: '0.3.4-5', langs: { en: { title: 'Update 0.3.4-5', highlights: ['H'], points: old }, ja: { title: 'J', points: ['j'] } } };
-    const d = draftNews(live, [frag('c.md', 'New one', 'old 3')]);
-    assert.deepEqual([d.id, d.title, d.highlights, d.fresh], ['0.3.4-6', 'Update 0.3.4-6', ['H'], 2]);
-    assert.deepEqual(d.points.slice(0, 3), ['New one', 'old 3', 'old 0']);
+    const prev = live(old, { ja: { title: '0.3.4-5 アップデート', points: ['only one'] } });
+    const d = draftNews(prev, [
+      frag('c.md', [['point', '{name:op_a} is new'], ['point', 'old 3'], ['highlight', 'Big']]),
+      frag('n.md', [], ['A change that is not news']),
+      { name: 'i.md', text: frag('i.md').text.replace('Kind: player', 'Kind: internal') },
+    ], { names });
+    assert.deepEqual([d.id, d.titles.en, d.titles.zh, d.titles.ko, d.fresh], ['0.3.4-6', 'Update 0.3.4-6', '0.3.4-6 更新', '0.3.4-6 업데이트', 3]);
+    assert.deepEqual(d.points[0].lines, { en: 'Ann is new', zh: 'zh 安 is new', ja: 'ja アン is new', ko: 'ko 안 is new', 'zh-TW': 'zh-TW 安 is new' });
+    assert.deepEqual(d.highlights.map((h) => h.lines.en), ['Big', 'H']);
+    assert.deepEqual(d.highlights[1].lines, { en: 'H', zh: 'zh H' }, 'previous lines keep the translations they have');
+    assert.deepEqual(d.points.slice(0, 3).map((p) => p.lines.en), ['Ann is new', 'old 3', 'old 0']);
+    assert.equal(d.points[2].lines.ja, undefined, 'a list of another length is not aligned');
     assert.equal(d.points.length, NEWS_MAX_POINTS);
-    assert.deepEqual(d.cut, ['old 15'], 'old 3 moved up, not repeated');
+    assert.deepEqual(d.cut.map((c) => c.lines.en), ['old 15'], 'old 3 moved up, not repeated');
+    assert.deepEqual(d.noNews, [{ name: 'n.md', line: 'A change that is not news' }]);
+    assert.throws(() => draftNews(prev, [frag('bad.md', [['point', '{name:nope} x']])], { names }), /bad\.md: its News block is not valid/);
   });
 
-  test('the Notepad text round-trips; notes, bullets, a BOM and CRLF are fine', () => {
-    const d = { id: '0.3.4-3', title: 'Update 0.3.4-3', highlights: ['<@sp.leaf>Talulah</> joins'], points: ['One', 'Two'], cut: ['Three'], skipped: [{ line: 'CI', name: 'x.md' }] };
+  test('the Notepad text: each line with its translations under it; it round-trips with a BOM and CRLF', () => {
+    const d = draftNews(live(['One']), [frag('c.md', [['highlight', '<@sp.leaf>{name:op_a}</> joins']])], { names: { ...names, name: () => ({ text: 'Ann' }) } });
     const text = editorText(d, ['a problem']);
     assert.match(text, /Wording rules/);
     assert.match(text, /# PROBLEMS/);
-    const e = parseEditorText(String.fromCharCode(0xFEFF) + text.replace('One', '- One'));
-    assert.deepEqual(e, { id: '0.3.4-3', title: 'Update 0.3.4-3', highlights: ['<@sp.leaf>Talulah</> joins'], points: ['One', 'Two'] });
-    const news = newsFromEdit(e);
-    assert.deepEqual(Object.keys(news.langs), ['en'], 'English only: the other languages fall back to it');
+    assert.ok(text.includes('\r\n'));
+    assert.match(text, /\[highlights\]\r\n# h1\r\n- <@sp\.leaf>Ann<\/> joins\r\n {4}zh: zh <@sp\.leaf>Ann<\/> joins\r\n {4}ja: /);
+    const e = parseEditorText(String.fromCharCode(0xFEFF) + text);
+    assert.equal(e.id, '0.3.4-6');
+    assert.equal(e.titles['zh-TW'], '0.3.4-6 更新');
+    assert.deepEqual(e.highlights.map((h) => [h.label, h.lines.en, h.lines.ko]), [['h1', '<@sp.leaf>Ann</> joins', 'ko <@sp.leaf>Ann</> joins'], ['h2', 'H', '']]);
+    assert.deepEqual(e.points.map((p) => [p.label, p.lines.zh]), [['p1', 'zh One']]);
+  });
+
+  test('untranslated lines: a new line, English rewritten under the old translations, an emptied translation', () => {
+    const d = draftNews(live(['One']), [frag('c.md', [['point', 'Two']])], { names });
+    const text = editorText(d);
+    assert.deepEqual(untranslatedLines(parseEditorText(text), d), [], 'the draft as it is: live lines that are English in some language stay so');
+    const e = parseEditorText(text.replace('- Two', '- Two, reworded').replace(/\[points\]/, '[points]\r\n- Brand new'));
+    assert.deepEqual(untranslatedLines(e, d).map((u) => [u.label, u.why]), [
+      ['p1', 'no zh, ja, ko, zh-TW'],
+      ['p2', 'the English was rewritten, its translations were not'],
+    ]);
+    assert.deepEqual(untranslatedLines(parseEditorText(text.replace('ko: ko Two', 'ko: ')), d).map((u) => [u.label, u.why]), [['p1', 'no ko']]);
+    assert.deepEqual(untranslatedLines(parseEditorText(text.replace('- One', '- One, reworded')), d).map((u) => [u.label, u.why]), [['p2', 'no ja, ko, zh-TW']]);
+  });
+
+  test('the news file: every language; --english-only lines show their English everywhere; names filled in', () => {
+    const e = { id: '1-2', titles: { en: 'Update 1-2', zh: '1-2 更新' }, highlights: [{ kind: 'highlight', label: 'h1', lines: { en: '{name:op_a} new' } }], points: [{ kind: 'point', label: 'p1', lines: all('P') }] };
+    const { news, errors } = newsFromEdit(e, new Set(['h1']), names);
+    assert.deepEqual(errors, []);
+    assert.deepEqual(Object.keys(news.langs), ['en', 'zh', 'ja', 'ko', 'zh-TW']);
+    assert.deepEqual([news.langs.ja.highlights, news.langs.ja.points, news.langs.ja.title], [['Ann new'], ['ja P'], 'Update 1-2']);
     assert.deepEqual(newsProblems(news), []);
-    assert.ok(newsProblems(newsFromEdit({ ...e, id: '' })).length, 'a missing id is refused');
+  });
+
+  describe('bumpNews', () => {
+    const quietly = async (fn) => {
+      const { log } = console;
+      console.log = () => {};
+      try { return await fn(); } finally { console.log = log; }
+    };
+    /** A project folder with the fragments; the editor applies `edits` in turn. */
+    const run = async (fragments, edits, o = {}) => {
+      const root = mkdtempSync(join(tmpdir(), 'sp-news-'));
+      mkdirSync(join(root, 'changes'));
+      for (const f of fragments) writeFileSync(join(root, 'changes', f.name), f.text);
+      const seen = [];
+      const editor = async (file) => { const t = readFileSync(file, 'utf8'); seen.push(t); writeFileSync(file, (edits.shift() || ((x) => x))(t)); };
+      const go = (more = {}) => quietly(() => bumpNews({ root, fragments: fragments.map((f) => f.name), dryRun: false, live: live(['One']), ask: async () => true, prompt: async () => '', interactive: true, names, editor, ...o, ...more }));
+      return { root, seen, go, cleanup: () => rmSync(root, { recursive: true, force: true }) };
+    };
+    const saved = (root, id) => JSON.parse(readFileSync(join(root, newsFile(id)), 'utf8'));
+
+    test('accepted as drafted: saved with every language, fresh lines first', async () => {
+      const r = await run([frag('c.md', [['point', '{name:op_a} is new']])], []);
+      try {
+        const out = await r.go();
+        assert.equal(out.file, 'logs/news-0.3.4-6.json');
+        const n = saved(r.root, '0.3.4-6');
+        assert.deepEqual(n.langs.ko.points, ['ko 안 is new', 'One'], 'the previous point keeps English where it had no Korean');
+        assert.deepEqual(n.langs.zh.points, ['zh 安 is new', 'zh One']);
+        assert.deepEqual(newsProblems(n), []);
+      } finally { r.cleanup(); }
+    });
+
+    test('a rewritten line stops the release and is kept; the rerun opens the kept text; filled in, it saves', async () => {
+      const r = await run([frag('c.md', [['point', 'Two']])], [(t) => t.replace('- Two', '- Two, better')]);
+      try {
+        await assert.rejects(r.go(), (err) => /p1: Two, better {2}\(the English was rewritten/.test(err.message) && /--english-only p1/.test(err.message) && /news-0\.3\.4-6\.draft\.txt/.test(err.message));
+        assert.ok(!existsSync(join(r.root, newsFile('0.3.4-6'))), 'nothing saved');
+        const kept = readFileSync(join(r.root, newsDraftFile('0.3.4-6')), 'utf8');
+        assert.match(kept, /- Two, better/);
+        writeFileSync(join(r.root, newsDraftFile('0.3.4-6')), kept.replace(/zh: zh Two\r\n/, 'zh: 二，更好\r\n').replace(/ja: ja Two\r\n/, 'ja: 二\r\n').replace(/ko: ko Two\r\n/, 'ko: 둘\r\n').replace(/zh-TW: zh-TW Two\r\n/, 'zh-TW: 二\r\n'));
+        await r.go();
+        assert.match(r.seen[1], /- Two, better\r\n {4}zh: 二，更好/, 'the rerun opened the kept text');
+        assert.deepEqual(saved(r.root, '0.3.4-6').langs.ko.points[0], '둘');
+        assert.ok(!existsSync(join(r.root, newsDraftFile('0.3.4-6'))), 'the kept text is gone once saved');
+      } finally { r.cleanup(); }
+    });
+
+    test('--english-only ships a new line in English everywhere; an unknown label is refused', async () => {
+      const add = (t) => t.replace('[points]', '[points]\r\n- Brand new');
+      let r = await run([frag('c.md', [['point', 'Two']])], [add]);
+      try {
+        await r.go({ englishOnly: ['p1'] });
+        assert.deepEqual(saved(r.root, '0.3.4-6').langs.ja.points, ['Brand new', 'ja Two', 'One']);
+      } finally { r.cleanup(); }
+      r = await run([frag('c.md', [['point', 'Two']])], []);
+      try {
+        await assert.rejects(r.go({ englishOnly: ['p9'] }), /--english-only names lines the news does not have: p9/);
+      } finally { r.cleanup(); }
+    });
+
+    test('server-only wording typed in Notepad is refused and shown again', async () => {
+      const r = await run([frag('c.md', [['point', 'Two']])], [(t) => t.replace(/(- Two\r\n(?: {4}\S+: .*\r\n){4})/, '$1- Faster on the usspa box\r\n    zh: a\r\n    ja: b\r\n    ko: c\r\n    zh-TW: d\r\n'), (t) => t.replace(/- Faster on the usspa box\r\n(?: {4}\S+: .*\r\n){4}/, '')]);
+      try {
+        await r.go();
+        assert.match(r.seen[1], /# PROBLEMS[\s\S]*server-only wording/);
+        assert.deepEqual(saved(r.root, '0.3.4-6').langs.en.points, ['Two', 'One']);
+      } finally { r.cleanup(); }
+    });
   });
 });
 

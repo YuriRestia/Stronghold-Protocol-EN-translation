@@ -29,7 +29,7 @@
 // signal of its own (a template's cast at an event the client never sees, a talent attack no kit fx marks) never plays.
 
 import { talentBindings, toggleOn, triggerKinds, pointKinds, bindable, bindingKeys, nodeUses, summonTargets } from './talents.js';
-import { slotKey, lifeOf, stateEntries, stateRow } from './skills.js';
+import { slotKey, lifeOf, stateEntries, stateRow, planUses, emptyPlan } from './skills.js';
 import { UF } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a talent's single cast lasts (SkillFx's SKILL_CAST_S). */
@@ -316,6 +316,14 @@ export class TalentFx {
         const rows = uniq([...(b.plan?.start || []), ...(b.plan?.loop || [])]).filter((e) => e.buff === name);
         for (const e of rows) if (this._play(e, U.v, { holdS: TALENT_CAST_S })) any = true;
       }
+      // (fork) …else an ability binding the kit names by its key (the index ability's name: 重犯's LibertyOthersAbility at
+      // its first liberation, whose cast effect is a start row with no buff) — its start rows, once
+      if (!any) {
+        for (const b of U.binds0 || U.binds) {
+          if (b.source !== 'ability' || b.key !== name || triggerKinds(b).length || !this._modeOk(U, b, true)) continue;
+          for (const e of uniq(b.plan?.start || [])) if (this._play(e, U.v, { holdS: TALENT_CAST_S })) any = true;
+        }
+      }
       if (any) return true;
     }
     for (const b of U.binds) {
@@ -514,13 +522,40 @@ export class TalentFx {
     const rows = [];
     for (const b of U.binds0 || U.binds) {
       const p = b.plan;
-      for (const e0 of [...(p?.state || []), ...(p?.targets || []), ...(p?.start || []), ...(p?.loop || []), ...(p?.unmapped || [])]) {
+      // (fork) Tools 2: and the buff hit rows (each.hit with a `buff`: 'Gunshatter''s trample hit)
+      const hits = (p?.each?.hit || []).flat().filter((e) => e?.buff);
+      for (const e0 of [...(p?.state || []), ...(p?.targets || []), ...(p?.start || []), ...(p?.loop || []), ...(p?.unmapped || []), ...hits]) {
         // (an unmapped or state row — a condition the client checks — is a plain record: its loop from the prefab)
         const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
         if (e.buff === buff && !rows.some((x) => x.key === e.key)) rows.push(e);
       }
     }
+    if (!rows.length) rows.push(...this._childRows(U, buff));
     return stateEntries(rows, buff, look);
+  }
+
+  /**
+   * (fork) The rows of buff `buff` from the unit's talent uses no binding's target rows hold — a use on a child of its
+   * talent's node (an ActiveAbilityWrapper's inner ability: 深池伙友卫队's `Talent/traitAbility/TauntLevelUp`, which
+   * nodeUses does not match), or one planned at an event (plan.trigger) — planned like a binding's, for a b.snap fxs row
+   * the sim signals (targetRows; cached per unit and buff).
+   */
+  _childRows(U, buff) {
+    const memo = U.childRows || (U.childRows = new Map());
+    if (memo.has(buff)) return memo.get(buff);
+    const out = [];
+    for (const [name, t] of Object.entries(this.w.idx?.units?.[U.key]?.talents || {})) {
+      const uses = (Array.isArray(t?.uses) ? t.uses : []).filter((u) => u && u.buff === buff);
+      if (!uses.length) continue;
+      const p = planUses(this.w.idx, emptyPlan(U.key, name), uses, { mode: null, abilities: t.abilities });
+      // (and a talent's rows at an event the client never sees — 吉兆飞鳞's sprint at its first damage taken: plan.trigger)
+      for (const e0 of [...p.state, ...p.targets, ...p.start, ...p.loop, ...p.unmapped, ...p.trigger]) {
+        const e = 'loop' in e0 ? e0 : { ...e0, loop: this.w.idx?.prefabs?.[e0.key]?.looping !== false };
+        if (e.buff === buff && !out.some((x) => x.key === e.key)) out.push(e);
+      }
+    }
+    memo.set(buff, out);
+    return out;
   }
 
   /** Every key the battle's units' talents and abilities can play (preloading). */
@@ -530,6 +565,9 @@ export class TalentFx {
       const U = this.of(v);
       if (!U) continue;
       for (const b of U.binds) for (const k of bindingKeys(b)) out.add(k);
+      // (fork) and the rows a b.snap fxs row can hold (targetRows: an unbindable binding's state rows — OpFor: BlackCloud's
+      // ammo glow): unloaded, their first particles drew untextured (black shards)
+      for (const b of U.binds0 || []) for (const e of [...(b.plan?.state || []), ...(b.plan?.unmapped || [])]) if (e?.buff && e.key && stateRow(e.buff, e.key)) out.add(e.key);
       if (FX_SHIELDS[U.key]) out.add(FX_SHIELDS[U.key]);
       for (const k of layerKeysOf(U.key)) out.add(k);
     }

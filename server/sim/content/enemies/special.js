@@ -6,7 +6,7 @@ import { canTargetAlly, areaSelectable } from '../../targeting.js';
 import { periodicDamage } from '../../attack.js';
 import {
   BOOM_RADIUS, nthOf, stOf, T, elem, hurt, targetsNear, allTargets, areaAllies, areaAlliesInTiles, byPriority,
-  stayRoute, spawnChildren, expose, auraBuff, watchDeaths, onTerrain, castSlot, grantHitShield, attackSkillOf,
+  stayRoute, spawnChildren, expose, auraBuff, watchDeaths, onTerrain, castSlot, grantHitShield, attackSkillOf, fxWhile,
 } from './helpers.js';
 import {
   unblockable, runWhenHit, blockWeight, taunt, maxTargets, ep, nthAttackPower, lowHpBuff, deathBoom, setFloat, float,
@@ -32,8 +32,32 @@ const CANNON_EVERY = 0.5, CANNON_SHOTS = 10;
 
 const CANNON_IMMUNE = Object.freeze(['stun', 'freeze', 'cold', 'levitate', 'sleep']);
 
+/**
+ * (fork) Sarkaz Absurdist Tyrant Captain's splashing first attack: the official buff key of its AOEDamage hits (b.snap fxs;
+ * STATE_BUFFS), held on the target it splashes around for the template's 0.7 s.
+ */
+const WDRRL_AOE_FX = 'enemy_wdrrl[AOE_attack]', WDRRL_AOE_TIME = 0.7;
+/** (fork) 'Armor of the Empire''s MultiCombat hit row (fx 'tick' key: the multi-hit the kit deals itself). */
+const VTSK_MULTI_HIT_KEY = 'enemy_vtsk_skill_02_hit_01';
+/**
+ * (fork, enemy skills 2026-11-13) 'Armor of the Empire''s Appear barrage, timed as the CN client's Skills/Appear
+ * (AbilityParallelGroup): its AnimatedActionToTargetAbility puts enemy_vtsk_skillRange (template
+ * enemy_vtsk_skillRange_start, 5.8 s; the marker enemy_vtsk_skill_01_marker_01 loops on the target, b.fxState), and its
+ * RangedAttack fires projectile_enemy_vtsk_s, which reaches the target's place after AttachToTarget's _delayToStart 0.8 s
+ * (no _followTarget: the spot stays; the template's 0.8 s child buff ends then: enemy_vtsk_skill_01_range_01 on that
+ * tile, the 'telegraph') and lands a shell every SelectorHitBehaviour _interval 0.5333 s (_waitFirstPeriod) on one unit of
+ * the 3×3 x-4 box, `times` hits (_maxHitNumBBKey) within its 5.85 s life, also after the enemy fell
+ * (_stopWhenSourceInvalid 0). [ASSUMED] the hit timer starts as the shell reaches the spot (it would otherwise land its
+ * first hit before the range shows). Until then the sim dealt every hit at once, 0.5 s after it appeared.
+ */
+const VTSK_MARK_FX = 'enemy_vtsk_skillRange', VTSK_MARK_S = 5.8, VTSK_SHELL_DELAY = 0.8, VTSK_SHELL_EVERY = 0.5333,
+  VTSK_SHELL_LIFE = 5.85;
 /** Radius of 骸骨拷打者's "周围" death sensing when its talent has no Attack.range_radius [ASSUMED]. */
 const TORTURER_RADIUS = 1;
+// (fork) the Torturer's official mark (its Attack talent's AuraAbility buff) on the operators within its radius, and its
+// heal when one of them is knocked out (render/vfx/skills.js STATE_BUFFS looks 'mark' / 'heal'; display only)
+const SPNAXE_MARK_FX = 'enemy_spnaxe_buffs[mark]';
+const SPNAXE_HEAL_ROW = 0.3;
 
 /** Barrel zone radius of 咸鳞汁推荐者 [ASSUMED]. */
 const BARREL_RADIUS = 1.5;
@@ -45,6 +69,15 @@ const BARREL_RADIUS = 1.5;
 function infectionArts() {
   return { hitOut(c, b, e) { if (c.dmg.isAttack && onTerrain(b, e, 'infection')) c.dmg.type = 'arts'; } };
 }
+
+/**
+ * (fork) Seconds a one-shot official effect's fxs row stays in the snapshot (an event's burst: the client plays a
+ * 'trigger' row once per row; long enough for a snapshot to carry it, short enough not to repeat). [ASSUMED] display only.
+ */
+const CSDCR_SONG_FX = 1;
+
+/** (fork) 萨卡兹枯朽前锋's originium-mode glow (KITS below). */
+const LRSLDR_FX = fxWhile('enemy_lrsldr[switchMode][toOrig]', (b, e) => onTerrain(b, e, 'infection'));
 
 function kitChimera(ab) {
   const dmg = T(ab, 'OrigAura.damage') ?? 0, spr = T(ab, 'OrigAura.sp_recover_ratio') ?? 0;
@@ -65,7 +98,7 @@ function kitChimera(ab) {
       const pulse = a.acc >= CHIMERA_AURA_EVERY - 1e-9;
       if (pulse) a.acc -= CHIMERA_AURA_EVERY;
       for (const u of b.alliesInRadius(e.x, e.y, CHIMERA_AURA_RADIUS)) {
-        auraBuff(b, u, 'ab:originium', 0.25, { spRecoveryMul: Math.max(0, 1 + spr) }, null, true);
+        auraBuff(b, u, 'ab:originium', 0.25, { spRecoveryMul: Math.max(0, 1 + spr) }, null, true, { fx: 'enemy_lrcmra[originum][dmg]', src: e.id });
         // PRTS "持续视为受到源石污染区影响…每0.5秒受到50真实持续伤害": a damage instance (受击回复, the 重装 trigger), not a
         // 流失 — 无来源 like the 源石污染区 terrain it stands for [ASSUMED], the chimera keeps the credit; "同类效果取最高": one
         // tick per unit per period however many chimeras reach it (`mem.chimeraAt`; every chimera's is 50). A terrain
@@ -101,6 +134,9 @@ const PARROT_CHILL_STUN = 0.05;
  */
 function kitParrot(ab) {
   const down = T(ab, 'Stun.duration') ?? 0;
+  // (fork) fx: the client's parrot_m0_t[speed_up] (its first Fly mode: the first damage taken) keeps
+  // parrot_m0_t[speed_up_core] (enemy_parrot_move_1) on it while the sprint lasts; display only (snapshot fxs). Its
+  // Fly2 twin (parrot_m1_t, enemy_parrot_move_2) follows its ThrowEnemy, which our sim has not (no 冒险家水手 to throw)
   return [float(), {
     taken(c, b, e, a) {
       if (a.ran || a.down) return;
@@ -129,7 +165,7 @@ function kitParrot(ab) {
         b.fx('phase', { x: e.x, y: e.y, id: e.id, kind: 'float' });
       }
     },
-  }];
+  }, fxWhile('parrot_m0_t[speed_up]', (b, e) => !!e.findBuff('ab:parrotRun'))];
 }
 
 /**
@@ -157,7 +193,13 @@ function kitRush(ab) {
   return [{
     iv: RUSH_LISTEN,
     // the listeners first look at once (waitFirstTriggerInterval 0): a walker spawned unblocked starts at t = 0
-    spawn(b, e, a) { a.on = !e.blockedBy && !held(e); a.n = 0; a.tries = 0; a.acc = 0; },
+    spawn(b, e, a) {
+      a.on = !e.blockedBy && !held(e); a.n = 0; a.tries = 0; a.acc = 0;
+      // (fork) fx: the client's dlancer_t_listener[c] → dlancer_t[trigger] keeps dlancer_t[core] (dlancer_buff_01_start) on
+      // it while the charge lasts (unblocked until its charged hit, a stun or a bind) [ASSUMED: dlancer_t_predelay, which
+      // holds it back, is not in its data]; display only (snapshot fxs)
+      b.fxProbe(e, 'dlancer_t_listener[c]', () => !!a.on);
+    },
     tick(b, e, a, dt) {
       if (held(e)) { if (a.on) stop(b, e, a); return; }
       if (!a.on) {
@@ -195,6 +237,7 @@ function kitFirstAoe(ab) {
       if (a.done) return;
       a.done = true;
       b.fx('explode', { x: c.target.x, y: c.target.y, r: 1, kind: 'aoeAttack' });
+      b.fxState(c.target, WDRRL_AOE_FX, true, { src: e, dur: WDRRL_AOE_TIME });
       for (const u of b.alliesInRadius(c.target.x, c.target.y, 1)) {
         if (u !== c.target) hurt(b, e, u, e.s.atk * scale, 'phys', { ignoreSelect: true, tags: ['aoeAttack'] });
       }
@@ -229,6 +272,8 @@ function kitExposeOnHit(ab) {
  */
 const CATAPULT_SPLASH = 1.5;
 const CATAPULT_STONE = 'catapult:stone';
+/** (fork) Garum Gourmet's barrel zone: the official buff key of its glow on the enemies in it (b.snap fxs; STATE_BUFFS). */
+const WINTUN_ZONE_FX = 'wintun_t[attack_speed]';
 
 function catapultInPlay(e) {
   if (e?.s?.flags?.inPlay) return true;
@@ -321,8 +366,10 @@ export const SPECIAL_KITS = Object.freeze({
   enemy_1402_tgshd_2: kitExposeOnHit,                                // 重装侦察兵 · exposes its attackers 5 s
   enemy_1081_sotisd: (ab) => [taunt(T(ab, 'taunt.taunt_level') ?? 0)], // 游击队盾卫 · taunt +1
   enemy_1427_lrnazg: kitNazg,                                        // “灵幛” · attack hits everyone around it (+ on infection tiles)
-  enemy_1422_lrsldr: () => [infectionArts()],                        // 萨卡兹枯朽前锋 · arts attacks on 源石污染区 (infection tiles)
-  enemy_1422_lrsldr_2: () => [infectionArts()],                      // 萨卡兹枯朽辟路前锋 · same
+  // (fork) fx: the client's enemy_lrsldr[switchMode][toOrig] (CheckContainsBuff buff_originum[tile] …) — its originium
+  // mode and enemy_lrsldr_buff_01 while it stands on an infection tile; display only (snapshot fxs)
+  enemy_1422_lrsldr: () => [infectionArts(), LRSLDR_FX],             // 萨卡兹枯朽前锋 · arts attacks on 源石污染区 (infection tiles)
+  enemy_1422_lrsldr_2: () => [infectionArts(), LRSLDR_FX],           // 萨卡兹枯朽辟路前锋 · same
   enemy_1425_lrcmra: kitChimera,                                     // 孽罪奇美拉 · activated on infection: arts attacks + pollution aura
   enemy_1425_lrcmra_2: kitChimera,                                   // 渎罪奇美拉 · same
   enemy_1430_lrrook: (ab) => [{                                      // 愧悔魂灵圣杯 · shares damage taken by nearby ground enemies
@@ -356,7 +403,8 @@ export const SPECIAL_KITS = Object.freeze({
         // one not (areaSelectable; it used to skip 迷彩 like a normal attack)
         const t = b.allies().filter((a) => areaSelectable(e, a) && Math.abs(Math.round(a.y) - r0) <= 1 && Math.abs(Math.round(a.x) - c0) <= 1)
           .sort((p, q) => q.hpRatio - p.hpRatio)[0];
-        if (t) { b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'cannon' }); hurt(b, e, t, e.s.atk * (ab.sk.Cannon.bb.atk_scale ?? 0), 'arts'); }
+        // (fork) from / to: the client lands the official shell (projectile_enemy_stmgun_s) on the target
+        if (t) { b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'cannon', from: e.id, to: t.id }); hurt(b, e, t, e.s.atk * (ab.sk.Cannon.bb.atk_scale ?? 0), 'arts'); }
       }, { owner: e });
     }, { cond: (b, e) => inRange(b, e).length > 0, turn: attackSkillOf('enemy_1273_stmgun_2', 'Cannon') })];   // the attack's turn (DESIGN §35.52)
   },
@@ -369,10 +417,24 @@ export const SPECIAL_KITS = Object.freeze({
       spawnChildren(b, e, key, n, { route: stayRoute(e), countInTotal: false, mods: null });
     },
   }, {
-    spawn(b, e) { watchDeaths(b, e); },
+    spawn(b, e) {
+      watchDeaths(b, e);
+      // (fork) the mark ("周围有敌人或我方单位被击倒时": every unit around it, either side): one snapshot-time probe per unit —
+      // the operators and enemies on the field at its spawn, and each enemy spawned after [ASSUMED: a summon placed later
+      // shows none] — any other Torturer standing within the radius marks it (one probe for all: a later spawn replaces it)
+      const r = T(ab, 'Attack.range_radius') ?? TORTURER_RADIUS;
+      const mark = (u) => {
+        if (!u.alive) return false;
+        for (const t of b.enemies) if (t !== u && t.alive && t.defId === e.defId && hypot(u.x - t.x, u.y - t.y) <= r + 1e-9) return { src: t, look: 'mark' };
+        return false;
+      };
+      for (const u of [...b.allies(), ...b.enemies]) if (u.alive) b.fxProbe?.(u, SPNAXE_MARK_FX, mark);
+      b.on?.('enemySpawn', ({ enemy }) => { b.fxProbe?.(enemy, SPNAXE_MARK_FX, mark); }, { owner: e });
+    },
     otherDeath(c, b, e) {
       const u = c.unit;
       if (!u || u === e || c.reason !== 'killed' || hypot(u.x - e.x, u.y - e.y) > (T(ab, 'Attack.range_radius') ?? TORTURER_RADIUS) + 1e-9) return;
+      b.fxState?.(e, SPNAXE_MARK_FX, true, { look: 'heal', dur: SPNAXE_HEAL_ROW });   // (fork) its official heal (display only)
       b.heal(e, e, e.s.maxHp * (T(ab, 'Attack.hp_ratio') ?? 0), { self: true });
       b.addBuff(e, { key: 'ab:torture', refresh: 'stack', stacks: 1, maxStacks: T(ab, 'Attack.max_stack_cnt') ?? 1, persist: true, mods: { atkPct: T(ab, 'Attack.atk') ?? 0 } });
     },
@@ -399,12 +461,17 @@ export const SPECIAL_KITS = Object.freeze({
   enemy_10159_mntrjn: (ab) => [unblockable(), passengerBus(ab, true)], // 伊利昂的木驮兽 · unblockable; bus.max_cnt / bus.move_speed
   enemy_2009_csaudc: kitEp('neural', 'combat.attack@ep_damage_ratio'), // 骇笑看客 · neural on hit
   enemy_2010_csdcr: (ab) => [ep('neural', T(ab, 'attack.attack@ep_damage_ratio') ?? 0), { // 绯红歌伶 · neural on hit; every 20 hits taken: global enemy ASPD up
+    // (fork) fx, display only (snapshot fxs) — the client's csdcr_t: csdcr_warning[effect] (enemy_csder_buff_02) on it from
+    // its warning_stack_cnt-th hit taken until the song; at the song enemy_csder_buff_01_range_01 once on it and
+    // csdcr_attack_speed_up (enemy_csder_buff_01) on every enemy while their ASPD lasts (src it)
+    spawn(b, e, a) { b.fxProbe(e, 'csdcr_t', () => ((a.n ?? 0) >= (T(ab, 'AttackSpeedUp.warning_stack_cnt') ?? Infinity) ? 'warn' : null)); },
     taken(c, b, e, a) {
       a.n = (a.n ?? 0) + 1;
       if (a.n < (T(ab, 'AttackSpeedUp.stack_cnt') ?? Infinity)) return;
       a.n = 0;
       b.fx('telegraph', { x: e.x, y: e.y, r: 99, kind: 'songOfWar', id: e.id });
-      for (const o of b.aliveEnemies()) b.addBuff(o, { key: 'ab:songOfWar', duration: T(ab, 'AttackSpeedUp.duration') ?? 0, refresh: 'extend', mods: { aspd: T(ab, 'AttackSpeedUp.attack_speed') ?? 0 }, visible: true });
+      b.fxState(e, 'csdcr_t', true, { look: 'song', dur: CSDCR_SONG_FX });
+      for (const o of b.aliveEnemies()) b.addBuff(o, { key: 'ab:songOfWar', duration: T(ab, 'AttackSpeedUp.duration') ?? 0, refresh: 'extend', mods: { aspd: T(ab, 'AttackSpeedUp.attack_speed') ?? 0 }, visible: true, fx: 'csdcr_t', fxSrc: e.id, fxLook: 'aspd' });
     },
   }],
   enemy_10001_trslim: (ab) => [skill(ab.sk.StartRun, (b, e) => {    // 简饲源石虫 · below half: runs (faster, unblockable 3 s)
@@ -421,13 +488,21 @@ export const SPECIAL_KITS = Object.freeze({
           const lock = allTargets(b, e).sort((p, q) => q.hp - p.hp)[0];
           if (!lock) return;
           castSlot(b, e, ap);   // the entrance barrage is its Appear skill (display only)
-          b.fx('telegraph', { x: lock.x, y: lock.y, r: 1, kind: 'barrage', id: e.id });
-          for (let i = 0; i < n; i++) {
-            // "对碰撞范围内的1名当前生命值最高的我方单位" — an area selection: never an airborne 起飞 ally nor an unblocking
-            // 隐匿 one (PRTS “帝国的甲胄”; areaAlliesInTiles)
-            const t = areaAlliesInTiles(b, e, lock.tileR, lock.tileC, 'box', 1).sort((p, q) => q.hp - p.hp)[0];
-            if (t) hurt(b, e, t, e.s.atk, 'phys');
-          }
+          b.fxState(lock, VTSK_MARK_FX, true, { src: e, dur: VTSK_MARK_S });
+          b.after(VTSK_SHELL_DELAY, () => {
+            const x = lock.x, y = lock.y, r = lock.tileR, c = lock.tileC;   // the shell's spot: the target's place now
+            b.fx('telegraph', { x, y, r: 1, kind: 'barrage', id: e.id, dur: VTSK_SHELL_LIFE - VTSK_SHELL_DELAY });
+            for (let i = 1; i <= n && i * VTSK_SHELL_EVERY <= VTSK_SHELL_LIFE - VTSK_SHELL_DELAY; i++) {
+              b.after(i * VTSK_SHELL_EVERY, () => {
+                // "对碰撞范围内的1名当前生命值最高的我方单位" — an area selection: never an airborne 起飞 ally nor an
+                // unblocking 隐匿 one (PRTS “帝国的甲胄”; areaAlliesInTiles)
+                const t = areaAlliesInTiles(b, e, r, c, 'box', 1).sort((p, q) => q.hp - p.hp)[0];
+                if (!t) return;
+                hurt(b, e, t, e.s.atk, 'phys');
+                b.fx('explode', { x: t.x, y: t.y, r: 0.5, kind: 'vtskShell', id: e.id });   // its hit row (display only)
+              }, { owner: e });
+            }
+          }, { owner: e });
         }, { owner: e });
       },
       hitOut(c, b, e) { if (c.dmg.isAttack && c.target !== e.blockedBy) c.dmg.amount *= T(ab, 'range.attack@atk_scale_range') ?? 1; },
@@ -437,6 +512,7 @@ export const SPECIAL_KITS = Object.freeze({
         const m = e.mem.ab.multi;
         if (!(m > 1)) return;
         e.mem.ab.multi = 0;
+        b.tickFx(e, c.target, 'vtsk:multi', VTSK_MULTI_HIT_KEY);   // (fork) enemy VFX audit, S rows: its official multi-hit, display only
         for (let i = 1; i < m; i++) hurt(b, e, c.target, e.s.atk, 'phys');
       },
     } : null];
@@ -457,7 +533,8 @@ export const SPECIAL_KITS = Object.freeze({
         b.fx('zone', { x, y, r: BARREL_RADIUS, dur: life, kind: 'barrel' });
         let left = life;
         const h = b.every(0.5, () => {
-          for (const o of b.enemiesInRadius(x, y, BARREL_RADIUS)) auraBuff(b, o, 'ab:barrelZone', 0.5, { aspd: s.attack_speed ?? 0, dodgePhys: s.prob ?? 0 });
+          // (fork) fx: the official zone glow (wintun_t[attack_speed]: enemy_wintun_range_buff) on the enemies in it (b.snap fxs)
+          for (const o of b.enemiesInRadius(x, y, BARREL_RADIUS)) auraBuff(b, o, 'ab:barrelZone', 0.5, { aspd: s.attack_speed ?? 0, dodgePhys: s.prob ?? 0 }, null, false, { fx: WINTUN_ZONE_FX, src: e.id });
           left -= 0.5;
           if (left <= 0) h.cancel();
         });
@@ -474,7 +551,10 @@ export const SPECIAL_KITS = Object.freeze({
       const s = ab.sk.ForeverEnhance ? ab.sk.ForeverEnhance.bb : {};
       b.addBuff(e, { key: 'ab:enhance', refresh: 'stack', stacks: 1, maxStacks: 5, persist: true, mods: { moveFlat: (s.move_speed_add ?? 0) * e.base.moveSpeed, atkPct: s.atk_add ?? 0 } });
     },
-  }],
+  },
+  // (fork) fx: the client's hlchgr_t[attribute_storage] adds hlchgr_t[stack_mark] (enemy_hlchgr_buff_01) at each enhancement:
+  // the glow stays from the first one on; display only (snapshot fxs)
+  fxWhile('hlchgr_t[attribute_storage]', (b, e) => !!e.findBuff('ab:enhance'))],
   enemy_10094_crstf: kitEp('neural', 'ep.ep_damage_ratio'),          // 临时收音师 · neural on hit (filming zones n/a → always)
   enemy_10097_crshd: (ab) => [                                       // 心虚设计师 · neural to its blocker every s; front damage −80 % (faces the blocker, else the walk)
     { iv: 1, tick(b, e) { if (e.blockedBy) elem(b, e, e.blockedBy, 'neural', e.s.atk * (T(ab, 'block.ep_damage_ratio') ?? 0)); } },

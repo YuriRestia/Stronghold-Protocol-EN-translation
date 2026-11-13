@@ -10,6 +10,9 @@ import { enemyAura, allyAura, selfFear, skill, kitSelfFear } from './archetypes.
 import { hypot } from '../../detmath.js';
 import { bbCap, fieldCap } from '../../../../shared/plugins/officialBounds.js';
 
+/** (fork) The official buff keys of the aura glows the reached units show (b.snap fxs; render/vfx/skills.js STATE_BUFFS). */
+const DEFDRN_FX = 'defdrn_t_defup', FROSTD_FX = 'frostd_t_attack_speed_down';
+
 // ---------------------------------------------------------------------------------------------------------------
 // constants (numbers that exist nowhere in the data)
 
@@ -80,7 +83,9 @@ function kitBlackCloud(ab, e) {
         if (!e2.alive) return;
         for (const o of list) {
           if (!o.alive) continue;
-          b.addBuff(o, { key: 'ab:devoured', duration: dur, visible: true, flags: { bind: true, noMove: true, disarm: true } });
+          // (fork) fx: the client's enemy_acfort[kill_other] (its skill's _activeBuffs on the targets): enemy_acfort_trapped
+          // loops on the grabbed flyer while it lasts (display only: snapshot fxs)
+          b.addBuff(o, { key: 'ab:devoured', duration: dur, visible: true, flags: { bind: true, noMove: true, disarm: true }, fx: 'enemy_acfort[kill_other]', fxSrc: e2.id });
           b.after(dur, () => {
             if (!o.alive || !e2.alive) return;
             const gain = num(k.bb.sp, 1);
@@ -103,6 +108,10 @@ function kitBlackCloud(ab, e) {
       }
     }, { sil: true, cond: (b, e2) => (e2.mem.ab.ammo ?? 0) >= Math.max(1, num(f.sp, 1)) && allTargets(b, e2).length > 0,
       turn: attackSkillOf('enemy_9009_acfort', 'FireWeapon') }),   // the attack's turn (DESIGN §35.52)
+    // (fork) the client's passive enemy_acfort_vfx (FilterByTargetSpRatio GT 0 on the owner, re-checked every 1 s) keeps
+    // enemy_acfort_vfx[core] — enemy_acfort_skill_01_end — on it while it holds ammo (our SP: mem.ab.ammo); read only
+    // when a snapshot is taken (Battle.fxProbe: display only, nothing runs in the ticks)
+    { spawn(b, e2) { b.fxProbe(e2, 'enemy_acfort_vfx', (u) => (u.mem?.ab?.ammo ?? 0) > 0); } },
   ];
 }
 
@@ -248,10 +257,10 @@ function kitShell() {
 
 export const FLY_KITS = Object.freeze({
   // --- FLY 飞行 (motion is engine; abilities)
-  enemy_1017_defdrn: (ab) => [enemyAura(T(ab, 'defup.range_radius') ?? 2.5, 'ab:defdrn', { defFlat: T(ab, 'defup.def') ?? 0 })],        // 御4 · DEF aura
+  enemy_1017_defdrn: (ab) => [enemyAura(T(ab, 'defup.range_radius') ?? 2.5, 'ab:defdrn', { defFlat: T(ab, 'defup.def') ?? 0 }, true, 0.5, DEFDRN_FX)], // 御4 · DEF aura (its glow on them)
   enemy_1355_mrfly: (ab, e) => [enemyAura(e.base.rangeRadius || 2.5, 'ab:mrfly', { resFlat: T(ab, 'magdef_add.magic_resistance') ?? 0 })], // 护障 · RES aura
   enemy_1355_mrfly_2: (ab, e) => [enemyAura(e.base.rangeRadius || 2.5, 'ab:mrfly', { resFlat: T(ab, 'magdef_add.magic_resistance') ?? 0 })], // 护障·P · RES aura
-  enemy_1042_frostd: (ab) => [allyAura(T(ab, 'defup.range_radius') ?? 2.5, 'ab:frost', { aspd: (T(ab, 'atkSpeedDown.attack_speed') ?? 0) * 100 })], // 寒霜 · ASPD −50 aura on operators
+  enemy_1042_frostd: (ab) => [allyAura(T(ab, 'defup.range_radius') ?? 2.5, 'ab:frost', { aspd: (T(ab, 'atkSpeedDown.attack_speed') ?? 0) * 100 }, true, 0.5, null, FROSTD_FX)], // 寒霜 · ASPD −50 aura on operators (its frost on them)
   enemy_1040_bombd: kitBombd,                                        // 暴鸰 · no normal attack: ONE bomb (target + 8 tiles), then ×2 speed
   enemy_10083_hlbird: kitSelfFear,                                   // “萨科塔之翼” · below half HP: 5 s self-fear, flutters in its tile ×1.5
   enemy_10084_hlegle: kitSteal,                                      // “萨科塔之眼” · fear below half; steals 1 ammo instead of hitting

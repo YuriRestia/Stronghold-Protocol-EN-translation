@@ -94,7 +94,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES, stateEntries, TICK_SIGNALED,
+  FX_HIT_TILES, stateEntries, TICK_SIGNALED, enemyBinds,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -106,16 +106,26 @@ import { layerKeysOf } from './talentfx.js';
  * mlyss_wtrman_summon[trigger] — token_10030_mlyss_wtrman_split_start_01 — and that split 流形's end the
  * mlyss_wtrman_summon[override] buff's ON_BUFF_FINISH — token_10030_mlyss_wtrman_c3_to_c0. Its _buffsToExistToken
  * refresh (…_refresh_01) needs a refresh the sim does not make (a split always spawns): not played.
+ * (fork) `hold`: the keys loop on the summon (following it) until it leaves. 假想敌：胄's 刺胄之弹 (enemy_9016_acstmr; bosses.js
+ * fireShell's 'shell', id = the shell): the client's projectile_enemy_acstmr flies its main effect enemy_acstmr_move to the
+ * tile and plays enemy_acstmr_explode there as it is reached (SummonEnemyBehaviour; the shell enemy the projectile summons
+ * is invisible) — the sim's shell is that flight: the loop rides it, the explode where it leaves [ASSUMED: also when
+ * operators knock it down mid-flight].
  */
 export const SUMMON_FX = Object.freeze({
   split: Object.freeze({ unit: 'token_10030_mlyss_wtrman', keys: Object.freeze(['token_10030_mlyss_wtrman_split_start_01']), gone: Object.freeze(['token_10030_mlyss_wtrman_c3_to_c0']) }),
+  shell: Object.freeze({ unit: 'enemy_9016_acstmr', keys: Object.freeze(['enemy_acstmr_move']), gone: Object.freeze(['enemy_acstmr_explode']), hold: true }),
 });
 import { unitPoint } from './mounts.js';
+import { projectileParts } from './flight.js';
 import { PathFx } from './pathfx.js';
+import { enemyStateKeys } from './indexGaps.js';
 import { UF, ANIM } from '../../../../shared/constants.js';
 
 /** Battle seconds a held (non-oneshot) row of a skill's single cast lasts (FxWiring's CAST_LOOP_S for attacks). */
 export const SKILL_CAST_S = 0.6;
+/** (fork) enemy VFX audit, S rows: the prefix of an enemy skill's ready row (sim enemies/helpers.js READY_PREFIX). */
+const READY_ROW = 'ready:';
 /**
  * Battle seconds after a skill's end in which a kit fx still belongs to it (FX_COVER, FX_BINDINGS `during`): an instant
  * skill's kit lands its blast or shells a moment after the 0 (蕾缪安 S3's last shells 0.3–0.7 s, 溯光星源 S2's link
@@ -127,6 +137,14 @@ const ARRIVAL = new Set(['summonBurst', 'summonStun', 'radiantSword', 'paperDoll
 /** The 驭械术士's kit fx: render/vfx/funnelfx.js decides them (its floating units). */
 const FUNNEL_KINDS = new Set(['drone', 'drones', 'droneLock', 'overload']);
 const lc = (k) => (typeof k === 'string' && k ? k.toLowerCase() : null);
+/**
+ * (fork) Whether flying projectile `p` draws anything installed: its flying effect, a harpoon's rope, or (a timer with no
+ * flying effect: 节日爵士乐手's lasso, “萨米的意志”'s 自然涌动) what it puts on its target as it starts or as it hits.
+ */
+const flyDraws = (p, lib) => {
+  const parts = projectileParts(p);
+  return [parts.main, parts.rope, ...(p.toTargetOnStart || []), ...(p.onHit || []), ...(p.onReached || [])].some((k) => k && lib.has(lc(k)));
+};
 /** (fork) Plan kinds whose skill lasts (its loops are held for it); another's buff loops with a life run their own time. */
 const SKILL_LASTS = new Set(['lasting', 'ammo', 'passive']);
 /** Battle seconds after a release in which a stale energy reading is ignored (the next store takes an attack interval). */
@@ -690,6 +708,12 @@ export class SkillFx {
    * held for the skill's blackboard `duration` when the event carries one. A window the snapshot's SKILL anim opened for
    * the same slot a moment before is kept (the event and the snapshot come apart by up to a frame).
    */
+  /** (fork) Whether an enemy of index unit key `key` cast one of `skills` (prefab keys, lower case) in this frame. */
+  castNow(key, skills) {
+    for (const U of this.units.values()) if (U && U.key === key && U.castFrame === this.frame && skills.includes(U.castKey)) return true;
+    return false;
+  }
+
   cast(v, slot, dur = 0) {
     const U = this.of(v);
     const entry = U?.enemy?.find((x) => x.slot === slot);
@@ -768,7 +792,8 @@ export class SkillFx {
     const m = id != null ? this.marked.get(id) : null;
     if (m) {
       this.marked.delete(id);
-      for (const k of m.sf.gone) this.w.playOn(k, this._ground(v.x, v.y, v), { important: true, by: m.by });
+      for (const h of m.hs || []) h.stop();
+      for (const k of m.sf.gone || []) this.w.playOn(k, this._ground(v.x, v.y, v), { important: true, by: m.by });
     }
   }
 
@@ -1161,7 +1186,14 @@ export class SkillFx {
         // (fork) a talent's or an ability's buff on its targets (talents.js plan.targets, `buff`): the src's own bindings'
         // rows of that buff (TalentFx.targetRows), when no skill state entry names it
         let list = stateEntries(U?.plan?.state, row[0], row[2], v.facing);
+        // (fork) an enemy src: its skills' rows on their targets (index v2 skill plans: OpFor: BlackCloud's grab)
+        if (!list.length && U?.enemy?.length) list = stateEntries(U.enemy.flatMap((x) => [...(x.plan?.state || []), ...(x.plan?.targets || [])]), row[0], row[2], v.facing);
         if (!list.length && sv) list = this.w.talents?.targetRows?.(sv, row[0], row[2]) || [];
+        // (fork) enemy VFX audit, S rows: 'ready:<prefabKey>' (sim enemies/helpers.js readyProbe: its ReadyEnemySkillEffect)
+        // — that enemy skill plan's `ready` rows on the enemy while the row lasts
+        if (!list.length && typeof row[0] === 'string' && row[0].startsWith(READY_ROW) && U?.enemy?.length) list = this._readyRows(U, row[0]);
+        // (fork) last: an official effect in a field the indexer does not read (indexGaps.js ENEMY_STATE_KEYS) (a light world without unit keys: by-unit rows skip)
+        if (!list.length) list = enemyStateKeys(row[0], this.w.unitKeyOf?.(sv || v), row[2]).map((key) => ({ key, buff: row[0], loop: this.w.idx?.prefabs?.[key]?.looping !== false }));
         for (const e of list) {
           const k = `${id}|${e.key}`;
           if (e.role === 'end') { if (!(ends || (ends = new Map())).has(k)) ends.set(k, { e, id }); continue; }
@@ -1250,8 +1282,12 @@ export class SkillFx {
       if (sv && this.w.unitKeyOf(sv) === sf.unit) {
         const by = this.w.view(sv.info?.summonerId) || sv;
         let drew = false;
-        for (const k of sf.keys) if (this.w.playOn(k, sv, { important: true, by })) drew = true;
-        if (sf.gone?.length) this.marked.set(extra.id, { sf, by });
+        const hs = [];
+        for (const k of sf.keys) {
+          const h = this.w.playOn(k, sv, sf.hold ? { important: true, by, follow: true, loop: true } : { important: true, by });
+          if (h) { drew = true; if (sf.hold) hs.push(h); }
+        }
+        if (sf.gone?.length || hs.length) this.marked.set(extra.id, { sf, by, hs });
         if (drew) return true;
       }
     }
@@ -1337,7 +1373,8 @@ export class SkillFx {
     const U = extra.id != null ? (this.units.get(extra.id) ?? this.of(this.w.view(extra.id))) : null;
     const at = extra.on != null ? this.w.view(extra.on) : null;
     const plan = U?.plan;
-    if (!plan || !at) return true;
+    if (!at) return true;
+    if (!plan) { if (U?.enemy?.length) this._enemyTick(U, at, extra.key); return true; }
     let rows = plan.pulse.filter((e) => e.reason === 'tick' && (!extra.key || e.key === extra.key));
     // a talent's tick the index reaches through one skill only (遥's bubbles: S1's selector) plays with any skill equipped
     if (!rows.length && extra.key && plan.unitKey) rows = this._tickRows(plan.unitKey, extra.key);
@@ -1347,6 +1384,37 @@ export class SkillFx {
       if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
     }
     return true;
+  }
+
+  /**
+   * (fork) enemy VFX audit, S rows: fx 'tick' of an enemy (U.enemy: its skills by slot, index v2) — the moment its kit
+   * signals plays the first of its skill plans with pulse rows ('tick' / 'hit-no-attack', `key`: only that one) on `at`,
+   * one-shot (a 'cast' hold ends after SKILL_CAST_S): Jetman's takeoff jets, Blackhorn Rhuul's clash.
+   */
+  _enemyTick(U, at, key) {
+    const from = U.v && U.v !== at && Number.isFinite(U.v.x) ? U.v : undefined;
+    for (const en of U.enemy) {
+      // `key` also finds the plan's attack hit rows: a skill attack whose blow the kit deals itself (no 'atk' event:
+      // the Corrupted Knight's charged hammer, 'Armor of the Empire''s multi-hit)
+      const rows = key ? [...(en.plan?.pulse || []), ...(en.plan?.attacks || []).flatMap((a) => (a.hit || []).flat())].filter((e) => e.key === key)
+        : (en.plan?.pulse || []);
+      if (!rows.length) continue;
+      for (const e of uniq(rows)) {
+        const h = this._play(e, at, { flipFrom: from });
+        if (h && (e.loop || e.hold === 'cast')) later(this.w.ofx, SKILL_CAST_S, () => h.stop());
+      }
+      return;
+    }
+  }
+
+  /**
+   * (fork) enemy VFX audit, S rows: the `ready` rows of the enemy skill a 'ready:<prefabKey>' row names (U.enemy, its
+   * skills by slot; prefabKey matched without case: the sim's record key against the index's), as state entries.
+   */
+  _readyRows(U, buff) {
+    const pk = buff.slice(READY_ROW.length).toLowerCase();
+    const en = U.enemy.find((x) => String(x.prefabKey).toLowerCase() === pk);
+    return (en?.plan?.ready || []).map((e) => ('loop' in e ? e : { ...e, loop: this.w.idx?.prefabs?.[e.key]?.looping !== false }));
   }
 
   /** (fork) The 'tick' rows of `key` in any skill plan of the unit (cached per battle). */
@@ -1734,17 +1802,21 @@ export class SkillFx {
     if (!cands) return false;
     const rows = [];
     for (const key of cands) {
-      const bind = ENEMY_FX_BINDINGS[key][kind];
-      if (bind.xkind && extra.kind !== bind.xkind) continue;
-      const owner = this._enemyOwner(key, bind, x, y, extra);
-      if (!owner) continue;
-      rows.push({ key, bind, owner, rank: this._fxRank(bind, owner, extra) });
+      for (const bind of enemyBinds(ENEMY_FX_BINDINGS[key][kind])) {
+        if (bind.xkind && extra.kind !== bind.xkind) continue;
+        const owner = this._enemyOwner(key, bind, x, y, extra);
+        if (!owner) continue;
+        rows.push({ key, bind, owner, rank: this._fxRank(bind, owner, extra) });
+      }
     }
     rows.sort((a, b) => a.rank - b.rank);
     for (const { key, bind, owner } of rows) {
       if (bind.endMode) { this._modeEnd(owner); return false; }   // (its procedural cue stays)
       const drew = bind.modeLoops ? this._modeWin(owner, key, bind)
         : bind.talent ? this._aura(owner, key, bind, x, y, extra)
+        : bind.fly ? this._enemyFly(owner, bind, extra)
+        : bind.cover ? this._enemyCover(owner, bind)
+        : bind.quiet ? !!this.w.ofx.lib.has(lc(bind.quiet))
         : this._zone(bind, x, y, extra);
       if (!drew) continue;
       // the kit's own moment stood for an attack-rooted skill of a window: that was its one attack — the enemy's next
@@ -1768,7 +1840,7 @@ export class SkillFx {
    */
   _fxRank(bind, owner, extra) {
     const oid = owner && owner !== true ? idOf(owner) : null;
-    if (bind.owner === 'id' || (extra.id != null && oid != null && oid === extra.id)) return 0;
+    if (bind.owner === 'id' || bind.owner === 'from' || (extra.id != null && oid != null && oid === extra.id)) return 0;
     if (bind.owner === 'died') return 1;
     if (bind.owner === 'cast') return 2;
     if (bind.owner === 'near') return 3;
@@ -1782,8 +1854,8 @@ export class SkillFx {
   _enemyOwner(key, bind, x, y, extra) {
     const near = (p) => Number.isFinite(x) && Number.isFinite(y) && Math.hypot(p.x - x, p.y - y) <= OWNER_NEAR;
     switch (bind.owner) {
-      case 'id': {
-        const v = this.w.view(extra.id);
+      case 'id': case 'from': {
+        const v = this.w.view(bind.owner === 'from' ? extra.from : extra.id);
         return v && this.w.unitKeyOf(v) === key ? v : null;
       }
       case 'died':
@@ -1804,6 +1876,41 @@ export class SkillFx {
       case 'any': return true;
       default: return null;
     }
+  }
+
+  /**
+   * (fork) An enemy binding's `fly`: its projectile from the enemy to the unit `extra.to` (FxWiring._fly: the flying
+   * effect, then the hit), each further one of the same enemy in this frame `stagger` s after the one before (a
+   * MultiRangedAttack's shots; the sim lands their damage in the cast's tick). `flyDur`: the flight's own time; `rehit`:
+   * while a flight of this enemy at this target lives (its projectile's life), the fx plays the projectile's onHit on the
+   * target instead (a lasso's later hits). False when the projectile draws nothing installed (flyDraws) or the target is
+   * gone (the procedural beam stays).
+   */
+  _enemyFly(owner, bind, extra) {
+    const p = this.w.idx?.projectiles?.[lc(bind.fly)];
+    const tv = this.w.view(extra.to);
+    if (!p || !tv || !flyDraws(p, this.w.ofx.lib)) return false;
+    const oid = idOf(owner);
+    if (bind.rehit) {
+      const now = this.w.ofx.time, k = `${oid}>${extra.to}`;
+      this.lassos ??= new Map();
+      for (const [x, until] of this.lassos) if (until <= now) this.lassos.delete(x);
+      if (this.lassos.has(k)) { for (const h of p.onHit || []) if (this.w.ofx.lib.has(lc(h))) this.w.playOn(lc(h), tv, {}); return true; }
+      this.lassos.set(k, now + (Number(projectileParts(p).life) || 1));
+    }
+    const q = this.volley?.id === oid && this.volley.frame === this.frame ? this.volley : (this.volley = { id: oid, frame: this.frame, n: 0 });
+    const delay = (q.n++) * (Number(bind.stagger) || 0);
+    const fd = bind.flyDur === 'fx' ? Number(extra.dur) : Number(bind.flyDur);
+    const o = { ...(fd > 0 ? { dur: fd } : {}), ...(bind.hits ? { hits: bind.hits.map((k) => ({ k })) } : {}) };
+    const go = () => { if (owner.alive !== false && !owner.destroyed) this.w._fly(p, owner, tv, 'arrow', this.w.ofx.time, o); };
+    if (delay > 0) later(this.w.ofx, delay, go); else go();
+    return true;
+  }
+
+  /** (fork) An enemy binding's `cover`: the kit fx is what the enemy's open window of skill `skill` already shows. */
+  _enemyCover(owner, bind) {
+    const U = this.units.get(idOf(owner));
+    return !!U?.ewin && lc(U.ewin.plan?.skillId) === lc(bind.skill) && this._ewinDraws(U.ewin);
   }
 
   /** An enemy's zone: its binding's prefabs at the fx's point on the ground, the looping ones for the zone's time. */
