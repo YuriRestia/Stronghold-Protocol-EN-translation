@@ -1853,6 +1853,36 @@ const LEMUEN_WANTED = binding({ owner: 'src', keys: ['lemuen_talent_buff_01'], h
 const LEMUEN_EXTRADITION = binding({ owner: 'id', only: Object.freeze({ name: 'extradition' }), keys: ['lemuen_talent_buff_02'], hold: 'life' });
 
 export const FX_BINDINGS = Object.freeze({
+  // (fork) 予愿安洁莉娜 (char_1015_aglna2; op-aglna2.js): her take-off ('takeoff') has no effect of its own in the client
+  // (her modes' start effects and the skills' rows show it). S2: the glide ('dash' tagged aglna2:glide) is the sweep
+  // projectile's buff aglna2_s_2[flying] on her — the trail by her facing and the ground mark, for the projectile's life
+  // (the fx's `dur`). S3: the flight ('aglna2Fly' … 'aglna2Land': she is drawn where projectile_chr_aglna2_s3_fly carries
+  // her, in her S3Move clip — render/units.js FORMS — with that mode's trail loop) and the restore ('aglna2Restore') draw
+  // nothing beside her own rows. The landing's start ('aglna2Landing') and S2's 浮空 / 缚地 starting on an enemy
+  // ('aglna2Bind') are sound moments only (tools/assets/plan.mjs FX_SOUND_BANKS).
+  skchr_aglna2_1: Object.freeze({
+    takeoff: binding({ owner: 'id', none: true }),
+    aglna2Landing: binding({ owner: 'id', none: true }),
+  }),
+  skchr_aglna2_2: Object.freeze({
+    takeoff: binding({ owner: 'id', none: true }),
+    aglna2Landing: binding({ owner: 'id', none: true }),
+    aglna2Bind: binding({ owner: 'id', none: true }),
+    dash: binding({ owner: 'id', only: Object.freeze({ skill: 'aglna2:glide' }), hold: 'fx', keysBy: Object.freeze({ field: 'face',
+      map: Object.freeze({
+        RIGHT: ['aglna2_skill_02_fly_trail_rightandleft_01', 'aglna2_skill_02_fly_range_01'],
+        LEFT: ['aglna2_skill_02_fly_trail_rightandleft_01', 'aglna2_skill_02_fly_range_01'],
+        UP: ['aglna2_skill_02_fly_trail_up_01', 'aglna2_skill_02_fly_range_01'],
+        DOWN: ['aglna2_skill_02_fly_trail_down_01', 'aglna2_skill_02_fly_range_01'],
+      }) }) }),
+  }),
+  skchr_aglna2_3: Object.freeze({
+    takeoff: binding({ owner: 'id', none: true }),
+    aglna2Fly: binding({ owner: 'id', none: true }),
+    aglna2Restore: binding({ owner: 'id', none: true }),
+    aglna2Land: binding({ owner: 'id', none: true }),
+    aglna2Landing: binding({ owner: 'id', none: true }),
+  }),
   // (fork) 烛煌 S1 炙手之援: the client's AnimatedActionToTargetAbility gives the operator it picks blaze2_s_1, whose
   // effect blaze2_skill_01_hit_range (looping, GROUND_CENTER) burns around that operator for max_duration (the user's
   // clip 0:10–0:34: the red smoke ring). The kit's 'aoe' tagged blaze2Aid is that pick (x, y: the operator's tile).

@@ -275,6 +275,15 @@ history and the open points: DESIGN §32.14.25.
   deploy); a talent attack on the kit's 'extraAttack'; an arts barrier's talent until 'shieldBreak'. One effect plays
   once per spot whichever binding wants it. When the official rows draw a kit fx's or a form fx's moment, its procedural
   fx is skipped.
+- **予愿安洁莉娜's kit fx** (fork, 2026-11-14, `skills.js FX_BINDINGS` skchr_aglna2_1/2/3, kits/ops/op-aglna2.js). Her
+  take-off, S3 flight ('aglna2Fly'), its end ('aglna2Land'), the S3 restore, the landing's start ('aglna2Landing') and S2's
+  浮空 / 缚地 moments ('aglna2Bind') draw nothing of their own (`none`: no generic takeoff / blink); the last two are sound
+  moments only (tools/assets/plan.mjs FX_SOUND_BANKS). S2's glide ('dash' tagged aglna2:glide) holds the sweep's trail by
+  her facing and its ground mark for the fx `dur`. Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
+  idle and skill idle), the flight's end `form: null`. While S3 blocks, her attack clip is Skill_3_Combat (`spine.js
+  MELEE_TWIN`); her attacks are agent shots (`UnitView.agent`) since they fly her projectile. The 浮空 she gives shows
+  aglna2_levitate_01_emit in place of the generic status loop (`indexGaps.js ENEMY_STATE_KEYS` 'aglna2_s_2[enemy]', its
+  `replaces` turning the generic `levitate` loop off while the row lasts).
 - **Floating units** (0.3.0 round 46, `funnelfx.js FunnelFx`, owned by the wiring; the plans of `funnels.js`, DESIGN
   §33.18). The 驭械术士's units are effect prefabs the official attack abilities show at the operator's Special points: at
   home their loops (a mode attack's FunnelEffectEmitter idle — its back and overload variants —, or a funnel shot's

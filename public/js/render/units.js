@@ -476,6 +476,8 @@ export const oblvnsStartForm = (info, skillIndex) =>
  *   has no begin clip, its toggle ability no clip field — the S1 mode's hooker turns her Idle into Skill_1_Idle.
  */
 const VVANA = 'char_4098_vvana';
+/** (fork) 予愿安洁莉娜: her S3's blocked attack is its Combat clip (spine.js MELEE_TWIN, UnitView agent). */
+const AGLNA2 = 'char_1015_aglna2';
 const VVANA_S1 = Object.freeze({ begin: null, loop: 'Attack', end: null, idle: null, via: 'attack', keepAttack: true });
 const VVANA_STANCE = Object.freeze({ change: null, roles: Object.freeze({ idle: 'Skill_1_Idle' }) });
 const VVANA_STRIKE = Object.freeze({ begin: null, loop: 'Skill_1_Attack', end: null });
@@ -503,6 +505,12 @@ export function vvanaSkillRole(index, casts, down) {
 }
 
 export const FORMS = Object.freeze({
+  // (fork) 予愿安洁莉娜 S3's flight (op-aglna2.js: the 'aglna2Fly' fx's form `fly`, back to null when she lands): mode
+  // S3Move's clip Skill_3_Move while projectile_chr_aglna2_s3_fly carries her (her charpack Modes/S3Move)
+  [AGLNA2]: Object.freeze({
+    fly: Object.freeze({ roles: { idle: 'Skill_3_Move',
+      skill: Object.freeze({ begin: 'Skill_3_Begin', loop: 'Skill_3_Loop', end: 'Skill_3_End', idle: 'Skill_3_Move' }) } }),
+  }),
   [MANIFOLD]: Object.freeze({
     Default: Object.freeze({ roles: { ...clipSet('Idle_1', null, 'Stun', 'Attack'), deploy: 'Start', stun: loop('Stun') } }),
     Melee: Object.freeze({ change: 'Change_A', combat: 'A_Combat', roles: { ...clipSet('A_Idle', null, 'Die', 'A_Attack'), deploy: 'A_Start', stun: loop('A_Stun'), attackDown: null } }),
@@ -862,7 +870,8 @@ export class UnitView {
     this.lord = sub === 'lord';
     // An agent (伊内丝 Ines) melees the enemy it blocks (Combat) and shoots otherwise (Attack); its 'atk' kind is
     // 'none' either way, so the view reads whether the target is blocked on its tile (blocksTarget)
-    this.agent = sub === 'agent';
+    // 予愿安洁莉娜 likewise: her S3's Combat ability (Skill_3_Combat) on the enemy she blocks, her mode's attack otherwise
+    this.agent = sub === 'agent' || (!this.isEnemy && (info?.spine === AGLNA2 || info?.diy?.charId === AGLNA2));
     this.shot = this.fortress || this.lord || this.agent ? 'ranged' : null;
     // the official's own model quirks (enemies.json, read from its battle prefabs — tools/local-extract/enemy_model_offsets.py,
     // PR #211): a vertical stretch (its Graphic scale's sy / sx, the two 帝国炮火先兆者 at 1.263) and a mirrored X scale

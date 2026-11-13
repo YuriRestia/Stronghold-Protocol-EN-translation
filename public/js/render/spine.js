@@ -75,9 +75,11 @@ const CAST_HOLD = 0.12;
  * wins. Ashlock: Attack01 is his cannon, Attack02 the shield bash (it animates F_weapon_dun). 领主 (lord): Attack is
  * the ranged shot (银灰's cane point with the eagle, user playtest 2026-10-12), Combat the melee; [ASSUMED] the same for
  * Qiubai (Attack / Combat_A), whose two clips animate the same bones. Agent (伊内丝 Ines): Attack / Skill_2_Attack throw
- * her shadow, Combat / Skill_2_Combat strike the enemy she blocks.
+ * her shadow, Combat / Skill_2_Combat strike the enemy she blocks. 予愿安洁莉娜 S3: Skill_3_Loop, Skill_3_Combat on the enemy she
+ * blocks (her charpack Modes/S3/Body/Combat; the only skeleton with both clips).
  */
-const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Skill_2_Attack: ['Skill_2_Combat'] });
+const MELEE_TWIN = Object.freeze({ Attack01: ['Attack02'], Attack: ['Combat', 'Combat_A'], Skill_2_Attack: ['Skill_2_Combat'],
+  Skill_3_Loop: ['Skill_3_Combat'] });
 /** (fork) The other way round (SpineActor.shot 'ranged'): Thorns' manifest Attack_1 is his melee, Attack_2 the thrown
  *  shot (user playtest 2026-10-12). */
 const RANGED_TWIN = Object.freeze({ Attack_1: ['Attack_2'] });
