@@ -5,6 +5,347 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-13
+
+### A unite phase can no longer get stuck
+
+- Grand Alliance: when the unite battle's helpers were offline, it sat at "Uniting" with the countdown at 00 for minutes
+  and then charged the leakers as if nobody had played it. The browsers did run it, but their answers were refused once
+  more than 4 players were in it. They now count, and the round goes on as soon as the battle ends. If the browsers
+  still cannot run it, the room now waits for two of them, not for every player in turn. A unite with 5 or more
+  helpers also counts their result again (it used to name only 4 of them and was refused).
+- If something goes wrong while the unite phase ends, the match no longer stays on "Uniting" with the countdown at 00.
+  Once the phase is well past its time, the server closes the unite battle with what it has and moves on to the
+  results. If no result came in, the leakers lose LP for their own leaks, as when the unite battle cannot run.
+  Before: one error on the way out of the unite phase left the whole room stuck there.
+
+### Delayed attack sounds follow the game speed
+
+- Operator attack and hit sounds the official data plays a moment late now count that moment in game time too, as the
+  official game does (every official sound keeps its delay on game time).ignoreTimeScale, false on
+  13990 of 13990 sounds]. At 2× Ch'en's attack sound waits 0.3 s instead of 0.6 s.delay 0.6], a speed change takes hold within a
+  moment, and the dev sandbox's pause holds a waiting sound until the battle goes on.
+
+### Delayed skill sounds follow the game speed
+
+- Skill sounds the official data plays a moment late now count that moment in game time, as the official game does
+  (every official sound keeps its delay on game time).ignoreTimeScale, false on 13990 of 13990 sounds]. At
+  2× the Echoes' 0.7 s delay becomes 0.35 s[delay]
+  sounds[].delay 0.7], a speed change takes hold at once, and the dev sandbox's pause holds a waiting sound until the
+  battle goes on.
+
+### Enemy skill sounds follow the official sound limits
+
+- Enemies casting the same skill together no longer silence each other: every cast plays its sound, and only the
+  official limit for that sound holds it back, as in the official game, which keeps no time gap between two plays of a
+  sound. A crowd of ten casters rings as that limit allows: most enemy skill sounds keep two at once, the oldest
+  giving way to the newest.
+- Sounds the official data plays a moment late now wait that moment: the Echoes' delayed ensemble sounds, Armor Cleaver
+  and Armor Crusher being shot down, and the skill start sounds of Bubble's S2, Mostima's S3 and Waai Fu's S2
+.delay: acdums_audio[passion][delay] / [depassion][delay] 0.7,
+  acstma_s_1[special_stun] / acstmb_s_1[special_stun] 0.27, skchr_bubble_2 / skchr_mostma_3 0.1, skchr_waaifu_2 0.05].
+
+### One for All: strategy and operator item gifts no longer use the shop's stock
+
+- In One for All every player holds the same strategy. The items strategies and operators' garrison effects give are
+  now separate from the shop and reward stock: every player gets them, they take no copies from the shop, and selling
+  or destroying them gives nothing back to it. The shop and rewards keep their normal copies.
+  Before: these items came out of the room's stock, which is sized for one holder per strategy, so the last players got
+  nothing. With 8 players, the 8th Muelsyse holder got no advanced Doctor Hologram, 4 of 8 Malkiewicz holders no
+  Commercial Packaging Plan, and 2 of 8 Justin Jr., Jessica, Fang, Orchid or 'Damazti Cluster' holders missed later
+  items.
+- Every other mode keeps the official rule: equipment from any source takes up the stock.
+
+### Enemy revives, form switches and tiers play their official sounds
+
+- Enemies that revive now sound like the official game: the knock-out and the stand-up of Degenbrecher, Zaaro, Free,
+  Jesselton Williams and The Big Ugly Thing, and the Dublinn Flamechasers' ember and their return. Zaaro's knock-out
+  holds its official loop until Zaaro stands up again.
+- Other official moments that were silent now play too: Jetman's landing, OpFor: Bonespur's switches, Gunshatter's
+  shield taking hits, the Echoes' form switches and ensembles, Alistair's golden shield and advance, Samivilinn's doom,
+  Lucky Flyfin taking off, Snowchild hitting high ground, the OpFor blades being shot down, and more (24 enemies).
+
+- Sounds that belong to a moment inside an enemy's animation now play at that moment of the animation, as in the
+  official game: Jesselton Williams's three knock-out sounds, the Shoulder Cannon Crawler's volley, each shot of it.
+
+- Mudrock's attacks now change sound as Mudrock's charge grows, by the official rule: tiers 4 and 5 swing with their own heavy
+  sounds.; server/sim/content/enemies/leaders.js:65]
+- Yans Protection's flame holds its official looping sound while its skill runs.
+
+### More enemy skill impacts can be heard
+
+- These enemy skills now play their official impact sound when they hit, with battle effects on or off:
+  - Sarkaz Royal Court Elite Caster: its lock-on line and the burst at its end
+  - Withered Knight: its explosive arrows
+  - OpFor: BlackCloud: devouring flying enemies
+  - Yan's Protection: each hit of its flame line
+  - OpFor: Gun (Hidden Core): its chain reaching a spring
+  - Alistair, Final Flame of the Empire: [Royal Decree]
+  - 'Samivilinn,' the Resolution of the Very North: [Surge of Nature]
+  - Novice Acolyte: the heal when defeated (the flask thrown, then landing)
+  - Jesselton Williams: the shot that stuns several units (Jailer Form)
+- Before, these impacts were silent.
+- Each one is timed like the official game: the Elite Caster's line and the Withered Knight's arrows ring when they reach
+  their target (at the official projectile speed, so a farther target hears it later, and the arrow's look lands at the
+  same moment), BlackCloud's grab rings at its official attack moment, and the Acolyte's flask lands at the end of its
+  official flight. The timing follows the battle's speed.
+
+### More enemy attacks play their official sounds
+
+- Death blasts now have their official explosion sound: Infused Originium Slug, Infused Glacial Originium Slug and an
+  ignited Cabbage Seedling. OpFor: Fissure's poison lob at its killer now sounds as it launches.
+- Diver's arrows land with their official water splash, and Corrupted Knight's blows with their splash blade, each beside
+  the impact they already had.
+- Some enemies attack differently in another form, and now play that form's own sound: Degenbrecher's second form
+  strikes with its heavy slash, 'Echoes' in its dark form with that form's own strike, and Sarkaz Wither Vanguard (and Elite) on
+  an infection tile with its Originium sword.
+- Before: these were silent, or played the usual attack sound.
+
+### No frozen battle effects in the shop phase after a background tab
+
+- Fixed: when a round ran while the game was in another tab, coming back showed the shop phase with the last battle's
+  effects frozen on the field: orange and black shards from the enemies' deaths over the lanes, the enemy entrance and
+  the bench (they could look like a broken operator). The shop phase now starts clean. Battles you watch are unchanged.
+
+### Enemy skills play their official sounds
+
+- Enemy skills now play their official sounds when they are cast, such as Defense Crusher's stunning blow, OpFor:
+  Armor's skills and Degenbrecher's blink: 63 enemies whose skills were silent, or played only their effect, now sound
+  like the official game.
+- A skill's impact plays its own official sound where it lands, such as W's C4 explosion and Free's arrow skill
+  (36 skills). These impact sounds follow the skill's impact effect, so they stay silent when battle effects are
+  turned off; the cast sounds always play.
+
+### Enemy attacks play their official sounds
+
+- Ranged enemies now play the official impact sound where their shot lands, such as OpFor: Gun's bullets, Free's arts,
+  W's grenades and Heavy Crossbowman Ambusher's bolts: 56 enemies that landed their shots in silence now have an impact
+  sound, and 16 more play their shot's own impact instead of another attack's.
+- Enemies whose official attack has two sounds, a wind-up and a shot or strike, now play both: OpFor: Gun's charge is
+  followed by its shot, and so for 20 enemies.
+- Enemies with a ranged and a melee attack play each attack's own sounds (22 enemies): Army Veteran Shieldguard's
+  shield bash no longer ends in a ranged impact, and Heavy Crossbowman Ambusher's bolts no longer land with a sword
+  sound.
+
+### Vendela's skill no longer taunts a summon
+
+- Vendela's skill gives the taunt to the operator with the highest max HP in her attack range, as in the official
+  game. Before: a summon with more max HP in her range took the taunt instead.
+- Vendela taunting herself is official: when no operator in her range has more max HP than she does, she is the one
+  the skill picks (client skill data: the selector does not leave her out). That is unchanged.
+- Her talent's healing bonus follows the same rule: it goes to the operator with the highest max HP, never a summon.
+
+### One for All: Duck Lord counts every holder
+
+- In One for All every player holds the winning strategy, and each strategy now applies once per player who holds it.
+  For Duck Lord's 'Mystery Customer', each living holder now swaps 0–2 enemies of its own. With 8 players that is up
+  to 16 swapped enemies a round, all different units. Every player still faces the same swapped units. Before, Duck
+  Lord swapped 0–2 enemies however many players held it.
+- This also applies when two squads of a Free pick Grand Alliance both hold Duck Lord: two draws instead of one.
+- Every other strategy already applied once per holder (checked one by one). Touch's Field Medic stays one per field.
+
+### No stage setup reroll in public matches
+
+- Rerolling the stage setup is meant for friends playing privately, or for solo play. It is now off in public Grand
+  Alliances and in any team or Grand Alliance that used Find Teammates or took players from Solo Matchmaking, even if
+  the room was made private again before the start. In those matches the button is greyed out, with "No reroll in
+  public matches" beside it.
+- Hosts see this before they open a room up: a hint under Public when creating a Grand Alliance, and the same note in
+  the tooltips of the room's Public switch and of Find Teammates.
+- Before: anyone in any room could start a reroll vote.
+
+### A reroll vote no longer stops the countdown
+
+- The briefing countdown keeps running while players vote on a stage setup reroll. If it reaches zero before everyone
+  agrees, the vote fails and the match goes on with the setup on screen. Nobody can hold up the start by opening
+  votes over and over, or by leaving one unanswered.
+- A reroll everyone agrees to still gives a fresh countdown to read the new setup.
+- Before: a vote paused the countdown until everyone had answered, with no time limit.
+
+### OpFor: Quagmire's parasite and Degenbrecher's SP-clear mark show on operators
+
+- With official effects on, the operator an OpFor: Quagmire latches onto now shows the official parasite for as long as
+  it clings, as in the official game.
+- In Degenbrecher's second form, each operator its SP clear disarms now shows the official mark for as long as the disarm
+  lasts.
+- Before: neither showed an official effect on the operator.
+
+### Armor of the Empire's barrage gives a warning
+
+- Armor of the Empire's entrance barrage now works as in the official game. It first marks the unit with the highest
+  HP for 5.8 s. 0.8 s later its range shows on the 3×3 tiles around that spot, and 8 shells fall there one by one,
+  0.53 s apart. Each shell hits the unit with the most HP in that area at that moment. You can move a unit out of the
+  marked area before the shells land, and the shells keep falling even if Armor of the Empire is defeated meanwhile.
+- Before: all 8 hits landed at once, 0.5 s after it appeared, with no warning.
+
+### Leader and boss effects on the units they reach
+
+- With official effects on, these now show the game's own effect on the units they reach, for as long as it lasts:
+  - Zaaro, Signore dei Lupi: the fear cage on the operators it catches, and the hit when it ends. Its own glow shows
+    while they wait for the cure, and its fear aura shows on the operators around it.
+  - Sarkaz Boneguard Torturer's mark, on every unit around it. Its own heal shows when one of them falls.
+  - Yan's Protection's flame channel, as the game's range effect on the enemy it locks onto.
+- 'Gunshatter' now shows the game's own hit effect on each operator it runs over while it chases its gun.
+- Alistair, Final Flame of the Empire: each piece of equipment he animates now breaks with the game's own effect, in place
+  of the usual death puff.
+- Before: the units showed nothing.
+
+### Dockworkers' stunning hit shows its official stun mark
+
+- With official effects on, the operator a Dockworker or Dockworker Leader stuns with its heavy hit now shows the
+  official stun mark for as long as the stun lasts, as in the official game.
+- Before: the stun showed no official mark.
+
+### Defense Crushers, Dockworkers and the Armorless Union Cleanup Squad show their official glow before a special attack
+
+- With official effects on, the Defense Crusher, the Defense Crusher Leader, the Dockworker, the Dockworker Leader and
+  the Armorless Union Cleanup Squad now glow, as in the official game, while their next attack is their stunning or
+  heavy one. The glow goes away with that attack.
+- Before: there was no warning before these attacks.
+
+### Corrupted Knight, Withered Knight and 'Armor of the Empire' show their missing official effects
+
+- With official effects on, the Corrupted Knight's charged hammer now shows its official hit and cross on the operator
+  it strikes, the knight left standing shows its official rage glow once its partner falls, and 'Armor of the
+  Empire''s multi-hit shows its official hit, as in the official game.
+- Before: these effects did not show.
+
+### OpFor: Armor's rolling bombs show their official effects
+
+- OpFor: Armor: each Armor Piercer it launches now rolls with the official rolling effect while it travels, and bursts
+  with the official explosion when it reaches its tile or is shot down. Before: the bomb travelled with no effect of
+  its own.
+
+### 'OpFor: Gun' charge hits with the official effect
+
+- Each unit that 'OpFor: Gun' runs over in its charge now shows the official hit effect, once, as it is struck.
+  Before: the units took the damage with no effect on them.
+
+### Heavy Crossbowman Ambusher and Lost Colossus show their shots
+
+- Heavy Crossbowman Ambusher: its stunning bolt now flies with the official trail and hits with the official effect.
+  Before: nothing showed between its aim and the stun.
+- Lost Colossus: its stunning boulder now flies with the official trail and hits with the official effect. Before:
+  nothing showed until the operator was stunned.
+
+### Enemy shells, bombs and blast arrows show their official effects
+
+- Londinium Precision Mobile Defense Artillery: each shell of its bombardment now lands with the official hit and
+  blast. Before: a plain flash.
+- W: her C4 now shows on the operator it is stuck to, and goes off with the official blast. Before: a plain warning
+  circle and flash.
+- Withered Knight: its blast arrows now fly with the official trail, mark each target until they go off, and explode
+  with the official blast. A Withered Knight enraged by its partner's death now shows the official rage effect.
+  Before: a plain warning cross and flash, and nothing for the rage.
+
+### Jetman and Blackhorn Rhuul show their missing official skill effects
+
+- With official effects on, Jetman now shows its official jets when it takes off, and Blackhorn Rhuul shows its
+  official mark on the operator it charges and its official hit when the push fails, as in the official game.
+- Before: these effects did not show.
+
+### 'Armor Cleaver', 'Armor Crusher' and the Tyrant Captain show their missing official effects
+
+- With official effects on, 'Armor Cleaver' and 'Armor Crusher' now show their official dizzy effect while they are
+  shot down, and Sarkaz Absurdist Tyrant Captain's splashing first attack shows its official hit and its ring on the
+  target, as in the official game.
+- Before: neither effect showed.
+
+### Enemy channel and lasso skills show their official effects
+
+- Sarkaz Royal Court Elite Caster: its Death Eye channel now draws the official line to its target, with the
+  official hit as it lands, and the burst at the end plays the official explosion. Before: a plain purple beam.
+- Festival Jazz Musician: its channel now throws the official lasso rope, with the official hit on every tick.
+  Before: a plain beam per tick.
+- 'Samivilinn,' the Resolution of the Very North: its lasso now puts the official stun effect on each target. Before:
+  a plain beam.
+
+### Dublinn Flamechasers rise with their official effect
+
+- When a Dublinn Flamechaser Soldier or Elite is knocked down, its one-second rebirth into the Ember of Resentment now
+  plays the official revive effect.
+- Before: the rebirth had no effect of its own.
+
+### Rat King marks its targets
+
+- Rat King's Mark now shows the official markers over the unit with the highest Max HP and the unit with the lowest
+  Max HP, the two its sand skills hit. When a marked unit falls, the marker moves to the next one; the markers go when
+  Rat King is defeated. Its Drift Sand also shows its official ground range on the target.
+- Before: Mark did nothing you could see, and Drift Sand had only a plain tile outline.
+
+### Enemy buffs and burns show their official effects on the units that have them
+
+- With official effects on, these now show their official effect for as long as they last, as in the official game:
+  'Pompeii''s burn on the operators it hits, 'Gravestone''s barrier around it, Fallen Snowpriest's buff on the
+  enemies its chain reaches, and Garum Gourmet's barrel zone on the enemies in it.
+- Before: the units showed nothing while they had them.
+
+### Enemy effects: Originium Slug blasts, the Armor Piercer's impact, prop idle effects and more
+
+- Infused Originium Slugs and Infused Glacial Originium Slugs now explode with the game's own blast when they fall,
+  instead of a generic flash.
+- When OpFor: Armor's Armor Piercer lands, its 3×3 impact area now shows the game's own range effect for as long as
+  it lasts.
+- The 14 prop enemies (Wooden Seal through Iron Lampstand) now show their own idle effect for as long as they stand.
+- Operators bled by a Rotchaser or a Rampaging Rotchaser now show the game's bleeding effect while it lasts.
+- 'Sand Voyager' now shows the game's effect for how many passengers it carries (one to four), switching as they
+  board and leave.
+- 'Unicycle Toy' now throws its second harpoon with the game's own second harpoon effect. Before, both harpoons looked
+  the same.
+
+### Enemies show their official glows while their talents are active
+
+- These enemies now show the official effect while their talent's condition holds, as in the official game:
+  Sarkaz Wither Tank and Advanced Sarkaz Wither Tank while their polluted shot is charged; Diver in deep water;
+  Caster Speedboat's wake on deep water; Dublinn Companion Guard, Elite Companion Guard and Elite Companion Shadowblade
+  while a Guard and a Shadowblade stand together; Arc Frontliner while it is unbalanced; Sarkaz Wither Vanguard and
+  Elite Sarkaz Wither Vanguard on originium tiles; Sarkaz Lancer while it charges; Shrine Swordsman from its first
+  enhancement on.
+- Before: these effects never showed.
+
+### Enemies show the official effects their talents trigger
+
+- Scarlet Singer glows as a warning when its song is close, bursts when it sings, and every enemy it speeds up shows the
+  official glow while the speed-up lasts.
+- 'Forsaken One' glows once its attacks have stacked three times, Nucleic Maleficent and Allotropic Maleficent once
+  they have been hit, Lucky Flyfin while it sprints after the first hit, and OpFor: Bonespur while it is hidden, with the
+  official burst each time it hides or shows itself.
+- 'Echoes of Cracked Pipe' / 'Echoes of Broken Strings' burst as they switch form, Decode Basis α as it changes into its
+  new form, and Snowchild when it is knocked into high ground (at most once every 5 seconds, as in the official game).
+- Farseer and Novice Acolyte play their official burst where they fall, OpFor: Fissure too when its target kills it,
+  and a Cabbage Seedling burns with the official fire while it is ignited.
+- Recidivist and Infamous Recidivist play their official burst as their first liberation frees every prisoner.
+- Before: none of these effects showed.
+
+### 'Free' marks its next target and its cross hits as in the official game
+
+- 'Free' now shows its official mark on the unit its Weft and Warp cross will hit next: the nearest unit,
+  and in its second form also the farthest one. The mark moves as soon as another unit becomes the nearer (or
+  farther) one. Before: nothing showed which unit it was aiming at.
+- The cross now lands with the official hit effect on its target. Before: a plain red outline we made up.
+
+### Enemy auras show their official glow on the units they reach
+
+- With official effects on, the units an enemy aura reaches now show that aura's official effect while they are in it,
+  as in the official game: the other enemies near a Defender-4 (its DEF glow), operators near a Frost (its frost),
+  a Dublinn Phalanx Infantry or Commander next to another one, and operators in an activated Profane Chimera's
+  pollution aura.
+- Before: only the enemy's own range ring showed; the units it buffed or slowed showed nothing.
+
+### OpFor: BlackCloud shows its official effects
+
+- When OpFor: BlackCloud grabs flying enemies, each grabbed enemy now shows the official trapped effect until it is
+  devoured. Before: nothing showed on them, and a red flash we made up played instead.
+- Its salvo now fires the official shells, one per stored ammo and 0.3 s apart, each with its own impact. Before: a
+  plain red line per shot.
+- While it holds ammo it can't fire yet, it now glows as in the official game.
+
+### Room chat: the emote button shows its icon again
+
+- Fixed: in the room screen's chat (team and Grand Alliance rooms), the emote button beside Send was a dark square
+  with a tiny "Chat" label and no icon on the live servers. It shows the emote face again and opens the emotes as
+  before. The emote button in a match is unchanged.
+
 ## 2026-11-12
 
 ### Transmitter can't go on a Custom Squad Operator (from upstream)
