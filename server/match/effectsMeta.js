@@ -624,11 +624,18 @@ export function makeCtx(m, ps, source, hook, ev = null, preview = null) {
     },
     grantItem: (itemId, opts = {}) => {
       if (!ps.alive || !gd.item(itemId)) return null;
+      // (fork) One for All (match/oneForAll.js): every seat holds the same strategy, and the user's rule is that each
+      // holder's strategy works exactly as it does for a sole holder (2026-11-13: one of 8 Muelsyse holders got no
+      // 博士投影). A strategy's item grant is therefore never refused for the room's equipment stock, which is sized
+      // for one holder per strategy: the copies past the stock are recorded as debt, as for a card already on screen
+      // (acquireItem `displayed`). Other matches keep the stock refusal.
+      const everyHolder = m.oneForAll === true && source.kind === 'band';
       const p = ps.acquireItem(itemId, {
         source: opts.source || source.key || 'effect',
         toTemp: !!opts.toTemp,
         deferMerge: ps._deferItemMerge > 0,
         requirePool: opts.requirePool !== false,
+        displayed: everyHolder,
       });
       return p ? view(p) : null;
     },
