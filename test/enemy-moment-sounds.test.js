@@ -112,8 +112,9 @@ test('the client: moments play on their pools, a held loop starts / ends, timed 
     await run([['skill', 3, 0]]);
     assert.ok(!a.stingLoops.has(3), 'the skill end stops it');
 
-    // a part's `after`: its spine event's clip time in game seconds, divided by the battle speed
-    a.setBattleSpeed(2);
+    // a part's `after`: its spine event's clip time in game seconds, divided by the battle's
+    // playback rate (setBattleView's `rate`, shared with the timed impacts)
+    a.setBattleView({ rate: () => 2 });
     assert.deepEqual(await run([['fx', 'telegraph', 5, 5, { id: 4, kind: 'reborn' }]]), ['b.mp3'], 'the untimed part at once');
     // 0.2 s of clip at 2× = 100 ms (at 1× it would be 200 ms)
     await new Promise((r) => setTimeout(r, 140));
