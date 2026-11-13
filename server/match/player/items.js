@@ -21,7 +21,9 @@ export class PlayerItems {
    */
   releaseItemStock(piece) {
     if (!piece || piece.kind !== 'item' || !this.m?.itemPool) return 0;
-    return this.m.itemPool.repay(piece.id, this.m.itemPool.need(piece.id));
+    // (fork) One for All: copies outside the stock (pool.js offStock) repay nothing
+    const copies = this.m.itemPool.stockCopies(piece);
+    return copies > 0 ? this.m.itemPool.repay(piece.id, copies) : 0;
   }
 
   /**
