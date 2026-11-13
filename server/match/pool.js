@@ -10,6 +10,11 @@
 //     still be taken and overdraws (chess: a negative raw left; equipment: SharedItemPool's debt — GitHub #498, and
 //     the maintainer's decision of 2026-10-14 for equipment, #624). A slot that is already sold still fails SOLD_OUT.
 //     Future rolls exclude empty stock. 整备 and grants that are not an already-shown card stay stock-limited.
+//     Official: equipment from ANY source occupies the stock (路标月报#2, bilibili BV1eLXXBqEgF 1:30 / 2:30;
+//     docs/history/0.2.5.md §30.1). (fork) One for All only (match/oneForAll.js; the user's decision of 2026-11-13,
+//     "One for all: C"): the item grants of a strategy and of an operator's garrison effect are kept apart from the
+//     stock. Such a piece carries `offStock` (its copies outside the stock: 1 normal, 2 advanced; a merge adds up the
+//     copies it consumes), held() leaves those copies out, and selling or destroying it repays nothing.
 //   * Pieces remember how many copies they hold (`piece.poolCopies`), so selling / elimination / temp wipes return
 //     exactly what was taken — chess granted by effects while the pool is empty (or hidden/banned chess) hold 0.
 //   * Invariant: raw left ≤ cap and raw left + Σ held copies == cap. Mimic can exceed stock, but its copies still occupy it.
@@ -229,8 +234,8 @@ export class SharedItemPool {
     let count = 0;
     const see = p => {
       if (!p) return;
-      if (p.kind === 'item' && this.gd.baseIdOf(p.id) === base) count += this.need(p.id);
-      for (const item of p.items || []) if (this.gd.baseIdOf(item.id) === base) count += this.need(item.id);
+      if (p.kind === 'item' && this.gd.baseIdOf(p.id) === base) count += this.stockCopies(p);
+      for (const item of p.items || []) if (this.gd.baseIdOf(item.id) === base) count += this.stockCopies(item);
     };
     for (const ps of this.players()) {
       for (const p of ps.hand) see(p);
@@ -265,8 +270,10 @@ export class SharedItemPool {
   }
   /** Stock gates eligibility, not probability: retain the existing uniform item draw or explicit data weights.
    * The measured stock table alone does not establish shop probabilities. */
-  pick(rng, ids, weights = null) {
-    const list = [...new Set(ids)].filter(id => this.canGain(id));
+  /** Copies of the stock an owned item piece holds: need() minus its (fork) One for All `offStock` copies. */
+  stockCopies(piece) { const n = this.need(piece.id); return n - Math.min(n, Math.max(0, Math.trunc(Number(piece.offStock) || 0))); }
+  pick(rng, ids, weights = null, { ignoreStock = false } = {}) {
+    const list = [...new Set(ids)].filter(id => ignoreStock || this.canGain(id));
     const pairs = list.map(id => [id, weights ? Math.max(0, Number(weights.get(id)) || 0) : 1]);
     const total = pairs.reduce((n, p) => n + Math.max(0, p[1]), 0);
     if (!(total > 0)) return null;
