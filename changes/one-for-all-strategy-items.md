@@ -17,13 +17,13 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day) | under 0.0001 / 0 MB/s: one more item in a prep update, a few times a match |
-| Bandwidth out / in, per room (4 players; 8 in Grand Alliance) | 0 / 0 MB/s | under 0.001 / 0 MB/s |
-| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) | under 0.03 / 0 MB/s for a moment at a prep start (under 0.01 GB/day) |
-| Server CPU | 0 % of one core | under 0.01 % of one core |
-| Memory | 0 MB | under 0.01 MB (one more item per player, a small number on each such item) |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
+| Bandwidth out / in, per player | 0 / 0 MB/s (0 / 0 GB/day) [src: server/match/effectsMeta.js:508 only marks the existing grant, no new event] | under 0.0001 / 0 MB/s: one more item in a prep update, a few times a match [unverified] |
+| Bandwidth out / in, per room (4 players; 8 in Grand Alliance) | 0 / 0 MB/s [src: per player × seats] | under 0.001 / 0 MB/s [unverified] |
+| Bandwidth out / in, 300 players | 0 / 0 MB/s (0 / 0 GB/day) [src: per player × 300] | under 0.03 / 0 MB/s for a moment at a prep start (under 0.01 GB/day) [unverified] |
+| Server CPU | 0 % of one core [src: server/match/pool.js:274 one subtraction per held item] | under 0.01 % of one core [unverified] |
+| Memory | 0 MB [src: server/match/player/acquire.js:289 one number on the piece] | under 0.01 MB (one more item per player, a small number on each such item) [unverified] |
+| Disk | 0 MB/day [src: server/match/pool.js:237 counts in memory, nothing written] | 0 MB/day |
+| Bot budget | 0 ms/round [src: server/match/botWorld.js:17 only copies the oneForAll flag] | 0 ms/round |
 
 - Cap: the grants the strategies and garrison effects already make (a strategy at most 4 per match); only One for All
   rooms change.
