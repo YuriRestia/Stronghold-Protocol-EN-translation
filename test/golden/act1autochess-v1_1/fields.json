@@ -854,8 +854,8 @@
         "enemy_9020_actrpc": [1,0,0,6952,455751]
       },
       "hooks": [1,49,6000,1240,1240,3467,6497,3944,10,14,98,92,124,52178,576,1,10,0,1,10,0,1,18],
-      "events": {"atk":1599,"cast":18,"deploy":33,"die":14,"dmg":5828,"engage":17,"fx":1286,"heal":637,"rate":189,"skill":190,"spawn":45,"status":654},
-      "fx": {"ability":48,"airstrike":33,"anchor":4,"aoe":92,"beam":25,"buff":2,"burst":1,"charge":7,"copy":5,"dash":12,"displace":1,"dodge":18,"dp":1,"drone":234,"droneLock":34,"drones":3,"explode":25,"extraAttack":24,"firewall":1,"lightning":49,"link":597,"phase":13,"pull":1,"rockslide":14,"shieldBreak":24,"steal":3,"storm":5,"tide":4,"tornado":1,"tornadoPulse":5},
+      "events": {"atk":1599,"cast":18,"deploy":33,"die":14,"dmg":5828,"engage":17,"fx":1333,"heal":637,"rate":189,"skill":190,"spawn":45,"status":654},
+      "fx": {"ability":48,"airstrike":33,"anchor":4,"aoe":92,"beam":25,"buff":2,"burst":1,"charge":7,"copy":5,"dash":12,"displace":1,"dodge":18,"dp":1,"drone":234,"droneLock":34,"drones":3,"explode":25,"extraAttack":24,"firewall":1,"lightning":49,"link":597,"phase":13,"pull":1,"rockslide":14,"shieldBreak":24,"sound":47,"steal":3,"storm":5,"tide":4,"tornado":1,"tornadoPulse":5},
       "snaps": "12c8a037 b3a69619 1707c7c7 294bd040 cab49ef2 5ed29bf4 6249493c 3fc42f2e 5a33a472 1b281867 29728823 c68f9579 0a3d49c4 578c0912 b06e5ea8 14233dec b4e7c48f 38dc6564 f874b760 255c6531"
     },
     "hidden-boss_9-solo": {
@@ -899,8 +899,8 @@
         "enemy_9020_actrpc": [1,0,0,3612,158674]
       },
       "hooks": [1,21,6000,749,749,2409,5332,1522,3,6,51,49,20,29180,2113,0,7,0,1,48,0,6,0],
-      "events": {"atk":941,"cast":22,"deploy":14,"die":6,"dmg":4858,"engage":8,"fx":1596,"heal":160,"rate":61,"skill":100,"spawn":18,"status":533},
-      "fx": {"aoe":6,"beam":26,"burst":6,"charge":7,"dash":12,"ember":1,"healAoe":28,"hpShare":37,"link":597,"mote":50,"palsy":1,"phase":10,"shield":7,"shieldBreak":9,"slash":52,"substitute":1,"swap":1,"tick":564,"truesilver":2,"zone":179},
+      "events": {"atk":941,"cast":22,"deploy":14,"die":6,"dmg":4858,"engage":8,"fx":1617,"heal":160,"rate":61,"skill":100,"spawn":18,"status":533},
+      "fx": {"aoe":6,"beam":26,"burst":6,"charge":7,"dash":12,"ember":1,"healAoe":28,"hpShare":37,"link":597,"mote":50,"palsy":1,"phase":10,"shield":7,"shieldBreak":9,"slash":52,"sound":21,"substitute":1,"swap":1,"tick":564,"truesilver":2,"zone":179},
       "snaps": "e1de8600 fbc7a1e4 e186cda8 ed844c37 98230f81 0535434f 1e33e152 1768cac7 ba644e96 77aa2030 75f01b2e e1569f91 540f676f eef8370c 67b15746 833e3b6b a5123004 cf569a8e 44aa2118 d6c61a1d"
     },
     "hidden-boss_10-pair": {

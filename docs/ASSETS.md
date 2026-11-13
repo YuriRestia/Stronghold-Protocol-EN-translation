@@ -562,6 +562,14 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 // (fork) an enemy's skill casts by data skills[] slot (the sim's ['cast', id, slot]): `start` rings at the cast, `hit`
                 // when one of `keys` (that skill's own impact effects) spawns (audio.js fxKey; effects off: no skill impacts)
                 casts?: {[slot]: { pk: prefabKey, start?: [{ url, pool?: bankId }], hit?: { url, pool?: bankId }, keys?: [fxKey] }},
+                // (fork) an enemy's moments (tools/assets/plan.mjs ENEMY_MOMENT_SOUND_BANKS): fxSounds keyed '<fx kind>|<its kind
+                // or form>' ('cast|<pk>' with that cast; 'skill|on' while the unit's skill runs; 'sound' / 'mode' fx are
+                // sent for these alone), with `also` banks, each part's `after` (its spine event's time in the official
+                // clip, game seconds ÷ the battle speed), and a held loop (`loop` + `loopPool`, stopped by `endLoop`, the
+                // skill's end, the unit's death or the field's change); only the banks' own limits apply (audio_data);
+                // keySounds: an effect key's own sound (fxKey); attacks / hits by mode index for the sim's fx 'mode' n
+                fxSounds?: {[key]: { url?, pool?, after?: s, also?: [{ url, pool?, after?: s }], loop?, loopPool?, endLoop?: true }},
+                keySounds?: {[fxKey]: { url, pool?: bankId }},
                 // (fork) enemies (tools/assets/audio.mjs pickEnemySfx): `hit` of a ranged enemy is its shot's impact bank;
                 // `attackNext` the fire after the wind-up (played with `attack`); `melee` the melee ability's own set, played
                 // for an 'atk' the sim marks melee (kind 'none')

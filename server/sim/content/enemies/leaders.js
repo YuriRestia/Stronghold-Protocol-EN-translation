@@ -60,6 +60,9 @@ const AXETRO_FX_STACKS = 3;
 const ONE_SHOT_FX = 1;
 /** (fork) 雪孩子: enemy_xdsnow_t[wall][cd]'s life (LIMITED 5 in the official template): no second wall burst before it ends. */
 const XDSNOW_WALL_CD = 5;
+/** (fork, enemy sound audit job 3) 泥岩巨像 (Mudrock) enemy_mdrock_s_1[persistent] (CN client buff template): charge stacks → the mode index it
+ * switches to before an attack (modes Default, Tier 1-5); 4 and 0 stacks have no SwitchMode. */
+const MDROCK_TIERS = Object.freeze({ 1: 1, 2: 2, 3: 3, 5: 4, 6: 5 });
 
 /** W's C4 fuse and blast radius [ASSUMED]. */
 const C4_FUSE = 1, C4_RADIUS = 1;
@@ -236,6 +239,13 @@ function kitLeaderMisc(key, ab, e) {
       const bar = artsBarrier(s ? s.bb.dynamic ?? 0 : T(ab, 'shield.dynamic') ?? 0, { key: 'ab:rockPower',
         whileUp: { hpPct: (s ? s.bb.max_hp : null) ?? T(ab, 'shield.max_hp') ?? 0, aspd: (s ? s.bb.attack_speed : null) ?? T(ab, 'shield.attack_speed') ?? 0 } });
       return [bar, {
+        // (fork, enemy sound audit job 3) the official enemy_mdrock_s_1[persistent] ON_BEFORE_ATTACK: by the charge stacks
+        // so far, SwitchMode to Tier 1-5 (MDROCK_TIERS; 4 or 0 stacks switch nothing) — the client's tier attack sounds
+        // (fx 'mode', display only: the sim's ATK comes from the stacks alone)
+        before(c, b, e2, a) {
+          const n = MDROCK_TIERS[e2.findBuff('ab:rockCharge')?.stacks ?? 0];
+          if (n != null && n !== a.tier) { a.tier = n; b.fx('mode', { x: e2.x, y: e2.y, id: e2.id, n }); }
+        },
         // 攻击时攻击力永久提升，最多六层 (the blackboard ATK is the 6-stack total [ASSUMED split])
         attack(c, b, e2) { b.addBuff(e2, { key: 'ab:rockCharge', refresh: 'stack', stacks: 1, maxStacks: 6, persist: true, mods: { atkPct: (T(ab, 'charge.attack@enemy_mdrock_s_1[charge].atk') ?? 0) / 6 } }); },
       }, skill(s, (b, e2) => bar.refresh(b, e2, bar))];
@@ -325,7 +335,12 @@ function kitLeaderMisc(key, ab, e) {
       return [skill(s, (b, e2) => {
         b.addBuff(e2, {
           key: 'ab:takeoff', duration: s.bb.duration ?? 0, flags: { unblockable: true, float: true, noDisplace: true }, mods: { moveMul: 1 + (s.bb['balloon_s[fly].move_speed'] ?? 0) }, visible: true,
-          onExpire: ({ battle }) => { if (e2.alive) battle.addBuff(e2, { key: 'ab:landing', duration: LANDING, flags: { unblockable: true }, mods: BRAKE }); },
+          onExpire: ({ battle }) => {
+            if (!e2.alive) return;
+            battle.addBuff(e2, { key: 'ab:landing', duration: LANDING, flags: { unblockable: true }, mods: BRAKE });
+            // (fork, enemy sound audit job 3) the landing's balloon_s[land] sound (fx 'sound', display only)
+            battle.fx('sound', { x: e2.x, y: e2.y, id: e2.id, kind: 'land' });
+          },
         });
         b.addBuff(e2, { key: 'ab:takeoffBrake', duration: BRAKE_UP, mods: BRAKE });
         b.fx('telegraph', { x: e2.x, y: e2.y, r: 0.5, kind: 'takeoff', id: e2.id });

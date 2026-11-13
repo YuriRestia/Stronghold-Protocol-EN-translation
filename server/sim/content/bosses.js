@@ -751,7 +751,13 @@ function kitSpring(ab, e) {
         }
         // actrpa_t_1: NORMAL physical filter, even after prior cancellation; child is source-less ADDITION.
         const source = c.source;
-        if (kind !== 'arts' || c.type !== 'phys' || damageAttackType(c.dmg) !== 'NORMAL' || !source?.alive) return;
+        if (kind !== 'arts' || c.type !== 'phys' || damageAttackType(c.dmg) !== 'NORMAL') return;
+        // (fork, enemy sound audit job 3) the same filter's PlayAudio actrpa_t_1.shield_hit on the hitter (CN client buff
+        // template actrpa_t_1, ON_TAKE_DAMAGE → IfElse FilterDamageModifer NORMAL / PHYSICAL → PlayAudio _target
+        // MODIFIER_SOURCE): every such hit, its only limit the bank's own (audio_data maxSoundAllowed 2, popOldest) on the
+        // client. Display only (fx 'sound'; the table entry is Gunshatter's, `id`)
+        b.fx('sound', { x: source ? source.x : e.x, y: source ? source.y : e.y, id: e.id, kind: 'shieldHit' });
+        if (!source?.alive) return;
         b.dealDamage({ source: null, credit: e, target: source, amount: e.s.atk * (T(ab, '1.atk_scale') ?? 0),
           type: 'phys', attackType: 'ADDITION', applyWay: 'NONE', calculation: 'precomputed',
           ignoreSelect: true, origin: c.dmg, tags: ['springCounter'], onApplied() {
@@ -878,7 +884,7 @@ export function echoHit(b, echo) {
   try {
     for (let i = 0; i < ab.pulses.length; i++) {
       const atk = ab.pulses[i];
-      b.fx('explode', { x: echo.x, y: echo.y, r: ECHO_PULSE_RADIUS, kind: 'echoPulse' });
+      b.fx('explode', { x: echo.x, y: echo.y, r: ECHO_PULSE_RADIUS, kind: 'echoPulse', id: echo.id });
       for (const u of areaAllies(b, echo, echo.x, echo.y, ECHO_PULSE_RADIUS)) {
         hurt(b, echo, u, atk * (T(ab, '3.atk_scale') ?? 0), 'arts');
         elem(b, echo, u, 'apoptosis', atk * (T(ab, '3.ep_damage_ratio') ?? 0));
@@ -908,7 +914,7 @@ function kitEcho(ab, e) {
         const gold = e2.mem.ab.form === 'gold';
         const r = gold ? ECHO_ENSEMBLE_RADIUS.gold : ECHO_ENSEMBLE_RADIUS.dark;
         const ratio = gold ? T(ab, '4.ep_damage_ratio_passion') ?? 0 : T(ab, '4.ep_damage_ratio_depassion') ?? 0;
-        b.fx('explode', { x: e2.x, y: e2.y, r, kind: gold ? 'ensembleGold' : 'ensembleDark' });
+        b.fx('explode', { x: e2.x, y: e2.y, r, kind: gold ? 'ensembleGold' : 'ensembleDark', id: e2.id });
         for (const u of areaAllies(b, e2, e2.x, e2.y, r)) { hurt(b, e2, u, e2.s.atk, 'arts'); elem(b, e2, u, 'apoptosis', e2.s.atk * ratio); }
       },
     },
