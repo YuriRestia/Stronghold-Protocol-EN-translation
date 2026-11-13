@@ -566,6 +566,9 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 // `attackNext` the fire after the wind-up (played with `attack`); `melee` the melee ability's own set, played
                 // for an 'atk' the sim marks melee (kind 'none')
                 attackNext?: [{ url, pool?: bankId }], melee?: { attack?, hit?, pools?, mix?, attackNext? },
+                // (fork) `hitNext` the impact's other banks (played with `hit`: audio.mjs ENEMY_SHOT_SOUNDS); `variants` the attack
+                // of another official mode (audio.mjs ENEMY_ATTACK_VARIANTS), by the enemy's sim form or `dmg:<type>` of the impact
+                hitNext?: [{ url, pool?: bankId }], variants?: {[form|'dmg:<type>']: { attack?, hit?, pools?, mix?, attackNext? }},
                 // (fork) a skill's own sounds at its start / end (public/js/audio.js _skillEdge); `hold`: cut when the skill ends,
                 // `loop`: its bank loops until then, `more`: the edge's other banks
                 skillOn?: {[skillIndex]: { url, pool?: bankId, hold?: true, loop?: true, more?: [{ url, pool? }] }}, skillOff?: {[skillIndex]: …},
