@@ -562,6 +562,10 @@ All paths are URL paths relative to the site root, for example `/assets/char/ava
                 // (fork) an enemy's skill casts by data skills[] slot (the sim's ['cast', id, slot]): `start` rings at the cast, `hit`
                 // when one of `keys` (that skill's own impact effects) spawns (audio.js fxKey; effects off: no skill impacts)
                 casts?: {[slot]: { pk: prefabKey, start?: [{ url, pool?: bankId }], hit?: { url, pool?: bankId }, keys?: [fxKey] }},
+                // (fork) enemies (tools/assets/audio.mjs pickEnemySfx): `hit` of a ranged enemy is its shot's impact bank;
+                // `attackNext` the fire after the wind-up (played with `attack`); `melee` the melee ability's own set, played
+                // for an 'atk' the sim marks melee (kind 'none')
+                attackNext?: [{ url, pool?: bankId }], melee?: { attack?, hit?, pools?, mix?, attackNext? },
                 // (fork) a skill's own sounds at its start / end (public/js/audio.js _skillEdge); `hold`: cut when the skill ends,
                 // `loop`: its bank loops until then, `more`: the edge's other banks
                 skillOn?: {[skillIndex]: { url, pool?: bankId, hold?: true, loop?: true, more?: [{ url, pool? }] }}, skillOff?: {[skillIndex]: …},
