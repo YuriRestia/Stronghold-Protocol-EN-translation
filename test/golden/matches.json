@@ -1956,7 +1956,7 @@
           "title": {"id":"comment_1","name":"卫戍之星","picId":"comment_icon_1","text":"对敌方领袖造成伤害最高（仅胜利时）"},
           "trophies": 4,
           "reward": 400,
-          "stats": {"activatedLayers":370,"bossDamage":995083,"dmgDealt":4469056,"gold":148,"itemsEquipped":18,"kills":312,"leaks":0,"lpLost":0,"merges":4,"perfectRounds":13,"refreshes":52},
+          "stats": {"activatedLayers":370,"bossDamage":995083,"dmgDealt":4485697,"gold":148,"itemsEquipped":18,"kills":312,"leaks":0,"lpLost":0,"merges":4,"perfectRounds":13,"refreshes":52},
           "lineup": ["5_03_a@12,8[2_03_e_b]","1_06_a@11,7[3_10_e_a]","4_14_b@11,8","2_10_a@10,4[3_10_e_b+6_09_e_a]","6_16_a@10,5","5_diy1_b@10,7[2_03_e_a+3_10_e_b]","4_07_b@10,8[3_09_e_a+1_01_e_b]","6_07_b@9,9[4_09_e_a+3_03_e_b]"],
           "bonds": ["arcaneShip 1/48","deputShip 0/12","investShip 0/8","kazimierzShip 0/2","kjeragShip 0/8","miraShip 1/26","siracusaShip 0/24","soloShip 0/4","suntShip 1/6","swiftShip 0/60","victoriaShip 2/290","visiShip 0/12","yanShip 0/10"]
         },
