@@ -698,6 +698,12 @@ kit decides, following the client's buff graphs): one clip drawn by its bank's w
 tracked and played on its own voices (the banks are `important` on their own mixer group: the battle limiter's
 8-voice budget and unit / URL gaps never drop one; only the bank's own cap holds, S1 max 2, the oldest giving way); S3's cue
 also holds its loop until the skill ends, she dies or the field changes (0.2 s fade, the official ctrlStopFadetime).
+(fork) Enemy skill-cast parts, enemy moments and timed enemy impacts play the same way (`_playBank`): each one that
+comes, held only by its bank's own cap, as the official client's SoundFXBank keeps its playing atoms and no time between
+plays (Il2Cpp `SoundFXBank` / `Bank` fields; no interval field in `soundFXBanks`). A crowd of 10 casting one skill
+together therefore rings as its bank allows: 137 of the 141 enemy cast banks hold 2 at once, the oldest giving way
+[src: official audio_data soundFXBanks maxSoundAllowed / popOldest]. A file's official `delay` holds it back on the audio
+clock before it takes its bank's place, as the attack pools do; a field change drops it.
 Aliases share their target bank's pool; distinct banks using one file keep separate limits. Pitch is drawn uniformly
 within the played file's own range with client-only randomness ([ASSUMED] uniform distribution); playback starts after its own delay on the audio clock.
 The maintainer chose 0.3.1 for this change (reply draft A). [ASSUMED] The remake retains its global 8-voice budget,

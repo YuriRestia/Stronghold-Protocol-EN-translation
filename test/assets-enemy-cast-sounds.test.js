@@ -94,7 +94,7 @@ function fakeWindow() {
   return { win: { AudioContext: Ctx, document: { hidden: false, addEventListener() {} }, addEventListener(t, fn) { listeners.set(t, fn); }, removeEventListener() {} }, fire: (t) => listeners.get(t)?.() };
 }
 
-test('client: an enemy cast plays its start sounds; its impact effect spawning plays the impact, once per moment', async () => {
+test('client: an enemy cast plays its start sounds; each impact effect spawning plays the impact, held only by the bank cap', async () => {
   const fw = fakeWindow();
   const origFetch = globalThis.fetch;
   globalThis.fetch = async () => ({ ok: true, arrayBuffer: async () => new ArrayBuffer(8) });
@@ -122,9 +122,9 @@ test('client: an enemy cast plays its start sounds; its impact effect spawning p
     await settle();
     assert.deepEqual(requested, []);
     a.fxKey('ENEMY_CQBW_SKILL_02_HIT');
-    a.fxKey('enemy_cqbw_skill_02_hit');       // the same moment's second target: one sound
+    a.fxKey('enemy_cqbw_skill_02_hit');       // the same moment's second target: its own effect, its own sound (no remake gap)
     await settle();
-    assert.deepEqual(requested, ['c4_boom.mp3'], 'the impact, once');
+    assert.deepEqual(requested, ['c4_boom.mp3', 'c4_boom.mp3'], 'each impact effect plays (official SoundFXBank: no time between plays)');
   } finally {
     globalThis.fetch = origFetch;
   }

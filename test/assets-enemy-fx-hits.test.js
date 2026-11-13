@@ -166,7 +166,7 @@ test('client: a kit fx rings its enemy\'s impact (id / from), after its battle-t
     assert.deepEqual(requested, ['arrow.mp3'], 'another kind and another unit\'s fx ring nothing; the arrow rings at once');
     requested.length = 0;
     a.handleBattleEvents([['fx', 'link', 0, 0, { from: 2, to: 5, kind: 'faithLink' }]]);
-    await wait(100);   // past the crowd gap (two chains in one moment are one sound, _castPart)
+    await wait(100);
     a.handleBattleEvents([['fx', 'link', 0, 0, { from: 2, to: 6, kind: 'faithLink' }]]);
     await wait(100);
     a.handleBattleEvents([['fx', 'link', 0, 0, { from: 2, to: 5, kind: 'faithLink' }]]);   // the sim's re-send, 1 s on
@@ -216,7 +216,7 @@ test('client: a shot\'s impact waits its flight: the distance at the fx over its
     requested.length = 0;
     // with no battle view at all, no positions: the sound plays at the fx
     a.setBattleView(null);
-    await wait(150);   // past the crowd gap
+    await wait(10);
     a.handleBattleEvents([['fx', 'telegraph', 3, 4, { id: 4, to: 7, kind: 'blastArrow' }]]);
     await wait(10);
     assert.deepEqual(requested, ['arrow.mp3']);

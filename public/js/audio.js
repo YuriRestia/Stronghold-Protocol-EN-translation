@@ -178,9 +178,6 @@ export const HELD_ATTACK_LAYERS = Object.freeze({ char_4247_oxi: Object.freeze({
 const IMPACT_TYPES = new Set(['phys', 'arts', 'true']);
 /** A 'dmg' later than this (real ms) after the attack aimed at the target is not that attack's impact. */
 const IMPACT_WINDOW_MS = 2500;
-// (fork) the same enemy skill-cast file again within this gap stays silent (_castPart: a crowd casting together, an
-// impact effect spawned once per target)
-const CAST_PART_GAP_MS = 80;
 /** Casts held for a unit that is not tracked yet (`pendingSkill`): a hold per unit of a field, never more than this. */
 const PENDING_SKILL_MAX = 64;
 /**
@@ -786,7 +783,6 @@ export class AudioManager {
     this.onLobbyTrackFailed = null; // called when that file would not decode (the official track plays instead)
     this.units = new Map();   // battle unit id → defId
     this.pendingSkill = new Map(); // unit id → the 'skill' tuple that arrived before the unit was known (see _track)
-    this.castPartAt = new Map(); // (fork) url → when an enemy skill-cast part last rang (_castPart's gap)
     this.castKeys = null;         // (fork) { sfx, map }: effect key → enemy skill impact part (fxKey)
     this.fxHitAt = new Map();     // (fork) '<unit>><to>|<tag>' → when that fx last came (_enemyFxHit's `gap`)
     this.turnHit = new Map();     // (fork) enemy id → its attack-turn skill's impact (fxHits['turn|<pk>'], _enemyCast)
@@ -1537,14 +1533,12 @@ export class AudioManager {
           for (const k of Array.isArray(c.keys) ? c.keys : []) if (!map.has(k)) map.set(k, c.hit);
         }
         // (fork, enemy sound audit job 3) an effect's own official sound (plan.mjs ENEMY_KEY_SOUND_BANKS)
-        // (only the bank's own limits: `own`, no CAST_PART_GAP_MS)
-        for (const [k, p] of Object.entries(u?.keySounds || {})) if (typeof p?.url === 'string' && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), { ...p, own: true });
+        for (const [k, p] of Object.entries(u?.keySounds || {})) if (typeof p?.url === 'string' && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), p);
       }
       this.castKeys = { sfx, map };
     }
     const part = this.castKeys.map.get(key.toLowerCase());
-    if (part?.own) this._playBank(part.url, part.pool, UNIT_BASE_GAIN);
-    else if (part) this._castPart(part);
+    if (part) this._castPart(part);
   }
 
   /**
@@ -1569,15 +1563,14 @@ export class AudioManager {
     return vs[`dmg:${type}`] ? `dmg:${type}` : null;
   }
 
-  /** One enemy skill-cast part on its pool; the same file again within CAST_PART_GAP_MS stays silent (a crowd's casts). */
+  /**
+   * One enemy skill-cast part on its pool, every time it comes: a crowd casting together is held to the bank's own cap
+   * alone (`maxSoundAllowed`, the oldest giving way with `popOldest`), as the official client's SoundFXBank holds only
+   * its playing atoms (`Bank.m_activeAtoms`) and no time between plays (Il2Cpp dump.cs SoundFXBank / Bank fields;
+   * audio_data soundFXBanks have no interval field).
+   */
   _castPart(p) {
-    if (typeof p?.url !== 'string') return;
-    const at = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    const last = this.castPartAt.get(p.url);
-    if (last != null && at - last < CAST_PART_GAP_MS) return;
-    if (this.castPartAt.size > 256) this.castPartAt.clear();
-    this.castPartAt.set(p.url, at);
-    this._playBank(p.url, p.pool, UNIT_BASE_GAIN);
+    if (typeof p?.url === 'string') this._playBank(p.url, p.pool, UNIT_BASE_GAIN);
   }
 
   _playParts(e, gain) {
@@ -1670,7 +1663,8 @@ export class AudioManager {
    * (fork) One sound of 丰川祥子's (a sting, a note's born / hit) on its official bank alone, outside the battle limiter
    * (8 voices, unit / URL gaps: remake guards the official client does not have): only the bank's own cap holds (max
    * `maxSoundAllowed` at once, 0 = unlimited; `popOldest` = the oldest gives way, else the new one is dropped) and the
-   * played file's pitch is drawn in its minPitch–maxPitch. A field change drops a decode still in flight (stingField).
+   * played file's pitch is drawn in its minPitch–maxPitch; it starts after its official `delay`. A field change drops a
+   * decode or a delay still in flight (stingField). Enemy cast parts, moments and timed impacts play here too.
    */
   _playBank(url, poolId, volume) {
     const ctx = this.ctx;
@@ -1679,46 +1673,62 @@ export class AudioManager {
     const field = this.stingField;
     this._buffer(url).then((buf) => {
       if (!buf || ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
-      const key = poolId || url;
-      const voices = this.stingVoices.get(key) || [];
-      const limit = params?.maxSoundAllowed > 0 ? params.maxSoundAllowed : Infinity;
-      if (voices.length >= limit) {
-        if (!params?.popOldest) return;
-        voices[0].pop();
-      }
-      let src, gain, done = false;
-      const voice = {
-        stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
-        pop: () => {   // (fork) as a pool voice's pop: out of the bank now, silent over POP_FADE_S
-          const i = voices.indexOf(voice);
-          if (i >= 0) voices.splice(i, 1);
-          if (!voices.length) this.stingVoices.delete(key);
-          if (!fadeOut(ctx, src, gain)) voice.stop();
-        },
+      const sound = params?.sounds?.[unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '')];
+      // (fork) the file's official `delay` (audio_data soundFXBanks[].sounds[].delay, pools[id].sounds[path].delay): it is
+      // admitted to its bank that long after, on the audio clock, as the attack pools' _poolDecoded does
+      const delay = Math.max(0, Number(sound?.delay) || 0);
+      if (!(delay > 0)) { this._admitBank(ctx, buf, url, poolId, params, sound, volume); return; }
+      const due = ctx.currentTime + delay;
+      const ready = () => {
+        if (ctx !== this.ctx || field !== this.stingField || this.volumes.muted) return;
+        const remaining = due - ctx.currentTime;
+        if (remaining > 1e-6) { setTimeout(ready, Math.max(10, remaining * 1000)); return; }
+        this._admitBank(ctx, buf, url, poolId, params, sound, volume);
       };
-      const end = () => {
-        if (done) return;
-        done = true;
+      ready();
+    }, () => {});
+  }
+
+  /** (fork) _playBank's admission: the bank's own cap (`maxSoundAllowed`, 0 = unlimited; `popOldest`), then playback. */
+  _admitBank(ctx, buf, url, poolId, params, sound, volume) {
+    const key = poolId || url;
+    const voices = this.stingVoices.get(key) || [];
+    const limit = params?.maxSoundAllowed > 0 ? params.maxSoundAllowed : Infinity;
+    if (voices.length >= limit) {
+      if (!params?.popOldest) return;
+      voices[0].pop();
+    }
+    let src, gain, done = false;
+    const voice = {
+      stop: () => { try { src?.stop(); } catch { /* already ended */ } end(); },
+      pop: () => {   // (fork) as a pool voice's pop: out of the bank now, silent over POP_FADE_S
         const i = voices.indexOf(voice);
         if (i >= 0) voices.splice(i, 1);
         if (!voices.length) this.stingVoices.delete(key);
-        try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
-      };
-      const sound = params?.sounds?.[unhashedUrl(url).replace(/^\/assets\/audio\/sfx\//, '')];
-      const lo = sound?.minPitch > 0 ? sound.minPitch : 1;
-      const hi = sound?.maxPitch >= lo ? sound.maxPitch : lo;
-      const rate = lo + (hi - lo) * Math.max(0, Math.min(1, this.random()));
-      try {
-        src = ctx.createBufferSource(); gain = ctx.createGain();
-        src.buffer = buf; src.playbackRate.value = rate;
-        gain.gain.value = volume * spatialGain(params?.spatial, buf.numberOfChannels);
-        src.connect(gain); gain.connect(this._out(params?.group));
-        src.onended = end;
-        voices.push(voice); this.stingVoices.set(key, voices);
-        src.start();
-        setTimeout(end, buf.duration / rate * 1000 + 250); // safety if onended never fires
-      } catch { end(); }
-    }, () => {});
+        if (!fadeOut(ctx, src, gain)) voice.stop();
+      },
+    };
+    const end = () => {
+      if (done) return;
+      done = true;
+      const i = voices.indexOf(voice);
+      if (i >= 0) voices.splice(i, 1);
+      if (!voices.length) this.stingVoices.delete(key);
+      try { src?.disconnect(); gain?.disconnect(); } catch { /* ignore */ }
+    };
+    const lo = sound?.minPitch > 0 ? sound.minPitch : 1;
+    const hi = sound?.maxPitch >= lo ? sound.maxPitch : lo;
+    const rate = lo + (hi - lo) * Math.max(0, Math.min(1, this.random()));
+    try {
+      src = ctx.createBufferSource(); gain = ctx.createGain();
+      src.buffer = buf; src.playbackRate.value = rate;
+      gain.gain.value = volume * spatialGain(params?.spatial, buf.numberOfChannels);
+      src.connect(gain); gain.connect(this._out(params?.group));
+      src.onended = end;
+      voices.push(voice); this.stingVoices.set(key, voices);
+      src.start();
+      setTimeout(end, buf.duration / rate * 1000 + 250); // safety if onended never fires
+    } catch { end(); }
   }
 
   /** The skill's held loop of unit `id` (one per unit: a new one replaces it), on its bank's mixer `group`. */
