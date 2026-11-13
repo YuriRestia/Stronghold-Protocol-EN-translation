@@ -117,3 +117,82 @@ secret and everyone plays the winner.
   `test/one-for-all.test.js`). Touch's field medic stays one per field (one stage slot). Per-strategy check:
   `crew-docs/one-for-all-strategies.md` (the 2026-11-13 audit).
 - **Stats**: `m.result.mode = 'oneForAll'`; the stats page lists it as its own mode.
+
+### 91.10 Past 8 seats: limits and concerns (fork, 2026-11-13)
+
+Written after the live stall of 2026-11-13. In room FKCJ (8 players, round 8), the 联防 sat at "Uniting" with the
+countdown at 00 for about 5 minutes. Its only helper was offline, so 7 browsers in turn were asked to run it. Each did,
+but each answer named 7 leakers, the wire allowed 4, and `validateC2S` refused every one without a log line. Read this
+before raising `LARGE_ROOM_SEATS` or adding a mode with more players.
+
+**Limits tied to the player count**
+
+| Limit | Where | Value now | What happens past it |
+|---|---|---|---|
+| Players in a battle report | `shared/protocol.js` `RESULT_LIMITS.players` | `LARGE_ROOM_SEATS` (8); it was 4 until 2026-11-13 | `b.result` `perPlayer`, `b.progress` `by` / `left` / `leaksBy` and a bot timeline's `left` fail `validateC2S`: the frame is refused with `error BAD_MSG` (logged since 2026-11-13, `Lobby.onRejected`) |
+| Players a browser keeps in a result | `server/sim/spec.js` `compactResult` (`.slice(0, 4)`) | 4: **open bug at 8 seats** | A 联防 with 5 or more helpers: the browser's result names 4 of them and `validateClientResult` refuses it (`players`). A human authority's field is then run by the server (`reports.js` `_runOnServer(f, 'invalid')`); a bot field goes to the next browser, then the synthetic result |
+| Players in a boss field's `leaksBy` | `server/sim/spec.js` (`.slice(0, 4)`) | 4 | Fine while boss fields hold pairs |
+| Seats in a room | `shared/largeRoom.js` `LARGE_ROOM_SEATS`, `ROOM_CAPACITIES` | 8 | Seat numbers in `room.removeBot` / `room.kick` / `room.moveSeat` are checked against it |
+| Squads | `shared/largeRoom.js` `SQUAD_SEATS` (= 4), `squadOfSeat`; `shared/protocol.js` `room.join` / `room.moveSeat` `squad` (0 or 1) | 2 squads of 4 | A third squad needs the protocol and `squadOfSeat` changed |
+| Pool size | `shared/largeRoom.js` `roomScaleFor` (players ÷ 4) | ×2 at 8 | Grows with the player count |
+| Relay 联防 | `shared/largeRoom.js` `RELAY_MAX_ROUNDS` (2), 2 helpers per relay round (§91 联防) | 2 rounds | More leakers share the same few helpers |
+| Per-seat bot strategy | `server/match/botStrategies.js` (`SP_BOT_STRATEGY_SEATS` seats 0–3) | 4 seats | Seats 4 and up cannot be named |
+| Old generation's lifetime | `scripts/generations.mjs` `LARGE_MAX_AGE_MS` | 105 min | A longer match is cut off when its generation is reaped |
+| Refused-frame log | `server/lobby.js` `REJECTED_LOG_MAX` | 10 lines per match | Bounded; nothing to change |
+
+**The 64 KB inbound frame limit**
+
+Every frame a browser sends may be at most 64 KB (`server/http/websocket.js` `WS_MAX_PAYLOAD`), and a compressed frame
+counts its inflated size (§8). The `ws` library closes a socket that sends a bigger one (close code 1009), so the
+browser drops and reconnects, and its report is lost. A battle report is one frame: `b.result` from a human authority,
+`b.botBattleResult` from a browser running a bot field (the whole result plus its timeline).
+
+Measured on 2026-11-13 (one real battle, round 1, NORMAL, 1 helper, 7 leakers, a small board):
+
+| What | Size |
+|---|---|
+| `b.botBattleResult` frame | 2,890 B: result 1,312 B, timeline 1,510 B |
+| Timeline | 25 samples, at most 67 B each with a 7-key `left` map |
+| One `perPlayer` entry | 1,214 B |
+| One entry of `unitStats` / `unitsEnd` / `leaked` | at most 102 B / 91 B / 125 B |
+| `b.botBattle` spec, server → browser | 5,249 B (outbound frames have no such limit) |
+
+The size limits do not keep a report under 64 KB. `RESULT_LIMITS` allows per player 160 `unitStats`, 64 `unitsEnd`
+and 400 `leaked` entries. At the measured entry sizes that is about 160 × 102 + 64 × 91 + 400 × 125 ≈ 72 KB for one
+player, over the frame limit already. Reports stay small only because real boards and leak lists stay far below those
+limits. Late-game reports were not measured.
+
+What grows with the player count:
+- A 联防 report has one `perPlayer` entry per helper, about 1.2 KB each at round 1 (more with bigger boards).
+- A bot timeline keeps at most 300 samples (`server/match/botBattleRun.js` `TIMELINE_KEEP`). Its `left` map adds about
+  7 B per leaker to each sample. At 16 leakers that is about 130 B a sample, about 39 KB for a full timeline, before the
+  result itself.
+
+Before a mode with more players: measure a late-game 联防 report at the target player count. If it comes close to
+64 KB, the options are:
+- send bot fields' results without `unitStats`;
+- thin the timeline harder;
+- split the report into several frames;
+- raise the limit for these frames only. That changes the server's memory per socket and needs the server-cost
+  numbers first.
+
+**Who runs a field with no connected human**
+
+Browsers are asked one at a time: 30 s each (`BOT_BATTLE_ANSWER_MS`), at most 2 for a normal or 联防 field
+(`BOT_FIELD_MAX_EXECUTORS`), then the synthetic result. The server never runs it (the user's rule, docs/host-browser-bots.md
+B13). Asking every browser at once and taking the fastest answer was not chosen, for four reasons:
+- **Trust:** the server checks a browser's result on bounds only. If the first answer wins, a dishonest browser wins
+  every race with a made-up result. With one browser at a time, only the one picked can lie.
+- **Players' devices:** each asked browser runs the whole battle in a Worker while its own battle is running. Asking 7
+  costs 7 phones that CPU and battery, for one answer.
+- **Traffic:** the spec goes out once per browser asked (5.2 KB at round 1, more later). Asking everyone multiplies that
+  by the number of browsers.
+- **It would not have helped on 2026-11-13:** every browser's answer was refused the same way.
+
+A middle way, asking 2 browsers at once and keeping the first valid answer, halves the worst wait and doubles the cost.
+It has not been built.
+
+**Diagnosis gaps**
+
+The match logs no disconnects, so the FKCJ log could not show when the helper went offline. Refused frames are
+logged since 2026-11-13 (§8, `Lobby.onRejected`).
