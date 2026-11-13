@@ -673,10 +673,12 @@ export function pickEnemyCastSfx(banks, bank, skill, loopOf = () => false) {
  * @param {Map<string, string[]>|undefined} banks the enemy's unitBanks entry (event.ability → paths)
  * @param {(name: string) => string[]} bank audio.bank (the shot banks are not unit banks)
  * @param {string} short the enemy's name part (enemy_9017_achunt_2 → 'achunt')
+ * @param {{ shots?: { fx?: Record<string, string[]>, hitNext?: string[] }, variants?: Record<string, string> }} [opts] the
+ *   enemy's ENEMY_SHOT_SOUNDS / ENEMY_ATTACK_VARIANTS entries
  * @returns {{ attack?: string[], hit?: string[], next?: string[][], melee?: { attack?: string[], hit?: string[], next?: string[][] },
- *   die?: string[], born?: string[] }}
+ *   die?: string[], born?: string[], variants?: Record<string, object>, fx?: Record<string, string[][]>, hitNext?: string[][] }}
  */
-export function pickEnemySfx(banks, bank, short) {
+export function pickEnemySfx(banks, bank, short, opts = {}) {
   const out = {};
   banks = banks || new Map();
   const abilities = new Set();
@@ -744,8 +746,69 @@ export function pickEnemySfx(banks, bank, short) {
   if (close && JSON.stringify(close) !== JSON.stringify(top)) out.melee = close;
   if (banks.get('ON_UNIT_DEAD')?.length) out.die = banks.get('ON_UNIT_DEAD');
   if (banks.get('ON_UNIT_BORN')?.length) out.born = banks.get('ON_UNIT_BORN');
+  // (fork, enemy sound leftovers job 1 D) the attack of another official mode (ENEMY_ATTACK_VARIANTS): its ability's set,
+  // with the default's swing / impact where it has none of its own
+  for (const [key, ability] of Object.entries(opts.variants || {})) {
+    if (!abilities.has(ability)) continue;
+    const v = set([ability], ranged.length > 0 || named.length > 0 || !melee.length);
+    if (!v) continue;
+    if (!v.attack && out.attack) { v.attack = out.attack; if (out.next && !v.next) v.next = out.next; }
+    if (!v.hit && out.hit) v.hit = out.hit;
+    (out.variants || (out.variants = {}))[key] = v;
+  }
+  // (fork, enemy sound leftovers job 1 A) the shot banks named for another enemy or a kit moment (ENEMY_SHOT_SOUNDS)
+  const banksOf = (names) => names.map((n) => bank(n)).filter((p) => p.length);
+  for (const [tag, names] of Object.entries(opts.shots?.fx || {})) {
+    const list = banksOf(names);
+    if (list.length) (out.fx || (out.fx = {}))[tag] = list;
+  }
+  const hitNext = banksOf(opts.shots?.hitNext || []);
+  if (hitNext.length) out.hitNext = hitNext;
   return out;
 }
+
+/**
+ * (fork, enemy sound leftovers job 1 A, 2026-11-13) Enemy shot sounds pickEnemySfx can't match by the enemy's name, from
+ * the official CN audio_data banks, by enemy id:
+ * - `fx`: a kit fx's own sound (sfx.units[id].fxSounds['<fx kind>|<skill tag>'], public/js/audio.js _fxSound), its banks in
+ *   order (the first is the entry, the others ring with it).
+ * - `hitNext`: banks that ring with the attack's impact (the shot's second impact bank, a talent's splash shot).
+ */
+export const ENEMY_SHOT_SOUNDS = Object.freeze({
+  // 高能源石虫 Infused Originium Slug: its death blast is the shot projectile_bslime (REACH e_skill_bslimeexplo_n); the sim's
+  // deathBoom fx 'explode' (enemies/archetypes.js)
+  enemy_1021_bslime: { fx: { 'explode|': ['battle.ON_PROJECTILE_REACH.projectile_bslime'] } },
+  // 冰爆源石虫 Infused Glacial Originium Slug: the same, its shot projectile_snslime (the same file)
+  enemy_1067_snslime: { fx: { 'explode|': ['battle.ON_PROJECTILE_REACH.projectile_snslime'] } },
+  // 潜水员 Diver: its arrow's REACH bank (e_imp_watersplash_n) rings with its HIT (e_imp_arrow_d, already the impact)
+  enemy_1158_divman: { hitNext: ['battle.ON_PROJECTILE_REACH.projectile_enemy_divman'] },
+  // 腐败骑士 Corrupted Knight: its talent's splash on the target's cross is the shot projectile_enemy_dekght (HIT
+  // e_imp_blade_n), with the swing's own impact (e_skill_hugeaxe_hit)
+  enemy_1513_dekght: { hitNext: ['battle.ON_PROJECTILE_HIT.projectile_enemy_dekght'] },
+  // 假想敌：蚀裂 OpFor: Fissure: the poison lob at its killer, launched as it falls (BORN e_atk_vnmsctfr) — the sim's 'ability'
+  // fx 'fissureDie' (enemies/dot.js). Its landing (REACH e_imp_vnmsctfr) has no fx naming it: left
+  enemy_9006_actoxi: { fx: { 'ability|': ['battle.ON_PROJECTILE_BORN.projectile_enemy_actoxi'] } },
+  // 卷心籽 Cabbage Seedling: the ignited death blast is the shot projectile_enemy_ftzlc (BORN e_imp_wlgrsckxpl); the sim's
+  // deathBoom fx 'explode' (enemies/element.js, only when ignited)
+  enemy_10065_ftzlc: { fx: { 'explode|': ['battle.ON_PROJECTILE_BORN.projectile_enemy_ftzlc'] } },
+});
+
+/**
+ * (fork, enemy sound leftovers job 1 D, 2026-11-13) An enemy's attack in another official mode (the mode's ability is its
+ * index in the prefab's Modes: attack.1 = the second mode), by the key public/js/audio.js unit() picks it with: a sim form
+ * (the last form fx of the unit: shared/protocol.js fxForm, or a 'phase' fx's kind), or `dmg:<type>` for an impact dealt as
+ * that damage type (the mode differs only in its damage type).
+ */
+export const ENEMY_ATTACK_VARIANTS = Object.freeze({
+  // 萨卡兹枯朽前锋 Sarkaz Wither Vanguard (+ Elite): mode Originium (combat.1, e_imp_sword_longmen) on an infection tile, where
+  // its attacks deal arts damage (official damageType 2; enemies/special.js infectionArts)
+  enemy_1422_lrsldr: { 'dmg:arts': 'combat.1' },
+  enemy_1422_lrsldr_2: { 'dmg:arts': 'combat.1' },
+  // 锏 Degenbrecher: mode Reborn (attack.1, e_imp_blkswd_h) in her second form (reborn → setForm 'form2')
+  enemy_1525_blkswb: { form2: 'attack.1' },
+  // “余音” Echoes: mode Depression (combat.1, e_imp_slstrmnlw_n_u) in its 暗色的喟叹 form (bosses.js setEchoForm 'echo_dark')
+  enemy_9023_acdums: { echo_dark: 'combat.1' },
+});
 
 /**
  * UI / battle-flow SFX map: name → { bank } or { path } (path under sound_beta_2).
