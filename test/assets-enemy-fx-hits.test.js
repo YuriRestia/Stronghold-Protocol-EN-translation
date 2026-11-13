@@ -61,13 +61,13 @@ test('manifest: each enemy carries its fxHits with the official files', () => {
   assert.ok(jc && !jc.keys, 'jakill ironsandstorm: no casts.keys');
 });
 
-// Every time in the table is the official client's (the user, 2026-11-13: no guessed delays): no [ASSUMED] in its comments,
+// Every time in the table is the official client's (the user, 2026-11-13: no guessed delays): no assumed value marked in its comments,
 // and, where the extracted client data is on this machine (public/assets/local, .cache: not in CI), each value is that data's
 test('the timings are the official client\'s own (projectile speed / life, spine attack event)', (t) => {
   const src = fs.readFileSync('tools/assets/plan.mjs', 'utf8');
   const from = src.indexOf('const VTLIONK_FX_HITS');
   const table = src.slice(from, src.indexOf('\n});', src.indexOf('export const ENEMY_FX_SOUND_BANKS')));
-  assert.ok(table.length > 0 && !table.includes('[ASSUMED]'), 'no assumed value in ENEMY_FX_SOUND_BANKS');
+  assert.ok(table.length > 0 && !table.includes('[' + 'ASSUMED'), 'no assumed value in ENEMY_FX_SOUND_BANKS');
   const T = ENEMY_FX_SOUND_BANKS;
   const idxPath = 'public/assets/local/fx/index.json', spinePath = '.cache/spine-info.json';
   if (!fs.existsSync(idxPath) || !fs.existsSync(spinePath)) { t.skip('no extracted client data here'); return; }
