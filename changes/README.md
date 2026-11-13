@@ -134,17 +134,27 @@ Server cost:
 
 | Measure | Typical | Worst case |
 |---|---|---|
-| Bandwidth out / in, per player | 0.002 / 0.0005 MB/s (0.17 / 0.04 GB/day) | 0.01 / 0.001 MB/s |
-| Bandwidth out / in, per room (4 players) | 0.008 / 0.002 MB/s | 0.04 / 0.004 MB/s |
-| Bandwidth out / in, 300 players | 0.6 / 0.15 MB/s (52 / 13 GB/day) | 3 / 0.3 MB/s |
-| Server CPU | 0.5 % of one core | 2 % |
-| Memory | 1 MB | 4 MB |
-| Disk | 0 MB/day | 0 MB/day |
-| Bot budget | 0 ms/round | 0 ms/round |
+| Bandwidth out / in, per player | 0.002 / 0.0005 MB/s (0.17 / 0.04 GB/day) [src: traffic-report run] | 0.01 / 0.001 MB/s [unverified] |
+| Bandwidth out / in, per room (4 players) | 0.008 / 0.002 MB/s [src: traffic-report run] | 0.04 / 0.004 MB/s [unverified] |
+| Bandwidth out / in, 300 players | 0.6 / 0.15 MB/s (52 / 13 GB/day) [src: per player × 300] | 3 / 0.3 MB/s [unverified] |
+| Server CPU | 0.5 % of one core [unverified] | 2 % [unverified] |
+| Memory | 1 MB [unverified] | 4 MB [unverified] |
+| Disk | 0 MB/day [src: server/match/x.js:40 writes nothing] | 0 MB/day |
+| Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
-- Cap: one update per unit per second, at most 32 units per room.
+- Cap: one update per unit per second, at most 32 units per room [src: server/match/x.js:12].
 - Measured with tools/traffic-report.mjs over one 4-player test match; CPU and memory estimated.
 ```
+
+- **Sourced claims** (2026-11-13, `tools/claims.mjs`): each line of a numbers block that states a number with a unit,
+  and each section or `Operator notes:` line with a timing number ("0.3 s apart"), carries its source:
+  `[src: path:line]`, `[src: doc §heading]`, `[src: official <file> <field>]` (the game data) or `[unverified]`. One
+  marker covers its line (a table row, a bullet with its continuation lines, a paragraph). The markers are stripped
+  when the sections are folded; never put them in `News:` lines. The fragments already here when the rule came in are
+  listed in `tools/changelog.mjs` `UNSOURCED_BEFORE_RULE`.
+- **The [ASSUMED gate**: `--check` also fails on a line this branch adds (since dev-0.2) that states an assumption,
+  `[ASSUMED] …` or `[ASSUMED: …]`, unless the same line says `user OK YYYY-MM-DD` (the user approved it that day).
+  Lines from upstream merges, `data/` and golden files are exempt; it is skipped in a clone without dev-0.2 (CI).
 
 - Fragments written before the rule say `Server cost: none (pre-rule)`, or, for the seven whose change did touch
   server code, `Server cost: unmeasured (pre-rule)`, accepted only from the names in `tools/changelog.mjs`
