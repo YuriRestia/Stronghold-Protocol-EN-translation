@@ -706,11 +706,16 @@ together therefore rings as its bank allows: 137 of the 141 enemy cast banks hol
 takes its bank's place, in battle seconds (`_battleDelay`): the official SoundFX keeps `ignoreTimeScale` beside `delay`,
 false on every official sound [src: official Il2Cpp dump.cs SoundFXBank.SoundFX fields; audio_data soundFXBanks
 sounds[].ignoreTimeScale, 13990 of 13990 false], so the delay runs at the battle's playback rate (`setBattleView` rate:
-2× halves it, a speed change mid-wait takes hold from then on, the sandbox's pause holds it as `view.timeScale()` reads 0
-while `setFrozen` holds the battle), re-read once per battle tick [src: server/sim/constants.js TICK], on the audio
-clock; a field change drops it.
+2× halves it, a speed change mid-wait takes hold within one battle tick, the sandbox's pause holds it as
+`view.timeScale()` reads 0 while `setFrozen` holds the battle), the rate read once per battle tick and held for that
+tick [src: server/sim/constants.js TICK], on the audio clock; a field change drops it.
 Aliases share their target bank's pool; distinct banks using one file keep separate limits. Pitch is drawn uniformly
 within the played file's own range with client-only randomness ([ASSUMED] uniform distribution); playback starts after its own delay on the audio clock.
+(fork) That delay is battle seconds too (`_battleDelay`, as above: ignoreTimeScale false on every official sound
+[src: official Il2Cpp dump.cs SoundFXBank.SoundFX fields; audio_data soundFXBanks sounds[].ignoreTimeScale, 13990 of
+13990 false]): at 2× Ch'en's 0.6 s attack delay [src: official audio_data soundFXBanks
+battle.ON_ABILITY_START.char_010_chen.attack sounds[].delay 0.6] waits 0.3 s, and the sandbox's pause holds it. A dropped
+request clears its pending timer as before.
 The maintainer chose 0.3.1 for this change (reply draft A). [ASSUMED] The remake retains its global 8-voice budget,
 160 ms per-unit/role cooldown and 45 ms per-URL gap at playback admission to guard high game speeds. Decoding and
 delayed requests reserve no playing slots: admission and takeover happen only when the file's delay has elapsed
