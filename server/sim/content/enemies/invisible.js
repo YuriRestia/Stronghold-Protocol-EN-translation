@@ -169,6 +169,8 @@ function kitBoneSpike() {
       if (a.st !== undefined && s !== a.st) {
         if (s) b.fxState(e, 'enemy_acbunn[cute]', true, { dur: 1 });
         else b.fxState(e, 'enemy_acbunn[horror]', true, { dur: 1 });
+        // (fork, enemy sound audit job 3) each buff's own ON_BUFF_START sound (fx 'sound', display only)
+        b.fx('sound', { x: e.x, y: e.y, id: e.id, kind: s ? 'cute' : 'horror' });
       }
       a.st = s;
     },

@@ -1373,14 +1373,41 @@ export class AudioManager {
     if (kind === 'burst') { this._burstSound(ex); return; }
     // (fork) the unit the fx names (`id`), else its shooter (`src`: 蕾缪安's locks and shots name the enemy); a key with
     // '#<skill index>' is that equipped skill's own (her S2 aim and S3 lock are both 'lock')
-    for (const id of [ex.id, ex.src]) {
+    // (fork, enemy sound audit job 3) an enemy's moments: its table (plan.mjs ENEMY_FX_SOUND_BANKS) keyed by the fx's
+    // `kind` / `form` instead, and a beam's / link's shooter (`from`) counts too
+    for (const id of [ex.id, ex.src, ex.from]) {
       const u = id != null ? this.units.get(id) : null;
+      if (u && id === ex.from && id !== ex.id && id !== ex.src && u.side !== 'enemy') continue;
       const table = u ? unitSfx(this.getManifest()?.audio?.sfx, u.def, u.outfit)?.fxSounds : null;
       if (!table) continue;
       const tag = `${kind}|${ex.skill ?? ''}`;
-      const e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
+      let e = (Number.isInteger(u.skillIndex) ? table[`${tag}#${u.skillIndex}`] : null) ?? table[tag];
+      if (!e && u.side === 'enemy') e = table[`${kind}|${ex.kind ?? ex.form ?? ''}`];
+      // an enemy's moment, or a held loop (炎佑, an ally built from an enemy record)
+      if (e && (u.side === 'enemy' || e.loop || e.endLoop)) { this._enemyMoment(id, e); return; }
       if (typeof e?.url === 'string') { this._playParts(e, NOTE_GAIN); return; }
     }
+  }
+
+  /**
+   * (fork, enemy sound audit job 3) One enemy moment (sfx.units[id].fxSounds entry): its sounds on their pools, then its
+   * held loop — started (`loop`; with `hold`, stopped that long after the moment last came), or ended (`endLoop`).
+   */
+  _enemyMoment(id, e) {
+    for (const p of [e, ...(Array.isArray(e.also) ? e.also : [])]) this._castPart(p);
+    if (e.endLoop) { this._stopStingLoop(id); return; }
+    if (typeof e.loop !== 'string') return;
+    const cur = this.stingLoops.get(id);
+    if (!cur || cur.url !== e.loop) {
+      this._stingLoop(id, e.loop, this._unitUrlGroup?.(this.units.get(id)?.def, 'skill', e.loop, null) ?? null);
+      const now = this.stingLoops.get(id);
+      if (now) now.url = e.loop;
+    }
+    if (!(e.hold > 0)) return;
+    const held = this.stingLoops.get(id);
+    if (!held) return;
+    clearTimeout(held.holdTimer);
+    held.holdTimer = setTimeout(() => { if (this.stingLoops.get(id) === held) this._stopStingLoop(id); }, e.hold * 1000);
   }
 
   /**
@@ -1396,8 +1423,12 @@ export class AudioManager {
   _enemyCast(id, slot) {
     const u = this.units.get(id);
     if (!u || u.side !== 'enemy') return;
-    const c = unitSfx(this.getManifest()?.audio?.sfx, u.def, null)?.casts?.[String(slot)];
+    const ue = unitSfx(this.getManifest()?.audio?.sfx, u.def, null);
+    const c = ue?.casts?.[String(slot)];
     for (const p of Array.isArray(c?.start) ? c.start : []) this._castPart(p);
+    // (fork, enemy sound audit job 3) a moment that rings with this cast (fxSounds 'cast|<skill pk>', a spine event)
+    const m = typeof c?.pk === 'string' ? ue?.fxSounds?.[`cast|${c.pk.toLowerCase()}`] : null;
+    if (m) this._enemyMoment(id, m);
   }
 
   /**
@@ -1415,6 +1446,8 @@ export class AudioManager {
           if (typeof c?.hit?.url !== 'string') continue;
           for (const k of Array.isArray(c.keys) ? c.keys : []) if (!map.has(k)) map.set(k, c.hit);
         }
+        // (fork, enemy sound audit job 3) an effect's own official sound (plan.mjs ENEMY_KEY_SOUND_BANKS)
+        for (const [k, p] of Object.entries(u?.keySounds || {})) if (typeof p?.url === 'string' && !map.has(k.toLowerCase())) map.set(k.toLowerCase(), p);
       }
       this.castKeys = { sfx, map };
     }
@@ -2258,8 +2291,13 @@ export class AudioManager {
     if (u.side !== 'enemy') this._warmStings(u.spine || u.defId, this.units.get(u.id)?.outfit);
     else {
       // (fork) an enemy's skill-cast sounds decode now, so its first cast is not late
-      const casts = unitSfx(this.getManifest()?.audio?.sfx, u.spine || u.defId, null)?.casts;
-      for (const c of Object.values(casts || {})) for (const p of [...(Array.isArray(c?.start) ? c.start : []), c?.hit]) if (typeof p?.url === 'string') this._buffer(p.url);
+      const ue = unitSfx(this.getManifest()?.audio?.sfx, u.spine || u.defId, null);
+      for (const c of Object.values(ue?.casts || {})) for (const p of [...(Array.isArray(c?.start) ? c.start : []), c?.hit]) if (typeof p?.url === 'string') this._buffer(p.url);
+      // …and its moments (fxSounds, keySounds), held loops included
+      for (const m of Object.values(ue?.fxSounds || {})) {
+        for (const x of [m?.url, m?.loop, ...(Array.isArray(m?.also) ? m.also.map((p) => p?.url) : [])]) if (typeof x === 'string') this._buffer(x);
+      }
+      for (const p of Object.values(ue?.keySounds || {})) if (typeof p?.url === 'string') this._buffer(p.url);
     }
     // a cast that arrived before this unit was known (handleBattleEvents): it sounds now, once
     const held = this.pendingSkill.get(u.id);
@@ -2529,6 +2567,15 @@ export class AudioManager {
           const u = ex && typeof ex === 'object' ? this.units.get(ex.id) : null;
           const idx = u ? HELD_ATTACK_LAYERS[u.def]?.[ex.skill] : undefined;
           if (u && Number.isInteger(idx)) u.heldAttack = Number(ex.n) > 0 ? idx : null;
+        } else if (kind === 'fx' && e[1] === 'mode') {
+          // (fork, enemy sound audit job 3) an enemy's attack mode (泥岩巨像's tiers): its next attacks play that mode's
+          // own swing / impact (sfx.units[id].attacks[n]) when it has them, else the plain ones
+          const ex = e[4];
+          const u = ex && typeof ex === 'object' ? this.units.get(ex.id) : null;
+          if (u?.side === 'enemy') {
+            const n = Number(ex.n);
+            u.heldAttack = Number.isInteger(n) && unitSfx(this.getManifest()?.audio?.sfx, u.def, null)?.attacks?.[String(n)] ? n : null;
+          }
         } else if (kind === 'fx') {
           // a summon used up by its own effect (香槟炸弹 exploding: `consumed`): its impact sound now, no death sound
           const ex = e[4];

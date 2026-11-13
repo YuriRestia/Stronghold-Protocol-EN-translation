@@ -73,6 +73,9 @@ export const FX_KINDS = Object.freeze({
   // 限伤 (sim/attack/health.js leaderHitCancelled): a leader's hit of ≥ 300000 dealt nothing — the official shows no number and
   // no effect [ASSUMED], so nothing is drawn (`a: 'none'`)
   hitCap: { a: 'none', c: 0xffffff },
+  // (fork, enemy sound audit job 3) sound-only moments (public/js/audio.js _fxSound): an official sound with no effect of
+  // its own here — 'sound' { kind }, and Mudrock's tier 'mode' { n } — draw nothing
+  sound: { a: 'none', c: 0xffffff }, mode: { a: 'none', c: 0xffffff },
   // (fork) a kit's 'ability' (id = the unit, name = the client buff template whose action triggers one of its abilities):
   // the official talent binding it fires draws it (render/vfx/talents.js triggerKinds `ability:<template>`); nothing else
   ability: { a: 'none', c: 0xffffff },

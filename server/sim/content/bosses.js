@@ -156,6 +156,10 @@ const ACTRPA_TRAMPLE_FX = 'actrpa_s_1[damage]';
 const ACTRPC_TRAMPLE_FX = 'actrpc_s_1[damage]';
 const SPRING_TRAMPLE_FX = Object.freeze({ enemy_9018_actrpa: ACTRPA_TRAMPLE_FX, enemy_9020_actrpc: ACTRPC_TRAMPLE_FX });
 const SPRING_TRAMPLE_ROW = 0.3;
+// (fork, enemy sound audit job 3) a hit the 弹簧 shield takes (the official actrpa_t_1 custom trigger shield_hit, played on
+// ON_TAKE_DAMAGE): the client's sound only (fx 'sound', display only), at most one per this many s [ASSUMED: a crowd's
+// hits are one clang, as the official bank's own one-at-a-time limit plays them]
+const SPRING_HIT_SOUND_GAP = 0.25;
 /** 盲信之誓 link half-width (PRTS 0.5). */
 const LINK_WIDTH = 0.5;
 /** 碎铳之簧 bullet bounce falloff / reach [ASSUMED], combo = 十连击; tag of the damage share passed between springs. */
@@ -562,7 +566,13 @@ function kitBlade(ab, e, b, tpl) {
       route: origin || { motion: 'FLY', start: home, end: home, steps: [{ t: 'wait', s: 99999 }] }, pos: origin ? undefined : home,
       tag: e2.tag, countInTotal: false, mods: e2.mods, ownerPlayerId: e2.ownerId,
     });
-    if (n) { n.hp = Math.min(n.s.maxHp, e2.hp); b2.fx('blink', { x: n.x, y: n.y, id: n.id, fx: e2.x, fy: e2.y }); }
+    if (n) {
+      n.hp = Math.min(n.s.maxHp, e2.hp);
+      b2.fx('blink', { x: n.x, y: n.y, id: n.id, fx: e2.x, fy: e2.y });
+      // (fork, enemy sound audit job 3) the copy flying back: its revive spine event + enemy_acstm*_back (fx 'sound',
+      // display only)
+      b2.fx('sound', { x: n.x, y: n.y, id: n.id, kind: 'back' });
+    }
     b2.kill(e2, null);
   };
   const shotDown = (b2, e2) => { // 【瘫痪】
@@ -729,7 +739,7 @@ function kitGun(ab, e, b) {
 function kitSpring(ab, e) {
   const kind = /9018/.test(e.defId) ? 'arts' : /9019/.test(e.defId) ? 'element' : 'hits';
   const scale = T(ab, '1.damage_scale') ?? 1, regen = T(ab, '1.regenerate_duration') ?? 0;
-  const P = { up: false, downAt: null };
+  const P = { up: false, downAt: null, hitSoundAt: -Infinity };
   const gun = (b) => nearestOf(b, e, (o) => isGun(o));
   const raise = (b) => {
     P.up = true;
@@ -749,6 +759,7 @@ function kitSpring(ab, e) {
           drop(b);
           return;
         }
+        if (b.time - P.hitSoundAt >= SPRING_HIT_SOUND_GAP) { P.hitSoundAt = b.time; b.fx('sound', { x: e.x, y: e.y, id: e.id, kind: 'shieldHit' }); }
         // actrpa_t_1: NORMAL physical filter, even after prior cancellation; child is source-less ADDITION.
         const source = c.source;
         if (kind !== 'arts' || c.type !== 'phys' || damageAttackType(c.dmg) !== 'NORMAL' || !source?.alive) return;
@@ -878,7 +889,7 @@ export function echoHit(b, echo) {
   try {
     for (let i = 0; i < ab.pulses.length; i++) {
       const atk = ab.pulses[i];
-      b.fx('explode', { x: echo.x, y: echo.y, r: ECHO_PULSE_RADIUS, kind: 'echoPulse' });
+      b.fx('explode', { x: echo.x, y: echo.y, r: ECHO_PULSE_RADIUS, kind: 'echoPulse', id: echo.id });
       for (const u of areaAllies(b, echo, echo.x, echo.y, ECHO_PULSE_RADIUS)) {
         hurt(b, echo, u, atk * (T(ab, '3.atk_scale') ?? 0), 'arts');
         elem(b, echo, u, 'apoptosis', atk * (T(ab, '3.ep_damage_ratio') ?? 0));
@@ -908,7 +919,7 @@ function kitEcho(ab, e) {
         const gold = e2.mem.ab.form === 'gold';
         const r = gold ? ECHO_ENSEMBLE_RADIUS.gold : ECHO_ENSEMBLE_RADIUS.dark;
         const ratio = gold ? T(ab, '4.ep_damage_ratio_passion') ?? 0 : T(ab, '4.ep_damage_ratio_depassion') ?? 0;
-        b.fx('explode', { x: e2.x, y: e2.y, r, kind: gold ? 'ensembleGold' : 'ensembleDark' });
+        b.fx('explode', { x: e2.x, y: e2.y, r, kind: gold ? 'ensembleGold' : 'ensembleDark', id: e2.id });
         for (const u of areaAllies(b, e2, e2.x, e2.y, r)) { hurt(b, e2, u, e2.s.atk, 'arts'); elem(b, e2, u, 'apoptosis', e2.s.atk * ratio); }
       },
     },
