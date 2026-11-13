@@ -24,7 +24,7 @@
 import { RAW, joinUrl, safeName, urlBase, urlDir } from './sources.mjs';
 import { BOT_OPERATORS } from '../../shared/constants.js';
 import { kindOf } from './formats.mjs';
-import { pickUnitSfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
+import { pickUnitSfx, pickEnemySfx, pickEnemyCastSfx, assignSkillModeSfx, outfitAudioView, UI_SFX, BATTLE_SFX, resolveSpec, indexVoice, nativeVoiceDirs, linkageOnlyVoice, VOICE_DIRS, VOICE_CUSTOM_DIR, VOICE_BATTLE_SLOTS } from './audio.mjs';
 import { literal } from './manifest.mjs';
 import { skillAbilitySounds } from './skillSounds.mjs';
 import { EMOTE_CATALOG } from '../../shared/constants.js';
@@ -493,6 +493,32 @@ function unitSounds(audio, sfx, poolRef, leafOf = soundLeaf) {
   return { roles, mix };
 }
 
+/**
+ * (fork, enemy sound audit chunk 2) An enemy's skill-cast sounds → sfx.units[id].casts: { [slot]: { pk, start?: [{ url,
+ * pool? }], hit?: { url, pool? }, keys?: string[] } } (docs/ASSETS.md). `start` rings at the sim's ['cast', id, slot];
+ * `hit` when one of `keys` (the effects of that skill's impact) spawns, or on the impact of an attack-turn cast.
+ */
+function enemyCastSounds(audio, banks, slots, poolRef) {
+  if (!Array.isArray(slots) || !slots.length) return null;
+  const part = (paths) => { const e = { url: soundLeaf(paths, 'sfx', 1) }; const p = poolRef(paths); if (p) e.pool = p; return e; };
+  const out = {};
+  for (const s of slots) {
+    const got = pickEnemyCastSfx(banks, audio.bank, s, audio.loopOf);
+    if (!got) continue;
+    const e = { pk: s.pk };
+    if (got.start.length) e.start = got.start.map(part);
+    if (got.hit) {
+      e.hit = part(got.hit);
+      const f = got.hitFrom;
+      const pj = f?.projectile ? s.proj?.[f.projectile] : null;
+      const keys = f?.ev === 'ON_ABILITY_HIT' ? s.hitKeys : f?.ev === 'ON_PROJECTILE_HIT' ? pj?.hit : pj?.reach?.length ? pj.reach : pj?.hit;
+      if (keys?.length) e.keys = [...keys].sort();
+    }
+    out[String(s.slot)] = e;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /** Expected bytes for a 07 {url, bytes} record when it matches `url`. */
 function bytesOf(rec, url) {
   return rec && typeof rec === 'object' && rec.url === url && Number.isInteger(rec.bytes) ? rec.bytes : undefined;
@@ -546,6 +572,61 @@ export function patternOperator(id, x = {}) {
  * @param {any} ops03 docs/research/03-operators.json
  * @returns {Map<string, number[]>}
  */
+/**
+ * (fork, enemy sound audit chunk 2) Per enemy of `enemies` (data skills[] order: the slot of the sim's ['cast', id, slot]),
+ * what audio.mjs pickEnemyCastSfx needs (the skill's prefabKey and ability nodes, its projectiles) and the effect keys of
+ * the skill's own impact in the local fx index: `hitKeys` (the skill plan's `hit` role) and per projectile its onHit /
+ * onReached keys — minus any key the enemy's normal attack also spawns. The client plays the impact sound when one of
+ * them spawns (audio.js fxKey). Without an fx index: the prefabKey as the only node, and no keys.
+ * @param {any} index parsed fx index (or null)
+ * @param {Record<string, any>} enemies enemy records by id (data/enemies.json)
+ * @returns {Map<string, {slot:number, pk:string, nodes:string[], projectiles:string[], hitKeys:string[],
+ *   proj: Record<string, {hit:string[], reach:string[]}>}[]>}
+ */
+export function enemyCastsFromIndex(index, enemies) {
+  const out = new Map();
+  const units = index?.units || {};
+  const prefabs = index?.prefabs || {};
+  const lc = (s) => String(s).toLowerCase();
+  const resolve = (id) => {
+    let u = units[id];
+    const seen = new Set();
+    while (u?.aliasOf && typeof u.aliasOf === 'string' && !seen.has(u.aliasOf)) { seen.add(u.aliasOf); u = units[u.aliasOf]; }
+    return u || null;
+  };
+  const strings = (v, acc = new Set()) => {
+    if (typeof v === 'string') { if (Object.hasOwn(prefabs, lc(v))) acc.add(lc(v)); } else if (Array.isArray(v)) for (const x of v) strings(x, acc);
+    else if (v && typeof v === 'object') for (const x of Object.values(v)) strings(x, acc);
+    return acc;
+  };
+  const list = (v) => (Array.isArray(v) ? v : v == null ? [] : [v]).filter((x) => typeof x === 'string').map(lc);
+  for (const [id, rec] of Object.entries(enemies || {})) {
+    const skills = Array.isArray(rec?.skills) ? rec.skills : [];
+    if (!skills.length) continue;
+    const u = resolve(id);
+    // the normal attack's own effect keys: a skill impact key the attack also spawns would ring on every attack
+    const attackKeys = strings(u?.modes || []);
+    const slots = [];
+    skills.forEach((s, slot) => {
+      if (!s || s.prefabKey == null) return;
+      const pk = String(s.prefabKey);
+      const sk = u?.skills?.[lc(pk)] || null;
+      const abilities = Array.isArray(sk?.abilities) ? sk.abilities : [];
+      const projectiles = [...new Set([...list(sk?.projectiles), ...abilities.flatMap((a) => [...list(a?.projectileKey), ...list(a?.extraProjectileKeys)])])];
+      const free = (keys) => keys.filter((k) => !attackKeys.has(k));
+      const proj = {};
+      for (const p of projectiles) {
+        const d = index?.projectiles?.[p];
+        if (d) proj[p] = { hit: free(list(d.onHit)), reach: free(list(d.onReached)) };
+      }
+      slots.push({ slot, pk, nodes: [pk, ...abilities.map((a) => a?.node).filter((n) => typeof n === 'string')], projectiles,
+        hitKeys: free(list(sk?.roles?.hit)), proj });
+    });
+    if (slots.length) out.set(id, slots);
+  }
+  return out;
+}
+
 /**
  * Compact mode list for {@link assignSkillModeSfx}, from a local fx index (`public/assets/local/fx/index.json`,
  * not committed). `skills[id].mode` is the mode index the skill switches to. An `aliasOf` unit uses the target's modes.
@@ -682,12 +763,13 @@ export function collectEnemyIds({ assets07, enemies05, maps05, ops03 }) {
  * @param {Array<{name:string,rel:string,urls:string[],kind:string}>} [p.statsTemplate] official statistics UI assets
  * @param {Map<string, {modes:{name:string}[], skillMode:Map<string, number|null>}>|null} [p.charModes]
  *   from {@link charModesFromIndex} (the local fx index). Absent: skill attack slots stay on the filename letter.
+ * @param {ReturnType<typeof enemyCastsFromIndex>|null} [p.enemyCasts] (fork) enemy skill slots → sfx.units[id].casts
  * @returns {{ template: any, models: Map<string, any>, notes: string[] }}
  */
 export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsData, charword = null, voiceLang = 'cn',
   voiceJp = true, voiceSlots = VOICE_BATTLE_SLOTS, optionalVoice = false,
   extraEnemyIds = [], extraTokenIds = [], extraHandbook = {}, localEnemySpines = {}, localTokenSpines = {}, extraOperators = {},
-  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
+  moduleTypes = [], outfits = null, outfitChars = [], statsTemplate = [], charModes = null, enemyCasts = null, extraBands = {}, extraItems = {}, extraBonds = {} }) {
   const notes = [];
   /** @type {Map<string, any>} */
   const models = new Map();
@@ -1117,12 +1199,32 @@ export function buildPlan({ assets07, ops03, enemies05, maps05, audio, modelsDat
     }
     enemies[id] = e;
     let banks = audio.unitBanks.get(id);
+    let bankOwner = id;
     for (const other of [handbookOf.get(id), e.spineAliasOf, baseIdOf(id)]) {
       if (banks?.size) break;
-      if (other) banks = audio.unitBanks.get(other);
+      if (other) { banks = audio.unitBanks.get(other); bankOwner = other; }
     }
-    const { roles: u, mix } = unitSounds(audio, pickUnitSfx(banks), poolRef);
+    // (fork) the enemy picker (audio.mjs pickEnemySfx): its shot's impact, the fire after the wind-up (`attackNext`) and
+    // a melee set beside the ranged one (`melee`, public/js/audio.js unit())
+    const short = bankOwner.replace(/^enemy_\d+_/, '').replace(/_\d+$/, '');
+    const picked = pickEnemySfx(banks, audio.bank, short);
+    const { roles: u, mix } = unitSounds(audio, picked, poolRef);
     if (mix) u.mix = mix;
+    const casts = enemyCastSounds(audio, banks, enemyCasts?.get(id), poolRef);
+    if (casts) u.casts = casts;
+    const nextParts = (list) => (list || []).map((paths) => {
+      const part = { url: soundLeaf(paths, 'sfx', 1) };
+      const p = poolRef(paths);
+      if (p) part.pool = p;
+      return part;
+    });
+    if (picked.next?.length) u.attackNext = nextParts(picked.next);
+    if (picked.melee) {
+      const { roles: m, mix: mm } = unitSounds(audio, picked.melee, poolRef);
+      if (picked.melee.next?.length) m.attackNext = nextParts(picked.melee.next);
+      if (mm) m.mix = mm;
+      if (Object.keys(m).length) u.melee = m;
+    }
     if (Object.keys(u).length) unitsSfx[id] = u;
   }
 

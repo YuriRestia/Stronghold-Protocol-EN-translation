@@ -93,6 +93,8 @@ export class MatchViews {
         voters: this.setupVote.voters.slice(),
         agreed: [...this.setupVote.agreed],
       } : null,
+      // (fork) no setup reroll here (Lobby.rerollLock): the briefing's button is disabled with the reason; absent otherwise
+      ...(this.rerollLock ? { rerollOff: this.rerollLock } : {}),
       factions: this.factions.slice(),
       disabledBonds: [...new Set([...this.disabledBonds, ...this.staticInactiveBonds])].sort(),
       drawnDisabledBonds: this.disabledBonds.slice(),

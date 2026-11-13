@@ -475,6 +475,11 @@ export class Room {
     this.searching = false;
     /** @type {number | null} */
     this.searchSince = null;
+    /**
+     * (fork) the room was open to strangers before a match: it searched (搜寻队友), the solo queue formed or filled it, or
+     * it was a public Grand Alliance. Its matches have no setup reroll (Lobby.rerollLock; user, 2026-11-13). Never cleared.
+     */
+    this.wentPublic = false;
     /** (fork) a full matchmade room waiting for its pages to load its content (Lobby.waitContent): since when, for whom */
     /** @type {{ since: number, key: string } | null} */
     this.contentWait = null;
@@ -1169,6 +1174,7 @@ export class Lobby {
     if (large) { room.capacity = LARGE_ROOM_SEATS; room.seats = new Array(LARGE_ROOM_SEATS).fill(null); }
     if (large && password != null) { room.locked = true; room.password = password.toUpperCase(); }
     if (large && oneForAll === true) room.oneForAll = true;
+    if (large && !room.locked) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     // 「不限时」 only on a solo room of a version whose solo is timed (header). Anywhere else the key is ignored, so a
     // stray true cannot change a default or co-op create.
     if (mode === 'solo' && soloUnlimited === true && this.versionSoloTimed(version)) room.soloUnlimited = true;
@@ -1917,6 +1923,7 @@ export class Lobby {
     if (on && password != null && !(typeof password === 'string' && ROOM_PASSWORD_RE.test(password))) return fail(ERR.BAD_MSG, 'a password of 4 letters');
     if (on) room.password = password != null ? password.toUpperCase() : room.password || randomPassword();
     room.locked = on;
+    if (!on) room.wentPublic = true;   // (fork) a public Grand Alliance (Lobby.rerollLock)
     this.broadcastState(room);
     return OK;
   }
@@ -2058,6 +2065,18 @@ export class Lobby {
       return fail(ERR.RATE, 'too many running matches from your network');
     }
     return this.startMatch(room, key);
+  }
+
+  /**
+   * (fork) Why a room's matches have no setup reroll, or null (user, 2026-11-13: rerolls are for friends playing
+   * privately or solo, not for strangers to stall each other): 'public' for a public (unlocked) Grand Alliance,
+   * 'matchmade' for a room that was ever open to strangers (Find teammates, the solo queue, a merge or a cross-server
+   * move seat matched players). The match refuses room.rerollSetup and its m.public carries `rerollOff` for the client.
+   */
+  rerollLock(room) {
+    if (room.large && !room.locked) return 'public';
+    if (room.wentPublic || room.searching || room.seats.some((s) => s && s.matched)) return 'matchmade';
+    return null;
   }
 
   /**
@@ -2534,6 +2553,8 @@ export class Lobby {
         ...(room.large ? { largeRoom: true, botExecution: 'host', botBattles: 'host', onIdle: (playerId) => this.idleKick(room, ctx, playerId) } : {}),
         // (fork) the One for All strategy vote (server/match/match/oneForAll.js); a Grand Alliance only
         ...(room.large && room.oneForAll ? { oneForAll: true } : {}),
+        // (fork) no setup reroll in a room strangers could join (Lobby.rerollLock); a private room's opts keep their keys
+        ...(this.rerollLock(room) ? { rerollLock: this.rerollLock(room) } : {}),
         // only a room created as a test room; a normal match opts object does not grow a test key
         ...(room.test === true ? { test: true } : {}),
         seed,
@@ -2889,6 +2910,7 @@ export class Lobby {
     if (!groupReady(room)) return fail(ERR.NOT_READY);
     room.searching = true;
     room.searchSince = this.now();
+    room.wentPublic = true;   // (fork) Find teammates: strangers may sit down (Lobby.rerollLock)
     this.log.info(`[lobby] ${room.code} searching (${roomSize(room)}/${roomCap(room)}, ${room.difficulty}${room.version !== DEFAULT_VERSION ? `, ${room.version}` : ''})`);
     this.broadcastState(room);
     return OK;
@@ -3352,6 +3374,7 @@ export class Lobby {
 
   /** Seat queued sessions in `room`'s free seats, ready, and take them out of the queue. Sends nothing. */
   seatSolos(room, sessions) {
+    if (sessions.length) room.wentPublic = true;   // (fork) the solo queue seats strangers (Lobby.rerollLock)
     // (fork) new humans take seats: the version vote is void, as on a join (header "Official versions")
     if (sessions.length && room.versionVote) this.voidVersionVote(room, 'members');
     for (const s of sessions) {
