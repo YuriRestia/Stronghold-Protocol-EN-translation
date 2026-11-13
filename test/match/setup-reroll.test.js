@@ -11,15 +11,15 @@ const snapshot = (m) => ({ stageId: m.stageId, bossId: m.bossId, hiddenBossId: m
   factions: [...m.factions], schedule: m.factions.schedule, bans: [...m.bannedChess], drawn: [...m.disabledBonds] });
 const approve = (m, id, voteId = m.setupVote.id) => m.handle(id, { t: 'g.rerollVote', voteId, agree: true });
 
-test('reroll with one second left gives everyone a fresh full countdown; old timeout cannot advance it', (t) => {
+test('a reroll agreed with seconds left gives everyone a fresh full countdown; old timeout cannot advance it', (t) => {
   const h = makeMatch({ humans: 2 }).start();
   t.after(() => h.m.dispose());
   const m = h.m;
   const fullMs = m.scaled(m.gd.timer('infoCheck') * 1000);
-  h.sched.advance(fullMs - 1000);
-  assert.equal(m.deadline - h.sched.now(), 1000);
+  h.sched.advance(fullMs - 3000);
+  assert.equal(m.deadline - h.sched.now(), 3000);
   assert.deepEqual(m.requestSetupReroll('p_0', 0), { ok: true });
-  h.sched.advance(5000);
+  h.sched.advance(2000);
   assert.deepEqual(approve(m, 'p_1'), { ok: true });
   const fresh = h.lastBc('m.public');
   assert.equal(fresh.deadline - fresh.serverNow, fullMs);
@@ -61,7 +61,7 @@ test('four humans must agree; rerolls the entire official setup and stock, prese
   h.sched.advance(500);
   assert.deepEqual(m.requestSetupReroll('p_0', 0), { ok: true });
   assert.deepEqual(m.setupVote.voters, ['p_0', 'p_1', 'p_2', 'p_3']);
-  assert.equal(m.deadline, 0);
+  assert.ok(m.deadline > h.sched.now(), 'the countdown runs on through the vote');
   assert.deepEqual(approve(m, 'p_1'), { ok: true });
   assert.deepEqual(approve(m, 'p_2'), { ok: true });
   h.sched.advance(30000);
@@ -98,21 +98,24 @@ test('four humans must agree; rerolls the entire official setup and stock, prese
   assert.equal(m.phase, PHASE.BAND_DRAFT);
 });
 
-test('reject/cancel restores exact remaining countdown and keeps setup and ready flags', (t) => {
+test('a vote never pauses the countdown; reject/cancel keep the setup and ready flags', (t) => {
   const h = makeMatch({ humans: 2, timerScale: 0.5 }).start();
   t.after(() => h.m.dispose());
   const m = h.m;
   const before = snapshot(m);
   m.handle('p_1', { t: 'g.infoReady' });
   h.sched.advance(1000);
-  const remaining = m.deadline - h.sched.now();
+  const end = m.deadline;
   m.requestSetupReroll('p_0', 0);
+  assert.equal(m.deadline, end, 'the vote leaves the deadline alone');
+  assert.equal(h.lastBc('m.public').deadline, end, 'and the players keep seeing it');
   h.sched.advance(10000);
   assert.deepEqual(m.handle('p_1', { t: 'g.rerollVote', voteId: m.setupVote.id, agree: false }), { ok: true });
   assert.deepEqual(snapshot(m), before);
   assert.equal(m.setupRevision, 0);
   assert.equal(h.ps('p_1').infoReady, true);
-  assert.equal(m.deadline, h.sched.now() + remaining, 'real remaining ms, no extra timer scaling');
+  assert.equal(m.deadline, end, 'nothing to resume: the 10 s of the vote are gone');
+  const remaining = end - h.sched.now();
   // The rejected vote did not give p_0 its cooldown back, but any other seat can still open one.
   assert.equal(m.requestSetupReroll('p_0', 0).error, ERR.RATE);
   assert.deepEqual(m.requestSetupReroll('p_1', 0), { ok: true });
@@ -124,12 +127,23 @@ test('reject/cancel restores exact remaining countdown and keeps setup and ready
   assert.equal(m.phase, PHASE.BAND_DRAFT);
 });
 
-test('reroll cancels queued all-ready transition; stale ready and previous vote cannot affect a new setup', (t) => {
+test('once everyone is ready the briefing ends: a reroll request then is refused', (t) => {
   const h = makeMatch({ humans: 2 }).start();
   t.after(() => h.m.dispose());
   const m = h.m;
   for (const p of m.order) m.handle(p.playerId, { t: 'g.infoReady' });
   assert.ok(m._infoAdvanceTimer);
+  assert.deepEqual(m.requestSetupReroll('p_0', 0), { error: ERR.WRONG_PHASE, detail: 'briefing ending' });
+  assert.equal(m.setupVote, null);
+  h.sched.advance(0);
+  assert.equal(m.phase, PHASE.BAND_DRAFT);
+});
+
+test('stale ready and a previous vote cannot affect a new setup', (t) => {
+  const h = makeMatch({ humans: 2 }).start();
+  t.after(() => h.m.dispose());
+  const m = h.m;
+  m.handle('p_0', { t: 'g.infoReady' });
   m.requestSetupReroll('p_0', 0);
   const oldVote = m.setupVote.id;
   assert.equal(m.handle('p_1', { t: 'g.infoReady' }).error, ERR.WRONG_PHASE);
@@ -201,7 +215,7 @@ test('disconnect and leave cancel rather than count as consent; reconnect sees c
   assert.equal(m.setupRevision, 1);
 });
 
-test('autoplay humans still explicitly consent; dispose stops a paused vote and invalid actors are refused', (t) => {
+test('autoplay humans still explicitly consent; dispose stops a running vote and invalid actors are refused', (t) => {
   const h = makeMatch({ humans: 2, bots: 1 }).start();
   t.after(() => h.m.dispose());
   const m = h.m;
@@ -236,4 +250,61 @@ test('failed DIY stock preparation leaves every opening field and player stock i
   assert.equal(m.setupRevision, 0); assert.equal(m.setupVote, null);
   assert.equal(m.deadline - h.sched.now(), remaining);
   assert.equal(h.logs.error.length, 1, 'failure is reported once');
+});
+
+test('spam cannot delay the start: votes left open one after another, the briefing still ends on time with the setup on screen', (t) => {
+  const h = makeMatch({ humans: 2 }).start();
+  t.after(() => h.m.dispose());
+  const m = h.m;
+  const end = m.deadline;
+  const before = snapshot(m);
+  // both players keep opening votes nobody answers, each as soon as the per-seat cooldown allows, cancelling the open one
+  let opened = 0;
+  for (let at = h.sched.now(); m.phase === PHASE.INFO_CHECK; at += 1000) {
+    h.sched.advance(1000);
+    if (m.phase !== PHASE.INFO_CHECK) break;
+    for (const id of ['p_0', 'p_1']) {
+      if (m.setupVote && m.setupVote.proposerId !== id) m.cancelSetupReroll(id, m.setupVote.id);
+      if (!m.setupVote && m.requestSetupReroll(id, 0).ok) opened++;
+    }
+  }
+  assert.ok(opened >= 2, `votes opened: ${opened}`);
+  assert.equal(h.sched.now(), end, 'the briefing ended exactly at its first deadline');
+  assert.equal(m.phase, PHASE.BAND_DRAFT);
+  assert.equal(m.setupVote, null, 'the open vote failed');
+  assert.equal(m.setupRevision, 0);
+  assert.deepEqual(snapshot(m), before, 'the setup on screen is played');
+  assert.equal(h.lastBc('m.public').rerollVote, null);
+});
+
+test('a vote still open when the countdown runs out fails; the match goes on with the current setup', (t) => {
+  const h = makeMatch({ humans: 3 }).start();
+  t.after(() => h.m.dispose());
+  const m = h.m;
+  const end = m.deadline;
+  const before = snapshot(m);
+  h.sched.advance(end - h.sched.now() - 2000);
+  assert.deepEqual(m.requestSetupReroll('p_0', 0), { ok: true });
+  assert.deepEqual(approve(m, 'p_1'), { ok: true });   // two of three agreed
+  h.sched.advance(1999);
+  assert.equal(m.phase, PHASE.INFO_CHECK);
+  h.sched.advance(1);
+  assert.equal(m.phase, PHASE.BAND_DRAFT);
+  assert.equal(m.setupVote, null);
+  assert.deepEqual(snapshot(m), before);
+  assert.equal(approve(m, 'p_2', 1).error, ERR.WRONG_PHASE, 'a late yes changes nothing');
+  assert.equal(m.setupRevision, 0);
+});
+
+test('a Grand Alliance in One for All: a vote open at the countdown\'s end fails the same way', (t) => {
+  const h = makeMatch({ humans: 2, largeRoom: true, oneForAll: true }).start();
+  t.after(() => h.m.dispose());
+  const m = h.m;
+  assert.equal(m.oneForAll, true);
+  const end = m.deadline;
+  assert.deepEqual(m.requestSetupReroll('p_0', 0), { ok: true });
+  h.sched.advance(end - h.sched.now());
+  assert.notEqual(m.phase, PHASE.INFO_CHECK);
+  assert.equal(m.setupVote, null);
+  assert.equal(m.setupRevision, 0);
 });

@@ -40,6 +40,9 @@
 //   opts.hostId      string (optional)          the room's current host (server/lobby.js room.hostId): the executor a
 //                                              bot layout rehearsal is delegated to (DESIGN §14, botRehearsalDelegate);
 //                                              setHost follows a migration while the match runs
+//   opts.rerollLock  'public' | 'matchmade' (optional) (fork) no setup reroll: the room is a public Grand Alliance or
+//                                              was open to strangers (server/lobby.js rerollLock); requestSetupReroll
+//                                              refuses and m.public carries `rerollOff`. Absent in a private room.
 //   opts.seed        uint32                     master seed for all match randomness
 //   opts.matchNo     integer ≥ 1 (optional)     the room's match number (lobby: room.matchCount + 1); with the seed it
 //                                              makes this match's battleIds unique within the room (DESIGN §14)
@@ -572,6 +575,8 @@ export class Match {
     this._setupVoteSeq = 0;
     /** @type {Map<string, number>} last accepted 重刷本局 start per seat (30 s cooldown; DESIGN §28.21) */
     this._rerollStartAt = new Map();
+    /** (fork) 'public' | 'matchmade' | null: no setup reroll in a room strangers could join (Lobby.rerollLock) */
+    this.rerollLock = opts.rerollLock === 'public' || opts.rerollLock === 'matchmade' ? opts.rerollLock : null;
     this._turnTimer = null;
     this._pubDirty = false;
     this._pubTimer = null;

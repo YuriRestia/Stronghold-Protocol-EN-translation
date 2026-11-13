@@ -479,6 +479,8 @@ export async function createFieldView(host, options = {}) {
     view: (id) => views.get(id) || null,
   });
   ctx.ofx = ofx;
+  // (fork, enemy sound audit) an enemy skill's impact effect starting: that skill's official impact sound
+  ofx.onSpawn = (k) => ctx.audio?.fxKey?.(k);
   // (fork) a unit's official skin (index.json skins) for its sort depth (units.js skinPlaneDepth); undefined until the index is in
   ctx.skinOfView = (v) => (wiring.idx ? wiring.skinOf(wiring.unitOf(v)) : undefined);
   // Read the index only after the existing effects path loads it; role selection never calls ready()/index().

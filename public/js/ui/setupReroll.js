@@ -27,12 +27,26 @@ export function SetupReroll({ pub }) {
   if (!vote && !me) return null;
   // a compact footer group (briefing, lower left): one button without a vote; during one, the count + the vote buttons —
   // the explanation and who agreed sit in the tooltip
+  // (fork) a room strangers could join has no reroll (server/lobby.js rerollLock; user, 2026-11-13): the button stays,
+  // disabled, with the short reason beside it and the long one in the tooltip
+  if (!vote && pub.rerollOff) {
+    // en: "Public Grand Alliances have no stage setup reroll. It is for friends playing privately, or solo."
+    const why = pub.rerollOff === 'public' ? t('公开的大同盟不能重刷本局：重刷留给好友私下游玩或单人游戏。')
+      // en: "Rooms open to other players (Find Teammates, Solo Matchmaking) have no stage setup reroll. It is for friends playing privately, or solo."
+      : t('对其他玩家开放过的房间（搜寻队友、单人匹配）不能重刷本局：重刷留给好友私下游玩或单人游戏。');
+    return html`<div class="brief-reroll brief-reroll--off" role="group" aria-label=${t('重刷本局')}>
+      <div class="brief-reroll__actions">
+        <${Button} icon="refresh" class="brief-reroll__go" aria-label=${t('重刷本局')} disabled title=${why}>${t('重刷本局')}<//>
+      </div>
+      <span class="brief-reroll__off" title=${why}>${t('公开对局不能重刷') /* en: "No reroll in public matches" */}</span>
+    </div>`;
+  }
   const who = vote ? vote.voters.map((id) => {
     const p = players.find((p) => p.playerId === id);
     return `${p?.name || id} · ${vote.agreed.includes(id) ? t('已同意') : t('待同意')}`;
   }).join('\n') : '';
   return html`<div class="brief-reroll" role="group" aria-label=${t('重刷本局')} aria-live="polite">
-    ${vote ? html`<span class="brief-reroll__count num" title=${`${t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时已暂停。')}\n${who}`}>
+    ${vote ? html`<span class="brief-reroll__count num" title=${`${t('全员同意后重新随机战场、领袖、特训敌人和禁用；确认倒计时不会暂停，归零时以当前配置开始。' /* en: "With unanimous consent, reroll the field, bosses, training enemies and bans. The confirmation timer keeps running; at zero the match starts with the current setup." */)}\n${who}`}>
       ${t('重刷本局投票：{agreed}/{total}', { agreed: vote.agreed.length, total: vote.voters.length })}</span>` : null}
     <div class="brief-reroll__actions">
       ${!vote ? html`<${Button} icon="refresh" class="brief-reroll__go" aria-label=${t('重刷本局')} loading=${busy} disabled=${!online || !allConnected}
