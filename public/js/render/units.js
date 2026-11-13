@@ -196,7 +196,7 @@ const RAISED_Z = 0.12;
  * - FLY_HOVER is the old flat lift (PR #211: research 12 read the client's 0.35 `CharacterAnimator._flyHitOffset` — a
  *   `[SerializeField]` offset of each face's **hit point**, not of the body — as the lift, ÷ 0.27). It stays only for
  *   units with no official height read yet: the four boss parts whose prefab says 0 (build-data FLY_HEIGHTS) and an
- *   operator in 起飞 missing from TAKEOFF (予愿安洁莉娜: her values go in with her kit work).
+ *   operator in 起飞 missing from TAKEOFF.
  *
  * The HP bar, damage numbers, projectile hits and skill rings ride the body (`hover`); range highlights are tiles.
  */
@@ -218,11 +218,20 @@ export function flyHeightOf(rec) {
  *   takes off again after it over 0.3 / 0.2667 / 0.2667 s (Modes/S1–S3_TakeOff leizi2_height_ctrl[tween]).
  * - 凯尔希·思衡托 char_1052_kalts2: 0 — her talent's 起飞 changes only her block mode (kalts2_t_1 ChangeCharBlockMode);
  *   no buff of hers and nothing in her prefab moves her graphic (no ModifyGraphicHolderHeight).
+ * - (fork) 予愿安洁莉娜 char_1015_aglna2: 0.8 (her trait aglna2_tr's `height_offset`, which aglna2_height_ctrl[tween] and
+ *   aglna2_s_2[chant_end] read). S1 / S3 rise in their take-off modes over 0.8333 s (charpack Modes/S1_TakeOff,
+ *   S3_TakeOff: aglna2_height_ctrl[tween] `height_duration`); S2 has no take-off mode: it rises when its 2.5 s chant ends
+ *   (`upWait`: skill_table skchr_aglna2_2 `chant_duration`) over 1 s (aglna2_s_2[chant_end] `height_duration`). Every
+ *   landing mode (Modes/S1–S3_Landing) drops to 0 over 0.8333 s from the landing's start — the kit's 'aglna2Landing' fx
+ *   with `land` (UnitView.liftLand), not the end of the sim's 起飞. While S3 runs, aglna2_s_3[mode] sets 0.4 at once on a
+ *   HIGHLAND tile (CheckHeightTypeOfRootTile; the buff has no `height_duration`: duration 0), re-checked at each re-deploy
+ *   of her S3 move (`high`, by skill index; not while her flight form is on).
  */
 export const TAKEOFF = Object.freeze({
   char_4191_tippi: Object.freeze({ h: 0.8, up: [0.8333], down: [0.8333] }),
   char_1043_leizi2: Object.freeze({ h: 0.4, up: [0.3, 0.2667, 0.2667], down: [0.1667, 0.1333, 0.1667], born: 0.8, bornDelay: 0.2 }),
   char_1052_kalts2: Object.freeze({ h: 0 }),
+  char_1015_aglna2: Object.freeze({ h: 0.8, up: [0.8333, 1, 0.8333], down: [0.8333], upWait: [0, 2.5, 0], high: [null, null, 0.4] }),
 });
 /** A take-off time of `tk` for skill index `i` (the first entry when the list has no own one), or null. */
 const takeoffTime = (list, i) => (Array.isArray(list) && list.length ? list[Number.isInteger(i) && i >= 0 && i < list.length ? i : 0] : null);
@@ -914,6 +923,7 @@ export class UnitView {
     this.hoverTween = null;       // an official 起飞 rise / landing in progress (battle seconds)
     this.hoverGoal = this.hover;  // the height the view is heading for
     this.liftedOnce = false;      // whether this life's first 起飞 rise has started (its `born` time, TAKEOFF)
+    this.landing = false;         // (fork) a kit-signalled landing in progress: down to 0 while still in 起飞 (liftLand())
     this.dir = this.isEnemy ? null : unitDir(info);
     // whether the direction is known (UnitInfo / piece `dir`), not just the legacy ±1: battle and scouting views show
     // the ground wedge only then (a derived RIGHT would mislabel an UP / DOWN operator)
@@ -3229,13 +3239,21 @@ export class UnitView {
   _hoverStep(dt) {
     const up = this.alive || (this.dying > DIE_FADE_TAIL && !this.down);
     const lifted = !this.flying && !this.isEnemy && !!(this.flags & UF.LIFTOFF);
+    if (!lifted) this.landing = false;
     const tk = this.flying || this.isEnemy ? null : this.takeoff;
-    const goal = !up ? 0 : this.flying ? this.flyH : lifted ? (tk ? tk.h : FLY_HOVER) : 0;
+    // (fork) a skill's own height on a raised tile (TAKEOFF `high`), set at once; kept while a flight form carries her
+    const hi = tk && Array.isArray(tk.high) ? tk.high[this.skillIndex] : null;
+    const high = hi != null && this.form !== 'fly' ? groundZ(this.ctx, this.x, this.y) > 0 : this.onHigh === true;
+    this.onHigh = hi != null && high;
+    const liftH = tk ? (this.onHigh ? hi : tk.h) : FLY_HOVER;
+    const goal = !up ? 0 : this.flying ? this.flyH : lifted && !this.landing ? liftH : 0;
     if (goal !== this.hoverGoal) {
       const rising = goal > this.hover;
       const born = rising && !this.liftedOnce && tk?.born != null;
-      const dur = !up || !tk ? null : born ? tk.born : takeoffTime(rising ? tk.up : tk.down, this.skillIndex);
-      this.hoverTween = dur != null ? { from: this.hover, to: goal, dur, wait: born ? tk.bornDelay || 0 : 0, t: 0 } : null;
+      const swap = lifted && !this.landing && this.hoverGoal > 0 && goal > 0;   // `high` ↔ `h`: duration 0
+      const dur = !up || !tk ? null : swap ? 0 : born ? tk.born : takeoffTime(rising ? tk.up : tk.down, this.skillIndex);
+      const wait = born ? tk.bornDelay || 0 : rising && !swap ? takeoffTime(tk?.upWait, this.skillIndex) || 0 : 0;
+      this.hoverTween = dur != null ? { from: this.hover, to: goal, dur, wait, t: 0 } : null;
       if (rising && lifted) this.liftedOnce = true;
       this.hoverGoal = goal;
     }
@@ -3251,6 +3269,10 @@ export class UnitView {
   }
 
   setHover(on) { this.hovered = !!on; }
+
+  /** (fork) A kit's landing start (fx `land`: 予愿安洁莉娜's 'aglna2Landing'): down to 0 over its TAKEOFF `down` time while
+   * the sim's 起飞 still holds; `false` (a take-off) lifts again. */
+  liftLand(on = true) { this.landing = !!on; }
 
   destroy() {
     if (this.destroyed) return;

@@ -1912,6 +1912,9 @@ export async function createFieldView(host, options = {}) {
             ...(Number(d.dur) > 0 ? { dur: Number(d.dur) } : {}), keepFacing: d.keepFacing === true,
           });
         }
+        // (fork) a kit's landing start / take-off for the body's 起飞 height (UnitView.liftLand: 予愿安洁莉娜's 'aglna2Landing'
+        // `land: true`, her 'takeoff' `land: false`)
+        if (e[4] && typeof e[4] === 'object' && typeof e[4].land === 'boolean') views.get(e[4].id)?.liftLand?.(e[4].land);
         // an enemy's mode change — the `form` of a sim setForm fx (shared/protocol.js fxForm: 掠海漂移体 → 爬行模式, user
         // playtest #5 item 1; 转译基底's forms, a 逐火 ember and its revival, the leaders' 重生, 守墓石像 — user report after
         // 0.1.0) — switches the view's clip set (UnitView.setForm; a kind without a clip set of that skeleton changes

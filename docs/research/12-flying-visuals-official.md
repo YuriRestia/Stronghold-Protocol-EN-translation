@@ -385,7 +385,7 @@ take-off unit was drawn at its official height. What the current client says:
   | 蒂比 Tippi (char_4191_tippi), while S1 / S2 runs | 0.8 | 0.8333 s / 0.8333 s |
   | 雷蛇·惊蛰 Leizi the Thunderbringer (char_1043_leizi2), talent, while no skill runs | 0.4 | at deploy 0.8 s after a 0.2 s wait; lands when a skill starts in 0.1667 / 0.1333 / 0.1667 s (S1 / S2 / S3), takes off after it in 0.3 / 0.2667 / 0.2667 s |
   | 凯尔希·残光 Kal'tsit Esperanta (char_1052_kalts2), talent | 0 (no `ModifyGraphicHolderHeight` in any of her buffs, no height key in her prefab: only the block mode changes) | — |
-  | 予愿安洁莉娜 (char_1015_aglna2), while a skill runs | 0.8 (trait); S3's re-deploy on high ground 0.4 | 0.8333 s — **not implemented here** (handed to the Angelina work; she keeps `FLY_HOVER` until then) |
+  | 予愿安洁莉娜 (char_1015_aglna2), while a skill runs | 0.8 (trait `height_offset`); while S3 runs, 0.4 on a HIGHLAND tile (aglna2_s_3[mode] CheckHeightTypeOfRootTile → EnsureBlackboardDefaultValue 0.4, else 0.8), set at once (that buff has no `height_duration`) | S1 / S3 rise over 0.8333 s (Modes/S1_TakeOff, S3_TakeOff aglna2_height_ctrl[tween]); S2 rises when its 2.5 s chant ends, over 1 s (aglna2_s_2[chant_end] `height_duration` 1.0); every landing mode drops to 0 over 0.8333 s from the landing's start (Modes/S1–S3_Landing aglna2_height_ctrl[tween], `height_offset` unset) — implemented 2026-11-14 with her kit work (`TAKEOFF` `upWait` / `high`, the kit's landing fx `land`) |
 
 **Implemented** (2026-11-14, client-only): `tools/build-data.mjs FLY_HEIGHTS` → enemies.json / tokens.json `flyHeight`;
 `render/units.js flyHeightOf` (a flyer hovers its `flyHeight`, spawns at it, falls back to `FLY_HOVER` 1.3) and

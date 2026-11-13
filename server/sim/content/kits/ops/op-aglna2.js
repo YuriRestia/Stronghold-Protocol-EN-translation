@@ -131,7 +131,7 @@ const keyOf = (r, c) => `${r},${c}`;
 function takeOff(battle, unit, show = null) {
   battle.removeBuff(unit, LAND_KEY);   // a cast inside the last landing window: she stays up
   battle.releaseBlocked(unit);   // 起飞 "不阻挡地面敌人": the ground enemies she held walk on
-  battle.fx('takeoff', { x: unit.x, y: unit.y, id: unit.id, ...show });
+  battle.fx('takeoff', { x: unit.x, y: unit.y, id: unit.id, land: false, ...show });
 }
 function land(battle, unit) { battle.releaseBlocked(unit); }   // the flyers she held
 /**
@@ -141,7 +141,8 @@ function land(battle, unit) { battle.releaseBlocked(unit); }   // the flyers she
 function landing(battle, unit, reason) {
   if (reason === 'death' || !unit.alive || !unit.deployed) { land(battle, unit); return; }
   // (fork) display only: the landing attack's start (attack.6 / .7 / .9: its ON_ABILITY_START bank, plan.mjs FX_SOUND_BANKS)
-  battle.fx('aglna2Landing', { x: unit.x, y: unit.y, id: unit.id });
+  // and her body's descent (render/units.js TAKEOFF: the landing modes tween to 0 from their start)
+  battle.fx('aglna2Landing', { x: unit.x, y: unit.y, id: unit.id, land: true });
   battle.addBuff(unit, { key: LAND_KEY, duration: LAND_DUR, flags: { ...LIFTOFF, disarm: true }, tags: ['skill'],
     onExpire: ({ battle: b, unit: u }) => land(b, u) });
 }

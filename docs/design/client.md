@@ -283,7 +283,10 @@ history and the open points: DESIGN §32.14.25.
   idle and skill idle), the flight's end `form: null`. While S3 blocks, her attack clip is Skill_3_Combat (`spine.js
   MELEE_TWIN`); her attacks are agent shots (`UnitView.agent`) since they fly her projectile. The 浮空 she gives shows
   aglna2_levitate_01_emit in place of the generic status loop (`indexGaps.js ENEMY_STATE_KEYS` 'aglna2_s_2[enemy]', its
-  `replaces` turning the generic `levitate` loop off while the row lasts).
+  `replaces` turning the generic `levitate` loop off while the row lasts). Her body's lift is her `units.js TAKEOFF`
+  entry (0.8; S2's rise waits out its chant, `upWait`; S3 on high ground 0.4 at once, `high`); 'aglna2Landing' carries
+  `land: true` and her 'takeoff' `land: false` (render/app.js → `UnitView.liftLand`), so the descent starts with the
+  landing, as the client's landing modes do, not when the sim's 起飞 ends (research 12 §7).
 - **Floating units** (0.3.0 round 46, `funnelfx.js FunnelFx`, owned by the wiring; the plans of `funnels.js`, DESIGN
   §33.18). The 驭械术士's units are effect prefabs the official attack abilities show at the operator's Special points: at
   home their loops (a mode attack's FunnelEffectEmitter idle — its back and overload variants —, or a funnel shot's
