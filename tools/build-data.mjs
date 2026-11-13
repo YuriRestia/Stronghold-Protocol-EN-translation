@@ -1067,6 +1067,8 @@ function buildTokens(ctx, chess, tokenOwners, enemies) {
       tokenId: 'enemy_9012_acloon', kind: 'bondSummon', bondId: 'yanShip', name: loon.name, appellation: null,
       desc: '【炎】6名成员激活时召唤的友方单位；开战时攻击力/生命值增加【炎】干员攻击力/生命值总和的30%（见 bonds.json yanShip）',
       descRaw: null, profession: 'TOKEN', subProfessionId: null, position: 'NONE', motion: loon.stats.motion,
+      // (fork) its prefab's flying height (FLY_HEIGHTS: Enemy._height 1.0), drawn by render/units.js flyHeightOf
+      ...(loon.flyHeight != null ? { flyHeight: loon.flyHeight } : {}),
       displayType: null, placeable: false, ownerRange: false, owners: [],
       stats: enemyAsTokenStats(loon), rangeGrid: null, dmgType: loon.stats.dmgType, attackKind: 'ranged',
       projectile: 'bolt', canHitFly: true, skill: loon.skills?.[0] ? { skillId: loon.skills[0].prefabKey, bb: loon.skills[0].bb } : null,
@@ -1692,6 +1694,30 @@ const MODEL_STRETCH_Y_BY_PREFAB = new Map();
 for (const [v, list] of MODEL_STRETCH_Y) for (const k of list) MODEL_STRETCH_Y_BY_PREFAB.set(`enemy_${k}`, v);
 
 /**
+ * (fork) A flyer's official height above the ground, in tiles (Unity world units) → enemies.json `flyHeight`: the
+ * serialized `Enemy._height` (field +0x308) of the prefab's root component, which `Enemy.get_originHeight` returns and
+ * the auto-chess spawn hands to `Enemy.OnInit` → `Enemy.HeightController.OnInit` as the start height (CN client
+ * GameAssembly.dll 0xACE340 / 0xBD2DED / 0xABF6B6; dump.cs `Enemy._height`). Read from the CN client's
+ * `battle/enm_pfb_*.ab` (`dyn/battle/prefabs/enemies/<prefab>.prefab`) for every enemy of the mode with
+ * `tools/local-extract/enemy_model_offsets.py --heights` (2026-11-14, docs/research/12 §7): no WALK enemy
+ * has a non-zero `_height`. The renderer (render/units.js flyHeightOf) draws a flyer this high; before, every flyer was
+ * a flat 1.3 (research 12 read the client's 0.35 `_flyHitOffset`, a hit-point offset, as the body lift). Left out on
+ * purpose: the four boss parts whose prefab says 0 (刺胄之弹 enemy_9016_acstmr, 未装配刀片 / 防护背心 / 冲击式施术单元
+ * enemy_10028–10030) — their bosses may set a height at spawn (HeightController.SetEnemyHeight), not traced yet; they
+ * keep the old lift (render/units.js FLY_HOVER).
+ */
+const FLY_HEIGHTS = new Map([
+  [1.2, ['1005_yokai', '1005_yokai_2', '1005_yokai_3', '1017_defdrn', '1040_bombd', '1041_lazerd', '1041_lazerd_2',
+    '1042_frostd', '1112_emppnt', '1112_emppnt_2', '1269_nhfly', '1321_wdarft', '1355_mrfly', '1355_mrfly_2',
+    '1407_hummbd', '10040_cnvbln', '10083_hlbird', '10085_hllevi_2']],
+  [1.0, ['9009_acfort', '9012_acloon', '10084_hlegle']],
+  [0.8, ['1430_lrrook']],
+  [1.5, ['9014_acstma', '9015_acstmb']],
+]);
+const FLY_HEIGHT_BY_PREFAB = new Map();
+for (const [v, list] of FLY_HEIGHTS) for (const k of list) FLY_HEIGHT_BY_PREFAB.set(`enemy_${k}`, v);
+
+/**
  * Prefabs whose `Graphic` X scale is **negative** → enemies.json `mirrorX: true`: the official mirrors the authored
  * model horizontally, while this pipeline takes `abs(sx)` (enemy_scales.py / MODEL_SCALES), so the renderer flips this
  * model's facing on top of the normal direction flip (render/units.js). From the same sweep: `enemy_1196_msfyin`
@@ -1900,6 +1926,7 @@ function buildEnemies(ctx) {
     const hitArea = HIT_AREAS[mv(data.prefabKey) || key] || null;
     const modelScale = MODEL_SCALE_BY_PREFAB.get(mv(data.prefabKey) || key) ?? null;
     const modelScaleY = MODEL_STRETCH_Y_BY_PREFAB.get(mv(data.prefabKey) || key) ?? null;
+    const flyHeight = stats.motion === 'FLY' ? FLY_HEIGHT_BY_PREFAB.get(mv(data.prefabKey) || key) ?? null : null;
     const attackAnim = enemyAttackAnim(ctx.manifest, mv(data.prefabKey) || key);
     // a version's enemy whose model data/assets.json (built from 下半's models) lacks gets no attack clip: the sim keeps
     // ATTACK_PAUSE for it — an M2 item (DESIGN §35.22.5); the default build stays silent (its manifest covers its modes)
@@ -1927,6 +1954,7 @@ function buildEnemies(ctx) {
       ...(STATIC_BODIES.has(key) ? { staticBody: true } : {}),
       ...(modelScale != null && modelScale !== 1 ? { modelScale } : {}),
       ...(modelScaleY != null && modelScaleY !== 1 ? { modelScaleY } : {}),
+      ...(flyHeight != null ? { flyHeight } : {}),
       ...(MIRRORED_PREFABS.has(mv(data.prefabKey) || key) ? { mirrorX: true } : {}),
       ...(attackAnim ? { attackAnim } : {}),
       ...(attacksOnTheMove(abilities) ? { attackMoves: true } : {}),

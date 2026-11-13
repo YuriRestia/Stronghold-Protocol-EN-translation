@@ -180,37 +180,52 @@ export const START_CLIP_FALLBACK = 1;
 /** Heights above this count as standing on a raised top (bench pads are the lowest raised tiles, 0.16). */
 const RAISED_Z = 0.12;
 /**
- * Flying units hover this many tiles up (PR #211 by @xcdoge; the owner's decision of 2026-10-06;
- * docs/research/12-flying-visuals-official.md): an enemy flyer above the road (z 0) whatever tile it crosses — a raised
- * block under it is no step (GitHub #277) —, an operator or summon above its tile.
+ * (fork, 2026-11-14) Flying heights, in tiles = Unity world units (our camera is the official one: projection.js; the
+ * official high ground is 0.4, `Torappu.Battle.Defaults.HIGHLAND_HEIGHT`). Audit and sources:
+ * docs/research/12-flying-visuals-official.md §7.
  *
- * The official client's fly offset is a **single constant, `Vector3(0, 0.35f, 0)`**: `Torappu.Battle.CharacterAnimator`'s
- * constructor stores it in the instance field at +0x114 (`GameAssembly.dll` 0x180600555 reads the constant at 0x186a78a50 =
- * 0x3EB33333; x and z are 0), and `_SetFlyMountPointOffset` / `_SetFlyHitOffset` add it to the mount / hit transforms
- * while the unit flies and add its negation when it lands (the sign flips through the −0.0 mask at 0x186a77e00). It is
- * model-independent: no store to that field exists anywhere in the binary except the constructor.
+ * - **A flyer** (enemy, or the enemy-model summon 炎佑) hovers its own prefab height, `flyHeightOf(record)`: enemies.json /
+ *   tokens.json `flyHeight` = the prefab root's serialized `Enemy._height`, which the auto-chess spawn hands to
+ *   `Enemy.OnInit` as the start height (tools/build-data.mjs FLY_HEIGHTS: 1.2 for most drones, 1.0, 0.8, 1.5). It starts
+ *   at that height (the client spawns it there) — an enemy flyer above the road (z 0) whatever tile it crosses (GitHub
+ *   #277), its shadow on the tile under it.
+ * - **An operator in 起飞** (UF.LIFTOFF) rises to its own take-off height, `TAKEOFF[charId]`, linearly over the official
+ *   tween time (battle seconds; `ModifyGraphicHolderHeight` → `Unit.SetGraphicHolderHeightOffset` →
+ *   `BattleController.StartBattleTween`, whose tween has no ease set and lerps: `BattleTweenMgr.Tween.Tick` null
+ *   `m_easeFunc` → `TSMath.Lerp`, GameAssembly.dll 0x19DA99A), and lands back the same way.
+ * - FLY_HOVER is the old flat lift (PR #211: research 12 read the client's 0.35 `CharacterAnimator._flyHitOffset` — a
+ *   `[SerializeField]` offset of each face's **hit point**, not of the body — as the lift, ÷ 0.27). It stays only for
+ *   units with no official height read yet: the four boss parts whose prefab says 0 (build-data FLY_HEIGHTS) and an
+ *   operator in 起飞 missing from TAKEOFF (予愿安洁莉娜: her values go in with her kit work).
  *
- * `0.35` is that constant in the client's own (character) space, whose unit is the standard battle-prefab scale **0.27**
- * (our `enemies.json modelScale` is a multiple of it — units.js `enemyModelScale`), so the lift is **0.35 / 0.27 ≈ 1.3
- * tiles** [ASSUMED: the hierarchy that yields the 1 / 0.27 factor]. An official screenshot (帝国炮火先兆者 over a tile)
- * measures the same: the drone's art bottom sits 1.2–1.4 tiles above the ground it crosses.
- *
- * **No per-model term** — (a) the binary never rewrites the offset; (b) the battle prefabs carry no per-model vertical
- * correction for flyers (their `Graphic` node sits at local (0,0,0), or at the (0,−0.2,−0.06) their ground-unit prefab
- * family shares — unrelated to how far each model's art hangs below its pivot). So a model whose art hangs below its
- * origin keeps that hang in the official too: 妖怪 flies with its rotors ≈ 0.9 tiles up, 帝国炮火先兆者 with its art
- * bottom ≈ 1.3. It replaced a flat 0.32 (player report 2026-10-05: 无人机等飞行单位位置明显偏低 — every flyer was ~1 tile
- * too low). The shadow stays on the ground under the unit; the HP bar, damage numbers, projectile hits and skill rings
- * ride the body (`hover`); range highlights are tiles.
+ * The HP bar, damage numbers, projectile hits and skill rings ride the body (`hover`); range highlights are tiles.
  */
 export const FLY_HOVER = 1.3;
+/** A flyer's official height (its data record's `flyHeight`), else the old FLY_HOVER. */
+export function flyHeightOf(rec) {
+  const h = Number(rec && rec.flyHeight);
+  return rec && rec.flyHeight != null && Number.isFinite(h) && h >= 0 ? h : FLY_HOVER;
+}
 /**
- * An ally in 起飞 is drawn at FLY_HOVER when a skill lifts it (蒂比: ≈ 0.75 tile rows from feet to shadow in official
- * screenshots, ours 0.73–0.83), at LIFTOFF_HOVER when only a talent does (UF.LIFTOFF_LOW — 凯尔希·思衡托 and 司霆惊蛰
- * hover ≈ 0.25 rows above their shadow in official footage; with this, ours 0.32 and 0.17, their art's own offset
- * included). Measured by eye from videos (2026-10-21), not read from the client.
+ * Official 起飞 heights by charId (tiles) and their tween times (battle seconds; per skill index where they differ):
+ * `h` the height, `up` / `down` the rise / landing times, `born` the first rise after deployment with its `bornDelay`.
+ * - 蒂比 char_4191_tippi: 0.8 while S1 / S2 runs (skill_table skchr_tippi_1 / _2 `attack@height_offset`, read by
+ *   buff_template_data tippi_height_ctrl[tween]), rising and landing over 0.8333 s (charpack char_4191_tippi
+ *   Modes/S1_TakeOff, S1_Landing, S2_TakeOff, S2_Landing: tippi_height_ctrl[tween] `height_duration`).
+ * - 司霆惊蛰 char_1043_leizi2: 0.4 while no skill runs (charpack char_1043_leizi2 Talents leizi2_t_0 `height_offset`,
+ *   applied by leizi2_t_0[height] when its 0.2 s buff ends — buff_template_data leizi2_t_0 `lifeTime` — over 0.8 s);
+ *   lands as a skill starts over 0.1667 / 0.1333 / 0.1667 s (Modes/S1–S3_Landing leizi2_height_ctrl_s1–s3[tween]) and
+ *   takes off again after it over 0.3 / 0.2667 / 0.2667 s (Modes/S1–S3_TakeOff leizi2_height_ctrl[tween]).
+ * - 凯尔希·思衡托 char_1052_kalts2: 0 — her talent's 起飞 changes only her block mode (kalts2_t_1 ChangeCharBlockMode);
+ *   no buff of hers and nothing in her prefab moves her graphic (no ModifyGraphicHolderHeight).
  */
-export const LIFTOFF_HOVER = 0.3;
+export const TAKEOFF = Object.freeze({
+  char_4191_tippi: Object.freeze({ h: 0.8, up: [0.8333], down: [0.8333] }),
+  char_1043_leizi2: Object.freeze({ h: 0.4, up: [0.3, 0.2667, 0.2667], down: [0.1667, 0.1333, 0.1667], born: 0.8, bornDelay: 0.2 }),
+  char_1052_kalts2: Object.freeze({ h: 0 }),
+});
+/** A take-off time of `tk` for skill index `i` (the first entry when the list has no own one), or null. */
+const takeoffTime = (list, i) => (Array.isArray(list) && list.length ? list[Number.isInteger(i) && i >= 0 && i < list.length ? i : 0] : null);
 /** Share of the current HP bar a 屏障 of `r` × max HP covers: r / (1 + r) — 100 % → half, 400 % → 80 %, never all of it. */
 export const barrierShare = (r) => (r > 0 ? r / (1 + r) : 0);
 /**
@@ -889,7 +904,16 @@ export class UnitView {
     /** @type {number|null} */
     this.shadowZTarget = null;
     this.flying = info.motion === 'FLY';
-    this.hover = 0;               // flying: body height above the road / the ground under it
+    // the official heights (FLY_HOVER's note): a flyer's prefab height, an operator's 起飞 entry (by its charId)
+    const rec = def || (ctx.lookupDef ? ctx.lookupDef(info) : null);
+    this.flyH = flyHeightOf(rec);
+    this.takeoff = this.isEnemy ? null : TAKEOFF[rec?.charId || info.diy?.charId || info.spine] || null;
+    // flying: body height above the road / the ground under it — a flyer spawns at its height (Enemy.OnInit(initHeight))
+    this.hover = this.flying ? this.flyH : 0;
+    /** @type {{ from: number, to: number, dur: number, wait: number, t: number }|null} */
+    this.hoverTween = null;       // an official 起飞 rise / landing in progress (battle seconds)
+    this.hoverGoal = this.hover;  // the height the view is heading for
+    this.liftedOnce = false;      // whether this life's first 起飞 rise has started (its `born` time, TAKEOFF)
     this.dir = this.isEnemy ? null : unitDir(info);
     // whether the direction is known (UnitInfo / piece `dir`), not just the legacy ±1: battle and scouting views show
     // the ground wedge only then (a derived RIGHT would mislabel an UP / DOWN operator)
@@ -2094,6 +2118,7 @@ export class UnitView {
     this._dieForm = null;
     this.dying = 0; this.remove = false; this.alpha = 1;
     this.down = null;
+    this.liftedOnce = false; // a redeployment rises like a first deployment (TAKEOFF `born`)
     this.hp = this.maxHp; this.ghostHp = this.hp;
     if (this.actor) this.actor.revive();
   }
@@ -2186,12 +2211,8 @@ export class UnitView {
     }
     // a flyer keeps its lift through the Die clip and drops only as it fades out: the client removes the fly offset in
     // CharacterAnimator.OnFinish, when the finish state ends; a knocked-down flyer lies on the ground
-    // a flyer — or an ally in 起飞 (UF.LIFTOFF): a skill's at a flyer's height, a talent's just above the ground
-    // (UF.LIFTOFF_LOW, LIFTOFF_HOVER)
-    const low = !this.flying && !this.isEnemy && (this.flags & UF.LIFTOFF_LOW);
-    const aloft = this.flying || (!this.isEnemy && (this.flags & UF.LIFTOFF));
-    const hoverTo = aloft && (this.alive || (this.dying > DIE_FADE_TAIL && !this.down)) ? (low ? LIFTOFF_HOVER : FLY_HOVER) : 0;
-    if (this.hover !== hoverTo) this.hover = Math.abs(hoverTo - this.hover) < 1e-3 ? hoverTo : this.hover + (hoverTo - this.hover) * Math.min(1, dt * 6);
+    // a flyer at its prefab height, an ally in 起飞 (UF.LIFTOFF) at its TAKEOFF height (FLY_HOVER's note)
+    this._hoverStep(dt);
     const p = cam.project(this.x, this.y, this.z + this.hover + this.lift, this.screen);
     this.placed = true;
     const s = p.s;
@@ -3196,6 +3217,37 @@ export class UnitView {
     const h = (this._headTiles || UNIT.headroom) * s;
     const w = s * 0.7;
     return { x: this.screen.x - w / 2, y: this.screen.y - h, width: w, height: h + s * 0.1 };
+  }
+
+  /**
+   * (fork) The body's height this frame (`hover`). A flyer heads for its prefab height (`flyH`), an ally in 起飞 for its
+   * TAKEOFF height (FLY_HOVER without an entry), anything else for 0. An official 起飞 rise / landing runs linearly over
+   * its tween time in battle seconds (ctx.animRate: battle s per real s), the first rise of a life after its `bornDelay`;
+   * any other change (a flyer's death drop, a unit with no official time) eases at 6/s as before. A flyer keeps its lift
+   * through the Die clip and drops only in the fade tail; a knocked-down flyer lies on the ground.
+   */
+  _hoverStep(dt) {
+    const up = this.alive || (this.dying > DIE_FADE_TAIL && !this.down);
+    const lifted = !this.flying && !this.isEnemy && !!(this.flags & UF.LIFTOFF);
+    const tk = this.flying || this.isEnemy ? null : this.takeoff;
+    const goal = !up ? 0 : this.flying ? this.flyH : lifted ? (tk ? tk.h : FLY_HOVER) : 0;
+    if (goal !== this.hoverGoal) {
+      const rising = goal > this.hover;
+      const born = rising && !this.liftedOnce && tk?.born != null;
+      const dur = !up || !tk ? null : born ? tk.born : takeoffTime(rising ? tk.up : tk.down, this.skillIndex);
+      this.hoverTween = dur != null ? { from: this.hover, to: goal, dur, wait: born ? tk.bornDelay || 0 : 0, t: 0 } : null;
+      if (rising && lifted) this.liftedOnce = true;
+      this.hoverGoal = goal;
+    }
+    const tw = this.hoverTween;
+    if (tw) {
+      tw.t += dt * (this.ctx.animRate?.() ?? 1);
+      const k = tw.dur > 0 ? clamp((tw.t - tw.wait) / tw.dur, 0, 1) : tw.t >= tw.wait ? 1 : 0;
+      this.hover = tw.from + (tw.to - tw.from) * k;
+      if (k >= 1) this.hoverTween = null;
+    } else if (this.hover !== goal) {
+      this.hover = Math.abs(goal - this.hover) < 1e-3 ? goal : this.hover + (goal - this.hover) * Math.min(1, dt * 6);
+    }
   }
 
   setHover(on) { this.hovered = !!on; }
