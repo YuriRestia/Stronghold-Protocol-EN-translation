@@ -702,8 +702,13 @@ also holds its loop until the skill ends, she dies or the field changes (0.2 s f
 comes, held only by its bank's own cap, as the official client's SoundFXBank keeps its playing atoms and no time between
 plays (Il2Cpp `SoundFXBank` / `Bank` fields; no interval field in `soundFXBanks`). A crowd of 10 casting one skill
 together therefore rings as its bank allows: 137 of the 141 enemy cast banks hold 2 at once, the oldest giving way
-[src: official audio_data soundFXBanks maxSoundAllowed / popOldest]. A file's official `delay` holds it back on the audio
-clock before it takes its bank's place, as the attack pools do; a field change drops it.
+[src: official audio_data soundFXBanks maxSoundAllowed / popOldest]. A file's official `delay` holds it back before it
+takes its bank's place, in battle seconds (`_battleDelay`): the official SoundFX keeps `ignoreTimeScale` beside `delay`,
+false on every official sound [src: official Il2Cpp dump.cs SoundFXBank.SoundFX fields; audio_data soundFXBanks
+sounds[].ignoreTimeScale, 13990 of 13990 false], so the delay runs at the battle's playback rate (`setBattleView` rate:
+2× halves it, a speed change mid-wait takes hold from then on, the sandbox's pause holds it as `view.timeScale()` reads 0
+while `setFrozen` holds the battle), re-read once per battle tick [src: server/sim/constants.js TICK], on the audio
+clock; a field change drops it.
 Aliases share their target bank's pool; distinct banks using one file keep separate limits. Pitch is drawn uniformly
 within the played file's own range with client-only randomness ([ASSUMED] uniform distribution); playback starts after its own delay on the audio clock.
 The maintainer chose 0.3.1 for this change (reply draft A). [ASSUMED] The remake retains its global 8-voice budget,
