@@ -98,23 +98,36 @@ export function assumedViolations(diff) {
 const git = (root, args) => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', maxBuffer: 64 << 20, timeout: 60_000, windowsHide: true });
 
 /**
- * The branch's own new [ASSUMED lines: patches of its non-merge commits since <base> (commits from an upstream/*
- * remote excluded: upstream's own [ASSUMED notes come with their merges), plus uncommitted changes when head is HEAD.
- * @returns {{ skipped?: string, violations: ReturnType<typeof assumedViolations> }}
+ * The branch's own new [ASSUMED lines, judged on its NET change: `git diff <merge-base(base, head)> <head>` (what
+ * `git diff base...head` shows), so a line one commit adds and a later one removes is not counted, and dev-0.2 merged
+ * into the branch moves the merge base and drops out. When head is HEAD the diff runs against the working tree
+ * (uncommitted tracked changes included), still one call. Lines an upstream merge brought in: a hit whose exact line is
+ * also in that file on an upstream/* remote ref is dropped (looked up only for hits; none without upstream refs).
+ * @returns {{ skipped?: string, base?: string, violations: ReturnType<typeof assumedViolations> }}
  */
 export function branchAssumed(root, { base, head = 'HEAD' } = {}) {
   const refs = base ? [base] : ['refs/heads/dev-0.2', 'refs/remotes/origin/dev-0.2'];
   const ref = refs.find((r) => git(root, ['rev-parse', '--verify', '--quiet', `${r}^{commit}`]).status === 0);
   if (!ref) return { skipped: `no ${refs.join(' or ')} in this checkout`, violations: [] };
-  const log = git(root, ['log', '-p', '-U0', '--no-merges', '--no-color', '--no-ext-diff', '--format=', `${ref}..${head}`, '--not', '--remotes=upstream']);
-  if (log.status !== 0) return { skipped: `git log failed: ${(log.stderr || log.error?.message || '').trim().slice(0, 200)}`, violations: [] };
-  let diff = log.stdout;
-  if (head === 'HEAD') {
-    const wt = git(root, ['diff', '-U0', '--no-color', '--no-ext-diff', 'HEAD']);
-    if (wt.status === 0) diff += `\n${wt.stdout}`;
-  }
+  const mb = git(root, ['merge-base', ref, head]);
+  if (mb.status !== 0) return { skipped: `no merge base of ${ref} and ${head}`, violations: [] };
+  const args = ['diff', '-U0', '--no-color', '--no-ext-diff', '--no-renames', mb.stdout.trim()];
+  if (head !== 'HEAD') args.push(head);
+  const d = git(root, args);
+  if (d.status !== 0) return { skipped: `git diff failed: ${(d.stderr || d.error?.message || '').trim().slice(0, 200)}`, violations: [] };
   const seen = new Set();
-  return { base: ref, violations: assumedViolations(diff).filter((v) => !seen.has(`${v.file}\n${v.text}`) && seen.add(`${v.file}\n${v.text}`)) };
+  let violations = assumedViolations(d.stdout).filter((v) => !seen.has(`${v.file}\n${v.text}`) && seen.add(`${v.file}\n${v.text}`));
+  if (violations.length) {
+    const up = git(root, ['for-each-ref', '--format=%(refname)', 'refs/remotes/upstream/']).stdout?.split('\n').filter(Boolean) || [];
+    const cache = new Map();
+    const upstreamHas = (file, text) => up.some((r) => {
+      const k = `${r}:${file}`;
+      if (!cache.has(k)) { const s = git(root, ['show', k]); cache.set(k, s.status === 0 ? new Set(s.stdout.replace(/\r/g, '').split('\n')) : null); }
+      return cache.get(k)?.has(text.replace(/\r$/, '')) || false;
+    });
+    if (up.length) violations = violations.filter((v) => !upstreamHas(v.file, v.text));
+  }
+  return { base: ref, violations };
 }
 
 export const ASSUMED_HELP = 'a new [ASSUMED] line needs the user\'s OK on that line ("user OK YYYY-MM-DD"): ask the user, or source the claim instead ([src: ...])';
