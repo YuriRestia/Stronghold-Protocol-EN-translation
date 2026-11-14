@@ -5,6 +5,45 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-14
+
+### Skills that need a target wait for one
+
+- Passenger's S3 and Degenbrecher's S3 now wait with full SP until an enemy is inside the skill's own range, as in the official game, instead of going off with no enemy near. Passenger's S3 counts its large x-3 range, Degenbrecher's S3 her x-1; flying enemies count for both.
+- The same official rule also covers Degenbrecher's S2 (ground enemies on its range in front of her) and Irene's S3 (x-1, flying enemies too), which now wait too. Irene's S2 already waited.
+- Before: these skills fired the moment their SP was full and could be wasted on an empty field.
+
+### OpFor: Gun speeds up the official way
+
+- OpFor: Gun's attacks now speed up from its first hit: each hit on the same target adds 80 attack speed on top of its base 20, up to 5 stacks (ASPD 100, 180, 260, 340, 420), and switching targets starts over at one stack.
+- Before: its first hit on a target added nothing and the bonus was counted from 0 instead of 20, so it fired slower (ASPD 20, 80, 160, 240, 320, 400 over its first six hits).
+
+### Attack intervals of OpFor: Gun, Pipe and String on their cards
+
+- Their cards, the codex and the enemy previews now show their official attack intervals (22.5 s, 15 s and 25 s) without marking them as slowed; a faster OpFor: Gun shows its speed-up in green.
+- Before: the battle card showed "22.5s +18.00" in red for OpFor: Gun, and the codex showed 4.5 s, 3 s and 5 s.
+
+### Angelina the Mellow Wish now fights like the official game
+
+- Her attacks fly as her own projectiles at 10 tiles/s and hit when they arrive, instead of at once.
+- After S1 and S2 end she plays her 1 s landing before she touches down; S3's take-off takes 1 s before she can fly or attack.
+- S3: she only takes off between attacks, flies to a random flyer she can block, along the official speed curve (2.4 slowing to 2.0 tiles/s) and turning after a target that moves; when the skill ends she holds for 0.333 s, immune to stun and freeze, then returns home.
+- S2 starts in the official order: her take-off (0.333 s), the glide, which now moves at its official speed and reaches 4 tiles in about 0.77 s, her 1 s glide end and her 1 s rise; the 22 s skill starts after that. She can't be hurt or controlled and doesn't attack during any of it.
+- S3's shelter for airborne allies now also lowers damage over time.
+- Before: she floated at a flat 1.3 tiles, her hits were instant, she landed the moment a skill ended, S2 played its rise before the glide and then waited out the data's 2.5 s chant time, her glide was too fast, S3 left mid-attack, always chased the nearest flyer and jumped home at once, and damage over time ignored the shelter.
+
+### Her effects and sounds
+
+- S2's glide shows its trail and ground mark, enemies she lifts show her own lift effect, S3's flight plays her flying animation and her S3 attacks while blocking use her S3 combat animation.
+- She flies at her official height: 0.8 tiles up, rising over 0.8333 s (S2 rises over 1 s at the end of its start sequence), landing over 0.8333 s as her landing starts, and 0.4 on high ground during S3, aglna2_s_2[chant_end], aglna2_s_3[mode]].
+- Her skill hits, S2's second attack sound, S3's start, her deployment, the glide, the lift and ground-bind, each S3 flight, the return home and every landing now play their official sounds.
+
+### Flying units and take-offs at their official heights
+
+- Flying enemies now hover at the height the official game gives each of them: most drones 1.2 tiles, a few at 1.0, 0.8 or 1.5, and they appear at that height instead of rising into it. Yan's Protection hovers at 1.0.
+- Operators that take off now rise to their own official height on the official timing: Tippi to 0.8 tiles over 0.83 s, Leizi the Thunderbringer to 0.4 tiles (and down while her skill runs), and Kal'tsit Esperanta stays on the ground.
+- Before: every flyer and every skill take-off hovered at one flat 1.3 tiles, and talent take-offs at 0.3.
+
 ## 2026-11-13
 
 ### A unite phase can no longer get stuck
