@@ -5,13 +5,14 @@
 - Her attacks fly as her own projectiles at 10 tiles/s and hit when they arrive, instead of at once [src: official projectile_chr_aglna2 prefab _speed].
 - After S1 and S2 end she plays her 1 s landing before she touches down; S3's take-off takes 1 s before she can fly or attack [src: official char_1015_aglna2 skel Skill_1_End / Skill_2_End / Skill_3_Begin durations].
 - S3: she only takes off between attacks, flies to a random flyer she can block, along the official speed curve (2.4 slowing to 2.0 tiles/s) and turning after a target that moves; when the skill ends she holds for 0.333 s, immune to stun and freeze, then returns home [src: official projectile_chr_aglna2_s3_fly prefab; RestoreAbility Skill_3_Restart_Begin].
+- S2 starts in the official order: her take-off (0.333 s), the glide, which now moves at its official speed and reaches 4 tiles in about 0.77 s, her 1 s glide end and her 1 s rise; the 22 s skill starts after that. She can't be hurt or controlled and doesn't attack during any of it [src: official skchr_aglna2_2 chant, projectile_chr_aglna2_s2_fly speed curve].
 - S3's shelter for airborne allies now also lowers damage over time.
-- Before: she floated at a flat 1.3 tiles, her hits were instant, she landed the moment a skill ended, S3 left mid-attack, always chased the nearest flyer and jumped home at once, and damage over time ignored the shelter.
+- Before: she floated at a flat 1.3 tiles, her hits were instant, she landed the moment a skill ended, S2 played its rise before the glide and waited a flat 2.5 s, her glide was too fast, S3 left mid-attack, always chased the nearest flyer and jumped home at once, and damage over time ignored the shelter.
 
 ### Her effects and sounds
 
 - S2's glide shows its trail and ground mark, enemies she lifts show her own lift effect, S3's flight plays her flying animation and her S3 attacks while blocking use her S3 combat animation.
-- She flies at her official height: 0.8 tiles up, rising over 0.8333 s (S2 rises over 1 s once its chant ends), landing over 0.8333 s as her landing starts, and 0.4 on high ground during S3 [src: official buff_template_data aglna2_height_ctrl[tween], aglna2_s_2[chant_end], aglna2_s_3[mode]].
+- She flies at her official height: 0.8 tiles up, rising over 0.8333 s (S2 rises over 1 s at the end of its start sequence), landing over 0.8333 s as her landing starts, and 0.4 on high ground during S3 [src: official buff_template_data aglna2_height_ctrl[tween], aglna2_s_2[chant_end], aglna2_s_3[mode]].
 - Her skill hits, S2's second attack sound, S3's start, her deployment, the glide, the lift and ground-bind, each S3 flight, the return home and every landing now play their official sounds.
 
 Kind: player

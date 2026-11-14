@@ -1859,7 +1859,8 @@ export const FX_BINDINGS = Object.freeze({
   // (the fx's `dur`). S3: the flight ('aglna2Fly' … 'aglna2Land': she is drawn where projectile_chr_aglna2_s3_fly carries
   // her, in her S3Move clip — render/units.js FORMS — with that mode's trail loop) and the restore ('aglna2Restore') draw
   // nothing beside her own rows. The landing's start ('aglna2Landing') and S2's 浮空 / 缚地 starting on an enemy
-  // ('aglna2Bind') are sound moments only (tools/assets/plan.mjs FX_SOUND_BANKS).
+  // ('aglna2Bind') are sound moments only (tools/assets/plan.mjs FX_SOUND_BANKS). S2's chant stages ('aglna2Chant') only
+  // switch her clips and her height (render/units.js FORMS, TAKEOFF).
   skchr_aglna2_1: Object.freeze({
     takeoff: binding({ owner: 'id', none: true }),
     aglna2Landing: binding({ owner: 'id', none: true }),
@@ -1867,6 +1868,7 @@ export const FX_BINDINGS = Object.freeze({
   skchr_aglna2_2: Object.freeze({
     takeoff: binding({ owner: 'id', none: true }),
     aglna2Landing: binding({ owner: 'id', none: true }),
+    aglna2Chant: binding({ owner: 'id', none: true }),
     aglna2Bind: binding({ owner: 'id', none: true }),
     dash: binding({ owner: 'id', only: Object.freeze({ skill: 'aglna2:glide' }), hold: 'fx', keysBy: Object.freeze({ field: 'face',
       map: Object.freeze({

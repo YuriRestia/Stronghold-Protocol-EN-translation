@@ -220,8 +220,9 @@ export function flyHeightOf(rec) {
  *   no buff of hers and nothing in her prefab moves her graphic (no ModifyGraphicHolderHeight).
  * - (fork) 予愿安洁莉娜 char_1015_aglna2: 0.8 (her trait aglna2_tr's `height_offset`, which aglna2_height_ctrl[tween] and
  *   aglna2_s_2[chant_end] read). S1 / S3 rise in their take-off modes over 0.8333 s (charpack Modes/S1_TakeOff,
- *   S3_TakeOff: aglna2_height_ctrl[tween] `height_duration`); S2 has no take-off mode: it rises when its 2.5 s chant ends
- *   (`upWait`: skill_table skchr_aglna2_2 `chant_duration`) over 1 s (aglna2_s_2[chant_end] `height_duration`). Every
+ *   S3_TakeOff: aglna2_height_ctrl[tween] `height_duration`); S2 has no take-off mode: it stays down through its chant
+ *   (the cast's 'takeoff' fx `land: true`) and rises with the chant's closing Skill_2_Begin over 1 s
+ *   (aglna2_s_2[chant_end] `height_duration`; the kit's 'aglna2Chant' fx `land: false`). Every
  *   landing mode (Modes/S1–S3_Landing) drops to 0 over 0.8333 s from the landing's start — the kit's 'aglna2Landing' fx
  *   with `land` (UnitView.liftLand), not the end of the sim's 起飞. While S3 runs, aglna2_s_3[mode] sets 0.4 at once on a
  *   HIGHLAND tile (CheckHeightTypeOfRootTile; the buff has no `height_duration`: duration 0), re-checked at each re-deploy
@@ -231,7 +232,7 @@ export const TAKEOFF = Object.freeze({
   char_4191_tippi: Object.freeze({ h: 0.8, up: [0.8333], down: [0.8333] }),
   char_1043_leizi2: Object.freeze({ h: 0.4, up: [0.3, 0.2667, 0.2667], down: [0.1667, 0.1333, 0.1667], born: 0.8, bornDelay: 0.2 }),
   char_1052_kalts2: Object.freeze({ h: 0 }),
-  char_1015_aglna2: Object.freeze({ h: 0.8, up: [0.8333, 1, 0.8333], down: [0.8333], upWait: [0, 2.5, 0], high: [null, null, 0.4] }),
+  char_1015_aglna2: Object.freeze({ h: 0.8, up: [0.8333, 1, 0.8333], down: [0.8333], high: [null, null, 0.4] }),
 });
 /** A take-off time of `tk` for skill index `i` (the first entry when the list has no own one), or null. */
 const takeoffTime = (list, i) => (Array.isArray(list) && list.length ? list[Number.isInteger(i) && i >= 0 && i < list.length ? i : 0] : null);
@@ -530,10 +531,18 @@ export function vvanaSkillRole(index, casts, down) {
 
 export const FORMS = Object.freeze({
   // (fork) 予愿安洁莉娜 S3's flight (op-aglna2.js: the 'aglna2Fly' fx's form `fly`, back to null when she lands): mode
-  // S3Move's clip Skill_3_Move while projectile_chr_aglna2_s3_fly carries her (her charpack Modes/S3Move)
+  // S3Move's clip Skill_3_Move while projectile_chr_aglna2_s3_fly carries her (her charpack Modes/S3Move). S2's chant (the
+  // 'takeoff' fx's form `chant`, then the 'aglna2Chant' fx's `chantEnd`, `rise`, null): skchr_aglna2_2's
+  // ChantBeforeSkill `_animation` Skill_2_Takeoff_Begin → _Loop (until the sweep reaches) → _End, then its `_afterEndAnim`
+  // Skill_2_Begin, then her S2 clips
   [AGLNA2]: Object.freeze({
     fly: Object.freeze({ roles: { idle: 'Skill_3_Move',
       skill: Object.freeze({ begin: 'Skill_3_Begin', loop: 'Skill_3_Loop', end: 'Skill_3_End', idle: 'Skill_3_Move' }) } }),
+    chant: Object.freeze({ change: 'Skill_2_Takeoff_Begin', roles: { idle: 'Skill_2_Takeoff_Loop',
+      skill: Object.freeze({ begin: null, loop: 'Skill_2_Takeoff_Loop', end: null, idle: 'Skill_2_Takeoff_Loop' }) } }),
+    chantEnd: Object.freeze({ change: 'Skill_2_Takeoff_End', roles: { idle: 'Skill_2_Idle',
+      skill: Object.freeze({ begin: null, loop: 'Skill_2_Idle', end: null, idle: 'Skill_2_Idle' }) } }),
+    rise: Object.freeze({ change: 'Skill_2_Begin', roles: {} }),
   }),
   [MANIFOLD]: Object.freeze({
     Default: Object.freeze({ roles: { ...clipSet('Idle_1', null, 'Stun', 'Attack'), deploy: 'Start', stun: loop('Stun') } }),
@@ -924,6 +933,7 @@ export class UnitView {
     this.hoverGoal = this.hover;  // the height the view is heading for
     this.liftedOnce = false;      // whether this life's first 起飞 rise has started (its `born` time, TAKEOFF)
     this.landing = false;         // (fork) a kit-signalled landing in progress: down to 0 while still in 起飞 (liftLand())
+    this.wasLifted = false;       // (fork) the 起飞 flag on the last hover step (a landing ends when it drops)
     this.dir = this.isEnemy ? null : unitDir(info);
     // whether the direction is known (UnitInfo / piece `dir`), not just the legacy ±1: battle and scouting views show
     // the ground wedge only then (a derived RIGHT would mislabel an UP / DOWN operator)
@@ -3239,7 +3249,10 @@ export class UnitView {
   _hoverStep(dt) {
     const up = this.alive || (this.dying > DIE_FADE_TAIL && !this.down);
     const lifted = !this.flying && !this.isEnemy && !!(this.flags & UF.LIFTOFF);
-    if (!lifted) this.landing = false;
+    // a landing ends when the sim's 起飞 does; a `land` signal that comes before the 起飞 flag (S2's take-off holds her low
+    // through its chant) waits for it
+    if (!lifted && this.wasLifted) this.landing = false;
+    this.wasLifted = lifted;
     const tk = this.flying || this.isEnemy ? null : this.takeoff;
     // (fork) a skill's own height on a raised tile (TAKEOFF `high`), set at once; kept while a flight form carries her
     const hi = tk && Array.isArray(tk.high) ? tk.high[this.skillIndex] : null;
@@ -3252,7 +3265,7 @@ export class UnitView {
       const born = rising && !this.liftedOnce && tk?.born != null;
       const swap = lifted && !this.landing && this.hoverGoal > 0 && goal > 0;   // `high` ↔ `h`: duration 0
       const dur = !up || !tk ? null : swap ? 0 : born ? tk.born : takeoffTime(rising ? tk.up : tk.down, this.skillIndex);
-      const wait = born ? tk.bornDelay || 0 : rising && !swap ? takeoffTime(tk?.upWait, this.skillIndex) || 0 : 0;
+      const wait = born ? tk.bornDelay || 0 : 0;
       this.hoverTween = dur != null ? { from: this.hover, to: goal, dur, wait, t: 0 } : null;
       if (rising && lifted) this.liftedOnce = true;
       this.hoverGoal = goal;

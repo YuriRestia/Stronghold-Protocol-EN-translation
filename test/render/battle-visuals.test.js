@@ -39,7 +39,7 @@ test('the take-off table holds the official values (docs/research/12 §7)', () =
   assert.deepEqual(TAKEOFF.char_4191_tippi, { h: 0.8, up: [0.8333], down: [0.8333] });
   assert.deepEqual(TAKEOFF.char_1043_leizi2, { h: 0.4, up: [0.3, 0.2667, 0.2667], down: [0.1667, 0.1333, 0.1667], born: 0.8, bornDelay: 0.2 });
   assert.deepEqual(TAKEOFF.char_1052_kalts2, { h: 0 });
-  assert.deepEqual(TAKEOFF.char_1015_aglna2, { h: 0.8, up: [0.8333, 1, 0.8333], down: [0.8333], upWait: [0, 2.5, 0], high: [null, null, 0.4] });
+  assert.deepEqual(TAKEOFF.char_1015_aglna2, { h: 0.8, up: [0.8333, 1, 0.8333], down: [0.8333], high: [null, null, 0.4] });
 });
 
 test('起飞: the snapshot flags it and 蒂比 rises linearly to 0.8 over 0.8333 s, then lands the same way', () => {
@@ -131,7 +131,7 @@ test('凯尔希·残光 stays on the ground in 起飞; an operator without a tab
   } finally { k.destroy(); x.destroy(); }
 });
 
-test('(fork) 予愿安洁莉娜: S1 rises to 0.8 over 0.8333 s; her landing fx lowers her over 0.8333 s while 起飞 still holds; S2 waits out its 2.5 s chant, then rises over 1 s; S3 on a HIGHLAND tile is 0.4 at once, not while her flight form is on', () => {
+test('(fork) 予愿安洁莉娜: S1 rises to 0.8 over 0.8333 s; her landing fx lowers her over 0.8333 s while 起飞 still holds; the S2 take-off (`land` true, before the 起飞 flag) holds her low through its chant and its Skill_2_Begin (`land` false) rises over 1 s; S3 on a HIGHLAND tile is 0.4 at once, not while her flight form is on', () => {
   const s1 = view('char_1015_aglna2', { skillIndex: 0 });
   try {
     const up = run(s1, 30, UF.LIFTOFF);
@@ -149,10 +149,13 @@ test('(fork) 予愿安洁莉娜: S1 rises to 0.8 over 0.8333 s; her landing fx l
   } finally { s1.destroy(); }
   const s2 = view('char_1015_aglna2', { skillIndex: 1 });
   try {
-    const hs = run(s2, 4 * FPS, UF.LIFTOFF);
-    const first = hs.findIndex((x) => x > 0);
-    assert.ok(Math.abs((first + 1) / FPS - 2.5) <= 1.5 / FPS, `waits the chant (frame ${first})`);
-    assert.ok(Math.abs(between(hs, 0, 0.8).length - 1 * FPS) <= 1, 'chant-end rise over 1 s');
+    s2.liftLand(true);
+    run(s2, 3 * FPS, UF.LIFTOFF);
+    assert.equal(s2.hover, 0, 'low through the chant');
+    s2.liftLand(false);
+    const hs = run(s2, 2 * FPS, UF.LIFTOFF, 3 * FPS);
+    assert.ok(hs[0] > 0, 'rises at Skill_2_Begin');
+    assert.ok(Math.abs(between(hs, 0, 0.8).length - 1 * FPS) <= 1, 'Skill_2_Begin rise over 1 s');
     assert.ok(Math.abs(s2.hover - 0.8) < 1e-9);
   } finally { s2.destroy(); }
   let high = false;

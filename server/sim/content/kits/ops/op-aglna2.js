@@ -38,15 +38,23 @@
 //   the air block mode (aglna2_tr: FLY in every mode but Default); she lands when it ends (`landing`). S3's take-off
 //   (mode S3_TakeOff, Skill_3_Begin 1 s, no attack) runs at the cast, not after a 【移动】 (`_beginAnimValidator`
 //   aglna2_respawn); S1's take-off clip (Skill_1_Begin) is not in her skeleton, so it has no window; S2's Skill_2_Begin
-//   is the skill's begin clip (data `beginAnim`, skills.js).
-// - S2 重力自定义 (MANUAL, 22 s, data ACTIVE_RANGE on its 3-10): she takes off at once; for chant_duration (2.5) s she glides
-//   (吟唱: no attack, 无敌, the control statuses refused — 备注 "持有无敌、不可阻挡、晕眩/冻结/小睡/沉睡免疫，一减状态抵抗率×0")
-//   while a sweep released from her tile along her direction (备注 "宽3.0×厚1.3、飞行速度6.0的弹道…终点位于前方至多4.0格"; it
-//   goes through walls) hits each selectable enemy once: an air unit 缚地 buff_duration_ground_bound s, any other 浮空
-//   buff_duration_levitate s (aglna2_s_2[enemy]: CheckMotionMode FLY; halved on weight > 3 by both terms). The 22 s,
-//   ATK +atk and the attack interval change (a flat base_attack_time s) run from the cast (the client's
-//   `_buffsWhenStartChant` carries them); range 3-10, attacks turn arts and hit attack@max_target targets. `mass_level`
-//   (10) has no text and no node uses it here [unused — open question].
+//   closes its chant (below), not a begin clip of the cast (tools/skill_begin.py leaves chant skills out).
+// - S2 重力自定义 (MANUAL, 22 s, data ACTIVE_RANGE on its 3-10): the cast starts its 吟唱 (ChantWithProjectileBeforeSkill:
+//   BasicSkill.OnBeforeSkillStart runs the chant in place of the begin clip; DoStartSkill only when the chant flow ends) —
+//   no attack, 无敌, the control statuses refused (备注 "持有无敌、不可阻挡、晕眩/冻结/小睡/沉睡免疫，一减状态抵抗率×0"; the
+//   chant counts as running for the whole flow: isInChant = its timer or m_chantFlowActive). The flow: Skill_2_Takeoff_Begin
+//   (CHANT_BEGIN); the sweep projectile_chr_aglna2_s2_fly leaves her tile along her direction; the loop lasts while it
+//   is short of its reach (_IsProjectileBeforeReach, cap Consts.LARGE_TIME: chant_duration's loop time is not used);
+//   Skill_2_Takeoff_End (CHANT_END); then `_afterEndAnim` Skill_2_Begin (BEGIN2_DUR) with aglna2_s_2[chant_end] (the
+//   rise) for the clip's length; then the skill starts and its 22 s run — about 3.1 s after the cast. The sweep
+//   (FUNC_CURVE_AND_X_LENGTH: GLIDE_SPEED × the `_curve` per tick up to `_distanceX`; ProjectileReachConditionBehaviour
+//   `_reachOn` MAX_DISTANCE at `_distanceMax` 4; it goes through walls; its OPTIONS_VERIFY early stop on a tile is not
+//   modelled [unmodelled]) hits each selectable enemy once (备注 "宽3.0×厚1.3…终点位于前方至多4.0格"): an air unit 缚地
+//   buff_duration_ground_bound s, any other 浮空 buff_duration_levitate s (aglna2_s_2[enemy]: CheckMotionMode FLY;
+//   halved on weight > 3 by both terms). ATK +atk and the attack interval change (a flat base_attack_time s) run from
+//   the cast (`_buffsWhenStartChant` aglna2_s_2[fly], life INFINITY, finished with the skill); range 3-10, attacks turn
+//   arts and hit attack@max_target targets. `mass_level` (10) has no text and no node uses it here [unused — open
+//   question].
 // - S3 酸橙的心事 (MANUAL, 30 / 31 bullets, data ACTIVE_RANGE on its 3-9): she takes off; ATK +atk; 对空庇护
 //   (damage_resistance: physical / arts damage whose source is an air unit ×(1 − ratio), its damage over time too — the
 //   template damage_resistance[fly][phy_and_mag] has no continuous-damage filter — aglna2_s_3[damage_reduce]);
@@ -94,8 +102,20 @@ const LIFTOFF = Object.freeze({ liftoff: true, blockFly: true });
 /** range x-4: her tile and the eight around it (S3 attack@attack_range_id). */
 const X4 = Object.freeze([[1, -1], [1, 0], [1, 1], [0, -1], [0, 0], [0, 1], [-1, -1], [-1, 0], [-1, 1]]);
 const ANY = Object.freeze({ canHitFly: true });
-/** S2's sweep (PRTS 备注; projectile_chr_aglna2_s2_fly `_speed` 6, `_distanceMax` 4). */
-const GLIDE_SPEED = 6, GLIDE_DIST = 4, GLIDE_HALF_WIDTH = 1.5, GLIDE_HALF_THICK = 0.65;
+/**
+ * S2's sweep: projectile_chr_aglna2_s2_fly moves FUNC_CURVE_AND_X_LENGTH — each tick GLIDE_SPEED × `_curve`(its time) ×
+ * dt, then its time + dt (FuncCurveAndXLengthMovementCalculator.OnTickInline) — up to GLIDE_DIST (FuncCurveMovementData
+ * `_speed` 4.8, `_distanceX` 4; `_distanceMax` 4). GLIDE_CURVE: its `_curve` keys [time, value, slope] (weightedMode 0,
+ * clamped outside). Its box: PRTS 备注 "宽3.0×厚1.3".
+ */
+const GLIDE_SPEED = 4.8, GLIDE_DIST = 4, GLIDE_HALF_WIDTH = 1.5, GLIDE_HALF_THICK = 0.65;
+const GLIDE_CURVE = Object.freeze([
+  Object.freeze([0.00830819271504879, 0.9494410753250122, 1.260548710823059]),
+  Object.freeze([0.4818013310432434, 1.1316108703613281, -0.09028328210115433]),
+  Object.freeze([1.0018310546875, 1.091094970703125, 0]),
+]);
+/** S2's chant clips, s: Skill_2_Takeoff_Begin, Skill_2_Takeoff_End, Skill_2_Begin (data/assets.json chars.char_1015_aglna2 animations). */
+const CHANT_BEGIN = 0.333, CHANT_END = 1, BEGIN2_DUR = 1;
 /**
  * S3's flight (projectile_chr_aglna2_s3_fly movements, tiles/s): StrightForward and TurnTarget (`_duration` 0.1 each,
  * `_speed` 2.4, `_deltaSpeedPerSec` 1.9, `_finalSpeed` 2.0), then Comback (`_speed` 2.0 = `_finalSpeed`).
@@ -141,8 +161,9 @@ function land(battle, unit) { battle.releaseBlocked(unit); }   // the flyers she
 function landing(battle, unit, reason) {
   if (reason === 'death' || !unit.alive || !unit.deployed) { land(battle, unit); return; }
   // (fork) display only: the landing attack's start (attack.6 / .7 / .9: its ON_ABILITY_START bank, plan.mjs FX_SOUND_BANKS)
-  // and her body's descent (render/units.js TAKEOFF: the landing modes tween to 0 from their start)
-  battle.fx('aglna2Landing', { x: unit.x, y: unit.y, id: unit.id, land: true });
+  // and her body's descent (render/units.js TAKEOFF: the landing modes tween to 0 from their start); an S2 ended inside its
+  // chant leaves the chant's clips (form null)
+  battle.fx('aglna2Landing', { x: unit.x, y: unit.y, id: unit.id, land: true, form: null });
   battle.addBuff(unit, { key: LAND_KEY, duration: LAND_DUR, flags: { ...LIFTOFF, disarm: true }, tags: ['skill'],
     onExpire: ({ battle: b, unit: u }) => land(b, u) });
 }
@@ -158,13 +179,39 @@ function markerKit() {
   };
 }
 
-/** S2's sweep from (x0, y0) along `fwd`: each selectable enemy once — an air unit 缚地 `gb` s, any other 浮空 `lev` s. */
-function glide(battle, unit, lev, gb, chant) {
+/** GLIDE_CURVE at `t` (Unity AnimationCurve, non-weighted Hermite keys, clamped before the first and after the last). */
+export function glideCurve(t) {
+  const k = GLIDE_CURVE;
+  if (t <= k[0][0]) return k[0][1];
+  for (let i = 1; i < k.length; i++) {
+    const [a, va, ma] = k[i - 1], [b, vb, mb] = k[i];
+    if (t > b) continue;
+    const h = b - a, s = (t - a) / h, s2 = s * s, s3 = s2 * s;
+    return (2 * s3 - 3 * s2 + 1) * va + (s3 - 2 * s2 + s) * h * ma + (-2 * s3 + 3 * s2) * vb + (s3 - s2) * h * mb;
+  }
+  return k[k.length - 1][1];
+}
+/** The sweep's distance after each of its ticks (OnTickInline per TICK) until it reaches GLIDE_DIST: [d1, d2, …, 4]. */
+export const GLIDE_STEPS = (() => {
+  const out = [];
+  let d = 0, t = 0;
+  while (d < GLIDE_DIST && out.length < 1000) { d += glideCurve(t) * GLIDE_SPEED * TICK; t += TICK; out.push(Math.min(d, GLIDE_DIST)); }
+  return Object.freeze(out);
+})();
+/** The sweep's flight, s (its reach: the chant's loop ends). */
+export const GLIDE_TIME = GLIDE_STEPS.length * TICK;
+
+/**
+ * S2's sweep from (x0, y0) along `fwd`: each selectable enemy once — an air unit 缚地 `gb` s, any other 浮空 `lev` s;
+ * `onReach` when it reaches GLIDE_DIST (the tick after its last step), unless `live()` turned false first.
+ */
+function glide(battle, unit, lev, gb, life, live, onReach) {
   const [fr, fc] = unit.fwd;
-  const x0 = unit.x, y0 = unit.y, t0 = battle.time;
+  const x0 = unit.x, y0 = unit.y;
   const hit = new Set();
+  let step = 0;
   const sweep = () => {
-    const lead = Math.min(GLIDE_DIST, (battle.time - t0) * GLIDE_SPEED);
+    const lead = step > 0 ? GLIDE_STEPS[step - 1] : 0;
     for (const e of battle.enemies) {
       if (hit.has(e) || !canTargetEnemy(unit, e, ANY)) continue;
       const dx = e.x - x0, dy = e.y - y0;
@@ -183,12 +230,17 @@ function glide(battle, unit, lev, gb, chant) {
     }
     return lead >= GLIDE_DIST;
   };
-  // (fork) display: the glide (aglna2_s_2[flying], made by the sweep projectile and living as long as it — its life
-  // projectile_life_time = chant_duration): her trail by facing and the ground mark (render/vfx/skills.js FX_BINDINGS)
-  battle.fx('dash', { x: x0, y: y0, id: unit.id, tx: x0 + fc * GLIDE_DIST, ty: y0 + fr * GLIDE_DIST, t: GLIDE_DIST / GLIDE_SPEED,
-    skill: 'aglna2:glide', face: unit.dir, dur: chant });
-  if (sweep()) return;
-  battle.every(TICK, (b, sched) => { if (sweep()) sched.cancel(); });
+  // (fork) display: the glide (aglna2_s_2[flying], made by the sweep projectile and living as long as it — until the
+  // chant's `_interruptProjectileOnEndAnim` stops it after Skill_2_Takeoff_End, at most its life projectile_life_time =
+  // chant_duration): her trail by facing and the ground mark (render/vfx/skills.js FX_BINDINGS)
+  battle.fx('dash', { x: x0, y: y0, id: unit.id, tx: x0 + fc * GLIDE_DIST, ty: y0 + fr * GLIDE_DIST, t: GLIDE_TIME,
+    skill: 'aglna2:glide', face: unit.dir, dur: life });
+  sweep();
+  battle.every(TICK, (b, sched) => {
+    if (!live()) { sched.cancel(); return; }
+    step++;
+    if (sweep()) { sched.cancel(); onReach(); }
+  });
 }
 
 export default {
@@ -305,11 +357,32 @@ export default {
           mods: { atkPct: num(b2.atk), batPct: batMod(b2.base_attack_time, chess) }, flags: LIFTOFF,
           targeting: { rangeGrid: r2?.rangeGrid ?? null, maxTargets: Math.max(1, Math.floor(num(b2['attack@max_target'], 1))) },
           attack: { dmgType: 'arts' },
-          onStart({ battle, unit }) {
-            takeOff(battle, unit);
+          onStart({ battle, unit, skill }) {
+            // the chant flow (header): its 22 s start once Skill_2_Begin ends (DoStartSkill)
+            skill.timeLeft = Math.max(0.01, skill.duration) + CHANT_BEGIN + GLIDE_TIME + CHANT_END + BEGIN2_DUR;
+            // (fork) display: on the ground through the chant (`land`: aglna2_s_2[chant_end] lifts her), in its take-off
+            // clips (render/units.js FORMS: form `chant` — Skill_2_Takeoff_Begin, then its loop)
+            takeOff(battle, unit, { land: true, form: 'chant' });
+            battle.addBuff(unit, { key: CHANT_KEY, flags: { disarm: true, invulnerable: true }, tags: ['skill'] });
+            const seq = skill.activations;
+            const live = () => skillOn(unit, S2) && skill.activations === seq && !!unit.findBuff(CHANT_KEY);
+            const after = (dt, fn) => battle.after(dt, () => { if (live()) fn(); }, { owner: unit });
             const chant = num(b2.chant_duration);
-            if (chant > 0) battle.addBuff(unit, { key: CHANT_KEY, duration: chant, flags: { disarm: true, invulnerable: true }, tags: ['skill'] });
-            glide(battle, unit, num(b2.buff_duration_levitate), num(b2.buff_duration_ground_bound), chant);
+            const life = chant > 0 ? Math.min(chant, GLIDE_TIME + CHANT_END) : GLIDE_TIME + CHANT_END;
+            after(CHANT_BEGIN, () => glide(battle, unit, num(b2.buff_duration_levitate), num(b2.buff_duration_ground_bound), life, live, () => {
+              // (fork) display: Skill_2_Takeoff_End (form `chantEnd`)
+              battle.fx('aglna2Chant', { x: unit.x, y: unit.y, id: unit.id, form: 'chantEnd' });
+              after(CHANT_END, () => {
+                // `_afterEndAnim` Skill_2_Begin with aglna2_s_2[chant_end]: (fork) display — the clip (form `rise`) and
+                // the rise (`land` false: render/units.js TAKEOFF)
+                battle.fx('aglna2Chant', { x: unit.x, y: unit.y, id: unit.id, form: 'rise', land: false });
+                after(BEGIN2_DUR, () => {
+                  battle.removeBuff(unit, CHANT_KEY);
+                  // (fork) display: back to her S2 clips
+                  battle.fx('aglna2Chant', { x: unit.x, y: unit.y, id: unit.id, form: null });
+                });
+              });
+            }));
           },
           onEnd({ battle, unit, reason }) { battle.removeBuff(unit, CHANT_KEY); landing(battle, unit, reason); },
         },
