@@ -411,8 +411,13 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 .spov__veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 10, 10, .58) 0, rgba(8, 10, 10, .8) .5rem, rgba(8, 10, 10, .82)); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); border-left: 1px solid var(--line); }
 .spov__inner { position: absolute; left: .3rem; right: .5rem; top: 1.14rem; bottom: .5rem; display: flex; flex-direction: column; gap: .16rem; animation: screen-in var(--t-slow) var(--ease-out); }
 .spov__head { display: flex; align-items: center; justify-content: space-between; gap: .3rem; }
-/* 「悬赏决策 |」 then the description over the timing line, beside the bar; a faint bracket behind the title */
-.spov__titles { position: relative; display: grid; grid-template-columns: auto auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: .16rem; row-gap: .02rem;
+/* 「悬赏决策 |」 then the description over the timing line, beside the bar; a faint bracket behind the title. (fork) The
+   description column keeps a floor: grid sizing grows an auto column to its max-content before a 1fr one gets any
+   room, so a long name (English 「Pointing Stick • Tactical Training」, the 教鞭 pick) took the whole width and left the
+   description and the timing line 0 px wide, one word a line, running under the turn text and pushing the cards off
+   the screen. The name wraps instead. The 4.4rem floor is a layout size (it fits 「Choose a Tactical Training bounty」
+   in two lines at 16:9); where the description goes under the name (phones below) the column has no floor. */
+.spov__titles { position: relative; display: grid; grid-template-columns: auto auto minmax(4.4rem, 1fr); grid-template-rows: auto auto; column-gap: .16rem; row-gap: .02rem;
   align-items: center; padding: .08rem 0 .08rem .3rem; }
 .spov__deco { position: absolute; left: 0; top: -.06rem; bottom: -.06rem; width: .7rem; border: 2px solid rgba(23, 249, 183, .16); border-right: 0; pointer-events: none; }
 .spov__deco::after { content: ''; position: absolute; left: .14rem; top: 50%; width: .9rem; height: .9rem; margin-top: -.45rem; border-radius: 50%; border: 1px solid rgba(23, 249, 183, .1); }
@@ -448,11 +453,13 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
   :root[data-text="lg"] .spov__bar, :root[data-text="xl"] .spov__bar { display: none; }
   :root[data-text="lg"] .spov__name, :root[data-text="xl"] .spov__name { grid-row: 1; }
   :root[data-text="lg"] .spov__desc, :root[data-text="xl"] .spov__desc { grid-row: 2; grid-column: 1 / -1; align-self: start; }
+  :root[data-text="lg"] .spov__titles, :root[data-text="xl"] .spov__titles { grid-template-columns: auto auto minmax(0, 1fr); }
 }
 /* (fork) … and at every 文字大小 on a phone under 768 px wide: at 中 the official English 「Obtain equipment without spending any
    funds.」 took one word a line beside the name on 640–740 px phones and ran into 「Your turn to decide」 (§35.56 check, en
    中 640×360); from 780 px it fits beside the name in two or three lines */
 @media (max-height: 520px) and (max-width: 767.98px) {
+  .spov__titles { grid-template-columns: auto auto minmax(0, 1fr); }
   .spov__bar { display: none; }
   .spov__name { grid-row: 1; }
   .spov__desc { grid-row: 2; grid-column: 1 / -1; align-self: start; }
