@@ -148,6 +148,21 @@ const FX_SOUND_BANKS = Object.freeze({
     'revive|': 'battle.ON_CUSTOM_TRIGGER.reborn_finish',
     'meltdown|': 'battle.ON_CUSTOM_TRIGGER.fire_ep_break',
   }),
+  // (fork) 予愿安洁莉娜 (op-aglna2.js): S2's glide ('dash' aglna2:glide) is projectile_chr_aglna2_s2_fly's BORN, the 浮空 /
+  // 缚地 it gives ('aglna2Bind') the start of buff aglna2_s_2[enemy][levitate] / [ground_bound]; each S3 flight
+  // ('aglna2Fly') is projectile_chr_aglna2_s3_fly's BORN, the return home ('aglna2Restore') her restart clip's play
+  // (aglna2_restart); the landing ('aglna2Landing', by the skill that ends) the landing attack's START: S1 attack.6, S2
+  // attack.7, S3 attack.9 (all p_atk_arstrnstfld)
+  char_1015_aglna2: Object.freeze({
+    'dash|aglna2:glide': 'battle.ON_PROJECTILE_BORN.projectile_chr_aglna2_s2_fly',
+    'aglna2Bind|aglna2:levitate': 'battle.ON_BUFF_START.aglna2_s_2[enemy][levitate]',
+    'aglna2Bind|aglna2:groundbind': 'battle.ON_BUFF_START.aglna2_s_2[enemy][ground_bound]',
+    'aglna2Fly|': 'battle.ON_PROJECTILE_BORN.projectile_chr_aglna2_s3_fly',
+    'aglna2Restore|': 'battle.ON_PLAY_ANIMATION.aglna2_restart',
+    'aglna2Landing|#0': 'battle.ON_ABILITY_START.char_1015_aglna2.attack.6',
+    'aglna2Landing|#1': 'battle.ON_ABILITY_START.char_1015_aglna2.attack.7',
+    'aglna2Landing|#2': 'battle.ON_ABILITY_START.char_1015_aglna2.attack.9',
+  }),
 });
 
 /**
@@ -364,6 +379,8 @@ const UNIT_SOUND_BANKS = Object.freeze({
 
   // (fork) 水月: her swing is the attack's START (p_atk_tentacle_n), its impact the ON (p_imp_tentacle_n)
   char_437_mizuki: Object.freeze({ hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack' }),
+  // (fork) 予愿安洁莉娜: her deploy plays her born clip, whose ON_PLAY_ANIMATION aglna2_born bank is b_char_arstrnstf
+  char_1015_aglna2: Object.freeze({ born: 'battle.ON_PLAY_ANIMATION.aglna2_born' }),
 });
 /**
  * (fork) A skill's own swing / impact by skill index where the mode pick misses it (assignSkillModeSfx): a bank name, or
@@ -401,6 +418,15 @@ const SKILL_MODE_BANKS = Object.freeze({
     1: Object.freeze({ attack: null, hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack.2' }),
     2: Object.freeze({ attack: null, hit: 'battle.ON_ABILITY_ON.char_437_mizuki.attack.3' }),
   }),
+  // (fork) 予愿安洁莉娜: each skill's shot lands with its own projectile's HIT (p_imp_arstrnstf_d / _h / _s), not her
+  // normal one; S2's attack also rings its ability ON (p_atk_arstrnstfr_h) — the ON is the attack's release, the sim's
+  // 'atk', so it plays with the swing
+  char_1015_aglna2: Object.freeze({
+    0: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_aglna2_s1' }),
+    1: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_aglna2_s2',
+      attackAlso: Object.freeze(['battle.ON_ABILITY_ON.char_1015_aglna2.attack.2']) }),
+    2: Object.freeze({ hit: 'battle.ON_PROJECTILE_HIT.projectile_chr_aglna2_s3' }),
+  }),
 });
 /**
  * (fork) Sounds at a skill's start beside its ON_SKILL_START sting (`skillOn`, by index; `hold`: cut when the skill
@@ -414,6 +440,12 @@ const SKILL_ON_BANKS = Object.freeze({
     2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_mostma_3' }),
   }),  // (fork) 烛煌 S3: its activation (p_skill_hcnsrfrsr, the skill ability's start)
   char_1040_blaze2: Object.freeze({ 2: Object.freeze({ bank: 'battle.ON_ABILITY_START.skchr_blaze2_3' }) }),
+  // (fork) 予愿安洁莉娜 S2: its Begin clip's play (aglna2_s_2[Begin], p_atk_arstrnstfbk) with the sting; S3 has no plain
+  // ON_SKILL_START bank, only the suffixed one the client's SKILL_START_AUDIO_EMIT_SUFFIX names (p_skill_arstrnstf_s)
+  char_1015_aglna2: Object.freeze({
+    1: Object.freeze({ bank: 'battle.ON_PLAY_ANIMATION.aglna2_s_2[Begin]' }),
+    2: Object.freeze({ bank: 'battle.ON_SKILL_START.skchr_aglna2_3.move_like_projectile.skill_start' }),
+  }),
 });
 const SKILL_OFF_BANKS = Object.freeze({
   char_4193_lemuen: Object.freeze({

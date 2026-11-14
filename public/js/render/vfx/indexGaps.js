@@ -37,7 +37,19 @@ export const ENEMY_STATE_KEYS = Object.freeze({
   durbus_passengers: Object.freeze({
     byUnit: Object.freeze({ enemy_1302_ymtro_2: Object.freeze({ looks: Object.freeze({ 1: ['enemy_ymtro_buff_01'], 2: ['enemy_ymtro_buff_02'], 3: ['enemy_ymtro_buff_03'], 4: ['enemy_ymtro_buff_04'] }) }) }),
   }),
+  // (fork) 予愿安洁莉娜 S2's sweep (op-aglna2.js glide): buff aglna2_s_2[enemy]'s `overrideEffectKey` — the 浮空 it gives
+  // shows aglna2_levitate_01_emit in place of the generic status look (`replaces`: that status's loop stops while the
+  // row lasts; its 缚地's override is the generic common_root_01 already)
+  'aglna2_s_2[enemy]': Object.freeze({
+    byUnit: Object.freeze({ char_1015_aglna2: Object.freeze({ looks: Object.freeze({ levitate: ['aglna2_levitate_01_emit'] }) }) }),
+    replaces: Object.freeze({ levitate: 'levitate' }),
+  }),
 });
+
+/** The sim status whose generic look a fxs row [buff, src, look] replaces (ENEMY_STATE_KEYS `replaces`), else null. */
+export function replacedStatus(buff, look) {
+  return (look != null && ENEMY_STATE_KEYS[buff]?.replaces?.[look]) || null;
+}
 
 const VTLIONK_TRAP_DIE = Object.freeze(['enemy_vtlionk_skill_02_trap_die_01', 'enemy_vtlionk_skill_02_trap_die_02', 'enemy_vtlionk_skill_02_trap_die_03']);
 const VTLIONK_STORE = Object.freeze({ keys: VTLIONK_TRAP_DIE, by: 'enemy_9032_aclionk', skills: Object.freeze(['store', 'storea']) });

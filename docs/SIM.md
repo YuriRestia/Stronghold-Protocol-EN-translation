@@ -1609,7 +1609,9 @@ table: `hitSleep` (targets and damages sleeping enemies — "可以攻击沉睡�
 main target — DamageInfo `mul`, after DEF / RES; the later instances give no 受击回复: 砾's two 50 % hits, PRTS 砾 特性备注),
 `storeEnergy` / `releaseEnergy` (the 秘术师 store, below), `priority` (targeting.js PRIORITY_FNS — `'heaviest'`: the 攻城手 trait
 "优先攻击重量最重的敌人", the highest current 重量等级 first: 早露 / 提丰; `'elite'`: "优先攻击精英或领袖敌人", an ELITE / BOSS
-rank enemy or a leader first: 薇薇安娜 S3), `blockFly`, `noHeal`, `skipEnemy(e)` (an enemy the unit never
+rank enemy or a leader first: 薇薇安娜 S3), `meleeShot` (a melee profile whose official attack still flies its `projectile`
+and deals the damage on reach: 予愿安洁莉娜's projectile_chr_aglna2*, kits/ops/op-aglna2.js), `projectileSpeed` (that
+profile's own speed in tiles/s in place of PROJECTILE_SPEEDS: her prefabs' `_speed` 10), `blockFly`, `noHeal`, `skipEnemy(e)` (an enemy the unit never
 selects — its attacks, the enemies it blocks and its skill-trigger targets: targeting.js canTargetEnemy; 嵯峨 "不攻击重伤
 单位"), `healThrough(healer, ally)` (a healer that selects and heals that ally through its 禁疗 — §4; 凯尔希's Mon3tr), `boomerang` (the projectile stays
 `'boomerang'` whatever the data's generic ranged projectile says), `boomerangOnward(ctx)` (a boomerang's flight after its
