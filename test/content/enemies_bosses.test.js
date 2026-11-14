@@ -14,6 +14,7 @@ import { grantHitShield } from '../../server/sim/content/enemies/helpers.js';
 import { spawnYanyou } from '../../server/sim/content/tokens.js';
 import { attackWindup } from '../../server/sim/ai.js';
 import { fxStateView } from '../../server/sim/snapshot.js';
+import { unitStatsEntry } from '../../shared/protocol.js';
 
 const E = JSON.parse(fs.readFileSync(new URL('../../data/enemies.json', import.meta.url), 'utf8'));
 const W = JSON.parse(fs.readFileSync(new URL('../../data/waves.json', import.meta.url), 'utf8'));
@@ -3083,11 +3084,48 @@ test('假想敌：铳: unblockable, targets the highest DEF in range, ASPD ramps
   const e = put(h, 'enemy_9017_achunt', [3, 10], { tag: 'boss' });
   assert.ok(e.s.flags.unblockable);
   assert.equal(e.s.aspd, 20, 'data ASPD 0 → floor 20');
-  h.runUntil(() => e.stats.attacks >= 3, 120);
+  // the official base is that 20 (Attributes.Reset clamps the raw attribute): the card compares against 22.5 s, not 4.5 s
+  assert.equal(e.base.aspd, 20);
+  approx(unitStatsEntry(e, e.s).base.interval, 22.5);
+  approx(unitStatsEntry(e, e.s).interval, 22.5);
+  const step = tb('enemy_9017_achunt', '2.attack_speed'), maxN = tb('enemy_9017_achunt', '2.max_stack_cnt');
+  // BrownbTalent_1.Apply: every hit on the same target adds a stack, the first one included; 20 + 80·n
+  for (let n = 1; n <= maxN + 1; n++) {
+    h.runUntil(() => e.stats.attacks >= n, 120);
+    assert.equal(e.s.aspd, 20 + step * Math.min(n, maxN), `after hit ${n}`);
+  }
   assert.equal(h.unit('t_wall').stats.taken, 0);
   assert.ok(h.unit('t_wall2').stats.taken > 0);
-  assert.equal(e.s.aspd, 2 * tb('enemy_9017_achunt', '2.attack_speed'));
   assert.ok(h.unit('t_wall2').elem[EROSION] > 0);
+});
+
+test('假想敌：铳: a new target clears the stacks, then its first hit adds one', () => {
+  const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 9 }, { chessId: 't_wall2', row: 10, col: 11 }], chess: { t_wall: WALL('t_wall', { def: 100 }), t_wall2: WALL('t_wall2', { def: 500 }) } });
+  h.step();
+  const e = put(h, 'enemy_9017_achunt', [3, 10], { tag: 'boss' });
+  const step = tb('enemy_9017_achunt', '2.attack_speed');
+  h.runUntil(() => e.stats.attacks >= 3, 120);
+  assert.equal(e.s.aspd, 20 + 3 * step);
+  h.b.retreat(h.unit('t_wall2'), { permanent: true });            // the highest-DEF target leaves: t_wall is next
+  const n = e.stats.attacks;
+  h.runUntil(() => e.stats.attacks >= n + 1, 120);
+  assert.equal(e.s.aspd, 20 + step, 'cleared, then one stack');
+  assert.ok(h.runUntil(() => h.unit('t_wall').stats.taken > 0, 3), 'that shot was at t_wall');
+  // the interval follows: 4.5 s × 100 / 100 = 4.5 s, the card's base stays 22.5 s (a green −18.00)
+  approx(e.s.interval, 4.5);
+  approx(unitStatsEntry(e, e.s).base.interval, 22.5);
+});
+
+test('假想敌：管 / 弦: data ASPD 0 → the official base 20 (15 s / 25 s), so the card shows no slow', () => {
+  for (const [key, bat] of [['enemy_9021_acduml', 3], ['enemy_9022_acdumm', 5]]) {
+    const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 9 }], chess: { t_wall: WALL('t_wall') } });
+    h.step();
+    const e = put(h, key, [3, 10], { tag: 'boss' });
+    assert.equal(E[key].stats.aspd, 0, key);
+    assert.equal(e.s.aspd, 20, key);
+    approx(e.s.interval, bat * 5, 1e-9, key);
+    approx(unitStatsEntry(e, e.s).base.interval, bat * 5, 1e-9, key);
+  }
 });
 
 test('假想敌：铳 最终之罚: charges at the highest-DEF ground unit, trampling units on the way (ATK×1.2)', () => {

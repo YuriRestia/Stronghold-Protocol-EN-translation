@@ -65,10 +65,22 @@ export { UF };
 
 // ---- stats & range --------------------------------------------------------------------------------------------
 
-/** Attack interval in seconds (bat × 100 / aspd). */
+/**
+ * The sim's ASPD clamps (server/sim/constants.js ASPD_MIN / ASPD_MAX; test/ui/gameLogic.test.js keeps them equal): the
+ * official attribute floor 20 [src: dump.cs AttributesData.attackSpeed `[AttributeMeta(ATTACK_SPEED, 20)]`] and the
+ * interval formula's 600 cap [src: GameAssembly.dll BattleFormula..cctor RVA 0x687450, MAX_ATTACK_SPEED 0x258].
+ */
+export const ASPD_LIMITS = Object.freeze({ min: 20, max: 600 });
+
+/**
+ * Attack interval in seconds (bat × 100 / aspd), the ASPD clamped as the game does: a data ASPD of 0 (OpFor: Gun,
+ * OpFor: Pipe, OpFor: String) is ASPD 20, so the codex and the cards show their official 22.5 / 15 / 25 s; a missing one
+ * reads 100.
+ */
 export function attackInterval(bat, aspd = 100) {
   const b = Number(bat);
-  const a = Number(aspd) > 0 ? Number(aspd) : 100;
+  const n = aspd == null || aspd === '' ? NaN : Number(aspd);
+  const a = Number.isFinite(n) ? clamp(n, ASPD_LIMITS.min, ASPD_LIMITS.max) : 100;
   if (!Number.isFinite(b) || b <= 0) return null;
   return b * 100 / a;
 }
