@@ -347,6 +347,10 @@ test('余 S2 on the real leader rounds: 假想敌：铳 teleported onto 余 walk
     // well inside x-1 (0.1 tiles of margin: the next tick's step cannot take it out before the cast)
     const deep = (e) => [[0, 0], [0.1, 0], [-0.1, 0], [0, 0.1], [0, -0.1]].every(([a, b]) => inX1At(e.y + a, e.x + b));
     h.b.on('tick', () => { if (!yu.skill.active && !L()?.mem.yuTest) yu.skill.sp = 0; }); // keep S2 for the leader
+    // 假想敌：铳 holds its fire here: with its official ramp (from its first hit, docs/history/0.3.4.md §37.103) it
+    // either kills 余 before it reaches x-1 or, at 420 ASPD, shoots faster than its clip and so stands for good
+    // (ai.js attackStand); this test is about the teleport and the route, not the gun's attacks
+    h.b.on('tick', () => { const g = L(); if (g && key === 'enemy_9017_achunt') g.profile.noAttack = true; });
     assert.ok(h.runUntil(() => L() && deep(L()), 90), `${key} walks into x-1`);
     const e = L();
     assert.ok(e.isBoss && !e.s.flags.selfBound && e.route.legs.length > 1, 'a patrolling leader');
