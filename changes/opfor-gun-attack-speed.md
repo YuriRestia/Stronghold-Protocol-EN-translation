@@ -2,13 +2,13 @@
 
 ### OpFor: Gun speeds up the official way
 
-- OpFor: Gun's attacks now speed up from its first hit: each hit on the same target adds 80 attack speed on top of its base 20, up to 5 stacks (ASPD 100, 180, 260, 340, 420), and switching targets starts over at one stack. [src: docs/history/0.3.4.md §37.103]
-- Before: its first hit on a target added nothing and the bonus was counted from 0 instead of 20, so it fired slower (ASPD 20, 80, 160, 240, 320, 400 over its first six hits). [src: docs/history/0.3.4.md §37.103]
+- OpFor: Gun's attacks now speed up from its first hit: each hit on the same target adds 80 attack speed on top of its base 20, up to 5 stacks (ASPD 100, 180, 260, 340, 420), and switching targets starts over at one stack. [src: docs/history/0.3.4.md §37.104]
+- Before: its first hit on a target added nothing and the bonus was counted from 0 instead of 20, so it fired slower (ASPD 20, 80, 160, 240, 320, 400 over its first six hits). [src: docs/history/0.3.4.md §37.104]
 
 ### Attack intervals of OpFor: Gun, Pipe and String on their cards
 
-- Their cards, the codex and the enemy previews now show their official attack intervals (22.5 s, 15 s and 25 s) without marking them as slowed; a faster OpFor: Gun shows its speed-up in green. [src: docs/history/0.3.4.md §37.103]
-- Before: the battle card showed "22.5s +18.00" in red for OpFor: Gun, and the codex showed 4.5 s, 3 s and 5 s. [src: docs/history/0.3.4.md §37.103]
+- Their cards, the codex and the enemy previews now show their official attack intervals (22.5 s, 15 s and 25 s) without marking them as slowed; a faster OpFor: Gun shows its speed-up in green. [src: docs/history/0.3.4.md §37.104]
+- Before: the battle card showed "22.5s +18.00" in red for OpFor: Gun, and the codex showed 4.5 s, 3 s and 5 s. [src: docs/history/0.3.4.md §37.104]
 
 Kind: player
 
