@@ -20,6 +20,7 @@ import {
 import { createStore, emptyMatch } from '../../public/js/store.js';
 import { normalizeResult } from '../../public/js/ui/gameLogic.js';
 import { PHASE } from '../../shared/constants.js';
+import { LARGE_ROOM_SEATS } from '../../shared/largeRoom.js';
 
 /** A realistic m.result in the shape server/match/results.js buildResult emits (replayed byte-identically). */
 function baseResult(over = {}) {
@@ -486,13 +487,40 @@ describe('local stats: bounded storage', () => {
       })),
       bigUnknown: 'y'.repeat(1e6),
     });
-    assert.ok(JSON.stringify(rec).length < 40_000, `${JSON.stringify(rec).length} chars`);
-    assert.equal(rec.players.length, 6);
+    // the per-row caps bound a row; the bound was 40,000 for 6 rows, the same per row for the 8 a Grand Alliance keeps
+    assert.ok(JSON.stringify(rec).length < (40_000 / 6) * LARGE_ROOM_SEATS, `${JSON.stringify(rec).length} chars`);
+    assert.equal(rec.players.length, LARGE_ROOM_SEATS);
     assert.equal(rec.players[0].lineup.length, 12);
     assert.equal(rec.players[0].lineup[0].items.length, 4);
     assert.equal(rec.players[0].name.length, 24);
     assert.equal(Object.keys(rec.players[0].stats).length, 24);
     assert.equal(rec.bigUnknown, undefined);
+  });
+
+  test('a Grand Alliance record keeps every seat: seats 5-8 read their own row, never player 1\'s', () => {
+    // 8 humans; only the seat under test survived the clear, so a record that hands it player 1's row reads a loss
+    const players = Array.from({ length: LARGE_ROOM_SEATS }, (_, seat) => ({
+      playerId: `p${seat + 1}`, seat, name: `D${seat + 1}`, isBot: false, left: false, alive: false, victory: false,
+      roundsPassed: 3 + seat, eliminatedRound: 4 + seat, lp: 0, bandId: `band_${seat}`, trophies: seat, reward: 10 + seat,
+      lineup: [], bonds: [], stats: { dmgDealt: 100 * (seat + 1) },
+    }));
+    for (let seat = 4; seat < LARGE_ROOM_SEATS; seat++) {
+      const me = `p${seat + 1}`;
+      const res = baseResult({
+        modeId: 'mode_multi_hard',
+        players: players.map((p) => (p.playerId === me ? { ...p, alive: true, victory: true, roundsPassed: 16, eliminatedRound: null } : p)),
+      });
+      const rec = buildRecord(res, { myId: me, now: 1 });
+      assert.equal(rec.players.length, LARGE_ROOM_SEATS, `seat ${seat + 1}: every row kept`);
+      const self = selfRowOf(rec);
+      assert.equal(self?.playerId, me, `seat ${seat + 1}: its own row`);
+      assert.equal(self.victory, true, `seat ${seat + 1}: its own win`);
+      assert.equal(self.reward, 10 + seat);
+      // the history list's rounds, the compacted copy and the re-viewed settlement name the same player
+      assert.equal(roundsOf(rec), 16);
+      assert.equal(compactRecord(rec).players[0].playerId, me);
+      assert.equal(recordToResult(rec).players.some((p) => p.playerId === me), true);
+    }
   });
 });
 
