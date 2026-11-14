@@ -7,7 +7,7 @@
 - S3: she only takes off between attacks, flies to a random flyer she can block, along the official speed curve (2.4 slowing to 2.0 tiles/s) and turning after a target that moves; when the skill ends she holds for 0.333 s, immune to stun and freeze, then returns home [src: official projectile_chr_aglna2_s3_fly prefab; RestoreAbility Skill_3_Restart_Begin].
 - S2 starts in the official order: her take-off (0.333 s), the glide, which now moves at its official speed and reaches 4 tiles in about 0.77 s, her 1 s glide end and her 1 s rise; the 22 s skill starts after that. She can't be hurt or controlled and doesn't attack during any of it [src: official skchr_aglna2_2 chant, projectile_chr_aglna2_s2_fly speed curve].
 - S3's shelter for airborne allies now also lowers damage over time.
-- Before: she floated at a flat 1.3 tiles, her hits were instant, she landed the moment a skill ended, S2 played its rise before the glide and waited a flat 2.5 s, her glide was too fast, S3 left mid-attack, always chased the nearest flyer and jumped home at once, and damage over time ignored the shelter.
+- Before: she floated at a flat 1.3 tiles, her hits were instant, she landed the moment a skill ended, S2 played its rise before the glide and then waited out the data's 2.5 s chant time [src: official skill_table skchr_aglna2_2 chant_duration], her glide was too fast, S3 left mid-attack, always chased the nearest flyer and jumped home at once, and damage over time ignored the shelter.
 
 ### Her effects and sounds
 

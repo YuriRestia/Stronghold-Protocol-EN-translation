@@ -195,6 +195,7 @@ export function glideCurve(t) {
 export const GLIDE_STEPS = (() => {
   const out = [];
   let d = 0, t = 0;
+  // loop-cap: 1000 steps (the official curve reaches GLIDE_DIST in 23)
   while (d < GLIDE_DIST && out.length < 1000) { d += glideCurve(t) * GLIDE_SPEED * TICK; t += TICK; out.push(Math.min(d, GLIDE_DIST)); }
   return Object.freeze(out);
 })();
