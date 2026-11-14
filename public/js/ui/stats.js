@@ -54,6 +54,7 @@
 // saveStats / their helpers.
 
 import { PHASE } from '../../../shared/constants.js';
+import { LARGE_ROOM_SEATS } from '../../../shared/largeRoom.js';
 import { sanitizeName } from './playerName.js';
 import { DEFAULT_VERSION, versionById } from '../../../shared/versions.js';
 
@@ -137,7 +138,9 @@ const bool = (v, d = false) => (typeof v === 'boolean' ? v : d);
 const str = (v, max = 64) => (typeof v === 'string' && v.length ? v.slice(0, max) : null);
 
 // per-record bounds (an imported file is foreign data: nothing a row holds may grow without limit)
-const MAX_PLAYERS = 6; // the game seats 4
+// (fork) a Grand Alliance seats 8 (shared/largeRoom.js): a lower cap cut seats 7 and 8 out of their own record, and
+// selfRowOf then read player 1's row as theirs (wrong win / loss and stats on the stats page)
+const MAX_PLAYERS = LARGE_ROOM_SEATS;
 const MAX_LINEUP = 12;
 const MAX_ITEMS = 4;
 const MAX_BONDS = 24;
