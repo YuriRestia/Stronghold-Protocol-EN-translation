@@ -25,11 +25,12 @@
 // - S1 起风 (AUTO, attack SP, DEFAULT): the next attack strikes its target once for atk_scale × ATK physical and levitates it
 //   `levitate` s, then hits it again for atk_scale × ATK physical (her skeleton's Skill_1 clip: two OnAttack) — the second
 //   hit meets an air unit when the levitation took.
-// - S2 裂潮 (MANUAL, attack SP, 2 charges, 技能范围 3-12, data SKILL_RANGE): at once, up to max_target ground enemies of the
+// - S2 裂潮 (MANUAL, attack SP, 2 charges, 技能范围 3-12, data ALWAYS — the official list): at once, up to max_target ground enemies of the
 //   skill range take atk_scale × ATK physical, and those of 重量 ≤ value (3) are levitated `levitate` s. It cannot be opened
 //   while its range holds no ground enemy at all [ASSUMED: PRTS's S3 note "仅存在飞行单位时，该技能也可开启" marks the opposite
 //   as the rule for this ground-only skill; the strategy's SKILL_RANGE still counts unselectable ones, "无视其不可选中"].
-// - S3 判决 (MANUAL, attack SP, 技能范围 x-1, data SKILL_RANGE — PRTS: opens with only flyers in range): every ground enemy of
+// - S3 判决 (MANUAL, attack SP, 技能范围 x-1, data ALWAYS, kit CUSTOM_RANGE on the x-1 — PRTS: opens with only flyers in
+//   range): every ground enemy of
 //   the skill range takes atk_scale × ATK physical and is levitated `levitate` s, then multi_times (10) bombardments, one
 //   every multi_hit_interval (0.3) s, each on a random enemy of the skill range (flyers included) hitting every enemy within
 //   1.1 of it (中点判定; PRTS 溅射半径1.1, 可对空) for multi_atk_scale × ATK physical; the skill runs PRTS's fixed 3.5 s with
@@ -119,6 +120,10 @@ export default {
           kind: 'duration',
           duration: S3_DURATION,
           attack: { noAttack: true },
+          // The data row is ALWAYS (official list), but the cast needs a target: CastSkill `_allowNoTarget` 0 with a
+          // SkillTrigger on ground and air enemies of the x-1, not extended (battle/prefabs/[uc]skills.ab skchr_irene_3;
+          // PRTS: "仅存在飞行单位时，该技能也可开启"). She waits with full SP for a selectable enemy there.
+          trigger: { rule: 'CUSTOM_RANGE', grid: grid3 },
           // 白铁's 铁钳号·原型机 (a registered ally target) is struck like an enemy — the owner's rule of 2026-10-08; its kit
           // cancels the hits [ASSUMED: its strikes take it like a ground enemy of the skill range] (skills.js allyTargetsOk)
           allyTargets: true,

@@ -1169,7 +1169,10 @@ flag alters movement or 失衡.
   `TAKE_DAMAGE` — ready and just hit (重装: "不受技能范围影响，受到伤害时释放技能"; in the data every MANUAL 重装 skill but
   the six of DESIGN §21.29 — 深巡 / 雷蛇 S2, 号角 S2 / S3, 灰毫 S1 / S2 — which are `DEFAULT`, a deliberate deviation (深巡
   S2 then `ACTIVE_RANGE` on its 3-2), and 余 S2 厚礼上宾, `SKILL_RANGE` on its own x-1 since DESIGN §22.10);
-  `SP_FULL` (`ALWAYS`) — immediately;
+  `SP_FULL` (`ALWAYS`) — immediately (the client's ALWAYS checks no range, but a CastSkill whose prefab has a skill
+  trigger and `_allowNoTarget` 0 fails its cast, nothing spent, while that trigger finds no target: those kits wait with
+  full SP through their own `trigger` — 异客 S3, 锏 S3 and 艾丽妮 S3 `CUSTOM_RANGE` on the skill range, 锏 S2
+  `ACTIVE_RANGE` on its 1-4 (ground only), 艾丽妮 S2 its ground guard; DESIGN §37.103);
   `CUSTOM_RANGE` — an enemy inside `trigger.customRangeGrid` (rotated by the unit direction like every grid); `SEARCH` — an
   enemy inside the INITIAL range, checked every tick (no attack needed: "不受基础策略影响，在初始攻击范围内存在敌人时释放技能");
   `GDGLOW_SKILL_2` — "全场存在可选目标时释放技能": a targetable enemy anywhere (a heal skill: an ally that needs healing),
