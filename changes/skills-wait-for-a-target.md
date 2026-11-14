@@ -2,8 +2,8 @@
 
 ### Skills that need a target wait for one
 
-- Passenger's S3 and Degenbrecher's S3 now wait with full SP until an enemy is inside the skill's own range, as in the official game, instead of going off with no enemy near. Passenger's S3 counts its large x-3 range, Degenbrecher's S3 her x-1; flying enemies count for both. [src: docs/history/0.3.4.md §37.103]
-- The same official rule also covers Degenbrecher's S2 (ground enemies on its range in front of her) and Irene's S3 (x-1, flying enemies too), which now wait too. Irene's S2 already waited. [src: docs/history/0.3.4.md §37.103]
+- Passenger's S3 and Degenbrecher's S3 now wait with full SP until an enemy is inside the skill's own range, as in the official game, instead of going off with no enemy near. Passenger's S3 counts its large x-3 range, Degenbrecher's S3 her x-1; flying enemies count for both. [src: docs/history/0.3.4.md §37.105]
+- The same official rule also covers Degenbrecher's S2 (ground enemies on its range in front of her) and Irene's S3 (x-1, flying enemies too), which now wait too. Irene's S2 already waited. [src: docs/history/0.3.4.md §37.105]
 - Before: these skills fired the moment their SP was full and could be wasted on an empty field. [src: data/chess.json skill.trigger SP_FULL]
 
 Kind: player

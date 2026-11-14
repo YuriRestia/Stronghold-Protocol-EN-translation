@@ -4,7 +4,10 @@ The client's skill cast (Character.States.SkillState.OnEnter -> BasicSkill.OnBef
 `_beginAnim` when its root behaviour sets `_playSkillBeginAnim` (BasicSkill.PlayBeginAnimation: the owner's
 PlayAnimation at time scale 1, WaitForFixedSeconds(the clip's length), then DoStartSkill). The skill starts, and the
 character attacks again, only when that clip ends; leaving the Skill state first (stun, death …: SkillState.OnExit ->
-InterruptStartIfNot) drops the cast. This script lists those skills from battle/prefabs/[uc]skills.ab; the data build
+InterruptStartIfNot) drops the cast. A skill with a chant behaviour (ChantBeforeSkill or a subclass: BasicSkill.hasChant)
+runs that chant in place of PlayBeginAnimation and starts when the chant ends, so it is left out (a chant that plays the
+clip itself, ChantWithProjectileBeforeSkill `_afterEndAnim`, is its kit's to time). This script lists those skills from
+battle/prefabs/[uc]skills.ab; the data build
 (tools/build-data.mjs operatorBeginAnims) times each with its clip in the operator's default model.
 
     .venv-extract/Scripts/python.exe -I -B tools/skill_begin.py [--ab <extracted bundles root>]
@@ -38,13 +41,20 @@ def begin_skills(ab_root):
     env = fx.AssetEnv(ab_root, {})
     out = {}
     for sid, go in env.prefabs(fx.SKILLS).items():
+        row, chant = None, False
         for c in env.tt(go).get('m_Component', []):
             f, o = env.resolve(go.assets_file, c.get('component'))
             if o is None or f == 'builtin' or o.type.name != 'MonoBehaviour':
                 continue
             d = env.tt(o)
             if d.get('_playSkillBeginAnim') and d.get('_beginAnim'):
-                out[sid] = {'begin': d['_beginAnim'], 'down': d.get('_beginAnimDown') or None}
+                row = {'begin': d['_beginAnim'], 'down': d.get('_beginAnimDown') or None}
+            # a ChantBeforeSkill (or subclass) behaviour: BasicSkill.hasChant (m_chantBehavior != null) makes
+            # OnBeforeSkillStart run the chant instead of PlayBeginAnimation, and the chant's end calls DoStartSkill
+            if '_buffsWhenStartChant' in d:
+                chant = True
+        if row and not chant:
+            out[sid] = row
     return out
 
 

@@ -13,6 +13,7 @@ import { allyCastWindup } from '../../server/sim/ai.js';
 import { KITTED_CHARS, OPERATOR_KITS, KITS } from '../../server/sim/content/kits/index.js';
 import { diyPool, validateDiyPicks } from '../../shared/diy.js';
 import { canTargetAlly } from '../../server/sim/targeting.js';
+import { GLIDE_STEPS, GLIDE_TIME, glideCurve } from '../../server/sim/content/kits/ops/op-aglna2.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../../data/${f}.json`, import.meta.url), 'utf8'));
 const CHESS = load('chess');
@@ -111,9 +112,14 @@ test('trait 巡空者: on the ground she blocks ground enemies, not flyers; airb
     const fl2 = h.spawn('enemy_flywalk', { routeIndex: 2 });
     assert.ok(h.runUntil(() => fl2.blockedBy === u, 30), `${label(f)}: blocks a flyer airborne`);
     assert.equal(canTargetAlly(fl2, u, true), true, `${label(f)}: flyers still select her`);
+    const tEnd = h.b.time;
     u.skill.end('test');
+    // S2_Landing: Skill_2_End (1 s) still in the air block mode, no attack; then she lands
+    assert.ok(u.s.flags.liftoff && u.s.flags.disarm && fl2.blockedBy === u, `${label(f)}: the landing clip, still up`);
+    assert.ok(h.runUntil(() => !u.s.flags.liftoff, 1.2), `${label(f)}: landed after the 1 s clip`);
+    assert.ok(Math.abs(h.b.time - tEnd - 1) <= 0.07, `${label(f)}: Skill_2_End 1 s (${h.b.time - tEnd})`);
     assert.equal(fl2.blockedBy, null, `${label(f)}: landing releases the flyer`);
-    assert.ok(!u.s.flags.liftoff, `${label(f)}: landed`);
+    assert.ok(!u.s.flags.disarm, `${label(f)}: attacks again`);
     done(h);
   }
 });
@@ -214,7 +220,10 @@ test('S1 极速送达 (被动 ON_DEPLOY): at each deployment she takes off for 5
     const same = ANY_ATK(h, u).filter((c) => c.dmg.attackId === first.dmg.attackId);
     assert.deepEqual(same.map((c) => c.target).sort((x, y) => x.id - y.id), [a, b].sort((x, y) => x.id - y.id), `${label(f)}: two targets`);
     h.runUntil(() => !u.skill.active, 60);
-    assert.ok(!u.s.flags.liftoff && !u.s.flags.blockFly, `${label(f)}: landed`);
+    // S1_Landing: Skill_1_End (1 s) in the air, no attack, then down
+    assert.ok(u.s.flags.liftoff && u.s.flags.disarm, `${label(f)}: the landing clip`);
+    h.run(1.05);
+    assert.ok(!u.s.flags.liftoff && !u.s.flags.blockFly && !u.s.flags.disarm, `${label(f)}: landed`);
     assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2`);
     h.run(0.4);   // (her T2 lapses within one refresh)
     approx(u.s.atk, u.base.atk, `${label(f)}: ATK back`);
@@ -226,7 +235,8 @@ test('S1 极速送达 (被动 ON_DEPLOY): at each deployment she takes off for 5
   }
 });
 
-test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off; 2.5 s 吟唱 (no attack, 无敌, control statuses refused) while the sweep (3.0 wide, 1.3 thick, 6 tiles/s, 4 tiles ahead) 浮空s ground enemies 10 / 12 s and 缚地s flyers 20 / 22 s; then ATK +105 % / +135 %, interval −0.6 / −0.8 s, arts, 4 / 5 targets, range 3-10; 22 s', () => {
+test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off; the 吟唱 (no attack, 无敌, control statuses refused) runs Skill_2_Takeoff_Begin 0.333 s, the sweep (3.0 wide, 1.3 thick, 4.8 × its curve, 4 tiles ahead: 23 ticks) 浮空ing ground enemies 10 / 12 s and 缚地ing flyers 20 / 22 s, Skill_2_Takeoff_End 1 s, Skill_2_Begin 1 s; ATK +105 % / +135 %, interval −0.6 / −0.8 s, arts, 4 / 5 targets, range 3-10 from the cast; the 22 s after the chant', () => {
+  const CHANT = 0.333 + GLIDE_TIME + 1 + 1;
   for (const f of FORMS_ALL) {
     const [tier, elite] = f;
     const sk = skillOf(tier, elite, S2);
@@ -242,20 +252,35 @@ test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off
     const fl = h.spawn('enemy_fly', { pos: [9, 6] });           // swept flyer
     const far = h.spawn('enemy_dummy', { pos: [10, 9] });       // 5 ahead: not swept
     const wide = h.spawn('enemy_dummy', { pos: [12, 6] });      // 2 aside: not swept
-    assert.ok(h.runUntil(() => u.skill.active, 1 + u.skill.beginDur), `${label(f)}: cast with an enemy in 3-10 (none in her 2-2)`);
+    assert.equal(u.skill.beginDur, 0, `${label(f)}: no begin clip (the chant replaces it)`);
+    assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast with an enemy in 3-10 (none in her 2-2)`);
+    const t0 = h.b.time;
+    const forms = () => h.eventsOf('fx').filter((e) => e[1] === 'aglna2Chant' && e[4]?.id === u.id).map((e) => e[4].form);
     assert.ok(u.s.flags.liftoff, `${label(f)}: airborne`);
     assert.ok(u.s.flags.disarm && u.s.flags.invulnerable, `${label(f)}: 吟唱`);
     assert.equal(h.b.applyStatus(u, 'stun', { duration: 3, source: g }), false, `${label(f)}: control statuses refused while gliding`);
-    h.run(1);
+    h.run(0.3);
+    assert.equal(h.hooksOf('statusApplied').filter((c) => c.source === u).length, 0, `${label(f)}: no sweep during Skill_2_Takeoff_Begin`);
+    h.run(0.033 + GLIDE_TIME + 0.1);
+    assert.deepEqual(forms(), ['chantEnd'], `${label(f)}: Skill_2_Takeoff_End once the sweep reaches 4`);
     const st = (e, k) => h.hooksOf('statusApplied').find((c) => c.target === e && c.status === k);
+    assert.ok(st(g, 'levitate').t - t0 >= 0.333 - 1e-6, `${label(f)}: the sweep leaves after Skill_2_Takeoff_Begin`);
     approx(st(g, 'levitate')?.duration, sk.bb.buff_duration_levitate, `${label(f)}: 浮空`);
     approx(st(heavy, 'levitate')?.duration, sk.bb.buff_duration_levitate / 2, `${label(f)}: halved on weight > 3`);
     approx(st(fl, 'groundbind')?.duration, sk.bb.buff_duration_ground_bound, `${label(f)}: 缚地`);
     assert.ok(!st(far, 'levitate') && !st(wide, 'levitate'), `${label(f)}: outside the sweep`);
     assert.equal(fl.isFlying, false, `${label(f)}: a 缚地 flyer is a ground unit`);
     assert.equal(ANY_ATK(h, u).length, 0, `${label(f)}: no attack while gliding`);
-    h.run(1.6);
-    assert.ok(!u.s.flags.disarm && !u.s.flags.invulnerable, `${label(f)}: the 吟唱 over at 2.5 s`);
+    h.runUntil(() => forms().length > 1, 1.1);
+    assert.deepEqual(forms(), ['chantEnd', 'rise'], `${label(f)}: Skill_2_Begin after Skill_2_Takeoff_End`);
+    approx(h.b.time - t0, 0.333 + GLIDE_TIME + 1, `${label(f)}: Skill_2_Begin at`, 0.03);
+    assert.equal(h.eventsOf('fx').filter((e) => e[1] === 'aglna2Chant' && e[4]?.form === 'rise')[0][4].land, false, `${label(f)}: the rise to S2's height`);
+    assert.ok(u.s.flags.disarm && u.s.flags.invulnerable, `${label(f)}: still 吟唱 through Skill_2_Begin`);
+    approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.18), `${label(f)}: ATK from the cast`);
+    h.runUntil(() => !u.s.flags.invulnerable, 1.2);
+    approx(h.b.time - t0, CHANT, `${label(f)}: the 吟唱 over`, 0.03);
+    assert.deepEqual(forms(), ['chantEnd', 'rise', null], `${label(f)}: S2 clips`);
+    assert.ok(!u.s.flags.disarm, `${label(f)}: attacks once the chant ends`);
     assert.deepEqual(u.liveRangeGrid, sk.rangeGrid, `${label(f)}: 3-10`);
     approx(u.s.atk, u.base.atk * (1 + sk.bb.atk + 0.18), `${label(f)}: ATK (+18 % of her T2)`);
     approx(u.s.interval, (1.5 + sk.bb.base_attack_time) * 100 / u.s.aspd, `${label(f)}: interval`);
@@ -266,15 +291,28 @@ test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off
     const preId = ANY_ATK(h, u)[n0].dmg.attackId;
     assert.ok(h.runUntil(() => ANY_ATK(h, u).some((c, i) => i >= n0 && c.dmg.attackId !== preId), 4));
     const a1 = ANY_ATK(h, u).find((c, i) => i >= n0 && c.dmg.attackId !== preId);
+    h.run(0.5);   // (each projectile lands when it reaches its target: 10 tiles/s)
     const one = ANY_ATK(h, u).filter((c) => c.dmg.attackId === a1.dmg.attackId);
     assert.equal(one.length, sk.bb['attack@max_target'], `${label(f)}: ${sk.bb['attack@max_target']} targets`);
     assert.ok(one.every((c) => c.type === 'arts'), `${label(f)}: arts`);
     h.runUntil(() => !u.skill.active, 30);
-    approx(h.hooksOf('skillEnd').at(-1).t - h.hooksOf('skillStart').at(-1).t, 22, `${label(f)}: 22 s from the cast`, 0.01);
+    approx(h.hooksOf('skillEnd').at(-1).t - h.hooksOf('skillStart').at(-1).t, 22 + CHANT, `${label(f)}: 22 s from the chant's end`, 0.01);
     assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2 back`);
+    h.run(1.05);   // S2_Landing: Skill_2_End
     assert.ok(!u.s.flags.liftoff, `${label(f)}: landed`);
     done(h);
   }
+});
+
+test('S2 sweep speed: projectile_chr_aglna2_s2_fly moves 4.8 × its `_curve` per tick (FUNC_CURVE_AND_X_LENGTH) and reaches 4 tiles on tick 23 (0.767 s)', () => {
+  approx(glideCurve(0), 0.9494410753250122, 'curve before its first key');
+  approx(glideCurve(0.4818013310432434), 1.1316108703613281, 'curve key 2');
+  approx(glideCurve(5), 1.091094970703125, 'curve after its last key');
+  approx(GLIDE_STEPS[0], glideCurve(0) * 4.8 / 30, 'first tick');
+  assert.ok(GLIDE_STEPS.every((d, i) => i === 0 || d > GLIDE_STEPS[i - 1]), 'moves every tick');
+  assert.equal(GLIDE_STEPS.length, 23);
+  assert.equal(GLIDE_STEPS.at(-1), 4);
+  approx(GLIDE_TIME, 23 / 30, 'glide time');
 });
 
 test('S3 酸橙的心事 (MANUAL, data DEFAULT + SKILL_RANGE on 3-9): 30 / 31 bullets, ATK +20 % / +30 %, 对空庇护 55 % / 60 %, range 3-9 + the 8 around her; each attack 275 % / 305 % on ≤ 3 ground enemies and flyers up to 4; flyers in range ×0.6 speed', () => {
@@ -298,6 +336,7 @@ test('S3 酸橙的心事 (MANUAL, data DEFAULT + SKILL_RANGE on 3-9): 30 / 31 bu
     approx(taken, 1000 * (1 - sk.bb.damage_resistance), `${label(f)}: from an air unit`, 1e-6);
     assert.equal(h.b.dealDamage(grounds[0], u, { amount: 1000, type: 'arts' }), 0, `${label(f)}: a ground enemy cannot select her (对地规避)`);
     approx(h.b.dealDamage(grounds[0], u, { amount: 1000, type: 'arts', ignoreSelect: true }), 1000, `${label(f)}: a ground source's that reaches her: not reduced`, 1e-6);
+    approx(h.b.dealDamage(flyer, u, { amount: 100, type: 'arts', tags: ['dot'] }), 100 * (1 - sk.bb.damage_resistance), `${label(f)}: an air unit's damage over time too`, 1e-6);
     h.b.kill(flyer, null);
     // ≤ 3 ground + flyers to 4 (she blocks nothing meanwhile: the flyers are on tiles she may not take)
     const f1 = h.spawn('enemy_fly', { pos: [10, 7] }), f2 = h.spawn('enemy_fly', { pos: [11, 7] });
@@ -306,6 +345,7 @@ test('S3 酸橙的心事 (MANUAL, data DEFAULT + SKILL_RANGE on 3-9): 30 / 31 bu
     const n0 = h.hooksOf('damaged').filter((c) => c.source === u && c.dmg?.isAttack).length;
     assert.ok(h.runUntil(() => ANY_ATK(h, u).length > n0, 3));
     const a1 = ANY_ATK(h, u)[n0];
+    h.run(0.5);   // (each projectile lands when it reaches its target: 10 tiles/s)
     const one = ANY_ATK(h, u).filter((c) => c.dmg.attackId === a1.dmg.attackId);
     assert.equal(one.filter((c) => !c.target.isFlying).length, 3, `${label(f)}: 3 ground`);
     assert.equal(one.filter((c) => c.target.isFlying).length, 1, `${label(f)}: + 1 flyer`);
@@ -323,21 +363,50 @@ test('S3 酸橙的心事 (MANUAL, data DEFAULT + SKILL_RANGE on 3-9): 30 / 31 bu
   }
 });
 
-test('S3 move: blocking nothing, she flies (2 tiles/s, 无敌, disarmed) to the tile of an unblocked flyer she can block inside the original 3-9, lands there by a 【移动】 (the skill and its bullets kept) and blocks it; “一会儿见！” marks her deployment tile; her range stays that 3-9 + the 8 around her; at the end she goes back and the marker leaves', () => {
+/**
+ * projectile_chr_aglna2_s3_fly from (r0, c0) facing RIGHT to the tile (r, c), per 1/30 s tick: 0.1 s along her facing
+ * and 0.1 s turning (2.4 → 2.0 tiles/s by 1.9/s each), then homing at 2.0 — the flight time.
+ */
+function flightTime(r0, c0, r, c) {
+  const dt = 1 / 30;
+  let x = c0, y = r0, t = 0, hx = 1, hy = 0;
+  for (;;) {
+    t += dt;
+    const part = t <= 0.1 + 1e-9 ? 0 : t <= 0.2 + 1e-9 ? 1 : 2;
+    const ts = part === 0 ? t : t - 0.1;
+    const v = part === 2 ? 2 : Math.max(2, 2.4 - 1.9 * ts);
+    if (part > 0) {
+      const dx = c - x, dy = r - y, d = Math.hypot(dx, dy);
+      if (d <= v * dt + 1e-9) return t;
+      hx = dx / d; hy = dy / d;
+    }
+    x += hx * v * dt; y += hy * v * dt;
+  }
+}
+
+test('S3 move: after her 1 s take-off (no attack), blocking nothing and outside the middle of an attack, she flies (projectile_chr_aglna2_s3_fly: 2.4 → 2.0 tiles/s, 无敌, disarmed) to the tile of an unblocked flyer she can block inside the original 3-9, lands there by a 【移动】 (the skill and its bullets kept) and blocks it; “一会儿见！” marks her deployment tile; her range stays that 3-9 + the 8 around her; at the end her 0.333 s restore, then home, the marker leaves, then the 1 s landing', () => {
   for (const f of [[5, false], [6, true]]) {
     const [tier, elite] = f;
     const { h, u } = field({ tier, elite, skill: 2 });
     u.skill.gainSp(999);
     const fl = h.spawn('enemy_fly', { pos: [11, 7] });
     assert.ok(h.runUntil(() => u.skill.active, 1), `${label(f)}: cast`);
+    const tCast = h.b.time;
+    assert.ok(u.s.flags.disarm && !u.findBuff('aglna2:move'), `${label(f)}: S3_TakeOff: no attack, no flight`);
     const ammo0 = u.skill.ammoLeft;
-    assert.ok(h.runUntil(() => !!u.findBuff('aglna2:move'), 0.5), `${label(f)}: the flight starts`);
+    assert.ok(h.runUntil(() => !!u.findBuff('aglna2:move'), 1.5), `${label(f)}: the flight starts`);
+    assert.ok(h.b.time - tCast >= 1 - 1e-6, `${label(f)}: not before Skill_3_Begin ends (${h.b.time - tCast})`);
     assert.ok(u.s.flags.invulnerable && u.s.flags.disarm, `${label(f)}: 无敌, disarmed in flight`);
     const t0 = h.b.time;
-    assert.ok(h.runUntil(() => u.tileR === 11 && u.tileC === 7, 5), `${label(f)}: on the flyer's tile`);
-    approx(h.b.time - t0, Math.hypot(1, 3) / 2, `${label(f)}: at 2 tiles/s`, 0.05);
+    let mid = false;
+    assert.ok(h.runUntil(() => { if (u.x > 4.05 && u.tileC === 4) mid = true; return u.tileR === 11 && u.tileC === 7; }, 5), `${label(f)}: on the flyer's tile`);
+    assert.ok(mid, `${label(f)}: carried along the flight (her x moves before the 【移动】)`);
+    approx(h.b.time - t0, flightTime(10, 4, 11, 7), `${label(f)}: the flight's speed curve`, 0.05);
     assert.ok(u.skill.active && u.skill.ammoLeft <= ammo0, `${label(f)}: the skill kept`);
     assert.ok(h.runUntil(() => fl.blockedBy === u, 1), `${label(f)}: she blocks it`);
+    // (fork) display: her S3Move clip set (fx form 'fly') for the flight alone (render/units.js FORMS)
+    const forms = h.eventsOf('fx').filter((e) => e[4]?.id === u.id && 'form' in (e[4] || {})).map((e) => [e[1], e[4].form]);
+    assert.deepEqual(forms, [['aglna2Fly', 'fly'], ['aglna2Land', null]], `${label(f)}: the flight's form on, then off`);
     const m = h.b.allyUnits.find((t) => t.kind === 'token' && t.defId === MARKER && t.alive);
     assert.ok(m, `${label(f)}: the marker`);
     assert.deepEqual([m.tileR, m.tileC], [10, 4], `${label(f)}: on her deployment tile`);
@@ -348,11 +417,53 @@ test('S3 move: blocking nothing, she flies (2 tiles/s, 无敌, disarmed) to the 
     assert.ok(keys.has(12 * 21 + 8) && keys.has(11 * 21 + 8), `${label(f)}: the 8 around her ((12, 8), (11, 8))`);
     assert.ok(!keys.has(11 * 21 + 10), `${label(f)}: no 3-9 around her new tile ((11, 10))`);
     u.skill.end('test');
-    assert.deepEqual([u.tileR, u.tileC], [10, 4], `${label(f)}: back home at the end`);
+    // RestoreAbility: Skill_3_Restart_Begin 0.333 s where she is (无敌, no attack, 晕眩 / 寒冷 refused), then home
+    assert.deepEqual([u.tileR, u.tileC], [11, 7], `${label(f)}: the restore where she stands`);
+    assert.ok(u.s.flags.invulnerable && u.s.flags.disarm && u.s.flags.liftoff && m.alive, `${label(f)}: restore state, marker still there`);
+    assert.equal(h.b.applyStatus(u, 'stun', { duration: 3, source: fl }), false, `${label(f)}: no 晕眩 in the restore`);
+    h.run(0.35);
+    assert.deepEqual([u.tileR, u.tileC], [10, 4], `${label(f)}: back home after it`);
     assert.ok(!m.alive, `${label(f)}: the marker left`);
+    assert.ok(u.s.flags.liftoff && u.s.flags.disarm, `${label(f)}: S3_Landing (Skill_3_End)`);
+    h.run(1.05);
+    assert.ok(!u.s.flags.liftoff && !u.s.flags.disarm, `${label(f)}: landed`);
     assert.deepEqual(u.liveRangeGrid, formOf(tier, elite).rangeGrid, `${label(f)}: 2-2`);
     assert.equal(u.extraRangeKeys, null);
     done(h);
+  }
+  // in the middle of an attack (cooldown progress 0.15–0.85) she does not leave
+  {
+    const { h, u } = field({ tier: 5, skill: 2 });
+    u.skill.gainSp(999);
+    h.spawn('enemy_dummy', { pos: [10, 6] });
+    assert.ok(h.runUntil(() => u.skill.active, 1), 'cast');
+    h.run(1.1);
+    assert.ok(h.runUntil(() => u.atkCd > 0 && 1 - u.atkCd / u.s.interval > 0.2 && 1 - u.atkCd / u.s.interval < 0.7, 3), 'mid-attack');
+    h.spawn('enemy_fly', { pos: [11, 7] });
+    h.step();
+    h.step();
+    h.step();
+    h.step();
+    assert.ok(!u.findBuff('aglna2:move'), 'no flight mid-attack');
+    assert.ok(h.runUntil(() => !!u.findBuff('aglna2:move'), 2), 'it leaves once the attack allows');
+    const p = 1 - u.atkCd / u.s.interval;
+    assert.ok(!(u.atkCd > 0) || p < 0.15 + 0.05 || p > 0.85 - 0.05, `left at progress ${p}`);
+    done(h);
+  }
+  // several flyers: the tile is a random one of them (the battle's RNG), the same for the same seed
+  {
+    const at = (seed) => {
+      const { h, u } = field({ tier: 5, skill: 2, seed });
+      u.skill.gainSp(999);
+      for (const p of [[11, 7], [9, 7], [12, 6]]) h.spawn('enemy_fly', { pos: p });
+      h.runUntil(() => u.tileC !== 4, 6);
+      done(h);
+      return `${u.tileR},${u.tileC}`;
+    };
+    const seen = new Set();
+    for (let s = 1; s <= 12; s++) seen.add(at(s));
+    assert.ok(seen.size >= 2, `random picks: ${[...seen]}`);
+    assert.equal(at(3), at(3), 'deterministic');
   }
   // blocking something, she stays
   {
@@ -366,6 +477,33 @@ test('S3 move: blocking nothing, she flies (2 tiles/s, 无敌, disarmed) to the 
     assert.deepEqual([u.tileR, u.tileC], at, 'no move while blocking');
     done(h);
   }
+});
+
+test('every attack of hers flies her projectile (projectile_chr_aglna2*, 10 tiles/s): the damage lands on reach, one wind-up + distance / 10 after the cast', () => {
+  const { h, u } = field({ tier: 5, skill: 0 });   // S1 from the deployment: range 3-6
+  const e = h.spawn('enemy_dummy', { pos: [10, 6] });
+  assert.ok(h.runUntil(() => ANY_ATK(h, u).length > 0, 4));
+  const hit = ANY_ATK(h, u)[0];
+  assert.equal(hit.target, e);
+  assert.equal(u.profile.attack, 'melee', 'still a melee operator');
+  approx(hit.t - u.lastCastAt, allyCastWindup(u) + 2 / 10, 'wind-up + 2 tiles at 10 tiles/s', 0.05);
+  done(h);
+});
+
+test("(fork) sound moments: S2's 浮空 / 缚地 starting on each swept enemy (aglna2Bind), each landing's start (aglna2Landing, tagged by nothing: the skill index picks its bank)", () => {
+  const { h, u } = field({ tier: 5, skill: 1 });
+  u.skill.gainSp(999);
+  const g = h.spawn('enemy_dummy', { pos: [10, 8] });
+  const fl = h.spawn('enemy_fly', { pos: [9, 6] });
+  assert.ok(h.runUntil(() => u.skill.active, 1 + u.skill.beginDur), 'cast');
+  h.run(1.2);
+  const binds = h.eventsOf('fx').filter((e) => e[1] === 'aglna2Bind' && e[4]?.id === u.id).map((e) => e[4].skill).sort();
+  assert.deepEqual(binds, ['aglna2:groundbind', 'aglna2:levitate'], 'one per status given');
+  assert.ok(g.alive && fl.alive);
+  assert.equal(h.eventsOf('fx').filter((e) => e[1] === 'aglna2Landing').length, 0, 'no landing while it runs');
+  u.skill.end('test');
+  assert.equal(h.eventsOf('fx').filter((e) => e[1] === 'aglna2Landing' && e[4]?.id === u.id).length, 1, 'the landing starts at the end');
+  done(h);
 });
 
 test('(fork) S3 takeoff fx: the original 3-9 of her deployment tile (`range`, [row, col]) and `around` 1 (the 8 tiles around her), for the client\'s range line (render/vfx/pathfx.js)', () => {

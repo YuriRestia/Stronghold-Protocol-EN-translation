@@ -16,6 +16,8 @@ import {
   activeBubbles, sortedPlayers, tileKey, prepCapsuleLabel, prepCamera, dropFailureReason, terrainInfo,
 } from '../../public/js/ui/gameLogic.js';
 import { PHASE, GEO } from '../../shared/constants.js';
+import { ASPD_LIMITS } from '../../public/js/ui/gameLogic/format.js';
+import { ASPD_MIN, ASPD_MAX } from '../../server/sim/constants.js';
 import { setLang, setMessages } from '../../shared/i18n.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -708,7 +710,15 @@ describe('enemies, HUD, stats', () => {
     assert.equal(attackInterval(1, 100), 1);
     assert.equal(attackInterval(1.2, 120), 1);
     assert.equal(attackInterval(0, 100), null);
-    assert.equal(attackInterval(1, 0), 1, 'bad aspd falls back to 100');
+    // a data ASPD of 0 is the official attribute floor 20 (OpFor: Gun 4.5 s BAT → 22.5 s), not "missing"
+    assert.equal(attackInterval(1, 0), 5, 'ASPD 0 reads as the floor 20');
+    assert.equal(attackInterval(4.5, 0), 22.5);
+    assert.equal(attackInterval(1, 1000), 1 / 6, 'capped at 600');
+    assert.equal(attackInterval(1, undefined), 1, 'missing aspd reads 100');
+    assert.equal(attackInterval(1, null), 1, 'missing aspd reads 100');
+    assert.equal(attackInterval(1, 'x'), 1, 'bad aspd reads 100');
+    // the page's copy of the sim's clamps (it cannot import server/sim/constants.js) stays equal to them
+    assert.deepEqual({ ...ASPD_LIMITS }, { min: ASPD_MIN, max: ASPD_MAX });
     assert.equal(fmtNum(12345), '12,345');
     assert.equal(fmtNum(2_310_000), '231万');
     assert.equal(fmtNum(150_000), '15.0万');

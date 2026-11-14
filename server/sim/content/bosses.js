@@ -70,7 +70,7 @@
 // fx kinds: 'beam' 'shell' 'explode' 'telegraph' 'charge' 'link' 'dash' 'column' 'tide' 'rockfall' 'tentacle' 'equip'
 //   'sword' 'vest' 'blink' 'summon' 'grow' 'phase' 'lpLoss' (x, y + extra {id, r, tiles, kind, tx, ty …}).
 
-import { MOVE_SCALE, MAX_ALIVE_ENEMIES } from '../constants.js';
+import { MOVE_SCALE, MAX_ALIVE_ENEMIES, ASPD_MIN } from '../constants.js';
 import { aggroCmp, areaSelectable } from '../targeting.js';
 import { compileRoute } from '../ai.js';
 import { normalizeRoute } from '../simdata.js';
@@ -148,8 +148,8 @@ const PIPE_STRIKE_GAP = 0.4;
 const TENTACLE_STUN = 5, TENTACLE_RADIUS = 1;
 /** 崩坍 delay (PRTS 1 s), targets per growth stage (PRTS 2/4/8) and 物种爆发 delay (PRTS 4 s). */
 const ROCKFALL_DELAY = 1, ROCKFALL_TARGETS = [2, 4, 8], DOOM_DELAY = 4;
-/** 铳: minimum attack speed (PRTS "最低20") and charge hit radius (PRTS 0.35 — also “碎铳之簧”'s 追逐模式 trample). */
-const ASPD_FLOOR = 20, CHARGE_RADIUS = 0.35;
+/** 铳: charge hit radius (PRTS 0.35 — also “碎铳之簧”'s 追逐模式 trample). */
+const CHARGE_RADIUS = 0.35;
 // (fork) “碎铳之簧”'s 追逐模式 trample hit: the official buff of each variant's MoveToHunter aura (render/vfx/skills.js
 // STATE_BUFFS; the element variant actrpb has none) and how long its one-shot row stays in b.snap fxs
 const ACTRPA_TRAMPLE_FX = 'actrpa_s_1[damage]';
@@ -379,11 +379,21 @@ const nearestOf = (b, e, pred) => {
   for (const o of b.enemies) { if (!o.alive || o === e || !pred(o)) continue; const d = hypot(o.x - e.x, o.y - e.y); if (d < bd) { bd = d; best = o; } }
   return best;
 };
-/** Apply a floor to an enemy whose data attack speed is 0 (skill-driven leaders: 铳/管/弦). */
-function aspdFloor(b, e, extra = 0) {
+/**
+ * The official base ASPD of an enemy whose data attack speed is 0 (铳 / 管 / 弦; data/enemies.json stats.aspd 0, official
+ * enemy_database attributes.attackSpeed m_defined true, m_value 0). The client clamps the raw attribute when it loads it:
+ * `Attributes.Reset` stores `TSMath.Clamp(raw, range)` in `m_rawData` [src: GameAssembly.dll Torappu.Battle.Attributes
+ * Reset RVA 0x679070, the Clamp at 0x6792cb stored at 0x6792fa], the range of attackSpeed being
+ * `[AttributeMeta(ATTACK_SPEED, 20)]` [src: dump.cs AttributesData.attackSpeed], so the unit starts at ASPD 20 and every
+ * modifier adds onto that 20 (`_CalculateAttributeValue` reads the clamped raw back). Our normaliser turns a 0 into 100
+ * (simdata.js normalizeEnemy `|| 100`), so the base is set here: the detail card then compares the live interval with the
+ * official one (22.5 s for the gun) instead of a 100-ASPD interval it never had.
+ */
+function officialBaseAspd(e) {
   const rawAspd = e.def.raw && e.def.raw.stats ? Number(e.def.raw.stats.aspd) : NaN;
-  if (!(rawAspd === 0)) return;
-  b.addBuff(e, { key: 'boss:aspd', persist: true, mods: { aspd: Math.max(ASPD_FLOOR, rawAspd + extra) - e.base.aspd } });
+  if (!(rawAspd === 0) || e.base.aspd === ASPD_MIN) return;
+  e.base.aspd = Math.max(ASPD_MIN, rawAspd);
+  e.markDirty();
 }
 /**
  * Engine target priority (blocker → taunt → latest deployed), made fair for two players on one boss field: within the top
@@ -635,20 +645,32 @@ const HIT_ROW_S = 1;
 
 function kitGun(ab, e, b) {
   const hidden = /_2$/.test(e.defId);
+  // Talent 2 (对同一个目标进行攻击时，攻击速度逐渐提升): the prefab's Talents/2 is a BrownbTalent_1 whose `_stackBuff`
+  // achunt_t_2 (overrideType STACK, life INFINITY) adds ATTACK_SPEED (ADDITION, from the blackboard: attack_speed) per
+  // stack [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt Talents/2]. Its Apply(target) [src: GameAssembly.dll
+  // BrownbTalent_1.Apply RVA 0xfdc1b0] runs as the attack lands on a target: a target other than the last one clears
+  // the stack group (OverrideGroup.Clear) and becomes the last one; then one stack is added — so the first hit on a
+  // target already counts. The group holds `max_stack_cnt` stacks and `max_valid_stack_cnt` of them count
+  // [src: OverrideGroup.ResetWithBuff RVA 0x6e0760, Blackboard.GetIntOrDefault "max_stack_cnt" / "max_valid_stack_cnt"].
+  // No timer clears them (life INFINITY). [unverified] whether the gun's skill casts also reach Apply (the talent registers
+  // for every ability family, `_targetFamilyMask` 31): only the normal attack is counted here, as before. The ASPD adds
+  // onto the clamped base 20 (officialBaseAspd).
   const step = T(ab, '2.attack_speed') ?? 0, maxN = T(ab, '2.max_stack_cnt') ?? 0;
+  const maxValid = T(ab, '2.max_valid_stack_cnt') ?? -1;
   const P = { last: null, n: 0, charge: null };
   const range = () => e.base.rangeRadius || 2;
-  const setAspd = (b2) => aspdFloor(b2, e, step * P.n);
+  const setAspd = (b2) => b2.addBuff(e, { key: 'boss:aspd', persist: true, mods: { aspd: step * (maxValid >= 0 ? Math.min(P.n, maxValid) : P.n) } });
   const s1 = ab.sk['1'], s2 = ab.sk['2'], s3 = ab.sk['3'];
   const groundTargets = (b2) => allTargets(b2, e).filter((u) => u.ground);
   const list = [
     {
-      spawn(b2, e2) { b2.addBuff(e2, { key: 'boss:unblockable', persist: true, flags: { unblockable: true } }); setAspd(b2); },
+      spawn(b2, e2) { b2.addBuff(e2, { key: 'boss:unblockable', persist: true, flags: { unblockable: true } }); officialBaseAspd(e2); },
       before(c, b2, e2) { const l = targetsNear(b2, e2, range()); if (l.length) c.targets = [l.sort((p, q) => q.s.def - p.s.def || aggroCmp(p, q))[0]]; }, // 优先攻击防御力最高的单位
       attack(c, b2) {
         const t = c.targets[0];
-        if (t === P.last) P.n = Math.min(maxN, P.n + 1); else { P.last = t; P.n = 0; }
-        setAspd(b2);
+        if (t !== P.last) { P.last = t; P.n = 0; }                         // a new target clears the stacks…
+        P.n = Math.min(maxN, P.n + 1);                                     // …then this hit adds one (BrownbTalent_1.Apply)
+        setAspd(b2);                                                       // before ai.js sets atkCd: the next shot is faster
       },
       dealt(c, b2, e2) { elem(b2, e2, c.target, 'erosion', e2.s.atk * (T(ab, '1.ep_damage_ratio') ?? 0)); }, // 攻击时附带侵蚀损伤
       tick(b2, e2, a, dt) {
@@ -932,7 +954,7 @@ function pipeCore(ab, e, b, tpl, { form, prefix }) {
     b2.fx('summon', { x: e2.x, y: e2.y, id: e2.id, key, n: got.length });
   };
   return {
-    spawn(b2, e2) { e2.profile.noAttack = true; aspdFloor(b2, e2); },
+    spawn(b2, e2) { e2.profile.noAttack = true; officialBaseAspd(e2); },
     tick(b2, e2, a, dt) {
       P.acc += dt;
       if (P.acc >= (e2.hpRatio < thr ? lo : hi)) { P.acc = 0; summon(b2, e2); }
