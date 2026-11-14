@@ -7,6 +7,22 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-14
 
+### Pointing Stick bounty picker: header no longer squeezed
+
+- The Tactical Training bounty picker opened by the Pointing Stick shows its header in one band again: the long English
+  title wraps onto two lines, the description and the timing hint sit beside it in readable lines, and the three
+  bounty cards are fully on screen.
+- Before: the title took the whole header width, so the description and hint were squeezed to one word a line, ran
+  under "Choose one Tactical Training bounty from the offered cards" and pushed the cards off the bottom of the screen.
+
+### Grand Alliance: seats 7 and 8 keep their own result in Statistics
+
+- The match record a browser keeps after a Grand Alliance now holds all 8 players, so the players in seats 7 and 8 see
+  their own win or loss, rounds, trophies and stats in Statistics and Match history, and find themselves marked "You"
+  when they re-view the settlement.
+- Before: the record kept only the first 6 players, and seats 7 and 8 were shown player 1's result instead (a win
+  could read as a loss, with player 1's rounds and trophies).
+
 ### Skills that need a target wait for one
 
 - Passenger's S3 and Degenbrecher's S3 now wait with full SP until an enemy is inside the skill's own range, as in the official game, instead of going off with no enemy near. Passenger's S3 counts its large x-3 range, Degenbrecher's S3 her x-1; flying enemies count for both.
