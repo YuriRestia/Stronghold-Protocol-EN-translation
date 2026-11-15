@@ -12,11 +12,21 @@ import { MAX_SEATS } from '../shared/constants.js';
 import { DEFAULT_VERSION, VERSIONS } from '../shared/versions.js';
 import { roomSize, roomCap, roomVersion, isLarge, isOneForAll, isMatchable } from './matchmaker.js';
 
-/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], large: boolean, oneForAll: boolean }} SoloEntry */
+// (fork, the user's decision of 2026-11-15) A version without the difficulty picked is queued at its own fallback (the
+// room.create rule: 终极 → 绝境 for 第一期 and 第二期上半), each version at its own: `at` maps a version to its difficulty
+// where it differs from `difficulty`, so one Doctor waits in the 第二期下半 终极 pool and the 第二期上半 绝境 pool at once.
+
+/** @typedef {{ playerId: string, difficulty: string, since: number, versions: string[], at?: Record<string, string>, large: boolean, oneForAll: boolean }} SoloEntry */
 
 /** The versions an entry queued for (an entry without the key: the default version). @param {any} e */
 export function entryVersions(e) {
   return Array.isArray(e.versions) && e.versions.length ? e.versions : [DEFAULT_VERSION];
+}
+
+/** The difficulty an entry waits at for version `v`: its fallback there (`at`), else the one picked. @param {any} e @param {string} v */
+export function entryDifficulty(e, v) {
+  const d = e.at && Object.hasOwn(e.at, v) ? e.at[v] : null;
+  return typeof d === 'string' ? d : e.difficulty;
 }
 
 export class SoloQueue {
@@ -27,10 +37,11 @@ export class SoloQueue {
 
   /**
    * @param {string} playerId @param {string} difficulty @param {number} since
-   * @param {{ versions?: string[], large?: boolean, oneForAll?: boolean }} [opts] @returns {SoloEntry}
+   * @param {{ versions?: string[], at?: Record<string, string> | null, large?: boolean, oneForAll?: boolean }} [opts] @returns {SoloEntry}
    */
-  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], large = false, oneForAll = false } = {}) {
-    const e = { playerId, difficulty, since, versions: [...versions], large: large === true, oneForAll: large === true && oneForAll === true };
+  add(playerId, difficulty, since, { versions = [DEFAULT_VERSION], at = null, large = false, oneForAll = false } = {}) {
+    const e = { playerId, difficulty, since, versions: [...versions], ...(at && Object.keys(at).length ? { at: { ...at } } : {}),
+      large: large === true, oneForAll: large === true && oneForAll === true };
     this.entries.set(playerId, e);
     return e;
   }
@@ -74,7 +85,7 @@ function versionOrder(entries) {
 export function planSolos(rooms, entries, { now = 0, partialMergeAfterMs = 0 } = {}) {
   if (!entries.length) return [];
   const left = new Set(entries);
-  const takes = (e, r) => e.difficulty === r.difficulty && entryVersions(e).includes(roomVersion(r)) && (!isLarge(r) || e.large === true)
+  const takes = (e, r) => entryVersions(e).includes(roomVersion(r)) && entryDifficulty(e, roomVersion(r)) === r.difficulty && (!isLarge(r) || e.large === true)
     && (!isOneForAll(r) || e.oneForAll === true);
   const waiting = [...rooms].filter((r) => isMatchable(r))
     .sort((a, b) => (a.searchSince ?? 0) - (b.searchSince ?? 0) || (a.code < b.code ? -1 : 1));
@@ -92,8 +103,9 @@ export function planSolos(rooms, entries, { now = 0, partialMergeAfterMs = 0 } =
     const byDiff = new Map();
     for (const e of entries) {
       if (!left.has(e) || !entryVersions(e).includes(v)) continue;
-      if (!byDiff.has(e.difficulty)) byDiff.set(e.difficulty, []);
-      byDiff.get(e.difficulty).push(e);
+      const d = entryDifficulty(e, v);
+      if (!byDiff.has(d)) byDiff.set(d, []);
+      byDiff.get(d).push(e);
     }
     for (const [difficulty, pool] of byDiff) {
       while (pool.length >= MAX_SEATS) {
