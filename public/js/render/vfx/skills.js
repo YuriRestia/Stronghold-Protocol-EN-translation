@@ -708,6 +708,9 @@ export const STATE_BUFFS = Object.freeze({
   'angel2_s_2[select_target]': true,
   'accast_s_2': true,
   'papyrs_s_2[switch_mode]': { looks: L({ self: ['papyrs_skill2_buff_02'], mark: ['papyrs_skill2_mark_01'] }) },
+  // Vendela S2's protégé (chess_char_1_06-vendla.js: its taunt buff's `fx`; src her): vendla_skill_02_buff_01 on the
+  // ally with the highest max HP in her range — herself when none has more — while the skill lasts
+  'vendla_s_2[self]': true,
   // the operator herself while the skill runs (content/fxStates.js): Pozëmka S1, Thorns S2, Swire S1, Papyrus S2,
   // Gladiia S3, Mon3tr S3's move (begin / end; common_spine_hide is the client's own model hide)
   'bfsnow_s_1[random_atk]': true,
@@ -971,10 +974,11 @@ export function skillPlan(idx, unitKey, skillId, opts = {}) {
   if (id === 'skchr_yu_3') for (const role of ['start', 'loop', 'range']) for (const e of plan[role]) {
     if (e.key === 'yu_skill3_range_01_source') { e.hold = 'skill'; e.loop = true; }
   }
-  // a key a kit fx binding plays on the unit that fx names is no row on the owner (FX_BINDINGS `at: 'target'`)
+  // a key a kit fx binding plays on the unit that fx names is no row on the owner (FX_BINDINGS `at: 'target'`), nor a
+  // `trigger` of the owner's damage (刺玫 S2's counter hit)
   const bound = targetBound(id);
   if (bound.size) {
-    for (const role of ['start', 'loop', 'range', 'end']) {
+    for (const role of ['start', 'loop', 'range', 'end', 'trigger']) {
       plan[role] = plan[role].filter((e) => !bound.has(e.key) || (plan.unmapped.push({ key: e.key, role: e.role, reason: 'bound', from: e.from }), false));
     }
   }
@@ -1270,8 +1274,13 @@ function place(plan, e, u, { attackOf, eachHit }) {
   }
   // buffs, buff template actions, effect fields
   if (e.action === 'CreateBuffToToken' || u.on === 'token' || /_buffsToToken/.test(u.from)) return 'token';
-  const onTargets = u.on === 'targets';
   const ev = u.event;
+  // (fork) a buff a template's CreateBuffUseAbilitySelector makes at its start sits on the unit that ability picks, not
+  // on the template's owner: 刺玫 S2's vendla_s_2[self] runs MaxHpSelector and gives the pick vendla_s_2, whose
+  // overrideEffectKey vendla_skill_02_buff_01 loops there (config/buff_template_holder.ab, the [self] template's
+  // ON_BUFF_START action) — index v3 writes the use `on: 'owner'`, so it looped on 刺玫 whoever she taunted
+  const selectorMade = u.action === 'CreateBuffUseAbilitySelector' && isObj(u.made) && (!ev || START_EVENTS.has(ev));
+  const onTargets = u.on === 'targets' || selectorMade;
   // (fork) a mark on the units the skill names, which the sim signals (b.snap `fxs` on the carrier, STATE_BUFFS): held
   // while the row lasts, an `end` once when it goes; a line (CreateLineEffect) or a tick stays unmapped
   // (fork) an enemy talent's hit on its targets with no attack to carry it (life IMMEDIATELY: OpFor: Gun's charge,
@@ -2070,6 +2079,13 @@ export const FX_BINDINGS = Object.freeze({
   // planned as each.hit, which no attack of hers ever plays)
   skchr_bubble_2: Object.freeze({
     counter: binding({ owner: 'id', keys: ['bubble_skill_02_hit'], at: 'target' }),
+  }),
+  // (fork) 刺玫 S2 (chess_char_1_06-vendla.js: 'counter' as her protégé is attacked, id = her, target = the attacker): the
+  // protégé's vendla_s_2 creates vendla_s_2[extra_damage] on MODIFIER_SOURCE at ON_TAKE_DAMAGE (IfTargetSide ENEMY),
+  // whose ON_BUFF_START deals the damage and CreateEffect vendla_skill_02_hit_01 on BUFF_OWNER — the attacker
+  // (config/buff_template_holder.ab); index.json's use 'trigger' would play it on 刺玫 whenever she is hurt
+  skchr_vendla_2: Object.freeze({
+    counter: binding({ owner: 'id', keys: ['vendla_skill_02_hit_01'], at: 'target' }),
   }),
   // 归溟幽灵鲨 S1 (chess_char_5_13-ghost2.js: 'hpShare' as she swaps HP ratios with an ally, id = her, to = the ally,
   // at the ally): the skill's ExchangeHp ability (AnimatedActionToTargetAbility, [uc]skills.ab skchr_ghost2_1) runs
