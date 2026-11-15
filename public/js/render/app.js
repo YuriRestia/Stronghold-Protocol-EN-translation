@@ -399,6 +399,8 @@ export async function createFieldView(host, options = {}) {
     myPlayerId: typeof opts.myPlayerId === 'string' ? opts.myPlayerId : null,
     cam: () => cam, heightAt,
     animRate: () => (mode === 'battle' ? interp.rate : 1),
+    // (fork) the official effects' clock (fxClock, frameBody), so a graphic follow keeps to the effect it rides on
+    battleTime: () => (mode === 'battle' ? fxClock : null),
     timeScale: () => (opts.playbackTime ? 1 : mode === 'battle' ? interp.rate : 1),
     // (a chess fighting as its 补位 stand-in — `standInFor` — reads the stand-in's record: its attack interval)
     lookupDef: (info) => {
@@ -489,6 +491,7 @@ export async function createFieldView(host, options = {}) {
     record: info => info ? ctx.lookupDef(info) : null, speed: projSpeed, ofx });
   setupCleanup.push(() => pluginFx.destroy());
   let ofxPrevT = null;        // renderT of the last effects step (the battle clock)
+  let fxClock = 0;            // (fork) the effects' own clock: the sum of their steps (gdt), never going back
   /** The tier the effects run at now: the setting (auto: 精简 on touch devices) while the 3D board draws. */
   function syncOfficialFx() {
     ofx.setTier(board3d ? resolveOfficialFx(settings.officialFx, ofx.available) : 'off');
@@ -2158,6 +2161,7 @@ export async function createFieldView(host, options = {}) {
           // skill effects' per-frame part reads the views' fresh sample (render/vfx/skillfx.js sync)
           const gdt = presentation.ended ? dt : ofxPrevT == null ? 0 : Math.min(opts.playbackTime ? Infinity : 0.25, Math.max(0, renderT - ofxPrevT));
           ofxPrevT = renderT;
+          fxClock += gdt;
           if (justEnded) { wiring.clear(); ofx.finish(); pluginFx.finish(); }
           if (frozen) udt = gdt / Math.max(0.25, interp.rate || 1);
           pluginFx.update(gdt);

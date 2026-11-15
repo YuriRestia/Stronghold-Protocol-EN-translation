@@ -284,11 +284,16 @@ history and the open points: DESIGN §32.14.25.
   SourceGraphicFollowBehaviour on projectile_chr_aglna2_s2_fly, a graphic offset only (`UnitView.followGraphic`: `gx` /
   `gy` added where the body, its shadow, its depth and `wiring.js pose` are placed; her tile and the sim never move). It
   holds at the end until the 'aglna2Chant' `rise` or 'aglna2Landing' sends `follow: null` (the chant stops the
-  projectile before Skill_2_Begin and `_restoreOnEnd` snaps the body home), else `dur` runs out. Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
+  projectile before Skill_2_Begin and `_restoreOnEnd` snaps the body home), else `dur` runs out. The follow runs on the
+  official effects' clock (`ctx.battleTime`: `app.js` fxClock, the sum of the effects' steps), so the body keeps to the
+  sweep's trail at any speed; a view without that clock steps by frame time × `animRate`. Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
   idle and skill idle), the flight's end `form: null`. S2's chant (2026-11-14 round 2) runs on forms too: the cast's
   'takeoff' `form: 'chant'` (Skill_2_Takeoff_Begin, then its loop), 'aglna2Chant' `chantEnd` (Skill_2_Takeoff_End) when
-  the sweep reaches, `rise` (Skill_2_Begin) and null when the chant ends; 'aglna2Chant' draws nothing (`none`), and the
-  landing's fx carries `form: null` for an S2 cut inside its chant. While S3 blocks, her attack clip is Skill_3_Combat (`spine.js
+  the sweep reaches, `rise` (Skill_2_Begin) and null when the chant ends; 'aglna2Chant' draws nothing but at `rise`
+  (`startRows`): there it plays the skill's start rows, aglna2_skill_02_fly_end_01–03, which the cast holds back
+  (`skills.js HELD_START`, `skillfx.js _heldStart`) — they are the ON_BUFF_START of aglna2_s_2[chant_end], the buff
+  `ChantWithProjectileBeforeSkill._buffOnAfterEndAnim` adds with Skill_2_Begin, so they mark her drop back in, not the
+  take-off (fork, 2026-11-15 round 2). The landing's fx carries `form: null` for an S2 cut inside its chant. While S3 blocks, her attack clip is Skill_3_Combat (`spine.js
   MELEE_TWIN`); her attacks are agent shots (`UnitView.agent`) since they fly her projectile. The 浮空 she gives shows
   aglna2_levitate_01_emit in place of the generic status loop (`indexGaps.js ENEMY_STATE_KEYS` 'aglna2_s_2[enemy]', its
   `replaces` turning the generic `levitate` loop off while the row lasts). Her body's lift is her `units.js TAKEOFF`

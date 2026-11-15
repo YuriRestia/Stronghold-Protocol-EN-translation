@@ -3306,8 +3306,13 @@ export class UnitView {
   followGraphic(spec, late = 0) {
     const steps = spec && Array.isArray(spec.steps) ? spec.steps.map(Number).filter(Number.isFinite) : null;
     if (!steps || !steps.length || !(Number(spec.tick) > 0) || !this.alive) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+    const t = Math.max(0, Number(late) || 0);
+    // (fork) on the clock the official effects run on (ctx.battleTime: render/app.js fxClock), so the body keeps
+    // to the sweep's trail at any speed and through a speed change — frame time × animRate drifted from it (user,
+    // 2026-11-15: her flight against the glow wave); without that clock (a bare view) the frame time × animRate
+    const bt = this.ctx.battleTime?.();
     this.follow = { ux: Number(spec.ux) || 0, uy: Number(spec.uy) || 0, steps, tick: Number(spec.tick),
-      dur: Number(spec.dur) > 0 ? Number(spec.dur) : Infinity, t: Math.max(0, Number(late) || 0) };
+      dur: Number(spec.dur) > 0 ? Number(spec.dur) : Infinity, t, t0: Number.isFinite(bt) ? bt - t : null };
   }
 
   /** (fork) The graphic follow's offset for this frame (`gx`, `gy`), on the battle clock; over at its `dur`. */
@@ -3315,7 +3320,12 @@ export class UnitView {
     const f = this.follow;
     if (f && (!this.alive || this.down)) this.follow = null;
     if (!this.follow) { this.gx = 0; this.gy = 0; return; }
-    f.t += dt * (this.ctx.animRate?.() || 1);
+    const bt = f.t0 != null ? this.ctx.battleTime?.() : null;
+    if (Number.isFinite(bt)) {
+      // a clock that went back (another battle on this view) ends it
+      if (bt < f.t0) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+      f.t = bt - f.t0;
+    } else f.t += dt * (this.ctx.animRate?.() || 1);
     if (f.t >= f.dur) { this.follow = null; this.gx = 0; this.gy = 0; return; }
     // the distance after n ticks (0 before the first; the last one held), between two ticks a straight line
     const D = (n) => (n <= 0 ? 0 : f.steps[Math.min(n, f.steps.length) - 1]);

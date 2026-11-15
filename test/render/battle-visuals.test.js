@@ -161,6 +161,24 @@ test('(fork) a graphic follow (予愿安洁莉娜 S2\'s glide): the body, its sh
   } finally { v.destroy(); }
 });
 
+test('(fork) a graphic follow runs on the official effects\' clock (ctx.battleTime) — the sweep\'s trail she rides on — not on frame time × animRate', () => {
+  let bt = 10;
+  const v = new UnitView(fakeViewCtx(fake.P, { cam, lookupDef: () => ({ charId: 'char_1015_aglna2' }), battleTime: () => bt, animRate: () => 2 }),
+    { id: 1, side: 'ally', kind: 'op', defId: 'char_1015_aglna2', tier: 6, x: 5, y: 10, maxHp: 1000, dir: 'RIGHT', skillIndex: 1 });
+  try {
+    const c = cam();
+    v.followGraphic({ ux: 1, uy: 0, steps: [1, 2, 3, 4], tick: 0.1, dur: 1 }, 0.05);
+    bt = 10.1;
+    v.update(0.5, c, 1);
+    assert.ok(Math.abs(v.gx - 1.5) < 1e-9, `0.15 s on the effects' clock, whatever the frame time (${v.gx})`);
+    v.update(0.5, c, 1);
+    assert.ok(Math.abs(v.gx - 1.5) < 1e-9, `that clock still (paused): no move (${v.gx})`);
+    bt = 11.1;
+    v.update(1 / FPS, c, 1);
+    assert.deepEqual([v.gx, v.gy, v.follow], [0, 0, null], 'over at its dur on that clock');
+  } finally { v.destroy(); }
+});
+
 test('(fork) 予愿安洁莉娜: S1 rises to 0.8 over 0.8333 s; her landing fx lowers her over 0.8333 s while 起飞 still holds; the S2 take-off (`land` true, before the 起飞 flag) holds her low through its chant and its Skill_2_Begin (`land` false) rises over 1 s; S3 on a HIGHLAND tile is 0.4 at once, not while her flight form is on', () => {
   const s1 = view('char_1015_aglna2', { skillIndex: 0 });
   try {
