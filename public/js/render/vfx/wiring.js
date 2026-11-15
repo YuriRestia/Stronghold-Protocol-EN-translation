@@ -487,9 +487,10 @@ export class FxWiring {
    */
   pose(v) {
     // (fork) a graphic follow's offset (units.js UnitView.followGraphic): the drawn body and the points on it move by
-    // `gx` / `gy`; `ux` / `uy` stay the unit's own place, where an effect its owner holds stays (playOn `keep`)
-    const ux = v.x, uy = v.y;
-    return { x: ux + (v.gx || 0), y: uy + (v.gy || 0), ux, uy, z:(v.z || 0) + (v.hover || 0), left: (v.visFacing ?? v.facing ?? 1) < 0, back: typeof v._wantsBack === 'function' ? !!v._wantsBack() && !!v.entryBack : false, view: v, tilt: this._camTilt() };
+    // `gx` / `gy`; `ux` / `uy` / `uz` stay the unit's own place and height (`uz` without a take-off lift, which raises
+    // only the graphic holder: units.js UnitView.liftZ), where an effect its owner holds stays (playOn `keep`)
+    const ux = v.x, uy = v.y, z = (v.z || 0) + (v.hover || 0);
+    return { x: ux + (v.gx || 0), y: uy + (v.gy || 0), ux, uy, uz: z - (v.liftZ || 0), z, left: (v.visFacing ?? v.facing ?? 1) < 0, back: typeof v._wantsBack === 'function' ? !!v._wantsBack() && !!v.entryBack : false, view: v, tilt: this._camTilt() };
   }
 
   /** The battle camera's tilt (degrees from straight down), or undefined (mounts.js SKELETON_TILT). */
@@ -724,7 +725,7 @@ export class FxWiring {
     const stick = !!o.stick;
     if (!o.track && (P.follow || P.keep || stick || !def || def.direction || def.pause || def.onPlay?.length)) {
       let d = def;
-      const at0 = [pose.ux ?? pose.x, pose.uy ?? pose.y, pose.z], kept = new WeakMap(), chained = new Map();
+      const at0 = [pose.ux ?? pose.x, pose.uy ?? pose.y, pose.uz ?? pose.z], kept = new WeakMap(), chained = new Map();
       opts.track = (fx) => {
         if (!v || v.destroyed) return;
         if (!d) {
@@ -767,16 +768,21 @@ export class FxWiring {
           fx.groundZ = -(v.z || 0);
         } else if ((P.keep || Q.keep) && v.alive !== false) {
           // held by the unit: it moves with the unit, its offset from the feet as it started (the client holds such an
-          // effect on its owner: `_holdByOwner`) [ASSUMED]
-          // (fork) The unit's own place, not its drawn body's: a graphic follow offsets only the unit's graphic holder (GameAssembly.dll GraphicFollowController.Tick RVA 0xAF6340 →
-          // Unit.RefreshGraphicHolderPosForFollow), so 予愿安洁莉娜 S2's ground wave (aglna2_skill_02_fly_range_01,
-          // `_holdByOwner` 1) stays on her tile and sweeps on at its own pace while she flies ahead (user, 2026-11-15)
+          // effect on its owner: `_holdByOwner`) [src: GameAssembly.dll Entity.HoldEffect RVA 0x726120: the effect's
+          // transform SetParent(Transform p) — world position kept, so its starting offset — to the entity's vtable slot
+          // 79 get_effectTransform (Unit._effectTransform, its prefab's `Effects` node: a child of the unit root beside
+          // `Graphic`; CN charpack char_1015_aglna2 Character._effectTransform)]
+          // (fork) So it follows the unit's own place and height, not its drawn body's: a graphic follow offsets only the
+          // graphic holder (GraphicFollowController.Tick RVA 0xAF6340 → Unit.RefreshGraphicHolderPosForFollow), and so
+          // does a take-off lift (Unit.SetGraphicHolderHeightOffset RVA 0xB1C110 → DoSetGraphicHolderHeight). 予愿安洁莉娜
+          // S2's ground wave (aglna2_skill_02_fly_range_01, `_holdByOwner` 1) stays on her tile and sweeps on at its own
+          // pace while she flies ahead (user, 2026-11-15)
           let at = kept.get(fx);
           if (!at) kept.set(fx, at = at0.slice());
-          const px = p.ux ?? p.x, py = p.uy ?? p.y;
+          const px = p.ux ?? p.x, py = p.uy ?? p.y, pz = p.uz ?? p.z;
           fx.anchor[0] += px - at[0]; fx.anchor[1] += py - at[1];
-          fx.anchor[2] = P.onGround ? -(v.z || 0) : fx.anchor[2] - (p.z - at[2]);
-          at[0] = px; at[1] = py; at[2] = p.z;
+          fx.anchor[2] = P.onGround ? -(v.z || 0) : fx.anchor[2] - (pz - at[2]);
+          at[0] = px; at[1] = py; at[2] = pz;
           fx.groundZ = -(v.z || 0);
         }
         if (d && d.direction) {

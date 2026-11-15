@@ -3288,6 +3288,13 @@ export class UnitView {
     }
   }
 
+  /**
+   * (fork) The part of `hover` that is an operator's take-off lift (the `takeoff` path above: not a flyer, not an
+   * enemy). The client raises only the graphic holder for it (Unit.SetGraphicHolderHeightOffset RVA 0xB1C110 →
+   * DoSetGraphicHolderHeight), so an effect held on the unit (wiring.js pose `uz`) stays at the unit's own height.
+   */
+  get liftZ() { return this.takeoff && !this.flying && !this.isEnemy ? this.hover || 0 : 0; }
+
   setHover(on) { this.hovered = !!on; }
 
   /** (fork) A kit's landing start (fx `land`: 予愿安洁莉娜's 'aglna2Landing'): down to 0 over its TAKEOFF `down` time while

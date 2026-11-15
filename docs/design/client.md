@@ -288,8 +288,12 @@ history and the open points: DESIGN §32.14.25.
   official effects' clock (`ctx.battleTime`: `app.js` fxClock, the sum of the effects' steps), so the body keeps to the
   sweep's trail at any speed; a view without that clock steps by frame time × `animRate`. Only the body and the points
   on it move (`pose` `x` / `y`; a FollowMountPoint effect such as the trail on her weapon rides along): an effect its
-  owner holds (`_holdByOwner`, playOn `keep`) follows the unit's own place (`pose` `ux` / `uy`), so the ground wave
-  aglna2_skill_02_fly_range_01 stays on her tile and sweeps at its own pace while she flies ahead (round 3). Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
+  owner holds (`_holdByOwner`, playOn `keep`) follows the unit's own place (`pose` `ux` / `uy` / `uz`), so the ground wave
+  aglna2_skill_02_fly_range_01 stays on her tile and sweeps at its own pace while she flies ahead (round 3). The client
+  parents a held effect, keeping its world position, to the unit's `Effects` node, a child of the unit root beside
+  `Graphic` (`Entity.HoldEffect` RVA 0x726120 → `get_effectTransform`; her charpack's `Character._effectTransform`),
+  and a graphic follow or a take-off lift (`Unit.SetGraphicHolderHeightOffset` RVA 0xB1C110) moves only the graphic
+  holder: so `uz` leaves out an operator's take-off lift (`UnitView.liftZ`), a flyer's height stays in. Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
   idle and skill idle), the flight's end `form: null`. S2's chant (2026-11-14 round 2) runs on forms too: the cast's
   'takeoff' `form: 'chant'` (Skill_2_Takeoff_Begin, then its loop), 'aglna2Chant' `chantEnd` (Skill_2_Takeoff_End, its
   form `hold`: the actor keeps the clip's faded-out last frame, `spine.js _change(clip, hold)`, never drawing

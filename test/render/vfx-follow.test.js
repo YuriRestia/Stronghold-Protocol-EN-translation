@@ -136,6 +136,18 @@ describe('a graphic follow moves the body, not the unit (予愿安洁莉娜 S2)'
     walk(ofx, v, -1);
     nearV(flash.anchor, [f0[0] - 1, f0[1], f0[2]], 1e-9, 'the unit itself moving still carries it');
   });
+
+  test('a take-off lift raises the body, not a held effect; the unit\'s own height still carries it', async () => {
+    // Unit.SetGraphicHolderHeightOffset (RVA 0xB1C110) moves only the graphic holder; Entity.HoldEffect (RVA 0x726120)
+    // parents a held effect to the unit's `Effects` node beside it
+    const { ofx, w, v } = await setup();
+    const flash = w.playOn('cast_flash', v).effect;
+    const f0 = flash.anchor.slice();
+    for (let i = 1; i <= 4; i++) { v.hover = v.liftZ = 0.2 * i; ofx.update(1 / 30); }
+    nearV(flash.anchor, f0, 1e-9, 'the lift leaves it where it was (before: it rose 0.8 with her)');
+    v.hover = 0.3; v.liftZ = 0; ofx.update(1 / 30);
+    nearV(flash.anchor, [f0[0], f0[1], f0[2] - 0.3], 1e-9, 'a height that is not a lift (a flyer\'s) carries it (z down)');
+  });
 });
 
 describe('a projectile\'s body at the hit (R5)', () => {
