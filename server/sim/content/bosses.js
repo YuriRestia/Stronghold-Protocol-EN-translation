@@ -15,7 +15,7 @@
 //   · patrol: a leader / part walking `patrol` steps loops them (never reaches the goal: 卢西恩 lpr 30, 铳, 碎铳之簧).
 //   · 'boss_battle_multi_player' (铳, 卢西恩): with ≥2 players on the field the mirrored copy is spawned from the branch
 //     (skipped if the match already spawned a second copy, or opts.bossMirror === false); a copy timed before the
-//     leader comes at its own time from the battle's start (branchAtStart: the h08_02 铳 at 0.1 s, §37.108).
+//     leader comes at its own time from the battle's start (branchAtStart: the h08_02 铳 at 0.1 s, §37.109).
 //
 // Leaders (see each kit for details):
 //   boss_1/8 假想敌：胄      random arts beam (range 8); 灭顶之灾 one 刺胄之弹 at the highest-ATK operator in range (8-hit
@@ -38,7 +38,7 @@
 //                            bouncing erosion shot) / 5-hit count shield (every (spCost+1)-th attack a ten-hit combo); always
 //                            unblockable (PRTS 能力修正: also without the shield); shield back 25 s after breaking. It passes
 //                            on as 无来源 HP loss to the highest-hatred 铳 only (PART_TRANSFER; never the other springs,
-//                            §37.108): the
+//                            §37.109): the
 //                            arts variant every applied modifier — damage, heals, element (actrpa_passive ON_APPLIED_MODIFIER)
 //                            —, the others the damage they take at their injury stage (§35.34).
 //   boss_3/10 假想敌：管     summons 余音 (dark) every 40 s (20 s < 50 %); normal attacks strike dark 余音 (their pulse hurts
@@ -365,7 +365,7 @@ function mirrorOff(b) {
 // official GameAssembly.dll + Il2CppDumper dump.cs / stringliteral.json). So a branch copy timed before the leader's own
 // spawn comes at its own time: h08_02's second 铳 at 0.1 s on extraRoutes[2] while the leader waits its 10 s preDelay
 // (official level_act1autochess_h08_02.json). Entries at or after the leader's time stay with mirror() below (h07_02,
-// act2autochess_h07_05: both at 0). Until §37.108 the h08_02 copy came with the leader at 10 s, so both guns ran
+// act2autochess_h07_05: both at 0). Until §37.109 the h08_02 copy came with the leader at 10 s, so both guns ran
 // the same 【末日布道】 timers and the right one always called last: the springs only ever chased to the right half.
 function branchAtStart(b) {
   if (mirrorOff(b)) return;
@@ -754,7 +754,7 @@ function kitGun(ab, e, b) {
     // buff_template_holder.ab achunt_passive ON_BUFF_TRIGGER]. Each mark puts a derived achunt_summonee on the gun, and
     // achunt_take_damage (Talents/4) scales the damage it takes by 4.damage_scale while it holds one [src:
     // buff_template_holder.ab achunt_mark_by_boss, achunt_take_damage]. So a unit that comes later is never marked: on the
-    // pair field the 0.1 s gun marks the springs only, the 10 s leader the springs and that gun (§37.108). Until §37.108
+    // pair field the 0.1 s gun marks the springs only, the 10 s leader the springs and that gun (§37.109). Until §37.109
     // any other gun or spring on the field counted, whenever it came. Refresh on hit as well so a hit right after the
     // last marked unit dies sees the current condition, not a stale polling result.
     let marked = null;
@@ -851,7 +851,7 @@ function kitSpring(ab, e) {
     // PURE hp_lose, no source) to the targets of the spring's BossSelector, which keeps 1 unit (_limitTargetNum 1,
     // _maxNum 1) holding the buff achunt_mark with the key enemy_9017_achunt (EnemyKeyExcludeMode 0 = include) —
     // the guns alone carry achunt_mark (official .cache/ab-cn/config/buff_template_holder.ab, enm_pfb_28.ab). Until
-    // §37.108 the other springs took an equal split as well.
+    // §37.109 the other springs took an equal split as well.
     if (g) b.dealHPLose({ source: null, credit, target: g, amount: c.amount * PART_TRANSFER, origin: c.dmg });
   };
   const sk = ab.sk['1'];

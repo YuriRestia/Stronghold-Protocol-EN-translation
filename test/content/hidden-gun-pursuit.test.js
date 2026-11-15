@@ -3,7 +3,7 @@
 // 假想敌：铳移动" (no arrival clause). Until 0.2.1 reaching the gun (or 1 tile from it) ended the chase. Each gun casts on its
 // own data timer (initCooldown 20, cooldown 45 — no lock while a chase runs: the data has none, and the handbook's
 // 「向自身」 means the later call takes the springs). The pair's stagger is the spawn times: the branch gun at 0.1 s,
-// the leader at 10 s (official level_act1autochess_h08_02.json; §37.108 — until then both came at 10 s).
+// the leader at 10 s (official level_act1autochess_h08_02.json; §37.109 — until then both came at 10 s).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';

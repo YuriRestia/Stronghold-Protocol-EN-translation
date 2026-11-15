@@ -234,11 +234,11 @@ keeps following the casting gun after reaching it (PR #347; until 0.2.1 arrival 
 gun casts on its own data timer (20 s after it spawns, then every 45 s), so on a pair field the later call retargets
 every spring to that gun for a new 5 s (PRTS: 「持续召唤场上所有“碎铳之簧”向自身移动」). The pair's guns take turns: the
 `boss_battle_multi_player` 铳 starts with the battle (0.1 s, right half) and the leader after its 10 s preDelay (left
-half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.108). A spring's damage
+half) [src: official level_act1autochess_h08_02.json], `content/bosses.js branchAtStart` (§37.109). A spring's damage
 goes to that one gun only, never to the other springs [src: official buff_template_holder actrpa_passive]. A gun's
 damage ×`4.damage_scale` (未尽的告解) holds while a unit it marked lives: 0.03 s after it appears it marks every other gun
 and spring then on the field, once [src: official enm_pfb_28.ab enemy_9017_achunt CommonAbilities/Ability0
-achunt_passive], so the 0.1 s gun of a pair marks the springs only and the leader the springs and that gun (§37.108).
+achunt_passive], so the 0.1 s gun of a pair marks the springs only and the leader the springs and that gun (§37.109).
 
 WALK legs pathfind on the stage grid inside the rect with the official flow field (grid.js: 4-direction SPFA from the
 destination, crates cost 1000, then Bresenham line-of-sight smoothing — research 08 §3.4). The official route stays

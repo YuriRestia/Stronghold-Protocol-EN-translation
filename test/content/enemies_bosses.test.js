@@ -3149,7 +3149,7 @@ test('假想敌：铳 (h07_02 override) never uses 最终之罚 in the regular b
 });
 
 // Official: achunt_passive marks, once and 0.03 s after the gun appears, every other achunt_mark unit then on the field;
-// achunt_take_damage scales the gun's damage taken while one of them lives (bosses.js kitGun, §37.108).
+// achunt_take_damage scales the gun's damage taken while one of them lives (bosses.js kitGun, §37.109).
 test('隐秘核心 铳: a gun marks the guns and springs present 0.03 s after it appears; ×0.2 while one of them lives, none for later arrivals', () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
   h.step();
@@ -3390,7 +3390,7 @@ test('spring transfer selects the highest-hatred gun across the field rather tha
 });
 
 // Official: the spring passives' BossSelector keeps 1 unit carrying achunt_mark with the key enemy_9017_achunt — a gun,
-// never another spring (buff_template_holder actrpa_passive / actrpb_passive; bosses.js kitSpring transfer, §37.108).
+// never another spring (buff_template_holder actrpa_passive / actrpb_passive; bosses.js kitSpring transfer, §37.109).
 for (const key of ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc']) {
   test(`${key}: the HP loss goes to the gun only, the other springs keep their HP`, () => {
     const { h, b, source, gun, spring } = springShareArena(key, { spendCount: true });
@@ -3534,7 +3534,7 @@ for (const priority of [1000, -1000]) test(`spring elemental defence follows a b
 
 test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源), never the other springs', () => {
   // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half);
-  // official actrpa_passive / actrpb_passive select 1 achunt_mark unit of key enemy_9017_achunt (§37.108: no split)
+  // official actrpa_passive / actrpb_passive select 1 achunt_mark unit of key enemy_9017_achunt (§37.109: no split)
   assert.equal(PART_TRANSFER, 1);
   const h = bossArena({ units: [{ chessId: 't_gun', row: 12, col: 3 }], kits: { t_gun: NOATK } });
   h.step();
