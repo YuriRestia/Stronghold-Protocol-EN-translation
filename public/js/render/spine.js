@@ -1332,6 +1332,8 @@ export class SpineActor {
         const a = mode.down && this.has(this.roles.attackDown?.loop) ? this.roles.attackDown : this.roles.attack;
         if (this.has(a?.loop)) return a;
       } else if (this.has(mode?.animKey)) {
+        // (fork) the mode's own down clip, facing down (a verified `downKey`: 野鬃 S2's Skill_2_Down, §37.107)
+        if (mode.down && mode.downKey && this.has(mode.downKey)) return { begin: null, loop: mode.downKey, end: null };
         if (mode.animKey === sk?.loop) return sk; // keep a skill's own idle / End ownership
         return { begin: null, loop: mode.animKey, end: null };
       }
@@ -1372,6 +1374,7 @@ export class SpineActor {
   _skillOnceClip() {
     const sk = this.roles.skill;
     if (!sk || this.has(sk.begin) || this.has(sk.idle) || !this.has(sk.loop) || sk.via === 'attack') return null;
+    if (this._skillIsModeAttack()) return null;
     if (sk.loop === this.roles.attack?.loop || this._skillIsBuffOnly() || !this.entry?.hits?.[sk.loop]?.length) return null;
     return sk.loop;
   }
@@ -1396,6 +1399,16 @@ export class SpineActor {
   _skillIsBuffOnly() {
     const sk = this.roles.skill;
     return !!sk && sk.loop === this.roles.idle;
+  }
+
+  /**
+   * (fork) The skill clip is its switched mode's attack, not a cast (a verified `modeAttack` mapping, render/skillAttack.js:
+   * 野鬃 S2's Skill_2, §37.107): the skill's start plays no clip of its own, its attacks play it.
+   */
+  _skillIsModeAttack() {
+    const sk = this.roles.skill;
+    const mode = sk ? this.skillAttackMode?.() : null;
+    return !!mode?.modeAttack && mode.animKey === sk.loop;
   }
 
   /**
@@ -1454,7 +1467,8 @@ export class SpineActor {
         // then the skill's own idle until an attack plays its loop (community report #23); without one, the loop
         const next = this._skillIdle() || (this.has(sk.loop) ? this._shot(sk.loop) : null);
         if (next) this._queue(next, true);
-      } else if (!this.has(sk.idle) && this.has(sk.loop) && sk.via !== 'attack' && sk.loop !== this.roles.attack?.loop && !this._skillIsBuffOnly()) {
+      } else if (!this.has(sk.idle) && this.has(sk.loop) && sk.via !== 'attack' && sk.loop !== this.roles.attack?.loop && !this._skillIsBuffOnly()
+        && !this._skillIsModeAttack()) {
         // No Begin and no own Idle: the skill's clip IS its animation (德克萨斯 剑雨 — anims.skill {begin:null,
         // loop:'Skill', end:null}, the 2.17 s clip; 58 instant skills in all). Play it once for its own length. An
         // instant skill turns the flag off inside the same tick (sim skills.js fires 'skill' 1 and 0 together and only
