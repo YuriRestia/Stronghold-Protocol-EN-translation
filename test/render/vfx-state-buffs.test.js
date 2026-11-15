@@ -5,7 +5,7 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { skillPlan, stateEntries, STATE_BUFFS, UNMAPPED, SIGNALS } from '../../public/js/render/vfx/skills.js';
+import { skillPlan, stateEntries, STATE_BUFFS, UNMAPPED, SIGNALS, targetBound, FX_BINDINGS } from '../../public/js/render/vfx/skills.js';
 import { SkillFx } from '../../public/js/render/vfx/skillfx.js';
 
 const LUMEN = 'lumen_s_2[eff_cond]';
@@ -140,5 +140,57 @@ describe('marks on targets (effect gaps audit 2, item 5): `on: \'targets\'` rows
     assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop, !!h.stopped]), [['mark_loop', 9, true, true], ['wake_end', 9, false, false]]);
     s._states([op, foe]);
     assert.equal(played.length, 2, 'once');
+  });
+});
+
+// (fork) 刺玫 S2 (user report 2026-11-15): the uses of index.json skills.skchr_vendla_2 as the extractor writes them. The
+// [self] template's CreateBuffUseAbilitySelector gives the MaxHpSelector pick vendla_s_2 (overrideEffectKey
+// vendla_skill_02_buff_01); vendla_s_2[extra_damage] creates vendla_skill_02_hit_01 on the attacker
+// (config/buff_template_holder.ab). Before: the loop sat in plan.loop on 刺玫 and the hit in plan.trigger on her damage.
+describe('Vendela S2: the protégé glow is a state row, the counter hit a binding on the attacker', () => {
+  const V = 'vendla_s_2[self]';
+  const plan = (() => {
+    const prefabs = {
+      vendla_skill_02_buff_01: { file: 'prefabs/vendla_skill_02_buff_01.json', looping: true, spawn: 1 },
+      vendla_skill_02_hit_01: { file: 'prefabs/vendla_skill_02_hit_01.json', looping: false, duration: 3, spawn: 2 },
+      vendla_skill_02_start_01: { file: 'prefabs/vendla_skill_02_start_01.json', looping: true, spawn: 8, follow: 5 },
+    };
+    const uses = [
+      { role: 'loop', keys: ['vendla_skill_02_buff_01'], from: `BuffToOwner._buffs → template ${V}`, event: 'ON_BUFF_START', action: 'CreateBuffUseAbilitySelector', on: 'owner', buff: V, made: { type: 'LIMITED', key: 'duration', buff: 'vendla_s_2' }, node: 'MaxHpMark', life: { type: 'LIMITED', key: 'duration' } },
+      { role: 'trigger', keys: ['vendla_skill_02_hit_01'], from: `BuffToOwner._buffs → template ${V} → template vendla_s_2 → template vendla_s_2[extra_damage]`, event: 'ON_TAKE_DAMAGE', action: 'CreateEffect', on: 'owner', buff: V, node: 'MaxHpMark', life: { type: 'LIMITED', key: 'duration' } },
+      { role: 'loop', keys: ['vendla_skill_02_start_01'], from: 'UberEffectEmitter._castEffects', node: 'MaxHpMark', ability: 'AnimatedActionToTargetAbility', startEvent: 'ON_CAST_START', endEvent: 'ON_CAST_END', oneshot: false, list: 'cast' },
+    ];
+    const idx = { units: { char_494_vendla: { modes: [{ name: 'Default', attack: { class: 'RangedAttack' } }], skills: { skchr_vendla_2: { rootClass: 'CastSkill', rootAbility: 'AbilitySequenceGroup', uses,
+      abilities: [{ node: 'skchr_vendla_2', class: 'AbilitySequenceGroup', select: { method: 'sequence' } }, { node: 'MaxHpMark', class: 'AnimatedActionToTargetAbility', animKey: 'Skill', attackType: 1 }] } } } },
+    skills: {}, projectiles: {}, prefabs };
+    return skillPlan(idx, 'char_494_vendla', 'skchr_vendla_2', { rec: { skillType: 'MANUAL', durationType: 'NONE', duration: 15 } });
+  })();
+  test('vendla_skill_02_buff_01 is held on the carrier b.snap fxs names, not looped on 刺玫', () => {
+    assert.deepEqual(plan.state.map((e) => [e.key, e.buff, e.at, e.hold]), [['vendla_skill_02_buff_01', V, 'carrier', 'state']]);
+    assert.ok(!plan.loop.some((e) => e.key === 'vendla_skill_02_buff_01'), 'no owner loop');
+    assert.deepEqual(stateEntries(plan.state, V, null).map((e) => e.key), ['vendla_skill_02_buff_01']);
+  });
+  test('vendla_skill_02_hit_01 is no trigger on her own damage (bound to the kit\'s counter, on its target)', () => {
+    assert.ok(!plan.trigger.some((e) => e.key === 'vendla_skill_02_hit_01'));
+    assert.ok(targetBound('skchr_vendla_2').has('vendla_skill_02_hit_01'));
+    assert.deepEqual({ ...FX_BINDINGS.skchr_vendla_2.counter }, { owner: 'id', keys: ['vendla_skill_02_hit_01'], at: 'target' });
+  });
+  test('her cast loop stays on her (ON_CAST_START → ON_CAST_END)', () => {
+    assert.ok([...plan.start, ...plan.loop].some((e) => e.key === 'vendla_skill_02_start_01' && e.at === 'owner'));
+  });
+  test('SkillFx._states loops it on the ally the row names, from 刺玫\'s plan, until the row goes', () => {
+    const played = [];
+    const views = new Map();
+    const w = { ofx: { time: 0, tier: 1, lib: new Set() }, view: (id) => views.get(id) || null, _dirIndex: () => 1,
+      playOn: (k, v, o) => { const h = { k, id: v.id, o, alive: true, stop() { this.alive = false; h.stopped = true; } }; played.push(h); return h; } };
+    const s = new SkillFx(w);
+    s.of = (v) => (v.id === 1 ? { plan } : null);
+    const her = { id: 1, alive: true }, tank = { id: 2, alive: true, fxs: [[V, 1, null]] };
+    views.set(1, her); views.set(2, tank);
+    s._states([her, tank]);
+    assert.deepEqual(played.map((h) => [h.k, h.id, h.o.loop]), [['vendla_skill_02_buff_01', 2, true]]);
+    tank.fxs = null;
+    s._states([her, tank]);
+    assert.ok(played[0].stopped, 'stops with the row');
   });
 });

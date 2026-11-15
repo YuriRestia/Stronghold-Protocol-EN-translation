@@ -140,6 +140,8 @@
   position: relative; display: block; box-sizing: border-box; width: max-content; max-width: 3.2rem; padding: .08rem .13rem;
   background: rgba(8, 11, 10, .92); border: 1px solid var(--line-2); border-radius: .08rem; color: var(--text-hi, #f2f2f2);
   font-size: max(.2rem, 12px); line-height: 1.3; white-space: normal; overflow-wrap: anywhere; transform-origin: .09rem 47%;
+  /* (fork) CJK breaks: no line opens on a closing mark, small kana or ー; no last line of a single word where it can be helped */
+  line-break: strict; text-wrap: pretty;
   animation: emo-bubble-pop 240ms var(--ease-out) calc(0ms - var(--ebubble-age)) both,
     emo-bubble-out 300ms var(--ease-in-out) calc(var(--ebubble-ttl) - 300ms - var(--ebubble-age)) forwards;
   pointer-events: none; z-index: 3;
