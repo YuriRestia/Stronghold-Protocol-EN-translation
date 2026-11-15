@@ -5,6 +5,7 @@
 - During S2's take-off her body now glides forward with the sweep, along her facing, holds there while the take-off ends and returns to her tile as the skill begins, as in the official game. Her tile, blocking and range do not move.
 - Before: she stayed on her tile while only the sweep's trail went forward.
 - She now keeps pace with the glowing wave at any battle speed, and her landing sparkles play when she drops back onto her tile, not when she takes off.
+- The orange ground wave now stays at her tile and sweeps at its own pace while she flies out ahead of it, and she no longer flashes back onto her tile for a moment before she drops in.
 - Her S3 flight is unchanged: as in the official game, she only flies toward an unblocked flying enemy in her range while she blocks no one.
 
 Kind: player

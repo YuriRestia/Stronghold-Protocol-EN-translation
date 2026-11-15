@@ -540,7 +540,9 @@ export const FORMS = Object.freeze({
       skill: Object.freeze({ begin: 'Skill_3_Begin', loop: 'Skill_3_Loop', end: 'Skill_3_End', idle: 'Skill_3_Move' }) } }),
     chant: Object.freeze({ change: 'Skill_2_Takeoff_Begin', roles: { idle: 'Skill_2_Takeoff_Loop',
       skill: Object.freeze({ begin: null, loop: 'Skill_2_Takeoff_Loop', end: null, idle: 'Skill_2_Takeoff_Loop' }) } }),
-    chantEnd: Object.freeze({ change: 'Skill_2_Takeoff_End', roles: { idle: 'Skill_2_Idle',
+    // `hold`: Skill_2_Takeoff_End fades her out (its slot colours reach 0.04 by 0.33 s) and holds there until `rise`, as
+    // the chant goes from it straight to Skill_2_Begin (which fades her in from black) — no Skill_2_Idle frame between
+    chantEnd: Object.freeze({ change: 'Skill_2_Takeoff_End', hold: true, roles: { idle: 'Skill_2_Idle',
       skill: Object.freeze({ begin: null, loop: 'Skill_2_Idle', end: null, idle: 'Skill_2_Idle' }) } }),
     rise: Object.freeze({ change: 'Skill_2_Begin', roles: {} }),
   }),
@@ -1345,7 +1347,7 @@ export class UnitView {
     // an fx handed out late (render/app.js: a stall, a hidden tab) skips a change clip that would already have ended
     const late = fx && Number(fx.late) > 0 ? Number(fx.late) : 0;
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
-    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null);
+    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
   }
 
