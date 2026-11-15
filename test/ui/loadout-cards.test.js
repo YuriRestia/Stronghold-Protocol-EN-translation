@@ -2,7 +2,8 @@
 // fork's 2026-11-08 change — the list view is gone): 「详情」's switch (DetailsToggleView) and its stored choice, one operator
 // card (an OperatorImage portrait — the owner's outfit, B6 —, its own skill / module column, 潜能 as pips through
 // cultivationView, the 已调整 mark, the 替补 ribbon), the 「详情」 panel beside it (the Detail's own blocks), 快速配置's
-// removal, the tier marker (the official shopLevelSprite tag, the CSS marker without it), the bottom bar's tier jumps and
+// removal, the tier marker (the official shopLevelSprite tag, the CSS marker without it), (fork) the 自选编队 slots'
+// 「自选」 group first and its marker, the bottom bar's 「自选」 and tier jumps and
 // lock chip and the 「详情」 switch at its right, and the css rules of the view (text follows 文字大小, no !important, the 转场 only in
 // the card view, no invented slogan). Hook-free views drawn as vnode trees. (The browser side:
 // test/ui/loadout-cards.e2e.test.js.)
@@ -20,10 +21,11 @@ globalThis.fetch = async (url) => {
 };
 const mem = new Map();
 globalThis.localStorage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
-const { DeckCard, TierMark, DeckBar, loadoutDetailsPref, deckAnchor, detailsStore } = await import('../../public/js/screens/loadout.js');
+const { DeckCard, TierMark, DeckBar, deckGroups, CustomMark, CustomTierMark, CUSTOM_GROUP, loadoutDetailsPref, deckAnchor, detailsStore } = await import('../../public/js/screens/loadout.js');
 const { DetailsToggleView } = await import('../../public/js/screens/loadoutDeck.js');
 const { chessOptions } = await import('../../public/js/ui/loadoutModel.js');
 const { data } = await import('../../public/js/data.js');
+const { TierChip } = await import('../../public/js/ui/components.js');
 const { OperatorImage, Img, PromotionIcon } = await import('../../public/js/ui/gameComponents.js');
 const { OpCard } = await import('../../public/js/screens/settle.js');
 await data.loadAll('chess', 'garrisons', 'assets', 'bonds', 'effects', 'backups');
@@ -84,11 +86,11 @@ test('「简洁 / 展开」: both choices in view, the current one checked, the 
 test('the bottom bar carries 「简洁 / 展开」 at its right (`tools`), the top bar none', () => {
   const counts = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
   const tool = { type: 'div', props: { class: 'lo-dswitch' } };
-  const bar = DeckBar({ counts, active: 1, onJump() {}, diyOpen: {}, tools: tool });
+  const bar = DeckBar({ counts, active: 1, onJump() {}, diyOpen: 0, tools: tool });
   const box = byClass(bar, 'lo-bbar__tools');
   assert.equal(box.length, 1);
   assert.ok(find(box[0], (v) => v === tool).length, 'the switch inside it');
-  assert.equal(byClass(DeckBar({ counts, active: 1, onJump() {}, diyOpen: {} }), 'lo-bbar__tools').length, 0);
+  assert.equal(byClass(DeckBar({ counts, active: 1, onJump() {}, diyOpen: 0 }), 'lo-bbar__tools').length, 0);
 });
 
 test('a card: tier, both levels, its skill / module column, 潜能 (the game’s badge), name; a press anywhere else picks it', () => {
@@ -342,20 +344,62 @@ test('快速配置 is gone: no button, no 确认配置, no quick columns; 潜能
   assert.ok(!/DeckHelp|loadout-help|DECK_HELP/.test(src), 'no card view guide (the user\'s call of 2026-11-08)');
 });
 
-test('the bottom bar: a tier with nothing is disabled, a jump names its tier, open 自选 slots badge 5 / 6, no 确认配置', () => {
+test('the bottom bar: 「自选」 first, a tier with nothing is disabled, a jump names its group, the open 自选 slots badge 「自选」, no 确认配置', () => {
   const jumps = [];
-  const counts = { 1: 20, 2: 20, 3: 20, 4: 0, 5: 20, 6: 16 };
-  const bar = DeckBar({ counts, active: 2, onJump: (t) => jumps.push(t), diyOpen: { 5: 2, 6: 0 } });
-  const tiers = byClass(bar, 'lo-bbar__tier');
-  assert.deepEqual(tiers.map((b) => b.props['data-tier']), [1, 2, 3, 4, 5, 6]);
-  assert.deepEqual(tiers.map((b) => !!b.props.disabled), [false, false, false, true, false, false]);
-  assert.ok(hasClass(tiers[1], 'is-on'));
-  tiers[4].props.onClick();
-  assert.deepEqual(jumps, [5]);
+  const counts = { custom: 4, 1: 20, 2: 20, 3: 20, 4: 0, 5: 18, 6: 14 };
+  const bar = DeckBar({ counts, active: 2, onJump: (t) => jumps.push(t), diyOpen: 3 });
+  const btns = byClass(bar, 'lo-bbar__tier');
+  assert.deepEqual(btns.map((b) => b.props['data-group']), [CUSTOM_GROUP, '1', '2', '3', '4', '5', '6'], 'the user\'s call of 2026-11-15: Custom left of Tier 1');
+  assert.deepEqual(btns.map((b) => b.props['data-tier'] ?? null), [null, 1, 2, 3, 4, 5, 6]);
+  assert.deepEqual(btns.map((b) => !!b.props.disabled), [false, false, false, false, true, false, false]);
+  assert.ok(hasClass(btns[2], 'is-on'));
+  assert.ok(hasClass(btns[0], 'lo-bbar__tier--custom'));
+  assert.equal(btns[0].props.title, '自选编队');
+  assert.ok(textOf(btns[0]).includes('自选'), 'its name 「自选」 ("Custom")');
+  assert.equal(byClass(btns[0], 'lo-bbar__glyph').length, 1, 'a glyph in the numeral\'s box (narrow screens keep it)');
+  btns[5].props.onClick();
+  btns[0].props.onClick();
+  assert.deepEqual(jumps, [5, CUSTOM_GROUP]);
   const diy = byClass(bar, 'lo-bbar__diy');
-  assert.equal(diy.length, 1, 'only tier 5 has open slots');
-  assert.equal(textOf(diy[0]).trim(), '2');
+  assert.equal(diy.length, 1, 'the open slots: on 「自选」 only');
+  assert.ok(byClass(btns[0], 'lo-bbar__diy').length === 1);
+  assert.equal(textOf(diy[0]).trim(), '3');
+  assert.equal(byClass(DeckBar({ counts, active: 1, onJump() {}, diyOpen: 0 }), 'lo-bbar__diy').length, 0, 'every slot filled: no badge');
+  assert.ok(byClass(DeckBar({ counts: { ...counts, custom: 0 }, active: 1, onJump() {}, diyOpen: 4 }), 'lo-bbar__tier')[0].props.disabled, 'filtering: 「自选」 disabled');
   assert.equal(byClass(bar, 'lo-confirm').length, 0);
+});
+
+test('the deck\'s groups: the 自选编队 slots first (tier 5\'s, then 6\'s), then the tiers with operators; none while filtering', () => {
+  const list = [{ tier: 2, id: 'a' }, { tier: 1, id: 'b' }, { tier: 6, id: 'c' }, { tier: 1, id: 'd' }];
+  const slots = [{ slotId: 's6a', tier: 6 }, { slotId: 's5a', tier: 5 }, { slotId: 's6b', tier: 6 }, { slotId: 's5b', tier: 5 }];
+  const groups = deckGroups(list, slots, false);
+  assert.deepEqual(groups.map((g) => g.key), [CUSTOM_GROUP, '1', '2', '6'], 'Custom left of tier 1; a tier with no operators has no group (its slots no longer keep it)');
+  assert.deepEqual(groups[0].slots.map((s) => s.slotId), ['s5a', 's5b', 's6a', 's6b'], 'tier 5 then tier 6, each in its own order: one column each in the two-row grid');
+  assert.equal(groups[0].tier, null);
+  assert.deepEqual(groups[0].tiers.map((t) => [t.tier, t.slots.map((s) => s.slotId)]), [[5, ['s5a', 's5b']], [6, ['s6a', 's6b']]],
+    'split by tier: each pair behind its own tier label, a divider between (the user\'s call of 2026-11-15)');
+  assert.deepEqual(groups[1].items.map((c) => c.id), ['b', 'd']);
+  assert.deepEqual(deckGroups(list, slots, true).map((g) => g.key), ['1', '2', '6'], 'filtering: no 自选 group');
+  assert.deepEqual(deckGroups(list, [], false).map((g) => g.key), ['1', '2', '6'], 'no slots (data missing): no 自选 group');
+  assert.deepEqual(deckGroups([], slots, false).map((g) => g.key), [CUSTOM_GROUP]);
+  assert.deepEqual(slots.map((s) => s.slotId), ['s6a', 's5a', 's6b', 's5b'], 'the caller\'s list is not sorted in place');
+});
+
+test('the 「自选」 marker: the CSS marker\'s frame (no official sprite), the glyph and 「自选」, its count', () => {
+  const mk = draw(CustomMark({ count: 4 }));
+  assert.ok(hasClass(mk, 'lo-tmark') && hasClass(mk, 'lo-tmark--custom'));
+  assert.equal(mk.props['aria-hidden'], 'true');
+  assert.equal(byClass(mk, 'lo-tmark__css').length, 1);
+  assert.equal(textOf(byClass(mk, 'lo-tmark__label')[0]), '自选');
+  assert.equal(textOf(byClass(mk, 'lo-tmark__cnt')[0]), '4');
+});
+
+test('a 自选 pair\'s tier strip: the tier\'s chip and 「N阶」 in the tier\'s colour', () => {
+  const strip = CustomTierMark({ tier: 6 });
+  assert.ok(hasClass(strip, 'lo-csub__mark') && hasClass(strip, 'tier--6'));
+  assert.equal(strip.props['aria-hidden'], 'true', 'each card says its own tier to screen readers');
+  assert.equal(find(strip, (v) => v.type === TierChip)[0].props.tier, 6);
+  assert.equal(textOf(byClass(strip, 'lo-csub__label')[0]), '6阶');
 });
 
 test('the tier marker: the official shopLevelSprite tag of that tier, the CSS marker (NO. and the numeral) without it', () => {
@@ -377,7 +421,7 @@ test('the tier marker: the official shopLevelSprite tag of that tier, the CSS ma
 
 test('the bottom bar says a locked loadout (its full text the title)', () => {
   const counts = { 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1 };
-  const base = { counts, active: 1, onJump() {}, diyOpen: {} };
+  const base = { counts, active: 1, onJump() {}, diyOpen: 0 };
   assert.equal(byClass(DeckBar(base), 'lo-bbar__lock').length, 0, 'not locked: no chip');
   const chip = byClass(DeckBar({ ...base, locked: '本局的调配已锁定' }), 'lo-bbar__lock');
   assert.equal(chip.length, 1);
