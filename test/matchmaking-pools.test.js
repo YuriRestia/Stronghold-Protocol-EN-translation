@@ -139,6 +139,16 @@ describe('planCross: versions every region enables, Grand Alliances where their 
     assert.equal(fill[0].large, true);
     assert.equal(fill[0].target, 'sg', 'where the Grand Alliance is, though the queue is elsewhere');
   });
+
+  test('(2026-11-15) a solo\'s per-version difficulty (`at`) crosses regions: 终极 for every version meets 第二期上半 at 绝境', () => {
+    const vs = [DEFAULT_VERSION, V21];
+    const all = { id: 'x', difficulty: 'ABYSS', wait: 30_000, versions: vs, at: { [V21]: 'HARD', bogus: 'HARD', [DEFAULT_VERSION]: 'nope' } };
+    const mates = [1, 2, 3].map((i) => ({ id: `m${i}`, difficulty: 'HARD', wait: 20_000, versions: [V21] }));
+    const plans = cross({ rooms: [], solos: [all], versions: vs }, { rooms: [], solos: mates, versions: vs });
+    assert.deepEqual(plans.map((p) => [p.version, p.difficulty]), [[V21, 'HARD']]);
+    const noAt = cross({ rooms: [], solos: [{ ...all, at: undefined }], versions: vs }, { rooms: [], solos: mates, versions: vs });
+    assert.deepEqual(noAt, [], 'without `at` the entry waits at 终极 only');
+  });
 });
 
 // ---- the lobby ---------------------------------------------------------------------------------------------------------
@@ -211,7 +221,7 @@ describe('lobby: versions', () => {
     } finally { h.close(); }
   });
 
-  test('queue.join: versions this server lacks are refused, ones without the difficulty dropped', () => {
+  test('queue.join: versions this server lacks are refused', () => {
     const h = harness();
     try {
       const a = h.player('A');
@@ -223,6 +233,70 @@ describe('lobby: versions', () => {
       assert.equal(validateC2S({ t: 'queue.join', difficulty: 'NORMAL', versions: [V1], large: true }), null);
       assert.notEqual(validateC2S({ t: 'queue.join', difficulty: 'NORMAL', versions: [] }), null);
     } finally { h.close(); }
+  });
+
+  // the user's report of 2026-11-15: 单人匹配 with 第二期上半 alone ticked was refused (VERSION_UNSUPPORTED) at 终极, which only
+  // 第二期下半 offers (data/versions/*/config.json has no mode_multi_abyss). The user's rule: each ticked version waits at
+  // its own fallback (room.create's), so 终极 with all ticked is 终极 for 第二期下半 and 绝境 for the others.
+  test('queue.join: every version alone, at every difficulty, queues; one it lacks waits at room.create\'s fallback', () => {
+    for (const v of ALL) {
+      const offered = versionStub().offered(v, 'coop');
+      assert.ok(offered.length, `${v} offers co-op rooms`);
+      for (const d of DIFFICULTIES) {
+        const h = harness();
+        try {
+          const a = h.player('A');
+          ok(h.lobby.queueJoin(a, { difficulty: d, versions: [v] }));
+          const st = h.got(a, 'queue.state').at(-1);
+          const used = h.lobby.fallbackDifficulty(v, 'coop', d);
+          assert.ok(offered.includes(used), `${v} at ${d}: waits at ${used}, which it offers`);
+          assert.equal(st.queued, true, `${v} at ${d}`);
+          assert.equal(st.difficulty, d, 'queue.state keeps the difficulty picked');
+          assert.deepEqual(st.at, used === d ? undefined : { [v]: used }, `${v} at ${d}`);
+          if (v !== DEFAULT_VERSION) assert.deepEqual(st.versions, [v]);
+        } finally { h.close(); }
+      }
+    }
+  });
+
+  test('queue.join at 终极 with every version ticked: 终极 for 第二期下半, 绝境 for each other version', () => {
+    const h = harness();
+    try {
+      const a = h.player('A');
+      ok(h.lobby.queueJoin(a, { difficulty: 'ABYSS', versions: ALL }));
+      const st = h.got(a, 'queue.state').at(-1);
+      assert.equal(st.difficulty, 'ABYSS');
+      assert.deepEqual(st.versions, ALL, 'no version dropped');
+      assert.deepEqual(st.at, Object.fromEntries(ALL.filter((v) => v !== DEFAULT_VERSION).map((v) => [v, 'HARD'])));
+      // a repeat without the older versions keeps the wait and clears their difficulties
+      ok(h.lobby.queueJoin(a, { difficulty: 'ABYSS', versions: [DEFAULT_VERSION] }));
+      assert.equal(h.got(a, 'queue.state').at(-1).at, undefined);
+    } finally { h.close(); }
+  });
+
+  test('a Doctor queued at 终极 for every version fills a 第二期上半 绝境 room and a 第二期下半 终极 room alike', () => {
+    for (const [others, version, difficulty] of [[[V21], V21, 'HARD'], [[DEFAULT_VERSION], DEFAULT_VERSION, 'ABYSS']]) {
+      const h = harness();
+      try {
+        const all = h.player('All');
+        const rest = ['S1', 'S2', 'S3'].map((x) => h.player(x));
+        h.clock.t += 1;
+        ok(h.lobby.queueJoin(all, { difficulty: 'ABYSS', versions: ALL }));
+        for (const s of rest) ok(h.lobby.queueJoin(s, { difficulty, versions: others }));
+        h.lobby.matchmaker.run();
+        const r = roomOf(h, all);
+        assert.ok(r, `${version}: placed`);
+        assert.equal(r.version, version);
+        assert.equal(r.difficulty, difficulty);
+        for (const s of rest) assert.equal(roomOf(h, s), r);
+      } finally { h.close(); }
+    }
+    // planSolos itself: the entry's own difficulty per version (`at`)
+    const e = { ...solo('X', { versions: [DEFAULT_VERSION, V21], difficulty: 'ABYSS' }), at: { [V21]: 'HARD' } };
+    const mates = ['a', 'b', 'c'].map((id) => solo(id, { versions: [V21], difficulty: 'HARD', since: 1 }));
+    const plans = planSolos([], [e, ...mates]);
+    assert.deepEqual(plans.map((p) => [p.version, p.difficulty, p.entries.length]), [[V21, 'HARD', 4]]);
+    assert.deepEqual(planSolos([], [e, ...mates.map((m) => ({ ...m, difficulty: 'ABYSS' }))]), [], '第二期上半 at 终极: not this entry\'s pool');
   });
 
   test('a matchmade version room starts only once every page has loaded it; a page that cannot leaves', () => {
