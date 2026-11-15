@@ -3364,6 +3364,28 @@ test('spring transfer selects the highest-hatred gun across the field rather tha
   assert.deepEqual(b.errors, []);
 });
 
+// Official: the spring passives' BossSelector keeps 1 unit carrying achunt_mark with the key enemy_9017_achunt — a gun,
+// never another spring (buff_template_holder actrpa_passive / actrpb_passive; bosses.js kitSpring transfer, §37.108).
+for (const key of ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc']) {
+  test(`${key}: the HP loss goes to the gun only, the other springs keep their HP`, () => {
+    const { h, b, source, gun, spring } = springShareArena(key, { spendCount: true });
+    const others = ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'].map((k, i) => {
+      const o = put(h, k, [2 + i, 6], { tag: 'part' });
+      o.profile.noAttack = true;
+      return o;
+    });
+    const hp = others.map((o) => o.hp), gunHp = gun.hp;
+    const losses = [];
+    b.on('hpChanged', c => { if (c.kind === 'hpLoss') losses.push(c.target); });
+    assert.equal(b.dealDamage({ source: null, credit: source, target: spring, amount: 100, type: 'true' }), 100);
+    assert.deepEqual(losses, [gun], 'one HP loss, on the gun');
+    assert.equal(gun.stats.taken, 100);
+    assert.deepEqual(others.map((o) => o.hp), hp, 'no share to the other springs');
+    assert.ok(gun.hp <= gunHp);
+    assert.deepEqual(b.errors, []);
+  });
+}
+
 for (const attackType of ['NONE', 'NORMAL', 'SPLASH', 'BUFF', 'ADDITION']) test(`spring arts defence filters physical ${attackType} and uses a source-less counter`, () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 12, col: 3 }] });
   h.step();
@@ -3485,8 +3507,9 @@ for (const priority of [1000, -1000]) test(`spring elemental defence follows a b
   assert.equal(b.errors.length, 0);
 });
 
-test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源) and, split, the other springs (never passed on twice)', () => {
-  // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half)
+test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源), never the other springs', () => {
+  // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half);
+  // official actrpa_passive / actrpb_passive select 1 achunt_mark unit of key enemy_9017_achunt (§37.108: no split)
   assert.equal(PART_TRANSFER, 1);
   const h = bossArena({ units: [{ chessId: 't_gun', row: 12, col: 3 }], kits: { t_gun: NOATK } });
   h.step();
@@ -3501,8 +3524,8 @@ test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, �
   const dealt = h.b.dealDamage(h.unit('t_gun'), a, { amount: 1e5, type: 'true' });
   assert.ok(dealt > 0);
   approx(pool0 - h.b.sharedBoss.hp, dealt);
-  approx(b0 - b.hp, dealt / 2);
-  approx(c0 - c.hp, dealt / 2);
+  assert.equal(b.hp, b0, 'the other springs keep their HP');
+  assert.equal(c.hp, c0);
   assert.ok(seen.length === 1 && seen[0].source === null && seen[0].credit === h.unit('t_gun'), '无来源, credited to the attacker');
   assert.ok(h.result().perPlayer.p1.bossDamage >= dealt - 1e-6, 'the per-player pool tally');
 });
