@@ -2489,7 +2489,10 @@ export async function createFieldView(host, options = {}) {
     },
     stats() {
       return {
-        fps: Math.round(fps * 10) / 10, frameMs: Math.round(frameMs * 100) / 100, cpuMs: Math.round(cpuMs * 100) / 100, renderMs: Math.round(renderMs * 100) / 100, mode, units: views.size, impostor: impInterval, impostorAtlas: { ...impostors.stats }, boardArt: !!tiles.atlas.art,
+        fps: Math.round(fps * 10) / 10, frameMs: Math.round(frameMs * 100) / 100, cpuMs: Math.round(cpuMs * 100) / 100, renderMs: Math.round(renderMs * 100) / 100, mode, units: views.size, impostor: impInterval,
+        // (fork) the units drawn through the impostor atlas right now, by side, and 设置「简化单位动画」 (dev/battle-perf)
+        impostorUnits: (() => { let enemy = 0, ally = 0; for (const v of views.values()) if (v.imp) { if (v.isEnemy) enemy++; else ally++; } return { enemy, ally }; })(),
+        spriteAnim: settings.spriteAnim, impostorAtlas: { ...impostors.stats }, boardArt: !!tiles.atlas.art,
         board3d: board3d ? { on: true, ...board3d.stats(), losses: recover.count } : { on: false, error: board3dError, recovering: !!recover.timer, losses: recover.count },
         pen: penViews.size, penHidden, prepField: prepXf.kind === 'bossPrep' ? prepXf.side : null, lod: loadLevel, culled: culledCount,
         ...fx.counts, officialFx: ofx.stats(), notes: noteLayer.stats(), spine: assets.spine?.stats ? assets.spine.stats() : null, renderT: interp.renderT, rate: interp.rate,

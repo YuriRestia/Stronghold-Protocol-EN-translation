@@ -7,6 +7,8 @@
 //        &fx=off|lite|full|auto (设置「官方特效」, render/vfx: the official battle effects when extracted; default off here
 //        so the figures stay comparable with earlier runs)
 //        &board=2d|3d (render/app.js reads it)
+//        (fork) &anim=auto|quality|unlimited (设置「简化单位动画」, render/crowd.js; default auto, as the game's default)
+//        (fork) &lang=en|… (the game's language choice, js/ui/lang.js; the page's texts follow it)
 // Puppeteer hook: window.__perf = { ready, error, view, runner, sample(ms) → figures over `ms` of animation frames }
 //
 // The panel must not disturb what it measures: frame times go into a ring buffer (one store per frame), the strip is
@@ -18,6 +20,95 @@ import { data } from '../js/data.js';
 import { assets } from '../js/assets.js';
 import { createBattleRunner } from '../js/battle/runner.js';
 import { round, frameFigures } from './frame-stats.js';
+import { t, addMessages, onLangChange } from '../../shared/i18n.js';
+import { initLang } from '../js/ui/lang.js';
+
+// (fork) The page in the game's language (?lang=, the stored choice, else the browser's: js/ui/lang.js initLang). Dev
+// pages are outside the i18n packs (tools/i18n.mjs skips public/dev), so the page carries its own English here, keyed by
+// its Chinese text like every msgid; other languages fall back along their chain.
+const PAGE_EN = {
+  '战斗性能测试': 'Battle performance test',
+  '展开面板': 'Expand panel',
+  '收起': 'Collapse',
+  '战斗场景': 'Battle scene',
+  '画质': 'Graphics quality',
+  '高画质': 'High quality',
+  '中画质': 'Medium quality',
+  '低画质': 'Low quality',
+  '重新开始': 'Restart',
+  '帧耗时': 'Frame time',
+  '渲染 CPU': 'Render CPU',
+  '模拟单步': 'Sim step',
+  '正在加载战斗…': 'Loading the battle…',
+  '近 10 秒逐帧耗时': 'Frame times, last 10 s',
+  '测量进行中，图表暂停刷新以避免干扰结果': 'Measuring: the chart pauses so it does not skew the result',
+  '≤ 16.7 ms（≥ 60 FPS）': '≤ 16.7 ms (≥ 60 FPS)',
+  '> 33.3 ms（卡顿帧）': '> 33.3 ms (stutter frame)',
+  '开始测量（10 秒）': 'Start measuring (10 s)',
+  '平均帧率': 'Average FPS',
+  'P95 帧耗时': 'P95 frame time',
+  '卡顿帧占比': 'Stutter frames',
+  '完整报告（提交反馈时请附上）': 'Full report (attach it to your feedback)',
+  '复制报告': 'Copy report',
+  '战斗性能测试报告（/dev/battle-perf.html）': 'Battle performance report (/dev/battle-perf.html)',
+  '场景：{title}（{spec}）': 'Scene: {title} ({spec})',
+  '画质：{q}；棋盘：{b}': 'Quality: {q}; board: {b}',
+  '帧率：{fps} FPS': 'Frame rate: {fps} FPS',
+  '帧耗时：P50 {p50} ms，P95 {p95} ms，P99 {p99} ms': 'Frame time: P50 {p50} ms, P95 {p95} ms, P99 {p99} ms',
+  '卡顿帧占比（单帧 > 33.3 ms）：{over}%': 'Stutter frames (frame > 33.3 ms): {over}%',
+  '模拟单步：{ms} ms（共 {n} 步）': 'Sim step: {ms} ms ({n} steps)',
+  '渲染 CPU：{cpu} ms；渲染提交：{render} ms': 'Render CPU: {cpu} ms; render submit: {render} ms',
+  '场上单位：{units}；自适应负载档位：{lod}': 'Units on the field: {units}; adaptive load level: {lod}',
+  '长任务：{n} 次，共 {ms} ms': 'Long tasks: {n}, {ms} ms in total',
+  'GPU：{gpu}': 'GPU: {gpu}',
+  '设备：{cores} 个 CPU 线程{mem}；视口 {vp}，像素比 {dpr}': 'Device: {cores} CPU threads{mem}; viewport {vp}, pixel ratio {dpr}',
+  '，内存约 {gb} GB': ', about {gb} GB memory',
+  '未知': 'unknown',
+  '浏览器：{ua}': 'Browser: {ua}',
+  '注意：战斗在测量期间结束，结果仅供参考': 'Note: the battle ended during the measurement; take the result as a rough guide',
+  '流畅': 'Smooth',
+  '基本流畅': 'Mostly smooth',
+  '卡顿': 'Stuttering',
+  'P95 帧耗时 {p95} ms，达到 60 FPS': 'P95 frame time {p95} ms: 60 FPS reached',
+  'P95 帧耗时 {p95} ms，介于 30–60 FPS': 'P95 frame time {p95} ms: between 30 and 60 FPS',
+  '卡顿帧占比 {over}%，P95 帧耗时 {p95} ms': 'Stutter frames {over}%, P95 frame time {p95} ms',
+  '未找到战斗数据。请先运行 node tools/capture-specs.mjs 生成。': 'No battle data found. Run node tools/capture-specs.mjs first.',
+  '战斗数据 {name} 加载失败（HTTP {status}）。请确认该文件位于 public/dev/perf/。': 'Battle data {name} failed to load (HTTP {status}). Check that the file is in public/dev/perf/.',
+  '战斗已结束。如需继续测量，请点击「重新开始」。': 'The battle has ended. To measure again, press "Restart".',
+  '场上单位 {units} 个，自适应负载 {lod} 档，{board} 棋盘': '{units} units on the field, adaptive load level {lod}, {board} board',
+  '简化单位动画「{mode}」：简化中 敌方 {enemy} 个 / 我方 {ally} 个': 'Simplified Sprite Animation "{mode}": simplified now {enemy} enemy / {ally} allied',
+  '测量中（剩余 {n} 秒）': 'Measuring ({n} s left)',
+  '重新测量（10 秒）': 'Measure again (10 s)',
+  '已复制到剪贴板': 'Copied to the clipboard',
+  '无法写入剪贴板，已选中报告文本，请手动复制': 'Could not write to the clipboard; the report text is selected, copy it by hand',
+  '加载失败：{msg}': 'Failed to load: {msg}',
+};
+// the setting's option names (public/js/ui/settings.js SPRITE_ANIM; their translations are in the packs)
+const ANIM_NAME = { auto: '自动', quality: '画质优先', unlimited: '无限制' };
+
+/** The panel's fixed texts and labels in the current language (the Chinese source kept per node, so it can switch again). */
+const sourceText = new Map();
+function localizePage() {
+  addMessages('en', PAGE_EN);
+  const root = document.getElementById('panel');
+  if (!root) return;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+    if (!sourceText.has(n)) sourceText.set(n, n.nodeValue.trim());
+    const src = sourceText.get(n);
+    if (src && Object.hasOwn(PAGE_EN, src)) n.nodeValue = n.nodeValue.replace(n.nodeValue.trim(), t(src));
+  }
+  for (const el of root.querySelectorAll('[aria-label],[title]')) {
+    if (!sourceText.has(el)) sourceText.set(el, {});
+    const kept = sourceText.get(el);
+    for (const a of ['aria-label', 'title']) {
+      if (!el.hasAttribute(a)) continue;
+      kept[a] ??= el.getAttribute(a);
+      if (Object.hasOwn(PAGE_EN, kept[a])) el.setAttribute(a, t(kept[a]));
+    }
+  }
+  document.title = `Battle perf · ${t('卫戍协议：盟约 · STRONGHOLD PROTOCOL')}`;
+}
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -88,29 +179,31 @@ function deviceInfo() {
 function report(spec, title, quality, s) {
   const d = deviceInfo();
   const lines = [
-    '战斗性能测试报告（/dev/battle-perf.html）',
-    `场景：${title}（${spec}）`,
-    `画质：${QUALITY_NAME[quality] || quality}；棋盘：${s.board === '3d' ? '3D' : '2D'}`,
-    `帧率：${s.fps} FPS`,
-    `帧耗时：P50 ${s.p50} ms，P95 ${s.p95} ms，P99 ${s.p99} ms`,
-    `卡顿帧占比（单帧 > 33.3 ms）：${s.over33}%`,
-    `模拟单步：${s.simMsPerTick} ms（共 ${s.ticks} 步）`,
-    `渲染 CPU：${s.viewCpuMs} ms；渲染提交：${s.renderMs} ms`,
-    `场上单位：${s.units}；自适应负载档位：${s.lod}`,
-    `长任务：${s.longTasks} 次，共 ${s.longTaskMs} ms`,
-    `GPU：${d.gpu}`,
-    `设备：${d.cores ?? '未知'} 个 CPU 线程${d.memoryGB ? `，内存约 ${d.memoryGB} GB` : ''}；视口 ${d.viewport}，像素比 ${d.dpr}`,
-    `浏览器：${d.ua}`,
+    t('战斗性能测试报告（/dev/battle-perf.html）'),
+    t('场景：{title}（{spec}）', { title, spec }),
+    t('画质：{q}；棋盘：{b}', { q: t(QUALITY_NAME[quality] || quality), b: s.board === '3d' ? '3D' : '2D' }),
+    t('帧率：{fps} FPS', { fps: s.fps }),
+    t('帧耗时：P50 {p50} ms，P95 {p95} ms，P99 {p99} ms', { p50: s.p50, p95: s.p95, p99: s.p99 }),
+    t('卡顿帧占比（单帧 > 33.3 ms）：{over}%', { over: s.over33 }),
+    t('模拟单步：{ms} ms（共 {n} 步）', { ms: s.simMsPerTick, n: s.ticks }),
+    t('渲染 CPU：{cpu} ms；渲染提交：{render} ms', { cpu: s.viewCpuMs, render: s.renderMs }),
+    t('场上单位：{units}；自适应负载档位：{lod}', { units: s.units, lod: s.lod }),
+    t('长任务：{n} 次，共 {ms} ms', { n: s.longTasks, ms: s.longTaskMs }),
+    t('GPU：{gpu}', { gpu: d.gpu }),
+    t('设备：{cores} 个 CPU 线程{mem}；视口 {vp}，像素比 {dpr}', {
+      cores: d.cores ?? t('未知'), mem: d.memoryGB ? t('，内存约 {gb} GB', { gb: d.memoryGB }) : '', vp: d.viewport, dpr: d.dpr,
+    }),
+    t('浏览器：{ua}', { ua: d.ua }),
   ];
-  if (s.done) lines.splice(10, 0, '注意：战斗在测量期间结束，结果仅供参考');
+  if (s.done) lines.splice(10, 0, t('注意：战斗在测量期间结束，结果仅供参考'));
   return lines.join('\n');
 }
 
 /** The verdict a player reads first, on the frame-time budgets of the strip (60 / 30 FPS). */
 export function verdictOf(s) {
-  if (s.p95 <= FRAME_60_MS && s.over33 < 1) return { label: '流畅', note: `P95 帧耗时 ${s.p95} ms，达到 60 FPS`, color: '--mint-500' };
-  if (s.p95 <= FRAME_30_MS && s.over33 < 1) return { label: '基本流畅', note: `P95 帧耗时 ${s.p95} ms，介于 30–60 FPS`, color: '--amber' };
-  return { label: '卡顿', note: `卡顿帧占比 ${s.over33}%，P95 帧耗时 ${s.p95} ms`, color: '--red' };
+  if (s.p95 <= FRAME_60_MS && s.over33 < 1) return { label: t('流畅'), note: t('P95 帧耗时 {p95} ms，达到 60 FPS', { p95: s.p95 }), color: '--mint-500' };
+  if (s.p95 <= FRAME_30_MS && s.over33 < 1) return { label: t('基本流畅'), note: t('P95 帧耗时 {p95} ms，介于 30–60 FPS', { p95: s.p95 }), color: '--amber' };
+  return { label: t('卡顿'), note: t('卡顿帧占比 {over}%，P95 帧耗时 {p95} ms', { over: s.over33, p95: s.p95 }), color: '--red' };
 }
 
 // ---- frame ring buffer + strip ------------------------------------------------------------------------------------
@@ -207,9 +300,13 @@ function setupPanel() {
 async function main() {
   if (q.get('panel') === '0') $('panel').classList.add('is-hidden');
   setupPanel();
+  // (fork) the game's language first, so every text below is in it; a pack that arrives later switches the page too
+  await initLang().catch(() => {});
+  localizePage();
+  onLangChange(localizePage);
   const index = await fetch('/dev/perf/index.json').then((r) => (r.ok ? r.json() : []), () => []);
   const specName = q.get('spec') || index[0]?.name;
-  if (!specName) throw new Error('未找到战斗数据。请先运行 node tools/capture-specs.mjs 生成。');
+  if (!specName) throw new Error(t('未找到战斗数据。请先运行 node tools/capture-specs.mjs 生成。'));
   const quality = ['high', 'medium', 'low'].includes(q.get('quality')) ? q.get('quality') : 'high';
   for (const s of index) $('spec').append(new Option(s.title || s.name, s.name));
   $('spec').value = specName;
@@ -219,6 +316,7 @@ async function main() {
     p.set('spec', $('spec').value);
     p.set('quality', $('quality').value);
     if (q.get('fx')) p.set('fx', q.get('fx'));
+    if (q.get('anim')) p.set('anim', q.get('anim'));
     location.search = p.toString();
   };
   $('restart').onclick = reload;
@@ -228,11 +326,12 @@ async function main() {
   await data.loadAll('chess', 'tokens', 'items', 'enemies', 'stages', 'bonds', 'config');
   await assets.ready();
   const msg = await fetch(`/dev/perf/${encodeURIComponent(specName)}.json`).then((r) => {
-    if (!r.ok) throw new Error(`战斗数据 ${specName} 加载失败（HTTP ${r.status}）。请确认该文件位于 public/dev/perf/。`);
+    if (!r.ok) throw new Error(t('战斗数据 {name} 加载失败（HTTP {status}）。请确认该文件位于 public/dev/perf/。', { name: specName, status: r.status }));
     return r.json();
   });
   const officialFx = ['off', 'lite', 'full', 'auto'].includes(q.get('fx')) ? q.get('fx') : 'off';
-  const view = await createFieldView($('field'), { data, assets, settings: { quality, damageNumbers: true, officialFx } });
+  const spriteAnim = ['auto', 'quality', 'unlimited'].includes(q.get('anim')) ? q.get('anim') : 'auto';
+  const view = await createFieldView($('field'), { data, assets, settings: { quality, damageNumbers: true, officialFx, spriteAnim } });
   view.setStage(data.lookup('stages', msg.spec.stageId));
   // the runner needs no server here: reports go nowhere, the battle runs from its start
   const net = { on: () => () => {}, send() {}, request: async () => ({ ok: true }) };
@@ -266,8 +365,11 @@ async function main() {
     $('chip-ms').textContent = `FPS / ${v.frameMs.toFixed(1)} ms`;
     const st = runner.state();
     $('meta').textContent = st?.done
-      ? '战斗已结束。如需继续测量，请点击「重新开始」。'
-      : `场上单位 ${v.units} 个，自适应负载 ${v.lod} 档，${v.board3d?.on ? '3D' : '2D'} 棋盘`;
+      ? t('战斗已结束。如需继续测量，请点击「重新开始」。')
+      : t('场上单位 {units} 个，自适应负载 {lod} 档，{board} 棋盘', { units: v.units, lod: v.lod, board: v.board3d?.on ? '3D' : '2D' })
+        // (fork) Simplified Sprite Animation: the mode and the units on simplified animation now (enemies / allies)
+        + (v.impostorUnits ? ` · ${t('简化单位动画「{mode}」：简化中 敌方 {enemy} 个 / 我方 {ally} 个', {
+          mode: t(ANIM_NAME[v.spriteAnim] || v.spriteAnim), enemy: v.impostorUnits.enemy, ally: v.impostorUnits.ally })}` : '');
   };
   setInterval(live, 500);
   setInterval(() => {
@@ -285,15 +387,15 @@ async function main() {
     btn.setAttribute('aria-disabled', 'true');
     $('freeze').hidden = false;
     const t0 = Date.now();
-    const tick = setInterval(() => { $('measure-label').textContent = `测量中（剩余 ${Math.max(1, 10 - Math.floor((Date.now() - t0) / 1000))} 秒）`; }, 1000);
-    $('measure-label').textContent = '测量中（剩余 10 秒）';
+    const tick = setInterval(() => { $('measure-label').textContent = t('测量中（剩余 {n} 秒）', { n: Math.max(1, 10 - Math.floor((Date.now() - t0) / 1000)) }); }, 1000);
+    $('measure-label').textContent = t('测量中（剩余 {n} 秒）', { n: 10 });
     const s = await perf.sample(10000);
     clearInterval(tick);
     measuring = false;
     btn.classList.remove('is-running');
     btn.removeAttribute('aria-disabled');
     $('freeze').hidden = true;
-    $('measure-label').textContent = '重新测量（10 秒）';
+    $('measure-label').textContent = t('重新测量（10 秒）');
 
     const v = verdictOf(s);
     const verdict = $('verdict');
@@ -309,9 +411,9 @@ async function main() {
     $('out').textContent = text;
     $('result').hidden = false;
     const copy = $('copy');
-    copy.textContent = '复制报告';
+    copy.textContent = t('复制报告');
     copy.onclick = () => {
-      const done = () => { copy.textContent = '已复制到剪贴板'; };
+      const done = () => { copy.textContent = t('已复制到剪贴板'); };
       const fallback = () => {
         const d = $('result').querySelector('details');
         d.open = true;
@@ -320,7 +422,7 @@ async function main() {
         const sel = getSelection();
         sel.removeAllRanges();
         sel.addRange(range);
-        copy.textContent = '无法写入剪贴板，已选中报告文本，请手动复制';
+        copy.textContent = t('无法写入剪贴板，已选中报告文本，请手动复制');
       };
       if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fallback);
       else fallback();
@@ -332,5 +434,5 @@ main().catch((err) => {
   perf.error = String(err?.stack || err);
   console.error(err);
   const meta = document.getElementById('meta');
-  if (meta) meta.textContent = `加载失败：${err?.message || err}`;
+  if (meta) meta.textContent = t('加载失败：{msg}', { msg: err?.message || err });
 });
