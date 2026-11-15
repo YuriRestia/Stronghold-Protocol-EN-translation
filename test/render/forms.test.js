@@ -650,3 +650,46 @@ describe('a second form leaves its skill slot\'s clip to the cast (DESIGN §35.4
     }
   });
 });
+
+describe('予愿安洁莉娜 S2: Skill_2_Takeoff_End holds until Skill_2_Begin (FORMS chantEnd `hold`)', () => {
+  const AG = 'char_1015_aglna2';
+  async function aglna2() {
+    const entry = assets.chars[AG].spine.front;
+    const names = Object.keys(entry.animations || {});
+    const st = { picture: () => null, image: async () => null, spineEntry: () => entry,
+      spine: { acquire: async () => ({ animations: names.map((name) => ({ name })) }), release() {} } };
+    const ctx = fakeViewCtx(fake.P, { assets: st, cam });
+    const v = new UnitView(ctx, { id: 9, side: 'ally', kind: 'op', defId: AG, spine: AG, tier: 1, x: 8, y: 9, maxHp: 1000, facing: 1 });
+    await tick(); await tick();
+    assert.ok(v.actor, 'Spine model built');
+    return v;
+  }
+
+  test('her faded-out last frame stays past the clip\'s 1 s (no Skill_2_Idle frame at her tile), then Skill_2_Begin', async () => {
+    // user, 2026-11-15: "there's a frame where she just instantly appear at her first position"
+    assert.equal(FORMS[AG].chantEnd.hold, true);
+    const v = await aglna2();
+    v.sync(sample(), 1);
+    v.setForm('chant');
+    frames(v, 30);
+    v.setForm('chantEnd');
+    assert.equal(clip(v), 'Skill_2_Takeoff_End');
+    frames(v, 90);                                   // 1.5 s: the clip is 1 s [src: data/assets.json chars.char_1015_aglna2 animations]
+    assert.equal(clip(v), 'Skill_2_Takeoff_End', 'held (before: Skill_2_Idle drawn at her tile after 1 s)');
+    assert.equal(v.actor.mode, 'change');
+    v.setForm('rise');
+    assert.equal(clip(v), 'Skill_2_Begin', 'the drop-in straight from the held frame');
+    frames(v, 70);
+    assert.notEqual(clip(v), 'Skill_2_Begin', 'Skill_2_Begin plays out once');
+  });
+
+  test('a form change away from a held clip (her S2 cut short) goes back to her base clips', async () => {
+    const v = await aglna2();
+    v.sync(sample(), 1);
+    v.setForm('chantEnd');
+    frames(v, 90);
+    v.setForm(null);
+    frames(v, 2);
+    assert.equal(clip(v), 'Idle', 'not stuck on the faded-out frame');
+  });
+});

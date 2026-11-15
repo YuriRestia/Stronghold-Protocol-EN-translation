@@ -304,6 +304,39 @@ test('S2 重力自定义 (MANUAL, data DEFAULT + SKILL_RANGE on 3-10): takes off
   }
 });
 
+test("(fork) S2 glide: her drawn body rides the sweep (SourceGraphicFollowBehaviour): the 'dash' fx carries `follow` (her facing, the sweep's distance per tick, the projectile's life) while her tile, position and range stay; the chant's `rise` (the projectile's stop) and a landing carry `follow: null`", () => {
+  for (const dir of ['RIGHT', 'UP']) {
+    const h = makeBattle({
+      defs: { enemies: ENEMIES }, timeLimit: 900, autoFinish: false, seed: 5, flags: { dpPerSec: 0, dpMax: 999 }, captureNoisy: true,
+      units: [{ uid: 1, diy: { slot: SLOT[5], charId: AGL, skillIndex: 1 }, row: 10, col: 4, dir }],
+    });
+    h.step();
+    const u = h.unit(1);
+    u.skill.gainSp(999);
+    h.spawn('enemy_dummy', { pos: dir === 'RIGHT' ? [10, 7] : [13, 4] });   // (UP is row + 1: server/sim/dir.js DIR_VEC)
+    assert.ok(h.runUntil(() => u.skill.active, 1), `${dir}: cast`);
+    const at = [u.tileR, u.tileC, u.x, u.y];
+    h.run(0.333 + GLIDE_TIME + 0.2);
+    const dash = h.eventsOf('fx').find((e) => e[1] === 'dash' && e[4]?.skill === 'aglna2:glide');
+    assert.ok(dash, `${dir}: the glide fx`);
+    const fol = dash[4].follow;
+    const [fr, fc] = dir === 'RIGHT' ? [0, 1] : [1, 0];
+    assert.deepEqual([fol.ux, fol.uy], [fc, fr], `${dir}: along her facing (x = column, y = row)`);
+    assert.deepEqual(fol.steps, [...GLIDE_STEPS], `${dir}: the sweep's distance per tick`);
+    approx(fol.tick, 1 / 30, `${dir}: one sim tick a step`);
+    approx(fol.dur, dash[4].dur, `${dir}: as long as the projectile lives`);
+    assert.deepEqual([u.tileR, u.tileC, u.x, u.y], at, `${dir}: her tile and position never move (a graphic offset only)`);
+    h.runUntil(() => h.eventsOf('fx').some((e) => e[1] === 'aglna2Chant' && e[4]?.form === 'rise'), 1.2);
+    const rise = h.eventsOf('fx').find((e) => e[1] === 'aglna2Chant' && e[4]?.form === 'rise');
+    assert.ok('follow' in rise[4] && rise[4].follow === null, `${dir}: the rise puts her body back`);
+    approx(fol.dur, GLIDE_TIME + 1, `${dir}: the follow lasts the glide + Skill_2_Takeoff_End (under chant_duration 2.5)`, 1e-6);
+    u.skill.end('test');
+    const landing = h.eventsOf('fx').filter((e) => e[1] === 'aglna2Landing' && e[4]?.id === u.id).at(-1);
+    assert.ok(landing && landing[4].follow === null, `${dir}: the landing ends a follow too`);
+    done(h);
+  }
+});
+
 test('S2 sweep speed: projectile_chr_aglna2_s2_fly moves 4.8 × its `_curve` per tick (FUNC_CURVE_AND_X_LENGTH) and reaches 4 tiles on tick 23 (0.767 s)', () => {
   approx(glideCurve(0), 0.9494410753250122, 'curve before its first key');
   approx(glideCurve(0.4818013310432434), 1.1316108703613281, 'curve key 2');

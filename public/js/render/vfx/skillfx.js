@@ -94,7 +94,7 @@ import {
   planFor, skillPlan, attackFx as planAttack, slotKey, planKeys, chargeKeys, chargeStep, skillProjectile, targetsOf, buffDuration,
   eventNum, FX_BINDINGS, CHAIN_RELAYS, bindingEffects, bindingKeys, lifeOf, COND_BUFFS, condState, BOUND_BY_SKILL, coverOf, enemyCoverOf,
   ENEMY_FX_BINDINGS, ENEMY_FX_KINDS, OWNER_NEAR, auraTargets, enemyBindingKeys, modeLoopKeys, CHARGED_CASTS, CAST_MODES, castModePlan,
-  FX_HIT_TILES, stateEntries, TICK_SIGNALED, enemyBinds,
+  FX_HIT_TILES, stateEntries, TICK_SIGNALED, enemyBinds, HELD_START,
 } from './skills.js';
 import { fxSpec } from '../fx/kinds.js';
 import { layerKeysOf } from './talentfx.js';
@@ -478,6 +478,8 @@ export class SkillFx {
       let drew = false;
       for (const e of uniq([...U.plan.start, ...U.plan.range, ...U.plan.loop])) {
         if (e.birth) continue;     // the deploy's (birthOf: FxWiring.deploy plays it)
+        // (fork) start rows a kit fx plays later (skills.js HELD_START, `_heldStart`: 予愿安洁莉娜 S2's landing)
+        if (HELD_START.has(U.skillId) && U.plan.start.includes(e) && !U.plan.range.includes(e) && !U.plan.loop.includes(e)) continue;
         // (fork) a loop the kit's layer count holds (talentfx.js FX_LAYERS: 塔露拉 S2's stack) is TalentFx's to play
         if (U.plan.loop.includes(e) && layerKeysOf(this.w.unitKeyOf(v)).has(e.key)) continue;
         // (fork) a buff loop on the owner with a life of its own (index v3 `life`: LIMITED, a time or our record's
@@ -1319,6 +1321,7 @@ export class SkillFx {
       if (bind && bind.only && Object.entries(bind.only).some(([k, val]) => extra[k] !== val)) continue;
       if (bind && bind.owner === field && (!bind.during || this._lasts(U))) {
         if (bind.none) return true;   // (fork) the official draws nothing there (skills.js `none`)
+        if (bind.startRows) { this._heldStart(U, bind, extra); return true; }
         if (bind.attack) return this._boundAttack(U, bind);
         if (bind.shot) return this._shot(U, bind, extra);
         if (bind.shots) return this._lanes(U, bind, extra);
@@ -1484,6 +1487,21 @@ export class SkillFx {
    * An FX_BINDINGS entry: the projectile's reached effects (or its keys) where the fx happens, held as the binding
    * says; a binding's own `keys` at 'target' once on the unit the fx names.
    */
+  /**
+   * (fork) A binding's `startRows`: the skill's start rows the cast held back (skills.js HELD_START), played on the owner
+   * when the fx's fields match (予愿安洁莉娜 S2: the chant's 'rise' into Skill_2_Begin); any other such fx draws nothing.
+   */
+  _heldStart(U, bind, extra) {
+    if (!U.v || !this.active() || Object.entries(bind.startRows).some(([k, val]) => extra[k] !== val)) return false;
+    let drew = false;
+    for (const e of uniq(U.plan.start)) {
+      if (e.birth || U.plan.range.includes(e) || U.plan.loop.includes(e)) continue;
+      const h = this._play(e, U.v);
+      if (h) { drew = true; this._keep(U, e, h); }
+    }
+    return drew;
+  }
+
   _bound(U, bind, x, y, extra) {
     const pick = bind.keysIf ? (extra[bind.keysIf.field] ? bind.keysIf.yes : bind.keysIf.no)
       : bind.keysBy ? bind.keysBy.map[extra[bind.keysBy.field]] || [] : null;

@@ -1859,8 +1859,11 @@ export const FX_BINDINGS = Object.freeze({
   // (the fx's `dur`). S3: the flight ('aglna2Fly' … 'aglna2Land': she is drawn where projectile_chr_aglna2_s3_fly carries
   // her, in her S3Move clip — render/units.js FORMS — with that mode's trail loop) and the restore ('aglna2Restore') draw
   // nothing beside her own rows. The landing's start ('aglna2Landing') and S2's 浮空 / 缚地 starting on an enemy
-  // ('aglna2Bind') are sound moments only (tools/assets/plan.mjs FX_SOUND_BANKS). S2's chant stages ('aglna2Chant') only
-  // switch her clips and her height (render/units.js FORMS, TAKEOFF).
+  // ('aglna2Bind') are sound moments only (tools/assets/plan.mjs FX_SOUND_BANKS). S2's chant stages ('aglna2Chant') switch
+  // her clips and her height (render/units.js FORMS, TAKEOFF); the one into Skill_2_Begin (form 'rise': she drops back
+  // in on her tile) plays the skill's start rows, held back from the cast (`startRows`): fly_end_01–03 are the
+  // ON_BUFF_START of aglna2_s_2[chant_end], the buff ChantWithProjectileBeforeSkill._buffOnAfterEndAnim adds with that
+  // clip [src: official fx index skchr_aglna2_2 uses, `from`/`event`] — at the cast they burst where she takes off.
   skchr_aglna2_1: Object.freeze({
     takeoff: binding({ owner: 'id', none: true }),
     aglna2Landing: binding({ owner: 'id', none: true }),
@@ -1868,7 +1871,7 @@ export const FX_BINDINGS = Object.freeze({
   skchr_aglna2_2: Object.freeze({
     takeoff: binding({ owner: 'id', none: true }),
     aglna2Landing: binding({ owner: 'id', none: true }),
-    aglna2Chant: binding({ owner: 'id', none: true }),
+    aglna2Chant: binding({ owner: 'id', startRows: Object.freeze({ form: 'rise' }) }),
     aglna2Bind: binding({ owner: 'id', none: true }),
     dash: binding({ owner: 'id', only: Object.freeze({ skill: 'aglna2:glide' }), hold: 'fx', keysBy: Object.freeze({ field: 'face',
       map: Object.freeze({
@@ -2139,6 +2142,13 @@ export function targetBound(skillId) {
   }
   return out;
 }
+
+/**
+ * (fork) The skills whose start rows a kit fx plays later instead of the cast (a binding's `startRows`: the fx fields
+ * that must match; render/vfx/skillfx.js `_heldStart`) — 予愿安洁莉娜 S2's landing at the end of her chant.
+ */
+export const HELD_START = Object.freeze(new Set(Object.entries(FX_BINDINGS)
+  .filter(([, kinds]) => Object.values(kinds).some((b) => b.startRows)).map(([sid]) => sid)));
 
 /** The fx kinds whose binding names no owner ('skill'), by kind → the skill ids that bind it. */
 export const BOUND_BY_SKILL = Object.freeze((() => {

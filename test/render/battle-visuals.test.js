@@ -131,6 +131,54 @@ test('凯尔希·残光 stays on the ground in 起飞; an operator without a tab
   } finally { k.destroy(); x.destroy(); }
 });
 
+test('(fork) a graphic follow (予愿安洁莉娜 S2\'s glide): the body, its shadow and the vfx pose are drawn the follow\'s distance along its direction — per sim tick, held at the last step — while the unit\'s position stays; null, the `dur` or a knock-out puts it back at once', () => {
+  const steps = [0.2, 0.5, 1, 2, 4];
+  const v = view('char_1015_aglna2', { skillIndex: 1 });
+  try {
+    run(v, 2, UF.LIFTOFF);
+    const c = cam();
+    v.followGraphic({ ux: 0, uy: -1, steps, tick: 1 / FPS, dur: 1 });
+    run(v, 2, UF.LIFTOFF, 2);   // two ticks along: the distance after tick 2
+    assert.ok(Math.abs(v.gy + 0.5) < 1e-9 && v.gx === 0, `after 2 ticks (${v.gx}, ${v.gy})`);
+    assert.deepEqual([v.x, v.y], [5, 10], 'the unit stays where the sim has it');
+    const p = c.project(5, 9.5, v.z + v.hover + v.lift);
+    assert.ok(Math.abs(v.root.position.x - p.x) < 1e-6 && Math.abs(v.root.position.y - p.y) < 1e-6, 'the body drawn at the offset');
+    run(v, 10, UF.LIFTOFF, 4);
+    assert.ok(Math.abs(v.gy + 4) < 1e-9, `held at the last step (${v.gy})`);
+    v.followGraphic(null);
+    run(v, 1, UF.LIFTOFF, 14);
+    assert.deepEqual([v.gx, v.gy], [0, 0], 'null: back at once');
+    v.followGraphic({ ux: 1, uy: 0, steps, tick: 1 / FPS, dur: 0.2 }, 0.15);
+    run(v, 1, UF.LIFTOFF, 15);
+    assert.ok(Math.abs(v.gx - 4) < 1e-9, `a late fx starts that far along (${v.gx})`);
+    run(v, 4, UF.LIFTOFF, 16);
+    assert.deepEqual([v.gx, v.gy, v.follow], [0, 0, null], 'over at its dur');
+    v.followGraphic({ ux: 1, uy: 0, steps, tick: 1 / FPS });
+    run(v, 3, UF.LIFTOFF, 20);
+    v.die();
+    v.update(1 / FPS, c, 1);
+    assert.deepEqual([v.gx, v.gy, v.follow], [0, 0, null], 'a knock-out ends it');
+  } finally { v.destroy(); }
+});
+
+test('(fork) a graphic follow runs on the official effects\' clock (ctx.battleTime) — the sweep\'s trail she rides on — not on frame time × animRate', () => {
+  let bt = 10;
+  const v = new UnitView(fakeViewCtx(fake.P, { cam, lookupDef: () => ({ charId: 'char_1015_aglna2' }), battleTime: () => bt, animRate: () => 2 }),
+    { id: 1, side: 'ally', kind: 'op', defId: 'char_1015_aglna2', tier: 6, x: 5, y: 10, maxHp: 1000, dir: 'RIGHT', skillIndex: 1 });
+  try {
+    const c = cam();
+    v.followGraphic({ ux: 1, uy: 0, steps: [1, 2, 3, 4], tick: 0.1, dur: 1 }, 0.05);
+    bt = 10.1;
+    v.update(0.5, c, 1);
+    assert.ok(Math.abs(v.gx - 1.5) < 1e-9, `0.15 s on the effects' clock, whatever the frame time (${v.gx})`);
+    v.update(0.5, c, 1);
+    assert.ok(Math.abs(v.gx - 1.5) < 1e-9, `that clock still (paused): no move (${v.gx})`);
+    bt = 11.1;
+    v.update(1 / FPS, c, 1);
+    assert.deepEqual([v.gx, v.gy, v.follow], [0, 0, null], 'over at its dur on that clock');
+  } finally { v.destroy(); }
+});
+
 test('(fork) 予愿安洁莉娜: S1 rises to 0.8 over 0.8333 s; her landing fx lowers her over 0.8333 s while 起飞 still holds; the S2 take-off (`land` true, before the 起飞 flag) holds her low through its chant and its Skill_2_Begin (`land` false) rises over 1 s; S3 on a HIGHLAND tile is 0.4 at once, not while her flight form is on', () => {
   const s1 = view('char_1015_aglna2', { skillIndex: 0 });
   try {

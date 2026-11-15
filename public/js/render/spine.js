@@ -820,9 +820,11 @@ export class SpineActor {
    * included); `change` = a transition clip played once first (also while stunned: the pose it ends in is the one a stun
    * then holds). `end` = { clip, in, roles? } (game s): a closing clip played the same way so that it ends `in` s from
    * now, landing in `roles` — a leader's 重生 ends on its last clip while the sim still holds it, and the next form
-   * starts on its own clips.
+   * starts on its own clips. (fork) `hold`: the change clip's last frame holds until the next setForm instead of
+   * the form's resting clip (予愿安洁莉娜 S2's Skill_2_Takeoff_End, which ends faded out high above her, goes straight on
+   * to the chant's `_afterEndAnim` Skill_2_Begin: a resting frame between them showed her for a frame).
    */
-  setForm(roles, change = null, end = null) {
+  setForm(roles, change = null, end = null, hold = false) {
     const anims = this._baseRoles();
     this.formRoles = roles || null;   // kept over a later skill slot (_applyRoles)
     this.roles = roles ? { ...anims, ...roles } : anims;
@@ -833,7 +835,8 @@ export class SpineActor {
       this.endAt = this.clock + Math.max(0, end.in - this.dur(end.clip));
       this.endRoles = end.roles || null;
     }
-    if (change && this.has(change)) this._change(change);
+    if (change && this.has(change)) this._change(change, hold);
+    else if (this.mode === 'change' && this.changeUntil === Infinity) { this.mode = 'base'; this._play(this._baseName(), true); }
     else if (this.mode === 'base') this._play(this._baseName(), true);
     else if (this.mode === 'stun' && this.has(this.roles.stun?.loop)) this._play(this.roles.stun.loop, true);
   }
@@ -875,13 +878,16 @@ export class SpineActor {
     this._posed = true;
   }
 
-  /** Play a form's transition clip once; attacks and the resting state wait for it (mode 'change'). */
-  _change(clip) {
+  /**
+   * Play a form's transition clip once; attacks and the resting state wait for it (mode 'change') — with `hold`, on its
+   * last frame until the next setForm.
+   */
+  _change(clip, hold = false) {
     if (this.mode !== 'change') this.stunWanted = this.mode === 'stun';
     this.frozen = false;
     this.mode = 'change';
     this._play(clip, false, { mix: 0.08 });
-    this.changeUntil = this.clock + this.dur(clip);
+    this.changeUntil = hold ? Infinity : this.clock + this.dur(clip);
   }
 
   has(name) { return !!name && this.names.has(name); }
