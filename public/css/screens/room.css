@@ -1141,7 +1141,15 @@
   color: var(--text-hi); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
 }
 @media (max-width: 900px) { .rs-foot__left { display: contents; } }
-/* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute */
-.rseat__bubble { position: absolute; left: 50%; bottom: 30%; transform: translateX(-50%); z-index: 4; pointer-events: none; }
+/* the seat bubbles (match chat's ChatBubble / EmoteBubble) over the card's lower half, and the plate's mute. The bubble
+   always fits the portrait, which clips (overflow: hidden): the layer is the portrait less 3 px; a bubble sits with its
+   foot 30 % up as before, a taller one slides down to the bottom (the spacer under it gives way), and it is never taller
+   or wider than the layer — a line still longer ends on a whole line with an ellipsis (emotes.js ChatBubble
+   bubbleLines; the log keeps the whole line). A 100-letter line (CHAT_LINE_LETTERS) fits whole on a desktop card. */
+.rseat__bubble { position: absolute; inset: 3px; z-index: 4; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+.rseat__bubble::after { content: ''; flex: 0 1 30%; }
+.rseat__bubble > .cbubble { flex: none; max-width: 100%; max-height: 100%; overflow: hidden; }
+.rseat__bubble > .cbubble.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--cbubble-lines); line-clamp: var(--cbubble-lines); }
+.rseat__bubble > .ebubble { flex: none; }
 .rseat__plate { position: relative; }
 .rseat__mute { position: absolute; right: .06rem; top: 50%; transform: translateY(-50%); z-index: 2; }
