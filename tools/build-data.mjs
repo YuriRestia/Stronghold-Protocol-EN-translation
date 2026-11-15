@@ -575,6 +575,8 @@ const DIY_EXTRA_PROTOTYPES = Object.freeze({ 5: Object.freeze({ rarity: 4, exclu
  * (copyright) — every 6★ whose `mainPower` or a `subPower` names one of these 联动 teams: rainbow (灰烬, 艾拉), action4
  * (麒麟R夜刀), sees (结城理), laios (玛露西尔). The excel does not exclude them (research 0.2.0 §2.2). mujica (丰川祥子, AM01)
  * was lifted by the owner's decision of 2026-10-15: she is an owned pick with a kit of her own (kits/ops/op-oblvns.js).
+ * (fork) A version profile adds teams of its own (`diyExcludedTeams`, tools/versions/profiles.mjs): the three earlier
+ * versions keep mujica out (the owner's decision of 2026-11-15), so the lift applies to today's season only.
  */
 const DIY_EXCLUDED_TEAMS = Object.freeze(['rainbow', 'action4', 'sees', 'laios']);
 /**
@@ -666,7 +668,7 @@ function buildBackups(ctx, chess) {
 
   const roster = new Set(Object.values(act.charShopChessDatas).map((r) => r.charId).filter(Boolean));
   const teamsOf = (ch) => [ch.mainPower?.teamId ?? ch.teamId, ...(ch.subPower || []).map((p) => p?.teamId)].filter(Boolean);
-  const excludedTeams = new Set(DIY_EXCLUDED_TEAMS);
+  const excludedTeams = new Set([...DIY_EXCLUDED_TEAMS, ...(PROFILE.diyExcludedTeams || [])]);
   const legal6 = Object.keys(charTable).filter((id) => {
     const ch = charTable[id];
     return id.startsWith('char_') && requirements.has(ch.rarity) && ch.profession !== 'TOKEN' && ch.profession !== 'TRAP'
@@ -674,7 +676,7 @@ function buildBackups(ctx, chess) {
   }).sort(naturalCmp);
   const collabNumber = (ch) => DIY_EXCLUDED_NUMBER_PREFIXES.some((p) => new RegExp(`^${p}\\d`).test(ch.displayNumber || ''));
   const excluded = legal6.filter((id) => teamsOf(charTable[id]).some((t) => excludedTeams.has(t)) || collabNumber(charTable[id]));
-  for (const t of DIY_EXCLUDED_TEAMS) if (!excluded.some((id) => teamsOf(charTable[id]).includes(t))) warn(`DIY_EXCLUDED_TEAMS: no owned-6★ pick of team ${t}`);
+  for (const t of excludedTeams) if (!excluded.some((id) => teamsOf(charTable[id]).includes(t))) warn(`DIY_EXCLUDED_TEAMS: no owned-6★ pick of team ${t}`);
   const ownedPool = legal6.filter((id) => !excluded.includes(id));
   for (const id of ownedPool) for (const st of diyStatuses.values()) addNeed(id, st);
 

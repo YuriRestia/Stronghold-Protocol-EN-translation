@@ -1,6 +1,6 @@
 // tools/versions/profiles.mjs — load the build profile of an official version (shared/versions.js; docs/DATA.md "Official
 // versions (M0)"). A profile is tools/versions/<slug>.mjs:
-//   { id, season, pins, adapters, research, tables, pools?, config: { hiddenCore: { single, multi }, rules? },
+//   { id, season, pins, adapters, research, tables, pools?, diyExcludedTeams?, config: { hiddenCore: { single, multi }, rules? },
 //     expect: { bonds, bands, visibleNonDiy, triggerDeviations } }
 //   pins      null (master, .cache/gamedata/) or { default: <sha>, <group>: <sha> … } — the commit of each file group
 //             (pinGroupOf), cached in .cache/gamedata@<sha>/
@@ -10,6 +10,8 @@
 //             bountyDrafts } with null = left out
 //   pools     { <pool id>: [charId…] } replaces the operators tools/build-data.mjs writes for a hand-written chess pool,
 //             where the version's trait text names others (omitted = the default's)
+//   diyExcludedTeams  (fork) collab teams left out of this version's 自选 owned pool on top of tools/build-data.mjs
+//             DIY_EXCLUDED_TEAMS (omitted = only those)
 //   config    hiddenCore thresholds; `rules` the rule switches a non-default build writes into config.version =
 //             { id, family, rules } ({} = the default's rules)
 //   skillTriggers  optional: a file of tools/versions/ holding an official skillTriggerDataList / skillRangeDict that
