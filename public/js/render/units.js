@@ -540,7 +540,9 @@ export const FORMS = Object.freeze({
       skill: Object.freeze({ begin: 'Skill_3_Begin', loop: 'Skill_3_Loop', end: 'Skill_3_End', idle: 'Skill_3_Move' }) } }),
     chant: Object.freeze({ change: 'Skill_2_Takeoff_Begin', roles: { idle: 'Skill_2_Takeoff_Loop',
       skill: Object.freeze({ begin: null, loop: 'Skill_2_Takeoff_Loop', end: null, idle: 'Skill_2_Takeoff_Loop' }) } }),
-    chantEnd: Object.freeze({ change: 'Skill_2_Takeoff_End', roles: { idle: 'Skill_2_Idle',
+    // `hold`: Skill_2_Takeoff_End fades her out (its slot colours reach 0.04 by 0.33 s) and holds there until `rise`, as
+    // the chant goes from it straight to Skill_2_Begin (which fades her in from black) — no Skill_2_Idle frame between
+    chantEnd: Object.freeze({ change: 'Skill_2_Takeoff_End', hold: true, roles: { idle: 'Skill_2_Idle',
       skill: Object.freeze({ begin: null, loop: 'Skill_2_Idle', end: null, idle: 'Skill_2_Idle' }) } }),
     rise: Object.freeze({ change: 'Skill_2_Begin', roles: {} }),
   }),
@@ -917,8 +919,11 @@ export class UnitView {
     this.x = Number(info.x) || 0; this.y = Number(info.y) || 0; this.z = 0;
     this.zTarget = null;          // battle: standing height the feet ease towards (tile top under the unit; 0 for enemies)
     this.slide = null;            // a push / pull slide (slideTo): held, then easing into the sim's position (update)
+    /** @type {{ ux: number, uy: number, steps: number[], tick: number, dur: number, t: number }|null} */
+    this.follow = null;           // (fork) a graphic follow (followGraphic): the body drawn off the unit's position
+    this.gx = 0; this.gy = 0;     // (fork) that follow's board offset this frame (update; the vfx pose adds it too)
     /** @type {number|null} */
-    this.shadowZ = null;          // an enemy flyer's shadow height (the tile top under it), else null: the shadow is at z
+    this.shadowZ = null;         // an enemy flyer's shadow height (the tile top under it), else null: the shadow is at z
     /** @type {number|null} */
     this.shadowZTarget = null;
     this.flying = info.motion === 'FLY';
@@ -1342,7 +1347,7 @@ export class UnitView {
     // an fx handed out late (render/app.js: a stall, a hidden tab) skips a change clip that would already have ended
     const late = fx && Number(fx.late) > 0 ? Number(fx.late) : 0;
     const change = f && f.change && !(late > 0 && late >= (this.actor.dur?.(f.change) ?? Infinity)) ? f.change : null;
-    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null);
+    if (f) this.actor.setForm(f.roles, change, f.end && dur > 0 ? { clip: f.end, in: dur, roles: next } : null, !!f.hold);
     else if (prev) this.actor.setForm(null, prev.leave && !(late > 0 && late >= (this.actor.dur?.(prev.leave) ?? Infinity)) ? prev.leave : null);
   }
 
@@ -2206,6 +2211,7 @@ export class UnitView {
         if (sl.t >= sl.dur - 1e-9 || sl.done >= sl.D - 1e-9 || sl.v <= 1e-9) { this.x = sl.lx; this.y = sl.ly; this.slide = null; }
       }
     }
+    this._followStep(dt);
     const P = this.P;
     // the cast's clip still on screen: once it played out and the skill is off, the Back model comes back (_skillFacesFront)
     if (this._faceHold > 0) {
@@ -2233,7 +2239,7 @@ export class UnitView {
     // CharacterAnimator.OnFinish, when the finish state ends; a knocked-down flyer lies on the ground
     // a flyer at its prefab height, an ally in 起飞 (UF.LIFTOFF) at its TAKEOFF height (FLY_HOVER's note)
     this._hoverStep(dt);
-    const p = cam.project(this.x, this.y, this.z + this.hover + this.lift, this.screen);
+    const p = cam.project(this.x + this.gx, this.y + this.gy, this.z + this.hover + this.lift, this.screen);
     this.placed = true;
     const s = p.s;
     // fades
@@ -2260,10 +2266,10 @@ export class UnitView {
     this.lunge = Math.max(0, this.lunge - dt * 5);
     const lx = this.lungeDir.x * lungeK, ly = this.lungeDir.y * lungeK;
     let bx = p.x, by = p.y;
-    if (lungeK) { const q = cam.project(this.x + lx, this.y + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
+    if (lungeK) { const q = cam.project(this.x + this.gx + lx, this.y + this.gy + ly, this.z + this.hover + this.lift, LG_P); bx = q.x; by = q.y; }
     this.root.position.set(bx, by);
     this.root.alpha = alpha;
-    this.root.zIndex = unitDepthKey(cam, this.x, this.y, this.lift, this._planeDepth());
+    this.root.zIndex = unitDepthKey(cam, this.x + this.gx, this.y + this.gy, this.lift, this._planeDepth());
     // off-screen: nothing to animate or draw (bounds / hit-testing still follow `screen`)
     if (this._cull(bx, by, s, dt)) return;
     const flip = this.modelFlip();
@@ -2271,8 +2277,9 @@ export class UnitView {
     // shadow (on a raised top it is drawn with that block row, else in the shadow layer under everything); an enemy
     // flyer's lies on the tile under it while its body hovers from the road (shadowZ, GitHub #277)
     const shz = this.shadowZ ?? this.z;
-    placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y, shz);
-    const sh = cam.project(this.x, this.y, shz, SH_P);
+    // (a graphic follow carries the shadow with the body: gx, gy)
+    placeOnGround(this.ctx, this.shadow, this.ctx.layers.shadow, this.y + this.gy, shz);
+    const sh = cam.project(this.x + this.gx, this.y + this.gy, shz, SH_P);
     this.shadow.position.set(sh.x, sh.y);
     const shw = s * (this.isBoss ? 1.6 : 0.95) / this.shadow.texture.width;
     this.shadow.scale.set(shw, shw * (this.shadow.texture === shadowTexture() ? 1 : 1.05));
@@ -3312,11 +3319,60 @@ export class UnitView {
     }
   }
 
+  /**
+   * (fork) The part of `hover` that is an operator's take-off lift (the `takeoff` path above: not a flyer, not an
+   * enemy). The client raises only the graphic holder for it (Unit.SetGraphicHolderHeightOffset RVA 0xB1C110 →
+   * DoSetGraphicHolderHeight), so an effect held on the unit (wiring.js pose `uz`) stays at the unit's own height.
+   */
+  get liftZ() { return this.takeoff && !this.flying && !this.isEnemy ? this.hover || 0 : 0; }
+
   setHover(on) { this.hovered = !!on; }
 
   /** (fork) A kit's landing start (fx `land`: 予愿安洁莉娜's 'aglna2Landing'): down to 0 over its TAKEOFF `down` time while
    * the sim's 起飞 still holds; `false` (a take-off) lifts again. */
   liftLand(on = true) { this.landing = !!on; }
+
+  /**
+   * (fork) A graphic follow — the client's GraphicFollowController: while a sim projectile flies, the body (and what the
+   * official effects attach to it: render/vfx/wiring.js pose) is drawn offset by the projectile's move from where it was
+   * born (Tick: source world − origin source world, Unit.RefreshGraphicHolderPosForFollow); the unit's own position,
+   * tile, blocking and range stay. `spec` (a kit fx's `follow`): `ux, uy` the board direction of the move, `steps` the
+   * distance after each sim tick (held at the last one), `tick` s per step, `dur` game s at most (the projectile's life).
+   * null — or a knock-out (die) — ends it and the body is back at once (`_Clear` with `_restoreOnEnd`: the offset to
+   * zero, no tween). 予愿安洁莉娜 S2's glide (kits/ops/op-aglna2.js 'dash' `follow`, ended by the chant's `rise`).
+   * @param {{ ux: number, uy: number, steps: number[], tick: number, dur?: number }|null} spec
+   * @param {number} [late] game s the fx came late (render/app.js LATE): the follow is that far along already
+   */
+  followGraphic(spec, late = 0) {
+    const steps = spec && Array.isArray(spec.steps) ? spec.steps.map(Number).filter(Number.isFinite) : null;
+    if (!steps || !steps.length || !(Number(spec.tick) > 0) || !this.alive) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+    const t = Math.max(0, Number(late) || 0);
+    // (fork) on the clock the official effects run on (ctx.battleTime: render/app.js fxClock), so the body keeps
+    // to the sweep's trail at any speed and through a speed change — frame time × animRate drifted from it (user,
+    // 2026-11-15: her flight against the glow wave); without that clock (a bare view) the frame time × animRate
+    const bt = this.ctx.battleTime?.();
+    this.follow = { ux: Number(spec.ux) || 0, uy: Number(spec.uy) || 0, steps, tick: Number(spec.tick),
+      dur: Number(spec.dur) > 0 ? Number(spec.dur) : Infinity, t, t0: Number.isFinite(bt) ? bt - t : null };
+  }
+
+  /** (fork) The graphic follow's offset for this frame (`gx`, `gy`), on the battle clock; over at its `dur`. */
+  _followStep(dt) {
+    const f = this.follow;
+    if (f && (!this.alive || this.down)) this.follow = null;
+    if (!this.follow) { this.gx = 0; this.gy = 0; return; }
+    const bt = f.t0 != null ? this.ctx.battleTime?.() : null;
+    if (Number.isFinite(bt)) {
+      // a clock that went back (another battle on this view) ends it
+      if (bt < f.t0) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+      f.t = bt - f.t0;
+    } else f.t += dt * (this.ctx.animRate?.() || 1);
+    if (f.t >= f.dur) { this.follow = null; this.gx = 0; this.gy = 0; return; }
+    // the distance after n ticks (0 before the first; the last one held), between two ticks a straight line
+    const D = (n) => (n <= 0 ? 0 : f.steps[Math.min(n, f.steps.length) - 1]);
+    const k = f.t / f.tick, i = Math.floor(k);
+    const d = D(i) + (D(i + 1) - D(i)) * (k - i);
+    this.gx = f.ux * d; this.gy = f.uy * d;
+  }
 
   destroy() {
     if (this.destroyed) return;

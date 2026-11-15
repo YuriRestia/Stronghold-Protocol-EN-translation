@@ -122,6 +122,34 @@ describe('held effects move with their unit (R1)', () => {
   });
 });
 
+describe('a graphic follow moves the body, not the unit (予愿安洁莉娜 S2)', () => {
+  test('a `_holdByOwner` effect stays on the unit\'s own place while `gx` moves the body; a FollowMountPoint rides the body', async () => {
+    // GraphicFollowController.Tick (RVA 0xAF6340) offsets only the graphic holder: aglna2_skill_02_fly_range_01
+    // (`_holdByOwner` 1) stays on her tile, the trail on her weapon (FollowMountPoint) flies with her (user, 2026-11-15)
+    const { ofx, w, v } = await setup();
+    const flash = w.playOn('cast_flash', v).effect;
+    const weapon = w.playOn('aura_weapon', v, { loop: true, important: true }).effect;
+    const f0 = flash.anchor.slice();
+    for (let i = 1; i <= 4; i++) { v.gx = -0.75 * i; ofx.update(1 / 30); }
+    nearV(flash.anchor, f0, 1e-9, 'the held effect stays (before: it flew 3 tiles with the body)');
+    nearV(weapon.anchor, [v.x + v.gx - 10 - 0.3, 0.4, -0.2], 1e-9, 'the weapon point flies with the body');
+    walk(ofx, v, -1);
+    nearV(flash.anchor, [f0[0] - 1, f0[1], f0[2]], 1e-9, 'the unit itself moving still carries it');
+  });
+
+  test('a take-off lift raises the body, not a held effect; the unit\'s own height still carries it', async () => {
+    // Unit.SetGraphicHolderHeightOffset (RVA 0xB1C110) moves only the graphic holder; Entity.HoldEffect (RVA 0x726120)
+    // parents a held effect to the unit's `Effects` node beside it
+    const { ofx, w, v } = await setup();
+    const flash = w.playOn('cast_flash', v).effect;
+    const f0 = flash.anchor.slice();
+    for (let i = 1; i <= 4; i++) { v.hover = v.liftZ = 0.2 * i; ofx.update(1 / 30); }
+    nearV(flash.anchor, f0, 1e-9, 'the lift leaves it where it was (before: it rose 0.8 with her)');
+    v.hover = 0.3; v.liftZ = 0; ofx.update(1 / 30);
+    nearV(flash.anchor, [f0[0], f0[1], f0[2] - 0.3], 1e-9, 'a height that is not a lift (a flyer\'s) carries it (z down)');
+  });
+});
+
 describe('a projectile\'s body at the hit (R5)', () => {
   test('stop() hides `_inactiveOnFinish` at once; the trail fades through `_delayToFinish`', () => {
     // 灰毫's ashlok_attack_01_trail: the shell `gonggaoban` in `_inactiveOnFinish`, `_delayToFinish` 0.5, no `_inactiveOnHit`

@@ -49,7 +49,8 @@
 //   rise) for the clip's length; then the skill starts and its 22 s run — about 3.1 s after the cast. The sweep
 //   (FUNC_CURVE_AND_X_LENGTH: GLIDE_SPEED × the `_curve` per tick up to `_distanceX`; ProjectileReachConditionBehaviour
 //   `_reachOn` MAX_DISTANCE at `_distanceMax` 4; it goes through walls; its OPTIONS_VERIFY early stop on a tile is not
-//   modelled [unmodelled]) hits each selectable enemy once (备注 "宽3.0×厚1.3…终点位于前方至多4.0格"): an air unit 缚地
+//   modelled [unmodelled]; her drawn body rides it — SourceGraphicFollowBehaviour, a graphic offset only: her tile,
+//   blocking and range never move — and snaps home when the chant stops it before Skill_2_Begin) hits each selectable enemy once (备注 "宽3.0×厚1.3…终点位于前方至多4.0格"): an air unit 缚地
 //   buff_duration_ground_bound s, any other 浮空 buff_duration_levitate s (aglna2_s_2[enemy]: CheckMotionMode FLY;
 //   halved on weight > 3 by both terms). ATK +atk and the attack interval change (a flat base_attack_time s) run from
 //   the cast (`_buffsWhenStartChant` aglna2_s_2[fly], life INFINITY, finished with the skill); range 3-10, attacks turn
@@ -162,8 +163,8 @@ function landing(battle, unit, reason) {
   if (reason === 'death' || !unit.alive || !unit.deployed) { land(battle, unit); return; }
   // (fork) display only: the landing attack's start (attack.6 / .7 / .9: its ON_ABILITY_START bank, plan.mjs FX_SOUND_BANKS)
   // and her body's descent (render/units.js TAKEOFF: the landing modes tween to 0 from their start); an S2 ended inside its
-  // chant leaves the chant's clips (form null)
-  battle.fx('aglna2Landing', { x: unit.x, y: unit.y, id: unit.id, land: true, form: null });
+  // chant leaves the chant's clips (form null) and puts her body back home (`follow` null: the sweep stops with it)
+  battle.fx('aglna2Landing', { x: unit.x, y: unit.y, id: unit.id, land: true, form: null, follow: null });
   battle.addBuff(unit, { key: LAND_KEY, duration: LAND_DUR, flags: { ...LIFTOFF, disarm: true }, tags: ['skill'],
     onExpire: ({ battle: b, unit: u }) => land(b, u) });
 }
@@ -233,9 +234,14 @@ function glide(battle, unit, lev, gb, life, live, onReach) {
   };
   // (fork) display: the glide (aglna2_s_2[flying], made by the sweep projectile and living as long as it — until the
   // chant's `_interruptProjectileOnEndAnim` stops it after Skill_2_Takeoff_End, at most its life projectile_life_time =
-  // chant_duration): her trail by facing and the ground mark (render/vfx/skills.js FX_BINDINGS)
+  // chant_duration): her trail by facing and the ground mark (render/vfx/skills.js FX_BINDINGS). `follow`: her drawn
+  // body rides the sweep (the projectile's SourceGraphicFollowBehaviour, follower SOURCE, `_restoreOnEnd` 1:
+  // GraphicFollowController.Tick offsets her graphic by the projectile's move from where it was born, `_Clear` puts it
+  // back at once) — GLIDE_STEPS' distance per TICK along her facing, held at the reach until the projectile stops
+  // (the chant's `rise` below, at most `dur`); her tile, block and range stay where they are (render/units.js
+  // UnitView.followGraphic)
   battle.fx('dash', { x: x0, y: y0, id: unit.id, tx: x0 + fc * GLIDE_DIST, ty: y0 + fr * GLIDE_DIST, t: GLIDE_TIME,
-    skill: 'aglna2:glide', face: unit.dir, dur: life });
+    skill: 'aglna2:glide', face: unit.dir, dur: life, follow: { ux: fc, uy: fr, steps: GLIDE_STEPS, tick: TICK, dur: life } });
   sweep();
   battle.every(TICK, (b, sched) => {
     if (!live()) { sched.cancel(); return; }
@@ -374,9 +380,11 @@ export default {
               // (fork) display: Skill_2_Takeoff_End (form `chantEnd`)
               battle.fx('aglna2Chant', { x: unit.x, y: unit.y, id: unit.id, form: 'chantEnd' });
               after(CHANT_END, () => {
-                // `_afterEndAnim` Skill_2_Begin with aglna2_s_2[chant_end]: (fork) display — the clip (form `rise`) and
-                // the rise (`land` false: render/units.js TAKEOFF)
-                battle.fx('aglna2Chant', { x: unit.x, y: unit.y, id: unit.id, form: 'rise', land: false });
+                // `_afterEndAnim` Skill_2_Begin with aglna2_s_2[chant_end]: (fork) display — the clip (form `rise`), the
+                // rise (`land` false: render/units.js TAKEOFF) and her body back home (`follow` null: the chant's
+                // _StopProjectileIfNot runs right before this clip, ChantWithProjectileBeforeSkill._WaitChantSeconds
+                // MoveNext RVA 0xD6ECFB, so the sweep's graphic follow ends here)
+                battle.fx('aglna2Chant', { x: unit.x, y: unit.y, id: unit.id, form: 'rise', land: false, follow: null });
                 after(BEGIN2_DUR, () => {
                   battle.removeBuff(unit, CHANT_KEY);
                   // (fork) display: back to her S2 clips

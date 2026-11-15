@@ -279,11 +279,29 @@ history and the open points: DESIGN §32.14.25.
   take-off, S3 flight ('aglna2Fly'), its end ('aglna2Land'), the S3 restore, the landing's start ('aglna2Landing') and S2's
   浮空 / 缚地 moments ('aglna2Bind') draw nothing of their own (`none`: no generic takeoff / blink); the last two are sound
   moments only (tools/assets/plan.mjs FX_SOUND_BANKS). S2's glide ('dash' tagged aglna2:glide) holds the sweep's trail by
-  her facing and its ground mark for the fx `dur`. Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
+  her facing and its ground mark for the fx `dur`; (fork, 2026-11-15) its `follow` ({ ux, uy, steps, tick, dur }: the
+  facing's board unit vector, the sweep's distance per sim tick) moves her drawn body with the sweep — the client's
+  SourceGraphicFollowBehaviour on projectile_chr_aglna2_s2_fly, a graphic offset only (`UnitView.followGraphic`: `gx` /
+  `gy` added where the body, its shadow, its depth and `wiring.js pose` are placed; her tile and the sim never move). It
+  holds at the end until the 'aglna2Chant' `rise` or 'aglna2Landing' sends `follow: null` (the chant stops the
+  projectile before Skill_2_Begin and `_restoreOnEnd` snaps the body home), else `dur` runs out. The follow runs on the
+  official effects' clock (`ctx.battleTime`: `app.js` fxClock, the sum of the effects' steps), so the body keeps to the
+  sweep's trail at any speed; a view without that clock steps by frame time × `animRate`. Only the body and the points
+  on it move (`pose` `x` / `y`; a FollowMountPoint effect such as the trail on her weapon rides along): an effect its
+  owner holds (`_holdByOwner`, playOn `keep`) follows the unit's own place (`pose` `ux` / `uy` / `uz`), so the ground wave
+  aglna2_skill_02_fly_range_01 stays on her tile and sweeps at its own pace while she flies ahead (round 3). The client
+  parents a held effect, keeping its world position, to the unit's `Effects` node, a child of the unit root beside
+  `Graphic` (`Entity.HoldEffect` RVA 0x726120 → `get_effectTransform`; her charpack's `Character._effectTransform`),
+  and a graphic follow or a take-off lift (`Unit.SetGraphicHolderHeightOffset` RVA 0xB1C110) moves only the graphic
+  holder: so `uz` leaves out an operator's take-off lift (`UnitView.liftZ`), a flyer's height stays in. Her S3 flight carries `form: 'fly'` (`units.js FORMS`: Skill_3_Move as
   idle and skill idle), the flight's end `form: null`. S2's chant (2026-11-14 round 2) runs on forms too: the cast's
-  'takeoff' `form: 'chant'` (Skill_2_Takeoff_Begin, then its loop), 'aglna2Chant' `chantEnd` (Skill_2_Takeoff_End) when
-  the sweep reaches, `rise` (Skill_2_Begin) and null when the chant ends; 'aglna2Chant' draws nothing (`none`), and the
-  landing's fx carries `form: null` for an S2 cut inside its chant. While S3 blocks, her attack clip is Skill_3_Combat (`spine.js
+  'takeoff' `form: 'chant'` (Skill_2_Takeoff_Begin, then its loop), 'aglna2Chant' `chantEnd` (Skill_2_Takeoff_End, its
+  form `hold`: the actor keeps the clip's faded-out last frame, `spine.js _change(clip, hold)`, never drawing
+  Skill_2_Idle in between) when the sweep reaches, `rise` (Skill_2_Begin) and null when the chant ends; 'aglna2Chant' draws nothing but at `rise`
+  (`startRows`): there it plays the skill's start rows, aglna2_skill_02_fly_end_01–03, which the cast holds back
+  (`skills.js HELD_START`, `skillfx.js _heldStart`) — they are the ON_BUFF_START of aglna2_s_2[chant_end], the buff
+  `ChantWithProjectileBeforeSkill._buffOnAfterEndAnim` adds with Skill_2_Begin, so they mark her drop back in, not the
+  take-off (fork, 2026-11-15 round 2). The landing's fx carries `form: null` for an S2 cut inside its chant. While S3 blocks, her attack clip is Skill_3_Combat (`spine.js
   MELEE_TWIN`); her attacks are agent shots (`UnitView.agent`) since they fly her projectile. The 浮空 she gives shows
   aglna2_levitate_01_emit in place of the generic status loop (`indexGaps.js ENEMY_STATE_KEYS` 'aglna2_s_2[enemy]', its
   `replaces` turning the generic `levitate` loop off while the row lasts). Her body's lift is her `units.js TAKEOFF`
