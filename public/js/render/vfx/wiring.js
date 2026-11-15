@@ -486,7 +486,8 @@ export class FxWiring {
    * BoneFollower points) and the camera's tilt (the plane the drawn model faces).
    */
   pose(v) {
-    return { x: v.x, y: v.y, z: (v.z || 0) + (v.hover || 0), left: (v.visFacing ?? v.facing ?? 1) < 0, back: typeof v._wantsBack === 'function' ? !!v._wantsBack() && !!v.entryBack : false, view: v, tilt: this._camTilt() };
+    // (fork) a graphic follow's offset (units.js UnitView.followGraphic: the drawn body, its effects with it)
+    return { x: v.x + (v.gx || 0), y: v.y + (v.gy || 0), z:(v.z || 0) + (v.hover || 0), left: (v.visFacing ?? v.facing ?? 1) < 0, back: typeof v._wantsBack === 'function' ? !!v._wantsBack() && !!v.entryBack : false, view: v, tilt: this._camTilt() };
   }
 
   /** The battle camera's tilt (degrees from straight down), or undefined (mounts.js SKELETON_TILT). */
