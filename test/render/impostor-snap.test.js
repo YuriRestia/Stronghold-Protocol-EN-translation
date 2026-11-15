@@ -34,7 +34,8 @@ async function operator({ res = 1.5, texRes = res, dir = 'RIGHT', x = 5, y = 10 
     free() {}, park(o) { o.visible = false; }, unpark(o) { o.visible = true; }, draw() {},
   };
   const ctx = fakeViewCtx(fake.P, {
-    cam, frameNo: () => frame, impostors: atlas, impostorInterval: () => 2,
+    // impostorSlot 0: refreshes on even frames (without it each unit draws a random phase, units.js _updateImpostor)
+    cam, frameNo: () => frame, impostors: atlas, impostorInterval: () => 2, impostorSlot: () => 0,
     renderer: { resolution: res, render() {} },
     assets: { picture: () => null, image: async () => null, spineEntry: () => ENTRY, spine: { acquire: async () => DATA, release() {} } },
   });
@@ -75,7 +76,7 @@ describe('UnitView: impostor sprites on whole screen pixels', () => {
 
   test('not a 1:1 copy: another scale between refreshes, or a page at another resolution, stays unmoved', async () => {
     const a = await operator({ res: 1.5 });
-    a.step(4);
+    a.step(5);                                           // frames 0–4: the next one (5) is no refresh turn
     a.v.modelK *= 1.05;                                  // within the 12 % rescale threshold: the slot is only stretched
     a.step(1);
     assert.notEqual(Math.abs(a.v.imp.sprite.scale.y), 1, 'stretched');
