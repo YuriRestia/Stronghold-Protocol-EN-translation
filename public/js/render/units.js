@@ -71,7 +71,9 @@
 // animated or drawn at all (its clock catches up, ≤ 0.5 s, when it comes back); `opts.lod: 'idle'` (the enemy preview
 // pen: idle loops only) animates through the impostor atlas every 3rd frame; under the view's adaptive load level
 // (`ctx.loadLevel()` 1–3, app.js) small / far units (< ~56 px per tile) animate every 2nd frame, and from level 2 on
-// every unit does. An impostor's slot is sized from every clip the unit can play (`impostorBox`, GitHub #542: a slot sized
+// every unit does — (fork) every enemy: a unit not on the enemy side only at level 3, and a crowd's impostors are the
+// enemies' first (`ctx.impostorInterval(isEnemy)`, render/crowd.js crowdIntervals / loadFloor; 设置「简化单位动画」
+// `ctx.spriteAnim()` 'quality' / 'unlimited' take the load level out of it). An impostor's slot is sized from every clip the unit can play (`impostorBox`, GitHub #542: a slot sized
 // from the first pose drawn cut 野鬃's idle flag and 浊心斯卡蒂's S3 flight, and what crossed its edge was left in the
 // neighbouring slots); its skeleton's clips are measured once, a few frames after the model loads (spine.js clipBounds) —
 // until then the unit is drawn directly —, and a clip too large for the box is drawn directly while it plays.
@@ -83,6 +85,7 @@
 import { progressLabel } from '../itemProgress.js';
 import { needNow } from '../loadLater.js';
 import { MoteRing } from './motes.js';
+import { loadFloor } from './crowd.js';
 import { UF, ANIM } from '../../../shared/constants.js';
 import { SpineActor } from './spine.js';
 import { skillAttackMode } from './skillAttack.js';
@@ -2300,12 +2303,15 @@ export class UnitView {
       if (flashK > 0) tint = mixTint(tint, 0xff8a80, flashK * 0.8);
       let animDt = dt * (this.ctx.animRate?.() || 1);
       if (this._offDt > 0) { animDt += Math.min(0.5, this._offDt); this._offDt = 0; }
-      let interval = this.ctx.impostorInterval ? this.ctx.impostorInterval() : 0;
-      if (this.lodIdle) interval = Math.max(interval, 3);
+      // (fork) the crowd's interval for this unit's side and the load level's floor: enemies first, the player's and
+      // the helpers' units stay drawn directly as long as possible; 设置「简化单位动画」 (render/crowd.js)
+      const animMode = this.ctx.spriteAnim ? this.ctx.spriteAnim() : 'auto';
+      let interval = this.ctx.impostorInterval ? this.ctx.impostorInterval(this.isEnemy) : 0;
+      if (this.lodIdle && animMode !== 'unlimited') interval = Math.max(interval, 3);
       const lvl = this.ctx.loadLevel ? this.ctx.loadLevel() : 0;
       if (lvl > 0) {
         this._far = this._far ? s < 60 : s < 52;
-        if (lvl >= 2 || this._far) interval = Math.max(interval, 2);
+        interval = Math.max(interval, loadFloor(lvl, { enemy: this.isEnemy, far: this._far, mode: animMode }));
       }
       let clipFlip = false;
       if (this.actor.clipped) {
