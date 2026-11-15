@@ -21,9 +21,9 @@
 // the deck (fork: no tab or overview of its own; 导出 / 导入 / 清空 in 更多).
 // Keyboard: Esc closes, ←/→ move through the (filtered) roster when focus is not in the search field (干员调配 tab).
 // 卡片视图 (PR #643 split item 5 / PR #811; the only view since the fork's 2026-11-08 change): the 干员调配 tab laid out after the event's 物资调配处 — the roster as cards in tier groups scrolling
-// sideways (two rows a group, a tall tier marker before each), one card per 自选编队 slot closing tiers 5 and 6 (it opens
-// that slot's picker as a page in place of the deck: the card view has no 自选编队 overview), a bottom
-// bar jumping to a tier. Each card has its own skill / module column (screens/loadoutDeck.js DeckOpSide: S1–S3, one module button stepping through
+// sideways (two rows a group, a tall tier marker before each), (fork, 2026-11-15) one card per 自选编队 slot in a 「自选」
+// group before tier 1 — tier 5's slots, then tier 6's, a separator after them (it opens that slot's picker as a page in
+// place of the deck: the card view has no 自选编队 overview), a bottom bar jumping to 「自选」 or a tier. Each card has its own skill / module column (screens/loadoutDeck.js DeckOpSide: S1–S3, one module button stepping through
 // the modules) and 「详情」 adds the descriptions and every module beside the cards (DeckOpMore); the fork removed 快速配置.
 // A card opens the Detail in a drawer over the left of the deck; Esc peels back one layer at a time on this tab (a
 // popover, the drawer, then the overlay), and leaving the tab closes them. 「简洁 / 详情」 sit in the top bar; the choice
@@ -281,6 +281,8 @@ export function deckAnchor(deck, selId, viewLeft) {
 }
 
 const DECK_TIERS = [1, 2, 3, 4, 5, 6];
+/** (fork) The 自选编队 slots' group key in the deck and its bar (deckGroups, DeckBar). */
+export const CUSTOM_GROUP = 'custom';
 const NO_DIY_FILTERS = Object.freeze({ query: '', prof: null, bond: null });
 /** The bonds of a 自选编队 slot's operators, in the deck's own order (core first): the picker's 筛选 bond list. */
 const diyPickBonds = (slotId, picks, kitted) => bondsInOrder(pickOptions(slotId, picks, diyData(), kitted).flatMap((o) => o.bonds || []));
@@ -328,9 +330,49 @@ export function TierMark({ m, tier, count }) {
 }
 
 /**
- * The deck: one group per tier present in `list` (a tall marker, then the cards flowing in two rows), the 甄选 card closing
- * tiers 5 / 6 (not while filtering). Its drag, wheel, left-edge group and jumps are the shared deck's (`deckProps`:
- * screens/loadoutDeck.js useGroupDeck).
+ * (fork) The deck's groups, left to right: the 自选编队 slots first as one 「自选」 group — tier 5's, then tier 6's, so the
+ * grid's two rows give each tier a column of its own (the user's call of 2026-11-15: the custom operators left of tier 1,
+ * a separator after them) —, then one group per tier with operators in `list`. No 自选 group while a filter is on (its
+ * slots are no roster cards and a filter never matched them). The 自选 group's `tiers` split its slots by tier, each pair
+ * drawn behind its own tier label with a divider between them (the user's call of 2026-11-15: which pair is which tier).
+ * Pure: the bar's counts and the tests read it too.
+ * @param {Array<{ tier: number }>} list the (filtered) roster
+ * @param {Array<{ slotId: string, tier: number }>} diySlots the 自选编队 slots (ui/diyModel.js diySlotList)
+ * @param {boolean} filtered
+ * @returns {Array<{ key: string, tier: number|null, items?: object[], slots?: object[], tiers?: Array<{ tier: number, slots: object[] }> }>}
+ */
+export function deckGroups(list, diySlots, filtered) {
+  const custom = filtered ? [] : [...diySlots].sort((a, b) => a.tier - b.tier);
+  const tiers = DECK_TIERS.map((tier) => ({ key: String(tier), tier, items: list.filter((c) => c.tier === tier) })).filter((g) => g.items.length);
+  if (!custom.length) return tiers;
+  const split = DECK_TIERS.map((tier) => ({ tier, slots: custom.filter((s) => s.tier === tier) })).filter((t) => t.slots.length);
+  return [{ key: CUSTOM_GROUP, tier: null, slots: custom, tiers: split }, ...tiers];
+}
+
+/**
+ * (fork) One tier's pair inside the 「自选」 group: a slim strip — the tier's chip and 「N阶」 down a line in the tier's
+ * colour — before its cards; the strip of every pair after the first stands behind a divider (css `.lo-csub + .lo-csub`).
+ */
+export function CustomTierMark({ tier }) {
+  return html`<div class=${cx('lo-csub__mark', `tier--${tier}`)} aria-hidden="true">
+    <${TierChip} tier=${tier} size="sm" class="lo-csub__chip" /><span class="lo-csub__label">${t('{tier}阶', { tier })}</span>
+  </div>`;
+}
+
+/**
+ * (fork) The 「自选」 group's tall marker: no official sprite exists for it, so the CSS marker's frame in mint with the
+ * person glyph and 「自选」 down it; the group's count (its slots) below, as a tier's.
+ */
+export function CustomMark({ count }) {
+  return html`<${GroupMark} cls="lo-tmark--custom" count=${count}>
+    <span class="lo-tmark__css"><${Icon} name="user" class="lo-tmark__icon" /><b class="lo-tmark__label">${t('自选')}</b></span>
+  <//>`;
+}
+
+/**
+ * The deck: (fork) the 自选编队 slots' 「自选」 group first, then one group per tier present in `list` (a tall marker, then
+ * the cards flowing in two rows; deckGroups). Its drag, wheel, left-edge group and jumps are the shared deck's
+ * (`deckProps`: screens/loadoutDeck.js useGroupDeck).
  */
 function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, onClearSlot = null, diySlots, diyLegal, deckRef, drawer, deckProps, filtered,
   selSlot = null, onSelSlot = () => {}, onQuickSlot = () => {}, onBlank = null }) {
@@ -339,36 +381,48 @@ function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, o
   // (fork) the 时装 view: the columns show the outfits, the worn one ringed (each card's column switches on its own:
   // CardSide — the deck is not redrawn for it)
   const { wornOf } = useOutfitView();
-  const groups = DECK_TIERS.map((tier) => ({ tier, items: list.filter((c) => c.tier === tier) }))
-    .filter((g) => g.items.length || (!filtered && diySlots.some((s) => s.tier === g.tier)));
+  const groups = deckGroups(list, diySlots, filtered);
   if (!groups.length) return html`<div class="lo-deck lo-deck--empty" ref=${deckRef}><p class="lo-empty t-dim">${t('没有符合条件的干员')}</p></div>`;
   return html`<div class=${cx('lo-deck', drawer && 'has-drawer', detailsStore.get().on && 'is-details')} ref=${deckRef} ...${deckProps} onClick=${onBlank}
       role="list" aria-label=${t('干员列表')} data-testid="loadout-deck">
-    ${groups.map((g) => html`<section key=${g.tier} class=${cx('lo-tgroup', `lo-tgroup--t${g.tier}`)} data-group=${g.tier} data-tier=${g.tier}>
-      <${TierMark} m=${m} tier=${g.tier} count=${g.items.length} />
-      <div class="lo-tgrid">
-        ${g.items.map((c) => html`<${DeckCard} key=${c.chessId} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null}
-          entries=${st.entries} ops=${st.ops} selected=${!selSlot && c.chessId === selId} onPick=${onPick} onChange=${onChange}
-          notOwned=${(st.notOwned || []).includes(c.chessId)} worn=${wornOf(c.charId)} />`)}
-        ${filtered ? null : diySlots.filter((sl) => sl.tier === g.tier).map((sl) => html`<${DiyDeckSlot} key=${sl.slotId} m=${m} slot=${sl}
-          pick=${st.diy?.[sl.slotId] || null} illegal=${!!st.diy?.[sl.slotId] && !diyLegal[sl.slotId]} onOpen=${onDiySlot} onClear=${onClearSlot} ops=${st.ops}
-          selected=${selSlot === sl.slotId} onSel=${onSelSlot} onQuick=${onQuickSlot} wornOf=${wornOf} />`)}
-      </div>
-    </section>`)}
+    ${groups.map((g) => (g.key === CUSTOM_GROUP
+      ? html`<section key=${g.key} class="lo-tgroup lo-tgroup--custom" data-group=${g.key} data-testid="loadout-custom">
+        <${CustomMark} count=${g.slots.length} />
+        ${g.tiers.map((sub) => html`<div key=${sub.tier} class=${cx('lo-csub', `lo-csub--t${sub.tier}`)} data-tier=${sub.tier}>
+          <${CustomTierMark} tier=${sub.tier} />
+          <div class="lo-tgrid">
+            ${sub.slots.map((sl) => html`<${DiyDeckSlot} key=${sl.slotId} m=${m} slot=${sl}
+              pick=${st.diy?.[sl.slotId] || null} illegal=${!!st.diy?.[sl.slotId] && !diyLegal[sl.slotId]} onOpen=${onDiySlot} onClear=${onClearSlot} ops=${st.ops}
+              selected=${selSlot === sl.slotId} onSel=${onSelSlot} onQuick=${onQuickSlot} wornOf=${wornOf} />`)}
+          </div>
+        </div>`)}
+      </section>`
+      : html`<section key=${g.key} class=${cx('lo-tgroup', `lo-tgroup--t${g.tier}`)} data-group=${g.key} data-tier=${g.tier}>
+        <${TierMark} m=${m} tier=${g.tier} count=${g.items.length} />
+        <div class="lo-tgrid">
+          ${g.items.map((c) => html`<${DeckCard} key=${c.chessId} m=${m} chess=${c} golden=${c.goldenId ? getChess(c.goldenId) : null}
+            entries=${st.entries} ops=${st.ops} selected=${!selSlot && c.chessId === selId} onPick=${onPick} onChange=${onChange}
+            notOwned=${(st.notOwned || []).includes(c.chessId)} worn=${wornOf(c.charId)} />`)}
+        </div>
+      </section>`))}
   </div>`;
 }
 
 /**
- * The deck's bottom bar: jump to a tier (the open 自选 slots above 5 / 6; screens/loadoutDeck.js GroupBar, `sink`: lit by
- * the deck's scroll — GroupBarLive — so only the bar redraws, not the overlay and its 112 cards, PR #811 review), and — while this
- * match's loadout is locked (`locked`: the full notice, its title) — a 「本局已锁定 · 下一局生效」 chip: the bar is the one
- * strip every width keeps on screen (the top bar's note is cut short or hidden on narrow screens).
+ * The deck's bottom bar: (fork) 「自选」 first — the 自选编队 slots' group, its badge the open slots —, then jump to a tier
+ * (screens/loadoutDeck.js GroupBar, `sink`: lit by the deck's scroll — GroupBarLive — so only the bar redraws, not the
+ * overlay and its 112 cards, PR #811 review), and — while this match's loadout is locked (`locked`: the full notice, its
+ * title) — a 「本局已锁定 · 下一局生效」 chip: the bar is the one strip every width keeps on screen (the top bar's note is cut
+ * short or hidden on narrow screens). `counts`: per tier and `custom` (deckGroups' keys); `diyOpen`: the open 自选 slots.
  */
-export function DeckBar({ counts, active = null, sink = null, onJump, diyOpen, locked = null, tools = null }) {
-  const items = DECK_TIERS.map((tier) => ({ key: String(tier), disabled: !counts[tier], title: t('{tier}阶', { tier }), attrs: { 'data-tier': tier },
-    content: html`${diyOpen[tier] ? html`<span class="lo-bbar__diy" title=${t('{tier}阶 还有 {n} 个自选名额', { tier, n: diyOpen[tier] })}><${Icon} name="user" /><b class="num">${diyOpen[tier]}</b></span>` : null}
-      <span class="lo-bbar__roman num">${ROMAN[tier]}</span><span>${t('{tier}阶', { tier })}</span>` }));
-  const bar = { items, onJump: (key) => onJump(Number(key)), label: t('按阶级跳转') };
+export function DeckBar({ counts, active = null, sink = null, onJump, diyOpen = 0, locked = null, tools = null }) {
+  // the badge's msgid — en: "{n} Custom Squad {n|slot|slots} open"
+  const custom = { key: CUSTOM_GROUP, disabled: !counts[CUSTOM_GROUP], title: t('自选编队'), cls: 'lo-bbar__tier--custom', attrs: { 'data-custom': 'true' },
+    content: html`${diyOpen ? html`<span class="lo-bbar__diy" title=${t('还有 {n} 个自选名额', { n: diyOpen })}><${Icon} name="user" /><b class="num">${diyOpen}</b></span>` : null}
+      <span class="lo-bbar__roman lo-bbar__glyph"><${Icon} name="user" /></span><span>${t('自选')}</span>` };
+  const items = [custom, ...DECK_TIERS.map((tier) => ({ key: String(tier), disabled: !counts[tier], title: t('{tier}阶', { tier }), attrs: { 'data-tier': tier },
+    content: html`<span class="lo-bbar__roman num">${ROMAN[tier]}</span><span>${t('{tier}阶', { tier })}</span>` }))];
+  const bar = { items, onJump: (key) => onJump(key === CUSTOM_GROUP ? key : Number(key)), label: t('按阶级跳转') };
   return html`<nav class="lo-bbar" aria-label=${t('按阶级跳转')}>
     ${sink ? html`<${GroupBarLive} ...${bar} sink=${sink} />` : html`<${GroupBar} ...${bar} active=${active == null ? null : String(active)} />`}
     ${locked ? html`<span class="lo-bbar__lock" role="status" data-testid="loadout-deck-locked" title=${locked}><${Icon} name="info" /><span>${t('本局已锁定 · 下一局生效')}</span></span>` : null}
@@ -779,8 +833,9 @@ const outfitsNow = useStore((s) => s.outfits, Object.is, outfitStore); // (fork)
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [menu]);
   const nFilters = ['tier', 'prof', 'bond', 'changedOnly'].filter((k) => !!st.filters?.[k]).length + (String(st.filters?.query || '').trim() ? 1 : 0);
-  const tierCounts = Object.fromEntries(DECK_TIERS.map((tier) => [tier, list.filter((c) => c.tier === tier).length + (nFilters ? 0 : diySlots.filter((s) => s.tier === tier).length)]));
-  const diyOpen = Object.fromEntries(DECK_TIERS.map((tier) => [tier, diySlots.filter((s) => s.tier === tier && !diyLegal[s.slotId]).length]));
+  // (fork) the bar's counts: the roster's per tier and the 自选 group's slots (none while filtering: deckGroups)
+  const tierCounts = { ...Object.fromEntries(DECK_TIERS.map((tier) => [tier, list.filter((c) => c.tier === tier).length])), [CUSTOM_GROUP]: nFilters ? 0 : diySlots.length };
+  const diyOpen = diySlots.filter((s) => !diyLegal[s.slotId]).length;
   const clearFilters = () => loadoutStore.set({ filters: { ...st.filters, tier: null, prof: null, bond: null, query: '', changedOnly: false } });
 
   const [syncText, syncCls] = tab === 'ownership' ? OWN_SYNC_TEXT[st.ownSync] || OWN_SYNC_TEXT.idle : SYNC_TEXT[st.sync] || SYNC_TEXT.idle;

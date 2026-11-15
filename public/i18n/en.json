@@ -2512,6 +2512,7 @@
   "5阶、6阶末尾的卡片即自选编队：持有的 6★ 干员或原型干员，只进入你自己的商店。": "The cards closing tiers 5 and 6 are the Custom Squad: 6★ Operators you own or prototype Operators, only in your own shop.",
   "{tier}阶 自选名额：持有的 6★ 干员或原型干员": "Tier {tier} Custom Squad slots: 6★ Operators you own or prototype Operators",
   "{tier}阶 还有 {n} 个自选名额": "Tier {tier}: {n} Custom Squad {n|slot|slots} open",
+  "还有 {n} 个自选名额": "{n} Custom Squad {n|slot|slots} open",
   "「筛选」按阶级、职业、盟约、名字查找，或切换回列表视图；「更多」里导出 / 导入调配、全部恢复默认。": "“Filter” finds Operators by tier, class, alliance or name, or switches back to the list view; “More” exports / imports the loadout or resets all to default.",
   "切换为卡片视图（物资调配处）": "Switch to the card view (laid out like the event’s supply depot)",
   "列表": "List",

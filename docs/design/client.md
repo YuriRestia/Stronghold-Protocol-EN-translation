@@ -577,10 +577,13 @@ tab and that tab's slot overview were removed. The card view's blocks are ONE co
 choices, the grouped deck's drag / wheel / left-edge group / jump — useGroupDeck, GroupMark, GroupBar(Live) —, the
 drawer DeckDrawer — a pure overlay over the deck's left, the deck never moving for it — and the detail DeckDetail); each screen passes only its own data. The deck lays
 the tab out after the event's 物资调配处: a group per tier scrolling sideways (two rows behind a tall tier marker), one
-card per 自选编队 slot closing tiers 5 and 6 (fork: the pick, or an empty slot to fill — a press opens that slot's
+card per 自选编队 slot in a 「自选」 group before tier 1 (fork, the user's call of 2026-11-15: tier 5's two slots, then
+tier 6's — a column each, each pair behind a slim strip with its tier chip and 「N阶」 in the tier's colour and a dashed
+divider between the pairs —, behind a CSS marker in mint, no official sprite existing for it, and a separator line after
+the group; not drawn while a filter is on; `screens/loadout.js` deckGroups / CustomMark / CustomTierMark) (fork: the pick, or an empty slot to fill — a press opens that slot's
 picker as a page of its own in place of the deck (the deck is not drawn meanwhile), with 清空 for a filled slot; the top
 bar's 干员调配, Esc, 确认 or 取消 bring the deck back where it was, without its opening 转场; 自选编队's 导出 / 导入 / 清空
-are in 更多), and a bottom bar jumping to a tier. The picker is the card view for 自选 operators: its legal operators as
+are in 更多), and a bottom bar jumping to 「自选」 (first, its badge the open slots) or a tier. The picker is the card view for 自选 operators: its legal operators as
 the same cards grouped by class (a class marker each, the classes in the roster's order) with a bottom bar jumping to a
 class and mouse drag (no header rows of its own: the top bar names the slot's tier, its 筛选 holds the roster's search,
 class and bond filters without the tier row or 仅看已调整, and 「简洁 / 展开」 sits in its bottom bar as in the deck), the 干员调配 detail
