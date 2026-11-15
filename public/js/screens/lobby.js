@@ -694,9 +694,7 @@ export function ProtocolSelect({ roomMode, difficulty, onDifficulty, onClose, on
  * (fork) 单人匹配's choices on 选择模拟协议: the official versions to be matched for (shown when the server offers more
  * than one; at least one stays ticked) and the Grand Alliance opt-in (when the server has them; they play 第二期下半 only),
  * with its One for All sub-opt-in under it (enabled only while the Grand Alliance one is ticked; off by default).
- * (2026-11-15) Under the versions, one line per ticked version that lacks the difficulty shown and waits at a lower one.
- * @param {{ opts: { difficulty?: string, fallbacks?: { id: string, difficulty: string }[],
- *   versions: { id: string, on: boolean }[] | null, onVersion: (id: string, on: boolean) => void,
+ * @param {{ opts: { versions: { id: string, on: boolean }[] | null, onVersion: (id: string, on: boolean) => void,
  *   large: { on: boolean, disabled: boolean, onToggle: (on: boolean) => void } | null,
  *   oneForAll?: { on: boolean, disabled: boolean, onToggle: (on: boolean) => void } | null } }} props
  */
@@ -709,10 +707,6 @@ function QueueOptions({ opts }) {
         <input type="checkbox" checked=${v.on} disabled=${v.on && ticked === 1} onChange=${(e) => opts.onVersion(v.id, e.target.checked)} />
         <span>${versionLabel(v.id)}</span>
       </label>`)}
-    </div>` : null}
-    ${opts.fallbacks && opts.fallbacks.length ? html`<div class="create-box__fallbacks" role="note" data-testid="queue-fallbacks">
-      ${opts.fallbacks.map((f) => html`<span key=${f.id}>${/* en: "{version} has no {wanted}: matched at {used}" */ t('{version}没有{wanted}，将以{used}匹配', {
-        version: versionLabel(f.id), wanted: t(DIFFICULTY_NAMES[opts.difficulty]), used: t(DIFFICULTY_NAMES[f.difficulty]) })}</span>`)}
     </div>` : null}
     ${opts.large ? html`<label class="create-box__test" data-testid="queue-large">
       <input type="checkbox" checked=${opts.large.on && !opts.large.disabled} disabled=${opts.large.disabled} onChange=${(e) => opts.large.onToggle(e.target.checked)} />
@@ -880,14 +874,7 @@ export function LobbyScreen() {
     savePref('lobby.queueVersions', next);
   };
   const queueLargeOk = largeRooms && queueVersions.includes(DEFAULT_VERSION);
-  // (fork, the user's decision of 2026-11-15) a ticked version without the difficulty shown waits at its own fallback
-  // (server/lobby.js queueJoin, the room.create rule: 终极 → 绝境); the dialog names each one. Its co-op difficulties:
-  // the lobby version's from its data, another's from welcome.versions `coop` (absent: all four)
-  const coopOf = (id) => (id === version ? coop : (Array.isArray(versions) && versions.find((v) => v.id === id)?.coop) || DIFFICULTIES);
-  const queueFallbacks = queueVersions.map((id) => ({ id, difficulty: fallbackDifficulty(coopOf(id), shownCoop) })).filter((f) => f.difficulty !== shownCoop);
   const queueOpts = {
-    difficulty: shownCoop,
-    fallbacks: queueFallbacks,
     versions: offeredIds.length > 1 ? offeredIds.map((id) => ({ id, on: queueVersions.includes(id) })) : null,
     onVersion: tickVersion,
     large: largeRooms ? { on: queueLarge, disabled: !queueLargeOk, onToggle: (on) => { setQueueLarge(on === true); savePref('lobby.queueLarge', on === true); } } : null,

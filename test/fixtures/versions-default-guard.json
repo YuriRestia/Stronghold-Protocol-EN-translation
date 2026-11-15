@@ -49,24 +49,21 @@
       "cs": "<cs:act2autochess@V2_1>",
       "family": "covenant",
       "label": "第二期上半",
-      "roomModes": ["solo", "coop"],
-      "coop": ["FUNNY", "NORMAL", "HARD"]
+      "roomModes": ["solo", "coop"]
     },
     {
       "id": "act1autochess",
       "cs": "<cs:act1autochess>",
       "family": "covenant",
       "label": "第一期下半",
-      "roomModes": ["solo", "coop"],
-      "coop": ["FUNNY", "NORMAL", "HARD"]
+      "roomModes": ["solo", "coop"]
     },
     {
       "id": "act1autochess@V1_1",
       "cs": "<cs:act1autochess@V1_1>",
       "family": "covenant",
       "label": "第一期上半",
-      "roomModes": ["solo", "coop"],
-      "coop": ["FUNNY", "NORMAL", "HARD"]
+      "roomModes": ["solo", "coop"]
     }
   ]
 }

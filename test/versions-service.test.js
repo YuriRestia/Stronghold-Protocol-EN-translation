@@ -119,8 +119,6 @@ test('a disabled version gives nothing; offered and welcome follow the data and 
     assert.deepEqual(e.roomModes, ['solo', 'coop']);
     assert.equal(typeof e.label, 'string');
   }
-  // (fork, 2026-11-15) `coop`: a version's co-op difficulties, only when it lacks one (单人匹配's fallback warning)
-  assert.deepEqual(w.map((e) => [e.id, e.coop ?? null]), ALL.map((id) => [id, id === DEFAULT_VERSION ? null : on.offered(id, 'coop')]));
   assert.equal(on.servedDirs().length, 3);
   const only = createVersionSets({ enabled: ['act1autochess'], defaultId: 'act1autochess', vanilla, log: quiet });
   assert.deepEqual(only.welcome().map((e) => e.id), ['act1autochess'], 'a server of one non-default version announces it');
