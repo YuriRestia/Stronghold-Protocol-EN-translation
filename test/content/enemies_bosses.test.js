@@ -3148,20 +3148,45 @@ test('假想敌：铳 (h07_02 override) never uses 最终之罚 in the regular b
   assert.ok(!h.eventsOf('fx').some((f) => f[1] === 'charge'));
 });
 
-test('隐秘核心 铳: another gun alone grants 80% reduction from the very first hit; no stale reduction after it leaves', () => {
+// Official: achunt_passive marks, once and 0.03 s after the gun appears, every other achunt_mark unit then on the field;
+// achunt_take_damage scales the gun's damage taken while one of them lives (bosses.js kitGun, §37.108).
+test('隐秘核心 铳: a gun marks the guns and springs present 0.03 s after it appears; ×0.2 while one of them lives, none for later arrivals', () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
   h.step();
-  const g = put(h, 'enemy_9017_achunt_2', [3, 10], { tag: 'boss' });
   const other = put(h, 'enemy_9017_achunt_2', [3, 4], { tag: 'boss' });
-  const full = 1000 * (1 - g.s.res / 100);
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * 0.2);
+  other.profile.noAttack = true;
+  const g = put(h, 'enemy_9017_achunt_2', [3, 10], { tag: 'boss' });
+  g.profile.noAttack = true;
+  const full = 1000 * (1 - g.s.res / 100), scale = tb('enemy_9017_achunt_2', '4.damage_scale');
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full, 1e-9, 'nothing marked before 0.03 s');
+  h.step(2);
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * scale, 1e-9, 'the gun present at the mark');
+  const spring = put(h, 'enemy_9020_actrpc', [3, 6], { tag: 'part' });
+  spring.profile.noAttack = true;
+  h.step(2);
   // Leaving the field without killing the shared boss pool isolates the companion condition.
   other.alive = false; other.deployed = false;
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full);
-  const spring = put(h, 'enemy_9020_actrpc', [3, 6], { tag: 'part' });
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * 0.2);
-  spring.alive = false; spring.deployed = false;
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full);
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full, 1e-9, 'a spring that came later was never marked');
+  checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
+});
+
+test('隐秘核心 铳 pair: once the springs are gone the 0.1 s gun takes full damage, the leader keeps ×0.2 while that gun lives', () => {
+  const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
+  h.step();
+  const springs = ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'].map((k, i) => put(h, k, [1 + i * 2, 4], { tag: 'part' }));
+  const first = put(h, 'enemy_9017_achunt_2', [3, 14], { tag: 'boss' });
+  h.step(2);
+  const leader = put(h, 'enemy_9017_achunt_2', [3, 8], { tag: 'boss' });
+  h.step(2);
+  for (const o of [first, leader, ...springs]) o.profile.noAttack = true;
+  const full = 1000 * (1 - first.s.res / 100), scale = tb('enemy_9017_achunt_2', '4.damage_scale');
+  approx(h.b.dealDamage(null, first, { amount: 1000, type: 'arts' }), full * scale);
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full * scale);
+  for (const s of springs) { s.alive = false; s.deployed = false; }
+  approx(h.b.dealDamage(null, first, { amount: 1000, type: 'arts' }), full, 1e-9, 'the first gun marked the springs only');
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full * scale, 1e-9, 'the leader also marked the first gun');
+  first.alive = false; first.deployed = false;
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full);
   checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
 });
 

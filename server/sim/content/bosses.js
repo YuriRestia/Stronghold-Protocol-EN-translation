@@ -746,10 +746,23 @@ function kitGun(ab, e, b) {
     },
   ];
   if (hidden) {
-    // PRTS 未尽的告解: another gun OR spring keeps the reduction. Refresh on hit as well so the first hit and
-    // a hit immediately after the last companion dies see the current condition, not a stale polling result.
+    // 未尽的告解: the reduction holds while a unit THIS gun marked lives. Official: Ability0's achunt_passive fires once,
+    // 0.03 s after the gun appears (triggerLifeType 1, triggerCnt 1, triggerInterval 0.03, waitFirstTriggerInterval 1)
+    // [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt/CommonAbilities/Ability0]; it gives achunt_mark_by_boss to
+    // its BossSelector's units — every enemy-side unit holding achunt_mark (the guns and the three springs), itself
+    // excluded (_excludeTarget BUFF_OWNER) [src: same file, CommonAbilities/BossSelector/Selector; config/
+    // buff_template_holder.ab achunt_passive ON_BUFF_TRIGGER]. Each mark puts a derived achunt_summonee on the gun, and
+    // achunt_take_damage (Talents/4) scales the damage it takes by 4.damage_scale while it holds one [src:
+    // buff_template_holder.ab achunt_mark_by_boss, achunt_take_damage]. So a unit that comes later is never marked: on the
+    // pair field the 0.1 s gun marks the springs only, the 10 s leader the springs and that gun (§37.108). Until §37.108
+    // any other gun or spring on the field counted, whenever it came. Refresh on hit as well so a hit right after the
+    // last marked unit dies sees the current condition, not a stale polling result.
+    let marked = null;
+    b.after(0.03, (b2) => {
+      if (e.alive) marked = b2.enemies.filter((o) => o !== e && o.alive && (isGun(o) || isSpring(o)));
+    }, { owner: e });
     const confession = (b2, e2) => {
-      const other = b2.enemies.some((o) => o !== e2 && o.alive && (isGun(o) || isSpring(o)));
+      const other = !!marked && marked.some((o) => o.alive);
       if (other) {
         const m = T(ab, '4.damage_scale') ?? 1;
         b2.addBuff(e2, { key: 'boss:confession', duration: 0.35, refresh: 'replace', mods: { physTakenMul: m, artsTakenMul: m } });
