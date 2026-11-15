@@ -2,7 +2,7 @@
 // the real GPU through gpuArgs(), muted). Opt-in: SP_E2E=1 node --test test/ui/loadout-cards.e2e.test.js
 //
 // Desktop 1920×1080: the overlay opens in the cards (the only view since the fork's 2026-11-08 change) → tier groups of
-// cards behind the official tier tags (or the CSS marker) with the 甄选干员 cards closing tiers 5 / 6, every card's own
+// cards behind the official tier tags (or the CSS marker) after the 甄选干员 cards' 「自选」 group, every card's own
 // skill / module column inside it → a card opens the detail in the drawer, the same card again closes it → the column:
 // S1 and the module list (不装备, then the module again) on 隐现's card are stored, opening nothing and leaving the
 // selection → 「简洁 / 详情」 unfolds the panels already drawn (no element added), the selected card — or, off screen, the
@@ -171,7 +171,13 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       assert.equal(await page.$('.lo-list, .lo-card'), null, 'the cards are the only view (fork, 2026-11-08)');
       const deck = await page.evaluate(() => ({
         cards: document.querySelectorAll('.lo-op[data-chess]').length,
-        groups: [...document.querySelectorAll('.lo-tgroup')].map((g) => Number(g.dataset.tier)),
+        groups: [...document.querySelectorAll('.lo-tgroup')].map((g) => g.dataset.group),
+        customFirst: [...document.querySelectorAll('.lo-tgroup--custom .lo-op--diy')].map((d) => Number(d.dataset.diyTier)),
+        customCols: [...document.querySelectorAll('.lo-tgroup--custom .lo-op--diy')].map((d) => Math.round(d.getBoundingClientRect().left)),
+        customSubs: [...document.querySelectorAll('.lo-tgroup--custom .lo-csub')].map((s) => [s.dataset.tier, s.querySelectorAll('.lo-op--diy').length,
+          !!s.querySelector('.lo-csub__mark .tier'), getComputedStyle(s).borderLeftStyle]),
+        customLine: (() => { const g = document.querySelector('.lo-tgroup--custom'); return g ? getComputedStyle(g).borderRightWidth : null; })(),
+        barGroups: [...document.querySelectorAll('.lo-bbar__tier')].map((b) => b.dataset.group),
         diy: [...document.querySelectorAll('.lo-op--diy')].map((d) => Number(d.dataset.diyTier)),
         rows: new Set([...document.querySelectorAll('.lo-tgroup[data-tier="1"] .lo-op')].map((c) => Math.round(c.getBoundingClientRect().top))).size,
         scrolls: (() => { const d = document.querySelector('.lo-deck'); return d.scrollWidth > d.clientWidth; })(),
@@ -192,14 +198,19 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       assert.deepEqual(deck.modsShown, ['flex/none'], 'a tall screen lists every module, the stepping button hidden');
       assert.deepEqual(deck.switch, [['loadout-compact', 'true'], ['loadout-details', 'false'], ['loadout-outfitview', 'false']], '简洁 / 展开 / 时装 in the bottom bar, 简洁 on');
       assert.equal(deck.quick, false, '快速配置 is gone');
-      assert.deepEqual(deck.groups, [1, 2, 3, 4, 5, 6]);
-      assert.deepEqual(deck.diy, [5, 5, 6, 6], 'one card per 自选编队 slot closes tiers 5 and 6');
+      assert.deepEqual(deck.groups, ['custom', '1', '2', '3', '4', '5', '6'], 'the 自选 group left of tier 1 (the user\'s call of 2026-11-15)');
+      assert.deepEqual(deck.diy, [5, 5, 6, 6], 'one card per 自选编队 slot');
+      assert.deepEqual(deck.customFirst, [5, 5, 6, 6], 'all four in the 自选 group, tier 5\'s first');
+      assert.equal(new Set(deck.customCols).size, 2, 'two columns: tier 5\'s, then tier 6\'s');
+      assert.equal(deck.customLine, '1px', 'a separator after the 自选 group');
+      assert.deepEqual(deck.customSubs, [['5', 2, true, 'none'], ['6', 2, true, 'dashed']], 'each pair behind its tier chip, a divider before tier 6\'s');
+      assert.deepEqual(deck.barGroups, ['custom', '1', '2', '3', '4', '5', '6'], 'Custom first in the bottom bar');
       assert.equal(deck.rows, 2, 'a tier group flows in two rows');
       assert.ok(deck.scrolls, 'the deck scrolls sideways');
-      assert.equal(deck.bar, 6);
+      assert.equal(deck.bar, 7);
       assert.equal(deck.stored, null, '「详情」\'s default is not stored: a later default change still reaches this browser');
       assert.ok(deck.layers.every((p) => p === 'relative'), `every layer stacks above the background ${deck.layers}`);
-      assert.equal(deck.marks.length, 6);
+      assert.equal(deck.marks.length, 7);
       assert.ok(deck.marks.every((k) => k === 'art' || k === 'css'), `a tier tag or the CSS marker before every group ${deck.marks}`);
       assert.ok(deck.slogan === 'none' || deck.slogan === 'normal', `no invented slogan on the marker (${deck.slogan})`);
       if (deck.tagInManifest) {
@@ -350,6 +361,10 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
         return g.getBoundingClientRect().left < d.getBoundingClientRect().left + d.clientWidth / 2;
       }, { timeout: 5000 });
       await page.waitForFunction(() => document.querySelector('.lo-bbar__tier.is-on')?.dataset.tier === '6', { timeout: 5000 });
+      // (fork) 「自选」 jumps back to the start, where the 自选 group is, and lights up
+      await page.click('.lo-bbar__tier[data-group="custom"]');
+      await page.waitForFunction(() => document.querySelector('.lo-deck').scrollLeft <= 1, { timeout: 5000 });
+      await page.waitForFunction(() => document.querySelector('.lo-bbar__tier.is-on')?.dataset.group === 'custom', { timeout: 5000 });
 
       // a 自选编队 slot card opens that slot's picker as a page of its own in place of the deck (no 自选编队 overview, no
       // layer over a live deck); Esc (and the top bar's 干员调配) returns to the deck where it was, without its opening 转场
