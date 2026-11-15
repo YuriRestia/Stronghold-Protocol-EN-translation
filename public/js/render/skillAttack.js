@@ -23,6 +23,24 @@ const NORMAL_ATTACK_SKILLS = {
   char_1014_nearl2: { 1: 'skchr_nearl2_2' },
 };
 
+// (fork, §37.107) Skills whose switched mode attacks with a skill clip of its own, which is that mode's attack and no
+// cast (`modeAttack`: SpineActor plays nothing at the skill's start). 野鬃 S2: wildmn_s_2 is switch_mode → S2 [src:
+// official fx index units.char_496_wildmn skills.skchr_wildmn_2 uses]; charpack/char_496_wildmn.ab Modes/S2/Body/Attack
+// `_animKey` Skill_2, `_downAnimKey` Skill_2_Down, and S2 has no AnimatorHooker (only S1's Idle → Skill_1_Idle) [src:
+// CN client charpack/char_496_wildmn.ab]; chararts DefaultSkin and skinpack char_496_wildmn_epoque#16 `_animations` map
+// both keys to the clips of the same names [src: CN client chararts/ and skinpack/char_496_wildmn.ab]. The skill's
+// ability is an ActiveBuffAbility, not an animated one [src: dump.cs ActiveBuffAbility : EasyToStartAbility].
+const MODE_ATTACK_SKILLS = {
+  char_496_wildmn: { 1: { skill: 'skchr_wildmn_2', animKey: 'Skill_2', downKey: 'Skill_2_Down' } },
+};
+
+/** The slot's skill record is not `want` (an explicitly replaced plugin skill must not inherit an official mapping). */
+function otherSkill(rec, slot, want) {
+  const srec = skillRecordOf(rec, slot);
+  const id = srec?.prefabId || srec?.skillId;
+  return !!id && String(id).toLowerCase().replace(/\[\d+\]$/, '') !== want;
+}
+
 /**
  * The legacy effects index omits mode AnimatorHooker._replaceAnimPairs and skin _animations.
  * Do not generalize its raw animKey to other units: e.g. Humus S2 remaps Attack to Skill_2_Loop,
@@ -39,14 +57,14 @@ export function skillAttackMode(index, { info = null, rec = null, skillIndex } =
       : Number.isInteger(info?.skillIndex) ? info.skillIndex : skillRecordOf(rec)?.index;
   const verified = NORMAL_ATTACK_SKILLS[charId]?.[slot];
   if (verified) {
-    const srec = skillRecordOf(rec, slot);
-    const id = srec?.prefabId || srec?.skillId;
     // [ASSUMED] An explicitly replaced plugin skill must not inherit an official slot's cast/attack mapping.
-    if (id && String(id).toLowerCase().replace(/\[\d+\]$/, '') !== verified) return null;
+    if (otherSkill(rec, slot, verified)) return null;
     // These modes use the normal role with AND without the legacy index. Its raw key can be empty
     // (Texas/Vigil use an attack animator), or its first switch can be non-attacking (Specter's Empty).
     return { animKey: 'Attack' };
   }
+  const own = MODE_ATTACK_SKILLS[charId]?.[slot];
+  if (own) return otherSkill(rec, slot, own.skill) ? null : { animKey: own.animKey, downKey: own.downKey, modeAttack: true };
   const unit = index?.units?.[charId];
   const resolved = unit ? resolveSkill(index, { info, rec, unitKey: charId, skillIndex: slot }) : null;
   // A known skill with unverified animation mappings keeps the pre-§34.31 roles. There is no generic
