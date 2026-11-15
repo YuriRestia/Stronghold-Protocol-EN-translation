@@ -16,10 +16,10 @@ Server cost:
 |---|---|---|
 | Bandwidth out, per player | 99 B more per welcome (3 older seasons × 33 B of `coop`) [src: measured string length of the added field] + 0–86 B more per queue.state [src: measured string length of `at` with 3 seasons] | the same: both are sent on connect / queue change only [src: server/lobby.js sendQueue] |
 | Bandwidth out / in, per room (4 players) | 0 MB/s: nothing is sent during a match [src: no match message changed] | 0 MB/s |
-| Bandwidth out, 300 players | about 0.3 MB/day: 300 players × 10 connects × 99 B [unverified: 10 connects a day assumed for the estimate] | under 0.0001 MB/s at peak if all 300 reconnect within 1 s (30 KB once) [unverified] |
-| Server-to-server (cross-region digest, every 2 s) | 0 MB/s while nobody waits at a lower difficulty [src: server/peerLink.js POLL_MS, `at` omitted when empty] | 0.013 MB/s, 1.1 GB/day if all 300 players sit in the queue with 3 lower seasons at once [unverified: 300 × 86 B / 2 s] |
+| Bandwidth out, 300 players | about 0.3 MB/day, estimated as 300 players × 10 connects a day × 99 B [unverified] | under 0.0001 MB/s at peak if all 300 reconnect within 1 s, 30 KB once [unverified] |
+| Server-to-server (cross-region digest, every 2 s) | 0 MB/s while nobody waits at a lower difficulty [src: server/peerLink.js:26] | 0.013 MB/s, 1.1 GB/day if all 300 players sit in the queue with 3 lower seasons at once, estimated as 300 × 86 B every 2 s [unverified] |
 | Server CPU | under 0.01 % of one core: one fallback per ticked season per queue.join [unverified] | the same per queue.join [unverified] |
-| Memory | under 0.03 MB: one small `at` map per queued Doctor [unverified: 300 × about 100 B] | the same |
+| Memory | under 0.03 MB, estimated as 300 queued Doctors × about 100 B of `at` [unverified] | the same [unverified] |
 | Disk | 0 MB/day [src: no file writes] | 0 MB/day |
 | Bot budget | 0 ms/round [src: no bot code changed] | 0 ms/round |
 
