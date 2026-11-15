@@ -14,7 +14,8 @@
 // unless the match passes the round's placeholder replacements as `opts.slotKeys` ({ NF: key, N: key, … }).
 //   · patrol: a leader / part walking `patrol` steps loops them (never reaches the goal: 卢西恩 lpr 30, 铳, 碎铳之簧).
 //   · 'boss_battle_multi_player' (铳, 卢西恩): with ≥2 players on the field the mirrored copy is spawned from the branch
-//     (skipped if the match already spawned a second copy, or opts.bossMirror === false).
+//     (skipped if the match already spawned a second copy, or opts.bossMirror === false); a copy timed before the
+//     leader comes at its own time from the battle's start (branchAtStart: the h08_02 铳 at 0.1 s, §37.109).
 //
 // Leaders (see each kit for details):
 //   boss_1/8 假想敌：胄      random arts beam (range 8); 灭顶之灾 one 刺胄之弹 at the highest-ATK operator in range (8-hit
@@ -36,7 +37,8 @@
 //                            element shield (phys+arts ×0.1, broken by its own element burst; every (spCost+1)-th attack a
 //                            bouncing erosion shot) / 5-hit count shield (every (spCost+1)-th attack a ten-hit combo); always
 //                            unblockable (PRTS 能力修正: also without the shield); shield back 25 s after breaking. It passes
-//                            on as 无来源 HP loss to the highest-hatred 铳 (PART_TRANSFER) and, split, the other springs: the
+//                            on as 无来源 HP loss to the highest-hatred 铳 only (PART_TRANSFER; never the other springs,
+//                            §37.109): the
 //                            arts variant every applied modifier — damage, heals, element (actrpa_passive ON_APPLIED_MODIFIER)
 //                            —, the others the damage they take at their injury stage (§35.34).
 //   boss_3/10 假想敌：管     summons 余音 (dark) every 40 s (20 s < 50 %); normal attacks strike dark 余音 (their pulse hurts
@@ -159,7 +161,7 @@ const SPRING_TRAMPLE_ROW = 0.3;
 /** 盲信之誓 link half-width (PRTS 0.5). */
 const LINK_WIDTH = 0.5;
 /** 碎铳之簧 bullet bounce falloff / reach [ASSUMED], combo = 十连击; tag of the damage share passed between springs. */
-const SPRING_BOUNCE_FALLOFF = 0.85, SPRING_BOUNCE_RANGE = 2, SPRING_COMBO_HITS = 10, SPRING_SHARE_TAG = 'springShare';
+const SPRING_BOUNCE_FALLOFF = 0.85, SPRING_BOUNCE_RANGE = 2, SPRING_COMBO_HITS = 10;
 /**
  * Leaders that are 自缚 and cannot be blocked — the 天赋 line of every 巨型单位 page (PRTS 假想敌：胄 (both copies) "自缚、
  * 不可阻挡", 假想敌：管 (+ 隐秘核心) / 盐风主教昆图斯 / 阿利斯泰尔，帝国余晖 / “萨米的意志” "自缚 … 无法被阻挡"). 自缚 (PRTS
@@ -320,6 +322,8 @@ function summonMods(b, hpRatio = null) {
 export function install(battle) {
   ensureInstalled(battle);
   battle.on('enemySpawn', ({ enemy }) => onSpawn(battle, enemy), { priority: 90 });
+  // Next tick, so opts.setup (run after install) has set the template and opts.bossMirror.
+  battle.after(0, () => branchAtStart(battle));
   // "最终攻势中，敌方领袖不会受到侵蚀损伤" (PRTS 卫戍协议：盟约/PRTS盟约记录 规则; research 06 §10.1): leaders ignore erosion gauge damage
   battle.on('elementHit', (c) => { if (c.target && c.target.isBoss && c.dmg.element === 'erosion') c.dmg.cancel = true; }, { priority: 100 });
 }
@@ -349,6 +353,39 @@ function patrolLoop() {
       if (R.legIdx >= R.legs.length - 1) { R.legIdx = 0; R.pts = null; R.waitLeft = null; }
     },
   };
+}
+
+function mirrorOff(b) {
+  return b.data.raw?.config?.version?.rules?.bossMirrorShare === false || (b.opts && b.opts.bossMirror === false) || b.players.length < 2;
+}
+
+// The official client moves to the boss_battle_multi_player branch when the boss battle starts, not when the leader
+// appears (Torappu.Battle.GameMode.GameModeFactory.AutoChessGameMode.MainGameInBossBattle._OnBossBattleStart, RVA
+// 0xc7cb20: Scheduler.TryMoveNextBranch at 0xc7cd22 after a player count > 1 check; the literal at 0x8BE7DF8 —
+// official GameAssembly.dll + Il2CppDumper dump.cs / stringliteral.json). So a branch copy timed before the leader's own
+// spawn comes at its own time: h08_02's second 铳 at 0.1 s on extraRoutes[2] while the leader waits its 10 s preDelay
+// (official level_act1autochess_h08_02.json). Entries at or after the leader's time stay with mirror() below (h07_02,
+// act2autochess_h07_05: both at 0). Until §37.109 the h08_02 copy came with the leader at 10 s, so both guns ran
+// the same 【末日布道】 timers and the right one always called last: the springs only ever chased to the right half.
+function branchAtStart(b) {
+  if (mirrorOff(b)) return;
+  const tpl = templateOf(b);
+  const br = tpl && tpl.branches && tpl.branches.boss_battle_multi_player;
+  if (!Array.isArray(br) || !Array.isArray(br[0])) return;
+  const st = stOf(b);
+  for (const s of br[0]) {
+    const key = s.key ?? s.enemyKey;
+    if (!key || st.mirrored.has(key)) continue;
+    const leads = b._pending.filter((p) => p.enemyKey === key && p.tag === 'boss');
+    if (leads.length !== 1 || !((s.time ?? 0) < leads[0].time)) continue; // the match spawns both, or mirror() does it
+    st.mirrored.add(key);
+    const mods = leads[0].mods;
+    b.after(Math.max(0, (s.time ?? 0) - b.time), () => {
+      const route = tpl.extraRoutes && tpl.extraRoutes[s.routeIndex];
+      const u = b.spawnEnemy(key, { route: route || undefined, tag: 'boss', mods });
+      if (u) u.mem.mirror = true;
+    });
+  }
 }
 
 function mirror(b, e, tpl) {
@@ -709,10 +746,23 @@ function kitGun(ab, e, b) {
     },
   ];
   if (hidden) {
-    // PRTS 未尽的告解: another gun OR spring keeps the reduction. Refresh on hit as well so the first hit and
-    // a hit immediately after the last companion dies see the current condition, not a stale polling result.
+    // 未尽的告解: the reduction holds while a unit THIS gun marked lives. Official: Ability0's achunt_passive fires once,
+    // 0.03 s after the gun appears (triggerLifeType 1, triggerCnt 1, triggerInterval 0.03, waitFirstTriggerInterval 1)
+    // [src: CN client battle/enm_pfb_28.ab enemy_9017_achunt/CommonAbilities/Ability0]; it gives achunt_mark_by_boss to
+    // its BossSelector's units — every enemy-side unit holding achunt_mark (the guns and the three springs), itself
+    // excluded (_excludeTarget BUFF_OWNER) [src: same file, CommonAbilities/BossSelector/Selector; config/
+    // buff_template_holder.ab achunt_passive ON_BUFF_TRIGGER]. Each mark puts a derived achunt_summonee on the gun, and
+    // achunt_take_damage (Talents/4) scales the damage it takes by 4.damage_scale while it holds one [src:
+    // buff_template_holder.ab achunt_mark_by_boss, achunt_take_damage]. So a unit that comes later is never marked: on the
+    // pair field the 0.1 s gun marks the springs only, the 10 s leader the springs and that gun (§37.109). Until §37.109
+    // any other gun or spring on the field counted, whenever it came. Refresh on hit as well so a hit right after the
+    // last marked unit dies sees the current condition, not a stale polling result.
+    let marked = null;
+    b.after(0.03, (b2) => {
+      if (e.alive) marked = b2.enemies.filter((o) => o !== e && o.alive && (isGun(o) || isSpring(o)));
+    }, { owner: e });
     const confession = (b2, e2) => {
-      const other = b2.enemies.some((o) => o !== e2 && o.alive && (isGun(o) || isSpring(o)));
+      const other = !!marked && marked.some((o) => o.alive);
       if (other) {
         const m = T(ab, '4.damage_scale') ?? 1;
         b2.addBuff(e2, { key: 'boss:confession', duration: 0.35, refresh: 'replace', mods: { physTakenMul: m, artsTakenMul: m } });
@@ -791,18 +841,18 @@ function kitSpring(ab, e) {
   };
   const drop = (b) => { P.up = false; P.downAt = b.time; b.removeBuff(e, 'boss:springShield'); b.fx('shieldBreak', { x: e.x, y: e.y, id: e.id }); };
   const transfer = (b, c) => {
-    if (!(c.amount > 0) || c.cancelled || isHpLoss(c.dmg) || c.dmg?.tags?.includes(SPRING_SHARE_TAG)) return;
+    if (!(c.amount > 0) || c.cancelled || isHpLoss(c.dmg)) return;
     const credited = c.source || c.credit;
     const credit = credited?.side === 'ally' ? credited : null;
     // 仇恨值最高 (PRTS): the official BossSelector's logic is not in our data, so the hatred order is the engine's targeting
     // one (targeting.js aggroCmp: taunt, then the latest arrival) applied to the guns — [ASSUMED] for enemy guns and ties.
     const g = b.enemies.filter(o => o.alive && isGun(o)).sort(aggroCmp)[0];
-    const amount = c.amount * PART_TRANSFER;
-    if (g) b.dealHPLose({ source: null, credit, target: g, amount, origin: c.dmg });
-    // [ASSUMED] Preserve the project's equal split to other springs; PRTS explicitly specifies only the gun.
-    const others = b.enemies.filter(o => o.alive && o !== e && isSpring(o));
-    for (const target of others) b.dealHPLose({ source: null, credit, target, amount: amount / others.length,
-      origin: c.dmg, tags: [SPRING_SHARE_TAG] });
+    // One gun only, never the other springs: actrpa_passive / actrpb_passive hand actrpa_hp_trans (FixedValueDamage,
+    // PURE hp_lose, no source) to the targets of the spring's BossSelector, which keeps 1 unit (_limitTargetNum 1,
+    // _maxNum 1) holding the buff achunt_mark with the key enemy_9017_achunt (EnemyKeyExcludeMode 0 = include) —
+    // the guns alone carry achunt_mark (official .cache/ab-cn/config/buff_template_holder.ab, enm_pfb_28.ab). Until
+    // §37.109 the other springs took an equal split as well.
+    if (g) b.dealHPLose({ source: null, credit, target: g, amount: c.amount * PART_TRANSFER, origin: c.dmg });
   };
   const sk = ab.sk['1'];
   return [

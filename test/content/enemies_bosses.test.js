@@ -3148,20 +3148,45 @@ test('假想敌：铳 (h07_02 override) never uses 最终之罚 in the regular b
   assert.ok(!h.eventsOf('fx').some((f) => f[1] === 'charge'));
 });
 
-test('隐秘核心 铳: another gun alone grants 80% reduction from the very first hit; no stale reduction after it leaves', () => {
+// Official: achunt_passive marks, once and 0.03 s after the gun appears, every other achunt_mark unit then on the field;
+// achunt_take_damage scales the gun's damage taken while one of them lives (bosses.js kitGun, §37.109).
+test('隐秘核心 铳: a gun marks the guns and springs present 0.03 s after it appears; ×0.2 while one of them lives, none for later arrivals', () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
   h.step();
-  const g = put(h, 'enemy_9017_achunt_2', [3, 10], { tag: 'boss' });
   const other = put(h, 'enemy_9017_achunt_2', [3, 4], { tag: 'boss' });
-  const full = 1000 * (1 - g.s.res / 100);
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * 0.2);
+  other.profile.noAttack = true;
+  const g = put(h, 'enemy_9017_achunt_2', [3, 10], { tag: 'boss' });
+  g.profile.noAttack = true;
+  const full = 1000 * (1 - g.s.res / 100), scale = tb('enemy_9017_achunt_2', '4.damage_scale');
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full, 1e-9, 'nothing marked before 0.03 s');
+  h.step(2);
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * scale, 1e-9, 'the gun present at the mark');
+  const spring = put(h, 'enemy_9020_actrpc', [3, 6], { tag: 'part' });
+  spring.profile.noAttack = true;
+  h.step(2);
   // Leaving the field without killing the shared boss pool isolates the companion condition.
   other.alive = false; other.deployed = false;
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full);
-  const spring = put(h, 'enemy_9020_actrpc', [3, 6], { tag: 'part' });
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full * 0.2);
-  spring.alive = false; spring.deployed = false;
-  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full);
+  approx(h.b.dealDamage(null, g, { amount: 1000, type: 'arts' }), full, 1e-9, 'a spring that came later was never marked');
+  checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
+});
+
+test('隐秘核心 铳 pair: once the springs are gone the 0.1 s gun takes full damage, the leader keeps ×0.2 while that gun lives', () => {
+  const h = bossArena({ units: [{ chessId: 't_wall', row: 10, col: 7 }] });
+  h.step();
+  const springs = ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'].map((k, i) => put(h, k, [1 + i * 2, 4], { tag: 'part' }));
+  const first = put(h, 'enemy_9017_achunt_2', [3, 14], { tag: 'boss' });
+  h.step(2);
+  const leader = put(h, 'enemy_9017_achunt_2', [3, 8], { tag: 'boss' });
+  h.step(2);
+  for (const o of [first, leader, ...springs]) o.profile.noAttack = true;
+  const full = 1000 * (1 - first.s.res / 100), scale = tb('enemy_9017_achunt_2', '4.damage_scale');
+  approx(h.b.dealDamage(null, first, { amount: 1000, type: 'arts' }), full * scale);
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full * scale);
+  for (const s of springs) { s.alive = false; s.deployed = false; }
+  approx(h.b.dealDamage(null, first, { amount: 1000, type: 'arts' }), full, 1e-9, 'the first gun marked the springs only');
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full * scale, 1e-9, 'the leader also marked the first gun');
+  first.alive = false; first.deployed = false;
+  approx(h.b.dealDamage(null, leader, { amount: 1000, type: 'arts' }), full);
   checkInvariants(h.b); assert.deepEqual(h.b.errors, []);
 });
 
@@ -3364,6 +3389,28 @@ test('spring transfer selects the highest-hatred gun across the field rather tha
   assert.deepEqual(b.errors, []);
 });
 
+// Official: the spring passives' BossSelector keeps 1 unit carrying achunt_mark with the key enemy_9017_achunt — a gun,
+// never another spring (buff_template_holder actrpa_passive / actrpb_passive; bosses.js kitSpring transfer, §37.109).
+for (const key of ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc']) {
+  test(`${key}: the HP loss goes to the gun only, the other springs keep their HP`, () => {
+    const { h, b, source, gun, spring } = springShareArena(key, { spendCount: true });
+    const others = ['enemy_9018_actrpa', 'enemy_9019_actrpb', 'enemy_9020_actrpc'].map((k, i) => {
+      const o = put(h, k, [2 + i, 6], { tag: 'part' });
+      o.profile.noAttack = true;
+      return o;
+    });
+    const hp = others.map((o) => o.hp), gunHp = gun.hp;
+    const losses = [];
+    b.on('hpChanged', c => { if (c.kind === 'hpLoss') losses.push(c.target); });
+    assert.equal(b.dealDamage({ source: null, credit: source, target: spring, amount: 100, type: 'true' }), 100);
+    assert.deepEqual(losses, [gun], 'one HP loss, on the gun');
+    assert.equal(gun.stats.taken, 100);
+    assert.deepEqual(others.map((o) => o.hp), hp, 'no share to the other springs');
+    assert.ok(gun.hp <= gunHp);
+    assert.deepEqual(b.errors, []);
+  });
+}
+
 for (const attackType of ['NONE', 'NORMAL', 'SPLASH', 'BUFF', 'ADDITION']) test(`spring arts defence filters physical ${attackType} and uses a source-less counter`, () => {
   const h = bossArena({ units: [{ chessId: 't_wall', row: 12, col: 3 }] });
   h.step();
@@ -3485,8 +3532,9 @@ for (const priority of [1000, -1000]) test(`spring elemental defence follows a b
   assert.equal(b.errors.length, 0);
 });
 
-test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源) and, split, the other springs (never passed on twice)', () => {
-  // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half)
+test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, 无来源), never the other springs', () => {
+  // PRTS 碎铳之簧 "受到伤害时令全场范围内仇恨值最高的1名假想敌：铳受到等量的无来源生命流失" (DESIGN §20.10; v2.5: half);
+  // official actrpa_passive / actrpb_passive select 1 achunt_mark unit of key enemy_9017_achunt (§37.109: no split)
   assert.equal(PART_TRANSFER, 1);
   const h = bossArena({ units: [{ chessId: 't_gun', row: 12, col: 3 }], kits: { t_gun: NOATK } });
   h.step();
@@ -3501,8 +3549,8 @@ test('“碎铳之簧”: damage taken costs 假想敌：铳 as much (等量, �
   const dealt = h.b.dealDamage(h.unit('t_gun'), a, { amount: 1e5, type: 'true' });
   assert.ok(dealt > 0);
   approx(pool0 - h.b.sharedBoss.hp, dealt);
-  approx(b0 - b.hp, dealt / 2);
-  approx(c0 - c.hp, dealt / 2);
+  assert.equal(b.hp, b0, 'the other springs keep their HP');
+  assert.equal(c.hp, c0);
   assert.ok(seen.length === 1 && seen[0].source === null && seen[0].credit === h.unit('t_gun'), '无来源, credited to the attacker');
   assert.ok(h.result().perPlayer.p1.bossDamage >= dealt - 1e-6, 'the per-player pool tally');
 });
