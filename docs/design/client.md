@@ -857,6 +857,10 @@ transition, not her subsequent attack mode. The model's normal role preserves it
 different plugin skill in the same slot does not inherit the mapping. No form, held loop, own idle, skill-start/end
 animation or simulation timing changes. 郁金香's alleged S2 remains unimplemented (§35.21): the official tables
 give her only S1; the `Skill_2` animation belongs to that skill's empty-target branch.
+(fork) §37.107: 野鬃 S2 is a `modeAttack` mapping (`skillAttack.js MODE_ATTACK_SKILLS`): the S2 mode attacks with
+`Skill_2` (Front DOWN `Skill_2_Down`, the mode's `_downAnimKey`), its idle stays `Idle`, and the skill's start (an
+ActiveBuffAbility) plays no clip, where the no-Begin rule used to play `Skill_2` once as a cast
+(`SpineActor._skillIsModeAttack`).
 
 Connection recovery sits above the AI-away overlay and below global modals (§30.8), so a replaced session can
 be reclaimed by pointer while away. This does not change the stacking behavior of modals nested inside a screen.
