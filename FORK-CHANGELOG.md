@@ -5,6 +5,49 @@ on top of the upstream game ([sganggs/Stronghold-Protocol](https://github.com/sg
 own changes aren't repeated here; each upstream merge links the upstream commit it brought in, and
 [CHANGELOG.en.md](CHANGELOG.en.md) covers what that release contains. Newest first.
 
+## 2026-11-15
+
+### Older seasons: longer co-op briefing, skill range preview and keyword tips
+- Season 1 Part 1, Season 1 Part 2 and Season 2 Part 1 now give co-op teams the same 45-second briefing as today's season, so there is time to agree on the core bond call. Before: 25 seconds there, the official value; the fork adds 20 seconds in every season.
+- Operator cards in those seasons now show the Normal/Skill range toggle for skills that change the attack range, and tapping a status keyword shows that season's own official definition.
+- Togawa Sakiko stays a Custom Squad pick in today's season only; the older seasons keep her out, as before.
+
+### Gavial the Invincible and other masked operator models no longer look blurry
+
+- Operators whose models cut part of their art with a mask (Gavial the Invincible and a few others) are drawn through
+  a cached image. That image now lands on whole screen pixels, so these operators look as sharp as the operators
+  around them.
+- Before: the cached image sat between pixels and was smoothed a second time, so these operators looked soft next to
+  the rest of the board.
+
+### Operator Loadout: Custom Squad slots first, with a Custom jump
+
+- The four Custom Squad slots (two of tier 5, two of tier 6) now sit in their own "Custom" group at the very left of
+  the Operator Loadout, before the tier 1 cards: tier 5's slots in one column, tier 6's in the next, a mint line
+  separating the group from tier 1. Each pair has a slim label strip with its tier chip and "Tier 5" / "Tier 6" in
+  that tier's colour, and a small dashed divider sits between the two pairs. Before, they closed the tier 5 and tier 6
+  groups at the far right.
+- The bottom bar starts with a new "Custom" entry, left of Tier 1, that scrolls back to the group; the count of open
+  Custom Squad slots now shows on it instead of on Tier 5 / Tier 6. On narrow screens it shows as a person icon.
+- A jump to the first group of the deck (Custom here, the first class in the Custom Squad picker) now scrolls to the
+  very start, as the deck opens.
+
+### Angelina the Mellow Wish: S2 flies her forward
+
+- During S2's take-off her body now glides forward with the sweep, along her facing, holds there while the take-off ends and returns to her tile as the skill begins, as in the official game. Her tile, blocking and range do not move.
+- Before: she stayed on her tile while only the sweep's trail went forward.
+- She now keeps pace with the glowing wave at any battle speed, and her landing sparkles play when she drops back onto her tile, not when she takes off.
+- The orange ground wave now stays at her tile and sweeps at its own pace while she flies out ahead of it, and she no longer flashes back onto her tile for a moment before she drops in.
+- Her S3 flight is unchanged: as in the official game, she only flies toward an unblocked flying enemy in her range while she blocks no one.
+
+### Solo matchmaking works with older seasons at any difficulty
+
+- Each ticked season now waits at the difficulty it has: with Ultimate picked and every season ticked, Season 2 Part 2
+  matches at Ultimate and Season 1 and Season 2 Part 1 match at Dire, the way creating a room of those seasons does.
+- When you start matchmaking, a popup says which ticked seasons will be matched at a lower difficulty.
+- Before: a pick that only Season 2 Part 2 has (Ultimate) with only an older season ticked was refused with "That
+  version cannot be used in this room".
+
 ## 2026-11-14
 
 ### Pointing Stick bounty picker: header no longer squeezed
