@@ -225,6 +225,38 @@ describe('lobby: versions', () => {
     } finally { h.close(); }
   });
 
+  // the user's report of 2026-11-15: 单人匹配 with 第二期上半 alone ticked was refused (VERSION_UNSUPPORTED) at 终极, which only
+  // 第二期下半 offers (data/versions/*/config.json has no mode_multi_abyss); the queue now falls back as room.create does
+  test('queue.join: every version alone, at every difficulty, queues (a difficulty it lacks falls back as room.create)', () => {
+    for (const v of ALL) {
+      const offered = versionStub().offered(v, 'coop');
+      assert.ok(offered.length, `${v} offers co-op rooms`);
+      for (const d of DIFFICULTIES) {
+        const h = harness();
+        try {
+          const a = h.player('A');
+          ok(h.lobby.queueJoin(a, { difficulty: d, versions: [v] }));
+          const st = h.got(a, 'queue.state').at(-1);
+          assert.equal(st.queued, true, `${v} at ${d}`);
+          assert.equal(st.difficulty, h.lobby.fallbackDifficulty(v, 'coop', d), `${v} at ${d}: room.create's difficulty`);
+          assert.ok(offered.includes(st.difficulty), `${v} at ${d}: queued at ${st.difficulty}, which it offers`);
+          if (v !== DEFAULT_VERSION) assert.deepEqual(st.versions, [v]);
+        } finally { h.close(); }
+      }
+    }
+  });
+
+  test('queue.join: a ticked version that offers the difficulty keeps it; the others are still dropped', () => {
+    const h = harness();
+    try {
+      const a = h.player('A');
+      ok(h.lobby.queueJoin(a, { difficulty: 'ABYSS', versions: [V21, DEFAULT_VERSION] }));
+      const st = h.got(a, 'queue.state').at(-1);
+      assert.equal(st.difficulty, 'ABYSS');
+      assert.equal(st.versions, undefined, '第二期下半 alone (omitted)');
+    } finally { h.close(); }
+  });
+
   test('a matchmade version room starts only once every page has loaded it; a page that cannot leaves', () => {
     const h = harness();
     try {

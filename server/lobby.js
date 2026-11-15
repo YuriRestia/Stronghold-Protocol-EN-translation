@@ -1649,8 +1649,19 @@ export class Lobby {
    * `d`, or the difficulty the version offers instead: the highest below it, else its lowest (终极 → 绝境).
    * @param {string} v @param {string} mode @param {string} d
    */
-  fallbackDifficulty(v, mode, d) {
-    const offered = this.offered(v, mode);
+  fallbackDifficulty(v, mode, d) { return this.fallbackAmong(this.offered(v, mode), d); }
+
+  /**
+   * (fork) queue.join's difficulty for the versions ticked: `d` when one of them offers it in co-op, else the same rule
+   * over the difficulties any of them offers — 第二期上半 alone at 终极 queues at 绝境, the room room.create would make
+   * (the user's report of 2026-11-15: it was refused). @param {string[]} versions @param {string} d
+   */
+  queueDifficulty(versions, d) {
+    return this.fallbackAmong(DIFFICULTIES.filter((x) => versions.some((v) => this.offered(v, 'coop').includes(x))), d);
+  }
+
+  /** `d`, or the highest of `offered` below it, else the lowest offered. @param {readonly string[]} offered @param {string} d */
+  fallbackAmong(offered, d) {
     if (!offered.length || offered.includes(d)) return d;
     const below = DIFFICULTIES.slice(0, Math.max(0, DIFFICULTIES.indexOf(d))).reverse().find((x) => offered.includes(x));
     return below || offered[0];
@@ -3316,14 +3327,17 @@ export class Lobby {
    * also be seated in a Grand Alliance (only while the server has them and 第二期下半 is queued for: they play it alone).
    * `oneForAll` (with `large` only): may also be seated in a One for All Grand Alliance (off by default).
    */
-  queueJoin(session, { difficulty, versions: asked, large, oneForAll }) {
+  queueJoin(session, { difficulty: askedDifficulty, versions: asked, large, oneForAll }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     const wanted = Array.isArray(asked) && asked.length ? [...new Set(asked)] : [DEFAULT_VERSION];
     if (wanted.some((v) => !this.versionEnabled(v))) return fail(ERR.VERSION_UNKNOWN);
-    const versions = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').includes(difficulty));
-    if (!versions.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms at this difficulty');
+    const usable = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').length);
+    if (!usable.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms');
+    // (fork) the page offers the lobby version's difficulties; one no ticked version has falls back as room.create does
+    const difficulty = this.queueDifficulty(usable, askedDifficulty);
+    const versions = usable.filter((v) => this.offered(v, 'coop').includes(difficulty));
     const opts = { versions, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
     opts.oneForAll = opts.large && oneForAll === true;
     if (cur) this.removeMember(cur, session.playerId);
