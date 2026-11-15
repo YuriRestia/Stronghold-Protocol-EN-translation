@@ -24,9 +24,9 @@ import { hasDefaultGamedata } from './helpers/defaultGamedata.js';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'tools', 'build-data.mjs');
 const EN =JSON.parse(readFileSync(join(ROOT, 'public', 'i18n', 'en.json'), 'utf8'));
-/** The 15 files tools/build-data.mjs builds, plus the copy of data/tuning.json. */
+/** The 16 files tools/build-data.mjs builds, plus the copy of data/tuning.json. */
 const BUILT = ['backups', 'bands', 'bonds', 'bosses', 'chess', 'choices', 'config', 'effects', 'enemies', 'factions', 'garrisons',
-  'items', 'stages', 'tokens', 'waves'];
+  'items', 'stages', 'terms', 'tokens', 'waves'];
 const OTHERS = VERSIONS.filter((v) => v.id !== DEFAULT_VERSION);
 const REBUILD_ALL = `rebuild every version: ${VERSIONS.map((v) => `node tools/build-data.mjs --version ${v.id}`).join('; ')} `
   + '(a version also reads data/assets.json, data/tuning.json and docs/research/*.json, so a default-side change to those can make it stale)';
@@ -165,11 +165,11 @@ for (const v of OTHERS) {
     }
   });
 
-  test(`data/${v.dir}: the 16 files, under 6 MB, config.version, the profile's counts, no effectRef, the trigger deviations of its profile, references resolve`, async () => {
+  test(`data/${v.dir}: the 17 files, under 6 MB, config.version, the profile's counts, no effectRef, the trigger deviations of its profile, references resolve`, async () => {
     const { profile } = await loadProfile(v.id);
     const dir = join(ROOT, 'data', v.dir);
     const names = readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => f.slice(0, -5)).sort();
-    assert.deepEqual(names, [...BUILT, 'tuning'].sort(), 'exactly the 15 built files and tuning.json');
+    assert.deepEqual(names, [...BUILT, 'tuning'].sort(), 'exactly the 16 built files and tuning.json');
     for (const n of VERSION_DATA_FILES) assert.ok(names.includes(n), `${n}.json: server/data.js VERSION_DATA_FILES expects it`);
     const total = BUILT.reduce((n, f) => n + statSync(join(dir, `${f}.json`)).size, 0);
     assert.ok(total < 6 * 1024 * 1024, `${v.id}: ${total} bytes`);
@@ -202,6 +202,12 @@ for (const v of OTHERS) {
     for (const [file, recs] of [['items', f.items], ['bands', f.bands]]) {
       for (const r of Object.values(recs)) assert.ok(!Object.hasOwn(r, 'effectRef'), `${file} ${r.id ?? r.bandId}: no effectRef (it would name a default-version id)`);
     }
+    // (fork) 丰川祥子 stays out of an earlier version's 自选 pool (profile diyExcludedTeams, the owner's decision of
+    // 2026-11-15); today's season keeps her (the test below)
+    assert.deepEqual(profile.diyExcludedTeams, ['mujica'], `${v.id}: the profile keeps mujica out`);
+    assert.ok(f.backups.diy.excluded.includes('char_4182_oblvns'), `${v.id}: 丰川祥子 in diy.excluded`);
+    assert.ok(!f.backups.diy.ownedPool.includes('char_4182_oblvns') && !f.backups.diy.operators.char_4182_oblvns && !f.backups.units.char_4182_oblvns,
+      `${v.id}: 丰川祥子 not an owned pick`);
     if (profile.expect.triggerDeviations === 'present') {
       // the deliberate deviations (DESIGN §21.29) of the operators the version has, on their TAKE_DAMAGE rows
       const devs = Object.values(f.chess).filter((c) => c.skills?.some((s) => s.trigger?.rawRule === 'TAKE_DAMAGE' && s.trigger.rule !== 'TAKE_DAMAGE'));
@@ -218,7 +224,7 @@ for (const v of OTHERS) {
     assert.deepEqual(validateReferences(f), []);
   });
 
-  test(`data/${v.dir}: an offline rebuild reproduces all 16 files byte for byte`, { skip: process.env.DATA_DIR && 'DATA_DIR set' }, async (t) => {
+  test(`data/${v.dir}: an offline rebuild reproduces all 17 files byte for byte`, { skip: process.env.DATA_DIR && 'DATA_DIR set' }, async (t) => {
     const { profile } = await loadProfile(v.id);
     const shas = [...new Set(Object.values(profile.pins || {}))];
     const out = mkdtempSync(join(tmpdir(), 'sp-version-'));
@@ -238,6 +244,13 @@ for (const v of OTHERS) {
     }
   });
 }
+
+test('data/: today\'s season keeps 丰川祥子 as an owned 自选 pick (only the earlier versions leave her out)', async () => {
+  const { profile } = await loadProfile(DEFAULT_VERSION);
+  assert.equal(profile.diyExcludedTeams, undefined, 'the default profile adds no excluded team');
+  const backups = readJson(join(ROOT, 'data'), 'backups');
+  assert.ok(backups.diy.ownedPool.includes('char_4182_oblvns') && !backups.diy.excluded.includes('char_4182_oblvns'));
+});
 
 // 第二期上半's records that keep today's id but differ from today's data (DESIGN §35.22.5 lists each). Today's data is V2_2
 // with the 04-14 level and text fixes (86da4cfa) and the modules added after 03-14, so the list is not only V2_2's. A
