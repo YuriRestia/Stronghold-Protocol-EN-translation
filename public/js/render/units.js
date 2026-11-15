@@ -3098,8 +3098,39 @@ export class UnitView {
     }
     const k = imp.sc > 0 ? sc / imp.sc : 1;
     imp.sprite.scale.set(k * flip, k);
+    this._snapImpostor(imp, flip, k);
     imp.sprite.alpha = this.swapT;
     imp.sprite.tint = tint;
+  }
+
+  /**
+   * (fork) The impostor sprite on whole screen pixels. Its slot already holds the skeleton drawn at this scale; a sprite
+   * at a fractional screen position samples it a second time between texels (linear filtering), which softens every
+   * edge by up to half a pixel next to the units drawn directly. A model with a clip that is not an eyelid
+   * (spine.js needsClipping: char_1026_gvial2's F_F and 20 other operator models) is always an impostor, so on an
+   * ordinary field it alone looked blurry. The sprite moves by under one screen pixel so each texel lands on one
+   * pixel. Left at its place when the copy is not 1:1: another scale between refreshes (`k`), a texture resolution
+   * unlike the screen's, or a scaled or rotated parent.
+   */
+  _snapImpostor(imp, flip, k) {
+    const sp = imp.sprite, tex = sp.texture;
+    sp.position.set(0, 0);
+    const res = Number(this.ctx.renderer && this.ctx.renderer.resolution) || 0;
+    const tres = Number(tex && tex.baseTexture && tex.baseTexture.resolution) || res;
+    const f = tex && tex.frame;
+    if (!(res > 0) || !f || Math.abs(k - 1) > 1e-6 || Math.abs(tres - res) > 1e-6) return;
+    const root = this.root, body = this.body;
+    const pw = root.parent && root.parent.worldTransform;
+    if (pw && (pw.a !== 1 || pw.b !== 0 || pw.c !== 0 || pw.d !== 1)) return;
+    if (root.scale.x !== 1 || root.scale.y !== 1 || body.scale.x !== 1 || body.scale.y !== 1) return;
+    if (root.rotation || body.rotation) return;
+    const gx = (pw ? pw.tx : 0) + root.position.x + body.position.x;
+    const gy = (pw ? pw.ty : 0) + root.position.y + body.position.y;
+    const ax = sp.anchor.x * f.width, ay = sp.anchor.y * f.height;
+    // texel edge t (page pixels) lands at screen pixel res·(g + p ∓ (anchor + frame)) ± t: whole when that offset is
+    const dx = res * (flip < 0 ? gx + ax + f.x : gx - ax - f.x);
+    const dy = res * (gy - ay - f.y);
+    sp.position.set((Math.round(dx) - dx) / res, (Math.round(dy) - dy) / res);
   }
 
   _renderImpostor(sc, atlas) {
