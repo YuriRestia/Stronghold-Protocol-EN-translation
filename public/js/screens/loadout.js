@@ -333,16 +333,30 @@ export function TierMark({ m, tier, count }) {
  * (fork) The deck's groups, left to right: the 自选编队 slots first as one 「自选」 group — tier 5's, then tier 6's, so the
  * grid's two rows give each tier a column of its own (the user's call of 2026-11-15: the custom operators left of tier 1,
  * a separator after them) —, then one group per tier with operators in `list`. No 自选 group while a filter is on (its
- * slots are no roster cards and a filter never matched them). Pure: the bar's counts and the tests read it too.
+ * slots are no roster cards and a filter never matched them). The 自选 group's `tiers` split its slots by tier, each pair
+ * drawn behind its own tier label with a divider between them (the user's call of 2026-11-15: which pair is which tier).
+ * Pure: the bar's counts and the tests read it too.
  * @param {Array<{ tier: number }>} list the (filtered) roster
  * @param {Array<{ slotId: string, tier: number }>} diySlots the 自选编队 slots (ui/diyModel.js diySlotList)
  * @param {boolean} filtered
- * @returns {Array<{ key: string, tier: number|null, items?: object[], slots?: object[] }>}
+ * @returns {Array<{ key: string, tier: number|null, items?: object[], slots?: object[], tiers?: Array<{ tier: number, slots: object[] }> }>}
  */
 export function deckGroups(list, diySlots, filtered) {
   const custom = filtered ? [] : [...diySlots].sort((a, b) => a.tier - b.tier);
   const tiers = DECK_TIERS.map((tier) => ({ key: String(tier), tier, items: list.filter((c) => c.tier === tier) })).filter((g) => g.items.length);
-  return custom.length ? [{ key: CUSTOM_GROUP, tier: null, slots: custom }, ...tiers] : tiers;
+  if (!custom.length) return tiers;
+  const split = DECK_TIERS.map((tier) => ({ tier, slots: custom.filter((s) => s.tier === tier) })).filter((t) => t.slots.length);
+  return [{ key: CUSTOM_GROUP, tier: null, slots: custom, tiers: split }, ...tiers];
+}
+
+/**
+ * (fork) One tier's pair inside the 「自选」 group: a slim strip — the tier's chip and 「N阶」 down a line in the tier's
+ * colour — before its cards; the strip of every pair after the first stands behind a divider (css `.lo-csub + .lo-csub`).
+ */
+export function CustomTierMark({ tier }) {
+  return html`<div class=${cx('lo-csub__mark', `tier--${tier}`)} aria-hidden="true">
+    <${TierChip} tier=${tier} size="sm" class="lo-csub__chip" /><span class="lo-csub__label">${t('{tier}阶', { tier })}</span>
+  </div>`;
 }
 
 /**
@@ -374,11 +388,14 @@ function DeckView({ m, list, getChess, st, selId, onPick, onChange, onDiySlot, o
     ${groups.map((g) => (g.key === CUSTOM_GROUP
       ? html`<section key=${g.key} class="lo-tgroup lo-tgroup--custom" data-group=${g.key} data-testid="loadout-custom">
         <${CustomMark} count=${g.slots.length} />
-        <div class="lo-tgrid">
-          ${g.slots.map((sl) => html`<${DiyDeckSlot} key=${sl.slotId} m=${m} slot=${sl}
-            pick=${st.diy?.[sl.slotId] || null} illegal=${!!st.diy?.[sl.slotId] && !diyLegal[sl.slotId]} onOpen=${onDiySlot} onClear=${onClearSlot} ops=${st.ops}
-            selected=${selSlot === sl.slotId} onSel=${onSelSlot} onQuick=${onQuickSlot} wornOf=${wornOf} />`)}
-        </div>
+        ${g.tiers.map((sub) => html`<div key=${sub.tier} class=${cx('lo-csub', `lo-csub--t${sub.tier}`)} data-tier=${sub.tier}>
+          <${CustomTierMark} tier=${sub.tier} />
+          <div class="lo-tgrid">
+            ${sub.slots.map((sl) => html`<${DiyDeckSlot} key=${sl.slotId} m=${m} slot=${sl}
+              pick=${st.diy?.[sl.slotId] || null} illegal=${!!st.diy?.[sl.slotId] && !diyLegal[sl.slotId]} onOpen=${onDiySlot} onClear=${onClearSlot} ops=${st.ops}
+              selected=${selSlot === sl.slotId} onSel=${onSelSlot} onQuick=${onQuickSlot} wornOf=${wornOf} />`)}
+          </div>
+        </div>`)}
       </section>`
       : html`<section key=${g.key} class=${cx('lo-tgroup', `lo-tgroup--t${g.tier}`)} data-group=${g.key} data-tier=${g.tier}>
         <${TierMark} m=${m} tier=${g.tier} count=${g.items.length} />

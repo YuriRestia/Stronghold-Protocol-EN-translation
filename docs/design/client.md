@@ -564,8 +564,9 @@ choices, the grouped deck's drag / wheel / left-edge group / jump — useGroupDe
 drawer DeckDrawer — a pure overlay over the deck's left, the deck never moving for it — and the detail DeckDetail); each screen passes only its own data. The deck lays
 the tab out after the event's 物资调配处: a group per tier scrolling sideways (two rows behind a tall tier marker), one
 card per 自选编队 slot in a 「自选」 group before tier 1 (fork, the user's call of 2026-11-15: tier 5's two slots, then
-tier 6's — a column each —, behind a CSS marker in mint, no official sprite existing for it, and a separator line after
-the group; not drawn while a filter is on; `screens/loadout.js` deckGroups / CustomMark) (fork: the pick, or an empty slot to fill — a press opens that slot's
+tier 6's — a column each, each pair behind a slim strip with its tier chip and 「N阶」 in the tier's colour and a dashed
+divider between the pairs —, behind a CSS marker in mint, no official sprite existing for it, and a separator line after
+the group; not drawn while a filter is on; `screens/loadout.js` deckGroups / CustomMark / CustomTierMark) (fork: the pick, or an empty slot to fill — a press opens that slot's
 picker as a page of its own in place of the deck (the deck is not drawn meanwhile), with 清空 for a filled slot; the top
 bar's 干员调配, Esc, 确认 or 取消 bring the deck back where it was, without its opening 转场; 自选编队's 导出 / 导入 / 清空
 are in 更多), and a bottom bar jumping to 「自选」 (first, its badge the open slots) or a tier. The picker is the card view for 自选 operators: its legal operators as

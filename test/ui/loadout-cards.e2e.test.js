@@ -174,6 +174,8 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
         groups: [...document.querySelectorAll('.lo-tgroup')].map((g) => g.dataset.group),
         customFirst: [...document.querySelectorAll('.lo-tgroup--custom .lo-op--diy')].map((d) => Number(d.dataset.diyTier)),
         customCols: [...document.querySelectorAll('.lo-tgroup--custom .lo-op--diy')].map((d) => Math.round(d.getBoundingClientRect().left)),
+        customSubs: [...document.querySelectorAll('.lo-tgroup--custom .lo-csub')].map((s) => [s.dataset.tier, s.querySelectorAll('.lo-op--diy').length,
+          !!s.querySelector('.lo-csub__mark .tier'), getComputedStyle(s).borderLeftStyle]),
         customLine: (() => { const g = document.querySelector('.lo-tgroup--custom'); return g ? getComputedStyle(g).borderRightWidth : null; })(),
         barGroups: [...document.querySelectorAll('.lo-bbar__tier')].map((b) => b.dataset.group),
         diy: [...document.querySelectorAll('.lo-op--diy')].map((d) => Number(d.dataset.diyTier)),
@@ -201,6 +203,7 @@ describe('干员调配 卡片视图 (real server, headless Chrome)', { skip: !EN
       assert.deepEqual(deck.customFirst, [5, 5, 6, 6], 'all four in the 自选 group, tier 5\'s first');
       assert.equal(new Set(deck.customCols).size, 2, 'two columns: tier 5\'s, then tier 6\'s');
       assert.equal(deck.customLine, '1px', 'a separator after the 自选 group');
+      assert.deepEqual(deck.customSubs, [['5', 2, true, 'none'], ['6', 2, true, 'dashed']], 'each pair behind its tier chip, a divider before tier 6\'s');
       assert.deepEqual(deck.barGroups, ['custom', '1', '2', '3', '4', '5', '6'], 'Custom first in the bottom bar');
       assert.equal(deck.rows, 2, 'a tier group flows in two rows');
       assert.ok(deck.scrolls, 'the deck scrolls sideways');

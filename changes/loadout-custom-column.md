@@ -4,7 +4,9 @@
 
 - The four Custom Squad slots (two of tier 5, two of tier 6) now sit in their own "Custom" group at the very left of
   the Operator Loadout, before the tier 1 cards: tier 5's slots in one column, tier 6's in the next, a mint line
-  separating the group from tier 1. Before, they closed the tier 5 and tier 6 groups at the far right.
+  separating the group from tier 1. Each pair has a slim label strip with its tier chip and "Tier 5" / "Tier 6" in
+  that tier's colour, and a small dashed divider sits between the two pairs. Before, they closed the tier 5 and tier 6
+  groups at the far right.
 - The bottom bar starts with a new "Custom" entry, left of Tier 1, that scrolls back to the group; the count of open
   Custom Squad slots now shows on it instead of on Tier 5 / Tier 6. On narrow screens it shows as a person icon.
 - A jump to the first group of the deck (Custom here, the first class in the Custom Squad picker) now scrolls to the

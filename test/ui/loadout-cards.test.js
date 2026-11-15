@@ -21,10 +21,11 @@ globalThis.fetch = async (url) => {
 };
 const mem = new Map();
 globalThis.localStorage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)), removeItem: (k) => mem.delete(k) };
-const { DeckCard, TierMark, DeckBar, deckGroups, CustomMark, CUSTOM_GROUP, loadoutDetailsPref, deckAnchor, detailsStore } = await import('../../public/js/screens/loadout.js');
+const { DeckCard, TierMark, DeckBar, deckGroups, CustomMark, CustomTierMark, CUSTOM_GROUP, loadoutDetailsPref, deckAnchor, detailsStore } = await import('../../public/js/screens/loadout.js');
 const { DetailsToggleView } = await import('../../public/js/screens/loadoutDeck.js');
 const { chessOptions } = await import('../../public/js/ui/loadoutModel.js');
 const { data } = await import('../../public/js/data.js');
+const { TierChip } = await import('../../public/js/ui/components.js');
 const { OperatorImage, Img, PromotionIcon } = await import('../../public/js/ui/gameComponents.js');
 const { OpCard } = await import('../../public/js/screens/settle.js');
 await data.loadAll('chess', 'garrisons', 'assets', 'bonds', 'effects', 'backups');
@@ -375,6 +376,8 @@ test('the deck\'s groups: the 自选编队 slots first (tier 5\'s, then 6\'s), t
   assert.deepEqual(groups.map((g) => g.key), [CUSTOM_GROUP, '1', '2', '6'], 'Custom left of tier 1; a tier with no operators has no group (its slots no longer keep it)');
   assert.deepEqual(groups[0].slots.map((s) => s.slotId), ['s5a', 's5b', 's6a', 's6b'], 'tier 5 then tier 6, each in its own order: one column each in the two-row grid');
   assert.equal(groups[0].tier, null);
+  assert.deepEqual(groups[0].tiers.map((t) => [t.tier, t.slots.map((s) => s.slotId)]), [[5, ['s5a', 's5b']], [6, ['s6a', 's6b']]],
+    'split by tier: each pair behind its own tier label, a divider between (the user\'s call of 2026-11-15)');
   assert.deepEqual(groups[1].items.map((c) => c.id), ['b', 'd']);
   assert.deepEqual(deckGroups(list, slots, true).map((g) => g.key), ['1', '2', '6'], 'filtering: no 自选 group');
   assert.deepEqual(deckGroups(list, [], false).map((g) => g.key), ['1', '2', '6'], 'no slots (data missing): no 自选 group');
@@ -389,6 +392,14 @@ test('the 「自选」 marker: the CSS marker\'s frame (no official sprite), the
   assert.equal(byClass(mk, 'lo-tmark__css').length, 1);
   assert.equal(textOf(byClass(mk, 'lo-tmark__label')[0]), '自选');
   assert.equal(textOf(byClass(mk, 'lo-tmark__cnt')[0]), '4');
+});
+
+test('a 自选 pair\'s tier strip: the tier\'s chip and 「N阶」 in the tier\'s colour', () => {
+  const strip = CustomTierMark({ tier: 6 });
+  assert.ok(hasClass(strip, 'lo-csub__mark') && hasClass(strip, 'tier--6'));
+  assert.equal(strip.props['aria-hidden'], 'true', 'each card says its own tier to screen readers');
+  assert.equal(find(strip, (v) => v.type === TierChip)[0].props.tier, 6);
+  assert.equal(textOf(byClass(strip, 'lo-csub__label')[0]), '6阶');
 });
 
 test('the tier marker: the official shopLevelSprite tag of that tier, the CSS marker (NO. and the numeral) without it', () => {

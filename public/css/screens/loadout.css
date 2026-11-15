@@ -832,6 +832,14 @@ button.ofit-art:focus-visible { outline: 2px solid var(--mint-400); outline-offs
 .lo-tmark__icon { flex: none; width: 76%; height: auto; aspect-ratio: 1; padding: 12%; color: var(--tc); border: 1px solid rgba(255, 255, 255, .22); background: rgba(0, 0, 0, .35); }
 .lo-tmark__label { min-height: 0; overflow: hidden; writing-mode: vertical-rl; font-size: max(calc(.15 * var(--t)), 11px); font-weight: 800; letter-spacing: .08em; line-height: 1; color: var(--tc); white-space: nowrap; }
 .lo-tgroup--custom { padding-right: .34rem; border-right: 1px solid rgba(78, 216, 175, .45); }
+/* each tier's pair inside it: a slim strip (the tier's chip, 「N阶」 down it, a fading line in the tier's colour) before
+   its cards, and a small dashed divider between the pairs (the user's call of 2026-11-15) */
+.lo-csub { flex: none; display: flex; align-items: stretch; gap: .1rem; min-height: 0; }
+.lo-csub + .lo-csub { margin-left: .06rem; padding-left: .16rem; border-left: 1px dashed rgba(255, 255, 255, .22); }
+.lo-csub__mark { flex: none; display: flex; flex-direction: column; align-items: center; gap: .06rem; width: max(.34rem, 22px); min-height: 0; overflow: hidden; }
+.lo-csub__mark::after { content: ""; flex: 1 1 auto; width: 2px; min-height: 0; background: linear-gradient(180deg, var(--tc), transparent); opacity: .55; }
+.lo-csub__chip { flex: none; }
+.lo-csub__label { flex: none; writing-mode: vertical-rl; font-size: max(calc(.13 * var(--t)), 10px); font-weight: 700; letter-spacing: .06em; line-height: 1; color: var(--tc); white-space: nowrap; }
 
 /* ---- an operator card ---- */
 .lo-op { --tc: var(--tier-1); position: relative; display: flex; min-height: 0; }
