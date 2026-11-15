@@ -40,14 +40,18 @@ export default {
           const p = topMaxHp(battle, unit);
           unit.mem.protege = p;
           if (!p) return;
-          battle.addBuff(p, { key: tauntKey, duration: skill.duration + 0.1, mods: { taunt: num(bb.taunt_level, 1) }, visible: true, source: unit });
+          // (fork) `fx`: b.snap fxs names the protégé while the taunt lasts, so the client loops the official
+          // vendla_skill_02_buff_01 on it (vendla_s_2[self] → vendla_s_2's overrideEffectKey; display only)
+          battle.addBuff(p, { key: tauntKey, duration: skill.duration + 0.1, mods: { taunt: num(bb.taunt_level, 1) }, visible: true, source: unit,
+            fx: 'vendla_s_2[self]', fxSrc: unit.id });
           battle.addBuff(p, { key: counterKey(unit), source: unit, duration: skill.duration + 0.1, tags: ['skill'], observeInjury(ctx) {
             // Native vendla_s_2 filters only the enemy source; neither damage tags nor the provider's action state.
             if (protege(unit) !== p || ctx.source?.side !== 'enemy' || !ctx.source.alive) return;
             battle.dealDamage({ source: unit, target: ctx.source, amount: unit.s.atk * num(bb.atk_scale), type: 'arts',
               isSkill: true, attackType: 'NORMAL', applyWay: 'RANGED', calculation: 'precomputed',
               ignoreSelect: true, tags: ['counter'], traitAlly: p });
-            battle.fx('counter', { x: ctx.source.x, y: ctx.source.y, id: unit.id });
+            // `target`: the client plays vendla_skill_02_hit_01 on the attacker (skills.js FX_BINDINGS)
+            battle.fx('counter', { x: ctx.source.x, y: ctx.source.y, id: unit.id, target: ctx.source.id });
           } });
           battle.fx('taunt', { x: p.x, y: p.y, id: p.id });
         },
