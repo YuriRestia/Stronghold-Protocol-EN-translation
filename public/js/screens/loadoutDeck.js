@@ -576,7 +576,9 @@ export function useGroupDeck(deckRef, { onDragStart = null } = {}) {
     if (!deck || !sec) return;
     stopGlide();
     jumped.current = String(key);
-    deck.scrollTo({ left: Math.max(0, sec.offsetLeft - (deck.classList.contains('has-drawer') ? deck.clientWidth * 0.4 : 0)), behavior: reducedMotion() ? 'auto' : 'smooth' });
+    // (fork) the first group: the deck's very start, its padding included — the view the deck opens on
+    const first = deck.querySelector('.lo-tgroup[data-group]') === sec;
+    deck.scrollTo({ left: first ? 0 : Math.max(0, sec.offsetLeft - (deck.classList.contains('has-drawer') ? deck.clientWidth * 0.4 : 0)), behavior: reducedMotion() ? 'auto' : 'smooth' });
     sink.current?.(String(key));
   };
   return {
