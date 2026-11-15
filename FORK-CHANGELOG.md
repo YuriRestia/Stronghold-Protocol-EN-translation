@@ -7,6 +7,50 @@ own changes aren't repeated here; each upstream merge links the upstream commit 
 
 ## 2026-11-15
 
+### Big battles keep full animation longer, and your own operators keep it longest
+
+- In big fights, units switch to simplified animation (a cached picture redrawn every few frames) only after the frame rate has stayed low for a while, and switch back once it has been steady again. The first seconds of each battle no longer count, and every battle starts fresh.
+- Enemies are simplified first. Your operators and your helpers' operators keep full animation as long as possible.
+- Before: one slow moment at the start of a battle, while effects loaded, could put the whole field on simplified animation, and it carried over into later battles.
+
+### New setting: Simplified Sprite Animation
+
+- Settings → Simplified Sprite Animation has three choices:
+  - **Auto** (default): full animation; if the frame rate drops, units switch to simplified animation until it recovers.
+  - **Quality**: units keep full animation even if the frame rate drops. Very large crowds (about 90+ units) still use simplified animation.
+  - **Unlimited**: every unit is always fully animated.
+
+### Hidden Core OpFor: Gun with two players: the cars visit both players
+
+- On the two-player Hidden Core field the second gun now arrives right as the fight starts and the first one 10 s
+  later, as in the official game, so the two guns call the cars in turn and the cars drive to each player's half.
+  Before, both guns arrived together and the right one always called last, so the cars only ever gathered on the
+  right.
+- Damage on a car now passes only to one gun, as in the official game; it no longer also drains the other cars.
+- A gun's 80 % damage reduction now lasts while one of the units it found when it appeared lives, as in the official
+  game: with two players the first gun loses it once the cars are destroyed, the second keeps it while the first gun
+  stands. Before, any gun or car on the field counted.
+
+### Vendela's second skill shows its thorns on the ally she protects
+
+- With the official effects on, Vendela's second skill now loops its thorn glow on the operator it taunts (the one with the most max HP in her range, or herself when no one in range has more), for as long as the skill lasts. It goes when the skill ends or that operator is knocked out.
+- Her counter's hit effect now plays on the enemy that attacked the protected operator.
+- Before: the glow always sat on Vendela, whoever she taunted, and the hit effect played on her whenever she took damage.
+
+### Room chat bubbles are no longer cut off by the seat card
+
+- A chat bubble on a seat card in a team room or a Grand Alliance room now always fits inside the card's portrait: it
+  wraps to the portrait's width and slides down to use its full height for a long line. A line that is still too long
+  for a small card (a Grand Alliance room on a phone) ends with "…" on a whole line; the room's chat log shows all of it.
+- Before: a long line grew up past the top of the portrait and lost its first words, most on phones.
+- Short lines and emotes sit where they did.
+
+### Wild Mane's second skill animates as in the official game
+
+- Wild Mane's S2 now starts without an animation of its own, as the official skill does; her S2 attacks still use her
+  charge swing, and when she faces down they use its downward version.
+- Before: the skill's start played a full spear charge at nothing, and facing down she swung the side version.
+
 ### Older seasons: longer co-op briefing, skill range preview and keyword tips
 - Season 1 Part 1, Season 1 Part 2 and Season 2 Part 1 now give co-op teams the same 45-second briefing as today's season, so there is time to agree on the core bond call. Before: 25 seconds there, the official value; the fork adds 20 seconds in every season.
 - Operator cards in those seasons now show the Normal/Skill range toggle for skills that change the attack range, and tapping a status keyword shows that season's own official definition.
