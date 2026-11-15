@@ -796,11 +796,11 @@
       "killed": 6,
       "total": 6,
       "unspawned": 0,
-      "bossHpLeft": 4675213,
+      "bossHpLeft": 4674822,
       "rngDraws": 740,
       "errors": {"count":0,"kinds":[]},
       "players": {
-        "p1": {"killed":6,"total":6,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":977890,"bossDmg":551700,"heal":29433,"deaths":0,"layerGains":{}},
+        "p1": {"killed":6,"total":6,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":978281,"bossDmg":552091,"heal":29433,"deaths":0,"layerGains":{}},
         "p2": {"killed":0,"total":0,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":741707,"bossDmg":373087,"heal":28055,"deaths":0,"layerGains":{}}
       },
       "units": [
@@ -813,7 +813,7 @@
         ["p1",7,"op","chess_char_6_09_b",2,"uniequip_002_agoat2",2145.86,1,16,0,0,1938,20807,67,2],
         ["p1",8,"op","chess_char_6_10_b",2,"uniequip_002_necras",2756.92,1,7,0,35423,0,0,41,4],
         ["p1",9,"op","chess_char_6_11_b",2,"uniequip_002_mlyss",2700.98,1,9,0,369,135,0,70,2],
-        ["p1",10,"op","chess_char_6_12_b",1,"uniequip_002_ifrit",2214.71,1,26,4,164665,10513,1352,72,36],
+        ["p1",10,"op","chess_char_6_12_b",1,"uniequip_002_ifrit",2214.71,1,26,4,165056,10513,1352,72,36],
         ["p1",11,"token","token_10017_skadi2_dedant",null,null,108,0,28,0,0,0,0,0,null],
         ["p1",12,"token","token_10030_mlyss_wtrman",null,null,0,0,10,0,0,1511,10,1,1],
         ["p2",13,"op","chess_char_6_16_b",1,"uniequip_002_mudrok",8150.81,1,21,0,12367,888,857,68,17],
@@ -842,7 +842,7 @@
       "enemies": {
         "enemy_1433_dsbasi_2": [4,4,0,794,22800],
         "enemy_9007_acelem": [2,2,0,0,72000],
-        "enemy_9017_achunt_2": [1,0,0,30159,924787],
+        "enemy_9017_achunt_2": [1,0,0,30159,925178],
         "enemy_9018_actrpa": [1,0,0,4246,289868],
         "enemy_9019_actrpb": [1,0,0,10260,29647],
         "enemy_9020_actrpc": [1,0,0,7366,380495]
@@ -850,7 +850,7 @@
       "hooks": [1,48,6000,1451,1451,4371,5732,5419,10,14,106,99,134,58226,702,1,10,0,1,10,0,6,17],
       "events": {"atk":1691,"cast":16,"deploy":32,"die":14,"dmg":5030,"engage":20,"fx":1444,"heal":800,"rate":233,"skill":205,"spawn":44,"status":772},
       "fx": {"ability":71,"airstrike":37,"anchor":4,"aoe":123,"beam":16,"burst":6,"charge":7,"copy":3,"dash":12,"displace":3,"dodge":31,"dp":2,"drone":234,"droneLock":36,"drones":3,"explode":27,"extraAttack":14,"firewall":1,"lightning":58,"link":597,"meltdown":2,"phase":13,"pull":1,"rockslide":17,"shieldBreak":22,"sound":85,"split":1,"steal":3,"storm":5,"tide":4,"tornado":1,"tornadoPulse":5},
-      "snaps": "e06800b9 b9c785a0 c26a4fc7 7759a344 7697e65c 5a314bc9 0360fd6c 077b4f93 7f44a663 7ec6e1b6 3bee23ca dfea45b2 e7c5c500 f6f5f618 b5a77c6d eec98d60 099846a4 75daf397 6352f0fd 4cf9f5d3"
+      "snaps": "cbf879e1 a33be108 d835871e d67c573b 38e079a0 4dc4e598 2931453c 799e6c70 86ccf70b e3536117 a3e424f2 86fc4829 f573c848 4b0dbade 6d105d8f 1a321c74 a2ac588d 20d0409b 6437aed0 930704ab"
     },
     "hidden-boss_9-solo": {
       "about": "假想敌：铳 solo pool 2800000: chess_char_5_08_b chess_char_5_11_b chess_char_5_13_b chess_char_5_14_b chess_char_5_07_b chess_char_5_09_b chess_char_5_10_b chess_char_5_12_b chess_char_5_15_b chess_char_5_16_b token_10032_jesca2_jckshd",

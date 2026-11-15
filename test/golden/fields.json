@@ -1077,12 +1077,12 @@
       "killed": 8,
       "total": 8,
       "unspawned": 0,
-      "bossHpLeft": 4692365,
+      "bossHpLeft": 4692099,
       "rngDraws": 647,
       "errors": {"count":0,"kinds":[]},
       "players": {
         "p1": {"killed":8,"total":8,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":1280777,"bossDmg":635851,"heal":11211,"deaths":17,"layerGains":{}},
-        "p2": {"killed":0,"total":0,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":604257,"bossDmg":232643,"heal":50765,"deaths":25,"layerGains":{}}
+        "p2": {"killed":0,"total":0,"perfect":true,"leaks":0,"leaksUncounted":0,"coins":0,"dmg":604523,"bossDmg":232909,"heal":50765,"deaths":25,"layerGains":{}}
       },
       "units": [
         ["p1",1,"op","chess_char_6_03_b",2,"uniequip_002_yu",0,0,67,0,31,9218,3009,3,1],
@@ -1105,7 +1105,7 @@
         ["p2",18,"op","chess_char_6_13_b",1,"uniequip_002_angel2",0,0,71,1,132032,10160,3809,93,3],
         ["p2",19,"op","chess_char_6_14_b",2,"uniequip_002_lumen",0,0,63,0,0,11570,11323,39,1],
         ["p2",20,"op","chess_char_6_16_b",2,"uniequip_002_halo2",0,0,75,0,5794,3166,0,22,1],
-        ["p2",21,"op","chess_char_6_18_b",2,"uniequip_002_whitw2",0,0,60,0,37632,15351,0,0,6],
+        ["p2",21,"op","chess_char_6_18_b",2,"uniequip_002_whitw2",0,0,60,0,37897,15351,0,0,6],
         ["p2",22,"op","chess_char_6_20_b",2,"uniequip_002_agoat2",0,0,74,0,0,12492,35633,27,1],
         ["-","~1","device","trap_1105_accrate",null,null,100,1,1,0,0,0,0,0,null],
         ["-","~2","device","trap_1105_accrate",null,null,100,1,2,0,0,0,0,0,null],
@@ -1122,7 +1122,7 @@
       "enemies": {
         "enemy_1267_nhpbr_2": [6,6,0,1900,141894],
         "enemy_9007_acelem": [2,2,0,9590,309587],
-        "enemy_9017_achunt_2": [2,0,0,113527,907635],
+        "enemy_9017_achunt_2": [2,0,0,113527,907901],
         "enemy_9018_actrpa": [1,0,0,17878,334515],
         "enemy_9019_actrpb": [1,0,0,11371,29702],
         "enemy_9020_actrpc": [1,0,0,15418,221516]
@@ -1173,7 +1173,7 @@
         "wanted": 6,
         "zone": 6
       },
-      "snaps": "929dad8b 590315bf bd0d3185 fd780c85 e2457830 9f465f5d 4bd0ee0f d6c0ad1d ae01c0c3 4a5edfc8 fb98f575 6a2c6c4a 0c5241a8 f9127d59 3373a052 a6b37b8c 8811b8c4 39413508 c164a224 943b8c2b"
+      "snaps": "929dad8b 4f9fb345 a12493a0 45cb8978 5fdbe13a d77b6a0d df1d2164 cc54000a d0152399 f4c993fd 12d6fdce ba93359d d707b374 66a768d9 1a1299d7 51b8410a 10c2b33a 271f20bf 18143f99 7883b016"
     },
     "hidden-boss_9-solo": {
       "about": "假想敌：铳 solo pool 2800000: chess_char_5_08_b chess_char_5_11_b chess_char_5_05_b chess_char_5_06_b chess_char_5_13_b chess_char_5_07_b chess_char_5_02_b chess_char_5_03_b chess_char_5_10_b chess_char_5_12_b",
