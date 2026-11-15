@@ -32,6 +32,11 @@ test('sanitizeVersions: registry ids with a full cs, in order, the registry\'s l
   assert.equal(V.sanitizeVersions([]), null);
   assert.equal(V.sanitizeVersions([{ id: 'act1vautochess', cs: CS('d') }, { id: 'act1autochess', cs: 'short' }, 'x']), null, 'unknown ids and short hashes');
   assert.equal(V.sanitizeVersions([{ id: 'act1autochess', cs: CS('b') }, { id: 'act1autochess', cs: CS('e') }]).length, 1, 'an id once');
+  // (fork, 2026-11-15) `coop`: kept in DIFFICULTIES order, unknown values dropped; absent or empty = not set
+  const [c] = V.sanitizeVersions([{ id: 'act1autochess', cs: CS('b'), coop: ['HARD', 'x', 'FUNNY', 'NORMAL'] }]);
+  assert.deepEqual(c.coop, ['FUNNY', 'NORMAL', 'HARD']);
+  assert.equal(V.sanitizeVersions([{ id: 'act1autochess', cs: CS('b'), coop: ['x'] }])[0].coop, undefined);
+  assert.equal(LIST[0].coop, undefined);
 });
 
 test('lobbyVersion: the preference when welcome lists it, else the server\'s default, else 第二期下半; no list = the default data', () => {

@@ -768,6 +768,9 @@
 .create-box__queue { display: flex; flex-direction: column; gap: .06rem; }
 .create-box__versions { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: .04rem .16rem; }
 .create-box__legend { flex-basis: 100%; color: rgba(255, 255, 255, .72); font-size: calc(.14 * var(--t)); }
+/* (fork, 2026-11-15) a ticked version that lacks the difficulty shown: matched at a lower one */
+.create-box__fallbacks { display: flex; flex-direction: column; gap: .02rem; padding: .04rem .08rem; border-left: 2px solid #ff9a3c;
+  background: rgba(255, 154, 60, .1); color: #ffc58a; font-size: calc(.14 * var(--t)); }
 @media (max-width: 720px) {
   .create-box__test { font-size: 16px; }
   .create-box__test input { width: 32px; height: 32px; }

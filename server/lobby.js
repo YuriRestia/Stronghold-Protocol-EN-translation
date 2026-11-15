@@ -251,7 +251,7 @@ import { altArtChance } from './match/results.js';
 import { KITTED_CHARS } from './sim/content/kits/index.js';
 import { Matchmaker, groupReady, isMatchable, roomSize, roomCap, poolKey, squadCounts, squadFree, fitSquads } from './matchmaker.js';
 import { countPresence } from './presence.js';
-import { SoloQueue, planSolos } from './soloQueue.js';
+import { SoloQueue, planSolos, entryDifficulty, entryVersions } from './soloQueue.js';
 import { PeerRelay } from './peerRelay.js';
 
 const VANILLA_KITTED = new Set(KITTED_CHARS);
@@ -1649,19 +1649,8 @@ export class Lobby {
    * `d`, or the difficulty the version offers instead: the highest below it, else its lowest (终极 → 绝境).
    * @param {string} v @param {string} mode @param {string} d
    */
-  fallbackDifficulty(v, mode, d) { return this.fallbackAmong(this.offered(v, mode), d); }
-
-  /**
-   * (fork) queue.join's difficulty for the versions ticked: `d` when one of them offers it in co-op, else the same rule
-   * over the difficulties any of them offers — 第二期上半 alone at 终极 queues at 绝境, the room room.create would make
-   * (the user's report of 2026-11-15: it was refused). @param {string[]} versions @param {string} d
-   */
-  queueDifficulty(versions, d) {
-    return this.fallbackAmong(DIFFICULTIES.filter((x) => versions.some((v) => this.offered(v, 'coop').includes(x))), d);
-  }
-
-  /** `d`, or the highest of `offered` below it, else the lowest offered. @param {readonly string[]} offered @param {string} d */
-  fallbackAmong(offered, d) {
+  fallbackDifficulty(v, mode, d) {
+    const offered = this.offered(v, mode);
     if (!offered.length || offered.includes(d)) return d;
     const below = DIFFICULTIES.slice(0, Math.max(0, DIFFICULTIES.indexOf(d))).reverse().find((x) => offered.includes(x));
     return below || offered[0];
@@ -3080,7 +3069,7 @@ export class Lobby {
     const solos = [];
     for (const e of this.soloQueue.list()) {
       const s = this.registry.byId(e.playerId);
-      if (s?.connected && !this.roomOf(s)) solos.push({ id: e.playerId, difficulty: e.difficulty, wait: now - e.since, versions: [...e.versions], ...(e.large ? { large: true } : {}) });
+      if (s?.connected && !this.roomOf(s)) solos.push({ id: e.playerId, difficulty: e.difficulty, wait: now - e.since, versions: [...e.versions], ...(e.large ? { large: true } : {}), ...(e.at ? { at: { ...e.at } } : {}) });
     }
     return { rooms, solos, versions: this.versions ? [...this.versions.ids] : [DEFAULT_VERSION] };
   }
@@ -3096,7 +3085,7 @@ export class Lobby {
     const out = [];
     for (const id of ids || []) {
       const e = this.soloQueue.get(id);
-      const fits = e && e.difficulty === difficulty && e.versions.includes(version) && (!large || e.large);
+      const fits = e && e.versions.includes(version) && entryDifficulty(e, version) === difficulty && (!large || e.large);
       const s = fits ? this.registry.byId(id) : null;
       if (!s?.connected || this.roomOf(s)) return null;
       out.push(s);
@@ -3192,7 +3181,8 @@ export class Lobby {
   crossMove({ member, region, code, ticket, rooms: codes = [], solos: ids = [], humans = null, bots = null, version = DEFAULT_VERSION, large = false, assign = null, soloSquads = null, squads = null }) {
     const rooms = codes.map((c) => this.rooms.get(c));
     if (this.retiring || !rooms.every((r) => isMatchable(r) && r.version === version && !!r.large === large && !r.oneForAll)) return { ok: false, member };
-    const difficulty = rooms[0]?.difficulty ?? this.soloQueue.get(ids[0])?.difficulty;
+    const first = this.soloQueue.get(ids[0]);
+    const difficulty = rooms[0]?.difficulty ?? (first ? entryDifficulty(first, version) : undefined);
     const sessions = this.crossSolos(ids, difficulty, version, large);
     if (!sessions) return { ok: false, member };
     // the target holds exactly the seats this plan counted: a Doctor who joined since would find no seat and no room
@@ -3311,7 +3301,9 @@ export class Lobby {
         // (fork) the versions queued for (omitted for 第二期下半 alone, so that queue.state stays as it was) and the Grand
         // Alliance opt-in and its One for All sub-opt-in (each omitted when off)
         ...(e.versions.length === 1 && e.versions[0] === DEFAULT_VERSION ? {} : { versions: [...e.versions] }), ...(e.large ? { large: true } : {}),
-        ...(e.oneForAll ? { oneForAll: true } : {}) }
+        ...(e.oneForAll ? { oneForAll: true } : {}),
+        // (fork, 2026-11-15) each version queued at another difficulty than `difficulty` (it lacks the one picked); omitted when none
+        ...(e.at ? { at: { ...e.at } } : {}) }
       : { t: 'queue.state', queued: false, ...extra });
   }
 
@@ -3323,28 +3315,35 @@ export class Lobby {
   /**
    * queue.join { difficulty, versions?, large? }. (fork) `versions`: the official versions this Doctor plays (left out:
    * 第二期下半 alone, as before); one this server does not enable is refused (VERSION_UNKNOWN), and one whose data is not
-   * available or that has no co-op room at this difficulty is dropped — none left is VERSION_UNSUPPORTED. `large`: may
+   * available or that has no co-op rooms is dropped — none left is VERSION_UNSUPPORTED. (2026-11-15, the user's decision)
+   * A version without the difficulty picked waits at its fallback (fallbackDifficulty, as room.create: 终极 → 绝境), each
+   * version at its own (the entry's `at`, queue.state.at), so 终极 with every version ticked is 终极 for 第二期下半 and
+   * 绝境 for the others. `large`: may
    * also be seated in a Grand Alliance (only while the server has them and 第二期下半 is queued for: they play it alone).
    * `oneForAll` (with `large` only): may also be seated in a One for All Grand Alliance (off by default).
    */
-  queueJoin(session, { difficulty: askedDifficulty, versions: asked, large, oneForAll }) {
+  queueJoin(session, { difficulty, versions: asked, large, oneForAll }) {
     const cur = this.roomOf(session);
     if (cur && cur.match) return fail(ERR.ROOM_STARTED, 'leave your running match first');
     if (this.closedForMaintenance()) return fail(ERR.MAINTENANCE);
     const wanted = Array.isArray(asked) && asked.length ? [...new Set(asked)] : [DEFAULT_VERSION];
     if (wanted.some((v) => !this.versionEnabled(v))) return fail(ERR.VERSION_UNKNOWN);
-    const usable = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').length);
-    if (!usable.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms');
-    // (fork) the page offers the lobby version's difficulties; one no ticked version has falls back as room.create does
-    const difficulty = this.queueDifficulty(usable, askedDifficulty);
-    const versions = usable.filter((v) => this.offered(v, 'coop').includes(difficulty));
-    const opts = { versions, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
+    const versions = wanted.filter((v) => this.versionAvailable(v) && this.offered(v, 'coop').length);
+    if (!versions.length) return fail(ERR.VERSION_UNSUPPORTED, 'none of these versions has co-op rooms');
+    // (fork) the page offers the lobby version's difficulties: a version without the one picked waits at its own fallback
+    /** @type {Record<string, string>} */
+    const at = {};
+    for (const v of versions) { const d = this.fallbackDifficulty(v, 'coop', difficulty); if (d !== difficulty) at[v] = d; }
+    const opts = { versions, at: Object.keys(at).length ? at : null, large: large === true && this.largeRooms === true && versions.includes(DEFAULT_VERSION) };
     opts.oneForAll = opts.large && oneForAll === true;
     if (cur) this.removeMember(cur, session.playerId);
     const e = this.soloQueue.get(session.playerId);
     // a second click keeps the wait; another difficulty starts over; other versions or opt-in keep the wait
     if (!e || e.difficulty !== difficulty) this.soloQueue.add(session.playerId, difficulty, this.now(), opts);
-    else { e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll; }
+    else {
+      e.versions = opts.versions; e.large = opts.large; e.oneForAll = opts.oneForAll;
+      if (opts.at) e.at = { ...opts.at }; else delete e.at;
+    }
     this.sendQueue(session);
     this.matchmaker.poke();
     return OK;
@@ -3363,7 +3362,8 @@ export class Lobby {
     if (this.now() - e.since < this.matchmaker.opts.soloAiAfterMs) return fail(ERR.NOT_READY, 'still searching');
     if (this.roomOf(session)) return fail(ERR.ALREADY);
     // (fork) the first version queued for (the lobby's, as the page sends it)
-    const room = this.soloRoom(e.difficulty, [session], e.versions[0] ?? DEFAULT_VERSION);
+    const v0 = e.versions[0] ?? DEFAULT_VERSION;
+    const room = this.soloRoom(entryDifficulty(e, v0), [session], v0);
     if (!room) return fail(ERR.RATE, 'too many rooms');
     while (room.freeSeat() >= 0) {
       const idx = room.freeSeat();
@@ -3443,7 +3443,7 @@ export class Lobby {
       if (this.roomOf(s)) { this.unqueue(s); continue; }
       placeable.push(e);
     }
-    const diffs = new Set(placeable.map((e) => e.difficulty));
+    const diffs = new Set(placeable.flatMap((e) => entryVersions(e).map((v) => entryDifficulty(e, v))));
     const rooms = [...this.rooms.values()].filter((r) => r.searching && diffs.has(r.difficulty) && this.matchAllowed(r));
     for (const plan of planSolos(rooms, placeable, { now: this.now(), partialMergeAfterMs: this.matchmaker.opts.partialMergeAfterMs })) {
       const sessions = plan.entries.map((e) => this.registry.byId(e.playerId));

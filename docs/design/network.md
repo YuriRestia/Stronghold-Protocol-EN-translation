@@ -216,8 +216,9 @@ all four, so `welcome.versions` lists them and the default version stays 第二�
 plays one version; `act2autochess` is a code constant: a message or a record without a version means it, whatever the
 server's default.
 
-- S→C `welcome.versions?` = `[{ id, cs, family, label, roomModes, default?: true }]` in registry order (`label`: the
-  registry msgid; `default` on the server's default only) — present only when more than one version is enabled or the only
+- S→C `welcome.versions?` = `[{ id, cs, family, label, roomModes, default?: true, coop? }]` in registry order (`label`: the
+  registry msgid; `default` on the server's default only; (fork, 2026-11-15) `coop`: the version's co-op difficulties, only
+  when it lacks one of the four — 第一期 and 第二期上半 have no 终极 — for 单人匹配's fallback note, matchmaking.md §90.3) — present only when more than one version is enabled or the only
   one is not `act2autochess`; a version whose data failed to load at run time is left out of later welcomes (when it
   was the server's default, `default` moves to `act2autochess`, else to the first version left — the version a
   `room.create` without `version` then gets);

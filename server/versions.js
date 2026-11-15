@@ -196,8 +196,12 @@ export function createVersionSets({ enabled, defaultId = DEFAULT_VERSION, dataDi
       const shownDef = live.includes(def) ? def : live.includes(DEFAULT_VERSION) ? DEFAULT_VERSION : live[0];
       return live.map((id) => {
         const entry = /** @type {import('../shared/versions.js').OfficialVersion} */ (versionById(id));
+        // (fork, 2026-11-15) its co-op difficulties when it lacks one (第一期 and 第二期上半: no 终极): 单人匹配 warns which
+        // ticked version waits at a lower one; omitted when it has all four (第二期下半), so that welcome stays as it was
+        const coop = id === DEFAULT_VERSION ? null : DIFFICULTIES.filter((d) => /** @type {any} */ (others.get(id)).modes.has(modeIdFor('coop', d)));
         return { id, cs: id === DEFAULT_VERSION ? vanilla.cs : /** @type {any} */ (others.get(id)).content.cs, family: entry.family,
-          label: entry.label, roomModes: [...entry.roomModes], ...(id === shownDef ? { default: true } : {}) };
+          label: entry.label, roomModes: [...entry.roomModes], ...(id === shownDef ? { default: true } : {}),
+          ...(coop && coop.length < DIFFICULTIES.length ? { coop } : {}) };
       });
     },
     /**

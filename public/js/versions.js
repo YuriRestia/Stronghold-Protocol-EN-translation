@@ -53,7 +53,10 @@ export function sanitizeVersions(list) {
     seen.add(e.id);
     const reg = versionById(e.id);
     const roomModes = Array.isArray(e.roomModes) ? e.roomModes.filter((m) => m === 'solo' || m === 'coop') : [...reg.roomModes];
-    out.push({ id: e.id, cs: e.cs, family: reg.family, label: reg.label, roomModes, ...(e.default === true ? { default: true } : {}) });
+    // (fork, 2026-11-15) `coop`: its co-op difficulties, sent only when it lacks one (absent: all four)
+    const coop = Array.isArray(e.coop) ? DIFFICULTIES.filter((d) => e.coop.includes(d)) : [];
+    out.push({ id: e.id, cs: e.cs, family: reg.family, label: reg.label, roomModes, ...(e.default === true ? { default: true } : {}),
+      ...(coop.length ? { coop } : {}) });
   }
   return out.length ? out : null;
 }
