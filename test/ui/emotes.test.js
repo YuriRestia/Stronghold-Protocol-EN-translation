@@ -335,6 +335,25 @@ describe('public/js/ui/emotes.js helpers', () => {
     assert.equal(bubbleAge(NaN, 9000), 0);
   });
 
+  test('(fork) a chat bubble in a capped box ends on whole lines: the room seat card fits it, never clips it', async () => {
+    const { bubbleLines } = await import('../../public/js/ui/emotes.js');
+    // the text fits its box (a desktop seat card: a 100-letter line is 7 lines of 20.9 px in 258 px, room to spare)
+    assert.equal(bubbleLines(146, 600, 20.9), null);
+    assert.equal(bubbleLines(146, 146, 20.9), null, 'exactly the box');
+    assert.equal(bubbleLines(146.6, 146, 20.9), null, 'sub-pixel rounding is no overflow');
+    // a phone Grand Alliance card (844x390): 12 px text, 15.6 px lines, 48.6 px of box → 3 whole lines, the 3rd with "…"
+    assert.equal(bubbleLines(125, 48.6, 15.6), 3);
+    assert.equal(bubbleLines(125, 10, 15.6), 1, 'at least one line');
+    assert.equal(bubbleLines(125, 48.6, 0), null, 'no line height measured: leave it');
+    assert.equal(bubbleLines(NaN, 48.6, 15.6), null);
+    // the layer is the portrait less 3 px and caps the bubble to it; the clamp reads the measured line count
+    const css = readFileSync(path.join(ROOT, 'public/css/screens/room.css'), 'utf8');
+    const rule = (sel) => css.match(new RegExp(`^${sel.replace(/[.>*+?^${}()|[\]\\]/g, '\\$&')} \\{([^}]*)\\}`, 'm'))?.[1] || '';
+    assert.match(rule('.rseat__bubble'), /position: absolute; inset: 3px;/);
+    assert.match(rule('.rseat__bubble > .cbubble'), /max-width: 100%; max-height: 100%; overflow: hidden;/);
+    assert.match(rule('.rseat__bubble > .cbubble.is-clamped'), /-webkit-line-clamp: var\(--cbubble-lines\)/);
+  });
+
   test('ensureEmoteCss links public/css/emotes.css once, and is a no-op without a document', async () => {
     const { ensureEmoteCss, EMOTE_CSS_HREF } = await import('../../public/js/ui/emotes.js');
     const links = [];
