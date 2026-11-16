@@ -9,7 +9,7 @@
 
 import { PHASE, RULE_EXTRA_DEPLOY } from '../../../shared/constants.js';
 import { msg, dn } from '../../../shared/i18n.js';
-import { checkLoadout, checkLoadoutOps, cultivationCharIds, checkNotOwned, resolveLoadout, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../../../shared/protocol.js';
+import { checkLoadout, checkLoadoutOps, loadoutOptions, cultivationCharIds, checkNotOwned, resolveLoadout, charPotentialChanges, checkSkinSelection, operatorCharIds } from '../../../shared/protocol.js';
 import { cultivationOf } from '../../../shared/potential.js';
 import { tileKey, boardOrder } from '../board.js';
 
@@ -95,7 +95,7 @@ export class PlayerBasics {
         if (!e || typeof e !== 'object') continue;
         const x = {};
         if (Number.isInteger(e.skill)) x.skill = e.skill;
-        if (typeof e.module === 'string') x.module = e.module;
+        if (typeof e.module === 'string' && !this.foreignSlotModule(id, e.module)) x.module = e.module;
         if (Object.keys(x).length) entries[id] = x;
       }
     }
@@ -185,6 +185,19 @@ export class PlayerBasics {
     if (!chessRecord || this.fieldsStandIn(chessRecord)) return null;
     const rec = chessRecord.isDiy && typeof chessRecord.chessId === 'string' ? this.gd.chess(chessRecord.chessId) || chessRecord : chessRecord;
     return cultivationOf(rec, this.ops);
+  }
+
+  /**
+   * GitHub #116: a lobby rule's body in a shop slot (Blaze in 凯瑟琳's slot, shared/ruleData.js `ruleBody`) takes the
+   * skill the player chose for the slot's operator, but not her module: the lobby checked the loadout against 凯瑟琳's
+   * records (`uniequip_002_cathy`), which Blaze doesn't have. Such a module falls back to the body's default (her X, as
+   * 凯瑟琳's X) instead of failing the check, which would drop the player's whole loadout. 'none' stays 'none'.
+   */
+  foreignSlotModule(id, module) {
+    const base = this.gd.chess(id);
+    if (!base || !base.ruleBody || !base.goldenId) return false;
+    const golden = this.gd.chess(base.goldenId);
+    return !loadoutOptions(base, golden).modules.includes(module);
   }
 
   /**

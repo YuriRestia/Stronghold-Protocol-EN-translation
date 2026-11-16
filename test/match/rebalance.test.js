@@ -227,3 +227,21 @@ test('the boosterPack cheat: the client has the Booster Pack\'s record, so it is
     assert.equal(d.lookup('items', ITEM_BOOSTER.itemId), null);
   } finally { setLang('zh'); }
 });
+
+test('GitHub #116: the loadout the lobby checked against 凯瑟琳 (her module) still gives 煌 the chosen skill', () => {
+  const h = makeMatch({ mode: 'solo', seed: 5, lobbyRules: { blaze: true } }).start();
+  try {
+    // as the lobby stores it: complete, with 凯瑟琳's own module, and another operator's choice beside it
+    const other = 'chess_char_1_09_a';
+    assert.deepEqual(h.m.setLoadout('p_0', { [BLAZE.slot.a]: { skill: 0, module: 'uniequip_002_cathy' }, [other]: { skill: 0 } }), { ok: true });
+    const ps = h.ps('p_0');
+    for (const form of ['a', 'b']) {
+      const lo = ps.loadoutFor(h.m.gd.chess(BLAZE.slot[form]));
+      assert.equal(lo.skillIndex, 0, `${form}: Catherine's S1 → Blaze's S1`);
+      if (form === 'b') assert.equal(lo.moduleId, BLAZE.moduleId, 'her X module, as Catherine\'s X');
+    }
+    assert.equal(ps.loadoutFor(h.m.gd.chess(other)).skillIndex, 0, 'the rest of the loadout is kept');
+    assert.deepEqual(h.m.setLoadout('p_0', { [BLAZE.slot.a]: { skill: 0, module: 'none' } }), { ok: true });
+    assert.equal(ps.loadoutFor(h.m.gd.chess(BLAZE.slot.b)).moduleId, 'none', '"no module" stays');
+  } finally { h.m.dispose(); }
+});
