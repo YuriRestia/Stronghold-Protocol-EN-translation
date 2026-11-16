@@ -2895,5 +2895,10 @@
   "已锁定投票": "Vote Locked",
   "已投票给「{name}」": "Voted for \"{name}\"",
   "投票已结束": "Voting has ended",
-  "一策同心": "One for All"
+  "一策同心": "One for All",
+  "{left} / {cap} 张": "{left} / {cap} copies",
+  "共享牌库": "Shared deck",
+  "所有博士共用一副牌库：每位干员还剩几张（剩余 / 总数）。每回合更新；队友本回合的购买与出售在下次打开时显示。": "All Doctors buy from one deck: the copies of each operator left (left / total). Updated every round; a teammate's buys and sales this round show the next time you open it.",
+  "查看共享牌库里每位干员还剩几张": "See how many copies of each operator are left in the shared deck",
+  "牌库": "Deck"
 }
