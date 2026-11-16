@@ -1,7 +1,7 @@
 // Normative message catalogue (DESIGN §8). Used by server (validation) and client (building requests).
 // Every client→server message is `{ t, rid?, ...fields }`. Unknown `t` or invalid fields ⇒ ERR.BAD_MSG.
 
-import { DIFFICULTIES, NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, RULE_KEYS, REHEARSAL_MAX_CANDIDATES } from './constants.js';
+import { DIFFICULTIES, NAME_MAX_LEN, PUBLIC_NAME_MAX_LEN, ROOM_CODE_LEN, EMOTES, GEO, RULE_KEYS, REHEARSAL_MAX_CANDIDATES } from './constants.js';
 import { LARGE_ROOM_SEATS, ROOM_CAPACITIES, ROOM_PASSWORD_RE } from './largeRoom.js';
 import { isDroppableChess } from './standIn.js';
 import { diySlotIds, validateDiyPicks } from './diy.js';
@@ -526,7 +526,10 @@ export const C2S = {
     noReplace: isBool, claimAt: (v) => isNum(v, 0, Number.MAX_SAFE_INTEGER), delta: (v) => v == null || isInt(v, 0, 1e6),
     // (fork) the player's profile icon (shared/avatars.js): any short string here; the lobby keeps only a known id
     avatar: (v) => v == null || isStr(v, AVATAR_ID_MAX),
-    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar'] },
+    // (fork, GitHub #118) the name this player opted in to have written into their match records (server/net.js
+    // sanitizePublicName); absent = anonymous records, as #32 designed them
+    publicName: (v) => v == null || isStr(v, PUBLIC_NAME_MAX_LEN * 4),
+    $optional: ['token', 'version', 'noReplace', 'claimAt', 'delta', 'avatar', 'publicName'] },
   ping: { c: (v) => typeof v === 'number' && Number.isFinite(v) },
   // test: only the literal true (DESIGN §34.8). Omit it for a normal room — `false` is a bad field, so a
   // string cannot sneak in as "not a test". The server still refuses it unless SP_TEST_MODE is on.

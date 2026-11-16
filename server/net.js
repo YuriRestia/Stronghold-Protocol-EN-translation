@@ -45,7 +45,7 @@ import { randomBytes } from 'node:crypto';
 import { cleanName } from '../shared/text.js';
 import { isIP } from 'node:net';
 import { C2S, validateC2S } from '../shared/protocol.js';
-import { ERR, ERR_TEXT, NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
+import { ERR, ERR_TEXT, NAME_MAX_LEN, PUBLIC_NAME_MAX_LEN, PROTOCOL_VERSION } from '../shared/constants.js';
 
 /** Tunables (all overridable through the Network / SessionRegistry constructors). */
 export const NET_DEFAULTS = Object.freeze({
@@ -385,6 +385,18 @@ export function errorMsg(code, rid, detail) {
 export function sanitizeName(raw) {
   if (typeof raw !== 'string') return null;
   const s = [...cleanName(raw)].slice(0, NAME_MAX_LEN).join('').trim(); // (fork) plain text, shared/text.js cleanName
+  return s.length > 0 ? s : null;
+}
+
+/**
+ * (fork, GitHub #118) The public name a player opted in to have in their match records: plain text as a nickname
+ * (cleanName), at most PUBLIC_NAME_MAX_LEN code points; null when absent or nothing printable remains.
+ * @param {unknown} raw
+ * @returns {string | null}
+ */
+export function sanitizePublicName(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = [...cleanName(raw)].slice(0, PUBLIC_NAME_MAX_LEN).join('').trim();
   return s.length > 0 ? s : null;
 }
 
@@ -746,6 +758,8 @@ export class Network {
     // (fork) the profile icon as sent (shared/avatars.js; server/lobby.js avatarOf keeps a known id only); a hello without
     // one (an older client, no pick) clears it
     session.avatar = typeof msg.avatar === 'string' ? msg.avatar : null;
+    // (fork, GitHub #118) the opted-in public name for match records; a hello without one (opted out) clears it
+    session.publicName = sanitizePublicName(msg.publicName);
     session.lastSeen = now;
     session.addr = conn.ip;
     session.limitKey = conn.key;

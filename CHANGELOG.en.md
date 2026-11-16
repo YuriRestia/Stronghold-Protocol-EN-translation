@@ -8,6 +8,7 @@
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- Settings: "Name in match records" (off by default). Turn it on and enter a public name, and the records of your next matches carry it, so a clear can be credited to you. Other players' records stay anonymous (#154).
 - Under SPA-CC Strategy 2, Ioleta's, Du Yaoye's and Amiya's Strategy texts now say what it changes for them (highlighted), as Strategy 1 already shows its later rounds (#147, leftover of issue #88).
 - Release zips carry the server's version information, so the title screen's version line, "What's new" and "About this server" work on a release install too (#147, leftover of issues #98–#100).
 - The Chinese player guide links Fish Edition's repository and issues instead of the upstream ones (#147).
