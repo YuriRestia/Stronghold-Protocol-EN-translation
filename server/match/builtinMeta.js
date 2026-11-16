@@ -30,6 +30,7 @@
 import { getData } from '../data.js';
 import { itemKey } from './gamedata.js';
 import { msg, dn } from '../../shared/i18n.js';
+import { TRANSMITTER_PLUS } from '../../shared/ruleData.js';
 
 const int = (v, d = 0) => (Number.isFinite(v) ? Math.trunc(v) : d);
 
@@ -65,6 +66,91 @@ function mostBondMate(ctx, bonds, minCount = 0) {
     if (score > best) { best = score; pick = [t]; } else if (score === best) pick.push(t);
   }
   return best >= minCount ? ctx.rng.pick(pick) || null : null;
+}
+
+// ---- (fork) the Transmitter+ cheat (Fish, GitHub #133; shared/ruleData.js TRANSMITTER_PLUS) ----------------------------
+
+/**
+ * A player's Alliance with the most stacks: the most layers, then the most members (ties at random); null without an
+ * Alliance with members. `p`: an effect context (own or a teammate's).
+ */
+export function topStackBond(p) {
+  let best = null;
+  let ties = [];
+  for (const [id, b] of Object.entries(p.bonds())) {
+    if (!(b && b.count > 0)) continue;
+    const key = [p.layers(id), b.count];
+    const cmp = best ? (key[0] - best[0]) || (key[1] - best[1]) : 1;
+    if (cmp > 0) { best = key; ties = [id]; } else if (cmp === 0) ties.push(id);
+  }
+  return ties.length ? (ties.length === 1 ? ties[0] : p.rng.pick(ties.sort())) : null;
+}
+
+/** An operator of `tier` (else the tiers below) from `bond`, not in `skip`; null when the pool has none. */
+function rollTierBond(ctx, tier, bond, skip = []) {
+  for (let t = tier; t >= 1; t--) {
+    const id = ctx.rollChess({ tier: t, bond, filter: (x) => !skip.includes(x) });
+    if (id) return id;
+  }
+  return null;
+}
+
+/**
+ * Alone: the first Transmitter+ on a tier-6 operator offers Muelsyse; any other use, an operator of the own Alliance
+ * with the most stacks. The guaranteed card replaces the last one unless the offer already has one; nothing changes
+ * when the pool has none (then the next tier-6 use tries Muelsyse again: the first is the first that could offer her).
+ */
+function transmitterPlusOffer(ctx, ids, tier) {
+  const bondOf = (id) => ctx.gd.chess(id)?.bonds || [];
+  const put = (id) => { if (!id || ids.includes(id)) return; if (ids.length >= 2) ids[ids.length - 1] = id; else ids.push(id); };
+  if (tier === 6 && !ctx.counter('transmitterPlus:muelsyse')) {
+    const mu = ids.find((x) => ctx.gd.baseIdOf(x) === TRANSMITTER_PLUS.muelsyse)
+      || ctx.rollChess({ tier: 6, filter: (x) => ctx.gd.baseIdOf(x) === TRANSMITTER_PLUS.muelsyse });
+    if (mu) { ctx.incCounter('transmitterPlus:muelsyse'); put(mu); return; }
+  }
+  const bond = topStackBond(ctx);
+  if (!bond || ids.some((x) => bondOf(x).includes(bond))) return;
+  put(rollTierBond(ctx, tier, bond, ids));
+}
+
+/**
+ * With teammates: the gifts of a Transmitter+. A teammate is eligible for the original when it has members of the
+ * original's Alliances. Up to 4 players: the official gift when one is eligible, else 2 random teammates get an operator
+ * of their own top-stack Alliance. 5 or more: the two most eligible get the original; one eligible gets it and one other
+ * teammate an operator for its Alliance; none, 3 random teammates.
+ */
+function transmitterPlusGifts(ctx, uid, original, bonds, tier) {
+  const mates = ctx.teammates();
+  if (!mates.length) return;
+  const score = (t) => bonds.reduce((s, b) => s + t.bondCount(b), 0);
+  const eligible = mates.filter((t) => score(t) > 0);
+  const big = mates.length + 1 >= TRANSMITTER_PLUS.bigRoom;
+  let k = 0;
+  const gift = (to, chessId, why) => ctx.addEffect({ id: `gift:${uid}:${k++}`, key: 'effect:builtin_gift', hidden: true, battle: false,
+    params: { toPlayerId: to.playerId, chessId, bonds: ctx.gd.chess(chessId)?.bonds || bonds, ...(why ? { plus: why } : {}) } });
+  const forOwn = (t) => {
+    const id = rollTierBond(t, tier, topStackBond(t)) || rollTierBond(t, tier, undefined);
+    if (id) gift(t, id, 'alliance');
+  };
+  const random = (list, n) => {
+    const pool = list.slice();
+    const out = [];
+    while (pool.length && out.length < n) out.push(pool.splice(ctx.rng.int(pool.length), 1)[0]);
+    return out;
+  };
+  if (!big) {
+    if (eligible.length) { const to = mostBondMate(ctx, bonds); if (to) gift(to, original, null); return; }
+    for (const t of random(mates, 2)) forOwn(t);
+    return;
+  }
+  const best = eligible.slice().sort((a, b) => score(b) - score(a));
+  if (best.length >= 2) { gift(best[0], original, null); gift(best[1], original, null); return; }
+  if (best.length === 1) {
+    gift(best[0], original, null);
+    for (const t of random(mates.filter((x) => x.playerId !== best[0].playerId), 1)) forOwn(t);
+    return;
+  }
+  for (const t of random(mates, 3)) forOwn(t);
 }
 
 const ITEM_HANDLERS = {
@@ -192,11 +278,16 @@ const ITEM_HANDLERS = {
         for (let t = tier; t >= 1 && !id; t--) id = ctx.rollChess({ tier: t, filter: (x) => !ids.includes(x) });
         if (id) ids.push(id);
       }
+      // (fork) the Transmitter+ cheat (GitHub #133; shared/ruleData.js TRANSMITTER_PLUS): alone, one card is guaranteed
+      const plus = ctx.lobbyRules?.transmitterPlus === true;
+      if (plus && !ctx.teammates().length) transmitterPlusOffer(ctx, ids, tier);
       if (ids.length) ctx.offerChess(ids, { source: 'item', tier });
       // co-op: next prep, send the original chess to the teammate with the most members of its bonds — except a 自选
       // piece (0.2.0): its DIY slot is bound to this player's roster (no teammate's shop or slot can hold that operator),
       // so nothing is sent [ASSUMED: the official text names no 自选 case]
-      const to = ctx.chessRecord(original)?.diyFor ? null : mostBondMate(ctx, bonds);
+      if (ctx.chessRecord(original)?.diyFor) return;
+      if (plus) { transmitterPlusGifts(ctx, ev.item.uid, original, bonds, tier); return; }
+      const to = mostBondMate(ctx, bonds);
       if (to) ctx.addEffect({ id: `gift:${ev.item.uid}`, key: 'effect:builtin_gift', hidden: true, battle: false, params: { toPlayerId: to.playerId, chessId: original, bonds } });
     },
   },

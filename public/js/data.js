@@ -343,7 +343,8 @@ export function createDataStore(opts = {}) {
       const bondsFile = localizedEntry('bonds')?.value ?? entries.get('bonds')?.value ?? null;
       const garrisonsFile = localizedEntry('garrisons')?.value ?? entries.get('garrisons')?.value ?? null;
       const bandsFile = localizedEntry('bands')?.value ?? entries.get('bands')?.value ?? null;
-      const patch = ruleDataPatch({ chess: chessFile, backups, bonds: bondsFile, garrisons: garrisonsFile, bands: bandsFile }, ruleSet, { text: (s, params) => t(s, params) });
+      const itemsFile = localizedEntry('items')?.value ?? entries.get('items')?.value ?? null; // (fork) Damazti Isomorph+ (#134)
+      const patch = ruleDataPatch({ chess: chessFile, backups, bonds: bondsFile, garrisons: garrisonsFile, bands: bandsFile, items: itemsFile }, ruleSet, { text: (s, params) => t(s, params) });
       const extra = patch[name] || {};
       r = { base: value, lang: locale, backups, value: Object.keys(extra).length ? { ...value, ...extra } : value, index: null };
       ruled.set(name, r);
@@ -370,7 +371,7 @@ export function createDataStore(opts = {}) {
 
   /** Show the records of a match with these lobby rules (shared/rules.js); null / no data change = the files as they are. */
   function setRules(rules) {
-    const next = rulesChangeData(rules) ? { virtuosaBonds: rules.virtuosaBonds === true, blaze: rules.blaze === true, lateranoMod: rules.lateranoMod ?? 'A', victoriaMod: rules.victoriaMod ?? 'A', ccInvestorBench: rules.ccInvestorBench || 0, ccSwift: rules.ccSwift || 0, ccJunk: rules.ccJunk || 0, boosterPack: rules.boosterPack === true, itemBoosterPack: rules.itemBoosterPack === true } : null;
+    const next = rulesChangeData(rules) ? { virtuosaBonds: rules.virtuosaBonds === true, blaze: rules.blaze === true, lateranoMod: rules.lateranoMod ?? 'A', victoriaMod: rules.victoriaMod ?? 'A', ccInvestorBench: rules.ccInvestorBench || 0, ccSwift: rules.ccSwift || 0, ccJunk: rules.ccJunk || 0, boosterPack: rules.boosterPack === true, itemBoosterPack: rules.itemBoosterPack === true, ccStrategyLate: rules.ccStrategyLate || 0, transmitterPlus: rules.transmitterPlus === true } : null;
     if (JSON.stringify(next) === JSON.stringify(ruleSet)) return;
     ruleSet = next;
     ruled.clear();

@@ -43,6 +43,7 @@ export const RULES = Object.freeze([
   { key: 'tierStart', type: 'bool', category: 'cheat' },        // every player starts with one random operator of each tier
   { key: 'boosterPack', type: 'bool', category: 'cheat' },      // every player starts with a Booster Pack (shared/ruleData.js BOOSTER)
   { key: 'itemBoosterPack', type: 'bool', category: 'cheat' },  // … and an Equipment Booster Pack (shared/ruleData.js ITEM_BOOSTER)
+  { key: 'transmitterPlus', type: 'bool', category: 'cheat' },  // (GitHub #133) Transmitter+ (shared/ruleData.js TRANSMITTER_PLUS)
   // Alliance Modules: A = the original effect
   { key: 'lateranoMod', type: 'choice', options: ['A', 'B'], category: 'neutral' },
   { key: 'victoriaMod', type: 'choice', options: ['A', 'C'], category: 'neutral' },
