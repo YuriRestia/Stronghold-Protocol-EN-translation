@@ -7,7 +7,8 @@
 //     left), in order: buy / refresh / freeze / levelUp / sell / move / equip / art / destroy / unequip / reward (the
 //     PlayerState actions), card (机变), band, choice (教鞭), offer / offerRefresh (plugin windows), autoplay. A refused
 //     action is not recorded. No time and no clicks: only the order (the owner's call on #32).
-//   * observations in the same list — `shop` (every roll of a seat's shop: round start, refresh, effects) and `gain` (a
+//   * observations in the same list — `shop` (every roll of a seat's shop: round start, refresh, effects; after a refresh
+//     also the slots its effects left, `after: 'refresh'`, when they differ from the roll: GitHub #90) and `gain` (a
 //     piece a seat got outside its own action: round rewards, cards, bands, items; inside an action it is the action's `got`).
 //   * rounds — at each SETTLE, per seat: LP, shop level, funds, board value, units, elites, bonds and tiers, layers, items,
 //     leaks (botbench's row, tools/botbench.mjs); a round without a SETTLE gets one too: `noSettle: true` when the next
@@ -63,6 +64,15 @@ export function installRecorder(m) {
     if (!ok(res) && rec.actions[at] === e) rec.actions.splice(at, 1);
     return res;
   };
+  /** A `shop` observation: every roll, and after a refresh the slots its effects left when they differ (`after`). */
+  const lastShop = new Map();
+  const logShop = (ps, after = null, always = false) => {
+    const ids = ps.shop.slots.map((s) => (s ? s.id : null));
+    const key = ids.join(',');
+    if (!always && lastShop.get(ps) === key) return;
+    lastShop.set(ps, key);
+    rec.actions.push({ ...base(ps), a: 'shop', lvl: ps.shop.level, ids, ...(after ? { after } : {}) });
+  };
   for (const ps of m.players.values()) {
     for (const [name, read] of Object.entries(PS_ACTIONS)) {
       const fn = ps[name];
@@ -72,13 +82,17 @@ export function installRecorder(m) {
         if (this !== ps) return fn.apply(this, args);
         let entry;
         try { entry = read(ps, args); } catch { entry = { a: name }; }
-        return act(ps, entry, () => fn.apply(this, args));
+        const res = act(ps, entry, () => fn.apply(this, args));
+        // GitHub #90: the roll is logged before the refresh's own effects (onRefresh: Du Yaoye's Yan offers …) change the
+        // slots; log the shop the player then saw, when it differs
+        if (name === 'refresh') logShop(ps, 'refresh');
+        return res;
       };
     }
     const roll = ps.rollShop;
     ps.rollShop = function (...args) {
       const res = roll.apply(this, args);
-      if (this === ps) rec.actions.push({ ...base(ps), a: 'shop', lvl: ps.shop.level, ids: ps.shop.slots.map((s) => (s ? s.id : null)) });
+      if (this === ps) logShop(ps, null, true);
       return res;
     };
     for (const name of ['acquireChess', 'acquireItem']) {

@@ -8,6 +8,7 @@
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- Match records (for the server owner's analysis) now also log the shop a refresh leaves after its own effects, such as Du Yaoye's Yan offer; before, they held only the roll before those effects (#146, issue #90).
 - Fixed the LP loss shown during a battle (top bar, team list) and in the round's result box leaving out Last Line of Defense's extra 2 LP: a round with 10 or more leaks now shows −12, as the settlement charges. The LP tooltip names the extra LP (#145, issue #123).
 - Shared deck: the shop's new Deck button shows how many copies of each operator are left in the deck all players share (left / total), by class. It updates every round (#152).
 - Fixed the skill chosen for Catherine not reaching Blaze when the Blaze rule is on: the match rejected the whole Operator Loadout because Catherine's Module isn't one of Blaze's, so every operator fought with its default skill. Blaze now takes Catherine's skill, and her own X Module in place of Catherine's (#144, issue #116).
