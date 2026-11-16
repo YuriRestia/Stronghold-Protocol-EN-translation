@@ -371,7 +371,7 @@ export function createDataStore(opts = {}) {
 
   /** Show the records of a match with these lobby rules (shared/rules.js); null / no data change = the files as they are. */
   function setRules(rules) {
-    const next = rulesChangeData(rules) ? { virtuosaBonds: rules.virtuosaBonds === true, blaze: rules.blaze === true, lateranoMod: rules.lateranoMod ?? 'A', victoriaMod: rules.victoriaMod ?? 'A', ccInvestorBench: rules.ccInvestorBench || 0, ccSwift: rules.ccSwift || 0, ccJunk: rules.ccJunk || 0, boosterPack: rules.boosterPack === true, itemBoosterPack: rules.itemBoosterPack === true, ccStrategyLate: rules.ccStrategyLate || 0, transmitterPlus: rules.transmitterPlus === true } : null;
+    const next = rulesChangeData(rules) ? { virtuosaBonds: rules.virtuosaBonds === true, blaze: rules.blaze === true, lateranoMod: rules.lateranoMod ?? 'A', victoriaMod: rules.victoriaMod ?? 'A', ccInvestorBench: rules.ccInvestorBench || 0, ccSwift: rules.ccSwift || 0, ccJunk: rules.ccJunk || 0, boosterPack: rules.boosterPack === true, itemBoosterPack: rules.itemBoosterPack === true, ccStrategyLate: rules.ccStrategyLate || 0, transmitterPlus: rules.transmitterPlus === true, isoPlus: rules.isoPlus ?? 'off' } : null;
     if (JSON.stringify(next) === JSON.stringify(ruleSet)) return;
     ruleSet = next;
     ruled.clear();

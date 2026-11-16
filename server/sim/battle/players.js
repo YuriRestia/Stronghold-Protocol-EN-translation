@@ -43,6 +43,9 @@ export class BattlePlayers {
       input: p,
     };
     if (this.opts.morphPairing === 'plus') ps.morphPairing = 'plus';
+    // the Damazti Isomorph+ cheat (GitHub #134; support unitBonds)
+    const iso = this.flags?.rules?.isoPlus;
+    if (iso === 'plus' || iso === 'plusplus') ps.isoPlus = iso;
     this.players.push(ps);
     this._perPlayer[ps.playerId] = {
       // `killed` / `total` / `leaked` / `perfect` keep the official `counted` reading (DESIGN §5.1); `killedInTotal` /

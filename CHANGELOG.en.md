@@ -8,6 +8,8 @@
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- New cheat, Damazti Isomorph+ (#150): worn with the Isomorph, more items that sound like an Alliance's make the holder its member: Tianshi's Cauldron (Yan), Steam Heart (Victoria), Kjeragandr's Tears (Kjerag), Desert Compass (Sargon), Trench Test Subject (Aegir), Chivalric Commandments, Pegasian Helm and Pegasian Lance (Kazimierz), Famiglia Insignia (Siracusa), Gun-Knight's Might (Laterano) and Laser Sighter (Arcane). Isomorph++ also pairs the Miniature Accelerator with Agile. The items are still no Alliance items of their own.
+- Fixed SPA-CC Strategy's tag texts in the game: the Strategy texts now show the rounds that come later (#150).
 - Settings: "Name in match records" (off by default). Turn it on and enter a public name, and the records of your next matches carry it, so a clear can be credited to you. Other players' records stay anonymous (#154).
 - Under SPA-CC Strategy 2, Ioleta's, Du Yaoye's and Amiya's Strategy texts now say what it changes for them (highlighted), as Strategy 1 already shows its later rounds (#147, leftover of issue #88).
 - Release zips carry the server's version information, so the title screen's version line, "What's new" and "About this server" work on a release install too (#147, leftover of issues #98–#100).

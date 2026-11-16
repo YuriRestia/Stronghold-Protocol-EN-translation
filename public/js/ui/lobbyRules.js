@@ -15,13 +15,36 @@ import { data, useData } from '../data.js';
 import { DEFAULT_RULES, RULE_EXTRA_DEPLOY, RULE_EXTRA_FUNDS, modeIdFor } from '../../../shared/constants.js';
 import { rulesInForce, ruleLabels, ruleOf, RULES, ruleRisk, tagParent, normalizeRules, sameRuleValue } from '../../../shared/rules.js';
 import { loadPref, savePref } from '../store.js';
-import { VIRTUOSA, BLAZE, CC, LATERANO_B_TEXT, LATERANO_B_LIST, VICTORIA_C_TEXT, TOXIC_WASTE_NAME } from '../../../shared/ruleData.js';
+import { VIRTUOSA, BLAZE, CC, ISO_PLUS, LATERANO_B_TEXT, LATERANO_B_LIST, VICTORIA_C_TEXT, TOXIC_WASTE_NAME } from '../../../shared/ruleData.js';
 import { t } from '../../../shared/i18n.js';
 
 const cx = (...p) => p.flat().filter(Boolean).join(' ');
 const chessName = (id, fallback) => data.lookup('chess', id)?.name || fallback;
 const bondName = (id) => data.lookup('bonds', id)?.name || id;
 const bandName = (id) => data.lookup('bands', id)?.name || id;
+/** The Damazti Isomorph's own name (the room's records may say "+"). */
+const isoName = () => data.lookupBase('items', ISO_PLUS.morphIds[0])?.name || ISO_PLUS.morphIds[0];
+/** "item → Alliance" for each pair a level adds (GitHub #134). */
+const isoPairs = (pairs) => Object.entries(pairs).map(([base, b]) => `${data.lookupBase('items', `${base}_a`)?.name || base} → ${bondName(b)}`).join(t('、'));
+
+/** The Damazti Isomorph+ cheat (GitHub #134): off / + / ++, and what the chosen level adds. */
+function IsoPlusChoice({ rules, editable, onSet }) {
+  const v = rules.isoPlus;
+  const labels = { off: t('关'), plus: `${isoName()}+`, plusplus: `${isoName()}++` };
+  const desc = v === 'off' ? t('{name}还能与更多听起来属于某个盟约的装备搭配', { name: isoName() })
+    : t('与{name}一同装备时，以下装备也使携带者视为对应盟约成员：{list}', { name: isoName(), list: isoPairs({ ...ISO_PLUS.plus, ...(v === 'plusplus' ? ISO_PLUS.plusplus : {}) }) });
+  return html`<div class="rules-row">
+    <div class="rules-mod">
+      <b>${isoName()}</b>
+      <div class="rules-seg" role="radiogroup" aria-label=${isoName()}>
+        ${['off', 'plus', 'plusplus'].map((o) => html`<button key=${o} type="button" role="radio" aria-checked=${v === o ? 'true' : 'false'}
+          class=${cx('rules-seg__opt', v === o && 'is-active')} data-rule="isoPlus" data-value=${o} disabled=${!editable}
+          onClick=${() => onSet({ isoPlus: o })}>${labels[o]}</button>`)}
+      </div>
+    </div>
+    <p class="rules-row__desc">${desc}</p>
+  </div>`;
+}
 
 /** The short label of a rule in force (the strip, the result screen). */
 export function ruleLabel(key, rules) {
@@ -35,6 +58,7 @@ export function ruleLabel(key, rules) {
     case 'boosterPack': return t('开局获得补充包');
     case 'itemBoosterPack': return t('开局获得装备补充包');
     case 'transmitterPlus': return t('信标+');
+    case 'isoPlus': return `${isoName()}${v === 'plusplus' ? '++' : '+'}`;
     case 'lateranoMod': return t('{bond}模组 {m}', { bond: bondName('lateranoShip'), m: v });
     case 'victoriaMod': return t('{bond}模组 {m}', { bond: bondName('victoriaShip'), m: v });
     case 'virtuosaBonds': return t('{name}加入{a}与{b}', { name: chessName(VIRTUOSA.ids[0], VIRTUOSA.ids[0]), a: bondName('swiftShip'), b: bondName('deputShip') });
@@ -481,6 +505,7 @@ export function RulesDialog({ open, onClose, room, rules, editable, onSet }) {
       <${Toggle} k="boosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('boosterPack', rules)} desc=${t('开局时所有博士各获得1个补充包：装备到干员上即可免费选择同阶干员，每次6名，按固定顺序轮换；补充包留在手牌（AI不会使用）')} />
       <${Toggle} k="itemBoosterPack" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('itemBoosterPack', rules)} desc=${t('开局时所有博士各获得1个装备补充包：装备到任意干员上即可免费选择一件装备，每次6件，按固定顺序轮换全部装备；装备补充包留在手牌（AI不会使用）')} />
       <${Toggle} k="transmitterPlus" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('transmitterPlus', rules)} desc=${t('信标更好用：独自一人时，第一次装备给六星干员必出缪尔赛思，其他时候必出一名你层数最多的盟约的干员；有队友但没人需要原干员时，改为给2名随机队友各送1名其主盟约的同阶干员；5人及以上的房间多送1人')} />
+      <${IsoPlusChoice} rules=${rules} editable=${editable} onSet=${onSet} />
       ${room.mode === 'solo' ? null : html`<${Toggle} k="untimed" rules=${rules} editable=${editable} onSet=${onSet} label=${ruleLabel('untimed', rules)} desc=${t('选择策略、机变阶段与休整期不限时（作战仍有时间限制）')} />`}
     <//>
     <${Section} title=${t('盟约模组')} note=${t('不影响结算标签')}>

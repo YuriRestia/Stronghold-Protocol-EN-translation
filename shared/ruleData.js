@@ -254,10 +254,46 @@ export const TRANSMITTER_PLUS = Object.freeze({
 });
 export const TRANSMITTER_PLUS_NOTE = N_('【信标+】独自一人时：本局第一次装备给六星干员时，候选中必定有缪尔赛思；其他时候，候选中必定有一名你层数最多的盟约的干员（如果还有）。有队友但没有队友拥有原干员的盟约成员时：改为向2名随机队友各发送1名同阶、属于其层数最多盟约的干员。5人及以上的房间多送1名队友。');
 
+/**
+ * The Damazti Isomorph+ cheat (GitHub #134, Fish's list): items that sound like an Alliance's give it to a bearer that
+ * also wears a 变形同构体 (`morphBondId`, read by shared/plugins/rules.js morphBondOf only). `plus` adds the first list,
+ * `plusplus` also Miniature Accelerator → Agile. Both forms of each item (`_a` / `_b`). The Isomorph's name gets "+" / "++".
+ */
+export const ISO_PLUS = Object.freeze({
+  morphIds: Object.freeze(['chess_item_6_09_e_a', 'chess_item_6_09_e_b']),
+  plus: Object.freeze({
+    chess_item_6_03_e: 'yanShip', // Tianshi's Cauldron
+    chess_item_6_05_e: 'victoriaShip', // Steam Heart
+    chess_item_6_06_e: 'kjeragShip', // Kjeragandr's Tears
+    chess_item_6_07_e: 'sargonShip', // Desert Compass
+    chess_item_6_04_e: 'egirShip', // Trench Test Subject
+    chess_item_6_10_e: 'kazimierzShip', // Chivalric Commandments
+    chess_item_6_11_e: 'siracusaShip', // Famiglia Insignia
+    chess_item_6_02_e: 'lateranoShip', // Gun-Knight's Might
+    chess_item_5_09_e: 'kazimierzShip', // Pegasian Helm
+    chess_item_6_01_e: 'kazimierzShip', // Pegasian Lance
+    chess_item_3_03_e: 'arcaneShip', // Laser Sighter
+  }),
+  plusplus: Object.freeze({
+    chess_item_4_03_e: 'skillfulShip', // Miniature Accelerator → Agile
+  }),
+});
+
+/**
+ * The Alliance the Damazti Isomorph+ cheat (GitHub #134) pairs the item `id` with at `level` ('plus' / 'plusplus'), or
+ * null. For a battle, whose item records are the unpatched ones (sim/content/support unitBonds).
+ */
+export function isoPlusBond(id, level) {
+  if ((level !== 'plus' && level !== 'plusplus') || typeof id !== 'string') return null;
+  const base = id.replace(/_[ab]$/, '');
+  if (base === id) return null;
+  return ISO_PLUS.plus[base] ?? (level === 'plusplus' ? ISO_PLUS.plusplus[base] ?? null : null);
+}
+
 /** Whether `rules` change any data record (the callers can skip the patch). */
 export const rulesChangeData = (rules) => !!(rules && (rules.virtuosaBonds === true || rules.blaze === true
   || rules.lateranoMod === 'B' || rules.victoriaMod === 'C' || rules.ccInvestorBench > 0 || rules.ccSwift > 0 || rules.ccJunk > 0 || rules.boosterPack === true || rules.itemBoosterPack === true
-  || rules.ccStrategyLate > 0 || rules.transmitterPlus === true));
+  || rules.ccStrategyLate > 0 || rules.transmitterPlus === true || rules.isoPlus === 'plus' || rules.isoPlus === 'plusplus'));
 
 // The round numbers a Strategy's text names, in each language's data: zh / zh-TW 第4、7、10回合, en "Round(s) 4, 7 and 10",
 // ja 第4/7/10ラウンド (not "2ラウンドごと", every 2 rounds), ko 4/7/10라운드 (not "2라운드마다"). Each match is a group of numbers.
@@ -310,6 +346,21 @@ export function ruleDataPatch(raw, rules, { text = (s, p) => s.replace(/\{(\w+)\
       if (!b) continue;
       const note = text(msgid, params);
       bands[id] = { ...b, desc: `${b.desc ?? ''}${note}`, descRaw: `${b.descRaw ?? b.desc ?? ''}<@ba.vup>${note}</>` };
+    }
+  }
+  // the Damazti Isomorph+ cheat: more items pair with the Isomorph; its name says which level
+  if (rules.isoPlus === 'plus' || rules.isoPlus === 'plusplus') {
+    const pairs = { ...ISO_PLUS.plus, ...(rules.isoPlus === 'plusplus' ? ISO_PLUS.plusplus : {}) };
+    for (const [base, bondId] of Object.entries(pairs)) {
+      for (const form of ['a', 'b']) {
+        const rec = own(raw.items, `${base}_${form}`);
+        if (rec && !rec.giveBondId && !rec.canGiveBond) items[rec.id ?? `${base}_${form}`] = { ...rec, morphBondId: bondId };
+      }
+    }
+    const mark = rules.isoPlus === 'plusplus' ? '++' : '+';
+    for (const id of ISO_PLUS.morphIds) {
+      const rec = own(raw.items, id);
+      if (rec && typeof rec.name === 'string') items[id] = { ...rec, name: `${rec.name}${mark}` };
     }
   }
   // SPA-CC Junk: the Toxic Waste
