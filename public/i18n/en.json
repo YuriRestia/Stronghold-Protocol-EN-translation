@@ -343,6 +343,8 @@
   "导出干员调配": "Export Operator Loadout",
   "导入干员调配": "Import Operator Loadout",
   "关闭": "Close",
+  "全部清除": "Clear all",
+  "新建同盟时会自动沿用你上次的设置": "A new room you create starts with your last settings",
   "复制": "Copy",
   "下载文件": "Download File",
   "取消": "Cancel",
