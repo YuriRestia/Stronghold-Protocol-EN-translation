@@ -2,7 +2,8 @@
 //   GitHub #84: a stacking chain (Investor, Strategy, Junk) lists every level in force, as the sim applies them all.
 //   GitHub #91: Last Line of Defense says it is once per round, also after the Unite Phase, past the cap.
 //   GitHub #86: the rules in force as chips (the result screen and the in-game 本局信息 tab), a tag's effects as its tooltip.
-//   GitHub #88: under Strategy 1 the Strategies' texts name their rounds one round later, highlighted (shared/ruleData.js).
+//   GitHub #88: under Strategy 1 the Strategies' texts name their rounds one round later, highlighted (shared/ruleData.js);
+//   under Strategy 2 the three Strategies it changes say so in their texts.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -69,7 +70,7 @@ test('#88: under Strategy 1, the 12 Strategies with named rounds say them one ro
   assert.equal(first(p.band_harold.desc), '【人才盲盒】从第5回合开始每2回合获得1名<维多利亚>干员');
   assert.match(p.band_yu.desc, /第9回合开始时.*增加36层.*增加12层/);
   // Strategy 2 includes it; no Strategy 1, no change
-  assert.deepEqual(Object.keys(late(BANDS, 2)).length, 12);
+  assert.deepEqual(Object.keys(late(BANDS, 2)).length, 15, 'plus Strategy 2\'s own three (Ioleta, Du Yaoye, Amiya)');
   assert.deepEqual(ruleDataPatch({ bands: BANDS }, { ...DEFAULT_RULES, extraFunds: true }).bands, {});
 });
 
@@ -121,4 +122,21 @@ test('Cleaner 1 names both Silencer counts; Undying 3 names the final-round sub-
   assert.equal(CC.silencers.soloCount, 2);
   assert.ok(riskText('ccPatriot', lv('ccPatriot', 'undying3')).full.includes('最终领袖回合'));
   assert.ok(!riskText('ccPatriot', lv('ccPatriot', 'undying2')).full.includes('最终领袖回合出现'));
+});
+
+test('#88 leftover: under Strategy 2, Ioleta, Du Yaoye and Amiya say what it changes, highlighted; not under Strategy 1', () => {
+  const one = late(BANDS, 1), two = late(BANDS, 2);
+  for (const id of ['band_ioleta', 'band_duyaoy', 'band_amiya']) {
+    assert.equal(one[id], undefined, `${id}: Strategy 1 leaves it`);
+    assert.ok(two[id].desc.startsWith(BANDS[id].desc), `${id}: the official text first`);
+    assert.match(two[id].descRaw, /<@ba\.vup>（风险：[^<]+）<\/>$/);
+  }
+  assert.match(two.band_ioleta.desc, new RegExp(`最多\\+${Math.round(CC.strategy2.ioletaCap * 100)}%`));
+  assert.match(two.band_duyaoy.desc, new RegExp(`只有前${CC.strategy2.duyaoyRefreshes}次`));
+  assert.match(two.band_amiya.desc, new RegExp(`多${CC.strategy2.amiyaExtra}种`));
+  // in English, as the client translates it
+  const en = json('public/i18n/en.json');
+  const t = (s, p) => (en[s] ?? s).replace(/\{(\w+)(?:\|([^|}]*)\|([^}]*))?\}/g, (m, k, a, b) => (a != null ? (p[k] === 1 ? a : b) : String(p[k])));
+  const enTwo = ruleDataPatch({ bands: bandsIn('en') }, { ...DEFAULT_RULES, ccStrategyLate: 2 }, { text: t }).bands;
+  assert.match(enTwo.band_duyaoy.desc, /\(Risk: only the first 1 manual refresh is special each round\)$/);
 });

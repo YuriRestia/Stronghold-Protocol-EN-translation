@@ -102,6 +102,7 @@ import { writeZip } from './preload-pack.mjs';
 import { rewriteManifest } from '../server/http/assetViews.js';
 import { mergeLocalManifests, planFromManifests } from '../public/js/assetPack.js';
 import { writePackIndex } from './packs.mjs';
+import { collectServerInfo } from '../server/serverInfo.js';
 import { compareVersions, diffBases, manifestText, readBase, updateText } from './package-update.mjs';
 import {
   APPLIED_FILE, MANIFEST_FILE, UPDATE_FILE, affectsRuntime, digestFile, inManifest, isSetupArt, listedArtFiles,
@@ -139,6 +140,12 @@ export const PLAYER_TOOL_DIRS = ['tools/assets/', 'tools/local-extract/'];
 export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/', 'schemas/'];
 /** Written into the stage, never taken from the checkout: the pack index of the shipped packs, and the release marker. */
 export const GENERATED_PACK_INDEX = 'packs/index.json';
+/**
+ * (fork, leftover of GitHub #98–#100) public/server-info.json — the branch, commit and latest changes for the title
+ * screen's version line, "What's new" and "About this server" (server/serverInfo.js). A release has no git, so the
+ * server can't write it at start (it then keeps the shipped one): the package writes it from this checkout.
+ */
+export const GENERATED_SERVER_INFO = 'public/server-info.json';
 /** Whether shipped files include a content pack (then the stage gets GENERATED_PACK_INDEX). @param {string[]} files */
 export const shipsPacks = (files) => files.some((f) => /^public\/i18n\/[^/]+\.json$/.test(f) || /^packs\/[^/]+\/pack\.json$/.test(f));
 /** Never from the tracked list: the dev pages, and what only the art plan adds (or npm ci writes). */
@@ -574,7 +581,10 @@ export function plan(root, opts = {}) {
   const art = artPlan(root, { lite, jpVoice: opts.jpVoice ?? FULL_ZIP_JP_VOICE, optionalVoice: opts.optionalVoice ?? FULL_ZIP_OPTIONAL_VOICE });
   const pkg = readJson(path.join(root, 'package.json')) || {};
   const lock = readJson(path.join(root, 'package-lock.json')) || {};
-  const generated = [...(shipsPacks(keep) ? [GENERATED_PACK_INDEX] : []), LLM_RELEASE_MARKER];
+  // (fork) the title screen's server info, when this checkout has git (a temporary test checkout has none)
+  let serverInfo = null;
+  if (opts.serverInfo !== false) { try { serverInfo = collectServerInfo(root); } catch { serverInfo = null; } }
+  const generated = [...(shipsPacks(keep) ? [GENERATED_PACK_INDEX] : []), LLM_RELEASE_MARKER, ...(serverInfo ? [GENERATED_SERVER_INFO] : [])];
   const files = [...keep, ...art.files, ...generated];
   const problems = [];
   for (const f of files) if (isRefused(f) || isJunk(f)) problems.push(`refused: ${f}`);
@@ -613,7 +623,7 @@ export function plan(root, opts = {}) {
   const vendorBytes = opts.measure !== false ? sumBytes(root, listTree(root, 'public/vendor')) : 0;
   const dropBytes = Object.values(dropped).reduce((n, g) => n + g.bytes, 0);
   return {
-    version: pkg.version || '0.0.0', lite, tracked: keep, art: art.files, generated, files, dropped, orphans: art.orphans,
+    version: pkg.version || '0.0.0', lite, tracked: keep, art: art.files, generated, serverInfo, files, dropped, orphans: art.orphans,
     held: art.held, fxHeld: art.fxHeld, localArt: art.local, problems, names: names.length, scanned,
     scenes: { files: art.scenes || [], bytes: sumBytes(root, art.scenes || []) },
     bytes: {
@@ -645,6 +655,7 @@ export function formatSummary(p) {
     const bits = [];
     if (p.generated.includes(GENERATED_PACK_INDEX)) bits.push('the pack index of the shipped packs, for a static host');
     if (p.generated.includes(LLM_RELEASE_MARKER)) bits.push('the release marker that keeps external AI off the package');
+    if (p.generated.includes(GENERATED_SERVER_INFO)) bits.push('the branch, commit and latest changes for the title screen');
     lines.push(`generated: ${p.generated.join(', ')} (${bits.join('; ')})`);
   }
   lines.push(`production node_modules: ${MB(p.bytes.modules)} · public/vendor: ${MB(p.bytes.vendor)} (npm ci --omit=dev and its postinstall)`);
@@ -834,6 +845,13 @@ function makeStage(root, p, stage, { install, env, log }) {
     fs.mkdirSync(path.dirname(marker), { recursive: true });
     fs.writeFileSync(marker, LLM_RELEASE_MARKER_TEXT);
     log(`${LLM_RELEASE_MARKER}: external AI stays off this package`);
+  }
+  if (generated.has(GENERATED_SERVER_INFO)) {
+    const info = p.serverInfo;
+    const file = path.join(stage, GENERATED_SERVER_INFO);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify(info, null, 2)}\n`);
+    log(`${GENERATED_SERVER_INFO}: ${info.branch} @ ${String(info.commit).slice(0, 7)}`);
   }
   if (install) {
     log('npm ci --omit=dev …');

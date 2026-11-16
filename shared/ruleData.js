@@ -155,6 +155,12 @@ export function riskLeakWeight(rules, enemyKey) {
 
 /** msgid of the note added to 投资人's text when the bench no longer counts. */
 export const INVESTOR_BENCH_NOTE = N_('（风险：整备区的干员不再计入）');
+/** SPA-CC Strategy 2 (leftover of GitHub #88): the three Strategies it changes say so in their own texts. */
+export const STRATEGY2_NOTES = Object.freeze({
+  band_ioleta: N_('（风险：加成最多+{cap}%）'),
+  band_duyaoy: N_('（风险：每回合只有前{r}次主动刷新为特殊刷新）'),
+  band_amiya: N_('（风险：每档需要多{n}种激活盟约）'),
+});
 /** msgid of the trigger tag that replaces a 获得时 grant's own ("<获得时>") under Investor 2 (CC.investorSold). */
 export const INVESTOR_SOLD_TAG = N_('<售出时>');
 
@@ -296,6 +302,16 @@ export function ruleDataPatch(raw, rules, { text = (s, p) => s.replace(/\{(\w+)\
   if (!rulesChangeData(rules) || !raw) return { chess, garrisons, bonds, items, bands: {} };
   // SPA-CC Strategy 1: the Strategies' texts name their rounds one round later (only the client passes `bands`)
   const bands = rules.ccStrategyLate > 0 ? strategyLateBands(raw.bands) : {};
+  // SPA-CC Strategy 2: Ioleta's cap, Du Yaoye's refreshes, Amiya's extra Alliance, as a note on each text (highlighted)
+  if (rules.ccStrategyLate >= 2) {
+    const params = { cap: Math.round(CC.strategy2.ioletaCap * 100), r: CC.strategy2.duyaoyRefreshes, n: CC.strategy2.amiyaExtra };
+    for (const [id, msgid] of Object.entries(STRATEGY2_NOTES)) {
+      const b = bands[id] ?? own(raw.bands, id);
+      if (!b) continue;
+      const note = text(msgid, params);
+      bands[id] = { ...b, desc: `${b.desc ?? ''}${note}`, descRaw: `${b.descRaw ?? b.desc ?? ''}<@ba.vup>${note}</>` };
+    }
+  }
   // SPA-CC Junk: the Toxic Waste
   if (rules.ccJunk > 0) items[CC.junk.itemId] = cursedHammerRecord(rules.ccJunk, text);
   // the boosterPack cheat: the Booster Pack

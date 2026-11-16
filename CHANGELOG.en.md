@@ -8,6 +8,9 @@
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- Under SPA-CC Strategy 2, Ioleta's, Du Yaoye's and Amiya's Strategy texts now say what it changes for them (highlighted), as Strategy 1 already shows its later rounds (#147, leftover of issue #88).
+- Release zips carry the server's version information, so the title screen's version line, "What's new" and "About this server" work on a release install too (#147, leftover of issues #98–#100).
+- The Chinese player guide links Fish Edition's repository and issues instead of the upstream ones (#147).
 - New bot profile, Evobot: the best version of the basic bot that last weekend's evolution search found. From round 9 it sells the single tier 1 and tier 2 Operators in its hand; from round 5 until the Final Assault it buys stack items (Identification Device, Simple Communicator, Dispatch Module) and funds items (Money-Grubbing Doll, Knightly Savings, Budget-Savvy Doll) when the shop shows them, keeping 9 funds. The host can pick it for an AI seat (#159).
 - Custom Lobby Modifications: a room you create starts with the rules you last used (remembered in this browser), and the rules dialog has a "Clear all" button (#148, issue #143).
 - Match records (for the server owner's analysis) now also log the shop a refresh leaves after its own effects, such as Du Yaoye's Yan offer; before, they held only the roll before those effects (#146, issue #90).
