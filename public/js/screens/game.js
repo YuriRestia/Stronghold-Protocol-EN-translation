@@ -87,7 +87,7 @@ import { ruleOption } from '../../../shared/plugins/rules.js';
 import { html, Spinner, PhaseBanner, ResultDialog, Icon, Button, confirmDialog, closeAllDialogs, useTicker } from '../ui/components.js';
 import { useGameData, GIcon } from '../ui/gameComponents.js';
 import { useFieldView } from '../ui/fieldHost.js';
-import { TopBar, liveLp, ownLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
+import { TopBar, liveLp, ownLeaks, lastLineExtra, pendingLpLeaks, uniteRemaining, tempInfo, tempReadyReason } from '../ui/hud.js';
 import { BondStrip, BondPopup } from '../ui/bondStrip.js';
 import { TeamPanel } from '../ui/teamPanel.js';
 import { ShopBar } from '../ui/shopBar.js';
@@ -375,9 +375,12 @@ function MatchScreen() {
   const uniteLocal = phase === PHASE.UNITE && battleState && battleState.uniteLeft ? battleState.uniteLeft : null;
   const leaker = phase === PHASE.UNITE && Array.isArray(pub?.unite?.leakers) && pub.unite.leakers.includes(myId);
   const localLeft = leaker && uniteLocal ? (uniteLocal[myId] ?? 0) : undefined;
+  // SPA-CC Last Line of Defense (GitHub #123): its LP on top of the leaks'; the server's pendingLp already has it
+  const lastLine = lastLineExtra(pub?.rules);
+  const serverLeaks = pendingLpLeaks(meP?.pendingLp, lastLine);
   const liveLpNow = liveLp(lpBaseRef.current, {
-    phase, round: pub?.round, lp: priv?.lp, statsLeaks: priv?.stats?.leaks, alive,
-    leaks: ownLeaks(localLeaks, meP?.pendingLp), cap: gd.config?.lpCapPerRound,
+    phase, round: pub?.round, lp: priv?.lp, statsLeaks: priv?.stats?.leaks, alive, extra: lastLine,
+    leaks: ownLeaks(localLeaks, serverLeaks), cap: gd.config?.lpCapPerRound,
     uniteLeft: leaker ? uniteRemaining(localLeft, meP?.uniteLeft) : null,
   });
   lpBaseRef.current = liveLpNow.base;
@@ -390,11 +393,12 @@ function MatchScreen() {
   if (isCombatPhase(phase) && alive) {
     const prev = roundLossRef.current;
     const same = !!prev && prev.round === pub?.round;
-    const leaks = ownLeaks(localLeaks, meP?.pendingLp);
+    const leaks = ownLeaks(localLeaks, serverLeaks);
     roundLossRef.current = {
       round: pub?.round,
       leaks: same ? Math.max(prev.leaks, leaks) : leaks,
       cap: gd.config?.lpCapPerRound,
+      extra: lastLine,
       unite: phase === PHASE.UNITE || (same && prev.unite),
     };
   }
