@@ -14,7 +14,7 @@ const soloBot = (opts = {}) => makeMatch({ mode: 'solo', difficulty: 'NORMAL', f
 
 test('the default strategy is the original bot functions with no wrapping or policy changes', () => {
   // (fork, 2026-11-11) External AI is shelved: not registered unless SP_UNSHELVE_EXTERNAL_AI=1; (Fish Edition) + the tactics profiles
-  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'ioleta', 'adaptive', 'ioleta-adaptive', 'fish-level', 'fish-tier6', 'fish-patriot', 'legacy-layered']);
+  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'ioleta', 'adaptive', 'ioleta-adaptive', 'fish-level', 'fish-tier6', 'fish-patriot', 'evobot', 'legacy-layered']);
   assert.equal(getBotStrategy(), LEGACY_BOT);
   assert.equal(getBotStrategy(''), LEGACY_BOT);
   assert.equal(LEGACY_BOT.pickBand, legacy.botPickBand);
@@ -74,7 +74,7 @@ test('strategies override individual hooks and inherit their base without mutati
   assert.ok(Object.isFrozen(registry));
   assert.equal(getBotStrategy('last-card', registry).pickCard, pickCard);
   assert.equal(getBotStrategy('legacy', registry), LEGACY_BOT);
-  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'ioleta', 'adaptive', 'ioleta-adaptive', 'fish-level', 'fish-tier6', 'fish-patriot', 'legacy-layered'], 'a local registry cannot leak into other rooms');
+  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'ioleta', 'adaptive', 'ioleta-adaptive', 'fish-level', 'fish-tier6', 'fish-patriot', 'evobot', 'legacy-layered'], 'a local registry cannot leak into other rooms');
 });
 
 test('unknown names, duplicate registrations, malformed hooks and misspellings fail early', () => {

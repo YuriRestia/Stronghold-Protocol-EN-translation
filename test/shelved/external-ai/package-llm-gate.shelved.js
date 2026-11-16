@@ -85,7 +85,7 @@ test('the marker wins over a present host, and a dev checkout still registers ex
   assert.equal(getBotStrategy('external').id, 'external');
   assert.equal(getBotStrategy('external').decide, EXTERNAL_BOT.decide);
   // (fork) the tactics profiles (server/match/botTacticsBasic.js, botTacticsLegacy.js) after upstream's strategies
-  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'external', 'ioleta', 'adaptive', 'ioleta-adaptive', 'fish-level', 'fish-tier6', 'fish-patriot', 'legacy-layered']);
+  assert.deepEqual(Object.keys(BOT_STRATEGIES), ['legacy', 'external', 'ioleta', 'adaptive', 'ioleta-adaptive', 'fish-level', 'fish-tier6', 'fish-patriot', 'evobot', 'legacy-layered']);
 });
 
 test('a packaged server boots and plays a bot match while ignoring external-AI settings', { timeout: 120_000 }, async () => {

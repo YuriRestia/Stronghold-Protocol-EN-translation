@@ -2754,6 +2754,8 @@
   "按模式长度换算的升级曲线，其余同基础 AI": "Levels up on a curve scaled to the mode's length; otherwise the basic bot",
   "六星优先": "Tier 6 first",
   "优先购买六星干员，升级到 6 级，其余同基础 AI": "Buys tier 6 Operators first and levels up to 6; otherwise the basic bot",
+  "进化 AI": "Evobot",
+  "进化搜索调出的基础 AI：后期卖掉低星单张干员，并购买叠层与资金道具": "The basic bot tuned by an evolution search: sells single low-tier Operators late and buys stack and funds items",
   "伊奥莱塔开局": "Ioleta opening",
   "开局优先选择伊奥莱塔盟约": "Picks the Ioleta Russell Alliance at the start when it can",
   "自适应布阵": "Adaptive placement",

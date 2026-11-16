@@ -8,6 +8,7 @@
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- New bot profile, Evobot: the best version of the basic bot that last weekend's evolution search found. From round 9 it sells the single tier 1 and tier 2 Operators in its hand; from round 5 until the Final Assault it buys stack items (Identification Device, Simple Communicator, Dispatch Module) and funds items (Money-Grubbing Doll, Knightly Savings, Budget-Savvy Doll) when the shop shows them, keeping 9 funds. The host can pick it for an AI seat (#159).
 - Custom Lobby Modifications: a room you create starts with the rules you last used (remembered in this browser), and the rules dialog has a "Clear all" button (#148, issue #143).
 - Match records (for the server owner's analysis) now also log the shop a refresh leaves after its own effects, such as Du Yaoye's Yan offer; before, they held only the roll before those effects (#146, issue #90).
 - Fixed the LP loss shown during a battle (top bar, team list) and in the round's result box leaving out Last Line of Defense's extra 2 LP: a round with 10 or more leaks now shows −12, as the settlement charges. The LP tooltip names the extra LP (#145, issue #123).

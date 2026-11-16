@@ -11,6 +11,7 @@ export const ROOM_BOTS = Object.freeze([
   { id: 'legacy', label: N_('基础 AI'), desc: N_('原版 AI，未选择时的默认') },
   { id: 'fish-level', label: N_('升级曲线'), desc: N_('按模式长度换算的升级曲线，其余同基础 AI') },
   { id: 'fish-tier6', label: N_('六星优先'), desc: N_('优先购买六星干员，升级到 6 级，其余同基础 AI') },
+  { id: 'evobot', label: N_('进化 AI'), desc: N_('进化搜索调出的基础 AI：后期卖掉低星单张干员，并购买叠层与资金道具') },
   { id: 'ioleta', label: N_('伊奥莱塔开局'), desc: N_('开局优先选择伊奥莱塔盟约') },
   { id: 'adaptive', label: N_('自适应布阵'), desc: N_('按地图搜索部署位置') },
   { id: 'ioleta-adaptive', label: N_('伊奥莱塔开局 + 自适应布阵'), desc: N_('伊奥莱塔开局，并按地图搜索部署位置') },
