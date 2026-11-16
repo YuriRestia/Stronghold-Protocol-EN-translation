@@ -2465,6 +2465,7 @@
   "{name}同时属于【{a}】【{b}】【{c}】": "{name} belongs to [{a}], [{b}] and [{c}]",
   "不影响结算标签": "no effect on the result labels",
   "作弊": "Cheats",
+  "作弊、盟约调整与风险词条：开局前由创建者设置": "Cheats, Alliance changes and Risk tags: the room creator sets them before the match",
   "使用自定义房间改动时无法搜寻队友": "Can't search for teammates with Custom Lobby Modifications on",
   "减少随机": "Less luck",
   "原版效果": "The original effect",
