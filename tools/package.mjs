@@ -137,7 +137,8 @@ export const PLAYER_TOOLS = ['tools/crop-board-atlas.mjs', 'tools/doctor.mjs', '
 /** Whole tool directories: fetch-assets' modules, the local-client extraction setup runs. */
 export const PLAYER_TOOL_DIRS = ['tools/assets/', 'tools/local-extract/'];
 /** Whole runtime directories (their tracked files). */
-export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/', 'schemas/'];
+// (fork, GitHub #158) changes-fish/: the Fish Edition changelog fragments the server folds into /CHANGELOG(.en).md
+export const RUNTIME_DIRS = ['server/', 'shared/', 'data/', 'public/', 'packs/', 'schemas/', 'changes-fish/'];
 /** Written into the stage, never taken from the checkout: the pack index of the shipped packs, and the release marker. */
 export const GENERATED_PACK_INDEX = 'packs/index.json';
 /**
