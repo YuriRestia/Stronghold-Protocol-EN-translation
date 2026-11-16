@@ -8,6 +8,7 @@
 
 This server's own changes. Their numbers are the pull requests of [Fish Edition](https://github.com/evenifyouforget/Stronghold-Protocol-EN).
 
+- Improv: "View Fields" pulls the Improv overlay away to check your Field, the Alliances and teammates' Fields (tap a teammate); the tab at the top, with the countdown, brings it back (#153).
 - New cheat, Damazti Isomorph+ (#150): worn with the Isomorph, more items that sound like an Alliance's make the holder its member: Tianshi's Cauldron (Yan), Steam Heart (Victoria), Kjeragandr's Tears (Kjerag), Desert Compass (Sargon), Trench Test Subject (Aegir), Chivalric Commandments, Pegasian Helm and Pegasian Lance (Kazimierz), Famiglia Insignia (Siracusa), Gun-Knight's Might (Laterano) and Laser Sighter (Arcane). Isomorph++ also pairs the Miniature Accelerator with Agile. The items are still no Alliance items of their own.
 - Fixed SPA-CC Strategy's tag texts in the game: the Strategy texts now show the rounds that come later (#150).
 - Settings: "Name in match records" (off by default). Turn it on and enter a public name, and the records of your next matches carry it, so a clear can be credited to you. Other players' records stay anonymous (#154).

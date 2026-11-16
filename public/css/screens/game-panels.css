@@ -457,6 +457,19 @@ button.bpop__harmony:hover { border-style: solid; color: #fff; }
 }
 .gm.has-sp .gm__bonds, .gm.has-sp .gm__effects { opacity: 0; pointer-events: none; transition: opacity var(--t-med); }
 .spov__veil { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 10, 10, .58) 0, rgba(8, 10, 10, .8) .5rem, rgba(8, 10, 10, .82)); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); border-left: 1px solid var(--line); }
+/* (fork, GitHub #105) 查看阵地: the overlay pulled away; only its tab stays, and presses reach the boards below */
+.spov__peek { display: flex; align-items: center; gap: .06rem; height: .48rem; padding: 0 .14rem 0 .08rem; font-size: calc(.17 * var(--t)); font-weight: 700;
+  color: var(--mint-500, #4fe8c0); background: rgba(8, 11, 10, .9); border: 2px solid currentColor; cursor: pointer; }
+.spov__peek .icon { width: .22rem; height: .22rem; transform: rotate(90deg); }
+.spov.is-peek { pointer-events: none; display: flex; justify-content: center; align-items: flex-start; padding-top: 1.0rem; }
+.spov__peekbar { display: flex; align-items: center; gap: .1rem; padding: .08rem .2rem; font-size: calc(.18 * var(--t)); font-weight: 700; color: #eef0ef;
+  background: rgba(8, 11, 10, .92); border: 2px solid var(--line-3, #555); box-shadow: 0 .04rem .14rem rgba(0, 0, 0, .45); cursor: pointer; pointer-events: auto; }
+.spov__peekbar .spov__peekicon { width: .22rem; height: .22rem; transform: rotate(90deg); }
+.spov__peekbar small { font-size: calc(.14 * var(--t)); font-weight: 400; color: #b9bfbc; }
+.spov__peekbar.is-mine { border-color: var(--mint-500, #4fe8c0); box-shadow: 0 0 .2rem rgba(79, 232, 192, .45); }
+.spov__peekbar.is-mine small { color: var(--mint-500, #4fe8c0); }
+.gm.is-sppeek .gm__bonds, .gm.is-sppeek .gm__effects { opacity: 1; pointer-events: auto; }
+.gm.is-sppeek .gm__bonds .bstrip-fit * { pointer-events: auto; }
 .spov__inner { position: absolute; left: .3rem; right: .5rem; top: 1.14rem; bottom: .5rem; display: flex; flex-direction: column; gap: .16rem; animation: screen-in var(--t-slow) var(--ease-out); }
 .spov__head { display: flex; align-items: center; justify-content: space-between; gap: .3rem; }
 /* 「悬赏决策 |」 then the description over the timing line, beside the bar; a faint bracket behind the title */
