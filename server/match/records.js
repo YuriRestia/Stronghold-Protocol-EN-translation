@@ -13,6 +13,9 @@
 //     leaks (botbench's row, tools/botbench.mjs); a round without a SETTLE gets one too: `noSettle: true` when the next
 //     round starts (the Final Assault won goes straight to the Hidden Core), `final: true` for the round the match ended in
 //     (a final boss or hidden round ends without a SETTLE; GitHub #59).
+//   * setup — per seat, what the seat brought into the match (GitHub #104: a replay rebuilds the match from its seed and
+//     these): the operator loadout and 潜能 / 练度 (`loadout`, `ops`), the 补位 list (`notOwned`) and the 自选 picks
+//     (`diy`); empty ones left out. A loadout changed in the match (Match.setLoadout) is an action, `loadout`.
 //   * battles — every field's BattleSpec (server/sim/spec.js: deterministic, so the spec replays the battle) with the
 //     digest of the result the match used (resultDigest) and each seat's killed / total / leaks / perfect.
 // finishRecord(m, summary) returns the record with every playerId replaced by its seat id (`s0`…`s3`).
@@ -43,8 +46,9 @@ const ok = (res) => !(res && typeof res === 'object' && res.error);
 
 /** @param {any} m the Match */
 export function installRecorder(m) {
-  const rec = { actions: [], rounds: [], battles: [] };
+  const rec = { actions: [], rounds: [], battles: [], setup: new Map() };
   m._record = rec;
+  for (const ps of m.players.values()) rec.setup.set(ps.playerId, seatSetup(ps));
   const base = (ps) => ({ r: m.round, s: `s${ps.seat}`, ...(ps.botControlled ? { bot: 1 } : {}) });
   // one action at a time per seat: an action's nested calls (a buy that merges, a sell that stows) are part of it
   const open = new Map();
@@ -122,6 +126,15 @@ export function installRecorder(m) {
   wrapM('requestOffer', (ps, [offerId, idx]) => ({ a: 'offer', offerId, idx }));
   wrapM('requestOfferRefresh', (ps, [offerId, idx]) => ({ a: 'offerRefresh', offerId, idx }));
   wrapM('setAutoplay', (ps, [on]) => ({ a: 'autoplay', on: !!on }));
+  // the loadout set in the match (INFO_CHECK, or PREP with prepLoadout): the arguments as sent (GitHub #104)
+  const setLoadout = m.setLoadout;
+  if (typeof setLoadout === 'function') {
+    m.setLoadout = function (playerId, loadout, ops) {
+      const ps = this === m ? m.players.get(playerId) : null;
+      if (!ps) return setLoadout.apply(this, arguments);
+      return act(ps, { a: 'loadout', loadout: loadout ?? null, ...(ops !== undefined ? { ops } : {}) }, () => setLoadout.apply(this, arguments));
+    };
+  }
 
   // every field: its spec when it is made, its outcome when it is done
   const ccField = m._ccField;
@@ -217,6 +230,7 @@ export function finishRecord(m, summary) {
       return {
         seat: `s${ps.seat}`, human: !ps.isBot, band: ps.bandId ?? null, roundsPassed: row ? row.roundsPassed : null,
         left: !!ps.left, autoplay: !!ps.autoplay, title: row?.title?.id ?? null, stats: row?.stats ?? null,
+        ...(rec.setup?.get(ps.playerId) ? { setup: rec.setup.get(ps.playerId) } : {}),
       };
     }),
     result: summary ? { victory: !!summary.victory, reason: summary.reason ?? null, roundsPassed: summary.roundsPassed ?? 0, hiddenReached: !!summary.hiddenReached, hiddenCleared: !!summary.hiddenCleared, teamLp: summary.teamLp ?? null } : null,
@@ -230,6 +244,17 @@ export function finishRecord(m, summary) {
     delete b.result;
   }
   return anon;
+}
+
+/** A seat's setup (GitHub #104): its loadout, 潜能 / 练度, 补位 list and 自选 picks as the match accepted them; null when all are empty (bots). */
+function seatSetup(ps) {
+  const out = {};
+  const put = (k, v) => { if (v && (Array.isArray(v) ? v.length : Object.keys(v).length)) out[k] = JSON.parse(JSON.stringify(v)); };
+  put('loadout', ps.loadout);
+  put('ops', ps.ops);
+  put('notOwned', ps.standIns);
+  put('diy', ps.diy);
+  return Object.keys(out).length ? out : null;
 }
 
 /** A JSON copy of `value` with each playerId (`p_` + 10 hex, `ai_` + 8 hex: never part of other text) replaced. */
